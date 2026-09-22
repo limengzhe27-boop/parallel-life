@@ -218,13 +218,13 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |ID|状态|角色|硬依赖|任务与完成标准|交付证据|
 |---|---|---|---|---|---|
-|H-01|[ ] 待验收|F|U-02|手机桌面/壁纸、应用打开/返回、通知定位、PC 辅助面板和滚动位置恢复|89951e4（task/h-01）；独立工作树 docs/task-reports/H-01.md；36 项测试、构建及 390/768/1440 浏览器检查通过；待 I 合并验收|
+|H-01|[x] 已完成|F|U-02|手机桌面/壁纸、应用打开/返回、通知定位、PC 辅助面板和滚动位置恢复|I自审：89951e4/a2bbcdb已合入并通过导航/滚动与手机PC检查；最新锁屏归U-06继续待验收|
 |H-02|[ ] 待开发|B|W-01|授权应用查询投影、分页/版本刷新；消息/日历/相册引用同一事件，不各自生成剧情|—|
-|H-03|[ ] 待开发|F|H-01|消息列表、联系人、人设摘要、聊天输入、未读/重试和关联内容跳转；契约夹具可独立开发|—|
+|H-03|[ ] 进行中|F|H-01|消息列表、联系人、人设摘要、聊天输入、未读/重试和关联内容跳转；契约夹具可独立开发|分配codex-f-01a0c7c8；103af3b独立UI基线，按PHONE_APPS_HANDOFF.md；I负责真实对接|
 |H-04|[ ] 待开发|F|H-01|朋友圈列表/详情、评论/点赞和自己的动态编辑；不伪造真人参与|—|
-|H-05|[ ] 待开发|F|H-01|日期相册、照片详情、生成/失败/重试和事件跳转；手机/PC 浏览|—|
+|H-05|[ ] 进行中|F|H-01|日期相册、照片详情、生成/失败/重试和事件跳转；手机/PC 浏览|分配codex-f-01a0c7c8；103af3b独立UI基线，按PHONE_APPS_HANDOFF.md；I负责真实对接|
 |H-06|[ ] 待开发|B|H-02,W-03|朋友圈互动、日历接受/改期/取消、便签编辑命令；真实存储和权限，相关角色只获知应知变化|—|
-|H-07|[ ] 待开发|F|H-01|日历、便签、邀约确认与编辑；契约夹具先行，提议不显示为已接受|—|
+|H-07|[ ] 进行中|F|H-01|日历、便签、邀约确认与编辑；契约夹具先行，提议不显示为已接受|分配codex-f-01a0c7c8；103af3b独立UI基线，按PHONE_APPS_HANDOFF.md；I负责真实对接|
 |V-03|[ ] 待开发|Q|W-04,H-03,H-04,H-05,H-06,H-07,M-03|真实聊天邀约→日历确认→事件推进→朋友圈/相册/便签联动；通知、未读和失败恢复一致|—|
 
 ### L · 导演、时间与多人生
@@ -298,13 +298,15 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
-|H-01|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/H-01.md|分支 task/h-01；端口 3220；不使用数据库、模型或私有素材|2026-09-22T08:18:19.493554+00:00；已提交 89951e4；待验收；报告在 .local/worktrees/H-01/docs/task-reports/H-01.md；预览已停止；保留归属待集成|
 |U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/U-06.md|沿用 task/h-01；端口 3220；不接数据库/模型/私有素材|2026-09-22T10:52:19.134628+00:00；103af3b 待验收；用户要求续做四应用 UI，由 I 对接产品；已向 I 发分工/展示类型建议，等待 H-01 硬依赖验收和 H-03/05/07 边界确认；暂只读梳理|
 |D-04|codex-main-01a0c73b|I / 单人|主登记目录|src/features/discovery、src/features/api/client.ts、docs/task-reports/D-04.md|本项目本地环境，串行写入|2026-09-22：已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |U-05|codex-main-01a0c73b|I / 单人|主登记目录|共享导航与布局、interview/discovery、设计文档及报告|本项目本地环境，串行写入|2026-09-22：恢复固定聊聊/如果/我的；我的整页与聊天共享档案，所有已保存分支集中展示；40项检查及手机PC验证通过|
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|interview、phone-first样式、欢迎预览、设计文档与报告|本项目本地环境，串行写入|2026-09-22：聊天直接进入，姓名生日内嵌选填；我的补充六项资料；四种视口与40项检查、构建通过|
 |U-04|codex-main-01a0c73b|I / 单人|主登记目录|interview、phone-first样式、欢迎预览、设计文档与报告|本项目本地环境，串行写入|2026-09-22：聊天直接进入，姓名生日内嵌选填；我的补充六项资料；四种视口与40项检查、构建通过|
 |D-06|codex-main-01a0c73b|I / 单人|主登记目录|world创建契约/仓储/Worker、迁移0006、server/API、discovery/phone入口、测试与文档|本项目本地环境，串行写入|2026-09-22：文字世界创建、快照和手机读取已实现；41单元、11真实库与界面样板通过；Worker被自动审批拦截，待外传授权后真实模型实测|
+|H-03|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|I已分配，按PHONE_APPS_HANDOFF.md；主任务负责真实adapter|
+|H-05|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|I已分配，按PHONE_APPS_HANDOFF.md；主任务负责真实adapter|
+|H-07|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|I已分配，按PHONE_APPS_HANDOFF.md；主任务负责真实adapter|
 
 开始时登记基线提交（Git 建立后）、依赖、具体文件、端口/数据库资源与验收方式。单人也登记。临时需要改公共文件由 I 协调并更新允许范围，避免覆盖他人工作。
 
@@ -371,3 +373,5 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 - 2026-09-22：为先跑通可体验主线，新增 D-06 文字世界创建，D-03 保留媒体集成验收，未取消图片或角色功能。总计72项。
 
 - 2026-09-22：用户明确要求上传与部署，新增R-05提前发布接入任务；R-03/R-04完整生产验收仍保留。总计73项。
+
+- 2026-09-22：I验收H-01主线既有基础；U-06锁屏仍待合并。H-03/H-05/H-07交codex-f-01a0c7c8按PHONE_APPS_HANDOFF.md开发，主任务负责真实接入。
