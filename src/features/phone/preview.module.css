@@ -20,3 +20,15 @@
 .caption a:hover {
   opacity: 0.8;
 }
+.caption button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  min-height: 24px;
+  cursor: pointer;
+}
+.caption button:hover {
+  opacity: 0.75;
+}

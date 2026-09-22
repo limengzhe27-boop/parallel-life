@@ -1,12 +1,22 @@
 .phone {
-  --phone-white: #f3f5f6;
-  --phone-ink: var(--ink, #20282e);
-  --phone-page: var(--paper, #f4f3ef);
-  --phone-glass: rgba(var(--shadow-rgb, 0, 0, 0), 0.32);
-  --phone-message: var(--success, #74ce9a);
-  --phone-photo: var(--accent, #3989ff);
-  --phone-notes: var(--warning, #edc58b);
-  --phone-coral: var(--error, #ff9d9d);
+  --phone-white: #fff;
+  --phone-ink: #111;
+  --phone-page: #f2f2f7;
+  --phone-blue: #007aff;
+  --phone-wechat: #07c160;
+  --phone-note-yellow: #ffcc02;
+  --phone-rule: #d1d1d6;
+  --phone-petal-red: #ff3b30;
+  --phone-petal-orange: #ff9500;
+  --phone-petal-yellow: #ffcc00;
+  --phone-petal-lime: #a8cd37;
+  --phone-petal-green: #34c759;
+  --phone-petal-cyan: #32ade6;
+  --phone-petal-blue: #5856d6;
+  --phone-petal-purple: #af52de;
+  --phone-glass: rgba(245, 245, 250, 0.28);
+  --phone-notification: rgba(245, 245, 250, 0.88);
+  --phone-shadow: rgba(0, 0, 0, 0.18);
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -18,8 +28,9 @@
   overflow: hidden;
   container-type: size;
   color: var(--phone-white);
-  background: var(--bg);
-  font-family: var(--font-body);
+  background: var(--phone-ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif;
+  letter-spacing: 0;
 }
 .phone [hidden] {
   display: none !important;
@@ -30,8 +41,8 @@
   -webkit-tap-highlight-color: transparent;
 }
 .phone button:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 3px;
+  outline: 2px solid var(--phone-blue);
+  outline-offset: 4px;
 }
 .phone button:disabled {
   opacity: 0.45;
@@ -49,16 +60,12 @@
 }
 .shade {
   z-index: -1;
-  background: linear-gradient(
-    rgba(var(--shadow-rgb), 0.22),
-    rgba(var(--shadow-rgb), 0.04) 45%,
-    rgba(var(--shadow-rgb), 0.34)
-  );
+  background: linear-gradient(rgba(0, 0, 0, 0.2), transparent 35%, rgba(0, 0, 0, 0.12));
 }
 .notice {
   flex-shrink: 0;
-  padding: 6px 16px;
-  background: var(--phone-glass);
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.4);
   font-size: 10px;
   text-align: center;
   color: var(--phone-white);
@@ -68,17 +75,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: max(8px, env(safe-area-inset-top)) 16px 0;
+  padding: max(8px, env(safe-area-inset-top)) 20px 0;
   min-height: 52px;
   flex-shrink: 0;
 }
-.lifeLabel {
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  overflow-wrap: anywhere;
+.statusTime {
+  font-size: 17px;
+  font-weight: 600;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
 }
 .smallTime {
-  font-size: 12px;
+  font-size: 13px;
 }
 .headerButton {
   min-width: 44px;
@@ -86,10 +94,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 0;
   border: 0;
   border-radius: 12px;
-  color: inherit;
+  color: var(--phone-blue);
   background: transparent;
 }
 .headerButton svg {
@@ -97,10 +105,10 @@
   height: 24px;
 }
 .headerButton:hover {
-  background: rgba(var(--shadow-rgb), 0.08);
+  background: var(--phone-shadow);
 }
 .headerButton:active {
-  transform: scale(0.97);
+  opacity: 0.6;
 }
 .scroll,
 .panelPage {
@@ -112,24 +120,9 @@
 }
 .home {
   min-height: 100%;
-  padding: 8px 24px 28px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-}
-.clock {
-  text-align: center;
-  padding: 16px 0 30px;
-}
-.clock > span {
-  font-size: 76px;
-  line-height: 1.15;
-  font-weight: 300;
-  letter-spacing: -0.055em;
-}
-.clock p {
-  font-size: 14px;
-  color: inherit;
-  margin: 10px 0 0;
 }
 .notifications {
   display: grid;
@@ -138,16 +131,16 @@
 .notification {
   width: 100%;
   border: 0;
-  min-height: 76px;
-  padding: 12px;
+  min-height: 78px;
+  padding: 13px 15px;
   display: flex;
   gap: 10px;
   align-items: center;
   text-align: left;
-  border-radius: 20px;
-  background: var(--phone-glass);
+  border-radius: 24px;
+  background: var(--phone-notification);
   backdrop-filter: blur(12px);
-  color: var(--phone-white);
+  color: var(--phone-ink);
 }
 .notification > span:nth-child(2) {
   flex: 1;
@@ -160,128 +153,149 @@
   display: block;
 }
 .notification small {
-  font-size: 10px;
-  opacity: 0.85;
+  font-size: 11px;
+  opacity: 0.65;
 }
 .notification strong {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
 }
 .notification > span > span {
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.45;
 }
 .notification > svg {
-  width: 16px;
+  width: 14px;
   flex-shrink: 0;
+  opacity: 0.4;
 }
 .notificationIcon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 .notificationIcon svg {
-  width: 22px;
-  height: 22px;
+  width: 23px;
+  height: 23px;
 }
 .notification:hover {
-  background: rgba(var(--shadow-rgb), 0.45);
+  background: var(--phone-white);
 }
 .notification:active {
   transform: scale(0.99);
 }
-.quiet {
-  color: inherit;
-  font-size: 12px;
-  text-align: center;
-  padding: 12px;
-}
-.launchers {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 36px;
-}
 .launcher {
   min-width: 0;
-  min-height: 82px;
+  min-height: 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
   border: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   color: inherit;
   background: transparent;
-  font-size: 12px !important;
   transition: transform 0.14s;
 }
 .appIcon {
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   display: grid;
   place-items: center;
-  border-radius: 17px;
-  box-shadow: 0 5px 12px rgba(var(--shadow-rgb), 0.15);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px var(--phone-shadow);
+}
+.appIcon > svg {
+  width: 46px;
+  height: 46px;
+}
+.appIcon.notes > svg {
+  width: 60px;
+  height: 60px;
+}
+.appIcon.messages > svg {
+  width: 42px;
+  height: 42px;
+}
+.appLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .launcher:hover {
   transform: translateY(-2px);
 }
 .launcher:active {
-  transform: scale(0.93);
+  transform: scale(0.9);
 }
 .messages {
-  background: var(--phone-message);
-  color: var(--phone-ink);
-}
-.photos {
-  background: var(--phone-photo);
+  background: var(--phone-wechat);
   color: var(--phone-white);
 }
-.calendar {
-  background: var(--phone-page);
-  color: var(--phone-ink);
-}
+.photos,
+.calendar,
 .notes {
-  background: var(--phone-notes);
+  background: var(--phone-white);
   color: var(--phone-ink);
 }
-.moments {
-  background: var(--phone-coral);
-  color: var(--phone-ink);
+.calendarFace {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
 }
-.schedule {
-  background: var(--phone-page);
-  color: var(--phone-ink);
+.calendarFace > span {
+  font-size: 10px;
+  line-height: 15px;
+  color: var(--phone-petal-red);
+  font-weight: 600;
 }
-.timeline {
-  background: var(--phone-message);
-  color: var(--phone-ink);
-}
-.director {
-  background: var(--phone-ink);
-  color: var(--phone-white);
+.calendarFace strong {
+  font-size: 37px;
+  line-height: 38px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
 }
 .dock {
   flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 16px max(16px, env(safe-area-inset-bottom));
-  padding: 14px 8px 8px;
+  gap: 12px;
+  margin: 0 12px;
+  padding: 17px 14px;
   background: var(--phone-glass);
   backdrop-filter: blur(12px);
-  border-radius: 28px;
+  border-radius: 34px;
+}
+.gestureArea {
+  height: max(30px, env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.gestureArea > span {
+  height: 5px;
+  width: 134px;
+  border-radius: 5px;
+  background: currentColor;
 }
 .title {
   flex-shrink: 0;
-  font-family: var(--font-body);
-  font-size: 24px;
-  font-weight: 600;
-  padding: 8px 24px 16px;
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  padding: 6px 20px 14px;
   color: inherit;
 }
 .phone[data-screen='page'] {
@@ -294,7 +308,7 @@
 }
 .appContent,
 .panelPage {
-  padding: 0 24px max(24px, env(safe-area-inset-bottom));
+  padding: 0 20px 24px;
   overflow-wrap: anywhere;
   animation: phoneEnter 0.2s ease-out;
 }
@@ -328,7 +342,7 @@
 .fixtureRow {
   padding: 20px 4px;
   border: 0;
-  border-bottom: 1px solid rgba(var(--shadow-rgb), 0.12);
+  border-bottom: 1px solid var(--phone-rule);
   background: transparent;
   color: inherit;
   text-align: left;
@@ -339,10 +353,10 @@
   opacity: 0.65;
 }
 .fixtureRow:hover {
-  background: rgba(var(--shadow-rgb), 0.05);
+  background: var(--phone-white);
 }
 .fixtureRow:active {
-  transform: translateY(1px);
+  opacity: 0.6;
 }
 .fixturePanel {
   display: grid;
@@ -350,51 +364,35 @@
 }
 .fixturePanel p {
   padding: 20px 0;
-  border-bottom: 1px solid rgba(var(--shadow-rgb), 0.12);
+  border-bottom: 1px solid var(--phone-rule);
 }
 @keyframes phoneEnter {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
 @container (max-height:600px) {
-  .clock {
-    padding: 0 0 16px;
-  }
-  .clock > span {
-    font-size: 52px;
-  }
-  .clock p {
-    margin-top: 4px;
-    font-size: 12px;
-  }
   .home {
-    padding: 4px 20px 16px;
-  }
-  .launchers {
-    padding-top: 16px;
-  }
-  .appIcon {
-    width: 48px;
-    height: 48px;
-    border-radius: 15px;
-  }
-  .launcher {
-    min-height: 70px;
-    gap: 4px;
+    padding: 8px 16px;
   }
   .dock {
-    padding-top: 10px;
-    margin-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-block: 14px;
   }
-  .notification {
-    min-height: 66px;
-    padding: 10px;
+  .header {
+    min-height: 48px;
+  }
+}
+@container (max-width:350px) {
+  .dock {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+  .appIcon {
+    width: 56px;
+    height: 56px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -404,16 +402,239 @@
     scroll-behavior: auto !important;
   }
 }
-/* Full-height internal pages fade without shifting their viewport boundary. */
-.panelPage {
-  animation-name: phonePageFade;
+.statusBar {
+  height: 58px;
+  padding: max(5px, env(safe-area-inset-top)) 24px 0;
+  display: grid;
+  grid-template-columns: 1fr 126px 1fr;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 4;
 }
-@keyframes phonePageFade {
+.statusBar .statusTime {
+  padding: 0 0 0 8px;
+  font-size: 15px;
+}
+.island {
+  width: 126px;
+  height: 46px;
+  background: transparent;
+  border: 0;
+  padding: 6px 0;
+  color: var(--phone-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.island:disabled {
+  opacity: 1 !important;
+  cursor: default !important;
+}
+.islandPill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 34px;
+  border-radius: 24px;
+  background: var(--phone-ink);
+}
+.lens {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--phone-blue), var(--phone-ink) 65%);
+  margin-left: 80px;
+}
+.island:hover:not(:disabled) .islandPill {
+  box-shadow: 0 0 0 2px var(--phone-shadow);
+}
+.indicators {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.unlockedContent {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.lockScreen {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  animation: phoneEnter 0.22s ease-out;
+}
+.lockScroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.lockContent {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 22px 16px 12px;
+}
+.lockClock {
+  text-align: center;
+  flex-shrink: 0;
+  padding-bottom: 36px;
+}
+.lockClock > svg {
+  margin-bottom: 10px;
+}
+.lockClock > p {
+  color: inherit;
+  font-size: 19px;
+  font-weight: 500;
+  margin: 0;
+}
+.lockClock > div {
+  font-size: 88px;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.055em;
+  font-variant-numeric: tabular-nums;
+}
+.lockNotifications {
+  margin-top: auto;
+  padding-top: 16px;
+}
+.unlock {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  min-height: 76px;
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 17px;
+  padding: 12px 16px max(9px, env(safe-area-inset-bottom));
+  touch-action: none;
+}
+.unlock > span {
+  font-size: 14px;
+  font-weight: 500;
+}
+.unlock > i,
+.homeGesture > span {
+  height: 5px;
+  width: 134px;
+  border-radius: 5px;
+  background: currentColor;
+}
+.unlock:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.homeGesture {
+  min-height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 8px 0 max(9px, env(safe-area-inset-bottom));
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.homeGesture:hover > span {
+  opacity: 0.65;
+}
+.banner {
+  position: absolute;
+  z-index: 8;
+  top: calc(60px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  animation: bannerEnter 0.3s ease-out;
+  color: var(--phone-ink);
+}
+.phone:has(> .notice) .banner {
+  top: calc(84px + env(safe-area-inset-top));
+}
+.banner .notification {
+  padding-right: 36px;
+  box-shadow: 0 8px 24px var(--phone-shadow);
+}
+.dismissBanner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--phone-ink);
+  font-size: 22px !important;
+  opacity: 0.6;
+}
+.dismissBanner:hover {
+  opacity: 1;
+}
+.launcher {
+  position: relative;
+}
+.badge {
+  position: absolute;
+  top: -4px;
+  right: 3px;
+  min-width: 22px;
+  height: 22px;
+  line-height: 22px;
+  padding: 0 5px;
+  border-radius: 12px;
+  background: var(--phone-petal-red);
+  color: var(--phone-white);
+  font-size: 13px;
+  font-weight: 500;
+}
+@keyframes bannerEnter {
   from {
     opacity: 0;
+    transform: translateY(-22px);
   }
   to {
     opacity: 1;
+    transform: none;
+  }
+}
+@container (max-height:600px) {
+  .statusBar {
+    height: 52px;
+  }
+  .lockContent {
+    padding-top: 4px;
+  }
+  .lockClock {
+    padding-bottom: 12px;
+  }
+  .lockClock > div {
+    font-size: 64px;
+  }
+  .lockClock > p {
+    font-size: 16px;
+  }
+  .lockClock > svg {
+    margin-bottom: 2px;
+  }
+  .unlock {
+    min-height: 64px;
+    gap: 10px;
+  }
+  .homeGesture {
+    min-height: 36px;
   }
 }
 
@@ -454,4 +675,23 @@
   display: grid;
   place-items: center;
   background: var(--accent);
+}
+
+.manageShortcut {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 8px 14px;
+  color: var(--phone-white);
+  border: 0;
+  border-radius: 24px;
+  background: var(--phone-glass);
+  backdrop-filter: blur(14px);
+  font-size: 12px !important;
+}
+.manageShortcut svg {
+  width: 15px;
+  height: 15px;
 }

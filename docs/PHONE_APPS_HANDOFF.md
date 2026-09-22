@@ -33,6 +33,12 @@ markRead返回Promise<void>，其他返回Promise<{status:'accepted'|'committed'
 
 同一次提交保存commandId，不确定提交重复时复用；修改正文产生新ID。任务专用retry协议在adapter内映射，UI不直接fetch。UNKNOWN只在用户明确点击后重试，不自动重发。
 
+## 回执契约补充
+
+Provider可选commandResults，按commandId提供{status:'committed'|'failed';code?:string}，由真实adapter查询命令终态后传入。accepted不得凭同文数据推定成功；仅committed且提交后草稿未被修改时清除对应草稿。未提供仍兼容只读调用。辅助appContent样式增量随最终提交单独整合，不提前复制开发中文件。
+
+2026-09-22接续：冻结103af3b的外壳已受控移植，保留主线world-phone-app.tsx与人生管理，四应用内部仍待辅助最终交付。此记录替代上方“外壳尚待合入”的历史基线。
+
 ## 草稿与验收
 
 Provider按worldId及联系人/便签ID隔离草稿，应用往返保留，切换世界不串数据。本地状态不替代服务端存档。预览模拟数据/动作必须标注，不写真实数据、不调模型。

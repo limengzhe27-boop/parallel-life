@@ -1,5 +1,6 @@
 /** UI navigation only; never a world fact or an authorization decision. */
 export const phoneApps = ['messages', 'moments', 'photos', 'calendar', 'notes'] as const;
+export const desktopApps = ['messages', 'calendar', 'photos', 'notes'] as const;
 export type PhoneApp = (typeof phoneApps)[number];
 export const phonePanels = ['schedule', 'timeline', 'director', 'management'] as const;
 export type PhonePanel = (typeof phonePanels)[number];

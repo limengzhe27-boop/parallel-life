@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import {
   homeRoute,
   parentRoute,
-  phoneApps,
+  desktopApps,
   readRoute,
   routeHash,
   scrollKey,
@@ -13,10 +13,12 @@ import {
   type PhoneRoute,
 } from './navigation.ts';
 import { PhoneIcon } from './phone-icons.tsx';
+import { StatusBar } from './status-bar.tsx';
+import { arrivingIds, isUnlockSwipe } from './notification-state.ts';
 import styles from './phone.module.css';
 
 const apps: Record<PhoneApp, string> = {
-  messages: '消息',
+  messages: '微信',
   moments: '朋友圈',
   photos: '相册',
   calendar: '日历',
@@ -51,6 +53,8 @@ export type PhoneShellProps = {
   renderApp?: (context: PhoneAppContext) => ReactNode;
   renderPanel?: (panel: PhonePanel) => ReactNode;
   notice?: ReactNode;
+  /** Presentation lock only; does not replace account authentication. */
+  initiallyLocked?: boolean;
 };
 
 /** Content only: the caller owns the device viewport, dimensions and outer navigation. */
@@ -67,8 +71,16 @@ function LifePhone({
   renderApp,
   renderPanel,
   notice,
+  initiallyLocked = true,
 }: PhoneShellProps) {
   const [route, setRoute] = useState<PhoneRoute>(homeRoute);
+  const [locked, setLocked] = useState(initiallyLocked);
+  const [bannerId, setBannerId] = useState<string>();
+  const [openedIds, setOpenedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const knownIds = useRef<ReadonlySet<string>>(new Set(notifications.map((n) => n.id)));
+  const unlockButton = useRef<HTMLButtonElement>(null);
+  const swipeStart = useRef<number | undefined>(undefined);
+  const ignoreUnlockClick = useRef(false);
   const [failedUrl, setFailedUrl] = useState<string>();
   const wallpaper = useRef<HTMLImageElement>(null);
   const scroll = useRef<HTMLDivElement>(null);
@@ -78,6 +90,25 @@ function LifePhone({
   const positions = useRef(new Map<string, number>());
   const lastPanel = useRef<PhonePanel | undefined>(undefined);
   const key = scrollKey(worldId, route);
+
+  const notificationSignature = JSON.stringify(notifications.map((n) => n.id));
+  useEffect(() => {
+    const ids: string[] = JSON.parse(notificationSignature);
+    const incoming = arrivingIds(knownIds.current, ids);
+    knownIds.current = new Set(ids);
+    if (incoming.length) setBannerId(incoming.at(-1));
+  }, [notificationSignature]);
+  useEffect(() => {
+    if (!bannerId) return;
+    const timer = window.setTimeout(() => setBannerId(undefined), 6000);
+    return () => window.clearTimeout(timer);
+  }, [bannerId]);
+  const pending = notifications.filter((n) => !openedIds.has(n.id));
+  const banner = pending.find((n) => n.id === bannerId);
+  useEffect(() => {
+    if (locked) unlockButton.current?.focus({ preventScroll: true });
+    else heading.current?.focus({ preventScroll: true });
+  }, [locked]);
 
   useEffect(() => {
     const sync = () => setRoute(readRoute(location.hash, worldId));
@@ -95,9 +126,10 @@ function LifePhone({
     if (wallpaperUrl && image?.complete && image.naturalWidth === 0) setFailedUrl(wallpaperUrl);
   }, [wallpaperUrl]);
   useLayoutEffect(() => {
-    if (scroll.current) scroll.current.scrollTop = positions.current.get(key) ?? 0;
-  }, [key]);
+    if (scroll.current && !locked) scroll.current.scrollTop = positions.current.get(key) ?? 0;
+  }, [key, locked]);
   useLayoutEffect(() => {
+    if (locked) return;
     if (route.panel && panelScroll.current)
       panelScroll.current.scrollTop = positions.current.get(`panel:${route.panel}`) ?? 0;
     if (!route.panel && lastPanel.current) {
@@ -107,12 +139,13 @@ function LifePhone({
       (trigger ?? heading.current)?.focus({ preventScroll: true });
     } else heading.current?.focus({ preventScroll: true });
     lastPanel.current = route.panel;
-  }, [key, route.panel]);
+  }, [key, route.panel, locked]);
 
   function navigate(next: PhoneRoute) {
     const hash = routeHash(worldId, next);
     if (location.hash === hash) return;
-    if (scroll.current && !route.panel) positions.current.set(key, scroll.current.scrollTop);
+    if (scroll.current && !route.panel && !locked)
+      positions.current.set(key, scroll.current.scrollTop);
     history.pushState(
       { ...history.state, plPhone: { worldId, from: routeHash(worldId, route), to: hash } },
       '',
@@ -132,28 +165,68 @@ function LifePhone({
   function open(app: PhoneApp, target?: string) {
     navigate({ app, ...(target ? { target } : {}) });
   }
-  function appButton(app: PhoneApp) {
+  function lock() {
+    if (route.panel && panelScroll.current)
+      positions.current.set(`panel:${route.panel}`, panelScroll.current.scrollTop);
+    else if (scroll.current) positions.current.set(key, scroll.current.scrollTop);
+    setLocked(true);
+  }
+  function openNotification(n: PhoneNotification) {
+    setOpenedIds((current) => new Set([...current, n.id]));
+    setBannerId(undefined);
+    setLocked(false);
+    open(n.app, n.target);
+  }
+  function notificationCard(n: PhoneNotification) {
     return (
-      <button key={app} data-app={app} className={styles.launcher} onClick={() => open(app)}>
-        <span className={`${styles.appIcon} ${styles[app]}`}>
-          <PhoneIcon name={app} />
+      <button
+        key={n.id}
+        className={styles.notification}
+        data-notification={n.id}
+        onClick={() => openNotification(n)}
+      >
+        <span className={`${styles.notificationIcon} ${styles[n.app]}`}>
+          <PhoneIcon name={n.app} />
         </span>
-        <span>{apps[app]}</span>
+        <span>
+          <small>{apps[n.app]}</small>
+          <strong>{n.title}</strong>
+          <span>{n.summary}</span>
+        </span>
+        <PhoneIcon name="next" />
       </button>
     );
   }
-  function panelButton(panel: PhonePanel) {
+  function appButton(app: PhoneApp) {
     return (
       <button
-        key={panel}
-        data-panel={panel}
+        key={app}
+        data-app={app}
+        aria-label={apps[app]}
         className={styles.launcher}
-        onClick={() => navigate({ ...route, panel })}
+        onClick={() => open(app)}
       >
-        <span className={`${styles.appIcon} ${styles[panel]}`}>
-          <PhoneIcon name={panel} />
+        <span className={`${styles.appIcon} ${styles[app]}`}>
+          {app === 'calendar' ? (
+            <span className={styles.calendarFace}>
+              <span>
+                {dateLabel.match(/星期[一二三四五六日天]|周[一二三四五六日天]/)?.[0] ?? '日历'}
+              </span>
+              <strong>{dateLabel.match(/(\d{1,2})\s*日/)?.[1] ?? '—'}</strong>
+            </span>
+          ) : (
+            <PhoneIcon name={app} />
+          )}
         </span>
-        <span>{panels[panel]}</span>
+        {pending.filter((n) => n.app === app).length > 0 && (
+          <span
+            className={styles.badge}
+            aria-label={`${pending.filter((n) => n.app === app).length} 条待查看通知`}
+          >
+            {pending.filter((n) => n.app === app).length}
+          </span>
+        )}
+        <span className={styles.appLabel}>{apps[app]}</span>
       </button>
     );
   }
@@ -164,10 +237,10 @@ function LifePhone({
       ref={root}
       className={styles.phone}
       data-phone-content
-      data-screen={isHome ? 'home' : 'page'}
+      data-screen={locked ? 'lock' : isHome ? 'home' : 'page'}
       aria-label={`${lifeName}的手机`}
       onKeyDown={(event) => {
-        if (event.key === 'Escape' && !event.defaultPrevented && !isHome) {
+        if (event.key === 'Escape' && !event.defaultPrevented && !isHome && !locked) {
           event.preventDefault();
           back();
         }
@@ -184,139 +257,180 @@ function LifePhone({
       )}
       <div className={styles.shade} />
       {notice && <div className={styles.notice}>{notice}</div>}
-      <header className={styles.header}>
-        {isHome ? (
-          <span className={styles.lifeLabel}>{lifeName}</span>
-        ) : (
+      <StatusBar timeLabel={timeLabel} locked={locked} onLock={lock} />
+      {banner && (
+        <div className={styles.banner} data-notification-banner role="status" key={banner.id}>
+          {notificationCard(banner)}
           <button
-            className={styles.headerButton}
-            aria-label={route.panel ? '关闭辅助页面' : '返回上一页'}
-            onClick={back}
+            className={styles.dismissBanner}
+            aria-label="收起消息横幅"
+            onClick={() => setBannerId(undefined)}
           >
-            <PhoneIcon name="back" />
-            <span>返回</span>
+            ×
           </button>
-        )}
-        {!isHome && <span className={styles.smallTime}>{timeLabel}</span>}
+        </div>
+      )}
+      <div className={styles.unlockedContent} hidden={locked} inert={locked}>
         {!isHome && (
-          <button
-            className={styles.headerButton}
-            aria-label="回到手机桌面"
-            onClick={() => navigate(homeRoute)}
-          >
-            <PhoneIcon name="home" />
-          </button>
-        )}
-      </header>
-      <h2 ref={heading} tabIndex={-1} className={isHome ? styles.srOnly : styles.title}>
-        {label}
-      </h2>
-      <div
-        ref={scroll}
-        hidden={!!route.panel}
-        className={styles.scroll}
-        data-phone-scroll
-        onScroll={(event) => {
-          if (!route.panel) positions.current.set(key, event.currentTarget.scrollTop);
-        }}
-      >
-        {!route.app ? (
-          <div className={styles.home}>
-            <div className={styles.clock}>
-              <span>{timeLabel}</span>
-              <p>{dateLabel}</p>
-            </div>
-            <section
-              className={styles.notifications}
-              aria-label="通知"
-              aria-live="polite"
-              aria-relevant="additions"
+          <header className={styles.header}>
+            <button
+              className={styles.headerButton}
+              aria-label={route.panel ? '关闭辅助页面' : '返回上一页'}
+              onClick={back}
             >
-              {notifications.length ? (
-                notifications.map((n) => (
-                  <button
-                    key={n.id}
-                    className={styles.notification}
-                    onClick={() => open(n.app, n.target)}
-                  >
-                    <span className={`${styles.notificationIcon} ${styles[n.app]}`}>
-                      <PhoneIcon name={n.app} />
-                    </span>
-                    <span>
-                      <small>{apps[n.app]}</small>
-                      <strong>{n.title}</strong>
-                      <span>{n.summary}</span>
-                    </span>
-                    <PhoneIcon name="next" />
-                  </button>
-                ))
+              <PhoneIcon name="back" />
+              <span>返回</span>
+            </button>
+            <button
+              className={styles.headerButton}
+              aria-label="回到手机桌面"
+              onClick={() => navigate(homeRoute)}
+            >
+              <PhoneIcon name="home" />
+            </button>
+          </header>
+        )}
+        <h2 ref={heading} tabIndex={-1} className={isHome ? styles.srOnly : styles.title}>
+          {label}
+        </h2>
+        <div
+          ref={scroll}
+          hidden={!!route.panel}
+          className={styles.scroll}
+          data-phone-scroll
+          onScroll={(event) => {
+            if (!route.panel && !locked) positions.current.set(key, event.currentTarget.scrollTop);
+          }}
+        >
+          {!route.app ? (
+            <div className={styles.home}>
+              <button
+                className={styles.manageShortcut}
+                data-panel="management"
+                onClick={() => navigate({ ...route, panel: 'management' })}
+              >
+                人生管理 <PhoneIcon name="next" />
+              </button>
+            </div>
+          ) : (
+            <div className={styles.appContent} key={`${route.app}:${route.target ?? ''}`}>
+              {renderApp ? (
+                renderApp({ app: route.app, target: route.target, open })
               ) : (
-                <p className={styles.quiet}>暂时没有新通知</p>
+                <div className={styles.empty}>
+                  <PhoneIcon name={route.app} />
+                  <h3>{apps[route.app]}还未开放</h3>
+                  <p>世界准备好后，再来这里看看。</p>
+                </div>
               )}
-            </section>
-            <nav className={styles.launchers} aria-label="桌面应用与生活工具">
-              {panelButton('management')}
-            </nav>
-          </div>
-        ) : (
-          <div className={styles.appContent} key={`${route.app}:${route.target ?? ''}`}>
-            {renderApp ? (
-              renderApp({ app: route.app, target: route.target, open })
+            </div>
+          )}
+        </div>
+        {route.panel && (
+          <div
+            key={route.panel}
+            ref={panelScroll}
+            className={styles.panelPage}
+            data-phone-panel
+            onScroll={(event) => {
+              if (!locked)
+                positions.current.set(`panel:${route.panel}`, event.currentTarget.scrollTop);
+            }}
+          >
+            {route.panel === 'management' ? (
+              <div className={styles.management}>
+                <p>这段人生的调整与管理</p>
+                <button onClick={() => navigate({ ...route, panel: 'director' })}>
+                  与导演讨论 <PhoneIcon name="next" />
+                </button>
+                <button onClick={() => navigate({ ...route, panel: 'timeline' })}>
+                  当前身份与经历 <PhoneIcon name="next" />
+                </button>
+                <button onClick={() => navigate({ ...route, panel: 'schedule' })}>
+                  故事时间与安排 <PhoneIcon name="next" />
+                </button>
+                <a href="/">
+                  返回现实中的我 <PhoneIcon name="next" />
+                </a>
+                <a href="/possibilities">
+                  切换人生 <PhoneIcon name="next" />
+                </a>
+                <p>暂停、账号和删除将在对应能力接入后开放。</p>
+              </div>
+            ) : renderPanel ? (
+              renderPanel(route.panel)
             ) : (
               <div className={styles.empty}>
-                <PhoneIcon name={route.app} />
-                <h3>{apps[route.app]}还未开放</h3>
-                <p>世界准备好后，再来这里看看。</p>
+                <PhoneIcon name={route.panel} />
+                <h3>{panels[route.panel]}还未开放</h3>
+                <p>这部分生活还在准备中。</p>
               </div>
             )}
           </div>
         )}
-      </div>
-      {route.panel && (
-        <div
-          key={route.panel}
-          ref={panelScroll}
-          className={styles.panelPage}
-          data-phone-panel
-          onScroll={(event) =>
-            positions.current.set(`panel:${route.panel}`, event.currentTarget.scrollTop)
-          }
+        {isHome && (
+          <nav className={styles.dock} aria-label="常用应用">
+            {desktopApps.map(appButton)}
+          </nav>
+        )}
+        <button
+          className={styles.homeGesture}
+          aria-label="返回手机桌面"
+          onClick={() => navigate(homeRoute)}
         >
-          {route.panel === 'management' ? (
-            <div className={styles.management}>
-              <p>这段人生的调整与管理</p>
-              <button onClick={() => navigate({ ...route, panel: 'director' })}>
-                与导演讨论 <PhoneIcon name="next" />
-              </button>
-              <button onClick={() => navigate({ ...route, panel: 'timeline' })}>
-                当前身份与经历 <PhoneIcon name="next" />
-              </button>
-              <button onClick={() => navigate({ ...route, panel: 'schedule' })}>
-                故事时间与安排 <PhoneIcon name="next" />
-              </button>
-              <a href="/">
-                返回现实中的我 <PhoneIcon name="next" />
-              </a>
-              <a href="/possibilities">
-                切换人生 <PhoneIcon name="next" />
-              </a>
-              <p>暂停、账号和删除将在对应能力接入后开放。</p>
+          <span />
+        </button>
+      </div>
+      {locked && (
+        <div className={styles.lockScreen} data-lock-screen>
+          <div className={styles.lockScroll}>
+            <div className={styles.lockContent}>
+              <div className={styles.lockClock}>
+                <p>{dateLabel}</p>
+                <div>{timeLabel}</div>
+                <span className={styles.srOnly}>{lifeName}</span>
+              </div>
+              <section
+                className={`${styles.notifications} ${styles.lockNotifications}`}
+                aria-label="锁屏通知"
+              >
+                {pending.filter((n) => n.id !== banner?.id).map(notificationCard)}
+                {!pending.length && <span className={styles.srOnly}>没有待查看通知</span>}
+              </section>
             </div>
-          ) : renderPanel ? (
-            renderPanel(route.panel)
-          ) : (
-            <div className={styles.empty}>
-              <PhoneIcon name={route.panel} />
-              <h3>{panels[route.panel]}还未开放</h3>
-              <p>这部分生活还在准备中。</p>
-            </div>
-          )}
+          </div>
+          <button
+            ref={unlockButton}
+            className={styles.unlock}
+            aria-label="解锁手机"
+            onClick={() => {
+              if (!ignoreUnlockClick.current) setLocked(false);
+              ignoreUnlockClick.current = false;
+            }}
+            onPointerDown={(event) => {
+              ignoreUnlockClick.current = false;
+              swipeStart.current = event.clientY;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerUp={(event) => {
+              ignoreUnlockClick.current =
+                swipeStart.current !== undefined &&
+                Math.abs(swipeStart.current - event.clientY) > 12;
+              if (
+                swipeStart.current !== undefined &&
+                isUnlockSwipe(swipeStart.current, event.clientY)
+              )
+                setLocked(false);
+              swipeStart.current = undefined;
+            }}
+            onPointerCancel={() => {
+              swipeStart.current = undefined;
+            }}
+          >
+            <span>向上轻扫打开</span>
+            <i />
+          </button>
         </div>
-      )}
-      {isHome && (
-        <nav className={styles.dock} aria-label="常用应用">
-          {phoneApps.filter((app) => app !== 'moments').map(appButton)}
-        </nav>
       )}
     </section>
   );

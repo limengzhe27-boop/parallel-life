@@ -37,3 +37,22 @@ test('phone internal auxiliary pages retain old deep links and return to their a
   }
   assert.deepEqual(parentRoute({ app: null, panel: 'director' }), { app: null });
 });
+
+test('desktop exposes exactly WeChat, calendar, photos and notes', async () => {
+  const { desktopApps } = await import('../src/features/phone/navigation.ts');
+  assert.deepEqual(desktopApps, ['messages', 'calendar', 'photos', 'notes']);
+});
+
+test('new notification ids arrive once while reordered or repeated ids do not replay', async () => {
+  const { arrivingIds } = await import('../src/features/phone/notification-state.ts');
+  assert.deepEqual(arrivingIds(new Set(['old']), ['old', 'new', 'new']), ['new']);
+  assert.deepEqual(arrivingIds(new Set(['a', 'b']), ['b', 'a']), []);
+  assert.deepEqual(arrivingIds(new Set(), []), []);
+});
+test('unlock gesture accepts upward intent and rejects taps, downward and invalid gestures', async () => {
+  const { isUnlockSwipe } = await import('../src/features/phone/notification-state.ts');
+  assert.equal(isUnlockSwipe(400, 340), true);
+  assert.equal(isUnlockSwipe(400, 380), false);
+  assert.equal(isUnlockSwipe(400, 500), false);
+  assert.equal(isUnlockSwipe(NaN, 0), false);
+});

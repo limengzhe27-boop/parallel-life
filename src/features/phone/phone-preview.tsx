@@ -1,12 +1,35 @@
 'use client';
-import { useEffect, useRef } from 'react';
-import { PhoneShell } from './phone-shell.tsx';
+import { useEffect, useRef, useState } from 'react';
+import { PhoneShell, type PhoneNotification } from './phone-shell.tsx';
 import wallpaper from './assets/pfeiffer-beach.jpg';
 import styles from './phone.module.css';
 import preview from './preview.module.css';
 
 /** Explicit fixtures, gated by the server page. No product route imports this wrapper. */
 export function PhonePreview() {
+  const [notifications, setNotifications] = useState<PhoneNotification[]>([
+    {
+      id: 'preview-notice',
+      title: '测试通知',
+      summary: '锁屏消息演示 · 点击查看记录 24',
+      app: 'messages',
+      target: 'record-24',
+    },
+  ]);
+  const sequence = useRef(0);
+  const sendTestMessage = () => {
+    sequence.current += 1;
+    setNotifications((current) => [
+      ...current,
+      {
+        id: `arrival-${sequence.current}`,
+        title: `测试来信 ${sequence.current}`,
+        summary: '这是一条新到达的测试消息',
+        app: 'messages',
+        target: 'record-24',
+      },
+    ]);
+  };
   const viewport = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const resize = () =>
@@ -32,21 +55,14 @@ export function PhonePreview() {
         wallpaperUrl={wallpaper.src}
         notice={
           <span className={preview.caption}>
-            界面样板 · 通用壁纸 / 测试内容
+            交互预览 · 虚拟状态栏
+            <button onClick={sendTestMessage}>模拟新消息</button>
             <a href="https://unsplash.com/photos/p3OzJuT_Dks" target="_blank" rel="noreferrer">
               摄影 Kace Rodriguez
             </a>
           </span>
         }
-        notifications={[
-          {
-            id: 'preview-notice',
-            title: '一条待查看的消息',
-            summary: '测试通知 · 打开记录 24',
-            app: 'messages',
-            target: 'record-24',
-          },
-        ]}
+        notifications={notifications}
         renderApp={({ app, target, open }) =>
           app === 'messages' ? (
             target ? (

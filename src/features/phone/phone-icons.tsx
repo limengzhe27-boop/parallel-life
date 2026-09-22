@@ -9,10 +9,20 @@ const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode
     </>
   ),
   messages: (
-    <>
-      <path d="M5 5h22v16H15l-7 6v-6H5z" fill="currentColor" stroke="none" />
-      <path d="M10 11h12M10 15h8" stroke="var(--phone-message-ink, var(--success))" />
-    </>
+    <g stroke="none">
+      <path
+        d="M19 5C11-1 0 4 1 12c0 3 2 6 5 8l-1 4 5-3c1 0 2 .4 3 .4 0-8 5-11 10-11A10 10 0 0 0 19 5Z"
+        fill="var(--phone-white)"
+      />
+      <path
+        d="M31 21c0-5-4-9-10-9s-10 4-10 9 4 9 10 9c1 0 3-.3 4-.8l4 2-1-4c2-1 3-4 3-6Z"
+        fill="var(--phone-white)"
+      />
+      <circle cx="8" cy="10" r="1.4" fill="var(--phone-wechat)" />
+      <circle cx="16" cy="10" r="1.4" fill="var(--phone-wechat)" />
+      <circle cx="18" cy="20" r="1.3" fill="var(--phone-wechat)" />
+      <circle cx="25" cy="20" r="1.3" fill="var(--phone-wechat)" />
+    </g>
   ),
   moments: (
     <>
@@ -32,11 +42,20 @@ const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode
     </>
   ),
   photos: (
-    <>
-      <rect x="5" y="5" width="22" height="22" rx="5" />
-      <circle cx="12" cy="12" r="2" fill="currentColor" />
-      <path d="m6 24 7-8 5 5 4-6 5 6" />
-    </>
+    <g stroke="none">
+      {['red', 'orange', 'yellow', 'lime', 'green', 'cyan', 'blue', 'purple'].map((color, i) => (
+        <ellipse
+          key={color}
+          cx="16"
+          cy="8.4"
+          rx="5.1"
+          ry="7.5"
+          transform={`rotate(${i * 45} 16 16)`}
+          fill={`var(--phone-petal-${color})`}
+          opacity=".85"
+        />
+      ))}
+    </g>
   ),
   calendar: (
     <>
@@ -45,10 +64,11 @@ const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode
     </>
   ),
   notes: (
-    <>
-      <path d="M8 4h16v24H8z" fill="currentColor" stroke="none" />
-      <path d="M12 11h8M12 16h8M12 21h5" stroke="var(--phone-note-ink, var(--warning))" />
-    </>
+    <g>
+      <path d="M0 0h32v11H0z" fill="var(--phone-note-yellow)" stroke="none" />
+      <path d="M0 12h32" stroke="var(--phone-rule)" strokeWidth=".4" strokeDasharray="1 1" />
+      <path d="M0 19h32M0 25h32M0 31h32" stroke="var(--phone-rule)" strokeWidth=".4" />
+    </g>
   ),
   schedule: (
     <>
