@@ -1,0 +1,457 @@
+.phone {
+  --phone-white: #f3f5f6;
+  --phone-ink: var(--ink, #20282e);
+  --phone-page: var(--paper, #f4f3ef);
+  --phone-glass: rgba(var(--shadow-rgb, 0, 0, 0), 0.32);
+  --phone-message: var(--success, #74ce9a);
+  --phone-photo: var(--accent, #3989ff);
+  --phone-notes: var(--warning, #edc58b);
+  --phone-coral: var(--error, #ff9d9d);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  container-type: size;
+  color: var(--phone-white);
+  background: var(--bg);
+  font-family: var(--font-body);
+}
+.phone [hidden] {
+  display: none !important;
+}
+.phone button {
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.phone button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.phone button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.wallpaper,
+.shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: -2;
+}
+.shade {
+  z-index: -1;
+  background: linear-gradient(
+    rgba(var(--shadow-rgb), 0.22),
+    rgba(var(--shadow-rgb), 0.04) 45%,
+    rgba(var(--shadow-rgb), 0.34)
+  );
+}
+.notice {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  background: var(--phone-glass);
+  font-size: 10px;
+  text-align: center;
+  color: var(--phone-white);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) 16px 0;
+  min-height: 52px;
+  flex-shrink: 0;
+}
+.lifeLabel {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+.smallTime {
+  font-size: 12px;
+}
+.headerButton {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 12px;
+  color: inherit;
+  background: transparent;
+}
+.headerButton svg {
+  width: 24px;
+  height: 24px;
+}
+.headerButton:hover {
+  background: rgba(var(--shadow-rgb), 0.08);
+}
+.headerButton:active {
+  transform: scale(0.97);
+}
+.scroll,
+.panelPage {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.home {
+  min-height: 100%;
+  padding: 8px 24px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.clock {
+  text-align: center;
+  padding: 16px 0 30px;
+}
+.clock > span {
+  font-size: 76px;
+  line-height: 1.15;
+  font-weight: 300;
+  letter-spacing: -0.055em;
+}
+.clock p {
+  font-size: 14px;
+  color: inherit;
+  margin: 10px 0 0;
+}
+.notifications {
+  display: grid;
+  gap: 10px;
+}
+.notification {
+  width: 100%;
+  border: 0;
+  min-height: 76px;
+  padding: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  border-radius: 20px;
+  background: var(--phone-glass);
+  backdrop-filter: blur(12px);
+  color: var(--phone-white);
+}
+.notification > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notification small,
+.notification strong,
+.notification > span > span {
+  display: block;
+}
+.notification small {
+  font-size: 10px;
+  opacity: 0.85;
+}
+.notification strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.notification > span > span {
+  font-size: 12px;
+}
+.notification > svg {
+  width: 16px;
+  flex-shrink: 0;
+}
+.notificationIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+.notificationIcon svg {
+  width: 22px;
+  height: 22px;
+}
+.notification:hover {
+  background: rgba(var(--shadow-rgb), 0.45);
+}
+.notification:active {
+  transform: scale(0.99);
+}
+.quiet {
+  color: inherit;
+  font-size: 12px;
+  text-align: center;
+  padding: 12px;
+}
+.launchers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 36px;
+}
+.launcher {
+  min-width: 0;
+  min-height: 82px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 14px;
+  color: inherit;
+  background: transparent;
+  font-size: 12px !important;
+  transition: transform 0.14s;
+}
+.appIcon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 17px;
+  box-shadow: 0 5px 12px rgba(var(--shadow-rgb), 0.15);
+}
+.launcher:hover {
+  transform: translateY(-2px);
+}
+.launcher:active {
+  transform: scale(0.93);
+}
+.messages {
+  background: var(--phone-message);
+  color: var(--phone-ink);
+}
+.photos {
+  background: var(--phone-photo);
+  color: var(--phone-white);
+}
+.calendar {
+  background: var(--phone-page);
+  color: var(--phone-ink);
+}
+.notes {
+  background: var(--phone-notes);
+  color: var(--phone-ink);
+}
+.moments {
+  background: var(--phone-coral);
+  color: var(--phone-ink);
+}
+.schedule {
+  background: var(--phone-page);
+  color: var(--phone-ink);
+}
+.timeline {
+  background: var(--phone-message);
+  color: var(--phone-ink);
+}
+.director {
+  background: var(--phone-ink);
+  color: var(--phone-white);
+}
+.dock {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 16px max(16px, env(safe-area-inset-bottom));
+  padding: 14px 8px 8px;
+  background: var(--phone-glass);
+  backdrop-filter: blur(12px);
+  border-radius: 28px;
+}
+.title {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: 24px;
+  font-weight: 600;
+  padding: 8px 24px 16px;
+  color: inherit;
+}
+.phone[data-screen='page'] {
+  background: var(--phone-page);
+  color: var(--phone-ink);
+}
+.phone[data-screen='page'] > .wallpaper,
+.phone[data-screen='page'] > .shade {
+  visibility: hidden;
+}
+.appContent,
+.panelPage {
+  padding: 0 24px max(24px, env(safe-area-inset-bottom));
+  overflow-wrap: anywhere;
+  animation: phoneEnter 0.2s ease-out;
+}
+.appContent p,
+.panelPage p {
+  color: inherit;
+}
+.empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 16px;
+  padding: 48px 8px;
+}
+.empty h3 {
+  font-size: 18px;
+}
+.empty p {
+  font-size: 14px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.fixtureList {
+  display: grid;
+}
+.fixtureRow {
+  padding: 20px 4px;
+  border: 0;
+  border-bottom: 1px solid rgba(var(--shadow-rgb), 0.12);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  min-height: 84px;
+}
+.fixtureRow small {
+  display: block;
+  opacity: 0.65;
+}
+.fixtureRow:hover {
+  background: rgba(var(--shadow-rgb), 0.05);
+}
+.fixtureRow:active {
+  transform: translateY(1px);
+}
+.fixturePanel {
+  display: grid;
+  gap: 16px;
+}
+.fixturePanel p {
+  padding: 20px 0;
+  border-bottom: 1px solid rgba(var(--shadow-rgb), 0.12);
+}
+@keyframes phoneEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@container (max-height:600px) {
+  .clock {
+    padding: 0 0 16px;
+  }
+  .clock > span {
+    font-size: 52px;
+  }
+  .clock p {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+  .home {
+    padding: 4px 20px 16px;
+  }
+  .launchers {
+    padding-top: 16px;
+  }
+  .appIcon {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+  }
+  .launcher {
+    min-height: 70px;
+    gap: 4px;
+  }
+  .dock {
+    padding-top: 10px;
+    margin-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .notification {
+    min-height: 66px;
+    padding: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phone * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* Full-height internal pages fade without shifting their viewport boundary. */
+.panelPage {
+  animation-name: phonePageFade;
+}
+@keyframes phonePageFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.management {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.management > button,
+.management > a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px;
+  font: inherit;
+  font-size: 14px;
+}
+.management > button:hover,
+.management > a:hover {
+  background: var(--surface-hover);
+}
+.management > p {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.management svg {
+  width: 18px;
+  height: 18px;
+}
+.launcher .management {
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+}

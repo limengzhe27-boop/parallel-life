@@ -177,10 +177,10 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |ID|状态|角色|硬依赖|任务与完成标准|交付证据|
 |---|---|---|---|---|---|
-|U-03|[ ] 待验收|I|U-02|全程窄幅 App 视口、公共视觉变量、入口及内部弹层；桌面不出现双栏或外侧面板|[报告](task-reports/U-03.md)；窄幅 App 与主题、视口/弹层验证通过；待视觉审阅|
-|U-04|[ ] 待验收|I|U-02|手机内访谈/档案、文案、照片与事件布局改版；真实功能、草稿与恢复不回退|[报告](task-reports/U-04.md)；开场/聊天/档案与草稿恢复已验证；待视觉审阅|
-|U-05|[ ] 待验收|I|D-01|推荐及资料选择手机改版，与 D-04 一起验收；短文案/封面/详情层次清楚且不伪造生成|[报告](task-reports/U-05.md)；插画/单列推荐/精简选择已验证；待视觉审阅|
-|U-06|[ ] 进行中|F|U-02|沿 H-01 成果调整世界桌面和手机内部辅助导航；兼容共享视口，不重复外壳；独立预览与短屏验证|建议原 H-01 Agent 领取；不要求未合并的 H-01 冒充完成|
+|U-03|[ ] 待验收|I|U-02|全程窄幅 App 视口、公共视觉变量、入口及内部弹层；桌面不出现双栏或外侧面板|[报告](task-reports/U-03.md)；按确认架构取消三标签，合入手机桌面与管理导航；40项检查及视觉复核，待用户审阅|
+|U-04|[ ] 待验收|I|U-02|手机内访谈/档案、文案、照片与事件布局改版；真实功能、草稿与恢复不回退|[报告](task-reports/U-04.md)；可跳过出生入口及个人对话内提案已接入；档案独立打开，待用户审阅|
+|U-05|[ ] 待验收|I|D-01|推荐及资料选择手机改版，与 D-04 一起验收；短文案/封面/详情层次清楚且不伪造生成|[报告](task-reports/U-05.md)；提案详情按对话卡片定位、可返回原对话；沿用真实生成与保存接口，待用户审阅|
+|U-06|[ ] 进行中|F|U-02|沿 H-01 成果调整世界桌面和手机内部辅助导航；兼容共享视口，不重复外壳；独立预览与短屏验证|a2bbcdb（接续 89951e4，task/h-01）；独立工作树 U-06 报告及 8 张截图；37 项测试/构建、四尺寸/短屏/返回/通知/滚动/断图回退通过；待 I 合并与 U-07 统一视觉验收|
 |U-07|[ ] 待开发|Q|U-03,U-04,U-05,U-06|合并后四屏及状态视觉审阅，手机/平板/PC、短屏/键盘/返回/恢复验收；未经用户认可的视觉不勾选|—|
 
 ### M · 图片能力与私有素材（尽早验证）
@@ -297,11 +297,11 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
 |H-01|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/H-01.md|分支 task/h-01；端口 3220；不使用数据库、模型或私有素材|2026-09-22T08:18:19.493554+00:00；已提交 89951e4；待验收；报告在 .local/worktrees/H-01/docs/task-reports/H-01.md；预览已停止；保留归属待集成|
-|U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/U-06.md|沿用 task/h-01；端口 3220；不接数据库/模型/私有素材|2026-09-22T08:43:21.785781+00:00；基线 89951e4 保留；可嵌入桌面、照片壁纸/Dock/手机内辅助页面；按最新改版第 6 节执行|
-|U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components/app-tabs.tsx、src/components/workspace-shell.tsx、src/app/layout.tsx、src/app/phone-first.css、src/app/ui-preview/welcome、DESIGN.md、public/art、docs/task-reports/U-03.md|本项目本地环境，串行写入|2026-09-22：窄幅 App 与主题、视口/弹层验证通过；待视觉审阅|
-|U-04|codex-main-01a0c73b|I / 单人|主登记目录|src/features/interview、docs/task-reports/U-04.md|本项目本地环境，串行写入|2026-09-22：开场/聊天/档案与草稿恢复已验证；待视觉审阅|
-|U-05|codex-main-01a0c73b|I / 单人|主登记目录|src/features/discovery、docs/task-reports/U-05.md|本项目本地环境，串行写入|2026-09-22：插画/单列推荐/精简选择已验证；待视觉审阅|
+|U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/U-06.md|沿用 task/h-01；端口 3220；不接数据库/模型/私有素材|2026-09-22T09:37:42.892398+00:00；按用户最新要求返修：iPhone 桌面，只保留微信/日历/相册/便签；原工作树及范围；主目录已暂存旧版，新增提交由 I 接续合并|
 |D-04|codex-main-01a0c73b|I / 单人|主登记目录|src/features/discovery、src/features/api/client.ts、docs/task-reports/D-04.md|本项目本地环境，串行写入|2026-09-22：已按 U-05 重做，保留真实接口；待用户视觉审阅|
+|U-03|codex-main-01a0c73b|I / 单人|主登记目录|AppViewport、共享布局与主题、已交付phone模块集成、导航测试、设计文档与报告|本项目本地环境，串行写入|2026-09-22：按确认架构取消三标签，合入手机桌面与管理导航；40项检查及视觉复核，待用户审阅|
+|U-04|codex-main-01a0c73b|I / 单人|主登记目录|interview、welcome开发预览、对应报告|本项目本地环境，串行写入|2026-09-22：可跳过出生入口及个人对话内提案已接入；档案独立打开，待用户审阅|
+|U-05|codex-main-01a0c73b|I / 单人|主登记目录|discovery与对应报告|本项目本地环境，串行写入|2026-09-22：提案详情按对话卡片定位、可返回原对话；沿用真实生成与保存接口，待用户审阅|
 
 开始时登记基线提交（Git 建立后）、依赖、具体文件、端口/数据库资源与验收方式。单人也登记。临时需要改公共文件由 I 协调并更新允许范围，避免覆盖他人工作。
 

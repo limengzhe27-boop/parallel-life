@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Icon, Modal } from './ui.tsx';
-import { AppTabs } from './app-tabs.tsx';
+import { AppViewport } from './app-viewport.tsx';
 export function WorkspaceShell({
   children,
   profile,
@@ -60,7 +60,7 @@ export function WorkspaceShell({
           {footer}
         </section>
       </main>
-      <AppTabs active={open ? 'profile' : 'chat'} onProfile={show} />
+      <AppViewport />
       <Modal open={open} onClose={close} title="我的故事" className="profile-modal">
         {open && profile}
       </Modal>

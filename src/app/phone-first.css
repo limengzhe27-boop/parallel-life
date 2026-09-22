@@ -798,3 +798,226 @@ h2 {
   min-height: 0;
   max-height: 5.4em;
 }
+:root {
+  --onboarding-ink-rgb: 7, 16, 29;
+  --white-rgb: 255, 255, 255;
+  --onboarding-muted: #e0e4eb;
+  --onboarding-soft: #c1cbd8;
+  --onboarding-accent: #287aff;
+  --onboarding-hover: #1962da;
+}
+/* Approved information architecture: sequential spaces, no three-tab navigation. */
+.chat-opening {
+  padding: 24px 0 12px;
+}
+.chat-opening .agent-symbol {
+  margin-bottom: 22px;
+}
+.chat-opening h1 {
+  font-size: 27px;
+  margin-bottom: 14px;
+}
+.chat-opening p {
+  font-size: 16px;
+  line-height: 1.85;
+}
+.proposal-thread {
+  margin: 22px 0 30px 35px;
+}
+.proposal-thread-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+.proposal-thread-label svg {
+  color: var(--accent);
+}
+.proposal-thread-card {
+  display: block;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin: 12px 0;
+}
+.proposal-thread-card:hover {
+  border-color: var(--border-hover);
+}
+.proposal-thread-card img {
+  display: block;
+  width: 100%;
+  height: 145px;
+  object-fit: cover;
+}
+.proposal-thread-card > div {
+  padding: 13px 15px;
+}
+.proposal-thread-card h3 {
+  font-size: 16px;
+  line-height: 1.65;
+  margin: 5px 0 10px;
+}
+.proposal-thread-card small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+.proposal-thread-card span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.proposal-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.proposal-stale,
+.proposal-invitation p {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.proposal-invitation {
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 16px;
+}
+.proposal-invitation .button {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.back-chevron {
+  display: inline-flex;
+  transform: rotate(180deg);
+}
+.direction-card {
+  scroll-margin-top: 16px;
+}
+.composer-area {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+.onboarding {
+  --text: var(--white);
+  --text-secondary: var(--onboarding-muted);
+  --text-tertiary: var(--onboarding-soft);
+  color: var(--white);
+  position: relative;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--onboarding-ink-rgb), 0.2),
+      rgba(var(--onboarding-ink-rgb), 0.3) 28%,
+      rgba(var(--onboarding-ink-rgb), 0.95) 72%
+    ),
+    url('/art/first-window.webp') center/cover;
+}
+.onboarding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 24px;
+  z-index: 1;
+  flex: 0 0 auto;
+}
+.onboarding-brand {
+  font: 500 29px/1.5 var(--font-title);
+}
+.onboarding-header .button.ghost {
+  color: var(--white);
+  font-size: 12px;
+}
+.onboarding-content {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0 24px max(28px, env(safe-area-inset-bottom));
+}
+.onboarding-title {
+  margin-top: auto;
+  padding-top: 90px;
+  padding-bottom: 30px;
+}
+.onboarding-title > p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 15px;
+}
+.onboarding-title h1 {
+  font-size: 37px;
+  line-height: 1.5;
+}
+.onboarding-form > p:first-child {
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.onboarding-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(var(--white-rgb), 0.17);
+  background: rgba(var(--white-rgb), 0.08);
+  border-radius: 13px;
+}
+.onboarding-form label > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 6px;
+}
+.onboarding-form label small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+.onboarding-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  color: var(--white);
+  background: transparent;
+  color-scheme: dark;
+  border: 0;
+  font: inherit;
+  font-size: 16px;
+}
+.onboarding-context {
+  font-size: 10px;
+  line-height: 1.8;
+  padding: 4px 0 15px;
+}
+.onboarding-form > .button {
+  width: 100%;
+  min-height: 50px;
+  background: var(--onboarding-accent);
+  color: var(--white);
+}
+.onboarding-form > .button:hover {
+  background: var(--onboarding-hover);
+}
+.onboarding .notice {
+  color: var(--ink);
+  background: var(--bg);
+}
+@media (max-height: 620px) {
+  .onboarding-title {
+    padding-top: 20px;
+    padding-bottom: 16px;
+  }
+  .onboarding-title h1 {
+    font-size: 28px;
+  }
+  .onboarding-header {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}

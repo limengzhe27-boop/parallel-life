@@ -1,0 +1,22 @@
+/* Development-only viewport stand-in. Production embedding is owned by U-03. */
+.preview {
+  height: 100dvh;
+  height: var(--preview-height, 100dvh);
+  width: 100%;
+  max-width: 460px;
+  margin-inline: auto;
+  overflow: hidden;
+}
+.caption {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.caption a {
+  text-decoration: underline;
+}
+.caption a:hover {
+  opacity: 0.8;
+}

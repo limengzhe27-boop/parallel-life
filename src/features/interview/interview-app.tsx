@@ -10,6 +10,8 @@ import type {
 } from '../../contracts/api.ts';
 import { WorkspaceShell } from '../../components/workspace-shell.tsx';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
+import { Onboarding } from './onboarding.tsx';
+import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
 const categories: Record<ProfileFact['category'], string> = {
   identity: '基本信息',
@@ -30,6 +32,8 @@ export function InterviewApp() {
     [sending, setSending] = useState(false),
     [saving, setSaving] = useState(false),
     [uploading, setUploading] = useState(false);
+  const [entered, setEntered] = useState(false),
+    [entryReady, setEntryReady] = useState(false);
   const [editing, setEditing] = useState<{
     fact?: ProfileFact;
     category: ProfileFact['category'];
@@ -92,6 +96,27 @@ export function InterviewApp() {
         sessionStorage.setItem(`pl-draft:${data.profile.id}`, value);
       } catch {
         /* Keep the in-memory draft. */
+      }
+    }
+  }
+  useEffect(() => {
+    if (!data) return;
+    let remembered = false;
+    try {
+      remembered = sessionStorage.getItem(`pl-entered:${data.profile.id}`) === '1';
+    } catch {
+      /* optional session memory */
+    }
+    setEntered(remembered || data.interview.messages.length > 0 || data.profile.facts.length > 0);
+    setEntryReady(true);
+  }, [data?.profile.id]);
+  function startConversation() {
+    setEntered(true);
+    if (data) {
+      try {
+        sessionStorage.setItem(`pl-entered:${data.profile.id}`, '1');
+      } catch {
+        /* keep current view */
       }
     }
   }
@@ -249,6 +274,8 @@ export function InterviewApp() {
       <span>正在打开你的档案</span>
     </div>
   );
+  if (data && entryReady && !entered)
+    return <Onboarding profile={data.profile} onStart={startConversation} onSave={edit} />;
   return (
     <>
       <WorkspaceShell
@@ -377,6 +404,14 @@ export function InterviewApp() {
           </div>
         )}
         <div ref={end} />
+        {data && !waiting && (
+          <ProposalThread
+            client={client}
+            revision={data.interview.version}
+            profileVersion={data.profile.version}
+            ready={data.interview.messages.some((m) => m.role === 'assistant')}
+          />
+        )}
       </WorkspaceShell>
       <input
         ref={fileInput}
@@ -405,20 +440,17 @@ export function InterviewApp() {
 export function Welcome({ choose }: { choose: (text: string) => void }) {
   return (
     <div className="welcome page-enter">
-      <div className="welcome-art">
-        <img src="/art/open-door.webp" alt="通向海边小城的一扇门，原创开场插画" />
-        <span>人生，不止一种走法</span>
+      <div className="chat-opening">
+        <span className="agent-symbol">
+          <Icon name="spark" size={21} />
+        </span>
+        <h1>先聊聊此刻的你。</h1>
+        <p>
+          最近，有没有一件事，
+          <br />
+          让你总想起另一种选择？
+        </p>
       </div>
-      <h1>
-        如果，
-        <br />
-        那天选了另一条路。
-      </h1>
-      <p>
-        先聊聊你。那些喜欢的、错过的，
-        <br />
-        还有一直没来得及的。
-      </p>
       <div className="conversation-starters">
         <p>从一个小话题开始</p>
         {[

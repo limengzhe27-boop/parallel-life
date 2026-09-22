@@ -1,5 +1,5 @@
 'use client';
-import { AppTabs } from '../../components/app-tabs.tsx';
+import { AppViewport } from '../../components/app-viewport.tsx';
 import type { ApprovedSeed } from '../../contracts/seeds.ts';
 import { SeedConsent, SeedReceipt } from './seed-consent.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -47,6 +47,12 @@ export function DiscoveryApp() {
   useEffect(() => {
     void load().catch((e) => setError(explain(e)));
   }, [load]);
+  useEffect(() => {
+    if (!data?.directions.length) return;
+    const id = new URLSearchParams(location.search).get('direction');
+    if (id && data.directions.some((d) => d.id === id))
+      document.getElementById(`direction-${id}`)?.scrollIntoView({ block: 'start' });
+  }, [data?.version]);
   const task = data?.activeTask,
     waiting = task?.status === 'queued' || task?.status === 'running';
   useEffect(() => {
@@ -144,8 +150,11 @@ export function DiscoveryApp() {
   return (
     <div className="discovery-page">
       <header className="discovery-header">
-        <a href="/" className="wordmark" aria-label="如果，回到聊天">
-          如果<span className="wordmark-dot">✳</span>
+        <a href="/" className="button ghost" aria-label="返回个人对话">
+          <span className="back-chevron">
+            <Icon name="chevron" size={20} />
+          </span>
+          回去聊聊
         </a>
         <a className="button ghost" href="/#profile">
           <Icon name="user" size={19} />
@@ -154,13 +163,13 @@ export function DiscoveryApp() {
       </header>
       <main className="discovery-main">
         <section className="discovery-intro page-enter">
-          <p className="eyebrow">换个选择，会怎样？</p>
+          <p className="eyebrow">从我们的对话继续</p>
           <h1>
-            这一次，
+            这段人生，
             <br />
-            想怎么过？
+            由你来决定。
           </h1>
-          <p>从你聊过的故事里，找一点新的可能。</p>
+          <p>想保留什么、改变什么，都可以继续聊。</p>
           <img
             className="discovery-illustration"
             src="/art/open-door.webp"
@@ -291,7 +300,11 @@ export function DiscoveryApp() {
             {data.directions.length ? (
               <section className="direction-grid" aria-label="为你构想的人生方向">
                 {data.directions.map((direction, index) => (
-                  <article className="direction-card page-enter" key={direction.id}>
+                  <article
+                    id={`direction-${direction.id}`}
+                    className="direction-card page-enter"
+                    key={direction.id}
+                  >
                     <div className="direction-cover">
                       <img
                         loading="lazy"
@@ -404,7 +417,7 @@ export function DiscoveryApp() {
           </>
         )}
       </main>
-      <AppTabs active="possibilities" />
+      <AppViewport />
       {choosing && profile && data && (
         <SeedConsent
           direction={choosing}

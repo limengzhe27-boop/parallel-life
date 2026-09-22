@@ -12,3 +12,9 @@ Create an editorial illustration asset for a Chinese mobile app about alternativ
 
 ### meadow-door
 Premium gouache editorial art for a mobile app exploring alternative lives. Landscape 3:2. An open lilac colored door standing in a lush sunny meadow, stepping stones curving into rolling green hills, tiny yellow wildflowers, a pale cream moon in a periwinkle daytime sky, a single blue folding chair and sketchbook near the doorway. No people. Sophisticated travel magazine style, hand painted paper texture, warm soft sunlight, playful sculptural shapes, welcoming possibility. No text, no typography, no logos, no interface. Generic symbolic art, not a specific user's real life. Match a warm cream/coral/lilac/cobalt visual identity.
+
+## first-window.webp
+
+内置 imagegen 生成的通用环境摄影背景；无人物、无个人经历含义，1000px WebP 网页压缩。
+
+Prompt: Photorealistic cinematic background asset for a Chinese personal life-exploration mobile app onboarding. Vertical portrait 2:3. A quiet modern apartment window in Shanghai at blue hour, softly blurred warm city lights and layered urban rooftops outside, an analog camera and a closed cream notebook on the wooden windowsill in the lower foreground, sheer curtain to the right. No people. Moody deep navy, warm amber, realistic fine film grain, elegant editorial lifestyle photography. Top half visually calm with dark sky to allow white UI text. Strong but natural depth of field, intimate sense of an unwritten personal life, no fantasy portals or gouache. No text, no logos, no graphic overlays, no phone frame. Generic environmental image, not a specific user's life.
