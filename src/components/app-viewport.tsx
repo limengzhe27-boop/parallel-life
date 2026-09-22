@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-/** Shared sizing only. Experience stages are not navigation tabs. */
+/** Keep the shared App viewport within the available screen height. */
 export function AppViewport() {
   useEffect(() => {
     const resize = () =>

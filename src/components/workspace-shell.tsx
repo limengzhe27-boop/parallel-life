@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Button, Icon, Modal } from './ui.tsx';
+import { Icon } from './ui.tsx';
+import { AppTabs } from './app-tabs.tsx';
 import { AppViewport } from './app-viewport.tsx';
 export function WorkspaceShell({
   children,
@@ -24,14 +25,15 @@ export function WorkspaceShell({
       window.removeEventListener('hashchange', sync);
     };
   }, []);
-  function show() {
-    history.pushState({ ...history.state, plPanel: true }, '', '#profile');
-    setOpen(true);
-  }
-  function close() {
-    setOpen(false);
-    if (history.state?.plPanel && location.hash === '#profile') history.back();
-    else history.replaceState(history.state, '', location.pathname + location.search);
+  function select(tab: 'chat' | 'profile') {
+    const next = tab === 'profile';
+    if (next === open) return;
+    history.pushState(
+      history.state,
+      '',
+      location.pathname + location.search + (next ? '#profile' : ''),
+    );
+    setOpen(next);
   }
   return (
     <div className="app-workspace">
@@ -39,12 +41,9 @@ export function WorkspaceShell({
         <a href="/" className="wordmark" aria-label="如果，回到聊天">
           如果<span className="wordmark-dot">✳</span>
         </a>
-        <Button variant="ghost" className="mobile-profile" onClick={show} aria-label="打开我的故事">
-          <Icon name="book" size={20} />
-          我的故事{profileCount > 0 && <span className="count-dot">{profileCount}</span>}
-        </Button>
+        <span className="workspace-caption">{open ? '我的' : '和自己，聊出另一种可能'}</span>
       </header>
-      <main className="interview-workspace">
+      <main className="interview-workspace" hidden={open}>
         <section className="conversation-column" aria-label="认识我的对话">
           <div className="conversation-heading">
             <div className="agent-symbol">
@@ -60,10 +59,13 @@ export function WorkspaceShell({
           {footer}
         </section>
       </main>
+      {open && (
+        <main className="my-page" aria-label="我的信息">
+          {profile}
+        </main>
+      )}
+      <AppTabs active={open ? 'profile' : 'chat'} onSelect={select} profileCount={profileCount} />
       <AppViewport />
-      <Modal open={open} onClose={close} title="我的故事" className="profile-modal">
-        {open && profile}
-      </Modal>
     </div>
   );
 }

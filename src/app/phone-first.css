@@ -1021,3 +1021,83 @@ h2 {
     padding-bottom: 12px;
   }
 }
+
+/* The three primary destinations remain visible outside an entered world. */
+.interview-workspace[hidden] {
+  display: none;
+}
+.my-page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 20px;
+  overscroll-behavior: contain;
+}
+.workspace-caption {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.tab-icon {
+  position: relative;
+  display: flex;
+}
+.tab-icon i {
+  position: absolute;
+  right: -5px;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+}
+.saved-lives {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+}
+.saved-lives h2 {
+  font-size: 19px;
+}
+.saved-life-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 18px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  width: 100%;
+}
+.saved-life-card:hover {
+  border-color: var(--border-hover);
+}
+.saved-life-card > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+.saved-life-card small {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.saved-life-card strong {
+  font-size: 16px;
+}
+.saved-life-card > span > span {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+.saved-life-icon {
+  background: var(--lilac);
+  color: var(--accent);
+  padding: 12px;
+  border-radius: 14px;
+}
+.saved-life-card > svg {
+  flex-shrink: 0;
+}

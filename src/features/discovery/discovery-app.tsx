@@ -1,4 +1,5 @@
 'use client';
+import { AppTabs } from '../../components/app-tabs.tsx';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import type { ApprovedSeed } from '../../contracts/seeds.ts';
 import { SeedConsent, SeedReceipt } from './seed-consent.tsx';
@@ -20,6 +21,7 @@ export function DiscoveryApp() {
     [refineText, setRefineText] = useState('');
   const [choosing, setChoosing] = useState<LifeDirection | null>(null),
     [seed, setSeed] = useState<ApprovedSeed | null>(null),
+    [savedSeeds, setSavedSeeds] = useState<ApprovedSeed[]>([]),
     [receipt, setReceipt] = useState(false);
   const pending = useRef<DiscoverRequest | null>(null),
     hydrated = useRef(false),
@@ -30,11 +32,7 @@ export function DiscoveryApp() {
       client.workspace(),
       client.seeds(),
     ]);
-    setSeed((current) =>
-      !current || !seeds[0] || seeds[0].createdAt >= current.createdAt
-        ? (seeds[0] ?? null)
-        : current,
-    );
+    setSavedSeeds(seeds);
     setData((current) => (!current || d.version >= current.version ? d : current));
     setProfile((current) =>
       !current || w.profile.version >= current.version ? w.profile : current,
@@ -150,26 +148,20 @@ export function DiscoveryApp() {
   return (
     <div className="discovery-page">
       <header className="discovery-header">
-        <a href="/" className="button ghost" aria-label="返回个人对话">
-          <span className="back-chevron">
-            <Icon name="chevron" size={20} />
-          </span>
-          回去聊聊
-        </a>
-        <a className="button ghost" href="/#profile">
-          <Icon name="user" size={19} />
-          我的故事
-        </a>
+        <span className="wordmark">
+          如果<span className="wordmark-dot">✳</span>
+        </span>
+        <span className="workspace-caption">你的每一种可能</span>
       </header>
       <main className="discovery-main">
         <section className="discovery-intro page-enter">
-          <p className="eyebrow">从我们的对话继续</p>
+          <p className="eyebrow">不同的选择，不同的你</p>
           <h1>
-            这段人生，
+            你的那些“如果”，
             <br />
-            由你来决定。
+            都在这里。
           </h1>
-          <p>想保留什么、改变什么，都可以继续聊。</p>
+          <p>从聊天里的一个念头开始，留住你想体验的人生。</p>
           <img
             className="discovery-illustration"
             src="/art/open-door.webp"
@@ -239,17 +231,29 @@ export function DiscoveryApp() {
                 <Icon name="edit" size={13} />
               </a>
             </details>
-            {seed && (
-              <section className="prepared-seed">
-                <Icon name="check" size={20} />
-                <div>
-                  <small>已经记下的想法</small>
-                  <h2>{seed.story.title}</h2>
-                  <p>设定已保存，世界还未生成。</p>
-                </div>
-                <Button variant="secondary" onClick={() => setReceipt(true)}>
-                  打开看看
-                </Button>
+            {savedSeeds.length > 0 && (
+              <section className="saved-lives" aria-label="我的人生分支">
+                <h2>我的人生分支</h2>
+                {savedSeeds.map((saved) => (
+                  <button
+                    className="saved-life-card"
+                    key={saved.id}
+                    onClick={() => {
+                      setSeed(saved);
+                      setReceipt(true);
+                    }}
+                  >
+                    <span className="saved-life-icon">
+                      <Icon name="spark" size={24} />
+                    </span>
+                    <span>
+                      <small>已保存设定 · 等待世界生成</small>
+                      <strong>{saved.story.title}</strong>
+                      <span>{saved.story.premise}</span>
+                    </span>
+                    <Icon name="chevron" size={18} />
+                  </button>
+                ))}
               </section>
             )}
             {stale && (
@@ -417,6 +421,7 @@ export function DiscoveryApp() {
           </>
         )}
       </main>
+      <AppTabs active="possibilities" />
       <AppViewport />
       {choosing && profile && data && (
         <SeedConsent
@@ -426,6 +431,7 @@ export function DiscoveryApp() {
           client={client}
           onClose={() => setChoosing(null)}
           onSaved={(saved) => {
+            setSavedSeeds((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
             setSeed(saved);
             setReceipt(true);
           }}

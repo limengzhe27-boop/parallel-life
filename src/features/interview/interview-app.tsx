@@ -107,7 +107,12 @@ export function InterviewApp() {
     } catch {
       /* optional session memory */
     }
-    setEntered(remembered || data.interview.messages.length > 0 || data.profile.facts.length > 0);
+    setEntered(
+      location.hash === '#profile' ||
+        remembered ||
+        data.interview.messages.length > 0 ||
+        data.profile.facts.length > 0,
+    );
     setEntryReady(true);
   }, [data?.profile.id]);
   function startConversation() {
@@ -527,7 +532,7 @@ export function ProfilePane({
       <header className="profile-title">
         <p className="eyebrow">一点一点，认识你</p>
         <h2>这就是我</h2>
-        <p>照片、喜欢的事，和走过的路。</p>
+        <p>聊天中提到的事，会整理在这里。你可以确认、修改，也可以自己补充。</p>
       </header>
       {error && <Notice>{error}</Notice>}
       <div className="portrait-card">
