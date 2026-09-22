@@ -1,0 +1,15 @@
+:root { --bg:#071522; --surface:#10263a; --text:#f3f5f6; --muted:#c0cedb; --border:#2b455b; --accent:#67a4ff; --font-body:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; --font-title:'Noto Serif SC','Songti SC',serif; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:16px/1.75 var(--font-body); letter-spacing:.02em; }
+.shell { max-width:960px; padding:80px 32px; margin:auto; animation:enter .22s ease-out; }
+.eyebrow { color:var(--accent); font-size:15px; letter-spacing:.16em; }
+h1,h2 { font-family:var(--font-title); font-weight:500; line-height:1.7; }
+h1 { font-size:44px; margin:32px 0 16px; }
+h2 { font-size:24px; margin:16px 0; }
+.intro,p { color:var(--muted); }
+section { max-width:620px; margin-top:48px; padding:24px; border:1px solid var(--border); border-radius:20px; background:var(--surface); }
+.status { color:var(--accent); font-size:15px; }
+.note { font-size:15px; margin-bottom:0; }
+@keyframes enter { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@media(max-width:767px) { .shell { padding:40px 20px; } h1 { font-size:32px; } }
+@media(prefers-reduced-motion:reduce) { * { animation:none!important; } }

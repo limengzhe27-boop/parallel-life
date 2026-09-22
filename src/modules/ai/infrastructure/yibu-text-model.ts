@@ -1,0 +1,41 @@
+import type { ModelMessage, TextModel } from '../application/ports.ts';
+
+export type GatewayConfig = { apiKey: string; model: string; baseUrl: string; timeoutMs: number };
+export class GatewayError extends Error {
+  readonly code: 'INVALID_CONFIG' | 'UPSTREAM_FAILED' | 'INVALID_RESPONSE' | 'TIMEOUT' | 'CANCELLED';
+  constructor(code: GatewayError['code']) {
+    super(code); this.name = 'GatewayError'; this.code = code;
+  }
+}
+/** Server composition injects secrets. This adapter never reads or logs environment values. */
+export class YibuTextModel implements TextModel {
+  private readonly config: GatewayConfig;
+  private readonly request: typeof fetch;
+  constructor(config: GatewayConfig, request: typeof fetch = fetch) {
+    if (config.baseUrl !== 'https://yibuapi.com' || !config.apiKey.trim() || !/^[\w.-]+$/.test(config.model) || !Number.isFinite(config.timeoutMs) || config.timeoutMs < 1 || config.timeoutMs > 120000) throw new GatewayError('INVALID_CONFIG');
+    this.config = { ...config };
+    this.request = request;
+  }
+  async complete(messages: ModelMessage[], signal?: AbortSignal): Promise<string> {
+    if (!messages.length || messages.length > 100 || messages.some(message => !['system', 'user', 'assistant'].includes(message.role) || typeof message.content !== 'string') || messages.reduce((n, message) => n + message.content.length, 0) > 64000) throw new GatewayError('INVALID_CONFIG');
+    const timeout = AbortSignal.timeout(this.config.timeoutMs);
+    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    try {
+      const response = await this.request(`${this.config.baseUrl}/v1/chat/completions`, {
+        method: 'POST', headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: this.config.model, messages, stream: false, max_tokens: 4096 }),
+        signal: combined, redirect: 'error', cache: 'no-store',
+      });
+      if (!response.ok) throw new GatewayError('UPSTREAM_FAILED');
+      const data: unknown = await response.json();
+      const content = (data as { choices?: { message?: { content?: unknown } }[] } | null)?.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || !content.trim() || content.length > 100000) throw new GatewayError('INVALID_RESPONSE');
+      return content;
+    } catch (error) {
+      if (error instanceof GatewayError) throw error;
+      if (signal?.aborted) throw new GatewayError('CANCELLED');
+      if (timeout.aborted) throw new GatewayError('TIMEOUT');
+      throw new GatewayError('UPSTREAM_FAILED');
+    }
+  }
+}
