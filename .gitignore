@@ -8,3 +8,6 @@ coverage/
 .DS_Store
 .local/
 *.log
+
+.vercel/
+.vercel

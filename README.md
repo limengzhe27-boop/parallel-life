@@ -69,4 +69,4 @@
 
 世界创建增量（D-06）：已接入持久化文字世界创建任务、授权设定输入、开场快照和 /worlds/:id 手机读取。生成好的世界可从「如果」进入；当前角色消息只读，图片与持续角色回合未开放。任务及取消/重试已经隔离测试；外部模型实测尚待完成，见 docs/task-reports/D-06.md。
 
-代码已上传到私有仓库 https://github.com/limengzhe27-boop/parallel-life 。云部署目标待确认，详见 [部署接续](docs/DEPLOYMENT.md)。本地页面地址不是公网部署地址。
+代码已上传到私有仓库 https://github.com/limengzhe27-boop/parallel-life 。Vercel界面预览：https://parallel-life-nu.vercel.app 。AI和资料保存后台尚未接入，详见 [部署接续](docs/DEPLOYMENT.md)。

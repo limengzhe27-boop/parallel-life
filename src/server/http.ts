@@ -31,6 +31,18 @@ export async function endpoint(run: () => Promise<Response>) {
   const requestId = randomUUID(),
     started = Date.now();
   try {
+    if (process.env.APP_PREVIEW_ONLY === '1')
+      return json(
+        {
+          error: {
+            code: 'UNAVAILABLE',
+            message: '当前为界面预览，后台尚未接入。',
+            retryable: false,
+            requestId,
+          },
+        },
+        503,
+      );
     const response = await run();
     response.headers.set('X-Request-Id', requestId);
     return response;

@@ -1240,3 +1240,32 @@ h2 {
   border-radius: 16px;
   white-space: pre-wrap;
 }
+
+.cloud-preview-banner {
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--lilac);
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.preview-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.cloud-preview-empty {
+  margin: 24px 0;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: 18px;
+  display: grid;
+  gap: 14px;
+  font-size: 14px;
+  line-height: 1.9;
+}
+.cloud-preview-empty h2 {
+  font-size: 21px;
+}

@@ -3,7 +3,7 @@
 2026-09-22，用户已要求上传GitHub并部署。代码仓库为私有仓库：
 https://github.com/limengzhe27-boop/parallel-life
 
-当前代码已推送main，尚未部署到云端。Github与Vercel CLI已登录，但没有为本项目配置云数据库、Worker或持久私有存储。已向用户询问部署目标；不得使用探索原型的生产数据库或环境。
+用户已选择Vercel网页预览，地址为 https://parallel-life-nu.vercel.app 。独立项目parallel-life已连接GitHub仓库，Production和Preview均配置APP_PREVIEW_ONLY=1。云数据库、Worker与持久私有存储尚未接入。网页明确展示预览提示，保存与AI发送禁用，业务API返回503；本地完整模式不受影响。
 
 ## 完整运行需要
 

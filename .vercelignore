@@ -1,0 +1,9 @@
+.git
+.local
+.env*
+node_modules
+.next
+coverage
+*.log
+*.tsbuildinfo
+src/features/phone/verification
