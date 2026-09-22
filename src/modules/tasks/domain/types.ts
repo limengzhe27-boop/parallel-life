@@ -5,11 +5,18 @@ export type TaskScope =
   | { kind: 'world-build'; proposalId: string }
   | { kind: 'world'; worldId: string }
   | { kind: 'media'; assetRequestId: string };
-export type TaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'conflict' | 'unknown' | 'cancelled';
+export type TaskStatus =
+  'queued' | 'running' | 'succeeded' | 'failed' | 'conflict' | 'unknown' | 'cancelled';
 /** Contracts only: persistent queue/worker remain unimplemented. */
 export type BackgroundTask = {
-  id: string; ownerId: string; scope: TaskScope; status: TaskStatus;
-  idempotencyKey: string; requestHash: string; createdAt: string; updatedAt: string;
+  id: string;
+  ownerId: string;
+  scope: TaskScope;
+  status: TaskStatus;
+  idempotencyKey: string;
+  requestHash: string;
+  createdAt: string;
+  updatedAt: string;
   lease?: { token: string; expiresAt: string };
 };
 export type InterviewTaskInput = {
@@ -17,4 +24,21 @@ export type InterviewTaskInput = {
   inputMessageId: string;
   expectedInterviewVersion: number;
   expectedProfileVersion: number;
+};
+
+export type TaskLease = {
+  id: string;
+  ownerId: string;
+  kind: string;
+  scopeId: string;
+  input: unknown;
+  token: string;
+};
+export type TaskOutcome = {
+  status: 'succeeded' | 'failed' | 'conflict' | 'unknown' | 'cancelled';
+  errorCode?: string;
+  resultVersion?: number;
+  model?: string;
+  promptVersion?: string;
+  durationMs?: number;
 };

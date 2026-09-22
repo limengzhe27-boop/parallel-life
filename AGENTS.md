@@ -15,3 +15,13 @@
 - 主登记目录当前为 /Users/limengzhe/Desktop/projects/demo/人生剧本；登记使用该目录的 .local/agent-board.lock 短锁。不能因超时自动删除他人锁，也不能复制任务表自行另立状态源。
 - 运行 npm run check 和 npm run build。SQL、权限、任务队列变更补真实数据库集成测试；产品界面改动检查手机和 PC。
 - 禁止自动部署到探索原型的生产项目，禁止默认使用其用户数据库；此项目使用独立环境。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

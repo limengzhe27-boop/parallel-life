@@ -7,24 +7,36 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 3218",
     "build": "next build --webpack",
-    "start": "next start --hostname 127.0.0.1",
+    "start": "next start --hostname 127.0.0.1 --port 3218",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check": "npm run check:boundaries && npm run typecheck && npm test"
+    "check": "npm run check:boundaries && npm run typecheck && npm test",
+    "db:local": "node scripts/local-db.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "test:db": "node --experimental-strip-types --test --test-concurrency=1 tests/integration/*.test.ts",
+    "worker": "node --env-file=.env.local --conditions=react-server --experimental-strip-types src/workers/main.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,mjs}\" \"scripts/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,mjs}\" \"scripts/*.mjs\""
   },
   "dependencies": {
     "next": "16.3.5",
+    "pg": "8.23.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "sharp": "0.35.4",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/node": "22.19.19",
+    "@types/pg": "8.23.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "embedded-postgres": "18.4.0-beta.17",
+    "prettier": "3.9.8",
     "typescript": "5.9.3"
   }
 }

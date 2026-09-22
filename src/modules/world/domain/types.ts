@@ -1,15 +1,25 @@
 /** Persisted contracts are versioned; timestamps are ISO 8601, all instants UTC. */
 export type Id = string;
 export type Session = { userId: Id };
-export type Visibility =
-  | { kind: 'owner' }
-  | { kind: 'actors'; actorIds: Id[] }
-  | { kind: 'world' };
+export type Visibility = { kind: 'owner' } | { kind: 'actors'; actorIds: Id[] } | { kind: 'world' };
 
 export type Actor = { id: Id; name: string; persona: string };
 export type Fact = { id: Id; text: string; visibility: Visibility; sourceEventId: Id };
-export type Message = { id: Id; actorId: Id; role: 'user' | 'assistant'; text: string; at: string; sourceEventId: Id };
-export type Appointment = { id: Id; title: string; at: string; participantIds: Id[]; sourceEventId: Id };
+export type Message = {
+  id: Id;
+  actorId: Id;
+  role: 'user' | 'assistant';
+  text: string;
+  at: string;
+  sourceEventId: Id;
+};
+export type Appointment = {
+  id: Id;
+  title: string;
+  at: string;
+  participantIds: Id[];
+  sourceEventId: Id;
+};
 export type MediaRequest = { id: Id; prompt: string; status: 'pending'; sourceEventId: Id };
 
 export type WorldState = {
@@ -50,5 +60,12 @@ export type WorldEvent = {
   type: 'turn.resolved';
   data: { actorId: Id; userText: string; effects: WorldEffect[] };
 };
-export type OutboxJob = { id: Id; worldId: Id; eventId: Id; type: 'image.generate'; requestId: Id; prompt: string };
+export type OutboxJob = {
+  id: Id;
+  worldId: Id;
+  eventId: Id;
+  type: 'image.generate';
+  requestId: Id;
+  prompt: string;
+};
 export type CommitResult = { state: WorldState; event: WorldEvent };

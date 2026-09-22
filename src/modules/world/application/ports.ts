@@ -1,4 +1,10 @@
-import type { CommitResult, Session, TurnCommand, WorldEvent, WorldState } from '../domain/types.ts';
+import type {
+  CommitResult,
+  Session,
+  TurnCommand,
+  WorldEvent,
+  WorldState,
+} from '../domain/types.ts';
 
 /** Implementations MUST authorize reads and atomically commit state/event/jobs/receipt. */
 export interface WorldRepository {
@@ -7,9 +13,12 @@ export interface WorldRepository {
   commit(session: Session, command: TurnCommand, event: WorldEvent): Promise<CommitResult>;
 }
 export type ActorContext = {
-  worldId: string; worldVersion: number; time: string;
+  worldId: string;
+  worldVersion: number;
+  time: string;
   actor: WorldState['actors'][number];
-  facts: WorldState['facts']; messages: WorldState['messages'];
+  facts: WorldState['facts'];
+  messages: WorldState['messages'];
   appointments: WorldState['appointments'];
 };
 /** A character model only receives a filtered context, never the complete world. */

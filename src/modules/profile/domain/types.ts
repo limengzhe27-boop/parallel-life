@@ -7,12 +7,27 @@ export type ProfileFact = {
   sourceMessageIds: string[];
   updatedAt: string;
 };
-export type PersonalProfile = { id: string; ownerId: string; version: number; facts: ProfileFact[] };
+export type PersonalProfile = {
+  id: string;
+  ownerId: string;
+  version: number;
+  facts: ProfileFact[];
+};
 export type LifeProposal = {
-  id: string; ownerId: string; profileVersion: number; title: string;
-  premise: string; reason: string; basisFactIds: string[];
+  id: string;
+  ownerId: string;
+  profileVersion: number;
+  title: string;
+  premise: string;
+  reason: string;
+  basisFactIds: string[];
 };
 export type ApprovedWorldSeed = {
-  id: string; ownerId: string; proposalId: string; profileVersion: number;
-  selectedFactIds: string[]; selectedAssetIds: string[]; approvedAt: string;
+  id: string;
+  ownerId: string;
+  proposalId: string;
+  profileVersion: number;
+  selectedFactIds: string[];
+  selectedAssetIds: string[];
+  approvedAt: string;
 };
