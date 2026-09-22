@@ -1,3 +1,5 @@
+import { AlbumPhotoSchema } from '../../contracts/album.ts';
+import { InvitationRequestSchema, InvitationReceiptSchema } from '../../contracts/invitations.ts';
 import {
   WorldBuildSchema,
   WorldBuildListSchema,
@@ -102,6 +104,17 @@ export class LifeClient {
       body: JSON.stringify(input),
     });
   }
+  async changeInvitation(worldId: string, input: unknown) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/invitations`,
+      InvitationReceiptSchema,
+      {
+        method: 'POST',
+        body: JSON.stringify(InvitationRequestSchema.parse(input)),
+      },
+    );
+  }
   async world(id: string) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(id)}`, WorldPhoneSchema);
@@ -148,7 +161,12 @@ export class LifeClient {
   }
   async task(id: string) {
     await this.connect();
-    return this.request(`/tasks/${encodeURIComponent(id)}`, TaskSchema);
+    const task = await this.request(`/tasks/${encodeURIComponent(id)}`, TaskSchema);
+    if (!['queued', 'running'].includes(task.status)) return task;
+    return this.request(`/tasks/${encodeURIComponent(id)}/run`, TaskSchema, {
+      method: 'POST',
+      signal: AbortSignal.timeout(125000),
+    });
   }
   async retryTask(id: string, commandId: string) {
     await this.connect();
@@ -160,6 +178,24 @@ export class LifeClient {
   async cancelTask(id: string) {
     await this.connect();
     return this.request(`/tasks/${encodeURIComponent(id)}/cancel`, TaskSchema, { method: 'POST' });
+  }
+  async uploadPhoto(worldId: string, file: File, commandId: string) {
+    await this.connect();
+    const form = new FormData();
+    form.set('image', file);
+    form.set('commandId', commandId);
+    form.set(
+      'title',
+      file.name
+        .replace(/\.[^.]+$/, '')
+        .trim()
+        .slice(0, 80) || '照片',
+    );
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/photos`, AlbumPhotoSchema, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(45000),
+    });
   }
   async upload(file: File) {
     await this.connect();

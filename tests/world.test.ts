@@ -47,7 +47,7 @@ const proposal = {
   effects: [
     { type: 'message.received', id: 'message_1', actorId: 'friend', text: '好，明天见。' },
     {
-      type: 'appointment.created',
+      type: 'appointment.proposed',
       id: 'appointment_1',
       title: '看展',
       at: '2026-09-23T08:00:00.000Z',
@@ -232,4 +232,80 @@ test('a chat turn without a reply cannot silently succeed', async () => {
     effects: [{ type: 'media.requested', id: 'image', prompt: '只生成图片' }],
   });
   await assert.rejects(resolveTurn(deps, session, command), { code: 'INVALID_PROPOSAL' });
+});
+
+test('new character turns record attributed beliefs and pending invitations, never model-supplied confirmation', async () => {
+  const { deps } = setup({
+    schemaVersion: 1,
+    effects: [
+      {
+        type: 'message.received',
+        id: 'm',
+        actorId: 'friend',
+        text: '我觉得我们会获奖，明天见面聊？',
+      },
+      {
+        type: 'belief.recorded',
+        id: 'b',
+        actorId: 'friend',
+        text: '我们可能会获奖',
+        kind: 'canonical',
+        visibility: { kind: 'world' },
+      },
+      {
+        type: 'appointment.proposed',
+        id: 'a',
+        title: '聊电影',
+        at: '2026-09-23T08:00:00.000Z',
+        participantIds: ['friend'],
+        status: 'confirmed',
+      },
+    ],
+  });
+  const { state, event } = await resolveTurn(deps, session, command);
+  const belief = state.facts.find((f) => f.kind === 'belief')!;
+  assert.equal(belief.believedByActorId, 'friend');
+  assert.deepEqual(belief.visibility, { kind: 'actors', actorIds: ['friend'] });
+  assert.equal(belief.sourceEventId, event.id);
+  assert.equal(state.appointments[0]?.status, 'proposed');
+  assert.ok(!actorContext(state, 'other').facts.some((f) => f.id === belief.id));
+});
+test('new writes reject legacy ambiguous effects at the repository boundary while old events still replay', async () => {
+  const { deps, worlds } = setup();
+  const result = await resolveTurn(deps, session, command);
+  const oldEvent: WorldEvent = {
+    ...result.event,
+    data: {
+      ...result.event.data,
+      effects: result.event.data.effects.map((effect) =>
+        effect.type === 'appointment.proposed'
+          ? { ...effect, type: 'appointment.created' }
+          : effect,
+      ),
+    },
+  };
+  const replay = applyEvent(seed(), oldEvent).state;
+  assert.equal(replay.appointments[0]?.status, undefined);
+  const repo = new MemoryWorldRepository([seed()]);
+  await assert.rejects(repo.commit(session, command, oldEvent), { code: 'INVALID_PROPOSAL' });
+  assert.deepEqual(await repo.get(session, 'world_1'), seed());
+  assert.equal((await worlds.get(session, 'world_1')).appointments[0]?.status, 'proposed');
+});
+test('a role cannot create another person’s belief or silently establish a personal fact', async () => {
+  for (const effect of [
+    { type: 'belief.recorded', id: 'b', actorId: 'other', text: '别人肯定愿意' },
+    {
+      type: 'fact.established',
+      id: 'f',
+      text: '用户已经同意',
+      visibility: { kind: 'actors', actorIds: ['friend'] },
+    },
+  ]) {
+    const { deps, worlds } = setup({
+      schemaVersion: 1,
+      effects: [{ type: 'message.received', id: 'm', actorId: 'friend', text: '你好' }, effect],
+    });
+    await assert.rejects(resolveTurn(deps, session, command), { code: 'INVALID_PROPOSAL' });
+    assert.deepEqual(await worlds.get(session, 'world_1'), seed());
+  }
 });

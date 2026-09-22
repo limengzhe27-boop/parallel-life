@@ -27,8 +27,8 @@ export function AppTabs({
         <span>聊聊</span>
       </a>
       <a href="/possibilities" aria-current={active === 'possibilities' ? 'page' : undefined}>
-        <Icon name="spark" size={23} />
-        <span>如果</span>
+        <img src="/art/branch-icon.svg" width={23} height={23} alt="" className="branch-tab-icon" />
+        <span>分支</span>
       </a>
       <a
         href="/#profile"

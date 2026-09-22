@@ -24,7 +24,7 @@ export function applyEvent(
   const actorIds = new Set(current.actors.map((actor) => actor.id));
   if (!actorIds.has(event.data.actorId)) throw new DomainError('INVALID_COMMAND');
   const effects = parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects;
-  validateCharacterEffects(event.data.actorId, effects);
+  validateCharacterEffects(event.data.actorId, effects, true);
   const state = structuredClone(current);
   const usedIds = new Set(
     [...state.facts, ...state.messages, ...state.appointments, ...state.mediaRequests].map(
@@ -60,14 +60,26 @@ export function applyEvent(
           sourceEventId,
         });
         break;
+      case 'appointment.proposed':
       case 'appointment.created':
         if (effect.participantIds.some((id) => !actorIds.has(id)) || effect.at < current.time)
           throw new DomainError('INVALID_PROPOSAL', 'Invalid appointment');
         state.appointments.push({
+          ...(effect.type === 'appointment.proposed' ? { status: 'proposed' as const } : {}),
           id: effect.id,
           title: effect.title,
           at: effect.at,
           participantIds: effect.participantIds,
+          sourceEventId,
+        });
+        break;
+      case 'belief.recorded':
+        state.facts.push({
+          id: effect.id,
+          text: effect.text,
+          kind: 'belief',
+          believedByActorId: effect.actorId,
+          visibility: { kind: 'actors', actorIds: [effect.actorId] },
           sourceEventId,
         });
         break;

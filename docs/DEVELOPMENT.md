@@ -207,7 +207,9 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |ID|状态|角色|硬依赖|任务与完成标准|交付证据|
 |---|---|---|---|---|---|
+|W-01A|[x] 已完成|B|B-04|角色认知与邀约语义前置：新回合只能记录自己的认知及待确认邀约，旧事件可重放；领域/仓储测试，不开放确认API|I自审：58项检查、生产构建、独立真实库并发/重连/回滚通过；[报告](task-reports/W-01A.md)；W-01完整验收与确认API仍待接续|
 |W-01|[ ] 待开发|B|V-02|事实/角色认知/个人记录、来源与可见范围；邀约提议/确认/取消；角色不能把个人说法直接写成公共事实|—|
+|W-02A|[x] 已完成|A|B-04|角色上下文前置：授权后检索旧消息、保留来源、总长度硬限制；纯应用层单测，不替代W-01/W-02验收|I自审：6项新增边界测试，55项检查与构建通过；[报告](task-reports/W-02A.md)；仅上下文前置完成，不代表W-02/W-03完成|
 |W-02|[ ] 待开发|A|W-01|带权限的长期记忆、来源摘要、相关检索与总预算；长对话不越限、不串人物秘密|—|
 |W-03|[ ] 待开发|B|W-02|真实角色回合：保存输入、校验、事务、回执；拒绝代用户行动、冒名说话或无回复成功|—|
 |W-04|[ ] 待开发|A|W-03|导演按事件调度关键角色，频率/冷却/知识范围受控；不让全体角色每轮都调用模型|—|
@@ -220,11 +222,13 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |---|---|---|---|---|---|
 |H-01|[x] 已完成|F|U-02|手机桌面/壁纸、应用打开/返回、通知定位、PC 辅助面板和滚动位置恢复|I自审：89951e4/a2bbcdb已合入并通过导航/滚动与手机PC检查；最新锁屏归U-06继续待验收|
 |H-02|[ ] 待开发|B|W-01|授权应用查询投影、分页/版本刷新；消息/日历/相册引用同一事件，不各自生成剧情|—|
-|H-03|[ ] 进行中|F|H-01|消息列表、联系人、人设摘要、聊天输入、未读/重试和关联内容跳转；契约夹具可独立开发|分配codex-f-01a0c7c8；103af3b独立UI基线，按PHONE_APPS_HANDOFF.md；I负责真实对接|
+|H-03|[ ] 待验收|F|H-01|消息列表、联系人、人设摘要、聊天输入、未读/重试和关联内容跳转；契约夹具可独立开发|6f77460（接续103af3b）；四应用UI/异步回执/草稿与失败恢复；43项检查、构建、四尺寸浏览器通过；原工作树专属报告与apps-*截图；待I真实对接/合并|
 |H-04|[ ] 待开发|F|H-01|朋友圈列表/详情、评论/点赞和自己的动态编辑；不伪造真人参与|—|
-|H-05|[ ] 进行中|F|H-01|日期相册、照片详情、生成/失败/重试和事件跳转；手机/PC 浏览|分配codex-f-01a0c7c8；103af3b独立UI基线，按PHONE_APPS_HANDOFF.md；I负责真实对接|
+|H-05A|[x] 已完成|I / B / F|B-07|用户上传图片进入当前人生相册：私有存储、幂等、跨世界隔离、缩略图详情与刷新恢复；不包含图生图|I自审：63项检查、3项真实库、手机/PC上传与恢复、生产构建通过；[报告](task-reports/H-05A.md)|
+|H-05|[ ] 待验收|F|H-01|日期相册、照片详情、生成/失败/重试和事件跳转；手机/PC 浏览|6f77460（接续103af3b）；四应用UI/异步回执/草稿与失败恢复；43项检查、构建、四尺寸浏览器通过；原工作树专属报告与apps-*截图；待I真实对接/合并|
+|H-06A|[x] 已完成|I / B|W-01A|日历接受/改期/取消真实事务、事件回执、权限隔离及手机接入；不包含后续AI事件推进|I自审：62项检查、3项真实库、手机/PC与生产构建通过；[报告](task-reports/H-06A.md)|
 |H-06|[ ] 待开发|B|H-02,W-03|朋友圈互动、日历接受/改期/取消、便签编辑命令；真实存储和权限，相关角色只获知应知变化|—|
-|H-07|[ ] 进行中|F|H-01|日历、便签、邀约确认与编辑；契约夹具先行，提议不显示为已接受|分配codex-f-01a0c7c8；103af3b独立UI基线，按PHONE_APPS_HANDOFF.md；I负责真实对接|
+|H-07|[ ] 待验收|F|H-01|日历、便签、邀约确认与编辑；契约夹具先行，提议不显示为已接受|6f77460（接续103af3b）；四应用UI/异步回执/草稿与失败恢复；43项检查、构建、四尺寸浏览器通过；原工作树专属报告与apps-*截图；待I真实对接/合并|
 |V-03|[ ] 待开发|Q|W-04,H-03,H-04,H-05,H-06,H-07,M-03|真实聊天邀约→日历确认→事件推进→朋友圈/相册/便签联动；通知、未读和失败恢复一致|—|
 
 ### L · 导演、时间与多人生
@@ -264,8 +268,9 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |---|---|---|---|---|---|
 |R-01|[ ] 待开发|B|V-03|监测告警、成本限制、过载行为、备份恢复、资料导出/删除范围；故障演练记录|—|
 |R-02|[ ] 待开发|Q|V-05,E-03,R-01|手机/PC、键盘/读屏、长对话、图片、弱网和跨端完整回归；无假成功、隐私检查通过|—|
-|R-03|[ ] 待开发|I|R-01|独立部署环境：Web/Worker/数据库/存储、迁移/密钥/就绪检查/回滚；不用旧项目生产环境|—|
+|R-03|[ ] 进行中|I|R-01|独立部署环境：Web/Worker/数据库/存储、迁移/密钥/就绪检查/回滚；不用旧项目生产环境|—|
 |R-04|[ ] 待开发|I|R-02,R-03|上线与正式地址/关键流程验证、运维和已知问题交接；必要的发布/商业决定明确后执行|—|
+|R-05B|[ ] 进行中|I|R-05|Vercel latest release; verify deployed UI and honest preview boundary|codex-main-01a0c73b; docs/task-reports/R-05B.md|
 |R-05|[x] 已完成|I|—|用户要求提前上传GitHub并部署：独立私有仓库，确认托管目标与后台资源；不冒充完整生产验收|[报告](task-reports/R-05.md)；按用户所选范围完成私有GitHub上传与Vercel网页预览；parallel-life-nu.vercel.app验证通过，完整后台仍由R-03接续|
 
 若收费规则尚未确定，可在已通过 V-01/V-02/V-03 等门槛后交付有界体验版本，记录开放范围。非商业部分仍可开发和专项验收；不能因此勾选 E-03、R-02 或声称“全部产品完成”。
@@ -298,15 +303,15 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
-|U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/U-06.md|沿用 task/h-01；端口 3220；不接数据库/模型/私有素材|2026-09-22T10:52:19.134628+00:00；103af3b 待验收；用户要求续做四应用 UI，由 I 对接产品；已向 I 发分工/展示类型建议，等待 H-01 硬依赖验收和 H-03/05/07 边界确认；暂只读梳理|
+|U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/U-06.md|沿用 task/h-01；端口 3220；不接数据库/模型/私有素材|2026-09-22T11:32:42.032906+00:00；103af3b外壳移植由I验收；四应用增量6f77460已交付，仅追加嵌入布局CSS，无新Shell props；不覆盖main管理入口；待I验收|
 |D-04|codex-main-01a0c73b|I / 单人|主登记目录|src/features/discovery、src/features/api/client.ts、docs/task-reports/D-04.md|本项目本地环境，串行写入|2026-09-22：已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |U-05|codex-main-01a0c73b|I / 单人|主登记目录|共享导航与布局、interview/discovery、设计文档及报告|本项目本地环境，串行写入|2026-09-22：恢复固定聊聊/如果/我的；我的整页与聊天共享档案，所有已保存分支集中展示；40项检查及手机PC验证通过|
 |U-04|codex-main-01a0c73b|I / 单人|主登记目录|interview、phone-first样式、欢迎预览、设计文档与报告|本项目本地环境，串行写入|2026-09-22：聊天直接进入，姓名生日内嵌选填；我的补充六项资料；四种视口与40项检查、构建通过|
 |D-06|codex-main-01a0c73b|I / 单人|主登记目录|world创建契约/仓储/Worker、迁移0006、server/API、discovery/phone入口、测试与文档|本项目本地环境，串行写入|2026-09-22：文字世界创建、快照和手机读取已实现；41单元、11真实库与界面样板通过；Worker被自动审批拦截，待外传授权后真实模型实测|
-|H-03|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:00:00.662007+00:00；已读回分配，进行中；按 PHONE_APPS_HANDOFF.md 落实 UI 展示类型/回调及四应用；基线103af3b|
-|H-05|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:00:00.662007+00:00；已读回分配，进行中；按 PHONE_APPS_HANDOFF.md 落实 UI 展示类型/回调及四应用；基线103af3b|
-|H-07|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:00:00.662007+00:00；已读回分配，进行中；按 PHONE_APPS_HANDOFF.md 落实 UI 展示类型/回调及四应用；基线103af3b|
-|U-03|codex-main-01a0c73b|I / 单人|主登记目录|外壳与导航集成，辅助apps目录不改|本项目本地环境，串行写入|2026-09-22：审计20项已追加；冻结手机壳受控集成，44项测试与构建通过；视觉待用户审阅|
+|H-03|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
+|H-05|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
+|H-07|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
+|U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
 
 开始时登记基线提交（Git 建立后）、依赖、具体文件、端口/数据库资源与验收方式。单人也登记。临时需要改公共文件由 I 协调并更新允许范围，避免覆盖他人工作。
 
@@ -353,6 +358,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |D-01|codex-main-01a0c73b / 自审|来源与版本校验、不同经历真实推荐、35 项单元和9项真实库通过；[报告](task-reports/D-01.md)|2026-09-22|
 |D-02|codex-main-01a0c73b / 自审|明确选择的设定快照、版本/权限与10项真实库通过，视觉另列U-05；[报告](task-reports/D-02.md)|2026-09-22|
 |R-05|codex-main-01a0c73b / 自审|按用户所选范围完成私有GitHub上传与Vercel网页预览；parallel-life-nu.vercel.app验证通过，完整后台仍由R-03接续；[报告](task-reports/R-05.md)|2026-09-22|
+|H-06A|codex-main-01a0c73b / 自审|62项单元、3项真实库、浏览器和构建通过；[报告](task-reports/H-06A.md)|2026-09-22|
+|H-05A|codex-main-01a0c73b / 自审|用户上传入相册、63项单元、3项真实库、手机/PC与构建通过；[报告](task-reports/H-05A.md)|2026-09-22|
 
 ### 变更日志
 
@@ -402,3 +409,6 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |AUD-18|[ ] 待开发|I|—|当前功能文案、测试计数、交付与部署状态同步，保留历史证据|审计待复核，见登记文档|
 |AUD-19|[ ] 待开发|I|—|内容安全与危机内容处理、举报和未成年人边界及评测|审计待复核，见登记文档|
 |AUD-20|[ ] 待开发|I|—|归并G/R/E：账号恢复、导出删除、备份、成本硬限额、可访问性验收|审计待复核，见登记文档|
+
+
+R-03 / codex-main-01a0c73b / main workspace / 2026-09-22: user authorizes new dedicated services, free tiers preferred. Scope: Vercel project resources, media store port/adapter, server composition, dependencies, deployment/task docs and tests. R-01 full production operations remain pending; this is infrastructure setup, not production acceptance.

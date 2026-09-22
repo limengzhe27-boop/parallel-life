@@ -1,3 +1,5 @@
+import { AlbumPhotoSchema } from './album.ts';
+import { InvitationSchema } from './invitations.ts';
 import { z } from 'zod';
 import { Id, Timestamp, TaskSchema } from './api.ts';
 export const WorldBuildRequestSchema = z.strictObject({ commandId: Id, seedId: Id });
@@ -41,6 +43,9 @@ export const WorldBuildSchema = z.strictObject({
 export const WorldBuildListSchema = z.array(WorldBuildSchema).max(100);
 export type WorldBuild = z.infer<typeof WorldBuildSchema>;
 export const WorldPhoneSchema = z.strictObject({
+  photos: z.array(AlbumPhotoSchema).optional(),
+  version: z.number().int().nonnegative().optional(),
+  invitations: z.array(InvitationSchema).optional(),
   id: Id,
   seedId: Id,
   title: z.string(),
@@ -49,7 +54,13 @@ export const WorldPhoneSchema = z.strictObject({
   setting: z.string(),
   actors: z.array(z.strictObject({ id: Id, name: z.string(), relationship: z.string() })),
   messages: z.array(
-    z.strictObject({ id: z.string(), actorId: Id, text: z.string(), at: Timestamp }),
+    z.strictObject({
+      id: z.string(),
+      actorId: Id,
+      text: z.string(),
+      at: Timestamp,
+      role: z.enum(['user', 'assistant']).optional(),
+    }),
   ),
   notes: z.array(z.strictObject({ title: z.string(), text: z.string() })),
 });

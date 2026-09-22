@@ -1,5 +1,7 @@
 import { DomainError } from '../domain/errors.ts';
 import { applyEvent } from '../domain/reducer.ts';
+import { validateCharacterEffects } from '../domain/character-policy.ts';
+import { parseProposal } from '../domain/validation.ts';
 import type { WorldRepository } from '../application/ports.ts';
 import type {
   CommitResult,
@@ -53,6 +55,10 @@ export class MemoryWorldRepository implements WorldRepository {
     )
       throw new DomainError('INVALID_COMMAND');
     if (this.events.some((item) => item.id === event.id)) throw new DomainError('INVALID_PROPOSAL');
+    validateCharacterEffects(
+      command.actorId,
+      parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
+    );
     const { state, jobs } = applyEvent(current, event);
     const result = structuredClone({ state, event });
     // No await in this commit section: atomic within this process only.

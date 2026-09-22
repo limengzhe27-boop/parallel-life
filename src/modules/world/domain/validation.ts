@@ -65,6 +65,9 @@ export function parseProposal(value: unknown): TurnProposal {
     switch (item.type) {
       case 'message.received':
         return { type: item.type, id: effectId, actorId: id(item.actorId), text: text(item.text) };
+      case 'belief.recorded':
+        return { type: item.type, id: effectId, actorId: id(item.actorId), text: text(item.text) };
+      case 'appointment.proposed':
       case 'appointment.created':
         return {
           type: item.type,

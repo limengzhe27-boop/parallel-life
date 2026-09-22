@@ -1,31 +1,46 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
-import { PhoneShell, type PhoneAppContext } from './phone-shell.tsx';
+import { PhoneShell } from './phone-shell.tsx';
+import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
+import type { PhoneActions } from './apps/types.ts';
+import { worldAppData } from './world-app-data.ts';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const [client] = useState(() => new LifeClient()),
     [data, setData] = useState<WorldPhone | null>(null),
-    [error, setError] = useState('');
-  async function load() {
+    [error, setError] = useState(''),
+    [refreshing, setRefreshing] = useState(false);
+  const request = useRef(0);
+  const load = useCallback(async () => {
+    const currentRequest = ++request.current;
+    setRefreshing(true);
     setError('');
     try {
-      setData(await client.world(worldId));
+      const incoming = await client.world(worldId);
+      if (currentRequest === request.current) setData(incoming);
     } catch (e) {
-      setError(e instanceof ApiFailure ? e.message : '暂时无法打开这段人生。');
+      if (currentRequest === request.current)
+        setError(e instanceof ApiFailure ? e.message : '暂时无法打开这段人生。');
+    } finally {
+      if (currentRequest === request.current) setRefreshing(false);
     }
-  }
+  }, [client, worldId]);
   useEffect(() => {
+    setData(null);
     void load();
-  }, [worldId]);
+    return () => {
+      request.current++;
+    };
+  }, [load]);
   return (
     <div className="world-viewport">
       <AppViewport />
       {!data ? (
         <div className="world-loading">
-          <a href="/possibilities">← 返回如果</a>
+          <a href="/possibilities">← 返回分支</a>
           {error ? (
             <>
               <Notice>{error}</Notice>
@@ -36,7 +51,47 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
           )}
         </div>
       ) : (
-        <WorldPhoneSurface data={data} />
+        <WorldPhoneSurface
+          key={data.id}
+          data={data}
+          onUploadPhoto={async (file, commandId) => {
+            const photo = await client.uploadPhoto(worldId, file, commandId);
+            request.current++;
+            setRefreshing(false);
+            setData((current) =>
+              !current || current.id !== photo.worldId
+                ? current
+                : {
+                    ...current,
+                    photos: [photo, ...(current.photos ?? []).filter((p) => p.id !== photo.id)],
+                  },
+            );
+            void load();
+            return { status: 'committed' };
+          }}
+          onChangeInvitation={async (input) => {
+            const receipt = await client.changeInvitation(worldId, input);
+            // Invalidate older reads; a committed receipt must survive a failed refresh.
+            request.current++;
+            setRefreshing(false);
+            setData((current) =>
+              !current || current.id !== receipt.worldId || (current.version ?? 0) > receipt.version
+                ? current
+                : {
+                    ...current,
+                    version: receipt.version,
+                    invitations: (current.invitations ?? []).map((a) =>
+                      a.id === receipt.invitation.id ? receipt.invitation : a,
+                    ),
+                  },
+            );
+            void load();
+            return { status: 'committed' };
+          }}
+          onReload={load}
+          loading={refreshing}
+          loadError={error}
+        />
       )}
     </div>
   );
@@ -45,115 +100,87 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
 export function WorldPhoneSurface({
   data,
   preview = false,
+  onReload,
+  onChangeInvitation,
+  onUploadPhoto,
+  loading = false,
+  loadError,
 }: {
   data: WorldPhone;
   preview?: boolean;
+  onReload?: () => Promise<void>;
+  onChangeInvitation?: PhoneActions['changeInvitation'];
+  onUploadPhoto?: PhoneActions['uploadPhoto'];
+  loading?: boolean;
+  loadError?: string;
 }) {
-  function app({ app, target, open }: PhoneAppContext) {
-    if (app === 'messages') {
-      const actor = data.actors.find((a) => a.id === target);
-      return actor ? (
-        <div className="world-thread">
-          <h3>{actor.name}</h3>
-          <p>{actor.relationship}</p>
-          {data.messages
-            .filter((m) => m.actorId === actor.id)
-            .map((m) => (
-              <p className="world-message" key={m.id}>
-                {m.text}
-              </p>
-            ))}
-          {!data.messages.some((m) => m.actorId === actor.id) && <p>你们还没有新消息。</p>}
-          <Notice tone="info">开场已保存，持续角色对话即将接入。</Notice>
-        </div>
-      ) : (
-        <div className="world-contacts">
-          {data.actors.map((a) => (
-            <button key={a.id} onClick={() => open('messages', a.id)}>
-              <span className="world-avatar">{a.name.slice(0, 1)}</span>
-              <span>
-                <strong>{a.name}</strong>
-                <small>
-                  {data.messages.filter((m) => m.actorId === a.id).at(-1)?.text ?? a.relationship}
-                </small>
-              </span>
-              <span>›</span>
-            </button>
-          ))}
-        </div>
-      );
-    }
-    if (app === 'notes')
-      return (
-        <div className="world-notes">
-          {data.notes.map((n, i) => (
-            <article key={i}>
-              <h3>{n.title}</h3>
-              <p>{n.text}</p>
-            </article>
-          ))}
-        </div>
-      );
-    return (
-      <div className="world-empty">
-        <h3>
-          {app === 'photos'
-            ? '还没有生成照片'
-            : app === 'calendar'
-              ? '还没有确认的约定'
-              : '这里还没有动态'}
-        </h3>
-        <p>
-          {app === 'photos'
-            ? '世界照片生成后会出现在这里。当前壁纸是通用素材。'
-            : '开场中的邀请不会自动变成你已接受的安排。'}
-        </p>
-      </div>
-    );
-  }
+  const [viewed, setViewed] = useState<ReadonlySet<string>>(new Set());
+  const phoneData = worldAppData(data, viewed);
   return (
-    <PhoneShell
+    <PhoneAppsProvider
       worldId={data.id}
-      lifeName={data.title}
-      dateLabel={new Date(data.time).toLocaleDateString('zh-CN', {
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long',
-      })}
-      timeLabel={new Date(data.time).toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })}
-      wallpaperUrl="/art/first-window.webp"
-      notice={
-        <span>
-          {preview ? '开发样板 · 合成数据 · 未调用模型' : '虚构世界 · 通用壁纸 · 开场时间'}
-        </span>
-      }
-      notifications={data.messages.slice(0, 2).map((m) => ({
-        id: m.id,
-        title: data.actors.find((a) => a.id === m.actorId)?.name ?? '新消息',
-        summary: m.text,
-        app: 'messages',
-        target: m.actorId,
-      }))}
-      renderApp={app}
-      renderPanel={(panel) =>
-        panel === 'timeline' ? (
-          <div className="world-notes">
-            <h3>这个世界里的你</h3>
-            <p>{data.identity}</p>
-            <p>{data.setting}</p>
-            <a className="button secondary" href="/possibilities">
-              返回如果，选择其他人生
-            </a>
-          </div>
-        ) : panel === 'schedule' ? (
-          <p>故事停留在开场，时间推进与暂停控制尚未接入。</p>
-        ) : panel === 'director' ? (
-          <p>导演调整尚未开放，你可以先查看这段人生的身份与开场。</p>
-        ) : null
-      }
-    />
+      data={phoneData}
+      loading={loading}
+      loadError={loadError}
+      onReload={onReload}
+      actions={{
+        changeInvitation: preview ? undefined : onChangeInvitation,
+        uploadPhoto: preview ? undefined : onUploadPhoto,
+        markRead: async (actorId) => {
+          setViewed(
+            (current) =>
+              new Set([
+                ...current,
+                ...data.messages.filter((m) => m.actorId === actorId).map((m) => m.id),
+              ]),
+          );
+        },
+      }}
+    >
+      <PhoneShell
+        worldId={data.id}
+        lifeName={data.title}
+        dateLabel={new Date(data.time.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('zh-CN', {
+          timeZone: 'UTC',
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+        })}
+        timeLabel={data.time.slice(11, 16)}
+        wallpaperUrl="/art/first-window.webp"
+        notice={
+          <span>
+            {preview ? '开发样板 · 合成数据 · 未调用模型' : '虚构世界 · 通用壁纸 · 开场时间'}
+          </span>
+        }
+        notifications={data.messages
+          .filter((m) => m.role !== 'user')
+          .slice(-2)
+          .map((m) => ({
+            id: m.id,
+            title: data.actors.find((a) => a.id === m.actorId)?.name ?? '新消息',
+            summary: m.text,
+            app: 'messages',
+            target: m.actorId,
+          }))}
+        renderApp={(context) => <PhoneAppView {...context} />}
+        renderPanel={(panel) =>
+          panel === 'timeline' ? (
+            <div className="world-notes">
+              <h3>这个世界里的你</h3>
+              <p>{data.identity}</p>
+              <p>{data.setting}</p>
+              <a className="button secondary" href="/possibilities">
+                返回分支，选择其他人生
+              </a>
+            </div>
+          ) : panel === 'schedule' ? (
+            <p>故事停留在开场，时间推进与暂停控制尚未接入。</p>
+          ) : panel === 'director' ? (
+            <p>导演调整尚未开放，你可以先查看这段人生的身份与开场。</p>
+          ) : null
+        }
+      />
+    </PhoneAppsProvider>
   );
 }

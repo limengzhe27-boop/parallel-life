@@ -1,0 +1,323 @@
+/* Approved V4: scoped to the product pages; the world phone retains its own theme. */
+body:has(.app-workspace),
+body:has(.discovery-page) {
+  --bg: #10171c;
+  --bg-rgb: 16, 23, 28;
+  --surface: #202830;
+  --surface-alt: #28313a;
+  --surface-hover: #303a44;
+  --border: #2b343e;
+  --border-hover: #bca38f;
+  --text: #edf0ef;
+  --text-secondary: #a6b0bc;
+  --text-tertiary: #96a1ad;
+  --accent: #e7bea6;
+  --accent-hover: #f0ceb9;
+  --accent-rgb: 231, 190, 166;
+  --lilac: #302e2c;
+  --peach: #302922;
+  --mint: #263b33;
+  --coral: #e7bea6;
+  --error: #ef9b99;
+  --success: #a1cdb3;
+  color: var(--text);
+  color-scheme: dark;
+}
+.app-workspace,
+.discovery-page {
+  max-width: 430px;
+  box-shadow: 0 0 60px #0003;
+}
+.app-workspace .app-header,
+.discovery-page .discovery-header {
+  height: 80px;
+  min-height: 80px;
+  padding: 18px 24px;
+}
+.outer-title {
+  font: 500 24px/1.4 var(--font-body);
+  letter-spacing: 0;
+  margin: 0;
+}
+.app-workspace .conversation-content {
+  padding: 24px 20px;
+}
+.app-workspace .message-list {
+  padding: 0;
+  gap: 26px;
+}
+.app-workspace .message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: #dfc3af;
+  color: #31313a;
+  margin-top: 0;
+  flex-shrink: 0;
+}
+.app-workspace .message {
+  gap: 12px;
+}
+.app-workspace .message-text {
+  border: 0;
+  border-radius: 18px;
+  padding: 14px 16px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.app-workspace .message-meta {
+  display: none;
+}
+.app-workspace .message-user .message-text {
+  background: var(--accent);
+  color: #29282d;
+  border-radius: 18px;
+}
+.app-workspace .first-greeting {
+  margin: 8px 0;
+}
+.app-workspace .composer-area {
+  background: var(--bg);
+  border: 0;
+  padding: 12px 20px 18px;
+}
+.app-workspace .composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  border: 0;
+  border-radius: 27px;
+  padding: 7px 8px 7px 18px;
+}
+.app-workspace .composer textarea {
+  flex: 1;
+  width: 0;
+  padding: 8px 0;
+  min-height: 36px;
+  max-height: 110px;
+  font-size: 16px;
+}
+.app-workspace .composer-bottom {
+  margin: 0;
+}
+.app-workspace .composer-tip,
+.app-workspace .saved-hint {
+  display: none;
+}
+.app-workspace .composer-bottom .button {
+  background: var(--accent);
+  color: #29282d;
+}
+.app-workspace .app-tabs,
+.discovery-page .app-tabs {
+  background: #151b22;
+  padding: 8px 0 max(12px, env(safe-area-inset-bottom));
+}
+.app-workspace .app-tabs a,
+.discovery-page .app-tabs a {
+  gap: 5px;
+  font-size: 12px;
+  min-height: 52px;
+}
+.app-tabs [aria-current='page'] .branch-tab-icon {
+  filter: brightness(1.3) sepia(0.5) saturate(1.3);
+}
+.app-workspace .my-page {
+  padding: 28px 20px;
+}
+.app-workspace .profile-stack {
+  gap: 12px;
+}
+.app-workspace .portrait-card {
+  background: none;
+  padding: 0 4px 18px;
+}
+.app-workspace .portrait-upload {
+  width: 68px;
+  height: 68px;
+  background: #c5c9b5;
+  color: #303c39;
+  border: 0;
+  border-radius: 24px;
+}
+.app-workspace .portrait-card h3 {
+  font-size: 22px;
+  font-weight: 500;
+}
+.app-workspace .portrait-card p {
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+.profile-fold,
+.proposal-drawer {
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.profile-fold > summary,
+.proposal-drawer > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  padding: 20px;
+  min-height: 60px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.profile-fold > summary::-webkit-details-marker,
+.proposal-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+.profile-fold[open] > summary > svg,
+.proposal-drawer[open] > summary > svg {
+  transform: rotate(90deg);
+}
+.profile-fold .basic-info,
+.profile-fold .profile-section {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.app-workspace .profile-footnote {
+  display: none;
+}
+.new-branch {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+  border-radius: 50%;
+}
+.new-branch:hover {
+  background: var(--surface);
+}
+.discovery-page .discovery-main {
+  padding: 16px 20px 24px;
+}
+.discovery-page .saved-lives {
+  margin: 0 0 24px;
+  gap: 12px;
+}
+.branch-section-label {
+  font-size: 12px !important;
+  color: var(--accent);
+  font-weight: 400;
+  padding: 8px 14px;
+  background: var(--surface);
+  justify-self: start;
+  border-radius: 18px;
+}
+.discovery-page .saved-life-card {
+  min-height: 82px;
+  height: 82px;
+  padding: 10px;
+  border: 0;
+  background: #1d242c;
+  border-radius: 16px;
+}
+.discovery-page .saved-life-icon {
+  width: 58px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  background: #394c57;
+  color: #ddc4a0;
+  border-radius: 12px;
+}
+.discovery-page .saved-life-card:nth-of-type(3n + 2) .saved-life-icon {
+  background: #577067;
+}
+.discovery-page .saved-life-card:nth-of-type(3n) .saved-life-icon {
+  background: #655c75;
+}
+.discovery-page .saved-life-card strong {
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  order: -1;
+}
+.discovery-page .saved-life-card small {
+  font-size: 12px;
+}
+.discovery-page .saved-life-card > svg {
+  color: var(--text-secondary);
+  margin-right: 8px;
+}
+.proposal-drawer {
+  margin-top: 20px;
+}
+.proposal-drawer[open] {
+  padding: 0 14px 14px;
+}
+.proposal-drawer[open] > summary {
+  margin: 0 -14px;
+}
+.branch-empty {
+  min-height: 290px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+.branch-empty > svg {
+  color: var(--accent);
+}
+.branch-empty h2 {
+  font: 500 19px var(--font-body);
+}
+.branch-empty p {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+body:has(.app-workspace) .button.primary,
+body:has(.discovery-page) .button.primary {
+  color: #29282d;
+}
+.app-workspace .cloud-preview-banner,
+.discovery-page .cloud-preview-banner {
+  font-size: 11px;
+  background: transparent;
+  color: var(--text-tertiary);
+  padding: 0;
+  margin: 0 0 18px;
+}
+.app-workspace .preview-profile-placeholder {
+  color: var(--text-secondary);
+  padding: 0 20px 20px;
+  font-size: 13px;
+}
+@media (max-width: 480px) {
+  .app-workspace,
+  .discovery-page {
+    max-width: 100%;
+  }
+}
+@media (max-height: 620px) {
+  .app-workspace .app-header,
+  .discovery-page .discovery-header {
+    height: 60px;
+    min-height: 60px;
+  }
+  .app-workspace .composer-area {
+    padding-block: 8px;
+  }
+}
+.app-workspace .app-tabs [aria-current='page'],
+.discovery-page .app-tabs [aria-current='page'] {
+  background: transparent;
+}
+.profile-fold > summary {
+  font-weight: 400;
+}
+.app-workspace .message-text {
+  font-weight: 400;
+}

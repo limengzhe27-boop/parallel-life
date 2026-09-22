@@ -235,12 +235,8 @@ export function InterviewApp() {
       basicInfo={
         <BasicInfo key={`profile-${data.profile.version}`} profile={data.profile} onSave={edit} />
       }
-      events={
-        <>
-          <LifeEvents events={data.profile.events} onSave={edit} />
-          <ImportantPeople people={data.profile.people} client={client} onSave={edit} />
-        </>
-      }
+      events={<LifeEvents events={data.profile.events} onSave={edit} />}
+      people={<ImportantPeople people={data.profile.people} client={client} onSave={edit} />}
       profile={data.profile}
       uploading={uploading}
       saving={saving}
@@ -284,8 +280,8 @@ export function InterviewApp() {
                 maxLength={4000}
                 onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
-                placeholder={data?.interview.messages.length ? '接着说，我在听…' : '说说最近的你…'}
-                rows={2}
+                placeholder="说点什么…"
+                rows={1}
                 onKeyDown={(e) => {
                   if (
                     e.key === 'Enter' &&
@@ -317,14 +313,6 @@ export function InterviewApp() {
           </div>
         }
       >
-        {data && data.interview.messages.length === 0 && (
-          <BasicInfo
-            key={`chat-${data.profile.version}`}
-            compact
-            profile={data.profile}
-            onSave={edit}
-          />
-        )}
         {!data ? (
           <div className="opening">
             <span className="spinner" />
@@ -423,33 +411,16 @@ export function InterviewApp() {
     </>
   );
 }
-export function Welcome({ choose }: { choose: (text: string) => void }) {
+export function Welcome({ choose: _choose }: { choose: (text: string) => void }) {
   return (
-    <div className="welcome page-enter">
-      <div className="chat-opening">
-        <span className="agent-symbol">
-          <Icon name="spark" size={21} />
-        </span>
-        <h1>先聊聊此刻的你。</h1>
-        <p>
-          最近，有没有一件事，
+    <div className="message message-assistant first-greeting">
+      <div className="message-avatar">如</div>
+      <div>
+        <div className="message-text">
+          如果能换一种生活，
           <br />
-          让你总想起另一种选择？
-        </p>
-      </div>
-      <div className="conversation-starters">
-        <p>从一个小话题开始</p>
-        {[
-          ['chat', '最近怎么样', '最近，我的生活是这样的：'],
-          ['spark', '一直想试试', '有一件我一直想做、还没尝试的事：'],
-          ['clock', '忘不了的选择', '有一件改变过我的事情：'],
-        ].map(([icon, label, text]) => (
-          <button className="starter" key={label} onClick={() => choose(text!)}>
-            <Icon name={icon as 'chat' | 'spark' | 'clock'} size={18} />
-            {label}
-            <Icon name="arrow" size={16} />
-          </button>
-        ))}
+          你最想试试什么？
+        </div>
       </div>
     </div>
   );
@@ -496,6 +467,7 @@ export function ProfilePane({
   onEdit,
   onConfirm,
   events,
+  people,
   basicInfo,
   error,
 }: {
@@ -507,18 +479,19 @@ export function ProfilePane({
   onEdit: (category: ProfileFact['category'], fact?: ProfileFact) => void;
   onConfirm: (id: string) => void;
   events?: React.ReactNode;
+  people?: React.ReactNode;
   basicInfo?: React.ReactNode;
 }) {
   const active = profile.facts.filter(
     (f) => f.status !== 'rejected' && !(basicInfo && f.value.startsWith('个人资料\n')),
   );
+  const name = profile.facts
+    .filter((f) => f.status === 'confirmed')
+    .flatMap((f) => f.value.split('\n'))
+    .find((line) => line.startsWith('姓名：'))
+    ?.slice(3);
   return (
     <div className="profile-stack">
-      <header className="profile-title">
-        <p className="eyebrow">一点一点，认识你</p>
-        <h2>这就是我</h2>
-        <p>聊天中提到的事，会整理在这里。你可以确认、修改，也可以自己补充。</p>
-      </header>
       {error && <Notice>{error}</Notice>}
       <div className="portrait-card">
         <button
@@ -537,108 +510,129 @@ export function ProfilePane({
           </span>
         </button>
         <div>
-          <h3>
-            {uploading
-              ? '正在保存照片…'
-              : profile.portraitAssetId
-                ? '每一种人生，都是你'
-                : '放一张你的照片'}
-          </h3>
-          <p>{profile.portraitAssetId ? '点击照片，可以随时更换。' : '先从一张喜欢的照片开始。'}</p>
-          <span className="photo-caption">只有你能看到这份档案</span>
+          <h3>{uploading ? '正在保存照片…' : name || '我的档案'}</h3>
+          <p>点击头像，更换照片</p>
         </div>
       </div>
-      {basicInfo}
-      <div className="profile-section">
-        <div className="section-heading">
-          <h3>
-            <Icon name="user" size={17} />
-            关于我
-          </h3>
-          <Button
-            variant="ghost"
-            className="icon-button"
-            aria-label="手动添加资料"
-            onClick={() => onEdit('identity')}
-          >
-            <Icon name="plus" size={18} />
-          </Button>
-        </div>
-        {active.length === 0 ? (
-          <div className="profile-empty">
-            <span className="empty-lines">
-              <i />
-              <i />
-              <i />
-            </span>
-            <p>
-              关于你的一切，
-              <br />
-              可以从一句话开始。
-            </p>
-            <Button variant="ghost" onClick={() => onEdit('identity')}>
-              也可以自己填写
-              <Icon name="edit" size={14} />
-            </Button>
-          </div>
-        ) : (
-          <div className="profile-facts">
-            {(Object.keys(categories) as ProfileFact['category'][]).map((category) => {
-              const facts = active.filter((f) => f.category === category);
-              if (!facts.length) return null;
-              return (
-                <div className="fact-group" key={category}>
-                  <h4>{categories[category]}</h4>
-                  {facts.map((fact) => (
-                    <div className="fact-row" key={fact.id}>
-                      <button className="fact-content" onClick={() => onEdit(category, fact)}>
-                        <span>{fact.value}</span>
-                        <small>
-                          {fact.status === 'suggested' ? '这像你吗？' : '已确认'}
-                          <Icon name="edit" size={12} />
-                        </small>
-                      </button>
-                      {fact.status === 'suggested' && (
-                        <Button
-                          variant="ghost"
-                          className="icon-button confirm-fact"
-                          aria-label={`确认：${fact.value}`}
-                          disabled={saving}
-                          onClick={() => onConfirm(fact.id)}
-                        >
-                          <Icon name="check" size={17} />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      {events ?? (
+      <details className="profile-fold">
+        <summary>
+          基本资料
+          <Icon name="chevron" size={16} />
+        </summary>
+        {basicInfo}
+      </details>
+      <details
+        className="profile-fold"
+        open={active.some((f) => f.status === 'suggested') || undefined}
+      >
+        <summary>
+          兴趣与愿望
+          <Icon name="chevron" size={16} />
+        </summary>
         <div className="profile-section">
           <div className="section-heading">
             <h3>
-              <Icon name="book" size={17} />
-              我的人生轨迹
+              <Icon name="user" size={17} />
+              关于我
             </h3>
+            <Button
+              variant="ghost"
+              className="icon-button"
+              aria-label="手动添加资料"
+              onClick={() => onEdit('identity')}
+            >
+              <Icon name="plus" size={18} />
+            </Button>
           </div>
-          <p className="section-copy">
-            聊到重要的经历时，
-            <br />
-            它们会成为这里的一个个节点。
-          </p>
-          <div className="empty-timeline" aria-hidden="true">
-            <i />
-            <span />
-            <i />
-            <span />
-            <i />
-          </div>
+          {active.length === 0 ? (
+            <div className="profile-empty">
+              <span className="empty-lines">
+                <i />
+                <i />
+                <i />
+              </span>
+              <p>
+                关于你的一切，
+                <br />
+                可以从一句话开始。
+              </p>
+              <Button variant="ghost" onClick={() => onEdit('identity')}>
+                也可以自己填写
+                <Icon name="edit" size={14} />
+              </Button>
+            </div>
+          ) : (
+            <div className="profile-facts">
+              {(Object.keys(categories) as ProfileFact['category'][]).map((category) => {
+                const facts = active.filter((f) => f.category === category);
+                if (!facts.length) return null;
+                return (
+                  <div className="fact-group" key={category}>
+                    <h4>{categories[category]}</h4>
+                    {facts.map((fact) => (
+                      <div className="fact-row" key={fact.id}>
+                        <button className="fact-content" onClick={() => onEdit(category, fact)}>
+                          <span>{fact.value}</span>
+                          <small>
+                            {fact.status === 'suggested' ? '这像你吗？' : '已确认'}
+                            <Icon name="edit" size={12} />
+                          </small>
+                        </button>
+                        {fact.status === 'suggested' && (
+                          <Button
+                            variant="ghost"
+                            className="icon-button confirm-fact"
+                            aria-label={`确认：${fact.value}`}
+                            disabled={saving}
+                            onClick={() => onConfirm(fact.id)}
+                          >
+                            <Icon name="check" size={17} />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </details>
+      <details className="profile-fold">
+        <summary>
+          重要的人
+          <Icon name="chevron" size={16} />
+        </summary>
+        {people ?? <p className="preview-profile-placeholder">你聊过的重要人物，会整理在这里。</p>}
+      </details>
+      <details className="profile-fold">
+        <summary>
+          人生经历
+          <Icon name="chevron" size={16} />
+        </summary>
+        {events ?? (
+          <div className="profile-section">
+            <div className="section-heading">
+              <h3>
+                <Icon name="book" size={17} />
+                我的人生轨迹
+              </h3>
+            </div>
+            <p className="section-copy">
+              聊到重要的经历时，
+              <br />
+              它们会成为这里的一个个节点。
+            </p>
+            <div className="empty-timeline" aria-hidden="true">
+              <i />
+              <span />
+              <i />
+              <span />
+              <i />
+            </div>
+          </div>
+        )}
+      </details>
       <div className="profile-footnote">
         <Icon name="lock" size={14} />
         <p>

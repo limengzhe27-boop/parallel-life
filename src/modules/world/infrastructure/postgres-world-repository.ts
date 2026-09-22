@@ -1,4 +1,9 @@
-import { createHash } from 'node:crypto';
+import {
+  applyInvitationEvent,
+  type InvitationCommand,
+  type InvitationEvent,
+} from '../domain/invitations.ts';
+import { createHash, randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { WorldRepository } from '../application/ports.ts';
 import type {
@@ -10,6 +15,8 @@ import type {
 } from '../domain/types.ts';
 import { DomainError } from '../domain/errors.ts';
 import { applyEvent } from '../domain/reducer.ts';
+import { validateCharacterEffects } from '../domain/character-policy.ts';
+import { parseProposal } from '../domain/validation.ts';
 const fingerprint = (command: TurnCommand) =>
   createHash('sha256')
     .update(
@@ -70,12 +77,89 @@ export class PostgresWorldRepository implements WorldRepository {
       );
       results.push(rows.rows.map((r) => r.document));
     }
-    return {
+    let hydrated: WorldState = {
       ...state,
       messages: [...(initial?.messages ?? []), ...results[0]!],
       appointments: [...(initial?.appointments ?? []), ...results[1]!],
       mediaRequests: [...(initial?.mediaRequests ?? []), ...results[2]!],
     };
+    const responses = await sql.query(
+      "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
+      [state.id, state.version],
+    );
+    for (const row of responses.rows) {
+      const event = row.payload as InvitationEvent;
+      hydrated = applyInvitationEvent(
+        { ...hydrated, version: event.version - 1, time: event.storyTime },
+        event,
+      );
+    }
+    return { ...hydrated, version: state.version, time: state.time };
+  }
+  async respondToInvitation(session: Session, command: InvitationCommand) {
+    const hash = createHash('sha256')
+      .update(
+        JSON.stringify([
+          'invitation.responded',
+          command.worldId,
+          command.id,
+          command.expectedVersion,
+          command.operation,
+          command.at ?? null,
+        ]),
+      )
+      .digest('hex');
+    return this.db.transaction(session.userId, async (sql) => {
+      const current = await this.owned(sql, command.worldId, true);
+      const previous = (
+        await sql.query(
+          'SELECT request_hash,result_state FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
+          [command.worldId, command.commandId],
+        )
+      ).rows[0];
+      if (previous) {
+        if (previous.request_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
+        if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
+        return this.hydrate(sql, previous.result_state);
+      }
+      const event: InvitationEvent = {
+        schemaVersion: 1,
+        type: 'invitation.responded',
+        storyTime: current.time,
+        id: randomUUID(),
+        worldId: command.worldId,
+        commandId: command.commandId,
+        version: command.expectedVersion + 1,
+        occurredAt: new Date().toISOString(),
+        data: command,
+      };
+      const state = applyInvitationEvent(await this.hydrate(sql, current), event);
+      await sql.query(
+        "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
+        [command.commandId, state.id, session.userId, command.expectedVersion, hash, command],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [
+          event.id,
+          state.id,
+          session.userId,
+          event.version,
+          command.commandId,
+          event,
+          event.occurredAt,
+        ],
+      );
+      await sql.query(
+        'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
+        [state.id, state.version, compact(state)],
+      );
+      await sql.query(
+        "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
+        [state.id, command.commandId, event.id, compact(state)],
+      );
+      return state;
+    });
   }
   async get(session: Session, id: string) {
     return this.db.transaction(session.userId, async (sql) =>
@@ -114,6 +198,10 @@ export class PostgresWorldRepository implements WorldRepository {
       )
         throw new DomainError('INVALID_COMMAND');
       const hydrated = await this.hydrate(sql, current);
+      validateCharacterEffects(
+        command.actorId,
+        parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
+      );
       const { state, jobs } = applyEvent(hydrated, event);
       await sql.query(
         "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",

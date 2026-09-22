@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './phone-first.css';
+import './outer-ui.css';
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,

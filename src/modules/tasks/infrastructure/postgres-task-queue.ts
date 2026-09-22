@@ -26,6 +26,25 @@ export class PostgresTaskQueue {
         }
       : null;
   }
+  async claimForOwner(id: string, ownerId: string, kinds: string[]): Promise<TaskLease | null> {
+    const row = (
+      await this.pool.query('SELECT * FROM parallel_life.claim_task_for_owner($1,$2,$3)', [
+        id,
+        ownerId,
+        kinds,
+      ])
+    ).rows[0];
+    return row
+      ? {
+          id: row.id,
+          ownerId: row.owner_id,
+          kind: row.scope_kind,
+          scopeId: row.scope_id,
+          input: row.input,
+          token: row.lease_token,
+        }
+      : null;
+  }
   async renew(lease: TaskLease) {
     return !!(
       await this.pool.query('SELECT parallel_life.renew_task($1,$2) ok', [lease.id, lease.token])

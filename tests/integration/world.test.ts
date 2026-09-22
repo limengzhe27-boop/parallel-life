@@ -52,6 +52,14 @@ test('real world commit: concurrency, original receipt, compact projections, res
       effects: [
         { type: 'message.received', id: randomUUID(), actorId: 'friend', text: '你好呀' },
         { type: 'media.requested', id: randomUUID(), prompt: '测试照片' },
+        { type: 'belief.recorded', id: randomUUID(), actorId: 'friend', text: '我觉得会成功' },
+        {
+          type: 'appointment.proposed',
+          id: randomUUID(),
+          title: '聊聊',
+          at,
+          participantIds: ['friend'],
+        },
       ],
     },
   });
@@ -80,7 +88,22 @@ test('real world commit: concurrency, original receipt, compact projections, res
     await db.close();
     db = new PostgresDatabase(url);
     repo = new PostgresWorldRepository(db);
-    assert.equal((await repo.get(session, id)).messages.length, 4);
+    const restored = await repo.get(session, id);
+    assert.equal(restored.messages.length, 4);
+    assert.equal(restored.appointments.length, 2);
+    assert.ok(restored.appointments.every((a) => a.status === 'proposed'));
+    assert.ok(restored.facts.every((f) => f.kind === 'belief' && f.believedByActorId === 'friend'));
+    const legacy = command(2),
+      legacyEvent = event(legacy);
+    legacyEvent.data.effects[3] = {
+      type: 'appointment.created',
+      id: randomUUID(),
+      title: '偷偷确认',
+      at,
+      participantIds: ['friend'],
+    };
+    await assert.rejects(repo.commit(session, legacy, legacyEvent), { code: 'INVALID_PROPOSAL' });
+    assert.equal((await repo.get(session, id)).version, 2);
     const stored = (await admin.query('SELECT state FROM parallel_life.worlds WHERE id=$1', [id]))
       .rows[0].state;
     assert.deepEqual(stored.messages, []);

@@ -4,7 +4,15 @@ export type Session = { userId: Id };
 export type Visibility = { kind: 'owner' } | { kind: 'actors'; actorIds: Id[] } | { kind: 'world' };
 
 export type Actor = { id: Id; name: string; persona: string };
-export type Fact = { id: Id; text: string; visibility: Visibility; sourceEventId: Id };
+export type Fact = {
+  id: Id;
+  text: string;
+  visibility: Visibility;
+  sourceEventId: Id;
+  /** Absent only for legacy records; absence must not be interpreted as confirmed truth. */
+  kind?: 'canonical' | 'belief';
+  believedByActorId?: Id;
+};
 export type Message = {
   id: Id;
   actorId: Id;
@@ -14,6 +22,8 @@ export type Message = {
   sourceEventId: Id;
 };
 export type Appointment = {
+  /** Legacy records have no explicit response state. */
+  status?: 'proposed' | 'confirmed' | 'cancelled';
   id: Id;
   title: string;
   at: string;
@@ -37,6 +47,8 @@ export type WorldState = {
 };
 
 export type WorldEffect =
+  | { type: 'belief.recorded'; id: Id; actorId: Id; text: string }
+  | { type: 'appointment.proposed'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }

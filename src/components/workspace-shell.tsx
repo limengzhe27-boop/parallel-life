@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Icon } from './ui.tsx';
 import { AppTabs } from './app-tabs.tsx';
 import { AppViewport } from './app-viewport.tsx';
 export function WorkspaceShell({
@@ -38,23 +37,10 @@ export function WorkspaceShell({
   return (
     <div className="app-workspace">
       <header className="app-header">
-        <a href="/" className="wordmark" aria-label="如果，回到聊天">
-          如果<span className="wordmark-dot">✳</span>
-        </a>
-        <span className="workspace-caption">{open ? '我的' : '和自己，聊出另一种可能'}</span>
+        <h1 className="outer-title">{open ? '我的' : '如果'}</h1>
       </header>
       <main className="interview-workspace" hidden={open}>
         <section className="conversation-column" aria-label="认识我的对话">
-          <div className="conversation-heading">
-            <div className="agent-symbol">
-              <Icon name="spark" size={22} />
-            </div>
-            <div>
-              <h2>如果 · 你的倾听者</h2>
-              <span>从最近的你，慢慢聊起。</span>
-            </div>
-            <Icon name="lock" size={15} />
-          </div>
           <div className="conversation-content">{children}</div>
           {footer}
         </section>

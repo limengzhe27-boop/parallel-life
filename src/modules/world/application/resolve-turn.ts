@@ -18,7 +18,7 @@ export async function resolveTurn(
   if (world.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
   const proposal = parseProposal(
     await deps.planner.propose({
-      context: actorContext(world, command.actorId),
+      context: actorContext(world, command.actorId, command.text),
       userText: command.text,
     }),
   );

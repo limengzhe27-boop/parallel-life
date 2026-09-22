@@ -1,3 +1,4 @@
+import { albumPhotos } from '../../media/infrastructure/album-projection.ts';
 import { randomUUID } from 'node:crypto';
 import {
   WorldBuildRequestSchema,
@@ -107,6 +108,11 @@ export class BuildRepository {
     return WorldPhoneSchema.parse({
       id: state.id,
       seedId: metadata.seed_id,
+      photos: await this.db.transaction(ownerId, (sql) => albumPhotos(sql, worldId)),
+      version: state.version,
+      invitations: state.appointments
+        .filter((a) => a.status)
+        .map(({ sourceEventId: _source, ...a }) => a),
       title: state.title,
       time: state.time,
       identity: metadata.opening.identity,
@@ -119,6 +125,7 @@ export class BuildRepository {
       messages: state.messages.map((m) => ({
         id: m.id,
         actorId: m.actorId,
+        role: m.role,
         text: m.text,
         at: m.at,
       })),

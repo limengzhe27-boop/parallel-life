@@ -1,5 +1,6 @@
 'use client';
-import { WorkspaceShell } from './workspace-shell.tsx';
+import { BranchList } from '../features/discovery/branch-list.tsx';
+import { AppTabs } from './app-tabs.tsx';
 import { useState } from 'react';
 import { Brand, Button, Icon, Modal, Notice } from './ui.tsx';
 export function UiPreview() {
@@ -39,37 +40,28 @@ export function UiPreview() {
 }
 
 export function ShellPreview() {
+  const [selected, setSelected] = useState('');
   return (
-    <WorkspaceShell
-      profile={
-        <div className="shell-profile">
-          <p className="eyebrow">YOUR REAL LIFE</p>
-          <h2>现实中的我</h2>
-          <p>你的经历、兴趣和愿望，会慢慢在这里留下轮廓。</p>
-          <Button variant="secondary">资料操作</Button>
-        </div>
-      }
-      footer={
-        <div className="shell-composer">
-          <textarea className="field" aria-label="输入内容" placeholder="写一点此刻的想法…" />
-          <div className="form-actions">
-            <Button>
-              继续
-              <Icon name="arrow" />
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      <div className="shell-welcome">
-        <p className="eyebrow">EVERY POSSIBILITY BEGINS WITH YOU</p>
-        <h1>
-          从你的人生，
-          <br />
-          开始另一种可能。
-        </h1>
-        <p>不用急着想好要去哪里。先从最近的生活，或者一个一直没说出口的愿望聊起。</p>
-      </div>
-    </WorkspaceShell>
+    <div className="discovery-page">
+      <header className="discovery-header">
+        <h1 className="outer-title">分支</h1>
+      </header>
+      <main className="discovery-main">
+        <p className="cloud-preview-banner">开发样例 · 不创建世界</p>
+        <BranchList
+          items={[
+            '导演的我',
+            '摄影师的我',
+            '海边店主的我',
+            '东京的我',
+            '音乐人的我',
+            '这是一条用来验证特别长的身份名称是否会超出卡片边界的分支',
+          ].map((title, i) => ({ id: String(i), title, status: '界面样例' }))}
+          onOpen={setSelected}
+        />
+        <p role="status">{selected ? `已选择样例 ${Number(selected) + 1}` : ''}</p>
+      </main>
+      <AppTabs active="possibilities" />
+    </div>
   );
 }

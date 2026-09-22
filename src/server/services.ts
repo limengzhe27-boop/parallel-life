@@ -1,3 +1,5 @@
+import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
+import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { BuildRepository } from '../modules/world/infrastructure/build-repository.ts';
 import { SeedRepository } from '../modules/discovery/infrastructure/seed-repository.ts';
 import { DiscoveryRepository } from '../modules/discovery/infrastructure/discovery-repository.ts';
@@ -23,7 +25,14 @@ function createServices() {
   )
     throw Error('RUNTIME_ROLE_REQUIRED');
   const assetDir = process.env.PRIVATE_ASSET_DIR;
-  if (!assetDir) throw Error('PRIVATE_STORAGE_NOT_CONFIGURED');
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN,
+    blobStoreId = process.env.BLOB_STORE_ID;
+  if (!blobToken && !blobStoreId && (!assetDir || process.env.VERCEL))
+    throw Error('PRIVATE_STORAGE_NOT_CONFIGURED');
+  const assetStore =
+    blobToken || blobStoreId
+      ? new VercelBlobStore({ token: blobToken, storeId: blobStoreId })
+      : new PrivateDiskStore(assetDir!);
   const db = new PostgresDatabase(url);
   return {
     db,
@@ -32,10 +41,11 @@ function createServices() {
     discovery: new DiscoveryRepository(db),
     seeds: new SeedRepository(db),
     builds: new BuildRepository(db),
+    worlds: new PostgresWorldRepository(db),
     tasks: new TaskRepository(db),
     interview: new InterviewRepository(db),
     profile: new ProfileRepository(db),
-    assets: new AssetRepository(db, new PrivateDiskStore(assetDir)),
+    assets: new AssetRepository(db, assetStore),
     origin,
   };
 }

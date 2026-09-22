@@ -1,9 +1,12 @@
+import { albumPhotos } from './album-projection.ts';
+import { AlbumUploadSchema } from '../../../contracts/album.ts';
+import { Id } from '../../../contracts/api.ts';
 import sharp from 'sharp';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
 import { AssetSchema, ProfileSchema } from '../../../contracts/api.ts';
-import { PrivateDiskStore } from './private-disk-store.ts';
+import type { AssetStore } from '../application/asset-store.ts';
 function publicAsset(row: Record<string, unknown>) {
   return AssetSchema.parse({
     id: row.id,
@@ -17,12 +20,34 @@ function publicAsset(row: Record<string, unknown>) {
 }
 export class AssetRepository {
   private db: PostgresDatabase;
-  private store: PrivateDiskStore;
-  constructor(db: PostgresDatabase, store: PrivateDiskStore) {
+  private store: AssetStore;
+  constructor(db: PostgresDatabase, store: AssetStore) {
     this.db = db;
     this.store = store;
   }
-  async upload(ownerId: string, bytes: Buffer) {
+  async requireWorld(ownerId: string, worldId: string) {
+    await this.db.transaction(ownerId, async (sql) => {
+      const row = (await sql.query('SELECT id FROM parallel_life.worlds WHERE id=$1', [worldId]))
+        .rows[0];
+      if (!row) throw new TaskError('NOT_FOUND');
+    });
+  }
+  async uploadToAlbum(ownerId: string, worldId: string, bytes: Buffer, input: unknown) {
+    const parsed = AlbumUploadSchema.safeParse(input);
+    if (!parsed.success || !Id.safeParse(worldId).success) throw new TaskError('INVALID_INPUT');
+    await this.requireWorld(ownerId, worldId);
+    const asset = await this.upload(ownerId, bytes, { ...parsed.data, worldId });
+    return this.db.transaction(ownerId, async (sql) => {
+      const photo = (await albumPhotos(sql, worldId)).find((p) => p.id === asset.id);
+      if (!photo) throw new TaskError('NOT_FOUND');
+      return photo;
+    });
+  }
+  async upload(
+    ownerId: string,
+    bytes: Buffer,
+    album?: { worldId: string; commandId: string; title: string },
+  ) {
     if (!bytes.length || bytes.length > 8 * 1024 * 1024) throw new TaskError('INVALID_INPUT');
     let data: Buffer, width: number, height: number;
     try {
@@ -48,10 +73,37 @@ export class AssetRepository {
     }
     const id = randomUUID(),
       key = `${id}.webp`;
+    const hash = album
+      ? createHash('sha256')
+          .update(bytes)
+          .update(JSON.stringify([album.worldId, album.title]))
+          .digest('hex')
+      : '';
     await this.store.put(key, data);
     try {
-      return await this.db.transaction(ownerId, async (sql) => {
+      const saved = await this.db.transaction(ownerId, async (sql) => {
         await sql.query('SELECT id FROM parallel_life.accounts WHERE id=$1 FOR UPDATE', [ownerId]);
+        let storyAt: string | undefined;
+        if (album) {
+          const world = (
+            await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 FOR SHARE', [
+              album.worldId,
+            ])
+          ).rows[0];
+          if (!world) throw new TaskError('NOT_FOUND');
+          storyAt = world.state.time;
+          const previous = (
+            await sql.query(
+              'SELECT p.request_hash,a.* FROM parallel_life.world_album p JOIN parallel_life.assets a ON a.id=p.asset_id WHERE p.world_id=$1 AND p.command_id=$2',
+              [album.worldId, album.commandId],
+            )
+          ).rows[0];
+          if (previous) {
+            if (previous.request_hash !== hash) throw new TaskError('IDEMPOTENCY_CONFLICT');
+            if (previous.status !== 'ready') throw new TaskError('NOT_FOUND');
+            return publicAsset(previous);
+          }
+        }
         const usage = (
           await sql.query(
             "SELECT count(*)::integer count,coalesce(sum(byte_length),0)::bigint bytes FROM parallel_life.assets WHERE owner_id=$1 AND status='ready'",
@@ -62,14 +114,32 @@ export class AssetRepository {
           throw new TaskError('RATE_LIMITED');
         const row = (
           await sql.query(
-            "INSERT INTO parallel_life.assets(id,owner_id,storage_key,mime_type,byte_length,width,height,origin) VALUES($1,$2,$3,'image/webp',$4,$5,$6,'upload') RETURNING *",
-            [id, ownerId, key, data.length, width, height],
+            "INSERT INTO parallel_life.assets(id,owner_id,storage_key,mime_type,byte_length,width,height,origin,world_id) VALUES($1,$2,$3,'image/webp',$4,$5,$6,'upload',$7) RETURNING *",
+            [id, ownerId, key, data.length, width, height, album?.worldId ?? null],
           )
         ).rows[0];
+        if (album)
+          await sql.query(
+            'INSERT INTO parallel_life.world_album(asset_id,world_id,owner_id,command_id,request_hash,title,story_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+            [id, album.worldId, ownerId, album.commandId, hash, album.title, storyAt],
+          );
         return publicAsset(row);
       });
+      if (saved.id !== id) await this.store.remove(key);
+      return saved;
     } catch (error) {
-      await this.store.remove(key);
+      // A lost COMMIT acknowledgement is ambiguous. Never delete bytes that SQL may reference.
+      let unreferenced = false;
+      try {
+        unreferenced = await this.db.transaction(
+          ownerId,
+          async (sql) =>
+            !(await sql.query('SELECT id FROM parallel_life.assets WHERE id=$1', [id])).rowCount,
+        );
+      } catch {
+        // Keep the file for reconciliation if the database is unavailable.
+      }
+      if (unreferenced) await this.store.remove(key);
       throw error;
     }
   }

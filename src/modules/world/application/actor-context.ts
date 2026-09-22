@@ -2,20 +2,86 @@ import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
 import type { ActorContext } from './ports.ts';
 
-export function actorContext(state: WorldState, actorId: string): ActorContext {
+// Serialized character limits, not a claim about a model's tokenizer. The planner must
+// reserve additional space for its instructions and output. Source records stay intact.
+export const ACTOR_INPUT_LIMIT = 24_000;
+export const ACTOR_CONTEXT_LIMIT = 18_000;
+const RECENT_LIMIT = 12;
+const HISTORICAL_LIMIT = 8;
+
+function terms(query: string): string[] {
+  const matches = query.toLocaleLowerCase().match(/[a-z0-9]{2,}|[\p{Script=Han}]+/gu) ?? [];
+  return [
+    ...new Set(
+      matches.flatMap((part) =>
+        /^[\p{Script=Han}]+$/u.test(part)
+          ? Array.from({ length: Math.max(0, part.length - 1) }, (_, i) => part.slice(i, i + 2))
+          : [part],
+      ),
+    ),
+  ].slice(0, 128);
+}
+function relevance(text: string, words: string[]): number {
+  const normalized = text.toLocaleLowerCase();
+  return words.reduce((score, word) => score + (normalized.includes(word) ? 1 : 0), 0);
+}
+
+/** Filter before ranking; private records cannot influence retrieval or consume its budget. */
+export function actorContext(state: WorldState, actorId: string, userText = ''): ActorContext {
   const actor = state.actors.find((item) => item.id === actorId);
-  if (!actor) throw new DomainError('INVALID_COMMAND');
-  return structuredClone({
+  if (!actor || userText.length > 4000) throw new DomainError('INVALID_COMMAND');
+  const context: ActorContext = {
     worldId: state.id,
     worldVersion: state.version,
     time: state.time,
-    actor,
-    facts: state.facts.filter(
-      (fact) =>
-        fact.visibility.kind === 'world' ||
-        (fact.visibility.kind === 'actors' && fact.visibility.actorIds.includes(actorId)),
-    ),
-    messages: state.messages.filter((message) => message.actorId === actorId).slice(-30),
-    appointments: state.appointments.filter((item) => item.participantIds.includes(actorId)),
-  });
+    actor: { id: actor.id, name: actor.name, persona: actor.persona },
+    facts: [],
+    messages: [],
+    appointments: [],
+  };
+  const fits = () =>
+    JSON.stringify(context).length <= ACTOR_CONTEXT_LIMIT &&
+    JSON.stringify({ context, userText }).length <= ACTOR_INPUT_LIMIT;
+  if (!fits())
+    throw new DomainError('INVALID_COMMAND', 'Character identity exceeds context budget');
+  const words = terms(userText);
+  const messages = state.messages.filter((message) => message.actorId === actorId);
+  const recent = messages.slice(-RECENT_LIMIT);
+  // Keep the newest exchanges first in the budget; no silent truncation of their content.
+  for (const message of [...recent].reverse()) {
+    context.messages.unshift(structuredClone(message));
+    if (
+      !fits() ||
+      (context.messages.length > 1 && JSON.stringify(context.messages).length > 7000)
+    ) {
+      context.messages.shift();
+      if (!context.messages.length)
+        throw new DomainError('INVALID_COMMAND', 'Latest message exceeds context budget');
+      break;
+    }
+  }
+  const append = <T>(items: T[], candidate: T, limit: number) => {
+    items.push(structuredClone(candidate));
+    if (!fits() || JSON.stringify(items).length > limit) items.pop();
+  };
+  const facts = state.facts.filter(
+    (fact) =>
+      fact.visibility.kind === 'world' ||
+      (fact.visibility.kind === 'actors' && fact.visibility.actorIds.includes(actorId)),
+  );
+  const rank = <T>(items: T[], text: (item: T) => string) =>
+    items
+      .map((item, index) => ({ item, index, score: relevance(text(item), words) }))
+      .sort((a, b) => b.score - a.score || b.index - a.index);
+  for (const { item } of rank(facts, (fact) => fact.text)) append(context.facts, item, 4000);
+  const appointments = state.appointments.filter((item) => item.participantIds.includes(actorId));
+  for (const { item } of rank(appointments, (item) => item.title))
+    append(context.appointments, item, 1500);
+  const historical = rank(messages.slice(0, -RECENT_LIMIT), (item) => item.text)
+    .filter((item) => item.score > 0)
+    .slice(0, HISTORICAL_LIMIT);
+  for (const { item } of historical) append(context.messages, item, 11500);
+  const order = new Map(messages.map((message, index) => [message.id, index]));
+  context.messages.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+  return context;
 }
