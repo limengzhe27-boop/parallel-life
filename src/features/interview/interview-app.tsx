@@ -10,7 +10,7 @@ import type {
 } from '../../contracts/api.ts';
 import { WorkspaceShell } from '../../components/workspace-shell.tsx';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
-import { Onboarding } from './onboarding.tsx';
+import { BasicInfo } from './basic-info.tsx';
 import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
 const categories: Record<ProfileFact['category'], string> = {
@@ -32,8 +32,6 @@ export function InterviewApp() {
     [sending, setSending] = useState(false),
     [saving, setSaving] = useState(false),
     [uploading, setUploading] = useState(false);
-  const [entered, setEntered] = useState(false),
-    [entryReady, setEntryReady] = useState(false);
   const [editing, setEditing] = useState<{
     fact?: ProfileFact;
     category: ProfileFact['category'];
@@ -96,32 +94,6 @@ export function InterviewApp() {
         sessionStorage.setItem(`pl-draft:${data.profile.id}`, value);
       } catch {
         /* Keep the in-memory draft. */
-      }
-    }
-  }
-  useEffect(() => {
-    if (!data) return;
-    let remembered = false;
-    try {
-      remembered = sessionStorage.getItem(`pl-entered:${data.profile.id}`) === '1';
-    } catch {
-      /* optional session memory */
-    }
-    setEntered(
-      location.hash === '#profile' ||
-        remembered ||
-        data.interview.messages.length > 0 ||
-        data.profile.facts.length > 0,
-    );
-    setEntryReady(true);
-  }, [data?.profile.id]);
-  function startConversation() {
-    setEntered(true);
-    if (data) {
-      try {
-        sessionStorage.setItem(`pl-entered:${data.profile.id}`, '1');
-      } catch {
-        /* keep current view */
       }
     }
   }
@@ -260,6 +232,9 @@ export function InterviewApp() {
   const profile = data ? (
     <ProfilePane
       error={profileError}
+      basicInfo={
+        <BasicInfo key={`profile-${data.profile.version}`} profile={data.profile} onSave={edit} />
+      }
       events={
         <>
           <LifeEvents events={data.profile.events} onSave={edit} />
@@ -279,8 +254,6 @@ export function InterviewApp() {
       <span>正在打开你的档案</span>
     </div>
   );
-  if (data && entryReady && !entered)
-    return <Onboarding profile={data.profile} onStart={startConversation} onSave={edit} />;
   return (
     <>
       <WorkspaceShell
@@ -344,6 +317,14 @@ export function InterviewApp() {
           </div>
         }
       >
+        {data && data.interview.messages.length === 0 && (
+          <BasicInfo
+            key={`chat-${data.profile.version}`}
+            compact
+            profile={data.profile}
+            onSave={edit}
+          />
+        )}
         {!data ? (
           <div className="opening">
             <span className="spinner" />
@@ -515,6 +496,7 @@ export function ProfilePane({
   onEdit,
   onConfirm,
   events,
+  basicInfo,
   error,
 }: {
   error?: string;
@@ -525,8 +507,11 @@ export function ProfilePane({
   onEdit: (category: ProfileFact['category'], fact?: ProfileFact) => void;
   onConfirm: (id: string) => void;
   events?: React.ReactNode;
+  basicInfo?: React.ReactNode;
 }) {
-  const active = profile.facts.filter((f) => f.status !== 'rejected');
+  const active = profile.facts.filter(
+    (f) => f.status !== 'rejected' && !(basicInfo && f.value.startsWith('个人资料\n')),
+  );
   return (
     <div className="profile-stack">
       <header className="profile-title">
@@ -563,6 +548,7 @@ export function ProfilePane({
           <span className="photo-caption">只有你能看到这份档案</span>
         </div>
       </div>
+      {basicInfo}
       <div className="profile-section">
         <div className="section-heading">
           <h3>

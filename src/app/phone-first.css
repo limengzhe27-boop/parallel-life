@@ -1101,3 +1101,59 @@ h2 {
 .saved-life-card > svg {
   flex-shrink: 0;
 }
+
+.basic-info {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.basic-info h3 {
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+.basic-info p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.basic-info-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.basic-info-fields label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+}
+.basic-info-fields input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 16px;
+  padding: 10px;
+  min-height: 44px;
+}
+.basic-info-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.basic-info-actions > span {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.basic-info-actions button {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+@media (max-width: 350px) {
+  .basic-info-fields {
+    grid-template-columns: 1fr;
+  }
+}
