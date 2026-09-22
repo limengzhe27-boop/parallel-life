@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Brand, Button, Icon, Modal } from './ui.tsx';
+import { Button, Icon, Modal } from './ui.tsx';
+import { AppTabs } from './app-tabs.tsx';
 export function WorkspaceShell({
   children,
   profile,
@@ -18,17 +19,9 @@ export function WorkspaceShell({
     sync();
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
-    const resize = () =>
-      document.documentElement.style.setProperty(
-        '--app-height',
-        `${window.visualViewport?.height ?? innerHeight}px`,
-      );
-    resize();
-    window.visualViewport?.addEventListener('resize', resize);
     return () => {
       window.removeEventListener('popstate', sync);
       window.removeEventListener('hashchange', sync);
-      window.visualViewport?.removeEventListener('resize', resize);
     };
   }, []);
   function show() {
@@ -43,24 +36,12 @@ export function WorkspaceShell({
   return (
     <div className="app-workspace">
       <header className="app-header">
-        <Brand />
-        <nav className="journey" aria-label="当前体验阶段">
-          <span className="journey-current">
-            <i />
-            认识自己
-          </span>
-          <span className="journey-line" />
-          <span>另一种可能</span>
-          <span className="journey-line" />
-          <span>平行人生</span>
-        </nav>
-        <span className="private-label">
-          <Icon name="lock" size={14} />
-          只属于你的空间
-        </span>
-        <Button variant="secondary" className="mobile-profile" onClick={show}>
-          <Icon name="user" size={17} />
-          我的档案{profileCount > 0 && <span className="count-dot">{profileCount}</span>}
+        <a href="/" className="wordmark" aria-label="如果，回到聊天">
+          如果<span className="wordmark-dot">✳</span>
+        </a>
+        <Button variant="ghost" className="mobile-profile" onClick={show} aria-label="打开我的故事">
+          <Icon name="book" size={20} />
+          我的故事{profileCount > 0 && <span className="count-dot">{profileCount}</span>}
         </Button>
       </header>
       <main className="interview-workspace">
@@ -70,19 +51,17 @@ export function WorkspaceShell({
               <Icon name="spark" size={22} />
             </div>
             <div>
-              <h2>人生访谈</h2>
-              <span>故事的起点，是此刻的你。</span>
+              <h2>如果 · 你的倾听者</h2>
+              <span>从最近的你，慢慢聊起。</span>
             </div>
-            <span className="conversation-kind">PERSONAL SPACE</span>
+            <Icon name="lock" size={15} />
           </div>
           <div className="conversation-content">{children}</div>
           {footer}
         </section>
-        <aside className="profile-aside" aria-label="现实中的我">
-          {profile}
-        </aside>
       </main>
-      <Modal open={open} onClose={close} title="现实中的我" className="profile-modal">
+      <AppTabs active={open ? 'profile' : 'chat'} onProfile={show} />
+      <Modal open={open} onClose={close} title="我的故事" className="profile-modal">
         {open && profile}
       </Modal>
     </div>

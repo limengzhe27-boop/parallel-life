@@ -76,6 +76,25 @@ export function InterviewApp() {
       live = false;
     };
   }, [client, apply]);
+  // Drafts live only for this tab session and are scoped to the actual profile.
+  useEffect(() => {
+    if (!data?.profile.id) return;
+    try {
+      setDraft(sessionStorage.getItem(`pl-draft:${data.profile.id}`) ?? '');
+    } catch {
+      /* Storage may be unavailable. */
+    }
+  }, [data?.profile.id]);
+  function updateDraft(value: string) {
+    setDraft(value);
+    if (data?.profile.id) {
+      try {
+        sessionStorage.setItem(`pl-draft:${data.profile.id}`, value);
+      } catch {
+        /* Keep the in-memory draft. */
+      }
+    }
+  }
   const task = data?.interview.activeTask,
     waiting = task?.status === 'queued' || task?.status === 'running';
   useEffect(() => {
@@ -125,7 +144,15 @@ export function InterviewApp() {
     try {
       const sent = await client.send(request);
       setData((current) => (current ? { ...current, interview: sent.interview } : current));
-      setDraft((value) => (value.trim() === text ? '' : value));
+      setDraft((value) => {
+        const next = value.trim() === text ? '' : value;
+        try {
+          sessionStorage.setItem(`pl-draft:${data.profile.id}`, next);
+        } catch {
+          /* No persistent draft storage. */
+        }
+        return next;
+      });
       pending.current = null;
     } catch (e) {
       setError(errorMessage(e));
@@ -250,13 +277,9 @@ export function InterviewApp() {
                 ref={input}
                 value={draft}
                 maxLength={4000}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
-                placeholder={
-                  data?.interview.messages.length
-                    ? '继续聊聊你的想法…'
-                    : '从最近的生活，或者一个小小的愿望说起…'
-                }
+                placeholder={data?.interview.messages.length ? '接着说，我在听…' : '说说最近的你…'}
                 rows={2}
                 onKeyDown={(e) => {
                   if (
@@ -285,11 +308,7 @@ export function InterviewApp() {
                 </Button>
               </div>
             </form>
-            <p className="saved-hint">
-              {data?.interview.messages.length
-                ? '对话已保存，下次可以从这里继续。'
-                : '不必一次说完，我们慢慢来。'}
-            </p>
+            <p className="saved-hint">只聊你愿意分享的事</p>
           </div>
         }
       >
@@ -301,7 +320,7 @@ export function InterviewApp() {
         ) : data.interview.messages.length === 0 ? (
           <Welcome
             choose={(text) => {
-              setDraft(text);
+              updateDraft(text);
               input.current?.focus();
             }}
           />
@@ -383,31 +402,29 @@ export function InterviewApp() {
     </>
   );
 }
-function Welcome({ choose }: { choose: (text: string) => void }) {
+export function Welcome({ choose }: { choose: (text: string) => void }) {
   return (
     <div className="welcome page-enter">
-      <div className="welcome-kicker">
-        <span />
-        每一种可能，都从你开始
+      <div className="welcome-art">
+        <img src="/art/open-door.webp" alt="通向海边小城的一扇门，原创开场插画" />
+        <span>人生，不止一种走法</span>
       </div>
       <h1>
-        从你的人生，
+        如果，
         <br />
-        开始另一种可能。
+        那天选了另一条路。
       </h1>
       <p>
-        先不急着决定成为谁。
+        先聊聊你。那些喜欢的、错过的，
         <br />
-        聊聊此刻的生活、让你着迷的事，
-        <br className="mobile-br" />
-        或者那个一直放在心里的“如果”。
+        还有一直没来得及的。
       </p>
       <div className="conversation-starters">
-        <p>如果不知道从哪里开始</p>
+        <p>从一个小话题开始</p>
         {[
-          ['chat', '最近的生活', '最近，我的生活是这样的：'],
-          ['spark', '一直想做的事', '有一件我一直想做、还没尝试的事：'],
-          ['clock', '一个重要的转折', '有一件改变过我的事情：'],
+          ['chat', '最近怎么样', '最近，我的生活是这样的：'],
+          ['spark', '一直想试试', '有一件我一直想做、还没尝试的事：'],
+          ['clock', '忘不了的选择', '有一件改变过我的事情：'],
         ].map(([icon, label, text]) => (
           <button className="starter" key={label} onClick={() => choose(text!)}>
             <Icon name={icon as 'chat' | 'spark' | 'clock'} size={18} />
@@ -415,14 +432,6 @@ function Welcome({ choose }: { choose: (text: string) => void }) {
             <Icon name="arrow" size={16} />
           </button>
         ))}
-      </div>
-      <div className="welcome-note">
-        <span className="little-line" />
-        <p>
-          你说过的故事，会慢慢成为档案中的你。
-          <br />
-          每一条记录，都可以由你确认和修改。
-        </p>
       </div>
     </div>
   );
@@ -484,9 +493,9 @@ export function ProfilePane({
   return (
     <div className="profile-stack">
       <header className="profile-title">
-        <p className="eyebrow">THE ORIGINAL YOU</p>
-        <h2>现实中的我</h2>
-        <p>真实的你，是一切可能的起点。</p>
+        <p className="eyebrow">一点一点，认识你</p>
+        <h2>这就是我</h2>
+        <p>照片、喜欢的事，和走过的路。</p>
       </header>
       {error && <Notice>{error}</Notice>}
       <div className="portrait-card">
@@ -513,11 +522,7 @@ export function ProfilePane({
                 ? '每一种人生，都是你'
                 : '放一张你的照片'}
           </h3>
-          <p>
-            {profile.portraitAssetId
-              ? '点击照片，可以随时更换。'
-              : '让未来的每一种可能，都有你的模样。'}
-          </p>
+          <p>{profile.portraitAssetId ? '点击照片，可以随时更换。' : '先从一张喜欢的照片开始。'}</p>
           <span className="photo-caption">只有你能看到这份档案</span>
         </div>
       </div>
@@ -525,7 +530,7 @@ export function ProfilePane({
         <div className="section-heading">
           <h3>
             <Icon name="user" size={17} />
-            关于我的记录
+            关于我
           </h3>
           <Button
             variant="ghost"
@@ -566,7 +571,7 @@ export function ProfilePane({
                       <button className="fact-content" onClick={() => onEdit(category, fact)}>
                         <span>{fact.value}</span>
                         <small>
-                          {fact.status === 'suggested' ? '待你确认' : '已确认'}
+                          {fact.status === 'suggested' ? '这像你吗？' : '已确认'}
                           <Icon name="edit" size={12} />
                         </small>
                       </button>

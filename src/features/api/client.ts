@@ -1,3 +1,5 @@
+import { ApprovedSeedSchema, SeedListSchema, type SeedRequest } from '../../contracts/seeds.ts';
+import { DiscoverySchema, type DiscoverRequest } from '../../contracts/discovery.ts';
 import { z } from 'zod';
 import {
   ApiErrorSchema,
@@ -82,6 +84,28 @@ export class LifeClient {
           throw error;
         });
     return this.sessionPromise;
+  }
+  async seeds() {
+    await this.connect();
+    return this.request('/life-seeds', SeedListSchema);
+  }
+  async approveSeed(input: SeedRequest) {
+    await this.connect();
+    return this.request('/life-seeds', ApprovedSeedSchema, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  async discovery() {
+    await this.connect();
+    return this.request('/life-proposals', DiscoverySchema);
+  }
+  async discover(input: DiscoverRequest) {
+    await this.connect();
+    return this.request('/life-proposals', TaskSchema, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   }
   async workspace() {
     await this.connect();

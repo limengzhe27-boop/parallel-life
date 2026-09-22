@@ -1,3 +1,5 @@
+import { DiscoveryPlanner } from '../modules/discovery/infrastructure/discovery-planner.ts';
+import { discoveryHandler } from '../modules/discovery/infrastructure/discovery-handler.ts';
 import 'server-only';
 import { gatewayConfig } from './config.ts';
 import { YibuTextModel } from '../modules/ai/infrastructure/yibu-text-model.ts';
@@ -12,6 +14,11 @@ export function createWorker() {
   return {
     queue,
     handlers: {
+      profile: discoveryHandler(
+        queue,
+        new DiscoveryPlanner(new YibuTextModel(config)),
+        config.model,
+      ),
       interview: interviewHandler(
         queue,
         new InterviewPlanner(new YibuTextModel(config)),

@@ -1,3 +1,5 @@
+import { SeedRepository } from '../modules/discovery/infrastructure/seed-repository.ts';
+import { DiscoveryRepository } from '../modules/discovery/infrastructure/discovery-repository.ts';
 import 'server-only';
 import { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
 import { SignedSession } from '../modules/identity/infrastructure/signed-session.ts';
@@ -26,6 +28,8 @@ function createServices() {
     db,
     sessions: new SignedSession(secret),
     identity: new IdentityRepository(db),
+    discovery: new DiscoveryRepository(db),
+    seeds: new SeedRepository(db),
     tasks: new TaskRepository(db),
     interview: new InterviewRepository(db),
     profile: new ProfileRepository(db),

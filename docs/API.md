@@ -25,3 +25,15 @@
 世界事实 canonical 与角色认知 belief 分离；只有 belief 带 believedByActorId。邀约 proposed 不等于 confirmed。assetRevision 与叙事 version 独立。现实档案的 suggested 不自动成为确认资料，不直接共享给虚构角色或真人。
 
 C-05 兼容扩展：Profile.people 默认为空数组，旧档案读取自动补齐。每个人物包含 id/name/relationship/assetId（照片可空）；set-person/delete-person 修改同一个档案版本，照片仍须属于当前用户。删除照片会清除头像和人物卡中对它的引用。人物资料不会自动成为平行世界或共享场景的输入。
+
+## 个性化人生方向（D-01）
+
+`src/contracts/discovery.ts` 定义 GET /api/v1/life-proposals → Discovery 与 POST 同路径（DiscoverRequest → 202 Task）。请求必须带命令 ID、预期推荐版本和档案版本；brief 为本次想法，basedOnId 可指定本批次方向作修改。只使用最近 24 条已确认资料；没有确认资料时必须提供自定义想法。
+
+每个方向保存标题、变化、具体开场、取舍、依据及来源资料快照。任务运行期间档案版本改变则结果为 conflict，保留原批次。重新构想复用通用取消/显式重试，刷新读真实状态。此接口不会生成世界、人物照片或对外分享资料。
+
+## 选定人生与带入资料（D-02）
+
+`src/contracts/seeds.ts`：POST /api/v1/life-seeds（SeedRequest → 201 ApprovedSeed）保存当前批次中明确选择的方向和资料；GET 同路径返回最近 20 份本人设定。重复命令返回原快照；变更正文、档案或推荐版本须重新明确选择。
+
+始终保存界面展示的人生构想正文（title/premise/opening/tradeoff）；其余只包含勾选的已确认事实、人物资料及其照片、可选本人照片。推荐 reason/sources、完整访谈与消息来源均不带入。照片必须仍是本人可读的 ready 素材，保存 ID 与 revision；实际建世界时须再次检查可用性。快照不可原地更新，后续档案修订不自动继承。保存设定不等于世界生成，更不代表已向其他玩家分享。

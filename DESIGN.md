@@ -1,173 +1,121 @@
-# 如果 · Parallel Life 设计提案
+# 如果 · 手机 App 设计规范 v2
 
-状态：用户已同意按此方向推进。以最后一张四屏参考为主要视觉依据；首阶段访谈、档案、照片/人物及曲线界面已实现；虚拟手机与后续产品界面继续按此规范开发。
+2026-09-22。用户已要求按新版方案修改：参考 Zeta 的窄幅 App 形式，全程手机布局。原 PC 双栏、宽屏推荐及外侧辅助面板规则废止。当前实现风格为暖白、紫色与珊瑚橙，待用户视觉审阅；功能测试不能替代审阅。
 
 ## 1. Visual Theme & Atmosphere
 
-深海蓝、真实人像、生活感、安静、亲密、清晰。外层是认识自己的空间，内层是一部正在发生生活的手机。标题有适量中文衬线气质，操作区保持熟悉易用。
+关键词：生活感、轻松、亲近、想象、照片、纸感。以一个小而完整的 App 承载体验。通用开场插画是一扇通向海边的门；它不代表用户生成的人生。已有真实人物照片保持用户身份，不拿图库冒充。
 
-交互档位 L1：精致状态反馈、轻量入场、应用切换过渡；不引入滚动劫持、3D 场景或复杂动效库。以输入、阅读与即时反馈为主。
+参考 https://zeta-ai.io/en 的桌面窄幅视口、图像与短文案、底部导航；不复制公共角色商城或未经查看的聊天流程。L1 轻量过渡，CSS only。
 
 ## 2. Color Palette & Roles
 
+运行时色板在 src/app/phone-first.css，覆盖旧基础组件变量：
+
 ```css
 :root {
-  --bg: #071522; --bg-rgb: 7,21,34;
-  --surface: #10263a; --surface-alt: #163149; --surface-hover: #1b3d59;
-  --border: #2b455b; --border-hover: #6e9fc8;
-  --text: #f3f5f6; --text-secondary: #c0cedb; --text-tertiary: #9aafc2;
-  --accent: #3989ff; --accent-hover: #67a4ff; --accent-rgb: 57,137,255;
-  --success: #74ce9a; --error: #ff9d9d; --warning: #edc58b;
-  --paper: #f4f3ef; --ink: #20282e; --bubble: #d6efc7;
-  --shadow-rgb: 0,0,0; --transparent: transparent;
+ --bg:#fbf9f5; --bg-rgb:251,249,245; --surface:#ffffff;
+ --surface-alt:#f2eee7; --surface-hover:#eee8df;
+ --border:#e5dfd6; --border-hover:#ab99db;
+ --text:#24222c; --text-secondary:#64606c; --text-tertiary:#77717d;
+ --accent:#7050cb; --accent-hover:#5936b0; --accent-rgb:112,80,203;
+ --stage:#151419; --white:#ffffff; --coral:#dc7757;
+ --lilac:#eae2fa; --mint:#e3eee5; --peach:#f6e5d5;
+ --success:#28785d; --error:#b14343; --warning:#986314;
+ --shadow-rgb:0,0,0; --transparent:transparent;
 }
 ```
 
-所有组件颜色引用变量。外层深蓝，消息内页浅灰白，便签暖白；真实照片是主要色彩来源。曲线用蓝色表达平行人生、灰色表达现实基线，配文字和线型区分。
+外部近黑；内容暖白；主操作紫色；橙色小装饰；紫/绿/杏色区分推荐但不表达虚构评分。文字对比优先于低透明度装饰。所有组件使用变量。
 
 ## 3. Typography Rules
+
+沿用中文字体及系统回退，避免增加新字体请求：
 
 ```css
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;600&display=swap');
 :root {
-  --font-body: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-title: 'Noto Serif SC', 'Songti SC', serif;
+ --font-body:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+ --font-title:'Noto Serif SC','Songti SC',serif;
 }
-body { font-family: var(--font-body); font-size:16px; line-height:1.75; letter-spacing:.02em; }
-h1,h2 { font-family:var(--font-title); font-weight:500; }
 ```
 
-|用途|手机 / PC|字重|行高|
-|---|---|---|---|
-|主标题|32 / 44px|500|1.7|
-|页面标题|24 / 28px|500|1.7|
-|组件标题|18 / 20px|600|1.7|
-|正文与消息|16 / 16px|400|1.75|
-|按钮与标签|15 / 15px|500|1.7|
+|用途|字号|处理|
+|---|---|---|
+|开场标题|28–30px|衬线，行高 1.5；控制短句|
+|推荐标题|20px|无衬线 600，行高 1.5，允许完整换行|
+|对话|15px|行高 1.8，输入与阅读优先|
+|详情|13–15px|行高 1.85；不截掉来源或选择含义|
+|导航|11–12px|图标与短文字同时出现|
 
-字体加载失败时使用明确的中文系统回退。标题、正文不使用渐变字或投影；禁止花体正文和只配英文字体的回退方案。
+不使用英文大眉题、渐变字、正文投影；标题与按钮为用户表达动作，隐藏版本/Worker 等工程术语。
 
 ## 4. Component Stylings
 
+公共 Button/Icon/Modal 保持兼容。新的样式覆盖限定在 phone-first.css；世界模块用 CSS Module，不复制公共 CSS。所有状态如下：
+
 ```css
-.button,.card-action,.nav-item,.link,.tag-action {
-  font:inherit; min-height:44px; border:1px solid var(--border);
-  color:var(--text); background:var(--surface); border-radius:14px;
-  cursor:pointer; transition:background .18s,border-color .18s,transform .18s;
-}
-.button { padding:12px 20px; background:var(--accent); border-color:var(--accent); }
-.card-action { padding:20px; text-align:left; }
-.nav-item { padding:10px 14px; border-color:var(--transparent); }
-.link { background:var(--transparent); color:var(--accent-hover); border-color:var(--transparent); }
-.tag-action { padding:8px 12px; border-radius:99px; }
-:is(.button,.card-action,.nav-item,.link,.tag-action):hover { background:var(--surface-hover); border-color:var(--border-hover); }
-.button:hover { background:var(--accent-hover); }
-.link:hover { text-decoration:underline; text-underline-offset:4px; }
-:is(.button,.card-action,.nav-item,.link,.tag-action):active { transform:translateY(1px); }
-:is(button,a,input,textarea,[tabindex]):focus-visible { outline:2px solid var(--accent-hover); outline-offset:3px; }
-:is(.button,.card-action,.nav-item,.link,.tag-action):disabled,
-[aria-disabled='true'] { opacity:.45; cursor:not-allowed; transform:none; }
-[aria-selected='true'],[aria-current='page'] { border-color:var(--accent); background:var(--surface-alt); }
-.field { width:100%; padding:12px 16px; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:14px; font:inherit; }
+.button { min-height:44px; border-radius:12px; transition:background .18s,transform .12s; }
+.button.primary { background:var(--accent); color:var(--white); }
+.button.primary:hover { background:var(--accent-hover); }
+.button.secondary { background:var(--surface); border:1px solid var(--border); color:var(--text); }
+.button.ghost:hover { background:var(--lilac); color:var(--accent); }
+:is(button,a):active { transform:translateY(1px); }
+:is(button,a,input,textarea,summary):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+:is(button,input,textarea):disabled { opacity:.45; cursor:not-allowed; }
+.field { background:var(--surface); color:var(--text); border:1px solid var(--border); }
 .field:hover { border-color:var(--border-hover); }
-.field:disabled { opacity:.45; cursor:not-allowed; }
-.field[aria-invalid='true'] { border-color:var(--error); }
-.chat-page { background:var(--paper); color:var(--ink); }
-.bubble-self { background:var(--bubble); color:var(--ink); border-radius:14px 4px 14px 14px; }
+.field[aria-invalid=true] { border-color:var(--error); }
 ```
 
-核心组件：对话与可编辑档案、事件曲线、照片上传、人生推荐卡、应用图标、通知横幅、聊天气泡、朋友圈、日期相册、日历事件、便签、导演面板、人生切换器、时间控件。每个组件覆盖空白、加载、成功、失败和恢复。手机应用图标使用 SVG；通知可直达对应消息。相册真实展示已生成素材，未生成时使用明确加载状态。
+聊天：白色对方气泡，淡紫本人气泡；头像小而清楚。推荐：短标题和摘要，生活片段及依据/取舍可展开，全文始终可访问。资料选择保持复选框和明确保存回执。标签不是可点控件时不加误导 hover。
 
 ## 5. Layout Principles
 
-手机：全屏应用，直接进入认识我的流程，不额外套手机边框。主要操作置于底部安全区。档案从聊天顶部入口展开，避免过多面板竞争。
+所有阶段 PC 居中 max-width 480px，手机占满实际屏宽；可用高度由视口决定，内部内容滚动。顶栏与底栏不随正文滚走。禁止双栏档案、三列推荐和手机外导演面板。
 
-PC 认识阶段：左侧约 560px 对话，右侧约 420px 实时档案与人生轨迹。推荐阶段用大幅人生卡，保留生成依据。
-
-PC 人生阶段：居中 390–430px 手机，左侧轻量人生导航和当前日期，右侧仅在用户打开时呈现日程、轨迹或导演。壁纸的低对比延展承担空间氛围；默认不堆统计面板。点击相册照片可使用桌面宽幅查看器。
-
-```css
-.workspace { max-width:1440px; margin:auto; padding:32px; }
-.interview-layout { display:grid; grid-template-columns:minmax(0,560px) minmax(0,420px); justify-content:center; gap:48px; }
-.life-layout { display:grid; grid-template-columns:minmax(160px,1fr) minmax(390px,430px) minmax(240px,1fr); gap:32px; align-items:center; }
-.phone { width:100%; max-width:430px; margin:auto; overflow:hidden; border-radius:36px; border:1px solid var(--border); }
-```
-
-间距梯度 4/8/12/16/24/32/48/64px。手机页边距 20px，卡片内边距 16–20px。聊天阅读内容不超过 680px。
+认识阶段底栏「聊聊 / 如果 / 我的」。世界阶段由手机桌面承担导航，避免两层底栏。弹层居中且宽度不超过 App；档案为手机内全屏页，编辑弹窗在其上。间距 4/8/12/16/20/24；页边 16–22px。
 
 ## 6. Depth & Elevation
 
-|层级|处理|使用|
-|---|---|---|
-|平面|无阴影|聊天列表、日历、便签|
-|轻层|1px 边框|档案、人生推荐|
-|浮层|柔和阴影|通知、菜单|
-|主体|较深阴影|PC 手机和照片查看器|
-
-```css
-.floating { box-shadow:0 8px 24px rgba(var(--shadow-rgb),.18); }
-.phone { box-shadow:0 28px 80px rgba(var(--shadow-rgb),.35); }
-```
+普通列表/对话无阴影，卡片靠背景区别；只给整个 App 极弱外部阴影。弹层暗化背景，保留内容焦点。未来世界 Dock/通知可采用轻玻璃，普通档案不玻璃化。
 
 ## 7. Animation & Interaction
 
-L1，CSS only，无额外运行依赖。应用进入 220ms；消息入场 180ms；点击反馈 120ms；模型生成阶段展示实际完成状态，不伪造百分比。保留原生滚动，不使用视差或 pin。
+L1 CSS 180–220ms 入场，120ms 按压，无滚动劫持/视差/3D依赖。沿用已有 page-enter/message-enter；生成中显示真实状态，不做假百分比。
 
 ```css
-@keyframes enter { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes enter { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 .page-enter { animation:enter .22s ease-out both; }
-.message-enter { animation:enter .18s ease-out both; }
-.app-icon { transition:transform .12s ease,opacity .12s ease; }
-.app-icon:hover { transform:translateY(-2px); }
-.app-icon:active { transform:scale(.96); }
-.scroll-region { overflow-y:auto; overscroll-behavior:contain; }
-@media (prefers-reduced-motion:reduce) {
-  *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+@media(prefers-reduced-motion:reduce) {
+ *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
 }
 ```
 
-输入框发送状态不覆盖草稿；进入应用保留列表滚动位置；返回和浏览器后退语义一致。实时消息使用非打断式读屏提示，不逐字符播报。
+底部输入及主操作可达，浏览器返回与关闭一致，原生 dialog 负责焦点约束。读屏只宣读状态变化，不反复播报整个对话。
 
 ## 8. Do's and Don'ts
 
-Do：
-- 让照片和个人经历贯穿现实档案与平行人生。
-- 用具体消息、生活细节和关系变化表达故事。
-- 每个推荐展示用户能理解的生成依据。
-- 保留编辑、返回、重试和继续入口。
-- 让日程、聊天与相册共享同一个事件。
-
-Don't：
-- 不预设用户必然成为导演。
-- 不把产品做成数据仪表盘。
-- 不在手机屏幕外再套多层装饰边框。
-- 不拿随机图库人像冒充用户的平行照片。
-- 不将未知经历或心理推测写成事实。
-- 不用假进度、假通知和预设回复冒充 AI 成功。
-- 不把个人访谈自动共享给其他玩家或世界角色。
-- 不展示内部模型、调度日志和技术参数作为主要产品流程。
+- 从用户本人和真实经历开始。
+- 用照片/原创插画建立画面，标清通用插画与真实生成的区别。
+- 让每屏主动作清楚，详情可展开。
+- 保留照片授权、真实保存、重试和恢复。
+- 所有点击目标至少 44px，键盘也能操作。
+- 不把 App 做成桌面仪表盘。
+- 不通过套边框来代替重排页面。
+- 不堆蓝色线框、大英文标语和长说明。
+- 不截断重要信息而不给全文入口。
+- 不拿通用插画假装用户的平行照片。
+- 不拿预设人物/通知冒充世界生成成功。
+- 不为沉浸感隐藏私密资料范围或失败。
+- 不在 App 外堆资料、导演和时间侧栏。
 
 ## 9. Responsive Behavior
 
-|设备|宽度|布局|
-|---|---|---|
-|Desktop|≥1200px|访谈双栏；人生手机居中、辅助面板按需展开|
-|Tablet|768–1199px|主内容居中、辅助内容抽屉|
-|Mobile|<768px|全屏单栏；无外框；底部安全区|
+|设备|布局|
+|---|---|
+|宽度 >480px|居中 480px App，全高，两侧安静背景|
+|宽度 ≤480px|全宽全高，无额外设备外框|
+|高度 ≤620px|收紧顶栏和输入占用，内容仍独立滚动，不缩小文字或触摸目标|
 
-```css
-@media(max-width:1199px) {
-  .life-layout { display:block; }
-  .auxiliary { display:none; }
-  .interview-layout { gap:24px; grid-template-columns:1fr 1fr; }
-}
-@media(max-width:767px) {
-  .workspace { padding:0; }
-  .interview-layout,.life-layout { display:block; }
-  .phone { max-width:none; min-height:100dvh; border:0; border-radius:0; box-shadow:none; }
-  .composer { padding-bottom:max(12px,env(safe-area-inset-bottom)); }
-  .profile-aside { display:none; }
-}
-```
-
-触摸区域至少 44×44px；辅助内容在窄屏由带名称的入口打开，不能只隐藏不提供访问。虚拟键盘出现时保持输入框与发送按钮可见，照片查看器支持返回及 Esc。验收覆盖 390×844、768×1024、1440×900。
+视口验收 390×844、390×500、768×1024、1440×900；软键盘需要另外验证，模拟短屏不等于真实手机键盘验收。图片加载失败必须有可读替代描述，字体网络失败使用系统中文字体。
