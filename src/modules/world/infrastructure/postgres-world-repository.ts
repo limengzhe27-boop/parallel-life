@@ -56,6 +56,11 @@ export class PostgresWorldRepository implements WorldRepository {
     return { ...row.state, version: row.version } as WorldState;
   }
   private async hydrate(sql: SqlClient, state: WorldState): Promise<WorldState> {
+    const initial = (
+      await sql.query('SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
+        state.id,
+      ])
+    ).rows[0]?.state;
     const results = [];
     for (const table of ['world_messages', 'world_appointments', 'world_media_requests']) {
       // Only immutable projections belonging to events already committed at this receipt version.
@@ -67,9 +72,9 @@ export class PostgresWorldRepository implements WorldRepository {
     }
     return {
       ...state,
-      messages: results[0]!,
-      appointments: results[1]!,
-      mediaRequests: results[2]!,
+      messages: [...(initial?.messages ?? []), ...results[0]!],
+      appointments: [...(initial?.appointments ?? []), ...results[1]!],
+      mediaRequests: [...(initial?.mediaRequests ?? []), ...results[2]!],
     };
   }
   async get(session: Session, id: string) {

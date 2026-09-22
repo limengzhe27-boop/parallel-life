@@ -1,3 +1,9 @@
+import {
+  WorldBuildSchema,
+  WorldBuildListSchema,
+  WorldPhoneSchema,
+  type WorldBuildRequest,
+} from '../../contracts/world-build.ts';
 import { ApprovedSeedSchema, SeedListSchema, type SeedRequest } from '../../contracts/seeds.ts';
 import { DiscoverySchema, type DiscoverRequest } from '../../contracts/discovery.ts';
 import { z } from 'zod';
@@ -84,6 +90,21 @@ export class LifeClient {
           throw error;
         });
     return this.sessionPromise;
+  }
+  async builds() {
+    await this.connect();
+    return this.request('/world-builds', WorldBuildListSchema);
+  }
+  async createWorld(input: WorldBuildRequest) {
+    await this.connect();
+    return this.request('/world-builds', WorldBuildSchema, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  async world(id: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(id)}`, WorldPhoneSchema);
   }
   async seeds() {
     await this.connect();

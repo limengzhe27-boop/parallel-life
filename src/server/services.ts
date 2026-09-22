@@ -1,3 +1,4 @@
+import { BuildRepository } from '../modules/world/infrastructure/build-repository.ts';
 import { SeedRepository } from '../modules/discovery/infrastructure/seed-repository.ts';
 import { DiscoveryRepository } from '../modules/discovery/infrastructure/discovery-repository.ts';
 import 'server-only';
@@ -30,6 +31,7 @@ function createServices() {
     identity: new IdentityRepository(db),
     discovery: new DiscoveryRepository(db),
     seeds: new SeedRepository(db),
+    builds: new BuildRepository(db),
     tasks: new TaskRepository(db),
     interview: new InterviewRepository(db),
     profile: new ProfileRepository(db),

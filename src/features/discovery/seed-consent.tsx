@@ -161,7 +161,17 @@ export function SeedConsent({
     </Modal>
   );
 }
-export function SeedReceipt({ seed, onClose }: { seed: ApprovedSeed; onClose: () => void }) {
+export function SeedReceipt({
+  seed,
+  onClose,
+  children,
+  ready = false,
+}: {
+  seed: ApprovedSeed;
+  onClose: () => void;
+  children?: React.ReactNode;
+  ready?: boolean;
+}) {
   return (
     <Modal open title="这个想法，记下了" className="seed-modal" onClose={onClose}>
       <details className="seed-story">
@@ -186,10 +196,11 @@ export function SeedReceipt({ seed, onClose }: { seed: ApprovedSeed; onClose: ()
           {seed.portraitAssetId ? '包含本人照片' : '未带入本人照片'}；
           {seed.people.length ? seed.people.map((p) => p.name).join('、') : '未带入重要人物'}。
         </p>
-        <p>设定已保存，世界还未生成。之后修改现实档案，不会自动改变这里。</p>
+        <p>{ready ? '世界已生成。' : '设定已保存。'}之后修改现实档案，不会自动改变这里。</p>
       </div>
+      {children}
       <div className="form-actions">
-        <Button onClick={onClose}>知道了</Button>
+        <Button onClick={onClose}>关闭</Button>
       </div>
     </Modal>
   );

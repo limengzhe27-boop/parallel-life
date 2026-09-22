@@ -1,3 +1,5 @@
+import { WorldPlanner } from '../modules/world/infrastructure/world-planner.ts';
+import { buildHandler } from '../modules/world/infrastructure/build-handler.ts';
 import { DiscoveryPlanner } from '../modules/discovery/infrastructure/discovery-planner.ts';
 import { discoveryHandler } from '../modules/discovery/infrastructure/discovery-handler.ts';
 import 'server-only';
@@ -14,6 +16,7 @@ export function createWorker() {
   return {
     queue,
     handlers: {
+      'world-build': buildHandler(queue, new WorldPlanner(new YibuTextModel(config)), config.model),
       profile: discoveryHandler(
         queue,
         new DiscoveryPlanner(new YibuTextModel(config)),

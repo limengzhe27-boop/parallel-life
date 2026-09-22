@@ -297,7 +297,10 @@ function LifePhone({
               <a href="/">
                 返回现实中的我 <PhoneIcon name="next" />
               </a>
-              <p>切换人生、暂停、账号和删除将在对应存档能力接入后开放。</p>
+              <a href="/possibilities">
+                切换人生 <PhoneIcon name="next" />
+              </a>
+              <p>暂停、账号和删除将在对应能力接入后开放。</p>
             </div>
           ) : renderPanel ? (
             renderPanel(route.panel)

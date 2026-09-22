@@ -37,3 +37,12 @@ C-05 兼容扩展：Profile.people 默认为空数组，旧档案读取自动补
 `src/contracts/seeds.ts`：POST /api/v1/life-seeds（SeedRequest → 201 ApprovedSeed）保存当前批次中明确选择的方向和资料；GET 同路径返回最近 20 份本人设定。重复命令返回原快照；变更正文、档案或推荐版本须重新明确选择。
 
 始终保存界面展示的人生构想正文（title/premise/opening/tradeoff）；其余只包含勾选的已确认事实、人物资料及其照片、可选本人照片。推荐 reason/sources、完整访谈与消息来源均不带入。照片必须仍是本人可读的 ready 素材，保存 ID 与 revision；实际建世界时须再次检查可用性。快照不可原地更新，后续档案修订不自动继承。保存设定不等于世界生成，更不代表已向其他玩家分享。
+
+## 文字世界创建（D-06）
+
+- `GET /api/v1/world-builds`：当前用户创建记录与最新公开任务状态。
+- `POST /api/v1/world-builds`：`{commandId,seedId}`，必须引用本用户已确认的设定；返回202和创建记录。同seed复用同worldId，失败通过既有task重试端点恢复。
+- `GET /api/v1/worlds/:id`：仅当前所有者可读取已完成世界的手机投影；不暴露角色persona或完整私人访谈。
+- `/worlds/:id` 是正式手机入口；`/ui-preview/world`仅开发模式提供明确标注的合成样板。
+
+媒体、长期记忆、角色持续回合尚未接通。文字生成结果与初始快照/任务成功同事务提交；取消后的迟到结果不可落库。

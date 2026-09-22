@@ -1157,3 +1157,86 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+.build-control {
+  margin: 18px 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-alt);
+  display: grid;
+  gap: 12px;
+}
+.build-control p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.world-viewport {
+  width: min(100%, 480px);
+  height: var(--app-height, 100dvh);
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--bg);
+}
+.world-loading {
+  padding: 24px;
+  display: grid;
+  gap: 24px;
+}
+.world-contacts {
+  display: grid;
+}
+.world-contacts button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 88px;
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.world-avatar {
+  background: var(--lilac);
+  color: var(--accent);
+  padding: 13px;
+  border-radius: 14px;
+}
+.world-contacts button > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.world-contacts strong,
+.world-contacts small {
+  display: block;
+}
+.world-contacts small {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.world-thread,
+.world-notes,
+.world-empty {
+  display: grid;
+  gap: 16px;
+  line-height: 1.85;
+}
+.world-thread > p,
+.world-notes p,
+.world-empty p {
+  font-size: 14px;
+}
+.world-message,
+.world-notes article {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 16px;
+  white-space: pre-wrap;
+}

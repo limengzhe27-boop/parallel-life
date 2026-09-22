@@ -1,4 +1,6 @@
 'use client';
+import { BuildControl } from './build-control.tsx';
+import type { WorldBuild } from '../../contracts/world-build.ts';
 import { AppTabs } from '../../components/app-tabs.tsx';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import type { ApprovedSeed } from '../../contracts/seeds.ts';
@@ -23,16 +25,19 @@ export function DiscoveryApp() {
     [seed, setSeed] = useState<ApprovedSeed | null>(null),
     [savedSeeds, setSavedSeeds] = useState<ApprovedSeed[]>([]),
     [receipt, setReceipt] = useState(false);
+  const [builds, setBuilds] = useState<WorldBuild[]>([]);
   const pending = useRef<DiscoverRequest | null>(null),
     hydrated = useRef(false),
     retry = useRef<{ id: string; commandId: string } | null>(null);
   const load = useCallback(async () => {
-    const [d, w, seeds] = await Promise.all([
+    const [d, w, seeds, worldBuilds] = await Promise.all([
       client.discovery(),
       client.workspace(),
       client.seeds(),
+      client.builds(),
     ]);
     setSavedSeeds(seeds);
+    setBuilds(worldBuilds);
     setData((current) => (!current || d.version >= current.version ? d : current));
     setProfile((current) =>
       !current || w.profile.version >= current.version ? w.profile : current,
@@ -51,6 +56,14 @@ export function DiscoveryApp() {
     if (id && data.directions.some((d) => d.id === id))
       document.getElementById(`direction-${id}`)?.scrollIntoView({ block: 'start' });
   }, [data?.version]);
+  const building = builds.some((b) => b.task?.status === 'queued' || b.task?.status === 'running');
+  useEffect(() => {
+    if (!building) return;
+    const timer = setInterval(() => {
+      void load().catch((e) => setError(explain(e)));
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [building, load]);
   const task = data?.activeTask,
     waiting = task?.status === 'queued' || task?.status === 'running';
   useEffect(() => {
@@ -239,6 +252,11 @@ export function DiscoveryApp() {
                     className="saved-life-card"
                     key={saved.id}
                     onClick={() => {
+                      const build = builds.find((b) => b.seedId === saved.id);
+                      if (build?.ready) {
+                        window.location.assign(`/worlds/${build.worldId}`);
+                        return;
+                      }
                       setSeed(saved);
                       setReceipt(true);
                     }}
@@ -247,7 +265,11 @@ export function DiscoveryApp() {
                       <Icon name="spark" size={24} />
                     </span>
                     <span>
-                      <small>已保存设定 · 等待世界生成</small>
+                      <small>
+                        {builds.find((b) => b.seedId === saved.id)?.ready
+                          ? '世界已就绪 · 点击进入'
+                          : '已保存设定 · 点击创建世界'}
+                      </small>
                       <strong>{saved.story.title}</strong>
                       <span>{saved.story.premise}</span>
                     </span>
@@ -437,7 +459,20 @@ export function DiscoveryApp() {
           }}
         />
       )}
-      {receipt && seed && <SeedReceipt seed={seed} onClose={() => setReceipt(false)} />}
+      {receipt && seed && (
+        <SeedReceipt
+          seed={seed}
+          ready={builds.some((b) => b.seedId === seed.id && b.ready)}
+          onClose={() => setReceipt(false)}
+        >
+          <BuildControl
+            seedId={seed.id}
+            build={builds.find((b) => b.seedId === seed.id)}
+            client={client}
+            onChange={load}
+          />
+        </SeedReceipt>
+      )}
       {refining && (
         <Modal
           open
