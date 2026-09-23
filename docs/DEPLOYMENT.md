@@ -24,6 +24,16 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 访客创建按调用者限流（AUD-15）
+
+|项目|内容|
+|---|---|
+|提交|`792f55b`|
+|迁移|`0020_guest_limits_by_caller.sql` 已应用于本地与生产 Supabase（`pl_migrations` 20 条）|
+|发布前检查|`npm run check` 113 项、`npm run test:db` 17 项真实库测试、`npm run build` 通过|
+|线上实测|`POST /api/v1/session` → 200 并发放 guest + CSRF；生产库新增一条**哈希桶**记录（原始地址不入库）。直接在生产库探测函数（额度 2/3，无垃圾账号）：同调用者 true/true/false、他者 true、全局上限拒绝后额度已归还|
+|策略|每调用者 30/小时；全局上限 600/小时；无地址调用者共用一桶（本地开发即为该情况）|
+
 ### 2026-09-24 · Agent 周期性主动互动、便签/日程深度人生沉淀与拟真通话弹层上线
 
 |项目|内容|
