@@ -45,7 +45,9 @@ export async function runOne(
         ? 'UNKNOWN'
         : failure.code === 'INVALID_RESPONSE'
           ? 'INVALID_AI_OUTPUT'
-          : 'AI_FAILED',
+          : failure.code === 'TRUNCATED'
+            ? 'AI_TRUNCATED'
+            : 'AI_FAILED',
       /* Keep failure diagnostics as observable as success: which model and prompt ran, and how long. */
       ...(failure.model ? { model: failure.model } : {}),
       ...(failure.promptVersion ? { promptVersion: failure.promptVersion } : {}),

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { WorldPlanner } from '../src/modules/world/infrastructure/world-planner.ts';
+import { WorldPlanner, WORLD_OPENING_MAX_TOKENS } from '../src/modules/world/infrastructure/world-planner.ts';
 import type { ApprovedSeed } from '../src/contracts/seeds.ts';
 const seed: ApprovedSeed = {
   id: randomUUID(),
@@ -34,14 +34,18 @@ const output = {
 };
 test('world planner only sends selected seed fields and refuses unknown or duplicate actors', async () => {
   let sent = '';
+  let requestedCap: number | undefined;
   const planner = new WorldPlanner({
-    async complete(messages) {
+    async complete(messages, _signal, maxTokens) {
       sent = messages[1]!.content;
+      requestedCap = maxTokens;
       return JSON.stringify(output);
     },
   });
   const result = await planner.propose(seed);
   assert.equal(result.actors.length, 3);
+  assert.equal(requestedCap, WORLD_OPENING_MAX_TOKENS);
+  assert.equal(requestedCap! > 4096, true);
   assert.deepEqual(Object.keys(JSON.parse(sent)), ['story', 'facts', 'people']);
   assert.equal(sent.includes(seed.id), false);
   for (const invalid of [

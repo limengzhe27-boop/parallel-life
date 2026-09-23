@@ -1,9 +1,16 @@
 import type { ModelMessage, TextModel } from '../application/ports.ts';
 
 export type GatewayConfig = { apiKey: string; model: string; baseUrl: string; timeoutMs: number };
+/** Chat-shaped calls keep the conservative default; structured builders ask for their own cap. */
+export const DEFAULT_MAX_TOKENS = 4096;
 export class GatewayError extends Error {
   readonly code:
-    'INVALID_CONFIG' | 'UPSTREAM_FAILED' | 'INVALID_RESPONSE' | 'TIMEOUT' | 'CANCELLED';
+    | 'INVALID_CONFIG'
+    | 'UPSTREAM_FAILED'
+    | 'INVALID_RESPONSE'
+    | 'TIMEOUT'
+    | 'CANCELLED'
+    | 'TRUNCATED';
   constructor(code: GatewayError['code']) {
     super(code);
     this.name = 'GatewayError';
@@ -27,7 +34,7 @@ export class YibuTextModel implements TextModel {
     this.config = { ...config };
     this.request = request;
   }
-  async complete(messages: ModelMessage[], signal?: AbortSignal): Promise<string> {
+  async complete(messages: ModelMessage[], signal?: AbortSignal, maxTokens?: number): Promise<string> {
     if (
       !messages.length ||
       messages.length > 100 ||
@@ -36,9 +43,12 @@ export class YibuTextModel implements TextModel {
           !['system', 'user', 'assistant'].includes(message.role) ||
           typeof message.content !== 'string',
       ) ||
-      messages.reduce((n, message) => n + message.content.length, 0) > 64000
+      messages.reduce((n, message) => n + message.content.length, 0) > 64000 ||
+      (maxTokens !== undefined &&
+        (!Number.isSafeInteger(maxTokens) || maxTokens < 256 || maxTokens > 16000))
     )
       throw new GatewayError('INVALID_CONFIG');
+    const outputCap = maxTokens ?? DEFAULT_MAX_TOKENS;
     const timeout = AbortSignal.timeout(this.config.timeoutMs);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     try {
@@ -52,7 +62,7 @@ export class YibuTextModel implements TextModel {
           model: this.config.model,
           messages,
           stream: false,
-          max_tokens: 4096,
+          max_tokens: outputCap,
         }),
         signal: combined,
         redirect: 'error',
@@ -60,8 +70,14 @@ export class YibuTextModel implements TextModel {
       });
       if (!response.ok) throw new GatewayError('UPSTREAM_FAILED');
       const data: unknown = await response.json();
-      const content = (data as { choices?: { message?: { content?: unknown } }[] } | null)
-        ?.choices?.[0]?.message?.content;
+      const choice = (
+        data as {
+          choices?: { message?: { content?: unknown }; finish_reason?: unknown }[];
+        } | null
+      )?.choices?.[0];
+      const content = choice?.message?.content;
+      /* A length-capped reply is a known, safe-to-retry failure — never reported as a bad answer. */
+      if (choice?.finish_reason === 'length') throw new GatewayError('TRUNCATED');
       if (typeof content !== 'string' || !content.trim() || content.length > 100000)
         throw new GatewayError('INVALID_RESPONSE');
       return content;

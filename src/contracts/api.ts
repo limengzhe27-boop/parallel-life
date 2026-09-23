@@ -21,6 +21,7 @@ export const ErrorCode = z.enum([
   'AI_FAILED',
   'AI_TIMEOUT',
   'INVALID_AI_OUTPUT',
+  'AI_TRUNCATED',
   'CANCELLED',
   'UNKNOWN',
   'INTERNAL',

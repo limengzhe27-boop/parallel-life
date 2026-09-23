@@ -14,12 +14,15 @@ const STAGE_TEXT: Record<Exclude<Stage, 'idle' | 'entering'>, string> = {
   building: '正在生成身份、人物关系和开场…',
 };
 
-function taskFailure(status: string | undefined) {
+function taskFailure(task: { status: string; errorCode?: string | null } | null) {
+  const status = task?.status;
   if (status === 'unknown')
     return '这次没有得到完整结果，可能已经产生费用。你可以明确重试，不会自动重复。';
   if (status === 'conflict') return '你的资料在这期间有了更新，请刷新后再试。';
   if (status === 'cancelled') return '这次生成已经取消，可以重新开始。';
-  return '模型这次给出的方向不符合要求，所以没有保存。可以再试一次，或先补充一条资料。';
+  if (task?.errorCode === 'AI_TRUNCATED')
+    return '这次生成的内容太长被截断了，没有保存。请再试一次。';
+  return '模型这次给出的内容不符合要求，所以没有保存。可以再试一次，或先补充一条资料。';
 }
 
 /** A persisted proposal belongs to the personal conversation, not a public feed. */
@@ -91,7 +94,7 @@ export function ProposalThread({
         });
         const settled = task?.id ? await client.task(task.id) : null;
         if (settled && settled.status !== 'succeeded')
-          throw new Error(taskFailure(settled.status));
+          throw new Error(taskFailure(settled));
         currentDisc = await client.discovery();
       }
       const target = currentDisc.directions[0];
@@ -122,7 +125,7 @@ export function ProposalThread({
         }
         const settled = await client.task(taskId);
         if (settled && settled.status !== 'succeeded')
-          throw new Error(taskFailure(settled.status));
+          throw new Error(taskFailure(settled));
       }
       setStage('entering');
       window.location.assign(`/worlds/${build.worldId}`);

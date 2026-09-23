@@ -8,6 +8,8 @@ import {
   type LifeDirection,
 } from '../../../contracts/discovery.ts';
 export const DISCOVERY_PROMPT_VERSION = 'discovery-1.0.0';
+/** Three full directions plus the model's reasoning tokens do not fit a chat-sized cap. */
+export const DISCOVERY_MAX_TOKENS = 6144;
 const Output = z.strictObject({
   directions: z.array(DirectionFields.extend({ sourceFactIds: z.array(Id).max(6) })).length(3),
 });
@@ -37,6 +39,7 @@ export class DiscoveryPlanner {
         { role: 'user', content: JSON.stringify(data) },
       ],
       signal,
+      DISCOVERY_MAX_TOKENS,
     );
     try {
       const output = Output.parse(
