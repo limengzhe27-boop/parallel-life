@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { Id, Version } from '../../../contracts/api.ts';
+import { Id, ProfileSchema, Version } from '../../../contracts/api.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -10,13 +10,13 @@ import {
   incrementInterviewVersion,
   readWorkspace,
 } from './interview-repository.ts';
-import { createCandidateInTransaction } from '../../memory/infrastructure/candidate-repository.ts';
 import {
   createQuestionInTransaction,
   openQuestionInTransaction,
   questionTargetBlockedInTransaction,
 } from '../../memory/infrastructure/question-repository.ts';
-import { isSimilarText } from './profile-repository.ts';
+import { applyConfirmedCandidateInTransaction, isSimilarText } from './profile-repository.ts';
+import { dedupeBatch, rejectReason } from '../application/fact-quality.ts';
 const Input = z.strictObject({
   interviewId: Id,
   inputMessageId: Id,
@@ -94,42 +94,41 @@ export function interviewHandler(
         }));
 
       // 2. 批次内去重：相同或相似文本只保留一条，合并来源
-      const rawCandidates = [...filteredFactCandidates, ...eventCandidates];
-      const deduplicatedCandidates: typeof rawCandidates = [];
-      for (const item of rawCandidates) {
-        const existing = deduplicatedCandidates.find(
-          (c) => c.category === item.category && isSimilarText(c.text, item.text),
-        );
-        if (existing) {
-          existing.sourceMessageIds = [
-            ...new Set([...existing.sourceMessageIds, ...item.sourceMessageIds]),
-          ];
-          if (!existing.eventDate && item.eventDate) existing.eventDate = item.eventDate;
-        } else {
-          deduplicatedCandidates.push({ ...item });
-        }
-      }
+      const deduplicatedCandidates = dedupeBatch(
+        [...filteredFactCandidates, ...eventCandidates],
+        isSimilarText,
+      );
 
-      // 3. 只登记为待确认候选（与流式路径一致）。
-      //    AI 只提出变更：候选必须先是 suggested，由用户在「我的」确认后才写入 Profile。
-      //    这里曾经直接写 confirmed，被记忆领域规则拒绝（“New memory candidates must
-      //    start as suggested”），导致每一次重试都整轮失败——用户只看到“这次没能完成回应”。
+      // 3. 提炼后直接写入真实档案（confirmed）：用户要的是「聊完就沉淀好」，
+      //    不再要求逐条采纳。去重与合并由 applyConfirmedCandidateInTransaction 完成，
+      //    噪声（寒暄、情绪、AI 自己的话、基础资料重复）由 rejectReason 拦掉。
+      const stored = (
+        await sql.query('SELECT document FROM parallel_life.profiles WHERE owner_id=$1', [
+          lease.ownerId,
+        ])
+      ).rows[0];
+      const existingProfile = stored ? ProfileSchema.parse(stored.document) : null;
+      const basicInfoBlob = existingProfile?.facts.find((fact) =>
+        fact.value.startsWith('个人资料\n'),
+      )?.value;
       for (const candidate of deduplicatedCandidates) {
         const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
         if (!(await hasUserSources(sql, lease.ownerId, input.interviewId, sourceMessageIds)))
           continue;
+        if (
+          rejectReason(candidate, {
+            facts: existingProfile?.facts ?? [],
+            events: existingProfile?.events ?? [],
+            basicInfoBlob,
+          })
+        )
+          continue;
 
-        await createCandidateInTransaction(sql, lease.ownerId, {
-          id: randomUUID(),
-          ownerId: lease.ownerId,
-          sourceType: 'interview',
-          sourceScopeId: input.interviewId,
+        await applyConfirmedCandidateInTransaction(sql, lease.ownerId, {
           category: candidate.category,
           text: candidate.text,
           eventDate: candidate.eventDate,
           sourceMessageIds,
-          status: 'suggested',
-          createdAt: new Date().toISOString(),
         });
       }
 

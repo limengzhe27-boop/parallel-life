@@ -109,6 +109,8 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## Supabase配置
 
+**唯一数据库与素材存储是 Supabase**：`APP_DATABASE_URL` / `WORKER_DATABASE_URL` 指向 Supabase Postgres，私有素材走 Supabase Storage 私有桶。历史记录里出现过的 Neon/Blob 方案已于 2026-09-23 弃用并清理（仓库内不再有 Neon 技能、脚本或本地凭据文件；生产环境变量里的 Neon 遗留项可删除）。
+
 服务端需要配置 `SUPABASE_URL`、Supabase 当前的 `SUPABASE_SECRET_KEY`（旧项目可用 `SUPABASE_SERVICE_ROLE_KEY`）和 `SUPABASE_STORAGE_BUCKET=private-assets`。Secret/Service Role Key 只能放在Vercel/Worker服务端环境，不能进入浏览器。Supabase桶保持Private，应用通过自己的资产归属校验后由服务端读取对象。
 
 当前未新建付费云资源、未迁移本地用户资料、未上传密钥或用户照片。此次GitHub上传检查194个被跟踪文件及552个历史对象，未发现当前环境密钥；.local与.env.local未被跟踪。

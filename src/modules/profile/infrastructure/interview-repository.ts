@@ -15,7 +15,8 @@ import {
 } from '../../tasks/infrastructure/task-repository.ts';
 import { consumeLimit } from '../../storage/infrastructure/limits.ts';
 import type { InterviewPlanner } from './interview-planner.ts';
-import { createCandidateInTransaction } from '../../memory/infrastructure/candidate-repository.ts';
+import { applyConfirmedCandidateInTransaction, isSimilarText } from './profile-repository.ts';
+import { dedupeBatch, rejectReason } from '../application/fact-quality.ts';
 import {
   createQuestionInTransaction,
   openQuestionInTransaction,
@@ -329,7 +330,14 @@ export class InterviewRepository {
             sourceMessageIds: event.sourceMessageIds,
           })),
         ];
-        for (const candidate of candidates) {
+        /* Same policy as the worker handler: refine, drop noise and near-duplicates,
+           then write straight into the real profile. No approval step. */
+        const existingProfile = prepared.profile;
+        const basicInfoBlob = existingProfile.facts.find((fact) =>
+          fact.value.startsWith('个人资料\n'),
+        )?.value;
+        const kept = dedupeBatch(candidates, isSimilarText);
+        for (const candidate of kept) {
           const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
           const sources = await sql.query(
             `SELECT id FROM parallel_life.interview_messages
@@ -337,17 +345,19 @@ export class InterviewRepository {
             [ownerId, prepared.interview.id, sourceMessageIds],
           );
           if (sources.rowCount !== sourceMessageIds.length) continue;
-          await createCandidateInTransaction(sql, ownerId, {
-            id: randomUUID(),
-            ownerId,
-            sourceType: 'interview',
-            sourceScopeId: prepared.interview.id,
+          if (
+            rejectReason(candidate, {
+              facts: existingProfile.facts,
+              events: existingProfile.events,
+              basicInfoBlob,
+            })
+          )
+            continue;
+          await applyConfirmedCandidateInTransaction(sql, ownerId, {
             category: candidate.category,
             text: candidate.text,
             eventDate: candidate.eventDate,
             sourceMessageIds,
-            status: 'suggested',
-            createdAt: new Date().toISOString(),
           });
         }
         if (

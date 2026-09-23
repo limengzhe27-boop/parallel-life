@@ -45,19 +45,16 @@ test('interview chain persists user message before generation, recovers, and pre
     await runOne(queue, { interview: interviewHandler(queue, planner, 'test-model') });
     const saved = await new InterviewRepository(db).get(id);
     assert.equal(saved.interview.messages.length, 2);
-    assert.equal(saved.profile.facts.length, 0);
+    /* 提炼后直接写入真实档案：用户要的是"聊完就沉淀好"，不再逐条采纳 */
+    assert.equal(saved.profile.facts.length, 1);
+    assert.equal(saved.profile.facts[0]!.value, '喜欢修车');
+    assert.equal(saved.profile.facts[0]!.status, 'confirmed');
+    assert.ok(saved.profile.facts[0]!.sourceMessageIds.length > 0);
     assert.equal(saved.profile.events.length, 0);
     assert.equal(saved.interview.openQuestion?.version, 0);
+    /* 不再留下需要用户确认的候选 */
     const candidates = new MemoryCandidateRepository(db);
-    const suggested = (await candidates.list(id))[0]!;
-    assert.equal(suggested.status, 'suggested');
-    assert.equal(saved.profile.facts.length, 0);
-    const confirmationCommand = randomUUID();
-    const confirmed = await candidates.confirm(id, suggested.id, confirmationCommand);
-    assert.equal(confirmed.status, 'confirmed');
-    const confirmationReplay = await candidates.confirm(id, suggested.id, confirmationCommand);
-    assert.equal(confirmationReplay.id, confirmed.id);
-    assert.equal((await repo.get(id)).profile.facts.length, 1);
+    assert.equal((await candidates.list(id)).length, 0);
     assert.equal(saved.interview.activeTask?.status, 'succeeded');
     await repo.send(id, {
       commandId: randomUUID(),
@@ -83,8 +80,8 @@ test('interview chain persists user message before generation, recovers, and pre
     await runOne(queue, { interview: interviewHandler(queue, slow, 'test-model') });
     const updated = await repo.get(id);
     assert.equal(updated.interview.messages.length, 4);
-    assert.equal(updated.profile.facts.length, 1);
-    assert.equal((await candidates.list(id)).length, 2);
+    assert.equal(updated.profile.facts.length, 2);
+    assert.equal((await candidates.list(id)).length, 0);
     const questions = new InterviewQuestionRepository(db);
     const open = (await questions.open(id, updated.interview.id))!;
     const blockCommandId = randomUUID();
@@ -94,6 +91,38 @@ test('interview chain persists user message before generation, recovers, and pre
     const replay = await questions.block(id, open.id, open.version, blockCommandId);
     assert.equal(replay.id, blocked.id);
     assert.equal(replay.version, blocked.version);
+
+    /* 同一件事换个说法再说一次：合并来源，不再新增一条（不重复沉淀） */
+    const beforeRepeat = await repo.get(id);
+    const mergedSources = beforeRepeat.profile.facts.find((fact) => fact.value === '喜欢修车')!
+      .sourceMessageIds.length;
+    await repo.send(id, {
+      commandId: randomUUID(),
+      expectedVersion: beforeRepeat.interview.version,
+      text: '我还是很喜欢修车',
+    });
+    await runOne(queue, {
+      interview: interviewHandler(
+        queue,
+        new InterviewPlanner({
+          async complete() {
+            const source = (await repo.get(id)).interview.messages.at(-1)!.id;
+            return JSON.stringify({
+              reply: '修车这件事陪了你很久。',
+              facts: [{ category: 'interest', value: '喜欢修车', sourceMessageIds: [source] }],
+              events: [],
+            });
+          },
+        }),
+        'test-model',
+      ),
+    });
+    const afterRepeat = await repo.get(id);
+    assert.equal(afterRepeat.profile.facts.length, 2);
+    assert.equal(
+      afterRepeat.profile.facts.find((fact) => fact.value === '喜欢修车')!.sourceMessageIds.length,
+      mergedSources + 1,
+    );
     await assert.rejects(repo.get(randomUUID()), { code: 'NOT_FOUND' });
   } finally {
     await db.close();
