@@ -1,4 +1,5 @@
 import type { TextModel } from '../../ai/application/ports.ts';
+import { extractJsonObject } from '../../ai/application/model-json.ts';
 import type { ApprovedSeed } from '../../../contracts/seeds.ts';
 import { WorldOpeningSchema, type WorldOpening } from '../../../contracts/world-build.ts';
 export const WORLD_PROMPT_VERSION = 'world-opening-1';
@@ -25,14 +26,7 @@ export class WorldPlanner {
       signal,
     );
     try {
-      const result = WorldOpeningSchema.parse(
-        JSON.parse(
-          raw
-            .trim()
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```$/, ''),
-        ),
-      );
+      const result = WorldOpeningSchema.parse(extractJsonObject(raw));
       const keys = new Set(result.actors.map((a) => a.key));
       if (
         keys.size !== result.actors.length ||

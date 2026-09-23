@@ -9,12 +9,17 @@ export const BuildInputSchema = z.strictObject({
   seedId: Id,
   worldId: Id,
 });
-export const WorldOpeningSchema = z.strictObject({
+/**
+ * Model-facing opening shape. Unknown keys are stripped rather than rejected:
+ * a stray field such as `notes_placeholder` must not discard an otherwise valid
+ * world, while every consumed field keeps its range and count validation.
+ */
+export const WorldOpeningSchema = z.object({
   identity: z.string().min(1).max(400),
   setting: z.string().min(1).max(500),
   actors: z
     .array(
-      z.strictObject({
+      z.object({
         key: z.string().regex(/^[a-z0-9_]{1,24}$/),
         name: z.string().min(1).max(40),
         relationship: z.string().min(1).max(100),
@@ -24,11 +29,11 @@ export const WorldOpeningSchema = z.strictObject({
     .min(3)
     .max(5),
   messages: z
-    .array(z.strictObject({ actorKey: z.string().max(24), text: z.string().min(1).max(600) }))
+    .array(z.object({ actorKey: z.string().max(24), text: z.string().min(1).max(600) }))
     .min(1)
     .max(4),
   notes: z
-    .array(z.strictObject({ title: z.string().min(1).max(80), text: z.string().min(1).max(1000) }))
+    .array(z.object({ title: z.string().min(1).max(80), text: z.string().min(1).max(1000) }))
     .min(1)
     .max(3),
 });

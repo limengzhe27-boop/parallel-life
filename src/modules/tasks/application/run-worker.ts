@@ -31,15 +31,25 @@ export async function runOne(
   try {
     await handlers[task.kind]!(task, combined);
   } catch (error) {
-    const code = (error as { code?: string })?.code;
-    const uncertain = combined.aborted || code === 'TIMEOUT' || code === 'UPSTREAM_FAILED';
+    const failure = error as {
+      code?: string;
+      model?: string;
+      promptVersion?: string;
+      durationMs?: number;
+    };
+    const uncertain =
+      combined.aborted || failure.code === 'TIMEOUT' || failure.code === 'UPSTREAM_FAILED';
     const outcome: TaskOutcome = {
       status: uncertain ? 'unknown' : 'failed',
       errorCode: uncertain
         ? 'UNKNOWN'
-        : code === 'INVALID_RESPONSE'
+        : failure.code === 'INVALID_RESPONSE'
           ? 'INVALID_AI_OUTPUT'
           : 'AI_FAILED',
+      /* Keep failure diagnostics as observable as success: which model and prompt ran, and how long. */
+      ...(failure.model ? { model: failure.model } : {}),
+      ...(failure.promptVersion ? { promptVersion: failure.promptVersion } : {}),
+      ...(typeof failure.durationMs === 'number' ? { durationMs: failure.durationMs } : {}),
     };
     try {
       await queue.finish(task, outcome);

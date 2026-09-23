@@ -147,7 +147,12 @@ export function DiscoveryApp() {
           seedId: saved.id,
         }));
       if (build.task?.id) {
-        await client.task(build.task.id);
+        let taskId = build.task.id;
+        if (build.task.status === 'failed' || build.task.status === 'unknown') {
+          const retried = await client.retryTask(build.task.id, crypto.randomUUID());
+          taskId = retried.id;
+        }
+        await client.task(taskId);
       }
       window.location.assign(`/worlds/${build.worldId}`);
     } catch (e) {

@@ -115,7 +115,12 @@ export function ProposalThread({
       setStage('building');
       const build = await client.createWorld({ commandId: crypto.randomUUID(), seedId: seed.id });
       if (build.task?.id) {
-        const settled = await client.task(build.task.id);
+        let taskId = build.task.id;
+        if (build.task.status === 'failed' || build.task.status === 'unknown') {
+          const retried = await client.retryTask(build.task.id, crypto.randomUUID());
+          taskId = retried.id;
+        }
+        const settled = await client.task(taskId);
         if (settled && settled.status !== 'succeeded')
           throw new Error(taskFailure(settled.status));
       }

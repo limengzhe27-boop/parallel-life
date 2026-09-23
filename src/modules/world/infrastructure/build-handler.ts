@@ -20,7 +20,14 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       if (!row) throw Error('INVALID_BUILD');
       return ApprovedSeedSchema.parse(row.document);
     });
-    const opening = await planner.propose(seed, signal),
+    const opening = await planner.propose(seed, signal).catch((error) => {
+      /* Surface which model/prompt produced unusable output so the failure is diagnosable. */
+      throw Object.assign(error instanceof Error ? error : Error('INVALID_WORLD_OUTPUT'), {
+        model,
+        promptVersion: WORLD_PROMPT_VERSION,
+        durationMs: Date.now() - started,
+      });
+    }),
       time = new Date().toISOString(),
       sourceEventId = `genesis:${input.worldId}`;
     const ids = new Map(opening.actors.map((a) => [a.key, randomUUID()]));
