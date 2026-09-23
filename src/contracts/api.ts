@@ -146,6 +146,7 @@ export const InterviewMessageSchema = z.strictObject({
   createdAt: Timestamp,
   taskId: Id.nullable(),
 });
+export type InterviewMessage = z.infer<typeof InterviewMessageSchema>;
 export const InterviewQuestionTargetSchema = z.enum([
   'identity',
   'interest',

@@ -205,6 +205,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           e.preventDefault();
           const value = text.trim();
           if (!value || !actions.sendMessage || disabled) return;
+          setDraft(key, '');
           await run(key, text, (id) => actions.sendMessage!(actor.id, value, id));
         }}
       >
@@ -221,8 +222,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             onChange={(e) => setDraft(key, e.target.value)}
             placeholder={actions.sendMessage ? '发消息…' : '聊天尚未接通，可先写草稿'}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing)
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
                 e.currentTarget.form?.requestSubmit();
+              }
             }}
           />
           <button
@@ -237,7 +240,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         </div>
         <Feedback operation={operation} success="消息已提交" />
         {!actions.sendMessage && <small>持续对话尚未接入，草稿仅在当前页面保留。</small>}
-        <small className={s.hint}>换行用 Enter · 发送用 ⌘ / Ctrl + Enter</small>
+        <small className={s.hint}>按 Enter 发送 · Shift + Enter 换行</small>
       </form>
     </div>
   );

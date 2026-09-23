@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import type {
   InterviewWorkspace,
+  InterviewMessage,
   Profile,
   ProfileFact,
   ProfileEdit,
@@ -185,23 +186,53 @@ export function InterviewApp() {
     setSending(true);
     setStreamingText('');
     setError('');
+    // 1. 立即清空输入框并聚焦
+    setDraft('');
+    if (data.profile?.id) {
+      try {
+        sessionStorage.removeItem(`pl-draft:${data.profile.id}`);
+      } catch {
+        /* No persistent draft storage. */
+      }
+    }
+
+    // 2. 即刻将用户消息先上屏展示（解耦用户发送与 AI 回复）
+    const optimisticMessage: InterviewMessage = {
+      id: `temp-${request.commandId}`,
+      role: 'user',
+      text,
+      createdAt: new Date().toISOString(),
+      taskId: null,
+    };
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            interview: {
+              ...current.interview,
+              messages: [...current.interview.messages, optimisticMessage],
+            },
+          }
+        : current,
+    );
+
     try {
       const sent = await client.sendStream(request, (token) =>
         setStreamingText((current) => current + token),
       );
       setData((current) => (current ? { ...current, interview: sent.interview } : current));
-      setDraft((value) => {
-        const next = value.trim() === text ? '' : value;
-        try {
-          sessionStorage.setItem(`pl-draft:${data.profile.id}`, next);
-        } catch {
-          /* No persistent draft storage. */
-        }
-        return next;
-      });
       pending.current = null;
       setStreamingText('');
     } catch (e) {
+      // 失败时恢复草稿，以便用户修改与重试
+      setDraft(text);
+      if (data.profile?.id) {
+        try {
+          sessionStorage.setItem(`pl-draft:${data.profile.id}`, text);
+        } catch {
+          /* No persistent draft storage. */
+        }
+      }
       setError(errorMessage(e));
       if (e instanceof ApiFailure && e.code === 'VERSION_CONFLICT') {
         pending.current = null;
@@ -340,12 +371,7 @@ export function InterviewApp() {
                 placeholder="说点什么…"
                 rows={1}
                 onKeyDown={(e) => {
-                  if (
-                    e.key === 'Enter' &&
-                    !e.shiftKey &&
-                    !e.nativeEvent.isComposing &&
-                    matchMedia('(pointer:fine)').matches
-                  ) {
+                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     void send();
                   }
@@ -354,7 +380,7 @@ export function InterviewApp() {
               <div className="composer-bottom">
                 <span className="composer-tip">
                   <Icon name="lock" size={12} />
-                  只聊你愿意分享的事{draft.length > 3000 && ` · ${draft.length}/4000`}
+                  按 Enter 发送 · Shift + Enter 换行{draft.length > 3000 && ` · ${draft.length}/4000`}
                 </span>
                 <Button
                   type="submit"
@@ -405,7 +431,7 @@ export function InterviewApp() {
                 </div>
               </div>
             ))}
-            {streamingText && (
+            {streamingText ? (
               <div
                 className="message message-assistant message-enter"
                 aria-label="人生伙伴正在回复"
@@ -420,7 +446,25 @@ export function InterviewApp() {
                   </div>
                 </div>
               </div>
-            )}
+            ) : sending ? (
+              <div
+                className="message message-assistant message-enter"
+                aria-label="人生伙伴正在思考"
+              >
+                <div className="message-avatar">
+                  <Icon name="spark" size={18} />
+                </div>
+                <div>
+                  <div
+                    className="message-text"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.85 }}
+                  >
+                    <span className="spinner" style={{ width: 14, height: 14 }} />
+                    <span>人生伙伴正在思考…</span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
         {waiting && task && (

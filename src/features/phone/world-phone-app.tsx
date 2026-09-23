@@ -171,6 +171,22 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
             return { status: 'committed' };
           }}
           onSendMessage={async (actorId, text, commandId) => {
+            // 即刻将用户消息先上屏展示
+            const optimistic = {
+              id: commandId,
+              actorId,
+              role: 'user' as const,
+              text,
+              at: new Date().toISOString(),
+            };
+            setData((current) =>
+              current
+                ? {
+                    ...current,
+                    messages: [...current.messages, optimistic],
+                  }
+                : current,
+            );
             const receipt = await client.sendWorldMessage(worldId, {
               commandId,
               actorId,
