@@ -509,6 +509,7 @@ export function WorldPhoneSurface({
         retryMessage: preview ? undefined : onRetryMessage,
         uploadPhoto: preview ? undefined : onUploadPhoto,
         saveNote: handleSaveNote,
+        noteSync: onSaveNote ? 'server' : 'local',
         markRead: async (actorId) => {
           setViewed(
             (current) =>

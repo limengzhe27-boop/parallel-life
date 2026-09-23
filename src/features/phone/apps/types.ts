@@ -58,6 +58,8 @@ export type PhoneActions = {
   retryMessage?: (messageId: string, commandId: string) => Promise<PhoneActionReceipt>;
   markRead?: (actorId: string) => Promise<void>;
   retryPhoto?: (photoId: string, commandId: string) => Promise<PhoneActionReceipt>;
+  /** 'local' 表示便签只写本机缓存，服务端同步尚未接入，UI 必须如实说明。 */
+  noteSync?: 'server' | 'local';
   saveNote?: (input: {
     id?: string;
     title: string;

@@ -198,12 +198,12 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             success={
               changed && operation?.signature !== signature
                 ? '提交的版本已保存，当前修改尚未保存。'
-                : actions.saveNote
-                  ? '便签已保存'
-                  : '已保存在这台设备'
+                : actions.noteSync === 'local'
+                  ? '已保存在这台设备'
+                  : '便签已保存'
             }
           />
-          {!actions.saveNote && (
+          {actions.noteSync === 'local' && (
             <small>便签同步尚未接入：内容只保存在当前浏览器，换设备或清除数据会丢失。</small>
           )}
           {isNew && operation?.status === 'committed' && (
