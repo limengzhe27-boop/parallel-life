@@ -48,12 +48,36 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       entry,
     ]);
     try {
-      await client.sendWorldMessage(worldId, {
-        commandId,
-        actorId,
-        text,
-        expectedVersion: data?.version ?? 0,
-      });
+      let currentVersion = data?.version ?? 0;
+      try {
+        await client.sendWorldMessage(worldId, {
+          commandId,
+          actorId,
+          text,
+          expectedVersion: currentVersion,
+        });
+      } catch (err: unknown) {
+        const errorMsg = String((err as { message?: string })?.message || '');
+        const errorStatus = (err as { status?: number })?.status;
+        // 如果是版本不同步引起的冲突，立刻重新同步服务端最新世界版本并再次递交
+        if (
+          errorMsg.includes('VERSION_CONFLICT') ||
+          errorMsg.includes('409') ||
+          errorStatus === 409
+        ) {
+          const freshWorld = await client.world(worldId);
+          setData(freshWorld);
+          currentVersion = freshWorld.version ?? 0;
+          await client.sendWorldMessage(worldId, {
+            commandId,
+            actorId,
+            text,
+            expectedVersion: currentVersion,
+          });
+        } else {
+          throw err;
+        }
+      }
       setLocalMessages((current) => current.filter((message) => message.id !== commandId));
       await load();
     } catch (sendError) {
@@ -788,36 +812,41 @@ export function WorldPhoneSurface({
           return (
             <div
               style={{
-                minHeight: '100%',
-                padding: '14px 16px 24px',
+                height: '100%',
+                maxHeight: '100%',
+                padding: '8px 14px 12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '14px',
+                justifyContent: 'space-between',
+                boxSizing: 'border-box',
+                overflow: 'hidden',
+                gap: '8px',
               }}
             >
-              {/* Top Shortcut Bar */}
+              {/* 顶部极简状态快捷条 */}
               <div
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
+                  flexShrink: 0,
                 }}
               >
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    borderRadius: '20px',
+                    gap: '4px',
+                    padding: '4px 10px',
+                    borderRadius: '16px',
                     background: 'rgba(0, 0, 0, 0.35)',
                     backdropFilter: 'blur(10px)',
                     color: '#fff',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: 500,
                   }}
                 >
-                  <span>✨</span> 平行人生
+                  <span>✨</span> 平行人生 · 运转中
                 </div>
                 <button
                   type="button"
@@ -826,333 +855,264 @@ export function WorldPhoneSurface({
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    padding: '6px 14px',
-                    borderRadius: '20px',
+                    gap: '2px',
+                    padding: '4px 10px',
+                    borderRadius: '16px',
                     background: 'rgba(255, 255, 255, 0.85)',
                     backdropFilter: 'blur(12px)',
                     color: '#0f172a',
                     border: 'none',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
                   }}
                 >
                   人生管理 <PhoneIcon name="next" />
                 </button>
               </div>
 
-              {/* 真实生活时空与天气心境 Widget */}
+              {/* 顶部 iOS 双并排 2x2 方形小组件区（紧凑高度约 110px） */}
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.82)',
-                  backdropFilter: 'blur(16px)',
-                  borderRadius: '18px',
-                  padding: '12px 14px',
-                  color: '#0f172a',
-                  boxShadow: '0 3px 12px rgba(0, 0, 0, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.6)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#334155' }}>
-                    <span>📍 上海 · 静安巨鹿路</span>
-                    <span style={{ color: '#0284c7' }}>19°C 阴转小雨 💧</span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    💭 “光影掠过屋檐的时刻，生命便有了坐标。”
-                  </div>
-                </div>
-                <div
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '8px',
-                    background: '#e0f2fe',
-                    color: '#0369a1',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  开幕 D-3
-                </div>
-              </div>
-
-              {/* Life Overview Widget Card */}
-              <div
-                style={{
-                  background: 'rgba(255, 255, 255, 0.88)',
-                  backdropFilter: 'blur(20px)',
-                  borderRadius: '22px',
-                  padding: '16px 18px',
-                  color: '#0f172a',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)',
-                  border: '1px solid rgba(255, 255, 255, 0.6)',
-                  display: 'flex',
-                  flexDirection: 'column',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
                   gap: '10px',
+                  flexShrink: 0,
                 }}
               >
+                {/* 左组件：气象生活与今日心境 */}
                 <div
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#6366f1',
-                        letterSpacing: '0.05em',
-                        marginBottom: '3px',
-                      }}
-                    >
-                      🌟 当前世界设定
-                    </div>
-                    <h3
-                      style={{
-                        margin: 0,
-                        fontSize: '17px',
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {data.title}
-                    </h3>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      background: '#ecfdf5',
-                      color: '#059669',
-                      padding: '3px 8px',
-                      borderRadius: '12px',
-                      fontWeight: 500,
-                      border: '1px solid #a7f3d0',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    ● 运转中
-                  </span>
-                </div>
-
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '12px',
-                    color: '#475569',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {data.identity}
-                </p>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '6px',
-                    marginTop: '2px',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => openPanel('director')}
-                    style={{
-                      flex: 1,
-                      padding: '7px 8px',
-                      borderRadius: '10px',
-                      background: '#f1f5f9',
-                      color: '#1e293b',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      border: '1px solid #e2e8f0',
-                      cursor: 'pointer',
-                      textAlign: 'center',
-                    }}
-                  >
-                    🎬 推进剧情
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openPanel('timeline')}
-                    style={{
-                      flex: 1,
-                      padding: '7px 8px',
-                      borderRadius: '10px',
-                      background: '#f1f5f9',
-                      color: '#1e293b',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      border: '1px solid #e2e8f0',
-                      cursor: 'pointer',
-                      textAlign: 'center',
-                    }}
-                  >
-                    👥 人脉图谱
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openPanel('schedule')}
-                    style={{
-                      flex: 1,
-                      padding: '7px 8px',
-                      borderRadius: '10px',
-                      background: '#f1f5f9',
-                      color: '#1e293b',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      border: '1px solid #e2e8f0',
-                      cursor: 'pointer',
-                      textAlign: 'center',
-                    }}
-                  >
-                    🗓️ 故事时间
-                  </button>
-                </div>
-              </div>
-
-              {/* Recent Conversation Activity Widget */}
-              {recentActor && (
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.88)',
-                    backdropFilter: 'blur(20px)',
-                    borderRadius: '20px',
-                    padding: '14px 16px',
-                    color: '#0f172a',
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+                    background: 'rgba(255, 255, 255, 0.86)',
+                    backdropFilter: 'blur(16px)',
+                    borderRadius: '18px',
+                    padding: '10px 12px',
+                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
                     border: '1px solid rgba(255, 255, 255, 0.6)',
-                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    height: '105px',
+                    boxSizing: 'border-box',
                   }}
-                  onClick={() => open('messages', recentActor.id)}
-                  role="button"
-                  tabIndex={0}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Avatar name={recentActor.name} />
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
-                          {recentActor.name}
-                        </div>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>
-                          {recentActor.relationship}
-                        </span>
-                      </div>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        color: '#0284c7',
-                        fontWeight: 500,
-                        background: '#e0f2fe',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                      }}
-                    >
-                      微信来信 ›
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>巨鹿路 768号</span>
+                    <span style={{ fontSize: '10px', color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: '6px', fontWeight: 700 }}>
+                      D-3
                     </span>
                   </div>
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      color: '#334155',
-                      lineHeight: 1.45,
-                      background: '#f8fafc',
-                      padding: '8px 10px',
-                      borderRadius: '10px',
-                      border: '1px solid #e2e8f0',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {recentMessage ? recentMessage.text : `与 ${recentActor.name} 的对话通道已建立。`}
-                  </div>
-                </div>
-              )}
-
-              {/* Moments Social Feed Widget */}
-              <div
-                style={{
-                  background: 'rgba(255, 255, 255, 0.88)',
-                  backdropFilter: 'blur(20px)',
-                  borderRadius: '20px',
-                  padding: '14px 16px',
-                  color: '#0f172a',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.6)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-                onClick={() => open('moments')}
-                role="button"
-                tabIndex={0}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '10px',
-                      background: 'linear-gradient(135deg, #07c160, #10b981)',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '20px',
-                      boxShadow: '0 2px 8px rgba(7,193,96,0.3)',
-                    }}
-                  >
-                    📷
-                  </div>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
-                        朋友圈 · 最新动态
-                      </span>
-                      <span
-                        style={{
-                          width: '6px',
-                          height: '6px',
-                          borderRadius: '50%',
-                          background: '#ef4444',
-                        }}
-                      />
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      19°C <span style={{ fontSize: '14px' }}>⛅</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                      沈棠：“老洋房开幕展布展 Day 3。南侧光庭光线...”
-                    </div>
+                    <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 500 }}>阴转初秋阵雨</div>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      color: '#475569',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title="光影掠过屋檐的时刻，生命便有了坐标。"
+                  >
+                    💭 “光影掠过屋檐，生命便有坐标...”
                   </div>
                 </div>
-                <span style={{ fontSize: '12px', color: '#94a3b8' }}>›</span>
+
+                {/* 右组件：世界设定与人脉推进 */}
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.86)',
+                    backdropFilter: 'blur(16px)',
+                    borderRadius: '18px',
+                    padding: '10px 12px',
+                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.6)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    height: '105px',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#6366f1', fontWeight: 600 }}>平行人生世界</div>
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        marginTop: '2px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={data.title}
+                    >
+                      {data.title}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '10px',
+                        color: '#64748b',
+                        marginTop: '2px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={data.identity}
+                    >
+                      {data.identity}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => openPanel('director')}
+                      style={{
+                        flex: 1,
+                        padding: '4px',
+                        borderRadius: '8px',
+                        background: '#f1f5f9',
+                        color: '#1e293b',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        border: '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      🎬 剧情
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPanel('timeline')}
+                      style={{
+                        flex: 1,
+                        padding: '4px',
+                        borderRadius: '8px',
+                        background: '#f1f5f9',
+                        color: '#1e293b',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        border: '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      👥 人脉
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* App Launchers Grid on Desktop */}
+              {/* 中部：灵动消息与动态双行胶囊（单行省略号截断，高仅约 66px） */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  flexShrink: 0,
+                }}
+              >
+                {/* 微信最新来信胶囊 */}
+                {recentActor && (
+                  <div
+                    onClick={() => open('messages', recentActor.id)}
+                    role="button"
+                    tabIndex={0}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.88)',
+                      backdropFilter: 'blur(16px)',
+                      borderRadius: '12px',
+                      padding: '6px 10px',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.6)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px' }}>💬</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a', flexShrink: 0 }}>
+                      {recentActor.name}:
+                    </span>
+                    <span
+                      style={{
+                        flex: 1,
+                        color: '#475569',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={recentMessage ? recentMessage.text : `与 ${recentActor.name} 的对话通道已建立。`}
+                    >
+                      {recentMessage ? recentMessage.text : `与 ${recentActor.name} 的对话通道已建立。`}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>›</span>
+                  </div>
+                )}
+
+                {/* 朋友圈最新动态胶囊 */}
+                <div
+                  onClick={() => open('moments')}
+                  role="button"
+                  tabIndex={0}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.88)',
+                    backdropFilter: 'blur(16px)',
+                    borderRadius: '12px',
+                    padding: '6px 10px',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.6)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '12px',
+                  }}
+                >
+                  <span style={{ fontSize: '13px' }}>📷</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a', flexShrink: 0 }}>朋友圈:</span>
+                  <span
+                    style={{
+                      flex: 1,
+                      color: '#475569',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title="沈棠：老洋房开幕展布展 Day 3。南侧光庭在下午三点四十分..."
+                  >
+                    沈棠: 老洋房开幕展布展 Day 3，南侧光庭光线...
+                  </span>
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: '#ef4444',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>›</span>
+                </div>
+              </div>
+
+              {/* 中下部：标准 iOS 4 列 x 2 行桌面应用网格（稳固呈现，绝不滑动） */}
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '10px',
-                  padding: '4px 2px',
+                  gap: '12px 6px',
+                  padding: '2px 0 6px',
+                  flexShrink: 0,
                 }}
               >
                 {[
@@ -1161,35 +1121,67 @@ export function WorldPhoneSurface({
                     name: '微信',
                     badge: unreadCount > 0 ? unreadCount : undefined,
                     icon: 'messages' as const,
+                    onClick: () => open('messages'),
                   },
                   {
                     app: 'calendar' as const,
                     name: '日历',
                     badge: data.invitations?.length ? data.invitations.length : undefined,
                     icon: 'calendar' as const,
-                  },
-                  {
-                    app: 'photos' as const,
-                    name: '相册',
-                    badge: undefined,
-                    icon: 'photos' as const,
+                    onClick: () => open('calendar'),
                   },
                   {
                     app: 'notes' as const,
                     name: '便签',
                     badge: notes.length ? notes.length : undefined,
                     icon: 'notes' as const,
+                    onClick: () => open('notes'),
+                  },
+                  {
+                    app: 'photos' as const,
+                    name: '相册',
+                    badge: undefined,
+                    icon: 'photos' as const,
+                    onClick: () => open('photos'),
+                  },
+                  {
+                    app: 'moments' as const,
+                    name: '朋友圈',
+                    badge: undefined,
+                    icon: 'moments' as const,
+                    onClick: () => open('moments'),
+                  },
+                  {
+                    app: 'timeline' as const,
+                    name: '人生轨迹',
+                    badge: undefined,
+                    icon: 'timeline' as const,
+                    onClick: () => openPanel('timeline'),
+                  },
+                  {
+                    app: 'director' as const,
+                    name: '导演工坊',
+                    badge: undefined,
+                    icon: 'director' as const,
+                    onClick: () => openPanel('director'),
+                  },
+                  {
+                    app: 'schedule' as const,
+                    name: '故事时间',
+                    badge: undefined,
+                    icon: 'schedule' as const,
+                    onClick: () => openPanel('schedule'),
                   },
                 ].map((item) => (
                   <button
-                    key={item.app}
+                    key={item.name}
                     type="button"
-                    onClick={() => open(item.app)}
+                    onClick={item.onClick}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '6px',
+                      gap: '5px',
                       background: 'transparent',
                       border: 'none',
                       cursor: 'pointer',
@@ -1199,23 +1191,31 @@ export function WorldPhoneSurface({
                     <div
                       style={{
                         position: 'relative',
-                        width: '54px',
-                        height: '54px',
-                        borderRadius: '14px',
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '13px',
                         background: '#ffffff',
-                        boxShadow: '0 4px 10px rgba(0, 0, 0, 0.18)',
+                        boxShadow: '0 4px 10px rgba(0, 0, 0, 0.16)',
                         display: 'grid',
                         placeItems: 'center',
                       }}
                     >
-                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '54px', height: '54px' }}>
+                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '50px', height: '50px' }}>
                         {item.app === 'calendar' ? (
                           <span className={styles.calendarFace}>
                             <span>日历</span>
-                            <strong style={{ fontSize: '26px', lineHeight: '28px' }}>
+                            <strong style={{ fontSize: '24px', lineHeight: '26px' }}>
                               {data.time.slice(8, 10)}
                             </strong>
                           </span>
+                        ) : item.app === 'moments' ? (
+                          <span style={{ fontSize: '24px' }}>📷</span>
+                        ) : item.app === 'timeline' ? (
+                          <span style={{ fontSize: '24px' }}>⏳</span>
+                        ) : item.app === 'director' ? (
+                          <span style={{ fontSize: '24px' }}>🎬</span>
+                        ) : item.app === 'schedule' ? (
+                          <span style={{ fontSize: '24px' }}>⏱️</span>
                         ) : (
                           <PhoneIcon name={item.icon} />
                         )}
@@ -1224,20 +1224,20 @@ export function WorldPhoneSurface({
                         <span
                           style={{
                             position: 'absolute',
-                            top: '-4px',
-                            right: '-4px',
-                            minWidth: '20px',
-                            height: '20px',
-                            borderRadius: '10px',
+                            top: '-3px',
+                            right: '-3px',
+                            minWidth: '18px',
+                            height: '18px',
+                            borderRadius: '9px',
                             background: '#ef4444',
                             color: '#ffffff',
-                            fontSize: '11px',
+                            fontSize: '10px',
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             padding: '0 4px',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
                           }}
                         >
                           {item.badge}
@@ -1246,10 +1246,11 @@ export function WorldPhoneSurface({
                     </div>
                     <span
                       style={{
-                        fontSize: '12px',
+                        fontSize: '11px',
                         fontWeight: 500,
                         color: '#ffffff',
-                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.6)',
+                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.7)',
+                        lineHeight: 1.2,
                       }}
                     >
                       {item.name}
