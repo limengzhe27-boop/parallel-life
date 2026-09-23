@@ -53,6 +53,10 @@ export type PhoneShellProps = {
   notifications?: readonly PhoneNotification[];
   renderApp?: (context: PhoneAppContext) => ReactNode;
   renderPanel?: (panel: PhonePanel) => ReactNode;
+  renderHome?: (context: {
+    open: (app: PhoneApp, target?: string) => void;
+    openPanel: (panel: PhonePanel) => void;
+  }) => ReactNode;
   notice?: ReactNode;
   /** Presentation lock only; does not replace account authentication. */
   initiallyLocked?: boolean;
@@ -71,6 +75,7 @@ function LifePhone({
   notifications = [],
   renderApp,
   renderPanel,
+  renderHome,
   notice,
   initiallyLocked = true,
 }: PhoneShellProps) {
@@ -283,8 +288,11 @@ function LifePhone({
               onClick={back}
             >
               <PhoneIcon name="back" />
-              <span>返回</span>
+              <span className={styles.headerBackLabel}>返回</span>
             </button>
+            <h2 ref={heading} tabIndex={-1} className={styles.headerTitle}>
+              {label}
+            </h2>
             <button
               className={styles.headerButton}
               aria-label="回到手机桌面"
@@ -294,9 +302,11 @@ function LifePhone({
             </button>
           </header>
         )}
-        <h2 ref={heading} tabIndex={-1} className={isHome ? styles.srOnly : styles.title}>
-          {label}
-        </h2>
+        {isHome && (
+          <h2 ref={heading} tabIndex={-1} className={styles.srOnly}>
+            手机桌面
+          </h2>
+        )}
         <div
           ref={scroll}
           hidden={!!route.panel}
@@ -307,15 +317,22 @@ function LifePhone({
           }}
         >
           {!route.app ? (
-            <div className={styles.home}>
-              <button
-                className={styles.manageShortcut}
-                data-panel="management"
-                onClick={() => navigate({ ...route, panel: 'management' })}
-              >
-                人生管理 <PhoneIcon name="next" />
-              </button>
-            </div>
+            renderHome ? (
+              renderHome({
+                open: (app: PhoneApp, target?: string) => open(app, target),
+                openPanel: (panel: PhonePanel) => navigate({ ...route, panel }),
+              })
+            ) : (
+              <div className={styles.home}>
+                <button
+                  className={styles.manageShortcut}
+                  data-panel="management"
+                  onClick={() => navigate({ ...route, panel: 'management' })}
+                >
+                  人生管理 <PhoneIcon name="next" />
+                </button>
+              </div>
+            )
           ) : (
             <div className={styles.appContent} key={`${route.app}:${route.target ?? ''}`}>
               {renderApp ? (

@@ -15,16 +15,16 @@ export function PhoneAppView(context: PhoneAppContext) {
   const hasData = Object.values(data).some((rows) => rows.length > 0);
   return (
     <div className={s.surface} data-phone-app={context.app}>
-      <div className={s.syncBar}>
-        {loading ? (
-          <span role="status">正在更新…</span>
-        ) : loadError ? (
-          <span role="alert">{loadError}</span>
-        ) : (
-          <span />
-        )}
-        <Refresh />
-      </div>
+      {(loading || Boolean(loadError)) && (
+        <div className={s.syncBar}>
+          {loading ? (
+            <span role="status">正在更新…</span>
+          ) : (
+            <span role="alert">{loadError}</span>
+          )}
+          <Refresh />
+        </div>
+      )}
       {loading && !hasData ? (
         <Empty title="正在打开…" />
       ) : loadError && !hasData ? (

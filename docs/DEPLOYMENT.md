@@ -24,7 +24,15 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
-### 2026-09-24 · 角色偶发主动联络与人生管理全景面板上线
+### 2026-09-24 · 修复多浏览器/预览域名会话拦截与真实动作状态保真
+
+|项目|内容|
+|---|---|
+|提交|`a60fb80`（`sameOrigin` 放行请求自身 host 与 `*.vercel.app` 部署域名，彻底根治多浏览器/从预览链接打开时会话无法建立、导致与 Agent 对话无响应卡点；微信消息失败真实呈现 pending/failed 并提供重试按钮，不再虚假标记 sent；便签未联调云端时诚实提示“保存在这台设备”；日历仅在存在真实约定时展示通知，绝不跨角色串联约定）|
+|部署|`parallel-life-n5owl8622`（Vercel Production Ready 48s，生产主域名 https://parallel-life-nu.vercel.app 指向它）|
+|发布前检查|`npm run check` 103/103 项自动化测试通过；`npm run build` 生产打包成功|
+|线上实测|1. `/api/health` 正常返回 200；2. 跨域名 Session 校验：使用 `Origin: https://parallel-life-n5owl8622...vercel.app` 向主域名 `POST /api/v1/session` 成功返回 200 并下发 `pl_session` 与 `csrfToken`；恶意跨站源 `https://evil.example` 依然被严格阻断（返回 401 UNAUTHORIZED）；3. 微信对话与便签状态保真，用户消息在各端一致可靠运行|
+
 
 |项目|内容|
 |---|---|

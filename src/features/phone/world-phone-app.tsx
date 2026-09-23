@@ -11,6 +11,8 @@ import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from 
 import { worldAppData } from './world-app-data.ts';
 import { formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage } from './apps/types.ts';
+import { PhoneIcon } from './phone-icons.tsx';
+import styles from './phone.module.css';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const [client] = useState(() => new LifeClient()),
     [data, setData] = useState<WorldPhone | null>(null),
@@ -566,6 +568,400 @@ export function WorldPhoneSurface({
               ]
             : []),
         ]}
+        renderHome={({ open, openPanel }) => {
+          const unreadCount = data.actors.reduce(
+            (acc, actor) =>
+              acc +
+              mergedData.messages.filter(
+                (m) => m.actorId === actor.id && m.role !== 'user' && !viewed.has(m.id),
+              ).length,
+            0,
+          );
+          const recentMessage = [...mergedData.messages]
+            .reverse()
+            .find((m) => m.role !== 'user');
+          const recentActor = recentMessage
+            ? data.actors.find((a) => a.id === recentMessage.actorId)
+            : data.actors[0];
+
+          return (
+            <div
+              style={{
+                minHeight: '100%',
+                padding: '14px 16px 24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+              }}
+            >
+              {/* Top Shortcut Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    background: 'rgba(0, 0, 0, 0.35)',
+                    backdropFilter: 'blur(10px)',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                  }}
+                >
+                  <span>✨</span> 平行人生
+                </div>
+                <button
+                  type="button"
+                  data-panel="management"
+                  onClick={() => openPanel('management')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    background: 'rgba(255, 255, 255, 0.85)',
+                    backdropFilter: 'blur(12px)',
+                    color: '#0f172a',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  人生管理 <PhoneIcon name="next" />
+                </button>
+              </div>
+
+              {/* Life Overview Widget Card */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.88)',
+                  backdropFilter: 'blur(20px)',
+                  borderRadius: '22px',
+                  padding: '16px 18px',
+                  color: '#0f172a',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)',
+                  border: '1px solid rgba(255, 255, 255, 0.6)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#6366f1',
+                        letterSpacing: '0.05em',
+                        marginBottom: '3px',
+                      }}
+                    >
+                      🌟 当前世界设定
+                    </div>
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: '17px',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {data.title}
+                    </h3>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      background: '#ecfdf5',
+                      color: '#059669',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontWeight: 500,
+                      border: '1px solid #a7f3d0',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ● 运转中
+                  </span>
+                </div>
+
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: '12px',
+                    color: '#475569',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {data.identity}
+                </p>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '6px',
+                    marginTop: '2px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => openPanel('director')}
+                    style={{
+                      flex: 1,
+                      padding: '7px 8px',
+                      borderRadius: '10px',
+                      background: '#f1f5f9',
+                      color: '#1e293b',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                    }}
+                  >
+                    🎬 推进剧情
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openPanel('timeline')}
+                    style={{
+                      flex: 1,
+                      padding: '7px 8px',
+                      borderRadius: '10px',
+                      background: '#f1f5f9',
+                      color: '#1e293b',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                    }}
+                  >
+                    👥 人脉图谱
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openPanel('schedule')}
+                    style={{
+                      flex: 1,
+                      padding: '7px 8px',
+                      borderRadius: '10px',
+                      background: '#f1f5f9',
+                      color: '#1e293b',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      border: '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                    }}
+                  >
+                    🗓️ 故事时间
+                  </button>
+                </div>
+              </div>
+
+              {/* Recent Conversation Activity Widget */}
+              {recentActor && (
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.88)',
+                    backdropFilter: 'blur(20px)',
+                    borderRadius: '20px',
+                    padding: '14px 16px',
+                    color: '#0f172a',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.6)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => open('messages', recentActor.id)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Avatar name={recentActor.name} />
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
+                          {recentActor.name}
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          {recentActor.relationship}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        color: '#0284c7',
+                        fontWeight: 500,
+                        background: '#e0f2fe',
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      微信来信 ›
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#334155',
+                      lineHeight: 1.45,
+                      background: '#f8fafc',
+                      padding: '8px 10px',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {recentMessage ? recentMessage.text : `与 ${recentActor.name} 的对话通道已建立。`}
+                  </div>
+                </div>
+              )}
+
+              {/* App Launchers Grid on Desktop */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '10px',
+                  padding: '4px 2px',
+                }}
+              >
+                {[
+                  {
+                    app: 'messages' as const,
+                    name: '微信',
+                    badge: unreadCount > 0 ? unreadCount : undefined,
+                    icon: 'messages' as const,
+                  },
+                  {
+                    app: 'calendar' as const,
+                    name: '日历',
+                    badge: data.invitations?.length ? data.invitations.length : undefined,
+                    icon: 'calendar' as const,
+                  },
+                  {
+                    app: 'photos' as const,
+                    name: '相册',
+                    badge: undefined,
+                    icon: 'photos' as const,
+                  },
+                  {
+                    app: 'notes' as const,
+                    name: '便签',
+                    badge: notes.length ? notes.length : undefined,
+                    icon: 'notes' as const,
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.app}
+                    type="button"
+                    onClick={() => open(item.app)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '54px',
+                        height: '54px',
+                        borderRadius: '14px',
+                        background: '#ffffff',
+                        boxShadow: '0 4px 10px rgba(0, 0, 0, 0.18)',
+                        display: 'grid',
+                        placeItems: 'center',
+                      }}
+                    >
+                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '54px', height: '54px' }}>
+                        {item.app === 'calendar' ? (
+                          <span className={styles.calendarFace}>
+                            <span>日历</span>
+                            <strong style={{ fontSize: '26px', lineHeight: '28px' }}>
+                              {data.time.slice(8, 10)}
+                            </strong>
+                          </span>
+                        ) : (
+                          <PhoneIcon name={item.icon} />
+                        )}
+                      </span>
+                      {item.badge !== undefined && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '-4px',
+                            right: '-4px',
+                            minWidth: '20px',
+                            height: '20px',
+                            borderRadius: '10px',
+                            background: '#ef4444',
+                            color: '#ffffff',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '0 4px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                          }}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: '#ffffff',
+                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.6)',
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        }}
         renderApp={(context) => <PhoneAppView {...context} />}
         renderPanel={(panel) => {
           if (panel === 'timeline') {

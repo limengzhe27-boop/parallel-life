@@ -1189,6 +1189,16 @@ h2 {
   margin: 0 auto;
   overflow: hidden;
   background: var(--bg);
+  box-sizing: border-box;
+}
+@media (min-width: 601px) {
+  .world-viewport {
+    width: 420px;
+    height: min(880px, calc(100vh - 36px));
+    margin: 18px auto;
+    border-radius: 46px;
+    box-shadow: 0 25px 70px -12px rgba(0, 0, 0, 0.7), 0 0 0 8px #1f1f21, 0 0 0 10px #38383a;
+  }
 }
 .world-loading {
   padding: 24px;
