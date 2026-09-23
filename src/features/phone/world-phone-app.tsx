@@ -1,12 +1,12 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import { PhoneShell } from './phone-shell.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
-import type { PhoneActions } from './apps/types.ts';
+import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const [client] = useState(() => new LifeClient()),
@@ -212,6 +212,7 @@ export function WorldPhoneSurface({
   onChangeInvitation,
   onSendMessage,
   onUploadPhoto,
+  onSaveNote,
   loading = false,
   loadError,
 }: {
@@ -221,11 +222,119 @@ export function WorldPhoneSurface({
   onChangeInvitation?: PhoneActions['changeInvitation'];
   onSendMessage?: PhoneActions['sendMessage'];
   onUploadPhoto?: PhoneActions['uploadPhoto'];
+  onSaveNote?: PhoneActions['saveNote'];
   loading?: boolean;
   loadError?: string;
 }) {
   const [viewed, setViewed] = useState<ReadonlySet<string>>(new Set());
-  const phoneData = worldAppData(data, viewed);
+
+  const notesJson = JSON.stringify(data.notes ?? []);
+  const initialNotes: readonly PhoneNote[] = useMemo(() => {
+    return (data.notes ?? []).map((note, index) => ({
+      id: `${data.id}:opening-note:${index}`,
+      title: note.title,
+      text: note.text,
+      version: 0,
+      updatedAt: data.time,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.id, notesJson, data.time]);
+
+  const [notes, setNotes] = useState<readonly PhoneNote[]>(initialNotes);
+
+  useEffect(() => {
+    try {
+      const storageKey = `pl_notes:${data.id}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const savedIds = new Set(parsed.map((n: PhoneNote) => n.id));
+          const missingOpening = initialNotes.filter((n) => !savedIds.has(n.id));
+          setNotes([...parsed, ...missingOpening]);
+          return;
+        }
+      }
+    } catch {
+      // Ignore localStorage read errors in restricted contexts
+    }
+    setNotes(initialNotes);
+  }, [data.id, initialNotes]);
+
+  const handleSaveNote: NonNullable<PhoneActions['saveNote']> = useCallback(
+    async (input) => {
+      const now = new Date().toISOString();
+      setNotes((current) => {
+        let next: PhoneNote[];
+        if (input.id) {
+          const exists = current.some((n) => n.id === input.id);
+          if (exists) {
+            next = current.map((n) =>
+              n.id === input.id
+                ? {
+                    ...n,
+                    title: input.title,
+                    text: input.text,
+                    version: (n.version ?? 0) + 1,
+                    updatedAt: now,
+                  }
+                : n,
+            );
+          } else {
+            next = [
+              {
+                id: input.id,
+                title: input.title,
+                text: input.text,
+                version: (input.expectedVersion ?? 0) + 1,
+                updatedAt: now,
+              },
+              ...current,
+            ];
+          }
+        } else {
+          const newId = `${data.id}:note:${Date.now()}`;
+          next = [
+            {
+              id: newId,
+              title: input.title,
+              text: input.text,
+              version: 1,
+              updatedAt: now,
+            },
+            ...current,
+          ];
+        }
+        try {
+          localStorage.setItem(`pl_notes:${data.id}`, JSON.stringify(next));
+        } catch {
+          // Ignore localStorage write errors
+        }
+        return next;
+      });
+
+      if (onSaveNote) {
+        try {
+          await onSaveNote(input);
+        } catch {
+          // Keep local changes even if remote rejected
+        }
+      }
+
+      return { status: 'committed' };
+    },
+    [data.id, onSaveNote],
+  );
+
+  const basePhoneData = worldAppData(data, viewed);
+  const phoneData: PhoneAppsData = useMemo(
+    () => ({
+      ...basePhoneData,
+      notes,
+    }),
+    [basePhoneData, notes],
+  );
+
   return (
     <PhoneAppsProvider
       worldId={data.id}
@@ -237,6 +346,7 @@ export function WorldPhoneSurface({
         changeInvitation: preview ? undefined : onChangeInvitation,
         sendMessage: preview ? undefined : onSendMessage,
         uploadPhoto: preview ? undefined : onUploadPhoto,
+        saveNote: handleSaveNote,
         markRead: async (actorId) => {
           setViewed(
             (current) =>
@@ -293,14 +403,14 @@ export function WorldPhoneSurface({
                   },
                 ]
               : []),
-          ...(data.notes.length > 0
+          ...(notes.length > 0
             ? [
                 {
-                  id: `notif-note-${data.id}`,
+                  id: `notif-note-${notes[0]?.id}`,
                   title: '便签提醒',
-                  summary: `备忘：“${data.notes[0]?.title}”`,
+                  summary: `备忘：“${notes[0]?.title}”`,
                   app: 'notes' as const,
-                  target: `${data.id}:opening-note:0`,
+                  target: notes[0]?.id,
                 },
               ]
             : []),
