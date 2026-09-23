@@ -34,13 +34,20 @@ export function formatChatTime(iso: string, referenceTime?: string): string {
   if (!iso) return '';
   const timePart = iso.slice(11, 16);
   if (!referenceTime) return timePart;
+  const msgDate = new Date(iso);
+  const refDate = new Date(referenceTime);
+  const diffMs = refDate.getTime() - msgDate.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
   const sameDay = iso.slice(0, 10) === referenceTime.slice(0, 10);
   if (sameDay) {
-    const diffMs = Date.parse(referenceTime) - Date.parse(iso);
-    const diffMins = Math.floor(diffMs / 60000);
     if (diffMins >= 0 && diffMins <= 2) return '刚刚';
     if (diffMins > 2 && diffMins < 60) return `${diffMins}分钟前`;
     return timePart;
+  }
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  if (diffMs > 0 && diffMs < 2 * oneDayMs) {
+    return `昨天 ${timePart}`;
   }
   return `${Number(iso.slice(5, 7))}月${Number(iso.slice(8, 10))}日`;
 }

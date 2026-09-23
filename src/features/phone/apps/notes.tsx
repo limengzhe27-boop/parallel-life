@@ -39,12 +39,19 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         className={`${s.app} ${s.noteEditor}`}
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!actions.saveNote || operation?.busy || awaiting || !changed || !draft.title.trim())
+          if (!changed) {
+            open('notes');
             return;
+          }
+          if (!actions.saveNote || operation?.busy || awaiting) return;
+          const resolvedTitle =
+            draft.title.trim() ||
+            draft.text.trim().split('\n')[0]?.trim().slice(0, 25) ||
+            '无标题便签';
           const receipt = await run(`note:${key}`, signature, (commandId) =>
             actions.saveNote!({
               ...(note ? { id: note.id } : {}),
-              title: draft.title.trim(),
+              title: resolvedTitle,
               text: draft.text,
               expectedVersion: draft.expectedVersion,
               commandId,
@@ -59,6 +66,30 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         <div className={s.noteToolbar}>
           <span>{changed ? '未保存的草稿' : '已保存的便签'}</span>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {note && actions.deleteNote && (
+              <button
+                type="button"
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  background: '#fef2f2',
+                  color: '#dc2626',
+                  border: '1px solid #fecaca',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                onClick={async () => {
+                  if (confirm('确定要删除这条便签吗？')) {
+                    await actions.deleteNote!(note.id);
+                    clearNoteDraft(key);
+                    open('notes');
+                  }
+                }}
+              >
+                🗑️ 删除
+              </button>
+            )}
             {data.contacts.length > 0 && (
               <button
                 type="button"
@@ -92,8 +123,6 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                 !actions.saveNote ||
                 operation?.busy ||
                 awaiting ||
-                !changed ||
-                !draft.title.trim() ||
                 !!conflict
               }
             >
@@ -248,11 +277,39 @@ export function NotesApp({ target, open }: PhoneAppContext) {
       )}
       <div className={s.noteList}>
         {notes.map((n) => (
-          <button key={n.id} onClick={() => open('notes', n.id)}>
-            <strong>{noteDrafts[n.id]?.title ?? n.title}</strong>
-            <p>{noteDrafts[n.id] ? '未保存的草稿' : n.text}</p>
-            <time>{timeText(n.updatedAt)}</time>
-          </button>
+          <div key={n.id} style={{ position: 'relative' }}>
+            <button onClick={() => open('notes', n.id)}>
+              <strong>{noteDrafts[n.id]?.title ?? n.title}</strong>
+              <p>{noteDrafts[n.id] ? '未保存的草稿' : n.text}</p>
+              <time>{timeText(n.updatedAt)}</time>
+            </button>
+            {actions.deleteNote && (
+              <button
+                type="button"
+                aria-label={`删除便签 ${n.title}`}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '12px',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '14px',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  zIndex: 2,
+                }}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (confirm(`确定要删除便签“${n.title}”吗？`)) {
+                    await actions.deleteNote!(n.id);
+                  }
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         ))}
       </div>
       {data.contacts.length > 0 && notes.length > 0 && (

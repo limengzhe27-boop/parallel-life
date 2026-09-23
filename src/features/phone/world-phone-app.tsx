@@ -7,7 +7,7 @@ import type { WorldPhone } from '../../contracts/world-build.ts';
 import { PhoneShell } from './phone-shell.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { Avatar } from './apps/common.tsx';
-import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
+import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote, PhoneInvitation } from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
 import { formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage } from './apps/types.ts';
@@ -277,8 +277,45 @@ export function WorldPhoneSurface({
 }) {
   const [viewed, setViewed] = useState<ReadonlySet<string>>(new Set());
 
-  const notesJson = JSON.stringify(data.notes ?? []);
-  const initialNotes: readonly PhoneNote[] = useMemo(() => {
+  // 动态时钟：进入手机后，每秒自动流转，模拟真实运作的手机时间
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const currentClock = useMemo(() => {
+    const baseMs = Date.parse(data.time);
+    const validBase = isNaN(baseMs) ? Date.now() : baseMs;
+    return new Date(validBase + elapsedSeconds * 1000);
+  }, [data.time, elapsedSeconds]);
+
+  const currentReferenceTime = currentClock.toISOString();
+  const timeLabel = currentClock.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const dateLabel = currentClock.toLocaleDateString('zh-CN', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  });
+
+  // 便签本地持久化存储，初始值安全优先读取 localStorage
+  const [notes, setNotes] = useState<readonly PhoneNote[]>(() => {
+    try {
+      const storageKey = `pl_notes:${data.id}`;
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // Fallback below
+    }
     return (data.notes ?? []).map((note, index) => ({
       id: `${data.id}:opening-note:${index}`,
       title: note.title,
@@ -286,33 +323,12 @@ export function WorldPhoneSurface({
       version: 0,
       updatedAt: data.time,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.id, notesJson, data.time]);
-
-  const [notes, setNotes] = useState<readonly PhoneNote[]>(initialNotes);
-
-  useEffect(() => {
-    try {
-      const storageKey = `pl_notes:${data.id}`;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const savedIds = new Set(parsed.map((n: PhoneNote) => n.id));
-          const missingOpening = initialNotes.filter((n) => !savedIds.has(n.id));
-          setNotes([...parsed, ...missingOpening]);
-          return;
-        }
-      }
-    } catch {
-      // Ignore localStorage read errors in restricted contexts
-    }
-    setNotes(initialNotes);
-  }, [data.id, initialNotes]);
+  });
 
   const handleSaveNote: NonNullable<PhoneActions['saveNote']> = useCallback(
     async (input) => {
       const now = new Date().toISOString();
+      const resolvedTitle = input.title.trim() || input.text.trim().split('\n')[0]?.slice(0, 20) || '无标题便签';
       setNotes((current) => {
         let next: PhoneNote[];
         if (input.id) {
@@ -322,7 +338,7 @@ export function WorldPhoneSurface({
               n.id === input.id
                 ? {
                     ...n,
-                    title: input.title,
+                    title: resolvedTitle,
                     text: input.text,
                     version: (n.version ?? 0) + 1,
                     updatedAt: now,
@@ -333,7 +349,7 @@ export function WorldPhoneSurface({
             next = [
               {
                 id: input.id,
-                title: input.title,
+                title: resolvedTitle,
                 text: input.text,
                 version: (input.expectedVersion ?? 0) + 1,
                 updatedAt: now,
@@ -346,7 +362,7 @@ export function WorldPhoneSurface({
           next = [
             {
               id: newId,
-              title: input.title,
+              title: resolvedTitle,
               text: input.text,
               version: 1,
               updatedAt: now,
@@ -363,15 +379,73 @@ export function WorldPhoneSurface({
       });
 
       if (onSaveNote) {
-        /* The server is the source of truth. A rejected save must surface as a
-           failure (and must not be reported as committed). */
-        const receipt = await onSaveNote(input);
+        const receipt = await onSaveNote({ ...input, title: resolvedTitle });
         await onReload?.();
         return receipt;
       }
       return { status: 'committed' };
     },
     [data.id, onSaveNote, onReload],
+  );
+
+  const handleDeleteNote: NonNullable<PhoneActions['deleteNote']> = useCallback(
+    async (id: string) => {
+      setNotes((current) => {
+        const next = current.filter((n) => n.id !== id);
+        try {
+          localStorage.setItem(`pl_notes:${data.id}`, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+      return { status: 'committed' };
+    },
+    [data.id],
+  );
+
+  // 用户主动创建的日程邀约
+  const [customInvitations, setCustomInvitations] = useState<readonly PhoneInvitation[]>(() => {
+    try {
+      const storageKey = `pl_invitations:${data.id}`;
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const handleCreateInvitation: NonNullable<PhoneActions['createInvitation']> = useCallback(
+    async (input) => {
+      const newInv: PhoneInvitation = {
+        id: `inv-custom-${Date.now()}`,
+        title: input.title,
+        at: input.at,
+        participantIds: input.participantIds,
+        status: 'proposed',
+        version: 1,
+      };
+      setCustomInvitations((current) => {
+        const next = [newInv, ...current];
+        try {
+          localStorage.setItem(`pl_invitations:${data.id}`, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      if (input.participantIds[0] && onSendMessage) {
+        const actorId = input.participantIds[0];
+        const timePart = input.at.slice(5, 10).replace('-', '月') + '日 ' + input.at.slice(11, 16);
+        const text = `我发起了日程约定【${input.title}】，时间定在 ${timePart}${input.notes ? `，备注：${input.notes}` : ''}，到时候见！`;
+        try {
+          await onSendMessage(actorId, text, `cmd-inv-msg-${Date.now()}`);
+        } catch {}
+      }
+      return { status: 'committed' };
+    },
+    [data.id, onSendMessage],
   );
 
   const [proactiveMessages, setProactiveMessages] = useState<WorldPhone['messages']>(() => {
@@ -487,23 +561,72 @@ export function WorldPhoneSurface({
     return () => clearTimeout(timer);
   }, [data.id, triggerProactiveMessage]);
 
+  // 错峰历史消息：确保进入手机时，角色消息不是挤在“进入的那一刻”，而是自然错峰在之前的时间发来的
+  const staggeredBaseMessages = useMemo(() => {
+    const msgs = data.messages ?? [];
+    if (!msgs.length) return msgs;
+
+    const timestamps = msgs.map((m) => Date.parse(m.at)).filter((t) => !isNaN(t));
+    const minT = Math.min(...timestamps);
+    const maxT = Math.max(...timestamps);
+    const isClustered = maxT - minT < 180000;
+
+    if (!isClustered) return msgs;
+
+    const actorOffsets: Record<string, number> = {};
+    const baseClockMs = Date.parse(data.time) || Date.now();
+    const actorStaggerDeltas = [
+      4 * 60 * 1000,
+      23 * 60 * 1000,
+      78 * 60 * 1000,
+      210 * 60 * 1000,
+      14 * 60 * 60 * 1000,
+    ];
+
+    let actorIdx = 0;
+    for (const actor of data.actors) {
+      actorOffsets[actor.id] = actorStaggerDeltas[actorIdx % actorStaggerDeltas.length]!;
+      actorIdx++;
+    }
+
+    return msgs.map((m) => {
+      if (m.role === 'user') return m;
+      const offset = actorOffsets[m.actorId] ?? 15 * 60 * 1000;
+      const staggeredMs = baseClockMs - offset;
+      return {
+        ...m,
+        at: new Date(staggeredMs).toISOString(),
+      };
+    });
+  }, [data.messages, data.actors, data.time]);
+
   const mergedData: WorldPhone = useMemo(() => {
-    if (!proactiveMessages.length) return data;
-    const existingIds = new Set(data.messages.map((m) => m.id));
-    const newProactive = proactiveMessages.filter((m) => !existingIds.has(m.id));
+    const baseMsgs = staggeredBaseMessages;
+    let allMsgs = baseMsgs;
+    if (proactiveMessages.length) {
+      const existingIds = new Set(baseMsgs.map((m) => m.id));
+      const newProactive = proactiveMessages.filter((m) => !existingIds.has(m.id));
+      allMsgs = [...baseMsgs, ...newProactive];
+    }
+    const combinedInvitations = [
+      ...(data.invitations ?? []),
+      ...customInvitations,
+    ];
     return {
       ...data,
-      messages: [...data.messages, ...newProactive],
+      messages: allMsgs,
+      invitations: combinedInvitations,
     };
-  }, [data, proactiveMessages]);
+  }, [data, staggeredBaseMessages, proactiveMessages, customInvitations]);
 
   const basePhoneData = worldAppData(mergedData, viewed, localMessages);
   const phoneData: PhoneAppsData = useMemo(
     () => ({
       ...basePhoneData,
       notes,
+      referenceTime: currentReferenceTime,
     }),
-    [basePhoneData, notes],
+    [basePhoneData, notes, currentReferenceTime],
   );
 
   return (
@@ -515,10 +638,12 @@ export function WorldPhoneSurface({
       onReload={onReload}
       actions={{
         changeInvitation: preview ? undefined : onChangeInvitation,
+        createInvitation: handleCreateInvitation,
         sendMessage: preview ? undefined : onSendMessage,
         retryMessage: preview ? undefined : onRetryMessage,
         uploadPhoto: preview ? undefined : onUploadPhoto,
         saveNote: handleSaveNote,
+        deleteNote: handleDeleteNote,
         noteSync: onSaveNote ? 'server' : 'local',
         markRead: async (actorId) => {
           setViewed(
@@ -534,13 +659,8 @@ export function WorldPhoneSurface({
       <PhoneShell
         worldId={data.id}
         lifeName={data.title}
-        dateLabel={new Date(data.time.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('zh-CN', {
-          timeZone: 'UTC',
-          month: 'long',
-          day: 'numeric',
-          weekday: 'long',
-        })}
-        timeLabel={data.time.slice(11, 16)}
+        dateLabel={dateLabel}
+        timeLabel={timeLabel}
         wallpaperUrl="/art/first-window.webp"
         notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
         notifications={[
@@ -553,7 +673,7 @@ export function WorldPhoneSurface({
               summary: m.text,
               app: 'messages' as const,
               target: m.actorId,
-              timeLabel: formatChatTime(m.at, data.time),
+              timeLabel: formatChatTime(m.at, currentReferenceTime),
             })),
           ...(data.invitations && data.invitations.length > 0
             ? data.invitations.slice(0, 1).map((inv) => ({

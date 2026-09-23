@@ -117,7 +117,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     <small>{latest?.text ?? '开始聊聊'}</small>
                   </span>
                   <span className={s.contactMeta}>
-                    {latest && <time>{formatChatTime(latest.at)}</time>}
+                    {latest && <time>{formatChatTime(latest.at, data.referenceTime)}</time>}
                     {c.unread > 0 && (
                       <b aria-label={`${c.unread} 条未读`}>{c.unread > 99 ? '99+' : c.unread}</b>
                     )}
@@ -387,67 +387,107 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     data.invitations.find((inv) => inv.participantIds.includes(actor.id)) ?? null;
   return (
     <div className={`${s.app} ${s.chat}`} data-phone-thread>
+      {/* 顶部单栏原生微信导航（严格对齐 Screen 04） */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          background: '#f2f2f7',
-          borderBottom: '1px solid #e5e5ea',
-          paddingRight: '12px',
+          justifyContent: 'space-between',
+          background: '#ededed',
+          borderBottom: '1px solid #dcdcdc',
+          padding: '6px 12px',
+          minHeight: '44px',
+          boxSizing: 'border-box',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
         }}
       >
         <button
-          className={s.personHeader}
-          style={{ flex: 1, borderBottom: 'none' }}
-          aria-expanded={showPerson}
-          onClick={() => setShowPerson((v) => !v)}
-        >
-          <Avatar url={actor.avatarUrl} name={actor.name} />
-          <span>
-            <strong>{actor.name}</strong>
-            <small>
-              {actor.relationship} · <span style={{ color: '#52c41a' }}>● 在线</span>
-            </small>
-          </span>
-        </button>
-        <button
           type="button"
-          title={`拨打电话给 ${actor.name}`}
+          onClick={() => open('messages')}
           style={{
-            background: '#e2fbe8',
-            border: '1px solid #bbf7d0',
-            borderRadius: '50%',
-            width: '34px',
-            height: '34px',
-            fontSize: '15px',
-            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: '#15803d',
-            marginRight: '6px',
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            setCallingContact(actor);
-          }}
-        >
-          📞
-        </button>
-        <button
-          type="button"
-          style={{
+            gap: '2px',
             background: 'none',
             border: 'none',
-            color: '#707078',
-            fontSize: '18px',
+            color: '#181818',
+            fontSize: '15px',
+            fontWeight: 500,
             cursor: 'pointer',
-            padding: '4px',
+            padding: '4px 6px',
+            borderRadius: '6px',
+          }}
+          aria-label="返回微信聊天列表"
+        >
+          <span style={{ fontSize: '18px', lineHeight: 1 }}>‹</span>
+          <span>微信</span>
+        </button>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            maxWidth: '180px',
           }}
           onClick={() => setShowPerson((v) => !v)}
+          title="点击查看人物名片"
         >
-          ···
-        </button>
+          <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span>{actor.name}</span>
+          </div>
+          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span>{actor.relationship || '朋友'}</span>
+            <span>·</span>
+            <span style={{ color: '#16a34a' }}>● 在线</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button
+            type="button"
+            title={`拨打电话给 ${actor.name}`}
+            style={{
+              background: '#e2fbe8',
+              border: '1px solid #bbf7d0',
+              borderRadius: '50%',
+              width: '30px',
+              height: '30px',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#15803d',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCallingContact(actor);
+            }}
+          >
+            📞
+          </button>
+          <button
+            type="button"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#475569',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              lineHeight: 1,
+            }}
+            onClick={() => setShowPerson((v) => !v)}
+            title="更多与名片"
+          >
+            ···
+          </button>
+        </div>
       </div>
       {showPerson && (
         <section className={s.personSummary} aria-label="人物摘要">
@@ -480,6 +520,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           setDraft(`scroll:${target}`, String(el.scrollTop));
         }}
         className={s.messages}
+        style={{
+          background: '#f3f4f6',
+          padding: '12px 10px',
+        }}
         role="log"
         aria-label={`与${actor.name}的聊天`}
         aria-live="polite"
@@ -488,67 +532,147 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         {relatedInvitation && (
           <div
             style={{
-              margin: '4px 0 12px 0',
+              margin: '4px 8px 14px 8px',
               padding: '12px 14px',
-              background: '#f8fafc',
-              borderRadius: '14px',
+              background: '#ffffff',
+              borderRadius: '12px',
               border: '1px solid #e2e8f0',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
               cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
             }}
             onClick={() => open('calendar', relatedInvitation.id)}
             role="button"
             tabIndex={0}
             aria-label="查看相关日程"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '22px' }}>🗓️</span>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
-                  {relatedInvitation.title}
-                </div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                  {relatedInvitation.at.slice(0, 10)} {relatedInvitation.at.slice(11, 16)} ·{' '}
-                  <span
-                    style={{
-                      color:
-                        relatedInvitation.status === 'confirmed'
-                          ? '#16a34a'
-                          : relatedInvitation.status === 'cancelled'
-                            ? '#94a3b8'
-                            : '#d97706',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {relatedInvitation.status === 'confirmed'
-                      ? '已约好'
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>🗓️</span> 约定邀请
+              </span>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  background:
+                    relatedInvitation.status === 'confirmed'
+                      ? '#dcfce7'
                       : relatedInvitation.status === 'cancelled'
-                        ? '已取消'
-                        : '邀请 · 待确认'}
-                  </span>
-                </div>
-              </div>
+                        ? '#f1f5f9'
+                        : '#fef3c7',
+                  color:
+                    relatedInvitation.status === 'confirmed'
+                      ? '#15803d'
+                      : relatedInvitation.status === 'cancelled'
+                        ? '#64748b'
+                        : '#b45309',
+                }}
+              >
+                {relatedInvitation.status === 'confirmed'
+                  ? '已确认'
+                  : relatedInvitation.status === 'cancelled'
+                    ? '已取消'
+                    : '待回复'}
+              </span>
             </div>
-            <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 500 }}>
-              查看约定 ›
-            </span>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>
+              {relatedInvitation.title}
+            </div>
+            <div style={{ fontSize: '12px', color: '#475569' }}>
+              时间：{relatedInvitation.at.slice(5, 10).replace('-', '月')}日 {relatedInvitation.at.slice(11, 16)}
+            </div>
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '6px', marginTop: '2px', display: 'flex', justifyContent: 'flex-end', fontSize: '12px', color: '#2563eb', fontWeight: 500 }}>
+              查看日程详情 ›
+            </div>
           </div>
         )}
         {!messages.length && <Empty title="还没有聊天记录" text={`和${actor.name}说句话吧。`} />}
         {messages.map((m) => (
-          <article key={m.id} className={`${s.message} ${m.role === 'user' ? s.mine : ''}`}>
-            <time>{timeText(m.at)}</time>
-            <div className={s.bubble}>
-              <p>{m.text}</p>
-              <Links links={m.links} open={open} />
+          <article
+            key={m.id}
+            className={`${s.message} ${m.role === 'user' ? s.mine : ''}`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              margin: '6px 0',
+            }}
+          >
+            <time
+              style={{
+                alignSelf: 'center',
+                fontSize: '11px',
+                color: '#94a3b8',
+                marginBottom: '6px',
+                background: 'rgba(0,0,0,0.04)',
+                padding: '2px 8px',
+                borderRadius: '10px',
+              }}
+            >
+              {formatChatTime(m.at, data.referenceTime)}
+            </time>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
+                alignItems: 'flex-start',
+                gap: '8px',
+                padding: '0 4px',
+              }}
+            >
+              {m.role === 'user' ? (
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '6px',
+                    background: '#07c160',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    flexShrink: 0,
+                  }}
+                >
+                  我
+                </div>
+              ) : (
+                <div style={{ flexShrink: 0 }}>
+                  <Avatar url={actor.avatarUrl} name={actor.name} />
+                </div>
+              )}
+              <div
+                style={{
+                  maxWidth: '74%',
+                  padding: '9px 12px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  lineHeight: '1.5',
+                  wordBreak: 'break-word',
+                  background: m.role === 'user' ? '#95ec69' : '#ffffff',
+                  color: '#0f172a',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  border: m.role === 'user' ? '1px solid #82d857' : '1px solid #e2e8f0',
+                  position: 'relative',
+                }}
+              >
+                <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                <Links links={m.links} open={open} />
+              </div>
             </div>
-            {m.status === 'pending' && <small>等待处理</small>}
+            {m.status === 'pending' && (
+              <small style={{ alignSelf: 'flex-end', marginRight: '48px', color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>
+                发送中…
+              </small>
+            )}
             {(m.status === 'failed' || m.status === 'unknown') && (
-              <div className={s.messageFailure}>
-                <span>{m.status === 'unknown' ? '结果待确认，请先刷新核对' : '发送失败'}</span>
+              <div className={s.messageFailure} style={{ alignSelf: 'flex-end', marginRight: '48px', marginTop: '2px' }}>
+                <span>{m.status === 'unknown' ? '待确认' : '发送失败'}</span>
                 <button
                   disabled={
                     !actions.retryMessage ||
