@@ -9,6 +9,9 @@ export async function POST(request: Request) {
     let token = readToken(request),
       ownerId = svc.sessions.verify(token);
     if (!ownerId || !(await svc.identity.exists(ownerId))) {
+      /* Limit per caller so one caller cannot spend the whole guest allowance. */
+      if (!(await svc.reserveGuestCreation(request.headers)))
+        throw new HttpError('RATE_LIMITED', 429);
       const issued = svc.sessions.issue();
       token = issued.token;
       ownerId = issued.userId;

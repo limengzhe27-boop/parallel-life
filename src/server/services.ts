@@ -8,6 +8,12 @@ import 'server-only';
 import { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
 import { SignedSession } from '../modules/identity/infrastructure/signed-session.ts';
 import { IdentityRepository } from '../modules/identity/infrastructure/identity-repository.ts';
+import {
+  GUEST_LIMIT_GLOBAL_CEILING,
+  GUEST_LIMIT_PER_CALLER,
+  GUEST_LIMIT_WINDOW_SECONDS,
+  callerBucket,
+} from '../modules/identity/infrastructure/guest-bucket.ts';
 import { TaskRepository } from '../modules/tasks/infrastructure/task-repository.ts';
 import { InterviewRepository } from '../modules/profile/infrastructure/interview-repository.ts';
 import { ProfileRepository } from '../modules/profile/infrastructure/profile-repository.ts';
@@ -57,10 +63,21 @@ function createServices() {
         ? new VercelBlobStore({ token: blobToken, storeId: blobStoreId })
         : new PrivateDiskStore(assetDir!);
   const db = new PostgresDatabase(url);
+  const identity = new IdentityRepository(db);
   return {
     db,
     sessions: new SignedSession(secret),
-    identity: new IdentityRepository(db),
+    /**
+     * Guest-creation quota for one caller. The route stays unaware of how a
+     * caller is identified or hashed; the policy lives with the server wiring.
+     */
+    reserveGuestCreation: (headers: Headers) =>
+      identity.reserveGuestCreation(callerBucket(headers, secret), {
+        perCaller: GUEST_LIMIT_PER_CALLER,
+        ceiling: GUEST_LIMIT_GLOBAL_CEILING,
+        windowSeconds: GUEST_LIMIT_WINDOW_SECONDS,
+      }),
+    identity,
     discovery: new DiscoveryRepository(db),
     seeds: new SeedRepository(db),
     builds: new BuildRepository(db),
