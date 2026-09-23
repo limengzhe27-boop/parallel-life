@@ -15,6 +15,7 @@ import type {
 } from '../domain/types.ts';
 import { DomainError } from '../domain/errors.ts';
 import { applyEvent } from '../domain/reducer.ts';
+import { applyNoteEvent, type NoteCommand, type NoteEvent } from '../domain/notes.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 const fingerprint = (command: TurnCommand) =>
@@ -24,7 +25,8 @@ const fingerprint = (command: TurnCommand) =>
     )
     .digest('hex');
 function compact(state: WorldState) {
-  return { ...state, messages: [], appointments: [], mediaRequests: [] };
+  /* messages/appointments/notes live in projections; the snapshot stays compact. */
+  return { ...state, messages: [], appointments: [], mediaRequests: [], notes: [] };
 }
 /** Same domain contract as the test adapter; SQL transactions are the final commit boundary. */
 export class PostgresWorldRepository implements WorldRepository {
@@ -69,7 +71,12 @@ export class PostgresWorldRepository implements WorldRepository {
       ])
     ).rows[0]?.state;
     const results = [];
-    for (const table of ['world_messages', 'world_appointments', 'world_media_requests']) {
+    for (const table of [
+      'world_messages',
+      'world_appointments',
+      'world_media_requests',
+      'world_notes',
+    ]) {
       // Only immutable projections belonging to events already committed at this receipt version.
       const rows = await sql.query(
         `SELECT p.document FROM parallel_life.${table} p JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version,${table === 'world_messages' ? 'p.ordinal' : 'p.id'}`,
@@ -82,6 +89,7 @@ export class PostgresWorldRepository implements WorldRepository {
       messages: [...(initial?.messages ?? []), ...results[0]!],
       appointments: [...(initial?.appointments ?? []), ...results[1]!],
       mediaRequests: [...(initial?.mediaRequests ?? []), ...results[2]!],
+      notes: results[3]!,
     };
     const responses = await sql.query(
       "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
@@ -159,6 +167,80 @@ export class PostgresWorldRepository implements WorldRepository {
         [state.id, command.commandId, event.id, compact(state)],
       );
       return state;
+    });
+  }
+  /**
+   * The user saving their own phone note. Persisted in the world_notes projection
+   * (not in the world snapshot) with the same receipt/event discipline as other
+   * commands: replaying the same command id returns the original note.
+   */
+  async saveNote(session: Session, command: NoteCommand & { commandId: string; id: string }) {
+    const hash = createHash('sha256')
+      .update(
+        JSON.stringify([
+          'note.saved',
+          command.worldId,
+          command.id ?? null,
+          command.expectedVersion,
+          command.title,
+          command.text,
+        ]),
+      )
+      .digest('hex');
+    return this.db.transaction(session.userId, async (sql) => {
+      const current = await this.owned(sql, command.worldId, true);
+      const previous = (
+        await sql.query(
+          'SELECT request_hash,result_state FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
+          [command.worldId, command.commandId],
+        )
+      ).rows[0];
+      if (previous) {
+        if (previous.request_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
+        if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
+        const replayed = await this.hydrate(sql, previous.result_state);
+        const note = replayed.notes?.find((item) => item.id === command.id);
+        if (!note) throw new DomainError('NOT_FOUND');
+        return { worldId: replayed.id, version: replayed.version, note };
+      }
+      const id = command.id;
+      const event: NoteEvent = {
+        schemaVersion: 1,
+        type: 'note.saved',
+        id: randomUUID(),
+        worldId: command.worldId,
+        commandId: command.commandId,
+        version: current.version + 1,
+        occurredAt: new Date().toISOString(),
+        storyTime: current.time,
+        data: command,
+      };
+      const state = applyNoteEvent(await this.hydrate(sql, current), event);
+      const note = (state.notes ?? []).find((item) => item.id === id);
+      if (!note) throw new DomainError('INVALID_COMMAND');
+      await sql.query(
+        "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
+        [command.commandId, state.id, session.userId, current.version, hash, event.data],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [event.id, state.id, session.userId, event.version, event.commandId, event, event.occurredAt],
+      );
+      await sql.query(
+        `INSERT INTO parallel_life.world_notes(id,world_id,owner_id,command_id,request_hash,document)
+         VALUES($1,$2,$3,$4,$5,$6)
+         ON CONFLICT(id) DO UPDATE SET command_id=EXCLUDED.command_id,request_hash=EXCLUDED.request_hash,document=EXCLUDED.document,updated_at=now()`,
+        [note.id, state.id, session.userId, command.commandId, hash, note],
+      );
+      await sql.query(
+        'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
+        [state.id, state.version, compact(state)],
+      );
+      await sql.query(
+        "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
+        [state.id, command.commandId, event.id, compact(state)],
+      );
+      return { worldId: state.id, version: state.version, note };
     });
   }
   async get(session: Session, id: string) {

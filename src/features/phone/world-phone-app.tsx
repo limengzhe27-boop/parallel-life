@@ -228,6 +228,17 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
             await deliverMessage(failed.actorId, failed.text, commandId, messageId);
             return { status: 'committed' };
           }}
+          onSaveNote={async (input) => {
+            const receipt = await client.saveWorldNote(worldId, {
+              commandId: input.commandId,
+              /* 开场便签用它自己的作用域 id，其余由服务端分配 */
+              ...(input.id ? { id: input.id } : {}),
+              title: input.title,
+              text: input.text,
+              expectedVersion: input.expectedVersion ?? 0,
+            });
+            return { status: receipt.status };
+          }}
           localMessages={localMessages}
           onReload={load}
           loading={refreshing}
@@ -352,16 +363,15 @@ export function WorldPhoneSurface({
       });
 
       if (onSaveNote) {
-        try {
-          await onSaveNote(input);
-        } catch {
-          // Keep local changes even if remote rejected
-        }
+        /* The server is the source of truth. A rejected save must surface as a
+           failure (and must not be reported as committed). */
+        const receipt = await onSaveNote(input);
+        await onReload?.();
+        return receipt;
       }
-
       return { status: 'committed' };
     },
-    [data.id, onSaveNote],
+    [data.id, onSaveNote, onReload],
   );
 
   const [proactiveMessages, setProactiveMessages] = useState<WorldPhone['messages']>(() => {

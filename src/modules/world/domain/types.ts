@@ -31,6 +31,19 @@ export type Appointment = {
   sourceEventId: Id;
 };
 export type MediaRequest = { id: Id; prompt: string; status: 'pending'; sourceEventId: Id };
+/**
+ * A phone note the user saved. Notes live in their own projection table rather
+ * than in the world snapshot, so the snapshot stays small as a life continues.
+ */
+export type Note = {
+  id: Id;
+  title: string;
+  text: string;
+  /** Per-note version; unrelated to the world version, which also advances. */
+  version: number;
+  updatedAt: string;
+  sourceEventId: Id;
+};
 
 export type WorldState = {
   schemaVersion: 1;
@@ -44,6 +57,8 @@ export type WorldState = {
   messages: Message[];
   appointments: Appointment[];
   mediaRequests: MediaRequest[];
+  /** Absent means no persisted notes yet; opening notes come from the build snapshot. */
+  notes?: Note[];
 };
 
 export type WorldEffect =

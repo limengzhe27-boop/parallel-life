@@ -130,7 +130,24 @@ export class BuildRepository {
         text: m.text,
         at: m.at,
       })),
-      notes: metadata.opening.notes,
+      notes: [
+        /* Opening notes come from the immutable build snapshot. */
+        ...metadata.opening.notes.map((note: { title: string; text: string }, index: number) => ({
+          id: `${worldId}:opening-note:${index}`,
+          title: note.title,
+          text: note.text,
+          version: 0,
+          updatedAt: state.time,
+        })),
+        /* Saved notes come from their own projection. */
+        ...(state.notes ?? []).map((note) => ({
+          id: note.id,
+          title: note.title,
+          text: note.text,
+          version: note.version,
+          updatedAt: note.updatedAt,
+        })),
+      ],
     });
   }
 }

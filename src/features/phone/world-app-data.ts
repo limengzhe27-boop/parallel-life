@@ -35,12 +35,7 @@ export function worldAppData(
       })),
       ...local.map((message) => ({ ...message })),
     ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
-    notes: world.notes.map((note, index) => ({
-      ...note,
-      id: `${world.id}:opening-note:${index}`,
-      version: 0,
-      updatedAt: world.time,
-    })),
+    notes: world.notes.map((note) => ({ ...note })),
     photos: (world.photos ?? []).map((photo) => ({
       id: photo.id,
       date: photo.date,

@@ -280,7 +280,7 @@ function LifePhone({
         </div>
       )}
       <div className={styles.unlockedContent} hidden={locked} inert={locked}>
-        {!isHome && (
+        {!isHome && !(route.app === 'messages' && route.target) && (
           <header className={styles.header}>
             <button
               className={styles.headerButton}
@@ -302,11 +302,13 @@ function LifePhone({
             </button>
           </header>
         )}
-        {isHome && (
-          <h2 ref={heading} tabIndex={-1} className={styles.srOnly}>
-            手机桌面
-          </h2>
-        )}
+        <h2
+          ref={heading}
+          tabIndex={-1}
+          className={(isHome || (route.app === 'messages' && route.target)) ? styles.srOnly : styles.srOnly}
+        >
+          {label}
+        </h2>
         <div
           ref={scroll}
           hidden={!!route.panel}

@@ -26,7 +26,15 @@ export default function Preview() {
               at: '2026-09-22T00:30:00Z',
             },
           ],
-          notes: [{ title: '合成样板记录', text: '检查工具，整理工作台。' }],
+          notes: [
+            {
+              id: `${id}:opening-note:0`,
+              title: '合成样板记录',
+              text: '检查工具，整理工作台。',
+              version: 0,
+              updatedAt: '2026-09-22T00:30:00Z',
+            },
+          ],
         }}
       />
     </div>

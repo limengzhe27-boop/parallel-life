@@ -74,6 +74,14 @@ export const WorldPhoneSchema = z.strictObject({
       role: z.enum(['user', 'assistant']).optional(),
     }),
   ),
-  notes: z.array(z.strictObject({ title: z.string(), text: z.string() })),
+  notes: z.array(
+    z.strictObject({
+      id: z.string(),
+      title: z.string(),
+      text: z.string(),
+      version: z.number().int().nonnegative(),
+      updatedAt: Timestamp,
+    }),
+  ),
 });
 export type WorldPhone = z.infer<typeof WorldPhoneSchema>;

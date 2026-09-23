@@ -50,6 +50,7 @@ export type PhoneAppsData = {
   photos: readonly PhonePhoto[];
   invitations: readonly PhoneInvitation[];
   notes: readonly PhoneNote[];
+  referenceTime?: string;
 };
 export type PhoneActionReceipt = { status: 'accepted' | 'committed'; taskId?: string };
 export type PhoneActions = {
@@ -66,6 +67,13 @@ export type PhoneActions = {
     text: string;
     expectedVersion?: number;
     commandId: string;
+  }) => Promise<PhoneActionReceipt>;
+  deleteNote?: (id: string) => Promise<PhoneActionReceipt>;
+  createInvitation?: (input: {
+    title: string;
+    at: string;
+    participantIds: string[];
+    notes?: string;
   }) => Promise<PhoneActionReceipt>;
   changeInvitation?: (input: {
     id: string;

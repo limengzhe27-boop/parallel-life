@@ -7,6 +7,7 @@ import {
   type WorldBuildRequest,
 } from '../../contracts/world-build.ts';
 import { ApprovedSeedSchema, SeedListSchema, type SeedRequest } from '../../contracts/seeds.ts';
+import { NoteReceiptSchema, type NoteSaveRequest } from '../../contracts/notes.ts';
 import { DiscoverySchema, type DiscoverRequest } from '../../contracts/discovery.ts';
 import { z } from 'zod';
 import {
@@ -144,6 +145,14 @@ export class LifeClient {
         method: 'POST',
         body: JSON.stringify(input),
       },
+    );
+  }
+  async saveWorldNote(worldId: string, input: NoteSaveRequest) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/notes`,
+      NoteReceiptSchema,
+      { method: 'POST', body: JSON.stringify(input) },
     );
   }
   async seeds() {

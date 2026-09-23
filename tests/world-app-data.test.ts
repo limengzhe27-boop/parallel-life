@@ -10,7 +10,9 @@ const world = {
   time: '2026-09-22T00:30:00Z',
   actors: [{ id: 'actor-a', name: '甲', relationship: '同事' }],
   messages: [{ id: 'm1', actorId: 'actor-a', text: '明天来吗？', at: '2026-09-22T00:30:00Z' }],
-  notes: [{ title: '记事', text: '私人便签' }],
+  notes: [
+    { id: 'note-1', title: '记事', text: '私人便签', version: 1, updatedAt: '2026-09-22T00:30:00Z' },
+  ],
 };
 test('opening adapter does not turn an invitation in chat into an accepted event or fabricated media', () => {
   const data = worldAppData(world);
@@ -30,10 +32,9 @@ test('viewed messages do not suppress later notifications and opening note ids a
     ).contacts[0]?.unread,
     1,
   );
-  assert.notEqual(
-    worldAppData(world).notes[0]?.id,
-    worldAppData({ ...world, id: 'world-b' }).notes[0]?.id,
-  );
+  /* 便签 id 现在由服务端给出（开场便签按世界作用域生成），前端原样透传、不再自己造 id */
+  assert.equal(worldAppData(world).notes[0]?.id, 'note-1');
+  assert.equal(worldAppData({ ...world, id: 'world-b' }).notes[0]?.id, 'note-1');
 });
 test('calendar uses persisted versions and own messages are not unread incoming messages', () => {
   const data = worldAppData({
