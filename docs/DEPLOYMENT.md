@@ -24,6 +24,16 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 便签真实持久化
+
+|项目|内容|
+|---|---|
+|提交|`59a570c`|
+|迁移|`0017_world_notes.sql` 已应用于本地开发库与生产 Supabase（`pl_migrations` 17 条）|
+|发布前检查|`npm run check` 107 项、`npm run test:db` 15 项真实库测试、`npm run build` 通过|
+|线上实测|创建便签（v1）→ 重新加载世界后仍在 → 更新（v2，正文已改）→ 用旧版本提交被 `VERSION_CONFLICT` 拒绝 → 手机便签列表刷新后显示该便签|
+|设计|便签存于独立投影表，不写入 `worlds.state`，避免快照随便签增长（与 AUD-09 同向）|
+
 ### 2026-09-24 · 对齐设计稿界面优化、动态流动时钟、历史错峰消息、便签保存与日程邀约闭环
 
 |项目|内容|
