@@ -22,6 +22,21 @@ https://github.com/limengzhe27-boop/parallel-life
 
 > 上段为 2026-09-22 的历史记录。2026-09-23 起生产已接入 Supabase（`APP_DATABASE_URL`/`WORKER_DATABASE_URL`）、私有素材桶与真实模型网关，`APP_PREVIEW_ONLY` 已置 `0`，公网为可用真实后端；迁移 0001–0016 已在 Supabase 应用且校验和一致。
 
+## 发布记录
+
+### 2026-09-23 · 世界对话与一键分支上线，并修复世界生成
+
+|项目|内容|
+|---|---|
+|提交|`ffeef0c`（世界对话 + 一键入口 + 并行任务成果）→ `6ddb0d4`（输出上限与容错解析）→ `3ca3d19`（禁止静默重试付费任务）→ `af2aafe`（结构不合法时一次纠正重试）|
+|部署|Git 触发，最新 Ready 部署 `dpl_15uz7o6oq`，别名 https://parallel-life-nu.vercel.app 指向它|
+|发布前检查|生产库为 Supabase，`public.pl_migrations` 与本地 `db/migrations` **16/16 校验和一致**；`npm run check` 95 项与 `npm run build` 通过|
+|线上实测|公网完整链路通过：访谈流式 7s → 5 条候选 → 确认 4 条 → 3 个方向 23s → 世界生成 28s（4 人物/4 消息/3 便签）→ 进入手机 → 世界内发消息 **4.7s 收到角色回复**；`/api/v1/memory/candidates` 与 `/api/v1/worlds/:id/messages` 路由存在（401/405，非 404）|
+|上线实测发现并修复|世界创建在生产连续失败 `INVALID_AI_OUTPUT`；根因是固定 4096 输出上限被推理+正文撑爆（`finish=length`）＋严格 schema 拒收多余字段。修复后同一输入合格率由 1/3、2/5 提升到 4/4，并加一次结构不合法时的纠正重试（见 [D-08](task-reports/D-08.md)）|
+|并发说明|同一目录存在另一个执行者，期间以其身份提交并推送了 `38b96d0`、`8abfb80`、`0ab19fe`（其中 `38b96d0` 把我未提交的在途改动一并提交了）。`38b96d0` 引入的"打开页面即自动重试失败/unknown 生成任务"违反"unknown 不自动重付"，已由 `3ca3d19` 改回显式重试。并行没有按登记短锁串行，发布基线曾出现跳号|
+|未验证|多人/时间/导演/图片（M 系列）仍未接通；图片生成能力从未验证；`AUD-09` 事实无界增长撞 256KB 的容量墙未修|
+
+
 ## 完整运行需要
 
 1. 独立PostgreSQL，迁移0001至0016及pl_app/pl_worker运行角色。当前部署目标改为Supabase Postgres；生产迁移仍需使用管理员连接执行，Web/Worker只使用受限角色。
