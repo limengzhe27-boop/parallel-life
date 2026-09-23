@@ -325,6 +325,7 @@ export function WorldPhoneSurface({
     }));
     if (baseOpening.length >= 2) return baseOpening;
     const leadActor = data.actors[0];
+    const partnerActor = data.actors.find((a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事')) ?? data.actors[1];
     const supplementalNotes: PhoneNote[] = [
       {
         id: `${data.id}:supp-note-1`,
@@ -337,6 +338,20 @@ export function WorldPhoneSurface({
         id: `${data.id}:supp-note-2`,
         title: '老洋房改造案思考碎片',
         text: `空间的核心在于自然光怎么切进来。朝南的挑高全部打开，保留原本斑驳的水刷石墙面肌理，用轻质钢架连廊做连接。周四前整理成草模给团队看。`,
+        version: 0,
+        updatedAt: data.time,
+      },
+      {
+        id: `${data.id}:supp-note-3`,
+        title: partnerActor ? `与${partnerActor.name}的工作室季度备忘` : '工作室季度资产与开支备忘',
+        text: `1. 巨鹿路老洋房第三季度租金与物业已结清。\n2. 意大利定制水刷石打样样品验收通过。\n3. 下周添置两台专业模型激光雕刻机。\n4. 合伙人分成结算已对账无误。`,
+        version: 0,
+        updatedAt: data.time,
+      },
+      {
+        id: `${data.id}:supp-note-4`,
+        title: '托斯卡纳秋季漫游清单',
+        text: `• 随身携带：德国手工速写本、碳纤维圆规、莫比乌斯对戒。\n• 胶卷：柯达500T 2卷，拍老城的光影与斜阳。\n• 去那家没有招牌的手工皮具工坊看皮料。`,
         version: 0,
         updatedAt: data.time,
       },
@@ -483,12 +498,17 @@ export function WorldPhoneSurface({
 
   const [directorNotice, setDirectorNotice] = useState<string | null>(null);
 
+  const [callingActor, setCallingActor] = useState<WorldPhone['actors'][number] | null>(null);
+
+  const proactiveCountRef = useRef(0);
   const triggerProactiveMessage = useCallback(
     (actorId?: string) => {
       if (!data.actors.length) return null;
       const targetActor = actorId
         ? data.actors.find((a) => a.id === actorId) ?? data.actors[0]!
-        : data.actors[Math.floor(Math.random() * data.actors.length)]!;
+        : data.actors[proactiveCountRef.current % data.actors.length]!;
+
+      proactiveCountRef.current++;
 
       const rel = targetActor.relationship || '';
       let text = '在忙吗？晚点有空回我一下哈～';
@@ -500,8 +520,8 @@ export function WorldPhoneSurface({
         rel.includes('项目')
       ) {
         const lines = [
-          '孟哲，刚跟团队对了一轮方案，感觉你之前提的核心切入点完全立得住，等你忙完咱们对下细节！',
-          '刚才看了眼这周的进度排期，进展很顺利，你那边手头的事怎么样了？',
+          '孟哲，刚给施工队交底了水刷石收口工艺，工长说按咱们图纸做完全没问题，松了一口气！',
+          '刚才看了眼这周的进度排期，阁楼天窗的玻璃周三能到场，你手头那套详图顺好了吗？',
           '下午我准备去碰一下合作方，有什么需要我带过去的资料吗？',
           '刚把最新的反馈整理了一份纪要，晚点微信发你，有空瞄一眼哈。',
         ];
@@ -514,8 +534,8 @@ export function WorldPhoneSurface({
         rel.includes('顾问')
       ) {
         const lines = [
-          '孟哲啊，看到你手头的新进展了，沉住气，按你自己的节奏走就行。',
-          '上次聊到的那个课题方向，我整理了两点参考资料，有空微信上看看。',
+          '孟哲啊，看到你老洋房的新进展了，光线处理得很好，有东方气韵，按你自己的节奏走就行。',
+          '上次聊到的双年展提名沙龙，我跟策展人提了你，有空微信上把作品摘要发我一份。',
           '做事要张弛有度，别把弦绷得太紧，有困惑随时来找我探讨。',
         ];
         text = lines[Math.floor(Math.random() * lines.length)]!;
@@ -526,10 +546,10 @@ export function WorldPhoneSurface({
         rel.includes('哥们')
       ) {
         const lines = [
-          '在忙啥呢！刚路过那家新开的店，看起来超赞，周末要不要一块去坐坐？',
+          '哥！开幕展现场的抓拍胶片我冲出来了，成片超惊艳，晚上传你预览！',
           '今天下班早不早？好久没跟你碰头吃个饭了，有空随时吱一声！',
           '刚才刷到个好玩的瞬间想到你，晚点你忙完了记得看微信啊～',
-          '喂！这周过得如何？找机会聚聚，我有好多新鲜事跟你八卦。',
+          '喂！巨鹿路那边新开了家手冲咖啡，周末要不要顺路去尝尝？',
         ];
         text = lines[Math.floor(Math.random() * lines.length)]!;
       } else if (
@@ -540,9 +560,9 @@ export function WorldPhoneSurface({
         rel.includes('先生')
       ) {
         const lines = [
-          '下班顺路买点你喜欢的水果回去，今天一切都顺利吧？',
-          '在忙吗？别太累着自己，忙完早点休息～',
-          '出门记得带把伞，天气看着有点阴。晚上等你一块吃饭。',
+          '孟哲，展厅靠南侧的采光带下午阳光特别好，我顺手拍了张光影照片，晚上带给你看。',
+          '在忙吗？别太累着自己，晚上想吃巨鹿路那家生煎还是回家做热汤面？',
+          '出门记得带把伞，天气看着有点阴。露台开幕的展签我已全部校对完了。',
         ];
         text = lines[Math.floor(Math.random() * lines.length)]!;
       }
@@ -570,15 +590,25 @@ export function WorldPhoneSurface({
     [data.actors, data.id],
   );
 
+  // 周期性主动生活脉动：进入 18 秒触发首次互动，后续每隔 65 秒最多触发 5 次
   useEffect(() => {
-    const key = `pl_ambient_sent:${data.id}`;
-    if (sessionStorage.getItem(key)) return;
-    const timer = setTimeout(() => {
-      sessionStorage.setItem(key, '1');
+    const firstTimer = setTimeout(() => {
       triggerProactiveMessage();
-    }, 45000);
-    return () => clearTimeout(timer);
-  }, [data.id, triggerProactiveMessage]);
+    }, 18000);
+
+    const interval = setInterval(() => {
+      setProactiveMessages((prev) => {
+        if (prev.length >= 6) return prev;
+        triggerProactiveMessage();
+        return prev;
+      });
+    }, 65000);
+
+    return () => {
+      clearTimeout(firstTimer);
+      clearInterval(interval);
+    };
+  }, [triggerProactiveMessage]);
 
   // 错峰历史消息：确保进入手机时，角色消息不是挤在“进入的那一刻”，而是自然错峰在之前的时间发来的
   const staggeredBaseMessages = useMemo(() => {
@@ -627,10 +657,31 @@ export function WorldPhoneSurface({
       const newProactive = proactiveMessages.filter((m) => !existingIds.has(m.id));
       allMsgs = [...baseMsgs, ...newProactive];
     }
-    const combinedInvitations = [
-      ...(data.invitations ?? []),
-      ...customInvitations,
-    ];
+    const rawInv = [...(data.invitations ?? []), ...customInvitations];
+    const leadActor = data.actors[0];
+    const partnerActor =
+      data.actors.find((a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事')) ??
+      data.actors[1];
+    const supplementalInvs: NonNullable<WorldPhone['invitations']> =
+      rawInv.length >= 2
+        ? []
+        : [
+            {
+              id: `supp-inv-1`,
+              title: leadActor ? `与${leadActor.name}露台布展验收与晚餐` : '老洋房露台布展验收与晚餐',
+              at: new Date(Date.parse(data.time) + 3 * 3600 * 1000).toISOString(),
+              status: 'confirmed',
+              participantIds: leadActor ? [leadActor.id] : [],
+            },
+            {
+              id: `supp-inv-2`,
+              title: partnerActor ? `与${partnerActor.name}施工交底复盘会` : '老洋房施工交底复盘会',
+              at: new Date(Date.parse(data.time) + 24 * 3600 * 1000).toISOString(),
+              status: 'confirmed',
+              participantIds: partnerActor ? [partnerActor.id] : [],
+            },
+          ];
+    const combinedInvitations = [...rawInv, ...supplementalInvs];
     return {
       ...data,
       messages: allMsgs,
@@ -790,6 +841,45 @@ export function WorldPhoneSurface({
                 >
                   人生管理 <PhoneIcon name="next" />
                 </button>
+              </div>
+
+              {/* 真实生活时空与天气心境 Widget */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.82)',
+                  backdropFilter: 'blur(16px)',
+                  borderRadius: '18px',
+                  padding: '12px 14px',
+                  color: '#0f172a',
+                  boxShadow: '0 3px 12px rgba(0, 0, 0, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#334155' }}>
+                    <span>📍 上海 · 静安巨鹿路</span>
+                    <span style={{ color: '#0284c7' }}>19°C 阴转小雨 💧</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    💭 “光影掠过屋檐的时刻，生命便有了坐标。”
+                  </div>
+                </div>
+                <div
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '8px',
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  开幕 D-3
+                </div>
               </div>
 
               {/* Life Overview Widget Card */}
@@ -1380,6 +1470,27 @@ export function WorldPhoneSurface({
                           >
                             💬 发微信
                           </a>
+                          <button
+                            type="button"
+                            onClick={() => setCallingActor(actor)}
+                            style={{
+                              flex: 1,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              padding: '8px',
+                              borderRadius: '8px',
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              border: '1px solid #bfdbfe',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            📞 电话呼叫
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1764,6 +1875,118 @@ export function WorldPhoneSurface({
           return null;
         }}
       />
+      {callingActor && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(20px)',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '64px 24px 48px',
+            color: '#ffffff',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            style={{
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '88px',
+                height: '88px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #059669, #0d9488)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '34px',
+                fontWeight: 700,
+                boxShadow: '0 8px 24px rgba(5,150,105,0.4)',
+                marginBottom: '16px',
+              }}
+            >
+              {callingActor.name.slice(0, 1)}
+            </div>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>
+              {callingActor.name}
+            </h2>
+            <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '6px' }}>
+              {callingActor.relationship} · 正在呼叫...
+            </div>
+            <div
+              style={{
+                fontSize: '12px',
+                color: '#6ee7b7',
+                marginTop: '20px',
+                background: 'rgba(5,150,105,0.25)',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: '1px solid rgba(110,231,183,0.3)',
+                lineHeight: 1.5,
+              }}
+            >
+              🎙️ 对方正在老洋房现场布展，建议发送微信沟通
+            </div>
+          </div>
+
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '320px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <a
+              href={`#life=${data.id}&app=messages&target=${callingActor.id}`}
+              onClick={() => setCallingActor(null)}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                background: '#10b981',
+                color: '#ffffff',
+                fontWeight: 600,
+                fontSize: '15px',
+                textAlign: 'center',
+                textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
+                boxSizing: 'border-box',
+              }}
+            >
+              💬 转为微信留言
+            </a>
+            <button
+              type="button"
+              onClick={() => setCallingActor(null)}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                background: 'rgba(239, 68, 68, 0.2)',
+                color: '#f87171',
+                border: '1px solid rgba(239,68,68,0.4)',
+                fontWeight: 600,
+                fontSize: '15px',
+                cursor: 'pointer',
+              }}
+            >
+              ✕ 挂断
+            </button>
+          </div>
+        </div>
+      )}
     </PhoneAppsProvider>
   );
 }
