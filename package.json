@@ -14,6 +14,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check": "npm run check:boundaries && npm run typecheck && npm test",
+    "verify": "npm run check && npm run test:db",
     "db:local": "node scripts/local-db.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "test:db": "node --experimental-strip-types --test --test-concurrency=1 tests/integration/*.test.ts",

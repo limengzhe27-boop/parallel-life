@@ -1,0 +1,59 @@
+# Delivery gate: the real-database suite used to be skipped by `npm run check`,
+# which is how a deterministic "every retry fails" interview bug reached
+# production. CI now runs the same gate a release must pass locally.
+name: verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Module boundaries, types and unit tests
+        run: npm run check
+      - name: Formatting
+        run: npm run format:check
+      - name: Production build
+        run: npm run build
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pl_admin
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U pl_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '55432'
+      PGUSER: pl_admin
+      PGPASSWORD: ci-postgres-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Provision runtime roles and databases
+        run: node scripts/ci-db.mjs
+      - name: Real PostgreSQL integration tests
+        run: npm run test:db

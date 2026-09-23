@@ -39,16 +39,34 @@ export class BuildRepository {
   constructor(db: PostgresDatabase) {
     this.db = db;
   }
+  /**
+   * One query for the whole list (previously two per build, so up to ~200 round
+   * trips on the phone's branch screen).
+   */
   async list(ownerId: string) {
     return this.db.transaction(ownerId, async (sql) => {
       const rows = (
         await sql.query(
-          'SELECT seed_id FROM parallel_life.world_builds ORDER BY created_at DESC LIMIT 100',
+          `SELECT b.seed_id, b.world_id, b.created_at, b.opening IS NOT NULL AS ready, t.*
+             FROM parallel_life.world_builds b
+             LEFT JOIN LATERAL (
+               SELECT * FROM parallel_life.tasks task
+                WHERE task.scope_kind='world-build' AND task.scope_id=b.seed_id::text
+                ORDER BY task.created_at DESC, task.id DESC LIMIT 1
+             ) t ON true
+            ORDER BY b.created_at DESC
+            LIMIT 100`,
         )
       ).rows;
-      const builds = [];
-      for (const row of rows) builds.push(await readBuild(sql, row.seed_id));
-      return builds;
+      return rows.map((row) =>
+        WorldBuildSchema.parse({
+          seedId: row.seed_id,
+          worldId: row.world_id,
+          createdAt: row.created_at.toISOString(),
+          ready: row.ready,
+          task: row.id ? publicTask(row) : null,
+        }),
+      );
     });
   }
   async create(ownerId: string, raw: WorldBuildRequest) {

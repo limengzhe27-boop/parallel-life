@@ -18,6 +18,8 @@ export async function runOne(
   const combined = signal ? AbortSignal.any([abort.signal, signal]) : abort.signal;
   let renewing = false;
   const heartbeat = setInterval(async () => {
+    /* Never renew a lease for work we have already abandoned. */
+    if (combined.aborted) return;
     if (renewing) return;
     renewing = true;
     try {
@@ -48,8 +50,13 @@ export async function runOne(
         : ((error as { code?: string })?.code ??
           (error as { code?: string; constraint?: string })?.constraint ??
           (error as Error)?.name);
+    /* Our own shutdown cancelled the call: the upstream may still have completed,
+       so the outcome is unknown (never a silent failure and never auto-retried). */
     const uncertain =
-      combined.aborted || failure.code === 'TIMEOUT' || failure.code === 'UPSTREAM_FAILED';
+      combined.aborted ||
+      failure.code === 'CANCELLED' ||
+      failure.code === 'TIMEOUT' ||
+      failure.code === 'UPSTREAM_FAILED';
     const outcome: TaskOutcome = {
       status: uncertain ? 'unknown' : 'failed',
       errorCode: uncertain

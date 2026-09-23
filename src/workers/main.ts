@@ -1,23 +1,21 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { createWorker } from '../server/worker-composition.ts';
+import { runLoop } from '../modules/tasks/application/run-loop.ts';
 import { runOne } from '../modules/tasks/application/run-worker.ts';
 const { queue, handlers } = createWorker();
-const stop = new AbortController();
-process.on('SIGINT', () => stop.abort());
-process.on('SIGTERM', () => stop.abort());
+const shutdown = new AbortController();
+process.on('SIGINT', () => shutdown.abort());
+process.on('SIGTERM', () => shutdown.abort());
 console.log('Parallel Life worker ready. Interview tasks enabled.');
-try {
-  while (!stop.signal.aborted) {
-    try {
-      const worked = await runOne(queue, handlers, stop.signal);
-      if (!worked) await delay(1000, undefined, { signal: stop.signal });
-    } catch {
-      if (!stop.signal.aborted) {
-        console.warn('Worker connection temporarily unavailable; queue remains persisted.');
-        await delay(3000, undefined, { signal: stop.signal }).catch(() => {});
-      }
-    }
-  }
-} finally {
-  await queue.close();
-}
+const result = await runLoop({
+  shutdown: shutdown.signal,
+  runOnce: (signal) => runOne(queue, handlers, signal),
+  sleep: (ms, signal) => delay(ms, undefined, { signal }),
+  log: (message) => console.warn(message),
+});
+console.log(
+  result.drained
+    ? `Worker stopped after ${result.tasksRun} task(s); in-flight work was allowed to finish.`
+    : `Worker stopped after ${result.tasksRun} task(s); in-flight work was cancelled and recorded as unknown.`,
+);
+await queue.close();

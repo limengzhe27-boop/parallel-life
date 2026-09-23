@@ -1,3 +1,4 @@
+import { isPreviewOnly } from '../contracts/preview.ts';
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
@@ -35,7 +36,7 @@ export async function endpoint(run: () => Promise<Response>) {
   const requestId = randomUUID(),
     started = Date.now();
   try {
-    if (process.env.APP_PREVIEW_ONLY === '1')
+    if (isPreviewOnly())
       return json(
         {
           error: {
