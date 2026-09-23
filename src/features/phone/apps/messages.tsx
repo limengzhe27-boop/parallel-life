@@ -94,12 +94,35 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
 
     return (
       <div className={s.app}>
-        <div className={s.segment} role="group" aria-label="微信页面">
-          <button aria-pressed={tab === 'chats'} onClick={() => setTab('chats')}>
-            聊天
-          </button>
-          <button aria-pressed={tab === 'contacts'} onClick={() => setTab('contacts')}>
-            通讯录
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px', marginBottom: '8px' }}>
+          <div className={s.segment} role="group" aria-label="微信页面" style={{ flex: 1, margin: 0 }}>
+            <button aria-pressed={tab === 'chats'} onClick={() => setTab('chats')}>
+              聊天
+            </button>
+            <button aria-pressed={tab === 'contacts'} onClick={() => setTab('contacts')}>
+              通讯录
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => open('moments')}
+            title="朋友圈"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              background: '#f1f5f9',
+              color: '#0f172a',
+              border: '1px solid #e2e8f0',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginLeft: '8px',
+            }}
+          >
+            <span>📷</span> 朋友圈 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
           </button>
         </div>
         <Search label={tab === 'chats' ? '搜索聊天' : '搜索联系人'} value={query} onChange={setQuery} />

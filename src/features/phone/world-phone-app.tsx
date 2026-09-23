@@ -1088,6 +1088,64 @@ export function WorldPhoneSurface({
                 </div>
               )}
 
+              {/* Moments Social Feed Widget */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.88)',
+                  backdropFilter: 'blur(20px)',
+                  borderRadius: '20px',
+                  padding: '14px 16px',
+                  color: '#0f172a',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.6)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+                onClick={() => open('moments')}
+                role="button"
+                tabIndex={0}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #07c160, #10b981)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '20px',
+                      boxShadow: '0 2px 8px rgba(7,193,96,0.3)',
+                    }}
+                  >
+                    📷
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
+                        朋友圈 · 最新动态
+                      </span>
+                      <span
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: '#ef4444',
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                      沈棠：“老洋房开幕展布展 Day 3。南侧光庭光线...”
+                    </div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>›</span>
+              </div>
+
               {/* App Launchers Grid on Desktop */}
               <div
                 style={{

@@ -2,6 +2,7 @@
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import { usePhoneApps } from './provider.tsx';
 import { MessagesApp } from './messages.tsx';
+import { MomentsApp } from './moments.tsx';
 import { PhotosApp } from './photos.tsx';
 import { CalendarApp } from './calendar.tsx';
 import { NotesApp } from './notes.tsx';
@@ -31,6 +32,8 @@ export function PhoneAppView(context: PhoneAppContext) {
         <Empty title="暂时没能打开" text="请刷新再试。" />
       ) : context.app === 'messages' ? (
         <MessagesApp {...context} />
+      ) : context.app === 'moments' ? (
+        <MomentsApp {...context} />
       ) : context.app === 'photos' ? (
         <PhotosApp {...context} />
       ) : context.app === 'calendar' ? (
