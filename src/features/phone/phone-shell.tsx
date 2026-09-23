@@ -15,6 +15,7 @@ import {
 import { PhoneIcon } from './phone-icons.tsx';
 import { StatusBar } from './status-bar.tsx';
 import { arrivingIds, isUnlockSwipe } from './notification-state.ts';
+import { playReceiveSound } from './audio-feedback.ts';
 import styles from './phone.module.css';
 
 const apps: Record<PhoneApp, string> = {
@@ -102,7 +103,10 @@ function LifePhone({
     const ids: string[] = JSON.parse(notificationSignature);
     const incoming = arrivingIds(knownIds.current, ids);
     knownIds.current = new Set(ids);
-    if (incoming.length) setBannerId(incoming.at(-1));
+    if (incoming.length) {
+      setBannerId(incoming.at(-1));
+      playReceiveSound();
+    }
   }, [notificationSignature]);
   useEffect(() => {
     if (!bannerId) return;
@@ -280,7 +284,7 @@ function LifePhone({
         </div>
       )}
       <div className={styles.unlockedContent} hidden={locked} inert={locked}>
-        {!isHome && !(route.app === 'messages' && route.target) && (
+        {!isHome && route.app !== 'messages' && (
           <header className={styles.header}>
             <button
               className={styles.headerButton}

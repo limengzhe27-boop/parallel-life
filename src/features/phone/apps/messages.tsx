@@ -4,20 +4,34 @@ import type { PhoneContact } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { formatChatTime, searchable, timeText } from './helpers.ts';
+import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
+
+const EMOJI_LIST = [
+  '😊', '😂', '🤣', '❤️', '👍', '🙏', '🎉', '✨',
+  '🔥', '👏', '🥳', '😎', '🤔', '👀', '💡', '☕',
+  '🍻', '🍰', '🌸', '☀️', '🌙', '⭐', '🎈', '🤝',
+  '💪', '💯', '🚀', '💌', '💼', '📍', '🕒', '🆗',
+];
+
 export function MessagesApp({ target, open }: PhoneAppContext) {
   const { data, actions, drafts, setDraft, operations, run } = usePhoneApps();
-  const [tab, setTab] = useState<'chats' | 'contacts'>('chats');
+  const [tab, setTab] = useState<'chats' | 'contacts' | 'discover' | 'me'>('chats');
   const [query, setQuery] = useState('');
   const [showPerson, setShowPerson] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [callNotice, setCallNotice] = useState<string | null>(null);
   const [callingContact, setCallingContact] = useState<PhoneContact | null>(null);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [showEmojiKeyboard, setShowEmojiKeyboard] = useState(false);
+  const [showDropdownMenu, setShowDropdownMenu] = useState(false);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+
   const messageScroll = useRef<HTMLDivElement>(null);
   const wasNearBottom = useRef(true);
   const lastScroll = useRef(0);
   const readAttempt = useRef<string | undefined>(undefined);
+
   const actor = data.contacts.find((c) => c.id === target);
   const messages = data.messages
     .filter((m) => m.actorId === target)
@@ -25,6 +39,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const key = `message:${target}`,
     text = drafts[key] ?? '',
     operation = operations[key];
+
+  const totalUnread = data.contacts.reduce((sum, c) => sum + (c.unread || 0), 0);
+
   useLayoutEffect(() => {
     const el = messageScroll.current;
     if (el) {
@@ -36,10 +53,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
       wasNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
     }
   }, [target]);
+
   useLayoutEffect(() => {
     const el = messageScroll.current;
     if (el && wasNearBottom.current) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
+
   useEffect(() => {
     const el = messageScroll.current;
     if (!el || !actor) return;
@@ -74,7 +93,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
       document.removeEventListener('visibilitychange', observe);
     };
   }, [actor?.id, actor?.unread, actions.markRead, messages.at(-1)?.id]);
+
   if (target && !actor) return <Empty title="找不到这个联系人" text="请返回通讯录或刷新后再试。" />;
+
+  // -------------------------------------------------------------------------
+  // 微信主页视图（4-Tab 模式）
+  // -------------------------------------------------------------------------
   if (!actor) {
     const contacts = data.contacts.filter((c) => searchable(query, c.name, c.relationship));
     const sortedChats = [...contacts].sort((a, b) => {
@@ -92,106 +116,675 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     });
     const selectedProfile = data.contacts.find((c) => c.id === selectedProfileId);
 
+    const getTitle = () => {
+      switch (tab) {
+        case 'chats':
+          return `微信${totalUnread > 0 ? ` (${totalUnread})` : ''}`;
+        case 'contacts':
+          return '通讯录';
+        case 'discover':
+          return '发现';
+        case 'me':
+          return '我';
+      }
+    };
+
     return (
-      <div className={s.app}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px', marginBottom: '8px' }}>
-          <div className={s.segment} role="group" aria-label="微信页面" style={{ flex: 1, margin: 0 }}>
-            <button aria-pressed={tab === 'chats'} onClick={() => setTab('chats')}>
-              聊天
+      <div
+        className={s.app}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          background: tab === 'chats' || tab === 'contacts' ? '#ededed' : '#f7f7f7',
+          position: 'relative',
+        }}
+      >
+        {/* 原生微信顶栏 NavBar */}
+        <header
+          style={{
+            height: '44px',
+            background: '#ededed',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 14px',
+            borderBottom: '1px solid #dcdcdc',
+            boxSizing: 'border-box',
+            flexShrink: 0,
+            position: 'relative',
+            zIndex: 30,
+          }}
+        >
+          <div style={{ fontSize: '17px', fontWeight: 600, color: '#111827' }}>
+            {getTitle()}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <button
+              type="button"
+              title="搜索"
+              aria-label="搜索"
+              onClick={() => {
+                const el = document.getElementById('wechat-search-input');
+                el?.focus();
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '16px',
+                color: '#1f2937',
+                cursor: 'pointer',
+                padding: '4px',
+              }}
+            >
+              🔍
             </button>
-            <button aria-pressed={tab === 'contacts'} onClick={() => setTab('contacts')}>
-              通讯录
+            <button
+              type="button"
+              title="更多功能"
+              aria-label="更多功能"
+              onClick={() => {
+                playTapSound();
+                setShowDropdownMenu((v) => !v);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '20px',
+                color: '#1f2937',
+                cursor: 'pointer',
+                padding: '2px 4px',
+                lineHeight: 1,
+              }}
+            >
+              ⊕
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => open('moments')}
-            title="朋友圈"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '6px 12px',
-              borderRadius: '20px',
-              background: '#f1f5f9',
-              color: '#0f172a',
-              border: '1px solid #e2e8f0',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginLeft: '8px',
-            }}
-          >
-            <span>📷</span> 朋友圈 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
-          </button>
-        </div>
-        <Search label={tab === 'chats' ? '搜索聊天' : '搜索联系人'} value={query} onChange={setQuery} />
-        {tab === 'chats' ? (
-          <div className={s.list}>
-            {sortedChats.map((c) => {
-              const latest = data.messages
-                .filter((m) => m.actorId === c.id)
-                .sort((a, b) => a.at.localeCompare(b.at))
-                .at(-1);
-              return (
-                <button key={c.id} className={s.contact} onClick={() => open('messages', c.id)}>
-                  <Avatar url={c.avatarUrl} name={c.name} />
-                  <span className={s.contactText}>
-                    <strong>{c.name}</strong>
-                    <small>{latest?.text ?? '开始聊聊'}</small>
-                  </span>
-                  <span className={s.contactMeta}>
-                    {latest && <time>{formatChatTime(latest.at, data.referenceTime)}</time>}
-                    {c.unread > 0 && (
-                      <b aria-label={`${c.unread} 条未读`}>{c.unread > 99 ? '99+' : c.unread}</b>
-                    )}
-                  </span>
+
+          {/* 微信原生右上角黑色下拉气泡菜单 */}
+          {showDropdownMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '44px',
+                right: '10px',
+                background: '#4c4c4c',
+                borderRadius: '8px',
+                padding: '4px 0',
+                width: '140px',
+                boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+                zIndex: 100,
+              }}
+              onClick={() => setShowDropdownMenu(false)}
+            >
+              {[
+                { icon: '💬', label: '发起群聊', action: () => open('messages') },
+                { icon: '👤', label: '添加朋友', action: () => setTab('contacts') },
+                { icon: '📷', label: '扫一扫', action: () => open('photos') },
+                { icon: '💳', label: '收付款', action: () => setTab('me') },
+              ].map((item, idx) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={item.action}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: idx < 3 ? '1px solid #5a5a5a' : 'none',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontSize: '15px' }}>{item.icon}</span>
+                  <span>{item.label}</span>
                 </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={s.list}>
-            {contacts.map((c) => (
-              <button
-                key={c.id}
-                className={s.contact}
-                onClick={() => setSelectedProfileId(c.id)}
-                style={{ display: 'flex', alignItems: 'center' }}
-              >
-                <Avatar url={c.avatarUrl} name={c.name} />
-                <span className={s.contactText}>
-                  <strong style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {c.name}
-                    <span
+              ))}
+            </div>
+          )}
+        </header>
+
+        {/* 主体滚动区域 */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            background: tab === 'chats' || tab === 'contacts' ? '#ffffff' : '#f7f7f7',
+          }}
+        >
+          {/* Tab 1: 微信消息列表 */}
+          {tab === 'chats' && (
+            <div>
+              <div style={{ padding: '8px 12px', background: '#ededed' }}>
+                <Search
+                  label="搜索"
+                  value={query}
+                  onChange={setQuery}
+                />
+              </div>
+              <div className={s.list} style={{ padding: 0 }}>
+                {sortedChats.map((c) => {
+                  const latest = data.messages
+                    .filter((m) => m.actorId === c.id)
+                    .sort((a, b) => a.at.localeCompare(b.at))
+                    .at(-1);
+                  return (
+                    <button
+                      key={c.id}
+                      className={s.contact}
+                      onClick={() => {
+                        playTapSound();
+                        open('messages', c.id);
+                      }}
                       style={{
-                        fontSize: '11px',
-                        fontWeight: 'normal',
-                        padding: '1px 6px',
-                        borderRadius: '6px',
-                        background: '#e2e8f0',
-                        color: '#475569',
+                        padding: '10px 14px',
+                        borderBottom: '1px solid #f1f5f9',
+                        borderRadius: 0,
                       }}
                     >
-                      {c.relationship}
-                    </span>
-                  </strong>
-                  <small style={{ color: '#64748b' }}>
-                    {c.summary ? (c.summary.length > 26 ? c.summary.slice(0, 26) + '…' : c.summary) : '查看人物名片与生平'}
-                  </small>
-                </span>
-                <span style={{ fontSize: '13px', color: '#94a3b8', paddingRight: '4px' }}>名片 ›</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {!contacts.length && (
-          <Empty
-            title={query ? '没有找到联系人' : (tab === 'chats' ? '还没有聊天' : '通讯录还是空的')}
-            text="世界中的人物会出现在这里。"
-          />
-        )}
+                      <div style={{ position: 'relative' }}>
+                        <Avatar url={c.avatarUrl} name={c.name} />
+                        {c.unread > 0 && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '-4px',
+                              right: '-4px',
+                              background: '#ef4444',
+                              color: '#ffffff',
+                              borderRadius: '10px',
+                              padding: '1px 5px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              lineHeight: 1.2,
+                              minWidth: '16px',
+                              textAlign: 'center',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            }}
+                          >
+                            {c.unread > 99 ? '99+' : c.unread}
+                          </span>
+                        )}
+                      </div>
+                      <span className={s.contactText} style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ fontSize: '15px', color: '#111827' }}>{c.name}</strong>
+                          {latest && (
+                            <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                              {formatChatTime(latest.at, data.referenceTime)}
+                            </span>
+                          )}
+                        </div>
+                        <small
+                          style={{
+                            display: 'block',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '210px',
+                            color: '#6b7280',
+                            fontSize: '13px',
+                            marginTop: '2px',
+                          }}
+                        >
+                          {latest?.text ?? '开始聊聊'}
+                        </small>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {!contacts.length && (
+                <Empty
+                  title={query ? '没有找到聊天' : '还没有聊天'}
+                  text="世界中的人物会出现在这里。"
+                />
+              )}
+            </div>
+          )}
 
+          {/* Tab 2: 通讯录 */}
+          {tab === 'contacts' && (
+            <div>
+              <div style={{ padding: '8px 12px', background: '#ededed' }}>
+                <Search
+                  label="搜索联系人"
+                  value={query}
+                  onChange={setQuery}
+                />
+              </div>
+
+              {/* 通讯录头部原生功能行 */}
+              <div style={{ borderBottom: '8px solid #f1f5f9' }}>
+                {[
+                  { icon: '👥', label: '新的朋友', bg: '#f59e0b' },
+                  { icon: '💬', label: '仅聊天的朋友', bg: '#3b82f6' },
+                  { icon: '🏷️', label: '标签与人际', bg: '#10b981' },
+                  { icon: '📢', label: '世界公开广播', bg: '#6366f1' },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 16px',
+                      borderBottom: '1px solid #f3f4f6',
+                      background: '#ffffff',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => playTapSound()}
+                  >
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '6px',
+                        background: item.bg,
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '18px',
+                      }}
+                    >
+                      {item.icon}
+                    </div>
+                    <span style={{ fontSize: '15px', color: '#111827', fontWeight: 500 }}>
+                      {item.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ padding: '6px 16px', fontSize: '12px', color: '#6b7280', background: '#f8fafc' }}>
+                平行人生联系人 ({contacts.length})
+              </div>
+
+              <div className={s.list} style={{ padding: 0 }}>
+                {contacts.map((c) => (
+                  <button
+                    key={c.id}
+                    className={s.contact}
+                    onClick={() => {
+                      playTapSound();
+                      setSelectedProfileId(c.id);
+                    }}
+                    style={{
+                      padding: '10px 16px',
+                      borderBottom: '1px solid #f3f4f6',
+                      borderRadius: 0,
+                    }}
+                  >
+                    <Avatar url={c.avatarUrl} name={c.name} />
+                    <span className={s.contactText} style={{ flex: 1 }}>
+                      <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '15px' }}>
+                        {c.name}
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 'normal',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: '#e2e8f0',
+                            color: '#475569',
+                          }}
+                        >
+                          {c.relationship}
+                        </span>
+                      </strong>
+                      <small style={{ color: '#64748b', fontSize: '12px' }}>
+                        {c.summary ? (c.summary.length > 26 ? c.summary.slice(0, 26) + '…' : c.summary) : '查看名片与生平'}
+                      </small>
+                    </span>
+                    <span style={{ fontSize: '13px', color: '#9ca3af' }}>名片 ›</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tab 3: 发现（朋友圈入口） */}
+          {tab === 'discover' && (
+            <div style={{ padding: '10px 0' }}>
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderTop: '1px solid #e5e7eb',
+                  borderBottom: '1px solid #e5e7eb',
+                  marginBottom: '10px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    playTapSound();
+                    open('moments');
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #f59e0b, #ec4899)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '18px',
+                      }}
+                    >
+                      📷
+                    </div>
+                    <span style={{ fontSize: '16px', fontWeight: 500, color: '#111827' }}>
+                      朋友圈
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: '#ef4444',
+                      }}
+                    />
+                    <span style={{ fontSize: '13px', color: '#9ca3af' }}>好友动态 ›</span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderTop: '1px solid #e5e7eb',
+                  borderBottom: '1px solid #e5e7eb',
+                  marginBottom: '10px',
+                }}
+              >
+                {[
+                  { icon: '🎬', label: '视频号', tip: '沈棠等人正在直播' },
+                  { icon: '📡', label: '直播', tip: '' },
+                ].map((item, idx) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '14px 16px',
+                      borderBottom: idx === 0 ? '1px solid #f3f4f6' : 'none',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => playTapSound()}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <span style={{ fontSize: '20px' }}>{item.icon}</span>
+                      <span style={{ fontSize: '16px', color: '#111827' }}>{item.label}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#9ca3af' }}>{item.tip} ›</span>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderTop: '1px solid #e5e7eb',
+                  borderBottom: '1px solid #e5e7eb',
+                }}
+              >
+                {[
+                  { icon: '🔍', label: '搜一搜', tip: '搜索剧情与八卦' },
+                  { icon: '🎵', label: '听一听', tip: '背景白噪音' },
+                ].map((item, idx) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '14px 16px',
+                      borderBottom: idx === 0 ? '1px solid #f3f4f6' : 'none',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => playTapSound()}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <span style={{ fontSize: '20px' }}>{item.icon}</span>
+                      <span style={{ fontSize: '16px', color: '#111827' }}>{item.label}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#9ca3af' }}>{item.tip} ›</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tab 4: 我（主角个人微信主页） */}
+          {tab === 'me' && (
+            <div style={{ padding: '10px 0' }}>
+              <div
+                style={{
+                  background: '#ffffff',
+                  padding: '20px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  borderTop: '1px solid #e5e7eb',
+                  borderBottom: '1px solid #e5e7eb',
+                  marginBottom: '10px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '8px',
+                    background: '#07c160',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: '22px',
+                    flexShrink: 0,
+                  }}
+                >
+                  我
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '18px', fontWeight: 600, color: '#111827' }}>
+                    孟哲（我）
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                    微信号：wxid_parallel_2026
+                  </div>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px',
+                      color: '#07c160',
+                      border: '1px solid #86efac',
+                      borderRadius: '12px',
+                      padding: '1px 8px',
+                      marginTop: '6px',
+                    }}
+                  >
+                    <span>+ 巨鹿路创作中</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: '18px', color: '#9ca3af' }}>二维码 ›</div>
+              </div>
+
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderTop: '1px solid #e5e7eb',
+                  borderBottom: '1px solid #e5e7eb',
+                  marginBottom: '10px',
+                }}
+              >
+                {[
+                  { icon: '💳', label: '服务与钱包', tip: '余额 ¥12,850.00' },
+                  { icon: '⭐', label: '收藏', tip: '3 项灵感' },
+                  { icon: '🖼️', label: '朋友圈相册', tip: '进入', action: () => open('moments') },
+                  { icon: '📇', label: '卡包与钥匙', tip: '' },
+                ].map((item, idx) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '14px 16px',
+                      borderBottom: idx < 3 ? '1px solid #f3f4f6' : 'none',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      playTapSound();
+                      if (item.action) item.action();
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <span style={{ fontSize: '18px' }}>{item.icon}</span>
+                      <span style={{ fontSize: '15px', color: '#111827' }}>{item.label}</span>
+                    </div>
+                    <span style={{ fontSize: '13px', color: '#9ca3af' }}>{item.tip} ›</span>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderTop: '1px solid #e5e7eb',
+                  borderBottom: '1px solid #e5e7eb',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => playTapSound()}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <span style={{ fontSize: '18px' }}>⚙️</span>
+                    <span style={{ fontSize: '15px', color: '#111827' }}>设置</span>
+                  </div>
+                  <span style={{ fontSize: '13px', color: '#9ca3af' }}>微信设置 ›</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 原生微信底栏 4-TabBar */}
+        <nav
+          style={{
+            height: '52px',
+            background: '#f7f7f7',
+            borderTop: '1px solid #dfdfdf',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+            boxSizing: 'border-box',
+            flexShrink: 0,
+            zIndex: 30,
+          }}
+          aria-label="微信标签栏"
+        >
+          {[
+            { id: 'chats', label: '微信', icon: '💬', badge: totalUnread },
+            { id: 'contacts', label: '通讯录', icon: '👥', badge: 0 },
+            { id: 'discover', label: '发现', icon: '🧭', badge: -1 }, // -1 代表纯红点
+            { id: 'me', label: '我', icon: '👤', badge: 0 },
+          ].map((item) => {
+            const active = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  playTapSound();
+                  setTab(item.id as typeof tab);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '2px',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  padding: '4px 14px',
+                  color: active ? '#07c160' : '#71717a',
+                }}
+              >
+                <div style={{ position: 'relative', fontSize: '20px', lineHeight: 1 }}>
+                  <span>{item.icon}</span>
+                  {item.badge > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-4px',
+                        right: '-8px',
+                        background: '#ef4444',
+                        color: '#ffffff',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        borderRadius: '10px',
+                        padding: '1px 4px',
+                        lineHeight: 1,
+                      }}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                  {item.badge === -1 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-2px',
+                        right: '-4px',
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        background: '#ef4444',
+                      }}
+                    />
+                  )}
+                </div>
+                <span style={{ fontSize: '10px', fontWeight: active ? 600 : 400 }}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* 联系人名片 Sheet 弹层 */}
         {selectedProfile && (
           <div
             style={{
@@ -372,24 +965,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   🖼️ 共同回忆
                 </button>
               </div>
-
-              {callNotice && (
-                <div
-                  style={{
-                    background: '#fef3c7',
-                    color: '#92400e',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    textAlign: 'center',
-                  }}
-                >
-                  {callNotice}
-                </div>
-              )}
             </div>
           </div>
         )}
+
         {callingContact && (
           <CallModal
             contact={callingContact}
@@ -404,14 +983,28 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
       </div>
     );
   }
+
+  // -------------------------------------------------------------------------
+  // 微信单聊对话视图
+  // -------------------------------------------------------------------------
   const disabled =
     operation?.busy || (operation?.status === 'accepted' && operation.signature === text);
-  /* 只展示与该联系人相关的约定；没有就什么都不显示，绝不把别人的约定当成"与 TA 的约定" */
   const relatedInvitation =
     data.invitations.find((inv) => inv.participantIds.includes(actor.id)) ?? null;
+
   return (
-    <div className={`${s.app} ${s.chat}`} data-phone-thread>
-      {/* 顶部单栏原生微信导航（严格对齐 Screen 04） */}
+    <div
+      className={`${s.app} ${s.chat}`}
+      data-phone-thread
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: '#ebebeb',
+        position: 'relative',
+      }}
+    >
+      {/* 顶部单栏原生微信导航 */}
       <div
         style={{
           display: 'flex',
@@ -424,12 +1017,16 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           boxSizing: 'border-box',
           position: 'sticky',
           top: 0,
-          zIndex: 10,
+          zIndex: 20,
+          flexShrink: 0,
         }}
       >
         <button
           type="button"
-          onClick={() => open('messages')}
+          onClick={() => {
+            playTapSound();
+            open('messages');
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -443,10 +1040,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             padding: '4px 6px',
             borderRadius: '6px',
           }}
-          aria-label="返回微信聊天列表"
+          aria-label="返回微信"
         >
           <span style={{ fontSize: '18px', lineHeight: 1 }}>‹</span>
-          <span>微信</span>
+          <span>微信{totalUnread > 0 ? ` (${totalUnread})` : ''}</span>
         </button>
 
         <div
@@ -461,7 +1058,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           onClick={() => setShowPerson((v) => !v)}
           title="点击查看人物名片"
         >
-          <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span>{actor.name}</span>
           </div>
           <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -471,7 +1068,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             type="button"
             title={`拨打电话给 ${actor.name}`}
@@ -513,6 +1110,8 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           </button>
         </div>
       </div>
+
+      {/* 人物名片遮罩 Sheet */}
       {showPerson && (
         <div
           style={{
@@ -600,21 +1199,8 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           </div>
         </div>
       )}
-      {operations[`read:${actor.id}`]?.error && (
-        <div className={s.inline}>
-          <Feedback operation={operations[`read:${actor.id}`]} />
-          <button
-            onClick={() =>
-              void run(`read:${actor.id}`, actor.id, async () => {
-                await actions.markRead!(actor.id);
-                return { status: 'committed' };
-              })
-            }
-          >
-            重试标记已读
-          </button>
-        </div>
-      )}
+
+      {/* 消息滚动流 */}
       <div
         ref={messageScroll}
         onScroll={(e) => {
@@ -626,8 +1212,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         }}
         className={s.messages}
         style={{
-          background: '#f3f4f6',
+          background: '#ebebeb',
           padding: '12px 10px',
+          flex: 1,
+          overflowY: 'auto',
         }}
         role="log"
         aria-label={`与${actor.name}的聊天`}
@@ -701,7 +1289,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   style={{
                     width: '36px',
                     height: '36px',
-                    borderRadius: '6px',
+                    borderRadius: '4px',
                     background: '#07c160',
                     color: '#ffffff',
                     display: 'flex',
@@ -723,14 +1311,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 style={{
                   maxWidth: '74%',
                   padding: '9px 12px',
-                  borderRadius: '6px',
+                  borderRadius: '4px',
                   fontSize: '14px',
                   lineHeight: '1.5',
                   wordBreak: 'break-word',
                   background: m.role === 'user' ? '#95ec69' : '#ffffff',
                   color: '#0f172a',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  border: m.role === 'user' ? '1px solid #82d857' : '1px solid #e2e8f0',
+                  border: m.role === 'user' ? '1px solid #82d857' : '1px solid #dcdcdc',
                   position: 'relative',
                 }}
               >
@@ -764,12 +1352,21 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           </article>
         ))}
       </div>
+
+      {/* 原生微信底栏输入区域 */}
       <form
         className={s.composer}
+        style={{
+          background: '#f7f7f7',
+          borderTop: '1px solid #dfdfdf',
+          padding: '8px 10px',
+          flexShrink: 0,
+        }}
         onSubmit={async (e) => {
           e.preventDefault();
           const value = text.trim();
           if (!value || !actions.sendMessage || disabled) return;
+          playSendSound();
           setDraft(key, '');
           await run(key, text, (id) => actions.sendMessage!(actor.id, value, id));
         }}
@@ -779,7 +1376,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             display: 'flex',
             gap: '8px',
             overflowX: 'auto',
-            padding: '2px 0 8px 0',
+            padding: '0 0 6px 0',
             scrollbarWidth: 'none',
           }}
           aria-label="快速发起互动"
@@ -790,109 +1387,220 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               type="button"
               style={{
                 flexShrink: 0,
-                fontSize: '12px',
-                padding: '4px 10px',
-                borderRadius: '14px',
+                fontSize: '11px',
+                padding: '3px 8px',
+                borderRadius: '12px',
                 background: '#ffffff',
                 border: '1px solid #cbd5e1',
-                color: '#334155',
+                color: '#475569',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
               }}
-              onClick={() => setDraft(key, topic)}
+              onClick={() => {
+                playTapSound();
+                setDraft(key, topic);
+              }}
             >
               💬 {topic}
             </button>
           ))}
         </div>
-        <label className={s.srOnly} htmlFor={`compose-${actor.id}`}>
-          消息内容
-        </label>
+
         <div className={s.composerRow} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* 1. 语音切换键 */}
           <button
             type="button"
-            title="发送语音"
+            title={isVoiceMode ? '切换键盘' : '切换语音'}
             style={{
-              background: '#f1f5f9',
-              border: '1px solid #cbd5e1',
-              borderRadius: '50%',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px',
+              background: 'none',
+              border: 'none',
+              fontSize: '22px',
               cursor: 'pointer',
+              padding: '2px',
+              color: '#334155',
               flexShrink: 0,
             }}
             onClick={() => {
-              setDraft(key, '🎙️ [语音消息 8"] 孟哲，我刚忙完，晚点跟你碰头！');
+              playTapSound();
+              setIsVoiceMode((v) => !v);
+              setShowPlusMenu(false);
+              setShowEmojiKeyboard(false);
             }}
           >
-            🎙️
+            {isVoiceMode ? '⌨️' : '🎙️'}
           </button>
-          <textarea
-            id={`compose-${actor.id}`}
-            rows={1}
-            maxLength={4000}
-            value={text}
-            disabled={!!operation?.busy}
-            onChange={(e) => setDraft(key, e.target.value)}
-            placeholder={actions.sendMessage ? '发消息…' : '聊天尚未接通，可先写草稿'}
-            style={{ flex: 1, minHeight: '36px', maxHeight: '90px', borderRadius: '18px', padding: '8px 14px' }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                e.currentTarget.form?.requestSubmit();
-              }
+
+          {/* 2. 中间输入框 / 按住说话 */}
+          {isVoiceMode ? (
+            <button
+              type="button"
+              style={{
+                flex: 1,
+                height: '38px',
+                borderRadius: '6px',
+                background: '#ffffff',
+                border: '1px solid #d1d5db',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#374151',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                playTapSound();
+                setDraft(key, '🎙️ [语音消息 6"] 刚听完你的消息，我这会儿手头正好处理完，晚点跟你碰面细聊！');
+                setIsVoiceMode(false);
+              }}
+            >
+              按住 说话（点击发送模拟语音）
+            </button>
+          ) : (
+            <textarea
+              id={`compose-${actor.id}`}
+              rows={1}
+              maxLength={4000}
+              value={text}
+              disabled={!!operation?.busy}
+              onChange={(e) => setDraft(key, e.target.value)}
+              placeholder={actions.sendMessage ? '发消息…' : '聊天尚未接通，可先写草稿'}
+              style={{
+                flex: 1,
+                minHeight: '36px',
+                maxHeight: '80px',
+                borderRadius: '6px',
+                padding: '8px 10px',
+                fontSize: '14px',
+                border: '1px solid #d1d5db',
+                background: '#ffffff',
+                resize: 'none',
+              }}
+              onFocus={() => {
+                setShowPlusMenu(false);
+                setShowEmojiKeyboard(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+          )}
+
+          {/* 3. 表情图标键 */}
+          <button
+            type="button"
+            title="表情"
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '22px',
+              cursor: 'pointer',
+              padding: '2px',
+              color: showEmojiKeyboard ? '#07c160' : '#334155',
+              flexShrink: 0,
             }}
-          />
+            onClick={() => {
+              playTapSound();
+              setShowEmojiKeyboard((v) => !v);
+              setShowPlusMenu(false);
+              setIsVoiceMode(false);
+            }}
+          >
+            😊
+          </button>
+
+          {/* 4. 加号键 / 绿色发送键 */}
           {text.trim() ? (
             <button
               className={s.green}
               type="submit"
               disabled={!actions.sendMessage || disabled}
               style={{
-                borderRadius: '16px',
-                padding: '6px 14px',
+                borderRadius: '6px',
+                padding: '6px 12px',
                 height: '36px',
                 fontSize: '14px',
                 fontWeight: 600,
+                background: '#07c160',
+                color: '#ffffff',
+                border: 'none',
                 flexShrink: 0,
+                cursor: 'pointer',
               }}
             >
-              {operation?.errorCode === 'UNKNOWN' && operation.signature === text
-                ? '重试'
-                : '发送'}
+              发送
             </button>
           ) : (
             <button
               type="button"
               title="更多功能"
               style={{
-                background: showPlusMenu ? '#e2e8f0' : '#f8fafc',
-                border: '1px solid #cbd5e1',
+                background: 'none',
+                border: '1px solid #94a3b8',
                 borderRadius: '50%',
-                width: '36px',
-                height: '36px',
+                width: '30px',
+                height: '30px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '20px',
                 cursor: 'pointer',
-                color: '#475569',
+                color: showPlusMenu ? '#07c160' : '#475569',
                 flexShrink: 0,
                 lineHeight: 1,
               }}
-              onClick={() => setShowPlusMenu((v) => !v)}
+              onClick={() => {
+                playTapSound();
+                setShowPlusMenu((v) => !v);
+                setShowEmojiKeyboard(false);
+                setIsVoiceMode(false);
+              }}
             >
               +
             </button>
           )}
         </div>
 
-        {/* 原生微信加号扩展面板（对齐 Screen 04） */}
+        {/* 表情键盘面板 */}
+        {showEmojiKeyboard && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(8, 1fr)',
+              gap: '6px',
+              padding: '12px 6px 6px',
+              borderTop: '1px solid #e5e7eb',
+              marginTop: '8px',
+              maxHeight: '130px',
+              overflowY: 'auto',
+            }}
+          >
+            {EMOJI_LIST.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '22px',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onClick={() => {
+                  playTapSound();
+                  setDraft(key, text + emoji);
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 原生微信 8 宫格加号扩展面板 */}
         {showPlusMenu && (
           <div
             style={{
@@ -900,159 +1608,121 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               gridTemplateColumns: 'repeat(4, 1fr)',
               gap: '12px',
               padding: '14px 8px 6px',
-              borderTop: '1px solid #e2e8f0',
+              borderTop: '1px solid #e5e7eb',
               marginTop: '8px',
             }}
           >
-            <button
-              type="button"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setShowPlusMenu(false);
-                open('calendar');
-              }}
-            >
-              <div
+            {[
+              {
+                icon: '🖼️',
+                label: '相册',
+                action: () => {
+                  setShowPlusMenu(false);
+                  open('photos');
+                },
+              },
+              {
+                icon: '📷',
+                label: '拍摄',
+                action: () => {
+                  setShowPlusMenu(false);
+                  open('photos');
+                },
+              },
+              {
+                icon: '📞',
+                label: '语音通话',
+                action: () => {
+                  setShowPlusMenu(false);
+                  setCallingContact(actor);
+                },
+              },
+              {
+                icon: '📍',
+                label: '位置',
+                action: () => {
+                  setShowPlusMenu(false);
+                  setDraft(
+                    key,
+                    '📍 [位置分享] 上海市静安区巨鹿路768号 · 老洋房工作室（我在这边对方案，忙完随时过来～）',
+                  );
+                },
+              },
+              {
+                icon: '🧧',
+                label: '红包',
+                action: () => {
+                  setShowPlusMenu(false);
+                  setDraft(key, '🧧 [微信红包] 恭喜发财，大吉大利！');
+                },
+              },
+              {
+                icon: '👤',
+                label: '名片',
+                action: () => {
+                  setShowPlusMenu(false);
+                  setShowPerson(true);
+                },
+              },
+              {
+                icon: '🗓️',
+                label: '约定',
+                action: () => {
+                  setShowPlusMenu(false);
+                  open('calendar');
+                },
+              },
+              {
+                icon: '📝',
+                label: '便签',
+                action: () => {
+                  setShowPlusMenu(false);
+                  open('notes');
+                },
+              },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                type="button"
                 style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '14px',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '22px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                  gap: '6px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  playTapSound();
+                  btn.action();
                 }}
               >
-                🗓️
-              </div>
-              <span style={{ fontSize: '11px', color: '#475569' }}>发起约定</span>
-            </button>
-
-            <button
-              type="button"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setShowPlusMenu(false);
-                open('photos');
-              }}
-            >
-              <div
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '14px',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '22px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                }}
-              >
-                🖼️
-              </div>
-              <span style={{ fontSize: '11px', color: '#475569' }}>相册回忆</span>
-            </button>
-
-            <button
-              type="button"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setShowPlusMenu(false);
-                open('notes');
-              }}
-            >
-              <div
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '14px',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '22px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                }}
-              >
-                📝
-              </div>
-              <span style={{ fontSize: '11px', color: '#475569' }}>生活便签</span>
-            </button>
-
-            <button
-              type="button"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setShowPlusMenu(false);
-                setDraft(
-                  key,
-                  '📍 [位置分享] 上海市静安区巨鹿路768号 · 老洋房工作室（我在这边对方案，忙完随时过来～）',
-                );
-              }}
-            >
-              <div
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '14px',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '22px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                }}
-              >
-                📍
-              </div>
-              <span style={{ fontSize: '11px', color: '#475569' }}>发送位置</span>
-            </button>
+                <div
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    background: '#ffffff',
+                    border: '1px solid #d1d5db',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '22px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  {btn.icon}
+                </div>
+                <span style={{ fontSize: '11px', color: '#475569' }}>{btn.label}</span>
+              </button>
+            ))}
           </div>
         )}
 
         <Feedback operation={operation} success="消息已提交" />
-        {!actions.sendMessage && <small>持续对话尚未接入，草稿仅在当前页面保留。</small>}
-        <small className={s.hint}>按 Enter 发送 · Shift + Enter 换行</small>
       </form>
+
       {callingContact && (
         <CallModal
           contact={callingContact}
