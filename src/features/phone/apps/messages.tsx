@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PhoneAppContext } from '../phone-shell.tsx';
+import type { PhoneContact } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { formatChatTime, searchable, timeText } from './helpers.ts';
@@ -11,6 +12,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const [showPerson, setShowPerson] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [callNotice, setCallNotice] = useState<string | null>(null);
+  const [callingContact, setCallingContact] = useState<PhoneContact | null>(null);
   const messageScroll = useRef<HTMLDivElement>(null);
   const wasNearBottom = useRef(true);
   const lastScroll = useRef(0);
@@ -293,8 +295,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     cursor: 'pointer',
                   }}
                   onClick={() => {
-                    setCallNotice(`${selectedProfile.name} 暂时不便接听电话，请稍后再试或通过微信留言。`);
-                    setTimeout(() => setCallNotice(null), 3500);
+                    setCallingContact(selectedProfile);
                   }}
                 >
                   📞 拨打电话
@@ -365,6 +366,17 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             </div>
           </div>
         )}
+        {callingContact && (
+          <CallModal
+            contact={callingContact}
+            onClose={() => setCallingContact(null)}
+            onOpenChat={(id) => {
+              setCallingContact(null);
+              setSelectedProfileId(null);
+              open('messages', id);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -375,20 +387,68 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     (data.invitations.length > 0 ? data.invitations[0] : null);
   return (
     <div className={`${s.app} ${s.chat}`} data-phone-thread>
-      <button
-        className={s.personHeader}
-        aria-expanded={showPerson}
-        onClick={() => setShowPerson((v) => !v)}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          background: '#f2f2f7',
+          borderBottom: '1px solid #e5e5ea',
+          paddingRight: '12px',
+        }}
       >
-        <Avatar url={actor.avatarUrl} name={actor.name} />
-        <span>
-          <strong>{actor.name}</strong>
-          <small>
-            {actor.relationship} · <span style={{ color: '#52c41a' }}>● 在线</span>
-          </small>
-        </span>
-        <span className={s.more}>···</span>
-      </button>
+        <button
+          className={s.personHeader}
+          style={{ flex: 1, borderBottom: 'none' }}
+          aria-expanded={showPerson}
+          onClick={() => setShowPerson((v) => !v)}
+        >
+          <Avatar url={actor.avatarUrl} name={actor.name} />
+          <span>
+            <strong>{actor.name}</strong>
+            <small>
+              {actor.relationship} · <span style={{ color: '#52c41a' }}>● 在线</span>
+            </small>
+          </span>
+        </button>
+        <button
+          type="button"
+          title={`拨打电话给 ${actor.name}`}
+          style={{
+            background: '#e2fbe8',
+            border: '1px solid #bbf7d0',
+            borderRadius: '50%',
+            width: '34px',
+            height: '34px',
+            fontSize: '15px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#15803d',
+            marginRight: '6px',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setCallingContact(actor);
+          }}
+        >
+          📞
+        </button>
+        <button
+          type="button"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#707078',
+            fontSize: '18px',
+            cursor: 'pointer',
+            padding: '4px',
+          }}
+          onClick={() => setShowPerson((v) => !v)}
+        >
+          ···
+        </button>
+      </div>
       {showPerson && (
         <section className={s.personSummary} aria-label="人物摘要">
           <h3>{actor.name}</h3>
@@ -582,6 +642,324 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         {!actions.sendMessage && <small>持续对话尚未接入，草稿仅在当前页面保留。</small>}
         <small className={s.hint}>按 Enter 发送 · Shift + Enter 换行</small>
       </form>
+      {callingContact && (
+        <CallModal
+          contact={callingContact}
+          onClose={() => setCallingContact(null)}
+          onOpenChat={(id) => {
+            setCallingContact(null);
+            setSelectedProfileId(null);
+            open('messages', id);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CallModal({
+  contact,
+  onClose,
+  onOpenChat,
+}: {
+  contact: PhoneContact;
+  onClose: () => void;
+  onOpenChat: (actorId: string) => void;
+}) {
+  const [status, setStatus] = useState<'dialing' | 'connected' | 'ended'>('dialing');
+  const [seconds, setSeconds] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeaker, setIsSpeaker] = useState(true);
+
+  useEffect(() => {
+    const dialTimer = setTimeout(() => {
+      setStatus('connected');
+    }, 2200);
+    return () => clearTimeout(dialTimer);
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'connected') return;
+    const interval = setInterval(() => {
+      setSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status]);
+
+  const voiceLine = useMemo(() => {
+    const rel = contact.relationship || '';
+    if (
+      rel.includes('合伙') ||
+      rel.includes('创') ||
+      rel.includes('同事') ||
+      rel.includes('工作') ||
+      rel.includes('项目')
+    ) {
+      return `“喂，孟哲！刚看你打来。这会儿手头正在推进项目节点，稍后我把重点发你微信，咱们文字对一下更细致，有事随时找我！”`;
+    }
+    if (
+      rel.includes('师') ||
+      rel.includes('长') ||
+      rel.includes('领导') ||
+      rel.includes('前辈') ||
+      rel.includes('顾问')
+    ) {
+      return `“喂，孟哲啊，我正准备参加一个研讨，你先在微信把想法留言给我，我一散会马上看。”`;
+    }
+    if (rel.includes('友') || rel.includes('学') || rel.includes('闺蜜') || rel.includes('哥们')) {
+      return `“喂～怎么啦！我正赶路呢，刚想着给你发消息你就打过来了！晚点微信聊，随时找我哈！”`;
+    }
+    return `“喂，孟哲？我刚看到你打过来，手头正忙着一小会儿，晚点微信上细聊，记得看我消息哦！”`;
+  }, [contact]);
+
+  const handleEndCall = () => {
+    setStatus('ended');
+    setTimeout(() => {
+      onClose();
+    }, 1200);
+  };
+
+  const formatCallDuration = (sec: number) => {
+    const m = Math.floor(sec / 60)
+      .toString()
+      .padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'linear-gradient(180deg, #090d16 0%, #0f172a 60%, #1e1b4b 100%)',
+        color: '#ffffff',
+        zIndex: 120,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '60px 24px 44px 24px',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '11px',
+            color: '#94a3b8',
+            letterSpacing: '0.05em',
+          }}
+        >
+          <span>🔒</span> 端到端加密通话
+        </div>
+        <div style={{ fontSize: '24px', fontWeight: 700, color: '#f8fafc', marginTop: '6px' }}>
+          {contact.name}
+        </div>
+        <div
+          style={{
+            fontSize: '13px',
+            color: '#cbd5e1',
+            background: 'rgba(255,255,255,0.08)',
+            padding: '2px 10px',
+            borderRadius: '12px',
+          }}
+        >
+          {contact.relationship}
+        </div>
+        <div
+          style={{
+            fontSize: '15px',
+            color: status === 'connected' ? '#4ade80' : '#94a3b8',
+            fontWeight: 500,
+            marginTop: '4px',
+          }}
+        >
+          {status === 'dialing' && '正在呼叫…'}
+          {status === 'connected' && formatCallDuration(seconds)}
+          {status === 'ended' && `通话已结束（时长 ${formatCallDuration(seconds)}）`}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '20px',
+          maxWidth: '320px',
+          width: '100%',
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            width: '96px',
+            height: '96px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.1)',
+            boxShadow:
+              status === 'dialing'
+                ? '0 0 0 10px rgba(59, 130, 246, 0.2), 0 0 0 20px rgba(59, 130, 246, 0.1)'
+                : '0 10px 25px rgba(0,0,0,0.5)',
+            transition: 'box-shadow 0.4s ease',
+          }}
+        >
+          <div
+            style={{
+              width: '84px',
+              height: '84px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#334155',
+            }}
+          >
+            <Avatar url={contact.avatarUrl} name={contact.name} />
+          </div>
+        </div>
+
+        {status === 'connected' && (
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              borderRadius: '16px',
+              padding: '14px 16px',
+              color: '#f1f5f9',
+              fontSize: '13px',
+              lineHeight: 1.6,
+              textAlign: 'center',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '11px',
+                color: '#93c5fd',
+                marginBottom: '4px',
+                fontWeight: 600,
+              }}
+            >
+              🎙️ 对方实时语音中
+            </div>
+            {voiceLine}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '28px',
+          width: '100%',
+          maxWidth: '300px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-around', width: '100%' }}>
+          <button
+            type="button"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '6px',
+              background: isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.1)',
+              border: isMuted ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '50%',
+              width: '56px',
+              height: '56px',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#ffffff',
+              fontSize: '18px',
+            }}
+            onClick={() => setIsMuted((m) => !m)}
+          >
+            {isMuted ? '🔇' : '🎤'}
+          </button>
+
+          <button
+            type="button"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '6px',
+              background: isSpeaker ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.1)',
+              border: isSpeaker ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '50%',
+              width: '56px',
+              height: '56px',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#ffffff',
+              fontSize: '18px',
+            }}
+            onClick={() => setIsSpeaker((s) => !s)}
+          >
+            {isSpeaker ? '🔊' : '🔈'}
+          </button>
+
+          <button
+            type="button"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '50%',
+              width: '56px',
+              height: '56px',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#ffffff',
+              fontSize: '18px',
+            }}
+            onClick={() => onOpenChat(contact.id)}
+          >
+            💬
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <button
+            type="button"
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: '#ef4444',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              fontSize: '26px',
+              cursor: 'pointer',
+              transform: 'rotate(135deg)',
+              boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)',
+            }}
+            onClick={handleEndCall}
+            aria-label="挂断电话"
+          >
+            📞
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
