@@ -43,7 +43,7 @@ https://github.com/limengzhe27-boop/parallel-life
 |迁移|`0021_missing_indexes.sql` 已应用于本地与生产 Supabase（`pl_migrations` 21 条，索引已在生产确认存在）|
 |发布前检查|`npm run verify`（117 单元 + 17 真实库）、`npm run build` 通过|
 |线上实测|分支列表接口 200（1 个 build、ready、含任务），页面正常；未知 uuid → 404|
-|异常|本次提交的 Vercel 构建返回 **ERROR**（构建步骤本身 READY、未给出原因），生产别名仍指向上一版，因此 AUD-08 的 404 **尚未在生产生效**（本地已验证）；已用后续文档提交重新触发部署并复核|
+|异常与复核|`037571e` 的 Vercel 构建返回 **ERROR**（构建步骤本身 READY、未给出原因），别名当时仍指向上一版。用文档提交 `cf64461` 重新触发后 `ddel6r0aj` 成为生产别名，**已在生产复测**：非法 world id → 404/NOT_FOUND、未知 uuid → 404、分支列表 200、health 正常|
 
 ### 2026-09-24 · 发送消息自动防冲突重试、微信聊天上方净化与 iPhone 满屏无滚动优化上线
 
