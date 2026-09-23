@@ -1,7 +1,8 @@
 import { consumeLimit } from '../../storage/infrastructure/limits.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
-import { TaskSchema, type Task } from '../../../contracts/api.ts';
+import { z } from 'zod';
+import { TaskSchema, ErrorCode, type Task } from '../../../contracts/api.ts';
 export class TaskError extends Error {
   code: string;
   constructor(code: string) {
@@ -17,11 +18,17 @@ export function publicTask(row: Record<string, unknown>): Task {
     world: 'worldId',
     media: 'assetRequestId',
   };
+  const rawCode = row.error_code ? String(row.error_code) : null;
+  const errorCode = rawCode
+    ? ErrorCode.safeParse(rawCode).success
+      ? (rawCode as z.infer<typeof ErrorCode>)
+      : 'UNKNOWN'
+    : null;
   return TaskSchema.parse({
     id: row.id,
     scope: { kind: row.scope_kind, [key[String(row.scope_kind)]!]: row.scope_id },
     status: row.status,
-    errorCode: row.error_code ?? null,
+    errorCode,
     resultVersion: row.result_version ?? null,
     createdAt: new Date(String(row.created_at)).toISOString(),
     updatedAt: new Date(String(row.updated_at)).toISOString(),
