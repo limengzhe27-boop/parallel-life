@@ -10,15 +10,59 @@ import { Avatar } from './apps/common.tsx';
 import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
 import { formatChatTime } from './apps/helpers.ts';
+import type { PhoneMessage } from './apps/types.ts';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const [client] = useState(() => new LifeClient()),
     [data, setData] = useState<WorldPhone | null>(null),
     [error, setError] = useState(''),
     [isBuilding, setIsBuilding] = useState(false),
+    [localMessages, setLocalMessages] = useState<PhoneMessage[]>([]),
     [statusMessage, setStatusMessage] = useState('正在打开你的手机…'),
     [refreshing, setRefreshing] = useState(false);
   const request = useRef(0),
     retryCommand = useRef<{ taskId: string; id: string } | null>(null);
+
+  /**
+   * Send one phone message and keep its honest state: shown as pending immediately,
+   * kept as failed (with the text and a retry action) when the server does not commit.
+   * Throws so the composer's operation is recorded as failed rather than "sent".
+   */
+  async function deliverMessage(
+    actorId: string,
+    text: string,
+    commandId: string,
+    replacing?: string,
+  ) {
+    const entry: PhoneMessage = {
+      id: commandId,
+      actorId,
+      role: 'user',
+      text,
+      at: new Date().toISOString(),
+      status: 'pending',
+    };
+    setLocalMessages((current) => [
+      ...current.filter((message) => message.id !== commandId && message.id !== replacing),
+      entry,
+    ]);
+    try {
+      await client.sendWorldMessage(worldId, {
+        commandId,
+        actorId,
+        text,
+        expectedVersion: data?.version ?? 0,
+      });
+      setLocalMessages((current) => current.filter((message) => message.id !== commandId));
+      await load();
+    } catch (sendError) {
+      setLocalMessages((current) =>
+        current.map((message) =>
+          message.id === commandId ? { ...message, status: 'failed' } : message,
+        ),
+      );
+      throw sendError;
+    }
+  }
 
   /**
    * A queued or running build may simply have lost its runner, so completing the
@@ -173,31 +217,16 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
             return { status: 'committed' };
           }}
           onSendMessage={async (actorId, text, commandId) => {
-            // 即刻将用户消息先上屏展示
-            const optimistic = {
-              id: commandId,
-              actorId,
-              role: 'user' as const,
-              text,
-              at: new Date().toISOString(),
-            };
-            setData((current) =>
-              current
-                ? {
-                    ...current,
-                    messages: [...current.messages, optimistic],
-                  }
-                : current,
-            );
-            const receipt = await client.sendWorldMessage(worldId, {
-              commandId,
-              actorId,
-              text,
-              expectedVersion: data.version ?? 0,
-            });
-            await load();
-            return { status: receipt.status };
+            await deliverMessage(actorId, text, commandId);
+            return { status: 'committed' };
           }}
+          onRetryMessage={async (messageId, commandId) => {
+            const failed = localMessages.find((message) => message.id === messageId);
+            if (!failed) return { status: 'committed' };
+            await deliverMessage(failed.actorId, failed.text, commandId, messageId);
+            return { status: 'committed' };
+          }}
+          localMessages={localMessages}
           onReload={load}
           loading={refreshing}
           loadError={error}
@@ -213,8 +242,10 @@ export function WorldPhoneSurface({
   onReload,
   onChangeInvitation,
   onSendMessage,
+  onRetryMessage,
   onUploadPhoto,
   onSaveNote,
+  localMessages = [],
   loading = false,
   loadError,
 }: {
@@ -223,7 +254,10 @@ export function WorldPhoneSurface({
   onReload?: () => Promise<void>;
   onChangeInvitation?: PhoneActions['changeInvitation'];
   onSendMessage?: PhoneActions['sendMessage'];
+  onRetryMessage?: PhoneActions['retryMessage'];
   onUploadPhoto?: PhoneActions['uploadPhoto'];
+  /** Messages this browser sent that the server has not confirmed yet. */
+  localMessages?: readonly PhoneMessage[];
   onSaveNote?: PhoneActions['saveNote'];
   loading?: boolean;
   loadError?: string;
@@ -451,7 +485,7 @@ export function WorldPhoneSurface({
     };
   }, [data, proactiveMessages]);
 
-  const basePhoneData = worldAppData(mergedData, viewed);
+  const basePhoneData = worldAppData(mergedData, viewed, localMessages);
   const phoneData: PhoneAppsData = useMemo(
     () => ({
       ...basePhoneData,
@@ -470,6 +504,7 @@ export function WorldPhoneSurface({
       actions={{
         changeInvitation: preview ? undefined : onChangeInvitation,
         sendMessage: preview ? undefined : onSendMessage,
+        retryMessage: preview ? undefined : onRetryMessage,
         uploadPhoto: preview ? undefined : onUploadPhoto,
         saveNote: handleSaveNote,
         markRead: async (actorId) => {
@@ -516,18 +551,8 @@ export function WorldPhoneSurface({
                 target: inv.id,
                 timeLabel: inv.status === 'confirmed' ? '已约好' : '待回复',
               }))
-            : data.actors.length > 0
-              ? [
-                  {
-                    id: `notif-cal-${data.id}`,
-                    title: '日历提醒 · 阶段备忘',
-                    summary: `与 ${data.actors[0]?.name}（${data.actors[0]?.relationship}）的讨论安排`,
-                    app: 'calendar' as const,
-                    target: undefined,
-                    timeLabel: '待处理',
-                  },
-                ]
-              : []),
+            : /* 没有真实约定就不伪造日历通知 */
+              []),
           ...(notes.length > 0
             ? [
                 {

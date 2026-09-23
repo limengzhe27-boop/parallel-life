@@ -40,8 +40,31 @@ export class SignedSession {
   }
 }
 export function sameOrigin(request: Request, origin: string) {
-  return (
-    request.headers.get('origin') === origin &&
-    request.headers.get('sec-fetch-site') !== 'cross-site'
-  );
+  const reqOrigin = request.headers.get('origin');
+  if (!reqOrigin) return false;
+  if (request.headers.get('sec-fetch-site') === 'cross-site') return false;
+  if (reqOrigin === origin) return true;
+
+  // Allow requests whose Origin matches the request's own Host / X-Forwarded-Host
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (host) {
+    const proto =
+      request.headers.get('x-forwarded-proto') || (origin.startsWith('https:') ? 'https' : 'http');
+    if (reqOrigin === `${proto}://${host}`) return true;
+  }
+
+  // If configured origin is on vercel.app, allow other *.vercel.app deployment subdomains
+  if (origin.endsWith('.vercel.app')) {
+    try {
+      const u = new URL(reqOrigin);
+      if (u.protocol === 'https:' && u.hostname.endsWith('.vercel.app')) {
+        return true;
+      }
+    } catch {
+      // ignore invalid URLs
+    }
+  }
+
+  return false;
 }
+

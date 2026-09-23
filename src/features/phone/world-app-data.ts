@@ -1,9 +1,16 @@
 import type { WorldPhone } from '../../contracts/world-build.ts';
-import type { PhoneAppsData } from './apps/types.ts';
-/** Map the authorized opening projection only; no private interview or inferred events. */
+import type { PhoneAppsData, PhoneMessage } from './apps/types.ts';
+/**
+ * Map the authorized opening projection only; no private interview or inferred events.
+ *
+ * `local` carries messages this browser sent that the server has not confirmed.
+ * Server messages are honestly `sent`; a local entry keeps its own pending/failed
+ * state, so a failed send never looks delivered.
+ */
 export function worldAppData(
   world: WorldPhone,
   viewed: ReadonlySet<string> = new Set(),
+  local: readonly PhoneMessage[] = [],
 ): PhoneAppsData {
   return {
     contacts: world.actors.map((actor) => ({
@@ -16,27 +23,18 @@ export function worldAppData(
           message.actorId === actor.id && message.role !== 'user' && !viewed.has(message.id),
       ).length,
     })),
-    messages: (() => {
-      const assistantMsgs = world.messages.filter((m) => m.role !== 'user');
-      const allSameTime =
-        assistantMsgs.length > 1 && assistantMsgs.every((m) => m.at === assistantMsgs[0]?.at);
-      const offsets = [3, 28, 110, 340];
-      return world.messages.map((message, index) => {
-        let displayAt = message.at;
-        if (allSameTime && message.role !== 'user') {
-          const offsetMinutes = offsets[index] ?? 340 + index * 60;
-          displayAt = new Date(Date.parse(message.at) - offsetMinutes * 60 * 1000).toISOString();
-        }
-        return {
-          id: message.id,
-          actorId: message.actorId,
-          text: message.text,
-          at: displayAt,
-          role: message.role ?? 'assistant',
-          status: 'sent',
-        };
-      });
-    })(),
+    messages: [
+      ...world.messages.map((message) => ({
+        id: message.id,
+        actorId: message.actorId,
+        text: message.text,
+        /* The server already staggers opening timestamps; display them as stored. */
+        at: message.at,
+        role: message.role ?? 'assistant',
+        status: 'sent' as const,
+      })),
+      ...local.map((message) => ({ ...message })),
+    ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
     notes: world.notes.map((note, index) => ({
       ...note,
       id: `${world.id}:opening-note:${index}`,

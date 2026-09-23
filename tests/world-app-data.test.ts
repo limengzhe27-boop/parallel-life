@@ -76,3 +76,39 @@ test('album projection retains provenance and builds only private local image UR
   assert.equal(data.photos[0]?.description, '你上传的照片');
   assert.equal(data.photos[0]?.status, 'ready');
 });
+test('only server-confirmed messages count as sent; local ones keep their real state', () => {
+  const data = worldAppData(world);
+  assert.equal(data.messages[0]?.status, 'sent');
+  /* 服务端已按错峰保存时间，前端不再二次偏移 */
+  assert.equal(data.messages[0]?.at, world.messages[0]!.at);
+  const local = [
+    {
+      id: 'local-failed',
+      actorId: 'actor-a',
+      role: 'user' as const,
+      text: '这句没发出去',
+      at: '2026-09-22T00:31:00Z',
+      status: 'failed' as const,
+    },
+    {
+      id: 'local-pending',
+      actorId: 'actor-a',
+      role: 'user' as const,
+      text: '正在发送',
+      at: '2026-09-22T00:32:00Z',
+      status: 'pending' as const,
+    },
+  ];
+  const merged = worldAppData(world, new Set(), local);
+  assert.deepEqual(
+    merged.messages.map((message) => [message.id, message.status]),
+    [
+      ['m1', 'sent'],
+      ['local-failed', 'failed'],
+      ['local-pending', 'pending'],
+    ],
+  );
+  /* 在途消息不会把未读数算成别人的新消息 */
+  assert.equal(merged.contacts[0]?.unread, 1);
+});
+

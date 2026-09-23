@@ -198,10 +198,14 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             success={
               changed && operation?.signature !== signature
                 ? '提交的版本已保存，当前修改尚未保存。'
-                : '便签已保存'
+                : actions.saveNote
+                  ? '便签已保存'
+                  : '已保存在这台设备'
             }
           />
-          {!actions.saveNote && <small>便签保存尚未接入，草稿仅在当前页面保留。</small>}
+          {!actions.saveNote && (
+            <small>便签同步尚未接入：内容只保存在当前浏览器，换设备或清除数据会丢失。</small>
+          )}
           {isNew && operation?.status === 'committed' && (
             <button type="button" onClick={() => open('notes')}>
               返回便签列表

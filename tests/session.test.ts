@@ -19,4 +19,24 @@ test('write origin must explicitly match configured application origin', () => {
   assert(sameOrigin(new Request(origin, { headers: { origin } }), origin));
   assert(!sameOrigin(new Request(origin), origin));
   assert(!sameOrigin(new Request(origin, { headers: { origin: 'http://evil.example' } }), origin));
+
+  const prodOrigin = 'https://parallel-life-nu.vercel.app';
+  const previewOrigin = 'https://parallel-life-preview-123.vercel.app';
+  assert(
+    sameOrigin(
+      new Request(previewOrigin, {
+        headers: { origin: previewOrigin, host: 'parallel-life-preview-123.vercel.app' },
+      }),
+      prodOrigin,
+    ),
+  );
+  assert(
+    !sameOrigin(
+      new Request(previewOrigin, {
+        headers: { origin: 'https://evil.example', host: 'parallel-life-preview-123.vercel.app' },
+      }),
+      prodOrigin,
+    ),
+  );
 });
+

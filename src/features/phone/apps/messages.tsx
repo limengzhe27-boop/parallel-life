@@ -382,9 +382,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   }
   const disabled =
     operation?.busy || (operation?.status === 'accepted' && operation.signature === text);
+  /* 只展示与该联系人相关的约定；没有就什么都不显示，绝不把别人的约定当成"与 TA 的约定" */
   const relatedInvitation =
-    data.invitations.find((inv) => inv.participantIds.includes(actor.id)) ??
-    (data.invitations.length > 0 ? data.invitations[0] : null);
+    data.invitations.find((inv) => inv.participantIds.includes(actor.id)) ?? null;
   return (
     <div className={`${s.app} ${s.chat}`} data-phone-thread>
       <div
