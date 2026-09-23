@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { WorldPlanner, WORLD_OPENING_MAX_TOKENS } from '../src/modules/world/infrastructure/world-planner.ts';
+import { WorldPlanner, WORLD_OPENING_MAX_TOKENS, WORLD_OUTPUT_ATTEMPTS } from '../src/modules/world/infrastructure/world-planner.ts';
 import type { ApprovedSeed } from '../src/contracts/seeds.ts';
 const seed: ApprovedSeed = {
   id: randomUUID(),
@@ -53,13 +53,47 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
     { ...output, actors: [output.actors[0], output.actors[0], output.actors[2]] },
     { ...output, messages: [] },
   ]) {
+    let calls = 0;
     await assert.rejects(
       new WorldPlanner({
         async complete() {
+          calls += 1;
           return JSON.stringify(invalid);
         },
       }).propose(seed),
       { code: 'INVALID_RESPONSE' },
     );
+    // One corrective retry, never an unbounded loop.
+    assert.equal(calls, WORLD_OUTPUT_ATTEMPTS);
   }
+});
+
+test('an unusable structure is retried once with a correction, and a good retry wins', async () => {
+  const sent: string[] = [];
+  const planner = new WorldPlanner({
+    async complete(messages) {
+      sent.push(messages.at(-1)!.content);
+      return sent.length === 1
+        ? JSON.stringify({ ...output, messages: [{ actorKey: 'outsider', text: 'hello' }] })
+        : JSON.stringify(output);
+    },
+  });
+  const result = await planner.propose(seed);
+  assert.equal(result.actors.length, 3);
+  assert.equal(sent.length, WORLD_OUTPUT_ATTEMPTS);
+  assert.match(sent[1]!, /上一次输出没有被接受/);
+});
+
+test('an uncertain outcome is never retried by the planner', async () => {
+  let calls = 0;
+  await assert.rejects(
+    new WorldPlanner({
+      async complete() {
+        calls += 1;
+        throw Object.assign(new Error('TIMEOUT'), { code: 'TIMEOUT' });
+      },
+    }).propose(seed),
+    { code: 'TIMEOUT' },
+  );
+  assert.equal(calls, 1);
 });
