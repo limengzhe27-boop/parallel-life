@@ -137,7 +137,9 @@ function InvitationDetail({
   const { data, actions, drafts, setDraft, operations, run } = usePhoneApps();
   const [edit, setEdit] = useState(false),
     [confirmCancel, setConfirmCancel] = useState(false),
-    [invalid, setInvalid] = useState(false);
+    [invalid, setInvalid] = useState(false),
+    [showScene, setShowScene] = useState(false),
+    [sceneStep, setSceneStep] = useState(0);
   const [actionVersion, setActionVersion] = useState(n.version);
   const key = `invitation:${n.id}`,
     operation = operations[key];
@@ -145,6 +147,8 @@ function InvitationDetail({
     operation?.status === 'accepted' && operation.signature?.startsWith(`${n.version}:`);
   const disabled = !actions.changeInvitation || operation?.busy || changedAfterAccept;
   const date = drafts[`date:${n.id}`] ?? n.at.slice(0, 16);
+  const leadActor =
+    data.contacts.find((c) => n.participantIds.includes(c.id)) ?? data.contacts[0];
   async function change(kind: 'accept' | 'reschedule' | 'cancel', submittedDate?: string) {
     const at = kind === 'reschedule' ? rescheduleAt(submittedDate ?? date, n.at) : undefined;
     if (kind === 'reschedule' && !at) {
@@ -185,6 +189,22 @@ function InvitationDetail({
       <Links links={n.links} open={open} />
       {n.status !== 'cancelled' && (
         <div className={s.invitationActions}>
+          {n.status === 'confirmed' && (
+            <button
+              className={s.primary}
+              type="button"
+              style={{
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
+                padding: '12px',
+                fontSize: '14px',
+                fontWeight: 600,
+              }}
+              onClick={() => setShowScene(true)}
+            >
+              ✨ 前往赴约 · 经历这一刻
+            </button>
+          )}
           {n.status === 'proposed' && (
             <button className={s.primary} disabled={disabled} onClick={() => void change('accept')}>
               {operation?.errorCode === 'UNKNOWN' && operation.signature?.includes(':accept:')
@@ -259,6 +279,148 @@ function InvitationDetail({
       <Feedback operation={operation} success="日程已更新" />
       {!actions.changeInvitation && n.status !== 'cancelled' && (
         <p className={s.info}>日程操作尚未接入，当前可以查看邀约。</p>
+      )}
+
+      {showScene && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              background: '#0f172a',
+              color: '#f8fafc',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              padding: '24px 20px',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              maxHeight: '90%',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span
+                style={{
+                  fontSize: '12px',
+                  letterSpacing: '1px',
+                  color: '#94a3b8',
+                  textTransform: 'uppercase',
+                }}
+              >
+                赴约 · 经历片段
+              </span>
+              <button
+                type="button"
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  color: '#cbd5e1',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  setShowScene(false);
+                  setSceneStep(0);
+                }}
+                aria-label="退出剧情"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[0, 1, 2].map((step) => (
+                <div
+                  key={step}
+                  style={{
+                    flex: 1,
+                    height: '4px',
+                    borderRadius: '2px',
+                    background: step <= sceneStep ? '#38bdf8' : 'rgba(255,255,255,0.15)',
+                    transition: 'background 0.3s ease',
+                  }}
+                />
+              ))}
+            </div>
+
+            <div style={{ margin: '8px 0 4px' }}>
+              <div style={{ fontSize: '13px', color: '#38bdf8', fontWeight: 500, marginBottom: '6px' }}>
+                {sceneStep === 0
+                  ? `${n.at.slice(11, 16)} · 碰面时刻`
+                  : sceneStep === 1
+                    ? '夜色渐深'
+                    : '定格回忆'}
+              </div>
+              <h3 style={{ margin: '0 0 10px', fontSize: '18px', fontWeight: 600, color: '#ffffff' }}>
+                {n.title}
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: '#e2e8f0' }}>
+                {sceneStep === 0
+                  ? `你到达了约好的地点。远处的灯火明亮，夜风吹拂。${leadActor?.name ?? '对方'}早已在桌边等候，看见你走过来，眼中浮现出笑意：“总算来了，这次可算把手机收起来了。”`
+                  : sceneStep === 1
+                    ? `你们坐在一起聊起最近的日常。平时紧绷的思绪在这段时光里慢慢放松下来，杯盏交错间，周围喧嚣的声音渐渐隐去，只剩下眼前的对视与浅笑。`
+                    : `在离开之前，${leadActor?.name ?? '对方'}拿出手机定格了这一刻的画面：“这张合照归我了，你不许删掉。下一次，换你主动约我。”`}
+              </p>
+            </div>
+
+            <div style={{ marginTop: '8px' }}>
+              {sceneStep < 2 ? (
+                <button
+                  type="button"
+                  style={{
+                    width: '100%',
+                    padding: '13px',
+                    borderRadius: '12px',
+                    background: '#38bdf8',
+                    color: '#0f172a',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setSceneStep((s) => s + 1)}
+                >
+                  继续这一刻 →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  style={{
+                    width: '100%',
+                    padding: '13px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setShowScene(false);
+                    setSceneStep(0);
+                    open('photos');
+                  }}
+                >
+                  ✨ 收好这段回忆，存入相册
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
