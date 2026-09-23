@@ -4,6 +4,7 @@ import type { PhoneInvitation } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Empty, Feedback, Links } from './common.tsx';
 import { dayKey, monthDays, shiftMonth, rescheduleAt, timeText } from './helpers.ts';
+import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
 const statusLabel = { proposed: '待确认邀约', confirmed: '已确认', cancelled: '已取消' };
 export function CalendarApp({ target, open }: PhoneAppContext) {
@@ -33,27 +34,49 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
     .sort((a, b) => a.at.localeCompare(b.at));
 
   return (
-    <div className={`${s.app} ${s.calendar}`}>
-      {/* 顶部三栏切换与新建日程入口 */}
+    <div className={`${s.app} ${s.calendar}`} style={{ background: '#f8fafc' }}>
+      {/* 顶部 iOS 原生红白日历导航栏 */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '6px 12px 10px',
+          padding: '8px 12px',
           borderBottom: '1px solid #e2e8f0',
           background: '#ffffff',
+          minHeight: '44px',
         }}
       >
+        <span style={{ fontSize: '16px', fontWeight: 700, color: '#ef4444' }}>
+          {month.replace('-', '年')}月
+        </span>
         <div className={s.segment} role="group" aria-label="日历视图" style={{ margin: 0 }}>
-          <button aria-pressed={tab === 'today'} onClick={() => setTab('today')}>
+          <button
+            aria-pressed={tab === 'today'}
+            onClick={() => {
+              playTapSound();
+              setTab('today');
+            }}
+          >
             今天
           </button>
-          <button aria-pressed={tab === 'calendar'} onClick={() => setTab('calendar')}>
+          <button
+            aria-pressed={tab === 'calendar'}
+            onClick={() => {
+              playTapSound();
+              setTab('calendar');
+            }}
+          >
             月历
           </button>
-          <button aria-pressed={tab === 'invitations'} onClick={() => setTab('invitations')}>
-            待确认 {pendingInvitations.length > 0 && `(${pendingInvitations.length})`}
+          <button
+            aria-pressed={tab === 'invitations'}
+            onClick={() => {
+              playTapSound();
+              setTab('invitations');
+            }}
+          >
+            待办{pendingInvitations.length > 0 ? ` (${pendingInvitations.length})` : ''}
           </button>
         </div>
 
@@ -61,21 +84,22 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
           <button
             type="button"
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              background: '#0284c7',
-              color: '#ffffff',
+              background: 'none',
               border: 'none',
-              fontSize: '13px',
-              fontWeight: 600,
+              color: '#ef4444',
+              fontSize: '24px',
+              fontWeight: 300,
               cursor: 'pointer',
+              lineHeight: 1,
+              padding: '2px 6px',
             }}
-            onClick={() => setShowCreateModal(true)}
+            title="添加新日程"
+            onClick={() => {
+              playTapSound();
+              setShowCreateModal(true);
+            }}
           >
-            + 发起邀约
+            +
           </button>
         )}
       </div>
@@ -298,6 +322,44 @@ function InvitationDetail({
   }
   return (
     <div className={`${s.app} ${s.invitation}`}>
+      {/* 顶部 iOS 原生日历返回导航 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '6px 12px',
+          borderBottom: '1px solid #e2e8f0',
+          background: '#ffffff',
+          minHeight: '44px',
+          margin: '-12px -12px 12px -12px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            playTapSound();
+            open('calendar');
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '2px',
+            background: 'none',
+            border: 'none',
+            color: '#ef4444',
+            fontSize: '15px',
+            fontWeight: 500,
+            cursor: 'pointer',
+            padding: '4px',
+          }}
+        >
+          <span style={{ fontSize: '18px', lineHeight: 1 }}>‹</span>
+          <span>日历</span>
+        </button>
+        <span style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>日程详情</span>
+        <div style={{ width: '40px' }} />
+      </div>
       <span className={s.invitationStatus}>{statusLabel[n.status]}</span>
       <h3>{n.title}</h3>
       <p className={s.invitationTime}>{timeText(n.at)}</p>

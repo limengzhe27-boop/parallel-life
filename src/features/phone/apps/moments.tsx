@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar } from './common.tsx';
+import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
 
 export type MomentComment = {
@@ -169,6 +170,7 @@ export function MomentsApp({ open }: PhoneAppContext) {
   };
 
   const handleToggleLike = (postId: string) => {
+    playTapSound();
     const next = posts.map((p) => {
       if (p.id !== postId) return p;
       const hasLiked = p.likes.includes('我');
@@ -182,6 +184,7 @@ export function MomentsApp({ open }: PhoneAppContext) {
 
   const handleAddComment = (postId: string) => {
     if (!commentText.trim()) return;
+    playTapSound();
     const newComment: MomentComment = {
       id: `c-${Date.now()}`,
       authorName: '我',

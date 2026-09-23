@@ -284,7 +284,7 @@ function LifePhone({
         </div>
       )}
       <div className={styles.unlockedContent} hidden={locked} inert={locked}>
-        {!isHome && route.app !== 'messages' && (
+        {route.panel && (
           <header className={styles.header}>
             <button
               className={styles.headerButton}

@@ -4,6 +4,7 @@ import type { PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Empty, Feedback, Links } from './common.tsx';
 import { dayKey } from './helpers.ts';
+import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
 const labels = {
   queued: '等待生成',
@@ -173,6 +174,46 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
 
     return (
       <div className={`${s.app} ${s.photoDetail}`}>
+        {/* 顶部 iOS 原生相册返回导航 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderBottom: '1px solid #f1f5f9',
+            background: '#ffffff',
+            minHeight: '44px',
+            margin: '-12px -12px 12px -12px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              playTapSound();
+              open('photos');
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2px',
+              background: 'none',
+              border: 'none',
+              color: '#0284c7',
+              fontSize: '15px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            <span style={{ fontSize: '18px', lineHeight: 1 }}>‹</span>
+            <span>图库</span>
+          </button>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
+            {index + 1} / {lifeMemories.length}
+          </span>
+          <div style={{ width: '40px' }} />
+        </div>
         <div className={s.photoHeading}>
           <time>{dayKey(photo.date)}</time>
           <h3>{photo.title}</h3>
@@ -269,13 +310,27 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
   const days = [...new Set(filteredPhotos.map((p) => dayKey(p.date)))];
 
   return (
-    <div className={s.app}>
-      <div className={s.sectionHeading}>
-        <h3>人生回忆图库</h3>
-        <small>{filteredPhotos.length} 个故事切片</small>
+    <div className={s.app} style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#ffffff' }}>
+      {/* 顶部 iOS 原生图库导航栏 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 14px',
+          borderBottom: '1px solid #f1f5f9',
+          background: '#ffffff',
+          minHeight: '44px',
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: '#0f172a' }}>图库</h2>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>
+            全部照片 · {filteredPhotos.length} 张回忆
+          </span>
+        </div>
+        <UploadPhoto />
       </div>
-
-      <UploadPhoto />
 
       {/* 人物筛选胶囊（对齐 Screen 05） */}
       {data.contacts.length > 0 && (

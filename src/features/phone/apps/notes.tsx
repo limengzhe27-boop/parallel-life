@@ -4,6 +4,7 @@ import type { PhoneContact } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { searchable, timeText } from './helpers.ts';
+import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
 /** Reserved navigation target, separate from opaque IDs via explicit prefix. */
 export const NEW_NOTE_TARGET = 'new-note';
@@ -63,23 +64,57 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           }
         }}
       >
-        <div className={s.noteToolbar}>
-          <span>{changed ? '未保存的草稿' : '已保存的便签'}</span>
+        {/* 顶部 iOS 原生备忘录金黄色导航栏 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderBottom: '1px solid #f1f5f9',
+            background: '#ffffff',
+            minHeight: '44px',
+            margin: '-12px -12px 12px -12px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              playTapSound();
+              open('notes');
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2px',
+              background: 'none',
+              border: 'none',
+              color: '#d97706',
+              fontSize: '15px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            <span style={{ fontSize: '18px', lineHeight: 1 }}>‹</span>
+            <span>备忘录</span>
+          </button>
+
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {note && actions.deleteNote && (
               <button
                 type="button"
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  background: '#fef2f2',
-                  color: '#dc2626',
-                  border: '1px solid #fecaca',
-                  fontSize: '12px',
-                  fontWeight: 600,
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '18px',
                   cursor: 'pointer',
+                  padding: '4px',
                 }}
+                title="删除"
                 onClick={async () => {
+                  playTapSound();
                   if (confirm('确定要删除这条便签吗？')) {
                     await actions.deleteNote!(note.id);
                     clearNoteDraft(key);
@@ -87,33 +122,30 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                   }
                 }}
               >
-                🗑️ 删除
+                🗑️
               </button>
             )}
             {data.contacts.length > 0 && (
               <button
                 type="button"
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  background: '#f0fdf4',
-                  color: '#15803d',
-                  border: '1px solid #bbf7d0',
-                  fontSize: '12px',
-                  fontWeight: 600,
+                  background: 'none',
+                  border: 'none',
+                  color: '#0284c7',
+                  fontSize: '18px',
                   cursor: 'pointer',
+                  padding: '4px',
                 }}
-                onClick={() =>
+                title="分享到微信"
+                onClick={() => {
+                  playTapSound();
                   setSharingNote({
                     title: draft.title || note?.title || '便签',
                     text: draft.text || note?.text || '',
-                  })
-                }
+                  });
+                }}
               >
-                💬 分享给TA
+                📤
               </button>
             )}
             <button
@@ -125,16 +157,73 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                 awaiting ||
                 !!conflict
               }
+              style={{
+                background: '#fef3c7',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+                borderRadius: '14px',
+                padding: '4px 12px',
+                fontWeight: 600,
+              }}
             >
               {operation?.busy
                 ? '保存中…'
                 : operation?.errorCode === 'UNKNOWN' && operation.signature === signature
-                  ? '确认重试保存'
-                  : isNew && operation?.status === 'committed' && changed
-                    ? '另存新便签'
-                    : '完成'}
+                  ? '重试保存'
+                  : '完成'}
             </button>
           </div>
+        </div>
+
+        {/* 备忘录快捷小工具栏：待办清单、时间戳 */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+          <button
+            type="button"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '8px',
+              background: '#fef3c7',
+              color: '#92400e',
+              border: '1px solid #fde68a',
+              fontSize: '12px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              playTapSound();
+              const prefix = draft.text && !draft.text.endsWith('\n') ? '\n' : '';
+              setNoteDraft(key, { ...draft, text: draft.text + prefix + '- [ ] ' });
+            }}
+          >
+            ☑️ 插入待办清单
+          </button>
+          <button
+            type="button"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '8px',
+              background: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #e2e8f0',
+              fontSize: '12px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              playTapSound();
+              const nowStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+              const prefix = draft.text && !draft.text.endsWith('\n') ? '\n' : '';
+              setNoteDraft(key, { ...draft, text: draft.text + prefix + `[${nowStr}] ` });
+            }}
+          >
+            🕒 插入时间
+          </button>
         </div>
         {note && <time className={s.noteDate}>{timeText(note.updatedAt)}</time>}
         <label className={s.srOnly} htmlFor="note-title">
@@ -262,20 +351,56 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     .filter((n) => searchable(query, n.title, n.text))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
-    <div className={`${s.app} ${s.notes}`}>
-      <div className={s.sectionHeading}>
-        <h3>所有便签</h3>
-        <button className={s.noteAction} onClick={() => open('notes', NEW_NOTE_TARGET)}>
-          新建便签
+    <div className={`${s.app} ${s.notes}`} style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8fafc' }}>
+      {/* 顶部 iOS 原生备忘录大标题栏 */}
+      <div
+        style={{
+          padding: '12px 14px 4px',
+          background: '#f8fafc',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            备忘录
+          </h2>
+          <span style={{ fontSize: '12px', color: '#d97706', fontWeight: 500 }}>
+            全部 iCloud ({notes.length})
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            playTapSound();
+            open('notes', NEW_NOTE_TARGET);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#d97706',
+            fontSize: '22px',
+            cursor: 'pointer',
+            padding: '2px',
+          }}
+          title="新建便签"
+        >
+          📝
         </button>
       </div>
-      <Search value={query} onChange={setQuery} label="搜索便签" />
+
+      <div style={{ padding: '4px 12px 8px' }}>
+        <Search value={query} onChange={setQuery} label="搜索便签" />
+      </div>
+
       {noteDrafts[NEW_NOTE_TARGET] && (
         <button className={s.draftRow} onClick={() => open('notes', NEW_NOTE_TARGET)}>
           继续未保存的新便签
         </button>
       )}
-      <div className={s.noteList}>
+
+      <div className={s.noteList} style={{ flex: 1, overflowY: 'auto' }}>
         {notes.map((n) => (
           <div key={n.id} style={{ position: 'relative' }}>
             <button onClick={() => open('notes', n.id)}>
@@ -349,6 +474,45 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           }}
         />
       )}
+      {/* 底部 iOS 原生备忘录金黄色工具栏 */}
+      <footer
+        style={{
+          height: '46px',
+          background: '#f8fafc',
+          borderTop: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 16px',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ width: '28px' }} />
+        <span style={{ fontSize: '12px', color: '#64748b' }}>
+          {notes.length} 篇备忘录
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            playTapSound();
+            open('notes', NEW_NOTE_TARGET);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#d97706',
+            fontSize: '22px',
+            cursor: 'pointer',
+            padding: '2px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          title="新建便签"
+        >
+          📝
+        </button>
+      </footer>
     </div>
   );
 }
