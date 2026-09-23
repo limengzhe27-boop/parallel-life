@@ -1180,6 +1180,125 @@ export function WorldPhoneSurface({
                   </div>
                 </div>
 
+                {/* 人物核心属性卡片（严格对齐 Screen 01） */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div
+                      style={{
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '20px',
+                        boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
+                      }}
+                    >
+                      我
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                          李孟哲
+                        </h3>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>29岁</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#0284c7', fontWeight: 600, marginTop: '2px' }}>
+                        独立主创建筑师 · 工作室合伙人
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: '#475569', lineHeight: 1.5, marginBottom: '12px' }}>
+                    📍 <strong>生活坐标：</strong>上海市静安区巨鹿路768号 · 老洋房工作室
+                  </div>
+
+                  {/* 随身物品与核心资产（对齐 Screen 01） */}
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>
+                      🎒 随身物品与资产
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>🔑</span> 老洋房铜质钥匙
+                      </div>
+                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>📐</span> 碳纤维圆规与速写本
+                      </div>
+                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>💍</span> 莫比乌斯对戒
+                      </div>
+                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>☕</span> 巨鹿路咖啡常客卡
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 大事件里程碑时间轴（严格对齐 Screen 02） */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>⏳</span> 人生里程碑时间轴
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative', paddingLeft: '16px' }}>
+                    <div style={{ position: 'absolute', left: '6px', top: '6px', bottom: '6px', width: '2px', background: '#e2e8f0' }} />
+
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>2022年 06月 · 起程</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>毕业设计斩获先锋建筑金奖</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                        在同济建筑馆告别导师顾院长，选择走属于自己的创作道路。
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>2023年 09月 · 破局</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>与林见夏成立独立工作室</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                        离开大型设计院流水线，租下第一间挑高阁楼，开启自主实践。
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>2025年 03月 · 落地</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>拿下巨鹿路老洋房改造案</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                        历经五轮竞标，把水刷石与光庭设计变为现实，奠定业界声誉。
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#16a34a' }}>● 此刻 · 2026年 09月</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>空间竣工，露台迎来初秋雨水</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                        沈棠策划的开幕展在即，生活在此刻拥有了从容而真实的呼吸节奏。
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 角色人脉网络（严格对齐 Screen 02） */}
                 <div>
                   <h4
                     style={{
@@ -1189,7 +1308,7 @@ export function WorldPhoneSurface({
                       color: '#1e293b',
                     }}
                   >
-                    👥 角色人脉图谱（共 {data.actors.length} 位）
+                    👥 核心人脉网络（共 {data.actors.length} 位）
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {data.actors.map((actor) => (
@@ -1203,6 +1322,7 @@ export function WorldPhoneSurface({
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '8px',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
                         }}
                       >
                         <div

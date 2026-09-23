@@ -13,6 +13,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [callNotice, setCallNotice] = useState<string | null>(null);
   const [callingContact, setCallingContact] = useState<PhoneContact | null>(null);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const messageScroll = useRef<HTMLDivElement>(null);
   const wasNearBottom = useRef(true);
   const lastScroll = useRef(0);
@@ -736,15 +737,38 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         <label className={s.srOnly} htmlFor={`compose-${actor.id}`}>
           消息内容
         </label>
-        <div className={s.composerRow}>
+        <div className={s.composerRow} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            title="发送语音"
+            style={{
+              background: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              borderRadius: '50%',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+            onClick={() => {
+              setDraft(key, '🎙️ [语音消息 8"] 孟哲，我刚忙完，晚点跟你碰头！');
+            }}
+          >
+            🎙️
+          </button>
           <textarea
             id={`compose-${actor.id}`}
-            rows={2}
+            rows={1}
             maxLength={4000}
             value={text}
             disabled={!!operation?.busy}
             onChange={(e) => setDraft(key, e.target.value)}
             placeholder={actions.sendMessage ? '发消息…' : '聊天尚未接通，可先写草稿'}
+            style={{ flex: 1, minHeight: '36px', maxHeight: '90px', borderRadius: '18px', padding: '8px 14px' }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -752,16 +776,207 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               }
             }}
           />
-          <button
-            className={s.green}
-            type="submit"
-            disabled={!actions.sendMessage || !text.trim() || disabled}
-          >
-            {operation?.errorCode === 'UNKNOWN' && operation.signature === text
-              ? '确认重试'
-              : '发送'}
-          </button>
+          {text.trim() ? (
+            <button
+              className={s.green}
+              type="submit"
+              disabled={!actions.sendMessage || disabled}
+              style={{
+                borderRadius: '16px',
+                padding: '6px 14px',
+                height: '36px',
+                fontSize: '14px',
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              {operation?.errorCode === 'UNKNOWN' && operation.signature === text
+                ? '重试'
+                : '发送'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              title="更多功能"
+              style={{
+                background: showPlusMenu ? '#e2e8f0' : '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                cursor: 'pointer',
+                color: '#475569',
+                flexShrink: 0,
+                lineHeight: 1,
+              }}
+              onClick={() => setShowPlusMenu((v) => !v)}
+            >
+              +
+            </button>
+          )}
         </div>
+
+        {/* 原生微信加号扩展面板（对齐 Screen 04） */}
+        {showPlusMenu && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: '12px',
+              padding: '14px 8px 6px',
+              borderTop: '1px solid #e2e8f0',
+              marginTop: '8px',
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setShowPlusMenu(false);
+                open('calendar');
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                }}
+              >
+                🗓️
+              </div>
+              <span style={{ fontSize: '11px', color: '#475569' }}>发起约定</span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setShowPlusMenu(false);
+                open('photos');
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                }}
+              >
+                🖼️
+              </div>
+              <span style={{ fontSize: '11px', color: '#475569' }}>相册回忆</span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setShowPlusMenu(false);
+                open('notes');
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                }}
+              >
+                📝
+              </div>
+              <span style={{ fontSize: '11px', color: '#475569' }}>生活便签</span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setShowPlusMenu(false);
+                setDraft(
+                  key,
+                  '📍 [位置分享] 上海市静安区巨鹿路768号 · 老洋房工作室（我在这边对方案，忙完随时过来～）',
+                );
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                }}
+              >
+                📍
+              </div>
+              <span style={{ fontSize: '11px', color: '#475569' }}>发送位置</span>
+            </button>
+          </div>
+        )}
+
         <Feedback operation={operation} success="消息已提交" />
         {!actions.sendMessage && <small>持续对话尚未接入，草稿仅在当前页面保留。</small>}
         <small className={s.hint}>按 Enter 发送 · Shift + Enter 换行</small>
