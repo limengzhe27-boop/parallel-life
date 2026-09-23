@@ -37,6 +37,17 @@ export async function runOne(
       promptVersion?: string;
       durationMs?: number;
     };
+    /*
+     * A swallowed handler error is undiagnosable: a domain rule violation and an
+     * upstream outage both surfaced as the same opaque "AI_FAILED". Log only
+     * operational metadata — never user text or upstream bodies.
+     */
+    const detail =
+      (error as Error)?.name === 'DomainError'
+        ? String((error as Error).message).slice(0, 120)
+        : ((error as { code?: string })?.code ??
+          (error as { code?: string; constraint?: string })?.constraint ??
+          (error as Error)?.name);
     const uncertain =
       combined.aborted || failure.code === 'TIMEOUT' || failure.code === 'UPSTREAM_FAILED';
     const outcome: TaskOutcome = {
@@ -47,12 +58,24 @@ export async function runOne(
           ? 'INVALID_AI_OUTPUT'
           : failure.code === 'TRUNCATED'
             ? 'AI_TRUNCATED'
-            : 'AI_FAILED',
+            : failure.code === 'INVALID_COMMAND'
+              ? 'INVALID_COMMAND'
+              : 'AI_FAILED',
       /* Keep failure diagnostics as observable as success: which model and prompt ran, and how long. */
       ...(failure.model ? { model: failure.model } : {}),
       ...(failure.promptVersion ? { promptVersion: failure.promptVersion } : {}),
       ...(typeof failure.durationMs === 'number' ? { durationMs: failure.durationMs } : {}),
     };
+    console.error(
+      JSON.stringify({
+        taskId: task.id,
+        kind: task.kind,
+        status: outcome.status,
+        errorCode: outcome.errorCode,
+        detail,
+        durationMs: Date.now(),
+      }),
+    );
     try {
       await queue.finish(task, outcome);
     } catch {

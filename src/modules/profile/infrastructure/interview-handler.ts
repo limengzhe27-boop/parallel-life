@@ -16,7 +16,7 @@ import {
   openQuestionInTransaction,
   questionTargetBlockedInTransaction,
 } from '../../memory/infrastructure/question-repository.ts';
-import { applyConfirmedCandidateInTransaction, isSimilarText } from './profile-repository.ts';
+import { isSimilarText } from './profile-repository.ts';
 const Input = z.strictObject({
   interviewId: Id,
   inputMessageId: Id,
@@ -110,16 +110,15 @@ export function interviewHandler(
         }
       }
 
-      // 3. 直接写入用户 Profile，状态直接确认为 confirmed，用户可在“我的”页面自由编辑与删除
+      // 3. 只登记为待确认候选（与流式路径一致）。
+      //    AI 只提出变更：候选必须先是 suggested，由用户在「我的」确认后才写入 Profile。
+      //    这里曾经直接写 confirmed，被记忆领域规则拒绝（“New memory candidates must
+      //    start as suggested”），导致每一次重试都整轮失败——用户只看到“这次没能完成回应”。
       for (const candidate of deduplicatedCandidates) {
         const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
         if (!(await hasUserSources(sql, lease.ownerId, input.interviewId, sourceMessageIds)))
           continue;
 
-        // 直接写入真实 Profile（内置相似度与历史防重保护）
-        await applyConfirmedCandidateInTransaction(sql, lease.ownerId, candidate);
-
-        // 同时以 confirmed 状态保留候选溯源审计记录
         await createCandidateInTransaction(sql, lease.ownerId, {
           id: randomUUID(),
           ownerId: lease.ownerId,
@@ -129,7 +128,7 @@ export function interviewHandler(
           text: candidate.text,
           eventDate: candidate.eventDate,
           sourceMessageIds,
-          status: 'confirmed',
+          status: 'suggested',
           createdAt: new Date().toISOString(),
         });
       }
