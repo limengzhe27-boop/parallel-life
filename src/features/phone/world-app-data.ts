@@ -10,19 +10,33 @@ export function worldAppData(
       id: actor.id,
       name: actor.name,
       relationship: actor.relationship,
+      summary: actor.summary,
       unread: world.messages.filter(
         (message) =>
           message.actorId === actor.id && message.role !== 'user' && !viewed.has(message.id),
       ).length,
     })),
-    messages: world.messages.map((message) => ({
-      id: message.id,
-      actorId: message.actorId,
-      text: message.text,
-      at: message.at,
-      role: message.role ?? 'assistant',
-      status: 'sent',
-    })),
+    messages: (() => {
+      const assistantMsgs = world.messages.filter((m) => m.role !== 'user');
+      const allSameTime =
+        assistantMsgs.length > 1 && assistantMsgs.every((m) => m.at === assistantMsgs[0]?.at);
+      const offsets = [3, 28, 110, 340];
+      return world.messages.map((message, index) => {
+        let displayAt = message.at;
+        if (allSameTime && message.role !== 'user') {
+          const offsetMinutes = offsets[index] ?? 340 + index * 60;
+          displayAt = new Date(Date.parse(message.at) - offsetMinutes * 60 * 1000).toISOString();
+        }
+        return {
+          id: message.id,
+          actorId: message.actorId,
+          text: message.text,
+          at: displayAt,
+          role: message.role ?? 'assistant',
+          status: 'sent',
+        };
+      });
+    })(),
     notes: world.notes.map((note, index) => ({
       ...note,
       id: `${world.id}:opening-note:${index}`,

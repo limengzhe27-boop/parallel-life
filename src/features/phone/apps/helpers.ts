@@ -30,6 +30,20 @@ export function rescheduleAt(value: string, original: string): string | null {
 export function timeText(iso: string): string {
   return iso ? iso.slice(0, 16).replace('T', ' ') : '';
 }
+export function formatChatTime(iso: string, referenceTime?: string): string {
+  if (!iso) return '';
+  const timePart = iso.slice(11, 16);
+  if (!referenceTime) return timePart;
+  const sameDay = iso.slice(0, 10) === referenceTime.slice(0, 10);
+  if (sameDay) {
+    const diffMs = Date.parse(referenceTime) - Date.parse(iso);
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins >= 0 && diffMins <= 2) return '刚刚';
+    if (diffMins > 2 && diffMins < 60) return `${diffMins}分钟前`;
+    return timePart;
+  }
+  return `${Number(iso.slice(5, 7))}月${Number(iso.slice(8, 10))}日`;
+}
 export function errorText(error: unknown): string {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : '';
   switch (code) {

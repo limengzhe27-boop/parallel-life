@@ -57,7 +57,14 @@ export const WorldPhoneSchema = z.strictObject({
   time: Timestamp,
   identity: z.string(),
   setting: z.string(),
-  actors: z.array(z.strictObject({ id: Id, name: z.string(), relationship: z.string() })),
+  actors: z.array(
+    z.strictObject({
+      id: Id,
+      name: z.string(),
+      relationship: z.string(),
+      summary: z.string().optional(),
+    }),
+  ),
   messages: z.array(
     z.strictObject({
       id: z.string(),

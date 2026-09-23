@@ -121,6 +121,7 @@ export class BuildRepository {
         id: a.id,
         name: a.name,
         relationship: metadata.opening.actors[index]?.relationship ?? '',
+        summary: metadata.opening.actors[index]?.persona ?? a.persona,
       })),
       messages: state.messages.map((m) => ({
         id: m.id,
