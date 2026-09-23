@@ -70,23 +70,25 @@ export function DiscoveryApp() {
   const task = data?.activeTask,
     waiting = task?.status === 'queued' || task?.status === 'running';
   useEffect(() => {
-    if (!waiting) return;
-    let live = true,
-      timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      try {
-        await load();
-      } catch (e) {
+    if (!waiting || !task?.id) return;
+    let live = true;
+    // 立即执行大模型分支推演，完成后自动刷新加载分支结果
+    void client
+      .task(task.id)
+      .then(() => {
+        if (live) void load();
+      })
+      .catch((e) => {
         if (live) setError(explain(e));
-      }
-      if (live) timer = setTimeout(poll, document.hidden ? 8000 : 2200);
-    };
-    timer = setTimeout(poll, 1600);
+      });
+    const timer = setInterval(() => {
+      if (live) void load().catch(() => {});
+    }, 2000);
     return () => {
       live = false;
-      clearTimeout(timer);
+      clearInterval(timer);
     };
-  }, [waiting, task?.id, load]);
+  }, [waiting, task?.id, client, load]);
   async function generate(text: string, basedOnId: string | null = null) {
     if (!data || !profile || busy || waiting) return false;
     setBusy(true);
@@ -111,6 +113,11 @@ export function DiscoveryApp() {
       const task = await client.discover(request);
       setData((current) => (current ? { ...current, activeTask: task } : current));
       pending.current = null;
+      // 只要用户发出生成分支命令，立刻触发模型推演并自动加载生成的分支
+      void client
+        .task(task.id)
+        .then(() => load())
+        .catch((e) => setError(explain(e)));
       return true;
     } catch (e) {
       setError(explain(e));
@@ -123,6 +130,74 @@ export function DiscoveryApp() {
       setBusy(false);
     }
   }
+
+  async function enterWorldForSeed(saved: ApprovedSeed) {
+    setBusy(true);
+    setError('');
+    try {
+      const existing = builds.find((b) => b.seedId === saved.id);
+      if (existing?.ready) {
+        window.location.assign(`/worlds/${existing.worldId}`);
+        return;
+      }
+      const build =
+        existing ??
+        (await client.createWorld({
+          commandId: crypto.randomUUID(),
+          seedId: saved.id,
+        }));
+      if (build.task?.id) {
+        await client.task(build.task.id);
+      }
+      window.location.assign(`/worlds/${build.worldId}`);
+    } catch (e) {
+      setError(explain(e));
+      setBusy(false);
+    }
+  }
+
+  async function enterWorldDirectly(direction: LifeDirection) {
+    if (!data || !profile || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const existingSeed = savedSeeds.find((s) => s.directionId === direction.id);
+      if (existingSeed) {
+        await enterWorldForSeed(existingSeed);
+        return;
+      }
+      const availableFactIds = profile.facts
+        .filter((f) => f.status === 'confirmed')
+        .map((f) => f.id);
+      const chosenFactIds = (direction.sources || [])
+        .map((s) => s.factId)
+        .filter((id) => availableFactIds.includes(id));
+
+      const seed = await client.approveSeed({
+        commandId: crypto.randomUUID(),
+        discoveryVersion: data.version,
+        profileVersion: profile.version,
+        directionId: direction.id,
+        factIds: chosenFactIds,
+        personIds: [],
+        includePortrait: false,
+      });
+
+      const build = await client.createWorld({
+        commandId: crypto.randomUUID(),
+        seedId: seed.id,
+      });
+
+      if (build.task?.id) {
+        await client.task(build.task.id);
+      }
+      window.location.assign(`/worlds/${build.worldId}`);
+    } catch (e) {
+      setError(explain(e));
+      setBusy(false);
+    }
+  }
+
   async function confirm(id: string) {
     if (!profile) return;
     setBusy(true);
@@ -205,18 +280,16 @@ export function DiscoveryApp() {
                 items={savedSeeds.map((saved) => ({
                   id: saved.id,
                   title: saved.story.title,
+                  ready: Boolean(builds.find((b) => b.seedId === saved.id)?.ready),
                   status: builds.find((b) => b.seedId === saved.id)?.ready ? '进入体验' : '待创建',
+                  imageUrl: saved.portraitAssetId
+                    ? `/api/v1/assets/${saved.portraitAssetId}`
+                    : undefined,
                 }))}
                 onOpen={(id) => {
                   const saved = savedSeeds.find((s) => s.id === id);
                   if (!saved) return;
-                  const build = builds.find((b) => b.seedId === id);
-                  if (build?.ready) {
-                    window.location.assign(`/worlds/${build.worldId}`);
-                    return;
-                  }
-                  setSeed(saved);
-                  setReceipt(true);
+                  void enterWorldForSeed(saved);
                 }}
               />
             )}
@@ -286,14 +359,11 @@ export function DiscoveryApp() {
                   </div>
                   <div>
                     <strong>
-                      {task?.status === 'queued' ? '你的想法已记下' : '正在寻找与你有关的可能'}
-                    </strong>
-                    <p>
                       {task?.status === 'queued'
-                        ? '轮到你时，会继续构想这段人生。'
-                        : '我们在想象不同的选择，也想想它们各自的取舍。'}
-                      关掉页面也不会丢失。
-                    </p>
+                        ? '正在构想平行人生分支…'
+                        : '正在寻找与你有关的可能'}
+                    </strong>
+                    <p>正在为你推演不同的选择与走向，马上就好。关掉页面也不会丢失。</p>
                   </div>
                   <Button variant="ghost" disabled={busy} onClick={() => void taskAction('cancel')}>
                     暂停
@@ -368,9 +438,9 @@ export function DiscoveryApp() {
                       <Button
                         className="direction-select"
                         disabled={busy || waiting || stale}
-                        onClick={() => setChoosing(direction)}
+                        onClick={() => void enterWorldDirectly(direction)}
                       >
-                        试试这条人生
+                        {busy ? '正在开启手机…' : '打开这部手机'}
                         <Icon name="arrow" size={16} />
                       </Button>
                       <Button

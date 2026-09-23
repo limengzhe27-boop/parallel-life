@@ -1,6 +1,7 @@
 .git
 .local
 .env*
+!.env.example
 node_modules
 .next
 coverage

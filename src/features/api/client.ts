@@ -21,6 +21,22 @@ import {
   type ProfileEdit,
   type ApiErrorBody,
 } from '../../contracts/api.ts';
+import {
+  InterviewQuestionActionSchema,
+  InterviewQuestionActionResultSchema,
+  InterviewQuestionListSchema,
+  MemoryCandidateDecisionSchema,
+  MemoryCandidateFromBranchSchema,
+  MemoryCandidateDecisionResultSchema,
+  MemoryCandidateListSchema,
+  type InterviewQuestionAction,
+  type MemoryCandidateDecision,
+  type MemoryCandidateFromBranch,
+} from '../../contracts/memory.ts';
+import {
+  WorldMessageReceiptSchema,
+  type WorldMessageRequest,
+} from '../../contracts/world-interaction.ts';
 export class ApiFailure extends Error {
   readonly code: ApiErrorBody['error']['code'];
   readonly requestId?: string;
@@ -119,6 +135,17 @@ export class LifeClient {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(id)}`, WorldPhoneSchema);
   }
+  async sendWorldMessage(worldId: string, input: WorldMessageRequest) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/messages`,
+      WorldMessageReceiptSchema,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+    );
+  }
   async seeds() {
     await this.connect();
     return this.request('/life-seeds', SeedListSchema);
@@ -150,6 +177,117 @@ export class LifeClient {
     return this.request('/interview/messages', InterviewSendResultSchema, {
       method: 'POST',
       body: JSON.stringify(input),
+    });
+  }
+  async sendStream(input: InterviewSend, onToken: (text: string) => void) {
+    await this.connect();
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    });
+    if (this.csrf) headers.set('X-CSRF-Token', this.csrf);
+    let response: Response;
+    try {
+      response = await this.transport('/api/v1/interview/messages', {
+        method: 'POST',
+        headers,
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(125000),
+      });
+    } catch {
+      throw new ApiFailure('UNAVAILABLE', '连接暂时中断，内容仍保留在这里。请再试一次。');
+    }
+    if (!response.ok) {
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        throw new ApiFailure('UNAVAILABLE', '暂时没有收到完整结果，请重试。');
+      }
+      const parsed = ApiErrorSchema.safeParse(body);
+      if (parsed.success)
+        throw new ApiFailure(
+          parsed.data.error.code,
+          parsed.data.error.message,
+          parsed.data.error.requestId,
+        );
+      throw new ApiFailure('UNAVAILABLE', '暂时无法完成，请稍后再试。');
+    }
+    if (!response.body) throw new ApiFailure('UNAVAILABLE', '暂时没有收到完整结果，请重试。');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result: z.infer<typeof InterviewSendResultSchema> | undefined;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() ?? '';
+        for (const block of blocks) {
+          const event = block.match(/^event:\s*(\w+)\s*$/m)?.[1];
+          const data = block.match(/^data:\s*(.+)$/m)?.[1];
+          if (!event || !data) continue;
+          let payload: unknown;
+          try {
+            payload = JSON.parse(data);
+          } catch {
+            throw new ApiFailure('UNAVAILABLE', '回应格式不完整，请重试。');
+          }
+          if (event === 'token') {
+            const text = (payload as { text?: unknown }).text;
+            if (typeof text === 'string') onToken(text);
+          } else if (event === 'error') {
+            const error = payload as { code?: string; message?: string };
+            throw new ApiFailure(
+              (error.code as ApiErrorBody['error']['code']) || 'UNAVAILABLE',
+              error.message || '这次回应没有完成，请再试一次。',
+            );
+          } else if (event === 'result') {
+            const parsed = InterviewSendResultSchema.safeParse(payload);
+            if (!parsed.success)
+              throw new ApiFailure('UNAVAILABLE', '暂时无法读取这份回应，请重试。');
+            result = parsed.data;
+          }
+        }
+        if (done) break;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    if (!result) throw new ApiFailure('UNAVAILABLE', '回应没有完整返回，请重试。');
+    return result;
+  }
+  async questions() {
+    await this.connect();
+    return this.request('/interview/questions', InterviewQuestionListSchema);
+  }
+  async questionAction(input: InterviewQuestionAction) {
+    await this.connect();
+    return this.request('/interview/questions', InterviewQuestionActionResultSchema, {
+      method: 'POST',
+      body: JSON.stringify(InterviewQuestionActionSchema.parse(input)),
+    });
+  }
+  async candidates(status?: 'suggested' | 'confirmed' | 'rejected') {
+    await this.connect();
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request(`/memory/candidates${query}`, MemoryCandidateListSchema);
+  }
+  async decideCandidate(input: MemoryCandidateDecision) {
+    await this.connect();
+    return this.request('/memory/candidates', MemoryCandidateDecisionResultSchema, {
+      method: 'POST',
+      body: JSON.stringify(MemoryCandidateDecisionSchema.parse(input)),
+    });
+  }
+  async proposeCandidateFromBranch(input: MemoryCandidateFromBranch) {
+    await this.connect();
+    return this.request('/memory/candidates', MemoryCandidateDecisionResultSchema, {
+      method: 'POST',
+      body: JSON.stringify(MemoryCandidateFromBranchSchema.parse(input)),
     });
   }
   async editProfile(input: ProfileEdit) {
@@ -211,7 +349,7 @@ export class LifeClient {
       if (error instanceof ApiFailure && error.code === 'INVALID_INPUT')
         throw new ApiFailure(
           error.code,
-          '请使用完整的 JPG、PNG 或 WebP 照片，大小不超过 8MB。',
+          '请使用完整的 JPG、PNG 或 WebP 照片，大小不超过 4MB。',
           error.requestId,
         );
       throw error;

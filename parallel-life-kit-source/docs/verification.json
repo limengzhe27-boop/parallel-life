@@ -1,0 +1,57 @@
+{
+  "verified_at": "2026-09-22T10:58:02.196316+00:00",
+  "git_branch": "codex/initial",
+  "runtime_mode": "live only",
+  "providers": {
+    "text": "doubao-seed-2-0-lite-260215",
+    "image": "doubao-seedream-4-5-251128",
+    "endpoint": "https://ark.cn-beijing.volces.com/api/v3"
+  },
+  "test_command": ".venv/bin/python -m pytest -q",
+  "test_exit_status": 0,
+  "test_literal_output": "........................................................................ [ 51%]\n...................................................................      [100%]\n=============================== warnings summary ===============================\n.venv/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /Users/haoxuanche/Documents/ChatGPT/记忆模块分析/parallel-life-kit/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n.venv/lib/python3.12/site-packages/starlette/testclient.py:53\n  /Users/haoxuanche/Documents/ChatGPT/记忆模块分析/parallel-life-kit/.venv/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.\n    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n139 passed, 2 warnings in 0.44s\n",
+  "backend_lines": 1783,
+  "module_lines": {
+    "store.py": 111,
+    "world.py": 318,
+    "config.py": 59,
+    "models.py": 181,
+    "interaction.py": 311,
+    "memory.py": 180,
+    "__init__.py": 14,
+    "api.py": 253,
+    "providers.py": 221,
+    "life.py": 135
+  },
+  "ui_lines": 658,
+  "real_acceptance": {
+    "initial_journey": "evidence/live-journey-initial.json",
+    "browser_post_fix": "evidence/browser-journey.json",
+    "compression_restart_recall": "evidence/live-memory.json",
+    "lifecycle_rollback": "evidence/lifecycle.json"
+  },
+  "baseline_findings": [
+    "Existing Yibu credential returned HTTP 401; switched to user-requested GameGen Ark configuration.",
+    "First live story could describe movement absent from state; fixed with explicit choice move_to and state-grounded next-scene prompts.",
+    "A live decision emitted null for an unused field; normalize only optional null strings, preserve strict action validation."
+  ],
+  "validated_behaviors": [
+    "Real interview and 3 counterfactual branches",
+    "3 distinct scoped character decisions per turn",
+    "Real Seedream images persisted (initial image 1049058 bytes JPEG)",
+    "Narrative proposals remain proposals; user chooses direction and confirms next chapter",
+    "Source-backed memory, private scope filtering, correction/forget tests",
+    "35 constructed test messages compressed with real model; DB reopen recalls old preference not in latest20",
+    "Duplicate turn replay returns persisted result without another world update",
+    "Rollback stops only new service; old services and source hashes unchanged"
+  ],
+  "limitations": [
+    "Local demo trusts user_id; production auth must be provided by host.",
+    "Lexical Chinese recall; no embedding search.",
+    "Narrative semantic consistency remains probabilistic; deterministic state/visibility checks do not prove all prose true.",
+    "Image appearance consistency is prompt-based.",
+    "First complete journey was API-driven; browser used its confirmed fixture and performed another branch-generation/selection/scene progression against real providers.",
+    "The 35-message compression test used constructed evidence, not 35 paid conversational turns."
+  ],
+  "fixture_notice": "All saved test biographies are explicitly fictional fixtures, not the user biography."
+}

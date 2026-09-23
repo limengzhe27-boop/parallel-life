@@ -6,6 +6,8 @@ export const emptyWorkspace: InterviewWorkspace = {
     version: 0,
     messages: [],
     activeTask: null,
+    openQuestion: null,
+    blockedTargets: [],
   },
   profile: {
     id: 'dafb09e5-9379-47fb-8f3a-a9e6302d2b30',

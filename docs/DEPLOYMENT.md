@@ -1,21 +1,42 @@
 # 部署接续
 
+## 常驻发布规则（用户 2026-09-23 要求）
+
+**每完成一项交付就部署上线并实测，不再积累到"以后再发"。**
+
+发布步骤（按顺序，缺一步不算完成）：
+
+1. `npm run check` 与 `npm run build` 通过；产品界面改动同时检查手机与 PC。
+2. 确认生产库迁移已应用：生产为 Supabase，管理员连接在忽略文件 `.local/supabase.env`（`SUPABASE_DB_URL`）。比对 `public.pl_migrations` 与 `db/migrations/` 的文件校验和；有未应用项时先用 `migrate(client)` 应用，不跳库、不复用其他项目库。
+3. **提交身份必须是 Vercel 账号已关联的身份**，否则 Git 触发的部署会被 BLOCKED（"the commit author doesn't have permission to create deployments"）：
+   `git -c user.name=limengzhe27-boop -c user.email=255650132+limengzhe27-boop@users.noreply.github.com commit ...`
+   历史上 `李孟哲 <limengzhe@limengzhedeMacBook-Pro.local>` 提交的部署被拒（dpl_H29St8Lm…，BLOCKED）。
+4. 推送 `main` 触发 Vercel 构建（项目 `parallel-life`，team `limengzhe27-boops-projects`）；必要时用 `vercel --prod`。不要修改生产环境变量；`APP_PREVIEW_ONLY` 必须保持 `0`。
+5. 部署 READY 后在 https://parallel-life-nu.vercel.app 实测关键流程：`/api/health`、`POST /api/v1/session`、新接口存在性（返回 401/422 而不是 404）、以及本次改动对应的真实功能。
+6. 把版本号/部署 ID、实测结果和未验证项写回本文件与任务报告；未上线的改动必须在报告里明说。
+
 2026-09-22，用户已要求上传GitHub并部署。代码仓库为私有仓库：
 https://github.com/limengzhe27-boop/parallel-life
 
 用户已选择Vercel网页预览，地址为 https://parallel-life-nu.vercel.app 。独立项目parallel-life已连接GitHub仓库，Production和Preview均配置APP_PREVIEW_ONLY=1。云数据库、Worker与持久私有存储尚未接入。网页明确展示预览提示，保存与AI发送禁用，业务API返回503；本地完整模式不受影响。
 
+> 上段为 2026-09-22 的历史记录。2026-09-23 起生产已接入 Supabase（`APP_DATABASE_URL`/`WORKER_DATABASE_URL`）、私有素材桶与真实模型网关，`APP_PREVIEW_ONLY` 已置 `0`，公网为可用真实后端；迁移 0001–0016 已在 Supabase 应用且校验和一致。
+
 ## 完整运行需要
 
-1. 独立PostgreSQL，迁移0001至0006及pl_app/pl_worker运行角色。现有db:migrate只面向本地开发库，生产迁移入口需按托管目标适配，不能直接套用本地脚本。
+1. 独立PostgreSQL，迁移0001至0016及pl_app/pl_worker运行角色。当前部署目标改为Supabase Postgres；生产迁移仍需使用管理员连接执行，Web/Worker只使用受限角色。
 2. Next.js网页/API服务，HTTPS域名和与其一致的APP_ORIGIN。SESSION_SECRET在平台密钥管理中单独生成。
 3. 常驻Worker，使用WORKER_DATABASE_URL，与Web分开启动。普通Vercel函数不能直接运行现有持续循环Worker。
-4. 私有素材持久磁盘或对象存储。当前PrivateDiskStore面向持久磁盘，Vercel临时文件系统不能作为永久照片存储；如采用Vercel必须配套独立存储适配。
+4. 私有素材对象存储。当前已增加Supabase Storage私有桶适配器；Vercel临时文件系统不能作为永久照片存储。
 5. 模型配置由服务端密钥注入，不能提交.env.local或把本地数据库地址用于生产。网关后台启动曾被自动审批拒绝，具体资料外传确认仍见D-06，不把“上传部署”自行等同于该项已确认。
 
 ## 当前选项
 
 - 用户提供独立服务器/云平台：准备对应Web、数据库、Worker与持久存储部署，实际验证后交付完整地址。
 - 用户选择Vercel网页预览：仅发布可预览界面，并明确未接后端；不能称为完整产品部署。
+
+## Supabase配置
+
+服务端需要配置 `SUPABASE_URL`、Supabase 当前的 `SUPABASE_SECRET_KEY`（旧项目可用 `SUPABASE_SERVICE_ROLE_KEY`）和 `SUPABASE_STORAGE_BUCKET=private-assets`。Secret/Service Role Key 只能放在Vercel/Worker服务端环境，不能进入浏览器。Supabase桶保持Private，应用通过自己的资产归属校验后由服务端读取对象。
 
 当前未新建付费云资源、未迁移本地用户资料、未上传密钥或用户照片。此次GitHub上传检查194个被跟踪文件及552个历史对象，未发现当前环境密钥；.local与.env.local未被跟踪。

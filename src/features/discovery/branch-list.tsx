@@ -4,6 +4,8 @@ export interface BranchEntry {
   id: string;
   title: string;
   status: string;
+  ready?: boolean;
+  imageUrl?: string;
 }
 export function BranchList({
   items,
@@ -14,7 +16,10 @@ export function BranchList({
 }) {
   return (
     <section className="saved-lives" aria-label="我的人生分支">
-      <h2 className="branch-section-label">全部 {items.length}</h2>
+      <div className="branch-section-label">
+        <strong>我的分支</strong>
+        <span>{items.length}</span>
+      </div>
       {items.map((item) => (
         <button
           type="button"
@@ -24,11 +29,13 @@ export function BranchList({
           aria-label={`${item.title}，${item.status}`}
         >
           <span className="saved-life-icon">
-            <Icon name="photo" size={26} />
+            {item.imageUrl ? <img src={item.imageUrl} alt="" /> : <Icon name="photo" size={26} />}
           </span>
           <span>
             <strong>{item.title}</strong>
-            <small>{item.status}</small>
+            <small className={item.ready ? 'branch-status-ready' : 'branch-status-pending'}>
+              {item.status}
+            </small>
           </span>
           <Icon name="chevron" size={18} />
         </button>

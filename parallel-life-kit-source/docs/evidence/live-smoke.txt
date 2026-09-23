@@ -1,0 +1,21 @@
+GET /api/health 200
+POST /api/interview 200
+POST /api/profiles/03b034c476ff49b09e9930e8c51316c9/confirm 200
+POST /api/profiles/03b034c476ff49b09e9930e8c51316c9/branches 200
+POST /api/branches/d9260b46b701436c80c776b8e30febd4/enter 200
+POST /api/branches/d9260b46b701436c80c776b8e30febd4/interact 200
+POST /api/branches/d9260b46b701436c80c776b8e30febd4/interact 200
+GET /api/branches/d9260b46b701436c80c776b8e30febd4/decisions 200
+GET /api/jobs/36d294e769853dec3c5e4467e61d2c12 200
+GET /api/jobs/36d294e769853dec3c5e4467e61d2c12 200
+GET /api/jobs/36d294e769853dec3c5e4467e61d2c12 200
+GET /api/jobs/36d294e769853dec3c5e4467e61d2c12 200
+GET /api/jobs/49d573dff6d584421a1cc6e8865eed86 200
+GET /api/jobs/896ab902559d4b3b21e31be608bf712b 200
+GET /api/jobs/2110ffdd33d80121611e6e77f9925f82 200
+GET /api/branches/d9260b46b701436c80c776b8e30febd4/memories 200
+GET /api/branches/d9260b46b701436c80c776b8e30febd4/memories 200
+GET /api/branches/d9260b46b701436c80c776b8e30febd4/memories 200
+POST /api/branches/d9260b46b701436c80c776b8e30febd4/interact 200
+POST /api/branches/d9260b46b701436c80c776b8e30febd4/advance 200
+PASS real biography -> branches -> 3 agents -> memory -> image -> chapter

@@ -9,7 +9,19 @@ export class LeaseLost extends Error {
 export class PostgresTaskQueue {
   readonly pool: pg.Pool;
   constructor(url: string) {
-    this.pool = new pg.Pool({ connectionString: url, max: 4, connectionTimeoutMillis: 4000 });
+    let connectionString = url;
+    let ssl: { rejectUnauthorized: boolean } | undefined;
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname !== '127.0.0.1' && parsed.hostname !== 'localhost') {
+        parsed.searchParams.delete('sslmode');
+        connectionString = parsed.toString();
+        ssl = { rejectUnauthorized: false };
+      }
+    } catch {
+      /* Fallback to raw connection string if parsing fails. */
+    }
+    this.pool = new pg.Pool({ connectionString, ssl, max: 4, connectionTimeoutMillis: 10000 });
     this.pool.on('error', () => {});
   }
   async claim(kinds: string[]): Promise<TaskLease | null> {

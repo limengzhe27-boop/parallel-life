@@ -7,6 +7,10 @@ import {
   ProfileEditSchema,
   WorldFactSchema,
 } from '../src/contracts/api.ts';
+import {
+  InterviewQuestionActionSchema,
+  MemoryCandidateFromBranchSchema,
+} from '../src/contracts/memory.ts';
 
 test('write contract refuses caller identity and oversize or empty text', () => {
   const input = { commandId: randomUUID(), expectedVersion: 0, text: '喜欢摄影' };
@@ -18,6 +22,44 @@ test('write contract refuses caller identity and oversize or empty text', () => 
     { ...input, expectedVersion: -1 },
   ])
     assert.equal(InterviewSendSchema.safeParse(bad).success, false);
+});
+test('interview answer binding requires both question id and question version', () => {
+  const input = { commandId: randomUUID(), expectedVersion: 2, text: '继续聊' };
+  assert.equal(
+    InterviewSendSchema.safeParse({ ...input, questionId: randomUUID() }).success,
+    false,
+  );
+  assert.equal(InterviewSendSchema.safeParse({ ...input, questionVersion: 0 }).success, false);
+  assert.equal(
+    InterviewSendSchema.safeParse({
+      ...input,
+      questionId: randomUUID(),
+      questionVersion: 0,
+    }).success,
+    true,
+  );
+});
+test('interview question actions support explicit topic blocking', () => {
+  const action = InterviewQuestionActionSchema.safeParse({
+    commandId: randomUUID(),
+    questionId: randomUUID(),
+    expectedVersion: 0,
+    action: 'block',
+  });
+  assert.equal(action.success, true);
+});
+test('branch writeback requires explicit first consent', () => {
+  const input = {
+    commandId: randomUUID(),
+    branchMemoryId: 'branch-memory-1',
+    category: 'wish',
+    userConsented: true,
+  };
+  assert.equal(MemoryCandidateFromBranchSchema.safeParse(input).success, true);
+  assert.equal(
+    MemoryCandidateFromBranchSchema.safeParse({ ...input, userConsented: false }).success,
+    false,
+  );
 });
 test('interview task is valid without world id and hides lease/owner', () => {
   const task = {

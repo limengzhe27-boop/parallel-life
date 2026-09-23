@@ -1,0 +1,79 @@
+{
+  "date": "2026-09-22",
+  "runtime": "live providers only",
+  "reply_model": "doubao-seed-character-260628",
+  "routing_review_memory": "doubao-seed-2-0-lite-260215",
+  "image_model": "doubao-seedream-4-5-251128",
+  "unit_tests": 385,
+  "intermediate_live_turns": 13,
+  "final_deletion_review_live_turns": 5,
+  "memory_checks": {
+    "recent_count": 20,
+    "summary_count": 4,
+    "raw_preserved": 28,
+    "secret_absent_from_other_actor_payload": true,
+    "correction_id": "3c4bd5c373914563b827aea8eea98073",
+    "forgotten_source_absent_from_context": true,
+    "duplicate_request_no_calls_or_messages": true,
+    "world_version_unchanged": true,
+    "all_replies_done": true
+  },
+  "browser_pure_image": {
+    "http_status": 200,
+    "reply_status": "not_requested",
+    "reply_attempts": 0,
+    "image_status": "done",
+    "image_attempts": 1,
+    "resolution": [
+      2048,
+      2048
+    ]
+  },
+  "retained_failures": [
+    "early persona/goal drift",
+    "free review added old task",
+    "image dialogue malformed issues and rejected draft"
+  ],
+  "fixes": [
+    "scoped topic state and voice card",
+    "strict deletion-only review",
+    "pure image operation separate from role speech",
+    "image status label follows current job; unit checked after browser run",
+    "sentence segmentation preserves raw draft; no regex or keyword content deletion"
+  ],
+  "limits": [
+    "model prose can still invent details",
+    "mixed image/chat may return explicit reply failure",
+    "production needs host authentication"
+  ],
+  "evidence_local": "output/dialogue-complete/verification.json",
+  "original_user_saves": "not replaced by acceptance copies",
+  "continuous_isolated_journey": {
+    "user_turns": 23,
+    "reply_status_counts": {
+      "done": 21,
+      "failed": 1,
+      "not_requested": 1
+    },
+    "across_implementation_revisions": true,
+    "not_23_final_version_passes": true
+  },
+  "other_persona_migration": {
+    "turns": 2,
+    "live_calls": 8,
+    "all_calls_completed": true,
+    "private_secret_absent": true,
+    "no_world_or_image_effects": true,
+    "remaining_defect": "Offered sugar water after user asked for no suggestions"
+  },
+  "same_model_factorial_probe": {
+    "calls": 4,
+    "all_http_200": true,
+    "conditions": "old/new assembly x original repeated/no history",
+    "reviewer": false,
+    "derived_role_card_and_topic_state": false,
+    "sample_per_condition": 1,
+    "new_with_old_history_still_returns_to_art_assessment": true,
+    "quality_acceptance": false
+  }
+}

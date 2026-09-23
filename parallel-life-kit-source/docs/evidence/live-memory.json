@@ -1,0 +1,59 @@
+{
+  "provider": "live Ark",
+  "fixture_messages": 35,
+  "raw_messages_after_compression": 35,
+  "recent_messages": 20,
+  "reopened_database": true,
+  "summaries": [
+    {
+      "id": "533e078ff3b43e8c79c96fa97422d67a",
+      "user_id": "synthetic-memory-check",
+      "branch_id": "compression-check",
+      "actor_id": "c1",
+      "kind": "summary",
+      "key": "chunk:fixture-0",
+      "text": "用户：我最喜欢雨后松木的气味，请记住这件事。第1到9条测试原文均为：我们今天在画室讨论构图练习。",
+      "source_type": "summary",
+      "source_ids": [
+        "fixture-0",
+        "fixture-1",
+        "fixture-2",
+        "fixture-3",
+        "fixture-4",
+        "fixture-5",
+        "fixture-6",
+        "fixture-7",
+        "fixture-8",
+        "fixture-9"
+      ],
+      "status": "active",
+      "importance": 0.5,
+      "created_at": 1790074256.8310962
+    },
+    {
+      "id": "b9aab8c26a8e7e31a44f82538772f142",
+      "user_id": "synthetic-memory-check",
+      "branch_id": "compression-check",
+      "actor_id": "c1",
+      "kind": "summary",
+      "key": "chunk:fixture-10",
+      "text": "第10条测试原文：我们今天在画室讨论构图练习。\n第11条测试原文：我们今天在画室讨论构图练习。\n第12条测试原文：我们今天在画室讨论构图练习。\n第13条测试原文：我们今天在画室讨论构图练习。\n第14条测试原文：我们今天在画室讨论构图练习。",
+      "source_type": "summary",
+      "source_ids": [
+        "fixture-10",
+        "fixture-11",
+        "fixture-12",
+        "fixture-13",
+        "fixture-14"
+      ],
+      "status": "active",
+      "importance": 0.5,
+      "created_at": 1790074259.268832
+    }
+  ],
+  "reply": {
+    "text": "当然记得啦，你说过你最喜欢雨后松木的气味，我记下来了哦。",
+    "image_prompt": null
+  },
+  "note": "Constructed evidence fixture; real model compression and post-restart reply."
+}

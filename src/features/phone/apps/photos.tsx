@@ -57,10 +57,10 @@ function UploadPhoto() {
           setError('');
           if (
             !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
-            file.size > 8 * 1024 * 1024 ||
+            file.size > 4 * 1024 * 1024 ||
             file.size === 0
           ) {
-            setError('请选择 8MB 以内的 JPG、PNG 或 WebP 图片。');
+            setError('请选择 4MB 以内的 JPG、PNG 或 WebP 图片。');
             return;
           }
           const selection = { file, signature: crypto.randomUUID() };
@@ -88,7 +88,7 @@ function UploadPhoto() {
           operation?.errorCode === 'INVALID_INPUT'
             ? {
                 ...operation,
-                error: '无法读取这张图片，请重新选择 JPG、PNG 或 WebP 图片（不超过 8MB）。',
+                error: '无法读取这张图片，请重新选择 JPG、PNG 或 WebP 图片（不超过 4MB）。',
               }
             : operation
         }

@@ -13,6 +13,10 @@ export const ErrorCode = z.enum([
   'IDEMPOTENCY_CONFLICT',
   'BUSY',
   'RATE_LIMITED',
+  'FORBIDDEN',
+  'CONFLICT',
+  'INVALID_STATE',
+  'INVALID_COMMAND',
   'UNAVAILABLE',
   'AI_FAILED',
   'AI_TIMEOUT',
@@ -141,18 +145,38 @@ export const InterviewMessageSchema = z.strictObject({
   createdAt: Timestamp,
   taskId: Id.nullable(),
 });
+export const InterviewQuestionTargetSchema = z.enum([
+  'identity',
+  'interest',
+  'personality',
+  'relationship',
+  'experience',
+  'wish',
+]);
 export const InterviewSchema = z.strictObject({
   id: Id,
   version: Version,
   messages: z.array(InterviewMessageSchema).max(200),
   activeTask: TaskSchema.nullable(),
+  openQuestion: z.strictObject({ id: Id, version: Version }).nullable(),
+  blockedTargets: z.array(InterviewQuestionTargetSchema).max(6),
 });
 export type Interview = z.infer<typeof InterviewSchema>;
-export const InterviewSendSchema = z.strictObject({
-  commandId: Id,
-  expectedVersion: Version,
-  text: z.string().trim().min(1).max(4000),
-});
+export const InterviewSendSchema = z
+  .strictObject({
+    commandId: Id,
+    expectedVersion: Version,
+    text: z.string().trim().min(1).max(4000),
+    questionId: Id.optional(),
+    questionVersion: Version.optional(),
+  })
+  .superRefine((input, ctx) => {
+    if ((input.questionId === undefined) !== (input.questionVersion === undefined))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'questionId and questionVersion must be provided together',
+      });
+  });
 export type InterviewSend = z.infer<typeof InterviewSendSchema>;
 export const InterviewSendResultSchema = z.strictObject({
   task: TaskSchema,
@@ -165,7 +189,7 @@ export const InterviewWorkspaceSchema = z.strictObject({
 export type InterviewWorkspace = z.infer<typeof InterviewWorkspaceSchema>;
 export const RetryTaskSchema = z.strictObject({ commandId: Id });
 
-/** These world contracts are targets; they do not imply any implemented world HTTP route. */
+/** World projections are read-only display contracts; write commands live with each feature route. */
 const Visibility = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('owner') }),
   z.strictObject({ kind: z.literal('world') }),

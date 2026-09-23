@@ -1,0 +1,47 @@
+[
+  {
+    "command": ".venv/bin/python scripts/rollback.py",
+    "exit_status": 0,
+    "stdout": "Stopped Parallel Life Kit; original projects and data unchanged\n",
+    "stderr": ""
+  },
+  {
+    "check": "rollback closes 8108",
+    "result": true
+  },
+  {
+    "check": "original service 8070 still reachable",
+    "status": 404
+  },
+  {
+    "check": "original service 8099 still reachable",
+    "status": 200
+  },
+  {
+    "check": "existing JoyAI/GameGen/overlay file hashes unchanged",
+    "result": true
+  },
+  {
+    "command": ".venv/bin/python scripts/manage.py start",
+    "exit_status": 0,
+    "stdout": "Ready: http://127.0.0.1:8108\n",
+    "stderr": ""
+  },
+  {
+    "check": "restart health",
+    "result": {
+      "mode": "live",
+      "configured": true,
+      "image_configured": true,
+      "chat_model": "doubao-seed-2-0-lite-260215",
+      "image_model": "doubao-seedream-4-5-251128",
+      "authentication": "local_demo_only"
+    }
+  },
+  {
+    "check": "persisted chapter after restart",
+    "version": 3,
+    "chapter": 2,
+    "location": "城中心街角老画室"
+  }
+]

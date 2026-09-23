@@ -879,6 +879,16 @@ h2 {
   font-size: 12px;
   color: var(--accent);
 }
+.proposal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.proposal-actions .button {
+  width: 100%;
+  font-size: 13px;
+}
 .proposal-stale,
 .proposal-invitation p {
   font-size: 12px;
@@ -889,6 +899,9 @@ h2 {
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: 16px;
+}
+.proposal-invitation .button + .button {
+  margin-top: 0;
 }
 .proposal-invitation .button {
   margin-top: 12px;

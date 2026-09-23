@@ -48,7 +48,7 @@ export class AssetRepository {
     bytes: Buffer,
     album?: { worldId: string; commandId: string; title: string },
   ) {
-    if (!bytes.length || bytes.length > 8 * 1024 * 1024) throw new TaskError('INVALID_INPUT');
+    if (!bytes.length || bytes.length > 4 * 1024 * 1024) throw new TaskError('INVALID_INPUT');
     let data: Buffer, width: number, height: number;
     try {
       const image = sharp(bytes, { limitInputPixels: 25_000_000, failOn: 'warning' }),

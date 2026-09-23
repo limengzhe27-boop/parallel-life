@@ -1,7 +1,108 @@
 import { randomUUID } from 'node:crypto';
 import { ProfileSchema, ProfileEditSchema, type ProfileEdit } from '../../../contracts/api.ts';
+import type { MemoryCandidate } from '../../../contracts/memory.ts';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
+
+/**
+ * Apply a user-confirmed memory candidate while holding the profile row lock.
+ * Candidate confirmation calls this inside its own transaction so the candidate
+ * cannot become confirmed without the corresponding reality-profile update.
+ */
+function cleanForMatch(s: string) {
+  return s.replace(/[，。！？、；：“”‘’\s,.!?;:'"]/g, '').toLowerCase();
+}
+
+export function isSimilarText(a: string, b: string): boolean {
+  const ca = cleanForMatch(a);
+  const cb = cleanForMatch(b);
+  if (ca === cb) return true;
+  if (!ca || !cb) return false;
+  if (ca.includes(cb) || cb.includes(ca)) return true;
+  const setA = new Set(ca);
+  const setB = new Set(cb);
+  let intersection = 0;
+  for (const char of setA) {
+    if (setB.has(char)) intersection++;
+  }
+  const minLen = Math.min(setA.size, setB.size);
+  // 对于具有一定长度的经历陈述，字集交集超过50%即判定为语义同质描述
+  return minLen >= 4 && intersection / minLen >= 0.5;
+}
+
+export async function applyConfirmedCandidateInTransaction(
+  sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
+  ownerId: string,
+  candidate: Pick<MemoryCandidate, 'category' | 'text' | 'eventDate' | 'sourceMessageIds'>,
+  now = new Date().toISOString(),
+) {
+  const row = (
+    await sql.query(
+      'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',
+      [ownerId],
+    )
+  ).rows[0];
+  if (!row) throw new TaskError('NOT_FOUND');
+  const profile = ProfileSchema.parse({ ...row.document, version: Number(row.version) });
+  if (candidate.category === 'experience') {
+    if (candidate.text.length > 120) throw new TaskError('INVALID_INPUT');
+    const date = candidate.eventDate ?? null;
+    const existing = profile.events.find(
+      (event) =>
+        (event.title === candidate.text || isSimilarText(event.title, candidate.text)) &&
+        (event.date === date || !event.date || !date),
+    );
+    if (existing) {
+      if (!existing.date && date) existing.date = date;
+      existing.sourceMessageIds = [
+        ...new Set([...existing.sourceMessageIds, ...candidate.sourceMessageIds]),
+      ].slice(0, 20);
+    } else {
+      if (profile.events.length >= 100) throw new TaskError('INVALID_INPUT');
+      profile.events.push({
+        id: randomUUID(),
+        title: candidate.text,
+        date,
+        feeling: null,
+        sourceMessageIds: candidate.sourceMessageIds.slice(0, 20),
+      });
+    }
+  } else {
+    if (candidate.text.length > 500) throw new TaskError('INVALID_INPUT');
+    const existing = profile.facts.find(
+      (fact) =>
+        fact.category === candidate.category &&
+        (fact.value === candidate.text || isSimilarText(fact.value, candidate.text)) &&
+        fact.status !== 'rejected',
+    );
+    if (existing) {
+      existing.status = 'confirmed';
+      existing.sourceMessageIds = [
+        ...new Set([...existing.sourceMessageIds, ...candidate.sourceMessageIds]),
+      ].slice(0, 20);
+      existing.updatedAt = now;
+    } else {
+      if (profile.facts.length >= 200) throw new TaskError('INVALID_INPUT');
+      profile.facts.push({
+        id: randomUUID(),
+        category: candidate.category,
+        value: candidate.text,
+        status: 'confirmed',
+        sourceMessageIds: candidate.sourceMessageIds.slice(0, 20),
+        updatedAt: now,
+      });
+    }
+  }
+  profile.version = Number(row.version) + 1;
+  profile.updatedAt = now;
+  const validated = ProfileSchema.parse(profile);
+  await sql.query(
+    'UPDATE parallel_life.profiles SET version=$2,document=$3,updated_at=now() WHERE owner_id=$1',
+    [ownerId, profile.version, validated],
+  );
+  return validated;
+}
+
 export class ProfileRepository {
   private db: PostgresDatabase;
   constructor(db: PostgresDatabase) {

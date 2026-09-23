@@ -7,7 +7,9 @@ import type {
   ProfileFact,
   ProfileEdit,
   Task,
+  InterviewSend,
 } from '../../contracts/api.ts';
+import type { MemoryCandidate, MemoryCandidateDecision } from '../../contracts/memory.ts';
 import { WorkspaceShell } from '../../components/workspace-shell.tsx';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
 import { BasicInfo } from './basic-info.tsx';
@@ -28,7 +30,11 @@ export function InterviewApp() {
     [data, setData] = useState<InterviewWorkspace | null>(null),
     [error, setError] = useState(''),
     [profileError, setProfileError] = useState(''),
+    [candidates, setCandidates] = useState<MemoryCandidate[]>([]),
+    [candidateError, setCandidateError] = useState(''),
+    [candidateBusy, setCandidateBusy] = useState<string | null>(null),
     [draft, setDraft] = useState(''),
+    [streamingText, setStreamingText] = useState(''),
     [sending, setSending] = useState(false),
     [saving, setSaving] = useState(false),
     [uploading, setUploading] = useState(false);
@@ -39,7 +45,7 @@ export function InterviewApp() {
   const input = useRef<HTMLTextAreaElement>(null),
     fileInput = useRef<HTMLInputElement>(null),
     end = useRef<HTMLDivElement>(null);
-  const pending = useRef<{ commandId: string; expectedVersion: number; text: string } | null>(null),
+  const pending = useRef<InterviewSend | null>(null),
     retry = useRef<{ id: string; commandId: string } | null>(null);
   const apply = useCallback(
     (incoming: InterviewWorkspace) =>
@@ -64,6 +70,11 @@ export function InterviewApp() {
     apply(value);
     return value;
   }, [client, apply]);
+  const refreshCandidates = useCallback(async () => {
+    const value = await client.candidates('suggested');
+    setCandidates(value.candidates);
+    return value.candidates;
+  }, [client]);
   useEffect(() => {
     let live = true;
     client
@@ -74,10 +85,34 @@ export function InterviewApp() {
       .catch((e) => {
         if (live) setError(errorMessage(e));
       });
+    client
+      .candidates('suggested')
+      .then((value) => {
+        if (live) setCandidates(value.candidates);
+      })
+      .catch((e) => {
+        if (live) setCandidateError(errorMessage(e));
+      });
     return () => {
       live = false;
     };
   }, [client, apply]);
+  async function decideCandidate(candidateId: string, action: MemoryCandidateDecision['action']) {
+    setCandidateBusy(candidateId);
+    setCandidateError('');
+    try {
+      await client.decideCandidate({
+        commandId: crypto.randomUUID(),
+        candidateId,
+        action,
+      });
+      await Promise.all([refresh(), refreshCandidates()]);
+    } catch (e) {
+      setCandidateError(errorMessage(e));
+    } finally {
+      setCandidateBusy(null);
+    }
+  }
   // Drafts live only for this tab session and are scoped to the actual profile.
   useEffect(() => {
     if (!data?.profile.id) return;
@@ -139,12 +174,21 @@ export function InterviewApp() {
     const request =
       pending.current?.text === text
         ? pending.current
-        : { commandId: crypto.randomUUID(), expectedVersion: data.interview.version, text };
+        : {
+            commandId: crypto.randomUUID(),
+            expectedVersion: data.interview.version,
+            text,
+            questionId: data.interview.openQuestion?.id,
+            questionVersion: data.interview.openQuestion?.version,
+          };
     pending.current = request;
     setSending(true);
+    setStreamingText('');
     setError('');
     try {
-      const sent = await client.send(request);
+      const sent = await client.sendStream(request, (token) =>
+        setStreamingText((current) => current + token),
+      );
       setData((current) => (current ? { ...current, interview: sent.interview } : current));
       setDraft((value) => {
         const next = value.trim() === text ? '' : value;
@@ -156,10 +200,15 @@ export function InterviewApp() {
         return next;
       });
       pending.current = null;
+      setStreamingText('');
     } catch (e) {
       setError(errorMessage(e));
       if (e instanceof ApiFailure && e.code === 'VERSION_CONFLICT') {
         pending.current = null;
+        await refresh().catch(() => {});
+      } else {
+        // The user message is committed before the model stream starts;
+        // refresh so an interrupted stream still becomes visible and retryable.
         await refresh().catch(() => {});
       }
     } finally {
@@ -196,7 +245,7 @@ export function InterviewApp() {
     setUploading(true);
     setProfileError('');
     try {
-      if (file.size > 8 * 1024 * 1024) throw new ApiFailure('INVALID_INPUT', '照片请小于 8MB。');
+      if (file.size > 4 * 1024 * 1024) throw new ApiFailure('INVALID_INPUT', '照片请小于 4MB。');
       const asset = await client.upload(file);
       const current = await refresh();
       const profile = await client.editProfile({
@@ -238,11 +287,16 @@ export function InterviewApp() {
       events={<LifeEvents events={data.profile.events} onSave={edit} />}
       people={<ImportantPeople people={data.profile.people} client={client} onSave={edit} />}
       profile={data.profile}
+      messages={data.interview.messages}
       uploading={uploading}
       saving={saving}
       onUpload={() => fileInput.current?.click()}
       onEdit={(category, fact) => setEditing({ category, fact })}
       onConfirm={(id) => void edit({ kind: 'confirm-fact', id }).catch(() => {})}
+      candidates={candidates}
+      candidateError={candidateError}
+      candidateBusy={candidateBusy}
+      onCandidateAction={(id, action) => void decideCandidate(id, action)}
     />
   ) : (
     <div className="profile-loading">
@@ -254,7 +308,10 @@ export function InterviewApp() {
     <>
       <WorkspaceShell
         profile={profile}
-        profileCount={data?.profile.facts.filter((f) => f.status === 'suggested').length ?? 0}
+        profileCount={
+          (data?.profile.facts.filter((f) => f.status === 'suggested').length ?? 0) +
+          candidates.length
+        }
         footer={
           <div className="composer-area">
             {error && (
@@ -348,6 +405,22 @@ export function InterviewApp() {
                 </div>
               </div>
             ))}
+            {streamingText && (
+              <div
+                className="message message-assistant message-enter"
+                aria-label="人生伙伴正在回复"
+              >
+                <div className="message-avatar">
+                  <Icon name="spark" size={18} />
+                </div>
+                <div>
+                  <div className="message-text streaming-text">
+                    {streamingText}
+                    <span className="streaming-caret" aria-hidden="true" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {waiting && task && (
@@ -384,6 +457,10 @@ export function InterviewApp() {
             revision={data.interview.version}
             profileVersion={data.profile.version}
             ready={data.interview.messages.some((m) => m.role === 'assistant')}
+            confirmedCount={
+              data.profile.facts.filter((f) => f.status === 'confirmed').length
+            }
+            pendingCandidates={candidates.length}
           />
         )}
       </WorkspaceShell>
@@ -411,15 +488,45 @@ export function InterviewApp() {
     </>
   );
 }
-export function Welcome({ choose: _choose }: { choose: (text: string) => void }) {
+export function Welcome({ choose }: { choose: (text: string) => void }) {
   return (
     <div className="message message-assistant first-greeting">
       <div className="message-avatar">如</div>
       <div>
         <div className="message-text">
-          如果能换一种生活，
+          你想不想看一看，平行世界的你正在过着怎样的人生？
           <br />
-          你最想试试什么？
+          <br />
+          告诉我一些关于你的事情，我来为你塑造几段专属于你的平行世界事件。在此之前，你可以先告诉我你的出生年月日（或者时间），让我感受你的性格底色；也可以直接告诉我，你最近有什么烦心事，或者人生中有哪些最想重新选择的决定。
+        </div>
+        <div
+          className="first-greeting-suggestions"
+          style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}
+        >
+          <button
+            type="button"
+            className="button secondary compact"
+            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
+            onClick={() => choose('我的出生年月日是：')}
+          >
+            🎂 告知出生时间，测算性格基调
+          </button>
+          <button
+            type="button"
+            className="button secondary compact"
+            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
+            onClick={() => choose('如果当年我做出了另一个重大决定：')}
+          >
+            🔀 假如重选当年那个关键决定
+          </button>
+          <button
+            type="button"
+            className="button secondary compact"
+            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
+            onClick={() => choose('最近让我最烦恼心累的一件事是：')}
+          >
+            💭 聊聊最近挥之不去的烦心事
+          </button>
         </div>
       </div>
     </div>
@@ -461,6 +568,7 @@ function Waiting({
 }
 export function ProfilePane({
   profile,
+  messages = [],
   uploading,
   saving,
   onUpload,
@@ -470,6 +578,10 @@ export function ProfilePane({
   people,
   basicInfo,
   error,
+  candidates = [],
+  candidateError,
+  candidateBusy,
+  onCandidateAction,
 }: {
   error?: string;
   profile: Profile;
@@ -481,6 +593,11 @@ export function ProfilePane({
   events?: React.ReactNode;
   people?: React.ReactNode;
   basicInfo?: React.ReactNode;
+  messages?: InterviewWorkspace['interview']['messages'];
+  candidates?: MemoryCandidate[];
+  candidateError?: string;
+  candidateBusy?: string | null;
+  onCandidateAction?: (id: string, action: MemoryCandidateDecision['action']) => void;
 }) {
   const active = profile.facts.filter(
     (f) => f.status !== 'rejected' && !(basicInfo && f.value.startsWith('个人资料\n')),
@@ -511,9 +628,18 @@ export function ProfilePane({
         </button>
         <div>
           <h3>{uploading ? '正在保存照片…' : name || '我的档案'}</h3>
-          <p>点击头像，更换照片</p>
+          <p>换一张照片</p>
         </div>
       </div>
+      {onCandidateAction && (
+        <CandidatePanel
+          candidates={candidates}
+          messages={messages}
+          error={candidateError}
+          busyId={candidateBusy}
+          onAction={onCandidateAction}
+        />
+      )}
       <details className="profile-fold">
         <summary>
           基本资料
@@ -526,14 +652,14 @@ export function ProfilePane({
         open={active.some((f) => f.status === 'suggested') || undefined}
       >
         <summary>
-          兴趣与愿望
+          我的故事
           <Icon name="chevron" size={16} />
         </summary>
         <div className="profile-section">
           <div className="section-heading">
             <h3>
               <Icon name="user" size={17} />
-              关于我
+              聊到的事
             </h3>
             <Button
               variant="ghost"
@@ -644,6 +770,79 @@ export function ProfilePane({
     </div>
   );
 }
+
+function CandidatePanel({
+  candidates,
+  messages,
+  error,
+  busyId,
+  onAction,
+}: {
+  candidates: MemoryCandidate[];
+  messages: InterviewWorkspace['interview']['messages'];
+  error?: string;
+  busyId?: string | null;
+  onAction: (id: string, action: MemoryCandidateDecision['action']) => void;
+}) {
+  if (!candidates.length && !error) return null;
+  const messageById = new Map(messages.map((message) => [message.id, message]));
+  return (
+    <section className="candidate-review" aria-labelledby="candidate-review-title">
+      <div className="section-heading">
+        <h3 id="candidate-review-title">
+          <Icon name="spark" size={17} />
+          Agent 的记录
+        </h3>
+        <span className="candidate-count">{candidates.length}</span>
+      </div>
+      <p className="candidate-intro">刚才聊到的内容，先由你决定要不要留下。</p>
+      {error && <Notice>{error}</Notice>}
+      <div className="candidate-list">
+        {candidates.map((candidate) => {
+          const sources = candidate.sourceMessageIds
+            .map((id) => messageById.get(id))
+            .filter((message): message is NonNullable<typeof message> => Boolean(message));
+          const busy = busyId === candidate.id;
+          return (
+            <article className="candidate-card" key={candidate.id}>
+              <div className="candidate-card-meta">
+                <span>{categories[candidate.category]}</span>
+                {candidate.eventDate && <time>{candidate.eventDate}</time>}
+              </div>
+              <p className="candidate-text">{candidate.text}</p>
+              <details className="candidate-source">
+                <summary>
+                  查看来源 · {sources.length || candidate.sourceMessageIds.length} 条对话
+                </summary>
+                <div className="candidate-source-list">
+                  {sources.length ? (
+                    sources.map((source) => <p key={source.id}>{source.text}</p>)
+                  ) : (
+                    <p>来源对话暂时不可见。</p>
+                  )}
+                </div>
+              </details>
+              <div className="candidate-actions">
+                <Button disabled={busy} onClick={() => onAction(candidate.id, 'confirm')}>
+                  {busy ? <span className="spinner" /> : <Icon name="check" size={15} />}
+                  记住这条
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => onAction(candidate.id, 'reject')}
+                >
+                  暂不记录
+                </Button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function FactEditor({
   selection,
   messages,

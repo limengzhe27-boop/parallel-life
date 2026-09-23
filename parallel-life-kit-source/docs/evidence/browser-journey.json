@@ -1,0 +1,724 @@
+{
+  "user_id": "live-test-a6752a2991",
+  "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+  "profile_revision": 2,
+  "branch_options": [
+    {
+      "id": "o1",
+      "label": "留下来和母亲再谈一次，试着说服她同意我走绘画路",
+      "consequence": "母亲可能会松口同意，也可能和你爆发争执，坚持让你选计算机",
+      "move_to": null
+    },
+    {
+      "id": "o2",
+      "label": "去街角老画室找陈叔确认补录的具体流程",
+      "consequence": "能拿到补录的准确信息，也能问问陈俊往届学生的就业情况，明确走这条路的实际难度",
+      "move_to": "城中心街角老画室"
+    },
+    {
+      "id": "o3",
+      "label": "去阿宁家的阁楼找她，一起再算算学费够不够",
+      "consequence": "能理清自筹学费的缺口，知道她能帮你多少，再做最终决定",
+      "move_to": "阿宁家的阁楼画室"
+    }
+  ],
+  "world": {
+    "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+    "user_id": "live-test-a6752a2991",
+    "version": 3,
+    "date": "2008-09-01",
+    "identity": "刚拿到大学录取通知的小城高中毕业生",
+    "locations": [
+      "小城老巷自家客厅",
+      "城中心街角老画室",
+      "城西站长途汽车站",
+      "阿宁家的阁楼画室"
+    ],
+    "player_location": "城中心街角老画室",
+    "characters": [
+      {
+        "id": "c1",
+        "name": "陈叔",
+        "persona": "经营老画室三十年的退休美术教师，心软爱才，收费低廉",
+        "goal": "希望小城有天赋的孩子不要因为家境错过艺术道路",
+        "relationship": "我高中时期课余学画的老师",
+        "appearance": "头发半白，手掌常年沾着洗不净的铅灰，眼角有很深的皱纹",
+        "style": "永远穿洗得发白的蓝布工作服，兜里总揣着半截炭笔",
+        "location": "城中心街角老画室",
+        "knowledge": [
+          "知道我对绘画的热爱远超过计算机",
+          "可以帮我联系省内美术专科的补录渠道",
+          "了解普通家庭走艺术路的难处"
+        ],
+        "knowledge_sources": {},
+        "version": 1
+      },
+      {
+        "id": "c2",
+        "name": "阿宁",
+        "persona": "和我一起长大的同好，坚定支持我追求绘画，性格果决",
+        "goal": "希望我不要留下遗憾，坚持自己真正喜欢的事",
+        "relationship": "从小一起画画的好友，一直鼓励我选艺术",
+        "appearance": "留齐耳短发，额头上沾着蹭到的颜料，眼睛亮得很",
+        "style": "穿洗旧的牛仔背带裙，球鞋边永远沾着颜料印",
+        "location": "阿宁家的阁楼画室",
+        "knowledge": [
+          "知道我为了家人犹豫了很久",
+          "她已经帮我整理了往年美术专科补录的信息",
+          "可以借我一部分凑学费的钱"
+        ],
+        "knowledge_sources": {},
+        "version": 1
+      },
+      {
+        "id": "c3",
+        "name": "母亲",
+        "persona": "工薪阶层，思想务实，只希望孩子毕业后能有稳定工作",
+        "goal": "劝我选计算机专业，未来好找工作安安稳稳过日子",
+        "relationship": "我的母亲，一直期望我读计算机找稳定工作",
+        "appearance": "围着沾着油烟的碎花围裙，眉头拧着，语气带着着急",
+        "style": "常年穿单位发的藏青工装衬衫，头发整齐挽在脑后",
+        "location": "小城老巷自家客厅",
+        "knowledge": [
+          "知道家里拿不出太多钱供艺术专业",
+          "觉得绘画只能当爱好不能当饭碗",
+          "已经托亲戚打听了计算机专业毕业后的实习机会"
+        ],
+        "knowledge_sources": {},
+        "version": 1
+      }
+    ],
+    "scene": {
+      "title": "老画架旁的补录提醒",
+      "description": "松节油和铅芯的味道裹着老城的热风，填满了街角老画室的空间。陈叔靠在刷着蓝漆的旧画架旁，手里捏着你那份补录报名表，桌上摊着往届补录生的登记册，靠窗的位置还摆着半幅没完成的静物油画。他指尖敲了敲报名表上「志愿确认」那栏，抬眼等你给出最终的意向，话里留着余地：「填了这个，就得退掉已经录上的计算机志愿，你想清楚再动笔。」",
+      "options": [
+        {
+          "id": "o1",
+          "label": "当场签字确认，填报美术专科的补录志愿",
+          "consequence": "你会正式放弃计算机专业的录取，踏上美术专业的求学路，需要自己凑齐大部分学费",
+          "move_to": null
+        },
+        {
+          "id": "o2",
+          "label": "暂时先不签字，回去再和母亲商量之后再来给答复",
+          "consequence": "陈叔会帮你预留补录名额，你能再争取母亲的同意，也能再重新权衡利弊",
+          "move_to": "小城老巷自家客厅"
+        },
+        {
+          "id": "o3",
+          "label": "暂时先不签字，去阁楼找阿宁敲定学费再回来确认",
+          "consequence": "你能把经济问题落实，确定缺口之后再做最终选择，不会因为钱打乱计划",
+          "move_to": "阿宁家的阁楼画室"
+        }
+      ],
+      "chosen": "o1",
+      "chapter": 2
+    },
+    "items": {
+      "player_notebook": "player",
+      "character_letter": "c1"
+    },
+    "promises": []
+  },
+  "history": {
+    "messages": [
+      {
+        "id": "6155135c140808761edcdea521a0b7fd",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "player",
+        "role": "user",
+        "text": "我选择：去街角老画室找陈叔确认补录的具体流程",
+        "visibility": [
+          "c1"
+        ],
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "image_id": null
+      },
+      {
+        "id": "68dee1c307f6362a6357a699a3bd0bbc",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "role": "assistant",
+        "text": "你可算来了，快进来坐。我刚把资料理出来，补录的流程、需要填的表、截止日期都标得清清楚楚。这一沓是我以前学生的就业记录，有走得顺的，也有碰壁转行的，我都给你明明白白说说，不会瞒你半句——你到底选哪条路，得你自己想清楚，不着急。",
+        "visibility": [
+          "c1"
+        ],
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "image_id": null
+      },
+      {
+        "id": "578e8d1550fa5bbd3de8a3469195add4",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "role": "image",
+        "text": "2008年城中心街角的老画室，头发半白穿蓝布工作服的陈叔坐在画架旁，桌上摊着泛黄的学生就业记录和补录表格，空气中飘着松节油和铅芯的味道",
+        "visibility": [
+          "c1"
+        ],
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "image_id": "82812eed92e0027483fb96076d47ff18"
+      },
+      {
+        "id": "846da3297209765d16846412403355fe",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "player",
+        "role": "user",
+        "text": "我选择：当场签字确认，填报美术专科的补录志愿",
+        "visibility": [
+          "c1"
+        ],
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "image_id": null
+      },
+      {
+        "id": "b0c999eef357a3c66bcd1bcd42b257ec",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "role": "assistant",
+        "text": "好...好小子，有种。我果然没看错你。笔在这儿，我帮你把该填的基础信息填上，你签好字我今天就把表寄去招生办。学费方面你别急，我认识专科里的老师，能帮你申请勤工俭学，平时你也可以来我画室帮我带带基础班的小孩，赚点生活费，总够你花了。你能为自己的喜欢拿主意，这就比什么都强。",
+        "visibility": [
+          "c1"
+        ],
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "image_id": null
+      }
+    ],
+    "events": [
+      {
+        "id": "8de03fc3f6e755ea85c0aaac91f72004",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "date": "2008-09-01",
+        "actor_id": "player",
+        "kind": "choose",
+        "accepted": true,
+        "text": "用户选择了“去街角老画室找陈叔确认补录的具体流程”。用户从小城老巷自家客厅移动至城中心街角老画室。",
+        "visibility": [
+          "c1",
+          "c3",
+          "player"
+        ],
+        "data": {
+          "option_id": "o2",
+          "label": "去街角老画室找陈叔确认补录的具体流程",
+          "consequence_preview": "能拿到补录的准确信息，也能问问陈俊往届学生的就业情况，明确走这条路的实际难度",
+          "move_from": "小城老巷自家客厅",
+          "move_to": "城中心街角老画室"
+        }
+      },
+      {
+        "id": "c747e2c5cb545af79e02ab8aa4ad4dae",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "date": "2008-09-01",
+        "actor_id": "c1",
+        "kind": "propose",
+        "accepted": true,
+        "text": "陈叔向player提出：我已经在画室整理好往届学生走艺术道路的就业记录和补录流程资料，你来了我可以一项一项给你讲清楚，也给你说说普通家庭走艺术路实际要应对的难处，方便你做最终决定（尚未实施，等待回应）。",
+        "visibility": [
+          "c1",
+          "player"
+        ],
+        "data": {
+          "target": "player",
+          "proposal": "我已经在画室整理好往届学生走艺术道路的就业记录和补录流程资料，你来了我可以一项一项给你讲清楚，也给你说说普通家庭走艺术路实际要应对的难处，方便你做最终决定",
+          "status": "proposed"
+        }
+      },
+      {
+        "id": "d626dae9022a534d894d6c71f26d4921",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "date": "2008-09-01",
+        "actor_id": "c2",
+        "kind": "propose",
+        "accepted": true,
+        "text": "阿宁向player提出：你过来阁楼画室找我吧，我整理好了往年补录的信息，咱们一起算一算学费，看看缺口有多少，我能借你一部分钱凑学费，咱们把这些都理清楚了再做最终决定（尚未实施，等待回应）。",
+        "visibility": [
+          "c2",
+          "player"
+        ],
+        "data": {
+          "target": "player",
+          "proposal": "你过来阁楼画室找我吧，我整理好了往年补录的信息，咱们一起算一算学费，看看缺口有多少，我能借你一部分钱凑学费，咱们把这些都理清楚了再做最终决定",
+          "status": "proposed"
+        }
+      },
+      {
+        "id": "b367e888404d55428b6c10087d943962",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "date": "2008-09-01",
+        "actor_id": "c3",
+        "kind": "propose",
+        "accepted": true,
+        "text": "母亲向player提出：坐下来和妈好好聊聊选专业的事儿，妈给你说说我托亲戚打听好的计算机专业实习机会，你再听听妈的想法（尚未实施，等待回应）。",
+        "visibility": [
+          "c3",
+          "player"
+        ],
+        "data": {
+          "target": "player",
+          "proposal": "坐下来和妈好好聊聊选专业的事儿，妈给你说说我托亲戚打听好的计算机专业实习机会，你再听听妈的想法",
+          "status": "proposed"
+        }
+      },
+      {
+        "id": "b0eac87cb4e15783babab20a45f792a5",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "65d2ec78-66fa-4063-861c-d3d5acaa9d6a",
+        "date": "2008-09-01",
+        "actor_id": "player",
+        "kind": "advance",
+        "accepted": true,
+        "text": "用户确认进入第2章：老画架旁的补录提醒",
+        "visibility": [
+          "player",
+          "c1",
+          "c2",
+          "c3"
+        ],
+        "data": {
+          "from_date": "2008-09-01",
+          "chapter": 2,
+          "scene": {
+            "title": "老画架旁的补录提醒",
+            "description": "松节油和铅芯的味道裹着老城的热风，填满了街角老画室的空间。陈叔靠在刷着蓝漆的旧画架旁，手里捏着你那份补录报名表，桌上摊着往届补录生的登记册，靠窗的位置还摆着半幅没完成的静物油画。他指尖敲了敲报名表上「志愿确认」那栏，抬眼等你给出最终的意向，话里留着余地：「填了这个，就得退掉已经录上的计算机志愿，你想清楚再动笔。」",
+            "options": [
+              {
+                "id": "o1",
+                "label": "当场签字确认，填报美术专科的补录志愿",
+                "consequence": "你会正式放弃计算机专业的录取，踏上美术专业的求学路，需要自己凑齐大部分学费",
+                "move_to": null
+              },
+              {
+                "id": "o2",
+                "label": "暂时先不签字，回去再和母亲商量之后再来给答复",
+                "consequence": "陈叔会帮你预留补录名额，你能再争取母亲的同意，也能再重新权衡利弊",
+                "move_to": "小城老巷自家客厅"
+              },
+              {
+                "id": "o3",
+                "label": "暂时先不签字，去阁楼找阿宁敲定学费再回来确认",
+                "consequence": "你能把经济问题落实，确定缺口之后再做最终选择，不会因为钱打乱计划",
+                "move_to": "阿宁家的阁楼画室"
+              }
+            ],
+            "chosen": null,
+            "chapter": 2
+          }
+        }
+      },
+      {
+        "id": "414eb5b8efb5592d9ee639148e943d39",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "date": "2008-09-01",
+        "actor_id": "player",
+        "kind": "choose",
+        "accepted": true,
+        "text": "用户选择了“当场签字确认，填报美术专科的补录志愿”。",
+        "visibility": [
+          "c1",
+          "player"
+        ],
+        "data": {
+          "option_id": "o1",
+          "label": "当场签字确认，填报美术专科的补录志愿",
+          "consequence_preview": "你会正式放弃计算机专业的录取，踏上美术专业的求学路，需要自己凑齐大部分学费"
+        }
+      },
+      {
+        "id": "19109a3d14e95be689f95df930c2ccd7",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "date": "2008-09-01",
+        "actor_id": "c1",
+        "kind": "tell",
+        "accepted": false,
+        "text": "交流内容没有角色已知信息作为依据",
+        "visibility": [
+          "c1"
+        ],
+        "data": {
+          "reason": "交流内容没有角色已知信息作为依据"
+        }
+      },
+      {
+        "id": "264a0e88cd6d5f5aaf0f0247d2da28e7",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "date": "2008-09-01",
+        "actor_id": "c2",
+        "kind": "propose",
+        "accepted": true,
+        "text": "阿宁向player提出：我已经整理好了往年美术专科补录的信息，还有我攒的那部分钱也都准备好了，我们现在一起算清楚学费缺口，把钱的事情落实之后，你再安心去做最终的决定好不好（尚未实施，等待回应）。",
+        "visibility": [
+          "c2",
+          "player"
+        ],
+        "data": {
+          "target": "player",
+          "proposal": "我已经整理好了往年美术专科补录的信息，还有我攒的那部分钱也都准备好了，我们现在一起算清楚学费缺口，把钱的事情落实之后，你再安心去做最终的决定好不好",
+          "status": "proposed"
+        }
+      },
+      {
+        "id": "d766ec7c003e58168173987d58847da5",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "date": "2008-09-01",
+        "actor_id": "c3",
+        "kind": "propose",
+        "accepted": true,
+        "text": "母亲向player提出：回来和我好好说说这件事，咱们坐下来，我把托亲戚打听好的计算机专业的实习机会说给你听，再好好聊聊选专业的事儿（尚未实施，等待回应）。",
+        "visibility": [
+          "c3",
+          "player"
+        ],
+        "data": {
+          "target": "player",
+          "proposal": "回来和我好好说说这件事，咱们坐下来，我把托亲戚打听好的计算机专业的实习机会说给你听，再好好聊聊选专业的事儿",
+          "status": "proposed"
+        }
+      }
+    ]
+  },
+  "decisions": {
+    "decisions": [
+      {
+        "id": "095c1c8cb8ae2c1662a990bf5c9deb25",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "context_hash": "a4ad87100ab30b50645e57a6fad12032db679cd592d86aa244d7e63255302e33",
+        "source_ids": [
+          "6155135c140808761edcdea521a0b7fd"
+        ],
+        "goal": "希望小城有天赋的孩子不要因为家境错过艺术道路",
+        "decision": {
+          "actor_id": "c1",
+          "action": {
+            "kind": "propose",
+            "target": "player",
+            "content": "我已经在画室整理好往届学生走艺术道路的就业记录和补录流程资料，你来了我可以一项一项给你讲清楚，也给你说说普通家庭走艺术路实际要应对的难处，方便你做最终决定",
+            "item": "",
+            "promise_id": "",
+            "due": "",
+            "condition": "",
+            "evidence_id": ""
+          },
+          "rationale": "我一直在老画室等玩家过来确认补录信息，符合goal里希望有天赋的孩子不因为家境错过艺术道路的设定，现在明确告知玩家我准备好相关资料，可以解答他的疑问，符合我的身份定位"
+        }
+      },
+      {
+        "id": "be6f2aa430c8a7d5caec6b373dafa1f0",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c2",
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "context_hash": "deab0261340b62b3842f73d8694810993eeef715d3d279f091be0b5d9db92170",
+        "source_ids": [],
+        "goal": "希望我不要留下遗憾，坚持自己真正喜欢的事",
+        "decision": {
+          "actor_id": "c2",
+          "action": {
+            "kind": "propose",
+            "target": "player",
+            "content": "你过来阁楼画室找我吧，我整理好了往年补录的信息，咱们一起算一算学费，看看缺口有多少，我能借你一部分钱凑学费，咱们把这些都理清楚了再做最终决定",
+            "item": "",
+            "promise_id": "",
+            "due": "",
+            "condition": "",
+            "evidence_id": ""
+          },
+          "rationale": "我的目标是希望主角不要留下遗憾，坚持自己真正喜欢的绘画，现在主角正在做选择，我已经提前整理好了补录信息、准备了可以出借的学费，所以提议主角来阁楼找我一起理清情况，方便他做出不后悔的决定"
+        }
+      },
+      {
+        "id": "90b4083bd70f023669685e52ac206adb",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c3",
+        "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760",
+        "context_hash": "ec9fc5b4aaec8f8d76c89a99d34a3160e7b1e0c20392a6be8b2e546277a296a2",
+        "source_ids": [],
+        "goal": "劝我选计算机专业，未来好找工作安安稳稳过日子",
+        "decision": {
+          "actor_id": "c3",
+          "action": {
+            "kind": "propose",
+            "target": "player",
+            "content": "坐下来和妈好好聊聊选专业的事儿，妈给你说说我托亲戚打听好的计算机专业实习机会，你再听听妈的想法",
+            "item": "",
+            "promise_id": "",
+            "due": "",
+            "condition": "",
+            "evidence_id": ""
+          },
+          "rationale": "我的目标是劝孩子选计算机专业，让孩子未来能有稳定工作，现在孩子就在客厅，我需要主动开口和孩子沟通，说出我已经做好的准备，劝孩子选择计算机专业，因此主动提议和孩子好好谈谈"
+        }
+      },
+      {
+        "id": "f6f2cd8f1827ab9bf6227f36ca8a0382",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "context_hash": "3673679cb33299168afa03e7202720fd2f4487f8ccc4f7acebe714b56272d703",
+        "source_ids": [
+          "6155135c140808761edcdea521a0b7fd",
+          "68dee1c307f6362a6357a699a3bd0bbc",
+          "846da3297209765d16846412403355fe"
+        ],
+        "goal": "希望小城有天赋的孩子不要因为家境错过艺术道路",
+        "decision": {
+          "actor_id": "c1",
+          "action": {
+            "kind": "tell",
+            "target": "player",
+            "content": "填了这个，就得退掉已经录上的计算机志愿，而且大部分学费得你自己凑，你确定要签了吗？",
+            "item": "",
+            "promise_id": "",
+            "due": "",
+            "condition": "",
+            "evidence_id": ""
+          },
+          "rationale": "按照我的人设，我需要提醒你做这个选择要承担的实际后果，帮你确认清楚意向，不会替你做最终决定，因此先把话说清楚再推进。"
+        }
+      },
+      {
+        "id": "50917be2887112feb7ffc298cfd008e2",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c2",
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "context_hash": "a870bb006fe5ffeeb42c4035de064351cb054b363e4f0eec9564496b5c452f63",
+        "source_ids": [],
+        "goal": "希望我不要留下遗憾，坚持自己真正喜欢的事",
+        "decision": {
+          "actor_id": "c2",
+          "action": {
+            "kind": "propose",
+            "target": "player",
+            "content": "我已经整理好了往年美术专科补录的信息，还有我攒的那部分钱也都准备好了，我们现在一起算清楚学费缺口，把钱的事情落实之后，你再安心去做最终的决定好不好",
+            "item": "整理好的补录信息,攒好的借款",
+            "promise_id": "",
+            "due": "",
+            "condition": "",
+            "evidence_id": ""
+          },
+          "rationale": "我的目标是希望你不要留下遗憾，坚持自己真正喜欢的绘画，现在你已经来到我的阁楼画室，我已经提前准备好了补录信息和借款，当前应该提议和你一起落实学费问题，帮你扫清做决定的障碍"
+        }
+      },
+      {
+        "id": "ccba067a4b4bdec52914a70ceb32c4aa",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c3",
+        "request_id": "05df20a4-d659-428b-8e32-5fdb58314ccf",
+        "context_hash": "213b1ca66768663ba8cd6b209b1d641883fa166d946429e6dd1381447681b285",
+        "source_ids": [],
+        "goal": "劝我选计算机专业，未来好找工作安安稳稳过日子",
+        "decision": {
+          "actor_id": "c3",
+          "action": {
+            "kind": "propose",
+            "target": "player",
+            "content": "回来和我好好说说这件事，咱们坐下来，我把托亲戚打听好的计算机专业的实习机会说给你听，再好好聊聊选专业的事儿",
+            "item": "",
+            "promise_id": "",
+            "due": "",
+            "condition": "",
+            "evidence_id": ""
+          },
+          "rationale": "我作为母亲，目标是劝孩子选计算机专业找安稳工作，孩子现在在画室面临选择，我需要提出和孩子好好聊聊我的想法，讲清楚我已经为计算机专业做好的准备，劝说孩子放弃美术补录选计算机专业"
+        }
+      }
+    ]
+  },
+  "jobs": {
+    "jobs": [
+      {
+        "id": "82812eed92e0027483fb96076d47ff18",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "kind": "image",
+        "status": "done",
+        "payload": {
+          "prompt": "固定角色外观：头发半白，手掌常年沾着洗不净的铅灰，眼角有很深的皱纹\n画风：永远穿洗得发白的蓝布工作服，兜里总揣着半截炭笔\n当前场景：客厅八仙桌上的两份通知\n画面：2008年城中心街角的老画室，头发半白穿蓝布工作服的陈叔坐在画架旁，桌上摊着泛黄的学生就业记录和补录表格，空气中飘着松节油和铅芯的味道",
+          "caption": "2008年城中心街角的老画室，头发半白穿蓝布工作服的陈叔坐在画架旁，桌上摊着泛黄的学生就业记录和补录表格，空气中飘着松节油和铅芯的味道",
+          "request_id": "eb1c833d-28cb-4beb-b161-f547b24f1760"
+        },
+        "result": {
+          "file": "82812eed92e0027483fb96076d47ff18.jpg",
+          "mime": "image/jpeg"
+        },
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074418.405074
+      },
+      {
+        "id": "3b35b1b659f43ab78307bef4aa322533",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "kind": "memory",
+        "status": "done",
+        "payload": {
+          "source_ids": [
+            "6155135c140808761edcdea521a0b7fd",
+            "68dee1c307f6362a6357a699a3bd0bbc",
+            "8de03fc3f6e755ea85c0aaac91f72004",
+            "c747e2c5cb545af79e02ab8aa4ad4dae"
+          ]
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074418.40538
+      },
+      {
+        "id": "187fcb6afdc3f9a8ca8bad1cd20789b0",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c2",
+        "kind": "memory",
+        "status": "done",
+        "payload": {
+          "source_ids": [
+            "d626dae9022a534d894d6c71f26d4921"
+          ]
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074418.405547
+      },
+      {
+        "id": "8fa7272d393767a77202e37a69e76f23",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c3",
+        "kind": "memory",
+        "status": "done",
+        "payload": {
+          "source_ids": [
+            "8de03fc3f6e755ea85c0aaac91f72004",
+            "b367e888404d55428b6c10087d943962"
+          ]
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074418.405803
+      },
+      {
+        "id": "44da2c68d0d3743dfeebb577f631ca97",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "kind": "summary",
+        "status": "done",
+        "payload": {
+          "scene_end": true
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074498.735043
+      },
+      {
+        "id": "9a428bcdb77106d466a6a0a481aa871a",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c2",
+        "kind": "summary",
+        "status": "done",
+        "payload": {
+          "scene_end": true
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074498.735074
+      },
+      {
+        "id": "25863bb6f959b0f8145742be9805bbd6",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c3",
+        "kind": "summary",
+        "status": "done",
+        "payload": {
+          "scene_end": true
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074498.7350888
+      },
+      {
+        "id": "8bf559e9787c9eb396bbb4649180c36e",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c1",
+        "kind": "memory",
+        "status": "done",
+        "payload": {
+          "source_ids": [
+            "846da3297209765d16846412403355fe",
+            "b0c999eef357a3c66bcd1bcd42b257ec",
+            "414eb5b8efb5592d9ee639148e943d39",
+            "19109a3d14e95be689f95df930c2ccd7"
+          ]
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074518.554092
+      },
+      {
+        "id": "2f426e6cffc755ec148b30b0acedb09a",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c2",
+        "kind": "memory",
+        "status": "done",
+        "payload": {
+          "source_ids": [
+            "264a0e88cd6d5f5aaf0f0247d2da28e7"
+          ]
+        },
+        "result": {},
+        "attempts": 1,
+        "error": "",
+        "created_at": 1790074518.554302
+      },
+      {
+        "id": "5d1ee215e48611342103a0fea960020c",
+        "user_id": "live-test-a6752a2991",
+        "branch_id": "9e041491101b4f89bad3d9e4f9e893d2",
+        "actor_id": "c3",
+        "kind": "memory",
+        "status": "done",
+        "payload": {
+          "source_ids": [
+            "d766ec7c003e58168173987d58847da5"
+          ]
+        },
+        "result": {},
+        "attempts": 2,
+        "error": "",
+        "created_at": 1790074518.554559
+      }
+    ]
+  }
+}

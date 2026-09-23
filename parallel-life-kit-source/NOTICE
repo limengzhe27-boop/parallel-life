@@ -1,0 +1,30 @@
+Parallel Life Kit
+
+This small, separately implemented project takes design inspiration from
+JoyAI Full Duplex, maintained by XGEN-Labs and its contributors.
+
+Upstream repository: https://github.com/XGEN-Labs/joyai_full_duplex
+Reviewed upstream revision: b3482509a741da82bb9cfcde75d500a415c58833
+Relevant upstream directory: services/webinfer/agent_memory/
+Relevant designs: evidence-linked memory derivation, separate persistent and
+working context, bounded context compilation, and retrieval before generation.
+
+The upstream repository distributes its code under the Apache License 2.0.
+A copy of that license is included in LICENSE. No upstream NOTICE file was
+present at the reviewed repository root.
+
+Changes in this project: a new compact Python/SQLite implementation focused on
+confirmed autobiographical snapshots, counterfactual branches, deterministic
+world settlement, character-specific context, and real-provider text/images.
+The upstream audio/video services, large agent runtime, and model weights are
+not included. This project does not claim upstream endorsement or equivalence.
+
+Provider services, models, and generated outputs remain subject to their own
+service terms. No API credentials are included in the distributed repository.
+
+Dialogue architecture references (2026-09-22): SillyTavern
+06bde939fb1e9c4c8d8641d810f0a916b5bce127 (AGPL-3.0) and RisuAI
+669b12ceabe1c5066d3dadbe0973f2188d10cc97 (GPL-3.0).
+Only public architectural mechanisms were studied; no upstream source,
+character cards, preset prompts or dialogue examples were incorporated.
+See docs/DIALOGUE_DESIGN.md for exact sources and independently written changes.

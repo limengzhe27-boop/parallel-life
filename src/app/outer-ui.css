@@ -73,6 +73,20 @@ body:has(.discovery-page) {
   color: #29282d;
   border-radius: 18px;
 }
+.streaming-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 3px;
+  vertical-align: -0.16em;
+  background: currentColor;
+  animation: streaming-blink 0.9s steps(2, jump-none) infinite;
+}
+@keyframes streaming-blink {
+  50% {
+    opacity: 0;
+  }
+}
 .app-workspace .first-greeting {
   margin: 8px 0;
 }
@@ -180,6 +194,105 @@ body:has(.discovery-page) {
   border: 0;
   background: transparent;
 }
+.candidate-review {
+  padding: 18px;
+  border: 1px solid rgba(var(--accent-rgb), 0.32);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(55, 48, 45, 0.96), var(--surface));
+}
+.candidate-review .section-heading {
+  min-height: 30px;
+}
+.candidate-review .section-heading h3 {
+  color: var(--accent-hover);
+}
+.candidate-count {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--accent);
+  color: #29282d;
+  font-size: 11px;
+}
+.candidate-intro {
+  margin: 4px 0 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.candidate-list {
+  display: grid;
+  gap: 10px;
+}
+.candidate-card {
+  padding: 13px;
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
+  border-radius: 14px;
+  background: rgba(16, 23, 28, 0.42);
+}
+.candidate-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+.candidate-card-meta time {
+  color: var(--accent-hover);
+}
+.candidate-text {
+  margin: 8px 0 10px;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.candidate-source {
+  border-top: 1px solid rgba(var(--accent-rgb), 0.12);
+  padding-top: 8px;
+}
+.candidate-source summary {
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 11px;
+}
+.candidate-source-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.candidate-source-list p {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--border-hover);
+  border-radius: 3px 8px 8px 3px;
+  background: rgba(var(--bg-rgb), 0.5);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.candidate-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.candidate-actions .button {
+  min-height: 34px;
+  padding: 6px 11px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+.candidate-actions .button:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.candidate-review .notice {
+  margin: 8px 0;
+  font-size: 11px;
+}
 .app-workspace .profile-footnote {
   display: none;
 }
@@ -202,13 +315,18 @@ body:has(.discovery-page) {
   gap: 12px;
 }
 .branch-section-label {
-  font-size: 12px !important;
-  color: var(--accent);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 2px 2px;
+  color: var(--text);
+  font-size: 15px !important;
+  font-weight: 500;
+}
+.branch-section-label span {
+  color: var(--text-tertiary);
+  font-size: 12px;
   font-weight: 400;
-  padding: 8px 14px;
-  background: var(--surface);
-  justify-self: start;
-  border-radius: 18px;
 }
 .discovery-page .saved-life-card {
   min-height: 82px;
@@ -229,6 +347,12 @@ body:has(.discovery-page) {
   color: #ddc4a0;
   border-radius: 12px;
 }
+.discovery-page .saved-life-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .discovery-page .saved-life-card:nth-of-type(3n + 2) .saved-life-icon {
   background: #577067;
 }
@@ -245,6 +369,19 @@ body:has(.discovery-page) {
 }
 .discovery-page .saved-life-card small {
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.discovery-page .saved-life-card small::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+.discovery-page .saved-life-card small.branch-status-ready::before {
+  background: var(--success);
 }
 .discovery-page .saved-life-card > svg {
   color: var(--text-secondary);
@@ -294,6 +431,64 @@ body:has(.discovery-page) .button.primary {
   color: var(--text-secondary);
   padding: 0 20px 20px;
   font-size: 13px;
+}
+.build-control {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(var(--accent-rgb), 0.14);
+}
+.build-control > .button {
+  width: 100%;
+  min-height: 42px;
+  font-size: 13px;
+}
+.build-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.build-state > span:last-child {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.build-state strong {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.build-state small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.build-state-dot,
+.build-state-spinner {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--accent);
+}
+.build-state-ready .build-state-dot {
+  background: var(--success);
+}
+.build-state-error .build-state-dot {
+  background: var(--error);
+}
+.build-state-spinner {
+  border: 2px solid rgba(var(--accent-rgb), 0.24);
+  border-top-color: var(--accent);
+  background: transparent;
+  animation: build-spin 0.8s linear infinite;
+}
+@keyframes build-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 @media (max-width: 480px) {
   .app-workspace,

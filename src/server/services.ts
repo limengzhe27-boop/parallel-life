@@ -1,4 +1,5 @@
 import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
+import { SupabaseStorageStore } from '../modules/media/infrastructure/supabase-storage-store.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { BuildRepository } from '../modules/world/infrastructure/build-repository.ts';
 import { SeedRepository } from '../modules/discovery/infrastructure/seed-repository.ts';
@@ -12,27 +13,49 @@ import { InterviewRepository } from '../modules/profile/infrastructure/interview
 import { ProfileRepository } from '../modules/profile/infrastructure/profile-repository.ts';
 import { AssetRepository } from '../modules/media/infrastructure/asset-repository.ts';
 import { PrivateDiskStore } from '../modules/media/infrastructure/private-disk-store.ts';
+import { InterviewQuestionRepository } from '../modules/memory/infrastructure/question-repository.ts';
+import { MemoryCandidateRepository } from '../modules/memory/infrastructure/candidate-repository.ts';
+import { InterviewPlanner } from '../modules/profile/infrastructure/interview-planner.ts';
+import { WorldTurnPlanner } from '../modules/world/infrastructure/turn-planner.ts';
+import { createTextModel } from './composition.ts';
 let services: ReturnType<typeof createServices> | undefined;
 function createServices() {
-  const url = process.env.DATABASE_URL,
+  // Marketplace integrations expose an administrative DATABASE_URL for
+  // provisioning. Runtime traffic must use the restricted application role.
+  const url = process.env.APP_DATABASE_URL ?? process.env.DATABASE_URL,
     secret = process.env.SESSION_SECRET,
     origin = process.env.APP_ORIGIN;
   if (!url || !secret || !origin) throw Error('SERVER_NOT_CONFIGURED');
   const parsed = new URL(url);
   if (
     !['postgres:', 'postgresql:'].includes(parsed.protocol) ||
-    decodeURIComponent(parsed.username) !== 'pl_app'
+    decodeURIComponent(parsed.username).split('.')[0] !== 'pl_app'
   )
     throw Error('RUNTIME_ROLE_REQUIRED');
   const assetDir = process.env.PRIVATE_ASSET_DIR;
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN,
-    blobStoreId = process.env.BLOB_STORE_ID;
-  if (!blobToken && !blobStoreId && (!assetDir || process.env.VERCEL))
+    blobStoreId = process.env.BLOB_STORE_ID,
+    supabaseUrl = process.env.SUPABASE_URL,
+    supabaseServiceRoleKey =
+      process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseBucket = process.env.SUPABASE_STORAGE_BUCKET || 'private-assets';
+  if (
+    !blobToken &&
+    !blobStoreId &&
+    !(supabaseUrl && supabaseServiceRoleKey) &&
+    (!assetDir || process.env.VERCEL)
+  )
     throw Error('PRIVATE_STORAGE_NOT_CONFIGURED');
   const assetStore =
-    blobToken || blobStoreId
-      ? new VercelBlobStore({ token: blobToken, storeId: blobStoreId })
-      : new PrivateDiskStore(assetDir!);
+    supabaseUrl && supabaseServiceRoleKey
+      ? new SupabaseStorageStore({
+          url: supabaseUrl,
+          serviceRoleKey: supabaseServiceRoleKey,
+          bucket: supabaseBucket,
+        })
+      : blobToken || blobStoreId
+        ? new VercelBlobStore({ token: blobToken, storeId: blobStoreId })
+        : new PrivateDiskStore(assetDir!);
   const db = new PostgresDatabase(url);
   return {
     db,
@@ -44,6 +67,10 @@ function createServices() {
     worlds: new PostgresWorldRepository(db),
     tasks: new TaskRepository(db),
     interview: new InterviewRepository(db),
+    interviewPlanner: new InterviewPlanner(createTextModel()),
+    worldPlanner: new WorldTurnPlanner(createTextModel()),
+    memoryQuestions: new InterviewQuestionRepository(db),
+    memoryCandidates: new MemoryCandidateRepository(db),
     profile: new ProfileRepository(db),
     assets: new AssetRepository(db, assetStore),
     origin,

@@ -88,6 +88,16 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
             void load();
             return { status: 'committed' };
           }}
+          onSendMessage={async (actorId, text, commandId) => {
+            const receipt = await client.sendWorldMessage(worldId, {
+              commandId,
+              actorId,
+              text,
+              expectedVersion: data.version ?? 0,
+            });
+            await load();
+            return { status: receipt.status };
+          }}
           onReload={load}
           loading={refreshing}
           loadError={error}
@@ -102,6 +112,7 @@ export function WorldPhoneSurface({
   preview = false,
   onReload,
   onChangeInvitation,
+  onSendMessage,
   onUploadPhoto,
   loading = false,
   loadError,
@@ -110,6 +121,7 @@ export function WorldPhoneSurface({
   preview?: boolean;
   onReload?: () => Promise<void>;
   onChangeInvitation?: PhoneActions['changeInvitation'];
+  onSendMessage?: PhoneActions['sendMessage'];
   onUploadPhoto?: PhoneActions['uploadPhoto'];
   loading?: boolean;
   loadError?: string;
@@ -125,6 +137,7 @@ export function WorldPhoneSurface({
       onReload={onReload}
       actions={{
         changeInvitation: preview ? undefined : onChangeInvitation,
+        sendMessage: preview ? undefined : onSendMessage,
         uploadPhoto: preview ? undefined : onUploadPhoto,
         markRead: async (actorId) => {
           setViewed(
@@ -148,11 +161,10 @@ export function WorldPhoneSurface({
         })}
         timeLabel={data.time.slice(11, 16)}
         wallpaperUrl="/art/first-window.webp"
-        notice={
-          <span>
-            {preview ? '开发样板 · 合成数据 · 未调用模型' : '虚构世界 · 通用壁纸 · 开场时间'}
-          </span>
-        }
+        // Product worlds stay immersive. Only the explicit development preview
+        // exposes its synthetic-data label; production lock screens contain
+        // only the time, wallpaper and real notifications.
+        notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
         notifications={data.messages
           .filter((m) => m.role !== 'user')
           .slice(-2)

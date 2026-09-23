@@ -80,7 +80,7 @@ export function SeedConsent({
           void save();
         }}
       >
-        <p className="seed-introduction">这个故事里，可以有熟悉的人和事。选一选你想带上的资料。</p>
+        <p className="seed-introduction">选择要带进这段人生的资料。</p>
         <details className="seed-story">
           <summary>{direction.title}</summary>
           <p>{direction.premise}</p>
@@ -88,8 +88,8 @@ export function SeedConsent({
           <small>{direction.tradeoff}</small>
         </details>
         <fieldset className="seed-fieldset">
-          <legend>现实中的你</legend>
-          <p>额外带入你勾选的资料。故事本身也会保存，可展开上方查看。</p>
+          <legend>带上哪些资料</legend>
+          <p>只带入你勾选的内容。</p>
           {profile.facts
             .filter((f) => f.status === 'confirmed')
             .slice(-40)
@@ -107,7 +107,7 @@ export function SeedConsent({
           {!profile.facts.some((f) => f.status === 'confirmed') && <p>没有额外选择的现实资料。</p>}
         </fieldset>
         <fieldset className="seed-fieldset">
-          <legend>照片与重要人物</legend>
+          <legend>照片与人物</legend>
           {profile.portraitAssetId && (
             <label>
               <input
@@ -145,7 +145,7 @@ export function SeedConsent({
         </fieldset>
         <p className="seed-private">
           <Icon name="lock" size={14} />
-          不带入完整访谈，也不向其他玩家公开。现实档案之后的修改不会自动改变这份设定。
+          只带入你选中的内容，之后可独立修改。
         </p>
         {error && <Notice>{error}</Notice>}
         <div className="form-actions">
@@ -153,7 +153,7 @@ export function SeedConsent({
             返回
           </Button>
           <Button type="submit" disabled={busy}>
-            {busy ? '正在保存…' : '保存这个想法'}
+            {busy ? '正在保存…' : '带入这段人生'}
             <Icon name="check" size={16} />
           </Button>
         </div>
@@ -181,7 +181,7 @@ export function SeedReceipt({
         <small>{seed.story.tradeoff}</small>
       </details>
       <div className="seed-receipt-details">
-        <h3>带上的小事</h3>
+        <h3>带入的资料</h3>
         {seed.facts.length ? (
           <ul>
             {seed.facts.map((f) => (

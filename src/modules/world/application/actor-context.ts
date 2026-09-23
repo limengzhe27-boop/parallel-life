@@ -1,6 +1,8 @@
 import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
 import type { ActorContext } from './ports.ts';
+import { rankAndBudgetMemories } from '../../memory/domain/algorithms.ts';
+import type { MemoryRecord } from '../../memory/domain/types.ts';
 
 // Serialized character limits, not a claim about a model's tokenizer. The planner must
 // reserve additional space for its instructions and output. Source records stay intact.
@@ -27,7 +29,13 @@ function relevance(text: string, words: string[]): number {
 }
 
 /** Filter before ranking; private records cannot influence retrieval or consume its budget. */
-export function actorContext(state: WorldState, actorId: string, userText = ''): ActorContext {
+export function actorContext(
+  state: WorldState,
+  actorId: string,
+  userText = '',
+  memoryRecords: MemoryRecord[] = [],
+  blockedSources: Set<string> = new Set(),
+): ActorContext {
   const actor = state.actors.find((item) => item.id === actorId);
   if (!actor || userText.length > 4000) throw new DomainError('INVALID_COMMAND');
   const context: ActorContext = {
@@ -38,6 +46,7 @@ export function actorContext(state: WorldState, actorId: string, userText = ''):
     facts: [],
     messages: [],
     appointments: [],
+    retrievedMemories: [],
   };
   const fits = () =>
     JSON.stringify(context).length <= ACTOR_CONTEXT_LIMIT &&
@@ -83,5 +92,34 @@ export function actorContext(state: WorldState, actorId: string, userText = ''):
   for (const { item } of historical) append(context.messages, item, 11500);
   const order = new Map(messages.map((message, index) => [message.id, index]));
   context.messages.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+
+  if (memoryRecords.length > 0) {
+    const scoped = memoryRecords.filter((record) => {
+      if (state.ownerId && record.ownerId !== state.ownerId) return false;
+      if (record.scopeType === 'branch' && record.scopeId !== state.id) return false;
+      if (record.branchId && record.branchId !== state.id) return false;
+      if (
+        record.scopeType === 'character' &&
+        record.characterId &&
+        record.characterId !== actorId
+      ) {
+        return false;
+      }
+      if (record.scopeType === 'profile') return false; // Private profile records are isolated
+      return true;
+    });
+
+    const budgeted = rankAndBudgetMemories({
+      records: scoped,
+      blockedSources,
+      query: userText,
+      charBudget: 3000,
+    });
+
+    for (const mem of budgeted) {
+      append(context.retrievedMemories!, mem, 3000);
+    }
+  }
+
   return context;
 }

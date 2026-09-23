@@ -46,3 +46,20 @@ test('empty or malformed completions do not become successful replies', async ()
     );
   }
 });
+test('gateway parses OpenAI-compatible streaming deltas', async () => {
+  const request: typeof fetch = async (_url, init) => {
+    assert.equal(JSON.parse(String(init?.body)).stream, true);
+    return new Response(
+      'data: {"choices":[{"delta":{"content":"你"}}]}\n\n' +
+        'data: {"choices":[{"delta":{"content":"好"}}]}\n\n' +
+        'data: [DONE]\n\n',
+      { headers: { 'Content-Type': 'text/event-stream' } },
+    );
+  };
+  const tokens: string[] = [];
+  for await (const token of new YibuTextModel(config, request).streamComplete!([
+    { role: 'user', content: 'hi' },
+  ]))
+    tokens.push(token);
+  assert.deepEqual(tokens, ['你', '好']);
+});

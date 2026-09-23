@@ -6,7 +6,7 @@ export function gatewayConfig(): GatewayConfig {
   return {
     apiKey,
     baseUrl: process.env.YIBU_BASE_URL || 'https://yibuapi.com',
-    model: process.env.YIBU_TEXT_MODEL || 'deepseek-v4.1-flash',
+    model: process.env.YIBU_TEXT_MODEL || 'deepseek-flash',
     timeoutMs: 85000,
   };
 }

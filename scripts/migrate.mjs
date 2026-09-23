@@ -37,7 +37,7 @@ export async function migrate(client) {
     await client.query('SELECT pg_advisory_unlock(82147201)');
   }
 }
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const client = await adminClient('parallel_life_dev');
   try {
     await migrate(client);

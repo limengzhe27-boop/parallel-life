@@ -4,10 +4,23 @@ export type SqlClient = PoolClient;
 export class PostgresDatabase {
   readonly pool: pg.Pool;
   constructor(url: string) {
+    let connectionString = url;
+    let ssl: { rejectUnauthorized: boolean } | undefined;
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname !== '127.0.0.1' && parsed.hostname !== 'localhost') {
+        parsed.searchParams.delete('sslmode');
+        connectionString = parsed.toString();
+        ssl = { rejectUnauthorized: false };
+      }
+    } catch {
+      /* Fallback to raw connection string if parsing fails. */
+    }
     this.pool = new pg.Pool({
-      connectionString: url,
+      connectionString,
+      ssl,
       max: 8,
-      connectionTimeoutMillis: 4000,
+      connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 10000,
     });
     this.pool.on('error', () => {

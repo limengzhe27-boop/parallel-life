@@ -1,0 +1,3 @@
+Command: .venv/bin/python -m pip wheel --no-deps . -w dist
+Exit: 0
+Wheel archive integrity, packaged HTML/LICENSE, isolated installed import: PASS

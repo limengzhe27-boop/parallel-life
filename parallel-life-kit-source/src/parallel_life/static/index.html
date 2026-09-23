@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:,">
+<title>岔路 · 平行人生</title>
+<style>
+:root{--paper:#f7f5f0;--surface:#fffefa;--ink:#253e35;--muted:#71786f;--line:#dfded4;--gold:#b58b49;--soft:#e9eee6;--warn:#92563b;--shadow:0 12px 36px #253e3508}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:9px 16px;background:var(--surface);color:var(--ink);transition:.15s}
+button:hover:not(:disabled){border-color:var(--gold);transform:translateY(-1px)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--ink);color:white;border-color:var(--ink)}
+button.small{padding:4px 10px;font-size:12px}
+button.quiet{background:transparent;border-color:transparent}
+input,textarea,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+textarea{resize:vertical;min-height:90px}
+input:focus,textarea:focus,select:focus{outline:2px solid #b58b4950;outline-offset:1px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+h1,h2,h3,p{margin:0}
+h1,h2,.serif{font-family:"Songti SC","STSong",serif;font-weight:500}
+h1{font-size:39px;line-height:1.4;letter-spacing:2px}
+h2{font-size:25px}
+h3{font-size:16px;font-weight:600}
+small,.muted{color:var(--muted)}
+a{color:inherit}
+details>summary{cursor:pointer;list-style:none;user-select:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary:after{content:"＋";float:right;color:var(--gold)}
+details[open]>summary:after{content:"−"}
+[hidden]{display:none!important}
+.shell{max-width:1580px;margin:auto;display:grid;grid-template-columns:238px minmax(0,1fr);min-height:100vh}
+.sidebar{padding:34px 23px;border-right:1px solid var(--line);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:30px}
+.brand{display:flex;align-items:center;gap:12px}
+.brandmark{width:41px;height:41px;border:1px solid var(--gold);border-radius:50%;display:grid;place-items:center;color:var(--gold);font-family:serif;font-size:24px}
+.brand h2{font-size:27px;letter-spacing:5px}
+.eyebrow{text-transform:uppercase;letter-spacing:2px;font-size:10px;color:var(--gold)}
+.nav{display:grid;gap:10px}
+.nav button{text-align:left;background:transparent;border-color:transparent;display:flex;gap:12px;align-items:center}
+.nav button.active{background:var(--soft);border-color:#dce3d7}
+.num{font-family:serif;color:var(--gold);font-size:17px}
+.side-section{border-top:1px solid var(--line);padding-top:20px}
+.side-section select{font-size:12px;margin-top:8px}
+.sidebottom{margin-top:auto;font-size:11px;color:var(--muted)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);margin-right:6px}
+.dot.ready{background:#547e5d}
+.main{padding:30px 42px 60px;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:35px;font-size:11px;letter-spacing:1px}
+.topbar span:last-child{color:var(--muted)}
+.pagehead{max-width:690px;margin-bottom:27px}
+.pagehead .eyebrow{margin-bottom:10px}
+.pagehead p{color:var(--muted);margin-top:13px;line-height:1.9}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:23px;box-shadow:var(--shadow)}
+.stack{display:grid;gap:18px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.between{justify-content:space-between}
+.gap{margin-top:17px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.badge{font-size:10px;letter-spacing:.4px;padding:3px 8px;border-radius:4px;background:var(--soft);color:#52705c}
+.notice{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid #d5ddcc;background:#eef2e9;border-radius:9px;font-size:13px;margin-bottom:24px;overflow-wrap:anywhere}
+.notice.error{background:#f9eee7;border-color:#e7cdbd;color:var(--warn)}
+.notice p{flex:1}
+.notice.working:before{content:"";width:12px;height:12px;border:2px solid #c5cbbb;border-top-color:var(--ink);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}
+}
+.leadform textarea{min-height:178px;line-height:1.9}
+.hint{font-size:11px;color:var(--muted);margin-top:9px}
+.questions{border-left:2px solid var(--gold);padding-left:16px;font-size:13px;margin:16px 0}
+.questions p{margin:5px 0}
+.event-editor{border-top:1px solid var(--line);padding-top:17px;margin-top:17px}
+.event-editor .grid2{grid-template-columns:150px 1fr}
+.event-editor textarea{min-height:78px}
+.source{font-size:11px;color:var(--muted);overflow-wrap:anywhere;margin-top:10px}
+.source blockquote{margin:8px 0;border-left:2px solid var(--line);padding-left:12px;white-space:pre-wrap}
+.branches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}
+.branch{display:flex;flex-direction:column;padding:24px 21px;position:relative;overflow:hidden}
+.branch:before{content:"";width:68px;height:68px;border:1px solid #cdbb9950;border-radius:50%;position:absolute;right:-20px;top:22px}
+.branch .index{font-size:36px;font-family:serif;color:var(--gold);line-height:1;margin-bottom:25px}
+.branch h2{font-size:24px;margin-bottom:12px}
+.branch dl{font-size:12px;line-height:1.8;margin:14px 0 20px}
+.branch dt{color:var(--gold);margin-top:13px}
+.branch dd{margin:3px 0 0}
+.branch button{margin-top:auto}
+.worldhead{margin-bottom:22px}
+.worldhead h1{font-size:30px}
+.worldgrid{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:20px;align-items:start}
+.scene{padding:20px 22px;background:#e9eee6;border:1px solid #d5ddcf;border-radius:12px}
+.scene p{font-size:13px;line-height:1.9;margin-top:9px;white-space:pre-wrap}
+.choices{display:grid;gap:7px;margin-top:16px}
+.choices button{text-align:left;font-size:12px}
+.choices small{display:block;color:var(--muted);margin-top:2px}
+.chat{padding:0;overflow:hidden}
+.chathead{padding:17px 20px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:7px;flex-wrap:wrap}
+.tabs button{padding:5px 12px;font-size:12px}
+.tabs .selected{background:var(--ink);color:white;border-color:var(--ink)}
+.chatmessages{height:420px;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:20px;scroll-behavior:smooth}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:45px 15px}
+.message{max-width:88%;align-self:flex-start}
+.message.mine{align-self:flex-end}
+.message .name{font-size:10px;letter-spacing:.5px;color:var(--muted);margin:0 0 6px 3px}
+.message .bubble{white-space:pre-wrap;overflow-wrap:anywhere;border-radius:2px 12px 12px 12px;background:var(--paper);padding:12px 15px;font-size:14px;line-height:1.9}
+.message.mine .bubble{background:var(--ink);color:#faf9f3;border-radius:12px 2px 12px 12px}
+.message img{display:block;max-width:100%;max-height:360px;border-radius:10px;object-fit:contain}
+.composer{border-top:1px solid var(--line);padding:15px}
+.composer textarea{min-height:83px;border:0;background:var(--paper);font-size:13px}
+.composer .row{margin-top:9px}
+.jobs{font-size:12px;padding:0 20px}
+.job{padding:10px 0;color:var(--muted);border-top:1px dashed var(--line)}
+.job[data-status="failed"],.job[data-status="uncertain"]{color:var(--warn)}
+.job .row{gap:8px;margin-top:5px}
+.technical pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:360px;overflow:auto;background:var(--paper);padding:12px;border-radius:8px}
+.technical dl{font-size:11px;margin:12px 0}
+.technical dt{color:var(--muted)}
+.technical dd{margin:0 0 8px;overflow-wrap:anywhere}
+.composer .tools{display:flex;gap:8px}
+.turn-feedback{padding:10px 16px;font-size:12px;background:var(--paper);border-top:1px solid var(--line)}
+.message.image-status .bubble{font-size:12px;color:var(--muted)}
+.person .avatar{height:42px;width:42px;border:1px solid #cdbb99;border-radius:50%;display:grid;place-items:center;color:var(--gold);font-family:serif;font-size:22px}
+.person p{font-size:12px;color:var(--muted);margin-top:10px;white-space:pre-wrap}
+.person .rule{border-top:1px solid var(--line);margin-top:15px;padding-top:12px}
+.aside details{font-size:13px}
+.aside details+details{margin-top:12px}
+.aside .card{padding:18px}
+.timeline{max-height:320px;overflow:auto;margin-top:13px}
+.timeline article{padding:9px 0 9px 14px;border-left:1px solid var(--line);font-size:11px;line-height:1.8;white-space:pre-wrap}
+.timeline article.rejected{color:var(--warn)}
+.memory{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;font-size:12px}
+.memory .meta{font-size:10px;color:var(--gold);margin-bottom:5px}
+.memory p{white-space:pre-wrap;overflow-wrap:anywhere}
+.memory .source{font-size:10px}
+.memory .row{margin-top:7px;gap:4px}
+.memory .small{font-size:10px}
+.advanced{font-size:12px}
+.advanced .grid2{margin-top:13px}
+.promises{font-size:11px;color:var(--muted)}
+.promises p{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+.footerline{margin-top:21px;color:var(--muted);font-size:10px;text-align:center;letter-spacing:.6px}
+dialog{border:1px solid var(--line);border-radius:14px;padding:26px;max-width:520px;width:calc(100% - 32px);color:var(--ink);background:var(--surface)}
+dialog::backdrop{background:#17282077}
+dialog textarea{min-height:75px}
+dialog label{margin-top:13px}
+dialog h2{margin-bottom:15px}
+@media(max-width:1150px){.main{padding:25px}
+.worldgrid{grid-template-columns:minmax(0,1fr) 250px}
+.branches{grid-template-columns:1fr}
+.branch dl{display:grid;grid-template-columns:80px 1fr;gap:8px}
+.branch dt,.branch dd{margin:0}
+.branch .index{margin-bottom:15px}
+.branch button{align-self:start}
+}
+@media(max-width:850px){.shell{grid-template-columns:1fr}
+.sidebar{position:relative;height:auto;padding:18px 20px;border-right:0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:14px}
+.brand h2{font-size:23px}
+.nav{display:flex;grid-column:1/-1;gap:3px}
+.nav button{padding:7px 10px;font-size:12px}
+.nav .num{font-size:12px}
+.side-section{display:none}
+.sidebottom{font-size:10px;align-self:center}
+.main{padding:23px 17px}
+.topbar{margin-bottom:24px}
+.worldgrid{grid-template-columns:1fr}
+.aside{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.aside>.card:first-child{grid-column:1/-1}
+.aside.stack{gap:15px}
+.chatmessages{height:430px}
+h1{font-size:32px}
+}
+@media(max-width:520px){.aside{grid-template-columns:1fr}
+.card{padding:18px}
+.grid2,.event-editor .grid2{grid-template-columns:1fr}
+.topbar span:last-child{display:none}
+.chat{padding:0}
+.chatmessages{height:390px;padding:17px}
+.worldhead h1{font-size:26px}
+.message{max-width:95%}
+.nav button{font-size:11px;gap:6px}
+}
+
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark">岔</div><div><h2>岔路</h2><div class="eyebrow">Another chapter</div></div></div>
+    <nav class="nav" aria-label="体验步骤">
+      <button data-stage="life" class="active"><span class="num">01</span> 我走过的路</button>
+      <button data-stage="branches"><span class="num">02</span> 另一种可能</button>
+      <button data-stage="world"><span class="num">03</span> 进入那段人生</button>
+    </nav>
+    <div class="side-section"><div class="eyebrow">My chapters</div><label for="savedBranches" class="gap">继续一个平行人生</label><select id="savedBranches"><option value="">选择已保存的分支</option></select><button id="newLife" class="quiet small gap">＋ 讲述另一段经历</button></div>
+    <div class="sidebottom"><p id="connection"><span class="dot"></span>正在连接服务</p><p>文字 · 人物 · 共同经历</p><p class="gap">本机体验 / 私人草稿<br>这是人生的虚构推演，不是预测。</p></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><span>PARALLEL LIFE / 平行人生实验室</span><span>有些路，值得再走一次。</span></header>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden><p id="noticeText"></p><button id="retry" class="small" hidden>手动重试</button><button id="reloadNotice" class="small" hidden>先读取已保存结果</button><button id="dismiss" class="quiet small" aria-label="关闭提示">×</button></div>
+    <section id="lifeStage">
+      <div class="pagehead"><div class="eyebrow">01 / The life you know</div><h1>如果那时候，<br>选了另一条路。</h1><p>从一段真实经历开始。说说那个转折点、当时的选择，以及你在意的人。我们先把来路记清楚，再一起看看别的可能。</p></div>
+      <div class="stack">
+        <form id="interviewForm" class="card leadform">
+          <div class="row between"><h3>讲讲你的故事</h3><span class="badge">真实模型访谈</span></div>
+          <section class="scene gap" aria-label="预设人生">
+            <div class="row between"><h3>先体验一个预设人生</h3><span class="badge">虚构经历 · 可编辑</span></div>
+            <p>如果当年坚持画画，而不是选择计算机专业？以林舟的人生为起点，探索梦想、家人的期待和朋友的邀约。</p>
+            <button id="usePreset" class="small gap" type="button">使用预设：绘画梦想与稳定专业</button>
+            <p class="hint">只填入经历，不自动调用模型。确认后仍由真实豆包生成分支；已有档案不会被改写。</p>
+          </section>
+          <label class="gap" for="story">你做过哪个重要选择？</label>
+          <textarea id="story" maxlength="30000" required placeholder="比如，某年毕业时，我在留在家乡和去外地之间犹豫……&#10;可以补充日期、当时的条件、重要人物和最后的选择。记不清的地方直接说记不清。"></textarea>
+          <div class="row between gap"><span class="hint">经历将发送给你配置的模型服务。只分享愿意分享的部分。</span><button class="primary" type="submit">整理我的经历 →</button></div>
+        </form>
+        <section id="profileCard" class="card" hidden>
+          <div class="row between"><div><div class="eyebrow">Your story, confirmed by you</div><h2>先把来路记清楚</h2></div><span id="profileVersion" class="badge"></span></div>
+          <div id="questions" class="questions" hidden></div>
+          <label for="identity" class="gap">此刻的身份描述 · 只用于人生档案</label><input id="identity" maxlength="2000">
+          <div id="eventEditors"></div>
+          <button id="addEvent" class="small gap">＋ 补充一个转折点</button>
+          <p class="hint">逐项确认日期和经历。完整日期用于划分时间边界；不确定时请先补充说明，不要把猜测当成事实。</p>
+          <div class="row between gap"><span id="profileState" class="muted"></span><button id="confirmProfile" class="primary">确认经历，寻找三种可能 →</button></div>
+        </section>
+      </div>
+    </section>
+    <section id="branchesStage" hidden>
+      <div class="pagehead"><div class="eyebrow">02 / Roads not taken</div><h1>同一个起点，<br>不同的人生章节。</h1><p>每一条路都有机会，也有代价。挑一条你想亲自走走的路。后面的故事，由你和遇见的人共同决定。</p></div>
+      <div id="branchCards" class="branches"></div><div id="noBranches" class="card empty">先讲述并确认一段经历，才能生成你的平行人生。</div>
+    </section>
+    <section id="worldStage" hidden>
+      <div id="noWorld" class="card empty">选择一个平行人生，开启第一幕。</div>
+      <div id="worldContent" hidden>
+        <div class="worldhead row between"><div><div id="worldMeta" class="eyebrow"></div><h1 id="worldTitle"></h1></div><button id="refreshWorld" class="small">重新读取进展</button></div>
+        <div class="worldgrid">
+          <div class="stack">
+            <section class="scene"><div class="row between"><span class="eyebrow">The scene</span><span id="place" class="badge"></span></div><h2 id="sceneTitle"></h2><p id="sceneDescription"></p><div id="choices" class="choices"></div><div class="row between gap"><small id="advanceHint"></small><button id="advance" class="small">进入下一章节 →</button></div></section>
+            <section class="card chat"><div class="chathead"><div id="roleTabs" class="tabs"></div><p id="chatHint" class="hint"></p></div><div id="messages" class="chatmessages" aria-live="polite" aria-busy="false"></div><div id="imageJobs" class="jobs" aria-live="polite"></div><div id="turnFeedback" class="turn-feedback" role="status" hidden></div><form id="chatForm" class="composer"><label id="chatLabel" for="chatText" class="muted">对 TA 说</label><textarea id="chatText" maxlength="3000" required placeholder="自然地聊聊，也可以在这里写想看的图片主题。"></textarea><div class="row between"><span class="hint">Enter 发送 · Shift + Enter 换行</span><div class="tools"><button id="requestImage" type="button" title="输入主题后发图；留空则画当前场景">发图</button><button id="sendChat" class="primary" type="submit">发送 →</button></div></div><p id="imageHint" class="hint">发图会单独提交图片生成请求；输入为空时画当前场景，不会自动改变世界状态。</p></form></section>
+            <details class="card advanced"><summary>约定与补充表达</summary><div class="grid2"><div><label for="actionKind">动作</label><select id="actionKind"><option value="propose">提出一个想法</option><option value="tell">告诉对方一件事</option><option value="promise">做出约定</option><option value="cancel">取消自己的约定</option><option value="fulfill">明确确认约定已完成</option></select></div><div><label id="targetLabel" for="actionTarget">目标地点</label><select id="actionTarget"></select></div></div><div id="actionContentWrap" class="gap" hidden><label for="actionContent">具体内容</label><input id="actionContent" maxlength="2000"></div><div id="actionItemWrap" class="gap" hidden><label for="actionItem">我拥有的物品</label><select id="actionItem"></select></div><div id="actionDueWrap" class="gap" hidden><label for="actionDue">约定期限（可选）</label><input id="actionDue" type="date"></div><button id="performAction" class="small gap">确认表达或约定</button><p class="hint">用对话和选择推进故事。提议不是已发生的事，约定也不会自动完成。</p></details>
+          </div>
+          <aside class="aside stack">
+            <section class="card person"><div class="row"><div id="avatar" class="avatar"></div><div><h3 id="characterName"></h3><small id="characterRelation"></small></div></div><p id="characterPersona"></p><div class="rule"><label>TA 现在在意的事</label><p id="characterGoal"></p></div><button id="editCharacter" class="quiet small gap">编辑人物设定 ↗</button></section>
+            <details class="card" open><summary>已经发生的事</summary><div id="timeline" class="timeline"></div></details>
+            <details class="card"><summary>未完成的约定</summary><div id="promises" class="promises"></div></details>
+            <details id="memoryPanel" class="card"><summary>记忆与原始依据</summary><p class="hint">这是观察面板，角色不会在对话中看到这些界面提示。</p><button id="refreshMemory" class="quiet small gap">刷新记忆</button><div id="memories"></div></details>
+            <details id="technicalPanel" class="card technical"><summary>技术与对话上下文</summary><p class="hint">仅供检查，不是角色台词。读取本面板不会调用模型。</p><dl><dt>角色回复模型</dt><dd id="replyModel">尚未读取</dd><dt>本轮类型</dt><dd id="turnMode">尚无本轮记录</dd></dl><button id="refreshConversation" class="small">重新读取对话状态</button><p id="conversationStatus" class="hint">展开后读取当前人物的会话状态。</p><pre id="conversationDebug" hidden></pre></details>
+          </aside>
+        </div>
+        <p class="footerline">每个人只知道自己经历或获知的事。世界记住行动，人物记住你们的过去。</p>
+      </div>
+    </section>
+  </main>
+</div>
+<dialog id="characterDialog"><form id="characterForm"><h2>人物设定</h2><p class="hint">这是明确修改角色卡，不是让普通聊天覆盖 TA 的人设。</p><label for="editPersona">人设</label><textarea id="editPersona" maxlength="3000" required></textarea><label for="editVoice">说话方式（可选）</label><textarea id="editVoice" maxlength="3000" placeholder="例如：句子简短，语气温和，偶尔开个玩笑；留空使用默认。"></textarea><label for="editGoal">当前目标</label><input id="editGoal" required><label for="editRelationship">与你的关系</label><input id="editRelationship" required><div class="grid2"><div><label for="editAppearance">固定外观</label><textarea id="editAppearance" required></textarea></div><div><label for="editStyle">画风</label><input id="editStyle" required></div></div><div class="row gap"><button class="primary" type="submit">保存设定</button><button type="button" id="closeDialog">取消</button></div></form></dialog>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const node = (tag, text, cls) => { const el=document.createElement(tag);
+   if(text!==undefined)el.textContent=text;
+  if(cls)el.className=cls;
+  return el;
+   };
+const uid = () => crypto.randomUUID();
+const user = localStorage.getItem('parallel-life-user') || uid();
+localStorage.setItem('parallel-life-user',user);
+const state={profile:null,branches:[],world:null,actor:null,messages:[],events:[],turns:null,jobs:[],busy:false,stage:'life',health:null,poll:null,conversation:null,conversationScope:'',lastTurn:null,contextLoading:false};
+let retryAction=null;
+const withUser = path => path+(path.includes('?')?'&':'?')+'user_id='+encodeURIComponent(user);
+const branchPath = () => '/api/branches/'+encodeURIComponent(state.world.branch_id);
+function notice(text,error=false,retry=null){$('noticeText').textContent=text;
+  $('notice').hidden=false;
+  $('notice').className='notice'+(error?' error':'');
+  retryAction=retry;
+  $('retry').hidden=!retry;
+  $('reloadNotice').hidden=!error||!state.world;
+  $('dismiss').hidden=false;
+  }
+function setBusy(value,label=''){state.busy=value;
+  $('messages').setAttribute('aria-busy',String(value));
+  document.querySelectorAll('button,input,textarea,select').forEach(el=>el.disabled=value);
+  if(value){notice(label);
+    $('notice').className='notice working';
+    $('dismiss').hidden=true;
+    }else{updateButtons();
+    }}
+function updateButtons(){if(state.busy)return;
+  $('advance').disabled=!state.world||Boolean(state.world.scene.options.length&&!state.world.scene.chosen);
+  $('confirmProfile').disabled=!state.profile;
+  $('editCharacter').disabled=!state.world;
+  $('requestImage').disabled=!state.world||state.health?.image_configured===false;
+  document.querySelectorAll('[data-image-retry]').forEach(button=>button.disabled=!state.world||state.health?.image_configured===false);
+  $('refreshConversation').disabled=state.contextLoading||!state.world;
+  document.querySelectorAll('#choices button').forEach(button=>button.disabled=Boolean(state.world?.scene.chosen));
+  }
+async function api(path,method='GET',body){const response=await fetch(path,{method,headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined});
+  let value;
+  try{value=await response.json();
+    }catch{throw new Error('服务返回了非 JSON 内容，请检查后端日志。');
+    }if(!response.ok){const detail=value.detail||value.error||value.message||'请求失败';
+    const error=new Error(typeof detail==='string'?detail:JSON.stringify(detail));
+    error.status=response.status;
+    throw error;
+    }return value;
+  }
+async function work(label,task){if(state.busy)return;
+  setBusy(true,label);
+  try{await task();
+    $('notice').hidden=true;
+    }catch(error){const retry=error.retry===null?null:error.retry||(error.status===409&&state.world?()=>work('只读取最新进展，请确认后再发送…',loadWorld):()=>work(label,task));notice(error.message||'请求中断，请检查连接。',true,retry);
+    }finally{setBusy(false);
+    }}
+function stage(name){state.stage=name;
+  ['life','branches','world'].forEach(s=>$(s+'Stage').hidden=s!==name);
+  document.querySelectorAll('[data-stage]').forEach(b=>b.classList.toggle('active',b.dataset.stage===name));
+  }
+document.querySelectorAll('[data-stage]').forEach(b=>b.onclick=()=>stage(b.dataset.stage));
+$('dismiss').onclick=()=>{$('notice').hidden=true;
+  };
+$('retry').onclick=()=>retryAction?.();
+$('reloadNotice').onclick=()=>work('只读取已保存结果，不重新调用模型…',loadWorld);
+const actorKey=branch=>'parallel-life-actor:'+user+':'+branch;
+const draftKey=(branch,actor)=>'parallel-life-draft:'+user+':'+branch+':'+actor;
+const replyRetryKey=(branch,actor)=>'parallel-life-reply-retry:'+user+':'+branch+':'+actor;
+function saveDraft(){if(state.world&&state.actor)localStorage.setItem(draftKey(state.world.branch_id,state.actor),$('chatText').value);}
+function restoreDraft(){$('chatText').value=state.world&&state.actor?localStorage.getItem(draftKey(state.world.branch_id,state.actor))||'':'';}
+$('chatText').addEventListener('input',saveDraft);
+window.addEventListener('beforeunload',saveDraft);
+function field(parent,labelText,value,type='input'){const wrap=node('div');
+  const label=node('label',labelText);
+  const el=node(type);
+  el.value=value||'';
+  label.append(el);
+  wrap.append(label);
+  parent.append(wrap);
+  return el;
+  }
+function renderProfile(){const p=state.profile;
+  $('profileCard').hidden=!p;
+  if(!p)return;
+  $('identity').value=p.identity;
+  $('profileVersion').textContent='人生档案 · v'+p.revision;
+  $('profileState').textContent=p.confirmed?'已确认的经历版本':'等待你逐项确认';
+  $('questions').replaceChildren(...p.questions.map(q=>node('p','· '+q)));
+  $('questions').hidden=!p.questions.length;
+  $('eventEditors').replaceChildren();
+  p.events.forEach(addEventEditor);
+  updateButtons();
+  }
+function addEventEditor(event){const box=node('article',undefined,'event-editor');
+  box.dataset.event=JSON.stringify(event);
+  const head=node('div',undefined,'row between');
+  head.append(node('h3','一段经历'));
+  const remove=node('button','移除','small quiet');
+  remove.type='button';
+  remove.onclick=()=>box.remove();
+  head.append(remove);
+  box.append(head);
+  const grid=node('div',undefined,'grid2 gap');
+  const date=field(grid,'发生日期',event.date);
+  date.type='date';
+  date.dataset.key='date';
+  const choice=field(grid,'当时的选择',event.choice);
+  choice.dataset.key='choice';
+  box.append(grid);
+  const text=field(box,'经历与当时条件',event.text,'textarea');
+  text.dataset.key='text';
+  text.maxLength=4000;
+  const people=field(box,'重要人物（用逗号分隔）',(event.people||[]).join('，'));
+  people.dataset.key='people';
+  const source=node('details',undefined,'source');
+  source.append(node('summary','最初讲述的原话'),node('blockquote',event.source_quote||'这条经历由你手动补充并确认。'));
+  box.append(source);
+  $('eventEditors').append(box);
+  }
+$('addEvent').onclick=()=>addEventEditor({id:uid(),date:'',text:'',choice:'',people:[],confirmed:false,source_quote:''});
+const presetStory = `这是虚构人物林舟的经历，用于体验平行人生，不代表操作者的真实经历。
+
+2008-09-01，我刚高中毕业，收到大学计算机专业的录取通知。我一直喜欢画画，也想过复读一年准备美术考试。父母觉得计算机更稳定，家里只能负担普通大学学费，承担额外培训费有些吃力。朋友阿宁鼓励我先向美术老师陈叔了解奖学金和助学机会。最后我选择了计算机专业，把画画留作爱好。
+
+2016-06-15，我在一家软件公司做工程师，收入稳定。朋友阿宁邀请我一起创办小型设计工作室，由我负责技术和交互，她负责视觉设计。我们有一个试单机会，但没有稳定客源；我担心积蓄只够撑半年，又不想让父母担心，最终拒绝了邀请。
+
+2021-03-20，公司给了我去外地带团队的机会。留在原来的城市可以常见到父母，也有熟悉的朋友；去外地则能获得更好的职业发展。我最终留了下来。现在我仍会在周末画画，偶尔想知道，如果当年认真走过一次艺术道路，生活会是什么样。
+
+我在意创作自由、家人的安心和长久的友谊。阿宁是愿意冒险、说话直接的老朋友；陈叔做事务实，不会只说好听的话。我希望另一种人生既有机会，也有现实的代价，而不是一切都顺利。`;
+$('usePreset').onclick=()=>{
+  if(state.busy)return;
+  const hasDraft=state.profile||($('story').value.trim() && $('story').value!==presetStory);
+  if(hasDraft && !confirm('切换到虚构预设？当前未提交的输入和档案编辑会被替换；已保存的经历与人生分支都会保留。'))return;
+  state.profile=null;
+  localStorage.removeItem('parallel-life-profile');
+  renderProfile();
+  updateButtons();
+  $('story').value=presetStory;
+  $('story').focus();
+  $('story').setSelectionRange(0,0);
+  $('story').scrollTop=0;
+  notice('已填入虚构预设。你可以修改内容，再点“整理我的经历”开始；这次会建立独立档案。');
+};
+$('interviewForm').onsubmit=event=>{event.preventDefault();
+  const text=$('story').value.trim();
+  if(!text)return;
+  const body={user_id:user,text};
+  if(state.profile)body.profile_id=state.profile.id;
+  work('正在理解经历并整理需要确认的问题…',async()=>{state.profile=await api('/api/interview','POST',body);
+    localStorage.setItem('parallel-life-profile',state.profile.id);
+    renderProfile();
+    $('story').value='';
+    $('profileCard').scrollIntoView({behavior:'smooth',block:'start'});
+    });
+  };
+$('confirmProfile').onclick=()=>{const events=[...$('eventEditors').children].map(box=>{const original=JSON.parse(box.dataset.event);
+    const get=key=>box.querySelector('[data-key="'+key+'"]').value.trim();
+    return {...original,date:get('date'),text:get('text'),choice:get('choice'),people:get('people').split(/[,，]/).map(s=>s.trim()).filter(Boolean)};
+    });
+  if(!events.length||events.some(e=>!e.date||!e.text)){notice('请至少保留一条经历，并确认每条经历的日期和内容。',true);
+    return;
+    }const id=state.profile.id,body={user_id:user,identity:$('identity').value,events},request=uid();
+  work('正在保存你确认的经历，并生成三个有差异的平行人生…',async()=>{state.profile=await api('/api/profiles/'+id+'/confirm','POST',body);
+    renderProfile();
+    const result=await api('/api/profiles/'+id+'/branches','POST',{user_id:user,request_id:request});
+    state.branches=result.branches;
+    renderBranches();
+    await refreshSaved();
+    stage('branches');
+    });
+  };
+function renderBranches(){const root=$('branchCards');
+  root.replaceChildren();
+  $('noBranches').hidden=Boolean(state.branches.length);
+  state.branches.forEach((b,index)=>{const card=node('article',undefined,'card branch');
+    card.append(node('div',String(index+1).padStart(2,'0'),'index'),node('div',b.start_date,'eyebrow'),node('h2',b.title),node('p',b.changed));
+    const list=node('dl');
+    [['保留下来的',b.preserved],['新的机会',b.opportunity],['需要付出的',b.cost],['仍然未知的',b.uncertainty]].forEach(([label,text])=>list.append(node('dt',label),node('dd',text)));
+    card.append(list);
+    const button=node('button','进入这段人生 →','primary');
+    button.onclick=()=>enterBranch(b.id);
+    card.append(button);
+    root.append(card);
+    });
+  }
+async function refreshSaved(){const result=await api(withUser('/api/branches'));
+  const select=$('savedBranches');
+  select.replaceChildren(node('option','选择已保存的分支'));
+  select.firstChild.value='';
+  result.branches.forEach(b=>{const option=node('option',b.title+' · '+b.start_date);
+    option.value=b.id;
+    select.append(option);
+    });
+  if(state.world)select.value=state.world.branch_id;
+  return result.branches;
+  }
+function enterBranch(id){const request=uid();
+  saveDraft();
+  work('正在进入转折点，读取人物与场景…',async()=>{state.world=await api('/api/branches/'+id+'/enter','POST',{user_id:user,request_id:request});
+    localStorage.setItem('parallel-life-branch',id);
+    await loadWorld();
+    stage('world');
+    });
+  }
+$('savedBranches').onchange=()=>{if($('savedBranches').value)enterBranch($('savedBranches').value);
+  };
+$('newLife').onclick=()=>{state.profile=null;
+  localStorage.removeItem('parallel-life-profile');
+  renderProfile();
+  stage('life');
+  $('story').focus();
+  };
+const actorName=id=>id==='player'?'我':state.world?.characters.find(c=>c.id===id)?.name||id;
+async function loadWorld(){const base=branchPath();
+  const [world,history,jobs]=await Promise.all([api(withUser(base)),api(withUser(base+'/history')),api(withUser(base+'/jobs'))]);
+  state.world=world;
+  state.messages=history.messages;
+  state.events=history.events;
+  state.turns=Array.isArray(history.turns)?history.turns:null;
+  state.jobs=jobs.jobs;
+  const remembered=localStorage.getItem(actorKey(world.branch_id))||state.actor;
+  state.actor=world.characters.some(c=>c.id===remembered)?remembered:world.characters[0]?.id;
+  localStorage.setItem(actorKey(world.branch_id),state.actor||'');
+  const scope=world.branch_id+':'+state.actor;
+  if(state.conversationScope!==scope){state.conversation=null;state.conversationScope=scope;state.lastTurn=null;}
+  restoreDraft();
+  renderWorld();
+  loadMemories().catch(error=>{$('memories').replaceChildren(node('p','记忆读取失败，请点“刷新记忆”重试。','hint'));});
+  if($('technicalPanel').open)loadConversation();
+  pollJobs();
+  }
+function renderWorld(){const w=state.world;
+  $('noWorld').hidden=Boolean(w);
+  $('worldContent').hidden=!w;
+  if(!w)return;
+  $('worldMeta').textContent=w.date+' / 第 '+w.scene.chapter+' 章';
+  $('worldTitle').textContent=w.identity;
+  $('place').textContent=w.player_location;
+  $('sceneTitle').textContent=w.scene.title;
+  $('sceneDescription').textContent=w.scene.description;
+  $('choices').replaceChildren();
+  w.scene.options.forEach(option=>{const button=node('button',(w.scene.chosen===option.id?'✓ ':'')+option.label);
+    button.append(node('small',option.consequence));
+    button.disabled=Boolean(w.scene.chosen);
+    button.onclick=()=>sendTurn('我选择：'+option.label,{kind:'choose',target:option.id});
+    $('choices').append(button);
+    });
+  $('advanceHint').textContent=w.scene.options.length&&!w.scene.chosen?'先做出当前场景的关键选择。':'准备好后，由你确认进入下一幕。';
+  $('roleTabs').replaceChildren();
+  w.characters.forEach(c=>{const b=node('button',c.name,c.id===state.actor?'selected':'');
+    b.onclick=()=>{if(state.busy||state.actor===c.id)return;
+      saveDraft();
+      state.actor=c.id;
+      localStorage.setItem(actorKey(w.branch_id),c.id);
+      state.conversation=null;state.conversationScope=w.branch_id+':'+c.id;state.lastTurn=null;
+      restoreDraft();
+      renderWorld();
+      loadMemories().catch(e=>notice(e.message,true));
+      if($('technicalPanel').open)loadConversation();
+      };
+    $('roleTabs').append(b);
+    });
+  const c=w.characters.find(c=>c.id===state.actor);
+  $('avatar').textContent=c.name.slice(0,1);
+  $('characterName').textContent=c.name;
+  $('characterRelation').textContent=c.relationship+' · '+c.location;
+  $('characterPersona').textContent=c.persona;
+  $('characterGoal').textContent=c.goal;
+  $('chatHint').textContent='正在和 '+c.name+' 对话。其他角色不会自动知道这里的私聊。';
+  $('chatLabel').textContent='对 '+c.name+' 说';
+  $('imageHint').textContent=state.health?.image_configured===false?'图片服务尚未配置，文字聊天仍可使用。':'发图会单独提交图片生成请求；输入为空时画当前场景，不会自动改变世界状态。';
+  renderConversation();
+  renderMessages();
+  renderTimeline();
+  renderPromises();
+  renderJobs();
+  renderTurnFeedback();
+  renderAction();
+  updateButtons();
+  }
+function renderMessages(){const root=$('messages');
+  root.replaceChildren();
+  const visible=state.messages.filter(m=>m.role==='system'||m.actor_id===state.actor||(m.role==='user'&&(!m.visibility||m.visibility.includes(state.actor))));
+  if(!visible.length)root.append(node('div','故事刚刚开始。你想先对 '+actorName(state.actor)+' 说什么？','empty'));
+  visible.forEach(m=>{const box=node('article',undefined,'message'+(m.role==='user'?' mine':''));
+    box.append(node('div',m.role==='user'?'我':actorName(m.actor_id),'name'));
+    if(m.role==='image'&&m.image_id){const image=node('img');
+      image.src=withUser('/api/images/'+encodeURIComponent(m.image_id));
+      image.alt=actorName(m.actor_id)+'发来的图片';
+      image.loading='lazy';
+      box.append(image);
+      if(m.text){const details=node('details',undefined,'source');
+        details.append(node('summary','图片生成说明'),node('p',m.text,'hint'));
+        box.append(details);
+        }
+      }else box.append(node('div',m.text,'bubble'));
+    root.append(box);
+    });
+  root.scrollTop=root.scrollHeight;
+  }
+function renderTimeline(){const root=$('timeline');
+  root.replaceChildren();
+  const events=state.events.filter(e=>!e.visibility||e.visibility.includes('player'));
+  if(!events.length)root.append(node('p','还没有正式结算的行动。','hint'));
+  events.slice(-30).reverse().forEach(e=>{const item=node('article',undefined,e.accepted?'':'rejected');
+    item.append(node('small',e.date+' · '+(e.accepted?'已发生':'未生效')),node('p',e.text));
+    root.append(item);
+    });
+  }
+function renderPromises(){const root=$('promises');
+  root.replaceChildren();
+  const promises=state.world.promises.filter(p=>p.status==='open'&&p.visibility.includes('player'));
+  if(!promises.length)root.append(node('p','暂时没有待履行的约定。'));
+  promises.forEach(p=>root.append(node('p',actorName(p.actor_id)+' → '+actorName(p.target_id)+'：'+p.content+(p.due?' · '+p.due:'')+(p.condition?' · 条件：'+p.condition:''))));
+  }
+function renderJobs(){const root=$('imageJobs');
+  root.replaceChildren();
+  const labels={pending:'图片已排队，等待生成',running:'图片生成中，你可以继续聊天',done:'图片已生成，已保存在聊天记录',failed:'图片生成失败，没有自动重试',uncertain:'图片结果待确认，没有自动重复请求'};
+  state.jobs.filter(j=>j.kind==='image'&&j.actor_id===state.actor).slice(-5).forEach(j=>{
+    const box=node('div',undefined,'job');box.dataset.status=j.status;
+    box.append(node('div',labels[j.status]||'图片状态待确认'));
+    const detail=node('details',undefined,'source');detail.append(node('summary','图片任务详情'));
+    if(j.payload?.prompt)detail.append(node('p',j.payload.prompt,'hint'));
+    if(j.error)detail.append(node('p','服务记录：'+j.error,'hint'));
+    if(!j.payload?.prompt&&!j.error)detail.append(node('p','任务编号：'+j.id,'hint'));
+    box.append(detail);
+    if(['failed','uncertain'].includes(j.status)){
+      const row=node('div',undefined,'row'),reload=node('button','重新查状态','small');
+      reload.onclick=()=>work('只读取图片任务与聊天记录…',loadWorld);row.append(reload);
+      const retry=node('button','重新发图…','small');retry.dataset.imageRetry='true';retry.disabled=state.health?.image_configured===false;
+      retry.onclick=()=>{if(state.busy)return;const subject=prompt('这是一个新的图片请求，可能再次计费。填写想看的主题后确认；原任务不会被覆盖。','当前场景');if(subject?.trim())sendTurn('请生成一张图：'+subject.trim(),null,{imageRequest:subject.trim(),preserveDraft:true});};
+      row.append(retry);box.append(row);
+    }
+    root.append(box);
+  });
+  }
+function pollJobs(){clearTimeout(state.poll);
+  if(!state.world||!state.jobs.some(j=>['pending','running'].includes(j.status)))return;
+  const branch=state.world.branch_id;
+  state.poll=setTimeout(async()=>{try{const result=await api(withUser('/api/branches/'+branch+'/jobs'));
+      if(state.world.branch_id!==branch)return;
+      const before=state.jobs.filter(j=>j.status==='done').length;
+      state.jobs=result.jobs;
+      renderJobs();
+      if(state.jobs.filter(j=>j.status==='done').length!==before){const history=await api(withUser('/api/branches/'+branch+'/history'));
+        if(state.world?.branch_id!==branch)return;
+        state.messages=history.messages;
+        state.events=history.events;
+        state.turns=Array.isArray(history.turns)?history.turns:null;
+        renderMessages();
+        renderTurnFeedback();
+        loadMemories().catch(()=>{});
+        }pollJobs();
+      }catch(error){notice('后台任务查询中断：'+error.message,true,()=>pollJobs());
+      }},2500);
+  }
+function sendTurn(text,action,options={}){if(state.busy||!state.world||!text.trim())return;
+  if(options.imageRequest?.length>1500){notice('图片主题请控制在 1500 字以内。输入已保留，缩短后再点“发图”。',true);return;}
+  saveDraft();
+  const body={user_id:user,request_id:uid(),version:state.world.version,character_id:state.actor,text};
+  if(action)body.user_action=action;
+  if(options.imageRequest){body.image_request=options.imageRequest;body.image_only=true;}
+  if(state.conversationScope===state.world.branch_id+':'+state.actor&&Number.isInteger(state.conversation?.revision))body.conversation_version=state.conversation.revision;
+  const base=branchPath();
+  const context={base,body,branch:state.world.branch_id,draft:$('chatText').value,preserveDraft:options.preserveDraft||Boolean(action)};
+  let acceptedResult=null;
+  work(options.imageRequest?'正在提交图片请求…':'正在等待 '+actorName(state.actor)+' 回应…',async()=>{
+    ensureTurnScope(context);
+    acceptedResult=acceptedResult||await api(base+'/interact','POST',body);
+    await finishTurn(acceptedResult,context);
+  });
+  }
+function ensureTurnScope(context){if(state.world?.branch_id!==context.branch||state.actor!==context.body.character_id){const error=new Error('你已切换人物或人生分支。请回到原来的对话后重新读取结果；本次没有提交请求。');error.retry=null;throw error;}}
+async function finishTurn(result,context){
+  ensureTurnScope(context);
+  state.world=result.world;
+  const retryKey=replyRetryKey(context.branch,context.body.character_id);
+  if(result.reply_status==='failed')localStorage.setItem(retryKey,JSON.stringify(context));
+  else if(['done','not_requested'].includes(result.reply_status))localStorage.removeItem(retryKey);
+  if(result.conversation){state.conversation=result.conversation;state.conversationScope=state.world.branch_id+':'+context.body.character_id;}
+  state.lastTurn={mode:result.turn_mode||'chat',media:result.media||{status:'none'},request_id:context.body.request_id,reply_status:result.reply_status};
+  await loadWorld();
+  if(result.reply_status==='failed'){
+    const error=new Error('本轮输入已保存，但角色回复失败。草稿已保留；先读取结果，或手动仅重试回复（可能产生模型费用，不会重复行动或生图）。');
+    error.retry=()=>retryReply(context);
+    throw error;
+  }
+  const errors=(result.errors||[]).filter(error=>error!=='image_limit_reached');
+  if(errors.length){const error=new Error('本轮已保存，但部分处理未完成。草稿已保留，请重新读取进展查看详情。 '+errors.map(e=>typeof e==='string'?e:JSON.stringify(e)).join('；'));error.retry=()=>work('只读取已保存结果…',loadWorld);throw error;}
+  if(!context.preserveDraft&&result.media?.status!=='limited'&&$('chatText').value===context.draft){$('chatText').value='';saveDraft();}
+  renderTurnFeedback();
+}
+function retryReply(context){if(state.busy)return;
+  let recoveredResult=null;
+  work('仅重试这一轮的角色回复，不重复行动或生图…',async()=>{
+    ensureTurnScope(context);
+    recoveredResult=recoveredResult||await api(context.base+'/turns/'+encodeURIComponent(context.body.request_id)+'/retry','POST',{user_id:user});
+    await finishTurn(recoveredResult,context);
+  });
+}
+function renderTurnFeedback(){const feedback=$('turnFeedback');feedback.hidden=true;feedback.replaceChildren();
+  if(state.world&&state.actor){
+    let pending=null;
+    if(state.turns!==null){
+      const latest=[...state.messages].reverse().find(m=>m.role==='user'&&(!m.visibility||m.visibility.includes(state.actor)));
+      const turn=state.turns.find(t=>t.character_id===state.actor&&t.request_id===latest?.request_id&&['failed','pending'].includes(t.reply_status));
+      if(turn)pending={branch:state.world.branch_id,base:branchPath(),body:{request_id:turn.request_id,character_id:state.actor},draft:$('chatText').value,preserveDraft:$('chatText').value!==latest.text,status:turn.reply_status};
+    }else{try{pending=JSON.parse(localStorage.getItem(replyRetryKey(state.world.branch_id,state.actor))||'null');}catch{}}
+    if(pending?.body?.request_id&&pending.branch===state.world.branch_id&&pending.body.character_id===state.actor){
+      feedback.append(node('p',pending.status==='pending'?'上一轮回复仍在处理或已中断。可以先重新读取进展；手动恢复只处理回复，不重复行动或生图。':'上一轮角色回复未完成。输入和已结算结果已保存；可以手动仅重试回复，不重复行动或生图。'));
+      const button=node('button','仅重试上一轮回复','small');button.disabled=state.busy;button.onclick=()=>retryReply(pending);feedback.append(button);feedback.hidden=false;return;
+    }
+  }
+  const media=state.lastTurn?.media;
+  const mediaStatus=state.jobs.find(j=>j.id===media?.job_id)?.status||media?.status;
+  if(['queued','pending','running'].includes(mediaStatus)){feedback.textContent='图片请求已排队。生成完成后会出现在这里，你可以继续聊天。';feedback.hidden=false;}
+  if(mediaStatus==='limited'){feedback.textContent='这次没有提交新的图片任务。请先查看正在进行的图片任务，稍后再手动发图。';feedback.hidden=false;}
+}
+let contextSequence=0;
+function renderConversation(){
+  $('replyModel').textContent=state.health?.reply_model||state.health?.chat_model||'尚未配置';
+  $('turnMode').textContent=({chat:'聊天',image:'聊天与图片',world:'明确世界行动'})[state.lastTurn?.mode]||'尚无本轮记录';
+  $('conversationDebug').hidden=!state.conversation;
+  $('conversationDebug').textContent=state.conversation?JSON.stringify(state.conversation,null,2):'';
+  $('refreshConversation').disabled=state.busy||state.contextLoading||!state.world;
+  if(!state.contextLoading)$('conversationStatus').textContent=state.conversation?'当前人物会话状态已读取；切换人物会读取各自的状态。':'尚未读取当前人物会话状态。';
+}
+async function loadConversation(){if(!state.world||!state.actor)return;
+  const sequence=++contextSequence,branch=state.world.branch_id,actor=state.actor;
+  state.contextLoading=true;renderConversation();$('conversationStatus').textContent='正在只读查询会话状态…';
+  try{
+    const result=await api(withUser('/api/branches/'+encodeURIComponent(branch)+'/conversation')+'&character_id='+encodeURIComponent(actor));
+    if(sequence!==contextSequence||state.world?.branch_id!==branch||state.actor!==actor)return;
+    const incoming=result.state;
+    if(!state.conversation||!Number.isInteger(incoming?.revision)||incoming.revision>=state.conversation.revision)state.conversation=incoming;
+    state.conversationScope=branch+':'+actor;
+    state.contextLoading=false;renderConversation();
+  }catch(error){if(sequence!==contextSequence||state.world?.branch_id!==branch||state.actor!==actor)return;
+    state.contextLoading=false;renderConversation();$('conversationStatus').textContent='状态读取失败：'+error.message+'。可以点“重新读取对话状态”；聊天记录不受影响。';
+  }finally{if(sequence===contextSequence){state.contextLoading=false;$('refreshConversation').disabled=state.busy||!state.world;}}
+}
+$('technicalPanel').addEventListener('toggle',()=>{if($('technicalPanel').open)loadConversation();});
+$('refreshConversation').onclick=loadConversation;
+$('chatForm').onsubmit=event=>{event.preventDefault();
+  sendTurn($('chatText').value.trim());
+  };
+$('requestImage').onclick=()=>{const subject=$('chatText').value.trim()||'当前场景';sendTurn($('chatText').value.trim()||'给我发一张当前场景的图。',null,{imageRequest:subject});};
+$('chatText').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();
+    if(!state.busy)$('chatForm').requestSubmit();
+    }};
+$('refreshWorld').onclick=()=>work('正在重新读取已保存的世界…',loadWorld);
+$('advance').onclick=()=>{if(!confirm('进入下一章节？当前未完成的约定会保留，系统不会替你完成重大选择。'))return;
+  const body={user_id:user,request_id:uid(),version:state.world.version,confirmed:true};
+  const base=branchPath();
+  work('正在整理这一幕的共同经历，并开启下一章节…',async()=>{const result=await api(base+'/advance','POST',body);
+    state.world=result.world||result;
+    await loadWorld();
+    });
+  };
+const memoryKinds={preference:'明确偏好',episode:'共同经历',belief:'角色认识',summary:'上下文摘要',correction:'用户纠正'};
+const sourceKinds={user_statement:'用户原话',event:'已结算事件',agent_inference:'角色推测',summary:'原文压缩',user_correction:'明确纠正'};
+async function loadMemories(){if(!state.world)return;
+  const branch=state.world.branch_id,actor=state.actor;
+  const result=await api(withUser('/api/branches/'+branch+'/memories')+'&character_id='+encodeURIComponent(actor));
+  if(branch!==state.world.branch_id||actor!==state.actor)return;
+  const root=$('memories');
+  root.replaceChildren();
+  const entries=result.memories.filter(m=>m.status==='active');
+  if(!entries.length)root.append(node('p','还没有形成长期记忆。对话原文仍会保存。','hint'));
+  entries.forEach(m=>{const box=node('article',undefined,'memory');
+    box.append(node('div',(memoryKinds[m.kind]||m.kind)+' / '+(sourceKinds[m.source_type]||m.source_type),'meta'),node('p',m.text));
+    const source=node('details',undefined,'source');
+    source.append(node('summary','查看 '+m.source_ids.length+' 条原始依据'));
+    m.source_ids.forEach(id=>{const raw=[...state.messages,...state.events].find(x=>x.id===id);
+      source.append(node('blockquote',raw?raw.text:'证据 ID：'+id));
+      });
+    box.append(source);
+    const row=node('div',undefined,'row');
+    const correct=node('button','纠正','small quiet'),forget=node('button','遗忘','small quiet');
+    correct.onclick=()=>{const text=prompt('把正确的内容写在这里：',m.text);
+      if(text?.trim())editMemory(m.id,'correct',text.trim());
+      };
+    forget.onclick=()=>{if(confirm('让这个角色遗忘这条记忆？相关来源不会再次用于重建它。'))editMemory(m.id,'forget');
+      };
+    row.append(correct,forget);
+    box.append(row);
+    root.append(box);
+    });
+  }
+function editMemory(id,operation,text){const base=branchPath();
+  const body={user_id:user,character_id:state.actor,operation,text};
+  work(operation==='forget'?'正在标记遗忘并移出召回…':'正在保存你的纠正…',async()=>{await api(base+'/memories/'+id,'POST',body);
+    await loadMemories();
+    });
+  }
+$('refreshMemory').onclick=()=>work('正在读取记忆与来源…',loadMemories);
+function renderAction(){if(!state.world)return;
+  const kind=$('actionKind').value,target=$('actionTarget');
+  target.replaceChildren();
+  let options=[];
+  if(kind==='move'){options=state.world.locations.map(p=>[p,p]);
+    $('targetLabel').textContent='目标地点';
+    }else if(['cancel','fulfill'].includes(kind)){options=state.world.promises.filter(p=>p.status==='open'&&(kind==='cancel'?p.actor_id==='player':p.visibility.includes('player'))).map(p=>[p.id,p.content]);
+    $('targetLabel').textContent=kind==='cancel'?'自己的未完成约定':'我参与的未完成约定';
+    }else{options=state.world.characters.map(c=>[c.id,c.name]);
+    $('targetLabel').textContent='对方';
+    }options.forEach(([value,text])=>{const option=node('option',text);
+    option.value=value;
+    target.append(option);
+    });
+  $('actionContentWrap').hidden=!['propose','tell','promise'].includes(kind);
+  $('actionItemWrap').hidden=kind!=='transfer';
+  $('actionDueWrap').hidden=kind!=='promise';
+  $('actionItem').replaceChildren();
+  Object.entries(state.world.items).filter(([,owner])=>owner==='player').forEach(([id])=>{const option=node('option',id==='player_notebook'?'我的笔记本':id);
+    option.value=id;
+    $('actionItem').append(option);
+    });
+  }
+$('actionKind').onchange=renderAction;
+$('performAction').onclick=()=>{const kind=$('actionKind').value,target=$('actionTarget').value;
+  const action={kind,target,content:$('actionContent').value.trim()};
+  if(!target){notice('当前没有这个动作需要的可用对象。',true);
+    return;
+    }if(['propose','tell','promise'].includes(kind)&&!action.content){notice('先写下具体内容。',true);
+    return;
+    }if(kind==='promise')action.due=$('actionDue').value;
+  if(kind==='transfer'){action.item=$('actionItem').value;
+    if(!action.item){notice('当前没有可转交的物品。',true);
+      return;
+      }if(!confirm('确认将这件物品交给 '+actorName(target)+'？'))return;
+    }if(['cancel','fulfill'].includes(kind)){action.promise_id=target;
+    action.target='';
+    if(!confirm(kind==='fulfill'?'确认你自己的这项约定已经完成？这会更新正式状态。':'确认取消自己的这项约定？'))return;
+    }const label=$('actionKind').selectedOptions[0].textContent;
+  sendTurn(label+'：'+(action.content||$('actionTarget').selectedOptions[0].textContent),action);
+  };
+$('editCharacter').onclick=()=>{const c=state.world.characters.find(c=>c.id===state.actor);
+  [['Persona','persona'],['Voice','voice'],['Goal','goal'],['Relationship','relationship'],['Appearance','appearance'],['Style','style']].forEach(([id,key])=>$('edit'+id).value=c[key]||'');
+  $('characterDialog').showModal();
+  };
+$('closeDialog').onclick=()=>$('characterDialog').close();
+$('characterForm').onsubmit=event=>{event.preventDefault();
+  const body={user_id:user,version:state.world.version};
+  [['Persona','persona'],['Voice','voice'],['Goal','goal'],['Relationship','relationship'],['Appearance','appearance'],['Style','style']].forEach(([id,key])=>body[key]=$('edit'+id).value.trim());
+  const path=branchPath()+'/characters/'+state.actor;
+  $('characterDialog').close();
+  work('正在保存明确修改的人物设定…',async()=>{state.world=await api(path,'PATCH',body);
+    renderWorld();
+    });
+  };
+async function boot(){setBusy(true,'正在恢复已保存的人生…');
+  try{state.health=await api('/api/health');
+    const connection=$('connection');
+    renderConversation();
+    connection.replaceChildren(node('span',undefined,'dot'+(state.health.configured?' ready':'')),document.createTextNode(state.health.configured?'真实模型已配置':'等待服务端模型配置'));
+    if(!state.health.configured)notice('服务运行中，但文字模型还未配置。请在服务端设置模型与密钥；这里不需要填写 API Key。',true);
+    const [profiles,branches]=await Promise.all([api(withUser('/api/profiles')),refreshSaved()]);
+    state.branches=branches;
+    renderBranches();
+    const profileId=localStorage.getItem('parallel-life-profile');
+    state.profile=profiles.profiles.find(p=>p.id===profileId)||null;
+    renderProfile();
+    const branch=localStorage.getItem('parallel-life-branch');
+    if(branch&&branches.some(b=>b.id===branch)){state.world=await api(withUser('/api/branches/'+branch));
+        await loadWorld();
+        stage('world');
+        }
+    if(state.health.configured)$('notice').hidden=true;
+    }catch(error){notice('连接服务失败：'+error.message,true,boot);
+    $('connection').textContent='服务连接中断';
+    }finally{setBusy(false);}}
+boot();
+</script>
+</body>
+</html>

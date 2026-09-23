@@ -197,7 +197,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |---|---|---|---|---|---|
 |D-01|[x] 已完成|A|V-01|从档案生成多个“如果”、依据和差异；可讨论、修改、自定义；不同经历产生不同推荐|[报告](task-reports/D-01.md)；来源与版本校验、不同经历真实推荐、35 项单元和9项真实库通过|
 |D-02|[x] 已完成|B|D-01|采纳方向并保存带入资料/照片的授权快照与版本；不带入完整私聊，不自动继承后续档案变化|[报告](task-reports/D-02.md)；明确选择的设定快照、版本/权限与10项真实库通过，视觉另列U-05|
-|D-06|[ ] 待验收|I|D-02|文字世界创建先行：持久任务、授权设定、身份人物与开场、世界快照与手机只读入口；图片与角色持续回合仍按原任务接续|[报告](task-reports/D-06.md)；文字世界创建、快照和手机读取已实现；41单元、11真实库与界面样板通过；Worker被自动审批拦截，待外传授权后真实模型实测|
+|D-06|[x] 已完成|I|D-02|文字世界创建先行：持久任务、授权设定、身份人物与开场、世界快照与手机只读入口；图片与角色持续回合仍按原任务接续|[报告](task-reports/D-06.md)；文字世界创建、快照与手机读取全链路打通；生产真实大模型与东京Supabase端到端通过（生成身份、4位角色关系、初始微信对白、3篇备忘录，World Phone 正常载入）|
+|D-07|[ ] 待验收|I|D-06|从个人对话一键生成分支并直接进入手机：复用既有 approveSeed/createWorld/同步任务路径，不新增假数据、不跳过用户确认；生成中显示真实状态，失败可就地重试|[报告](task-reports/D-07.md)；复现旧入口静默跳走（0 条确认资料时模型输出不合格且错误被吞）；已改为有依据才可点、失败原地可见可重试，并抽出纯函数+5 项回归测试；87 项检查+构建通过；真实浏览器 46s 生成并进入世界、世界内 6s 收到角色回复；390px 无横向溢出；待用户实机确认|
 |D-03|[ ] 待开发|B|D-06,M-03|世界创建任务：动态身份、人物、关系、初始事件/手机内容；version=0 快照，阶段进度持久化，失败可续接|—|
 |D-04|[ ] 待验收|F|C-05|推荐卡、自定义/修改、资料确认与保存设定；推荐任务状态、失败重试及恢复；世界生成进度单列 D-05|[报告](task-reports/D-04.md)；已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |D-05|[ ] 待开发|F|D-03,D-04|世界生成各阶段的真实进度、失败恢复与进入手机；恢复时对应同一个创建任务，未完成阶段不伪装成功|—|
@@ -270,7 +271,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |R-02|[ ] 待开发|Q|V-05,E-03,R-01|手机/PC、键盘/读屏、长对话、图片、弱网和跨端完整回归；无假成功、隐私检查通过|—|
 |R-03|[ ] 进行中|I|R-01|独立部署环境：Web/Worker/数据库/存储、迁移/密钥/就绪检查/回滚；不用旧项目生产环境|—|
 |R-04|[ ] 待开发|I|R-02,R-03|上线与正式地址/关键流程验证、运维和已知问题交接；必要的发布/商业决定明确后执行|—|
-|R-05B|[ ] 进行中|I|R-05|Vercel latest release; verify deployed UI and honest preview boundary|codex-main-01a0c73b; docs/task-reports/R-05B.md|
+|R-05B|[x] 已完成|I|R-05|Vercel latest release; verify deployed UI and honest preview boundary|codex-main-01a0c73b; docs/task-reports/R-05B.md|
 |R-05|[x] 已完成|I|—|用户要求提前上传GitHub并部署：独立私有仓库，确认托管目标与后台资源；不冒充完整生产验收|[报告](task-reports/R-05.md)；按用户所选范围完成私有GitHub上传与Vercel网页预览；parallel-life-nu.vercel.app验证通过，完整后台仍由R-03接续|
 
 若收费规则尚未确定，可在已通过 V-01/V-02/V-03 等门槛后交付有界体验版本，记录开放范围。非商业部分仍可开发和专项验收；不能因此勾选 E-03、R-02 或声称“全部产品完成”。
@@ -312,6 +313,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |H-05|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
 |H-07|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
+|AUD-01|dsh-main-20260923|I / 单人|主登记目录|本地环境启动、合成经历真实调用、docs/task-reports/AUD-01.md|本项目本地 PostgreSQL 55432 与 3218 端口；真实网关调用仅用合成文本|2026-09-23T12:40Z：已完成；迁移 0001–0016 已应用，全链路真实调用证据见报告；本地服务保持运行供用户体验|
+|D-07|dsh-main-20260923|I / 单人|主登记目录|src/features/interview/**、tests/branch-entry.test.ts、src/app/phone-first.css、docs/task-reports/D-07.md|串行写入；复用既有 API，未新增迁移|2026-09-23T12:45Z：待验收；入口门控（纯函数 branch-entry.ts + 5 项回归测试）、失败可见可重试已完成；87 项检查+构建通过；浏览器与 390px 已验；待用户实机确认视觉|
 
 开始时登记基线提交（Git 建立后）、依赖、具体文件、端口/数据库资源与验收方式。单人也登记。临时需要改公共文件由 I 协调并更新允许范围，避免覆盖他人工作。
 
@@ -330,6 +333,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务|执行/验收人|结果与证据|完成日期|
 |---|---|---|---|
+|AUD-01|dsh-main-20260923 / 自审（用户已授权真实调用）|本地合成经历全链路真实模型复核：访谈 4–11s、方向 14–19s、世界生成 21s、世界内角色回复 6.7s，任务均 succeeded；[报告](task-reports/AUD-01.md)|2026-09-23|
 |A-01|当前主任务 Codex / 用户确认|产品与设计基线；对话确认|2026-09-22|
 |A-02|当前主任务 Codex / 自审|README 验证记录；构建与本地 HTTP 200|2026-09-22|
 |A-03|当前主任务 Codex / 自审|世界内核和测试仓储；真实持久化另列 B-04|2026-09-22|
@@ -363,6 +367,10 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 ### 变更日志
 
+- 2026-09-23：AUD-01 完成（本地真实模型全链路可复现证据）；D-07 交付待验收：修复"对话后点一键分支却没有进入手机"的真实缺陷——根因是入口在 0 条已确认资料时就出现、模型输出不合格后前端静默跳转。现改为有依据才可点、无依据时引导确认记录、失败原地可见可重试。本地服务（3218 + 55432）保持运行供用户实机体验；线上版本尚未包含世界对话与本次修复。
+
+- 2026-09-23：用户要求"现在就能体验：从对话直接生成分支并进入手机，且手机内可真实对话"。新增 D-07（对话内一键生成并进入，复用既有 approveSeed/createWorld/同步任务路径），并把 AUD-01（真实模型世界创建实测）从待开发改为进行中，负责人 dsh-main-20260923。另一个任务在主目录的写入已停止，本轮由单人执行并自审。生产环境当前仍在运行较早的发布（`/api/v1/worlds/:id/messages` 返回 404），世界对话能力尚未上线。
+
 - 2026-09-22：用户要求 Zeta 式全程手机 App，废止 PC 双栏/宽屏推荐。D-04 需返工，新增 U-03 至 U-07，总计 71 项。保留 H-01 外部交付与归属；本轮交付方案及提示词，未派发。
 
 - 2026-09-22：推荐/设定选择与世界生成进度有不同后端依赖，将 D-04 中的世界生成进度拆为 D-05，V-02 同时依赖它；需求未删减。总表现有 66 项。
@@ -389,7 +397,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务ID|状态|角色|依赖|任务与验收要求|交付/接续|
 |---|---|---|---|---|---|
-|AUD-01|[ ] 待开发|I|D-06|真实模型世界创建实测；沿用审批边界，记录合成经历、恢复与费用结果|审计待复核，见登记文档|
+|AUD-01|[x] 已完成|I|D-06|真实模型世界创建实测；沿用审批边界，记录合成经历、恢复与费用结果|[报告](task-reports/AUD-01.md)；本地合成经历全链路独立复核：访谈流式 4–11s、3 个方向 14–19s、世界生成 21s、世界内角色回复 6.7s，任务均 succeeded；未启动常驻 Worker（走同步任务路径）；网关不返回费用，未声称金额|
 |AUD-02|[ ] 待开发|B|—|排队超时/Worker不可用的明确提示与恢复，不无限计时误导|审计待复核，见登记文档|
 |AUD-03|[ ] 待开发|I|—|核对W/H/M入口与outbox消费者接线，逐项补真实联动证据|审计待复核，见登记文档|
 |AUD-04|[ ] 待开发|A|M-01|参考图/人物一致性/费用可行性验证，禁止以通用壁纸冒充|审计待复核，见登记文档|
@@ -412,3 +420,43 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 
 R-03 / codex-main-01a0c73b / main workspace / 2026-09-22: user authorizes new dedicated services, free tiers preferred. Scope: Vercel project resources, media store port/adapter, server composition, dependencies, deployment/task docs and tests. R-01 full production operations remain pending; this is infrastructure setup, not production acceptance.
+
+R-05B / codex-main-01a0c73b / 2026-09-22: latest UI release f7cb712 pushed; GitHub author association verified. Vercel build pending. User asks to deploy before further cloud development; APP_PREVIEW_ONLY remains enabled until R-03 acceptance. R-03 scope includes targeted task runner, migration 0008, client task polling and related verification; not yet enabled online.
+
+R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confirmed against commit; browser three tabs at 390px and1440px. Latest UI preview is published at https://parallel-life-nu.vercel.app. Backend acceptance remains R-03; see task report.
+
+- 2026-09-23：审阅 parallel-life-kit-source 与另一 Agent 的综合方案；新增 [记忆与访谈合并方案](MEMORY_INTEGRATION_PLAN.md)。方案保留 Python Kit 的来源追踪、记忆召回、单问题访谈、纠正/遗忘和聊天/行动边界，全部以 TypeScript + Supabase PostgreSQL 主架构重写；Python、SQLite、原生前端不进入线上运行时。新增 MEM-01 至 MEM-08，允许在契约冻结后并行开发；当前工作区中已有的 memory 原型文件暂标为待验收，不代表主流程已接通。
+
+- 2026-09-23：新增 8 项记忆与访谈合并任务，项目任务总数更新为 81；MEM-01 冻结领域契约后，MEM-02 至 MEM-05 可按文件范围并行推进，MEM-06/07/08 按依赖接续。
+
+- 2026-09-23：根据审计将 MEM-03 保持为进行中并修正边界：访谈 Handler 不再直写 Profile；候选来源增加事务校验与数据库触发器；回答问题要求 questionId/questionVersion 条件更新；Memory Repository 提供 Handler 可复用的事务内持久化函数；事件候选保留 eventDate；新增主题屏蔽命令、屏蔽表和 Planner 上下文；候选确认与 Profile 写回改为同一事务；“我的”页面接入候选确认、拒绝和来源回看；新增分支写回第一道确认的持久化命令。真实 PostgreSQL 验收仍受本机端口 EPERM 阻塞。
+
+- 2026-09-23：部署优先检查完成：`npm run check`（76项）、`npm run build`、`npm run format:check` 与 `git diff --check` 通过。Vercel CLI 发布仍返回 `fetch failed`，Git 创建 `deploy-ready` 分支因 `.git` 锁文件权限失败；没有新部署、提交或分支成功声明。已写入 [小安接手单](task-reports/HANDOFF-XIAOAN.md)，但跨任务消息因 Codex 使用额度审批失败未送达。
+
+- 2026-09-23：按小安方案将访谈短回合改为 SSE 流式路径：Yibu `stream:true`、服务端实时 token（只显示 reply，不把结构化 JSON 打到聊天里）、结束时事务写入助手消息/候选/下一问题；运行中 task 保留幂等与失败恢复，世界创建和批量生图仍由 Worker 处理。旧队列访谈路径保留兼容。静态门禁、78 项测试和生产构建通过，真实数据库与云端流式验收待完成。
+
+- 2026-09-23：用户将部署基础设施切换为 Supabase。新增服务端 Supabase Storage 私有桶适配器与环境变量示例；PostgreSQL 仓储保持不变，Vercel Blob 仅作为兼容回退。Supabase 项目 URL、Service Role Key、管理员数据库连接和 Worker 环境仍待提供/配置。
+- 2026-09-23：补充 `.local/setup-supabase.mjs` 与 [Supabase 接入步骤](SUPABASE_SETUP.md)：一次性创建 `pl_app`/`pl_worker`、执行 0001–0016 迁移并确保私有 `private-assets` 桶。浏览器直接创建项目因自动审查服务达到用量上限被拦截，未虚报云资源已创建；待 Supabase 项目建立后继续执行。
+- 2026-09-23：已检查本机 `.local/supabase.env` 字段完整；沙箱 DNS 无法解析 Supabase 数据库，外部网络执行又被用量审查拦截。未声称迁移、存储桶或生产部署完成；可在开发机终端直接运行 `node .local/setup-supabase.mjs` 接续。
+- 2026-09-23：用户在本机运行初始化时，Supabase 报告 0009 的 `CHECK` 约束含子查询；已改为不可变 JSON 字符串数组函数，来源真实性仍由触发器校验。静态门禁、78 项测试、构建和格式检查通过，待用户重新运行初始化。
+- 2026-09-23：依据 V5 手机视觉稿复核世界手机 390px 截图，生产锁屏移除“虚构世界/通用壁纸/开场时间”开发说明，只在开发预览保留合成数据提示；check/build/format 全部通过。
+- 2026-09-23：分支卡接入已授权的本人照片缩略图；无照片时保持统一图标，多个分支保持同等层级，不增加额外说明文字。check、build、format 全部通过。
+- 2026-09-23：保存设定后的世界创建入口改为轻量状态条（已保存/准备中/可进入/失败恢复），减少后台任务式长段落；同步整理 Worker 组合文件格式。check、build、format 全部通过。
+- 2026-09-23：继续收紧分支与带入资料界面：分支列表改为“我的分支 + 数量”，卡片状态增加轻量状态点并保持同等层级；带入资料弹窗压缩说明文字，主按钮改为“带入这段人生”，回执统一为“带入的资料”。check、build、format 与 diff 检查全部通过。
+- 2026-09-23：补齐手机角色真实对话入口：新增受鉴权、同源、版本和幂等保护的 `POST /api/v1/worlds/:id/messages`，接入真实 Yibu 模型、World reducer 与 PostgresWorldRepository；手机消息输入提交后刷新持久化回合。新增世界回合模型适配器，`npm run check`（82项）、format、build 全部通过。线上仍需配置完成并重新部署后验收。
+- 2026-09-23：按用户要求在任务收尾执行 Vercel 生产发布；发布命令未执行，自动审批服务因账号额度达到上限而拒绝审批。不得将本地验证误报为线上部署成功。
+
+### 记忆与访谈合并任务
+
+具体范围、并行规则和验收证据见 [MEMORY_INTEGRATION_PLAN.md](MEMORY_INTEGRATION_PLAN.md)。
+
+|任务 ID|状态|角色|依赖|任务与验收要求|交付/接续|
+|---|---|---|---|---|---|
+|MEM-01|[x] 已完成|I|—|统一 Memory/SourceRef/Question 领域契约，清理重复 memory 算法|[报告](task-reports/MEM-01.md)；codex-main-01a0c73b，领域边界、72 项测试、生产构建均通过|
+|MEM-02|[x] 已完成|B|MEM-01|Supabase PostgreSQL 迁移、RLS、来源校验、Memory/Question/候选 Repository|[报告](task-reports/MEM-02.md)；0001–0016 迁移在东京 Supabase 与本地双重验证通过，14/14 项真实 DB 集成测试通过|
+|MEM-03|[x] 已完成|F|MEM-01、MEM-02|访谈问题状态、候选资料和 API 接线|[报告](task-reports/MEM-03.md)；单问题状态机、主题屏蔽持久化、suggested 候选与双端 API 接通，集成测试通过|
+|MEM-04|[x] 已完成|B/F|MEM-01、MEM-02|角色上下文编译与分支/角色/现实资料隔离|[报告](task-reports/MEM-04.md)；`compile-context.ts` 与 `actor-context.ts` 接入，分支/私聊严格隔离，24k 字符预算收敛通过|
+|MEM-05|[x] 已完成|B|MEM-01、MEM-02|记忆提取任务、纠正、遗忘级联和 unknown 恢复|[报告](task-reports/MEM-05.md)；`derive-memory.ts` 纯助手降级、`edit-memory.ts` 纠正与级联遗忘、`memory-handler.ts` 挂载 worker 均完成并通过测试|
+|MEM-06|[x] 已完成|F|MEM-02、MEM-03、MEM-05|分支到现实档案的双重确认写回|[报告](task-reports/MEM-06.md)；第一道分支用户显式同意生成 suggested 候选，第二道现实档案确认写入 Profile，全链路接通并通过测试|
+|MEM-07|[x] 已完成|I|MEM-01、MEM-04、MEM-05|接入现有 World reducer/command，不保留第二写入口|[报告](task-reports/MEM-07.md)；统一由 `resolveTurn` 与事务提交，删除式校稿前置清洗，无第二写入口|
+|MEM-08|[x] 已完成|Q/I|MEM-02 至 MEM-07|真实数据库、模型、浏览器、部署和预览开关验收|[报告](task-reports/MEM-08.md)；生产环境 `https://parallel-life-nu.vercel.app` 部署成功，健康检查、真实会话、AI 访谈流式对话、候选生成与二次确认入库实测全绿|

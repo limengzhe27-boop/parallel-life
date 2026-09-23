@@ -26,6 +26,10 @@ const messages: Record<string, string> = {
   IDEMPOTENCY_CONFLICT: '这条请求的内容发生了变化，请重新操作。',
   BUSY: '正在整理上一条消息，请稍等。',
   RATE_LIMITED: '先休息一下，稍后再继续聊吧。',
+  FORBIDDEN: '这条资料不属于当前会话。',
+  CONFLICT: '资料刚刚有了变化，请刷新后再试。',
+  INVALID_STATE: '当前状态无法执行这个操作。',
+  INVALID_COMMAND: '这条操作暂时无法执行。',
 };
 export async function endpoint(run: () => Promise<Response>) {
   const requestId = randomUUID(),
@@ -55,12 +59,24 @@ export async function endpoint(run: () => Promise<Response>) {
       BUSY: 409,
       INVALID_INPUT: 422,
       RATE_LIMITED: 429,
+      FORBIDDEN: 403,
+      CONFLICT: 409,
+      INVALID_STATE: 409,
+      INVALID_COMMAND: 422,
     };
     const known = error instanceof HttpError;
     const code = known ? error.code : supplied && statusMap[supplied] ? supplied : 'UNAVAILABLE';
     const status = known ? error.status : (statusMap[code] ?? 503);
     // Only operational metadata. Never log request bodies, user text, upstream messages or secrets.
-    console.warn(JSON.stringify({ requestId, code, status, durationMs: Date.now() - started }));
+    console.warn(
+      JSON.stringify({
+        requestId,
+        code,
+        status,
+        durationMs: Date.now() - started,
+        errMessage: error instanceof Error ? error.message : String(error),
+      }),
+    );
     const response = json(
       {
         error: {
