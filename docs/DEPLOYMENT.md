@@ -24,6 +24,16 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 世界事实容量改造（AUD-09）
+
+|项目|内容|
+|---|---|
+|提交|`fbabdbb`|
+|迁移|`0018_world_facts.sql`（投影表 + 既有事实回填）、`0019_world_facts_document_limit.sql`，已应用于本地与生产 Supabase（`pl_migrations` 19 条）|
+|发布前检查|`npm run check` 110 项、`npm run test:db` 16 项真实库测试（含 ≈390KB 事实容量测试）、`npm run build` 通过|
+|线上实测|世界内发送消息 → `committed`，version 5 → 6，角色真实回复；生产库核对该世界快照 **facts 为 0、1217 字节**，`world_facts` 有该世界行，全库最大快照 5422 字节|
+|备注|角色上下文中的事实窗口有界（96K 字符）；被挤出的旧事实仍在投影表中可查，不删除|
+
 ### 2026-09-24 · 锁屏快捷 Dock 五联图标、相册人生回忆故事胶卷与角色分类筛选
 
 |项目|内容|
