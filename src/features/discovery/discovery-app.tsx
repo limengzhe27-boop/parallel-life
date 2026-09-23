@@ -197,7 +197,13 @@ export function DiscoveryApp() {
       });
 
       if (build.task?.id) {
-        await client.task(build.task.id);
+        /* 只有真正生成成功才进入手机；失败就留在原地说明原因，而不是跳进一个空世界 */
+        const settled = await client.task(build.task.id);
+        if (settled && settled.status !== 'succeeded') {
+          setBusy(false);
+          setError('这段人生这次没有生成成功，可以再试一次。');
+          return;
+        }
       }
       window.location.assign(`/worlds/${build.worldId}`);
     } catch (e) {
