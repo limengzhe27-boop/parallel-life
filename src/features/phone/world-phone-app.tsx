@@ -8,6 +8,7 @@ import { PhoneShell } from './phone-shell.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
+import { formatChatTime } from './apps/helpers.ts';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const [client] = useState(() => new LifeClient()),
     [data, setData] = useState<WorldPhone | null>(null),
@@ -383,14 +384,16 @@ export function WorldPhoneSurface({
               summary: m.text,
               app: 'messages' as const,
               target: m.actorId,
+              timeLabel: formatChatTime(m.at, data.time),
             })),
           ...(data.invitations && data.invitations.length > 0
             ? data.invitations.slice(0, 1).map((inv) => ({
                 id: `notif-inv-${inv.id}`,
-                title: '日历提醒',
-                summary: `${inv.title} · 即将到来`,
+                title: inv.title,
+                summary: `${inv.at.slice(0, 10)} ${inv.at.slice(11, 16)} · ${inv.status === 'confirmed' ? '已约好' : '邀请 · 待回复'}`,
                 app: 'calendar' as const,
                 target: inv.id,
+                timeLabel: inv.status === 'confirmed' ? '已约好' : '待回复',
               }))
             : data.actors.length > 0
               ? [
@@ -400,6 +403,7 @@ export function WorldPhoneSurface({
                     summary: `与 ${data.actors[0]?.name}（${data.actors[0]?.relationship}）的讨论安排`,
                     app: 'calendar' as const,
                     target: undefined,
+                    timeLabel: '待处理',
                   },
                 ]
               : []),
@@ -411,6 +415,7 @@ export function WorldPhoneSurface({
                   summary: `备忘：“${notes[0]?.title}”`,
                   app: 'notes' as const,
                   target: notes[0]?.id,
+                  timeLabel: '备忘',
                 },
               ]
             : []),

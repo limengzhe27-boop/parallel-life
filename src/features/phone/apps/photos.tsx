@@ -143,6 +143,34 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
           />
           <Links links={photo.links} open={open} />
         </div>
+        {data.contacts.length > 0 && (
+          <div style={{ marginTop: '12px' }}>
+            <button
+              type="button"
+              style={{
+                width: '100%',
+                padding: '11px',
+                borderRadius: '10px',
+                background: '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
+              onClick={() => {
+                const targetId = data.contacts[0]?.id;
+                if (targetId) open('messages', targetId);
+              }}
+            >
+              💬 把这段回忆发给 {data.contacts[0]?.name} →
+            </button>
+          </div>
+        )}
         <div className={s.photoNav}>
           <button disabled={index === 0} onClick={() => open('photos', photos[index - 1]!.id)}>
             上一张
@@ -168,6 +196,81 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
         <small>{photos.length} 项</small>
       </div>
       <UploadPhoto />
+      {data.contacts.length > 0 && (
+        <div
+          style={{
+            margin: '8px 14px 12px',
+            background: '#f8fafc',
+            padding: '12px 14px',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '8px',
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
+              她们镜头里的你 · 人物
+            </span>
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>共 {data.contacts.length} 位</span>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
+            {data.contacts.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+                onClick={() => open('messages', c.id)}
+              >
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '50%',
+                    background: '#e2e8f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 600,
+                    fontSize: '15px',
+                    color: '#0f172a',
+                    border: '2px solid #ffffff',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                  }}
+                >
+                  {c.name.slice(0, 1)}
+                </div>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: '#475569',
+                    maxWidth: '52px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {c.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {!photos.length && (
         <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', margin: '12px 14px' }}>
           <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#0f172a', fontWeight: 600 }}>🎞️ 人生记忆胶卷</h4>

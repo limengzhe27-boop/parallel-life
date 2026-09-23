@@ -36,6 +36,7 @@ export type PhoneNotification = {
   summary: string;
   app: PhoneApp;
   target?: string;
+  timeLabel?: string;
 };
 export type PhoneAppContext = {
   app: PhoneApp;
@@ -189,7 +190,10 @@ function LifePhone({
           <PhoneIcon name={n.app} />
         </span>
         <span>
-          <small>{apps[n.app]}</small>
+          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <small>{apps[n.app]}</small>
+            {n.timeLabel && <small style={{ opacity: 0.65 }}>{n.timeLabel}</small>}
+          </span>
           <strong>{n.title}</strong>
           <span>{n.summary}</span>
         </span>
