@@ -1,3 +1,4 @@
+import { retainFacts } from './retention.ts';
 import { DomainError } from './errors.ts';
 import { parseProposal, isoInstant, validateCommand, validateEventId } from './validation.ts';
 import { validateCharacterEffects } from './character-policy.ts';
@@ -113,6 +114,9 @@ export function applyEvent(
         });
     }
   }
+  /* Facts are projected to world_facts; the state keeps a bounded window so the
+     snapshot cannot outgrow its hard size limit as a life continues. */
+  state.facts = retainFacts(state.facts);
   state.version = event.version;
   return { state, jobs };
 }

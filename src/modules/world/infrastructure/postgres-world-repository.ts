@@ -16,6 +16,7 @@ import type {
 import { DomainError } from '../domain/errors.ts';
 import { applyEvent } from '../domain/reducer.ts';
 import { applyNoteEvent, type NoteCommand, type NoteEvent } from '../domain/notes.ts';
+import { retainFacts } from '../domain/retention.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 const fingerprint = (command: TurnCommand) =>
@@ -24,9 +25,18 @@ const fingerprint = (command: TurnCommand) =>
       JSON.stringify([command.worldId, command.expectedVersion, command.actorId, command.text]),
     )
     .digest('hex');
+/** The same fact may arrive from the legacy snapshot and the projection; keep the first. */
+function dedupeFacts(facts: WorldState['facts']): WorldState['facts'] {
+  const seen = new Set<string>();
+  return facts.filter((fact) => {
+    if (seen.has(fact.id)) return false;
+    seen.add(fact.id);
+    return true;
+  });
+}
 function compact(state: WorldState) {
-  /* messages/appointments/notes live in projections; the snapshot stays compact. */
-  return { ...state, messages: [], appointments: [], mediaRequests: [], notes: [] };
+  /* messages/appointments/notes/facts live in projections; the snapshot stays compact. */
+  return { ...state, messages: [], appointments: [], mediaRequests: [], notes: [], facts: [] };
 }
 /** Same domain contract as the test adapter; SQL transactions are the final commit boundary. */
 export class PostgresWorldRepository implements WorldRepository {
@@ -76,10 +86,11 @@ export class PostgresWorldRepository implements WorldRepository {
       'world_appointments',
       'world_media_requests',
       'world_notes',
+      'world_facts',
     ]) {
       // Only immutable projections belonging to events already committed at this receipt version.
       const rows = await sql.query(
-        `SELECT p.document FROM parallel_life.${table} p JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version,${table === 'world_messages' ? 'p.ordinal' : 'p.id'}`,
+        `SELECT p.document FROM parallel_life.${table} p JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version,${['world_messages', 'world_facts'].includes(table) ? 'p.ordinal' : 'p.id'}`,
         [state.id, state.version],
       );
       results.push(rows.rows.map((r) => r.document));
@@ -90,6 +101,15 @@ export class PostgresWorldRepository implements WorldRepository {
       appointments: [...(initial?.appointments ?? []), ...results[1]!],
       mediaRequests: [...(initial?.mediaRequests ?? []), ...results[2]!],
       notes: results[3]!,
+      facts: retainFacts(
+        dedupeFacts([
+          /* Genesis facts live in the immutable build snapshot. */
+          ...(initial?.facts ?? []),
+          /* Worlds created before the projection existed still carry facts in their snapshot. */
+          ...(state.facts ?? []),
+          ...results[4]!,
+        ]),
+      ),
     };
     const responses = await sql.query(
       "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
@@ -315,18 +335,29 @@ export class PostgresWorldRepository implements WorldRepository {
           'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
           [media.id, state.id, session.userId, media],
         );
+      for (const [ordinal, fact] of state.facts
+        .filter((item) => item.sourceEventId === event.id)
+        .entries())
+        await sql.query(
+          'INSERT INTO parallel_life.world_facts(id,world_id,owner_id,ordinal,document) VALUES($1,$2,$3,$4,$5)',
+          [fact.id, state.id, session.userId, ordinal, fact],
+        );
       for (const job of jobs)
         await sql.query(
           'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
           [job.id, state.id, session.userId, event.id, job],
         );
+      const snapshot = compact(state);
+      /* A clear failure beats an opaque CHECK violation that rolls back everything. */
+      if (JSON.stringify(snapshot).length >= 262144)
+        throw new DomainError('INVALID_COMMAND', 'World snapshot exceeded its capacity budget');
       await sql.query(
         'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
-        [state.id, state.version, compact(state)],
+        [state.id, state.version, snapshot],
       );
       await sql.query(
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
-        [state.id, command.id, event.id, compact(state)],
+        [state.id, command.id, event.id, snapshot],
       );
       return { state, event };
     });
