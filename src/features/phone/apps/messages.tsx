@@ -129,7 +129,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         <Avatar url={actor.avatarUrl} name={actor.name} />
         <span>
           <strong>{actor.name}</strong>
-          <small>{actor.relationship}</small>
+          <small>
+            {actor.relationship} · <span style={{ color: '#52c41a' }}>● 在线</span>
+          </small>
         </span>
         <span className={s.more}>···</span>
       </button>
@@ -197,6 +199,38 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               </div>
             )}
           </article>
+        ))}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: '6px',
+          overflowX: 'auto',
+          padding: '6px 12px',
+          background: 'rgba(0, 0, 0, 0.25)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+        }}
+        aria-label="快速发起互动"
+      >
+        {['在忙吗？', '关于接下来的安排…', '有空碰个面吗？', '刚看到便签里的事…'].map((topic) => (
+          <button
+            key={topic}
+            type="button"
+            style={{
+              flexShrink: 0,
+              fontSize: '12px',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#d4af37',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+            onClick={() => setDraft(key, topic)}
+          >
+            💬 {topic}
+          </button>
         ))}
       </div>
       <form

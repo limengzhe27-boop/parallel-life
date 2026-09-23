@@ -263,16 +263,48 @@ export function WorldPhoneSurface({
         // exposes its synthetic-data label; production lock screens contain
         // only the time, wallpaper and real notifications.
         notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
-        notifications={data.messages
-          .filter((m) => m.role !== 'user')
-          .slice(-2)
-          .map((m) => ({
-            id: m.id,
-            title: data.actors.find((a) => a.id === m.actorId)?.name ?? '新消息',
-            summary: m.text,
-            app: 'messages',
-            target: m.actorId,
-          }))}
+        notifications={[
+          ...data.messages
+            .filter((m) => m.role !== 'user')
+            .slice(-3)
+            .map((m) => ({
+              id: m.id,
+              title: data.actors.find((a) => a.id === m.actorId)?.name ?? '微信消息',
+              summary: m.text,
+              app: 'messages' as const,
+              target: m.actorId,
+            })),
+          ...(data.invitations && data.invitations.length > 0
+            ? data.invitations.slice(0, 1).map((inv) => ({
+                id: `notif-inv-${inv.id}`,
+                title: '日历提醒',
+                summary: `${inv.title} · 即将到来`,
+                app: 'calendar' as const,
+                target: inv.id,
+              }))
+            : data.actors.length > 0
+              ? [
+                  {
+                    id: `notif-cal-${data.id}`,
+                    title: '日历提醒 · 阶段备忘',
+                    summary: `与 ${data.actors[0]?.name}（${data.actors[0]?.relationship}）的讨论安排`,
+                    app: 'calendar' as const,
+                    target: undefined,
+                  },
+                ]
+              : []),
+          ...(data.notes.length > 0
+            ? [
+                {
+                  id: `notif-note-${data.id}`,
+                  title: '便签提醒',
+                  summary: `备忘：“${data.notes[0]?.title}”`,
+                  app: 'notes' as const,
+                  target: `${data.id}:opening-note:0`,
+                },
+              ]
+            : []),
+        ]}
         renderApp={(context) => <PhoneAppView {...context} />}
         renderPanel={(panel) =>
           panel === 'timeline' ? (

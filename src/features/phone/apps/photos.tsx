@@ -169,14 +169,28 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
       </div>
       <UploadPhoto />
       {!photos.length && (
-        <Empty
-          title="还没有照片"
-          text={
-            actions.uploadPhoto
-              ? '添加一张照片，留在这段人生里。'
-              : '这段人生里的照片准备好后，会出现在这里。'
-          }
-        />
+        <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', margin: '8px 12px' }}>
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#f5d580' }}>🎞️ 人生记忆胶卷</h4>
+          <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#999', lineHeight: 1.5 }}>
+            新生活刚刚拉开序幕，过去的节点留在了胶卷里。你也可以点击上方上传一张新照片。
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+            <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <img src="/art/first-window.webp" alt="窗前" style={{ width: '100%', height: '110px', objectFit: 'cover' }} />
+              <div style={{ padding: '6px 8px' }}>
+                <strong style={{ fontSize: '12px', display: 'block', color: '#eee' }}>最初的窗口</strong>
+                <small style={{ fontSize: '10px', color: '#888' }}>搬进新居的第一天</small>
+              </div>
+            </div>
+            <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <img src="/art/open-door.webp" alt="门前" style={{ width: '100%', height: '110px', objectFit: 'cover' }} />
+              <div style={{ padding: '6px 8px' }}>
+                <strong style={{ fontSize: '12px', display: 'block', color: '#eee' }}>推开门那一刻</strong>
+                <small style={{ fontSize: '10px', color: '#888' }}>做出选择后的清晨</small>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {days.map((day) => (
         <section key={day} className={s.photoGroup}>
