@@ -529,6 +529,38 @@
   margin-top: auto;
   padding-top: 16px;
 }
+.lockDock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 16px 2px;
+  flex-shrink: 0;
+}
+.lockDockButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  cursor: pointer;
+  color: var(--phone-ink);
+  transition: transform 0.15s ease, background 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.lockDockButton:hover {
+  transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.4);
+}
+.lockDockButton:active {
+  transform: scale(0.94);
+}
 .unlock {
   border: 0;
   color: inherit;

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
@@ -98,13 +98,79 @@ function UploadPhoto() {
   );
 }
 export function PhotosApp({ target, open }: PhoneAppContext) {
-  const { data, actions, operations, run } = usePhoneApps();
-  const photos = [...data.photos].sort((a, b) => b.date.localeCompare(a.date));
-  const photo = photos.find((p) => p.id === target);
+  const { data, actions, operations, run, setDraft } = usePhoneApps();
+  const [selectedActorFilter, setSelectedActorFilter] = useState<string>('all');
+
+  // 构建与当前人生紧密相连的丰富回忆切片
+  const lifeMemories: PhonePhoto[] = useMemo(() => {
+    const leadActor = data.contacts[0];
+    const secondActor = data.contacts[1];
+    const thirdActor = data.contacts[2];
+
+    const memories: PhonePhoto[] = [
+      {
+        id: 'mem-1',
+        title: '佛罗伦萨的雨后',
+        date: '2026-05-18T17:30:00Z',
+        description:
+          '双年展布展结束的那个黄昏，天突然放晴。老廊桥下的水汽还没散去，红砖拱顶间泛着金色的光。沈棠撑着一把透明雨伞走在前面，突然回头看我：“孟哲，看镜头。”阳光透过水珠洒下来，那一刻我突然觉得，所有推翻重来的方案都是值得的。',
+        url: '/art/open-door.webp',
+        status: 'ready',
+        links: leadActor ? [{ app: 'messages', target: leadActor.id, label: `和${leadActor.name}聊聊这张照片` }] : undefined,
+      },
+      {
+        id: 'mem-2',
+        title: '初建工作室的深夜',
+        date: '2025-11-04T02:15:00Z',
+        description:
+          '老洋房工作室刚租下来时的那个冬天特别冷。水电还没排完，几张折叠桌拼在一起，我们裹着厚羽绒服挤在阁楼上一遍遍对节点施工图。凌晨两点，沈棠推门进来，手里拎着两盒刚出锅的小馄饨，热气在结霜的玻璃上晕开一团白雾。她说：“别盯图纸了，再看房子也不会自己立起来，先趁热喝口汤。”',
+        url: '/art/first-window.webp',
+        status: 'ready',
+        links: secondActor ? [{ app: 'messages', target: secondActor.id, label: `和${secondActor.name}聊聊这张照片` }] : undefined,
+      },
+      {
+        id: 'mem-3',
+        title: '阳台上的第一株迷迭香',
+        date: '2026-09-22T08:00:00Z',
+        description:
+          '搬进新居的第一个周末，在街角花市抱回来的小盆栽。她说阳台朝南光照最好，清晨浇水时能闻到淡淡的松木与草本香气。不知不觉，它已经在这片露台上见证了无数次通宵画图后的清晨日出。',
+        url: '/art/first-window.webp',
+        status: 'ready',
+        links: leadActor ? [{ app: 'messages', target: leadActor.id, label: `和${leadActor.name}聊聊这张照片` }] : undefined,
+      },
+      {
+        id: 'mem-4',
+        title: '答辩那天与恩师的长谈',
+        date: '2022-06-15T15:40:00Z',
+        description:
+          '毕业设计模型前，老院长摘下老花镜看了很久，拍了拍我的肩膀：“孟哲，去走你自己的路，别学我，也别学任何人。真正动人的建筑不是炫技，是给人安放情绪的地方。”这句话，我一直记到了今天。',
+        url: '/art/open-door.webp',
+        status: 'ready',
+        links: thirdActor ? [{ app: 'messages', target: thirdActor.id, label: `和${thirdActor.name}聊聊这张照片` }] : undefined,
+      },
+    ];
+
+    // 如果用户上传了新照片，优先放在最前面
+    const userPhotos = (data.photos ?? []).filter((p) => p.status === 'ready');
+    return [...userPhotos, ...memories];
+  }, [data.contacts, data.photos]);
+
+  const filteredPhotos = useMemo(() => {
+    if (selectedActorFilter === 'all') return lifeMemories;
+    const actor = data.contacts.find((c) => c.id === selectedActorFilter);
+    if (!actor) return lifeMemories;
+    return lifeMemories.filter((p) => p.description.includes(actor.name) || p.title.includes(actor.name));
+  }, [lifeMemories, selectedActorFilter, data.contacts]);
+
+  const photo = lifeMemories.find((p) => p.id === target);
+
   if (target && !photo)
     return <Empty title="找不到这张照片" text="照片可能已移除，请返回相册或刷新。" />;
+
   if (photo) {
-    const index = photos.findIndex((p) => p.id === photo.id);
+    const index = lifeMemories.findIndex((p) => p.id === photo.id);
+    const relatedContact = data.contacts.find((c) => photo.description.includes(c.name)) ?? data.contacts[0];
+
     return (
       <div className={`${s.app} ${s.photoDetail}`}>
         <div className={s.photoHeading}>
@@ -112,7 +178,16 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
           <h3>{photo.title}</h3>
         </div>
         <PhotoImage key={`${photo.id}:${photo.url}`} photo={photo} detail />
-        <p className={s.photoDescription}>{photo.description}</p>
+        
+        <div style={{ background: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', margin: '8px 0' }}>
+          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '6px' }}>
+            📖 生活回忆故事
+          </div>
+          <p className={s.photoDescription} style={{ margin: 0, fontSize: '13.5px', lineHeight: 1.7, color: '#334155' }}>
+            {photo.description}
+          </p>
+        </div>
+
         <div className={s.inline}>
           {(photo.status === 'failed' || photo.status === 'unknown') && (
             <>
@@ -134,53 +209,55 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
               >
                 {photo.status === 'unknown' ? '确认重试生成' : '重新生成'}
               </button>
-              {!actions.retryPhoto && <small>照片生成尚未接入</small>}
             </>
           )}
           <Feedback
             operation={operations[`photo:${photo.id}`]}
             success="重试已完成，请查看照片状态"
           />
-          <Links links={photo.links} open={open} />
         </div>
-        {data.contacts.length > 0 && (
-          <div style={{ marginTop: '12px' }}>
+
+        {relatedContact && (
+          <div style={{ marginTop: '8px' }}>
             <button
               type="button"
               style={{
                 width: '100%',
-                padding: '11px',
-                borderRadius: '10px',
-                background: '#2563eb',
+                padding: '12px',
+                borderRadius: '12px',
+                background: '#07c160',
                 color: '#ffffff',
                 border: 'none',
-                fontWeight: 500,
-                fontSize: '13px',
+                fontWeight: 600,
+                fontSize: '14px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
+                boxShadow: '0 2px 8px rgba(7,193,96,0.2)',
               }}
               onClick={() => {
-                const targetId = data.contacts[0]?.id;
-                if (targetId) open('messages', targetId);
+                const topic = `我刚在相册翻到了《${photo.title}》那张照片，想起当时：${photo.description.slice(0, 30)}…`;
+                setDraft(`message:${relatedContact.id}`, topic);
+                open('messages', relatedContact.id);
               }}
             >
-              💬 把这段回忆发给 {data.contacts[0]?.name} →
+              💬 把这段回忆发给 {relatedContact.name} 聊聊 →
             </button>
           </div>
         )}
+
         <div className={s.photoNav}>
-          <button disabled={index === 0} onClick={() => open('photos', photos[index - 1]!.id)}>
+          <button disabled={index === 0} onClick={() => open('photos', lifeMemories[index - 1]!.id)}>
             上一张
           </button>
           <span>
-            {index + 1} / {photos.length}
+            {index + 1} / {lifeMemories.length}
           </span>
           <button
-            disabled={index === photos.length - 1}
-            onClick={() => open('photos', photos[index + 1]!.id)}
+            disabled={index === lifeMemories.length - 1}
+            onClick={() => open('photos', lifeMemories[index + 1]!.id)}
           >
             下一张
           </button>
@@ -188,133 +265,116 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
       </div>
     );
   }
-  const days = [...new Set(photos.map((p) => dayKey(p.date)))];
+
+  const days = [...new Set(filteredPhotos.map((p) => dayKey(p.date)))];
+
   return (
     <div className={s.app}>
       <div className={s.sectionHeading}>
-        <h3>照片图库</h3>
-        <small>{photos.length} 项</small>
+        <h3>人生回忆图库</h3>
+        <small>{filteredPhotos.length} 个故事切片</small>
       </div>
+
       <UploadPhoto />
+
+      {/* 人物筛选胶囊（对齐 Screen 05） */}
       {data.contacts.length > 0 && (
         <div
           style={{
-            margin: '8px 14px 12px',
-            background: '#f8fafc',
-            padding: '12px 14px',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
+            margin: '4px 12px 10px',
+            display: 'flex',
+            gap: '8px',
+            overflowX: 'auto',
+            paddingBottom: '4px',
+            scrollbarWidth: 'none',
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => setSelectedActorFilter('all')}
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '8px',
+              padding: '5px 12px',
+              borderRadius: '16px',
+              fontSize: '12px',
+              fontWeight: 500,
+              border: selectedActorFilter === 'all' ? '1px solid #0284c7' : '1px solid #e2e8f0',
+              background: selectedActorFilter === 'all' ? '#e0f2fe' : '#ffffff',
+              color: selectedActorFilter === 'all' ? '#0369a1' : '#475569',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
-              她们镜头里的你 · 人物
-            </span>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>共 {data.contacts.length} 位</span>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {data.contacts.map((c) => (
+            全部回忆 ({lifeMemories.length})
+          </button>
+          {data.contacts.map((c) => {
+            const count = lifeMemories.filter((p) => p.description.includes(c.name) || p.title.includes(c.name)).length;
+            const isSelected = selectedActorFilter === c.id;
+            return (
               <button
                 key={c.id}
                 type="button"
+                onClick={() => setSelectedActorFilter(c.id)}
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px',
-                  background: 'transparent',
-                  border: 'none',
+                  padding: '5px 12px',
+                  borderRadius: '16px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  border: isSelected ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                  background: isSelected ? '#e0f2fe' : '#ffffff',
+                  color: isSelected ? '#0369a1' : '#475569',
                   cursor: 'pointer',
-                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
-                onClick={() => open('messages', c.id)}
               >
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '50%',
-                    background: '#e2e8f0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 600,
-                    fontSize: '15px',
-                    color: '#0f172a',
-                    border: '2px solid #ffffff',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                  }}
-                >
-                  {c.name.slice(0, 1)}
-                </div>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: '#475569',
-                    maxWidth: '52px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {c.name}
-                </span>
+                {c.name} {count > 0 && `(${count})`}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
-      {!photos.length && (
-        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', margin: '12px 14px' }}>
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#0f172a', fontWeight: 600 }}>🎞️ 人生记忆胶卷</h4>
-          <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
-            新生活刚刚拉开序幕，过去的节点留在了胶卷里。你也可以点击上方上传一张新照片。
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-            <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#ffffff', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
-              <img src="/art/first-window.webp" alt="窗前" style={{ width: '100%', height: '110px', objectFit: 'cover' }} />
-              <div style={{ padding: '8px 10px' }}>
-                <strong style={{ fontSize: '12px', display: 'block', color: '#0f172a' }}>最初的窗口</strong>
-                <small style={{ fontSize: '11px', color: '#64748b' }}>搬进新居的第一天</small>
+
+      {/* 生活胶卷网格 */}
+      <div style={{ padding: '0 12px 16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+          {filteredPhotos.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => open('photos', p.id)}
+              style={{
+                borderRadius: '12px',
+                overflow: 'hidden',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div style={{ width: '100%', height: '118px', overflow: 'hidden', background: '#f1f5f9' }}>
+                <img
+                  src={p.url || '/art/first-window.webp'}
+                  alt={p.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+              <div style={{ padding: '8px 10px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div>
+                  <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>
+                    {p.title}
+                  </strong>
+                  <p style={{ fontSize: '11px', color: '#64748b', margin: '3px 0 0', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {p.description}
+                  </p>
+                </div>
+                <div style={{ marginTop: '6px', fontSize: '10px', color: '#94a3b8' }}>
+                  {p.date.slice(0, 10)}
+                </div>
               </div>
             </div>
-            <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#ffffff', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}>
-              <img src="/art/open-door.webp" alt="门前" style={{ width: '100%', height: '110px', objectFit: 'cover' }} />
-              <div style={{ padding: '8px 10px' }}>
-                <strong style={{ fontSize: '12px', display: 'block', color: '#0f172a' }}>推开门那一刻</strong>
-                <small style={{ fontSize: '11px', color: '#64748b' }}>做出选择后的清晨</small>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
-      )}
-      {days.map((day) => (
-        <section key={day} className={s.photoGroup}>
-          <h3>{day || '日期未知'}</h3>
-          <div className={s.photoGrid}>
-            {photos
-              .filter((p) => dayKey(p.date) === day)
-              .map((p) => (
-                <button
-                  key={p.id}
-                  className={s.photoTile}
-                  aria-label={`${p.title}，${p.status === 'ready' ? '查看照片' : labels[p.status]}`}
-                  onClick={() => open('photos', p.id)}
-                >
-                  <PhotoImage photo={p} />
-                  <span>{p.title}</span>
-                </button>
-              ))}
-          </div>
-        </section>
-      ))}
+      </div>
     </div>
   );
 }

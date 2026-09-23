@@ -316,13 +316,32 @@ export function WorldPhoneSurface({
     } catch {
       // Fallback below
     }
-    return (data.notes ?? []).map((note, index) => ({
+    const baseOpening = (data.notes ?? []).map((note, index) => ({
       id: `${data.id}:opening-note:${index}`,
       title: note.title,
       text: note.text,
       version: 0,
       updatedAt: data.time,
     }));
+    if (baseOpening.length >= 2) return baseOpening;
+    const leadActor = data.actors[0];
+    const supplementalNotes: PhoneNote[] = [
+      {
+        id: `${data.id}:supp-note-1`,
+        title: leadActor ? `关于露台与${leadActor.name}的安排` : '关于近期生活与约定',
+        text: `答应过的事情不能再往后推了。最近她也很辛苦，周末下班记得顺路去买她常吃的那家可丽饼。露台晚餐这次不准聊工作上的琐事，只聊放松的开心事。`,
+        version: 0,
+        updatedAt: data.time,
+      },
+      {
+        id: `${data.id}:supp-note-2`,
+        title: '老洋房改造案思考碎片',
+        text: `空间的核心在于自然光怎么切进来。朝南的挑高全部打开，保留原本斑驳的水刷石墙面肌理，用轻质钢架连廊做连接。周四前整理成草模给团队看。`,
+        version: 0,
+        updatedAt: data.time,
+      },
+    ];
+    return [...baseOpening, ...supplementalNotes];
   });
 
   const handleSaveNote: NonNullable<PhoneActions['saveNote']> = useCallback(
