@@ -1195,6 +1195,24 @@ h2 {
   display: grid;
   gap: 24px;
 }
+.world-building {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.world-building p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text);
+}
+.world-building small {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.world-building .build-state-spinner {
+  margin: 0;
+}
 .world-contacts {
   display: grid;
 }

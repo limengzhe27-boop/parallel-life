@@ -118,14 +118,10 @@ export function ProposalThread({
       setStage('building');
       const build = await client.createWorld({ commandId: crypto.randomUUID(), seedId: seed.id });
       if (build.task?.id) {
-        let taskId = build.task.id;
-        if (build.task.status === 'failed' || build.task.status === 'unknown') {
-          const retried = await client.retryTask(build.task.id, crypto.randomUUID());
-          taskId = retried.id;
-        }
-        const settled = await client.task(taskId);
-        if (settled && settled.status !== 'succeeded')
-          throw new Error(taskFailure(settled));
+        /* Only continue an attempt that is still queued or running. A failed or
+           unknown attempt is reported and retried by the user, never silently. */
+        const settled = await client.task(build.task.id);
+        if (settled && settled.status !== 'succeeded') throw new Error(taskFailure(settled));
       }
       setStage('entering');
       window.location.assign(`/worlds/${build.worldId}`);

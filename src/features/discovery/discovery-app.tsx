@@ -147,12 +147,15 @@ export function DiscoveryApp() {
           seedId: saved.id,
         }));
       if (build.task?.id) {
-        let taskId = build.task.id;
-        if (build.task.status === 'failed' || build.task.status === 'unknown') {
-          const retried = await client.retryTask(build.task.id, crypto.randomUUID());
-          taskId = retried.id;
+        /* Continue only an attempt that is still queued or running. A failed or
+           unknown attempt needs the user's explicit retry, because it may already
+           have cost money — opening a page must never spend again. */
+        const settled = await client.task(build.task.id);
+        if (settled && settled.status !== 'succeeded') {
+          setBusy(false);
+          setError('这段人生上一次没有生成成功，请选择重新生成。');
+          return;
         }
-        await client.task(taskId);
       }
       window.location.assign(`/worlds/${build.worldId}`);
     } catch (e) {
