@@ -8,6 +8,7 @@ import {
   type Interview,
 } from '../../../contracts/api.ts';
 import { QuestionTargetSchema } from '../../../contracts/memory.ts';
+import { extractJsonObject } from '../../ai/application/model-json.ts';
 export const INTERVIEW_PROMPT_VERSION = 'interview-1.2.0';
 export const InterviewProposalSchema = z.strictObject({
   reply: z.string().trim().min(1).max(4000),
@@ -101,18 +102,28 @@ export class InterviewPlanner {
     ];
     return { context, selected };
   }
+
   private parse(raw: string, selected: Interview['messages']): InterviewProposal {
     let proposal: InterviewProposal;
     try {
-      proposal = InterviewProposalSchema.parse(
-        JSON.parse(
-          raw
-            .trim()
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```$/, ''),
-        ),
-      );
+      proposal = InterviewProposalSchema.parse(extractJsonObject(raw));
     } catch {
+      // If parsing fails, try rescuing reply before rejecting
+      const replyMarker = raw.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (replyMarker?.[1]) {
+        try {
+          const decoded = JSON.parse(`"${replyMarker[1]}"`) as string;
+          if (decoded && typeof decoded === 'string' && decoded.trim()) {
+            return {
+              reply: decoded.trim(),
+              facts: [],
+              events: [],
+            };
+          }
+        } catch {
+          /* Fall through to error below */
+        }
+      }
       throw new InvalidInterviewOutput();
     }
     const userIds = new Set(selected.filter((x) => x.role === 'user').map((x) => x.id));

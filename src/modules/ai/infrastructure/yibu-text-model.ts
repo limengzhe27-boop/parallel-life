@@ -135,6 +135,7 @@ export class YibuTextModel implements TextModel {
           for (const line of lines) {
             if (!line.startsWith('data:')) continue;
             const payload = line.slice(5).trim();
+            if (!payload) continue;
             if (payload === '[DONE]') return;
             try {
               const content = (
@@ -142,7 +143,7 @@ export class YibuTextModel implements TextModel {
               ).choices?.[0]?.delta?.content;
               if (typeof content === 'string' && content) yield content;
             } catch {
-              throw new GatewayError('INVALID_RESPONSE');
+              // Ignore non-JSON ping/keepalive or unparseable SSE line
             }
           }
           if (done) break;

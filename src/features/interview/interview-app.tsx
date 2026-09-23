@@ -224,15 +224,6 @@ export function InterviewApp() {
       pending.current = null;
       setStreamingText('');
     } catch (e) {
-      // 失败时恢复草稿，以便用户修改与重试
-      setDraft(text);
-      if (data.profile?.id) {
-        try {
-          sessionStorage.setItem(`pl-draft:${data.profile.id}`, text);
-        } catch {
-          /* No persistent draft storage. */
-        }
-      }
       setError(errorMessage(e));
       if (e instanceof ApiFailure && e.code === 'VERSION_CONFLICT') {
         pending.current = null;

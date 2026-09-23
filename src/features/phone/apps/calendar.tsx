@@ -88,13 +88,13 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
         ))}
       </div>
       {!dayInvitations.length && (
-        <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', margin: '8px 12px' }}>
-          <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#f5d580' }}>📅 这天尚无固定日程</h4>
-          <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#999', lineHeight: 1.5 }}>
+        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', margin: '12px 14px' }}>
+          <h4 style={{ margin: '0 0 6px 0', fontSize: '14px', color: '#0f172a', fontWeight: 600 }}>📅 这天尚无固定日程</h4>
+          <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
             你可以发微信和身边重要的人发起碰头或制定计划：
           </p>
           {data.contacts.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {data.contacts.slice(0, 3).map((contact) => (
                 <button
                   key={contact.id}
@@ -103,20 +103,21 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '8px 10px',
+                    padding: '10px 12px',
                     borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#fff',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#1e293b',
                     cursor: 'pointer',
                     textAlign: 'left',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
                   }}
                   onClick={() => open('messages', contact.id)}
                 >
-                  <span style={{ fontSize: '12px' }}>
-                    💬 与 <strong>{contact.name}</strong>（{contact.relationship}）约时间
+                  <span style={{ fontSize: '13px', color: '#1e293b' }}>
+                    💬 与 <strong style={{ color: '#0f172a' }}>{contact.name}</strong>（{contact.relationship}）约时间
                   </span>
-                  <span style={{ fontSize: '11px', color: '#d4af37' }}>发微信 →</span>
+                  <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 500, flexShrink: 0 }}>发微信 →</span>
                 </button>
               ))}
             </div>

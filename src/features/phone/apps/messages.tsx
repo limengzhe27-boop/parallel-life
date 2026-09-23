@@ -201,38 +201,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           </article>
         ))}
       </div>
-      <div
-        style={{
-          display: 'flex',
-          gap: '6px',
-          overflowX: 'auto',
-          padding: '6px 12px',
-          background: 'rgba(0, 0, 0, 0.25)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-        }}
-        aria-label="快速发起互动"
-      >
-        {['在忙吗？', '关于接下来的安排…', '有空碰个面吗？', '刚看到便签里的事…'].map((topic) => (
-          <button
-            key={topic}
-            type="button"
-            style={{
-              flexShrink: 0,
-              fontSize: '12px',
-              padding: '4px 10px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              color: '#d4af37',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-            onClick={() => setDraft(key, topic)}
-          >
-            💬 {topic}
-          </button>
-        ))}
-      </div>
       <form
         className={s.composer}
         onSubmit={async (e) => {
@@ -243,6 +211,38 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           await run(key, text, (id) => actions.sendMessage!(actor.id, value, id));
         }}
       >
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            overflowX: 'auto',
+            padding: '2px 0 8px 0',
+            scrollbarWidth: 'none',
+          }}
+          aria-label="快速发起互动"
+        >
+          {['在忙吗？', '关于接下来的安排…', '有空碰个面吗？', '刚看到便签里的事…'].map((topic) => (
+            <button
+              key={topic}
+              type="button"
+              style={{
+                flexShrink: 0,
+                fontSize: '12px',
+                padding: '4px 10px',
+                borderRadius: '14px',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+              }}
+              onClick={() => setDraft(key, topic)}
+            >
+              💬 {topic}
+            </button>
+          ))}
+        </div>
         <label className={s.srOnly} htmlFor={`compose-${actor.id}`}>
           消息内容
         </label>
