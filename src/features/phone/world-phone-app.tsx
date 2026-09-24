@@ -1137,45 +1137,17 @@ export function WorldPhoneSurface({
                 </div>
               </div>
 
-              {/* 中下部：标准 iOS 4 列 x 2 行桌面应用网格（稳固呈现，绝不滑动） */}
+              {/* 桌面图标区（4个常用应用） */}
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(4, 1fr)',
                   gap: '12px 6px',
-                  padding: '2px 0 6px',
+                  padding: '4px 0 2px',
                   flexShrink: 0,
                 }}
               >
                 {[
-                  {
-                    app: 'messages' as const,
-                    name: '微信',
-                    badge: unreadCount > 0 ? unreadCount : undefined,
-                    icon: 'messages' as const,
-                    onClick: () => open('messages'),
-                  },
-                  {
-                    app: 'calendar' as const,
-                    name: '日历',
-                    badge: data.invitations?.length ? data.invitations.length : undefined,
-                    icon: 'calendar' as const,
-                    onClick: () => open('calendar'),
-                  },
-                  {
-                    app: 'notes' as const,
-                    name: '便签',
-                    badge: notes.length ? notes.length : undefined,
-                    icon: 'notes' as const,
-                    onClick: () => open('notes'),
-                  },
-                  {
-                    app: 'photos' as const,
-                    name: '相册',
-                    badge: undefined,
-                    icon: 'photos' as const,
-                    onClick: () => open('photos'),
-                  },
                   {
                     app: 'moments' as const,
                     name: '朋友圈',
@@ -1218,21 +1190,130 @@ export function WorldPhoneSurface({
                       border: 'none',
                       cursor: 'pointer',
                       padding: 0,
+                      transition: 'transform 0.1s ease',
                     }}
+                    onPointerDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
+                    onPointerUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                    onPointerLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                   >
                     <div
                       style={{
                         position: 'relative',
-                        width: '50px',
-                        height: '50px',
-                        borderRadius: '13px',
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '14px',
                         background: '#ffffff',
                         boxShadow: '0 4px 10px rgba(0, 0, 0, 0.16)',
                         display: 'grid',
                         placeItems: 'center',
                       }}
                     >
-                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '50px', height: '50px' }}>
+                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '52px', height: '52px' }}>
+                        {item.app === 'moments' ? (
+                          <span style={{ fontSize: '26px' }}>📷</span>
+                        ) : item.app === 'timeline' ? (
+                          <span style={{ fontSize: '26px' }}>⏳</span>
+                        ) : item.app === 'director' ? (
+                          <span style={{ fontSize: '26px' }}>🎬</span>
+                        ) : (
+                          <span style={{ fontSize: '26px' }}>⚙️</span>
+                        )}
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        color: '#ffffff',
+                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.7)',
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* 底部常驻 iOS 毛玻璃 Dock 栏（微信、日历、相册、便签） */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.32)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  borderRadius: '26px',
+                  padding: '9px 12px 10px',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '10px',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  marginTop: 'auto',
+                  flexShrink: 0,
+                }}
+              >
+                {[
+                  {
+                    app: 'messages' as const,
+                    name: '微信',
+                    badge: unreadCount > 0 ? unreadCount : undefined,
+                    icon: 'messages' as const,
+                    onClick: () => open('messages'),
+                  },
+                  {
+                    app: 'calendar' as const,
+                    name: '日历',
+                    badge: data.invitations?.length ? data.invitations.length : undefined,
+                    icon: 'calendar' as const,
+                    onClick: () => open('calendar'),
+                  },
+                  {
+                    app: 'photos' as const,
+                    name: '相册',
+                    badge: undefined,
+                    icon: 'photos' as const,
+                    onClick: () => open('photos'),
+                  },
+                  {
+                    app: 'notes' as const,
+                    name: '便签',
+                    badge: notes.length ? notes.length : undefined,
+                    icon: 'notes' as const,
+                    onClick: () => open('notes'),
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={item.onClick}
+                    aria-label={item.name}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      transition: 'transform 0.1s ease',
+                    }}
+                    onPointerDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
+                    onPointerUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                    onPointerLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  >
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '14px',
+                        background: '#ffffff',
+                        boxShadow: '0 3px 8px rgba(0, 0, 0, 0.12)',
+                        display: 'grid',
+                        placeItems: 'center',
+                      }}
+                    >
+                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '52px', height: '52px' }}>
                         {item.app === 'calendar' ? (
                           <span className={styles.calendarFace}>
                             <span>日历</span>
@@ -1240,14 +1321,6 @@ export function WorldPhoneSurface({
                               {data.time.slice(8, 10)}
                             </strong>
                           </span>
-                        ) : item.app === 'moments' ? (
-                          <span style={{ fontSize: '24px' }}>📷</span>
-                        ) : item.app === 'timeline' ? (
-                          <span style={{ fontSize: '24px' }}>⏳</span>
-                        ) : item.app === 'director' ? (
-                          <span style={{ fontSize: '24px' }}>🎬</span>
-                        ) : item.app === 'management' ? (
-                          <span style={{ fontSize: '24px' }}>⚙️</span>
                         ) : (
                           <PhoneIcon name={item.icon as 'messages' | 'photos' | 'notes'} />
                         )}
@@ -1276,17 +1349,6 @@ export function WorldPhoneSurface({
                         </span>
                       )}
                     </div>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        color: '#ffffff',
-                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.7)',
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {item.name}
-                    </span>
                   </button>
                 ))}
               </div>

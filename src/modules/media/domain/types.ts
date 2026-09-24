@@ -1,5 +1,6 @@
 export type GenerationStatus =
   'queued' | 'running' | 'submitted' | 'succeeded' | 'failed' | 'unknown';
+
 export type MediaGeneration = {
   id: string;
   ownerId: string;
@@ -11,6 +12,7 @@ export type MediaGeneration = {
   assetId?: string;
   // "unknown" means provider acceptance is uncertain. Never automatically resubmit.
 };
+
 export type PrivateAsset = {
   id: string;
   ownerId: string;
@@ -20,4 +22,17 @@ export type PrivateAsset = {
   byteLength: number;
   origin: 'upload' | 'generated';
   referenceAssetIds: string[];
+};
+
+export type FaceConsistencySpec = {
+  referenceAssetId: string;
+  fidelityThreshold: number;
+  preserveFacialFeatures: boolean;
+  ageDeviationMaxYears?: number;
+};
+
+export type MediaCostBudget = {
+  maxImagesPerWorld: number;
+  maxPendingRequests: number;
+  estimatedCostUsdPerImage: number;
 };

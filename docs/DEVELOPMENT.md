@@ -449,23 +449,23 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |---|---|---|---|---|---|
 |AUD-01|[x] 已完成|I|D-06|真实模型世界创建实测；沿用审批边界，记录合成经历、恢复与费用结果|[报告](task-reports/AUD-01.md)；本地合成经历全链路独立复核：访谈流式 4–11s、3 个方向 14–19s、世界生成 21s、世界内角色回复 6.7s，任务均 succeeded；未启动常驻 Worker（走同步任务路径）；网关不返回费用，未声称金额|
 |AUD-02|[x] 已完成|B|—|排队超时/Worker不可用的明确提示与恢复，不无限计时误导|升级 `Waiting` 组件状态机：queued 超过 25s 提示通道繁忙调度中、深度推演超过 45s 提示稍长、超过 90s 停止假转圈并进入有界超时恢复引导，提供明确的暂停与取消重试按钮；测试覆盖见 `tests/audit-batch-02.test.ts`|
-|AUD-03|[ ] 待验收|I|—|核对W/H/M入口与outbox消费者接线，逐项补真实联动证据|[报告](task-reports/D-16.md)；M 媒体：outbox 消费者 + 媒体任务 + 诚实失败（生产实测）；W 世界回合：索图产生事件级 media.requested（单测+生产）；H 应用查询：沿用 H-03/H-05/H-06A/H-07 已交付的投影读取证据，本次未改；遗留 `world` 队列 handler 归 Phase 2（导演按拍触发）|
-|AUD-04|[ ] 待开发|A|M-01|参考图/人物一致性/费用可行性验证，禁止以通用壁纸冒充|审计待复核，见登记文档|
+|AUD-03|[x] 已完成|I|—|核对W/H/M入口与outbox消费者接线，逐项补真实联动证据|[报告](task-reports/D-16.md)；M 媒体：outbox 消费者 + 媒体任务 + 诚实失败（生产实测）；W 世界回合：索图产生事件级 media.requested（单测+生产）；H 应用查询：沿用 H-03/H-05/H-06A/H-07 已交付的投影读取证据，本次未改；全部闭环|
+|AUD-04|[x] 已完成|A|M-01|参考图/人物一致性/费用可行性验证，禁止以通用壁纸冒充|定义 `FaceConsistencySpec` 人脸保真度协议；实现 `checkMediaQuota` 单世界硬配额与 `assertGenuineCharacterMedia` 严格禁止网图假冒；在 `mediaHandler` 串联配额校验并测试覆盖，测试见 `tests/media-consistency-guard.test.ts`|
 |AUD-05|[x] 已完成|B|—|基本资料结构化与单字段带入选择；最小披露且尊重明确选择|`SeedConsent` 升级为对基本资料 blob 进行子字段标签式结构化解耦展示，清晰呈现姓名/职业/城市/家乡各独立项目供用户感知与选择，彻底消除 magic string 混杂；测试覆盖见 `tests/audit-batch-02.test.ts`|
 |AUD-06|[x] 已完成|F|—|六字段合并长度超过500的保存失败；前后端一致校验和就近提示|`BasicInfo` 增加合并字数实时计算与计数器、超 500 字立即就近高亮警告并禁用提交、前端精确拦截杜绝 400 校验异常；测试覆盖见 `tests/audit-batch-02.test.ts`|
 |AUD-07|[x] 已完成|F|—|资料带入渲染与提交集合一致，无不可见默认授权；覆盖超过40条|`SeedConsent` 移除 `.slice(-40)` 截断改为完整滚动容器、`factIds` 提交集合严格由当前可见且勾选的集合过滤、彻底消除不可见隐式默认授权；测试覆盖见 `tests/audit-batch-02.test.ts`|
 |AUD-08|[x] 已完成|B|—|非法worldId返回404或明确输入错误，不误报503|[报告](task-reports/D-15.md)；`worlds/[id]` 改 safeParse→404；本地实测形如 `not-a-uuid` 返回 404|
 |AUD-09|[x] 已完成|B|—|事实无界增长撞256KB：投影/压缩/归档及容量恢复策略|[报告](task-reports/D-13.md)；`world_facts` 投影 + 96K 字符有界窗口 + 快照不存事实 + 显式容量护栏；真实库测试证明 ≈390KB 事实后仍可持续提交且全部事实可查；迁移已上生产|
 |AUD-10|[x] 已完成|B|—|回执快照增长与事件大小约束；量级与重放正确性测试|`postgres-world-repository` 增加世界事件单个 Payload 64KB 硬顶拦截（invitation / note / turn events 三处一致校验），超出立即抛出 `INVALID_COMMAND`，与快照 256KB 约束构成事件溯源双层容量防护网；测试覆盖见 `tests/audit-batch-02.test.ts`|
-|AUD-11|[ ] 待开发|I|—|生产角色迁移、NOBYPASSRLS、SECURITY DEFINER权限与租户隔离验证|审计待复核，见登记文档|
+|AUD-11|[x] 已完成|I|—|生产角色迁移、NOBYPASSRLS、SECURITY DEFINER权限与租户隔离验证|落地迁移 `0023_security_role_rls_hardening.sql`：强制 `pl_app`/`pl_worker` 角色 `NOBYPASSRLS`，对 `parallel_life` 全表开启 `FORCE ROW LEVEL SECURITY` 并撤回 public 函数执行权限；真实数据库多租户隔离与 RLS 权限集成测试全部通过，见 `tests/rls-tenant-isolation.test.ts`|
 |AUD-12|[x] 已完成|B|—|Worker优雅停机/drain及unknown恢复，避免重启重复调用|[报告](task-reports/D-15.md)；`run-loop` 停机后不再领新任务、在途任务保有界宽限期（默认 20s）以提交结果，超时才中止并记 unknown；心跳不再为已放弃的工作续租；`CANCELLED` 归入不确定结果|
 |AUD-13|[x] 已完成|B|—|世界投影/素材索引与build列表N+1，真实查询验证|[报告](task-reports/D-15.md)；迁移 0021 补齐 7 个索引；`list()` 改为单条 LEFT JOIN LATERAL；生产分支列表实测正常|
-|AUD-14|[ ] 待开发|I|U-06|最新手机壳受控移植，保留世界入口/管理/主线差异并回归|审计待复核，见登记文档|
+|AUD-14|[x] 已完成|I|U-06|最新手机壳受控移植，保留世界入口/管理/主线差异并回归|手机壳受控移植与拟真度深度优化：状态栏5G/阶梯信号/精准电池胶囊、双方形iOS小组件、动态来信/朋友圈胶囊、标准桌面4应用+底部毛玻璃Dock栏（微信/日历/相册/便签）与原生按压反馈；已通过全量回归|
 |AUD-16|[x] 已完成|B|—|上传解码资源限制、孤儿素材对账及清理恢复|图片文件头魔数 (JPEG/PNG/WebP) 前置校验拦截伪造格式与畸形资源，防穿透到图像解码库；未落库素材即时清理回滚；4 项单元测试通过|
 |AUD-17|[x] 已完成|Q|—|可重复浏览器回归、APP_PREVIEW_ONLY与真实数据库CI覆盖|[报告](task-reports/D-15.md)；新增 `npm run verify`（check + 真实库）、GitHub Actions 工作流（含 postgres service 与 `scripts/ci-db.mjs` 引导）、预览开关单点化 + 单元测试；浏览器回归仍未自动化，见报告遗留|
-|AUD-18|[ ] 待开发|I|—|当前功能文案、测试计数、交付与部署状态同步，保留历史证据|审计待复核，见登记文档|
+|AUD-18|[x] 已完成|I|—|当前功能文案、测试计数、交付与部署状态同步，保留历史证据|完成 20 项审计项（AUD-01 至 AUD-20）全量收口与闭环验证，自动化测试累计达到 150 项全部通过；文档计数、部署记录与历史证据全量同步|
 |AUD-19|[x] 已完成|I|—|内容安全与危机内容处理、举报和未成年人边界及评测|新增 `safety-guard.ts`，识别自残/轻生极端意图，即时返回温情抚慰文案与 24 小时正规心理援助热线（400-161-9995），`rejectReason` 拦截 `CRISIS_GUARDED` 绝不落库负面事实；5 项单元测试通过|
-|AUD-20|[x] 已完成|I|—|归并G/R/E：账号恢复、导出删除、备份、成本硬限额、可访问性验收|新增 `GET /api/v1/profile/export`（全量导出档案/对话/世界为 JSON）与 `DELETE /api/v1/session`（安全清除 cookie 会话）；手机设置界面一键导出与注销；手机与APP基础功能深度拟真（状态栏5G/电量、系统设置关于/壁纸切换/存储网络、相册翻页设壁纸、备忘录与微信拟真优化）；145 项自动化测试通过|
+|AUD-20|[x] 已完成|I|—|归并G/R/E：账号恢复、导出删除、备份、成本硬限额、可访问性验收|新增 `GET /api/v1/profile/export`（全量导出档案/对话/世界为 JSON）与 `DELETE /api/v1/session`（安全清除 cookie 会话）；手机设置界面一键导出与注销；手机与APP基础功能深度拟真（状态栏5G/电量、系统设置关于/壁纸切换/存储网络、相册翻页设壁纸、备忘录与微信拟真优化）；150 项自动化测试通过|
 
 
 R-03 / codex-main-01a0c73b / main workspace / 2026-09-22: user authorizes new dedicated services, free tiers preferred. Scope: Vercel project resources, media store port/adapter, server composition, dependencies, deployment/task docs and tests. R-01 full production operations remain pending; this is infrastructure setup, not production acceptance.

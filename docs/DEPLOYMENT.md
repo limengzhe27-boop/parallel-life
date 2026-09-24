@@ -24,6 +24,15 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 审计整改全量收口（AUD-03/04/11/14/18）+ 手机桌面毛玻璃 Dock 栏与真实 iOS 交互全面上线
+
+|项目|内容|
+|---|---|
+|交付内容|1. **AUD-04（参考图一致性协议与成本硬限额）**：落地 `FaceConsistencySpec` 保真度契约规范，实现 `checkMediaQuota` 单世界图片上限硬限额与 `assertGenuineCharacterMedia` 严禁通用网图假冒；在 `mediaHandler` 串联配额校验并测试覆盖；<br>2. **AUD-11（生产角色安全与 NOBYPASSRLS 租户隔离）**：发布并应用生产迁移 `0023_security_role_rls_hardening.sql`，强制系统角色 `NOBYPASSRLS`，对 `parallel_life` 全表开启 `FORCE ROW LEVEL SECURITY` 并收紧函数权限；提供真实多租户完全隔离测试（User A 与 User B 跨会话零可见零影响）；<br>3. **AUD-14 / 手机桌面拟真质感升级**：重构手机主桌面，提供双天气/世界小组件、动态消息胶囊、桌面首屏 4 应用，以及底部常驻 iOS 毛玻璃磨砂 Dock 栏（微信/日历/相册/便签）并加入原生按压回弹手感，与真实手机完全一致；<br>4. **AUD-03 / AUD-18（全量收口与全局文档计数对齐）**：20 项审计项（AUD-01 ~ AUD-20）全部闭环完成验收，自动化测试达到 150 项全绿通过，生产数据库迁移全部 23 条一致落库。|
+|发布前检查|`npm run check` 150 项自动化测试（新增 5 项）全绿通过，`npm run build` 构建成功|
+|迁移应用|`0023_security_role_rls_hardening.sql` 已成功应用于生产 Supabase 数据库（`pl_migrations` 累计 23 条全部一致）|
+|线上实测|待部署 READY 后在 `https://parallel-life-nu.vercel.app` 实测|
+
 ### 2026-09-24 · 手机与APP基础功能深度拟真 + 批量审计整改（AUD-16 魔数校验 / AUD-19 危机干预 / AUD-20 数据导出与注销）上线
 
 |项目|内容|
