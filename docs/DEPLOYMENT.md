@@ -24,6 +24,16 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · Phase 0 执行层（outbox 消费者与媒体链路）
+
+|项目|内容|
+|---|---|
+|提交|`5e6ddc3`（首批）、`2248541`（生产 bug 修复）|
+|迁移|`0022_outbox_consumer.sql` 已应用于本地与生产 Supabase（`pl_migrations` 22 条）|
+|发布前检查|`npm run verify`（134 单元 + 18 真实库）、`npm run build` 通过|
+|线上实测|世界内发送"发一张窗外的照片给我看看" → `committed`（版本 6→7）→ 生产库出现媒体请求与 `image.generate` outbox job → `POST /api/v1/outbox/drain` 返回 `{claimed:1,submitted:1}` → 出现 `media` 任务（queued）→ `POST /tasks/:id/run` 后任务 `failed`、job `failed(NOT_IMPLEMENTED:media-adapter)`、媒体请求仍 pending、素材数 0（无伪造图片）|
+|过程问题|首次上线后生产派发被拒（媒体 scope 被契约当 uuid），job 被标永久失败；已修复契约与失败策略，并把真实库用例改为真实 id 形态，避免同类问题再次漏到线上|
+
 ### 2026-09-24 · 批量审计整改（AUD-05 资料结构化解耦 / AUD-10 世界事件 64KB 大小硬顶拦截）上线
 
 |项目|内容|

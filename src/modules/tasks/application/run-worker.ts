@@ -1,4 +1,8 @@
+import { ErrorCode } from '../../../contracts/api.ts';
 import type { TaskLease, TaskOutcome } from '../domain/types.ts';
+
+const ERROR_CODE_LIST = ErrorCode.options;
+const ERROR_CODES = new Set<string>(ERROR_CODE_LIST);
 export interface WorkerQueue {
   claim(kinds: string[]): Promise<TaskLease | null>;
   renew(task: TaskLease): Promise<boolean>;
@@ -65,8 +69,10 @@ export async function runOne(
           ? 'INVALID_AI_OUTPUT'
           : failure.code === 'TRUNCATED'
             ? 'AI_TRUNCATED'
-            : failure.code === 'INVALID_COMMAND'
-              ? 'INVALID_COMMAND'
+            : /* A handler that knows its own reason (e.g. a capability that is not
+                 wired yet) must not be reported as a model failure. */
+              ERROR_CODES.has(failure.code ?? '')
+              ? (failure.code as (typeof ERROR_CODE_LIST)[number])
               : 'AI_FAILED',
       /* Keep failure diagnostics as observable as success: which model and prompt ran, and how long. */
       ...(failure.model ? { model: failure.model } : {}),
