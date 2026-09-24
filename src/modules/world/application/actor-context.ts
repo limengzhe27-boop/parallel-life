@@ -41,8 +41,14 @@ export function actorContext(
   const context: ActorContext = {
     worldId: state.id,
     worldVersion: state.version,
+    worldTitle: state.title,
     time: state.time,
-    actor: { id: actor.id, name: actor.name, persona: actor.persona },
+    actor: {
+      id: actor.id,
+      name: actor.name,
+      relationship: (actor as { relationship?: string }).relationship,
+      persona: actor.persona,
+    },
     facts: [],
     messages: [],
     appointments: [],
@@ -78,11 +84,15 @@ export function actorContext(
       fact.visibility.kind === 'world' ||
       (fact.visibility.kind === 'actors' && fact.visibility.actorIds.includes(actorId)),
   );
+  // 开局核心事实（主角身份、世界情境）优先注入，确保角色时刻感知主角的身份与世界全貌
+  const genesisFacts = facts.filter((f) => f.sourceEventId?.startsWith('genesis:'));
+  for (const item of genesisFacts) append(context.facts, item, 4000);
+  const remainingFacts = facts.filter((f) => !f.sourceEventId?.startsWith('genesis:'));
   const rank = <T>(items: T[], text: (item: T) => string) =>
     items
       .map((item, index) => ({ item, index, score: relevance(text(item), words) }))
       .sort((a, b) => b.score - a.score || b.index - a.index);
-  for (const { item } of rank(facts, (fact) => fact.text)) append(context.facts, item, 4000);
+  for (const { item } of rank(remainingFacts, (fact) => fact.text)) append(context.facts, item, 4000);
   const appointments = state.appointments.filter((item) => item.participantIds.includes(actorId));
   for (const { item } of rank(appointments, (item) => item.title))
     append(context.appointments, item, 1500);

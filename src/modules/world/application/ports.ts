@@ -18,6 +18,7 @@ export type ActorContext = {
   worldId: string;
   worldVersion: number;
   time: string;
+  worldTitle?: string;
   actor: WorldState['actors'][number];
   facts: WorldState['facts'];
   messages: WorldState['messages'];

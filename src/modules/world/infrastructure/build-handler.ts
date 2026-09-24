@@ -41,16 +41,17 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       actors: opening.actors.map((a) => ({
         id: ids.get(a.key)!,
         name: a.name,
+        relationship: a.relationship,
         persona: a.persona,
       })),
       facts: [
-        { id: randomUUID(), text: opening.identity, visibility: { kind: 'world' }, sourceEventId },
-        { id: randomUUID(), text: opening.setting, visibility: { kind: 'world' }, sourceEventId },
+        { id: randomUUID(), text: `【主角身份】${opening.identity}`, visibility: { kind: 'world' }, sourceEventId },
+        { id: randomUUID(), text: `【世界情境】${opening.setting}`, visibility: { kind: 'world' }, sourceEventId },
       ],
       messages: opening.messages.map((m, index) => {
         // 错开开场消息时间戳，模拟用户进入前角色各自在不同时间发来的真实生活节奏
-        const minuteOffsets = [3, 28, 110, 340];
-        const offsetMinutes = minuteOffsets[index] ?? 340 + index * 60;
+        const minuteOffsets = [2, 18, 45, 110, 240, 480, 720, 1440];
+        const offsetMinutes = minuteOffsets[index] ?? 720 + index * 60;
         const staggeredAt = new Date(Date.parse(time) - offsetMinutes * 60 * 1000).toISOString();
         return {
           id: randomUUID(),

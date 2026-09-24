@@ -27,15 +27,15 @@ export const WorldOpeningSchema = z.object({
       }),
     )
     .min(3)
-    .max(5),
+    .max(8),
   messages: z
     .array(z.object({ actorKey: z.string().max(24), text: z.string().min(1).max(600) }))
     .min(1)
-    .max(4),
+    .max(8),
   notes: z
     .array(z.object({ title: z.string().min(1).max(80), text: z.string().min(1).max(1000) }))
     .min(1)
-    .max(3),
+    .max(5),
 });
 export type WorldOpening = z.infer<typeof WorldOpeningSchema>;
 export const WorldBuildSchema = z.strictObject({

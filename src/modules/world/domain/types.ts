@@ -3,7 +3,7 @@ export type Id = string;
 export type Session = { userId: Id };
 export type Visibility = { kind: 'owner' } | { kind: 'actors'; actorIds: Id[] } | { kind: 'world' };
 
-export type Actor = { id: Id; name: string; persona: string };
+export type Actor = { id: Id; name: string; persona: string; relationship?: string };
 export type Fact = {
   id: Id;
   text: string;

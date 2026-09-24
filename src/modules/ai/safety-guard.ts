@@ -12,7 +12,7 @@ export interface CrisisDetectionResult {
 
 /** 危机意图关键词与模式（纯前端+服务端双重守卫，低延迟） */
 const CRISIS_PATTERNS: Array<{ regex: RegExp; reason: 'self_harm' | 'suicide' | 'extreme_hopelessness' }> = [
-  { regex: /(自杀|轻生|跳楼|割腕|想死|不想活了|不想留在这个世界|结束生命|活着没意思|服毒|割脉|安乐死买药)/i, reason: 'suicide' },
+  { regex: /(自杀|轻生|跳楼|割腕|想死|不想活了|不想留在这个世界|结束生命|结束这一切|活着没意思|服毒|割脉|安乐死买药)/i, reason: 'suicide' },
   { regex: /(自残|划手腕|用刀割自己|伤害自己|虐待自己)/i, reason: 'self_harm' },
   { regex: /(活着好累想彻底解脱|人间不值得活了|没有活下去的必要了|准备离开这个世界了)/i, reason: 'extreme_hopelessness' },
 ];
