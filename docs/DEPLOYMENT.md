@@ -24,6 +24,16 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · Phase 2 时钟与导演骨架
+
+|项目|内容|
+|---|---|
+|提交|`0177bb7`（+ 本次登记提交）|
+|迁移|`0026_world_clock.sql` 已应用于本地与生产 Supabase（`pl_migrations` 26 条）|
+|发布前检查|`npm run verify`（162 单元 + 24 真实库）、`npm run build` 通过|
+|线上实测|`POST /api/v1/worlds/724aa514…/advance`：生产库出现 `world_clock`（story_now=05:59:46Z、speed 1.00、未暂停）、`world_beats` 3 行、世界 time 追到 05:59:19Z、**版本 7 → 10**、世界消息 11 → 16|
+|成本边界|一次推进最多 3 次模型调用；暂停或未到一拍为 0 次|
+
 ### 2026-09-24 · 核心全链路（访谈多底模-聊天聊出分支-确认建世界-肖像底模传递-进入手机微信与相册）跑通收口
 
 |项目|内容|

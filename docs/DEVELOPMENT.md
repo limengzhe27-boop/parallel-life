@@ -211,6 +211,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |D-17|[x] 已完成|I|D-16|Phase 1 记忆接线：队列允许 memory 任务、共享写入器（同句合并来源）、访谈抽取写入 profile 作用域记忆（带真实来源、零额外模型调用）、用户纠正/遗忘接口；并修复并发安全加固迁移导致两个运行角色失去触发器/CHECK 函数权限的生产回归|[报告](task-reports/D-17.md)；迁移 0024/0025 已应用于本地与生产；152 单元 + 21 真实库测试通过（新增角色权限守卫测试）；生产 `GET /memory/records` 200、错误 id 404|
 |D-18|[x] 已完成|I|D-17|Phase 1 收尾（世界侧）：世界回合在同一事务内把角色印象写入 character 作用域、把本轮事件写入 branch episode，来源为真实消息/事件 id，重复表述合并来源|[报告](task-reports/D-18.md)；154 单元 + 22 真实库测试通过（新增 world-memory：作用域、来源类型、重复合并）；无新增迁移|
 |D-19|[x] 已完成|I|D-18|检索统一：角色回合按作用域加载记忆（自己 + 本世界 episode，私有 profile 隔离）、遗忘记录屏蔽其来源、superseded 不计入，并接进世界回合|[报告](task-reports/D-19.md)；154 单元 + 23 真实库测试通过（新增 memory-retrieval：作用域隔离、遗忘屏蔽、回合确实收到记忆）；无新增迁移。Phase 1 完成，仅剩手机端记忆界面|
+|D-20|[x] 已完成|A|D-19|Phase 2 时钟 + 导演骨架：`world_clock`/`world_beats` 迁移、纯函数时钟（1:1/倍速/暂停/离线≤3 拍+摘要、故事时间追上现实）、沉默最久优先且不连续同一人的选人、舞台指示不冒充用户、每拍走同一条回合流水线、`POST /worlds/:id/advance`。对应 L-04 部分能力与 W-04 前置|[报告](task-reports/D-20.md)；迁移 0026 已应用于本地与生产；162 单元 + 24 真实库测试通过；生产实测 6 小时级缺勤场景：3 拍、版本 7→10、时钟与故事时间落库|
 |D-03|[ ] 待开发|B|D-06,M-03|世界创建任务：动态身份、人物、关系、初始事件/手机内容；version=0 快照，阶段进度持久化，失败可续接|—|
 |D-04|[ ] 待验收|F|C-05|推荐卡、自定义/修改、资料确认与保存设定；推荐任务状态、失败重试及恢复；世界生成进度单列 D-05|[报告](task-reports/D-04.md)；已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |D-05|[ ] 待开发|F|D-03,D-04|世界生成各阶段的真实进度、失败恢复与进入手机；恢复时对应同一个创建任务，未完成阶段不伪装成功|—|
@@ -327,6 +328,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
 |AUD-01|dsh-main-20260923|I / 单人|主登记目录|本地环境启动、合成经历真实调用、docs/task-reports/AUD-01.md|本项目本地 PostgreSQL 55432 与 3218 端口；真实网关调用仅用合成文本|2026-09-23T12:40Z：已完成；迁移 0001–0016 已应用，全链路真实调用证据见报告；本地服务保持运行供用户体验|
 |D-08|dsh-main-20260923|I / 单人|主登记目录|src/modules/ai/**、src/modules/world/infrastructure/**、src/modules/discovery/infrastructure/**、src/modules/tasks/application/**、src/contracts/**、tests/**、docs/task-reports/D-08.md|真实网关调用仅用合成经历；本项目 Supabase 生产库只读诊断|2026-09-23T13:10Z：已完成并上线；输出上限与容错解析修复，合格率 4/4；生产部署后完整链路实测通过|
+|D-20|dsh-main-20260923|A / 单人|主登记目录|src/modules/world/domain/clock.ts、src/modules/world/application/advance-world.ts、src/modules/world/infrastructure/clock-repository.ts、src/app/api/v1/worlds/[id]/advance/**、src/server/services.ts、db/migrations/0026_world_clock.sql、tests/**、docs/**|本地 PostgreSQL 55432 与生产 Supabase（迁移 0026）；生产真实模型调用 ≤3 次/次推进|2026-09-24T15:20Z：已完成并上线，生产实测通过|
 |D-19|dsh-main-20260923|I / 单人|主登记目录|src/modules/memory/infrastructure/memory-store.ts、src/modules/world/application/resolve-turn.ts、src/server/services.ts、src/app/api/v1/worlds/[id]/messages/route.ts、tests/**、docs/**|本地 PostgreSQL 55432（无新迁移）|2026-09-24T14:30Z：已完成并上线|
 |D-18|dsh-main-20260923|I / 单人|主登记目录|src/modules/world/infrastructure/postgres-world-repository.ts、tests/integration/world-memory.test.ts、docs/**|本地 PostgreSQL 55432（无新迁移）|2026-09-24T14:00Z：已完成并上线|
 |D-17|dsh-main-20260923|I / 单人|主登记目录|src/modules/memory/**、src/modules/profile/infrastructure/interview-handler.ts、src/app/api/v1/memory/records/**、src/contracts/memory.ts、src/server/services.ts、db/migrations/0024_memory_task_kind.sql、db/migrations/0025_runtime_function_grants.sql、tests/**、docs/**|本地 PostgreSQL 55432 与生产 Supabase（迁移 0024/0025）|2026-09-24T13:30Z：已完成并上线，生产实测通过|
@@ -357,6 +359,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务|执行/验收人|结果与证据|完成日期|
 |---|---|---|---|
+|D-20|dsh-main-20260923 / 自审（生产库核对）|Phase 2 骨架：世界时钟 + 有界导演节拍（≤3 拍、不连续同一人、舞台指示、每拍走回合流水线）；162 单元 + 24 真实库测试通过；生产实测版本 7→10、时钟落库；[报告](task-reports/D-20.md)|2026-09-24|
 |D-19|dsh-main-20260923 / 自审|检索统一：记忆按作用域与遗忘屏蔽进入角色上下文，并接进世界回合；154 单元 + 23 真实库测试通过；[报告](task-reports/D-19.md)|2026-09-24|
 |D-18|dsh-main-20260923 / 自审|Phase 1 收尾（世界侧）：回合认知与事件进入记忆库（character/branch 作用域 + 真实来源 + 重复合并）；154 单元 + 22 真实库测试通过；[报告](task-reports/D-18.md)|2026-09-24|
 |D-17|dsh-main-20260923 / 自审（生产库核对）|Phase 1 记忆接线 + 修正/遗忘 API + 修复运行角色函数权限回归；迁移 0024/0025 已上生产；152 单元 + 21 真实库测试通过；[报告](task-reports/D-17.md)|2026-09-24|
@@ -403,6 +406,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |H-05A|codex-main-01a0c73b / 自审|用户上传入相册、63项单元、3项真实库、手机/PC与构建通过；[报告](task-reports/H-05A.md)|2026-09-22|
 
 ### 变更日志
+
+- 2026-09-24：Phase 2 时钟 + 导演骨架（D-20）并上线。世界首次拥有权威时钟（迁移 0026：`world_clock` + `world_beats`）：默认 1:1、可倍速/暂停、离线只播 **≤3 拍**其余折进摘要、故事时间始终追上现实；导演按"沉默最久、不连续同一人"选角色，并给角色**舞台指示**而非冒充用户开口；每一拍都走既有回合流水线（回执/投影/outbox/记忆全部继承），`POST /api/v1/worlds/:id/advance` 暴露推进。生产实测：版本 7→10、3 拍、时钟与故事时间落库。162 单元 + 24 真实库测试通过。遗留：L-03 控制面、agenda、手机端时间控件与摘要呈现。
 
 - 2026-09-24：检索统一（D-19，Phase 1 完成）。角色回合按作用域加载记忆：只含该角色的 character 记录与本世界的 branch episode，`profile` 私有记录从不进入；被遗忘记录不出现在上下文且**其来源被屏蔽**；`superseded` 记录不计入；加载器经 owner 作用域事务接进世界回合（未提供端口时行为不变）。154 单元 + 23 真实库测试通过。Phase 1 仅剩手机端记忆界面。
 
