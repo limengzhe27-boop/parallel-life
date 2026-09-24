@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PhoneAppContext } from '../phone-shell.tsx';
-import type { PhoneContact } from './types.ts';
+import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { formatChatTime, searchable, timeText } from './helpers.ts';
@@ -26,6 +26,8 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const [showEmojiKeyboard, setShowEmojiKeyboard] = useState(false);
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [showPhotoPicker, setShowPhotoPicker] = useState(false);
+  const [previewModalPhoto, setPreviewModalPhoto] = useState<PhonePhoto | null>(null);
 
   const messageScroll = useRef<HTMLDivElement>(null);
   const wasNearBottom = useRef(true);
@@ -1323,6 +1325,61 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 }}
               >
                 <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                {m.photo && (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      background: '#f8fafc',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      playTapSound();
+                      setPreviewModalPhoto(m.photo!);
+                    }}
+                  >
+                    <div style={{ position: 'relative' }}>
+                      <img
+                        src={m.photo.url || '/art/first-window.webp'}
+                        alt={m.photo.title}
+                        style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', display: 'block' }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '6px',
+                          left: '6px',
+                          background: 'rgba(0,0,0,0.65)',
+                          color: '#ffffff',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        📸 剧情事件照片
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#f8fafc',
+                      }}
+                    >
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
+                        {m.photo.title}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#0284c7' }}>
+                        查看大图 ›
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <Links links={m.links} open={open} />
               </div>
             </div>
@@ -1618,7 +1675,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 label: '相册',
                 action: () => {
                   setShowPlusMenu(false);
-                  open('photos');
+                  setShowPhotoPicker(true);
                 },
               },
               {
@@ -1733,6 +1790,290 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             open('messages', id);
           }}
         />
+      )}
+
+      {showPhotoPicker && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            zIndex: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+          }}
+          onClick={() => setShowPhotoPicker(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderTopLeftRadius: '16px',
+              borderTopRightRadius: '16px',
+              padding: '16px',
+              maxHeight: '70%',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '12px',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
+                选择照片分享给 {actor.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowPhotoPicker(false)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  fontSize: '18px',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  padding: '4px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '8px',
+                paddingBottom: '12px',
+              }}
+            >
+              {data.photos.length === 0 ? (
+                <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '24px 0', color: '#94a3b8' }}>
+                  相册中暂无照片
+                </div>
+              ) : (
+                data.photos.map((photo) => (
+                  <div
+                    key={photo.id}
+                    style={{
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                    onClick={async () => {
+                      playSendSound();
+                      setShowPhotoPicker(false);
+                      const shareText = `[分享了相册照片：《${photo.title}》]`;
+                      setDraft(key, shareText);
+                      if (actions.sendMessage) {
+                        await run(key, shareText, (id) => actions.sendMessage!(actor.id, shareText, id));
+                      }
+                    }}
+                  >
+                    <div style={{ height: '76px', position: 'relative' }}>
+                      <img
+                        src={photo.url || '/art/first-window.webp'}
+                        alt={photo.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '3px',
+                          left: '3px',
+                          fontSize: '8px',
+                          background: photo.title.includes('【身份写真】') ? 'rgba(245, 158, 11, 0.9)' : 'rgba(99, 102, 241, 0.9)',
+                          color: '#ffffff',
+                          padding: '1px 3px',
+                          borderRadius: '3px',
+                        }}
+                      >
+                        {photo.title.includes('【身份写真】') ? '🌟写真' : '📸剧照'}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        padding: '4px',
+                        fontSize: '10.5px',
+                        color: '#334155',
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {photo.title}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+              <button
+                type="button"
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '10px',
+                  border: '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  setShowPhotoPicker(false);
+                  open('photos');
+                }}
+              >
+                前往相册完整浏览 →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewModalPhoto && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.85)',
+            zIndex: 110,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '16px',
+          }}
+          onClick={() => setPreviewModalPhoto(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '340px',
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ position: 'relative', width: '100%', height: '300px', background: '#000000' }}>
+              <img
+                src={previewModalPhoto.url || '/art/first-window.webp'}
+                alt={previewModalPhoto.title}
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+              <button
+                type="button"
+                onClick={() => setPreviewModalPhoto(null)}
+                style={{
+                  position: 'absolute',
+                  top: '10px',
+                  right: '10px',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.5)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <span
+                  style={{
+                    background: previewModalPhoto.title.includes('【身份写真】') ? '#fef3c7' : '#e0e7ff',
+                    color: previewModalPhoto.title.includes('【身份写真】') ? '#b45309' : '#4338ca',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {previewModalPhoto.title.includes('【身份写真】') ? '🌟 身份写真' : '📸 剧情事件解锁'}
+                </span>
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  {previewModalPhoto.date.slice(0, 10)}
+                </span>
+              </div>
+              <h4 style={{ margin: '0 0 6px', fontSize: '15px', color: '#0f172a' }}>
+                {previewModalPhoto.title}
+              </h4>
+              <p style={{ margin: '0 0 14px', fontSize: '12.5px', color: '#64748b', lineHeight: 1.5 }}>
+                {previewModalPhoto.description}
+              </p>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: '9px',
+                    borderRadius: '8px',
+                    background: '#07c160',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    playTapSound();
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('phone_wallpaper', previewModalPhoto.url || '/art/first-window.webp');
+                    }
+                    setPreviewModalPhoto(null);
+                  }}
+                >
+                  设为手机壁纸
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: '9px',
+                    borderRadius: '8px',
+                    background: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    fontWeight: 500,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setPreviewModalPhoto(null);
+                    open('photos', previewModalPhoto.id);
+                  }}
+                >
+                  在相册中查看
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -281,7 +281,7 @@ export function InterviewApp() {
       const current = await refresh();
       const profile = await client.editProfile({
         expectedVersion: current.profile.version,
-        operation: { kind: 'set-portrait', assetId: asset.id },
+        operation: { kind: 'add-reference-photo', assetId: asset.id },
       });
       setData((value) => (value ? { ...value, profile } : value));
     } catch (e) {
@@ -289,6 +289,23 @@ export function InterviewApp() {
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = '';
+    }
+  }
+  async function deletePhoto(assetId: string) {
+    if (!data) return;
+    setUploading(true);
+    setProfileError('');
+    try {
+      const current = await refresh();
+      const profile = await client.editProfile({
+        expectedVersion: current.profile.version,
+        operation: { kind: 'delete-reference-photo', assetId },
+      });
+      setData((value) => (value ? { ...value, profile } : value));
+    } catch (e) {
+      setProfileError(errorMessage(e));
+    } finally {
+      setUploading(false);
     }
   }
   async function taskAction(kind: 'cancel' | 'retry') {
@@ -322,6 +339,7 @@ export function InterviewApp() {
       uploading={uploading}
       saving={saving}
       onUpload={() => fileInput.current?.click()}
+      onDeletePhoto={(assetId) => void deletePhoto(assetId)}
       onEdit={(category, fact) => setEditing({ category, fact })}
       onConfirm={(id) => void edit({ kind: 'confirm-fact', id }).catch(() => {})}
       candidates={candidates}
@@ -647,6 +665,7 @@ export function ProfilePane({
   uploading,
   saving,
   onUpload,
+  onDeletePhoto,
   onEdit,
   onConfirm,
   events,
@@ -663,6 +682,7 @@ export function ProfilePane({
   uploading: boolean;
   saving: boolean;
   onUpload: () => void;
+  onDeletePhoto?: (assetId: string) => void;
   onEdit: (category: ProfileFact['category'], fact?: ProfileFact) => void;
   onConfirm: (id: string) => void;
   events?: React.ReactNode;
@@ -685,30 +705,141 @@ export function ProfilePane({
   return (
     <div className="profile-stack">
       {error && <Notice>{error}</Notice>}
-      <div className="portrait-card">
-        <button
-          className="portrait-upload"
-          onClick={onUpload}
-          disabled={uploading}
-          aria-label={profile.portraitAssetId ? '更换你的照片' : '上传你的照片'}
-        >
-          {profile.portraitAssetId ? (
-            <img src={`/api/v1/assets/${profile.portraitAssetId}`} alt="你上传的照片" />
-          ) : (
-            <Icon name="user" size={32} />
-          )}
-          <span className="photo-plus">
-            {uploading ? <span className="spinner" /> : <Icon name="plus" size={12} />}
-          </span>
-        </button>
-        <div>
-          <h3>{uploading ? '正在保存照片…' : (profile.portraitAssetId ? '✨ 肖像底模已就绪' : '📸 上传肖像底模')}</h3>
-          <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: '1.4' }}>
-            {profile.portraitAssetId
-              ? '已绑定为您本人的真实肖像，创建分支身份时将以此图生图生成开篇角色写真存入手机相册。'
-              : '上传真实照片后，选择平行分支（如独立导演、主理人）时将以您的面貌图生图生成角色写真存入相册。'}
-          </p>
+      <div className="portrait-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            className="portrait-upload"
+            onClick={onUpload}
+            disabled={uploading}
+            aria-label={profile.portraitAssetId ? '更换你的肖像照片' : '上传你的肖像照片'}
+            style={{ width: '56px', height: '56px', flexShrink: 0 }}
+          >
+            {profile.portraitAssetId ? (
+              <img src={`/api/v1/assets/${profile.portraitAssetId}`} alt="你上传的主肖像照片" />
+            ) : (
+              <Icon name="user" size={32} />
+            )}
+            <span className="photo-plus">
+              {uploading ? <span className="spinner" /> : <Icon name="plus" size={12} />}
+            </span>
+          </button>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '15px' }}>
+              {uploading
+                ? '正在保存底模照片…'
+                : profile.referenceAssetIds && profile.referenceAssetIds.length > 0
+                  ? `📸 肖像与生活照底模已就绪 (${profile.referenceAssetIds.length} 张)`
+                  : profile.portraitAssetId
+                    ? '✨ 肖像底模已就绪'
+                    : '📸 上传肖像底模（用于平行人生图生图）'}
+            </h3>
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: '1.4' }}>
+              {profile.referenceAssetIds && profile.referenceAssetIds.length > 0
+                ? '已绑定为您本人的面貌参考底模，开启平行分支时将图生图生成开篇角色写真并存入相册。'
+                : '上传真实照片后，选择平行分支（如独立电影导演、主理人）时将以您的面貌图生图生成角色写真存入相册。'}
+            </p>
+          </div>
         </div>
+
+        {/* 多张参考底模图片平铺展示区 */}
+        {profile.referenceAssetIds && profile.referenceAssetIds.length > 0 && (
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 0 2px' }}>
+            {profile.referenceAssetIds.map((id, index) => (
+              <div
+                key={id}
+                style={{
+                  position: 'relative',
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  border: id === profile.portraitAssetId ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                  flexShrink: 0,
+                  background: '#f8fafc',
+                }}
+              >
+                <img
+                  src={`/api/v1/assets/${id}`}
+                  alt={`参考底模照片 ${index + 1}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                {id === profile.portraitAssetId && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(2, 132, 199, 0.85)',
+                      color: '#ffffff',
+                      fontSize: '9px',
+                      textAlign: 'center',
+                      lineHeight: '14px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    主肖像
+                  </span>
+                )}
+                {onDeletePhoto && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeletePhoto(id);
+                    }}
+                    title="移除这张底模照片"
+                    style={{
+                      position: 'absolute',
+                      top: '2px',
+                      right: '2px',
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.6)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            {profile.referenceAssetIds.length < 6 && (
+              <button
+                type="button"
+                onClick={onUpload}
+                disabled={uploading}
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '8px',
+                  border: '1px dashed #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  flexShrink: 0,
+                  gap: '2px',
+                }}
+              >
+                <Icon name="plus" size={16} />
+                <span>添加</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {onCandidateAction && (
         <CandidatePanel

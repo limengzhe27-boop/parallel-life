@@ -446,6 +446,63 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
         <UploadPhoto />
       </div>
 
+      {/* 照片分类分栏（身份写真 / 剧情事件 / 生活回忆） */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '6px',
+          padding: '8px 12px 6px',
+          background: '#ffffff',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+        }}
+      >
+        {[
+          { key: 'all', label: `全部 (${lifeMemories.length})`, icon: '🖼️' },
+          {
+            key: 'identity',
+            label: `身份写真 (${lifeMemories.filter((p) => p.tag === 'identity' || p.title.includes('【身份写真】') || p.title.includes('写真')).length})`,
+            icon: '🌟',
+          },
+          {
+            key: 'event',
+            label: `剧情事件 (${lifeMemories.filter((p) => p.tag === 'event' || p.title.includes('【事件纪念】') || p.title.includes('现场') || p.title.includes('合影')).length})`,
+            icon: '🎬',
+          },
+          {
+            key: 'memory',
+            label: `生活回忆 (${lifeMemories.filter((p) => p.tag === 'upload' || p.id.startsWith('mem-')).length})`,
+            icon: '📱',
+          },
+        ].map((tab) => {
+          const active = selectedCategory === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setSelectedCategory(tab.key as any)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 10px',
+                borderRadius: '14px',
+                border: active ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                background: active ? '#0284c7' : '#f8fafc',
+                color: active ? '#ffffff' : '#475569',
+                fontSize: '11.5px',
+                fontWeight: active ? 600 : 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* 人物筛选胶囊（对齐 Screen 05） */}
       {data.contacts.length > 0 && (
         <div
@@ -462,9 +519,9 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
             type="button"
             onClick={() => setSelectedActorFilter('all')}
             style={{
-              padding: '5px 12px',
-              borderRadius: '16px',
-              fontSize: '12px',
+              padding: '4px 10px',
+              borderRadius: '14px',
+              fontSize: '11px',
               fontWeight: 500,
               border: selectedActorFilter === 'all' ? '1px solid #0284c7' : '1px solid #e2e8f0',
               background: selectedActorFilter === 'all' ? '#e0f2fe' : '#ffffff',
@@ -473,7 +530,7 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
               whiteSpace: 'nowrap',
             }}
           >
-            全部回忆 ({lifeMemories.length})
+            全部好友
           </button>
           {data.contacts.map((c) => {
             const count = lifeMemories.filter((p) => p.description.includes(c.name) || p.title.includes(c.name)).length;
@@ -484,9 +541,9 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
                 type="button"
                 onClick={() => setSelectedActorFilter(c.id)}
                 style={{
-                  padding: '5px 12px',
-                  borderRadius: '16px',
-                  fontSize: '12px',
+                  padding: '4px 10px',
+                  borderRadius: '14px',
+                  fontSize: '11px',
                   fontWeight: 500,
                   border: isSelected ? '1px solid #0284c7' : '1px solid #e2e8f0',
                   background: isSelected ? '#e0f2fe' : '#ffffff',
@@ -520,12 +577,21 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
                 flexDirection: 'column',
               }}
             >
-              <div style={{ width: '100%', height: '118px', overflow: 'hidden', background: '#f1f5f9' }}>
+              <div style={{ width: '100%', height: '118px', overflow: 'hidden', background: '#f1f5f9', position: 'relative' }}>
                 <img
                   src={p.url || '/art/first-window.webp'}
                   alt={p.title}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
+                <div style={{ position: 'absolute', top: '6px', left: '6px' }}>
+                  {p.tag === 'identity' || p.title.includes('【身份写真】') || p.title.includes('写真') ? (
+                    <span style={{ background: 'rgba(245, 158, 11, 0.92)', color: '#ffffff', padding: '1px 5px', borderRadius: '4px', fontSize: '9px', fontWeight: 600 }}>🌟 身份写真</span>
+                  ) : p.tag === 'event' || p.title.includes('【事件纪念】') || p.title.includes('现场') ? (
+                    <span style={{ background: 'rgba(99, 102, 241, 0.92)', color: '#ffffff', padding: '1px 5px', borderRadius: '4px', fontSize: '9px', fontWeight: 600 }}>🎬 剧情事件</span>
+                  ) : (
+                    <span style={{ background: 'rgba(15, 23, 42, 0.65)', color: '#ffffff', padding: '1px 5px', borderRadius: '4px', fontSize: '9px', fontWeight: 500 }}>📱 独家回忆</span>
+                  )}
+                </div>
               </div>
               <div style={{ padding: '8px 10px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>

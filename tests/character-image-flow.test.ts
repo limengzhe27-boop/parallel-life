@@ -139,3 +139,129 @@ test('M-01/02/03: mediaHandler completes outbox job and updates world_media_requ
     await admin.end();
   }
 });
+
+test('M-04: ProfileRepository supports multi-photo reference management (add & delete)', async () => {
+  const { ProfileRepository } = await import('../src/modules/profile/infrastructure/profile-repository.ts');
+  const config = await localConfig();
+  const appUrl = `postgresql://pl_app:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_dev`;
+  const db = new PostgresDatabase(appUrl);
+  const repo = new ProfileRepository(db);
+
+  const admin = await adminClient('parallel_life_dev');
+  const ownerId = 'test_owner_multi_photo_' + Date.now();
+  const profileId = '00000000-0000-4000-8000-000000000088';
+  const asset1 = '00000000-0000-4000-8000-000000000071';
+  const asset2 = '00000000-0000-4000-8000-000000000072';
+
+  try {
+    await admin.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [ownerId]);
+    await admin.query(
+      `INSERT INTO parallel_life.profiles (id, owner_id, version, document) VALUES ($1, $2, 0, $3)`,
+      [
+        profileId,
+        ownerId,
+        {
+          id: profileId,
+          version: 0,
+          facts: [],
+          events: [],
+          people: [],
+          portraitAssetId: null,
+          referenceAssetIds: [],
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+    );
+
+    // Mock ready assets
+    await admin.query(
+      `INSERT INTO parallel_life.assets (id, owner_id, storage_key, mime_type, byte_length, width, height, origin, status)
+       VALUES ($1, $2, 'key1', 'image/jpeg', 100, 100, 100, 'upload', 'ready'),
+              ($3, $2, 'key2', 'image/jpeg', 100, 100, 100, 'upload', 'ready')`,
+      [asset1, ownerId, asset2],
+    );
+
+    // Add first photo -> should also become default portrait
+    const p1 = await repo.edit(ownerId, {
+      expectedVersion: 0,
+      operation: { kind: 'add-reference-photo', assetId: asset1 },
+    });
+    assert.equal(p1.portraitAssetId, asset1);
+    assert.deepEqual(p1.referenceAssetIds, [asset1]);
+
+    // Add second photo
+    const p2 = await repo.edit(ownerId, {
+      expectedVersion: p1.version,
+      operation: { kind: 'add-reference-photo', assetId: asset2 },
+    });
+    assert.equal(p2.portraitAssetId, asset1);
+    assert.deepEqual(p2.referenceAssetIds, [asset1, asset2]);
+
+    // Delete first photo -> portrait falls back to asset2
+    const p3 = await repo.edit(ownerId, {
+      expectedVersion: p2.version,
+      operation: { kind: 'delete-reference-photo', assetId: asset1 },
+    });
+    assert.equal(p3.portraitAssetId, asset2);
+    assert.deepEqual(p3.referenceAssetIds, [asset2]);
+  } finally {
+    await admin.query(`DELETE FROM parallel_life.accounts WHERE id = $1`, [ownerId]);
+    await admin.end();
+  }
+});
+
+test('M-05: worldAppData tags identity and event photos, and links photos to messages', async () => {
+  const { worldAppData } = await import('../src/features/phone/world-app-data.ts');
+  const world = {
+    id: '00000000-0000-0000-0000-000000000001',
+    seedId: '00000000-0000-0000-0000-000000000002',
+    title: '独立电影导演',
+    time: '2026-09-24T12:00:00Z',
+    identity: '独立电影导演',
+    setting: '上海巨鹿路',
+    actors: [{ id: '00000000-0000-0000-0000-000000000003', name: '沈棠', relationship: '制片人' }],
+    messages: [
+      {
+        id: 'msg-1',
+        actorId: '00000000-0000-0000-0000-000000000003',
+        text: '我刚在整理相册，找到了《【事件纪念】双年展现场布展》那张照片，太有感觉了！',
+        at: '2026-09-24T12:05:00Z',
+      },
+    ],
+    notes: [],
+    photos: [
+      {
+        id: '00000000-0000-0000-0000-000000000010',
+        worldId: '00000000-0000-0000-0000-000000000001',
+        title: '【身份写真】独立电影导演 · 肖像',
+        date: '2026-09-24T12:00:00Z',
+        createdAt: '2026-09-24T12:00:00Z',
+        kind: 'generated' as const,
+        width: 1024,
+        height: 1024,
+        revision: 1,
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000011',
+        worldId: '00000000-0000-0000-0000-000000000001',
+        title: '【事件纪念】双年展现场布展',
+        date: '2026-09-24T12:05:00Z',
+        createdAt: '2026-09-24T12:05:00Z',
+        kind: 'generated' as const,
+        width: 1024,
+        height: 1024,
+        revision: 1,
+      },
+    ],
+  };
+
+  const appData = worldAppData(world as any);
+  assert.equal(appData.photos.length, 2);
+  assert.equal(appData.photos[0]?.tag, 'identity');
+  assert.equal(appData.photos[1]?.tag, 'event');
+
+  // Verify message has linked photo
+  assert.ok(appData.messages[0]?.photo, 'Message mentioning photo title must link the photo');
+  assert.equal(appData.messages[0]?.photo?.id, '00000000-0000-0000-0000-000000000011');
+});
+
