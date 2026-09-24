@@ -17,6 +17,7 @@ import { DomainError } from '../domain/errors.ts';
 import { applyEvent } from '../domain/reducer.ts';
 import { applyNoteEvent, type NoteCommand, type NoteEvent } from '../domain/notes.ts';
 import { retainFacts } from '../domain/retention.ts';
+import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 const fingerprint = (command: TurnCommand) =>
@@ -25,6 +26,59 @@ const fingerprint = (command: TurnCommand) =>
       JSON.stringify([command.worldId, command.expectedVersion, command.actorId, command.text]),
     )
     .digest('hex');
+/**
+ * Writes what this turn taught the world: each character's own impression (character
+ * scope) and the turn itself (branch scope, as an episode). Sources are real rows, so
+ * the provenance trigger accepts them and a correction can point back at them.
+ */
+async function storeTurnMemories(
+  sql: SqlClient,
+  ownerId: string,
+  state: WorldState,
+  event: WorldEvent,
+): Promise<void> {
+  const replies = state.messages.filter((message) => message.sourceEventId === event.id);
+  if (!replies.length) return;
+  const effects = (event.data as { effects?: { type: string; actorId?: string; text?: string }[] })
+    .effects;
+  const beliefs = (effects ?? []).filter(
+    (effect) => effect.type === 'belief.recorded' && effect.actorId && effect.text,
+  );
+  const items = [] as Parameters<typeof deriveAndStoreMemories>[1];
+  for (const belief of beliefs) {
+    const reply = replies.find((message) => message.actorId === belief.actorId);
+    if (!reply) continue;
+    items.push({
+      ownerId,
+      scopeType: 'character',
+      scopeId: belief.actorId!,
+      branchId: state.id,
+      characterId: belief.actorId!,
+      text: belief.text!,
+      kind: 'belief',
+      sourceType: 'agent_inference',
+      sourceIds: [reply.id],
+      importance: 3,
+      evidence: { [reply.id]: { id: reply.id, role: 'assistant', text: reply.text } },
+    });
+  }
+  const latest = replies.at(-1)!;
+  items.push({
+    ownerId,
+    scopeType: 'branch',
+    scopeId: state.id,
+    /* branch/character scopes must name the world they belong to. */
+    branchId: state.id,
+    text: latest.text.slice(0, 400),
+    kind: 'episode',
+    sourceType: 'world_event',
+    sourceIds: [event.id],
+    importance: 2,
+    evidence: { [event.id]: { id: event.id, text: latest.text.slice(0, 400) } },
+  });
+  await deriveAndStoreMemories(sql, items);
+}
+
 /** The same fact may arrive from the legacy snapshot and the projection; keep the first. */
 function dedupeFacts(facts: WorldState['facts']): WorldState['facts'] {
   const seen = new Set<string>();
@@ -248,7 +302,15 @@ export class PostgresWorldRepository implements WorldRepository {
       );
       await sql.query(
         'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
-        [event.id, state.id, session.userId, event.version, event.commandId, event, event.occurredAt],
+        [
+          event.id,
+          state.id,
+          session.userId,
+          event.version,
+          event.commandId,
+          event,
+          event.occurredAt,
+        ],
       );
       await sql.query(
         `INSERT INTO parallel_life.world_notes(id,world_id,owner_id,command_id,request_hash,document)
@@ -353,6 +415,12 @@ export class PostgresWorldRepository implements WorldRepository {
           'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
           [job.id, state.id, session.userId, event.id, job],
         );
+      /*
+      记忆接线：角色这一轮自己的印象进入 character 作用域，这一轮发生的事进入
+      branch 作用域（来源=真实消息/事件 id）。抽取不额外调用模型；同一句话重复
+      出现时由写入层合并来源。
+      */
+      await storeTurnMemories(sql, session.userId, state, event);
       const snapshot = compact(state);
       /* A clear failure beats an opaque CHECK violation that rolls back everything. */
       if (JSON.stringify(snapshot).length >= 262144)
