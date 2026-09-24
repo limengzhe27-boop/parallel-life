@@ -255,3 +255,56 @@ export async function listMemories(
     createdAt: new Date(String(row.created_at)).toISOString(),
   }));
 }
+
+/**
+ * What one character may recall: its own records plus the shared branch episodes of
+ * this world. Private profile records are never included. Sources belonging to
+ * forgotten records are blocked so a forgotten memory cannot come back through the
+ * message it came from.
+ */
+export async function loadActorMemories(
+  sql: SqlClient,
+  ownerId: string,
+  params: { actorId: string; worldId: string },
+): Promise<{ records: MemoryRecord[]; blockedSources: Set<string> }> {
+  const rows = (
+    await sql.query(
+      `SELECT * FROM parallel_life.memory_records
+        WHERE owner_id=$1
+          AND scope_type IN ('character','branch')
+          AND ((scope_type='character' AND character_id=$2) OR (scope_type='branch' AND scope_id=$3))
+        ORDER BY importance DESC, created_at DESC
+        LIMIT 200`,
+      [ownerId, params.actorId, params.worldId],
+    )
+  ).rows;
+  const records: MemoryRecord[] = [];
+  const blockedSources = new Set<string>();
+  for (const row of rows) {
+    const sources: string[] = Array.isArray(row.source_ids) ? row.source_ids : [];
+    if (row.status === 'forgotten') {
+      for (const source of sources) blockedSources.add(source);
+      continue;
+    }
+    if (row.status !== 'active') continue;
+    records.push(
+      MemoryRecordSchema.parse({
+        id: row.id,
+        ownerId: row.owner_id,
+        scopeType: row.scope_type,
+        scopeId: row.scope_id,
+        branchId: row.branch_id ?? undefined,
+        characterId: row.character_id ?? undefined,
+        kind: row.kind,
+        text: row.text,
+        key: row.key ?? undefined,
+        sourceType: row.source_type,
+        sourceIds: sources,
+        status: row.status,
+        importance: Number(row.importance),
+        createdAt: new Date(String(row.created_at)).toISOString(),
+      }),
+    );
+  }
+  return { records, blockedSources };
+}

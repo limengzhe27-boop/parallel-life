@@ -28,7 +28,7 @@ export function SeedConsent({
       .filter((id) => visibleFactIds.has(id)),
   );
   const [people, setPeople] = useState<string[]>([]),
-    [portrait, setPortrait] = useState(false),
+    [portrait, setPortrait] = useState(Boolean(profile.portraitAssetId)),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const pending = useRef<SeedRequest | null>(null);

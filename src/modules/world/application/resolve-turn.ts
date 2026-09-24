@@ -2,13 +2,23 @@ import { DomainError } from '../domain/errors.ts';
 import { parseProposal, validateCommand, validateEventId } from '../domain/validation.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import type { Session, TurnCommand, CommitResult } from '../domain/types.ts';
+import type { MemoryRecord } from '../../memory/domain/types.ts';
 import type { WorldRepository, TurnPlanner } from './ports.ts';
 import { actorContext } from './actor-context.ts';
 import { routeUserIntent } from './intent-router.ts';
 
 /** Internal trusted orchestration entry point, not an HTTP request handler. */
 export async function resolveTurn(
-  deps: { worlds: WorldRepository; planner: TurnPlanner; now: () => string; newId: () => string },
+  deps: {
+    worlds: WorldRepository;
+    planner: TurnPlanner;
+    now: () => string;
+    newId: () => string;
+    /** Optional: what this character may recall. Absent means no memory is attached. */
+    memories?: (
+      actorId: string,
+    ) => Promise<{ records: MemoryRecord[]; blockedSources: Set<string> }>;
+  },
   session: Session,
   command: TurnCommand,
 ): Promise<CommitResult> {
@@ -17,9 +27,18 @@ export async function resolveTurn(
   if (receipt) return receipt;
   const world = await deps.worlds.get(session, command.worldId);
   if (world.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+  const recalled = deps.memories
+    ? await deps.memories(command.actorId)
+    : { records: [] as MemoryRecord[], blockedSources: new Set<string>() };
   const proposal = parseProposal(
     await deps.planner.propose({
-      context: actorContext(world, command.actorId, command.text),
+      context: actorContext(
+        world,
+        command.actorId,
+        command.text,
+        recalled.records,
+        recalled.blockedSources,
+      ),
       userText: command.text,
     }),
   );

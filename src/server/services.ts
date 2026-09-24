@@ -11,6 +11,7 @@ import { IdentityRepository } from '../modules/identity/infrastructure/identity-
 import { dispatchOutbox } from '../modules/tasks/application/dispatch-outbox.ts';
 import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.ts';
 import {
+  loadActorMemories,
   correctMemoryInStore,
   forgetMemoryInStore,
   listMemories,
@@ -106,8 +107,15 @@ function createServices() {
       ),
     listMemories: (
       ownerId: string,
-      filter: { scopeType?: 'profile' | 'branch' | 'character'; scopeId?: string; includeInactive?: boolean },
+      filter: {
+        scopeType?: 'profile' | 'branch' | 'character';
+        scopeId?: string;
+        includeInactive?: boolean;
+      },
     ) => db.transaction(ownerId, (sql) => listMemories(sql, ownerId, filter)),
+    /** What one character may recall in this world; private profile records excluded. */
+    actorMemories: (ownerId: string, actorId: string, worldId: string) =>
+      db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),
     reserveGuestCreation: (headers: Headers) =>
       identity.reserveGuestCreation(callerBucket(headers, secret), {
         perCaller: GUEST_LIMIT_PER_CALLER,

@@ -24,6 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         planner: s.worldPlanner,
         now: () => new Date().toISOString(),
         newId: () => crypto.randomUUID(),
+        memories: (actorId) => s.actorMemories(s.ownerId, actorId, parsedWorldId.data),
       },
       { userId: s.ownerId },
       {

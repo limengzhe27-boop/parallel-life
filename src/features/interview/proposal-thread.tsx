@@ -134,6 +134,7 @@ export function ProposalThread({
       const available = new Set(
         latestProfile.facts.filter((f) => f.status === 'confirmed').map((f) => f.id),
       );
+      const hasPortrait = Boolean(latestProfile.portraitAssetId);
       const seed = await client.approveSeed({
         commandId: crypto.randomUUID(),
         discoveryVersion: data?.version ?? 0,
@@ -141,7 +142,7 @@ export function ProposalThread({
         directionId: target.id,
         factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => available.has(id)),
         personIds: [],
-        includePortrait: false,
+        includePortrait: hasPortrait,
       });
 
       setStage('building');
@@ -319,7 +320,7 @@ export function ProposalThread({
                   {stage === 'saving' && <span className="spinner" style={{ width: 14, height: 14 }} />}
                 </div>
                 <div className={`proposal-step-item ${stage === 'building' ? 'active' : ''}`}>
-                  <span>2. 构筑微信角色关系网与开场对话 (约需 30~45s)</span>
+                  <span>2. 构筑微信关系网与图生图身份写真 (约需 30~45s)</span>
                   {stage === 'building' && <span className="spinner" style={{ width: 14, height: 14 }} />}
                 </div>
                 <div className={`proposal-step-item ${stage === 'entering' ? 'active' : ''}`}>
