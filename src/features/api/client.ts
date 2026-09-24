@@ -8,6 +8,18 @@ import {
 } from '../../contracts/world-build.ts';
 import { ApprovedSeedSchema, SeedListSchema, type SeedRequest } from '../../contracts/seeds.ts';
 import { NoteReceiptSchema, type NoteSaveRequest } from '../../contracts/notes.ts';
+import {
+  AdvanceReceiptSchema,
+  WorldClockSchema,
+  WorldDirectionReceiptSchema,
+  WorldDirectionSchema,
+  type WorldDirection,
+} from '../../contracts/world-clock.ts';
+import {
+  MemoryEditReceiptSchema,
+  MemoryListSchema,
+  type MemoryEditRequest,
+} from '../../contracts/memory.ts';
 import { DiscoverySchema, type DiscoverRequest } from '../../contracts/discovery.ts';
 import { z } from 'zod';
 import {
@@ -149,11 +161,71 @@ export class LifeClient {
   }
   async saveWorldNote(worldId: string, input: NoteSaveRequest) {
     await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/notes`, NoteReceiptSchema, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  /** The life's clock: story time, speed, pause state and the last offline summary. */
+  async readWorldClock(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema);
+  }
+  /** Pause/resume or change the speed of one life. */
+  async setWorldClock(worldId: string, input: { paused?: boolean; speed?: number }) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  /** Let the world move: at most a few beats, the rest becomes a summary. */
+  async advanceWorld(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/advance`, AdvanceReceiptSchema, {
+      method: 'POST',
+    });
+  }
+  /** What the user asked the director to do in this life. */
+  async readWorldDirection(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/direction`, WorldDirectionSchema);
+  }
+  /** Direct the future; with `preview` the impact is described and nothing is saved. */
+  async setWorldDirection(
+    worldId: string,
+    input: Partial<WorldDirection> & { preview?: boolean; move?: 'future' | 'past' },
+  ) {
+    await this.connect();
     return this.request(
-      `/worlds/${encodeURIComponent(worldId)}/notes`,
-      NoteReceiptSchema,
+      `/worlds/${encodeURIComponent(worldId)}/direction`,
+      WorldDirectionReceiptSchema,
       { method: 'POST', body: JSON.stringify(input) },
     );
+  }
+  /** Memories, filtered by scope; inactive ones only when explicitly asked for. */
+  async listMemories(
+    filter: {
+      scopeType?: 'profile' | 'branch' | 'character';
+      scopeId?: string;
+      includeInactive?: boolean;
+    } = {},
+  ) {
+    await this.connect();
+    const query = new URLSearchParams();
+    if (filter.scopeType) query.set('scopeType', filter.scopeType);
+    if (filter.scopeId) query.set('scopeId', filter.scopeId);
+    if (filter.includeInactive) query.set('includeInactive', '1');
+    const suffix = query.size ? `?${query.toString()}` : '';
+    return this.request(`/memory/records${suffix}`, MemoryListSchema);
+  }
+  /** The user's own correction or forgetting of a memory. */
+  async editMemory(input: MemoryEditRequest) {
+    await this.connect();
+    return this.request('/memory/records', MemoryEditReceiptSchema, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   }
   async seeds() {
     await this.connect();
