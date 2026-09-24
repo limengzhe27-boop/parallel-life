@@ -5,6 +5,7 @@ import type { WorldBuild } from '../../contracts/world-build.ts';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
 import { Button, Icon, Modal } from '../../components/ui.tsx';
 import { branchEntryState } from './branch-entry.ts';
+import { chooseUnbuiltDirection } from './branch-intent.ts';
 
 type Stage = 'idle' | 'discovering' | 'saving' | 'building' | 'entering';
 
@@ -83,19 +84,45 @@ export function ProposalThread({
 
   const currentDirection: LifeDirection | undefined = directions[selectedIndex] ?? directions[0];
 
-  // 监听对白指令：进入已有分支 / 推荐看看 / 直接创建一个并进入
+  // 监听对白指令：创建新分支 / 只推荐看看 / 进入已有分支
   useEffect(() => {
     if (!externalTrigger) return;
     void (async () => {
-      if (readyBuild) {
-        window.location.assign(`/worlds/${readyBuild.worldId}`);
+      if (externalIntent === 'create') {
+        /*
+         * 用户明确要一个新分支：**先建，不要跳去打开已有的人生**（这正是原来的 bug）。
+         * 已经采用过的方向会被跳过；没有可用的新方向时才让用户自己选。
+         */
+        setError('');
+        let adopted: string[] = [];
+        try {
+          adopted = (await client.seeds()).map((seed) => seed.directionId);
+        } catch {
+          /* 读不到已采用的种子时按“都可用”处理，交给服务端幂等去拦。 */
+        }
+        let target = chooseUnbuiltDirection(directions, adopted, selectedIndex);
+        if (!target) target = chooseUnbuiltDirection(await discoverBranch(), adopted);
+        if (target) {
+          await confirmAndBuild(target);
+          return;
+        }
+        setConfirmOpen(true);
         return;
       }
-      if (externalIntent === 'create') {
-        /* The user explicitly asked for a branch, so build the first direction and enter. */
-        const available = directions.length > 0 ? directions : await discoverBranch();
-        const target = available[selectedIndex] ?? available[0];
-        if (target) await confirmAndBuild(target);
+      if (externalIntent === 'recommend') {
+        if (directions.length > 0) {
+          setConfirmOpen(true);
+          return;
+        }
+        if (entry.kind === 'create') {
+          await discoverBranch();
+          return;
+        }
+        if (readyBuild) window.location.assign(`/worlds/${readyBuild.worldId}`);
+        return;
+      }
+      if (readyBuild) {
+        window.location.assign(`/worlds/${readyBuild.worldId}`);
         return;
       }
       if (directions.length > 0) {

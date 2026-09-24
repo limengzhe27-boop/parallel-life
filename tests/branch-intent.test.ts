@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { routeBranchIntent } from '../src/features/interview/branch-intent.ts';
+import {
+  chooseUnbuiltDirection,
+  routeBranchIntent,
+} from '../src/features/interview/branch-intent.ts';
 
 test('a user asking for a branch gets one created', () => {
   for (const text of [
@@ -46,4 +49,16 @@ test('ordinary conversation is left alone', () => {
     '',
   ])
     assert.equal(routeBranchIntent(text), 'none', text);
+});
+
+test('creating a branch never re-opens a life that already exists', () => {
+  const directions = [{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }];
+  /* d1 already produced a life: the next request must build d2, not d1. */
+  assert.deepEqual(chooseUnbuiltDirection(directions, ['d1'], 0), { id: 'd2' });
+  /* The user's current selection wins when it is still unbuilt. */
+  assert.deepEqual(chooseUnbuiltDirection(directions, ['d1'], 2), { id: 'd3' });
+  /* Everything adopted: the caller must ask instead of reopening the old life. */
+  assert.equal(chooseUnbuiltDirection(directions, ['d1', 'd2', 'd3'], 0), null);
+  /* Nothing adopted yet: the preferred direction is used. */
+  assert.deepEqual(chooseUnbuiltDirection(directions, [], 0), { id: 'd1' });
 });

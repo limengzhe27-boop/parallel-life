@@ -32,3 +32,24 @@ export function routeBranchIntent(text: string): BranchIntent {
   if (RECOMMEND.test(value)) return 'recommend';
   return 'none';
 }
+
+/**
+ * Which direction to build when the user asks for a new branch.
+ *
+ * The bug this exists to prevent: once a life was already built, saying "create a
+ * branch" simply reopened that life, because the first ready world always won. A
+ * direction that has already produced a life must be skipped, and when nothing is
+ * left the caller must ask instead of silently reopening the old one.
+ */
+export function chooseUnbuiltDirection<T extends { id: string }>(
+  directions: T[],
+  adopted: Iterable<string>,
+  preferredIndex = 0,
+): T | null {
+  const taken = new Set(adopted);
+  const fresh = directions.filter((direction) => !taken.has(direction.id));
+  if (!fresh.length) return null;
+  const preferred = directions[preferredIndex];
+  if (preferred && !taken.has(preferred.id)) return preferred;
+  return fresh[0]!;
+}
