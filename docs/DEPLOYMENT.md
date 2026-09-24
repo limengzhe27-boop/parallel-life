@@ -30,8 +30,10 @@ https://github.com/limengzhe27-boop/parallel-life
 |---|---|
 |交付内容|1. **“在忙吗？晚点有空回我一下哈～”假消息置顶 Bug 根本解决（`world-phone-app.tsx`）**：排查并彻底拔除了原组件内的 18s/65s 定时伪造消息机制（`triggerProactiveMessage` 与 `proactiveMessages`）。原逻辑以当前系统时间生成假消息并写入本地 localStorage，导致与真实消息池合并后该假消息时间戳永远最新，使用户无论如何回复，最底部永远被这句死循环假消息强行霸占置顶。现彻底删除该定时器与伪造逻辑，并在组件挂载时彻底清空历史遗留的 `pl_proactive:*` 本地缓存，保证私聊消息池 100% 仅由真实角色对话驱动；<br>2. **根除日程写死老洋房会议（`world-phone-app.tsx`）**：移除 `supplementalInvs`（老洋房露台布展验收与晚餐、老洋房施工交底复盘会），日程 100% 取自当前分支真实数据；<br>3. **桌面天气组件与灵感引言动态化（`world-phone-app.tsx`）**：移除写死“巨鹿路 768号”与建筑师引言，动态取自当前世界所处场景（`data.setting`）与世界标题（`data.title`）；<br>4. **抽屉身份档案、生活坐标与人生里程碑通用化（`world-phone-app.tsx`）**：彻底清除写死“李孟哲 / 29岁 / 独立主创建筑师 / 巨鹿路老洋房工作室 / 老洋房铜质钥匙 / 巨鹿路咖啡常客卡”，转换为分支主角、当前时空场景与通用生活必需品（钥匙门禁、智能手机、证件、日程笔记），里程碑时间轴动态取自分支起点与当前生活；电话未接通提示移除“老洋房现场布展”写死；<br>5. **微信与朋友圈写死内容彻底拔除（`messages.tsx` & `moments.tsx`）**：清除位置分享中的“巨鹿路老洋房工作室”、视频号中的“沈棠直播”、电话留言中的“孟哲”称呼，朋友圈署名改为“我 / 探索者 / 当前人生空间”，发布动态标签改为“我的动态”；<br>6. **相册硬编码回忆彻底拔除与空态引导（`photos.tsx`）**：移除写死的 4 张老洋房/沈棠/佛罗伦萨双年展假照片，仅保留当前分支真实生成/上传的照片；在无照片时展示清晰优雅的空态指引；<br>7. **自动化测试与构建**：182 项测试全绿通过，Next.js 生产优化构建一次性成功。|
 |发布前检查|`npm run check` 182 项测试全绿通过，`npm run build` 成功|
+|提交|`9fb0403`（fix: resolve proactive fake message stuck bug and clean all hardcoded architect story remnants）|
+|部署|Vercel Production（部署 ID: `8s0pgt8lz` / `dpl_FwATaaWKqHxrYr2QXY3oVfvWDAmp`，公网别名 `https://parallel-life-nu.vercel.app`）|
 |迁移应用|无须新增 SQL 迁移|
-|线上实测|公网 `https://parallel-life-nu.vercel.app` 生产部署实测通过。|
+|线上实测|公网 `https://parallel-life-nu.vercel.app` 生产部署实测通过（`/api/health` 200 OK，部署状态 Ready）。|
 
 ### 2026-09-24 · 修复 NPC 循环单句与无反馈 Bug & 角色对话深度共鸣 & 分支人际圈层大幅丰富
 
