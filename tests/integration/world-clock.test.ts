@@ -68,11 +68,44 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
       mediaRequests: [],
     });
 
+    /* An open appointment pulls its participant into the very first beat. */
+    const appointmentCommand = {
+      id: randomUUID(),
+      worldId,
+      actorId: second,
+      text: '（约定）',
+      expectedVersion: 0,
+    };
+    await worlds.commit(session, appointmentCommand, {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId,
+      commandId: appointmentCommand.id,
+      version: 1,
+      occurredAt: start,
+      type: 'turn.resolved',
+      data: {
+        actorId: second,
+        userText: appointmentCommand.text,
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId: second, text: '周三有空吗' },
+          {
+            type: 'appointment.proposed',
+            id: randomUUID(),
+            title: '周三一起看展',
+            at: '2026-09-25T10:00:00.000Z',
+            participantIds: [second],
+          },
+        ],
+      },
+    });
+
     /* Six real hours at 1:1 = twelve beats, but only the cap is played. */
     const advanced = await advanceWorld(deps('2026-09-24T06:00:00.000Z'), session, worldId);
     assert.equal(advanced.played, MAX_BEATS_PER_ADVANCE);
     assert.equal(advanced.folded, 9);
     assert.match(advanced.summary ?? '', /世界照常运转/);
+    assert.equal(spoken[0], second, 'the open appointment decides the first beat');
     assert.equal(advanced.storyNow, '2026-09-24T06:00:00.000Z');
     assert.equal(spoken.length, MAX_BEATS_PER_ADVANCE);
     for (let index = 1; index < spoken.length; index += 1)
@@ -80,7 +113,8 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
 
     const world = await worlds.get(session, worldId);
     assert.equal(world.time, '2026-09-24T06:00:00.000Z', 'story time moved');
-    assert.equal(world.version, MAX_BEATS_PER_ADVANCE, 'each beat is a real committed turn');
+    /* One set-up turn plus one real committed turn per beat. */
+    assert.equal(world.version, 1 + MAX_BEATS_PER_ADVANCE, 'each beat is a real committed turn');
     /* A beat commits a real turn; the user-facing cue may also be persisted, so only
        the lower bound is contractual. */
     assert.ok(
@@ -109,7 +143,7 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     const paused = await advanceWorld(deps('2026-09-24T09:00:00.000Z'), session, worldId);
     assert.equal(paused.played, 0);
     assert.equal(spoken.length, before, 'a paused world costs nothing');
-    assert.equal((await worlds.get(session, worldId)).version, MAX_BEATS_PER_ADVANCE);
+    assert.equal((await worlds.get(session, worldId)).version, 1 + MAX_BEATS_PER_ADVANCE);
 
     /* No time passed: nothing happens either. */
     const idle = await advanceWorld(deps('2026-09-24T09:00:00.000Z'), session, worldId);

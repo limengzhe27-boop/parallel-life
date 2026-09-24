@@ -1,5 +1,6 @@
 import { DomainError } from '../domain/errors.ts';
 import { advanceClock, beatCue, selectSpeaker } from '../domain/clock.ts';
+import { buildAgenda } from '../domain/agenda.ts';
 import type { Session } from '../domain/types.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
 import type { ClockStore, TurnPlanner, WorldRepository } from './ports.ts';
@@ -51,7 +52,9 @@ export async function advanceWorld(
     await deps.clock.setStoryTime(session.userId, worldId, beatAt);
     const world = await deps.worlds.get(session, worldId);
     const atBeat = { ...world, time: beatAt };
-    const actorId = selectSpeaker(atBeat, actors);
+    /* Beats are driven by unfinished business, not by a round-robin. */
+    const agenda = buildAgenda(atBeat);
+    const actorId = selectSpeaker(atBeat, actors, agenda);
     if (!actorId) break;
     const commandId = deps.newId();
     await deps.clock.recordBeat(session.userId, worldId, {
@@ -74,7 +77,7 @@ export async function advanceWorld(
         id: commandId,
         worldId,
         actorId,
-        text: beatCue(atBeat, actorId),
+        text: beatCue(atBeat, actorId, agenda),
         expectedVersion: world.version,
       },
     );

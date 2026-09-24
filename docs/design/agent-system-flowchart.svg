@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1460" viewBox="0 0 2000 1460">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071427"/><stop offset=".55" stop-color="#102744"/><stop offset="1" stop-color="#241a3b"/></linearGradient>
+    <linearGradient id="real" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2e7fdf" stop-opacity=".32"/><stop offset="1" stop-color="#214c9b" stop-opacity=".20"/></linearGradient>
+    <linearGradient id="fiction" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#be745c" stop-opacity=".32"/><stop offset="1" stop-color="#7751a2" stop-opacity=".22"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity=".30"/></filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 z" fill="#91bfff"/></marker>
+    <marker id="arrowWarm" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 z" fill="#f0b578"/></marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 z" fill="#74d8bd"/></marker>
+    <style>
+      .cn { font-family: PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif; }
+      .title { font-size: 44px; font-weight:700; fill:#f8faff; letter-spacing:1px; }
+      .subtitle { font-size:19px; fill:#b8c6dc; }
+      .section { font-size:15px; font-weight:700; fill:#9bc5ff; letter-spacing:2px; }
+      .cardTitle { font-size:20px; font-weight:700; fill:#f8faff; }
+      .cardText { font-size:14px; fill:#dce6f4; }
+      .small { font-size:13px; fill:#a8b9d0; }
+      .tiny { font-size:12px; fill:#8fa5c3; }
+      .flow { font-size:15px; font-weight:700; fill:#edf3ff; }
+      .warm { fill:#f0b578; }
+      .green { fill:#74d8bd; }
+    </style>
+  </defs>
+
+  <rect width="2000" height="1460" fill="url(#bg)"/>
+  <circle cx="1820" cy="130" r="290" fill="#5f75d4" opacity=".09"/>
+  <circle cx="100" cy="1330" r="320" fill="#bd6b68" opacity=".07"/>
+
+  <text x="80" y="70" class="cn title">如果｜Agent 总体工作流程</text>
+  <text x="80" y="108" class="cn subtitle">两个世界 · 六个模型 Agent · 两个运行引擎 · 一条共用的结果流水线</text>
+
+  <rect x="80" y="140" width="1840" height="92" rx="22" fill="#142a48" stroke="#31537d" filter="url(#shadow)"/>
+  <text x="115" y="176" class="cn section">唯一主角</text>
+  <text x="115" y="210" class="cn flow">用户</text>
+  <text x="230" y="210" class="cn cardText">同一个人，在真实世界认识自己，在虚构世界体验另一种人生。</text>
+  <text x="1550" y="176" class="cn section">核心边界</text>
+  <text x="1550" y="210" class="cn cardText">真实资料不会自动进入虚构世界</text>
+
+  <!-- shared runtime -->
+  <rect x="80" y="270" width="1840" height="112" rx="22" fill="#0c1b31" stroke="#52739e"/>
+  <text x="115" y="307" class="cn section">共用运行时</text>
+  <text x="115" y="345" class="cn flow">AI 提出可能性</text>
+  <path d="M280 337 H375" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <text x="410" y="345" class="cn flow">运行规则检查</text>
+  <path d="M585 337 H680" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <text x="715" y="345" class="cn flow">结果真正落地</text>
+  <path d="M895 337 H990" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <text x="1025" y="345" class="cn flow">手机和资料看到变化</text>
+  <text x="1460" y="307" class="cn small">重复操作返回原结果 · 失败如实展示 · 不冒充成功</text>
+  <text x="1460" y="342" class="cn tiny">每一次变化都有来源，可以回看、修正或忘掉</text>
+
+  <!-- two worlds -->
+  <rect x="80" y="430" width="820" height="670" rx="28" fill="#0c2039" stroke="#3e70ab" filter="url(#shadow)"/>
+  <rect x="980" y="430" width="940" height="670" rx="28" fill="#1b1934" stroke="#7b5793" filter="url(#shadow)"/>
+  <text x="120" y="475" class="cn section">真实侧 · 私人档案</text>
+  <text x="120" y="505" class="cn small">回答：你是谁？你经历过什么？你想探索什么？</text>
+  <text x="1020" y="475" class="cn section" fill="#e4a875">虚构侧 · 平行人生手机</text>
+  <text x="1020" y="505" class="cn small">回答：如果那样，你的生活会怎样？</text>
+
+  <!-- real side row -->
+  <rect x="120" y="550" width="220" height="150" rx="18" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="145" y="590" class="cn cardTitle">个人向导</text>
+  <text x="145" y="620" class="cn small">提问 · 倾听 · 提炼</text>
+  <text x="145" y="652" class="cn cardText">把聊天变成可用的</text>
+  <text x="145" y="678" class="cn cardText">经历、兴趣和愿望</text>
+  <path d="M340 625 H390" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <rect x="410" y="550" width="220" height="150" rx="18" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="435" y="590" class="cn cardTitle">人生探索</text>
+  <text x="435" y="620" class="cn small">生成 3–5 个“如果”</text>
+  <text x="435" y="652" class="cn cardText">每个分支都说明</text>
+  <text x="435" y="678" class="cn cardText">它为什么与你有关</text>
+  <path d="M630 625 H680" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <rect x="700" y="550" width="160" height="150" rx="18" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="780" y="590" text-anchor="middle" class="cn cardTitle">世界创建</text>
+  <text x="780" y="620" text-anchor="middle" class="cn small">身份</text>
+  <text x="780" y="647" text-anchor="middle" class="cn small">人物</text>
+  <text x="780" y="674" text-anchor="middle" class="cn small">关系</text>
+
+  <rect x="120" y="760" width="740" height="150" rx="18" fill="#102a49" stroke="#416d9f"/>
+  <text x="150" y="800" class="cn cardTitle">“我的”资料与真实记忆</text>
+  <text x="150" y="834" class="cn cardText">兴趣 · 人生经历 · 重要的人 · 正在面对的事</text>
+  <text x="150" y="866" class="cn small">重复说法会合并，重要内容保留来源；这是现实侧的长期资料。</text>
+  <text x="150" y="895" class="cn tiny">个人向导、人生探索、世界创建都可以读取；虚构角色不能直接读取。</text>
+
+  <!-- one-way gate -->
+  <rect x="900" y="520" width="80" height="540" rx="28" fill="#101727" stroke="#f0b578" stroke-width="2"/>
+  <path d="M940 585 V800" stroke="#f0b578" stroke-width="3" marker-end="url(#arrowWarm)"/>
+  <text x="940" y="840" text-anchor="middle" class="cn warm" style="font-size:15px;font-weight:700">单向授权门</text>
+  <text x="940" y="870" text-anchor="middle" class="cn tiny">只允许</text>
+  <text x="940" y="892" text-anchor="middle" class="cn tiny">被采纳的</text>
+  <text x="940" y="914" text-anchor="middle" class="cn tiny">分支假设</text>
+  <text x="940" y="965" text-anchor="middle" class="cn tiny">通过</text>
+
+  <!-- fiction side -->
+  <rect x="1020" y="550" width="250" height="150" rx="18" fill="url(#fiction)" stroke="#d08b69"/>
+  <text x="1048" y="590" class="cn cardTitle">导演 Agent</text>
+  <text x="1048" y="620" class="cn small">决定这一刻发生什么</text>
+  <text x="1048" y="652" class="cn cardText">谁出场 · 哪件事推进</text>
+  <text x="1048" y="678" class="cn cardText">关系是否发生变化</text>
+  <path d="M1270 625 H1320" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="1340" y="550" width="250" height="150" rx="18" fill="url(#fiction)" stroke="#d08b69"/>
+  <text x="1368" y="590" class="cn cardTitle">世界时钟</text>
+  <text x="1368" y="620" class="cn small">不是模型，是运行引擎</text>
+  <text x="1368" y="652" class="cn cardText">时间、倍速、暂停</text>
+  <text x="1368" y="678" class="cn cardText">离开时压缩成摘要</text>
+  <path d="M1590 625 H1640" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="1660" y="550" width="220" height="150" rx="18" fill="url(#fiction)" stroke="#d08b69"/>
+  <text x="1770" y="590" text-anchor="middle" class="cn cardTitle">NPC 角色</text>
+  <text x="1770" y="620" text-anchor="middle" class="cn small">每个重要人物一个</text>
+  <text x="1770" y="652" text-anchor="middle" class="cn cardText">自己的性格</text>
+  <text x="1770" y="678" text-anchor="middle" class="cn cardText">目标 · 关系 · 记忆</text>
+
+  <rect x="1020" y="760" width="860" height="150" rx="18" fill="#2b2145" stroke="#9166b2"/>
+  <text x="1050" y="800" class="cn cardTitle">手机里显示的不是预设剧情，而是实时结果</text>
+  <text x="1050" y="834" class="cn cardText">消息 · 日历 · 相册 · 便签 · 朋友圈 · 关系变化</text>
+  <text x="1050" y="866" class="cn small">角色只知道它应该知道的事；它只能代表自己，不能替用户发言。</text>
+  <text x="1050" y="895" class="cn tiny">记忆服务负责“谁记得什么”，但它不是一个独立的聊天 Agent。</text>
+
+  <!-- bottom interaction flow -->
+  <text x="80" y="1160" class="cn section">一次手机对话如何运行</text>
+  <rect x="80" y="1180" width="1840" height="140" rx="22" fill="#0c1b31" stroke="#31537d"/>
+  <text x="115" y="1228" class="cn flow">用户发消息</text>
+  <path d="M245 1220 H330" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <text x="360" y="1228" class="cn flow">导演读取当前场景</text>
+  <path d="M590 1220 H675" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <text x="705" y="1228" class="cn flow">只取允许的资料</text>
+  <path d="M900 1220 H985" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <text x="1015" y="1228" class="cn flow">对应 NPC 回应</text>
+  <path d="M1190 1220 H1275" stroke="#91bfff" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+  <text x="1305" y="1228" class="cn flow">产生事件与关系变化</text>
+  <path d="M1535 1220 H1620" stroke="#74d8bd" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <text x="1650" y="1228" class="cn flow green">写入分支记忆</text>
+  <text x="115" y="1275" class="cn small">下一次对话会读取这次经历，所以用户感受到的是“这个世界真的记得我”。</text>
+
+  <rect x="80" y="1350" width="1840" height="52" rx="15" fill="#0a1527" stroke="#2f4c73"/>
+  <circle cx="110" cy="1376" r="6" fill="#91bfff"/><text x="126" y="1381" class="cn tiny">真实侧：个人向导 / 人生探索 / 世界创建</text>
+  <circle cx="500" cy="1376" r="6" fill="#f0b578"/><text x="516" y="1381" class="cn tiny">虚构侧：导演 / NPC 角色</text>
+  <circle cx="790" cy="1376" r="6" fill="#74d8bd"/><text x="806" y="1381" class="cn tiny">共享：记忆承接与结果回写</text>
+  <text x="1880" y="1381" text-anchor="end" class="cn tiny">一句话：真实侧回答“你是谁”，虚构侧回答“如果那样，你会怎样生活”。</text>
+</svg>

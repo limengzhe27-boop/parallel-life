@@ -1,3 +1,4 @@
+import { buildAgenda, threadFor, type AgendaThread } from './agenda.ts';
 import type { WorldState } from './types.ts';
 
 /**
@@ -80,15 +81,30 @@ export function advanceClock(
  * keeps a world feeling like it revolves around the protagonist without turning into
  * a group chat or a model-call storm.
  */
-export function selectSpeaker(state: WorldState, spokenInThisAdvance: string[]): string | null {
+export function selectSpeaker(
+  state: WorldState,
+  spokenInThisAdvance: string[],
+  agenda: AgendaThread[] = buildAgenda(state),
+): string | null {
   if (!state.actors.length) return null;
+  const available = (actorId: string) => !spokenInThisAdvance.includes(actorId);
+  /*
+   * Unfinished business first: someone owes the protagonist a reply, then a proposed
+   * appointment that is still open. Only when nothing is pending does the "longest
+   * silence" rule decide, so a quiet world still moves without a group-chat storm.
+   */
+  const awaiting = agenda.find((thread) => thread.kind === 'awaiting_reply');
+  if (awaiting && available(awaiting.actorId)) return awaiting.actorId;
+  const pending = agenda.find(
+    (thread) => thread.kind === 'proposed_appointment' && available(thread.actorId),
+  );
+  if (pending) return pending.actorId;
   const lastSpoke = new Map<string, number>();
   state.messages.forEach((message, index) => lastSpoke.set(message.actorId, index));
   return (
     [...state.actors].sort((a, b) => {
       const spokeHere =
         Number(spokenInThisAdvance.includes(a.id)) - Number(spokenInThisAdvance.includes(b.id));
-      /* Prefer someone who has not spoken in this advance, then the longest silence. */
       if (spokeHere !== 0) return spokeHere;
       const left = lastSpoke.has(a.id) ? lastSpoke.get(a.id)! : -1;
       const right = lastSpoke.has(b.id) ? lastSpoke.get(b.id)! : -1;
@@ -98,14 +114,16 @@ export function selectSpeaker(state: WorldState, spokenInThisAdvance: string[]):
 }
 
 /** The stage direction handed to the character for one beat. */
-export function beatCue(state: WorldState, actorId: string): string {
+export function beatCue(
+  state: WorldState,
+  actorId: string,
+  agenda: AgendaThread[] = buildAgenda(state),
+): string {
   const actor = state.actors.find((item) => item.id === actorId);
-  const pending = state.appointments.filter(
-    (item) => item.status === 'proposed' && item.participantIds.includes(actorId),
-  ).length;
+  const thread = threadFor(agenda, actorId);
   return [
     `（导演节拍：此刻是 ${state.time}，用户没有开口，${actor?.name ?? '这个角色'} 可以主动做点什么。）`,
-    pending ? `（有一条还没有回应的约定，可以自然提起，但不要替用户答应用户的事。）` : '',
+    thread ? `（未了结的事：${thread.detail}。可以自然提起，但不要替用户答应用户的事。）` : '',
     '如果此刻确实没有任何想说的，就只输出一条很短的消息说明你在忙什么。',
   ]
     .filter(Boolean)

@@ -8,6 +8,7 @@ import {
   selectSpeaker,
   type WorldClock,
 } from '../src/modules/world/domain/clock.ts';
+import { buildAgenda } from '../src/modules/world/domain/agenda.ts';
 import type { WorldState } from '../src/modules/world/domain/types.ts';
 
 const clock = (over: Partial<WorldClock> = {}): WorldClock => ({
@@ -109,4 +110,52 @@ test('the beat cue is a stage direction, never the user speaking', () => {
   assert.match(cue, /用户没有开口/);
   assert.match(cue, /乙/);
   assert.equal(/用户(说|问)/.test(cue), false);
+});
+
+test('unfinished business decides who acts, before the silence rule', () => {
+  /* The protagonist just spoke to 甲 and 甲 has not answered. */
+  const waiting = state();
+  waiting.messages = [
+    ...waiting.messages,
+    {
+      id: 'm2',
+      actorId: 'a',
+      role: 'user',
+      text: '在吗',
+      at: at('2026-09-24T00:05:00.000Z'),
+      sourceEventId: 'e2',
+    },
+  ];
+  const agenda = buildAgenda(waiting);
+  assert.equal(agenda[0]?.kind, 'awaiting_reply');
+  assert.equal(agenda[0]?.actorId, 'a');
+  /* 乙 never spoke, yet the character who owes a reply goes first. */
+  assert.equal(selectSpeaker(waiting, []), 'a');
+  assert.match(beatCue(waiting, 'a'), /对方还没有回应/);
+});
+
+test('an open appointment pulls its participant into the beat', () => {
+  const pending = state();
+  pending.appointments = [
+    {
+      id: 'ap1',
+      title: '周三一起看展',
+      at: at('2026-09-25T10:00:00.000Z'),
+      participantIds: ['b'],
+      sourceEventId: 'e3',
+      status: 'proposed',
+    },
+  ];
+  const agenda = buildAgenda(pending);
+  assert.deepEqual(
+    agenda.map((thread) => [thread.kind, thread.actorId]),
+    [['proposed_appointment', 'b']],
+  );
+  assert.equal(selectSpeaker(pending, []), 'b');
+  assert.match(beatCue(pending, 'b'), /周三一起看展/);
+});
+
+test('with nothing pending the silence rule still applies', () => {
+  assert.deepEqual(buildAgenda(state()), []);
+  assert.equal(selectSpeaker(state(), []), 'b');
 });
