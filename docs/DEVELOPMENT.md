@@ -217,6 +217,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |D-23|[x] 已完成|I|D-22|导演记忆化与世界时钟控制面：承诺进入 agenda（欠回应>未定约定>承诺>沉默）、离线摘要写入 branch 记忆、`GET/POST /worlds/:id/clock` 暂停与倍速（不动上次跳动，不造时间）|[报告](task-reports/D-23.md)；167 单元 + 24 真实库测试通过；无新增迁移|
 |D-24|[x] 已完成|I|D-23|L-03 导演控制面：`world_direction` brief（主题/节奏/聚焦角色）+ 纯函数校验、节奏作为节拍硬上限、聚焦进入选人、导演要求进入舞台指示、`preview` 只描述影响不落库、**历史改写被拒并指向分支**|[报告](task-reports/D-24.md)；迁移 0027 已应用于本地与生产；172 单元 + 24 真实库测试通过|
 |D-25|[x] 已完成|I|D-24|文档事实校准（修正 AUD-18 的过度声明与过时计数）+ 手机端四项接线方案（时间控件/导演面板/记忆界面/索图结果，含协作注意事项）|[报告](task-reports/D-25.md)；真实计数 172 单元 + 24 真实库、27 迁移；AGENT_FLOW 计数与状态已同步|
+|D-26|[x] 已完成|I|D-25|预期（目标态）架构与预期效果文档：预期体验与 9 条可验收效果、目标分层架构图与三条红线、真实/虚构两侧目标时序（Mermaid）、导演目标工作循环、记忆模型、效果指标表、与现状的差距（映射 M-01..M-03 / G-01..G-05 / E / R / AUD）、4 张出图提示词|[AGENT_TARGET.md](AGENT_TARGET.md)|
 |D-03|[ ] 待开发|B|D-06,M-03|世界创建任务：动态身份、人物、关系、初始事件/手机内容；version=0 快照，阶段进度持久化，失败可续接|—|
 |D-04|[ ] 待验收|F|C-05|推荐卡、自定义/修改、资料确认与保存设定；推荐任务状态、失败重试及恢复；世界生成进度单列 D-05|[报告](task-reports/D-04.md)；已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |D-05|[ ] 待开发|F|D-03,D-04|世界生成各阶段的真实进度、失败恢复与进入手机；恢复时对应同一个创建任务，未完成阶段不伪装成功|—|
@@ -333,6 +334,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
 |AUD-01|dsh-main-20260923|I / 单人|主登记目录|本地环境启动、合成经历真实调用、docs/task-reports/AUD-01.md|本项目本地 PostgreSQL 55432 与 3218 端口；真实网关调用仅用合成文本|2026-09-23T12:40Z：已完成；迁移 0001–0016 已应用，全链路真实调用证据见报告；本地服务保持运行供用户体验|
 |D-08|dsh-main-20260923|I / 单人|主登记目录|src/modules/ai/**、src/modules/world/infrastructure/**、src/modules/discovery/infrastructure/**、src/modules/tasks/application/**、src/contracts/**、tests/**、docs/task-reports/D-08.md|真实网关调用仅用合成经历；本项目 Supabase 生产库只读诊断|2026-09-23T13:10Z：已完成并上线；输出上限与容错解析修复，合格率 4/4；生产部署后完整链路实测通过|
+|D-26|dsh-main-20260923|I / 单人|主登记目录|docs/AGENT_TARGET.md、docs/DEVELOPMENT.md|—|2026-09-24T18:00Z：文档已交付并上线|
 |D-25|dsh-main-20260923|I / 单人|主登记目录|docs/**|—|2026-09-24T17:30Z：文档已修正并上线|
 |D-24|dsh-main-20260923|I / 单人|主登记目录|src/modules/world/domain/direction.ts、src/modules/world/infrastructure/direction-repository.ts、src/modules/world/application/advance-world.ts、src/app/api/v1/worlds/[id]/direction/**、src/server/services.ts、db/migrations/0027_world_direction.sql、tests/**、docs/**|本地 PostgreSQL 55432 与生产 Supabase（迁移 0027）|2026-09-24T17:00Z：已完成并上线|
 |D-23|dsh-main-20260923|I / 单人|主登记目录|src/modules/world/**、src/modules/memory/infrastructure/memory-store.ts、src/server/services.ts、src/app/api/v1/worlds/[id]/clock/**、tests/**、docs/**|本地 PostgreSQL 55432（无新迁移）|2026-09-24T16:30Z：已完成并上线|
@@ -369,6 +371,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务|执行/验收人|结果与证据|完成日期|
 |---|---|---|---|
+|D-26|dsh-main-20260923 / 自审|预期架构与预期效果（[AGENT_TARGET.md](AGENT_TARGET.md)），含目标架构图、导演循环、记忆模型、可验收效果指标与 4 张出图提示词|2026-09-24|
 |D-25|dsh-main-20260923 / 自审|文档事实校准（AUD-18 过度声明、计数过时）+ 手机端接线方案；[报告](task-reports/D-25.md)|2026-09-24|
 |D-24|dsh-main-20260923 / 自审|L-03 导演控制面：主题/节奏/聚焦 + 影响预览（不落库）+ 历史改写拒绝并指向分支；172 单元 + 24 真实库测试通过；迁移 0027 已上生产；[报告](task-reports/D-24.md)|2026-09-24|
 |D-23|dsh-main-20260923 / 自审|导演记忆化（承诺驱动）+ 时钟控制接口（暂停/倍速/读取）+ 离线摘要入记忆；167 单元 + 24 真实库测试通过；[报告](task-reports/D-23.md)|2026-09-24|
@@ -421,6 +424,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |H-05A|codex-main-01a0c73b / 自审|用户上传入相册、63项单元、3项真实库、手机/PC与构建通过；[报告](task-reports/H-05A.md)|2026-09-22|
 
 ### 变更日志
+
+- 2026-09-24：新增预期（目标态）架构文档 [AGENT_TARGET.md](AGENT_TARGET.md)（D-26）。与已实现的 AGENT_FLOW 区分：本文描述**想要的系统**——9 条用户可感预期效果及其可验收口径、目标分层架构图与三条不可协商红线（隔离/提案制/成本边界）、真实侧与虚构侧的目标时序（Mermaid）、导演目标工作循环、记忆模型、效果指标表、与现状的差距（逐项映射 M-01..M-03、G-01..G-05、E/R、AUD 项），以及交给 GPT 出图的 4 张精确提示词。
 
 - 2026-09-24：文档事实校准（D-25）。发现并修正 AUD-18 的过度声明（"20 项审计全量收口、150 项测试"）——真实为 172 单元 + 24 真实库测试、27 个迁移，AUD-04/11/14/16/19/20 仍待开发；同步 AGENT_FLOW 的计数与状态表；并给出手机端四项能力（时间控件/导演面板/记忆界面/索图结果）的可执行接线方案与协作注意事项（契约变更须补全构造点、先确认无在途改动）。
 
