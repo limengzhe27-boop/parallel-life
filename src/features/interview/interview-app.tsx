@@ -594,19 +594,49 @@ function Waiting({
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, [task.createdAt]);
+
+  const isQueued = task.status === 'queued';
+  const isQueuedDelayed = isQueued && seconds >= 25;
+  const isRunningDelayed = !isQueued && seconds >= 45;
+  const isTimedOut = seconds >= 90;
+
   return (
-    <div className="waiting" role="status">
-      <div className="thinking-dots">
-        <i />
-        <i />
-        <i />
+    <div
+      className={`waiting ${isTimedOut ? 'waiting-timeout' : isQueuedDelayed || isRunningDelayed ? 'waiting-delayed' : ''}`}
+      role="status"
+    >
+      {!isTimedOut && (
+        <div className="thinking-dots">
+          <i />
+          <i />
+          <i />
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <span>
+          {isTimedOut
+            ? '处理时间超出预期，连接或通道可能中断'
+            : isQueuedDelayed
+              ? '当前排队通道繁忙，正在等待调度'
+              : isRunningDelayed
+                ? '模型正在深度推演中，耗时较平时稍长'
+                : isQueued
+                  ? '你的话已记下，正在等待回应'
+                  : '正在想一想你的故事'}
+          <small> · {seconds} 秒</small>
+        </span>
+        {isTimedOut && (
+          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+            输入内容已保存在会话中，建议暂停并重新发起回应
+          </span>
+        )}
       </div>
-      <span>
-        {task.status === 'queued' ? '你的话已记下，正在等待回应' : '正在想一想你的故事'}
-        <small> · {seconds} 秒</small>
-      </span>
-      <Button variant="ghost" disabled={disabled} onClick={onCancel}>
-        暂停
+      <Button
+        variant={isTimedOut ? 'secondary' : 'ghost'}
+        disabled={disabled}
+        onClick={onCancel}
+      >
+        {isTimedOut ? '取消重试' : '暂停'}
       </Button>
     </div>
   );

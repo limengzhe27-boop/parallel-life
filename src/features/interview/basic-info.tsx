@@ -36,6 +36,15 @@ export function BasicInfo({
     [error, setError] = useState(''),
     [saved, setSaved] = useState(false);
   const id = useRef(existing?.id ?? null);
+  const mergedValue =
+    '个人资料\n' +
+    fields
+      .filter(([label]) => (values[label] ?? '').trim())
+      .map(([label]) => `${label}：${(values[label] ?? '').trim()}`)
+      .join('\n');
+  const mergedLength = mergedValue.length;
+  const isOverLength = mergedLength > 500;
+
   async function save() {
     if (busy) return;
     const today = new Date().toLocaleDateString('en-CA');
@@ -47,6 +56,10 @@ export function BasicInfo({
       setError('可以先填一项，也可以直接聊天。');
       return;
     }
+    if (isOverLength) {
+      setError(`基本资料合并后共 ${mergedLength} 字，超过了 500 字上限，请精简内容后再保存。`);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -55,12 +68,7 @@ export function BasicInfo({
         kind: 'set-fact',
         id: id.current,
         category: 'identity',
-        value:
-          '个人资料\n' +
-          fields
-            .filter(([label]) => (values[label] ?? '').trim())
-            .map(([label]) => `${label}：${(values[label] ?? '').trim()}`)
-            .join('\n'),
+        value: mergedValue,
       });
       setSaved(true);
     } catch {
@@ -102,10 +110,14 @@ export function BasicInfo({
               onChange={(e) => {
                 setValues({ ...values, [label]: e.target.value });
                 setSaved(false);
+                setError('');
               }}
             />
           </label>
         ))}
+      </div>
+      <div className={`basic-info-counter ${isOverLength ? 'over-limit' : ''}`}>
+        已填资料合并计：{mergedLength} / 500 字 {isOverLength ? '（已超出上限，请精简）' : ''}
       </div>
       {error && <Notice>{error}</Notice>}
       <div className="basic-info-actions">
@@ -116,7 +128,7 @@ export function BasicInfo({
               ? '选填 · 不影响开始聊天'
               : '仅记录你主动提供的信息'}
         </span>
-        <Button type="submit" variant="secondary" disabled={busy}>
+        <Button type="submit" variant="secondary" disabled={busy || isOverLength}>
           {busy ? '正在保存…' : '保存资料'}
         </Button>
       </div>

@@ -20,12 +20,14 @@ export function SeedConsent({
   onClose: () => void;
   onSaved: (seed: ApprovedSeed) => void;
 }) {
+  const confirmedFacts = profile.facts.filter((f) => f.status === 'confirmed');
+  const visibleFactIds = new Set(confirmedFacts.map((f) => f.id));
   const [facts, setFacts] = useState(
-      direction.sources
-        .map((s) => s.factId)
-        .filter((id) => profile.facts.some((f) => f.id === id && f.status === 'confirmed')),
-    ),
-    [people, setPeople] = useState<string[]>([]),
+    direction.sources
+      .map((s) => s.factId)
+      .filter((id) => visibleFactIds.has(id)),
+  );
+  const [people, setPeople] = useState<string[]>([]),
     [portrait, setPortrait] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -39,7 +41,7 @@ export function SeedConsent({
       discoveryVersion: discovery.version,
       profileVersion: profile.version,
       directionId: direction.id,
-      factIds: facts,
+      factIds: facts.filter((id) => visibleFactIds.has(id)),
       personIds: people,
       includePortrait: portrait,
     };
@@ -89,22 +91,26 @@ export function SeedConsent({
         </details>
         <fieldset className="seed-fieldset">
           <legend>带上哪些资料</legend>
-          <p>只带入你勾选的内容。</p>
-          {profile.facts
-            .filter((f) => f.status === 'confirmed')
-            .slice(-40)
-            .map((f) => (
-              <label key={f.id}>
-                <input
-                  type="checkbox"
-                  checked={facts.includes(f.id)}
-                  onChange={() => setFacts(toggle(facts, f.id))}
-                  disabled={busy}
-                />
-                <span>{f.value}</span>
-              </label>
-            ))}
-          {!profile.facts.some((f) => f.status === 'confirmed') && <p>没有额外选择的现实资料。</p>}
+          <p>
+            只带入你勾选的内容（已选择 {facts.filter((id) => visibleFactIds.has(id)).length} / {confirmedFacts.length} 项，无任何未见默认授权）。
+          </p>
+          {confirmedFacts.length > 0 ? (
+            <div className="seed-facts-scroll">
+              {confirmedFacts.map((f) => (
+                <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={facts.includes(f.id)}
+                    onChange={() => setFacts(toggle(facts, f.id))}
+                    disabled={busy}
+                  />
+                  <span>{f.value}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p>没有额外选择的现实资料。</p>
+          )}
         </fieldset>
         <fieldset className="seed-fieldset">
           <legend>照片与人物</legend>
