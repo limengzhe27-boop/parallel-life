@@ -85,6 +85,7 @@ export const ProfileSchema = z.strictObject({
   events: z.array(LifeEventSchema).max(100),
   people: z.array(PersonSchema).max(30).default([]),
   portraitAssetId: Id.nullable(),
+  referenceAssetIds: z.array(Id).max(6).default([]),
   updatedAt: Timestamp,
 });
 export type Profile = z.infer<typeof ProfileSchema>;
@@ -107,6 +108,8 @@ export const ProfileEditSchema = z.strictObject({
     }),
     z.strictObject({ kind: z.literal('delete-event'), id: Id }),
     z.strictObject({ kind: z.literal('set-portrait'), assetId: Id.nullable() }),
+    z.strictObject({ kind: z.literal('add-reference-photo'), assetId: Id }),
+    z.strictObject({ kind: z.literal('delete-reference-photo'), assetId: Id }),
     z.strictObject({ kind: z.literal('set-person'), person: PersonSchema }),
     z.strictObject({ kind: z.literal('delete-person'), id: Id }),
   ]),

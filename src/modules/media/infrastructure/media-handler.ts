@@ -39,11 +39,19 @@ export function mediaHandler(
       );
       const currentCount = countRes.rows[0]?.count ?? 0;
 
+      let referenceAssetId = (row.document as { referenceAssetId?: string }).referenceAssetId;
+      if (!referenceAssetId) {
+        const snapRes = await sql.query(
+          `SELECT approved_seed->>'portraitAssetId' AS portrait_id FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2`,
+          [row.world_id, lease.ownerId],
+        );
+        referenceAssetId = snapRes.rows[0]?.portrait_id ?? undefined;
+      }
+
       return {
-        document: row.document as {
-          prompt?: string;
-          referenceAssetId?: string;
-          title?: string;
+        document: {
+          ...(row.document as { prompt?: string; title?: string }),
+          referenceAssetId,
         },
         world_id: row.world_id as string,
         outbox_id: row.outbox_id as string | null,

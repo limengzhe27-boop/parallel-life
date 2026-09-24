@@ -65,15 +65,28 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       mediaRequests: [],
     };
     const initialMediaId = randomUUID();
-    const initialMediaPrompt = `${seed.story.title} 角色身份写真：${opening.identity}，写实电影胶片质感抓拍`;
-    const initialMediaTitle = `【身份写真】${opening.identity}`;
+    const initialMediaPrompt = `${seed.story.title} 角色身份写真：${opening.identity}，写实电影人文质感，35mm胶片，肖像底模图生图，自然光影`;
+    const initialMediaTitle = `【身份写真】${opening.identity.slice(0, 24)} · 肖像`;
+
+    const lifestyleMediaId = randomUUID();
+    const lifestyleMediaPrompt = `${seed.story.title} 工作与生活纪实：${opening.identity}，现场艺术光影，生活抓拍，肖像底模图生图`;
+    const lifestyleMediaTitle = `【身份写真】${opening.identity.slice(0, 24)} · 现场`;
+
     if (seed.portraitAssetId) {
-      state.mediaRequests.push({
-        id: initialMediaId,
-        prompt: initialMediaPrompt,
-        status: 'pending',
-        sourceEventId,
-      });
+      state.mediaRequests.push(
+        {
+          id: initialMediaId,
+          prompt: initialMediaPrompt,
+          status: 'pending',
+          sourceEventId,
+        },
+        {
+          id: lifestyleMediaId,
+          prompt: lifestyleMediaPrompt,
+          status: 'pending',
+          sourceEventId,
+        },
+      );
     }
     await queue.commit(lease, async (sql) => {
       const row = (
@@ -88,43 +101,49 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
         [state.id, lease.ownerId, state.title, { ...state, messages: [] }],
       );
       if (seed.portraitAssetId) {
-        await sql.query(
-          'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
-          [
-            initialMediaId,
-            state.id,
-            lease.ownerId,
-            {
-              id: initialMediaId,
-              worldId: state.id,
-              prompt: initialMediaPrompt,
-              referenceAssetId: seed.portraitAssetId,
-              title: initialMediaTitle,
+        const mediaItems = [
+          { id: initialMediaId, prompt: initialMediaPrompt, title: initialMediaTitle },
+          { id: lifestyleMediaId, prompt: lifestyleMediaPrompt, title: lifestyleMediaTitle },
+        ];
+        for (const item of mediaItems) {
+          await sql.query(
+            'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+            [
+              item.id,
+              state.id,
+              lease.ownerId,
+              {
+                id: item.id,
+                worldId: state.id,
+                prompt: item.prompt,
+                referenceAssetId: seed.portraitAssetId,
+                title: item.title,
+                sourceEventId,
+                status: 'pending',
+                createdAt: time,
+              },
+            ],
+          );
+          await sql.query(
+            'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
+            [
+              `genesis_${item.id}`,
+              state.id,
+              lease.ownerId,
               sourceEventId,
-              status: 'pending',
-              createdAt: time,
-            },
-          ],
-        );
-        await sql.query(
-          'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
-          [
-            `genesis_${initialMediaId}`,
-            state.id,
-            lease.ownerId,
-            sourceEventId,
-            {
-              id: `genesis_${initialMediaId}`,
-              eventId: sourceEventId,
-              worldId: state.id,
-              type: 'image.generate',
-              requestId: initialMediaId,
-              prompt: initialMediaPrompt,
-              referenceAssetId: seed.portraitAssetId,
-              title: initialMediaTitle,
-            },
-          ],
-        );
+              {
+                id: `genesis_${item.id}`,
+                eventId: sourceEventId,
+                worldId: state.id,
+                type: 'image.generate',
+                requestId: item.id,
+                prompt: item.prompt,
+                referenceAssetId: seed.portraitAssetId,
+                title: item.title,
+              },
+            ],
+          );
+        }
       }
       await sql.query(
         'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',

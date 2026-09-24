@@ -24,6 +24,16 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · Phase 1 记忆接线与运行角色权限回归修复
+
+|项目|内容|
+|---|---|
+|提交|`889e6a7`（+ 本次登记提交）|
+|迁移|`0024_memory_task_kind.sql`、`0025_runtime_function_grants.sql`，已应用于本地与生产 Supabase（`pl_migrations` 25 条）|
+|发布前检查|`npm run verify`（152 单元 + 21 真实库）、`npm run build` 通过|
+|线上实测|`GET /api/v1/memory/records` → 200；`POST` 遗忘不存在的记忆 → 404/NOT_FOUND；生产库确认 `check_fork`/`immutable_snapshot`/`is_jsonb_string_array`/`validate_memory_scope` 对 `pl_app` 与 `pl_worker` 均可执行|
+|风险修复|并发安全加固迁移撤销 PUBLIC 执行权后未补回运行角色，导致触发器/CHECK 函数对新访谈、记忆候选等写入不可用；迁移 0025 修复并加守卫测试|
+
 ### 2026-09-24 · 肖像底模图生图身份写真 + 聊天事件照片解锁入册全链路批量上线
 
 |项目|内容|

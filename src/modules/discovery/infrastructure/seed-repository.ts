@@ -72,9 +72,12 @@ export class SeedRepository {
       });
       const portraitAssetId = request.includePortrait ? profile.portraitAssetId : null;
       if (request.includePortrait && !portraitAssetId) throw new TaskError('INVALID_INPUT');
+      const referenceIds = request.includePortrait ? (profile.referenceAssetIds ?? []) : [];
       const ids = [
         ...new Set(
-          [portraitAssetId, ...people.map((p) => p.assetId)].filter((id): id is string => !!id),
+          [portraitAssetId, ...referenceIds, ...people.map((p) => p.assetId)].filter(
+            (id): id is string => !!id,
+          ),
         ),
       ];
       const assets = ids.length

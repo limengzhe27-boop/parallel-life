@@ -214,6 +214,36 @@ export class ProfileRepository {
           )
             throw new TaskError('NOT_FOUND');
           profile.portraitAssetId = op.assetId;
+          if (op.assetId && !profile.referenceAssetIds.includes(op.assetId)) {
+            profile.referenceAssetIds.push(op.assetId);
+          }
+          break;
+        }
+        case 'add-reference-photo': {
+          if (
+            !(
+              await sql.query(
+                "SELECT id FROM parallel_life.assets WHERE id=$1 AND status='ready' FOR SHARE",
+                [op.assetId],
+              )
+            ).rowCount
+          )
+            throw new TaskError('NOT_FOUND');
+          if (!profile.referenceAssetIds.includes(op.assetId)) {
+            if (profile.referenceAssetIds.length >= 6) throw new TaskError('INVALID_INPUT');
+            profile.referenceAssetIds.push(op.assetId);
+          }
+          if (!profile.portraitAssetId) {
+            profile.portraitAssetId = op.assetId;
+          }
+          break;
+        }
+        case 'delete-reference-photo': {
+          if (!profile.referenceAssetIds.includes(op.assetId)) throw new TaskError('NOT_FOUND');
+          profile.referenceAssetIds = profile.referenceAssetIds.filter((id) => id !== op.assetId);
+          if (profile.portraitAssetId === op.assetId) {
+            profile.portraitAssetId = profile.referenceAssetIds[0] ?? null;
+          }
           break;
         }
       }

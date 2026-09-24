@@ -27,6 +27,7 @@ export class IdentityRepository {
         events: [],
         people: [],
         portraitAssetId: null,
+      referenceAssetIds: [],
         updatedAt: new Date().toISOString(),
       };
       await sql.query(

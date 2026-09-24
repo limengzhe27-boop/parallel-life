@@ -84,7 +84,14 @@ export function parseProposal(value: unknown): TurnProposal {
           visibility: visibility(item.visibility),
         };
       case 'media.requested':
-        return { type: item.type, id: effectId, prompt: text(item.prompt, 2000) };
+        return {
+          type: item.type,
+          id: effectId,
+          prompt: text(item.prompt, 2000),
+          ...(typeof item.title === 'string' && item.title.trim()
+            ? { title: text(item.title.trim(), 80) }
+            : {}),
+        };
       default:
         return fail();
     }

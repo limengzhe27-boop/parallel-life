@@ -156,12 +156,43 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
     return [...userPhotos, ...memories];
   }, [data.contacts, data.photos]);
 
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'identity' | 'event' | 'memory'>('all');
+
   const filteredPhotos = useMemo(() => {
-    if (selectedActorFilter === 'all') return lifeMemories;
-    const actor = data.contacts.find((c) => c.id === selectedActorFilter);
-    if (!actor) return lifeMemories;
-    return lifeMemories.filter((p) => p.description.includes(actor.name) || p.title.includes(actor.name));
-  }, [lifeMemories, selectedActorFilter, data.contacts]);
+    let result = lifeMemories;
+    if (selectedCategory === 'identity') {
+      result = result.filter(
+        (p) =>
+          p.tag === 'identity' ||
+          p.title.includes('【身份写真】') ||
+          p.title.includes('写真') ||
+          p.title.includes('肖像'),
+      );
+    } else if (selectedCategory === 'event') {
+      result = result.filter(
+        (p) =>
+          p.tag === 'event' ||
+          p.title.includes('【事件纪念】') ||
+          p.title.includes('现场') ||
+          p.title.includes('合影') ||
+          p.title.includes('杀青') ||
+          p.title.includes('布展'),
+      );
+    } else if (selectedCategory === 'memory') {
+      result = result.filter(
+        (p) => p.tag === 'upload' || p.id.startsWith('mem-'),
+      );
+    }
+    if (selectedActorFilter !== 'all') {
+      const actor = data.contacts.find((c) => c.id === selectedActorFilter);
+      if (actor) {
+        result = result.filter(
+          (p) => p.description.includes(actor.name) || p.title.includes(actor.name),
+        );
+      }
+    }
+    return result;
+  }, [lifeMemories, selectedCategory, selectedActorFilter, data.contacts]);
 
   const photo = lifeMemories.find((p) => p.id === target);
 

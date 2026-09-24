@@ -16,6 +16,7 @@ export const emptyWorkspace: InterviewWorkspace = {
     events: [],
     people: [],
     portraitAssetId: null,
+  referenceAssetIds: [],
     updatedAt: '2026-09-22T00:00:00.000Z',
   },
 };

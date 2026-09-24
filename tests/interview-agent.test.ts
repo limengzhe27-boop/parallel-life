@@ -13,6 +13,7 @@ const profile: Profile = {
   events: [],
   people: [],
   portraitAssetId: null,
+  referenceAssetIds: [],
   updatedAt: new Date().toISOString(),
 };
 const id = randomUUID();

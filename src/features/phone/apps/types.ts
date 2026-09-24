@@ -17,6 +17,7 @@ export type PhoneMessage = {
   at: string;
   status: 'pending' | 'sent' | 'failed' | 'unknown';
   links?: PhoneLink[];
+  photo?: PhonePhoto;
 };
 export type PhonePhoto = {
   id: string;
@@ -25,6 +26,7 @@ export type PhonePhoto = {
   description: string;
   url?: string;
   status: 'queued' | 'generating' | 'ready' | 'failed' | 'unknown';
+  tag?: 'identity' | 'event' | 'upload' | 'memory';
   links?: PhoneLink[];
 };
 export type PhoneInvitation = {

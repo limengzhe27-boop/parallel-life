@@ -1,6 +1,7 @@
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
 import { deriveMemory, type DeriveMemoryInput } from '../application/derive-memory.ts';
 import { correctMemory, forgetMemory } from '../application/edit-memory.ts';
+import { DomainError } from '../domain/errors.ts';
 import type { MemoryRecord, MemoryScope } from '../domain/types.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 
@@ -52,7 +53,13 @@ export async function deriveAndStoreMemories(
       )
     ).rows[0];
     if (existing) {
-      await addSourceRefs(sql, String(existing.id), derived.ownerId, derived.scopeType, derived.sourceIds);
+      await addSourceRefs(
+        sql,
+        String(existing.id),
+        derived.ownerId,
+        derived.scopeType,
+        derived.sourceIds,
+      );
       summary.merged += 1;
       continue;
     }
@@ -99,10 +106,7 @@ async function addSourceRefs(
 }
 
 /** Reads one owner's records in the shape the memory services expect. */
-export async function loadMemoryRecords(
-  sql: SqlClient,
-  ownerId: string,
-): Promise<MemoryRecord[]> {
+export async function loadMemoryRecords(sql: SqlClient, ownerId: string): Promise<MemoryRecord[]> {
   const rows = (
     await sql.query('SELECT * FROM parallel_life.memory_records WHERE owner_id=$1 FOR UPDATE', [
       ownerId,
@@ -175,7 +179,13 @@ export async function correctMemoryInStore(
       newRecord.createdAt,
     ],
   );
-  await addSourceRefs(sql, newRecord.id, newRecord.ownerId, newRecord.scopeType, newRecord.sourceIds);
+  await addSourceRefs(
+    sql,
+    newRecord.id,
+    newRecord.ownerId,
+    newRecord.scopeType,
+    newRecord.sourceIds,
+  );
   return newRecord;
 }
 
@@ -186,7 +196,8 @@ export async function forgetMemoryInStore(
 ): Promise<MemoryRecord> {
   const records = await loadMemoryRecords(sql, input.ownerId);
   const target = records.find((record) => record.id === input.targetMemoryId);
-  if (!target) throw new Error('NOT_FOUND');
+  /* A missing memory is the caller's mistake, not an unavailable service. */
+  if (!target) throw new DomainError('NOT_FOUND');
   const { forgottenRecord, cascadedRecordIds } = forgetMemory({
     ownerId: input.ownerId,
     targetMemoryId: input.targetMemoryId,
@@ -207,7 +218,12 @@ export async function forgetMemoryInStore(
 export async function listMemories(
   sql: SqlClient,
   ownerId: string,
-  filter: { scopeType?: MemoryScope; scopeId?: string; characterId?: string; includeInactive?: boolean } = {},
+  filter: {
+    scopeType?: MemoryScope;
+    scopeId?: string;
+    characterId?: string;
+    includeInactive?: boolean;
+  } = {},
 ) {
   const rows = (
     await sql.query(

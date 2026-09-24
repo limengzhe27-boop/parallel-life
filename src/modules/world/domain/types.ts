@@ -30,7 +30,13 @@ export type Appointment = {
   participantIds: Id[];
   sourceEventId: Id;
 };
-export type MediaRequest = { id: Id; prompt: string; status: 'pending'; sourceEventId: Id };
+export type MediaRequest = {
+  id: Id;
+  prompt: string;
+  title?: string;
+  status: 'pending';
+  sourceEventId: Id;
+};
 /**
  * A phone note the user saved. Notes live in their own projection table rather
  * than in the world snapshot, so the snapshot stays small as a life continues.
@@ -67,7 +73,7 @@ export type WorldEffect =
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
-  | { type: 'media.requested'; id: Id; prompt: string };
+  | { type: 'media.requested'; id: Id; prompt: string; title?: string };
 
 export type TurnProposal = { schemaVersion: 1; effects: WorldEffect[] };
 export type TurnCommand = {
@@ -94,5 +100,7 @@ export type OutboxJob = {
   type: 'image.generate';
   requestId: Id;
   prompt: string;
+  /** Optional human-facing label for reminder-style jobs. */
+  title?: string;
 };
 export type CommitResult = { state: WorldState; event: WorldEvent };

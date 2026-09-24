@@ -31,6 +31,7 @@ export function WelcomePreview() {
           events: [],
           people: [],
           portraitAssetId: null,
+      referenceAssetIds: [],
           updatedAt: '2026-09-22T00:00:00Z',
         }}
         onSave={async () => {

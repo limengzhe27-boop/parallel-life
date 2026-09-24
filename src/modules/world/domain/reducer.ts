@@ -97,10 +97,17 @@ export function applyEvent(
           sourceEventId,
         });
         break;
-      case 'media.requested':
+      case 'media.requested': {
+        const title =
+          'title' in effect && typeof effect.title === 'string' && effect.title.trim()
+            ? effect.title.trim().slice(0, 80)
+            : event.data?.userText
+              ? `【事件纪念】${event.data.userText.slice(0, 20)}`
+              : '【事件纪念】现场留影';
         state.mediaRequests.push({
           id: effect.id,
           prompt: effect.prompt,
+          title,
           status: 'pending',
           sourceEventId,
         });
@@ -111,7 +118,10 @@ export function applyEvent(
           type: 'image.generate',
           requestId: effect.id,
           prompt: effect.prompt,
+          title,
         });
+        break;
+      }
     }
   }
   /* Facts are projected to world_facts; the state keeps a bounded window so the

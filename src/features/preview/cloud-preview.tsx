@@ -14,6 +14,7 @@ const profile: Profile = {
   events: [],
   people: [],
   portraitAssetId: null,
+      referenceAssetIds: [],
   updatedAt: '2026-09-22T00:00:00Z',
 };
 const noSave = async () => {

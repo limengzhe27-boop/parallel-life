@@ -48,8 +48,8 @@ test('memory write path deduplicates, merges sources, and honours correction and
     await new IdentityRepository(db).ensureGuest(owner);
     /* Memory sources must be real messages: the provenance trigger verifies them. */
     const interviewId = String(
-      (await admin.query('SELECT id FROM parallel_life.interviews WHERE owner_id=$1', [owner])).rows[0]
-        .id,
+      (await admin.query('SELECT id FROM parallel_life.interviews WHERE owner_id=$1', [owner]))
+        .rows[0].id,
     );
     /* ordinal is a generated identity column. */
     for (const [index, id] of [firstMessage, secondMessage, thirdMessage].entries())
@@ -58,8 +58,8 @@ test('memory write path deduplicates, merges sources, and honours correction and
         [id, owner, interviewId, 'user', `第 ${index + 1} 条`],
       );
     profileId = String(
-      (await admin.query('SELECT id FROM parallel_life.profiles WHERE owner_id=$1', [owner])).rows[0]
-        .id,
+      (await admin.query('SELECT id FROM parallel_life.profiles WHERE owner_id=$1', [owner]))
+        .rows[0].id,
     );
 
     /* The same wording twice: one record, both sources kept. */
@@ -77,9 +77,10 @@ test('memory write path deduplicates, merges sources, and honours correction and
     );
     assert.equal(records.length, 1, 'one sedimented memory, not two');
     const refs = (
-      await admin.query('SELECT source_id FROM parallel_life.memory_source_refs WHERE owner_id=$1', [
-        owner,
-      ])
+      await admin.query(
+        'SELECT source_id FROM parallel_life.memory_source_refs WHERE owner_id=$1',
+        [owner],
+      )
     ).rows.map((row) => row.source_id);
     assert.deepEqual(refs.sort(), [firstMessage, secondMessage].sort(), 'both sources kept');
 
@@ -126,10 +127,15 @@ test('memory write path deduplicates, merges sources, and honours correction and
     const afterForget = await db.transaction(owner, (sql) =>
       listMemories(sql, owner, { scopeType: 'profile' }),
     );
-    assert.equal(afterForget.some((m) => m.id === target.id), false);
+    assert.equal(
+      afterForget.some((m) => m.id === target.id),
+      false,
+    );
     assert.equal(
       (
-        await admin.query('SELECT status FROM parallel_life.memory_records WHERE id=$1', [target.id])
+        await admin.query('SELECT status FROM parallel_life.memory_records WHERE id=$1', [
+          target.id,
+        ])
       ).rows[0].status,
       'forgotten',
     );

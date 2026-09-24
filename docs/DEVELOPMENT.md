@@ -208,6 +208,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |D-14|[x] 已完成|B|D-13|访客创建按调用者限流（AUD-15）：按调用者分桶（加盐哈希地址）+ 保留更宽的全局上限 + 被全局拒绝时归还调用者额度，避免单一调用者耗尽全站新用户额度|[报告](task-reports/D-14.md)；迁移 0020 已应用于本地与生产；113 单元 + 17 真实库测试通过（同调用者达限被拒、他者不受影响、被拒不消耗全局、重复建号不耗额度）；生产实测 200 并记录哈希桶，函数行为探测符合设计|
 |D-15|[x] 已完成|I|D-14|一批审计整改：`npm run verify` + CI 交付门槛与预览开关单点化（AUD-17）、Worker 停机 drain 与 unknown 语义（AUD-12）、缺失索引与分支列表 N+1（AUD-13）、非法 world id 返回 404（AUD-08）|[报告](task-reports/D-15.md)；117 单元 + 17 真实库测试通过；迁移 0021 已应用于本地与生产；生产复测通过：非法 world id → 404、未知 uuid → 404、分支列表 200（首次部署构建报 ERROR，重新触发后已生效）|
 |D-16|[x] 已完成|I|D-15|Phase 0 执行层（AUD-03）：outbox 消费者（领取/派发/幂等/有限重试）+ `media` handler（诚实失败不造假图）+ 世界回合索图产生 `media.requested` + owner 级派发入口；修复媒体 scope 契约误当 uuid 的生产 bug|[报告](task-reports/D-16.md)；迁移 0022 已应用于本地与生产；134 单元 + 18 真实库测试通过；生产实测：索图 → outbox job → 派发 submitted → media 任务 queued → 执行后 failed 且 job 记 NOT_IMPLEMENTED、请求仍待处理、素材数 0|
+|D-17|[x] 已完成|I|D-16|Phase 1 记忆接线：队列允许 memory 任务、共享写入器（同句合并来源）、访谈抽取写入 profile 作用域记忆（带真实来源、零额外模型调用）、用户纠正/遗忘接口；并修复并发安全加固迁移导致两个运行角色失去触发器/CHECK 函数权限的生产回归|[报告](task-reports/D-17.md)；迁移 0024/0025 已应用于本地与生产；152 单元 + 21 真实库测试通过（新增角色权限守卫测试）；生产 `GET /memory/records` 200、错误 id 404|
 |D-03|[ ] 待开发|B|D-06,M-03|世界创建任务：动态身份、人物、关系、初始事件/手机内容；version=0 快照，阶段进度持久化，失败可续接|—|
 |D-04|[ ] 待验收|F|C-05|推荐卡、自定义/修改、资料确认与保存设定；推荐任务状态、失败重试及恢复；世界生成进度单列 D-05|[报告](task-reports/D-04.md)；已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |D-05|[ ] 待开发|F|D-03,D-04|世界生成各阶段的真实进度、失败恢复与进入手机；恢复时对应同一个创建任务，未完成阶段不伪装成功|—|
@@ -324,6 +325,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
 |AUD-01|dsh-main-20260923|I / 单人|主登记目录|本地环境启动、合成经历真实调用、docs/task-reports/AUD-01.md|本项目本地 PostgreSQL 55432 与 3218 端口；真实网关调用仅用合成文本|2026-09-23T12:40Z：已完成；迁移 0001–0016 已应用，全链路真实调用证据见报告；本地服务保持运行供用户体验|
 |D-08|dsh-main-20260923|I / 单人|主登记目录|src/modules/ai/**、src/modules/world/infrastructure/**、src/modules/discovery/infrastructure/**、src/modules/tasks/application/**、src/contracts/**、tests/**、docs/task-reports/D-08.md|真实网关调用仅用合成经历；本项目 Supabase 生产库只读诊断|2026-09-23T13:10Z：已完成并上线；输出上限与容错解析修复，合格率 4/4；生产部署后完整链路实测通过|
+|D-17|dsh-main-20260923|I / 单人|主登记目录|src/modules/memory/**、src/modules/profile/infrastructure/interview-handler.ts、src/app/api/v1/memory/records/**、src/contracts/memory.ts、src/server/services.ts、db/migrations/0024_memory_task_kind.sql、db/migrations/0025_runtime_function_grants.sql、tests/**、docs/**|本地 PostgreSQL 55432 与生产 Supabase（迁移 0024/0025）|2026-09-24T13:30Z：已完成并上线，生产实测通过|
 |D-16|dsh-main-20260923|I / 单人|主登记目录|src/modules/tasks/**、src/modules/media/**、src/modules/world/application/resolve-turn.ts、src/server/services.ts、src/server/worker-composition.ts、src/app/api/v1/outbox/drain/**、src/app/api/v1/worlds/[id]/messages/route.ts、src/contracts/api.ts、db/migrations/0022_outbox_consumer.sql、tests/**、docs/**|本地 PostgreSQL 55432 与生产 Supabase（迁移 0022）；生产真实模型调用 1 次（索图回合）|2026-09-24T12:20Z：已完成并上线，生产联动证据齐全|
 |D-15|dsh-main-20260923|I / 单人|主登记目录|src/modules/tasks/application/**、src/workers/main.ts、src/modules/world/infrastructure/build-repository.ts、src/app/api/v1/worlds/[id]/route.ts、src/contracts/preview.ts、scripts/ci-db.mjs、.github/workflows/verify.yml、package.json、tests/**、db/migrations/0021_missing_indexes.sql、docs/**|本地 PostgreSQL 55432 与生产 Supabase（迁移 0021）|2026-09-24T03:25Z：已完成；部署构建报 ERROR，已用后续提交重新触发并复核|
 |D-14|dsh-main-20260923|I / 单人|主登记目录|src/modules/identity/**、src/server/services.ts、src/app/api/v1/session/route.ts、db/migrations/0020_guest_limits_by_caller.sql、tests/**、docs/task-reports/D-14.md|本地 PostgreSQL 55432 与生产 Supabase（迁移 0020）|2026-09-24T03:10Z：已完成并上线，生产实测通过|
@@ -351,6 +353,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务|执行/验收人|结果与证据|完成日期|
 |---|---|---|---|
+|D-17|dsh-main-20260923 / 自审（生产库核对）|Phase 1 记忆接线 + 修正/遗忘 API + 修复运行角色函数权限回归；迁移 0024/0025 已上生产；152 单元 + 21 真实库测试通过；[报告](task-reports/D-17.md)|2026-09-24|
 |D-16|dsh-main-20260923 / 自审（生产库核对）|Phase 0 执行层：outbox 消费者 + 媒体 handler + 回合索图接线；生产实测完整链路（派发 submitted → 任务 queued → 执行后诚实失败，0 假图）；并修复媒体 scope 契约误当 uuid 的生产 bug；[报告](task-reports/D-16.md)|2026-09-24|
 |文档|dsh-main-20260923 / 自审|整合 Agent 编排设计：[AGENT_ARCHITECTURE.md](AGENT_ARCHITECTURE.md)（6 个模型 Agent + 2 个引擎的名册与调用契约、分期规划映射到 L-04/W-04/L-03/W-02/W-03/AUD-03/M-01..M-03/G-04/G-05、四项待产品决策与推荐默认值、已核实的差距清单）|2026-09-24|
 |D-15|dsh-main-20260923 / 自审|一批整改：交付门槛+CI、Worker drain、索引与 N+1、非法 ID 404；117 单元 + 17 真实库测试通过；迁移 0021 已上生产；[报告](task-reports/D-15.md)|2026-09-24|
@@ -394,6 +397,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |H-05A|codex-main-01a0c73b / 自审|用户上传入相册、63项单元、3项真实库、手机/PC与构建通过；[报告](task-reports/H-05A.md)|2026-09-22|
 
 ### 变更日志
+
+- 2026-09-24：Phase 1 记忆接线（D-17）并上线。队列首次允许 `memory` 任务；新增共享记忆写入器，同作用域同类型的重复表述**合并来源**而不是重复沉淀；访谈抽取同时写入 profile 作用域记忆（来源为真实访谈消息，零额外模型调用）；新增 `POST/GET /api/v1/memory/records` 让用户纠正（旧记录 superseded）与遗忘（隐藏但不删除）。同时修复并发安全加固迁移造成的生产回归：`REVOKE ... FROM PUBLIC` 后两个运行角色都无法执行触发器与 CHECK 依赖函数（新访谈、记忆候选写入会失败），迁移 0025 显式补回普通辅助函数权限，并新增真实库守卫测试防止再次发生。152 单元 + 21 真实库测试通过。
 
 - 2026-09-24：完成 Phase 0 执行层并上线（D-16，AUD-03 待验收）。`outbox_jobs` 首次拥有消费者：迁移 0022 增加 attempts/lease/last_error 与按 owner 作用域的领取函数，派发以 job id 为幂等键、内因失败有限重试、确定性原因永久失败并记录原因；新增 `media` handler（媒体适配器未接入时**如实失败**，不造假图、请求保持 pending）；世界回合在索图意图下产生 `media.requested`；新增 owner 级 `POST /api/v1/outbox/drain`，消息路由提交后自动派发。生产实测链路打通，并修掉"媒体 scope 被当 uuid 校验"导致持久任务永不执行的契约 bug（新增真实库回归用例）。134 单元 + 18 真实库测试通过。
 
