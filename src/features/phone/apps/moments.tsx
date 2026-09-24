@@ -41,110 +41,93 @@ export function MomentsApp({ open }: PhoneAppContext) {
     data.contacts[3];
 
   const initialPosts: MomentPost[] = useMemo(() => {
-    return [
-      {
-        id: 'post-1',
-        authorId: leadActor?.id ?? 'lead',
-        authorName: leadActor?.name ?? '沈棠',
-        roleTitle: leadActor?.relationship ?? '策展人 · 伴侣',
-        content:
-          '老洋房开幕展布展 Day 3。南侧光庭在下午三点四十分的光线是最动人的。某人设计的采光天窗，确实把自然变成了最好的展品。初秋见。🍂',
-        timeLabel: '1小时前',
-        mediaLabel: '🖼️ 巨鹿路老洋房南光庭 · 采光天窗展陈（胶片预览）',
-        mediaType: 'photo',
-        likes: ['我', partnerActor?.name ?? '林见夏', elderActor?.name ?? '顾院长'],
-        comments: [
-          {
-            id: 'c-1',
-            authorName: partnerActor?.name ?? '林见夏',
-            text: '南侧钢构件收口今天也全部验收完了，周末必须大吃一顿！🎉',
-          },
-          {
-            id: 'c-2',
-            authorName: '我',
-            text: '采光角度是按夏至到秋分的日照轨迹测算过的，辛苦策展大师。☕',
-          },
-        ],
-      },
-      {
-        id: 'post-2',
-        authorId: partnerActor?.id ?? 'partner',
-        authorName: partnerActor?.name ?? '林见夏',
-        roleTitle: partnerActor?.relationship ?? '工作室合伙人',
-        content:
-          '第三批定制水刷石打样到场！经过六次调色配比，终于还原了老洋房1930年代的水刷石斑驳骨料质感。匠人师傅们辛苦了，我们离正式交付又近了一大步！💪',
+    if (!data.contacts.length) return [];
+    const firstActor = data.contacts[0];
+    const secondActor = data.contacts[1];
+    const thirdActor = data.contacts[2];
+    const topNote = data.notes[0];
+    const topPhoto = data.photos[0];
+
+    const result: MomentPost[] = [];
+
+    if (firstActor) {
+      result.push({
+        id: `post-${firstActor.id}`,
+        authorId: firstActor.id,
+        authorName: firstActor.name,
+        roleTitle: firstActor.relationship,
+        content: firstActor.summary
+          ? `${firstActor.summary}。新的一天，继续推进。`
+          : `记录一下近况：一步步按计划进行，期待接下来的新阶段。✨`,
+        timeLabel: '2小时前',
+        mediaLabel: topPhoto ? `🖼️ ${topPhoto.title}` : undefined,
+        mediaType: topPhoto ? 'photo' : undefined,
+        likes: ['我', secondActor?.name].filter(Boolean) as string[],
+        comments: secondActor
+          ? [
+              {
+                id: 'c-1',
+                authorName: secondActor.name,
+                text: '大家一起加油！💪',
+              },
+            ]
+          : [],
+      });
+    }
+
+    if (secondActor) {
+      result.push({
+        id: `post-${secondActor.id}`,
+        authorId: secondActor.id,
+        authorName: secondActor.name,
+        roleTitle: secondActor.relationship,
+        content: secondActor.summary
+          ? `${secondActor.summary}。和大家合作总是充满动力！`
+          : `忙碌而充实的日常，保持专注与热爱。🌿`,
         timeLabel: '昨天 17:20',
-        mediaLabel: '📐 水刷石样块与施工收口节点图纸',
-        mediaType: 'photo',
-        likes: ['我', leadActor?.name ?? '沈棠', friendActor?.name ?? '周游'],
-        comments: [
-          {
-            id: 'c-3',
-            authorName: elderActor?.name ?? '顾院长',
-            text: '材料肌理见真章，独立实践能沉下心磨骨料，很欣慰。',
-          },
-          {
-            id: 'c-4',
-            authorName: partnerActor?.name ?? '林见夏',
-            replyTo: elderActor?.name ?? '顾院长',
-            text: '谢谢院长鼓励！下周布展完毕请您来品茶指导！',
-          },
-        ],
-      },
-      {
-        id: 'post-3',
-        authorId: friendActor?.id ?? 'friend',
-        authorName: friendActor?.name ?? '周游',
-        roleTitle: friendActor?.relationship ?? '独立摄影师 · 好友',
-        content:
-          '巨鹿路初秋扫街。顺道去孟哲和见夏的工作室转了一圈，偷偷拍了两个人对着图纸抓耳挠腮的瞬间。胶片冲出来了，成片绝了。📷',
+        likes: ['我', firstActor?.name].filter(Boolean) as string[],
+        comments: [],
+      });
+    }
+
+    if (thirdActor) {
+      result.push({
+        id: `post-${thirdActor.id}`,
+        authorId: thirdActor.id,
+        authorName: thirdActor.name,
+        roleTitle: thirdActor.relationship,
+        content: thirdActor.summary
+          ? `${thirdActor.summary}`
+          : `今天天气不错，顺路忙完手头的事，准备开启新的安排。📷`,
         timeLabel: '3天前',
-        mediaLabel: '🎞️ 禄来双反胶片机试卷 · 老洋房侧影',
-        mediaType: 'photo',
-        likes: ['我', leadActor?.name ?? '沈棠'],
-        comments: [
-          {
-            id: 'c-5',
-            authorName: '我',
-            text: '底片先给我审核，不帅的直接销毁哈哈。',
-          },
-          {
-            id: 'c-6',
-            authorName: friendActor?.name ?? '周游',
-            text: '放心，特意给你加了建筑师专注光环！',
-          },
-        ],
-      },
-      {
-        id: 'post-4',
+        likes: ['我', firstActor?.name].filter(Boolean) as string[],
+        comments: [],
+      });
+    }
+
+    if (topNote) {
+      result.push({
+        id: 'post-self',
         authorId: 'self',
         authorName: '我',
-        roleTitle: '独立主创建筑师',
-        content:
-          '从图纸到实景，三年独立实践，巨鹿路768号终于迎来了它的第一个秋天。感谢所有同行的人。🍁',
+        roleTitle: '我的动态',
+        content: topNote.text.slice(0, 140),
         timeLabel: '4天前',
-        mediaLabel: '📍 上海市静安区巨鹿路768号 · 老洋房工作室',
-        mediaType: 'location',
-        likes: [
-          leadActor?.name ?? '沈棠',
-          partnerActor?.name ?? '林见夏',
-          elderActor?.name ?? '顾院长',
-          friendActor?.name ?? '周游',
-        ],
-        comments: [
-          {
-            id: 'c-7',
-            authorName: leadActor?.name ?? '沈棠',
-            text: '一路看着你走过来，为你骄傲。❤️',
-          },
-        ],
-      },
-    ];
-  }, [leadActor, partnerActor, elderActor, friendActor]);
+        mediaLabel: `📝 ${topNote.title}`,
+        mediaType: 'article',
+        likes: [firstActor?.name, secondActor?.name].filter(Boolean) as string[],
+        comments: [],
+      });
+    }
+
+    return result;
+  }, [data.contacts, data.notes, data.photos]);
+
+  const storageKey = `pl_moments_posts_${data.contacts[0]?.id || 'default'}`;
 
   const [posts, setPosts] = useState<MomentPost[]>(() => {
     try {
-      const saved = localStorage.getItem('pl_moments_posts');
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;

@@ -296,29 +296,37 @@ export function ProposalThread({
         <span>你的另一种可能 · 平行分支</span>
       </div>
 
-      {/* 进度与失败必须在任何状态下都看得见：已经有世界时也不能只显示"进入体验" */}
-      {stage !== 'idle' && (
-        <div className="proposal-invitation">
-          <p role="status">{stage === 'entering' ? '正在进入…' : STAGE_TEXT[stage]}</p>
+      {stage !== 'idle' ? (
+        <div className="proposal-invitation" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              marginBottom: 10,
+            }}
+          >
+            <span className="spinner" style={{ width: 20, height: 20 }} />
+            <span style={{ fontWeight: 600, fontSize: '16px', color: '#1e293b' }}>
+              {stage === 'entering' ? '正在进入全新平行世界…' : STAGE_TEXT[stage]}
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+            系统正在根据你刚才聊到的想法推演并构筑全新世界分支，请稍候片刻…
+          </p>
         </div>
-      )}
-      {error && (
+      ) : error ? (
         <div className="proposal-invitation">
           <p role="alert">{error}</p>
-          <Button variant="secondary" onClick={() => void discoverBranch()}>
+          <Button variant="secondary" onClick={() => void handleCreateFromConversation()}>
             <Icon name="refresh" size={16} />
             重试
           </Button>
         </div>
-      )}
-
-      {entry.kind === 'open-ready' ? (
+      ) : entry.kind === 'open-ready' ? (
         <div className="proposal-invitation">
-          <p>
-            {readyBuild
-              ? '你已有一个平行世界正在运行。你也可以根据刚才的对话，直接推演并构筑全新的平行分支！'
-              : '这段人生已经生成好了，可以随时进入手机开始体验。'}
-          </p>
+          <p>你可以根据刚才的对话构筑一个全新的人生分支；也可以进入已有的平行世界继续体验。</p>
           <div
             className="proposal-actions"
             style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}
@@ -328,14 +336,12 @@ export function ProposalThread({
               disabled={busy}
               onClick={() => void handleCreateFromConversation()}
             >
-              {busy
-                ? STAGE_TEXT[stage as keyof typeof STAGE_TEXT] || '处理中…'
-                : '✨ 从当前对话构筑全新分支'}
-              {!busy && <Icon name="spark" size={16} />}
+              ✨ 从当前对话构筑全新分支
+              <Icon name="spark" size={16} />
             </Button>
             {readyBuild && (
               <Button variant="secondary" disabled={busy} onClick={handleOpenReadyWorld}>
-                {stage === 'entering' ? '正在打开手机…' : '📱 进入已有平行世界'}
+                📱 进入已有平行世界
                 <Icon name="arrow" size={16} />
               </Button>
             )}
@@ -449,8 +455,8 @@ export function ProposalThread({
                   disabled={busy}
                   onClick={() => void handleCreateFromConversation()}
                 >
-                  {stage === 'discovering' ? STAGE_TEXT.discovering : '✨ 从当前对话构筑全新分支'}
-                  {!busy && <Icon name="spark" size={16} />}
+                  ✨ 从当前对话构筑全新分支
+                  <Icon name="spark" size={16} />
                 </Button>
                 {readyBuild && (
                   <Button variant="secondary" disabled={busy} onClick={handleOpenReadyWorld}>

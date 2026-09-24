@@ -1136,71 +1136,19 @@ export function WorldPhoneSurface({
                     <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>›</span>
                   </div>
                 )}
-
-                {/* 朋友圈最新动态胶囊 */}
-                <div
-                  onClick={() => open('moments')}
-                  role="button"
-                  tabIndex={0}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.88)',
-                    backdropFilter: 'blur(16px)',
-                    borderRadius: '12px',
-                    padding: '6px 10px',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                    border: '1px solid rgba(255, 255, 255, 0.6)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '12px',
-                  }}
-                >
-                  <span style={{ fontSize: '13px' }}>📷</span>
-                  <span style={{ fontWeight: 600, color: '#0f172a', flexShrink: 0 }}>朋友圈:</span>
-                  <span
-                    style={{
-                      flex: 1,
-                      color: '#475569',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                    title="沈棠：老洋房开幕展布展 Day 3。南侧光庭在下午三点四十分..."
-                  >
-                    沈棠: 老洋房开幕展布展 Day 3，南侧光庭光线...
-                  </span>
-                  <span
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: '#ef4444',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>›</span>
-                </div>
               </div>
 
-              {/* 桌面图标区（4个常用应用） */}
+              {/* 桌面图标区 */}
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: '12px 6px',
                   padding: '4px 0 2px',
                   flexShrink: 0,
                 }}
               >
                 {[
-                  {
-                    app: 'moments' as const,
-                    name: '朋友圈',
-                    badge: undefined,
-                    icon: 'moments' as const,
-                    onClick: () => open('moments'),
-                  },
                   {
                     app: 'timeline' as const,
                     name: '人生轨迹',
@@ -1258,9 +1206,7 @@ export function WorldPhoneSurface({
                         className={`${styles.appIcon} ${styles[item.app]}`}
                         style={{ width: '52px', height: '52px' }}
                       >
-                        {item.app === 'moments' ? (
-                          <span style={{ fontSize: '26px' }}>📷</span>
-                        ) : item.app === 'timeline' ? (
+                        {item.app === 'timeline' ? (
                           <span style={{ fontSize: '26px' }}>⏳</span>
                         ) : item.app === 'director' ? (
                           <span style={{ fontSize: '26px' }}>🎬</span>
