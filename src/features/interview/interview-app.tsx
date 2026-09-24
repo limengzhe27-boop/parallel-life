@@ -27,6 +27,35 @@ const categories: Record<ProfileFact['category'], string> = {
 };
 const errorMessage = (error: unknown) =>
   error instanceof ApiFailure ? error.message : '暂时没有完成，内容已保留，请再试一次。';
+
+function renderMessageContent(text: string) {
+  const match = text.match(/\[照片:([^\]]+)\]/);
+  if (match) {
+    const imageUrl = match[1];
+    const remainingText = text.replace(/\[照片:[^\]]+\]\s*/, '').trim();
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <a href={imageUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block' }}>
+          <img
+            src={imageUrl}
+            alt="分享的照片"
+            style={{
+              maxWidth: '220px',
+              maxHeight: '220px',
+              borderRadius: '10px',
+              objectFit: 'cover',
+              display: 'block',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              border: '1px solid rgba(0,0,0,0.06)',
+            }}
+          />
+        </a>
+        {remainingText && <span>{remainingText}</span>}
+      </div>
+    );
+  }
+  return text;
+}
 export function InterviewApp() {
   const [client] = useState(() => new LifeClient()),
     [data, setData] = useState<InterviewWorkspace | null>(null),
@@ -40,6 +69,7 @@ export function InterviewApp() {
     [sending, setSending] = useState(false),
     [saving, setSaving] = useState(false),
     [uploading, setUploading] = useState(false),
+    [uploadingChatPhoto, setUploadingChatPhoto] = useState(false),
     [branchCommand, setBranchCommand] = useState<{ at: number; intent: BranchIntent } | null>(null);
   const [editing, setEditing] = useState<{
     fact?: ProfileFact;
@@ -47,6 +77,7 @@ export function InterviewApp() {
   } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null),
     fileInput = useRef<HTMLInputElement>(null),
+    chatFileInput = useRef<HTMLInputElement>(null),
     end = useRef<HTMLDivElement>(null);
   const pending = useRef<InterviewSend | null>(null),
     retry = useRef<{ id: string; commandId: string } | null>(null);
@@ -170,10 +201,10 @@ export function InterviewApp() {
     if (data?.interview.messages.length)
       end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [data?.interview.messages.length, waiting]);
-  async function send(event?: FormEvent) {
+  async function send(event?: FormEvent, textOverride?: string) {
     event?.preventDefault();
-    if (!data || !draft.trim() || sending || waiting) return;
-    const text = draft.trim();
+    const text = (textOverride ?? draft).trim();
+    if (!data || !text || sending || waiting) return;
     const request =
       pending.current?.text === text
         ? pending.current
@@ -189,12 +220,14 @@ export function InterviewApp() {
     setStreamingText('');
     setError('');
     // 1. 立即清空输入框并聚焦
-    setDraft('');
-    if (data.profile?.id) {
-      try {
-        sessionStorage.removeItem(`pl-draft:${data.profile.id}`);
-      } catch {
-        /* No persistent draft storage. */
+    if (!textOverride) {
+      setDraft('');
+      if (data.profile?.id) {
+        try {
+          sessionStorage.removeItem(`pl-draft:${data.profile.id}`);
+        } catch {
+          /* No persistent draft storage. */
+        }
       }
     }
 
@@ -241,6 +274,38 @@ export function InterviewApp() {
     } finally {
       setSending(false);
       input.current?.focus();
+    }
+  }
+
+  async function uploadChatPhoto(file: File) {
+    if (!data || sending || waiting || uploadingChatPhoto) return;
+    setUploadingChatPhoto(true);
+    setError('');
+    try {
+      if (file.size > 4 * 1024 * 1024) throw new ApiFailure('INVALID_INPUT', '照片请小于 4MB。');
+      const asset = await client.upload(file);
+      // 同时写入档案的参考照片
+      try {
+        const current = await refresh();
+        const profile = await client.editProfile({
+          expectedVersion: current.profile.version,
+          operation: { kind: 'add-reference-photo', assetId: asset.id },
+        });
+        setData((value) => (value ? { ...value, profile } : value));
+      } catch {
+        /* 静默容错 */
+      }
+
+      const userText = draft.trim();
+      const photoTag = `[照片:/api/v1/assets/${asset.id}]`;
+      const fullText = userText ? `${photoTag}\n${userText}` : `${photoTag}\n我分享了一张生活照片。`;
+      setDraft('');
+      await send(undefined, fullText);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setUploadingChatPhoto(false);
+      if (chatFileInput.current) chatFileInput.current.value = '';
     }
   }
   async function edit(operation: ProfileEdit['operation']) {
@@ -376,13 +441,24 @@ export function InterviewApp() {
               </Notice>
             )}
             <form className="composer" onSubmit={send}>
+              <input
+                ref={chatFileInput}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                aria-label="上传照片并发送"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadChatPhoto(file);
+                }}
+              />
               <textarea
                 ref={input}
                 value={draft}
                 maxLength={4000}
                 onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
-                placeholder="说点什么…"
+                placeholder="说点什么，也可点击下方发送照片…"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -396,14 +472,42 @@ export function InterviewApp() {
                   <Icon name="lock" size={12} />按 Enter 发送 · Shift + Enter 换行
                   {draft.length > 3000 && ` · ${draft.length}/4000`}
                 </span>
-                <Button
-                  type="submit"
-                  aria-label="发送消息"
-                  disabled={!data || !draft.trim() || sending || waiting}
-                >
-                  {sending ? <span className="spinner" /> : <Icon name="send" size={18} />}
-                  <span>发送</span>
-                </Button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    title="上传照片分享给人生伙伴并存入档案"
+                    aria-label="发送照片"
+                    disabled={!data || sending || waiting || uploadingChatPhoto}
+                    onClick={() => chatFileInput.current?.click()}
+                    style={{
+                      background: 'none',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '13px',
+                      color: '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {uploadingChatPhoto ? (
+                      <span className="spinner" style={{ width: '14px', height: '14px' }} />
+                    ) : (
+                      <Icon name="photo" size={15} />
+                    )}
+                    <span>照片</span>
+                  </button>
+                  <Button
+                    type="submit"
+                    aria-label="发送消息"
+                    disabled={!data || !draft.trim() || sending || waiting || uploadingChatPhoto}
+                  >
+                    {sending ? <span className="spinner" /> : <Icon name="send" size={18} />}
+                    <span>发送</span>
+                  </Button>
+                </div>
               </div>
             </form>
             <p className="saved-hint">只聊你愿意分享的事</p>
@@ -441,7 +545,7 @@ export function InterviewApp() {
                       })}
                     </time>
                   </div>
-                  <div className="message-text">{message.text}</div>
+                  <div className="message-text">{renderMessageContent(message.text)}</div>
                 </div>
               </div>
             ))}

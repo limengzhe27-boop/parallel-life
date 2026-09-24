@@ -24,6 +24,17 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 对话直传生活照入库展示 & 对话个人信息（生日/姓名）精准结构化回填表单 & 相册上传强化
+
+|项目|内容|
+|---|---|
+|交付内容|1. **对话过程直接上传照片并沉淀底模（`interview-app.tsx` & `interview-planner.ts`）**：解决此前对话无法传图的缺陷。在访谈聊天输入框左下侧新增【📷 照片】上传按钮，支持直接选择本地 JPG/PNG/WebP 生活照或肖像底模；上传后自动调起资产存储服务并原子写入个人档案参考图池（`add-reference-photo`），聊天列表中即时渲染高质量图片预览卡片（点击可全屏查看）；提示词新增温情回应指导，引导向导自然感知用户分享的生活瞬间；<br>2. **对话提及个人信息（如生日、姓名、城市等）精准结构化回填资料卡片（`interview-planner.ts`、`profile-repository.ts`、`interview-handler.ts`、`interview-repository.ts`）**：根本解决此前“对话说明生日后，生日选择器不会选中，而是作为文字稿堆在下方资料里”的体验 bug。在 `InterviewProposalSchema` 扩展 `basicInfo` 结构化对象，并在后端增加规则正则双重提炼；实现 `applyBasicInfoInTransaction` 并在流式与异步 Worker 统一挂载，将用户提及的生日（自动格式化为 `YYYY-MM-DD`）、姓名等直接写入并合并到 `个人资料\n` 的 identity fact 中，使前端 `<input type="date">` 生日选择器与姓名等输入框直接自动选中与回填；同时过滤掉 candidate facts 中重复的生日文本，彻底根除在下方杂乱文字稿中重复平铺的现象；<br>3. **手机相册 App 空态与顶栏上传强化（`photos.tsx`）**：在相册空态正中央新增大尺寸醒目的【➕ 上传生活照片】圆角按钮，点击直接调起本地文件选择，上传后即刻存入当前平行人生的生活回忆相册；<br>4. **测试与构建保障**：182 项测试全量通过，Next.js 生产优化构建一次性成功。|
+|发布前检查|`npm run check` 182 项测试全绿通过，`npm run build` 成功|
+|提交|待提交（见 git commit）|
+|部署|Vercel Production（公网别名 `https://parallel-life-nu.vercel.app`）|
+|迁移应用|无须新增 SQL 迁移|
+|线上实测|公网 `https://parallel-life-nu.vercel.app` 生产部署实测。|
+
 ### 2026-09-24 · 通讯录移除冗余顶部功能行 & 底部 4-TabBar 吸底固定与联系人独立平滑滚动
 
 |项目|内容|

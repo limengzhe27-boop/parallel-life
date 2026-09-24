@@ -103,6 +103,110 @@ export async function applyConfirmedCandidateInTransaction(
   return validated;
 }
 
+export async function applyBasicInfoInTransaction(
+  sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
+  ownerId: string,
+  basicInfo: {
+    name?: string;
+    birthdate?: string;
+    birthTime?: string;
+    location?: string;
+    occupation?: string;
+    hometown?: string;
+  },
+  sourceMessageIds: string[] = [],
+  now = new Date().toISOString(),
+) {
+  const row = (
+    await sql.query(
+      'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',
+      [ownerId],
+    )
+  ).rows[0];
+  if (!row) throw new TaskError('NOT_FOUND');
+  const profile = ProfileSchema.parse({ ...row.document, version: Number(row.version) });
+
+  const existingFact = profile.facts.find(
+    (f) => f.category === 'identity' && f.status !== 'rejected' && f.value.startsWith('个人资料\n'),
+  );
+
+  const fieldLabels: [string, string | undefined][] = [
+    ['姓名', basicInfo.name],
+    ['生日', basicInfo.birthdate],
+    ['出生时间', basicInfo.birthTime],
+    ['所在城市', basicInfo.location],
+    ['职业', basicInfo.occupation],
+    ['家乡', basicInfo.hometown],
+  ];
+
+  // 解析现有值
+  const currentValues: Record<string, string> = {};
+  if (existingFact) {
+    const lines = existingFact.value.split('\n');
+    for (const line of lines) {
+      const colonIdx = line.indexOf('：');
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim();
+        const val = line.slice(colonIdx + 1).trim();
+        if (key && val) currentValues[key] = val;
+      }
+    }
+  }
+
+  // 用新值覆盖或追加
+  let hasChange = false;
+  for (const [label, newVal] of fieldLabels) {
+    if (newVal && newVal.trim() && currentValues[label] !== newVal.trim()) {
+      currentValues[label] = newVal.trim();
+      hasChange = true;
+    }
+  }
+
+  if (!hasChange) return profile;
+
+  const standardLabels = ['姓名', '生日', '出生时间', '所在城市', '职业', '家乡'];
+  const newLines = ['个人资料'];
+  for (const label of standardLabels) {
+    if (currentValues[label]) {
+      newLines.push(`${label}：${currentValues[label]}`);
+    }
+  }
+  // 保留其他可能的自定义标签
+  for (const [k, v] of Object.entries(currentValues)) {
+    if (!standardLabels.includes(k) && v) {
+      newLines.push(`${k}：${v}`);
+    }
+  }
+  const newValue = newLines.join('\n');
+
+  if (existingFact) {
+    existingFact.value = newValue;
+    existingFact.status = 'confirmed';
+    existingFact.updatedAt = now;
+    existingFact.sourceMessageIds = [
+      ...new Set([...existingFact.sourceMessageIds, ...sourceMessageIds]),
+    ].slice(0, 20);
+  } else {
+    profile.facts.push({
+      id: randomUUID(),
+      category: 'identity',
+      value: newValue,
+      status: 'confirmed',
+      sourceMessageIds: sourceMessageIds.slice(0, 20),
+      updatedAt: now,
+    });
+  }
+
+  profile.version = Number(row.version) + 1;
+  profile.updatedAt = now;
+  const validated = ProfileSchema.parse(profile);
+  await sql.query(
+    'UPDATE parallel_life.profiles SET version=$2,document=$3,updated_at=now() WHERE owner_id=$1',
+    [ownerId, profile.version, validated],
+  );
+  return validated;
+}
+
 export class ProfileRepository {
   private db: PostgresDatabase;
   constructor(db: PostgresDatabase) {

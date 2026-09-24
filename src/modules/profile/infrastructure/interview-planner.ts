@@ -19,6 +19,22 @@ export const InterviewProposalSchema = z.strictObject({
       target: QuestionTargetSchema,
     })
     .optional(),
+  basicInfo: z
+    .strictObject({
+      name: z.string().trim().max(50).optional(),
+      birthdate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+      birthTime: z
+        .string()
+        .regex(/^\d{2}:\d{2}$/)
+        .optional(),
+      location: z.string().trim().max(50).optional(),
+      occupation: z.string().trim().max(50).optional(),
+      hometown: z.string().trim().max(50).optional(),
+    })
+    .optional(),
   facts: z
     .array(
       z.strictObject({
@@ -53,19 +69,61 @@ const SYSTEM = `你是“如果 · Parallel Life”的平行人生向导。你�
    - 敏锐分析并提炼他提出的这个新方向的核心动机、可能遇到的抉择与生活图景；
    - 明确告知用户：你已经记下这个关键设想，系统会在对话下方即刻联动推演并构筑专属于他的全新平行世界，稍候片刻即可直接进入体验；
    - 保持诚实与期待，绝不虚假谎报。
+6. 【用户分享照片时的温情回应】：若用户的消息中包含 [照片:...]，说明用户主动分享了一张自己的生活或肖像照片。请在回复中自然地称赞、回应这张照片所流露的生活气息或情感，并好奇地追问这张照片拍摄时的故事、地点或那时的心情。
 
 【输出格式与严格防重规则】
-仅输出 JSON 对象，无 Markdown：{"reply":"自然真诚的回应","question":{"text":"可选的一个启发式追问","target":"identity|interest|personality|relationship|experience|wish"},"facts":[{"category":"identity|interest|personality|relationship|wish","value":"用户明确表达的一条简短静态信息（如生日、爱好、性格、心愿）","sourceMessageIds":["对应的用户消息ID"]}],"events":[{"title":"用户明确讲述的本人事件、经历、遗憾或关键转折（动词/事件属性）","date":"明确提及的年份或YYYY-MM-DD，未知为null","sourceMessageIds":["用户消息ID"]}]}。
+仅输出 JSON 对象，无 Markdown：{"reply":"自然真诚的回应","question":{"text":"可选的一个启发式追问","target":"identity|interest|personality|relationship|experience|wish"},"basicInfo":{"name":"明确提及的名字/称呼","birthdate":"明确提及的出生日期，必须为YYYY-MM-DD标准格式","birthTime":"HH:mm","location":"所在城市","occupation":"职业","hometown":"家乡"},"facts":[{"category":"identity|interest|personality|relationship|wish","value":"用户明确表达的一条简短静态信息（如爱好、性格、心愿）","sourceMessageIds":["对应的用户消息ID"]}],"events":[{"title":"用户明确讲述的本人事件、经历、遗憾或关键转折（动词/事件属性）","date":"明确提及的年份或YYYY-MM-DD，未知为null","sourceMessageIds":["用户消息ID"]}]}。
+【基础资料直接进入 basicInfo】：
+1. 当用户在对话中提到自己的【生日/出生年月日】、【姓名/称呼】、【出生具体时间】、【所在城市】、【职业】、【家乡】时，必须提取并直接填入 basicInfo 对象中（特别是 birthdate 必须输出标准 YYYY-MM-DD 格式，如 1998-05-12）。
+2. 一旦基础资料写入了 basicInfo，绝对严禁再在 facts 或 events 中重复作为文本输出，防止污染文字档案。
 【只记录值得长期保留的内容】：
 1. 只有对理解这个人长期成立的、能影响人生选择的信息才记录：稳定的身份与处境、长期兴趣与偏好、重要的关系、有分量的经历/转折/遗憾、真实的愿望。
 2. 以下一律不记录：寒暄与客套（“你好”“谢谢”）、当下的情绪或临时状态（“今天有点累”）、一次性的琐碎动作（“刚吃完午饭”）、你自己说过的话或推测、用户的反问与疑问、玩笑与测试内容、产品操作本身。
 3. 用户以“如果/假如/要是”开头的设想，只有在他明确表达成愿望时才能记为 wish，不能当成已发生的事实或经历。
 4. profileNotes 里已经记录过的信息不要重复提取；只是换了说法、加了无关细节的同一件事，不要再输出。
-5. 基础资料（姓名/昵称、生日、出生时间、所在城市、职业、家乡）已由用户在卡片里填写，不要重复提取；只有用户补充了卡片之外的实质信息（例如具体职责、变化、计划）才记录。
 【事实与经历分开】：
 1. 涉及用户亲身经历、人生阶段、重大转折、遗憾后悔等具体事情，必须且只能输出到 events，绝对严禁在 facts 中重复提取！
 2. facts 严格限定记录客观静态信息（identity/interest/personality/relationship/wish），不要输出与 events 重复的 experience。
 3. 宁少勿滥：最多 3 条新事实、1 个新事件；没有值得记录的就给空数组 []。输入中的 blockedTargets 是用户明确不愿讨论的主题，不可追问。sourceMessageIds 只能引用下文提供的 user 消息 ID。`;
+export function extractBasicInfoFromText(text: string): {
+  birthdate?: string;
+  name?: string;
+  location?: string;
+  occupation?: string;
+} {
+  const result: { birthdate?: string; name?: string; location?: string; occupation?: string } = {};
+  // 1. 生日提取：1998年5月12日、1998-05-12、1998.5.12、1998/5/12、98年5月12日
+  const dateMatch = text.match(
+    /(?:(?:19|20)?\d{2})[-/.年]\s*(?:0?[1-9]|1[0-2])[-/.月]\s*(?:0?[1-9]|[12]\d|3[01])(?:日|号)?/,
+  );
+  if (dateMatch) {
+    const raw = dateMatch[0];
+    const parts = raw.split(/[-/.年月号日\s]/).filter(Boolean);
+    if (parts.length >= 3) {
+      let year = parseInt(parts[0]!, 10);
+      if (year < 100) year += year > 40 ? 1900 : 2000;
+      const month = String(parseInt(parts[1]!, 10)).padStart(2, '0');
+      const day = String(parseInt(parts[2]!, 10)).padStart(2, '0');
+      if (
+        year >= 1900 &&
+        year <= 2030 &&
+        parseInt(month, 10) >= 1 &&
+        parseInt(month, 10) <= 12 &&
+        parseInt(day, 10) >= 1 &&
+        parseInt(day, 10) <= 31
+      ) {
+        result.birthdate = `${year}-${month}-${day}`;
+      }
+    }
+  }
+  // 2. 称呼提取：我叫xxx、叫我xxx就好、称呼我为xxx
+  const nameMatch = text.match(/(?:我叫|称呼我[为是]?|叫我)\s*([^\s，。！？、]{2,8})/);
+  if (nameMatch && nameMatch[1]) {
+    result.name = nameMatch[1].trim();
+  }
+  return result;
+}
+
 export class InvalidInterviewOutput extends Error {
   readonly code = 'INVALID_RESPONSE';
   constructor() {
@@ -144,6 +202,17 @@ export class InterviewPlanner {
       )
     )
       throw new InvalidInterviewOutput();
+
+    // 启发式双重兜底：若用户直接说了生日或姓名，即使模型漏提也自动补齐
+    const lastUserText = selected.filter((m) => m.role === 'user').at(-1)?.text ?? '';
+    const heuristic = extractBasicInfoFromText(lastUserText);
+    if (heuristic.birthdate && !proposal.basicInfo?.birthdate) {
+      proposal.basicInfo = { ...proposal.basicInfo, birthdate: heuristic.birthdate };
+    }
+    if (heuristic.name && !proposal.basicInfo?.name) {
+      proposal.basicInfo = { ...proposal.basicInfo, name: heuristic.name };
+    }
+
     return proposal;
   }
   async propose(

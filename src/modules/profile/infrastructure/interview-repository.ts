@@ -15,7 +15,11 @@ import {
 } from '../../tasks/infrastructure/task-repository.ts';
 import { consumeLimit } from '../../storage/infrastructure/limits.ts';
 import type { InterviewPlanner } from './interview-planner.ts';
-import { applyConfirmedCandidateInTransaction, isSimilarText } from './profile-repository.ts';
+import {
+  applyConfirmedCandidateInTransaction,
+  applyBasicInfoInTransaction,
+  isSimilarText,
+} from './profile-repository.ts';
 import { dedupeBatch, rejectReason } from '../application/fact-quality.ts';
 import {
   createQuestionInTransaction,
@@ -330,6 +334,11 @@ export class InterviewRepository {
             sourceMessageIds: event.sourceMessageIds,
           })),
         ];
+        if (proposal.basicInfo && Object.values(proposal.basicInfo).some(Boolean)) {
+          await applyBasicInfoInTransaction(sql, ownerId, proposal.basicInfo, [
+            prepared.interview.messages.at(-1)?.id ?? '',
+          ]);
+        }
         /* Same policy as the worker handler: refine, drop noise and near-duplicates,
            then write straight into the real profile. No approval step. */
         const existingProfile = prepared.profile;
@@ -338,6 +347,22 @@ export class InterviewRepository {
         )?.value;
         const kept = dedupeBatch(candidates, isSimilarText);
         for (const candidate of kept) {
+          if (
+            proposal.basicInfo?.birthdate &&
+            (candidate.text.includes(proposal.basicInfo.birthdate) ||
+              candidate.text.includes('出生') ||
+              candidate.text.includes('生日'))
+          ) {
+            continue;
+          }
+          if (
+            proposal.basicInfo?.name &&
+            (candidate.text.includes(proposal.basicInfo.name) ||
+              candidate.text.includes('名字叫') ||
+              candidate.text.includes('我叫'))
+          ) {
+            continue;
+          }
           const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
           const sources = await sql.query(
             `SELECT id FROM parallel_life.interview_messages

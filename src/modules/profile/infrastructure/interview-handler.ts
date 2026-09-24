@@ -15,7 +15,11 @@ import {
   openQuestionInTransaction,
   questionTargetBlockedInTransaction,
 } from '../../memory/infrastructure/question-repository.ts';
-import { applyConfirmedCandidateInTransaction, isSimilarText } from './profile-repository.ts';
+import {
+  applyConfirmedCandidateInTransaction,
+  applyBasicInfoInTransaction,
+  isSimilarText,
+} from './profile-repository.ts';
 import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
 import { dedupeBatch, rejectReason } from '../application/fact-quality.ts';
 const Input = z.strictObject({
@@ -100,6 +104,13 @@ export function interviewHandler(
         isSimilarText,
       );
 
+      // 2.5 基础资料写入：若用户提到了生日、姓名、城市等，直接更新到个人资料卡片结构化字段中
+      if (proposal.basicInfo && Object.values(proposal.basicInfo).some(Boolean)) {
+        await applyBasicInfoInTransaction(sql, lease.ownerId, proposal.basicInfo, [
+          input.inputMessageId,
+        ]);
+      }
+
       // 3. 提炼后直接写入真实档案（confirmed）：用户要的是「聊完就沉淀好」，
       //    不再要求逐条采纳。去重与合并由 applyConfirmedCandidateInTransaction 完成，
       //    噪声（寒暄、情绪、AI 自己的话、基础资料重复）由 rejectReason 拦掉。
@@ -119,6 +130,22 @@ export function interviewHandler(
         sourceMessageIds: string[];
       }[] = [];
       for (const candidate of deduplicatedCandidates) {
+        // 如果候选内容只是基础资料（如生日、姓名），且已经写入了 basicInfo，直接跳过，防止生成重复文本稿
+        if (
+          proposal.basicInfo?.birthdate &&
+          (candidate.text.includes(proposal.basicInfo.birthdate) ||
+            candidate.text.includes('出生') ||
+            candidate.text.includes('生日'))
+        ) {
+          continue;
+        }
+        if (
+          proposal.basicInfo?.name &&
+          (candidate.text.includes(proposal.basicInfo.name) || candidate.text.startsWith('名字'))
+        ) {
+          continue;
+        }
+
         const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
         if (!(await hasUserSources(sql, lease.ownerId, input.interviewId, sourceMessageIds)))
           continue;

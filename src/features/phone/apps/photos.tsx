@@ -30,7 +30,15 @@ function PhotoImage({ photo, detail = false }: { photo: PhonePhoto; detail?: boo
     </div>
   );
 }
-function UploadPhoto() {
+function UploadPhoto({
+  label,
+  style,
+  className,
+}: {
+  label?: string;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
   const { actions, operations, run } = usePhoneApps();
   const input = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<{ file: File; signature: string } | null>(null);
@@ -44,7 +52,7 @@ function UploadPhoto() {
   }
   if (!actions.uploadPhoto) return null;
   return (
-    <div className={s.inline}>
+    <div className={className || s.inline}>
       <input
         ref={input}
         type="file"
@@ -71,10 +79,11 @@ function UploadPhoto() {
       />
       <button
         className={s.primary}
+        style={style}
         disabled={operation?.busy}
         onClick={() => input.current?.click()}
       >
-        {operation?.busy ? '正在保存照片…' : '添加照片'}
+        {operation?.busy ? '正在保存照片…' : label ?? '添加照片'}
       </button>
       {selected && operation?.status === 'failed' && operation.errorCode !== 'INVALID_INPUT' && (
         <button onClick={() => void upload(selected)}>重试上传</button>
@@ -517,14 +526,24 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
 
       {/* 生活胶卷网格 */}
       {filteredPhotos.length === 0 ? (
-        <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
-          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📷</div>
-          <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a', marginBottom: '6px' }}>
+        <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ fontSize: '44px', marginBottom: '12px' }}>📷</div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a', marginBottom: '6px' }}>
             相册暂无照片
           </div>
-          <div style={{ fontSize: '13px', lineHeight: 1.6, color: '#64748b', maxWidth: '280px', margin: '0 auto' }}>
-            随着与分支角色的互动推进或探索发展，更多生活瞬间将在此定格。你也可以点击右上角上传属于你的生活照片。
+          <div style={{ fontSize: '13px', lineHeight: 1.6, color: '#64748b', maxWidth: '280px', margin: '0 auto 18px' }}>
+            随着与分支角色的互动推进，更多生活瞬间将在此定格。你也可以现在上传照片作为本分支的生活记忆。
           </div>
+          <UploadPhoto
+            label="➕ 上传生活照片"
+            style={{
+              padding: '9px 20px',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              borderRadius: '20px',
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.2)',
+            }}
+          />
         </div>
       ) : (
         <div style={{ padding: '0 12px 16px' }}>
