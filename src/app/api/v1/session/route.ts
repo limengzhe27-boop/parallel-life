@@ -28,3 +28,19 @@ export async function POST(request: Request) {
     return response;
   });
 }
+
+export async function DELETE(request: Request) {
+  return endpoint(async () => {
+    const svc = getServices();
+    if (!sessionOriginAllowed(request, svc.origin)) throw new HttpError('UNAUTHORIZED', 401);
+    const response = json({ status: 'cleared' }, 200);
+    response.cookies.set('pl_session', '', {
+      httpOnly: true,
+      secure: svc.origin.startsWith('https:'),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+    });
+    return response;
+  });
+}

@@ -1,4 +1,5 @@
 import type { LifeEvent, ProfileFact } from '../../../contracts/api.ts';
+import { detectCrisisIntent } from '../../ai/safety-guard.ts';
 
 /**
  * Decides what an interview turn may write into the real profile.
@@ -72,6 +73,7 @@ export function rejectReason(
   existing: ExistingProfile,
 ): string | null {
   const text = input.text.trim();
+  if (detectCrisisIntent(text).isCrisis) return 'CRISIS_GUARDED';
   if (text.length < 4) return 'TOO_SHORT';
   if (QUESTION.test(text)) return 'QUESTION';
   if (META.test(text)) return 'ASSISTANT_WORDING';

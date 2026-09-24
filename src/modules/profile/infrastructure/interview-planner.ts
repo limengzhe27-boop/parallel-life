@@ -9,6 +9,7 @@ import {
 } from '../../../contracts/api.ts';
 import { QuestionTargetSchema } from '../../../contracts/memory.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
+import { detectCrisisIntent, CRISIS_RESPONSE } from '../../ai/safety-guard.ts';
 export const INTERVIEW_PROMPT_VERSION = 'interview-1.3.0';
 export const InterviewProposalSchema = z.strictObject({
   reply: z.string().trim().min(1).max(4000),
@@ -147,6 +148,17 @@ export class InterviewPlanner {
     signal?: AbortSignal,
     blockedTargets: string[] = [],
   ): Promise<InterviewProposal> {
+    const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1);
+    if (lastUserMessage) {
+      const crisis = detectCrisisIntent(lastUserMessage.text);
+      if (crisis.isCrisis) {
+        return {
+          reply: crisis.interventionText ?? CRISIS_RESPONSE,
+          facts: [],
+          events: [],
+        };
+      }
+    }
     const prepared = this.context(profile, messages, blockedTargets);
     return this.parse(await this.model.complete(prepared.context, signal), prepared.selected);
   }
@@ -157,6 +169,19 @@ export class InterviewPlanner {
     signal?: AbortSignal,
     blockedTargets: string[] = [],
   ): Promise<InterviewProposal> {
+    const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1);
+    if (lastUserMessage) {
+      const crisis = detectCrisisIntent(lastUserMessage.text);
+      if (crisis.isCrisis) {
+        const intervention = crisis.interventionText ?? CRISIS_RESPONSE;
+        onToken(intervention);
+        return {
+          reply: intervention,
+          facts: [],
+          events: [],
+        };
+      }
+    }
     const prepared = this.context(profile, messages, blockedTargets);
     let raw = '';
     let emittedReply = '';

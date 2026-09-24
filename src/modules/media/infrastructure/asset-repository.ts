@@ -7,6 +7,7 @@ import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts'
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
 import { AssetSchema, ProfileSchema } from '../../../contracts/api.ts';
 import type { AssetStore } from '../application/asset-store.ts';
+import { isValidImageMagicBytes } from '../domain/magic-bytes.ts';
 function publicAsset(row: Record<string, unknown>) {
   return AssetSchema.parse({
     id: row.id,
@@ -49,6 +50,7 @@ export class AssetRepository {
     album?: { worldId: string; commandId: string; title: string },
   ) {
     if (!bytes.length || bytes.length > 4 * 1024 * 1024) throw new TaskError('INVALID_INPUT');
+    if (!isValidImageMagicBytes(bytes)) throw new TaskError('INVALID_INPUT');
     let data: Buffer, width: number, height: number;
     try {
       const image = sharp(bytes, { limitInputPixels: 25_000_000, failOn: 'warning' }),

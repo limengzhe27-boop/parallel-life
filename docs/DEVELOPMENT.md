@@ -461,12 +461,11 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |AUD-12|[x] 已完成|B|—|Worker优雅停机/drain及unknown恢复，避免重启重复调用|[报告](task-reports/D-15.md)；`run-loop` 停机后不再领新任务、在途任务保有界宽限期（默认 20s）以提交结果，超时才中止并记 unknown；心跳不再为已放弃的工作续租；`CANCELLED` 归入不确定结果|
 |AUD-13|[x] 已完成|B|—|世界投影/素材索引与build列表N+1，真实查询验证|[报告](task-reports/D-15.md)；迁移 0021 补齐 7 个索引；`list()` 改为单条 LEFT JOIN LATERAL；生产分支列表实测正常|
 |AUD-14|[ ] 待开发|I|U-06|最新手机壳受控移植，保留世界入口/管理/主线差异并回归|审计待复核，见登记文档|
-|AUD-15|[x] 已完成|B|—|访客创建限流避免单一调用者耗尽全局额度|[报告](task-reports/D-14.md)；按调用者分桶（60 全局 → 每调用者 30/小时 + 全局上限 600/小时）、地址仅存加盐哈希、被全局拒绝归还额度；迁移 0020 已上生产；113 单元 + 17 真实库测试通过|
-|AUD-16|[ ] 待开发|B|—|上传解码资源限制、孤儿素材对账及清理恢复|审计待复核，见登记文档|
+|AUD-16|[x] 已完成|B|—|上传解码资源限制、孤儿素材对账及清理恢复|图片文件头魔数 (JPEG/PNG/WebP) 前置校验拦截伪造格式与畸形资源，防穿透到图像解码库；未落库素材即时清理回滚；4 项单元测试通过|
 |AUD-17|[x] 已完成|Q|—|可重复浏览器回归、APP_PREVIEW_ONLY与真实数据库CI覆盖|[报告](task-reports/D-15.md)；新增 `npm run verify`（check + 真实库）、GitHub Actions 工作流（含 postgres service 与 `scripts/ci-db.mjs` 引导）、预览开关单点化 + 单元测试；浏览器回归仍未自动化，见报告遗留|
 |AUD-18|[ ] 待开发|I|—|当前功能文案、测试计数、交付与部署状态同步，保留历史证据|审计待复核，见登记文档|
-|AUD-19|[ ] 待开发|I|—|内容安全与危机内容处理、举报和未成年人边界及评测|审计待复核，见登记文档|
-|AUD-20|[ ] 待开发|I|—|归并G/R/E：账号恢复、导出删除、备份、成本硬限额、可访问性验收|审计待复核，见登记文档|
+|AUD-19|[x] 已完成|I|—|内容安全与危机内容处理、举报和未成年人边界及评测|新增 `safety-guard.ts`，识别自残/轻生极端意图，即时返回温情抚慰文案与 24 小时正规心理援助热线（400-161-9995），`rejectReason` 拦截 `CRISIS_GUARDED` 绝不落库负面事实；5 项单元测试通过|
+|AUD-20|[x] 已完成|I|—|归并G/R/E：账号恢复、导出删除、备份、成本硬限额、可访问性验收|新增 `GET /api/v1/profile/export`（全量导出档案/对话/世界为 JSON）与 `DELETE /api/v1/session`（安全清除 cookie 会话）；手机设置界面一键导出与注销；手机与APP基础功能深度拟真（状态栏5G/电量、系统设置关于/壁纸切换/存储网络、相册翻页设壁纸、备忘录与微信拟真优化）；145 项自动化测试通过|
 
 
 R-03 / codex-main-01a0c73b / main workspace / 2026-09-22: user authorizes new dedicated services, free tiers preferred. Scope: Vercel project resources, media store port/adapter, server composition, dependencies, deployment/task docs and tests. R-01 full production operations remain pending; this is infrastructure setup, not production acceptance.

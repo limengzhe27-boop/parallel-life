@@ -229,6 +229,89 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
           </p>
         </div>
 
+        {/* 底部前后翻页与设为壁纸操作 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            margin: '8px 0',
+          }}
+        >
+          <button
+            type="button"
+            disabled={index <= 0}
+            onClick={() => {
+              playTapSound();
+              const prev = lifeMemories[index - 1];
+              if (prev) open('photos', prev.id);
+            }}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              fontSize: '13px',
+              cursor: index <= 0 ? 'not-allowed' : 'pointer',
+              opacity: index <= 0 ? 0.4 : 1,
+            }}
+          >
+            ‹ 上一张
+          </button>
+
+          {photo.url && (
+            <button
+              type="button"
+              onClick={() => {
+                playTapSound();
+                try {
+                  const match = location.hash.match(/life=([^&]+)/);
+                  const wid = match ? match[1] : '';
+                  if (wid && photo.url) {
+                    localStorage.setItem(`pl_wallpaper_${wid}`, photo.url);
+                    window.dispatchEvent(new Event('storage'));
+                  }
+                } catch {}
+                alert('已将当前照片设为这台平行手机的桌面壁纸！回到桌面即可查看。');
+              }}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                background: '#f1f5f9',
+                color: '#0f172a',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              🖼️ 设为手机壁纸
+            </button>
+          )}
+
+          <button
+            type="button"
+            disabled={index >= lifeMemories.length - 1}
+            onClick={() => {
+              playTapSound();
+              const next = lifeMemories[index + 1];
+              if (next) open('photos', next.id);
+            }}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              fontSize: '13px',
+              cursor: index >= lifeMemories.length - 1 ? 'not-allowed' : 'pointer',
+              opacity: index >= lifeMemories.length - 1 ? 0.4 : 1,
+            }}
+          >
+            下一张 ›
+          </button>
+        </div>
+
         <div className={s.inline}>
           {(photo.status === 'failed' || photo.status === 'unknown') && (
             <>

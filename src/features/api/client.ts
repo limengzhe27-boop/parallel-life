@@ -364,4 +364,26 @@ export class LifeClient {
       throw error;
     }
   }
+
+  async exportData(): Promise<Blob> {
+    await this.connect();
+    const res = await this.transport('/api/v1/profile/export', {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    if (!res.ok) throw new ApiFailure('INTERNAL', '导出数据失败');
+    return res.blob();
+  }
+
+  async clearSession(): Promise<void> {
+    await this.connect();
+    const res = await this.transport('/api/v1/session', {
+      method: 'DELETE',
+      headers: {
+        'x-csrf-token': this.csrf ?? '',
+      },
+    });
+    if (!res.ok) throw new ApiFailure('INTERNAL', '清理会话失败');
+  }
 }

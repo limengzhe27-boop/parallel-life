@@ -12,6 +12,8 @@ import { worldAppData } from './world-app-data.ts';
 import { formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
+import { playTapSound } from './audio-feedback.ts';
+import { routeHash } from './navigation.ts';
 import styles from './phone.module.css';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const [client] = useState(() => new LifeClient()),
@@ -23,6 +25,22 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     [refreshing, setRefreshing] = useState(false);
   const request = useRef(0),
     retryCommand = useRef<{ taskId: string; id: string } | null>(null);
+
+  const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`pl_wallpaper_${worldId}`) || '/art/first-window.webp';
+    }
+    return '/art/first-window.webp';
+  });
+
+  const changeWallpaper = (url: string) => {
+    setWallpaperUrl(url);
+    try {
+      localStorage.setItem(`pl_wallpaper_${worldId}`, url);
+    } catch {
+      // Ignore localStorage failure
+    }
+  };
 
   /**
    * Send one phone message and keep its honest state: shown as pending immediately,
@@ -300,6 +318,20 @@ export function WorldPhoneSurface({
   loadError?: string;
 }) {
   const [viewed, setViewed] = useState<ReadonlySet<string>>(new Set());
+  const client = useMemo(() => new LifeClient(), []);
+  const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`pl_wallpaper_${data.id}`) || '/art/first-window.webp';
+    }
+    return '/art/first-window.webp';
+  });
+
+  const changeWallpaper = (url: string) => {
+    setWallpaperUrl(url);
+    try {
+      localStorage.setItem(`pl_wallpaper_${data.id}`, url);
+    } catch {}
+  };
 
   // 动态时钟：进入手机后，每秒自动流转，模拟真实运作的手机时间
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -755,7 +787,7 @@ export function WorldPhoneSurface({
         lifeName={data.title}
         dateLabel={dateLabel}
         timeLabel={timeLabel}
-        wallpaperUrl="/art/first-window.webp"
+        wallpaperUrl={wallpaperUrl}
         notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
         notifications={[
           ...mergedData.messages
@@ -868,7 +900,7 @@ export function WorldPhoneSurface({
                     boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
                   }}
                 >
-                  人生管理 <PhoneIcon name="next" />
+                  设置 ⚙️ <PhoneIcon name="next" />
                 </button>
               </div>
 
@@ -1166,11 +1198,11 @@ export function WorldPhoneSurface({
                     onClick: () => openPanel('director'),
                   },
                   {
-                    app: 'schedule' as const,
-                    name: '故事时间',
+                    app: 'management' as const,
+                    name: '系统设置',
                     badge: undefined,
-                    icon: 'schedule' as const,
-                    onClick: () => openPanel('schedule'),
+                    icon: 'management' as const,
+                    onClick: () => openPanel('management'),
                   },
                 ].map((item) => (
                   <button
@@ -1214,10 +1246,10 @@ export function WorldPhoneSurface({
                           <span style={{ fontSize: '24px' }}>⏳</span>
                         ) : item.app === 'director' ? (
                           <span style={{ fontSize: '24px' }}>🎬</span>
-                        ) : item.app === 'schedule' ? (
-                          <span style={{ fontSize: '24px' }}>⏱️</span>
+                        ) : item.app === 'management' ? (
+                          <span style={{ fontSize: '24px' }}>⚙️</span>
                         ) : (
-                          <PhoneIcon name={item.icon} />
+                          <PhoneIcon name={item.icon as 'messages' | 'photos' | 'notes'} />
                         )}
                       </span>
                       {item.badge !== undefined && (
@@ -1926,6 +1958,248 @@ export function WorldPhoneSurface({
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (panel === 'management') {
+            return (
+              <div
+                style={{
+                  padding: '16px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  background: '#f8fafc',
+                  minHeight: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {/* 1. 顶部 Apple ID / 设备身份卡片 */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '52px',
+                      height: '52px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '20px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    我
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                      {data.title}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                      Parallel Phone 16 Pro · ParallelOS 16.4.2
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 手机壁纸个性化选择 */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    padding: '14px',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>
+                    🖼️ 手机壁纸选择
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                    {[
+                      { name: '经典窗景', url: '/art/first-window.webp' },
+                      { name: '极夜星空', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1080&q=80' },
+                      { name: '秋日山野', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1080&q=80' },
+                      { name: '暗曜极简', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1080&q=80' },
+                    ].map((w) => (
+                      <button
+                        key={w.name}
+                        type="button"
+                        onClick={() => {
+                          playTapSound();
+                          changeWallpaper(w.url);
+                        }}
+                        style={{
+                          border: wallpaperUrl === w.url ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                          borderRadius: '10px',
+                          overflow: 'hidden',
+                          background: '#f1f5f9',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <img
+                          src={w.url}
+                          alt={w.name}
+                          style={{ width: '100%', height: '54px', objectFit: 'cover' }}
+                        />
+                        <span style={{ fontSize: '10px', padding: '4px 2px', color: '#475569' }}>
+                          {w.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. 系统存储与网络 */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    padding: '12px 14px',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#475569' }}>📱 存储空间</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>已用 18.2 MB / 256 GB</span>
+                  </div>
+                  <div style={{ height: '6px', borderRadius: '3px', background: '#e2e8f0', overflow: 'hidden' }}>
+                    <div style={{ width: '8%', height: '100%', background: '#0284c7' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                    <span style={{ color: '#475569' }}>📶 蜂窝网络</span>
+                    <span style={{ fontWeight: 600, color: '#16a34a' }}>5G 全网通 (已连接)</span>
+                  </div>
+                </div>
+
+                {/* 4. 平行人生导航 */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    padding: '6px 0',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  {[
+                    { label: '与导演讨论剧情', action: () => { window.location.hash = routeHash(data.id, { app: null, panel: 'director' }); }, icon: '🎬' },
+                    { label: '当前身份与人脉档案', action: () => { window.location.hash = routeHash(data.id, { app: null, panel: 'timeline' }); }, icon: '👥' },
+                    { label: '故事时间与安排', action: () => { window.location.hash = routeHash(data.id, { app: null, panel: 'schedule' }); }, icon: '⏱️' },
+                    { label: '返回现实档案', action: () => (location.href = '/'), icon: '🏡' },
+                    { label: '切换到其他人生分支', action: () => (location.href = '/possibilities'), icon: '🔀' },
+                  ].map((item, idx) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={item.action}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        padding: '12px 14px',
+                        background: 'none',
+                        border: 'none',
+                        borderBottom: idx < 4 ? '1px solid #f1f5f9' : 'none',
+                        fontSize: '13.5px',
+                        color: '#0f172a',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span>
+                        <span style={{ marginRight: '8px' }}>{item.icon}</span>
+                        {item.label}
+                      </span>
+                      <span style={{ color: '#94a3b8' }}>›</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* 5. 隐私与数据安全 (AUD-20) */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    padding: '14px',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
+                    🛡️ 隐私与数据管理 (GDPR)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const blob = await client.exportData();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `parallel-life-export-${data.id.slice(0, 8)}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        alert('已成功导出你的全部个人档案与剧本数据！');
+                      } catch {
+                        alert('导出失败，请重试');
+                      }
+                    }}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '10px',
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      color: '#0f172a',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    💾 导出全部档案与人生剧本 (JSON)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm('确定要清除这台手机的登录会话吗？你的服务端数据不会丢失，刷新后可重新开启。')) {
+                        await client.clearSession();
+                        location.href = '/';
+                      }
+                    }}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '10px',
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      color: '#dc2626',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🗑️ 注销登录会话 / 重置这台手机
+                  </button>
                 </div>
               </div>
             );
