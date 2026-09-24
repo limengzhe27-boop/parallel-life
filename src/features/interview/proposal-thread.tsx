@@ -34,6 +34,7 @@ export function ProposalThread({
   confirmedCount,
   pendingCandidates,
   externalTrigger,
+  externalIntent = 'none',
 }: {
   client: LifeClient;
   revision: number;
@@ -42,6 +43,8 @@ export function ProposalThread({
   confirmedCount: number;
   pendingCandidates: number;
   externalTrigger?: number;
+  /** 'create' builds a branch for the user, 'recommend' only shows what exists. */
+  externalIntent?: 'create' | 'recommend' | 'enter' | 'none';
 }) {
   const [data, setData] = useState<Discovery | null>(null),
     [builds, setBuilds] = useState<WorldBuild[]>([]),
@@ -78,21 +81,29 @@ export function ProposalThread({
     directionCount: directions.length,
   });
 
-  const currentDirection: LifeDirection | undefined =
-    directions[selectedIndex] ?? directions[0];
+  const currentDirection: LifeDirection | undefined = directions[selectedIndex] ?? directions[0];
 
-  // 监听外部对白指令（如聊天中识别出“开始这个分支”）
+  // 监听对白指令：进入已有分支 / 推荐看看 / 直接创建一个并进入
   useEffect(() => {
     if (!externalTrigger) return;
-    if (readyBuild) {
-      window.location.assign(`/worlds/${readyBuild.worldId}`);
-      return;
-    }
-    if (directions.length > 0) {
-      setConfirmOpen(true);
-    } else if (entry.kind === 'create') {
-      void discoverBranch();
-    }
+    void (async () => {
+      if (readyBuild) {
+        window.location.assign(`/worlds/${readyBuild.worldId}`);
+        return;
+      }
+      if (externalIntent === 'create') {
+        /* The user explicitly asked for a branch, so build the first direction and enter. */
+        const available = directions.length > 0 ? directions : await discoverBranch();
+        const target = available[selectedIndex] ?? available[0];
+        if (target) await confirmAndBuild(target);
+        return;
+      }
+      if (directions.length > 0) {
+        setConfirmOpen(true);
+        return;
+      }
+      if (entry.kind === 'create') await discoverBranch();
+    })();
   }, [externalTrigger]);
 
   async function discoverBranch() {
@@ -108,12 +119,12 @@ export function ProposalThread({
         basedOnId: null,
       });
       const settled = task?.id ? await client.task(task.id) : null;
-      if (settled && settled.status !== 'succeeded')
-        throw new Error(taskFailure(settled));
+      if (settled && settled.status !== 'succeeded') throw new Error(taskFailure(settled));
       currentDisc = await client.discovery();
       setData(currentDisc);
       setSelectedIndex(0);
       setStage('idle');
+      return currentDisc.directions ?? [];
     } catch (e) {
       setStage('idle');
       setError(
@@ -123,6 +134,7 @@ export function ProposalThread({
             ? e.message
             : '这次没有完成，可以再试一次。',
       );
+      return [];
     }
   }
 
@@ -191,7 +203,8 @@ export function ProposalThread({
       ) : entry.kind === 'confirm-records' ? (
         <div className="proposal-invitation">
           <p>
-            还有 {entry.pending} 条记录等你确认。分支方向必须来自你确认过的真实经历，确认后向导就能为你聊出属于你的分支。
+            还有 {entry.pending}{' '}
+            条记录等你确认。分支方向必须来自你确认过的真实经历，确认后向导就能为你聊出属于你的分支。
           </p>
           <a className="button secondary" href="#profile">
             去确认这些记录
@@ -223,7 +236,9 @@ export function ProposalThread({
                     <button
                       type="button"
                       disabled={selectedIndex === directions.length - 1}
-                      onClick={() => setSelectedIndex((i) => Math.min(directions.length - 1, i + 1))}
+                      onClick={() =>
+                        setSelectedIndex((i) => Math.min(directions.length - 1, i + 1))
+                      }
                     >
                       下一分支
                     </button>
@@ -251,19 +266,13 @@ export function ProposalThread({
               )}
 
               <div className="proposal-actions">
-                <Button
-                  variant="primary"
-                  disabled={busy}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  {busy ? STAGE_TEXT[stage as keyof typeof STAGE_TEXT] || '处理中…' : '开启体验此分支'}
+                <Button variant="primary" disabled={busy} onClick={() => setConfirmOpen(true)}>
+                  {busy
+                    ? STAGE_TEXT[stage as keyof typeof STAGE_TEXT] || '处理中…'
+                    : '开启体验此分支'}
                   {!busy && <Icon name="arrow" size={16} />}
                 </Button>
-                <Button
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={() => void discoverBranch()}
-                >
+                <Button variant="secondary" disabled={busy} onClick={() => void discoverBranch()}>
                   <Icon name="refresh" size={15} />
                   换个分支聊聊
                 </Button>
@@ -271,12 +280,10 @@ export function ProposalThread({
             </div>
           ) : (
             <div className="proposal-invitation">
-              <p>向导已记录下你的关键经历。想看看在重要分岔点做出另一种选择，平行世界的你正在过着怎样的生活吗？</p>
-              <Button
-                variant="primary"
-                disabled={busy}
-                onClick={() => void discoverBranch()}
-              >
+              <p>
+                向导已记录下你的关键经历。想看看在重要分岔点做出另一种选择，平行世界的你正在过着怎样的生活吗？
+              </p>
+              <Button variant="primary" disabled={busy} onClick={() => void discoverBranch()}>
                 {stage === 'discovering' ? STAGE_TEXT.discovering : '根据聊天，推演我的平行分支'}
                 {!busy && <Icon name="spark" size={16} />}
               </Button>
@@ -307,7 +314,10 @@ export function ProposalThread({
           <div className="proposal-confirm-modal">
             <div className="proposal-confirm-box">
               <h4>《{currentDirection.title}》</h4>
-              <p><strong>抉择起点：</strong>{currentDirection.premise}</p>
+              <p>
+                <strong>抉择起点：</strong>
+                {currentDirection.premise}
+              </p>
               <p>
                 即将根据该分支为你创造属于你的平行世界，构筑平行手机、微信关系网与第一批未读消息。
               </p>
@@ -317,30 +327,30 @@ export function ProposalThread({
               <div className="proposal-step-flow">
                 <div className={`proposal-step-item ${stage === 'saving' ? 'active' : ''}`}>
                   <span>1. 固化人生起点快照</span>
-                  {stage === 'saving' && <span className="spinner" style={{ width: 14, height: 14 }} />}
+                  {stage === 'saving' && (
+                    <span className="spinner" style={{ width: 14, height: 14 }} />
+                  )}
                 </div>
                 <div className={`proposal-step-item ${stage === 'building' ? 'active' : ''}`}>
                   <span>2. 构筑微信关系网与图生图身份写真 (约需 30~45s)</span>
-                  {stage === 'building' && <span className="spinner" style={{ width: 14, height: 14 }} />}
+                  {stage === 'building' && (
+                    <span className="spinner" style={{ width: 14, height: 14 }} />
+                  )}
                 </div>
                 <div className={`proposal-step-item ${stage === 'entering' ? 'active' : ''}`}>
                   <span>3. 构筑完成，正在为你点亮平行手机...</span>
-                  {stage === 'entering' && <span className="spinner" style={{ width: 14, height: 14 }} />}
+                  {stage === 'entering' && (
+                    <span className="spinner" style={{ width: 14, height: 14 }} />
+                  )}
                 </div>
               </div>
             ) : (
               <div className="proposal-actions">
-                <Button
-                  variant="primary"
-                  onClick={() => void confirmAndBuild(currentDirection)}
-                >
+                <Button variant="primary" onClick={() => void confirmAndBuild(currentDirection)}>
                   确认创建，打开平行手机
                   <Icon name="arrow" size={16} />
                 </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => setConfirmOpen(false)}
-                >
+                <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
                   我再想想
                 </Button>
               </div>
@@ -351,4 +361,3 @@ export function ProposalThread({
     </section>
   );
 }
-

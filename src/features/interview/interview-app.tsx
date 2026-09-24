@@ -14,6 +14,7 @@ import type { MemoryCandidate, MemoryCandidateDecision } from '../../contracts/m
 import { WorkspaceShell } from '../../components/workspace-shell.tsx';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
 import { BasicInfo } from './basic-info.tsx';
+import { routeBranchIntent, type BranchIntent } from './branch-intent.ts';
 import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
 const categories: Record<ProfileFact['category'], string> = {
@@ -39,7 +40,7 @@ export function InterviewApp() {
     [sending, setSending] = useState(false),
     [saving, setSaving] = useState(false),
     [uploading, setUploading] = useState(false),
-    [branchTrigger, setBranchTrigger] = useState(0);
+    [branchCommand, setBranchCommand] = useState<{ at: number; intent: BranchIntent } | null>(null);
   const [editing, setEditing] = useState<{
     fact?: ProfileFact;
     category: ProfileFact['category'];
@@ -217,13 +218,8 @@ export function InterviewApp() {
         : current,
     );
 
-    if (
-      /开始这个分支|开启这个分支|进入这个分支|体验这个分支|开始分支|开启分支|进入体验|体验分支|就选这个分支/.test(
-        text,
-      )
-    ) {
-      setBranchTrigger(Date.now());
-    }
+    const branchIntent = routeBranchIntent(text);
+    if (branchIntent !== 'none') setBranchCommand({ at: Date.now(), intent: branchIntent });
 
     try {
       const sent = await client.sendStream(request, (token) =>
@@ -397,8 +393,8 @@ export function InterviewApp() {
               />
               <div className="composer-bottom">
                 <span className="composer-tip">
-                  <Icon name="lock" size={12} />
-                  按 Enter 发送 · Shift + Enter 换行{draft.length > 3000 && ` · ${draft.length}/4000`}
+                  <Icon name="lock" size={12} />按 Enter 发送 · Shift + Enter 换行
+                  {draft.length > 3000 && ` · ${draft.length}/4000`}
                 </span>
                 <Button
                   type="submit"
@@ -519,11 +515,10 @@ export function InterviewApp() {
             revision={data.interview.version}
             profileVersion={data.profile.version}
             ready={data.interview.messages.some((m) => m.role === 'assistant')}
-            confirmedCount={
-              data.profile.facts.filter((f) => f.status === 'confirmed').length
-            }
+            confirmedCount={data.profile.facts.filter((f) => f.status === 'confirmed').length}
             pendingCandidates={candidates.length}
-            externalTrigger={branchTrigger}
+            externalTrigger={branchCommand?.at ?? 0}
+            externalIntent={branchCommand?.intent ?? 'none'}
           />
         )}
       </WorkspaceShell>
@@ -649,11 +644,7 @@ function Waiting({
           </span>
         )}
       </div>
-      <Button
-        variant={isTimedOut ? 'secondary' : 'ghost'}
-        disabled={disabled}
-        onClick={onCancel}
-      >
+      <Button variant={isTimedOut ? 'secondary' : 'ghost'} disabled={disabled} onClick={onCancel}>
         {isTimedOut ? '取消重试' : '暂停'}
       </Button>
     </div>
@@ -705,7 +696,10 @@ export function ProfilePane({
   return (
     <div className="profile-stack">
       {error && <Notice>{error}</Notice>}
-      <div className="portrait-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
+      <div
+        className="portrait-card"
+        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             className="portrait-upload"
@@ -753,7 +747,8 @@ export function ProfilePane({
                   height: '64px',
                   borderRadius: '8px',
                   overflow: 'hidden',
-                  border: id === profile.portraitAssetId ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                  border:
+                    id === profile.portraitAssetId ? '2px solid #0284c7' : '1px solid #e2e8f0',
                   flexShrink: 0,
                   background: '#f8fafc',
                 }}
