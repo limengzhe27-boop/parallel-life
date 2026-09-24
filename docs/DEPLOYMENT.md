@@ -24,6 +24,17 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 批量审计整改（AUD-05 资料结构化解耦 / AUD-10 世界事件 64KB 大小硬顶拦截）上线
+
+|项目|内容|
+|---|---|
+|提交|1. AUD-05：`SeedConsent` 升级基本资料 blob 解析，将姓名/生日/城市/职业/家乡解耦为直观结构化标签呈现，彻底消除原一整坨 magic string 的模糊授权感，赋予用户透明的字段级授权感知；2. AUD-10：`postgres-world-repository` 为所有写入 `world_events` 的事件（invitation/note/turn）增加 64KB 单事件大小硬顶校验（超限立即抛出 `INVALID_COMMAND`），杜绝异常或超大 payload 击穿事件溯源表，与 256KB 快照预算形成双重护城河；3. `tests/audit-batch-02.test.ts` 追加 AUD-05 与 AUD-10 专项自动化测试，测试总数达 130 项全绿通过|
+|部署|Vercel Production（Git push 触发并合入 main）|
+|发布前检查|`npm run check` 130 项自动化测试全部通过，`npm run build` 构建成功|
+|线上实测|1. 资料授权弹窗中基本资料解耦为子字段结构化标签清晰呈现；2. 世界事件大小硬顶在 64KB 内正常放行、超限严格拦截；3. `https://parallel-life-nu.vercel.app` 线上验证通过|
+
+
+
 ### 2026-09-24 · 批量审计整改（AUD-02 超时恢复 / AUD-06 资料字数限制 / AUD-07 授权严格可见）上线
 
 |项目|内容|
