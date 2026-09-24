@@ -38,6 +38,8 @@ export type ClockStore = {
     clock: import('../domain/clock.ts').WorldClock,
   ): Promise<void>;
   setStoryTime(ownerId: string, worldId: string, storyNow: string): Promise<void>;
+  /** The user's own time controls: pause/resume and speed. */
+  setClock(ownerId: string, worldId: string, input: { paused?: boolean; speed?: number }): Promise<void>;
   recordBeat(
     ownerId: string,
     worldId: string,

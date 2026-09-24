@@ -159,3 +159,54 @@ test('with nothing pending the silence rule still applies', () => {
   assert.deepEqual(buildAgenda(state()), []);
   assert.equal(selectSpeaker(state(), []), 'b');
 });
+
+test('a promise a character made is unfinished business too', () => {
+  const memories = [
+    {
+      scopeType: 'character',
+      characterId: 'b',
+      kind: 'commitment',
+      text: '答应帮你打听房租',
+      status: 'active',
+    },
+    {
+      scopeType: 'character',
+      characterId: 'a',
+      kind: 'commitment',
+      text: '已经作废的承诺',
+      status: 'superseded',
+    },
+  ];
+  const agenda = buildAgenda(state(), 5, memories);
+  assert.deepEqual(
+    agenda.map((thread) => [thread.kind, thread.actorId]),
+    [['commitment', 'b']],
+  );
+  assert.equal(selectSpeaker(state(), [], agenda), 'b');
+  assert.match(beatCue(state(), 'b', agenda), /答应帮你打听房租/);
+});
+
+test('a reply owed outranks a promise', () => {
+  const waiting = state();
+  waiting.messages = [
+    ...waiting.messages,
+    {
+      id: 'm2',
+      actorId: 'a',
+      role: 'user',
+      text: '在吗',
+      at: at('2026-09-24T00:05:00.000Z'),
+      sourceEventId: 'e2',
+    },
+  ];
+  const agenda = buildAgenda(waiting, 5, [
+    {
+      scopeType: 'character',
+      characterId: 'b',
+      kind: 'commitment',
+      text: '答应帮你问问',
+      status: 'active',
+    },
+  ]);
+  assert.equal(selectSpeaker(waiting, [], agenda), 'a');
+});

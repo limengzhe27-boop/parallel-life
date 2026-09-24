@@ -14,7 +14,9 @@ import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.
 import { advanceWorld } from '../modules/world/application/advance-world.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
 import {
+  deriveAndStoreMemories,
   loadActorMemories,
+  loadWorldMemories,
   correctMemoryInStore,
   forgetMemoryInStore,
   listMemories,
@@ -120,6 +122,11 @@ function createServices() {
      * Move this life's clock and let a bounded number of beats happen on their own.
      * Costs at most MAX_BEATS_PER_ADVANCE model calls; the rest is folded into a summary.
      */
+    /** Pause/resume and speed for one life; the user's own control. */
+    setWorldClock: (ownerId: string, worldId: string, input: { paused?: boolean; speed?: number }) =>
+      new PostgresClockStore(db).setClock(ownerId, worldId, input),
+    readWorldClock: (ownerId: string, worldId: string) =>
+      new PostgresClockStore(db).read(ownerId, worldId),
     advanceWorld: (ownerId: string, worldId: string, maxBeats?: number) =>
       advanceWorld(
         {
@@ -131,6 +138,27 @@ function createServices() {
           memories: (actorId) =>
             db.transaction(ownerId, (sql) =>
               loadActorMemories(sql, ownerId, { actorId, worldId }),
+            ),
+          worldMemories: () =>
+            db.transaction(ownerId, (sql) => loadWorldMemories(sql, ownerId, worldId)),
+          rememberSummary: (text, sourceIds) =>
+            db.transaction(ownerId, (sql) =>
+              deriveAndStoreMemories(sql, [
+                {
+                  ownerId,
+                  scopeType: 'branch',
+                  scopeId: worldId,
+                  branchId: worldId,
+                  text,
+                  kind: 'summary',
+                  sourceType: 'world_event',
+                  sourceIds,
+                  importance: 2,
+                  evidence: Object.fromEntries(
+                    sourceIds.map((id) => [id, { id, text }]),
+                  ),
+                },
+              ]).then(() => undefined),
             ),
           ...(maxBeats ? { maxBeats } : {}),
         },

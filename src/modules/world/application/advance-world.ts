@@ -1,6 +1,6 @@
 import { DomainError } from '../domain/errors.ts';
 import { advanceClock, beatCue, selectSpeaker } from '../domain/clock.ts';
-import { buildAgenda } from '../domain/agenda.ts';
+import { buildAgenda, type CommitmentMemory } from '../domain/agenda.ts';
 import type { Session } from '../domain/types.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
 import type { ClockStore, TurnPlanner, WorldRepository } from './ports.ts';
@@ -30,6 +30,10 @@ export async function advanceWorld(
     memories?: (
       actorId: string,
     ) => Promise<{ records: MemoryRecord[]; blockedSources: Set<string> }>;
+    /** Every character's memories in this world, used to build the agenda. */
+    worldMemories?: () => Promise<MemoryRecord[]>;
+    /** Persists the "time passed while you were away" summary as a branch memory. */
+    rememberSummary?: (text: string, sourceIds: string[]) => Promise<void>;
     maxBeats?: number;
   },
   session: Session,
@@ -39,6 +43,9 @@ export async function advanceWorld(
   const advance = advanceClock(clock, deps.now(), { maxBeats: deps.maxBeats });
   await deps.clock.write(session.userId, worldId, advance.clock);
   const actors: string[] = [];
+  const worldMemories = deps.worldMemories ? await deps.worldMemories() : [];
+  if (advance.clock.summary && deps.rememberSummary)
+    await deps.rememberSummary(advance.clock.summary, []);
   if (!advance.beats.length)
     return {
       storyNow: advance.clock.storyNow,
@@ -53,7 +60,7 @@ export async function advanceWorld(
     const world = await deps.worlds.get(session, worldId);
     const atBeat = { ...world, time: beatAt };
     /* Beats are driven by unfinished business, not by a round-robin. */
-    const agenda = buildAgenda(atBeat);
+    const agenda = buildAgenda(atBeat, 5, worldMemories as CommitmentMemory[]);
     const actorId = selectSpeaker(atBeat, actors, agenda);
     if (!actorId) break;
     const commandId = deps.newId();

@@ -27,6 +27,7 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
   const session = { userId: owner },
     start = '2026-09-24T00:00:00.000Z';
   let spoken: string[] = [];
+  const summaries: string[] = [];
   const deps = (realNow: string) => ({
     clock,
     worlds,
@@ -48,6 +49,10 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     },
     now: () => realNow,
     newId: () => randomUUID(),
+    /* The host persists the offline summary as a branch memory; assert the wiring. */
+    rememberSummary: async (text: string) => {
+      summaries.push(text);
+    },
   });
   try {
     await admin.query('INSERT INTO parallel_life.accounts(id) VALUES($1)', [owner]);
@@ -105,6 +110,8 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     assert.equal(advanced.played, MAX_BEATS_PER_ADVANCE);
     assert.equal(advanced.folded, 9);
     assert.match(advanced.summary ?? '', /世界照常运转/);
+    assert.equal(summaries.length, 1, 'the offline summary is handed to the memory writer');
+    assert.match(summaries[0]!, /世界照常运转/);
     assert.equal(spoken[0], second, 'the open appointment decides the first beat');
     assert.equal(advanced.storyNow, '2026-09-24T06:00:00.000Z');
     assert.equal(spoken.length, MAX_BEATS_PER_ADVANCE);
@@ -129,6 +136,17 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
       )
     ).rows[0].n;
     assert.equal(beats, MAX_BEATS_PER_ADVANCE);
+
+    /* The user's own time controls persist (pause / speed), without inventing time. */
+    await clock.setClock(owner, worldId, { speed: 1.5 });
+    const controlled = await clock.read(owner, worldId);
+    assert.equal(controlled.speed, 1.5);
+    assert.equal(controlled.paused, false);
+    assert.equal(
+      controlled.storyNow,
+      '2026-09-24T06:00:00.000Z',
+      'a control change does not move time',
+    );
 
     /* Paused: nothing happens, no model call, no version change. */
     await clock.write(owner, worldId, {

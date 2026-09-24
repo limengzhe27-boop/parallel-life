@@ -8,12 +8,25 @@ import type { WorldState } from './types.ts';
  * Pure and deterministic — the same world always produces the same agenda.
  */
 export type AgendaThread = {
-  kind: 'awaiting_reply' | 'proposed_appointment';
+  kind: 'awaiting_reply' | 'proposed_appointment' | 'commitment';
   actorId: string;
   detail: string;
 };
 
-export function buildAgenda(state: WorldState, limit = 5): AgendaThread[] {
+/** The minimum a memory must expose to become an agenda thread. */
+export type CommitmentMemory = {
+  scopeType: string;
+  characterId?: string;
+  kind: string;
+  text: string;
+  status: string;
+};
+
+export function buildAgenda(
+  state: WorldState,
+  limit = 5,
+  memories: CommitmentMemory[] = [],
+): AgendaThread[] {
   const threads: AgendaThread[] = [];
   const last = state.messages.at(-1);
   const actorIds = new Set(state.actors.map((actor) => actor.id));
@@ -34,6 +47,17 @@ export function buildAgenda(state: WorldState, limit = 5): AgendaThread[] {
         detail: `还有一条没定下来的约定：${appointment.title}`,
       });
     }
+  }
+  /* What a character promised the protagonist is unfinished business too. */
+  for (const memory of memories) {
+    if (memory.kind !== 'commitment' || memory.status !== 'active') continue;
+    if (memory.scopeType !== 'character' || !memory.characterId) continue;
+    if (!actorIds.has(memory.characterId)) continue;
+    threads.push({
+      kind: 'commitment',
+      actorId: memory.characterId,
+      detail: `他之前答应过你：${memory.text.slice(0, 80)}`,
+    });
   }
   return threads.slice(0, limit);
 }

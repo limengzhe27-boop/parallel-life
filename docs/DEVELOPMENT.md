@@ -214,6 +214,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |D-20|[x] 已完成|A|D-19|Phase 2 时钟 + 导演骨架：`world_clock`/`world_beats` 迁移、纯函数时钟（1:1/倍速/暂停/离线≤3 拍+摘要、故事时间追上现实）、沉默最久优先且不连续同一人的选人、舞台指示不冒充用户、每拍走同一条回合流水线、`POST /worlds/:id/advance`。对应 L-04 部分能力与 W-04 前置|[报告](task-reports/D-20.md)；迁移 0026 已应用于本地与生产；162 单元 + 24 真实库测试通过；生产实测 6 小时级缺勤场景：3 拍、版本 7→10、时钟与故事时间落库|
 |D-21|[x] 已完成|I|D-20|展示版架构与全流程图文档：分层架构图、6 Agent + 2 引擎名册、7 个场景时序（访谈沉淀/分支/建世界/NPC 回合/索图/离线导演/记忆纠正）、真实↔虚构数据边界、现状与未完成、以及交给 GPT 出图的 8 张图精确描述|[AGENT_FLOW.md](AGENT_FLOW.md)|
 |D-22|[x] 已完成|I|D-20|导演接 agenda：节拍由未了结的事驱动（欠回应的人优先 → 未定约定的参与者 → 才回到沉默最久），舞台指示写明具体那件事；纯函数 `buildAgenda`|[报告](task-reports/D-22.md)；165 单元 + 24 真实库测试通过（含"proposed 约定决定第一拍"）；无新增迁移|
+|D-23|[x] 已完成|I|D-22|导演记忆化与世界时钟控制面：承诺进入 agenda（欠回应>未定约定>承诺>沉默）、离线摘要写入 branch 记忆、`GET/POST /worlds/:id/clock` 暂停与倍速（不动上次跳动，不造时间）|[报告](task-reports/D-23.md)；167 单元 + 24 真实库测试通过；无新增迁移|
 |D-03|[ ] 待开发|B|D-06,M-03|世界创建任务：动态身份、人物、关系、初始事件/手机内容；version=0 快照，阶段进度持久化，失败可续接|—|
 |D-04|[ ] 待验收|F|C-05|推荐卡、自定义/修改、资料确认与保存设定；推荐任务状态、失败重试及恢复；世界生成进度单列 D-05|[报告](task-reports/D-04.md)；已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |D-05|[ ] 待开发|F|D-03,D-04|世界生成各阶段的真实进度、失败恢复与进入手机；恢复时对应同一个创建任务，未完成阶段不伪装成功|—|
@@ -330,6 +331,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
 |AUD-01|dsh-main-20260923|I / 单人|主登记目录|本地环境启动、合成经历真实调用、docs/task-reports/AUD-01.md|本项目本地 PostgreSQL 55432 与 3218 端口；真实网关调用仅用合成文本|2026-09-23T12:40Z：已完成；迁移 0001–0016 已应用，全链路真实调用证据见报告；本地服务保持运行供用户体验|
 |D-08|dsh-main-20260923|I / 单人|主登记目录|src/modules/ai/**、src/modules/world/infrastructure/**、src/modules/discovery/infrastructure/**、src/modules/tasks/application/**、src/contracts/**、tests/**、docs/task-reports/D-08.md|真实网关调用仅用合成经历；本项目 Supabase 生产库只读诊断|2026-09-23T13:10Z：已完成并上线；输出上限与容错解析修复，合格率 4/4；生产部署后完整链路实测通过|
+|D-23|dsh-main-20260923|I / 单人|主登记目录|src/modules/world/**、src/modules/memory/infrastructure/memory-store.ts、src/server/services.ts、src/app/api/v1/worlds/[id]/clock/**、tests/**、docs/**|本地 PostgreSQL 55432（无新迁移）|2026-09-24T16:30Z：已完成并上线|
 |D-22|dsh-main-20260923|I / 单人|主登记目录|src/modules/world/domain/agenda.ts、src/modules/world/domain/clock.ts、src/modules/world/application/advance-world.ts、tests/**、docs/**|本地 PostgreSQL 55432（无新迁移）|2026-09-24T16:00Z：已完成并上线|
 |D-21|dsh-main-20260923|I / 单人|主登记目录|docs/AGENT_FLOW.md、docs/DEVELOPMENT.md|—|2026-09-24T15:40Z：文档已交付并上线|
 |D-20|dsh-main-20260923|A / 单人|主登记目录|src/modules/world/domain/clock.ts、src/modules/world/application/advance-world.ts、src/modules/world/infrastructure/clock-repository.ts、src/app/api/v1/worlds/[id]/advance/**、src/server/services.ts、db/migrations/0026_world_clock.sql、tests/**、docs/**|本地 PostgreSQL 55432 与生产 Supabase（迁移 0026）；生产真实模型调用 ≤3 次/次推进|2026-09-24T15:20Z：已完成并上线，生产实测通过|
@@ -363,6 +365,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务|执行/验收人|结果与证据|完成日期|
 |---|---|---|---|
+|D-23|dsh-main-20260923 / 自审|导演记忆化（承诺驱动）+ 时钟控制接口（暂停/倍速/读取）+ 离线摘要入记忆；167 单元 + 24 真实库测试通过；[报告](task-reports/D-23.md)|2026-09-24|
 |D-22|dsh-main-20260923 / 自审|导演 agenda：未了结的事优先决定谁说话；165 单元 + 24 真实库测试通过；[报告](task-reports/D-22.md)|2026-09-24|
 |D-21|dsh-main-20260923 / 自审|展示版架构与全流程图（[AGENT_FLOW.md](AGENT_FLOW.md)），含 8 张图的 GPT 出图描述|2026-09-24|
 |D-20|dsh-main-20260923 / 自审（生产库核对）|Phase 2 骨架：世界时钟 + 有界导演节拍（≤3 拍、不连续同一人、舞台指示、每拍走回合流水线）；162 单元 + 24 真实库测试通过；生产实测版本 7→10、时钟落库；[报告](task-reports/D-20.md)|2026-09-24|
@@ -412,6 +415,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |H-05A|codex-main-01a0c73b / 自审|用户上传入相册、63项单元、3项真实库、手机/PC与构建通过；[报告](task-reports/H-05A.md)|2026-09-22|
 
 ### 变更日志
+
+- 2026-09-24：导演记忆化与时钟控制面（D-23）。角色承诺（`commitment` 记忆）进入 agenda，优先级"欠回应 > 未定约定 > 承诺 > 沉默最久"；离线摘要写入 `branch` 作用域的 `summary` 记忆（经端口由组装层实现）；新增 `GET/POST /api/v1/worlds/:id/clock` 支持暂停/倍速/读取，控制变更不动 `lastTickAt`（不丢时间、不造时间），暂停的世界推进 0 拍且零模型调用。167 单元 + 24 真实库测试通过，无新增迁移。
 
 - 2026-09-24：导演接 agenda（D-22）。新增纯函数 `buildAgenda`（欠回应的人 / 未定约定），选人顺序改为"未了结优先，其次沉默最久"，舞台指示写明具体未了之事；真实库测试证明存在 `proposed` 约定时第一拍就是该参与者。165 单元 + 24 真实库测试通过，无新增迁移。
 

@@ -1,7 +1,7 @@
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ClockStore } from '../application/ports.ts';
 import type { WorldClock } from '../domain/clock.ts';
-import { DEFAULT_SPEED } from '../domain/clock.ts';
+import { clampSpeed, DEFAULT_SPEED } from '../domain/clock.ts';
 
 export class PostgresClockStore implements ClockStore {
   private db: PostgresDatabase;
@@ -62,6 +62,19 @@ export class PostgresClockStore implements ClockStore {
         ],
       ),
     );
+  }
+  async setClock(
+    ownerId: string,
+    worldId: string,
+    input: { paused?: boolean; speed?: number },
+  ): Promise<void> {
+    const clock = await this.read(ownerId, worldId);
+    await this.write(ownerId, worldId, {
+      ...clock,
+      paused: input.paused ?? clock.paused,
+      speed: input.speed === undefined ? clock.speed : clampSpeed(input.speed),
+      /* lastTickAt is left alone: time already elapsed still counts and no time is invented. */
+    });
   }
   async setStoryTime(ownerId: string, worldId: string, storyNow: string): Promise<void> {
     await this.db.transaction(ownerId, (sql) =>

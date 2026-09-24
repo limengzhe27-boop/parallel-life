@@ -308,3 +308,38 @@ export async function loadActorMemories(
   }
   return { records, blockedSources };
 }
+
+/** Every character's records plus this world's episodes, for agenda building. */
+export async function loadWorldMemories(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+): Promise<MemoryRecord[]> {
+  const rows = (
+    await sql.query(
+      `SELECT * FROM parallel_life.memory_records
+        WHERE owner_id=$1 AND status='active'
+          AND ((scope_type='character' AND branch_id=$2) OR (scope_type='branch' AND scope_id=$2))
+        ORDER BY importance DESC, created_at DESC LIMIT 200`,
+      [ownerId, worldId],
+    )
+  ).rows;
+  return rows.map((row) =>
+    MemoryRecordSchema.parse({
+      id: row.id,
+      ownerId: row.owner_id,
+      scopeType: row.scope_type,
+      scopeId: row.scope_id,
+      branchId: row.branch_id ?? undefined,
+      characterId: row.character_id ?? undefined,
+      kind: row.kind,
+      text: row.text,
+      key: row.key ?? undefined,
+      sourceType: row.source_type,
+      sourceIds: Array.isArray(row.source_ids) ? row.source_ids : [],
+      status: row.status,
+      importance: Number(row.importance),
+      createdAt: new Date(String(row.created_at)).toISOString(),
+    }),
+  );
+}
