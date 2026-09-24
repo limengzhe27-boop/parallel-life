@@ -25,7 +25,7 @@ function harness(
   jobs: OutboxJob[],
   submit?: (j: OutboxJob) => Promise<{ taskId: string; duplicate: boolean }>,
 ) {
-  const seen = { submitted: [] as string[], rejected: [] as string[] };
+  const seen = { submitted: [] as string[], rejected: [] as string[], requeued: [] as string[] };
   return {
     seen,
     deps: {
@@ -37,6 +37,9 @@ function harness(
         rejected: async (j: OutboxJob, reason: string) => {
           seen.rejected.push(`${j.id}:${reason}`);
         },
+        requeued: async (j: OutboxJob, reason: string) => {
+          seen.requeued.push(`${j.id}:${reason}`);
+        },
       },
       tasks: { submit: submit ?? (async () => ({ taskId: 'task-1', duplicate: false })) },
     },
@@ -46,14 +49,14 @@ function harness(
 test('an image request is dispatched into a media task exactly once', async () => {
   const h = harness([job()]);
   const summary = await dispatchOutbox(h.deps);
-  assert.deepEqual(summary, { claimed: 1, submitted: 1, rejected: 0 });
+  assert.deepEqual(summary, { claimed: 1, submitted: 1, rejected: 0, requeued: 0 });
   assert.deepEqual(h.seen.submitted, ['job-1']);
 });
 
 test('a job type without an executor is rejected with a reason, never retried', async () => {
   const h = harness([job({ payload: { ...job().payload, type: 'video.generate' } })]);
   const summary = await dispatchOutbox(h.deps);
-  assert.deepEqual(summary, { claimed: 1, submitted: 0, rejected: 1 });
+  assert.deepEqual(summary, { claimed: 1, submitted: 0, rejected: 1, requeued: 0 });
   assert.deepEqual(h.seen.rejected, ['job-1:NO_EXECUTOR:video.generate']);
 });
 
@@ -65,18 +68,32 @@ test('a payload without a request id is rejected instead of half-dispatched', as
   assert.equal(h.seen.submitted.length, 0);
 });
 
-test('a queue rejection is recorded and does not stop the remaining jobs', async () => {
+test('an internal failure is requeued while the remaining jobs still run', async () => {
   const h = harness([job({ id: 'job-a' }), job({ id: 'job-b' })], async (j) => {
     if (j.id === 'job-a') throw Object.assign(Error('busy'), { code: 'BUSY' });
     return { taskId: 'task-b', duplicate: false };
   });
   const summary = await dispatchOutbox(h.deps);
-  assert.deepEqual(summary, { claimed: 2, submitted: 1, rejected: 1 });
-  assert.deepEqual(h.seen.rejected, ['job-a:BUSY']);
+  assert.deepEqual(summary, { claimed: 2, submitted: 1, rejected: 0, requeued: 1 });
+  assert.deepEqual(h.seen.requeued, ['job-a:BUSY']);
   assert.deepEqual(h.seen.submitted, ['job-b']);
+});
+
+test('a job that keeps failing stops after the attempt cap instead of looping forever', async () => {
+  const h = harness([job({ id: 'job-c', attempts: 5 })], async () => {
+    throw Object.assign(Error('boom'), { code: 'INTERNAL' });
+  });
+  const summary = await dispatchOutbox(h.deps);
+  assert.deepEqual(summary, { claimed: 1, submitted: 0, rejected: 1, requeued: 0 });
+  assert.deepEqual(h.seen.rejected, ['job-c:ATTEMPTS_EXCEEDED:INTERNAL']);
 });
 
 test('an empty outbox is a no-op', async () => {
   const h = harness([]);
-  assert.deepEqual(await dispatchOutbox(h.deps), { claimed: 0, submitted: 0, rejected: 0 });
+  assert.deepEqual(await dispatchOutbox(h.deps), {
+    claimed: 0,
+    submitted: 0,
+    rejected: 0,
+    requeued: 0,
+  });
 });

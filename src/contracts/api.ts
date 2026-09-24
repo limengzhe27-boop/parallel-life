@@ -118,7 +118,8 @@ export const TaskScopeSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('profile'), profileId: Id }),
   z.strictObject({ kind: z.literal('world-build'), proposalId: Id }),
   z.strictObject({ kind: z.literal('world'), worldId: Id }),
-  z.strictObject({ kind: z.literal('media'), assetRequestId: Id }),
+  /* Media requests are effect-scoped text ids (`<eventId>_effect_<n>`), not uuids. */
+  z.strictObject({ kind: z.literal('media'), assetRequestId: z.string().trim().min(1).max(200) }),
 ]);
 export const TaskStatus = z.enum([
   'queued',

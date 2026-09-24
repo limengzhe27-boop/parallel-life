@@ -70,6 +70,14 @@ export class PostgresOutbox {
             ]),
           );
         },
+        requeued: async (job, reason) => {
+          await this.db.transaction(ownerId, (sql) =>
+            sql.query("SELECT parallel_life.finish_outbox_job($1,'queued',$2,NULL)", [
+              job.id,
+              reason,
+            ]),
+          );
+        },
         rejected: async (job, reason) => {
           await this.db.transaction(ownerId, (sql) =>
             sql.query("SELECT parallel_life.finish_outbox_job($1,'failed',$2,NULL)", [

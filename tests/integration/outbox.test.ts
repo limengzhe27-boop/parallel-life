@@ -62,7 +62,8 @@ test('a committed image request is dispatched from the outbox into exactly one m
         userText: command.text,
         effects: [
           { type: 'message.received', id: randomUUID(), actorId, text: '好，我看看。' },
-          { type: 'media.requested', id: randomUUID(), prompt: '窗外的雨' },
+          /* 真实形态是效果作用域文本 id，历史上被误当 uuid 校验 */
+          { type: 'media.requested', id: `${randomUUID()}_effect_1`, prompt: '窗外的雨' },
         ],
       },
     });
@@ -79,7 +80,7 @@ test('a committed image request is dispatched from the outbox into exactly one m
 
     const ports = new PostgresOutbox(db).ports(owner);
     const first = await dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks });
-    assert.deepEqual(first, { claimed: 1, submitted: 1, rejected: 0 });
+    assert.deepEqual(first, { claimed: 1, submitted: 1, rejected: 0, requeued: 0 });
 
     const tasks = (
       await admin.query(
@@ -101,7 +102,7 @@ test('a committed image request is dispatched from the outbox into exactly one m
 
     /* A second drain must not queue the same work again. */
     const second = await dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks });
-    assert.deepEqual(second, { claimed: 0, submitted: 0, rejected: 0 });
+    assert.deepEqual(second, { claimed: 0, submitted: 0, rejected: 0, requeued: 0 });
     assert.equal(
       (
         await admin.query('SELECT count(*)::int AS n FROM parallel_life.tasks WHERE owner_id=$1', [
@@ -141,6 +142,7 @@ test('a committed image request is dispatched from the outbox into exactly one m
       claimed: 0,
       submitted: 0,
       rejected: 0,
+      requeued: 0,
     });
   } finally {
     await db.close();
