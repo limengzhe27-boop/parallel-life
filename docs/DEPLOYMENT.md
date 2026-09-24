@@ -39,9 +39,11 @@ https://github.com/limengzhe27-boop/parallel-life
 |项目|内容|
 |---|---|
 |交付内容|1. **开局前多图肖像与生活照底模图库（`InterviewApp`）**：在访谈档案中支持上传主肖像底模与多张生活/工作参考照（上限 6 张），提供直观的主肖像标识、单张移除与动态追加，明确用于选择分支身份（导演/主理人等）时图生图生成开篇角色写真；<br>2. **分支身份开局双写真自动派发（`buildHandler`）**：带入肖像底模创建平行世界时，系统自动生成角色肖像写真与工作生活现场纪实两张艺术大片，存入私有素材库与世界相册；<br>3. **微信聊天气泡照片卡片与全屏大图预览（`MessagesApp`）**：当剧情推演解锁现场照片或提及照片时，聊天气泡下方即时渲染精致剧照卡片，点击即可在聊天窗口内直接全屏大图预览，支持一键【设为手机壁纸】与【在相册中查看】；<br>4. **微信加号面板【相册】交互抽屉（`MessagesApp`）**：在微信输入栏点击加号展开面板，点击【相册】即时唤出照片选择抽屉，支持快速查看身份写真与剧情事件照片，并一键【分享照片到当前聊天】与角色展开真实互动；<br>5. **手机相册 App 4 分类分栏与专属徽章（`PhotosApp`）**：增加【全部】、【🌟 身份写真】、【🎬 剧情事件】、【📱 生活回忆】分类标签与即时统计计数，照片卡片上标注金色写真/蓝紫剧情/深色回忆专属徽章；<br>6. **自动化测试**：新增 `M-04`（多底模图片管理）与 `M-05`（相册标签与聊天照片双向关联）自动化测试，总测试数达 154 项全绿通过。|
-|发布前检查|`npm run check` 154 项测试全绿通过，`npm run build` 构建成功|
+|提交|`242d5dc`（feat: multi-photo reference gallery, chat bubble photo preview and album picker interaction）|
+|部署|Vercel Production（部署 ID: `kwaszr74k`，公网别名 `https://parallel-life-nu.vercel.app`）|
+|发布前检查|`npm run check` 154 项自动化测试（新增 2 项）全绿通过，`npm run build` 构建成功|
 |迁移应用|无须新增 SQL 迁移（底层 jsonb 契约天然兼容 `referenceAssetIds`，已在 Supabase 验证一致）|
-|线上实测|待部署 READY 后在 `https://parallel-life-nu.vercel.app` 实测|
+|线上实测|1. `/api/health` 响应 200 OK；<br>2. `POST /api/v1/session` 成功签发安全 Cookie；<br>3. `GET /api/v1/profile` 成功返回包含 `referenceAssetIds: []` 的最新个人档案结构；<br>4. 访谈前多图底模上传、相册 4 标签分栏、微信聊天照片卡片与加号面板相册抽屉公网验证通过。|
 
 ### 2026-09-24 · 肖像底模图生图身份写真 + 聊天事件照片解锁入册全链路批量上线
 
