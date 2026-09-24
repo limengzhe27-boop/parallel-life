@@ -29,7 +29,8 @@ test('memory write path deduplicates, merges sources, and honours correction and
   );
   const owner = randomUUID(),
     firstMessage = randomUUID(),
-    secondMessage = randomUUID();
+    secondMessage = randomUUID(),
+    thirdMessage = randomUUID();
   /* A profile-scope memory must point at this owner's real profile row. */
   let profileId = '';
   const item = (text: string, sourceId: string): DeriveMemoryInput => ({
@@ -45,6 +46,17 @@ test('memory write path deduplicates, merges sources, and honours correction and
   });
   try {
     await new IdentityRepository(db).ensureGuest(owner);
+    /* Memory sources must be real messages: the provenance trigger verifies them. */
+    const interviewId = String(
+      (await admin.query('SELECT id FROM parallel_life.interviews WHERE owner_id=$1', [owner])).rows[0]
+        .id,
+    );
+    /* ordinal is a generated identity column. */
+    for (const [index, id] of [firstMessage, secondMessage, thirdMessage].entries())
+      await admin.query(
+        'INSERT INTO parallel_life.interview_messages(id,owner_id,interview_id,role,text) VALUES($1,$2,$3,$4,$5)',
+        [id, owner, interviewId, 'user', `第 ${index + 1} 条`],
+      );
     profileId = String(
       (await admin.query('SELECT id FROM parallel_life.profiles WHERE owner_id=$1', [owner])).rows[0]
         .id,
@@ -73,7 +85,7 @@ test('memory write path deduplicates, merges sources, and honours correction and
 
     /* A different statement is a separate memory. */
     await db.transaction(owner, (sql) =>
-      deriveAndStoreMemories(sql, [item('想把这个系列做成一本摄影志', randomUUID())]),
+      deriveAndStoreMemories(sql, [item('想把这个系列做成一本摄影志', thirdMessage)]),
     );
     assert.equal(
       (await db.transaction(owner, (sql) => listMemories(sql, owner, { scopeType: 'profile' })))
