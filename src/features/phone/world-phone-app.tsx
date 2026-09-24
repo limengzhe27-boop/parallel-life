@@ -377,50 +377,13 @@ export function WorldPhoneSurface({
     } catch {
       // Fallback below
     }
-    const baseOpening = (data.notes ?? []).map((note, index) => ({
-      id: `${data.id}:opening-note:${index}`,
+    return (data.notes ?? []).map((note, index) => ({
+      id: note.id || `${data.id}:opening-note:${index}`,
       title: note.title,
       text: note.text,
-      version: 0,
-      updatedAt: data.time,
+      version: note.version ?? 0,
+      updatedAt: note.updatedAt || data.time,
     }));
-    if (baseOpening.length >= 2) return baseOpening;
-    const leadActor = data.actors[0];
-    const partnerActor =
-      data.actors.find(
-        (a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事'),
-      ) ?? data.actors[1];
-    const supplementalNotes: PhoneNote[] = [
-      {
-        id: `${data.id}:supp-note-1`,
-        title: leadActor ? `关于露台与${leadActor.name}的安排` : '关于近期生活与约定',
-        text: `答应过的事情不能再往后推了。最近她也很辛苦，周末下班记得顺路去买她常吃的那家可丽饼。露台晚餐这次不准聊工作上的琐事，只聊放松的开心事。`,
-        version: 0,
-        updatedAt: data.time,
-      },
-      {
-        id: `${data.id}:supp-note-2`,
-        title: '老洋房改造案思考碎片',
-        text: `空间的核心在于自然光怎么切进来。朝南的挑高全部打开，保留原本斑驳的水刷石墙面肌理，用轻质钢架连廊做连接。周四前整理成草模给团队看。`,
-        version: 0,
-        updatedAt: data.time,
-      },
-      {
-        id: `${data.id}:supp-note-3`,
-        title: partnerActor ? `与${partnerActor.name}的工作室季度备忘` : '工作室季度资产与开支备忘',
-        text: `1. 巨鹿路老洋房第三季度租金与物业已结清。\n2. 意大利定制水刷石打样样品验收通过。\n3. 下周添置两台专业模型激光雕刻机。\n4. 合伙人分成结算已对账无误。`,
-        version: 0,
-        updatedAt: data.time,
-      },
-      {
-        id: `${data.id}:supp-note-4`,
-        title: '托斯卡纳秋季漫游清单',
-        text: `• 随身携带：德国手工速写本、碳纤维圆规、莫比乌斯对戒。\n• 胶卷：柯达500T 2卷，拍老城的光影与斜阳。\n• 去那家没有招牌的手工皮具工坊看皮料。`,
-        version: 0,
-        updatedAt: data.time,
-      },
-    ];
-    return [...baseOpening, ...supplementalNotes];
   });
 
   const handleSaveNote: NonNullable<PhoneActions['saveNote']> = useCallback(
@@ -547,133 +510,24 @@ export function WorldPhoneSurface({
     [data.id, onSendMessage],
   );
 
-  const [proactiveMessages, setProactiveMessages] = useState<WorldPhone['messages']>(() => {
+  // 清除旧版本在客户端缓存中的伪造主动消息（防止历史遗留的假消息污染最新消息列表）
+  useEffect(() => {
     try {
-      const storageKey = `pl_proactive:${data.id}`;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+      localStorage.removeItem(`pl_proactive:${data.id}`);
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('pl_proactive:')) {
+          localStorage.removeItem(k);
+        }
       }
     } catch {
-      // Ignore localStorage read errors in restricted contexts
+      // Ignore
     }
-    return [];
-  });
+  }, [data.id]);
 
   const [directorNotice, setDirectorNotice] = useState<string | null>(null);
 
   const [callingActor, setCallingActor] = useState<WorldPhone['actors'][number] | null>(null);
-
-  const proactiveCountRef = useRef(0);
-  const triggerProactiveMessage = useCallback(
-    (actorId?: string) => {
-      if (!data.actors.length) return null;
-      const targetActor = actorId
-        ? (data.actors.find((a) => a.id === actorId) ?? data.actors[0]!)
-        : data.actors[proactiveCountRef.current % data.actors.length]!;
-
-      proactiveCountRef.current++;
-
-      const rel = targetActor.relationship || '';
-      let text = '在忙吗？晚点有空回我一下哈～';
-      if (
-        rel.includes('合伙') ||
-        rel.includes('创') ||
-        rel.includes('同事') ||
-        rel.includes('工作') ||
-        rel.includes('项目')
-      ) {
-        const lines = [
-          '孟哲，刚给施工队交底了水刷石收口工艺，工长说按咱们图纸做完全没问题，松了一口气！',
-          '刚才看了眼这周的进度排期，阁楼天窗的玻璃周三能到场，你手头那套详图顺好了吗？',
-          '下午我准备去碰一下合作方，有什么需要我带过去的资料吗？',
-          '刚把最新的反馈整理了一份纪要，晚点微信发你，有空瞄一眼哈。',
-        ];
-        text = lines[Math.floor(Math.random() * lines.length)]!;
-      } else if (
-        rel.includes('师') ||
-        rel.includes('长') ||
-        rel.includes('领导') ||
-        rel.includes('前辈') ||
-        rel.includes('顾问')
-      ) {
-        const lines = [
-          '孟哲啊，看到你老洋房的新进展了，光线处理得很好，有东方气韵，按你自己的节奏走就行。',
-          '上次聊到的双年展提名沙龙，我跟策展人提了你，有空微信上把作品摘要发我一份。',
-          '做事要张弛有度，别把弦绷得太紧，有困惑随时来找我探讨。',
-        ];
-        text = lines[Math.floor(Math.random() * lines.length)]!;
-      } else if (
-        rel.includes('友') ||
-        rel.includes('学') ||
-        rel.includes('闺蜜') ||
-        rel.includes('哥们')
-      ) {
-        const lines = [
-          '哥！开幕展现场的抓拍胶片我冲出来了，成片超惊艳，晚上传你预览！',
-          '今天下班早不早？好久没跟你碰头吃个饭了，有空随时吱一声！',
-          '刚才刷到个好玩的瞬间想到你，晚点你忙完了记得看微信啊～',
-          '喂！巨鹿路那边新开了家手冲咖啡，周末要不要顺路去尝尝？',
-        ];
-        text = lines[Math.floor(Math.random() * lines.length)]!;
-      } else if (
-        rel.includes('伴侣') ||
-        rel.includes('太太') ||
-        rel.includes('女友') ||
-        rel.includes('老婆') ||
-        rel.includes('先生')
-      ) {
-        const lines = [
-          '孟哲，展厅靠南侧的采光带下午阳光特别好，我顺手拍了张光影照片，晚上带给你看。',
-          '在忙吗？别太累着自己，晚上想吃巨鹿路那家生煎还是回家做热汤面？',
-          '出门记得带把伞，天气看着有点阴。露台开幕的展签我已全部校对完了。',
-        ];
-        text = lines[Math.floor(Math.random() * lines.length)]!;
-      }
-
-      const newMsg: WorldPhone['messages'][number] = {
-        id: `proactive-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        actorId: targetActor.id,
-        role: 'assistant',
-        text,
-        at: new Date().toISOString(),
-      };
-
-      setProactiveMessages((prev) => {
-        const next = [...prev, newMsg];
-        try {
-          localStorage.setItem(`pl_proactive:${data.id}`, JSON.stringify(next));
-        } catch {
-          // Ignore
-        }
-        return next;
-      });
-
-      return { actorName: targetActor.name, text };
-    },
-    [data.actors, data.id],
-  );
-
-  // 周期性主动生活脉动：进入 18 秒触发首次互动，后续每隔 65 秒最多触发 5 次
-  useEffect(() => {
-    const firstTimer = setTimeout(() => {
-      triggerProactiveMessage();
-    }, 18000);
-
-    const interval = setInterval(() => {
-      setProactiveMessages((prev) => {
-        if (prev.length >= 6) return prev;
-        triggerProactiveMessage();
-        return prev;
-      });
-    }, 65000);
-
-    return () => {
-      clearTimeout(firstTimer);
-      clearInterval(interval);
-    };
-  }, [triggerProactiveMessage]);
 
   // 错峰历史消息：确保进入手机时，角色消息不是挤在“进入的那一刻”，而是自然错峰在之前的时间发来的
   const staggeredBaseMessages = useMemo(() => {
@@ -715,47 +569,14 @@ export function WorldPhoneSurface({
   }, [data.messages, data.actors, data.time]);
 
   const mergedData: WorldPhone = useMemo(() => {
-    const baseMsgs = staggeredBaseMessages;
-    let allMsgs = baseMsgs;
-    if (proactiveMessages.length) {
-      const existingIds = new Set(baseMsgs.map((m) => m.id));
-      const newProactive = proactiveMessages.filter((m) => !existingIds.has(m.id));
-      allMsgs = [...baseMsgs, ...newProactive];
-    }
-    const rawInv = [...(data.invitations ?? []), ...customInvitations];
-    const leadActor = data.actors[0];
-    const partnerActor =
-      data.actors.find(
-        (a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事'),
-      ) ?? data.actors[1];
-    const supplementalInvs: NonNullable<WorldPhone['invitations']> =
-      rawInv.length >= 2
-        ? []
-        : [
-            {
-              id: `supp-inv-1`,
-              title: leadActor
-                ? `与${leadActor.name}露台布展验收与晚餐`
-                : '老洋房露台布展验收与晚餐',
-              at: new Date(Date.parse(data.time) + 3 * 3600 * 1000).toISOString(),
-              status: 'confirmed',
-              participantIds: leadActor ? [leadActor.id] : [],
-            },
-            {
-              id: `supp-inv-2`,
-              title: partnerActor ? `与${partnerActor.name}施工交底复盘会` : '老洋房施工交底复盘会',
-              at: new Date(Date.parse(data.time) + 24 * 3600 * 1000).toISOString(),
-              status: 'confirmed',
-              participantIds: partnerActor ? [partnerActor.id] : [],
-            },
-          ];
-    const combinedInvitations = [...rawInv, ...supplementalInvs];
+    const allMsgs = staggeredBaseMessages;
+    const combinedInvitations = [...(data.invitations ?? []), ...customInvitations];
     return {
       ...data,
       messages: allMsgs,
       invitations: combinedInvitations,
     };
-  }, [data, staggeredBaseMessages, proactiveMessages, customInvitations]);
+  }, [data, staggeredBaseMessages, customInvitations]);
 
   const basePhoneData = worldAppData(mergedData, viewed, localMessages);
   const phoneData: PhoneAppsData = useMemo(
@@ -947,7 +768,7 @@ export function WorldPhoneSurface({
                     }}
                   >
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
-                      巨鹿路 768号
+                      {data.setting ? (data.setting.length > 10 ? data.setting.slice(0, 10) + '...' : data.setting) : '当前场景'}
                     </span>
                     <span
                       style={{
@@ -987,9 +808,9 @@ export function WorldPhoneSurface({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}
-                    title="光影掠过屋檐的时刻，生命便有了坐标。"
+                    title={data.title ? `“${data.title}”` : '“世界在此展开新的可能...”'}
                   >
-                    💭 “光影掠过屋檐，生命便有坐标...”
+                    💭 {data.title ? `“${data.title}”` : '“世界在此展开新的可能...”'}
                   </div>
                 </div>
 
@@ -1461,9 +1282,9 @@ export function WorldPhoneSurface({
                         <h3
                           style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}
                         >
-                          李孟哲
+                          我
                         </h3>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>29岁</span>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>分支主角</span>
                       </div>
                       <div
                         style={{
@@ -1473,7 +1294,7 @@ export function WorldPhoneSurface({
                           marginTop: '2px',
                         }}
                       >
-                        独立主创建筑师 · 工作室合伙人
+                        {data.title || '平行人生探索者'}
                       </div>
                     </div>
                   </div>
@@ -1489,10 +1310,10 @@ export function WorldPhoneSurface({
                       marginBottom: '12px',
                     }}
                   >
-                    📍 <strong>生活坐标：</strong>上海市静安区巨鹿路768号 · 老洋房工作室
+                    📍 <strong>生活坐标：</strong>{data.setting || '当前人生所处时空与场景'}
                   </div>
 
-                  {/* 随身物品与核心资产（对齐 Screen 01） */}
+                  {/* 随身物品与核心资产 */}
                   <div>
                     <div
                       style={{
@@ -1517,7 +1338,7 @@ export function WorldPhoneSurface({
                           gap: '6px',
                         }}
                       >
-                        <span>🔑</span> 老洋房铜质钥匙
+                        <span>🔑</span> 钥匙与门禁
                       </div>
                       <div
                         style={{
@@ -1531,7 +1352,7 @@ export function WorldPhoneSurface({
                           gap: '6px',
                         }}
                       >
-                        <span>📐</span> 碳纤维圆规与速写本
+                        <span>📱</span> 智能手机与通讯录
                       </div>
                       <div
                         style={{
@@ -1545,7 +1366,7 @@ export function WorldPhoneSurface({
                           gap: '6px',
                         }}
                       >
-                        <span>💍</span> 莫比乌斯对戒
+                        <span>💳</span> 银行卡与身份证件
                       </div>
                       <div
                         style={{
@@ -1559,13 +1380,13 @@ export function WorldPhoneSurface({
                           gap: '6px',
                         }}
                       >
-                        <span>☕</span> 巨鹿路咖啡常客卡
+                        <span>📓</span> 随身笔记与日程表
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* 大事件里程碑时间轴（严格对齐 Screen 02） */}
+                {/* 大事件里程碑时间轴 */}
                 <div
                   style={{
                     background: '#ffffff',
@@ -1611,7 +1432,7 @@ export function WorldPhoneSurface({
 
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
-                        2022年 06月 · 起程
+                        {data.time ? data.time.slice(0, 7).replace('-', '年 ') + '月' : '分支起点'} · 抉择
                       </div>
                       <div
                         style={{
@@ -1621,7 +1442,7 @@ export function WorldPhoneSurface({
                           marginTop: '2px',
                         }}
                       >
-                        毕业设计斩获先锋建筑金奖
+                        开启平行人生分支
                       </div>
                       <div
                         style={{
@@ -1631,65 +1452,13 @@ export function WorldPhoneSurface({
                           lineHeight: 1.4,
                         }}
                       >
-                        在同济建筑馆告别导师顾院长，选择走属于自己的创作道路。
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
-                        2023年 09月 · 破局
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: '#1e293b',
-                          marginTop: '2px',
-                        }}
-                      >
-                        与林见夏成立独立工作室
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '12px',
-                          color: '#64748b',
-                          marginTop: '2px',
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        离开大型设计院流水线，租下第一间挑高阁楼，开启自主实践。
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
-                        2025年 03月 · 落地
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: '#1e293b',
-                          marginTop: '2px',
-                        }}
-                      >
-                        拿下巨鹿路老洋房改造案
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '12px',
-                          color: '#64748b',
-                          marginTop: '2px',
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        历经五轮竞标，把水刷石与光庭设计变为现实，奠定业界声誉。
+                        {data.title ? `进入分支【${data.title}】，开启全新的命运走向。` : '做出了人生重要抉择，开启全新人生篇章。'}
                       </div>
                     </div>
 
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#16a34a' }}>
-                        ● 此刻 · 2026年 09月
+                        ● 此刻 · {data.time ? data.time.slice(0, 10) : '进行中'}
                       </div>
                       <div
                         style={{
@@ -1699,7 +1468,7 @@ export function WorldPhoneSurface({
                           marginTop: '2px',
                         }}
                       >
-                        空间竣工，露台迎来初秋雨水
+                        当前分支生活展开
                       </div>
                       <div
                         style={{
@@ -1709,7 +1478,7 @@ export function WorldPhoneSurface({
                           lineHeight: 1.4,
                         }}
                       >
-                        沈棠策划的开幕展在即，生活在此刻拥有了从容而真实的呼吸节奏。
+                        {data.setting || '在当前人际关系与日常互动中探索，每一次选择都在塑造未来的轨迹。'}
                       </div>
                     </div>
                   </div>
@@ -2370,7 +2139,7 @@ export function WorldPhoneSurface({
                 lineHeight: 1.5,
               }}
             >
-              🎙️ 对方正在老洋房现场布展，建议发送微信沟通
+              🎙️ 对方未能接听电话，建议发送微信沟通
             </div>
           </div>
 

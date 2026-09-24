@@ -519,7 +519,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 }}
               >
                 {[
-                  { icon: '🎬', label: '视频号', tip: '沈棠等人正在直播' },
+                  { icon: '🎬', label: '视频号', tip: '关注的朋友正在分享' },
                   { icon: '📡', label: '直播', tip: '' },
                 ].map((item, idx) => (
                   <div
@@ -611,10 +611,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '18px', fontWeight: 600, color: '#111827' }}>
-                    孟哲（我）
+                    我
                   </div>
                   <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
-                    微信号：wxid_parallel_2026
+                    微信号：wxid_parallel_user
                   </div>
                   <div
                     style={{
@@ -629,7 +629,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       marginTop: '6px',
                     }}
                   >
-                    <span>+ 巨鹿路创作中</span>
+                    <span>+ 探索中</span>
                   </div>
                 </div>
                 <div style={{ fontSize: '18px', color: '#9ca3af' }}>二维码 ›</div>
@@ -1701,7 +1701,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   setShowPlusMenu(false);
                   setDraft(
                     key,
-                    '📍 [位置分享] 上海市静安区巨鹿路768号 · 老洋房工作室（我在这边对方案，忙完随时过来～）',
+                    '📍 [位置分享] 我的当前位置（忙完随时联系我～）',
                   );
                 },
               },
@@ -2117,7 +2117,7 @@ function CallModal({
       rel.includes('工作') ||
       rel.includes('项目')
     ) {
-      return `“喂，孟哲！刚看你打来。这会儿手头正在推进项目节点，稍后我把重点发你微信，咱们文字对一下更细致，有事随时找我！”`;
+      return `“喂！刚看你打来。这会儿手头正在推进事务，稍后我把重点发你微信，咱们文字对一下更细致，有事随时找我！”`;
     }
     if (
       rel.includes('师') ||
@@ -2126,12 +2126,12 @@ function CallModal({
       rel.includes('前辈') ||
       rel.includes('顾问')
     ) {
-      return `“喂，孟哲啊，我正准备参加一个研讨，你先在微信把想法留言给我，我一散会马上看。”`;
+      return `“喂，我正准备参加一个研讨会议，你先在微信把想法留言给我，我一散会马上看。”`;
     }
     if (rel.includes('友') || rel.includes('学') || rel.includes('闺蜜') || rel.includes('哥们')) {
       return `“喂～怎么啦！我正赶路呢，刚想着给你发消息你就打过来了！晚点微信聊，随时找我哈！”`;
     }
-    return `“喂，孟哲？我刚看到你打过来，手头正忙着一小会儿，晚点微信上细聊，记得看我消息哦！”`;
+    return `“喂？我刚看到你打过来，手头正忙着一小会儿，晚点微信上细聊，记得看我消息哦！”`;
   }, [contact]);
 
   const handleEndCall = () => {

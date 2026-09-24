@@ -108,53 +108,9 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
     const secondActor = data.contacts[1];
     const thirdActor = data.contacts[2];
 
-    const memories: PhonePhoto[] = [
-      {
-        id: 'mem-1',
-        title: '佛罗伦萨的雨后',
-        date: '2026-05-18T17:30:00Z',
-        description:
-          '双年展布展结束的那个黄昏，天突然放晴。老廊桥下的水汽还没散去，红砖拱顶间泛着金色的光。沈棠撑着一把透明雨伞走在前面，突然回头看我：“孟哲，看镜头。”阳光透过水珠洒下来，那一刻我突然觉得，所有推翻重来的方案都是值得的。',
-        url: '/art/open-door.webp',
-        status: 'ready',
-        links: leadActor ? [{ app: 'messages', target: leadActor.id, label: `和${leadActor.name}聊聊这张照片` }] : undefined,
-      },
-      {
-        id: 'mem-2',
-        title: '初建工作室的深夜',
-        date: '2025-11-04T02:15:00Z',
-        description:
-          '老洋房工作室刚租下来时的那个冬天特别冷。水电还没排完，几张折叠桌拼在一起，我们裹着厚羽绒服挤在阁楼上一遍遍对节点施工图。凌晨两点，沈棠推门进来，手里拎着两盒刚出锅的小馄饨，热气在结霜的玻璃上晕开一团白雾。她说：“别盯图纸了，再看房子也不会自己立起来，先趁热喝口汤。”',
-        url: '/art/first-window.webp',
-        status: 'ready',
-        links: secondActor ? [{ app: 'messages', target: secondActor.id, label: `和${secondActor.name}聊聊这张照片` }] : undefined,
-      },
-      {
-        id: 'mem-3',
-        title: '阳台上的第一株迷迭香',
-        date: '2026-09-22T08:00:00Z',
-        description:
-          '搬进新居的第一个周末，在街角花市抱回来的小盆栽。她说阳台朝南光照最好，清晨浇水时能闻到淡淡的松木与草本香气。不知不觉，它已经在这片露台上见证了无数次通宵画图后的清晨日出。',
-        url: '/art/first-window.webp',
-        status: 'ready',
-        links: leadActor ? [{ app: 'messages', target: leadActor.id, label: `和${leadActor.name}聊聊这张照片` }] : undefined,
-      },
-      {
-        id: 'mem-4',
-        title: '答辩那天与恩师的长谈',
-        date: '2022-06-15T15:40:00Z',
-        description:
-          '毕业设计模型前，老院长摘下老花镜看了很久，拍了拍我的肩膀：“孟哲，去走你自己的路，别学我，也别学任何人。真正动人的建筑不是炫技，是给人安放情绪的地方。”这句话，我一直记到了今天。',
-        url: '/art/open-door.webp',
-        status: 'ready',
-        links: thirdActor ? [{ app: 'messages', target: thirdActor.id, label: `和${thirdActor.name}聊聊这张照片` }] : undefined,
-      },
-    ];
-
-    // 如果用户上传了新照片，优先放在最前面
-    const userPhotos = (data.photos ?? []).filter((p) => p.status === 'ready');
-    return [...userPhotos, ...memories];
-  }, [data.contacts, data.photos]);
+    // 仅展示当前人生分支真实生成或上传的照片
+    return (data.photos ?? []).filter((p) => p.status === 'ready');
+  }, [data.photos]);
 
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'identity' | 'event' | 'memory'>('all');
 
@@ -560,8 +516,19 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
       )}
 
       {/* 生活胶卷网格 */}
-      <div style={{ padding: '0 12px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+      {filteredPhotos.length === 0 ? (
+        <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📷</div>
+          <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a', marginBottom: '6px' }}>
+            相册暂无照片
+          </div>
+          <div style={{ fontSize: '13px', lineHeight: 1.6, color: '#64748b', maxWidth: '280px', margin: '0 auto' }}>
+            随着与分支角色的互动推进或探索发展，更多生活瞬间将在此定格。你也可以点击右上角上传属于你的生活照片。
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '0 12px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
           {filteredPhotos.map((p) => (
             <div
               key={p.id}
@@ -610,6 +577,7 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

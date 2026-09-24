@@ -191,7 +191,7 @@ export function MomentsApp({ open }: PhoneAppContext) {
       id: `post-${Date.now()}`,
       authorId: 'self',
       authorName: '我',
-      roleTitle: '独立主创建筑师',
+      roleTitle: '我的动态',
       content: newPostContent.trim(),
       timeLabel: '刚刚',
       likes: [],
@@ -292,7 +292,7 @@ export function MomentsApp({ open }: PhoneAppContext) {
             }}
           />
           <div style={{ position: 'relative', zIndex: 2 }}>
-            <span style={{ letterSpacing: '0.05em' }}>📍 上海静安 · 巨鹿路768号工作室</span>
+            <span style={{ letterSpacing: '0.05em' }}>📍 当前人生空间</span>
           </div>
         </div>
 
@@ -309,10 +309,10 @@ export function MomentsApp({ open }: PhoneAppContext) {
         >
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
-              李孟哲
+              我
             </div>
             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-              主创建筑师
+              探索者
             </div>
           </div>
           <div
