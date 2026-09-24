@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DirectorPanel } from './director-panel.tsx';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
@@ -7,7 +8,13 @@ import type { WorldPhone } from '../../contracts/world-build.ts';
 import { PhoneShell } from './phone-shell.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { Avatar } from './apps/common.tsx';
-import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote, PhoneInvitation } from './apps/types.ts';
+import type {
+  PhoneActions,
+  PhoneActionReceipt,
+  PhoneAppsData,
+  PhoneNote,
+  PhoneInvitation,
+} from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
 import { formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage } from './apps/types.ts';
@@ -181,9 +188,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       await client.task(retried.id);
       setData(await client.world(worldId));
     } catch (e) {
-      setError(
-        e instanceof ApiFailure ? e.message : '这次重新生成没有完成，可以再试一次。',
-      );
+      setError(e instanceof ApiFailure ? e.message : '这次重新生成没有完成，可以再试一次。');
     } finally {
       setIsBuilding(false);
     }
@@ -381,7 +386,10 @@ export function WorldPhoneSurface({
     }));
     if (baseOpening.length >= 2) return baseOpening;
     const leadActor = data.actors[0];
-    const partnerActor = data.actors.find((a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事')) ?? data.actors[1];
+    const partnerActor =
+      data.actors.find(
+        (a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事'),
+      ) ?? data.actors[1];
     const supplementalNotes: PhoneNote[] = [
       {
         id: `${data.id}:supp-note-1`,
@@ -418,7 +426,8 @@ export function WorldPhoneSurface({
   const handleSaveNote: NonNullable<PhoneActions['saveNote']> = useCallback(
     async (input) => {
       const now = new Date().toISOString();
-      const resolvedTitle = input.title.trim() || input.text.trim().split('\n')[0]?.slice(0, 20) || '无标题便签';
+      const resolvedTitle =
+        input.title.trim() || input.text.trim().split('\n')[0]?.slice(0, 20) || '无标题便签';
       setNotes((current) => {
         let next: PhoneNote[];
         if (input.id) {
@@ -561,7 +570,7 @@ export function WorldPhoneSurface({
     (actorId?: string) => {
       if (!data.actors.length) return null;
       const targetActor = actorId
-        ? data.actors.find((a) => a.id === actorId) ?? data.actors[0]!
+        ? (data.actors.find((a) => a.id === actorId) ?? data.actors[0]!)
         : data.actors[proactiveCountRef.current % data.actors.length]!;
 
       proactiveCountRef.current++;
@@ -716,15 +725,18 @@ export function WorldPhoneSurface({
     const rawInv = [...(data.invitations ?? []), ...customInvitations];
     const leadActor = data.actors[0];
     const partnerActor =
-      data.actors.find((a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事')) ??
-      data.actors[1];
+      data.actors.find(
+        (a) => a.relationship?.includes('合伙') || a.relationship?.includes('同事'),
+      ) ?? data.actors[1];
     const supplementalInvs: NonNullable<WorldPhone['invitations']> =
       rawInv.length >= 2
         ? []
         : [
             {
               id: `supp-inv-1`,
-              title: leadActor ? `与${leadActor.name}露台布展验收与晚餐` : '老洋房露台布展验收与晚餐',
+              title: leadActor
+                ? `与${leadActor.name}露台布展验收与晚餐`
+                : '老洋房露台布展验收与晚餐',
               at: new Date(Date.parse(data.time) + 3 * 3600 * 1000).toISOString(),
               status: 'confirmed',
               participantIds: leadActor ? [leadActor.id] : [],
@@ -834,9 +846,7 @@ export function WorldPhoneSurface({
               ).length,
             0,
           );
-          const recentMessage = [...mergedData.messages]
-            .reverse()
-            .find((m) => m.role !== 'user');
+          const recentMessage = [...mergedData.messages].reverse().find((m) => m.role !== 'user');
           const recentActor = recentMessage
             ? data.actors.find((a) => a.id === recentMessage.actorId)
             : data.actors[0];
@@ -929,17 +939,45 @@ export function WorldPhoneSurface({
                     boxSizing: 'border-box',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>巨鹿路 768号</span>
-                    <span style={{ fontSize: '10px', color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: '6px', fontWeight: 700 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
+                      巨鹿路 768号
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        color: '#0369a1',
+                        background: '#e0f2fe',
+                        padding: '1px 6px',
+                        borderRadius: '6px',
+                        fontWeight: 700,
+                      }}
+                    >
                       D-3
                     </span>
                   </div>
                   <div>
-                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div
+                      style={{
+                        fontSize: '18px',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
                       19°C <span style={{ fontSize: '14px' }}>⛅</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 500 }}>阴转初秋阵雨</div>
+                    <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 500 }}>
+                      阴转初秋阵雨
+                    </div>
                   </div>
                   <div
                     style={{
@@ -972,7 +1010,9 @@ export function WorldPhoneSurface({
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: '10px', color: '#6366f1', fontWeight: 600 }}>平行人生世界</div>
+                    <div style={{ fontSize: '10px', color: '#6366f1', fontWeight: 600 }}>
+                      平行人生世界
+                    </div>
                     <div
                       style={{
                         fontSize: '13px',
@@ -1083,9 +1123,15 @@ export function WorldPhoneSurface({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                       }}
-                      title={recentMessage ? recentMessage.text : `与 ${recentActor.name} 的对话通道已建立。`}
+                      title={
+                        recentMessage
+                          ? recentMessage.text
+                          : `与 ${recentActor.name} 的对话通道已建立。`
+                      }
                     >
-                      {recentMessage ? recentMessage.text : `与 ${recentActor.name} 的对话通道已建立。`}
+                      {recentMessage
+                        ? recentMessage.text
+                        : `与 ${recentActor.name} 的对话通道已建立。`}
                     </span>
                     <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>›</span>
                   </div>
@@ -1208,7 +1254,10 @@ export function WorldPhoneSurface({
                         placeItems: 'center',
                       }}
                     >
-                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '52px', height: '52px' }}>
+                      <span
+                        className={`${styles.appIcon} ${styles[item.app]}`}
+                        style={{ width: '52px', height: '52px' }}
+                      >
                         {item.app === 'moments' ? (
                           <span style={{ fontSize: '26px' }}>📷</span>
                         ) : item.app === 'timeline' ? (
@@ -1313,7 +1362,10 @@ export function WorldPhoneSurface({
                         placeItems: 'center',
                       }}
                     >
-                      <span className={`${styles.appIcon} ${styles[item.app]}`} style={{ width: '52px', height: '52px' }}>
+                      <span
+                        className={`${styles.appIcon} ${styles[item.app]}`}
+                        style={{ width: '52px', height: '52px' }}
+                      >
                         {item.app === 'calendar' ? (
                           <span className={styles.calendarFace}>
                             <span>日历</span>
@@ -1433,7 +1485,14 @@ export function WorldPhoneSurface({
                     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      marginBottom: '12px',
+                    }}
+                  >
                     <div
                       style={{
                         width: '52px',
@@ -1453,37 +1512,107 @@ export function WorldPhoneSurface({
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                        <h3
+                          style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}
+                        >
                           李孟哲
                         </h3>
                         <span style={{ fontSize: '12px', color: '#64748b' }}>29岁</span>
                       </div>
-                      <div style={{ fontSize: '12px', color: '#0284c7', fontWeight: 600, marginTop: '2px' }}>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: '#0284c7',
+                          fontWeight: 600,
+                          marginTop: '2px',
+                        }}
+                      >
                         独立主创建筑师 · 工作室合伙人
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: '#475569', lineHeight: 1.5, marginBottom: '12px' }}>
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      color: '#475569',
+                      lineHeight: 1.5,
+                      marginBottom: '12px',
+                    }}
+                  >
                     📍 <strong>生活坐标：</strong>上海市静安区巨鹿路768号 · 老洋房工作室
                   </div>
 
                   {/* 随身物品与核心资产（对齐 Screen 01） */}
                   <div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        marginBottom: '8px',
+                      }}
+                    >
                       🎒 随身物品与资产
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div
+                        style={{
+                          background: '#f1f5f9',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          color: '#334155',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
                         <span>🔑</span> 老洋房铜质钥匙
                       </div>
-                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div
+                        style={{
+                          background: '#f1f5f9',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          color: '#334155',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
                         <span>📐</span> 碳纤维圆规与速写本
                       </div>
-                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div
+                        style={{
+                          background: '#f1f5f9',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          color: '#334155',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
                         <span>💍</span> 莫比乌斯对戒
                       </div>
-                      <div style={{ background: '#f1f5f9', padding: '8px 10px', borderRadius: '8px', fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div
+                        style={{
+                          background: '#f1f5f9',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          color: '#334155',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
                         <span>☕</span> 巨鹿路咖啡常客卡
                       </div>
                     </div>
@@ -1500,41 +1629,140 @@ export function WorldPhoneSurface({
                     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                   }}
                 >
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      marginBottom: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
                     <span>⏳</span> 人生里程碑时间轴
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative', paddingLeft: '16px' }}>
-                    <div style={{ position: 'absolute', left: '6px', top: '6px', bottom: '6px', width: '2px', background: '#e2e8f0' }} />
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      position: 'relative',
+                      paddingLeft: '16px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '6px',
+                        top: '6px',
+                        bottom: '6px',
+                        width: '2px',
+                        background: '#e2e8f0',
+                      }}
+                    />
 
                     <div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>2022年 06月 · 起程</div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>毕业设计斩获先锋建筑金奖</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
+                        2022年 06月 · 起程
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#1e293b',
+                          marginTop: '2px',
+                        }}
+                      >
+                        毕业设计斩获先锋建筑金奖
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: '#64748b',
+                          marginTop: '2px',
+                          lineHeight: 1.4,
+                        }}
+                      >
                         在同济建筑馆告别导师顾院长，选择走属于自己的创作道路。
                       </div>
                     </div>
 
                     <div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>2023年 09月 · 破局</div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>与林见夏成立独立工作室</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
+                        2023年 09月 · 破局
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#1e293b',
+                          marginTop: '2px',
+                        }}
+                      >
+                        与林见夏成立独立工作室
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: '#64748b',
+                          marginTop: '2px',
+                          lineHeight: 1.4,
+                        }}
+                      >
                         离开大型设计院流水线，租下第一间挑高阁楼，开启自主实践。
                       </div>
                     </div>
 
                     <div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>2025年 03月 · 落地</div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>拿下巨鹿路老洋房改造案</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
+                        2025年 03月 · 落地
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#1e293b',
+                          marginTop: '2px',
+                        }}
+                      >
+                        拿下巨鹿路老洋房改造案
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: '#64748b',
+                          marginTop: '2px',
+                          lineHeight: 1.4,
+                        }}
+                      >
                         历经五轮竞标，把水刷石与光庭设计变为现实，奠定业界声誉。
                       </div>
                     </div>
 
                     <div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#16a34a' }}>● 此刻 · 2026年 09月</div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>空间竣工，露台迎来初秋雨水</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#16a34a' }}>
+                        ● 此刻 · 2026年 09月
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#1e293b',
+                          marginTop: '2px',
+                        }}
+                      >
+                        空间竣工，露台迎来初秋雨水
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: '#64748b',
+                          marginTop: '2px',
+                          lineHeight: 1.4,
+                        }}
+                      >
                         沈棠策划的开幕展在即，生活在此刻拥有了从容而真实的呼吸节奏。
                       </div>
                     </div>
@@ -1578,9 +1806,7 @@ export function WorldPhoneSurface({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <Avatar name={actor.name} />
                             <div>
-                              <div
-                                style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}
-                              >
+                              <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>
                                 {actor.name}
                               </div>
                               <span
@@ -1763,14 +1989,10 @@ export function WorldPhoneSurface({
                           }}
                         >
                           <div>
-                            <div
-                              style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}
-                            >
+                            <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
                               {inv.title}
                             </div>
-                            <div
-                              style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}
-                            >
+                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
                               {inv.at.slice(0, 10)} {inv.at.slice(11, 16)}
                             </div>
                           </div>
@@ -1824,7 +2046,8 @@ export function WorldPhoneSurface({
                     🚩 当前剧情篇章
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.6 }}>
-                    第一幕 · 做出选择后的第一个清晨。你已收到身边人的来信与碰头邀约。建议在微信与日历中深入探索，逐渐推动关系演化。
+                    第一幕 ·
+                    做出选择后的第一个清晨。你已收到身边人的来信与碰头邀约。建议在微信与日历中深入探索，逐渐推动关系演化。
                   </div>
                 </div>
               </div>
@@ -1832,197 +2055,8 @@ export function WorldPhoneSurface({
           }
 
           if (panel === 'director') {
-            return (
-              <div
-                style={{
-                  padding: '16px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                }}
-              >
-                <div
-                  style={{
-                    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
-                    borderRadius: '16px',
-                    padding: '16px',
-                    color: '#ffffff',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      color: '#c7d2fe',
-                      fontWeight: 600,
-                      marginBottom: '4px',
-                    }}
-                  >
-                    🎬 人生导演工坊 · 动态剧情推进
-                  </div>
-                  <h3
-                    style={{
-                      margin: '0 0 6px 0',
-                      fontSize: '17px',
-                      fontWeight: 700,
-                      color: '#f8fafc',
-                    }}
-                  >
-                    {data.title}
-                  </h3>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#e0e7ff', lineHeight: 1.5 }}>
-                    大模型根据你的真实档案推演生成的平行命运分支。你可以随时在这里让世界里的角色打破沉寂、主动向你发起互动。
-                  </p>
-                </div>
-
-                {directorNotice && (
-                  <div
-                    style={{
-                      background: '#ecfdf5',
-                      border: '1px solid #a7f3d0',
-                      color: '#065f46',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      fontSize: '13px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <span>✨</span>
-                    <span>{directorNotice}</span>
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '14px',
-                    padding: '16px',
-                    border: '1px solid #e2e8f0',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '12px',
-                    }}
-                  >
-                    <div>
-                      <h4
-                        style={{
-                          margin: 0,
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: '#0f172a',
-                        }}
-                      >
-                        ✨ 角色偶发主动联络
-                      </h4>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                        无需等待，立即让身边的角色主动给你发消息
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      borderRadius: '10px',
-                      background: '#07c160',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      marginBottom: '14px',
-                      boxShadow: '0 2px 8px rgba(7, 193, 96, 0.25)',
-                    }}
-                    onClick={() => {
-                      const res = triggerProactiveMessage();
-                      if (res) {
-                        setDirectorNotice(`角色「${res.actorName}」刚刚给你发送了一条微信！`);
-                        setTimeout(() => setDirectorNotice(null), 4000);
-                      }
-                    }}
-                  >
-                    🎲 随机角色偶发主动来信
-                  </button>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#94a3b8',
-                        letterSpacing: '0.05em',
-                      }}
-                    >
-                      指定角色主动联络
-                    </div>
-                    {data.actors.map((actor) => (
-                      <div
-                        key={actor.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 10px',
-                          background: '#f8fafc',
-                          borderRadius: '10px',
-                          border: '1px solid #f1f5f9',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Avatar name={actor.name} />
-                          <div>
-                            <div
-                              style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}
-                            >
-                              {actor.name}
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#64748b' }}>
-                              {actor.relationship}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          style={{
-                            padding: '5px 10px',
-                            borderRadius: '6px',
-                            background: '#ffffff',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '12px',
-                            color: '#0f172a',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => {
-                            const res = triggerProactiveMessage(actor.id);
-                            if (res) {
-                              setDirectorNotice(
-                                `「${res.actorName}」刚刚给你发来消息：“${res.text.slice(0, 14)}…”`,
-                              );
-                              setTimeout(() => setDirectorNotice(null), 4000);
-                            }
-                          }}
-                        >
-                          让TA发消息
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
+            /* 真实控制：时间（暂停/倍速/推进）与导演要求（主题/节奏/聚焦 + 先看影响）。 */
+            return <DirectorPanel client={client} worldId={data.id} />;
           }
 
           if (panel === 'management') {
@@ -2086,15 +2120,33 @@ export function WorldPhoneSurface({
                     border: '1px solid #e2e8f0',
                   }}
                 >
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      marginBottom: '8px',
+                    }}
+                  >
                     🖼️ 手机壁纸选择
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  <div
+                    style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}
+                  >
                     {[
                       { name: '经典窗景', url: '/art/first-window.webp' },
-                      { name: '极夜星空', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1080&q=80' },
-                      { name: '秋日山野', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1080&q=80' },
-                      { name: '暗曜极简', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1080&q=80' },
+                      {
+                        name: '极夜星空',
+                        url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1080&q=80',
+                      },
+                      {
+                        name: '秋日山野',
+                        url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1080&q=80',
+                      },
+                      {
+                        name: '暗曜极简',
+                        url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1080&q=80',
+                      },
                     ].map((w) => (
                       <button
                         key={w.name}
@@ -2104,7 +2156,8 @@ export function WorldPhoneSurface({
                           changeWallpaper(w.url);
                         }}
                         style={{
-                          border: wallpaperUrl === w.url ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                          border:
+                            wallpaperUrl === w.url ? '2px solid #0284c7' : '1px solid #e2e8f0',
                           borderRadius: '10px',
                           overflow: 'hidden',
                           background: '#f1f5f9',
@@ -2140,14 +2193,31 @@ export function WorldPhoneSurface({
                     gap: '10px',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <div
+                    style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}
+                  >
                     <span style={{ color: '#475569' }}>📱 存储空间</span>
                     <span style={{ fontWeight: 600, color: '#0f172a' }}>已用 18.2 MB / 256 GB</span>
                   </div>
-                  <div style={{ height: '6px', borderRadius: '3px', background: '#e2e8f0', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '6px',
+                      borderRadius: '3px',
+                      background: '#e2e8f0',
+                      overflow: 'hidden',
+                    }}
+                  >
                     <div style={{ width: '8%', height: '100%', background: '#0284c7' }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '13px',
+                      borderTop: '1px solid #f1f5f9',
+                      paddingTop: '8px',
+                    }}
+                  >
                     <span style={{ color: '#475569' }}>📶 蜂窝网络</span>
                     <span style={{ fontWeight: 600, color: '#16a34a' }}>5G 全网通 (已连接)</span>
                   </div>
@@ -2163,11 +2233,33 @@ export function WorldPhoneSurface({
                   }}
                 >
                   {[
-                    { label: '与导演讨论剧情', action: () => { window.location.hash = routeHash(data.id, { app: null, panel: 'director' }); }, icon: '🎬' },
-                    { label: '当前身份与人脉档案', action: () => { window.location.hash = routeHash(data.id, { app: null, panel: 'timeline' }); }, icon: '👥' },
-                    { label: '故事时间与安排', action: () => { window.location.hash = routeHash(data.id, { app: null, panel: 'schedule' }); }, icon: '⏱️' },
+                    {
+                      label: '与导演讨论剧情',
+                      action: () => {
+                        window.location.hash = routeHash(data.id, { app: null, panel: 'director' });
+                      },
+                      icon: '🎬',
+                    },
+                    {
+                      label: '当前身份与人脉档案',
+                      action: () => {
+                        window.location.hash = routeHash(data.id, { app: null, panel: 'timeline' });
+                      },
+                      icon: '👥',
+                    },
+                    {
+                      label: '故事时间与安排',
+                      action: () => {
+                        window.location.hash = routeHash(data.id, { app: null, panel: 'schedule' });
+                      },
+                      icon: '⏱️',
+                    },
                     { label: '返回现实档案', action: () => (location.href = '/'), icon: '🏡' },
-                    { label: '切换到其他人生分支', action: () => (location.href = '/possibilities'), icon: '🔀' },
+                    {
+                      label: '切换到其他人生分支',
+                      action: () => (location.href = '/possibilities'),
+                      icon: '🔀',
+                    },
                   ].map((item, idx) => (
                     <button
                       key={item.label}
@@ -2244,7 +2336,11 @@ export function WorldPhoneSurface({
                   <button
                     type="button"
                     onClick={async () => {
-                      if (confirm('确定要清除这台手机的登录会话吗？你的服务端数据不会丢失，刷新后可重新开启。')) {
+                      if (
+                        confirm(
+                          '确定要清除这台手机的登录会话吗？你的服务端数据不会丢失，刷新后可重新开启。',
+                        )
+                      ) {
                         await client.clearSession();
                         location.href = '/';
                       }
@@ -2312,9 +2408,7 @@ export function WorldPhoneSurface({
             >
               {callingActor.name.slice(0, 1)}
             </div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>
-              {callingActor.name}
-            </h2>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>{callingActor.name}</h2>
             <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '6px' }}>
               {callingActor.relationship} · 正在呼叫...
             </div>

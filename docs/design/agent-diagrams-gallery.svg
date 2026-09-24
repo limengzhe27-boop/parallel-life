@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1320" viewBox="0 0 1900 1320">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071426"/><stop offset=".55" stop-color="#102743"/><stop offset="1" stop-color="#241a3b"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#000" flood-opacity=".28"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#92bbf5"/></marker>
+    <marker id="green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#70d4b8"/></marker>
+    <style>
+      .cn{font-family:PingFang SC,Microsoft YaHei,Noto Sans CJK SC,sans-serif}.title{font-size:42px;font-weight:700;fill:#f7f9ff}.sub{font-size:18px;fill:#b7c5da}.num{font-size:16px;font-weight:700;fill:#9ec5ff}.pt{font-size:17px;font-weight:700;fill:#f7f9ff}.t{font-size:13px;fill:#d6e2f2}.s{font-size:12px;fill:#a6b7cf}.box{fill:#172c49;stroke:#446991}.blue{fill:#214d83;stroke:#6da4e7}.purple{fill:#35274b;stroke:#a475c9}.orange{fill:#4b2e3a;stroke:#d08b69}.greenbox{fill:#16445c;stroke:#65bca9}.line{stroke:#92bbf5;stroke-width:2;marker-end:url(#arrow)}.gline{stroke:#70d4b8;stroke-width:2;marker-end:url(#green)}
+    </style>
+  </defs>
+  <rect width="1900" height="1320" fill="url(#bg)"/>
+  <circle cx="1750" cy="100" r="240" fill="#6076d5" opacity=".09"/>
+  <text x="70" y="66" class="cn title">如果｜Agent 流程图集</text>
+  <text x="70" y="102" class="cn sub">11 张业务流程图：谁负责什么、信息怎么流、世界如何继续运转</text>
+  <rect x="70" y="130" width="1760" height="54" rx="15" fill="#142945" stroke="#31537c"/>
+  <text x="100" y="165" class="cn t">真实侧负责“你是谁”｜虚构侧负责“如果那样会怎样”｜所有变化先提出，再经过确认，最后被记住</text>
+
+  <!-- panel 1 -->
+  <g transform="translate(70 220)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">01 · 总览</text><text x="24" y="60" class="cn pt">两个世界，一个底座</text>
+    <rect x="24" y="85" width="120" height="60" rx="12" class="blue"/><text x="84" y="120" text-anchor="middle" class="cn t">用户</text><path d="M145 115 H190" class="line"/>
+    <rect x="205" y="85" width="130" height="60" rx="12" class="blue"/><text x="270" y="110" text-anchor="middle" class="cn t">真实侧</text><text x="270" y="130" text-anchor="middle" class="cn s">向导 · 探索</text><path d="M340 115 H385" class="line"/>
+    <rect x="400" y="77" width="40" height="76" rx="15" fill="#182233" stroke="#edb171"/><text x="420" y="110" text-anchor="middle" class="cn s">单</text><text x="420" y="129" text-anchor="middle" class="cn s">向</text><path d="M445 115 H480" class="line"/>
+    <rect x="495" y="85" width="42" height="60" rx="12" class="purple"/><text x="516" y="119" text-anchor="middle" class="cn s">世界</text><text x="24" y="191" class="cn s">私人信息不直接进入世界；只有被采纳的假设通过。</text><rect x="24" y="207" width="513" height="25" rx="8" fill="#0d1b30"/><text x="280" y="225" text-anchor="middle" class="cn s">共用底座：提出 → 确认 → 记录 → 继续发生</text></g>
+
+  <!-- panel 2 -->
+  <g transform="translate(670 220)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">02 · 职责</text><text x="24" y="60" class="cn pt">每个 Agent 只管自己的一份</text>
+    <circle cx="280" cy="139" r="46" fill="#243b60" stroke="#8cb8fa"/><text x="280" y="145" text-anchor="middle" class="cn t">Agent</text>
+    <rect x="38" y="91" width="130" height="45" rx="10" class="blue"/><text x="103" y="119" text-anchor="middle" class="cn s">个人向导</text><path d="M169 114 H233" class="line"/>
+    <rect x="38" y="151" width="130" height="45" rx="10" class="blue"/><text x="103" y="179" text-anchor="middle" class="cn s">人生探索</text><path d="M169 173 H234" class="line"/>
+    <rect x="392" y="91" width="130" height="45" rx="10" class="purple"/><text x="457" y="119" text-anchor="middle" class="cn s">导演</text><path d="M327 114 H390" class="line"/>
+    <rect x="392" y="151" width="130" height="45" rx="10" class="orange"/><text x="457" y="179" text-anchor="middle" class="cn s">NPC 角色</text><path d="M327 173 H390" class="line"/>
+    <text x="24" y="227" class="cn s">导演看全局；角色只代表自己；记忆服务负责承接结果。</text></g>
+
+  <!-- panel 3 -->
+  <g transform="translate(1270 220)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">03 · 信息路径</text><text x="24" y="60" class="cn pt">一句话如何变成资料</text>
+    <text x="24" y="101" class="cn s">用户</text><path d="M80 96 H135" class="line"/><text x="145" y="101" class="cn s">个人向导</text><path d="M235 96 H290" class="line"/><text x="300" y="101" class="cn s">过滤重复</text><path d="M385 96 H440" class="gline"/><text x="450" y="101" class="cn s">我的资料</text>
+    <rect x="24" y="125" width="513" height="54" rx="12" class="greenbox"/><text x="280" y="148" text-anchor="middle" class="cn t">提取事实 · 事件 · 人物 · 愿望</text><text x="280" y="169" text-anchor="middle" class="cn s">保留“来自哪句话”，重复内容只合并来源</text>
+    <text x="24" y="216" class="cn s">结果：聊完就沉淀好，下一次不用从头开始。</text></g>
+
+  <!-- panel 4 -->
+  <g transform="translate(70 500)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">04 · 分支</text><text x="24" y="60" class="cn pt">从资料到另一段人生</text>
+    <rect x="24" y="98" width="120" height="52" rx="11" class="blue"/><text x="84" y="130" text-anchor="middle" class="cn s">我的资料</text><path d="M145 124 H205" class="line"/>
+    <rect x="225" y="98" width="120" height="52" rx="11" class="blue"/><text x="285" y="130" text-anchor="middle" class="cn s">人生探索</text><path d="M345 124 H405" class="line"/>
+    <rect x="425" y="98" width="105" height="52" rx="11" class="purple"/><text x="477" y="130" text-anchor="middle" class="cn s">若干“如果”</text>
+    <path d="M478 151 V182" class="gline"/><text x="492" y="174" class="cn s">选一个</text><rect x="225" y="188" width="120" height="42" rx="10" class="purple"/><text x="285" y="214" text-anchor="middle" class="cn s">世界创建</text><path d="M345 209 H405" class="line"/><rect x="425" y="188" width="105" height="42" rx="10" class="purple"/><text x="477" y="214" text-anchor="middle" class="cn s">进入手机</text>
+  </g>
+
+  <!-- panel 5 -->
+  <g transform="translate(670 500)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">05 · NPC 回合</text><text x="24" y="60" class="cn pt">你发消息时发生什么</text>
+    <text x="25" y="101" class="cn s">用户</text><path d="M70 96 H125" class="line"/><text x="135" y="101" class="cn s">裁剪可见资料</text><path d="M240 96 H295" class="line"/><text x="305" y="101" class="cn s">NPC</text><path d="M345 96 H400" class="line"/><text x="410" y="101" class="cn s">确认结果</text><path d="M470 96 H525" class="gline"/>
+    <rect x="24" y="126" width="513" height="56" rx="12" class="orange"/><text x="280" y="150" text-anchor="middle" class="cn t">只给角色该知道的：世界事实 + 对话 + 角色记忆</text><text x="280" y="172" text-anchor="middle" class="cn s">不能替用户说话，不能把角色印象当成现实事实</text>
+    <text x="24" y="218" class="cn s">失败会显示失败，不会伪装成已经发生。</text></g>
+
+  <!-- panel 6 -->
+  <g transform="translate(1270 500)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">06 · 导演循环</text><text x="24" y="60" class="cn pt">让世界自己会走</text>
+    <rect x="25" y="90" width="105" height="45" rx="10" class="purple"/><text x="77" y="118" text-anchor="middle" class="cn s">时间流逝</text><path d="M132 112 H170" class="line"/><rect x="180" y="90" width="105" height="45" rx="10" class="purple"/><text x="232" y="118" text-anchor="middle" class="cn s">用户要求</text><path d="M287 112 H325" class="line"/><rect x="335" y="90" width="105" height="45" rx="10" class="purple"/><text x="387" y="118" text-anchor="middle" class="cn s">未了结的事</text><path d="M442 112 H480" class="line"/><rect x="490" y="90" width="45" height="45" rx="10" class="orange"/><text x="512" y="118" text-anchor="middle" class="cn s">选人</text>
+    <path d="M512 138 V184 H77 V138" fill="none" stroke="#92bbf5" stroke-width="2" marker-end="url(#arrow)"/><text x="280" y="177" text-anchor="middle" class="cn s">记录结果，再进入下一轮</text><text x="25" y="221" class="cn s">世界围绕你还没了结的事运转，不是随机找人聊天。</text></g>
+
+  <!-- panel 7 -->
+  <g transform="translate(70 780)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">07 · 时间状态</text><text x="24" y="60" class="cn pt">真实、可控、不失控</text>
+    <rect x="215" y="88" width="130" height="44" rx="20" class="purple"/><text x="280" y="116" text-anchor="middle" class="cn s">正常 1:1</text><path d="M215 110 H145 V160 H215" fill="none" class="line"/><text x="105" y="183" class="cn s">暂停</text><path d="M345 110 H415 V160 H345" fill="none" class="line"/><text x="425" y="183" class="cn s">加速</text><path d="M280 132 V167" class="line"/><text x="280" y="190" text-anchor="middle" class="cn s">离开很久：少量事件 + 摘要</text><text x="24" y="227" class="cn s">暂停就是真的停；回来后再决定是否继续。</text></g>
+
+  <!-- panel 8 -->
+  <g transform="translate(670 780)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">08 · 记忆的一生</text><text x="24" y="60" class="cn pt">记得住、改得掉、忘得干净</text>
+    <rect x="25" y="100" width="90" height="44" rx="11" class="greenbox"/><text x="70" y="128" text-anchor="middle" class="cn s">写入</text><path d="M117 122 H150" class="gline"/><rect x="160" y="100" width="90" height="44" rx="11" class="greenbox"/><text x="205" y="128" text-anchor="middle" class="cn s">合并</text><path d="M252 122 H285" class="gline"/><rect x="295" y="100" width="90" height="44" rx="11" class="greenbox"/><text x="340" y="128" text-anchor="middle" class="cn s">检索</text><path d="M387 122 H420" class="gline"/><rect x="430" y="100" width="105" height="44" rx="11" class="greenbox"/><text x="482" y="128" text-anchor="middle" class="cn s">用于回应</text><path d="M482 147 V187 H70 V147" fill="none" stroke="#70d4b8" stroke-width="2" marker-end="url(#green)"/><text x="280" y="183" text-anchor="middle" class="cn s">更正 / 遗忘后，下次检索看不到</text></g>
+
+  <!-- panel 9 -->
+  <g transform="translate(1270 780)"><rect width="560" height="250" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">09 · 资料隔离</text><text x="24" y="60" class="cn pt">真实侧与虚构侧只有一扇单向门</text>
+    <rect x="25" y="92" width="190" height="110" rx="15" class="blue"/><text x="120" y="123" text-anchor="middle" class="cn t">真实侧</text><text x="120" y="151" text-anchor="middle" class="cn s">真实资料</text><text x="120" y="177" text-anchor="middle" class="cn s">真实照片</text><rect x="245" y="104" width="70" height="85" rx="20" fill="#172334" stroke="#e9ae70"/><text x="280" y="140" text-anchor="middle" class="cn s">只准</text><text x="280" y="162" text-anchor="middle" class="cn s">假设</text><path d="M215 147 H240" class="gline"/><path d="M320 147 H350" class="gline"/><rect x="365" y="92" width="170" height="110" rx="15" class="purple"/><text x="450" y="123" text-anchor="middle" class="cn t">虚构侧</text><text x="450" y="151" text-anchor="middle" class="cn s">世界事实</text><text x="450" y="177" text-anchor="middle" class="cn s">角色印象</text><text x="25" y="228" class="cn s">私人信息与真实照片不会自动进入世界。</text></g>
+
+  <!-- panel 10 -->
+  <g transform="translate(70 1060)"><rect width="560" height="190" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">10 · 你指挥导演</text><text x="24" y="60" class="cn pt">能指挥未来，不能改写过去</text>
+    <rect x="25" y="90" width="130" height="45" rx="10" class="blue"/><text x="90" y="118" text-anchor="middle" class="cn s">我的要求</text><path d="M160 112 H205" class="line"/><rect x="220" y="90" width="130" height="45" rx="10" class="purple"/><text x="285" y="118" text-anchor="middle" class="cn s">先看影响</text><path d="M355 112 H400" class="line"/><rect x="415" y="90" width="110" height="45" rx="10" class="greenbox"/><text x="470" y="118" text-anchor="middle" class="cn s">确认生效</text><text x="25" y="165" class="cn s">想改已经发生的事 → 不改历史，另开一条分支。</text></g>
+
+  <!-- panel 11 -->
+  <g transform="translate(670 1060)"><rect width="560" height="190" rx="20" class="box" filter="url(#shadow)"/><text x="24" y="32" class="cn num">11 · 三条底线</text><text x="24" y="60" class="cn pt">可信来自结构与边界</text>
+    <rect x="25" y="90" width="145" height="48" rx="12" class="blue"/><text x="97" y="120" text-anchor="middle" class="cn s">隔离</text><rect x="190" y="90" width="145" height="48" rx="12" class="purple"/><text x="262" y="120" text-anchor="middle" class="cn s">提案制</text><rect x="355" y="90" width="170" height="48" rx="12" class="orange"/><text x="440" y="120" text-anchor="middle" class="cn s">成本边界</text><path d="M97 142 V160 H440 V142" fill="none" stroke="#92bbf5" stroke-width="2" marker-end="url(#arrow)"/><text x="280" y="177" text-anchor="middle" class="cn s">用户可以相信，世界不会越界失控</text></g>
+
+  <!-- final note -->
+  <g transform="translate(1270 1060)"><rect width="560" height="190" rx="20" fill="#0b172b" stroke="#31537d" filter="url(#shadow)"/><text x="26" y="40" class="cn section">给领导的一句话</text><text x="26" y="82" class="cn pt">不是预设一段剧情，</text><text x="26" y="114" class="cn pt">而是让用户的每次表达，</text><text x="26" y="146" class="cn pt">被下一次相遇真正记住。</text><text x="26" y="178" class="cn tiny">真实侧回答“你是谁”｜虚构侧回答“如果那样会怎样”</text></g>
+</svg>
