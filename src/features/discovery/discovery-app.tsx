@@ -188,7 +188,7 @@ export function DiscoveryApp() {
         directionId: direction.id,
         factIds: chosenFactIds,
         personIds: [],
-        includePortrait: false,
+        includePortrait: Boolean(profile.portraitAssetId),
       });
 
       const build = await client.createWorld({
