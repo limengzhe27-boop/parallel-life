@@ -11,6 +11,12 @@ import { IdentityRepository } from '../modules/identity/infrastructure/identity-
 import { dispatchOutbox } from '../modules/tasks/application/dispatch-outbox.ts';
 import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.ts';
 import {
+  correctMemoryInStore,
+  forgetMemoryInStore,
+  listMemories,
+} from '../modules/memory/infrastructure/memory-store.ts';
+import type { MemoryEditRequest } from '../contracts/memory.ts';
+import {
   GUEST_LIMIT_GLOBAL_CEILING,
   GUEST_LIMIT_PER_CALLER,
   GUEST_LIMIT_WINDOW_SECONDS,
@@ -81,6 +87,27 @@ function createServices() {
       const ports = new PostgresOutbox(db).ports(ownerId);
       return dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks, limit });
     },
+    /**
+     * The user's own correction or forgetting of a memory. Synchronous and inside
+     * one transaction: the change is visible immediately and never half applied.
+     */
+    editMemory: (ownerId: string, input: MemoryEditRequest) =>
+      db.transaction(ownerId, async (sql) =>
+        input.action === 'correct'
+          ? correctMemoryInStore(sql, {
+              ownerId,
+              key: input.key,
+              newText: input.newText,
+              scopeType: input.scopeType,
+              scopeId: input.scopeId,
+              sourceMessageIds: [],
+            })
+          : forgetMemoryInStore(sql, { ownerId, targetMemoryId: input.targetMemoryId }),
+      ),
+    listMemories: (
+      ownerId: string,
+      filter: { scopeType?: 'profile' | 'branch' | 'character'; scopeId?: string; includeInactive?: boolean },
+    ) => db.transaction(ownerId, (sql) => listMemories(sql, ownerId, filter)),
     reserveGuestCreation: (headers: Headers) =>
       identity.reserveGuestCreation(callerBucket(headers, secret), {
         perCaller: GUEST_LIMIT_PER_CALLER,

@@ -16,6 +16,7 @@ import {
   questionTargetBlockedInTransaction,
 } from '../../memory/infrastructure/question-repository.ts';
 import { applyConfirmedCandidateInTransaction, isSimilarText } from './profile-repository.ts';
+import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
 import { dedupeBatch, rejectReason } from '../application/fact-quality.ts';
 const Input = z.strictObject({
   interviewId: Id,
@@ -111,6 +112,12 @@ export function interviewHandler(
       const basicInfoBlob = existingProfile?.facts.find((fact) =>
         fact.value.startsWith('个人资料\n'),
       )?.value;
+      const accepted: {
+        category: string;
+        text: string;
+        eventDate?: string;
+        sourceMessageIds: string[];
+      }[] = [];
       for (const candidate of deduplicatedCandidates) {
         const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
         if (!(await hasUserSources(sql, lease.ownerId, input.interviewId, sourceMessageIds)))
@@ -130,6 +137,38 @@ export function interviewHandler(
           eventDate: candidate.eventDate,
           sourceMessageIds,
         });
+        accepted.push(candidate);
+      }
+
+      /*
+      记忆接线：同一次提炼的结果也写入记忆库（profile 作用域，来源=本次用户消息），
+      使「纠正 / 遗忘 / 按来源检索」有据可依。抽取本身不额外调用模型；重复表述在
+      写入层合并来源而不是再存一条。
+      */
+      if (accepted.length) {
+        const storedProfile = (
+          await sql.query('SELECT id FROM parallel_life.profiles WHERE owner_id=$1', [lease.ownerId])
+        ).rows[0];
+        if (storedProfile)
+          await deriveAndStoreMemories(
+            sql,
+            accepted.map((candidate: { category: string; text: string; eventDate?: string; sourceMessageIds: string[] }) => ({
+              ownerId: lease.ownerId,
+              scopeType: 'profile' as const,
+              scopeId: String(storedProfile.id),
+              text: candidate.text,
+              key: `interview:${candidate.category}:${candidate.text.slice(0, 80)}`.slice(0, 128),
+              kind: candidate.eventDate ? ('episode' as const) : ('preference' as const),
+              sourceType: 'user_statement' as const,
+              sourceIds: [...new Set(candidate.sourceMessageIds)],
+              evidence: Object.fromEntries(
+                [...new Set(candidate.sourceMessageIds)].map((id: string) => [
+                  id,
+                  { id, role: 'user' as const, text: candidate.text },
+                ]),
+              ),
+            })),
+          );
       }
 
       // Persist at most one open question per interview. If an earlier open

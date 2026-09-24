@@ -702,8 +702,12 @@ export function ProfilePane({
           </span>
         </button>
         <div>
-          <h3>{uploading ? '正在保存照片…' : name || '我的档案'}</h3>
-          <p>换一张照片</p>
+          <h3>{uploading ? '正在保存照片…' : (profile.portraitAssetId ? '✨ 肖像底模已就绪' : '📸 上传肖像底模')}</h3>
+          <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: '1.4' }}>
+            {profile.portraitAssetId
+              ? '已绑定为您本人的真实肖像，创建分支身份时将以此图生图生成开篇角色写真存入手机相册。'
+              : '上传真实照片后，选择平行分支（如独立导演、主理人）时将以您的面貌图生图生成角色写真存入相册。'}
+          </p>
         </div>
       </div>
       {onCandidateAction && (

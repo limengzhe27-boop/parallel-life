@@ -1,13 +1,18 @@
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import { checkMediaQuota, DEFAULT_MEDIA_BUDGET } from '../domain/consistency-guard.ts';
+import type { CharacterImageSynthesizer } from './image-generator.ts';
 
 /**
  * Media generation handler (AUD-04 & M-01/M-02/M-03).
  * Enforces per-world quota & cost limits, verifies reference asset contracts,
- * records honest failure reasons without generic wallpaper spoofing.
+ * generates character portraits and event memorial photos into the album,
+ * or records honest failure reasons if the adapter is not connected.
  */
-export function mediaHandler(queue: PostgresTaskQueue) {
+export function mediaHandler(
+  queue: PostgresTaskQueue,
+  synthesizer?: CharacterImageSynthesizer,
+) {
   return async (lease: TaskLease) => {
     if (lease.kind !== 'media')
       throw Object.assign(Error('INVALID_SCOPE'), { code: 'INVALID_COMMAND' });
@@ -35,7 +40,11 @@ export function mediaHandler(queue: PostgresTaskQueue) {
       const currentCount = countRes.rows[0]?.count ?? 0;
 
       return {
-        document: row.document as { prompt?: string; referenceAssetId?: string },
+        document: row.document as {
+          prompt?: string;
+          referenceAssetId?: string;
+          title?: string;
+        },
         world_id: row.world_id as string,
         outbox_id: row.outbox_id as string | null,
         currentCount,
@@ -56,7 +65,39 @@ export function mediaHandler(queue: PostgresTaskQueue) {
       throw Object.assign(Error(quota.reason ?? 'QUOTA_EXCEEDED'), { code: 'INVALID_COMMAND' });
     }
 
-    // 2. Adapter status check (never fake an image with generic wallpaper)
+    // 2. Real Image Generation & Album Commit (when synthesizer is active)
+    if (synthesizer) {
+      const result = await synthesizer.generateAndCommit({
+        ownerId: lease.ownerId,
+        worldId: request.world_id,
+        prompt: request.document.prompt || '平行人生留影',
+        title: request.document.title || '平行人生留影',
+        referenceAssetId: request.document.referenceAssetId,
+      });
+
+      await queue.commit(lease, async (sql) => {
+        await sql.query(
+          "UPDATE parallel_life.world_media_requests SET document = jsonb_set(jsonb_set(document, '{status}', '\"ready\"'), '{assetId}', to_jsonb($2::text)) WHERE id = $1",
+          [lease.scopeId, result.assetId],
+        );
+        if (request.outbox_id) {
+          await sql.query("SELECT parallel_life.finish_outbox_job($1,'succeeded',NULL,$2)", [
+            request.outbox_id,
+            result.assetId,
+          ]);
+        }
+        return {
+          value: { assetId: result.assetId },
+          outcome: {
+            status: 'succeeded',
+            resultVersion: 1,
+          },
+        };
+      });
+      return;
+    }
+
+    // 3. Fallback: Honest failure reporting when adapter is not wired
     const reason = 'media adapter 未接入（M-01..M-03 待开发，禁止以随机壁纸冒充人像）';
     if (request.outbox_id)
       await queue.read(lease, async (sql) => {

@@ -10,12 +10,43 @@ import { InterviewPlanner } from '../modules/profile/infrastructure/interview-pl
 import { interviewHandler } from '../modules/profile/infrastructure/interview-handler.ts';
 import { memoryHandler } from '../modules/memory/infrastructure/memory-handler.ts';
 import { mediaHandler } from '../modules/media/infrastructure/media-handler.ts';
+import { CharacterImageSynthesizer } from '../modules/media/infrastructure/image-generator.ts';
+import { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
+import { SupabaseStorageStore } from '../modules/media/infrastructure/supabase-storage-store.ts';
+import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
+import { PrivateDiskStore } from '../modules/media/infrastructure/private-disk-store.ts';
+
 export function createWorker() {
   const url = process.env.WORKER_DATABASE_URL;
   if (!url || new URL(url).username.split('.')[0] !== 'pl_worker')
     throw Error('WORKER_NOT_CONFIGURED');
   const config = gatewayConfig(),
     queue = new PostgresTaskQueue(url);
+
+  // Configure private storage store for media generator
+  const assetDir = process.env.PRIVATE_ASSET_DIR;
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN,
+    blobStoreId = process.env.BLOB_STORE_ID,
+    supabaseUrl = process.env.SUPABASE_URL,
+    supabaseServiceRoleKey =
+      process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseBucket = process.env.SUPABASE_STORAGE_BUCKET || 'private-assets';
+
+  const assetStore =
+    supabaseUrl && supabaseServiceRoleKey
+      ? new SupabaseStorageStore({
+          url: supabaseUrl,
+          serviceRoleKey: supabaseServiceRoleKey,
+          bucket: supabaseBucket,
+        })
+      : blobToken || blobStoreId
+        ? new VercelBlobStore({ token: blobToken, storeId: blobStoreId })
+        : new PrivateDiskStore(assetDir || '.local/assets');
+
+  const appDbUrl = process.env.APP_DATABASE_URL ?? process.env.DATABASE_URL ?? url;
+  const db = new PostgresDatabase(appDbUrl);
+  const synthesizer = new CharacterImageSynthesizer(db, assetStore);
+
   return {
     queue,
     handlers: {
@@ -31,7 +62,7 @@ export function createWorker() {
         config.model,
       ),
       memory: memoryHandler(queue),
-      media: mediaHandler(queue),
+      media: mediaHandler(queue, synthesizer),
     },
   };
 }

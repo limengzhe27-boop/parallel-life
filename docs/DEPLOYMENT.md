@@ -24,6 +24,15 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 肖像底模图生图身份写真 + 聊天事件照片解锁入册全链路批量上线
+
+|项目|内容|
+|---|---|
+|交付内容|1. **开局前肖像底模与图生图提示升级**：在访谈和个人档案页面优化头像卡片为【📸 上传肖像底模（用于平行人生图生图）】，用户上传真实照片后，明确用于分支世界创建时的角色身份图生图；<br>2. **分支身份开局角色写真自动生成（`buildHandler`）**：用户带入肖像照片创建世界时，系统自动派发首张身份角色写真任务（如“【身份写真】独立电影导演”，胶片质感生活抓拍），通过 `imageSynthesizer` 真实生成并存入私有云存储，落库 `world_album`；<br>3. **NPC 聊天与关键剧情事件照片解锁（`turn-planner` & `mediaHandler`）**：NPC 在推演至纪念性里程碑事件（布展、杀青、纪念合影等）或用户索图时，自动在 effects 中产生 `media.requested` 效果，生成剧情事件照片存入手机相册；<br>4. **真实生图与相册落库服务 `CharacterImageSynthesizer`**：生成 1024x1024 胶片质感 WebP 格式照片，严格保留人物人脸底模溯源（`referenceAssetId`）与事件故事时间戳，手机【相册 App】直接打开即可浏览与设为壁纸；<br>5. **数据库迁移 0024**：发布并应用生产迁移 `0024_memory_task_kind.sql`，补齐任务队列 `memory` 范围与权限。|
+|发布前检查|`npm run check` 152 项自动化测试（新增 2 项）全绿通过，`npm run build` 构建成功|
+|迁移应用|`0024_memory_task_kind.sql` 已成功应用于本地与生产 Supabase 数据库（`pl_migrations` 累计 24 条全部一致）|
+|线上实测|待部署 READY 后在 `https://parallel-life-nu.vercel.app` 实测|
+
 ### 2026-09-24 · 审计整改全量收口（AUD-03/04/11/14/18）+ 手机桌面毛玻璃 Dock 栏与真实 iOS 交互全面上线
 
 |项目|内容|

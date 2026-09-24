@@ -150,3 +150,49 @@ export const MemoryCandidateListSchema = z.strictObject({
 export const MemoryCandidateDecisionResultSchema = z.strictObject({
   candidate: MemoryCandidateSchema,
 });
+
+const MemoryEditRef = z.string().trim().min(1).max(200);
+/** The user's own correction or forgetting of a memory; never inferred by an agent. */
+export const MemoryEditRequestSchema = z.discriminatedUnion('action', [
+  z.strictObject({
+    commandId: Id,
+    action: z.literal('correct'),
+    scopeType: MemoryScopeSchema,
+    scopeId: MemoryEditRef,
+    key: z.string().trim().min(1).max(128),
+    newText: z.string().trim().min(1).max(4000),
+  }),
+  z.strictObject({
+    commandId: Id,
+    action: z.literal('forget'),
+    targetMemoryId: MemoryEditRef,
+  }),
+]);
+export type MemoryEditRequest = z.infer<typeof MemoryEditRequestSchema>;
+export const MemoryEditReceiptSchema = z.strictObject({
+  status: z.literal('committed'),
+  commandId: Id,
+  record: z.strictObject({
+    id: MemoryEditRef,
+    scopeType: MemoryScopeSchema,
+    scopeId: MemoryEditRef,
+    kind: MemoryKindSchema,
+    text: z.string().min(1).max(4000),
+    status: MemoryStatusSchema,
+  }),
+});
+export const MemoryListSchema = z.strictObject({
+  memories: z.array(
+    z.strictObject({
+      id: MemoryEditRef,
+      scopeType: MemoryScopeSchema,
+      scopeId: MemoryEditRef,
+      characterId: MemoryEditRef.nullable(),
+      kind: MemoryKindSchema,
+      text: z.string().min(1).max(4000),
+      status: MemoryStatusSchema,
+      importance: z.number().int().min(1).max(10),
+      createdAt: Timestamp,
+    }),
+  ),
+});
