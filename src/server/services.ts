@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
 import { SupabaseStorageStore } from '../modules/media/infrastructure/supabase-storage-store.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
@@ -10,6 +11,8 @@ import { SignedSession } from '../modules/identity/infrastructure/signed-session
 import { IdentityRepository } from '../modules/identity/infrastructure/identity-repository.ts';
 import { dispatchOutbox } from '../modules/tasks/application/dispatch-outbox.ts';
 import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.ts';
+import { advanceWorld } from '../modules/world/application/advance-world.ts';
+import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
 import {
   loadActorMemories,
   correctMemoryInStore,
@@ -113,6 +116,27 @@ function createServices() {
         includeInactive?: boolean;
       },
     ) => db.transaction(ownerId, (sql) => listMemories(sql, ownerId, filter)),
+    /**
+     * Move this life's clock and let a bounded number of beats happen on their own.
+     * Costs at most MAX_BEATS_PER_ADVANCE model calls; the rest is folded into a summary.
+     */
+    advanceWorld: (ownerId: string, worldId: string, maxBeats?: number) =>
+      advanceWorld(
+        {
+          clock: new PostgresClockStore(db),
+          worlds: new PostgresWorldRepository(db),
+          planner: new WorldTurnPlanner(createTextModel()),
+          now: () => new Date().toISOString(),
+          newId: () => randomUUID(),
+          memories: (actorId) =>
+            db.transaction(ownerId, (sql) =>
+              loadActorMemories(sql, ownerId, { actorId, worldId }),
+            ),
+          ...(maxBeats ? { maxBeats } : {}),
+        },
+        { userId: ownerId },
+        worldId,
+      ),
     /** What one character may recall in this world; private profile records excluded. */
     actorMemories: (ownerId: string, actorId: string, worldId: string) =>
       db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),

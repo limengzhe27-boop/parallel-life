@@ -28,3 +28,19 @@ export type ActorContext = {
 export interface TurnPlanner {
   propose(input: { context: ActorContext; userText: string }): Promise<unknown>;
 }
+
+/** The story clock and the beats already produced. Implemented in infrastructure. */
+export type ClockStore = {
+  read(ownerId: string, worldId: string): Promise<import('../domain/clock.ts').WorldClock>;
+  write(
+    ownerId: string,
+    worldId: string,
+    clock: import('../domain/clock.ts').WorldClock,
+  ): Promise<void>;
+  setStoryTime(ownerId: string, worldId: string, storyNow: string): Promise<void>;
+  recordBeat(
+    ownerId: string,
+    worldId: string,
+    beat: { id: string; commandId: string; plannedFor: string; actorId: string; status: string },
+  ): Promise<void>;
+};

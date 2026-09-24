@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071426"/>
+      <stop offset=".52" stop-color="#0d1c35"/>
+      <stop offset="1" stop-color="#171831"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5ea1ff" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#735df4" stop-opacity=".24"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eb8b9d" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#bd70de" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e9b56b" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#db7f5d" stop-opacity=".17"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity=".33"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#86b6ff"/>
+    </marker>
+    <style>
+      .cn { font-family: PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif; }
+      .title { font-size: 46px; font-weight: 700; fill: #f8f9ff; letter-spacing: 2px; }
+      .subtitle { font-size: 20px; fill: #afbdd5; }
+      .eyebrow { font-size: 14px; font-weight: 700; fill: #88b9ff; letter-spacing: 3px; }
+      .cardTitle { font-size: 22px; font-weight: 700; fill: #f8f9ff; }
+      .cardText { font-size: 16px; fill: #d8e2f2; }
+      .small { font-size: 14px; fill: #a8b8d0; }
+      .phoneTitle { font-size: 18px; font-weight: 700; fill: #f7f9ff; }
+      .phoneText { font-size: 13px; fill: #eef3fc; }
+      .quote { font-size: 17px; fill: #f1d8db; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1120" fill="url(#bg)"/>
+  <circle cx="1660" cy="100" r="250" fill="#5377c7" opacity=".10"/>
+  <circle cx="120" cy="1000" r="240" fill="#b3688e" opacity=".08"/>
+
+  <text x="80" y="76" class="cn title">如果</text>
+  <text x="80" y="116" class="cn subtitle">从真实的你出发，走进另一种可能的人生</text>
+  <text x="1720" y="74" text-anchor="end" class="cn eyebrow">SAME YOU · DIFFERENT LIVES</text>
+
+  <rect x="80" y="154" width="1640" height="94" rx="26" fill="#132440" stroke="#2c4a76"/>
+  <text x="112" y="192" class="cn eyebrow">核心体验</text>
+  <text x="112" y="225" class="cn cardText">你不需要先填完一张表。先和 Agent 聊起来，人生会在对话中慢慢长出方向。</text>
+
+  <!-- journey line -->
+  <path d="M190 720 C420 720 450 720 650 720 S1040 720 1250 720 S1530 720 1630 720" fill="none" stroke="#3a5d8e" stroke-width="3" stroke-dasharray="8 10"/>
+
+  <!-- stage 1 -->
+  <rect x="80" y="302" width="286" height="356" rx="24" fill="url(#blue)" stroke="#4a7dc5" filter="url(#shadow)"/>
+  <text x="110" y="340" class="cn eyebrow">01 · 认识你</text>
+  <text x="110" y="382" class="cn cardTitle">先聊一会儿</text>
+  <text x="110" y="416" class="cn cardText">Agent 会问你：</text>
+  <text x="110" y="452" class="cn quote">“最近，有没有一件事，</text>
+  <text x="110" y="480" class="cn quote">你总是想起？”</text>
+  <line x1="110" y1="510" x2="336" y2="510" stroke="#84a9de" opacity=".45"/>
+  <text x="110" y="544" class="cn small">你的回答会慢慢形成</text>
+  <text x="110" y="572" class="cn cardText">兴趣 · 经历 · 愿望</text>
+  <text x="110" y="614" class="cn small">不需要一次说完，随时可以回来继续。</text>
+  <circle cx="190" cy="720" r="15" fill="#83b4ff"/><text x="190" y="726" text-anchor="middle" class="cn phoneText">1</text>
+
+  <!-- stage 2 -->
+  <rect x="410" y="302" width="286" height="356" rx="24" fill="url(#pink)" stroke="#a967a5" filter="url(#shadow)"/>
+  <text x="440" y="340" class="cn eyebrow">02 · 看见分支</text>
+  <text x="440" y="382" class="cn cardTitle">如果还有另一条路</text>
+  <text x="440" y="420" class="cn cardText">Agent 从你的故事里，</text>
+  <text x="440" y="447" class="cn cardText">提出几个真正和你有关的可能：</text>
+  <rect x="440" y="474" width="226" height="44" rx="12" fill="#ffffff" opacity=".15"/>
+  <text x="458" y="502" class="cn phoneText">如果我成为导演</text>
+  <rect x="440" y="528" width="226" height="44" rx="12" fill="#ffffff" opacity=".12"/>
+  <text x="458" y="556" class="cn phoneText">如果我去了另一座城市</text>
+  <rect x="440" y="582" width="226" height="44" rx="12" fill="#ffffff" opacity=".10"/>
+  <text x="458" y="610" class="cn phoneText">如果那次选择重来一次</text>
+  <circle cx="520" cy="720" r="15" fill="#d38fc2"/><text x="520" y="726" text-anchor="middle" class="cn phoneText">2</text>
+
+  <!-- stage 3 -->
+  <rect x="740" y="302" width="286" height="356" rx="24" fill="url(#gold)" stroke="#b98b56" filter="url(#shadow)"/>
+  <text x="770" y="340" class="cn eyebrow">03 · 进入人生</text>
+  <text x="770" y="382" class="cn cardTitle">点开一个“如果”</text>
+  <text x="770" y="420" class="cn cardText">你会拿到一部平行世界的手机。</text>
+  <rect x="770" y="456" width="226" height="118" rx="18" fill="#091528" stroke="#6e87a7"/>
+  <text x="793" y="486" class="cn phoneTitle">08:42</text>
+  <text x="793" y="512" class="cn phoneText">周岚：明天的现场，</text>
+  <text x="793" y="536" class="cn phoneText">你还会来吗？</text>
+  <circle cx="795" cy="560" r="5" fill="#7dd5bd"/>
+  <text x="810" y="565" class="cn small">1 条新消息</text>
+  <text x="770" y="614" class="cn small">身份、关系和故事，从这里开始。</text>
+  <circle cx="850" cy="720" r="15" fill="#e6b66c"/><text x="850" y="726" text-anchor="middle" class="cn phoneText">3</text>
+
+  <!-- stage 4 -->
+  <rect x="1070" y="302" width="286" height="356" rx="24" fill="url(#blue)" stroke="#4a7dc5" filter="url(#shadow)"/>
+  <text x="1100" y="340" class="cn eyebrow">04 · 在里面生活</text>
+  <text x="1100" y="382" class="cn cardTitle">和角色真正聊起来</text>
+  <text x="1100" y="420" class="cn cardText">他们有自己的生活，</text>
+  <text x="1100" y="447" class="cn cardText">也会记得你做过的选择。</text>
+  <rect x="1100" y="478" width="226" height="40" rx="12" fill="#ffffff" opacity=".15"/>
+  <text x="1118" y="504" class="cn phoneText">周岚　你终于来了。</text>
+  <rect x="1100" y="530" width="190" height="40" rx="12" fill="#6b99ea" opacity=".7"/>
+  <text x="1118" y="556" class="cn phoneText">我想看看你的新片。</text>
+  <text x="1100" y="614" class="cn small">消息、日历、相册、便签，都会继续生长。</text>
+  <circle cx="1180" cy="720" r="15" fill="#83b4ff"/><text x="1180" y="726" text-anchor="middle" class="cn phoneText">4</text>
+
+  <!-- stage 5 -->
+  <rect x="1400" y="302" width="320" height="356" rx="24" fill="url(#pink)" stroke="#a967a5" filter="url(#shadow)"/>
+  <text x="1430" y="340" class="cn eyebrow">05 · 让选择留下来</text>
+  <text x="1430" y="382" class="cn cardTitle">你的行动会改变后面</text>
+  <text x="1430" y="420" class="cn cardText">一次回复，可能变成：</text>
+  <text x="1430" y="458" class="cn phoneText">一场见面 · 一段关系</text>
+  <text x="1430" y="488" class="cn phoneText">一张照片 · 一个新的机会</text>
+  <line x1="1430" y1="516" x2="1690" y2="516" stroke="#d59ec4" opacity=".45"/>
+  <text x="1430" y="554" class="cn quote">“你在这里经历的，</text>
+  <text x="1430" y="582" class="cn quote">会成为下一次对话的起点。”</text>
+  <text x="1430" y="622" class="cn small">随时回到分支，继续探索另一种可能。</text>
+  <circle cx="1560" cy="720" r="15" fill="#d38fc2"/><text x="1560" y="726" text-anchor="middle" class="cn phoneText">5</text>
+
+  <!-- bottom nav & product loop -->
+  <rect x="80" y="808" width="1640" height="224" rx="28" fill="#0b172b" stroke="#28466e"/>
+  <text x="112" y="850" class="cn eyebrow">进入手机之后</text>
+  <text x="112" y="884" class="cn cardTitle">底部始终保留三个入口</text>
+  <rect x="112" y="914" width="430" height="78" rx="18" fill="#172b4a" stroke="#3d6497"/>
+  <circle cx="155" cy="953" r="17" fill="#83b4ff" opacity=".25"/><text x="155" y="959" text-anchor="middle" class="cn phoneText">聊</text>
+  <text x="190" y="949" class="cn cardText">Agent</text><text x="190" y="974" class="cn small">继续认识自己，也让故事往前走</text>
+  <rect x="570" y="914" width="430" height="78" rx="18" fill="#172b4a" stroke="#3d6497"/>
+  <circle cx="613" cy="953" r="17" fill="#d38fc2" opacity=".27"/><text x="613" y="959" text-anchor="middle" class="cn phoneText">支</text>
+  <text x="648" y="949" class="cn cardText">分支</text><text x="648" y="974" class="cn small">查看、切换、开启另一个“如果”</text>
+  <rect x="1028" y="914" width="430" height="78" rx="18" fill="#172b4a" stroke="#3d6497"/>
+  <circle cx="1071" cy="953" r="17" fill="#e6b66c" opacity=".28"/><text x="1071" y="959" text-anchor="middle" class="cn phoneText">我</text>
+  <text x="1106" y="949" class="cn cardText">我的</text><text x="1106" y="974" class="cn small">照片、经历、重要的人与记忆</text>
+  <text x="1495" y="930" class="cn small">不是看一段预设剧情</text>
+  <text x="1495" y="960" class="cn cardText">而是和它一起生活</text>
+  <text x="1495" y="988" class="cn small">每次选择，都让下一次相遇不同。</text>
+</svg>

@@ -1,0 +1,112 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  advanceClock,
+  beatCue,
+  clampSpeed,
+  MAX_BEATS_PER_ADVANCE,
+  selectSpeaker,
+  type WorldClock,
+} from '../src/modules/world/domain/clock.ts';
+import type { WorldState } from '../src/modules/world/domain/types.ts';
+
+const clock = (over: Partial<WorldClock> = {}): WorldClock => ({
+  storyNow: '2026-09-24T00:00:00.000Z',
+  speed: 1,
+  paused: false,
+  lastTickAt: '2026-09-24T00:00:00.000Z',
+  missedBeats: 0,
+  summary: null,
+  ...over,
+});
+const at = (iso: string) => iso;
+
+test('a paused world does not move', () => {
+  const result = advanceClock(clock({ paused: true }), '2026-09-24T05:00:00.000Z');
+  assert.deepEqual(result.beats, []);
+  assert.equal(result.clock.storyNow, '2026-09-24T00:00:00.000Z');
+  assert.equal(result.clock.lastTickAt, '2026-09-24T05:00:00.000Z');
+});
+
+test('time runs 1:1 by default and plays one beat per half hour', () => {
+  const result = advanceClock(clock(), '2026-09-24T01:30:00.000Z');
+  assert.equal(result.clock.storyNow, '2026-09-24T01:30:00.000Z');
+  assert.equal(result.beats.length, 3);
+  assert.equal(result.beats[0], '2026-09-24T00:30:00.000Z');
+  assert.equal(result.folded, 0);
+  assert.equal(result.clock.summary, null);
+});
+
+test('speed multiplies story time but beats stay capped', () => {
+  const fast = advanceClock(clock({ speed: 2 }), '2026-09-24T01:00:00.000Z');
+  assert.equal(fast.clock.storyNow, '2026-09-24T02:00:00.000Z');
+  assert.equal(fast.beats.length, 3, 'still at most the cap');
+  assert.equal(fast.folded, 1, 'the fourth beat is folded, not played');
+});
+
+test('a long absence folds the extra beats into a summary instead of paying for them', () => {
+  const result = advanceClock(clock(), '2026-09-24T06:00:00.000Z');
+  assert.equal(result.beats.length, MAX_BEATS_PER_ADVANCE);
+  assert.equal(result.folded, 9);
+  assert.match(result.clock.summary ?? '', /世界照常运转/);
+  assert.equal(result.clock.storyNow, '2026-09-24T06:00:00.000Z');
+});
+
+test('a backwards or zero clock change plays nothing', () => {
+  assert.deepEqual(advanceClock(clock(), '2026-09-23T00:00:00.000Z').beats, []);
+  assert.deepEqual(advanceClock(clock(), '2026-09-24T00:00:00.000Z').beats, []);
+});
+
+test('speed is clamped to a legal range', () => {
+  assert.equal(clampSpeed(-3), 0);
+  assert.equal(clampSpeed(1000), 60);
+  assert.equal(clampSpeed(1.234), 1.23);
+  assert.equal(clampSpeed(Number.NaN), 1);
+});
+
+const state = (): WorldState => ({
+  schemaVersion: 1,
+  id: 'w1',
+  ownerId: 'o1',
+  version: 4,
+  title: '测试',
+  time: at('2026-09-24T00:00:00.000Z'),
+  actors: [
+    { id: 'a', name: '甲', persona: '' },
+    { id: 'b', name: '乙', persona: '' },
+  ],
+  facts: [],
+  messages: [
+    {
+      id: 'm1',
+      actorId: 'a',
+      role: 'assistant',
+      text: '甲说过话',
+      at: at('2026-09-24T00:00:00.000Z'),
+      sourceEventId: 'e1',
+    },
+  ],
+  appointments: [],
+  mediaRequests: [],
+});
+
+test('the speaker who waited longest goes first, and nobody speaks twice in a row', () => {
+  assert.equal(selectSpeaker(state(), []), 'b', '乙 never spoke');
+  assert.equal(
+    selectSpeaker(state(), ['b']),
+    'a',
+    '甲 waits longer than a silent 乙 who already spoke',
+  );
+  assert.equal(
+    selectSpeaker(state(), ['a', 'b']),
+    'b',
+    'someone who never spoke in the whole world still waits longest',
+  );
+});
+
+test('the beat cue is a stage direction, never the user speaking', () => {
+  const cue = beatCue(state(), 'b');
+  assert.match(cue, /用户没有开口/);
+  assert.match(cue, /乙/);
+  assert.equal(/用户(说|问)/.test(cue), false);
+});
