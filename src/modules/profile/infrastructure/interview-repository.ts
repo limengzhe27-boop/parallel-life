@@ -14,7 +14,7 @@ import {
   TaskError,
 } from '../../tasks/infrastructure/task-repository.ts';
 import { consumeLimit } from '../../storage/infrastructure/limits.ts';
-import type { InterviewPlanner } from './interview-planner.ts';
+import { type InterviewPlanner, extractBasicInfoFromText } from './interview-planner.ts';
 import {
   applyConfirmedCandidateInTransaction,
   applyBasicInfoInTransaction,
@@ -334,9 +334,19 @@ export class InterviewRepository {
             sourceMessageIds: event.sourceMessageIds,
           })),
         ];
-        if (proposal.basicInfo && Object.values(proposal.basicInfo).some(Boolean)) {
-          await applyBasicInfoInTransaction(sql, ownerId, proposal.basicInfo, [
-            prepared.interview.messages.at(-1)?.id ?? '',
+        const lastUserMessage = prepared.interview.messages.at(-1);
+        const fallbackBasic =
+          lastUserMessage?.role === 'user' ? extractBasicInfoFromText(lastUserMessage.text) : {};
+        const effectiveBasicInfo = {
+          ...fallbackBasic,
+          ...Object.fromEntries(
+            Object.entries(proposal.basicInfo ?? {}).filter(([_, v]) => Boolean(v)),
+          ),
+        };
+
+        if (Object.values(effectiveBasicInfo).some(Boolean)) {
+          await applyBasicInfoInTransaction(sql, ownerId, effectiveBasicInfo, [
+            lastUserMessage?.id ?? '',
           ]);
         }
         /* Same policy as the worker handler: refine, drop noise and near-duplicates,
@@ -347,19 +357,14 @@ export class InterviewRepository {
         )?.value;
         const kept = dedupeBatch(candidates, isSimilarText);
         for (const candidate of kept) {
+          // 彻底阻断任何 identity 事实落库为独立文本事实，基础资料 100% 归入 basicInfo 结构化表单
+          if (candidate.category === 'identity') continue;
           if (
-            proposal.basicInfo?.birthdate &&
-            (candidate.text.includes(proposal.basicInfo.birthdate) ||
-              candidate.text.includes('出生') ||
-              candidate.text.includes('生日'))
-          ) {
-            continue;
-          }
-          if (
-            proposal.basicInfo?.name &&
-            (candidate.text.includes(proposal.basicInfo.name) ||
-              candidate.text.includes('名字叫') ||
-              candidate.text.includes('我叫'))
+            candidate.text.includes('出生') ||
+            candidate.text.includes('生日') ||
+            candidate.text.includes('年出生') ||
+            candidate.text.includes('名字叫') ||
+            candidate.text.includes('我叫')
           ) {
             continue;
           }

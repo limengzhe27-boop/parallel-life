@@ -4,7 +4,11 @@ import { Id, ProfileSchema, Version } from '../../../contracts/api.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
-import { InterviewPlanner, INTERVIEW_PROMPT_VERSION } from './interview-planner.ts';
+import {
+  InterviewPlanner,
+  INTERVIEW_PROMPT_VERSION,
+  extractBasicInfoFromText,
+} from './interview-planner.ts';
 import {
   appendAssistantMessage,
   incrementInterviewVersion,
@@ -105,8 +109,17 @@ export function interviewHandler(
       );
 
       // 2.5 基础资料写入：若用户提到了生日、姓名、城市等，直接更新到个人资料卡片结构化字段中
-      if (proposal.basicInfo && Object.values(proposal.basicInfo).some(Boolean)) {
-        await applyBasicInfoInTransaction(sql, lease.ownerId, proposal.basicInfo, [
+      const inputMsg = base.interview.messages.find((m) => m.id === input.inputMessageId);
+      const fallbackBasic = inputMsg ? extractBasicInfoFromText(inputMsg.text) : {};
+      const effectiveBasicInfo = {
+        ...fallbackBasic,
+        ...Object.fromEntries(
+          Object.entries(proposal.basicInfo ?? {}).filter(([_, v]) => Boolean(v)),
+        ),
+      };
+
+      if (Object.values(effectiveBasicInfo).some(Boolean)) {
+        await applyBasicInfoInTransaction(sql, lease.ownerId, effectiveBasicInfo, [
           input.inputMessageId,
         ]);
       }
@@ -130,18 +143,14 @@ export function interviewHandler(
         sourceMessageIds: string[];
       }[] = [];
       for (const candidate of deduplicatedCandidates) {
-        // 如果候选内容只是基础资料（如生日、姓名），且已经写入了 basicInfo，直接跳过，防止生成重复文本稿
+        // 彻底阻断任何 identity 事实落库为独立文本事实，基础资料 100% 归入 basicInfo 结构化表单
+        if (candidate.category === 'identity') continue;
         if (
-          proposal.basicInfo?.birthdate &&
-          (candidate.text.includes(proposal.basicInfo.birthdate) ||
-            candidate.text.includes('出生') ||
-            candidate.text.includes('生日'))
-        ) {
-          continue;
-        }
-        if (
-          proposal.basicInfo?.name &&
-          (candidate.text.includes(proposal.basicInfo.name) || candidate.text.startsWith('名字'))
+          candidate.text.includes('出生') ||
+          candidate.text.includes('生日') ||
+          candidate.text.includes('年出生') ||
+          candidate.text.includes('名字叫') ||
+          candidate.text.includes('我叫')
         ) {
           continue;
         }

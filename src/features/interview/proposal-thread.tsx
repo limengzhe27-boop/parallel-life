@@ -287,6 +287,9 @@ export function ProposalThread({
     window.location.assign(`/worlds/${readyBuild.worldId}`);
   }
 
+  // 当处于闲置状态（没有在创建、推演、报错），且用户本次并没有通过对话或操作触发分支意图时，
+  // 不在每一轮对话回复下方展示分支选择卡片，保持正常对话界面清爽纯净
+  if (stage === 'idle' && !error && externalIntent === 'none') return null;
   if (entry.kind === 'hidden') return null;
 
   return (

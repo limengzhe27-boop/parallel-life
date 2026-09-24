@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import {
   InterviewPlanner,
   InvalidInterviewOutput,
+  extractBasicInfoFromText,
 } from '../src/modules/profile/infrastructure/interview-planner.ts';
 import type { Profile, Interview } from '../src/contracts/api.ts';
 const profile: Profile = {
@@ -85,4 +86,21 @@ test('interview streaming exposes only the reply text, not the structured JSON e
   const proposal = await p.proposeStream(profile, messages, (token) => tokens.push(token));
   assert.equal(tokens.join(''), proposal.reply);
   assert.equal(tokens.join('').includes('"facts"'), false);
+});
+
+test('extractBasicInfoFromText correctly captures birth year, full dates, corrections and identity', () => {
+  
+  // 年份口语与纠错
+  assert.equal(extractBasicInfoFromText('之前信息有误，我是01年的').birthdate, '2001');
+  assert.equal(extractBasicInfoFromText('我是05年的').birthdate, '2005');
+  assert.equal(extractBasicInfoFromText('其实我是98年的').birthdate, '1998');
+  assert.equal(extractBasicInfoFromText('2001年出生的').birthdate, '2001');
+  
+  // 完整年月日
+  assert.equal(extractBasicInfoFromText('我是1998年5月12日出生的').birthdate, '1998-05-12');
+  assert.equal(extractBasicInfoFromText('01年5月12日').birthdate, '2001-05-12');
+
+  // 称呼与城市
+  assert.equal(extractBasicInfoFromText('叫我阿哲就好，生活在上海').name, '阿哲');
+  assert.equal(extractBasicInfoFromText('叫我阿哲就好，生活在上海').location, '上海');
 });

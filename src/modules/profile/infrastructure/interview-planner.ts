@@ -24,7 +24,7 @@ export const InterviewProposalSchema = z.strictObject({
       name: z.string().trim().max(50).optional(),
       birthdate: z
         .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .regex(/^\d{4}(-\d{2}(-\d{2})?)?$/)
         .optional(),
       birthTime: z
         .string()
@@ -72,10 +72,12 @@ const SYSTEM = `你是“如果 · Parallel Life”的平行人生向导。你�
 6. 【用户分享照片时的温情回应】：若用户的消息中包含 [照片:...]，说明用户主动分享了一张自己的生活或肖像照片。请在回复中自然地称赞、回应这张照片所流露的生活气息或情感，并好奇地追问这张照片拍摄时的故事、地点或那时的心情。
 
 【输出格式与严格防重规则】
-仅输出 JSON 对象，无 Markdown：{"reply":"自然真诚的回应","question":{"text":"可选的一个启发式追问","target":"identity|interest|personality|relationship|experience|wish"},"basicInfo":{"name":"明确提及的名字/称呼","birthdate":"明确提及的出生日期，必须为YYYY-MM-DD标准格式","birthTime":"HH:mm","location":"所在城市","occupation":"职业","hometown":"家乡"},"facts":[{"category":"identity|interest|personality|relationship|wish","value":"用户明确表达的一条简短静态信息（如爱好、性格、心愿）","sourceMessageIds":["对应的用户消息ID"]}],"events":[{"title":"用户明确讲述的本人事件、经历、遗憾或关键转折（动词/事件属性）","date":"明确提及的年份或YYYY-MM-DD，未知为null","sourceMessageIds":["用户消息ID"]}]}。
-【基础资料直接进入 basicInfo】：
-1. 当用户在对话中提到自己的【生日/出生年月日】、【姓名/称呼】、【出生具体时间】、【所在城市】、【职业】、【家乡】时，必须提取并直接填入 basicInfo 对象中（特别是 birthdate 必须输出标准 YYYY-MM-DD 格式，如 1998-05-12）。
-2. 一旦基础资料写入了 basicInfo，绝对严禁再在 facts 或 events 中重复作为文本输出，防止污染文字档案。
+仅输出 JSON 对象，无 Markdown：{"reply":"自然真诚的回应","question":{"text":"可选的一个启发式追问","target":"identity|interest|personality|relationship|experience|wish"},"basicInfo":{"name":"明确提及的名字/称呼","birthdate":"明确提及的出生日期YYYY-MM-DD或年份YYYY","birthTime":"HH:mm","location":"所在城市","occupation":"职业","hometown":"家乡"},"facts":[{"category":"interest|personality|wish","value":"用户明确表达的一条简短静态信息（爱好、性格、心愿）","sourceMessageIds":["对应的用户消息ID"]}],"events":[{"title":"用户明确讲述的本人事件、经历、遗憾或关键转折（动词/事件属性）","date":"明确提及的年份或YYYY-MM-DD，未知为null","sourceMessageIds":["用户消息ID"]}]}。
+【基础资料直接进入 basicInfo 与更正覆盖】：
+1. 当用户在对话中提到或更正自己的【生日/出生年月日/出生年份】（如“我是01年的”、“我其实是2001年的”、“之前说错了，我是05年的”）、【姓名/称呼】、【出生具体时间】、【所在城市】、【职业】、【家乡】时，必须提取并直接填入 basicInfo 对象中。
+   - birthdate：若是完整日期输出 YYYY-MM-DD（如 2001-05-12）；若是年份（如“01年”、“05年”），输出标准 4 位年份 YYYY（如 2001 或 2005）。
+   - 若用户指出“之前信息有误/说错了”，以用户最新指出的正确信息为准更新 basicInfo，并在 reply 中温和确认更正。
+2. 属于基础资料的任何信息，绝对严禁再在 facts 或 events 中输出平铺文本！所有身份信息唯一归入 basicInfo，严禁污染文字档案。
 【只记录值得长期保留的内容】：
 1. 只有对理解这个人长期成立的、能影响人生选择的信息才记录：稳定的身份与处境、长期兴趣与偏好、重要的关系、有分量的经历/转折/遗憾、真实的愿望。
 2. 以下一律不记录：寒暄与客套（“你好”“谢谢”）、当下的情绪或临时状态（“今天有点累”）、一次性的琐碎动作（“刚吃完午饭”）、你自己说过的话或推测、用户的反问与疑问、玩笑与测试内容、产品操作本身。
@@ -83,7 +85,7 @@ const SYSTEM = `你是“如果 · Parallel Life”的平行人生向导。你�
 4. profileNotes 里已经记录过的信息不要重复提取；只是换了说法、加了无关细节的同一件事，不要再输出。
 【事实与经历分开】：
 1. 涉及用户亲身经历、人生阶段、重大转折、遗憾后悔等具体事情，必须且只能输出到 events，绝对严禁在 facts 中重复提取！
-2. facts 严格限定记录客观静态信息（identity/interest/personality/relationship/wish），不要输出与 events 重复的 experience。
+2. facts 严格限定记录客观静态信息（interest/personality/wish），绝对不要输出 identity 或与 events 重复的 experience。
 3. 宁少勿滥：最多 3 条新事实、1 个新事件；没有值得记录的就给空数组 []。输入中的 blockedTargets 是用户明确不愿讨论的主题，不可追问。sourceMessageIds 只能引用下文提供的 user 消息 ID。`;
 export function extractBasicInfoFromText(text: string): {
   birthdate?: string;
@@ -92,12 +94,14 @@ export function extractBasicInfoFromText(text: string): {
   occupation?: string;
 } {
   const result: { birthdate?: string; name?: string; location?: string; occupation?: string } = {};
-  // 1. 生日提取：1998年5月12日、1998-05-12、1998.5.12、1998/5/12、98年5月12日
-  const dateMatch = text.match(
-    /(?:(?:19|20)?\d{2})[-/.年]\s*(?:0?[1-9]|1[0-2])[-/.月]\s*(?:0?[1-9]|[12]\d|3[01])(?:日|号)?/,
+
+  // 1. 生日/年份提取
+  // 1.1 完整年月日提取：1998年5月12日、1998-05-12、1998.5.12、01年5月12日
+  const fullDateMatch = text.match(
+    /(?:(?:19|20)?\d{2})[-/.年]\s*(?:1[0-2]|0?[1-9])[-/.月]\s*(?:3[01]|[12]\d|0?[1-9])(?:日|号)?/,
   );
-  if (dateMatch) {
-    const raw = dateMatch[0];
+  if (fullDateMatch) {
+    const raw = fullDateMatch[0];
     const parts = raw.split(/[-/.年月号日\s]/).filter(Boolean);
     if (parts.length >= 3) {
       let year = parseInt(parts[0]!, 10);
@@ -116,11 +120,48 @@ export function extractBasicInfoFromText(text: string): {
       }
     }
   }
-  // 2. 称呼提取：我叫xxx、叫我xxx就好、称呼我为xxx
-  const nameMatch = text.match(/(?:我叫|称呼我[为是]?|叫我)\s*([^\s，。！？、]{2,8})/);
-  if (nameMatch && nameMatch[1]) {
-    result.name = nameMatch[1].trim();
+
+  // 1.2 年份提炼（支持纠错与口语：我是01年的、我是05年的、我其实是01年的、之前说错了我是01年的、2001年出生的、98年）
+  if (!result.birthdate) {
+    const yearMatch = text.match(
+      /(?:(?:我是|我|其实是|更正[为是]?|改一下[，, ]?我是|算[是成]|生于|出生[于在])\s*)?([0-9]{2}|(?:19|20)[0-9]{2})\s*年(?:的|出生|生人|出生的|底|初)?/,
+    );
+    if (yearMatch && yearMatch[1]) {
+      let year = parseInt(yearMatch[1], 10);
+      if (year < 100) year += year > 40 ? 1900 : 2000;
+      if (year >= 1900 && year <= 2030) {
+        result.birthdate = `${year}`;
+      }
+    }
   }
+
+  // 2. 称呼提取：我叫xxx、叫我xxx就好、称呼我为xxx、名字是xxx
+  const nameMatch = text.match(/(?:我叫|称呼我[为是]?|叫我|名字[是叫])\s*([^\s，。！？、]{2,8})/);
+  if (nameMatch && nameMatch[1]) {
+    let name = nameMatch[1].trim();
+    name = name.replace(/(?:就好|行了|可以|就行)$/, '');
+    if (name.length >= 2) {
+      result.name = name;
+    }
+  }
+
+  // 3. 城市提取：在上海、住在北京、生活在深圳、坐标杭州
+  const locationMatch = text.match(/(?:生活在|住在|坐标|在)\s*([^\s，。！？、]{2,8}(?:市|区|省)?)/);
+  if (locationMatch && locationMatch[1]) {
+    const loc = locationMatch[1].trim();
+    if (!['学校', '公司', '家', '路上', '外面', '群里', '微信', '这里'].includes(loc)) {
+      result.location = loc;
+    }
+  }
+
+  // 4. 职业提取：职业是xxx、做xxx的、我是设计师/程序员/导演
+  const occupationMatch = text.match(
+    /(?:职业是|从事|做)\s*([^\s，。！？、]{2,8}(?:师|员|家|工|者|店长|导演|编剧|主理人)?)/,
+  );
+  if (occupationMatch && occupationMatch[1]) {
+    result.occupation = occupationMatch[1].trim();
+  }
+
   return result;
 }
 

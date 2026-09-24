@@ -790,7 +790,13 @@ export function ProfilePane({
   onCandidateAction?: (id: string, action: MemoryCandidateDecision['action']) => void;
 }) {
   const active = profile.facts.filter(
-    (f) => f.status !== 'rejected' && !(basicInfo && f.value.startsWith('个人资料\n')),
+    (f) =>
+      f.status !== 'rejected' &&
+      !f.value.startsWith('个人资料\n') &&
+      f.category !== 'identity' &&
+      !f.value.includes('出生') &&
+      !f.value.includes('生日') &&
+      !f.value.includes('年出生'),
   );
   const name = profile.facts
     .filter((f) => f.status === 'confirmed')
@@ -991,18 +997,19 @@ export function ProfilePane({
                 <br />
                 可以从一句话开始。
               </p>
-              <Button variant="ghost" onClick={() => onEdit('identity')}>
+              <Button variant="ghost" onClick={() => onEdit('interest')}>
                 也可以自己填写
                 <Icon name="edit" size={14} />
               </Button>
             </div>
           ) : (
             <div className="profile-facts">
-              {(Object.keys(categories) as ProfileFact['category'][]).map((category) => {
-                const facts = active.filter((f) => f.category === category);
-                if (!facts.length) return null;
-                return (
-                  <div className="fact-group" key={category}>
+              {(['interest', 'personality', 'wish'] as ProfileFact['category'][]).map(
+                (category) => {
+                  const facts = active.filter((f) => f.category === category);
+                  if (!facts.length) return null;
+                  return (
+                    <div className="fact-group" key={category}>
                     <h4>{categories[category]}</h4>
                     {facts.map((fact) => (
                       <div className="fact-row" key={fact.id}>

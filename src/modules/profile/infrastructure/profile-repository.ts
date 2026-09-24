@@ -130,15 +130,6 @@ export async function applyBasicInfoInTransaction(
     (f) => f.category === 'identity' && f.status !== 'rejected' && f.value.startsWith('个人资料\n'),
   );
 
-  const fieldLabels: [string, string | undefined][] = [
-    ['姓名', basicInfo.name],
-    ['生日', basicInfo.birthdate],
-    ['出生时间', basicInfo.birthTime],
-    ['所在城市', basicInfo.location],
-    ['职业', basicInfo.occupation],
-    ['家乡', basicInfo.hometown],
-  ];
-
   // 解析现有值
   const currentValues: Record<string, string> = {};
   if (existingFact) {
@@ -153,6 +144,29 @@ export async function applyBasicInfoInTransaction(
     }
   }
 
+  // 生日格式标准化（支持 4 位年份转换为规范日期，并保留或默认月日）
+  let normalizedBirthdate = basicInfo.birthdate?.trim();
+  if (normalizedBirthdate) {
+    if (/^\d{4}$/.test(normalizedBirthdate)) {
+      if (currentValues['生日'] && /^\d{4}-\d{2}-\d{2}$/.test(currentValues['生日'])) {
+        normalizedBirthdate = `${normalizedBirthdate}-${currentValues['生日'].slice(5)}`;
+      } else {
+        normalizedBirthdate = `${normalizedBirthdate}-01-01`;
+      }
+    } else if (/^\d{4}-\d{2}$/.test(normalizedBirthdate)) {
+      normalizedBirthdate = `${normalizedBirthdate}-01`;
+    }
+  }
+
+  const fieldLabels: [string, string | undefined][] = [
+    ['姓名', basicInfo.name],
+    ['生日', normalizedBirthdate],
+    ['出生时间', basicInfo.birthTime],
+    ['所在城市', basicInfo.location],
+    ['职业', basicInfo.occupation],
+    ['家乡', basicInfo.hometown],
+  ];
+
   // 用新值覆盖或追加
   let hasChange = false;
   for (const [label, newVal] of fieldLabels) {
@@ -160,6 +174,25 @@ export async function applyBasicInfoInTransaction(
       currentValues[label] = newVal.trim();
       hasChange = true;
     }
+  }
+
+  // 清除 profile.facts 中残留的自由文本 identity，以及被更新字段的旧冲突文本，杜绝下方文本乱堆
+  const previousFactCount = profile.facts.length;
+  profile.facts = profile.facts.filter((f) => {
+    if (f.value.startsWith('个人资料\n')) return true;
+    // 纯 identity 事实一律并入基本资料，不在外部留存任何零散条目
+    if (f.category === 'identity') return false;
+    // 如果事实中包含被更新的生日/出生/姓名等冲突文本，也一并清理
+    if (currentValues['生日'] && (f.value.includes('出生') || f.value.includes('生日') || f.value.includes('年出生'))) {
+      return false;
+    }
+    if (currentValues['姓名'] && (f.value.includes('我叫') || f.value.includes('名字叫'))) {
+      return false;
+    }
+    return true;
+  });
+  if (profile.facts.length !== previousFactCount) {
+    hasChange = true;
   }
 
   if (!hasChange) return profile;
