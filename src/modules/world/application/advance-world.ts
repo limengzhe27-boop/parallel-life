@@ -1,6 +1,7 @@
 import { DomainError } from '../domain/errors.ts';
 import { advanceClock, beatCue, selectSpeaker } from '../domain/clock.ts';
 import { buildAgenda, type CommitmentMemory } from '../domain/agenda.ts';
+import { beatsForPacing, EMPTY_DIRECTION, type WorldDirection } from '../domain/direction.ts';
 import type { Session } from '../domain/types.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
 import type { ClockStore, TurnPlanner, WorldRepository } from './ports.ts';
@@ -34,13 +35,19 @@ export async function advanceWorld(
     worldMemories?: () => Promise<MemoryRecord[]>;
     /** Persists the "time passed while you were away" summary as a branch memory. */
     rememberSummary?: (text: string, sourceIds: string[]) => Promise<void>;
+    /** The user's brief for this life; pacing caps beats, focus steers the cast. */
+    direction?: () => Promise<WorldDirection>;
     maxBeats?: number;
   },
   session: Session,
   worldId: string,
 ): Promise<AdvanceResult> {
   const clock = await deps.clock.read(session.userId, worldId);
-  const advance = advanceClock(clock, deps.now(), { maxBeats: deps.maxBeats });
+  const direction = (await deps.direction?.()) ?? EMPTY_DIRECTION;
+  /* The user's pacing wins over the caller default; both stay bounded. */
+  const advance = advanceClock(clock, deps.now(), {
+    maxBeats: deps.maxBeats ?? beatsForPacing(direction.pacing),
+  });
   await deps.clock.write(session.userId, worldId, advance.clock);
   const actors: string[] = [];
   const worldMemories = deps.worldMemories ? await deps.worldMemories() : [];
@@ -61,7 +68,7 @@ export async function advanceWorld(
     const atBeat = { ...world, time: beatAt };
     /* Beats are driven by unfinished business, not by a round-robin. */
     const agenda = buildAgenda(atBeat, 5, worldMemories as CommitmentMemory[]);
-    const actorId = selectSpeaker(atBeat, actors, agenda);
+    const actorId = selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
     if (!actorId) break;
     const commandId = deps.newId();
     await deps.clock.recordBeat(session.userId, worldId, {
@@ -84,7 +91,7 @@ export async function advanceWorld(
         id: commandId,
         worldId,
         actorId,
-        text: beatCue(atBeat, actorId, agenda),
+        text: beatCue(atBeat, actorId, agenda, direction),
         expectedVersion: world.version,
       },
     );

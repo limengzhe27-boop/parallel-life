@@ -46,3 +46,13 @@ export type ClockStore = {
     beat: { id: string; commandId: string; plannedFor: string; actorId: string; status: string },
   ): Promise<void>;
 };
+
+/** The user's brief for the director of one life (L-03). */
+export type DirectionStore = {
+  read(ownerId: string, worldId: string): Promise<import('../domain/direction.ts').WorldDirection>;
+  write(
+    ownerId: string,
+    worldId: string,
+    direction: import('../domain/direction.ts').WorldDirection,
+  ): Promise<void>;
+};

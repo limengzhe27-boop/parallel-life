@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2100" height="1680" viewBox="0 0 2100 1680">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071426"/><stop offset=".55" stop-color="#102744"/><stop offset="1" stop-color="#241a3b"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#347fdc" stop-opacity=".38"/><stop offset="1" stop-color="#25488f" stop-opacity=".22"/></linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a76bcb" stop-opacity=".34"/><stop offset="1" stop-color="#66489d" stop-opacity=".22"/></linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#cf805c" stop-opacity=".38"/><stop offset="1" stop-color="#8d4f5d" stop-opacity=".22"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="9" stdDeviation="11" flood-color="#000" flood-opacity=".30"/></filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 z" fill="#9bc2ff"/></marker>
+    <marker id="arrowWarm" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 z" fill="#f0b578"/></marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 z" fill="#73d7bb"/></marker>
+    <style>
+      .cn { font-family: PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif; }
+      .title { font-size: 43px; font-weight:700; fill:#f8faff; }
+      .subtitle { font-size:18px; fill:#b7c5da; }
+      .section { font-size:15px; font-weight:700; fill:#9bc5ff; letter-spacing:2px; }
+      .boxTitle { font-size:19px; font-weight:700; fill:#f8faff; }
+      .boxText { font-size:14px; fill:#dbe6f4; }
+      .small { font-size:13px; fill:#a9b9d0; }
+      .tiny { font-size:12px; fill:#8fa5c2; }
+      .decision { font-size:15px; font-weight:700; fill:#fff4e3; }
+      .branch { font-size:13px; font-weight:700; fill:#f0b578; }
+    </style>
+  </defs>
+
+  <rect width="2100" height="1680" fill="url(#bg)"/>
+  <circle cx="1900" cy="130" r="280" fill="#6077d6" opacity=".08"/>
+  <circle cx="100" cy="1570" r="300" fill="#c67467" opacity=".07"/>
+
+  <text x="80" y="70" class="cn title">如果｜从一句话到一段会记住你的对话</text>
+  <text x="80" y="108" class="cn subtitle">详细流程：个人向导如何理解用户、保存记忆；进入分支后，导演与 NPC 如何继续使用这些结果</text>
+
+  <!-- legend -->
+  <rect x="80" y="140" width="1940" height="70" rx="18" fill="#142943" stroke="#31537d"/>
+  <rect x="110" y="162" width="20" height="20" rx="5" fill="#347fdc"/><text x="143" y="178" class="cn small">用户与个人向导</text>
+  <rect x="320" y="162" width="20" height="20" rx="5" fill="#a76bcb"/><text x="353" y="178" class="cn small">分支与手机世界</text>
+  <rect x="560" y="162" width="20" height="20" rx="5" fill="#cf805c"/><text x="593" y="178" class="cn small">导演与 NPC</text>
+  <rect x="770" y="162" width="20" height="20" rx="5" fill="#73d7bb"/><text x="803" y="178" class="cn small">记忆写入 / 读取</text>
+  <text x="1340" y="178" class="cn small">关键边界：真实资料不会直接交给 NPC，只有用户采纳的分支设定可以进入虚构世界。</text>
+
+  <!-- section 1 -->
+  <text x="80" y="260" class="cn section">一、用户进入后：聊天、理解、提取记忆</text>
+  <rect x="80" y="282" width="1940" height="405" rx="24" fill="#0b1b31" stroke="#31537d" filter="url(#shadow)"/>
+
+  <!-- top flow boxes -->
+  <rect x="120" y="330" width="230" height="106" rx="17" fill="url(#blue)" stroke="#5c95d9"/>
+  <text x="235" y="368" text-anchor="middle" class="cn boxTitle">1. 进入“聊聊”</text>
+  <text x="235" y="398" text-anchor="middle" class="cn boxText">用户打开 Agent 对话</text>
+  <text x="235" y="422" text-anchor="middle" class="cn small">可以从一句话开始</text>
+  <path d="M350 383 H405" stroke="#9bc2ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="425" y="330" width="230" height="106" rx="17" fill="url(#blue)" stroke="#5c95d9"/>
+  <text x="540" y="368" text-anchor="middle" class="cn boxTitle">2. 用户输入</text>
+  <text x="540" y="398" text-anchor="middle" class="cn boxText">经历、烦恼、愿望</text>
+  <text x="540" y="422" text-anchor="middle" class="cn small">也可以补充照片或人物</text>
+  <path d="M655 383 H710" stroke="#9bc2ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="730" y="330" width="250" height="106" rx="17" fill="url(#blue)" stroke="#5c95d9"/>
+  <text x="855" y="368" text-anchor="middle" class="cn boxTitle">3. 个人向导理解</text>
+  <text x="855" y="398" text-anchor="middle" class="cn boxText">读取最近对话和已有资料</text>
+  <text x="855" y="422" text-anchor="middle" class="cn small">再决定下一步问什么</text>
+  <path d="M980 383 H1035" stroke="#9bc2ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="1055" y="330" width="250" height="106" rx="17" fill="url(#blue)" stroke="#5c95d9"/>
+  <text x="1180" y="368" text-anchor="middle" class="cn boxTitle">4. Agent 回复</text>
+  <text x="1180" y="398" text-anchor="middle" class="cn boxText">共情、追问、给出回应</text>
+  <text x="1180" y="422" text-anchor="middle" class="cn small">让用户愿意继续说下去</text>
+  <path d="M1305 383 H1360" stroke="#9bc2ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="1380" y="330" width="250" height="106" rx="17" fill="#16405e" stroke="#63b8a9"/>
+  <text x="1505" y="368" text-anchor="middle" class="cn boxTitle">5. 提取记忆候选</text>
+  <text x="1505" y="398" text-anchor="middle" class="cn boxText">事实、事件、人物、愿望</text>
+  <text x="1505" y="422" text-anchor="middle" class="cn small">保留这条信息来自哪里</text>
+  <path d="M1630 383 H1685" stroke="#73d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+
+  <polygon points="1790,324 1900,383 1790,442 1680,383" fill="#493548" stroke="#d29772"/>
+  <text x="1790" y="378" text-anchor="middle" class="cn decision">值得保存吗？</text>
+  <text x="1790" y="402" text-anchor="middle" class="cn small">新信息 / 重复 / 不确定</text>
+
+  <!-- branches from decision -->
+  <path d="M1790 442 V492" stroke="#73d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <text x="1810" y="472" class="cn branch">是</text>
+  <rect x="1660" y="510" width="260" height="102" rx="17" fill="#16405e" stroke="#63b8a9"/>
+  <text x="1790" y="546" text-anchor="middle" class="cn boxTitle">6. 写入“我的”</text>
+  <text x="1790" y="576" text-anchor="middle" class="cn boxText">新建或合并一条记忆</text>
+  <text x="1790" y="600" text-anchor="middle" class="cn small">来源：这次用户消息</text>
+  <path d="M1660 560 H1590 V642 H1305" fill="none" stroke="#73d7bb" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrowGreen)"/>
+  <text x="1450" y="630" class="cn tiny">保存后继续追问</text>
+  <path d="M1680 383 H1605 V250 H800 V330" fill="none" stroke="#839fca" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow)"/>
+  <text x="1020" y="246" class="cn tiny">否：不保存，但继续对话</text>
+
+  <rect x="120" y="500" width="1360" height="126" rx="18" fill="#102a49" stroke="#416d9f"/>
+  <text x="150" y="538" class="cn boxTitle">“我的”资料会怎么变化？</text>
+  <text x="150" y="570" class="cn boxText">新兴趣 → 加入兴趣；重要事件 → 加入人生经历；重复表达 → 合并来源；暂时不确定 → 暂不影响正式资料。</text>
+  <text x="150" y="602" class="cn small">个人向导会继续使用这些内容，让下一次聊天不必从头开始。</text>
+
+  <!-- section 2 -->
+  <text x="80" y="755" class="cn section">二、聊天聊出结果：从资料到分支</text>
+  <rect x="80" y="777" width="1940" height="265" rx="24" fill="#15172f" stroke="#6c5289" filter="url(#shadow)"/>
+  <rect x="120" y="830" width="280" height="112" rx="17" fill="url(#blue)" stroke="#5c95d9"/>
+  <text x="260" y="868" text-anchor="middle" class="cn boxTitle">用户表达想试试</text>
+  <text x="260" y="898" text-anchor="middle" class="cn boxText">“如果我成为导演呢？”</text>
+  <path d="M400 886 H455" stroke="#9bc2ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="475" y="830" width="300" height="112" rx="17" fill="url(#blue)" stroke="#5c95d9"/>
+  <text x="625" y="868" text-anchor="middle" class="cn boxTitle">人生探索 Agent</text>
+  <text x="625" y="898" text-anchor="middle" class="cn boxText">提出 3–5 个相关分支</text>
+  <text x="625" y="923" text-anchor="middle" class="cn small">说明每个分支来自哪些经历</text>
+  <path d="M775 886 H830" stroke="#9bc2ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="850" y="830" width="300" height="112" rx="17" fill="url(#purple)" stroke="#a16cd0"/>
+  <text x="1000" y="868" text-anchor="middle" class="cn boxTitle">用户选择或修改</text>
+  <text x="1000" y="898" text-anchor="middle" class="cn boxText">采纳一个分支设定</text>
+  <text x="1000" y="923" text-anchor="middle" class="cn small">这是进入虚构世界的授权</text>
+  <path d="M1150 886 H1205" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="1225" y="830" width="300" height="112" rx="17" fill="url(#purple)" stroke="#a16cd0"/>
+  <text x="1375" y="868" text-anchor="middle" class="cn boxTitle">世界创建 Agent</text>
+  <text x="1375" y="898" text-anchor="middle" class="cn boxText">身份、人物、关系、开场</text>
+  <text x="1375" y="923" text-anchor="middle" class="cn small">只带入被授权的分支设定</text>
+  <path d="M1525 886 H1580" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="1600" y="830" width="360" height="112" rx="17" fill="url(#purple)" stroke="#a16cd0"/>
+  <text x="1780" y="868" text-anchor="middle" class="cn boxTitle">进入平行世界手机</text>
+  <text x="1780" y="898" text-anchor="middle" class="cn boxText">锁屏可能已经有一条新消息</text>
+  <text x="1780" y="923" text-anchor="middle" class="cn small">现实档案仍然保持独立</text>
+
+  <!-- section 3 -->
+  <text x="80" y="1110" class="cn section">三、进入分支后：用户发消息，NPC 如何回应</text>
+  <rect x="80" y="1132" width="1940" height="430" rx="24" fill="#19172f" stroke="#795b91" filter="url(#shadow)"/>
+
+  <rect x="120" y="1184" width="230" height="102" rx="17" fill="url(#purple)" stroke="#a16cd0"/>
+  <text x="235" y="1220" text-anchor="middle" class="cn boxTitle">1. 用户发消息</text>
+  <text x="235" y="1250" text-anchor="middle" class="cn boxText">“你明天会来吗？”</text>
+  <text x="235" y="1275" text-anchor="middle" class="cn small">也可能是索图或提出行动</text>
+  <path d="M350 1235 H405" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="425" y="1184" width="270" height="102" rx="17" fill="url(#orange)" stroke="#d08b69"/>
+  <text x="560" y="1220" text-anchor="middle" class="cn boxTitle">2. 导演读取当前状态</text>
+  <text x="560" y="1250" text-anchor="middle" class="cn boxText">时间、场景、未完成的事</text>
+  <text x="560" y="1275" text-anchor="middle" class="cn small">决定此刻谁适合出现</text>
+  <path d="M695 1235 H750" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="770" y="1184" width="290" height="102" rx="17" fill="#38284b" stroke="#a16cd0"/>
+  <text x="915" y="1220" text-anchor="middle" class="cn boxTitle">3. 裁剪角色能看到的内容</text>
+  <text x="915" y="1250" text-anchor="middle" class="cn boxText">世界事实 + 对话 + 角色自己的记忆</text>
+  <text x="915" y="1275" text-anchor="middle" class="cn small">私人访谈和被遗忘内容不会给 NPC</text>
+  <path d="M1060 1235 H1115" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="1135" y="1184" width="270" height="102" rx="17" fill="url(#orange)" stroke="#d08b69"/>
+  <text x="1270" y="1220" text-anchor="middle" class="cn boxTitle">4. NPC 生成回应</text>
+  <text x="1270" y="1250" text-anchor="middle" class="cn boxText">按照自己的性格和目标说话</text>
+  <text x="1270" y="1275" text-anchor="middle" class="cn small">不能替用户说话或改写现实</text>
+  <path d="M1405 1235 H1460" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="1480" y="1184" width="270" height="102" rx="17" fill="#38284b" stroke="#a16cd0"/>
+  <text x="1615" y="1220" text-anchor="middle" class="cn boxTitle">5. 手机展示结果</text>
+  <text x="1615" y="1250" text-anchor="middle" class="cn boxText">消息、邀约、照片或日历</text>
+  <text x="1615" y="1275" text-anchor="middle" class="cn small">用户看到真实的状态变化</text>
+  <path d="M1750 1235 H1805" stroke="#73d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <polygon points="1900,1175 1990,1235 1900,1295 1810,1235" fill="#493548" stroke="#d29772"/>
+  <text x="1900" y="1230" text-anchor="middle" class="cn decision">产生后果？</text>
+  <text x="1900" y="1254" text-anchor="middle" class="cn small">事件 / 关系变化</text>
+
+  <!-- bottom memory write loop -->
+  <path d="M1900 1295 V1360 H1480" fill="none" stroke="#73d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <text x="1775" y="1352" class="cn branch">是</text>
+  <rect x="1135" y="1325" width="330" height="100" rx="17" fill="#16405e" stroke="#63b8a9"/>
+  <text x="1300" y="1360" text-anchor="middle" class="cn boxTitle">6. 写入分支记忆</text>
+  <text x="1300" y="1390" text-anchor="middle" class="cn boxText">角色印象 + 本轮世界事件</text>
+  <text x="1300" y="1415" text-anchor="middle" class="cn small">下一次对话可以继续接住</text>
+  <path d="M1135 1375 H900 V1480 H915" fill="none" stroke="#73d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <rect x="570" y="1430" width="330" height="100" rx="17" fill="#16405e" stroke="#63b8a9"/>
+  <text x="735" y="1465" text-anchor="middle" class="cn boxTitle">7. 下一轮读取</text>
+  <text x="735" y="1495" text-anchor="middle" class="cn boxText">世界导演和 NPC 记住这次经历</text>
+  <text x="735" y="1520" text-anchor="middle" class="cn small">关系、事件和语气因此不同</text>
+  <path d="M570 1480 H360 V1235 H350" fill="none" stroke="#73d7bb" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrowGreen)"/>
+  <text x="385" y="1465" class="cn tiny">回到下一次用户输入</text>
+  <path d="M1900 1175 V1130 H1700 V1184" fill="none" stroke="#8b9fc0" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow)"/>
+  <text x="1715" y="1150" class="cn tiny">否：仅展示回应，继续聊天</text>
+
+  <!-- footer -->
+  <rect x="80" y="1595" width="1940" height="45" rx="14" fill="#0a1527" stroke="#2e4c73"/>
+  <text x="110" y="1624" class="cn small">记忆服务不是一个单独和用户聊天的 Agent，而是一条承接机制：保存来源、区分范围、控制谁能看到什么，让下一次对话能够连续。</text>
+</svg>

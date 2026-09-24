@@ -12,7 +12,13 @@ import { IdentityRepository } from '../modules/identity/infrastructure/identity-
 import { dispatchOutbox } from '../modules/tasks/application/dispatch-outbox.ts';
 import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.ts';
 import { advanceWorld } from '../modules/world/application/advance-world.ts';
+import {
+  describeImpact,
+  normalizeDirection,
+} from '../modules/world/domain/direction.ts';
+import { DomainError } from '../modules/world/domain/errors.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
+import { PostgresDirectionStore } from '../modules/world/infrastructure/direction-repository.ts';
 import {
   deriveAndStoreMemories,
   loadActorMemories,
@@ -122,6 +128,24 @@ function createServices() {
      * Move this life's clock and let a bounded number of beats happen on their own.
      * Costs at most MAX_BEATS_PER_ADVANCE model calls; the rest is folded into a summary.
      */
+    /**
+     * Read or set this life's director brief. `preview` describes the impact without
+     * persisting anything; `move: 'past'` is refused and must go through a branch.
+     */
+    readWorldDirection: (ownerId: string, worldId: string) =>
+      new PostgresDirectionStore(db).read(ownerId, worldId),
+    setWorldDirection: async (
+      ownerId: string,
+      worldId: string,
+      input: { guidance?: string; themes?: string[]; pacing?: 'slow' | 'normal' | 'fast'; focusActorIds?: string[]; preview?: boolean; move?: 'future' | 'past' },
+    ) => {
+      if (input.move === 'past')
+        throw new DomainError('INVALID_COMMAND', '历史不可改写：请建立分支，保留原人生');
+      const state = await new PostgresWorldRepository(db).get({ userId: ownerId }, worldId);
+      const direction = normalizeDirection(input, state);
+      if (!input.preview) await new PostgresDirectionStore(db).write(ownerId, worldId, direction);
+      return { direction, impact: describeImpact(direction, state), applied: !input.preview };
+    },
     /** Pause/resume and speed for one life; the user's own control. */
     setWorldClock: (ownerId: string, worldId: string, input: { paused?: boolean; speed?: number }) =>
       new PostgresClockStore(db).setClock(ownerId, worldId, input),
@@ -141,6 +165,7 @@ function createServices() {
             ),
           worldMemories: () =>
             db.transaction(ownerId, (sql) => loadWorldMemories(sql, ownerId, worldId)),
+          direction: () => new PostgresDirectionStore(db).read(ownerId, worldId),
           rememberSummary: (text, sourceIds) =>
             db.transaction(ownerId, (sql) =>
               deriveAndStoreMemories(sql, [

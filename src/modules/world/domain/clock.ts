@@ -1,4 +1,5 @@
 import { buildAgenda, threadFor, type AgendaThread } from './agenda.ts';
+import { directionLines, EMPTY_DIRECTION, type WorldDirection } from './direction.ts';
 import type { WorldState } from './types.ts';
 
 /**
@@ -85,6 +86,7 @@ export function selectSpeaker(
   state: WorldState,
   spokenInThisAdvance: string[],
   agenda: AgendaThread[] = buildAgenda(state),
+  focusActorIds: string[] = [],
 ): string | null {
   if (!state.actors.length) return null;
   const available = (actorId: string) => !spokenInThisAdvance.includes(actorId);
@@ -99,6 +101,10 @@ export function selectSpeaker(
     (thread) => thread.kind === 'proposed_appointment' && available(thread.actorId),
   );
   if (pending) return pending.actorId;
+  const focused = state.actors.find(
+    (actor) => focusActorIds.includes(actor.id) && available(actor.id),
+  );
+  if (focused) return focused.id;
   const lastSpoke = new Map<string, number>();
   state.messages.forEach((message, index) => lastSpoke.set(message.actorId, index));
   return (
@@ -118,12 +124,14 @@ export function beatCue(
   state: WorldState,
   actorId: string,
   agenda: AgendaThread[] = buildAgenda(state),
+  direction: WorldDirection = EMPTY_DIRECTION,
 ): string {
   const actor = state.actors.find((item) => item.id === actorId);
   const thread = threadFor(agenda, actorId);
   return [
     `（导演节拍：此刻是 ${state.time}，用户没有开口，${actor?.name ?? '这个角色'} 可以主动做点什么。）`,
     thread ? `（未了结的事：${thread.detail}。可以自然提起，但不要替用户答应用户的事。）` : '',
+    ...directionLines(direction, actorId),
     '如果此刻确实没有任何想说的，就只输出一条很短的消息说明你在忙什么。',
   ]
     .filter(Boolean)

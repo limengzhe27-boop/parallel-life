@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1320" viewBox="0 0 1900 1320">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#071426"/><stop offset=".58" stop-color="#102643"/><stop offset="1" stop-color="#241a3b"/></linearGradient>
+    <linearGradient id="real" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#347fdc" stop-opacity=".35"/><stop offset="1" stop-color="#25488f" stop-opacity=".20"/></linearGradient>
+    <linearGradient id="world" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#bd765d" stop-opacity=".36"/><stop offset="1" stop-color="#7150a2" stop-opacity=".21"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="9" stdDeviation="11" flood-color="#000" flood-opacity=".3"/></filter>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0 0 L11 5.5 L0 11 z" fill="#99c1ff"/></marker>
+    <marker id="arrowWarm" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0 0 L11 5.5 L0 11 z" fill="#f0b578"/></marker>
+    <marker id="arrowGreen" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0 0 L11 5.5 L0 11 z" fill="#72d7bb"/></marker>
+    <style>
+      .cn { font-family: PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif; }
+      .title { font-size:43px; font-weight:700; fill:#f8faff; }
+      .subtitle { font-size:18px; fill:#b8c6da; }
+      .section { font-size:15px; font-weight:700; fill:#9bc5ff; letter-spacing:2px; }
+      .cardTitle { font-size:20px; font-weight:700; fill:#f8faff; }
+      .cardText { font-size:14px; fill:#dae5f3; }
+      .small { font-size:13px; fill:#a8b9d0; }
+      .tiny { font-size:12px; fill:#90a5c0; }
+      .flow { font-size:15px; font-weight:700; fill:#eef4ff; }
+      .tag { font-size:12px; font-weight:700; fill:#f0b578; }
+    </style>
+  </defs>
+  <rect width="1900" height="1320" fill="url(#bg)"/>
+  <circle cx="1750" cy="90" r="250" fill="#5b75d2" opacity=".09"/>
+  <circle cx="110" cy="1240" r="260" fill="#c87668" opacity=".07"/>
+
+  <text x="75" y="70" class="cn title">如果｜Agent 角色与调用关系</text>
+  <text x="75" y="107" class="cn subtitle">六类协作角色 + 两个运行引擎：从用户输入，到记忆保存，再到 NPC 回应</text>
+
+  <!-- roster -->
+  <text x="75" y="160" class="cn section">一、有哪些 Agent</text>
+  <rect x="75" y="180" width="850" height="390" rx="24" fill="#0c2039" stroke="#3c70aa" filter="url(#shadow)"/>
+  <rect x="965" y="180" width="860" height="390" rx="24" fill="#1a1933" stroke="#79558f" filter="url(#shadow)"/>
+  <text x="110" y="220" class="cn section">真实侧 · 负责认识你</text>
+  <text x="1000" y="220" class="cn section">虚构侧 · 负责让世界回应你</text>
+
+  <rect x="110" y="250" width="240" height="130" rx="18" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="135" y="290" class="cn cardTitle">个人向导 Agent</text>
+  <text x="135" y="321" class="cn small">提问 · 倾听 · 提炼</text>
+  <text x="135" y="350" class="cn cardText">把聊天变成资料</text>
+  <text x="135" y="373" class="cn cardText">和可追溯记忆</text>
+  <rect x="370" y="250" width="240" height="130" rx="18" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="395" y="290" class="cn cardTitle">人生探索 Agent</text>
+  <text x="395" y="321" class="cn small">从资料提出“如果”</text>
+  <text x="395" y="350" class="cn cardText">生成多个相关分支</text>
+  <text x="395" y="373" class="cn cardText">等待用户采纳</text>
+  <rect x="630" y="250" width="240" height="130" rx="18" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="655" y="290" class="cn cardTitle">世界创建 Agent</text>
+  <text x="655" y="321" class="cn small">分支被采纳后工作</text>
+  <text x="655" y="350" class="cn cardText">建立身份、人物</text>
+  <text x="655" y="373" class="cn cardText">关系和开场事件</text>
+
+  <rect x="1000" y="250" width="250" height="130" rx="18" fill="url(#world)" stroke="#d08b69"/>
+  <text x="1025" y="290" class="cn cardTitle">世界导演 Agent</text>
+  <text x="1025" y="321" class="cn small">管理节奏和场景</text>
+  <text x="1025" y="350" class="cn cardText">决定谁出现、发生什么</text>
+  <text x="1025" y="373" class="cn cardText">推动世界继续运转</text>
+  <rect x="1275" y="250" width="250" height="130" rx="18" fill="url(#world)" stroke="#a16cd0"/>
+  <text x="1300" y="290" class="cn cardTitle">NPC 角色 Agent</text>
+  <text x="1300" y="321" class="cn small">每个重要人物一个</text>
+  <text x="1300" y="350" class="cn cardText">按自己的性格、目标</text>
+  <text x="1300" y="373" class="cn cardText">关系和记忆回应</text>
+  <rect x="1550" y="250" width="240" height="130" rx="18" fill="#1d3450" stroke="#5c88ae"/>
+  <text x="1575" y="290" class="cn cardTitle">记忆服务</text>
+  <text x="1575" y="321" class="cn small">不是聊天 Agent</text>
+  <text x="1575" y="350" class="cn cardText">保存、合并、追溯</text>
+  <text x="1575" y="373" class="cn cardText">控制谁能看到什么</text>
+
+  <rect x="110" y="420" width="760" height="100" rx="17" fill="#112b4b" stroke="#416d9f"/>
+  <text x="140" y="457" class="cn cardTitle">真实侧的资料</text>
+  <text x="140" y="489" class="cn cardText">兴趣 · 经历 · 愿望 · 重要的人 · 现实中的记忆</text>
+  <text x="140" y="512" class="cn small">人生探索和世界创建可以读取；NPC 不能直接读取。</text>
+  <rect x="1000" y="420" width="790" height="100" rx="17" fill="#2c2145" stroke="#8f65b4"/>
+  <text x="1030" y="457" class="cn cardTitle">虚构侧的记忆</text>
+  <text x="1030" y="489" class="cn cardText">世界事件 · 角色印象 · 当前关系 · 未完成的线索</text>
+  <text x="1030" y="512" class="cn small">只属于这个分支，影响下一次相遇，不改写现实资料。</text>
+
+  <!-- engines -->
+  <text x="75" y="635" class="cn section">二、两个不负责聊天的运行引擎</text>
+  <rect x="75" y="655" width="850" height="150" rx="22" fill="#101f37" stroke="#47678e"/>
+  <rect x="110" y="690" width="350" height="82" rx="16" fill="#172e4b" stroke="#5b82ae"/>
+  <text x="135" y="724" class="cn cardTitle">世界时钟</text>
+  <text x="135" y="751" class="cn cardText">推进时间、倍速、暂停和离线摘要</text>
+  <rect x="500" y="690" width="385" height="82" rx="16" fill="#172e4b" stroke="#5b82ae"/>
+  <text x="525" y="724" class="cn cardTitle">校验与执行</text>
+  <text x="525" y="751" class="cn cardText">检查提案，再决定是否产生真实结果</text>
+  <rect x="965" y="655" width="860" height="150" rx="22" fill="#15162e" stroke="#6b5589"/>
+  <text x="1000" y="695" class="cn cardTitle">共用规则</text>
+  <text x="1000" y="728" class="cn cardText">AI 只提出可能性；经过检查后，才会写入消息、事件、关系和记忆。</text>
+  <text x="1000" y="762" class="cn small">用户看到的每个变化都有来源，失败也会如实显示。</text>
+
+  <!-- call chain -->
+  <text x="75" y="875" class="cn section">三、用户输入后，Agent 如何接力</text>
+  <rect x="75" y="895" width="1750" height="250" rx="24" fill="#0c1b31" stroke="#31537d" filter="url(#shadow)"/>
+  <rect x="110" y="955" width="200" height="100" rx="16" fill="#19365c" stroke="#5988c6"/>
+  <text x="210" y="992" text-anchor="middle" class="cn cardTitle">用户发消息</text>
+  <text x="210" y="1023" text-anchor="middle" class="cn small">一句经历或一个选择</text>
+  <path d="M310 1005 H360" stroke="#99c1ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="380" y="955" width="240" height="100" rx="16" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="500" y="992" text-anchor="middle" class="cn cardTitle">个人向导</text>
+  <text x="500" y="1023" text-anchor="middle" class="cn small">理解、回应、提取记忆</text>
+  <path d="M620 1005 H670" stroke="#99c1ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="690" y="955" width="240" height="100" rx="16" fill="#16405e" stroke="#63b8a9"/>
+  <text x="810" y="992" text-anchor="middle" class="cn cardTitle">记忆服务</text>
+  <text x="810" y="1023" text-anchor="middle" class="cn small">写入“我的”或合并来源</text>
+  <path d="M930 1005 H980" stroke="#72d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <rect x="1000" y="955" width="240" height="100" rx="16" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="1120" y="992" text-anchor="middle" class="cn cardTitle">人生探索</text>
+  <text x="1120" y="1023" text-anchor="middle" class="cn small">只有用户想探索时调用</text>
+  <path d="M1240 1005 H1290" stroke="#99c1ff" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="1310" y="955" width="220" height="100" rx="16" fill="url(#real)" stroke="#5c95d9"/>
+  <text x="1420" y="992" text-anchor="middle" class="cn cardTitle">世界创建</text>
+  <text x="1420" y="1023" text-anchor="middle" class="cn small">用户采纳分支后调用</text>
+  <path d="M1530 1005 H1580" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <rect x="1600" y="955" width="190" height="100" rx="16" fill="url(#world)" stroke="#d08b69"/>
+  <text x="1695" y="992" text-anchor="middle" class="cn cardTitle">导演 / NPC</text>
+  <text x="1695" y="1023" text-anchor="middle" class="cn small">手机世界内接力</text>
+
+  <!-- in-world loop -->
+  <text x="75" y="1215" class="cn section">四、进入手机后：导演和 NPC 的一轮工作</text>
+  <rect x="75" y="1235" width="1750" height="70" rx="18" fill="#1a1831" stroke="#775b91"/>
+  <text x="110" y="1279" class="cn flow">用户发消息</text>
+  <path d="M245 1270 H325" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <text x="355" y="1279" class="cn flow">导演看当前世界</text>
+  <path d="M525 1270 H605" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <text x="635" y="1279" class="cn flow">裁剪角色可见资料</text>
+  <path d="M845 1270 H925" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <text x="955" y="1279" class="cn flow">NPC 生成回应</text>
+  <path d="M1115 1270 H1195" stroke="#f0b578" stroke-width="2.5" marker-end="url(#arrowWarm)"/>
+  <text x="1225" y="1279" class="cn flow">手机显示变化</text>
+  <path d="M1370 1270 H1450" stroke="#72d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <text x="1480" y="1279" class="cn flow">记忆服务保存</text>
+  <path d="M1620 1270 H1700" stroke="#72d7bb" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+  <text x="1730" y="1279" class="cn flow">下一轮更连续</text>
+
+  <rect x="75" y="1350" width="1750" height="55" rx="15" fill="#0a1527" stroke="#2e4c73"/>
+  <text x="105" y="1384" class="cn small">一句话：个人向导负责“认识你”；人生探索和世界创建负责“把可能性变成世界”；导演和 NPC 负责“让世界对你作出回应”；记忆服务负责“让结果被记住”。</text>
+</svg>
