@@ -224,6 +224,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |D-30|[x] 已完成|I|D-29|对话中主动推荐分支 / 一句话创建并进入：新增可测试的分支意图路由（进入 / 创建 / 推荐 / 无关），访谈页按意图分流——明确要创建则先推演再**直接建世界并进入体验**，只说看看则只展示；修好"帮我创建一个分支/我想试试另一条/有什么分支"等说法原先无反应的问题|[报告](task-reports/D-30.md)；176 单元（新增 22 用例）+ 24 真实库测试与构建通过；浏览器点击级验证待补|
 |D-31|[x] 已完成|I|D-30|修复"说创建分支却打开已有分支"：创建意图不再被"已有世界就打开"的捷径吞掉（顺序修正），并新增 `chooseUnbuiltDirection` 跳过已采用过的方向、全采用过则重新推演、仍无可用才让用户选｜[报告](task-reports/D-31.md)；177 单元测试（含"创建分支绝不能重开已有的人生"回归用例）与构建通过；点击级验证待补|
 |D-32|[x] 已完成|I|D-31|**根因修复**"对话中让它直接生成分支不生效"：服务端要求"已确认事实或非空 brief"且画像版本必须一致，而 UI 传的是**可能过期的 profileVersion + 空 brief** → 分别 `VERSION_CONFLICT` / `INVALID_INPUT` 且被折叠成静默失败。现改为实时版本 + 用对话内容生成 brief + 冲突自动重试一次 + 可行动的失败文案｜[报告](task-reports/D-32.md)；真实库回归直接复现根因并证明修复（空 brief 被拒 → 带对话 brief 被接受 → 过期版本冲突）；178 单元 + 25 真实库测试与构建通过；点击级验证待补|
+|D-33|[x] 已完成|I|D-32|根因（UI 侧）修复"已有世界时创建分支只提示进入已有分支"：① `approveSeed` 用了**过期的 discovery 版本**（`data?.version` 在 `setData` 之前读取）→ VERSION_CONFLICT；② **失败提示只在"没有世界"的分支里渲染**，已有世界时任何错误都不可见 → 用户只看到"进入体验"卡片。现改为显式传递刚返回的版本、进度与错误在任何状态都可见、并放宽识别措辞（"创建一个新的分支"）|[报告](task-reports/D-33.md)；用户真实数据诊断：服务端 202 正常且尚有 2 个未采用方向；178 单元 + 25 真实库测试与构建通过；点击级验证待补|
 |D-03|[ ] 待开发|B|D-06,M-03|世界创建任务：动态身份、人物、关系、初始事件/手机内容；version=0 快照，阶段进度持久化，失败可续接|—|
 |D-04|[ ] 待验收|F|C-05|推荐卡、自定义/修改、资料确认与保存设定；推荐任务状态、失败重试及恢复；世界生成进度单列 D-05|[报告](task-reports/D-04.md)；已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |D-05|[ ] 待开发|F|D-03,D-04|世界生成各阶段的真实进度、失败恢复与进入手机；恢复时对应同一个创建任务，未完成阶段不伪装成功|—|
@@ -340,6 +341,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
 |AUD-01|dsh-main-20260923|I / 单人|主登记目录|本地环境启动、合成经历真实调用、docs/task-reports/AUD-01.md|本项目本地 PostgreSQL 55432 与 3218 端口；真实网关调用仅用合成文本|2026-09-23T12:40Z：已完成；迁移 0001–0016 已应用，全链路真实调用证据见报告；本地服务保持运行供用户体验|
 |D-08|dsh-main-20260923|I / 单人|主登记目录|src/modules/ai/**、src/modules/world/infrastructure/**、src/modules/discovery/infrastructure/**、src/modules/tasks/application/**、src/contracts/**、tests/**、docs/task-reports/D-08.md|真实网关调用仅用合成经历；本项目 Supabase 生产库只读诊断|2026-09-23T13:10Z：已完成并上线；输出上限与容错解析修复，合格率 4/4；生产部署后完整链路实测通过|
+|D-33|dsh-main-20260923|I / 单人|主登记目录|src/features/interview/proposal-thread.tsx、src/features/interview/branch-intent.ts、tests/**、docs/**|生产只读诊断（0 次模型调用）|2026-09-24T22:50Z：已修复并上线|
 |D-32|dsh-main-20260923|I / 单人|主登记目录|src/features/interview/branch-intent.ts、src/features/interview/proposal-thread.tsx、tests/branch-intent.test.ts、tests/integration/discovery.test.ts、docs/**|本地 PostgreSQL 55432（无新迁移）|2026-09-24T22:20Z：根因已修复并上线|
 |D-31|dsh-main-20260923|I / 单人|主登记目录|src/features/interview/branch-intent.ts、src/features/interview/proposal-thread.tsx、tests/branch-intent.test.ts、docs/**|—|2026-09-24T21:40Z：已修复并上线|
 |D-30|dsh-main-20260923|I / 单人|主登记目录|src/features/interview/branch-intent.ts、src/features/interview/interview-app.tsx、src/features/interview/proposal-thread.tsx、tests/branch-intent.test.ts、docs/**|—|2026-09-24T21:00Z：已完成并上线；浏览器点击级验证待补|
@@ -383,6 +385,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务|执行/验收人|结果与证据|完成日期|
 |---|---|---|---|
+|D-33|dsh-main-20260923 / 用户报告 + 根因定位|修复 UI 侧两处根因（过期 discovery 版本、失败提示被条件挡住）；用户真实数据诊断证明服务端正常；178 单元 + 25 真实库测试通过；[报告](task-reports/D-33.md)|2026-09-24|
 |D-32|dsh-main-20260923 / 用户报告 + 根因定位|修复分支请求的前置条件不匹配（实时画像版本 + 对话 brief + 冲突重试 + 明确失败文案）；真实库回归复现根因；178 单元 + 25 真实库测试通过；[报告](task-reports/D-32.md)|2026-09-24|
 |D-31|dsh-main-20260923 / 用户报告 + 自审|修复创建分支被"打开已有分支"吞掉；177 单元测试通过（含回归）；[报告](task-reports/D-31.md)|2026-09-24|
 |D-30|dsh-main-20260923 / 自审|对话中分支意图分流（创建/推荐/进入）；175 单元 + 24 真实库测试通过；浏览器点击级验证待补；[报告](task-reports/D-30.md)|2026-09-24|
@@ -442,6 +445,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 |H-05A|codex-main-01a0c73b / 自审|用户上传入相册、63项单元、3项真实库、手机/PC与构建通过；[报告](task-reports/H-05A.md)|2026-09-22|
 
 ### 变更日志
+
+- 2026-09-24：修复 UI 侧根因（D-33）——"已有世界时说创建分支，只弹出进入已有分支"。先用用户真实数据证明服务端正常（202 接受，且尚有 2 个未采用方向），再定位 UI 两处：① `confirmAndBuild` 把 `data?.version`（在 `setData` 生效前读取）作为 discovery 版本发给服务端 → VERSION_CONFLICT，建世界失败；② 失败与进度提示只在"未生成世界"的分支里渲染，已有世界时全部不可见，用户只看到"进入体验"卡片。现改为显式传递刚返回的版本、进度/错误在任何状态都显示、并放宽识别措辞。178 单元 + 25 真实库测试与构建通过。
 
 - 2026-09-24：根因修复"对话中让 Agent 直接生成分支不生效"（D-32）。服务端要求"存在已确认事实或非空 brief"且画像版本必须一致，而 UI 传的是**可能过期的画像版本 + 空 brief**，导致分别返回 `VERSION_CONFLICT` / `INVALID_INPUT`，又被 UI 折叠成一句静默的"这次没有完成"——所以功能看起来"根本没做"。现改为：每次请求前重读最新画像与 discovery 版本；用**用户最近说过的话**生成 brief（聊天几句即可具备生成分支的依据）；`VERSION_CONFLICT` 自动重试一次；失败文案改为可行动（告诉用户还差什么）。新增真实库回归直接复现根因并证明修复。178 单元 + 25 真实库测试与构建通过；点击级验收待补。
 

@@ -111,10 +111,16 @@ export function ProposalThread({
         } catch {
           /* 读不到已采用的种子时按“都可用”处理，交给服务端幂等去拦。 */
         }
+        let version = data?.version ?? 0;
         let target = chooseUnbuiltDirection(directions, adopted, selectedIndex);
-        if (!target) target = chooseUnbuiltDirection(await discoverBranch(), adopted);
+        if (!target) {
+          /* 现有方向都采用过：重新推演一批，并用**刚返回的**版本建世界（避免用过期的 state）。 */
+          const fresh = await discoverBranch();
+          version = fresh.version;
+          target = chooseUnbuiltDirection(fresh.directions, adopted);
+        }
         if (target) {
-          await confirmAndBuild(target);
+          await confirmAndBuild(target, version);
           return;
         }
         setConfirmOpen(true);
@@ -184,15 +190,15 @@ export function ProposalThread({
       setData(fresh);
       setSelectedIndex(0);
       setStage('idle');
-      return fresh.directions ?? [];
+      return { directions: fresh.directions ?? [], version: fresh.version };
     } catch (e) {
       setStage('idle');
       setError(branchFailureMessage(e));
-      return [];
+      return { directions: [], version: 0 };
     }
   }
 
-  async function confirmAndBuild(target: LifeDirection) {
+  async function confirmAndBuild(target: LifeDirection, discoveryVersion?: number) {
     setError('');
     try {
       setStage('saving');
@@ -203,7 +209,7 @@ export function ProposalThread({
       const hasPortrait = Boolean(latestProfile.portraitAssetId);
       const seed = await client.approveSeed({
         commandId: crypto.randomUUID(),
-        discoveryVersion: data?.version ?? 0,
+        discoveryVersion: discoveryVersion ?? data?.version ?? 0,
         profileVersion: latestProfile.version,
         directionId: target.id,
         factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => available.has(id)),
@@ -245,6 +251,22 @@ export function ProposalThread({
         <Icon name="spark" size={17} />
         <span>你的另一种可能 · 平行分支</span>
       </div>
+
+      {/* 进度与失败必须在任何状态下都看得见：已经有世界时也不能只显示"进入体验" */}
+      {stage !== 'idle' && (
+        <div className="proposal-invitation">
+          <p role="status">{stage === 'entering' ? '正在进入…' : STAGE_TEXT[stage]}</p>
+        </div>
+      )}
+      {error && (
+        <div className="proposal-invitation">
+          <p role="alert">{error}</p>
+          <Button variant="secondary" onClick={() => void discoverBranch()}>
+            <Icon name="refresh" size={16} />
+            重试
+          </Button>
+        </div>
+      )}
 
       {entry.kind === 'open-ready' ? (
         <div className="proposal-invitation">
@@ -340,16 +362,6 @@ export function ProposalThread({
               <Button variant="primary" disabled={busy} onClick={() => void discoverBranch()}>
                 {stage === 'discovering' ? STAGE_TEXT.discovering : '根据聊天，推演我的平行分支'}
                 {!busy && <Icon name="spark" size={16} />}
-              </Button>
-            </div>
-          )}
-
-          {error && (
-            <div className="proposal-invitation">
-              <p role="alert">{error}</p>
-              <Button variant="secondary" onClick={() => void discoverBranch()}>
-                <Icon name="refresh" size={16} />
-                重试
               </Button>
             </div>
           )}
