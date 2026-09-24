@@ -51,3 +51,10 @@ test('the entry is offered before confirmation is possible only through a ready 
     ['confirm-records', 'needs-material', 'create', 'open-ready'],
   );
 });
+
+test('a user with confirmed material can still create new branches even if an existing world exists', () => {
+  assert.deepEqual(branchEntryState({ ...base, confirmedCount: 2, hasReadyWorld: true }), {
+    kind: 'create',
+    directionCount: 0,
+  });
+});

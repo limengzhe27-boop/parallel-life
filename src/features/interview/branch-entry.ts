@@ -32,10 +32,10 @@ export function branchEntryState(input: {
   directionCount: number;
 }): BranchEntryState {
   if (!input.ready) return { kind: 'hidden' };
+  if (input.confirmedCount > 0)
+    return { kind: 'create', directionCount: Math.max(0, input.directionCount) };
   if (input.hasReadyWorld) return { kind: 'open-ready' };
-  if (input.confirmedCount <= 0)
-    return input.pendingCandidates > 0
-      ? { kind: 'confirm-records', pending: input.pendingCandidates }
-      : { kind: 'needs-material' };
-  return { kind: 'create', directionCount: Math.max(0, input.directionCount) };
+  if (input.pendingCandidates > 0)
+    return { kind: 'confirm-records', pending: input.pendingCandidates };
+  return { kind: 'needs-material' };
 }

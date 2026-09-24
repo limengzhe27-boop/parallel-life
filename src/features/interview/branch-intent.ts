@@ -16,19 +16,19 @@ export type BranchIntent =
   | 'enter'
   | 'none';
 
-const ENTER =
-  /(开始|开启|进入|体验|就选|选)(一下)?(这个|这条|该)?(分支|平行人生|平行世界)|进入(这个|我的)?(平行)?(人生|世界)|进(入)?手机/;
 const CREATE =
-  /(帮我|给我|替我)?(创建|建立|建|生成|开|做)[^。！？,!?]{0,6}(分支|平行人生|平行世界|另一种人生|另一条路)|我想?试试(另一条|这个方向|那条路)|我要?试试(另一条|这个方向)|就按这个(方向)?(来|建|做)|开始(一段|新的)?(人生|平行人生)|帮我实现这个/;
+  /(帮我|给我|替我|直接|去)?(创建|新建|建立|建一个?|建|生成|开辟)[^。！？,!?]{0,10}(新(的)?|另一(个|种|条))?(分支|平行人生|平行世界|世界分支|人生分支|新世界|另一种人生|另一条路)|(体验|开始|开启)[^。！？,!?]{0,10}(新(的)?|另一(个|种|条))(分支|平行人生|平行世界|世界分支|人生分支|人生|世界)|我想?试试(另一条|这个方向|那条路|新的分支)|我要?试试(另一条|这个方向|新的分支)|就按这个(方向)?(来|建|做)|开始(一段|新的)(人生|平行人生|平行世界|分支)|帮我实现这个|直接创建/;
+const ENTER =
+  /^(进入|打开|回)(这个|该|已有的|我的)?(手机|世界|平行世界|人生|分支)$|(进入|打开)(我的)?平行手机|(进入|打开)已建好的(世界|分支)|就选这个(分支)?|(进入|体验|开始)(一下)?(这个|这条|该)(分支|平行世界|平行人生)|进入(这个|我的)?(平行)?(人生|世界)|进(入)?手机/;
 const RECOMMEND =
   /(有什么|有哪些|有没有|看看|想看|看一下|推荐|帮我推荐|给我看看|推演)(一?[下个])?(我的)?(分支|方向|平行人生|平行世界|另一种可能|另一种人生|另一个可能)|我的平行分支|根据聊天.*(推演|看看)/;
 
 export function routeBranchIntent(text: string): BranchIntent {
   const value = text.trim();
   if (!value) return 'none';
-  /* Entering an existing branch wins: it costs nothing and is what the user asked for. */
-  if (ENTER.test(value)) return 'enter';
+  /* Creating a new branch wins over entering: if the user asks to create and enter, they want a brand-new branch. */
   if (CREATE.test(value)) return 'create';
+  if (ENTER.test(value)) return 'enter';
   if (RECOMMEND.test(value)) return 'recommend';
   return 'none';
 }

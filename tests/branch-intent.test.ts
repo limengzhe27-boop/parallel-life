@@ -18,6 +18,12 @@ test('a user asking for a branch gets one created', () => {
     '创建一个新的分支',
     '建一个属于我的分支',
     '给我生成一条全新的平行人生',
+    '去创建新的人生分支让我进去体验',
+    '帮我创建一个新分支体验一下',
+    '创建新的人生分支',
+    '直接创建新的世界分支',
+    '直接建一个分支让我体验',
+    '我想体验新的人生分支',
   ])
     assert.equal(routeBranchIntent(text), 'create', text);
 });

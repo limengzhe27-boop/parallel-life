@@ -509,7 +509,7 @@ export function InterviewApp() {
           </div>
         )}
         <div ref={end} />
-        {data && !waiting && (
+        {data && (
           <ProposalThread
             client={client}
             revision={data.interview.version}

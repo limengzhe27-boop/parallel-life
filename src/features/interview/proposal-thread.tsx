@@ -101,29 +101,30 @@ export function ProposalThread({
     void (async () => {
       if (externalIntent === 'create') {
         /*
-         * 用户明确要一个新分支：**先建，不要跳去打开已有的人生**（这正是原来的 bug）。
-         * 已经采用过的方向会被跳过；没有可用的新方向时才让用户自己选。
+         * 用户明确要一个新分支：
+         * 1. 抓取用户在当前对话中聊出的最新想法（brief），由 AI 重新推演与该想法匹配的全新方向；
+         * 2. 拿到专属新方向后，直接启动平行世界构筑并进入，不打开旧世界，也不复用之前的旧方向！
          */
         setError('');
-        let adopted: string[] = [];
         try {
-          adopted = (await client.seeds()).map((seed) => seed.directionId);
-        } catch {
-          /* 读不到已采用的种子时按“都可用”处理，交给服务端幂等去拦。 */
+          const workspace = await client.workspace();
+          const brief = buildBranchBrief(workspace.interview.messages);
+          const fresh = await discoverBranch(brief);
+          let adopted: string[] = [];
+          try {
+            adopted = (await client.seeds()).map((seed) => seed.directionId);
+          } catch {}
+          const target =
+            chooseUnbuiltDirection(fresh.directions, adopted, 0) ?? fresh.directions[0];
+          if (target) {
+            await confirmAndBuild(target, fresh.version);
+            return;
+          }
+          setConfirmOpen(true);
+        } catch (e) {
+          setError(branchFailureMessage(e));
+          setStage('idle');
         }
-        let version = data?.version ?? 0;
-        let target = chooseUnbuiltDirection(directions, adopted, selectedIndex);
-        if (!target) {
-          /* 现有方向都采用过：重新推演一批，并用**刚返回的**版本建世界（避免用过期的 state）。 */
-          const fresh = await discoverBranch();
-          version = fresh.version;
-          target = chooseUnbuiltDirection(fresh.directions, adopted);
-        }
-        if (target) {
-          await confirmAndBuild(target, version);
-          return;
-        }
-        setConfirmOpen(true);
         return;
       }
       if (externalIntent === 'recommend') {
@@ -207,15 +208,37 @@ export function ProposalThread({
         latestProfile.facts.filter((f) => f.status === 'confirmed').map((f) => f.id),
       );
       const hasPortrait = Boolean(latestProfile.portraitAssetId);
-      const seed = await client.approveSeed({
-        commandId: crypto.randomUUID(),
-        discoveryVersion: discoveryVersion ?? data?.version ?? 0,
-        profileVersion: latestProfile.version,
-        directionId: target.id,
-        factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => available.has(id)),
-        personIds: [],
-        includePortrait: hasPortrait,
-      });
+      let seed;
+      try {
+        seed = await client.approveSeed({
+          commandId: crypto.randomUUID(),
+          discoveryVersion: discoveryVersion ?? data?.version ?? 0,
+          profileVersion: latestProfile.version,
+          directionId: target.id,
+          factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => available.has(id)),
+          personIds: [],
+          includePortrait: hasPortrait,
+        });
+      } catch (err) {
+        if (err instanceof ApiFailure && err.code === 'VERSION_CONFLICT') {
+          const freshWs = await client.workspace();
+          const freshDisc = await client.discovery();
+          const freshAvail = new Set(
+            freshWs.profile.facts.filter((f) => f.status === 'confirmed').map((f) => f.id),
+          );
+          seed = await client.approveSeed({
+            commandId: crypto.randomUUID(),
+            discoveryVersion: freshDisc.version,
+            profileVersion: freshWs.profile.version,
+            directionId: target.id,
+            factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => freshAvail.has(id)),
+            personIds: [],
+            includePortrait: Boolean(freshWs.profile.portraitAssetId),
+          });
+        } else {
+          throw err;
+        }
+      }
 
       setStage('building');
       const build = await client.createWorld({ commandId: crypto.randomUUID(), seedId: seed.id });
@@ -234,6 +257,27 @@ export function ProposalThread({
             ? e.message
             : '这次没有完成，可以再试一次。',
       );
+    }
+  }
+
+  async function handleCreateFromConversation() {
+    setError('');
+    try {
+      const workspace = await client.workspace();
+      const brief = buildBranchBrief(workspace.interview.messages);
+      const fresh = await discoverBranch(brief);
+      let adopted: string[] = [];
+      try {
+        adopted = (await client.seeds()).map((seed) => seed.directionId);
+      } catch {}
+      const target =
+        chooseUnbuiltDirection(fresh.directions, adopted, 0) ?? fresh.directions[0];
+      if (target) {
+        await confirmAndBuild(target, fresh.version);
+      }
+    } catch (e) {
+      setError(branchFailureMessage(e));
+      setStage('idle');
     }
   }
 
@@ -270,11 +314,32 @@ export function ProposalThread({
 
       {entry.kind === 'open-ready' ? (
         <div className="proposal-invitation">
-          <p>这段人生已经生成好了，可以随时进入手机开始体验。</p>
-          <Button variant="primary" disabled={busy} onClick={handleOpenReadyWorld}>
-            {stage === 'entering' ? '正在打开手机…' : '打开我的平行手机'}
-            <Icon name="arrow" size={16} />
-          </Button>
+          <p>
+            {readyBuild
+              ? '你已有一个平行世界正在运行。你也可以根据刚才的对话，直接推演并构筑全新的平行分支！'
+              : '这段人生已经生成好了，可以随时进入手机开始体验。'}
+          </p>
+          <div
+            className="proposal-actions"
+            style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}
+          >
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={() => void handleCreateFromConversation()}
+            >
+              {busy
+                ? STAGE_TEXT[stage as keyof typeof STAGE_TEXT] || '处理中…'
+                : '✨ 从当前对话构筑全新分支'}
+              {!busy && <Icon name="spark" size={16} />}
+            </Button>
+            {readyBuild && (
+              <Button variant="secondary" disabled={busy} onClick={handleOpenReadyWorld}>
+                {stage === 'entering' ? '正在打开手机…' : '📱 进入已有平行世界'}
+                <Icon name="arrow" size={16} />
+              </Button>
+            )}
+          </div>
         </div>
       ) : entry.kind === 'confirm-records' ? (
         <div className="proposal-invitation">
@@ -341,17 +406,33 @@ export function ProposalThread({
                 </div>
               )}
 
-              <div className="proposal-actions">
+              <div
+                className="proposal-actions"
+                style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}
+              >
                 <Button variant="primary" disabled={busy} onClick={() => setConfirmOpen(true)}>
                   {busy
                     ? STAGE_TEXT[stage as keyof typeof STAGE_TEXT] || '处理中…'
                     : '开启体验此分支'}
                   {!busy && <Icon name="arrow" size={16} />}
                 </Button>
-                <Button variant="secondary" disabled={busy} onClick={() => void discoverBranch()}>
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => void handleCreateFromConversation()}
+                >
+                  <Icon name="spark" size={15} />
+                  从最新对话生成新分支
+                </Button>
+                <Button variant="ghost" disabled={busy} onClick={() => void discoverBranch()}>
                   <Icon name="refresh" size={15} />
                   换个分支聊聊
                 </Button>
+                {readyBuild && (
+                  <Button variant="ghost" disabled={busy} onClick={handleOpenReadyWorld}>
+                    📱 返回已有手机
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
@@ -359,10 +440,24 @@ export function ProposalThread({
               <p>
                 向导已记录下你的关键经历。想看看在重要分岔点做出另一种选择，平行世界的你正在过着怎样的生活吗？
               </p>
-              <Button variant="primary" disabled={busy} onClick={() => void discoverBranch()}>
-                {stage === 'discovering' ? STAGE_TEXT.discovering : '根据聊天，推演我的平行分支'}
-                {!busy && <Icon name="spark" size={16} />}
-              </Button>
+              <div
+                className="proposal-actions"
+                style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}
+              >
+                <Button
+                  variant="primary"
+                  disabled={busy}
+                  onClick={() => void handleCreateFromConversation()}
+                >
+                  {stage === 'discovering' ? STAGE_TEXT.discovering : '✨ 从当前对话构筑全新分支'}
+                  {!busy && <Icon name="spark" size={16} />}
+                </Button>
+                {readyBuild && (
+                  <Button variant="secondary" disabled={busy} onClick={handleOpenReadyWorld}>
+                    📱 进入已有平行世界
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </>
