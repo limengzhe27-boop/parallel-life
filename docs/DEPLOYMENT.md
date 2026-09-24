@@ -30,10 +30,10 @@ https://github.com/limengzhe27-boop/parallel-life
 |---|---|
 |交付内容|1. **对话识别年份并精准改写资料（05年 -> 01年等）（`interview-planner.ts`、`profile-repository.ts`、`interview-handler.ts`、`interview-repository.ts`）**：解决此前“先说05年又说01年，无法识别改写”的缺陷。扩展 `InterviewProposalSchema.basicInfo.birthdate` 支持纯年份及短日期（兼容 `/^\d{4}(-\d{2}(-\d{2})?)?$/`）；提示词中明确告知模型在用户提及或纠正年份时必须直接覆写 `basicInfo`，严禁平铺到 facts；在 `extractBasicInfoFromText` 增加对中文口语年份（“01年”、“05年”、“2001年出生的”、“其实是01年的”等）的自适应解析与 4 位年份补齐（如 01 -> 2001，05 -> 2005），并修正了长短正则贪婪匹配优先级；在 `applyBasicInfoInTransaction` 落地时，不仅无缝将 4 位年份规范落库至 `YYYY-01-01`（或保留已有月日），还自动检索并过滤清理历史残留的旧年份/旧出生/旧 identity 条目，确保资料卡片实时呈现最新正确出生年份；<br>2. **资料信息区域彻底理顺与文本去重（`interview-app.tsx`、`interview-repository.ts`、`profile-repository.ts`）**：解决此前“资料信息很乱，既有上方选项填写又有下方文本写入”的问题。确立严格的数据分层边界：姓名、生日、城市、职业等基础信息只属于上方的【基本资料】表单；下方的【我的故事】（`profile-facts`）收敛为仅展示真正的个人特质（爱好 `interest`、性格 `personality`、心愿 `wish`），彻底阻断并过滤所有 `identity` 或包含“出生/生日/名字叫”的琐碎文本事实，避免重复与混乱冲突；<br>3. **彻底清除对话回复下方常驻分支选择卡片（`proposal-thread.tsx`）**：解决此前“每发一条消息，回复下方都会带分支选择卡片”的问题。重构 `ProposalThread` 渲染守卫，在正常对话且用户未发出创建/推荐分支指令时（`stage === 'idle' && externalIntent === 'none'`），彻底隐藏分支构筑与精选卡片，仅在用户明确表达分支构筑诉求或进入推荐交互时才唤出，还给用户一个干净舒适的纯净对话视口；<br>4. **测试与构建保障**：新增 8 项年份与纠错专项单元测试，全量 183 项测试通过，Next.js 生产优化构建一次性成功。|
 |发布前检查|`npm run check` 183 项测试全绿通过，`npm run build` 成功|
-|提交|待提交（fix: resolve birth year correction, clean duplicate text facts and hide idle branch proposals）|
-|部署|Vercel Production（公网别名 `https://parallel-life-nu.vercel.app`）|
+|提交|`87c36eb`（fix: resolve birth year correction, clean duplicate text facts and hide idle branch proposals）|
+|部署|Vercel Production（部署 ID: `lb5a0wkj2`，公网别名 `https://parallel-life-nu.vercel.app`）|
 |迁移应用|无须新增 SQL 迁移|
-|线上实测|待部署后线上实测|
+|线上实测|公网 `https://parallel-life-nu.vercel.app` 生产部署实测通过（`/api/health` 200 OK，部署状态 Ready，年份识别纠错、资料卡片去重、闲置对话无分支卡片均已就绪）。|
 
 
 ### 2026-09-24 · 对话直传生活照入库展示 & 对话个人信息（生日/姓名）精准结构化回填表单 & 相册上传强化
