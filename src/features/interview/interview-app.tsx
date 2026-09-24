@@ -458,7 +458,7 @@ export function InterviewApp() {
                 maxLength={4000}
                 onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
-                placeholder="说点什么，也可点击下方发送照片…"
+                placeholder="聊聊你的烦恼、遗憾、未竟的热爱，或是想推演的另一种人生…"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -656,28 +656,39 @@ export function Welcome({ choose }: { choose: (text: string) => void }) {
       <div className="message-avatar">如</div>
       <div>
         <div className="message-text">
-          你想不想看一看，平行世界的你正在过着怎样的人生？
+          你想不想看一看，如果在人生的某个关键节点改变了走向，平行世界的你正在过着怎样鲜活的人生？
           <br />
           <br />
-          告诉我一些关于你的事情，我来为你塑造几段专属于你的平行世界事件。在此之前，你可以先告诉我你的出生年月日（或者时间），让我感受你的性格底色；也可以直接告诉我，你最近有什么烦心事，或者人生中有哪些最想重新选择的决定。
+          我是你的平行人生向导。你可以和我聊聊你心底未竟的热爱、曾经纠结的选择、或是当下想逃离的疲惫。我们可以一起把那个“如果”推演出来，为你构筑一个专属于你的全新平行世界，让你亲自推门走进去生活。
+          <br />
+          <br />
+          在这之前，你也可以先告诉我你的出生年份或具体生日，让我更敏锐地感知你的性格底色。
         </div>
         <div
           className="first-greeting-suggestions"
-          style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}
+          style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}
         >
           <button
             type="button"
             className="button secondary compact"
             style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
-            onClick={() => choose('我的出生年月日是：')}
+            onClick={() => choose('如果当年我坚持了心底那份未竟的热爱：')}
           >
-            🎂 告知出生时间，测算性格基调
+            ✨ 假如坚持了心底的热爱
           </button>
           <button
             type="button"
             className="button secondary compact"
             style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
-            onClick={() => choose('如果当年我做出了另一个重大决定：')}
+            onClick={() => choose('如果离开现在的城市，换一种完全不同的生活：')}
+          >
+            🌊 假如换座城市，换种生活
+          </button>
+          <button
+            type="button"
+            className="button secondary compact"
+            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
+            onClick={() => choose('如果当年我做出了另一个重大抉择：')}
           >
             🔀 假如重选当年那个关键决定
           </button>
@@ -688,6 +699,14 @@ export function Welcome({ choose }: { choose: (text: string) => void }) {
             onClick={() => choose('最近让我最烦恼心累的一件事是：')}
           >
             💭 聊聊最近挥之不去的烦心事
+          </button>
+          <button
+            type="button"
+            className="button secondary compact"
+            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
+            onClick={() => choose('我是某年出生的，想先看看自己的性格基底：')}
+          >
+            🎂 告知出生年份，感受性格底色
           </button>
         </div>
       </div>
