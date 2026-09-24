@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildBranchBrief,
   chooseUnbuiltDirection,
   routeBranchIntent,
 } from '../src/features/interview/branch-intent.ts';
@@ -61,4 +62,22 @@ test('creating a branch never re-opens a life that already exists', () => {
   assert.equal(chooseUnbuiltDirection(directions, ['d1', 'd2', 'd3'], 0), null);
   /* Nothing adopted yet: the preferred direction is used. */
   assert.deepEqual(chooseUnbuiltDirection(directions, [], 0), { id: 'd1' });
+});
+
+test('the conversation itself becomes the brief a branch needs', () => {
+  const messages = [
+    { role: 'assistant', text: '你最近在忙什么？' },
+    { role: 'user', text: '我在做街头摄影，想把作品整理成一册' },
+    { role: 'assistant', text: '听起来不错' },
+    { role: 'user', text: '但房租压力挺大，我在犹豫要不要找份稳定工作' },
+  ];
+  const brief = buildBranchBrief(messages);
+  assert.match(brief, /街头摄影/);
+  assert.match(brief, /房租压力/);
+  assert.equal(/你最近在忙什么/.test(brief), false, 'only the user words are used');
+  /* Nothing said yet: no brief, so the caller must keep the conversation going. */
+  assert.equal(buildBranchBrief([]), '');
+  assert.equal(buildBranchBrief([{ role: 'assistant', text: '你好' }]), '');
+  /* Bounded, never unbounded prompt growth. */
+  assert.ok(buildBranchBrief(Array.from({ length: 20 }, () => ({ role: 'user', text: 'x'.repeat(500) }))).length <= 400);
 });

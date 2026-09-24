@@ -127,3 +127,62 @@ test('discovery persists personalized revisions, rejects stale commits, supports
     await admin.end();
   }
 });
+
+/**
+ * 根因回归：用户在对话里说"帮我创建一个分支"时，UI 曾经传空的 brief 且用可能过期的画像版本，
+ * 服务端因此分别抛 INVALID_INPUT / VERSION_CONFLICT —— 表现就是"它根本不给我生成分支"。
+ */
+test('a branch request needs a basis: the conversation brief is what makes it work', async () => {
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const c = await localConfig();
+  const db = new PostgresDatabase(
+    `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const owner = randomUUID();
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    const repo = new DiscoveryRepository(db),
+      profiles = new ProfileRepository(db);
+    const profile = await profiles.get(owner);
+    const discovery = await repo.get(owner);
+
+    /* ① 没有已确认事实、brief 为空 → 服务端拒绝（这就是用户遇到的现象："它不给我生成分支"）。 */
+    await assert.rejects(
+      repo.generate(owner, {
+        commandId: randomUUID(),
+        expectedVersion: discovery.version,
+        expectedProfileVersion: profile.version,
+        brief: '',
+        basedOnId: null,
+      }),
+      { code: 'INVALID_INPUT' },
+    );
+
+    /* ② 带上"用户说过的话"作为 brief → 被接受，不再需要先凑够确认事实。 */
+    const accepted = await repo.generate(owner, {
+      commandId: randomUUID(),
+      expectedVersion: discovery.version,
+      expectedProfileVersion: profile.version,
+      brief: '我在做街头摄影，想把作品整理成一册；但房租压力挺大，在犹豫要不要找份稳定工作',
+      basedOnId: null,
+    });
+    assert.ok(accepted.id, '服务端接受了带 brief 的分支请求');
+
+    /* ③ 画像版本过期 → VERSION_CONFLICT（UI 现在用实时版本并自动重试一次）。 */
+    await assert.rejects(
+      repo.generate(owner, {
+        commandId: randomUUID(),
+        expectedVersion: discovery.version,
+        expectedProfileVersion: profile.version + 99,
+        brief: '随便说点什么',
+        basedOnId: null,
+      }),
+      { code: 'VERSION_CONFLICT' },
+    );
+  } finally {
+    await db.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);
+    await admin.end();
+  }
+});

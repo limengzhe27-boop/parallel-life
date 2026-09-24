@@ -5,9 +5,20 @@ import type { WorldBuild } from '../../contracts/world-build.ts';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
 import { Button, Icon, Modal } from '../../components/ui.tsx';
 import { branchEntryState } from './branch-entry.ts';
-import { chooseUnbuiltDirection } from './branch-intent.ts';
+import { buildBranchBrief, chooseUnbuiltDirection } from './branch-intent.ts';
 
 type Stage = 'idle' | 'discovering' | 'saving' | 'building' | 'entering';
+
+/** 说清楚"为什么现在不能生成分支"，而不是一句"这次没有完成"。 */
+function branchFailureMessage(error: unknown): string {
+  const code = (error as { code?: string })?.code;
+  if (code === 'INVALID_INPUT')
+    return '我还没了解够你的经历——再说两句你在意的选择或难处，我就能推演出属于你的分支。';
+  if (code === 'VERSION_CONFLICT') return '资料刚更新过，我按最新内容再试一次就好。';
+  if (error instanceof ApiFailure) return error.message;
+  if (error instanceof Error && error.message) return error.message;
+  return '这次没有完成，可以再试一次。';
+}
 
 const STAGE_TEXT: Record<Exclude<Stage, 'idle' | 'entering'>, string> = {
   discovering: '正在从你聊到的经历里梳理出真正不同的方向…',
@@ -133,34 +144,50 @@ export function ProposalThread({
     })();
   }, [externalTrigger]);
 
-  async function discoverBranch() {
+  async function discoverBranch(briefOverride?: string) {
     setError('');
     setStage('discovering');
     try {
-      let currentDisc = await client.discovery();
-      const task = await client.discover({
-        commandId: crypto.randomUUID(),
-        expectedVersion: currentDisc.version,
-        expectedProfileVersion: profileVersion,
-        brief: '',
-        basedOnId: null,
-      });
-      const settled = task?.id ? await client.task(task.id) : null;
-      if (settled && settled.status !== 'succeeded') throw new Error(taskFailure(settled));
-      currentDisc = await client.discovery();
-      setData(currentDisc);
+      /*
+       * 这里曾经同时踩两个坑，导致"聊着聊着说建分支"根本不生效：
+       * ① 用父组件传入的 profileVersion（聊天每说一句画像版本都会变）→ 服务端 VERSION_CONFLICT；
+       * ② brief 传空字符串 → 没有"已确认事实"时服务端直接 INVALID_INPUT。
+       * 现在：每次请求前重新读最新画像版本，并用**用户自己在对话里说过的话**作为 brief。
+       */
+      const latest = await client.workspace();
+      const brief = briefOverride ?? buildBranchBrief(latest.interview.messages);
+      const attempt = async (freshProfileVersion: number) => {
+        const before = await client.discovery();
+        const task = await client.discover({
+          commandId: crypto.randomUUID(),
+          expectedVersion: before.version,
+          expectedProfileVersion: freshProfileVersion,
+          brief,
+          basedOnId: null,
+        });
+        const settled = task?.id ? await client.task(task.id) : null;
+        if (settled && settled.status !== 'succeeded') throw new Error(taskFailure(settled));
+        return client.discovery();
+      };
+      let fresh;
+      try {
+        fresh = await attempt(latest.profile.version);
+      } catch (e) {
+        /* 聊天还在继续时画像会再次变化：用最新版本自动重试一次，而不是直接失败。 */
+        const code = (e as { code?: string })?.code;
+        const retryable =
+          e instanceof ApiFailure &&
+          (code === 'VERSION_CONFLICT' || /版本|冲突|重试/.test(e.message));
+        if (!retryable) throw e;
+        fresh = await attempt((await client.workspace()).profile.version);
+      }
+      setData(fresh);
       setSelectedIndex(0);
       setStage('idle');
-      return currentDisc.directions ?? [];
+      return fresh.directions ?? [];
     } catch (e) {
       setStage('idle');
-      setError(
-        e instanceof ApiFailure
-          ? e.message
-          : e instanceof Error && e.message
-            ? e.message
-            : '这次没有完成，可以再试一次。',
-      );
+      setError(branchFailureMessage(e));
       return [];
     }
   }

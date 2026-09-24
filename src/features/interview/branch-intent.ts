@@ -53,3 +53,27 @@ export function chooseUnbuiltDirection<T extends { id: string }>(
   if (preferred && !taken.has(preferred.id)) return preferred;
   return fresh[0]!;
 }
+
+/**
+ * The material for a branch request, taken from the conversation itself.
+ *
+ * The server refuses to generate directions when there is neither a confirmed fact nor
+ * a brief (`INVALID_INPUT`), and the UI used to send an empty brief — so asking for a
+ * branch right after chatting did nothing at all. The user's own recent words are
+ * exactly the brief the planner needs.
+ */
+export function buildBranchBrief(
+  messages: readonly { role: string; text: string }[],
+  options: { maxMessages?: number; perMessage?: number; maxChars?: number } = {},
+): string {
+  const maxMessages = options.maxMessages ?? 4;
+  const perMessage = options.perMessage ?? 120;
+  const maxChars = options.maxChars ?? 400;
+  const recent = messages
+    .filter((message) => message.role === 'user')
+    .slice(-maxMessages)
+    .map((message) => message.text.replace(/\s+/g, ' ').trim().slice(0, perMessage))
+    .filter(Boolean);
+  const brief = recent.join('；');
+  return brief.length > maxChars ? `${brief.slice(0, maxChars - 1)}…` : brief;
+}
