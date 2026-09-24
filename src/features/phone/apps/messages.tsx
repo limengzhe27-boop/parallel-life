@@ -134,10 +134,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     return (
       <div
         className={s.app}
+        data-phone-fixed-dock
         style={{
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
+          minHeight: 0,
+          padding: 0,
+          overflow: 'hidden',
           background: tab === 'chats' || tab === 'contacts' ? '#ededed' : '#f7f7f7',
           position: 'relative',
         }}
@@ -256,7 +260,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         <div
           style={{
             flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
+            overscrollBehavior: 'contain',
             background: tab === 'chats' || tab === 'contacts' ? '#ffffff' : '#f7f7f7',
           }}
         >
@@ -360,49 +366,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   value={query}
                   onChange={setQuery}
                 />
-              </div>
-
-              {/* 通讯录头部原生功能行 */}
-              <div style={{ borderBottom: '8px solid #f1f5f9' }}>
-                {[
-                  { icon: '👥', label: '新的朋友', bg: '#f59e0b' },
-                  { icon: '💬', label: '仅聊天的朋友', bg: '#3b82f6' },
-                  { icon: '🏷️', label: '标签与人际', bg: '#10b981' },
-                  { icon: '📢', label: '世界公开广播', bg: '#6366f1' },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '10px 16px',
-                      borderBottom: '1px solid #f3f4f6',
-                      background: '#ffffff',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => playTapSound()}
-                  >
-                    <div
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '6px',
-                        background: item.bg,
-                        color: '#ffffff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '18px',
-                      }}
-                    >
-                      {item.icon}
-                    </div>
-                    <span style={{ fontSize: '15px', color: '#111827', fontWeight: 500 }}>
-                      {item.label}
-                    </span>
-                  </div>
-                ))}
               </div>
 
               <div style={{ padding: '6px 16px', fontSize: '12px', color: '#6b7280', background: '#f8fafc' }}>

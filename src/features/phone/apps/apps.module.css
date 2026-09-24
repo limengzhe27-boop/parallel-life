@@ -696,6 +696,9 @@
 }
 .surface > .app {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .chat {
   display: flex;
@@ -705,8 +708,11 @@
   flex: 1;
 }
 .surface:has([data-phone-thread]),
+.surface:has([data-phone-fixed-dock]),
+.surface:has([data-phone-app="messages"]),
 .chat {
   min-height: 0;
+  height: 100%;
 }
 .chat > .messages {
   min-height: 0;

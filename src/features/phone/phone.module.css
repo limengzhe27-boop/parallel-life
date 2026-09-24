@@ -759,10 +759,15 @@
   font-size: 20px;
   padding: 0 20px 6px;
 }
-.scroll:has([data-phone-thread]) {
+.scroll:has([data-phone-thread]),
+.scroll:has([data-phone-fixed-dock]),
+.scroll:has([data-phone-app="messages"]) {
   overflow: hidden;
+  height: 100%;
 }
-.appContent:has([data-phone-thread]) {
+.appContent:has([data-phone-thread]),
+.appContent:has([data-phone-fixed-dock]),
+.appContent:has([data-phone-app="messages"]) {
   height: 100%;
   min-height: 0;
 }

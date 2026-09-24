@@ -24,6 +24,15 @@ https://github.com/limengzhe27-boop/parallel-life
 
 ## 发布记录
 
+### 2026-09-24 · 通讯录移除冗余顶部功能行 & 底部 4-TabBar 吸底固定与联系人独立平滑滚动
+
+|项目|内容|
+|---|---|
+|交付内容|1. **通讯录顶部冗余功能入口彻底清除（`messages.tsx`）**：响应用户诉求，彻底移除通讯录 tab 顶部的 4 个无效硬编码原生占位入口（【新的朋友】、【仅聊天的朋友】、【标签与人际】、【世界公开广播】），通讯录在搜索框下方直接纯净展示联系人统计与平行人生联系人卡片列表，直奔主题；<br>2. **底部功能框（4-TabBar）视口吸底固定与中间列表独立滚动重构（`messages.tsx`、`phone.module.css`、`apps.module.css`）**：根本解决此前“需要下滑到最底部才能看到底部功能框”的布局 bug。原先外层 `.scroll` 仅针对 `[data-phone-thread]` 锁定了滚动，导致在微信 4-Tab 主页视图时，外层 `.scroll` 随着联系人列表无限延伸滚动，将底部的微信/通讯录/发现/我 4-TabBar 挤到了视口外极深的位置。现扩展 `phone.module.css` 与 `apps.module.css`，对 `[data-phone-app="messages"]` 及 `[data-phone-fixed-dock]` 锁定外层滚动（`overflow: hidden; height: 100%`），并将滚动容器严格限制在中间的内容主体区域（`flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain`）。顶部 Header 牢固吸顶，底端 4-TabBar 永远固定在屏幕底端，仅由中间联系人列表独立平滑滚动；<br>3. **测试与构建保障**：182 项测试全量绿灯通过，Next.js 生产优化构建一次性成功。|
+|发布前检查|`npm run check` 182 项测试全绿通过，`npm run build` 成功|
+|迁移应用|无须新增 SQL 迁移|
+|线上实测|公网 `https://parallel-life-nu.vercel.app` 生产部署实测通过。|
+
 ### 2026-09-24 · 彻底根除假主动消息与“在忙吗”置顶Bug & 手机彻底纯净通用模板化
 
 |项目|内容|
