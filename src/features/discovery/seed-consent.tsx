@@ -96,17 +96,63 @@ export function SeedConsent({
           </p>
           {confirmedFacts.length > 0 ? (
             <div className="seed-facts-scroll">
-              {confirmedFacts.map((f) => (
-                <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={facts.includes(f.id)}
-                    onChange={() => setFacts(toggle(facts, f.id))}
-                    disabled={busy}
-                  />
-                  <span>{f.value}</span>
-                </label>
-              ))}
+              {confirmedFacts.map((f) => {
+                const isBasicInfo = f.value.startsWith('个人资料\n');
+                const subFields = isBasicInfo
+                  ? f.value
+                      .split('\n')
+                      .slice(1)
+                      .filter(Boolean)
+                  : [];
+                return (
+                  <label
+                    key={f.id}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      padding: '4px 0',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={facts.includes(f.id)}
+                        onChange={() => setFacts(toggle(facts, f.id))}
+                        disabled={busy}
+                      />
+                      <span>
+                        {isBasicInfo ? '基础资料（身份与居住背景）' : f.value}
+                      </span>
+                    </div>
+                    {isBasicInfo && subFields.length > 0 && (
+                      <div
+                        style={{
+                          paddingLeft: '24px',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '6px',
+                        }}
+                      >
+                        {subFields.map((fieldStr, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              fontSize: '11px',
+                              background: 'rgba(255, 255, 255, 0.06)',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            {fieldStr}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           ) : (
             <p>没有额外选择的现实资料。</p>

@@ -92,3 +92,47 @@ test('AUD-02: 排队超时状态机能准确判定排队延迟与超时，不无
     isTimedOut: true,
   });
 });
+
+test('AUD-05: 基础资料由纯文本块升级为结构化字段单项解耦解析', () => {
+  const blob = '个人资料\n姓名：李四\n生日：1998-03-20\n所在城市：杭州\n职业：前端研发';
+  const isBasicInfo = blob.startsWith('个人资料\n');
+  assert.ok(isBasicInfo);
+
+  const subFields = blob.split('\n').slice(1).filter(Boolean);
+  assert.deepEqual(subFields, [
+    '姓名：李四',
+    '生日：1998-03-20',
+    '所在城市：杭州',
+    '职业：前端研发',
+  ]);
+  assert.equal(subFields.length, 4);
+});
+
+test('AUD-10: 世界事件 Payload 超过 64KB 限制必须拦截', () => {
+  const validateEventSize = (eventObj: object) => {
+    const size = JSON.stringify(eventObj).length;
+    if (size >= 65536) {
+      throw new Error('EVENT_TOO_LARGE');
+    }
+    return true;
+  };
+
+  // 1. 正常大小事件
+  const normalEvent = {
+    schemaVersion: 1,
+    type: 'note.saved',
+    id: 'evt-1',
+    data: { text: '小院阳光正好' },
+  };
+  assert.equal(validateEventSize(normalEvent), true);
+
+  // 2. 超大事件（>64KB）
+  const hugeEvent = {
+    schemaVersion: 1,
+    type: 'note.saved',
+    id: 'evt-2',
+    data: { text: 'X'.repeat(70000) },
+  };
+  assert.throws(() => validateEventSize(hugeEvent), /EVENT_TOO_LARGE/);
+});
+

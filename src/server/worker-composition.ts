@@ -9,6 +9,7 @@ import { PostgresTaskQueue } from '../modules/tasks/infrastructure/postgres-task
 import { InterviewPlanner } from '../modules/profile/infrastructure/interview-planner.ts';
 import { interviewHandler } from '../modules/profile/infrastructure/interview-handler.ts';
 import { memoryHandler } from '../modules/memory/infrastructure/memory-handler.ts';
+import { mediaHandler } from '../modules/media/infrastructure/media-handler.ts';
 export function createWorker() {
   const url = process.env.WORKER_DATABASE_URL;
   if (!url || new URL(url).username.split('.')[0] !== 'pl_worker')
@@ -30,6 +31,7 @@ export function createWorker() {
         config.model,
       ),
       memory: memoryHandler(queue),
+      media: mediaHandler(queue),
     },
   };
 }

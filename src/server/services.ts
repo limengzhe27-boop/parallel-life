@@ -8,6 +8,8 @@ import 'server-only';
 import { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
 import { SignedSession } from '../modules/identity/infrastructure/signed-session.ts';
 import { IdentityRepository } from '../modules/identity/infrastructure/identity-repository.ts';
+import { dispatchOutbox } from '../modules/tasks/application/dispatch-outbox.ts';
+import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.ts';
 import {
   GUEST_LIMIT_GLOBAL_CEILING,
   GUEST_LIMIT_PER_CALLER,
@@ -71,6 +73,14 @@ function createServices() {
      * Guest-creation quota for one caller. The route stays unaware of how a
      * caller is identified or hashed; the policy lives with the server wiring.
      */
+    /**
+     * Turns durable outbox jobs of one life into queued tasks. Owner-scoped, and
+     * safe to call repeatedly: the job id is the idempotency key.
+     */
+    drainOutbox: (ownerId: string, limit = 20) => {
+      const ports = new PostgresOutbox(db).ports(ownerId);
+      return dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks, limit });
+    },
     reserveGuestCreation: (headers: Headers) =>
       identity.reserveGuestCreation(callerBucket(headers, secret), {
         perCaller: GUEST_LIMIT_PER_CALLER,

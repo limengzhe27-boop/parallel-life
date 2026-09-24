@@ -161,6 +161,8 @@ export class PostgresWorldRepository implements WorldRepository {
         occurredAt: new Date().toISOString(),
         data: command,
       };
+      if (JSON.stringify(event).length >= 65536)
+        throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
       const state = applyInvitationEvent(await this.hydrate(sql, current), event);
       await sql.query(
         "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
@@ -235,6 +237,8 @@ export class PostgresWorldRepository implements WorldRepository {
         storyTime: current.time,
         data: command,
       };
+      if (JSON.stringify(event).length >= 65536)
+        throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
       const state = applyNoteEvent(await this.hydrate(sql, current), event);
       const note = (state.notes ?? []).find((item) => item.id === id);
       if (!note) throw new DomainError('INVALID_COMMAND');
@@ -299,6 +303,8 @@ export class PostgresWorldRepository implements WorldRepository {
         event.data.userText !== command.text
       )
         throw new DomainError('INVALID_COMMAND');
+      if (JSON.stringify(event).length >= 65536)
+        throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
       const hydrated = await this.hydrate(sql, current);
       validateCharacterEffects(
         command.actorId,

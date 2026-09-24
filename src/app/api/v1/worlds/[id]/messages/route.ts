@@ -34,6 +34,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         text: input.text,
       },
     );
+    /*
+      回合已提交，立刻把该人生待执行的 outbox 任务派发出去（例如索图产生的
+      媒体请求）。派发失败不影响已提交的结果：outbox 是持久的，稍后可再派发。
+    */
+    try {
+      await s.drainOutbox(s.ownerId);
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          scope: 'outbox-drain',
+          code: (error as { code?: string })?.code ?? 'FAILED',
+        }),
+      );
+    }
     return json(
       WorldMessageReceiptSchema.parse({
         status: 'committed',
