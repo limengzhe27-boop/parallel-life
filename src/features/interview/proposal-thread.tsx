@@ -1,17 +1,17 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import type { Discovery } from '../../contracts/discovery.ts';
+import type { Discovery, LifeDirection } from '../../contracts/discovery.ts';
 import type { WorldBuild } from '../../contracts/world-build.ts';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
-import { Button, Icon } from '../../components/ui.tsx';
+import { Button, Icon, Modal } from '../../components/ui.tsx';
 import { branchEntryState } from './branch-entry.ts';
 
 type Stage = 'idle' | 'discovering' | 'saving' | 'building' | 'entering';
 
 const STAGE_TEXT: Record<Exclude<Stage, 'idle' | 'entering'>, string> = {
-  discovering: '正在从你确认过的经历里找出真正不同的方向…',
-  saving: '正在记下这段人生的起点…',
-  building: '正在生成身份、人物关系和开场…',
+  discovering: '正在从你聊到的经历里梳理出真正不同的方向…',
+  saving: '正在记下这段人生的起点快照…',
+  building: '正在构筑平行世界：生成微信好友、群聊与开场剧情…',
 };
 
 function taskFailure(task: { status: string; errorCode?: string | null } | null) {
@@ -33,6 +33,7 @@ export function ProposalThread({
   profileVersion,
   confirmedCount,
   pendingCandidates,
+  externalTrigger,
 }: {
   client: LifeClient;
   revision: number;
@@ -40,11 +41,14 @@ export function ProposalThread({
   profileVersion: number;
   confirmedCount: number;
   pendingCandidates: number;
+  externalTrigger?: number;
 }) {
   const [data, setData] = useState<Discovery | null>(null),
     [builds, setBuilds] = useState<WorldBuild[]>([]),
     [stage, setStage] = useState<Stage>('idle'),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [selectedIndex, setSelectedIndex] = useState(0),
+    [confirmOpen, setConfirmOpen] = useState(false);
   const busy = stage !== 'idle';
 
   useEffect(() => {
@@ -74,32 +78,57 @@ export function ProposalThread({
     directionCount: directions.length,
   });
 
-  async function enterWorld() {
+  const currentDirection: LifeDirection | undefined =
+    directions[selectedIndex] ?? directions[0];
+
+  // 监听外部对白指令（如聊天中识别出“开始这个分支”）
+  useEffect(() => {
+    if (!externalTrigger) return;
+    if (readyBuild) {
+      window.location.assign(`/worlds/${readyBuild.worldId}`);
+      return;
+    }
+    if (directions.length > 0) {
+      setConfirmOpen(true);
+    } else if (entry.kind === 'create') {
+      void discoverBranch();
+    }
+  }, [externalTrigger]);
+
+  async function discoverBranch() {
+    setError('');
+    setStage('discovering');
+    try {
+      let currentDisc = await client.discovery();
+      const task = await client.discover({
+        commandId: crypto.randomUUID(),
+        expectedVersion: currentDisc.version,
+        expectedProfileVersion: profileVersion,
+        brief: '',
+        basedOnId: null,
+      });
+      const settled = task?.id ? await client.task(task.id) : null;
+      if (settled && settled.status !== 'succeeded')
+        throw new Error(taskFailure(settled));
+      currentDisc = await client.discovery();
+      setData(currentDisc);
+      setSelectedIndex(0);
+      setStage('idle');
+    } catch (e) {
+      setStage('idle');
+      setError(
+        e instanceof ApiFailure
+          ? e.message
+          : e instanceof Error && e.message
+            ? e.message
+            : '这次没有完成，可以再试一次。',
+      );
+    }
+  }
+
+  async function confirmAndBuild(target: LifeDirection) {
     setError('');
     try {
-      if (readyBuild) {
-        setStage('entering');
-        window.location.assign(`/worlds/${readyBuild.worldId}`);
-        return;
-      }
-      let currentDisc = await client.discovery();
-      if (!currentDisc.directions.length) {
-        setStage('discovering');
-        const task = await client.discover({
-          commandId: crypto.randomUUID(),
-          expectedVersion: currentDisc.version,
-          expectedProfileVersion: profileVersion,
-          brief: '',
-          basedOnId: null,
-        });
-        const settled = task?.id ? await client.task(task.id) : null;
-        if (settled && settled.status !== 'succeeded')
-          throw new Error(taskFailure(settled));
-        currentDisc = await client.discovery();
-      }
-      const target = currentDisc.directions[0];
-      if (!target) throw new Error('模型这次没有给出可用的方向，请再试一次。');
-
       setStage('saving');
       const latestProfile = (await client.workspace()).profile;
       const available = new Set(
@@ -107,7 +136,7 @@ export function ProposalThread({
       );
       const seed = await client.approveSeed({
         commandId: crypto.randomUUID(),
-        discoveryVersion: currentDisc.version,
+        discoveryVersion: data?.version ?? 0,
         profileVersion: latestProfile.version,
         directionId: target.id,
         factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => available.has(id)),
@@ -118,8 +147,6 @@ export function ProposalThread({
       setStage('building');
       const build = await client.createWorld({ commandId: crypto.randomUUID(), seedId: seed.id });
       if (build.task?.id) {
-        /* Only continue an attempt that is still queued or running. A failed or
-           unknown attempt is reported and retried by the user, never silently. */
         const settled = await client.task(build.task.id);
         if (settled && settled.status !== 'succeeded') throw new Error(taskFailure(settled));
       }
@@ -137,19 +164,25 @@ export function ProposalThread({
     }
   }
 
+  function handleOpenReadyWorld() {
+    if (!readyBuild) return;
+    setStage('entering');
+    window.location.assign(`/worlds/${readyBuild.worldId}`);
+  }
+
   if (entry.kind === 'hidden') return null;
 
   return (
     <section className="proposal-thread" aria-label="对话中的人生分支">
       <div className="proposal-thread-label">
         <Icon name="spark" size={17} />
-        <span>你的另一种可能</span>
+        <span>你的另一种可能 · 平行分支</span>
       </div>
 
       {entry.kind === 'open-ready' ? (
         <div className="proposal-invitation">
-          <p>这段人生已经生成好了，可以从锁屏开始。</p>
-          <Button variant="primary" disabled={busy} onClick={() => void enterWorld()}>
+          <p>这段人生已经生成好了，可以随时进入手机开始体验。</p>
+          <Button variant="primary" disabled={busy} onClick={handleOpenReadyWorld}>
             {stage === 'entering' ? '正在打开手机…' : '打开我的平行手机'}
             <Icon name="arrow" size={16} />
           </Button>
@@ -157,7 +190,7 @@ export function ProposalThread({
       ) : entry.kind === 'confirm-records' ? (
         <div className="proposal-invitation">
           <p>
-            还有 {entry.pending} 条记录等你确认。方向必须来自你确认过的经历，确认后就能生成属于你的分支。
+            还有 {entry.pending} 条记录等你确认。分支方向必须来自你确认过的真实经历，确认后向导就能为你聊出属于你的分支。
           </p>
           <a className="button secondary" href="#profile">
             去确认这些记录
@@ -166,57 +199,93 @@ export function ProposalThread({
         </div>
       ) : entry.kind === 'needs-material' ? (
         <div className="proposal-invitation">
-          <p>先多聊几句你的经历。有内容可依时，我才能找出真正不同的方向。</p>
+          <p>先多聊几句你的关键抉择与经历。有真实的锚点时，向导才能为你找出真正不同的平行分支。</p>
         </div>
       ) : (
         <>
-          {directions.length > 0 && (
-            <>
-              {data?.profileVersion !== profileVersion && (
-                <p className="proposal-stale">这是此前聊出的想法。你的资料有了变化，可以再调整。</p>
-              )}
-              {directions.map((d, i) => (
-                <a
-                  key={d.id}
-                  className="proposal-thread-card"
-                  href={`/possibilities?direction=${d.id}`}
-                >
-                  <img
-                    src={i === 1 ? '/art/open-door.webp' : '/art/meadow-door.webp'}
-                    alt="通用想象插画"
-                  />
-                  <div>
-                    <small>人生方向 · {i + 1}</small>
-                    <h3>{d.title}</h3>
-                    <span>
-                      查看并调整 <Icon name="chevron" size={14} />
-                    </span>
+          {directions.length > 0 && currentDirection ? (
+            <div className="proposal-featured-card">
+              <div className="proposal-branch-header">
+                <span className="proposal-branch-badge">
+                  <Icon name="spark" size={13} />
+                  聊出的平行分支 · {selectedIndex + 1}/{directions.length}
+                </span>
+                {directions.length > 1 && (
+                  <div className="proposal-branch-nav" aria-label="切换分支">
+                    <button
+                      type="button"
+                      disabled={selectedIndex === 0}
+                      onClick={() => setSelectedIndex((i) => Math.max(0, i - 1))}
+                    >
+                      上一分支
+                    </button>
+                    <button
+                      type="button"
+                      disabled={selectedIndex === directions.length - 1}
+                      onClick={() => setSelectedIndex((i) => Math.min(directions.length - 1, i + 1))}
+                    >
+                      下一分支
+                    </button>
                   </div>
-                </a>
-              ))}
-            </>
+                )}
+              </div>
+
+              <h3 className="proposal-branch-title">{currentDirection.title}</h3>
+
+              <div className="proposal-meta-row">
+                <span className="proposal-meta-label">如果·分岔抉择</span>
+                <p className="proposal-meta-text">{currentDirection.premise}</p>
+              </div>
+
+              <div className="proposal-meta-row">
+                <span className="proposal-meta-label">平行现状透视</span>
+                <p className="proposal-meta-text">{currentDirection.opening}</p>
+              </div>
+
+              {currentDirection.tradeoff && (
+                <div className="proposal-meta-row">
+                  <span className="proposal-meta-label">心境与代价</span>
+                  <p className="proposal-meta-text">{currentDirection.tradeoff}</p>
+                </div>
+              )}
+
+              <div className="proposal-actions">
+                <Button
+                  variant="primary"
+                  disabled={busy}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  {busy ? STAGE_TEXT[stage as keyof typeof STAGE_TEXT] || '处理中…' : '开启体验此分支'}
+                  {!busy && <Icon name="arrow" size={16} />}
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => void discoverBranch()}
+                >
+                  <Icon name="refresh" size={15} />
+                  换个分支聊聊
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="proposal-invitation">
+              <p>向导已记录下你的关键经历。想看看在重要分岔点做出另一种选择，平行世界的你正在过着怎样的生活吗？</p>
+              <Button
+                variant="primary"
+                disabled={busy}
+                onClick={() => void discoverBranch()}
+              >
+                {stage === 'discovering' ? STAGE_TEXT.discovering : '根据聊天，推演我的平行分支'}
+                {!busy && <Icon name="spark" size={16} />}
+              </Button>
+            </div>
           )}
-          <div className="proposal-actions">
-            <Button variant="primary" disabled={busy} onClick={() => void enterWorld()}>
-              {busy
-                ? stage === 'entering'
-                  ? '正在打开手机…'
-                  : STAGE_TEXT[stage as keyof typeof STAGE_TEXT]
-                : directions.length
-                  ? '进入第一个方向 · 打开手机'
-                  : '生成我的分支 · 打开手机'}
-              {!busy && <Icon name="arrow" size={16} />}
-            </Button>
-            {directions.length > 0 && (
-              <a className="proposal-more" href="/possibilities">
-                想换个方向？去分支页微调
-              </a>
-            )}
-          </div>
+
           {error && (
             <div className="proposal-invitation">
               <p role="alert">{error}</p>
-              <Button variant="secondary" onClick={() => void enterWorld()}>
+              <Button variant="secondary" onClick={() => void discoverBranch()}>
                 <Icon name="refresh" size={16} />
                 重试
               </Button>
@@ -224,6 +293,61 @@ export function ProposalThread({
           )}
         </>
       )}
+
+      {/* 确认创建并进入体验的模态弹窗：必须经过用户确认后才创建世界 */}
+      {currentDirection && (
+        <Modal
+          open={confirmOpen}
+          onClose={() => {
+            if (!busy) setConfirmOpen(false);
+          }}
+          title="确认开启平行分支体验"
+        >
+          <div className="proposal-confirm-modal">
+            <div className="proposal-confirm-box">
+              <h4>《{currentDirection.title}》</h4>
+              <p><strong>抉择起点：</strong>{currentDirection.premise}</p>
+              <p>
+                即将根据该分支为你创造属于你的平行世界，构筑平行手机、微信关系网与第一批未读消息。
+              </p>
+            </div>
+
+            {busy ? (
+              <div className="proposal-step-flow">
+                <div className={`proposal-step-item ${stage === 'saving' ? 'active' : ''}`}>
+                  <span>1. 固化人生起点快照</span>
+                  {stage === 'saving' && <span className="spinner" style={{ width: 14, height: 14 }} />}
+                </div>
+                <div className={`proposal-step-item ${stage === 'building' ? 'active' : ''}`}>
+                  <span>2. 构筑微信角色关系网与开场对话 (约需 30~45s)</span>
+                  {stage === 'building' && <span className="spinner" style={{ width: 14, height: 14 }} />}
+                </div>
+                <div className={`proposal-step-item ${stage === 'entering' ? 'active' : ''}`}>
+                  <span>3. 构筑完成，正在为你点亮平行手机...</span>
+                  {stage === 'entering' && <span className="spinner" style={{ width: 14, height: 14 }} />}
+                </div>
+              </div>
+            ) : (
+              <div className="proposal-actions">
+                <Button
+                  variant="primary"
+                  onClick={() => void confirmAndBuild(currentDirection)}
+                >
+                  确认创建，打开平行手机
+                  <Icon name="arrow" size={16} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setConfirmOpen(false)}
+                >
+                  我再想想
+                </Button>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }
+

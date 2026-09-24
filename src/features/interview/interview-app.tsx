@@ -38,7 +38,8 @@ export function InterviewApp() {
     [streamingText, setStreamingText] = useState(''),
     [sending, setSending] = useState(false),
     [saving, setSaving] = useState(false),
-    [uploading, setUploading] = useState(false);
+    [uploading, setUploading] = useState(false),
+    [branchTrigger, setBranchTrigger] = useState(0);
   const [editing, setEditing] = useState<{
     fact?: ProfileFact;
     category: ProfileFact['category'];
@@ -215,6 +216,14 @@ export function InterviewApp() {
           }
         : current,
     );
+
+    if (
+      /开始这个分支|开启这个分支|进入这个分支|体验这个分支|开始分支|开启分支|进入体验|体验分支|就选这个分支/.test(
+        text,
+      )
+    ) {
+      setBranchTrigger(Date.now());
+    }
 
     try {
       const sent = await client.sendStream(request, (token) =>
@@ -496,6 +505,7 @@ export function InterviewApp() {
               data.profile.facts.filter((f) => f.status === 'confirmed').length
             }
             pendingCandidates={candidates.length}
+            externalTrigger={branchTrigger}
           />
         )}
       </WorkspaceShell>
