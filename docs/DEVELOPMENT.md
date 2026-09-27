@@ -600,4 +600,4 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 
 |任务 ID|状态|负责人|范围|接续|
 |---|---|---|---|---|
-|VIS-01|[ ] 待验收|codex-main-01a0c73b-visual-20260928|DESIGN.md、src/app/outer-ui.css、src/features/interview/interview-app.tsx、src/features/discovery/{branch-list,discovery-app}.tsx、src/components/{app-tabs,ui-preview}.tsx、src/app/ui-preview/welcome/preview.tsx、本任务设计/回退/部署文档；世界手机目录不改|外层三页已实现；回退标签已推送；183 项检查、27 生产迁移核对、手机/PC 验收通过；等待构建及生产发布，见 task-reports/VIS-01.md|
+|VIS-01|[x] 已完成|codex-main-01a0c73b-visual-20260928|DESIGN.md、src/app/outer-ui.css、src/features/interview/interview-app.tsx、src/features/discovery/{branch-list,discovery-app}.tsx、src/components/{app-tabs,ui-preview}.tsx、src/app/ui-preview/welcome/preview.tsx、本任务设计/回退/部署文档；世界手机目录不改|外层三页已实现；回退标签已推送；183 项检查、27 生产迁移核对、手机/PC 验收通过；4537259/np31s32vm 已 READY 并公网验收；后续人物场景及手机内应用不在本批范围，见 task-reports/VIS-01.md|
