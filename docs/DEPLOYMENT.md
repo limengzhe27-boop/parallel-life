@@ -1,6 +1,6 @@
-## 2026-09-28 · PHONE-02 待发布
+## 2026-09-28 · PHONE-02 已发布
 
-便签服务端保存、相册来源/壁纸/分享、导演刷新与来源修复。190项检查+25项真实库、build通过；27生产迁移一致，无新增迁移。公网发布结果待补，不能以本段视为已上线。报告：docs/task-reports/PHONE-02.md。
+便签服务端保存、相册来源/壁纸/分享、导演刷新与来源修复。190项检查+25项真实库、build通过；27生产迁移一致，无新增迁移。应用 d94c1af，部署 j3pkvs8zh / dpl_AkTq7bnmw94BgJcjxcTAx21i5qo2 为 READY；https://parallel-life-nu.vercel.app 已实测health200、锁屏/相册/导演/便签双端读取。写入链路在本地真实数据库验收，未向生产人生写入测试内容。报告：docs/task-reports/PHONE-02.md。
 
 ## 2026-09-28 · PHONE-01 手机修复
 

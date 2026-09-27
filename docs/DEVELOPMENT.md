@@ -604,4 +604,4 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 
 |PHONE-01|[x] 已完成|codex-main-01a0c73b-phone-20260928|主目录；src/features/phone/phone-shell.tsx、phone.module.css、phone-icons.tsx、world-phone-app.tsx、apps/{calendar,messages,photos,notes,common}.tsx、apps/apps.module.css、apps/helpers.ts、src/modules/world/infrastructure/turn-planner.ts、相关测试与本任务报告|第一批修复完成；187项检查、build、双端验收；edfc216/dn0rcfvry READY及公网health200；剩余详见task-reports/PHONE-01.md|
 
-|PHONE-02|[ ] 待验收|codex-main-01a0c73b-phone02-20260928|主目录；world-phone-app、director-panel、world-app-data、apps/{photos,types}、world-receipts、advance-world/services 记忆调用修复、world 回合来源契约/reducer/repository、相关前端及真实库测试、报告与产品建议|本地190项检查+25项真实库/build通过，27生产迁移一致；便签/照片/壁纸/导演双端验收；待部署公网检查，语音暂缓|
+|PHONE-02|[x] 已完成|codex-main-01a0c73b-phone02-20260928|主目录；world-phone-app、director-panel、world-app-data、apps/{photos,types}、world-receipts、advance-world/services 记忆调用修复、world 回合来源契约/reducer/repository、相关前端及真实库测试、报告与产品建议|190项检查+25项真实库/build通过，27生产迁移一致；d94c1af/j3pkvs8zh READY，公网health200及双端读取验收；未完成项见PHONE-02报告，语音暂缓|
