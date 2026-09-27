@@ -309,3 +309,34 @@ test('a role cannot create another person’s belief or silently establish a per
     assert.deepEqual(await worlds.get(session, 'world_1'), seed());
   }
 });
+
+test('director cues produce only character replies and cannot be replayed as user commands', async () => {
+  const worlds = new MemoryWorldRepository([seed()]);
+  const directed = {
+    ...command,
+    origin: 'director' as const,
+    text: '用户没有开口。发张照片的旧话题可稍后继续。',
+  };
+  const result = await resolveTurn(
+    {
+      worlds,
+      planner: { propose: async () => ({ schemaVersion: 1, effects: [proposal.effects[0]] }) },
+      now: () => time,
+      newId: () => 'director_event',
+    },
+    session,
+    directed,
+  );
+  assert.equal(result.state.messages.length, 1);
+  assert.equal(result.state.messages[0]?.role, 'assistant');
+  assert.equal(
+    result.state.mediaRequests.length,
+    0,
+    'director cues must not auto-trigger user image intent',
+  );
+  assert.equal(result.event.data.origin, 'director');
+  await assert.rejects(
+    worlds.receipt(session, { ...command, text: directed.text }),
+    /IDEMPOTENCY_CONFLICT/,
+  );
+});

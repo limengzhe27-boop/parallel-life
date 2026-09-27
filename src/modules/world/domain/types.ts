@@ -77,6 +77,8 @@ export type WorldEffect =
 
 export type TurnProposal = { schemaVersion: 1; effects: WorldEffect[] };
 export type TurnCommand = {
+  /** Internal orchestration only; public message input does not accept this field. */
+  origin?: 'director';
   id: Id;
   worldId: Id;
   expectedVersion: number;
@@ -91,7 +93,7 @@ export type WorldEvent = {
   commandId: Id;
   occurredAt: string;
   type: 'turn.resolved';
-  data: { actorId: Id; userText: string; effects: WorldEffect[] };
+  data: { actorId: Id; userText: string; effects: WorldEffect[]; origin?: 'director' };
 };
 export type OutboxJob = {
   id: Id;

@@ -23,7 +23,13 @@ import { parseProposal } from '../domain/validation.ts';
 const fingerprint = (command: TurnCommand) =>
   createHash('sha256')
     .update(
-      JSON.stringify([command.worldId, command.expectedVersion, command.actorId, command.text]),
+      JSON.stringify([
+        command.worldId,
+        command.expectedVersion,
+        command.actorId,
+        command.text,
+        ...(command.origin ? [command.origin] : []),
+      ]),
     )
     .digest('hex');
 /**
@@ -362,7 +368,8 @@ export class PostgresWorldRepository implements WorldRepository {
         event.commandId !== command.id ||
         event.worldId !== command.worldId ||
         event.data.actorId !== command.actorId ||
-        event.data.userText !== command.text
+        event.data.userText !== command.text ||
+        event.data.origin !== command.origin
       )
         throw new DomainError('INVALID_COMMAND');
       if (JSON.stringify(event).length >= 65536)

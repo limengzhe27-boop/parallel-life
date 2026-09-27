@@ -10,6 +10,7 @@ import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { Avatar } from './apps/common.tsx';
 import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
+import { mergeNoteReceipt } from './world-receipts.ts';
 import { dialogueText, formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
@@ -115,7 +116,9 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
    * never retried here: that would spend money without the user asking, and the
    * phone would re-spend on every reload. It needs an explicit retry instead.
    */
-  async function resolveInterruptedBuild(): Promise<'opened' | 'failed' | 'unknown' | 'none'> {
+  async function resolveInterruptedBuild(
+    currentRequest: number,
+  ): Promise<'opened' | 'failed' | 'unknown' | 'none'> {
     const builds = await client.builds();
     const target = builds.find((build) => build.worldId === worldId);
     const task = target?.task;
@@ -125,8 +128,11 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     setIsBuilding(true);
     setStatusMessage('正在继续生成这段人生…');
     await client.task(task.id);
-    setData(await client.world(worldId));
-    setIsBuilding(false);
+    const opened = await client.world(worldId);
+    if (currentRequest === request.current) {
+      setData(opened);
+      setIsBuilding(false);
+    }
     return 'opened';
   }
 
@@ -137,11 +143,16 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     setIsBuilding(false);
     setStatusMessage('正在打开你的手机…');
     try {
-      setData(await client.world(worldId));
+      const next = await client.world(worldId);
+      if (currentRequest === request.current)
+        setData((current) =>
+          current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
+        );
       return;
     } catch (e) {
+      if (currentRequest !== request.current) return;
       try {
-        const resolved = await resolveInterruptedBuild();
+        const resolved = await resolveInterruptedBuild(currentRequest);
         if (resolved === 'opened') return;
         if (resolved === 'unknown') {
           if (currentRequest === request.current)
@@ -278,6 +289,10 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
               text: input.text,
               expectedVersion: input.expectedVersion ?? 0,
             });
+            request.current++;
+            setRefreshing(false);
+            setData((current) => mergeNoteReceipt(current, receipt));
+            void load();
             return { status: receipt.status };
           }}
           localMessages={localMessages}
@@ -316,7 +331,25 @@ export function WorldPhoneSurface({
   loading?: boolean;
   loadError?: string;
 }) {
-  const [viewed, setViewed] = useState<ReadonlySet<string>>(new Set());
+  const [viewed, setViewed] = useState<ReadonlySet<string>>(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(`pl_read:${data.id}`) ?? '[]');
+      return new Set(
+        Array.isArray(saved)
+          ? saved.filter((id): id is string => typeof id === 'string').slice(-2000)
+          : [],
+      );
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(`pl_read:${data.id}`, JSON.stringify([...viewed].slice(-2000)));
+    } catch {
+      /* Read receipts remain usable in this session. */
+    }
+  }, [data.id, viewed]);
   const client = useMemo(() => new LifeClient(), []);
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -349,7 +382,7 @@ export function WorldPhoneSurface({
     timeZone: 'UTC',
   });
 
-  // 便签本地持久化存储，初始值安全优先读取 localStorage
+  // Legacy local notes remain available in local previews; live worlds use server receipts.
   const [notes, setNotes] = useState<readonly PhoneNote[]>(() => {
     try {
       const storageKey = `pl_notes:${data.id}`;
@@ -372,9 +405,10 @@ export function WorldPhoneSurface({
 
   const handleSaveNote: NonNullable<PhoneActions['saveNote']> = useCallback(
     async (input) => {
-      const now = new Date().toISOString();
       const resolvedTitle =
         input.title.trim() || input.text.trim().split('\n')[0]?.slice(0, 20) || '无标题便签';
+      if (onSaveNote) return onSaveNote({ ...input, title: resolvedTitle });
+      const now = new Date().toISOString();
       setNotes((current) => {
         let next: PhoneNote[];
         if (input.id) {
@@ -424,14 +458,9 @@ export function WorldPhoneSurface({
         return next;
       });
 
-      if (onSaveNote) {
-        const receipt = await onSaveNote({ ...input, title: resolvedTitle });
-        await onReload?.();
-        return receipt;
-      }
       return { status: 'committed' };
     },
-    [data.id, onSaveNote, onReload],
+    [data.id, onSaveNote],
   );
 
   const handleDeleteNote: NonNullable<PhoneActions['deleteNote']> = useCallback(
@@ -482,10 +511,10 @@ export function WorldPhoneSurface({
   const phoneData: PhoneAppsData = useMemo(
     () => ({
       ...basePhoneData,
-      notes,
+      notes: onSaveNote ? basePhoneData.notes : notes,
       referenceTime: currentReferenceTime,
     }),
-    [basePhoneData, notes, currentReferenceTime],
+    [basePhoneData, notes, currentReferenceTime, onSaveNote],
   );
 
   return (
@@ -500,8 +529,10 @@ export function WorldPhoneSurface({
         sendMessage: preview ? undefined : onSendMessage,
         retryMessage: preview ? undefined : onRetryMessage,
         uploadPhoto: preview ? undefined : onUploadPhoto,
+        setWallpaper: changeWallpaper,
         saveNote: handleSaveNote,
-        deleteNote: handleDeleteNote,
+        // No server delete command yet; never pretend a local hide is a deletion.
+        deleteNote: onSaveNote ? undefined : handleDeleteNote,
         noteSync: onSaveNote ? 'server' : 'local',
         markRead: async (actorId) => {
           setViewed(
@@ -1170,7 +1201,7 @@ export function WorldPhoneSurface({
 
           if (panel === 'director') {
             /* 真实控制：时间（暂停/倍速/推进）与导演要求（主题/节奏/聚焦 + 先看影响）。 */
-            return <DirectorPanel client={client} worldId={data.id} />;
+            return <DirectorPanel client={client} worldId={data.id} onWorldChanged={onReload} />;
           }
 
           if (panel === 'management') {

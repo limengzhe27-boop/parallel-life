@@ -21,6 +21,7 @@ export function applyEvent(
     expectedVersion: current.version,
     actorId: event.data.actorId,
     text: event.data.userText,
+    origin: event.data.origin,
   });
   const actorIds = new Set(current.actors.map((actor) => actor.id));
   if (!actorIds.has(event.data.actorId)) throw new DomainError('INVALID_COMMAND');
@@ -33,17 +34,19 @@ export function applyEvent(
     ),
   );
   const jobs: OutboxJob[] = [];
-  const userMessageId = `${event.id}_user`;
-  if (usedIds.has(userMessageId)) throw new DomainError('INVALID_PROPOSAL');
-  usedIds.add(userMessageId);
-  state.messages.push({
-    id: userMessageId,
-    actorId: event.data.actorId,
-    role: 'user',
-    text: event.data.userText,
-    at: current.time,
-    sourceEventId: event.id,
-  });
+  if (event.data.origin !== 'director') {
+    const userMessageId = `${event.id}_user`;
+    if (usedIds.has(userMessageId)) throw new DomainError('INVALID_PROPOSAL');
+    usedIds.add(userMessageId);
+    state.messages.push({
+      id: userMessageId,
+      actorId: event.data.actorId,
+      role: 'user',
+      text: event.data.userText,
+      at: current.time,
+      sourceEventId: event.id,
+    });
+  }
   for (const effect of effects) {
     if (usedIds.has(effect.id)) throw new DomainError('INVALID_PROPOSAL', 'Duplicate effect ID');
     usedIds.add(effect.id);

@@ -13,7 +13,13 @@ import type {
 } from '../domain/types.ts';
 
 const fingerprint = (command: TurnCommand) =>
-  JSON.stringify([command.worldId, command.expectedVersion, command.actorId, command.text]);
+  JSON.stringify([
+    command.worldId,
+    command.expectedVersion,
+    command.actorId,
+    command.text,
+    ...(command.origin ? [command.origin] : []),
+  ]);
 
 /** Test adapter only. Never wire to production HTTP handlers or claim durable storage. */
 export class MemoryWorldRepository implements WorldRepository {
@@ -51,7 +57,8 @@ export class MemoryWorldRepository implements WorldRepository {
       event.commandId !== command.id ||
       event.worldId !== command.worldId ||
       event.data.actorId !== command.actorId ||
-      event.data.userText !== command.text
+      event.data.userText !== command.text ||
+      event.data.origin !== command.origin
     )
       throw new DomainError('INVALID_COMMAND');
     if (this.events.some((item) => item.id === event.id)) throw new DomainError('INVALID_PROPOSAL');

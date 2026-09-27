@@ -27,7 +27,6 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
   const session = { userId: owner },
     start = '2026-09-24T00:00:00.000Z';
   let spoken: string[] = [];
-  const summaries: string[] = [];
   const deps = (realNow: string) => ({
     clock,
     worlds,
@@ -49,10 +48,6 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     },
     now: () => realNow,
     newId: () => randomUUID(),
-    /* The host persists the offline summary as a branch memory; assert the wiring. */
-    rememberSummary: async (text: string) => {
-      summaries.push(text);
-    },
   });
   try {
     await admin.query('INSERT INTO parallel_life.accounts(id) VALUES($1)', [owner]);
@@ -110,8 +105,12 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     assert.equal(advanced.played, MAX_BEATS_PER_ADVANCE);
     assert.equal(advanced.folded, 9);
     assert.match(advanced.summary ?? '', /世界照常运转/);
-    assert.equal(summaries.length, 1, 'the offline summary is handed to the memory writer');
-    assert.match(summaries[0]!, /世界照常运转/);
+    assert.equal((await clock.read(owner, worldId)).summary, advanced.summary);
+    const unsourced = await admin.query(
+      'SELECT count(*)::int AS n FROM parallel_life.memory_records WHERE owner_id=$1 AND text=$2',
+      [owner, advanced.summary],
+    );
+    assert.equal(unsourced.rows[0].n, 0, 'elapsed time is metadata, not a fabricated event memory');
     assert.equal(spoken[0], second, 'the open appointment decides the first beat');
     assert.equal(advanced.storyNow, '2026-09-24T06:00:00.000Z');
     assert.equal(spoken.length, MAX_BEATS_PER_ADVANCE);
@@ -122,11 +121,14 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     assert.equal(world.time, '2026-09-24T06:00:00.000Z', 'story time moved');
     /* One set-up turn plus one real committed turn per beat. */
     assert.equal(world.version, 1 + MAX_BEATS_PER_ADVANCE, 'each beat is a real committed turn');
-    /* A beat commits a real turn; the user-facing cue may also be persisted, so only
-       the lower bound is contractual. */
-    assert.ok(
-      world.messages.length >= MAX_BEATS_PER_ADVANCE,
-      `each beat produced a message (got ${world.messages.length})`,
+    assert.equal(
+      world.messages.filter((m) => m.role === 'user').length,
+      1,
+      'only the setup user message exists; director cues never impersonate the user',
+    );
+    assert.equal(
+      world.messages.filter((m) => m.role === 'assistant').length,
+      1 + MAX_BEATS_PER_ADVANCE,
     );
 
     const beats = (
@@ -166,6 +168,14 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     /* No time passed: nothing happens either. */
     const idle = await advanceWorld(deps('2026-09-24T09:00:00.000Z'), session, worldId);
     assert.equal(idle.played, 0);
+    await clock.write(owner, worldId, { ...(await clock.read(owner, worldId)), paused: false });
+    const quiet = await advanceWorld(deps('2026-09-24T09:05:00.000Z'), session, worldId);
+    assert.equal(quiet.played, 0);
+    assert.equal(
+      (await worlds.get(session, worldId)).time,
+      quiet.storyNow,
+      'phone time follows the clock even when no character is due to speak',
+    );
   } finally {
     await db.close();
     await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);

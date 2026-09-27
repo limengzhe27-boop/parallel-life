@@ -11,7 +11,13 @@ const world = {
   actors: [{ id: 'actor-a', name: '甲', relationship: '同事' }],
   messages: [{ id: 'm1', actorId: 'actor-a', text: '明天来吗？', at: '2026-09-22T00:30:00Z' }],
   notes: [
-    { id: 'note-1', title: '记事', text: '私人便签', version: 1, updatedAt: '2026-09-22T00:30:00Z' },
+    {
+      id: 'note-1',
+      title: '记事',
+      text: '私人便签',
+      version: 1,
+      updatedAt: '2026-09-22T00:30:00Z',
+    },
   ],
 };
 test('opening adapter does not turn an invitation in chat into an accepted event or fabricated media', () => {
@@ -113,3 +119,50 @@ test('only server-confirmed messages count as sent; local ones keep their real s
   assert.equal(merged.contacts[0]?.unread, 1);
 });
 
+test('uploaded photo names never imply AI generation or a fictional event', () => {
+  const photos = ['身份写真', '旅行现场纪念'].map((title, index) => ({
+    id: `upload-${index}`,
+    worldId: world.id,
+    title,
+    date: world.time,
+    createdAt: world.time,
+    kind: 'upload' as const,
+    revision: 1,
+    width: 30,
+    height: 40,
+  }));
+  for (const photo of worldAppData({ ...world, photos }).photos) {
+    assert.equal(photo.tag, 'upload');
+    assert.equal(photo.description, '你上传的照片');
+  }
+});
+
+test('note receipts preserve canonical IDs and versions without depending on a refresh', async () => {
+  const { mergeNoteReceipt } = await import('../src/features/phone/world-receipts.ts');
+  const note = {
+    id: 'server-id',
+    title: '新的便签',
+    text: '内容',
+    version: 1,
+    updatedAt: world.time,
+  };
+  const receipt = {
+    status: 'committed' as const,
+    commandId: 'cmd',
+    worldId: world.id,
+    version: 8,
+    note,
+  };
+  const saved = mergeNoteReceipt({ ...world, version: 7 }, receipt)!;
+  assert.deepEqual(saved.notes[0], note);
+  assert.equal(saved.version, 8);
+  assert.equal(mergeNoteReceipt(saved, receipt)!.notes.filter((n) => n.id === note.id).length, 1);
+  const updated = mergeNoteReceipt(saved, {
+    ...receipt,
+    version: 9,
+    note: { ...note, version: 2, text: '已编辑' },
+  })!;
+  assert.equal(mergeNoteReceipt(updated, receipt), updated);
+  assert.equal(mergeNoteReceipt(updated, { ...receipt, worldId: 'other' }), updated);
+  assert.equal(mergeNoteReceipt(null, receipt), null);
+});

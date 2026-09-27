@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LifeClient } from '../api/client.ts';
 import type { WorldClock } from '../../contracts/world-clock.ts';
 
@@ -10,7 +10,15 @@ import type { WorldClock } from '../../contracts/world-clock.ts';
  * cost of an advance (beats played vs beats folded into a summary), refuses to rewrite
  * the past, and never claims a change happened before the server confirmed it.
  */
-export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId: string }) {
+export function DirectorPanel({
+  client,
+  worldId,
+  onWorldChanged,
+}: {
+  client: LifeClient;
+  worldId: string;
+  onWorldChanged?: () => Promise<void>;
+}) {
   const [clock, setClock] = useState<WorldClock | null>(null);
   const [actors, setActors] = useState<{ id: string; name: string }[]>([]);
   const [guidance, setGuidance] = useState('');
@@ -21,14 +29,24 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const request = useRef(0);
+  const running = useRef(false);
 
   const load = useCallback(async () => {
+    const id = ++request.current;
+    setLoading(true);
+    setReady(false);
+    setError('');
     try {
       const [current, world, direction] = await Promise.all([
         client.readWorldClock(worldId),
         client.world(worldId),
         client.readWorldDirection(worldId),
       ]);
+      if (id !== request.current) return;
+      setReady(true);
       setClock(current);
       setActors(
         (world.actors ?? []).map((actor: { id: string; name: string }) => ({
@@ -41,14 +59,24 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
       setPacing(direction.pacing);
       setFocus(direction.focusActorIds);
     } catch {
-      setError('暂时读不到时间与导演设置，稍后再试。');
+      if (id === request.current) setError('暂时读不到导演设置，请重试。');
+    } finally {
+      if (id === request.current) setLoading(false);
     }
   }, [client, worldId]);
   useEffect(() => {
     void load();
+    return () => {
+      request.current++;
+    };
   }, [load]);
+  useEffect(() => {
+    setImpact('');
+  }, [guidance, themes, pacing, focus]);
 
   async function run(action: () => Promise<void>) {
+    if (!ready || running.current) return;
+    running.current = true;
     setBusy(true);
     setError('');
     setNote('');
@@ -57,6 +85,7 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : '这次没有完成，可以再试一次。');
     } finally {
+      running.current = false;
       setBusy(false);
     }
   }
@@ -72,20 +101,22 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
     focusActorIds: focus,
   });
   const storyTime = clock
-    ? new Date(clock.storyNow).toLocaleString('zh-CN', { hour12: false })
+    ? new Date(clock.storyNow).toLocaleString('zh-CN', { hour12: false, timeZone: 'UTC' })
     : '—';
 
   return (
     <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {loading ? <div role="status">正在读取导演设置…</div> : null}
+      {!loading && !ready ? (
+        <button style={button} onClick={() => void load()}>
+          重新读取
+        </button>
+      ) : null}
       <section style={card}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>时间</div>
         <div style={{ fontSize: 20, fontWeight: 600 }}>{storyTime}</div>
         <div style={{ fontSize: 12, color: '#64748b' }}>
-          {clock
-            ? clock.paused
-              ? '已暂停：世界不动，也不花费'
-              : `${clock.speed}× 流逝中`
-            : '读取中…'}
+          {clock ? (clock.paused ? '已暂停自动推进' : `${clock.speed}× 流逝中`) : '读取中…'}
           {clock && clock.missedBeats > 0 ? ` · 上次有 ${clock.missedBeats} 拍已合成摘要` : ''}
         </div>
         {clock?.summary ? (
@@ -94,7 +125,7 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button
             style={button}
-            disabled={busy || !clock}
+            disabled={busy || !ready || !clock}
             onClick={() =>
               run(async () => {
                 const next = await client.setWorldClock(worldId, { paused: !clock!.paused });
@@ -109,7 +140,7 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
             <button
               key={speed}
               style={speed === clock?.speed ? buttonActive : button}
-              disabled={busy || !clock}
+              disabled={busy || !ready || !clock}
               onClick={() =>
                 run(async () => {
                   setClock(await client.setWorldClock(worldId, { speed }));
@@ -122,12 +153,20 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
           ))}
           <button
             style={button}
-            disabled={busy}
+            disabled={busy || !ready}
             onClick={() =>
               run(async () => {
-                const result = await client.advanceWorld(worldId);
-                const [next] = await Promise.all([client.readWorldClock(worldId)]);
-                setClock(next);
+                let result;
+                try {
+                  result = await client.advanceWorld(worldId);
+                } finally {
+                  // An advance may have committed some turns before a later turn failed.
+                  const [, latest] = await Promise.allSettled([
+                    onWorldChanged?.(),
+                    client.readWorldClock(worldId),
+                  ]);
+                  if (latest.status === 'fulfilled') setClock(latest.value);
+                }
                 setNote(
                   result.played === 0
                     ? '这段时间没有该发生的事。'
@@ -144,6 +183,8 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
       <section style={card}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>导演要求</div>
         <textarea
+          aria-label="导演要求"
+          disabled={busy || !ready}
           style={{ ...input, minHeight: 56 }}
           placeholder="想怎么走？例如：把节奏放慢，多写日常"
           value={guidance}
@@ -151,6 +192,8 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
           onChange={(event) => setGuidance(event.target.value)}
         />
         <input
+          aria-label="故事主题"
+          disabled={busy || !ready}
           style={input}
           placeholder="主题，用、分隔，最多 5 个"
           value={themes}
@@ -162,7 +205,7 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
               key={value}
               style={value === pacing ? buttonActive : button}
               onClick={() => setPacing(value)}
-              disabled={busy}
+              disabled={busy || !ready}
             >
               {value === 'slow' ? '慢' : value === 'normal' ? '正常' : '快'}
             </button>
@@ -176,7 +219,7 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
                 <input
                   type="checkbox"
                   checked={focus.includes(actor.id)}
-                  disabled={busy}
+                  disabled={busy || !ready}
                   onChange={(event) =>
                     setFocus((current) =>
                       event.target.checked
@@ -193,7 +236,7 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             style={button}
-            disabled={busy}
+            disabled={busy || !ready}
             onClick={() =>
               run(async () => {
                 const receipt = await client.setWorldDirection(worldId, {
@@ -202,7 +245,9 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
                 });
                 setImpact(
                   `接下来一次最多 ${receipt.impact.beatsPerAdvance} 件事` +
-                    (receipt.impact.speaksFirst ? `，先出场：${receipt.impact.speaksFirst}` : '') +
+                    (receipt.impact.speaksFirst
+                      ? `，先出场：${actors.find((actor) => actor.id === receipt.impact.speaksFirst)?.name ?? '相关人物'}`
+                      : '') +
                     (receipt.impact.themes.length
                       ? `，主题：${receipt.impact.themes.join('、')}`
                       : ''),
@@ -214,7 +259,7 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
           </button>
           <button
             style={buttonActive}
-            disabled={busy}
+            disabled={busy || !ready}
             onClick={() =>
               run(async () => {
                 await client.setWorldDirection(worldId, directionInput());
@@ -225,13 +270,21 @@ export function DirectorPanel({ client, worldId }: { client: LifeClient; worldId
             应用
           </button>
         </div>
-        {impact ? <div style={{ fontSize: 12, color: '#475569' }}>{impact}</div> : null}
+        {impact ? (
+          <div role="status" style={{ fontSize: 12, color: '#475569' }}>
+            {impact}
+          </div>
+        ) : null}
         <div style={{ fontSize: 12, color: '#94a3b8' }}>
           已经发生的事不会被改写；想换一种走法，请建立一个分支，原本的人生会保留。
         </div>
       </section>
 
-      {note ? <div style={{ fontSize: 13, color: '#0f766e' }}>{note}</div> : null}
+      {note ? (
+        <div role="status" style={{ fontSize: 13, color: '#0f766e' }}>
+          {note}
+        </div>
+      ) : null}
       {error ? (
         <div role="alert" style={{ fontSize: 13, color: '#b91c1c' }}>
           {error}

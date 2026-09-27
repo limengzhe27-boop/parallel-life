@@ -47,7 +47,11 @@ export async function resolveTurn(
    * 否则 outbox 永远没有可执行的任务，"发张照片"会静默什么都不发生。
    */
   const intent = routeUserIntent({ text: command.text });
-  if (intent.turnMode === 'image' && !proposal.effects.some((e) => e.type === 'media.requested'))
+  if (
+    command.origin !== 'director' &&
+    intent.turnMode === 'image' &&
+    !proposal.effects.some((e) => e.type === 'media.requested')
+  )
     proposal.effects.push({
       type: 'media.requested',
       id: `${command.id}_media`,
@@ -68,6 +72,11 @@ export async function resolveTurn(
     commandId: command.id,
     occurredAt: deps.now(),
     type: 'turn.resolved',
-    data: { actorId: command.actorId, userText: command.text, effects },
+    data: {
+      actorId: command.actorId,
+      userText: command.text,
+      effects,
+      ...(command.origin ? { origin: command.origin } : {}),
+    },
   });
 }

@@ -20,7 +20,6 @@ import { DomainError } from '../modules/world/domain/errors.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
 import { PostgresDirectionStore } from '../modules/world/infrastructure/direction-repository.ts';
 import {
-  deriveAndStoreMemories,
   loadActorMemories,
   loadWorldMemories,
   correctMemoryInStore,
@@ -166,25 +165,6 @@ function createServices() {
           worldMemories: () =>
             db.transaction(ownerId, (sql) => loadWorldMemories(sql, ownerId, worldId)),
           direction: () => new PostgresDirectionStore(db).read(ownerId, worldId),
-          rememberSummary: (text, sourceIds) =>
-            db.transaction(ownerId, (sql) =>
-              deriveAndStoreMemories(sql, [
-                {
-                  ownerId,
-                  scopeType: 'branch',
-                  scopeId: worldId,
-                  branchId: worldId,
-                  text,
-                  kind: 'summary',
-                  sourceType: 'world_event',
-                  sourceIds,
-                  importance: 2,
-                  evidence: Object.fromEntries(
-                    sourceIds.map((id) => [id, { id, text }]),
-                  ),
-                },
-              ]).then(() => undefined),
-            ),
           ...(maxBeats ? { maxBeats } : {}),
         },
         { userId: ownerId },

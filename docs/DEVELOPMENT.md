@@ -603,3 +603,5 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |VIS-01|[x] 已完成|codex-main-01a0c73b-visual-20260928|DESIGN.md、src/app/outer-ui.css、src/features/interview/interview-app.tsx、src/features/discovery/{branch-list,discovery-app}.tsx、src/components/{app-tabs,ui-preview}.tsx、src/app/ui-preview/welcome/preview.tsx、本任务设计/回退/部署文档；世界手机目录不改|外层三页已实现；回退标签已推送；183 项检查、27 生产迁移核对、手机/PC 验收通过；4537259/np31s32vm 已 READY 并公网验收；后续人物场景及手机内应用不在本批范围，见 task-reports/VIS-01.md|
 
 |PHONE-01|[x] 已完成|codex-main-01a0c73b-phone-20260928|主目录；src/features/phone/phone-shell.tsx、phone.module.css、phone-icons.tsx、world-phone-app.tsx、apps/{calendar,messages,photos,notes,common}.tsx、apps/apps.module.css、apps/helpers.ts、src/modules/world/infrastructure/turn-planner.ts、相关测试与本任务报告|第一批修复完成；187项检查、build、双端验收；edfc216/dn0rcfvry READY及公网health200；剩余详见task-reports/PHONE-01.md|
+
+|PHONE-02|[ ] 待验收|codex-main-01a0c73b-phone02-20260928|主目录；world-phone-app、director-panel、world-app-data、apps/{photos,types}、world-receipts、advance-world/services 记忆调用修复、world 回合来源契约/reducer/repository、相关前端及真实库测试、报告与产品建议|本地190项检查+25项真实库/build通过，27生产迁移一致；便签/照片/壁纸/导演双端验收；待部署公网检查，语音暂缓|

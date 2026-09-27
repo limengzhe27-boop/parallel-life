@@ -33,8 +33,6 @@ export async function advanceWorld(
     ) => Promise<{ records: MemoryRecord[]; blockedSources: Set<string> }>;
     /** Every character's memories in this world, used to build the agenda. */
     worldMemories?: () => Promise<MemoryRecord[]>;
-    /** Persists the "time passed while you were away" summary as a branch memory. */
-    rememberSummary?: (text: string, sourceIds: string[]) => Promise<void>;
     /** The user's brief for this life; pacing caps beats, focus steers the cast. */
     direction?: () => Promise<WorldDirection>;
     maxBeats?: number;
@@ -51,9 +49,10 @@ export async function advanceWorld(
   await deps.clock.write(session.userId, worldId, advance.clock);
   const actors: string[] = [];
   const worldMemories = deps.worldMemories ? await deps.worldMemories() : [];
-  if (advance.clock.summary && deps.rememberSummary)
-    await deps.rememberSummary(advance.clock.summary, []);
-  if (!advance.beats.length)
+  // Elapsed-time text is clock metadata, not an event-backed memory.
+  // Actual turns store their own sourced memories in the normal commit pipeline.
+  if (!advance.beats.length) {
+    await deps.clock.setStoryTime(session.userId, worldId, advance.clock.storyNow);
     return {
       storyNow: advance.clock.storyNow,
       played: 0,
@@ -61,6 +60,7 @@ export async function advanceWorld(
       summary: advance.clock.summary,
       actors,
     };
+  }
 
   for (const beatAt of advance.beats) {
     await deps.clock.setStoryTime(session.userId, worldId, beatAt);
@@ -71,13 +71,6 @@ export async function advanceWorld(
     const actorId = selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
     if (!actorId) break;
     const commandId = deps.newId();
-    await deps.clock.recordBeat(session.userId, worldId, {
-      id: deps.newId(),
-      commandId,
-      plannedFor: beatAt,
-      actorId,
-      status: 'played',
-    });
     await resolveTurn(
       {
         worlds: deps.worlds,
@@ -89,12 +82,20 @@ export async function advanceWorld(
       session,
       {
         id: commandId,
+        origin: 'director',
         worldId,
         actorId,
         text: beatCue(atBeat, actorId, agenda, direction),
         expectedVersion: world.version,
       },
     );
+    await deps.clock.recordBeat(session.userId, worldId, {
+      id: deps.newId(),
+      commandId,
+      plannedFor: beatAt,
+      actorId,
+      status: 'played',
+    });
     actors.push(actorId);
   }
   if (!actors.length) throw new DomainError('INVALID_COMMAND', 'No character could take a beat');

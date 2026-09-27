@@ -24,27 +24,18 @@ export function worldAppData(
       ).length,
     })),
     photos: (world.photos ?? []).map((photo) => {
-      let description = photo.kind === 'upload' ? '你上传的照片' : 'AI生成的照片';
-      let tag: 'identity' | 'event' | 'upload' = 'upload';
-      if (
-        photo.title.includes('【身份写真】') ||
-        photo.title.includes('写真') ||
-        photo.title.includes('角色肖像') ||
-        photo.title.includes('肖像')
-      ) {
-        tag = 'identity';
-        description =
-          '✨ 平行人生身份写真：根据您的肖像底模与分支角色身份图生图渲染而成，已存入您的平行人生相册。';
-      } else if (
-        photo.title.includes('【事件纪念】') ||
-        photo.title.includes('纪念') ||
-        photo.title.includes('现场') ||
-        photo.kind === 'generated'
-      ) {
-        tag = 'event';
-        description =
-          '📸 剧情事件解锁：在与平行世界角色的剧情推演与重要时刻中解锁，记录属于你们的生动瞬间。';
-      }
+      const uploaded = photo.kind === 'upload';
+      const identity = !uploaded && /写真|肖像/.test(photo.title);
+      const tag = uploaded
+        ? ('upload' as const)
+        : identity
+          ? ('identity' as const)
+          : ('event' as const);
+      const description = uploaded
+        ? '你上传的照片'
+        : identity
+          ? 'AI 生成的身份写真'
+          : 'AI 生成的事件照片';
       return {
         id: photo.id,
         date: photo.date,
@@ -76,8 +67,7 @@ export function worldAppData(
                 id: matchedPhoto.id,
                 date: matchedPhoto.date,
                 title: matchedPhoto.title,
-                description:
-                  matchedPhoto.kind === 'upload' ? '相册照片' : '剧情事件解锁剧照',
+                description: matchedPhoto.kind === 'upload' ? '相册照片' : '剧情事件解锁剧照',
                 status: 'ready' as const,
                 url: `/api/v1/assets/${encodeURIComponent(matchedPhoto.id)}?revision=${matchedPhoto.revision}`,
               }

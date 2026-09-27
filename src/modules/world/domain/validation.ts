@@ -101,6 +101,7 @@ export function parseProposal(value: unknown): TurnProposal {
 }
 export function validateCommand(command: TurnCommand): void {
   try {
+    if (command.origin !== undefined && command.origin !== 'director') fail();
     id(command.id);
     id(command.worldId);
     id(command.actorId);
