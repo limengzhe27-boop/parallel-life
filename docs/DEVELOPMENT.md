@@ -610,7 +610,7 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 
 |任务 ID|状态|负责人|范围|验收/接续|
 |---|---|---|---|---|
-|NAR-01|[~] 待验收|codex-main-narrative-20260928|主目录；docs/NARRATIVE_EXPERIENCE.md、叙事模式手册与报告；world/domain/narrative-policy、actor-context、turn/world planner、相关测试；导演预览人物名修正|研究公开一手资料；修复记忆实际入模；情境驱动叙事策略、开场与角色表达改进；验收后部署。不宣称已完成长期剧情状态机|
+|NAR-01|[x] 已完成|codex-main-narrative-20260928|主目录；docs/NARRATIVE_EXPERIENCE.md、叙事模式手册与报告；world/domain/narrative-policy、actor-context、turn/world planner、相关测试；导演预览人物名修正|197项检查+25项真实库/build；27生产迁移一致；c58ccb4/aw37f5abz READY，公网health200、双端预览验收。主角原则、记忆入模、情境策略已交付；长期剧情状态机仍属NAR-02，见task-reports/NAR-01.md|
 |NAR-02|[ ] 待开发|未领取|依赖NAR-01；剧情线状态、条件/冷却/结果/来源、导演并发与失败恢复|每条悬念可兑现可放弃；不按消息条数机械反转；刷新继续同一条线|
 |NAR-03|[ ] 待开发|未领取|依赖NAR-02；消息/日历/相册/便签的事件后果、生图状态|一个选择形成可追溯的跨应用后果；生成等待/失败/unknown诚实反馈|
 |NAR-04|[ ] 待开发|未领取|依赖NAR-02/03；首次体验、回访承接、剧情质量评测|首个事件清楚可参与、回访承接、重复冲突/无后果选择评估；不以消息数冒充沉浸|

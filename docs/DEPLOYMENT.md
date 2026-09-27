@@ -1,3 +1,7 @@
+## 2026-09-28 · NAR-01 已发布
+
+主角导向叙事、真实角色记忆入模、情境回应与开场改进、导演预览人物姓名。197项检查+25项真实数据库测试、build通过；27生产迁移一致，无新增迁移。应用 c58ccb4，部署 aw37f5abz / dpl_3YDTmkUMiCesXZvJ3hC3UVdM8YtW READY。https://parallel-life-nu.vercel.app health200，手机与PC导演预览验收通过；合成场景真实模型调用见 NAR-01 报告。长期剧情状态与跨应用后果尚未完成。
+
 ## 2026-09-28 · PHONE-02 已发布
 
 便签服务端保存、相册来源/壁纸/分享、导演刷新与来源修复。190项检查+25项真实库、build通过；27生产迁移一致，无新增迁移。应用 d94c1af，部署 j3pkvs8zh / dpl_AkTq7bnmw94BgJcjxcTAx21i5qo2 为 READY；https://parallel-life-nu.vercel.app 已实测health200、锁屏/相册/导演/便签双端读取。写入链路在本地真实数据库验收，未向生产人生写入测试内容。报告：docs/task-reports/PHONE-02.md。
