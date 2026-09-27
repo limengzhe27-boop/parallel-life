@@ -17,6 +17,10 @@ import { BasicInfo } from './basic-info.tsx';
 import { routeBranchIntent, type BranchIntent } from './branch-intent.ts';
 import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
+import {
+  projectProfileView,
+  type ProfileViewItem,
+} from '../../modules/profile/domain/profile-view.ts';
 const categories: Record<ProfileFact['category'], string> = {
   identity: '基本信息',
   interest: '我的爱好',
@@ -796,23 +800,60 @@ export function ProfilePane({
   candidateBusy?: string | null;
   onCandidateAction?: (id: string, action: MemoryCandidateDecision['action']) => void;
 }) {
-  const active = profile.facts.filter(
-    (f) =>
-      f.status !== 'rejected' &&
-      !f.value.startsWith('个人资料\n') &&
-      f.category !== 'identity' &&
-      !f.value.includes('出生') &&
-      !f.value.includes('生日') &&
-      !f.value.includes('年出生'),
-  );
-  const name = profile.facts
-    .filter((f) => f.status === 'confirmed')
-    .flatMap((f) => f.value.split('\n'))
-    .find((line) => line.startsWith('姓名：'))
-    ?.slice(3);
+  const view = projectProfileView(profile);
+  const activeIds = new Set(view.interestsAndWishes.map((item) => item.ref.id));
+  const active = profile.facts.filter((fact) => activeIds.has(fact.id));
+  const name = view.current.find(
+    (item) => item.ref.basicField === '姓名' && item.storedStatus === 'confirmed',
+  )?.text;
+  const renderFacts = (items: ProfileViewItem[]) =>
+    items
+      .filter((item) => item.ref.kind === 'fact')
+      .map((item) => {
+        const fact = profile.facts.find((entry) => entry.id === item.ref.id);
+        if (!fact) return null;
+        return (
+          <div
+            className="fact-row"
+            key={`${item.ref.kind}:${item.ref.id}:${item.ref.basicField ?? ''}`}
+          >
+            <button className="fact-content" onClick={() => onEdit(fact.category, fact)}>
+              <span>
+                {item.ref.basicField ? `${item.ref.basicField}：` : ''}
+                {item.text}
+              </span>
+              <small>
+                {item.storedStatus === 'suggested' ? '待核对' : '已记录'} ·{' '}
+                {item.sourceMessageIds.length
+                  ? `${item.sourceMessageIds.length} 条来源对话`
+                  : '未提供来源记录'}
+                <Icon name="edit" size={12} />
+              </small>
+            </button>
+            {fact.status === 'suggested' && (
+              <Button
+                variant="ghost"
+                disabled={saving}
+                aria-label={`确认：${fact.value}`}
+                onClick={() => onConfirm(fact.id)}
+              >
+                <Icon name="check" size={17} />
+              </Button>
+            )}
+          </div>
+        );
+      });
   return (
     <div className="profile-stack">
       {error && <Notice>{error}</Notice>}
+      <section className="profile-section" aria-label="当前的我">
+        <h3>当前的我</h3>
+        {view.current.length ? (
+          renderFacts(view.current)
+        ) : (
+          <p>还没有整理出基本资料，可以从聊聊开始。</p>
+        )}
+      </section>
       <div className="portrait-card profile-identity">
         <button
           type="button"
@@ -896,7 +937,7 @@ export function ProfilePane({
         open={active.some((f) => f.status === 'suggested') || undefined}
       >
         <summary>
-          我的故事
+          我在意的
           <Icon name="chevron" size={16} />
         </summary>
         <div className="profile-section">
@@ -975,6 +1016,7 @@ export function ProfilePane({
           重要的人
           <Icon name="chevron" size={16} />
         </summary>
+        {renderFacts(view.people)}
         {people ?? <p className="preview-profile-placeholder">你聊过的重要人物，会整理在这里。</p>}
       </details>
       <details className="profile-fold">
@@ -982,6 +1024,7 @@ export function ProfilePane({
           人生经历
           <Icon name="chevron" size={16} />
         </summary>
+        {renderFacts(view.experiences)}
         {events ?? (
           <div className="profile-section">
             <div className="section-heading">
@@ -1005,6 +1048,16 @@ export function ProfilePane({
           </div>
         )}
       </details>
+      {view.unresolved.length > 0 && (
+        <details className="profile-fold">
+          <summary>
+            待整理资料
+            <Icon name="chevron" size={16} />
+          </summary>
+          <p>保留的原始字段，可打开原记录核对和修改。</p>
+          {renderFacts(view.unresolved)}
+        </details>
+      )}
       <div className="profile-footnote">
         <Icon name="lock" size={14} />
         <p>

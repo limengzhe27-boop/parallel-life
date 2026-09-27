@@ -2,9 +2,10 @@
 import { useRef, useState } from 'react';
 import { LifeDate, type Profile, type ProfileEdit } from '../../contracts/api.ts';
 import { Button, Notice } from '../../components/ui.tsx';
+import { readBasicInfo, writeBasicInfo } from '../../modules/profile/domain/profile-view.ts';
 const fields = [
   ['姓名', 'text', '希望我怎么称呼你'],
-  ['生日', 'date', ''],
+  ['生日', 'text', '年份、年月或完整日期，如 1998 / 1998-05 / 1998-05-12'],
   ['出生时间', 'time', ''],
   ['所在城市', 'text', '现在生活的城市'],
   ['职业', 'text', '目前在做什么'],
@@ -22,26 +23,14 @@ export function BasicInfo({
   const existing = profile.facts.find(
     (f) => f.category === 'identity' && f.status !== 'rejected' && f.value.startsWith('个人资料\n'),
   );
-  const initial = Object.fromEntries(
-    fields.map(([label]) => [
-      label,
-      existing?.value
-        .split('\n')
-        .find((line) => line.startsWith(label + '：'))
-        ?.slice(label.length + 1) ?? '',
-    ]),
-  );
+  const parsed = readBasicInfo(existing?.value ?? '个人资料\n');
+  const initial = Object.fromEntries(fields.map(([label]) => [label, parsed.values[label] ?? '']));
   const [values, setValues] = useState(initial);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [saved, setSaved] = useState(false);
   const id = useRef(existing?.id ?? null);
-  const mergedValue =
-    '个人资料\n' +
-    fields
-      .filter(([label]) => (values[label] ?? '').trim())
-      .map(([label]) => `${label}：${(values[label] ?? '').trim()}`)
-      .join('\n');
+  const mergedValue = writeBasicInfo(existing?.value, values);
   const mergedLength = mergedValue.length;
   const isOverLength = mergedLength > 500;
 
@@ -102,7 +91,6 @@ export function BasicInfo({
               className="field"
               type={type}
               aria-label={label}
-              max={type === 'date' ? new Date().toLocaleDateString('en-CA') : undefined}
               maxLength={100}
               value={values[label]}
               placeholder={placeholder}
@@ -116,6 +104,9 @@ export function BasicInfo({
           </label>
         ))}
       </div>
+      {parsed.remaining.some((line) => line.trim()) && (
+        <p>此记录还有未归类或重复的原始字段，保存时会保留；可在“待整理资料”中编辑原记录。</p>
+      )}
       <div className={`basic-info-counter ${isOverLength ? 'over-limit' : ''}`}>
         已填资料合并计：{mergedLength} / 500 字 {isOverLength ? '（已超出上限，请精简）' : ''}
       </div>
