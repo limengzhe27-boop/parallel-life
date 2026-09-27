@@ -88,5 +88,23 @@ test('the conversation itself becomes the brief a branch needs', () => {
   assert.equal(buildBranchBrief([]), '');
   assert.equal(buildBranchBrief([{ role: 'assistant', text: '你好' }]), '');
   /* Bounded, never unbounded prompt growth. */
-  assert.ok(buildBranchBrief(Array.from({ length: 20 }, () => ({ role: 'user', text: 'x'.repeat(500) }))).length <= 400);
+  assert.ok(
+    buildBranchBrief(Array.from({ length: 20 }, () => ({ role: 'user', text: 'x'.repeat(500) })))
+      .length <= 400,
+  );
+});
+
+test('negation, quotation, hypothetical and questions never trigger branch creation', () => {
+  for (const text of [
+    '不要创建分支',
+    '先别帮我创建分支',
+    '我不想创建平行世界',
+    '如果我说创建分支呢',
+    '他说“帮我创建分支”',
+    '创建分支会怎么样？',
+    '取消创建分支',
+    '不是要创建分支',
+    '先不进入这个分支',
+  ])
+    assert.equal(routeBranchIntent(text), 'none', text);
 });

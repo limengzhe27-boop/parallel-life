@@ -1,7 +1,7 @@
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import { checkMediaQuota, DEFAULT_MEDIA_BUDGET } from '../domain/consistency-guard.ts';
-import type { CharacterImageSynthesizer } from './image-generator.ts';
+import type { CharacterImageSynthesizer } from '../application/image-synthesizer.ts';
 
 /**
  * Media generation handler (AUD-04 & M-01/M-02/M-03).
@@ -9,10 +9,7 @@ import type { CharacterImageSynthesizer } from './image-generator.ts';
  * generates character portraits and event memorial photos into the album,
  * or records honest failure reasons if the adapter is not connected.
  */
-export function mediaHandler(
-  queue: PostgresTaskQueue,
-  synthesizer?: CharacterImageSynthesizer,
-) {
+export function mediaHandler(queue: PostgresTaskQueue, synthesizer?: CharacterImageSynthesizer) {
   return async (lease: TaskLease) => {
     if (lease.kind !== 'media')
       throw Object.assign(Error('INVALID_SCOPE'), { code: 'INVALID_COMMAND' });
@@ -106,15 +103,19 @@ export function mediaHandler(
     }
 
     // 3. Fallback: Honest failure reporting when adapter is not wired
-    const reason = 'media adapter 未接入（M-01..M-03 待开发，禁止以随机壁纸冒充人像）';
-    if (request.outbox_id)
-      await queue.read(lease, async (sql) => {
+    await queue.read(lease, async (sql) => {
+      await sql.query(
+        `UPDATE parallel_life.world_media_requests
+           SET document = document || '{"status":"failed","errorCode":"UNAVAILABLE"}'::jsonb
+         WHERE id=$1 AND owner_id=$2`,
+        [lease.scopeId, lease.ownerId],
+      );
+      if (request.outbox_id)
         await sql.query("SELECT parallel_life.finish_outbox_job($1,'failed',$2,NULL)", [
           request.outbox_id,
-          'NOT_IMPLEMENTED:media-adapter',
+          'UNAVAILABLE:media-adapter',
         ]);
-      });
-    /* The request stays pending on purpose; the failure is reported honestly. */
-    throw Object.assign(Error(reason.slice(0, 120)), { code: 'UNAVAILABLE' });
+    });
+    throw Object.assign(Error('图片生成服务尚未接入'), { code: 'UNAVAILABLE' });
   };
 }

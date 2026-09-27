@@ -26,6 +26,10 @@ const RECOMMEND =
 export function routeBranchIntent(text: string): BranchIntent {
   const value = text.trim();
   if (!value) return 'none';
+  // Conservative routing is only a suggestion to review; never authority to build.
+  if (/[“”「」『』"‘’]|如果|假如|要是|不要|不想|不能|不用|别|暂不|先不|取消|不是/u.test(value))
+    return 'none';
+  if (/为什么|怎么|是否|能否|会不会|[？?]/u.test(value) && !RECOMMEND.test(value)) return 'none';
   /* Creating a new branch wins over entering: if the user asks to create and enter, they want a brand-new branch. */
   if (CREATE.test(value)) return 'create';
   if (ENTER.test(value)) return 'enter';

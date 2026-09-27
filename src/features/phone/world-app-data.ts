@@ -34,8 +34,8 @@ export function worldAppData(
       const description = uploaded
         ? '你上传的照片'
         : identity
-          ? 'AI 生成的身份写真'
-          : 'AI 生成的事件照片';
+          ? '历史素材 · 生成来源待核验'
+          : '历史素材 · 生成来源待核验';
       return {
         id: photo.id,
         date: photo.date,
@@ -48,12 +48,6 @@ export function worldAppData(
     }),
     messages: [
       ...world.messages.map((message) => {
-        // Link photo if message refers to a photo title or shared photo
-        const matchedPhoto = (world.photos ?? []).find(
-          (p) =>
-            message.text.includes(`《${p.title}》`) ||
-            (message.text.includes(p.title) && p.title.length > 4),
-        );
         return {
           id: message.id,
           actorId: message.actorId,
@@ -62,16 +56,6 @@ export function worldAppData(
           at: message.at,
           role: message.role ?? 'assistant',
           status: 'sent' as const,
-          photo: matchedPhoto
-            ? {
-                id: matchedPhoto.id,
-                date: matchedPhoto.date,
-                title: matchedPhoto.title,
-                description: matchedPhoto.kind === 'upload' ? '相册照片' : '剧情事件解锁剧照',
-                status: 'ready' as const,
-                url: `/api/v1/assets/${encodeURIComponent(matchedPhoto.id)}?revision=${matchedPhoto.revision}`,
-              }
-            : undefined,
         };
       }),
       ...local.map((message) => ({ ...message })),

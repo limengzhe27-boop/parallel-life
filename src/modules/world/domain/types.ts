@@ -34,7 +34,9 @@ export type MediaRequest = {
   id: Id;
   prompt: string;
   title?: string;
-  status: 'pending';
+  status: 'pending' | 'ready' | 'failed';
+  assetId?: Id;
+  errorCode?: string;
   sourceEventId: Id;
 };
 /**

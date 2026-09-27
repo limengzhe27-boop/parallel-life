@@ -7,7 +7,7 @@ import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import {
   InterviewPlanner,
   INTERVIEW_PROMPT_VERSION,
-  extractBasicInfoFromText,
+  groundBasicInfo,
 } from './interview-planner.ts';
 import {
   appendAssistantMessage,
@@ -110,13 +110,7 @@ export function interviewHandler(
 
       // 2.5 基础资料写入：若用户提到了生日、姓名、城市等，直接更新到个人资料卡片结构化字段中
       const inputMsg = base.interview.messages.find((m) => m.id === input.inputMessageId);
-      const fallbackBasic = inputMsg ? extractBasicInfoFromText(inputMsg.text) : {};
-      const effectiveBasicInfo = {
-        ...fallbackBasic,
-        ...Object.fromEntries(
-          Object.entries(proposal.basicInfo ?? {}).filter(([_, v]) => Boolean(v)),
-        ),
-      };
+      const effectiveBasicInfo = groundBasicInfo(inputMsg?.text ?? '', proposal.basicInfo);
 
       if (Object.values(effectiveBasicInfo).some(Boolean)) {
         await applyBasicInfoInTransaction(sql, lease.ownerId, effectiveBasicInfo, [
@@ -183,27 +177,36 @@ export function interviewHandler(
       */
       if (accepted.length) {
         const storedProfile = (
-          await sql.query('SELECT id FROM parallel_life.profiles WHERE owner_id=$1', [lease.ownerId])
+          await sql.query('SELECT id FROM parallel_life.profiles WHERE owner_id=$1', [
+            lease.ownerId,
+          ])
         ).rows[0];
         if (storedProfile)
           await deriveAndStoreMemories(
             sql,
-            accepted.map((candidate: { category: string; text: string; eventDate?: string; sourceMessageIds: string[] }) => ({
-              ownerId: lease.ownerId,
-              scopeType: 'profile' as const,
-              scopeId: String(storedProfile.id),
-              text: candidate.text,
-              key: `interview:${candidate.category}:${candidate.text.slice(0, 80)}`.slice(0, 128),
-              kind: candidate.eventDate ? ('episode' as const) : ('preference' as const),
-              sourceType: 'user_statement' as const,
-              sourceIds: [...new Set(candidate.sourceMessageIds)],
-              evidence: Object.fromEntries(
-                [...new Set(candidate.sourceMessageIds)].map((id: string) => [
-                  id,
-                  { id, role: 'user' as const, text: candidate.text },
-                ]),
-              ),
-            })),
+            accepted.map(
+              (candidate: {
+                category: string;
+                text: string;
+                eventDate?: string;
+                sourceMessageIds: string[];
+              }) => ({
+                ownerId: lease.ownerId,
+                scopeType: 'profile' as const,
+                scopeId: String(storedProfile.id),
+                text: candidate.text,
+                key: `interview:${candidate.category}:${candidate.text.slice(0, 80)}`.slice(0, 128),
+                kind: candidate.eventDate ? ('episode' as const) : ('preference' as const),
+                sourceType: 'user_statement' as const,
+                sourceIds: [...new Set(candidate.sourceMessageIds)],
+                evidence: Object.fromEntries(
+                  [...new Set(candidate.sourceMessageIds)].map((id: string) => [
+                    id,
+                    { id, role: 'user' as const, text: candidate.text },
+                  ]),
+                ),
+              }),
+            ),
           );
       }
 

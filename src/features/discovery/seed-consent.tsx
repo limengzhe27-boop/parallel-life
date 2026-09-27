@@ -23,12 +23,10 @@ export function SeedConsent({
   const confirmedFacts = profile.facts.filter((f) => f.status === 'confirmed');
   const visibleFactIds = new Set(confirmedFacts.map((f) => f.id));
   const [facts, setFacts] = useState(
-    direction.sources
-      .map((s) => s.factId)
-      .filter((id) => visibleFactIds.has(id)),
+    direction.sources.map((s) => s.factId).filter((id) => visibleFactIds.has(id)),
   );
   const [people, setPeople] = useState<string[]>([]),
-    [portrait, setPortrait] = useState(Boolean(profile.portraitAssetId)),
+    [portrait, setPortrait] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const pending = useRef<SeedRequest | null>(null);
@@ -92,18 +90,14 @@ export function SeedConsent({
         <fieldset className="seed-fieldset">
           <legend>带上哪些资料</legend>
           <p>
-            只带入你勾选的内容（已选择 {facts.filter((id) => visibleFactIds.has(id)).length} / {confirmedFacts.length} 项，无任何未见默认授权）。
+            只带入你勾选的内容（已选择 {facts.filter((id) => visibleFactIds.has(id)).length} /{' '}
+            {confirmedFacts.length} 项）。
           </p>
           {confirmedFacts.length > 0 ? (
             <div className="seed-facts-scroll">
               {confirmedFacts.map((f) => {
                 const isBasicInfo = f.value.startsWith('个人资料\n');
-                const subFields = isBasicInfo
-                  ? f.value
-                      .split('\n')
-                      .slice(1)
-                      .filter(Boolean)
-                  : [];
+                const subFields = isBasicInfo ? f.value.split('\n').slice(1).filter(Boolean) : [];
                 return (
                   <label
                     key={f.id}
@@ -121,9 +115,7 @@ export function SeedConsent({
                         onChange={() => setFacts(toggle(facts, f.id))}
                         disabled={busy}
                       />
-                      <span>
-                        {isBasicInfo ? '基础资料（身份与居住背景）' : f.value}
-                      </span>
+                      <span>{isBasicInfo ? '基础资料（身份与居住背景）' : f.value}</span>
                     </div>
                     {isBasicInfo && subFields.length > 0 && (
                       <div
@@ -167,10 +159,17 @@ export function SeedConsent({
                 checked={portrait}
                 onChange={(e) => setPortrait(e.target.checked)}
                 disabled={busy}
-                aria-label="带入本人照片"
+                aria-label="带入本人及参考照片"
               />
-              <img src={`/api/v1/assets/${profile.portraitAssetId}`} alt="你的照片" />
-              <span>带上我的照片</span>
+              <span>
+                带上以下照片（
+                {new Set([profile.portraitAssetId, ...(profile.referenceAssetIds ?? [])]).size} 张）
+              </span>
+              {[...new Set([profile.portraitAssetId, ...(profile.referenceAssetIds ?? [])])].map(
+                (id) => (
+                  <img key={id} src={`/api/v1/assets/${id}`} alt="将带入的照片" />
+                ),
+              )}
             </label>
           )}
           {profile.people.map((p) => (
@@ -197,7 +196,7 @@ export function SeedConsent({
         </fieldset>
         <p className="seed-private">
           <Icon name="lock" size={14} />
-          只带入你选中的内容，之后可独立修改。
+          这份选择只用于当前分支。
         </p>
         {error && <Notice>{error}</Notice>}
         <div className="form-actions">

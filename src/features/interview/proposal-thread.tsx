@@ -5,7 +5,11 @@ import type { WorldBuild } from '../../contracts/world-build.ts';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
 import { Button, Icon, Modal } from '../../components/ui.tsx';
 import { branchEntryState } from './branch-entry.ts';
-import { buildBranchBrief, chooseUnbuiltDirection } from './branch-intent.ts';
+import { buildBranchBrief } from './branch-intent.ts';
+
+import { SeedConsent } from '../discovery/seed-consent.tsx';
+import type { Profile } from '../../contracts/api.ts';
+import type { ApprovedSeed } from '../../contracts/seeds.ts';
 
 type Stage = 'idle' | 'discovering' | 'saving' | 'building' | 'entering';
 
@@ -23,7 +27,7 @@ function branchFailureMessage(error: unknown): string {
 const STAGE_TEXT: Record<Exclude<Stage, 'idle' | 'entering'>, string> = {
   discovering: '正在从你聊到的经历里梳理出真正不同的方向…',
   saving: '正在记下这段人生的起点快照…',
-  building: '正在构筑平行世界：生成微信好友、群聊与开场剧情…',
+  building: '正在构筑平行世界：准备人物和开场消息…',
 };
 
 function taskFailure(task: { status: string; errorCode?: string | null } | null) {
@@ -64,6 +68,12 @@ export function ProposalThread({
     [error, setError] = useState(''),
     [selectedIndex, setSelectedIndex] = useState(0),
     [confirmOpen, setConfirmOpen] = useState(false);
+  const [consent, setConsent] = useState<{
+    profile: Profile;
+    discovery: Discovery;
+    direction: LifeDirection;
+  } | null>(null);
+  const [approvedSeed, setApprovedSeed] = useState<ApprovedSeed | null>(null);
   const busy = stage !== 'idle';
 
   useEffect(() => {
@@ -100,31 +110,7 @@ export function ProposalThread({
     if (!externalTrigger) return;
     void (async () => {
       if (externalIntent === 'create') {
-        /*
-         * 用户明确要一个新分支：
-         * 1. 抓取用户在当前对话中聊出的最新想法（brief），由 AI 重新推演与该想法匹配的全新方向；
-         * 2. 拿到专属新方向后，直接启动平行世界构筑并进入，不打开旧世界，也不复用之前的旧方向！
-         */
-        setError('');
-        try {
-          const workspace = await client.workspace();
-          const brief = buildBranchBrief(workspace.interview.messages);
-          const fresh = await discoverBranch(brief);
-          let adopted: string[] = [];
-          try {
-            adopted = (await client.seeds()).map((seed) => seed.directionId);
-          } catch {}
-          const target =
-            chooseUnbuiltDirection(fresh.directions, adopted, 0) ?? fresh.directions[0];
-          if (target) {
-            await confirmAndBuild(target, fresh.version);
-            return;
-          }
-          setConfirmOpen(true);
-        } catch (e) {
-          setError(branchFailureMessage(e));
-          setStage('idle');
-        }
+        await handleCreateFromConversation();
         return;
       }
       if (externalIntent === 'recommend') {
@@ -199,47 +185,28 @@ export function ProposalThread({
     }
   }
 
-  async function confirmAndBuild(target: LifeDirection, discoveryVersion?: number) {
+  async function prepareConsent(target: LifeDirection) {
     setError('');
     try {
-      setStage('saving');
-      const latestProfile = (await client.workspace()).profile;
-      const available = new Set(
-        latestProfile.facts.filter((f) => f.status === 'confirmed').map((f) => f.id),
-      );
-      const hasPortrait = Boolean(latestProfile.portraitAssetId);
-      let seed;
-      try {
-        seed = await client.approveSeed({
-          commandId: crypto.randomUUID(),
-          discoveryVersion: discoveryVersion ?? data?.version ?? 0,
-          profileVersion: latestProfile.version,
-          directionId: target.id,
-          factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => available.has(id)),
-          personIds: [],
-          includePortrait: hasPortrait,
-        });
-      } catch (err) {
-        if (err instanceof ApiFailure && err.code === 'VERSION_CONFLICT') {
-          const freshWs = await client.workspace();
-          const freshDisc = await client.discovery();
-          const freshAvail = new Set(
-            freshWs.profile.facts.filter((f) => f.status === 'confirmed').map((f) => f.id),
-          );
-          seed = await client.approveSeed({
-            commandId: crypto.randomUUID(),
-            discoveryVersion: freshDisc.version,
-            profileVersion: freshWs.profile.version,
-            directionId: target.id,
-            factIds: (target.sources ?? []).map((s) => s.factId).filter((id) => freshAvail.has(id)),
-            personIds: [],
-            includePortrait: Boolean(freshWs.profile.portraitAssetId),
-          });
-        } else {
-          throw err;
-        }
+      const [workspace, discovery] = await Promise.all([client.workspace(), client.discovery()]);
+      // Never substitute a changed proposal underneath the user's selection.
+      if (discovery.version !== data?.version) {
+        setData(discovery);
+        setConfirmOpen(false);
+        setError('分支方向有更新，请重新查看后选择。');
+        return;
       }
+      setConsent({ profile: workspace.profile, discovery, direction: target });
+      setConfirmOpen(false);
+    } catch (e) {
+      setError(branchFailureMessage(e));
+    }
+  }
 
+  async function buildApprovedSeed(seed: ApprovedSeed) {
+    setApprovedSeed(seed);
+    setError('');
+    try {
       setStage('building');
       const build = await client.createWorld({ commandId: crypto.randomUUID(), seedId: seed.id });
       if (build.task?.id) {
@@ -261,20 +228,13 @@ export function ProposalThread({
   }
 
   async function handleCreateFromConversation() {
+    setApprovedSeed(null);
     setError('');
     try {
       const workspace = await client.workspace();
       const brief = buildBranchBrief(workspace.interview.messages);
       const fresh = await discoverBranch(brief);
-      let adopted: string[] = [];
-      try {
-        adopted = (await client.seeds()).map((seed) => seed.directionId);
-      } catch {}
-      const target =
-        chooseUnbuiltDirection(fresh.directions, adopted, 0) ?? fresh.directions[0];
-      if (target) {
-        await confirmAndBuild(target, fresh.version);
-      }
+      if (fresh.directions.length) setConfirmOpen(true);
     } catch (e) {
       setError(branchFailureMessage(e));
       setStage('idle');
@@ -322,12 +282,18 @@ export function ProposalThread({
       ) : error ? (
         <div className="proposal-invitation">
           <p role="alert">{error}</p>
-          <Button variant="secondary" onClick={() => void handleCreateFromConversation()}>
-            <Icon name="refresh" size={16} />
-            重试
-          </Button>
+          {approvedSeed ? (
+            <a className="button secondary" href="/possibilities">
+              查看创建进度
+            </a>
+          ) : (
+            <Button variant="secondary" onClick={() => void handleCreateFromConversation()}>
+              <Icon name="refresh" size={16} />
+              重新整理方向
+            </Button>
+          )}
         </div>
-      ) : entry.kind === 'open-ready' ? (
+      ) : entry.kind === 'open-ready' && !directions.length ? (
         <div className="proposal-invitation">
           <p>你可以根据刚才的对话构筑一个全新的人生分支；也可以进入已有的平行世界继续体验。</p>
           <div
@@ -479,18 +445,34 @@ export function ProposalThread({
           onClose={() => {
             if (!busy) setConfirmOpen(false);
           }}
-          title="确认开启平行分支体验"
+          title="看看这条人生"
         >
           <div className="proposal-confirm-modal">
             <div className="proposal-confirm-box">
+              {directions.length > 1 && (
+                <label className="form-label">
+                  选择方向
+                  <select
+                    className="field"
+                    aria-label="选择人生方向"
+                    value={selectedIndex}
+                    onChange={(event) => setSelectedIndex(Number(event.target.value))}
+                  >
+                    {directions.map((direction, index) => (
+                      <option key={direction.id} value={index}>
+                        {direction.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <h4>《{currentDirection.title}》</h4>
               <p>
                 <strong>抉择起点：</strong>
                 {currentDirection.premise}
               </p>
-              <p>
-                即将根据该分支为你创造属于你的平行世界，构筑平行手机、微信关系网与第一批未读消息。
-              </p>
+              <p>{currentDirection.opening}</p>
+              <p>{currentDirection.tradeoff}</p>
             </div>
 
             {busy ? (
@@ -502,7 +484,7 @@ export function ProposalThread({
                   )}
                 </div>
                 <div className={`proposal-step-item ${stage === 'building' ? 'active' : ''}`}>
-                  <span>2. 构筑微信关系网与图生图身份写真 (约需 30~45s)</span>
+                  <span>2. 准备人物和开场消息</span>
                   {stage === 'building' && (
                     <span className="spinner" style={{ width: 14, height: 14 }} />
                   )}
@@ -516,8 +498,8 @@ export function ProposalThread({
               </div>
             ) : (
               <div className="proposal-actions">
-                <Button variant="primary" onClick={() => void confirmAndBuild(currentDirection)}>
-                  确认创建，打开平行手机
+                <Button variant="primary" onClick={() => void prepareConsent(currentDirection)}>
+                  选择带入资料
                   <Icon name="arrow" size={16} />
                 </Button>
                 <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
@@ -527,6 +509,14 @@ export function ProposalThread({
             )}
           </div>
         </Modal>
+      )}
+      {consent && (
+        <SeedConsent
+          client={client}
+          {...consent}
+          onClose={() => setConsent(null)}
+          onSaved={(seed) => void buildApprovedSeed(seed)}
+        />
       )}
     </section>
   );

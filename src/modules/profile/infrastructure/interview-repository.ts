@@ -14,7 +14,7 @@ import {
   TaskError,
 } from '../../tasks/infrastructure/task-repository.ts';
 import { consumeLimit } from '../../storage/infrastructure/limits.ts';
-import { type InterviewPlanner, extractBasicInfoFromText } from './interview-planner.ts';
+import { type InterviewPlanner, groundBasicInfo } from './interview-planner.ts';
 import {
   applyConfirmedCandidateInTransaction,
   applyBasicInfoInTransaction,
@@ -335,14 +335,10 @@ export class InterviewRepository {
           })),
         ];
         const lastUserMessage = prepared.interview.messages.at(-1);
-        const fallbackBasic =
-          lastUserMessage?.role === 'user' ? extractBasicInfoFromText(lastUserMessage.text) : {};
-        const effectiveBasicInfo = {
-          ...fallbackBasic,
-          ...Object.fromEntries(
-            Object.entries(proposal.basicInfo ?? {}).filter(([_, v]) => Boolean(v)),
-          ),
-        };
+        const effectiveBasicInfo = groundBasicInfo(
+          lastUserMessage?.role === 'user' ? lastUserMessage.text : '',
+          proposal.basicInfo,
+        );
 
         if (Object.values(effectiveBasicInfo).some(Boolean)) {
           await applyBasicInfoInTransaction(sql, ownerId, effectiveBasicInfo, [

@@ -257,7 +257,6 @@ export function InterviewApp() {
     );
 
     const branchIntent = routeBranchIntent(text);
-    if (branchIntent !== 'none') setBranchCommand({ at: Date.now(), intent: branchIntent });
 
     try {
       const sent = await client.sendStream(request, (token) =>
@@ -266,6 +265,10 @@ export function InterviewApp() {
       setData((current) => (current ? { ...current, interview: sent.interview } : current));
       pending.current = null;
       setStreamingText('');
+      const updates = await Promise.allSettled([refresh(), refreshCandidates()]);
+      if (updates.some((result) => result.status === 'rejected'))
+        setError('消息已保存，资料暂未刷新。稍后重新打开即可。');
+      if (branchIntent !== 'none') setBranchCommand({ at: Date.now(), intent: branchIntent });
     } catch (e) {
       setError(errorMessage(e));
       if (e instanceof ApiFailure && e.code === 'VERSION_CONFLICT') {

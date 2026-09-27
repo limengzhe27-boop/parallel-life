@@ -131,3 +131,58 @@ test('interview chain persists user message before generation, recovers, and pre
     await admin.end();
   }
 });
+
+test('both streaming and queued interviews preserve birthdays across unrelated years', async () => {
+  const admin = await adminClient('parallel_life_test');
+  const c = await localConfig();
+  const db = new PostgresDatabase(
+    `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const queue = new PostgresTaskQueue(
+    `postgresql://pl_worker:${c.workerPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const owner = randomUUID();
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    const repo = new InterviewRepository(db);
+    const planner = new InterviewPlanner({
+      async complete() {
+        return JSON.stringify({
+          reply: '记下了。',
+          facts: [],
+          events: [],
+          basicInfo: { birthdate: '2020' },
+        });
+      },
+    });
+    let version = 0;
+    for (const text of ['我是1998年的', '2020年毕业', '我朋友2005年出生']) {
+      const state = await repo.sendStreaming(
+        owner,
+        { commandId: randomUUID(), expectedVersion: version, text },
+        planner,
+        () => {},
+      );
+      version = state.interview.version;
+      const saved = await repo.get(owner);
+      const basics = saved.profile.facts.find((f) => f.value.startsWith('个人资料\n'))?.value ?? '';
+      assert.match(basics, /1998/);
+      assert.doesNotMatch(basics, /2020|2005/);
+    }
+    await repo.send(owner, {
+      commandId: randomUUID(),
+      expectedVersion: version,
+      text: '2021年参加工作',
+    });
+    await runOne(queue, { interview: interviewHandler(queue, planner, 'test-model') });
+    const saved = await repo.get(owner);
+    const basics = saved.profile.facts.find((f) => f.value.startsWith('个人资料\n'))?.value ?? '';
+    assert.match(basics, /1998/);
+    assert.doesNotMatch(basics, /2020|2021/);
+  } finally {
+    await db.close();
+    await queue.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);
+    await admin.end();
+  }
+});

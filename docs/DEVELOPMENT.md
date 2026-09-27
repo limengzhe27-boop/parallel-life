@@ -621,8 +621,10 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |---|---|---|---|---|
 |EXP-01|[x] 已完成|codex-main-experience-20260928|主目录；docs/EXPERIENCE_REBUILD.md、docs/task-reports/EXP-01.md、docs/DEVELOPMENT.md、docs/PROJECT_BRIEF.md、docs/INFORMATION_ARCHITECTURE.md、docs/DEPLOYMENT.md；线上只读体验与代码审查|与辅助独立审查交叉核验；给出体验链、资料归类、创建准备、主动世界与媒体联动设计、分批替换边界和验收。98c3a92/6tyvubijw READY，仅文档；双审报告完成，不代表功能已重构|
 |EXP-01B|[x] 已完成|辅助（01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b）|主目录；仅docs/task-reports/EXP-01B.md和本人状态行；生产只读浏览/代码审查，无业务代码/配置/部署修改|2026-09-28：[独立报告](task-reports/EXP-01B.md)含9项问题与验收；Ego 43公网聊聊/我的/分支/锁屏只读检查，390px/1440px，已关闭；代码与实测分开；未发送/建世界/跑数据库或模型，主任务已交叉复核采纳，第二次方案挑战完成；仅审查交付|
-|EXP-02|[ ] 待开发|未领取|依赖EXP-01；媒体/朋友圈真实性、创建否定与日期误提、未看图描述及误导进度；具体文件领取时限定|发布阻断先清除；无真实结果不标成功，否定/引用不建世界，经历年份不覆盖生日|
+|EXP-02|[ ] 待验收|codex-main-exp02|主目录；src/features/interview/{branch-intent,interview-app,proposal-thread}.tsx/ts、profile/infrastructure/{interview-planner,interview-handler,interview-repository}.ts、profile/domain显式生日规则、features/discovery/seed-consent.tsx、media/infrastructure/media-handler.ts + application/image-synthesizer.ts、server/worker-composition.ts、phone/apps/moments.tsx、phone/world-app-data.ts、world/domain/types.ts媒体状态类型、相关测试与文档|发布阻断先清除；无真实结果不标成功，否定/引用不建世界，经历年份不覆盖生日|
 |EXP-03|[ ] 待开发|未领取|依赖EXP-01；资料读模型/人生草案/事件附件共享契约、旧数据映射和唯一写入口|完整来源与版本；统一入口映射、删除旧写路径、只读兼容；详见EXPERIENCE_REBUILD.md|
 |EXP-04|[ ] 待开发|未领取|依赖EXP-02/03；外层聊聊/我的/分支/创建整页替换，先交互稿和组件规范|不再用CSS叠加覆盖；所有创建入口同一草案版本，资料更新及时且可更正|
 |EXP-05|[ ] 待开发|未领取|依赖EXP-03；世界手机锁屏/桌面/消息/相册/日历/便签/管理整页替换|界面全状态验收；完整主动体验另依赖NAR-02/03；不把手机壳当成生活闭环|
 |EXP-06|[ ] 待开发|未领取|依赖EXP-02/03/04/05、NAR-02/03；完整体验验收|先一条10–15分钟真实链再三身份；自由输入、主动来信、回报、素材、回访、失败恢复；辅助独立体验，主任务集成|
+
+|EXP-03A|[x] 已完成|辅助（01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b）|仅docs/EXPERIENCE_CONTRACTS.md和docs/task-reports/EXP-03A.md及本人状态行；主目录只读代码|2026-09-28：集成人明确验收并授权登记，仅设计交付；[契约提案](EXPERIENCE_CONTRACTS.md)、[报告](task-reports/EXP-03A.md)；两项审查修复及回归由I回传，准备随EXP-02发布，尚非部署证据；不标EXP-03实现完成|
