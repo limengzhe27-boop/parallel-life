@@ -30,18 +30,15 @@ export async function resolveTurn(
   const recalled = deps.memories
     ? await deps.memories(command.actorId)
     : { records: [] as MemoryRecord[], blockedSources: new Set<string>() };
-  const proposal = parseProposal(
-    await deps.planner.propose({
-      context: actorContext(
-        world,
-        command.actorId,
-        command.text,
-        recalled.records,
-        recalled.blockedSources,
-      ),
-      userText: command.text,
-    }),
+  const context = actorContext(
+    world,
+    command.actorId,
+    command.text,
+    recalled.records,
+    recalled.blockedSources,
   );
+  if (command.origin) context.turnOrigin = command.origin;
+  const proposal = parseProposal(await deps.planner.propose({ context, userText: command.text }));
   /*
    * 意图接线：角色回复之外，用户明确索图时必须产生一条 media.requested，
    * 否则 outbox 永远没有可执行的任务，"发张照片"会静默什么都不发生。

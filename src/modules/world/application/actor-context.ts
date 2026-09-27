@@ -60,7 +60,12 @@ export function actorContext(
   if (!fits())
     throw new DomainError('INVALID_COMMAND', 'Character identity exceeds context budget');
   const words = terms(userText);
-  const messages = state.messages.filter((message) => message.actorId === actorId);
+  const messages = state.messages.filter(
+    (message) =>
+      message.actorId === actorId &&
+      !blockedSources.has(message.id) &&
+      !blockedSources.has(message.sourceEventId),
+  );
   const recent = messages.slice(-RECENT_LIMIT);
   // Keep the newest exchanges first in the budget; no silent truncation of their content.
   for (const message of [...recent].reverse()) {
@@ -81,8 +86,10 @@ export function actorContext(
   };
   const facts = state.facts.filter(
     (fact) =>
-      fact.visibility.kind === 'world' ||
-      (fact.visibility.kind === 'actors' && fact.visibility.actorIds.includes(actorId)),
+      !blockedSources.has(fact.id) &&
+      !blockedSources.has(fact.sourceEventId) &&
+      (fact.visibility.kind === 'world' ||
+        (fact.visibility.kind === 'actors' && fact.visibility.actorIds.includes(actorId))),
   );
   // 开局核心事实（主角身份、世界情境）优先注入，确保角色时刻感知主角的身份与世界全貌
   const genesisFacts = facts.filter((f) => f.sourceEventId?.startsWith('genesis:'));
@@ -92,8 +99,14 @@ export function actorContext(
     items
       .map((item, index) => ({ item, index, score: relevance(text(item), words) }))
       .sort((a, b) => b.score - a.score || b.index - a.index);
-  for (const { item } of rank(remainingFacts, (fact) => fact.text)) append(context.facts, item, 4000);
-  const appointments = state.appointments.filter((item) => item.participantIds.includes(actorId));
+  for (const { item } of rank(remainingFacts, (fact) => fact.text))
+    append(context.facts, item, 4000);
+  const appointments = state.appointments.filter(
+    (item) =>
+      item.participantIds.includes(actorId) &&
+      !blockedSources.has(item.id) &&
+      !blockedSources.has(item.sourceEventId),
+  );
   for (const { item } of rank(appointments, (item) => item.title))
     append(context.appointments, item, 1500);
   const historical = rank(messages.slice(0, -RECENT_LIMIT), (item) => item.text)
@@ -105,18 +118,14 @@ export function actorContext(
 
   if (memoryRecords.length > 0) {
     const scoped = memoryRecords.filter((record) => {
-      if (state.ownerId && record.ownerId !== state.ownerId) return false;
-      if (record.scopeType === 'branch' && record.scopeId !== state.id) return false;
+      if (record.ownerId !== state.ownerId) return false;
       if (record.branchId && record.branchId !== state.id) return false;
-      if (
-        record.scopeType === 'character' &&
-        record.characterId &&
-        record.characterId !== actorId
-      ) {
-        return false;
-      }
-      if (record.scopeType === 'profile') return false; // Private profile records are isolated
-      return true;
+      if (record.scopeType === 'branch') return record.scopeId === state.id;
+      if (record.scopeType === 'character')
+        return (
+          record.scopeId === actorId && (!record.characterId || record.characterId === actorId)
+        );
+      return false; // Real profile and unknown scopes never become NPC context.
     });
 
     const budgeted = rankAndBudgetMemories({

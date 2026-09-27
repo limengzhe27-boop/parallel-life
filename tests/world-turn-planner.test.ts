@@ -116,3 +116,48 @@ test('fenced valid JSON and trailing commas still yield genuine dialogue', async
   };
   assert.equal(result.effects[0]?.text, '下午见。');
 });
+
+test('NPC model receives authorized memories with attribution and a grounded scene direction', async () => {
+  let payload: Record<string, any> = {};
+  const planner = new WorldTurnPlanner({
+    complete: async (messages) => {
+      payload = JSON.parse(messages[1]!.content);
+      return '还记得，你想把街拍做成一本小册子。';
+    },
+  });
+  const memory = {
+    id: 'memory-1',
+    ownerId: 'owner',
+    scopeType: 'character' as const,
+    scopeId: mockContext.actor.id,
+    branchId: mockContext.worldId,
+    kind: 'belief' as const,
+    text: '用户想做街拍小册子',
+    sourceType: 'agent_inference' as const,
+    sourceIds: ['message-1'],
+    status: 'active' as const,
+    importance: 4,
+    createdAt: mockContext.time,
+  };
+  await planner.propose({
+    context: { ...mockContext, retrievedMemories: [memory] },
+    userText: '还记得我想做什么吗？',
+  });
+  assert.deepEqual(payload.recalledMemories, [
+    {
+      id: memory.id,
+      kind: memory.kind,
+      text: memory.text,
+      sourceType: memory.sourceType,
+      sourceIds: memory.sourceIds,
+    },
+  ]);
+  assert.equal(payload.sceneDirection.move, 'answer');
+  assert.equal(payload.turnOrigin, 'user');
+  assert.equal(JSON.stringify(payload).includes('ownerId'), false);
+  await planner.propose({
+    context: { ...mockContext, turnOrigin: 'director' },
+    userText: '（用户没有开口）',
+  });
+  assert.equal(payload.turnOrigin, 'director');
+});

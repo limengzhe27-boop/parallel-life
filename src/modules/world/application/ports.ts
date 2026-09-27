@@ -24,6 +24,7 @@ export type ActorContext = {
   messages: WorldState['messages'];
   appointments: WorldState['appointments'];
   retrievedMemories?: MemoryRecord[];
+  turnOrigin?: 'director';
 };
 /** A character model only receives a filtered context, never the complete world. */
 export interface TurnPlanner {
@@ -40,7 +41,11 @@ export type ClockStore = {
   ): Promise<void>;
   setStoryTime(ownerId: string, worldId: string, storyNow: string): Promise<void>;
   /** The user's own time controls: pause/resume and speed. */
-  setClock(ownerId: string, worldId: string, input: { paused?: boolean; speed?: number }): Promise<void>;
+  setClock(
+    ownerId: string,
+    worldId: string,
+    input: { paused?: boolean; speed?: number },
+  ): Promise<void>;
   recordBeat(
     ownerId: string,
     worldId: string,

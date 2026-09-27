@@ -245,9 +245,7 @@ export function DirectorPanel({
                 });
                 setImpact(
                   `接下来一次最多 ${receipt.impact.beatsPerAdvance} 件事` +
-                    (receipt.impact.speaksFirst
-                      ? `，先出场：${actors.find((actor) => actor.id === receipt.impact.speaksFirst)?.name ?? '相关人物'}`
-                      : '') +
+                    (receipt.impact.speaksFirst ? `，先出场：${receipt.impact.speaksFirst}` : '') +
                     (receipt.impact.themes.length
                       ? `，主题：${receipt.impact.themes.join('、')}`
                       : ''),

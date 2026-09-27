@@ -111,3 +111,48 @@ test('the latest escape-heavy message is retained whole rather than silently dro
   const result = actorContext(state, 'a', '你好');
   assert.equal(result.messages[0]?.text, state.messages[0]?.text);
 });
+
+test('memory scopes and forgotten sources are enforced before they can reach the NPC model', () => {
+  const state = world();
+  state.messages = [message('remember', '留下这句'), message('forget', '这句已经被遗忘')];
+  state.facts = [
+    {
+      id: 'forgotten-fact',
+      text: '遗忘事件事实',
+      visibility: { kind: 'world' },
+      sourceEventId: 'event_forget',
+    },
+  ];
+  const shared = {
+    id: 'good',
+    ownerId: state.ownerId,
+    scopeType: 'character' as const,
+    scopeId: 'a',
+    branchId: state.id,
+    kind: 'belief' as const,
+    text: '记得他喜欢这组照片',
+    sourceType: 'agent_inference' as const,
+    sourceIds: ['remember'],
+    status: 'active' as const,
+    importance: 5,
+    createdAt: time,
+  };
+  const records = [
+    shared,
+    { ...shared, id: 'other-character', scopeId: 'b' },
+    { ...shared, id: 'private', scopeType: 'profile' as const },
+    { ...shared, id: 'other-world', branchId: 'foreign' },
+    { ...shared, id: 'old', status: 'forgotten' as const },
+    { ...shared, id: 'blocked', sourceIds: ['event_forget'] },
+  ];
+  const result = actorContext(state, 'a', '照片', records, new Set(['event_forget']));
+  assert.deepEqual(
+    result.retrievedMemories?.map((m) => m.id),
+    ['good'],
+  );
+  assert.deepEqual(
+    result.messages.map((m) => m.id),
+    ['remember'],
+  );
+  assert.deepEqual(result.facts, []);
+});

@@ -605,3 +605,12 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |PHONE-01|[x] 已完成|codex-main-01a0c73b-phone-20260928|主目录；src/features/phone/phone-shell.tsx、phone.module.css、phone-icons.tsx、world-phone-app.tsx、apps/{calendar,messages,photos,notes,common}.tsx、apps/apps.module.css、apps/helpers.ts、src/modules/world/infrastructure/turn-planner.ts、相关测试与本任务报告|第一批修复完成；187项检查、build、双端验收；edfc216/dn0rcfvry READY及公网health200；剩余详见task-reports/PHONE-01.md|
 
 |PHONE-02|[x] 已完成|codex-main-01a0c73b-phone02-20260928|主目录；world-phone-app、director-panel、world-app-data、apps/{photos,types}、world-receipts、advance-world/services 记忆调用修复、world 回合来源契约/reducer/repository、相关前端及真实库测试、报告与产品建议|190项检查+25项真实库/build通过，27生产迁移一致；d94c1af/j3pkvs8zh READY，公网health200及双端读取验收；未完成项见PHONE-02报告，语音暂缓|
+
+### 2026-09-28 · 叙事体验重构
+
+|任务 ID|状态|负责人|范围|验收/接续|
+|---|---|---|---|---|
+|NAR-01|[~] 待验收|codex-main-narrative-20260928|主目录；docs/NARRATIVE_EXPERIENCE.md、叙事模式手册与报告；world/domain/narrative-policy、actor-context、turn/world planner、相关测试；导演预览人物名修正|研究公开一手资料；修复记忆实际入模；情境驱动叙事策略、开场与角色表达改进；验收后部署。不宣称已完成长期剧情状态机|
+|NAR-02|[ ] 待开发|未领取|依赖NAR-01；剧情线状态、条件/冷却/结果/来源、导演并发与失败恢复|每条悬念可兑现可放弃；不按消息条数机械反转；刷新继续同一条线|
+|NAR-03|[ ] 待开发|未领取|依赖NAR-02；消息/日历/相册/便签的事件后果、生图状态|一个选择形成可追溯的跨应用后果；生成等待/失败/unknown诚实反馈|
+|NAR-04|[ ] 待开发|未领取|依赖NAR-02/03；首次体验、回访承接、剧情质量评测|首个事件清楚可参与、回访承接、重复冲突/无后果选择评估；不以消息数冒充沉浸|
