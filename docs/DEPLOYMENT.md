@@ -1,3 +1,7 @@
+## 2026-09-28 · PHONE-01 手机修复
+
+应用edfc216，部署dn0rcfvry（READY），https://parallel-life-nu.vercel.app 已公网检查。187项检查/build通过，生产27项迁移一致，无新增迁移。修复桌面重复/溢出、便签分享、日历草稿与虚假交互、异常模型回复；详见 docs/task-reports/PHONE-01.md。语音与生成赴约场景尚未接入，入口如实说明。
+
 ## 2026-09-28 · VIS-01 外层视觉发布
 
 - 应用提交4537259（首版58c0ade）；部署np31s32vm，READY，生产地址 https://parallel-life-nu.vercel.app。
