@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
 import { Welcome } from '../../../features/interview/interview-app.tsx';
-import { BasicInfo } from '../../../features/interview/basic-info.tsx';
 import { WorkspaceShell } from '../../../components/workspace-shell.tsx';
 export function WelcomePreview() {
   const [draft, setDraft] = useState('');
@@ -22,22 +21,6 @@ export function WelcomePreview() {
       }
     >
       <p className="preview-label">开发预览 · 未调用模型或保存资料</p>
-      <BasicInfo
-        compact
-        profile={{
-          id: '10000000-0000-4000-8000-000000000001',
-          version: 0,
-          facts: [],
-          events: [],
-          people: [],
-          portraitAssetId: null,
-      referenceAssetIds: [],
-          updatedAt: '2026-09-22T00:00:00Z',
-        }}
-        onSave={async () => {
-          throw new Error('preview only');
-        }}
-      />
       <Welcome choose={setDraft} />
     </WorkspaceShell>
   );

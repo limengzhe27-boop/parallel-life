@@ -1,25 +1,29 @@
-/* Approved V4: scoped to the product pages; the world phone retains its own theme. */
+/* VIS-01: deep-blue product space, scoped away from the world phone. */
 body:has(.app-workspace),
 body:has(.discovery-page) {
-  --bg: #10171c;
-  --bg-rgb: 16, 23, 28;
-  --surface: #202830;
-  --surface-alt: #28313a;
-  --surface-hover: #303a44;
-  --border: #2b343e;
-  --border-hover: #bca38f;
-  --text: #edf0ef;
-  --text-secondary: #a6b0bc;
-  --text-tertiary: #96a1ad;
-  --accent: #e7bea6;
-  --accent-hover: #f0ceb9;
-  --accent-rgb: 231, 190, 166;
-  --lilac: #302e2c;
-  --peach: #302922;
-  --mint: #263b33;
-  --coral: #e7bea6;
-  --error: #ef9b99;
-  --success: #a1cdb3;
+  --bg: #081426;
+  --bg-rgb: 8, 20, 38;
+  --surface: #10233d;
+  --surface-alt: #152b46;
+  --surface-hover: #1c3655;
+  --border: #294363;
+  --border-hover: #5b97ff;
+  --text: #f3f7ff;
+  --text-secondary: #b1c2d9;
+  --text-tertiary: #91a8c4;
+  --accent: #347bfa;
+  --accent-hover: #5b97ff;
+  --accent-rgb: 52, 123, 250;
+  --lilac: #152b46;
+  --peach: #24344b;
+  --mint: #173c3b;
+  --coral: #87b8ff;
+  --error: #ffb4ab;
+  --success: #95d5bb;
+  --white: #ffffff;
+  --ink-rgb: 3, 10, 22;
+  --paper-rgb: 243, 247, 255;
+  --focus: #9cc6ff;
   color: var(--text);
   color-scheme: dark;
 }
@@ -50,8 +54,8 @@ body:has(.discovery-page) {
   width: 32px;
   height: 32px;
   border-radius: 12px;
-  background: #dfc3af;
-  color: #31313a;
+  background: var(--surface-alt);
+  color: var(--focus);
   margin-top: 0;
   flex-shrink: 0;
 }
@@ -70,7 +74,7 @@ body:has(.discovery-page) {
 }
 .app-workspace .message-user .message-text {
   background: var(--accent);
-  color: #29282d;
+  color: var(--white);
   border-radius: 18px;
 }
 .streaming-caret {
@@ -120,11 +124,11 @@ body:has(.discovery-page) {
 }
 .app-workspace .composer-bottom .button {
   background: var(--accent);
-  color: #29282d;
+  color: var(--white);
 }
 .app-workspace .app-tabs,
 .discovery-page .app-tabs {
-  background: #151b22;
+  background: var(--bg);
   padding: 8px 0 max(12px, env(safe-area-inset-bottom));
 }
 .app-workspace .app-tabs a,
@@ -198,7 +202,7 @@ body:has(.discovery-page) {
   padding: 18px;
   border: 1px solid rgba(var(--accent-rgb), 0.32);
   border-radius: 18px;
-  background: linear-gradient(145deg, rgba(55, 48, 45, 0.96), var(--surface));
+  background: linear-gradient(145deg, var(--surface-alt), var(--surface));
 }
 .candidate-review .section-heading {
   min-height: 30px;
@@ -214,7 +218,7 @@ body:has(.discovery-page) {
   display: inline-grid;
   place-items: center;
   background: var(--accent);
-  color: #29282d;
+  color: #fff;
   font-size: 11px;
 }
 .candidate-intro {
@@ -231,7 +235,7 @@ body:has(.discovery-page) {
   padding: 13px;
   border: 1px solid rgba(var(--accent-rgb), 0.18);
   border-radius: 14px;
-  background: rgba(16, 23, 28, 0.42);
+  background: rgba(var(--bg-rgb), 0.55);
 }
 .candidate-card-meta {
   display: flex;
@@ -417,7 +421,7 @@ body:has(.discovery-page) {
 }
 body:has(.app-workspace) .button.primary,
 body:has(.discovery-page) .button.primary {
-  color: #29282d;
+  color: var(--white);
 }
 .app-workspace .cloud-preview-banner,
 .discovery-page .cloud-preview-banner {
@@ -515,4 +519,597 @@ body:has(.discovery-page) .button.primary {
 }
 .app-workspace .message-text {
   font-weight: 400;
+}
+
+/* Approved reference direction: photo-led outer application, September 2026. */
+body:has(.app-workspace),
+body:has(.discovery-page) {
+  background: radial-gradient(ellipse at 50% 0%, var(--surface-alt), var(--bg) 68%);
+}
+.app-workspace,
+.discovery-page {
+  background: radial-gradient(ellipse at 80% 0%, var(--surface-alt), transparent 48%), var(--bg);
+  box-shadow:
+    0 0 0 1px rgba(var(--paper-rgb), 0.06),
+    0 24px 100px rgba(var(--ink-rgb), 0.5);
+}
+.app-workspace .app-header,
+.discovery-page .discovery-header {
+  height: 66px;
+  min-height: 66px;
+  padding: 12px 22px;
+  background: transparent;
+  border-bottom-color: rgba(var(--paper-rgb), 0.06);
+}
+.outer-title {
+  font-family: var(--font-title);
+  font-size: 25px;
+  letter-spacing: 0.04em;
+}
+.app-workspace .conversation-content {
+  padding: 22px 20px;
+}
+.app-workspace .message-list {
+  gap: 22px;
+}
+.app-workspace .message-avatar {
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+.app-workspace .message > div:last-child {
+  min-width: 0;
+}
+.app-workspace .message-text {
+  font-size: 16px;
+  line-height: 1.8;
+}
+.app-workspace .message-assistant .message-text {
+  background: var(--surface);
+  border-radius: 4px 18px 18px;
+}
+.app-workspace .message-user .message-text {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 18px 4px 18px 18px;
+}
+.app-workspace .composer-area {
+  padding: 12px 16px;
+  background: var(--bg);
+}
+.app-workspace .composer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  gap: 4px;
+}
+.app-workspace .composer:focus-within {
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
+}
+.app-workspace .composer textarea {
+  line-height: 1.6;
+}
+.app-workspace .composer textarea::placeholder {
+  color: var(--text-tertiary);
+}
+.app-workspace .composer-bottom {
+  flex-shrink: 0;
+}
+.app-workspace .composer-bottom .button {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+}
+.app-workspace .app-tabs,
+.discovery-page .app-tabs {
+  padding: 5px 10px max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+}
+.app-workspace .app-tabs a,
+.discovery-page .app-tabs a {
+  font-size: 11px;
+  gap: 5px;
+  color: var(--text-tertiary);
+  border-radius: 14px;
+}
+.app-tabs a[aria-current='page'] {
+  color: var(--focus);
+}
+.app-tabs a[aria-current='page'] > svg,
+.app-tabs a[aria-current='page'] > .tab-icon {
+  filter: drop-shadow(0 0 7px rgba(var(--accent-rgb), 0.35));
+}
+:is(.app-workspace, .discovery-page) :is(button, a, summary, input, textarea):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+:is(.app-workspace, .discovery-page) button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+:is(.app-workspace, .discovery-page) .button.primary {
+  background: var(--accent);
+  color: var(--white);
+  border-radius: 16px;
+  min-height: 48px;
+  box-shadow: 0 5px 22px rgba(var(--accent-rgb), 0.2);
+}
+:is(.app-workspace, .discovery-page) .button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+:is(.app-workspace, .discovery-page) .button.secondary {
+  background: var(--surface-alt);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* The invitation lives only in the empty conversation, never above old messages. */
+.welcome-scene {
+  position: relative;
+  padding-bottom: 8px;
+  animation: outer-arrive 0.25s ease-out both;
+}
+.welcome-scene-art {
+  position: relative;
+  height: 210px;
+  margin: -22px -20px 0;
+  overflow: hidden;
+}
+.welcome-scene-art > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 55%;
+  opacity: 0.85;
+}
+.welcome-scene-art-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, var(--bg), transparent 80%);
+}
+.welcome-scene-art-caption {
+  position: absolute;
+  left: 24px;
+  bottom: 26px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+}
+.welcome-invitation {
+  position: relative;
+  margin-top: -12px;
+}
+.welcome-symbol {
+  color: var(--focus);
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 18px;
+}
+.welcome-invitation h2 {
+  font: 500 28px/1.55 var(--font-title);
+  letter-spacing: 0.015em;
+  margin: 0;
+}
+.welcome-invitation p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 14px 0 24px;
+}
+.welcome-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.welcome-prompts button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    transform 0.12s;
+}
+.welcome-prompts button > svg:first-child {
+  color: var(--focus);
+}
+.welcome-prompts button > svg:last-child {
+  display: none;
+}
+.welcome-prompts button:hover {
+  background: var(--surface-hover);
+}
+.welcome-prompts button:active {
+  transform: scale(0.98);
+}
+
+/* Equal-weight, photographic chapter covers. */
+.discovery-intro {
+  padding: 10px 2px 24px;
+}
+.discovery-intro h2 {
+  margin: 0;
+  font: 500 29px/1.5 var(--font-title);
+  letter-spacing: 0.02em;
+}
+.discovery-intro p {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.discovery-page .saved-lives {
+  gap: 16px;
+  display: grid;
+}
+.branch-section-label {
+  font-size: 13px !important;
+  color: var(--text-secondary);
+  margin-bottom: 0;
+}
+.branch-section-label strong {
+  font-weight: 400;
+}
+.discovery-page .saved-life-card {
+  position: relative;
+  display: block;
+  isolation: isolate;
+  width: 100%;
+  height: 228px;
+  min-height: 228px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 21px;
+  background: var(--surface);
+  text-align: left;
+  color: var(--text);
+  transition:
+    border-color 0.2s,
+    transform 0.15s;
+}
+.discovery-page .saved-life-card:hover:not(:disabled) {
+  border-color: var(--focus);
+  transform: translateY(-2px);
+}
+.discovery-page .saved-life-card:active:not(:disabled) {
+  transform: scale(0.99);
+}
+.branch-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  z-index: -2;
+}
+.branch-cover-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ink-rgb), 0.12) 0%,
+    rgba(var(--ink-rgb), 0.12) 25%,
+    rgba(var(--ink-rgb), 0.88) 100%
+  );
+}
+.branch-cover-label {
+  position: absolute;
+  top: 13px;
+  left: 15px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 7px;
+  color: var(--text);
+  background: rgba(var(--ink-rgb), 0.52);
+}
+.branch-card-copy {
+  position: absolute;
+  left: 19px;
+  right: 56px;
+  bottom: 18px;
+  display: grid;
+  gap: 8px;
+}
+.discovery-page .saved-life-card strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  font: 500 20px/1.45 var(--font-title);
+  overflow-wrap: anywhere;
+}
+.branch-card-description {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.discovery-page .saved-life-card small {
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.branch-enter-arrow {
+  position: absolute;
+  right: 15px;
+  bottom: 21px;
+  display: grid;
+  place-items: center;
+  height: 33px;
+  width: 33px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--paper-rgb), 0.3);
+  background: rgba(var(--paper-rgb), 0.08);
+}
+.discovery-page .proposal-drawer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.discovery-page .branch-empty {
+  position: relative;
+  min-height: 360px;
+  padding: 150px 22px 28px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--surface);
+  gap: 14px;
+}
+.branch-empty > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.25;
+  mask-image: linear-gradient(black, transparent 85%);
+  pointer-events: none;
+}
+.branch-empty > :not(img) {
+  position: relative;
+}
+.branch-empty h2 {
+  font: 500 22px/1.5 var(--font-title);
+  margin: 0;
+}
+.branch-empty p {
+  margin: 0;
+  line-height: 1.7;
+}
+.branch-empty .button {
+  margin-top: 10px;
+  width: 100%;
+}
+.discovery-page .direction-cover {
+  border-radius: 18px;
+}
+
+/* A personal space, with a real photo rather than implementation terminology. */
+.app-workspace .my-page {
+  padding: 20px;
+}
+.app-workspace .portrait-card.profile-identity {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 12px;
+}
+.profile-portrait-hero {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: radial-gradient(ellipse at 70% 15%, var(--surface-hover), var(--surface));
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.profile-portrait-hero > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  z-index: -2;
+}
+.profile-portrait-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(0deg, rgba(var(--ink-rgb), 0.85), transparent 75%);
+}
+.profile-portrait-empty {
+  position: absolute;
+  inset: 0 0 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.profile-portrait-empty svg {
+  color: var(--focus);
+}
+.profile-portrait-caption {
+  position: absolute;
+  left: 20px;
+  right: 18px;
+  bottom: 20px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.profile-portrait-caption > span:first-child {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.profile-portrait-caption small {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+}
+.profile-portrait-caption strong {
+  font: 500 23px/1.5 var(--font-title);
+  overflow-wrap: anywhere;
+}
+.profile-photo-action {
+  font-size: 11px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.profile-portrait-hero:hover {
+  border-color: var(--accent-hover);
+}
+.profile-photo-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px;
+}
+.profile-photo-thumb {
+  position: relative;
+  width: 84px;
+  height: 94px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.profile-photo-thumb > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.profile-photo-label {
+  position: absolute;
+  left: 7px;
+  bottom: 6px;
+  padding: 2px 5px;
+  background: rgba(var(--ink-rgb), 0.7);
+  border-radius: 4px;
+  color: var(--white);
+  font-size: 10px;
+}
+.profile-photo-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(225deg, rgba(var(--ink-rgb), 0.7), transparent);
+  color: var(--white);
+  cursor: pointer;
+}
+.profile-photo-remove:hover {
+  background: rgba(var(--ink-rgb), 0.65);
+}
+.profile-photo-add {
+  flex-shrink: 0;
+  width: 64px;
+  height: 94px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--focus);
+  cursor: pointer;
+}
+.profile-photo-add:hover {
+  background: var(--surface-hover);
+}
+.app-workspace .profile-fold {
+  border: 1px solid rgba(var(--paper-rgb), 0.06);
+}
+.app-workspace .profile-fold > summary {
+  font-size: 15px;
+  padding: 18px;
+}
+.app-workspace .profile-fold > summary:hover {
+  background: var(--surface-hover);
+}
+@keyframes outer-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (min-width: 600px) and (min-height: 700px) {
+  .app-workspace,
+  .discovery-page {
+    height: min(var(--app-height, 100dvh) - 40px, 940px);
+    margin-top: 20px;
+    border-radius: 28px;
+  }
+}
+@media (max-height: 650px) {
+  .welcome-scene-art {
+    height: 120px;
+  }
+  .welcome-scene-art-caption {
+    display: none;
+  }
+  .welcome-symbol {
+    margin-bottom: 8px;
+    width: 30px;
+    height: 30px;
+  }
+  .welcome-invitation h2 {
+    font-size: 24px;
+  }
+  .welcome-invitation p {
+    margin: 8px 0 14px;
+  }
+  .discovery-intro {
+    padding-bottom: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-scene {
+    animation: none;
+  }
+  .discovery-page .saved-life-card,
+  .welcome-prompts button {
+    transition: none;
+  }
+  .discovery-page .saved-life-card:hover:not(:disabled) {
+    transform: none;
+  }
 }

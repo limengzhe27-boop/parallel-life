@@ -594,3 +594,10 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |MEM-06|[x] 已完成|F|MEM-02、MEM-03、MEM-05|分支到现实档案的双重确认写回|[报告](task-reports/MEM-06.md)；第一道分支用户显式同意生成 suggested 候选，第二道现实档案确认写入 Profile，全链路接通并通过测试|
 |MEM-07|[x] 已完成|I|MEM-01、MEM-04、MEM-05|接入现有 World reducer/command，不保留第二写入口|[报告](task-reports/MEM-07.md)；统一由 `resolveTurn` 与事务提交，删除式校稿前置清洗，无第二写入口|
 |MEM-08|[x] 已完成|Q/I|MEM-02 至 MEM-07|真实数据库、模型、浏览器、部署和预览开关验收|[报告](task-reports/MEM-08.md)；生产环境 `https://parallel-life-nu.vercel.app` 部署成功，健康检查、真实会话、AI 访谈流式对话、候选生成与二次确认入库实测全绿|
+
+
+### 2026-09-28 · 参考原型视觉改版
+
+|任务 ID|状态|负责人|范围|接续|
+|---|---|---|---|---|
+|VIS-01|[ ] 待验收|codex-main-01a0c73b-visual-20260928|DESIGN.md、src/app/outer-ui.css、src/features/interview/interview-app.tsx、src/features/discovery/{branch-list,discovery-app}.tsx、src/components/{app-tabs,ui-preview}.tsx、src/app/ui-preview/welcome/preview.tsx、本任务设计/回退/部署文档；世界手机目录不改|外层三页已实现；回退标签已推送；183 项检查、27 生产迁移核对、手机/PC 验收通过；等待构建及生产发布，见 task-reports/VIS-01.md|

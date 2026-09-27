@@ -35,7 +35,12 @@ function renderMessageContent(text: string) {
     const remainingText = text.replace(/\[照片:[^\]]+\]\s*/, '').trim();
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <a href={imageUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block' }}>
+        <a
+          href={imageUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: 'inline-block' }}
+        >
           <img
             src={imageUrl}
             alt="分享的照片"
@@ -298,7 +303,9 @@ export function InterviewApp() {
 
       const userText = draft.trim();
       const photoTag = `[照片:/api/v1/assets/${asset.id}]`;
-      const fullText = userText ? `${photoTag}\n${userText}` : `${photoTag}\n我分享了一张生活照片。`;
+      const fullText = userText
+        ? `${photoTag}\n${userText}`
+        : `${photoTag}\n我分享了一张生活照片。`;
       setDraft('');
       await send(undefined, fullText);
     } catch (e) {
@@ -458,7 +465,7 @@ export function InterviewApp() {
                 maxLength={4000}
                 onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
-                placeholder="聊聊你的烦恼、遗憾、未竟的热爱，或是想推演的另一种人生…"
+                placeholder="说说你，或一个「如果」…"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -651,68 +658,46 @@ export function InterviewApp() {
   );
 }
 export function Welcome({ choose }: { choose: (text: string) => void }) {
+  const prompts = [
+    { label: '换一种职业', text: '如果我可以换一种职业，我想试试：', icon: 'spark' as const },
+    {
+      label: '去另一座城',
+      text: '如果我去了另一座城市，我想过这样的生活：',
+      icon: 'arrow' as const,
+    },
+    { label: '重选一次', text: '有一个当年的选择，我一直想重新试试：', icon: 'refresh' as const },
+  ];
   return (
-    <div className="message message-assistant first-greeting">
-      <div className="message-avatar">如</div>
-      <div>
-        <div className="message-text">
-          你想不想看一看，如果在人生的某个关键节点改变了走向，平行世界的你正在过着怎样鲜活的人生？
-          <br />
-          <br />
-          我是你的平行人生向导。你可以和我聊聊你心底未竟的热爱、曾经纠结的选择、或是当下想逃离的疲惫。我们可以一起把那个“如果”推演出来，为你构筑一个专属于你的全新平行世界，让你亲自推门走进去生活。
-          <br />
-          <br />
-          在这之前，你也可以先告诉我你的出生年份或具体生日，让我更敏锐地感知你的性格底色。
+    <div className="welcome-scene">
+      <div className="welcome-scene-art" aria-hidden="true">
+        <img src="/art/first-window.webp" alt="" />
+        <span className="welcome-scene-art-shade" />
+        <span className="welcome-scene-art-caption">生活，或许还有另一种可能。</span>
+      </div>
+      <div className="welcome-invitation">
+        <div className="welcome-symbol" aria-hidden="true">
+          <Icon name="spark" size={21} />
         </div>
-        <div
-          className="first-greeting-suggestions"
-          style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}
-        >
-          <button
-            type="button"
-            className="button secondary compact"
-            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
-            onClick={() => choose('如果当年我坚持了心底那份未竟的热爱：')}
-          >
-            ✨ 假如坚持了心底的热爱
+        <h2>
+          有没有一条路，
+          <br />
+          你一直想试试？
+        </h2>
+        <p>从最近的你聊起，也可以从一个「如果」开始。</p>
+      </div>
+      <div className="welcome-prompts" aria-label="选择一个话题，填入草稿">
+        {prompts.map((prompt) => (
+          <button type="button" key={prompt.label} onClick={() => choose(prompt.text)}>
+            <Icon name={prompt.icon} size={18} />
+            <span>{prompt.label}</span>
+            <Icon name="chevron" size={14} />
           </button>
-          <button
-            type="button"
-            className="button secondary compact"
-            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
-            onClick={() => choose('如果离开现在的城市，换一种完全不同的生活：')}
-          >
-            🌊 假如换座城市，换种生活
-          </button>
-          <button
-            type="button"
-            className="button secondary compact"
-            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
-            onClick={() => choose('如果当年我做出了另一个重大抉择：')}
-          >
-            🔀 假如重选当年那个关键决定
-          </button>
-          <button
-            type="button"
-            className="button secondary compact"
-            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
-            onClick={() => choose('最近让我最烦恼心累的一件事是：')}
-          >
-            💭 聊聊最近挥之不去的烦心事
-          </button>
-          <button
-            type="button"
-            className="button secondary compact"
-            style={{ fontSize: '13px', borderRadius: '16px', padding: '6px 12px' }}
-            onClick={() => choose('我是某年出生的，想先看看自己的性格基底：')}
-          >
-            🎂 告知出生年份，感受性格底色
-          </button>
-        </div>
+        ))}
       </div>
     </div>
   );
 }
+
 function Waiting({
   task,
   onCancel,
@@ -825,113 +810,50 @@ export function ProfilePane({
   return (
     <div className="profile-stack">
       {error && <Notice>{error}</Notice>}
-      <div
-        className="portrait-card"
-        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            className="portrait-upload"
-            onClick={onUpload}
-            disabled={uploading}
-            aria-label={profile.portraitAssetId ? '更换你的肖像照片' : '上传你的肖像照片'}
-            style={{ width: '56px', height: '56px', flexShrink: 0 }}
-          >
-            {profile.portraitAssetId ? (
-              <img src={`/api/v1/assets/${profile.portraitAssetId}`} alt="你上传的主肖像照片" />
-            ) : (
-              <Icon name="user" size={32} />
-            )}
-            <span className="photo-plus">
-              {uploading ? <span className="spinner" /> : <Icon name="plus" size={12} />}
+      <div className="portrait-card profile-identity">
+        <button
+          type="button"
+          className={`profile-portrait-hero${profile.portraitAssetId ? ' has-portrait' : ''}`}
+          onClick={onUpload}
+          disabled={uploading}
+          aria-label={profile.portraitAssetId ? '更换你的肖像照片' : '上传你的肖像照片'}
+        >
+          {profile.portraitAssetId ? (
+            <img src={`/api/v1/assets/${profile.portraitAssetId}`} alt="你上传的照片" />
+          ) : (
+            <span className="profile-portrait-empty">
+              <Icon name="photo" size={38} />
+              <span>让故事里，也有你的模样</span>
             </span>
-          </button>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '15px' }}>
-              {uploading
-                ? '正在保存底模照片…'
-                : profile.referenceAssetIds && profile.referenceAssetIds.length > 0
-                  ? `📸 肖像与生活照底模已就绪 (${profile.referenceAssetIds.length} 张)`
-                  : profile.portraitAssetId
-                    ? '✨ 肖像底模已就绪'
-                    : '📸 上传肖像底模（用于平行人生图生图）'}
-            </h3>
-            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', lineHeight: '1.4' }}>
-              {profile.referenceAssetIds && profile.referenceAssetIds.length > 0
-                ? '已绑定为您本人的面貌参考底模，开启平行分支时将图生图生成开篇角色写真并存入相册。'
-                : '上传真实照片后，选择平行分支（如独立电影导演、主理人）时将以您的面貌图生图生成角色写真存入相册。'}
-            </p>
-          </div>
-        </div>
-
-        {/* 多张参考底模图片平铺展示区 */}
-        {profile.referenceAssetIds && profile.referenceAssetIds.length > 0 && (
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 0 2px' }}>
+          )}
+          <span className="profile-portrait-shade" aria-hidden="true" />
+          <span className="profile-portrait-caption">
+            <span>
+              <small>现实中的你</small>
+              <strong>{name || '从你的人生开始'}</strong>
+            </span>
+            <span className="profile-photo-action">
+              {uploading ? <span className="spinner" /> : <Icon name="plus" size={17} />}
+              {uploading ? '保存中' : profile.portraitAssetId ? '更换' : '添加照片'}
+            </span>
+          </span>
+        </button>
+        {profile.referenceAssetIds.length > 0 && (
+          <div className="profile-photo-strip" aria-label="你的生活照片">
             {profile.referenceAssetIds.map((id, index) => (
-              <div
-                key={id}
-                style={{
-                  position: 'relative',
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  border:
-                    id === profile.portraitAssetId ? '2px solid #0284c7' : '1px solid #e2e8f0',
-                  flexShrink: 0,
-                  background: '#f8fafc',
-                }}
-              >
-                <img
-                  src={`/api/v1/assets/${id}`}
-                  alt={`参考底模照片 ${index + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+              <div key={id} className="profile-photo-thumb">
+                <img src={`/api/v1/assets/${id}`} alt={`生活照片 ${index + 1}`} loading="lazy" />
                 {id === profile.portraitAssetId && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      background: 'rgba(2, 132, 199, 0.85)',
-                      color: '#ffffff',
-                      fontSize: '9px',
-                      textAlign: 'center',
-                      lineHeight: '14px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    主肖像
-                  </span>
+                  <span className="profile-photo-label">肖像</span>
                 )}
                 {onDeletePhoto && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeletePhoto(id);
-                    }}
-                    title="移除这张底模照片"
-                    style={{
-                      position: 'absolute',
-                      top: '2px',
-                      right: '2px',
-                      width: '18px',
-                      height: '18px',
-                      borderRadius: '50%',
-                      background: 'rgba(0,0,0,0.6)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 0,
-                    }}
+                    className="profile-photo-remove"
+                    onClick={() => onDeletePhoto(id)}
+                    aria-label={`移除生活照片 ${index + 1}`}
                   >
-                    ✕
+                    <Icon name="close" size={14} />
                   </button>
                 )}
               </div>
@@ -939,27 +861,12 @@ export function ProfilePane({
             {profile.referenceAssetIds.length < 6 && (
               <button
                 type="button"
+                className="profile-photo-add"
                 onClick={onUpload}
                 disabled={uploading}
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '8px',
-                  border: '1px dashed #cbd5e1',
-                  background: '#f8fafc',
-                  color: '#64748b',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  flexShrink: 0,
-                  gap: '2px',
-                }}
+                aria-label="添加生活照片"
               >
-                <Icon name="plus" size={16} />
-                <span>添加</span>
+                <Icon name="plus" size={22} />
               </button>
             )}
           </div>
@@ -1029,32 +936,33 @@ export function ProfilePane({
                   if (!facts.length) return null;
                   return (
                     <div className="fact-group" key={category}>
-                    <h4>{categories[category]}</h4>
-                    {facts.map((fact) => (
-                      <div className="fact-row" key={fact.id}>
-                        <button className="fact-content" onClick={() => onEdit(category, fact)}>
-                          <span>{fact.value}</span>
-                          <small>
-                            {fact.status === 'suggested' ? '这像你吗？' : '已确认'}
-                            <Icon name="edit" size={12} />
-                          </small>
-                        </button>
-                        {fact.status === 'suggested' && (
-                          <Button
-                            variant="ghost"
-                            className="icon-button confirm-fact"
-                            aria-label={`确认：${fact.value}`}
-                            disabled={saving}
-                            onClick={() => onConfirm(fact.id)}
-                          >
-                            <Icon name="check" size={17} />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
+                      <h4>{categories[category]}</h4>
+                      {facts.map((fact) => (
+                        <div className="fact-row" key={fact.id}>
+                          <button className="fact-content" onClick={() => onEdit(category, fact)}>
+                            <span>{fact.value}</span>
+                            <small>
+                              {fact.status === 'suggested' ? '这像你吗？' : '已确认'}
+                              <Icon name="edit" size={12} />
+                            </small>
+                          </button>
+                          {fact.status === 'suggested' && (
+                            <Button
+                              variant="ghost"
+                              className="icon-button confirm-fact"
+                              aria-label={`确认：${fact.value}`}
+                              disabled={saving}
+                              onClick={() => onConfirm(fact.id)}
+                            >
+                              <Icon name="check" size={17} />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                },
+              )}
             </div>
           )}
         </div>

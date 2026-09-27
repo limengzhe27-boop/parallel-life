@@ -279,21 +279,35 @@ export function DiscoveryApp() {
           </div>
         ) : (
           <>
+            <div className="discovery-intro">
+              <h2>
+                换一条路，
+                <br />
+                还是你。
+              </h2>
+              <p>
+                {savedSeeds.length
+                  ? '选一段人生，继续上次的故事。'
+                  : '那些没走过的路，从一句「如果」开始。'}
+              </p>
+            </div>
             {savedSeeds.length === 0 && (
               <div className="branch-empty">
-                <Icon name="spark" size={32} />
-                <h2>还没有分支</h2>
-                <p>聊聊你想体验的另一种生活。</p>
+                <img src="/art/open-door.webp" alt="通向另一段生活的门，意境插画" />
+                <h2>第一段故事，等你开口</h2>
+                <p>告诉我，你想试试怎样的生活。</p>
                 <a className="button primary" href="/">
-                  去聊聊
+                  聊一个如果 <Icon name="arrow" size={18} />
                 </a>
               </div>
             )}
             {savedSeeds.length > 0 && (
               <BranchList
+                disabled={busy}
                 items={savedSeeds.map((saved) => ({
                   id: saved.id,
                   title: saved.story.title,
+                  description: saved.story.opening || saved.story.premise,
                   ready: Boolean(builds.find((b) => b.seedId === saved.id)?.ready),
                   status: builds.find((b) => b.seedId === saved.id)?.ready ? '进入体验' : '待创建',
                   imageUrl: saved.portraitAssetId
@@ -313,7 +327,7 @@ export function DiscoveryApp() {
               onToggle={(e) => setProposalOpen(e.currentTarget.open)}
             >
               <summary>
-                人生提案
+                还可以这样生活
                 <Icon name="chevron" size={16} />
               </summary>
               <details className="discovery-basis">
