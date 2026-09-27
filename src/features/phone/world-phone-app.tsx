@@ -524,8 +524,8 @@ export function WorldPhoneSurface({
         notifications={[
           ...mergedData.messages
             .filter((m) => m.role !== 'user' && !viewed.has(m.id))
-            .slice(-4)
-            .reverse()
+            .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+            .slice(0, 4)
             .map((m) => ({
               id: m.id,
               title: data.actors.find((a) => a.id === m.actorId)?.name ?? '微信消息',
