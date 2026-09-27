@@ -279,7 +279,7 @@ export function DiscoveryApp() {
           </div>
         ) : (
           <>
-            <div className="discovery-intro">
+            <div className="branch-introduction">
               <h2>
                 换一条路，
                 <br />

@@ -738,15 +738,15 @@ body:has(.discovery-page) {
 }
 
 /* Equal-weight, photographic chapter covers. */
-.discovery-intro {
+.branch-introduction {
   padding: 10px 2px 24px;
 }
-.discovery-intro h2 {
+.branch-introduction h2 {
   margin: 0;
   font: 500 29px/1.5 var(--font-title);
   letter-spacing: 0.02em;
 }
-.discovery-intro p {
+.branch-introduction p {
   margin: 10px 0 0;
   font-size: 14px;
   color: var(--text-secondary);
@@ -1097,7 +1097,7 @@ body:has(.discovery-page) {
   .welcome-invitation p {
     margin: 8px 0 14px;
   }
-  .discovery-intro {
+  .branch-introduction {
     padding-bottom: 18px;
   }
 }
