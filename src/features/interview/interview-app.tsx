@@ -472,7 +472,7 @@ export function InterviewApp() {
                 maxLength={4000}
                 onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
-                placeholder="说说你，或一个「如果」…"
+                placeholder="从一件你想聊的事开始…"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -666,13 +666,13 @@ export function InterviewApp() {
 }
 export function Welcome({ choose }: { choose: (text: string) => void }) {
   const prompts = [
-    { label: '换一种职业', text: '如果我可以换一种职业，我想试试：', icon: 'spark' as const },
+    { label: '最近有点烦恼', text: '最近有件让我烦恼的事：', icon: 'spark' as const },
     {
-      label: '去另一座城',
-      text: '如果我去了另一座城市，我想过这样的生活：',
+      label: '想重选一次',
+      text: '有一个当年的选择，我想看看另一种可能：',
       icon: 'arrow' as const,
     },
-    { label: '重选一次', text: '有一个当年的选择，我一直想重新试试：', icon: 'refresh' as const },
+    { label: '有种生活想试试', text: '有一种生活，我一直想试试：', icon: 'refresh' as const },
   ];
   return (
     <div className="welcome-scene">
@@ -686,11 +686,13 @@ export function Welcome({ choose }: { choose: (text: string) => void }) {
           <Icon name="spark" size={21} />
         </div>
         <h2>
-          有没有一条路，
+          想看看，
           <br />
-          你一直想试试？
+          另一种人生里的你？
         </h2>
-        <p>从最近的你聊起，也可以从一个「如果」开始。</p>
+        <p>
+          告诉我一件关于你的事。我们可以从中构思一段属于你的平行人生，看看换个选择，会展开怎样的故事。
+        </p>
       </div>
       <div className="welcome-prompts" aria-label="选择一个话题，填入草稿">
         {prompts.map((prompt) => (
