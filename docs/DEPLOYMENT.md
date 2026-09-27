@@ -1,3 +1,7 @@
+## 2026-09-28 · EXP-01 体验审查基线
+
+98c3a92仅文档部署，6tyvubijw / dpl_EuDsxoCsuJCVBtxbtvwjj5bJhcNg READY；生产应用代码仍等同c58ccb4。本轮交付独立体验审查、完整重构方案与任务拆分，没有声称UI/主动世界/真实生图已重构完成。生产27迁移一致。报告EXP-01/EXP-01B；下一步EXP-02/03。
+
 ## 2026-09-28 · NAR-01 已发布
 
 主角导向叙事、真实角色记忆入模、情境回应与开场改进、导演预览人物姓名。197项检查+25项真实数据库测试、build通过；27生产迁移一致，无新增迁移。应用 c58ccb4，部署 aw37f5abz / dpl_3YDTmkUMiCesXZvJ3hC3UVdM8YtW READY。https://parallel-life-nu.vercel.app health200，手机与PC导演预览验收通过；合成场景真实模型调用见 NAR-01 报告。长期剧情状态与跨应用后果尚未完成。

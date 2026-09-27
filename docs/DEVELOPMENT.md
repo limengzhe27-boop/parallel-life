@@ -619,9 +619,8 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 
 |任务 ID|状态|负责人|范围|验收/接续|
 |---|---|---|---|---|
-|EXP-01|[ ] 待验收|codex-main-experience-20260928|主目录；docs/EXPERIENCE_REBUILD.md、docs/task-reports/EXP-01.md、docs/DEVELOPMENT.md、docs/PROJECT_BRIEF.md、docs/INFORMATION_ARCHITECTURE.md、docs/DEPLOYMENT.md；线上只读体验与代码审查|与辅助独立审查交叉核验；给出体验链、资料归类、创建准备、主动世界与媒体联动设计、分批替换边界和验收。此阶段不改产品代码、不将候选互动当已批准功能|
-|EXP-01B|[ ] 待验收|辅助（01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b）|主目录；仅docs/task-reports/EXP-01B.md和本人状态行；生产只读浏览/代码审查，无业务代码/配置/部署修改|2026-09-28：[独立报告](task-reports/EXP-01B.md)含9项问题与验收；Ego 43公网聊聊/我的/分支/锁屏只读检查，390px/1440px，已关闭；代码与实测分开；未发送/建世界/跑数据库或模型，待主任务交叉复核|
-
+|EXP-01|[x] 已完成|codex-main-experience-20260928|主目录；docs/EXPERIENCE_REBUILD.md、docs/task-reports/EXP-01.md、docs/DEVELOPMENT.md、docs/PROJECT_BRIEF.md、docs/INFORMATION_ARCHITECTURE.md、docs/DEPLOYMENT.md；线上只读体验与代码审查|与辅助独立审查交叉核验；给出体验链、资料归类、创建准备、主动世界与媒体联动设计、分批替换边界和验收。98c3a92/6tyvubijw READY，仅文档；双审报告完成，不代表功能已重构|
+|EXP-01B|[x] 已完成|辅助（01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b）|主目录；仅docs/task-reports/EXP-01B.md和本人状态行；生产只读浏览/代码审查，无业务代码/配置/部署修改|2026-09-28：[独立报告](task-reports/EXP-01B.md)含9项问题与验收；Ego 43公网聊聊/我的/分支/锁屏只读检查，390px/1440px，已关闭；代码与实测分开；未发送/建世界/跑数据库或模型，主任务已交叉复核采纳，第二次方案挑战完成；仅审查交付|
 |EXP-02|[ ] 待开发|未领取|依赖EXP-01；媒体/朋友圈真实性、创建否定与日期误提、未看图描述及误导进度；具体文件领取时限定|发布阻断先清除；无真实结果不标成功，否定/引用不建世界，经历年份不覆盖生日|
 |EXP-03|[ ] 待开发|未领取|依赖EXP-01；资料读模型/人生草案/事件附件共享契约、旧数据映射和唯一写入口|完整来源与版本；统一入口映射、删除旧写路径、只读兼容；详见EXPERIENCE_REBUILD.md|
 |EXP-04|[ ] 待开发|未领取|依赖EXP-02/03；外层聊聊/我的/分支/创建整页替换，先交互稿和组件规范|不再用CSS叠加覆盖；所有创建入口同一草案版本，资料更新及时且可更正|
