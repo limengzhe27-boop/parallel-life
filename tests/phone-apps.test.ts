@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  dialogueText,
+  formatChatTime,
   monthDays,
   shiftMonth,
   rescheduleAt,
@@ -33,4 +35,18 @@ test('phone errors show actionable safe text without leaking upstream messages',
   assert.doesNotMatch(errorText(new Error('secret')), /secret/);
   assert.equal(searchable('  林  ', '林小满'), true);
   assert.equal(searchable('MAY', 'May'), true);
+});
+
+test('chat relative dates follow calendar days instead of a rolling 48-hour window', () => {
+  assert.equal(formatChatTime('2026-09-26T23:50:00Z', '2026-09-28T00:10:00Z'), '9月26日');
+  assert.equal(formatChatTime('2026-09-27T00:00:00Z', '2026-09-28T23:59:00Z'), '昨天 00:00');
+  assert.equal(formatChatTime('2026-09-28T09:00:00Z', '2026-09-28T09:10:00Z'), '10分钟前');
+  assert.equal(formatChatTime('2026-09-29T09:00:00Z', '2026-09-28T09:10:00Z'), '9月29日');
+});
+
+test('legacy structured NPC output is labelled invalid while user content remains intact', () => {
+  const raw = '{"schemaVersion":1,"effects":[]}';
+  assert.equal(dialogueText(raw, 'user'), raw);
+  assert.match(dialogueText(raw, 'assistant'), /格式异常/);
+  assert.equal(dialogueText('我们下午见。', 'assistant'), '我们下午见。');
 });

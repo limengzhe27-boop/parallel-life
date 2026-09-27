@@ -151,12 +151,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             <button
               className={s.noteAction}
               type="submit"
-              disabled={
-                !actions.saveNote ||
-                operation?.busy ||
-                awaiting ||
-                !!conflict
-              }
+              disabled={!actions.saveNote || operation?.busy || awaiting || !!conflict}
               style={{
                 background: '#fef3c7',
                 color: '#b45309',
@@ -217,7 +212,10 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             }}
             onClick={() => {
               playTapSound();
-              const nowStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+              const nowStr = new Date().toLocaleTimeString('zh-CN', {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
               const prefix = draft.text && !draft.text.endsWith('\n') ? '\n' : '';
               setNoteDraft(key, { ...draft, text: draft.text + prefix + `[${nowStr}] ` });
             }}
@@ -338,7 +336,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             onClose={() => setSharingNote(null)}
             onShare={(contactId) => {
               const text = `我刚在便签里记录了这段想法，你帮我看看：\n\n【${sharingNote.title || '便签'}】\n${sharingNote.text}`;
-              setDraft(contactId, text);
+              setDraft(`message:${contactId}`, text);
               setSharingNote(null);
               open('messages', contactId);
             }}
@@ -351,7 +349,10 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     .filter((n) => searchable(query, n.title, n.text))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
-    <div className={`${s.app} ${s.notes}`} style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8fafc' }}>
+    <div
+      className={`${s.app} ${s.notes}`}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8fafc' }}
+    >
       {/* 顶部 iOS 原生备忘录大标题栏 */}
       <div
         style={{
@@ -363,11 +364,9 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         }}
       >
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-            备忘录
-          </h2>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: '#0f172a' }}>备忘录</h2>
           <span style={{ fontSize: '12px', color: '#d97706', fontWeight: 500 }}>
-            全部 iCloud ({notes.length})
+            这段人生 · {notes.length} 篇
           </span>
         </div>
         <button
@@ -403,7 +402,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
       <div className={s.noteList} style={{ flex: 1, overflowY: 'auto' }}>
         {notes.map((n) => (
           <div key={n.id} style={{ position: 'relative' }}>
-            <button onClick={() => open('notes', n.id)}>
+            <button className={s.noteRow} onClick={() => open('notes', n.id)}>
               <strong>{noteDrafts[n.id]?.title ?? n.title}</strong>
               <p>{noteDrafts[n.id] ? '未保存的草稿' : n.text}</p>
               <time>{timeText(n.updatedAt)}</time>
@@ -468,7 +467,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           onClose={() => setSharingNote(null)}
           onShare={(contactId) => {
             const text = `我刚在便签里记录了这段想法，你帮我看看：\n\n【${sharingNote.title || '便签'}】\n${sharingNote.text}`;
-            setDraft(contactId, text);
+            setDraft(`message:${contactId}`, text);
             setSharingNote(null);
             open('messages', contactId);
           }}
@@ -488,9 +487,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         }}
       >
         <div style={{ width: '28px' }} />
-        <span style={{ fontSize: '12px', color: '#64748b' }}>
-          {notes.length} 篇备忘录
-        </span>
+        <span style={{ fontSize: '12px', color: '#64748b' }}>{notes.length} 篇备忘录</span>
         <button
           type="button"
           onClick={() => {
@@ -645,14 +642,10 @@ function ShareNoteModal({
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
                     {contact.name}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>
-                    {contact.relationship}
-                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>{contact.relationship}</div>
                 </div>
               </div>
-              <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>
-                发给TA →
-              </span>
+              <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>发给TA →</span>
             </button>
           ))}
         </div>
@@ -660,4 +653,3 @@ function ShareNoteModal({
     </div>
   );
 }
-

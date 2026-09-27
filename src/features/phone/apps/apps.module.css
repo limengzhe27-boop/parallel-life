@@ -452,7 +452,8 @@
   background: var(--app-paper);
   overflow: hidden;
 }
-.noteList > button {
+.noteList > button,
+.noteList .noteRow {
   display: block;
   width: 100%;
   text-align: left;
@@ -709,7 +710,7 @@
 }
 .surface:has([data-phone-thread]),
 .surface:has([data-phone-fixed-dock]),
-.surface:has([data-phone-app="messages"]),
+.surface:has([data-phone-app='messages']),
 .chat {
   min-height: 0;
   height: 100%;
@@ -731,4 +732,100 @@
   max-height: 140px;
   overflow: auto;
   flex-shrink: 0;
+}
+
+.noteList .noteRow {
+  width: 100%;
+  padding-right: 48px;
+  text-align: left;
+}
+.noteList .noteRow strong {
+  display: block;
+  color: #18181b;
+}
+.app input,
+.app textarea,
+.app select {
+  min-width: 0;
+  color: #171717;
+}
+.chat [data-chat-heading] {
+  min-width: 0;
+}
+.chat textarea {
+  width: 0;
+}
+.calendar .monthHeader h3 {
+  margin: 0;
+}
+
+.inviteOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 120;
+  background: #0006;
+  display: flex;
+  align-items: flex-end;
+}
+.inviteSheet {
+  width: 100%;
+  max-height: 92%;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 24px 24px 0 0;
+  background: white;
+  color: #171717;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.inviteSheet header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.inviteSheet h3 {
+  margin: 0;
+  font-size: 20px;
+}
+.inviteSheet header button {
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: #007aff;
+}
+.inviteSheet p {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+.inviteSheet label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  min-width: 0;
+}
+.inviteSheet input,
+.inviteSheet select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #d1d1d6;
+  border-radius: 10px;
+  background: #f8f8fa;
+  font: inherit;
+  font-size: 16px;
+}
+.inviteDate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .app input,
+  .app textarea,
+  .app select {
+    font-size: 16px !important;
+  }
 }

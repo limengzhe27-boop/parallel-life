@@ -204,7 +204,7 @@ function LifePhone({
             {n.timeLabel && <small style={{ opacity: 0.65 }}>{n.timeLabel}</small>}
           </span>
           <strong>{n.title}</strong>
-          <span>{n.summary}</span>
+          <span className={styles.notificationSummary}>{n.summary}</span>
         </span>
         <PhoneIcon name="next" />
       </button>
@@ -309,7 +309,9 @@ function LifePhone({
         <h2
           ref={heading}
           tabIndex={-1}
-          className={(isHome || (route.app === 'messages' && route.target)) ? styles.srOnly : styles.srOnly}
+          className={
+            isHome || (route.app === 'messages' && route.target) ? styles.srOnly : styles.srOnly
+          }
         >
           {label}
         </h2>
@@ -426,74 +428,7 @@ function LifePhone({
               </section>
             </div>
           </div>
-          {/* 锁屏底部 5 大快捷 Dock 图标（对齐 Screen 03） */}
-          <div className={styles.lockDock} aria-label="锁屏快捷入口">
-            <button
-              type="button"
-              className={styles.lockDockButton}
-              title="便签"
-              aria-label="打开便签"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocked(false);
-                open('notes');
-              }}
-            >
-              📝
-            </button>
-            <button
-              type="button"
-              className={styles.lockDockButton}
-              title="微信"
-              aria-label="打开微信"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocked(false);
-                open('messages');
-              }}
-            >
-              💬
-            </button>
-            <button
-              type="button"
-              className={styles.lockDockButton}
-              title="日历"
-              aria-label="打开日历"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocked(false);
-                open('calendar');
-              }}
-            >
-              🗓️
-            </button>
-            <button
-              type="button"
-              className={styles.lockDockButton}
-              title="相册"
-              aria-label="打开相册"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocked(false);
-                open('photos');
-              }}
-            >
-              🖼️
-            </button>
-            <button
-              type="button"
-              className={styles.lockDockButton}
-              title="通讯录与电话"
-              aria-label="通讯录与电话"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocked(false);
-                open('messages');
-              }}
-            >
-              📞
-            </button>
-          </div>
+
           <button
             ref={unlockButton}
             className={styles.unlock}

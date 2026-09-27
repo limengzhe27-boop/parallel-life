@@ -1,5 +1,6 @@
 import type { TextModel } from '../../ai/application/ports.ts';
 import type { ActorContext, TurnPlanner } from '../application/ports.ts';
+import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { detectCrisisIntent } from '../../ai/safety-guard.ts';
 
 const SYSTEM = `你是平行人生手机微信里的虚构角色。你正在微信上和主角（用户）进行一对一真实私聊。
@@ -37,21 +38,17 @@ const SYSTEM = `你是平行人生手机微信里的虚构角色。你正在微�
 }`;
 
 function parseJson(raw: string): unknown {
-  const value = raw
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/, '');
   try {
-    return JSON.parse(value);
+    return extractJsonObject(raw);
   } catch {
-    const match = value.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return JSON.parse(match[0]);
-      } catch {}
-    }
     return null;
   }
+}
+function structuredReply(text: string): boolean {
+  return (
+    /^\s*(?:```|[\[{])/.test(text) ||
+    /"(?:schemaVersion|effects|actorId|message\.received)"\s*:/.test(text)
+  );
 }
 
 /** Production adapter for the existing World command/reducer boundary. */
@@ -89,7 +86,9 @@ export class WorldTurnPlanner implements TurnPlanner {
             facts: context.facts,
           },
           actor: context.actor,
-          recentMessages: context.messages,
+          recentMessages: context.messages.filter(
+            (message) => message.role === 'user' || !structuredReply(message.text),
+          ),
           appointments: context.appointments,
           userText,
         }),
@@ -110,12 +109,23 @@ export class WorldTurnPlanner implements TurnPlanner {
     if (parsed && Array.isArray(parsed.effects) && parsed.effects.length > 0) {
       for (const effect of parsed.effects) {
         if (effect.type === 'message.received') {
+          if (
+            typeof effect.text !== 'string' ||
+            !effect.text.trim() ||
+            structuredReply(effect.text)
+          ) {
+            throw new Error('MODEL_OUTPUT_NOT_DIALOGUE');
+          }
           // 强制将 actorId 归一化为当前发言角色的真实 ID，彻底避免模型输出中文或错配导致校验中断
           effect.actorId = targetActorId;
           if (!effect.id) effect.id = `reply_${Date.now()}`;
         }
       }
       return parsed;
+    }
+
+    if (!raw.trim() || structuredReply(raw) || parsed !== null) {
+      throw new Error('MODEL_OUTPUT_NOT_DIALOGUE');
     }
 
     // 容错回退：若模型偶尔未遵循严格 JSON 格式而直接输出自然对话文本，自动包装为合法的 message.received
@@ -130,10 +140,9 @@ export class WorldTurnPlanner implements TurnPlanner {
           type: 'message.received',
           id: `reply_${Date.now()}`,
           actorId: targetActorId,
-          text: cleanText || `${context.actor.name}收到了你的消息，正准备进一步跟你商量。`,
+          text: cleanText,
         },
       ],
     };
   }
 }
-

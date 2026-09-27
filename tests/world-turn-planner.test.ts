@@ -66,7 +66,10 @@ test('WorldTurnPlanner gracefully wraps plain natural text into valid message.re
 
   assert.equal(result.effects[0]?.type, 'message.received');
   assert.equal(result.effects[0]?.actorId, 'actor-director-partner');
-  assert.equal(result.effects[0]?.text, '没问题！今天现场光线很好，我先去安排摄影组走位，随时联系。');
+  assert.equal(
+    result.effects[0]?.text,
+    '没问题！今天现场光线很好，我先去安排摄影组走位，随时联系。',
+  );
 });
 
 test('WorldTurnPlanner intercepts crisis intent with compassionate hotline response', async () => {
@@ -84,4 +87,32 @@ test('WorldTurnPlanner intercepts crisis intent with compassionate hotline respo
   assert.equal(result.effects[0]?.type, 'message.received');
   assert.equal(result.effects[0]?.actorId, 'actor-director-partner');
   assert.ok(result.effects[0]?.text.includes('400-161-9995'));
+});
+
+test('malformed structured replies and empty output never become NPC dialogue', async () => {
+  for (const raw of [
+    '',
+    '{"schemaVersion":1,"effects":[{"text":"未转义的"引号""}]}',
+    '{"schemaVersion":1,"effects":[]}',
+    JSON.stringify({
+      schemaVersion: 1,
+      effects: [{ type: 'message.received', text: '{"effects": []}' }],
+    }),
+  ]) {
+    const planner = new WorldTurnPlanner({ complete: async () => raw });
+    await assert.rejects(
+      planner.propose({ context: mockContext, userText: '继续聊聊' }),
+      /MODEL_OUTPUT_NOT_DIALOGUE/,
+    );
+  }
+});
+test('fenced valid JSON and trailing commas still yield genuine dialogue', async () => {
+  const planner = new WorldTurnPlanner({
+    complete: async () =>
+      '```json\n{"schemaVersion":1,"effects":[{"type":"message.received","text":"下午见。",}],}\n```',
+  });
+  const result = (await planner.propose({ context: mockContext, userText: '下午见' })) as {
+    effects: { text: string }[];
+  };
+  assert.equal(result.effects[0]?.text, '下午见。');
 });

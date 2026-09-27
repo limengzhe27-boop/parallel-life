@@ -45,8 +45,10 @@ export function formatChatTime(iso: string, referenceTime?: string): string {
     if (diffMins > 2 && diffMins < 60) return `${diffMins}分钟前`;
     return timePart;
   }
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  if (diffMs > 0 && diffMs < 2 * oneDayMs) {
+  const calendarDayDelta =
+    (Date.parse(dayKey(referenceTime) + 'T00:00:00Z') - Date.parse(dayKey(iso) + 'T00:00:00Z')) /
+    86400000;
+  if (calendarDayDelta === 1) {
     return `昨天 ${timePart}`;
   }
   return `${Number(iso.slice(5, 7))}月${Number(iso.slice(8, 10))}日`;
@@ -71,4 +73,12 @@ export function errorText(error: unknown): string {
 export function searchable(query: string, ...values: string[]) {
   const q = query.trim().toLocaleLowerCase();
   return !q || values.some((v) => v.toLocaleLowerCase().includes(q));
+}
+
+/** Do not expose legacy model envelopes as a character's words. User text is unchanged. */
+export function dialogueText(text: string, role?: string): string {
+  if (role !== 'user' && /"(?:schemaVersion|effects)"\s*:/.test(text)) {
+    return '这条历史回复格式异常，请重新询问。';
+  }
+  return text;
 }

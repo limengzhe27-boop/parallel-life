@@ -13,7 +13,9 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // 今天基准日期（如果 data.referenceTime 存在使用它，否则使用第一条约定或当前系统时间）
-  const todayKey = dayKey(data.referenceTime ?? data.invitations[0]?.at ?? new Date().toISOString());
+  const todayKey = dayKey(
+    data.referenceTime ?? data.invitations[0]?.at ?? new Date().toISOString(),
+  );
   const initial = todayKey;
   const selected = drafts['calendar:day'] ?? initial;
   const month = drafts['calendar:month'] ?? selected.slice(0, 7);
@@ -47,15 +49,15 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
           minHeight: '44px',
         }}
       >
-        <span style={{ fontSize: '16px', fontWeight: 700, color: '#ef4444' }}>
-          {month.replace('-', '年')}月
-        </span>
+        <span style={{ fontSize: '16px', fontWeight: 700, color: '#ef4444' }}>日历</span>
         <div className={s.segment} role="group" aria-label="日历视图" style={{ margin: 0 }}>
           <button
             aria-pressed={tab === 'today'}
             onClick={() => {
               playTapSound();
               setTab('today');
+              setDraft('calendar:day', todayKey);
+              setDraft('calendar:month', todayKey.slice(0, 7));
             }}
           >
             今天
@@ -80,7 +82,7 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
           </button>
         </div>
 
-        {actions.createInvitation && (
+        {actions.sendMessage && data.contacts.length > 0 && (
           <button
             type="button"
             style={{
@@ -109,14 +111,22 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
           <div className={s.monthHeader}>
             <button
               aria-label="上个月"
-              onClick={() => setDraft('calendar:month', shiftMonth(month, -1))}
+              onClick={() => {
+                const next = shiftMonth(month, -1);
+                setDraft('calendar:month', next);
+                setDraft('calendar:day', next + '-01');
+              }}
             >
               ‹
             </button>
             <h3>{month.replace('-', ' 年 ')} 月</h3>
             <button
               aria-label="下个月"
-              onClick={() => setDraft('calendar:month', shiftMonth(month, 1))}
+              onClick={() => {
+                const next = shiftMonth(month, 1);
+                setDraft('calendar:month', next);
+                setDraft('calendar:day', next + '-01');
+              }}
             >
               ›
             </button>
@@ -171,7 +181,9 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
                   margin: '6px 0',
                 }}
               >
-                <time>{n.at.slice(5, 10)} {n.at.slice(11, 16)}</time>
+                <time>
+                  {n.at.slice(5, 10)} {n.at.slice(11, 16)}
+                </time>
                 <span>
                   <strong style={{ fontSize: '14px', color: '#0f172a' }}>{n.title}</strong>
                   <small className={s.proposed}>待回复 · 点击接受或改期</small>
@@ -180,7 +192,14 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
               </button>
             ))}
             {!pendingInvitations.length && (
-              <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b', fontSize: '13px' }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '32px 16px',
+                  color: '#64748b',
+                  fontSize: '13px',
+                }}
+              >
                 🎉 目前没有待处理的邀请
               </div>
             )}
@@ -214,15 +233,36 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
                     {statusLabel[n.status]}
                   </small>
                 </span>
-                <span aria-hidden style={{ color: '#94a3b8' }}>›</span>
+                <span aria-hidden style={{ color: '#94a3b8' }}>
+                  ›
+                </span>
               </button>
             ))}
           </div>
           {!dayInvitations.length && (
-            <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', margin: '12px 14px' }}>
-              <h4 style={{ margin: '0 0 6px 0', fontSize: '14px', color: '#0f172a', fontWeight: 600 }}>📅 这天尚无固定日程</h4>
-              <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
-                你可以点击右上角「+ 发起邀约」添加计划，或发微信和身边的人约定碰面：
+            <div
+              style={{
+                padding: '16px',
+                background: '#f8fafc',
+                borderRadius: '12px',
+                border: '1px solid #e2e8f0',
+                margin: '12px 14px',
+              }}
+            >
+              <h4
+                style={{ margin: '0 0 6px 0', fontSize: '14px', color: '#0f172a', fontWeight: 600 }}
+              >
+                📅 这天尚无固定日程
+              </h4>
+              <p
+                style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '12px',
+                  color: '#64748b',
+                  lineHeight: 1.5,
+                }}
+              >
+                和身边的人聊聊，约定下一次见面。
               </p>
               {data.contacts.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -246,9 +286,18 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
                       onClick={() => open('messages', contact.id)}
                     >
                       <span style={{ fontSize: '13px', color: '#1e293b' }}>
-                        💬 与 <strong style={{ color: '#0f172a' }}>{contact.name}</strong>（{contact.relationship}）约时间
+                        💬 与 <strong style={{ color: '#0f172a' }}>{contact.name}</strong>约时间
                       </span>
-                      <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 500, flexShrink: 0 }}>发微信 →</span>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          color: '#2563eb',
+                          fontWeight: 500,
+                          flexShrink: 0,
+                        }}
+                      >
+                        发微信 →
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -263,13 +312,16 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
           defaultDate={activeDate}
           contacts={data.contacts}
           onClose={() => setShowCreateModal(false)}
-          onCreate={async (inv) => {
-            if (actions.createInvitation) {
-              await actions.createInvitation(inv);
-              setShowCreateModal(false);
-              setDraft('calendar:day', dayKey(inv.at));
-              setTab('calendar');
-            }
+          referenceTime={data.referenceTime}
+          onCreate={(inv) => {
+            const actorId = inv.participantIds[0];
+            if (!actorId) return;
+            setDraft(
+              `message:${actorId}`,
+              `想约你${timeText(inv.at)}一起${inv.title}，你有空吗？${inv.notes ? ` ${inv.notes}` : ''}`,
+            );
+            setShowCreateModal(false);
+            open('messages', actorId);
           }}
         />
       )}
@@ -286,9 +338,7 @@ function InvitationDetail({
   const { data, actions, drafts, setDraft, operations, run } = usePhoneApps();
   const [edit, setEdit] = useState(false),
     [confirmCancel, setConfirmCancel] = useState(false),
-    [invalid, setInvalid] = useState(false),
-    [showScene, setShowScene] = useState(false),
-    [sceneStep, setSceneStep] = useState(0);
+    [invalid, setInvalid] = useState(false);
   const [actionVersion, setActionVersion] = useState(n.version);
   const key = `invitation:${n.id}`,
     operation = operations[key];
@@ -296,8 +346,7 @@ function InvitationDetail({
     operation?.status === 'accepted' && operation.signature?.startsWith(`${n.version}:`);
   const disabled = !actions.changeInvitation || operation?.busy || changedAfterAccept;
   const date = drafts[`date:${n.id}`] ?? n.at.slice(0, 16);
-  const leadActor =
-    data.contacts.find((c) => n.participantIds.includes(c.id)) ?? data.contacts[0];
+  const leadActor = data.contacts.find((c) => n.participantIds.includes(c.id));
   async function change(kind: 'accept' | 'reschedule' | 'cancel', submittedDate?: string) {
     const at = kind === 'reschedule' ? rescheduleAt(submittedDate ?? date, n.at) : undefined;
     if (kind === 'reschedule' && !at) {
@@ -376,20 +425,9 @@ function InvitationDetail({
       <Links links={n.links} open={open} />
       {n.status !== 'cancelled' && (
         <div className={s.invitationActions}>
-          {n.status === 'confirmed' && (
-            <button
-              className={s.primary}
-              type="button"
-              style={{
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
-                padding: '12px',
-                fontSize: '14px',
-                fontWeight: 600,
-              }}
-              onClick={() => setShowScene(true)}
-            >
-              ✨ 前往赴约 · 经历这一刻
+          {n.status === 'confirmed' && leadActor && (
+            <button className={s.primary} onClick={() => open('messages', leadActor.id)}>
+              和{leadActor.name}聊聊这次约定
             </button>
           )}
           {n.status === 'proposed' && (
@@ -467,364 +505,118 @@ function InvitationDetail({
       {!actions.changeInvitation && n.status !== 'cancelled' && (
         <p className={s.info}>日程操作尚未接入，当前可以查看邀约。</p>
       )}
-
-      {showScene && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            zIndex: 100,
-          }}
-        >
-          <div
-            style={{
-              background: '#0f172a',
-              color: '#f8fafc',
-              borderTopLeftRadius: '24px',
-              borderTopRightRadius: '24px',
-              padding: '24px 20px',
-              boxShadow: '0 -8px 32px rgba(0,0,0,0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              maxHeight: '90%',
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span
-                style={{
-                  fontSize: '12px',
-                  letterSpacing: '1px',
-                  color: '#94a3b8',
-                  textTransform: 'uppercase',
-                }}
-              >
-                赴约 · 经历片段
-              </span>
-              <button
-                type="button"
-                style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '28px',
-                  height: '28px',
-                  color: '#cbd5e1',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  setShowScene(false);
-                  setSceneStep(0);
-                }}
-                aria-label="退出剧情"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {[0, 1, 2].map((step) => (
-                <div
-                  key={step}
-                  style={{
-                    flex: 1,
-                    height: '4px',
-                    borderRadius: '2px',
-                    background: step <= sceneStep ? '#38bdf8' : 'rgba(255,255,255,0.15)',
-                    transition: 'background 0.3s ease',
-                  }}
-                />
-              ))}
-            </div>
-
-            <div style={{ margin: '8px 0 4px' }}>
-              <div style={{ fontSize: '13px', color: '#38bdf8', fontWeight: 500, marginBottom: '6px' }}>
-                {sceneStep === 0
-                  ? `${n.at.slice(11, 16)} · 碰面时刻`
-                  : sceneStep === 1
-                    ? '夜色渐深'
-                    : '定格回忆'}
-              </div>
-              <h3 style={{ margin: '0 0 10px', fontSize: '18px', fontWeight: 600, color: '#ffffff' }}>
-                {n.title}
-              </h3>
-              <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.7, color: '#e2e8f0' }}>
-                {sceneStep === 0
-                  ? `你到达了约好的地点。远处的灯火明亮，夜风吹拂。${leadActor?.name ?? '对方'}早已在桌边等候，看见你走过来，眼中浮现出笑意：“总算来了，这次可算把手机收起来了。”`
-                  : sceneStep === 1
-                    ? `你们坐在一起聊起最近的日常。平时紧绷的思绪在这段时光里慢慢放松下来，杯盏交错间，周围喧嚣的声音渐渐隐去，只剩下眼前的对视与浅笑。`
-                    : `在离开之前，${leadActor?.name ?? '对方'}拿出手机定格了这一刻的画面：“这张合照归我了，你不许删掉。下一次，换你主动约我。”`}
-              </p>
-            </div>
-
-            <div style={{ marginTop: '8px' }}>
-              {sceneStep < 2 ? (
-                <button
-                  type="button"
-                  style={{
-                    width: '100%',
-                    padding: '13px',
-                    borderRadius: '12px',
-                    background: '#38bdf8',
-                    color: '#0f172a',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '15px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => setSceneStep((s) => s + 1)}
-                >
-                  继续这一刻 →
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  style={{
-                    width: '100%',
-                    padding: '13px',
-                    borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '15px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    setShowScene(false);
-                    setSceneStep(0);
-                    open('photos');
-                  }}
-                >
-                  ✨ 收好这段回忆，存入相册
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 function NewInvitationModal({
   defaultDate,
+  referenceTime,
   contacts,
   onClose,
   onCreate,
 }: {
   defaultDate: string;
+  referenceTime?: string;
   contacts: readonly import('./types.ts').PhoneContact[];
   onClose: () => void;
-  onCreate: (invitation: {
+  onCreate: (input: {
     title: string;
     at: string;
     participantIds: string[];
     notes?: string;
-  }) => Promise<void>;
+  }) => void;
 }) {
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(defaultDate || new Date().toISOString().slice(0, 10));
-  const [time, setTime] = useState('20:30');
+  const [date, setDate] = useState(defaultDate);
+  const [time, setTime] = useState('18:00');
   const [actorId, setActorId] = useState(contacts[0]?.id ?? '');
   const [notes, setNotes] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const selectedActor = contacts.find((c) => c.id === actorId) ?? contacts[0];
-
+  const [error, setError] = useState('');
   return (
     <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'rgba(15, 23, 42, 0.6)',
-        backdropFilter: 'blur(4px)',
-        zIndex: 120,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-      }}
+      className={s.inviteOverlay}
       onClick={onClose}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
     >
-      <div
-        style={{
-          background: '#ffffff',
-          borderTopLeftRadius: '20px',
-          borderTopRightRadius: '20px',
-          padding: '20px',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-          maxHeight: '85%',
-          overflowY: 'auto',
+      <form
+        className={s.inviteSheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label="发起邀约"
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault();
+          const at = rescheduleAt(`${date}T${time}`, referenceTime ?? 'Z');
+          if (!at || !actorId || !title.trim()) {
+            setError('请填写约定内容、对象和有效时间。');
+            return;
+          }
+          onCreate({
+            title: title.trim(),
+            at,
+            participantIds: [actorId],
+            notes: notes.trim() || undefined,
+          });
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 600, color: '#0f172a' }}>
-            📅 发起新日程约定
-          </h3>
-          <button
-            onClick={onClose}
-            style={{
-              background: '#f1f5f9',
-              border: 'none',
-              borderRadius: '50%',
-              width: '28px',
-              height: '28px',
-              cursor: 'pointer',
-              color: '#64748b',
-            }}
-          >
-            ✕
+        <header>
+          <h3>发起邀约</h3>
+          <button type="button" onClick={onClose} aria-label="关闭邀约">
+            取消
           </button>
-        </div>
-
-        <div>
-          <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
-            日程名称
-          </label>
+        </header>
+        <p>先发给对方聊聊，日程以实际确认的结果为准。</p>
+        <label>
+          约定内容
           <input
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-              boxSizing: 'border-box',
-            }}
-            placeholder={selectedActor ? `和${selectedActor.name}的露台晚餐` : '项目讨论会'}
+            autoFocus
+            required
+            maxLength={200}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            placeholder="一起吃饭、讨论作品…"
           />
-        </div>
-
-        {contacts.length > 0 && (
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
-              约定对象（会同步微信邀约）
-            </label>
-            <select
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                border: '1px solid #cbd5e1',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-                background: '#ffffff',
-              }}
-              value={actorId}
-              onChange={(e) => setActorId(e.target.value)}
-            >
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.relationship})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
-              日期
-            </label>
-            <input
-              type="date"
-              style={{
-                width: '100%',
-                padding: '9px 10px',
-                borderRadius: '10px',
-                border: '1px solid #cbd5e1',
-                fontSize: '13px',
-                boxSizing: 'border-box',
-              }}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
-              时间
-            </label>
-            <input
-              type="time"
-              style={{
-                width: '100%',
-                padding: '9px 10px',
-                borderRadius: '10px',
-                border: '1px solid #cbd5e1',
-                fontSize: '13px',
-                boxSizing: 'border-box',
-              }}
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize: '13px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
-            备注前瞻（选填）
+        </label>
+        <label>
+          邀请谁
+          <select value={actorId} onChange={(e) => setActorId(e.target.value)}>
+            {contacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className={s.inviteDate}>
+          <label>
+            日期
+            <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
+          <label>
+            时间
+            <input required type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </label>
+        </div>
+        <label>
+          补充一句
           <input
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-              boxSizing: 'border-box',
-            }}
-            placeholder="她说：这次不准聊工作。"
+            maxLength={500}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            placeholder="选填"
           />
-        </div>
-
-        <button
-          type="button"
-          disabled={busy}
-          style={{
-            marginTop: '6px',
-            padding: '12px',
-            borderRadius: '12px',
-            background: '#0284c7',
-            color: '#ffffff',
-            border: 'none',
-            fontWeight: 600,
-            fontSize: '15px',
-            cursor: 'pointer',
-          }}
-          onClick={async () => {
-            const resolvedTitle =
-              title.trim() ||
-              (selectedActor ? `和${selectedActor.name}的约定` : '新日程');
-            setBusy(true);
-            try {
-              await onCreate({
-                title: resolvedTitle,
-                at: `${date}T${time}:00Z`,
-                participantIds: actorId ? [actorId] : [],
-                notes: notes.trim() || undefined,
-              });
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {busy ? '正在发起…' : '确认发起邀约'}
+        </label>
+        {error && <p role="alert">{error}</p>}
+        <button className={s.primary} type="submit">
+          去聊天发送邀约
         </button>
-      </div>
+      </form>
     </div>
   );
 }

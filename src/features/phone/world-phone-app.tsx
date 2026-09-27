@@ -8,15 +8,9 @@ import type { WorldPhone } from '../../contracts/world-build.ts';
 import { PhoneShell } from './phone-shell.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { Avatar } from './apps/common.tsx';
-import type {
-  PhoneActions,
-  PhoneActionReceipt,
-  PhoneAppsData,
-  PhoneNote,
-  PhoneInvitation,
-} from './apps/types.ts';
+import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
-import { formatChatTime } from './apps/helpers.ts';
+import { dialogueText, formatChatTime } from './apps/helpers.ts';
 import type { PhoneMessage } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { playTapSound } from './audio-feedback.ts';
@@ -65,7 +59,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       actorId,
       role: 'user',
       text,
-      at: new Date().toISOString(),
+      at: data?.time ?? new Date().toISOString(),
       status: 'pending',
     };
     setLocalMessages((current) => [
@@ -338,31 +332,21 @@ export function WorldPhoneSurface({
     } catch {}
   };
 
-  // 动态时钟：进入手机后，每秒自动流转，模拟真实运作的手机时间
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsedSeconds((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const currentClock = useMemo(() => {
-    const baseMs = Date.parse(data.time);
-    const validBase = isNaN(baseMs) ? Date.now() : baseMs;
-    return new Date(validBase + elapsedSeconds * 1000);
-  }, [data.time, elapsedSeconds]);
+  // The phone displays the persisted story time; browser uptime must not advance the world.
+  const currentClock = useMemo(() => new Date(data.time), [data.time]);
 
   const currentReferenceTime = currentClock.toISOString();
   const timeLabel = currentClock.toLocaleTimeString('zh-CN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: 'UTC',
   });
   const dateLabel = currentClock.toLocaleDateString('zh-CN', {
     month: 'long',
     day: 'numeric',
     weekday: 'long',
+    timeZone: 'UTC',
   });
 
   // 便签本地持久化存储，初始值安全优先读取 localStorage
@@ -466,50 +450,6 @@ export function WorldPhoneSurface({
     [data.id],
   );
 
-  // 用户主动创建的日程邀约
-  const [customInvitations, setCustomInvitations] = useState<readonly PhoneInvitation[]>(() => {
-    try {
-      const storageKey = `pl_invitations:${data.id}`;
-      const saved = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return [];
-  });
-
-  const handleCreateInvitation: NonNullable<PhoneActions['createInvitation']> = useCallback(
-    async (input) => {
-      const newInv: PhoneInvitation = {
-        id: `inv-custom-${Date.now()}`,
-        title: input.title,
-        at: input.at,
-        participantIds: input.participantIds,
-        status: 'proposed',
-        version: 1,
-      };
-      setCustomInvitations((current) => {
-        const next = [newInv, ...current];
-        try {
-          localStorage.setItem(`pl_invitations:${data.id}`, JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-
-      if (input.participantIds[0] && onSendMessage) {
-        const actorId = input.participantIds[0];
-        const timePart = input.at.slice(5, 10).replace('-', '月') + '日 ' + input.at.slice(11, 16);
-        const text = `我发起了日程约定【${input.title}】，时间定在 ${timePart}${input.notes ? `，备注：${input.notes}` : ''}，到时候见！`;
-        try {
-          await onSendMessage(actorId, text, `cmd-inv-msg-${Date.now()}`);
-        } catch {}
-      }
-      return { status: 'committed' };
-    },
-    [data.id, onSendMessage],
-  );
-
   // 清除旧版本在客户端缓存中的伪造主动消息（防止历史遗留的假消息污染最新消息列表）
   useEffect(() => {
     try {
@@ -529,54 +469,14 @@ export function WorldPhoneSurface({
 
   const [callingActor, setCallingActor] = useState<WorldPhone['actors'][number] | null>(null);
 
-  // 错峰历史消息：确保进入手机时，角色消息不是挤在“进入的那一刻”，而是自然错峰在之前的时间发来的
-  const staggeredBaseMessages = useMemo(() => {
-    const msgs = data.messages ?? [];
-    if (!msgs.length) return msgs;
-
-    const timestamps = msgs.map((m) => Date.parse(m.at)).filter((t) => !isNaN(t));
-    const minT = Math.min(...timestamps);
-    const maxT = Math.max(...timestamps);
-    const isClustered = maxT - minT < 180000;
-
-    if (!isClustered) return msgs;
-
-    const actorOffsets: Record<string, number> = {};
-    const baseClockMs = Date.parse(data.time) || Date.now();
-    const actorStaggerDeltas = [
-      4 * 60 * 1000,
-      23 * 60 * 1000,
-      78 * 60 * 1000,
-      210 * 60 * 1000,
-      14 * 60 * 60 * 1000,
-    ];
-
-    let actorIdx = 0;
-    for (const actor of data.actors) {
-      actorOffsets[actor.id] = actorStaggerDeltas[actorIdx % actorStaggerDeltas.length]!;
-      actorIdx++;
-    }
-
-    return msgs.map((m) => {
-      if (m.role === 'user') return m;
-      const offset = actorOffsets[m.actorId] ?? 15 * 60 * 1000;
-      const staggeredMs = baseClockMs - offset;
-      return {
-        ...m,
-        at: new Date(staggeredMs).toISOString(),
-      };
-    });
-  }, [data.messages, data.actors, data.time]);
-
-  const mergedData: WorldPhone = useMemo(() => {
-    const allMsgs = staggeredBaseMessages;
-    const combinedInvitations = [...(data.invitations ?? []), ...customInvitations];
-    return {
+  // Display only persisted world messages and invitations, without fabricating timestamps.
+  const mergedData = useMemo(
+    () => ({
       ...data,
-      messages: allMsgs,
-      invitations: combinedInvitations,
-    };
-  }, [data, staggeredBaseMessages, customInvitations]);
+      messages: data.messages.map((m) => ({ ...m, text: dialogueText(m.text, m.role) })),
+    }),
+    [data],
+  );
 
   const basePhoneData = worldAppData(mergedData, viewed, localMessages);
   const phoneData: PhoneAppsData = useMemo(
@@ -597,7 +497,6 @@ export function WorldPhoneSurface({
       onReload={onReload}
       actions={{
         changeInvitation: preview ? undefined : onChangeInvitation,
-        createInvitation: handleCreateInvitation,
         sendMessage: preview ? undefined : onSendMessage,
         retryMessage: preview ? undefined : onRetryMessage,
         uploadPhoto: preview ? undefined : onUploadPhoto,
@@ -624,8 +523,9 @@ export function WorldPhoneSurface({
         notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
         notifications={[
           ...mergedData.messages
-            .filter((m) => m.role !== 'user')
+            .filter((m) => m.role !== 'user' && !viewed.has(m.id))
             .slice(-4)
+            .reverse()
             .map((m) => ({
               id: m.id,
               title: data.actors.find((a) => a.id === m.actorId)?.name ?? '微信消息',
@@ -635,545 +535,39 @@ export function WorldPhoneSurface({
               timeLabel: formatChatTime(m.at, currentReferenceTime),
             })),
           ...(data.invitations && data.invitations.length > 0
-            ? data.invitations.slice(0, 1).map((inv) => ({
-                id: `notif-inv-${inv.id}`,
-                title: inv.title,
-                summary: `${inv.at.slice(0, 10)} ${inv.at.slice(11, 16)} · ${inv.status === 'confirmed' ? '已约好' : '邀请 · 待回复'}`,
-                app: 'calendar' as const,
-                target: inv.id,
-                timeLabel: inv.status === 'confirmed' ? '已约好' : '待回复',
-              }))
+            ? data.invitations
+                .filter((inv) => inv.status === 'proposed')
+                .slice(0, 1)
+                .map((inv) => ({
+                  id: `notif-inv-${inv.id}`,
+                  title: inv.title,
+                  summary: `${inv.at.slice(0, 10)} ${inv.at.slice(11, 16)} · ${inv.status === 'confirmed' ? '已约好' : '邀请 · 待回复'}`,
+                  app: 'calendar' as const,
+                  target: inv.id,
+                  timeLabel: inv.status === 'confirmed' ? '已约好' : '待回复',
+                }))
             : /* 没有真实约定就不伪造日历通知 */
               []),
-          ...(notes.length > 0
-            ? [
-                {
-                  id: `notif-note-${notes[0]?.id}`,
-                  title: '便签提醒',
-                  summary: `备忘：“${notes[0]?.title}”`,
-                  app: 'notes' as const,
-                  target: notes[0]?.id,
-                  timeLabel: '备忘',
-                },
-              ]
-            : []),
         ]}
-        renderHome={({ open, openPanel }) => {
-          const unreadCount = data.actors.reduce(
-            (acc, actor) =>
-              acc +
-              mergedData.messages.filter(
-                (m) => m.actorId === actor.id && m.role !== 'user' && !viewed.has(m.id),
-              ).length,
-            0,
-          );
-          const recentMessage = [...mergedData.messages].reverse().find((m) => m.role !== 'user');
-          const recentActor = recentMessage
-            ? data.actors.find((a) => a.id === recentMessage.actorId)
-            : data.actors[0];
-
-          return (
-            <div
-              style={{
-                height: '100%',
-                maxHeight: '100%',
-                padding: '8px 14px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                boxSizing: 'border-box',
-                overflow: 'hidden',
-                gap: '8px',
-              }}
-            >
-              {/* 顶部极简状态快捷条 */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 10px',
-                    borderRadius: '16px',
-                    background: 'rgba(0, 0, 0, 0.35)',
-                    backdropFilter: 'blur(10px)',
-                    color: '#fff',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                  }}
-                >
-                  <span>✨</span> 平行人生 · 运转中
-                </div>
-                <button
-                  type="button"
-                  data-panel="management"
-                  onClick={() => openPanel('management')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '2px',
-                    padding: '4px 10px',
-                    borderRadius: '16px',
-                    background: 'rgba(255, 255, 255, 0.85)',
-                    backdropFilter: 'blur(12px)',
-                    color: '#0f172a',
-                    border: 'none',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                  }}
-                >
-                  设置 ⚙️ <PhoneIcon name="next" />
+        renderHome={({ openPanel }) => (
+          <div className={styles.lifeDesktop}>
+            <button className={styles.identityWidget} onClick={() => openPanel('timeline')}>
+              <small>这段人生</small>
+              <strong>{data.title}</strong>
+              <span>{data.setting}</span>
+            </button>
+            <div className={styles.utilityApps}>
+              {(['timeline', 'director', 'management'] as const).map((panel) => (
+                <button key={panel} data-panel={panel} onClick={() => openPanel(panel)}>
+                  <span>
+                    <PhoneIcon name={panel} />
+                  </span>
+                  {panel === 'timeline' ? '我的身份' : panel === 'director' ? '导演' : '人生管理'}
                 </button>
-              </div>
-
-              {/* 顶部 iOS 双并排 2x2 方形小组件区（紧凑高度约 110px） */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '10px',
-                  flexShrink: 0,
-                }}
-              >
-                {/* 左组件：气象生活与今日心境 */}
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.86)',
-                    backdropFilter: 'blur(16px)',
-                    borderRadius: '18px',
-                    padding: '10px 12px',
-                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.6)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    height: '105px',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
-                      {data.setting ? (data.setting.length > 10 ? data.setting.slice(0, 10) + '...' : data.setting) : '当前场景'}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        color: '#0369a1',
-                        background: '#e0f2fe',
-                        padding: '1px 6px',
-                        borderRadius: '6px',
-                        fontWeight: 700,
-                      }}
-                    >
-                      D-3
-                    </span>
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '18px',
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      19°C <span style={{ fontSize: '14px' }}>⛅</span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 500 }}>
-                      阴转初秋阵雨
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '10px',
-                      color: '#475569',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                    title={data.title ? `“${data.title}”` : '“世界在此展开新的可能...”'}
-                  >
-                    💭 {data.title ? `“${data.title}”` : '“世界在此展开新的可能...”'}
-                  </div>
-                </div>
-
-                {/* 右组件：世界设定与人脉推进 */}
-                <div
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.86)',
-                    backdropFilter: 'blur(16px)',
-                    borderRadius: '18px',
-                    padding: '10px 12px',
-                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.6)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    height: '105px',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: '10px', color: '#6366f1', fontWeight: 600 }}>
-                      平行人生世界
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        marginTop: '2px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                      title={data.title}
-                    >
-                      {data.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '10px',
-                        color: '#64748b',
-                        marginTop: '2px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                      title={data.identity}
-                    >
-                      {data.identity}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => openPanel('director')}
-                      style={{
-                        flex: 1,
-                        padding: '4px',
-                        borderRadius: '8px',
-                        background: '#f1f5f9',
-                        color: '#1e293b',
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        border: '1px solid #e2e8f0',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                      }}
-                    >
-                      🎬 剧情
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openPanel('timeline')}
-                      style={{
-                        flex: 1,
-                        padding: '4px',
-                        borderRadius: '8px',
-                        background: '#f1f5f9',
-                        color: '#1e293b',
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        border: '1px solid #e2e8f0',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                      }}
-                    >
-                      👥 人脉
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* 中部：灵动消息与动态双行胶囊（单行省略号截断，高仅约 66px） */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  flexShrink: 0,
-                }}
-              >
-                {/* 微信最新来信胶囊 */}
-                {recentActor && (
-                  <div
-                    onClick={() => open('messages', recentActor.id)}
-                    role="button"
-                    tabIndex={0}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.88)',
-                      backdropFilter: 'blur(16px)',
-                      borderRadius: '12px',
-                      padding: '6px 10px',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.6)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '12px',
-                    }}
-                  >
-                    <span style={{ fontSize: '13px' }}>💬</span>
-                    <span style={{ fontWeight: 600, color: '#0f172a', flexShrink: 0 }}>
-                      {recentActor.name}:
-                    </span>
-                    <span
-                      style={{
-                        flex: 1,
-                        color: '#475569',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                      title={
-                        recentMessage
-                          ? recentMessage.text
-                          : `与 ${recentActor.name} 的对话通道已建立。`
-                      }
-                    >
-                      {recentMessage
-                        ? recentMessage.text
-                        : `与 ${recentActor.name} 的对话通道已建立。`}
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>›</span>
-                  </div>
-                )}
-              </div>
-
-              {/* 桌面图标区 */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '12px 6px',
-                  padding: '4px 0 2px',
-                  flexShrink: 0,
-                }}
-              >
-                {[
-                  {
-                    app: 'timeline' as const,
-                    name: '人生轨迹',
-                    badge: undefined,
-                    icon: 'timeline' as const,
-                    onClick: () => openPanel('timeline'),
-                  },
-                  {
-                    app: 'director' as const,
-                    name: '导演工坊',
-                    badge: undefined,
-                    icon: 'director' as const,
-                    onClick: () => openPanel('director'),
-                  },
-                  {
-                    app: 'management' as const,
-                    name: '系统设置',
-                    badge: undefined,
-                    icon: 'management' as const,
-                    onClick: () => openPanel('management'),
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.name}
-                    type="button"
-                    onClick={item.onClick}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '5px',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                      transition: 'transform 0.1s ease',
-                    }}
-                    onPointerDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
-                    onPointerUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                    onPointerLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                  >
-                    <div
-                      style={{
-                        position: 'relative',
-                        width: '52px',
-                        height: '52px',
-                        borderRadius: '14px',
-                        background: '#ffffff',
-                        boxShadow: '0 4px 10px rgba(0, 0, 0, 0.16)',
-                        display: 'grid',
-                        placeItems: 'center',
-                      }}
-                    >
-                      <span
-                        className={`${styles.appIcon} ${styles[item.app]}`}
-                        style={{ width: '52px', height: '52px' }}
-                      >
-                        {item.app === 'timeline' ? (
-                          <span style={{ fontSize: '26px' }}>⏳</span>
-                        ) : item.app === 'director' ? (
-                          <span style={{ fontSize: '26px' }}>🎬</span>
-                        ) : (
-                          <span style={{ fontSize: '26px' }}>⚙️</span>
-                        )}
-                      </span>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        color: '#ffffff',
-                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.7)',
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {item.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* 底部常驻 iOS 毛玻璃 Dock 栏（微信、日历、相册、便签） */}
-              <div
-                style={{
-                  background: 'rgba(255, 255, 255, 0.32)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
-                  borderRadius: '26px',
-                  padding: '9px 12px 10px',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '10px',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  marginTop: 'auto',
-                  flexShrink: 0,
-                }}
-              >
-                {[
-                  {
-                    app: 'messages' as const,
-                    name: '微信',
-                    badge: unreadCount > 0 ? unreadCount : undefined,
-                    icon: 'messages' as const,
-                    onClick: () => open('messages'),
-                  },
-                  {
-                    app: 'calendar' as const,
-                    name: '日历',
-                    badge: data.invitations?.length ? data.invitations.length : undefined,
-                    icon: 'calendar' as const,
-                    onClick: () => open('calendar'),
-                  },
-                  {
-                    app: 'photos' as const,
-                    name: '相册',
-                    badge: undefined,
-                    icon: 'photos' as const,
-                    onClick: () => open('photos'),
-                  },
-                  {
-                    app: 'notes' as const,
-                    name: '便签',
-                    badge: notes.length ? notes.length : undefined,
-                    icon: 'notes' as const,
-                    onClick: () => open('notes'),
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.name}
-                    type="button"
-                    onClick={item.onClick}
-                    aria-label={item.name}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                      transition: 'transform 0.1s ease',
-                    }}
-                    onPointerDown={(e) => (e.currentTarget.style.transform = 'scale(0.92)')}
-                    onPointerUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                    onPointerLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                  >
-                    <div
-                      style={{
-                        position: 'relative',
-                        width: '52px',
-                        height: '52px',
-                        borderRadius: '14px',
-                        background: '#ffffff',
-                        boxShadow: '0 3px 8px rgba(0, 0, 0, 0.12)',
-                        display: 'grid',
-                        placeItems: 'center',
-                      }}
-                    >
-                      <span
-                        className={`${styles.appIcon} ${styles[item.app]}`}
-                        style={{ width: '52px', height: '52px' }}
-                      >
-                        {item.app === 'calendar' ? (
-                          <span className={styles.calendarFace}>
-                            <span>日历</span>
-                            <strong style={{ fontSize: '24px', lineHeight: '26px' }}>
-                              {data.time.slice(8, 10)}
-                            </strong>
-                          </span>
-                        ) : (
-                          <PhoneIcon name={item.icon as 'messages' | 'photos' | 'notes'} />
-                        )}
-                      </span>
-                      {item.badge !== undefined && (
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: '-3px',
-                            right: '-3px',
-                            minWidth: '18px',
-                            height: '18px',
-                            borderRadius: '9px',
-                            background: '#ef4444',
-                            color: '#ffffff',
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '0 4px',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
-                          }}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
-          );
-        }}
+          </div>
+        )}
         renderApp={(context) => <PhoneAppView {...context} />}
         renderPanel={(panel) => {
           if (panel === 'timeline') {
@@ -1310,7 +704,8 @@ export function WorldPhoneSurface({
                       marginBottom: '12px',
                     }}
                   >
-                    📍 <strong>生活坐标：</strong>{data.setting || '当前人生所处时空与场景'}
+                    📍 <strong>生活坐标：</strong>
+                    {data.setting || '当前人生所处时空与场景'}
                   </div>
 
                   {/* 随身物品与核心资产 */}
@@ -1432,7 +827,8 @@ export function WorldPhoneSurface({
 
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
-                        {data.time ? data.time.slice(0, 7).replace('-', '年 ') + '月' : '分支起点'} · 抉择
+                        {data.time ? data.time.slice(0, 7).replace('-', '年 ') + '月' : '分支起点'}{' '}
+                        · 抉择
                       </div>
                       <div
                         style={{
@@ -1452,7 +848,9 @@ export function WorldPhoneSurface({
                           lineHeight: 1.4,
                         }}
                       >
-                        {data.title ? `进入分支【${data.title}】，开启全新的命运走向。` : '做出了人生重要抉择，开启全新人生篇章。'}
+                        {data.title
+                          ? `进入分支【${data.title}】，开启全新的命运走向。`
+                          : '做出了人生重要抉择，开启全新人生篇章。'}
                       </div>
                     </div>
 
@@ -1478,7 +876,8 @@ export function WorldPhoneSurface({
                           lineHeight: 1.4,
                         }}
                       >
-                        {data.setting || '在当前人际关系与日常互动中探索，每一次选择都在塑造未来的轨迹。'}
+                        {data.setting ||
+                          '在当前人际关系与日常互动中探索，每一次选择都在塑造未来的轨迹。'}
                       </div>
                     </div>
                   </div>
@@ -1537,7 +936,7 @@ export function WorldPhoneSurface({
                               </span>
                             </div>
                           </div>
-                          <span style={{ fontSize: '11px', color: '#16a34a' }}>● 在线</span>
+                          <span style={{ fontSize: '11px', color: '#16a34a' }}>人物资料</span>
                         </div>
                         <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
                           {actor.summary ||
@@ -2125,7 +1524,7 @@ export function WorldPhoneSurface({
             </div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>{callingActor.name}</h2>
             <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '6px' }}>
-              {callingActor.relationship} · 正在呼叫...
+              语音通话尚未接通，可以先发消息
             </div>
             <div
               style={{
@@ -2139,7 +1538,7 @@ export function WorldPhoneSurface({
                 lineHeight: 1.5,
               }}
             >
-              🎙️ 对方未能接听电话，建议发送微信沟通
+              可以通过文字消息继续交流
             </div>
           </div>
 
