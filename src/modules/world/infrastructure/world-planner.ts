@@ -55,6 +55,7 @@ export class WorldPlanner {
     const input = {
       story: seed.story,
       facts: seed.facts,
+      events: seed.events ?? [],
       people: seed.people.map((p) => ({ name: p.name, relationship: p.relationship })),
     };
     if (JSON.stringify(input).length > 30000)

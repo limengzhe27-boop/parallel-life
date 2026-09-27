@@ -622,9 +622,14 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |EXP-01|[x] 已完成|codex-main-experience-20260928|主目录；docs/EXPERIENCE_REBUILD.md、docs/task-reports/EXP-01.md、docs/DEVELOPMENT.md、docs/PROJECT_BRIEF.md、docs/INFORMATION_ARCHITECTURE.md、docs/DEPLOYMENT.md；线上只读体验与代码审查|与辅助独立审查交叉核验；给出体验链、资料归类、创建准备、主动世界与媒体联动设计、分批替换边界和验收。98c3a92/6tyvubijw READY，仅文档；双审报告完成，不代表功能已重构|
 |EXP-01B|[x] 已完成|辅助（01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b）|主目录；仅docs/task-reports/EXP-01B.md和本人状态行；生产只读浏览/代码审查，无业务代码/配置/部署修改|2026-09-28：[独立报告](task-reports/EXP-01B.md)含9项问题与验收；Ego 43公网聊聊/我的/分支/锁屏只读检查，390px/1440px，已关闭；代码与实测分开；未发送/建世界/跑数据库或模型，主任务已交叉复核采纳，第二次方案挑战完成；仅审查交付|
 |EXP-02|[x] 已完成|codex-main-exp02|主目录；src/features/interview/{branch-intent,interview-app,proposal-thread}.tsx/ts、profile/infrastructure/{interview-planner,interview-handler,interview-repository}.ts、profile/domain显式生日规则、features/discovery/seed-consent.tsx、media/infrastructure/media-handler.ts + application/image-synthesizer.ts、server/worker-composition.ts、phone/apps/moments.tsx、phone/world-app-data.ts、world/domain/types.ts媒体状态类型、相关测试与文档|199 checks + 26 DB tests + build; ed2f3e7/m2t6kvqrh READY; production SSE/profile and mobile/PC verified; see task-reports/EXP-02.md|
-|EXP-03|[ ] 待开发|未领取|依赖EXP-01；资料读模型/人生草案/事件附件共享契约、旧数据映射和唯一写入口|完整来源与版本；统一入口映射、删除旧写路径、只读兼容；详见EXPERIENCE_REBUILD.md|
+|EXP-03|[ ] 进行中|codex-main-exp03|依赖EXP-01；资料读模型/人生草案/事件附件共享契约、旧数据映射和唯一写入口|完整来源与版本；统一入口映射、删除旧写路径、只读兼容；详见EXPERIENCE_REBUILD.md|
 |EXP-04|[ ] 待开发|未领取|依赖EXP-02/03；外层聊聊/我的/分支/创建整页替换，先交互稿和组件规范|不再用CSS叠加覆盖；所有创建入口同一草案版本，资料更新及时且可更正|
 |EXP-05|[ ] 待开发|未领取|依赖EXP-03；世界手机锁屏/桌面/消息/相册/日历/便签/管理整页替换|界面全状态验收；完整主动体验另依赖NAR-02/03；不把手机壳当成生活闭环|
 |EXP-06|[ ] 待开发|未领取|依赖EXP-02/03/04/05、NAR-02/03；完整体验验收|先一条10–15分钟真实链再三身份；自由输入、主动来信、回报、素材、回访、失败恢复；辅助独立体验，主任务集成|
 
 |EXP-03A|[x] 已完成|辅助（01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b）|仅docs/EXPERIENCE_CONTRACTS.md和docs/task-reports/EXP-03A.md及本人状态行；主目录只读代码|2026-09-28：集成人明确验收并授权登记，仅设计交付；[契约提案](EXPERIENCE_CONTRACTS.md)、[报告](task-reports/EXP-03A.md)；两项审查修复及回归由I回传，准备随EXP-02发布，尚非部署证据；不标EXP-03实现完成|
+
+|EXP-03B|[ ] 待验收|辅助（01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b）|独立工作树 .local/worktrees/exp03-profile；contracts/profile-view.ts、profile/domain/profile-view.ts、features/interview/{interview-app,basic-info}.tsx、专用模块样式与单元测试、task-reports/EXP-03B.md|2026-09-28：纯Profile投影/旧类别展示/基础未知行保留与年份精度完成；4纯测试、typecheck、177文件边界通过；默认测试误触4个DB检查被EPERM拒绝未重试，其余199通过；无真实DB/UI/build/部署，I集成验证；见工作树报告|
+|EXP-03C|[ ] 待验收|codex-main-exp03|主目录；contracts/life-drafts.ts与seeds扩展、discovery仓储、0028草案迁移、server/API/client、features/discovery草案确认与interview/proposal-thread、tests/integration、world-planner.ts与world-build测试、部署文档|2026-09-28：版本化草案及唯一确认入口完成；203检查+28真实库通过，手机/PC验收，生产0028已应用；最终构建与公网发布验收中；见task-reports/EXP-03C.md；不含事件附件与主动剧情|
+
+|CHAT-01|[ ] 待验收|codex-f-01a0c7c8-chat01（用户直接指定）|独立工作树 .local/worktrees/chat-01；仅 features/interview/interview-app.tsx 的 Welcome/输入提示、modules/profile/infrastructure/interview-planner.ts 的提示词与版本、docs/task-reports/CHAT-01.md；无数据库/共享接口改动|2026-09-28：依赖现有访谈已完成；EXP-03B 本人交付已合主线，限文案继续；已通知I协调合并部署，不触碰EXP-03C。开场和单问题递进提示词完成；build/格式通过，check 199通过4数据库EPERM失败；390/1440预览和3按钮通过，截图/tmp/chat01-{mobile,desktop}.png；无真实模型/DB/上线验收，交I合并部署。|

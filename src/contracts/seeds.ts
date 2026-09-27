@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Id, Version, Timestamp, PersonSchema } from './api.ts';
+import { Id, Version, Timestamp, PersonSchema, LifeDate } from './api.ts';
 import { DirectionFields, BasisSchema } from './discovery.ts';
 export const SeedRequestSchema = z
   .strictObject({
@@ -33,9 +33,14 @@ export const ApprovedSeedSchema = z.strictObject({
   directionId: Id,
   story: SeedStorySchema,
   facts: z.array(BasisSchema).max(40),
+  events: z
+    .array(z.strictObject({ eventId: Id, title: z.string().max(120), date: LifeDate.nullable() }))
+    .max(40)
+    .optional(),
+  draftRef: z.strictObject({ id: Id, version: Version }).optional(),
   people: z.array(PersonSchema).max(30),
   portraitAssetId: Id.nullable(),
   assets: z.array(z.strictObject({ assetId: Id, revision: Version })).max(31),
 });
 export type ApprovedSeed = z.infer<typeof ApprovedSeedSchema>;
-export const SeedListSchema = z.array(ApprovedSeedSchema).max(20);
+export const SeedListSchema = z.array(ApprovedSeedSchema).max(100);

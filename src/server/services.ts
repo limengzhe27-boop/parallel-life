@@ -1,3 +1,4 @@
+import { DraftRepository } from '../modules/discovery/infrastructure/draft-repository.ts';
 import { randomUUID } from 'node:crypto';
 import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
 import { SupabaseStorageStore } from '../modules/media/infrastructure/supabase-storage-store.ts';
@@ -12,10 +13,7 @@ import { IdentityRepository } from '../modules/identity/infrastructure/identity-
 import { dispatchOutbox } from '../modules/tasks/application/dispatch-outbox.ts';
 import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.ts';
 import { advanceWorld } from '../modules/world/application/advance-world.ts';
-import {
-  describeImpact,
-  normalizeDirection,
-} from '../modules/world/domain/direction.ts';
+import { describeImpact, normalizeDirection } from '../modules/world/domain/direction.ts';
 import { DomainError } from '../modules/world/domain/errors.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
 import { PostgresDirectionStore } from '../modules/world/infrastructure/direction-repository.ts';
@@ -136,7 +134,14 @@ function createServices() {
     setWorldDirection: async (
       ownerId: string,
       worldId: string,
-      input: { guidance?: string; themes?: string[]; pacing?: 'slow' | 'normal' | 'fast'; focusActorIds?: string[]; preview?: boolean; move?: 'future' | 'past' },
+      input: {
+        guidance?: string;
+        themes?: string[];
+        pacing?: 'slow' | 'normal' | 'fast';
+        focusActorIds?: string[];
+        preview?: boolean;
+        move?: 'future' | 'past';
+      },
     ) => {
       if (input.move === 'past')
         throw new DomainError('INVALID_COMMAND', '历史不可改写：请建立分支，保留原人生');
@@ -146,8 +151,11 @@ function createServices() {
       return { direction, impact: describeImpact(direction, state), applied: !input.preview };
     },
     /** Pause/resume and speed for one life; the user's own control. */
-    setWorldClock: (ownerId: string, worldId: string, input: { paused?: boolean; speed?: number }) =>
-      new PostgresClockStore(db).setClock(ownerId, worldId, input),
+    setWorldClock: (
+      ownerId: string,
+      worldId: string,
+      input: { paused?: boolean; speed?: number },
+    ) => new PostgresClockStore(db).setClock(ownerId, worldId, input),
     readWorldClock: (ownerId: string, worldId: string) =>
       new PostgresClockStore(db).read(ownerId, worldId),
     advanceWorld: (ownerId: string, worldId: string, maxBeats?: number) =>
@@ -159,9 +167,7 @@ function createServices() {
           now: () => new Date().toISOString(),
           newId: () => randomUUID(),
           memories: (actorId) =>
-            db.transaction(ownerId, (sql) =>
-              loadActorMemories(sql, ownerId, { actorId, worldId }),
-            ),
+            db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),
           worldMemories: () =>
             db.transaction(ownerId, (sql) => loadWorldMemories(sql, ownerId, worldId)),
           direction: () => new PostgresDirectionStore(db).read(ownerId, worldId),
@@ -182,6 +188,7 @@ function createServices() {
     identity,
     discovery: new DiscoveryRepository(db),
     seeds: new SeedRepository(db),
+    drafts: new DraftRepository(db),
     builds: new BuildRepository(db),
     worlds: new PostgresWorldRepository(db),
     tasks: new TaskRepository(db),

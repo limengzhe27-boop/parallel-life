@@ -14,11 +14,23 @@ export class SeedRepository {
   constructor(db: PostgresDatabase) {
     this.db = db;
   }
+  get(ownerId: string, id: string) {
+    return this.db.transaction(ownerId, async (sql) => {
+      const row = (
+        await sql.query(
+          'SELECT document FROM parallel_life.approved_seeds WHERE id=$1 AND owner_id=$2',
+          [id, ownerId],
+        )
+      ).rows[0];
+      if (!row) throw new TaskError('NOT_FOUND');
+      return ApprovedSeedSchema.parse(row.document);
+    });
+  }
   list(ownerId: string) {
     return this.db.transaction(ownerId, async (sql) =>
       (
         await sql.query(
-          'SELECT document FROM parallel_life.approved_seeds WHERE owner_id=$1 ORDER BY created_at DESC,id DESC LIMIT 20',
+          'SELECT document FROM parallel_life.approved_seeds WHERE owner_id=$1 ORDER BY created_at DESC,id DESC LIMIT 100',
           [ownerId],
         )
       ).rows.map((r) => ApprovedSeedSchema.parse(r.document)),

@@ -7,9 +7,9 @@ import { Button, Icon, Modal } from '../../components/ui.tsx';
 import { branchEntryState } from './branch-entry.ts';
 import { buildBranchBrief } from './branch-intent.ts';
 
-import { SeedConsent } from '../discovery/seed-consent.tsx';
+import { DraftEditor } from '../discovery/draft-editor.tsx';
+import type { LifeDraft } from '../../contracts/life-drafts.ts';
 import type { Profile } from '../../contracts/api.ts';
-import type { ApprovedSeed } from '../../contracts/seeds.ts';
 
 type Stage = 'idle' | 'discovering' | 'saving' | 'building' | 'entering';
 
@@ -70,10 +70,9 @@ export function ProposalThread({
     [confirmOpen, setConfirmOpen] = useState(false);
   const [consent, setConsent] = useState<{
     profile: Profile;
-    discovery: Discovery;
-    direction: LifeDirection;
+    draft: LifeDraft;
   } | null>(null);
-  const [approvedSeed, setApprovedSeed] = useState<ApprovedSeed | null>(null);
+  const [approvedSeed, setApprovedSeed] = useState<string | null>(null);
   const busy = stage !== 'idle';
 
   useEffect(() => {
@@ -196,19 +195,29 @@ export function ProposalThread({
         setError('分支方向有更新，请重新查看后选择。');
         return;
       }
-      setConsent({ profile: workspace.profile, discovery, direction: target });
+      const draft = await client.prepareDraft({
+        commandId: crypto.randomUUID(),
+        directionId: target.id,
+        discoveryVersion: discovery.version,
+      });
+      setConsent({ profile: workspace.profile, draft });
       setConfirmOpen(false);
     } catch (e) {
       setError(branchFailureMessage(e));
     }
   }
 
-  async function buildApprovedSeed(seed: ApprovedSeed) {
-    setApprovedSeed(seed);
+  async function buildApprovedSeed(draft: LifeDraft) {
+    if (!draft.seedId) return;
+    setConsent(null);
+    setApprovedSeed(draft.seedId);
     setError('');
     try {
       setStage('building');
-      const build = await client.createWorld({ commandId: crypto.randomUUID(), seedId: seed.id });
+      const build = await client.createWorld({
+        commandId: crypto.randomUUID(),
+        seedId: draft.seedId,
+      });
       if (build.task?.id) {
         const settled = await client.task(build.task.id);
         if (settled && settled.status !== 'succeeded') throw new Error(taskFailure(settled));
@@ -511,11 +520,11 @@ export function ProposalThread({
         </Modal>
       )}
       {consent && (
-        <SeedConsent
+        <DraftEditor
           client={client}
           {...consent}
           onClose={() => setConsent(null)}
-          onSaved={(seed) => void buildApprovedSeed(seed)}
+          onConfirmed={(draft) => void buildApprovedSeed(draft)}
         />
       )}
     </section>

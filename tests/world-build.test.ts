@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { WorldPlanner, WORLD_OPENING_MAX_TOKENS, WORLD_OUTPUT_ATTEMPTS } from '../src/modules/world/infrastructure/world-planner.ts';
+import {
+  WorldPlanner,
+  WORLD_OPENING_MAX_TOKENS,
+  WORLD_OUTPUT_ATTEMPTS,
+} from '../src/modules/world/infrastructure/world-planner.ts';
 import type { ApprovedSeed } from '../src/contracts/seeds.ts';
 const seed: ApprovedSeed = {
   id: randomUUID(),
@@ -46,7 +50,8 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
   assert.equal(result.actors.length, 3);
   assert.equal(requestedCap, WORLD_OPENING_MAX_TOKENS);
   assert.equal(requestedCap! > 4096, true);
-  assert.deepEqual(Object.keys(JSON.parse(sent)), ['story', 'facts', 'people']);
+  assert.deepEqual(Object.keys(JSON.parse(sent)), ['story', 'facts', 'events', 'people']);
+  assert.deepEqual(JSON.parse(sent).events, []);
   assert.equal(sent.includes(seed.id), false);
   for (const invalid of [
     { ...output, messages: [{ actorKey: 'outsider', text: 'hello' }] },

@@ -1,3 +1,10 @@
+import {
+  LifeDraftSchema,
+  DraftListSchema,
+  type PrepareDraft,
+  type SaveDraft,
+  type ConfirmDraft,
+} from '../../contracts/life-drafts.ts';
 import { AlbumPhotoSchema } from '../../contracts/album.ts';
 import { InvitationRequestSchema, InvitationReceiptSchema } from '../../contracts/invitations.ts';
 import {
@@ -6,7 +13,7 @@ import {
   WorldPhoneSchema,
   type WorldBuildRequest,
 } from '../../contracts/world-build.ts';
-import { ApprovedSeedSchema, SeedListSchema, type SeedRequest } from '../../contracts/seeds.ts';
+import { ApprovedSeedSchema, SeedListSchema } from '../../contracts/seeds.ts';
 import { NoteReceiptSchema, type NoteSaveRequest } from '../../contracts/notes.ts';
 import {
   AdvanceReceiptSchema,
@@ -227,16 +234,42 @@ export class LifeClient {
       body: JSON.stringify(input),
     });
   }
-  async seeds() {
+  async drafts() {
     await this.connect();
-    return this.request('/life-seeds', SeedListSchema);
+    return this.request('/life-drafts', DraftListSchema);
   }
-  async approveSeed(input: SeedRequest) {
+  async draft(id: string) {
     await this.connect();
-    return this.request('/life-seeds', ApprovedSeedSchema, {
+    return this.request(`/life-drafts/${encodeURIComponent(id)}`, LifeDraftSchema);
+  }
+  async prepareDraft(input: PrepareDraft) {
+    await this.connect();
+    return this.request('/life-drafts', LifeDraftSchema, {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  }
+  async saveDraft(id: string, input: SaveDraft) {
+    await this.connect();
+    return this.request(`/life-drafts/${encodeURIComponent(id)}`, LifeDraftSchema, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+  async confirmDraft(id: string, input: ConfirmDraft) {
+    await this.connect();
+    return this.request(`/life-drafts/${encodeURIComponent(id)}/confirm`, LifeDraftSchema, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  async seed(id: string) {
+    await this.connect();
+    return this.request(`/life-seeds/${encodeURIComponent(id)}`, ApprovedSeedSchema);
+  }
+  async seeds() {
+    await this.connect();
+    return this.request('/life-seeds', SeedListSchema);
   }
   async discovery() {
     await this.connect();

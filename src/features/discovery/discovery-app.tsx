@@ -1,11 +1,13 @@
 'use client';
+import { DraftEditor } from './draft-editor.tsx';
+import type { LifeDraft } from '../../contracts/life-drafts.ts';
 import { BranchList } from './branch-list.tsx';
 import { BuildControl } from './build-control.tsx';
 import type { WorldBuild } from '../../contracts/world-build.ts';
 import { AppTabs } from '../../components/app-tabs.tsx';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import type { ApprovedSeed } from '../../contracts/seeds.ts';
-import { SeedConsent, SeedReceipt } from './seed-consent.tsx';
+import { SeedReceipt } from './seed-consent.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
 import { LifeClient, ApiFailure } from '../api/client.ts';
@@ -23,22 +25,25 @@ export function DiscoveryApp() {
     [error, setError] = useState(''),
     [refining, setRefining] = useState<LifeDirection | null>(null),
     [refineText, setRefineText] = useState('');
-  const [choosing, setChoosing] = useState<LifeDirection | null>(null),
+  const [choosing, setChoosing] = useState<LifeDraft | null>(null),
     [seed, setSeed] = useState<ApprovedSeed | null>(null),
     [savedSeeds, setSavedSeeds] = useState<ApprovedSeed[]>([]),
     [receipt, setReceipt] = useState(false);
+  const [drafts, setDrafts] = useState<LifeDraft[]>([]);
   const [builds, setBuilds] = useState<WorldBuild[]>([]);
   const pending = useRef<DiscoverRequest | null>(null),
     hydrated = useRef(false),
     retry = useRef<{ id: string; commandId: string } | null>(null);
   const load = useCallback(async () => {
-    const [d, w, seeds, worldBuilds] = await Promise.all([
+    const [d, w, seeds, worldBuilds, drafts] = await Promise.all([
       client.discovery(),
       client.workspace(),
       client.seeds(),
       client.builds(),
+      client.drafts(),
     ]);
     setSavedSeeds(seeds);
+    setDrafts(drafts);
     setBuilds(worldBuilds);
     setData((current) => (!current || d.version >= current.version ? d : current));
     setProfile((current) =>
@@ -152,6 +157,9 @@ export function DiscoveryApp() {
            have cost money — opening a page must never spend again. */
         const settled = await client.task(build.task.id);
         if (settled && settled.status !== 'succeeded') {
+          setSeed(saved);
+          setReceipt(true);
+          await load();
           setBusy(false);
           setError('这段人生上一次没有生成成功，请选择重新生成。');
           return;
@@ -159,57 +167,52 @@ export function DiscoveryApp() {
       }
       window.location.assign(`/worlds/${build.worldId}`);
     } catch (e) {
+      setSeed(saved);
+      setReceipt(true);
       setError(explain(e));
       setBusy(false);
     }
   }
 
-  async function enterWorldDirectly(direction: LifeDirection) {
-    if (!data || !profile || busy) return;
+  async function reviewDirection(direction: LifeDirection) {
+    if (!data || busy) return;
     setBusy(true);
     setError('');
     try {
-      const existingSeed = savedSeeds.find((s) => s.directionId === direction.id);
-      if (existingSeed) {
-        await enterWorldForSeed(existingSeed);
-        return;
-      }
-      const availableFactIds = profile.facts
-        .filter((f) => f.status === 'confirmed')
-        .map((f) => f.id);
-      const chosenFactIds = (direction.sources || [])
-        .map((s) => s.factId)
-        .filter((id) => availableFactIds.includes(id));
-
-      const seed = await client.approveSeed({
+      const draft = await client.prepareDraft({
         commandId: crypto.randomUUID(),
-        discoveryVersion: data.version,
-        profileVersion: profile.version,
         directionId: direction.id,
-        factIds: chosenFactIds,
-        personIds: [],
-        includePortrait: Boolean(profile.portraitAssetId),
+        discoveryVersion: data.version,
       });
-
-      const build = await client.createWorld({
-        commandId: crypto.randomUUID(),
-        seedId: seed.id,
-      });
-
-      if (build.task?.id) {
-        /* 只有真正生成成功才进入手机；失败就留在原地说明原因，而不是跳进一个空世界 */
-        const settled = await client.task(build.task.id);
-        if (settled && settled.status !== 'succeeded') {
-          setBusy(false);
-          setError('这段人生这次没有生成成功，可以再试一次。');
-          return;
-        }
-      }
-      window.location.assign(`/worlds/${build.worldId}`);
+      const workspace = await client.workspace();
+      setProfile(workspace.profile);
+      setChoosing(draft);
+      await load();
     } catch (e) {
       setError(explain(e));
+    } finally {
       setBusy(false);
     }
+  }
+  async function resumeDraft(draft: LifeDraft) {
+    setBusy(true);
+    setError('');
+    try {
+      const [latest, workspace] = await Promise.all([client.draft(draft.id), client.workspace()]);
+      setProfile(workspace.profile);
+      setChoosing(latest);
+    } catch (e) {
+      setError(explain(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function confirmedDraft(draft: LifeDraft) {
+    setChoosing(null);
+    await load();
+    if (!draft.seedId) return;
+    const seed = await client.seed(draft.seedId);
+    await enterWorldForSeed(seed);
   }
 
   async function confirm(id: string) {
@@ -265,7 +268,10 @@ export function DiscoveryApp() {
             {!data && (
               <Button
                 variant="ghost"
-                onClick={() => void load().catch((e) => setError(explain(e)))}
+                onClick={() => {
+                  setError('');
+                  void load().catch((e) => setError(explain(e)));
+                }}
               >
                 重新连接
               </Button>
@@ -291,7 +297,7 @@ export function DiscoveryApp() {
                   : '那些没走过的路，从一句「如果」开始。'}
               </p>
             </div>
-            {savedSeeds.length === 0 && (
+            {savedSeeds.length === 0 && !drafts.some((d) => d.status === 'draft') && (
               <div className="branch-empty">
                 <img src="/art/open-door.webp" alt="通向另一段生活的门，意境插画" />
                 <h2>第一段故事，等你开口</h2>
@@ -300,6 +306,26 @@ export function DiscoveryApp() {
                   聊一个如果 <Icon name="arrow" size={18} />
                 </a>
               </div>
+            )}
+            {drafts.some((d) => d.status === 'draft') && (
+              <section aria-label="待继续的人生草案">
+                <h2 style={{ fontSize: 18, margin: '20px 0 12px' }}>还在构思的人生</h2>
+                <BranchList
+                  disabled={busy}
+                  items={drafts
+                    .filter((d) => d.status === 'draft')
+                    .map((d) => ({
+                      id: d.id,
+                      title: d.story.title,
+                      description: d.story.premise,
+                      status: '继续构思',
+                    }))}
+                  onOpen={(id) => {
+                    const d = drafts.find((d) => d.id === id);
+                    if (d) void resumeDraft(d);
+                  }}
+                />
+              </section>
             )}
             {savedSeeds.length > 0 && (
               <BranchList
@@ -466,9 +492,9 @@ export function DiscoveryApp() {
                       <Button
                         className="direction-select"
                         disabled={busy || waiting || stale}
-                        onClick={() => void enterWorldDirectly(direction)}
+                        onClick={() => void reviewDirection(direction)}
                       >
-                        {busy ? '正在开启手机…' : '打开这部手机'}
+                        {busy ? '正在准备草案…' : '构思这段人生'}
                         <Icon name="arrow" size={16} />
                       </Button>
                       <Button
@@ -541,18 +567,18 @@ export function DiscoveryApp() {
       </main>
       <AppTabs active="possibilities" />
       <AppViewport />
-      {choosing && profile && data && (
-        <SeedConsent
-          direction={choosing}
+      {choosing && profile && (
+        <DraftEditor
+          key={choosing.id}
+          draft={choosing}
           profile={profile}
-          discovery={data}
           client={client}
-          onClose={() => setChoosing(null)}
-          onSaved={(saved) => {
-            setSavedSeeds((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
-            setSeed(saved);
-            setReceipt(true);
+          onClose={() => {
+            setChoosing(null);
+            void load();
           }}
+          onSaved={() => void load().catch((e) => setError(explain(e)))}
+          onConfirmed={(d) => void confirmedDraft(d).catch((e) => setError(explain(e)))}
         />
       )}
       {receipt && seed && (
