@@ -20,4 +20,4 @@
 
 关联依赖已提交的同回合邀约；不能把口头提议推断成日程，也不证明用户真实赴约。日历里的“赴约／未赴约”仍是用户自己标记。导演还没有完整的长期剧情目标、阻碍和兑现条件；自动后台唤醒与跨应用回报仍需 NAR-02/03 后续工作。
 
-部署：待应用提交、Production Ready 与公网复核后补记。
+应用提交 `12696d1` 已推送；Vercel Production `16zvvx6zr` / `dpl_BkYYKycghodr3A6DvNF39mxpTVuv` Ready，正式地址 https://parallel-life-nu.vercel.app 已指向新版。公网健康、首页、分支页和合成访客入口均返回 200。未向生产用户世界写入测试邀约；真实跨应用状态的写入与刷新在本地 PostgreSQL 验收。

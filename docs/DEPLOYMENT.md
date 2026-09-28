@@ -1,3 +1,7 @@
+## 2026-09-28 · NAR-02H 人物下一步与日历邀约同源
+
+应用提交 `12696d1`；Vercel Production `16zvvx6zr` / `dpl_BkYYKycghodr3A6DvNF39mxpTVuv` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify` 通过（含 34 项真实 PostgreSQL 集成测试），最终 `npm run check`（226 项常规测试）和 `npm run build` 通过；生产 Supabase 29/29 项迁移一致，无新迁移。公网 health、首页、分支页、合成访客入口均 200；本地合成手机便签到日历详情可达，390px/1440px 无横向溢出。人物下一步只与同事件、同角色、唯一的邀约关联，并跟随日历确认/取消状态。没有在生产用户世界制造测试剧情。详见 [NAR-02H](task-reports/NAR-02H.md)。
+
 ## 2026-09-28 · NAR-02G 人物提议有来源的下一步
 
 应用提交 `5034228`，Vercel Production `6rhukapfg` / `dpl_Evo46iGoRhBHz6KoBJAs5295Ymw7` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify`（含 34 项真实 PostgreSQL 测试）与 `npm run build` 通过，生产 Supabase 29/29 项迁移一致，无新迁移。公网 health、首页和分支页 200；390px 手机与 1440px 电脑首页无横向溢出。合成真实模型场景验证人物原话可落成有来源的下一步；没有对生产用户世界写入测试事件。人物提议不是已履约事实，完整剧情结局与跨应用回报继续留 NAR-02/03。见 [NAR-02G](task-reports/NAR-02G.md)。
