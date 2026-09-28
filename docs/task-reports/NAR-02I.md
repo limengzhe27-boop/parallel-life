@@ -21,4 +21,4 @@
 
 人物建议的现实可行性不能由引用校验单独证明；现有世界只保留有界的近期选择，尚无完整长期剧情目标、阶段和结局。导演仍主要在进入／回访时推进，没有后台实时唤醒；这批不接入图片生成。
 
-部署：待应用提交、Production Ready 与公网复核后补记。
+部署：应用提交 `37f1499` 已推送；Vercel Production `f8cb0hg2z` / `dpl_A1zZrdpzM8zRJkBFCZKSw7nZFhCa` Ready，正式域名 https://parallel-life-nu.vercel.app 已指向新版。公网 health、首页、分支页、合成访客入口均返回 200。未在生产用户世界制造测试剧情。
