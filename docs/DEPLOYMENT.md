@@ -1,3 +1,7 @@
+## 2026-09-28 · NAR-02F 新结果优先承接
+
+应用提交 `8a7fb40`，Vercel Production `64rvxftgo` / `dpl_2QbqoZ1jAMqTAh77yvBsYnAt9dbd` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify`、`npm run build` 通过，其中真实 PostgreSQL 34 项测试通过；生产 Supabase 29/29 迁移一致，无新增迁移。公网 health / 首页 200，未登录调用导演写入口 401。最近主动来信过的人，仍可在用户报告新选择结果后于下一合法节拍回应；普通催问继续冷却，结果承接一次后退出待办。没有后台实时推送，也没有把自述变成核验成就。详见 [NAR-02F](task-reports/NAR-02F.md)。
+
 ## 2026-09-28 · NAR-02E 选择与结果可在手机回看
 
 应用提交 `1cfd7f0`；Vercel Production `noa6d12a0` / `dpl_2YbB3g6A3wrN3qFvvxiCE6bX5zrN` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify`：222 项常规测试和 33 项真实 PostgreSQL 集成测试通过；最终 `npm run check`、`npm run build` 通过。生产 Supabase 29/29 迁移一致，无新增迁移。公网 health / 首页 200，未登录世界读取 401；390px/1440px 本地合成手机便签展开与无横向溢出通过。选择与用户自述结果通过同一世界事件投影到只读故事记录；不伪造照片或独立核验的成就。完整剧情与跨应用后果仍在 NAR-02/03。见 [NAR-02E](task-reports/NAR-02E.md)。
