@@ -1,3 +1,7 @@
+## 2026-09-28 · EXP-03F 「我的」资料与 Agent 写入修复
+
+应用提交 `c8b5a5b`，Vercel Production `krcg7ku3k` / `dpl_C9X5hovj4QktE3A4YVcXVvUHGPVh` READY，https://parallel-life-nu.vercel.app health 200。206 项检查、30 项真实库测试、生产构建通过；生产 28 项迁移一致，无新迁移。手机 390px、电脑 1440px 的合成冲突资料验收通过；公网独立合成账号完成两轮真实 AI 访谈、冲突候选与显式确认，确认前原生日不被覆盖。详见 [EXP-03F](task-reports/EXP-03F.md)。真实用户历史记录不会自动批量改写，需本人核对。
+
 ## 2026-09-28 · EXP-03E 分支空白提交与提示一致
 
 应用 `498cb00`，Vercel Production `ckmuh4gl3` / `dpl_DNtn3NXgpf4jmbmVDERaW2W2kWL1` READY；https://parallel-life-nu.vercel.app health 200。204 项检查、生产构建通过；生产 28 项迁移一致，无新迁移。已有具体聊天但无已确认资料时，分支编辑区现在可留空点「帮我想想」，沿本人最近的话推演；没有可用聊天或资料时，说明会要求先输入。辅助在原合成会话的 390px 手机和 1440px 电脑只读复核按钮已启用、文案一致、无横向溢出。见 [EXP-03E](task-reports/EXP-03E.md)。此次未再次发起模型推演，AI 方向文案质量仍是后续任务。
