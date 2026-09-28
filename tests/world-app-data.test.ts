@@ -118,6 +118,43 @@ test('only server-confirmed messages count as sent; local ones keep their real s
   /* 在途消息不会把未读数算成别人的新消息 */
   assert.equal(merged.contacts[0]?.unread, 1);
 });
+test('a sourced choice is a read-only story entry, and a player report is not treated as proof', () => {
+  const choiceAt = '2026-09-22T00:31:00Z';
+  const resultAt = '2026-09-22T01:42:00Z';
+  const data = worldAppData({
+    ...world,
+    choices: [
+      {
+        id: 'choice-1',
+        actorId: 'actor-a',
+        quote: '我决定先把短片剪完',
+        intent: '剪完短片',
+        at: choiceAt,
+        sourceEventId: 'event-1',
+        status: 'followed_up',
+        result: {
+          kind: 'reported_done',
+          quote: '我把短片剪完了',
+          at: resultAt,
+          sourceEventId: 'event-2',
+        },
+      },
+    ],
+  });
+  assert.deepEqual(data.choices, [
+    {
+      id: 'choice-1',
+      actorName: '甲',
+      quote: '我决定先把短片剪完',
+      intent: '剪完短片',
+      at: choiceAt,
+      status: 'followed_up',
+      result: { kind: 'reported_done', quote: '我把短片剪完了', at: resultAt },
+    },
+  ]);
+  assert.equal(data.notes.length, 1, 'system story entries must not become editable user notes');
+  assert.deepEqual(data.photos, [], 'a reported result is not evidence of a generated photo');
+});
 
 test('uploaded photo names never imply AI generation or a fictional event', () => {
   const photos = ['身份写真', '旅行现场纪念'].map((title, index) => ({

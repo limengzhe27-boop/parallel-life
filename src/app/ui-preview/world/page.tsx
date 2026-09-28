@@ -19,6 +19,21 @@ export default function Preview() {
           identity: '合成样板：社区维修铺店主',
           setting: '合成样板：清晨，修理铺刚开门。',
           actors: [{ id, name: '测试邻居', relationship: '合成角色' }],
+          choices: [{
+            id: '10000000-0000-4000-8000-000000000002',
+            actorId: id,
+            quote: '我决定先把短片剪到十五分钟',
+            intent: '完成十五分钟版本',
+            at: '2026-09-21T20:10:00Z',
+            sourceEventId: '10000000-0000-4000-8000-000000000003',
+            status: 'followed_up',
+            result: {
+              kind: 'reported_done',
+              quote: '我把短片剪完了，十五分钟版本已经导出',
+              at: '2026-09-22T00:20:00Z',
+              sourceEventId: '10000000-0000-4000-8000-000000000004',
+            },
+          }],
           invitations: [
             {
               id: 'preview-invitation',

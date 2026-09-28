@@ -452,6 +452,92 @@
   background: var(--app-paper);
   overflow: hidden;
 }
+.choiceSection {
+  padding: 4px 12px 14px;
+  background: #f8fafc;
+}
+.choiceSection h3 {
+  margin: 5px 2px 10px;
+  color: #8c651d;
+  font-size: 13px;
+  font-weight: 650;
+}
+.choiceCard {
+  margin-bottom: 8px;
+  border: 1px solid #e7dfce;
+  border-radius: 12px;
+  background: #fffefa;
+  overflow: hidden;
+}
+.choiceCard summary {
+  display: flex;
+  align-items: center;
+  min-height: 62px;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.choiceCard summary::-webkit-details-marker {
+  display: none;
+}
+.choiceCard summary:focus-visible {
+  outline: 2px solid #d28b21;
+  outline-offset: -2px;
+}
+.choiceMarker {
+  width: 6px;
+  height: 30px;
+  flex: none;
+  border-radius: 5px;
+  background: #e7b05f;
+}
+.choiceSummary {
+  min-width: 0;
+  flex: 1;
+}
+.choiceSummary strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #2c261f;
+  font-size: 14px;
+}
+.choiceSummary small {
+  display: block;
+  margin-top: 5px;
+  color: #847c70;
+  font-size: 11px;
+}
+.choiceState {
+  flex: none;
+  color: #8b6a32;
+  font-size: 11px;
+}
+.choiceDetail {
+  padding: 0 15px 14px 28px;
+  border-top: 1px solid #f0e9dd;
+  color: #302c28;
+}
+.choiceDetail p {
+  margin: 11px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.choiceDetail p span {
+  display: block;
+  margin-bottom: 3px;
+  color: #837869;
+  font-size: 11px;
+}
+.choiceDetail > small {
+  display: block;
+  margin-top: 11px;
+  color: #8a8176;
+  font-size: 11px;
+}
 .noteList > button,
 .noteList .noteRow {
   display: block;

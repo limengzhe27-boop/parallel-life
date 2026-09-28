@@ -61,6 +61,23 @@ export function worldAppData(
       ...local.map((message) => ({ ...message })),
     ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
     notes: world.notes.map((note) => ({ ...note })),
+    choices: (world.choices ?? []).map((choice) => ({
+      id: choice.id,
+      actorName: world.actors.find((actor) => actor.id === choice.actorId)?.name ?? '这段对话',
+      quote: choice.quote,
+      intent: choice.intent,
+      at: choice.at,
+      status: choice.status,
+      ...(choice.result
+        ? {
+            result: {
+              kind: choice.result.kind,
+              quote: choice.result.quote,
+              at: choice.result.at,
+            },
+          }
+        : {}),
+    })),
     invitations: (world.invitations ?? []).map((invitation) => ({
       ...invitation,
       version: world.version ?? 0,

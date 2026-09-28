@@ -330,15 +330,15 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
-|NAR-02D|codex-main-nar02d-20260928|I / 单人|主登记目录|src/modules/world/{domain/types,domain/validation,domain/reducer,domain/agenda,domain/clock,infrastructure/turn-planner}.ts、相关测试、docs/task-reports/NAR-02D.md、docs/DEPLOYMENT.md|本地真实库、合成网关、生产迁移只读核对；无新迁移预期|2026-09-28：c5a4964/262prl6ua READY；npm run verify（常规检查与33项真实库测试）、build、合成真实模型四轮、生产29迁移一致；公网health/session/世界列表200。完整NAR-02/03待续，见task-reports/NAR-02D.md|
-|U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/U-06.md|沿用 task/h-01；端口 3220；不接数据库/模型/私有素材|2026-09-22T11:32:42.032906+00:00；103af3b外壳移植由I验收；四应用增量6f77460已交付，仅追加嵌入布局CSS，无新Shell props；不覆盖main管理入口；待I验收|
+|NAR-02E|codex-main-nar02e-20260928|I / 单人|主登记目录|src/contracts/world-build.ts、src/modules/world/infrastructure/build-repository.ts、src/features/phone/{world-app-data.ts,apps/types.ts,apps/notes.tsx,apps/apps.module.css}、src/app/ui-preview/world/page.tsx、tests/{world-app-data.test.ts,integration/world-build.test.ts}、docs/{task-reports/NAR-02E.md,DEVELOPMENT.md,DEPLOYMENT.md}|本地真实库；生产迁移只读核对；无新迁移|2026-09-28：只读投影与手机呈现已做；222常规+33真实库、build、390/1440样板验收；待发布和公网复核|
+|U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|docs/task-reports/U-06.md（既有代码已受控集成至主目录；当前无活跃写入）|—|2026-09-28：I核对早期交付已受控集成，归还主目录手机代码写入范围；保留原待验收状态，不冒称用户已确认|
 |D-04|codex-main-01a0c73b|I / 单人|主登记目录|src/features/discovery、src/features/api/client.ts、docs/task-reports/D-04.md|本项目本地环境，串行写入|2026-09-22：已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |U-05|codex-main-01a0c73b|I / 单人|主登记目录|共享导航与布局、interview/discovery、设计文档及报告|本项目本地环境，串行写入|2026-09-22：恢复固定聊聊/如果/我的；我的整页与聊天共享档案，所有已保存分支集中展示；40项检查及手机PC验证通过|
 |U-04|codex-main-01a0c73b|I / 单人|主登记目录|interview、phone-first样式、欢迎预览、设计文档与报告|本项目本地环境，串行写入|2026-09-22：聊天直接进入，姓名生日内嵌选填；我的补充六项资料；四种视口与40项检查、构建通过|
 |D-06|codex-main-01a0c73b|I / 单人|主登记目录|world创建契约/仓储/Worker、迁移0006、server/API、discovery/phone入口、测试与文档|本项目本地环境，串行写入|2026-09-22：文字世界创建、快照和手机读取已实现；41单元、11真实库与界面样板通过；Worker被自动审批拦截，待外传授权后真实模型实测|
-|H-03|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
-|H-05|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
-|H-07|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/apps/**、独立phone预览、导航必要扩展、tests/phone-apps*.test.ts、本任务报告|task/h-01，103af3b；端口3220，不接数据库/模型|2026-09-22T11:32:42.032906+00:00；待验收；提交6f77460；PhoneAppsProvider/PhoneAppView及commandResults契约完成，43项检查/构建、四尺寸及错误/恢复验收；3220和浏览器空间已停；I负责真实adapter/合并|
+|H-03|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|docs/task-reports/H-03.md（既有代码已受控集成至主目录；当前无活跃写入）|—|2026-09-28：I核对早期交付已受控集成，归还主目录手机代码写入范围；保留原待验收状态，不冒称用户已确认|
+|H-05|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|docs/task-reports/H-05.md（既有代码已受控集成至主目录；当前无活跃写入）|—|2026-09-28：I核对早期交付已受控集成，归还主目录手机代码写入范围；保留原待验收状态，不冒称用户已确认|
+|H-07|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|docs/task-reports/H-07.md（既有代码已受控集成至主目录；当前无活跃写入）|—|2026-09-28：I核对早期交付已受控集成，归还主目录手机代码写入范围；保留原待验收状态，不冒称用户已确认|
 |U-03|codex-main-01a0c73b|I / 单人|主登记目录|src/components 外层布局、src/app/layout.tsx 与 outer-ui.css、interview/discovery/preview、设计规范与报告；phone目录不改|本项目本地环境，串行写入|2026-09-22：I已受控接入6f77460四应用与开场投影；49项检查及通知直达/草稿/短屏验证通过；UI就绪，W-03/H-06真实写入仍待开发|
 |AUD-01|dsh-main-20260923|I / 单人|主登记目录|本地环境启动、合成经历真实调用、docs/task-reports/AUD-01.md|本项目本地 PostgreSQL 55432 与 3218 端口；真实网关调用仅用合成文本|2026-09-23T12:40Z：已完成；迁移 0001–0016 已应用，全链路真实调用证据见报告；本地服务保持运行供用户体验|
 |D-08|dsh-main-20260923|I / 单人|主登记目录|src/modules/ai/**、src/modules/world/infrastructure/**、src/modules/discovery/infrastructure/**、src/modules/tasks/application/**、src/contracts/**、tests/**、docs/task-reports/D-08.md|真实网关调用仅用合成经历；本项目 Supabase 生产库只读诊断|2026-09-23T13:10Z：已完成并上线；输出上限与容错解析修复，合格率 4/4；生产部署后完整链路实测通过|
@@ -617,6 +617,7 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |NAR-02B|[x] 已完成|codex-main-nar02b-20260928|NAR-02的一段：日程邀约从提出/确认到用户明确标记到场/取消的持久结果，导演仅承接应答；不把沉默或NPC台词当完成|真实事件可追溯，刷新/重复提交/跨用户隔离，手机日历可操作；完整剧情线仍留NAR-02|
 |NAR-02C|[x] 已完成|codex-main-nar02c-20260928|NAR-02的一段：自由对话中的明确选择留下有来源的世界内待办，导演之后针对该选择由知情角色发起一次承接；不由NPC代用户做决定|回合事件与快照持久、角色可见性、重复/刷新/并发与真实库验收；完整剧情结局仍属NAR-02|
 |NAR-02D|[x] 已完成|codex-main-nar02d-20260928|NAR-02的一段：自由对话中的明确结果报告绑定既有选择；区分用户自述完成、受阻与放弃，导演只承接一次；不把自述冒充可证实世界事实|来源原话、目标引用、版本/幂等/恢复/隔离、真实模型抽样与生产部署；完整成就核验与跨应用回报仍留NAR-02/03|
+|NAR-02E|[ ] 待验收|codex-main-nar02e-20260928|NAR-02D；已保存选择与用户结果的只读手机投影，和便签中的可回看呈现；不伪造可验证成就或照片|来源、角色、结果性质、刷新恢复与跨用户隔离；390/1440验收及部署|
 |NAR-03|[ ] 待开发|未领取|依赖NAR-02；消息/日历/相册/便签的事件后果、生图状态|一个选择形成可追溯的跨应用后果；生成等待/失败/unknown诚实反馈|
 |NAR-04|[ ] 待开发|未领取|依赖NAR-02/03；首次体验、回访承接、剧情质量评测|首个事件清楚可参与、回访承接、重复冲突/无后果选择评估；不以消息数冒充沉浸|
 

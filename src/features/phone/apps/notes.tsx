@@ -348,6 +348,9 @@ export function NotesApp({ target, open }: PhoneAppContext) {
   const notes = [...data.notes]
     .filter((n) => searchable(query, n.title, n.text))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const choices = [...(data.choices ?? [])]
+    .filter((choice) => searchable(query, choice.intent, choice.quote, choice.result?.quote ?? ''))
+    .sort((a, b) => b.at.localeCompare(a.at));
   return (
     <div
       className={`${s.app} ${s.notes}`}
@@ -400,6 +403,48 @@ export function NotesApp({ target, open }: PhoneAppContext) {
       )}
 
       <div className={s.noteList} style={{ flex: 1, overflowY: 'auto' }}>
+        {choices.length > 0 && (
+          <section className={s.choiceSection} aria-label="这段人生的选择">
+            <h3>走过的路</h3>
+            {choices.map((choice) => (
+              <details key={choice.id} className={s.choiceCard}>
+                <summary>
+                  <span className={s.choiceMarker} aria-hidden="true" />
+                  <span className={s.choiceSummary}>
+                    <strong>{choice.intent}</strong>
+                    <small>
+                      {choice.actorName} · {timeText(choice.at)}
+                    </small>
+                  </span>
+                  <span className={s.choiceState}>
+                    {choice.result?.kind === 'reported_done'
+                      ? '你说已完成'
+                      : choice.result?.kind === 'blocked'
+                        ? '遇到阻碍'
+                        : choice.result?.kind === 'abandoned'
+                          ? '你说已放下'
+                          : choice.status === 'followed_up'
+                            ? '有人问起'
+                            : '待续'}
+                  </span>
+                </summary>
+                <div className={s.choiceDetail}>
+                  <p>
+                    <span>你当时说</span>
+                    {choice.quote}
+                  </p>
+                  {choice.result && (
+                    <p>
+                      <span>你后来补充 · {timeText(choice.result.at)}</span>
+                      {choice.result.quote}
+                    </p>
+                  )}
+                  {choice.result && <small>后续来自你的讲述，尚无独立佐证。</small>}
+                </div>
+              </details>
+            ))}
+          </section>
+        )}
         {notes.map((n) => (
           <div key={n.id} style={{ position: 'relative' }}>
             <button className={s.noteRow} onClick={() => open('notes', n.id)}>
@@ -436,24 +481,6 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           </div>
         ))}
       </div>
-      {data.contacts.length > 0 && notes.length > 0 && (
-        <div
-          style={{
-            marginTop: '16px',
-            padding: '12px 14px',
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginBottom: '4px' }}>
-            💡 便签与生活联动
-          </div>
-          <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
-            点击任意便签，可在上方或底部一键将便签想法分享给微信好友，开启全新对话。
-          </div>
-        </div>
-      )}
       {!notes.length && (
         <Empty
           title={query ? '没有找到便签' : '记下这段人生的第一件小事'}

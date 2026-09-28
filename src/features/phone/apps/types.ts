@@ -48,12 +48,26 @@ export type PhoneNote = {
   updatedAt: string;
   links?: PhoneLink[];
 };
+export type PhoneStoryChoice = {
+  id: string;
+  actorName: string;
+  quote: string;
+  intent: string;
+  at: string;
+  status: 'pending' | 'followed_up' | 'superseded';
+  result?: {
+    kind: 'reported_done' | 'blocked' | 'abandoned';
+    quote: string;
+    at: string;
+  };
+};
 export type PhoneAppsData = {
   contacts: readonly PhoneContact[];
   messages: readonly PhoneMessage[];
   photos: readonly PhonePhoto[];
   invitations: readonly PhoneInvitation[];
   notes: readonly PhoneNote[];
+  choices?: readonly PhoneStoryChoice[];
   referenceTime?: string;
 };
 export type PhoneActionReceipt = { status: 'accepted' | 'committed'; taskId?: string };

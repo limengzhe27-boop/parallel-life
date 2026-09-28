@@ -49,6 +49,27 @@ export const WorldBuildListSchema = z.array(WorldBuildSchema).max(100);
 export type WorldBuild = z.infer<typeof WorldBuildSchema>;
 export const WorldPhoneSchema = z.strictObject({
   photos: z.array(AlbumPhotoSchema).optional(),
+  choices: z
+    .array(
+      z.strictObject({
+        id: Id,
+        actorId: Id,
+        quote: z.string(),
+        intent: z.string(),
+        at: Timestamp,
+        sourceEventId: Id,
+        status: z.enum(['pending', 'followed_up', 'superseded']),
+        result: z
+          .strictObject({
+            kind: z.enum(['reported_done', 'blocked', 'abandoned']),
+            quote: z.string(),
+            at: Timestamp,
+            sourceEventId: Id,
+          })
+          .optional(),
+      }),
+    )
+    .optional(),
   version: z.number().int().nonnegative().optional(),
   invitations: z.array(InvitationSchema).optional(),
   id: Id,

@@ -126,6 +126,20 @@ export class BuildRepository {
       return row;
     });
     const state = await new PostgresWorldRepository(this.db).get({ userId: ownerId }, worldId);
+    const choiceEventIds = (state.choices ?? []).flatMap((choice) => [
+      choice.sourceEventId,
+      ...(choice.result ? [choice.result.sourceEventId] : []),
+    ]);
+    const eventTimes = new Map<string, string>();
+    if (choiceEventIds.length) {
+      const rows = await this.db.transaction(ownerId, (sql) =>
+        sql.query(
+          'SELECT id,occurred_at FROM parallel_life.world_events WHERE world_id=$1 AND id=ANY($2::text[])',
+          [worldId, choiceEventIds],
+        ),
+      );
+      for (const row of rows.rows) eventTimes.set(row.id, new Date(row.occurred_at).toISOString());
+    }
     const clock = await new PostgresClockStore(this.db).read(ownerId, worldId);
     const storyTime = new Date(
       Math.max(
@@ -137,6 +151,32 @@ export class BuildRepository {
       id: state.id,
       seedId: metadata.seed_id,
       photos: await this.db.transaction(ownerId, (sql) => albumPhotos(sql, worldId)),
+      choices: (state.choices ?? []).flatMap((choice) => {
+        const at = eventTimes.get(choice.sourceEventId);
+        if (!at) return [];
+        const resultAt = choice.result && eventTimes.get(choice.result.sourceEventId);
+        return [
+          {
+            id: choice.id,
+            actorId: choice.actorId,
+            quote: choice.quote,
+            intent: choice.intent,
+            at,
+            sourceEventId: choice.sourceEventId,
+            status: choice.status,
+            ...(choice.result && resultAt
+              ? {
+                  result: {
+                    kind: choice.result.kind,
+                    quote: choice.result.quote,
+                    at: resultAt,
+                    sourceEventId: choice.result.sourceEventId,
+                  },
+                }
+              : {}),
+          },
+        ];
+      }),
       version: state.version,
       invitations: state.appointments
         .filter((a) => a.status)

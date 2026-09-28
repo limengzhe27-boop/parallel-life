@@ -8,6 +8,8 @@ import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postg
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { ProfileRepository } from '../../src/modules/profile/infrastructure/profile-repository.ts';
 import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
+import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import type { TurnCommand, WorldEvent } from '../../src/modules/world/domain/types.ts';
 import { WorldPlanner } from '../../src/modules/world/infrastructure/world-planner.ts';
 import { buildHandler } from '../../src/modules/world/infrastructure/build-handler.ts';
 import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
@@ -128,6 +130,77 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     assert.equal(phone.messages.length, 1);
     assert.equal(phone.actors.length, 3);
     assert.equal(phone.notes[0]?.title, '今天');
+    const actorId = phone.actors[0]!.id;
+    const worlds = new PostgresWorldRepository(db);
+    const choiceCommand: TurnCommand = {
+      id: randomUUID(),
+      worldId: first.worldId,
+      expectedVersion: 0,
+      actorId,
+      text: '我决定先把短片剪到十五分钟。',
+    };
+    const choiceEvent: WorldEvent = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: first.worldId,
+      version: 1,
+      commandId: choiceCommand.id,
+      type: 'turn.resolved',
+      occurredAt: new Date().toISOString(),
+      data: {
+        actorId,
+        userText: choiceCommand.text,
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId, text: '剪完发我看看。' },
+          {
+            type: 'choice.recorded',
+            id: randomUUID(),
+            quote: '我决定先把短片剪到十五分钟',
+            intent: '完成十五分钟版本',
+          },
+        ],
+      },
+    };
+    const chosen = await worlds.commit({ userId: owner }, choiceCommand, choiceEvent);
+    const reportCommand: TurnCommand = {
+      id: randomUUID(),
+      worldId: first.worldId,
+      expectedVersion: 1,
+      actorId,
+      text: '我把短片剪完了，十五分钟版本已经导出。',
+    };
+    const reportEvent: WorldEvent = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: first.worldId,
+      version: 2,
+      commandId: reportCommand.id,
+      type: 'turn.resolved',
+      occurredAt: new Date().toISOString(),
+      data: {
+        actorId,
+        userText: reportCommand.text,
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId, text: '发我文件，我看看。' },
+          {
+            type: 'choice.result_reported',
+            id: randomUUID(),
+            choiceId: chosen.state.choices![0]!.id,
+            quote: '我把短片剪完了，十五分钟版本已经导出',
+            outcome: 'reported_done',
+          },
+        ],
+      },
+    };
+    await worlds.commit({ userId: owner }, reportCommand, reportEvent);
+    const storyPhone = await new BuildRepository(db).phone(owner, first.worldId);
+    assert.equal(storyPhone.choices?.length, 1);
+    assert.equal(storyPhone.choices?.[0]?.sourceEventId, choiceEvent.id);
+    assert.equal(storyPhone.choices?.[0]?.result?.sourceEventId, reportEvent.id);
+    assert.equal(storyPhone.choices?.[0]?.result?.kind, 'reported_done');
+    assert.equal(storyPhone.choices?.[0]?.at, choiceEvent.occurredAt);
+    assert.equal(storyPhone.choices?.[0]?.result?.at, reportEvent.occurredAt);
+    await assert.rejects(builds.phone(other, first.worldId), { code: 'NOT_FOUND' });
     await assert.rejects(builds.phone(other, first.worldId), { code: 'NOT_FOUND' });
     const snapshot = (
       await admin.query(
