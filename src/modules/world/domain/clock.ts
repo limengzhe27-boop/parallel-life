@@ -99,6 +99,10 @@ export function selectSpeaker(
   /* A reply owed outranks an invitation or a sourced commitment. */
   const awaiting = agenda.find((thread) => thread.kind === 'awaiting_reply');
   if (awaiting && available(awaiting.actorId)) return awaiting.actorId;
+  const choiceResult = agenda.find(
+    (thread) => thread.kind === 'choice_result' && available(thread.actorId),
+  );
+  if (choiceResult) return choiceResult.actorId;
   const choice = agenda.find(
     (thread) => thread.kind === 'choice_followup' && available(thread.actorId),
   );
@@ -142,6 +146,7 @@ export function beatCue(
   const thread = threadFor(agenda, actorId);
   return [
     `（导演节拍：此刻是 ${state.time}，用户没有开口，${actor?.name ?? '这个角色'} 可以主动做点什么。）`,
+    thread?.sourceId ? `[choice:${thread.sourceId}]` : '',
     thread ? `（未了结的事：${thread.detail}。可以自然提起，但不要替用户答应用户的事。）` : '',
     ...directionLines(direction, actorId),
     '只围绕这件已经发生、仍需回应的事，发一条像真人手机消息的简短来信；不要凭空新增危机，也不要重复催促。',

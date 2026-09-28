@@ -68,6 +68,14 @@ export type StoryChoice = {
   sourceVersion: number;
   status: 'pending' | 'followed_up' | 'superseded';
   followUpEventId?: Id;
+  /** The player's account of the outcome, never an independently verified world fact. */
+  result?: {
+    kind: 'reported_done' | 'blocked' | 'abandoned';
+    quote: string;
+    sourceEventId: Id;
+    sourceVersion: number;
+    acknowledgedEventId?: Id;
+  };
 };
 
 export type WorldState = {
@@ -95,7 +103,14 @@ export type WorldEffect =
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
   | { type: 'media.requested'; id: Id; prompt: string; title?: string }
-  | { type: 'choice.recorded'; id: Id; quote: string; intent: string };
+  | { type: 'choice.recorded'; id: Id; quote: string; intent: string }
+  | {
+      type: 'choice.result_reported';
+      id: Id;
+      choiceId: Id;
+      quote: string;
+      outcome: 'reported_done' | 'blocked' | 'abandoned';
+    };
 
 export type TurnProposal = { schemaVersion: 1; effects: WorldEffect[] };
 export type TurnCommand = {

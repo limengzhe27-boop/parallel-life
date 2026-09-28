@@ -6,6 +6,7 @@ import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
 import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { beatCue } from '../../src/modules/world/domain/clock.ts';
 import type { WorldState, WorldEvent, TurnCommand } from '../../src/modules/world/domain/types.ts';
 test('real world commit: concurrency, original receipt, compact projections, restart and transaction rollback', async () => {
   const admin = await adminClient('parallel_life_test');
@@ -153,7 +154,7 @@ test('real world commit: concurrency, original receipt, compact projections, res
     const followCommand = {
       ...command(3),
       origin: 'director' as const,
-      text: '承接用户的剪片决定',
+      text: beatCue(chosen.state, 'friend'),
     };
     const followEvent = event(followCommand);
     followEvent.data.origin = 'director';
@@ -168,6 +169,71 @@ test('real world commit: concurrency, original receipt, compact projections, res
     const followed = await repo.commit(session, followCommand, followEvent);
     assert.equal(followed.state.choices?.[0]?.status, 'followed_up');
     assert.equal((await repo.get(session, id)).choices?.[0]?.followUpEventId, followEvent.id);
+    const reportCommand = { ...command(4), text: '我把短片剪完了，十五分钟版本已经导出。' };
+    const reportEvent = event(reportCommand);
+    reportEvent.data.effects = [
+      {
+        type: 'message.received',
+        id: randomUUID(),
+        actorId: 'friend',
+        text: '发我文件，我核一下。',
+      },
+      {
+        type: 'choice.result_reported',
+        id: randomUUID(),
+        choiceId: chosen.state.choices![0]!.id,
+        quote: '我把短片剪完了，十五分钟版本已经导出',
+        outcome: 'reported_done',
+      },
+    ];
+    const oppositeCommand = { ...command(4), text: '我把短片卡住了，导出失败。' };
+    const oppositeEvent = event(oppositeCommand);
+    oppositeEvent.data.effects = [
+      { type: 'message.received', id: randomUUID(), actorId: 'friend', text: '先看失败原因。' },
+      {
+        type: 'choice.result_reported',
+        id: randomUUID(),
+        choiceId: chosen.state.choices![0]!.id,
+        quote: '我把短片卡住了，导出失败',
+        outcome: 'blocked',
+      },
+    ];
+    const competing = await Promise.allSettled([
+      repo.commit(session, reportCommand, reportEvent),
+      repo.commit(session, oppositeCommand, oppositeEvent),
+    ]);
+    assert.equal(competing.filter((item) => item.status === 'fulfilled').length, 1);
+    const winnerReport = competing[0]!.status === 'fulfilled' ? reportCommand : oppositeCommand;
+    const winnerEvent = competing[0]!.status === 'fulfilled' ? reportEvent : oppositeEvent;
+    const resultState = await repo.get(session, id);
+    assert.equal(resultState.choices?.[0]?.result?.sourceEventId, winnerEvent.id);
+    assert.deepEqual(
+      (await repo.receipt(session, winnerReport))?.state.choices,
+      resultState.choices,
+    );
+    await db.close();
+    db = new PostgresDatabase(url);
+    repo = new PostgresWorldRepository(db);
+    assert.deepEqual((await repo.get(session, id)).choices, resultState.choices);
+    await assert.rejects(repo.get({ userId: randomUUID() }, id), { code: 'NOT_FOUND' });
+    const acknowledgeCommand = {
+      ...command(5),
+      origin: 'director' as const,
+      text: beatCue(resultState, 'friend'),
+    };
+    const acknowledgeEvent = event(acknowledgeCommand);
+    acknowledgeEvent.data.origin = 'director';
+    acknowledgeEvent.data.effects = [
+      {
+        type: 'message.received',
+        id: randomUUID(),
+        actorId: 'friend',
+        text: '我知道你的进展了，发我再核实。',
+      },
+    ];
+    const acknowledged = await repo.commit(session, acknowledgeCommand, acknowledgeEvent);
+    assert.equal(acknowledged.state.choices?.[0]?.result?.acknowledgedEventId, acknowledgeEvent.id);
+    assert.deepEqual((await repo.get(session, id)).choices, acknowledged.state.choices);
   } finally {
     await db.close();
     await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [userId]);

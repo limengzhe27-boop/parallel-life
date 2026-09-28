@@ -1,5 +1,5 @@
 import { DomainError } from './errors.ts';
-import type { TurnCommand, TurnProposal, WorldEffect, Visibility } from './types.ts';
+import type { StoryChoice, TurnCommand, TurnProposal, WorldEffect, Visibility } from './types.ts';
 
 function fail(): never {
   throw new DomainError('INVALID_PROPOSAL');
@@ -49,6 +49,68 @@ export function isExplicitChoice(quote: string, userText: string): boolean {
   if (/^(如果|假如|要是|可能|也许|比如|假设)/.test(quote)) return false;
   if (/^我要(?:你|问|知道|看看)|^我会不会/.test(quote)) return false;
   return /^(我(?:决定|选择|打算|要|会|想先)|那就|咱们(?:就|先)|就按|先把|先去|不如)/.test(quote);
+}
+/** A result is only a first-person report about the same decision, not independent proof. */
+export function isExplicitChoiceResult(
+  quote: string,
+  userText: string,
+  outcome: 'reported_done' | 'blocked' | 'abandoned',
+  choice: StoryChoice,
+): boolean {
+  const at = userText.indexOf(quote);
+  if (at < 0 || quote.length < 5 || !/^我/.test(quote)) return false;
+  const before = userText.slice(0, at).trimEnd();
+  if (before && !/[，。！？；;\n]$/.test(before)) return false;
+  if (/^(如果|假如|要是|假设|比如)/.test(userText.trim()) && at > 0) return false;
+  const blocked =
+    /还没|没(?:有|能|法)?(?:做完|剪完|拍完|完成|成功)|卡住|受阻|做不到|来不及|失败了|没法|无法|不完/;
+  const abandoned = /放弃|不(?:做|剪|拍|去|继续|想)|取消|算了|改主意/;
+  const done = /完成了|做完了|剪完了|拍完了|发给|提交了|搞定了|弄好了|办好了|去了|拿到了/;
+  if (
+    (outcome === 'reported_done' &&
+      (!done.test(quote) || blocked.test(quote) || abandoned.test(quote))) ||
+    (outcome === 'blocked' && !blocked.test(quote)) ||
+    (outcome === 'abandoned' && !abandoned.test(quote))
+  )
+    return false;
+  const bigrams = (value: string) => {
+    const found = new Set<string>();
+    for (const part of value.match(/[\p{Script=Han}]{2,}|[a-z0-9]{3,}/giu) ?? []) {
+      if (/^[a-z0-9]/i.test(part)) {
+        found.add(part.toLowerCase());
+        continue;
+      }
+      for (let i = 0; i < part.length - 1; i++) found.add(part.slice(i, i + 2));
+    }
+    return found;
+  };
+  const generic = new Set([
+    '我决',
+    '决定',
+    '选择',
+    '我打',
+    '打算',
+    '我会',
+    '我要',
+    '先把',
+    '我把',
+    '完成',
+    '已经',
+    '现在',
+    '今天',
+    '明天',
+    '这件',
+    '那个',
+    '可以',
+    '后来',
+    '一下',
+    '给你',
+    '这次',
+    '之前',
+    '之后',
+  ]);
+  const target = bigrams(`${choice.quote} ${choice.intent}`);
+  return [...bigrams(quote)].some((part) => target.has(part) && !generic.has(part));
 }
 export function isoInstant(value: unknown): string {
   const result = text(value, 40);
@@ -109,6 +171,16 @@ export function parseProposal(value: unknown): TurnProposal {
           id: effectId,
           quote: text(item.quote, 160).trim(),
           intent: text(item.intent, 120).trim(),
+        };
+      case 'choice.result_reported':
+        if (!['reported_done', 'blocked', 'abandoned'].includes(String(item.outcome)))
+          return fail();
+        return {
+          type: item.type,
+          id: effectId,
+          choiceId: id(item.choiceId),
+          quote: text(item.quote, 160).trim(),
+          outcome: item.outcome as 'reported_done' | 'blocked' | 'abandoned',
         };
       default:
         return fail();

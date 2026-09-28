@@ -81,6 +81,67 @@ test('optional model choice is kept only when it quotes a real explicit decision
   );
 });
 
+test('model result reports require an existing visible choice and an explicit matching user statement', async () => {
+  const context: ActorContext = {
+    ...mockContext,
+    choices: [
+      {
+        id: 'choice_1',
+        actorId: mockContext.actor.id,
+        quote: '我决定先把短片剪到十五分钟',
+        intent: '完成十五分钟短片',
+        sourceEventId: 'event_1',
+        sourceVersion: 1,
+        status: 'followed_up',
+      },
+    ],
+  };
+  const planner = new WorldTurnPlanner({
+    complete: async () =>
+      JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          {
+            type: 'message.received',
+            id: 'reply',
+            actorId: mockContext.actor.id,
+            text: '发我看看文件。',
+          },
+          {
+            type: 'choice.result_reported',
+            id: 'result',
+            choiceId: 'choice_1',
+            quote: '我把短片剪完了',
+            outcome: 'reported_done',
+          },
+        ],
+      }),
+  });
+  const accepted = (await planner.propose({ context, userText: '我把短片剪完了，发你了。' })) as {
+    effects: { type: string }[];
+  };
+  assert.deepEqual(
+    accepted.effects.map((effect) => effect.type),
+    ['message.received', 'choice.result_reported'],
+  );
+  const uncertain = (await planner.propose({
+    context,
+    userText: '如果我把短片剪完了会怎样？',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    uncertain.effects.map((effect) => effect.type),
+    ['message.received'],
+  );
+  const foreign = (await planner.propose({
+    context: { ...context, choices: [] },
+    userText: '我把短片剪完了。',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    foreign.effects.map((effect) => effect.type),
+    ['message.received'],
+  );
+});
+
 test('WorldTurnPlanner gracefully wraps plain natural text into valid message.received effect', async () => {
   const planner = new WorldTurnPlanner({
     async complete() {

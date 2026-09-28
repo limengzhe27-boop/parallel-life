@@ -6,6 +6,7 @@ import {
   validateCommand,
   validateEventId,
   isExplicitChoice,
+  isExplicitChoiceResult,
 } from './validation.ts';
 import { validateCharacterEffects } from './character-policy.ts';
 import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
@@ -54,8 +55,12 @@ export function applyEvent(
     ].map((item) => item.id),
   );
   const jobs: OutboxJob[] = [];
-  if (effects.filter((effect) => effect.type === 'choice.recorded').length > 1)
-    throw new DomainError('INVALID_PROPOSAL', 'Only one choice per turn');
+  if (
+    effects.filter(
+      (effect) => effect.type === 'choice.recorded' || effect.type === 'choice.result_reported',
+    ).length > 1
+  )
+    throw new DomainError('INVALID_PROPOSAL', 'Only one choice change per turn');
   if (event.data.origin !== 'director') {
     const userMessageId = `${event.id}_user`;
     if (usedIds.has(userMessageId)) throw new DomainError('INVALID_PROPOSAL');
@@ -88,15 +93,27 @@ export function applyEvent(
           sourceVersion: event.version,
         });
         for (const choice of state.choices ?? []) {
+          const linkedToCue = event.data.userText.includes(`[choice:${choice.id}]`);
           if (
             event.data.origin === 'director' &&
+            linkedToCue &&
             choice.status === 'pending' &&
             choice.actorId === effect.actorId &&
-            choice.sourceVersion < event.version
+            choice.sourceVersion < event.version &&
+            !choice.result
           ) {
             choice.status = 'followed_up';
             choice.followUpEventId = event.id;
           }
+          if (
+            event.data.origin === 'director' &&
+            linkedToCue &&
+            choice.actorId === effect.actorId &&
+            choice.result &&
+            !choice.result.acknowledgedEventId &&
+            choice.result.sourceVersion < event.version
+          )
+            choice.result.acknowledgedEventId = event.id;
         }
         break;
       case 'choice.recorded':
@@ -106,7 +123,7 @@ export function applyEvent(
         )
           throw new DomainError('INVALID_PROPOSAL', 'Choice must quote an explicit user decision');
         for (const choice of state.choices ?? []) {
-          if (choice.status === 'pending' && choice.actorId === event.data.actorId)
+          if (choice.status !== 'superseded' && choice.actorId === event.data.actorId)
             choice.status = 'superseded';
         }
         state.choices = [
@@ -122,6 +139,28 @@ export function applyEvent(
           },
         ].slice(-5);
         break;
+      case 'choice.result_reported': {
+        const choice = state.choices?.find((item) => item.id === effect.choiceId);
+        if (
+          event.data.origin === 'director' ||
+          !choice ||
+          choice.actorId !== event.data.actorId ||
+          choice.status === 'superseded' ||
+          !isExplicitChoiceResult(effect.quote, event.data.userText, effect.outcome, choice)
+        )
+          throw new DomainError(
+            'INVALID_PROPOSAL',
+            'Result needs a sourced player report about this choice',
+          );
+        if (choice.result?.kind === effect.outcome && choice.result.quote === effect.quote) break;
+        choice.result = {
+          kind: effect.outcome,
+          quote: effect.quote,
+          sourceEventId: event.id,
+          sourceVersion: event.version,
+        };
+        break;
+      }
       case 'appointment.proposed':
       case 'appointment.created':
         if (effect.participantIds.some((id) => !actorIds.has(id)) || effect.at < replyAt)

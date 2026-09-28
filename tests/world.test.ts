@@ -4,6 +4,8 @@ import { MemoryWorldRepository } from '../src/modules/world/infrastructure/memor
 import { resolveTurn } from '../src/modules/world/application/resolve-turn.ts';
 import { actorContext } from '../src/modules/world/application/actor-context.ts';
 import { applyEvent } from '../src/modules/world/domain/reducer.ts';
+import { beatCue } from '../src/modules/world/domain/clock.ts';
+import { buildAgenda } from '../src/modules/world/domain/agenda.ts';
 import type { TurnCommand, WorldState, WorldEvent } from '../src/modules/world/domain/types.ts';
 
 const time = '2026-09-22T08:00:00.000Z';
@@ -151,7 +153,7 @@ test('an explicit free-chat choice persists and receives one later character fol
       worldId: choiceCommand.worldId,
       expectedVersion: 1,
       actorId: 'friend',
-      text: '导演舞台指示',
+      text: beatCue(choice.state, 'friend'),
       origin: 'director',
     },
   );
@@ -201,6 +203,190 @@ test('a model cannot invent or record a choice from a hypothetical, quotation or
     resolveTurn(deps, session, { ...command, text: '我决定去拍片', origin: 'director' }),
     { code: 'INVALID_PROPOSAL' },
   );
+});
+
+test('a reported result is sourced to the player, acknowledged once, and can be corrected', () => {
+  const before = seed();
+  before.version = 1;
+  before.choices = [
+    {
+      id: 'choice_1',
+      actorId: 'friend',
+      quote: '我决定先把短片剪到十五分钟',
+      intent: '完成十五分钟短片',
+      sourceEventId: 'event_choice',
+      sourceVersion: 1,
+      status: 'followed_up',
+      followUpEventId: 'event_followup',
+    },
+  ];
+  const report = (
+    state: WorldState,
+    quote: string,
+    outcome: 'reported_done' | 'blocked' | 'abandoned',
+    eventId: string,
+  ): WorldEvent => ({
+    schemaVersion: 1,
+    id: eventId,
+    worldId: state.id,
+    version: state.version + 1,
+    commandId: `command_${eventId}`,
+    occurredAt: time,
+    type: 'turn.resolved',
+    data: {
+      actorId: 'friend',
+      userText: quote,
+      effects: [
+        {
+          type: 'message.received',
+          id: `reply_${eventId}`,
+          actorId: 'friend',
+          text: '我听到了，先看实际情况。',
+        },
+        {
+          type: 'choice.result_reported',
+          id: `result_${eventId}`,
+          choiceId: 'choice_1',
+          quote,
+          outcome,
+        },
+      ],
+    },
+  });
+  const first = applyEvent(
+    before,
+    report(before, '我把短片剪完了，十五分钟版本发你了。', 'reported_done', 'event_result'),
+  ).state;
+  assert.equal(first.choices?.[0]?.result?.kind, 'reported_done');
+  assert.equal(first.choices?.[0]?.result?.sourceEventId, 'event_result');
+  assert.equal(buildAgenda(first)[0]?.kind, 'choice_result');
+  const cue = beatCue(first, 'friend');
+  assert.match(cue, /\[choice:choice_1\]/);
+  const unrelated = applyEvent(first, {
+    schemaVersion: 1,
+    id: 'event_unrelated',
+    worldId: first.id,
+    version: first.version + 1,
+    commandId: 'command_unrelated',
+    occurredAt: time,
+    type: 'turn.resolved',
+    data: {
+      actorId: 'friend',
+      origin: 'director',
+      userText: '承接别的约定',
+      effects: [
+        { type: 'message.received', id: 'reply_unrelated', actorId: 'friend', text: '晚点聊。' },
+      ],
+    },
+  }).state;
+  assert.equal(unrelated.choices?.[0]?.result?.acknowledgedEventId, undefined);
+  const acknowledged = applyEvent(unrelated, {
+    schemaVersion: 1,
+    id: 'event_ack',
+    worldId: unrelated.id,
+    version: unrelated.version + 1,
+    commandId: 'command_ack',
+    occurredAt: time,
+    type: 'turn.resolved',
+    data: {
+      actorId: 'friend',
+      origin: 'director',
+      userText: cue,
+      effects: [
+        {
+          type: 'message.received',
+          id: 'reply_ack',
+          actorId: 'friend',
+          text: '我收到你的消息了，把文件发我再核一下。',
+        },
+      ],
+    },
+  }).state;
+  assert.equal(acknowledged.choices?.[0]?.result?.acknowledgedEventId, 'event_ack');
+  assert.equal(
+    buildAgenda(acknowledged).some((thread) => thread.kind === 'choice_result'),
+    false,
+  );
+  const corrected = applyEvent(
+    acknowledged,
+    report(acknowledged, '我把短片卡住了，导出文件失败了。', 'blocked', 'event_correction'),
+  ).state;
+  assert.equal(corrected.choices?.[0]?.result?.kind, 'blocked');
+  assert.equal(corrected.choices?.[0]?.result?.acknowledgedEventId, undefined);
+  assert.equal(buildAgenda(corrected)[0]?.kind, 'choice_result');
+  assert.equal(before.choices[0]?.result, undefined);
+});
+
+test('result proposals cannot invent proof, borrow another role’s choice, or confuse a hypothetical', () => {
+  const before = seed();
+  before.version = 1;
+  before.choices = [
+    {
+      id: 'choice_1',
+      actorId: 'friend',
+      quote: '我决定先把短片剪到十五分钟',
+      intent: '完成十五分钟短片',
+      sourceEventId: 'event_choice',
+      sourceVersion: 1,
+      status: 'pending',
+    },
+  ];
+  for (const [quote, outcome, choiceId, actorId] of [
+    ['我把短片剪完了。', 'reported_done', 'unknown', 'friend'],
+    ['如果我把短片剪完了会怎样？', 'reported_done', 'choice_1', 'friend'],
+    ['我剪完了。', 'reported_done', 'choice_1', 'friend'],
+    ['我把短片剪完了。', 'reported_done', 'choice_1', 'other'],
+    ['我把短片还没剪完。', 'reported_done', 'choice_1', 'friend'],
+  ] as const) {
+    const event: WorldEvent = {
+      schemaVersion: 1,
+      id: 'event_bad',
+      worldId: before.id,
+      version: 2,
+      commandId: 'command_bad',
+      occurredAt: time,
+      type: 'turn.resolved',
+      data: {
+        actorId,
+        userText: quote,
+        effects: [
+          { type: 'message.received', id: 'reply_bad', actorId, text: '收到。' },
+          { type: 'choice.result_reported', id: 'result_bad', choiceId, quote, outcome },
+        ],
+      },
+    };
+    assert.throws(() => applyEvent(before, event), { code: 'INVALID_PROPOSAL' });
+  }
+  const mixed: WorldEvent = {
+    schemaVersion: 1,
+    id: 'event_mixed',
+    worldId: before.id,
+    version: 2,
+    commandId: 'command_mixed',
+    occurredAt: time,
+    type: 'turn.resolved',
+    data: {
+      actorId: 'friend',
+      userText: '我把短片剪完了。我决定下一步去参展。',
+      effects: [
+        { type: 'message.received', id: 'reply_mixed', actorId: 'friend', text: '收到。' },
+        {
+          type: 'choice.result_reported',
+          id: 'result_mixed',
+          choiceId: 'choice_1',
+          quote: '我把短片剪完了',
+          outcome: 'reported_done',
+        },
+        {
+          type: 'choice.recorded',
+          id: 'choice_mixed',
+          quote: '我决定下一步去参展',
+          intent: '去参展',
+        },
+      ],
+    },
+  };
+  assert.throws(() => applyEvent(before, mixed), { code: 'INVALID_PROPOSAL' });
 });
 
 test('a real-time turn retains separate send and reply instants, including after a reopen', async () => {

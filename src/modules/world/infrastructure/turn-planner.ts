@@ -3,7 +3,7 @@ import type { ActorContext, TurnPlanner } from '../application/ports.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { narrativeBrief } from '../domain/narrative-policy.ts';
 import { detectCrisisIntent } from '../../ai/safety-guard.ts';
-import { isExplicitChoice } from '../domain/validation.ts';
+import { isExplicitChoice, isExplicitChoiceResult } from '../domain/validation.ts';
 
 const SYSTEM = `你是“如果”平行人生手机中的一个虚构人物，正在和主角私聊。只代表当前 actor，不是替所有人发言的全知旁白。
 
@@ -24,6 +24,7 @@ turnOrigin 为 director 时，userText 是幕后舞台指示，不是用户发�
 
 【效果边界】
 当且仅当用户在这条消息里明确决定了自己接下来要做的事，可以在回复之外加一条 choice.recorded：{"type":"choice.recorded","id":"choice_1","quote":"用户消息中的原文连续片段","intent":"12至60字的具体行动"}。quote 必须逐字出自这条用户消息，并以“我决定/我选择/我要/我会/我打算/那就”等明确行动表达开头；假设、转述、提问、未定的愿望都不记录。只记录选择，绝不声称已执行或成功。导演舞台指示不可产生 choice.recorded。
+choices 是用户此前对这个角色说过的选择。如果用户本轮明确谈到其中一条选择的结果，并且亲口说“我完成了／我卡住了／我不做了”，可在回复之外加 choice.result_reported：{"type":"choice.result_reported","id":"result_1","choiceId":"choices中那条选择的id","quote":"本轮用户消息中的原文连续片段，含具体事情","outcome":"reported_done"}。outcome 只能为 reported_done、blocked、abandoned。必须是用户本人的陈述、与 choice 的具体事情对应；假设、引用他人的话、推测、问题都不能记录。reported_done 只是用户自述，不代表你看见成果或世界已证实成功；不要据此编造照片、奖项或完成证明。若本轮既报告旧结果又提出新选择，优先记录结果。导演指示不产生结果报告。
 只输出JSON。至少包含一条当前角色的 message.received。可记录自己的 belief.recorded；约时间用 appointment.proposed，必须由用户确认，不能直接视为赴约。约定格式必须为 {"type":"appointment.proposed","id":"appointment_1","title":"具体约定","at":"2026-09-29T14:00:00.000Z","participantIds":["ACTOR_ID"]}，participantIds 仅含当前角色；日期依据当前世界时间与对话，示例日期不可照抄。未知日期时先聊清楚，不创建约定。belief.recorded 格式为 {"type":"belief.recorded","id":"belief_1","actorId":"ACTOR_ID","text":"自己的看法"}。media.requested 仅在用户明确索图或已发生的具体事件确实需要留影时提出；照片未完成不声称已拍好。不得建立全知世界事实、替其他角色发言或替主角完成重大成就。
 例形：{"schemaVersion":1,"effects":[{"type":"message.received","id":"reply_1","actorId":"ACTOR_ID","text":"当前人物的自然回应"}]}。
 sceneDirection 只供创作参考，不要把策略名称、来源编号或幕后说明写进聊天。`;
@@ -131,12 +132,44 @@ export class WorldTurnPlanner implements TurnPlanner {
         }
       }
       // Optional story tracking must never make an otherwise valid reply fail.
+      let keptResult = false;
+      parsed.effects = parsed.effects.filter((effect) => {
+        if (effect.type !== 'choice.result_reported') return true;
+        const candidate = effect as {
+          choiceId?: unknown;
+          quote?: unknown;
+          outcome?: unknown;
+          id?: string;
+        };
+        const choice = context.choices?.find((item) => item.id === candidate.choiceId);
+        if (
+          keptResult ||
+          context.turnOrigin === 'director' ||
+          !choice ||
+          choice.status === 'superseded' ||
+          typeof candidate.quote !== 'string' ||
+          candidate.quote.length > 160 ||
+          !['reported_done', 'blocked', 'abandoned'].includes(String(candidate.outcome)) ||
+          !isExplicitChoiceResult(
+            candidate.quote.trim(),
+            userText,
+            candidate.outcome as 'reported_done' | 'blocked' | 'abandoned',
+            choice,
+          )
+        )
+          return false;
+        candidate.quote = candidate.quote.trim();
+        candidate.id = `choice_result_${Date.now()}`;
+        keptResult = true;
+        return true;
+      });
       let keptChoice = false;
       parsed.effects = parsed.effects.filter((effect) => {
         if (effect.type !== 'choice.recorded') return true;
         const candidate = effect as { quote?: unknown; intent?: unknown; id?: string };
         if (
           keptChoice ||
+          keptResult ||
           context.turnOrigin === 'director' ||
           typeof candidate.quote !== 'string' ||
           candidate.quote.length > 160 ||

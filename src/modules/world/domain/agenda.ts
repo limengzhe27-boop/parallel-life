@@ -14,9 +14,12 @@ export type AgendaThread = {
     | 'appointment_due'
     | 'appointment_result'
     | 'choice_followup'
+    | 'choice_result'
     | 'commitment';
   actorId: string;
   detail: string;
+  /** Only choice threads need a source marker for exact acknowledgement. */
+  sourceId?: string;
 };
 
 /** The minimum a memory must expose to become an agenda thread. */
@@ -43,11 +46,28 @@ export function buildAgenda(
       actorId: last.actorId,
       detail: '你刚说过话，对方还没有回应',
     });
-  for (const choice of state.choices ?? []) {
-    if (choice.status !== 'pending' || !actorIds.has(choice.actorId)) continue;
+  for (const choice of [...(state.choices ?? [])].reverse()) {
+    if (choice.status === 'superseded' || !actorIds.has(choice.actorId)) continue;
+    if (choice.result && !choice.result.acknowledgedEventId) {
+      const label =
+        choice.result.kind === 'reported_done'
+          ? '说自己已完成'
+          : choice.result.kind === 'blocked'
+            ? '说自己遇到阻碍'
+            : '说自己决定放弃';
+      threads.push({
+        kind: 'choice_result',
+        actorId: choice.actorId,
+        sourceId: choice.id,
+        detail: `用户对「${choice.quote}」${label}：「${choice.result.quote}」。这是用户自述，不是你已核实的结果。给出你真实知道的回应或下一步，不编造完成证据。`,
+      });
+      continue;
+    }
+    if (choice.status !== 'pending' || choice.result) continue;
     threads.push({
       kind: 'choice_followup',
       actorId: choice.actorId,
+      sourceId: choice.id,
       detail: `用户亲口决定「${choice.quote}」。你已在当时回应；这次只承接你后来实际能做的一小步或具体障碍，不能声称用户已经做完或取得结果。`,
     });
   }
@@ -133,6 +153,7 @@ export function buildAgenda(
 export function threadFor(agenda: AgendaThread[], actorId: string): AgendaThread | undefined {
   return (
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'awaiting_reply') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'choice_result') ??
     agenda.find((thread) => thread.actorId === actorId)
   );
 }
