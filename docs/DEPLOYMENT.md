@@ -1,3 +1,11 @@
+## 2026-09-28 · EXP-03D 聊天承接与草案身份设定上线
+
+应用提交 `8b35424`，Vercel Production 部署 `gvjpdmv0r` / `dpl_DZiBLkMnmbxcexMDazXVj2LZfHMZ` READY；正式域名 https://parallel-life-nu.vercel.app 的 health 200。204 项常规检查、28 项真实库测试与构建通过；生产 28 项迁移校验和一致，本批无新迁移。
+
+已聊过的用户在分支空态可沿最近本人的话发起 AI 推演；生成方向刷新后仍展开。草案现在可保存可选的主角身份、地点与氛围，确认后将其作为虚构起点建世界。390px 手机与 1440px 电脑本地实看无横向溢出。公网独立合成账号完成两轮访谈→三条真实 AI 方向→草案保存/恢复/重复确认→含明确身份及地点的世界→NPC 回复→便签版本保护；详见 [EXP-03D](task-reports/EXP-03D.md)。
+
+完整 EXP-03、页面重构、主动剧情与真实生图回报仍在后续任务；AI 方向正文偶发替换字符待修复。
+
 ## 2026-09-28 · EXP-03B/C 与 CHAT-01 已上线
 
 应用 a90e4d8（含资料投影b418d1f、引导f7285f5），部署 ktz3z22t7 / dpl_DtLfHJzfUPGNTKxFfguNgBtG1ZdX READY。正式域名 https://parallel-life-nu.vercel.app，health200。
