@@ -40,6 +40,10 @@ test('five day return spreads sourced NPC turns and preserves selective knowledg
         { id: mother, name: '妈妈', persona: '关心孩子', relationship: '妈妈' },
         { id: friend, name: '朋友', persona: '不认识主角家人', relationship: '朋友' },
       ],
+      actorTies: [
+        { fromActorId: sister, toActorId: mother, relationship: '同住家人', mayShare: true },
+        { fromActorId: sister, toActorId: friend, relationship: '互不熟悉', mayShare: false },
+      ],
       facts: [],
       messages: [],
       appointments: [],
@@ -69,6 +73,45 @@ test('five day return spreads sourced NPC turns and preserves selective knowledg
         ],
       },
     });
+    const forgedCommand = {
+      id: randomUUID(),
+      worldId,
+      actorId: sister,
+      origin: 'director' as const,
+      text: '（测试导演节拍）',
+      expectedVersion: 1,
+    };
+    const sourced = (await worlds.get(session, worldId)).messages.find(
+      (message) => message.role === 'user',
+    )!;
+    await assert.rejects(
+      worlds.commit(session, forgedCommand, {
+        schemaVersion: 1,
+        id: randomUUID(),
+        worldId,
+        version: 2,
+        commandId: forgedCommand.id,
+        occurredAt: start,
+        type: 'turn.resolved',
+        data: {
+          actorId: sister,
+          origin: 'director',
+          userText: forgedCommand.text,
+          effects: [
+            { type: 'message.received', id: randomUUID(), actorId: sister, text: '我想想。' },
+            {
+              type: 'information.shared',
+              id: randomUUID(),
+              recipientActorId: mother,
+              sourceMessageId: sourced.id,
+              quote: '明年转去拍纪录片',
+            },
+          ],
+        },
+      }),
+      /policy version required/,
+    );
+    assert.equal((await worlds.get(session, worldId)).version, 1);
     let calls = 0;
     const result = await advanceWorld(
       {
@@ -80,6 +123,10 @@ test('five day return spreads sourced NPC turns and preserves selective knowledg
           propose: async ({ context }) => {
             calls++;
             if (context.actor.id === sister) {
+              assert.deepEqual(
+                context.possibleRecipients?.map((actor) => actor.id),
+                [mother],
+              );
               const source = context.messages.find((message) => message.role === 'user')!;
               return {
                 schemaVersion: 1,

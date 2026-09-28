@@ -89,6 +89,7 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
         relationship: '邻居',
         persona: '喜欢骑车',
       })),
+      actorTies: [{ fromKey: 'a', toKey: 'b', relationship: '在街角常碰面', mayShare: true }],
       messages: [{ actorKey: 'a', text: '店开了吗？我车胎有点漏气。' }],
       notes: [{ title: '今天', text: '检查工具' }],
     };
@@ -130,6 +131,15 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     const phone = await new BuildRepository(db).phone(owner, first.worldId);
     assert.equal(phone.messages.length, 1);
     assert.equal(phone.actors.length, 3);
+    const builtState = await new PostgresWorldRepository(db).get({ userId: owner }, first.worldId);
+    assert.deepEqual(builtState.actorTies, [
+      {
+        fromActorId: phone.actors[0]!.id,
+        toActorId: phone.actors[1]!.id,
+        relationship: '在街角常碰面',
+        mayShare: true,
+      },
+    ]);
     assert.equal(phone.notes[0]?.title, '今天');
     const actorId = phone.actors[0]!.id;
     const worlds = new PostgresWorldRepository(db);

@@ -10,6 +10,7 @@ import {
   isExplicitlyConfidential,
 } from './validation.ts';
 import { validateCharacterEffects } from './character-policy.ts';
+import { canShareWith } from './relationships.ts';
 import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
 
 /** Pure reducer. All effects validate before the caller commits anything. */
@@ -272,7 +273,9 @@ export function applyEvent(
           !source.text.includes(effect.quote) ||
           effect.quote.length < 4 ||
           priorDisclosure ||
-          isExplicitlyConfidential(source.text)
+          isExplicitlyConfidential(source.text) ||
+          (event.data.disclosurePolicyVersion === 2 &&
+            !canShareWith(current, event.data.actorId, effect.recipientActorId))
         )
           throw new DomainError(
             'INVALID_PROPOSAL',

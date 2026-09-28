@@ -21,10 +21,10 @@ export type ActorContext = {
   worldTitle?: string;
   actor: WorldState['actors'][number];
   /** Bounded cast sketches for a director beat; never another NPC's private memory. */
-  possibleRecipients?: Pick<
+  possibleRecipients?: (Pick<
     WorldState['actors'][number],
     'id' | 'name' | 'relationship' | 'persona'
-  >[];
+  > & { socialTie?: string })[];
   previousDisclosures?: { sourceMessageId: string; recipientActorId: string }[];
   facts: WorldState['facts'];
   messages: WorldState['messages'];

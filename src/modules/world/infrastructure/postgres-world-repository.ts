@@ -416,6 +416,11 @@ export class PostgresWorldRepository implements WorldRepository {
         false,
         command.origin,
       );
+      if (
+        event.data.effects.some((effect) => effect.type === 'information.shared') &&
+        event.data.disclosurePolicyVersion !== 2
+      )
+        throw new DomainError('INVALID_PROPOSAL', 'Disclosure policy version required');
       const { state, jobs } = applyEvent(hydrated, event);
       await sql.query(
         "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",

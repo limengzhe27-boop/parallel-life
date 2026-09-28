@@ -28,6 +28,18 @@ export const WorldOpeningSchema = z.object({
     )
     .min(3)
     .max(8),
+  /** Directed ties between supporting characters; absence on old openings means unknown. */
+  actorTies: z
+    .array(
+      z.object({
+        fromKey: z.string().regex(/^[a-z0-9_]{1,24}$/),
+        toKey: z.string().regex(/^[a-z0-9_]{1,24}$/),
+        relationship: z.string().min(1).max(40),
+        mayShare: z.boolean(),
+      }),
+    )
+    .max(20)
+    .optional(),
   messages: z
     .array(z.object({ actorKey: z.string().max(24), text: z.string().min(1).max(160) }))
     .min(1)

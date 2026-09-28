@@ -6,6 +6,7 @@ import type { MemoryRecord } from '../../memory/domain/types.ts';
 import type { WorldRepository, TurnPlanner } from './ports.ts';
 import { actorContext } from './actor-context.ts';
 import { routeUserIntent } from './intent-router.ts';
+import { shareableRecipients } from '../domain/relationships.ts';
 
 /** Internal trusted orchestration entry point, not an HTTP request handler. */
 export async function resolveTurn(
@@ -50,14 +51,15 @@ export async function resolveTurn(
   );
   if (command.origin) context.turnOrigin = command.origin;
   if (command.origin === 'director')
-    context.possibleRecipients = world.actors
-      .filter((actor) => actor.id !== command.actorId)
-      .map((actor) => ({
+    context.possibleRecipients = shareableRecipients(world, command.actorId).map(
+      ({ actor, relationship }) => ({
         id: actor.id,
         name: actor.name,
         relationship: actor.relationship,
         persona: actor.persona.slice(0, 240),
-      }));
+        socialTie: relationship,
+      }),
+    );
   if (command.origin === 'director')
     context.previousDisclosures = world.facts.flatMap((fact) =>
       fact.disclosure && fact.believedByActorId
@@ -114,6 +116,9 @@ export async function resolveTurn(
       effects,
       ...(replyAt ? { userAt } : {}),
       ...(command.origin ? { origin: command.origin } : {}),
+      ...(effects.some((effect) => effect.type === 'information.shared')
+        ? { disclosurePolicyVersion: 2 as const }
+        : {}),
     },
   });
 }

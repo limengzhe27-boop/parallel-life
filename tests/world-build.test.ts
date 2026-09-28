@@ -37,6 +37,7 @@ const output = {
     relationship: '邻居',
     persona: '各有自己的生活',
   })),
+  actorTies: [{ fromKey: 'a', toKey: 'b', relationship: '同一家维修铺工作', mayShare: true }],
   messages: [{ actorKey: 'a', text: '早，能帮我看看自行车吗？' }],
   notes: [{ title: '开店前', text: '先检查工具' }],
 };
@@ -52,6 +53,7 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
   });
   const result = await planner.propose(seed);
   assert.equal(result.actors.length, 3);
+  assert.deepEqual(result.actorTies, output.actorTies);
   assert.equal(requestedCap, WORLD_OPENING_MAX_TOKENS);
   assert.equal(requestedCap! > 4096, true);
   assert.deepEqual(Object.keys(JSON.parse(sent)), ['story', 'setup', 'facts', 'events', 'people']);
@@ -60,6 +62,15 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
   assert.equal(sent.includes(seed.id), false);
   for (const invalid of [
     { ...output, messages: [{ actorKey: 'outsider', text: 'hello' }] },
+    {
+      ...output,
+      actorTies: [{ fromKey: 'a', toKey: 'outsider', relationship: '朋友', mayShare: true }],
+    },
+    { ...output, actorTies: [{ fromKey: 'a', toKey: 'a', relationship: '朋友', mayShare: true }] },
+    {
+      ...output,
+      actorTies: [{ fromKey: 'a', toKey: 'b', relationship: '知道你爸最近在复查', mayShare: true }],
+    },
     { ...output, actors: [output.actors[0], output.actors[0], output.actors[2]] },
     { ...output, messages: [] },
     { ...output, messages: [{ actorKey: 'a', text: '我听着心里有点堵。'.repeat(20) }] },

@@ -46,6 +46,12 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
         relationship: a.relationship,
         persona: a.persona,
       })),
+      actorTies: (opening.actorTies ?? []).map((tie) => ({
+        fromActorId: ids.get(tie.fromKey)!,
+        toActorId: ids.get(tie.toKey)!,
+        relationship: tie.relationship,
+        mayShare: tie.mayShare,
+      })),
       facts: [
         {
           id: randomUUID(),

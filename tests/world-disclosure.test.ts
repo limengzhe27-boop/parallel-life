@@ -21,6 +21,10 @@ function world(line = '我想明年转去拍纪录片'): WorldState {
       { id: 'mother', name: '妈妈', persona: '关心孩子', relationship: '妈妈' },
       { id: 'friend', name: '朋友', persona: '独立', relationship: '朋友' },
     ],
+    actorTies: [
+      { fromActorId: 'sister', toActorId: 'mother', relationship: '同住家人', mayShare: true },
+      { fromActorId: 'sister', toActorId: 'friend', relationship: '互不熟悉', mayShare: false },
+    ],
     facts: [],
     messages: [
       {
@@ -63,6 +67,7 @@ function share(
     data: {
       actorId: 'sister',
       origin: 'director',
+      disclosurePolicyVersion: 2,
       userText: '（导演节拍：用户没有开口。）',
       effects: [
         { type: 'message.received', id: 'reply', actorId: 'sister', text: '那事我会再想想' },
@@ -137,6 +142,19 @@ test('a disclosed quote cannot be sent to the same recipient twice', () => {
     },
   ];
   assert.throws(() => applyEvent(once, replay), /shareable source/);
+});
+
+test('new disclosures require an explicit directed and shareable NPC tie', () => {
+  assert.throws(() => applyEvent(world(), share('明年转去拍纪录片', 'friend')), /shareable source/);
+  const old = world();
+  delete old.actorTies;
+  assert.throws(() => applyEvent(old, share()), /shareable source/);
+  const blocked = world();
+  blocked.actorTies![0]!.mayShare = false;
+  assert.throws(() => applyEvent(blocked, share()), /shareable source/);
+  const historical = share();
+  delete historical.data.disclosurePolicyVersion;
+  assert.equal(applyEvent(old, historical).state.facts.length, 1);
 });
 
 test('a confidence request is recognized without treating every secret as an absolute ban', () => {

@@ -4,6 +4,8 @@ export type Session = { userId: Id };
 export type Visibility = { kind: 'owner' } | { kind: 'actors'; actorIds: Id[] } | { kind: 'world' };
 
 export type Actor = { id: Id; name: string; persona: string; relationship?: string };
+/** A directed, bounded social link. mayShare means possible, never mandatory. */
+export type ActorTie = { fromActorId: Id; toActorId: Id; relationship: string; mayShare: boolean };
 export type Fact = {
   id: Id;
   text: string;
@@ -102,6 +104,8 @@ export type WorldState = {
   title: string;
   time: string;
   actors: Actor[];
+  /** Absent in old worlds: no unproven contact may be assumed for new disclosures. */
+  actorTies?: ActorTie[];
   facts: Fact[];
   messages: Message[];
   appointments: Appointment[];
@@ -157,6 +161,8 @@ export type WorldEvent = {
     effects: WorldEffect[];
     origin?: 'director';
     userAt?: string;
+    /** New disclosure commits carry v2; absent only on previously stored events. */
+    disclosurePolicyVersion?: 2;
   };
 };
 export type OutboxJob = {

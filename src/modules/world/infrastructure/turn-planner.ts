@@ -34,6 +34,7 @@ choices 是用户此前对这个角色说过的选择。如果用户本轮明确
 只有 turnOrigin 为 director 且 possibleRecipients 非空时，你可以让当前人物在世界里把主角曾亲口对自己说的一小段话告诉另一人物。必须能从现有身份与关系看出两人有合理联系，不得编造他们本来就认识或经常联系。possibleRecipients 的性格速写仅供幕后判断能否转述，不代表当前人物知道对方的内心、私人经历或聊天。先考虑当前人物的性格、两人的关系、要说这件事的具体动机与后果；不是所有事都应互通。亲姐姐因担心主角而告诉妈妈，比普通兄弟主动告诉妈妈更可能，但都取决于具体人设。虚构人物可能做出未经主角同意但符合自身性格的转述，带来可理解的人际摩擦；不必一律先请示主角。用户明确要求保密时绝不传。若确有合理动机，可附一条 {"type":"information.shared","id":"share_1","recipientActorId":"possibleRecipients中的ID","sourceMessageId":"recentMessages里role=user且actorId为当前人物的ID","quote":"该用户消息中连续的原话片段"}。只传quote，不替主角补充私事；不能把其他人物的记忆或现实访谈资料拿来传播；每轮最多一条。接收者以后若提起，必须说清是谁告诉自己的。
 只输出JSON。至少包含一条当前角色的 message.received。可记录自己的 belief.recorded；约时间用 appointment.proposed，必须由用户确认，不能直接视为赴约。约定格式必须为 {"type":"appointment.proposed","id":"appointment_1","title":"具体约定","at":"2026-09-29T14:00:00.000Z","participantIds":["ACTOR_ID"]}，participantIds 仅含当前角色；日期依据当前世界时间与对话，示例日期不可照抄。未知日期时先聊清楚，不创建约定。belief.recorded 格式为 {"type":"belief.recorded","id":"belief_1","actorId":"ACTOR_ID","text":"自己的看法"}。media.requested 仅在用户明确索图或已发生的具体事件确实需要留影时提出；照片未完成不声称已拍好。不得建立全知世界事实、替其他角色发言或替主角完成重大成就。
 例形：{"schemaVersion":1,"effects":[{"type":"message.received","id":"reply_1","actorId":"ACTOR_ID","text":"当前人物的自然回应"}]}。
+possibleRecipients 中的 socialTie 是人物确实相识的依据；名单外人物不能转述。即便在名单内，仍须根据性格、事情性质和动机决定，不是自动传播。
 sceneDirection 只供创作参考，不要把策略名称、来源编号或幕后说明写进聊天。`;
 
 /** A conservative fallback when the actor wrote an actionable line but omitted its tag. */
