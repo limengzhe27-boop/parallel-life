@@ -330,7 +330,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
-|NAR-02G|codex-main-nar02g-20260928|I / 单人|主登记目录|src/modules/world/domain/{types,validation,reducer}.ts、src/modules/world/infrastructure/{turn-planner,build-repository}.ts、src/contracts/world-build.ts、src/features/phone/{world-app-data,apps/types,apps/notes}.tsx、相关测试、docs/task-reports/NAR-02G.md、docs/DEVELOPMENT.md、docs/DEPLOYMENT.md|本地 PostgreSQL 55432；生产 Supabase 迁移只读核验；Vercel 发布|2026-09-28：来源校验、持久化、手机只读呈现已实现；verify含34真实库、build、生产29迁移、合成真实模型通过；待生产部署和公网验收|
+|NAR-02G|codex-main-nar02g-20260928|I / 单人|主登记目录|src/modules/world/domain/{types,validation,reducer}.ts、src/modules/world/infrastructure/{turn-planner,build-repository}.ts、src/contracts/world-build.ts、src/features/phone/{world-app-data,apps/types,apps/notes}.tsx、相关测试、docs/task-reports/NAR-02G.md、docs/DEVELOPMENT.md、docs/DEPLOYMENT.md|本地 PostgreSQL 55432；生产 Supabase 迁移只读核验；Vercel 发布|2026-09-28：已集成验收并上线；应用5034228、6rhukapfg READY，正式域名200，390/1440无横向溢出；报告记录剩余边界|
 |U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|docs/task-reports/U-06.md（既有代码已受控集成至主目录；当前无活跃写入）|—|2026-09-28：I核对早期交付已受控集成，归还主目录手机代码写入范围；保留原待验收状态，不冒称用户已确认|
 |D-04|codex-main-01a0c73b|I / 单人|主登记目录|src/features/discovery、src/features/api/client.ts、docs/task-reports/D-04.md|本项目本地环境，串行写入|2026-09-22：已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |U-05|codex-main-01a0c73b|I / 单人|主登记目录|共享导航与布局、interview/discovery、设计文档及报告|本项目本地环境，串行写入|2026-09-22：恢复固定聊聊/如果/我的；我的整页与聊天共享档案，所有已保存分支集中展示；40项检查及手机PC验证通过|
@@ -618,8 +618,8 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |NAR-02C|[x] 已完成|codex-main-nar02c-20260928|NAR-02的一段：自由对话中的明确选择留下有来源的世界内待办，导演之后针对该选择由知情角色发起一次承接；不由NPC代用户做决定|回合事件与快照持久、角色可见性、重复/刷新/并发与真实库验收；完整剧情结局仍属NAR-02|
 |NAR-02D|[x] 已完成|codex-main-nar02d-20260928|NAR-02的一段：自由对话中的明确结果报告绑定既有选择；区分用户自述完成、受阻与放弃，导演只承接一次；不把自述冒充可证实世界事实|来源原话、目标引用、版本/幂等/恢复/隔离、真实模型抽样与生产部署；完整成就核验与跨应用回报仍留NAR-02/03|
 |NAR-02E|[x] 已完成|codex-main-nar02e-20260928|NAR-02D；已保存选择与用户结果的只读手机投影，和便签中的可回看呈现；不伪造可验证成就或照片|[报告](task-reports/NAR-02E.md)；222常规/33真实库、build、390/1440验收，1cfd7f0/noa6d12a0 READY、公网health200；完整剧情与跨应用回报仍留NAR-02/03|
-|NAR-02G|[ ] 待验收|codex-main-nar02g-20260928|依赖NAR-02C/F；主目录；world/domain/{types,validation,reducer}.ts、world/infrastructure/{turn-planner,build-repository}.ts、contracts/world-build.ts、features/phone/{world-app-data,apps/types,apps/notes}.tsx与相关测试、报告；本地PG/生产部署|人物承接用户选择时，只把其真实消息中的具体提议作为有来源的下一步保存并回看；无提议不虚构；真实库/手机PC/部署验收|
 |NAR-02F|[x] 已完成|codex-main-nar02f-20260928|NAR-02D；用户新报告的结果可越过普通人物冷却，仍经未承接来源/同轮限次与事务幂等守卫|[报告](task-reports/NAR-02F.md)；真实库34项、build、生产29迁移；8a7fb40/64rvxftgo READY，公网health200；完整剧情与跨应用后果仍待NAR-02/03|
+|NAR-02G|[x] 已完成|codex-main-nar02g-20260928|依赖NAR-02C/F；主目录；world/domain/{types,validation,reducer}.ts、world/infrastructure/{turn-planner,build-repository}.ts、contracts/world-build.ts、features/phone/{world-app-data,apps/types,apps/notes}.tsx与相关测试、报告；本地PG/生产部署|[报告](task-reports/NAR-02G.md)；verify含34真实库、build、生产29迁移、合成真实模型，5034228/6rhukapfg READY，正式域名health/首页/分支页200；完整剧情与跨应用回报仍待NAR-02/03|
 |NAR-03|[ ] 待开发|未领取|依赖NAR-02；消息/日历/相册/便签的事件后果、生图状态|一个选择形成可追溯的跨应用后果；生成等待/失败/unknown诚实反馈|
 |NAR-04|[ ] 待开发|未领取|依赖NAR-02/03；首次体验、回访承接、剧情质量评测|首个事件清楚可参与、回访承接、重复冲突/无后果选择评估；不以消息数冒充沉浸|
 

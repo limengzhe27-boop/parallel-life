@@ -1,3 +1,7 @@
+## 2026-09-28 · NAR-02G 人物提议有来源的下一步
+
+应用提交 `5034228`，Vercel Production `6rhukapfg` / `dpl_Evo46iGoRhBHz6KoBJAs5295Ymw7` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify`（含 34 项真实 PostgreSQL 测试）与 `npm run build` 通过，生产 Supabase 29/29 项迁移一致，无新迁移。公网 health、首页和分支页 200；390px 手机与 1440px 电脑首页无横向溢出。合成真实模型场景验证人物原话可落成有来源的下一步；没有对生产用户世界写入测试事件。人物提议不是已履约事实，完整剧情结局与跨应用回报继续留 NAR-02/03。见 [NAR-02G](task-reports/NAR-02G.md)。
+
 ## 2026-09-28 · NAR-02F 新结果优先承接
 
 应用提交 `8a7fb40`，Vercel Production `64rvxftgo` / `dpl_2QbqoZ1jAMqTAh77yvBsYnAt9dbd` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify`、`npm run build` 通过，其中真实 PostgreSQL 34 项测试通过；生产 Supabase 29/29 迁移一致，无新增迁移。公网 health / 首页 200，未登录调用导演写入口 401。最近主动来信过的人，仍可在用户报告新选择结果后于下一合法节拍回应；普通催问继续冷却，结果承接一次后退出待办。没有后台实时推送，也没有把自述变成核验成就。详见 [NAR-02F](task-reports/NAR-02F.md)。
