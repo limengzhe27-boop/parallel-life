@@ -172,6 +172,13 @@ export function parseProposal(value: unknown): TurnProposal {
           quote: text(item.quote, 160).trim(),
           intent: text(item.intent, 120).trim(),
         };
+      case 'choice.next_step':
+        return {
+          type: item.type,
+          id: effectId,
+          choiceId: id(item.choiceId),
+          quote: text(item.quote, 160).trim(),
+        };
       case 'choice.result_reported':
         if (!['reported_done', 'blocked', 'abandoned'].includes(String(item.outcome)))
           return fail();

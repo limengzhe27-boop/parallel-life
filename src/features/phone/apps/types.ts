@@ -55,6 +55,7 @@ export type PhoneStoryChoice = {
   intent: string;
   at: string;
   status: 'pending' | 'followed_up' | 'superseded';
+  nextStep?: { quote: string; at: string };
   result?: {
     kind: 'reported_done' | 'blocked' | 'abandoned';
     quote: string;

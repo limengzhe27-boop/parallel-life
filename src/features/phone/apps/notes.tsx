@@ -349,7 +349,15 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     .filter((n) => searchable(query, n.title, n.text))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const choices = [...(data.choices ?? [])]
-    .filter((choice) => searchable(query, choice.intent, choice.quote, choice.result?.quote ?? ''))
+    .filter((choice) =>
+      searchable(
+        query,
+        choice.intent,
+        choice.quote,
+        choice.nextStep?.quote ?? '',
+        choice.result?.quote ?? '',
+      ),
+    )
     .sort((a, b) => b.at.localeCompare(a.at));
   return (
     <div
@@ -423,9 +431,11 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                         ? '遇到阻碍'
                         : choice.result?.kind === 'abandoned'
                           ? '你说已放下'
-                          : choice.status === 'followed_up'
-                            ? '有人问起'
-                            : '待续'}
+                          : choice.nextStep
+                            ? '有下一步'
+                            : choice.status === 'followed_up'
+                              ? '有人问起'
+                              : '待续'}
                   </span>
                 </summary>
                 <div className={s.choiceDetail}>
@@ -433,6 +443,14 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                     <span>你当时说</span>
                     {choice.quote}
                   </p>
+                  {choice.nextStep && (
+                    <p>
+                      <span>
+                        {choice.actorName}后来提出 · {timeText(choice.nextStep.at)}
+                      </span>
+                      {choice.nextStep.quote}
+                    </p>
+                  )}
                   {choice.result && (
                     <p>
                       <span>你后来补充 · {timeText(choice.result.at)}</span>

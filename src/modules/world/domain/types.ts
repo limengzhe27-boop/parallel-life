@@ -68,6 +68,13 @@ export type StoryChoice = {
   sourceVersion: number;
   status: 'pending' | 'followed_up' | 'superseded';
   followUpEventId?: Id;
+  /** An actor's own actionable proposal, quoted from a committed reply; not a completed action. */
+  nextStep?: {
+    quote: string;
+    sourceEventId: Id;
+    sourceMessageId: Id;
+    sourceVersion: number;
+  };
   /** The player's account of the outcome, never an independently verified world fact. */
   result?: {
     kind: 'reported_done' | 'blocked' | 'abandoned';
@@ -104,6 +111,7 @@ export type WorldEffect =
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
   | { type: 'media.requested'; id: Id; prompt: string; title?: string }
   | { type: 'choice.recorded'; id: Id; quote: string; intent: string }
+  | { type: 'choice.next_step'; id: Id; choiceId: Id; quote: string }
   | {
       type: 'choice.result_reported';
       id: Id;

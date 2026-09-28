@@ -142,6 +142,104 @@ test('model result reports require an existing visible choice and an explicit ma
   );
 });
 
+test('a director next step must quote its own reply for the pending choice', async () => {
+  const context: ActorContext = {
+    ...mockContext,
+    turnOrigin: 'director',
+    choices: [
+      {
+        id: 'choice_1',
+        actorId: mockContext.actor.id,
+        quote: '我决定先剪短片',
+        intent: '剪完短片',
+        sourceEventId: 'event_1',
+        sourceVersion: 1,
+        status: 'pending',
+      },
+    ],
+  };
+  const planner = new WorldTurnPlanner({
+    complete: async () =>
+      JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          {
+            type: 'message.received',
+            id: 'reply',
+            actorId: 'wrong',
+            text: '我留半小时，剪完发我先看开头。',
+          },
+          { type: 'choice.next_step', id: 'step', choiceId: 'choice_1', quote: '剪完发我先看开头' },
+        ],
+      }),
+  });
+  const accepted = (await planner.propose({ context, userText: '[choice:choice_1]导演提示' })) as {
+    effects: { type: string }[];
+  };
+  assert.deepEqual(
+    accepted.effects.map((effect) => effect.type),
+    ['message.received', 'choice.next_step'],
+  );
+  const withoutCue = (await planner.propose({ context, userText: '导演提示' })) as {
+    effects: { type: string }[];
+  };
+  assert.deepEqual(
+    withoutCue.effects.map((effect) => effect.type),
+    ['message.received'],
+  );
+  const { turnOrigin: _origin, ...userContext } = context;
+  const userTurn = (await planner.propose({
+    context: userContext,
+    userText: '[choice:choice_1]',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    userTurn.effects.map((effect) => effect.type),
+    ['message.received'],
+  );
+});
+
+test('a concrete director offer in the reply is retained even when the model omits its tag', async () => {
+  const context: ActorContext = {
+    ...mockContext,
+    turnOrigin: 'director',
+    choices: [
+      {
+        id: 'choice_1',
+        actorId: mockContext.actor.id,
+        quote: '我决定先剪短片',
+        intent: '剪完短片',
+        sourceEventId: 'event_1',
+        sourceVersion: 1,
+        status: 'pending',
+      },
+    ],
+  };
+  let reply = '我今晚先把混音档期往后挪一天，你专心剪。';
+  const planner = new WorldTurnPlanner({
+    complete: async () =>
+      JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          { type: 'message.received', id: 'reply', actorId: mockContext.actor.id, text: reply },
+        ],
+      }),
+  });
+  const cue = '[choice:choice_1]导演提示';
+  const offered = (await planner.propose({ context, userText: cue })) as {
+    effects: { type: string; quote?: string }[];
+  };
+  assert.equal(offered.effects[1]?.type, 'choice.next_step');
+  assert.equal(offered.effects[1]?.quote, '我今晚先把混音档期往后挪一天，你专心剪');
+  reply = '看到啦。辛苦了，别太晚。';
+  const greeting = (await planner.propose({ context, userText: cue })) as {
+    effects: { type: string }[];
+  };
+  assert.deepEqual(
+    greeting.effects.map((effect) => effect.type),
+    ['message.received'],
+  );
+});
+
 test('WorldTurnPlanner gracefully wraps plain natural text into valid message.received effect', async () => {
   const planner = new WorldTurnPlanner({
     async complete() {

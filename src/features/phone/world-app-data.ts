@@ -68,6 +68,9 @@ export function worldAppData(
       intent: choice.intent,
       at: choice.at,
       status: choice.status,
+      ...(choice.nextStep
+        ? { nextStep: { quote: choice.nextStep.quote, at: choice.nextStep.at } }
+        : {}),
       ...(choice.result
         ? {
             result: {

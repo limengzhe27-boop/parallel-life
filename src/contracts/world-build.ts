@@ -59,6 +59,14 @@ export const WorldPhoneSchema = z.strictObject({
         at: Timestamp,
         sourceEventId: Id,
         status: z.enum(['pending', 'followed_up', 'superseded']),
+        nextStep: z
+          .strictObject({
+            quote: z.string(),
+            at: Timestamp,
+            sourceEventId: Id,
+            sourceMessageId: Id,
+          })
+          .optional(),
         result: z
           .strictObject({
             kind: z.enum(['reported_done', 'blocked', 'abandoned']),

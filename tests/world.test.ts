@@ -141,6 +141,12 @@ test('an explicit free-chat choice persists and receives one later character fol
               actorId: 'friend',
               text: '我留了半小时，剪完发我，先看开头。',
             },
+            {
+              type: 'choice.next_step',
+              id: 'step',
+              choiceId: choice.state.choices![0]!.id,
+              quote: '剪完发我，先看开头',
+            },
           ],
         }),
       },
@@ -159,6 +165,12 @@ test('an explicit free-chat choice persists and receives one later character fol
   );
   assert.equal(followUp.state.choices?.[0]?.status, 'followed_up');
   assert.equal(followUp.state.choices?.[0]?.followUpEventId, followUp.event.id);
+  assert.deepEqual(followUp.state.choices?.[0]?.nextStep, {
+    quote: '剪完发我，先看开头',
+    sourceEventId: followUp.event.id,
+    sourceMessageId: `${followUp.event.id}_effect_0`,
+    sourceVersion: 2,
+  });
   assert.equal(
     (await worlds.get(session, choiceCommand.worldId)).choices?.[0]?.status,
     'followed_up',
@@ -203,6 +215,47 @@ test('a model cannot invent or record a choice from a hypothetical, quotation or
     resolveTurn(deps, session, { ...command, text: '我决定去拍片', origin: 'director' }),
     { code: 'INVALID_PROPOSAL' },
   );
+});
+
+test('a next step cannot come from another actor or text absent from the reply', () => {
+  const current = seed();
+  current.version = 1;
+  current.choices = [
+    {
+      id: 'choice',
+      actorId: 'friend',
+      quote: '我决定先剪短片',
+      intent: '剪短片',
+      sourceEventId: 'event_choice',
+      sourceVersion: 1,
+      status: 'pending',
+    },
+  ];
+  for (const [actorId, quote] of [
+    ['other', '我留半小时等你发文件'],
+    ['friend', '并不存在的帮助方案'],
+  ] as [string, string][]) {
+    const event: WorldEvent = {
+      schemaVersion: 1,
+      id: `event_${actorId}_${quote.length}`,
+      worldId: current.id,
+      version: 2,
+      commandId: `command_${actorId}_${quote.length}`,
+      occurredAt: time,
+      type: 'turn.resolved',
+      data: {
+        actorId,
+        userText: '[choice:choice]导演提示',
+        origin: 'director',
+        effects: [
+          { type: 'message.received', id: 'reply', actorId, text: '我留半小时等你发文件。' },
+          { type: 'choice.next_step', id: 'step', choiceId: 'choice', quote },
+        ],
+      },
+    };
+    assert.throws(() => applyEvent(current, event), { code: 'INVALID_PROPOSAL' });
+  }
+  assert.equal(current.choices[0]?.nextStep, undefined);
 });
 
 test('a reported result is sourced to the player, acknowledged once, and can be corrected', () => {

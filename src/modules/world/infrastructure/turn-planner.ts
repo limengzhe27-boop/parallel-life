@@ -25,9 +25,25 @@ turnOrigin 为 director 时，userText 是幕后舞台指示，不是用户发�
 【效果边界】
 当且仅当用户在这条消息里明确决定了自己接下来要做的事，可以在回复之外加一条 choice.recorded：{"type":"choice.recorded","id":"choice_1","quote":"用户消息中的原文连续片段","intent":"12至60字的具体行动"}。quote 必须逐字出自这条用户消息，并以“我决定/我选择/我要/我会/我打算/那就”等明确行动表达开头；假设、转述、提问、未定的愿望都不记录。只记录选择，绝不声称已执行或成功。导演舞台指示不可产生 choice.recorded。
 choices 是用户此前对这个角色说过的选择。如果用户本轮明确谈到其中一条选择的结果，并且亲口说“我完成了／我卡住了／我不做了”，可在回复之外加 choice.result_reported：{"type":"choice.result_reported","id":"result_1","choiceId":"choices中那条选择的id","quote":"本轮用户消息中的原文连续片段，含具体事情","outcome":"reported_done"}。outcome 只能为 reported_done、blocked、abandoned。必须是用户本人的陈述、与 choice 的具体事情对应；假设、引用他人的话、推测、问题都不能记录。reported_done 只是用户自述，不代表你看见成果或世界已证实成功；不要据此编造照片、奖项或完成证明。若本轮既报告旧结果又提出新选择，优先记录结果。导演指示不产生结果报告。
+若 turnOrigin 是 director，且 userText 含 [choice:ID]，你确实在自己的这条回复里提出了一个可继续行动的具体帮忙、交换条件或障碍处理方式，可附一条 choice.next_step：{"type":"choice.next_step","id":"step_1","choiceId":"ID","quote":"从本轮 message.received.text 中逐字截取的具体提议"}。quote 必须是本轮人物消息原文的一段，不能只是「加油」「怎么样了」或空泛关心。没有具体提议就不要加；这只是人物提议，不代表主角答应或事情已经发生。每轮最多一条。
 只输出JSON。至少包含一条当前角色的 message.received。可记录自己的 belief.recorded；约时间用 appointment.proposed，必须由用户确认，不能直接视为赴约。约定格式必须为 {"type":"appointment.proposed","id":"appointment_1","title":"具体约定","at":"2026-09-29T14:00:00.000Z","participantIds":["ACTOR_ID"]}，participantIds 仅含当前角色；日期依据当前世界时间与对话，示例日期不可照抄。未知日期时先聊清楚，不创建约定。belief.recorded 格式为 {"type":"belief.recorded","id":"belief_1","actorId":"ACTOR_ID","text":"自己的看法"}。media.requested 仅在用户明确索图或已发生的具体事件确实需要留影时提出；照片未完成不声称已拍好。不得建立全知世界事实、替其他角色发言或替主角完成重大成就。
 例形：{"schemaVersion":1,"effects":[{"type":"message.received","id":"reply_1","actorId":"ACTOR_ID","text":"当前人物的自然回应"}]}。
 sceneDirection 只供创作参考，不要把策略名称、来源编号或幕后说明写进聊天。`;
+
+/** A conservative fallback when the actor wrote an actionable line but omitted its tag. */
+function quotedNextStep(reply: string): string | null {
+  for (const part of reply.split(/[。！？!?；;\n]/)) {
+    const quote = part.trim().replace(/^[，,\s]+|[，,\s]+$/g, '');
+    if (quote.length < 8 || quote.length > 160) continue;
+    if (
+      /(?:要我|需不需要我|我.{0,8}(?:可以|来|先|会|帮你|把)|你.{0,4}(?:可以|先|把|再)|发我|给我).{2,}(?:看|剪|拍|发|改|写|标|问|联系|安排|准备|确认|试|留|带|做|调|约|空|腾|掐|核|送|定)/.test(
+        quote,
+      )
+    )
+      return quote;
+  }
+  return null;
+}
 
 function parseJson(raw: string): unknown {
   try {
@@ -113,6 +129,8 @@ export class WorldTurnPlanner implements TurnPlanner {
         id?: string;
         text?: string;
         prompt?: string;
+        choiceId?: string;
+        quote?: string;
       }>;
     } | null;
 
@@ -185,6 +203,45 @@ export class WorldTurnPlanner implements TurnPlanner {
         keptChoice = true;
         return true;
       });
+      let keptNextStep = false;
+      parsed.effects = parsed.effects.filter((effect) => {
+        if (effect.type !== 'choice.next_step') return true;
+        const candidate = effect as { choiceId?: unknown; quote?: unknown; id?: string };
+        const reply = parsed.effects?.find((item) => item.type === 'message.received');
+        const choice = context.choices?.find((item) => item.id === candidate.choiceId);
+        if (
+          keptNextStep ||
+          context.turnOrigin !== 'director' ||
+          !choice ||
+          choice.status !== 'pending' ||
+          !!choice.result ||
+          !userText.includes(`[choice:${choice.id}]`) ||
+          typeof candidate.quote !== 'string' ||
+          candidate.quote.trim().length < 6 ||
+          candidate.quote.length > 160 ||
+          !reply?.text?.includes(candidate.quote.trim())
+        )
+          return false;
+        candidate.quote = candidate.quote.trim();
+        candidate.id = `choice_step_${Date.now()}`;
+        keptNextStep = true;
+        return true;
+      });
+      if (!keptNextStep && context.turnOrigin === 'director') {
+        const choice = context.choices?.find(
+          (item) =>
+            item.status === 'pending' && !item.result && userText.includes(`[choice:${item.id}]`),
+        );
+        const reply = parsed.effects.find((effect) => effect.type === 'message.received');
+        const quote = reply?.text && quotedNextStep(reply.text);
+        if (choice && quote)
+          parsed.effects.push({
+            type: 'choice.next_step',
+            id: `choice_step_${Date.now()}`,
+            choiceId: choice.id,
+            quote,
+          });
+      }
       return parsed;
     }
 

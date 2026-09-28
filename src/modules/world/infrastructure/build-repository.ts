@@ -128,6 +128,7 @@ export class BuildRepository {
     const state = await new PostgresWorldRepository(this.db).get({ userId: ownerId }, worldId);
     const choiceEventIds = (state.choices ?? []).flatMap((choice) => [
       choice.sourceEventId,
+      ...(choice.nextStep ? [choice.nextStep.sourceEventId] : []),
       ...(choice.result ? [choice.result.sourceEventId] : []),
     ]);
     const eventTimes = new Map<string, string>();
@@ -155,6 +156,7 @@ export class BuildRepository {
         const at = eventTimes.get(choice.sourceEventId);
         if (!at) return [];
         const resultAt = choice.result && eventTimes.get(choice.result.sourceEventId);
+        const nextStepAt = choice.nextStep && eventTimes.get(choice.nextStep.sourceEventId);
         return [
           {
             id: choice.id,
@@ -164,6 +166,16 @@ export class BuildRepository {
             at,
             sourceEventId: choice.sourceEventId,
             status: choice.status,
+            ...(choice.nextStep && nextStepAt
+              ? {
+                  nextStep: {
+                    quote: choice.nextStep.quote,
+                    at: nextStepAt,
+                    sourceEventId: choice.nextStep.sourceEventId,
+                    sourceMessageId: choice.nextStep.sourceMessageId,
+                  },
+                }
+              : {}),
             ...(choice.result && resultAt
               ? {
                   result: {

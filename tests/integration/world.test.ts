@@ -165,10 +165,31 @@ test('real world commit: concurrency, original receipt, compact projections, res
         actorId: 'friend',
         text: '我留了时间，发来就看。',
       },
+      {
+        type: 'choice.next_step',
+        id: randomUUID(),
+        choiceId: chosen.state.choices![0]!.id,
+        quote: '我留了时间，发来就看',
+      },
     ];
     const followed = await repo.commit(session, followCommand, followEvent);
     assert.equal(followed.state.choices?.[0]?.status, 'followed_up');
     assert.equal((await repo.get(session, id)).choices?.[0]?.followUpEventId, followEvent.id);
+    assert.equal(
+      (await repo.get(session, id)).choices?.[0]?.nextStep?.sourceMessageId,
+      followEvent.data.effects[0]?.id,
+    );
+    assert.deepEqual(
+      (await repo.receipt(session, followCommand))?.state.choices,
+      followed.state.choices,
+    );
+    await db.close();
+    db = new PostgresDatabase(url);
+    repo = new PostgresWorldRepository(db);
+    assert.deepEqual(
+      (await repo.get(session, id)).choices?.[0]?.nextStep,
+      followed.state.choices?.[0]?.nextStep,
+    );
     const reportCommand = { ...command(4), text: '我把短片剪完了，十五分钟版本已经导出。' };
     const reportEvent = event(reportCommand);
     reportEvent.data.effects = [

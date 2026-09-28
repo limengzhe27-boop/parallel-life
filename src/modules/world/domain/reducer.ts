@@ -57,7 +57,10 @@ export function applyEvent(
   const jobs: OutboxJob[] = [];
   if (
     effects.filter(
-      (effect) => effect.type === 'choice.recorded' || effect.type === 'choice.result_reported',
+      (effect) =>
+        effect.type === 'choice.recorded' ||
+        effect.type === 'choice.result_reported' ||
+        effect.type === 'choice.next_step',
     ).length > 1
   )
     throw new DomainError('INVALID_PROPOSAL', 'Only one choice change per turn');
@@ -139,6 +142,36 @@ export function applyEvent(
           },
         ].slice(-5);
         break;
+      case 'choice.next_step': {
+        const choice = state.choices?.find((item) => item.id === effect.choiceId);
+        const reply = effects.find(
+          (item) =>
+            item.type === 'message.received' &&
+            item.actorId === event.data.actorId &&
+            item.text.includes(effect.quote),
+        );
+        if (
+          event.data.origin !== 'director' ||
+          !event.data.userText.includes(`[choice:${effect.choiceId}]`) ||
+          !choice ||
+          choice.actorId !== event.data.actorId ||
+          choice.status === 'superseded' ||
+          (choice.status === 'followed_up' && choice.followUpEventId !== event.id) ||
+          choice.result ||
+          choice.nextStep ||
+          choice.sourceVersion >= event.version ||
+          !reply ||
+          effect.quote.length < 6
+        )
+          throw new DomainError('INVALID_PROPOSAL', 'Next step must quote this actor reply');
+        choice.nextStep = {
+          quote: effect.quote,
+          sourceEventId: event.id,
+          sourceMessageId: reply.id,
+          sourceVersion: event.version,
+        };
+        break;
+      }
       case 'choice.result_reported': {
         const choice = state.choices?.find((item) => item.id === effect.choiceId);
         if (
