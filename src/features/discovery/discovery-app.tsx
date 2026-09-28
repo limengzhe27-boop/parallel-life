@@ -256,6 +256,7 @@ export function DiscoveryApp() {
   }
   const confirmed = profile?.facts.filter((f) => f.status === 'confirmed') ?? [],
     suggested = profile?.facts.filter((f) => f.status === 'suggested') ?? [],
+    conversationBrief = recentConversation.length >= 5 ? recentConversation : '',
     stale = !!data?.directions.length && data.profileVersion !== profile?.version;
   return (
     <div className="discovery-page">
@@ -307,15 +308,15 @@ export function DiscoveryApp() {
               !waiting && (
                 <div className="branch-empty">
                   <img src="/art/open-door.webp" alt="通向另一段生活的门，意境插画" />
-                  {recentConversation.length >= 5 ? (
+                  {conversationBrief ? (
                     <>
                       <h2>从刚才聊到的事开始</h2>
-                      <p>{recentConversation.slice(0, 80)}</p>
+                      <p>{conversationBrief.slice(0, 80)}</p>
                       <Button
                         disabled={busy}
                         onClick={() => {
                           setProposalOpen(true);
-                          void generate(recentConversation);
+                          void generate(conversationBrief);
                         }}
                       >
                         看看另一种可能 <Icon name="arrow" size={18} />
@@ -555,12 +556,18 @@ export function DiscoveryApp() {
                 className="discovery-compose"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void generate(brief);
+                  void generate(brief.trim() || conversationBrief);
                 }}
               >
                 <label htmlFor="what-if">
                   {data.directions.length ? '还有别的想法吗？' : '写下你的“如果”'}
-                  <small>也可以不填，从你聊过的事里找灵感</small>
+                  <small>
+                    {conversationBrief
+                      ? '留空就沿着刚才聊的事想'
+                      : confirmed.length
+                        ? '留空就从你确认过的经历出发'
+                        : '说一句想试试的生活'}
+                  </small>
                 </label>
                 <textarea
                   id="what-if"
@@ -578,7 +585,9 @@ export function DiscoveryApp() {
                   </span>
                   <Button
                     type="submit"
-                    disabled={busy || waiting || (!confirmed.length && !brief.trim())}
+                    disabled={
+                      busy || waiting || (!confirmed.length && !brief.trim() && !conversationBrief)
+                    }
                   >
                     {busy ? <span className="spinner" /> : <Icon name="spark" size={17} />}{' '}
                     {data.directions.length ? '换一组想法' : '帮我想想'}
