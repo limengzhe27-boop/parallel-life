@@ -581,6 +581,10 @@ https://github.com/limengzhe27-boop/parallel-life
 服务端需要配置 `SUPABASE_URL`、Supabase 当前的 `SUPABASE_SECRET_KEY`（旧项目可用 `SUPABASE_SERVICE_ROLE_KEY`）和 `SUPABASE_STORAGE_BUCKET=private-assets`。Secret/Service Role Key 只能放在Vercel/Worker服务端环境，不能进入浏览器。Supabase桶保持Private，应用通过自己的资产归属校验后由服务端读取对象。
 
 当前未新建付费云资源、未迁移本地用户资料、未上传密钥或用户照片。此次GitHub上传检查194个被跟踪文件及552个历史对象，未发现当前环境密钥；.local与.env.local未被跟踪。
+## 2026-09-29 · NAR-02L 人物定向关系与转述边界
+
+应用提交 `bc6a74f`；Vercel Production `9k8wmhbjq` / `dpl_GKCRdaDnB1t7SuFQGQjvCvBVVM4A` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify` 241 项常规、36 项真实 PostgreSQL 测试通过；`npm run build` 通过；生产 Supabase 29/29 迁移一致，无新迁移。公网 health/首页/分支页和独立访客入口均 200，health stage 为 `interview`。新世界记录 NPC 之间的定向关系；导演只可沿明示允许关系提出有来源、未保密的转述，接收者独立知情。旧世界不自动猜关系，历史事件可重放。合成真实模型开场抽样已验证，生产未制造测试剧情。详见 [NAR-02L](task-reports/NAR-02L.md)。
+
 ## 2026-09-29 · NAR-02K 多日回访与角色间选择性知情
 
 应用提交 `bb79d50`；Vercel Production `miughxi5y` / `dpl_E3yRSsWnWDtKQhbSUrqQGwtEJpRE` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify` 通过（240 项常规、36 项真实 PostgreSQL），`npm run build` 通过，生产 Supabase 29/29 迁移校验和一致，无新迁移。公网健康、首页、分支页、独立访客入口 200，未登录导演写入口 401，健康状态 `interview`。离开五天的消息抽取分散到经过的日期；人物转述由导演可选提出、运行时核查真实原话与保密嘱托，接收者独立知情，其他人物不获知。生产未制造测试世界历史；详细验收和未完成项见 [NAR-02K](task-reports/NAR-02K.md)。

@@ -1,6 +1,6 @@
 # NAR-02L · 人物间关系与转述边界
 
-状态：待验收；负责人 codex-main-nar02l-20260929。基线 `dea51f2`。
+状态：已集成验收；负责人 codex-main-nar02l-20260929。基线 `dea51f2`，应用提交 `bc6a74f`。
 
 目标：世界创建时保存定向人物关系，导演只可向有合理联系的 NPC 转述主角曾向说话人明确讲过的片段。接收者后续由既有一次性承接机制自然提及来源。旧世界不捏造关系；历史事件保持可重放。
 
@@ -17,7 +17,7 @@
 
 - `npm run verify`：241 项常规测试与 36 项真实 PostgreSQL 测试通过；`npm run build` 通过。关系错误、无边、禁传、旧事件重放、直接提交缺少新策略版本、刷新后的关系持久化均覆盖。
 - 生产 Supabase 29 项迁移校验和一致；本批无新迁移，关系随现有世界状态 JSON 持久化。
-- 待补生产发布与公网入口验收，再标记已完成。未向生产用户世界写入测试剧情。
+- Vercel Production `9k8wmhbjq` / `dpl_GKCRdaDnB1t7SuFQGQjvCvBVVM4A` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。公网 health 为 200、stage 为 interview，首页/分支页 200，独立访客会话创建 200。未向生产用户世界写入测试剧情。
 
 ## 后续
 
