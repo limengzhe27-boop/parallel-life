@@ -38,6 +38,14 @@ export type ClockAdvance = {
 
 const MINUTE = 60_000;
 
+/** Read-only projection: opening the phone moves the clock, not the cast. */
+export function projectStoryTime(clock: WorldClock, realNow: string): string {
+  const elapsed = Date.parse(realNow) - Date.parse(clock.lastTickAt);
+  if (clock.paused || !Number.isFinite(elapsed) || elapsed <= 0) return clock.storyNow;
+  const projected = Date.parse(clock.storyNow) + elapsed * clock.speed;
+  return Number.isFinite(projected) ? new Date(projected).toISOString() : clock.storyNow;
+}
+
 export function advanceClock(
   clock: WorldClock,
   realNow: string,
@@ -53,7 +61,7 @@ export function advanceClock(
   /* A paused world does not move; a backwards clock is treated as no time passing. */
   if (clock.paused || !Number.isFinite(elapsedReal) || elapsedReal <= 0)
     return { clock: { ...nextTick, missedBeats: 0 }, beats: [], folded: 0 };
-  const elapsedStory = (elapsedReal * clock.speed) / 1;
+  const elapsedStory = elapsedReal * clock.speed;
   const due = Math.floor(elapsedStory / beatMs);
   const played = Math.min(due, maxBeats);
   const storyStart = Date.parse(clock.storyNow);

@@ -6,7 +6,10 @@ import {
   WORLD_OPENING_MAX_TOKENS,
   WORLD_OUTPUT_ATTEMPTS,
 } from '../src/modules/world/infrastructure/world-planner.ts';
-import { openingMessageAt } from '../src/modules/world/infrastructure/build-handler.ts';
+import {
+  openingMessageAt,
+  openingMessagesForDisplay,
+} from '../src/modules/world/domain/opening-time.ts';
 import type { ApprovedSeed } from '../src/contracts/seeds.ts';
 const seed: ApprovedSeed = {
   id: randomUUID(),
@@ -91,6 +94,39 @@ test('opening notifications preserve conversational order and predate the world 
         Date.parse(time) < Date.parse(now) &&
         (index === 0 || Date.parse(time) > Date.parse(times[index - 1]!)),
     ),
+  );
+});
+
+test('only an old all-equal genesis batch gets reconstructed for display', () => {
+  const now = '2026-09-28T12:00:00.000Z';
+  const messages = ['one', 'two', 'three'].map((id) => ({
+    id,
+    actorId: id,
+    role: 'assistant' as const,
+    text: id,
+    at: now,
+    sourceEventId: 'genesis:world',
+  }));
+  const fixed = openingMessagesForDisplay(messages, 'world', now);
+  assert.deepEqual(
+    fixed.map((message) => message.at),
+    ['2026-09-28T11:25:00.000Z', '2026-09-28T11:48:00.000Z', '2026-09-28T11:55:00.000Z'],
+  );
+  assert.deepEqual(
+    messages.map((message) => message.at),
+    [now, now, now],
+  );
+  assert.deepEqual(
+    openingMessagesForDisplay([{ ...messages[0]!, role: 'user' }, messages[1]!], 'world', now),
+    [{ ...messages[0]!, role: 'user' }, messages[1]!],
+  );
+  assert.deepEqual(
+    openingMessagesForDisplay(
+      [{ ...messages[0]!, at: openingMessageAt(now, 0, 2) }, messages[1]!],
+      'world',
+      now,
+    ),
+    [{ ...messages[0]!, at: openingMessageAt(now, 0, 2) }, messages[1]!],
   );
 });
 

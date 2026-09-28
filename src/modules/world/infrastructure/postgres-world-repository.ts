@@ -17,6 +17,7 @@ import { DomainError } from '../domain/errors.ts';
 import { applyEvent } from '../domain/reducer.ts';
 import { applyNoteEvent, type NoteCommand, type NoteEvent } from '../domain/notes.ts';
 import { retainFacts } from '../domain/retention.ts';
+import { openingMessagesForDisplay } from '../domain/opening-time.ts';
 import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
@@ -157,7 +158,14 @@ export class PostgresWorldRepository implements WorldRepository {
     }
     let hydrated: WorldState = {
       ...state,
-      messages: [...(initial?.messages ?? []), ...results[0]!],
+      messages: [
+        ...openingMessagesForDisplay(
+          initial?.messages ?? [],
+          state.id,
+          initial?.time ?? state.time,
+        ),
+        ...results[0]!,
+      ],
       appointments: [...(initial?.appointments ?? []), ...results[1]!],
       mediaRequests: [...(initial?.mediaRequests ?? []), ...results[2]!],
       notes: results[3]!,
@@ -436,6 +444,16 @@ export class PostgresWorldRepository implements WorldRepository {
         'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
         [state.id, state.version, snapshot],
       );
+      if (event.storyAt && event.data.origin !== 'director')
+        await sql.query(
+          `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at)
+           VALUES($1,$2,$3,$4)
+           ON CONFLICT(world_id) DO UPDATE SET
+             story_now=GREATEST(parallel_life.world_clock.story_now,EXCLUDED.story_now),
+             last_tick_at=GREATEST(parallel_life.world_clock.last_tick_at,EXCLUDED.last_tick_at),
+             updated_at=now()`,
+          [state.id, session.userId, event.storyAt, event.occurredAt],
+        );
       await sql.query(
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
         [state.id, command.id, event.id, snapshot],

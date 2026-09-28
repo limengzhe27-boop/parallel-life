@@ -34,19 +34,10 @@ export function formatChatTime(iso: string, referenceTime?: string): string {
   if (!iso) return '';
   const timePart = iso.slice(11, 16);
   if (!referenceTime) return timePart;
-  const msgDate = new Date(iso);
-  const refDate = new Date(referenceTime);
-  const diffMs = refDate.getTime() - msgDate.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-
   const sameDay = iso.slice(0, 10) === referenceTime.slice(0, 10);
-  if (sameDay) {
-    // A saved world clock may stay at its opening instant across visits. An
-    // absolute time is honest; "just now" would repeat on every old message.
-    if (diffMins >= 0 && diffMins <= 2) return timePart;
-    if (diffMins > 2 && diffMins < 60) return `${diffMins}分钟前`;
-    return timePart;
-  }
+  // Conversation history should show when each message happened, rather than
+  // turning several distinct earlier messages into the same relative label.
+  if (sameDay) return timePart;
   const calendarDayDelta =
     (Date.parse(dayKey(referenceTime) + 'T00:00:00Z') - Date.parse(dayKey(iso) + 'T00:00:00Z')) /
     86400000;

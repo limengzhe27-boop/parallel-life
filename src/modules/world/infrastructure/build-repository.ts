@@ -15,6 +15,8 @@ import {
   TaskError,
 } from '../../tasks/infrastructure/task-repository.ts';
 import { PostgresWorldRepository } from './postgres-world-repository.ts';
+import { PostgresClockStore } from './clock-repository.ts';
+import { projectStoryTime } from '../domain/clock.ts';
 async function readBuild(sql: SqlClient, seedId: string) {
   const row = (
     await sql.query('SELECT * FROM parallel_life.world_builds WHERE seed_id=$1', [seedId])
@@ -47,7 +49,8 @@ export class BuildRepository {
     return this.db.transaction(ownerId, async (sql) => {
       const rows = (
         await sql.query(
-          `SELECT b.seed_id, b.world_id, b.created_at, b.opening IS NOT NULL AS ready, t.*
+          `SELECT b.seed_id, b.world_id, b.created_at AS build_created_at,
+                  b.opening IS NOT NULL AS ready, t.*
              FROM parallel_life.world_builds b
              LEFT JOIN LATERAL (
                SELECT * FROM parallel_life.tasks task
@@ -62,7 +65,7 @@ export class BuildRepository {
         WorldBuildSchema.parse({
           seedId: row.seed_id,
           worldId: row.world_id,
-          createdAt: row.created_at.toISOString(),
+          createdAt: row.build_created_at.toISOString(),
           ready: row.ready,
           task: row.id ? publicTask(row) : null,
         }),
@@ -123,6 +126,13 @@ export class BuildRepository {
       return row;
     });
     const state = await new PostgresWorldRepository(this.db).get({ userId: ownerId }, worldId);
+    const clock = await new PostgresClockStore(this.db).read(ownerId, worldId);
+    const storyTime = new Date(
+      Math.max(
+        Date.parse(state.time),
+        Date.parse(projectStoryTime(clock, new Date().toISOString())),
+      ),
+    ).toISOString();
     return WorldPhoneSchema.parse({
       id: state.id,
       seedId: metadata.seed_id,
@@ -132,7 +142,7 @@ export class BuildRepository {
         .filter((a) => a.status)
         .map(({ sourceEventId: _source, ...a }) => a),
       title: state.title,
-      time: state.time,
+      time: storyTime,
       identity: metadata.opening.identity,
       setting: metadata.opening.setting,
       actors: state.actors.map((a, index) => ({

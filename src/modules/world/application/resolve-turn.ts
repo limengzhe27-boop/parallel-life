@@ -13,6 +13,8 @@ export async function resolveTurn(
     worlds: WorldRepository;
     planner: TurnPlanner;
     now: () => string;
+    /** Read-only projection of the world's clock at the supplied real instant. */
+    storyNow?: (realNow: string) => string;
     newId: () => string;
     /** Optional: what this character may recall. Absent means no memory is attached. */
     memories?: (
@@ -27,11 +29,18 @@ export async function resolveTurn(
   if (receipt) return receipt;
   const world = await deps.worlds.get(session, command.worldId);
   if (world.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+  const requestAt = deps.now();
+  const userAt =
+    command.origin === 'director'
+      ? world.time
+      : new Date(
+          Math.max(Date.parse(world.time), Date.parse(deps.storyNow?.(requestAt) ?? world.time)),
+        ).toISOString();
   const recalled = deps.memories
     ? await deps.memories(command.actorId)
     : { records: [] as MemoryRecord[], blockedSources: new Set<string>() };
   const context = actorContext(
-    world,
+    { ...world, time: userAt },
     command.actorId,
     command.text,
     recalled.records,
@@ -61,18 +70,27 @@ export async function resolveTurn(
     ...effect,
     id: `${eventId}_effect_${index}`,
   }));
+  const occurredAt = deps.now();
+  const replyAt =
+    command.origin === 'director'
+      ? undefined
+      : new Date(
+          Math.max(Date.parse(userAt), Date.parse(deps.storyNow?.(occurredAt) ?? world.time)),
+        ).toISOString();
   return deps.worlds.commit(session, command, {
     schemaVersion: 1,
     id: eventId,
     worldId: world.id,
     version: world.version + 1,
     commandId: command.id,
-    occurredAt: deps.now(),
+    occurredAt,
+    ...(replyAt ? { storyAt: replyAt } : {}),
     type: 'turn.resolved',
     data: {
       actorId: command.actorId,
       userText: command.text,
       effects,
+      ...(replyAt ? { userAt } : {}),
       ...(command.origin ? { origin: command.origin } : {}),
     },
   });

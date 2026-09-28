@@ -87,6 +87,29 @@ test('one turn atomically updates messages, appointments and media outbox', asyn
   assert.equal(result.state.mediaRequests[0]?.sourceEventId, result.event.id);
   assert.equal(worlds.inspectForTest().jobs.length, 1);
 });
+
+test('a real-time turn retains separate send and reply instants, including after a reopen', async () => {
+  const worlds = new MemoryWorldRepository([seed()]);
+  const realTimes = ['2026-09-22T08:05:00.000Z', '2026-09-22T08:07:00.000Z'];
+  const result = await resolveTurn(
+    {
+      worlds,
+      planner: { propose: async () => ({ schemaVersion: 1, effects: [proposal.effects[0]] }) },
+      now: () => realTimes.shift()!,
+      storyNow: (realNow) => realNow,
+      newId: () => 'event_timed',
+    },
+    session,
+    command,
+  );
+  assert.deepEqual(
+    result.state.messages.map((message) => message.at),
+    ['2026-09-22T08:05:00.000Z', '2026-09-22T08:07:00.000Z'],
+  );
+  assert.equal(result.state.time, '2026-09-22T08:07:00.000Z');
+  assert.equal(result.event.occurredAt, '2026-09-22T08:07:00.000Z');
+  assert.deepEqual((await worlds.get(session, command.worldId)).messages, result.state.messages);
+});
 test('replay returns original receipt without model call or duplicate jobs', async () => {
   const { deps, calls, worlds } = setup();
   const first = await resolveTurn(deps, session, command);

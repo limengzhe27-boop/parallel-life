@@ -109,6 +109,21 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     assert.equal(ready.ready, true);
     assert.equal(ready.task?.status, 'succeeded');
     assert.equal(ready.worldId, first.worldId);
+    const olderSeed = { ...seed, id: randomUUID(), directionId: randomUUID() };
+    const olderWorldId = randomUUID();
+    await db.transaction(owner, async (sql) => {
+      await sql.query(
+        'INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
+        [olderSeed.id, owner, p.id, randomUUID(), 'older-build-fixture', olderSeed],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id) VALUES($1,$2,$3)',
+        [olderSeed.id, owner, olderWorldId],
+      );
+    });
+    const olderBuild = (await builds.list(owner)).find((item) => item.seedId === olderSeed.id);
+    assert.equal(olderBuild?.worldId, olderWorldId);
+    assert.equal(olderBuild?.task, null, 'a legacy build without a task still appears');
     const phone = await new BuildRepository(db).phone(owner, first.worldId);
     assert.equal(phone.messages.length, 1);
     assert.equal(phone.actors.length, 3);

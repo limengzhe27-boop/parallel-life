@@ -1,7 +1,8 @@
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ClockStore } from '../application/ports.ts';
 import type { WorldClock } from '../domain/clock.ts';
-import { clampSpeed, DEFAULT_SPEED } from '../domain/clock.ts';
+import { clampSpeed, DEFAULT_SPEED, projectStoryTime } from '../domain/clock.ts';
+import { DomainError } from '../domain/errors.ts';
 
 export class PostgresClockStore implements ClockStore {
   private db: PostgresDatabase;
@@ -11,10 +12,10 @@ export class PostgresClockStore implements ClockStore {
   async read(ownerId: string, worldId: string): Promise<WorldClock> {
     return this.db.transaction(ownerId, async (sql) => {
       const row = (
-        await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
-          worldId,
-          ownerId,
-        ])
+        await sql.query(
+          'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
+          [worldId, ownerId],
+        )
       ).rows[0];
       if (row)
         return {
@@ -31,7 +32,7 @@ export class PostgresClockStore implements ClockStore {
           worldId,
         ])
       ).rows[0];
-      if (!world) throw new Error('NOT_FOUND');
+      if (!world) throw new DomainError('NOT_FOUND');
       return {
         storyNow: new Date(String(world.time)).toISOString(),
         speed: DEFAULT_SPEED,
@@ -67,13 +68,16 @@ export class PostgresClockStore implements ClockStore {
     ownerId: string,
     worldId: string,
     input: { paused?: boolean; speed?: number },
+    realNow = new Date().toISOString(),
   ): Promise<void> {
     const clock = await this.read(ownerId, worldId);
     await this.write(ownerId, worldId, {
       ...clock,
+      storyNow: projectStoryTime(clock, realNow),
       paused: input.paused ?? clock.paused,
       speed: input.speed === undefined ? clock.speed : clampSpeed(input.speed),
-      /* lastTickAt is left alone: time already elapsed still counts and no time is invented. */
+      /* Anchor the old rate before changing it; paused time never accumulates on resume. */
+      lastTickAt: realNow,
     });
   }
   async setStoryTime(ownerId: string, worldId: string, storyNow: string): Promise<void> {

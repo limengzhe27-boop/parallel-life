@@ -140,7 +140,7 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
     assert.equal(beats, MAX_BEATS_PER_ADVANCE);
 
     /* The user's own time controls persist (pause / speed), without inventing time. */
-    await clock.setClock(owner, worldId, { speed: 1.5 });
+    await clock.setClock(owner, worldId, { speed: 1.5 }, advanced.storyNow);
     const controlled = await clock.read(owner, worldId);
     assert.equal(controlled.speed, 1.5);
     assert.equal(controlled.paused, false);

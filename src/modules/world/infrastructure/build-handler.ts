@@ -4,14 +4,8 @@ import { ApprovedSeedSchema } from '../../../contracts/seeds.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { WorldState } from '../domain/types.ts';
+import { openingMessageAt } from '../domain/opening-time.ts';
 import { WorldPlanner, WORLD_PROMPT_VERSION } from './world-planner.ts';
-
-/** Opening messages are ordered oldest to newest, before the phone is opened. */
-export function openingMessageAt(worldTime: string, index: number, total: number): string {
-  const offsets = [100, 35, 12, 5];
-  const offsetMinutes = offsets[Math.max(0, offsets.length - total + index)] ?? 5;
-  return new Date(Date.parse(worldTime) - offsetMinutes * 60_000).toISOString();
-}
 
 export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, model: string) {
   return async (lease: TaskLease, signal: AbortSignal) => {

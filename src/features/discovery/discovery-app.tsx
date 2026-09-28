@@ -258,6 +258,16 @@ export function DiscoveryApp() {
     suggested = profile?.facts.filter((f) => f.status === 'suggested') ?? [],
     conversationBrief = recentConversation.length >= 5 ? recentConversation : '',
     stale = !!data?.directions.length && data.profileVersion !== profile?.version;
+  const availableDirections = stale
+    ? []
+    : (data?.directions ?? []).filter(
+        (direction) => !savedSeeds.some((saved) => saved.directionId === direction.id),
+      );
+  const showProposalDrawer =
+    availableDirections.length > 0 ||
+    waiting ||
+    (!!task && ['failed', 'unknown', 'cancelled', 'conflict'].includes(task.status)) ||
+    (savedSeeds.length === 0 && (confirmed.length > 0 || !!conversationBrief));
   return (
     <div className="discovery-page">
       <header className="discovery-header">
@@ -373,229 +383,237 @@ export function DiscoveryApp() {
                 }}
               />
             )}
-            <details
-              className="proposal-drawer"
-              open={proposalOpen}
-              onToggle={(e) => setProposalOpen(e.currentTarget.open)}
-            >
-              <summary>
-                构想新的分支
-                <Icon name="chevron" size={16} />
-              </summary>
-              <details className="discovery-basis">
+            {showProposalDrawer && (
+              <details
+                className="proposal-drawer"
+                open={proposalOpen}
+                onToggle={(e) => setProposalOpen(e.currentTarget.open)}
+              >
                 <summary>
-                  <span>
-                    <Icon name="book" size={16} />
-                    从这些小事想到你
-                  </span>
-                  <small>
-                    {confirmed.length} 条已确认
-                    {suggested.length ? ` · ${suggested.length} 条待确认` : ''}
-                  </small>
+                  {availableDirections.length ? '待决定的分支' : '聊出一条新路'}
+                  <Icon name="chevron" size={16} />
                 </summary>
-                <p>只使用你确认过的资料。也可以直接在下方写一个新的“如果”。</p>
-                <div className="basis-facts">
-                  {confirmed.slice(-24).map((f) => (
-                    <span className="basis-chip" key={f.id}>
-                      <Icon name="check" size={13} />
-                      {f.value}
+                <details className="discovery-basis">
+                  <summary>
+                    <span>
+                      <Icon name="book" size={16} />
+                      从这些小事想到你
                     </span>
-                  ))}
-                </div>
-                {suggested.length > 0 && (
-                  <div className="basis-suggestions">
-                    {suggested.map((f) => (
-                      <div key={f.id}>
-                        <span>{f.value}</span>
-                        <Button
-                          variant="ghost"
-                          disabled={busy || waiting}
-                          aria-label={`确认：${f.value}`}
-                          onClick={() => void confirm(f.id)}
-                        >
-                          确认
-                          <Icon name="check" size={14} />
-                        </Button>
-                      </div>
+                    <small>
+                      {confirmed.length} 条已确认
+                      {suggested.length ? ` · ${suggested.length} 条待确认` : ''}
+                    </small>
+                  </summary>
+                  <p>只使用你确认过的资料。也可以直接在下方写一个新的“如果”。</p>
+                  <div className="basis-facts">
+                    {confirmed.slice(-24).map((f) => (
+                      <span className="basis-chip" key={f.id}>
+                        <Icon name="check" size={13} />
+                        {f.value}
+                      </span>
                     ))}
                   </div>
+                  {suggested.length > 0 && (
+                    <div className="basis-suggestions">
+                      {suggested.map((f) => (
+                        <div key={f.id}>
+                          <span>{f.value}</span>
+                          <Button
+                            variant="ghost"
+                            disabled={busy || waiting}
+                            aria-label={`确认：${f.value}`}
+                            onClick={() => void confirm(f.id)}
+                          >
+                            确认
+                            <Icon name="check" size={14} />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <a href="/#profile" className="text-link">
+                    修改我的资料
+                    <Icon name="edit" size={13} />
+                  </a>
+                </details>
+                {stale && (
+                  <Notice tone="info">
+                    你的资料有了更新。下面保留着上一次的构想，可以按新资料再想一组。
+                  </Notice>
                 )}
-                <a href="/#profile" className="text-link">
-                  修改我的资料
-                  <Icon name="edit" size={13} />
-                </a>
-              </details>
-              {stale && (
-                <Notice tone="info">
-                  你的资料有了更新。下面保留着上一次的构想，可以按新资料再想一组。
-                </Notice>
-              )}
-              {waiting && (
-                <div className="discovery-progress" role="status">
-                  <div className="thinking-dots">
-                    <i />
-                    <i />
-                    <i />
-                  </div>
-                  <div>
-                    <strong>
-                      {task?.status === 'queued'
-                        ? '正在构想平行人生分支…'
-                        : '正在寻找与你有关的可能'}
-                    </strong>
-                    <p>正在为你推演不同的选择与走向，马上就好。关掉页面也不会丢失。</p>
-                  </div>
-                  <Button variant="ghost" disabled={busy} onClick={() => void taskAction('cancel')}>
-                    暂停
-                  </Button>
-                </div>
-              )}
-              {task && ['failed', 'unknown', 'cancelled', 'conflict'].includes(task.status) && (
-                <Notice tone="info">
-                  <span>
-                    {task.status === 'conflict'
-                      ? '资料已经变化，这次结果没有覆盖原来的方向。请用最新资料重新构想。'
-                      : task.status === 'cancelled'
-                        ? '这次构想已暂停。你的想法和之前的方向仍然保留。'
-                        : '这次构想没有完整返回。原来的方向仍在，可以再试一次。'}
-                  </span>
-                  {task.status !== 'conflict' && (
+                {waiting && (
+                  <div className="discovery-progress" role="status">
+                    <div className="thinking-dots">
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                    <div>
+                      <strong>
+                        {task?.status === 'queued'
+                          ? '正在构想平行人生分支…'
+                          : '正在寻找与你有关的可能'}
+                      </strong>
+                      <p>正在为你推演不同的选择与走向，马上就好。关掉页面也不会丢失。</p>
+                    </div>
                     <Button
                       variant="ghost"
                       disabled={busy}
-                      onClick={() => void taskAction('retry')}
+                      onClick={() => void taskAction('cancel')}
                     >
-                      重新构想
-                      <Icon name="refresh" size={16} />
+                      暂停
                     </Button>
-                  )}
-                </Notice>
-              )}
-              {data.directions.length ? (
-                <section className="direction-grid" aria-label="为你构想的人生方向">
-                  {data.directions.map((direction, index) => (
-                    <article
-                      id={`direction-${direction.id}`}
-                      className="direction-card page-enter"
-                      key={direction.id}
-                    >
-                      <div className="direction-cover">
-                        <img
-                          loading="lazy"
-                          src={index === 1 ? '/art/open-door.webp' : '/art/meadow-door.webp'}
-                          alt="另一种可能的通用想象插画"
-                        />
-                        <small>想象插画</small>
-                      </div>
-                      <div className="direction-card-top">
-                        <span className="direction-number">可能 / 0{index + 1}</span>
-                        <Icon name={(['spark', 'clock', 'chat'] as const)[index]!} size={22} />
-                      </div>
-                      <h2>{direction.title}</h2>
-                      <p className="direction-premise">{direction.premise}</p>
-                      <details className="direction-scene">
-                        <summary>
-                          想象这样的一天 <Icon name="plus" size={14} />
-                        </summary>
-                        <p>{direction.premise}</p>
-                        <p>{direction.opening}</p>
-                      </details>
-                      <details className="direction-details">
-                        <summary>
-                          为什么想到它
-                          <Icon name="plus" size={14} />
-                        </summary>
-                        <p>{direction.reason}</p>
-                        <ul>
-                          {direction.sources.map((source) => (
-                            <li key={source.factId}>{source.value}</li>
-                          ))}
-                        </ul>
-                        {!direction.sources.length && <small>来自你这次写下的“如果”</small>}
-                        <h3>这条路，也有另一面</h3>
-                        <p>{direction.tradeoff}</p>
-                      </details>
-                      <Button
-                        className="direction-select"
-                        disabled={busy || waiting || stale}
-                        onClick={() => void reviewDirection(direction)}
-                      >
-                        {busy ? '正在准备草案…' : '构思这段人生'}
-                        <Icon name="arrow" size={16} />
-                      </Button>
-                      <Button
-                        className="direction-refine"
-                        variant="secondary"
-                        disabled={busy || waiting || stale}
-                        onClick={() => {
-                          setRefining(direction);
-                          setRefineText('');
-                          setError('');
-                        }}
-                      >
-                        我想改一点
-                        <Icon name="edit" size={15} />
-                      </Button>
-                    </article>
-                  ))}
-                </section>
-              ) : (
-                !waiting && (
-                  <div className="discovery-empty">
-                    <Icon name="spark" size={28} />
-                    <h2>下一个故事，由你开头。</h2>
-                    <p>
-                      {confirmed.length
-                        ? '你的资料已经准备好，可以看看不同选择会打开怎样的生活。'
-                        : '确认一条与你有关的资料，或者说说想体验什么。'}
-                    </p>
                   </div>
-                )
-              )}
-              <form
-                className="discovery-compose"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void generate(brief.trim() || conversationBrief);
-                }}
-              >
-                <label htmlFor="what-if">
-                  {data.directions.length ? '还有别的想法吗？' : '写下你的“如果”'}
-                  <small>
-                    {conversationBrief
-                      ? '留空就沿着刚才聊的事想'
-                      : confirmed.length
-                        ? '留空就从你确认过的经历出发'
-                        : '说一句想试试的生活'}
-                  </small>
-                </label>
-                <textarea
-                  id="what-if"
-                  className="field"
-                  value={brief}
-                  onChange={(e) => setBrief(e.target.value)}
-                  maxLength={1500}
-                  rows={3}
-                  placeholder="假如当时做了另一个选择，或者现在开始一直想做的事…"
-                />
-                <div>
-                  <span>
-                    <Icon name="lock" size={13} />
-                    这段故事，先只写给你
-                  </span>
-                  <Button
-                    type="submit"
-                    disabled={
-                      busy || waiting || (!confirmed.length && !brief.trim() && !conversationBrief)
-                    }
-                  >
-                    {busy ? <span className="spinner" /> : <Icon name="spark" size={17} />}{' '}
-                    {data.directions.length ? '换一组想法' : '帮我想想'}
-                    <Icon name="arrow" size={17} />
-                  </Button>
-                </div>
-              </form>
-            </details>
+                )}
+                {task && ['failed', 'unknown', 'cancelled', 'conflict'].includes(task.status) && (
+                  <Notice tone="info">
+                    <span>
+                      {task.status === 'conflict'
+                        ? '资料已经变化，这次结果没有覆盖原来的方向。请用最新资料重新构想。'
+                        : task.status === 'cancelled'
+                          ? '这次构想已暂停。你的想法和之前的方向仍然保留。'
+                          : '这次构想没有完整返回。原来的方向仍在，可以再试一次。'}
+                    </span>
+                    {task.status !== 'conflict' && (
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => void taskAction('retry')}
+                      >
+                        重新构想
+                        <Icon name="refresh" size={16} />
+                      </Button>
+                    )}
+                  </Notice>
+                )}
+                {availableDirections.length ? (
+                  <section className="direction-grid" aria-label="为你构想的人生方向">
+                    {availableDirections.map((direction, index) => (
+                      <article
+                        id={`direction-${direction.id}`}
+                        className="direction-card page-enter"
+                        key={direction.id}
+                      >
+                        <div className="direction-cover">
+                          <img
+                            loading="lazy"
+                            src={index === 1 ? '/art/open-door.webp' : '/art/meadow-door.webp'}
+                            alt="另一种可能的通用想象插画"
+                          />
+                          <small>想象插画</small>
+                        </div>
+                        <div className="direction-card-top">
+                          <span className="direction-number">可能 / 0{index + 1}</span>
+                          <Icon name={(['spark', 'clock', 'chat'] as const)[index]!} size={22} />
+                        </div>
+                        <h2>{direction.title}</h2>
+                        <p className="direction-premise">{direction.premise}</p>
+                        <details className="direction-scene">
+                          <summary>
+                            想象这样的一天 <Icon name="plus" size={14} />
+                          </summary>
+                          <p>{direction.premise}</p>
+                          <p>{direction.opening}</p>
+                        </details>
+                        <details className="direction-details">
+                          <summary>
+                            为什么想到它
+                            <Icon name="plus" size={14} />
+                          </summary>
+                          <p>{direction.reason}</p>
+                          <ul>
+                            {direction.sources.map((source) => (
+                              <li key={source.factId}>{source.value}</li>
+                            ))}
+                          </ul>
+                          {!direction.sources.length && <small>来自你这次写下的“如果”</small>}
+                          <h3>这条路，也有另一面</h3>
+                          <p>{direction.tradeoff}</p>
+                        </details>
+                        <Button
+                          className="direction-select"
+                          disabled={busy || waiting || stale}
+                          onClick={() => void reviewDirection(direction)}
+                        >
+                          {busy ? '正在准备草案…' : '构思这段人生'}
+                          <Icon name="arrow" size={16} />
+                        </Button>
+                        <Button
+                          className="direction-refine"
+                          variant="secondary"
+                          disabled={busy || waiting || stale}
+                          onClick={() => {
+                            setRefining(direction);
+                            setRefineText('');
+                            setError('');
+                          }}
+                        >
+                          我想改一点
+                          <Icon name="edit" size={15} />
+                        </Button>
+                      </article>
+                    ))}
+                  </section>
+                ) : (
+                  !waiting && (
+                    <div className="discovery-empty">
+                      <Icon name="spark" size={28} />
+                      <h2>下一个故事，由你开头。</h2>
+                      <p>
+                        {confirmed.length
+                          ? '你的资料已经准备好，可以看看不同选择会打开怎样的生活。'
+                          : '确认一条与你有关的资料，或者说说想体验什么。'}
+                      </p>
+                    </div>
+                  )
+                )}
+                <form
+                  className="discovery-compose"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void generate(brief.trim() || conversationBrief);
+                  }}
+                >
+                  <label htmlFor="what-if">
+                    {availableDirections.length ? '还有别的想法吗？' : '写下你的“如果”'}
+                    <small>
+                      {conversationBrief
+                        ? '留空就沿着刚才聊的事想'
+                        : confirmed.length
+                          ? '留空就从你确认过的经历出发'
+                          : '说一句想试试的生活'}
+                    </small>
+                  </label>
+                  <textarea
+                    id="what-if"
+                    className="field"
+                    value={brief}
+                    onChange={(e) => setBrief(e.target.value)}
+                    maxLength={1500}
+                    rows={3}
+                    placeholder="假如当时做了另一个选择，或者现在开始一直想做的事…"
+                  />
+                  <div>
+                    <span>
+                      <Icon name="lock" size={13} />
+                      这段故事，先只写给你
+                    </span>
+                    <Button
+                      type="submit"
+                      disabled={
+                        busy ||
+                        waiting ||
+                        (!confirmed.length && !brief.trim() && !conversationBrief)
+                      }
+                    >
+                      {busy ? <span className="spinner" /> : <Icon name="spark" size={17} />}{' '}
+                      {availableDirections.length ? '换一组想法' : '帮我想想'}
+                      <Icon name="arrow" size={17} />
+                    </Button>
+                  </div>
+                </form>
+              </details>
+            )}
           </>
         )}
       </main>

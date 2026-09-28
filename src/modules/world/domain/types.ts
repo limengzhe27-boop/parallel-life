@@ -94,8 +94,16 @@ export type WorldEvent = {
   version: number;
   commandId: Id;
   occurredAt: string;
+  /** Story instant of the NPC reply; absent on old turns and director beats. */
+  storyAt?: string;
   type: 'turn.resolved';
-  data: { actorId: Id; userText: string; effects: WorldEffect[]; origin?: 'director' };
+  data: {
+    actorId: Id;
+    userText: string;
+    effects: WorldEffect[];
+    origin?: 'director';
+    userAt?: string;
+  };
 };
 export type OutboxJob = {
   id: Id;

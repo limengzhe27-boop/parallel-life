@@ -14,6 +14,8 @@ export function applyEvent(
   if (event.schemaVersion !== 1 || event.type !== 'turn.resolved')
     throw new DomainError('INVALID_PROPOSAL');
   isoInstant(event.occurredAt);
+  if (event.storyAt) isoInstant(event.storyAt);
+  if (event.data.userAt) isoInstant(event.data.userAt);
   validateEventId(event.id);
   validateCommand({
     id: event.commandId,
@@ -27,6 +29,14 @@ export function applyEvent(
   if (!actorIds.has(event.data.actorId)) throw new DomainError('INVALID_COMMAND');
   const effects = parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects;
   validateCharacterEffects(event.data.actorId, effects, true);
+  const replyAt = event.storyAt ?? current.time;
+  const userAt = event.data.userAt ?? current.time;
+  if (
+    Date.parse(replyAt) < Date.parse(current.time) ||
+    Date.parse(userAt) < Date.parse(current.time) ||
+    Date.parse(userAt) > Date.parse(replyAt)
+  )
+    throw new DomainError('INVALID_COMMAND', 'World time cannot run backwards');
   const state = structuredClone(current);
   const usedIds = new Set(
     [...state.facts, ...state.messages, ...state.appointments, ...state.mediaRequests].map(
@@ -43,7 +53,7 @@ export function applyEvent(
       actorId: event.data.actorId,
       role: 'user',
       text: event.data.userText,
-      at: current.time,
+      at: userAt,
       sourceEventId: event.id,
     });
   }
@@ -60,13 +70,13 @@ export function applyEvent(
           actorId: effect.actorId,
           role: 'assistant',
           text: effect.text,
-          at: current.time,
+          at: replyAt,
           sourceEventId,
         });
         break;
       case 'appointment.proposed':
       case 'appointment.created':
-        if (effect.participantIds.some((id) => !actorIds.has(id)) || effect.at < current.time)
+        if (effect.participantIds.some((id) => !actorIds.has(id)) || effect.at < replyAt)
           throw new DomainError('INVALID_PROPOSAL', 'Invalid appointment');
         state.appointments.push({
           ...(effect.type === 'appointment.proposed' ? { status: 'proposed' as const } : {}),
@@ -130,6 +140,7 @@ export function applyEvent(
   /* Facts are projected to world_facts; the state keeps a bounded window so the
      snapshot cannot outgrow its hard size limit as a life continues. */
   state.facts = retainFacts(state.facts);
+  state.time = replyAt;
   state.version = event.version;
   return { state, jobs };
 }

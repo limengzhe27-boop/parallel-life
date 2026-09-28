@@ -4,6 +4,7 @@ import {
   WorldMessageReceiptSchema,
 } from '../../../../../../contracts/world-interaction.ts';
 import { Id } from '../../../../../../contracts/api.ts';
+import { projectStoryTime } from '../../../../../../modules/world/domain/clock.ts';
 import {
   authenticated,
   endpoint,
@@ -18,11 +19,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const parsedWorldId = Id.safeParse((await context.params).id);
     if (!parsedWorldId.success) throw new HttpError('NOT_FOUND', 404);
     const input = await parseBody(request, WorldMessageRequestSchema);
+    const clock = await s.readWorldClock(s.ownerId, parsedWorldId.data);
     const result = await resolveTurn(
       {
         worlds: s.worlds,
         planner: s.worldPlanner,
         now: () => new Date().toISOString(),
+        storyNow: (realNow) => projectStoryTime(clock, realNow),
         newId: () => crypto.randomUUID(),
         memories: (actorId) => s.actorMemories(s.ownerId, actorId, parsedWorldId.data),
       },

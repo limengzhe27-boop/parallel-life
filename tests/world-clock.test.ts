@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   advanceClock,
+  projectStoryTime,
   beatCue,
   clampSpeed,
   MAX_BEATS_PER_ADVANCE,
@@ -27,6 +28,19 @@ test('a paused world does not move', () => {
   assert.deepEqual(result.beats, []);
   assert.equal(result.clock.storyNow, '2026-09-24T00:00:00.000Z');
   assert.equal(result.clock.lastTickAt, '2026-09-24T05:00:00.000Z');
+});
+
+test('read-only story time projects from the saved anchor without inventing messages', () => {
+  assert.equal(projectStoryTime(clock(), '2026-09-24T01:30:00.000Z'), '2026-09-24T01:30:00.000Z');
+  assert.equal(
+    projectStoryTime(clock({ speed: 2 }), '2026-09-24T01:30:00.000Z'),
+    '2026-09-24T03:00:00.000Z',
+  );
+  assert.equal(
+    projectStoryTime(clock({ paused: true }), '2026-09-24T01:30:00.000Z'),
+    clock().storyNow,
+  );
+  assert.equal(projectStoryTime(clock(), '2026-09-23T01:30:00.000Z'), clock().storyNow);
 });
 
 test('time runs 1:1 by default and plays one beat per half hour', () => {
