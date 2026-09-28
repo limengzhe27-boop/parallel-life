@@ -55,6 +55,7 @@ export function applyEvent(
       text: event.data.userText,
       at: userAt,
       sourceEventId: event.id,
+      sourceVersion: event.version,
     });
   }
   for (const effect of effects) {
@@ -72,6 +73,7 @@ export function applyEvent(
           text: effect.text,
           at: replyAt,
           sourceEventId,
+          sourceVersion: event.version,
         });
         break;
       case 'appointment.proposed':

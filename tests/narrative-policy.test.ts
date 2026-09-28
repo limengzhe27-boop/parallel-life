@@ -52,6 +52,44 @@ test('negotiation needs a relevant pending invitation, not a cancelled or foreig
       'negotiate',
     );
 });
+test('director reflects the exact explicit appointment result instead of revisiting old ones', () => {
+  const appointments = [
+    {
+      id: 'old',
+      title: '旧约定',
+      at: '2026-09-27T12:00:00.000Z',
+      participantIds: ['a'],
+      status: 'attended' as const,
+      responseAt: '2026-09-27T12:00:00.000Z',
+      sourceEventId: 'e1',
+    },
+    {
+      id: 'new',
+      title: '看展',
+      at: '2026-09-28T12:00:00.000Z',
+      participantIds: ['a'],
+      status: 'missed' as const,
+      responseAt: '2026-09-28T12:00:00.000Z',
+      sourceEventId: 'e2',
+    },
+  ];
+  const brief = narrativeBrief({
+    ...base,
+    origin: 'director',
+    appointments,
+    userText: '未了结的事：用户明确标记「看展」未赴约',
+  });
+  assert.equal(brief.move, 'appointment_result');
+  assert.deepEqual(brief.evidenceIds, ['new']);
+  const due = narrativeBrief({
+    ...base,
+    origin: 'director',
+    time: '2026-09-29T00:00:00.000Z',
+    appointments: [{ ...appointments[1]!, status: 'confirmed' }],
+    userText: '「看展」时间到了，不知道用户有没有去',
+  });
+  assert.equal(due.move, 'appointment_due');
+});
 test('director follows sourced promises instead of treating its cue as user dialogue', () => {
   const promise = {
     id: 'promise',

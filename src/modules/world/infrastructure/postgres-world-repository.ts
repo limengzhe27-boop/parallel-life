@@ -21,6 +21,7 @@ import { openingMessagesForDisplay } from '../domain/opening-time.ts';
 import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
+import { projectStoryTime } from '../domain/clock.ts';
 const fingerprint = (command: TurnCommand) =>
   createHash('sha256')
     .update(
@@ -218,20 +219,46 @@ export class PostgresWorldRepository implements WorldRepository {
         if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
         return this.hydrate(sql, previous.result_state);
       }
+      const clockRow = (
+        await sql.query(
+          'SELECT story_now,speed,paused,last_tick_at FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
+          [command.worldId, session.userId],
+        )
+      ).rows[0];
+      const realNow = new Date().toISOString();
+      const projected = clockRow
+        ? projectStoryTime(
+            {
+              storyNow: new Date(clockRow.story_now).toISOString(),
+              speed: Number(clockRow.speed),
+              paused: Boolean(clockRow.paused),
+              lastTickAt: new Date(clockRow.last_tick_at).toISOString(),
+              missedBeats: 0,
+              summary: null,
+            },
+            realNow,
+          )
+        : current.time;
+      const storyTime = new Date(
+        Math.max(Date.parse(current.time), Date.parse(projected)),
+      ).toISOString();
       const event: InvitationEvent = {
         schemaVersion: 1,
         type: 'invitation.responded',
-        storyTime: current.time,
+        storyTime,
         id: randomUUID(),
         worldId: command.worldId,
         commandId: command.commandId,
         version: command.expectedVersion + 1,
-        occurredAt: new Date().toISOString(),
+        occurredAt: realNow,
         data: command,
       };
       if (JSON.stringify(event).length >= 65536)
         throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
-      const state = applyInvitationEvent(await this.hydrate(sql, current), event);
+      const state = applyInvitationEvent(
+        { ...(await this.hydrate(sql, current)), time: storyTime },
+        event,
+      );
       await sql.query(
         "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
         [command.commandId, state.id, session.userId, command.expectedVersion, hash, command],

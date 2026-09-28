@@ -108,6 +108,14 @@ export function selectSpeaker(
     ) ??
     agenda.find((thread) => thread.kind === 'proposed_appointment' && available(thread.actorId));
   if (pending) return pending.actorId;
+  const due = agenda.find(
+    (thread) => thread.kind === 'appointment_due' && available(thread.actorId),
+  );
+  if (due) return due.actorId;
+  const result = agenda.find(
+    (thread) => thread.kind === 'appointment_result' && available(thread.actorId),
+  );
+  if (result) return result.actorId;
   const commitment =
     agenda.find(
       (thread) =>

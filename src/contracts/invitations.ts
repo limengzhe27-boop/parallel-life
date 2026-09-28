@@ -5,6 +5,8 @@ const base = { commandId: Id, id: AppointmentId, expectedVersion: z.number().int
 export const InvitationRequestSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...base, operation: z.literal('accept') }),
   z.strictObject({ ...base, operation: z.literal('cancel') }),
+  z.strictObject({ ...base, operation: z.literal('attend') }),
+  z.strictObject({ ...base, operation: z.literal('miss') }),
   z.strictObject({
     ...base,
     operation: z.literal('reschedule'),
@@ -17,7 +19,9 @@ export const InvitationSchema = z.strictObject({
   title: z.string(),
   at: Timestamp,
   participantIds: z.array(z.string()),
-  status: z.enum(['proposed', 'confirmed', 'cancelled']),
+  status: z.enum(['proposed', 'confirmed', 'cancelled', 'attended', 'missed']),
+  responseAt: Timestamp.optional(),
+  responseVersion: z.number().int().nonnegative().optional(),
 });
 export const InvitationReceiptSchema = z.strictObject({
   status: z.literal('committed'),

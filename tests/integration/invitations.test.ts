@@ -6,6 +6,8 @@ import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
 import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
+import { buildAgenda } from '../../src/modules/world/domain/agenda.ts';
 import type { InvitationCommand } from '../../src/modules/world/domain/invitations.ts';
 
 test('real invitation transactions: concurrent edits, immutable receipts, isolation, restart and rollback', async () => {
@@ -136,6 +138,157 @@ test('real invitation transactions: concurrent edits, immutable receipts, isolat
   } finally {
     await db.close();
     await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [userId]);
+    await admin.end();
+  }
+});
+
+test('a protagonist decision survives reload and competing attendance outcomes cannot both win', async () => {
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const c = await localConfig();
+  const url = `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`;
+  let db = new PostgresDatabase(url);
+  let repo = new PostgresWorldRepository(db);
+  const ownerId = randomUUID(),
+    worldId = randomUUID(),
+    actorId = randomUUID();
+  const session = { userId: ownerId };
+  try {
+    await admin.query('INSERT INTO parallel_life.accounts(id) VALUES($1)', [ownerId]);
+    await repo.initialize(session, {
+      schemaVersion: 1,
+      id: worldId,
+      ownerId,
+      version: 0,
+      title: '赴约测试',
+      time: '2026-09-22T00:00:00.000Z',
+      actors: [{ id: actorId, name: '朋友', persona: '合成' }],
+      facts: [],
+      messages: [],
+      appointments: [],
+      mediaRequests: [],
+    });
+    const commandId = randomUUID();
+    const proposal = await repo.commit(
+      session,
+      { id: commandId, worldId, actorId, text: '明天见', expectedVersion: 0 },
+      {
+        schemaVersion: 1,
+        id: randomUUID(),
+        worldId,
+        commandId,
+        version: 1,
+        occurredAt: '2026-09-22T00:00:00.000Z',
+        type: 'turn.resolved',
+        data: {
+          actorId,
+          userText: '明天见',
+          effects: [
+            { type: 'message.received', id: randomUUID(), actorId, text: '好，明天见' },
+            {
+              type: 'appointment.proposed',
+              id: randomUUID(),
+              title: '一起看展',
+              at: '2026-09-23T00:00:00.000Z',
+              participantIds: [actorId],
+            },
+          ],
+        },
+      },
+    );
+    const invitationId = proposal.state.appointments[0]!.id;
+    const accepted = await repo.respondToInvitation(session, {
+      commandId: randomUUID(),
+      worldId,
+      id: invitationId,
+      expectedVersion: 1,
+      operation: 'accept',
+    });
+    assert.equal(accepted.appointments[0]?.status, 'confirmed');
+    const beforeDue = {
+      commandId: randomUUID(),
+      worldId,
+      id: invitationId,
+      expectedVersion: 2,
+      operation: 'attend' as const,
+    };
+    await assert.rejects(repo.respondToInvitation(session, beforeDue), { code: 'INVALID_COMMAND' });
+    await new PostgresClockStore(db).write(ownerId, worldId, {
+      storyNow: '2026-09-24T00:00:00.000Z',
+      speed: 1,
+      paused: true,
+      lastTickAt: new Date().toISOString(),
+      missedBeats: 0,
+      summary: null,
+    });
+    const attend = { ...beforeDue, commandId: randomUUID() };
+    const miss = { ...attend, commandId: randomUUID(), operation: 'miss' as const };
+    const raced = await Promise.allSettled([
+      repo.respondToInvitation(session, attend),
+      repo.respondToInvitation(session, miss),
+    ]);
+    assert.equal(raced.filter((item) => item.status === 'fulfilled').length, 1);
+    const winner = raced.find((item) => item.status === 'fulfilled') as PromiseFulfilledResult<
+      Awaited<ReturnType<typeof repo.respondToInvitation>>
+    >;
+    const expectedStatus = winner.value.appointments[0]?.status;
+    assert.ok(expectedStatus === 'attended' || expectedStatus === 'missed');
+    await db.close();
+    db = new PostgresDatabase(url);
+    repo = new PostgresWorldRepository(db);
+    const recovered = await repo.get(session, worldId);
+    assert.equal(recovered.appointments[0]?.status, expectedStatus);
+    assert.equal(buildAgenda(recovered)[0]?.kind, 'appointment_result');
+    await assert.rejects(repo.get({ userId: randomUUID() }, worldId), { code: 'NOT_FOUND' });
+    assert.deepEqual(
+      await repo.respondToInvitation(session, expectedStatus === 'attended' ? attend : miss),
+      winner.value,
+    );
+    assert.equal(
+      (
+        await admin.query(
+          "SELECT count(*)::int AS n FROM parallel_life.world_events WHERE world_id=$1 AND payload->>'type'='invitation.responded'",
+          [worldId],
+        )
+      ).rows[0].n,
+      2,
+    );
+    const replyCommandId = randomUUID(),
+      replyEventId = randomUUID();
+    const afterReply = await repo.commit(
+      session,
+      {
+        id: replyCommandId,
+        worldId,
+        actorId,
+        origin: 'director',
+        text: '承接已记录的赴约结果',
+        expectedVersion: recovered.version,
+      },
+      {
+        schemaVersion: 1,
+        id: replyEventId,
+        worldId,
+        commandId: replyCommandId,
+        version: recovered.version + 1,
+        occurredAt: new Date().toISOString(),
+        storyAt: recovered.time,
+        type: 'turn.resolved',
+        data: {
+          actorId,
+          userText: '承接已记录的赴约结果',
+          origin: 'director',
+          effects: [
+            { type: 'message.received', id: randomUUID(), actorId, text: '那次约定后来怎么样？' },
+          ],
+        },
+      },
+    );
+    assert.deepEqual(buildAgenda(afterReply.state), []);
+    assert.deepEqual(buildAgenda(await repo.get(session, worldId)), []);
+  } finally {
+    await db.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [ownerId]);
     await admin.end();
   }
 });

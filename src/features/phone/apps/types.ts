@@ -34,7 +34,9 @@ export type PhoneInvitation = {
   title: string;
   at: string;
   participantIds: string[];
-  status: 'proposed' | 'confirmed' | 'cancelled';
+  status: 'proposed' | 'confirmed' | 'cancelled' | 'attended' | 'missed';
+  responseAt?: string;
+  responseVersion?: number;
   version: number;
   links?: PhoneLink[];
 };
@@ -80,7 +82,7 @@ export type PhoneActions = {
   }) => Promise<PhoneActionReceipt>;
   changeInvitation?: (input: {
     id: string;
-    operation: 'accept' | 'reschedule' | 'cancel';
+    operation: 'accept' | 'reschedule' | 'cancel' | 'attend' | 'miss';
     at?: string;
     expectedVersion: number;
     commandId: string;

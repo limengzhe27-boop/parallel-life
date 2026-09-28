@@ -7,7 +7,7 @@ export type InvitationCommand = {
   worldId: string;
   id: string;
   expectedVersion: number;
-  operation: 'accept' | 'cancel' | 'reschedule';
+  operation: 'accept' | 'cancel' | 'reschedule' | 'attend' | 'miss';
   at?: string;
 };
 export type InvitationEvent = {
@@ -38,7 +38,7 @@ export function applyInvitationEvent(current: WorldState, event: InvitationEvent
       event.worldId !== command.worldId ||
       !Number.isSafeInteger(command.expectedVersion) ||
       command.expectedVersion < 0 ||
-      !['accept', 'cancel', 'reschedule'].includes(command.operation) ||
+      !['accept', 'cancel', 'reschedule', 'attend', 'miss'].includes(command.operation) ||
       (command.operation === 'reschedule') !== (command.at !== undefined)
     )
       throw new Error('Invalid invitation action');
@@ -57,13 +57,18 @@ export function applyInvitationEvent(current: WorldState, event: InvitationEvent
   // Legacy records have unknown consent. They must not become confirmed through this API.
   if (
     !invitation.status ||
-    invitation.status === 'cancelled' ||
+    ['cancelled', 'attended', 'missed'].includes(invitation.status) ||
     (command.operation === 'accept' && invitation.status !== 'proposed')
   )
     throw new DomainError('INVALID_COMMAND');
   if (
     (command.operation === 'accept' && invitation.at < current.time) ||
     (command.at !== undefined && command.at < current.time)
+  )
+    throw new DomainError('INVALID_COMMAND');
+  if (
+    (command.operation === 'attend' || command.operation === 'miss') &&
+    (invitation.status !== 'confirmed' || invitation.at > current.time)
   )
     throw new DomainError('INVALID_COMMAND');
   const next = structuredClone(current);
@@ -75,6 +80,10 @@ export function applyInvitationEvent(current: WorldState, event: InvitationEvent
     target.at = command.at!;
     target.status = 'proposed';
   }
+  if (command.operation === 'attend') target.status = 'attended';
+  if (command.operation === 'miss') target.status = 'missed';
+  target.responseAt = event.storyTime;
+  target.responseVersion = event.version;
   next.version = event.version;
   return next;
 }

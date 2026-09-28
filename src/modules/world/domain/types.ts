@@ -20,10 +20,15 @@ export type Message = {
   text: string;
   at: string;
   sourceEventId: Id;
+  /** Internal event ordering for deciding whether a later reply has addressed a choice. */
+  sourceVersion?: number;
 };
 export type Appointment = {
   /** Legacy records have no explicit response state. */
-  status?: 'proposed' | 'confirmed' | 'cancelled';
+  status?: 'proposed' | 'confirmed' | 'cancelled' | 'attended' | 'missed';
+  /** Story instant of the owner's latest explicit decision, never inferred from NPC text. */
+  responseAt?: string;
+  responseVersion?: number;
   id: Id;
   title: string;
   at: string;

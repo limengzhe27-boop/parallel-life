@@ -26,6 +26,18 @@ export const NARRATIVE_MOVES = {
       '优先回应有来源的承诺。依据现有记录交代已知进展、能做的下一步或真实限制；没有证据不能声称大事已完成。兑现已有的小回报后再考虑新线索。',
     maxNewThreads: 0,
   },
+  appointment_due: {
+    goal: '承接已经约好的事，而不是替主角赴约。',
+    instruction:
+      '约定时间已到。自然询问或说明自己此刻确实知道的安排；不要声称主角到场，也不要替他作决定。',
+    maxNewThreads: 0,
+  },
+  appointment_result: {
+    goal: '承接主角亲自记录的赴约结果。',
+    instruction:
+      '只依据日历里主角自己记录的已赴约或未赴约状态回应，体现你这个人物的态度；没有现场细节就询问，不要虚构发生过的事情或再催同一邀约。',
+    maxNewThreads: 0,
+  },
   breathing_room: {
     goal: '给这一段生活留出轻松相处或自然收尾的空间。',
     instruction:
@@ -55,6 +67,7 @@ type Input = {
   origin?: 'director';
   messages: readonly Message[];
   appointments: readonly Appointment[];
+  time?: string;
   /** Already authorized by the context compiler. */
   memories: readonly {
     id: string;
@@ -87,6 +100,32 @@ export function narrativeBrief(input: Input): NarrativeBrief {
     )
   )
     return choose('breathing_room', '用户明确表达休息、收尾或减压意愿');
+
+  const resultAppointments = input.appointments.filter(
+    (a) =>
+      a.participantIds.includes(input.actorId) &&
+      (a.status === 'attended' || a.status === 'missed'),
+  );
+  const relevantAppointment = input.origin
+    ? resultAppointments.find((a) => text.includes(a.title))
+    : resultAppointments.sort((a, b) => (b.responseAt ?? '').localeCompare(a.responseAt ?? ''))[0];
+  if (
+    relevantAppointment &&
+    (input.origin === 'director' || /赴约|没去|见面|活动|约定/u.test(text))
+  )
+    return choose('appointment_result', '用户已明确记录这次约定的结果', [relevantAppointment.id]);
+  const dueAppointments = input.appointments.filter(
+    (a) =>
+      a.participantIds.includes(input.actorId) &&
+      a.status === 'confirmed' &&
+      Boolean(input.time) &&
+      a.at <= input.time!,
+  );
+  const dueAppointment = input.origin
+    ? dueAppointments.find((a) => text.includes(a.title))
+    : dueAppointments.sort((a, b) => b.at.localeCompare(a.at))[0];
+  if (dueAppointment && (input.origin === 'director' || /赴约|见面|活动|约定/u.test(text)))
+    return choose('appointment_due', '约定时间已到，但未确认是否赴约', [dueAppointment.id]);
 
   const promises = input.memories.filter(
     (m) =>

@@ -68,6 +68,35 @@ test('explicit invitation acceptance, reschedule and cancellation replay without
     code: 'INVALID_COMMAND',
   });
 });
+test('an invitation only ends after the protagonist records attendance or absence', () => {
+  const offered = structuredClone(state);
+  offered.appointments[0]!.at = '2026-09-22T01:00:00.000Z';
+  const accepted = applyInvitationEvent(offered, event(offered, 'accept'));
+  assert.equal(accepted.appointments[0]?.responseVersion, 2);
+  assert.throws(() => applyInvitationEvent(accepted, event(accepted, 'attend')), {
+    code: 'INVALID_COMMAND',
+  });
+  const due = { ...accepted, time: '2026-09-22T01:00:00.000Z' };
+  const attended = applyInvitationEvent(due, event(due, 'attend'));
+  assert.equal(attended.appointments[0]?.status, 'attended');
+  assert.equal(attended.appointments[0]?.responseAt, due.time);
+  assert.equal(attended.appointments[0]?.responseVersion, 3);
+  assert.throws(() => applyInvitationEvent(attended, event(attended, 'miss')), {
+    code: 'INVALID_COMMAND',
+  });
+  const missed = applyInvitationEvent(due, event(due, 'miss'));
+  assert.equal(missed.appointments[0]?.status, 'missed');
+  assert.equal(
+    InvitationRequestSchema.safeParse({
+      commandId: '00000000-0000-4000-8000-000000000001',
+      id: 'invite',
+      expectedVersion: 2,
+      operation: 'attend',
+      ownerId: 'other',
+    }).success,
+    false,
+  );
+});
 test('invitation commands reject stale state, unknown/legacy records and invalid times', () => {
   assert.throws(() => applyInvitationEvent({ ...state, version: 2 }, event(state, 'accept')), {
     code: 'VERSION_CONFLICT',

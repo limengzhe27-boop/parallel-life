@@ -159,6 +159,40 @@ test('an open appointment pulls its participant into the beat', () => {
   assert.equal(selectSpeaker(pending, []), 'b');
   assert.match(beatCue(pending, 'b'), /周三一起看展/);
 });
+test('a due invitation asks rather than invents attendance, and an explicit result is acknowledged once', () => {
+  const world = state();
+  world.appointments = [
+    {
+      id: 'ap2',
+      title: '周三看展',
+      at: world.time,
+      participantIds: ['b'],
+      sourceEventId: 'e3',
+      status: 'confirmed',
+    },
+  ];
+  let agenda = buildAgenda(world);
+  assert.equal(agenda[0]?.kind, 'appointment_due');
+  assert.match(beatCue(world, 'b', agenda), /不能声称已经发生/);
+  world.appointments[0]!.status = 'attended';
+  world.appointments[0]!.responseAt = world.time;
+  world.appointments[0]!.responseVersion = 5;
+  agenda = buildAgenda(world);
+  assert.equal(agenda[0]?.kind, 'appointment_result');
+  assert.equal(selectSpeaker(world, [], agenda), 'b');
+  world.messages.push({
+    id: 'm_after',
+    actorId: 'b',
+    role: 'assistant',
+    text: '那次看展怎么样？',
+    at: world.time,
+    sourceEventId: 'e6',
+    sourceVersion: 6,
+  });
+  assert.deepEqual(buildAgenda(world), []);
+  world.appointments[0]!.status = 'missed';
+  assert.deepEqual(buildAgenda(world), []);
+});
 
 test('with nothing pending the world stays quiet', () => {
   assert.deepEqual(buildAgenda(state()), []);

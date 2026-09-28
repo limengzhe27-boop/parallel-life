@@ -6,7 +6,13 @@ import { Empty, Feedback, Links } from './common.tsx';
 import { dayKey, monthDays, shiftMonth, rescheduleAt, timeText } from './helpers.ts';
 import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
-const statusLabel = { proposed: '待确认邀约', confirmed: '已确认', cancelled: '已取消' };
+const statusLabel = {
+  proposed: '待确认邀约',
+  confirmed: '已确认',
+  cancelled: '已取消',
+  attended: '已赴约',
+  missed: '未赴约',
+};
 export function CalendarApp({ target, open }: PhoneAppContext) {
   const { data, actions, drafts, setDraft } = usePhoneApps();
   const [tab, setTab] = useState<'today' | 'calendar' | 'invitations'>('calendar');
@@ -338,8 +344,8 @@ function InvitationDetail({
   const { data, actions, drafts, setDraft, operations, run } = usePhoneApps();
   const [edit, setEdit] = useState(false),
     [confirmCancel, setConfirmCancel] = useState(false),
+    [confirmResult, setConfirmResult] = useState<'attend' | 'miss' | null>(null),
     [invalid, setInvalid] = useState(false);
-  const [actionVersion, setActionVersion] = useState(n.version);
   const key = `invitation:${n.id}`,
     operation = operations[key];
   const changedAfterAccept =
@@ -347,14 +353,18 @@ function InvitationDetail({
   const disabled = !actions.changeInvitation || operation?.busy || changedAfterAccept;
   const date = drafts[`date:${n.id}`] ?? n.at.slice(0, 16);
   const leadActor = data.contacts.find((c) => n.participantIds.includes(c.id));
-  async function change(kind: 'accept' | 'reschedule' | 'cancel', submittedDate?: string) {
+  const isDue = Date.parse(data.referenceTime ?? '') >= Date.parse(n.at);
+  async function change(
+    kind: 'accept' | 'reschedule' | 'cancel' | 'attend' | 'miss',
+    submittedDate?: string,
+  ) {
     const at = kind === 'reschedule' ? rescheduleAt(submittedDate ?? date, n.at) : undefined;
     if (kind === 'reschedule' && !at) {
       setInvalid(true);
       return;
     }
     if (disabled) return;
-    const expectedVersion = kind === 'accept' ? n.version : actionVersion;
+    const expectedVersion = n.version;
     const receipt = await run(key, `${expectedVersion}:${kind}:${at ?? ''}`, (commandId) =>
       actions.changeInvitation!({
         id: n.id,
@@ -367,6 +377,7 @@ function InvitationDetail({
     if (receipt?.status === 'committed') {
       setEdit(false);
       setConfirmCancel(false);
+      setConfirmResult(null);
     }
   }
   return (
@@ -422,11 +433,17 @@ function InvitationDetail({
         ))}
       </section>
       {n.status === 'proposed' && <p className={s.info}>这是一个邀约，还没有替你答应。</p>}
+      {n.status === 'confirmed' && isDue && (
+        <p className={s.info}>约定的时间已到。是否赴约，由你自己记录；不会根据时间替你判定。</p>
+      )}
       <Links links={n.links} open={open} />
-      {n.status !== 'cancelled' && (
+      {(n.status === 'proposed' || n.status === 'confirmed') && (
         <div className={s.invitationActions}>
           {n.status === 'confirmed' && leadActor && (
-            <button className={s.primary} onClick={() => open('messages', leadActor.id)}>
+            <button
+              className={`${s.primary} ${s.wideAction}`}
+              onClick={() => open('messages', leadActor.id)}
+            >
               和{leadActor.name}聊聊这次约定
             </button>
           )}
@@ -437,10 +454,23 @@ function InvitationDetail({
                 : '接受邀约'}
             </button>
           )}
+          {n.status === 'confirmed' && isDue && (
+            <div className={s.resultActions}>
+              <button
+                className={s.primary}
+                disabled={disabled}
+                onClick={() => setConfirmResult('attend')}
+              >
+                记录已赴约
+              </button>
+              <button disabled={disabled} onClick={() => setConfirmResult('miss')}>
+                记录未赴约
+              </button>
+            </div>
+          )}
           <button
             disabled={disabled}
             onClick={() => {
-              setActionVersion(n.version);
               setEdit((v) => !v);
               setConfirmCancel(false);
             }}
@@ -451,13 +481,27 @@ function InvitationDetail({
             className={s.danger}
             disabled={disabled}
             onClick={() => {
-              setActionVersion(n.version);
               setConfirmCancel(true);
               setEdit(false);
             }}
           >
             取消日程
           </button>
+        </div>
+      )}
+      {confirmResult && (
+        <div className={s.confirm} role="group" aria-label="确认赴约记录">
+          <p>
+            把“{n.title}”记录为{confirmResult === 'attend' ? '已赴约' : '未赴约'}？
+          </p>
+          <button
+            className={s.primary}
+            disabled={disabled}
+            onClick={() => void change(confirmResult)}
+          >
+            确认记录
+          </button>
+          <button onClick={() => setConfirmResult(null)}>再想想</button>
         </div>
       )}
       {edit && (
@@ -502,7 +546,7 @@ function InvitationDetail({
         </div>
       )}
       <Feedback operation={operation} success="日程已更新" />
-      {!actions.changeInvitation && n.status !== 'cancelled' && (
+      {!actions.changeInvitation && (n.status === 'proposed' || n.status === 'confirmed') && (
         <p className={s.info}>日程操作尚未接入，当前可以查看邀约。</p>
       )}
     </div>

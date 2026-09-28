@@ -8,7 +8,12 @@ import type { WorldState } from './types.ts';
  * Pure and deterministic — the same world always produces the same agenda.
  */
 export type AgendaThread = {
-  kind: 'awaiting_reply' | 'proposed_appointment' | 'commitment';
+  kind:
+    | 'awaiting_reply'
+    | 'proposed_appointment'
+    | 'appointment_due'
+    | 'appointment_result'
+    | 'commitment';
   actorId: string;
   detail: string;
 };
@@ -38,9 +43,47 @@ export function buildAgenda(
       detail: '你刚说过话，对方还没有回应',
     });
   for (const appointment of state.appointments) {
-    if (appointment.status !== 'proposed') continue;
+    if (!['proposed', 'confirmed', 'attended', 'missed'].includes(appointment.status ?? ''))
+      continue;
     for (const participantId of appointment.participantIds) {
       if (!actorIds.has(participantId)) continue;
+      if (appointment.status === 'confirmed' && appointment.at <= state.time) {
+        if (
+          state.messages.some(
+            (message) =>
+              message.actorId === participantId &&
+              message.role === 'assistant' &&
+              message.sourceEventId !== appointment.sourceEventId &&
+              message.at >= appointment.at,
+          )
+        )
+          continue;
+        threads.push({
+          kind: 'appointment_due',
+          actorId: participantId,
+          detail: `你们约好的「${appointment.title}」时间到了。可以关心用户是否赴约，但不能声称已经发生。`,
+        });
+        continue;
+      }
+      if (appointment.status === 'attended' || appointment.status === 'missed') {
+        if (!appointment.responseAt || !appointment.responseVersion) continue;
+        if (
+          state.messages.some(
+            (message) =>
+              message.actorId === participantId &&
+              message.role === 'assistant' &&
+              (message.sourceVersion ?? -1) > appointment.responseVersion!,
+          )
+        )
+          continue;
+        threads.push({
+          kind: 'appointment_result',
+          actorId: participantId,
+          detail: `用户已在日历明确标记「${appointment.title}」${appointment.status === 'attended' ? '已赴约' : '未赴约'}。只承接这个结果，别编造现场细节。`,
+        });
+        continue;
+      }
+      if (appointment.status !== 'proposed') continue;
       const firstNotice = state.messages.findIndex(
         (message) => message.sourceEventId === appointment.sourceEventId,
       );

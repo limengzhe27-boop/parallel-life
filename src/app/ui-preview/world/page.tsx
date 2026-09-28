@@ -13,11 +13,21 @@ export default function Preview() {
         data={{
           id,
           seedId: id,
+          version: 1,
           title: '界面测试 · 街角维修铺',
           time: '2026-09-22T00:30:00Z',
           identity: '合成样板：社区维修铺店主',
           setting: '合成样板：清晨，修理铺刚开门。',
           actors: [{ id, name: '测试邻居', relationship: '合成角色' }],
+          invitations: [
+            {
+              id: 'preview-invitation',
+              title: '街角的修理约定',
+              at: '2026-09-22T00:00:00.000Z',
+              participantIds: [id],
+              status: 'confirmed',
+            },
+          ],
           messages: [
             {
               id: 'fixture-message',
