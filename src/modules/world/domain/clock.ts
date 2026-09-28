@@ -85,10 +85,8 @@ export function advanceClock(
 }
 
 /**
- * Who speaks this beat. Deterministic and bounded: the character who has waited
- * longest, never the same one twice in a row while another is available. This is what
- * keeps a world feeling like it revolves around the protagonist without turning into
- * a group chat or a model-call storm.
+ * Only an open thread may justify a proactive message. Focus can choose among
+ * eligible characters, but it cannot manufacture a reason to contact the protagonist.
  */
 export function selectSpeaker(
   state: WorldState,
@@ -96,35 +94,29 @@ export function selectSpeaker(
   agenda: AgendaThread[] = buildAgenda(state),
   focusActorIds: string[] = [],
 ): string | null {
-  if (!state.actors.length) return null;
+  if (!state.actors.length || !agenda.length) return null;
   const available = (actorId: string) => !spokenInThisAdvance.includes(actorId);
-  /*
-   * Unfinished business first: someone owes the protagonist a reply, then a proposed
-   * appointment that is still open. Only when nothing is pending does the "longest
-   * silence" rule decide, so a quiet world still moves without a group-chat storm.
-   */
+  /* A reply owed outranks an invitation or a sourced commitment. */
   const awaiting = agenda.find((thread) => thread.kind === 'awaiting_reply');
   if (awaiting && available(awaiting.actorId)) return awaiting.actorId;
-  const pending = agenda.find(
-    (thread) => thread.kind === 'proposed_appointment' && available(thread.actorId),
-  );
+  const pending =
+    agenda.find(
+      (thread) =>
+        thread.kind === 'proposed_appointment' &&
+        available(thread.actorId) &&
+        focusActorIds.includes(thread.actorId),
+    ) ??
+    agenda.find((thread) => thread.kind === 'proposed_appointment' && available(thread.actorId));
   if (pending) return pending.actorId;
-  const focused = state.actors.find(
-    (actor) => focusActorIds.includes(actor.id) && available(actor.id),
-  );
-  if (focused) return focused.id;
-  const lastSpoke = new Map<string, number>();
-  state.messages.forEach((message, index) => lastSpoke.set(message.actorId, index));
-  return (
-    [...state.actors].sort((a, b) => {
-      const spokeHere =
-        Number(spokenInThisAdvance.includes(a.id)) - Number(spokenInThisAdvance.includes(b.id));
-      if (spokeHere !== 0) return spokeHere;
-      const left = lastSpoke.has(a.id) ? lastSpoke.get(a.id)! : -1;
-      const right = lastSpoke.has(b.id) ? lastSpoke.get(b.id)! : -1;
-      return left - right || a.id.localeCompare(b.id);
-    })[0]?.id ?? null
-  );
+  const commitment =
+    agenda.find(
+      (thread) =>
+        thread.kind === 'commitment' &&
+        available(thread.actorId) &&
+        focusActorIds.includes(thread.actorId),
+    ) ?? agenda.find((thread) => thread.kind === 'commitment' && available(thread.actorId));
+  if (commitment) return commitment.actorId;
+  return null;
 }
 
 /** The stage direction handed to the character for one beat. */
@@ -140,7 +132,7 @@ export function beatCue(
     `（导演节拍：此刻是 ${state.time}，用户没有开口，${actor?.name ?? '这个角色'} 可以主动做点什么。）`,
     thread ? `（未了结的事：${thread.detail}。可以自然提起，但不要替用户答应用户的事。）` : '',
     ...directionLines(direction, actorId),
-    '如果此刻确实没有任何想说的，就只输出一条很短的消息说明你在忙什么。',
+    '只围绕这件已经发生、仍需回应的事，发一条像真人手机消息的简短来信；不要凭空新增危机，也不要重复催促。',
   ]
     .filter(Boolean)
     .join('');

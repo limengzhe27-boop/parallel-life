@@ -12,14 +12,13 @@ export type AdvanceResult = {
   played: number;
   folded: number;
   summary: string | null;
-  /** The characters who spoke, in order — what the phone can show as "this happened". */
   actors: string[];
 };
 
 /**
- * The director's first half: move the world's clock and let a bounded number of beats
- * happen on their own. Every beat reuses the ordinary turn pipeline, so it inherits
- * receipts, projections, outbox and memory — the director has no private write path.
+ * The director acts only on unfinished business. A single world lock covers model work;
+ * the clock is finalized only after the turn receipt exists. After a crash, stable beat
+ * IDs reconcile committed turns without paying for the same model call again.
  */
 export async function advanceWorld(
   deps: {
@@ -31,81 +30,118 @@ export async function advanceWorld(
     memories?: (
       actorId: string,
     ) => Promise<{ records: MemoryRecord[]; blockedSources: Set<string> }>;
-    /** Every character's memories in this world, used to build the agenda. */
     worldMemories?: () => Promise<MemoryRecord[]>;
-    /** The user's brief for this life; pacing caps beats, focus steers the cast. */
     direction?: () => Promise<WorldDirection>;
     maxBeats?: number;
+    automatic?: boolean;
   },
   session: Session,
   worldId: string,
 ): Promise<AdvanceResult> {
-  const clock = await deps.clock.read(session.userId, worldId);
-  const direction = (await deps.direction?.()) ?? EMPTY_DIRECTION;
-  /* The user's pacing wins over the caller default; both stay bounded. */
-  const advance = advanceClock(clock, deps.now(), {
-    maxBeats: deps.maxBeats ?? beatsForPacing(direction.pacing),
-  });
-  await deps.clock.write(session.userId, worldId, advance.clock);
-  const actors: string[] = [];
-  const worldMemories = deps.worldMemories ? await deps.worldMemories() : [];
-  // Elapsed-time text is clock metadata, not an event-backed memory.
-  // Actual turns store their own sourced memories in the normal commit pipeline.
-  if (!advance.beats.length) {
-    await deps.clock.setStoryTime(session.userId, worldId, advance.clock.storyNow);
+  return deps.clock.withAdvanceLock(worldId, async () => {
+    const clock = await deps.clock.read(session.userId, worldId);
+    await deps.clock.ensureAnchor(session.userId, worldId, clock);
+    if (deps.automatic && (await deps.clock.hasUnresolvedAttempt(session.userId, worldId)))
+      throw new DomainError('VERSION_CONFLICT', '上次导演来信结果不确定，请在导演面板手动继续');
+    const direction = (await deps.direction?.()) ?? EMPTY_DIRECTION;
+    const advance = advanceClock(clock, deps.now(), {
+      maxBeats: deps.maxBeats ?? beatsForPacing(direction.pacing),
+    });
+    const actors: string[] = [];
+    const recentSince = new Date(Date.parse(clock.storyNow) - 12 * 60 * 60_000).toISOString();
+    const recentActors = new Set(
+      await deps.clock.recentActors(session.userId, worldId, recentSince),
+    );
+    const worldMemories = deps.worldMemories ? await deps.worldMemories() : [];
+
+    for (const beatAt of advance.beats) {
+      const commandId = deps.clock.beatCommandId(worldId, beatAt);
+      const previouslyCommitted = await deps.clock.committedBeat(
+        session.userId,
+        worldId,
+        commandId,
+      );
+      if (previouslyCommitted) {
+        await deps.clock.markAttempt(session.userId, worldId, commandId, 'committed');
+        await deps.clock.recordBeat(session.userId, worldId, {
+          id: deps.newId(),
+          commandId,
+          plannedFor: beatAt,
+          actorId: previouslyCommitted,
+          status: 'played',
+        });
+        actors.push(previouslyCommitted);
+        recentActors.add(previouslyCommitted);
+        continue;
+      }
+      const world = await deps.worlds.get(session, worldId);
+      const atBeat = {
+        ...world,
+        time: new Date(Math.max(Date.parse(world.time), Date.parse(beatAt))).toISOString(),
+      };
+      const agenda = buildAgenda(atBeat, 5, worldMemories as CommitmentMemory[]).filter(
+        (thread) => !recentActors.has(thread.actorId),
+      );
+      const actorId = selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
+      if (!actorId) break;
+      const started = await deps.clock.beginAttempt(
+        session.userId,
+        worldId,
+        { commandId, plannedFor: beatAt, actorId },
+        !deps.automatic,
+      );
+      if (!started)
+        throw new DomainError('VERSION_CONFLICT', '上次导演来信结果不确定，请在导演面板手动继续');
+      try {
+        await resolveTurn(
+          {
+            worlds: deps.worlds,
+            planner: deps.planner,
+            now: deps.now,
+            storyNow: () => beatAt,
+            newId: deps.newId,
+            ...(deps.memories ? { memories: deps.memories } : {}),
+          },
+          session,
+          {
+            id: commandId,
+            origin: 'director',
+            worldId,
+            actorId,
+            text: beatCue(atBeat, actorId, agenda, direction),
+            expectedVersion: world.version,
+          },
+        );
+      } catch (error) {
+        await deps.clock.markAttempt(session.userId, worldId, commandId, 'unknown').catch(() => {});
+        throw error;
+      }
+      await deps.clock.markAttempt(session.userId, worldId, commandId, 'committed');
+      await deps.clock.recordBeat(session.userId, worldId, {
+        id: deps.newId(),
+        commandId,
+        plannedFor: beatAt,
+        actorId,
+        status: 'played',
+      });
+      actors.push(actorId);
+      recentActors.add(actorId);
+    }
+
+    const unused = advance.beats.length - actors.length;
+    const finished = {
+      ...advance.clock,
+      missedBeats: advance.clock.missedBeats + unused,
+      // An empty phone is allowed to stay quiet; elapsed time is not a fabricated event.
+      summary: actors.length ? advance.clock.summary : null,
+    };
+    await deps.clock.finishAdvance(session.userId, worldId, finished);
     return {
-      storyNow: advance.clock.storyNow,
-      played: 0,
-      folded: advance.folded,
-      summary: advance.clock.summary,
+      storyNow: finished.storyNow,
+      played: actors.length,
+      folded: advance.folded + unused,
+      summary: finished.summary,
       actors,
     };
-  }
-
-  for (const beatAt of advance.beats) {
-    await deps.clock.setStoryTime(session.userId, worldId, beatAt);
-    const world = await deps.worlds.get(session, worldId);
-    const atBeat = { ...world, time: beatAt };
-    /* Beats are driven by unfinished business, not by a round-robin. */
-    const agenda = buildAgenda(atBeat, 5, worldMemories as CommitmentMemory[]);
-    const actorId = selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
-    if (!actorId) break;
-    const commandId = deps.newId();
-    await resolveTurn(
-      {
-        worlds: deps.worlds,
-        planner: deps.planner,
-        now: () => beatAt,
-        newId: deps.newId,
-        ...(deps.memories ? { memories: deps.memories } : {}),
-      },
-      session,
-      {
-        id: commandId,
-        origin: 'director',
-        worldId,
-        actorId,
-        text: beatCue(atBeat, actorId, agenda, direction),
-        expectedVersion: world.version,
-      },
-    );
-    await deps.clock.recordBeat(session.userId, worldId, {
-      id: deps.newId(),
-      commandId,
-      plannedFor: beatAt,
-      actorId,
-      status: 'played',
-    });
-    actors.push(actorId);
-  }
-  if (!actors.length) throw new DomainError('INVALID_COMMAND', 'No character could take a beat');
-  /* Time always catches up to reality, even though only a few beats were played. */
-  await deps.clock.setStoryTime(session.userId, worldId, advance.clock.storyNow);
-  return {
-    storyNow: advance.clock.storyNow,
-    played: actors.length,
-    folded: advance.folded,
-    summary: advance.clock.summary,
-    actors,
-  };
+  });
 }

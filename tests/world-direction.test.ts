@@ -57,11 +57,9 @@ test('the brief is validated instead of trusted', () => {
   );
 });
 
-test('a focused character is brought on stage before the silence rule', () => {
-  /* With nobody speaking yet the tie is broken by id, so 甲 goes first. */
-  assert.equal(selectSpeaker(state(), []), 'a');
-  /* The brief brings 乙 on stage instead. */
-  assert.equal(selectSpeaker(state(), [], [], ['b']), 'b');
+test('a focus request cannot manufacture a reason to send a message', () => {
+  assert.equal(selectSpeaker(state(), []), null);
+  assert.equal(selectSpeaker(state(), [], [], ['b']), null);
   /* Unfinished business still outranks a focus request. */
   const waiting = state();
   waiting.messages = [

@@ -105,18 +105,9 @@ const state = (): WorldState => ({
   mediaRequests: [],
 });
 
-test('the speaker who waited longest goes first, and nobody speaks twice in a row', () => {
-  assert.equal(selectSpeaker(state(), []), 'b', '乙 never spoke');
-  assert.equal(
-    selectSpeaker(state(), ['b']),
-    'a',
-    '甲 waits longer than a silent 乙 who already spoke',
-  );
-  assert.equal(
-    selectSpeaker(state(), ['a', 'b']),
-    'b',
-    'someone who never spoke in the whole world still waits longest',
-  );
+test('mere silence never becomes an unsolicited NPC message', () => {
+  assert.equal(selectSpeaker(state(), []), null);
+  assert.equal(selectSpeaker(state(), [], [], ['b']), null);
 });
 
 test('the beat cue is a stage direction, never the user speaking', () => {
@@ -169,9 +160,9 @@ test('an open appointment pulls its participant into the beat', () => {
   assert.match(beatCue(pending, 'b'), /周三一起看展/);
 });
 
-test('with nothing pending the silence rule still applies', () => {
+test('with nothing pending the world stays quiet', () => {
   assert.deepEqual(buildAgenda(state()), []);
-  assert.equal(selectSpeaker(state(), []), 'b');
+  assert.equal(selectSpeaker(state(), []), null);
 });
 
 test('a promise a character made is unfinished business too', () => {

@@ -32,7 +32,9 @@ export async function resolveTurn(
   const requestAt = deps.now();
   const userAt =
     command.origin === 'director'
-      ? world.time
+      ? new Date(
+          Math.max(Date.parse(world.time), Date.parse(deps.storyNow?.(requestAt) ?? world.time)),
+        ).toISOString()
       : new Date(
           Math.max(Date.parse(world.time), Date.parse(deps.storyNow?.(requestAt) ?? world.time)),
         ).toISOString();
@@ -73,7 +75,7 @@ export async function resolveTurn(
   const occurredAt = deps.now();
   const replyAt =
     command.origin === 'director'
-      ? undefined
+      ? userAt
       : new Date(
           Math.max(Date.parse(userAt), Date.parse(deps.storyNow?.(occurredAt) ?? world.time)),
         ).toISOString();

@@ -187,10 +187,11 @@ export class LifeClient {
     });
   }
   /** Let the world move: at most a few beats, the rest becomes a summary. */
-  async advanceWorld(worldId: string) {
+  async advanceWorld(worldId: string, automatic = false) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/advance`, AdvanceReceiptSchema, {
       method: 'POST',
+      ...(automatic ? { body: JSON.stringify({ automatic: true }) } : {}),
     });
   }
   /** What the user asked the director to do in this life. */

@@ -41,6 +41,21 @@ export function buildAgenda(
     if (appointment.status !== 'proposed') continue;
     for (const participantId of appointment.participantIds) {
       if (!actorIds.has(participantId)) continue;
+      const firstNotice = state.messages.findIndex(
+        (message) => message.sourceEventId === appointment.sourceEventId,
+      );
+      if (
+        firstNotice >= 0 &&
+        state.messages
+          .slice(firstNotice + 1)
+          .some(
+            (message) =>
+              message.actorId === participantId &&
+              message.role === 'assistant' &&
+              message.sourceEventId !== appointment.sourceEventId,
+          )
+      )
+        continue;
       threads.push({
         kind: 'proposed_appointment',
         actorId: participantId,

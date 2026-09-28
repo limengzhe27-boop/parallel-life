@@ -33,7 +33,15 @@ export interface TurnPlanner {
 
 /** The story clock and the beats already produced. Implemented in infrastructure. */
 export type ClockStore = {
+  beatCommandId(worldId: string, plannedFor: string): string;
+  /** One director may advance a world at a time, including the model call. */
+  withAdvanceLock<T>(worldId: string, run: () => Promise<T>): Promise<T>;
   read(ownerId: string, worldId: string): Promise<import('../domain/clock.ts').WorldClock>;
+  ensureAnchor(
+    ownerId: string,
+    worldId: string,
+    clock: import('../domain/clock.ts').WorldClock,
+  ): Promise<void>;
   write(
     ownerId: string,
     worldId: string,
@@ -50,6 +58,26 @@ export type ClockStore = {
     ownerId: string,
     worldId: string,
     beat: { id: string; commandId: string; plannedFor: string; actorId: string; status: string },
+  ): Promise<void>;
+  committedBeat(ownerId: string, worldId: string, commandId: string): Promise<string | null>;
+  recentActors(ownerId: string, worldId: string, sinceStoryAt: string): Promise<string[]>;
+  hasUnresolvedAttempt(ownerId: string, worldId: string): Promise<boolean>;
+  beginAttempt(
+    ownerId: string,
+    worldId: string,
+    attempt: { commandId: string; plannedFor: string; actorId: string },
+    allowRetry: boolean,
+  ): Promise<boolean>;
+  markAttempt(
+    ownerId: string,
+    worldId: string,
+    commandId: string,
+    status: 'committed' | 'unknown',
+  ): Promise<void>;
+  finishAdvance(
+    ownerId: string,
+    worldId: string,
+    clock: import('../domain/clock.ts').WorldClock,
   ): Promise<void>;
 };
 

@@ -158,7 +158,7 @@ function createServices() {
     ) => new PostgresClockStore(db).setClock(ownerId, worldId, input),
     readWorldClock: (ownerId: string, worldId: string) =>
       new PostgresClockStore(db).read(ownerId, worldId),
-    advanceWorld: (ownerId: string, worldId: string, maxBeats?: number) =>
+    advanceWorld: (ownerId: string, worldId: string, maxBeats?: number, automatic = false) =>
       advanceWorld(
         {
           clock: new PostgresClockStore(db),
@@ -172,6 +172,7 @@ function createServices() {
             db.transaction(ownerId, (sql) => loadWorldMemories(sql, ownerId, worldId)),
           direction: () => new PostgresDirectionStore(db).read(ownerId, worldId),
           ...(maxBeats ? { maxBeats } : {}),
+          automatic,
         },
         { userId: ownerId },
         worldId,

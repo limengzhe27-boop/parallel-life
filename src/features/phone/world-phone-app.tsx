@@ -206,6 +206,37 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       request.current++;
     };
   }, [load]);
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onReturn);
+    return () => document.removeEventListener('visibilitychange', onReturn);
+  }, [load]);
+  useEffect(() => {
+    if (!data || refreshing) return;
+    let cancelled = false;
+    void (async () => {
+      let advancing = false;
+      try {
+        const clock = await client.readWorldClock(worldId);
+        if (cancelled || clock.paused || clock.speed <= 0) return;
+        const elapsed = Date.now() - Date.parse(clock.lastTickAt);
+        if (!Number.isFinite(elapsed) || elapsed * clock.speed < 30 * 60_000) return;
+        const attemptKey = `pl_director_resume_${worldId}_${clock.lastTickAt}`;
+        if (sessionStorage.getItem(attemptKey)) return;
+        sessionStorage.setItem(attemptKey, '1');
+        advancing = true;
+        const result = await client.advanceWorld(worldId, true);
+        if (!cancelled && result.played > 0) await load();
+      } catch {
+        if (!cancelled && advancing) setError('这次世界后续没有完成。可以稍后在导演里手动继续。');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, data?.id, load, refreshing, worldId]);
   return (
     <div className="world-viewport">
       <AppViewport />

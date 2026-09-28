@@ -14,7 +14,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const worldId = Id.safeParse((await context.params).id);
     if (!worldId.success) throw new HttpError('NOT_FOUND', 404);
     await requestLimit(s.db, s.ownerId);
-    const result = await s.advanceWorld(s.ownerId, worldId.data);
+    const input = await request.json().catch(() => ({}));
+    const automatic = Boolean(
+      input && typeof input === 'object' && 'automatic' in input && input.automatic === true,
+    );
+    const result = await s.advanceWorld(
+      s.ownerId,
+      worldId.data,
+      automatic ? 1 : undefined,
+      automatic,
+    );
     return json({ status: 'advanced' as const, worldId: worldId.data, ...result });
   });
 }
