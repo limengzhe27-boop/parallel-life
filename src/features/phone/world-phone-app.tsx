@@ -16,6 +16,7 @@ import type { PhoneMessage } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { playTapSound } from './audio-feedback.ts';
 import { routeHash } from './navigation.ts';
+import { ACTIVE_PHONE_CHECK_MS, autoAdvanceDue } from './auto-advance.ts';
 import styles from './phone.module.css';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const [client] = useState(() => new LifeClient()),
@@ -27,6 +28,15 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     [refreshing, setRefreshing] = useState(false);
   const request = useRef(0),
     retryCommand = useRef<{ taskId: string; id: string } | null>(null);
+  const directorCheck = useRef<() => void>(() => {});
+  const directorInFlight = useRef(false);
+  const directorAttemptedKeys = useRef(new Set<string>());
+  const phoneReady = useRef({ hasData: false, refreshing: true, sending: false });
+  phoneReady.current = {
+    hasData: data?.id === worldId,
+    refreshing,
+    sending: localMessages.some((message) => message.status === 'pending'),
+  };
 
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -214,29 +224,62 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     return () => document.removeEventListener('visibilitychange', onReturn);
   }, [load]);
   useEffect(() => {
-    if (!data || refreshing) return;
-    let cancelled = false;
-    void (async () => {
+    let active = true;
+    async function checkForWorldNews() {
+      if (
+        !active ||
+        document.visibilityState !== 'visible' ||
+        !phoneReady.current.hasData ||
+        phoneReady.current.refreshing ||
+        phoneReady.current.sending ||
+        directorInFlight.current
+      )
+        return;
+      directorInFlight.current = true;
       let advancing = false;
       try {
         const clock = await client.readWorldClock(worldId);
-        if (cancelled || clock.paused || clock.speed <= 0) return;
-        const elapsed = Date.now() - Date.parse(clock.lastTickAt);
-        if (!Number.isFinite(elapsed) || elapsed * clock.speed < 30 * 60_000) return;
+        if (
+          !active ||
+          document.visibilityState !== 'visible' ||
+          phoneReady.current.refreshing ||
+          phoneReady.current.sending ||
+          !autoAdvanceDue(clock, Date.now())
+        )
+          return;
         const attemptKey = `pl_director_resume_${worldId}_${clock.lastTickAt}`;
-        if (sessionStorage.getItem(attemptKey)) return;
-        sessionStorage.setItem(attemptKey, '1');
+        if (directorAttemptedKeys.current.has(attemptKey)) return;
+        try {
+          if (sessionStorage.getItem(attemptKey)) return;
+          sessionStorage.setItem(attemptKey, '1');
+        } catch {
+          // Private browsing can disable storage; the in-memory guard still
+          // prevents a repeated paid attempt for this phone instance.
+        }
+        directorAttemptedKeys.current.add(attemptKey);
         advancing = true;
         const result = await client.advanceWorld(worldId, true);
-        if (!cancelled && result.played > 0) await load();
+        // Reading the committed world lets the phone's existing message notification
+        // and banner show the real incoming reply while this screen stays open.
+        if (active && result.played > 0) await load();
       } catch {
-        if (!cancelled && advancing) setError('这次世界后续没有完成。可以稍后在导演里手动继续。');
+        if (active && advancing) setError('这次世界后续没有完成。可以稍后在导演里手动继续。');
+      } finally {
+        directorInFlight.current = false;
       }
-    })();
+    }
+    directorCheck.current = () => void checkForWorldNews();
+    directorCheck.current();
+    const interval = window.setInterval(directorCheck.current, ACTIVE_PHONE_CHECK_MS);
     return () => {
-      cancelled = true;
+      active = false;
+      window.clearInterval(interval);
+      directorCheck.current = () => {};
     };
-  }, [client, data?.id, load, refreshing, worldId]);
+  }, [client, load, worldId]);
+  useEffect(() => {
+    if (data?.id === worldId && !refreshing) directorCheck.current();
+  }, [data?.id, refreshing, worldId]);
   return (
     <div className="world-viewport">
       <AppViewport />
