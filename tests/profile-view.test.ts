@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   projectProfileView,
   collectBasicInfo,
+  confirmableIdentityBirthday,
   usableProfileFact,
   readBasicInfo,
   writeBasicInfo,
@@ -99,6 +100,14 @@ test('conflicting legacy birthdays are held out of current profile and branch co
   });
   assert.equal(projectProfileView(input).current[0]?.text, '2005-04-12');
   assert.equal(usableProfileFact(input, input.facts[0]!)?.value, '个人资料\n生日：2005-04-12');
+});
+test('old identity candidates cannot promise a save unless a first-person birthday source supports them', () => {
+  assert.equal(confirmableIdentityBirthday('今年33岁', ['我今年33岁']), false);
+  assert.equal(
+    confirmableIdentityBirthday('生日：2005-04-12', ['我朋友出生于2005年4月12日']),
+    false,
+  );
+  assert.equal(confirmableIdentityBirthday('生日：2005-04-12', ['我出生于2005年4月12日']), true);
 });
 test('rejected facts do not reappear; missing sources and unknown time stay unknown', () => {
   const input = sample();

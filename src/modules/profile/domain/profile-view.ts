@@ -1,4 +1,5 @@
 import type { ProfileFact } from './types.ts';
+import { explicitBirthdate } from './explicit-birthdate.ts';
 
 export const BASIC_FIELDS = ['姓名', '生日', '出生时间', '所在城市', '职业', '家乡'] as const;
 export type BasicField = (typeof BASIC_FIELDS)[number];
@@ -86,6 +87,13 @@ export function legacyBirthday(value: string): string | null {
     if (date.getUTCMonth() !== month! - 1 || date.getUTCDate() !== day) return null;
   }
   return `${year}${month === null ? '' : `-${String(month).padStart(2, '0')}`}${day === null ? '' : `-${String(day).padStart(2, '0')}`}`;
+}
+
+/** A legacy identity proposal can be accepted in place only when its birthday
+ * is supported by an available, explicit first-person source message. */
+export function confirmableIdentityBirthday(text: string, sourceTexts: readonly string[]) {
+  const date = legacyBirthday(text);
+  return date !== null && sourceTexts.some((source) => explicitBirthdate(source) === date);
 }
 
 export function collectBasicInfo(profile: Pick<ProfileViewInput, 'facts'>) {

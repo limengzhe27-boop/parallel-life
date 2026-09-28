@@ -19,6 +19,7 @@ import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
 import {
   collectBasicInfo,
+  confirmableIdentityBirthday,
   projectProfileView,
   type ProfileViewItem,
 } from '../../modules/profile/domain/profile-view.ts';
@@ -827,7 +828,12 @@ export function ProfilePane({
                 {item.text}
               </span>
               <small>
-                {item.storedStatus === 'suggested' ? '待核对' : '已记录'} ·{' '}
+                {item.category === 'identity'
+                  ? '旧记录 · 待核对'
+                  : item.storedStatus === 'suggested'
+                    ? '待核对'
+                    : '已记录'}{' '}
+                ·{' '}
                 {item.sourceMessageIds.length
                   ? `${item.sourceMessageIds.length} 条来源对话`
                   : '未提供来源记录'}
@@ -1083,14 +1089,15 @@ function CandidatePanel({
   if (!candidates.length && !error) return null;
   const messageById = new Map(messages.map((message) => [message.id, message]));
   return (
-    <section className="candidate-review" aria-labelledby="candidate-review-title">
-      <div className="section-heading">
-        <h3 id="candidate-review-title">
+    <details className="candidate-review" open={error ? true : undefined}>
+      <summary className="candidate-review-summary">
+        <span>
           <Icon name="spark" size={17} />
-          Agent 的记录
-        </h3>
+          待核对资料
+        </span>
         <span className="candidate-count">{candidates.length}</span>
-      </div>
+        <Icon name="chevron" size={16} />
+      </summary>
       <p className="candidate-intro">刚才聊到的内容，先由你决定要不要留下。</p>
       {error && <Notice>{error}</Notice>}
       <div className="candidate-list">
@@ -1099,6 +1106,12 @@ function CandidatePanel({
             .map((id) => messageById.get(id))
             .filter((message): message is NonNullable<typeof message> => Boolean(message));
           const busy = busyId === candidate.id;
+          const canConfirm =
+            candidate.category !== 'identity' ||
+            confirmableIdentityBirthday(
+              candidate.text,
+              sources.map((source) => source.text),
+            );
           return (
             <article className="candidate-card" key={candidate.id}>
               <div className="candidate-card-meta">
@@ -1106,6 +1119,9 @@ function CandidatePanel({
                 {candidate.eventDate && <time>{candidate.eventDate}</time>}
               </div>
               <p className="candidate-text">{candidate.text}</p>
+              {!canConfirm && (
+                <p className="candidate-intro">这条旧身份记录请在下方「基本资料」核对。</p>
+              )}
               <details className="candidate-source">
                 <summary>
                   查看来源 · {sources.length || candidate.sourceMessageIds.length} 条对话
@@ -1119,10 +1135,12 @@ function CandidatePanel({
                 </div>
               </details>
               <div className="candidate-actions">
-                <Button disabled={busy} onClick={() => onAction(candidate.id, 'confirm')}>
-                  {busy ? <span className="spinner" /> : <Icon name="check" size={15} />}
-                  记住这条
-                </Button>
+                {canConfirm && (
+                  <Button disabled={busy} onClick={() => onAction(candidate.id, 'confirm')}>
+                    {busy ? <span className="spinner" /> : <Icon name="check" size={15} />}
+                    记住这条
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   disabled={busy}
@@ -1135,7 +1153,7 @@ function CandidatePanel({
           );
         })}
       </div>
-    </section>
+    </details>
   );
 }
 

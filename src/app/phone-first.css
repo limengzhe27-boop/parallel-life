@@ -1281,6 +1281,23 @@ h2 {
   font-size: 11px;
   white-space: nowrap;
 }
+.candidate-review-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.candidate-review-summary::-webkit-details-marker {
+  display: none;
+}
+.candidate-review-summary > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  font-weight: 600;
+}
 .basic-info h3 {
   font-size: 16px;
   margin: 0 0 6px;
