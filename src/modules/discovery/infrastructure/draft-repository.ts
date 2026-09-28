@@ -8,7 +8,7 @@ import {
   ConfirmDraftSchema,
   type LifeDraft,
   type PrepareDraft,
-  type SaveDraft,
+  type SaveDraftInput,
   type ConfirmDraft,
 } from '../../../contracts/life-drafts.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -171,6 +171,7 @@ export class DraftRepository {
             opening: direction.opening,
             tradeoff: direction.tradeoff,
           },
+          setup: { identity: '', place: '', tone: '' },
           selection: {
             factIds: [],
             eventIds: [],
@@ -199,7 +200,7 @@ export class DraftRepository {
       },
     );
   }
-  save(owner: string, id: string, raw: SaveDraft) {
+  save(owner: string, id: string, raw: SaveDraftInput) {
     const input = SaveDraftSchema.parse(raw);
     return this.command(
       owner,
@@ -216,6 +217,7 @@ export class DraftRepository {
         const next = LifeDraftSchema.parse({
           ...current,
           story: input.story,
+          setup: input.setup,
           selection: input.selection,
           assets: selected.assets,
           profileVersion: profile.version,
@@ -264,6 +266,7 @@ export class DraftRepository {
           discoveryVersion: current.discoveryVersion,
           directionId: current.directionId,
           story: current.story,
+          setup: current.setup,
           ...selected,
           portraitAssetId: current.selection.portraitAssetId,
           draftRef: { id, version: current.version },

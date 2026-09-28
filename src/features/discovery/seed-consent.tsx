@@ -21,6 +21,9 @@ export function SeedReceipt({
         <small>{seed.story.tradeoff}</small>
       </details>
       <div className="seed-receipt-details">
+        {seed.setup?.identity && <p>你是：{seed.setup.identity}</p>}
+        {seed.setup?.place && <p>地点：{seed.setup.place}</p>}
+        {seed.setup?.tone && <p>氛围：{seed.setup.tone}</p>}
         <h3>带入的资料</h3>
         {seed.facts.length ? (
           <ul>

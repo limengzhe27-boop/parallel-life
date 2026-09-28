@@ -104,6 +104,7 @@ test('life drafts persist edits and explicit references; confirm races and crash
   const f = await fixture();
   try {
     const draft = await f.repo.prepare(f.owner, f.prepare);
+    assert.deepEqual(draft.setup, { identity: '', place: '', tone: '' });
     assert.deepEqual(draft.selection, {
       factIds: [],
       eventIds: [],
@@ -120,6 +121,7 @@ test('life drafts persist edits and explicit references; confirm races and crash
       expectedVersion: 0,
       expectedProfileVersion: f.profile.version,
       story: { ...draft.story, title: '我的第一部电影' },
+      setup: { identity: '独立电影导演', place: '杭州', tone: '热闹但不总是顺利' },
       selection: {
         factIds: [f.profile.facts[0]!.id],
         eventIds: [f.eventId],
@@ -151,6 +153,7 @@ test('life drafts persist edits and explicit references; confirm races and crash
     const seeds = new SeedRepository(f.db),
       seed = await seeds.get(f.owner, confirms[0]!.seedId!);
     assert.equal(seed.story.title, '我的第一部电影');
+    assert.deepEqual(seed.setup, request.setup);
     assert.deepEqual(seed.assets, [{ assetId: f.photo, revision: 1 }]);
     assert.equal(
       seed.people[0]!.assetId,
@@ -206,6 +209,11 @@ test('draft ownership, stale versions, changed profiles and photos are rejected 
       { code: 'INVALID_INPUT' },
     );
     const saved = await f.repo.save(f.owner, draft.id, request);
+    assert.deepEqual(
+      saved.setup,
+      { identity: '', place: '', tone: '' },
+      'old clients stay compatible',
+    );
     await assert.rejects(f.repo.save(f.owner, draft.id, { ...request, commandId: randomUUID() }), {
       code: 'VERSION_CONFLICT',
     });

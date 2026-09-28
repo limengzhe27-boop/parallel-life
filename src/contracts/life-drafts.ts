@@ -1,11 +1,14 @@
 import { z } from 'zod';
 import { Id, Version, Timestamp } from './api.ts';
-import { SeedStorySchema } from './seeds.ts';
+import { SeedStorySchema, SeedSetupSchema } from './seeds.ts';
 const ids = (max: number) =>
   z
     .array(Id)
     .max(max)
     .refine((a) => new Set(a).size === a.length);
+const emptySetup = () => ({ identity: '', place: '', tone: '' });
+// A draft saved before this field existed stays readable and editable.
+export const CompatibleLifeSetupSchema = SeedSetupSchema.default(emptySetup);
 export const DraftSelectionSchema = z
   .strictObject({
     factIds: ids(40),
@@ -23,6 +26,7 @@ export const LifeDraftSchema = z.strictObject({
   directionId: Id,
   status: z.enum(['draft', 'confirmed']),
   story: SeedStorySchema,
+  setup: CompatibleLifeSetupSchema,
   selection: DraftSelectionSchema,
   assets: z.array(z.strictObject({ assetId: Id, revision: Version })).max(31),
   seedId: Id.nullable(),
@@ -41,6 +45,7 @@ export const SaveDraftSchema = z.strictObject({
   expectedVersion: Version,
   expectedProfileVersion: Version,
   story: SeedStorySchema,
+  setup: CompatibleLifeSetupSchema,
   selection: DraftSelectionSchema,
 });
 export const ConfirmDraftSchema = z.strictObject({
@@ -50,4 +55,5 @@ export const ConfirmDraftSchema = z.strictObject({
 });
 export type PrepareDraft = z.infer<typeof PrepareDraftSchema>;
 export type SaveDraft = z.infer<typeof SaveDraftSchema>;
+export type SaveDraftInput = z.input<typeof SaveDraftSchema>;
 export type ConfirmDraft = z.infer<typeof ConfirmDraftSchema>;

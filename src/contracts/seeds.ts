@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { Id, Version, Timestamp, PersonSchema, LifeDate } from './api.ts';
 import { DirectionFields, BasisSchema } from './discovery.ts';
+export const SeedSetupSchema = z.strictObject({
+  identity: z.string().trim().max(80),
+  place: z.string().trim().max(120),
+  tone: z.string().trim().max(100),
+});
 export const SeedRequestSchema = z
   .strictObject({
     commandId: Id,
@@ -32,6 +37,7 @@ export const ApprovedSeedSchema = z.strictObject({
   discoveryVersion: Version,
   directionId: Id,
   story: SeedStorySchema,
+  setup: SeedSetupSchema.optional(),
   facts: z.array(BasisSchema).max(40),
   events: z
     .array(z.strictObject({ eventId: Id, title: z.string().max(120), date: LifeDate.nullable() }))

@@ -25,6 +25,7 @@ export function DraftEditor({
   const [current, setCurrent] = useState(draft),
     [profile, setProfile] = useState(initialProfile);
   const [story, setStory] = useState(draft.story),
+    [setup, setSetup] = useState(draft.setup),
     [selection, setSelection] = useState(draft.selection);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
@@ -34,6 +35,7 @@ export function DraftEditor({
   const confirmed = current.status === 'confirmed';
   const dirty =
     JSON.stringify(story) !== JSON.stringify(current.story) ||
+    JSON.stringify(setup) !== JSON.stringify(current.setup) ||
     JSON.stringify(selection) !== JSON.stringify(current.selection) ||
     profile.version !== current.profileVersion;
   const ownPhotos = [
@@ -59,6 +61,7 @@ export function DraftEditor({
       expectedVersion: current.version,
       expectedProfileVersion: profile.version,
       story,
+      setup,
       selection,
     };
     if (
@@ -135,34 +138,63 @@ export function DraftEditor({
                 : '已保存为草案，确认前不会创建世界。'}
         </p>
         <fieldset disabled={busy || confirmed} className={s.fields}>
-          {(['title', 'premise', 'opening', 'tradeoff'] as const).map((key) => (
+          <label>
+            <span>这段人生</span>
+            <input
+              value={story.title}
+              maxLength={60}
+              onChange={(e) => setStory({ ...story, title: e.target.value })}
+            />
+          </label>
+          <label>
+            <span>你在这里是谁</span>
+            <input
+              value={setup.identity}
+              maxLength={80}
+              placeholder="比如，正在筹拍第一部电影的导演"
+              onChange={(e) => setSetup({ ...setup, identity: e.target.value })}
+            />
+          </label>
+          {(['premise', 'opening', 'tradeoff'] as const).map((key) => (
             <label key={key}>
               <span>
                 {
                   {
-                    title: '这段人生',
                     premise: '改变哪次选择',
                     opening: '故事从这里开始',
                     tradeoff: '这条路的另一面',
                   }[key]
                 }
               </span>
-              {key === 'title' ? (
-                <input
-                  value={story[key]}
-                  maxLength={60}
-                  onChange={(e) => setStory({ ...story, [key]: e.target.value })}
-                />
-              ) : (
-                <textarea
-                  rows={key === 'opening' ? 3 : 2}
-                  value={story[key]}
-                  maxLength={key === 'opening' ? 400 : key === 'premise' ? 300 : 200}
-                  onChange={(e) => setStory({ ...story, [key]: e.target.value })}
-                />
-              )}
+              <textarea
+                rows={key === 'opening' ? 3 : 2}
+                value={story[key]}
+                maxLength={key === 'opening' ? 400 : key === 'premise' ? 300 : 200}
+                onChange={(e) => setStory({ ...story, [key]: e.target.value })}
+              />
             </label>
           ))}
+          <details className={s.setup}>
+            <summary>地点与生活氛围（选填）</summary>
+            <label>
+              <span>故事发生在哪里</span>
+              <input
+                value={setup.place}
+                maxLength={120}
+                placeholder="一座城市，或一条熟悉的街"
+                onChange={(e) => setSetup({ ...setup, place: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>你希望是什么感觉</span>
+              <input
+                value={setup.tone}
+                maxLength={100}
+                placeholder="比如，热闹但不总是顺利"
+                onChange={(e) => setSetup({ ...setup, tone: e.target.value })}
+              />
+            </label>
+          </details>
         </fieldset>
         {!confirmed && (
           <fieldset disabled={busy} className={s.fields}>
@@ -285,10 +317,15 @@ export function DraftEditor({
           </fieldset>
         )}
         {confirmed && (
-          <p className={s.hint}>
-            已带入 {selection.factIds.length} 条资料、{selection.eventIds.length} 段经历、
-            {selection.personIds.length} 位人物、{selection.assetIds.length} 张照片。
-          </p>
+          <div className={s.hint}>
+            {setup.identity && <p>你是：{setup.identity}</p>}
+            {setup.place && <p>地点：{setup.place}</p>}
+            {setup.tone && <p>氛围：{setup.tone}</p>}
+            <p>
+              已带入 {selection.factIds.length} 条资料、{selection.eventIds.length} 段经历、
+              {selection.personIds.length} 位人物、{selection.assetIds.length} 张照片。
+            </p>
+          </div>
         )}
         {error && (
           <Notice>

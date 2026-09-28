@@ -50,7 +50,8 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
   assert.equal(result.actors.length, 3);
   assert.equal(requestedCap, WORLD_OPENING_MAX_TOKENS);
   assert.equal(requestedCap! > 4096, true);
-  assert.deepEqual(Object.keys(JSON.parse(sent)), ['story', 'facts', 'events', 'people']);
+  assert.deepEqual(Object.keys(JSON.parse(sent)), ['story', 'setup', 'facts', 'events', 'people']);
+  assert.deepEqual(JSON.parse(sent).setup, { identity: '', place: '', tone: '' });
   assert.deepEqual(JSON.parse(sent).events, []);
   assert.equal(sent.includes(seed.id), false);
   for (const invalid of [
@@ -71,6 +72,36 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
     // One corrective retry, never an unbounded loop.
     assert.equal(calls, WORLD_OUTPUT_ATTEMPTS);
   }
+});
+
+test('selected identity is exact and the world opening must use the selected place', async () => {
+  let calls = 0;
+  let sent = '';
+  const planner = new WorldPlanner({
+    async complete(messages) {
+      calls += 1;
+      sent = messages[1]!.content;
+      return JSON.stringify({
+        ...output,
+        identity: '模型猜测的别的职业',
+        setting: calls === 1 ? '上海的早晨' : '杭州的早晨',
+      });
+    },
+  });
+  const chosen = { identity: '独立电影导演', place: '杭州', tone: '热闹但不总是顺利' };
+  const result = await planner.propose({ ...seed, setup: chosen });
+  assert.equal(calls, 2);
+  assert.equal(result.identity, chosen.identity);
+  assert.match(result.setting, /杭州/);
+  assert.deepEqual(JSON.parse(sent).setup, chosen);
+  await assert.rejects(
+    new WorldPlanner({
+      async complete() {
+        return JSON.stringify({ ...output, setting: '上海的早晨' });
+      },
+    }).propose({ ...seed, setup: chosen }),
+    { code: 'INVALID_RESPONSE' },
+  );
 });
 
 test('an unusable structure is retried once with a correction, and a good retry wins', async () => {

@@ -61,6 +61,15 @@
   border-bottom: 1px solid #304763;
   padding-bottom: 8px;
 }
+.setup label {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+.setup label + label {
+  margin-top: 4px;
+}
 .choice {
   display: flex;
   align-items: flex-start;

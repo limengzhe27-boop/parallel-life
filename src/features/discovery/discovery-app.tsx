@@ -11,6 +11,7 @@ import { SeedReceipt } from './seed-consent.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
 import { LifeClient, ApiFailure } from '../api/client.ts';
+import { buildBranchBrief } from '../interview/branch-intent.ts';
 import type { Profile } from '../../contracts/api.ts';
 import type { Discovery, DiscoverRequest, LifeDirection } from '../../contracts/discovery.ts';
 const explain = (error: unknown) =>
@@ -21,6 +22,7 @@ export function DiscoveryApp() {
     [data, setData] = useState<Discovery | null>(null),
     [profile, setProfile] = useState<Profile | null>(null),
     [brief, setBrief] = useState(''),
+    [recentConversation, setRecentConversation] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [refining, setRefining] = useState<LifeDirection | null>(null),
@@ -45,12 +47,14 @@ export function DiscoveryApp() {
     setSavedSeeds(seeds);
     setDrafts(drafts);
     setBuilds(worldBuilds);
+    setRecentConversation(buildBranchBrief(w.interview.messages));
     setData((current) => (!current || d.version >= current.version ? d : current));
     setProfile((current) =>
       !current || w.profile.version >= current.version ? w.profile : current,
     );
     if (!hydrated.current) {
       setBrief(d.brief);
+      if (d.directions.length && !seeds.length) setProposalOpen(true);
       hydrated.current = true;
     }
   }, [client]);
@@ -297,16 +301,37 @@ export function DiscoveryApp() {
                   : '那些没走过的路，从一句「如果」开始。'}
               </p>
             </div>
-            {savedSeeds.length === 0 && !drafts.some((d) => d.status === 'draft') && (
-              <div className="branch-empty">
-                <img src="/art/open-door.webp" alt="通向另一段生活的门，意境插画" />
-                <h2>第一段故事，等你开口</h2>
-                <p>告诉我，你想试试怎样的生活。</p>
-                <a className="button primary" href="/">
-                  聊一个如果 <Icon name="arrow" size={18} />
-                </a>
-              </div>
-            )}
+            {savedSeeds.length === 0 &&
+              data.directions.length === 0 &&
+              !drafts.some((d) => d.status === 'draft') &&
+              !waiting && (
+                <div className="branch-empty">
+                  <img src="/art/open-door.webp" alt="通向另一段生活的门，意境插画" />
+                  {recentConversation.length >= 5 ? (
+                    <>
+                      <h2>从刚才聊到的事开始</h2>
+                      <p>{recentConversation.slice(0, 80)}</p>
+                      <Button
+                        disabled={busy}
+                        onClick={() => {
+                          setProposalOpen(true);
+                          void generate(recentConversation);
+                        }}
+                      >
+                        看看另一种可能 <Icon name="arrow" size={18} />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <h2>第一段故事，等你开口</h2>
+                      <p>告诉我，你想试试怎样的生活。</p>
+                      <a className="button primary" href="/">
+                        聊一个如果 <Icon name="arrow" size={18} />
+                      </a>
+                    </>
+                  )}
+                </div>
+              )}
             {drafts.some((d) => d.status === 'draft') && (
               <section aria-label="待继续的人生草案">
                 <h2 style={{ fontSize: 18, margin: '20px 0 12px' }}>还在构思的人生</h2>
