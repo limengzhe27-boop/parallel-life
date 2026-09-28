@@ -178,6 +178,41 @@ test('a sourced choice is a read-only story entry, and a player report is not tr
   assert.deepEqual(data.photos, [], 'a reported result is not evidence of a generated photo');
 });
 
+test('a setback can show the actor’s later proposal without becoming the player’s action', () => {
+  const data = worldAppData({
+    ...world,
+    choices: [
+      {
+        id: 'choice-blocked',
+        actorId: 'actor-a',
+        quote: '我决定先把短片剪完',
+        intent: '剪完短片',
+        at: '2026-09-22T00:00:00Z',
+        sourceEventId: 'event-choice',
+        status: 'followed_up',
+        result: {
+          kind: 'blocked',
+          quote: '我剪到一半卡住了',
+          at: '2026-09-22T01:00:00Z',
+          sourceEventId: 'event-blocked',
+        },
+        recoveryStep: {
+          quote: '我可以帮你看前三分钟，先找能剪掉的镜头',
+          at: '2026-09-22T01:10:00Z',
+          sourceEventId: 'event-recovery',
+          sourceMessageId: 'message-recovery',
+        },
+      },
+    ],
+  });
+  assert.equal(data.choices?.[0]?.result?.kind, 'blocked');
+  assert.deepEqual(data.choices?.[0]?.recoveryStep, {
+    quote: '我可以帮你看前三分钟，先找能剪掉的镜头',
+    at: '2026-09-22T01:10:00Z',
+  });
+  assert.equal(data.notes.length, 1, 'the proposal is a read-only story record');
+});
+
 test('uploaded photo names never imply AI generation or a fictional event', () => {
   const photos = ['身份写真', '旅行现场纪念'].map((title, index) => ({
     id: `upload-${index}`,

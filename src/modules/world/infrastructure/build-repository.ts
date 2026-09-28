@@ -129,6 +129,7 @@ export class BuildRepository {
     const choiceEventIds = (state.choices ?? []).flatMap((choice) => [
       choice.sourceEventId,
       ...(choice.nextStep ? [choice.nextStep.sourceEventId] : []),
+      ...(choice.recoveryStep ? [choice.recoveryStep.sourceEventId] : []),
       ...(choice.result ? [choice.result.sourceEventId] : []),
     ]);
     const eventTimes = new Map<string, string>();
@@ -157,6 +158,8 @@ export class BuildRepository {
         if (!at) return [];
         const resultAt = choice.result && eventTimes.get(choice.result.sourceEventId);
         const nextStepAt = choice.nextStep && eventTimes.get(choice.nextStep.sourceEventId);
+        const recoveryStepAt =
+          choice.recoveryStep && eventTimes.get(choice.recoveryStep.sourceEventId);
         // A shared committed event is the only safe link between the actor's
         // proposal and a calendar invitation. Ambiguous multi-invite turns stay unlinked.
         const nextStepEventId = choice.nextStep?.sourceEventId;
@@ -207,6 +210,16 @@ export class BuildRepository {
                     quote: choice.result.quote,
                     at: resultAt,
                     sourceEventId: choice.result.sourceEventId,
+                  },
+                }
+              : {}),
+            ...(choice.result?.kind === 'blocked' && choice.recoveryStep && recoveryStepAt
+              ? {
+                  recoveryStep: {
+                    quote: choice.recoveryStep.quote,
+                    at: recoveryStepAt,
+                    sourceEventId: choice.recoveryStep.sourceEventId,
+                    sourceMessageId: choice.recoveryStep.sourceMessageId,
                   },
                 }
               : {}),

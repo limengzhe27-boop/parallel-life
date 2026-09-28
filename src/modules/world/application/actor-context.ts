@@ -110,8 +110,31 @@ export function actorContext(
   );
   for (const { item } of rank(appointments, (item) => item.title))
     append(context.appointments, item, 1500);
-  for (const choice of (state.choices ?? []).filter((item) => item.actorId === actorId).slice(-3))
-    append(context.choices!, choice, 1200);
+  for (const choice of (state.choices ?? []).filter((item) => item.actorId === actorId).slice(-3)) {
+    if (blockedSources.has(choice.id) || blockedSources.has(choice.sourceEventId)) continue;
+    const visible = structuredClone(choice);
+    if (
+      visible.nextStep &&
+      (blockedSources.has(visible.nextStep.sourceEventId) ||
+        blockedSources.has(visible.nextStep.sourceMessageId))
+    )
+      delete visible.nextStep;
+    if (visible.result && blockedSources.has(visible.result.sourceEventId)) {
+      delete visible.result;
+      delete visible.recoveryStep;
+    }
+    if (
+      visible.recoveryStep &&
+      (blockedSources.has(visible.recoveryStep.sourceEventId) ||
+        blockedSources.has(visible.recoveryStep.sourceMessageId))
+    )
+      delete visible.recoveryStep;
+    if (visible.followUpEventId && blockedSources.has(visible.followUpEventId)) {
+      delete visible.followUpEventId;
+      if (visible.status === 'followed_up') visible.status = 'pending';
+    }
+    append(context.choices!, visible, 1200);
+  }
   const historical = rank(messages.slice(0, -RECENT_LIMIT), (item) => item.text)
     .filter((item) => item.score > 0)
     .slice(0, HISTORICAL_LIMIT);

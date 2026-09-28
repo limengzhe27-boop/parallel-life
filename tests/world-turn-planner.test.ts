@@ -240,6 +240,79 @@ test('a concrete director offer in the reply is retained even when the model omi
   );
 });
 
+test('a blocked choice may receive one sourced recovery proposal, but no invented or adopted action', async () => {
+  const blocked = {
+    id: 'choice_1',
+    actorId: mockContext.actor.id,
+    quote: '我决定先剪短片',
+    intent: '剪完短片',
+    sourceEventId: 'event_1',
+    sourceVersion: 1,
+    status: 'followed_up' as const,
+    result: {
+      kind: 'blocked' as const,
+      quote: '我剪到一半卡住了',
+      sourceEventId: 'event_blocked',
+      sourceVersion: 2,
+    },
+  };
+  const context: ActorContext = {
+    ...mockContext,
+    turnOrigin: 'director',
+    choices: [blocked],
+  };
+  let reply = '我可以帮你看前三分钟，先找能剪掉的镜头。';
+  let quote = '我可以帮你看前三分钟，先找能剪掉的镜头';
+  const planner = new WorldTurnPlanner({
+    complete: async () =>
+      JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          { type: 'message.received', id: 'reply', actorId: mockContext.actor.id, text: reply },
+          { type: 'choice.recovery_step', id: 'recovery', choiceId: 'choice_1', quote },
+        ],
+      }),
+  });
+  const cue = '[choice:choice_1]导演提示';
+  const accepted = (await planner.propose({ context, userText: cue })) as {
+    effects: { type: string; quote?: string }[];
+  };
+  assert.deepEqual(
+    accepted.effects.map((effect) => effect.type),
+    ['message.received', 'choice.recovery_step'],
+  );
+  assert.equal(accepted.effects[1]?.quote, quote);
+  quote = '我会直接帮你拿下电影节大奖';
+  const unquoted = (await planner.propose({ context, userText: cue })) as {
+    effects: { type: string; quote?: string }[];
+  };
+  assert.equal(unquoted.effects[1]?.quote, '我可以帮你看前三分钟，先找能剪掉的镜头');
+  reply = '听起来挺难的，先歇一会。';
+  const noMethod = (await planner.propose({ context, userText: cue })) as {
+    effects: { type: string }[];
+  };
+  assert.deepEqual(
+    noMethod.effects.map((effect) => effect.type),
+    ['message.received'],
+  );
+  const resolved = (await planner.propose({
+    context: {
+      ...context,
+      choices: [
+        {
+          ...blocked,
+          result: { ...blocked.result, kind: 'reported_done' as const },
+        },
+      ],
+    },
+    userText: cue,
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    resolved.effects.map((effect) => effect.type),
+    ['message.received'],
+  );
+});
+
 test('WorldTurnPlanner gracefully wraps plain natural text into valid message.received effect', async () => {
   const planner = new WorldTurnPlanner({
     async complete() {

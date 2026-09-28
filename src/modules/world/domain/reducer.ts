@@ -60,7 +60,8 @@ export function applyEvent(
       (effect) =>
         effect.type === 'choice.recorded' ||
         effect.type === 'choice.result_reported' ||
-        effect.type === 'choice.next_step',
+        effect.type === 'choice.next_step' ||
+        effect.type === 'choice.recovery_step',
     ).length > 1
   )
     throw new DomainError('INVALID_PROPOSAL', 'Only one choice change per turn');
@@ -172,6 +173,40 @@ export function applyEvent(
         };
         break;
       }
+      case 'choice.recovery_step': {
+        const choice = state.choices?.find((item) => item.id === effect.choiceId);
+        const reply = effects.find(
+          (item) =>
+            item.type === 'message.received' &&
+            item.actorId === event.data.actorId &&
+            item.text.includes(effect.quote),
+        );
+        if (
+          event.data.origin !== 'director' ||
+          !event.data.userText.includes(`[choice:${effect.choiceId}]`) ||
+          !choice ||
+          choice.actorId !== event.data.actorId ||
+          choice.status === 'superseded' ||
+          choice.result?.kind !== 'blocked' ||
+          choice.result.sourceVersion >= event.version ||
+          (choice.result.acknowledgedEventId !== undefined &&
+            choice.result.acknowledgedEventId !== event.id) ||
+          choice.recoveryStep ||
+          !reply ||
+          effect.quote.length < 8
+        )
+          throw new DomainError(
+            'INVALID_PROPOSAL',
+            'Recovery must quote this actor after a setback',
+          );
+        choice.recoveryStep = {
+          quote: effect.quote,
+          sourceEventId: event.id,
+          sourceMessageId: reply.id,
+          sourceVersion: event.version,
+        };
+        break;
+      }
       case 'choice.result_reported': {
         const choice = state.choices?.find((item) => item.id === effect.choiceId);
         if (
@@ -186,6 +221,8 @@ export function applyEvent(
             'Result needs a sourced player report about this choice',
           );
         if (choice.result?.kind === effect.outcome && choice.result.quote === effect.quote) break;
+        // A later player report makes the older recovery proposal historical.
+        choice.recoveryStep = undefined;
         choice.result = {
           kind: effect.outcome,
           quote: effect.quote,

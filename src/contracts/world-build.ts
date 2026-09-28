@@ -83,6 +83,14 @@ export const WorldPhoneSchema = z.strictObject({
             sourceEventId: Id,
           })
           .optional(),
+        recoveryStep: z
+          .strictObject({
+            quote: z.string(),
+            at: Timestamp,
+            sourceEventId: Id,
+            sourceMessageId: Id,
+          })
+          .optional(),
       }),
     )
     .optional(),

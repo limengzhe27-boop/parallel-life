@@ -428,7 +428,9 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                     {choice.result?.kind === 'reported_done'
                       ? '你说已完成'
                       : choice.result?.kind === 'blocked'
-                        ? '遇到阻碍'
+                        ? choice.recoveryStep
+                          ? '有新建议'
+                          : '遇到阻碍'
                         : choice.result?.kind === 'abandoned'
                           ? '你说已放下'
                           : choice.nextStep
@@ -456,7 +458,8 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                           type="button"
                           className={s.choiceCalendarLink}
                           onClick={() =>
-                            choice.nextStep?.calendar && open('calendar', choice.nextStep.calendar.id)
+                            choice.nextStep?.calendar &&
+                            open('calendar', choice.nextStep.calendar.id)
                           }
                         >
                           <span>
@@ -484,7 +487,15 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                       {choice.result.quote}
                     </p>
                   )}
-                  {choice.result && <small>后续来自你的讲述，尚无独立佐证。</small>}
+                  {choice.result?.kind === 'blocked' && choice.recoveryStep && (
+                    <p>
+                      <span>
+                        {choice.actorName}后来建议 · {timeText(choice.recoveryStep.at)}
+                      </span>
+                      {choice.recoveryStep.quote}
+                    </p>
+                  )}
+                  {choice.result && <small>结果来自你的讲述，尚无独立佐证。</small>}
                 </div>
               </details>
             ))}

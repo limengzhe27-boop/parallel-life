@@ -70,6 +70,10 @@ export type PhoneStoryChoice = {
     quote: string;
     at: string;
   };
+  recoveryStep?: {
+    quote: string;
+    at: string;
+  };
 };
 export type PhoneAppsData = {
   contacts: readonly PhoneContact[];

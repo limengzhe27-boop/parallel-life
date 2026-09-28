@@ -75,6 +75,13 @@ export type StoryChoice = {
     sourceMessageId: Id;
     sourceVersion: number;
   };
+  /** This actor's proposal after the player reported a setback, not an adopted action. */
+  recoveryStep?: {
+    quote: string;
+    sourceEventId: Id;
+    sourceMessageId: Id;
+    sourceVersion: number;
+  };
   /** The player's account of the outcome, never an independently verified world fact. */
   result?: {
     kind: 'reported_done' | 'blocked' | 'abandoned';
@@ -112,6 +119,7 @@ export type WorldEffect =
   | { type: 'media.requested'; id: Id; prompt: string; title?: string }
   | { type: 'choice.recorded'; id: Id; quote: string; intent: string }
   | { type: 'choice.next_step'; id: Id; choiceId: Id; quote: string }
+  | { type: 'choice.recovery_step'; id: Id; choiceId: Id; quote: string }
   | {
       type: 'choice.result_reported';
       id: Id;

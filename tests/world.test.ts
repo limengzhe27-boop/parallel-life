@@ -258,6 +258,101 @@ test('a next step cannot come from another actor or text absent from the reply',
   assert.equal(current.choices[0]?.nextStep, undefined);
 });
 
+test('a setback recovery quotes the same actor once and a later player result clears it', () => {
+  const before = seed();
+  before.version = 2;
+  before.choices = [
+    {
+      id: 'choice',
+      actorId: 'friend',
+      quote: '我决定先把短片剪到十五分钟',
+      intent: '完成十五分钟版本',
+      sourceEventId: 'event_choice',
+      sourceVersion: 1,
+      status: 'followed_up',
+      result: {
+        kind: 'blocked',
+        quote: '我剪到一半卡住了',
+        sourceEventId: 'event_blocked',
+        sourceVersion: 2,
+      },
+    },
+  ];
+  const recovery = (actorId: string, quote: string, id: string): WorldEvent => ({
+    schemaVersion: 1,
+    id,
+    worldId: before.id,
+    version: 3,
+    commandId: `command_${id}`,
+    occurredAt: time,
+    type: 'turn.resolved',
+    data: {
+      actorId,
+      origin: 'director',
+      userText: '[choice:choice]承接受阻',
+      effects: [
+        {
+          type: 'message.received',
+          id: `reply_${id}`,
+          actorId,
+          text: '我可以帮你看前三分钟，先找能剪掉的镜头。',
+        },
+        { type: 'choice.recovery_step', id: `step_${id}`, choiceId: 'choice', quote },
+      ],
+    },
+  });
+  for (const invalid of [
+    recovery('other', '我可以帮你看前三分钟', 'other_actor'),
+    recovery('friend', '回复里没有这句话', 'unquoted'),
+  ])
+    assert.throws(() => applyEvent(before, invalid), { code: 'INVALID_PROPOSAL' });
+  assert.equal(before.choices[0]?.recoveryStep, undefined);
+  const event = recovery('friend', '我可以帮你看前三分钟，先找能剪掉的镜头', 'recovery');
+  const recovered = applyEvent(before, event).state;
+  assert.deepEqual(recovered.choices?.[0]?.recoveryStep, {
+    quote: '我可以帮你看前三分钟，先找能剪掉的镜头',
+    sourceEventId: event.id,
+    sourceMessageId: 'reply_recovery',
+    sourceVersion: 3,
+  });
+  assert.equal(recovered.choices?.[0]?.result?.kind, 'blocked');
+  assert.equal(recovered.choices?.[0]?.result?.acknowledgedEventId, event.id);
+  const reversed = recovery('friend', '我可以帮你看前三分钟，先找能剪掉的镜头', 'reversed');
+  reversed.data.effects.reverse();
+  assert.equal(
+    applyEvent(before, reversed).state.choices?.[0]?.recoveryStep?.sourceEventId,
+    reversed.id,
+  );
+  const duplicate = recovery('friend', '我可以帮你看前三分钟，先找能剪掉的镜头', 'duplicate');
+  duplicate.version = 4;
+  assert.throws(() => applyEvent(recovered, duplicate), { code: 'INVALID_PROPOSAL' });
+  const completed = applyEvent(recovered, {
+    schemaVersion: 1,
+    id: 'event_completed',
+    worldId: before.id,
+    version: 4,
+    commandId: 'command_completed',
+    occurredAt: time,
+    type: 'turn.resolved',
+    data: {
+      actorId: 'friend',
+      userText: '我把短片剪完了，十五分钟版本已经导出。',
+      effects: [
+        { type: 'message.received', id: 'reply_completed', actorId: 'friend', text: '发我看看。' },
+        {
+          type: 'choice.result_reported',
+          id: 'result_completed',
+          choiceId: 'choice',
+          quote: '我把短片剪完了，十五分钟版本已经导出',
+          outcome: 'reported_done',
+        },
+      ],
+    },
+  }).state;
+  assert.equal(completed.choices?.[0]?.result?.kind, 'reported_done');
+  assert.equal(completed.choices?.[0]?.recoveryStep, undefined);
+});
+
 test('a reported result is sourced to the player, acknowledged once, and can be corrected', () => {
   const before = seed();
   before.version = 1;

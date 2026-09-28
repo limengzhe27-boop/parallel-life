@@ -173,6 +173,7 @@ export function parseProposal(value: unknown): TurnProposal {
           intent: text(item.intent, 120).trim(),
         };
       case 'choice.next_step':
+      case 'choice.recovery_step':
         return {
           type: item.type,
           id: effectId,

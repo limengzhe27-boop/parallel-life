@@ -86,6 +86,14 @@ export function worldAppData(
             },
           }
         : {}),
+      ...(choice.recoveryStep
+        ? {
+            recoveryStep: {
+              quote: choice.recoveryStep.quote,
+              at: choice.recoveryStep.at,
+            },
+          }
+        : {}),
     })),
     invitations: (world.invitations ?? []).map((invitation) => ({
       ...invitation,

@@ -292,6 +292,121 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     assert.equal(storyPhone.choices?.[0]?.result?.kind, 'reported_done');
     assert.equal(storyPhone.choices?.[0]?.at, choiceEvent.occurredAt);
     assert.equal(storyPhone.choices?.[0]?.result?.at, reportEvent.occurredAt);
+    const secondCommand: TurnCommand = {
+      id: randomUUID(),
+      worldId: first.worldId,
+      expectedVersion: 5,
+      actorId,
+      text: '我决定先把维修铺宣传片剪出一个版本。',
+    };
+    const secondEvent: WorldEvent = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: first.worldId,
+      version: 6,
+      commandId: secondCommand.id,
+      type: 'turn.resolved',
+      occurredAt: new Date().toISOString(),
+      data: {
+        actorId,
+        userText: secondCommand.text,
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId, text: '好，先给我看个初版。' },
+          {
+            type: 'choice.recorded',
+            id: randomUUID(),
+            quote: '我决定先把维修铺宣传片剪出一个版本',
+            intent: '剪出维修铺宣传片',
+          },
+        ],
+      },
+    };
+    const second = await worlds.commit({ userId: owner }, secondCommand, secondEvent);
+    const blockedChoiceId = second.state.choices!.at(-1)!.id;
+    const blockedCommand: TurnCommand = {
+      id: randomUUID(),
+      worldId: first.worldId,
+      expectedVersion: 6,
+      actorId,
+      text: '我剪宣传片卡住了，开头节奏对不上。',
+    };
+    const blockedEvent: WorldEvent = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: first.worldId,
+      version: 7,
+      commandId: blockedCommand.id,
+      type: 'turn.resolved',
+      occurredAt: new Date().toISOString(),
+      data: {
+        actorId,
+        userText: blockedCommand.text,
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId, text: '卡在哪一段？' },
+          {
+            type: 'choice.result_reported',
+            id: randomUUID(),
+            choiceId: blockedChoiceId,
+            quote: '我剪宣传片卡住了，开头节奏对不上',
+            outcome: 'blocked',
+          },
+        ],
+      },
+    };
+    const blocked = await worlds.commit({ userId: owner }, blockedCommand, blockedEvent);
+    const recoveryCommand: TurnCommand = {
+      id: randomUUID(),
+      worldId: first.worldId,
+      expectedVersion: 7,
+      actorId,
+      origin: 'director',
+      text: beatCue(blocked.state, actorId),
+    };
+    assert.match(recoveryCommand.text, new RegExp(`\\[choice:${blockedChoiceId}\\]`));
+    const recoveryMessageId = randomUUID();
+    const recoveryEvent: WorldEvent = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: first.worldId,
+      version: 8,
+      commandId: recoveryCommand.id,
+      type: 'turn.resolved',
+      occurredAt: new Date().toISOString(),
+      data: {
+        actorId,
+        origin: 'director',
+        userText: recoveryCommand.text,
+        effects: [
+          {
+            type: 'message.received',
+            id: recoveryMessageId,
+            actorId,
+            text: '我可以帮你看前三分钟，先找能剪掉的镜头。',
+          },
+          {
+            type: 'choice.recovery_step',
+            id: randomUUID(),
+            choiceId: blockedChoiceId,
+            quote: '我可以帮你看前三分钟，先找能剪掉的镜头',
+          },
+        ],
+      },
+    };
+    const recovered = await worlds.commit({ userId: owner }, recoveryCommand, recoveryEvent);
+    assert.deepEqual(
+      await worlds.commit({ userId: owner }, recoveryCommand, recoveryEvent),
+      recovered,
+    );
+    const recoveredPhone = await builds.phone(owner, first.worldId);
+    const blockedEntry = recoveredPhone.choices?.find((item) => item.id === blockedChoiceId);
+    assert.equal(blockedEntry?.result?.kind, 'blocked');
+    assert.deepEqual(blockedEntry?.recoveryStep, {
+      quote: '我可以帮你看前三分钟，先找能剪掉的镜头',
+      at: recoveryEvent.occurredAt,
+      sourceEventId: recoveryEvent.id,
+      sourceMessageId: recoveryMessageId,
+    });
+    assert.deepEqual((await builds.phone(owner, first.worldId)).choices, recoveredPhone.choices);
     await assert.rejects(builds.phone(other, first.worldId), { code: 'NOT_FOUND' });
     await assert.rejects(builds.phone(other, first.worldId), { code: 'NOT_FOUND' });
     const snapshot = (

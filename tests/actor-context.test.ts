@@ -156,3 +156,53 @@ test('memory scopes and forgotten sources are enforced before they can reach the
   );
   assert.deepEqual(result.facts, []);
 });
+
+test('forgotten choice sources do not re-enter a character through setback proposals', () => {
+  const state = world();
+  state.choices = [
+    {
+      id: 'choice',
+      actorId: 'a',
+      quote: '我决定剪短片',
+      intent: '剪短片',
+      sourceEventId: 'choice-event',
+      sourceVersion: 1,
+      status: 'followed_up',
+      followUpEventId: 'follow-event',
+      nextStep: {
+        quote: '先发我看',
+        sourceEventId: 'follow-event',
+        sourceMessageId: 'follow-message',
+        sourceVersion: 2,
+      },
+      result: {
+        kind: 'blocked',
+        quote: '我剪片卡住了',
+        sourceEventId: 'result-event',
+        sourceVersion: 3,
+      },
+      recoveryStep: {
+        quote: '我帮你看开头',
+        sourceEventId: 'recovery-event',
+        sourceMessageId: 'recovery-message',
+        sourceVersion: 4,
+      },
+    },
+  ];
+  const partial = actorContext(
+    state,
+    'a',
+    '短片',
+    [],
+    new Set(['follow-event', 'recovery-message']),
+  ).choices?.[0];
+  assert.equal(partial?.nextStep, undefined);
+  assert.equal(partial?.recoveryStep, undefined);
+  assert.equal(partial?.status, 'pending');
+  assert.equal(partial?.result?.kind, 'blocked');
+  const noResult = actorContext(state, 'a', '短片', [], new Set(['result-event'])).choices?.[0];
+  assert.equal(noResult?.result, undefined);
+  assert.equal(noResult?.recoveryStep, undefined);
+  assert.deepEqual(actorContext(state, 'a', '短片', [], new Set(['choice-event'])).choices, []);
+  assert.equal(state.choices[0]?.recoveryStep?.sourceMessageId, 'recovery-message');
+});
