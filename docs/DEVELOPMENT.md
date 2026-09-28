@@ -330,7 +330,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
-|NAR-02B|codex-main-nar02b-20260928|I / 单人|主登记目录|world/domain/{invitations,agenda,clock,narrative-policy}.ts、world/infrastructure/postgres-world-repository.ts、contracts/invitations.ts、features/phone/apps/{calendar.tsx,apps.module.css}、app/ui-preview/world/page.tsx、相关测试、docs/task-reports/NAR-02B.md、DEPLOYMENT.md|本地真实库、生产迁移只读校验；无新增迁移预期|2026-09-28：已实现并待集成发布；214项常规/33项真实库及build通过，390/1440合成手机验收，生产29迁移一致；公网验收待发布|
+|NAR-02B|codex-main-nar02b-20260928|I / 单人|主登记目录|world/domain/{invitations,agenda,clock,narrative-policy}.ts、world/infrastructure/postgres-world-repository.ts、contracts/invitations.ts、features/phone/apps/{calendar.tsx,apps.module.css}、app/ui-preview/world/page.tsx、相关测试、docs/task-reports/NAR-02B.md、DEPLOYMENT.md|本地真实库、生产迁移只读校验；无新增迁移预期|2026-09-28：c34d540/2rjrvhr1a READY；214项常规/33项真实库及build通过，390/1440合成手机验收，生产29迁移一致；公网health/session 200、赴约接口合成无关世界返回预期404；完整NAR-02未完成|
 |U-06|codex-f-01a0c7c8|F|/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/H-01|src/features/phone/**、src/app/ui-preview/phone/**、tests/phone-navigation.test.ts、docs/task-reports/U-06.md|沿用 task/h-01；端口 3220；不接数据库/模型/私有素材|2026-09-22T11:32:42.032906+00:00；103af3b外壳移植由I验收；四应用增量6f77460已交付，仅追加嵌入布局CSS，无新Shell props；不覆盖main管理入口；待I验收|
 |D-04|codex-main-01a0c73b|I / 单人|主登记目录|src/features/discovery、src/features/api/client.ts、docs/task-reports/D-04.md|本项目本地环境，串行写入|2026-09-22：已按 U-05 重做，保留真实接口；待用户视觉审阅|
 |U-05|codex-main-01a0c73b|I / 单人|主登记目录|共享导航与布局、interview/discovery、设计文档及报告|本项目本地环境，串行写入|2026-09-22：恢复固定聊聊/如果/我的；我的整页与聊天共享档案，所有已保存分支集中展示；40项检查及手机PC验证通过|
@@ -614,7 +614,7 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |NAR-01|[x] 已完成|codex-main-narrative-20260928|主目录；docs/NARRATIVE_EXPERIENCE.md、叙事模式手册与报告；world/domain/narrative-policy、actor-context、turn/world planner、相关测试；导演预览人物名修正|197项检查+25项真实库/build；27生产迁移一致；c58ccb4/aw37f5abz READY，公网health200、双端预览验收。主角原则、记忆入模、情境策略已交付；长期剧情状态机仍属NAR-02，见task-reports/NAR-01.md|
 |NAR-02|[ ] 待开发|未领取|依赖NAR-01；剧情线状态、条件/冷却/结果/来源、导演并发与失败恢复|每条悬念可兑现可放弃；不按消息条数机械反转；刷新继续同一条线|
 |NAR-02A|[x] 已完成|codex-main-nar02a-20260928|主目录；world/{domain/agenda,domain/clock,application/advance-world,application/resolve-turn,application/ports,infrastructure/clock-repository}.ts、手机回访触发、相关测试、task-reports/NAR-02A.md；生产库/模型/部署由集成人统筹|先做有因由且不刷屏的主动来信、导演并发和失败恢复；用户进入手机后能收到已提交的后续；完整剧情线状态仍在NAR-02；211/32项检查、build及生产29迁移通过，ef00dab/e49ualugu READY，公网health/session/导演接口验收；见[报告](task-reports/NAR-02A.md)。|
-|NAR-02B|[ ] 待验收|codex-main-nar02b-20260928|NAR-02的一段：日程邀约从提出/确认到用户明确标记到场/取消的持久结果，导演仅承接应答；不把沉默或NPC台词当完成|真实事件可追溯，刷新/重复提交/跨用户隔离，手机日历可操作；完整剧情线仍留NAR-02|
+|NAR-02B|[x] 已完成|codex-main-nar02b-20260928|NAR-02的一段：日程邀约从提出/确认到用户明确标记到场/取消的持久结果，导演仅承接应答；不把沉默或NPC台词当完成|真实事件可追溯，刷新/重复提交/跨用户隔离，手机日历可操作；完整剧情线仍留NAR-02|
 |NAR-03|[ ] 待开发|未领取|依赖NAR-02；消息/日历/相册/便签的事件后果、生图状态|一个选择形成可追溯的跨应用后果；生成等待/失败/unknown诚实反馈|
 |NAR-04|[ ] 待开发|未领取|依赖NAR-02/03；首次体验、回访承接、剧情质量评测|首个事件清楚可参与、回访承接、重复冲突/无后果选择评估；不以消息数冒充沉浸|
 

@@ -1,6 +1,6 @@
 ## 2026-09-28 · NAR-02B 邀约结果闭环
 
-本段代码和真实数据库验证见 [NAR-02B](task-reports/NAR-02B.md)。无新增迁移；生产 29/29 迁移校验和一致。部署与公网验收完成后补充版本号和结果。
+应用提交 `c34d540`，Vercel Production `2rjrvhr1a` / `dpl_And9i7FAs1RbhSH4TQDY5HSSMNZs` READY，正式域名 https://parallel-life-nu.vercel.app 已指向新版。生产 Supabase 29/29 迁移校验和一致，本段无新增迁移；214 项常规测试、33 项真实库测试及构建通过。公网 health 200、独立合成访客 session 200、赴约接口对不存在合成世界返回预期 404（非 503）。390px 合成手机无横向溢出，1440px 电脑内手机宽 420px。未向生产世界写入测试约定，完整长期剧情线仍在 NAR-02。详见 [NAR-02B](task-reports/NAR-02B.md)。
 
 ## 2026-09-28 · NAR-02A 有依据的主动来信与回访恢复
 
