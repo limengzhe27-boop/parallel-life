@@ -1,3 +1,7 @@
+## 2026-09-28 · NAR-02A 有依据的主动来信与回访恢复
+
+应用提交 `ef00dab` 已推送；Vercel Production `e49ualugu` / `dpl_9eWz6QUTgKDuvAwBZLbVgzt2M4Ts` READY，正式域名 https://parallel-life-nu.vercel.app。生产 Supabase 已执行 `0029_director_attempts.sql`，29/29 迁移校验和一致。`npm run verify`：211 项常规检查、32 项真实 PostgreSQL 集成测试通过；最终 `npm run build` 通过。公网 health 200、合成访客 session 200、带鉴权的导演接口对不存在世界返回预期 404（非 503/路由缺失）。Ego Lite 公网首页只读检查；本地合成手机在 390px/1440px 解锁及无横向溢出。真实网关合成邀约场景一次抽样得到 59 字具体主动来信。未在生产创建付费测试世界；后台定时唤醒与完整剧情线状态机仍待 NAR-02。见 [NAR-02A](task-reports/NAR-02A.md)。
+
 ## 2026-09-28 · EXP-08 分支与手机消息时间
 
 应用提交 `1e924e9` 已推送；Vercel Production `df9xb68j1` / `dpl_4TsDaaJofvPeRVYVzdrkP3qCUtCm` READY，正式域名 https://parallel-life-nu.vercel.app。生产 28/28 迁移校验和一致，本次无新增迁移；211 项常规测试、31 项真实库测试、构建通过。公网 health、独立合成访客会话、分支列表、世界列表和分支页均 200。390px/1440px 本地页面无横向溢出；本地合成旧世界锁屏显示 06:55，三条开场通知分别为 06:16、06:39、06:46。未在生产创建付费测试世界；主动 NPC 延迟调度仍属 NAR-02。详见 [EXP-08](task-reports/EXP-08.md)。
