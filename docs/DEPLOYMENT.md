@@ -1,3 +1,7 @@
+## 2026-09-28 · EXP-07 分支入口与手机开场体验
+
+应用提交 `fa91fa9` 已推送；Vercel Production `i9uk413uu` / `dpl_DCtjFK8uCA4gjJLhkrDBVcJxd8aK` READY，正式域名 https://parallel-life-nu.vercel.app。生产 28 项迁移一致、无新增迁移；208 项常规测试、30 项真实库测试、构建通过。公网 health、分支页面、隔离合成访客、分支与世界列表读取 200。锁屏与分支 390px/1440px 本地视觉通过；两身份开场及两轮 NPC 合成真实网关抽样通过，首次导演开场曾遇输出截断，收紧输出预算后复测成功。未在生产新建付费测试世界；既有世界消息不重写。详见 [EXP-07](task-reports/EXP-07.md)。
+
 ## 2026-09-28 · EXP-03F 「我的」资料与 Agent 写入修复
 
 后续兼容补丁 `b19cb4c`：旧身份候选收为可展开的待核对资料，无法安全落入基本资料的记录不再提供会失败的确认动作；旧身份事实明示待核对。Vercel Production `1oxby4l9g` / `dpl_9pYqinxvCyRKmrX149ZckWSXwLZB` READY；207 项检查、30 项真实库测试与构建通过，本地 390/1440 双端旧候选复核通过。正式域名已指向该部署，health 200。
