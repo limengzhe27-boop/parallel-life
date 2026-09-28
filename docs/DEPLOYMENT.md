@@ -1,3 +1,7 @@
+## 2026-09-28 · NAR-02C 对话选择的来源与一次承接
+
+应用提交 `b26382b`，Vercel Production `nnbe92ve7` / `dpl_7oKs9ijUkjdwwaKV6w1VDY9TvaQq` READY，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run verify`、`npm run build` 通过，真实 PostgreSQL 33 项通过，生产 Supabase 29/29 迁移一致，无新迁移。公网 health、独立合成访客 session、世界列表均 200；合成真实模型明确选择/假设两轮抽样通过。聊天里明确说出的行动可进入世界事件和有界选择状态，下一导演节拍由知情人物一次承接，不把假设或 NPC 回复当行动完成。完整目标/结局与跨应用结果仍待 NAR-02/03。详见 [NAR-02C](task-reports/NAR-02C.md)。
+
 ## 2026-09-28 · NAR-02B 邀约结果闭环
 
 应用提交 `c34d540`，Vercel Production `2rjrvhr1a` / `dpl_And9i7FAs1RbhSH4TQDY5HSSMNZs` READY，正式域名 https://parallel-life-nu.vercel.app 已指向新版。生产 Supabase 29/29 迁移校验和一致，本段无新增迁移；214 项常规测试、33 项真实库测试及构建通过。公网 health 200、独立合成访客 session 200、赴约接口对不存在合成世界返回预期 404（非 503）。390px 合成手机无横向溢出，1440px 电脑内手机宽 420px。未向生产世界写入测试约定，完整长期剧情线仍在 NAR-02。详见 [NAR-02B](task-reports/NAR-02B.md)。
