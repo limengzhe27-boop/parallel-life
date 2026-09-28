@@ -157,6 +157,20 @@ export class BuildRepository {
         if (!at) return [];
         const resultAt = choice.result && eventTimes.get(choice.result.sourceEventId);
         const nextStepAt = choice.nextStep && eventTimes.get(choice.nextStep.sourceEventId);
+        // A shared committed event is the only safe link between the actor's
+        // proposal and a calendar invitation. Ambiguous multi-invite turns stay unlinked.
+        const nextStepEventId = choice.nextStep?.sourceEventId;
+        const sameTurnInvitations = nextStepEventId
+          ? state.appointments.filter(
+              (appointment) =>
+                appointment.sourceEventId === nextStepEventId &&
+                appointment.participantIds.length === 1 &&
+                appointment.participantIds[0] === choice.actorId &&
+                appointment.status !== undefined,
+            )
+          : [];
+        const linkedInvitation =
+          sameTurnInvitations.length === 1 ? sameTurnInvitations[0] : undefined;
         return [
           {
             id: choice.id,
@@ -173,6 +187,16 @@ export class BuildRepository {
                     at: nextStepAt,
                     sourceEventId: choice.nextStep.sourceEventId,
                     sourceMessageId: choice.nextStep.sourceMessageId,
+                    ...(linkedInvitation
+                      ? {
+                          calendar: {
+                            id: linkedInvitation.id,
+                            title: linkedInvitation.title,
+                            at: linkedInvitation.at,
+                            status: linkedInvitation.status,
+                          },
+                        }
+                      : {}),
                   },
                 }
               : {}),

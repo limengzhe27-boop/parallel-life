@@ -55,7 +55,16 @@ export type PhoneStoryChoice = {
   intent: string;
   at: string;
   status: 'pending' | 'followed_up' | 'superseded';
-  nextStep?: { quote: string; at: string };
+  nextStep?: {
+    quote: string;
+    at: string;
+    calendar?: {
+      id: string;
+      title: string;
+      at: string;
+      status: 'proposed' | 'confirmed' | 'cancelled' | 'attended' | 'missed';
+    };
+  };
   result?: {
     kind: 'reported_done' | 'blocked' | 'abandoned';
     quote: string;

@@ -69,7 +69,13 @@ export function worldAppData(
       at: choice.at,
       status: choice.status,
       ...(choice.nextStep
-        ? { nextStep: { quote: choice.nextStep.quote, at: choice.nextStep.at } }
+        ? {
+            nextStep: {
+              quote: choice.nextStep.quote,
+              at: choice.nextStep.at,
+              ...(choice.nextStep.calendar ? { calendar: choice.nextStep.calendar } : {}),
+            },
+          }
         : {}),
       ...(choice.result
         ? {

@@ -65,6 +65,14 @@ export const WorldPhoneSchema = z.strictObject({
             at: Timestamp,
             sourceEventId: Id,
             sourceMessageId: Id,
+            calendar: z
+              .strictObject({
+                id: Id,
+                title: z.string(),
+                at: Timestamp,
+                status: z.enum(['proposed', 'confirmed', 'cancelled', 'attended', 'missed']),
+              })
+              .optional(),
           })
           .optional(),
         result: z

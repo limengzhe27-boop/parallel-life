@@ -538,6 +538,41 @@
   color: #8a8176;
   font-size: 11px;
 }
+.choiceCalendarLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px solid #e5dfd2;
+  border-radius: 9px;
+  background: #f9f7f2;
+  color: #3d3426;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.choiceCalendarLink span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.choiceCalendarLink small {
+  display: block;
+  margin-top: 3px;
+  color: #776f63;
+  font-size: 11px;
+}
+.choiceCalendarLink span:last-child {
+  flex: none;
+  color: #a79a86;
+  font-size: 20px;
+}
+.choiceCalendarLink:focus-visible {
+  outline: 2px solid #877450;
+  outline-offset: 2px;
+}
 .noteList > button,
 .noteList .noteRow {
   display: block;

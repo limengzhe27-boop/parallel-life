@@ -27,6 +27,18 @@ export default function Preview() {
             at: '2026-09-21T20:10:00Z',
             sourceEventId: '10000000-0000-4000-8000-000000000003',
             status: 'followed_up',
+            nextStep: {
+              quote: '明天一起看初剪？我留一小时。',
+              at: '2026-09-22T00:00:00Z',
+              sourceEventId: '10000000-0000-4000-8000-000000000005',
+              sourceMessageId: '10000000-0000-4000-8000-000000000006',
+              calendar: {
+                id: '10000000-0000-4000-8000-000000000007',
+                title: '一起看初剪',
+                at: '2026-09-23T00:00:00.000Z',
+                status: 'confirmed',
+              },
+            },
             result: {
               kind: 'reported_done',
               quote: '我把短片剪完了，十五分钟版本已经导出',
@@ -36,9 +48,9 @@ export default function Preview() {
           }],
           invitations: [
             {
-              id: 'preview-invitation',
-              title: '街角的修理约定',
-              at: '2026-09-22T00:00:00.000Z',
+              id: '10000000-0000-4000-8000-000000000007',
+              title: '一起看初剪',
+              at: '2026-09-23T00:00:00.000Z',
               participantIds: [id],
               status: 'confirmed',
             },

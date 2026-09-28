@@ -9,6 +9,7 @@ import { IdentityRepository } from '../../src/modules/identity/infrastructure/id
 import { ProfileRepository } from '../../src/modules/profile/infrastructure/profile-repository.ts';
 import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { beatCue } from '../../src/modules/world/domain/clock.ts';
 import type { TurnCommand, WorldEvent } from '../../src/modules/world/domain/types.ts';
 import { WorldPlanner } from '../../src/modules/world/infrastructure/world-planner.ts';
 import { buildHandler } from '../../src/modules/world/infrastructure/build-handler.ts';
@@ -162,10 +163,99 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
       },
     };
     const chosen = await worlds.commit({ userId: owner }, choiceCommand, choiceEvent);
-    const reportCommand: TurnCommand = {
+    const invitationId = randomUUID();
+    const invitationAt = new Date(Date.now() + 86_400_000).toISOString();
+    const followCommand: TurnCommand = {
       id: randomUUID(),
       worldId: first.worldId,
       expectedVersion: 1,
+      actorId,
+      origin: 'director',
+      text: beatCue(chosen.state, actorId),
+    };
+    assert.match(followCommand.text, new RegExp(`\\[choice:${chosen.state.choices![0]!.id}\\]`));
+    const followEvent: WorldEvent = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: first.worldId,
+      version: 2,
+      commandId: followCommand.id,
+      type: 'turn.resolved',
+      occurredAt: new Date().toISOString(),
+      data: {
+        actorId,
+        origin: 'director',
+        userText: followCommand.text,
+        effects: [
+          {
+            type: 'message.received',
+            id: randomUUID(),
+            actorId,
+            text: '明天一起看初剪？我留一小时。',
+          },
+          {
+            type: 'choice.next_step',
+            id: randomUUID(),
+            choiceId: chosen.state.choices![0]!.id,
+            quote: '明天一起看初剪？我留一小时',
+          },
+          {
+            type: 'appointment.proposed',
+            id: invitationId,
+            title: '一起看初剪',
+            at: invitationAt,
+            participantIds: [actorId],
+          },
+        ],
+      },
+    };
+    await worlds.commit({ userId: owner }, followCommand, followEvent);
+    const proposedPhone = await builds.phone(owner, first.worldId);
+    assert.deepEqual(proposedPhone.choices?.[0]?.nextStep?.calendar, {
+      id: invitationId,
+      title: '一起看初剪',
+      at: invitationAt,
+      status: 'proposed',
+    });
+    assert.equal(
+      proposedPhone.invitations?.find((item) => item.id === invitationId)?.status,
+      'proposed',
+    );
+    const acceptCommand = {
+      commandId: randomUUID(),
+      worldId: first.worldId,
+      id: invitationId,
+      expectedVersion: 2,
+      operation: 'accept' as const,
+    };
+    const accepted = await worlds.respondToInvitation({ userId: owner }, acceptCommand);
+    assert.deepEqual(await worlds.respondToInvitation({ userId: owner }, acceptCommand), accepted);
+    const acceptedPhone = await builds.phone(owner, first.worldId);
+    assert.equal(acceptedPhone.choices?.[0]?.nextStep?.calendar?.status, 'confirmed');
+    assert.equal(
+      acceptedPhone.invitations?.find((item) => item.id === invitationId)?.status,
+      'confirmed',
+    );
+    await worlds.respondToInvitation(
+      { userId: owner },
+      {
+        commandId: randomUUID(),
+        worldId: first.worldId,
+        id: invitationId,
+        expectedVersion: 3,
+        operation: 'cancel',
+      },
+    );
+    const cancelledPhone = await builds.phone(owner, first.worldId);
+    assert.equal(cancelledPhone.choices?.[0]?.nextStep?.calendar?.status, 'cancelled');
+    assert.equal(
+      cancelledPhone.invitations?.find((item) => item.id === invitationId)?.status,
+      'cancelled',
+    );
+    const reportCommand: TurnCommand = {
+      id: randomUUID(),
+      worldId: first.worldId,
+      expectedVersion: 4,
       actorId,
       text: '我把短片剪完了，十五分钟版本已经导出。',
     };
@@ -173,7 +263,7 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
       schemaVersion: 1,
       id: randomUUID(),
       worldId: first.worldId,
-      version: 2,
+      version: 5,
       commandId: reportCommand.id,
       type: 'turn.resolved',
       occurredAt: new Date().toISOString(),
@@ -196,6 +286,8 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     const storyPhone = await new BuildRepository(db).phone(owner, first.worldId);
     assert.equal(storyPhone.choices?.length, 1);
     assert.equal(storyPhone.choices?.[0]?.sourceEventId, choiceEvent.id);
+    assert.equal(storyPhone.choices?.[0]?.nextStep?.sourceEventId, followEvent.id);
+    assert.equal(storyPhone.choices?.[0]?.nextStep?.calendar?.status, 'cancelled');
     assert.equal(storyPhone.choices?.[0]?.result?.sourceEventId, reportEvent.id);
     assert.equal(storyPhone.choices?.[0]?.result?.kind, 'reported_done');
     assert.equal(storyPhone.choices?.[0]?.at, choiceEvent.occurredAt);

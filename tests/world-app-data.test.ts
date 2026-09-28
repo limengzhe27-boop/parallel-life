@@ -137,6 +137,12 @@ test('a sourced choice is a read-only story entry, and a player report is not tr
           at: '2026-09-22T01:00:00Z',
           sourceEventId: 'event-step',
           sourceMessageId: 'message-step',
+          calendar: {
+            id: 'invitation-1',
+            title: '一起看初剪',
+            at: '2026-09-22T02:00:00Z',
+            status: 'confirmed',
+          },
         },
         result: {
           kind: 'reported_done',
@@ -155,7 +161,16 @@ test('a sourced choice is a read-only story entry, and a player report is not tr
       intent: '剪完短片',
       at: choiceAt,
       status: 'followed_up',
-      nextStep: { quote: '发我文件，我留半小时看', at: '2026-09-22T01:00:00Z' },
+      nextStep: {
+        quote: '发我文件，我留半小时看',
+        at: '2026-09-22T01:00:00Z',
+        calendar: {
+          id: 'invitation-1',
+          title: '一起看初剪',
+          at: '2026-09-22T02:00:00Z',
+          status: 'confirmed',
+        },
+      },
       result: { kind: 'reported_done', quote: '我把短片剪完了', at: resultAt },
     },
   ]);

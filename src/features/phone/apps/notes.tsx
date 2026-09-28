@@ -444,12 +444,39 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                     {choice.quote}
                   </p>
                   {choice.nextStep && (
-                    <p>
-                      <span>
-                        {choice.actorName}后来提出 · {timeText(choice.nextStep.at)}
-                      </span>
-                      {choice.nextStep.quote}
-                    </p>
+                    <>
+                      <p>
+                        <span>
+                          {choice.actorName}后来提出 · {timeText(choice.nextStep.at)}
+                        </span>
+                        {choice.nextStep.quote}
+                      </p>
+                      {choice.nextStep.calendar && (
+                        <button
+                          type="button"
+                          className={s.choiceCalendarLink}
+                          onClick={() =>
+                            choice.nextStep?.calendar && open('calendar', choice.nextStep.calendar.id)
+                          }
+                        >
+                          <span>
+                            日历 · {choice.nextStep.calendar.title}
+                            <small>
+                              {
+                                {
+                                  proposed: '待你确认',
+                                  confirmed: '已确认',
+                                  cancelled: '已取消',
+                                  attended: '你标记已赴约',
+                                  missed: '你标记未赴约',
+                                }[choice.nextStep.calendar.status]
+                              }
+                            </small>
+                          </span>
+                          <span aria-hidden="true">›</span>
+                        </button>
+                      )}
+                    </>
                   )}
                   {choice.result && (
                     <p>
