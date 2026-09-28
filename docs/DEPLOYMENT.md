@@ -1,3 +1,7 @@
+## 2026-09-28 · EXP-08 分支与手机消息时间
+
+应用提交 `1e924e9` 已推送；Vercel Production `df9xb68j1` / `dpl_4TsDaaJofvPeRVYVzdrkP3qCUtCm` READY，正式域名 https://parallel-life-nu.vercel.app。生产 28/28 迁移校验和一致，本次无新增迁移；211 项常规测试、31 项真实库测试、构建通过。公网 health、独立合成访客会话、分支列表、世界列表和分支页均 200。390px/1440px 本地页面无横向溢出；本地合成旧世界锁屏显示 06:55，三条开场通知分别为 06:16、06:39、06:46。未在生产创建付费测试世界；主动 NPC 延迟调度仍属 NAR-02。详见 [EXP-08](task-reports/EXP-08.md)。
+
 ## 2026-09-28 · EXP-07 分支入口与手机开场体验
 
 应用提交 `fa91fa9` 已推送；Vercel Production `i9uk413uu` / `dpl_DCtjFK8uCA4gjJLhkrDBVcJxd8aK` READY，正式域名 https://parallel-life-nu.vercel.app。生产 28 项迁移一致、无新增迁移；208 项常规测试、30 项真实库测试、构建通过。公网 health、分支页面、隔离合成访客、分支与世界列表读取 200。锁屏与分支 390px/1440px 本地视觉通过；两身份开场及两轮 NPC 合成真实网关抽样通过，首次导演开场曾遇输出截断，收紧输出预算后复测成功。未在生产新建付费测试世界；既有世界消息不重写。详见 [EXP-07](task-reports/EXP-07.md)。
