@@ -52,6 +52,35 @@ test('WorldTurnPlanner normalizes mismatched actorId and placeholder into target
   assert.equal(result.effects[0]?.text, '分镜表我已经审完了，下午三点我们开会碰一下细节。');
 });
 
+test('optional model choice is kept only when it quotes a real explicit decision', async () => {
+  const planner = new WorldTurnPlanner({
+    complete: async () =>
+      JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          { type: 'message.received', id: 'reply', actorId: 'wrong', text: '好，等你发来。' },
+          { type: 'choice.recorded', id: 'choice', quote: '我决定先剪短片', intent: '先剪片' },
+        ],
+      }),
+  });
+  const chosen = (await planner.propose({
+    context: mockContext,
+    userText: '我决定先剪短片，今晚发给你。',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    chosen.effects.map((e) => e.type),
+    ['message.received', 'choice.recorded'],
+  );
+  const hypothetical = (await planner.propose({
+    context: mockContext,
+    userText: '如果我决定先剪短片会怎样？',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    hypothetical.effects.map((e) => e.type),
+    ['message.received'],
+  );
+});
+
 test('WorldTurnPlanner gracefully wraps plain natural text into valid message.received effect', async () => {
   const planner = new WorldTurnPlanner({
     async complete() {

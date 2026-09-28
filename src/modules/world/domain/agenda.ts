@@ -13,6 +13,7 @@ export type AgendaThread = {
     | 'proposed_appointment'
     | 'appointment_due'
     | 'appointment_result'
+    | 'choice_followup'
     | 'commitment';
   actorId: string;
   detail: string;
@@ -42,6 +43,14 @@ export function buildAgenda(
       actorId: last.actorId,
       detail: '你刚说过话，对方还没有回应',
     });
+  for (const choice of state.choices ?? []) {
+    if (choice.status !== 'pending' || !actorIds.has(choice.actorId)) continue;
+    threads.push({
+      kind: 'choice_followup',
+      actorId: choice.actorId,
+      detail: `用户亲口决定「${choice.quote}」。你已在当时回应；这次只承接你后来实际能做的一小步或具体障碍，不能声称用户已经做完或取得结果。`,
+    });
+  }
   for (const appointment of state.appointments) {
     if (!['proposed', 'confirmed', 'attended', 'missed'].includes(appointment.status ?? ''))
       continue;

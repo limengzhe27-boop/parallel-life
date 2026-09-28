@@ -39,6 +39,17 @@ function visibility(value: unknown): Visibility {
   }
   return fail();
 }
+/** A narrow gate: proposals may only cite a decision the player actually typed. */
+export function isExplicitChoice(quote: string, userText: string): boolean {
+  const at = userText.indexOf(quote);
+  if (at < 0 || quote.length < 4) return false;
+  const before = userText.slice(0, at).trimEnd();
+  if (before && !/[，。！？；;\n]$/.test(before)) return false;
+  if (/^(如果|假如|要是|假设)/.test(userText.trim()) && at > 0) return false;
+  if (/^(如果|假如|要是|可能|也许|比如|假设)/.test(quote)) return false;
+  if (/^我要(?:你|问|知道|看看)|^我会不会/.test(quote)) return false;
+  return /^(我(?:决定|选择|打算|要|会|想先)|那就|咱们(?:就|先)|就按|先把|先去|不如)/.test(quote);
+}
 export function isoInstant(value: unknown): string {
   const result = text(value, 40);
   if (
@@ -91,6 +102,13 @@ export function parseProposal(value: unknown): TurnProposal {
           ...(typeof item.title === 'string' && item.title.trim()
             ? { title: text(item.title.trim(), 80) }
             : {}),
+        };
+      case 'choice.recorded':
+        return {
+          type: item.type,
+          id: effectId,
+          quote: text(item.quote, 160).trim(),
+          intent: text(item.intent, 120).trim(),
         };
       default:
         return fail();

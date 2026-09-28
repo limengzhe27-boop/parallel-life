@@ -110,6 +110,25 @@ test('mere silence never becomes an unsolicited NPC message', () => {
   assert.equal(selectSpeaker(state(), [], [], ['b']), null);
 });
 
+test('a sourced player choice prompts one later beat and then leaves the agenda', () => {
+  const chosen = state();
+  chosen.choices = [
+    {
+      id: 'c1',
+      actorId: 'a',
+      quote: '我决定先剪片',
+      intent: '剪出短片',
+      sourceEventId: 'e1',
+      sourceVersion: 4,
+      status: 'pending',
+    },
+  ];
+  assert.equal(selectSpeaker(chosen, []), 'a');
+  assert.match(beatCue(chosen, 'a'), /我决定先剪片/);
+  chosen.choices[0]!.status = 'followed_up';
+  assert.equal(selectSpeaker(chosen, []), null);
+});
+
 test('the beat cue is a stage direction, never the user speaking', () => {
   const cue = beatCue(state(), 'b');
   assert.match(cue, /用户没有开口/);

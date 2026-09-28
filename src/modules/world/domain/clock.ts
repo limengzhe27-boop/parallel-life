@@ -99,6 +99,10 @@ export function selectSpeaker(
   /* A reply owed outranks an invitation or a sourced commitment. */
   const awaiting = agenda.find((thread) => thread.kind === 'awaiting_reply');
   if (awaiting && available(awaiting.actorId)) return awaiting.actorId;
+  const choice = agenda.find(
+    (thread) => thread.kind === 'choice_followup' && available(thread.actorId),
+  );
+  if (choice) return choice.actorId;
   const pending =
     agenda.find(
       (thread) =>

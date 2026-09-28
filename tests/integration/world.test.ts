@@ -127,6 +127,47 @@ test('real world commit: concurrency, original receipt, compact projections, res
       (await admin.query('SELECT 1 FROM parallel_life.commands WHERE world_id=$1', [id])).rowCount,
       2,
     );
+    const choiceCommand = { ...command(2), text: '我决定先把短片剪到十五分钟。' };
+    const choiceEvent = event(choiceCommand);
+    choiceEvent.data.effects = [
+      { type: 'message.received', id: randomUUID(), actorId: 'friend', text: '好，剪完发我。' },
+      {
+        type: 'choice.recorded',
+        id: randomUUID(),
+        quote: '我决定先把短片剪到十五分钟',
+        intent: '完成十五分钟版本',
+      },
+    ];
+    const chosen = await repo.commit(session, choiceCommand, choiceEvent);
+    assert.equal(chosen.state.choices?.[0]?.sourceEventId, choiceEvent.id);
+    assert.equal(chosen.state.choices?.[0]?.status, 'pending');
+    assert.deepEqual(
+      (await repo.receipt(session, choiceCommand))?.state.choices,
+      chosen.state.choices,
+    );
+    await db.close();
+    db = new PostgresDatabase(url);
+    repo = new PostgresWorldRepository(db);
+    assert.deepEqual((await repo.get(session, id)).choices, chosen.state.choices);
+    await assert.rejects(repo.get({ userId: randomUUID() }, id), { code: 'NOT_FOUND' });
+    const followCommand = {
+      ...command(3),
+      origin: 'director' as const,
+      text: '承接用户的剪片决定',
+    };
+    const followEvent = event(followCommand);
+    followEvent.data.origin = 'director';
+    followEvent.data.effects = [
+      {
+        type: 'message.received',
+        id: randomUUID(),
+        actorId: 'friend',
+        text: '我留了时间，发来就看。',
+      },
+    ];
+    const followed = await repo.commit(session, followCommand, followEvent);
+    assert.equal(followed.state.choices?.[0]?.status, 'followed_up');
+    assert.equal((await repo.get(session, id)).choices?.[0]?.followUpEventId, followEvent.id);
   } finally {
     await db.close();
     await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [userId]);

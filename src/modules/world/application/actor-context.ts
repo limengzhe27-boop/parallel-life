@@ -52,6 +52,7 @@ export function actorContext(
     facts: [],
     messages: [],
     appointments: [],
+    choices: [],
     retrievedMemories: [],
   };
   const fits = () =>
@@ -109,6 +110,8 @@ export function actorContext(
   );
   for (const { item } of rank(appointments, (item) => item.title))
     append(context.appointments, item, 1500);
+  for (const choice of (state.choices ?? []).filter((item) => item.actorId === actorId).slice(-3))
+    append(context.choices!, choice, 1200);
   const historical = rank(messages.slice(0, -RECENT_LIMIT), (item) => item.text)
     .filter((item) => item.score > 0)
     .slice(0, HISTORICAL_LIMIT);

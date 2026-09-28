@@ -58,6 +58,18 @@ export type Note = {
   sourceEventId: Id;
 };
 
+/** A decision the protagonist actually stated, not a result inferred from an NPC reply. */
+export type StoryChoice = {
+  id: Id;
+  actorId: Id;
+  quote: string;
+  intent: string;
+  sourceEventId: Id;
+  sourceVersion: number;
+  status: 'pending' | 'followed_up' | 'superseded';
+  followUpEventId?: Id;
+};
+
 export type WorldState = {
   schemaVersion: 1;
   id: Id;
@@ -72,6 +84,8 @@ export type WorldState = {
   mediaRequests: MediaRequest[];
   /** Absent means no persisted notes yet; opening notes come from the build snapshot. */
   notes?: Note[];
+  /** Bounded active/recent decisions; absent for worlds created before this feature. */
+  choices?: StoryChoice[];
 };
 
 export type WorldEffect =
@@ -80,7 +94,8 @@ export type WorldEffect =
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
-  | { type: 'media.requested'; id: Id; prompt: string; title?: string };
+  | { type: 'media.requested'; id: Id; prompt: string; title?: string }
+  | { type: 'choice.recorded'; id: Id; quote: string; intent: string };
 
 export type TurnProposal = { schemaVersion: 1; effects: WorldEffect[] };
 export type TurnCommand = {

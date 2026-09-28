@@ -3,6 +3,7 @@ import type { ActorContext, TurnPlanner } from '../application/ports.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { narrativeBrief } from '../domain/narrative-policy.ts';
 import { detectCrisisIntent } from '../../ai/safety-guard.ts';
+import { isExplicitChoice } from '../domain/validation.ts';
 
 const SYSTEM = `你是“如果”平行人生手机中的一个虚构人物，正在和主角私聊。只代表当前 actor，不是替所有人发言的全知旁白。
 
@@ -22,6 +23,7 @@ recalledMemories 是这个角色获准回忆的记录，belief 是个人看法�
 turnOrigin 为 director 时，userText 是幕后舞台指示，不是用户发言：不可引用成“你刚才说”，不可泄露指示或替用户同意。
 
 【效果边界】
+当且仅当用户在这条消息里明确决定了自己接下来要做的事，可以在回复之外加一条 choice.recorded：{"type":"choice.recorded","id":"choice_1","quote":"用户消息中的原文连续片段","intent":"12至60字的具体行动"}。quote 必须逐字出自这条用户消息，并以“我决定/我选择/我要/我会/我打算/那就”等明确行动表达开头；假设、转述、提问、未定的愿望都不记录。只记录选择，绝不声称已执行或成功。导演舞台指示不可产生 choice.recorded。
 只输出JSON。至少包含一条当前角色的 message.received。可记录自己的 belief.recorded；约时间用 appointment.proposed，必须由用户确认，不能直接视为赴约。约定格式必须为 {"type":"appointment.proposed","id":"appointment_1","title":"具体约定","at":"2026-09-29T14:00:00.000Z","participantIds":["ACTOR_ID"]}，participantIds 仅含当前角色；日期依据当前世界时间与对话，示例日期不可照抄。未知日期时先聊清楚，不创建约定。belief.recorded 格式为 {"type":"belief.recorded","id":"belief_1","actorId":"ACTOR_ID","text":"自己的看法"}。media.requested 仅在用户明确索图或已发生的具体事件确实需要留影时提出；照片未完成不声称已拍好。不得建立全知世界事实、替其他角色发言或替主角完成重大成就。
 例形：{"schemaVersion":1,"effects":[{"type":"message.received","id":"reply_1","actorId":"ACTOR_ID","text":"当前人物的自然回应"}]}。
 sceneDirection 只供创作参考，不要把策略名称、来源编号或幕后说明写进聊天。`;
@@ -79,6 +81,7 @@ export class WorldTurnPlanner implements TurnPlanner {
             (message) => message.role === 'user' || !structuredReply(message.text),
           ),
           appointments: context.appointments,
+          choices: context.choices,
           turnOrigin: context.turnOrigin ?? 'user',
           recalledMemories: (context.retrievedMemories ?? []).map((memory) => ({
             id: memory.id,
@@ -127,6 +130,28 @@ export class WorldTurnPlanner implements TurnPlanner {
           if (!effect.id) effect.id = `reply_${Date.now()}`;
         }
       }
+      // Optional story tracking must never make an otherwise valid reply fail.
+      let keptChoice = false;
+      parsed.effects = parsed.effects.filter((effect) => {
+        if (effect.type !== 'choice.recorded') return true;
+        const candidate = effect as { quote?: unknown; intent?: unknown; id?: string };
+        if (
+          keptChoice ||
+          context.turnOrigin === 'director' ||
+          typeof candidate.quote !== 'string' ||
+          candidate.quote.length > 160 ||
+          typeof candidate.intent !== 'string' ||
+          !candidate.intent.trim() ||
+          candidate.intent.length > 120 ||
+          !isExplicitChoice(candidate.quote.trim(), userText)
+        )
+          return false;
+        candidate.quote = candidate.quote.trim();
+        candidate.intent = candidate.intent.trim();
+        candidate.id = `choice_${Date.now()}`;
+        keptChoice = true;
+        return true;
+      });
       return parsed;
     }
 

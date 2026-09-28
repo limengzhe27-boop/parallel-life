@@ -1,6 +1,12 @@
 import { retainFacts } from './retention.ts';
 import { DomainError } from './errors.ts';
-import { parseProposal, isoInstant, validateCommand, validateEventId } from './validation.ts';
+import {
+  parseProposal,
+  isoInstant,
+  validateCommand,
+  validateEventId,
+  isExplicitChoice,
+} from './validation.ts';
 import { validateCharacterEffects } from './character-policy.ts';
 import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
 
@@ -39,11 +45,17 @@ export function applyEvent(
     throw new DomainError('INVALID_COMMAND', 'World time cannot run backwards');
   const state = structuredClone(current);
   const usedIds = new Set(
-    [...state.facts, ...state.messages, ...state.appointments, ...state.mediaRequests].map(
-      (item) => item.id,
-    ),
+    [
+      ...state.facts,
+      ...state.messages,
+      ...state.appointments,
+      ...state.mediaRequests,
+      ...(state.choices ?? []),
+    ].map((item) => item.id),
   );
   const jobs: OutboxJob[] = [];
+  if (effects.filter((effect) => effect.type === 'choice.recorded').length > 1)
+    throw new DomainError('INVALID_PROPOSAL', 'Only one choice per turn');
   if (event.data.origin !== 'director') {
     const userMessageId = `${event.id}_user`;
     if (usedIds.has(userMessageId)) throw new DomainError('INVALID_PROPOSAL');
@@ -75,6 +87,40 @@ export function applyEvent(
           sourceEventId,
           sourceVersion: event.version,
         });
+        for (const choice of state.choices ?? []) {
+          if (
+            event.data.origin === 'director' &&
+            choice.status === 'pending' &&
+            choice.actorId === effect.actorId &&
+            choice.sourceVersion < event.version
+          ) {
+            choice.status = 'followed_up';
+            choice.followUpEventId = event.id;
+          }
+        }
+        break;
+      case 'choice.recorded':
+        if (
+          event.data.origin === 'director' ||
+          !isExplicitChoice(effect.quote, event.data.userText)
+        )
+          throw new DomainError('INVALID_PROPOSAL', 'Choice must quote an explicit user decision');
+        for (const choice of state.choices ?? []) {
+          if (choice.status === 'pending' && choice.actorId === event.data.actorId)
+            choice.status = 'superseded';
+        }
+        state.choices = [
+          ...(state.choices ?? []),
+          {
+            id: effect.id,
+            actorId: event.data.actorId,
+            quote: effect.quote,
+            intent: effect.intent,
+            sourceEventId: event.id,
+            sourceVersion: event.version,
+            status: 'pending' as const,
+          },
+        ].slice(-5);
         break;
       case 'appointment.proposed':
       case 'appointment.created':

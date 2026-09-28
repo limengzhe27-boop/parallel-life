@@ -88,6 +88,121 @@ test('one turn atomically updates messages, appointments and media outbox', asyn
   assert.equal(worlds.inspectForTest().jobs.length, 1);
 });
 
+test('an explicit free-chat choice persists and receives one later character follow-up', async () => {
+  const worlds = new MemoryWorldRepository([seed()]);
+  const choiceCommand = { ...command, text: '我决定先把短片剪到十五分钟，今晚发给你。' };
+  const choice = await resolveTurn(
+    {
+      worlds,
+      planner: {
+        propose: async () => ({
+          schemaVersion: 1,
+          effects: [
+            {
+              type: 'message.received',
+              id: 'reply',
+              actorId: 'friend',
+              text: '行，发来我看看节奏。',
+            },
+            {
+              type: 'choice.recorded',
+              id: 'choice',
+              quote: '我决定先把短片剪到十五分钟',
+              intent: '剪出十五分钟版本并发给朋友',
+            },
+          ],
+        }),
+      },
+      now: () => time,
+      newId: () => 'event_choice',
+    },
+    session,
+    choiceCommand,
+  );
+  assert.equal(choice.state.choices?.[0]?.status, 'pending');
+  assert.equal(choice.state.choices?.[0]?.sourceEventId, choice.event.id);
+  assert.equal(actorContext(choice.state, 'other').choices?.length, 0);
+  assert.equal(
+    actorContext(choice.state, 'friend').choices?.[0]?.quote,
+    '我决定先把短片剪到十五分钟',
+  );
+  const followUp = await resolveTurn(
+    {
+      worlds,
+      planner: {
+        propose: async () => ({
+          schemaVersion: 1,
+          effects: [
+            {
+              type: 'message.received',
+              id: 'later',
+              actorId: 'friend',
+              text: '我留了半小时，剪完发我，先看开头。',
+            },
+          ],
+        }),
+      },
+      now: () => time,
+      newId: () => 'event_later',
+    },
+    session,
+    {
+      id: 'command_later',
+      worldId: choiceCommand.worldId,
+      expectedVersion: 1,
+      actorId: 'friend',
+      text: '导演舞台指示',
+      origin: 'director',
+    },
+  );
+  assert.equal(followUp.state.choices?.[0]?.status, 'followed_up');
+  assert.equal(followUp.state.choices?.[0]?.followUpEventId, followUp.event.id);
+  assert.equal(
+    (await worlds.get(session, choiceCommand.worldId)).choices?.[0]?.status,
+    'followed_up',
+  );
+  assert.deepEqual(
+    followUp.state.messages.map((message) => message.role),
+    ['user', 'assistant', 'assistant'],
+  );
+});
+
+test('a model cannot invent or record a choice from a hypothetical, quotation or director cue', async () => {
+  for (const text of [
+    '如果我决定去拍片会怎样？',
+    '我决定先把短片剪到十五分钟',
+    '他说「我决定去拍片」，你怎么看？',
+  ]) {
+    const { worlds, deps } = setup({
+      schemaVersion: 1,
+      effects: [
+        { type: 'message.received', id: 'reply', actorId: 'friend', text: '好。' },
+        {
+          type: 'choice.recorded',
+          id: 'choice',
+          quote: text.includes('去拍片') ? '我决定去拍片' : '我决定先开公司',
+          intent: '开始行动',
+        },
+      ],
+    });
+    await assert.rejects(resolveTurn(deps, session, { ...command, text }), {
+      code: 'INVALID_PROPOSAL',
+    });
+    assert.deepEqual(await worlds.get(session, 'world_1'), seed());
+  }
+  const { deps } = setup({
+    schemaVersion: 1,
+    effects: [
+      { type: 'message.received', id: 'reply', actorId: 'friend', text: '好。' },
+      { type: 'choice.recorded', id: 'choice', quote: '我决定去拍片', intent: '开始行动' },
+    ],
+  });
+  await assert.rejects(
+    resolveTurn(deps, session, { ...command, text: '我决定去拍片', origin: 'director' }),
+    { code: 'INVALID_PROPOSAL' },
+  );
+});
+
 test('a real-time turn retains separate send and reply instants, including after a reopen', async () => {
   const worlds = new MemoryWorldRepository([seed()]);
   const realTimes = ['2026-09-22T08:05:00.000Z', '2026-09-22T08:07:00.000Z'];
