@@ -29,9 +29,9 @@ export const WorldOpeningSchema = z.object({
     .min(3)
     .max(8),
   messages: z
-    .array(z.object({ actorKey: z.string().max(24), text: z.string().min(1).max(600) }))
+    .array(z.object({ actorKey: z.string().max(24), text: z.string().min(1).max(160) }))
     .min(1)
-    .max(8),
+    .max(4),
   notes: z
     .array(z.object({ title: z.string().min(1).max(80), text: z.string().min(1).max(1000) }))
     .min(1)

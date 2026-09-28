@@ -5,6 +5,14 @@ import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { WorldState } from '../domain/types.ts';
 import { WorldPlanner, WORLD_PROMPT_VERSION } from './world-planner.ts';
+
+/** Opening messages are ordered oldest to newest, before the phone is opened. */
+export function openingMessageAt(worldTime: string, index: number, total: number): string {
+  const offsets = [100, 35, 12, 5];
+  const offsetMinutes = offsets[Math.max(0, offsets.length - total + index)] ?? 5;
+  return new Date(Date.parse(worldTime) - offsetMinutes * 60_000).toISOString();
+}
+
 export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, model: string) {
   return async (lease: TaskLease, signal: AbortSignal) => {
     const input = BuildInputSchema.parse(lease.input),
@@ -21,13 +29,13 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       return ApprovedSeedSchema.parse(row.document);
     });
     const opening = await planner.propose(seed, signal).catch((error) => {
-      /* Surface which model/prompt produced unusable output so the failure is diagnosable. */
-      throw Object.assign(error instanceof Error ? error : Error('INVALID_WORLD_OUTPUT'), {
-        model,
-        promptVersion: WORLD_PROMPT_VERSION,
-        durationMs: Date.now() - started,
-      });
-    }),
+        /* Surface which model/prompt produced unusable output so the failure is diagnosable. */
+        throw Object.assign(error instanceof Error ? error : Error('INVALID_WORLD_OUTPUT'), {
+          model,
+          promptVersion: WORLD_PROMPT_VERSION,
+          durationMs: Date.now() - started,
+        });
+      }),
       time = new Date().toISOString(),
       sourceEventId = `genesis:${input.worldId}`;
     const ids = new Map(opening.actors.map((a) => [a.key, randomUUID()]));
@@ -45,20 +53,26 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
         persona: a.persona,
       })),
       facts: [
-        { id: randomUUID(), text: `【主角身份】${opening.identity}`, visibility: { kind: 'world' }, sourceEventId },
-        { id: randomUUID(), text: `【世界情境】${opening.setting}`, visibility: { kind: 'world' }, sourceEventId },
+        {
+          id: randomUUID(),
+          text: `【主角身份】${opening.identity}`,
+          visibility: { kind: 'world' },
+          sourceEventId,
+        },
+        {
+          id: randomUUID(),
+          text: `【世界情境】${opening.setting}`,
+          visibility: { kind: 'world' },
+          sourceEventId,
+        },
       ],
       messages: opening.messages.map((m, index) => {
-        // 错开开场消息时间戳，模拟用户进入前角色各自在不同时间发来的真实生活节奏
-        const minuteOffsets = [2, 18, 45, 110, 240, 480, 720, 1440];
-        const offsetMinutes = minuteOffsets[index] ?? 720 + index * 60;
-        const staggeredAt = new Date(Date.parse(time) - offsetMinutes * 60 * 1000).toISOString();
         return {
           id: randomUUID(),
           actorId: ids.get(m.actorKey)!,
           role: 'assistant',
           text: m.text,
-          at: staggeredAt,
+          at: openingMessageAt(time, index, opening.messages.length),
           sourceEventId,
         };
       }),

@@ -379,7 +379,7 @@ export function DiscoveryApp() {
               onToggle={(e) => setProposalOpen(e.currentTarget.open)}
             >
               <summary>
-                还可以这样生活
+                构想新的分支
                 <Icon name="chevron" size={16} />
               </summary>
               <details className="discovery-basis">

@@ -41,7 +41,9 @@ export function formatChatTime(iso: string, referenceTime?: string): string {
 
   const sameDay = iso.slice(0, 10) === referenceTime.slice(0, 10);
   if (sameDay) {
-    if (diffMins >= 0 && diffMins <= 2) return '刚刚';
+    // A saved world clock may stay at its opening instant across visits. An
+    // absolute time is honest; "just now" would repeat on every old message.
+    if (diffMins >= 0 && diffMins <= 2) return timePart;
     if (diffMins > 2 && diffMins < 60) return `${diffMins}分钟前`;
     return timePart;
   }

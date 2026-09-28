@@ -38,6 +38,7 @@ test('phone errors show actionable safe text without leaking upstream messages',
 });
 
 test('chat relative dates follow calendar days instead of a rolling 48-hour window', () => {
+  assert.equal(formatChatTime('2026-09-28T09:10:00Z', '2026-09-28T09:10:00Z'), '09:10');
   assert.equal(formatChatTime('2026-09-26T23:50:00Z', '2026-09-28T00:10:00Z'), '9月26日');
   assert.equal(formatChatTime('2026-09-27T00:00:00Z', '2026-09-28T23:59:00Z'), '昨天 00:00');
   assert.equal(formatChatTime('2026-09-28T09:00:00Z', '2026-09-28T09:10:00Z'), '10分钟前');

@@ -582,6 +582,14 @@
   font-size: 14px;
   font-weight: 500;
 }
+.phone .unlock:focus-visible {
+  outline: none;
+}
+.phone .unlock:focus-visible > span {
+  outline: 2px solid var(--phone-blue);
+  outline-offset: 6px;
+  border-radius: 5px;
+}
 .unlock > i,
 .homeGesture > span {
   height: 5px;

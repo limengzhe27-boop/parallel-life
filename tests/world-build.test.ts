@@ -6,6 +6,7 @@ import {
   WORLD_OPENING_MAX_TOKENS,
   WORLD_OUTPUT_ATTEMPTS,
 } from '../src/modules/world/infrastructure/world-planner.ts';
+import { openingMessageAt } from '../src/modules/world/infrastructure/build-handler.ts';
 import type { ApprovedSeed } from '../src/contracts/seeds.ts';
 const seed: ApprovedSeed = {
   id: randomUUID(),
@@ -58,6 +59,7 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
     { ...output, messages: [{ actorKey: 'outsider', text: 'hello' }] },
     { ...output, actors: [output.actors[0], output.actors[0], output.actors[2]] },
     { ...output, messages: [] },
+    { ...output, messages: [{ actorKey: 'a', text: '我听着心里有点堵。'.repeat(20) }] },
   ]) {
     let calls = 0;
     await assert.rejects(
@@ -72,6 +74,24 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
     // One corrective retry, never an unbounded loop.
     assert.equal(calls, WORLD_OUTPUT_ATTEMPTS);
   }
+});
+
+test('opening notifications preserve conversational order and predate the world clock', () => {
+  const now = '2026-09-28T12:00:00.000Z';
+  const times = Array.from({ length: 4 }, (_, index) => openingMessageAt(now, index, 4));
+  assert.deepEqual(times, [
+    '2026-09-28T10:20:00.000Z',
+    '2026-09-28T11:25:00.000Z',
+    '2026-09-28T11:48:00.000Z',
+    '2026-09-28T11:55:00.000Z',
+  ]);
+  assert.ok(
+    times.every(
+      (time, index) =>
+        Date.parse(time) < Date.parse(now) &&
+        (index === 0 || Date.parse(time) > Date.parse(times[index - 1]!)),
+    ),
+  );
 });
 
 test('selected identity is exact and the world opening must use the selected place', async () => {
