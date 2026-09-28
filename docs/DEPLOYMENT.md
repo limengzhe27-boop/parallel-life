@@ -1,5 +1,7 @@
 ## 2026-09-28 · EXP-03F 「我的」资料与 Agent 写入修复
 
+后续兼容补丁 `b19cb4c`：旧身份候选收为可展开的待核对资料，无法安全落入基本资料的记录不再提供会失败的确认动作；旧身份事实明示待核对。Vercel Production `1oxby4l9g` / `dpl_9pYqinxvCyRKmrX149ZckWSXwLZB` READY；207 项检查、30 项真实库测试与构建通过，本地 390/1440 双端旧候选复核通过。正式域名已指向该部署，health 200。
+
 应用提交 `c8b5a5b`，Vercel Production `krcg7ku3k` / `dpl_C9X5hovj4QktE3A4YVcXVvUHGPVh` READY，https://parallel-life-nu.vercel.app health 200。206 项检查、30 项真实库测试、生产构建通过；生产 28 项迁移一致，无新迁移。手机 390px、电脑 1440px 的合成冲突资料验收通过；公网独立合成账号完成两轮真实 AI 访谈、冲突候选与显式确认，确认前原生日不被覆盖。详见 [EXP-03F](task-reports/EXP-03F.md)。真实用户历史记录不会自动批量改写，需本人核对。
 
 ## 2026-09-28 · EXP-03E 分支空白提交与提示一致

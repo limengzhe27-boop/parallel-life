@@ -22,6 +22,8 @@
 
 ## 发布与限制
 
+旧候选兼容应用 `b19cb4c` 已推送，Vercel Production `1oxby4l9g` / `dpl_9pYqinxvCyRKmrX149ZckWSXwLZB` READY。新增 207 项检查、30 项真实库测试与构建通过，本地旧候选手机/电脑验收通过；正式域名已确认指向该部署且 health 200。
+
 应用提交 `c8b5a5b` 已推送 `main`；Vercel Production `krcg7ku3k` / `dpl_C9X5hovj4QktE3A4YVcXVvUHGPVh` READY。正式域名 https://parallel-life-nu.vercel.app health 200。公网独立合成账号通过两轮真实 AI 访谈：`2005-04-12` 落档，矛盾的 `2000-01-01` 仅入待核对候选；显式确认后当前基本资料变为唯一的 `2000-01-01`。未向真实用户档案写入测试内容。
 
 未批量改写真实用户历史资料；旧资料需要用户本人在「我的」核对。现有 Profile 仍是兼容用的标签文本块，不是数据库独立字段；以后若做结构化迁移，需要保留来源与冲突状态。本轮不覆盖全部叙事体验、主动剧情或手机应用重构。
