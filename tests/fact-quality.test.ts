@@ -4,12 +4,12 @@ import {
   basicInfoPairs,
   coveredByBasicInfo,
   dedupeBatch,
+  directlyGroundedInUserText,
   rejectReason,
 } from '../src/modules/profile/application/fact-quality.ts';
 
 const empty = { facts: [], events: [], basicInfoBlob: '' };
-const blob =
-  '个人资料\n姓名：小李\n生日：1993-04-05\n所在城市：杭州\n职业：产品设计\n家乡：河北';
+const blob = '个人资料\n姓名：小李\n生日：1993-04-05\n所在城市：杭州\n职业：产品设计\n家乡：河北';
 
 test('the basic-info card is parsed into labelled values', () => {
   assert.deepEqual(basicInfoPairs(blob), [
@@ -39,26 +39,26 @@ test('noise never reaches the profile', () => {
   );
   assert.equal(
     rejectReason({ category: 'identity', text: '今天有点累，正在加班' }, empty),
-    'TRANSIENT',
+    'BASIC_INFO_ONLY',
   );
   assert.equal(
     rejectReason({ category: 'identity', text: '如果去了上海就好了' }, empty),
-    'HYPOTHETICAL',
+    'BASIC_INFO_ONLY',
   );
 });
 
 test('a genuine wish may be phrased as a hypothesis, and experiences are never filtered as transient', () => {
   assert.equal(rejectReason({ category: 'wish', text: '如果能去上海工作就好了' }, empty), null);
-  assert.equal(
-    rejectReason({ category: 'experience', text: '今天把第一辆车修好了' }, empty),
-    null,
-  );
+  assert.equal(rejectReason({ category: 'experience', text: '今天把第一辆车修好了' }, empty), null);
 });
 
 test('the card and the user-rejected list are respected', () => {
   assert.equal(
-    rejectReason({ category: 'identity', text: '在杭州做产品设计' }, { ...empty, basicInfoBlob: blob }),
-    'BASIC_INFO_DUPLICATE',
+    rejectReason(
+      { category: 'identity', text: '在杭州做产品设计' },
+      { ...empty, basicInfoBlob: blob },
+    ),
+    'BASIC_INFO_ONLY',
   );
   assert.equal(
     rejectReason(
@@ -77,8 +77,28 @@ test('the card and the user-rejected list are respected', () => {
 });
 
 test('a normal durable fact is accepted', () => {
-  assert.equal(rejectReason({ category: 'relationship', text: '大学同学林越，常一起骑车' }, empty), null);
-  assert.equal(rejectReason({ category: 'experience', text: '三年前放弃去大理开书店' }, empty), null);
+  assert.equal(
+    rejectReason({ category: 'relationship', text: '大学同学林越，常一起骑车' }, empty),
+    null,
+  );
+  assert.equal(
+    rejectReason({ category: 'experience', text: '三年前放弃去大理开书店' }, empty),
+    null,
+  );
+});
+
+test('auto-writing needs the users direct assertion, not a model paraphrase or someone elses story', () => {
+  const interest = { category: 'interest' as const, text: '喜欢拍照' };
+  assert.equal(directlyGroundedInUserText(interest, ['我喜欢拍照，想记录旅途']), true);
+  assert.equal(directlyGroundedInUserText(interest, ['我朋友喜欢拍照']), false);
+  assert.equal(directlyGroundedInUserText(interest, ['如果我喜欢拍照就好了']), false);
+  assert.equal(directlyGroundedInUserText(interest, ['我可能喜欢拍照']), false);
+  assert.equal(
+    directlyGroundedInUserText({ category: 'identity', text: '生日：2005-04-12' }, [
+      '我出生于2005年4月12日',
+    ]),
+    false,
+  );
 });
 
 test('near-duplicates inside one turn collapse and keep every source', () => {
@@ -86,7 +106,12 @@ test('near-duplicates inside one turn collapse and keep every source', () => {
   const kept = dedupeBatch(
     [
       { category: 'interest' as const, text: '喜欢骑行', eventDate: null, sourceMessageIds: ['a'] },
-      { category: 'interest' as const, text: '喜欢 骑行', eventDate: null, sourceMessageIds: ['b'] },
+      {
+        category: 'interest' as const,
+        text: '喜欢 骑行',
+        eventDate: null,
+        sourceMessageIds: ['b'],
+      },
       { category: 'wish' as const, text: '想开书店', eventDate: null, sourceMessageIds: ['c'] },
     ],
     same,

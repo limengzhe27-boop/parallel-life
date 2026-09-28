@@ -20,7 +20,12 @@ import {
   applyBasicInfoInTransaction,
   isSimilarText,
 } from './profile-repository.ts';
-import { dedupeBatch, rejectReason } from '../application/fact-quality.ts';
+import {
+  dedupeBatch,
+  directlyGroundedInUserText,
+  rejectReason,
+} from '../application/fact-quality.ts';
+import { createCandidateInTransaction } from '../../memory/infrastructure/candidate-repository.ts';
 import {
   createQuestionInTransaction,
   openQuestionInTransaction,
@@ -341,9 +346,22 @@ export class InterviewRepository {
         );
 
         if (Object.values(effectiveBasicInfo).some(Boolean)) {
-          await applyBasicInfoInTransaction(sql, ownerId, effectiveBasicInfo, [
+          const applied = await applyBasicInfoInTransaction(sql, ownerId, effectiveBasicInfo, [
             lastUserMessage?.id ?? '',
           ]);
+          if (applied.disputedBirthdate)
+            await createCandidateInTransaction(sql, ownerId, {
+              id: randomUUID(),
+              ownerId,
+              sourceType: 'interview',
+              sourceScopeId: prepared.interview.id,
+              category: 'identity',
+              text: `生日：${applied.disputedBirthdate}`,
+              eventDate: null,
+              sourceMessageIds: [lastUserMessage!.id],
+              status: 'suggested',
+              createdAt: new Date().toISOString(),
+            });
         }
         /* Same policy as the worker handler: refine, drop noise and near-duplicates,
            then write straight into the real profile. No approval step. */
@@ -366,7 +384,7 @@ export class InterviewRepository {
           }
           const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
           const sources = await sql.query(
-            `SELECT id FROM parallel_life.interview_messages
+            `SELECT id,text FROM parallel_life.interview_messages
              WHERE owner_id=$1 AND interview_id=$2 AND role='user' AND id=ANY($3::uuid[])`,
             [ownerId, prepared.interview.id, sourceMessageIds],
           );
@@ -379,6 +397,26 @@ export class InterviewRepository {
             })
           )
             continue;
+          if (
+            !directlyGroundedInUserText(
+              candidate,
+              sources.rows.map((row) => String(row.text)),
+            )
+          ) {
+            await createCandidateInTransaction(sql, ownerId, {
+              id: randomUUID(),
+              ownerId,
+              sourceType: 'interview',
+              sourceScopeId: prepared.interview.id,
+              category: candidate.category,
+              text: candidate.text,
+              eventDate: candidate.eventDate ?? null,
+              sourceMessageIds,
+              status: 'suggested',
+              createdAt: new Date().toISOString(),
+            });
+            continue;
+          }
           await applyConfirmedCandidateInTransaction(sql, ownerId, {
             category: candidate.category,
             text: candidate.text,

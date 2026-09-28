@@ -14,6 +14,9 @@ const TRANSIENT = /(正在|刚刚|刚才|今天|昨天|明天|这会儿|此刻)/
 const META = /(你想|你可以|建议你|需要我|要不要我|我可以帮你)/;
 const HYPOTHETICAL = /(如果|假如|要是|假如说|万一)/;
 const QUESTION = /[?？]\s*$/;
+const THIRD_PERSON = /(朋友|同学|同事|他|她|他们|她们|别人|有人说|听说)/u;
+const NOT_ASSERTED = /[“”「」『』"‘’]|如果|假如|要是|可能|好像|大概|不是|不想|不喜欢|没有/u;
+const plain = (value: string) => value.replace(/[\s，。！？、；：“”‘’.,!?;:'"\-]/gu, '');
 
 /** The six fields of the 我的 basic-info card, stored as one labelled blob. */
 export function basicInfoPairs(blob: string): { label: string; value: string }[] {
@@ -36,7 +39,10 @@ export function basicInfoPairs(blob: string): { label: string; value: string }[]
  * hometown …). Detail beyond the card still gets recorded, so "在杭州做产品设计"
  * is dropped while "在杭州做产品设计，负责 B 端结算" is kept.
  */
-export function coveredByBasicInfo(text: string, pairs: { label: string; value: string }[]): boolean {
+export function coveredByBasicInfo(
+  text: string,
+  pairs: { label: string; value: string }[],
+): boolean {
   if (!pairs.length) return false;
   let remaining = text;
   let matched = false;
@@ -68,28 +74,57 @@ export type ExistingProfile = {
  * may be recorded. Reasons are stable strings so they can be asserted and
  * counted without logging user text.
  */
-export function rejectReason(
-  input: RecordableInput,
-  existing: ExistingProfile,
-): string | null {
+export function rejectReason(input: RecordableInput, existing: ExistingProfile): string | null {
   const text = input.text.trim();
+  if (input.category === 'identity') return 'BASIC_INFO_ONLY';
   if (detectCrisisIntent(text).isCrisis) return 'CRISIS_GUARDED';
   if (text.length < 4) return 'TOO_SHORT';
   if (QUESTION.test(text)) return 'QUESTION';
   if (META.test(text)) return 'ASSISTANT_WORDING';
-  if (input.category === 'experience') return null;
-  if (TRANSIENT.test(text)) return 'TRANSIENT';
   if (HYPOTHETICAL.test(text) && input.category !== 'wish') return 'HYPOTHETICAL';
+  if (input.category !== 'experience' && TRANSIENT.test(text)) return 'TRANSIENT';
   if (coveredByBasicInfo(text, basicInfoPairs(existing.basicInfoBlob ?? '')))
     return 'BASIC_INFO_DUPLICATE';
   /* A fact the user rejected must not come back as a new row. */
-  if (
-    existing.facts.some(
-      (fact) => fact.status === 'rejected' && fact.value.trim() === text,
-    )
-  )
+  if (existing.facts.some((fact) => fact.status === 'rejected' && fact.value.trim() === text))
     return 'USER_REJECTED';
   return null;
+}
+
+/** A model-proposed paraphrase may be useful, but only a direct self-statement
+ * is auto-recorded. Everything else needs an explicit user confirmation. */
+export function directlyGroundedInUserText(input: RecordableInput, sources: readonly string[]) {
+  const claim = plain(input.text);
+  if (!claim || input.category === 'identity') return false;
+  for (const source of sources) {
+    for (const clause of source.split(/[，,。；;！!\n]/u)) {
+      const said = clause.trim();
+      if (!said || THIRD_PERSON.test(said) || NOT_ASSERTED.test(said)) continue;
+      if (!plain(said).includes(claim)) continue;
+      if (
+        input.category === 'interest' &&
+        !/(?:我.*?(?:喜欢|热爱|爱好|感兴趣)|^(?:喜欢|热爱))/u.test(said)
+      )
+        continue;
+      if (
+        input.category === 'wish' &&
+        !/(?:我.*?(?:想|希望|愿意|梦想|打算)|^(?:想|希望|愿意|打算))/u.test(said)
+      )
+        continue;
+      if (
+        input.category === 'personality' &&
+        !/(?:我.*?(?:性格|觉得自己|是个|是一个|比较)|^我就是)/u.test(said)
+      )
+        continue;
+      if (
+        (input.category === 'experience' || input.category === 'relationship') &&
+        !/(?:我|自己|本人)/u.test(said)
+      )
+        continue;
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

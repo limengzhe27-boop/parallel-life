@@ -1,8 +1,12 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LifeDate, type Profile, type ProfileEdit } from '../../contracts/api.ts';
 import { Button, Notice } from '../../components/ui.tsx';
-import { readBasicInfo, writeBasicInfo } from '../../modules/profile/domain/profile-view.ts';
+import {
+  collectBasicInfo,
+  readBasicInfo,
+  writeBasicInfo,
+} from '../../modules/profile/domain/profile-view.ts';
 const fields = [
   ['姓名', 'text', '希望我怎么称呼你'],
   ['生日', 'text', '年份、年月或完整日期，如 1998 / 1998-05 / 1998-05-12'],
@@ -20,22 +24,38 @@ export function BasicInfo({
   onSave: (operation: ProfileEdit['operation']) => Promise<void>;
   compact?: boolean;
 }) {
-  const existing = profile.facts.find(
-    (f) => f.category === 'identity' && f.status !== 'rejected' && f.value.startsWith('个人资料\n'),
-  );
+  const review = collectBasicInfo(profile);
+  const existing = review.canonical;
   const parsed = readBasicInfo(existing?.value ?? '个人资料\n');
-  const initial = Object.fromEntries(fields.map(([label]) => [label, parsed.values[label] ?? '']));
+  const initial = Object.fromEntries(
+    fields.map(([label]) => [
+      label,
+      label === '生日' && review.birthdayConflict ? '' : (parsed.values[label] ?? ''),
+    ]),
+  );
   const [values, setValues] = useState(initial);
+  const [birthdayReviewed, setBirthdayReviewed] = useState(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [saved, setSaved] = useState(false);
   const id = useRef(existing?.id ?? null);
-  const mergedValue = writeBasicInfo(existing?.value, values);
+  useEffect(() => {
+    id.current = existing?.id ?? null;
+  }, [existing?.id]);
+  const mergedValue = writeBasicInfo(
+    existing?.value,
+    values,
+    birthdayReviewed && review.birthdayConflict,
+  );
   const mergedLength = mergedValue.length;
   const isOverLength = mergedLength > 500;
 
   async function save() {
     if (busy) return;
+    if (review.birthdayConflict && (!birthdayReviewed || !values['生日']?.trim())) {
+      setError('生日有不同记录，请先选出正确的一项，或输入正确日期。');
+      return;
+    }
     const today = new Date().toLocaleDateString('en-CA');
     if (values['生日'] && (!LifeDate.safeParse(values['生日']).success || values['生日'] > today)) {
       setError('请检查生日，不能晚于今天。');
@@ -52,10 +72,9 @@ export function BasicInfo({
     setBusy(true);
     setError('');
     try {
-      id.current ??= crypto.randomUUID();
       await onSave({
         kind: 'set-fact',
-        id: id.current,
+        ...(id.current ? { id: id.current } : {}),
         category: 'identity',
         value: mergedValue,
       });
@@ -75,7 +94,7 @@ export function BasicInfo({
       }}
     >
       <div>
-        <h3>{compact ? '先认识一下你' : '基本资料'}</h3>
+        {compact && <h3>先认识一下你</h3>}
         <p>
           {compact ? '告诉我怎么称呼你，或者直接聊聊最近的事。' : '都可以选填，也可以随时修改。'}
         </p>
@@ -97,6 +116,7 @@ export function BasicInfo({
               disabled={busy}
               onChange={(e) => {
                 setValues({ ...values, [label]: e.target.value });
+                if (label === '生日') setBirthdayReviewed(true);
                 setSaved(false);
                 setError('');
               }}
@@ -104,6 +124,29 @@ export function BasicInfo({
           </label>
         ))}
       </div>
+      {review.birthdayConflict && (
+        <div className="basic-info-review" role="group" aria-label="核对生日">
+          <p>生日有不同记录，请选正确的一项；无法确认也可以先不保存。</p>
+          <div>
+            {review.birthdateClaims.map((date) => (
+              <button
+                key={date}
+                type="button"
+                className={`button secondary${birthdayReviewed && values['生日'] === date ? ' selected' : ''}`}
+                aria-pressed={birthdayReviewed && values['生日'] === date}
+                onClick={() => {
+                  setValues({ ...values, 生日: date });
+                  setBirthdayReviewed(true);
+                  setSaved(false);
+                  setError('');
+                }}
+              >
+                {date}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {parsed.remaining.some((line) => line.trim()) && (
         <p>此记录还有未归类或重复的原始字段，保存时会保留；可在“待整理资料”中编辑原记录。</p>
       )}

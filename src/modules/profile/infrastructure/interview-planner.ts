@@ -1,4 +1,5 @@
 import { explicitBirthdate } from '../domain/explicit-birthdate.ts';
+import { usableProfileFact } from '../domain/profile-view.ts';
 import { z } from 'zod';
 import type { TextModel, ModelMessage } from '../../ai/application/ports.ts';
 import {
@@ -159,7 +160,8 @@ export class InterviewPlanner {
     }
     if (!selected.length || selected.at(-1)?.role !== 'user') throw new InvalidInterviewOutput();
     const facts = profile.facts
-      .filter((fact) => fact.status === 'confirmed')
+      .map((fact) => usableProfileFact(profile, fact))
+      .filter((fact): fact is NonNullable<typeof fact> => fact !== null)
       .map(({ category, value }) => ({ category, value, status: 'confirmed' as const }));
     const memory = JSON.stringify({
       facts,

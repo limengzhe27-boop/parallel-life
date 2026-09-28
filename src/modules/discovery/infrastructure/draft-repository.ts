@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ProfileSchema, type Profile } from '../../../contracts/api.ts';
+import { usableProfileFact } from '../../profile/domain/profile-view.ts';
 import { ApprovedSeedSchema } from '../../../contracts/seeds.ts';
 import {
   LifeDraftSchema,
@@ -42,9 +43,10 @@ async function selectionFor(
   selection: LifeDraft['selection'],
 ) {
   const facts = selection.factIds.map((id) => {
-    const fact = profile.facts.find((f) => f.id === id && f.status === 'confirmed');
-    if (!fact) throw new TaskError('INVALID_INPUT');
-    return { factId: fact.id, category: fact.category, value: fact.value };
+    const fact = profile.facts.find((f) => f.id === id);
+    const usable = fact ? usableProfileFact(profile, fact) : null;
+    if (!fact || !usable) throw new TaskError('INVALID_INPUT');
+    return { factId: fact.id, ...usable };
   });
   const events = selection.eventIds.map((id) => {
     const event = profile.events.find((e) => e.id === id);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ProfileSchema } from '../../../contracts/api.ts';
+import { usableProfileFact } from '../../profile/domain/profile-view.ts';
 import {
   ApprovedSeedSchema,
   SeedRequestSchema,
@@ -73,9 +74,10 @@ export class SeedRepository {
       const direction = discovery.directions.find((d) => d.id === request.directionId);
       if (!direction) throw new TaskError('NOT_FOUND');
       const facts = request.factIds.map((id) => {
-        const f = profile.facts.find((f) => f.id === id && f.status === 'confirmed');
-        if (!f) throw new TaskError('INVALID_INPUT');
-        return { factId: f.id, category: f.category, value: f.value };
+        const f = profile.facts.find((fact) => fact.id === id);
+        const usable = f ? usableProfileFact(profile, f) : null;
+        if (!f || !usable) throw new TaskError('INVALID_INPUT');
+        return { factId: f.id, ...usable };
       });
       const people = request.personIds.map((id) => {
         const person = profile.people.find((p) => p.id === id);

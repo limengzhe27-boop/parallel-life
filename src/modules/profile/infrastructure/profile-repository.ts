@@ -1,6 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { ProfileSchema, ProfileEditSchema, type ProfileEdit } from '../../../contracts/api.ts';
+import {
+  LifeDate,
+  ProfileSchema,
+  ProfileEditSchema,
+  type ProfileEdit,
+} from '../../../contracts/api.ts';
 import type { MemoryCandidate } from '../../../contracts/memory.ts';
+import {
+  collectBasicInfo,
+  legacyBirthday,
+  readBasicInfo,
+  writeBasicInfo,
+} from '../domain/profile-view.ts';
+import { extractBasicInfoFromText } from './interview-planner.ts';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
 
@@ -30,12 +42,44 @@ export function isSimilarText(a: string, b: string): boolean {
   return minLen >= 4 && intersection / minLen >= 0.5;
 }
 
+type BasicInfoInput = {
+  name?: string;
+  birthdate?: string;
+  birthTime?: string;
+  location?: string;
+  occupation?: string;
+  hometown?: string;
+};
+
 export async function applyConfirmedCandidateInTransaction(
   sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
   ownerId: string,
   candidate: Pick<MemoryCandidate, 'category' | 'text' | 'eventDate' | 'sourceMessageIds'>,
   now = new Date().toISOString(),
 ) {
+  if (candidate.category === 'identity') {
+    const sourceIds = [...new Set(candidate.sourceMessageIds)];
+    const sources = await sql.query(
+      "SELECT id,text FROM parallel_life.interview_messages WHERE owner_id=$1 AND role='user' AND id=ANY($2::uuid[])",
+      [ownerId, sourceIds],
+    );
+    if (!sourceIds.length || sources.rowCount !== sourceIds.length)
+      throw new TaskError('INVALID_INPUT');
+    const basicInfo: BasicInfoInput = Object.assign(
+      {},
+      ...sources.rows.map((row) => extractBasicInfoFromText(String(row.text))),
+    );
+    if (!Object.values(basicInfo).some(Boolean)) throw new TaskError('INVALID_INPUT');
+    const claimedBirthday = legacyBirthday(candidate.text);
+    if (claimedBirthday && basicInfo.birthdate !== claimedBirthday)
+      throw new TaskError('INVALID_INPUT');
+    if (claimedBirthday)
+      for (const key of Object.keys(basicInfo) as (keyof BasicInfoInput)[]) {
+        if (key !== 'birthdate') delete basicInfo[key];
+      }
+    return (await applyBasicInfoInTransaction(sql, ownerId, basicInfo, sourceIds, now, true))
+      .profile;
+  }
   const row = (
     await sql.query(
       'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',
@@ -106,16 +150,10 @@ export async function applyConfirmedCandidateInTransaction(
 export async function applyBasicInfoInTransaction(
   sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
   ownerId: string,
-  basicInfo: {
-    name?: string;
-    birthdate?: string;
-    birthTime?: string;
-    location?: string;
-    occupation?: string;
-    hometown?: string;
-  },
+  basicInfo: BasicInfoInput,
   sourceMessageIds: string[] = [],
   now = new Date().toISOString(),
+  forceBirthdate = false,
 ) {
   const row = (
     await sql.query(
@@ -126,108 +164,103 @@ export async function applyBasicInfoInTransaction(
   if (!row) throw new TaskError('NOT_FOUND');
   const profile = ProfileSchema.parse({ ...row.document, version: Number(row.version) });
 
-  const existingFact = profile.facts.find(
-    (f) => f.category === 'identity' && f.status !== 'rejected' && f.value.startsWith('个人资料\n'),
-  );
+  const existingFact = collectBasicInfo(profile).canonical;
 
-  // 解析现有值
-  const currentValues: Record<string, string> = {};
-  if (existingFact) {
-    const lines = existingFact.value.split('\n');
-    for (const line of lines) {
-      const colonIdx = line.indexOf('：');
-      if (colonIdx > 0) {
-        const key = line.slice(0, colonIdx).trim();
-        const val = line.slice(colonIdx + 1).trim();
-        if (key && val) currentValues[key] = val;
-      }
-    }
-  }
-
-  // 生日格式标准化（支持 4 位年份转换为规范日期，并保留或默认月日）
-  let normalizedBirthdate = basicInfo.birthdate?.trim();
-  if (normalizedBirthdate) {
-    if (/^\d{4}$/.test(normalizedBirthdate)) {
-      if (currentValues['生日'] && /^\d{4}-\d{2}-\d{2}$/.test(currentValues['生日'])) {
-        normalizedBirthdate = `${normalizedBirthdate}-${currentValues['生日'].slice(5)}`;
-      } else {
-        normalizedBirthdate = `${normalizedBirthdate}-01-01`;
-      }
-    } else if (/^\d{4}-\d{2}$/.test(normalizedBirthdate)) {
-      normalizedBirthdate = `${normalizedBirthdate}-01`;
-    }
-  }
-
-  const fieldLabels: [string, string | undefined][] = [
+  const currentValues = readBasicInfo(existingFact?.value ?? '个人资料\n').values;
+  const birthdate = basicInfo.birthdate?.trim();
+  if (birthdate && !LifeDate.safeParse(birthdate).success) throw new TaskError('INVALID_INPUT');
+  const priorBirthdays = collectBasicInfo(profile).birthdateClaims;
+  const fieldLabels: [keyof typeof currentValues | '生日', string | undefined][] = [
     ['姓名', basicInfo.name],
-    ['生日', normalizedBirthdate],
+    ['生日', birthdate],
     ['出生时间', basicInfo.birthTime],
     ['所在城市', basicInfo.location],
     ['职业', basicInfo.occupation],
     ['家乡', basicInfo.hometown],
   ];
-
-  // 用新值覆盖或追加
   let hasChange = false;
+  let disputedBirthdate: string | null = null;
   for (const [label, newVal] of fieldLabels) {
-    if (newVal && newVal.trim() && currentValues[label] !== newVal.trim()) {
-      currentValues[label] = newVal.trim();
-      hasChange = true;
+    const value = newVal?.trim();
+    if (!value || currentValues[label] === value) continue;
+    if (
+      label === '生日' &&
+      !forceBirthdate &&
+      priorBirthdays.some(
+        (prior) =>
+          prior !== value && !prior.startsWith(`${value}-`) && !value.startsWith(`${prior}-`),
+      )
+    ) {
+      disputedBirthdate = value;
+      continue;
     }
-  }
-
-  // 清除 profile.facts 中残留的自由文本 identity，以及被更新字段的旧冲突文本，杜绝下方文本乱堆
-  const previousFactCount = profile.facts.length;
-  profile.facts = profile.facts.filter((f) => {
-    if (f.value.startsWith('个人资料\n')) return true;
-    // 纯 identity 事实一律并入基本资料，不在外部留存任何零散条目
-    if (f.category === 'identity') return false;
-    // 如果事实中包含被更新的生日/出生/姓名等冲突文本，也一并清理
-    if (currentValues['生日'] && (f.value.includes('出生') || f.value.includes('生日') || f.value.includes('年出生'))) {
-      return false;
+    if (label === '生日' && currentValues['生日'] && !forceBirthdate) {
+      const old = currentValues['生日'];
+      if (value.startsWith(`${old}-`)) {
+        // A later precise self-report may enrich a known year/month.
+      } else if (old.startsWith(`${value}-`)) {
+        // A repeated year cannot erase an already known month and day.
+        continue;
+      } else {
+        disputedBirthdate = value;
+        continue;
+      }
     }
-    if (currentValues['姓名'] && (f.value.includes('我叫') || f.value.includes('名字叫'))) {
-      return false;
-    }
-    return true;
-  });
-  if (profile.facts.length !== previousFactCount) {
+    currentValues[label] = value;
     hasChange = true;
   }
-
-  if (!hasChange) return profile;
-
-  const standardLabels = ['姓名', '生日', '出生时间', '所在城市', '职业', '家乡'];
-  const newLines = ['个人资料'];
-  for (const label of standardLabels) {
-    if (currentValues[label]) {
-      newLines.push(`${label}：${currentValues[label]}`);
-    }
-  }
-  // 保留其他可能的自定义标签
-  for (const [k, v] of Object.entries(currentValues)) {
-    if (!standardLabels.includes(k) && v) {
-      newLines.push(`${k}：${v}`);
-    }
-  }
-  const newValue = newLines.join('\n');
+  const acceptedEvidence = fieldLabels.some(
+    ([label, value]) => value?.trim() && currentValues[label] === value.trim(),
+  );
+  const nextSources = existingFact
+    ? [
+        ...new Set([
+          ...existingFact.sourceMessageIds,
+          ...(acceptedEvidence ? sourceMessageIds : []),
+        ]),
+      ].slice(0, 20)
+    : sourceMessageIds.slice(0, 20);
+  if (existingFact && nextSources.length !== existingFact.sourceMessageIds.length) hasChange = true;
+  if (
+    forceBirthdate &&
+    birthdate &&
+    profile.facts.some(
+      (fact) =>
+        fact.id !== existingFact?.id && fact.category === 'identity' && legacyBirthday(fact.value),
+    )
+  )
+    hasChange = true;
+  if (!hasChange) return { profile, disputedBirthdate };
+  const newValue = writeBasicInfo(existingFact?.value, currentValues);
 
   if (existingFact) {
     existingFact.value = newValue;
     existingFact.status = 'confirmed';
     existingFact.updatedAt = now;
-    existingFact.sourceMessageIds = [
-      ...new Set([...existingFact.sourceMessageIds, ...sourceMessageIds]),
-    ].slice(0, 20);
+    existingFact.sourceMessageIds = nextSources;
   } else {
+    if (profile.facts.length >= 200) throw new TaskError('INVALID_INPUT');
     profile.facts.push({
       id: randomUUID(),
       category: 'identity',
       value: newValue,
       status: 'confirmed',
-      sourceMessageIds: sourceMessageIds.slice(0, 20),
+      sourceMessageIds: nextSources,
       updatedAt: now,
     });
+  }
+
+  if (forceBirthdate && birthdate) {
+    for (const fact of profile.facts) {
+      if (
+        fact.id !== existingFact?.id &&
+        fact.category === 'identity' &&
+        legacyBirthday(fact.value)
+      ) {
+        fact.status = 'rejected';
+        fact.updatedAt = now;
+      }
+    }
   }
 
   profile.version = Number(row.version) + 1;
@@ -237,7 +270,7 @@ export async function applyBasicInfoInTransaction(
     'UPDATE parallel_life.profiles SET version=$2,document=$3,updated_at=now() WHERE owner_id=$1',
     [ownerId, profile.version, validated],
   );
-  return validated;
+  return { profile: validated, disputedBirthdate };
 }
 
 export class ProfileRepository {
@@ -272,6 +305,14 @@ export class ProfileRepository {
         now = new Date().toISOString();
       switch (op.kind) {
         case 'set-fact': {
+          if (op.category === 'identity') {
+            if (!op.value.startsWith('个人资料\n')) throw new TaskError('INVALID_INPUT');
+            const birthday = readBasicInfo(op.value).values['生日'];
+            if (birthday && !LifeDate.safeParse(birthday).success)
+              throw new TaskError('INVALID_INPUT');
+            const canonical = collectBasicInfo(profile).canonical;
+            if (canonical && op.id !== canonical.id) throw new TaskError('INVALID_INPUT');
+          }
           const existing = op.id ? profile.facts.find((f) => f.id === op.id) : null;
           if (op.id && !existing) throw new TaskError('NOT_FOUND');
           if (!existing && profile.facts.length >= 200) throw new TaskError('INVALID_INPUT');
@@ -292,6 +333,20 @@ export class ProfileRepository {
               sourceMessageIds: [],
               updatedAt: now,
             });
+          if (op.category === 'identity') {
+            const birthday = readBasicInfo(op.value).values['生日'];
+            if (birthday)
+              for (const fact of profile.facts) {
+                if (
+                  fact.id !== existing?.id &&
+                  fact.category === 'identity' &&
+                  legacyBirthday(fact.value)
+                ) {
+                  fact.status = 'rejected';
+                  fact.updatedAt = now;
+                }
+              }
+          }
           break;
         }
         case 'confirm-fact':

@@ -186,3 +186,69 @@ test('both streaming and queued interviews preserve birthdays across unrelated y
     await admin.end();
   }
 });
+
+test('streaming and queued interview paths suggest conflicting birthdays without changing the current one', async () => {
+  const admin = await adminClient('parallel_life_test');
+  const c = await localConfig();
+  const db = new PostgresDatabase(
+    `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const queue = new PostgresTaskQueue(
+    `postgresql://pl_worker:${c.workerPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const owner = randomUUID();
+  const planner = new InterviewPlanner({
+    async complete() {
+      return JSON.stringify({ reply: '我记下了，你可以核对资料。', facts: [], events: [] });
+    },
+  });
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    const repo = new InterviewRepository(db);
+    const candidates = new MemoryCandidateRepository(db);
+    let state = await repo.sendStreaming(
+      owner,
+      { commandId: randomUUID(), expectedVersion: 0, text: '我是2005年的' },
+      planner,
+      () => {},
+    );
+    assert.match((await repo.get(owner)).profile.facts[0]!.value, /生日：2005(?:\n|$)/u);
+    state = await repo.sendStreaming(
+      owner,
+      {
+        commandId: randomUUID(),
+        expectedVersion: state.interview.version,
+        text: '我出生于2000年1月1日',
+      },
+      planner,
+      () => {},
+    );
+    assert.match((await repo.get(owner)).profile.facts[0]!.value, /生日：2005(?:\n|$)/u);
+    assert.equal(
+      (await candidates.list(owner, 'suggested')).some(
+        (candidate) => candidate.text === '生日：2000-01-01',
+      ),
+      true,
+    );
+    await repo.send(owner, {
+      commandId: randomUUID(),
+      expectedVersion: state.interview.version,
+      text: '我出生于2003年3月3日',
+    });
+    await runOne(queue, { interview: interviewHandler(queue, planner, 'test-model') });
+    assert.match((await repo.get(owner)).profile.facts[0]!.value, /生日：2005(?:\n|$)/u);
+    const pending = await candidates.list(owner, 'suggested');
+    assert.equal(
+      pending.some((candidate) => candidate.text === '生日：2003-03-03'),
+      true,
+    );
+    const accepted = pending.find((candidate) => candidate.text === '生日：2000-01-01')!;
+    await candidates.confirm(owner, accepted.id, randomUUID());
+    assert.match((await repo.get(owner)).profile.facts[0]!.value, /生日：2000-01-01/u);
+  } finally {
+    await db.close();
+    await queue.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);
+    await admin.end();
+  }
+});

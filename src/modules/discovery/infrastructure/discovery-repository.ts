@@ -1,4 +1,5 @@
 import { ProfileSchema } from '../../../contracts/api.ts';
+import { usableProfileFact } from '../../profile/domain/profile-view.ts';
 import {
   DiscoverySchema,
   DiscoverRequestSchema,
@@ -81,9 +82,14 @@ export class DiscoveryRepository {
       )
         throw new TaskError('VERSION_CONFLICT');
       const basis = profile.facts
-        .filter((f) => f.status === 'confirmed')
+        .map((fact) => ({ fact, usable: usableProfileFact(profile, fact) }))
+        .filter((entry) => entry.usable !== null)
         .slice(-24)
-        .map((f) => ({ factId: f.id, category: f.category, value: f.value }));
+        .map(({ fact, usable }) => ({
+          factId: fact.id,
+          category: usable!.category,
+          value: usable!.value,
+        }));
       if (!basis.length && !request.brief) throw new TaskError('INVALID_INPUT');
       const basedOn = request.basedOnId
         ? (saved.directions.find((d) => d.id === request.basedOnId) ?? null)

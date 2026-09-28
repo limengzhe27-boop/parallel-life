@@ -873,7 +873,9 @@ h2 {
 }
 .proposal-featured-card {
   border-radius: 16px;
-  background: linear-gradient(175deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%), var(--surface);
+  background:
+    linear-gradient(175deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%),
+    var(--surface);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   padding: 16px;
@@ -1270,6 +1272,15 @@ h2 {
   border-radius: 18px;
   background: var(--surface);
 }
+.profile-review-badge {
+  margin-left: auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 187, 89, 0.12);
+  color: #f4c77f;
+  font-size: 11px;
+  white-space: nowrap;
+}
 .basic-info h3 {
   font-size: 16px;
   margin: 0 0 6px;
@@ -1298,6 +1309,30 @@ h2 {
   font-size: 16px;
   padding: 10px;
   min-height: 44px;
+}
+.basic-info-review {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--border-hover);
+  border-radius: 12px;
+  background: var(--surface-alt);
+}
+.basic-info-review p {
+  margin: 0 0 8px;
+}
+.basic-info-review > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.basic-info-review button {
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.basic-info-review button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .basic-info-actions {
   display: flex;
@@ -1345,7 +1380,10 @@ h2 {
     height: min(880px, calc(100vh - 36px));
     margin: 18px auto;
     border-radius: 46px;
-    box-shadow: 0 25px 70px -12px rgba(0, 0, 0, 0.7), 0 0 0 8px #1f1f21, 0 0 0 10px #38383a;
+    box-shadow:
+      0 25px 70px -12px rgba(0, 0, 0, 0.7),
+      0 0 0 8px #1f1f21,
+      0 0 0 10px #38383a;
   }
 }
 .world-loading {

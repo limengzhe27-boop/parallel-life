@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import type { Profile } from '../../contracts/api.ts';
+import { usableProfileFact } from '../../modules/profile/domain/profile-view.ts';
 import type { LifeDraft, SaveDraft, ConfirmDraft } from '../../contracts/life-drafts.ts';
 import { Button, Modal, Notice } from '../../components/ui.tsx';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
@@ -217,7 +218,7 @@ export function DraftEditor({
             <details>
               <summary>关于你 · 已选 {selection.factIds.length}</summary>
               {profile.facts
-                .filter((f) => f.status === 'confirmed')
+                .filter((f) => usableProfileFact(profile, f) !== null)
                 .map((f) => (
                   <label className={s.choice} key={f.id}>
                     <input
@@ -227,10 +228,10 @@ export function DraftEditor({
                         setSelection({ ...selection, factIds: toggle(selection.factIds, f.id) })
                       }
                     />
-                    <span>{f.value}</span>
+                    <span>{usableProfileFact(profile, f)?.value}</span>
                   </label>
                 ))}
-              {!profile.facts.some((f) => f.status === 'confirmed') && (
+              {!profile.facts.some((f) => usableProfileFact(profile, f) !== null) && (
                 <p className={s.hint}>还没有可带入的资料。</p>
               )}
             </details>

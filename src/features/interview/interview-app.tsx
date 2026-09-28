@@ -18,6 +18,7 @@ import { routeBranchIntent, type BranchIntent } from './branch-intent.ts';
 import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
 import {
+  collectBasicInfo,
   projectProfileView,
   type ProfileViewItem,
 } from '../../modules/profile/domain/profile-view.ts';
@@ -803,6 +804,7 @@ export function ProfilePane({
   onCandidateAction?: (id: string, action: MemoryCandidateDecision['action']) => void;
 }) {
   const view = projectProfileView(profile);
+  const birthdayNeedsReview = collectBasicInfo(profile).birthdayConflict;
   const activeIds = new Set(view.interestsAndWishes.map((item) => item.ref.id));
   const active = profile.facts.filter((fact) => activeIds.has(fact.id));
   const name = view.current.find(
@@ -848,14 +850,6 @@ export function ProfilePane({
   return (
     <div className="profile-stack">
       {error && <Notice>{error}</Notice>}
-      <section className="profile-section" aria-label="当前的我">
-        <h3>当前的我</h3>
-        {view.current.length ? (
-          renderFacts(view.current)
-        ) : (
-          <p>还没有整理出基本资料，可以从聊聊开始。</p>
-        )}
-      </section>
       <div className="portrait-card profile-identity">
         <button
           type="button"
@@ -927,9 +921,10 @@ export function ProfilePane({
           onAction={onCandidateAction}
         />
       )}
-      <details className="profile-fold">
+      <details className="profile-fold" open={birthdayNeedsReview || undefined}>
         <summary>
           基本资料
+          {birthdayNeedsReview && <span className="profile-review-badge">生日待核对</span>}
           <Icon name="chevron" size={16} />
         </summary>
         {basicInfo}
@@ -952,7 +947,7 @@ export function ProfilePane({
               variant="ghost"
               className="icon-button"
               aria-label="手动添加资料"
-              onClick={() => onEdit('identity')}
+              onClick={() => onEdit('interest')}
             >
               <Icon name="plus" size={18} />
             </Button>
@@ -1056,7 +1051,7 @@ export function ProfilePane({
             待整理资料
             <Icon name="chevron" size={16} />
           </summary>
-          <p>保留的原始字段，可打开原记录核对和修改。</p>
+          <p>旧记录留在这里供核对；它们不是另一份当前资料。</p>
           {renderFacts(view.unresolved)}
         </details>
       )}
@@ -1198,13 +1193,18 @@ function FactEditor({
             value={category}
             onChange={(e) => setCategory(e.target.value as ProfileFact['category'])}
           >
-            {Object.entries(categories).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
+            {Object.entries(categories)
+              .filter(([key]) => key !== 'identity' || category === 'identity')
+              .map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
           </select>
         </label>
+        {category === 'identity' && !value.startsWith('个人资料\n') && (
+          <p>基本资料请在「基本资料」中修改；这条旧记录可以改为其他类别或不保留。</p>
+        )}
         <label className="form-label">
           内容
           <textarea
@@ -1234,7 +1234,12 @@ function FactEditor({
           <Button variant="secondary" type="button" disabled={busy} onClick={onClose}>
             取消
           </Button>
-          <Button type="submit" disabled={busy || !value.trim()}>
+          <Button
+            type="submit"
+            disabled={
+              busy || !value.trim() || (category === 'identity' && !value.startsWith('个人资料\n'))
+            }
+          >
             {busy ? '保存中…' : '确认并保存'}
           </Button>
         </div>

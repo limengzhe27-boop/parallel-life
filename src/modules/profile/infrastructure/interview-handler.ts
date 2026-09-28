@@ -25,26 +25,31 @@ import {
   isSimilarText,
 } from './profile-repository.ts';
 import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
-import { dedupeBatch, rejectReason } from '../application/fact-quality.ts';
+import { createCandidateInTransaction } from '../../memory/infrastructure/candidate-repository.ts';
+import {
+  dedupeBatch,
+  directlyGroundedInUserText,
+  rejectReason,
+} from '../application/fact-quality.ts';
 const Input = z.strictObject({
   interviewId: Id,
   inputMessageId: Id,
   expectedInterviewVersion: Version,
 });
-async function hasUserSources(
+async function userSources(
   sql: SqlClient,
   ownerId: string,
   interviewId: string,
   sourceMessageIds: string[],
-) {
+): Promise<string[] | null> {
   const ids = [...new Set(sourceMessageIds)];
-  if (!ids.length) return false;
+  if (!ids.length) return null;
   const result = await sql.query(
-    `SELECT id FROM parallel_life.interview_messages
+    `SELECT id,text FROM parallel_life.interview_messages
      WHERE owner_id=$1 AND interview_id=$2 AND role='user' AND id=ANY($3::uuid[])`,
     [ownerId, interviewId, ids],
   );
-  return result.rowCount === ids.length;
+  return result.rowCount === ids.length ? result.rows.map((row) => String(row.text)) : null;
 }
 export function interviewHandler(
   queue: PostgresTaskQueue,
@@ -113,9 +118,22 @@ export function interviewHandler(
       const effectiveBasicInfo = groundBasicInfo(inputMsg?.text ?? '', proposal.basicInfo);
 
       if (Object.values(effectiveBasicInfo).some(Boolean)) {
-        await applyBasicInfoInTransaction(sql, lease.ownerId, effectiveBasicInfo, [
+        const applied = await applyBasicInfoInTransaction(sql, lease.ownerId, effectiveBasicInfo, [
           input.inputMessageId,
         ]);
+        if (applied.disputedBirthdate)
+          await createCandidateInTransaction(sql, lease.ownerId, {
+            id: randomUUID(),
+            ownerId: lease.ownerId,
+            sourceType: 'interview',
+            sourceScopeId: input.interviewId,
+            category: 'identity',
+            text: `生日：${applied.disputedBirthdate}`,
+            eventDate: null,
+            sourceMessageIds: [input.inputMessageId],
+            status: 'suggested',
+            createdAt: new Date().toISOString(),
+          });
       }
 
       // 3. 提炼后直接写入真实档案（confirmed）：用户要的是「聊完就沉淀好」，
@@ -150,8 +168,8 @@ export function interviewHandler(
         }
 
         const sourceMessageIds = [...new Set(candidate.sourceMessageIds)];
-        if (!(await hasUserSources(sql, lease.ownerId, input.interviewId, sourceMessageIds)))
-          continue;
+        const sources = await userSources(sql, lease.ownerId, input.interviewId, sourceMessageIds);
+        if (!sources) continue;
         if (
           rejectReason(candidate, {
             facts: existingProfile?.facts ?? [],
@@ -160,6 +178,22 @@ export function interviewHandler(
           })
         )
           continue;
+
+        if (!directlyGroundedInUserText(candidate, sources)) {
+          await createCandidateInTransaction(sql, lease.ownerId, {
+            id: randomUUID(),
+            ownerId: lease.ownerId,
+            sourceType: 'interview',
+            sourceScopeId: input.interviewId,
+            category: candidate.category,
+            text: candidate.text,
+            eventDate: candidate.eventDate ?? null,
+            sourceMessageIds,
+            status: 'suggested',
+            createdAt: new Date().toISOString(),
+          });
+          continue;
+        }
 
         await applyConfirmedCandidateInTransaction(sql, lease.ownerId, {
           category: candidate.category,
