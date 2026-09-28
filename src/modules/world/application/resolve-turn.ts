@@ -49,6 +49,26 @@ export async function resolveTurn(
     recalled.blockedSources,
   );
   if (command.origin) context.turnOrigin = command.origin;
+  if (command.origin === 'director')
+    context.possibleRecipients = world.actors
+      .filter((actor) => actor.id !== command.actorId)
+      .map((actor) => ({
+        id: actor.id,
+        name: actor.name,
+        relationship: actor.relationship,
+        persona: actor.persona.slice(0, 240),
+      }));
+  if (command.origin === 'director')
+    context.previousDisclosures = world.facts.flatMap((fact) =>
+      fact.disclosure && fact.believedByActorId
+        ? [
+            {
+              sourceMessageId: fact.disclosure.sourceMessageId,
+              recipientActorId: fact.believedByActorId,
+            },
+          ]
+        : [],
+    );
   const proposal = parseProposal(await deps.planner.propose({ context, userText: command.text }));
   /*
    * 意图接线：角色回复之外，用户明确索图时必须产生一条 media.requested，
@@ -65,7 +85,7 @@ export async function resolveTurn(
       id: `${command.id}_media`,
       prompt: (intent.imagePrompt ?? command.text).slice(0, 2000),
     });
-  validateCharacterEffects(command.actorId, proposal.effects);
+  validateCharacterEffects(command.actorId, proposal.effects, false, command.origin);
   const eventId = validateEventId(deps.newId());
   // Model IDs are local labels, never trusted as globally unique storage IDs.
   const effects = proposal.effects.map((effect, index) => ({

@@ -197,6 +197,28 @@ export class PostgresClockStore implements ClockStore {
       return Boolean(row?.unresolved);
     });
   }
+  async pendingAttempt(
+    ownerId: string,
+    worldId: string,
+  ): Promise<{ commandId: string; plannedFor: string; actorId: string } | null> {
+    return this.db.transaction(ownerId, async (sql) => {
+      const row = (
+        await sql.query(
+          `SELECT command_id,planned_for,actor_id FROM parallel_life.world_director_attempts
+            WHERE world_id=$1 AND owner_id=$2 AND status<>'committed'
+            ORDER BY planned_for,created_at LIMIT 1`,
+          [worldId, ownerId],
+        )
+      ).rows[0];
+      return row
+        ? {
+            commandId: String(row.command_id),
+            plannedFor: new Date(String(row.planned_for)).toISOString(),
+            actorId: String(row.actor_id),
+          }
+        : null;
+    });
+  }
   async beginAttempt(
     ownerId: string,
     worldId: string,

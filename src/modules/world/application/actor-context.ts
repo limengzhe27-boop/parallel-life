@@ -146,7 +146,8 @@ export function actorContext(
     const scoped = memoryRecords.filter((record) => {
       if (record.ownerId !== state.ownerId) return false;
       if (record.branchId && record.branchId !== state.id) return false;
-      if (record.scopeType === 'branch') return record.scopeId === state.id;
+      if (record.scopeType === 'branch')
+        return record.scopeId === state.id && record.kind !== 'episode';
       if (record.scopeType === 'character')
         return (
           record.scopeId === actorId && (!record.characterId || record.characterId === actorId)

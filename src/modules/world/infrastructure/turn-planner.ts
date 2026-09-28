@@ -3,7 +3,11 @@ import type { ActorContext, TurnPlanner } from '../application/ports.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { narrativeBrief } from '../domain/narrative-policy.ts';
 import { detectCrisisIntent } from '../../ai/safety-guard.ts';
-import { isExplicitChoice, isExplicitChoiceResult } from '../domain/validation.ts';
+import {
+  isExplicitChoice,
+  isExplicitChoiceResult,
+  isExplicitlyConfidential,
+} from '../domain/validation.ts';
 
 const SYSTEM = `你是“如果”平行人生手机中的一个虚构人物，正在和主角私聊。只代表当前 actor，不是替所有人发言的全知旁白。
 
@@ -27,6 +31,7 @@ turnOrigin 为 director 时，userText 是幕后舞台指示，不是用户发�
 choices 是用户此前对这个角色说过的选择。如果用户本轮明确谈到其中一条选择的结果，并且亲口说“我完成了／我卡住了／我不做了”，可在回复之外加 choice.result_reported：{"type":"choice.result_reported","id":"result_1","choiceId":"choices中那条选择的id","quote":"本轮用户消息中的原文连续片段，含具体事情","outcome":"reported_done"}。outcome 只能为 reported_done、blocked、abandoned。必须是用户本人的陈述、与 choice 的具体事情对应；假设、引用他人的话、推测、问题都不能记录。reported_done 只是用户自述，不代表你看见成果或世界已证实成功；不要据此编造照片、奖项或完成证明。若本轮既报告旧结果又提出新选择，优先记录结果。导演指示不产生结果报告。
 若 turnOrigin 是 director，且 userText 含 [choice:ID]，你确实在自己的这条回复里提出了一个可继续行动的具体帮忙、交换条件或障碍处理方式，可附一条 choice.next_step：{"type":"choice.next_step","id":"step_1","choiceId":"ID","quote":"从本轮 message.received.text 中逐字截取的具体提议"}。quote 必须是本轮人物消息原文的一段，不能只是「加油」「怎么样了」或空泛关心。没有具体提议就不要加；这只是人物提议，不代表主角答应或事情已经发生。每轮最多一条。
 若导演提示中的 [choice:ID] 对应用户刚报告「卡住了」，先回应这个具体阻碍。只有你真能在已知条件下提出一条新的做法、帮助或可改变的条件，并在本轮人物消息里说出来，才可附 choice.recovery_step：{"type":"choice.recovery_step","id":"recovery_1","choiceId":"ID","quote":"从本轮 message.received.text 中逐字截取的具体办法"}。不能凭空新增障碍，不能声称用户已采用或问题已解决；没有办法就诚实回应，不附此效果。每轮最多一条。
+只有 turnOrigin 为 director 且 possibleRecipients 非空时，你可以让当前人物在世界里把主角曾亲口对自己说的一小段话告诉另一人物。必须能从现有身份与关系看出两人有合理联系，不得编造他们本来就认识或经常联系。possibleRecipients 的性格速写仅供幕后判断能否转述，不代表当前人物知道对方的内心、私人经历或聊天。先考虑当前人物的性格、两人的关系、要说这件事的具体动机与后果；不是所有事都应互通。亲姐姐因担心主角而告诉妈妈，比普通兄弟主动告诉妈妈更可能，但都取决于具体人设。虚构人物可能做出未经主角同意但符合自身性格的转述，带来可理解的人际摩擦；不必一律先请示主角。用户明确要求保密时绝不传。若确有合理动机，可附一条 {"type":"information.shared","id":"share_1","recipientActorId":"possibleRecipients中的ID","sourceMessageId":"recentMessages里role=user且actorId为当前人物的ID","quote":"该用户消息中连续的原话片段"}。只传quote，不替主角补充私事；不能把其他人物的记忆或现实访谈资料拿来传播；每轮最多一条。接收者以后若提起，必须说清是谁告诉自己的。
 只输出JSON。至少包含一条当前角色的 message.received。可记录自己的 belief.recorded；约时间用 appointment.proposed，必须由用户确认，不能直接视为赴约。约定格式必须为 {"type":"appointment.proposed","id":"appointment_1","title":"具体约定","at":"2026-09-29T14:00:00.000Z","participantIds":["ACTOR_ID"]}，participantIds 仅含当前角色；日期依据当前世界时间与对话，示例日期不可照抄。未知日期时先聊清楚，不创建约定。belief.recorded 格式为 {"type":"belief.recorded","id":"belief_1","actorId":"ACTOR_ID","text":"自己的看法"}。media.requested 仅在用户明确索图或已发生的具体事件确实需要留影时提出；照片未完成不声称已拍好。不得建立全知世界事实、替其他角色发言或替主角完成重大成就。
 例形：{"schemaVersion":1,"effects":[{"type":"message.received","id":"reply_1","actorId":"ACTOR_ID","text":"当前人物的自然回应"}]}。
 sceneDirection 只供创作参考，不要把策略名称、来源编号或幕后说明写进聊天。`;
@@ -95,6 +100,8 @@ export class WorldTurnPlanner implements TurnPlanner {
             facts: context.facts,
           },
           actor: context.actor,
+          possibleRecipients: context.possibleRecipients,
+          previousDisclosures: context.previousDisclosures,
           recentMessages: context.messages.filter(
             (message) => message.role === 'user' || !structuredReply(message.text),
           ),
@@ -290,6 +297,40 @@ export class WorldTurnPlanner implements TurnPlanner {
             quote,
           });
       }
+      let keptDisclosure = false;
+      parsed.effects = parsed.effects.filter((effect) => {
+        if (effect.type !== 'information.shared') return true;
+        const candidate = effect as {
+          recipientActorId?: unknown;
+          sourceMessageId?: unknown;
+          quote?: unknown;
+          id?: string;
+        };
+        const source = context.messages.find((item) => item.id === candidate.sourceMessageId);
+        const quote = typeof candidate.quote === 'string' ? candidate.quote.trim() : '';
+        if (
+          keptDisclosure ||
+          context.turnOrigin !== 'director' ||
+          !context.possibleRecipients?.some((item) => item.id === candidate.recipientActorId) ||
+          !source ||
+          source.role !== 'user' ||
+          source.actorId !== targetActorId ||
+          quote.length < 4 ||
+          quote.length > 160 ||
+          !source.text.includes(quote) ||
+          isExplicitlyConfidential(source.text) ||
+          context.previousDisclosures?.some(
+            (item) =>
+              item.sourceMessageId === source.id &&
+              item.recipientActorId === candidate.recipientActorId,
+          )
+        )
+          return false;
+        candidate.quote = quote;
+        candidate.id = `share_${Date.now()}`;
+        keptDisclosure = true;
+        return true;
+      });
       return parsed;
     }
 

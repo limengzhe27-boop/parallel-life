@@ -422,3 +422,66 @@ test('NPC model receives authorized memories with attribution and a grounded sce
   });
   assert.equal(payload.turnOrigin, 'director');
 });
+
+test('director only keeps a one-hop disclosure with a real visible user quote and recipient', async () => {
+  const proposed = {
+    schemaVersion: 1,
+    effects: [
+      {
+        type: 'message.received',
+        id: 'reply',
+        actorId: mockContext.actor.id,
+        text: '我去跟她聊聊。',
+      },
+      {
+        type: 'information.shared',
+        id: 'share',
+        recipientActorId: 'mother',
+        sourceMessageId: 'user_1',
+        quote: '想去拍纪录片',
+      },
+    ],
+  };
+  const planner = new WorldTurnPlanner({ complete: async () => JSON.stringify(proposed) });
+  const context: ActorContext = {
+    ...mockContext,
+    turnOrigin: 'director',
+    possibleRecipients: [{ id: 'mother', name: '妈妈', persona: '关心孩子', relationship: '妈妈' }],
+    messages: [
+      {
+        id: 'user_1',
+        actorId: mockContext.actor.id,
+        role: 'user',
+        text: '我想去拍纪录片',
+        at: mockContext.time,
+        sourceEventId: 'e1',
+      },
+    ],
+  };
+  const accepted = (await planner.propose({ context, userText: '（用户没有开口）' })) as {
+    effects: { type: string }[];
+  };
+  assert.deepEqual(
+    accepted.effects.map((item) => item.type),
+    ['message.received', 'information.shared'],
+  );
+  const rejected = (await planner.propose({
+    context: { ...context, turnOrigin: undefined },
+    userText: '你好',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    rejected.effects.map((item) => item.type),
+    ['message.received'],
+  );
+  const privateLine = (await planner.propose({
+    context: {
+      ...context,
+      messages: [{ ...context.messages[0]!, text: '我想去拍纪录片，别告诉妈妈' }],
+    },
+    userText: '（用户没有开口）',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(
+    privateLine.effects.map((item) => item.type),
+    ['message.received'],
+  );
+});

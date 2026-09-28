@@ -413,6 +413,8 @@ export class PostgresWorldRepository implements WorldRepository {
       validateCharacterEffects(
         command.actorId,
         parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
+        false,
+        command.origin,
       );
       const { state, jobs } = applyEvent(hydrated, event);
       await sql.query(

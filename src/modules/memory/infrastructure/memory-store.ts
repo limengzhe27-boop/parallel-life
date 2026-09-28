@@ -257,8 +257,9 @@ export async function listMemories(
 }
 
 /**
- * What one character may recall: its own records plus the shared branch episodes of
- * this world. Private profile records are never included. Sources belonging to
+ * What one character may recall: its own records plus explicitly shared branch
+ * records. A branch episode is the director's account of a turn and may contain
+ * another person's private chat, so it is never delivered to an NPC. Sources belonging to
  * forgotten records are blocked so a forgotten memory cannot come back through the
  * message it came from.
  */
@@ -272,7 +273,7 @@ export async function loadActorMemories(
       `SELECT * FROM parallel_life.memory_records
         WHERE owner_id=$1
           AND scope_type IN ('character','branch')
-          AND ((scope_type='character' AND character_id=$2) OR (scope_type='branch' AND scope_id=$3))
+          AND ((scope_type='character' AND character_id=$2) OR (scope_type='branch' AND scope_id=$3 AND kind<>'episode'))
         ORDER BY importance DESC, created_at DESC
         LIMIT 200`,
       [ownerId, params.actorId, params.worldId],

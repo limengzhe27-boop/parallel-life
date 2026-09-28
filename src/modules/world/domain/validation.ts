@@ -50,6 +50,12 @@ export function isExplicitChoice(quote: string, userText: string): boolean {
   if (/^我要(?:你|问|知道|看看)|^我会不会/.test(quote)) return false;
   return /^(我(?:决定|选择|打算|要|会|想先)|那就|咱们(?:就|先)|就按|先把|先去|不如)/.test(quote);
 }
+/** Explicit privacy requests outrank a model's proposed social drama. */
+export function isExplicitlyConfidential(text: string): boolean {
+  return /(?:别|不要|不许|不能|千万别)(?:对|跟|和)?[^，。！？\n]{0,12}(?:说|提|讲|透露|告诉)|保密|只有你知道|只告诉你|只(?:跟|对|和)你说|仅限你我|别让[^，。！？\n]{0,12}知道|不要让[^，。！？\n]{0,12}知道|don'?t tell/i.test(
+    text,
+  );
+}
 /** A result is only a first-person report about the same decision, not independent proof. */
 export function isExplicitChoiceResult(
   quote: string,
@@ -140,6 +146,14 @@ export function parseProposal(value: unknown): TurnProposal {
         return { type: item.type, id: effectId, actorId: id(item.actorId), text: text(item.text) };
       case 'belief.recorded':
         return { type: item.type, id: effectId, actorId: id(item.actorId), text: text(item.text) };
+      case 'information.shared':
+        return {
+          type: item.type,
+          id: effectId,
+          recipientActorId: id(item.recipientActorId),
+          sourceMessageId: id(item.sourceMessageId),
+          quote: text(item.quote, 160).trim(),
+        };
       case 'appointment.proposed':
       case 'appointment.created':
         return {

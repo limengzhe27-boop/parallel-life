@@ -66,7 +66,11 @@ export function compileCharacterContext(params: {
   const scopedMemories = memoryRecords.filter((record) => {
     if (record.ownerId !== ownerId) return false;
     // 分支隔离：若作用域是 branch 或指定了 branchId，必须与当前世界一致
-    if (record.scopeType === 'branch' && record.scopeId !== worldState.id) return false;
+    if (
+      record.scopeType === 'branch' &&
+      (record.scopeId !== worldState.id || record.kind === 'episode')
+    )
+      return false;
     if (record.branchId && record.branchId !== worldState.id) return false;
     // 角色隔离：若作用域是 character 或指定了 characterId，必须与当前角色一致
     if (

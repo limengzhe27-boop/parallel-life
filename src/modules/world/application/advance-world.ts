@@ -47,15 +47,26 @@ export async function advanceWorld(
     const advance = advanceClock(clock, deps.now(), {
       maxBeats: deps.maxBeats ?? beatsForPacing(direction.pacing),
     });
+    const pending = (await deps.clock.pendingAttempt?.(session.userId, worldId)) ?? null;
+    const plans = pending
+      ? [
+          { at: pending.plannedFor, commandId: pending.commandId, actorId: pending.actorId },
+          ...advance.beats
+            .filter((at) => at !== pending.plannedFor && at > pending.plannedFor)
+            .slice(0, Math.max(0, advance.beats.length - 1))
+            .map((at) => ({ at, commandId: deps.clock.beatCommandId(worldId, at) })),
+        ]
+      : advance.beats.map((at) => ({ at, commandId: deps.clock.beatCommandId(worldId, at) }));
     const actors: string[] = [];
-    const recentSince = new Date(Date.parse(clock.storyNow) - 12 * 60 * 60_000).toISOString();
-    const recentActors = new Set(
-      await deps.clock.recentActors(session.userId, worldId, recentSince),
-    );
     const worldMemories = deps.worldMemories ? await deps.worldMemories() : [];
 
-    for (const beatAt of advance.beats) {
-      const commandId = deps.clock.beatCommandId(worldId, beatAt);
+    for (const plan of plans) {
+      const beatAt = plan.at;
+      const recentSince = new Date(Date.parse(beatAt) - 12 * 60 * 60_000).toISOString();
+      const recentActors = new Set(
+        await deps.clock.recentActors(session.userId, worldId, recentSince),
+      );
+      const commandId = plan.commandId;
       const previouslyCommitted = await deps.clock.committedBeat(
         session.userId,
         worldId,
@@ -71,7 +82,6 @@ export async function advanceWorld(
           status: 'played',
         });
         actors.push(previouslyCommitted);
-        recentActors.add(previouslyCommitted);
         continue;
       }
       const world = await deps.worlds.get(session, worldId);
@@ -83,8 +93,12 @@ export async function advanceWorld(
         buildAgenda(atBeat, 20, worldMemories as CommitmentMemory[]),
         recentActors,
       ).slice(0, 5);
-      const actorId = selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
-      if (!actorId) break;
+      const actorId =
+        ('actorId' in plan ? plan.actorId : null) ??
+        selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
+      // An early sampled day may be quiet while a later sampled day is old
+      // enough for a real follow-up. Inspect the remaining bounded slots.
+      if (!actorId) continue;
       const started = await deps.clock.beginAttempt(
         session.userId,
         worldId,
@@ -126,10 +140,9 @@ export async function advanceWorld(
         status: 'played',
       });
       actors.push(actorId);
-      recentActors.add(actorId);
     }
 
-    const unused = advance.beats.length - actors.length;
+    const unused = Math.max(0, advance.beats.length - actors.length);
     const finished = {
       ...advance.clock,
       missedBeats: advance.clock.missedBeats + unused,

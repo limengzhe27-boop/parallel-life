@@ -6,11 +6,14 @@ export function validateCharacterEffects(
   actorId: string,
   effects: WorldEffect[],
   allowLegacyReplay = false,
+  origin?: 'director',
 ): void {
   if (!effects.some((effect) => effect.type === 'message.received')) {
     throw new DomainError('INVALID_PROPOSAL', 'A character turn requires a reply');
   }
   for (const effect of effects) {
+    if (effect.type === 'information.shared' && origin !== 'director')
+      throw new DomainError('INVALID_PROPOSAL', 'Only a director beat can carry a disclosure');
     if (
       !allowLegacyReplay &&
       (effect.type === 'fact.established' || effect.type === 'appointment.created')

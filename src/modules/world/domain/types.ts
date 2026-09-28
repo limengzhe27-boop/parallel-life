@@ -12,6 +12,8 @@ export type Fact = {
   /** Absent only for legacy records; absence must not be interpreted as confirmed truth. */
   kind?: 'canonical' | 'belief';
   believedByActorId?: Id;
+  /** A sourced, character-private account of how this person heard a player's line. */
+  disclosure?: { fromActorId: Id; sourceMessageId: Id; quote: string };
 };
 export type Message = {
   id: Id;
@@ -112,6 +114,7 @@ export type WorldState = {
 
 export type WorldEffect =
   | { type: 'belief.recorded'; id: Id; actorId: Id; text: string }
+  | { type: 'information.shared'; id: Id; recipientActorId: Id; sourceMessageId: Id; quote: string }
   | { type: 'appointment.proposed'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }

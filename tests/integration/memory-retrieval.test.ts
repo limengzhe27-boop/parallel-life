@@ -147,7 +147,7 @@ test('a character recalls only its own memories, and a forgotten one is blocked'
       loadActorMemories(sql, owner, { actorId, worldId }),
     );
     const texts = recalled.records.map((record) => record.text);
-    assert.deepEqual(new Set(texts), new Set(['甲自己的印象', '本世界发生过的事']));
+    assert.deepEqual(new Set(texts), new Set(['甲自己的印象']));
     assert.equal(
       recalled.blockedSources.has(worldId),
       true,
@@ -180,7 +180,7 @@ test('a character recalls only its own memories, and a forgotten one is blocked'
     );
     assert.deepEqual(
       new Set((seen?.retrievedMemories ?? []).map((record) => record.text)),
-      new Set(['甲自己的印象', '本世界发生过的事']),
+      new Set(['甲自己的印象']),
     );
   } finally {
     await db.close();

@@ -20,6 +20,12 @@ export type ActorContext = {
   time: string;
   worldTitle?: string;
   actor: WorldState['actors'][number];
+  /** Bounded cast sketches for a director beat; never another NPC's private memory. */
+  possibleRecipients?: Pick<
+    WorldState['actors'][number],
+    'id' | 'name' | 'relationship' | 'persona'
+  >[];
+  previousDisclosures?: { sourceMessageId: string; recipientActorId: string }[];
   facts: WorldState['facts'];
   messages: WorldState['messages'];
   appointments: WorldState['appointments'];
@@ -63,6 +69,11 @@ export type ClockStore = {
   committedBeat(ownerId: string, worldId: string, commandId: string): Promise<string | null>;
   recentActors(ownerId: string, worldId: string, sinceStoryAt: string): Promise<string[]>;
   hasUnresolvedAttempt(ownerId: string, worldId: string): Promise<boolean>;
+  /** Resume a director attempt planned by an older scheduling policy with its original ID. */
+  pendingAttempt?(
+    ownerId: string,
+    worldId: string,
+  ): Promise<{ commandId: string; plannedFor: string; actorId: string } | null>;
   beginAttempt(
     ownerId: string,
     worldId: string,

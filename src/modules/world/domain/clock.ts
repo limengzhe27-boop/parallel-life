@@ -66,8 +66,12 @@ export function advanceClock(
   const played = Math.min(due, maxBeats);
   const storyStart = Date.parse(clock.storyNow);
   const beats: string[] = [];
-  for (let index = 1; index <= played; index += 1)
-    beats.push(new Date(storyStart + index * beatMs).toISOString());
+  for (let index = 1; index <= played; index += 1) {
+    // A long absence is sampled across the elapsed days, not replayed entirely
+    // in the first ninety minutes after the player last opened the phone.
+    const slot = due <= played ? index : Math.floor((due * index) / (played + 0.5));
+    beats.push(new Date(storyStart + slot * beatMs).toISOString());
+  }
   return {
     clock: {
       ...nextTick,
@@ -132,6 +136,14 @@ export function selectSpeaker(
         focusActorIds.includes(thread.actorId),
     ) ?? agenda.find((thread) => thread.kind === 'commitment' && available(thread.actorId));
   if (commitment) return commitment.actorId;
+  const disclosure = agenda.find(
+    (thread) => thread.kind === 'disclosure_followup' && available(thread.actorId),
+  );
+  if (disclosure) return disclosure.actorId;
+  const reconnect = agenda.find(
+    (thread) => thread.kind === 'reconnect' && available(thread.actorId),
+  );
+  if (reconnect) return reconnect.actorId;
   return null;
 }
 

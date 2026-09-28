@@ -67,6 +67,69 @@ test('a long absence folds the extra beats into a summary instead of paying for 
   assert.equal(result.clock.storyNow, '2026-09-24T06:00:00.000Z');
 });
 
+test('five days away produces a few beats on different days, not three on the first morning', () => {
+  const result = advanceClock(clock(), '2026-09-29T00:00:00.000Z');
+  assert.equal(result.beats.length, 3);
+  assert.equal(new Set(result.beats.map((beat) => beat.slice(0, 10))).size, 3);
+  assert.ok(result.beats[0]! > '2026-09-25T00:00:00.000Z');
+  assert.ok(result.beats[2]! < result.clock.storyNow);
+});
+
+test('an established conversation can create one later check-in, without repeating it daily', () => {
+  const world = state();
+  world.time = '2026-09-29T00:00:00.000Z';
+  world.messages = [
+    {
+      id: 'u1',
+      actorId: 'a',
+      role: 'user',
+      text: '拍摄先往后放两天',
+      at: '2026-09-24T00:00:00.000Z',
+      sourceEventId: 'e1',
+    },
+    {
+      id: 'a1',
+      actorId: 'a',
+      role: 'assistant',
+      text: '行，我记着',
+      at: '2026-09-24T00:01:00.000Z',
+      sourceEventId: 'e1',
+    },
+  ];
+  assert.equal(buildAgenda(world).find((thread) => thread.kind === 'reconnect')?.actorId, 'a');
+  assert.equal(selectSpeaker(world, []), 'a');
+  world.messages.push({
+    id: 'a2',
+    actorId: 'a',
+    role: 'assistant',
+    text: '最近拍摄还顺吗',
+    at: '2026-09-26T00:00:00.000Z',
+    sourceEventId: 'e2',
+  });
+  assert.equal(
+    buildAgenda(world).some((thread) => thread.kind === 'reconnect'),
+    false,
+  );
+});
+
+test('an unanswered opening may get one follow-up after days, but not a daily cascade', () => {
+  const world = state();
+  world.time = '2026-09-29T00:00:00.000Z';
+  assert.equal(buildAgenda(world).filter((thread) => thread.kind === 'reconnect').length, 1);
+  world.messages.push({
+    id: 'm2',
+    actorId: 'a',
+    role: 'assistant',
+    text: '想起那天说的事',
+    at: '2026-09-27T00:00:00.000Z',
+    sourceEventId: 'e2',
+  });
+  assert.equal(
+    buildAgenda(world).some((thread) => thread.kind === 'reconnect'),
+    false,
+  );
+});
+
 test('a backwards or zero clock change plays nothing', () => {
   assert.deepEqual(advanceClock(clock(), '2026-09-23T00:00:00.000Z').beats, []);
   assert.deepEqual(advanceClock(clock(), '2026-09-24T00:00:00.000Z').beats, []);

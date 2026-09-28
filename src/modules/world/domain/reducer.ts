@@ -7,6 +7,7 @@ import {
   validateEventId,
   isExplicitChoice,
   isExplicitChoiceResult,
+  isExplicitlyConfidential,
 } from './validation.ts';
 import { validateCharacterEffects } from './character-policy.ts';
 import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
@@ -35,7 +36,7 @@ export function applyEvent(
   const actorIds = new Set(current.actors.map((actor) => actor.id));
   if (!actorIds.has(event.data.actorId)) throw new DomainError('INVALID_COMMAND');
   const effects = parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects;
-  validateCharacterEffects(event.data.actorId, effects, true);
+  validateCharacterEffects(event.data.actorId, effects, true, event.data.origin);
   const replyAt = event.storyAt ?? current.time;
   const userAt = event.data.userAt ?? current.time;
   if (
@@ -254,6 +255,45 @@ export function applyEvent(
           sourceEventId,
         });
         break;
+      case 'information.shared': {
+        const source = current.messages.find((message) => message.id === effect.sourceMessageId);
+        const priorDisclosure = current.facts.some(
+          (fact) =>
+            fact.disclosure?.sourceMessageId === effect.sourceMessageId &&
+            fact.believedByActorId === effect.recipientActorId,
+        );
+        if (
+          event.data.origin !== 'director' ||
+          !source ||
+          source.role !== 'user' ||
+          source.actorId !== event.data.actorId ||
+          !actorIds.has(effect.recipientActorId) ||
+          effect.recipientActorId === event.data.actorId ||
+          !source.text.includes(effect.quote) ||
+          effect.quote.length < 4 ||
+          priorDisclosure ||
+          isExplicitlyConfidential(source.text)
+        )
+          throw new DomainError(
+            'INVALID_PROPOSAL',
+            'Disclosure needs a shareable source from this actor',
+          );
+        const speaker = current.actors.find((actor) => actor.id === event.data.actorId)!;
+        state.facts.push({
+          id: effect.id,
+          text: `${speaker.name}告诉我：${effect.quote}`,
+          kind: 'belief',
+          believedByActorId: effect.recipientActorId,
+          visibility: { kind: 'actors', actorIds: [effect.recipientActorId] },
+          sourceEventId,
+          disclosure: {
+            fromActorId: event.data.actorId,
+            sourceMessageId: effect.sourceMessageId,
+            quote: effect.quote,
+          },
+        });
+        break;
+      }
       case 'fact.established':
         if (
           effect.visibility.kind === 'actors' &&
