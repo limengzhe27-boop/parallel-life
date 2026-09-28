@@ -340,3 +340,153 @@ test('director retry reconciles an unknown call without automatic re-spend or du
     await admin.end();
   }
 });
+
+test('a new player result reaches its character despite a recent director beat, then settles', async () => {
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const c = await localConfig();
+  const db = new PostgresDatabase(
+    `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const worlds = new PostgresWorldRepository(db);
+  const clock = new PostgresClockStore(db);
+  const owner = randomUUID(),
+    worldId = randomUUID(),
+    actorId = randomUUID();
+  const session = { userId: owner };
+  const start = '2026-09-24T00:00:00.000Z';
+  let now = '2026-09-24T00:30:00.000Z';
+  let directorCalls = 0;
+  const deps = {
+    clock,
+    worlds,
+    now: () => now,
+    newId: () => randomUUID(),
+    planner: {
+      propose: async () => {
+        directorCalls += 1;
+        return {
+          schemaVersion: 1 as const,
+          effects: [
+            {
+              type: 'message.received' as const,
+              id: randomUUID(),
+              actorId,
+              text: directorCalls === 1 ? '短片剪到哪了？' : '短片导出了吗？把文件发我，我再看看。',
+            },
+          ],
+        };
+      },
+    },
+  };
+  try {
+    await admin.query('INSERT INTO parallel_life.accounts(id) VALUES($1)', [owner]);
+    await worlds.initialize(session, {
+      schemaVersion: 1,
+      id: worldId,
+      ownerId: owner,
+      version: 0,
+      title: '短片选择',
+      time: start,
+      actors: [{ id: actorId, name: '同伴', persona: '会关心短片进展' }],
+      facts: [],
+      messages: [],
+      appointments: [],
+      mediaRequests: [],
+    });
+    const choiceCommand = {
+      id: randomUUID(),
+      worldId,
+      expectedVersion: 0,
+      actorId,
+      text: '我决定先把短片剪到十五分钟。',
+    };
+    const chosen = await worlds.commit(session, choiceCommand, {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId,
+      version: 1,
+      commandId: choiceCommand.id,
+      type: 'turn.resolved',
+      occurredAt: start,
+      storyAt: start,
+      data: {
+        actorId,
+        userText: choiceCommand.text,
+        userAt: start,
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId, text: '好，剪完发我。' },
+          {
+            type: 'choice.recorded',
+            id: randomUUID(),
+            quote: '我决定先把短片剪到十五分钟',
+            intent: '完成十五分钟版本',
+          },
+        ],
+      },
+    });
+    const first = await advanceWorld(deps, session, worldId);
+    assert.equal(first.played, 1);
+    assert.equal((await worlds.get(session, worldId)).choices?.[0]?.status, 'followed_up');
+    const resultAt = '2026-09-24T00:35:00.000Z';
+    const resultCommand = {
+      id: randomUUID(),
+      worldId,
+      expectedVersion: 2,
+      actorId,
+      text: '我把短片剪完了，十五分钟版本已经导出。',
+    };
+    await worlds.commit(session, resultCommand, {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId,
+      version: 3,
+      commandId: resultCommand.id,
+      type: 'turn.resolved',
+      occurredAt: resultAt,
+      storyAt: resultAt,
+      data: {
+        actorId,
+        userText: resultCommand.text,
+        userAt: resultAt,
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId, text: '发我看看。' },
+          {
+            type: 'choice.result_reported',
+            id: randomUUID(),
+            choiceId: chosen.state.choices![0]!.id,
+            quote: '我把短片剪完了，十五分钟版本已经导出',
+            outcome: 'reported_done',
+          },
+        ],
+      },
+    });
+    now = '2026-09-24T01:05:00.000Z';
+    assert.deepEqual(await clock.recentActors(owner, worldId, '2026-09-23T13:00:00.000Z'), [
+      actorId,
+    ]);
+    const second = await advanceWorld(deps, session, worldId);
+    assert.equal(
+      second.played,
+      1,
+      'the new result must not wait for the ordinary 12-hour cooldown',
+    );
+    const settled = await worlds.get(session, worldId);
+    assert.equal(settled.version, 4);
+    assert.ok(settled.choices?.[0]?.result?.acknowledgedEventId);
+    assert.equal(directorCalls, 2);
+    assert.equal(
+      (await worlds.receipt(session, resultCommand))?.state.choices?.[0]?.result?.kind,
+      'reported_done',
+    );
+    await assert.rejects(worlds.get({ userId: randomUUID() }, worldId), { code: 'NOT_FOUND' });
+    now = '2026-09-24T01:35:00.000Z';
+    const after = await advanceWorld(deps, session, worldId);
+    assert.equal(after.played, 0, 'the settled result cannot trigger another message');
+    assert.equal(directorCalls, 2);
+  } finally {
+    await db.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);
+    await admin.end();
+  }
+});

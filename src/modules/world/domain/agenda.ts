@@ -149,6 +149,22 @@ export function buildAgenda(
   return threads.slice(0, limit);
 }
 
+/** A new player answer deserves a response even if this person spoke recently.
+ * Ordinary prompts still respect the cooldown; a single advance cannot use the
+ * exception twice because selectSpeaker also tracks speakers for that advance.
+ */
+export function eligibleAgenda(
+  agenda: AgendaThread[],
+  recentActors: ReadonlySet<string>,
+): AgendaThread[] {
+  const owedNow = new Set<AgendaThread['kind']>([
+    'awaiting_reply',
+    'choice_result',
+    'appointment_result',
+  ]);
+  return agenda.filter((thread) => !recentActors.has(thread.actorId) || owedNow.has(thread.kind));
+}
+
 /** The most pressing thread for one character, if any. */
 export function threadFor(agenda: AgendaThread[], actorId: string): AgendaThread | undefined {
   return (

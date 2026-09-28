@@ -1,6 +1,6 @@
 import { DomainError } from '../domain/errors.ts';
 import { advanceClock, beatCue, selectSpeaker } from '../domain/clock.ts';
-import { buildAgenda, type CommitmentMemory } from '../domain/agenda.ts';
+import { buildAgenda, eligibleAgenda, type CommitmentMemory } from '../domain/agenda.ts';
 import { beatsForPacing, EMPTY_DIRECTION, type WorldDirection } from '../domain/direction.ts';
 import type { Session } from '../domain/types.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
@@ -79,9 +79,10 @@ export async function advanceWorld(
         ...world,
         time: new Date(Math.max(Date.parse(world.time), Date.parse(beatAt))).toISOString(),
       };
-      const agenda = buildAgenda(atBeat, 5, worldMemories as CommitmentMemory[]).filter(
-        (thread) => !recentActors.has(thread.actorId),
-      );
+      const agenda = eligibleAgenda(
+        buildAgenda(atBeat, 20, worldMemories as CommitmentMemory[]),
+        recentActors,
+      ).slice(0, 5);
       const actorId = selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
       if (!actorId) break;
       const started = await deps.clock.beginAttempt(

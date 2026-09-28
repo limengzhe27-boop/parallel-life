@@ -9,7 +9,7 @@ import {
   selectSpeaker,
   type WorldClock,
 } from '../src/modules/world/domain/clock.ts';
-import { buildAgenda } from '../src/modules/world/domain/agenda.ts';
+import { buildAgenda, eligibleAgenda } from '../src/modules/world/domain/agenda.ts';
 import type { WorldState } from '../src/modules/world/domain/types.ts';
 
 const clock = (over: Partial<WorldClock> = {}): WorldClock => ({
@@ -127,6 +127,24 @@ test('a sourced player choice prompts one later beat and then leaves the agenda'
   assert.match(beatCue(chosen, 'a'), /我决定先剪片/);
   chosen.choices[0]!.status = 'followed_up';
   assert.equal(selectSpeaker(chosen, []), null);
+});
+
+test('a fresh reported result can pass recent-speaker cooldown while ordinary nudges cannot', () => {
+  const recent = new Set(['a']);
+  const agenda = [
+    { kind: 'choice_followup' as const, actorId: 'a', detail: 'old nudge' },
+    { kind: 'commitment' as const, actorId: 'a', detail: 'old promise' },
+    { kind: 'choice_result' as const, actorId: 'a', detail: 'new player report', sourceId: 'c1' },
+    { kind: 'appointment_result' as const, actorId: 'a', detail: 'new calendar answer' },
+    { kind: 'proposed_appointment' as const, actorId: 'b', detail: 'open invitation' },
+  ];
+  const eligible = eligibleAgenda(agenda, recent);
+  assert.deepEqual(
+    eligible.map((item) => item.kind),
+    ['choice_result', 'appointment_result', 'proposed_appointment'],
+  );
+  assert.equal(selectSpeaker(state(), [], eligible), 'a');
+  assert.equal(selectSpeaker(state(), ['a'], eligible), 'b', 'a character speaks once per advance');
 });
 
 test('the beat cue is a stage direction, never the user speaking', () => {
