@@ -7,7 +7,12 @@ export async function localConfig() {
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const file = path.join(dir, 'runtime.json');
   try {
-    return JSON.parse(await readFile(file, 'utf8'));
+    const config = JSON.parse(await readFile(file, 'utf8'));
+    if (!config.schedulerPassword) {
+      config.schedulerPassword = randomBytes(32).toString('hex');
+      await writeFile(file, JSON.stringify(config), { mode: 0o600 });
+    }
+    return config;
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
     const config = {
@@ -15,6 +20,7 @@ export async function localConfig() {
       adminPassword: randomBytes(32).toString('hex'),
       appPassword: randomBytes(32).toString('hex'),
       workerPassword: randomBytes(32).toString('hex'),
+      schedulerPassword: randomBytes(32).toString('hex'),
       sessionSecret: randomBytes(32).toString('hex'),
     };
     await writeFile(file, JSON.stringify(config), { flag: 'wx', mode: 0o600 });
@@ -30,6 +36,7 @@ export async function writeLocalEnv(config) {
   const values = {
     DATABASE_URL: `postgresql://pl_app:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_dev`,
     WORKER_DATABASE_URL: `postgresql://pl_worker:${config.workerPassword}@127.0.0.1:${config.port}/parallel_life_dev`,
+    SCHEDULER_DATABASE_URL: `postgresql://pl_scheduler:${config.schedulerPassword}@127.0.0.1:${config.port}/parallel_life_dev`,
     SESSION_SECRET: config.sessionSecret,
     APP_ORIGIN: 'http://127.0.0.1:3218',
     PRIVATE_ASSET_DIR: path.join(root, '.local/assets'),

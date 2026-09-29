@@ -32,6 +32,7 @@ for (const name of ['parallel_life_dev', 'parallel_life_test']) {
 for (const [name, password] of [
   ['pl_app', config.appPassword],
   ['pl_worker', config.workerPassword],
+  ['pl_scheduler', config.schedulerPassword],
 ]) {
   if (!(await client.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [name])).rowCount)
     await client.query(
