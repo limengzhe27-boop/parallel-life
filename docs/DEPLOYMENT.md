@@ -1,3 +1,7 @@
+## 2026-09-29 · NAR-02M 后台每日有界唤醒
+
+应用提交 `5e1b75e`；Vercel Production `mrcsx96x7` / `dpl_2TXtzVZBfxJM4EtR5zFL4at2ow46` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run check` 242 项常规测试、`npm run test:db` 37 项真实 PostgreSQL 测试、`npm run build` 通过；生产 Supabase 30/30 迁移一致，调度角色不可直接读取世界内容。每日 04:00 UTC 的 Vercel Cron 入口已配置；公网 health/首页/分支页 200，未授权入口 401，密钥授权调用 200，当前领到 0 个到期世界。后端每日最多领取两个已启动、未暂停的世界，每个最多一拍；并发重复不重复领取，未知模型结果不自动重试。尚未观察到生产自动 NPC 来信，且未在生产用户世界制造测试剧情；免费档非实时、无系统推送。详见 [NAR-02M](task-reports/NAR-02M.md)。
+
 ## 2026-09-29 · NAR-02J 手机在线时主动来信
 
 应用提交 `6a5c6ac`；Vercel Production `q7cudpjg7` / `dpl_B3685G4iwM4Nz6wZbMju5zA56RZE` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run check` 232 项常规测试、`npm run build` 通过；生产 Supabase 29/29 迁移一致，无新迁移。公网 health、首页、分支页及合成访客入口均 200；390px 手机无横向溢出，1440px 电脑中手机宽 420px。手机停留在前台时每分钟检查一次世界时钟，仅到期且服务端有未了事项才可能产生来信；真实消息提交后刷新通知。尚无关闭网页后的后台推送，未在生产用户世界写入测试剧情。详见 [NAR-02J](task-reports/NAR-02J.md)。
