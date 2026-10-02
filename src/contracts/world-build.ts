@@ -21,12 +21,12 @@ export const WorldOpeningSchema = z.object({
     .array(
       z.object({
         key: z.string().regex(/^[a-z0-9_]{1,24}$/),
-        name: z.string().min(1).max(40),
-        relationship: z.string().min(1).max(100),
-        persona: z.string().min(1).max(600),
+        name: z.string().min(1).max(80),
+        relationship: z.string().min(1).max(600),
+        persona: z.string().min(1).max(1200),
       }),
     )
-    .min(3)
+    .min(2)
     .max(8),
   /** Directed ties between supporting characters; absence on old openings means unknown. */
   actorTies: z
@@ -34,11 +34,11 @@ export const WorldOpeningSchema = z.object({
       z.object({
         fromKey: z.string().regex(/^[a-z0-9_]{1,24}$/),
         toKey: z.string().regex(/^[a-z0-9_]{1,24}$/),
-        relationship: z.string().min(1).max(40),
+        relationship: z.string().min(1).max(200),
         mayShare: z.boolean(),
       }),
     )
-    .max(20)
+    .max(28)
     .optional(),
   messages: z
     .array(z.object({ actorKey: z.string().max(24), text: z.string().min(1).max(160) }))

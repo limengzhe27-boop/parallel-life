@@ -61,6 +61,7 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
   assert.deepEqual(JSON.parse(sent).events, []);
   assert.equal(sent.includes(seed.id), false);
   for (const invalid of [
+    { ...output, actors: output.actors.slice(0, 2) },
     { ...output, messages: [{ actorKey: 'outsider', text: 'hello' }] },
     {
       ...output,
@@ -199,4 +200,130 @@ test('an uncertain outcome is never retried by the planner', async () => {
     { code: 'TIMEOUT' },
   );
   assert.equal(calls, 1);
+});
+
+test('setting trials keep the exact authored cast and ties without sending future outcomes or private IDs', async () => {
+  const { settingContent } = await import('./fixtures/life-setting.ts');
+  const { ApprovedSeedSchema } = await import('../src/contracts/seeds.ts');
+  const content = settingContent();
+  content.relationships[0]!.disclosure = 'never';
+  const trial = ApprovedSeedSchema.parse({
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    source: { kind: 'setting_draft', draftId: randomUUID(), version: 0 },
+    settingContent: content,
+    story: content.story,
+    setup: content.setup,
+    facts: [],
+    events: [],
+    people: [],
+    assets: [],
+    portraitAssetId: null,
+  });
+  let sent = '';
+  const generated = {
+    messages: [{ actorKey: 'c_0', text: '两个场地都问好了，你先看看？' }],
+    notes: [{ title: '场地', text: '今晚对比两个方案' }],
+  };
+  const result = await new WorldPlanner({
+    async complete(messages) {
+      sent = messages[1]!.content;
+      return JSON.stringify(generated);
+    },
+  }).propose(trial);
+  assert.deepEqual(
+    result.actors.map((a) => a.name),
+    content.characters.map((c) => c.name),
+  );
+  assert.equal(result.actors.length, 2);
+  assert.equal(result.actorTies?.[0]?.mayShare, false);
+  assert.equal(result.identity, content.setup.identity);
+  assert.equal(result.setting.includes(content.setup.place), true);
+  assert.equal(sent.includes(trial.id), false);
+  assert.equal(sent.includes(content.threads[0]!.possibleOutcomes[0]!), false);
+  assert.equal(result.actors[0]!.persona.includes(content.characters[0]!.desire), true);
+  for (const invalid of [
+    { ...generated, messages: [{ actorKey: 'outsider', text: 'hi' }] },
+    { ...generated, messages: [{ actorKey: 'c_1', text: '抢先开场' }] },
+    { ...generated, actors: [] },
+  ]) {
+    await assert.rejects(
+      new WorldPlanner({
+        async complete() {
+          return JSON.stringify(invalid);
+        },
+      }).propose(trial),
+      { code: 'INVALID_RESPONSE' },
+    );
+  }
+  assert.equal(
+    ApprovedSeedSchema.safeParse({ ...trial, directionId: randomUUID() }).success,
+    false,
+  );
+  assert.equal(
+    ApprovedSeedSchema.safeParse({
+      ...trial,
+      people: [{ id: randomUUID(), name: '私人关系', relationship: '朋友', assetId: null }],
+    }).success,
+    false,
+  );
+  assert.equal(
+    ApprovedSeedSchema.safeParse({ ...trial, story: { ...trial.story, title: '换成其他起点' } })
+      .success,
+    false,
+  );
+});
+
+test('authored seven-person casts preserve long IDs, names and all 28 directed ties', async () => {
+  const { settingContent } = await import('./fixtures/life-setting.ts');
+  const { ApprovedSeedSchema } = await import('../src/contracts/seeds.ts');
+  const content = settingContent();
+  content.characters = Array.from({ length: 7 }, (_, i) => ({
+    id: `character-${i}-with-long-local-key`,
+    name: `角色${i}` + '长'.repeat(45),
+    role: '合作者',
+    desire: '完成自己的作品',
+    voice: '简洁',
+  }));
+  content.relationships = [];
+  for (let i = 0; i < 7 && content.relationships.length < 28; i++)
+    for (let j = 0; j < 7 && content.relationships.length < 28; j++)
+      if (i !== j)
+        content.relationships.push({
+          fromId: content.characters[i]!.id,
+          toId: content.characters[j]!.id,
+          context: '共事'.repeat(25),
+          disclosure: 'never',
+        });
+  content.openingCharacterId = content.characters[0]!.id;
+  content.threads[0]!.involvedCharacterIds = content.characters.map((c) => c.id);
+  const trial = ApprovedSeedSchema.parse({
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    source: { kind: 'setting_draft', draftId: randomUUID(), version: 0 },
+    settingContent: content,
+    story: content.story,
+    setup: content.setup,
+    facts: [],
+    events: [],
+    people: [],
+    assets: [],
+    portraitAssetId: null,
+  });
+  const opening = await new WorldPlanner({
+    async complete() {
+      return JSON.stringify({
+        messages: [{ actorKey: 'c_0', text: '场地已经问好了' }],
+        notes: [{ title: '场地', text: '预算待定' }],
+      });
+    },
+  }).propose(trial);
+  assert.equal(opening.actors.length, 7);
+  assert.equal(opening.actorTies!.length, 28);
+  assert.deepEqual(
+    opening.actors.map((c) => c.name),
+    content.characters.map((c) => c.name),
+  );
+  assert.equal(opening.actorTies![0]!.relationship, content.relationships[0]!.context);
+  assert.ok(opening.actors.every((c) => /^c_[0-6]$/.test(c.key)));
 });

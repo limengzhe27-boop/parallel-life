@@ -17,7 +17,7 @@ import {
 import { PostgresWorldRepository } from './postgres-world-repository.ts';
 import { PostgresClockStore } from './clock-repository.ts';
 import { projectStoryTime } from '../domain/clock.ts';
-async function readBuild(sql: SqlClient, seedId: string) {
+export async function readBuild(sql: SqlClient, seedId: string) {
   const row = (
     await sql.query('SELECT * FROM parallel_life.world_builds WHERE seed_id=$1', [seedId])
   ).rows[0];
@@ -36,6 +36,50 @@ async function readBuild(sql: SqlClient, seedId: string) {
     task: task ? publicTask(task) : null,
   });
 }
+export async function createWorldBuild(
+  sql: SqlClient,
+  ownerId: string,
+  request: WorldBuildRequest,
+) {
+  await sql.query('SELECT id FROM parallel_life.accounts WHERE id=$1 FOR UPDATE', [ownerId]);
+  const seedRow = (
+    await sql.query('SELECT document FROM parallel_life.approved_seeds WHERE id=$1', [
+      request.seedId,
+    ])
+  ).rows[0];
+  if (!seedRow) throw new TaskError('NOT_FOUND');
+  ApprovedSeedSchema.parse(seedRow.document);
+  const hash = requestHash(['world-build', request.seedId]);
+  const duplicate = (
+    await sql.query(
+      'SELECT request_hash FROM parallel_life.tasks WHERE owner_id=$1 AND command_id=$2',
+      [ownerId, request.commandId],
+    )
+  ).rows[0];
+  if (duplicate && duplicate.request_hash !== hash) throw new TaskError('IDEMPOTENCY_CONFLICT');
+  const existing = (
+    await sql.query('SELECT seed_id FROM parallel_life.world_builds WHERE seed_id=$1', [
+      request.seedId,
+    ])
+  ).rows[0];
+  if (existing) return readBuild(sql, request.seedId);
+  const worldId = randomUUID();
+  await sql.query(
+    'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id) VALUES($1,$2,$3)',
+    [request.seedId, ownerId, worldId],
+  );
+  await enqueue(
+    sql,
+    ownerId,
+    'world-build',
+    request.seedId,
+    request.commandId,
+    { kind: 'world-build', seedId: request.seedId, worldId },
+    hash,
+  );
+  return readBuild(sql, request.seedId);
+}
+
 export class BuildRepository {
   private db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
@@ -52,11 +96,13 @@ export class BuildRepository {
           `SELECT b.seed_id, b.world_id, b.created_at AS build_created_at,
                   b.opening IS NOT NULL AS ready, t.*
              FROM parallel_life.world_builds b
+             JOIN parallel_life.approved_seeds s ON s.id=b.seed_id
              LEFT JOIN LATERAL (
                SELECT * FROM parallel_life.tasks task
                 WHERE task.scope_kind='world-build' AND task.scope_id=b.seed_id::text
                 ORDER BY task.created_at DESC, task.id DESC LIMIT 1
              ) t ON true
+            WHERE s.setting_draft_id IS NULL
             ORDER BY b.created_at DESC
             LIMIT 100`,
         )
@@ -74,45 +120,7 @@ export class BuildRepository {
   }
   async create(ownerId: string, raw: WorldBuildRequest) {
     const request = WorldBuildRequestSchema.parse(raw);
-    return this.db.transaction(ownerId, async (sql) => {
-      await sql.query('SELECT id FROM parallel_life.accounts WHERE id=$1 FOR UPDATE', [ownerId]);
-      const seedRow = (
-        await sql.query('SELECT document FROM parallel_life.approved_seeds WHERE id=$1', [
-          request.seedId,
-        ])
-      ).rows[0];
-      if (!seedRow) throw new TaskError('NOT_FOUND');
-      ApprovedSeedSchema.parse(seedRow.document);
-      const hash = requestHash(['world-build', request.seedId]);
-      const duplicate = (
-        await sql.query(
-          'SELECT request_hash FROM parallel_life.tasks WHERE owner_id=$1 AND command_id=$2',
-          [ownerId, request.commandId],
-        )
-      ).rows[0];
-      if (duplicate && duplicate.request_hash !== hash) throw new TaskError('IDEMPOTENCY_CONFLICT');
-      const existing = (
-        await sql.query('SELECT seed_id FROM parallel_life.world_builds WHERE seed_id=$1', [
-          request.seedId,
-        ])
-      ).rows[0];
-      if (existing) return readBuild(sql, request.seedId);
-      const worldId = randomUUID();
-      await sql.query(
-        'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id) VALUES($1,$2,$3)',
-        [request.seedId, ownerId, worldId],
-      );
-      await enqueue(
-        sql,
-        ownerId,
-        'world-build',
-        request.seedId,
-        request.commandId,
-        { kind: 'world-build', seedId: request.seedId, worldId },
-        hash,
-      );
-      return readBuild(sql, request.seedId);
-    });
+    return this.db.transaction(ownerId, (sql) => createWorldBuild(sql, ownerId, request));
   }
   async phone(ownerId: string, worldId: string) {
     const metadata = await this.db.transaction(ownerId, async (sql) => {

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { SeedStorySchema } from './seeds.ts';
+import { DirectionFields } from './discovery.ts';
+const SeedStorySchema = DirectionFields.pick({
+  title: true,
+  premise: true,
+  opening: true,
+  tradeoff: true,
+});
 
 // Authoring content only: account ownership, review decisions, published versions
 // and player saves belong to trusted persistence, never to an author's payload.

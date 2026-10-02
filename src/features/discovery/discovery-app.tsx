@@ -261,7 +261,8 @@ export function DiscoveryApp() {
   const availableDirections = stale
     ? []
     : (data?.directions ?? []).filter(
-        (direction) => !savedSeeds.some((saved) => saved.directionId === direction.id),
+        (direction) =>
+          !savedSeeds.some((saved) => 'directionId' in saved && saved.directionId === direction.id),
       );
   const showProposalDrawer =
     availableDirections.length > 0 ||

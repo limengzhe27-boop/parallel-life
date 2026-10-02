@@ -27,3 +27,9 @@ export const SettingDraftListSchema = z.array(SettingDraftSummarySchema).max(20)
 export type SettingDraft = z.infer<typeof SettingDraftSchema>;
 export type CreateSettingDraft = z.infer<typeof CreateSettingDraftSchema>;
 export type SaveSettingDraft = z.infer<typeof SaveSettingDraftSchema>;
+
+export const SettingTrialRequestSchema = z.strictObject({
+  commandId: Id,
+  version: Version.max(99),
+});
+export type SettingTrialRequest = z.infer<typeof SettingTrialRequestSchema>;
