@@ -363,6 +363,17 @@ export function InterviewApp() {
       setUploadingChatPhoto(false);
     }
   }
+  function cancelChatPhoto() {
+    if (!pendingPhotoAssetId || uploadingChatPhoto || sending) return;
+    setPendingPhotoAssetId(null);
+    try {
+      if (data?.profile.id)
+        sessionStorage.removeItem(`pl-pending-interview-photo:${data.profile.id}`);
+    } catch {
+      /* The retry is also removed from in-memory state. */
+    }
+    setError('已取消发送。这张照片没有加入「我的」，也没有发给人生伙伴。');
+  }
   async function edit(operation: ProfileEdit['operation']) {
     if (!data) return;
     setSaving(true);
@@ -483,14 +494,24 @@ export function InterviewApp() {
               <Notice>
                 <span>{error || '还有一张已上传但未发出的照片。加入「我的」后即可继续发送。'}</span>
                 {pendingPhotoAssetId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={uploadingChatPhoto || sending || waiting}
-                    onClick={() => void retryChatPhoto()}
-                  >
-                    重试这张照片
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={uploadingChatPhoto || sending || waiting}
+                      onClick={() => void retryChatPhoto()}
+                    >
+                      重试这张照片
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={uploadingChatPhoto || sending}
+                      onClick={cancelChatPhoto}
+                    >
+                      暂不发送
+                    </Button>
+                  </>
                 )}
                 {!data && (
                   <Button
