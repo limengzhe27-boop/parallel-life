@@ -1,3 +1,4 @@
+import { SettingDraftRepository } from '../modules/settings/infrastructure/setting-draft-repository.ts';
 import { DraftRepository } from '../modules/discovery/infrastructure/draft-repository.ts';
 import { randomUUID } from 'node:crypto';
 import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
@@ -190,6 +191,7 @@ function createServices() {
     discovery: new DiscoveryRepository(db),
     seeds: new SeedRepository(db),
     drafts: new DraftRepository(db),
+    settingDrafts: new SettingDraftRepository(db),
     builds: new BuildRepository(db),
     worlds: new PostgresWorldRepository(db),
     tasks: new TaskRepository(db),

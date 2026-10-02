@@ -680,3 +680,6 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |LIB-04|[ ] 待开发|未领取|依赖LIB-02B；独立创作助手、设定编辑和私有试演|创作内容不写现实档案；补问阻碍开场的缺项；试演重置/修改后重演/失败恢复|
 |LIB-05|[ ] 待开发|未领取|依赖LIB-03/04、G-01正式账号；公开发布审核、授权素材、版本、撤回/举报|发布来源与素材权属核对；公共内容不含作者私密记录；新版本不改旧玩家世界；撤回策略明确|
 |LIB-06|[ ] 待开发|未领取|依赖LIB-03/05、NAR-02/03、EXP-06；作者到两个玩家完整验收|创作→试演→发布→独立体验→选择→后果→回访；质量/成本/失败记录，不用测试数冒充吸引力|
+|LIB-02R|[ ] 待验收|codex-f-01a0c7c8-lib02r-20261003（I明确分配）|主登记目录；仅docs/task-reports/LIB-02R.md及本人本行状态；其余代码与迁移只读、无模型/数据库/部署；2026-10-03 01:22 CST领取|[报告](task-reports/LIB-02R.md)：静态审查版本隔离、不可变、撤下/实例化，并按I最新范围收窄首段四类真实库反例；未改业务代码、未运行模型/数据库/构建/部署；01:32 CST 静态复核：历史修订单独删除保护已由0033迁移补上，限量/故障回滚测试已新增；权限回归只对私有稿触发器例外，仍断言worker无私有表读写。待主任务真实PostgreSQL确认直接删除、账号级联清理、回滚及权限测试；本审查未亲自跑库/构建/部署。02:00截止已取消，额度剩余>50%才安全收尾。|
+
+|LIB-02B1|[ ] 待验收|codex-main-lib02b1-20261003|主目录；contracts/setting-drafts.ts、modules/settings/infrastructure/setting-draft-repository.ts、server/services.ts、app/api/v1/setting-drafts/**、db/migrations/{0032_setting_drafts,0033_setting_revision_delete_guard}.sql、tests/fixtures/life-setting.ts、tests/life-settings.test.ts、tests/integration/{setting-drafts,role-grants}.test.ts、docs/task-reports/LIB-02B1.md及部署/任务表|2026-10-03 01:25北京时间领取；作者私有设定保存、不可变修订、幂等与并发、跨用户隔离；无公开发布/玩家实例化。用户01:31修正：无02:00截止，剩余额度>50%才收尾停止，未重置继续，主任务负责迁移部署|

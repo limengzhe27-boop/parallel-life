@@ -8,10 +8,10 @@ import { migrate } from '../../scripts/migrate.mjs';
  * EXECUTE from PUBLIC and no role could run the trigger/CHECK helpers any more, so
  * ordinary writes (interview answers, memory candidates) failed on the server.
  *
- * Every function that a trigger on a runtime table calls must be executable by both
- * runtime roles, because a trigger runs as the role performing the write.
+ * Trigger helpers must be executable by the roles that write their table.
+ * Private authoring tables deliberately grant no access to the background worker.
  */
-test('every trigger helper on runtime tables is executable by both runtime roles', async () => {
+test('trigger helpers allow their writers; private authoring stays inaccessible to workers', async () => {
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   try {
@@ -28,7 +28,28 @@ test('every trigger helper on runtime tables is executable by both runtime roles
          ORDER BY p.proname`)
     ).rows;
     assert.ok(rows.length > 0, 'expected at least one trigger on runtime tables');
-    const denied = rows.filter((row) => !row.app_ok || !row.worker_ok);
+    const authorOnly = new Set([
+      'guard_setting_draft_update',
+      'guard_setting_revision',
+      'guard_setting_revision_delete',
+    ]);
+    for (const row of rows.filter((row) => authorOnly.has(row.proname))) {
+      assert.equal(row.app_ok, true);
+      assert.equal(row.worker_ok, false);
+    }
+    for (const table of ['setting_drafts', 'setting_draft_revisions', 'setting_draft_receipts']) {
+      for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+        const access = await admin.query('SELECT has_table_privilege($1,$2,$3) AS allowed', [
+          'pl_worker',
+          `parallel_life.${table}`,
+          privilege,
+        ]);
+        assert.equal(access.rows[0].allowed, false);
+      }
+    }
+    const denied = rows.filter(
+      (row) => !authorOnly.has(row.proname) && (!row.app_ok || !row.worker_ok),
+    );
     assert.deepEqual(
       denied.map((row) => `${row.proname}(${row.args}) app=${row.app_ok} worker=${row.worker_ok}`),
       [],
