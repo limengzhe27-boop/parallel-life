@@ -61,3 +61,31 @@ test('default transport keeps the receiver required by native browser fetch', as
     globalThis.fetch = original;
   }
 });
+
+test('unused-upload disposal accepts no-content and preserves server conflicts', async () => {
+  const assetId = randomUUID();
+  let conflict = false;
+  const client = new LifeClient(async (url, options) => {
+    if (String(url).endsWith('/session'))
+      return Response.json({ kind: 'guest', csrfToken: 'a'.repeat(43) });
+    assert.equal(String(url), `/api/v1/assets/${assetId}?onlyIfUnused=1`);
+    assert.equal(options?.method, 'DELETE');
+    assert.equal(new Headers(options?.headers).get('X-CSRF-Token'), 'a'.repeat(43));
+    return conflict
+      ? Response.json(
+          {
+            error: {
+              code: 'CONFLICT',
+              message: '已被使用',
+              retryable: false,
+              requestId: randomUUID(),
+            },
+          },
+          { status: 409 },
+        )
+      : new Response(null, { status: 204 });
+  });
+  await client.discardUnusedUpload(assetId);
+  conflict = true;
+  await assert.rejects(client.discardUnusedUpload(assetId), { code: 'CONFLICT' });
+});

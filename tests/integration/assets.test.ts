@@ -70,6 +70,23 @@ test('private images decode, strip metadata, enforce ownership and remove profil
         person: { id: randomUUID(), name: '朋友', relationship: '好友', assetId: saved.id },
       },
     });
+    await assert.rejects(repo.discardUnreferencedUpload(owner, saved.id), { code: 'CONFLICT' });
+    const unused = await repo.upload(owner, fixture);
+    await assert.rejects(repo.discardUnreferencedUpload(other, unused.id), { code: 'NOT_FOUND' });
+    await repo.discardUnreferencedUpload(owner, unused.id);
+    await repo.discardUnreferencedUpload(owner, unused.id);
+    await assert.rejects(repo.read(owner, unused.id), { code: 'NOT_FOUND' });
+    const sent = await repo.upload(owner, fixture);
+    await db.transaction(owner, async (sql) => {
+      const interview = (
+        await sql.query('SELECT id FROM parallel_life.interviews WHERE owner_id=$1', [owner])
+      ).rows[0];
+      await sql.query(
+        "INSERT INTO parallel_life.interview_messages(id,owner_id,interview_id,role,text) VALUES($1,$2,$3,'user',$4)",
+        [randomUUID(), owner, interview.id, `[照片:/api/v1/assets/${sent.id}]`],
+      );
+    });
+    await assert.rejects(repo.discardUnreferencedUpload(owner, sent.id), { code: 'CONFLICT' });
     await repo.remove(owner, saved.id);
     assert.equal((await profile.get(owner)).portraitAssetId, null);
     assert.equal((await profile.get(owner)).people[0]?.assetId, null);

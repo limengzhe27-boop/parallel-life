@@ -21,7 +21,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const s = await authenticated(request),
       { id } = await context.params;
     if (!Id.safeParse(id).success) throw new HttpError('NOT_FOUND', 404);
-    await s.assets.remove(s.ownerId, id);
+    if (new URL(request.url).searchParams.get('onlyIfUnused') === '1')
+      await s.assets.discardUnreferencedUpload(s.ownerId, id);
+    else await s.assets.remove(s.ownerId, id);
     return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
   });
 }

@@ -98,7 +98,7 @@ export class LifeClient {
     }
     let body: unknown;
     try {
-      body = await response.json();
+      body = response.status === 204 ? undefined : await response.json();
     } catch {
       throw new ApiFailure('UNAVAILABLE', '暂时没有收到完整结果，请重试。');
     }
@@ -469,6 +469,13 @@ export class LifeClient {
         );
       throw error;
     }
+  }
+
+  async discardUnusedUpload(id: string) {
+    await this.connect();
+    return this.request(`/assets/${encodeURIComponent(id)}?onlyIfUnused=1`, z.void(), {
+      method: 'DELETE',
+    });
   }
 
   async exportData(): Promise<Blob> {

@@ -159,6 +159,53 @@ export class AssetRepository {
     if (!row) throw new TaskError('NOT_FOUND');
     return this.store.get(row.storage_key);
   }
+  async discardUnreferencedUpload(ownerId: string, id: string) {
+    const key = await this.db.transaction(ownerId, async (sql) => {
+      // Interview sends lock the account first. This also serializes a late send
+      // against disposal of the upload after an uncertain network response.
+      await sql.query('SELECT id FROM parallel_life.accounts WHERE id=$1 FOR UPDATE', [ownerId]);
+      const profile = (
+        await sql.query(
+          'SELECT document FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',
+          [ownerId],
+        )
+      ).rows[0];
+      const asset = (
+        await sql.query(
+          "SELECT storage_key,status FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND origin='upload' AND world_id IS NULL FOR UPDATE",
+          [id, ownerId],
+        )
+      ).rows[0];
+      if (!asset) throw new TaskError('NOT_FOUND');
+      if (asset.status === 'deleted') return asset.storage_key as string;
+      if (asset.status !== 'ready') throw new TaskError('INVALID_STATE');
+      const document = profile?.document;
+      if (
+        document?.portraitAssetId === id ||
+        document?.referenceAssetIds?.includes(id) ||
+        document?.people?.some((person: { assetId: string | null }) => person.assetId === id)
+      )
+        throw new TaskError('CONFLICT');
+      const used = await sql.query(
+        `SELECT 1 FROM parallel_life.interview_messages
+         WHERE owner_id=$1 AND role='user' AND position($2 in text)>0 LIMIT 1`,
+        [ownerId, `[照片:/api/v1/assets/${id}]`],
+      );
+      if (used.rowCount) throw new TaskError('CONFLICT');
+      const seeded = await sql.query(
+        `SELECT 1 FROM parallel_life.world_initial_snapshots
+         WHERE owner_id=$1 AND position($2 in approved_seed::text)>0 LIMIT 1`,
+        [ownerId, id],
+      );
+      if (seeded.rowCount) throw new TaskError('CONFLICT');
+      await sql.query(
+        "UPDATE parallel_life.assets SET status='deleted',revision=revision+1 WHERE id=$1",
+        [id],
+      );
+      return asset.storage_key as string;
+    });
+    await this.store.remove(key);
+  }
   async remove(ownerId: string, id: string) {
     const key = await this.db.transaction(ownerId, async (sql) => {
       const p = (

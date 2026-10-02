@@ -39,6 +39,10 @@ const categories: Record<ProfileFact['category'], string> = {
 };
 const errorMessage = (error: unknown) =>
   error instanceof ApiFailure ? error.message : '暂时没有完成，内容已保留，请再试一次。';
+const profileUsesPhoto = (profile: Profile, assetId: string) =>
+  profile.portraitAssetId === assetId ||
+  profile.referenceAssetIds.includes(assetId) ||
+  profile.people.some((person) => person.assetId === assetId);
 
 function renderMessageContent(message: InterviewMessage) {
   const photo = parseInterviewPhotoMessage(message);
@@ -402,30 +406,56 @@ export function InterviewApp() {
   }
   async function cancelChatPhoto() {
     if (!pendingPhotoAssetId || uploadingChatPhoto || sending) return;
+    const assetId = pendingPhotoAssetId;
     setUploadingChatPhoto(true);
-    let current: InterviewWorkspace;
     try {
-      current = await client.workspace();
-    } catch {
-      setError('暂时无法确认照片是否发出，请稍后重试。');
+      const current = await client.workspace();
+      apply(current);
+      if (hasInterviewPhotoMessage(current.interview.messages, assetId)) {
+        clearPendingChatPhoto(current.profile.id);
+        setError('这张照片已经发出，不能取消已发送的消息。');
+        return;
+      }
+      if (!profileUsesPhoto(current.profile, assetId)) {
+        await client.discardUnusedUpload(assetId);
+      }
+      setPendingPhotoAssetId(null);
+      try {
+        sessionStorage.removeItem(`pl-pending-interview-photo:${current.profile.id}`);
+      } catch {
+        /* In-memory pending state has been cleared. */
+      }
+      setError(
+        profileUsesPhoto(current.profile, assetId)
+          ? '已取消发送，照片仍保存在「我的」。'
+          : '已取消发送，未使用的照片已清理。',
+      );
+    } catch (e) {
+      if (e instanceof ApiFailure && e.code === 'CONFLICT') {
+        const latest = await client.workspace().catch(() => null);
+        if (latest) {
+          apply(latest);
+          if (hasInterviewPhotoMessage(latest.interview.messages, assetId)) {
+            clearPendingChatPhoto(latest.profile.id);
+            setError('这张照片已经发出，不能取消已发送的消息。');
+            return;
+          }
+          if (profileUsesPhoto(latest.profile, assetId)) {
+            setPendingPhotoAssetId(null);
+            try {
+              sessionStorage.removeItem(`pl-pending-interview-photo:${latest.profile.id}`);
+            } catch {
+              /* Keep the visible draft. */
+            }
+            setError('已取消发送，照片仍保存在「我的」。');
+            return;
+          }
+        }
+      }
+      setError('暂时无法确认或清理这张照片，已保留待发送状态，请稍后重试。');
+    } finally {
       setUploadingChatPhoto(false);
-      return;
     }
-    apply(current);
-    if (hasInterviewPhotoMessage(current.interview.messages, pendingPhotoAssetId)) {
-      clearPendingChatPhoto(current.profile.id);
-      setError('这张照片已经发出，不能取消已发送的消息。');
-      setUploadingChatPhoto(false);
-      return;
-    }
-    setPendingPhotoAssetId(null);
-    try {
-      sessionStorage.removeItem(`pl-pending-interview-photo:${current.profile.id}`);
-    } catch {
-      /* Local storage is optional; in-memory pending state has been cleared. */
-    }
-    setError('已取消待发送。照片若已加入「我的」，可在那里查看或删除。');
-    setUploadingChatPhoto(false);
   }
   async function edit(operation: ProfileEdit['operation']) {
     if (!data) return;
@@ -648,7 +678,12 @@ export function InterviewApp() {
                     type="submit"
                     aria-label="发送消息"
                     disabled={
-                      !data || !draft.trim() || sending || waiting || uploadingChatPhoto || !!pendingPhotoAssetId
+                      !data ||
+                      !draft.trim() ||
+                      sending ||
+                      waiting ||
+                      uploadingChatPhoto ||
+                      !!pendingPhotoAssetId
                     }
                   >
                     {sending ? <span className="spinner" /> : <Icon name="send" size={18} />}
