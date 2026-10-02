@@ -26,20 +26,16 @@ function cleanForMatch(s: string) {
 }
 
 export function isSimilarText(a: string, b: string): boolean {
-  const ca = cleanForMatch(a);
-  const cb = cleanForMatch(b);
-  if (ca === cb) return true;
-  if (!ca || !cb) return false;
-  if (ca.includes(cb) || cb.includes(ca)) return true;
-  const setA = new Set(ca);
-  const setB = new Set(cb);
-  let intersection = 0;
-  for (const char of setA) {
-    if (setB.has(char)) intersection++;
-  }
-  const minLen = Math.min(setA.size, setB.size);
-  // 对于具有一定长度的经历陈述，字集交集超过50%即判定为语义同质描述
-  return minLen >= 4 && intersection / minLen >= 0.5;
+  // Auto-merging loses the second claim and attaches its source to the first.
+  // Shared phrases such as “我喜欢”/“我想成为” cannot prove that the objects match.
+  // Only punctuation, the self-pronoun and a few emphasis modifiers are ignored;
+  // paraphrases remain separate until a user can review them.
+  const normalize = (text: string) =>
+    cleanForMatch(text)
+      .replace(/^我/u, '')
+      .replace(/^(?:(?:还是|一直|确实|真的|特别|非常|比较|很))+/u, '');
+  const ca = normalize(a);
+  return ca.length > 0 && ca === normalize(b);
 }
 
 type BasicInfoInput = {

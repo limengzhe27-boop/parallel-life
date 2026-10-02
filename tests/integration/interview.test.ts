@@ -252,3 +252,88 @@ test('streaming and queued interview paths suggest conflicting birthdays without
     await admin.end();
   }
 });
+
+test('streaming and queued interviews keep distinct interests, wishes and experiences while merging a real repeat', async () => {
+  const admin = await adminClient('parallel_life_test');
+  const c = await localConfig();
+  const db = new PostgresDatabase(
+    `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const queue = new PostgresTaskQueue(
+    `postgresql://pl_worker:${c.workerPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+  );
+  const owner = randomUUID();
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    const repo = new InterviewRepository(db);
+    const planner = new InterviewPlanner({
+      async complete() {
+        const last = (await repo.get(owner)).interview.messages
+          .filter((m) => m.role === 'user')
+          .at(-1)!;
+        if (last.text.includes('上大学'))
+          return JSON.stringify({
+            reply: '我记下了。',
+            facts: [],
+            events: [{ title: last.text, date: null, sourceMessageIds: [last.id] }],
+          });
+        const value = last.text.includes('旅行')
+          ? '喜欢旅行'
+          : last.text.includes('音乐家')
+            ? '想成为音乐家'
+            : last.text.includes('摄影师')
+              ? '想成为摄影师'
+              : '喜欢摄影';
+        return JSON.stringify({
+          reply: '我记下了。',
+          facts: [
+            {
+              category: value.startsWith('想') ? 'wish' : 'interest',
+              value,
+              sourceMessageIds: [last.id],
+            },
+          ],
+          events: [],
+        });
+      },
+    });
+    for (const [index, text] of [
+      '我喜欢摄影',
+      '我喜欢旅行',
+      '我还是很喜欢摄影',
+      '我想成为摄影师',
+      '我想成为音乐家',
+      '我在上海上大学',
+      '我在北京上大学',
+    ].entries()) {
+      const version = (await repo.get(owner)).interview.version;
+      const input = { commandId: randomUUID(), expectedVersion: version, text };
+      if (index % 2 === 0) await repo.sendStreaming(owner, input, planner, () => {});
+      else {
+        await repo.send(owner, input);
+        await runOne(queue, { interview: interviewHandler(queue, planner, 'test-model') });
+      }
+    }
+    const profile = (await repo.get(owner)).profile;
+    assert.deepEqual(
+      profile.facts.map((fact) => [fact.category, fact.value]),
+      [
+        ['interest', '喜欢摄影'],
+        ['interest', '喜欢旅行'],
+        ['wish', '想成为摄影师'],
+        ['wish', '想成为音乐家'],
+      ],
+    );
+    assert.equal(profile.facts[0]!.sourceMessageIds.length, 2);
+    assert.equal(profile.facts[1]!.sourceMessageIds.length, 1);
+    assert.deepEqual(
+      profile.events.map((event) => event.title),
+      ['我在上海上大学', '我在北京上大学'],
+    );
+  } finally {
+    await db.close();
+    await queue.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);
+    await admin.end();
+  }
+});
