@@ -617,3 +617,7 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-03 · LIB-01/02A 人生设定规划与基础协议
 
 应用0685403，Production f2whtncek / dpl_6G3Uqjb1c4vhqpKXUpAW1U2g1QjQ Ready；正式域名已切换。259项check及build通过；生产31项迁移存在，无新增迁移。公网health、首页与/possibilities均200。本批是作者内容协议与整体路线，不含公开设定库、作者发布或新世界创建入口；见[LIB-01报告](task-reports/LIB-01.md)与[LIFE_SETTING_PLAN](LIFE_SETTING_PLAN.md)。
+
+## 2026-10-03 · LIB-02B1 作者私有设定保存
+
+应用 adee308，Production jthl8qtte Ready；生产33项迁移已应用。259常规+44真实库及build通过。公网双合成账号完成创建、保存、历史修订、重试、冲突与跨账号隔离，现实资料不变。尚无作者UI、试演或公开发布；见[报告](task-reports/LIB-02B1.md)。
