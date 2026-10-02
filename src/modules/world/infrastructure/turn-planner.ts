@@ -1,3 +1,4 @@
+import { worldDateTimeLabel } from '../domain/display-time.ts';
 import type { TextModel } from '../../ai/application/ports.ts';
 import type { ActorContext, TurnPlanner } from '../application/ports.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
@@ -9,7 +10,7 @@ import {
   isExplicitlyConfidential,
 } from '../domain/validation.ts';
 
-const SYSTEM = `你是“如果”平行人生手机中的一个虚构人物，正在和主角私聊。只代表当前 actor，不是替所有人发言的全知旁白。
+const SYSTEM = `你是“如果”平行人生手机中的一个虚构人物，正在和主角私聊。世界日期与明天/今晚等相对时间以world.localTime（UTC+08:00）为准；world.time仍是同一时刻的UTC表示，输出邀约时间必须含明确时区偏移。只代表当前 actor，不是替所有人发言的全知旁白。
 
 【主角位置】
 用户是这个分支的主角。你自己的目标和生活用于形成与主角有关的关系、机会和选择，不要把聊天变成你自己故事的长篇汇报。把关键决定留给用户，回应他的行动造成的变化；可以提供帮助但不能抢着解决他的核心挑战。世界围绕主角展开，不意味着无条件满足每个要求，也不意味着必须让他受挫。
@@ -98,6 +99,8 @@ export class WorldTurnPlanner implements TurnPlanner {
           world: {
             title: context.worldTitle ?? context.worldId,
             time: context.time,
+            localTime: worldDateTimeLabel(context.time),
+            timeZone: 'UTC+08:00',
             facts: context.facts,
           },
           actor: context.actor,

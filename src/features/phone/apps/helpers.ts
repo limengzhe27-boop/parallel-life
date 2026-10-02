@@ -1,6 +1,14 @@
-/** ISO day keys stay in the supplied world offset; never shift by the viewer's timezone. */
+import {
+  worldDayKey,
+  worldTimeLabel,
+  worldDateTimeLabel,
+  worldDateTimeInput,
+  worldDateTimeToInstant,
+} from '../../../modules/world/domain/display-time.ts';
+export { worldDateTimeInput };
+/** Date-only photo labels are already calendar dates; timestamps use the world clock policy. */
 export function dayKey(iso: string): string {
-  return /^\d{4}-\d{2}-\d{2}/.exec(iso)?.[0] ?? '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : worldDayKey(iso);
 }
 export function monthDays(month: string): (string | null)[] {
   if (!/^\d{4}-\d{2}$/.test(month)) return [];
@@ -19,32 +27,23 @@ export function shiftMonth(month: string, delta: number): string {
   d.setUTCMonth(d.getUTCMonth() + delta);
   return d.toISOString().slice(0, 7);
 }
-/** Input is edited in the invitation's original offset, not in the host browser timezone. */
+/** Form wall-clock values use the world policy, never the source string's offset. */
 export function rescheduleAt(value: string, original: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null;
-  const d = new Date(value + ':00Z');
-  if (!Number.isFinite(d.getTime()) || d.toISOString().slice(0, 16) !== value) return null;
-  const offset = /(Z|[+-]\d{2}:\d{2})$/.exec(original)?.[0] ?? 'Z';
-  return value + ':00' + offset;
+  if (value && value === worldDateTimeInput(original)) return original;
+  return worldDateTimeToInstant(value);
 }
 export function timeText(iso: string): string {
-  return iso ? iso.slice(0, 16).replace('T', ' ') : '';
+  return worldDateTimeLabel(iso);
 }
 export function formatChatTime(iso: string, referenceTime?: string): string {
-  if (!iso) return '';
-  const timePart = iso.slice(11, 16);
-  if (!referenceTime) return timePart;
-  const sameDay = iso.slice(0, 10) === referenceTime.slice(0, 10);
-  // Conversation history should show when each message happened, rather than
-  // turning several distinct earlier messages into the same relative label.
-  if (sameDay) return timePart;
-  const calendarDayDelta =
-    (Date.parse(dayKey(referenceTime) + 'T00:00:00Z') - Date.parse(dayKey(iso) + 'T00:00:00Z')) /
-    86400000;
-  if (calendarDayDelta === 1) {
-    return `昨天 ${timePart}`;
-  }
-  return `${Number(iso.slice(5, 7))}月${Number(iso.slice(8, 10))}日`;
+  const time = worldTimeLabel(iso),
+    day = dayKey(iso);
+  if (!time || !day) return '';
+  if (!referenceTime || day === dayKey(referenceTime)) return time;
+  const delta =
+    (Date.parse(dayKey(referenceTime) + 'T00:00:00Z') - Date.parse(day + 'T00:00:00Z')) / 86400000;
+  if (delta === 1) return `昨天 ${time}`;
+  return `${Number(day.slice(5, 7))}月${Number(day.slice(8, 10))}日`;
 }
 export function errorText(error: unknown): string {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : '';

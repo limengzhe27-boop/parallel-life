@@ -1,4 +1,5 @@
 'use client';
+import { worldDateTimeLabel } from '../../modules/world/domain/display-time.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LifeClient } from '../api/client.ts';
 import type { WorldClock } from '../../contracts/world-clock.ts';
@@ -100,9 +101,7 @@ export function DirectorPanel({
     pacing,
     focusActorIds: focus,
   });
-  const storyTime = clock
-    ? new Date(clock.storyNow).toLocaleString('zh-CN', { hour12: false, timeZone: 'UTC' })
-    : '—';
+  const storyTime = clock ? worldDateTimeLabel(clock.storyNow) : '—';
 
   return (
     <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>

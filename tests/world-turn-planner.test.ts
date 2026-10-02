@@ -485,3 +485,32 @@ test('director only keeps a one-hop disclosure with a real visible user quote an
     ['message.received'],
   );
 });
+
+test('NPC relative dates receive Beijing wall time and the unchanged UTC instant', async () => {
+  let checked = false;
+  const planner = new WorldTurnPlanner({
+    async complete(messages) {
+      const input = JSON.parse(messages[1]!.content);
+      assert.equal(input.world.time, '2026-10-02T16:10:00Z');
+      assert.equal(input.world.localTime, '2026-10-03 00:10');
+      assert.equal(input.world.timeZone, 'UTC+08:00');
+      checked = true;
+      return JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          {
+            type: 'message.received',
+            id: 'local-time-reply',
+            actorId: mockContext.actor.id,
+            text: '那就明天聊。',
+          },
+        ],
+      });
+    },
+  });
+  await planner.propose({
+    context: { ...mockContext, time: '2026-10-02T16:10:00Z' },
+    userText: '明天什么时候见？',
+  });
+  assert.equal(checked, true);
+});

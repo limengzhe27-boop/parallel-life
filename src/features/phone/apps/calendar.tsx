@@ -3,7 +3,14 @@ import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneInvitation } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Empty, Feedback, Links } from './common.tsx';
-import { dayKey, monthDays, shiftMonth, rescheduleAt, timeText } from './helpers.ts';
+import {
+  dayKey,
+  monthDays,
+  shiftMonth,
+  rescheduleAt,
+  timeText,
+  worldDateTimeInput,
+} from './helpers.ts';
 import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
 const statusLabel = {
@@ -36,10 +43,10 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
   const activeDate = tab === 'today' ? todayKey : selected;
   const dayInvitations = data.invitations
     .filter((i) => dayKey(i.at) === activeDate)
-    .sort((a, b) => a.at.localeCompare(b.at));
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const pendingInvitations = data.invitations
     .filter((i) => i.status === 'proposed')
-    .sort((a, b) => a.at.localeCompare(b.at));
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
   return (
     <div className={`${s.app} ${s.calendar}`} style={{ background: '#f8fafc' }}>
@@ -187,9 +194,7 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
                   margin: '6px 0',
                 }}
               >
-                <time>
-                  {n.at.slice(5, 10)} {n.at.slice(11, 16)}
-                </time>
+                <time>{timeText(n.at).slice(5)}</time>
                 <span>
                   <strong style={{ fontSize: '14px', color: '#0f172a' }}>{n.title}</strong>
                   <small className={s.proposed}>待回复 · 点击接受或改期</small>
@@ -232,7 +237,9 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
                 }}
               >
-                <time style={{ fontWeight: 600, color: '#0284c7' }}>{n.at.slice(11, 16)}</time>
+                <time style={{ fontWeight: 600, color: '#0284c7' }}>
+                  {timeText(n.at).slice(11)}
+                </time>
                 <span>
                   <strong style={{ fontSize: '14px', color: '#0f172a' }}>{n.title}</strong>
                   <small className={n.status === 'proposed' ? s.proposed : undefined}>
@@ -351,7 +358,7 @@ function InvitationDetail({
   const changedAfterAccept =
     operation?.status === 'accepted' && operation.signature?.startsWith(`${n.version}:`);
   const disabled = !actions.changeInvitation || operation?.busy || changedAfterAccept;
-  const date = drafts[`date:${n.id}`] ?? n.at.slice(0, 16);
+  const date = drafts[`date:${n.id}`] ?? worldDateTimeInput(n.at);
   const leadActor = data.contacts.find((c) => n.participantIds.includes(c.id));
   const isDue = Date.parse(data.referenceTime ?? '') >= Date.parse(n.at);
   async function change(

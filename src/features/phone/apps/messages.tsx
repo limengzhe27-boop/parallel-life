@@ -3,7 +3,7 @@ import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
-import { formatChatTime, searchable, timeText } from './helpers.ts';
+import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
 
@@ -64,7 +64,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const actor = data.contacts.find((c) => c.id === target);
   const messages = data.messages
     .filter((m) => m.actorId === target)
-    .sort((a, b) => a.at.localeCompare(b.at));
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const key = `message:${target}`,
     text = drafts[key] ?? '',
     operation = operations[key];
@@ -133,15 +133,15 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     const sortedChats = [...contacts].sort((a, b) => {
       const latestA = data.messages
         .filter((m) => m.actorId === a.id)
-        .sort((x, y) => x.at.localeCompare(y.at))
+        .sort((x, y) => Date.parse(x.at) - Date.parse(y.at))
         .at(-1);
       const latestB = data.messages
         .filter((m) => m.actorId === b.id)
-        .sort((x, y) => x.at.localeCompare(y.at))
+        .sort((x, y) => Date.parse(x.at) - Date.parse(y.at))
         .at(-1);
       const timeA = latestA?.at ?? '';
       const timeB = latestB?.at ?? '';
-      return timeB.localeCompare(timeA);
+      return (Date.parse(timeB) || 0) - (Date.parse(timeA) || 0);
     });
     const selectedProfile = data.contacts.find((c) => c.id === selectedProfileId);
 
@@ -301,7 +301,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 {sortedChats.map((c) => {
                   const latest = data.messages
                     .filter((m) => m.actorId === c.id)
-                    .sort((a, b) => a.at.localeCompare(b.at))
+                    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
                     .at(-1);
                   return (
                     <button
@@ -2073,7 +2073,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     : '📸 剧情事件解锁'}
                 </span>
                 <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                  {previewModalPhoto.date.slice(0, 10)}
+                  {dayKey(previewModalPhoto.date)}
                 </span>
               </div>
               <h4 style={{ margin: '0 0 6px', fontSize: '15px', color: '#0f172a' }}>

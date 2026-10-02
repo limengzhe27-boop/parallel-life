@@ -660,7 +660,7 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
                     </p>
                   </div>
                   <div style={{ marginTop: '6px', fontSize: '10px', color: '#94a3b8' }}>
-                    {p.date.slice(0, 10)}
+                    {dayKey(p.date)}
                   </div>
                 </div>
               </div>

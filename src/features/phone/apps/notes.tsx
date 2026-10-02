@@ -212,10 +212,8 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             }}
             onClick={() => {
               playTapSound();
-              const nowStr = new Date().toLocaleTimeString('zh-CN', {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
+              const nowStr = timeText(data.referenceTime ?? '').slice(11);
+              if (!nowStr) return;
               const prefix = draft.text && !draft.text.endsWith('\n') ? '\n' : '';
               setNoteDraft(key, { ...draft, text: draft.text + prefix + `[${nowStr}] ` });
             }}

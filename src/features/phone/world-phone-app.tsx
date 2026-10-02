@@ -1,5 +1,12 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  worldDayKey,
+  worldMonthKey,
+  worldTimeLabel,
+  worldWeekday,
+  worldDateTimeLabel,
+} from '../../modules/world/domain/display-time.ts';
 import { DirectorPanel } from './director-panel.tsx';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { LifeClient, ApiFailure } from '../api/client.ts';
@@ -443,18 +450,9 @@ export function WorldPhoneSurface({
   const currentClock = useMemo(() => new Date(data.time), [data.time]);
 
   const currentReferenceTime = currentClock.toISOString();
-  const timeLabel = currentClock.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'UTC',
-  });
-  const dateLabel = currentClock.toLocaleDateString('zh-CN', {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long',
-    timeZone: 'UTC',
-  });
+  const timeLabel = worldTimeLabel(data.time);
+  const localDay = worldDayKey(data.time);
+  const dateLabel = `${Number(localDay.slice(5, 7))}月${Number(localDay.slice(8, 10))}日 ${worldWeekday(data.time)}`;
 
   // Legacy local notes remain available in local previews; live worlds use server receipts.
   const [notes, setNotes] = useState<readonly PhoneNote[]>(() => {
@@ -646,7 +644,7 @@ export function WorldPhoneSurface({
                 .map((inv) => ({
                   id: `notif-inv-${inv.id}`,
                   title: inv.title,
-                  summary: `${inv.at.slice(0, 10)} ${inv.at.slice(11, 16)} · ${inv.status === 'confirmed' ? '已约好' : '邀请 · 待回复'}`,
+                  summary: `${worldDateTimeLabel(inv.at)} · ${inv.status === 'confirmed' ? '已约好' : '邀请 · 待回复'}`,
                   app: 'calendar' as const,
                   target: inv.id,
                   timeLabel: inv.status === 'confirmed' ? '已约好' : '待回复',
@@ -932,7 +930,9 @@ export function WorldPhoneSurface({
 
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>
-                        {data.time ? data.time.slice(0, 7).replace('-', '年 ') + '月' : '分支起点'}{' '}
+                        {data.time
+                          ? worldMonthKey(data.time).replace('-', '年 ') + '月'
+                          : '分支起点'}{' '}
                         · 抉择
                       </div>
                       <div
@@ -961,7 +961,7 @@ export function WorldPhoneSurface({
 
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#16a34a' }}>
-                        ● 此刻 · {data.time ? data.time.slice(0, 10) : '进行中'}
+                        ● 此刻 · {data.time ? worldDayKey(data.time) : '进行中'}
                       </div>
                       <div
                         style={{
@@ -1165,16 +1165,10 @@ export function WorldPhoneSurface({
                     ⏱️ 人生时间线与节奏
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>
-                    {new Date(data.time.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('zh-CN', {
-                      timeZone: 'UTC',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      weekday: 'long',
-                    })}
+                    {dateLabel}
                   </div>
                   <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
-                    世界时钟：{data.time.slice(11, 16)} ·{' '}
+                    世界时钟：{worldTimeLabel(data.time)} ·{' '}
                     <span style={{ color: '#16a34a' }}>🟢 现实同步流转中</span>
                   </div>
                 </div>
@@ -1212,7 +1206,7 @@ export function WorldPhoneSurface({
                               {inv.title}
                             </div>
                             <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                              {inv.at.slice(0, 10)} {inv.at.slice(11, 16)}
+                              {worldDateTimeLabel(inv.at)}
                             </div>
                           </div>
                           <span

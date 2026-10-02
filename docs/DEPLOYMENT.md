@@ -621,3 +621,7 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-03 · LIB-02B1 作者私有设定保存
 
 应用 adee308，Production jthl8qtte Ready；生产33项迁移已应用。259常规+44真实库及build通过。公网双合成账号完成创建、保存、历史修订、重试、冲突与跨账号隔离，现实资料不变。尚无作者UI、试演或公开发布；见[报告](task-reports/LIB-02B1.md)。
+
+## 2026-10-03 · LIB-02B2 固定设定私有试演
+
+应用 f3e457e，Production a8p3414a6 / dpl_EVQmpqBmxvTuqyBydaZ9Xg6ZogQJ Ready；34项生产迁移。261常规+46真实库/build通过。公网合成设定创建、试演幂等、真实模型固定人物开场、真实NPC回合与重读通过，试演与正常人生列表分离。无公开目录或作者界面。见[报告](task-reports/LIB-02B2.md)。
