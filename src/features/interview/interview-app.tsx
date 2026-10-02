@@ -46,19 +46,21 @@ const profileUsesPhoto = (profile: Profile, assetId: string) =>
 
 function renderMessageContent(message: InterviewMessage) {
   const photo = parseInterviewPhotoMessage(message);
-  if (photo) {
-    const imageUrl = `/api/v1/assets/${photo.assetId}`;
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <a
-          href={imageUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: 'inline-block' }}
-        >
+  return photo ? <InterviewPhotoContent {...photo} /> : message.text;
+}
+function InterviewPhotoContent({ assetId, caption }: { assetId: string; caption: string }) {
+  const [unavailable, setUnavailable] = useState(false);
+  const imageUrl = `/api/v1/assets/${assetId}`;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {unavailable ? (
+        <span role="status">这张照片已不可查看</span>
+      ) : (
+        <a href={imageUrl} target="_blank" rel="noopener noreferrer">
           <img
             src={imageUrl}
             alt="分享的照片"
+            onError={() => setUnavailable(true)}
             style={{
               maxWidth: '220px',
               maxHeight: '220px',
@@ -70,11 +72,10 @@ function renderMessageContent(message: InterviewMessage) {
             }}
           />
         </a>
-        {photo.caption && <span>{photo.caption}</span>}
-      </div>
-    );
-  }
-  return message.text;
+      )}
+      {caption && <span>{caption}</span>}
+    </div>
+  );
 }
 export function InterviewApp() {
   const [client] = useState(() => new LifeClient()),
@@ -240,7 +241,12 @@ export function InterviewApp() {
     if (data?.interview.messages.length)
       end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [data?.interview.messages.length, waiting]);
-  async function send(event?: FormEvent, textOverride?: string, latest?: InterviewWorkspace) {
+  async function send(
+    event?: FormEvent,
+    textOverride?: string,
+    latest?: InterviewWorkspace,
+    photoAssetId?: string,
+  ) {
     event?.preventDefault();
     const text = (textOverride ?? draft).trim();
     const currentData = latest ?? data;
@@ -254,12 +260,13 @@ export function InterviewApp() {
     )
       return;
     const request =
-      pending.current?.text === text
+      pending.current?.text === text && pending.current.photoAssetId === photoAssetId
         ? pending.current
         : {
             commandId: crypto.randomUUID(),
             expectedVersion: currentData.interview.version,
             text,
+            photoAssetId,
             questionId: currentData.interview.openQuestion?.id,
             questionVersion: currentData.interview.openQuestion?.version,
           };
@@ -284,6 +291,7 @@ export function InterviewApp() {
       id: `temp-${request.commandId}`,
       role: 'user',
       text,
+      photoAssetId: photoAssetId ?? null,
       createdAt: new Date().toISOString(),
       taskId: null,
     };
@@ -353,14 +361,13 @@ export function InterviewApp() {
     const ready = await client.workspace();
     apply(ready);
     const userText = draft.trim();
-    const photoTag = `[照片:/api/v1/assets/${assetId}]`;
-    const fullText = userText ? `${photoTag}\n${userText}` : `${photoTag}\n我分享了一张生活照片。`;
+    const fullText = userText || '我分享了一张生活照片。';
     const after = await confirmInterviewPhotoMessage(
       () => client.workspace(),
       ready,
       assetId,
       async (latest) => {
-        await send(undefined, fullText, latest);
+        await send(undefined, fullText, latest, assetId);
       },
     );
     apply(after);

@@ -102,12 +102,17 @@ test('a save response without the photo is not treated as success', async () => 
   );
 });
 
-test('only an exact local user photo marker is rendered as a photo', () => {
+test('only a stored user attachment renders as a photo; historic captions stay readable', () => {
   assert.deepEqual(
     parseInterviewPhotoMessage({
       role: 'user',
       text: `[照片:/api/v1/assets/${assetId}]\n我在海边拍的。`,
+      photoAssetId: assetId,
     }),
+    { assetId, caption: '我在海边拍的。' },
+  );
+  assert.deepEqual(
+    parseInterviewPhotoMessage({ role: 'user', text: '我在海边拍的。', photoAssetId: assetId }),
     { assetId, caption: '我在海边拍的。' },
   );
   assert.equal(
@@ -115,23 +120,33 @@ test('only an exact local user photo marker is rendered as a photo', () => {
     null,
   );
   assert.equal(
-    parseInterviewPhotoMessage({ role: 'assistant', text: `[照片:/api/v1/assets/${assetId}]` }),
+    parseInterviewPhotoMessage({ role: 'assistant', text: '我也发了照片', photoAssetId: assetId }),
     null,
   );
   assert.equal(
     parseInterviewPhotoMessage({ role: 'user', text: `你看 [照片:/api/v1/assets/${assetId}]` }),
     null,
   );
+  assert.equal(
+    parseInterviewPhotoMessage({ role: 'user', text: `[照片:/api/v1/assets/${assetId}]` }),
+    null,
+  );
 });
 
 test('a saved user photo is found on recovery, but an optimistic bubble is not', () => {
-  const text = `[照片:/api/v1/assets/${assetId}]\n我分享了一张生活照片。`;
+  const text = '我分享了一张生活照片。';
   assert.equal(
-    hasInterviewPhotoMessage([{ id: 'temp-command', role: 'user', text }], assetId),
+    hasInterviewPhotoMessage(
+      [{ id: 'temp-command', role: 'user', text, photoAssetId: assetId }],
+      assetId,
+    ),
     false,
   );
   assert.equal(
-    hasInterviewPhotoMessage([{ id: crypto.randomUUID(), role: 'user', text }], assetId),
+    hasInterviewPhotoMessage(
+      [{ id: crypto.randomUUID(), role: 'user', text, photoAssetId: assetId }],
+      assetId,
+    ),
     true,
   );
 });
@@ -139,7 +154,9 @@ test('a saved user photo is found on recovery, but an optimistic bubble is not',
 test('a lost stream result does not resend a photo already saved in the interview', async () => {
   const stored = {
     interview: {
-      messages: [{ id: crypto.randomUUID(), role: 'user' as const, text: `[照片:/api/v1/assets/${assetId}]` }],
+      messages: [
+        { id: crypto.randomUUID(), role: 'user' as const, text: '生活照', photoAssetId: assetId },
+      ],
     },
   };
   let sends = 0;
@@ -147,7 +164,9 @@ test('a lost stream result does not resend a photo already saved in the intervie
     async () => stored,
     stored,
     assetId,
-    async () => { sends++; },
+    async () => {
+      sends++;
+    },
   );
   assert.equal(sends, 0);
   assert.equal(result, stored);
@@ -157,19 +176,37 @@ test('a photo remains pending when sending returns but the message is not stored
   const empty = { interview: { messages: [] } };
   let sends = 0;
   await assert.rejects(
-    confirmInterviewPhotoMessage(async () => empty, empty, assetId, async () => { sends++; }),
+    confirmInterviewPhotoMessage(
+      async () => empty,
+      empty,
+      assetId,
+      async () => {
+        sends++;
+      },
+    ),
     { code: 'UNAVAILABLE' },
   );
   assert.equal(sends, 1);
 });
 
 test('a committed photo message is confirmed after an interrupted model stream', async () => {
-  const empty = { interview: { messages: [] as Array<{ id: string; role: 'user'; text: string }> } };
-  const saved = {
+  const empty = {
     interview: {
-      messages: [{ id: crypto.randomUUID(), role: 'user' as const, text: `[照片:/api/v1/assets/${assetId}]` }],
+      messages: [] as Array<{ id: string; role: 'user'; text: string; photoAssetId: string }>,
     },
   };
-  const result = await confirmInterviewPhotoMessage(async () => saved, empty, assetId, async () => {});
+  const saved = {
+    interview: {
+      messages: [
+        { id: crypto.randomUUID(), role: 'user' as const, text: '生活照', photoAssetId: assetId },
+      ],
+    },
+  };
+  const result = await confirmInterviewPhotoMessage(
+    async () => saved,
+    empty,
+    assetId,
+    async () => {},
+  );
   assert.equal(result, saved);
 });

@@ -23,6 +23,7 @@ const messages: Interview['messages'] = [
     id,
     role: 'user',
     text: '喜欢修自行车，想开自己的维修店',
+    photoAssetId: null,
     createdAt: profile.updatedAt,
     taskId: null,
   },
@@ -70,6 +71,19 @@ test('interview planner passes blocked topics to the model context', async () =>
     },
   });
   await p.propose(profile, messages, undefined, ['relationship', 'wish']);
+});
+
+test('photo context tells the guide a photo exists without exposing its private asset id', async () => {
+  const assetId = randomUUID();
+  const p = new InterviewPlanner({
+    async complete(input) {
+      const context = input[1]?.content ?? '';
+      assert.match(context, /"hasPhoto":true/);
+      assert.equal(context.includes(assetId), false);
+      return JSON.stringify({ reply: '这张照片背后有什么故事？', facts: [], events: [] });
+    },
+  });
+  await p.propose(profile, [{ ...messages[0]!, text: '海边那天', photoAssetId: assetId }]);
 });
 
 test('interview streaming exposes only the reply text, not the structured JSON envelope', async () => {

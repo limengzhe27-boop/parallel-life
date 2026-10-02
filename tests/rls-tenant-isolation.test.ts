@@ -17,11 +17,7 @@ test('AUD-11: database roles and tables enforce NOBYPASSRLS and FORCE ROW LEVEL 
         false,
         `Role ${row.rolname} MUST NOT bypass RLS (rolbypassrls should be false)`,
       );
-      assert.equal(
-        row.rolsuper,
-        false,
-        `Role ${row.rolname} MUST NOT be superuser`,
-      );
+      assert.equal(row.rolsuper, false, `Role ${row.rolname} MUST NOT be superuser`);
     }
 
     // 2. Verify all tables in parallel_life schema have rowsecurity and forcerowsecurity enabled
@@ -32,8 +28,30 @@ test('AUD-11: database roles and tables enforce NOBYPASSRLS and FORCE ROW LEVEL 
       WHERE n.nspname = 'parallel_life' AND c.relkind = 'r'
     `);
 
-    assert(tablesRes.rowCount && tablesRes.rowCount > 0, 'Tables must exist in parallel_life schema');
+    assert(
+      tablesRes.rowCount && tablesRes.rowCount > 0,
+      'Tables must exist in parallel_life schema',
+    );
     for (const row of tablesRes.rows) {
+      if (row.relname === 'world_scheduler_claims') {
+        // This cross-owner claim table is reachable only inside a SECURITY
+        // DEFINER function; none of the runtime roles may access it directly.
+        for (const role of ['pl_app', 'pl_worker', 'pl_scheduler']) {
+          for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+            const access = await admin.query('SELECT has_table_privilege($1,$2,$3) AS allowed', [
+              role,
+              'parallel_life.world_scheduler_claims',
+              privilege,
+            ]);
+            assert.equal(
+              access.rows[0].allowed,
+              false,
+              `${role} must not ${privilege} scheduler claims`,
+            );
+          }
+        }
+        continue;
+      }
       assert.equal(
         row.relrowsecurity,
         true,
@@ -76,11 +94,15 @@ test('AUD-11: cross-tenant access is strictly blocked under pl_app role via RLS'
   try {
     // Session A: set context to userA and insert an account
     await appClientA.query(`SET app.user_id = '${userA}'`);
-    await appClientA.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [userA]);
+    await appClientA.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [
+      userA,
+    ]);
 
     // Session B: set context to userB and insert an account
     await appClientB.query(`SET app.user_id = '${userB}'`);
-    await appClientB.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [userB]);
+    await appClientB.query(`INSERT INTO parallel_life.accounts (id, kind) VALUES ($1, 'guest')`, [
+      userB,
+    ]);
 
     // Session B attempts to read Session A's accounts
     const readAFromB = await appClientB.query(

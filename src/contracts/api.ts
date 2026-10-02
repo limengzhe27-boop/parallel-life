@@ -147,6 +147,7 @@ export const InterviewMessageSchema = z.strictObject({
   id: Id,
   role: z.enum(['user', 'assistant']),
   text: z.string().min(1).max(8000),
+  photoAssetId: Id.nullable(),
   createdAt: Timestamp,
   taskId: Id.nullable(),
 });
@@ -173,6 +174,7 @@ export const InterviewSendSchema = z
     commandId: Id,
     expectedVersion: Version,
     text: z.string().trim().min(1).max(4000),
+    photoAssetId: Id.optional(),
     questionId: Id.optional(),
     questionVersion: Version.optional(),
   })

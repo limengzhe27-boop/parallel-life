@@ -188,8 +188,9 @@ export class AssetRepository {
         throw new TaskError('CONFLICT');
       const used = await sql.query(
         `SELECT 1 FROM parallel_life.interview_messages
-         WHERE owner_id=$1 AND role='user' AND position($2 in text)>0 LIMIT 1`,
-        [ownerId, `[照片:/api/v1/assets/${id}]`],
+         WHERE owner_id=$1 AND role='user'
+           AND (photo_asset_id=$2 OR position($3 in text)>0) LIMIT 1`,
+        [ownerId, id, `[照片:/api/v1/assets/${id}]`],
       );
       if (used.rowCount) throw new TaskError('CONFLICT');
       const seeded = await sql.query(

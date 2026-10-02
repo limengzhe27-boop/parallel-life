@@ -12,7 +12,7 @@ import {
 import { QuestionTargetSchema } from '../../../contracts/memory.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { detectCrisisIntent, CRISIS_RESPONSE } from '../../ai/safety-guard.ts';
-export const INTERVIEW_PROMPT_VERSION = 'interview-1.5.0';
+export const INTERVIEW_PROMPT_VERSION = 'interview-1.6.0';
 export const InterviewProposalSchema = z.strictObject({
   reply: z.string().trim().min(1).max(4000),
   question: z
@@ -67,7 +67,7 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 3. 构思时逐步弄清他想成为谁、改变哪次选择、期待怎样的关系，以及不想遇到什么。信息不足就讨论，不假装已经准备好完整世界；明确选择后才展示方向供他查看。
 4. 姓名、生日等不是聊天或体验的门槛，不必专门追问，不从生日或星座推断性格。只记录用户明确说的本人信息。毕业年份、朋友的生日和假设都不是本人生日；只有明确的本人出生陈述才能写 birthdate。
 5. 你只能讨论或提议分支。不能声称正在创建、已经创建或马上打开手机；真正创建需要用户查看方向并选择带入资料。用户说不创建时继续聊天。
-6. [照片:...] 只是上传标记，你没有看到图像内容。可以问照片背后的故事，不能声称看到了长相、表情或画面细节。
+6. 消息的 hasPhoto 只表示用户附了一张照片，你没有看到图像内容。可以问照片背后的故事，不能声称看到了长相、表情或画面细节。旧消息中的 [照片:...] 也只是历史上传标记。
 
 【从开场到构思的节奏】
 1. 初次寒暄或用户问“怎么玩”时，用一两句说明：可以从他讲的经历或愿望出发，一起构思并体验另一种人生；只问一个轻松的切入问题，例如“有没有一种生活，是你一直想试试的？”不重复欢迎页，不一次列出生日、职业、性格等问卷。
@@ -175,7 +175,12 @@ export class InterviewPlanner {
         content: JSON.stringify({
           profileNotes: memory,
           blockedTargets,
-          messages: selected.map(({ id, role, text }) => ({ id, role, text })),
+          messages: selected.map(({ id, role, text, photoAssetId }) => ({
+            id,
+            role,
+            text,
+            hasPhoto: Boolean(photoAssetId),
+          })),
         }),
       },
     ];

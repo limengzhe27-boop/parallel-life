@@ -1,7 +1,12 @@
 import { ApiFailure } from '../api/client.ts';
 
 type ReferencePhotoProfile = { version: number; referenceAssetIds: string[] };
-type InterviewPhotoMessage = { id?: string; role: 'user' | 'assistant'; text: string };
+type InterviewPhotoMessage = {
+  id?: string;
+  role: 'user' | 'assistant';
+  text: string;
+  photoAssetId?: string | null;
+};
 type ReferencePhotoClient<Profile extends ReferencePhotoProfile> = {
   workspace(): Promise<{ profile: Profile }>;
   editProfile(input: {
@@ -42,14 +47,16 @@ const photoMessagePattern = new RegExp(
   `^\\[照片:/api/v1/assets/(${assetIdPattern})\\](?:\\r?\\n([\\s\\S]*))?$`,
 );
 
-/** Legacy photo messages are text. Only this exact, same-origin asset marker
- * may become an image in the UI; never trust a model-provided URL. */
+/** The stored asset reference is authoritative. Historic app markers are only
+ * stripped from their captions after the migration has linked a real asset. */
 export function parseInterviewPhotoMessage(message: InterviewPhotoMessage) {
-  if (message.role !== 'user') return null;
+  if (message.role !== 'user' || !message.photoAssetId) return null;
   const match = photoMessagePattern.exec(message.text);
-  const assetId = match?.[1];
-  if (!assetId) return null;
-  return { assetId: assetId.toLowerCase(), caption: (match[2] ?? '').trim() };
+  const caption =
+    match?.[1]?.toLowerCase() === message.photoAssetId.toLowerCase()
+      ? (match[2] ?? '').trim()
+      : message.text.trim();
+  return { assetId: message.photoAssetId.toLowerCase(), caption };
 }
 
 export function hasInterviewPhotoMessage(messages: InterviewPhotoMessage[], assetId: string) {
@@ -63,9 +70,11 @@ export function hasInterviewPhotoMessage(messages: InterviewPhotoMessage[], asse
 /** Re-read before and after sending because a streaming request can fail after
  * the user message committed. A retry never sends again once that photo is
  * present in the saved interview. */
-export async function confirmInterviewPhotoMessage<Workspace extends {
-  interview: { messages: InterviewPhotoMessage[] };
-}>(
+export async function confirmInterviewPhotoMessage<
+  Workspace extends {
+    interview: { messages: InterviewPhotoMessage[] };
+  },
+>(
   read: () => Promise<Workspace>,
   ready: Workspace,
   assetId: string,

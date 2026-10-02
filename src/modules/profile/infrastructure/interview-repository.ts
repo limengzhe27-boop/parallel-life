@@ -44,7 +44,7 @@ export async function readWorkspace(sql: SqlClient, ownerId: string): Promise<In
   if (!interview || !saved) throw new TaskError('NOT_FOUND');
   const rows = (
     await sql.query(
-      'SELECT id,role,text,created_at,task_id FROM parallel_life.interview_messages WHERE interview_id=$1 ORDER BY ordinal DESC LIMIT 200',
+      'SELECT id,role,text,photo_asset_id,created_at,task_id FROM parallel_life.interview_messages WHERE interview_id=$1 ORDER BY ordinal DESC LIMIT 200',
       [interview.id],
     )
   ).rows.reverse();
@@ -73,6 +73,7 @@ export async function readWorkspace(sql: SqlClient, ownerId: string): Promise<In
         id: r.id,
         role: r.role,
         text: r.text,
+        photoAssetId: r.photo_asset_id,
         createdAt: r.created_at.toISOString(),
         taskId: r.task_id,
       })),
@@ -104,6 +105,21 @@ export async function incrementInterviewVersion(sql: SqlClient, interviewId: str
     interviewId,
   ]);
 }
+async function requireSharedPhoto(sql: SqlClient, ownerId: string, assetId?: string) {
+  if (!assetId) return;
+  const profile = (
+    await sql.query('SELECT document FROM parallel_life.profiles WHERE owner_id=$1 FOR SHARE', [
+      ownerId,
+    ])
+  ).rows[0];
+  if (!profile?.document?.referenceAssetIds?.includes(assetId))
+    throw new TaskError('INVALID_INPUT');
+  const asset = await sql.query(
+    "SELECT id FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND status='ready' AND origin='upload' AND world_id IS NULL FOR SHARE",
+    [assetId, ownerId],
+  );
+  if (!asset.rowCount) throw new TaskError('NOT_FOUND');
+}
 export class InterviewRepository {
   private db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
@@ -130,6 +146,7 @@ export class InterviewRepository {
         input.text,
         input.questionId ?? null,
         input.questionVersion ?? null,
+        ...(input.photoAssetId ? ['photo', input.photoAssetId] : []),
       ]);
       const duplicate = (
         await sql.query('SELECT * FROM parallel_life.tasks WHERE owner_id=$1 AND command_id=$2', [
@@ -158,6 +175,7 @@ export class InterviewRepository {
       )
         throw new TaskError('VERSION_CONFLICT');
       if (interview.version !== input.expectedVersion) throw new TaskError('VERSION_CONFLICT');
+      await requireSharedPhoto(sql, ownerId, input.photoAssetId);
       const messageId = randomUUID();
       const task = await enqueue(
         sql,
@@ -173,8 +191,8 @@ export class InterviewRepository {
         hash,
       );
       await sql.query(
-        "INSERT INTO parallel_life.interview_messages(id,owner_id,interview_id,role,text,task_id) VALUES($1,$2,$3,'user',$4,$5)",
-        [messageId, ownerId, interview.id, input.text, task.id],
+        "INSERT INTO parallel_life.interview_messages(id,owner_id,interview_id,role,text,task_id,photo_asset_id) VALUES($1,$2,$3,'user',$4,$5,$6)",
+        [messageId, ownerId, interview.id, input.text, task.id, input.photoAssetId ?? null],
       );
       // A new user message answers only the question selected by the caller.
       // The message is inserted first so the foreign key also proves provenance.
@@ -223,6 +241,7 @@ export class InterviewRepository {
         input.text,
         input.questionId ?? null,
         input.questionVersion ?? null,
+        ...(input.photoAssetId ? ['photo', input.photoAssetId] : []),
       ]);
       const duplicate = (
         await sql.query('SELECT * FROM parallel_life.tasks WHERE owner_id=$1 AND command_id=$2', [
@@ -262,6 +281,7 @@ export class InterviewRepository {
       )
         throw new TaskError('VERSION_CONFLICT');
       if (interview.version !== input.expectedVersion) throw new TaskError('VERSION_CONFLICT');
+      await requireSharedPhoto(sql, ownerId, input.photoAssetId);
       await consumeLimit(sql, ownerId, 'generation-day', 120, 86400);
       const messageId = randomUUID();
       const taskId = randomUUID();
@@ -286,8 +306,8 @@ export class InterviewRepository {
         )
       ).rows[0];
       await sql.query(
-        "INSERT INTO parallel_life.interview_messages(id,owner_id,interview_id,role,text,task_id) VALUES($1,$2,$3,'user',$4,$5)",
-        [messageId, ownerId, interview.id, input.text, taskId],
+        "INSERT INTO parallel_life.interview_messages(id,owner_id,interview_id,role,text,task_id,photo_asset_id) VALUES($1,$2,$3,'user',$4,$5,$6)",
+        [messageId, ownerId, interview.id, input.text, taskId, input.photoAssetId ?? null],
       );
       if (openQuestion) {
         const answered = await sql.query(
