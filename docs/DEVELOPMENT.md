@@ -666,3 +666,17 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 |EXP-08|[x] 已完成|codex-main-exp08-20260928|主目录；features/discovery/discovery-app.tsx；world/domain/{clock,opening-time,reducer,types}.ts、world/application/resolve-turn.ts、world/infrastructure/{build-repository,build-handler,clock-repository,postgres-world-repository}.ts、app/api/v1/worlds/[id]/messages/route.ts、features/phone/apps/helpers.ts、相关测试、task-reports/EXP-08.md、DEPLOYMENT.md；生产迁移仅验证|已有分支页只展示人生与草案，新增从聊聊进入；旧开场时间稳定兼容，世界时间1:1读取，用户/NPC分别按实际世界时刻写入；多次重进时间不倒退，暂停/倍速与导演节拍不回归；check/build/真实库/双端/部署验收。NAR-02主动剧情仍独立。211项常规/31项真实库、build及生产28迁移通过；本地390/1440及旧世界通知06:16/06:39/06:46验收；应用1e924e9、Production df9xb68j1 READY、公网合成访客关键读取200；见[报告](task-reports/EXP-08.md)。|
 
 |CHAT-01|[x] 已完成|codex-f-01a0c7c8-chat01（用户直接指定）|独立工作树 .local/worktrees/chat-01；仅 features/interview/interview-app.tsx 的 Welcome/输入提示、modules/profile/infrastructure/interview-planner.ts 的提示词与版本、docs/task-reports/CHAT-01.md；无数据库/共享接口改动|2026-09-28：集成人codex-main-exp03验收；203项检查+28项真实库、build通过；生产28迁移一致。应用a90e4d8，部署ktz3z22t7 / dpl_DtLfHJzfUPGNTKxFfguNgBtG1ZdX READY，正式域名health200；390/1440公网只读UI通过。独立合成账号两轮真实访谈、草案保存/重开/重复确认、世界生成、NPC回复及便签持久化通过。 提示词与开场交付，不代表长期叙事质量已经完成。|
+|LIB-01R|[x] 已完成|codex-f-01a0c7c8-lib01r-20261003（I明确分配）|主登记目录；仅docs/task-reports/LIB-01R.md及本人本行状态；LifeDraft/ApprovedSeed/WorldBuild代码只读，不用数据库/模型/部署；2026-10-03领取|[报告](task-reports/LIB-01R.md)：只读代码核对、独立公共版本/玩家私有实例方案、6个可执行反例与验收门槛；未改业务代码，未运行模型/数据库/构建/部署；2026-10-03 主任务已审阅采纳，审查交付完成，不表示功能实现。|
+
+
+### 2026-10-03 · 可发布人生设定与整体接续路线
+
+|任务 ID|状态|负责人|范围|验收/接续|
+|---|---|---|---|---|
+|LIB-01|[ ] 待验收|codex-main-lib01-20261003|主目录；docs/LIFE_SETTING_PLAN.md、docs/PROJECT_BRIEF.md、docs/task-reports/LIB-01.md、docs/{DEVELOPMENT,DEPLOYMENT}.md；整合新设定库与已有未完成项；辅助独立审查另有报告|明确作者/玩家流程、现实资料隔离、人物来源、发布版本、剧情引擎依赖；与辅助交流后集成，不将规划记为功能完成|
+|LIB-02A|[ ] 待验收|codex-main-lib01-20261003|主目录；src/contracts/life-settings.ts、tests/life-settings.test.ts、docs/task-reports/LIB-01.md；只实现设定内容协议及引用校验，不接公开发布接口|关系/开场人物/剧情线/资料来源引用完整；不接收账号权限、现实资料与私有素材字段；严格区分协议验证和内容审核；check/build/部署|
+|LIB-02B|[ ] 待开发|未领取|依赖LIB-01/02A；持久设定版本及LifeDraft来源统一、Seed/World完整叙事快照；集成人负责迁移契约|个人推荐/自由构思/已发布设定共用创建；不伪造推荐，不丢人物和冲突；幂等/隔离/旧世界兼容真实库验收|
+|LIB-03|[ ] 待开发|未领取|依赖LIB-02B；官方精选设定浏览、预览、独立体验，与EXP-04统一入口|首次无资料也可预览/创建；新体验与继续旧世界不同；两账号使用同设定无消息/记忆串线|
+|LIB-04|[ ] 待开发|未领取|依赖LIB-02B；独立创作助手、设定编辑和私有试演|创作内容不写现实档案；补问阻碍开场的缺项；试演重置/修改后重演/失败恢复|
+|LIB-05|[ ] 待开发|未领取|依赖LIB-03/04、G-01正式账号；公开发布审核、授权素材、版本、撤回/举报|发布来源与素材权属核对；公共内容不含作者私密记录；新版本不改旧玩家世界；撤回策略明确|
+|LIB-06|[ ] 待开发|未领取|依赖LIB-03/05、NAR-02/03、EXP-06；作者到两个玩家完整验收|创作→试演→发布→独立体验→选择→后果→回访；质量/成本/失败记录，不用测试数冒充吸引力|
