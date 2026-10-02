@@ -602,3 +602,7 @@ https://github.com/limengzhe27-boop/parallel-life
 照片恢复应用 `5ef8e0b`，Vercel Production `ep18oxrch` / `dpl_77aRknu6RGBS8b4NbKyNY4yecGft` Ready；本次将照片待发送标记保留到服务端确认消息，断流后先读已有消息，避免重复发送。390px/1440px 本地状态检查通过。公网隔离访客验证图片上传/入档/照片消息读回，但旧模型回复失败；网关实时请求确认旧名称 `deepseek-flash` 为 503 / `model_not_found`。中间候选 `qwen3.5-flash` 的 `7b96c77` / `amosiqxqc` 虽 Ready，公网结构化访谈 `INVALID_RESPONSE`，不计为恢复成功。
 
 最终应用 `7086972`、Production `4vxa4ehld` / `dpl_44HFZMeCrBjgTbEXHKezc67mXAvR` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换到已验证的 `gpt-4o-mini`。252 项常规检查和构建通过，生产 Supabase 30/30 迁移一致、无新迁移。公网合成文字访谈出现真实流式结果和持久 Assistant 回复；独立合成照片回合完成有效上传 201、入档 200、消息读回与 Assistant 回复。既有失败任务保留原状态，不自动重试。浏览器 UI 的公网选图/失败注入、正式附件契约、未引用素材清理与世界/NPC 模型质量仍待后续验收。详见 [EXP-03H](task-reports/EXP-03H.md)、[AI-01](task-reports/AI-01.md)。
+
+## 2026-10-02 · EXP-03I 未发送照片安全清理
+
+应用提交 `e0603fc`，Vercel Production `2c7m8lt0g` / `dpl_AzuXyRFaeBtAQw2mqhBHJLmbpauB` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run check` 253 项、`npm run build` 与真实 PostgreSQL 素材专项通过；生产 Supabase 30/30 迁移校验和一致，无新迁移。390px/1440px 本地浏览器验证取消按钮和输入草稿保留；公网隔离合成访客验证未使用照片上传 201→安全清理 204→重读 404，已入档照片被拒 409 且仍可读 200；测试素材已清理。正式附件契约和公网 UI 故障注入仍待后续。详见 [EXP-03I](task-reports/EXP-03I.md)。
