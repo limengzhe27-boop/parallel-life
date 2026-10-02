@@ -613,3 +613,7 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-02 · EXP-03K 现实资料去重修复
 
 应用提交 `828a8cf` 已推送；Vercel Production `hsux0dcoq` / `dpl_D5genUDT6nqKWux3dB6ZGvcmMjZz` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。无新迁移，发布前生产 Supabase 31 项迁移齐全。`npm run check` 254 项、`npm run test:db` 39 项真实库测试、`npm run build` 通过。公网隔离合成访客两轮真实向导对话后，“喜欢摄影”和“喜欢旅行”分别作为已确认兴趣读回，Assistant 回复各自持久化。历史误合并记录不静默拆分。见 [EXP-03K](task-reports/EXP-03K.md)。
+
+## 2026-10-03 · LIB-01/02A 人生设定规划与基础协议
+
+应用0685403，Production f2whtncek / dpl_6G3Uqjb1c4vhqpKXUpAW1U2g1QjQ Ready；正式域名已切换。259项check及build通过；生产31项迁移存在，无新增迁移。公网health、首页与/possibilities均200。本批是作者内容协议与整体路线，不含公开设定库、作者发布或新世界创建入口；见[LIB-01报告](task-reports/LIB-01.md)与[LIFE_SETTING_PLAN](LIFE_SETTING_PLAN.md)。

@@ -673,8 +673,8 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 
 |任务 ID|状态|负责人|范围|验收/接续|
 |---|---|---|---|---|
-|LIB-01|[ ] 待验收|codex-main-lib01-20261003|主目录；docs/LIFE_SETTING_PLAN.md、docs/PROJECT_BRIEF.md、docs/task-reports/LIB-01.md、docs/{DEVELOPMENT,DEPLOYMENT}.md；整合新设定库与已有未完成项；辅助独立审查另有报告|明确作者/玩家流程、现实资料隔离、人物来源、发布版本、剧情引擎依赖；与辅助交流后集成，不将规划记为功能完成|
-|LIB-02A|[ ] 待验收|codex-main-lib01-20261003|主目录；src/contracts/life-settings.ts、tests/life-settings.test.ts、docs/task-reports/LIB-01.md；只实现设定内容协议及引用校验，不接公开发布接口|关系/开场人物/剧情线/资料来源引用完整；不接收账号权限、现实资料与私有素材字段；严格区分协议验证和内容审核；check/build/部署|
+|LIB-01|[x] 已完成|codex-main-lib01-20261003|主目录；docs/LIFE_SETTING_PLAN.md、docs/PROJECT_BRIEF.md、docs/task-reports/LIB-01.md、docs/{DEVELOPMENT,DEPLOYMENT}.md；整合新设定库与已有未完成项；辅助独立审查另有报告|明确作者/玩家流程、现实资料隔离、人物来源、发布版本、剧情引擎依赖；与辅助交流后集成，不将规划记为功能完成；2026-10-03 集成验收：259项check、build通过；生产31迁移，0685403 / f2whtncek Ready，公网health/首页/分支页200；仅规划与内容协议，公开体验未实现|
+|LIB-02A|[x] 已完成|codex-main-lib01-20261003|主目录；src/contracts/life-settings.ts、tests/life-settings.test.ts、docs/task-reports/LIB-01.md；只实现设定内容协议及引用校验，不接公开发布接口|关系/开场人物/剧情线/资料来源引用完整；不接收账号权限、现实资料与私有素材字段；严格区分协议验证和内容审核；check/build/部署；2026-10-03 集成验收：259项check、build通过；生产31迁移，0685403 / f2whtncek Ready，公网health/首页/分支页200；仅规划与内容协议，公开体验未实现|
 |LIB-02B|[ ] 待开发|未领取|依赖LIB-01/02A；持久设定版本及LifeDraft来源统一、Seed/World完整叙事快照；集成人负责迁移契约|个人推荐/自由构思/已发布设定共用创建；不伪造推荐，不丢人物和冲突；幂等/隔离/旧世界兼容真实库验收|
 |LIB-03|[ ] 待开发|未领取|依赖LIB-02B；官方精选设定浏览、预览、独立体验，与EXP-04统一入口|首次无资料也可预览/创建；新体验与继续旧世界不同；两账号使用同设定无消息/记忆串线|
 |LIB-04|[ ] 待开发|未领取|依赖LIB-02B；独立创作助手、设定编辑和私有试演|创作内容不写现实档案；补问阻碍开场的缺项；试演重置/修改后重演/失败恢复|
