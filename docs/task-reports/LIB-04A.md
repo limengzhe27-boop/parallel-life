@@ -1,6 +1,6 @@
 # LIB-04A · 独立创作助手 Planner
 
-状态：待验收。负责人 `codex-f-01a0c7c8-lib04a-20261003`，由集成人明确分配；基线 `f3e457e`，分支 `codex/lib04a`，独立工作树 `/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/lib04a`。主目录主表已按短锁登记。
+状态：已完成（限定Planner组件）。负责人 `codex-f-01a0c7c8-lib04a-20261003`，由集成人明确分配；基线 `f3e457e`，分支 `codex/lib04a`，独立工作树 `/Users/limengzhe/Desktop/projects/demo/人生剧本/.local/worktrees/lib04a`。主目录主表已按短锁登记。
 
 ## 文件与能力
 
@@ -23,3 +23,7 @@
 267项常规检查及build在第一次提示改进前通过；最终集成检查与部署证据待下节补充。创作模块仍无API/UI/持久对话接线，不等于公开创作上线。
 
 与EXP-09合并后的最终检查275项通过，build通过。待生产部署证据后完成组件验收。
+
+## 部署
+
+be8e162 / qwayuo3st Ready，正式health200；最终275检查/build通过。未新增迁移，生产34迁移一致。没有可供作者操作的新界面或API，因此只登记独立Planner组件完成，完整LIB-04不完成。

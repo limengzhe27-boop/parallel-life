@@ -625,3 +625,7 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-03 · LIB-02B2 固定设定私有试演
 
 应用 f3e457e，Production a8p3414a6 / dpl_EVQmpqBmxvTuqyBydaZ9Xg6ZogQJ Ready；34项生产迁移。261常规+46真实库/build通过。公网合成设定创建、试演幂等、真实模型固定人物开场、真实NPC回合与重读通过，试演与正常人生列表分离。无公开目录或作者界面。见[报告](task-reports/LIB-02B2.md)。
+
+### 2026-10-03 · LIB-04A / EXP-09
+
+应用be8e162，Vercel qwayuo3st（dpl_AXADcqhTcmKRLFGuaA1aesiP53dy）Ready，正式域名health200；生产34迁移，无新增SQL。275常规检查/build通过；390/1440及公网合成世界时区验收通过。独立创作Planner已部署但无作者UI/API；历史人物抽样经过失败修正，不代表自动审核可用。固定UTC+08只改变手机显示/编辑转换，不改历史时刻。
