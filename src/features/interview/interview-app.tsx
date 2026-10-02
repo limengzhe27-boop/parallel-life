@@ -17,6 +17,7 @@ import { BasicInfo } from './basic-info.tsx';
 import { routeBranchIntent, type BranchIntent } from './branch-intent.ts';
 import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
+import { ensureInterviewPhotoSaved } from './photo-share.ts';
 import {
   collectBasicInfo,
   confirmableIdentityBirthday,
@@ -81,6 +82,7 @@ export function InterviewApp() {
     [saving, setSaving] = useState(false),
     [uploading, setUploading] = useState(false),
     [uploadingChatPhoto, setUploadingChatPhoto] = useState(false),
+    [pendingPhotoAssetId, setPendingPhotoAssetId] = useState<string | null>(null),
     [branchCommand, setBranchCommand] = useState<{ at: number; intent: BranchIntent } | null>(null);
   const [editing, setEditing] = useState<{
     fact?: ProfileFact;
@@ -115,6 +117,16 @@ export function InterviewApp() {
     apply(value);
     return value;
   }, [client, apply]);
+  useEffect(() => {
+    if (!data?.profile.id) return;
+    try {
+      setPendingPhotoAssetId(
+        sessionStorage.getItem(`pl-pending-interview-photo:${data.profile.id}`),
+      );
+    } catch {
+      /* The in-memory retry remains available when browser storage is disabled. */
+    }
+  }, [data?.profile.id]);
   const refreshCandidates = useCallback(async () => {
     const value = await client.candidates('suggested');
     setCandidates(value.candidates);
@@ -215,7 +227,7 @@ export function InterviewApp() {
   async function send(event?: FormEvent, textOverride?: string) {
     event?.preventDefault();
     const text = (textOverride ?? draft).trim();
-    if (!data || !text || sending || waiting) return;
+    if (!data || !text || sending || waiting || (uploadingChatPhoto && !textOverride)) return;
     const request =
       pending.current?.text === text
         ? pending.current
@@ -291,37 +303,64 @@ export function InterviewApp() {
     }
   }
 
+  async function finishChatPhoto(assetId: string) {
+    const profile = await ensureInterviewPhotoSaved(client, assetId);
+    setData((value) =>
+      value && profile.version >= value.profile.version ? { ...value, profile } : value,
+    );
+    setPendingPhotoAssetId(null);
+    try {
+      if (data?.profile.id) {
+        sessionStorage.removeItem(`pl-pending-interview-photo:${data.profile.id}`);
+        sessionStorage.removeItem(`pl-draft:${data.profile.id}`);
+      }
+    } catch {
+      /* The saved profile is authoritative even if local storage is disabled. */
+    }
+    const userText = draft.trim();
+    const photoTag = `[照片:/api/v1/assets/${assetId}]`;
+    const fullText = userText ? `${photoTag}\n${userText}` : `${photoTag}\n我分享了一张生活照片。`;
+    setDraft('');
+    await send(undefined, fullText);
+  }
+
   async function uploadChatPhoto(file: File) {
-    if (!data || sending || waiting || uploadingChatPhoto) return;
+    if (!data || sending || waiting || uploadingChatPhoto || pendingPhotoAssetId) return;
     setUploadingChatPhoto(true);
     setError('');
+    let uploadedAssetId: string | null = null;
     try {
       if (file.size > 4 * 1024 * 1024) throw new ApiFailure('INVALID_INPUT', '照片请小于 4MB。');
       const asset = await client.upload(file);
-      // 同时写入档案的参考照片
+      uploadedAssetId = asset.id;
+      setPendingPhotoAssetId(asset.id);
       try {
-        const current = await refresh();
-        const profile = await client.editProfile({
-          expectedVersion: current.profile.version,
-          operation: { kind: 'add-reference-photo', assetId: asset.id },
-        });
-        setData((value) => (value ? { ...value, profile } : value));
+        sessionStorage.setItem(`pl-pending-interview-photo:${data.profile.id}`, asset.id);
       } catch {
-        /* 静默容错 */
+        /* Keep the retry in memory when browser storage is unavailable. */
       }
-
-      const userText = draft.trim();
-      const photoTag = `[照片:/api/v1/assets/${asset.id}]`;
-      const fullText = userText
-        ? `${photoTag}\n${userText}`
-        : `${photoTag}\n我分享了一张生活照片。`;
-      setDraft('');
-      await send(undefined, fullText);
+      await finishChatPhoto(asset.id);
     } catch (e) {
-      setError(errorMessage(e));
+      setError(
+        uploadedAssetId
+          ? '照片已上传，但还没加入「我的」，因此没有发送。可以用同一张照片重试。'
+          : errorMessage(e),
+      );
     } finally {
       setUploadingChatPhoto(false);
       if (chatFileInput.current) chatFileInput.current.value = '';
+    }
+  }
+  async function retryChatPhoto() {
+    if (!pendingPhotoAssetId || uploadingChatPhoto || sending || waiting) return;
+    setUploadingChatPhoto(true);
+    setError('');
+    try {
+      await finishChatPhoto(pendingPhotoAssetId);
+    } catch {
+      setError('照片仍未加入「我的」，消息也没有发送。请检查连接后重试。');
+    } finally {
+      setUploadingChatPhoto(false);
     }
   }
   async function edit(operation: ProfileEdit['operation']) {
@@ -440,9 +479,19 @@ export function InterviewApp() {
         }
         footer={
           <div className="composer-area">
-            {error && (
+            {(error || pendingPhotoAssetId) && (
               <Notice>
-                <span>{error}</span>
+                <span>{error || '还有一张已上传但未发出的照片。加入「我的」后即可继续发送。'}</span>
+                {pendingPhotoAssetId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={uploadingChatPhoto || sending || waiting}
+                    onClick={() => void retryChatPhoto()}
+                  >
+                    重试这张照片
+                  </Button>
+                )}
                 {!data && (
                   <Button
                     variant="ghost"
@@ -472,6 +521,7 @@ export function InterviewApp() {
                 ref={input}
                 value={draft}
                 maxLength={4000}
+                disabled={uploadingChatPhoto}
                 onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
                 placeholder="从一件你想聊的事开始…"
@@ -493,7 +543,9 @@ export function InterviewApp() {
                     type="button"
                     title="上传照片分享给人生伙伴并存入档案"
                     aria-label="发送照片"
-                    disabled={!data || sending || waiting || uploadingChatPhoto}
+                    disabled={
+                      !data || sending || waiting || uploadingChatPhoto || !!pendingPhotoAssetId
+                    }
                     onClick={() => chatFileInput.current?.click()}
                     style={{
                       background: 'none',
