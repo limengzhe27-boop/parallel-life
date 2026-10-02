@@ -610,3 +610,6 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-02 · EXP-03J 访谈照片正式附件
 
 应用提交 `fab2146` 已推送；Vercel Production `n3997wgah` / `dpl_HtYpF2SR2NtpCGaAYLeG6wh5m5o9` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。生产 Supabase 已执行迁移 0031，31 项迁移一致；3 条合法旧照片消息补为正式附件，发布后总计 4 条已关联，未关联的合法旧消息为 0。`npm run check` 254 项、`npm run test:db` 38 项真实库测试、`npm run build` 通过。公网 health 200；独立合成访客完整验证上传、入档、带照片聊天、真实向导回复、刷新重读和私有图片读取。390px 手机和 1440px 电脑已在本地浏览器通过真实选图和布局验收。见 [EXP-03J](task-reports/EXP-03J.md)。
+## 2026-10-02 · EXP-03K 现实资料去重修复
+
+应用提交 `828a8cf` 已推送；Vercel Production `hsux0dcoq` / `dpl_D5genUDT6nqKWux3dB6ZGvcmMjZz` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。无新迁移，发布前生产 Supabase 31 项迁移齐全。`npm run check` 254 项、`npm run test:db` 39 项真实库测试、`npm run build` 通过。公网隔离合成访客两轮真实向导对话后，“喜欢摄影”和“喜欢旅行”分别作为已确认兴趣读回，Assistant 回复各自持久化。历史误合并记录不静默拆分。见 [EXP-03K](task-reports/EXP-03K.md)。
