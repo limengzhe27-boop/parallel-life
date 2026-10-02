@@ -606,3 +606,7 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-02 · EXP-03I 未发送照片安全清理
 
 应用提交 `e0603fc`，Vercel Production `2c7m8lt0g` / `dpl_AzuXyRFaeBtAQw2mqhBHJLmbpauB` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run check` 253 项、`npm run build` 与真实 PostgreSQL 素材专项通过；生产 Supabase 30/30 迁移校验和一致，无新迁移。390px/1440px 本地浏览器验证取消按钮和输入草稿保留；公网隔离合成访客验证未使用照片上传 201→安全清理 204→重读 404，已入档照片被拒 409 且仍可读 200；测试素材已清理。正式附件契约和公网 UI 故障注入仍待后续。详见 [EXP-03I](task-reports/EXP-03I.md)。
+
+## 2026-10-02 · EXP-03J 访谈照片正式附件
+
+应用提交 `fab2146` 已推送；Vercel Production `n3997wgah` / `dpl_HtYpF2SR2NtpCGaAYLeG6wh5m5o9` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。生产 Supabase 已执行迁移 0031，31 项迁移一致；3 条合法旧照片消息补为正式附件，发布后总计 4 条已关联，未关联的合法旧消息为 0。`npm run check` 254 项、`npm run test:db` 38 项真实库测试、`npm run build` 通过。公网 health 200；独立合成访客完整验证上传、入档、带照片聊天、真实向导回复、刷新重读和私有图片读取。390px 手机和 1440px 电脑已在本地浏览器通过真实选图和布局验收。见 [EXP-03J](task-reports/EXP-03J.md)。
