@@ -17,7 +17,12 @@ import { BasicInfo } from './basic-info.tsx';
 import { routeBranchIntent, type BranchIntent } from './branch-intent.ts';
 import { ProposalThread } from './proposal-thread.tsx';
 import { LifeEvents, ImportantPeople } from './life-events.tsx';
-import { ensureInterviewPhotoSaved } from './photo-share.ts';
+import {
+  confirmInterviewPhotoMessage,
+  ensureInterviewPhotoSaved,
+  hasInterviewPhotoMessage,
+  parseInterviewPhotoMessage,
+} from './photo-share.ts';
 import {
   collectBasicInfo,
   confirmableIdentityBirthday,
@@ -35,11 +40,10 @@ const categories: Record<ProfileFact['category'], string> = {
 const errorMessage = (error: unknown) =>
   error instanceof ApiFailure ? error.message : '暂时没有完成，内容已保留，请再试一次。';
 
-function renderMessageContent(text: string) {
-  const match = text.match(/\[照片:([^\]]+)\]/);
-  if (match) {
-    const imageUrl = match[1];
-    const remainingText = text.replace(/\[照片:[^\]]+\]\s*/, '').trim();
+function renderMessageContent(message: InterviewMessage) {
+  const photo = parseInterviewPhotoMessage(message);
+  if (photo) {
+    const imageUrl = `/api/v1/assets/${photo.assetId}`;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <a
@@ -62,11 +66,11 @@ function renderMessageContent(text: string) {
             }}
           />
         </a>
-        {remainingText && <span>{remainingText}</span>}
+        {photo.caption && <span>{photo.caption}</span>}
       </div>
     );
   }
-  return text;
+  return message.text;
 }
 export function InterviewApp() {
   const [client] = useState(() => new LifeClient()),
@@ -179,6 +183,14 @@ export function InterviewApp() {
       /* Storage may be unavailable. */
     }
   }, [data?.profile.id]);
+  useEffect(() => {
+    if (
+      data &&
+      pendingPhotoAssetId &&
+      hasInterviewPhotoMessage(data.interview.messages, pendingPhotoAssetId)
+    )
+      clearPendingChatPhoto(data.profile.id);
+  }, [data, pendingPhotoAssetId]);
   function updateDraft(value: string) {
     setDraft(value);
     if (data?.profile.id) {
@@ -224,19 +236,28 @@ export function InterviewApp() {
     if (data?.interview.messages.length)
       end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [data?.interview.messages.length, waiting]);
-  async function send(event?: FormEvent, textOverride?: string) {
+  async function send(event?: FormEvent, textOverride?: string, latest?: InterviewWorkspace) {
     event?.preventDefault();
     const text = (textOverride ?? draft).trim();
-    if (!data || !text || sending || waiting || (uploadingChatPhoto && !textOverride)) return;
+    const currentData = latest ?? data;
+    if (
+      !currentData ||
+      !text ||
+      sending ||
+      waiting ||
+      (pendingPhotoAssetId && !textOverride) ||
+      (uploadingChatPhoto && !textOverride)
+    )
+      return;
     const request =
       pending.current?.text === text
         ? pending.current
         : {
             commandId: crypto.randomUUID(),
-            expectedVersion: data.interview.version,
+            expectedVersion: currentData.interview.version,
             text,
-            questionId: data.interview.openQuestion?.id,
-            questionVersion: data.interview.openQuestion?.version,
+            questionId: currentData.interview.openQuestion?.id,
+            questionVersion: currentData.interview.openQuestion?.version,
           };
     pending.current = request;
     setSending(true);
@@ -245,9 +266,9 @@ export function InterviewApp() {
     // 1. 立即清空输入框并聚焦
     if (!textOverride) {
       setDraft('');
-      if (data.profile?.id) {
+      if (currentData.profile?.id) {
         try {
-          sessionStorage.removeItem(`pl-draft:${data.profile.id}`);
+          sessionStorage.removeItem(`pl-draft:${currentData.profile.id}`);
         } catch {
           /* No persistent draft storage. */
         }
@@ -303,25 +324,43 @@ export function InterviewApp() {
     }
   }
 
+  function clearPendingChatPhoto(profileId: string) {
+    setPendingPhotoAssetId(null);
+    setDraft('');
+    try {
+      sessionStorage.removeItem(`pl-pending-interview-photo:${profileId}`);
+      sessionStorage.removeItem(`pl-draft:${profileId}`);
+    } catch {
+      /* The server confirmation remains authoritative when local storage is disabled. */
+    }
+  }
   async function finishChatPhoto(assetId: string) {
+    const before = await client.workspace();
+    apply(before);
+    if (hasInterviewPhotoMessage(before.interview.messages, assetId)) {
+      clearPendingChatPhoto(before.profile.id);
+      setError('');
+      return;
+    }
     const profile = await ensureInterviewPhotoSaved(client, assetId);
     setData((value) =>
       value && profile.version >= value.profile.version ? { ...value, profile } : value,
     );
-    setPendingPhotoAssetId(null);
-    try {
-      if (data?.profile.id) {
-        sessionStorage.removeItem(`pl-pending-interview-photo:${data.profile.id}`);
-        sessionStorage.removeItem(`pl-draft:${data.profile.id}`);
-      }
-    } catch {
-      /* The saved profile is authoritative even if local storage is disabled. */
-    }
+    const ready = await client.workspace();
+    apply(ready);
     const userText = draft.trim();
     const photoTag = `[照片:/api/v1/assets/${assetId}]`;
     const fullText = userText ? `${photoTag}\n${userText}` : `${photoTag}\n我分享了一张生活照片。`;
-    setDraft('');
-    await send(undefined, fullText);
+    const after = await confirmInterviewPhotoMessage(
+      () => client.workspace(),
+      ready,
+      assetId,
+      async (latest) => {
+        await send(undefined, fullText, latest);
+      },
+    );
+    apply(after);
+    clearPendingChatPhoto(after.profile.id);
   }
 
   async function uploadChatPhoto(file: File) {
@@ -342,9 +381,7 @@ export function InterviewApp() {
       await finishChatPhoto(asset.id);
     } catch (e) {
       setError(
-        uploadedAssetId
-          ? '照片已上传，但还没加入「我的」，因此没有发送。可以用同一张照片重试。'
-          : errorMessage(e),
+        uploadedAssetId ? '照片已上传，消息尚未确认发送。可以用同一张照片重试。' : errorMessage(e),
       );
     } finally {
       setUploadingChatPhoto(false);
@@ -358,21 +395,37 @@ export function InterviewApp() {
     try {
       await finishChatPhoto(pendingPhotoAssetId);
     } catch {
-      setError('照片仍未加入「我的」，消息也没有发送。请检查连接后重试。');
+      setError('照片消息尚未确认发送。请检查连接后重试，系统会先检查是否已经发送。');
     } finally {
       setUploadingChatPhoto(false);
     }
   }
-  function cancelChatPhoto() {
+  async function cancelChatPhoto() {
     if (!pendingPhotoAssetId || uploadingChatPhoto || sending) return;
+    setUploadingChatPhoto(true);
+    let current: InterviewWorkspace;
+    try {
+      current = await client.workspace();
+    } catch {
+      setError('暂时无法确认照片是否发出，请稍后重试。');
+      setUploadingChatPhoto(false);
+      return;
+    }
+    apply(current);
+    if (hasInterviewPhotoMessage(current.interview.messages, pendingPhotoAssetId)) {
+      clearPendingChatPhoto(current.profile.id);
+      setError('这张照片已经发出，不能取消已发送的消息。');
+      setUploadingChatPhoto(false);
+      return;
+    }
     setPendingPhotoAssetId(null);
     try {
-      if (data?.profile.id)
-        sessionStorage.removeItem(`pl-pending-interview-photo:${data.profile.id}`);
+      sessionStorage.removeItem(`pl-pending-interview-photo:${current.profile.id}`);
     } catch {
-      /* The retry is also removed from in-memory state. */
+      /* Local storage is optional; in-memory pending state has been cleared. */
     }
-    setError('已取消发送。这张照片没有加入「我的」，也没有发给人生伙伴。');
+    setError('已取消待发送。照片若已加入「我的」，可在那里查看或删除。');
+    setUploadingChatPhoto(false);
   }
   async function edit(operation: ProfileEdit['operation']) {
     if (!data) return;
@@ -492,7 +545,7 @@ export function InterviewApp() {
           <div className="composer-area">
             {(error || pendingPhotoAssetId) && (
               <Notice>
-                <span>{error || '还有一张已上传但未发出的照片。加入「我的」后即可继续发送。'}</span>
+                <span>{error || '还有一张照片的发送结果待确认，可以继续重试。'}</span>
                 {pendingPhotoAssetId && (
                   <>
                     <Button
@@ -507,7 +560,7 @@ export function InterviewApp() {
                       type="button"
                       variant="ghost"
                       disabled={uploadingChatPhoto || sending}
-                      onClick={cancelChatPhoto}
+                      onClick={() => void cancelChatPhoto()}
                     >
                       暂不发送
                     </Button>
@@ -556,7 +609,10 @@ export function InterviewApp() {
               />
               <div className="composer-bottom">
                 <span className="composer-tip">
-                  <Icon name="lock" size={12} />按 Enter 发送 · Shift + Enter 换行
+                  <Icon name="lock" size={12} />
+                  {pendingPhotoAssetId
+                    ? '先确认待发照片 · 可修改随图文字'
+                    : '按 Enter 发送 · Shift + Enter 换行'}
                   {draft.length > 3000 && ` · ${draft.length}/4000`}
                 </span>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -591,7 +647,9 @@ export function InterviewApp() {
                   <Button
                     type="submit"
                     aria-label="发送消息"
-                    disabled={!data || !draft.trim() || sending || waiting || uploadingChatPhoto}
+                    disabled={
+                      !data || !draft.trim() || sending || waiting || uploadingChatPhoto || !!pendingPhotoAssetId
+                    }
                   >
                     {sending ? <span className="spinner" /> : <Icon name="send" size={18} />}
                     <span>发送</span>
@@ -634,7 +692,7 @@ export function InterviewApp() {
                       })}
                     </time>
                   </div>
-                  <div className="message-text">{renderMessageContent(message.text)}</div>
+                  <div className="message-text">{renderMessageContent(message)}</div>
                 </div>
               </div>
             ))}
