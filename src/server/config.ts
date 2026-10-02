@@ -6,7 +6,7 @@ export function gatewayConfig(): GatewayConfig {
   return {
     apiKey,
     baseUrl: process.env.YIBU_BASE_URL || 'https://yibuapi.com',
-    model: process.env.YIBU_TEXT_MODEL || 'qwen3.5-flash',
+    model: process.env.YIBU_TEXT_MODEL || 'gpt-4o-mini',
     timeoutMs: 85000,
   };
 }

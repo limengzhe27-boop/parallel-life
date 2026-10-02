@@ -10,7 +10,7 @@ const planner = new InterviewPlanner(
   new YibuTextModel({
     apiKey: process.env.YIBU_API_KEY,
     baseUrl: 'https://yibuapi.com',
-    model: process.env.YIBU_TEXT_MODEL || 'qwen3.5-flash',
+    model: process.env.YIBU_TEXT_MODEL || 'gpt-4o-mini',
     timeoutMs: 85000,
   }),
 );
