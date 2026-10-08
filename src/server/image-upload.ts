@@ -13,8 +13,8 @@ export async function imageUploadForm(request: Request) {
       if (result.done) break;
       total += result.value.length;
       // Vercel Functions cap request bodies at 4.5 MB. Leave headroom for
-      // multipart boundaries so the route fails clearly before that limit.
-      if (total > 4 * 1024 * 1024) {
+      // multipart boundaries. Individual files are capped at 4 MiB by AssetRepository.
+      if (total > 4 * 1024 * 1024 + 64 * 1024) {
         await reader.cancel();
         throw new HttpError('INVALID_INPUT', 422);
       }
