@@ -1,0 +1,342 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { localConfig } from '../../scripts/local-config.mjs';
+import { adminClient } from '../../scripts/db-admin.mjs';
+import { migrate } from '../../scripts/migrate.mjs';
+import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
+import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
+import { SceneRepository } from '../../src/modules/world/infrastructure/scene-repository.ts';
+import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
+import { TaskRepository } from '../../src/modules/tasks/infrastructure/task-repository.ts';
+import { sceneTaskHandler } from '../../src/modules/world/infrastructure/scene-task-handler.ts';
+import { runOne } from '../../src/modules/tasks/application/run-worker.ts';
+import type { SceneProposal } from '../../src/modules/world/application/scene-ports.ts';
+const proposal: SceneProposal = {
+  location: '工作室',
+  narration: '灯架旁有一面白墙。',
+  presentActorIds: [],
+  outcome: null,
+  observation: null,
+  matterTitle: '试拍一张',
+  matterUpdates: [],
+  dialogues: [],
+};
+test('scene durable runtime: ownership, idempotence, navigation, pause, rollback, presence and lease fencing', async () => {
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const c = await localConfig();
+  const db = new PostgresDatabase(
+      `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+    ),
+    queue = new PostgresTaskQueue(
+      `postgresql://pl_worker:${c.workerPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+    );
+  const owner = randomUUID(),
+    other = randomUUID(),
+    worldId = randomUUID(),
+    actorId = randomUUID(),
+    appointmentId = `${randomUUID()}_effect_0`;
+  let calls = 0;
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    await new IdentityRepository(db).ensureGuest(other);
+    const now = new Date().toISOString(),
+      state = {
+        id: worldId,
+        ownerId: owner,
+        title: '现场合成测试',
+        version: 0,
+        time: now,
+        actors: [{ id: actorId, name: '小林', persona: '摄影师，认真检查用光' }],
+        facts: [],
+        messages: [],
+        appointments: [
+          {
+            id: appointmentId,
+            title: '试灯',
+            at: now,
+            participantIds: [actorId],
+            sourceEventId: 'genesis:' + worldId,
+            status: 'confirmed',
+          },
+        ],
+        mediaRequests: [],
+      };
+    await db.transaction(owner, async (sql) => {
+      await sql.query(
+        'INSERT INTO parallel_life.worlds(id,owner_id,title,state) VALUES($1,$2,$3,$4)',
+        [worldId, owner, state.title, state],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',
+        [worldId, owner, state, {}],
+      );
+    });
+    const repo = new SceneRepository(db),
+      tasks = new TaskRepository(db);
+    await assert.rejects(repo.read(other, worldId), { code: 'NOT_FOUND' });
+    const request = { commandId: randomUUID(), expectedVersion: 0, appointmentId };
+    const entered = await repo.enter(owner, worldId, request);
+    assert.equal(entered.version, 1);
+    assert.equal((await repo.enter(owner, worldId, request)).task?.id, entered.task?.id);
+    await assert.rejects(repo.enter(owner, worldId, { ...request, appointmentId: randomUUID() }), {
+      code: 'IDEMPOTENCY_CONFLICT',
+    });
+    await assert.rejects(
+      repo.enter(owner, worldId, { ...request, commandId: randomUUID(), expectedVersion: 1 }),
+      { code: 'INVALID_COMMAND' },
+    );
+    const pending = await repo.read(owner, worldId);
+    assert.equal(pending.entries.length, 0);
+    assert.equal(pending.task?.status, 'queued');
+    await assert.rejects(
+      repo.input(owner, worldId, entered.sceneId, {
+        commandId: randomUUID(),
+        expectedVersion: 1,
+        text: '我拿起灯',
+        relatedMatterIds: [],
+      }),
+      { code: 'INVALID_COMMAND' },
+    );
+    // Returning to phone while opening is pending must not invalidate the saved task.
+    const view = await repo.navigate(owner, worldId, entered.sceneId, {
+      commandId: randomUUID(),
+      expectedVersion: 1,
+      view: 'phone',
+    });
+    assert.equal(view.version, 2);
+    const opening = sceneTaskHandler(
+      queue,
+      {
+        async propose() {
+          calls++;
+          return {
+            ...proposal,
+            presentActorIds: [actorId],
+            dialogues: [{ actorId, text: '先看看阴影。' }],
+          };
+        },
+      },
+      'fixture',
+    );
+    const run = async (id: string, handler = opening) =>
+      runOne(
+        {
+          claim: (k) => queue.claimForOwner(id, owner, k),
+          renew: (l) => queue.renew(l),
+          finish: (l, o) => queue.finish(l, o),
+        },
+        { world: handler },
+      );
+    await run(entered.task!.id);
+    let read = await repo.read(owner, worldId);
+    assert.equal(read.task?.status, 'succeeded');
+    assert.equal(read.worldVersion, 3);
+    assert.equal(read.experience.view.kind, 'phone');
+    assert.equal(read.scene?.presence.length, 2);
+    assert.equal(read.matters[0]?.status, 'not_started');
+    assert.equal(calls, 1);
+    const beforeEntries = read.entries;
+    await repo.navigate(owner, worldId, entered.sceneId, {
+      commandId: randomUUID(),
+      expectedVersion: 3,
+      view: 'scene',
+    });
+    read = await repo.read(owner, worldId);
+    assert.deepEqual(read.entries, beforeEntries);
+    assert.equal(calls, 1);
+    const actionInput = {
+      commandId: randomUUID(),
+      expectedVersion: read.worldVersion,
+      text: '  我把灯调暗一级，观察墙上的影子。  ',
+      relatedMatterIds: [read.matters[0]!.id],
+    };
+    const action = await repo.input(owner, worldId, entered.sceneId, actionInput);
+    assert.equal(
+      (await repo.input(owner, worldId, entered.sceneId, actionInput)).task?.id,
+      action.task?.id,
+    );
+    read = await repo.read(owner, worldId);
+    assert.equal(read.actions[0]?.text, actionInput.text);
+    assert.equal(read.actions[0]?.status, 'pending');
+    const bad = sceneTaskHandler(
+      queue,
+      {
+        async propose() {
+          return {
+            ...proposal,
+            matterTitle: null,
+            presentActorIds: [actorId],
+            outcome: 'succeeded',
+            observation: '墙面的阴影边缘变柔了',
+            dialogues: [{ actorId: randomUUID(), text: '越权的人物' }],
+          };
+        },
+      },
+      'fixture',
+    );
+    await run(action.task!.id, bad);
+    read = await repo.read(owner, worldId);
+    assert.equal(read.task?.status, 'failed');
+    assert.equal(read.actions[0]?.status, 'pending');
+    assert.equal(read.worldVersion, action.version);
+    const memoryCount = (
+      await admin.query('SELECT count(*) FROM parallel_life.memory_records WHERE branch_id=$1', [
+        worldId,
+      ])
+    ).rows[0].count;
+    assert.equal(memoryCount, '1');
+    const retry = await tasks.retry(owner, action.task!.id, randomUUID());
+    await run(
+      retry.id,
+      sceneTaskHandler(
+        queue,
+        {
+          async propose(ctx) {
+            assert.equal(ctx.action?.text, actionInput.text);
+            return {
+              ...proposal,
+              matterTitle: null,
+              presentActorIds: [actorId],
+              outcome: 'partial',
+              observation: '阴影柔了一些，但白墙上的光还没有均匀。',
+              matterUpdates: [{ id: ctx.matters[0]!.id, status: 'in_progress' }],
+              dialogues: [{ actorId, text: '再看看另一侧。' }],
+            };
+          },
+        },
+        'fixture',
+      ),
+    );
+    read = await repo.read(owner, worldId);
+    assert.equal(read.task?.status, 'succeeded');
+    assert.equal(read.actions[0]?.status, 'resolved');
+    assert.equal(read.matters[0]?.status, 'in_progress');
+    assert.equal(read.actions[0]?.resolution?.sourceVersion, read.worldVersion);
+    const plan = await repo.input(owner, worldId, entered.sceneId, {
+      commandId: randomUUID(),
+      expectedVersion: read.worldVersion,
+      text: '如果我把灯调暗，会怎样？',
+      relatedMatterIds: [],
+    });
+    await run(
+      plan.task!.id,
+      sceneTaskHandler(
+        queue,
+        {
+          async propose() {
+            return { ...proposal, matterTitle: null, presentActorIds: [actorId], dialogues: [] };
+          },
+        },
+        'fixture',
+      ),
+    );
+    read = await repo.read(owner, worldId);
+    assert.equal(read.actions[1]?.intent, 'hypothesis');
+    assert.equal(read.actions[1]?.status, 'recorded');
+    assert.equal(read.actions[1]?.resolution, undefined);
+    await db.transaction(owner, (sql) =>
+      sql.query(
+        'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,paused) VALUES($1,$2,$3,$3,true)',
+        [worldId, owner, read.storyNow],
+      ),
+    );
+    await assert.rejects(
+      repo.input(owner, worldId, entered.sceneId, {
+        commandId: randomUUID(),
+        expectedVersion: read.worldVersion,
+        text: '我拿起灯',
+        relatedMatterIds: [],
+      }),
+      { code: 'INVALID_COMMAND' },
+    );
+    const left = await repo.navigate(
+      owner,
+      worldId,
+      entered.sceneId,
+      { commandId: randomUUID(), expectedVersion: read.worldVersion },
+      true,
+    );
+    read = await repo.read(owner, worldId, entered.sceneId);
+    assert.equal(read.paused, true);
+    assert.equal(read.scene?.status, 'ended');
+    assert.equal(read.experience.currentSceneId, undefined);
+    assert.ok(read.scene?.presence.find((p) => p.participant.kind === 'player')?.leftVersion);
+    assert.equal(left.version, read.worldVersion);
+    // DB also refuses cross-world source references, irrespective of application assertions.
+    await assert.rejects(
+      db.transaction(other, (sql) =>
+        sql.query(
+          'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
+          [randomUUID(), worldId, other, read.scene?.sourceEventId, {}],
+        ),
+      ),
+    );
+    await db.transaction(owner, (sql) =>
+      sql.query('UPDATE parallel_life.world_clock SET paused=false WHERE world_id=$1', [worldId]),
+    );
+    const competing = await Promise.allSettled([
+      repo.enter(owner, worldId, {
+        commandId: randomUUID(),
+        expectedVersion: read.worldVersion,
+        appointmentId,
+      }),
+      repo.enter(owner, worldId, {
+        commandId: randomUUID(),
+        expectedVersion: read.worldVersion,
+        appointmentId,
+      }),
+    ]);
+    assert.equal(competing.filter((r) => r.status === 'fulfilled').length, 1);
+    const winner = competing.find((r) => r.status === 'fulfilled');
+    assert.ok(winner?.status === 'fulfilled');
+    const cancellation = sceneTaskHandler(
+      queue,
+      {
+        async propose() {
+          await tasks.cancel(owner, winner.value.task!.id);
+          return { ...proposal, presentActorIds: [actorId] };
+        },
+      },
+      'fixture',
+    );
+    await run(winner.value.task!.id, cancellation);
+    const cancelled = await repo.read(owner, worldId);
+    assert.equal(cancelled.task?.status, 'cancelled');
+    assert.equal(cancelled.entries.length, 0);
+    assert.equal(cancelled.worldVersion, winner.value.version);
+    const openingRetry = await tasks.retry(owner, winner.value.task!.id, randomUUID());
+    const pauseDuringModel = sceneTaskHandler(
+      queue,
+      {
+        async propose() {
+          await db.transaction(owner, (sql) =>
+            sql.query('UPDATE parallel_life.world_clock SET paused=true WHERE world_id=$1', [
+              worldId,
+            ]),
+          );
+          return { ...proposal, presentActorIds: [actorId] };
+        },
+      },
+      'fixture',
+    );
+    await run(openingRetry.id, pauseDuringModel);
+    const frozen = await repo.read(owner, worldId);
+    assert.equal(frozen.task?.status, 'failed');
+    assert.equal(frozen.entries.length, 0);
+    assert.equal(frozen.worldVersion, winner.value.version);
+    assert.equal(
+      (
+        await admin.query('SELECT count(*) FROM parallel_life.outbox_jobs WHERE world_id=$1', [
+          worldId,
+        ])
+      ).rows[0].count,
+      '0',
+    );
+  } finally {
+    await queue.close();
+    await db.close();
+    await admin.end();
+  }
+});

@@ -1,3 +1,4 @@
+import { SceneRepository } from '../modules/world/infrastructure/scene-repository.ts';
 import { SettingTrialRepository } from '../modules/settings/infrastructure/setting-trial-repository.ts';
 import { SettingDraftRepository } from '../modules/settings/infrastructure/setting-draft-repository.ts';
 import { DraftRepository } from '../modules/discovery/infrastructure/draft-repository.ts';
@@ -195,6 +196,7 @@ function createServices() {
     settingDrafts: new SettingDraftRepository(db),
     settingTrials: new SettingTrialRepository(db),
     builds: new BuildRepository(db),
+    scenes: new SceneRepository(db),
     worlds: new PostgresWorldRepository(db),
     tasks: new TaskRepository(db),
     interview: new InterviewRepository(db),

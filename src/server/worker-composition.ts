@@ -1,3 +1,5 @@
+import { ScenePlanner } from '../modules/world/infrastructure/scene-planner.ts';
+import { sceneTaskHandler } from '../modules/world/infrastructure/scene-task-handler.ts';
 import { WorldPlanner } from '../modules/world/infrastructure/world-planner.ts';
 import { buildHandler } from '../modules/world/infrastructure/build-handler.ts';
 import { DiscoveryPlanner } from '../modules/discovery/infrastructure/discovery-planner.ts';
@@ -21,6 +23,7 @@ export function createWorker() {
   return {
     queue,
     handlers: {
+      world: sceneTaskHandler(queue, new ScenePlanner(new YibuTextModel(config)), config.model),
       'world-build': buildHandler(queue, new WorldPlanner(new YibuTextModel(config)), config.model),
       profile: discoveryHandler(
         queue,
