@@ -5,6 +5,7 @@ import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
 import { personDisplayName, personKnownName } from '../../modules/profile/domain/person-record.ts';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
 import s from './person-editor.module.css';
+import { PhotoDraft } from './photo-draft.ts';
 export function PersonEditor({
   person,
   client,
@@ -17,6 +18,7 @@ export function PersonEditor({
   onSave: (operation: ProfileEdit['operation']) => Promise<void>;
 }) {
   const id = useRef(person?.id ?? crypto.randomUUID());
+  const [photos] = useState(() => new PhotoDraft());
   const [editing, setEditing] = useState(!person),
     [knownName, setKnownName] = useState(person ? personKnownName(person) : ''),
     [temporaryLabel, setTemporaryLabel] = useState(
@@ -40,9 +42,37 @@ export function PersonEditor({
     setBusy(true);
     setError('');
     try {
-      setAssetId((await client.upload(file)).id);
+      const uploaded = await client.upload(file);
+      photos.add(uploaded.id);
+      setAssetId(uploaded.id);
+      await photos.discard(client, uploaded.id);
     } catch (e) {
       setError(fail(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function close() {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await photos.discard(client);
+      onClose();
+    } catch {
+      setError('未保存的照片暂时没有清理完成，请再点一次取消。');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function removePhoto() {
+    setBusy(true);
+    setError('');
+    try {
+      await photos.discard(client);
+      setAssetId(null);
+    } catch {
+      setError('这张未保存的照片暂时没有清理完成，请重试。');
     } finally {
       setBusy(false);
     }
@@ -68,6 +98,8 @@ export function PersonEditor({
               },
             },
       );
+      photos.saved(remove ? null : assetId);
+      await photos.discard(client);
       onClose();
     } catch (e) {
       setError(fail(e));
@@ -80,7 +112,7 @@ export function PersonEditor({
       open
       title={person?.name ?? '记下身边的一个人'}
       onClose={() => {
-        if (!busy) onClose();
+        if (!busy) void close();
       }}
     >
       {!editing && person ? (
@@ -256,7 +288,7 @@ export function PersonEditor({
               每人 1 张，最大 4MB。普通头像仅作展示，不会据此推断长相或身份。
             </p>
             {assetId && (
-              <Button type="button" variant="ghost" onClick={() => setAssetId(null)}>
+              <Button type="button" variant="ghost" onClick={() => void removePhoto()}>
                 暂时不用这张图片
               </Button>
             )}
@@ -274,7 +306,7 @@ export function PersonEditor({
                 移除记录
               </Button>
             )}
-            <Button type="button" variant="secondary" disabled={busy} onClick={onClose}>
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => void close()}>
               取消
             </Button>
             <Button

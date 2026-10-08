@@ -61,6 +61,18 @@ export function SeedReceipt({
                 {seed.personRoles?.find((r) => r.personId === person.id)?.role ??
                   '由故事安排虚构角色'}
                 {person.assetId && '；照片会用于角色头像和相册'}
+                {person.interaction && (
+                  <p>
+                    我的描述：{person.interaction.slice(0, 600)}
+                    {person.interaction.length > 600 && '…'}
+                  </p>
+                )}
+                {!!person.experiences?.length && (
+                  <small>
+                    前{Math.min(3, person.experiences.length)}
+                    段共同经历作为背景，不代表在分支已经发生。
+                  </small>
+                )}
               </li>
             ))}
           </ul>

@@ -186,9 +186,24 @@ export class WorldPlanner {
       people: seed.people.map((p, index) =>
         mapped
           ? {
-              personId: p.id,
               key: `person_${index}`,
               name: p.name,
+              ...(p.interaction
+                ? {
+                    userDescription: {
+                      text: p.interaction.slice(0, 600),
+                      omittedCharacters: Math.max(0, p.interaction.length - 600),
+                    },
+                  }
+                : {}),
+              ...(p.experiences?.length
+                ? {
+                    sharedExperiences: p.experiences
+                      .slice(0, 3)
+                      .map((e) => ({ text: e.text.slice(0, 300), date: e.date })),
+                    omittedExperiences: Math.max(0, p.experiences.length - 3),
+                  }
+                : {}),
               ...(seed.personRoles?.some((r) => r.personId === p.id && r.role)
                 ? {}
                 : { realRelationship: p.relationship }),
@@ -208,14 +223,17 @@ export class WorldPlanner {
                 '人物是虚构角色，若借用 people 的名字应尊重已有关系。',
                 '人物是虚构角色，所选人物的现实关系仅作背景，本分支角色要求优先。',
               ).replace(
-                '"actors":[{"key":',
+                '\"key\":\"唯一小写英文数字下划线ID\"',
                 seed.people.length
-                  ? '"actors":[{"sourcePersonId":"所选人物的personId（原创配角省略此字段）","key":'
-                  : '"actors":[{"key":',
+                  ? '\"key\":\"person_0\"'
+                  : '\"key\":\"唯一小写英文数字下划线ID\"',
               )
             : SYSTEM) +
           (mapped && seed.people.length
-            ? '\n本次人物有personId。每位已选人物必须恰好对应一个actor，输出sourcePersonId为其personId原文；其余原创配角不填写sourcePersonId（不要填null或空串）。sourcePersonId是允许字段，不能省略所选人物的映射。actors共3至8位，先包含全部已选人物，再按需要补充原创人物；所选人物使用people给定key，不改名，不因同名合并。所选人物可同名，但key不能重复。branchRole是用户指定的本分支虚构角色，优先遵守，即使与realRelationship相反；未指定时你可提出适合故事的虚构角色，不能强迫沿用现实关系。姓名由服务端固定。persona、messages和notes都必须遵守branchRole，不仅relationship标签；同级搭档不得声称自己是主角的上司、要求服从或审批主角决定。角色改写不代表现实变化，不根据照片猜身份，未收到任何照片内容。'
+            ? `\n本次已选${seed.people.length}位人物，必须全部包含。actors人数为${Math.max(3, seed.people.length)}至${Math.min(8, Math.max(5, seed.people.length))}，这项优先于其他人数建议。必含的actor.key原文为${JSON.stringify(seed.people.map((_, i) => `person_${i}`))}，不要另起别名。`
+            : '') +
+          (mapped && seed.people.length
+            ? '\n每位已选人物必须恰好对应一个actor，使用people给定key原文；不输出sourcePersonId或personId，身份对应由服务器处理。actors共3至8位，先包含全部已选人物，再按需要补充原创人物；所选人物不改名、不因同名合并。所选人物可同名，但key不能重复。branchRole是用户指定的本分支虚构角色，优先遵守，即使与realRelationship相反；未指定时你可提出适合故事的虚构角色，不能强迫沿用现实关系。姓名由服务端固定。userDescription是用户对现实人物的描述，只作性格、习惯和能力参考，不是客观诊断或已发生的分支事实。sharedExperiences是现实共同经历，不能直接宣称在分支发生；不得猜补省略的内容。不能把其他人物的私人描述/经历/内心作为当前角色已知；生成自己的persona时只使用自己的资料。persona、messages和notes都必须遵守branchRole，不仅relationship标签；同级搭档不得声称自己是主角的上司、要求服从或审批主角决定。角色改写不代表现实变化，不根据照片猜身份，未收到任何照片内容。'
             : seed.people.length
               ? '\n本次使用旧版人物设定，延续已授权姓名与关系，全部省略sourcePersonId字段。'
               : '\n本次没有选中的现实人物，所有actors是原创配角，全部省略sourcePersonId字段，不填null、空串或示例占位值。') +
@@ -252,7 +270,8 @@ export class WorldPlanner {
                     {
                       role: 'user' as const,
                       content:
-                        '同时检查人物映射：每位people中的personId必须恰好出现在一个actor.sourcePersonId中，使用原文ID；原创配角省略此字段，不填null。角色要求branchRole优先于现实关系。',
+                        '同时检查人物对应：每位people给定key必须恰好出现在一个actor.key中，不要输出sourcePersonId或personId；所选人物可同名，不能合并。角色要求branchRole优先，人物总数不得超过8。必须逐字包含的actor.key：' +
+                        JSON.stringify(seed.people.map((_, i) => `person_${i}`)),
                     },
                   ]
                 : []),
@@ -298,12 +317,18 @@ export class WorldPlanner {
               const relevant = [
                 actor.persona,
                 ...opening.messages.filter((m) => m.actorKey === actor.key).map((m) => m.text),
-                ...opening.notes.filter((n) => n.text.includes(person.name)).map((n) => n.text),
+                ...opening.notes
+                  .filter(
+                    (n) =>
+                      seed.people.filter((p) => p.name === person.name).length === 1 &&
+                      n.text.includes(person.name),
+                  )
+                  .map((n) => n.text),
               ];
               if (relevant.some((text) => contradictsSelectedRole(role, text)))
                 throw Error('SELECTED_ROLE_CONFLICT');
               actor.relationship = role;
-              actor.persona = `本分支与主角的关系：${role}。此关系优先于现实关系与其他人物描述。${actor.persona}`;
+              actor.persona = `与主角的关系：${role}。${actor.persona}`;
               if (actor.persona.length > 1200) throw Error('INVALID_PERSONA_LENGTH');
             }
           }

@@ -301,6 +301,16 @@ export function DraftEditor({
                     <span>
                       {p.name}
                       <small>现实关系：{p.relationship}</small>
+                      {p.interaction && (
+                        <small>
+                          我的描述：{p.interaction.slice(0, 600)}
+                          {p.interaction.length > 600 && '…'}
+                        </small>
+                      )}
+                      {!!p.experiences?.length && (
+                        <small>带入前 {Math.min(3, p.experiences.length)} 段共同经历作为背景</small>
+                      )}
+                      {p.assetId && <small>照片将用于角色头像和相册</small>}
                     </span>
                   </label>
                   {selection.personIds.includes(p.id) && (
@@ -324,7 +334,7 @@ export function DraftEditor({
                         }
                       />
                       <small className={s.hint}>
-                        留空则由故事安排虚构角色，不会改变现实人物资料。
+                        留空则由故事安排虚构角色，不会改变现实人物资料。描述最多带入前600字，共同经历最多前3段、每段前300字；不会带入聊天原话。
                       </small>
                     </label>
                   )}

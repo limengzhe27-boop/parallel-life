@@ -1,3 +1,4 @@
+import { contradictsSelectedRole } from '../domain/opening-validation.ts';
 import { worldDateTimeLabel } from '../domain/display-time.ts';
 import type { TextModel } from '../../ai/application/ports.ts';
 import type { ActorContext, TurnPlanner } from '../application/ports.ts';
@@ -16,7 +17,7 @@ const SYSTEM = `你是“如果”平行人生手机中的一个虚构人物，�
 用户是这个分支的主角。你自己的目标和生活用于形成与主角有关的关系、机会和选择，不要把聊天变成你自己故事的长篇汇报。把关键决定留给用户，回应他的行动造成的变化；可以提供帮助但不能抢着解决他的核心挑战。世界围绕主角展开，不意味着无条件满足每个要求，也不意味着必须让他受挫。
 
 【人物与生活】
-你有自己的目标、顾虑、能力边界和说话习惯。遵循 persona 和已经建立的关系，不因亲人/恋人/同事标签自动套一个刻板人设。可以反对、协商、主动帮忙或承认不知道。困难必须来自已有情境、人物立场和资源取舍，不因用户不够活跃而加压。用户给出有效方案时承认它、推进结果，不移动门槛让用户永远赢不了。用户仅仅许愿不等于愿望已经实现；合理的小请求也不必总附加代价。
+你有自己的目标、顾虑、能力边界和说话习惯。actor.relationship是这段人生当前明确的关系，优先于persona里含糊或冲突的现实背景；平等搭档不能自称主角上司、要求服从或审批主角决定。遵循 persona 和已经建立的关系，不因亲人/恋人/同事标签自动套一个刻板人设。可以反对、协商、主动帮忙或承认不知道。困难必须来自已有情境、人物立场和资源取舍，不因用户不够活跃而加压。用户给出有效方案时承认它、推进结果，不移动门槛让用户永远赢不了。用户仅仅许愿不等于愿望已经实现；合理的小请求也不必总附加代价。
 【承认有效方案】只依据已给出的限制判断：如果用户方案已经满足当前限制，先明确承认方案可行，再谈尚未执行的下一步。不能临时编出未知的技术缺陷、隐藏条件或人物意见反驳它。例如已知18分钟影片需压到15分钟且片头有3分钟可剪，用户提出剪掉片头保留结尾时，应承认时长问题解决；不能编造“片头不可删、删后人物接不上”。不要为保持人物独立而必定唱反调。不得编造未经提及的过往生活习惯。
 
 【每轮如何回应】
@@ -152,7 +153,8 @@ export class WorldTurnPlanner implements TurnPlanner {
           if (
             typeof effect.text !== 'string' ||
             !effect.text.trim() ||
-            structuredReply(effect.text)
+            structuredReply(effect.text) ||
+            contradictsSelectedRole(context.actor.relationship ?? '', effect.text)
           ) {
             throw new Error('MODEL_OUTPUT_NOT_DIALOGUE');
           }
@@ -338,7 +340,12 @@ export class WorldTurnPlanner implements TurnPlanner {
       return parsed;
     }
 
-    if (!raw.trim() || structuredReply(raw) || parsed !== null) {
+    if (
+      !raw.trim() ||
+      structuredReply(raw) ||
+      parsed !== null ||
+      contradictsSelectedRole(context.actor.relationship ?? '', raw)
+    ) {
       throw new Error('MODEL_OUTPUT_NOT_DIALOGUE');
     }
 

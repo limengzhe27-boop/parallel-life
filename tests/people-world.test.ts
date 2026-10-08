@@ -54,7 +54,7 @@ test('selected identities and branch roles are fixed without exposing images or 
   assert.equal(sent.includes('assets'), false);
   assert.equal(JSON.parse(sent).people[0].realRelationship, undefined);
   assert.equal(JSON.parse(sent).people[0].branchRole, seed.personRoles[0]!.role);
-  assert.match(result.actors[0]!.persona, /本分支与主角的关系/);
+  assert.match(result.actors[0]!.persona, /与主角的关系/);
 });
 test('missing, repeated and foreign person mappings fail closed', async () => {
   for (const actors of [
@@ -223,4 +223,37 @@ test('a contradictory persona or own message gets one targeted correction, never
       { code: 'INVALID_RESPONSE' },
     );
   }
+});
+
+test('selected friend descriptions are bounded, source quotes and image IDs never reach the world model', async () => {
+  const enriched = {
+    ...person,
+    interaction: '喜欢手工修相机，做事细致。'.repeat(100).slice(0, 1200),
+    experiences: Array.from({ length: 5 }, () => ({
+      id: randomUUID(),
+      text: '一起筹备展览。'.repeat(100).slice(0, 500),
+      date: null,
+    })),
+    sourceMessageIds: [randomUUID()],
+    sourceQuotes: [
+      { interviewId: randomUUID(), messageId: randomUUID(), quote: '绝不发送的私人原话' },
+    ],
+  };
+  let sent = '';
+  await new WorldPlanner({
+    async complete(messages) {
+      sent = messages[1]!.content;
+      return JSON.stringify(opening);
+    },
+  }).propose(ApprovedSeedSchema.parse({ ...seed, people: [enriched] }));
+  const data = JSON.parse(sent).people[0];
+  assert.equal(data.userDescription.text.length, 600);
+  assert.equal(data.userDescription.omittedCharacters, enriched.interaction.length - 600);
+  assert.equal(data.sharedExperiences.length, 3);
+  assert.equal(data.sharedExperiences[0].text.length, 300);
+  assert.equal(data.omittedExperiences, 2);
+  assert.equal(sent.includes('绝不发送的私人原话'), false);
+  assert.equal(sent.includes('sourceQuotes'), false);
+  assert.equal(sent.includes(person.assetId), false);
+  assert.equal(sent.includes(person.id), false);
 });
