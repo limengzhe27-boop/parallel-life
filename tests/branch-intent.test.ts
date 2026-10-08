@@ -108,3 +108,22 @@ test('negation, quotation, hypothetical and questions never trigger branch creat
   ])
     assert.equal(routeBranchIntent(text), 'none', text);
 });
+
+test('explicit polite requests and hypothetical branch descriptions open review', () => {
+  for (const text of [
+    '可以帮我创建一个分支吗？',
+    '能否帮我创建一个平行人生？',
+    '创建一个如果高考去了上海的分支',
+    '帮我开启一段平行人生',
+    '我想体验如果去了上海的平行人生',
+  ])
+    assert.equal(routeBranchIntent(text), 'create', text);
+  for (const text of [
+    '如果能帮我创建一个分支就好了',
+    '如果我说可以帮我创建一个分支吗？',
+    '帮我创建分支会怎么样？',
+    '不要帮我开启一段平行人生',
+    '我想体验如果去了上海的平行人生，但先不要创建',
+  ])
+    assert.equal(routeBranchIntent(text), 'none', text);
+});

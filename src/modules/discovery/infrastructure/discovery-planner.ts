@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { TextModel } from '../../ai/application/ports.ts';
+import { extractJsonObject } from '../../ai/application/model-json.ts';
+import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
 import { Id } from '../../../contracts/api.ts';
 import {
   DirectionFields,
   type DiscoveryInput,
   type LifeDirection,
 } from '../../../contracts/discovery.ts';
-export const DISCOVERY_PROMPT_VERSION = 'discovery-1.0.0';
+export const DISCOVERY_PROMPT_VERSION = 'discovery-1.1.0';
 /** Three full directions plus the model's reasoning tokens do not fit a chat-sized cap. */
 export const DISCOVERY_MAX_TOKENS = 6144;
 const Output = z.strictObject({
@@ -15,8 +16,10 @@ const Output = z.strictObject({
 });
 export class InvalidDiscoveryOutput extends Error {
   readonly code = 'INVALID_RESPONSE';
-  constructor() {
+  readonly reason: string;
+  constructor(reason = 'INVALID_OUTPUT') {
     super('INVALID_DISCOVERY_OUTPUT');
+    this.reason = reason;
   }
 }
 const SYSTEM = `你是“如果”的人生构想伙伴。根据用户确认过的资料和这次想法，提出三个真正不同的平行人生方向。全部是虚构假设，不是心理诊断、命运预测或已经发生的事。
@@ -33,40 +36,70 @@ export class DiscoveryPlanner {
     const data = { basis: input.basis, brief: input.brief, basedOn: input.basedOn };
     if (JSON.stringify(data).length > 24000 || (!input.basis.length && !input.brief.trim()))
       throw new InvalidDiscoveryOutput();
-    const raw = await this.model.complete(
-      [
-        { role: 'system', content: SYSTEM },
-        { role: 'user', content: JSON.stringify(data) },
-      ],
-      signal,
-      DISCOVERY_MAX_TOKENS,
-    );
-    try {
-      const output = Output.parse(
-        JSON.parse(
-          raw
-            .trim()
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```$/, ''),
-        ),
+    const messages: ModelMessage[] = [
+      {
+        role: 'system',
+        content:
+          SYSTEM +
+          '\n每个文字字段用一至两句简短中文，避免长篇描述；title尽量15字以内，其他字段尽量80字以内。输出前自检JSON语法：所有键和字符串用英文双引号，文本中的双引号和换行必须转义；不要省略数组或字符串结束符。' +
+          (input.basis.length
+            ? `\n本次三个方向的sourceFactIds都不允许为空。必须从以下ID中逐字选取实际使用的资料：${JSON.stringify(input.basis.map((f) => f.factId))}。如无相关资料，应调整方向使其基于已知资料，不能编造或由服务端补引用。`
+            : '\n本次没有已确认资料，三个方向的sourceFactIds都必须是[]，依据只来自brief。'),
+      },
+      { role: 'user', content: JSON.stringify(data) },
+    ];
+    let reason = 'INVALID_OUTPUT';
+    // Only a received, rejected output gets one correction. Transport failures,
+    // truncation and uncertain outcomes propagate without another paid call.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const raw = await this.model.complete(
+        attempt === 1
+          ? messages
+          : [
+              ...messages,
+              {
+                role: 'user',
+                content: `上次输出未通过校验（${reason}），没有保存。请重新生成完整合法JSON，仅包含directions，恰好三个不同标题的方向。每项只包含title、premise、opening、tradeoff、reason、sourceFactIds，遵守字数限制。有basis时每项必须引用至少一个真实factId，无basis时sourceFactIds必须为空；不能编造ID或遗漏引用。${input.basis.length ? `可用factId仅为${JSON.stringify(input.basis.map((f) => f.factId))}，三个方向的引用数组必须全部非空。` : '本次basis为空，三个引用数组都必须为[]。'}`,
+              },
+            ],
+        signal,
+        DISCOVERY_MAX_TOKENS,
       );
-      if (new Set(output.directions.map((d) => d.title)).size !== 3)
-        throw Error('DUPLICATE_DIRECTION');
-      return output.directions.map(({ sourceFactIds, ...direction }) => {
-        if (
-          (input.basis.length && !sourceFactIds.length) ||
-          new Set(sourceFactIds).size !== sourceFactIds.length
-        )
-          throw Error('INVALID_SOURCES');
-        const sources = sourceFactIds.map((id) => {
-          const fact = input.basis.find((f) => f.factId === id);
-          if (!fact) throw Error('UNKNOWN_SOURCE');
-          return fact;
-        });
-        return { id: randomUUID(), ...direction, sources };
-      });
-    } catch {
-      throw new InvalidDiscoveryOutput();
+      try {
+        return this.parse(raw, input);
+      } catch (error) {
+        reason = error instanceof InvalidDiscoveryOutput ? error.reason : 'INVALID_OUTPUT';
+        // Operational diagnostics only: no model output, input, facts or IDs.
+        console.warn(JSON.stringify({ planner: 'discovery', attempt, reason }));
+        if (attempt === 2) throw new InvalidDiscoveryOutput(reason);
+      }
     }
+    throw new InvalidDiscoveryOutput(reason);
+  }
+
+  private parse(raw: string, input: DiscoveryInput): LifeDirection[] {
+    let value: unknown;
+    try {
+      value = extractJsonObject(raw);
+    } catch {
+      throw new InvalidDiscoveryOutput('INVALID_JSON');
+    }
+    const parsed = Output.safeParse(value);
+    if (!parsed.success) throw new InvalidDiscoveryOutput('INVALID_FIELDS');
+    const output = parsed.data;
+    if (new Set(output.directions.map((d) => d.title)).size !== 3)
+      throw new InvalidDiscoveryOutput('DUPLICATE_DIRECTION');
+    return output.directions.map(({ sourceFactIds, ...direction }) => {
+      if (input.basis.length && !sourceFactIds.length)
+        throw new InvalidDiscoveryOutput('MISSING_SOURCES');
+      if (new Set(sourceFactIds).size !== sourceFactIds.length)
+        throw new InvalidDiscoveryOutput('DUPLICATE_SOURCES');
+      const sources = sourceFactIds.map((id) => {
+        const fact = input.basis.find((f) => f.factId === id);
+        if (!fact) throw new InvalidDiscoveryOutput('UNKNOWN_SOURCE');
+        return fact;
+      });
+      return { id: randomUUID(), ...direction, sources };
+    });
   }
 }

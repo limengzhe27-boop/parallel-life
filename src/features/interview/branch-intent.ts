@@ -18,6 +18,10 @@ export type BranchIntent =
 
 const CREATE =
   /(帮我|给我|替我|直接|去)?(创建|新建|建立|建一个?|建|生成|开辟)[^。！？,!?]{0,10}(新(的)?|另一(个|种|条))?(分支|平行人生|平行世界|世界分支|人生分支|新世界|另一种人生|另一条路)|(体验|开始|开启)[^。！？,!?]{0,10}(新(的)?|另一(个|种|条))(分支|平行人生|平行世界|世界分支|人生分支|人生|世界)|我想?试试(另一条|这个方向|那条路|新的分支)|我要?试试(另一条|这个方向|新的分支)|就按这个(方向)?(来|建|做)|开始(一段|新的)(人生|平行人生|平行世界|分支)|帮我实现这个|直接创建/;
+// Explicit requests may describe a hypothetical life or use a polite question.
+// They only open direction review; draft consent still controls world creation.
+const EXPLICIT_CREATE =
+  /^(?:可以|能不能|能否|可不可以)?(?:请|麻烦)?(?:你)?(?:帮我|给我|替我)(?:创建|新建|建立|生成|开辟|开启|开始|构建|建)[^。！？!?]{0,60}(?:分支|平行人生|平行世界|人生分支|新世界)|^(?:我想|我要|我希望)(?:创建|新建|建立|生成|开启|开始|体验)[^。！？!?]{0,60}(?:分支|平行人生|平行世界)|^(?:请)?(?:创建|新建|建立|生成|构建)[^。！？!?]{0,60}(?:分支|平行人生|平行世界)(?:吧|看看|体验一下|让我体验)?[。！？!?]?$/u;
 const ENTER =
   /^(进入|打开|回)(这个|该|已有的|我的)?(手机|世界|平行世界|人生|分支)$|(进入|打开)(我的)?平行手机|(进入|打开)已建好的(世界|分支)|就选这个(分支)?|(进入|体验|开始)(一下)?(这个|这条|该)(分支|平行世界|平行人生)|进入(这个|我的)?(平行)?(人生|世界)|进(入)?手机/;
 const RECOMMEND =
@@ -27,8 +31,10 @@ export function routeBranchIntent(text: string): BranchIntent {
   const value = text.trim();
   if (!value) return 'none';
   // Conservative routing is only a suggestion to review; never authority to build.
-  if (/[“”「」『』"‘’]|如果|假如|要是|不要|不想|不能|不用|别|暂不|先不|取消|不是/u.test(value))
-    return 'none';
+  if (/[“”「」『』"‘’]|不要|不想|不能|不用|别|暂不|先不|取消|不是/u.test(value)) return 'none';
+  if (EXPLICIT_CREATE.test(value) && !/会怎么样|会发生|是什么意思|为什么|怎么创建/u.test(value))
+    return 'create';
+  if (/如果|假如|要是/u.test(value)) return 'none';
   if (/为什么|怎么|是否|能否|会不会|[？?]/u.test(value) && !RECOMMEND.test(value)) return 'none';
   /* Creating a new branch wins over entering: if the user asks to create and enter, they want a brand-new branch. */
   if (CREATE.test(value)) return 'create';

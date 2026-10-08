@@ -78,3 +78,58 @@ test('discovery request rejects caller supplied ownership, sources and invalid v
   ])
     assert.equal(DiscoverRequestSchema.safeParse({ ...request, ...extra }).success, false);
 });
+
+test('discovery accepts wrapped JSON but still validates all sources', async () => {
+  let calls = 0;
+  const planner = new DiscoveryPlanner({
+    async complete() {
+      calls++;
+      return '以下是三个虚构方向：\n```json\n' + JSON.stringify(output(basis.factId)) + '\n```';
+    },
+  });
+  assert.equal((await planner.propose(input)).length, 3);
+  assert.equal(calls, 1);
+});
+
+test('discovery corrects a known invalid result once without accepting fabricated evidence', async () => {
+  let calls = 0;
+  const planner = new DiscoveryPlanner({
+    async complete(messages) {
+      calls++;
+      if (calls === 1) return JSON.stringify(output(null));
+      assert.equal(messages.length, 3);
+      assert.match(messages[2]!.content, /MISSING_SOURCES/);
+      return JSON.stringify(output(basis.factId));
+    },
+  });
+  assert.deepEqual((await planner.propose(input))[0]!.sources, [basis]);
+  assert.equal(calls, 2);
+  let invalidCalls = 0;
+  await assert.rejects(
+    new DiscoveryPlanner({
+      async complete() {
+        invalidCalls++;
+        return JSON.stringify(output(randomUUID()));
+      },
+    }).propose(input),
+    { code: 'INVALID_RESPONSE', reason: 'UNKNOWN_SOURCE' },
+  );
+  assert.equal(invalidCalls, 2);
+});
+
+test('discovery never retries transport, cancelled, uncertain or truncated calls', async () => {
+  for (const code of ['TIMEOUT', 'UPSTREAM_FAILED', 'CANCELLED', 'TRUNCATED']) {
+    let calls = 0;
+    const failure = Object.assign(new Error(code), { code });
+    await assert.rejects(
+      new DiscoveryPlanner({
+        async complete() {
+          calls++;
+          throw failure;
+        },
+      }).propose(input),
+      (e) => e === failure,
+    );
+    assert.equal(calls, 1);
+  }
+});
