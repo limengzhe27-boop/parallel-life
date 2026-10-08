@@ -327,3 +327,34 @@ test('authored seven-person casts preserve long IDs, names and all 28 directed t
   assert.equal(opening.actorTies![0]!.relationship, content.relationships[0]!.context);
   assert.ok(opening.actors.every((c) => /^c_[0-6]$/.test(c.key)));
 });
+
+test('personal worlds without selected people never prompt for placeholder person IDs', async () => {
+  let calls = 0;
+  const result = await new WorldPlanner({
+    async complete(messages) {
+      calls++;
+      assert.doesNotMatch(messages[0]!.content, /"sourcePersonId":"所选人物/);
+      assert.match(messages[0]!.content, /全部省略sourcePersonId/);
+      return JSON.stringify(output);
+    },
+  }).propose({ ...seed, people: [], personRoles: [] });
+  assert.equal(result.actors.length, 3);
+  assert.equal(calls, 1);
+});
+
+test('world correction identifies rejected actor ties and keeps their privacy guard', async () => {
+  let calls = 0;
+  await new WorldPlanner({
+    async complete(messages) {
+      calls++;
+      if (calls === 1)
+        return JSON.stringify({
+          ...output,
+          actorTies: [{ fromKey: 'a', toKey: 'b', relationship: '你的两个朋友', mayShare: true }],
+        });
+      assert.match(messages[2]!.content, /INVALID_ACTOR/);
+      return JSON.stringify(output);
+    },
+  }).propose(seed);
+  assert.equal(calls, 2);
+});

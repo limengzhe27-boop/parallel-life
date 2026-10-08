@@ -2,7 +2,7 @@ import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import type { ApprovedSeed } from '../../../contracts/seeds.ts';
 import { WorldOpeningSchema, type WorldOpening } from '../../../contracts/world-build.ts';
-export const WORLD_PROMPT_VERSION = 'world-opening-7';
+export const WORLD_PROMPT_VERSION = 'world-opening-8';
 /**
  * A world opening is the longest structured answer in the product: up to five
  * actors with personas, opening messages and notes, plus the model's own
@@ -149,6 +149,18 @@ export class WorldPlanner {
           ...generated,
         });
       } catch (error) {
+        const known = new Set([
+          'INVALID_ACTOR',
+          'INVALID_PERSON_MAPPING',
+          'UNEXPECTED_PERSON_MAPPING',
+          'SELECTED_PLACE_MISSING',
+          'SETTING_CAST_MISMATCH',
+          'MODEL_OUTPUT_WITHOUT_OBJECT',
+          'MODEL_OUTPUT_NOT_JSON',
+        ]);
+        const diagnostic =
+          error instanceof Error && known.has(error.message) ? error.message : 'INVALID_FIELDS';
+        console.warn(JSON.stringify({ planner: 'world-opening', attempt, reason: diagnostic }));
         if (attempt === WORLD_OUTPUT_ATTEMPTS)
           throw Object.assign(new Error('INVALID_WORLD_OUTPUT'), {
             code: 'INVALID_RESPONSE',
@@ -191,23 +203,34 @@ export class WorldPlanner {
                 '人物是虚构角色，所选人物的现实关系仅作背景，本分支角色要求优先。',
               ).replace(
                 '"actors":[{"key":',
-                '"actors":[{"sourcePersonId":"所选人物的personId（原创配角省略此字段）","key":',
+                seed.people.length
+                  ? '"actors":[{"sourcePersonId":"所选人物的personId（原创配角省略此字段）","key":'
+                  : '"actors":[{"key":',
               )
             : SYSTEM) +
-          (mapped
+          (mapped && seed.people.length
             ? '\n本次人物有personId。每位已选人物必须恰好对应一个actor，输出sourcePersonId为其personId原文；其余原创配角不填写sourcePersonId（不要填null或空串）。sourcePersonId是允许字段，不能省略所选人物的映射。actors共3至8位，先包含全部已选人物，再按需要补充原创人物。branchRole是用户指定的本分支虚构角色，优先遵守，即使与realRelationship相反；未指定时你可提出适合故事的虚构角色，不能强迫沿用现实关系。姓名由服务端固定。角色改写不代表现实变化，不根据照片猜身份，未收到任何照片内容。'
-            : ''),
+            : seed.people.length
+              ? '\n本次使用旧版人物设定，延续已授权姓名与关系，全部省略sourcePersonId字段。'
+              : '\n本次没有选中的现实人物，所有actors是原创配角，全部省略sourcePersonId字段，不填null、空串或示例占位值。') +
+          '\n输出前检查JSON语法：键和字符串使用英文双引号，字符串内双引号和换行必须转义。identity、setting用一至两句；每位persona不超过120字，每条message不超过60字，每条note不超过80字。',
       },
       { role: 'user', content: JSON.stringify(input) },
     ];
+    let reason = 'INVALID_OUTPUT';
     for (let attempt = 1; attempt <= WORLD_OUTPUT_ATTEMPTS; attempt += 1) {
       const raw = await this.model.complete(
         attempt === 1
           ? base
           : [
               ...base,
-              CORRECTION,
-              ...(mapped
+              {
+                ...CORRECTION,
+                content:
+                  CORRECTION.content +
+                  `上次具体问题：${reason}。actorTies.relationship只写配角彼此的关系，不包含你/主角/用户及私人细节。每个字符串内的引号或换行必须转义。`,
+              },
+              ...(mapped && seed.people.length
                 ? [
                     {
                       role: 'user' as const,
@@ -243,6 +266,19 @@ export class WorldPlanner {
           throw Error('SELECTED_PLACE_MISSING');
         return seed.setup?.identity ? { ...opening, identity: seed.setup.identity } : opening;
       } catch (error) {
+        const known = new Set([
+          'INVALID_ACTOR',
+          'INVALID_PERSON_MAPPING',
+          'UNEXPECTED_PERSON_MAPPING',
+          'SELECTED_PLACE_MISSING',
+          'SETTING_CAST_MISMATCH',
+          'MODEL_OUTPUT_WITHOUT_OBJECT',
+          'MODEL_OUTPUT_NOT_JSON',
+        ]);
+        const diagnostic =
+          error instanceof Error && known.has(error.message) ? error.message : 'INVALID_FIELDS';
+        reason = diagnostic;
+        console.warn(JSON.stringify({ planner: 'world-opening', attempt, reason: diagnostic }));
         if (attempt === WORLD_OUTPUT_ATTEMPTS)
           throw Object.assign(new Error('INVALID_WORLD_OUTPUT'), {
             code: 'INVALID_RESPONSE',
