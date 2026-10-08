@@ -1,3 +1,7 @@
+## 2026-10-09 · SCENE-01 纯文字现场后端
+
+业务430d25f，Production 1iuggd0nw / dpl_BCUH5rak9phwUJMKJhg5ZBFHqqco READY，正式域名 https://parallel-life-nu.vercel.app 已切换。0037应用且37/37生产迁移校验和一致；355check、53真实PG/2可选跳过及build通过，两合成身份真实多轮9调用通过。公网39项实际NPC日程确认→进入→行动原文→实际裁定→幂等→手机/现场恢复→暂停离场→旧消息与隔离通过；离场后实际私聊接上现场，生产确认角色记忆的3条事件来源。测试世界暂停、PG55442停止、工作树提交归档。本批是后端，不含SCENE-02 UI、定向耳语/长期任务/现场媒体或多人；失败模型样本、邀约澄清过程及边界见[报告](task-reports/SCENE-01.md)。
+
 ## 2026-10-08 · NAR-02R / NAR-02RI 回访消息集成
 
 最终业务1dc7c45（202933b集成、94f090c及37c0ed2修复），Production 4gz1pogvu / dpl_4Fhx58TMn37x9FRi7Xtqm89rgGiW Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。342check、51真实PG/2可选模型默认跳过、build通过；36生产迁移校验和一致，无SQL变更。第三轮四个真实模型短/长样本通过，前两轮失败保留；修复否定跨句漏拦截、待执行成果/来源以及记录选择后phone503的派生ID契约。
