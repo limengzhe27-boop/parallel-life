@@ -1,3 +1,4 @@
+import { actorContext } from '../application/actor-context.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { z } from 'zod';
 import type { TextModel } from '../../ai/application/ports.ts';
@@ -130,7 +131,14 @@ export class ScenePlanner implements ScenePlannerPort {
     if (
       boundary?.deferred &&
       (p.outcome === 'succeeded' ||
-        assertsDeferredExecution(boundary.deferred, p.narration + ' ' + (p.observation ?? '')))
+        assertsDeferredExecution(
+          boundary.deferred,
+          (c.entries.some((e) => e.kind === 'narration' && e.text === p.narration)
+            ? ''
+            : p.narration) +
+            ' ' +
+            (p.observation ?? ''),
+        ))
     )
       throw new DomainError(
         'INVALID_PROPOSAL',
@@ -148,20 +156,26 @@ export class ScenePlanner implements ScenePlannerPort {
     // At most two relevant NPCs. Each receives its own visible facts/entries, never another private thread.
     const speakers = candidates.filter((a) => p.presentActorIds.includes(a.id)).slice(0, 2);
     for (const actor of speakers) {
+      const blockedSources = new Set(c.blockedSourcesByActor?.[actor.id] ?? []);
+      const remembered = actorContext(
+        c.world,
+        actor.id,
+        c.action?.text ?? '',
+        c.memoriesByActor?.[actor.id] ?? [],
+        blockedSources,
+      );
       const npc = {
         currentStep: boundary?.now ?? null,
         deferredUntilPlayerDecision: boundary?.deferred ?? null,
         actor: { name: actor.name, persona: actor.persona, relationship: actor.relationship },
         storyAt: c.storyAt,
         appointment: c.appointmentTitle,
-        visibleFacts: c.world.facts
-          .filter(
-            (f) =>
-              f.visibility.kind === 'world' ||
-              (f.visibility.kind === 'actors' && f.visibility.actorIds.includes(actor.id)),
-          )
-          .slice(-16),
-        entries: sceneContextEntries(c.entries, { kind: 'actor', actorId: actor.id }),
+        visibleFacts: remembered.facts,
+        rememberedEpisodes: remembered.retrievedMemories,
+        entries: sceneContextEntries(
+          c.entries.filter((e) => !blockedSources.has(e.sourceEventId)),
+          { kind: 'actor', actorId: actor.id },
+        ).map((e) => ({ kind: e.kind, ...('text' in e ? { text: e.text } : {}) })),
         observedNow: { location: p.location, narration: p.narration, observation: p.observation },
       };
       const reply = await this.model.complete(

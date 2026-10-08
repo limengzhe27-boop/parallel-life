@@ -1,3 +1,4 @@
+import { deriveMemory } from '../../memory/application/derive-memory.ts';
 import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -39,7 +40,10 @@ import {
 } from '../../../contracts/scenes.ts';
 import { CurrentMatterSchema } from '../../../contracts/world-experiences.ts';
 import type { ScenePlanningContext, SceneProposal } from '../application/scene-ports.ts';
-import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
+import {
+  deriveAndStoreMemories,
+  loadActorMemories,
+} from '../../memory/infrastructure/memory-store.ts';
 import { z } from 'zod';
 export const SceneTaskInputSchema = z.strictObject({
   type: z.literal('scene'),
@@ -544,8 +548,17 @@ export async function scenePlanning(
     throw new DomainError('VERSION_CONFLICT');
   if (action?.resolution || (!action && s.entries.some((e) => e.kind === 'time_place')))
     throw new DomainError('VERSION_CONFLICT');
+  const memoriesByActor: NonNullable<ScenePlanningContext['memoriesByActor']> = {},
+    blockedSourcesByActor: Record<string, string[]> = {};
+  for (const actor of world.actors) {
+    const memory = await loadActorMemories(sql, ownerId, { actorId: actor.id, worldId });
+    memoriesByActor[actor.id] = memory.records;
+    blockedSourcesByActor[actor.id] = [...memory.blockedSources];
+  }
   return {
     world,
+    memoriesByActor,
+    blockedSourcesByActor,
     storyAt,
     scene: s.scene,
     entries: s.entries,
@@ -584,7 +597,13 @@ export async function commitSceneProposal(
     (p.outcome === 'succeeded' ||
       assertsDeferredExecution(
         boundary.deferred,
-        [p.narration, p.observation ?? '', ...p.dialogues.map((d) => d.text)].join(' '),
+        [
+          c.entries.some((e) => e.kind === 'narration' && e.text === p.narration)
+            ? ''
+            : p.narration,
+          p.observation ?? '',
+          ...p.dialogues.map((d) => d.text),
+        ].join(' '),
       ))
   )
     throw new DomainError('INVALID_PROPOSAL', 'Deferred action cannot be saved as executed');
@@ -714,6 +733,60 @@ export async function commitSceneProposal(
       },
     },
   ]);
+  // Scene episodes are private to actual observers; branch episodes alone are not delivered to NPCs.
+  for (const observer of observers) {
+    if (observer.kind !== 'actor') continue;
+    const actorSources = [source.sourceEventId, ...(c.action ? [c.action.sourceEventId] : [])];
+    const actorMemory = deriveMemory({
+      ownerId,
+      scopeType: 'character',
+      scopeId: observer.actorId,
+      branchId: worldId,
+      characterId: observer.actorId,
+      text: memory.slice(0, 400),
+      kind: 'episode',
+      sourceType: 'world_event',
+      sourceIds: actorSources,
+      importance: 2,
+      evidence: {
+        [source.sourceEventId]: { id: source.sourceEventId, text: memory.slice(0, 400) },
+        ...(c.action
+          ? { [c.action.sourceEventId]: { id: c.action.sourceEventId, text: c.action.text } }
+          : {}),
+      },
+    });
+    const previous = (
+      await sql.query(
+        "SELECT id,source_ids FROM parallel_life.memory_records WHERE owner_id=$1 AND branch_id=$2 AND character_id=$3 AND kind='episode' AND status='active' AND text=$4 ORDER BY created_at LIMIT 1",
+        [ownerId, worldId, observer.actorId, actorMemory.text],
+      )
+    ).rows[0];
+    let memoryId = actorMemory.id;
+    if (previous) {
+      memoryId = previous.id;
+      await sql.query('UPDATE parallel_life.memory_records SET source_ids=$2 WHERE id=$1', [
+        memoryId,
+        JSON.stringify([...new Set([...(previous.source_ids ?? []), ...actorSources])]),
+      ]);
+    } else
+      await sql.query(
+        "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,source_type,source_ids,status,importance,created_at) VALUES($1,$2,'character',$3,$4,$3,'episode',$5,'world_event',$6,'active',2,$7)",
+        [
+          memoryId,
+          ownerId,
+          observer.actorId,
+          worldId,
+          actorMemory.text,
+          JSON.stringify(actorMemory.sourceIds),
+          actorMemory.createdAt,
+        ],
+      );
+    for (const sourceId of actorSources)
+      await sql.query(
+        "INSERT INTO parallel_life.memory_source_refs(memory_id,owner_id,source_type,source_id) VALUES($1,$2,'world_event',$3) ON CONFLICT DO NOTHING",
+        [memoryId, ownerId, sourceId],
+      );
+  }
   await receipt(sql, ownerId, {
     commandId,
     worldId,

@@ -50,8 +50,9 @@ export function sceneContextEntries(entries: SceneEntry[], participant: Particip
 }
 /** Stop before an unanswered person's decision; keep the original input in the action record. */
 export function sceneAttemptBoundary(text: string): { now: string; deferred: string | null } {
-  const match =
-    /(?:等|待)(?:他|她|你|对方|小林|小王).{0,24}?(?:回答|回复|同意|确认|指出|答复)/.exec(text);
+  const match = /(?:等|待)[\p{L}\p{N}_\u00b7\s-]{1,24}?(?:回答|回复|同意|确认|指出|答复)/u.exec(
+    text,
+  );
   if (!match) return { now: text, deferred: null };
   return {
     now: text.slice(0, match.index).replace(/[，,\s]+$/, '') || '等待对方回答',
@@ -71,9 +72,9 @@ export function assertsDeferredExecution(deferred: string, result: string): bool
     .filter((g) => g.some((v) => deferred.includes(v)))
     .some((g) =>
       g.some((v) =>
-        new RegExp(`(?:已经|已|并且|随后|于是).{0,20}${v}|${v}.{0,16}(?:了|完成|成功)`).test(
-          result,
-        ),
+        new RegExp(
+          `(?:已经|已|并且|随后|于是)[^\u3002\uff01\uff1f\uff0c,;\n]{0,20}${v}|${v}[^\u3002\uff01\uff1f\uff0c,;\n]{0,16}(?:了|完成|成功)`,
+        ).test(result),
       ),
     );
 }

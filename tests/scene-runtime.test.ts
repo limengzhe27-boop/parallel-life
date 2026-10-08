@@ -124,3 +124,15 @@ test('duplicate matter references are rejected before saving an otherwise unread
     false,
   );
 });
+
+test('deferred scene input supports user-created friend names, not a fixed cast', () => {
+  const boundary = sceneAttemptBoundary('我问海棠哪里合适，等海棠回答后再把花盆放到中间');
+  assert.equal(boundary.now, '我问海棠哪里合适');
+  assert.ok(boundary.deferred);
+});
+
+test('a friend name written in Latin letters keeps the same unanswered-decision boundary', () => {
+  const boundary = sceneAttemptBoundary('我问Alex哪里合适，等Alex回答后再把花盆放到中间');
+  assert.equal(boundary.now, '我问Alex哪里合适');
+  assert.ok(boundary.deferred);
+});

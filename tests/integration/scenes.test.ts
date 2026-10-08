@@ -36,6 +36,7 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     other = randomUUID(),
     worldId = randomUUID(),
     actorId = randomUUID(),
+    absentActorId = randomUUID(),
     appointmentId = `${randomUUID()}_effect_0`;
   let calls = 0;
   try {
@@ -48,7 +49,10 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
         title: '现场合成测试',
         version: 0,
         time: now,
-        actors: [{ id: actorId, name: '小林', persona: '摄影师，认真检查用光' }],
+        actors: [
+          { id: actorId, name: '小林', persona: '摄影师，认真检查用光' },
+          { id: absentActorId, name: 'Absent actor', persona: 'Not invited' },
+        ],
         facts: [],
         messages: [],
         appointments: [
@@ -137,6 +141,17 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     assert.equal(read.scene?.presence.length, 2);
     assert.equal(read.matters[0]?.status, 'not_started');
     assert.equal(calls, 1);
+    const { loadActorMemories } =
+      await import('../../src/modules/memory/infrastructure/memory-store.ts');
+    const seen = await db.transaction(owner, (sql) =>
+      loadActorMemories(sql, owner, { actorId, worldId }),
+    );
+    assert.equal(seen.records.length, 1);
+    assert.equal(seen.records[0]?.sourceType, 'world_event');
+    const absent = await db.transaction(owner, (sql) =>
+      loadActorMemories(sql, owner, { actorId: absentActorId, worldId }),
+    );
+    assert.equal(absent.records.length, 0);
     const beforeEntries = read.entries;
     await repo.navigate(owner, worldId, entered.sceneId, {
       commandId: randomUUID(),
@@ -186,7 +201,7 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
         worldId,
       ])
     ).rows[0].count;
-    assert.equal(memoryCount, '1');
+    assert.equal(memoryCount, '2');
     const retry = await tasks.retry(owner, action.task!.id, randomUUID());
     await run(
       retry.id,
@@ -195,6 +210,8 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
         {
           async propose(ctx) {
             assert.equal(ctx.action?.text, actionInput.text);
+            assert.equal(ctx.memoriesByActor?.[actorId]?.length, 1);
+            assert.equal(ctx.memoriesByActor?.[absentActorId]?.length, 0);
             return {
               ...proposal,
               matterTitle: null,
