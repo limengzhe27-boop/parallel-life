@@ -2,6 +2,7 @@ import { DomainError } from './errors.ts';
 import type { SceneAction, SceneSession, SceneEntry, Participant } from './experience-rules.ts';
 /** Keep original text. Conservative classification cannot turn a stated plan into an executed act. */
 export function classifySceneInput(text: string): Pick<SceneAction, 'intent' | 'kind'> {
+  if (scenePrivateThought(text)) return { intent: 'plan', kind: 'try' };
   if (/^(?:\s*)(?:如果|假如|要是|假设|假想|what if\b|suppose\b)/i.test(text))
     return { intent: 'hypothesis', kind: 'try' };
   if (
@@ -46,7 +47,16 @@ export function assertSceneAvailable(
 /** Filter before budgeting or model routing; an absent actor never receives later entries. */
 export function sceneContextEntries(entries: SceneEntry[], participant: Participant): SceneEntry[] {
   const key = (p: Participant) => (p.kind === 'player' ? 'player' : p.actorId);
-  return entries.filter((e) => e.observableTo.some((p) => key(p) === key(participant))).slice(-20);
+  const visible = entries.filter((e) => e.observableTo.some((p) => key(p) === key(participant)));
+  const selected: SceneEntry[] = [];
+  let chars = 0;
+  for (const entry of visible.slice(-20).reverse()) {
+    const size = JSON.stringify(entry).length;
+    if (chars + size > 14000) break;
+    selected.unshift(entry);
+    chars += size;
+  }
+  return selected;
 }
 /** Stop before an unanswered person's decision; keep the original input in the action record. */
 export function sceneAttemptBoundary(text: string): { now: string; deferred: string | null } {
@@ -112,5 +122,16 @@ export function attributesPlayerStepToActor(
         return !playerAt.some((i) => i < verbAt);
       });
     }),
+  );
+}
+
+export function scenePrivateThought(text: string): boolean {
+  return /^\s*\u6211(?:\u5fc3\u91cc|\u5185\u5fc3|\u6697\u81ea|\u9ed8\u9ed8\u60f3|\u5077\u5077\u60f3)/u.test(
+    text,
+  );
+}
+export function sceneWhisper(text: string): boolean {
+  return /\u8033\u8bed|(?:\u6084\u6084|\u5c0f\u58f0|\u4f4e\u58f0|\u5077\u5077)(?:\u544a\u8bc9|\u8bf4)|\u538b\u4f4e\u58f0\u97f3/u.test(
+    text,
   );
 }

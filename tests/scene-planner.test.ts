@@ -120,3 +120,44 @@ test('scene director cannot turn hypotheses into results or impersonate an NPC',
   response.dialogues = [{ actorId: c.world.actors[0]!.id, text: '越权' }] as never;
   await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
 });
+
+test('scene planner ignores exact related-state echoes but rejects invented states', async () => {
+  const c = context();
+  const scope = {
+    ownerId: c.scene.ownerId,
+    worldId: c.scene.worldId,
+    sceneId: c.scene.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+  };
+  const matterId = randomUUID();
+  c.matters = [{ ...scope, id: matterId, title: '观察光线', status: 'not_started' }];
+  c.action = {
+    ...scope,
+    id: randomUUID(),
+    commandId: randomUUID(),
+    text: '我看向灯架。',
+    kind: 'inspect',
+    intent: 'attempt',
+    status: 'pending',
+    relatedMatterIds: [matterId],
+  };
+  const response = {
+    location: '棚内',
+    narration: '灯架立在白墙前。',
+    presentActorIds: [],
+    outcome: 'partial',
+    observation: '你看到了灯架。',
+    matterTitle: null,
+    matterUpdates: [{ id: matterId, status: 'not_started' }],
+    dialogues: [],
+  };
+  const planner = new ScenePlanner({
+    async complete() {
+      return JSON.stringify(response);
+    },
+  });
+  assert.deepEqual((await planner.propose(c)).matterUpdates, []);
+  response.matterUpdates[0]!.id = randomUUID();
+  await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
+});

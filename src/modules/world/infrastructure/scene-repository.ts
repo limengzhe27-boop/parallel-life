@@ -13,6 +13,8 @@ import {
   sceneAttemptBoundary,
   assertsDeferredExecution,
   attributesPlayerStepToActor,
+  scenePrivateThought,
+  sceneWhisper,
 } from '../domain/scene-runtime.ts';
 import {
   assertNewSceneAction,
@@ -403,11 +405,17 @@ export class SceneRepository {
       if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
       const x = await experience(sql, ownerId, worldId),
         s = await loadScene(sql, worldId, sceneId);
+      const privateThought = scenePrivateThought(input.text);
+      if (!privateThought && sceneWhisper(input.text))
+        throw new DomainError(
+          'INVALID_COMMAND',
+          'Directed whispers need an explicit hearer; no public fallback',
+        );
       assertSceneAvailable(
         s.scene,
         x.currentSceneId,
         paused,
-        s.entries.some((e) => e.kind === 'time_place'),
+        privateThought || s.entries.some((e) => e.kind === 'time_place'),
       );
       if (input.relatedMatterIds.some((id) => !s.matters.some((m) => m.id === id)))
         throw new DomainError('INVALID_COMMAND');
@@ -418,7 +426,7 @@ export class SceneRepository {
           input.commandId,
           hash,
           'scene.input_recorded',
-          { sceneId },
+          { sceneId, privateThought },
           storyAt,
           { text: input.text, intent: classification.intent },
         );
@@ -443,22 +451,24 @@ export class SceneRepository {
         worldId,
         sceneId,
         ...source,
-        observableTo: scenePresent(s.scene, source.sourceVersion),
+        observableTo: privateThought ? [player] : scenePresent(s.scene, source.sourceVersion),
         kind: 'user_action',
         actionId: action.id,
         text: action.text,
       };
       assertSceneEntry(ctx, s.scene, entry, [...s.actions, action]);
       await item(sql, 'entry', entry);
-      const task = await enqueue(
-        sql,
-        ownerId,
-        'world',
-        worldId,
-        input.commandId,
-        { type: 'scene', sceneId, actionId: action.id, expectedVersion: source.sourceVersion },
-        hash,
-      );
+      const task = privateThought
+        ? null
+        : await enqueue(
+            sql,
+            ownerId,
+            'world',
+            worldId,
+            input.commandId,
+            { type: 'scene', sceneId, actionId: action.id, expectedVersion: source.sourceVersion },
+            hash,
+          );
       return receipt(sql, ownerId, {
         commandId: input.commandId,
         worldId,
@@ -476,6 +486,11 @@ export class SceneRepository {
     leave = false,
   ) {
     return this.db.transaction(ownerId, async (sql) => {
+      if (leave)
+        await sql.query(
+          "SELECT id FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 AND status IN ('queued','running') ORDER BY id FOR UPDATE",
+          [worldId, sceneId],
+        );
       const { world, storyAt } = await sceneWorld(sql, ownerId, worldId, true),
         hash = requestHash([leave ? 'scene.leave' : 'scene.view', worldId, sceneId, input]);
       const replay = await previous(sql, worldId, input.commandId, hash);
@@ -512,6 +527,10 @@ export class SceneRepository {
         );
         await saveScene(sql, { ...next.scene, status: 'ended' });
         await saveExperience(sql, next.experience);
+        await sql.query(
+          "UPDATE parallel_life.tasks SET status='cancelled',error_code='CANCELLED',updated_at=now() WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 AND status IN ('queued','running')",
+          [worldId, sceneId],
+        );
       }
       return receipt(sql, ownerId, {
         commandId: input.commandId,
@@ -540,7 +559,7 @@ export async function scenePlanning(
   // Ignore navigation events only. Another action/chat/director result makes this paid request stale.
   const intervening = (
     await sql.query(
-      "SELECT 1 FROM parallel_life.world_events WHERE world_id=$1 AND version>$2 AND payload->>'type'<>'scene.view_changed' LIMIT 1",
+      "SELECT 1 FROM parallel_life.world_events WHERE world_id=$1 AND version>$2 AND payload->>'type'<>'scene.view_changed' AND NOT (payload->>'type'='scene.input_recorded' AND coalesce(payload->'data'->>'privateThought','false')='true') LIMIT 1",
       [worldId, input.expectedVersion],
     )
   ).rowCount;
@@ -577,6 +596,10 @@ export async function commitSceneProposal(
 ) {
   const locked = await sceneWorld(sql, ownerId, worldId, true),
     c = await scenePlanning(sql, ownerId, worldId, input);
+  const place = c.entries.filter((e) => e.kind === 'time_place').at(-1);
+  if (c.action && place?.kind === 'time_place') p = { ...p, location: place.location };
+  if (c.action && p.initialMatters?.length)
+    throw new DomainError('INVALID_PROPOSAL', 'Action cannot create unrelated matters');
   const hash = requestHash(['scene.result', input]);
   const source = await event(
     sql,
@@ -686,16 +709,24 @@ export async function commitSceneProposal(
     assertSceneEntry(ctx, scene, e, actions);
     await item(sql, 'entry', e);
   }
-  if (!c.action && p.matterTitle)
-    await item(sql, 'matter', {
-      id: randomUUID(),
-      ownerId,
-      worldId,
-      sceneId: scene.id,
-      ...source,
-      title: p.matterTitle,
-      status: 'not_started',
-    });
+  if (!c.action) {
+    const titles = [
+      ...new Set([
+        ...(p.initialMatters ?? []).map((m) => m.title),
+        ...(p.matterTitle ? [p.matterTitle] : []),
+      ]),
+    ];
+    for (const title of titles)
+      await item(sql, 'matter', {
+        id: randomUUID(),
+        ownerId,
+        worldId,
+        sceneId: scene.id,
+        ...source,
+        title,
+        status: 'not_started',
+      });
+  }
   for (const update of p.matterUpdates) {
     const m = c.matters.find((m) => m.id === update.id);
     const action = actions.find((a) => a.id === input.actionId);

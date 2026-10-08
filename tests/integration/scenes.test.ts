@@ -117,6 +117,7 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
           calls++;
           return {
             ...proposal,
+            initialMatters: [{ title: 'Check the light stand' }, { title: 'Discuss framing' }],
             presentActorIds: [actorId],
             dialogues: [{ actorId, text: '先看看阴影。' }],
           };
@@ -140,6 +141,7 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     assert.equal(read.experience.view.kind, 'phone');
     assert.equal(read.scene?.presence.length, 2);
     assert.equal(read.matters[0]?.status, 'not_started');
+    assert.equal(read.matters.length, 3);
     assert.equal(calls, 1);
     const { loadActorMemories } =
       await import('../../src/modules/memory/infrastructure/memory-store.ts');
@@ -230,6 +232,7 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     assert.equal(read.task?.status, 'succeeded');
     assert.equal(read.actions[0]?.status, 'resolved');
     assert.equal(read.matters[0]?.status, 'in_progress');
+    assert.equal(read.matters[1]?.status, 'not_started');
     assert.equal(read.actions[0]?.resolution?.sourceVersion, read.worldVersion);
     const plan = await repo.input(owner, worldId, entered.sceneId, {
       commandId: randomUUID(),
@@ -253,6 +256,26 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     assert.equal(read.actions[1]?.intent, 'hypothesis');
     assert.equal(read.actions[1]?.status, 'recorded');
     assert.equal(read.actions[1]?.resolution, undefined);
+    const thought = await repo.input(owner, worldId, entered.sceneId, {
+      commandId: randomUUID(),
+      expectedVersion: read.worldVersion,
+      text: '\u6211\u5fc3\u91cc\u60f3\u4eca\u665a\u7ed9\u670b\u53cb\u4e00\u4e2a\u60ca\u559c',
+      relatedMatterIds: [],
+    });
+    assert.equal(thought.task, null);
+    read = await repo.read(owner, worldId);
+    assert.equal(read.actions.at(-1)?.status, 'recorded');
+    const privateEntry = read.entries.at(-1);
+    assert.deepEqual(privateEntry?.observableTo, [{ kind: 'player' }]);
+    await assert.rejects(
+      repo.input(owner, worldId, entered.sceneId, {
+        commandId: randomUUID(),
+        expectedVersion: read.worldVersion,
+        text: '\u6211\u8033\u8bed\u544a\u8bc9\u5c0f\u6797',
+        relatedMatterIds: [],
+      }),
+      { code: 'INVALID_COMMAND' },
+    );
     await db.transaction(owner, (sql) =>
       sql.query(
         'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,paused) VALUES($1,$2,$3,$3,true)',
@@ -343,6 +366,16 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     assert.equal(frozen.task?.status, 'failed');
     assert.equal(frozen.entries.length, 0);
     assert.equal(frozen.worldVersion, winner.value.version);
+    const lastRetry = await tasks.retry(owner, openingRetry.id, randomUUID());
+    await repo.navigate(
+      owner,
+      worldId,
+      winner.value.sceneId,
+      { commandId: randomUUID(), expectedVersion: frozen.worldVersion },
+      true,
+    );
+    assert.equal((await tasks.get(owner, lastRetry.id)).status, 'cancelled');
+
     assert.equal(
       (
         await admin.query('SELECT count(*) FROM parallel_life.outbox_jobs WHERE world_id=$1', [

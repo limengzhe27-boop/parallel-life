@@ -23,7 +23,9 @@ export type SceneProposal = {
   presentActorIds: string[];
   outcome: 'succeeded' | 'failed' | 'partial' | null;
   observation: string | null;
+  /** Legacy single-title output remains readable; no per-scene task-count product rule. */
   matterTitle: string | null;
+  initialMatters?: { title: string }[];
   matterUpdates: { id: string; status: 'in_progress' | 'blocked' | 'completed' }[];
   dialogues: { actorId: string; text: string }[];
 };

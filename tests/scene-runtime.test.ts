@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   classifySceneInput,
   sceneAttemptBoundary,
+  scenePrivateThought,
+  sceneWhisper,
   assertsDeferredExecution,
   sceneContextEntries,
   assertSceneAvailable,
@@ -135,4 +137,31 @@ test('a friend name written in Latin letters keeps the same unanswered-decision 
   const boundary = sceneAttemptBoundary('我问Alex哪里合适，等Alex回答后再把花盆放到中间');
   assert.equal(boundary.now, '我问Alex哪里合适');
   assert.ok(boundary.deferred);
+});
+test('long scene histories keep complete recent visible entries within the model budget', () => {
+  const entries = Array.from({ length: 20 }, (_, i) => ({
+    id: String(i),
+    ownerId: 'owner',
+    worldId: 'world',
+    sceneId: 'scene',
+    sourceEventId: 'event',
+    sourceVersion: i + 1,
+    observableTo: [{ kind: 'player' as const }],
+    kind: 'narration' as const,
+    perspective: 'observable' as const,
+    text: '很'.repeat(4000),
+  }));
+  const selected = sceneContextEntries(entries, { kind: 'player' });
+  assert.ok(JSON.stringify(selected).length < 14100);
+  assert.ok(selected.length < entries.length);
+  assert.equal(selected.at(-1)?.id, '19');
+  const latest = selected.at(-1);
+  assert.ok(latest?.kind === 'narration');
+  assert.equal(latest.text, entries[19]?.text);
+});
+
+test('explicit private thoughts are recorded as plans and unsupported whispers do not silently become public', () => {
+  assert.equal(scenePrivateThought('我心里想今晚给他一个惊喜'), true);
+  assert.equal(classifySceneInput('我心里想今晚给他一个惊喜').intent, 'plan');
+  assert.equal(sceneWhisper('我耳语告诉朋友'), true);
 });
