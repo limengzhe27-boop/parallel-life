@@ -75,15 +75,34 @@ export function unsupportedReturnClaim(state: WorldState, actorId: string, text:
     const prefix =
       normalize(text.slice(0, match.index)).match(/[\p{Script=Han}]{1,2}$/u)?.[0] ?? '';
 
-    if (new RegExp(`(?:避免|不要|别|不会|没有|没).{0,5}${claim}`, 'u').test(text)) continue;
+    const negatedHere = (value: string, index: number) =>
+      /(?:避免|不要|别|不会|没有|没|并未)[^，。！？；\n]{0,5}$/u.test(
+        value.slice(Math.max(0, index - 12), index),
+      );
+    if (negatedHere(text, match.index)) continue;
     if (
-      !canonical.some(
-        (f) =>
-          normalize(f.text).includes(prefix + claim) &&
-          !new RegExp(`(?:没有|没|并未|不会).{0,3}${claim}`, 'u').test(f.text),
+      !canonical.some((f) =>
+        [...normalize(f.text).matchAll(new RegExp(claim, 'gu'))].some(
+          (evidence) =>
+            normalize(f.text).slice(0, evidence.index).endsWith(prefix) &&
+            !negatedHere(normalize(f.text), evidence.index),
+        ),
       )
     )
       return true;
+  }
+  if (
+    (state.choices ?? []).some((c) => c.actorId === actorId && c.status === 'pending' && !c.result)
+  ) {
+    for (const clause of text.split(/[。！？!?；;\n]/u)) {
+      if (/(?:如果|等你|当你|剪完后|完成后|先.{0,30}再)/u.test(clause)) continue;
+      if (
+        /(?:发|给|检查|看看).{0,8}(?:你|已经|已)?(?:剪好|剪掉|做完|完成|拍好)的|(?:剪好|剪掉|做完|完成|拍好)的[^，。！？；]{0,20}(?:发给|给我|检查)/u.test(
+          clause,
+        )
+      )
+        return true;
+    }
   }
   if (
     /照片.{0,8}(?:拍好了|做好了|生成了)|(?:已经|刚).{0,5}(?:拍好|生成).{0,5}(?:照片|图片)/u.test(

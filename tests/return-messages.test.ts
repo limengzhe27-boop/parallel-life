@@ -128,3 +128,44 @@ test('one long-absence message is recent enough to respond to, while multiple be
   assert.equal(three.beats.at(-1), one.beats[0]);
   assert(three.beats.every((t) => t < now));
 });
+
+test('negation only protects its own claim and cannot suppress another unsupported outcome', async () => {
+  const { unsupportedReturnClaim } =
+    await import('../src/modules/world/domain/return-message-policy.ts');
+  const s = world();
+  assert.equal(unsupportedReturnClaim(s, 'a', '不要受伤。小王受伤了'), true);
+  assert.equal(unsupportedReturnClaim(s, 'a', '小王没有受伤，小李受伤了'), true);
+  assert.equal(unsupportedReturnClaim(s, 'a', '小王并未住院，慢慢来'), false);
+  s.facts.push({
+    id: 'mixed-injury',
+    kind: 'canonical',
+    text: '小王没有受伤，小李受伤了',
+    sourceEventId: 'confirmed',
+    visibility: { kind: 'world' },
+  });
+  assert.equal(unsupportedReturnClaim(s, 'a', '小李受伤了'), false);
+  assert.equal(unsupportedReturnClaim(s, 'a', '小王受伤了'), true);
+});
+
+test('pending choices do not license requests for artifacts that assume the player already executed them', async () => {
+  const { unsupportedReturnClaim } =
+    await import('../src/modules/world/domain/return-message-policy.ts');
+  const s = world();
+  s.choices = [
+    {
+      id: 'cut',
+      actorId: 'a',
+      quote: '我决定剪掉片头',
+      intent: '剪片头',
+      sourceEventId: 'e',
+      sourceVersion: 2,
+      status: 'pending',
+    },
+  ];
+  assert.equal(unsupportedReturnClaim(s, 'a', '可以把剪掉的片头视频发给我吗'), true);
+  assert.equal(unsupportedReturnClaim(s, 'a', '发我你剪好的片子'), true);
+  assert.equal(unsupportedReturnClaim(s, 'a', '先看看剪好的片头，确认是否顺畅'), true);
+  assert.equal(unsupportedReturnClaim(s, 'a', '先剪掉片头，再把剪掉的片头视频发给我'), false);
+  assert.equal(unsupportedReturnClaim(s, 'a', '等你剪完后，把剪好的版本发给我'), false);
+  assert.equal(unsupportedReturnClaim(s, 'a', '发我当前版本，我们可以先确认要剪的位置'), false);
+});
