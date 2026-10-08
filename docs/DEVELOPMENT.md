@@ -702,6 +702,6 @@ EXP-09主任务文件范围：features/phone/{world-phone-app,director-panel,app
 
 |PEOPLE-01I|[x] 已完成|codex-main-people01i-20261008|主目录；集成e2a1f6d全部PEOPLE-01文件、tests/integration/life-drafts.test.ts、features/interview/life-events.tsx上传数量提示与输入恢复、server/image-upload.ts multipart额外开销上限、docs/task-reports/PEOPLE-01I.md、部署及主表；本地3218/55432，生产迁移0035|验收好友原图→新分支头像/相册，修正旧照片断言，check/build/真实库/双端/公网实测后部署；保留LIB-04B未交付修改不纳入发布|
 
-|BRANCH-01Q|[ ] 进行中|codex-branch-audit-01a11a84-20261008|主目录只读代码/生产状态；仅 docs/task-reports/BRANCH-01Q.md 及本人任务行；不占构建、迁移或业务文件|线上确认3次人生方向推荐failed/INVALID_AI_OUTPUT；具体校验原因未知，不能关联同事。另复现入口漏判，24相关测试通过；真实生产合成创建待明确授权，未改代码/未上线，见报告。|
+|BRANCH-01Q|[x] 已完成|codex-branch-audit-01a11a84-20261008（单人自审）|工作树branch-create-fix；discovery-planner、world-planner、branch-intent及各自测试；专用55436已停止，文件与资源释放|用户授权后复现非法JSON/漏资料引用及原创配角错误sourcePersonId，严格校验及受限纠正修复；286项check/build、3推荐+世界真实模型、生产35迁移一致；8969278 / a2kuw9rov Ready，公网合成推荐→草案→世界→NPC回复/幂等及390/1440入口通过，见BRANCH-01Q报告。|
 
 2026-10-08 集成人PEOPLE-01/01I验收：280常规、47真实库及build通过；生产35迁移，586868f / bfyho2qwx Ready，公网合成完整好友带入→角色头像与相册→NPC真实回复/刷新/隔离以及390/1440UI通过，超大图恢复与4MiB边界通过；本批已上线。PEOPLE-01行原待验收描述为交接历史，最终状态以本条及PEOPLE-01I报告为准。聊天自动关联、既有世界加入、图生图与公开设定不在本批。

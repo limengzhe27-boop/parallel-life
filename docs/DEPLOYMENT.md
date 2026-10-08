@@ -633,3 +633,8 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-08 · PEOPLE-01 / PEOPLE-01I 好友带入与原图落位
 
 应用5ac12e7、f28bdb2、586868f；Vercel Production bfyho2qwx / dpl_3DRHupKeAtCPVhXL78TFSLkjSEbo Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。35/35生产迁移校验和一致；280常规检查、47真实PostgreSQL及build通过。公网隔离合成访客完成原图上传、人物入档、角色要求、真实模型创建、NPC回复、头像和相册刷新读回、重复提交与跨账号404。390/1440浏览器上传与头像/相册验证通过；超4MiB前置提示并恢复、恰好4MiB线上上传成功。每人1张、一次1张、最多30位资料人物/8位带入人物；普通头像仅展示。LIB-04B未提交页面保留，不纳入本次发布。聊天自动入档/既有世界加人/生图/朋友圈仍未交付。见PEOPLE-01I报告。
+## 2026-10-08 · BRANCH-01Q 分支推荐与世界创建修复
+
+应用74c0b7e及8969278，最终Production a2kuw9rov / dpl_9emvjDS6dZi76ch1KppF4thbH6bc Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。生产35/35迁移校验和一致，无新SQL；最终check286/286及build通过。推荐格式/资料引用失败最多一次受限纠正，未知结果不自动重付；无所选现实人物时不再给原创配角来源ID占位示例；明确礼貌和假设创建请求能打开审核入口，否定与引用仍受保护。
+
+公网独立合成访客成功推荐3方向→草案确认→开场创建（5角色/2消息）→手机读取→NPC真实回复并重读（4消息/version1）；重复创建同一世界。390×844与1440×1000通过分支进入、解锁、页面无横向溢出；真实聊天“可以帮我创建一个如果去上海读大学的分支吗？”自动打开方向弹窗，双端可继续确认。未触碰真实用户资料，不把初版未通过的生成记为成功；完整证据与限制见[BRANCH-01Q报告](task-reports/BRANCH-01Q.md)。
