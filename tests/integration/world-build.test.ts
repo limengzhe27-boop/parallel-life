@@ -477,6 +477,13 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
                   choiceId: actualChoice.id,
                   quote: nextQuote,
                 },
+                {
+                  type: 'appointment.proposed',
+                  id: 'model-invite',
+                  title: '单车检查',
+                  at: new Date(Date.now() + 3600000).toISOString(),
+                  participantIds: [actorId],
+                },
               ],
             };
           },
@@ -500,6 +507,8 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
       followed.state.choices!.at(-1)!.nextStep!.sourceMessageId,
     );
     assert.match(actualPhone.choices!.at(-1)!.nextStep!.sourceMessageId, /_effect_0$/);
+    assert.match(actualPhone.choices!.at(-1)!.nextStep!.calendar!.id, /_effect_2$/);
+    assert.equal(actualPhone.choices!.at(-1)!.nextStep!.calendar!.status, 'proposed');
     const snapshot = (
       await admin.query(
         'SELECT state,approved_seed FROM parallel_life.world_initial_snapshots WHERE world_id=$1',

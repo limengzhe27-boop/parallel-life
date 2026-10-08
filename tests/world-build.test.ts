@@ -375,6 +375,12 @@ test('phone choice and next-step IDs accept exact persisted event-effect IDs and
       at: '2026-10-08T01:00:00.000Z',
       sourceEventId: randomUUID(),
       sourceMessageId: `${randomUUID()}_effect_0`,
+      calendar: {
+        id: `${randomUUID()}_effect_2`,
+        title: '单车检查',
+        at: '2026-10-08T02:00:00.000Z',
+        status: 'proposed',
+      },
     },
   };
   const phone = {
