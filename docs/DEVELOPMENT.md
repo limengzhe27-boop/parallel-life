@@ -695,3 +695,13 @@ R-05B completed / codex-main-01a0c73b self-review / f7cb712 / Vercel READY confi
 EXP-09主任务文件范围：features/phone/{world-phone-app,director-panel,apps/helpers,apps/calendar,apps/notes,apps/photos,apps/messages}、world/infrastructure/turn-planner、tests/phone-apps及相关测试；辅助独立负责display-time纯工具。保持原始时刻与排序，现代手机统一固定UTC+08显示。
 
 2026-10-03 02:20集成验收：LIB-04A限定独立Planner组件、EXP-09A及EXP-09时间显示接线完成；275 checks/build通过，生产34迁移。be8e162 / qwayuo3st Ready，health200；390/1440本地与390生产界面检查，线上10月3日02:17、历史通知01:49/01:19。创作助手未接API/UI，完整LIB-04仍待开发；模型分类质量仍需评测。额度97%已用、未重置，先完成交付记录。
+
+|LIB-04B|[ ] 进行中|codex-main-lib04b-20261003|主目录；features/settings/私有创作只读列表及样式、app/creations/page、features/api/client、interview-app我的入口、专属报告|先开放查看本人已保存创作和继续已有试演；不新建/编辑/发布、不触发AI。加载/空/错误与双端公网验收，完整创作会话留LIB-04后续。|
+
+|PEOPLE-01|[x] 已完成|codex-f-01a0c7c8-people01-20261008（I指定）|独立工作树.local/worktrees/people01，基线b481425；contracts/{seeds,life-drafts,world-build,album}.ts; discovery/infrastructure/{seed-repository,draft-repository}.ts; world/infrastructure/{world-planner,build-handler,build-repository}.ts; world/domain/types.ts; media/infrastructure/{asset-repository,album-projection}.ts; app/api/v1/assets/[id]/route.ts; features/discovery/{draft-editor.tsx,draft-editor.module.css,seed-consent.tsx}; features/phone/{world-app-data.ts,apps/types.ts,apps/photos.tsx}; db/migrations/0035_world_person_bindings.sql; tests/{people-world,world-build,world-app-data}.test.ts; tests/integration/people-world.test.ts; docs/task-reports/PEOPLE-01.md|独立提交e2a1f6d；check 280/280、build通过；独立PostgreSQL55435新增链路通过，全量46/47（未登记的life-drafts旧照片授权断言需I更新）；真实模型新世界与图片HTTP读回、390/PC截图完成；详见工作树报告。待I集成、0035生产迁移及部署，本批未上线；普通头像只展示、生成/临时加人/删除留后续。|
+
+|PEOPLE-01I|[x] 已完成|codex-main-people01i-20261008|主目录；集成e2a1f6d全部PEOPLE-01文件、tests/integration/life-drafts.test.ts、features/interview/life-events.tsx上传数量提示与输入恢复、server/image-upload.ts multipart额外开销上限、docs/task-reports/PEOPLE-01I.md、部署及主表；本地3218/55432，生产迁移0035|验收好友原图→新分支头像/相册，修正旧照片断言，check/build/真实库/双端/公网实测后部署；保留LIB-04B未交付修改不纳入发布|
+
+|BRANCH-01Q|[ ] 进行中|codex-branch-audit-01a11a84-20261008|主目录只读代码/生产状态；仅 docs/task-reports/BRANCH-01Q.md 及本人任务行；不占构建、迁移或业务文件|线上确认3次人生方向推荐failed/INVALID_AI_OUTPUT；具体校验原因未知，不能关联同事。另复现入口漏判，24相关测试通过；真实生产合成创建待明确授权，未改代码/未上线，见报告。|
+
+2026-10-08 集成人PEOPLE-01/01I验收：280常规、47真实库及build通过；生产35迁移，586868f / bfyho2qwx Ready，公网合成完整好友带入→角色头像与相册→NPC真实回复/刷新/隔离以及390/1440UI通过，超大图恢复与4MiB边界通过；本批已上线。PEOPLE-01行原待验收描述为交接历史，最终状态以本条及PEOPLE-01I报告为准。聊天自动关联、既有世界加入、图生图与公开设定不在本批。

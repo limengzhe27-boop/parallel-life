@@ -629,3 +629,7 @@ https://github.com/limengzhe27-boop/parallel-life
 ### 2026-10-03 · LIB-04A / EXP-09
 
 应用be8e162，Vercel qwayuo3st（dpl_AXADcqhTcmKRLFGuaA1aesiP53dy）Ready，正式域名health200；生产34迁移，无新增SQL。275常规检查/build通过；390/1440及公网合成世界时区验收通过。独立创作Planner已部署但无作者UI/API；历史人物抽样经过失败修正，不代表自动审核可用。固定UTC+08只改变手机显示/编辑转换，不改历史时刻。
+
+## 2026-10-08 · PEOPLE-01 / PEOPLE-01I 好友带入与原图落位
+
+应用5ac12e7、f28bdb2、586868f；Vercel Production bfyho2qwx / dpl_3DRHupKeAtCPVhXL78TFSLkjSEbo Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。35/35生产迁移校验和一致；280常规检查、47真实PostgreSQL及build通过。公网隔离合成访客完成原图上传、人物入档、角色要求、真实模型创建、NPC回复、头像和相册刷新读回、重复提交与跨账号404。390/1440浏览器上传与头像/相册验证通过；超4MiB前置提示并恢复、恰好4MiB线上上传成功。每人1张、一次1张、最多30位资料人物/8位带入人物；普通头像仅展示。LIB-04B未提交页面保留，不纳入本次发布。聊天自动入档/既有世界加人/生图/朋友圈仍未交付。见PEOPLE-01I报告。
