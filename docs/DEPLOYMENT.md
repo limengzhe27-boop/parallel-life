@@ -1,3 +1,9 @@
+## 2026-10-08 · NAR-02R / NAR-02RI 回访消息集成
+
+最终业务1dc7c45（202933b集成、94f090c及37c0ed2修复），Production 4gz1pogvu / dpl_4Fhx58TMn37x9FRi7Xtqm89rgGiW Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。342check、51真实PG/2可选模型默认跳过、build通过；36生产迁移校验和一致，无SQL变更。第三轮四个真实模型短/长样本通过，前两轮失败保留；修复否定跨句漏拦截、待执行成果/来源以及记录选择后phone503的派生ID契约。
+
+公网合成世界通过9项回访/原消息日期/nextStep持久来源/重复和暂停检查；390/1440实际通知→对应私聊，旧消息10月8日与新消息20:25分明，无横向溢出；最终增量再次读取200/暂停played0。仅该合成世界用旧clock锚点模拟五天，未动真实用户或伪称持续后台。消息仍主要为具体下一步提议，不能称未记录的幕后成果已经完成；群聊/现场另验收。详见[NAR-02RI](task-reports/NAR-02RI.md)。
+
 ## 2026-10-08 · PLAY-01 / PLAY-01I 基础体验契约
 
 业务4739316（d689790的干净集成）已推送，Production 5p948gk00 / dpl_3UkvuByDiiykQHV5N7oF4obVeAdN Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。独立334check、49真实PG/1可选模型跳过、build通过；生产36项迁移校验和一致，无新SQL。公网旧世界读取→真实NPC私聊→回执重放→重读、跨访客404以及首页/分支/health共8项通过。
