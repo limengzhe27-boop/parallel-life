@@ -1,3 +1,4 @@
+import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { enqueue, publicTask, requestHash } from '../../tasks/infrastructure/task-repository.ts';
@@ -56,7 +57,7 @@ export async function sceneWorld(
 ): Promise<{ world: WorldState; storyAt: string; paused: boolean }> {
   const row = (
     await sql.query(
-      `SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2${lock ? ' FOR UPDATE' : ''}`,
+      `SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2${lock ? ' FOR UPDATE' : ' FOR SHARE'}`,
       [worldId, ownerId],
     )
   ).rows[0];
@@ -77,16 +78,36 @@ export async function sceneWorld(
       [worldId],
     )
   ).rows.map((r) => r.document);
-  const world = {
+  let world = {
     ...row.state,
     version: row.version,
     appointments: [
       ...new Map(
-        [...(initial?.appointments ?? []), ...appointments].map((a) => [a.id, a]),
+        [...(initial?.appointments ?? []), ...(row.state.appointments ?? []), ...appointments].map(
+          (a) => [a.id, a],
+        ),
       ).values(),
     ],
-    facts: [...(initial?.facts ?? []), ...facts],
+    facts: [
+      ...new Map(
+        [...(initial?.facts ?? []), ...(row.state.facts ?? []), ...facts].map((f) => [f.id, f]),
+      ).values(),
+    ],
   } as WorldState;
+  const responses = (
+    await sql.query(
+      "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
+      [worldId, world.version],
+    )
+  ).rows;
+  for (const row of responses) {
+    const response = row.payload as InvitationEvent;
+    world = applyInvitationEvent(
+      { ...world, version: response.version - 1, time: response.storyTime },
+      response,
+    );
+  }
+  world = { ...world, version: row.version, time: row.state.time };
   const clock = (
     await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 FOR UPDATE', [
       worldId,

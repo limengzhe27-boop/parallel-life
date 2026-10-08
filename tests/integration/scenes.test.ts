@@ -340,3 +340,100 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     await admin.end();
   }
 });
+test('scene entry hydrates actual invitation confirmation and cancellation events', async () => {
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const cfg = await localConfig(),
+    db = new PostgresDatabase(
+      `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+    );
+  const owner = randomUUID(),
+    worldId = randomUUID(),
+    actorId = randomUUID(),
+    appointmentId = `${randomUUID()}_effect_0`,
+    now = new Date().toISOString();
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    const state = {
+      schemaVersion: 1,
+      id: worldId,
+      ownerId: owner,
+      title: '日程事件集成',
+      version: 0,
+      time: now,
+      actors: [{ id: actorId, name: '朋友', persona: '测试角色' }],
+      facts: [],
+      messages: [],
+      appointments: [
+        {
+          id: appointmentId,
+          title: '现场讨论',
+          at: now,
+          participantIds: [actorId],
+          status: 'proposed',
+          sourceEventId: 'genesis:' + worldId,
+        },
+      ],
+      mediaRequests: [],
+    };
+    await db.transaction(owner, async (sql) => {
+      await sql.query(
+        'INSERT INTO parallel_life.worlds(id,owner_id,title,state) VALUES($1,$2,$3,$4)',
+        [worldId, owner, state.title, state],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',
+        [worldId, owner, state, {}],
+      );
+    });
+    const { PostgresWorldRepository } =
+        await import('../../src/modules/world/infrastructure/postgres-world-repository.ts'),
+      worlds = new PostgresWorldRepository(db),
+      scenes = new SceneRepository(db);
+    await assert.rejects(
+      scenes.enter(owner, worldId, { commandId: randomUUID(), expectedVersion: 0, appointmentId }),
+      { code: 'INVALID_COMMAND' },
+    );
+    await worlds.respondToInvitation(
+      { userId: owner },
+      {
+        worldId,
+        commandId: randomUUID(),
+        expectedVersion: 0,
+        id: appointmentId,
+        operation: 'accept',
+      },
+    );
+    const entered = await scenes.enter(owner, worldId, {
+      commandId: randomUUID(),
+      expectedVersion: 1,
+      appointmentId,
+    });
+    assert.equal(entered.version, 2);
+    assert.equal((await scenes.read(owner, worldId)).scene?.appointmentId, appointmentId);
+    await scenes.navigate(
+      owner,
+      worldId,
+      entered.sceneId,
+      { commandId: randomUUID(), expectedVersion: 2 },
+      true,
+    );
+    await worlds.respondToInvitation(
+      { userId: owner },
+      {
+        worldId,
+        commandId: randomUUID(),
+        expectedVersion: 3,
+        id: appointmentId,
+        operation: 'cancel',
+      },
+    );
+    await assert.rejects(
+      scenes.enter(owner, worldId, { commandId: randomUUID(), expectedVersion: 4, appointmentId }),
+      { code: 'INVALID_COMMAND' },
+    );
+  } finally {
+    await db.close();
+    await admin.end();
+  }
+});
