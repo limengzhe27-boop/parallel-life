@@ -1,3 +1,9 @@
+## 2026-10-08 · PEOPLE-01R / PEOPLE-02 朋友资料优化集成
+
+业务提交609e266（含3fb0a7b修复及efe2747新版集成）已推送；Production nhtcmn277 / dpl_EXcj4Q3YhDBALvdzf9SgMqGRyJU9 Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。生产0036已应用，36项迁移一致；307常规检查、49真实PostgreSQL、四个真实访谈场景、build与390/1440实际编辑上传保存检查通过。
+
+公网独立合成访客34项完整检查通过：丰富描述、同名人物、有图/无图、原图快照、分支角色、真实NPC回复、错误照片/修订/跨账号隔离、已用原图保护。线上手机真实上传后关闭编辑器，临时图片404、原有档案保留，390px无横向溢出。显式重试执行替代任务，生成和回复拒绝有限显式上下级矛盾；没有放松校验或无限自动重试，不承诺所有自然语言语义均可检测。详见[集成报告](task-reports/PEOPLE-01R.md)。
+
 ## 2026-09-29 · NAR-02M 后台每日有界唤醒
 
 应用提交 `5e1b75e`；Vercel Production `mrcsx96x7` / `dpl_2TXtzVZBfxJM4EtR5zFL4at2ow46` Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。`npm run check` 242 项常规测试、`npm run test:db` 37 项真实 PostgreSQL 测试、`npm run build` 通过；生产 Supabase 30/30 迁移一致，调度角色不可直接读取世界内容。每日 04:00 UTC 的 Vercel Cron 入口已配置；公网 health/首页/分支页 200，未授权入口 401，密钥授权调用 200，当前领到 0 个到期世界。后端每日最多领取两个已启动、未暂停的世界，每个最多一拍；并发重复不重复领取，未知模型结果不自动重试。尚未观察到生产自动 NPC 来信，且未在生产用户世界制造测试剧情；免费档非实时、无系统推送。详见 [NAR-02M](task-reports/NAR-02M.md)。
