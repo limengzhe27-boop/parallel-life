@@ -22,6 +22,7 @@ import {
 import {
   applyConfirmedCandidateInTransaction,
   applyBasicInfoInTransaction,
+  applyPeopleInTransaction,
   isSimilarText,
 } from './profile-repository.ts';
 import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
@@ -82,6 +83,14 @@ export function interviewHandler(
       ).rows[0];
       if (!current || current.version !== input.expectedInterviewVersion)
         return { value: undefined, outcome: { status: 'conflict', errorCode: 'VERSION_CONFLICT' } };
+      await applyPeopleInTransaction(
+        sql,
+        lease.ownerId,
+        input.interviewId,
+        input.inputMessageId,
+        base.profile.version,
+        proposal.people,
+      );
       // 1. 严格防重：过滤掉 facts 中与 events 重复提取的经历
       const eventCandidates = proposal.events.map((event) => ({
         category: 'experience' as const,

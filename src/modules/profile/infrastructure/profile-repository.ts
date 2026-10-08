@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { groundPersonProposal, type PersonProposal } from '../application/person-extraction.ts';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   LifeDate,
   ProfileSchema,
@@ -286,8 +287,22 @@ export class ProfileRepository {
     });
   }
   async edit(ownerId: string, raw: ProfileEdit) {
-    const input = ProfileEditSchema.parse(raw);
+    const input = ProfileEditSchema.parse(raw),
+      hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
     return this.db.transaction(ownerId, async (sql) => {
+      await sql.query('SELECT id FROM parallel_life.accounts WHERE id=$1 FOR UPDATE', [ownerId]);
+      if (input.commandId) {
+        const old = (
+          await sql.query(
+            'SELECT request_hash,response FROM parallel_life.profile_edit_receipts WHERE owner_id=$1 AND command_id=$2',
+            [ownerId, input.commandId],
+          )
+        ).rows[0];
+        if (old) {
+          if (old.request_hash !== hash) throw new TaskError('IDEMPOTENCY_CONFLICT');
+          return ProfileSchema.parse(old.response);
+        }
+      }
       const row = (
         await sql.query(
           'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',
@@ -372,17 +387,37 @@ export class ProfileRepository {
             op.person.assetId &&
             !(
               await sql.query(
-                "SELECT id FROM parallel_life.assets WHERE id=$1 AND status='ready' FOR SHARE",
+                "SELECT id FROM parallel_life.assets WHERE id=$1 AND status='ready' AND origin='upload' AND world_id IS NULL FOR SHARE",
                 [op.person.assetId],
               )
             ).rowCount
           )
             throw new TaskError('NOT_FOUND');
           const index = profile.people.findIndex((p) => p.id === op.person.id);
+          const previous = profile.people[index];
+          const enhanced =
+            'knownName' in op.person ||
+            'temporaryLabel' in op.person ||
+            'interaction' in op.person ||
+            'experiences' in op.person ||
+            !!previous?.origin;
+          const savedPerson = enhanced
+            ? {
+                ...previous,
+                ...op.person,
+                ...(!('knownName' in op.person || 'temporaryLabel' in op.person)
+                  ? { knownName: null, temporaryLabel: op.person.name }
+                  : {}),
+                origin: 'manual' as const,
+                sourceMessageIds: previous?.sourceMessageIds ?? [],
+                sourceQuotes: previous?.sourceQuotes ?? [],
+                updatedAt: now,
+              }
+            : op.person;
           if (index < 0) {
             if (profile.people.length >= 30) throw new TaskError('INVALID_INPUT');
-            profile.people.push(op.person);
-          } else profile.people[index] = op.person;
+            profile.people.push(savedPerson);
+          } else profile.people[index] = savedPerson;
           break;
         }
         case 'delete-person': {
@@ -442,7 +477,121 @@ export class ProfileRepository {
         'UPDATE parallel_life.profiles SET version=$2,document=$3,updated_at=now() WHERE owner_id=$1',
         [ownerId, profile.version, validated],
       );
+      if (input.commandId)
+        await sql.query(
+          'INSERT INTO parallel_life.profile_edit_receipts(owner_id,command_id,request_hash,response) VALUES($1,$2,$3,$4)',
+          [ownerId, input.commandId, hash, validated],
+        );
       return validated;
     });
   }
+}
+
+/** Same transaction as the assistant message, task receipt and interview version. */
+export async function applyPeopleInTransaction(
+  sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
+  ownerId: string,
+  interviewId: string,
+  inputMessageId: string,
+  expectedProfileVersion: number,
+  proposals: PersonProposal[] = [],
+) {
+  if (!proposals.length) return;
+  const row = (
+    await sql.query(
+      'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',
+      [ownerId],
+    )
+  ).rows[0];
+  // A slow model must not recreate a manually deleted person or overwrite a manual edit.
+  if (!row || Number(row.version) !== expectedProfileVersion) return;
+  const source = (
+    await sql.query(
+      "SELECT text,photo_asset_id FROM parallel_life.interview_messages WHERE id=$1 AND owner_id=$2 AND interview_id=$3 AND role='user'",
+      [inputMessageId, ownerId, interviewId],
+    )
+  ).rows[0];
+  if (!source) return;
+  const profile = ProfileSchema.parse({ ...row.document, version: Number(row.version) });
+  let changed = false;
+  const photoUnique = proposals.filter((p) => p.associatePhoto).length === 1;
+  for (const proposal of proposals) {
+    if (proposal.messageId !== inputMessageId) continue;
+    const grounded = groundPersonProposal(proposal, String(source.text), profile.people);
+    if (!grounded) continue;
+    let assetId: string | null = null;
+    if (grounded.associatePhoto && photoUnique && source.photo_asset_id) {
+      const asset = await sql.query(
+        "SELECT id FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND status='ready' AND origin='upload' AND world_id IS NULL",
+        [source.photo_asset_id, ownerId],
+      );
+      if (asset.rowCount) assetId = String(source.photo_asset_id);
+    }
+    if (!grounded.knownName && !grounded.description && !grounded.experience && !assetId) continue;
+    const previous = profile.people.find((p) => p.id === grounded.existingId);
+    if (!previous && profile.people.length >= 30) continue;
+    // Stop when evidence is full instead of discarding the oldest user evidence.
+    if (
+      previous &&
+      (((previous.sourceMessageIds?.length ?? 0) >= 40 &&
+        !previous.sourceMessageIds?.includes(inputMessageId)) ||
+        ((previous.sourceQuotes?.length ?? 0) >= 40 &&
+          !previous.sourceQuotes?.some(
+            (q) => q.messageId === inputMessageId && q.quote === grounded.quote,
+          )))
+    )
+      continue;
+    const person = previous ?? {
+      id: randomUUID(),
+      name: grounded.knownName ?? grounded.subject,
+      knownName: grounded.knownName ?? null,
+      temporaryLabel: grounded.subject,
+      relationship: grounded.subject,
+      assetId: null,
+      interaction: '',
+      experiences: [],
+      sourceMessageIds: [],
+      sourceQuotes: [],
+      origin: 'interview' as const,
+    };
+    const before = JSON.stringify(person);
+    if (grounded.knownName && !person.knownName) {
+      person.knownName = grounded.knownName;
+      person.name = grounded.knownName;
+    }
+    if (grounded.description && !(person.interaction ?? '').includes(grounded.description)) {
+      const description = [person.interaction, grounded.description].filter(Boolean).join('；');
+      if (description.length <= 1200) person.interaction = description;
+    }
+    if (grounded.experience && !person.experiences?.some((e) => e.text === grounded.experience)) {
+      const experiences = person.experiences ?? [];
+      if (experiences.length < 10)
+        person.experiences = [
+          ...experiences,
+          { id: randomUUID(), text: grounded.experience, date: null },
+        ];
+    }
+    if (assetId) person.assetId = assetId;
+    if (!previous || JSON.stringify(person) !== before) {
+      person.sourceMessageIds = [...new Set([...(person.sourceMessageIds ?? []), inputMessageId])];
+      const quotes = person.sourceQuotes ?? [];
+      person.sourceQuotes = quotes.some(
+        (q) => q.messageId === inputMessageId && q.quote === grounded.quote,
+      )
+        ? quotes
+        : [...quotes, { interviewId, messageId: inputMessageId, quote: grounded.quote }];
+      person.updatedAt = new Date().toISOString();
+      person.origin ??= 'interview';
+      if (!previous) profile.people.push(person);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  profile.version++;
+  profile.updatedAt = new Date().toISOString();
+  const document = ProfileSchema.parse(profile);
+  await sql.query(
+    'UPDATE parallel_life.profiles SET document=$2::jsonb,version=$3,updated_at=$4 WHERE owner_id=$1',
+    [ownerId, JSON.stringify(document), document.version, document.updatedAt],
+  );
 }

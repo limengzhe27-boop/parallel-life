@@ -12,8 +12,20 @@ import {
 import { QuestionTargetSchema } from '../../../contracts/memory.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { detectCrisisIntent, CRISIS_RESPONSE } from '../../ai/safety-guard.ts';
-export const INTERVIEW_PROMPT_VERSION = 'interview-1.6.0';
+export const INTERVIEW_PROMPT_VERSION = 'interview-1.7.0';
+export const PersonProposalSchema = z.strictObject({
+  personId: Id.optional(),
+  subject: z.string().trim().min(1).max(40),
+  messageId: Id,
+  quote: z.string().trim().min(1).max(1000),
+  knownName: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().min(1).max(500).optional(),
+  experience: z.string().trim().min(1).max(500).optional(),
+  associatePhoto: z.boolean().optional(),
+});
+
 export const InterviewProposalSchema = z.strictObject({
+  people: z.array(PersonProposalSchema).max(3).optional(),
   reply: z.string().trim().min(1).max(4000),
   question: z
     .strictObject({
@@ -45,7 +57,8 @@ export const InterviewProposalSchema = z.strictObject({
         sourceMessageIds: z.array(Id).min(1).max(5),
       }),
     )
-    .max(3),
+    .max(3)
+    .default([]),
   events: z
     .array(
       z.strictObject({
@@ -57,7 +70,8 @@ export const InterviewProposalSchema = z.strictObject({
         sourceMessageIds: z.array(Id).min(1).max(5),
       }),
     )
-    .max(1),
+    .max(1)
+    .default([]),
 });
 export type InterviewProposal = z.infer<typeof InterviewProposalSchema>;
 const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和他商量想体验怎样的另一种人生。
@@ -79,8 +93,17 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 7. 构思场景使用“如果”“可以设想”等措辞，明确是一起创作的可能性，不伪称已经发生。事实、用户愿望和你提出的故事设想分开；自己的设想不可提取到用户的 facts/events/basicInfo。不主动索取照片或敏感经历作为继续聊天的条件。
 8. question 若存在，reply 中不要再问另一件事；同一个问题也不要重复输出两遍。以下示例只说明节奏，不是固定回复；始终根据当前对话回应。
 
+【我身边的人与我的描述】
+1. 自然了解用户提到的现实人物。姓名、关系、描述和照片都是选填，不为了填表追问。用户讲表姐对他好却干涉职业，先回应具体矛盾，不把表姐判定为敌人。最多问一个必要问题，已有信息不重复问。
+2. “我的描述”可以是用户说的人物性格、习惯、能力、经历、看法或互动，始终是用户描述，不是客观诊断或你的推断。具体共同经历单独整理，同一句不要重复放进description和experience，也不要重复放到facts/events。
+3. 可选people最多3项：{personId?:已知资料ID,subject:明确的现实关系称呼,messageId:本轮用户消息ID,quote:用户逐字原话,knownName?:原话明确说“叫/名字是/昵称是”的姓名,description?:逐字摘录,experience?:逐字摘录,associatePhoto?:true}。不确定时people为空。字段可省略，不得输出assetId或你猜的身份。
+4. 只整理本轮用户的现实陈述。假如领导在故事里成为下属，绝不是现实下属；角色、故事、你的建议不写people。她/他指谁不清、同名多人、另一个同事或照片人物未知时，先用唯一问题澄清，不按名字或头像合并。
+5. hasPhoto不表示你看见照片。仅用户本轮明确说“这是我表姐的头像/照片”等归属时才associatePhoto=true，不从图像推断身份、性格或关系。用户只发头像，可以轻问想记给谁；不虚构人物资料。没有照片不主动催上传。
+6. description/experience必须逐字包含在quote中，不能把“经常”改成“会”、增加主语、概括或套示例。quote必须逐字包含在对应用户消息中，禁止编造。若无法逐字摘录，则只回话，不整理。
+7. 已有人物可引用ID，但必须仍有本轮明确的现实关系和字面证据，不凭ID合并不同人；反复提及同一句不重复整理。
+
 【输出格式与严格防重规则】
-仅输出 JSON 对象，无 Markdown：{"reply":"自然真诚的回应","question":{"text":"可选的一个启发式追问","target":"identity|interest|personality|relationship|experience|wish"},"basicInfo":{"name":"明确提及的名字/称呼","birthdate":"明确提及的出生日期YYYY-MM-DD或年份YYYY","birthTime":"HH:mm","location":"所在城市","occupation":"职业","hometown":"家乡"},"facts":[{"category":"interest|personality|wish","value":"用户明确表达的一条简短静态信息（爱好、性格、心愿）","sourceMessageIds":["对应的用户消息ID"]}],"events":[{"title":"用户明确讲述的本人事件、经历、遗憾或关键转折（动词/事件属性）","date":"明确提及的年份或YYYY-MM-DD，未知为null","sourceMessageIds":["用户消息ID"]}]}。
+仅输出 JSON 对象，无 Markdown；people 与 facts/events 同级，必须输出people数组（没有时为空），明确的现实人物描述必须放入people，不要只写events。question存在时reply完全不提问：{"people":[{"subject":"表姐","messageId":"本轮用户消息ID","quote":"我表姐对我好，但会干涉职业选择。","description":"从quote逐字截取的描述，不改写"}],"reply":"自然真诚的回应","question":{"text":"可选的一个启发式追问","target":"identity|interest|personality|relationship|experience|wish"},"basicInfo":{"name":"明确提及的名字/称呼","birthdate":"明确提及的出生日期YYYY-MM-DD或年份YYYY","birthTime":"HH:mm","location":"所在城市","occupation":"职业","hometown":"家乡"},"facts":[{"category":"interest|personality|wish","value":"用户明确表达的一条简短静态信息（爱好、性格、心愿）","sourceMessageIds":["对应的用户消息ID"]}],"events":[{"title":"用户明确讲述的本人事件、经历、遗憾或关键转折（动词/事件属性）","date":"明确提及的年份或YYYY-MM-DD，未知为null","sourceMessageIds":["用户消息ID"]}]}。
 【基础资料直接进入 basicInfo 与更正覆盖】：
 1. 当用户在对话中提到或更正自己的【生日/出生年月日/出生年份】（如“我是01年的”、“我其实是2001年的”、“之前说错了，我是05年的”）、【姓名/称呼】、【出生具体时间】、【所在城市】、【职业】、【家乡】时，必须提取并直接填入 basicInfo 对象中。
    - birthdate：若是完整日期输出 YYYY-MM-DD（如 2001-05-12）；若是年份（如“01年”、“05年”），输出标准 4 位年份 YYYY（如 2001 或 2005）。
@@ -94,7 +117,7 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 【事实与经历分开】：
 1. 涉及用户亲身经历、人生阶段、重大转折、遗憾后悔等具体事情，必须且只能输出到 events，绝对严禁在 facts 中重复提取！
 2. facts 严格限定记录客观静态信息（interest/personality/wish），绝对不要输出 identity 或与 events 重复的 experience。
-3. 宁少勿滥：最多 3 条新事实、1 个新事件；没有值得记录的就给空数组 []。输入中的 blockedTargets 是用户明确不愿讨论的主题，不可追问。sourceMessageIds 只能引用下文提供的 user 消息 ID。`;
+3. 宁少勿滥：最多 3 条新事实、1 个新事件；没有值得记录的就给空数组 []。关于现实人物的描述和共同经历先归people，不能因为events规则而漏掉people或在两处重复。输入中的 blockedTargets 是用户明确不愿讨论的主题，不可追问。sourceMessageIds 只能引用下文提供的 user 消息 ID。`;
 export function extractBasicInfoFromText(
   text: string,
 ): NonNullable<InterviewProposal['basicInfo']> {
@@ -133,6 +156,11 @@ export function groundBasicInfo(text: string, _proposed?: InterviewProposal['bas
   return extractBasicInfoFromText(text);
 }
 
+function oneReplyQuestion(text: string): string {
+  const end = text.search(/[？?]/u);
+  return end < 0 ? text : text.slice(0, end + 1);
+}
+
 export class InvalidInterviewOutput extends Error {
   readonly code = 'INVALID_RESPONSE';
   constructor() {
@@ -166,7 +194,17 @@ export class InterviewPlanner {
     const memory = JSON.stringify({
       facts,
       events: profile.events.map(({ title, date }) => ({ title, date })),
-      people: profile.people.map(({ name, relationship }) => ({ name, relationship })),
+      people: profile.people.map(
+        ({ id, name, relationship, knownName, temporaryLabel, interaction, experiences }) => ({
+          id,
+          name,
+          relationship,
+          knownName,
+          temporaryLabel,
+          myDescription: interaction,
+          experiences,
+        }),
+      ),
     }).slice(0, 16000);
     const context: ModelMessage[] = [
       { role: 'system', content: SYSTEM },
@@ -199,7 +237,7 @@ export class InterviewPlanner {
           const decoded = JSON.parse(`"${replyMarker[1]}"`) as string;
           if (decoded && typeof decoded === 'string' && decoded.trim()) {
             return {
-              reply: decoded.trim(),
+              reply: oneReplyQuestion(decoded.trim()),
               facts: [],
               events: [],
             };
@@ -217,6 +255,14 @@ export class InterviewPlanner {
       )
     )
       throw new InvalidInterviewOutput();
+
+    proposal.reply = oneReplyQuestion(proposal.reply);
+    // The persisted question must refer to the one actually asked in the reply.
+    // Never leave a second, different invisible question for the next user turn.
+    const replyQuestion = proposal.reply.match(/[^。！？?\n]+[？?]/u)?.[0]?.trim();
+    if (proposal.question && replyQuestion) proposal.question.text = replyQuestion;
+    const lastUserId = selected.filter((m) => m.role === 'user').at(-1)?.id;
+    proposal.people = proposal.people?.filter((p) => p.messageId === lastUserId);
 
     // 启发式双重兜底：若用户直接说了生日或姓名，即使模型漏提也自动补齐
     const lastUserText = selected.filter((m) => m.role === 'user').at(-1)?.text ?? '';
@@ -292,14 +338,17 @@ export class InterviewPlanner {
         }
         safe += char;
       }
+      let decoded: string;
       try {
-        const decoded = JSON.parse(`"${safe}"`) as string;
-        if (decoded.length > emittedReply.length) {
-          onToken(decoded.slice(emittedReply.length));
-          emittedReply = decoded;
-        }
+        decoded = JSON.parse(`"${safe}"`) as string;
       } catch {
-        /* Wait for the next complete JSON escape sequence. */
+        return; // Wait for the next complete JSON escape sequence.
+      }
+      // Consumer/disconnect errors must propagate instead of being mistaken for incomplete JSON.
+      const visible = oneReplyQuestion(decoded);
+      if (visible.length > emittedReply.length) {
+        onToken(visible.slice(emittedReply.length));
+        emittedReply = visible;
       }
     };
     if (!this.model.streamComplete) {

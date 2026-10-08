@@ -71,12 +71,44 @@ export const LifeEventSchema = z.strictObject({
   feeling: z.number().int().min(-5).max(5).nullable(),
   sourceMessageIds: z.array(Id).max(20),
 });
-export const PersonSchema = z.strictObject({
+export const PersonExperienceSchema = z.strictObject({
+  id: Id,
+  text: z.string().trim().min(1).max(500),
+  date: LifeDate.nullable(),
+});
+const PersonFields = z.strictObject({
   id: Id,
   name: z.string().trim().min(1).max(80),
+  knownName: z.string().trim().min(1).max(80).nullable().optional(),
+  temporaryLabel: z.string().trim().min(1).max(80).nullable().optional(),
   relationship: z.string().trim().min(1).max(80),
+  interaction: z.string().trim().max(1200).optional(),
+  experiences: z
+    .array(PersonExperienceSchema)
+    .max(10)
+    .refine((a) => new Set(a.map((e) => e.id)).size === a.length)
+    .optional(),
   assetId: Id.nullable(),
+  sourceMessageIds: z.array(Id).max(40).optional(),
+  sourceQuotes: z
+    .array(z.strictObject({ interviewId: Id, messageId: Id, quote: z.string().min(1).max(1000) }))
+    .max(40)
+    .optional(),
+  origin: z.enum(['manual', 'interview']).optional(),
+  updatedAt: Timestamp.optional(),
 });
+const personLabelValid = (p: {
+  name: string;
+  knownName?: string | null;
+  temporaryLabel?: string | null;
+}) => !('knownName' in p || 'temporaryLabel' in p) || p.name === (p.knownName || p.temporaryLabel);
+export const PersonSchema = PersonFields.refine(personLabelValid, '展示称呼须来自姓名或临时称呼');
+export const PersonEditSchema = PersonFields.omit({
+  sourceMessageIds: true,
+  sourceQuotes: true,
+  origin: true,
+  updatedAt: true,
+}).refine(personLabelValid, '请填写姓名或临时称呼');
 export type Person = z.infer<typeof PersonSchema>;
 export const ProfileSchema = z.strictObject({
   id: Id,
@@ -92,6 +124,7 @@ export type Profile = z.infer<typeof ProfileSchema>;
 export type ProfileFact = z.infer<typeof ProfileFactSchema>;
 export type LifeEvent = z.infer<typeof LifeEventSchema>;
 export const ProfileEditSchema = z.strictObject({
+  commandId: Id.optional(),
   expectedVersion: Version,
   operation: z.discriminatedUnion('kind', [
     z.strictObject({
@@ -110,7 +143,7 @@ export const ProfileEditSchema = z.strictObject({
     z.strictObject({ kind: z.literal('set-portrait'), assetId: Id.nullable() }),
     z.strictObject({ kind: z.literal('add-reference-photo'), assetId: Id }),
     z.strictObject({ kind: z.literal('delete-reference-photo'), assetId: Id }),
-    z.strictObject({ kind: z.literal('set-person'), person: PersonSchema }),
+    z.strictObject({ kind: z.literal('set-person'), person: PersonEditSchema }),
     z.strictObject({ kind: z.literal('delete-person'), id: Id }),
   ]),
 });

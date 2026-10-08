@@ -18,6 +18,7 @@ import { type InterviewPlanner, groundBasicInfo } from './interview-planner.ts';
 import {
   applyConfirmedCandidateInTransaction,
   applyBasicInfoInTransaction,
+  applyPeopleInTransaction,
   isSimilarText,
 } from './profile-repository.ts';
 import {
@@ -345,6 +346,14 @@ export class InterviewRepository {
         ).rows[0];
         if (!current || current.version !== prepared.interview.version)
           throw new TaskError('VERSION_CONFLICT');
+        await applyPeopleInTransaction(
+          sql,
+          ownerId,
+          prepared.interview.id,
+          prepared.interview.messages.at(-1)!.id,
+          prepared.profile.version,
+          proposal.people,
+        );
         const candidates = [
           ...proposal.facts.map((fact) => ({
             category: fact.category,

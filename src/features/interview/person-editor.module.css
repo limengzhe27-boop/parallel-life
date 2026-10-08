@@ -1,0 +1,60 @@
+.form,
+.details,
+.fields {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.fields label {
+  display: grid;
+  gap: 8px;
+}
+.fields input,
+.fields textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.experience {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.details p,
+.details blockquote {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.details h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.details small,
+.details time {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.details blockquote {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  margin-top: 12px;
+}
+.photo {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+.summary {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}

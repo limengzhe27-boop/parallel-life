@@ -258,7 +258,7 @@ export function DraftEditor({
               {!profile.events.length && <p className={s.hint}>还没有记录经历。</p>}
             </details>
             <details>
-              <summary>重要的人 · 已选 {selection.personIds.length}</summary>
+              <summary>我身边的人 · 已选 {selection.personIds.length}</summary>
               <p className={s.hint}>
                 选填，最多8位。选中人物时，其关联原图会同时出现在角色头像和相册中。普通头像也可以，不会用于推断长相。
               </p>

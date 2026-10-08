@@ -33,7 +33,7 @@ const categories: Record<ProfileFact['category'], string> = {
   identity: '基本信息',
   interest: '我的爱好',
   personality: '性格印象',
-  relationship: '重要的人',
+  relationship: '身边的人',
   experience: '人生经历',
   wish: '心里的愿望',
 };
@@ -464,15 +464,21 @@ export function InterviewApp() {
       setUploadingChatPhoto(false);
     }
   }
+  const pendingProfileEdit = useRef<ProfileEdit | null>(null);
   async function edit(operation: ProfileEdit['operation']) {
     if (!data) return;
     setSaving(true);
     setProfileError('');
     try {
-      const profile = await client.editProfile({
-        expectedVersion: data.profile.version,
-        operation,
-      });
+      const fields = { expectedVersion: data.profile.version, operation };
+      if (
+        !pendingProfileEdit.current ||
+        JSON.stringify({ ...pendingProfileEdit.current, commandId: undefined }) !==
+          JSON.stringify(fields)
+      )
+        pendingProfileEdit.current = { ...fields, commandId: crypto.randomUUID() };
+      const profile = await client.editProfile(pendingProfileEdit.current);
+      pendingProfileEdit.current = null;
       setData((current) =>
         current
           ? {
@@ -1189,11 +1195,11 @@ export function ProfilePane({
       </details>
       <details className="profile-fold">
         <summary>
-          重要的人
+          我身边的人
           <Icon name="chevron" size={16} />
         </summary>
         {renderFacts(view.people)}
-        {people ?? <p className="preview-profile-placeholder">你聊过的重要人物，会整理在这里。</p>}
+        {people ?? <p className="preview-profile-placeholder">你聊到的人，会整理在这里。</p>}
       </details>
       <details className="profile-fold">
         <summary>

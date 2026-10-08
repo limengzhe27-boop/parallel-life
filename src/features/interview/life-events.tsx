@@ -1,4 +1,7 @@
 'use client';
+import { PersonEditor } from './person-editor.tsx';
+import { personSummary } from '../../modules/profile/domain/person-record.ts';
+import ps from './person-editor.module.css';
 import { useState } from 'react';
 import { LifeDate, type LifeEvent, type ProfileEdit, type Person } from '../../contracts/api.ts';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
@@ -277,12 +280,12 @@ export function ImportantPeople({
         <div className="section-heading">
           <h3>
             <Icon name="user" size={17} />
-            生命里重要的人
+            我身边的人
           </h3>
           <Button
             variant="ghost"
             className="icon-button"
-            aria-label="添加重要的人"
+            aria-label="添加身边的人"
             disabled={people.length >= 30}
             onClick={() => {
               setEditing(null);
@@ -295,9 +298,9 @@ export function ImportantPeople({
         {people.length >= 30 && <p className="form-hint">已保存 30 位人物，可编辑已有记录。</p>}
         {people.length === 0 ? (
           <p className="section-copy">
-            那个陪你走过一段路的人，
+            你聊到的人，
             <br />
-            也可以出现在你的故事里。
+            可以在这里补充或纠正资料。
           </p>
         ) : (
           people.map((person) => (
@@ -319,6 +322,9 @@ export function ImportantPeople({
               <span>
                 <strong>{person.name}</strong>
                 <small>{person.relationship}</small>
+                {personSummary(person) && (
+                  <small className={ps.summary}>{personSummary(person)}</small>
+                )}
               </span>
               <Icon name="edit" size={14} />
             </button>
@@ -335,135 +341,5 @@ export function ImportantPeople({
         />
       )}
     </>
-  );
-}
-function PersonEditor({
-  person,
-  client,
-  onClose,
-  onSave,
-}: {
-  person: Person | null;
-  client: LifeClient;
-  onClose: () => void;
-  onSave: (op: ProfileEdit['operation']) => Promise<void>;
-}) {
-  const [name, setName] = useState(person?.name ?? ''),
-    [relationship, setRelationship] = useState(person?.relationship ?? ''),
-    [assetId, setAssetId] = useState(person?.assetId ?? null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
-  async function photo(file: File) {
-    if (file.size > 4 * 1024 * 1024) {
-      setError('照片不能超过 4MB，请换一张。');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      const asset = await client.upload(file);
-      setAssetId(asset.id);
-    } catch (e) {
-      setError(failure(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function save(remove = false) {
-    setBusy(true);
-    setError('');
-    try {
-      await onSave(
-        remove
-          ? { kind: 'delete-person', id: person!.id }
-          : {
-              kind: 'set-person',
-              person: { id: person?.id ?? crypto.randomUUID(), name, relationship, assetId },
-            },
-      );
-      onClose();
-    } catch (e) {
-      setError(failure(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Modal
-      open
-      title={person ? '这个人，在你的人生里' : '记下一个重要的人'}
-      onClose={() => {
-        if (!busy) onClose();
-      }}
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-      >
-        <label className="form-label">
-          你怎么称呼 TA
-          <input
-            autoFocus
-            className="field"
-            value={name}
-            maxLength={80}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="可以是真名，也可以是昵称"
-          />
-        </label>
-        <label className="form-label">
-          你们的关系
-          <input
-            className="field"
-            value={relationship}
-            maxLength={80}
-            onChange={(e) => setRelationship(e.target.value)}
-            placeholder="例如，大学时最好的朋友"
-          />
-        </label>
-        <label className="person-upload">
-          {assetId ? (
-            <img src={`/api/v1/assets/${assetId}`} alt="选择的人物照片" />
-          ) : (
-            <Icon name="photo" size={26} />
-          )}
-          <span>{busy ? '正在保存…' : assetId ? '更换照片' : '上传照片或头像（可选）'}</span>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            aria-label="重要人物的照片"
-            disabled={busy}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (file) void photo(file);
-            }}
-          />
-        </label>
-        <p className="form-hint">每人 1 张，支持 JPG、PNG、WebP，最大 4MB。</p>
-        {assetId && (
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => setAssetId(null)}>
-            暂时不用这张照片
-          </Button>
-        )}
-        {error && <Notice>{error}</Notice>}
-        <p className="form-hint">这份人物记录只保存在你的私人档案里。</p>
-        <div className="form-actions">
-          {person && (
-            <Button type="button" variant="danger" disabled={busy} onClick={() => void save(true)}>
-              移除记录
-            </Button>
-          )}
-          <Button type="button" variant="secondary" disabled={busy} onClick={onClose}>
-            取消
-          </Button>
-          <Button type="submit" disabled={busy || !name.trim() || !relationship.trim()}>
-            {busy ? '保存中…' : '保存人物'}
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }

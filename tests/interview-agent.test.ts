@@ -30,7 +30,7 @@ const messages: Interview['messages'] = [
 ];
 test('interview extracts only proposals with actual user message provenance', async () => {
   const output = {
-    reply: '自己开一家店时，你最期待什么？',
+    reply: '你很期待自己开一家店。',
     question: { text: '你最想先从哪一步开始？', target: 'wish' },
     facts: [{ category: 'wish', value: '开一家自行车维修店', sourceMessageIds: [id] }],
     events: [],
@@ -183,4 +183,64 @@ test('all basic fields require self attribution instead of trusting model fields
     ),
     { name: '小王', location: '杭州', occupation: '导演', hometown: '成都', birthTime: '12:30' },
   );
+});
+
+test('people extraction uses the existing single call with current user evidence and attributed descriptions', async () => {
+  const source = { ...messages[0]!, text: '我表姐对我好，但会干涉职业选择。' };
+  let calls = 0;
+  const planner = new InterviewPlanner({
+    async complete(input) {
+      calls++;
+      assert.match(input[0]!.content, /我的描述/);
+      assert.match(input[0]!.content, /不按名字或头像合并/);
+      return JSON.stringify({
+        reply: '你希望怎样保留支持，也留下自己的选择空间？',
+        facts: [],
+        events: [],
+        people: [
+          {
+            subject: '表姐',
+            messageId: source.id,
+            quote: source.text,
+            description: '对我好，但会干涉职业选择。',
+          },
+          { subject: '朋友', messageId: randomUUID(), quote: '旧消息不属于本轮' },
+        ],
+      });
+    },
+  });
+  const proposal = await planner.propose(profile, [source]);
+  assert.equal(calls, 1);
+  assert.equal(proposal.people?.length, 1);
+});
+
+test('reply stream consumer failure propagates instead of allowing a later profile commit', async () => {
+  const planner = new InterviewPlanner({
+    async complete() {
+      return JSON.stringify({ reply: '一段已经输出的回复', facts: [], events: [] });
+    },
+  });
+  await assert.rejects(
+    planner.proposeStream(profile, messages, () => {
+      throw new Error('consumer-disconnected');
+    }),
+    /consumer-disconnected/,
+  );
+});
+
+test('streamed and persisted reply ask only one question and question metadata matches it', async () => {
+  const planner = new InterviewPlanner({
+    async complete() {
+      return JSON.stringify({
+        reply: '你希望怎样保留支持？还是先谈工作？',
+        question: { text: '另一个问题？', target: 'relationship' },
+        people: [],
+      });
+    },
+  });
+  const tokens: string[] = [];
+  const proposal = await planner.proposeStream(profile, messages, (token) => tokens.push(token));
+  assert.equal(proposal.reply, '你希望怎样保留支持？');
+  assert.equal(tokens.join(''), proposal.reply);
+  assert.equal(proposal.question?.text, proposal.reply);
 });
