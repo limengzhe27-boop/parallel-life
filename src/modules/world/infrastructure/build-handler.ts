@@ -32,6 +32,25 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       }),
       time = new Date().toISOString(),
       sourceEventId = `genesis:${input.worldId}`;
+    // Enforce the mapping at the write boundary, independently of model validation.
+    if ('personRoles' in seed) {
+      const linked = opening.actors.filter((a) => a.sourcePersonId);
+      const selected = new Set(seed.people.map((p) => p.id));
+      if (
+        selected.size !== seed.people.length ||
+        linked.length !== selected.size ||
+        new Set(linked.map((a) => a.sourcePersonId)).size !== selected.size ||
+        linked.some((a) => !selected.has(a.sourcePersonId!))
+      )
+        throw Error('INVALID_PERSON_MAPPING');
+      for (const actor of linked) {
+        const person = seed.people.find((p) => p.id === actor.sourcePersonId)!;
+        actor.name = person.name;
+        const role = seed.personRoles?.find((r) => r.personId === person.id)?.role;
+        if (role) actor.relationship = role;
+      }
+    } else if (opening.actors.some((a) => a.sourcePersonId))
+      throw Error('UNEXPECTED_PERSON_MAPPING');
     const ids = new Map(opening.actors.map((a) => [a.key, randomUUID()]));
     const state: WorldState = {
       schemaVersion: 1,
@@ -42,6 +61,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       time,
       actors: opening.actors.map((a) => ({
         id: ids.get(a.key)!,
+        ...(a.sourcePersonId ? { sourcePersonId: a.sourcePersonId } : {}),
         name: a.name,
         relationship: a.relationship,
         persona: a.persona,
@@ -115,6 +135,36 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
         'INSERT INTO parallel_life.worlds(id,owner_id,title,state) VALUES($1,$2,$3,$4)',
         [state.id, lease.ownerId, state.title, { ...state, messages: [] }],
       );
+      if ('personRoles' in seed) {
+        for (const actor of opening.actors.filter((a) => a.sourcePersonId)) {
+          const person = seed.people.find((p) => p.id === actor.sourcePersonId);
+          if (!person) throw Error('INVALID_PERSON_MAPPING');
+          const revision = person.assetId
+            ? seed.assets.find((a) => a.assetId === person.assetId)?.revision
+            : null;
+          if (person.assetId) {
+            const asset = (
+              await sql.query(
+                "SELECT id FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND revision=$3 AND status='ready' AND origin='upload' AND world_id IS NULL FOR SHARE",
+                [person.assetId, lease.ownerId, revision],
+              )
+            ).rows[0];
+            if (!asset) throw Error('INVALID_PERSON_ASSET');
+          }
+          await sql.query(
+            'INSERT INTO parallel_life.world_person_bindings(world_id,owner_id,person_id,actor_id,person_snapshot,asset_id,asset_revision) VALUES($1,$2,$3,$4,$5,$6,$7)',
+            [
+              state.id,
+              lease.ownerId,
+              person.id,
+              ids.get(actor.key),
+              person,
+              person.assetId,
+              revision,
+            ],
+          );
+        }
+      }
       if (seed.portraitAssetId) {
         const mediaItems = [
           { id: initialMediaId, prompt: initialMediaPrompt, title: initialMediaTitle },

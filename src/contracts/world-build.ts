@@ -20,6 +20,7 @@ export const WorldOpeningSchema = z.object({
   actors: z
     .array(
       z.object({
+        sourcePersonId: Id.optional(),
         key: z.string().regex(/^[a-z0-9_]{1,24}$/),
         name: z.string().min(1).max(80),
         relationship: z.string().min(1).max(600),
@@ -120,6 +121,8 @@ export const WorldPhoneSchema = z.strictObject({
       name: z.string(),
       relationship: z.string(),
       summary: z.string().optional(),
+      sourcePersonId: Id.optional(),
+      photo: z.strictObject({ assetId: Id, revision: z.number().int().positive() }).optional(),
     }),
   ),
   messages: z.array(

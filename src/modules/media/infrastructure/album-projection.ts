@@ -8,6 +8,7 @@ export function albumPhoto(row: Record<string, unknown>) {
     date: new Date(String(row.story_at)).toISOString(),
     createdAt: new Date(String(row.created_at)).toISOString(),
     kind: row.origin,
+    ...(row.sourcePersonId ? { sourcePersonId: row.sourcePersonId } : {}),
     width: row.width,
     height: row.height,
     revision: row.revision,
@@ -18,5 +19,19 @@ export async function albumPhotos(sql: SqlClient, worldId: string) {
     "SELECT p.*,a.origin,a.width,a.height,a.revision FROM parallel_life.world_album p JOIN parallel_life.assets a ON a.id=p.asset_id AND a.owner_id=p.owner_id AND a.world_id=p.world_id WHERE p.world_id=$1 AND a.status='ready' ORDER BY p.created_at DESC,p.asset_id LIMIT 100",
     [worldId],
   );
-  return rows.rows.map(albumPhoto);
+  const imported = await sql.query(
+    "SELECT b.asset_id,b.world_id,b.person_id,b.person_snapshot,a.created_at AS story_at,b.created_at,a.origin,a.width,a.height,a.revision FROM parallel_life.world_person_bindings b JOIN parallel_life.assets a ON a.id=b.asset_id AND a.owner_id=b.owner_id AND a.revision=b.asset_revision WHERE b.world_id=$1 AND a.status='ready' ORDER BY b.created_at DESC,b.asset_id LIMIT 100",
+    [worldId],
+  );
+  const references = imported.rows.map((row) =>
+    albumPhoto({
+      ...row,
+      title: '用户带入的照片 · ' + String(row.person_snapshot.name).slice(0, 60),
+      sourcePersonId: row.person_id,
+    }),
+  );
+  return [
+    ...rows.rows.map(albumPhoto),
+    ...references.filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i),
+  ];
 }

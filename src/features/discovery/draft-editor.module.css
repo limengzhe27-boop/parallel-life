@@ -118,3 +118,19 @@
 .actions > button {
   flex: 1 1 140px;
 }
+.person {
+  padding-bottom: 12px;
+}
+.personAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.personRole {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  padding-left: 28px;
+}

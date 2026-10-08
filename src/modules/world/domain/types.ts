@@ -3,7 +3,13 @@ export type Id = string;
 export type Session = { userId: Id };
 export type Visibility = { kind: 'owner' } | { kind: 'actors'; actorIds: Id[] } | { kind: 'world' };
 
-export type Actor = { id: Id; name: string; persona: string; relationship?: string };
+export type Actor = {
+  id: Id;
+  name: string;
+  persona: string;
+  relationship?: string;
+  sourcePersonId?: Id;
+};
 /** A directed, bounded social link. mayShare means possible, never mandatory. */
 export type ActorTie = { fromActorId: Id; toActorId: Id; relationship: string; mayShare: boolean };
 export type Fact = {

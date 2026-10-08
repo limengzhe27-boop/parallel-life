@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Id, Version, Timestamp } from './api.ts';
-import { SeedStorySchema, SeedSetupSchema } from './seeds.ts';
+import { SeedStorySchema, SeedSetupSchema, PersonRolesSchema } from './seeds.ts';
 const ids = (max: number) =>
   z
     .array(Id)
@@ -14,10 +14,12 @@ export const DraftSelectionSchema = z
     factIds: ids(40),
     eventIds: ids(40),
     personIds: ids(30),
+    personRoles: PersonRolesSchema.optional(),
     assetIds: ids(31),
     portraitAssetId: Id.nullable(),
   })
-  .refine((s) => !s.portraitAssetId || s.assetIds.includes(s.portraitAssetId));
+  .refine((s) => !s.portraitAssetId || s.assetIds.includes(s.portraitAssetId))
+  .refine((s) => !s.personRoles?.some((p) => !s.personIds.includes(p.personId)));
 export const LifeDraftSchema = z.strictObject({
   id: Id,
   version: Version,

@@ -150,6 +150,12 @@ export class BuildRepository {
       );
       for (const row of rows.rows) eventTimes.set(row.id, new Date(row.occurred_at).toISOString());
     }
+    const bindings = await this.db.transaction(ownerId, (sql) =>
+      sql.query(
+        'SELECT actor_id,person_id,asset_id,asset_revision FROM parallel_life.world_person_bindings WHERE world_id=$1',
+        [worldId],
+      ),
+    );
     const clock = await new PostgresClockStore(this.db).read(ownerId, worldId);
     const storyTime = new Date(
       Math.max(
@@ -244,6 +250,11 @@ export class BuildRepository {
       setting: metadata.opening.setting,
       actors: state.actors.map((a, index) => ({
         id: a.id,
+        ...(a.sourcePersonId ? { sourcePersonId: a.sourcePersonId } : {}),
+        ...(() => {
+          const b = bindings.rows.find((b) => b.actor_id === a.id);
+          return b?.asset_id ? { photo: { assetId: b.asset_id, revision: b.asset_revision } } : {};
+        })(),
         name: a.name,
         relationship: metadata.opening.actors[index]?.relationship ?? '',
         summary: metadata.opening.actors[index]?.persona ?? a.persona,

@@ -51,6 +51,18 @@ export function SeedReceipt({
           {seed.portraitAssetId ? '包含本人照片' : '未带入本人照片'}；
           {seed.people.length ? seed.people.map((p) => p.name).join('、') : '未带入重要人物'}。
         </p>
+        {'personRoles' in seed && !!seed.people.length && (
+          <ul>
+            {seed.people.map((person) => (
+              <li key={person.id}>
+                {person.name}：
+                {seed.personRoles?.find((r) => r.personId === person.id)?.role ??
+                  '由故事安排虚构角色'}
+                {person.assetId && '；原图用于角色头像与相册'}
+              </li>
+            ))}
+          </ul>
+        )}
         <p>{ready ? '世界已生成。' : '设定已保存。'}之后修改现实档案，不会自动改变这里。</p>
       </div>
       {children}

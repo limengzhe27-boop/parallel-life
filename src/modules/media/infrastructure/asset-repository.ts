@@ -159,6 +159,20 @@ export class AssetRepository {
     if (!row) throw new TaskError('NOT_FOUND');
     return this.store.get(row.storage_key);
   }
+  async readForWorld(ownerId: string, worldId: string, id: string, revision: number) {
+    const row = await this.db.transaction(
+      ownerId,
+      async (sql) =>
+        (
+          await sql.query(
+            "SELECT a.storage_key FROM parallel_life.assets a JOIN parallel_life.worlds w ON w.id=$1 AND w.owner_id=a.owner_id WHERE a.id=$2 AND a.owner_id=$3 AND a.status='ready' AND a.revision=$4 AND (a.world_id=w.id OR EXISTS(SELECT 1 FROM parallel_life.world_person_bindings b WHERE b.world_id=w.id AND b.owner_id=a.owner_id AND b.asset_id=a.id AND b.asset_revision=a.revision))",
+            [worldId, id, ownerId, revision],
+          )
+        ).rows[0],
+    );
+    if (!row) throw new TaskError('NOT_FOUND');
+    return this.store.get(row.storage_key);
+  }
   async discardUnreferencedUpload(ownerId: string, id: string) {
     const key = await this.db.transaction(ownerId, async (sql) => {
       // Interview sends lock the account first. This also serializes a late send
@@ -193,6 +207,11 @@ export class AssetRepository {
         [ownerId, id, `[照片:/api/v1/assets/${id}]`],
       );
       if (used.rowCount) throw new TaskError('CONFLICT');
+      const approved = await sql.query(
+        "SELECT 1 FROM parallel_life.approved_seeds WHERE owner_id=$1 AND document->'assets' @> $2::jsonb LIMIT 1",
+        [ownerId, JSON.stringify([{ assetId: id }])],
+      );
+      if (approved.rowCount) throw new TaskError('CONFLICT');
       const seeded = await sql.query(
         `SELECT 1 FROM parallel_life.world_initial_snapshots
          WHERE owner_id=$1 AND position($2 in approved_seed::text)>0 LIMIT 1`,
@@ -209,6 +228,12 @@ export class AssetRepository {
   }
   async remove(ownerId: string, id: string) {
     const key = await this.db.transaction(ownerId, async (sql) => {
+      await sql.query('SELECT id FROM parallel_life.accounts WHERE id=$1 FOR UPDATE', [ownerId]);
+      const bound = await sql.query(
+        "SELECT 1 FROM parallel_life.approved_seeds WHERE owner_id=$1 AND document->'assets' @> $2::jsonb LIMIT 1",
+        [ownerId, JSON.stringify([{ assetId: id }])],
+      );
+      if (bound.rowCount) throw new TaskError('CONFLICT');
       const p = (
         await sql.query(
           'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',

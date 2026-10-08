@@ -2,6 +2,7 @@ import type { PhoneApp } from '../navigation.ts';
 /** Display models only. The integration adapter owns authorization, storage and task polling. */
 export type PhoneLink = { app: PhoneApp; target: string; label: string };
 export type PhoneContact = {
+  sourcePersonId?: string;
   id: string;
   name: string;
   relationship: string;
@@ -20,6 +21,7 @@ export type PhoneMessage = {
   photo?: PhonePhoto;
 };
 export type PhonePhoto = {
+  sourcePersonId?: string;
   id: string;
   date: string;
   title: string;

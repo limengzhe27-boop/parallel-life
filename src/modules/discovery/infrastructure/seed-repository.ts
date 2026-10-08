@@ -97,8 +97,8 @@ export class SeedRepository {
       const assets = ids.length
         ? (
             await sql.query(
-              "SELECT id,revision FROM parallel_life.assets WHERE id=ANY($1::uuid[]) AND status='ready' FOR SHARE",
-              [ids],
+              "SELECT id,revision FROM parallel_life.assets WHERE id=ANY($1::uuid[]) AND owner_id=$2 AND world_id IS NULL AND origin='upload' AND status='ready' FOR SHARE",
+              [ids, ownerId],
             )
           ).rows
         : [];
@@ -117,6 +117,7 @@ export class SeedRepository {
         }),
         facts,
         people,
+        personRoles: request.personRoles ?? [],
         portraitAssetId,
         assets: assets.map((a) => ({ assetId: a.id, revision: a.revision })),
       });

@@ -6,7 +6,15 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const s = await authenticated(request),
       { id } = await context.params;
     if (!Id.safeParse(id).success) throw new HttpError('NOT_FOUND', 404);
-    return new Response(new Uint8Array(await s.assets.read(s.ownerId, id)), {
+    const params = new URL(request.url).searchParams,
+      worldId = params.get('worldId'),
+      revision = Number(params.get('revision'));
+    if (worldId && (!Id.safeParse(worldId).success || !Number.isInteger(revision) || revision < 1))
+      throw new HttpError('NOT_FOUND', 404);
+    const bytes = worldId
+      ? await s.assets.readForWorld(s.ownerId, worldId, id, revision)
+      : await s.assets.read(s.ownerId, id);
+    return new Response(new Uint8Array(bytes), {
       headers: {
         'Content-Type': 'image/webp',
         'Cache-Control': 'private, no-store',

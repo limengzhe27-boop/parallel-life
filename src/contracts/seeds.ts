@@ -7,6 +7,10 @@ export const SeedSetupSchema = z.strictObject({
   place: z.string().trim().max(120),
   tone: z.string().trim().max(100),
 });
+export const PersonRolesSchema = z
+  .array(z.strictObject({ personId: Id, role: z.string().trim().min(1).max(160) }))
+  .max(8)
+  .refine((a) => new Set(a.map((p) => p.personId)).size === a.length);
 export const SeedRequestSchema = z
   .strictObject({
     commandId: Id,
@@ -16,6 +20,7 @@ export const SeedRequestSchema = z
     factIds: z.array(Id).max(40),
     personIds: z.array(Id).max(30),
     includePortrait: z.boolean(),
+    personRoles: PersonRolesSchema.optional(),
   })
   .superRefine((r, c) => {
     if (
@@ -23,6 +28,8 @@ export const SeedRequestSchema = z
       new Set(r.personIds).size !== r.personIds.length
     )
       c.addIssue({ code: 'custom', message: '重复选择' });
+    if (r.personIds.length > 8 || r.personRoles?.some((p) => !r.personIds.includes(p.personId)))
+      c.addIssue({ code: 'custom', message: '请最多选择8位人物，角色要求只对应已选人物' });
   });
 export type SeedRequest = z.infer<typeof SeedRequestSchema>;
 export const SeedStorySchema = DirectionFields.pick({
@@ -46,6 +53,7 @@ const PersonalSeedSchema = z.strictObject({
     .optional(),
   draftRef: z.strictObject({ id: Id, version: Version }).optional(),
   people: z.array(PersonSchema).max(30),
+  personRoles: PersonRolesSchema.optional(),
   portraitAssetId: Id.nullable(),
   assets: z.array(z.strictObject({ assetId: Id, revision: Version })).max(31),
 });
@@ -54,6 +62,7 @@ const TrialSeedSchema = PersonalSeedSchema.omit({
   discoveryVersion: true,
   directionId: true,
   draftRef: true,
+  personRoles: true,
 })
   .extend({
     source: z.strictObject({ kind: z.literal('setting_draft'), draftId: Id, version: Version }),
@@ -71,6 +80,16 @@ const TrialSeedSchema = PersonalSeedSchema.omit({
     )
       ctx.addIssue({ code: 'custom', message: '试演必须使用已选修订的完整起点' });
   });
-export const ApprovedSeedSchema = z.union([PersonalSeedSchema, TrialSeedSchema]);
+export const ApprovedSeedSchema = z
+  .union([PersonalSeedSchema, TrialSeedSchema])
+  .superRefine((seed, ctx) => {
+    if (
+      'personRoles' in seed &&
+      (seed.people.length > 8 ||
+        new Set(seed.people.map((p) => p.id)).size !== seed.people.length ||
+        seed.personRoles?.some((r) => !seed.people.some((p) => p.id === r.personId)))
+    )
+      ctx.addIssue({ code: 'custom', message: '新分支人物映射只允许最多8位已选人物' });
+  });
 export type ApprovedSeed = z.infer<typeof ApprovedSeedSchema>;
 export const SeedListSchema = z.array(ApprovedSeedSchema).max(100);

@@ -79,7 +79,7 @@ test('album projection retains provenance and builds only private local image UR
       },
     ],
   });
-  assert.equal(data.photos[0]?.url, '/api/v1/assets/photo-1?revision=2');
+  assert.equal(data.photos[0]?.url, '/api/v1/assets/photo-1?worldId=world-a&revision=2');
   assert.equal(data.photos[0]?.description, '你上传的照片');
   assert.equal(data.photos[0]?.status, 'ready');
 });
@@ -259,4 +259,34 @@ test('note receipts preserve canonical IDs and versions without depending on a r
   assert.equal(mergeNoteReceipt(updated, receipt), updated);
   assert.equal(mergeNoteReceipt(updated, { ...receipt, worldId: 'other' }), updated);
   assert.equal(mergeNoteReceipt(null, receipt), null);
+});
+
+test('a selected person uses the same scoped original image for avatar and album', () => {
+  const data = worldAppData({
+    ...world,
+    actors: [
+      {
+        ...world.actors[0]!,
+        sourcePersonId: 'person-a',
+        photo: { assetId: 'photo-1', revision: 2 },
+      },
+    ],
+    photos: [
+      {
+        id: 'photo-1',
+        worldId: world.id,
+        title: '用户带入的照片',
+        date: world.time,
+        createdAt: world.time,
+        kind: 'upload',
+        revision: 2,
+        width: 300,
+        height: 300,
+        sourcePersonId: 'person-a',
+      },
+    ],
+  });
+  assert.equal(data.contacts[0]?.avatarUrl, data.photos[0]?.url);
+  assert.match(data.photos[0]!.description ?? '', /上传时间/);
+  assert.equal(data.photos[0]?.sourcePersonId, 'person-a');
 });

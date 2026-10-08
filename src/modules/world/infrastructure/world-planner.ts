@@ -2,7 +2,7 @@ import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import type { ApprovedSeed } from '../../../contracts/seeds.ts';
 import { WorldOpeningSchema, type WorldOpening } from '../../../contracts/world-build.ts';
-export const WORLD_PROMPT_VERSION = 'world-opening-6';
+export const WORLD_PROMPT_VERSION = 'world-opening-7';
 /**
  * A world opening is the longest structured answer in the product: up to five
  * actors with personas, opening messages and notes, plus the model's own
@@ -37,13 +37,13 @@ const SYSTEM = `你为“如果”构建一段生动、具有强烈吸引力、�
 只输出JSON：{"identity":"这个世界里用户当前具体身份与状态，400字内","setting":"当前时间地点、现实处境与待面对的事情，500字内","actors":[{"key":"唯一小写英文数字下划线ID","name":"名字40字内","relationship":"与用户的具体关系与日常互动方式100字内","persona":"人物性格、动机、说话方式与态度600字内"}],"actorTies":[{"fromKey":"已存在的key","toKey":"另一个已存在的key","relationship":"两人如何相识，40字内","mayShare":true}],"messages":[{"actorKey":"确实存在的key","text":"按时间顺序的开场私聊，单条160字内"}],"notes":[{"title":"标题80字内","text":"用户手机中已有的虚构私人记录1000字内"}]}。所有文字用自然中文，不出现引擎、测试、系统协议等产品内部术语，不输出额外字段。`;
 
 /** Validates one raw answer. Throws when the model's structure is unusable. */
-function parseOpening(raw: string): WorldOpening {
+function parseOpening(raw: string, mapped = false): WorldOpening {
   const result = WorldOpeningSchema.parse(extractJsonObject(raw));
   const keys = new Set(result.actors.map((a) => a.key));
   if (
     result.actors.length < 3 ||
     keys.size !== result.actors.length ||
-    new Set(result.actors.map((a) => a.name)).size !== result.actors.length ||
+    (!mapped && new Set(result.actors.map((a) => a.name)).size !== result.actors.length) ||
     result.messages.some((m) => !keys.has(m.actorKey)) ||
     (result.actorTies ?? []).some(
       (tie) =>
@@ -162,27 +162,83 @@ export class WorldPlanner {
   async propose(seed: ApprovedSeed, signal?: AbortSignal): Promise<WorldOpening> {
     if ('source' in seed && seed.source.kind === 'setting_draft')
       return this.proposeSetting(seed, signal);
+    const mapped = 'personRoles' in seed;
     const input = {
       story: seed.story,
       setup: seed.setup ?? { identity: '', place: '', tone: '' },
       facts: seed.facts,
       events: seed.events ?? [],
-      people: seed.people.map((p) => ({ name: p.name, relationship: p.relationship })),
+      people: seed.people.map((p) =>
+        mapped
+          ? {
+              personId: p.id,
+              name: p.name,
+              realRelationship: p.relationship,
+              branchRole: seed.personRoles?.find((r) => r.personId === p.id)?.role ?? null,
+            }
+          : { name: p.name, relationship: p.relationship },
+      ),
     };
     if (JSON.stringify(input).length > 30000)
       throw Object.assign(new Error('INVALID_INPUT'), { code: 'INVALID_RESPONSE' });
     const base: ModelMessage[] = [
-      { role: 'system', content: SYSTEM },
+      {
+        role: 'system',
+        content:
+          (mapped
+            ? SYSTEM.replace(
+                '人物是虚构角色，若借用 people 的名字应尊重已有关系。',
+                '人物是虚构角色，所选人物的现实关系仅作背景，本分支角色要求优先。',
+              ).replace(
+                '"actors":[{"key":',
+                '"actors":[{"sourcePersonId":"所选人物的personId（原创配角省略此字段）","key":',
+              )
+            : SYSTEM) +
+          (mapped
+            ? '\n本次人物有personId。每位已选人物必须恰好对应一个actor，输出sourcePersonId为其personId原文；其余原创配角不填写sourcePersonId（不要填null或空串）。sourcePersonId是允许字段，不能省略所选人物的映射。actors共3至8位，先包含全部已选人物，再按需要补充原创人物。branchRole是用户指定的本分支虚构角色，优先遵守，即使与realRelationship相反；未指定时你可提出适合故事的虚构角色，不能强迫沿用现实关系。姓名由服务端固定。角色改写不代表现实变化，不根据照片猜身份，未收到任何照片内容。'
+            : ''),
+      },
       { role: 'user', content: JSON.stringify(input) },
     ];
     for (let attempt = 1; attempt <= WORLD_OUTPUT_ATTEMPTS; attempt += 1) {
       const raw = await this.model.complete(
-        attempt === 1 ? base : [...base, CORRECTION],
+        attempt === 1
+          ? base
+          : [
+              ...base,
+              CORRECTION,
+              ...(mapped
+                ? [
+                    {
+                      role: 'user' as const,
+                      content:
+                        '同时检查人物映射：每位people中的personId必须恰好出现在一个actor.sourcePersonId中，使用原文ID；原创配角省略此字段，不填null。角色要求branchRole优先于现实关系。',
+                    },
+                  ]
+                : []),
+            ],
         signal,
         WORLD_OPENING_MAX_TOKENS,
       );
       try {
-        const opening = parseOpening(raw);
+        const opening = parseOpening(raw, mapped);
+        if (mapped) {
+          const selected = new Set(seed.people.map((p) => p.id));
+          const linked = opening.actors.filter((a) => a.sourcePersonId);
+          if (
+            linked.length !== selected.size ||
+            new Set(linked.map((a) => a.sourcePersonId)).size !== selected.size ||
+            linked.some((a) => !selected.has(a.sourcePersonId!))
+          )
+            throw Error('INVALID_PERSON_MAPPING');
+          for (const actor of linked) {
+            const person = seed.people.find((p) => p.id === actor.sourcePersonId)!;
+            actor.name = person.name;
+            const role = seed.personRoles?.find((r) => r.personId === person.id)?.role;
+            if (role) actor.relationship = role;
+          }
+        } else if (opening.actors.some((a) => a.sourcePersonId))
+          throw Error('UNEXPECTED_PERSON_MAPPING');
         if (seed.setup?.place && !opening.setting.includes(seed.setup.place))
           throw Error('SELECTED_PLACE_MISSING');
         return seed.setup?.identity ? { ...opening, identity: seed.setup.identity } : opening;

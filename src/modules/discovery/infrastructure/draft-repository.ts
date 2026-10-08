@@ -56,13 +56,19 @@ async function selectionFor(
   const people = selection.personIds.map((id) => {
     const person = profile.people.find((p) => p.id === id);
     if (!person) throw new TaskError('INVALID_INPUT');
-    // A person's name is not permission to copy their photo.
+    // Selecting this person explicitly brings their associated image into this branch.
     return {
       ...person,
-      assetId:
-        person.assetId && selection.assetIds.includes(person.assetId) ? person.assetId : null,
+      assetId: person.assetId,
     };
   });
+  if (people.length > 8) throw new TaskError('INVALID_INPUT');
+  const assetIds = [
+    ...new Set([
+      ...selection.assetIds,
+      ...people.map((p) => p.assetId).filter((id): id is string => !!id),
+    ]),
+  ];
   const allowed = new Set(
     [
       profile.portraitAssetId,
@@ -73,15 +79,15 @@ async function selectionFor(
   if (selection.assetIds.some((id) => !allowed.has(id))) throw new TaskError('INVALID_INPUT');
   if (selection.portraitAssetId && selection.portraitAssetId !== profile.portraitAssetId)
     throw new TaskError('INVALID_INPUT');
-  const rows = selection.assetIds.length
+  const rows = assetIds.length
     ? (
         await sql.query(
-          "SELECT id,revision FROM parallel_life.assets WHERE id=ANY($1::uuid[]) AND owner_id=$2 AND world_id IS NULL AND status='ready' ORDER BY id FOR SHARE",
-          [selection.assetIds, owner],
+          "SELECT id,revision FROM parallel_life.assets WHERE id=ANY($1::uuid[]) AND owner_id=$2 AND world_id IS NULL AND origin='upload' AND status='ready' ORDER BY id FOR SHARE",
+          [assetIds, owner],
         )
       ).rows
     : [];
-  if (rows.length !== selection.assetIds.length) throw new TaskError('INVALID_INPUT');
+  if (rows.length !== assetIds.length) throw new TaskError('INVALID_INPUT');
   return {
     facts,
     events,
@@ -270,6 +276,7 @@ export class DraftRepository {
           story: current.story,
           setup: current.setup,
           ...selected,
+          personRoles: current.selection.personRoles ?? [],
           portraitAssetId: current.selection.portraitAssetId,
           draftRef: { id, version: current.version },
         });

@@ -131,8 +131,10 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
     if (selectedActorFilter !== 'all') {
       const actor = data.contacts.find((c) => c.id === selectedActorFilter);
       if (actor) {
-        result = result.filter(
-          (p) => p.description.includes(actor.name) || p.title.includes(actor.name),
+        result = result.filter((p) =>
+          p.sourcePersonId
+            ? p.sourcePersonId === actor.sourcePersonId
+            : p.description.includes(actor.name) || p.title.includes(actor.name),
         );
       }
     }
@@ -191,7 +193,10 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
           <div style={{ width: '40px' }} />
         </div>
         <div className={s.photoHeading}>
-          <time>{dayKey(photo.date)}</time>
+          <time>
+            {photo.sourcePersonId ? '上传于 ' : ''}
+            {dayKey(photo.date)}
+          </time>
           <h3>{photo.title}</h3>
         </div>
         <PhotoImage key={`${photo.id}:${photo.url}`} photo={photo} detail />
@@ -485,8 +490,10 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
             全部好友
           </button>
           {data.contacts.map((c) => {
-            const count = lifeMemories.filter(
-              (p) => p.description.includes(c.name) || p.title.includes(c.name),
+            const count = lifeMemories.filter((p) =>
+              p.sourcePersonId
+                ? p.sourcePersonId === c.sourcePersonId
+                : p.description.includes(c.name) || p.title.includes(c.name),
             ).length;
             const isSelected = selectedActorFilter === c.id;
             return (
@@ -660,6 +667,7 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
                     </p>
                   </div>
                   <div style={{ marginTop: '6px', fontSize: '10px', color: '#94a3b8' }}>
+                    {p.sourcePersonId ? '上传于 ' : ''}
                     {dayKey(p.date)}
                   </div>
                 </div>

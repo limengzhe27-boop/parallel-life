@@ -15,9 +15,21 @@ export function worldAppData(
   return {
     contacts: world.actors.map((actor) => ({
       id: actor.id,
+      ...(actor.sourcePersonId ? { sourcePersonId: actor.sourcePersonId } : {}),
       name: actor.name,
       relationship: actor.relationship,
       summary: actor.summary,
+      ...(actor.photo
+        ? {
+            avatarUrl:
+              '/api/v1/assets/' +
+              actor.photo.assetId +
+              '?worldId=' +
+              world.id +
+              '&revision=' +
+              actor.photo.revision,
+          }
+        : {}),
       unread: world.messages.filter(
         (message) =>
           message.actorId === actor.id && message.role !== 'user' && !viewed.has(message.id),
@@ -31,11 +43,13 @@ export function worldAppData(
         : identity
           ? ('identity' as const)
           : ('event' as const);
-      const description = uploaded
-        ? '你上传的照片'
-        : identity
-          ? '历史素材 · 生成来源待核验'
-          : '历史素材 · 生成来源待核验';
+      const description = photo.sourcePersonId
+        ? '用户带入的原图 · 日期为上传时间，不代表拍摄或共同经历'
+        : uploaded
+          ? '你上传的照片'
+          : identity
+            ? '历史素材 · 生成来源待核验'
+            : '历史素材 · 生成来源待核验';
       return {
         id: photo.id,
         date: photo.date,
@@ -43,7 +57,8 @@ export function worldAppData(
         description,
         status: 'ready' as const,
         tag,
-        url: `/api/v1/assets/${encodeURIComponent(photo.id)}?revision=${photo.revision}`,
+        url: `/api/v1/assets/${encodeURIComponent(photo.id)}?worldId=${encodeURIComponent(world.id)}&revision=${photo.revision}`,
+        ...(photo.sourcePersonId ? { sourcePersonId: photo.sourcePersonId } : {}),
       };
     }),
     messages: [

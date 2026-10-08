@@ -27,7 +27,17 @@ export function DraftEditor({
     [profile, setProfile] = useState(initialProfile);
   const [story, setStory] = useState(draft.story),
     [setup, setSetup] = useState(draft.setup),
-    [selection, setSelection] = useState(draft.selection);
+    [selection, setSelection] = useState(() => ({
+      ...draft.selection,
+      assetIds: [
+        ...new Set([
+          ...draft.selection.assetIds,
+          ...initialProfile.people
+            .filter((p) => draft.selection.personIds.includes(p.id))
+            .flatMap((p) => (p.assetId ? [p.assetId] : [])),
+        ]),
+      ],
+    }));
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [saved, setSaved] = useState(false);
@@ -44,15 +54,7 @@ export function DraftEditor({
       [profile.portraitAssetId, ...profile.referenceAssetIds].filter((id): id is string => !!id),
     ),
   ];
-  const pictures = [
-    ...new Set([
-      ...ownPhotos,
-      ...profile.people
-        .filter((p) => selection.personIds.includes(p.id))
-        .map((p) => p.assetId)
-        .filter((id): id is string => !!id),
-    ]),
-  ];
+  const pictures = ownPhotos;
   function close() {
     if (!busy && (!dirty || confirmed || window.confirm('更改还没有保存，仍要离开吗？'))) onClose();
   }
@@ -207,6 +209,7 @@ export function DraftEditor({
                   factIds: [],
                   eventIds: [],
                   personIds: [],
+                  personRoles: [],
                   assetIds: [],
                   portraitAssetId: null,
                 })
@@ -256,31 +259,76 @@ export function DraftEditor({
             </details>
             <details>
               <summary>重要的人 · 已选 {selection.personIds.length}</summary>
+              <p className={s.hint}>
+                选填，最多8位。选中人物时，其关联原图会同时出现在角色头像和相册中。普通头像也可以，不会用于推断长相。
+              </p>
               {profile.people.map((p) => (
-                <label className={s.choice} key={p.id}>
-                  <input
-                    type="checkbox"
-                    checked={selection.personIds.includes(p.id)}
-                    onChange={() => {
-                      const personIds = toggle(selection.personIds, p.id);
-                      const allowed = new Set([
-                        ...ownPhotos,
-                        ...profile.people
+                <div key={p.id} className={s.person}>
+                  <label className={s.choice}>
+                    <input
+                      type="checkbox"
+                      checked={selection.personIds.includes(p.id)}
+                      disabled={
+                        !selection.personIds.includes(p.id) && selection.personIds.length >= 8
+                      }
+                      onChange={() => {
+                        const personIds = toggle(selection.personIds, p.id);
+                        const personPhotos = profile.people
                           .filter((p) => personIds.includes(p.id))
-                          .map((p) => p.assetId),
-                      ]);
-                      setSelection({
-                        ...selection,
-                        personIds,
-                        assetIds: selection.assetIds.filter((id) => allowed.has(id)),
-                      });
-                    }}
-                  />
-                  <span>
-                    {p.name}
-                    <small>{p.relationship}</small>
-                  </span>
-                </label>
+                          .flatMap((p) => (p.assetId ? [p.assetId] : []));
+                        setSelection({
+                          ...selection,
+                          personIds,
+                          personRoles: (selection.personRoles ?? []).filter((r) =>
+                            personIds.includes(r.personId),
+                          ),
+                          assetIds: [
+                            ...new Set([
+                              ...selection.assetIds.filter((id) => ownPhotos.includes(id)),
+                              ...personPhotos,
+                            ]),
+                          ],
+                        });
+                      }}
+                    />
+                    {p.assetId && (
+                      <img
+                        className={s.personAvatar}
+                        src={`/api/v1/assets/${p.assetId}`}
+                        alt={`${p.name}的原图`}
+                      />
+                    )}
+                    <span>
+                      {p.name}
+                      <small>现实关系：{p.relationship}</small>
+                    </span>
+                  </label>
+                  {selection.personIds.includes(p.id) && (
+                    <label className={s.personRole}>
+                      <span>在这段人生里，他是谁（选填）</span>
+                      <input
+                        aria-label={`${p.name}的分支角色`}
+                        maxLength={160}
+                        placeholder="比如，让现实中的老板成为我的下属"
+                        value={selection.personRoles?.find((r) => r.personId === p.id)?.role ?? ''}
+                        onChange={(e) =>
+                          setSelection({
+                            ...selection,
+                            personRoles: [
+                              ...(selection.personRoles ?? []).filter((r) => r.personId !== p.id),
+                              ...(e.target.value.trim()
+                                ? [{ personId: p.id, role: e.target.value }]
+                                : []),
+                            ],
+                          })
+                        }
+                      />
+                      <small className={s.hint}>
+                        留空则由故事安排虚构角色，不会改变现实人物资料。
+                      </small>
+                    </label>
+                  )}
+                </div>
               ))}
               {!profile.people.length && <p className={s.hint}>还没有记录人物。</p>}
             </details>
@@ -295,6 +343,9 @@ export function DraftEditor({
                         aria-label={`带入照片 ${i + 1}`}
                         type="checkbox"
                         checked={selection.assetIds.includes(id)}
+                        disabled={profile.people.some(
+                          (p) => selection.personIds.includes(p.id) && p.assetId === id,
+                        )}
                         onChange={() => {
                           const assetIds = toggle(selection.assetIds, id);
                           setSelection({
@@ -312,7 +363,7 @@ export function DraftEditor({
                 ))}
               </div>
               {!pictures.length && (
-                <p className={s.hint}>还没有可选照片。选中人物后，可以单独选择他的照片。</p>
+                <p className={s.hint}>还没有可选的本人照片。人物原图随选中的人物一起带入。</p>
               )}
             </details>
           </fieldset>

@@ -11,6 +11,7 @@ export const AlbumPhotoSchema = z.strictObject({
   date: Timestamp,
   createdAt: Timestamp,
   kind: z.enum(['upload', 'generated']),
+  sourcePersonId: Id.optional(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   revision: z.number().int().positive(),
