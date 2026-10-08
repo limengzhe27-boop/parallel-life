@@ -1,3 +1,9 @@
+## 2026-10-08 · PLAY-01 / PLAY-01I 基础体验契约
+
+业务4739316（d689790的干净集成）已推送，Production 5p948gk00 / dpl_3UkvuByDiiykQHV5N7oF4obVeAdN Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。独立334check、49真实PG/1可选模型跳过、build通过；生产36项迁移校验和一致，无新SQL。公网旧世界读取→真实NPC私聊→回执重放→重读、跨访客404以及首页/分支/health共8项通过。
+
+本批只新增共享契约和纯领域规则，无群聊/现场仓储、API或UI，不声称新体验已可使用；成员/来源/行动/事项/媒体语义仍需真实服务端组装和模型验收。见[PLAY-01I](task-reports/PLAY-01I.md)。
+
 ## 2026-10-08 · PEOPLE-01R / PEOPLE-02 朋友资料优化集成
 
 业务提交609e266（含3fb0a7b修复及efe2747新版集成）已推送；Production nhtcmn277 / dpl_EXcj4Q3YhDBALvdzf9SgMqGRyJU9 Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。生产0036已应用，36项迁移一致；307常规检查、49真实PostgreSQL、四个真实访谈场景、build与390/1440实际编辑上传保存检查通过。
