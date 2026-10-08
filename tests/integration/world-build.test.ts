@@ -9,6 +9,7 @@ import { IdentityRepository } from '../../src/modules/identity/infrastructure/id
 import { ProfileRepository } from '../../src/modules/profile/infrastructure/profile-repository.ts';
 import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { resolveTurn } from '../../src/modules/world/application/resolve-turn.ts';
 import { beatCue } from '../../src/modules/world/domain/clock.ts';
 import type { TurnCommand, WorldEvent } from '../../src/modules/world/domain/types.ts';
 import { WorldPlanner } from '../../src/modules/world/infrastructure/world-planner.ts';
@@ -419,6 +420,86 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     assert.deepEqual((await builds.phone(owner, first.worldId)).choices, recoveredPhone.choices);
     await assert.rejects(builds.phone(other, first.worldId), { code: 'NOT_FOUND' });
     await assert.rejects(builds.phone(other, first.worldId), { code: 'NOT_FOUND' });
+    // Exercise the production command-to-effect ID path, not hand-made UUID fixtures.
+    const actualText = '我决定先修理一辆社区单车';
+    const actual = await resolveTurn(
+      {
+        worlds,
+        planner: {
+          async propose() {
+            return {
+              schemaVersion: 1,
+              effects: [
+                {
+                  type: 'message.received',
+                  id: 'model-reply',
+                  actorId,
+                  text: '可以先检查前后轮。',
+                },
+                {
+                  type: 'choice.recorded',
+                  id: 'model-choice',
+                  quote: actualText,
+                  intent: '先修理一辆社区单车并检查前后轮',
+                },
+              ],
+            };
+          },
+        },
+        now: () => new Date().toISOString(),
+        newId: randomUUID,
+      },
+      { userId: owner },
+      {
+        id: randomUUID(),
+        worldId: first.worldId,
+        expectedVersion: (await worlds.get({ userId: owner }, first.worldId)).version,
+        actorId,
+        text: actualText,
+      },
+    );
+    const actualChoice = actual.state.choices!.at(-1)!;
+    assert.match(actualChoice.id, /_effect_1$/);
+    assert.equal((await builds.phone(owner, first.worldId)).choices!.at(-1)!.id, actualChoice.id);
+    const nextQuote = '你可以先把前后轮都转一遍，再告诉我有没有异响';
+    const followed = await resolveTurn(
+      {
+        worlds,
+        planner: {
+          async propose() {
+            return {
+              schemaVersion: 1,
+              effects: [
+                { type: 'message.received', id: 'model-reply', actorId, text: nextQuote },
+                {
+                  type: 'choice.next_step',
+                  id: 'model-step',
+                  choiceId: actualChoice.id,
+                  quote: nextQuote,
+                },
+              ],
+            };
+          },
+        },
+        now: () => new Date().toISOString(),
+        newId: randomUUID,
+      },
+      { userId: owner },
+      {
+        id: randomUUID(),
+        worldId: first.worldId,
+        expectedVersion: actual.state.version,
+        actorId,
+        origin: 'director',
+        text: `[choice:${actualChoice.id}]`,
+      },
+    );
+    const actualPhone = await builds.phone(owner, first.worldId);
+    assert.equal(
+      actualPhone.choices!.at(-1)!.nextStep!.sourceMessageId,
+      followed.state.choices!.at(-1)!.nextStep!.sourceMessageId,
+    );
+    assert.match(actualPhone.choices!.at(-1)!.nextStep!.sourceMessageId, /_effect_0$/);
     const snapshot = (
       await admin.query(
         'SELECT state,approved_seed FROM parallel_life.world_initial_snapshots WHERE world_id=$1',

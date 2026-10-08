@@ -60,12 +60,23 @@ export const WorldBuildSchema = z.strictObject({
 });
 export const WorldBuildListSchema = z.array(WorldBuildSchema).max(100);
 export type WorldBuild = z.infer<typeof WorldBuildSchema>;
+/** Runtime effects are stable event-derived IDs; old UUID item IDs remain readable. */
+const WorldItemId = z.union([
+  Id,
+  z
+    .string()
+    .max(80)
+    .refine((value) => {
+      const match = /^(.{36})_effect_(?:0|[1-9]\d{0,2})$/.exec(value);
+      return Boolean(match && Id.safeParse(match[1]).success);
+    }, 'Invalid world item ID'),
+]);
 export const WorldPhoneSchema = z.strictObject({
   photos: z.array(AlbumPhotoSchema).optional(),
   choices: z
     .array(
       z.strictObject({
-        id: Id,
+        id: WorldItemId,
         actorId: Id,
         quote: z.string(),
         intent: z.string(),
@@ -77,7 +88,7 @@ export const WorldPhoneSchema = z.strictObject({
             quote: z.string(),
             at: Timestamp,
             sourceEventId: Id,
-            sourceMessageId: Id,
+            sourceMessageId: WorldItemId,
             calendar: z
               .strictObject({
                 id: Id,
@@ -101,7 +112,7 @@ export const WorldPhoneSchema = z.strictObject({
             quote: z.string(),
             at: Timestamp,
             sourceEventId: Id,
-            sourceMessageId: Id,
+            sourceMessageId: WorldItemId,
           })
           .optional(),
       }),

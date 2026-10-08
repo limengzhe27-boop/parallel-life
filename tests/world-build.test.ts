@@ -358,3 +358,57 @@ test('world correction identifies rejected actor ties and keeps their privacy gu
   }).propose(seed);
   assert.equal(calls, 2);
 });
+
+test('phone choice and next-step IDs accept exact persisted event-effect IDs and reject arbitrary strings', async () => {
+  const { WorldPhoneSchema } = await import('../src/contracts/world-build.ts');
+  const eventId = randomUUID();
+  const choice = {
+    id: `${eventId}_effect_1`,
+    actorId: randomUUID(),
+    quote: '我决定检查前后轮',
+    intent: '检查前后轮',
+    at: '2026-10-08T00:00:00.000Z',
+    sourceEventId: eventId,
+    status: 'followed_up',
+    nextStep: {
+      quote: '先转动前后轮',
+      at: '2026-10-08T01:00:00.000Z',
+      sourceEventId: randomUUID(),
+      sourceMessageId: `${randomUUID()}_effect_0`,
+    },
+  };
+  const phone = {
+    id: randomUUID(),
+    seedId: randomUUID(),
+    title: '合成维修铺',
+    time: '2026-10-08T01:00:00.000Z',
+    identity: '店主',
+    setting: '街角',
+    actors: [],
+    messages: [],
+    notes: [],
+    choices: [choice],
+  };
+  assert.equal(WorldPhoneSchema.parse(phone).choices![0]!.id, choice.id);
+  assert(
+    WorldPhoneSchema.safeParse({ ...phone, choices: [{ ...choice, id: randomUUID() }] }).success,
+  );
+  for (const id of [
+    'arbitrary',
+    `${eventId}_effect_10000`,
+    `${eventId}_effect_01`,
+    `${eventId}_effect_0_extra`,
+    `invalid-event_effect_0`,
+  ])
+    assert.equal(
+      WorldPhoneSchema.safeParse({ ...phone, choices: [{ ...choice, id }] }).success,
+      false,
+    );
+  assert.equal(
+    WorldPhoneSchema.safeParse({
+      ...phone,
+      choices: [{ ...choice, nextStep: { ...choice.nextStep, sourceMessageId: 'arbitrary' } }],
+    }).success,
+    false,
+  );
+});
