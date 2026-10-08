@@ -1,3 +1,6 @@
+import { unsupportedReturnClaim } from '../domain/return-message-policy.ts';
+import { parseProposal } from '../domain/validation.ts';
+import { actorContext } from './actor-context.ts';
 import { DomainError } from '../domain/errors.ts';
 import { advanceClock, beatCue, selectSpeaker } from '../domain/clock.ts';
 import { buildAgenda, eligibleAgenda, type CommitmentMemory } from '../domain/agenda.ts';
@@ -99,6 +102,47 @@ export async function advanceWorld(
       // An early sampled day may be quiet while a later sampled day is old
       // enough for a real follow-up. Inspect the remaining bounded slots.
       if (!actorId) continue;
+      const recalled = deps.memories
+        ? await deps.memories(actorId)
+        : { records: [] as MemoryRecord[], blockedSources: new Set<string>() };
+      // Stage directions must obey the same source/visibility rules as the actual NPC context.
+      const visible = actorContext(atBeat, actorId, '', recalled.records, recalled.blockedSources);
+      const cueState = {
+        ...atBeat,
+        facts: visible.facts,
+        messages: visible.messages,
+        appointments: visible.appointments,
+        choices: visible.choices,
+      };
+      const visibleMemories = worldMemories.filter(
+        (m) =>
+          m.scopeType === 'character' &&
+          m.characterId === actorId &&
+          !recalled.blockedSources.has(m.id) &&
+          !m.sourceIds.some((id) => recalled.blockedSources.has(id)),
+      );
+      const rebuilt = buildAgenda(cueState, 20, visibleMemories);
+      const cueAgenda = agenda.filter((thread) => {
+        if (thread.actorId !== actorId) return false;
+        if (thread.kind.startsWith('choice_'))
+          return visible.choices?.some((c) => c.id === thread.sourceId) ?? false;
+        if (thread.kind.startsWith('appointment_') || thread.kind === 'proposed_appointment')
+          return visible.appointments.some((a) => thread.detail.includes(a.title));
+        // The receiving NPC sees the sourced disclosure fact, not the sender's private transcript.
+        if (thread.kind === 'disclosure_followup')
+          return visible.facts.some(
+            (f) =>
+              f.disclosure &&
+              f.believedByActorId === actorId &&
+              thread.detail.includes(f.disclosure.quote),
+          );
+        return rebuilt.some(
+          (t) => t.actorId === actorId && t.kind === thread.kind && t.detail === thread.detail,
+        );
+      });
+      // Explicit manual recovery must retain an older saved attempt's actor/command even
+      // when the old agenda no longer exists; automatic selection never gets this exception.
+      if (!cueAgenda.length && !('actorId' in plan)) continue;
       const started = await deps.clock.beginAttempt(
         session.userId,
         worldId,
@@ -111,11 +155,28 @@ export async function advanceWorld(
         await resolveTurn(
           {
             worlds: deps.worlds,
-            planner: deps.planner,
+            planner: {
+              async propose(input) {
+                const proposal = parseProposal(await deps.planner.propose(input));
+                if (
+                  proposal.effects.some(
+                    (effect) =>
+                      effect.type === 'media.requested' ||
+                      (effect.type === 'message.received' &&
+                        unsupportedReturnClaim(cueState, actorId, effect.text)),
+                  )
+                )
+                  throw new DomainError(
+                    'INVALID_PROPOSAL',
+                    'Return messages require established outcomes and do not launch image jobs',
+                  );
+                return proposal;
+              },
+            },
             now: deps.now,
             storyNow: () => beatAt,
             newId: deps.newId,
-            ...(deps.memories ? { memories: deps.memories } : {}),
+            ...(deps.memories ? { memories: async () => recalled } : {}),
           },
           session,
           {
@@ -123,7 +184,7 @@ export async function advanceWorld(
             origin: 'director',
             worldId,
             actorId,
-            text: beatCue(atBeat, actorId, agenda, direction),
+            text: beatCue(cueState, actorId, cueAgenda, direction),
             expectedVersion: world.version,
           },
         );

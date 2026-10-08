@@ -1,3 +1,4 @@
+import { returnMessageLines } from './return-message-policy.ts';
 import { buildAgenda, threadFor, type AgendaThread } from './agenda.ts';
 import { directionLines, EMPTY_DIRECTION, type WorldDirection } from './direction.ts';
 import type { WorldState } from './types.ts';
@@ -69,7 +70,12 @@ export function advanceClock(
   for (let index = 1; index <= played; index += 1) {
     // A long absence is sampled across the elapsed days, not replayed entirely
     // in the first ninety minutes after the player last opened the phone.
-    const slot = due <= played ? index : Math.floor((due * index) / (played + 0.5));
+    const slot =
+      due <= played
+        ? index
+        : index === played
+          ? Math.max(1, due - 1)
+          : Math.floor((due * index) / (played + 0.5));
     beats.push(new Date(storyStart + slot * beatMs).toISOString());
   }
   return {
@@ -161,6 +167,7 @@ export function beatCue(
     thread?.sourceId ? `[choice:${thread.sourceId}]` : '',
     thread ? `（未了结的事：${thread.detail}。可以自然提起，但不要替用户答应用户的事。）` : '',
     ...directionLines(direction, actorId),
+    ...returnMessageLines(state, actorId, thread),
     '只围绕这件已经发生、仍需回应的事，发一条像真人手机消息的简短来信；不要凭空新增危机，也不要重复催促。',
   ]
     .filter(Boolean)

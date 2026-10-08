@@ -51,3 +51,33 @@ test('later friend replies preserve ordinary cooperation and negated hierarchy',
     assert.equal(result.effects[0]!.text, text);
   }
 });
+
+test('return planning requests an evidence-anchored step without changing ordinary user chat prompts', async () => {
+  const facts = [
+    {
+      id: 'limit',
+      text: '试做两种配方后选择菜单',
+      visibility: { kind: 'world' as const },
+      sourceEventId: 'seed',
+    },
+  ];
+  for (const origin of [undefined, 'director'] as const) {
+    let calls = 0;
+    await new WorldTurnPlanner({
+      async complete(messages) {
+        calls++;
+        const input = JSON.parse(messages[1]!.content);
+        if (origin === 'director') {
+          assert.deepEqual(input.returnFocus.knownSituation, ['试做两种配方后选择菜单']);
+          assert.match(messages[0]!.content, /本轮交付要求/);
+          assert.match(input.returnFocus.requirement, /用户尚未报告完成/);
+        } else {
+          assert.equal(input.returnFocus, undefined);
+          assert(!messages[0]!.content.includes('本轮交付要求'));
+        }
+        return '两种配方可以分别试一小盘，我帮你记用料，你先选哪种？';
+      },
+    }).propose({ context: { ...context, facts, turnOrigin: origin }, userText: '先试做两种配方' });
+    assert.equal(calls, 1);
+  }
+});
