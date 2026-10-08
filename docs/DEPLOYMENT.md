@@ -638,3 +638,7 @@ https://github.com/limengzhe27-boop/parallel-life
 应用74c0b7e及8969278，最终Production a2kuw9rov / dpl_9emvjDS6dZi76ch1KppF4thbH6bc Ready，正式域名 https://parallel-life-nu.vercel.app 已切换。生产35/35迁移校验和一致，无新SQL；最终check286/286及build通过。推荐格式/资料引用失败最多一次受限纠正，未知结果不自动重付；无所选现实人物时不再给原创配角来源ID占位示例；明确礼貌和假设创建请求能打开审核入口，否定与引用仍受保护。
 
 公网独立合成访客成功推荐3方向→草案确认→开场创建（5角色/2消息）→手机读取→NPC真实回复并重读（4消息/version1）；重复创建同一世界。390×844与1440×1000通过分支进入、解锁、页面无横向溢出；真实聊天“可以帮我创建一个如果去上海读大学的分支吗？”自动打开方向弹窗，双端可继续确认。未触碰真实用户资料，不把初版未通过的生成记为成功；完整证据与限制见[BRANCH-01Q报告](task-reports/BRANCH-01Q.md)。
+
+## 2026-10-08 · PEOPLE-01Q 朋友带入专项审查
+
+报告提交0e54396，Production 1vtm36l84 / dpl_F6VaHcA9wAi1Qyeuun2v5iCacUHm Ready，正式域名已切换；业务仍为8969278，未发布缺陷修复或PEOPLE-02。35/35生产迁移一致，无新SQL；286check/build、真实PG专项通过，生产两位同名朋友的快照/原图/角色/真实NPC/跨访客隔离通过。首次世界生成失败，经一次明确新任务重试成功；取消上传遗留素材和关系标签/人设语义矛盾已记录。health、首页、分支页200。见[专项报告](task-reports/PEOPLE-01Q.md)。
