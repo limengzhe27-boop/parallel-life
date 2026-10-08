@@ -52,7 +52,9 @@ test('selected identities and branch roles are fixed without exposing images or 
   assert.equal(person.relationship, '老板');
   assert.equal(sent.includes(person.assetId), false);
   assert.equal(sent.includes('assets'), false);
-  assert.equal(JSON.parse(sent).people[0].realRelationship, '老板');
+  assert.equal(JSON.parse(sent).people[0].realRelationship, undefined);
+  assert.equal(JSON.parse(sent).people[0].branchRole, seed.personRoles[0]!.role);
+  assert.match(result.actors[0]!.persona, /本分支与主角的关系/);
 });
 test('missing, repeated and foreign person mappings fail closed', async () => {
   for (const actors of [
@@ -134,4 +136,91 @@ test('legacy snapshots remain unmapped, no-photo and same-name people remain usa
     },
   }).propose(ApprovedSeedSchema.parse(noImage));
   assert.equal(result.actors[0]!.name, result.actors[1]!.name);
+});
+
+test('server roster keys map same-name people without requiring the model to copy UUIDs', async () => {
+  const second = { ...person, id: randomUUID(), assetId: null };
+  const result = await new WorldPlanner({
+    async complete(messages) {
+      const people = JSON.parse(messages[1]!.content).people;
+      return JSON.stringify({
+        ...opening,
+        actors: [
+          ...people.map((p: { key: string; name: string }) => ({
+            key: p.key,
+            name: p.name,
+            relationship: '搭档',
+            persona: '专注自己的工作',
+          })),
+          { key: 'third', name: '其他人', relationship: '同事', persona: '有自己的打算' },
+        ],
+        messages: [{ actorKey: 'person_0', text: '初稿发你了，请看看？' }],
+      });
+    },
+  }).propose(
+    ApprovedSeedSchema.parse({ ...seed, people: [person, second], personRoles: [], assets: [] }),
+  );
+  assert.deepEqual(
+    result.actors.slice(0, 2).map((a) => a.sourcePersonId),
+    [person.id, second.id],
+  );
+});
+test('a foreign source ID on a known roster key is rejected rather than overwritten', async () => {
+  await assert.rejects(
+    new WorldPlanner({
+      async complete() {
+        return JSON.stringify({
+          ...opening,
+          actors: opening.actors.map((a, i) =>
+            i === 0 ? { ...a, key: 'person_0', sourcePersonId: randomUUID() } : a,
+          ),
+        });
+      },
+    }).propose(ApprovedSeedSchema.parse(seed)),
+    { code: 'INVALID_RESPONSE' },
+  );
+});
+test('a contradictory persona or own message gets one targeted correction, never just a label replacement', async () => {
+  for (const bad of [
+    { persona: '他是你的直属上司，所有重大决定都由他批准。' },
+    { message: '我是你老板，这次你必须服从我的安排。' },
+  ]) {
+    let calls = 0;
+    const equalSeed = ApprovedSeedSchema.parse({
+      ...seed,
+      personRoles: [{ personId: person.id, role: '我的同级搭档，没有上下级关系' }],
+    });
+    const planner = new WorldPlanner({
+      async complete(messages) {
+        calls++;
+        if (calls === 2) {
+          assert.match(messages[2]!.content, /SELECTED_ROLE_CONFLICT/);
+          return JSON.stringify(opening);
+        }
+        return JSON.stringify({
+          ...opening,
+          actors: opening.actors.map((a, i) =>
+            i === 0 ? { ...a, persona: bad.persona ?? a.persona } : a,
+          ),
+          messages: [{ actorKey: 'a', text: bad.message ?? '初稿好了' }],
+        });
+      },
+    });
+    const result = await planner.propose(equalSeed);
+    assert.equal(calls, 2);
+    assert.match(result.actors[0]!.persona, /同级搭档/);
+    await assert.rejects(
+      new WorldPlanner({
+        async complete() {
+          return JSON.stringify({
+            ...opening,
+            actors: opening.actors.map((a, i) =>
+              i === 0 ? { ...a, persona: '他是你的直属上司' } : a,
+            ),
+          });
+        },
+      }).propose(equalSeed),
+      { code: 'INVALID_RESPONSE' },
+    );
+  }
 });

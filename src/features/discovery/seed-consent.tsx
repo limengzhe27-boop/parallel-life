@@ -55,10 +55,12 @@ export function SeedReceipt({
           <ul>
             {seed.people.map((person) => (
               <li key={person.id}>
-                {person.name}：
+                {person.name}（现实关系：{person.relationship}）
+                <br />
+                本分支角色：
                 {seed.personRoles?.find((r) => r.personId === person.id)?.role ??
                   '由故事安排虚构角色'}
-                {person.assetId && '；原图用于角色头像与相册'}
+                {person.assetId && '；照片会用于角色头像和相册'}
               </li>
             ))}
           </ul>

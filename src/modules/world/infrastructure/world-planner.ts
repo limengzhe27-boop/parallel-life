@@ -2,7 +2,8 @@ import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import type { ApprovedSeed } from '../../../contracts/seeds.ts';
 import { WorldOpeningSchema, type WorldOpening } from '../../../contracts/world-build.ts';
-export const WORLD_PROMPT_VERSION = 'world-opening-8';
+import { contradictsSelectedRole } from '../domain/opening-validation.ts';
+export const WORLD_PROMPT_VERSION = 'world-opening-9';
 /**
  * A world opening is the longest structured answer in the product: up to five
  * actors with personas, opening messages and notes, plus the model's own
@@ -154,6 +155,8 @@ export class WorldPlanner {
           'INVALID_PERSON_MAPPING',
           'UNEXPECTED_PERSON_MAPPING',
           'SELECTED_PLACE_MISSING',
+          'SELECTED_ROLE_CONFLICT',
+          'INVALID_PERSONA_LENGTH',
           'SETTING_CAST_MISMATCH',
           'MODEL_OUTPUT_WITHOUT_OBJECT',
           'MODEL_OUTPUT_NOT_JSON',
@@ -180,12 +183,15 @@ export class WorldPlanner {
       setup: seed.setup ?? { identity: '', place: '', tone: '' },
       facts: seed.facts,
       events: seed.events ?? [],
-      people: seed.people.map((p) =>
+      people: seed.people.map((p, index) =>
         mapped
           ? {
               personId: p.id,
+              key: `person_${index}`,
               name: p.name,
-              realRelationship: p.relationship,
+              ...(seed.personRoles?.some((r) => r.personId === p.id && r.role)
+                ? {}
+                : { realRelationship: p.relationship }),
               branchRole: seed.personRoles?.find((r) => r.personId === p.id)?.role ?? null,
             }
           : { name: p.name, relationship: p.relationship },
@@ -209,7 +215,7 @@ export class WorldPlanner {
               )
             : SYSTEM) +
           (mapped && seed.people.length
-            ? '\n本次人物有personId。每位已选人物必须恰好对应一个actor，输出sourcePersonId为其personId原文；其余原创配角不填写sourcePersonId（不要填null或空串）。sourcePersonId是允许字段，不能省略所选人物的映射。actors共3至8位，先包含全部已选人物，再按需要补充原创人物。branchRole是用户指定的本分支虚构角色，优先遵守，即使与realRelationship相反；未指定时你可提出适合故事的虚构角色，不能强迫沿用现实关系。姓名由服务端固定。角色改写不代表现实变化，不根据照片猜身份，未收到任何照片内容。'
+            ? '\n本次人物有personId。每位已选人物必须恰好对应一个actor，输出sourcePersonId为其personId原文；其余原创配角不填写sourcePersonId（不要填null或空串）。sourcePersonId是允许字段，不能省略所选人物的映射。actors共3至8位，先包含全部已选人物，再按需要补充原创人物；所选人物使用people给定key，不改名，不因同名合并。所选人物可同名，但key不能重复。branchRole是用户指定的本分支虚构角色，优先遵守，即使与realRelationship相反；未指定时你可提出适合故事的虚构角色，不能强迫沿用现实关系。姓名由服务端固定。persona、messages和notes都必须遵守branchRole，不仅relationship标签；同级搭档不得声称自己是主角的上司、要求服从或审批主角决定。角色改写不代表现实变化，不根据照片猜身份，未收到任何照片内容。'
             : seed.people.length
               ? '\n本次使用旧版人物设定，延续已授权姓名与关系，全部省略sourcePersonId字段。'
               : '\n本次没有选中的现实人物，所有actors是原创配角，全部省略sourcePersonId字段，不填null、空串或示例占位值。') +
@@ -227,8 +233,19 @@ export class WorldPlanner {
               {
                 ...CORRECTION,
                 content:
-                  CORRECTION.content +
-                  `上次具体问题：${reason}。actorTies.relationship只写配角彼此的关系，不包含你/主角/用户及私人细节。每个字符串内的引号或换行必须转义。`,
+                  (mapped
+                    ? CORRECTION.content.replace(
+                        'key、name 都不重复',
+                        'key 不重复；所选人物可以同名，不能合并',
+                      )
+                    : CORRECTION.content) +
+                  `上次具体问题：${reason}。actorTies.relationship只写配角彼此的关系，不包含你/主角/用户及私人细节。每个字符串内的引号或换行必须转义。` +
+                  (seed.setup?.place
+                    ? `setting必须包含所选地点原文：${JSON.stringify(seed.setup.place)}，不能省略或换地点。`
+                    : '') +
+                  (reason === 'SELECTED_ROLE_CONFLICT'
+                    ? '重写矛盾的人物人设与开场台词，遵守branchRole，不能只换关系标签。'
+                    : ''),
               },
               ...(mapped && seed.people.length
                 ? [
@@ -244,7 +261,26 @@ export class WorldPlanner {
         WORLD_OPENING_MAX_TOKENS,
       );
       try {
-        const opening = parseOpening(raw, mapped);
+        const modelOutput = extractJsonObject(raw);
+        // Bind only server-provided actor keys; never infer identity from a name.
+        if (
+          mapped &&
+          modelOutput &&
+          typeof modelOutput === 'object' &&
+          'actors' in modelOutput &&
+          Array.isArray(modelOutput.actors)
+        ) {
+          for (const actor of modelOutput.actors) {
+            if (!actor || typeof actor !== 'object') continue;
+            const index = seed.people.findIndex((_, i) => actor.key === `person_${i}`);
+            if (index < 0) continue;
+            const person = seed.people[index]!;
+            if (actor.sourcePersonId !== undefined && actor.sourcePersonId !== person.id)
+              throw Error('INVALID_PERSON_MAPPING');
+            actor.sourcePersonId = person.id;
+          }
+        }
+        const opening = parseOpening(JSON.stringify(modelOutput), mapped);
         if (mapped) {
           const selected = new Set(seed.people.map((p) => p.id));
           const linked = opening.actors.filter((a) => a.sourcePersonId);
@@ -258,7 +294,18 @@ export class WorldPlanner {
             const person = seed.people.find((p) => p.id === actor.sourcePersonId)!;
             actor.name = person.name;
             const role = seed.personRoles?.find((r) => r.personId === person.id)?.role;
-            if (role) actor.relationship = role;
+            if (role) {
+              const relevant = [
+                actor.persona,
+                ...opening.messages.filter((m) => m.actorKey === actor.key).map((m) => m.text),
+                ...opening.notes.filter((n) => n.text.includes(person.name)).map((n) => n.text),
+              ];
+              if (relevant.some((text) => contradictsSelectedRole(role, text)))
+                throw Error('SELECTED_ROLE_CONFLICT');
+              actor.relationship = role;
+              actor.persona = `本分支与主角的关系：${role}。此关系优先于现实关系与其他人物描述。${actor.persona}`;
+              if (actor.persona.length > 1200) throw Error('INVALID_PERSONA_LENGTH');
+            }
           }
         } else if (opening.actors.some((a) => a.sourcePersonId))
           throw Error('UNEXPECTED_PERSON_MAPPING');
@@ -271,6 +318,8 @@ export class WorldPlanner {
           'INVALID_PERSON_MAPPING',
           'UNEXPECTED_PERSON_MAPPING',
           'SELECTED_PLACE_MISSING',
+          'SELECTED_ROLE_CONFLICT',
+          'INVALID_PERSONA_LENGTH',
           'SETTING_CAST_MISMATCH',
           'MODEL_OUTPUT_WITHOUT_OBJECT',
           'MODEL_OUTPUT_NOT_JSON',

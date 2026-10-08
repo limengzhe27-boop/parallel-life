@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { WorldBuild } from '../../contracts/world-build.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
+import { retryBuildTask } from './build-task.ts';
 export function BuildControl({
   seedId,
   build,
@@ -54,9 +55,7 @@ export function BuildControl({
         else {
           if (retry.current?.taskId !== task.id)
             retry.current = { taskId: task.id, commandId: crypto.randomUUID() };
-          await client.retryTask(task.id, retry.current.commandId);
-          void client
-            .task(task.id)
+          void retryBuildTask(client, task.id, retry.current.commandId, onChange)
             .then(() => onChange())
             .catch((e) => setError(e instanceof ApiFailure ? e.message : '构建未完成，请重试'));
         }
@@ -109,7 +108,13 @@ export function BuildControl({
                     ? '创建已暂停'
                     : '这次没有完成'}
               </strong>
-              <small>你的设定还在，可以重新准备</small>
+              <small>
+                {task.status === 'unknown'
+                  ? '结果尚不确定，请先刷新查看。明确重试可能再次调用 AI。'
+                  : task.errorCode === 'INVALID_AI_OUTPUT'
+                    ? '开场的人物或情境没有符合设定。已选资料和照片都还在，可重新准备。'
+                    : '你的设定和已选资料还在，可以重新准备。'}
+              </small>
             </span>
           </div>
           <Button disabled={busy} onClick={() => void act('retry')}>
