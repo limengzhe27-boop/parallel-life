@@ -283,6 +283,7 @@ export function ImportantPeople({
             variant="ghost"
             className="icon-button"
             aria-label="添加重要的人"
+            disabled={people.length >= 30}
             onClick={() => {
               setEditing(null);
               setOpen(true);
@@ -291,6 +292,7 @@ export function ImportantPeople({
             <Icon name="plus" size={18} />
           </Button>
         </div>
+        {people.length >= 30 && <p className="form-hint">已保存 30 位人物，可编辑已有记录。</p>}
         {people.length === 0 ? (
           <p className="section-copy">
             那个陪你走过一段路的人，
@@ -352,6 +354,10 @@ function PersonEditor({
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   async function photo(file: File) {
+    if (file.size > 4 * 1024 * 1024) {
+      setError('照片不能超过 4MB，请换一张。');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -423,7 +429,7 @@ function PersonEditor({
           ) : (
             <Icon name="photo" size={26} />
           )}
-          <span>{busy ? '正在保存…' : assetId ? '更换照片' : '选一张 TA 的照片（可选）'}</span>
+          <span>{busy ? '正在保存…' : assetId ? '更换照片' : '上传照片或头像（可选）'}</span>
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
@@ -431,10 +437,12 @@ function PersonEditor({
             disabled={busy}
             onChange={(e) => {
               const file = e.target.files?.[0];
+              e.target.value = '';
               if (file) void photo(file);
             }}
           />
         </label>
+        <p className="form-hint">每人 1 张，支持 JPG、PNG、WebP，最大 4MB。</p>
         {assetId && (
           <Button type="button" variant="ghost" disabled={busy} onClick={() => setAssetId(null)}>
             暂时不用这张照片

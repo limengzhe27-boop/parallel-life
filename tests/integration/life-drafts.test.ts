@@ -154,12 +154,11 @@ test('life drafts persist edits and explicit references; confirm races and crash
       seed = await seeds.get(f.owner, confirms[0]!.seedId!);
     assert.equal(seed.story.title, '我的第一部电影');
     assert.deepEqual(seed.setup, request.setup);
-    assert.deepEqual(seed.assets, [{ assetId: f.photo, revision: 1 }]);
-    assert.equal(
-      seed.people[0]!.assetId,
-      null,
-      'selecting a person does not authorize their photo',
+    assert.deepEqual(
+      [...seed.assets].sort((a, b) => a.assetId.localeCompare(b.assetId)),
+      [f.photo, f.second].sort().map((assetId) => ({ assetId, revision: 1 })),
     );
+    assert.equal(seed.people[0]!.assetId, f.second, 'selected person brings their photo');
     assert.deepEqual(seed.events, [
       { eventId: f.eventId, title: '2020年选择了设计专业', date: '2020' },
     ]);
