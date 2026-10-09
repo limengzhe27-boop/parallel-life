@@ -92,8 +92,8 @@ const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode
   ),
   time: (
     <>
-      <rect x="5" y="11" width="22" height="16" rx="3" />
-      <path d="m5 11 21-5-1-4L4 7zM10 6l4 4M19 4l4 4m-10 9 7 4-7 4z" />
+      <circle cx="16" cy="16" r="11" />
+      <path d="M16 8v9l6 3" />
     </>
   ),
   home: (
@@ -104,7 +104,87 @@ const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode
   back: <path d="m19 7-9 9 9 9" />,
   next: <path d="m13 7 9 9-9 9" />,
 };
-export function PhoneIcon({ name }: { name: keyof typeof shapes }) {
+const appFaces: Partial<Record<keyof typeof shapes, ReactNode>> = {
+  messages: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#15c65e" />
+      <path
+        d="M20.5 7.8C14.4 3.1 4.1 6.1 4.1 12.7c0 2.4 1.4 4.5 3.6 5.8l-.8 3 3.5-1.7c.7.2 1.5.3 2.3.3-.1-5 3.7-8.4 9.1-8.3a7.1 7.1 0 0 0-1.3-4Z"
+        fill="#fff"
+      />
+      <path
+        d="M28.2 20c0-4.1-3.5-7.3-7.9-7.3s-7.9 3.2-7.9 7.3 3.5 7.3 7.9 7.3c1 0 2-.2 2.8-.5l2.8 1.3-.6-2.6a6.9 6.9 0 0 0 2.9-5.5Z"
+        fill="#fff"
+      />
+      <circle cx="10" cy="11" r="1" fill="#15c65e" />
+      <circle cx="16.2" cy="11" r="1" fill="#15c65e" />
+      <circle cx="17.7" cy="18.4" r=".9" fill="#15c65e" />
+      <circle cx="23.3" cy="18.4" r=".9" fill="#15c65e" />
+    </g>
+  ),
+  photos: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#fff" />
+      {['#f64d5e', '#ff9431', '#ffcc35', '#adc94c', '#57be7a', '#5ac2cc', '#5489df', '#ac68c9'].map(
+        (color, i) => (
+          <ellipse
+            key={color}
+            cx="16"
+            cy="10.2"
+            rx="4.6"
+            ry="6.8"
+            transform={`rotate(${i * 45} 16 16)`}
+            fill={color}
+            opacity=".82"
+          />
+        ),
+      )}
+    </g>
+  ),
+  notes: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#fffef9" />
+      <path d="M7 0h18a7 7 0 0 1 7 7v3H0V7a7 7 0 0 1 7-7Z" fill="#f7cc46" />
+      <path d="M0 10.6h32" stroke="#d2bd78" strokeWidth=".35" strokeDasharray=".4 1" />
+      <path d="M0 16.5h32M0 22.5h32M0 28.5h32" stroke="#d6d6d0" strokeWidth=".35" />
+    </g>
+  ),
+  scenes: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#447f77" />
+      <rect x="6" y="11" width="20" height="15" rx="2.5" fill="#fff" />
+      <path d="m5.6 9.5 19.7-4.7 1.1 4.6-19.7 4.7Z" fill="#ecf7f4" />
+      <path d="m9.5 8.6 3.6 4M17.1 6.8l3.6 4" stroke="#447f77" strokeWidth="2.4" />
+      <path d="m13 15 7 4-7 4Z" fill="#447f77" />
+    </g>
+  ),
+  timeline: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#5085c8" />
+      <rect x="5" y="5" width="22" height="22" rx="3" fill="#edf4ff" />
+      <circle cx="16" cy="12" r="4" fill="#5085c8" />
+      <path d="M9 24v-2a7 7 0 0 1 14 0v2Z" fill="#5085c8" />
+      <path d="M5 9h2M5 14h2M5 19h2" stroke="#8daedb" strokeWidth="1" />
+    </g>
+  ),
+  time: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#17191f" />
+      <circle cx="16" cy="16" r="12.4" fill="#fafafa" />
+      <path d="M16 5v1.5M16 25.5V27M5 16h1.5M25.5 16H27" stroke="#25272c" strokeWidth="1" />
+      <path d="M16 8.7v7.8l5.6 3.1" stroke="#25272c" strokeWidth="1.8" />
+      <path d="M16 6.8v16" stroke="#e7514d" strokeWidth=".55" />
+      <circle cx="16" cy="16" r="1.2" fill="#e7514d" />
+    </g>
+  ),
+};
+export function PhoneIcon({
+  name,
+  variant = 'glyph',
+}: {
+  name: keyof typeof shapes;
+  variant?: 'glyph' | 'app';
+}) {
   return (
     <svg
       width="32"
@@ -117,7 +197,7 @@ export function PhoneIcon({ name }: { name: keyof typeof shapes }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {shapes[name]}
+      {variant === 'app' ? (appFaces[name] ?? shapes[name]) : shapes[name]}
     </svg>
   );
 }

@@ -36,6 +36,16 @@ export function PhoneDesktop({
         Date.parse(item.at) >= current,
     )
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0];
+  const note = [...data.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const choice = [...(data.choices ?? [])]
+    .filter(
+      (item) =>
+        item.status !== 'superseded' &&
+        item.result?.kind !== 'reported_done' &&
+        item.result?.kind !== 'abandoned',
+    )
+    .sort((a, b) => b.at.localeCompare(a.at))[0];
+  const record = choice?.intent || note?.title;
   const day = worldDayKey(reference);
   const weekday = worldWeekday(reference);
   const nextDay = next ? worldDayKey(next.at) : '';
@@ -110,27 +120,32 @@ export function PhoneDesktop({
         </button>
       </div>
 
+      <button
+        className={styles.record}
+        onClick={() => open('notes')}
+        aria-label={record ? `打开备忘录：${record}` : '打开备忘录'}
+      >
+        <span className={styles.recordIcon}>
+          <PhoneIcon name="notes" variant="app" />
+        </span>
+        <span className={styles.recordBody}>
+          <span className={styles.recordLabel}>备忘录</span>
+          <strong>{record || '还没有记录'}</strong>
+        </span>
+        <PhoneIcon name="next" />
+      </button>
+
       <div className={styles.utilities} aria-label="手机工具">
-        {(['timeline', 'time'] as const).map((panel) => (
-          <button key={panel} data-panel={panel} onClick={() => openPanel(panel)}>
-            <span className={`${styles.utilityIcon} ${styles[panel]}`}>
-              {panel === 'time' ? (
-                <svg
-                  viewBox="0 0 32 32"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <circle cx="16" cy="16" r="10.5" />
-                  <path d="M16 9v7l5 3" />
-                </svg>
-              ) : (
-                <PhoneIcon name={panel} />
-              )}
+        {(['scenes', 'timeline', 'time'] as const).map((item) => (
+          <button
+            key={item}
+            data-panel={item}
+            onClick={() => (item === 'scenes' ? open('scenes') : openPanel(item))}
+          >
+            <span className={styles.utilityIcon}>
+              <PhoneIcon name={item} variant="app" />
             </span>
-            <span>{panel === 'timeline' ? '身份' : '时间'}</span>
+            <span>{item === 'scenes' ? '现场' : item === 'timeline' ? '身份' : '时间'}</span>
           </button>
         ))}
       </div>

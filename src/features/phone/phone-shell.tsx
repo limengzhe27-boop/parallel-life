@@ -319,7 +319,7 @@ function LifePhone({
               <strong>{dateLabel.match(/(\d{1,2})\s*日/)?.[1] ?? '—'}</strong>
             </span>
           ) : (
-            <PhoneIcon name={app} />
+            <PhoneIcon name={app} variant="app" />
           )}
         </span>
         {pending.filter((n) => n.app === app).length > 0 && (
@@ -466,7 +466,7 @@ function LifePhone({
         )}
         {isHome && (
           <nav className={styles.dock} aria-label="常用应用">
-            {desktopApps.map(appButton)}
+            {desktopApps.filter((app) => app !== 'scenes').map(appButton)}
           </nav>
         )}
         <button
