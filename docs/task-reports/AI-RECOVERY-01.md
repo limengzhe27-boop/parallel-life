@@ -19,3 +19,19 @@
 本轮真实文本当前0/2，决定联合READY后用新自有合成账号仅一个focused命令，原planner至多2请求计入本批预算（如果纠正或unknown也计）；不运行任何上一批unknown，不再跑视觉/生成。只做request/response/parse/proposal阶段与真实经过时间/任务元信息、单方向匹配人工读回，不把contains断言自动当质量成功；若未知只读重放而不重付。本地fetch记录若等待clone.json再返回响应，会把模型适配器等待响应体误视为等待headers，因此本轮选公网原fetch及安全生产日志观察，不使用这种阻塞包装。上一批公网unknown没有该包装，仍保留其真实失败。
 
 等待根PHONE-HOME-04稳定UI对象与BACKLOG冻结；按根用户明确授权保留主表16原历史任务登记及新增索引文档，保留BOOT未跟踪报告和LIB源码，不从旧工作树覆盖主表。辅助PHOTO-WORLD-02Q先独立源码只读/测试报告，头像同步另任务，不纳入本有界修复。主表本项待验收，不因此宣布BRANCH-FOCUS-01已完成。精确领取/进度均在正常任务报告和主表供根读取；此前直接跨会话发送授权未获人类回复，未重试审批拒绝通道。
+
+## 联合发布接续
+
+已串行接根稳定368c52b首页6文件，主业务3ff0b3a；AI主业务9748506，BACKLOG冻结四文档受控提交1ba0e6d（包括本报告接续），原16历史任务定义完整保留，不夹带LIB/BOOT业务。独立联合树4620c4a最终494/494 check与build通过；原106真实PG/5可选skip证据保留，首页纯投影不新增SQL。生产2026-10-09T17:17:25Z只读38/38迁移校验和一致。正在推送1ba0e6d并等待READY；新文本仍0/2，未执行探针。本人工作树node_modules临时链接尚在供验证，PG55450只本人运行。原此前跨会话发送审批拒绝未重试。
+
+## 限定集成验收 · 2026-10-10
+
+1ba0e6d生产8w9aknon9 / dpl_Gr36Bqrh7kTDFyoJjX5aCxg1EdA3 READY，正式别名parallel-life-nu.vercel.app已切换。新合成focused任务149d5d5c-d2dc-4a06-b368-8e5b8d17f44e实际succeeded，API5405ms，生产DBduration_ms4350、model gpt-4o-mini、prompt discovery-2.0.0。完整人工读title/premise/opening/tradeoff/reason，舞台摄影师站台侧拍演出，未转成导播/设计师；一个方向，资料不变，相同command仍同task。运行窗口warning无纠正记录，按一个run+固定循环核对本批1/2实际文字请求；没有供应商usage/费用回执，不能宣称费用精确。旧6/8、两unknown/两角色质量失败保留，未重跑；视觉0新增、生成0/4。现实自行车兴趣引用相关性弱作为质量建议，不借contains自动称语义全通过。
+
+生产成功验证当前路径和正确elapsed持久化，不代表生产真实超时阶段已再次复现；request/response/parse/proposal错误阶段、unknown不重付、旧草案/资料/租户隔离由4真实PG+明确网络替身验证。本项限定诊断/恢复修复集成自审完成。BRANCH-FOCUS-01本次方向身份单样本已通过，但当前新方向到新世界完整链及间歇可靠性未再付费验，不以一次成功抹旧失败，保留待验收接续。
+
+根PHONE-HOME-04公网390×500：scrollWidth390，toolsBottom356.15<DockTop369；1440×900手机420居中left510/right930，实际截图亲看。备忘录0真实空态、微信2旧联系人、身份、时间已暂停、现场空历史、返回聊聊和切换人生实际导航通过，无模型/新便签/新世界写入。首个CLI保存相对路径ENOENT未变cookie，改绝对路径原空间96；等待误读解锁ariaLabel为innerText导致超时，实际页正常，观察后纠正。原session已恢复，空间96 finish一次。工具提示Ego Lite更新，未升级。
+
+照片Q稳定9f401c9串行集成主f1cc0c7/独立8742371，7新真实PG本人环境全通过，纳入后494check通过，原联合build已通过且无新运行源码。总106原PG+7新照片PG分次113通过，5明确可选模型skip，未伪称单命令113。公网两原自有合成世界200、原图2+3均200及bytes/hash保存、跨owner各404。Q只限原图审查，已复现换图后旧头像不更新，PHOTO-AVATAR-UPDATE-01仍待开发，NOTES/SPACE/BOOT/多聊天不因首页预览完成。
+
+收尾：PG55450本人启动器47175已退出，55450/3254无监听；HTTP3254从未启动。本次Ego96已finish并恢复原session，临时依赖symlink移除，验证树保留稳定源码与忽略证据。剩余新文字1停止使用，不开始PHOTO-AVATAR/NOTES/SPACE新长开发；已登记接续。最后记录提交只包含登记状态/报告/部署说明与既有照片验收文件，LIB25行、creations/settings、BOOT未完成报告/计划留在主工作区未提交。

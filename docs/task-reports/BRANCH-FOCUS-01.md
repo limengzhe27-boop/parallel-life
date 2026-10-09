@@ -41,3 +41,7 @@ focused优先当前brief与basedOn核心；确认过的basis只作实际可用�
 BRANCH-UI-02、PHONE-HOME-03及VISION-01QA已按限定证据集成验收：公网390/1440真实手机首页/management深链notes/老世界，聊天52px入口Modal开关与输入414<nav434；确认前保存/确认/seed/world真实API通过；确认摘要由原6SSR及辅助真实合成浏览器0inputs证明，I公网第一次期待确认摘要实际prepare拿到新草案，未伪称该窗口是确认摘要。旧账户三方向仍可查看；没有执行新explore公网付费，本地真实explore3与真实PG/辅助两caller请求结构证明分工。未知真实任务同命令同unknown、client.task不发run、profile/directions不变。完整Notes开场/长期任务/多聊天/生成仍不在交付。
 
 PG55450已核本人postmaster路径后fast停止，launcher16715退出130；其他checkout启动器21096/36215保留，HTTP3254未启用。正式最终unknown费用/不自动重试提示已亲看；本批浏览器93已恢复原本站session并finish关闭一次；LIB client/interview25行及创作/设置源码不暂存。最后只受控提交本报告/视觉报告/DEPLOYMENT和本批登记行，等文档READY+正式health只读复验收尾。
+
+## AI-RECOVERY接续 · 2026-10-10
+
+诊断修复9748506与首页3ff0b3a联合1ba0e6d已正式READY。新隔离合成focused任务149d5d5c-d2dc-4a06-b368-8e5b8d17f44e succeeded，一个完整人工读回方向保持舞台摄影师拍演出、无职业转移；API5405ms、DB4350ms。资料不变，相同command回同task；运行窗口无纠正warning，本批按run/循环核对1/2新文字，无供应商usage。早期6/8、两角色偏移及两85sunknown原样保留，旧任务未重跑，剩余预算停止。本样本单方向身份通过，当前新方向到新世界完整链和间歇可靠性未再付费验收，本项仍待验收；不以“摄影师”contains或一次模型成功承诺通用语义保证。自行车兴趣source引用相关性弱留质量建议。

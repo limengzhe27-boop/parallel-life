@@ -27,3 +27,7 @@
 失败与诊断保留：首次fixture刷新404，cookie与fixture不一致，同host不同port未隔离会话；根改localhost专属host后刷新通过。未修改/清空其他Agent cookie，未访问真实线上用户。一次相册点击后即时DOM判断false，后续观察实际图库1张及正确图片按钮，不能以初次过早判断当成功或功能缺陷；一次DB观察脚本将title误当普通列，改按document->>title后确认1条，并非业务失败。视口CDP切换即时第一次读取仍旧高度，已等真实innerHeight500再测量；最终短屏证据以等待后的结果为准。
 
 最终487/487检查、build通过，无新SQL、无新增模型请求、无新增素材。本人HTTP3251/PG55456停止，Ego95 finish，依赖链接移除，业务范围释放交I串行集成。当前待验收，I最终check/build、38生产迁移/READY与公网关键导航通过后才标完成。
+
+### I集成与公网验收 · 2026-10-10
+
+368c52b串行合入3ff0b3a，联合1ba0e6d Production8w9aknon9 / dpl_Gr36Bqrh7kTDFyoJjX5aCxg1EdA3 READY，正式别名已切换。494联合check/build、38生产迁移一致；公网自有暂停世界390×500 scrollWidth390、toolsBottom356.15<DockTop369，1440×900 phone420,left510/right930，截图亲看。备忘录真实0篇空态、微信2联系人、身份/暂停时间/现场、返回聊聊与切换人生实际点击通过，无模型及写入；两旧自有世界原图2+3均200/跨owner404。本首页与图标限定完成；后续头像/系统任务/地图/前史/多聊天仍待开发。Ego96原session已恢复并finish，工具有更新未升级。I最初相对证据路径和等待ariaLabel文字失误保留于AI报告，未归为产品失败。
