@@ -22,6 +22,8 @@ import {
   ensureInterviewPhotoSaved,
   hasInterviewPhotoMessage,
   parseInterviewPhotoMessage,
+  profileUploadOperation,
+  visiblePortraitAssetId,
 } from './photo-share.ts';
 import {
   photoDisplayState,
@@ -114,6 +116,7 @@ export function InterviewApp() {
     end = useRef<HTMLDivElement>(null);
   const pending = useRef<InterviewSend | null>(null),
     retry = useRef<{ id: string; commandId: string } | null>(null),
+    profileUploadPurpose = useRef<'portrait' | 'shared'>('shared'),
     draftValue = useRef(''),
     hydratedProfileId = useRef<string | null>(null),
     photoCaption = useRef(''),
@@ -548,7 +551,7 @@ export function InterviewApp() {
       setSaving(false);
     }
   }
-  async function upload(file: File) {
+  async function upload(file: File, purpose: 'portrait' | 'shared') {
     setUploading(true);
     setProfileError('');
     try {
@@ -557,7 +560,7 @@ export function InterviewApp() {
       const current = await refresh();
       const profile = await client.editProfile({
         expectedVersion: current.profile.version,
-        operation: { kind: 'add-reference-photo', assetId: asset.id },
+        operation: profileUploadOperation(purpose, asset.id),
       });
       setData((value) => (value ? { ...value, profile } : value));
     } catch (e) {
@@ -614,7 +617,10 @@ export function InterviewApp() {
       messages={data.interview.messages}
       uploading={uploading}
       saving={saving}
-      onUpload={() => fileInput.current?.click()}
+      onUpload={(purpose) => {
+        profileUploadPurpose.current = purpose;
+        fileInput.current?.click();
+      }}
       onDeletePhoto={(assetId) => void deletePhoto(assetId)}
       onEdit={(category, fact) => setEditing({ category, fact })}
       onConfirm={(id) => void edit({ kind: 'confirm-fact', id }).catch(() => {})}
@@ -696,7 +702,10 @@ export function InterviewApp() {
                 )}
               </div>
             )}
-            <form className="composer" onSubmit={send}>
+            <form
+              className={`composer ${draft.includes('\n') || draft.length > 14 ? composerStyles.longComposer : ''}`}
+              onSubmit={send}
+            >
               <input
                 ref={chatFileInput}
                 type="file"
@@ -920,7 +929,7 @@ export function InterviewApp() {
         aria-label="上传你的照片"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void upload(file);
+          if (file) void upload(file, profileUploadPurpose.current);
         }}
       />
       {editing && data && (
@@ -1060,7 +1069,7 @@ export function ProfilePane({
   profile: Profile;
   uploading: boolean;
   saving: boolean;
-  onUpload: () => void;
+  onUpload: (purpose: 'portrait' | 'shared') => void;
   onDeletePhoto?: (assetId: string) => void;
   onEdit: (category: ProfileFact['category'], fact?: ProfileFact) => void;
   onConfirm: (id: string) => void;
@@ -1080,6 +1089,8 @@ export function ProfilePane({
   const name = view.current.find(
     (item) => item.ref.basicField === '姓名' && item.storedStatus === 'confirmed',
   )?.text;
+  const portraitAssetId = visiblePortraitAssetId(profile);
+  const portraitIsPerson = Boolean(profile.portraitAssetId && !portraitAssetId);
   const renderFacts = (items: ProfileViewItem[]) =>
     items
       .filter((item) => item.ref.kind === 'fact')
@@ -1128,17 +1139,17 @@ export function ProfilePane({
       <div className="portrait-card profile-identity">
         <button
           type="button"
-          className={`profile-portrait-hero${profile.portraitAssetId ? ' has-portrait' : ''}`}
-          onClick={onUpload}
+          className={`profile-portrait-hero${portraitAssetId ? ' has-portrait' : ''}`}
+          onClick={() => onUpload('portrait')}
           disabled={uploading}
-          aria-label={profile.portraitAssetId ? '更换你的肖像照片' : '上传你的肖像照片'}
+          aria-label={portraitAssetId ? '更换你的肖像照片' : '设置你的肖像照片'}
         >
-          {profile.portraitAssetId ? (
-            <img src={`/api/v1/assets/${profile.portraitAssetId}`} alt="你上传的照片" />
+          {portraitAssetId ? (
+            <img src={`/api/v1/assets/${portraitAssetId}`} alt="你上传的照片" />
           ) : (
             <span className="profile-portrait-empty">
               <Icon name="photo" size={38} />
-              <span>让故事里，也有你的模样</span>
+              <span>{portraitIsPerson ? '肖像待确认' : '让故事里，也有你的模样'}</span>
             </span>
           )}
           <span className="profile-portrait-shade" aria-hidden="true" />
@@ -1149,7 +1160,7 @@ export function ProfilePane({
             </span>
             <span className="profile-photo-action">
               {uploading ? <span className="spinner" /> : <Icon name="plus" size={17} />}
-              {uploading ? '保存中' : profile.portraitAssetId ? '更换' : '添加照片'}
+              {uploading ? '保存中' : portraitAssetId ? '更换' : '设置本人照片'}
             </span>
           </span>
         </button>
@@ -1166,9 +1177,7 @@ export function ProfilePane({
                     alt={`分享的照片 ${index + 1}`}
                     loading="lazy"
                   />
-                  {id === profile.portraitAssetId && (
-                    <span className="profile-photo-label">肖像</span>
-                  )}
+                  {id === portraitAssetId && <span className="profile-photo-label">肖像</span>}
                   {onDeletePhoto && (
                     <button
                       type="button"
@@ -1185,7 +1194,7 @@ export function ProfilePane({
               <button
                 type="button"
                 className="profile-photo-add"
-                onClick={onUpload}
+                onClick={() => onUpload('shared')}
                 disabled={uploading}
                 aria-label="添加共享照片"
               >

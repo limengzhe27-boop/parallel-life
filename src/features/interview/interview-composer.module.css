@@ -10,6 +10,28 @@
   overflow-y: auto;
 }
 
+:global(.app-workspace .composer) .draft:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+:global(.app-workspace) .longComposer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 4px;
+}
+
+:global(.app-workspace) .longComposer .draft {
+  width: 100%;
+  min-width: 0;
+}
+
+:global(.app-workspace) .longComposer :global(.composer-bottom) {
+  width: 100%;
+  justify-content: flex-end;
+}
+
 .photoButton {
   display: inline-flex;
   align-items: center;

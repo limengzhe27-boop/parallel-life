@@ -6,9 +6,29 @@ import {
   ensureInterviewPhotoSaved,
   hasInterviewPhotoMessage,
   parseInterviewPhotoMessage,
+  profileUploadOperation,
+  visiblePortraitAssetId,
 } from '../src/features/interview/photo-share.ts';
 
 const assetId = '00000000-0000-4000-8000-000000000001';
+
+test('portrait button records explicit self-image intent; shared photos do not', () => {
+  assert.deepEqual(profileUploadOperation('portrait', assetId), {
+    kind: 'set-portrait',
+    assetId,
+  });
+  assert.deepEqual(profileUploadOperation('shared', assetId), {
+    kind: 'add-reference-photo',
+    assetId,
+  });
+});
+
+test('a portrait also bound to another person is withheld from the self portrait', () => {
+  const profile = { portraitAssetId: assetId, people: [{ assetId }] };
+  assert.equal(visiblePortraitAssetId(profile), null);
+  assert.equal(visiblePortraitAssetId({ ...profile, people: [] }), assetId);
+  assert.equal(visiblePortraitAssetId({ ...profile, portraitAssetId: null }), null);
+});
 
 test('a photo is not shared before its asset is saved to the real profile', async () => {
   const writes: number[] = [];

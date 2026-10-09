@@ -1,6 +1,22 @@
 import { ApiFailure } from '../api/client.ts';
 
 type ReferencePhotoProfile = { version: number; referenceAssetIds: string[] };
+type PortraitPhotoProfile = {
+  portraitAssetId: string | null;
+  people: Array<{ assetId?: string | null }>;
+};
+
+export function profileUploadOperation(purpose: 'portrait' | 'shared', assetId: string) {
+  return purpose === 'portrait'
+    ? ({ kind: 'set-portrait', assetId } as const)
+    : ({ kind: 'add-reference-photo', assetId } as const);
+}
+
+export function visiblePortraitAssetId(profile: PortraitPhotoProfile) {
+  return profile.people.some((person) => person.assetId === profile.portraitAssetId)
+    ? null
+    : profile.portraitAssetId;
+}
 type InterviewPhotoMessage = {
   id?: string;
   role: 'user' | 'assistant';
