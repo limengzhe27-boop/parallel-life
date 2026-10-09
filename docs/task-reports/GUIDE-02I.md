@@ -15,3 +15,11 @@
 测试脚本曾漏question版本、误用discovery队列key（实际scope为profile）、重复创建已有queued任务BUSY、比PNG而非规范化WebP等夹具错误，均在调用前停止或保存成功段，改后真实通过。审批拒绝旧测试账户签名恢复，未执行该方案，改新建合成账号并用本脚本原先生成的普通会话继续；没有改签既有账户。
 
 最终433check、83真实PG+5显式模型跳过、build，生产38迁移校验一致2026-10-09T08:28:49Z。主链/暂停/HTTP证据在忽略.local/joint-model-evidence.jsonl、joint-http-result.json、guide-final-model-evidence.jsonl；只含合成内容，授权会话单独忽略私有文件，不进入提交。
+
+## 最终联合验收 · 2026-10-09
+
+主目录业务3c51cdf（独立c5391cc），Production parallel-life-10sdj2uwh / dpl_69Y8KmzVenBfzZ8vgeY9FKdJBqUT READY，正式地址https://parallel-life-nu.vercel.app。38生产迁移09:02:37Z只读校验一致；435 check、83真实PG/5明确可选模型跳过、build通过。上一联合版981c3ad两名合成访客40项公网照片→真实方向/世界/角色/NPC/刷新/幂等/隔离断言、旧现场4只读、双世界无新节点推进0/0；本修正版三名新合成访客11次实际访谈全部成功，QA-B1/B2/B3虚构职业生日无写入（profile version0→0），每例明确现实工程师/2002正常写入。真实PG三例逐一覆盖直接stream、owner定向worker及候选确认最终入口，完整持久上下文及跨账号拒绝通过。
+
+P2真实模型两次调用（首次INVALID_FIELDS，按既有一次受限结构纠正成功），photoLabelOnly不传现实关系，人物保留姓名并提出虚构角色，非视觉识别；未宣称完整角色语义绝对准确。正式草案390/1440展开人物区，中性‘照片称呼，未说明现实关系’可见，无横向溢出，截图/tmp/qa-photo-label-390.png与qa-photo-label-PC.png已实际查看；未确认测试草案36923704保留，不创建新世界。修正前截图人物折叠未可见不能作显示证据，已重新展开验证。
+
+本登记范围已完成集成自审，释放业务文件，当前集成树保留供后续使用。独立PHOTO-QA-02原反例复验16/16属于辅助纯规则复核，非其亲跑数据库/公网。后续PHOTO-COMPOSE-02仍待开发：选图后立即发送、两图分两次补说明第二条可能关联不上；单图真实用户漏入档原因仍须复现，不能以本批合成成功宣称该新增问题已修。BOOT完整手机前史、图像识别服务接线、图生图/朋友圈/地图未交付。旧unknown不自动重付，原间歇上游原因仍未完全确定。LIB-04B及BOOT在途内容没有进入本次业务发布。

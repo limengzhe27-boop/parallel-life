@@ -672,3 +672,9 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-09 · SCENE-02 / 群聊、锁屏、时间与玩家边界联合上线
 
 业务82ac88b首次Production o9c9hn37f READY，实际公网30项通过后发现离场回看空态与时钟committed成功回执误拒收；9c8c242与26ba6b7分别修正，不把首次就绪当最终验收。最终26ba6b7；Production344kdxj3a / dpl_5PrfmDxg1gveHyANC3BSz3FhMjFn READY；393check/63真实PG+3可选跳过/build、38生产迁移一致、两身份真实模型和公网46项及390/1440通过，正式地址 https://parallel-life-nu.vercel.app 已切换。无新SQL，生产Supabase38/38校验和一致。现场自由原文/实际裁定/幂等/返回保留、真实群回复/成员联系人/未读、锁屏私聊按联系人与群各自折叠直达、暂停/倍速成功回执、direction410与跨账号404通过。全部生产操作仅原隔离合成世界，最终version38/paused=true/speed1；未执行的新现场离场后cancelled、旧实际记录不变。地图/媒体/全语义叙述核验不在交付；LIB-04B在途文件保持未提交。证据与明确失败见[SCENE-02报告](task-reports/SCENE-02.md)。
+
+## 2026-10-09 · 照片用途、引导创建、现场索引与资料隔离
+
+联合业务981c3ad首次1i8xoeb5w READY，两名新合成访客40项公网照片→角色→真实方向/世界/NPC/原图/重读/幂等/隔离及旧现场4只读、无新节点回访0/0通过。独立复核随后发现三个虚构语境反例，不把首次READY当所有资料隔离完成。修正版3c51cdf（独立c5391cc），Production10sdj2uwh / dpl_69Y8KmzVenBfzZ8vgeY9FKdJBqUT READY，正式地址https://parallel-life-nu.vercel.app。38迁移校验一致，无新SQL；435check/83真实PG+5可选模型跳过/build通过。三新合成访客11次实际访谈验证否定回现实/假设身份不入现实资料，每例明确现实身份恢复正常；PG三最终保存入口拒绝。390/1440中性照片称呼可见无溢出，普通照片用于头像/相册，不进行面部身份推断。
+
+新增选图后图文一起发送和两图分两轮补说明由PHOTO-COMPOSE-02接续，单图真实漏入档尚须复现；手机完整前史、地图/视觉读图/图生图/朋友圈未交付。LIB-04B、BOOT等在途文件保留未入业务发布；不会重试旧unknown付费任务。见SCENE-03、TRANSITION-01、NAR-02SI、GUIDE-02I、PHOTO-ROLE-01、BASICINFO-01及PHOTO-QA-02报告。
