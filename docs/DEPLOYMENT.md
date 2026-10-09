@@ -718,3 +718,9 @@ MULTI_CHAT_PLAN及CHAT-SESS只读影响报告作为已批准规划快照，非�
 公网自有合成暂停世界API换图、原回执重放、清空和恢复、手机真实上传保存、已有微信联系人新头像与PC刷新、历史相册2张保留、新头像bytes200/跨owner404通过；临时绿黄图已删除404，原头像恢复，Ego97原session恢复并finish。多世界同人物/同名/并发由真实PG验证，本次公网双端为一个既有世界。另开页面需刷新，0新增模型；A11仍待用户体验，不将技术检查当用户认可。见PHOTO-AVATAR-UPDATE-01报告。
 
 NOTES-SAFETY-01I候选c97ee5c在本版本之后，尚未上线或公网验收，不把它算作当前线上能力。
+
+## 2026-10-10 · NOTES-SAFETY-01 / NOTES-SAFETY-01I 便签隔离与原回执
+
+业务c97ee5c（独立66d5506），联合记录899167c；Production fh3igqrkp / dpl_6h9M7jqsFPnu8hJsGK9ofavWGqkU READY，正式https://parallel-life-nu.vercel.app已切换。生产39迁移校验19:08:33Z一致，无新增SQL；494check/build，137完整真实PG=132pass/0fail/5显式可选skip（4模型、1HTTP导演专项）通过。
+
+公网合成暂停世界v1保存/v2编辑/旧v1与v2原receipt重放、新客户端当前v2与world version不回退、人物/消息/相册不变，双向跨owner404与另一世界无变化、health200通过，模型0。同owner双世界冲突/并发只在真实PG验证：既有公网合成账号各一个世界，未造世界或新付费来凑矩阵。旧已损坏便签不自动恢复，系统records/前史/新便签UI未实现；用户体验待根A12。详见NOTES-SAFETY-01I报告。
