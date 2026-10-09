@@ -684,3 +684,7 @@ https://github.com/limengzhe27-boop/parallel-life
 业务1acb770（接6d3f66b、980ad2f及最终1ff96d6），Production31tjtsm88 / dpl_B7FRBFF19J69WM46AAxiwBpC9Ls1 READY，正式域名https://parallel-life-nu.vercel.app已切换。生产38迁移校验一致；447check、92真实PG/5显式可选模型跳过与build通过。照片选好再补说明统一发送、明确当前单图/可区分两图分别说明、正常进度、中性标签及持久关联反馈，疑问/否定/转述完整原句门与模型截断quote最终保存拒绝，失败重发保留原说明/新草稿。原28独立观察本人集成自审28通过，辅助新提交独立复验待回；公网实际四反例和肯定单图、真实浏览器离线失败后明确重发/刷新/390短屏/PC通过，原eabd025两图正例证据保留。两项新模型任务unknown不计成功、不自动重付；重复素材歧义组拒绝不放宽。不声称间歇模型/原分支错误根因全部已治，也不含视觉读图或首页新接线。详见PHOTO-COMPOSE-02I报告。
 
 MULTI_CHAT_PLAN及CHAT-SESS只读影响报告作为已批准规划快照，非多聊天功能交付；LIB在途源码未纳入。
+
+## 2026-10-09 · PHONE-HOME-02 / PHONE-HOME-02I 实际首页
+
+业务0278c17，Productionhtpk3p8ev / dpl_5G18c8qpqrnePjRNdsMpHfLFcoeq READY，正式域名https://parallel-life-nu.vercel.app已切换；447check/build、38生产迁移校验一致，无新SQL。根独占真实库87通过/5可选跳过，最新照片基线92真实PG/5可选跳过完整检查均通过，本批纯UI未重复数据库套件。两个旧自有暂停世界真实相册/日历空态/跨账号404、390×560/500短屏及PC420居中、实际返回聊聊/切换人生和刷新通过，0新增模型调用。有效邀请、无照片空态和503图片回退在根开发本地真实库/浏览器验证，未称无邀请的公网世界已验邀约正例。照片QA03独立原28+16/42纯全通过，原6反例关闭；两个unknown保留不重付，整体AI间歇可靠性仍未定位。LIB在途保留、读图/完整前史/多聊天未上线。见PHONE-HOME-02I与PHOTO-COMPOSE-02I报告。
