@@ -20,6 +20,7 @@ import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import { PhoneShell } from './phone-shell.tsx';
+import { PhoneDesktop } from './phone-desktop.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { Avatar } from './apps/common.tsx';
 import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
@@ -778,24 +779,8 @@ export function WorldPhoneSurface({
               timeLabel: '待回复',
             })),
         ]}
-        renderHome={({ openPanel }) => (
-          <div className={styles.lifeDesktop}>
-            <button className={styles.identityWidget} onClick={() => openPanel('timeline')}>
-              <small>这段人生</small>
-              <strong>{data.title}</strong>
-              <span>{data.setting}</span>
-            </button>
-            <div className={styles.utilityApps}>
-              {(['timeline', 'time', 'management'] as const).map((panel) => (
-                <button key={panel} data-panel={panel} onClick={() => openPanel(panel)}>
-                  <span>
-                    <PhoneIcon name={panel} />
-                  </span>
-                  {panel === 'timeline' ? '我的身份' : panel === 'time' ? '时间管理' : '人生管理'}
-                </button>
-              ))}
-            </div>
-          </div>
+        renderHome={({ open, openPanel }) => (
+          <PhoneDesktop title={data.title} data={phoneData} open={open} openPanel={openPanel} />
         )}
         renderApp={(context) => <PhoneAppView {...context} />}
         renderPanel={(panel) => {

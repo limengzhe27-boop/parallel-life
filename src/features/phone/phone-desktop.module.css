@@ -1,0 +1,290 @@
+.desktop {
+  padding: 8px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  color: var(--phone-white);
+}
+.controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.controls a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 13px;
+  border: 1px solid #ffffff29;
+  border-radius: 24px;
+  background: #18202d87;
+  backdrop-filter: blur(18px);
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.controls svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.controls a:hover {
+  background: #2e394bbf;
+}
+.controls a:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+.identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-shadow: 0 2px 12px #0009;
+}
+.identity > span {
+  font-size: 11px;
+  color: #ffffffc7;
+}
+.identity strong {
+  font-size: 21px;
+  line-height: 1.35;
+  letter-spacing: -0.4px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.widgets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+.widgets > button {
+  position: relative;
+  min-width: 0;
+  height: 170px;
+  padding: 17px;
+  border: 1px solid #ffffff30;
+  border-radius: 25px;
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 5px 20px #0002;
+}
+.calendar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: #f7f6f2f0;
+  backdrop-filter: blur(18px);
+  color: #252932;
+}
+.weekday {
+  color: #c74742;
+  font-size: 12px;
+  font-weight: 600;
+}
+.day {
+  font-size: 42px;
+  font-weight: 300;
+  line-height: 1.12;
+  font-variant-numeric: tabular-nums;
+}
+.appointment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+  width: 100%;
+}
+.appointmentTitle {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.appointmentMeta {
+  font-size: 10px;
+  color: #666972;
+  line-height: 1.35;
+}
+.album {
+  background: #29394b;
+  color: #fff;
+}
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.albumEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(145deg, #53677b, #29364c);
+}
+.albumEmpty > svg {
+  width: 42px;
+  height: 42px;
+  opacity: 0.85;
+}
+.albumEmpty > span {
+  font-size: 11px;
+  color: #ffffffc7;
+}
+.albumCaption {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 25px 15px 14px;
+  background: linear-gradient(transparent, #0009);
+  font-size: 12px;
+  font-weight: 600;
+}
+.albumCaption small {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+.utilities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.utilities button {
+  min-width: 0;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 12px;
+  text-shadow: 0 1px 6px #0009;
+}
+.utilityIcon {
+  width: 57px;
+  height: 57px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  box-shadow: 0 3px 9px #0003;
+  border: 1px solid #ffffff40;
+}
+.utilityIcon svg {
+  width: 29px;
+  height: 29px;
+}
+.timeline {
+  background: linear-gradient(145deg, #dfae81, #a67147);
+  color: #fff;
+}
+.time {
+  background: linear-gradient(145deg, #313c50, #172032);
+  color: #fff;
+}
+.management {
+  background: linear-gradient(145deg, #e5e8ed, #b7bfc9);
+  color: #45505f;
+}
+@container (max-height: 650px) {
+  .desktop {
+    padding: 4px 20px 10px;
+    gap: 10px;
+  }
+  .widgets > button {
+    height: 126px;
+    padding: 13px;
+    border-radius: 22px;
+  }
+  .identity strong {
+    font-size: 18px;
+    -webkit-line-clamp: 1;
+  }
+  .day {
+    font-size: 34px;
+  }
+  .utilityIcon {
+    width: 51px;
+    height: 51px;
+  }
+  .utilities button {
+    min-height: 70px;
+  }
+}
+@container (max-height: 550px) {
+  .desktop {
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+  .widgets > button {
+    height: 104px;
+    padding: 11px;
+  }
+  .day {
+    font-size: 28px;
+  }
+  .utilityIcon {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+  .utilities button {
+    min-height: 64px;
+    gap: 6px;
+    font-size: 11px;
+  }
+}
+@container (max-width: 350px) {
+  .desktop {
+    padding-inline: 16px;
+  }
+  .widgets {
+    gap: 11px;
+  }
+  .widgets > button {
+    padding: 12px;
+  }
+  .appointmentMeta {
+    font-size: 9px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .controls a {
+    background: #243144;
+  }
+  .calendar {
+    background: #f7f6f2;
+  }
+}
