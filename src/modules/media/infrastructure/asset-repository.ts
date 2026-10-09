@@ -165,7 +165,7 @@ export class AssetRepository {
       async (sql) =>
         (
           await sql.query(
-            "SELECT a.storage_key FROM parallel_life.assets a JOIN parallel_life.worlds w ON w.id=$1 AND w.owner_id=a.owner_id WHERE a.id=$2 AND a.owner_id=$3 AND a.status='ready' AND a.revision=$4 AND (a.world_id=w.id OR EXISTS(SELECT 1 FROM parallel_life.world_person_bindings b WHERE b.world_id=w.id AND b.owner_id=a.owner_id AND b.asset_id=a.id AND b.asset_revision=a.revision))",
+            "SELECT a.storage_key FROM parallel_life.assets a JOIN parallel_life.worlds w ON w.id=$1 AND w.owner_id=a.owner_id WHERE a.id=$2 AND a.owner_id=$3 AND a.status='ready' AND a.revision=$4 AND (a.world_id=w.id OR EXISTS(SELECT 1 FROM parallel_life.world_person_bindings b WHERE b.world_id=w.id AND b.owner_id=a.owner_id AND b.asset_id=a.id AND b.asset_revision=a.revision) OR EXISTS(SELECT 1 FROM parallel_life.world_person_avatars v JOIN parallel_life.world_person_bindings b ON b.world_id=v.world_id AND b.actor_id=v.actor_id AND b.person_id=v.person_id AND b.owner_id=v.owner_id WHERE v.world_id=w.id AND v.owner_id=a.owner_id AND v.asset_id=a.id AND v.asset_revision=a.revision))",
             [worldId, id, ownerId, revision],
           )
         ).rows[0],
@@ -218,6 +218,15 @@ export class AssetRepository {
         [ownerId, id],
       );
       if (seeded.rowCount) throw new TaskError('CONFLICT');
+      if (
+        (
+          await sql.query(
+            'SELECT 1 FROM parallel_life.world_person_avatars WHERE owner_id=$1 AND asset_id=$2 LIMIT 1',
+            [ownerId, id],
+          )
+        ).rowCount
+      )
+        throw new TaskError('CONFLICT');
       await sql.query(
         "UPDATE parallel_life.assets SET status='deleted',revision=revision+1 WHERE id=$1",
         [id],
@@ -234,6 +243,15 @@ export class AssetRepository {
         [ownerId, JSON.stringify([{ assetId: id }])],
       );
       if (bound.rowCount) throw new TaskError('CONFLICT');
+      if (
+        (
+          await sql.query(
+            'SELECT 1 FROM parallel_life.world_person_avatars WHERE owner_id=$1 AND asset_id=$2 LIMIT 1',
+            [ownerId, id],
+          )
+        ).rowCount
+      )
+        throw new TaskError('CONFLICT');
       const p = (
         await sql.query(
           'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',

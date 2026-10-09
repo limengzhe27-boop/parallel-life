@@ -230,13 +230,33 @@ test('PostgreSQL person bindings pin originals, enforce RLS and roll back an inv
       },
     });
     assert.equal((await profiles.get(owner)).people[0]!.relationship, '老板');
-    assert.deepEqual((await builds.phone(owner, built.worldId)).actors, phone.actors);
+    const updatedPhone = await builds.phone(owner, built.worldId);
+    assert.deepEqual(
+      updatedPhone.actors,
+      phone.actors.map((actor) =>
+        actor.sourcePersonId === person.id
+          ? { ...actor, photo: { assetId: replacement.id, revision: replacement.revision } }
+          : actor,
+      ),
+    );
+    assert.deepEqual(updatedPhone.photos, phone.photos);
+    assert.deepEqual(
+      await assets.readForWorld(owner, built.worldId, replacement.id, replacement.revision),
+      await assets.read(owner, replacement.id),
+    );
     await assert.rejects(assets.remove(owner, photo.id), { code: 'CONFLICT' });
     const noPhoto = await execute(await makeSeed([{ ...person, assetId: null }], []));
     assert.equal(noPhoto.ready, true);
     const noPhotoPhone = await builds.phone(owner, noPhoto.worldId);
     assert.equal(noPhotoPhone.photos!.length, 0);
-    assert.equal(noPhotoPhone.actors[0]!.photo, undefined);
+    assert.deepEqual(noPhotoPhone.actors[0]!.photo, {
+      assetId: replacement.id,
+      revision: replacement.revision,
+    });
+    assert.deepEqual(
+      await assets.readForWorld(owner, noPhoto.worldId, replacement.id, replacement.revision),
+      await assets.read(owner, replacement.id),
+    );
     await assert.rejects(assets.readForWorld(owner, noPhoto.worldId, photo.id, photo.revision), {
       code: 'NOT_FOUND',
     });

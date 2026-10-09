@@ -501,6 +501,10 @@ export class ProfileRepository {
       profile.version++;
       profile.updatedAt = now;
       const validated = ProfileSchema.parse(profile);
+      // The storage projection records this command without exposing private profile text.
+      await sql.query("SELECT set_config('app.person_avatar_command_id',$1,true)", [
+        input.commandId ?? '',
+      ]);
       await sql.query(
         'UPDATE parallel_life.profiles SET version=$2,document=$3,updated_at=now() WHERE owner_id=$1',
         [ownerId, profile.version, validated],

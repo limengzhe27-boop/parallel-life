@@ -307,7 +307,7 @@ export function PersonEditor({
             <details>
               <summary>从已分享的照片选择</summary>
               <p className="form-hint">
-                由你明确选择对应原图，不会识别人脸或猜人物。保存后才关联；原聊天照片仍保留。
+                由你明确选择对应原图，不会识别人脸或猜人物。保存后同步已带入分支的联系人头像；原聊天和相册照片保留。
               </p>
               {photosError ? <p role="alert">{photosError}</p> : null}
               <Button type="button" variant="ghost" onClick={() => setPhotoRead((n) => n + 1)}>

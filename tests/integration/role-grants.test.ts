@@ -8,7 +8,8 @@ import { migrate } from '../../scripts/migrate.mjs';
  * EXECUTE from PUBLIC and no role could run the trigger/CHECK helpers any more, so
  * ordinary writes (interview answers, memory candidates) failed on the server.
  *
- * Trigger helpers must be executable by the roles that write their table.
+ * Ordinary trigger/CHECK helpers keep writer access. Avatar definer triggers are
+ * deliberately trigger-only; runtime writes exercise them without direct EXECUTE.
  * Private authoring tables deliberately grant no access to the background worker.
  */
 test('trigger helpers allow their writers; private authoring stays inaccessible to workers', async () => {
@@ -47,8 +48,22 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
         assert.equal(access.rows[0].allowed, false);
       }
     }
+    // These definer triggers are invoked by table writes, never directly by runtime roles.
+    const triggerOnly = new Set([
+      'binding_current_avatar_sync',
+      'profile_current_avatar_sync',
+      'protect_current_avatar_asset',
+    ]);
+    assert.equal(rows.filter((row) => triggerOnly.has(row.proname)).length, triggerOnly.size);
+    for (const row of rows.filter((row) => triggerOnly.has(row.proname))) {
+      assert.equal(row.app_ok, false);
+      assert.equal(row.worker_ok, false);
+    }
     const denied = rows.filter(
-      (row) => !authorOnly.has(row.proname) && (!row.app_ok || !row.worker_ok),
+      (row) =>
+        !authorOnly.has(row.proname) &&
+        !triggerOnly.has(row.proname) &&
+        (!row.app_ok || !row.worker_ok),
     );
     assert.deepEqual(
       denied.map((row) => `${row.proname}(${row.args}) app=${row.app_ok} worker=${row.worker_ok}`),

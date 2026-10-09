@@ -153,7 +153,11 @@ export class BuildRepository {
     }
     const bindings = await this.db.transaction(ownerId, (sql) =>
       sql.query(
-        'SELECT actor_id,person_id,asset_id,asset_revision FROM parallel_life.world_person_bindings WHERE world_id=$1 AND owner_id=$2',
+        `SELECT b.actor_id,b.person_id,b.asset_id,b.asset_revision,
+          a.world_id IS NOT NULL AS has_current_avatar,a.asset_id AS current_asset_id,a.asset_revision AS current_asset_revision
+         FROM parallel_life.world_person_bindings b
+         LEFT JOIN parallel_life.world_person_avatars a ON a.world_id=b.world_id AND a.actor_id=b.actor_id AND a.person_id=b.person_id AND a.owner_id=b.owner_id
+         WHERE b.world_id=$1 AND b.owner_id=$2`,
         [worldId, ownerId],
       ),
     );
@@ -165,20 +169,25 @@ export class BuildRepository {
       const person = seed.people.find((person) => person.id === binding.person_id);
       if (!actor || !person || !('personRoles' in seed)) return [];
       const role = seed.personRoles?.find((role) => role.personId === person.id)?.role;
+      const photo = binding.has_current_avatar
+        ? binding.current_asset_id
+          ? { assetId: binding.current_asset_id, revision: binding.current_asset_revision }
+          : undefined
+        : binding.asset_id &&
+            binding.asset_id === person.assetId &&
+            seed.assets.some(
+              (asset) =>
+                asset.assetId === binding.asset_id && asset.revision === binding.asset_revision,
+            )
+          ? { assetId: binding.asset_id, revision: binding.asset_revision }
+          : undefined;
       return [
         {
           actorId: actor.id,
           personId: person.id,
           name: person.name,
           relationship: role ?? person.relationship,
-          ...(binding.asset_id &&
-          binding.asset_id === person.assetId &&
-          seed.assets.some(
-            (asset) =>
-              asset.assetId === binding.asset_id && asset.revision === binding.asset_revision,
-          )
-            ? { photo: { assetId: binding.asset_id, revision: binding.asset_revision } }
-            : {}),
+          ...(photo ? { photo } : {}),
         },
       ];
     });

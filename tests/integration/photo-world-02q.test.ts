@@ -260,9 +260,14 @@ test('PHOTO-WORLD-02Q: real PG caption → selection → two immutable world pho
     const seed2 = await prepare([first.id], '合成世界二'),
       world2 = await execute(seed2);
     await t.test(
-      'profile replacement affects new world only; unselected same-name person excluded',
+      'current avatar sync preserves immutable seed/album; unselected same-name person excluded',
       async () => {
-        assert.deepEqual(await builds.phone(owner, world1.id), world1);
+        assert.deepEqual((await builds.phone(owner, world1.id)).photos, world1.photos);
+        assert.deepEqual(
+          (await builds.phone(owner, world1.id)).actors.find((a) => a.sourcePersonId === first.id)!
+            .photo,
+          { assetId: replacement.id, revision: replacement.revision },
+        );
         assert.deepEqual(world2.actors.find((a) => a.sourcePersonId === first.id)!.photo, {
           assetId: replacement.id,
           revision: replacement.revision,
@@ -274,9 +279,9 @@ test('PHOTO-WORLD-02Q: real PG caption → selection → two immutable world pho
         assert.equal(world2.photos!.length, 1);
         assert.equal(world2.photos![0]!.id, replacement.id);
         assert.equal((await seeds.get(owner, seed1.id)).people[0]!.assetId, a.id);
-        await assert.rejects(
-          assets.readForWorld(owner, world1.id, replacement.id, replacement.revision),
-          { code: 'NOT_FOUND' },
+        assert.deepEqual(
+          await assets.readForWorld(owner, world1.id, replacement.id, replacement.revision),
+          await assets.read(owner, replacement.id),
         );
         for (const asset of [a, b])
           await assert.rejects(assets.readForWorld(owner, world2.id, asset.id, asset.revision), {
@@ -309,7 +314,12 @@ test('PHOTO-WORLD-02Q: real PG caption → selection → two immutable world pho
         const unbound = await upload('#889988');
         await assets.remove(owner, unbound.id);
         await assert.rejects(assets.read(owner, unbound.id), { code: 'NOT_FOUND' });
-        assert.deepEqual(await builds.phone(owner, world1.id), world1);
+        const current = await builds.phone(owner, world1.id);
+        assert.deepEqual(current.photos, world1.photos);
+        assert.deepEqual(
+          current.actors.find((a) => a.sourcePersonId === second.id)!.photo,
+          world1.actors.find((a) => a.sourcePersonId === second.id)!.photo,
+        );
         assert.deepEqual(await builds.phone(owner, world2.id), world2);
       },
     );
