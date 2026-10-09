@@ -595,3 +595,41 @@ test('PHOTO-COMPOSE-02 real PG: intervening ordinary text and ambiguous current 
     await f.close();
   }
 });
+
+for (const text of [
+  '这是小芳的照片吗',
+  '这张是小芳吗',
+  '不要说这张是小芳',
+  '别把这张说成小芳',
+  '他说这是小芳的照片',
+]) {
+  test(`PHOTO-COMPOSE-02 real PG: non-asserted caption is not evidence: ${text}`, async () => {
+    const f = await fixture();
+    try {
+      await f.photo();
+      const before = await f.profiles.get(f.owner);
+      const { result } = await f.send(text);
+      assert.equal(result.task.status, 'succeeded');
+      assert.deepEqual(await f.profiles.get(f.owner), before, text);
+      const state = await f.repo.get(f.owner);
+      const source = state.interview.messages.filter((m) => m.role === 'user').at(-1)!;
+      const quote = text.includes('这张')
+        ? text.includes('说成')
+          ? '这张说成小芳'
+          : '这张是小芳'
+        : '这是小芳的照片';
+      await f.db.transaction(f.owner, (sql) =>
+        applyPeopleInTransaction(sql, f.owner, state.interview.id, source.id, before.version, [
+          { subject: '小芳', messageId: source.id, quote, associatePhoto: true },
+        ]),
+      );
+      assert.deepEqual(
+        await f.profiles.get(f.owner),
+        before,
+        'final transaction rejects clipped proposal: ' + text,
+      );
+    } finally {
+      await f.close();
+    }
+  });
+}

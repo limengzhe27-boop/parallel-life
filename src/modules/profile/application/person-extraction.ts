@@ -83,6 +83,22 @@ export function groundPersonProposal(
   if (explicitStoryLabel && !explicitPhotoReference(quote, subject)) return null;
   if (/另一个|另一位|两个|两位|同名|不确定|不知道是谁|可能是/u.test(source)) return null;
   const photoReference = explicitPhotoReference(quote, subject);
+  if (
+    proposal.associatePhoto &&
+    (photoReference || /照片|头像|这张|这是|第[一二三四五六1-6]张|刚才那张/u.test(quote))
+  ) {
+    if (!photoReference) return null;
+    // A model cannot turn a question/report into an assertion by quoting only its inner words.
+    const firstQuoteClause = quote.split(/[，,。；;！!\n]/u)[0]!.trim();
+    const sourceClauses = source
+      .split(/[，,。；;！!\n]/u)
+      .filter((clause) => clause.includes(firstQuoteClause));
+    if (
+      !sourceClauses.length ||
+      sourceClauses.some((clause) => !explicitPhotoReference(clause.trim(), subject))
+    )
+      return null;
+  }
   const selfRelation = new RegExp(`我(?:的)?${escape(subject)}`, 'u').test(quote);
   const photoLabel = Boolean(
     photoReference &&
@@ -146,7 +162,12 @@ export function explicitPhotoReference(
 ): { ordinal?: number } | null {
   if (
     !/^[\p{L}\p{N}· _-]{1,40}$/u.test(subject) ||
-    /如果|假如|假设|要是|不是|并非|可能|不确定|不知道|[？?]/u.test(quote)
+    /如果|假如|假设|要是|不是|并非|不要|不想|不用|不能|别说|请勿|可能|不确定|不知道|[？?“”「」『』"]|(?:吗|么|嘛|呢)(?:[，,。；;！!\s]|$)|是否|是不是|是谁|哪个|哪位/u.test(
+      quote,
+    ) ||
+    !/^(?:(?:故事里|故事中|剧本里|剧本中|现实中|现实里)\s*)?(?:(?:刚才|刚发|刚上传)\s*)?(?:第[一二三四五六1-6]张|这张|这是|刚才那张)/u.test(
+      quote.trim(),
+    )
   )
     return null;
   const match = new RegExp(

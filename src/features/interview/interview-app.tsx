@@ -25,6 +25,7 @@ import {
   profileUploadOperation,
   savedPhotoPersonLabel,
   capturePhotoComposition,
+  capturePhotoSubmission,
 } from './photo-share.ts';
 import {
   photoDisplayState,
@@ -123,6 +124,10 @@ export function InterviewApp() {
     [photoInfo, setPhotoInfo] = useState(''),
     [pendingPhotoAssetId, setPendingPhotoAssetId] = useState<string | null>(null),
     [selectedPhoto, setSelectedPhoto] = useState<File | null>(null),
+    [failedPhotoComposition, setFailedPhotoComposition] = useState<{
+      file: File;
+      caption: string;
+    } | null>(null),
     [selectedPhotoUrl, setSelectedPhotoUrl] = useState(''),
     [outgoing, setOutgoing] = useState<InterviewMessage | null>(null),
     [branchCommand, setBranchCommand] = useState<{ at: number; intent: BranchIntent } | null>(null);
@@ -417,6 +422,7 @@ export function InterviewApp() {
   function clearPendingChatPhoto(profileId: string) {
     setPendingPhotoAssetId(null);
     setSelectedPhoto(null);
+    setFailedPhotoComposition(null);
     photoCaption.current = '';
     try {
       sessionStorage.removeItem(`pl-pending-interview-photo:${profileId}`);
@@ -460,6 +466,7 @@ export function InterviewApp() {
     try {
       capturePhotoComposition(file, draftValue.current);
       setSelectedPhoto(file);
+      setFailedPhotoComposition(null);
       setPhotoError('');
       setPhotoInfo('');
     } catch (error) {
@@ -480,9 +487,13 @@ export function InterviewApp() {
     setPhotoError('');
     setPhotoInfo('');
     setError('');
-    const { caption } = capturePhotoComposition(file, draftValue.current);
+    const { caption, clearDraft } = capturePhotoSubmission(
+      file,
+      draftValue.current,
+      failedPhotoComposition,
+    );
     photoCaption.current = caption;
-    updateDraft('');
+    if (clearDraft) updateDraft('');
     let uploadedAssetId: string | null = null;
     try {
       const asset = await client.upload(file);
@@ -496,7 +507,10 @@ export function InterviewApp() {
       }
       await finishChatPhoto(asset.id);
     } catch (e) {
-      if (!uploadedAssetId) updateDraft(restoreCaptionIfUntouched(draftValue.current, caption));
+      if (!uploadedAssetId) {
+        setFailedPhotoComposition({ file, caption });
+        updateDraft(restoreCaptionIfUntouched(draftValue.current, caption));
+      }
       setPhotoError(
         uploadedAssetId
           ? '照片已上传，消息尚未确认发送。核对后可用同一张照片继续。'
@@ -738,6 +752,11 @@ export function InterviewApp() {
                       上次说明：{photoCaption.current}
                     </span>
                   )}
+                  {failedPhotoComposition && (
+                    <span className={composerStyles.previousCaption}>
+                      再次发送沿用上次照片说明，新草稿会保留。移除或更换照片可开始新的组合。
+                    </span>
+                  )}
                   {!pendingPhotoAssetId && (
                     <div className={composerStyles.photoActions}>
                       <button
@@ -752,6 +771,7 @@ export function InterviewApp() {
                         disabled={sending || waiting || uploadingChatPhoto}
                         onClick={() => {
                           setSelectedPhoto(null);
+                          setFailedPhotoComposition(null);
                           setPhotoError('');
                           setPhotoInfo('');
                         }}

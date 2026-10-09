@@ -132,3 +132,14 @@ export function capturePhotoComposition<File extends { size: number; type: strin
     throw new ApiFailure('INVALID_INPUT', '请选择 JPG、PNG 或 WebP 照片。');
   return { file, caption: caption.trim() };
 }
+
+/** A retry belongs to its captured image/caption, independently of later typing. */
+export function capturePhotoSubmission<File extends { size: number; type: string }>(
+  file: File,
+  draft: string,
+  failed: { file: File; caption: string } | null,
+) {
+  const retry = failed?.file === file;
+  const composition = capturePhotoComposition(file, retry ? failed.caption : draft);
+  return { ...composition, clearDraft: !retry || draft === failed.caption };
+}

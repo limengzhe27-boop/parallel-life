@@ -8,6 +8,7 @@ import {
 } from '../src/modules/profile/application/person-extraction.ts';
 import {
   capturePhotoComposition,
+  capturePhotoSubmission,
   savedPhotoPersonLabel,
 } from '../src/features/interview/photo-share.ts';
 let tick = 0;
@@ -174,4 +175,63 @@ test('repeated grounded captions preserve the group without recursive history ex
   assert.equal(resolvePhotoReference(current, history, current.text, '王大毛')?.id, b.id);
   const conflict = message('第一张是小红');
   assert.equal(resolvePhotoReference(conflict, history, conflict.text, '小红'), null);
+});
+
+test('unpunctuated questions, negated instructions and reported words cannot assert photo identity, including clipped model quotes', () => {
+  const image = message('照片', randomUUID());
+  for (const [text, quote] of [
+    ['这是小芳的照片吗', '这是小芳的照片'],
+    ['这张是小芳吗', '这张是小芳'],
+    ['别把这张说成小芳', '这张说成小芳'],
+    ['不要说这张是小芳', '这张是小芳'],
+    ['他说这是小芳的照片', '这是小芳的照片'],
+  ] as const) {
+    const source = message(text);
+    assert.deepEqual(explicitPhotoPeople(text, source.id), [], text);
+    assert.equal(resolvePhotoReference(source, [image], text, '小芳'), null, text);
+    assert.equal(
+      groundPersonProposal(
+        { subject: '小芳', messageId: source.id, quote, associatePhoto: true },
+        text,
+        [],
+      ),
+      null,
+      text,
+    );
+  }
+  for (const text of [
+    '这是小芳的照片',
+    '这张是小芳',
+    '第一张是小芳',
+    '故事里第一张是小芳',
+    '刚才第一张是小芳',
+  ]) {
+    const source = message(text),
+      proposal = explicitPhotoPeople(text, source.id)[0]!;
+    assert(proposal, text);
+    assert(groundPersonProposal(proposal, text, [], true), text);
+    assert.equal(
+      resolvePhotoReference(source, [image], proposal.quote, proposal.subject)?.id,
+      image.id,
+      text,
+    );
+  }
+});
+
+test('a failed pre-upload composition retries its original caption and keeps later drafts separate', () => {
+  const file = { size: 100, type: 'image/png' };
+  const failed = capturePhotoComposition(file, '这是小芳');
+  const retry = capturePhotoSubmission(file, '下一条独立草稿', failed);
+  assert.equal(retry.file, file);
+  assert.equal(retry.caption, '这是小芳');
+  assert.equal(retry.clearDraft, false);
+  assert.equal(capturePhotoSubmission(file, '这是小芳', failed).clearDraft, true);
+  const replaced = { size: 100, type: 'image/png' };
+  const fresh = capturePhotoSubmission(replaced, '新的照片说明', failed);
+  assert.equal(fresh.caption, '新的照片说明');
+  assert.equal(fresh.clearDraft, true);
+  assert.equal(
+    capturePhotoSubmission(file, '用户明确开始的新组合', null).caption,
+    '用户明确开始的新组合',
+  );
 });
