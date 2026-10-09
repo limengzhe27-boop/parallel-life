@@ -15,6 +15,11 @@ import {
 import { PhoneIcon } from './phone-icons.tsx';
 import { StatusBar } from './status-bar.tsx';
 import { arrivingIds, isUnlockSwipe } from './notification-state.ts';
+import {
+  groupNotifications,
+  latestNotification,
+  type NotificationGroup,
+} from './notification-projection.ts';
 import { playReceiveSound } from './audio-feedback.ts';
 import styles from './phone.module.css';
 
@@ -38,6 +43,12 @@ export type PhoneNotification = {
   app: PhoneApp;
   target?: string;
   timeLabel?: string;
+  /** Persisted event time, used for deterministic ordering. */
+  at?: string;
+  /** Private and group conversations with the same target must stay separate. */
+  conversationKind?: 'private' | 'group';
+  /** Only set from a verified active item; never infer urgency from message text. */
+  actionableUntil?: string;
 };
 export type PhoneAppContext = {
   app: PhoneApp;
@@ -52,6 +63,10 @@ export type PhoneShellProps = {
   /** Caller supplies an authorized URL. No default photo is presented as world data. */
   wallpaperUrl?: string;
   notifications?: readonly PhoneNotification[];
+  /** Persisted story time for checking whether an action is still available. */
+  referenceTime?: string;
+  /** A caller with group routing can open a group notification without using private-chat routes. */
+  onOpenNotification?: (notification: PhoneNotification) => void;
   renderApp?: (context: PhoneAppContext) => ReactNode;
   renderPanel?: (panel: PhonePanel) => ReactNode;
   renderHome?: (context: {
@@ -74,6 +89,8 @@ function LifePhone({
   timeLabel,
   wallpaperUrl,
   notifications = [],
+  referenceTime,
+  onOpenNotification,
   renderApp,
   renderPanel,
   renderHome,
@@ -84,6 +101,8 @@ function LifePhone({
   const [locked, setLocked] = useState(initiallyLocked);
   const [bannerId, setBannerId] = useState<string>();
   const [openedIds, setOpenedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set());
+  const [showAllGroups, setShowAllGroups] = useState(false);
   const knownIds = useRef<ReadonlySet<string>>(new Set(notifications.map((n) => n.id)));
   const unlockButton = useRef<HTMLButtonElement>(null);
   const swipeStart = useRef<number | undefined>(undefined);
@@ -104,10 +123,12 @@ function LifePhone({
     const incoming = arrivingIds(knownIds.current, ids);
     knownIds.current = new Set(ids);
     if (incoming.length) {
-      setBannerId(incoming.at(-1));
+      const incomingSet = new Set(incoming);
+      const newest = latestNotification(notifications.filter((item) => incomingSet.has(item.id)));
+      setBannerId(newest?.id ?? incoming.at(-1));
       playReceiveSound();
     }
-  }, [notificationSignature]);
+  }, [notificationSignature, notifications]);
   useEffect(() => {
     if (!bannerId) return;
     const timer = window.setTimeout(() => setBannerId(undefined), 6000);
@@ -115,6 +136,8 @@ function LifePhone({
   }, [bannerId]);
   const pending = notifications.filter((n) => !openedIds.has(n.id));
   const banner = pending.find((n) => n.id === bannerId);
+  const groups = groupNotifications(pending, referenceTime);
+  const visibleGroups = showAllGroups ? groups : groups.slice(0, 3);
   useEffect(() => {
     if (locked) unlockButton.current?.focus({ preventScroll: true });
     else heading.current?.focus({ preventScroll: true });
@@ -182,10 +205,17 @@ function LifePhone({
     setLocked(true);
   }
   function openNotification(n: PhoneNotification) {
+    if (n.conversationKind === 'group' && !onOpenNotification) {
+      // Until group routes are connected, the app list is safer than a private-chat deep link.
+      setLocked(false);
+      open(n.app);
+      return;
+    }
     setOpenedIds((current) => new Set([...current, n.id]));
     setBannerId(undefined);
     setLocked(false);
-    open(n.app, n.target);
+    if (n.conversationKind === 'group') onOpenNotification?.(n);
+    else open(n.app, n.target);
   }
   function notificationCard(n: PhoneNotification) {
     return (
@@ -193,6 +223,7 @@ function LifePhone({
         key={n.id}
         className={styles.notification}
         data-notification={n.id}
+        aria-label={`${n.title}，${n.timeLabel ?? '时间未注明'}，${n.summary}`}
         onClick={() => openNotification(n)}
       >
         <span className={`${styles.notificationIcon} ${styles[n.app]}`}>
@@ -208,6 +239,64 @@ function LifePhone({
         </span>
         <PhoneIcon name="next" />
       </button>
+    );
+  }
+  function groupCard(group: NotificationGroup) {
+    const latest = group.latest;
+    if (group.items.length === 1)
+      return (
+        <div key={group.key} className={styles.notificationGroup}>
+          {notificationCard(latest)}
+        </div>
+      );
+    const expanded = expandedGroups.has(group.key);
+    const regionId = `notification-group-${encodeURIComponent(group.key)}`;
+    return (
+      <div
+        key={group.key}
+        className={`${styles.notificationGroup} ${expanded ? styles.notificationGroupExpanded : ''}`}
+        data-notification-group={group.key}
+      >
+        <button
+          className={`${styles.notification} ${styles.notificationStack}`}
+          aria-label={`${latest.title}，${group.items.length} 条未读消息，最新消息：${latest.summary}`}
+          aria-expanded={expanded}
+          aria-controls={regionId}
+          onClick={() =>
+            setExpandedGroups((current) => {
+              const next = new Set(current);
+              if (next.has(group.key)) next.delete(group.key);
+              else next.add(group.key);
+              return next;
+            })
+          }
+        >
+          <span className={`${styles.notificationIcon} ${styles[latest.app]}`}>
+            <PhoneIcon name={latest.app} />
+          </span>
+          <span className={styles.notificationBody}>
+            <span className={styles.notificationMeta}>
+              <small>{apps[latest.app]}</small>
+              {latest.timeLabel && <small>{latest.timeLabel}</small>}
+            </span>
+            <strong>{latest.title}</strong>
+            <span className={styles.notificationSummary}>{latest.summary}</span>
+            <small className={styles.notificationCount}>
+              {group.items.length} 条未读 · {expanded ? '收起' : '展开'}
+            </small>
+          </span>
+          <PhoneIcon name="next" />
+        </button>
+        {expanded && (
+          <div
+            id={regionId}
+            className={styles.notificationItems}
+            aria-label={`${latest.title}的未读消息`}
+          >
+            {group.items.map(notificationCard)}
+          </div>
+        )}
+      </div>
     );
   }
   function appButton(app: PhoneApp) {
@@ -271,7 +360,7 @@ function LifePhone({
       <div className={styles.shade} />
       {notice && <div className={styles.notice}>{notice}</div>}
       <StatusBar timeLabel={timeLabel} locked={locked} onLock={lock} />
-      {banner && (
+      {banner && !locked && (
         <div className={styles.banner} data-notification-banner role="status" key={banner.id}>
           {notificationCard(banner)}
           <button
@@ -369,9 +458,6 @@ function LifePhone({
             {route.panel === 'management' ? (
               <div className={styles.management}>
                 <p>这段人生的调整与管理</p>
-                <button onClick={() => navigate({ ...route, panel: 'director' })}>
-                  与导演讨论 <PhoneIcon name="next" />
-                </button>
                 <button onClick={() => navigate({ ...route, panel: 'timeline' })}>
                   当前身份与经历 <PhoneIcon name="next" />
                 </button>
@@ -423,7 +509,16 @@ function LifePhone({
                 className={`${styles.notifications} ${styles.lockNotifications}`}
                 aria-label="锁屏通知"
               >
-                {pending.filter((n) => n.id !== banner?.id).map(notificationCard)}
+                {visibleGroups.map(groupCard)}
+                {groups.length > 3 && (
+                  <button
+                    className={styles.moreNotifications}
+                    aria-expanded={showAllGroups}
+                    onClick={() => setShowAllGroups((current) => !current)}
+                  >
+                    {showAllGroups ? '收起其他通知' : `查看其余 ${groups.length - 3} 组通知`}
+                  </button>
+                )}
                 {!pending.length && <span className={styles.srOnly}>没有待查看通知</span>}
               </section>
             </div>

@@ -162,6 +162,84 @@
   backdrop-filter: blur(12px);
   color: var(--phone-ink);
 }
+.notificationGroup {
+  position: relative;
+  min-width: 0;
+}
+.notificationGroup:has(.notificationStack):not(.notificationGroupExpanded) {
+  margin-bottom: 9px;
+}
+.notificationGroup:has(.notificationStack):not(.notificationGroupExpanded)::before,
+.notificationGroup:has(.notificationStack):not(.notificationGroupExpanded)::after {
+  content: '';
+  position: absolute;
+  height: 24px;
+  bottom: -4px;
+  left: 10px;
+  right: 10px;
+  border-radius: 0 0 22px 22px;
+  background: rgba(245, 245, 250, 0.75);
+  backdrop-filter: blur(12px);
+}
+.notificationGroup:has(.notificationStack):not(.notificationGroupExpanded)::after {
+  bottom: -8px;
+  left: 20px;
+  right: 20px;
+  background: rgba(245, 245, 250, 0.54);
+  z-index: -1;
+}
+.notificationStack {
+  position: relative;
+  z-index: 1;
+}
+.notificationBody {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notificationMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.notificationCount {
+  margin-top: 5px;
+  font-size: 12px !important;
+  font-weight: 600;
+  opacity: 0.72 !important;
+}
+.notificationItems {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-left: 12px;
+}
+.notificationItems .notification {
+  min-height: 68px;
+  border-radius: 19px;
+  padding: 10px 12px;
+  align-items: flex-start;
+}
+.notificationItems .notification > svg {
+  margin-top: 8px;
+}
+.notificationItems .notification .notificationSummary {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.moreNotifications {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 18px;
+  color: var(--phone-white);
+  background: rgba(20, 31, 47, 0.55);
+  backdrop-filter: blur(12px);
+  font-size: 13px !important;
+  font-weight: 600;
+}
 .notification > span:nth-child(2) {
   flex: 1;
   min-width: 0;
@@ -586,9 +664,9 @@
   outline: none;
 }
 .phone .unlock:focus-visible > span {
-  outline: 2px solid var(--phone-blue);
+  outline: 2px solid var(--phone-white);
   outline-offset: 6px;
-  border-radius: 5px;
+  border-radius: 8px;
 }
 .unlock > i,
 .homeGesture > span {
