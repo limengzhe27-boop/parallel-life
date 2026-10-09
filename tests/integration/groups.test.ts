@@ -1,3 +1,5 @@
+import { worldTaskDispatcher } from '../../src/server/world-task-dispatcher.ts';
+import { replayWorldHistory } from '../../src/modules/world/domain/world-history.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -19,7 +21,7 @@ import { groupHistory } from '../../src/modules/world/domain/group-runtime.ts';
 import { WorldGroupPlanner } from '../../src/modules/world/infrastructure/group-planner.ts';
 import { YibuTextModel } from '../../src/modules/ai/infrastructure/yibu-text-model.ts';
 import type { GroupPlanner } from '../../src/modules/world/application/group-ports.ts';
-const time = '2026-10-08T03:00:00.000Z';
+const time = new Date().toISOString();
 async function fixture() {
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
@@ -115,6 +117,23 @@ async function fixture() {
       title: '大家一起商量',
       actorIds: [a, b],
     });
+    const events = (
+      await admin.query(
+        'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 ORDER BY version',
+        [id],
+      )
+    ).rows.map((r) => r.payload);
+    const initial = (
+      await admin.query(
+        'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+        [id],
+      )
+    ).rows[0].state;
+    const replay = replayWorldHistory(initial, events);
+    assert.equal(replay.world.version, receipt.version);
+    assert.equal(replay.groups[0]?.id, receipt.groupId);
+    assert.equal(replay.messages.length, 0);
+    assert.equal(replay.world.messages.length, 2); // Private messages never become group history.
     return { owner, id, a, b, groupId: receipt.groupId, version: receipt.version };
   }
   async function run(owner: string, taskId: string, planner: GroupPlanner, maxReplies = 1) {
@@ -124,7 +143,14 @@ async function fixture() {
         renew: (lease) => queue.renew(lease),
         finish: (lease, outcome) => queue.finish(lease, outcome),
       },
-      { world: groupTaskHandler(queue, planner, 'fixture', { now: () => time, maxReplies }) },
+      {
+        world: worldTaskDispatcher({
+          group: groupTaskHandler(queue, planner, 'fixture', { now: () => time, maxReplies }),
+          scene: async () => {
+            assert.fail('Group lease routed to scene');
+          },
+        }),
+      },
     );
   }
   return {
@@ -400,7 +426,12 @@ test('real PG a two-person group reply keeps invitations proposed until explicit
                 ? '我来架机位，明天先试拍一段？'
                 : '我来试录声音，先别急着定下来。',
             ...(input.actor.id === w.a
-              ? { invitation: { title: '试拍一小段', at: '2026-10-09T03:00:00.000Z' } }
+              ? {
+                  invitation: {
+                    title: '试拍一小段',
+                    at: new Date(Date.parse(time) + 86400000).toISOString().replace('Z', '+00:00'),
+                  },
+                }
               : {}),
           };
         },
@@ -415,6 +446,10 @@ test('real PG a two-person group reply keeps invitations proposed until explicit
     assert.equal(world.appointments[0]!.status, 'proposed');
     const invitation = world.appointments[0]!;
     assert.match(invitation.id, /^[a-zA-Z0-9_-]{1,100}$/u);
+    assert.ok(invitation.at.endsWith('Z'));
+    const { InvitationSchema } = await import('../../src/contracts/invitations.ts');
+    const { sourceEventId: _sourceEventId, ...phoneInvitation } = invitation;
+    assert.ok(InvitationSchema.safeParse(phoneInvitation).success);
     const accepted = await f.worlds.respondToInvitation(
       { userId: w.owner },
       {

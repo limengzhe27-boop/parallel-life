@@ -110,3 +110,36 @@ test('malformed, foreign authors, media and action results are rejected instead 
     );
   }
 });
+
+test('long group history retains a complete latest input within the model budget', async () => {
+  const text = '保留当前问题'.repeat(600);
+  const input = {
+    actor: read.world.actors[0]!,
+    worldTitle: read.world.title,
+    storyAt: read.world.time,
+    publicFacts: [],
+    groupTitle: read.group.title,
+    members: [],
+    messages: Array.from({ length: 80 }, (_, i) => ({
+      id: 'm' + i,
+      ownerId: 'u',
+      worldId: 'w',
+      sourceEventId: 'e',
+      sourceVersion: 1,
+      conversationId: 'g',
+      sender: { kind: 'player' as const },
+      text: i === 79 ? text : '过去的长消息'.repeat(600),
+      media: [],
+    })),
+  };
+  const planner = new WorldGroupPlanner({
+    async complete(messages) {
+      const payload = messages.at(-1)!.content;
+      assert.ok(payload.length <= 24000);
+      assert.equal(JSON.parse(payload).messages.at(-1).text, text);
+      assert.ok(JSON.parse(payload).messages.length < 80);
+      return JSON.stringify({ text: '我看到了，先试一下。' });
+    },
+  });
+  await planner.propose(input);
+});

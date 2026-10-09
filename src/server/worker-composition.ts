@@ -1,3 +1,6 @@
+import { worldTaskDispatcher } from './world-task-dispatcher.ts';
+import { groupTaskHandler } from '../modules/world/infrastructure/group-task-handler.ts';
+import { WorldGroupPlanner } from '../modules/world/infrastructure/group-planner.ts';
 import { ScenePlanner } from '../modules/world/infrastructure/scene-planner.ts';
 import { sceneTaskHandler } from '../modules/world/infrastructure/scene-task-handler.ts';
 import { WorldPlanner } from '../modules/world/infrastructure/world-planner.ts';
@@ -23,7 +26,14 @@ export function createWorker() {
   return {
     queue,
     handlers: {
-      world: sceneTaskHandler(queue, new ScenePlanner(new YibuTextModel(config)), config.model),
+      world: worldTaskDispatcher({
+        scene: sceneTaskHandler(queue, new ScenePlanner(new YibuTextModel(config)), config.model),
+        group: groupTaskHandler(
+          queue,
+          new WorldGroupPlanner(new YibuTextModel(config)),
+          config.model,
+        ),
+      }),
       'world-build': buildHandler(queue, new WorldPlanner(new YibuTextModel(config)), config.model),
       profile: discoveryHandler(
         queue,

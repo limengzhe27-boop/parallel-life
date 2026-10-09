@@ -9,7 +9,10 @@ const Reply = z.strictObject({
   invitation: z
     .strictObject({
       title: z.string().trim().min(1).max(120),
-      at: z.string().datetime({ offset: true }),
+      at: z
+        .string()
+        .datetime({ offset: true })
+        .transform((value) => new Date(value).toISOString()),
     })
     .optional(),
 });
@@ -24,12 +27,25 @@ export class WorldGroupPlanner implements GroupPlanner {
     this.model = model;
   }
   async propose(input: GroupActorInput, signal?: AbortSignal) {
+    const payload = {
+      ...input,
+      messages: input.messages.slice(-80),
+      publicFacts: input.publicFacts.slice(-24),
+      localTime: worldDateTimeLabel(input.storyAt),
+    };
+    // Drop whole older entries rather than truncating the latest player's communication.
+    while (JSON.stringify(payload).length > 24000 && payload.messages.length > 1)
+      payload.messages.shift();
+    while (JSON.stringify(payload).length > 24000 && payload.publicFacts.length)
+      payload.publicFacts.shift();
+    if (JSON.stringify(payload).length > 28000)
+      throw Object.assign(Error('GROUP_CONTEXT_LIMIT'), { code: 'INVALID_COMMAND' });
     const raw = await this.model.complete(
       [
         { role: 'system', content: SYSTEM },
         {
           role: 'user',
-          content: JSON.stringify({ ...input, localTime: worldDateTimeLabel(input.storyAt) }),
+          content: JSON.stringify(payload),
         },
       ],
       signal,

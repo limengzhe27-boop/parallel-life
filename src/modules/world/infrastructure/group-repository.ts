@@ -1,7 +1,8 @@
+import { applyWorldHistoryEvent } from '../domain/world-history.ts';
+import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
 import { DomainError } from '../domain/errors.ts';
 import {
-  applyGroupWorldEvent,
   reduceGroupEvent,
   groupHistory,
   type GroupEvent,
@@ -42,7 +43,7 @@ async function loadWorld(
 ): Promise<WorldState> {
   const row = (
     await sql.query(
-      `SELECT state,version,owner_id FROM parallel_life.worlds WHERE id=$1${lock ? ' FOR UPDATE' : ''}`,
+      `SELECT state,version,owner_id FROM parallel_life.worlds WHERE id=$1${lock ? ' FOR UPDATE' : ' FOR SHARE'}`,
       [worldId],
     )
   ).rows[0];
@@ -85,6 +86,20 @@ async function loadWorld(
       [worldId],
     )
   ).rows.map((r) => r.document);
+  const responses = (
+    await sql.query(
+      "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
+      [worldId, state.version],
+    )
+  ).rows;
+  for (const row of responses) {
+    const event = row.payload as InvitationEvent;
+    const hydrated = applyInvitationEvent(
+      { ...state, version: event.version - 1, time: event.storyTime },
+      event,
+    );
+    state.appointments = hydrated.appointments;
+  }
   // Group processing deliberately never loads world_messages or private memories.
   state.messages = [];
   return state;
@@ -175,7 +190,7 @@ export async function persistGroupEvent(
   const context = await experienceContext(sql, world);
   const previous =
     event.type === 'group.created' ? undefined : await loadGroup(sql, world.id, event.data.groupId);
-  const next = applyGroupWorldEvent(world, event);
+  const next = applyWorldHistoryEvent(world, event).state;
   const committedContext: ExperienceContext = {
     world: next,
     events: [
@@ -493,7 +508,15 @@ export function groupReplyEvent(
       replies: replies.map((r) => ({
         ...r,
         messageId: randomUUID(),
-        ...(r.invitation ? { invitation: { ...r.invitation, id: randomUUID() } } : {}),
+        ...(r.invitation
+          ? {
+              invitation: {
+                ...r.invitation,
+                at: new Date(r.invitation.at).toISOString(),
+                id: randomUUID(),
+              },
+            }
+          : {}),
       })),
     },
   };
