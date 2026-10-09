@@ -56,6 +56,7 @@ export class DiscoveryRepository {
         request.expectedProfileVersion,
         request.brief,
         request.basedOnId,
+        ...(request.mode ? [request.mode] : []),
       ]);
       const duplicate = (
         await sql.query('SELECT * FROM parallel_life.tasks WHERE owner_id=$1 AND command_id=$2', [
@@ -99,6 +100,7 @@ export class DiscoveryRepository {
         throw new TaskError('VERSION_CONFLICT');
       const input = DiscoveryInputSchema.parse({
         kind: 'discovery',
+        ...(request.mode ? { mode: request.mode } : {}),
         profileId: profile.id,
         expectedVersion: saved.version,
         profileVersion: profile.version,

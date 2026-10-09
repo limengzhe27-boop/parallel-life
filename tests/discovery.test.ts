@@ -133,3 +133,149 @@ test('discovery never retries transport, cancelled, uncertain or truncated calls
     assert.equal(calls, 1);
   }
 });
+
+test('focused keeps the current brief even with unrelated confirmed interests and may cite no facts', async () => {
+  const direction = {
+    ...output(null).directions[0]!,
+    title: '舞台摄影师',
+    premise: '作为舞台摄影师体验一场演出',
+    opening: '演出开场前调好相机',
+    reason: '用户这次想体验舞台摄影师',
+  };
+  const planner = new DiscoveryPlanner({
+    async complete(messages, _signal, _tokens, options) {
+      assert.match(messages[0]!.content, /不因用户还喜欢其他事而换主线/);
+      assert.equal(JSON.parse(messages[1]!.content).brief, '我想体验舞台摄影师，不开修车店');
+      assert.deepEqual(options, { format: 'json_object' });
+      return JSON.stringify({ directions: [direction] });
+    },
+  });
+  const result = await planner.propose({
+    ...input,
+    mode: 'focused',
+    brief: '我想体验舞台摄影师，不开修车店',
+  });
+  assert.equal(result.length, 1);
+  assert.equal(result[0]!.title, '舞台摄影师');
+  assert.deepEqual(result[0]!.sources, []);
+});
+
+test('focused cardinality and source validation are not weakened by a one-direction response', async () => {
+  for (const bad of [
+    output(null),
+    { directions: [{ ...output(null).directions[0]!, sourceFactIds: [randomUUID()] }] },
+    {
+      directions: [{ ...output(null).directions[0]!, sourceFactIds: [basis.factId, basis.factId] }],
+    },
+  ]) {
+    await assert.rejects(
+      new DiscoveryPlanner({
+        async complete() {
+          return JSON.stringify(bad);
+        },
+      }).propose({ ...input, mode: 'focused' }),
+      { code: 'INVALID_RESPONSE' },
+    );
+  }
+  await assert.rejects(
+    new DiscoveryPlanner({
+      async complete() {
+        return JSON.stringify({ directions: [output(null).directions[0]] });
+      },
+    }).propose({ ...input, mode: 'focused', brief: '' }),
+    { code: 'INVALID_RESPONSE', reason: 'MISSING_SOURCES' },
+  );
+});
+
+test('focused known invalid output gets at most one count-aware correction; uncertain output is never retried', async () => {
+  let calls = 0;
+  const result = await new DiscoveryPlanner({
+    async complete(messages) {
+      calls++;
+      if (calls === 1) return JSON.stringify(output(null));
+      assert.match(messages[2]!.content, /恰好1个沿brief/);
+      return JSON.stringify({ directions: [output(null).directions[0]] });
+    },
+  }).propose({ ...input, mode: 'focused' });
+  assert.equal(result.length, 1);
+  assert.equal(calls, 2);
+  for (const code of ['TIMEOUT', 'UPSTREAM_FAILED', 'CANCELLED', 'TRUNCATED']) {
+    let attempts = 0;
+    await assert.rejects(
+      new DiscoveryPlanner({
+        async complete() {
+          attempts++;
+          throw Object.assign(Error(code), { code });
+        },
+      }).propose({ ...input, mode: 'focused' }),
+      { code },
+    );
+    assert.equal(attempts, 1);
+  }
+});
+
+test('explicit exploration and omitted legacy inputs still demand three directions', async () => {
+  for (const mode of [undefined, 'explore' as const]) {
+    const result = await new DiscoveryPlanner({
+      async complete() {
+        return JSON.stringify(output(basis.factId));
+      },
+    }).propose({ ...input, mode });
+    assert.equal(result.length, 3);
+    await assert.rejects(
+      new DiscoveryPlanner({
+        async complete() {
+          return JSON.stringify({ directions: [output(basis.factId).directions[0]] });
+        },
+      }).propose({ ...input, mode }),
+      { code: 'INVALID_RESPONSE' },
+    );
+  }
+  assert.equal(
+    DiscoverRequestSchema.safeParse({
+      commandId: randomUUID(),
+      expectedVersion: 0,
+      expectedProfileVersion: 0,
+      mode: 'anything',
+    }).success,
+    false,
+  );
+});
+
+test('a related profession named only in reason cannot satisfy the literal current focus', async () => {
+  const request = {
+    ...input,
+    mode: 'focused' as const,
+    brief: '我想体验舞台摄影师，别换成其他职业',
+  };
+  const wrong = {
+    ...output(null).directions[0]!,
+    title: '舞台设计师',
+    premise: '决定成为舞台设计师',
+    reason: '舞台摄影师能拓展到舞台设计',
+  };
+  let calls = 0;
+  await assert.rejects(
+    new DiscoveryPlanner({
+      async complete() {
+        calls++;
+        return JSON.stringify({ directions: [wrong] });
+      },
+    }).propose(request),
+    { code: 'INVALID_RESPONSE', reason: 'FOCUS_MISMATCH' },
+  );
+  assert.equal(calls, 2);
+  let corrected = 0;
+  const result = await new DiscoveryPlanner({
+    async complete(messages) {
+      corrected++;
+      if (corrected === 1) return JSON.stringify({ directions: [wrong] });
+      assert.match(messages[2]!.content, /FOCUS_MISMATCH/);
+      return JSON.stringify({
+        directions: [{ ...wrong, title: '舞台摄影师', premise: '作为舞台摄影师跟随剧组拍摄演出' }],
+      });
+    },
+  }).propose(request);
+  assert.equal(corrected, 2);
+  assert.match(result[0]!.premise, /舞台摄影师/);
+});
