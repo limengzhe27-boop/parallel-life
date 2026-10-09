@@ -668,3 +668,7 @@ https://github.com/limengzhe27-boop/parallel-life
 ## 2026-10-08 · PEOPLE-01Q 朋友带入专项审查
 
 报告提交0e54396，Production 1vtm36l84 / dpl_F6VaHcA9wAi1Qyeuun2v5iCacUHm Ready，正式域名已切换；业务仍为8969278，未发布缺陷修复或PEOPLE-02。35/35生产迁移一致，无新SQL；286check/build、真实PG专项通过，生产两位同名朋友的快照/原图/角色/真实NPC/跨访客隔离通过。首次世界生成失败，经一次明确新任务重试成功；取消上传遗留素材和关系标签/人设语义矛盾已记录。health、首页、分支页200。见[专项报告](task-reports/PEOPLE-01Q.md)。
+
+## 2026-10-09 · SCENE-02 / 群聊、锁屏、时间与玩家边界联合上线
+
+业务82ac88b首次Production o9c9hn37f READY，实际公网30项通过后发现离场回看空态与时钟committed成功回执误拒收；9c8c242与26ba6b7分别修正，不把首次就绪当最终验收。最终26ba6b7；Production344kdxj3a / dpl_5PrfmDxg1gveHyANC3BSz3FhMjFn READY；393check/63真实PG+3可选跳过/build、38生产迁移一致、两身份真实模型和公网46项及390/1440通过，正式地址 https://parallel-life-nu.vercel.app 已切换。无新SQL，生产Supabase38/38校验和一致。现场自由原文/实际裁定/幂等/返回保留、真实群回复/成员联系人/未读、锁屏私聊按联系人与群各自折叠直达、暂停/倍速成功回执、direction410与跨账号404通过。全部生产操作仅原隔离合成世界，最终version38/paused=true/speed1；未执行的新现场离场后cancelled、旧实际记录不变。地图/媒体/全语义叙述核验不在交付；LIB-04B在途文件保持未提交。证据与明确失败见[SCENE-02报告](task-reports/SCENE-02.md)。
