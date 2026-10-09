@@ -7,7 +7,7 @@ import { Id, Timestamp } from './api.ts';
  * Deliberately separate from the phone contracts: the phone UI and any future client
  * read the same shapes, and adding a field here can never break the app projections.
  */
-export const WorldClockSchema = z.strictObject({
+const ClockValuesSchema = z.strictObject({
   storyNow: Timestamp,
   speed: z.number().min(0).max(60),
   paused: z.boolean(),
@@ -15,6 +15,13 @@ export const WorldClockSchema = z.strictObject({
   missedBeats: z.number().int().nonnegative(),
   summary: z.string().nullable(),
 });
+/** Reads contain clock values; successful controls also carry a committed receipt. */
+export const WorldClockSchema = z.union([
+  ClockValuesSchema,
+  ClockValuesSchema.extend({ status: z.literal('committed') }).transform(
+    ({ status: _status, ...clock }) => clock,
+  ),
+]);
 export type WorldClock = z.infer<typeof WorldClockSchema>;
 
 export const WorldClockControlSchema = z
