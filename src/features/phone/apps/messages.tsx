@@ -6,6 +6,12 @@ import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
+import { Id } from '../../../contracts/api.ts';
+import { useGroups } from '../groups/use-groups.ts';
+import { GroupCreate } from '../groups/group-create.tsx';
+import { GroupListRows } from '../groups/group-list.tsx';
+import { GroupChat } from '../groups/group-chat.tsx';
+import { groupTarget, parseGroupTarget } from '../groups/state.ts';
 
 const EMOJI_LIST = [
   '😊',
@@ -43,7 +49,14 @@ const EMOJI_LIST = [
 ];
 
 export function MessagesApp({ target, open }: PhoneAppContext) {
-  const { data, actions, drafts, setDraft, operations, run } = usePhoneApps();
+  const { worldId, data, actions, drafts, setDraft, operations, run, onReload } = usePhoneApps();
+  const groups = useGroups(
+    worldId,
+    Id.safeParse(worldId).success && Boolean(actions.sendMessage),
+    onReload,
+  );
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const groupId = parseGroupTarget(target);
   const [tab, setTab] = useState<'chats' | 'contacts' | 'discover' | 'me'>('chats');
   const [query, setQuery] = useState('');
   const [showPerson, setShowPerson] = useState(false);
@@ -69,7 +82,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     text = drafts[key] ?? '',
     operation = operations[key];
 
-  const totalUnread = data.contacts.reduce((sum, c) => sum + (c.unread || 0), 0);
+  const totalUnread =
+    data.contacts.reduce((sum, c) => sum + (c.unread || 0), 0) +
+    Object.values(groups.details).reduce((sum, group) => sum + group.unread, 0);
 
   useLayoutEffect(() => {
     const el = messageScroll.current;
@@ -123,6 +138,28 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     };
   }, [actor?.id, actor?.unread, actions.markRead, messages.at(-1)?.id]);
 
+  if (creatingGroup)
+    return (
+      <GroupCreate
+        groups={groups}
+        contacts={data.contacts}
+        close={() => setCreatingGroup(false)}
+        created={(id) => {
+          setCreatingGroup(false);
+          open('messages', groupTarget(id));
+        }}
+      />
+    );
+  if (groupId && groups.enabled)
+    return (
+      <GroupChat
+        key={groupId}
+        id={groupId}
+        groups={groups}
+        contacts={data.contacts}
+        back={() => open('messages')}
+      />
+    );
   if (target && !actor) return <Empty title="找不到这个联系人" text="请返回通讯录或刷新后再试。" />;
 
   // -------------------------------------------------------------------------
@@ -249,7 +286,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               onClick={() => setShowDropdownMenu(false)}
             >
               {[
-                { icon: '💬', label: '发起群聊', action: () => open('messages') },
+                ...(groups.enabled
+                  ? [{ icon: '💬', label: '发起群聊', action: () => setCreatingGroup(true) }]
+                  : []),
                 { icon: '👤', label: '添加朋友', action: () => setTab('contacts') },
                 { icon: '📷', label: '扫一扫', action: () => open('photos') },
                 { icon: '💳', label: '收付款', action: () => setTab('me') },
@@ -297,6 +336,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               <div style={{ padding: '8px 12px', background: '#ededed' }}>
                 <Search label="搜索" value={query} onChange={setQuery} />
               </div>
+              <GroupListRows
+                groups={groups}
+                contacts={data.contacts}
+                query={query}
+                open={(id) => open('messages', groupTarget(id))}
+              />
               <div className={s.list} style={{ padding: 0 }}>
                 {sortedChats.map((c) => {
                   const latest = data.messages
@@ -375,7 +420,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   );
                 })}
               </div>
-              {!contacts.length && (
+              {!contacts.length && !groups.list?.groups.length && (
                 <Empty
                   title={query ? '没有找到聊天' : '还没有聊天'}
                   text="世界中的人物会出现在这里。"
