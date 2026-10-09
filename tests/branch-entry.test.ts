@@ -112,3 +112,29 @@ test('a caption can carry a concrete wish without inferring anything from photo 
     original,
   );
 });
+
+test('full original story and later photo names survive unrelated fatigue', () => {
+  const story =
+    '我总是在想，如果当时我没有去上学，而是当古惑仔。' +
+    '我希望慢慢体验街坊的人际变化。'.repeat(9) +
+    '人物是小芳和王大毛。';
+  const brief = branchMaterialBrief([
+    { role: 'user', text: story },
+    { role: 'user', text: '我分享了一张照片。' },
+    { role: 'user', text: '第一张是小芳，第二张是王大毛' },
+    { role: 'user', text: '现实太累，想休息一会儿。' },
+  ]);
+  assert(brief.includes(story));
+  assert(brief.includes('第一张是小芳，第二张是王大毛'));
+  assert(!brief.includes('想休息'));
+});
+
+test('cancelling creation clears the earlier branch material', () => {
+  assert.equal(
+    branchMaterialBrief([
+      { role: 'user', text: '我想在杭州开一家花店' },
+      { role: 'user', text: '先不要创建分支' },
+    ]),
+    '',
+  );
+});

@@ -6,6 +6,7 @@ import { MomentsApp } from './moments.tsx';
 import { PhotosApp } from './photos.tsx';
 import { CalendarApp } from './calendar.tsx';
 import { NotesApp } from './notes.tsx';
+import { SceneIndexApp } from '../scenes/scene-index.tsx';
 import { Empty, Refresh } from './common.tsx';
 import s from './apps.module.css';
 export { PhoneAppsProvider } from './provider.tsx';
@@ -18,15 +19,13 @@ export function PhoneAppView(context: PhoneAppContext) {
     <div className={s.surface} data-phone-app={context.app}>
       {(loading || Boolean(loadError)) && (
         <div className={s.syncBar}>
-          {loading ? (
-            <span role="status">正在更新…</span>
-          ) : (
-            <span role="alert">{loadError}</span>
-          )}
+          {loading ? <span role="status">正在更新…</span> : <span role="alert">{loadError}</span>}
           <Refresh />
         </div>
       )}
-      {loading && !hasData ? (
+      {context.app === 'scenes' ? (
+        <SceneIndexApp />
+      ) : loading && !hasData ? (
         <Empty title="正在打开…" />
       ) : loadError && !hasData ? (
         <Empty title="暂时没能打开" text="请刷新再试。" />

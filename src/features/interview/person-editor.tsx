@@ -1,5 +1,6 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ProfilePhotoRolesSchema } from '../../contracts/profile-photo-roles.ts';
 import type { Person, ProfileEdit } from '../../contracts/api.ts';
 import { Button, Icon, Modal, Notice } from '../../components/ui.tsx';
 import { personDisplayName, personKnownName } from '../../modules/profile/domain/person-record.ts';
@@ -32,6 +33,39 @@ export function PersonEditor({
     [assetId, setAssetId] = useState(person?.assetId ?? null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const [sharedPhotos, setSharedPhotos] = useState<string[]>([]),
+    [photosError, setPhotosError] = useState(''),
+    [photoRead, setPhotoRead] = useState(0);
+  useEffect(() => {
+    if (!editing) return;
+    let live = true;
+    setPhotosError('');
+    void fetch('/api/v1/profile/photos/roles', { cache: 'no-store', credentials: 'same-origin' })
+      .then(async (r) => {
+        if (!r.ok) throw new Error('已分享照片暂时无法读取。');
+        const roles = ProfilePhotoRolesSchema.parse(await r.json());
+        if (live) setSharedPhotos(roles.sharedAssetIds);
+      })
+      .catch(() => {
+        if (live) setPhotosError('已分享照片暂时无法读取，可重新读取。');
+      });
+    return () => {
+      live = false;
+    };
+  }, [editing, photoRead]);
+  async function chooseShared(id: string) {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await photos.discard(client, id);
+      setAssetId(id);
+    } catch (e) {
+      setError(fail(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   const fail = (e: unknown) =>
     e instanceof ApiFailure ? e.message : '暂时没有保存，输入还在，请重试。';
   async function photo(file: File) {
@@ -124,7 +158,11 @@ export function PersonEditor({
               alt={`${person.name}的原图`}
             />
           )}
-          <p>现实关系：{person.relationship}</p>
+          <p>
+            {person.relationship === '照片人物'
+              ? '照片说明，尚未声明现实关系'
+              : `现实关系：${person.relationship}`}
+          </p>
           {person.temporaryLabel && <p>临时称呼：{person.temporaryLabel}</p>}
           <section>
             <h3>我的描述</h3>
@@ -266,6 +304,30 @@ export function PersonEditor({
                 添加一段经历
               </Button>
             </section>
+            <details>
+              <summary>从已分享的照片选择</summary>
+              <p className="form-hint">
+                由你明确选择对应原图，不会识别人脸或猜人物。保存后才关联；原聊天照片仍保留。
+              </p>
+              {photosError ? <p role="alert">{photosError}</p> : null}
+              <Button type="button" variant="ghost" onClick={() => setPhotoRead((n) => n + 1)}>
+                重新读取已分享照片
+              </Button>
+              <div className={s.existingPhotos}>
+                {sharedPhotos.map((id, i) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-label={'选择已分享照片 ' + (i + 1)}
+                    aria-pressed={assetId === id}
+                    onClick={() => void chooseShared(id)}
+                  >
+                    <img src={'/api/v1/assets/' + id} alt={'已分享照片 ' + (i + 1)} />
+                  </button>
+                ))}
+              </div>
+              {!sharedPhotos.length && !photosError ? <p>还没有可选择的已分享照片。</p> : null}
+            </details>
             <label className="person-upload">
               {assetId ? (
                 <img src={`/api/v1/assets/${assetId}`} alt="已选择的原图" />
@@ -294,7 +356,11 @@ export function PersonEditor({
             )}
           </fieldset>
           {error && <Notice>{error}</Notice>}
-          <p className="form-hint">这里保存现实资料。每段平行人生的角色身份分别记录。</p>
+          <p className="form-hint">
+            {person?.relationship === '照片人物'
+              ? '照片称呼只用于对应原图，不代表现实关系。分支里的角色身份在创建时另行选择。'
+              : '这里保存你明确填写的现实资料。每段平行人生的角色身份分别记录。'}
+          </p>
           <div className="form-actions">
             {person && (
               <Button

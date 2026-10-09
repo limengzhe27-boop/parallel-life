@@ -4,11 +4,7 @@ import { Id, ProfileSchema, Version } from '../../../contracts/api.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
-import {
-  InterviewPlanner,
-  INTERVIEW_PROMPT_VERSION,
-  groundBasicInfo,
-} from './interview-planner.ts';
+import { InterviewPlanner, INTERVIEW_PROMPT_VERSION } from './interview-planner.ts';
 import {
   appendAssistantMessage,
   incrementInterviewVersion,
@@ -22,6 +18,7 @@ import {
 import {
   applyConfirmedCandidateInTransaction,
   applyBasicInfoInTransaction,
+  groundBasicInfoAtMessage,
   applyPeopleInTransaction,
   isSimilarText,
 } from './profile-repository.ts';
@@ -123,8 +120,11 @@ export function interviewHandler(
       );
 
       // 2.5 基础资料写入：若用户提到了生日、姓名、城市等，直接更新到个人资料卡片结构化字段中
-      const inputMsg = base.interview.messages.find((m) => m.id === input.inputMessageId);
-      const effectiveBasicInfo = groundBasicInfo(inputMsg?.text ?? '', proposal.basicInfo);
+      const effectiveBasicInfo = await groundBasicInfoAtMessage(
+        sql,
+        lease.ownerId,
+        input.inputMessageId,
+      );
 
       if (Object.values(effectiveBasicInfo).some(Boolean)) {
         const applied = await applyBasicInfoInTransaction(sql, lease.ownerId, effectiveBasicInfo, [

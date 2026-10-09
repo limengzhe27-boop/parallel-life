@@ -54,6 +54,28 @@ type BasicInfoInput = {
   hometown?: string;
 };
 
+/** Re-check full durable user context, including turns outside the model budget. */
+export async function groundBasicInfoAtMessage(
+  sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
+  ownerId: string,
+  messageId: string,
+) {
+  const rows = (
+    await sql.query(
+      `SELECT m.text FROM parallel_life.interview_messages m
+     JOIN parallel_life.interview_messages target ON target.id=$2 AND target.owner_id=$1 AND target.role='user'
+     WHERE m.owner_id=$1 AND m.interview_id=target.interview_id AND m.role='user' AND m.ordinal<=target.ordinal
+     ORDER BY m.ordinal`,
+      [ownerId, messageId],
+    )
+  ).rows;
+  if (!rows.length) throw new TaskError('INVALID_INPUT');
+  return extractBasicInfoFromText(
+    String(rows.at(-1)!.text),
+    rows.slice(0, -1).map((row) => String(row.text)),
+  );
+}
+
 export async function applyConfirmedCandidateInTransaction(
   sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
   ownerId: string,
@@ -70,7 +92,9 @@ export async function applyConfirmedCandidateInTransaction(
       throw new TaskError('INVALID_INPUT');
     const basicInfo: BasicInfoInput = Object.assign(
       {},
-      ...sources.rows.map((row) => extractBasicInfoFromText(String(row.text))),
+      ...(await Promise.all(
+        sources.rows.map((row) => groundBasicInfoAtMessage(sql, ownerId, String(row.id))),
+      )),
     );
     if (!Object.values(basicInfo).some(Boolean)) throw new TaskError('INVALID_INPUT');
     const claimedBirthday = legacyBirthday(candidate.text);

@@ -51,3 +51,29 @@ test('scene reads do not run tasks, source mismatch rejects and raw free input c
   wrong = true;
   await assert.rejects(client.read(id), /来源不一致/);
 });
+
+test('paginated history stays read-only and rejects a different world source', async () => {
+  let wrong = false;
+  const calls: string[] = [];
+  const client = new SceneClient(async (u) => {
+    const url = String(u);
+    calls.push(url);
+    return url.endsWith('/session')
+      ? response(session)
+      : response({
+          worldId: wrong ? owner : id,
+          worldVersion: 2,
+          storyNow: '2026-10-09T00:00:00.000Z',
+          paused: false,
+          currentScene: null,
+          scenes: [],
+          appointmentScenes: [],
+          nextBefore: null,
+        });
+  });
+  await client.history(id, 10);
+  assert.equal(calls.at(-1), '/api/v1/worlds/' + id + '/scenes/history?before=10');
+  assert.ok(calls.every((c) => !c.endsWith('/run')));
+  wrong = true;
+  await assert.rejects(client.history(id), { code: 'UNAVAILABLE' });
+});

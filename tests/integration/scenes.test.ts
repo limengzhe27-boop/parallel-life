@@ -80,6 +80,9 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     const repo = new SceneRepository(db),
       tasks = new TaskRepository(db);
     await assert.rejects(repo.read(other, worldId), { code: 'NOT_FOUND' });
+    const emptyHistory = await repo.history(owner, worldId);
+    assert.equal(emptyHistory.scenes.length, 0);
+    await assert.rejects(repo.history(other, worldId), { code: 'NOT_FOUND' });
     const request = { commandId: randomUUID(), expectedVersion: 0, appointmentId };
     const entered = await repo.enter(owner, worldId, request);
     assert.equal(entered.version, 1);
@@ -143,6 +146,16 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
     assert.equal(read.matters[0]?.status, 'not_started');
     assert.equal(read.matters.length, 3);
     assert.equal(calls, 1);
+    const history = await repo.history(owner, worldId);
+    assert.equal(history.currentScene?.id, entered.sceneId);
+    assert.equal(history.scenes[0]?.location, '工作室');
+    assert.equal(history.appointmentScenes[0]?.id, entered.sceneId);
+    assert.equal(history.nextBefore, null);
+    assert.equal(
+      (await repo.history(owner, worldId, history.scenes[0]!.sourceVersion)).scenes.length,
+      0,
+    );
+    assert.ok(!JSON.stringify(history).includes('persona'));
     const { loadActorMemories } =
       await import('../../src/modules/memory/infrastructure/memory-store.ts');
     const seen = await db.transaction(owner, (sql) =>
@@ -375,6 +388,36 @@ test('scene durable runtime: ownership, idempotence, navigation, pause, rollback
       true,
     );
     assert.equal((await tasks.get(owner, lastRetry.id)).status, 'cancelled');
+    await db.transaction(owner, (sql) =>
+      sql.query('UPDATE parallel_life.world_clock SET paused=false WHERE world_id=$1', [worldId]),
+    );
+    for (let i = 0; i < 51; i++) {
+      const latest = await repo.read(owner, worldId);
+      const visit = await repo.enter(owner, worldId, {
+        commandId: randomUUID(),
+        expectedVersion: latest.worldVersion,
+        appointmentId,
+      });
+      await repo.navigate(
+        owner,
+        worldId,
+        visit.sceneId,
+        { commandId: randomUUID(), expectedVersion: visit.version },
+        true,
+      );
+    }
+    const firstPage = await repo.history(owner, worldId);
+    assert.equal(firstPage.scenes.length, 50);
+    assert.ok(firstPage.nextBefore !== null);
+    assert.equal(firstPage.currentScene, null);
+    const older = await repo.history(owner, worldId, firstPage.nextBefore!);
+    assert.ok(older.scenes.length > 0);
+    assert.equal(older.nextBefore, null);
+    assert.equal(
+      new Set([...firstPage.scenes, ...older.scenes].map((s) => s.id)).size,
+      firstPage.scenes.length + older.scenes.length,
+    );
+    assert.equal(older.appointmentScenes[0]?.id, firstPage.appointmentScenes[0]?.id);
 
     assert.equal(
       (

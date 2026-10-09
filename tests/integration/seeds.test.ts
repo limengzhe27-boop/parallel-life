@@ -46,7 +46,17 @@ test('approved seeds preserve explicit selections, photo revisions and immutable
       expectedVersion: p.version,
       operation: { kind: 'set-portrait', assetId: photo.id },
     });
-    const person = { id: randomUUID(), name: '测试朋友', relationship: '同学', assetId: photo.id };
+    const friendPhoto = await assets.upload(owner, bytes);
+    p = await profiles.edit(owner, {
+      expectedVersion: p.version,
+      operation: { kind: 'add-reference-photo', assetId: friendPhoto.id },
+    });
+    const person = {
+      id: randomUUID(),
+      name: '测试朋友',
+      relationship: '同学',
+      assetId: friendPhoto.id,
+    };
     p = await profiles.edit(owner, {
       expectedVersion: p.version,
       operation: { kind: 'set-person', person },
@@ -77,7 +87,23 @@ test('approved seeds preserve explicit selections, photo revisions and immutable
     };
     const saved = await seeds.approve(owner, request);
     assert.equal((await seeds.approve(owner, request)).id, saved.id);
-    assert.deepEqual(saved.assets, [{ assetId: photo.id, revision: 1 }]);
+    assert.deepEqual(
+      [...saved.assets].sort((a, b) => a.assetId.localeCompare(b.assetId)),
+      [photo.id, friendPhoto.id].sort().map((assetId) => ({ assetId, revision: 1 })),
+    );
+    const portraitOnly = await seeds.approve(owner, {
+      ...request,
+      commandId: randomUUID(),
+      personIds: [],
+    });
+    assert.deepEqual(portraitOnly.assets, [{ assetId: photo.id, revision: 1 }]);
+    const friendOnly = await seeds.approve(owner, {
+      ...request,
+      commandId: randomUUID(),
+      includePortrait: false,
+    });
+    assert.deepEqual(friendOnly.assets, [{ assetId: friendPhoto.id, revision: 1 }]);
+    assert.equal(friendOnly.portraitAssetId, null);
     assert.deepEqual(saved.people, [person]);
     assert.equal(saved.portraitAssetId, photo.id);
     assert.deepEqual(Object.keys(saved.facts[0]!), ['factId', 'category', 'value']);

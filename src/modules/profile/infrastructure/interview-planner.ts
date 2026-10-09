@@ -1,3 +1,4 @@
+import { realBasicInfoText } from '../application/basic-info-context.ts';
 import {
   isStoryPersonContext,
   explicitPhotoReference,
@@ -18,7 +19,7 @@ import {
 import { QuestionTargetSchema } from '../../../contracts/memory.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { detectCrisisIntent, CRISIS_RESPONSE } from '../../ai/safety-guard.ts';
-export const INTERVIEW_PROMPT_VERSION = 'interview-1.8.0';
+export const INTERVIEW_PROMPT_VERSION = 'interview-1.8.1';
 export const PersonProposalSchema = z.strictObject({
   personId: Id.optional(),
   subject: z.string().trim().min(1).max(40),
@@ -83,8 +84,8 @@ export type InterviewProposal = z.infer<typeof InterviewProposalSchema>;
 const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和他商量想体验怎样的另一种人生。
 【交流与引导】
 1. 先回应用户这一句具体在说什么。像自然交谈，通常2—4句，不套用长篇共情或人生比喻。最多问一个有用的问题，也可以不提问。
-2. 用户只想倾诉时先倾听；对经历不清楚时问一个关键细节；表达另一种生活的愿望时才邀请一起构思。不要每轮都推销平行人生，不主动制造创伤或替用户决定梦想。
-3. 已有想体验的身份或生活时，主动给具体暂定开场：一个场景、公开人物安排、眼下可做的一件事。愿望可以只有“自由”；“没目标/你来安排”也是可开场的授权，不重复问“目标是什么/自由是什么”。不要求用户编角色动机、矛盾与后续，内部导演补足且不提前揭露。身份还未指定时也可提出一个可修改的轻量开场，不逼用户填表。
+2. 用户说先休息、先停一下时停止构思，简短接住，不再安排场景或追问；用户只想倾诉时先倾听；对经历不清楚时问一个关键细节；表达另一种生活的愿望时才邀请一起构思。不要每轮都推销平行人生，不主动制造创伤或替用户决定梦想。
+3. 已有想体验的身份或生活时，主动给具体暂定开场：一个场景、公开人物安排、眼下可做的一件事。愿望可以只有“自由”；“没目标/你来安排”也是可开场的授权，不重复问“目标是什么/自由是什么”。guideState.delegateOpening=true时，直接给一个暂定场景和眼下的一件具体小事，reply不以“你会如何/有什么感觉/要怎么互动”等泛问把安排交回用户，question不输出。不要求用户编角色动机、矛盾与后续，内部导演补足且不提前揭露。身份还未指定时也可提出一个可修改的轻量开场，不逼用户填表。
 4. 姓名、生日等不是聊天或体验的门槛，不必专门追问，不从生日或星座推断性格。只记录用户明确说的本人信息。毕业年份、朋友的生日和假设都不是本人生日；只有明确的本人出生陈述才能写 birthdate。
 5. 你只能讨论或提议分支。不能声称正在创建、已经创建或马上打开手机；真正创建需要用户查看方向并选择带入资料。用户说不创建时继续聊天。
 6. 消息的 hasPhoto 只表示用户附了一张照片，你没有看到图像内容。可以问照片背后的故事，不能声称看到了长相、表情或画面细节。旧消息中的 [照片:...] 也只是历史上传标记。
@@ -96,7 +97,7 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 4. 用户讲想要的生活，了解最吸引他的具体部分；从他的原话提出一个暂定的“如果”，邀请修改。例如明确说喜欢摄影却选了其他专业，可讨论“如果当时继续学摄影”，但不能直接断定他后悔、想辞职或具有什么性格。
 5. 无需真实背景即可构思虚构身份。已有身份/愿望便直接提暂定开场，不再问是否开始构思；用户说没目标也可安排。仅真正会改变身份、关系或体验边界的缺失信息值得提问，最多一个；创建和资料带入必须走真实确认入口，不能要求全部现实资料确认后才给开场。用户已说明的信息不再重复问；已有明确方向直接接着讨论。追问前让用户自然理解其用途，避免每轮解释流程。
 6. 生日、出生时间、位置/IP不用于推断性格、运势或命运，也不作为开场必填。只有故事年代确实需要澄清时才问大致年份或人生阶段，并允许不知道、跳过。不能承诺改变现实人生、实现愿望、预测真实结局，或保证另一种选择一定更好。
-7. 构思场景使用“如果”“可以设想”等措辞，明确是一起创作的可能性，不伪称已经发生。事实、用户愿望和你提出的故事设想分开；自己的设想不可提取到用户的 facts/events/basicInfo。不主动索取照片或敏感经历作为继续聊天的条件。
+7. 构思场景使用“如果”“可以设想”等措辞，明确是一起创作的可能性，不伪称已经发生。事实、用户愿望和你提出的故事设想分开；自己的设想不可提取到用户的 facts/events/basicInfo。跨轮正在创作时“我叫/我的职业是/我是某年出生”默认是故事身份，basicInfo保持空；只有用户明确回到现实陈述才记录现实基础资料。不主动索取照片或敏感经历作为继续聊天的条件。
 8. question 若存在，reply 中不要再问另一件事；同一个问题也不要重复输出两遍。以下示例只说明节奏，不是固定回复；始终根据当前对话回应。
 
 【我身边的人与我的描述】
@@ -132,7 +133,9 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 3. 宁少勿滥：最多 3 条新事实、1 个新事件；没有值得记录的就给空数组 []。关于现实人物的描述和共同经历先归people，不能因为events规则而漏掉people或在两处重复。输入中的 blockedTargets 是用户明确不愿讨论的主题，不可追问。sourceMessageIds 只能引用下文提供的 user 消息 ID。`;
 export function extractBasicInfoFromText(
   text: string,
+  priorUserTexts: readonly string[] = [],
 ): NonNullable<InterviewProposal['basicInfo']> {
+  text = realBasicInfoText(text, priorUserTexts);
   const result: NonNullable<InterviewProposal['basicInfo']> = {};
   const birthdate = explicitBirthdate(text);
   if (birthdate) result.birthdate = birthdate;
@@ -164,8 +167,12 @@ export function extractBasicInfoFromText(
 }
 
 /** Apply the same attribution checks at both parsing and persistence boundaries. */
-export function groundBasicInfo(text: string, _proposed?: InterviewProposal['basicInfo']) {
-  return extractBasicInfoFromText(text);
+export function groundBasicInfo(
+  text: string,
+  _proposed?: InterviewProposal['basicInfo'],
+  priorUserTexts: readonly string[] = [],
+) {
+  return extractBasicInfoFromText(text, priorUserTexts);
 }
 
 /** Literal context only: this is guidance to the existing call, not a generated story. */
@@ -175,8 +182,12 @@ export function guideState(messages: Interview['messages']) {
     /想(?:成为|当|体验|试试)|如果|假如|平行|故事|角色|古惑仔/u.test(t),
   );
   const last = userTexts.at(-1) ?? '';
+  const paused =
+    /(?:先|想|要|需要|让我).{0,4}休息|休息一会|先停(?:一下|一会)|暂停构思|先听我说|只想聊/u.test(
+      last,
+    );
   const offerOpening =
-    creative && !/(?:先不|不想|不要|不)(?:创建|构思|设计)|只想聊|先听我说/u.test(last);
+    creative && !paused && !/(?:先不|不想|不要|不)(?:创建|构思|设计)/u.test(last);
   const userMessages = messages.filter((m) => m.role === 'user');
   const lastMessage = userMessages.at(-1);
   const photoLabels = lastMessage
@@ -189,6 +200,7 @@ export function guideState(messages: Interview['messages']) {
     : [];
   return {
     mode: offerOpening ? 'propose_opening' : 'listen',
+    paused,
     photoLabels,
     // Conversation resolution is not material authorization; persistence checks the actual asset again.
     unresolvedPhotoLabels: photoLabels.some((p) => !p.resolvedInConversation),
@@ -199,11 +211,22 @@ export function guideState(messages: Interview['messages']) {
       .slice(-5)
       .map((question) => question.slice(0, 200)),
     delegateOpening: /没(?:有)?目标|你来(?:安排|决定|设计)|随便|不知道|自由/u.test(last),
-    nextAction: offerOpening
-      ? '提出可修改的场景、公开人物安排和眼下一件事；只问真正缺失的体验边界；实际创建须走入口'
-      : '回应具体内容，最多一个必要问题',
+    nextAction: paused
+      ? '只简短回应此刻想休息；停止故事构思，不安排场景，不追问，不输出question'
+      : offerOpening
+        ? '提出可修改的场景、公开人物安排和眼下一件事；只问真正缺失的体验边界；实际创建须走入口'
+        : '回应具体内容，最多一个必要问题',
     photoPolicy: '只知道上传标记；逐张说明由服务端解析同访谈真实来源，模糊就只澄清照片',
   };
+}
+
+function guidedReply(text: string, selected: Interview['messages']): string {
+  const guidance = guideState(selected);
+  if (guidance.delegateOpening || guidance.paused) {
+    text = text.replace(/[^。！？?\n]*[？?]/gu, '').trim();
+    if (!text) throw new InvalidInterviewOutput();
+  }
+  return oneReplyQuestion(text);
 }
 
 function oneReplyQuestion(text: string): string {
@@ -289,7 +312,7 @@ export class InterviewPlanner {
           const decoded = JSON.parse(`"${replyMarker[1]}"`) as string;
           if (decoded && typeof decoded === 'string' && decoded.trim()) {
             return {
-              reply: oneReplyQuestion(decoded.trim()),
+              reply: guidedReply(decoded.trim(), selected),
               facts: [],
               events: [],
             };
@@ -308,7 +331,9 @@ export class InterviewPlanner {
     )
       throw new InvalidInterviewOutput();
 
-    proposal.reply = oneReplyQuestion(proposal.reply);
+    const guidance = guideState(selected);
+    proposal.reply = guidedReply(proposal.reply, selected);
+    if (guidance.delegateOpening || guidance.paused) proposal.question = undefined;
     // The persisted question must refer to the one actually asked in the reply.
     // Never leave a second, different invisible question for the next user turn.
     const replyQuestion = proposal.reply.match(/[^。！？?\n]+[？?]/u)?.[0]?.trim();
@@ -327,7 +352,14 @@ export class InterviewPlanner {
 
     // 启发式双重兜底：若用户直接说了生日或姓名，即使模型漏提也自动补齐
     const lastUserText = selected.filter((m) => m.role === 'user').at(-1)?.text ?? '';
-    proposal.basicInfo = groundBasicInfo(lastUserText, proposal.basicInfo);
+    proposal.basicInfo = groundBasicInfo(
+      lastUserText,
+      proposal.basicInfo,
+      selected
+        .filter((m) => m.role === 'user')
+        .slice(0, -1)
+        .map((m) => m.text),
+    );
 
     return proposal;
   }
@@ -374,7 +406,10 @@ export class InterviewPlanner {
     const prepared = this.context(profile, messages, blockedTargets);
     let raw = '';
     let emittedReply = '';
+    const guidance = guideState(prepared.selected);
+    const bufferReply = guidance.delegateOpening || guidance.paused;
     const emitReply = () => {
+      if (bufferReply) return;
       const marker = raw.match(/"reply"\s*:\s*"/);
       if (!marker || marker.index === undefined) return;
       const encoded = raw.slice(marker.index + marker[0].length);
@@ -421,6 +456,8 @@ export class InterviewPlanner {
         emitReply();
       }
     }
-    return this.parse(raw, prepared.selected);
+    const proposal = this.parse(raw, prepared.selected);
+    if (bufferReply) onToken(proposal.reply);
+    return proposal;
   }
 }

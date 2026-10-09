@@ -1,0 +1,53 @@
+.state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-soft, #f3f5f1);
+  color: var(--phone-text, #243c35);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.state strong,
+.state small {
+  display: block;
+}
+.state small {
+  font-size: 13px;
+  color: #59685c;
+}
+.spinner,
+.dot {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.spinner {
+  border: 2px solid #c6d6cc;
+  border-top-color: #287866;
+  animation: rotate 1.1s linear infinite;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  background: #287866;
+}
+@keyframes rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+@media (max-height: 620px) {
+  .state {
+    padding: 12px;
+  }
+}

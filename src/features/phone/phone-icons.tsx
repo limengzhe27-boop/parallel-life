@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PhoneApp, PhonePanel } from './navigation.ts';
 const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode> = {
+  scenes: <path d="M4 26V8l12-4 12 4v18M10 26V13h12v13M16 13v13" />,
   scene: (
     <>
       <path d="M4 26V8l12-4 12 4v18M10 26V13h12v13M16 13v13" />

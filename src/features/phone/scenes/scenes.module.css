@@ -147,16 +147,36 @@
   flex-shrink: 0;
 }
 @media (max-height: 620px) {
-  .scenePanel {
-    height: auto;
-    min-height: 100%;
-    overflow: visible;
-  }
-  .reading {
-    overflow: visible;
-    flex: none;
-  }
   .composer textarea {
     min-height: 44px;
   }
+}
+
+.indexRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+  border-top: 1px solid #e0e3dc;
+}
+.indexRow small {
+  color: #59685c;
+  line-height: 1.6;
+}
+.indexRow button {
+  align-self: flex-start;
+}
+
+.savedInput {
+  white-space: pre-wrap;
+  border-left: 3px solid #6489c0;
+  padding-left: 10px;
+}
+.card details summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.scenePanel .card p {
+  margin: 6px 0;
 }

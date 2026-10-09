@@ -15,10 +15,11 @@ import {
   TaskError,
 } from '../../tasks/infrastructure/task-repository.ts';
 import { consumeLimit } from '../../storage/infrastructure/limits.ts';
-import { type InterviewPlanner, groundBasicInfo } from './interview-planner.ts';
+import { type InterviewPlanner } from './interview-planner.ts';
 import {
   applyConfirmedCandidateInTransaction,
   applyBasicInfoInTransaction,
+  groundBasicInfoAtMessage,
   applyPeopleInTransaction,
   isSimilarText,
 } from './profile-repository.ts';
@@ -370,9 +371,10 @@ export class InterviewRepository {
           })),
         ];
         const lastUserMessage = prepared.interview.messages.at(-1);
-        const effectiveBasicInfo = groundBasicInfo(
-          lastUserMessage?.role === 'user' ? lastUserMessage.text : '',
-          proposal.basicInfo,
+        const effectiveBasicInfo = await groundBasicInfoAtMessage(
+          sql,
+          ownerId,
+          lastUserMessage!.id,
         );
 
         if (Object.values(effectiveBasicInfo).some(Boolean)) {

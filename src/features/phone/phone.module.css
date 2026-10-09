@@ -367,7 +367,7 @@
 .dock {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin: 0 12px;
   padding: 17px 14px;
@@ -951,4 +951,9 @@
   .identityWidget > span {
     -webkit-line-clamp: 1;
   }
+}
+
+.scenes {
+  background: linear-gradient(145deg, #326956, #779580);
+  color: white;
 }

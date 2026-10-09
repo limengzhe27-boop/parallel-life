@@ -1,6 +1,6 @@
 /** UI navigation only; never a world fact or an authorization decision. */
-export const phoneApps = ['messages', 'moments', 'photos', 'calendar', 'notes'] as const;
-export const desktopApps = ['messages', 'calendar', 'photos', 'notes'] as const;
+export const phoneApps = ['messages', 'moments', 'photos', 'calendar', 'notes', 'scenes'] as const;
+export const desktopApps = ['messages', 'calendar', 'photos', 'notes', 'scenes'] as const;
 export type PhoneApp = (typeof phoneApps)[number];
 export const phonePanels = ['schedule', 'timeline', 'time', 'scene', 'management'] as const;
 export type PhonePanel = (typeof phonePanels)[number];
@@ -31,7 +31,7 @@ export function readRoute(hash: string, worldId: string): PhoneRoute {
 }
 
 export function parentRoute(route: PhoneRoute): PhoneRoute {
-  if (route.panel === 'scene') return { app: null };
+  if (route.panel === 'scene') return { app: 'scenes' };
   if (route.panel) return { app: route.app, ...(route.target ? { target: route.target } : {}) };
   if (route.target) return { app: route.app };
   return homeRoute;

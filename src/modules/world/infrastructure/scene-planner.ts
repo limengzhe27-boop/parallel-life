@@ -1,3 +1,4 @@
+import { worldDateTimeLabel } from '../domain/display-time.ts';
 import { actorContext } from '../application/actor-context.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { z } from 'zod';
@@ -15,7 +16,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v1';
+export const SCENE_PROMPT_VERSION = 'scene-text-v2';
 const text = z.string().trim().min(1).max(1600);
 export const SceneProposalSchema = z.strictObject({
   location: z.string().trim().min(1).max(200),
@@ -60,6 +61,11 @@ export class ScenePlanner implements ScenePlannerPort {
       currentPlace: currentPlace ?? null,
       player: { label: 'PLAYER (you), distinct from every named actor', lifeTitle: c.world.title },
       storyAt: c.storyAt,
+      localStoryTime: {
+        zone: 'UTC+08:00',
+        label: worldDateTimeLabel(c.storyAt),
+        instruction: '以当地故事时间描写光线、活动和环境；不要把UTC小时当作当地小时。',
+      },
       appointment: c.appointmentTitle,
       opening,
       actors: candidates.map((a) => ({ id: a.id, name: a.name, relationship: a.relationship })),
@@ -203,6 +209,11 @@ export class ScenePlanner implements ScenePlannerPort {
         deferredUntilPlayerDecision: boundary?.deferred ?? null,
         actor: { name: actor.name, persona: actor.persona, relationship: actor.relationship },
         storyAt: c.storyAt,
+        localStoryTime: {
+          zone: 'UTC+08:00',
+          label: worldDateTimeLabel(c.storyAt),
+          instruction: '以当地故事时间描写光线、活动和环境；不要把UTC小时当作当地小时。',
+        },
         appointment: c.appointmentTitle,
         visibleFacts: remembered.facts,
         rememberedEpisodes: remembered.retrievedMemories,

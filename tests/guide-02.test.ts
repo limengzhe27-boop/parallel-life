@@ -278,3 +278,54 @@ test('GUIDE-02 ordinal on the current upload must match its exact position in th
     null,
   );
 });
+
+test('delegating the opening and asking to rest do not repeat a generic question', async () => {
+  const planner = new InterviewPlanner({
+    async complete() {
+      return JSON.stringify({
+        reply: '可以先设想街边茶馆，先看一条小芳的消息。你会有什么感觉？',
+        question: { text: '你会有什么感觉？', target: 'wish' },
+        facts: [],
+        events: [],
+      });
+    },
+  });
+  const output = await planner.propose(profile, [
+    message('我想体验古惑仔'),
+    message('没有目标，你来安排'),
+  ]);
+  assert.equal(output.reply, '可以先设想街边茶馆，先看一条小芳的消息。');
+  assert.equal(output.question, undefined);
+  const paused = guideState([message('我想体验古惑仔'), message('现实太累，想休息一会儿。')]);
+  assert.equal(paused.mode, 'listen');
+  assert.equal(paused.paused, true);
+});
+
+test('salvaged real reply and streaming display use the same delegated question policy', async () => {
+  const messages = [message('我想体验古惑仔'), message('没有目标，你来安排')];
+  const salvaged = new InterviewPlanner({
+    async complete() {
+      return JSON.stringify({
+        reply: '可以先看一条小芳的消息。你有什么感受？',
+        facts: [{ category: 'not-valid' }],
+      });
+    },
+  });
+  const proposal = await salvaged.propose(profile, messages);
+  assert.equal(proposal.reply, '可以先看一条小芳的消息。');
+  let visible = '';
+  const streamed = new InterviewPlanner({
+    async complete() {
+      throw Error('No second call');
+    },
+    async *streamComplete() {
+      yield '{"reply":"可以先看一条小芳的消息。';
+      yield '你有什么感受？","facts":[],"events":[]}';
+    },
+  });
+  const result = await streamed.proposeStream(profile, messages, (token) => {
+    visible += token;
+  });
+  assert.equal(visible, result.reply);
+  assert.equal(visible, '可以先看一条小芳的消息。');
+});

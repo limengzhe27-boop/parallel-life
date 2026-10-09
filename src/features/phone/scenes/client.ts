@@ -7,7 +7,11 @@ import {
   Timestamp,
   Version,
 } from '../../../contracts/api.ts';
-import { SceneReadSchema, SceneReceiptSchema } from '../../../contracts/scenes.ts';
+import {
+  SceneHistorySchema,
+  SceneReadSchema,
+  SceneReceiptSchema,
+} from '../../../contracts/scenes.ts';
 import { ApiFailure } from '../../api/client.ts';
 /** Authenticated scene transport; reads never execute a queued or unknown task. */
 export class SceneClient {
@@ -83,6 +87,17 @@ export class SceneClient {
     if (v.experience.worldId !== worldId || (sceneId && v.scene?.id !== sceneId))
       throw new ApiFailure('UNAVAILABLE', '现场来源不一致，请重新读取。');
     return v;
+  }
+  async history(worldId: string, before?: number) {
+    await this.connect();
+    if (before !== undefined) Version.parse(before);
+    const value = await this.request(
+      this.path(worldId) + '/history' + (before === undefined ? '' : '?before=' + before),
+      SceneHistorySchema,
+    );
+    if (value.worldId !== worldId)
+      throw new ApiFailure('UNAVAILABLE', '现场记录来源不一致，请重新读取。');
+    return value;
   }
   async enter(
     worldId: string,

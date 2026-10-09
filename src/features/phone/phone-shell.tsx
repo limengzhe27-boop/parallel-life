@@ -29,6 +29,7 @@ const apps: Record<PhoneApp, string> = {
   photos: '相册',
   calendar: '日历',
   notes: '便签',
+  scenes: '现场',
 };
 const panels: Record<PhonePanel, string> = {
   schedule: '日程',

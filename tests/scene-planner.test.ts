@@ -221,3 +221,26 @@ test('director narration cannot invent private psychological states', async () =
     code: 'INVALID_PROPOSAL',
   });
 });
+
+test('scene proposal receives the established local evening across UTC date boundaries', async () => {
+  const c = context();
+  c.storyAt = '2026-10-09T13:12:00.000Z';
+  const p = new ScenePlanner({
+    async complete(messages) {
+      const payload = JSON.parse(messages.at(-1)!.content.split('\nCURRENT TASK:')[0]!);
+      assert.equal(payload.localStoryTime.zone, 'UTC+08:00');
+      assert.match(payload.localStoryTime.label, /21:12/);
+      return JSON.stringify({
+        location: '工作室',
+        narration: '室内的灯照着白墙。',
+        presentActorIds: [],
+        outcome: null,
+        observation: null,
+        matterTitle: null,
+        matterUpdates: [],
+        dialogues: [],
+      });
+    },
+  });
+  await p.propose(c);
+});

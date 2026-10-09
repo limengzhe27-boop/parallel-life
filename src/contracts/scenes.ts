@@ -65,3 +65,26 @@ export const SceneReadSchema = z.strictObject({
 });
 export type SceneReceipt = z.infer<typeof SceneReceiptSchema>;
 export type SceneRead = z.infer<typeof SceneReadSchema>;
+
+/** Authorized history cards expose recorded scene metadata, never private thoughts or NPC personas. */
+export const SceneSummarySchema = z.strictObject({
+  id: Id,
+  title: z.string().min(1).max(120),
+  status: z.enum(['active', 'paused', 'ended']),
+  appointmentId: z.string().min(1).max(100).optional(),
+  sourceVersion: Version,
+  storyAt: Timestamp.optional(),
+  location: z.string().min(1).max(200).optional(),
+});
+export const SceneHistorySchema = z.strictObject({
+  worldId: Id,
+  worldVersion: Version,
+  storyNow: Timestamp,
+  paused: z.boolean(),
+  currentScene: SceneSummarySchema.nullable(),
+  scenes: z.array(SceneSummarySchema).max(50),
+  nextBefore: Version.nullable(),
+  appointmentScenes: z.array(SceneSummarySchema),
+});
+export type SceneSummary = z.infer<typeof SceneSummarySchema>;
+export type SceneHistory = z.infer<typeof SceneHistorySchema>;

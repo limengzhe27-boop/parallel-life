@@ -1,4 +1,5 @@
 'use client';
+import { ProgressState } from '../../components/progress-state.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   worldDayKey,
@@ -9,6 +10,7 @@ import {
 } from '../../modules/world/domain/display-time.ts';
 import { TimePanel } from './time-panel.tsx';
 import { ScenePanel } from './scenes/scene-panel.tsx';
+import { appointmentScene } from './scenes/index-state.ts';
 import { SceneClient } from './scenes/client.ts';
 import { useGroups } from './groups/use-groups.ts';
 import { isJoined, groupTarget } from './groups/state.ts';
@@ -284,7 +286,8 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
         // and banner show the real incoming reply while this screen stays open.
         if (active && result.played > 0) await load();
       } catch {
-        if (active && advancing) setError('这次世界后续没有完成。可以稍后在导演里手动继续。');
+        if (active && advancing)
+          setError('这次世界后续没有完成。已保存的记录仍在，可以到时间管理查看状态。');
       } finally {
         directorInFlight.current = false;
       }
@@ -308,11 +311,10 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
         <div className="world-loading">
           <a href="/possibilities">← 返回分支</a>
           {isBuilding ? (
-            <div className="world-building" role="status">
-              <span className="build-state-spinner" aria-hidden="true" />
-              <p>{statusMessage}</p>
-              <small>大模型正在推演，请不要关闭页面。</small>
-            </div>
+            <ProgressState
+              label={statusMessage}
+              detail="设定和任务已经保存。可以返回分支，稍后查看当前进度。"
+            />
           ) : error ? (
             <>
               <Notice>{error}</Notice>
@@ -324,7 +326,10 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
               </Button>
             </>
           ) : (
-            <p>{statusMessage}</p>
+            <ProgressState
+              label={statusMessage}
+              detail="正在读取已有记录，打开后从手机锁屏开始。"
+            />
           )}
         </div>
       ) : (
@@ -650,6 +655,17 @@ export function WorldPhoneSurface({
                     commandId: crypto.randomUUID(),
                     version: data.version ?? 0,
                   };
+                const history = await sceneClient.history(data.id);
+                const invitation = phoneData.invitations.find((a) => a.id === appointmentId);
+                const prior = invitation ? appointmentScene(history, invitation) : undefined;
+                if (prior?.status === 'ended') {
+                  window.location.hash = routeHash(data.id, {
+                    app: 'scenes',
+                    panel: 'scene',
+                    target: prior.id,
+                  });
+                  return { status: 'committed' };
+                }
                 const existing = await sceneClient.read(data.id);
                 let receipt;
                 if (
@@ -770,18 +786,12 @@ export function WorldPhoneSurface({
               <span>{data.setting}</span>
             </button>
             <div className={styles.utilityApps}>
-              {(['timeline', 'scene', 'time', 'management'] as const).map((panel) => (
+              {(['timeline', 'time', 'management'] as const).map((panel) => (
                 <button key={panel} data-panel={panel} onClick={() => openPanel(panel)}>
                   <span>
                     <PhoneIcon name={panel} />
                   </span>
-                  {panel === 'timeline'
-                    ? '我的身份'
-                    : panel === 'scene'
-                      ? '现场'
-                      : panel === 'time'
-                        ? '时间管理'
-                        : '人生管理'}
+                  {panel === 'timeline' ? '我的身份' : panel === 'time' ? '时间管理' : '人生管理'}
                 </button>
               ))}
             </div>

@@ -1,5 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ProgressState } from '../../../components/progress-state.tsx';
+import { sceneOverview } from './index-state.ts';
 import { SceneClient } from './client.ts';
 import {
   sceneBusy,
@@ -80,6 +82,8 @@ export function ScenePanel({
     }, 3000);
     return () => clearInterval(timer);
   }, [task?.id, task?.status, refresh]);
+  const overview = data ? sceneOverview(data) : undefined;
+  const latestAction = data?.actions.at(-1);
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
   async function run(action: () => Promise<void>) {
     if (running.current) return;
@@ -114,7 +118,27 @@ export function ScenePanel({
   return (
     <div className={`${s.panel} ${s.scenePanel}`}>
       {!data ? (
-        <p role="status">正在打开现场…</p>
+        <div>
+          <ProgressState
+            label={error ? '现场暂时未能打开' : '正在读取现场记录'}
+            busy={!error}
+            detail={
+              error
+                ? '重新读取不会创建新的现场或再次调用模型。'
+                : '读取地点、在场人物和已保存的行动。'
+            }
+          />
+          {error ? (
+            <button
+              onClick={() => {
+                setError('');
+                void refresh().catch((e) => setError(e.message));
+              }}
+            >
+              重新读取记录
+            </button>
+          ) : null}
+        </div>
       ) : !data.scene ? (
         <div className={s.card}>
           <h3>还没有进入现场</h3>
@@ -132,7 +156,26 @@ export function ScenePanel({
           <div className={s.reading} data-scene-records>
             <section className={s.card}>
               <h3>{data.scene.title}</h3>
-              <time>{worldDateTimeLabel(data.storyNow)}</time>
+              <time>
+                {worldDateTimeLabel(
+                  overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
+                )}
+              </time>
+              {overview?.place?.kind === 'time_place' ? <p>{overview.place.location}</p> : null}
+              {overview?.environment?.kind === 'narration' ? (
+                <details>
+                  <summary>可见环境</summary>
+                  <p>{overview.environment.text}</p>
+                </details>
+              ) : null}
+              <p className={s.notice}>
+                在场的人：
+                {overview?.people.length
+                  ? overview.people
+                      .map((p) => (p.kind === 'actor' ? name(p.actorId) : ''))
+                      .join('、')
+                  : '尚无已记录的在场人物'}
+              </p>
               <p>
                 {data.scene.status === 'ended'
                   ? '已离场 · 可以回看'
@@ -180,6 +223,16 @@ export function ScenePanel({
                     离开现场
                   </button>
                 ) : null}
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await refresh();
+                    })
+                  }
+                >
+                  重新读取现场
+                </button>
               </div>
               {leaveConfirm ? (
                 <div>
@@ -213,6 +266,24 @@ export function ScenePanel({
                 </div>
               ) : null}
             </section>
+            {latestAction ? (
+              <section className={s.card} data-scene-latest-action>
+                <h3>最近一次行动</h3>
+                <p className={s.savedInput}>{latestAction.text}</p>
+                {latestAction.resolution ? (
+                  <p>
+                    <strong>这次动作的反馈：</strong>
+                    {latestAction.resolution.observation}
+                  </p>
+                ) : (
+                  <p className={s.notice}>
+                    {latestAction.intent === 'attempt'
+                      ? '原文已保存，结果尚未确认。'
+                      : '只记录想法，尚未执行。'}
+                  </p>
+                )}
+              </section>
+            ) : null}
             {data.matters.length ? (
               <details className={s.card}>
                 <summary>眼下的事 · {data.matters.length}</summary>
@@ -271,7 +342,17 @@ export function ScenePanel({
             </div>
             {task && task.status !== 'succeeded' ? (
               <div className={s.card} role="status">
-                <p>{sceneStatus(task)}</p>
+                <ProgressState
+                  label={sceneStatus(task)}
+                  busy={sceneBusy(task)}
+                  detail={
+                    sceneBusy(task)
+                      ? data.actions.some((a) => a.status === 'pending')
+                        ? '你的行动原文已保存，正在等待现场裁定。'
+                        : '正在准备现场环境和在场人物。'
+                      : undefined
+                  }
+                />
                 {task.status === 'queued' ? (
                   <button
                     disabled={busy || data.paused}
@@ -369,16 +450,18 @@ export function ScenePanel({
         </>
       )}
       {error ? <p role="alert">{error}</p> : null}
-      <button
-        disabled={busy}
-        onClick={() =>
-          void run(async () => {
-            await refresh();
-          })
-        }
-      >
-        重新读取现场
-      </button>
+      {!data?.scene ? (
+        <button
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              await refresh();
+            })
+          }
+        >
+          重新读取现场
+        </button>
+      ) : null}
     </div>
   );
 }

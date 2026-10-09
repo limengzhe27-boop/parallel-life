@@ -628,3 +628,21 @@ test('real PG: two distinct lives both preserve source-specific multi-day follow
     await f.close();
   }
 });
+
+test('real PG: a later return without new saved nodes stays quiet beyond the twelve-hour cooldown', async () => {
+  const f = await setup();
+  try {
+    const w = await f.create(),
+      calls = { count: 0, prompts: [] as string[] },
+      deps = dependencies(f, fixturePlanner(calls));
+    assert.equal((await advanceWorld(deps, w.session, w.id)).played, 3);
+    const saved = await f.worlds.get(w.session, w.id),
+      count = calls.count;
+    const later = { ...deps, now: () => new Date(Date.parse(f.now) + 24 * 3600000).toISOString() };
+    assert.equal((await advanceWorld(later, w.session, w.id)).played, 0);
+    assert.equal(calls.count, count);
+    assert.deepEqual((await f.worlds.get(w.session, w.id)).messages, saved.messages);
+  } finally {
+    await f.close();
+  }
+});

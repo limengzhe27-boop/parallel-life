@@ -32,6 +32,8 @@ import {
   type PlayerExperience,
 } from '../domain/experience-rules.ts';
 import {
+  SceneHistorySchema,
+  type SceneHistory,
   SceneRuntimeSessionSchema,
   SceneRuntimeActionSchema,
   SceneRuntimeEntrySchema,
@@ -325,6 +327,84 @@ export class SceneRepository {
         experience: x,
         ...s,
         task: task ? publicTask(task) : null,
+      });
+    });
+  }
+  /** Stable descending source-version pagination; reading history cannot execute a task. */
+  async history(ownerId: string, worldId: string, before?: number): Promise<SceneHistory> {
+    return this.db.transaction(ownerId, async (sql) => {
+      const w = await sceneWorld(sql, ownerId, worldId);
+      const x = await experience(sql, ownerId, worldId);
+      const projection = `SELECT ss.document, place.document AS place
+        FROM parallel_life.scene_sessions ss
+        LEFT JOIN LATERAL (
+          SELECT document FROM parallel_life.scene_items
+          WHERE scene_id=ss.id AND world_id=ss.world_id AND kind='entry'
+            AND document->>'kind'='time_place'
+            AND document->'observableTo' @> '[{"kind":"player"}]'::jsonb
+          ORDER BY ordinal DESC LIMIT 1
+        ) place ON true`;
+      const summarize = (row: { document: unknown; place?: unknown }) => {
+        const scene = SceneRuntimeSessionSchema.parse(row.document);
+        if (scene.worldId !== worldId || scene.ownerId !== ownerId)
+          throw new DomainError('NOT_FOUND');
+        const place = row.place ? SceneRuntimeEntrySchema.parse(row.place) : undefined;
+        return {
+          id: scene.id,
+          title: scene.title,
+          status: scene.status,
+          sourceVersion: scene.sourceVersion,
+          ...(scene.appointmentId ? { appointmentId: scene.appointmentId } : {}),
+          ...(place?.kind === 'time_place'
+            ? { storyAt: place.storyAt, location: place.location }
+            : {}),
+        };
+      };
+      const rows = (
+        await sql.query(
+          `${projection}
+        WHERE ss.world_id=$1 AND ss.owner_id=$2
+          AND ($3::bigint IS NULL OR (ss.document->>'sourceVersion')::bigint < $3)
+        ORDER BY (ss.document->>'sourceVersion')::bigint DESC, ss.id DESC LIMIT 51`,
+          [worldId, ownerId, before ?? null],
+        )
+      ).rows;
+      const current = x.currentSceneId
+        ? (
+            await sql.query(`${projection} WHERE ss.world_id=$1 AND ss.owner_id=$2 AND ss.id=$3`, [
+              worldId,
+              ownerId,
+              x.currentSceneId,
+            ])
+          ).rows[0]
+        : undefined;
+      // Resolve existing records for every current confirmed appointment, including beyond page one.
+      const references = (
+        await sql.query(
+          `${projection}
+        WHERE ss.world_id=$1 AND ss.owner_id=$2 AND ss.id IN (
+          SELECT DISTINCT ON (document->>'appointmentId') id
+          FROM parallel_life.scene_sessions
+          WHERE world_id=$1 AND owner_id=$2 AND document->>'appointmentId'=ANY($3::text[])
+          ORDER BY document->>'appointmentId', (document->>'sourceVersion')::bigint DESC
+        )`,
+          [
+            worldId,
+            ownerId,
+            w.world.appointments.filter((a) => a.status === 'confirmed').map((a) => a.id),
+          ],
+        )
+      ).rows;
+      const scenes = rows.slice(0, 50).map(summarize);
+      return SceneHistorySchema.parse({
+        worldId,
+        worldVersion: w.world.version,
+        storyNow: w.storyAt,
+        paused: w.paused,
+        currentScene: current ? summarize(current) : null,
+        scenes,
+        nextBefore: rows.length > 50 ? scenes.at(-1)!.sourceVersion : null,
+        appointmentScenes: references.map(summarize),
       });
     });
   }

@@ -23,7 +23,6 @@ import {
   hasInterviewPhotoMessage,
   parseInterviewPhotoMessage,
   profileUploadOperation,
-  visiblePortraitAssetId,
 } from './photo-share.ts';
 import {
   photoDisplayState,
@@ -31,6 +30,10 @@ import {
   shouldSubmitComposerKey,
   type PhotoOperation,
 } from './photo-send-state.ts';
+import {
+  ProfilePhotoRolesSchema,
+  type ProfilePhotoRoles,
+} from '../../contracts/profile-photo-roles.ts';
 import composerStyles from './interview-composer.module.css';
 import {
   collectBasicInfo,
@@ -1089,8 +1092,35 @@ export function ProfilePane({
   const name = view.current.find(
     (item) => item.ref.basicField === '姓名' && item.storedStatus === 'confirmed',
   )?.text;
-  const portraitAssetId = visiblePortraitAssetId(profile);
-  const portraitIsPerson = Boolean(profile.portraitAssetId && !portraitAssetId);
+  const [photoRoles, setPhotoRoles] = useState<ProfilePhotoRoles>();
+  const [photoRoleError, setPhotoRoleError] = useState('');
+  const [photoRoleRead, setPhotoRoleRead] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setPhotoRoles(undefined);
+    setPhotoRoleError('');
+    void (async () => {
+      try {
+        const response = await fetch('/api/v1/profile/photos/roles', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error('照片用途暂时无法核对。');
+        const roles = ProfilePhotoRolesSchema.parse(await response.json());
+        if (roles.profileId !== profile.id || roles.profileVersion !== profile.version)
+          throw new Error('资料已更新，请刷新后核对照片。');
+        if (live) setPhotoRoles(roles);
+      } catch (e) {
+        if (live) setPhotoRoleError(e instanceof Error ? e.message : '照片用途暂时无法核对。');
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [profile.id, profile.version, photoRoleRead]);
+  const portraitAssetId =
+    photoRoles?.profileVersion === profile.version ? photoRoles.portraitAssetId : null;
+  const portraitIsPerson = Boolean(photoRoles && profile.portraitAssetId && !portraitAssetId);
   const renderFacts = (items: ProfileViewItem[]) =>
     items
       .filter((item) => item.ref.kind === 'fact')
@@ -1145,7 +1175,7 @@ export function ProfilePane({
           aria-label={portraitAssetId ? '更换你的肖像照片' : '设置你的肖像照片'}
         >
           {portraitAssetId ? (
-            <img src={`/api/v1/assets/${portraitAssetId}`} alt="你上传的照片" />
+            <img src={`/api/v1/assets/${portraitAssetId}`} alt="已选择的照片，用途可在创建时确认" />
           ) : (
             <span className="profile-portrait-empty">
               <Icon name="photo" size={38} />
@@ -1164,32 +1194,32 @@ export function ProfilePane({
             </span>
           </span>
         </button>
-        {profile.referenceAssetIds.some(
-          (id) => !profile.people.some((person) => person.assetId === id),
-        ) && (
+        {photoRoleError && (
+          <Notice>
+            {photoRoleError}{' '}
+            <Button variant="ghost" onClick={() => setPhotoRoleRead((n) => n + 1)}>
+              重新核对
+            </Button>
+          </Notice>
+        )}
+        {Boolean(photoRoles?.referenceAssetIds.length) && (
           <div className="profile-photo-strip" aria-label="对话中分享的照片，人物归属以资料为准">
-            {profile.referenceAssetIds
-              .filter((id) => !profile.people.some((person) => person.assetId === id))
-              .map((id, index) => (
-                <div key={id} className="profile-photo-thumb">
-                  <img
-                    src={`/api/v1/assets/${id}`}
-                    alt={`分享的照片 ${index + 1}`}
-                    loading="lazy"
-                  />
-                  {id === portraitAssetId && <span className="profile-photo-label">肖像</span>}
-                  {onDeletePhoto && (
-                    <button
-                      type="button"
-                      className="profile-photo-remove"
-                      onClick={() => onDeletePhoto(id)}
-                      aria-label={`移除分享的照片 ${index + 1}`}
-                    >
-                      <Icon name="close" size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
+            {photoRoles!.referenceAssetIds.map((id, index) => (
+              <div key={id} className="profile-photo-thumb">
+                <img src={`/api/v1/assets/${id}`} alt={`分享的照片 ${index + 1}`} loading="lazy" />
+                {id === portraitAssetId && <span className="profile-photo-label">已选照片</span>}
+                {onDeletePhoto && (
+                  <button
+                    type="button"
+                    className="profile-photo-remove"
+                    onClick={() => onDeletePhoto(id)}
+                    aria-label={`移除分享的照片 ${index + 1}`}
+                  >
+                    <Icon name="close" size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
             {profile.referenceAssetIds.length < 6 && (
               <button
                 type="button"

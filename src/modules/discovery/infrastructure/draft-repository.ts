@@ -1,3 +1,4 @@
+import { profilePhotoRoles } from './profile-photo-roles.ts';
 import { randomUUID } from 'node:crypto';
 import { ProfileSchema, type Profile } from '../../../contracts/api.ts';
 import { usableProfileFact } from '../../profile/domain/profile-view.ts';
@@ -69,15 +70,16 @@ async function selectionFor(
       ...people.map((p) => p.assetId).filter((id): id is string => !!id),
     ]),
   ];
+  const roles = await profilePhotoRoles(sql, owner, profile);
   const allowed = new Set(
     [
-      profile.portraitAssetId,
-      ...profile.referenceAssetIds,
+      roles.portraitAssetId,
+      ...roles.referenceAssetIds,
       ...profile.people.filter((p) => selection.personIds.includes(p.id)).map((p) => p.assetId),
     ].filter(Boolean),
   );
   if (selection.assetIds.some((id) => !allowed.has(id))) throw new TaskError('INVALID_INPUT');
-  if (selection.portraitAssetId && selection.portraitAssetId !== profile.portraitAssetId)
+  if (selection.portraitAssetId && selection.portraitAssetId !== roles.portraitAssetId)
     throw new TaskError('INVALID_INPUT');
   const rows = assetIds.length
     ? (

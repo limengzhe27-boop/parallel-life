@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WorldBuild } from '../../contracts/world-build.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
+import { ProgressState } from '../../components/progress-state.tsx';
 import { Button, Notice } from '../../components/ui.tsx';
 import { retryBuildTask } from './build-task.ts';
 export function BuildControl({
@@ -31,8 +32,11 @@ export function BuildControl({
         if (live) void onChange();
       })
       .catch((e) => {
-        if (live) setError(e instanceof ApiFailure ? e.message : '构建未完成，请重试');
+        if (live) setError(e instanceof ApiFailure ? e.message : '连接中断，请先查看任务状态。');
       });
+    return () => {
+      live = false;
+    };
   }, [waiting, task?.id, client, onChange]);
 
   async function act(kind: 'create' | 'retry' | 'cancel') {
@@ -85,13 +89,10 @@ export function BuildControl({
         </>
       ) : waiting ? (
         <>
-          <div className="build-state" role="status">
-            <span className="build-state-spinner" aria-hidden="true" />
-            <span>
-              <strong>{task.status === 'queued' ? '已排队' : '正在准备你的世界'}</strong>
-              <small>身份、人物和开场会先出现</small>
-            </span>
-          </div>
+          <ProgressState
+            label={task.status === 'queued' ? '已排队，等待准备' : '正在准备身份、人物和开场'}
+            detail="设定已经保存。返回分支后可以继续查看同一项任务。"
+          />
           <Button variant="ghost" disabled={busy} onClick={() => void act('cancel')}>
             暂停
           </Button>
@@ -117,6 +118,11 @@ export function BuildControl({
               </small>
             </span>
           </div>
+          {task.status === 'unknown' ? (
+            <Button variant="secondary" disabled={busy} onClick={() => void onChange()}>
+              检查最新状态
+            </Button>
+          ) : null}
           <Button disabled={busy} onClick={() => void act('retry')}>
             {busy ? '正在重试…' : '重新准备'}
           </Button>

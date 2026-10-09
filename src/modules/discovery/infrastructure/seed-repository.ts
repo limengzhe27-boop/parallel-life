@@ -1,3 +1,4 @@
+import { profilePhotoRoles } from './profile-photo-roles.ts';
 import { randomUUID } from 'node:crypto';
 import { ProfileSchema } from '../../../contracts/api.ts';
 import { usableProfileFact } from '../../profile/domain/profile-view.ts';
@@ -84,14 +85,13 @@ export class SeedRepository {
         if (!person) throw new TaskError('INVALID_INPUT');
         return person;
       });
-      const portraitAssetId = request.includePortrait ? profile.portraitAssetId : null;
+      const photoRoles = await profilePhotoRoles(sql, ownerId, profile);
+      const portraitAssetId = request.includePortrait ? photoRoles.portraitAssetId : null;
       if (request.includePortrait && !portraitAssetId) throw new TaskError('INVALID_INPUT');
-      const referenceIds = request.includePortrait ? (profile.referenceAssetIds ?? []) : [];
+      // includePortrait authorizes the explicitly selected portrait, not every shared upload.
       const ids = [
         ...new Set(
-          [portraitAssetId, ...referenceIds, ...people.map((p) => p.assetId)].filter(
-            (id): id is string => !!id,
-          ),
+          [portraitAssetId, ...people.map((p) => p.assetId)].filter((id): id is string => !!id),
         ),
       ];
       const assets = ids.length

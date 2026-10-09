@@ -1,5 +1,9 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ProfilePhotoRolesSchema,
+  type ProfilePhotoRoles,
+} from '../../contracts/profile-photo-roles.ts';
 import type { Profile } from '../../contracts/api.ts';
 import { usableProfileFact } from '../../modules/profile/domain/profile-view.ts';
 import type { LifeDraft, SaveDraft, ConfirmDraft } from '../../contracts/life-drafts.ts';
@@ -49,16 +53,70 @@ export function DraftEditor({
     JSON.stringify(setup) !== JSON.stringify(current.setup) ||
     JSON.stringify(selection) !== JSON.stringify(current.selection) ||
     profile.version !== current.profileVersion;
-  const ownPhotos = [
-    ...new Set(
-      [profile.portraitAssetId, ...profile.referenceAssetIds].filter((id): id is string => !!id),
-    ),
+  const [roles, setRoles] = useState<ProfilePhotoRoles>();
+  const [roleError, setRoleError] = useState('');
+  const [roleRead, setRoleRead] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setRoles(undefined);
+    setRoleError('');
+    const read = async () => {
+      try {
+        const r = await fetch('/api/v1/profile/photos/roles', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        if (!r.ok) throw new Error('照片用途暂时未能读取，请重新核对。');
+        const next = ProfilePhotoRolesSchema.parse(await r.json());
+        if (next.profileId !== profile.id || next.profileVersion !== profile.version)
+          throw new Error('资料刚有更新，请读取最新资料后再确认。');
+        if (!live) return;
+        setRoles(next);
+        if (current.status !== 'confirmed')
+          setSelection((old) => {
+            const allowed = new Set([
+              ...next.referenceAssetIds,
+              ...(next.portraitAssetId ? [next.portraitAssetId] : []),
+              ...next.personAssets
+                .filter((a) => old.personIds.includes(a.personId))
+                .map((a) => a.assetId),
+            ]);
+            const assetIds = old.assetIds.filter((id) => allowed.has(id));
+            if (assetIds.length !== old.assetIds.length)
+              setRoleError('已排除未选人物的照片或不可用图片。请核对本次带入内容并保存。');
+            return {
+              ...old,
+              assetIds,
+              portraitAssetId:
+                old.portraitAssetId && assetIds.includes(old.portraitAssetId)
+                  ? old.portraitAssetId
+                  : null,
+            };
+          });
+      } catch (e) {
+        if (live) setRoleError(e instanceof Error ? e.message : '照片用途暂时未能读取。');
+      }
+    };
+    void read();
+    return () => {
+      live = false;
+    };
+  }, [profile.id, profile.version, roleRead]);
+  const photosReady = roles?.profileVersion === profile.version;
+  const pictures = [
+    ...new Set([
+      ...(roles?.referenceAssetIds ?? []),
+      ...(roles?.portraitAssetId ? [roles.portraitAssetId] : []),
+      ...(roles?.personAssets
+        .filter((a) => selection.personIds.includes(a.personId))
+        .map((a) => a.assetId) ?? []),
+    ]),
   ];
-  const pictures = ownPhotos;
   function close() {
     if (!busy && (!dirty || confirmed || window.confirm('更改还没有保存，仍要离开吗？'))) onClose();
   }
   async function save() {
+    if (!photosReady) throw new Error('请先核对照片用途。');
     if (!dirty) return current;
     const fields = {
       expectedVersion: current.version,
@@ -284,7 +342,11 @@ export function DraftEditor({
                           ),
                           assetIds: [
                             ...new Set([
-                              ...selection.assetIds.filter((id) => ownPhotos.includes(id)),
+                              ...selection.assetIds.filter(
+                                (id) =>
+                                  roles?.referenceAssetIds.includes(id) ||
+                                  roles?.portraitAssetId === id,
+                              ),
                               ...personPhotos,
                             ]),
                           ],
@@ -344,6 +406,11 @@ export function DraftEditor({
             </details>
             <details>
               <summary>照片 · 已选 {selection.assetIds.length}</summary>
+              {!photosReady ? <p role="status">正在核对照片用途…</p> : null}
+              {roleError ? <p role="alert">{roleError}</p> : null}
+              <Button type="button" variant="ghost" onClick={() => setRoleRead((n) => n + 1)}>
+                重新核对照片用途
+              </Button>
               <div className={s.photos}>
                 {pictures.map((id, i) => (
                   <label className={s.picture} key={id}>
@@ -367,13 +434,17 @@ export function DraftEditor({
                           });
                         }}
                       />
-                      带入这张
+                      {id === roles?.portraitAssetId
+                        ? '用作本人形象（勾选确认）'
+                        : profile.people.some((p) => p.assetId === id)
+                          ? '已选人物的原图'
+                          : '带入这张参考图'}
                     </span>
                   </label>
                 ))}
               </div>
               {!pictures.length && (
-                <p className={s.hint}>还没有可选的本人照片。人物原图随选中的人物一起带入。</p>
+                <p className={s.hint}>还没有可选的参考照片。人物原图随选中的人物一起带入。</p>
               )}
             </details>
           </fieldset>
@@ -399,12 +470,16 @@ export function DraftEditor({
         )}
         <div className={s.actions}>
           {!confirmed && (
-            <Button variant="secondary" disabled={busy || !dirty} onClick={() => void act(false)}>
+            <Button
+              variant="secondary"
+              disabled={busy || !photosReady || !dirty}
+              onClick={() => void act(false)}
+            >
               保存草案
             </Button>
           )}
           <Button
-            disabled={busy || Object.values(story).some((v) => !v.trim())}
+            disabled={busy || !photosReady || Object.values(story).some((v) => !v.trim())}
             onClick={() => void act(true)}
           >
             {busy ? '正在保存…' : confirmed ? '继续准备手机' : '确认并准备手机'}

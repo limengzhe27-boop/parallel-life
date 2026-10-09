@@ -38,9 +38,9 @@ test('phone internal auxiliary pages retain old deep links and return to their a
   assert.deepEqual(parentRoute({ app: null, panel: 'time' }), { app: null });
 });
 
-test('desktop exposes exactly WeChat, calendar, photos and notes', async () => {
+test('desktop exposes shared apps plus an independent scene entrance', async () => {
   const { desktopApps } = await import('../src/features/phone/navigation.ts');
-  assert.deepEqual(desktopApps, ['messages', 'calendar', 'photos', 'notes']);
+  assert.deepEqual(desktopApps, ['messages', 'calendar', 'photos', 'notes', 'scenes']);
 });
 
 test('new notification ids arrive once while reordered or repeated ids do not replay', async () => {
@@ -61,5 +61,5 @@ test('old director links open time management and scene links retain their saved
   assert.deepEqual(readRoute('#life=life&panel=director', 'life'), { app: null, panel: 'time' });
   const route = { app: null, panel: 'scene' as const, target: 'scene-id' };
   assert.deepEqual(readRoute(routeHash('life', route), 'life'), route);
-  assert.deepEqual(parentRoute(route), { app: null });
+  assert.deepEqual(parentRoute(route), { app: 'scenes' });
 });

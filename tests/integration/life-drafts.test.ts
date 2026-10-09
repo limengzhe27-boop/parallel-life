@@ -45,6 +45,10 @@ async function fixture() {
     });
   profile = await profiles.edit(owner, {
     expectedVersion: profile.version,
+    operation: { kind: 'set-portrait', assetId: photo },
+  });
+  profile = await profiles.edit(owner, {
+    expectedVersion: profile.version,
     operation: {
       kind: 'set-person',
       person: { id: personId, name: '测试同学', relationship: '朋友', assetId: second },
@@ -200,6 +204,14 @@ test('draft ownership, stale versions, changed profiles and photos are rejected 
       selection: { ...draft.selection, assetIds: [f.photo], portraitAssetId: f.photo },
     };
     await assert.rejects(f.repo.save(f.other, draft.id, request), { code: 'NOT_FOUND' });
+    await assert.rejects(
+      f.repo.save(f.owner, draft.id, {
+        ...request,
+        commandId: randomUUID(),
+        selection: { ...request.selection, assetIds: [f.second], portraitAssetId: null },
+      }),
+      { code: 'INVALID_INPUT' },
+    );
     await assert.rejects(
       f.repo.save(f.owner, draft.id, {
         ...request,

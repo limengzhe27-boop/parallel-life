@@ -104,10 +104,11 @@ test('unconfigured media generation records failure and creates no album assets'
   } finally {
     await admin.query(`DELETE FROM parallel_life.accounts WHERE id = $1`, [ownerId]);
     await admin.end();
+    await queue.close();
   }
 });
 
-test('M-04: ProfileRepository supports multi-photo reference management (add & delete)', async () => {
+test('M-04: shared uploads require explicit portrait choices', async () => {
   const { ProfileRepository } =
     await import('../src/modules/profile/infrastructure/profile-repository.ts');
   const config = await localConfig();
@@ -151,12 +152,12 @@ test('M-04: ProfileRepository supports multi-photo reference management (add & d
       [asset1, ownerId, asset2],
     );
 
-    // Add first photo -> should also become default portrait
+    // Sharing a photo does not identify it as the player.
     const p1 = await repo.edit(ownerId, {
       expectedVersion: 0,
       operation: { kind: 'add-reference-photo', assetId: asset1 },
     });
-    assert.equal(p1.portraitAssetId, asset1);
+    assert.equal(p1.portraitAssetId, null);
     assert.deepEqual(p1.referenceAssetIds, [asset1]);
 
     // Add second photo
@@ -164,19 +165,26 @@ test('M-04: ProfileRepository supports multi-photo reference management (add & d
       expectedVersion: p1.version,
       operation: { kind: 'add-reference-photo', assetId: asset2 },
     });
-    assert.equal(p2.portraitAssetId, asset1);
+    assert.equal(p2.portraitAssetId, null);
     assert.deepEqual(p2.referenceAssetIds, [asset1, asset2]);
 
-    // Delete first photo -> portrait falls back to asset2
-    const p3 = await repo.edit(ownerId, {
+    const chosen = await repo.edit(ownerId, {
       expectedVersion: p2.version,
+      operation: { kind: 'set-portrait', assetId: asset1 },
+    });
+    assert.equal(chosen.portraitAssetId, asset1);
+
+    // Removing the chosen portrait never selects a replacement implicitly.
+    const p3 = await repo.edit(ownerId, {
+      expectedVersion: chosen.version,
       operation: { kind: 'delete-reference-photo', assetId: asset1 },
     });
-    assert.equal(p3.portraitAssetId, asset2);
+    assert.equal(p3.portraitAssetId, null);
     assert.deepEqual(p3.referenceAssetIds, [asset2]);
   } finally {
     await admin.query(`DELETE FROM parallel_life.accounts WHERE id = $1`, [ownerId]);
     await admin.end();
+    await db.close();
   }
 });
 
