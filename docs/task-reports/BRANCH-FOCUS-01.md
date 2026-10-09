@@ -1,6 +1,6 @@
 # BRANCH-FOCUS-01 · 当前构思优先的单分支
 
-进行中。Agent codex-branchfocus01-01a11a84-20261009；已按主表短锁登记精确后端/契约/测试/报告范围，复用scene-index-transitions从主731a9f0稳定对象更新，不夹带LIB。PG55450本人重新启用、HTTP3254仅预留；根PHONE-HOME-03及辅助proposal/draft/discovery-app文件不写。用户最新要求来自根会话原始user消息，已只读核对：分支不要一直占聊天、明确修改边界、创建不岔成三个不同方向、拆混合设置。I本项只解决单/多方向契约与后端；界面和手机由指定现有线程承担，先发布调用契约供根协调转达。
+状态：待验收，最新身份匹配的真实样本未通过，不能称本项全部完成。Agent codex-branchfocus01-01a11a84-20261009；已按主表短锁登记精确后端/契约/测试/报告范围，复用scene-index-transitions从主731a9f0稳定对象更新，不夹带LIB。PG55450本人重新启用、HTTP3254仅预留；根PHONE-HOME-03及辅助proposal/draft/discovery-app文件不写。用户最新要求来自根会话原始user消息，已只读核对：分支不要一直占聊天、明确修改边界、创建不岔成三个不同方向、拆混合设置。I本项只解决单/多方向契约与后端；界面和手机由指定现有线程承担，先发布调用契约供根协调转达。
 
 ## 给界面接线的首版冻结契约
 
@@ -25,3 +25,19 @@ focused优先当前brief与basedOn核心；确认过的basis只作实际可用�
 真实explore任务5cc5e44b-6b02-4e08-8aa2-16e2086e13c0 succeeded，实际3方向（维修店/骑行旅行/教学）、来源为真实合成兴趣，profile不变；未把第一轮身份漂移或第二轮超时改成成功。文字预算现3/8。最终480check、102真实PG通过/5明确可选模型跳过；build在途。照片范围修复单独稳定9b02e37（4文件），其父含独立QA2b171ef对应d49a99b、契约cff3fd5及PHONE03ff8bef6；供根协调辅助原14验收复跑，不使用任何额外视觉预算。
 
 后端候选f04a7d2已受控入ROOT0d0c248，照片9b02e37→e130fa9、PHONE03c941688→5502662、契约cff3fd5→b16c9d8、独立QA2b→66c1ec4。最终480check、102完整PG+5可选skip、build及29专项纯验收通过。14:03:54Z生产38迁移一致，无SQL新增。正式仍731a9f0/moc1g3eju，待辅助UI稳定对象串行联合部署与公网单方向→草案真保存→确认→世界验证；记录待验收不勾完成。
+
+## 公网质量反例，不能把链路成功当目标匹配
+
+3b0a961 / 600xoljpq / dpl_BDzoW4oFCKoJh71qpbSkw5vorEJJ READY，正式别名确认。新合成账号focused任务88f13766-880a-435e-96ca-7527fb5a12b9返回1条，但标题“如果转向现场导播”、premise“作为舞台摄影师，我可以改变为现场导播”，包含原身份字样仍实际换角色，当前guard漏“改变为”，质量失败。原自动脚本只查contains和排除设计师因此错误输出complete=true，现追加quality=false更正，不抹原文件证据。真实saveDraft→reread→confirm→seed→build fdc78d19-3306-445c-a58d-e4de2e00765e→world825e7c84-337f-4312-a465-8074f340ac5e成功，setup明确保存摄影师后世界identity摄影师，两角色两消息、暂停、幂等与profile未变，但不能称推荐主线匹配成功。公网为文字最多4请求预留（两个planner各最多2），实际attempt数尚在日志只读核对；本地已3，不追加未知预算。继续在已登记helper/测试范围修复该真实反例，无新UI/SQL。
+
+收尾接续（22:29本地）：最新业务1ce8673，正式hzxdevs0b / dpl_2vG4wYZm5kkiPnx2cp7Xsz1JYB8F READY，14:19:48Z生产38迁移一致。487check/build、完整102PG+5可选skip及二次guard2专项PG通过。公网手机390/1440首页身份/时间/备忘录、旧management深链实际备忘录（忽略obsolete target）、0横溢与返回/切换通过；聊天52px入口/Modal开关/输入414<nav434通过，既有草案prepare仍真实可编辑，原confirmAPI/seed/world链已通过。辅助41纯复验31e0c08→主9cb9529已上线，旧视觉命令重放0token、素材跨账号404、两旧世界200，视觉没有追加。最后focused23fbda68-dc2c-4e2d-8bdc-359402e3ea52任务85秒TIMEOUT/unknown，不重付；同command重放同unknown、客户端task不发run、profile/方向不变。文字账本6/8（本地intercept3+公网按完整task/run诊断和planner循环核对3，公网无供应商usage回执），两unknown/两方向质量失败，停止付费、余2不再使用。完整身份匹配仍待验收。正在最终unknown诚实提示构建与文档登记，未新增功能/付费/SQL，随后最终READY只读验证并释放PG55450/浏览器93、保留LIB在途。发现原run-worker失败日志durationMs错误写Date.now()，仅记录诊断建议，不扩大本批任务源码范围或把该字段当实际耗时。
+
+## 本批最终限定验收
+
+业务e96cee6，生产l0jat1r2r / dpl_GLwFtC63De48N7k5GyPXng7y1E1w READY，正式https://parallel-life-nu.vercel.app。二次核心修复67b4efa→主1ce8673：明确用户要体验的身份就是本分支当下身份，变化放到工作处境而不是再改职业；真实“改变为现场导播”响应成为拒绝回归，runtime不改写模型输出冒充遵从。新增unknown可能费用/不自动重试提示6e3121c→e96cee6。最终487check/build通过，完整102真实PG/5明确可选模型skip在二次guard前完成，guard后两专项真实PG通过；最后文案无DB改动不重复整套。无SQL新增，14:19:48Z生产38checksum一致。
+
+文字按循环与完整合成task日志核对6/8请求：本地3拦截，公网3无供应商token/费用回执；2unknown、2方向质量失败。最终23fbda68为TIMEOUT且无discovery纠正日志，未运行第二次/不换新命令跑到绿，剩余2不花。确认原链路保存/seed/world可用不能替代身份主线质量：第一次公网contains断言误报complete=true已附quality=false纠正，原响应未删除。最新规则纯反例通过但真实身份匹配因最后unknown仍待验收。本项保持未完成；不宣称间歇模型可靠性已治。原run-worker durationMs把绝对时间当耗时属于另列诊断建议，未擅自扩源码。
+
+BRANCH-UI-02、PHONE-HOME-03及VISION-01QA已按限定证据集成验收：公网390/1440真实手机首页/management深链notes/老世界，聊天52px入口Modal开关与输入414<nav434；确认前保存/确认/seed/world真实API通过；确认摘要由原6SSR及辅助真实合成浏览器0inputs证明，I公网第一次期待确认摘要实际prepare拿到新草案，未伪称该窗口是确认摘要。旧账户三方向仍可查看；没有执行新explore公网付费，本地真实explore3与真实PG/辅助两caller请求结构证明分工。未知真实任务同命令同unknown、client.task不发run、profile/directions不变。完整Notes开场/长期任务/多聊天/生成仍不在交付。
+
+PG55450已核本人postmaster路径后fast停止，launcher16715退出130；其他checkout启动器21096/36215保留，HTTP3254未启用。正式最终unknown费用/不自动重试提示已亲看；本批浏览器93已恢复原本站session并finish关闭一次；LIB client/interview25行及创作/设置源码不暂存。最后只受控提交本报告/视觉报告/DEPLOYMENT和本批登记行，等文档READY+正式health只读复验收尾。
