@@ -1,4 +1,10 @@
-import { groundPersonProposal, type PersonProposal } from '../application/person-extraction.ts';
+import {
+  groundPersonProposal,
+  explicitPhotoPeople,
+  resolvePhotoReference,
+  isStoryPersonContext,
+  type PersonProposal,
+} from '../application/person-extraction.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   LifeDate,
@@ -456,16 +462,14 @@ export class ProfileRepository {
             if (profile.referenceAssetIds.length >= 6) throw new TaskError('INVALID_INPUT');
             profile.referenceAssetIds.push(op.assetId);
           }
-          if (!profile.portraitAssetId) {
-            profile.portraitAssetId = op.assetId;
-          }
+          // Sharing grants interview access; only set-portrait designates the user’s own portrait.
           break;
         }
         case 'delete-reference-photo': {
           if (!profile.referenceAssetIds.includes(op.assetId)) throw new TaskError('NOT_FOUND');
           profile.referenceAssetIds = profile.referenceAssetIds.filter((id) => id !== op.assetId);
           if (profile.portraitAssetId === op.assetId) {
-            profile.portraitAssetId = profile.referenceAssetIds[0] ?? null;
+            profile.portraitAssetId = null;
           }
           break;
         }
@@ -496,7 +500,6 @@ export async function applyPeopleInTransaction(
   expectedProfileVersion: number,
   proposals: PersonProposal[] = [],
 ) {
-  if (!proposals.length) return;
   const row = (
     await sql.query(
       'SELECT document,version FROM parallel_life.profiles WHERE owner_id=$1 FOR UPDATE',
@@ -507,46 +510,111 @@ export async function applyPeopleInTransaction(
   if (!row || Number(row.version) !== expectedProfileVersion) return;
   const source = (
     await sql.query(
-      "SELECT text,photo_asset_id FROM parallel_life.interview_messages WHERE id=$1 AND owner_id=$2 AND interview_id=$3 AND role='user'",
+      "SELECT id,text,photo_asset_id,created_at,ordinal FROM parallel_life.interview_messages WHERE id=$1 AND owner_id=$2 AND interview_id=$3 AND role='user'",
       [inputMessageId, ownerId, interviewId],
     )
   ).rows[0];
   if (!source) return;
   const profile = ProfileSchema.parse({ ...row.document, version: Number(row.version) });
   let changed = false;
-  const photoUnique = proposals.filter((p) => p.associatePhoto).length === 1;
-  for (const proposal of proposals) {
-    if (proposal.messageId !== inputMessageId) continue;
-    const grounded = groundPersonProposal(proposal, String(source.text), profile.people);
-    if (!grounded) continue;
-    let assetId: string | null = null;
-    if (grounded.associatePhoto && photoUnique && source.photo_asset_id) {
-      const asset = await sql.query(
-        "SELECT id FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND status='ready' AND origin='upload' AND world_id IS NULL",
-        [source.photo_asset_id, ownerId],
-      );
-      if (asset.rowCount) assetId = String(source.photo_asset_id);
-    }
-    if (!grounded.knownName && !grounded.description && !grounded.experience && !assetId) continue;
-    const previous = profile.people.find((p) => p.id === grounded.existingId);
-    if (!previous && profile.people.length >= 30) continue;
-    // Stop when evidence is full instead of discarding the oldest user evidence.
-    if (
-      previous &&
-      (((previous.sourceMessageIds?.length ?? 0) >= 40 &&
-        !previous.sourceMessageIds?.includes(inputMessageId)) ||
-        ((previous.sourceQuotes?.length ?? 0) >= 40 &&
-          !previous.sourceQuotes?.some(
-            (q) => q.messageId === inputMessageId && q.quote === grounded.quote,
-          )))
+  const history = (
+    await sql.query(
+      "SELECT id,text,photo_asset_id,created_at FROM parallel_life.interview_messages WHERE owner_id=$1 AND interview_id=$2 AND role='user' AND ordinal<$3 ORDER BY ordinal DESC LIMIT 40",
+      [ownerId, interviewId, source.ordinal],
     )
+  ).rows
+    .reverse()
+    .map((m) => ({
+      id: String(m.id),
+      text: String(m.text),
+      photoAssetId: m.photo_asset_id ? String(m.photo_asset_id) : null,
+      createdAt: new Date(m.created_at).toISOString(),
+    }));
+  const photoLabelsOnly = isStoryPersonContext(
+    String(source.text),
+    history.map((m) => m.text),
+  );
+  const evidence = {
+    id: inputMessageId,
+    text: String(source.text),
+    photoAssetId: source.photo_asset_id ? String(source.photo_asset_id) : null,
+    createdAt: new Date(source.created_at).toISOString(),
+  };
+  // Literal per-photo attribution works even if the single model call omits people.
+  const literal = explicitPhotoPeople(evidence.text, inputMessageId);
+  const items = [
+    ...literal,
+    ...proposals.filter(
+      (p) =>
+        !literal.some((l) => l.subject === p.subject && (p.associatePhoto || l.quote === p.quote)),
+    ),
+  ];
+  const references = items.map((p) =>
+    p.associatePhoto ? resolvePhotoReference(evidence, history, p.quote, p.subject) : null,
+  );
+  for (const [index, proposal] of items.entries()) {
+    if (proposal.messageId !== inputMessageId) continue;
+    const grounded = groundPersonProposal(
+      proposal,
+      String(source.text),
+      profile.people,
+      photoLabelsOnly,
+    );
+    if (!grounded) continue;
+    if (grounded.associatePhoto && !references[index]) continue;
+    let assetId: string | null = null;
+    let photoSource = references[index];
+    // Conflicting claims to one photo cannot assign it to multiple people.
+    if (photoSource && references.filter((r) => r?.id === photoSource?.id).length !== 1)
+      photoSource = null;
+    if (grounded.associatePhoto && photoSource && photoSource.photoAssetId) {
+      const asset = await sql.query(
+        "SELECT id FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND status='ready' AND origin='upload' AND world_id IS NULL FOR SHARE",
+        [photoSource.photoAssetId, ownerId],
+      );
+      if (asset.rowCount && profile.referenceAssetIds.includes(photoSource.photoAssetId))
+        assetId = photoSource.photoAssetId;
+    }
+    if (grounded.photoLabel && !assetId) continue;
+    if (!grounded.knownName && !grounded.description && !grounded.experience && !assetId) continue;
+    const previous = grounded.photoLabel
+      ? profile.people.find(
+          (p) =>
+            p.assetId === assetId &&
+            assetId &&
+            p.relationship === '照片人物' &&
+            p.temporaryLabel === grounded.subject,
+        )
+      : profile.people.find((p) => p.id === grounded.existingId);
+    if (previous?.assetId && assetId && previous.assetId !== assetId) continue;
+    if (!previous && profile.people.length >= 30) continue;
+    // An already-attributed image cannot silently identify a different person/label.
+    if (assetId && profile.people.some((p) => p.assetId === assetId && p.id !== previous?.id))
       continue;
+    const nextSources = [
+      ...new Set([
+        ...(previous?.sourceMessageIds ?? []),
+        inputMessageId,
+        ...(assetId && photoSource ? [photoSource.id] : []),
+      ]),
+    ];
+    const nextQuotes = [...(previous?.sourceQuotes ?? [])];
+    for (const quote of [
+      { interviewId, messageId: inputMessageId, quote: grounded.quote },
+      ...(assetId && photoSource && photoSource.id !== inputMessageId
+        ? [{ interviewId, messageId: photoSource.id, quote: photoSource.text.slice(0, 1000) }]
+        : []),
+    ])
+      if (!nextQuotes.some((q) => q.messageId === quote.messageId && q.quote === quote.quote))
+        nextQuotes.push(quote);
+    // Capacity must include both the label and photo evidence before any mutation; never truncate evidence.
+    if (nextSources.length > 40 || nextQuotes.length > 40) continue;
     const person = previous ?? {
       id: randomUUID(),
-      name: grounded.knownName ?? grounded.subject,
-      knownName: grounded.knownName ?? null,
+      name: grounded.photoLabel ? grounded.subject : (grounded.knownName ?? grounded.subject),
+      knownName: grounded.photoLabel ? null : (grounded.knownName ?? null),
       temporaryLabel: grounded.subject,
-      relationship: grounded.subject,
+      relationship: grounded.photoLabel ? '照片人物' : grounded.subject,
       assetId: null,
       interaction: '',
       experiences: [],
@@ -555,15 +623,23 @@ export async function applyPeopleInTransaction(
       origin: 'interview' as const,
     };
     const before = JSON.stringify(person);
-    if (grounded.knownName && !person.knownName) {
+    if (!grounded.photoLabel && grounded.knownName && !person.knownName) {
       person.knownName = grounded.knownName;
       person.name = grounded.knownName;
     }
-    if (grounded.description && !(person.interaction ?? '').includes(grounded.description)) {
+    if (
+      !grounded.photoLabel &&
+      grounded.description &&
+      !(person.interaction ?? '').includes(grounded.description)
+    ) {
       const description = [person.interaction, grounded.description].filter(Boolean).join('；');
       if (description.length <= 1200) person.interaction = description;
     }
-    if (grounded.experience && !person.experiences?.some((e) => e.text === grounded.experience)) {
+    if (
+      !grounded.photoLabel &&
+      grounded.experience &&
+      !person.experiences?.some((e) => e.text === grounded.experience)
+    ) {
       const experiences = person.experiences ?? [];
       if (experiences.length < 10)
         person.experiences = [
@@ -571,15 +647,11 @@ export async function applyPeopleInTransaction(
           { id: randomUUID(), text: grounded.experience, date: null },
         ];
     }
-    if (assetId) person.assetId = assetId;
+    if (assetId && (!person.assetId || person.assetId === assetId)) person.assetId = assetId;
+    else if (assetId) assetId = null;
+    person.sourceMessageIds = nextSources;
+    person.sourceQuotes = nextQuotes;
     if (!previous || JSON.stringify(person) !== before) {
-      person.sourceMessageIds = [...new Set([...(person.sourceMessageIds ?? []), inputMessageId])];
-      const quotes = person.sourceQuotes ?? [];
-      person.sourceQuotes = quotes.some(
-        (q) => q.messageId === inputMessageId && q.quote === grounded.quote,
-      )
-        ? quotes
-        : [...quotes, { interviewId, messageId: inputMessageId, quote: grounded.quote }];
       person.updatedAt = new Date().toISOString();
       person.origin ??= 'interview';
       if (!previous) profile.people.push(person);

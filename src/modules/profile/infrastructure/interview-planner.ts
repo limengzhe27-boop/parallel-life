@@ -1,3 +1,9 @@
+import {
+  isStoryPersonContext,
+  explicitPhotoReference,
+  explicitPhotoPeople,
+  resolvePhotoReference,
+} from '../application/person-extraction.ts';
 import { explicitBirthdate } from '../domain/explicit-birthdate.ts';
 import { usableProfileFact } from '../domain/profile-view.ts';
 import { z } from 'zod';
@@ -12,7 +18,7 @@ import {
 import { QuestionTargetSchema } from '../../../contracts/memory.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
 import { detectCrisisIntent, CRISIS_RESPONSE } from '../../ai/safety-guard.ts';
-export const INTERVIEW_PROMPT_VERSION = 'interview-1.7.0';
+export const INTERVIEW_PROMPT_VERSION = 'interview-1.8.0';
 export const PersonProposalSchema = z.strictObject({
   personId: Id.optional(),
   subject: z.string().trim().min(1).max(40),
@@ -78,7 +84,7 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 【交流与引导】
 1. 先回应用户这一句具体在说什么。像自然交谈，通常2—4句，不套用长篇共情或人生比喻。最多问一个有用的问题，也可以不提问。
 2. 用户只想倾诉时先倾听；对经历不清楚时问一个关键细节；表达另一种生活的愿望时才邀请一起构思。不要每轮都推销平行人生，不主动制造创伤或替用户决定梦想。
-3. 构思时逐步弄清他想成为谁、改变哪次选择、期待怎样的关系，以及不想遇到什么。信息不足就讨论，不假装已经准备好完整世界；明确选择后才展示方向供他查看。
+3. 已有想体验的身份或生活时，主动给具体暂定开场：一个场景、公开人物安排、眼下可做的一件事。愿望可以只有“自由”；“没目标/你来安排”也是可开场的授权，不重复问“目标是什么/自由是什么”。不要求用户编角色动机、矛盾与后续，内部导演补足且不提前揭露。身份还未指定时也可提出一个可修改的轻量开场，不逼用户填表。
 4. 姓名、生日等不是聊天或体验的门槛，不必专门追问，不从生日或星座推断性格。只记录用户明确说的本人信息。毕业年份、朋友的生日和假设都不是本人生日；只有明确的本人出生陈述才能写 birthdate。
 5. 你只能讨论或提议分支。不能声称正在创建、已经创建或马上打开手机；真正创建需要用户查看方向并选择带入资料。用户说不创建时继续聊天。
 6. 消息的 hasPhoto 只表示用户附了一张照片，你没有看到图像内容。可以问照片背后的故事，不能声称看到了长相、表情或画面细节。旧消息中的 [照片:...] 也只是历史上传标记。
@@ -88,7 +94,7 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 2. 用户讲最近的烦恼，先具体回应，再了解他在意的一个点；不要马上索要过去最痛苦或最后悔的经历。例如“最近工作很累”可以接“最近工作里，最让你觉得累的是什么？”不能据此断言他不适合这份工作。
 3. 用户讲重要选择或遗憾，先弄清当时的取舍，再了解他如今想尝试的不同选择。每轮只推进一个细节，不连续盘问。用“当时是什么让你选了这条路？”而不是“你人生最后悔的事是什么？”用户不想说就接住或换话题，不追问被屏蔽主题。
 4. 用户讲想要的生活，了解最吸引他的具体部分；从他的原话提出一个暂定的“如果”，邀请修改。例如明确说喜欢摄影却选了其他专业，可讨论“如果当时继续学摄影”，但不能直接断定他后悔、想辞职或具有什么性格。
-5. 已了解一个真实背景和一个想改变的点，就可以简短复述并问是否愿意围绕它构思，不凑齐资料才继续。用户已说明的信息不再重复问；已有明确方向直接接着讨论。追问前让用户自然理解其用途，避免每轮解释流程。
+5. 无需真实背景即可构思虚构身份。已有身份/愿望便直接提暂定开场，不再问是否开始构思；用户说没目标也可安排。仅真正会改变身份、关系或体验边界的缺失信息值得提问，最多一个；创建和资料带入必须走真实确认入口，不能要求全部现实资料确认后才给开场。用户已说明的信息不再重复问；已有明确方向直接接着讨论。追问前让用户自然理解其用途，避免每轮解释流程。
 6. 生日、出生时间、位置/IP不用于推断性格、运势或命运，也不作为开场必填。只有故事年代确实需要澄清时才问大致年份或人生阶段，并允许不知道、跳过。不能承诺改变现实人生、实现愿望、预测真实结局，或保证另一种选择一定更好。
 7. 构思场景使用“如果”“可以设想”等措辞，明确是一起创作的可能性，不伪称已经发生。事实、用户愿望和你提出的故事设想分开；自己的设想不可提取到用户的 facts/events/basicInfo。不主动索取照片或敏感经历作为继续聊天的条件。
 8. question 若存在，reply 中不要再问另一件事；同一个问题也不要重复输出两遍。以下示例只说明节奏，不是固定回复；始终根据当前对话回应。
@@ -96,13 +102,19 @@ const SYSTEM = `你是“如果”的个人向导。先理解这个人，再和�
 【我身边的人与我的描述】
 1. 自然了解用户提到的现实人物。姓名、关系、描述和照片都是选填，不为了填表追问。用户讲表姐对他好却干涉职业，先回应具体矛盾，不把表姐判定为敌人。最多问一个必要问题，已有信息不重复问。
 2. “我的描述”可以是用户说的人物性格、习惯、能力、经历、看法或互动，始终是用户描述，不是客观诊断或你的推断。具体共同经历单独整理，同一句不要重复放进description和experience，也不要重复放到facts/events。
-3. 可选people最多3项：{personId?:已知资料ID,subject:明确的现实关系称呼,messageId:本轮用户消息ID,quote:用户逐字原话,knownName?:原话明确说“叫/名字是/昵称是”的姓名,description?:逐字摘录,experience?:逐字摘录,associatePhoto?:true}。不确定时people为空。字段可省略，不得输出assetId或你猜的身份。
+3. 可选people最多3项：{personId?:已知资料ID,subject:明确的现实关系称呼或逐字照片人物标签,messageId:本轮用户消息ID,quote:用户逐字原话,knownName?:原话明确说“叫/名字是/昵称是”的姓名,description?:逐字摘录,experience?:逐字摘录,associatePhoto?:true}。不确定时people为空。字段可省略，不得输出assetId或你猜的身份。逐图说明里的小芳/王大毛等用户命名可作subject，不要求现实关系；中性照片标签不是用户现实亲友事实。profileNotes里的user_photo_label只表明用户对图的命名，不证明现实职务/恋爱；真实关系必须另有现实陈述。
 4. 只整理本轮用户的现实陈述。假如领导在故事里成为下属，绝不是现实下属；角色、故事、你的建议不写people。她/他指谁不清、同名多人、另一个同事或照片人物未知时，先用唯一问题澄清，不按名字或头像合并。
-5. hasPhoto不表示你看见照片。仅用户本轮明确说“这是我表姐的头像/照片”等归属时才associatePhoto=true，不从图像推断身份、性格或关系。用户只发头像，可以轻问想记给谁；不虚构人物资料。没有照片不主动催上传。
+5. hasPhoto不表示你看见照片。用户本轮明确说“这是我表姐的头像/照片”，或后补“第一张是教导主任，第二张是班主任女友”等逐张归属时可associatePhoto=true，不从图像推断身份、性格或关系。用户只发头像，可以轻问想记给谁；不虚构人物资料。此前创作语境下的逐图身份标签可输出associatePhoto，运行时仅存中性照片人物和标签来源，不把职务/恋爱写用户现实关系。没有照片不主动催上传。
 6. description/experience必须逐字包含在quote中，不能把“经常”改成“会”、增加主语、概括或套示例。quote必须逐字包含在对应用户消息中，禁止编造。若无法逐字摘录，则只回话，不整理。
 7. 已有人物可引用ID，但必须仍有本轮明确的现实关系和字面证据，不凭ID合并不同人；反复提及同一句不重复整理。
 
 【输出格式与严格防重规则】
+【创作边界与本轮行动】
+1. 古惑仔等非性犯罪身份可以讨论成年人虚构背景及有后果的冲突，不一味泛夸，不提供现实伤人、勒索等操作教程。人物年龄未知不生成未成年性内容；班主任女友的标签不意味着她是用户现实女友。
+2. 用户已给小芳、王大毛等人物称呼，只使用已公开安排和用户原话，建议可修改的场景与可做的一件事；动机/秘密/未来结局留给内部导演。不要每轮“很有趣”后再索要目标。承诺是暂定构想，不是分支已经生成。
+3. 真正进入人生须通过产品的方向/分支创建入口并实际确认，纯聊天不能声称已调用创建工具。照片归属不明确时只问照片组/哪张，不能顺带重复目标；不按脸、同名或历史首张猜测。用户的故事设想不提取为本人事实或现实恋爱关系。
+4. 下文 guideState 是运行时依据用户原话整理的交流阶段提示；尊重已答内容和已问问题，blockedTargets仍有效。输出仍由真实模型产生，不套固定开场。
+
 仅输出 JSON 对象，无 Markdown；people 与 facts/events 同级，必须输出people数组（没有时为空），明确的现实人物描述必须放入people，不要只写events。question存在时reply完全不提问：{"people":[{"subject":"表姐","messageId":"本轮用户消息ID","quote":"我表姐对我好，但会干涉职业选择。","description":"从quote逐字截取的描述，不改写"}],"reply":"自然真诚的回应","question":{"text":"可选的一个启发式追问","target":"identity|interest|personality|relationship|experience|wish"},"basicInfo":{"name":"明确提及的名字/称呼","birthdate":"明确提及的出生日期YYYY-MM-DD或年份YYYY","birthTime":"HH:mm","location":"所在城市","occupation":"职业","hometown":"家乡"},"facts":[{"category":"interest|personality|wish","value":"用户明确表达的一条简短静态信息（爱好、性格、心愿）","sourceMessageIds":["对应的用户消息ID"]}],"events":[{"title":"用户明确讲述的本人事件、经历、遗憾或关键转折（动词/事件属性）","date":"明确提及的年份或YYYY-MM-DD，未知为null","sourceMessageIds":["用户消息ID"]}]}。
 【基础资料直接进入 basicInfo 与更正覆盖】：
 1. 当用户在对话中提到或更正自己的【生日/出生年月日/出生年份】（如“我是01年的”、“我其实是2001年的”、“之前说错了，我是05年的”）、【姓名/称呼】、【出生具体时间】、【所在城市】、【职业】、【家乡】时，必须提取并直接填入 basicInfo 对象中。
@@ -156,6 +168,44 @@ export function groundBasicInfo(text: string, _proposed?: InterviewProposal['bas
   return extractBasicInfoFromText(text);
 }
 
+/** Literal context only: this is guidance to the existing call, not a generated story. */
+export function guideState(messages: Interview['messages']) {
+  const userTexts = messages.filter((m) => m.role === 'user').map((m) => m.text);
+  const creative = userTexts.some((t) =>
+    /想(?:成为|当|体验|试试)|如果|假如|平行|故事|角色|古惑仔/u.test(t),
+  );
+  const last = userTexts.at(-1) ?? '';
+  const offerOpening =
+    creative && !/(?:先不|不想|不要|不)(?:创建|构思|设计)|只想聊|先听我说/u.test(last);
+  const userMessages = messages.filter((m) => m.role === 'user');
+  const lastMessage = userMessages.at(-1);
+  const photoLabels = lastMessage
+    ? explicitPhotoPeople(last, lastMessage.id).map((p) => ({
+        label: p.subject,
+        resolvedInConversation: Boolean(
+          resolvePhotoReference(lastMessage, userMessages.slice(0, -1), p.quote, p.subject),
+        ),
+      }))
+    : [];
+  return {
+    mode: offerOpening ? 'propose_opening' : 'listen',
+    photoLabels,
+    // Conversation resolution is not material authorization; persistence checks the actual asset again.
+    unresolvedPhotoLabels: photoLabels.some((p) => !p.resolvedInConversation),
+    userEvidence: userTexts.slice(-8).map((text) => text.slice(0, 1000)),
+    priorQuestions: messages
+      .filter((m) => m.role === 'assistant')
+      .flatMap((m) => m.text.match(/[^。！？?\n]+[？?]/gu) ?? [])
+      .slice(-5)
+      .map((question) => question.slice(0, 200)),
+    delegateOpening: /没(?:有)?目标|你来(?:安排|决定|设计)|随便|不知道|自由/u.test(last),
+    nextAction: offerOpening
+      ? '提出可修改的场景、公开人物安排和眼下一件事；只问真正缺失的体验边界；实际创建须走入口'
+      : '回应具体内容，最多一个必要问题',
+    photoPolicy: '只知道上传标记；逐张说明由服务端解析同访谈真实来源，模糊就只澄清照片',
+  };
+}
+
 function oneReplyQuestion(text: string): string {
   const end = text.search(/[？?]/u);
   return end < 0 ? text : text.slice(0, end + 1);
@@ -199,6 +249,7 @@ export class InterviewPlanner {
           id,
           name,
           relationship,
+          evidenceKind: relationship === '照片人物' ? 'user_photo_label' : 'user_report',
           knownName,
           temporaryLabel,
           myDescription: interaction,
@@ -213,6 +264,7 @@ export class InterviewPlanner {
         content: JSON.stringify({
           profileNotes: memory,
           blockedTargets,
+          guideState: guideState(selected),
           messages: selected.map(({ id, role, text, photoAssetId }) => ({
             id,
             role,
@@ -262,7 +314,16 @@ export class InterviewPlanner {
     const replyQuestion = proposal.reply.match(/[^。！？?\n]+[？?]/u)?.[0]?.trim();
     if (proposal.question && replyQuestion) proposal.question.text = replyQuestion;
     const lastUserId = selected.filter((m) => m.role === 'user').at(-1)?.id;
-    proposal.people = proposal.people?.filter((p) => p.messageId === lastUserId);
+    const last = selected.filter((m) => m.role === 'user').at(-1)!;
+    const storyPeople = isStoryPersonContext(
+      last.text,
+      selected.filter((m) => m.role === 'user' && m.id !== last.id).map((m) => m.text),
+    );
+    proposal.people = proposal.people?.filter(
+      (p) =>
+        p.messageId === lastUserId &&
+        (!storyPeople || (p.associatePhoto && explicitPhotoReference(p.quote, p.subject))),
+    );
 
     // 启发式双重兜底：若用户直接说了生日或姓名，即使模型漏提也自动补齐
     const lastUserText = selected.filter((m) => m.role === 'user').at(-1)?.text ?? '';
