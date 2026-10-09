@@ -1,3 +1,4 @@
+import { PostgresPlayerRecords } from '../modules/world/infrastructure/player-records-repository.ts';
 import { createPrivateAssetStore } from './private-asset-store.ts';
 import {
   InterviewPhotoReader,
@@ -65,6 +66,7 @@ function createServices() {
   const identity = new IdentityRepository(db);
   return {
     db,
+    records: new PostgresPlayerRecords(db),
     sessions: new SignedSession(secret),
     /**
      * Guest-creation quota for one caller. The route stays unaware of how a
