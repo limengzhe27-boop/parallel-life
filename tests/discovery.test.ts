@@ -279,3 +279,33 @@ test('a related profession named only in reason cannot satisfy the literal curre
   assert.equal(corrected, 2);
   assert.match(result[0]!.premise, /舞台摄影师/);
 });
+
+// Exact synthetic public output: mentioning the requested identity before changing it is still drift.
+test('public photographer-to-live-director drift is rejected before directions can commit', async () => {
+  let calls = 0;
+  await assert.rejects(
+    new DiscoveryPlanner({
+      async complete() {
+        calls++;
+        return JSON.stringify({
+          directions: [
+            {
+              title: '如果转向现场导播',
+              premise: '作为舞台摄影师，我可以改变为现场导播',
+              opening: '站在导播台前调整摄像机和音频',
+              tradeoff: '需要面对技术挑战',
+              reason: '转向现场导播增强摄影创作',
+              sourceFactIds: [],
+            },
+          ],
+        });
+      },
+    }).propose({
+      ...input,
+      mode: 'focused',
+      brief: '我现在想体验舞台摄影师，跟剧组一起拍演出的工作。不要换职业。',
+    }),
+    { code: 'INVALID_RESPONSE', reason: 'FOCUS_MISMATCH' },
+  );
+  assert.equal(calls, 2);
+});

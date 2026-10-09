@@ -44,6 +44,11 @@ export function preservesFocus(premise: string, anchor: string): boolean {
   )
     return false;
   const remainder = premise.slice(index + anchor.length);
-  if (/^.{0,16}(?:而是|改为|改当|改做|转行|转向).{1,40}/u.test(remainder)) return false;
+  if (
+    /^.{0,16}(?:而是|改为|改成|改变为|变为|变成|转换为|转为|改当|改做|改行|转行|转向|转做).{1,40}/u.test(
+      remainder,
+    )
+  )
+    return false;
   return true;
 }

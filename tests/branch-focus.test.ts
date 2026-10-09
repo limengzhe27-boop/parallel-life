@@ -35,6 +35,8 @@ test('mentioning the anchor as a rejected or abandoned role cannot satisfy focus
     '不做舞台摄影师',
     '告别舞台摄影师，转行舞台设计',
     '作为舞台摄影师之后转行成为设计师',
+    '作为舞台摄影师，我可以改变为现场导播',
+    '作为舞台摄影师，变为现场导播',
   ])
     assert.equal(preservesFocus(premise, '舞台摄影师'), false, premise);
   assert.equal(preservesFocus('作为舞台摄影师跟剧组拍演出', '舞台摄影师'), true);
