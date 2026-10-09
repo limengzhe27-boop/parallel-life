@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { Id, Version, Timestamp, FactCategory, TaskSchema } from './api.ts';
 
+/** Omitted mode preserves old exploration requests and already queued tasks. */
+export const DiscoveryModeSchema = z.enum(['focused', 'explore']);
+export type DiscoveryMode = z.infer<typeof DiscoveryModeSchema>;
 export const BasisSchema = z.strictObject({
   factId: Id,
   category: FactCategory,
@@ -29,6 +32,7 @@ export const DiscoverySchema = z.strictObject({
 });
 export type Discovery = z.infer<typeof DiscoverySchema>;
 export const DiscoverRequestSchema = z.strictObject({
+  mode: DiscoveryModeSchema.optional(),
   commandId: Id,
   expectedVersion: Version,
   expectedProfileVersion: Version,
@@ -38,6 +42,7 @@ export const DiscoverRequestSchema = z.strictObject({
 export type DiscoverRequest = z.infer<typeof DiscoverRequestSchema>;
 export const DiscoveryInputSchema = z.strictObject({
   kind: z.literal('discovery'),
+  mode: DiscoveryModeSchema.optional(),
   profileId: Id,
   expectedVersion: Version,
   profileVersion: Version,
