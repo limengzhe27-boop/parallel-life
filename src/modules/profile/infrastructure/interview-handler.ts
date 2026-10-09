@@ -1,3 +1,7 @@
+import {
+  readInterviewPhotos,
+  type InterviewPhotoReaderPort,
+} from '../application/interview-photo-input.ts';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Id, ProfileSchema, Version } from '../../../contracts/api.ts';
@@ -53,6 +57,7 @@ export function interviewHandler(
   queue: PostgresTaskQueue,
   planner: InterviewPlanner,
   modelName: string,
+  photoReader?: (lease: TaskLease) => InterviewPhotoReaderPort,
 ) {
   return async (lease: TaskLease, signal: AbortSignal) => {
     const input = Input.parse(lease.input),
@@ -66,11 +71,19 @@ export function interviewHandler(
       await queue.finish(lease, { status: 'conflict', errorCode: 'VERSION_CONFLICT' });
       return;
     }
+    if (base.interview.id !== input.interviewId) throw Error('INVALID_SCOPE');
+    const images = await readInterviewPhotos(
+      photoReader?.(lease),
+      lease.ownerId,
+      input.interviewId,
+      base.interview.messages,
+    );
     const proposal = await planner.propose(
       base.profile,
       base.interview.messages,
       signal,
       base.interview.blockedTargets,
+      images,
     );
     await queue.commit(lease, async (sql) => {
       const current = (

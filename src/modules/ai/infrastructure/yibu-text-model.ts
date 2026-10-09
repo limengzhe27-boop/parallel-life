@@ -1,4 +1,5 @@
-import type { ModelMessage, TextModel } from '../application/ports.ts';
+import { modelRequestMessages } from '../application/model-content.ts';
+import type { ModelMessage, TextModel, ModelOutputOptions } from '../application/ports.ts';
 
 export type GatewayConfig = { apiKey: string; model: string; baseUrl: string; timeoutMs: number };
 /** Chat-shaped calls keep the conservative default; structured builders ask for their own cap. */
@@ -45,21 +46,21 @@ export class YibuTextModel implements TextModel {
     messages: ModelMessage[],
     signal?: AbortSignal,
     maxTokens?: number,
+    output?: ModelOutputOptions,
   ): Promise<string> {
     if (
-      !messages.length ||
-      messages.length > 100 ||
-      messages.some(
-        (message) =>
-          !['system', 'user', 'assistant'].includes(message.role) ||
-          typeof message.content !== 'string',
-      ) ||
-      messages.reduce((n, message) => n + message.content.length, 0) > 64000 ||
-      (maxTokens !== undefined &&
-        (!Number.isSafeInteger(maxTokens) || maxTokens < 256 || maxTokens > 16000))
+      maxTokens !== undefined &&
+      (!Number.isSafeInteger(maxTokens) || maxTokens < 256 || maxTokens > 16000)
     )
       throw new GatewayError('INVALID_CONFIG');
+    if (output && output.format !== 'json_object') throw new GatewayError('INVALID_CONFIG');
     const outputCap = maxTokens ?? DEFAULT_MAX_TOKENS;
+    let preparedMessages: ReturnType<typeof modelRequestMessages>;
+    try {
+      preparedMessages = modelRequestMessages(messages);
+    } catch {
+      throw new GatewayError('INVALID_CONFIG');
+    }
     const timeout = AbortSignal.timeout(this.config.timeoutMs);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     try {
@@ -71,9 +72,10 @@ export class YibuTextModel implements TextModel {
         },
         body: JSON.stringify({
           model: this.config.model,
-          messages,
+          messages: preparedMessages,
           stream: false,
           max_tokens: outputCap,
+          ...(output ? { response_format: { type: output.format } } : {}),
         }),
         signal: combined,
         redirect: 'error',
@@ -104,18 +106,18 @@ export class YibuTextModel implements TextModel {
     }
   }
 
-  async *streamComplete(messages: ModelMessage[], signal?: AbortSignal): AsyncIterable<string> {
-    if (
-      !messages.length ||
-      messages.length > 100 ||
-      messages.some(
-        (message) =>
-          !['system', 'user', 'assistant'].includes(message.role) ||
-          typeof message.content !== 'string',
-      ) ||
-      messages.reduce((n, message) => n + message.content.length, 0) > 64000
-    )
+  async *streamComplete(
+    messages: ModelMessage[],
+    signal?: AbortSignal,
+    output?: ModelOutputOptions,
+  ): AsyncIterable<string> {
+    if (output && output.format !== 'json_object') throw new GatewayError('INVALID_CONFIG');
+    let preparedMessages: ReturnType<typeof modelRequestMessages>;
+    try {
+      preparedMessages = modelRequestMessages(messages);
+    } catch {
       throw new GatewayError('INVALID_CONFIG');
+    }
     const timeout = AbortSignal.timeout(this.config.timeoutMs);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     let response: Response | undefined;
@@ -129,9 +131,10 @@ export class YibuTextModel implements TextModel {
         },
         body: JSON.stringify({
           model: this.config.model,
-          messages,
+          messages: preparedMessages,
           stream: true,
           max_tokens: 4096,
+          ...(output ? { response_format: { type: output.format } } : {}),
         }),
         signal: combined,
         redirect: 'error',

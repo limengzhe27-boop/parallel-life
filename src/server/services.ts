@@ -1,10 +1,13 @@
+import { createPrivateAssetStore } from './private-asset-store.ts';
+import {
+  InterviewPhotoReader,
+  interviewPhotoMetadata,
+} from '../modules/profile/infrastructure/interview-photo-reader.ts';
 import { SceneRepository } from '../modules/world/infrastructure/scene-repository.ts';
 import { SettingTrialRepository } from '../modules/settings/infrastructure/setting-trial-repository.ts';
 import { SettingDraftRepository } from '../modules/settings/infrastructure/setting-draft-repository.ts';
 import { DraftRepository } from '../modules/discovery/infrastructure/draft-repository.ts';
 import { randomUUID } from 'node:crypto';
-import { VercelBlobStore } from '../modules/media/infrastructure/vercel-blob-store.ts';
-import { SupabaseStorageStore } from '../modules/media/infrastructure/supabase-storage-store.ts';
 import { PostgresWorldRepository } from '../modules/world/infrastructure/postgres-world-repository.ts';
 import { BuildRepository } from '../modules/world/infrastructure/build-repository.ts';
 import { SeedRepository } from '../modules/discovery/infrastructure/seed-repository.ts';
@@ -38,7 +41,6 @@ import { TaskRepository } from '../modules/tasks/infrastructure/task-repository.
 import { InterviewRepository } from '../modules/profile/infrastructure/interview-repository.ts';
 import { ProfileRepository } from '../modules/profile/infrastructure/profile-repository.ts';
 import { AssetRepository } from '../modules/media/infrastructure/asset-repository.ts';
-import { PrivateDiskStore } from '../modules/media/infrastructure/private-disk-store.ts';
 import { InterviewQuestionRepository } from '../modules/memory/infrastructure/question-repository.ts';
 import { MemoryCandidateRepository } from '../modules/memory/infrastructure/candidate-repository.ts';
 import { InterviewPlanner } from '../modules/profile/infrastructure/interview-planner.ts';
@@ -58,30 +60,7 @@ function createServices() {
     decodeURIComponent(parsed.username).split('.')[0] !== 'pl_app'
   )
     throw Error('RUNTIME_ROLE_REQUIRED');
-  const assetDir = process.env.PRIVATE_ASSET_DIR;
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN,
-    blobStoreId = process.env.BLOB_STORE_ID,
-    supabaseUrl = process.env.SUPABASE_URL,
-    supabaseServiceRoleKey =
-      process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
-    supabaseBucket = process.env.SUPABASE_STORAGE_BUCKET || 'private-assets';
-  if (
-    !blobToken &&
-    !blobStoreId &&
-    !(supabaseUrl && supabaseServiceRoleKey) &&
-    (!assetDir || process.env.VERCEL)
-  )
-    throw Error('PRIVATE_STORAGE_NOT_CONFIGURED');
-  const assetStore =
-    supabaseUrl && supabaseServiceRoleKey
-      ? new SupabaseStorageStore({
-          url: supabaseUrl,
-          serviceRoleKey: supabaseServiceRoleKey,
-          bucket: supabaseBucket,
-        })
-      : blobToken || blobStoreId
-        ? new VercelBlobStore({ token: blobToken, storeId: blobStoreId })
-        : new PrivateDiskStore(assetDir!);
+  const assetStore = createPrivateAssetStore();
   const db = new PostgresDatabase(url);
   const identity = new IdentityRepository(db);
   return {
@@ -199,7 +178,13 @@ function createServices() {
     scenes: new SceneRepository(db),
     worlds: new PostgresWorldRepository(db),
     tasks: new TaskRepository(db),
-    interview: new InterviewRepository(db),
+    interview: new InterviewRepository(
+      db,
+      new InterviewPhotoReader(
+        (input) => db.transaction(input.ownerId, (sql) => interviewPhotoMetadata(sql, input)),
+        () => assetStore,
+      ),
+    ),
     interviewPlanner: new InterviewPlanner(createTextModel()),
     worldPlanner: new WorldTurnPlanner(createTextModel()),
     memoryQuestions: new InterviewQuestionRepository(db),

@@ -1,3 +1,7 @@
+import {
+  readInterviewPhotos,
+  type InterviewPhotoReaderPort,
+} from '../application/interview-photo-input.ts';
 import { GatewayError } from '../../ai/infrastructure/yibu-text-model.ts';
 import { randomUUID } from 'node:crypto';
 import {
@@ -125,8 +129,10 @@ async function requireSharedPhoto(sql: SqlClient, ownerId: string, assetId?: str
 }
 export class InterviewRepository {
   private db: PostgresDatabase;
-  constructor(db: PostgresDatabase) {
+  private readonly photoReader?: InterviewPhotoReaderPort;
+  constructor(db: PostgresDatabase, photoReader?: InterviewPhotoReaderPort) {
     this.db = db;
+    this.photoReader = photoReader;
   }
   async get(ownerId: string) {
     return this.db.transaction(ownerId, (sql) => readWorkspace(sql, ownerId));
@@ -332,12 +338,19 @@ export class InterviewRepository {
     if (prepared.replay) return prepared;
     const started = Date.now();
     try {
+      const images = await readInterviewPhotos(
+        this.photoReader,
+        ownerId,
+        prepared.interview.id,
+        prepared.interview.messages,
+      );
       const proposal = await planner.proposeStream(
         prepared.profile,
         prepared.interview.messages,
         onToken,
         signal,
         prepared.interview.blockedTargets,
+        images,
       );
       const result = await this.db.transaction(ownerId, async (sql) => {
         const current = (

@@ -1,3 +1,9 @@
+import { createPrivateAssetStore } from './private-asset-store.ts';
+import type { AssetStore } from '../modules/media/application/asset-store.ts';
+import {
+  InterviewPhotoReader,
+  interviewPhotoMetadata,
+} from '../modules/profile/infrastructure/interview-photo-reader.ts';
 import { worldTaskDispatcher } from './world-task-dispatcher.ts';
 import { groupTaskHandler } from '../modules/world/infrastructure/group-task-handler.ts';
 import { WorldGroupPlanner } from '../modules/world/infrastructure/group-planner.ts';
@@ -23,6 +29,8 @@ export function createWorker() {
   const config = gatewayConfig(),
     queue = new PostgresTaskQueue(url);
 
+  let assetStore: AssetStore | undefined;
+  const readStore = () => (assetStore ??= createPrivateAssetStore());
   return {
     queue,
     handlers: {
@@ -44,6 +52,11 @@ export function createWorker() {
         queue,
         new InterviewPlanner(new YibuTextModel(config)),
         config.model,
+        (lease) =>
+          new InterviewPhotoReader(
+            (input) => queue.read(lease, (sql) => interviewPhotoMetadata(sql, input)),
+            readStore,
+          ),
       ),
       memory: memoryHandler(queue),
       media: mediaHandler(queue),

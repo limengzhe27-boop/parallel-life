@@ -41,7 +41,9 @@ export async function POST(request: Request) {
                 )
                   ? code
                   : 'UNAVAILABLE',
-                message: '这次回应未能确认完成。请先查看最新记录和任务状态，避免重复提交。',
+                message: input.photoAssetId
+                  ? '本次图片理解未能确认完成。请先查看照片消息和任务状态，避免重复提交。'
+                  : '这次回应未能确认完成。请先查看最新记录和任务状态，避免重复提交。',
               }),
             );
             controller.close();
