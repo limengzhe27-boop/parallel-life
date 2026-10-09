@@ -337,3 +337,66 @@ test('streaming and queued interviews keep distinct interests, wishes and experi
     await admin.end();
   }
 });
+
+test('unknown streaming task preserves original input and replay never calls the gateway again', async () => {
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const c = await localConfig(),
+    db = new PostgresDatabase(
+      `postgresql://pl_app:${c.appPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+    ),
+    owner = randomUUID();
+  const { YibuTextModel } = await import('../../src/modules/ai/infrastructure/yibu-text-model.ts');
+  let calls = 0;
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    const repo = new InterviewRepository(db),
+      command = {
+        commandId: randomUUID(),
+        expectedVersion: 0,
+        text: '独立合成测试：计划开一家书店',
+      };
+    const planner = new InterviewPlanner(
+      new YibuTextModel(
+        {
+          apiKey: 'test-only',
+          model: 'test-model',
+          baseUrl: 'https://yibuapi.com',
+          timeoutMs: 1000,
+        },
+        async () => {
+          calls++;
+          return new Response('private upstream body', { status: 403 });
+        },
+      ),
+    );
+    await assert.rejects(
+      repo.sendStreaming(owner, command, planner, () => {}),
+      { code: 'UPSTREAM_FAILED' },
+    );
+    const saved = await repo.get(owner);
+    assert.equal(saved.interview.messages.length, 1);
+    assert.equal(saved.interview.messages[0]!.text, command.text);
+    assert.equal(saved.interview.activeTask?.status, 'unknown');
+    const row = (
+      await admin.query(
+        'SELECT error_code,prompt_version,model,duration_ms,lease_token FROM parallel_life.tasks WHERE id=$1',
+        [saved.interview.activeTask!.id],
+      )
+    ).rows[0];
+    assert.equal(row.error_code, 'UPSTREAM_FAILED');
+    assert.equal(row.model, 'stream');
+    assert.ok(row.prompt_version);
+    assert.ok(row.duration_ms >= 0);
+    assert.equal(row.lease_token, null);
+    const replay = await repo.sendStreaming(owner, command, planner, () => {});
+    assert.equal(replay.replay, true);
+    assert.equal(replay.task.id, saved.interview.activeTask!.id);
+    assert.equal(calls, 1);
+    assert.equal((await repo.get(owner)).interview.messages.length, 1);
+  } finally {
+    await db.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);
+    await admin.end();
+  }
+});

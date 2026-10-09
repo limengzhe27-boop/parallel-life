@@ -1,3 +1,4 @@
+import { GatewayError } from '../../ai/infrastructure/yibu-text-model.ts';
 import { randomUUID } from 'node:crypto';
 import {
   ProfileSchema,
@@ -509,12 +510,35 @@ export class InterviewRepository {
         error instanceof Error && 'code' in error
           ? String((error as Error & { code?: string }).code)
           : 'UNKNOWN';
+      // Operational metadata only: never include inputs, upstream bodies, credentials or error messages.
+      console.warn(
+        JSON.stringify({
+          event: 'interview_stream_failed',
+          taskId: prepared.task.id,
+          code:
+            error instanceof GatewayError
+              ? error.code
+              : code === 'VERSION_CONFLICT'
+                ? code
+                : 'UNKNOWN',
+          stage: error instanceof GatewayError ? error.stage : undefined,
+          httpStatus: error instanceof GatewayError ? error.httpStatus : undefined,
+          durationMs: Date.now() - started,
+        }),
+      );
       await this.db
         .transaction(ownerId, async (sql) => {
           await sql.query(
-            `UPDATE parallel_life.tasks SET status=$3,error_code=$4,lease_token=NULL,lease_until=NULL,updated_at=now()
+            `UPDATE parallel_life.tasks SET status=$3,error_code=$4,model='stream',prompt_version=$5,duration_ms=$6,lease_token=NULL,lease_until=NULL,updated_at=now()
            WHERE id=$1 AND owner_id=$2 AND status='running'`,
-            [prepared.task.id, ownerId, code === 'VERSION_CONFLICT' ? 'conflict' : 'unknown', code],
+            [
+              prepared.task.id,
+              ownerId,
+              code === 'VERSION_CONFLICT' ? 'conflict' : 'unknown',
+              code,
+              INTERVIEW_PROMPT_VERSION,
+              Date.now() - started,
+            ],
           );
         })
         .catch(() => {});

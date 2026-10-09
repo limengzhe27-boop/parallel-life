@@ -41,7 +41,7 @@ export async function POST(request: Request) {
                 )
                   ? code
                   : 'UNAVAILABLE',
-                message: '这次回应没有完成，你说的话已经保存，可以再试一次。',
+                message: '这次回应未能确认完成。请先查看最新记录和任务状态，避免重复提交。',
               }),
             );
             controller.close();
