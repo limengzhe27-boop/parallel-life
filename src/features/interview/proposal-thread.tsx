@@ -4,8 +4,7 @@ import type { Discovery, LifeDirection } from '../../contracts/discovery.ts';
 import type { WorldBuild } from '../../contracts/world-build.ts';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
 import { Button, Icon, Modal } from '../../components/ui.tsx';
-import { branchEntryState } from './branch-entry.ts';
-import { buildBranchBrief } from './branch-intent.ts';
+import { branchEntryState, branchMaterialBrief } from './branch-entry.ts';
 
 import { DraftEditor } from '../discovery/draft-editor.tsx';
 import type { LifeDraft } from '../../contracts/life-drafts.ts';
@@ -49,6 +48,7 @@ export function ProposalThread({
   profileVersion,
   confirmedCount,
   pendingCandidates,
+  messages,
   externalTrigger,
   externalIntent = 'none',
 }: {
@@ -58,6 +58,7 @@ export function ProposalThread({
   profileVersion: number;
   confirmedCount: number;
   pendingCandidates: number;
+  messages: readonly { role: string; text: string; photoAssetId?: string | null }[];
   externalTrigger?: number;
   /** 'create' builds a branch for the user, 'recommend' only shows what exists. */
   externalIntent?: 'create' | 'recommend' | 'enter' | 'none';
@@ -94,12 +95,14 @@ export function ProposalThread({
 
   const readyBuild = useMemo(() => builds.find((b) => b.ready), [builds]);
   const directions = data?.directions ?? [];
+  const userMaterial = branchMaterialBrief(messages);
   const entry = branchEntryState({
     ready,
     hasReadyWorld: Boolean(readyBuild),
     confirmedCount,
     pendingCandidates,
     directionCount: directions.length,
+    hasUserMaterial: Boolean(userMaterial),
   });
 
   const currentDirection: LifeDirection | undefined = directions[selectedIndex] ?? directions[0];
@@ -108,31 +111,11 @@ export function ProposalThread({
   useEffect(() => {
     if (!externalTrigger) return;
     void (async () => {
-      if (externalIntent === 'create') {
-        await handleCreateFromConversation();
-        return;
-      }
-      if (externalIntent === 'recommend') {
-        if (directions.length > 0) {
-          setConfirmOpen(true);
-          return;
-        }
-        if (entry.kind === 'create') {
-          await discoverBranch();
-          return;
-        }
-        if (readyBuild) window.location.assign(`/worlds/${readyBuild.worldId}`);
-        return;
-      }
-      if (readyBuild) {
+      // A conversational mention exposes the entry; only a click may start a
+      // paid discovery or world build. Entering an already built world is free.
+      if (externalIntent === 'enter' && readyBuild) {
         window.location.assign(`/worlds/${readyBuild.worldId}`);
-        return;
       }
-      if (directions.length > 0) {
-        setConfirmOpen(true);
-        return;
-      }
-      if (entry.kind === 'create') await discoverBranch();
     })();
   }, [externalTrigger]);
 
@@ -147,7 +130,11 @@ export function ProposalThread({
        * 现在：每次请求前重新读最新画像版本，并用**用户自己在对话里说过的话**作为 brief。
        */
       const latest = await client.workspace();
-      const brief = briefOverride ?? buildBranchBrief(latest.interview.messages);
+      const ownMaterial = branchMaterialBrief(latest.interview.messages);
+      const confirmed = latest.profile.facts.some((fact) => fact.status === 'confirmed');
+      if (!confirmed && !ownMaterial)
+        throw new ApiFailure('INVALID_INPUT', '先聊聊你想体验的具体选择，再构思这段人生。');
+      const brief = briefOverride || ownMaterial;
       const attempt = async (freshProfileVersion: number) => {
         const before = await client.discovery();
         const task = await client.discover({
@@ -241,7 +228,7 @@ export function ProposalThread({
     setError('');
     try {
       const workspace = await client.workspace();
-      const brief = buildBranchBrief(workspace.interview.messages);
+      const brief = branchMaterialBrief(workspace.interview.messages);
       const fresh = await discoverBranch(brief);
       if (fresh.directions.length) setConfirmOpen(true);
     } catch (e) {
@@ -258,7 +245,7 @@ export function ProposalThread({
 
   // 当处于闲置状态（没有在创建、推演、报错），且用户本次并没有通过对话或操作触发分支意图时，
   // 不在每一轮对话回复下方展示分支选择卡片，保持正常对话界面清爽纯净
-  if (stage === 'idle' && !error && externalIntent === 'none') return null;
+  if (stage === 'idle' && !error && externalIntent === 'none' && !userMaterial) return null;
   if (entry.kind === 'hidden') return null;
 
   return (
@@ -327,10 +314,7 @@ export function ProposalThread({
         </div>
       ) : entry.kind === 'confirm-records' ? (
         <div className="proposal-invitation">
-          <p>
-            还有 {entry.pending}{' '}
-            条记录等你确认。分支方向必须来自你确认过的真实经历，确认后向导就能为你聊出属于你的分支。
-          </p>
+          <p>还有 {entry.pending} 条资料等你核对。也可以先说说你想体验的一种具体生活或选择。</p>
           <a className="button secondary" href="#profile">
             去确认这些记录
             <Icon name="chevron" size={16} />
@@ -338,7 +322,7 @@ export function ProposalThread({
         </div>
       ) : entry.kind === 'needs-material' ? (
         <div className="proposal-invitation">
-          <p>先多聊几句你的关键抉择与经历。有真实的锚点时，向导才能为你找出真正不同的平行分支。</p>
+          <p>说说你想体验的一种具体生活或选择，再来构思这段人生。</p>
         </div>
       ) : (
         <>
@@ -421,9 +405,7 @@ export function ProposalThread({
             </div>
           ) : (
             <div className="proposal-invitation">
-              <p>
-                向导已记录下你的关键经历。想看看在重要分岔点做出另一种选择，平行世界的你正在过着怎样的生活吗？
-              </p>
+              <p>从你说过的想法，构思另一段人生。查看方向后仍由你选择带入哪些资料。</p>
               <div
                 className="proposal-actions"
                 style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}
@@ -433,7 +415,7 @@ export function ProposalThread({
                   disabled={busy}
                   onClick={() => void handleCreateFromConversation()}
                 >
-                  ✨ 从当前对话构筑全新分支
+                  构思这段人生
                   <Icon name="spark" size={16} />
                 </Button>
                 {readyBuild && (

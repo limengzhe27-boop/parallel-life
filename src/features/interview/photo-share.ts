@@ -81,9 +81,16 @@ export async function confirmInterviewPhotoMessage<
   send: (workspace: Workspace) => Promise<void>,
 ): Promise<Workspace> {
   if (hasInterviewPhotoMessage(ready.interview.messages, assetId)) return ready;
-  await send(ready);
+  let sendError: unknown;
+  try {
+    await send(ready);
+  } catch (error) {
+    // A stream can fail after the user message commits. Read before deciding
+    // whether this photo still needs sending; never pay for a second reply here.
+    sendError = error;
+  }
   const after = await read();
-  if (!hasInterviewPhotoMessage(after.interview.messages, assetId))
-    throw new ApiFailure('UNAVAILABLE', '照片已保存，但消息还没有确认发送。请重试这张照片。');
-  return after;
+  if (hasInterviewPhotoMessage(after.interview.messages, assetId)) return after;
+  if (sendError) throw sendError;
+  throw new ApiFailure('UNAVAILABLE', '照片已保存，但消息还没有确认发送。请重试这张照片。');
 }

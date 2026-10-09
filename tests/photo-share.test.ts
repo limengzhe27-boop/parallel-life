@@ -210,3 +210,35 @@ test('a committed photo message is confirmed after an interrupted model stream',
   );
   assert.equal(result, saved);
 });
+
+test('a thrown stream error still rereads the saved photo instead of resending it', async () => {
+  const empty = {
+    interview: {
+      messages: [] as Array<{ id: string; role: 'user'; text: string; photoAssetId: string }>,
+    },
+  };
+  const saved = {
+    interview: {
+      messages: [
+        {
+          id: crypto.randomUUID(),
+          role: 'user' as const,
+          text: '朋友的照片',
+          photoAssetId: assetId,
+        },
+      ],
+    },
+  };
+  let sends = 0;
+  const result = await confirmInterviewPhotoMessage(
+    async () => saved,
+    empty,
+    assetId,
+    async () => {
+      sends++;
+      throw new ApiFailure('UNAVAILABLE', 'reply failed');
+    },
+  );
+  assert.equal(sends, 1);
+  assert.equal(result, saved);
+});
