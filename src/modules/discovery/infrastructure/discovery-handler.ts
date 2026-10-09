@@ -1,7 +1,11 @@
 import { DiscoveryInputSchema } from '../../../contracts/discovery.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
-import { DiscoveryPlanner, DISCOVERY_PROMPT_VERSION } from './discovery-planner.ts';
+import {
+  DiscoveryPlanner,
+  DISCOVERY_PROMPT_VERSION,
+  InvalidDiscoveryOutput,
+} from './discovery-planner.ts';
 export function discoveryHandler(
   queue: PostgresTaskQueue,
   planner: DiscoveryPlanner,
@@ -9,7 +13,7 @@ export function discoveryHandler(
 ) {
   return async (lease: TaskLease, signal: AbortSignal) => {
     const input = DiscoveryInputSchema.parse(lease.input),
-      started = Date.now();
+      started = performance.now();
     if (lease.scopeId !== input.profileId) throw Error('INVALID_SCOPE');
     const current = await queue.read(
       lease,
@@ -24,7 +28,22 @@ export function discoveryHandler(
       await queue.finish(lease, { status: 'conflict', errorCode: 'VERSION_CONFLICT' });
       return;
     }
-    const directions = await planner.propose(input, signal);
+    let directions;
+    try {
+      directions = await planner.propose(input, signal);
+    } catch (error) {
+      if (error instanceof Error) {
+        const upstreamDurationMs = (error as { durationMs?: number }).durationMs;
+        Object.assign(error, {
+          model,
+          promptVersion: DISCOVERY_PROMPT_VERSION,
+          durationMs: Math.round(performance.now() - started),
+          ...(upstreamDurationMs !== undefined ? { upstreamDurationMs } : {}),
+          ...(error instanceof InvalidDiscoveryOutput ? { stage: 'proposal' } : {}),
+        });
+      }
+      throw error;
+    }
     await queue.commit(lease, async (sql) => {
       const profile = (
         await sql.query('SELECT version FROM parallel_life.profiles WHERE id=$1 FOR UPDATE', [
@@ -50,7 +69,7 @@ export function discoveryHandler(
           resultVersion: row.version + 1,
           model,
           promptVersion: DISCOVERY_PROMPT_VERSION,
-          durationMs: Date.now() - started,
+          durationMs: Math.round(performance.now() - started),
         },
       };
     });

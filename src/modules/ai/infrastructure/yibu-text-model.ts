@@ -12,17 +12,23 @@ export class GatewayError extends Error {
     | 'TIMEOUT'
     | 'CANCELLED'
     | 'TRUNCATED';
-  readonly stage?: 'request' | 'response' | 'stream';
+  readonly stage?: 'request' | 'response' | 'parse' | 'stream';
+  readonly durationMs?: number;
   readonly httpStatus?: number;
   constructor(
     code: GatewayError['code'],
-    details?: { stage: 'request' | 'response' | 'stream'; httpStatus?: number },
+    details?: {
+      stage: 'request' | 'response' | 'parse' | 'stream';
+      httpStatus?: number;
+      durationMs?: number;
+    },
   ) {
     super(code);
     this.name = 'GatewayError';
     this.code = code;
     this.stage = details?.stage;
     this.httpStatus = details?.httpStatus;
+    this.durationMs = details?.durationMs;
   }
 }
 /** Server composition injects secrets. This adapter never reads or logs environment values. */
@@ -54,6 +60,10 @@ export class YibuTextModel implements TextModel {
     )
       throw new GatewayError('INVALID_CONFIG');
     if (output && output.format !== 'json_object') throw new GatewayError('INVALID_CONFIG');
+    if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
+    const started = performance.now();
+    let stage: NonNullable<GatewayError['stage']> = 'request';
+    let response: Response | undefined;
     const outputCap = maxTokens ?? DEFAULT_MAX_TOKENS;
     let preparedMessages: ReturnType<typeof modelRequestMessages>;
     try {
@@ -64,7 +74,7 @@ export class YibuTextModel implements TextModel {
     const timeout = AbortSignal.timeout(this.config.timeoutMs);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     try {
-      const response = await this.request(`${this.config.baseUrl}/v1/chat/completions`, {
+      response = await this.request(`${this.config.baseUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.config.apiKey}`,
@@ -81,12 +91,24 @@ export class YibuTextModel implements TextModel {
         redirect: 'error',
         cache: 'no-store',
       });
+      stage = 'response';
       if (!response.ok)
         throw new GatewayError('UPSTREAM_FAILED', {
           stage: 'response',
           httpStatus: response.status,
         });
-      const data: unknown = await response.json();
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch (error) {
+        if (error instanceof SyntaxError)
+          throw new GatewayError('INVALID_RESPONSE', {
+            stage: 'parse',
+            httpStatus: response.status,
+          });
+        throw error;
+      }
+      stage = 'parse';
       const choice = (
         data as {
           choices?: { message?: { content?: unknown }; finish_reason?: unknown }[];
@@ -99,10 +121,20 @@ export class YibuTextModel implements TextModel {
         throw new GatewayError('INVALID_RESPONSE');
       return content;
     } catch (error) {
-      if (error instanceof GatewayError) throw error;
-      if (signal?.aborted) throw new GatewayError('CANCELLED');
-      if (timeout.aborted) throw new GatewayError('TIMEOUT');
-      throw new GatewayError('UPSTREAM_FAILED');
+      const details = {
+        stage,
+        httpStatus: response?.status,
+        durationMs: Math.round(performance.now() - started),
+      };
+      if (error instanceof GatewayError)
+        throw new GatewayError(error.code, {
+          ...details,
+          stage: error.stage ?? stage,
+          httpStatus: error.httpStatus ?? response?.status,
+        });
+      if (signal?.aborted) throw new GatewayError('CANCELLED', details);
+      if (timeout.aborted) throw new GatewayError('TIMEOUT', details);
+      throw new GatewayError('UPSTREAM_FAILED', details);
     }
   }
 
@@ -112,6 +144,8 @@ export class YibuTextModel implements TextModel {
     output?: ModelOutputOptions,
   ): AsyncIterable<string> {
     if (output && output.format !== 'json_object') throw new GatewayError('INVALID_CONFIG');
+    if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
+    const started = performance.now();
     let preparedMessages: ReturnType<typeof modelRequestMessages>;
     try {
       preparedMessages = modelRequestMessages(messages);
@@ -179,13 +213,20 @@ export class YibuTextModel implements TextModel {
         reader.releaseLock();
       }
     } catch (error) {
-      if (error instanceof GatewayError) throw error;
-      if (signal?.aborted) throw new GatewayError('CANCELLED');
-      if (timeout.aborted) throw new GatewayError('TIMEOUT');
-      throw new GatewayError('UPSTREAM_FAILED', {
-        stage: response ? 'stream' : 'request',
+      const details = {
+        stage: response ? ('stream' as const) : ('request' as const),
         httpStatus: response?.status,
-      });
+        durationMs: Math.round(performance.now() - started),
+      };
+      if (error instanceof GatewayError)
+        throw new GatewayError(error.code, {
+          ...details,
+          stage: error.stage ?? details.stage,
+          httpStatus: error.httpStatus ?? response?.status,
+        });
+      if (signal?.aborted) throw new GatewayError('CANCELLED', details);
+      if (timeout.aborted) throw new GatewayError('TIMEOUT', details);
+      throw new GatewayError('UPSTREAM_FAILED', details);
     }
   }
 }

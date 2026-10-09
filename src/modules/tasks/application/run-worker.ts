@@ -18,6 +18,7 @@ export async function runOne(
   if (signal?.aborted) return false;
   const task = await queue.claim(Object.keys(handlers));
   if (!task) return false;
+  const started = performance.now();
   const abort = new AbortController();
   const combined = signal ? AbortSignal.any([abort.signal, signal]) : abort.signal;
   let renewing = false;
@@ -42,6 +43,9 @@ export async function runOne(
       model?: string;
       promptVersion?: string;
       durationMs?: number;
+      upstreamDurationMs?: number;
+      stage?: unknown;
+      httpStatus?: unknown;
     };
     /*
      * A swallowed handler error is undiagnosable: a domain rule violation and an
@@ -61,6 +65,23 @@ export async function runOne(
       failure.code === 'CANCELLED' ||
       failure.code === 'TIMEOUT' ||
       failure.code === 'UPSTREAM_FAILED';
+    const timing = (value: unknown) =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 2147483647
+        ? Math.round(value)
+        : undefined;
+    const durationMs = timing(failure.durationMs) ?? Math.round(performance.now() - started);
+    const stage =
+      typeof failure.stage === 'string' &&
+      ['request', 'response', 'parse', 'stream', 'proposal'].includes(failure.stage)
+        ? failure.stage
+        : undefined;
+    const httpStatus =
+      typeof failure.httpStatus === 'number' &&
+      Number.isInteger(failure.httpStatus) &&
+      failure.httpStatus >= 100 &&
+      failure.httpStatus <= 599
+        ? failure.httpStatus
+        : undefined;
     const outcome: TaskOutcome = {
       status: uncertain ? 'unknown' : 'failed',
       errorCode: uncertain
@@ -77,7 +98,7 @@ export async function runOne(
       /* Keep failure diagnostics as observable as success: which model and prompt ran, and how long. */
       ...(failure.model ? { model: failure.model } : {}),
       ...(failure.promptVersion ? { promptVersion: failure.promptVersion } : {}),
-      ...(typeof failure.durationMs === 'number' ? { durationMs: failure.durationMs } : {}),
+      durationMs,
     };
     console.error(
       JSON.stringify({
@@ -86,7 +107,12 @@ export async function runOne(
         status: outcome.status,
         errorCode: outcome.errorCode,
         detail,
-        durationMs: Date.now(),
+        durationMs,
+        ...(stage ? { stage } : {}),
+        ...(httpStatus ? { httpStatus } : {}),
+        ...(timing(failure.upstreamDurationMs) !== undefined
+          ? { upstreamDurationMs: timing(failure.upstreamDurationMs) }
+          : {}),
       }),
     );
     try {
