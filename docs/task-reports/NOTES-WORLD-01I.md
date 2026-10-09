@@ -23,3 +23,15 @@
 独立76e82ee仅8源码/测试文件，无client/phone/LIB/BOOT或迁移改动。500check、143完整真实PG=138pass/0fail/5显式可选skip（4模型、1HTTP导演）及build通过；专项6纯+6真实PG均包含在对应计数，不再相加。精确8文件Prettier及diff通过，尚未推送或公网，不将后端当新UI已上线。
 
 已发布验收索引f250a12/pm1gmsrpd READY（dpl_Eg2DAcJUZNHeAUa7hNLad64dxBxV，health200），根A01–A12均待用户体验；这一文档版本不含当前后端。
+
+## 正式后端限定验收与界面交接
+
+业务eb2c456（独立76e82ee）、记录6d96567；Production ngm13xf4d / dpl_CRNUqMfHuked4iLFxfn45DXhnHS7 READY，正式https://parallel-life-nu.vercel.app已切换。生产39校验19:22:00Z一致、无新SQL。公网自有暂停合成世界真实GET records200：公开identity/setting与原phone逐字一致、worldVersion3/current0/about2/history0，保存的私人便签文字/标题未出现在records。重复GET的ID/内容/版本一致；双向跨owner404；私人notes写sys/ID422和records POST405，原世界与人物/消息/相册逐项不变；旧v1/v2 note原receipt依然重放，health200。证据忽略.local/notes-world-public-result.json，5组断言，0模型。没有近期choice的公网fixture只验证真实空态，计划/建议/邀约正例与同owner两world隔离在真实PG验证，不冒称公网正例或新UI通过。
+
+本后端包技术限定完成，契约与8源码/测试文件释放，父NOTES-WORLD-01的界面仍未实现，系统事项不能在当前手机里直接看到。本轮不增加用户视觉验收编号；A01–A12仍待用户体验，后续完整UI实际双端/公网通过再由根追加新项。
+
+后续可领取的冻结服务端基线：eb2c456 + 6d96567（最后docs更新不改业务），契约src/contracts/world-records.ts。GET无AI/写入，不给旧WorldPhone追加strict字段。字段schemaVersion/worldId/worldVersion/coverage=recent/current/about/history；每项稳定sys/ID、kind/title/text/state/stateLabel/assertion/source/navigation。source判别opening_field(seedId/field)或world_event(eventId/eventVersion/可选messageId/at/timeBasis)，导航仅wechat actorId/calendar invitationId；“查看对话”不称定位单条message。状态值详见冻结schema，用户reported_done/blocked/abandoned保留“你说”限定；superseded是此前计划，非放弃。起点身份/处境不能标“当前永恒处境”；coverage recent不称长期全任务。
+
+I后续组装需先另登记client/provider精确范围：LifeClient新增独立readWorldRecords方法，以PlayerRecordsSchema验证；PhoneAppsProvider/组装层用独立loading/ready/error状态，不能复用全局loadError遮私人编辑器；按worldId与请求序列丢弃旧world晚响应，phone/records世界版本不一致时重读而非混拼。主目录client/interview现有LIB在途改动须保留，不能整文件覆盖。后端当前未修改这些文件。根可按本冻结交接分配辅助纯notes.tsx/新只读组件/CSS，辅助不自猜人物姓名或生成任务，不直接读原payload。390短屏/PC、来源返回/内层滚动恢复、404/503独立错态与私人草稿保留仍须真实UI验证；Q12/BOOT前史/长任务与奖励非本后端交付。
+
+执行资源：本人PG55450及独立树暂留给后续I组装回归，暂无HTTP/浏览器/模型任务，不占辅助55458；node_modules临时依赖链接保留需后续统一清理。SQL账户夹具finally清除，生产仅已存在合成世界读/非法写拒绝，没有新增剧情/现实人物/资产。

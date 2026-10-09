@@ -724,3 +724,9 @@ NOTES-SAFETY-01I候选c97ee5c在本版本之后，尚未上线或公网验收，
 业务c97ee5c（独立66d5506），联合记录899167c；Production fh3igqrkp / dpl_6h9M7jqsFPnu8hJsGK9ofavWGqkU READY，正式https://parallel-life-nu.vercel.app已切换。生产39迁移校验19:08:33Z一致，无新增SQL；494check/build，137完整真实PG=132pass/0fail/5显式可选skip（4模型、1HTTP导演专项）通过。
 
 公网合成暂停世界v1保存/v2编辑/旧v1与v2原receipt重放、新客户端当前v2与world version不回退、人物/消息/相册不变，双向跨owner404与另一世界无变化、health200通过，模型0。同owner双世界冲突/并发只在真实PG验证：既有公网合成账号各一个世界，未造世界或新付费来凑矩阵。旧已损坏便签不自动恢复，系统records/前史/新便签UI未实现；用户体验待根A12。详见NOTES-SAFETY-01I报告。
+
+## 2026-10-10 · NOTES-WORLD-01I 玩家可见只读记录后端
+
+业务eb2c456（独立76e82ee），记录6d96567；Production ngm13xf4d / dpl_CRNUqMfHuked4iLFxfn45DXhnHS7 READY，正式https://parallel-life-nu.vercel.app已切换。生产39迁移校验19:22:00Z一致，无SQL新增；500check/build，143完整真实PG=138pass/0fail/5显式可选skip（4模型、1HTTP导演）通过。
+
+独立GET records只读取有来源的公开起点、近期用户计划/人物建议/明确状态邀约，owner事务一致版本，不输出opening.notes/导演内心/私人便签；sys/ID不可写，无修改系统状态入口。公网合成暂停世界起点2项/近期真实空态、重复读稳定、跨owner404、notes系统ID422/records POST405且世界不变、旧phone与note原receipt兼容及health200通过，模型0。计划/建议/邀约正例及同owner双world由真实PG验证，公网此fixture无正例。client/provider/手机界面尚未接线，不能把后端发布当可体验完整任务应用或BOOT前史已交付。见NOTES-WORLD-01I冻结交接；原A01–A12仍待用户体验。
