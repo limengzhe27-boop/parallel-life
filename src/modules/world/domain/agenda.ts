@@ -1,3 +1,4 @@
+import { worldDateTimeLabel } from './display-time.ts';
 import type { WorldState } from './types.ts';
 
 /**
@@ -22,6 +23,9 @@ export type AgendaThread = {
   detail: string;
   /** Only choice threads need a source marker for exact acknowledgement. */
   sourceId?: string;
+  /** Saved dated milestone, kept separate from choice acknowledgement markers. */
+  basisId?: string;
+  basisAt?: string;
 };
 
 /** The minimum a memory must expose to become an agenda thread. */
@@ -78,21 +82,26 @@ export function buildAgenda(
       continue;
     for (const participantId of appointment.participantIds) {
       if (!actorIds.has(participantId)) continue;
-      if (appointment.status === 'confirmed' && appointment.at <= state.time) {
+      if (
+        appointment.status === 'confirmed' &&
+        Date.parse(appointment.at) <= Date.parse(state.time)
+      ) {
         if (
           state.messages.some(
             (message) =>
               message.actorId === participantId &&
               message.role === 'assistant' &&
               message.sourceEventId !== appointment.sourceEventId &&
-              message.at >= appointment.at,
+              Date.parse(message.at) >= Date.parse(appointment.at),
           )
         )
           continue;
         threads.push({
           kind: 'appointment_due',
           actorId: participantId,
-          detail: `你们约好的「${appointment.title}」时间到了。可以关心用户是否赴约，但不能声称已经发生。`,
+          basisId: appointment.id,
+          basisAt: appointment.at,
+          detail: `你们明确约好的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，这个节点现在已到或已过。承接这件事当前可做的调整或后续，不假装刚发邀请、不继续催赴已经过时的约；没有到场或结果记录时不能声称已经发生、失约或完成。`,
         });
         continue;
       }
@@ -110,11 +119,14 @@ export function buildAgenda(
         threads.push({
           kind: 'appointment_result',
           actorId: participantId,
+          basisId: appointment.id,
+          basisAt: appointment.responseAt,
           detail: `用户已在日历明确标记「${appointment.title}」${appointment.status === 'attended' ? '已赴约' : '未赴约'}。只承接这个结果，别编造现场细节。`,
         });
         continue;
       }
-      if (appointment.status !== 'proposed') continue;
+      if (appointment.status !== 'proposed' || Date.parse(appointment.at) <= Date.parse(state.time))
+        continue;
       const firstNotice = state.messages.findIndex(
         (message) => message.sourceEventId === appointment.sourceEventId,
       );
@@ -133,6 +145,7 @@ export function buildAgenda(
       threads.push({
         kind: 'proposed_appointment',
         actorId: participantId,
+        basisId: appointment.id,
         detail: `还有一条没定下来的约定：${appointment.title}`,
       });
     }
@@ -199,7 +212,7 @@ export function buildAgenda(
 
 /** A new player answer deserves a response even if this person spoke recently.
  * Ordinary prompts still respect the cooldown; a single advance cannot use the
- * exception twice because selectSpeaker also tracks speakers for that advance.
+ * exception repeatedly: advanceWorld also gates later beats by story date and new sourced nodes.
  */
 export function eligibleAgenda(
   agenda: AgendaThread[],

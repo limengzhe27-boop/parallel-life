@@ -1,3 +1,4 @@
+import { followupAgenda, type DeliveredBeat } from '../domain/return-followups.ts';
 import { unsupportedReturnClaim } from '../domain/return-message-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 import { actorContext } from './actor-context.ts';
@@ -61,6 +62,7 @@ export async function advanceWorld(
         ]
       : advance.beats.map((at) => ({ at, commandId: deps.clock.beatCommandId(worldId, at) }));
     const actors: string[] = [];
+    const delivered: DeliveredBeat[] = [];
     const worldMemories = deps.worldMemories ? await deps.worldMemories() : [];
 
     for (const plan of plans) {
@@ -85,6 +87,18 @@ export async function advanceWorld(
           status: 'played',
         });
         actors.push(previouslyCommitted);
+        const committedWorld = await deps.worlds.get(session, worldId);
+        const version = Math.max(
+          0,
+          ...committedWorld.messages
+            .filter((m) => m.actorId === previouslyCommitted && m.at === beatAt)
+            .map((m) => m.sourceVersion ?? 0),
+        );
+        delivered.push({
+          actorId: previouslyCommitted,
+          at: beatAt,
+          version: version || committedWorld.version,
+        });
         continue;
       }
       const world = await deps.worlds.get(session, worldId);
@@ -92,13 +106,15 @@ export async function advanceWorld(
         ...world,
         time: new Date(Math.max(Date.parse(world.time), Date.parse(beatAt))).toISOString(),
       };
-      const agenda = eligibleAgenda(
-        buildAgenda(atBeat, 20, worldMemories as CommitmentMemory[]),
-        recentActors,
+      const agenda = followupAgenda(
+        atBeat,
+        eligibleAgenda(buildAgenda(atBeat, 20, worldMemories as CommitmentMemory[]), recentActors),
+        beatAt,
+        delivered,
       ).slice(0, 5);
       const actorId =
         ('actorId' in plan ? plan.actorId : null) ??
-        selectSpeaker(atBeat, actors, agenda, direction.focusActorIds);
+        selectSpeaker(atBeat, [], agenda, direction.focusActorIds);
       // An early sampled day may be quiet while a later sampled day is old
       // enough for a real follow-up. Inspect the remaining bounded slots.
       if (!actorId) continue;
@@ -127,7 +143,7 @@ export async function advanceWorld(
         if (thread.kind.startsWith('choice_'))
           return visible.choices?.some((c) => c.id === thread.sourceId) ?? false;
         if (thread.kind.startsWith('appointment_') || thread.kind === 'proposed_appointment')
-          return visible.appointments.some((a) => thread.detail.includes(a.title));
+          return visible.appointments.some((a) => a.id === thread.basisId);
         // The receiving NPC sees the sourced disclosure fact, not the sender's private transcript.
         if (thread.kind === 'disclosure_followup')
           return visible.facts.some(
@@ -151,8 +167,9 @@ export async function advanceWorld(
       );
       if (!started)
         throw new DomainError('VERSION_CONFLICT', '上次导演来信结果不确定，请在导演面板手动继续');
+      let committedVersion: number;
       try {
-        await resolveTurn(
+        const committed = await resolveTurn(
           {
             worlds: deps.worlds,
             planner: {
@@ -188,6 +205,7 @@ export async function advanceWorld(
             expectedVersion: world.version,
           },
         );
+        committedVersion = committed.state.version;
       } catch (error) {
         await deps.clock.markAttempt(session.userId, worldId, commandId, 'unknown').catch(() => {});
         throw error;
@@ -201,6 +219,7 @@ export async function advanceWorld(
         status: 'played',
       });
       actors.push(actorId);
+      delivered.push({ actorId, at: beatAt, version: committedVersion });
     }
 
     const unused = Math.max(0, advance.beats.length - actors.length);
