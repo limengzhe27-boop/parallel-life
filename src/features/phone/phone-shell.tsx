@@ -28,7 +28,7 @@ const apps: Record<PhoneApp, string> = {
   moments: '朋友圈',
   photos: '相册',
   calendar: '日历',
-  notes: '便签',
+  notes: '备忘录',
   scenes: '现场',
 };
 const panels: Record<PhonePanel, string> = {
@@ -36,7 +36,7 @@ const panels: Record<PhonePanel, string> = {
   timeline: '人生轨迹',
   time: '时间管理',
   scene: '现场',
-  management: '人生管理',
+  management: '备忘录',
 };
 export type PhoneNotification = {
   id: string;
@@ -186,7 +186,7 @@ function LifePhone({
       '',
       hash,
     );
-    setRoute(next);
+    setRoute(readRoute(hash, worldId));
   }
   function back() {
     const entry = history.state?.plPhone;
@@ -423,12 +423,8 @@ function LifePhone({
               })
             ) : (
               <div className={styles.home}>
-                <button
-                  className={styles.manageShortcut}
-                  data-panel="management"
-                  onClick={() => navigate({ ...route, panel: 'management' })}
-                >
-                  人生管理 <PhoneIcon name="next" />
+                <button className={styles.manageShortcut} onClick={() => open('notes')}>
+                  备忘录 <PhoneIcon name="next" />
                 </button>
               </div>
             )
@@ -457,24 +453,7 @@ function LifePhone({
                 positions.current.set(`panel:${route.panel}`, event.currentTarget.scrollTop);
             }}
           >
-            {route.panel === 'management' ? (
-              <div className={styles.management}>
-                <p>这段人生的调整与管理</p>
-                <button onClick={() => navigate({ ...route, panel: 'timeline' })}>
-                  当前身份与经历 <PhoneIcon name="next" />
-                </button>
-                <button onClick={() => navigate({ ...route, panel: 'time' })}>
-                  暂停或调整时间 <PhoneIcon name="next" />
-                </button>
-                <a href="/">
-                  返回现实中的我 <PhoneIcon name="next" />
-                </a>
-                <a href="/possibilities">
-                  切换人生 <PhoneIcon name="next" />
-                </a>
-                <p>账号和删除尚未开放。</p>
-              </div>
-            ) : renderPanel ? (
+            {renderPanel ? (
               renderPanel(route.panel)
             ) : (
               <div className={styles.empty}>

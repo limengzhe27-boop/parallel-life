@@ -30,7 +30,7 @@ test('scroll positions are isolated by life, application and record, not by auxi
 });
 
 test('phone internal auxiliary pages retain old deep links and return to their app record', () => {
-  for (const panel of ['schedule', 'timeline', 'time', 'management'] as const) {
+  for (const panel of ['schedule', 'timeline', 'time'] as const) {
     const route = { app: 'messages' as const, target: 'record-24', panel };
     assert.deepEqual(readRoute(routeHash('life', route), 'life'), route);
     assert.deepEqual(parentRoute(route), { app: 'messages', target: 'record-24' });
@@ -62,4 +62,17 @@ test('old director links open time management and scene links retain their saved
   const route = { app: null, panel: 'scene' as const, target: 'scene-id' };
   assert.deepEqual(readRoute(routeHash('life', route), 'life'), route);
   assert.deepEqual(parentRoute(route), { app: 'scenes' });
+});
+
+test('retired settings links open notes without retaining a private chat target', () => {
+  assert.deepEqual(readRoute('#life=life&panel=management', 'life'), { app: 'notes' });
+  assert.deepEqual(readRoute('#life=life&app=messages&target=private&panel=management', 'life'), {
+    app: 'notes',
+  });
+  assert.deepEqual(readRoute('#life=foreign&panel=management', 'life'), { app: null });
+  assert.equal(
+    routeHash('life', { app: 'messages', target: 'private', panel: 'management' }),
+    '#life=life&app=notes',
+  );
+  assert.deepEqual(parentRoute(readRoute('#life=life&panel=management', 'life')), { app: null });
 });

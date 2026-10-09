@@ -8,6 +8,8 @@ export type PhoneRoute = { app: PhoneApp | null; target?: string; panel?: PhoneP
 export const homeRoute: PhoneRoute = { app: null };
 
 export function routeHash(worldId: string, route: PhoneRoute): string {
+  // Retired settings links open existing notes; they do not edit world state.
+  if (route.panel === 'management') route = { app: 'notes' };
   const values = new URLSearchParams({ life: worldId });
   if (route.app) values.set('app', route.app);
   if ((route.app || route.panel === 'scene') && route.target) values.set('target', route.target);
@@ -20,6 +22,7 @@ export function readRoute(hash: string, worldId: string): PhoneRoute {
   if (values.get('life') !== worldId) return homeRoute;
   const app = values.get('app');
   const panel = values.get('panel') === 'director' ? 'time' : values.get('panel');
+  if (panel === 'management') return { app: 'notes' };
   const validApp = phoneApps.find((value) => value === app) ?? null;
   const validPanel = phonePanels.find((value) => value === panel);
   const target = values.get('target');

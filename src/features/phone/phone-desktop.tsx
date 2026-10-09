@@ -111,7 +111,7 @@ export function PhoneDesktop({
       </div>
 
       <div className={styles.utilities} aria-label="手机工具">
-        {(['timeline', 'time', 'management'] as const).map((panel) => (
+        {(['timeline', 'time'] as const).map((panel) => (
           <button key={panel} data-panel={panel} onClick={() => openPanel(panel)}>
             <span className={`${styles.utilityIcon} ${styles[panel]}`}>
               {panel === 'time' ? (
@@ -130,7 +130,7 @@ export function PhoneDesktop({
                 <PhoneIcon name={panel} />
               )}
             </span>
-            <span>{panel === 'timeline' ? '身份' : panel === 'time' ? '时间' : '设置'}</span>
+            <span>{panel === 'timeline' ? '身份' : '时间'}</span>
           </button>
         ))}
       </div>

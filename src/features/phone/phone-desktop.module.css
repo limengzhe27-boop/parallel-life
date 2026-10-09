@@ -176,7 +176,7 @@
 }
 .utilities {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 .utilities button {
@@ -213,10 +213,6 @@
 .time {
   background: linear-gradient(145deg, #313c50, #172032);
   color: #fff;
-}
-.management {
-  background: linear-gradient(145deg, #e5e8ed, #b7bfc9);
-  color: #45505f;
 }
 @container (max-height: 650px) {
   .desktop {
