@@ -106,11 +106,16 @@ async function addSourceRefs(
 }
 
 /** Reads one owner's records in the shape the memory services expect. */
-export async function loadMemoryRecords(sql: SqlClient, ownerId: string): Promise<MemoryRecord[]> {
+export async function loadMemoryRecords(
+  sql: SqlClient,
+  ownerId: string,
+  playerVisibleOnly = false,
+): Promise<MemoryRecord[]> {
   const rows = (
-    await sql.query('SELECT * FROM parallel_life.memory_records WHERE owner_id=$1 FOR UPDATE', [
-      ownerId,
-    ])
+    await sql.query(
+      `SELECT m.* FROM parallel_life.memory_records m WHERE m.owner_id=$1 ${playerVisibleOnly ? 'AND ' + PLAYER_MEMORY_PREDICATE : ''} FOR UPDATE`,
+      [ownerId],
+    )
   ).rows;
   return rows.map((row) =>
     MemoryRecordSchema.parse({
@@ -147,11 +152,17 @@ export async function correctMemoryInStore(
     branchId?: string;
     characterId?: string;
     sourceMessageIds: string[];
+    playerVisibleOnly?: boolean;
   },
 ): Promise<MemoryRecord> {
+  const playerVisibleOnly = input.playerVisibleOnly ?? true;
+  if (playerVisibleOnly && input.scopeType === 'character') throw new DomainError('FORBIDDEN');
   const { newRecord, supersededRecords } = correctMemory({
     ...input,
-    existingRecords: await loadMemoryRecords(sql, input.ownerId),
+    ...(input.scopeType === 'branch' ? { branchId: input.scopeId } : {}),
+    existingRecords: (await loadMemoryRecords(sql, input.ownerId, playerVisibleOnly)).filter(
+      (record) => record.scopeType === input.scopeType && record.scopeId === input.scopeId,
+    ),
   });
   for (const superseded of supersededRecords)
     await sql.query(
@@ -192,9 +203,14 @@ export async function correctMemoryInStore(
 /** The user saying "forget it": the record is forgotten, never deleted. */
 export async function forgetMemoryInStore(
   sql: SqlClient,
-  input: { ownerId: string; targetMemoryId: string; evidence?: Record<string, unknown> },
+  input: {
+    ownerId: string;
+    targetMemoryId: string;
+    evidence?: Record<string, unknown>;
+    playerVisibleOnly?: boolean;
+  },
 ): Promise<MemoryRecord> {
-  const records = await loadMemoryRecords(sql, input.ownerId);
+  const records = await loadMemoryRecords(sql, input.ownerId, input.playerVisibleOnly ?? true);
   const target = records.find((record) => record.id === input.targetMemoryId);
   /* A missing memory is the caller's mistake, not an unavailable service. */
   if (!target) throw new DomainError('NOT_FOUND');
@@ -214,7 +230,7 @@ export async function forgetMemoryInStore(
   return forgottenRecord;
 }
 
-/** Active memories of one scope, newest first — what the phone and the director read. */
+/** Player-readable memories, filtered before ordering/budget. Internal directors use loadWorldMemories. */
 export async function listMemories(
   sql: SqlClient,
   ownerId: string,
@@ -227,8 +243,8 @@ export async function listMemories(
 ) {
   const rows = (
     await sql.query(
-      `SELECT * FROM parallel_life.memory_records
-        WHERE owner_id=$1
+      `SELECT m.* FROM parallel_life.memory_records m
+        WHERE owner_id=$1 AND ${PLAYER_MEMORY_PREDICATE}
           AND ($2::text IS NULL OR scope_type=$2)
           AND ($3::text IS NULL OR scope_id=$3)
           AND ($4::text IS NULL OR character_id=$4)
@@ -343,4 +359,67 @@ export async function loadWorldMemories(
       createdAt: new Date(String(row.created_at)).toISOString(),
     }),
   );
+}
+
+/**
+ * Player reads have a stronger boundary than owner RLS. Internal branch summaries and
+ * NPC beliefs are not made public merely because they cite a message/event.
+ * Legacy branch text is admitted only when it is an exact excerpt of a saved player-visible item.
+ */
+export const PLAYER_MEMORY_PREDICATE = `(
+  (m.scope_type='profile' AND m.character_id IS NULL)
+  OR (m.scope_type='branch' AND m.character_id IS NULL AND m.branch_id=m.scope_id
+    AND EXISTS (SELECT 1 FROM parallel_life.worlds w WHERE w.id=m.scope_id AND w.owner_id=m.owner_id)
+    AND (
+      (m.kind='correction' AND m.source_type='user_correction')
+      OR (m.kind<>'summary' AND m.source_type IN ('world_event','user_statement') AND (
+        EXISTS (
+          SELECT 1 FROM parallel_life.world_messages p JOIN parallel_life.world_events e
+          ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id AND e.owner_id=p.owner_id
+          WHERE p.world_id=m.scope_id AND p.owner_id=m.owner_id
+          AND (m.source_ids ? p.id OR m.source_ids ? e.id)
+          AND m.text=left(p.document->>'text',400)
+        )
+        OR EXISTS (
+          SELECT 1 FROM parallel_life.scene_items p JOIN parallel_life.world_events e
+          ON e.id=p.source_event_id AND e.world_id=p.world_id AND e.owner_id=p.owner_id
+          WHERE p.world_id=m.scope_id AND p.owner_id=m.owner_id AND p.kind='entry'
+          AND m.source_ids ? p.source_event_id
+          AND p.document->'observableTo' @> jsonb_build_array(jsonb_build_object('kind','player'))
+          AND m.text=left(p.document->>'text',400)
+        )
+      ))
+    ))
+)`;
+
+/** Used by public forgetting and branch-to-profile candidate conversion, including guessed IDs. */
+export async function requirePlayerMemory(sql: SqlClient, ownerId: string, id: string) {
+  const row = (
+    await sql.query(
+      `SELECT m.* FROM parallel_life.memory_records m WHERE m.owner_id=$1 AND m.id=$2 AND ${PLAYER_MEMORY_PREDICATE} FOR UPDATE`,
+      [ownerId, id],
+    )
+  ).rows[0];
+  if (!row) throw new DomainError('NOT_FOUND');
+  return row;
+}
+
+export async function correctPlayerMemoryInStore(
+  sql: SqlClient,
+  input: Parameters<typeof correctMemoryInStore>[1],
+) {
+  if (input.scopeType === 'character') throw new DomainError('FORBIDDEN');
+  return correctMemoryInStore(sql, {
+    ...input,
+    ...(input.scopeType === 'branch' ? { branchId: input.scopeId } : {}),
+    playerVisibleOnly: true,
+  });
+}
+
+export async function forgetPlayerMemoryInStore(
+  sql: SqlClient,
+  input: Parameters<typeof forgetMemoryInStore>[1],
+) {
+  await requirePlayerMemory(sql, input.ownerId, input.targetMemoryId);
+  return forgetMemoryInStore(sql, { ...input, playerVisibleOnly: true });
 }

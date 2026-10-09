@@ -131,12 +131,12 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     assert.equal(olderBuild?.task, null, 'a legacy build without a task still appears');
     const phone = await new BuildRepository(db).phone(owner, first.worldId);
     assert.equal(phone.messages.length, 1);
-    assert.equal(phone.actors.length, 3);
+    assert.equal(phone.actors.length, 1);
     const builtState = await new PostgresWorldRepository(db).get({ userId: owner }, first.worldId);
     assert.deepEqual(builtState.actorTies, [
       {
-        fromActorId: phone.actors[0]!.id,
-        toActorId: phone.actors[1]!.id,
+        fromActorId: builtState.actors[0]!.id,
+        toActorId: builtState.actors[1]!.id,
         relationship: '在街角常碰面',
         mayShare: true,
       },

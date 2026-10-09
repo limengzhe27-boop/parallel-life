@@ -99,6 +99,19 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       appointments: [],
       mediaRequests: [],
     };
+    // Derived from the approved source selection, never from model-generated public claims.
+    opening.playerActors = state.actors.flatMap((actor) => {
+      const person = seed.people.find((person) => person.id === actor.sourcePersonId);
+      if (!person || !('personRoles' in seed)) return [];
+      const role = seed.personRoles?.find((role) => role.personId === person.id)?.role;
+      return [
+        {
+          actorId: actor.id,
+          source: { kind: 'selected_person' as const, personId: person.id },
+          relationship: role ?? person.relationship,
+        },
+      ];
+    });
     const initialMediaId = randomUUID();
     const initialMediaPrompt = `${seed.story.title} 角色身份写真：${opening.identity}，写实电影人文质感，35mm胶片，肖像底模图生图，自然光影`;
     const initialMediaTitle = `【身份写真】${opening.identity.slice(0, 24)} · 肖像`;

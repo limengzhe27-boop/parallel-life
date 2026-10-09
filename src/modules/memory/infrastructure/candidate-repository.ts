@@ -1,3 +1,4 @@
+import { requirePlayerMemory } from './memory-store.ts';
 import { randomUUID } from 'node:crypto';
 import {
   MemoryCandidateSchema,
@@ -10,6 +11,29 @@ import { applyConfirmedCandidateInTransaction } from '../../profile/infrastructu
 import { memoryCommandHash, readMemoryReceipt, saveMemoryReceipt } from './command-receipt.ts';
 
 type CandidateRow = Record<string, unknown>;
+// Branch candidate text must itself be a visible quotation, not an internal summary of its sources.
+const PLAYER_CANDIDATE_PREDICATE = `(c.source_type='interview' OR (c.source_type='branch' AND EXISTS (
+  SELECT 1 FROM parallel_life.world_messages p JOIN parallel_life.world_events e
+  ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id AND e.owner_id=p.owner_id
+  WHERE p.world_id=c.source_scope_id AND p.owner_id=c.owner_id
+  AND c.source_message_ids ? p.id AND c.text=left(p.document->>'text',char_length(c.text))
+)))`;
+async function requirePlayerCandidate(
+  sql: import('../../storage/infrastructure/postgres.ts').SqlClient,
+  ownerId: string,
+  id: string,
+) {
+  if (
+    !(
+      await sql.query(
+        `SELECT c.id FROM parallel_life.memory_candidates c WHERE c.owner_id=$1 AND c.id=$2 AND ${PLAYER_CANDIDATE_PREDICATE} FOR UPDATE`,
+        [ownerId, id],
+      )
+    ).rows[0]
+  )
+    throw new DomainError('NOT_FOUND');
+}
+
 const iso = (value: unknown) => new Date(String(value)).toISOString();
 
 function mapCandidate(row: CandidateRow): MemoryCandidate {
@@ -75,14 +99,14 @@ export class MemoryCandidateRepository {
   async list(ownerId: string, status?: MemoryCandidate['status']): Promise<MemoryCandidate[]> {
     return this.db.transaction(ownerId, async (sql) => {
       const params: unknown[] = [ownerId];
-      const condition = ['owner_id=$1'];
+      const condition = ['owner_id=$1', PLAYER_CANDIDATE_PREDICATE];
       if (status) {
         params.push(status);
         condition.push(`status=$${params.length}`);
       }
       const rows = (
         await sql.query(
-          `SELECT * FROM parallel_life.memory_candidates WHERE ${condition.join(' AND ')} ORDER BY created_at DESC,id DESC`,
+          `SELECT c.* FROM parallel_life.memory_candidates c WHERE ${condition.join(' AND ')} ORDER BY created_at DESC,id DESC`,
           params,
         )
       ).rows;
@@ -123,8 +147,11 @@ export class MemoryCandidateRepository {
       if (duplicate) {
         const saved = (duplicate as { candidate?: unknown }).candidate;
         if (!saved) throw new DomainError('INVALID_STATE', 'Candidate receipt is malformed');
-        return MemoryCandidateSchema.parse(saved);
+        const candidate = MemoryCandidateSchema.parse(saved);
+        await requirePlayerCandidate(sql, ownerId, candidate.id);
+        return candidate;
       }
+      await requirePlayerMemory(sql, ownerId, input.branchMemoryId);
       const row = (
         await sql.query(
           `SELECT id,owner_id,scope_type,scope_id,branch_id,text,source_ids,status
@@ -164,6 +191,7 @@ export class MemoryCandidateRepository {
         createdAt: new Date().toISOString(),
       });
       if (!candidate) throw new DomainError('CONFLICT', 'A matching candidate already exists');
+      await requirePlayerCandidate(sql, ownerId, candidate.id);
       await saveMemoryReceipt(
         sql,
         ownerId,
@@ -214,8 +242,11 @@ export class MemoryCandidateRepository {
       if (duplicate) {
         const saved = (duplicate as { candidate?: unknown }).candidate;
         if (!saved) throw new DomainError('INVALID_STATE', 'Candidate receipt is malformed');
-        return MemoryCandidateSchema.parse(saved);
+        const candidate = MemoryCandidateSchema.parse(saved);
+        await requirePlayerCandidate(sql, ownerId, candidate.id);
+        return candidate;
       }
+      await requirePlayerCandidate(sql, ownerId, id);
       const row = (
         await sql.query(
           `UPDATE parallel_life.memory_candidates

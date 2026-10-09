@@ -14,7 +14,14 @@ export const BuildInputSchema = z.strictObject({
  * a stray field such as `notes_placeholder` must not discard an otherwise valid
  * world, while every consumed field keeps its range and count validation.
  */
+/** Runtime-only, bound to the actor ID created in the genesis transaction. Never model authority. */
+export const PlayerOpeningActorSchema = z.strictObject({
+  actorId: Id,
+  source: z.strictObject({ kind: z.literal('selected_person'), personId: Id }),
+  relationship: z.string().max(160),
+});
 export const WorldOpeningSchema = z.object({
+  playerActors: z.array(PlayerOpeningActorSchema).max(8).optional(),
   identity: z.string().min(1).max(400),
   setting: z.string().min(1).max(500),
   actors: z

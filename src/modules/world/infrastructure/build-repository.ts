@@ -1,3 +1,4 @@
+import { projectPlayerActors, type SelectedPlayerPerson } from '../domain/player-projection.ts';
 import { albumPhotos } from '../../media/infrastructure/album-projection.ts';
 import { randomUUID } from 'node:crypto';
 import {
@@ -126,7 +127,7 @@ export class BuildRepository {
     const metadata = await this.db.transaction(ownerId, async (sql) => {
       const row = (
         await sql.query(
-          'SELECT * FROM parallel_life.world_builds WHERE world_id=$1 AND opening IS NOT NULL',
+          'SELECT b.*,s.document AS approved_seed FROM parallel_life.world_builds b JOIN parallel_life.approved_seeds s ON s.id=b.seed_id AND s.owner_id=b.owner_id WHERE b.world_id=$1 AND b.opening IS NOT NULL',
           [worldId],
         )
       ).rows[0];
@@ -152,8 +153,45 @@ export class BuildRepository {
     }
     const bindings = await this.db.transaction(ownerId, (sql) =>
       sql.query(
-        'SELECT actor_id,person_id,asset_id,asset_revision FROM parallel_life.world_person_bindings WHERE world_id=$1',
-        [worldId],
+        'SELECT actor_id,person_id,asset_id,asset_revision FROM parallel_life.world_person_bindings WHERE world_id=$1 AND owner_id=$2',
+        [worldId, ownerId],
+      ),
+    );
+    const seed = ApprovedSeedSchema.parse(metadata.approved_seed);
+    const selected: SelectedPlayerPerson[] = bindings.rows.flatMap((binding) => {
+      const actor = state.actors.find(
+        (actor) => actor.id === binding.actor_id && actor.sourcePersonId === binding.person_id,
+      );
+      const person = seed.people.find((person) => person.id === binding.person_id);
+      if (!actor || !person || !('personRoles' in seed)) return [];
+      const role = seed.personRoles?.find((role) => role.personId === person.id)?.role;
+      return [
+        {
+          actorId: actor.id,
+          personId: person.id,
+          name: person.name,
+          relationship: role ?? person.relationship,
+          ...(binding.asset_id &&
+          binding.asset_id === person.assetId &&
+          seed.assets.some(
+            (asset) =>
+              asset.assetId === binding.asset_id && asset.revision === binding.asset_revision,
+          )
+            ? { photo: { assetId: binding.asset_id, revision: binding.asset_revision } }
+            : {}),
+        },
+      ];
+    });
+    // A dialogue observed by this player introduces its speaker; hidden presence does not.
+    const sceneContacts = await this.db.transaction(ownerId, (sql) =>
+      sql.query(
+        `SELECT DISTINCT i.document->'speaker'->>'actorId' AS actor_id
+       FROM parallel_life.scene_items i JOIN parallel_life.world_events e
+       ON e.world_id=i.world_id AND e.id=i.source_event_id AND e.owner_id=i.owner_id
+       WHERE i.world_id=$1 AND i.owner_id=$2 AND i.kind='entry' AND e.version<=$3
+       AND i.document->>'kind'='dialogue'
+       AND i.document->'observableTo' @> $4::jsonb`,
+        [worldId, ownerId, state.version, JSON.stringify([{ kind: 'player' }])],
       ),
     );
     const clock = await new PostgresClockStore(this.db).read(ownerId, worldId);
@@ -248,17 +286,11 @@ export class BuildRepository {
       time: storyTime,
       identity: metadata.opening.identity,
       setting: metadata.opening.setting,
-      actors: state.actors.map((a, index) => ({
-        id: a.id,
-        ...(a.sourcePersonId ? { sourcePersonId: a.sourcePersonId } : {}),
-        ...(() => {
-          const b = bindings.rows.find((b) => b.actor_id === a.id);
-          return b?.asset_id ? { photo: { assetId: b.asset_id, revision: b.asset_revision } } : {};
-        })(),
-        name: a.name,
-        relationship: metadata.opening.actors[index]?.relationship ?? '',
-        summary: metadata.opening.actors[index]?.persona ?? a.persona,
-      })),
+      actors: projectPlayerActors(
+        state,
+        selected,
+        sceneContacts.rows.map((row) => row.actor_id),
+      ),
       messages: state.messages.map((m) => ({
         id: m.id,
         actorId: m.actorId,
@@ -267,14 +299,7 @@ export class BuildRepository {
         at: m.at,
       })),
       notes: [
-        /* Opening notes come from the immutable build snapshot. */
-        ...metadata.opening.notes.map((note: { title: string; text: string }, index: number) => ({
-          id: `${worldId}:opening-note:${index}`,
-          title: note.title,
-          text: note.text,
-          version: 0,
-          updatedAt: state.time,
-        })),
+        // Generated opening notes have no player-knowledge provenance. Keep them internal.
         /* Saved notes come from their own projection. */
         ...(state.notes ?? []).map((note) => ({
           id: note.id,

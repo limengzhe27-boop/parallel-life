@@ -1,4 +1,4 @@
-import { authenticated, endpoint, json, parseBody } from '../../../../../server/http.ts';
+import { authenticated, endpoint, HttpError, json, parseBody } from '../../../../../server/http.ts';
 import { requestLimit } from '../../../../../server/limits.ts';
 import { MemoryEditRequestSchema } from '../../../../../contracts/memory.ts';
 export const runtime = 'nodejs';
@@ -9,6 +9,9 @@ export async function GET(request: Request) {
     await requestLimit(s.db, s.ownerId);
     const params = new URL(request.url).searchParams;
     const scopeType = params.get('scopeType') ?? undefined;
+    if (scopeType && !['profile', 'branch', 'character'].includes(scopeType))
+      throw new HttpError('INVALID_INPUT', 422);
+    if (scopeType === 'character') throw new HttpError('FORBIDDEN', 403);
     return json({
       memories: await s.listMemories(s.ownerId, {
         ...(scopeType ? { scopeType: scopeType as 'profile' | 'branch' | 'character' } : {}),
