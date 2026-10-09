@@ -727,7 +727,11 @@ export function InterviewApp() {
                 />
                 <div className={composerStyles.photoPreviewDetails}>
                   <span>
-                    {pendingPhotoAssetId ? '照片已上传，发送结果待核对' : '照片将在你点发送后上传'}
+                    {photoState?.kind === 'progress'
+                      ? photoState.text
+                      : pendingPhotoAssetId
+                        ? '照片已上传，发送结果待核对'
+                        : '照片将在你点发送后上传'}
                   </span>
                   {photoError && photoCaption.current && draft !== photoCaption.current && (
                     <span className={composerStyles.previousCaption}>

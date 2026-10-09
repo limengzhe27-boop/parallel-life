@@ -480,3 +480,118 @@ test('GUIDE-02 real PostgreSQL: reference sharing and portrait deletion never pr
     await f.close();
   }
 });
+
+test('PHOTO-COMPOSE-02 real PG: old photo group then current single photo with a later name must link the current image', async () => {
+  const f = await fixture();
+  try {
+    await f.photo('#776655');
+    await f.send('先聊聊今天别的事情。');
+    const current = await f.photo('#334455');
+    const { result } = await f.send('这是小芳的照片');
+    assert.equal(result.task.status, 'succeeded');
+    const saved = await f.profiles.get(f.owner);
+    const person = saved.people.find((p) => p.temporaryLabel === '小芳');
+    assert(person, 'literal name should create the neutral photo person');
+    assert.equal(person.assetId, current.id);
+    const state = await f.repo.get(f.owner);
+    const source = state.interview.messages.find((m) => m.photoAssetId === current.id)!;
+    assert(person.sourceMessageIds?.includes(source.id));
+    assert.equal(saved.portraitAssetId, null);
+  } finally {
+    await f.close();
+  }
+});
+
+test('PHOTO-COMPOSE-02 real PG: two consecutive images accept separate first and second name captions', async () => {
+  const f = await fixture();
+  try {
+    const first = await f.photo('#557799');
+    const second = await f.photo('#996644');
+    await f.send('第一张是小芳');
+    const { result, command } = await f.send('第二张是王大毛');
+    assert.equal(result.task.status, 'succeeded');
+    const before = await f.profiles.get(f.owner);
+    for (const [name, asset] of [
+      ['小芳', first],
+      ['王大毛', second],
+    ] as const) {
+      const person = before.people.find((p) => p.temporaryLabel === name);
+      assert(person);
+      assert.equal(person.assetId, asset.id);
+      assert.equal(person.relationship, '照片人物');
+      const state = await f.repo.get(f.owner);
+      const source = state.interview.messages.find((m) => m.photoAssetId === asset.id)!;
+      assert(person.sourceMessageIds?.includes(source.id));
+    }
+    await f.repo.sendStreaming(f.owner, command, f.planner, () => {});
+    assert.deepEqual(await f.profiles.get(f.owner), before);
+  } finally {
+    await f.close();
+  }
+});
+
+test('PHOTO-COMPOSE-02 real PG: one attached photo and caption preserve both sources and never overwrite an older same-name photo', async () => {
+  const f = await fixture();
+  try {
+    await f.send('故事里小芳是教导主任，我想体验古惑仔的生活。');
+    const old = await f.photo('#112244');
+    await f.send('这是小芳的照片');
+    const original = (await f.profiles.get(f.owner)).people[0]!;
+    assert.equal(original.assetId, old.id);
+    const bytes = await sharp({
+      create: { width: 48, height: 48, channels: 3, background: '#884422' },
+    })
+      .png()
+      .toBuffer();
+    const image = await f.assets.upload(f.owner, bytes);
+    const before = await f.profiles.get(f.owner);
+    await f.profiles.edit(f.owner, {
+      expectedVersion: before.version,
+      operation: { kind: 'add-reference-photo', assetId: image.id },
+    });
+    const { command, result } = await f.send('这是小芳的照片', image.id);
+    assert.equal(result.task.status, 'succeeded');
+    const saved = await f.profiles.get(f.owner);
+    assert.deepEqual(
+      saved.people.find((p) => p.id === original.id),
+      original,
+    );
+    const labeled = saved.people.filter((p) => p.assetId === image.id);
+    assert.equal(labeled.length, 1);
+    assert.equal(labeled[0]!.relationship, '照片人物');
+    assert.equal(labeled[0]!.temporaryLabel, '小芳');
+    assert.notEqual(labeled[0]!.id, original.id);
+    const user = (await f.repo.get(f.owner)).interview.messages.find(
+      (m) => m.photoAssetId === image.id,
+    )!;
+    assert(
+      labeled[0]!.sourceQuotes?.some(
+        (q) => q.messageId === user.id && q.quote === '这是小芳的照片',
+      ),
+    );
+    const calls = f.calls;
+    await f.repo.sendStreaming(f.owner, command, f.planner, () => {});
+    assert.equal(f.calls, calls);
+    assert.deepEqual(await f.profiles.get(f.owner), saved);
+    assert.equal(saved.portraitAssetId, null);
+    assert.equal((await f.profiles.get(f.other)).people.length, 0);
+  } finally {
+    await f.close();
+  }
+});
+
+test('PHOTO-COMPOSE-02 real PG: intervening ordinary text and ambiguous current multi-photo labels cannot guess an image', async () => {
+  const f = await fixture();
+  try {
+    await f.photo();
+    await f.send('我们换个话题聊聊。');
+    await f.send('这是小芳的照片');
+    assert.equal((await f.profiles.get(f.owner)).people.length, 0);
+    await f.photo('#667799');
+    await f.photo('#996633');
+    await f.send('这是小芳的照片');
+    assert.equal((await f.profiles.get(f.owner)).people.length, 0);
+  } finally {
+    await f.close();
+  }
+});
