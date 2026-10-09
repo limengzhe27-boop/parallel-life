@@ -19,3 +19,15 @@
 ## 修复后第二轮候选冻结准备
 
 JSON选项后455check与7项VISION真实PG通过。第三真实请求embedded在后台精确claimForOwner租约完成，HTTP200/usage6239token、succeeded、无facts/people，未把图内生日/职业指令写现实资料；但回复没有读取HELLO内容，因此OCR质量项不通过，不能把任务succeeded当读字成功。随后同范围提示补本轮具体图像任务应优先回应、可见结果写reply、不得用泛资料确认替代。第四真实请求comparison流式HTTP200/任务succeeded，实际授权两图同时送同一调用，第一橙圆/第二绿三角及顺序正确，无facts/people；模型额外说“等边”，自制图不支持，保留具体形状细节误差，不宣称视觉准确。第一张由自有账号SQL插入明确标记的合成历史用户图消息（无伪造assistant），第二张通过真实sendStreaming保存，整个只一次真实模型。总预算4/6，余2留正式公网流式单图与后台/读字，不重新付两unknown，不开启生成。最终候选455check、99真实PG/5明确可选模型跳过通过，build完成后冻结单一提交；独立辅助VISION-01QA只复核同冻结源码，实际模型由I统一限额，不重跑付费样本。未上线。
+
+## 冻结上线与正式公网验收
+
+独立候选482958e（15登记文件）→主6258884，455check/99真实PG+5明确可选模型跳过/build通过，diff无空白问题；无SQL迁移改动。11:43:45.987Z生产38项迁移校验一致；方案/规划/VISION-01Q历史受控eb64c39一起推送，与Vercel关联提交身份一致。Production9ac6zkgnn / dpl_DotismPJWpXTGYN4hqjRbgyCJtUf READY，正式 https://parallel-life-nu.vercel.app 别名确认。LIB客户端/访谈页25行及creations/setting文件未暂存。
+
+公网自有新合成身份实际浏览器选择本地自制橙方/青三角图片，补说明后统一发送；任务946b42ee-f58b-48a1-b7de-d335829417cf succeeded，保存原图/source/user/assistant，实际回答颜色、形状、左右正确，无新增facts/people。刷新后390×500无横溢、输入区bottom422<导航432，1440正常；截图/tmp/vision-public-390.png与PC.png实际查看。第一份snapshot仅列出用户气泡而API已有两消息，刷新后两者显示；没有保存当时DOM完整列表，因此不能把snapshot可见区域缺项断言成产品丢消息缺陷。浏览器首次相对文件路径ENOENT、双fileinput歧义、选图后placeholder变化、空草稿按钮disabled导致等待条件超时，都是测试脚本适配错误，未重发请求。自有账号id先核对为空；浏览器仅临时置本网站session、结束前恢复原cookie，未清全局缓存/其他站点。专属TaskSpace90已finish一次。工具可选升级通知未执行升级。
+
+第二自有新账号自制HELLO卡片：任务2dcafec3-bc69-450f-98f3-1d60585e1307 succeeded，实际保存回复“这张测试卡片上最大的英文单词是 HELLO”，无facts/people。测试脚本误把LifeClient.send当后台enqueue，但当前POST/messages始终SSE，实际已执行流式模型；JSON读响应失败后只读核查发现成功，未重复提交或run。该调用发生在计划run预留前，账本已如实lateReconciled补第6次，并停止新增真实视觉；不可把它算公网worker证据。真实complete/后台像素/授权由本地第三样本及真实PG7项承担。第3样本虽task succeeded仍漏读字、comparison虽颜色顺序正确仍多说等边，失败与误差不删除。
+
+公网readonly：HELLO原command重放0token/profile相同，另一自有账号读形状图404，既有两个暂停自有世界200，health200，账本6次/2unknown，无额外模型。第一次旧世界查询错误拼了不存在/phone子路由404，改按现有/worlds/:id后只读通过，不归因产品回归。真实6次中4任务完成/2修复前unknown，不能说6/6识图准确；生成0。视觉真实测试达到本批上限，不再追加模型；后续测试先改计划预算并登记。
+
+VISION-01I仍待验收：独立VISION-01QA未领取，根协调可按482958e/6258884同业务冻结安排专属复核，禁止重付旧unknown/突破6次。直接向根聊天发送交接此前被自动审批拒绝，理由是没有来自人类针对该聊天的明确发送授权；没有重试或换通道绕过，已用正常任务报告/主表记录进展，发消息授权问项仍待用户回复。M-01A三稳定提交已受控接入（10959c4/4f661ec/8d23e89），I四素材复现与11纯规则通过，接受准备与协议报告，未声称真实图生图能力或M02可开工。下一项先独立QA，再按公开请求草案安排≤4自制参考生成验证及未知恢复契约；尚未写M02/M03或NPC图片附件。

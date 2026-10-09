@@ -688,3 +688,9 @@ MULTI_CHAT_PLAN及CHAT-SESS只读影响报告作为已批准规划快照，非�
 ## 2026-10-09 · PHONE-HOME-02 / PHONE-HOME-02I 实际首页
 
 业务0278c17，Productionhtpk3p8ev / dpl_5G18c8qpqrnePjRNdsMpHfLFcoeq READY，正式域名https://parallel-life-nu.vercel.app已切换；447check/build、38生产迁移校验一致，无新SQL。根独占真实库87通过/5可选跳过，最新照片基线92真实PG/5可选跳过完整检查均通过，本批纯UI未重复数据库套件。两个旧自有暂停世界真实相册/日历空态/跨账号404、390×560/500短屏及PC420居中、实际返回聊聊/切换人生和刷新通过，0新增模型调用。有效邀请、无照片空态和503图片回退在根开发本地真实库/浏览器验证，未称无邀请的公网世界已验邀约正例。照片QA03独立原28+16/42纯全通过，原6反例关闭；两个unknown保留不重付，整体AI间歇可靠性仍未定位。LIB在途保留、读图/完整前史/多聊天未上线。见PHONE-HOME-02I与PHOTO-COMPOSE-02I报告。
+
+## 2026-10-09 · VISION-01I 真实访谈图片候选上线
+
+业务6258884（独立482958e），规划eb64c39；Production9ac6zkgnn / dpl_DotismPJWpXTGYN4hqjRbgyCJtUf READY，正式域名 https://parallel-life-nu.vercel.app 已切换。455check、99真实PG/5显式可选模型跳过/build通过，11:43:45Z生产38项迁移校验和一致，无SQL变更。当前图文同一模型轮次，默认本轮一图、明确组最多两图；只读已保存且归属当前账号/访谈的原上传图，服务端缩小像素、不传私有URL，图片回合显式JSON但仍校验资料来源。
+
+公网两新合成账号实际图形/HELLO流式回复保存成功，390×500与1440刷新可见，无新增人物/现实事实；重复command0token、跨账号图404、两个旧暂停世界200与health200。真实视觉累计6次，4任务完成/2修复前unknown未自动重付；早期OCR泛回应及“等边”细节误差保留，不声称6/6准确。公网第2脚本原拟后台却调用当前SSE入口，未伪称公网后台验收，本地真实后台/数据库证据另见报告。独立VISION-01QA仍未领取，候选已上线不等于整个任务验收完成。图生图0调用未接通。M01A准备与协议三稳定提交已串行集成、4合成输入复现/11纯领域测试通过，后续生成恢复与角色附件未实现。详见[VISION-01I](task-reports/VISION-01I.md)及[M-01A](task-reports/M-01A.md)。
