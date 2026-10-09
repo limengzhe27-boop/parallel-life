@@ -198,6 +198,11 @@ export function ScenePanel({
                           },
                           true,
                         );
+                        window.location.hash = routeHash(worldId, {
+                          app: null,
+                          panel: 'scene',
+                          target: data.scene!.id,
+                        });
                         setLeaveConfirm(false);
                       })
                     }
