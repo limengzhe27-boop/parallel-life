@@ -110,3 +110,25 @@ export async function confirmInterviewPhotoMessage<
   if (sendError) throw sendError;
   throw new ApiFailure('UNAVAILABLE', '照片已保存，但消息还没有确认发送。请重试这张照片。');
 }
+
+/** Only a unique persisted profile binding can provide a completion label. */
+export function savedPhotoPersonLabel(
+  message: InterviewPhotoMessage,
+  people: ReadonlyArray<{ name: string; assetId?: string | null }>,
+): string | null {
+  if (!message.id || message.id.startsWith('temp-')) return null;
+  const photo = parseInterviewPhotoMessage(message);
+  if (!photo) return null;
+  const matches = people.filter((person) => person.assetId?.toLowerCase() === photo.assetId);
+  return matches.length === 1 && matches[0]!.name.trim() ? matches[0]!.name : null;
+}
+/** Capture a send click. Selecting or replacing a file has no network effect. */
+export function capturePhotoComposition<File extends { size: number; type: string }>(
+  file: File,
+  caption: string,
+) {
+  if (file.size > 4 * 1024 * 1024) throw new ApiFailure('INVALID_INPUT', '照片请小于 4MB。');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
+    throw new ApiFailure('INVALID_INPUT', '请选择 JPG、PNG 或 WebP 照片。');
+  return { file, caption: caption.trim() };
+}

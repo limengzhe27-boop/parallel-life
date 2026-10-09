@@ -23,6 +23,8 @@ import {
   hasInterviewPhotoMessage,
   parseInterviewPhotoMessage,
   profileUploadOperation,
+  savedPhotoPersonLabel,
+  capturePhotoComposition,
 } from './photo-share.ts';
 import {
   photoDisplayState,
@@ -56,11 +58,23 @@ const profileUsesPhoto = (profile: Profile, assetId: string) =>
   profile.referenceAssetIds.includes(assetId) ||
   profile.people.some((person) => person.assetId === assetId);
 
-function renderMessageContent(message: InterviewMessage) {
+function renderMessageContent(message: InterviewMessage, people: Profile['people'] = []) {
   const photo = parseInterviewPhotoMessage(message);
-  return photo ? <InterviewPhotoContent {...photo} /> : message.text;
+  return photo ? (
+    <InterviewPhotoContent {...photo} personLabel={savedPhotoPersonLabel(message, people)} />
+  ) : (
+    message.text
+  );
 }
-function InterviewPhotoContent({ assetId, caption }: { assetId: string; caption: string }) {
+function InterviewPhotoContent({
+  assetId,
+  caption,
+  personLabel,
+}: {
+  assetId: string;
+  caption: string;
+  personLabel: string | null;
+}) {
   const [unavailable, setUnavailable] = useState(false);
   const imageUrl = `/api/v1/assets/${assetId}`;
   return (
@@ -86,6 +100,7 @@ function InterviewPhotoContent({ assetId, caption }: { assetId: string; caption:
         </a>
       )}
       {caption && <span>{caption}</span>}
+      {personLabel && <span className={composerStyles.photoLinked}>已关联 {personLabel}</span>}
     </div>
   );
 }
@@ -107,6 +122,8 @@ export function InterviewApp() {
     [photoError, setPhotoError] = useState(''),
     [photoInfo, setPhotoInfo] = useState(''),
     [pendingPhotoAssetId, setPendingPhotoAssetId] = useState<string | null>(null),
+    [selectedPhoto, setSelectedPhoto] = useState<File | null>(null),
+    [selectedPhotoUrl, setSelectedPhotoUrl] = useState(''),
     [outgoing, setOutgoing] = useState<InterviewMessage | null>(null),
     [branchCommand, setBranchCommand] = useState<{ at: number; intent: BranchIntent } | null>(null);
   const [editing, setEditing] = useState<{
@@ -159,6 +176,15 @@ export function InterviewApp() {
       /* The in-memory retry remains available when browser storage is disabled. */
     }
   }, [data?.profile.id]);
+  useEffect(() => {
+    if (!selectedPhoto) {
+      setSelectedPhotoUrl('');
+      return;
+    }
+    const url = URL.createObjectURL(selectedPhoto);
+    setSelectedPhotoUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedPhoto]);
   const refreshCandidates = useCallback(async () => {
     const value = await client.candidates('suggested');
     setCandidates(value.candidates);
@@ -390,6 +416,7 @@ export function InterviewApp() {
 
   function clearPendingChatPhoto(profileId: string) {
     setPendingPhotoAssetId(null);
+    setSelectedPhoto(null);
     photoCaption.current = '';
     try {
       sessionStorage.removeItem(`pl-pending-interview-photo:${profileId}`);
@@ -428,6 +455,24 @@ export function InterviewApp() {
     setPhotoError('');
   }
 
+  function selectChatPhoto(file: File) {
+    if (!data || sending || waiting || uploadingChatPhoto || pendingPhotoAssetId) return;
+    try {
+      capturePhotoComposition(file, draftValue.current);
+      setSelectedPhoto(file);
+      setPhotoError('');
+      setPhotoInfo('');
+    } catch (error) {
+      setPhotoError(errorMessage(error));
+    } finally {
+      if (chatFileInput.current) chatFileInput.current.value = '';
+    }
+  }
+  async function submitComposer(event?: FormEvent) {
+    event?.preventDefault();
+    if (selectedPhoto) await uploadChatPhoto(selectedPhoto);
+    else await send();
+  }
   async function uploadChatPhoto(file: File) {
     if (!data || sending || waiting || uploadingChatPhoto || pendingPhotoAssetId) return;
     setUploadingChatPhoto(true);
@@ -435,12 +480,11 @@ export function InterviewApp() {
     setPhotoError('');
     setPhotoInfo('');
     setError('');
-    const caption = draftValue.current.trim();
+    const { caption } = capturePhotoComposition(file, draftValue.current);
     photoCaption.current = caption;
     updateDraft('');
     let uploadedAssetId: string | null = null;
     try {
-      if (file.size > 4 * 1024 * 1024) throw new ApiFailure('INVALID_INPUT', '照片请小于 4MB。');
       const asset = await client.upload(file);
       uploadedAssetId = asset.id;
       setPendingPhotoAssetId(asset.id);
@@ -675,6 +719,46 @@ export function InterviewApp() {
                 )}
               </Notice>
             )}
+            {(selectedPhotoUrl || pendingPhotoAssetId) && (
+              <div className={composerStyles.photoPreview} aria-label="待发送照片">
+                <img
+                  src={selectedPhotoUrl || '/api/v1/assets/' + pendingPhotoAssetId}
+                  alt="待发送的照片预览"
+                />
+                <div className={composerStyles.photoPreviewDetails}>
+                  <span>
+                    {pendingPhotoAssetId ? '照片已上传，发送结果待核对' : '照片将在你点发送后上传'}
+                  </span>
+                  {photoError && photoCaption.current && draft !== photoCaption.current && (
+                    <span className={composerStyles.previousCaption}>
+                      上次说明：{photoCaption.current}
+                    </span>
+                  )}
+                  {!pendingPhotoAssetId && (
+                    <div className={composerStyles.photoActions}>
+                      <button
+                        type="button"
+                        disabled={sending || waiting || uploadingChatPhoto}
+                        onClick={() => chatFileInput.current?.click()}
+                      >
+                        更换照片
+                      </button>
+                      <button
+                        type="button"
+                        disabled={sending || waiting || uploadingChatPhoto}
+                        onClick={() => {
+                          setSelectedPhoto(null);
+                          setPhotoError('');
+                          setPhotoInfo('');
+                        }}
+                      >
+                        移除照片
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {photoState && (
               <div
                 className={
@@ -706,18 +790,18 @@ export function InterviewApp() {
               </div>
             )}
             <form
-              className={`composer ${draft.includes('\n') || draft.length > 14 ? composerStyles.longComposer : ''}`}
-              onSubmit={send}
+              className={`composer ${selectedPhoto || draft.includes('\n') || draft.length > 14 ? composerStyles.longComposer : ''}`}
+              onSubmit={submitComposer}
             >
               <input
                 ref={chatFileInput}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                aria-label="上传照片并发送"
+                aria-label="选择要发送的照片"
                 hidden
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) void uploadChatPhoto(file);
+                  if (file) selectChatPhoto(file);
                 }}
               />
               <textarea
@@ -727,7 +811,7 @@ export function InterviewApp() {
                 maxLength={4000}
                 onChange={(e) => updateDraft(e.target.value)}
                 aria-label="和人生伙伴说说你"
-                placeholder="从一件你想聊的事开始…"
+                placeholder={selectedPhoto ? '照片说明（可不填）' : '从一件你想聊的事开始…'}
                 rows={1}
                 onKeyDown={(e) => {
                   if (
@@ -739,7 +823,7 @@ export function InterviewApp() {
                     })
                   ) {
                     e.preventDefault();
-                    void send();
+                    void submitComposer();
                   }
                 }}
               />
@@ -755,7 +839,7 @@ export function InterviewApp() {
                   <button
                     type="button"
                     title="发送照片给人生伙伴；照片会保存在对话共享素材中"
-                    aria-label="发送照片"
+                    aria-label="选择照片"
                     disabled={
                       !data || sending || waiting || uploadingChatPhoto || !!pendingPhotoAssetId
                     }
@@ -774,7 +858,7 @@ export function InterviewApp() {
                     aria-label="发送消息"
                     disabled={
                       !data ||
-                      !draft.trim() ||
+                      (!draft.trim() && !selectedPhoto) ||
                       sending ||
                       waiting ||
                       uploadingChatPhoto ||
@@ -822,7 +906,9 @@ export function InterviewApp() {
                       })}
                     </time>
                   </div>
-                  <div className="message-text">{renderMessageContent(message)}</div>
+                  <div className="message-text">
+                    {renderMessageContent(message, data?.profile.people)}
+                  </div>
                 </div>
               </div>
             ))}

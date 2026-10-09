@@ -235,8 +235,68 @@ export function resolvePhotoReference(
       adjacent = true;
     } else adjacent = false;
   }
+  // Complete literal captions may continue a group; ordinary conversation never does.
+  if (!adjacent) {
+    const captions: PhotoEvidenceMessage[] = [];
+    const uploads: PhotoEvidenceMessage[] = [];
+    for (const message of [...recent].reverse()) {
+      if (!message.photoAssetId && uploads.length) break;
+      if (message.photoAssetId) uploads.unshift(message);
+      else captions.unshift(message);
+    }
+    if (!uploads.length || !captions.length) return null;
+    if (uploads.length > 6 || new Set(uploads.map((m) => m.photoAssetId)).size !== uploads.length)
+      return null;
+    const claims = new Map<string, string>();
+    let established = false;
+    for (const caption of captions) {
+      const clauses = caption.text
+        .split(/[，,。；;！!\n]/u)
+        .map((c) => c.trim())
+        .filter(Boolean);
+      const labels = explicitPhotoPeople(caption.text, caption.id);
+      if (!labels.length || labels.length !== clauses.length) return null;
+      if (
+        clauses.some(
+          (clause) =>
+            !/^(?:(?:故事里|故事中|剧本里|剧本中)\s*)?(?:刚才\s*)?(?:第[一二三四五六1-6]张|这张|刚才那张|这是)/u.test(
+              clause,
+            ),
+        )
+      )
+        return null;
+      if (labels.some((label, index) => label.quote !== clauses[index])) return null;
+      if (/不是|并非|不要|上一组|之前那组|最早那组|另一个|另一位|同名|不确定/u.test(caption.text))
+        return null;
+      for (const label of labels) {
+        const ref = explicitPhotoReference(label.quote, label.subject);
+        if (!ref) return null;
+        const recency = /刚才|刚发|刚上传|这两张|这几张/u.test(caption.text);
+        const deictic = !ref.ordinal && /(?:这是|这张)/u.test(label.quote);
+        if (!established && groups.length !== 1 && !recency && !deictic) return null;
+        const photo = ref.ordinal
+          ? uploads[ref.ordinal - 1]
+          : uploads.length === 1
+            ? uploads[0]
+            : null;
+        if (!photo || !uploads.some((upload) => upload.id === photo.id)) return null;
+        if (claims.has(photo.id) && claims.get(photo.id) !== label.subject) return null;
+        claims.set(photo.id, label.subject);
+      }
+      established = true;
+    }
+    const target = reference.ordinal
+      ? uploads[reference.ordinal - 1]
+      : uploads.length === 1
+        ? uploads[0]
+        : null;
+    if (target && claims.has(target.id) && claims.get(target.id) !== subject) return null;
+    return target ?? null;
+  }
   const recentReference = /刚才|刚发|刚上传|这两张|这几张/u.test(source.text);
-  if (!adjacent || (!recentReference && groups.length !== 1)) return null;
+  // A direct deictic caption identifies one immediate upload, never a multi-photo group.
+  const immediateSingle = !reference.ordinal && /(?:这是|这张)/u.test(quote);
+  if (!recentReference && groups.length !== 1 && !immediateSingle) return null;
   const group = groups.at(-1)!;
   if (group.length > 6 || new Set(group.map((m) => m.photoAssetId)).size !== group.length)
     return null;

@@ -125,3 +125,47 @@
     padding-block: 6px;
   }
 }
+
+.photoPreview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+  min-width: 0;
+}
+.photoPreview img {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.photoPreviewDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.previousCaption {
+  max-height: 48px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.photoLinked {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+@media (max-height: 620px) {
+  .photoPreview img {
+    width: 48px;
+    height: 48px;
+  }
+  .photoPreview {
+    padding-block: 5px;
+  }
+}
