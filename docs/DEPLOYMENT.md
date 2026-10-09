@@ -710,3 +710,11 @@ MULTI_CHAT_PLAN及CHAT-SESS只读影响报告作为已批准规划快照，非�
 失败耗时修为真实elapsed；完整坏JSON为已知parse失败，超时/传输仍unknown并不自动重付，安全请求/响应/解析/提案阶段与HTTP诊断由真实PG+网络替身验证。模型85/任务110/路由120/客户端125秒原预算未延长。公网新合成focused一方向摄影师身份完整读回匹配、同command/profile不变，API5405ms/DB4350ms，按运行日志与循环核对新1/2文字，无providerusage回执；旧6/8含两unknown/两角色偏移保留不重跑，当前方向到新世界链未重新付费，BRANCH-FOCUS仍待验收。图片0新增、生成0/4。
 
 390×500新版桌面工具bottom356.15<Docktop369，无横向溢出；PC420居中。备忘录空态/微信/身份/暂停时间/现场/返回与切换实际通过；两旧自有世界200、原图2+3全部200且bytes/hash保存、跨owner404。本首页及原图审查限定完成，人物换图同步旧头像已复现但未实现，系统任务/地图移动/完整前史/多聊天仍未完成。BACKLOG保留原16历史定义和最新索引，未夹带LIB/BOOT业务。详见AI-RECOVERY-01、PHONE-HOME-04、PHOTO-WORLD-02Q与BACKLOG-01报告。
+
+## 2026-10-10 · PHOTO-AVATAR-UPDATE-01 当前人物头像同步
+
+业务25d7b88（独立3badbed），记录a378022；Production606qj30pk / dpl_DbzN6htybxU1hjMW9zRBGDU4Hi4D READY，正式域名https://parallel-life-nu.vercel.app。生产0039已应用，39/39校验和一致、同步私有函数不可直接执行。494check/build，128完整真实PG=123pass/5显式可选skip（4模型、1HTTP导演专项），17头像专项通过。
+
+公网自有合成暂停世界API换图、原回执重放、清空和恢复、手机真实上传保存、已有微信联系人新头像与PC刷新、历史相册2张保留、新头像bytes200/跨owner404通过；临时绿黄图已删除404，原头像恢复，Ego97原session恢复并finish。多世界同人物/同名/并发由真实PG验证，本次公网双端为一个既有世界。另开页面需刷新，0新增模型；A11仍待用户体验，不将技术检查当用户认可。见PHOTO-AVATAR-UPDATE-01报告。
+
+NOTES-SAFETY-01I候选c97ee5c在本版本之后，尚未上线或公网验收，不把它算作当前线上能力。
