@@ -83,6 +83,46 @@ test('real PG: final streaming persistence and candidate confirmation reject fic
       db.transaction(other, (sql) => groundBasicInfoAtMessage(sql, other, source.id)),
       { code: 'INVALID_INPUT' },
     );
+    for (const history of [
+      ['故事里我当摄影师', '不要回到现实'],
+      ['故事里我当摄影师', '不想回到现实'],
+      ['假如我当摄影师，接下来演这个身份'],
+    ]) {
+      for (const text of history) await send(text);
+      const before = await profiles.get(owner);
+      await send('我的职业是摄影师，我是2001年的');
+      const streamed = await repo.get(owner);
+      assert.deepEqual(streamed.profile, before);
+      const fictionalSource = streamed.interview.messages.filter((m) => m.role === 'user').at(-1)!;
+      await assert.rejects(
+        db.transaction(owner, (sql) =>
+          applyConfirmedCandidateInTransaction(sql, owner, {
+            category: 'identity',
+            text: '生日：2001',
+            eventDate: null,
+            sourceMessageIds: [fictionalSource.id],
+          }),
+        ),
+        { code: 'INVALID_INPUT' },
+      );
+      assert.deepEqual(await profiles.get(owner), before);
+      const submitted = await repo.send(owner, {
+        commandId: randomUUID(),
+        expectedVersion: streamed.interview.version,
+        text: '我的职业是摄影师，我是2001年的',
+      });
+      await runOne(
+        {
+          claim: (kinds) => queue.claimForOwner(submitted.task.id, owner, kinds),
+          renew: (task) => queue.renew(task),
+          finish: (task, outcome) => queue.finish(task, outcome),
+        },
+        { interview: interviewHandler(queue, planner, 'fixture-only') },
+      );
+      const queued = await repo.get(owner);
+      assert.equal(queued.interview.activeTask?.status, 'succeeded');
+      assert.deepEqual(queued.profile, before);
+    }
     await send('现实中我的职业是工程师，我是2002年的');
     const p = await profiles.get(owner);
     assert(p.facts.some((f) => f.value.includes('工程师') && f.value.includes('2002')));

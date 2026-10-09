@@ -418,3 +418,33 @@ test('phone choice and next-step IDs accept exact persisted event-effect IDs and
     false,
   );
 });
+
+test('photo-only labels do not become reality relationships in either world protocol', async () => {
+  const person = { id: randomUUID(), name: '小芳', relationship: '照片人物', assetId: null };
+  for (const mapped of [false, true]) {
+    let payload: { people: Record<string, unknown>[] } | undefined;
+    const result = await new WorldPlanner({
+      async complete(messages) {
+        payload = JSON.parse(messages[1]!.content);
+        assert.match(messages[0]!.content, /现实关系尚未说明/);
+        return JSON.stringify(
+          mapped
+            ? {
+                ...output,
+                actors: output.actors.map((a, i) => ({ ...a, key: i === 0 ? 'person_0' : a.key })),
+                actorTies: [],
+                messages: [{ actorKey: 'person_0', text: '早，工具准备好了。' }],
+              }
+            : output,
+        );
+      },
+    }).propose({ ...seed, people: [person], ...(mapped ? { personRoles: [] } : {}) });
+    assert.equal(payload!.people[0]!.photoLabelOnly, true);
+    assert.equal('relationship' in payload!.people[0]!, false);
+    assert.equal('realRelationship' in payload!.people[0]!, false);
+    if (mapped) {
+      assert.equal(result.actors[0]!.name, person.name);
+      assert.equal(result.actors[0]!.sourcePersonId, person.id);
+    }
+  }
+});

@@ -362,7 +362,11 @@ export function DraftEditor({
                     )}
                     <span>
                       {p.name}
-                      <small>现实关系：{p.relationship}</small>
+                      <small>
+                        {p.relationship === '照片人物'
+                          ? '照片称呼，未说明现实关系'
+                          : `现实关系：${p.relationship}`}
+                      </small>
                       {p.interaction && (
                         <small>
                           我的描述：{p.interaction.slice(0, 600)}

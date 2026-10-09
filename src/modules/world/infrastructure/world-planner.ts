@@ -3,7 +3,7 @@ import { extractJsonObject } from '../../ai/application/model-json.ts';
 import type { ApprovedSeed } from '../../../contracts/seeds.ts';
 import { WorldOpeningSchema, type WorldOpening } from '../../../contracts/world-build.ts';
 import { contradictsSelectedRole } from '../domain/opening-validation.ts';
-export const WORLD_PROMPT_VERSION = 'world-opening-10';
+export const WORLD_PROMPT_VERSION = 'world-opening-11';
 /**
  * A world opening is the longest structured answer in the product: up to five
  * actors with personas, opening messages and notes, plus the model's own
@@ -207,10 +207,17 @@ export class WorldPlanner {
                 : {}),
               ...(seed.personRoles?.some((r) => r.personId === p.id && r.role)
                 ? {}
-                : { realRelationship: p.relationship }),
+                : p.relationship === '照片人物'
+                  ? { photoLabelOnly: true }
+                  : { realRelationship: p.relationship }),
               branchRole: seed.personRoles?.find((r) => r.personId === p.id)?.role ?? null,
             }
-          : { name: p.name, relationship: p.relationship },
+          : {
+              name: p.name,
+              ...(p.relationship === '照片人物'
+                ? { photoLabelOnly: true }
+                : { relationship: p.relationship }),
+            },
       ),
     };
     if (JSON.stringify(input).length > 30000)
@@ -230,6 +237,9 @@ export class WorldPlanner {
                   : '\"key\":\"唯一小写英文数字下划线ID\"',
               )
             : SYSTEM) +
+          (seed.people.some((p) => p.relationship === '照片人物')
+            ? '\nphotoLabelOnly表示用户只为照片给出称呼，现实关系尚未说明。它不是现实关系、职业或恋爱证据；不得推断任何现实关系。明确branchRole仍是用户对本分支的虚构安排。'
+            : '') +
           (mapped && seed.people.length
             ? `\n本次已选${seed.people.length}位人物，必须全部包含。actors人数为${Math.max(3, seed.people.length)}至${Math.min(8, Math.max(5, seed.people.length))}，这项优先于其他人数建议。必含的actor.key原文为${JSON.stringify(seed.people.map((_, i) => `person_${i}`))}，不要另起别名。`
             : '') +
