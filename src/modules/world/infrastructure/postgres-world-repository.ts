@@ -308,17 +308,36 @@ export class PostgresWorldRepository implements WorldRepository {
       const current = await this.owned(sql, command.worldId, true);
       const previous = (
         await sql.query(
-          'SELECT request_hash,result_state FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
+          'SELECT request_hash,result_state,result_event_id FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
           [command.worldId, command.commandId],
         )
       ).rows[0];
       if (previous) {
         if (previous.request_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
         if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
-        const replayed = await this.hydrate(sql, previous.result_state);
+        // world_notes is mutable: a later edit must not change an old receipt.
+        // Rebuild only this note from immutable committed events, including legacy
+        // compact receipts. New IDs need not start with expectedVersion=0, so use
+        // the same reducer rather than guessing note.version from that field.
+        const events = await sql.query(
+          `SELECT payload FROM parallel_life.world_events
+           WHERE world_id=$1 AND version<=$2 AND payload->>'type'='note.saved'
+             AND payload->'data'->>'id'=$3 ORDER BY version`,
+          [command.worldId, previous.result_state.version, command.id],
+        );
+        let replayed: WorldState = { ...previous.result_state, notes: [] };
+        let foundReceipt = false;
+        for (const row of events.rows) {
+          const saved = row.payload as NoteEvent;
+          replayed = applyNoteEvent({ ...replayed, version: saved.version - 1 }, saved);
+          if (saved.id === previous.result_event_id && saved.commandId === command.commandId) {
+            foundReceipt = true;
+            break;
+          }
+        }
         const note = replayed.notes?.find((item) => item.id === command.id);
-        if (!note) throw new DomainError('NOT_FOUND');
-        return { worldId: replayed.id, version: replayed.version, note };
+        if (!foundReceipt || !note) throw new DomainError('NOT_FOUND');
+        return { worldId: command.worldId, version: previous.result_state.version, note };
       }
       const id = command.id;
       const event: NoteEvent = {
@@ -353,12 +372,24 @@ export class PostgresWorldRepository implements WorldRepository {
           event.occurredAt,
         ],
       );
-      await sql.query(
-        `INSERT INTO parallel_life.world_notes(id,world_id,owner_id,command_id,request_hash,document)
-         VALUES($1,$2,$3,$4,$5,$6)
-         ON CONFLICT(id) DO UPDATE SET command_id=EXCLUDED.command_id,request_hash=EXCLUDED.request_hash,document=EXCLUDED.document,updated_at=now()`,
-        [note.id, state.id, session.userId, command.commandId, hash, note],
+      // IDs remain globally unique, but edits are scoped to this owner AND world.
+      // A conflicting ID (including an RLS-hidden row) must never update another
+      // world's note. DO NOTHING also handles concurrent first saves safely.
+      const values = [note.id, state.id, session.userId, command.commandId, hash, note];
+      const updated = await sql.query(
+        `UPDATE parallel_life.world_notes
+         SET command_id=$4,request_hash=$5,document=$6,updated_at=now()
+         WHERE id=$1 AND world_id=$2 AND owner_id=$3 RETURNING id`,
+        values,
       );
+      if (!updated.rowCount) {
+        const inserted = await sql.query(
+          `INSERT INTO parallel_life.world_notes(id,world_id,owner_id,command_id,request_hash,document)
+           VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO NOTHING RETURNING id`,
+          values,
+        );
+        if (!inserted.rowCount) throw new DomainError('NOT_FOUND');
+      }
       await sql.query(
         'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
         [state.id, state.version, compact(state)],
