@@ -333,6 +333,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
+|USER-ACCEPT-01|codex-main-useraccept01-20261010|根协调 / 文档|主登记目录|docs/DEVELOPMENT.md 本人行和第10节、docs/task-reports/USER-ACCEPT-01.md|无端口/数据库/模型；登记短锁串行|2026-10-10：文档待I集成；第10节10项已上线限定范围+8类未来能力，原报告/路径/差异核对通过，无业务变更。与头像批次串行部署；用户体验结论全部保持待反馈。|
 |LOCK-02|codex-f-lock02-20261009-01|F|/Users/limengzhe/.codex/worktrees/lock-02-notifications/人生剧本|src/features/phone/phone-shell.tsx、phone.module.css、notification-state.ts（如需）、notification-projection.ts；tests/notification-projection.test.ts；docs/task-reports/LOCK-02.md；本人本行登记|3241/55447及浏览器已停止释放；无模型/生产资源|2026-10-09：独立提交675fa87，待I集成caller；360check/build、390/1440及长内容/空态/壁纸失败验证通过；未部署，真实全量通知仍依赖I去除源slice(0,4)|
 |NAR-02J|codex-main-nar02j-20260929|I / 单人|主登记目录|src/features/phone/world-phone-app.tsx、src/features/phone/auto-advance.ts、tests/phone-auto-advance.test.ts、docs/{DEVELOPMENT,DEPLOYMENT}.md、docs/task-reports/NAR-02J.md|本地浏览器 390/1440；生产 Supabase 迁移只读核验；Vercel 发布|2026-09-29：已集成验收；应用 6a5c6ac、Production q7cudpjg7 Ready；232 项测试、构建、双端、迁移 29/29，公网 health/首页/分支/访客入口 200|
 |NAR-02K|codex-main-nar02k-20260929|I / 单人|主登记目录|world/{domain/{clock,agenda,types,validation,character-policy,reducer},application/{advance-world,actor-context,ports},infrastructure/{turn-planner,postgres-world-repository,clock-repository}}.ts、memory/{application/compile-context,infrastructure/memory-store}.ts、相关 tests、docs/{DEVELOPMENT,DEPLOYMENT}.md、task-reports/NAR-02K.md|本地单元与真实库；生产 Supabase 迁移只读核验；Vercel 发布|2026-09-29：已集成验收；应用 bb79d50、Production miughxi5y Ready；240 常规/36 真实库、build、29 迁移和公网入口通过；旧共享 episode 旁路关闭、旧导演尝试可恢复；剩余边界见报告|
@@ -880,7 +881,54 @@ EXPERIENCE-09用户随后明确：预设内容由相关人员提供，本轮只�
 - 规划/审查行（SCENE-00、EXPERIENCE-09/10/11、SPACE-01Q、PLAY-QA/02Q、BOOT-01A、VISION-01Q、CHAT-SESS-00/01、IMG-PLAN-01、M-01A）只在其文档范围闭合；后续业务仍按原任务。没有足够验收证据的行不批量改为完成。
 
 |PHONE-HOME-04|[x] 已完成|codex-main-phonehome04-20261010（根）；managed lock-02-notifications 从稳定 b8220a3；仅 phone-icons.tsx、phone-shell.tsx 的桌面图标调用、phone.module.css 桌面图标/Dock规则、phone-desktop.tsx 与其 module.css、专属报告；独占HTTP3251、本人PG55456（既有phone-home-02私有dev/test库）、单一专属Ego浏览器；不使用其他执行者数据库；不改照片/服务端/notes应用|用户10-10反馈：所有App图标与首页排版仍差。统一可辨认iPhone式图标/标签、首页真实便签或选择记录入口、390/500/1440布局和实际导航，不提前放无效地图/任务入口，不称完整任务机制。check/build/READY公网后完成。 根稳定368c52b（6文件、树干净），487/487 check/build、本地实际PG+Ego95双端与便签保存刷新通过，390×500遮挡已修；资源3251/55456/Ego95已停止/finish，依赖链接移除，全部业务释放。交I串行集成/38迁移/最终check/build/READY公网后完成，详见PHONE-HOME-04报告。 I串行集成3ff0b3a，1ba0e6d生产READY；联合494check/build、38生产迁移一致。公网390×500 toolsBottom356.15<DockTop369、PC420居中；备忘录真实空态/微信/身份/暂停时间/现场/返回/切换实际通过，照片原2+3仍200。仅首页与图标完成，系统任务/地图/完整前史/头像同步未完成。|
-|PHOTO-AVATAR-UPDATE-01|[ ] 待开发|预分配唯一I；PHOTO-WORLD-02Q先给现状证据，开始时登记人物/素材/绑定/投影/界面实际文件与迁移|用户10-10反馈：我的中人物照片更换后旧分支仍旧图。先区分获准不可变设定快照、当前联系人头像与既有相册原图；为已带入且同源人物提供可实际执行的头像更新/同步，明确当前或多个已获准世界范围。不得更改旧聊天图片、历史场景或未经带入的世界，不把改头像当改剧本；版本/幂等/素材权限、刷新/同名人物/两世界/失败/删除真实PG与公网验收。|
+|PHOTO-AVATAR-UPDATE-01|[ ] 待验收|codex-avatarupdate01-01a11a84-20261010（唯一业务/迁移/部署I）|复用managed scene-index-transitions，从8e485f4冻结；仅新db/migrations/0039_current_person_avatars.sql；src/modules/profile/infrastructure/profile-repository.ts（既有command receipt沿用，写安全同步来源）；src/modules/world/infrastructure/build-repository.ts；src/modules/media/infrastructure/asset-repository.ts；src/features/interview/person-editor.tsx与必要person-editor.module.css；新tests/integration/person-avatar-update.test.ts、tests/integration/people-world.test.ts（只更新当前头像预期，保留人物身份/关系与所有历史seed/album）；tests/integration/role-grants.test.ts（仅新触发器识别白名单，保持app/worker无直接执行权限）、必要已有tests/integration/photo-world-02q.test.ts说明新旧头像边界；新docs/task-reports/PHOTO-AVATAR-UPDATE-01.md及本人主表/DEPLOYMENT。契约/client/interview-app、AI/媒体生成/notes/地图/LIB只读，扩大先登记。独占本人PG55450重新启用、HTTP3254必要双端；新专属单一Ego空间，0模型。|2026-10-10按最新人类继续开发/记录待用户验收要求领取；旧额度暂停限制撤销，根与辅助源码只读。已有ProfileEdit commandId回执及UI稳定pending request可复用，不再另造命令协议。当前联系人头像独立可变指针/版本/持久来源；资料更新与获准同sourcePersonId所有世界同步同事务，新增图只授权对应世界，seed/历史相册/聊天图片不变。SQL触发器负责跨投影一致性与生产保护，不让profile domain依赖world。先负例与真实PG/并发/同名/两世界/删除/失败回滚，check/build/新39生产迁移/READY/公网双端后技术验收；仍需用户体验验收，由根另列索引，不声称用户已验收。 范围扩登记：全DB暴露安全审计枚举将三个新不可直接执行trigger当遗漏授权，先注册仅role-grants trigger白名单，不给runtime开放private helper/trigger执行。 独立3badbed十文件冻结；494check/build、128完整PG=123pass/5可选skip通过，生产未应用39/未上线，用户体验验收仍待；保留红例/夹具错误及2旧契约失败记录。|
 |NOTES-WORLD-01|[ ] 待开发|NAR-02/03与BOOT-01的展示子包；预分配辅助界面，I先冻结玩家可见只读记录及唯一写入口后领取|便签区分“眼下要做的事/关于这段人生”系统记录与可编辑私人便签。初始处境和后续事项需有来源、状态与提示，不能由玩家随意改完成，不能泄导演秘密；不冒称原choice列表或手写待办即完整长期/短期任务引擎。无依据时真实空态，选择后果/刷新/只读写拒绝/隐私与双端验收。|
+|NOTES-WORLD-01Q|[ ] 待验收|codex-f-01a0c7c8-notesworld01q-20261010（根明确分配，仅分析子包）|本人独立 /Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本，codex/notes-world-01q，冻结8e485f4df9962c34654cce8e8e9e39ff3496a71e；仅docs/task-reports/NOTES-WORLD-01Q.md、本任务主表行及报告镜像。业务/类型/公共配置/迁移/phone只读，无模型/数据库/端口/构建/浏览器资源。；交付cdec2d7+4ca6ab1仅专属报告，独立工作树干净、主目录镜像一致。|2026-10-10只读方案提交cdec2d79db43b246edf122430459734a645cabc2及更正4ca6ab1a27a4eb2f0091318b03285066eb1cd424；首版独立GET records建议：公开身份/起点处境、近期choice/建议与邀约有来源且可回对话/日历，私人便签保留编辑。choice最多5条/同角色替代，不冒称长期任务引擎；导演私密commitment/无知情来源opening.notes不公开，旧世界真实空態，BOOT后续合法genesis统一。29现有路径、12待实施矩阵ID、格式/diff及报告唯一范围复核通过；最初矩阵规则失败及错误context路径已如实记入报告并更正，不改写历史。本轮业务/领域原型/模型/真实PG/check/build/UI/公网/部署均0，无资源。父NOTES-WORLD-01未实现；根读报告转I，avatar部署后I冻结契约再派UI，不自动发线程消息或领取其他任务。|
 |SPACE-02A|[ ] 待开发|SPACE-01Q/EXPERIENCE-10方案的实施前置；预分配I，冻结实际地点/人物位置/移动/到达事件及公共契约|现场参与与物理地点分开；合法目的地、耗时、故事时间、人物知情与约定冲突同事务保存，移动不替主角做现场行动。既有enterScene不当成到达；旧世界兼容，无地点资料不造坐标。真实PG/并发/幂等/回放、联系人反馈有来源。|
 |SPACE-02B|[ ] 待开发|依赖SPACE-02A；预分配辅助，I释放手机/客户端范围后领取|手机地图基于世界合法目的地，选择去哪→小型导航/过渡→显示过去多久和到达→现场可看/可做。动画仅表现已提交或在途真实移动，不假进度、不自造旅行成功；可减弱动效、失败/未知恢复、刷新位置与时间一致，390/短屏/PC/公网。|
+
+|USER-ACCEPT-01|[ ] 待验收|codex-main-useraccept01-20261010（根协调）；主目录仅本任务登记、第10节用户体验验收索引、docs/task-reports/USER-ACCEPT-01.md；不改业务/配置/SQL，不占模型/数据库/浏览器|用户10-10要求连续推进开发、留存以后统一体验验收的项目。区分技术交付与用户体验认可；从已读报告和上线证据列可验范围、步骤与限制，未来任务只列待开发而非可验收。保存原反馈，不把没有用户回复当通过；交I同批受控发布。|
+
+|NOTES-SAFETY-01|[ ] 进行中|codex-f-01a0c7c8-notessafety01-20261010（根明确开始，唯一执行者；I负责集成/部署）|独立 /Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本，codex/notes-safety-01，从8e485f4冻结，不复制0039；仅src/modules/world/infrastructure/postgres-world-repository.ts的saveNote及必要局部读取、新tests/integration/notes-safety.test.ts、docs/task-reports/NOTES-SAFETY-01.md，本人主表行及报告镜像。独占PG55458和本工作树check/build；无HTTP/浏览器/模型。其他domain/类型/SQL/API/build/profile/asset/phone/client/LIB只读，扩大先协调。|2026-10-10短锁领取：Q证据根已认可，与头像文件/55450无交叉。先真实PG红例双world同noteId覆盖、v1→v2→旧command重放，再最小修复；合法新UUID/旧openingID保持。受限角色/RLS/并发/事务回滚/原回执与最新状态/check/build验证后提交待验收，I合入并上线。|
+
+## 10. 用户体验验收索引（2026-10-10起，后续交付持续追加）
+
+用户最新要求：继续按依赖开发，不在每次交付后要求用户立即测试；把需要本人体验判断的内容留下来，之后询问“有什么没验收”时从本节回答。**开发与技术验证完成，不等于用户认可体验。** 本节只登记用户体验验收，不替代原任务的开发状态，不从用户未回复推断通过；已有反馈也不自动算后来修正版已被用户验收。
+
+阅读方法：第9节说明还有什么没开发；本节说明哪些已上线可体验、哪些以后上线再加入。正式入口仍使用本项目生产地址，具体最新部署以 DEPLOYMENT.md 为准。本次核对基线为8e485f4（首页业务3ff0b3a、诊断9748506、照片审查f1cc0c7）。后续版本合入后更新基线与影响行；代码已推送但未READY或未公网验证的项不能移入“可体验”。测试条数/单个模型成功不证明趣味性、自然度或产品整体可上架。
+
+### 已上线、需要用户体验判断的范围
+
+以下均为“本轮修正版未收到明确用户验收反馈”，并非邀请用户立即测试。统一入口是“聊聊 / 分支 / 我的”，进入已有分支需使用自己原来创建的游客会话；目前不承诺跨设备账号恢复。
+
+|核对项|对应任务与技术证据|以后可怎样验收|预期与边界|用户体验结论|
+|---|---|---|---|---|
+|A01 手机首页与图标|PHONE-HOME-04；3ff0b3a；报告记录本地与公网390短屏/PC|进入已有分支，解锁；查看四个Dock图标、标签、首页卡片和顶部返回/切换；打开微信、日历、相册、备忘录并返回；窄屏/短屏/电脑各看一次|布局不遮挡、无无效应用入口、返回切换直接可达；判断视觉与沉浸感是否达预期。地图与系统任务尚未含在本项|待用户体验；此前“图标丑/排版差”的反馈保留，不因技术检查通过当已认可|
+|A02 手机入口拆分|PHONE-HOME-03；5502662→e96cee6联合上线；DEPLOYMENT对应记录|检查首页没有旧混合“设置”；分别打开身份、时间、备忘录；通过顶部返回聊聊、切换人生|各入口用途清楚；没有当前世界导演改设定入口；备忘录现有私人便签可编辑，不能把它误认完整任务功能|待用户体验|
+|A03 聊天中构思按需展开|BRANCH-UI-02与BRANCH-FOCUS-01；e96cee6联合上线；生成可靠性限度见AI-RECOVERY-01|正常聊天时查看底部快捷入口，展开/收起构思；有明确想体验的身份时查看新构思；再单独使用主动探索|大卡片不持续占据聊天区；新focused构思一个方向，主动explore可多个方向；历史三方向记录不被删除。真实AI曾超时/偏移，最新单样本通过不能承诺每次成功|待用户体验；分支生成完整可靠性仍未技术验收闭合|
+|A04 创建前后修改边界|BRANCH-UI-02、PEOPLE-01R；草案/确认真实保存与公网证据|未确认草案编辑后保存并刷新；确认后再打开摘要；世界中查看人物与身份|确认前真实保存；确认后摘要只读，不展示无法使用的编辑按钮。确认后修改现实人物不改剧情历史；已有联系人头像同步另见待上线项|待用户体验；完整手机前史不属于此项|
+|A05 照片与说明一起发送|PHOTO-COMPOSE-02I/PHOTO-QA-03；1acb770生产31tjtsm88；后续视觉版本沿用|选图后先不发送，补“这是某某”等说明再一起发；生成期间另写草稿；保存后去“我的”查看对应人物并刷新|选图阶段不立即发送；原照片和说明同一条消息，下一条草稿不被清空；关联提示只能来自真实保存。当前单图/可区分两图组，非无限多图批量识别|待用户体验；用户曾报告错归生活照/漏关联，原失败保留|
+|A06 多图指代与错误关联保护|PHOTO-COMPOSE-02I、PHOTO-WORLD-02Q；f1cc0c7独立原图测试；主表限定证据|两张不同图片分轮说明“第一张是甲，第二张是乙”；同名人物分别查看；试“这不是甲/这是甲吗”等否定或疑问说明|可区分图片按原消息来源关联，姓名相同不混人；疑问/否定不自动绑。重复素材或过大歧义组可以不关联，需清楚提示，不把猜对一次当全语义通过|待用户体验；新两图模型样本曾unknown，不能称所有自然表达已通过|
+|A07 原图带入、头像与相册|PEOPLE-01R、PHOTO-WORLD-02Q；原图两旧世界公网200，跨账号404|在“我的”保存人物姓名/描述/照片，创建时选择带入；进入对应联系人与相册，刷新后重看；未选择人物不应出现|使用已获准原图，保留人物姓名及虚构身份，头像与相册素材对应。不是生成新场景照片，也不是人脸身份识别；换图同步待下项上线|待用户体验；已有旧世界原图历史不会被随意覆盖|
+|A08 读图是否有帮助|VISION-01I、VISION-01QA；6258884；实际6次视觉请求4完成2unknown，部分OCR/几何错误保留|发一张图片及具体问题，检查回复是否依据可见内容；否定“不要比较旧图”时检查没有擅自引入历史图片|具备本轮图文输入能力；不承诺视觉理解准确率、人脸身份判断或图生图。需要用户判断回复具体程度和引导价值，不能仅按有回复算通过|待用户体验与更多有界质量样例；图生图仍未实现|
+|A09 我的资料写入边界|BASICINFO-01、PEOPLE-02/PEOPLE-01R；3c51cdf修正；真实PG与公网三反例|现实信息、假设分支信息分开聊；在“我的”查看基础资料与身边的人，修改姓名和“我的描述”并刷新|明确现实陈述可以入资料，想成为的职业/虚构生日不应写现实档案；生日单值应与基础资料一致。不批量清理旧用户历史，所以旧重复数据可能仍需迁移/人工更正|待用户体验；历史资料整理/一般自然语言准确率不在有限反例通过中全部解决|
+|A10 失败时保留内容与恢复|PHOTO-COMPOSE-02I、AI-RECOVERY-01；9748506诊断|仅在方便时观察网络失败：照片说明与新草稿是否保留；失败/结果不确定是否区分；刷新检查已保存结果|失败重发保留原组合；unknown不自动新任务重付、相同命令回原结果。请求/响应/解析阶段诊断是服务端技术证据，用户只需判断提示是否清楚，勿反复生成来测超时|待用户体验；不会为了用户验收主动制造付费超时|
+
+### 尚未交付，先不要求用户验收
+
+本表为第9节的体验入口预告，开发状态继续以原任务行为准。部署并验证后把实际范围移到上一表，不把规划按钮或截图当可体验功能。
+
+|后续能力|任务|以后应验收的关键行为|现状|
+|---|---|---|---|
+|人物换图同步已有联系人|PHOTO-AVATAR-UPDATE-01|“我的”换同一人物头像→已有多个分支对应联系人更新；另一同名人物不变；原相册/聊天图片保留，刷新一致|已分配I开发；尚无新上线证据|
+|系统只读事项与人生说明|NOTES-WORLD-01、NOTES-WORLD-01Q、BOOT-01|备忘录看当前情况/需处理事项及来源；系统记录不能随便改完成，私人便签可编辑；隐藏信息不泄露|来源分析已交；先复现/修复NOTES-SAFETY-01保存边界，再冻结系统记录契约与界面接线|
+|地点移动、地图与到达反馈|SPACE-02A→02B|选合法地点→合理耗时过渡→到达后能看/能做；故事日期与人物消息/约定一致|待正式契约及实施；已有进入现场不等于完成移动|
+|像原来就有人使用的手机|BOOT-01|各联系人有可信历史对话，既有日历/便签/相册来自同一过去；初次收到的通知不是所有人同一时刻|完整前史未交付，不以旧世界个别历史记录替代|
+|新建和历史个人聊天|CHAT-SESS-02～06|新聊天有独立消息/草稿/图片，人物档案仍共享；构思使用对应来源，历史可恢复|只有规划/影响分析，未完成用户功能|
+|真正生成并发送新图片|M-01～03、IMG-CHAT-01|有依据且有配额地生成；角色消息与相册同一真实结果，失败与未知如实显示|当前生成累计0；原图上传与视觉读图不等于生成服务已通|
+|持续玩的动机、行动与反馈|NAR-02/03/04、EXP-06|眼下处境推动行动，选择改变人物后续行动和用户处境；回访通知有内容、有因果，不只是聊天陪答|部分导演/因果/记忆底座已做；完整任务、奖励与持续趣味仍需实现和整体体验|
+|官方完整预设与创作|LIB后续|体验相关人员提供的预设内容，再按启发创建自己的世界|内容编排尚未确定；在途私有创作代码没有纳入本次上线|
+
+### 用户反馈如何收尾
+
+用户之后反馈时，在相应A项记录日期、自己的明确结论、复现条件和关联修复任务；没有反馈继续保留“待用户体验”。若发现阻断，原开发任务按证据标需返工；只是不满意美观或趣味时，记录具体体验差距再设改进范围。不能把技术自审标[x]自动复制为用户通过，也不能把用户一句“继续”当某项已验收。语音仍按用户要求暂缓。正式账号/多人生管理/真人参与/支付/生产运维等旧范围保留在第9节，之后有真实可体验交付再追加本节。

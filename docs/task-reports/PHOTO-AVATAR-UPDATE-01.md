@@ -23,3 +23,5 @@
 0039/4源码/新PG/3既有PG/本报告共10精确文件。全数据库第一次128=121pass/2fail/5可选skip；两个失败分别旧people-world把current actor photo当历史冻结、通用role-grants要求所有trigger直接EXEC。先主表扩登记两个测试再精确修预期，旧关系/演员名字/seed/album/原图授权保持，三新definer trigger明确app与worker不可直接执行，实际存储写链及private sync helper直接42501已验证；没有新增runtime函数调用权限。修后原三个专项3/3、17照片专项全通过，最终128=123pass/0fail/5明确可选modelskip。494check及build通过，git diff --check通过；0真实模型/视觉/生成。尚未部署，不当作用户已验收。
 
 root冻结USER-ACCEPT第10节不覆盖；其两文档受控纳入本次记录提交，照片同步上线后才移入用户可体验清单。辅助NOTES-SAFETY源码不在本候选，另外报告按只读交付记录。下一步主目录cherry-pick、生产38旧校验+39新迁移、READY、公网自有合成人物API与双端保存换图/刷新/历史相册/跨owner；最后恢复原测试人物图片和清理临时新图。
+
+主目录25d7b88已串行合入独立3badbed。生产2026-10-09T18:41:50Z先验38旧checksum及待同步素材合法性（无效来源0），事务应用0039后39/39 checksum一致；app/worker均不能直接执行private sync helper。尚未推送部署，旧前端短窗口继续读历史binding，新存储同步已生效。根USER-ACCEPT与辅助只读NOTES-WORLD-Q按冻结文档纳入，NOTES-SAFETY在途源码/报告仍排除。
