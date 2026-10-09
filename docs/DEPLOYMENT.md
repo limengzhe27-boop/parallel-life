@@ -678,3 +678,9 @@ https://github.com/limengzhe27-boop/parallel-life
 联合业务981c3ad首次1i8xoeb5w READY，两名新合成访客40项公网照片→角色→真实方向/世界/NPC/原图/重读/幂等/隔离及旧现场4只读、无新节点回访0/0通过。独立复核随后发现三个虚构语境反例，不把首次READY当所有资料隔离完成。修正版3c51cdf（独立c5391cc），Production10sdj2uwh / dpl_69Y8KmzVenBfzZ8vgeY9FKdJBqUT READY，正式地址https://parallel-life-nu.vercel.app。38迁移校验一致，无新SQL；435check/83真实PG+5可选模型跳过/build通过。三新合成访客11次实际访谈验证否定回现实/假设身份不入现实资料，每例明确现实身份恢复正常；PG三最终保存入口拒绝。390/1440中性照片称呼可见无溢出，普通照片用于头像/相册，不进行面部身份推断。
 
 新增选图后图文一起发送和两图分两轮补说明由PHOTO-COMPOSE-02接续，单图真实漏入档尚须复现；手机完整前史、地图/视觉读图/图生图/朋友圈未交付。LIB-04B、BOOT等在途文件保留未入业务发布；不会重试旧unknown付费任务。见SCENE-03、TRANSITION-01、NAR-02SI、GUIDE-02I、PHOTO-ROLE-01、BASICINFO-01及PHOTO-QA-02报告。
+
+## 2026-10-09 · PHOTO-COMPOSE-02 图文组合与误绑修复
+
+业务1acb770（接6d3f66b、980ad2f及最终1ff96d6），Production31tjtsm88 / dpl_B7FRBFF19J69WM46AAxiwBpC9Ls1 READY，正式域名https://parallel-life-nu.vercel.app已切换。生产38迁移校验一致；447check、92真实PG/5显式可选模型跳过与build通过。照片选好再补说明统一发送、明确当前单图/可区分两图分别说明、正常进度、中性标签及持久关联反馈，疑问/否定/转述完整原句门与模型截断quote最终保存拒绝，失败重发保留原说明/新草稿。原28独立观察本人集成自审28通过，辅助新提交独立复验待回；公网实际四反例和肯定单图、真实浏览器离线失败后明确重发/刷新/390短屏/PC通过，原eabd025两图正例证据保留。两项新模型任务unknown不计成功、不自动重付；重复素材歧义组拒绝不放宽。不声称间歇模型/原分支错误根因全部已治，也不含视觉读图或首页新接线。详见PHOTO-COMPOSE-02I报告。
+
+MULTI_CHAT_PLAN及CHAT-SESS只读影响报告作为已批准规划快照，非多聊天功能交付；LIB在途源码未纳入。
