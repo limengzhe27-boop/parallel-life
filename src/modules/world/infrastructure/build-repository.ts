@@ -190,7 +190,14 @@ export class BuildRepository {
        ON e.world_id=i.world_id AND e.id=i.source_event_id AND e.owner_id=i.owner_id
        WHERE i.world_id=$1 AND i.owner_id=$2 AND i.kind='entry' AND e.version<=$3
        AND i.document->>'kind'='dialogue'
-       AND i.document->'observableTo' @> $4::jsonb`,
+       AND i.document->'observableTo' @> $4::jsonb
+       UNION
+       SELECT DISTINCT m.participant->>'actorId' AS actor_id
+       FROM parallel_life.world_group_memberships m
+       JOIN parallel_life.world_group_memberships p ON p.world_id=m.world_id AND p.group_id=m.group_id AND p.owner_id=m.owner_id
+       WHERE m.world_id=$1 AND m.owner_id=$2 AND m.participant->>'kind'='actor'
+       AND p.participant->>'kind'='player' AND m.joined_version <= $3 AND p.joined_version <= $3
+       AND GREATEST(m.joined_version,p.joined_version) < LEAST(COALESCE(m.left_version,$3+1),COALESCE(p.left_version,$3+1))`,
         [worldId, ownerId, state.version, JSON.stringify([{ kind: 'player' }])],
       ),
     );

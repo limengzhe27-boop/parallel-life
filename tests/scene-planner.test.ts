@@ -161,3 +161,63 @@ test('scene planner ignores exact related-state echoes but rejects invented stat
   response.matterUpdates[0]!.id = randomUUID();
   await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
 });
+
+test('free input exposes only eligible current matters, while unrelated IDs are still rejected', async () => {
+  const c = context();
+  const scope = {
+    ownerId: c.scene.ownerId,
+    worldId: c.scene.worldId,
+    sceneId: c.scene.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+  };
+  const id = randomUUID();
+  c.matters = [{ ...scope, id, title: 'PRIVATE_UNRELATED_MATTER', status: 'not_started' }];
+  c.action = {
+    ...scope,
+    id: randomUUID(),
+    commandId: randomUUID(),
+    text: '我观察墙上的光线',
+    kind: 'inspect',
+    intent: 'attempt',
+    status: 'pending',
+    relatedMatterIds: [],
+  };
+  const response = {
+    location: '棚内',
+    narration: '墙面有阴影。',
+    presentActorIds: [],
+    outcome: 'partial',
+    observation: '你看到了阴影。',
+    matterTitle: null,
+    matterUpdates: [],
+    dialogues: [],
+  };
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      assert(!messages[1]!.content.includes('PRIVATE_UNRELATED_MATTER'));
+      return JSON.stringify(response);
+    },
+  });
+  assert.deepEqual((await planner.propose(c)).matterUpdates, []);
+  response.matterUpdates = [{ id, status: 'in_progress' }] as never;
+  await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
+});
+
+test('director narration cannot invent private psychological states', async () => {
+  const c = context();
+  const p = {
+    location: '工作室',
+    narration: '小陈心里希望能赶快完成，显得有些焦虑。',
+    presentActorIds: [],
+    outcome: null,
+    observation: null,
+    matterTitle: null,
+    initialMatters: [],
+    matterUpdates: [],
+    dialogues: [],
+  };
+  await assert.rejects(new ScenePlanner({ complete: async () => JSON.stringify(p) }).propose(c), {
+    code: 'INVALID_PROPOSAL',
+  });
+});

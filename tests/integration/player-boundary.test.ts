@@ -162,10 +162,42 @@ test('real PostgreSQL player projection, memory writes and candidate second exit
       },
     );
     const hidden = state.actors.find((a) => a.name === '尚未相识的人')!;
+    await t.test(
+      'actual shared group membership introduces a contact without exposing persona',
+      async () => {
+        const { PostgresGroupRepository } =
+          await import('../../src/modules/world/infrastructure/group-repository.ts');
+        const groups = new PostgresGroupRepository(db);
+        const g = await groups.create(owner, {
+          worldId: state.id,
+          commandId: randomUUID(),
+          expectedVersion: state.version,
+          title: '共同协作',
+          actorIds: [hidden.id],
+        });
+        state = await worlds.get({ userId: owner }, state.id);
+        const phone = await builds.phone(owner, state.id);
+        assert(phone.actors.some((a) => a.id === hidden.id));
+        assert(!JSON.stringify(phone).includes(secret));
+        await groups.membership(owner, {
+          worldId: state.id,
+          groupId: g.groupId,
+          commandId: randomUUID(),
+          expectedVersion: state.version,
+          participant: { kind: 'player' },
+          action: 'leave',
+        });
+        state = await worlds.get({ userId: owner }, state.id);
+        assert(
+          (await builds.phone(owner, state.id)).actors.some((a) => a.id === hidden.id),
+          'past shared contact remains known after leaving',
+        );
+      },
+    );
     const command = {
       id: randomUUID(),
       worldId: state.id,
-      expectedVersion: 0,
+      expectedVersion: state.version,
       actorId: hidden.id,
       text: '你好',
     };
@@ -173,7 +205,7 @@ test('real PostgreSQL player projection, memory writes and candidate second exit
       schemaVersion: 1 as const,
       id: randomUUID(),
       worldId: state.id,
-      version: 1,
+      version: state.version + 1,
       commandId: command.id,
       type: 'turn.resolved' as const,
       occurredAt: new Date().toISOString(),

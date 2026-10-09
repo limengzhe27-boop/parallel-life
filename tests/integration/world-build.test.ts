@@ -141,7 +141,7 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
         mayShare: true,
       },
     ]);
-    assert.equal(phone.notes[0]?.title, '今天');
+    assert.deepEqual(phone.notes, []);
     const actorId = phone.actors[0]!.id;
     const worlds = new PostgresWorldRepository(db);
     const choiceCommand: TurnCommand = {

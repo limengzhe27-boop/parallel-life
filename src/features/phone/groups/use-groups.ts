@@ -1,12 +1,47 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeGroupDetail } from './state.ts';
-import { GroupClient, type GroupDetail, type GroupList } from './client.ts';
+import { GroupClient, type GroupDetail, type GroupList, type GroupTask } from './client.ts';
 /** Group query cache only. Canonical World versions are always read from the API. */
 export function useGroups(worldId: string, enabled: boolean, onWorldChanged?: () => Promise<void>) {
   const client = useMemo(() => new GroupClient(), [worldId]);
   const [list, setList] = useState<{ worldId: string; value: GroupList }>();
   const [details, setDetails] = useState<Record<string, GroupDetail>>({});
+  const [watchedTasks, setWatchedTasks] = useState<Record<string, GroupTask>>({});
+  const watchTask = useCallback(
+    (task: GroupTask) =>
+      setWatchedTasks((old) => {
+        const next = { ...old };
+        if (['queued', 'running'].includes(task.status)) next[task.id] = task;
+        else delete next[task.id];
+        return next;
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (
+      !enabled ||
+      !Object.values(watchedTasks).some((t) => ['queued', 'running'].includes(t.status))
+    )
+      return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      for (const task of Object.values(watchedTasks)) {
+        if (!['queued', 'running'].includes(task.status)) continue;
+        void client
+          .task(task.id)
+          .then((t) => {
+            if (mounted.current) {
+              watchTask(t);
+              if (!['queued', 'running'].includes(t.status))
+                void changed.current?.().catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [client, enabled, watchedTasks]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const generation = useRef(0),
@@ -81,6 +116,8 @@ export function useGroups(worldId: string, enabled: boolean, onWorldChanged?: ()
   }, [refresh]);
   return {
     client,
+    watchTask,
+    pending: Object.values(watchedTasks).some((t) => ['queued', 'running'].includes(t.status)),
     worldId,
     enabled,
     list: enabled && list?.worldId === worldId ? list.value : undefined,

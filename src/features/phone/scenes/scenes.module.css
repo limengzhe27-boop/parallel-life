@@ -1,0 +1,162 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  color: var(--phone-text, #17212f);
+  background: #f5f4f0;
+  min-height: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+.panel button {
+  min-height: 44px;
+  border: 1px solid #d7ddd9;
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: white;
+  color: #224b42;
+  font: inherit;
+  cursor: pointer;
+}
+.panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.panel button:focus-visible,
+.panel textarea:focus-visible {
+  outline: 2px solid #287866;
+  outline-offset: 2px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e0e3dc;
+  border-radius: 16px;
+  padding: 14px;
+}
+.card h3 {
+  margin: 5px 0;
+  font-size: 19px;
+}
+.card p {
+  line-height: 1.7;
+}
+.buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stream {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.entry {
+  border-left: 3px solid #b3c8bc;
+  padding: 4px 12px;
+  white-space: pre-wrap;
+  line-height: 1.8;
+  font-size: 14px;
+}
+.entry small {
+  display: block;
+  color: #66736b;
+  font-size: 12px;
+}
+.dialogue {
+  border-left-color: #d3ad78;
+  background: #fffcf5;
+  border-radius: 4px;
+}
+.user {
+  border-left-color: #6489c0;
+  background: #edf3fa;
+  border-radius: 4px;
+}
+.result {
+  border-left-color: #588978;
+  background: #edf4ee;
+  border-radius: 4px;
+}
+.place {
+  text-align: center;
+  color: #627165;
+  font-size: 12px;
+}
+.composer {
+  flex-shrink: 0;
+  background: #f5f4f0;
+  padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.composer textarea {
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 66px;
+  max-height: 130px;
+  border: 1px solid #c9d3cc;
+  border-radius: 12px;
+  padding: 12px;
+  background: white;
+  color: #17212f;
+  font: inherit;
+}
+.notice {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #59685c;
+}
+.panel details summary {
+  min-height: 44px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.panel time {
+  font-size: 12px;
+  color: #67766b;
+}
+.panel form {
+  margin: 0;
+}
+.panel ul {
+  padding-left: 20px;
+}
+.panel li {
+  padding: 6px 0;
+}
+
+.scenePanel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.reading {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 2px;
+}
+.scenePanel > button {
+  flex-shrink: 0;
+}
+@media (max-height: 620px) {
+  .scenePanel {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+  .reading {
+    overflow: visible;
+    flex: none;
+  }
+  .composer textarea {
+    min-height: 44px;
+  }
+}

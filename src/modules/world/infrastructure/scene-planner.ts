@@ -75,7 +75,9 @@ export class ScenePlanner implements ScenePlannerPort {
         kind: e.kind,
         ...('text' in e ? { text: e.text } : {}),
       })),
-      matters: c.matters.map((m) => ({ id: m.id, title: m.title, status: m.status })),
+      matters: c.matters
+        .filter((m) => !c.action || c.action.relatedMatterIds.includes(m.id))
+        .map((m) => ({ id: m.id, title: m.title, status: m.status })),
       currentAction: c.action
         ? {
             performedBy: 'PLAYER (you), NOT ' + c.world.actors.map((a) => a.name).join(', '),
@@ -94,13 +96,13 @@ export class ScenePlanner implements ScenePlannerPort {
       [
         {
           role: 'system',
-          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。日程约定者不等于到场者：开场只能从actors中选择实际在场者，允许为空；无action时outcome/observation必须null，可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? 'Observable result of this action' : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [] })}。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；completed仅由succeeded支撑，blocked须failed/partial。事项not_started只能到in_progress；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
+          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。日程约定者不等于到场者：开场只能从actors中选择实际在场者，允许为空；无action时outcome/observation必须null，可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? 'Observable result of this action' : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [] })}。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；没有关联事项时matters=[]，必须matterUpdates=[]，仍正常裁定行动观察，不自行猜测事项ID；completed仅由succeeded支撑，blocked须failed/partial。事项not_started只能到in_progress；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
         },
         {
           role: 'user',
           content:
             JSON.stringify(payload) +
-            `\nCURRENT TASK: ${c.action ? (c.action.intent === 'attempt' ? 'Adjudicate the saved currentAction. Non-null outcome and observation REQUIRED. matterTitle=null.' : 'Record the plan/hypothesis only. outcome/observation=null.') : 'Generate the observable opening. No executed outcome.'} history is PAST, do not copy its dialogues or output its previous results. The currentAction was attempted by the PLAYER, never by an NPC. Do not change who acted. Narration describes the physical environment only; NPC actions and responses come ONLY from separate NPC calls. Observation must address the PLAYER as YOU, never substitute an actor name for the player. No hidden thoughts or feelings. dialogues MUST be [] because NPCs speak separately. ${c.action ? 'presentActorIds MUST equal ' + JSON.stringify(candidates.map((a) => a.id)) : ''} When deferredUntilAnotherPlayerInput is non-null, ONLY adjudicate currentAction.text and stop at the unanswered question. Never execute the deferred clause; outcome is partial or failed. If an actual attempt starts a related not_started matter, propose in_progress for that matter. Opening initialMatters must be an array of objects with ONLY a title string naming an actual step from this appointment, never copy a fact object, id, text or visibility. It can contain the necessary concrete small steps from this appointment; do not impose a fixed task count. matterTitle is legacy and should be null. On actions, initialMatters=[] and matterTitle=null; do not create new tasks. On opening, location must be a concrete non-empty Chinese place string, never null; derive it from the appointment. On actions, keep location equal to currentPlace.location until the player explicitly leaves; movement only changes observable position within this scene. All narrative text in Chinese.`,
+            `\nCURRENT TASK: ${c.action ? (c.action.intent === 'attempt' ? 'Adjudicate the saved currentAction. Non-null outcome and observation REQUIRED. matterTitle=null.' : 'Record the plan/hypothesis only. outcome/observation=null.') : 'Generate the observable opening. No executed outcome.'} history is PAST, do not copy its dialogues or output its previous results. The currentAction was attempted by the PLAYER, never by an NPC. Do not change who acted. Narration describes ONLY the physical environment: never invent anyone's thoughts, hopes, anxieties, wishes or emotions, even when the history did. Do not describe NPC actions here; NPC actions and responses come ONLY from separate NPC calls. Observation must address the PLAYER as YOU, never substitute an actor name for the player. No hidden thoughts or feelings. dialogues MUST be [] because NPCs speak separately. ${c.action ? 'presentActorIds MUST equal ' + JSON.stringify(candidates.map((a) => a.id)) : ''} When deferredUntilAnotherPlayerInput is non-null, ONLY adjudicate currentAction.text and stop at the unanswered question. Never execute the deferred clause; outcome is partial or failed. If an actual attempt starts a related not_started matter, propose in_progress for that matter. Opening initialMatters must be an array of objects with ONLY a title string naming an actual step from this appointment, never copy a fact object, id, text or visibility. It can contain the necessary concrete small steps from this appointment; do not impose a fixed task count. matterTitle is legacy and should be null. On actions, initialMatters=[] and matterTitle=null; do not create new tasks. On opening, location must be a concrete non-empty Chinese place string, never null; derive it from the appointment. On actions, keep location equal to currentPlace.location until the player explicitly leaves; movement only changes observable position within this scene. All narrative text in Chinese.`,
         },
       ],
       signal,
@@ -130,6 +132,8 @@ export class ScenePlanner implements ScenePlannerPort {
     if (c.action && currentPlace?.kind === 'time_place') p.location = currentPlace.location;
     if (c.action && p.initialMatters?.every((m) => c.matters.some((old) => old.title === m.title)))
       p.initialMatters = [];
+    if (/内心|心里|暗自|焦虑|担心|希望(?:能|可以)|想着/u.test(p.narration))
+      throw new DomainError('INVALID_PROPOSAL', 'Narration must stay observable');
     const ids = new Set(candidates.map((a) => a.id));
     if (
       new Set(p.presentActorIds).size !== p.presentActorIds.length ||

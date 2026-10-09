@@ -33,7 +33,8 @@ const apps: Record<PhoneApp, string> = {
 const panels: Record<PhonePanel, string> = {
   schedule: '日程',
   timeline: '人生轨迹',
-  director: '导演',
+  time: '时间管理',
+  scene: '现场',
   management: '人生管理',
 };
 export type PhoneNotification = {
@@ -446,7 +447,7 @@ function LifePhone({
         </div>
         {route.panel && (
           <div
-            key={route.panel}
+            key={`${route.panel}:${route.panel === 'scene' ? (route.target ?? 'current') : ''}`}
             ref={panelScroll}
             className={styles.panelPage}
             data-phone-panel
@@ -461,8 +462,8 @@ function LifePhone({
                 <button onClick={() => navigate({ ...route, panel: 'timeline' })}>
                   当前身份与经历 <PhoneIcon name="next" />
                 </button>
-                <button onClick={() => navigate({ ...route, panel: 'schedule' })}>
-                  故事时间与安排 <PhoneIcon name="next" />
+                <button onClick={() => navigate({ ...route, panel: 'time' })}>
+                  暂停或调整时间 <PhoneIcon name="next" />
                 </button>
                 <a href="/">
                   返回现实中的我 <PhoneIcon name="next" />
@@ -470,7 +471,7 @@ function LifePhone({
                 <a href="/possibilities">
                   切换人生 <PhoneIcon name="next" />
                 </a>
-                <p>暂停、账号和删除将在对应能力接入后开放。</p>
+                <p>账号和删除尚未开放。</p>
               </div>
             ) : renderPanel ? (
               renderPanel(route.panel)

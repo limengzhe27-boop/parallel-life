@@ -6,6 +6,7 @@ import type {
   PhoneAppsData,
   PhoneCommandResults,
 } from './types.ts';
+import type { GroupsController } from '../groups/use-groups.ts';
 import { errorText } from './helpers.ts';
 export type Operation = {
   busy?: boolean;
@@ -18,6 +19,7 @@ export type Operation = {
 };
 export type NoteDraft = { title: string; text: string; expectedVersion?: number };
 type Context = {
+  groups?: GroupsController;
   worldId: string;
   data: PhoneAppsData;
   actions: PhoneActions;
@@ -38,6 +40,7 @@ type Context = {
 };
 const AppsContext = createContext<Context | null>(null);
 export type PhoneAppsProviderProps = {
+  groups?: GroupsController;
   worldId: string;
   data: PhoneAppsData;
   actions?: PhoneActions;
@@ -58,6 +61,7 @@ function WorldApps({
   loadError,
   onReload,
   commandResults,
+  groups,
   children,
 }: PhoneAppsProviderProps) {
   const [drafts, updateDrafts] = useState<Record<string, string>>({});
@@ -145,6 +149,7 @@ function WorldApps({
   return (
     <AppsContext.Provider
       value={{
+        groups,
         worldId,
         data,
         actions,

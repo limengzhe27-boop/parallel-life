@@ -49,12 +49,23 @@ const EMOJI_LIST = [
 ];
 
 export function MessagesApp({ target, open }: PhoneAppContext) {
-  const { worldId, data, actions, drafts, setDraft, operations, run, onReload } = usePhoneApps();
-  const groups = useGroups(
+  const {
     worldId,
-    Id.safeParse(worldId).success && Boolean(actions.sendMessage),
+    data,
+    actions,
+    drafts,
+    setDraft,
+    operations,
+    run,
+    onReload,
+    groups: sharedGroups,
+  } = usePhoneApps();
+  const fallbackGroups = useGroups(
+    worldId,
+    !sharedGroups && Id.safeParse(worldId).success && Boolean(actions.sendMessage),
     onReload,
   );
+  const groups = sharedGroups ?? fallbackGroups;
   const [creatingGroup, setCreatingGroup] = useState(false);
   const groupId = parseGroupTarget(target);
   const [tab, setTab] = useState<'chats' | 'contacts' | 'discover' | 'me'>('chats');
@@ -766,7 +777,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           {[
             { id: 'chats', label: '微信', icon: '💬', badge: totalUnread },
             { id: 'contacts', label: '通讯录', icon: '👥', badge: 0 },
-            { id: 'discover', label: '发现', icon: '🧭', badge: -1 }, // -1 代表纯红点
+            { id: 'discover', label: '发现', icon: '🧭', badge: 0 }, // -1 代表纯红点
             { id: 'me', label: '我', icon: '👤', badge: 0 },
           ].map((item) => {
             const active = tab === item.id;

@@ -120,7 +120,7 @@ test('private trial pins an owned revision, creates one queued world per command
     const phone = await new BuildRepository(f.db).phone(f.owner, a.worldId);
     assert.deepEqual(
       phone.actors.map((c) => c.name),
-      f.content.characters.map((c) => c.name),
+      [f.content.characters[0]!.name],
     );
     assert.equal(phone.identity, f.content.setup.identity);
     assert.equal(phone.messages[0]!.actorId, phone.actors[0]!.id);
@@ -130,6 +130,10 @@ test('private trial pins an owned revision, creates one queued world per command
       [a.worldId],
     );
     assert.deepEqual(snapshot.rows[0].approved_seed, seed);
+    assert.deepEqual(
+      snapshot.rows[0].state.actors.map((actor: { name: string }) => actor.name),
+      f.content.characters.map((actor) => actor.name),
+    );
     assert.equal(snapshot.rows[0].state.actorTies[0].fromActorId, phone.actors[0]!.id);
     const second = await f.trials.create(f.owner, f.draft.id, {
       commandId: randomUUID(),

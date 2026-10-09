@@ -88,6 +88,7 @@ export type PhoneAppsData = {
 };
 export type PhoneActionReceipt = { status: 'accepted' | 'committed'; taskId?: string };
 export type PhoneActions = {
+  enterScene?: (appointmentId: string) => Promise<PhoneActionReceipt>;
   setWallpaper?: (url: string) => void;
   uploadPhoto?: (file: File, commandId: string) => Promise<PhoneActionReceipt>;
   sendMessage?: (actorId: string, text: string, commandId: string) => Promise<PhoneActionReceipt>;

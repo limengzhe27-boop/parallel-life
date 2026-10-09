@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react';
 import type { PhoneApp, PhonePanel } from './navigation.ts';
 const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode> = {
+  scene: (
+    <>
+      <path d="M4 26V8l12-4 12 4v18M10 26V13h12v13M16 13v13" />
+    </>
+  ),
   management: (
     <>
       <circle cx="16" cy="16" r="10" />
@@ -84,7 +89,7 @@ const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode
       <path d="m18 8 6 4-6 4" />
     </>
   ),
-  director: (
+  time: (
     <>
       <rect x="5" y="11" width="22" height="16" rx="3" />
       <path d="m5 11 21-5-1-4L4 7zM10 6l4 4M19 4l4 4m-10 9 7 4-7 4z" />

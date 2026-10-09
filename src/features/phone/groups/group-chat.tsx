@@ -59,6 +59,9 @@ export function GroupChat({
     restoredElement = useRef<HTMLDivElement | null>(null),
     nearBottom = useRef(true),
     lastRead = useRef(0);
+  useEffect(() => {
+    if (task) groups.watchTask(task);
+  }, [task, groups.watchTask]);
   const pendingKey = localGroupKey(groups.worldId, id, 'pending'),
     draftKey = localGroupKey(groups.worldId, id, 'draft'),
     scrollKey = localGroupKey(groups.worldId, id, 'scroll');

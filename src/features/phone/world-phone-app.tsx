@@ -7,7 +7,12 @@ import {
   worldWeekday,
   worldDateTimeLabel,
 } from '../../modules/world/domain/display-time.ts';
-import { DirectorPanel } from './director-panel.tsx';
+import { TimePanel } from './time-panel.tsx';
+import { ScenePanel } from './scenes/scene-panel.tsx';
+import { SceneClient } from './scenes/client.ts';
+import { useGroups } from './groups/use-groups.ts';
+import { isJoined, groupTarget } from './groups/state.ts';
+import { projectMessageNotifications } from './notification-projection.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
@@ -38,11 +43,20 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
   const directorCheck = useRef<() => void>(() => {});
   const directorInFlight = useRef(false);
   const directorAttemptedKeys = useRef(new Set<string>());
+  const experienceBusy = useRef(false);
+  const setExperienceBusy = useCallback(
+    (busy: boolean) => {
+      experienceBusy.current = busy;
+      phoneReady.current.sending = busy || localMessages.some((m) => m.status === 'pending');
+    },
+    [localMessages],
+  );
   const phoneReady = useRef({ hasData: false, refreshing: true, sending: false });
   phoneReady.current = {
     hasData: data?.id === worldId,
     refreshing,
-    sending: localMessages.some((message) => message.status === 'pending'),
+    sending:
+      experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
   };
 
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
@@ -376,6 +390,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
             void load();
             return { status: receipt.status };
           }}
+          onExperienceBusy={setExperienceBusy}
           localMessages={localMessages}
           onReload={load}
           loading={refreshing}
@@ -388,6 +403,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
 
 export function WorldPhoneSurface({
   data,
+  onExperienceBusy,
   preview = false,
   onReload,
   onChangeInvitation,
@@ -400,6 +416,7 @@ export function WorldPhoneSurface({
   loadError,
 }: {
   data: WorldPhone;
+  onExperienceBusy?: (busy: boolean) => void;
   preview?: boolean;
   onReload?: () => Promise<void>;
   onChangeInvitation?: PhoneActions['changeInvitation'];
@@ -566,6 +583,30 @@ export function WorldPhoneSurface({
     }
   }, [data.id]);
 
+  const [sceneWaiting, setSceneWaiting] = useState(false);
+  const sceneClient = useMemo(() => new SceneClient(), [data.id]);
+  const groups = useGroups(data.id, !preview, onReload);
+  useEffect(() => {
+    if (!sceneWaiting || preview) return;
+    const timer = setInterval(() => {
+      void sceneClient
+        .read(data.id)
+        .then((d) => {
+          setSceneWaiting(Boolean(d.task && ['queued', 'running'].includes(d.task.status)));
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [sceneWaiting, sceneClient, data.id, preview]);
+  useEffect(() => {
+    onExperienceBusy?.(sceneWaiting || groups.pending);
+  }, [sceneWaiting, groups.pending, onExperienceBusy]);
+  useEffect(() => {
+    void groups.refresh();
+  }, [data.version, groups.refresh]);
+  const enterCommand = useRef<
+    { appointmentId: string; commandId: string; version: number } | undefined
+  >(undefined);
   const [directorNotice, setDirectorNotice] = useState<string | null>(null);
 
   const [callingActor, setCallingActor] = useState<WorldPhone['actors'][number] | null>(null);
@@ -592,11 +633,63 @@ export function WorldPhoneSurface({
   return (
     <PhoneAppsProvider
       worldId={data.id}
+      groups={groups}
       data={phoneData}
       loading={loading}
       loadError={loadError}
       onReload={onReload}
       actions={{
+        enterScene: preview
+          ? undefined
+          : async (appointmentId) => {
+              setSceneWaiting(true);
+              try {
+                if (enterCommand.current?.appointmentId !== appointmentId)
+                  enterCommand.current = {
+                    appointmentId,
+                    commandId: crypto.randomUUID(),
+                    version: data.version ?? 0,
+                  };
+                const existing = await sceneClient.read(data.id);
+                let receipt;
+                if (
+                  existing.scene &&
+                  existing.scene.appointmentId === appointmentId &&
+                  existing.scene.status !== 'ended'
+                ) {
+                  receipt = await sceneClient.navigate(data.id, existing.scene.id, {
+                    commandId: crypto.randomUUID(),
+                    expectedVersion: existing.worldVersion,
+                    view: 'scene',
+                  });
+                } else {
+                  receipt = await sceneClient.enter(data.id, {
+                    commandId: enterCommand.current.commandId,
+                    expectedVersion: enterCommand.current.version,
+                    appointmentId,
+                  });
+                }
+                window.location.hash = routeHash(data.id, {
+                  app: null,
+                  panel: 'scene',
+                  target: receipt.sceneId,
+                });
+                await onReload?.();
+                if (receipt.task?.status === 'queued') {
+                  await sceneClient.execute(receipt.task.id);
+                  await onReload?.();
+                }
+                return { status: 'committed' };
+              } catch (e) {
+                if (e instanceof ApiFailure && e.code === 'VERSION_CONFLICT') {
+                  enterCommand.current = undefined;
+                  await Promise.allSettled([onReload?.()]);
+                }
+                throw e;
+              } finally {
+                setSceneWaiting(false);
+              }
+            },
         changeInvitation: preview ? undefined : onChangeInvitation,
         sendMessage: preview ? undefined : onSendMessage,
         retryMessage: preview ? undefined : onRetryMessage,
@@ -624,33 +717,50 @@ export function WorldPhoneSurface({
         timeLabel={timeLabel}
         wallpaperUrl={wallpaperUrl}
         notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
+        referenceTime={currentReferenceTime}
+        onOpenNotification={(notification) => {
+          window.location.hash = routeHash(data.id, {
+            app: notification.app,
+            target:
+              notification.conversationKind === 'group' && notification.target
+                ? groupTarget(notification.target)
+                : notification.target,
+          });
+        }}
         notifications={[
-          ...mergedData.messages
-            .filter((m) => m.role !== 'user' && !viewed.has(m.id))
-            .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-            .slice(0, 4)
-            .map((m) => ({
-              id: m.id,
-              title: data.actors.find((a) => a.id === m.actorId)?.name ?? '微信消息',
-              summary: m.text,
-              app: 'messages' as const,
-              target: m.actorId,
-              timeLabel: formatChatTime(m.at, currentReferenceTime),
+          ...projectMessageNotifications(mergedData.messages, data.actors, viewed, (at) =>
+            formatChatTime(at, currentReferenceTime),
+          ),
+          ...Object.values(groups.details)
+            .filter((d) => isJoined(d.group))
+            .flatMap((d) =>
+              d.messages
+                .filter((m) => m.sender.kind === 'actor' && m.sourceVersion > d.lastReadVersion)
+                .map((m) => ({
+                  id: m.id,
+                  title: d.group.title,
+                  summary: m.text,
+                  app: 'messages' as const,
+                  conversationKind: 'group' as const,
+                  target: d.group.id,
+                  at: d.messageTimes[m.id]!.storyAt,
+                  timeLabel: formatChatTime(d.messageTimes[m.id]!.storyAt, currentReferenceTime),
+                })),
+            ),
+          ...(data.invitations ?? [])
+            .filter(
+              (inv) =>
+                inv.status === 'proposed' && Date.parse(inv.at) > Date.parse(currentReferenceTime),
+            )
+            .map((inv) => ({
+              id: `notif-inv-${inv.id}`,
+              title: inv.title,
+              summary: `${worldDateTimeLabel(inv.at)} · 邀请 · 待回复`,
+              app: 'calendar' as const,
+              target: inv.id,
+              actionableUntil: inv.at,
+              timeLabel: '待回复',
             })),
-          ...(data.invitations && data.invitations.length > 0
-            ? data.invitations
-                .filter((inv) => inv.status === 'proposed')
-                .slice(0, 1)
-                .map((inv) => ({
-                  id: `notif-inv-${inv.id}`,
-                  title: inv.title,
-                  summary: `${worldDateTimeLabel(inv.at)} · ${inv.status === 'confirmed' ? '已约好' : '邀请 · 待回复'}`,
-                  app: 'calendar' as const,
-                  target: inv.id,
-                  timeLabel: inv.status === 'confirmed' ? '已约好' : '待回复',
-                }))
-            : /* 没有真实约定就不伪造日历通知 */
-              []),
         ]}
         renderHome={({ openPanel }) => (
           <div className={styles.lifeDesktop}>
@@ -660,12 +770,18 @@ export function WorldPhoneSurface({
               <span>{data.setting}</span>
             </button>
             <div className={styles.utilityApps}>
-              {(['timeline', 'director', 'management'] as const).map((panel) => (
+              {(['timeline', 'scene', 'time', 'management'] as const).map((panel) => (
                 <button key={panel} data-panel={panel} onClick={() => openPanel(panel)}>
                   <span>
                     <PhoneIcon name={panel} />
                   </span>
-                  {panel === 'timeline' ? '我的身份' : panel === 'director' ? '导演' : '人生管理'}
+                  {panel === 'timeline'
+                    ? '我的身份'
+                    : panel === 'scene'
+                      ? '现场'
+                      : panel === 'time'
+                        ? '时间管理'
+                        : '人生管理'}
                 </button>
               ))}
             </div>
@@ -1259,17 +1375,26 @@ export function WorldPhoneSurface({
                     🚩 当前剧情篇章
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.6 }}>
-                    第一幕 ·
-                    做出选择后的第一个清晨。你已收到身边人的来信与碰头邀约。建议在微信与日历中深入探索，逐渐推动关系演化。
+                    {data.setting}
                   </div>
                 </div>
               </div>
             );
           }
 
-          if (panel === 'director') {
+          if (panel === 'scene')
+            return (
+              <ScenePanel
+                key={data.id}
+                worldId={data.id}
+                contacts={phoneData.contacts}
+                onWorldChanged={onReload}
+                onBusy={setSceneWaiting}
+              />
+            );
+          if (panel === 'time') {
             /* 真实控制：时间（暂停/倍速/推进）与导演要求（主题/节奏/聚焦 + 先看影响）。 */
-            return <DirectorPanel client={client} worldId={data.id} onWorldChanged={onReload} />;
+            return <TimePanel client={client} worldId={data.id} onWorldChanged={onReload} />;
           }
 
           if (panel === 'management') {
@@ -1447,9 +1572,9 @@ export function WorldPhoneSurface({
                 >
                   {[
                     {
-                      label: '与导演讨论剧情',
+                      label: '暂停或调整时间',
                       action: () => {
-                        window.location.hash = routeHash(data.id, { app: null, panel: 'director' });
+                        window.location.hash = routeHash(data.id, { app: null, panel: 'time' });
                       },
                       icon: '🎬',
                     },

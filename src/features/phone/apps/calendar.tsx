@@ -441,11 +441,22 @@ function InvitationDetail({
       </section>
       {n.status === 'proposed' && <p className={s.info}>这是一个邀约，还没有替你答应。</p>}
       {n.status === 'confirmed' && isDue && (
-        <p className={s.info}>约定的时间已到。是否赴约，由你自己记录；不会根据时间替你判定。</p>
+        <p className={s.info}>
+          约定时间已到或已过去。前往前可以先确认对方是否仍在；不会根据日期替你赴约或判定失约。
+        </p>
       )}
       <Links links={n.links} open={open} />
       {(n.status === 'proposed' || n.status === 'confirmed') && (
         <div className={s.invitationActions}>
+          {n.status === 'confirmed' && isDue && actions.enterScene && (
+            <button
+              className={s.primary}
+              disabled={operation?.busy}
+              onClick={() => void run(`scene-enter:${n.id}`, n.id, () => actions.enterScene!(n.id))}
+            >
+              进入现场
+            </button>
+          )}
           {n.status === 'confirmed' && leadActor && (
             <button
               className={`${s.primary} ${s.wideAction}`}

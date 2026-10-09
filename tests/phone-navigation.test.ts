@@ -30,12 +30,12 @@ test('scroll positions are isolated by life, application and record, not by auxi
 });
 
 test('phone internal auxiliary pages retain old deep links and return to their app record', () => {
-  for (const panel of ['schedule', 'timeline', 'director', 'management'] as const) {
+  for (const panel of ['schedule', 'timeline', 'time', 'management'] as const) {
     const route = { app: 'messages' as const, target: 'record-24', panel };
     assert.deepEqual(readRoute(routeHash('life', route), 'life'), route);
     assert.deepEqual(parentRoute(route), { app: 'messages', target: 'record-24' });
   }
-  assert.deepEqual(parentRoute({ app: null, panel: 'director' }), { app: null });
+  assert.deepEqual(parentRoute({ app: null, panel: 'time' }), { app: null });
 });
 
 test('desktop exposes exactly WeChat, calendar, photos and notes', async () => {
@@ -55,4 +55,11 @@ test('unlock gesture accepts upward intent and rejects taps, downward and invali
   assert.equal(isUnlockSwipe(400, 380), false);
   assert.equal(isUnlockSwipe(400, 500), false);
   assert.equal(isUnlockSwipe(NaN, 0), false);
+});
+
+test('old director links open time management and scene links retain their saved ID', () => {
+  assert.deepEqual(readRoute('#life=life&panel=director', 'life'), { app: null, panel: 'time' });
+  const route = { app: null, panel: 'scene' as const, target: 'scene-id' };
+  assert.deepEqual(readRoute(routeHash('life', route), 'life'), route);
+  assert.deepEqual(parentRoute(route), { app: null });
 });
