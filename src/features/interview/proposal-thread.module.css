@@ -1,0 +1,80 @@
+.shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 0;
+}
+.shortcut > button {
+  min-height: 44px;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.shortcut > span {
+  color: #a8b9d0;
+  font-size: 12px;
+}
+.dialog:global(.modal) {
+  color: #edf4ff;
+  background: #10233d;
+  border: 1px solid #304763;
+  width: min(430px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  --text: #edf4ff;
+  --bg: #10233d;
+  --surface: #10233d;
+  --primary: #347bfa;
+  --muted: #a8b9d0;
+}
+.content {
+  display: grid;
+  gap: 16px;
+  line-height: 1.7;
+  min-width: 0;
+}
+.content p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.content a {
+  color: inherit;
+  display: inline-block;
+  margin: 6px 0;
+}
+.direction {
+  display: grid;
+  gap: 14px;
+}
+.direction h3 {
+  margin: 0;
+  font-size: 20px;
+}
+.direction label {
+  display: grid;
+  gap: 8px;
+  color: #a8b9d0;
+  font-size: 13px;
+}
+.direction select {
+  background: #081426;
+  color: #edf4ff;
+  border: 1px solid #304763;
+  padding: 12px;
+  border-radius: 12px;
+  max-width: 100%;
+  min-height: 44px;
+}
+.hint {
+  color: #a8b9d0;
+  font-size: 13px;
+}
+.actions {
+  display: grid;
+  gap: 8px;
+}
+@media (max-height: 620px) {
+  .content {
+    gap: 12px;
+  }
+}

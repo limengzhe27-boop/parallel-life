@@ -36,7 +36,7 @@ export function DraftEditor({
       assetIds: [
         ...new Set([
           ...draft.selection.assetIds,
-          ...initialProfile.people
+          ...(draft.status === 'confirmed' ? [] : initialProfile.people)
             .filter((p) => draft.selection.personIds.includes(p.id))
             .flatMap((p) => (p.assetId ? [p.assetId] : [])),
         ]),
@@ -57,6 +57,7 @@ export function DraftEditor({
   const [roleError, setRoleError] = useState('');
   const [roleRead, setRoleRead] = useState(0);
   useEffect(() => {
+    if (confirmed) return;
     let live = true;
     setRoles(undefined);
     setRoleError('');
@@ -101,7 +102,7 @@ export function DraftEditor({
     return () => {
       live = false;
     };
-  }, [profile.id, profile.version, roleRead]);
+  }, [profile.id, profile.version, roleRead, confirmed]);
   const photosReady = roles?.profileVersion === profile.version;
   const pictures = [
     ...new Set([
@@ -191,72 +192,113 @@ export function DraftEditor({
       <div className={s.editor}>
         <p className={s.status} role="status">
           {confirmed
-            ? '设定已确认，继续准备你的手机。'
+            ? '人生起点已确认，内容已保存。'
             : dirty
               ? '有未保存的修改'
               : saved
                 ? '草案已保存，随时可以回来继续。'
                 : '已保存为草案，确认前不会创建世界。'}
         </p>
-        <fieldset disabled={busy || confirmed} className={s.fields}>
-          <label>
-            <span>这段人生</span>
-            <input
-              value={story.title}
-              maxLength={60}
-              onChange={(e) => setStory({ ...story, title: e.target.value })}
-            />
-          </label>
-          <label>
-            <span>你在这里是谁</span>
-            <input
-              value={setup.identity}
-              maxLength={80}
-              placeholder="比如，正在筹拍第一部电影的导演"
-              onChange={(e) => setSetup({ ...setup, identity: e.target.value })}
-            />
-          </label>
-          {(['premise', 'opening', 'tradeoff'] as const).map((key) => (
-            <label key={key}>
-              <span>
-                {
+        {confirmed ? (
+          <section className={s.summary} aria-label="已确认的人生起点">
+            <h3>{current.story.title}</h3>
+            <dl>
+              {(['premise', 'opening', 'tradeoff'] as const).map((key) => (
+                <div key={key}>
+                  <dt>
+                    {
+                      { premise: '改变的选择', opening: '故事开场', tradeoff: '这条路的另一面' }[
+                        key
+                      ]
+                    }
+                  </dt>
+                  <dd>{current.story[key]}</dd>
+                </div>
+              ))}
+              {current.setup.identity && (
+                <div>
+                  <dt>你的身份</dt>
+                  <dd>{current.setup.identity}</dd>
+                </div>
+              )}
+              {current.setup.place && (
+                <div>
+                  <dt>地点</dt>
+                  <dd>{current.setup.place}</dd>
+                </div>
+              )}
+              {current.setup.tone && (
+                <div>
+                  <dt>生活氛围</dt>
+                  <dd>{current.setup.tone}</dd>
+                </div>
+              )}
+            </dl>
+            <p className={s.hint}>
+              这个起点已确认，内容在这里只读。想尝试不同设定，可以回到分支页另写一段人生。
+            </p>
+          </section>
+        ) : (
+          <fieldset disabled={busy} className={s.fields}>
+            <label>
+              <span>这段人生</span>
+              <input
+                value={story.title}
+                maxLength={60}
+                onChange={(e) => setStory({ ...story, title: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>你在这里是谁</span>
+              <input
+                value={setup.identity}
+                maxLength={80}
+                placeholder="想体验的身份（选填）"
+                onChange={(e) => setSetup({ ...setup, identity: e.target.value })}
+              />
+            </label>
+            {(['premise', 'opening', 'tradeoff'] as const).map((key) => (
+              <label key={key}>
+                <span>
                   {
-                    premise: '改变哪次选择',
-                    opening: '故事从这里开始',
-                    tradeoff: '这条路的另一面',
-                  }[key]
-                }
-              </span>
-              <textarea
-                rows={key === 'opening' ? 3 : 2}
-                value={story[key]}
-                maxLength={key === 'opening' ? 400 : key === 'premise' ? 300 : 200}
-                onChange={(e) => setStory({ ...story, [key]: e.target.value })}
-              />
-            </label>
-          ))}
-          <details className={s.setup}>
-            <summary>地点与生活氛围（选填）</summary>
-            <label>
-              <span>故事发生在哪里</span>
-              <input
-                value={setup.place}
-                maxLength={120}
-                placeholder="一座城市，或一条熟悉的街"
-                onChange={(e) => setSetup({ ...setup, place: e.target.value })}
-              />
-            </label>
-            <label>
-              <span>你希望是什么感觉</span>
-              <input
-                value={setup.tone}
-                maxLength={100}
-                placeholder="比如，热闹但不总是顺利"
-                onChange={(e) => setSetup({ ...setup, tone: e.target.value })}
-              />
-            </label>
-          </details>
-        </fieldset>
+                    {
+                      premise: '改变哪次选择',
+                      opening: '故事从这里开始',
+                      tradeoff: '这条路的另一面',
+                    }[key]
+                  }
+                </span>
+                <textarea
+                  rows={key === 'opening' ? 3 : 2}
+                  value={story[key]}
+                  maxLength={key === 'opening' ? 400 : key === 'premise' ? 300 : 200}
+                  onChange={(e) => setStory({ ...story, [key]: e.target.value })}
+                />
+              </label>
+            ))}
+            <details className={s.setup}>
+              <summary>地点与生活氛围（选填）</summary>
+              <label>
+                <span>故事发生在哪里</span>
+                <input
+                  value={setup.place}
+                  maxLength={120}
+                  placeholder="一座城市，或一条熟悉的街"
+                  onChange={(e) => setSetup({ ...setup, place: e.target.value })}
+                />
+              </label>
+              <label>
+                <span>你希望是什么感觉</span>
+                <input
+                  value={setup.tone}
+                  maxLength={100}
+                  placeholder="比如，热闹但不总是顺利"
+                  onChange={(e) => setSetup({ ...setup, tone: e.target.value })}
+                />
+              </label>
+            </details>
+          </fieldset>
+        )}
         {!confirmed && (
           <fieldset disabled={busy} className={s.fields}>
             <legend>带入哪些真实资料</legend>
@@ -455,9 +497,6 @@ export function DraftEditor({
         )}
         {confirmed && (
           <div className={s.hint}>
-            {setup.identity && <p>你是：{setup.identity}</p>}
-            {setup.place && <p>地点：{setup.place}</p>}
-            {setup.tone && <p>氛围：{setup.tone}</p>}
             <p>
               已带入 {selection.factIds.length} 条资料、{selection.eventIds.length} 段经历、
               {selection.personIds.length} 位人物、{selection.assetIds.length} 张照片。
@@ -483,7 +522,9 @@ export function DraftEditor({
             </Button>
           )}
           <Button
-            disabled={busy || !photosReady || Object.values(story).some((v) => !v.trim())}
+            disabled={
+              busy || (!confirmed && (!photosReady || Object.values(story).some((v) => !v.trim())))
+            }
             onClick={() => void act(true)}
           >
             {busy ? '正在保存…' : confirmed ? '继续准备手机' : '确认并准备手机'}

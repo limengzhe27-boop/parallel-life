@@ -134,3 +134,33 @@
   font-size: 13px;
   padding-left: 28px;
 }
+
+.summary {
+  display: grid;
+  gap: 16px;
+}
+.summary h3 {
+  margin: 0;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.summary dl {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+}
+.summary dt {
+  color: #a8b9d0;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.summary dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+.dialog:global(.modal) {
+  max-height: calc(100dvh - 32px);
+  width: min(430px, calc(100vw - 24px));
+}

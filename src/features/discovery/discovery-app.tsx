@@ -54,7 +54,6 @@ export function DiscoveryApp() {
     );
     if (!hydrated.current) {
       setBrief(d.brief);
-      if (d.directions.length && !seeds.length) setProposalOpen(true);
       hydrated.current = true;
     }
   }, [client]);
@@ -98,7 +97,11 @@ export function DiscoveryApp() {
       clearInterval(timer);
     };
   }, [waiting, task?.id, client, load]);
-  async function generate(text: string, basedOnId: string | null = null) {
+  async function generate(
+    text: string,
+    basedOnId: string | null = null,
+    mode: 'focused' | 'explore' = 'focused',
+  ) {
     if (!data || !profile || busy || waiting) return false;
     setBusy(true);
     setError('');
@@ -107,12 +110,14 @@ export function DiscoveryApp() {
       expectedProfileVersion: profile.version,
       brief: text.trim(),
       basedOnId,
+      mode,
     };
     const old = pending.current;
     const request =
       old &&
       old.brief === fields.brief &&
       old.basedOnId === basedOnId &&
+      old.mode === mode &&
       old.expectedVersion === fields.expectedVersion &&
       old.expectedProfileVersion === fields.expectedProfileVersion
         ? old
@@ -391,7 +396,13 @@ export function DiscoveryApp() {
                 onToggle={(e) => setProposalOpen(e.currentTarget.open)}
               >
                 <summary>
-                  {availableDirections.length ? '待决定的分支' : '聊出一条新路'}
+                  {waiting
+                    ? '构思正在进行 · 查看进度'
+                    : task && ['failed', 'unknown', 'cancelled', 'conflict'].includes(task.status)
+                      ? '构思需要恢复 · 查看'
+                      : availableDirections.length
+                        ? '查看已有构思'
+                        : '构思新的人生'}
                   <Icon name="chevron" size={16} />
                 </summary>
                 <details className="discovery-basis">
@@ -439,7 +450,7 @@ export function DiscoveryApp() {
                 </details>
                 {stale && (
                   <Notice tone="info">
-                    你的资料有了更新。下面保留着上一次的构想，可以按新资料再想一组。
+                    你的资料有了更新。下面保留着上一次的构想，可以按新资料重新构思这段人生。
                   </Notice>
                 )}
                 {waiting && (
@@ -455,7 +466,7 @@ export function DiscoveryApp() {
                           ? '正在构想平行人生分支…'
                           : '正在寻找与你有关的可能'}
                       </strong>
-                      <p>正在为你推演不同的选择与走向，马上就好。关掉页面也不会丢失。</p>
+                      <p>正在整理这次的构思，完成后会保存在这里。关掉页面也不会丢失。</p>
                     </div>
                     <Button
                       variant="ghost"
@@ -536,7 +547,7 @@ export function DiscoveryApp() {
                           disabled={busy || waiting || stale}
                           onClick={() => void reviewDirection(direction)}
                         >
-                          {busy ? '正在准备草案…' : '构思这段人生'}
+                          {busy ? '正在读取草案…' : '查看人生起点'}
                           <Icon name="arrow" size={16} />
                         </Button>
                         <Button
@@ -549,7 +560,7 @@ export function DiscoveryApp() {
                             setError('');
                           }}
                         >
-                          我想改一点
+                          按这个方向另作构思
                           <Icon name="edit" size={15} />
                         </Button>
                       </article>
@@ -608,8 +619,22 @@ export function DiscoveryApp() {
                       }
                     >
                       {busy ? <span className="spinner" /> : <Icon name="spark" size={17} />}{' '}
-                      {availableDirections.length ? '换一组想法' : '帮我想想'}
+                      {availableDirections.length ? '按这个想法构思' : '构思这段人生'}
                       <Icon name="arrow" size={17} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={
+                        busy ||
+                        waiting ||
+                        (!confirmed.length && !brief.trim() && !conversationBrief)
+                      }
+                      onClick={() =>
+                        void generate(brief.trim() || conversationBrief, null, 'explore')
+                      }
+                    >
+                      探索其他可能
                     </Button>
                   </div>
                 </form>
@@ -651,7 +676,7 @@ export function DiscoveryApp() {
       {refining && (
         <Modal
           open
-          title="让这条人生，更像你想要的"
+          title="从这个方向，构思新的起点"
           onClose={() => {
             if (!busy) setRefining(null);
           }}
