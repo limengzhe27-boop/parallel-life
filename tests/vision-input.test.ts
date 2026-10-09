@@ -203,3 +203,31 @@ test('explicit JSON format is sent only when requested for either transport', as
   assert.deepEqual(captured[1]!.response_format, { type: 'json_object' });
   assert.equal(captured[2]!.response_format, undefined);
 });
+
+test('negated and reported historical read requests do not expand uploaded photo scope', () => {
+  const a = message('照片', randomUUID()),
+    b = message('照片', randomUUID());
+  for (const caption of [
+    '不要比较这两张，只看我刚发的这张',
+    '别对比这两张',
+    '他说“比较这两张图片”',
+  ])
+    assert.deepEqual(selectInterviewPhotos([a, { ...b, text: caption }]), [
+      { ...b, text: caption },
+    ]);
+  for (const caption of [
+    '他说“比较这两张图片”，我只是转述，不用看图',
+    '朋友说比较这两张照片',
+    '“这张是什么颜色”是他问的',
+    '不要比较这两张',
+    '不用看这张图片',
+    '先不分析这些照片',
+  ])
+    assert.deepEqual(selectInterviewPhotos([a, b, message(caption)]), []);
+  assert.deepEqual(selectInterviewPhotos([a, { ...b, text: '不要看这张图片' }]), []);
+  assert.deepEqual(
+    selectInterviewPhotos([a, b, message('他提到“不要比较”，请比较这两张图片的颜色')]),
+    [a, b],
+  );
+  assert.deepEqual(selectInterviewPhotos([a, b, message('这两张有什么不同')]), [a, b]);
+});

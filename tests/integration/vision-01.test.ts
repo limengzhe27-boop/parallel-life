@@ -394,3 +394,30 @@ test('vision does not relax original five question/report/negation identity refu
     await f.close();
   }
 });
+
+test('negative/current-only and reported pair captions retain persisted sources while historical pixels stay private', async () => {
+  const f = await fixture();
+  try {
+    const a = await f.upload('#ff0000'),
+      b = await f.upload('#0000ff');
+    await f.send('照片', a.id);
+    await f.send('不要比较这两张，只看我刚发的这张', b.id);
+    assert.equal(imageParts(f.requests[1]!).length, 1);
+    const body = f.requests[1]!.messages[1]!.content;
+    assert(Array.isArray(body));
+    const ctx = JSON.parse(body[0]!.text!);
+    const workspace = await f.repo.get(f.owner);
+    const latest = workspace.interview.messages.filter((m) => m.role === 'user').at(-1)!;
+    assert.equal(ctx.visionImages[0].sourceMessageId, latest.id);
+    assert.equal(latest.photoAssetId, b.id);
+    const reads = f.reads;
+    await f.send('他说“比较这两张图片”，我只是转述，不用看图');
+    assert.equal(imageParts(f.requests[2]!).length, 0);
+    assert.equal(f.reads, reads);
+    const after = await f.repo.get(f.owner);
+    assert.equal(after.interview.activeTask?.status, 'succeeded');
+    assert.equal(after.profile.people.length, 0);
+  } finally {
+    await f.close();
+  }
+});
