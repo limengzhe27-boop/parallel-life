@@ -1,3 +1,7 @@
+## 2026-10-09 · GROUP-01 / GROUP-01I 群聊后端
+
+应用6890d17，Production e3b7xf81l / dpl_GdcLxLKhNRj8mRzTq6VhYA9sV1Pr READY，正式域名 https://parallel-life-nu.vercel.app 已切换。0038已应用，38/38生产迁移校验和一致；367check、56真实PG/3可选跳过及build通过；两身份实际群回合与领先现实4天的故事时刻模型通过。公网通用worker→真实群回复、显式替代任务重试/重复、成员退出重入、已读、跨群/账号隔离、暂停和私聊不污染通过（恢复23项、脚本修正后接续13项）。初版89b7403/co2pro3wr过期邀约失败保留，原任务仍failed，不自动重新付费；合成世界已暂停。仅后端，media=[]，群/现场UI另验收。规划及只读报告快照归档不代表官方剧本/锁屏/界面能力完成；LIB-04B业务排除。见[GROUP-01I](task-reports/GROUP-01I.md)。
+
 ## 2026-10-09 · SCENE-01 纯文字现场后端
 
 业务430d25f，Production 1iuggd0nw / dpl_BCUH5rak9phwUJMKJhg5ZBFHqqco READY，正式域名 https://parallel-life-nu.vercel.app 已切换。0037应用且37/37生产迁移校验和一致；355check、53真实PG/2可选跳过及build通过，两合成身份真实多轮9调用通过。公网39项实际NPC日程确认→进入→行动原文→实际裁定→幂等→手机/现场恢复→暂停离场→旧消息与隔离通过；离场后实际私聊接上现场，生产确认角色记忆的3条事件来源。测试世界暂停、PG55442停止、工作树提交归档。本批是后端，不含SCENE-02 UI、定向耳语/长期任务/现场媒体或多人；失败模型样本、邀约澄清过程及边界见[报告](task-reports/SCENE-01.md)。

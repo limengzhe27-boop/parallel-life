@@ -1,6 +1,6 @@
 # GROUP-01 · NPC 群会话与回合
 
-状态：待验收，尚未合并/上线。负责人 `codex-f-01a0c7c8-group01-20261008`。2026-10-08 主表短锁领取成功，依赖 PLAY-01 已生产验收。独立树 `.local/worktrees/group-runtime`，分支 `codex/group-runtime`，基线 `50fcaca`；专属 PostgreSQL 55443、预览 3237；迁移 0038 由集成人预留。日期按 Asia/Shanghai，收尾为 2026-10-09。
+原独立交付状态：待验收。2026-10-09最终由GROUP-01I完成6890d17/e3b7xf81l生产验收，后端已上线，界面/媒体另验收；见[GROUP-01I](GROUP-01I.md)。以下保留原独立实现和交接证据。负责人 `codex-f-01a0c7c8-group01-20261008`。2026-10-08 主表短锁领取成功，依赖 PLAY-01 已生产验收。独立树 `.local/worktrees/group-runtime`，分支 `codex/group-runtime`，基线 `50fcaca`；专属 PostgreSQL 55443、预览 3237；迁移 0038 由集成人预留。日期按 Asia/Shanghai，收尾为 2026-10-09。
 
 主登记目录的 DEVELOPMENT.md 是唯一状态源。本树不改其他 Agent 文件，不改共享 services、worker composition、World 事件联合/replay 或公共输入契约。NAR-02R 的 52213cf 已交现集成人验收，原范围和资源已释放，不再改 NAR。
 
