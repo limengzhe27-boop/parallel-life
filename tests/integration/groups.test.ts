@@ -21,7 +21,7 @@ import { groupHistory } from '../../src/modules/world/domain/group-runtime.ts';
 import { WorldGroupPlanner } from '../../src/modules/world/infrastructure/group-planner.ts';
 import { YibuTextModel } from '../../src/modules/ai/infrastructure/yibu-text-model.ts';
 import type { GroupPlanner } from '../../src/modules/world/application/group-ports.ts';
-const time = new Date().toISOString();
+const time = process.env.GROUP_EVAL_STORY_AT ?? new Date().toISOString();
 async function fixture() {
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);

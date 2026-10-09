@@ -143,3 +143,55 @@ test('long group history retains a complete latest input within the model budget
   });
   await planner.propose(input);
 });
+
+test('a minute-rounded past invitation is rejected without retrying or hiding the model response', async () => {
+  let calls = 0;
+  const planner = new WorldGroupPlanner({
+    async complete() {
+      calls++;
+      return JSON.stringify({
+        text: '一起试试吧。',
+        invitation: { title: '试灯', at: '2026-10-08T08:00:00+08:00' },
+      });
+    },
+  });
+  await assert.rejects(
+    planner.propose({
+      actor: read.world.actors[0]!,
+      worldTitle: read.world.title,
+      storyAt: '2026-10-08T00:00:51.000Z',
+      publicFacts: [],
+      groupTitle: read.group.title,
+      members: [],
+      messages: [],
+    }),
+    { code: 'INVALID_RESPONSE' },
+  );
+  assert.equal(calls, 1);
+});
+
+test('an empty optional invitation means no invitation while partial filled objects still fail', async () => {
+  const input = {
+    actor: read.world.actors[0]!,
+    worldTitle: read.world.title,
+    storyAt: read.world.time,
+    publicFacts: [],
+    groupTitle: read.group.title,
+    members: [],
+    messages: [],
+  };
+  for (const invitation of [null, {}]) {
+    const planner = new WorldGroupPlanner({
+      async complete() {
+        return JSON.stringify({ text: '先试两个机位。', invitation });
+      },
+    });
+    assert.equal((await planner.propose(input)).invitation, undefined);
+  }
+  const planner = new WorldGroupPlanner({
+    async complete() {
+      return JSON.stringify({ text: '先试两个机位。', invitation: { title: '试拍' } });
+    },
+  });
+  await assert.rejects(planner.propose(input), { code: 'INVALID_RESPONSE' });
+});
