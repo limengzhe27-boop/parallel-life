@@ -119,28 +119,30 @@ test('genesis links persist atomically, keep original assets and replay invitati
                 messages: [{ actorKey: 'a', text: 'Ready to discuss?' }],
                 notes: [{ title: 'Private', text: 'HIDDEN_NOTE' }],
               });
-            const local = new Date(
-              Date.parse(input.storyTime.startAt) + 1440 * 60000 + 8 * 3600000,
-            );
-            const quote = `${local.getUTCMonth() + 1}\u6708${local.getUTCDate()}\u65e5${local.getUTCHours()}:${String(local.getUTCMinutes()).padStart(2, '0')}\u4e00\u8d77\u6574\u7406\u914d\u4ef6\uff0c\u4f60\u613f\u610f\u6765\u5417\uff1f`;
             const groups = input.cast.map((a: { actorIndex: number }) => ({
               actorIndex: a.actorIndex,
               messages: [
                 {
-                  text: a.actorIndex === 0 ? quote : 'Old private ' + a.actorIndex,
                   minutesBeforeStart: 1440 + a.actorIndex,
                   ...(a.actorIndex === 0
-                    ? {
-                        connection: {
-                          quote: bad === 'quote' ? 'Not in source' : quote,
-                          calendar: { minutesAfterStart: bad === 'date' ? 60 : 1440 },
-                          ...(bad === 'state' ? { status: 'confirmed' } : {}),
-                        },
-                      }
-                    : {}),
-                  ...(a.actorIndex === 1 && f.seed.people.length
-                    ? { connection: { quote: 'Old private 1' } }
-                    : {}),
+                    ? bad === 'quote'
+                      ? { text: 'Old private 0', connection: { quote: 'Not in source' } }
+                      : {
+                          invitation: {
+                            slotId: 'next_morning',
+                            body:
+                              bad === 'date'
+                                ? '周末一起整理配件，愿意来吗？'
+                                : '一起整理配件，你愿意来吗？',
+                            ...(bad === 'state' ? { status: 'confirmed' } : {}),
+                          },
+                        }
+                    : {
+                        text: 'Old private ' + a.actorIndex,
+                        ...(a.actorIndex === 1 && f.seed.people.length
+                          ? { connection: { quote: 'Old private 1' } }
+                          : {}),
+                      }),
                 },
               ],
             }));

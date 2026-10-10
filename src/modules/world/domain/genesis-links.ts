@@ -189,11 +189,12 @@ export function validateHistoryConnections(history: MessageHistoryProposal, star
     if (!calendar) continue;
     const local = new Date(start + calendar.minutesAfterStart * 60000 + 8 * 3600000);
     const matches = [
-      ...m.connection!.quote.matchAll(/(\d{1,2})\u6708(\d{1,2})\u65e5\s*(\d{1,2}):(\d{2})/g),
+      ...m.connection!.quote.matchAll(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日\s*(\d{1,2}):(\d{2})/g),
     ];
     if (matches.length !== 1) invalid();
-    const [, month, day, hour, minute] = matches[0]!;
+    const [, year, month, day, hour, minute] = matches[0]!;
     if (
+      (year !== undefined && Number(year) !== local.getUTCFullYear()) ||
       Number(month) !== local.getUTCMonth() + 1 ||
       Number(day) !== local.getUTCDate() ||
       Number(hour) !== local.getUTCHours() ||

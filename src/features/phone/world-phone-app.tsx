@@ -9,7 +9,6 @@ import {
   worldWeekday,
   worldDateTimeLabel,
 } from '../../modules/world/domain/display-time.ts';
-import { TimePanel } from './time-panel.tsx';
 import { ScenePanel } from './scenes/scene-panel.tsx';
 import { appointmentScene } from './scenes/index-state.ts';
 import { SceneClient } from './scenes/client.ts';
@@ -310,7 +309,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
         if (active && result.played > 0) await load();
       } catch {
         if (active && advancing)
-          setError('这次世界后续没有完成。已保存的记录仍在，可以到时间管理查看状态。');
+          setError('这次世界后续没有完成。已保存的记录仍在，可以继续查看手机中的来信和日程。');
       } finally {
         directorInFlight.current = false;
       }
@@ -810,7 +809,14 @@ export function WorldPhoneSurface({
             })),
         ]}
         renderHome={({ open, openPanel }) => (
-          <PhoneDesktop title={data.title} data={phoneData} open={open} openPanel={openPanel} />
+          <PhoneDesktop
+            title={data.title}
+            dateLabel={dateLabel}
+            timeLabel={timeLabel}
+            data={phoneData}
+            open={open}
+            openPanel={openPanel}
+          />
         )}
         renderApp={(context) => <PhoneAppView {...context} />}
         renderPanel={(panel) => {
@@ -1277,136 +1283,6 @@ export function WorldPhoneSurface({
             );
           }
 
-          if (panel === 'schedule') {
-            return (
-              <div
-                style={{
-                  padding: '16px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                }}
-              >
-                <div
-                  style={{
-                    background: '#f8fafc',
-                    borderRadius: '16px',
-                    padding: '16px',
-                    border: '1px solid #e2e8f0',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      color: '#0284c7',
-                      marginBottom: '4px',
-                    }}
-                  >
-                    ⏱️ 人生时间线与节奏
-                  </div>
-                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>
-                    {dateLabel}
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
-                    世界时钟：{worldTimeLabel(data.time)} ·{' '}
-                    <span style={{ color: '#16a34a' }}>🟢 现实同步流转中</span>
-                  </div>
-                </div>
-
-                <div>
-                  <h4
-                    style={{
-                      margin: '0 0 10px 0',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: '#1e293b',
-                    }}
-                  >
-                    🗓️ 近期关键日程与约定（{data.invitations?.length ?? 0} 项）
-                  </h4>
-                  {data.invitations && data.invitations.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {data.invitations.map((inv) => (
-                        <a
-                          key={inv.id}
-                          href={`#life=${data.id}&app=calendar&target=${inv.id}`}
-                          style={{
-                            background: '#ffffff',
-                            borderRadius: '12px',
-                            padding: '12px 14px',
-                            border: '1px solid #e2e8f0',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            textDecoration: 'none',
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
-                              {inv.title}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                              {worldDateTimeLabel(inv.at)}
-                            </div>
-                          </div>
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              background: inv.status === 'confirmed' ? '#ecfdf5' : '#fffbeb',
-                              color: inv.status === 'confirmed' ? '#059669' : '#d97706',
-                              fontWeight: 500,
-                            }}
-                          >
-                            {inv.status === 'confirmed' ? '已约好 ›' : '待回复 ›'}
-                          </span>
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        padding: '14px',
-                        background: '#f8fafc',
-                        borderRadius: '12px',
-                        border: '1px solid #e2e8f0',
-                        fontSize: '12px',
-                        color: '#64748b',
-                      }}
-                    >
-                      暂无固定日程，去日历中可以查看每日月历和空闲节点。
-                    </div>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '12px',
-                    padding: '14px',
-                    border: '1px solid #e2e8f0',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: '#0f172a',
-                      marginBottom: '4px',
-                    }}
-                  >
-                    🚩 当前剧情篇章
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.6 }}>
-                    {data.setting}
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
           if (panel === 'scene')
             return (
               <ScenePanel
@@ -1417,10 +1293,6 @@ export function WorldPhoneSurface({
                 onBusy={setSceneWaiting}
               />
             );
-          if (panel === 'time') {
-            /* 真实控制：时间（暂停/倍速/推进）与导演要求（主题/节奏/聚焦 + 先看影响）。 */
-            return <TimePanel client={client} worldId={data.id} onWorldChanged={onReload} />;
-          }
 
           return null;
         }}

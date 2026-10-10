@@ -131,7 +131,7 @@ export function SceneIndexApp() {
                     {!ready ? (
                       <small>
                         {history.paused
-                          ? '世界时间已暂停，请先在时间管理恢复。'
+                          ? '这段人生的时间已暂停，暂时无法进入新的现场。'
                           : history.currentScene
                             ? '请先处理当前现场。'
                             : '约定时间还未到。'}

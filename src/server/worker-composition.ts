@@ -47,7 +47,7 @@ export function createWorker() {
         new WorldPlanner(new YibuTextModel(config), {
           historyEnabled: true,
           historyMode: 'two-step',
-          historyLinksEnabled: false,
+          historyLinksEnabled: true,
         }),
         config.model,
       ),

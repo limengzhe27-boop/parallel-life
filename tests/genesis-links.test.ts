@@ -186,3 +186,20 @@ test('real invitation response source changes while initial origin and old state
   );
   assert.equal(JSON.stringify(state), before);
 });
+
+test('explicit years must match story calendar while existing yearless history stays readable', () => {
+  const { history, state } = fixture();
+  validateHistoryConnections(history, state.time);
+  const correct = structuredClone(history);
+  const m = correct.messages[0]!;
+  m.text = '1999年' + m.text;
+  m.connection!.quote = '1999年' + m.connection!.quote;
+  validateHistoryConnections(correct, state.time);
+  const wrong = structuredClone(correct);
+  wrong.messages[0]!.text = wrong.messages[0]!.text.replace('1999年', '1998年');
+  wrong.messages[0]!.connection!.quote = wrong.messages[0]!.connection!.quote.replace(
+    '1999年',
+    '1998年',
+  );
+  assert.throws(() => validateHistoryConnections(wrong, state.time));
+});

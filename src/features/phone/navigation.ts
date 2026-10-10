@@ -33,6 +33,13 @@ export function readRoute(hash: string, worldId: string): PhoneRoute {
   };
 }
 
+/** Retired controls may still exist in saved URLs; only active pages reach the phone shell. */
+export function activePhoneRoute(route: PhoneRoute): PhoneRoute {
+  if (route.panel === 'time') return homeRoute;
+  if (route.panel === 'schedule') return { app: 'calendar' };
+  return route;
+}
+
 export function parentRoute(route: PhoneRoute): PhoneRoute {
   if (route.panel === 'scene') return { app: 'scenes' };
   if (route.panel) return { app: route.app, ...(route.target ? { target: route.target } : {}) };

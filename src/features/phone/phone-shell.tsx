@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   homeRoute,
+  activePhoneRoute,
   parentRoute,
   desktopApps,
   readRoute,
@@ -31,10 +32,8 @@ const apps: Record<PhoneApp, string> = {
   notes: '备忘录',
   scenes: '现场',
 };
-const panels: Record<PhonePanel, string> = {
-  schedule: '日程',
+const panels: Partial<Record<PhonePanel, string>> = {
   timeline: '人生轨迹',
-  time: '时间管理',
   scene: '现场',
   management: '备忘录',
 };
@@ -146,7 +145,13 @@ function LifePhone({
   }, [locked]);
 
   useEffect(() => {
-    const sync = () => setRoute(readRoute(location.hash, worldId));
+    const sync = () => {
+      const saved = readRoute(location.hash, worldId);
+      const next = activePhoneRoute(saved);
+      if (next !== saved)
+        history.replaceState({ ...history.state, plPhone: null }, '', routeHash(worldId, next));
+      setRoute(next);
+    };
     sync();
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
@@ -177,6 +182,7 @@ function LifePhone({
   }, [key, route.panel, locked]);
 
   function navigate(next: PhoneRoute) {
+    next = activePhoneRoute(next);
     const hash = routeHash(worldId, next);
     if (location.hash === hash) return;
     if (scroll.current && !route.panel && !locked)
@@ -186,7 +192,7 @@ function LifePhone({
       '',
       hash,
     );
-    setRoute(readRoute(hash, worldId));
+    setRoute(activePhoneRoute(readRoute(hash, worldId)));
   }
   function back() {
     const entry = history.state?.plPhone;
@@ -335,7 +341,11 @@ function LifePhone({
     );
   }
   const isHome = !route.app && !route.panel;
-  const label = route.panel ? panels[route.panel] : route.app ? apps[route.app] : '手机桌面';
+  const label = route.panel
+    ? (panels[route.panel] ?? '手机桌面')
+    : route.app
+      ? apps[route.app]
+      : '手机桌面';
   return (
     <section
       ref={root}

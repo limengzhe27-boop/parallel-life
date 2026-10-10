@@ -1,3 +1,4 @@
+import { historyInvitationSchedule } from '../domain/history-invitations.ts';
 import { validateHistoryConnections } from '../domain/genesis-links.ts';
 import { z } from 'zod';
 import type { TextModel, ModelMessage } from '../../ai/application/ports.ts';
@@ -14,21 +15,36 @@ const LetterSchema = z
     connection: HistoryConnectionSchema.optional(),
   })
   .strict();
-const ResponseSchema = z
-  .object({
+const LinkedLetterSchema = z.union([
+  z.strictObject({
+    text: z.string().trim().min(1).max(160),
+    minutesBeforeStart: z.number().int().min(60).max(43200),
+    connection: z.strictObject({ quote: z.string().trim().min(1).max(80) }).optional(),
+  }),
+  z.strictObject({
+    minutesBeforeStart: z.number().int().min(60).max(43200),
+    invitation: z.strictObject({
+      slotId: z.enum(['soon', 'next_morning', 'next_evening']),
+      body: z.string().trim().min(1).max(60),
+    }),
+  }),
+]);
+function responseSchema(linked: boolean) {
+  return z.strictObject({
     groups: z
       .array(
-        z
-          .object({
-            actorIndex: z.number().int().min(0).max(7),
-            messages: z.array(LetterSchema).min(1).max(6),
-          })
-          .strict(),
+        z.strictObject({
+          actorIndex: z.number().int().min(0).max(7),
+          messages: z
+            .array(linked ? LinkedLetterSchema : LetterSchema)
+            .min(1)
+            .max(6),
+        }),
       )
       .min(2)
       .max(8),
-  })
-  .strict();
+  });
+}
 
 /** The director authors fictional NPC letters. No private interview, hidden personas or other chats are sent. */
 export class HistoryPlanner {
@@ -49,19 +65,13 @@ export class HistoryPlanner {
       name: actor.name,
       relationship: publicRelationships.get(actor.key) ?? '',
     }));
-    const futureLocal = new Date(Date.parse(startAt) + 1440 * 60000 + 8 * 3600000);
-    const suggestedDate = `${futureLocal.getUTCMonth() + 1}\u6708${futureLocal.getUTCDate()}\u65e5${futureLocal.getUTCHours()}:${String(futureLocal.getUTCMinutes()).padStart(2, '0')}`;
-    const connectionRule = this.linksEnabled
-      ? '\nOptional connection on at most TWO letters globally: {"quote":"exact continuous substring of this same text, 1..80 characters","calendar":{"minutesAfterStart":1440}}. calendar is optional; without it the letter has only a read-only history record. Use this only for a concrete unresolved proposal; otherwise omit connection. Calendar proposes a future activity 30..10080 whole minutes AFTER storyTime.startAt; sender alone participates and the player has NOT accepted. Put a story-local date and time formatted M\u6708D\u65e5HH:mm in the exact quote matching that instant, rather than ambiguous tomorrow relative to old sent time. Include a suitable future invitation when the setting supports one, never fabricate player past actions. No asset, photo, UUID, role, status, acceptance or extra fields. Bad connections are rejected, not silently dropped.' +
-        ` This linked-history mode should include one unresolved future invitation if a character can naturally propose an activity in the setting. A valid story-local date for minutesAfterStart=1440 is ${suggestedDate}; use that exact date/time inside your own natural Chinese invitation and its identical connection.quote. Do not output only ordinary old letters when an appropriate future invitation exists. The extra optional connection field is explicitly permitted in that same message object.`
-      : '';
+    const schedule = this.linksEnabled ? historyInvitationSchedule(startAt) : undefined;
     const base: ModelMessage[] = [
       {
         role: 'system',
         content:
           '你是虚构人生的导演，为接管时刻以前编写NPC发给主角的微信旧来信。输入是已获准世界，不是现实记录。角色按cast中的actorIndex分别生成，各自只能说自己和主角之间的日常小事，不知道其他人的私聊、内心或幕后秘密。不替主角写发言、回应、选择或接受邀请，不宣称已生成照片。不要输出主角本人或新增人物。\n' +
-          '仅返回一个JSON对象：{"groups":[{"actorIndex":0,"messages":[{"text":"这位人物以前发给主角的来信","minutesBeforeStart":2880}]}]}。这是结构示例，必须包含cast中每个actorIndex恰好一次，组的排列顺序不限，禁止漏人、重复或使用不存在的编号。每人通常两条（最少1条、最多6条）具体自然短消息，每条10至60字且最多160字。minutesBeforeStart是距离storyTime.startAt以前的整数分钟，60至43200，同一人物不能同分钟重复。以UTC+08:00故事时刻解读今天/昨天/周几，不用现实日期。group仅含actorIndex和messages；message仅含text和minutesBeforeStart，不添加name、key、actorKey、role、玩家回复或其他字段。不要复制示例文字，不用统一寒暄敷衍每个人。' +
-          connectionRule,
+          '仅返回一个JSON对象：{"groups":[{"actorIndex":0,"messages":[{"text":"这位人物以前发给主角的来信","minutesBeforeStart":2880}]}]}。这是结构示例，必须包含cast中每个actorIndex恰好一次，组的排列顺序不限，禁止漏人、重复或使用不存在的编号。每人通常两条（最少1条、最多6条）具体自然短消息，每条10至60字且最多160字。minutesBeforeStart是距离storyTime.startAt以前的整数分钟，60至43200，同一人物不能同分钟重复。以UTC+08:00故事时刻解读今天/昨天/周几，不用现实日期。group仅含actorIndex和messages；message仅含text和minutesBeforeStart，不添加name、key、actorKey、role、玩家回复或其他字段。不要复制示例文字，不用统一寒暄敷衍每个人。',
       },
       {
         role: 'user',
@@ -70,22 +80,18 @@ export class HistoryPlanner {
           identity: opening.identity,
           setting: opening.setting,
           cast,
+          ...(schedule ? { invitationSlots: schedule.slots } : {}),
         }),
       },
     ];
-    if (this.linksEnabled)
-      base[0]!.content = base[0]!.content.replace(
-        'message\u4ec5\u542btext\u548cminutesBeforeStart',
-        'message\u542btext\u548cminutesBeforeStart\uff0c\u5141\u8bb8\u4e0b\u8ff0\u6709\u9650\u53ef\u9009connection',
-      );
-    if (this.linksEnabled) {
-      const quoteExample = `${suggestedDate}（自由写该人物的具体活动邀约）`;
-      base[0]!.content = `你是虚构人生导演，编写NPC以前发给主角的旧来信，不是现实聊天记录。cast全部是NPC，不是主角；来信称主角为“你”，不把cast名字当成主角称呼。不知道其他人私聊、隐私或内心。不替主角发言、选择或答应邀请，不说生成或拍摄了照片。
-只返回JSON groups：每个actorIndex恰好一组、允许乱序，不增删人。每人1至6条messages，通常2条，各条自然短信160字内，minutesBeforeStart是T0前60..43200整数分钟，同人不重复分钟。
-本模式要关联旧来信与待回应的未来邀约。如果有自然适合的活动，选一位人物（优先有明确可见relationship的人）在旧来信里向主角提出具体未来活动，同一条消息加connection；不能只写邀约正文而漏connection。全世界最多2条connection；完全没有适合活动才可以省略，不凑数。
-connection.quote是该来信text的同一段精确原文，1..80字。有calendar时minutesAfterStart是T0后30..10080整数分钟，不是从旧消息发送时刻起算。简单可用minutesAfterStart:1440，对应故事UTC+08的${suggestedDate}，必须在text和quote中写这个明确月日时分，不用模糊“明天”。邀约仅发件人与主角，没有接受或赴约。
-完整可选结构示例（括号是说明，必须换成人物自己的邀约，不复制示例）：${JSON.stringify({ groups: [{ actorIndex: 0, messages: [{ text: quoteExample, minutesBeforeStart: 1440, connection: { quote: quoteExample, calendar: { minutesAfterStart: 1440 } } }] }] })}
-每组只有actorIndex/messages；消息只有text/minutesBeforeStart/可选connection；不加UUID、人物资料、玩家回复、确认状态、asset或revision。`;
+    if (schedule) {
+      base[0]!.content = `你是虚构人生导演，编写NPC以前发给主角的来信。cast全部是NPC，不是主角；称主角为“你”，不把cast名字当成主角。各人只知道自己与主角的事情；不写其他人私聊、隐藏内心、玩家发言/选择/答应邀请或已生成照片。
+只返回JSON groups，每个actorIndex恰好一组，允许乱序。每人1..6条messages，通常2条，不添加消息凑数。minutesBeforeStart为固定故事T0前60..43200整数分钟，同人不重复。
+message严格二选一：普通旧来信{text,minutesBeforeStart,connection?:{quote}}，text最多160字；connection仅建立只读记录，quote为同条连续原文1..80字，禁止calendar。或具体未来邀约{minutesBeforeStart,invitation:{slotId,body}}，不得同时给text/connection/quote/日期/分钟偏移。全世界总共最多2条connection或invitation。
+如果人物与场景自然适合提出未来活动，可以用专用invitation：从输入invitationSlots选择一个slotId，body写人物自己的具体活动、地点或未了事情，向“你”提出尚待回应的邀请。优先有明确可见关系的人；如果没有适合的活动或时间槽，允许0条，不强造邀约。不要把问候当活动，不宣称主角已经接受。
+body必须1..60字，仅活动文案，不写任何日期/时间/今天/明天/周末/上午/下午等时间词，不输出时间占位符。程序会将所选slot的完整日期加在body前，正文、引用和日历都由程序统一生成；你不要重复计算或复制日期。例如body“来铺子一起整理新配件，愿意来吗？”只是结构说明，必须写该人物在当前世界的具体活动，不照抄示例。同一人物同一slot的同一活动不要重复邀约，不同人物不可互相代发；早餐/午休/晚饭等活动须与所选时段适合。
+返回JSON形如{"groups":[{"actorIndex":0,"messages":[{"minutesBeforeStart":1440,"invitation":{"slotId":"next_morning","body":"该人物自己的具体邀约"}}]},{"actorIndex":1,"messages":[{"text":"该人物自己的过去来信","minutesBeforeStart":2880}]}]}；示例仅展示两种结构，必须完整覆盖实际cast所有编号且换成自然内容。
+slotId仅输入给出的ID，不修改时间槽、不输出minutesAfterStart、UUID、资料、状态或素材。`;
     }
     let reason = 'INVALID_HISTORY_FIELDS';
     for (let attempt = 1; attempt <= HISTORY_OUTPUT_ATTEMPTS; attempt++) {
@@ -98,13 +104,9 @@ connection.quote是该来信text的同一段精确原文，1..80字。有calenda
               ...base,
               {
                 role: 'user',
-                content:
-                  `上次输出未通过校验（${reason}）。重新只返回groups，每组只含actorIndex和messages，message只含text和minutesBeforeStart。必须恰好${cast.length}组、覆盖编号0至${cast.length - 1}各一次，每组至少1条，不添加角色资料或其他字段；分钟60..43200且每人不重复。${connectionRule}`.replace(
-                    'message\u53ea\u542btext\u548cminutesBeforeStart',
-                    this.linksEnabled
-                      ? 'message\u542btext\u548cminutesBeforeStart\uff0c\u53ef\u9009connection'
-                      : 'message\u53ea\u542btext\u548cminutesBeforeStart',
-                  ),
+                content: schedule
+                  ? `上次输出未通过校验（${reason}）。保持相同cast和invitationSlots，重新返回groups。message严格选择普通text/可选仅记录connection或专用invitation{slotId,body}，不能混用；body<=60且无日期/相对时间词，slotId从输入选，0关联也合法。全员恰好一次，每人1..6条，旧分钟60..43200且不重复，总关联<=2。不添加任何其他字段。`
+                  : `上次输出未通过校验（${reason}）。重新只返回groups，每组只含actorIndex和messages，message只含text和minutesBeforeStart。必须恰好${cast.length}组、覆盖编号0至${cast.length - 1}各一次，每组至少1条，不添加角色资料或其他字段；分钟60..43200且每人不重复。`,
               },
             ],
         signal,
@@ -113,22 +115,36 @@ connection.quote是该来信text的同一段精确原文，1..80字。有calenda
       );
       signal?.throwIfAborted();
       try {
-        const result = ResponseSchema.parse(extractJsonObject(raw));
+        const result = responseSchema(this.linksEnabled).parse(extractJsonObject(raw));
         if (
           result.groups.length !== cast.length ||
           new Set(result.groups.map((g) => g.actorIndex)).size !== cast.length ||
           result.groups.some((g) => g.actorIndex >= cast.length)
         )
           throw Error('HISTORY_CAST_COUNT');
-        if (!this.linksEnabled && result.groups.some((g) => g.messages.some((m) => m.connection)))
+        if (
+          !this.linksEnabled &&
+          result.groups.some((g) => g.messages.some((m) => 'connection' in m && m.connection))
+        )
           throw Error('INVALID_MESSAGE_HISTORY');
+        for (const group of result.groups) {
+          const slots = group.messages.flatMap((m) =>
+            'invitation' in m ? [m.invitation.slotId + '\0' + m.invitation.body.trim()] : [],
+          );
+          if (new Set(slots).size !== slots.length) throw Error('INVALID_HISTORY_INVITATION');
+        }
         const history: MessageHistoryProposal = {
           version: 1,
           messages: result.groups.flatMap((group) =>
             group.messages.map((entry, letter) => ({
               key: `past_${group.actorIndex}_${letter}`,
               actorKey: opening.actors[group.actorIndex]!.key,
-              ...entry,
+              ...('invitation' in entry
+                ? {
+                    minutesBeforeStart: entry.minutesBeforeStart,
+                    ...schedule!.render(entry.invitation),
+                  }
+                : entry),
             })),
           ),
         };
@@ -145,6 +161,7 @@ connection.quote是该来信text的同一段精确原文，1..80字。有calenda
             'HISTORY_CAST_COUNT',
             'INVALID_MESSAGE_HISTORY',
             'INVALID_GENESIS_LINKS',
+            'INVALID_HISTORY_INVITATION',
             'MODEL_OUTPUT_WITHOUT_OBJECT',
             'MODEL_OUTPUT_NOT_JSON',
           ].includes(error.message)

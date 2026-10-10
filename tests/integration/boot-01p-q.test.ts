@@ -126,26 +126,26 @@ test('BOOT-01P-Q independent source, privacy, lifecycle, permissions and rollbac
                 notes: [{ title: 'Private', text: 'PRIVATE_NOTE_Q' }],
               });
             assert(!JSON.stringify(input).includes('PRIVATE_'));
-            const local = new Date(
-              Date.parse(input.storyTime.startAt) + 1440 * 60000 + 8 * 3600000,
-            );
-            const quote = `${local.getUTCMonth() + 1}月${local.getUTCDate()}日${local.getUTCHours()}:${String(local.getUTCMinutes()).padStart(2, '0')}一起商量场地`;
             return JSON.stringify({
               groups: [...input.cast].reverse().map((a: { actorIndex: number }) => ({
                 actorIndex: a.actorIndex,
                 messages: [
                   {
-                    text: a.actorIndex === 0 ? quote : `PRIVATE_LETTER_${a.actorIndex}`,
                     minutesBeforeStart: 1440 + a.actorIndex,
                     ...(mode !== 'legacy' && a.actorIndex === 0
-                      ? {
-                          connection: {
-                            quote: mode === 'bad-quote' ? 'NOT_PRESENT' : quote,
-                            calendar: { minutesAfterStart: mode === 'bad-date' ? 29 : 1440 },
-                            ...(mode === 'bad-role' ? { participantIds: [randomUUID()] } : {}),
-                          },
-                        }
-                      : {}),
+                      ? mode === 'bad-quote'
+                        ? { text: 'PRIVATE_LETTER_0', connection: { quote: 'NOT_PRESENT' } }
+                        : {
+                            invitation: {
+                              slotId: 'next_morning',
+                              body:
+                                mode === 'bad-date'
+                                  ? '明天一起商量场地'
+                                  : '一起商量场地，你愿意来吗？',
+                              ...(mode === 'bad-role' ? { participantIds: [randomUUID()] } : {}),
+                            },
+                          }
+                      : { text: `PRIVATE_LETTER_${a.actorIndex}` }),
                   },
                 ],
               })),

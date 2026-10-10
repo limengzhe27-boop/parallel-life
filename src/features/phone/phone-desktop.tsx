@@ -14,11 +14,15 @@ import styles from './phone-desktop.module.css';
 /** Desktop widgets only read the same authorized projections as the phone apps. */
 export function PhoneDesktop({
   title,
+  dateLabel,
+  timeLabel,
   data,
   open,
   openPanel,
 }: {
   title: string;
+  dateLabel: string;
+  timeLabel: string;
   data: PhoneAppsData;
   open: (app: PhoneApp, target?: string) => void;
   openPanel: (panel: PhonePanel) => void;
@@ -76,6 +80,10 @@ export function PhoneDesktop({
         <span>这段人生</span>
         <strong>{title}</strong>
       </button>
+
+      <time className={styles.storyTime} dateTime={reference || undefined}>
+        {dateLabel} {timeLabel}
+      </time>
 
       <div className={styles.widgets}>
         <button
@@ -136,7 +144,7 @@ export function PhoneDesktop({
       </button>
 
       <div className={styles.utilities} aria-label="手机工具">
-        {(['scenes', 'timeline', 'time'] as const).map((item) => (
+        {(['scenes', 'timeline'] as const).map((item) => (
           <button
             key={item}
             data-panel={item}
@@ -145,7 +153,7 @@ export function PhoneDesktop({
             <span className={styles.utilityIcon}>
               <PhoneIcon name={item} variant="app" />
             </span>
-            <span>{item === 'scenes' ? '现场' : item === 'timeline' ? '身份' : '时间'}</span>
+            <span>{item === 'scenes' ? '现场' : '身份'}</span>
           </button>
         ))}
       </div>
