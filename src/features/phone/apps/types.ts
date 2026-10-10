@@ -1,3 +1,4 @@
+import type { PlayerRecords } from '../../../contracts/world-records.ts';
 import type { PhoneApp } from '../navigation.ts';
 /** Display models only. The integration adapter owns authorization, storage and task polling. */
 export type PhoneLink = { app: PhoneApp; target: string; label: string };
@@ -124,3 +125,9 @@ export type PhoneActions = {
 export type PhoneCommandResults = Readonly<
   Record<string, { status: 'committed' | 'failed'; code?: string }>
 >;
+
+/** Independently loaded read-only records. An unavailable read is never a successful empty list. */
+export type PhoneRecordsState =
+  | { status: 'loading' }
+  | { status: 'ready'; data: PlayerRecords }
+  | { status: 'error'; error: string };

@@ -5,6 +5,7 @@ import type {
   PhoneActionReceipt,
   PhoneAppsData,
   PhoneCommandResults,
+  PhoneRecordsState,
 } from './types.ts';
 import type { GroupsController } from '../groups/use-groups.ts';
 import { errorText } from './helpers.ts';
@@ -22,6 +23,8 @@ type Context = {
   groups?: GroupsController;
   worldId: string;
   data: PhoneAppsData;
+  records: PhoneRecordsState;
+  reloadRecords?: () => Promise<void>;
   actions: PhoneActions;
   loading: boolean;
   loadError?: string;
@@ -43,6 +46,8 @@ export type PhoneAppsProviderProps = {
   groups?: GroupsController;
   worldId: string;
   data: PhoneAppsData;
+  records?: PhoneRecordsState;
+  reloadRecords?: () => Promise<void>;
   actions?: PhoneActions;
   loading?: boolean;
   loadError?: string;
@@ -56,6 +61,8 @@ export function PhoneAppsProvider(props: PhoneAppsProviderProps) {
 function WorldApps({
   worldId,
   data,
+  records = { status: 'error', error: '这部分暂时无法读取。' },
+  reloadRecords,
   actions = {},
   loading = false,
   loadError,
@@ -152,6 +159,11 @@ function WorldApps({
         groups,
         worldId,
         data,
+        records:
+          records.status === 'ready' && records.data.worldId !== worldId
+            ? { status: 'error', error: '这部分暂时无法读取，请重新打开。' }
+            : records,
+        reloadRecords,
         actions,
         loading,
         loadError,
