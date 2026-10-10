@@ -148,7 +148,7 @@ test('genesis links persist atomically, keep original assets and replay invitati
             return JSON.stringify({ groups });
           },
         },
-        { historyEnabled: true, historyMode: 'two-step', historyLinksEnabled: true },
+        { historyEnabled: true, historyMode: 'two-step', historyLinksEnabled: bad !== 'disabled' },
       );
       await buildHandler(queue, planner, 'explicit-fixture')(f.lease, controller.signal);
       return calls;
@@ -297,7 +297,7 @@ test('genesis links persist atomically, keep original assets and replay invitati
     await t.test(
       'invalid quote/date/state and cancelled second stage cannot persist a half-world',
       async () => {
-        for (const bad of ['quote', 'date', 'state', 'abort']) {
+        for (const bad of ['quote', 'date', 'state', 'abort', 'disabled']) {
           const f = await create(false);
           await assert.rejects(execute(f, bad, bad === 'abort'));
           const row = (

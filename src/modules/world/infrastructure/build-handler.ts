@@ -114,6 +114,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       mediaRequests: [],
     };
     if (opening.messageHistory?.messages.some((m) => m.connection)) {
+      if (planner.historyLinksEnabled !== true) throw Error('GENESIS_LINKS_DISABLED');
       const initial = createGenesisLinks({
         worldId: state.id,
         seedId: input.seedId,

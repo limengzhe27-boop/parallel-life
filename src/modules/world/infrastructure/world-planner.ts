@@ -115,7 +115,10 @@ export class WorldPlanner {
   ) {
     this.model = model;
     this.historyEnabled = options.historyEnabled;
-    this.historyLinksEnabled = options.historyLinksEnabled === true;
+    this.historyLinksEnabled =
+      options.historyLinksEnabled === true &&
+      options.historyEnabled &&
+      options.historyMode === 'two-step';
     this.twoStep = options.historyEnabled && options.historyMode === 'two-step';
   }
   private async proposeSetting(
