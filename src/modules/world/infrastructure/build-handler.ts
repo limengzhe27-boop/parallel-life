@@ -60,7 +60,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       version: 0,
       title: seed.story.title,
       time,
-      ...(planner.historyEnabled
+      ...(planner.historyEnabled !== false
         ? { messageHistory: { version: 1 as const, startAt: time, timeZone: 'UTC+08:00' } }
         : {}),
       actors: opening.actors.map((a) => ({
@@ -90,23 +90,24 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
           sourceEventId,
         },
       ],
-      messages: planner.historyEnabled
-        ? genesisMessages({
-            worldId: input.worldId,
-            startAt: time,
-            actors: ids,
-            history: opening.messageHistory,
-            current: opening.messages,
-            newId: randomUUID,
-          })
-        : opening.messages.map((m, index) => ({
-            id: randomUUID(),
-            actorId: ids.get(m.actorKey)!,
-            role: 'assistant' as const,
-            text: m.text,
-            at: openingMessageAt(time, index, opening.messages.length),
-            sourceEventId,
-          })),
+      messages:
+        planner.historyEnabled !== false
+          ? genesisMessages({
+              worldId: input.worldId,
+              startAt: time,
+              actors: ids,
+              history: opening.messageHistory,
+              current: opening.messages,
+              newId: randomUUID,
+            })
+          : opening.messages.map((m, index) => ({
+              id: randomUUID(),
+              actorId: ids.get(m.actorKey)!,
+              role: 'assistant' as const,
+              text: m.text,
+              at: openingMessageAt(time, index, opening.messages.length),
+              sourceEventId,
+            })),
       appointments: [],
       mediaRequests: [],
     };

@@ -557,7 +557,8 @@ test('correction keeps complete NPC fields and all history requirements after re
 test('production-disabled history preserves the previously deployed opening protocol without fabricated past', async () => {
   const planner = new WorldPlanner(
     {
-      async complete(messages) {
+      async complete(messages, _signal, _cap, options) {
+        assert.equal(options, undefined);
         assert.doesNotMatch(messages[0]!.content, /messageHistory/);
         return JSON.stringify(output);
       },
@@ -567,4 +568,39 @@ test('production-disabled history preserves the previously deployed opening prot
   const result = await planner.propose(seed);
   assert.equal(result.messageHistory, undefined);
   assert.equal(planner.promptVersion, 'world-opening-11');
+});
+
+test('disabled history authored cast retains server personas with legacy messages and notes', async () => {
+  const { settingContent } = await import('./fixtures/life-setting.ts');
+  const content = settingContent();
+  const trial = ApprovedSeedSchema.parse({
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    source: { kind: 'setting_draft', draftId: randomUUID(), version: 0 },
+    settingContent: content,
+    story: content.story,
+    setup: content.setup,
+    facts: [],
+    events: [],
+    people: [],
+    assets: [],
+    portraitAssetId: null,
+  });
+  const result = await new WorldPlanner(
+    {
+      async complete(messages, _signal, _cap, options) {
+        assert.equal(options, undefined);
+        assert.doesNotMatch(messages[0]!.content, /messageHistory/);
+        const input = JSON.parse(messages[1]!.content);
+        return JSON.stringify({
+          messages: [{ actorKey: input.openingKey, text: '先比较场地？' }],
+          notes: [{ title: '场地', text: '待核对' }],
+        });
+      },
+    },
+    { historyEnabled: false },
+  ).propose(trial);
+  assert.equal(result.messageHistory, undefined);
+  assert.equal(result.actors.length, content.characters.length);
+  assert(result.actors.every((a) => a.persona));
 });

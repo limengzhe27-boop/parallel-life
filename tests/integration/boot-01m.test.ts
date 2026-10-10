@@ -108,6 +108,32 @@ test('BOOT message genesis persists one immutable read baseline with real owner 
       return { seed, request, build, lease };
     }
     await t.test(
+      'disabled production write preserves current-only genesis without invented history',
+      async () => {
+        const f = await create();
+        const opening = proposal();
+        delete opening.messageHistory;
+        const planner = new WorldPlanner(
+          {
+            async complete() {
+              return JSON.stringify(opening);
+            },
+          },
+          { historyEnabled: false },
+        );
+        await buildHandler(
+          queue,
+          planner,
+          'explicit-fixture',
+        )(f.lease, new AbortController().signal);
+        const state = await worlds.get({ userId: owner }, f.build.worldId);
+        assert.equal(state.messageHistory, undefined);
+        assert.equal(state.messages.length, opening.messages.length);
+        assert(state.messages.every((m) => m.initialRead === undefined && m.history === undefined));
+        assert.equal((await tasks.get(owner, f.build.task!.id)).status, 'succeeded');
+      },
+    );
+    await t.test(
       'fixed request start, stable references, read projection, NPC isolation and replay persist through reload',
       async () => {
         const f = await create();

@@ -173,7 +173,7 @@ export class WorldPlanner {
             ],
         signal,
         WORLD_OPENING_MAX_TOKENS,
-        { format: 'json_object' },
+        this.historyEnabled ? { format: 'json_object' } : undefined,
       );
       try {
         const generated = WorldOpeningSchema.pick({
@@ -350,7 +350,7 @@ export class WorldPlanner {
             ],
         signal,
         WORLD_OPENING_MAX_TOKENS,
-        { format: 'json_object' },
+        this.historyEnabled ? { format: 'json_object' } : undefined,
       );
       try {
         const modelOutput = extractJsonObject(raw);
