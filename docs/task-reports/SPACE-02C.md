@@ -29,3 +29,9 @@
 ## 核对后原命令显式再提交
 
 联审I controller发现请求发送前断网也会unknown，核对unconfirmed若永久不能恢复会锁死地图。本组件新增可选onResubmitOriginal；仅unknown且控制器明确提供时显示“重新提交这次行程”。调用者必须先只读核对原回执并得到unconfirmed，再提交完全相同commandId/expectedVersion/routeId；该确定性原子命令没有模型调用，重复已提交只返回原回执，不能换新command或自动重试。默认unknown仍只核对；此出口不是unknown模型任务的重付机制。I负责运行时/持久状态授权，F不能自行推断可再提交。
+
+## 实际控制器独立复核
+
+根在原3258隔离支架编译I实际useWorldMap/SpaceClient（只读其源码、不修改）进行三种浏览器行为验收：存储拒绝时状态failed且0旅行POST；服务端已提交但响应丢失时，核对原回执变committed，仅1旅行POST、版本1和12分钟；请求未发出时unknown，核对unconfirmed后显式重提完全相同原command/版本/route，2发送尝试但仅1模拟提交、版本1和12分钟。实际控制器没有自动重提或新增command。证据主.local/space02c-preview/evidence/actual-controller.json。首轮合成Session响应不符合当前kind/csrfToken契约，加载超时，修正支架后3/3通过；此问题属于测试样例，不是业务失败。全为本机模拟transport，0模型/0生产/0数据库，不替代I真实PG和公网验收。
+
+unknown组件默认仅核对按钮，只有控制器明确允许时显示原行程重新提交；390×500两按钮均可见、点击触发original-resubmit回调、无横向溢出。截图unknown-confirmed-resubmit-390-500.png已人工查看。仍待整页地图与最终生产验收，不将本段局部验证标成整体完成。
