@@ -553,3 +553,18 @@ test('correction keeps complete NPC fields and all history requirements after re
   assert.equal(calls, 2);
   assert.equal(opening.messageHistory!.messages.length, 3);
 });
+
+test('production-disabled history preserves the previously deployed opening protocol without fabricated past', async () => {
+  const planner = new WorldPlanner(
+    {
+      async complete(messages) {
+        assert.doesNotMatch(messages[0]!.content, /messageHistory/);
+        return JSON.stringify(output);
+      },
+    },
+    { historyEnabled: false },
+  );
+  const result = await planner.propose(seed);
+  assert.equal(result.messageHistory, undefined);
+  assert.equal(planner.promptVersion, 'world-opening-11');
+});

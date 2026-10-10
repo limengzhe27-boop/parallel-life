@@ -42,7 +42,11 @@ export function createWorker() {
           config.model,
         ),
       }),
-      'world-build': buildHandler(queue, new WorldPlanner(new YibuTextModel(config)), config.model),
+      'world-build': buildHandler(
+        queue,
+        new WorldPlanner(new YibuTextModel(config), { historyEnabled: false }),
+        config.model,
+      ),
       profile: discoveryHandler(
         queue,
         new DiscoveryPlanner(new YibuTextModel(config)),

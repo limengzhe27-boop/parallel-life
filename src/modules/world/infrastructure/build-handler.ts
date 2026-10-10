@@ -4,8 +4,9 @@ import { ApprovedSeedSchema } from '../../../contracts/seeds.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { WorldState } from '../domain/types.ts';
+import { openingMessageAt } from '../domain/opening-time.ts';
 import { genesisMessages } from '../domain/genesis-messages.ts';
-import { WorldPlanner, WORLD_PROMPT_VERSION } from './world-planner.ts';
+import { WorldPlanner } from './world-planner.ts';
 
 export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, model: string) {
   return async (lease: TaskLease, signal: AbortSignal) => {
@@ -27,7 +28,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
         /* Surface which model/prompt produced unusable output so the failure is diagnosable. */
         throw Object.assign(error instanceof Error ? error : Error('INVALID_WORLD_OUTPUT'), {
           model,
-          promptVersion: WORLD_PROMPT_VERSION,
+          promptVersion: planner.promptVersion,
           durationMs: Date.now() - started,
         });
       }),
@@ -59,7 +60,9 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       version: 0,
       title: seed.story.title,
       time,
-      messageHistory: { version: 1, startAt: time, timeZone: 'UTC+08:00' },
+      ...(planner.historyEnabled
+        ? { messageHistory: { version: 1 as const, startAt: time, timeZone: 'UTC+08:00' } }
+        : {}),
       actors: opening.actors.map((a) => ({
         id: ids.get(a.key)!,
         ...(a.sourcePersonId ? { sourcePersonId: a.sourcePersonId } : {}),
@@ -87,14 +90,23 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
           sourceEventId,
         },
       ],
-      messages: genesisMessages({
-        worldId: input.worldId,
-        startAt: time,
-        actors: ids,
-        history: opening.messageHistory,
-        current: opening.messages,
-        newId: randomUUID,
-      }),
+      messages: planner.historyEnabled
+        ? genesisMessages({
+            worldId: input.worldId,
+            startAt: time,
+            actors: ids,
+            history: opening.messageHistory,
+            current: opening.messages,
+            newId: randomUUID,
+          })
+        : opening.messages.map((m, index) => ({
+            id: randomUUID(),
+            actorId: ids.get(m.actorKey)!,
+            role: 'assistant' as const,
+            text: m.text,
+            at: openingMessageAt(time, index, opening.messages.length),
+            sourceEventId,
+          })),
       appointments: [],
       mediaRequests: [],
     };
@@ -236,7 +248,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
           status: 'succeeded',
           resultVersion: 0,
           model,
-          promptVersion: WORLD_PROMPT_VERSION,
+          promptVersion: planner.promptVersion,
           durationMs: Date.now() - started,
         },
       };
