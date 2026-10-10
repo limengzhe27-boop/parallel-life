@@ -271,3 +271,141 @@ test('draft ownership, stale versions, changed profiles and photos are rejected 
     await f.cleanup();
   }
 });
+
+test('selected friends share one automatic photo, cancellation respects remaining people and no-photo friends', async () => {
+  const f = await fixture();
+  try {
+    const sharedId = randomUUID(),
+      noPhotoId = randomUUID(),
+      excludedId = randomUUID();
+    let profile = f.profile;
+    for (const person of [
+      { id: f.personId, name: '同名朋友', relationship: '朋友', assetId: f.second },
+      { id: sharedId, name: '同名朋友', relationship: '同学', assetId: f.second },
+      { id: noPhotoId, name: '无照片朋友', relationship: '朋友', assetId: null },
+      { id: excludedId, name: '未选择的人', relationship: '同学', assetId: f.photo },
+    ])
+      profile = await f.profiles.edit(f.owner, {
+        expectedVersion: profile.version,
+        operation: { kind: 'set-person', person },
+      });
+    let draft = await f.repo.prepare(f.owner, f.prepare);
+    const select = async (personIds: string[]) => {
+      draft = await f.repo.save(f.owner, draft.id, {
+        commandId: randomUUID(),
+        expectedVersion: draft.version,
+        expectedProfileVersion: profile.version,
+        story: draft.story,
+        selection: { ...draft.selection, personIds, assetIds: [], portraitAssetId: null },
+      });
+      return draft;
+    };
+    await select([f.personId, sharedId, noPhotoId]);
+    assert.deepEqual(draft.assets, [{ assetId: f.second, revision: 1 }]);
+    assert.deepEqual(draft.selection.assetIds, [], 'friend photos require no separate selection');
+    await select([sharedId, noPhotoId]);
+    assert.deepEqual(
+      draft.assets,
+      [{ assetId: f.second, revision: 1 }],
+      'remaining friend still authorizes the shared photo',
+    );
+    await select([noPhotoId]);
+    assert.deepEqual(draft.assets, [], 'last photo-bearing friend removed');
+    await select([f.personId, sharedId, noPhotoId]);
+    const confirmed = await f.repo.confirm(f.owner, draft.id, {
+      commandId: randomUUID(),
+      expectedVersion: draft.version,
+      expectedProfileVersion: profile.version,
+    });
+    const seed = await new SeedRepository(f.db).get(f.owner, confirmed.seedId!);
+    assert.deepEqual(
+      seed.people.map((p) => p.id),
+      [f.personId, sharedId, noPhotoId],
+    );
+    assert.deepEqual(
+      seed.people.map((p) => p.assetId),
+      [f.second, f.second, null],
+    );
+    assert.deepEqual(seed.assets, [{ assetId: f.second, revision: 1 }]);
+    assert.equal(
+      seed.people.some((p) => p.id === excludedId),
+      false,
+    );
+    assert.equal(
+      seed.assets.some((a) => a.assetId === f.photo),
+      false,
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('friend photo updates require refreshed draft approval and do not rewrite an approved seed', async () => {
+  const f = await fixture();
+  try {
+    const nextPhoto = randomUUID();
+    await f.admin.query(
+      "INSERT INTO parallel_life.assets(id,owner_id,storage_key,mime_type,byte_length,width,height,origin,status) VALUES($1,$2,$3,'image/jpeg',10,10,10,'upload','ready')",
+      [nextPhoto, f.owner, `qa-${nextPhoto}`],
+    );
+    let profile = f.profile;
+    let draft = await f.repo.prepare(f.owner, f.prepare);
+    const save = async () => {
+      draft = await f.repo.save(f.owner, draft.id, {
+        commandId: randomUUID(),
+        expectedVersion: draft.version,
+        expectedProfileVersion: profile.version,
+        story: draft.story,
+        selection: {
+          ...draft.selection,
+          personIds: [f.personId],
+          assetIds: [],
+          portraitAssetId: null,
+        },
+      });
+    };
+    await save();
+    assert.deepEqual(draft.assets, [{ assetId: f.second, revision: 1 }]);
+    const oldProfileVersion = profile.version;
+    profile = await f.profiles.edit(f.owner, {
+      expectedVersion: profile.version,
+      operation: {
+        kind: 'set-person',
+        person: { ...profile.people.find((p) => p.id === f.personId)!, assetId: nextPhoto },
+      },
+    });
+    await assert.rejects(
+      f.repo.confirm(f.owner, draft.id, {
+        commandId: randomUUID(),
+        expectedVersion: draft.version,
+        expectedProfileVersion: oldProfileVersion,
+      }),
+      { code: 'VERSION_CONFLICT' },
+    );
+    assert.equal((await new SeedRepository(f.db).list(f.owner)).length, 0);
+    await save();
+    assert.deepEqual(draft.assets, [{ assetId: nextPhoto, revision: 1 }]);
+    const confirmed = await f.repo.confirm(f.owner, draft.id, {
+      commandId: randomUUID(),
+      expectedVersion: draft.version,
+      expectedProfileVersion: profile.version,
+    });
+    const seeds = new SeedRepository(f.db),
+      seed = await seeds.get(f.owner, confirmed.seedId!);
+    assert.equal(seed.people[0]!.assetId, nextPhoto);
+    profile = await f.profiles.edit(f.owner, {
+      expectedVersion: profile.version,
+      operation: {
+        kind: 'set-person',
+        person: { ...profile.people.find((p) => p.id === f.personId)!, assetId: null },
+      },
+    });
+    assert.deepEqual(
+      await seeds.get(f.owner, seed.id),
+      seed,
+      'approved source stays immutable after clearing the real profile photo',
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
