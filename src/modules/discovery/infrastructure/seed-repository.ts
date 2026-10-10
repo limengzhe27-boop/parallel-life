@@ -32,7 +32,7 @@ export class SeedRepository {
     return this.db.transaction(ownerId, async (sql) =>
       (
         await sql.query(
-          'SELECT document FROM parallel_life.approved_seeds WHERE owner_id=$1 AND setting_draft_id IS NULL ORDER BY created_at DESC,id DESC LIMIT 100',
+          "SELECT document FROM parallel_life.approved_seeds WHERE owner_id=$1 AND setting_draft_id IS NULL AND document->'source'->>'kind' IS DISTINCT FROM 'official_life' ORDER BY created_at DESC,id DESC LIMIT 100",
           [ownerId],
         )
       ).rows.map((r) => ApprovedSeedSchema.parse(r.document)),

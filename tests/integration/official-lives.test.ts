@@ -1,3 +1,4 @@
+import { SeedRepository } from '../../src/modules/discovery/infrastructure/seed-repository.ts';
 import { officialLifeCatalog } from '../../src/modules/settings/infrastructure/official-presets/index.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,6 +74,8 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
             assert.equal(again.worldId, a.worldId);
             assert.equal(again.resumed, true);
           }
+          assert.deepEqual(await new SeedRepository(db).list(realOwner), []);
+          assert.deepEqual(await builds.list(realOwner), []);
         } finally {
           await admin.query('DELETE FROM parallel_life.accounts WHERE id=ANY($1)', [
             [realOwner, realOther],
