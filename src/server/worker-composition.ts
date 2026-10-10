@@ -44,7 +44,10 @@ export function createWorker() {
       }),
       'world-build': buildHandler(
         queue,
-        new WorldPlanner(new YibuTextModel(config), { historyEnabled: false }),
+        new WorldPlanner(new YibuTextModel(config), {
+          historyEnabled: true,
+          historyMode: 'two-step',
+        }),
         config.model,
       ),
       profile: discoveryHandler(

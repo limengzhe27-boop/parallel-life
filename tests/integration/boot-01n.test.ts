@@ -267,6 +267,7 @@ test('two-step builds atomically persist complete historical baseline for ordina
   } finally {
     await db.close();
     await queue.close();
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=ANY($1)', [[owner, other]]);
     await admin.end();
   }
 });
