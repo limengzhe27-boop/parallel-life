@@ -90,3 +90,27 @@ test('stable rereads are idempotent; an unavailable own portrait is cleared with
   assert.deepEqual(next.assetIds, ['friend-a']);
   assert.equal(next.portraitAssetId, null);
 });
+
+test('a previously automatic friend photo is removed on reread even if its new purpose is reference', () => {
+  const previous = synchronizeDraftPhotos(selection(['a'], ['reference', 'portrait']), roles);
+  const changed = {
+    ...roles,
+    profileVersion: 2,
+    referenceAssetIds: ['reference', 'friend-a'],
+    personAssets: [{ personId: 'a', assetId: 'replacement' }, roles.personAssets[1]!],
+  };
+  const next = synchronizeDraftPhotos(previous, changed, roles);
+  assert.deepEqual(next.assetIds, ['reference', 'portrait', 'replacement']);
+  assert.equal(next.portraitAssetId, 'portrait');
+  assert.deepEqual(
+    synchronizeDraftPhotos(previous, changed).assetIds,
+    ['reference', 'portrait', 'friend-a', 'replacement'],
+    'historical selections without previous verified purposes must not guess away explicit references',
+  );
+  const cleared = synchronizeDraftPhotos(
+    previous,
+    { ...changed, personAssets: [roles.personAssets[1]!] },
+    roles,
+  );
+  assert.deepEqual(cleared.assetIds, ['reference', 'portrait']);
+});

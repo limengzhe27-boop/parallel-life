@@ -45,6 +45,7 @@ export function DraftEditor({
     JSON.stringify(selection) !== JSON.stringify(current.selection) ||
     profile.version !== current.profileVersion;
   const [roles, setRoles] = useState<ProfilePhotoRoles>();
+  const verifiedRoles = useRef<ProfilePhotoRoles | undefined>(undefined);
   const [roleError, setRoleError] = useState('');
   const [roleRead, setRoleRead] = useState(0);
   useEffect(() => {
@@ -63,8 +64,10 @@ export function DraftEditor({
         if (next.profileId !== profile.id || next.profileVersion !== profile.version)
           throw new Error('资料刚有更新，请读取最新资料后再确认。');
         if (!live) return;
+        const previous = verifiedRoles.current;
         setRoles(next);
-        setSelection((old) => synchronizeDraftPhotos(old, next));
+        setSelection((old) => synchronizeDraftPhotos(old, next, previous));
+        verifiedRoles.current = next;
       } catch (e) {
         if (live) setRoleError(e instanceof Error ? e.message : '照片用途暂时未能读取。');
       }

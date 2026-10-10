@@ -15,13 +15,27 @@ export function optionalDraftPhotos(roles?: ProfilePhotoRoles): string[] {
 }
 
 /** For editable selections only; confirmed snapshots never enter this synchronization path. */
-export function synchronizeDraftPhotos(selection: Selection, roles: ProfilePhotoRoles): Selection {
+export function synchronizeDraftPhotos(
+  selection: Selection,
+  roles: ProfilePhotoRoles,
+  previousRoles?: ProfilePhotoRoles,
+): Selection {
   const optional = new Set(optionalDraftPhotos(roles));
+  // Only a previously verified mapping proves that these were automatic photos.
+  // Historical selections without that provenance keep their explicit references.
+  const previousPersonPhotos = new Set(
+    previousRoles?.profileId === roles.profileId
+      ? previousRoles.personAssets.map((item) => item.assetId)
+      : [],
+  );
   const automatic = roles.personAssets
     .filter((item) => selection.personIds.includes(item.personId))
     .map((item) => item.assetId);
   const assetIds = [
-    ...new Set([...selection.assetIds.filter((id) => optional.has(id)), ...automatic]),
+    ...new Set([
+      ...selection.assetIds.filter((id) => optional.has(id) && !previousPersonPhotos.has(id)),
+      ...automatic,
+    ]),
   ];
   const portraitAssetId =
     selection.portraitAssetId === roles.portraitAssetId &&
