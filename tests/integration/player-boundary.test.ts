@@ -227,7 +227,9 @@ test('real PostgreSQL player projection, memory writes and candidate second exit
       },
     };
     state = (await worlds.commit({ userId: owner }, command, event)).state;
-    const reply = state.messages.find((m) => m.actorId === hidden.id && m.role === 'assistant')!;
+    const reply = state.messages.find(
+      (m) => m.actorId === hidden.id && m.role === 'assistant' && m.sourceEventId === event.id,
+    )!;
     const belief = (
       await admin.query(
         "SELECT id FROM parallel_life.memory_records WHERE owner_id=$1 AND scope_type='character'",
