@@ -1,5 +1,6 @@
 'use client';
 
+import type { PhoneMapContext } from './map/context.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   homeRoute,
@@ -52,6 +53,7 @@ export type PhoneNotification = {
   actionableUntil?: string;
 };
 export type PhoneAppContext = {
+  map?: PhoneMapContext;
   app: PhoneApp;
   target?: string;
   open: (app: PhoneApp, target?: string) => void;
