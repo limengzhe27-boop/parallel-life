@@ -12,6 +12,10 @@ const attribution: Record<RecordItem['assertion'], string> = {
   starting_context: '人生起点',
 };
 
+export function recordAttribution(record: RecordItem): string {
+  return record.kind === 'history_message' ? '虚构起点来信' : attribution[record.assertion];
+}
+
 /** System targets are never private note editor targets, even before a read completes. */
 export function isSystemRecordTarget(target?: string): boolean {
   return Boolean(target?.startsWith('sys/'));
@@ -41,7 +45,7 @@ export function searchRecords(records: readonly RecordItem[], query: string): Re
       record.text,
       recordText(record),
       record.stateLabel,
-      attribution[record.assertion],
+      recordAttribution(record),
     ),
   );
 }
@@ -167,20 +171,34 @@ export function NotesRecordDetail({
       </div>
     );
   const destination = recordDestination(record);
+  const origin =
+    record.origin ?? (record.source.kind === 'world_genesis' ? record.source : undefined);
+  const related = (record.relatedLinks ?? []).filter(
+    (link) => !(destination && link.app === destination.app && link.target === destination.target),
+  );
   return (
     <article className={s.detail} data-system-record={record.id}>
-      <p className={s.attribution}>{attribution[record.assertion]}</p>
+      <p className={s.attribution}>{recordAttribution(record)}</p>
       <h2>{record.title}</h2>
       <span className={s.state}>{record.stateLabel}</span>
       <p className={s.body}>{recordText(record)}</p>
       <div className={s.source}>
-        {record.source.kind === 'opening_field' ? (
+        {record.source.kind === 'world_genesis' ? (
+          <p>来信时间 · {timeText(record.source.at)}</p>
+        ) : record.source.kind === 'opening_field' ? (
           <p>来自这段人生的起点</p>
         ) : (
           <p>
-            {record.source.timeBasis === 'story' ? '故事时间' : '记录时间'} ·{' '}
-            {timeText(record.source.at)}
+            {origin && record.kind === 'invitation'
+              ? '回应时间'
+              : record.source.timeBasis === 'story'
+                ? '故事时间'
+                : '记录时间'}{' '}
+            · {timeText(record.source.at)}
           </p>
+        )}
+        {origin && record.kind !== 'history_message' && (
+          <p>源自虚构起点来信 · {timeText(origin.at)}</p>
         )}
         {destination ? (
           <button
@@ -188,13 +206,32 @@ export function NotesRecordDetail({
             className={s.linkButton}
             onClick={() => open(destination.app, destination.target)}
           >
-            {destination.app === 'messages' ? '查看对话' : '查看日程'}
+            {destination.app === 'messages' ? '查看来源对话' : '查看日程'}
             <span aria-hidden="true"> ›</span>
           </button>
         ) : (
           record.source.kind === 'world_event' && (
             <p className={s.hint}>来源已记录，暂时无法打开对话或日程。</p>
           )
+        )}
+        {related.length > 0 && (
+          <nav className={s.links} aria-label="关联内容">
+            {related.map((link) => (
+              <button
+                type="button"
+                className={s.linkButton}
+                key={`${link.app}:${link.target}`}
+                onClick={() => open(link.app, link.target)}
+              >
+                {link.app === 'messages'
+                  ? '查看来源对话'
+                  : link.app === 'photos'
+                    ? '相关人物带入素材'
+                    : link.label}
+                <span aria-hidden="true"> ›</span>
+              </button>
+            ))}
+          </nav>
         )}
       </div>
     </article>

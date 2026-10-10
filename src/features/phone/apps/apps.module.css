@@ -963,3 +963,12 @@
     font-size: 16px !important;
   }
 }
+
+.genesisOrigin {
+  display: block;
+  margin: 0 0 6px;
+  color: #596574;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

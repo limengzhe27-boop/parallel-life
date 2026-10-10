@@ -1441,6 +1441,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   position: 'relative',
                 }}
               >
+                {m.role === 'assistant' && m.initialRead === true && (
+                  <small className={s.genesisOrigin}>虚构起点来信</small>
+                )}
                 <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
                 {m.photo && (
                   <div

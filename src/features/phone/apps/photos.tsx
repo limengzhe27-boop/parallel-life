@@ -211,7 +211,12 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
           }}
         >
           <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '6px' }}>
-            照片来源
+            {photo.sourcePersonId &&
+            photo.links?.some(
+              (link) => link.app === 'notes' && link.target.startsWith('sys/history/'),
+            )
+              ? '相关人物带入素材'
+              : '照片来源'}
           </div>
           <p
             className={s.photoDescription}
@@ -219,6 +224,7 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
           >
             {photo.description}
           </p>
+          <Links links={photo.links} open={open} />
         </div>
 
         {/* 底部前后翻页与设为壁纸操作 */}

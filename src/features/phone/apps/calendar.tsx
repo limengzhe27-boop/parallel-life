@@ -431,6 +431,12 @@ function InvitationDetail({
       <h3>{n.title}</h3>
       <p className={s.invitationTime}>{timeText(n.at)}</p>
       <small>时间以这段人生的日程为准</small>
+      {n.origin?.kind === 'world_genesis' && (
+        <p className={s.genesisOrigin}>
+          源自虚构起点来信 · {timeText(n.origin.at)}
+          {n.status === 'proposed' && <span> · 邀约仍待你回应</span>}
+        </p>
+      )}
       <section className={s.participants}>
         <h4>一起的人</h4>
         {n.participantIds.map((id) => (
