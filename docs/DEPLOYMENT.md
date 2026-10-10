@@ -782,3 +782,9 @@ F真实PG/API/UI保存、共享取消、换图冲突重读、确认重发及现�
 正式两个既有paused合成R世界原receipt/重复200/v1、缺失200/unconfirmed、指纹409/跨owner404；六张世界相关表查询前后整行相同，world1/clock暂停不变。Ego115原生touch实际原回执恢复、受控422/lost、unknown两次核对无新send、390短/长及PC1440截图通过；模拟send全部被Page保护拒绝，没有新生产消息、task执行、世界、模型、生图。自动selector/mouse偏移、初guard跨CDP不持久及故障body漏字段均记录，不冒称成功；原生浏览器touch不等于真实手机验证。会话/局部存储恢复、finish一次，I本地账号/夹具/端口清理。F资源仍由F按保留登记收尾，不声称已停止。
 
 地图设计两文件和默认人生副本最新方案一起归档，仅预览/规划；默认副本内容及玩家实例化、地图移动、专业创作者后台没有上线。本批排除根新DEMO-SCRIPT在途稿/行及其他设定页面工作。最终一次文档部署READY、当前提交及资源状态另存忽略chat-send-final-handoff.json，不循环追加tracked状态。
+
+## 2026-10-10 · DEMO-SCRIPT 四份内容稿归档
+
+内容b8f698d，Production 9tq2m8cfb / dpl_5AANqAfoGn1JJkkXbpGceLytjaXB READY，正式 https://parallel-life-nu.vercel.app 已切换；只读health、首页、possibilities均200。五份v0.2内容文档21982字符及根/F/I报告受控归档，原v0.1审查证据保留。修正知情时点、活动人数及相对日期，补资料、拒绝分支、身份回报与首段终点；两处集成时间措辞修正见I报告。39/39生产迁移只读一致，无SQL变更。纯文档没有重跑应用check/build或借用CHAT591测试当剧本体验验证；Vercel发布构建READY。
+
+业务仍为CHAT9699249，不新增预设入口/可执行剧情或生产世界，0数据库写/模型/生图。四稿未获逐条采用、未证明好玩，LIB-03实例化及完整场景/素材/任务待开发，专业后台仍最后。初次误用/branches404，实际/possibilities200，其他源码和旧WIP排除。最终文档发布及最新READY/public另存忽略demo-script-final-handoff.json。见[集成报告](task-reports/DEMO-SCRIPT-01I.md)与[四稿索引](story-presets/README.md)。

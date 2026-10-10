@@ -33,3 +33,11 @@
 最终集成仅两处小幅时间措辞修正：真千金D-2程野旧记录“今晚”明确为“D0生日宴”；顶流D+1小店晚饭请求“今天”改为“这次晚饭”，避免相对日期误读。根冻结21976字符后最终五稿21982字符，指纹见忽略.local/demo-script-content-check.json；F报告原v0.1指纹和审查正文未改。
 
 5/5结构、索引链接、表格列数、围栏及能力标识通过；静态首轮脚本错误要求所有拒绝段同一标题，黄毛“完整小局面”导致检查失败，修正检查接受两种真实标题后通过，未为通过检查改剧情。生产只读39/39迁移校验和一致，无SQL改动、无数据库写入。纯文档无需重跑应用check/build，旧591测试不列本任务测试。将严格排除旧CHAT清理行/报告及client/interview/创作页/BOOT/LIB WIP，只提交五稿、根/F/I报告、对应主表行。下一步正确提交身份推送、READY/public内容归档核对，再标内容交付完成；LIB-03及用户剧情验收仍待。
+
+## 首次归档已验收／最终状态归档
+
+受控提交b8f698d仅9个文档，五稿SHA与检查结果一致，其他在途源码SHA未变；未提交旧CHAT清理行/报告。Production parallel-life-9tq2m8cfb / dpl_5AANqAfoGn1JJkkXbpGceLytjaXB READY，正式域名parallel-life-nu.vercel.app已切换。只读GET /api/health、/、/possibilities均200，见.local/demo-script-first-public.json。初次误用不存在的/branches返回404，改用实际/possibilities后通过，未修改产品迎合错误检查地址。
+
+归档版本运行代码仍为CHAT9699249，内容不会自动出现在分支目录；Git及READY只证明文档发布，不能证明可玩世界。全程0世界创建/生产消息/任务执行/模型/生图/数据库写，39迁移一致。本次仅内容构思、独立审查和归档部署验收完成；剧情采用/趣味验收及LIB-03实例化待后续，专业后台未领取。
+
+根/F原报告保留写作与v0.1审查历史，本报告记录v0.2集成验收。主表三项仅标内容交付完成；最终状态说明一次提交后，核最终READY/public并保存忽略.local/demo-script-final-handoff.json，不循环修改tracked状态。首次状态归档脚本编码失败，无文件写入，空提交未产生；改用ASCII转义文本后重做。
