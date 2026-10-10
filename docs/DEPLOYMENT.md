@@ -772,3 +772,13 @@ F真实PG/API/UI保存、共享取消、换图冲突重读、确认重发及现�
 最终578check/build、29串行真实PG（含父子）通过；本轮真实人类授权最多2新world/0上传/8文字/0图，实际普通与固定cast两新阶段各2及NPC各1共6/8，原合成朋友图复用，两future proposed/角色承接/initial不变、已正常API暂停。实际生成仍是本机冻结planner+生产受限queue/store，不重复付费冒称正式HTTP tasks/run实测。有限字面时间门非完整语义判断；普通开场时段/称呼、NPC模板感及旧相册毫秒精度为遗留，不能承诺所有创建成功。
 
 手机独立时间入口/控制移除，首页/状态栏/锁屏共用标签、短屏可读性改善；旧time/director回home，schedule到真实calendar。公网390短长/1440PC420同源17:25、四App/深链/clock不变，新世界/记录/原图200、跨账号world/图404及旧N/P8/4/4无回填通过。系统来源记录只读、原图日期明确上传时间。Ego109原会话恢复并finish，I/F本地资源/夹具/临时链接清理。地图/导演长短期/壁纸及发送重复错误只规划或待开发，其他主WIP排除。四报告/主表/PHONE_EXPERIENCE_NEXT一次最终文档归档，文档READY另存ignoredhandoff。
+
+## 2026-10-10 · CHAT-SEND 单次失败提示与只读回执恢复
+
+业务9699249（I cadc75e + F 3ba6d3e，F最终报告64f93fc），Production mxqf1bxxo / dpl_8tDGVy4QUd7aoT5Bm9neoXdERJ7M READY，正式 https://parallel-life-nu.vercel.app 已切换。591check/build通过，3纯回执专项与5真实PG项（含父子）、F真实群事件及故障UI、联合实库相关用例通过；39生产迁移校验和一致，无SQL变更。
+
+失败消息下方保留局部提示，撤掉同次底部重复；草稿仅提交成功且未改变时清除，按世界/联系人恢复。单聊unknown保原command/actor/text/实际expectedVersion，通过只读 /messages/receipt 核原事务；缺失仅unconfirmed，核对/刷新不自动重付，明确再次尝试先查原回执并告知可能重复。群聊恢复原发送不自动execute，显式重试前读取最新task，已发送玩家消息与回复失败区分，独立读取错误保留。共享helpers/provider/client/interview与其他WIP不纳本批。
+
+正式两个既有paused合成R世界原receipt/重复200/v1、缺失200/unconfirmed、指纹409/跨owner404；六张世界相关表查询前后整行相同，world1/clock暂停不变。Ego115原生touch实际原回执恢复、受控422/lost、unknown两次核对无新send、390短/长及PC1440截图通过；模拟send全部被Page保护拒绝，没有新生产消息、task执行、世界、模型、生图。自动selector/mouse偏移、初guard跨CDP不持久及故障body漏字段均记录，不冒称成功；原生浏览器touch不等于真实手机验证。会话/局部存储恢复、finish一次，I本地账号/夹具/端口清理。F资源仍由F按保留登记收尾，不声称已停止。
+
+地图设计两文件和默认人生副本最新方案一起归档，仅预览/规划；默认副本内容及玩家实例化、地图移动、专业创作者后台没有上线。本批排除根新DEMO-SCRIPT在途稿/行及其他设定页面工作。最终一次文档部署READY、当前提交及资源状态另存忽略chat-send-final-handoff.json，不循环追加tracked状态。

@@ -333,6 +333,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
+|DEMO-WORLD-PLAN-01|codex-main-demo-world-plan-20261010|根 / 方案整理|主登记目录|docs/DEMO_WORLD_EXPERIENCE_PLAN.md；本人登记和任务行|无端口/模型/数据库；仅文档|2026-10-10：方案已写docs/DEMO_WORLD_EXPERIENCE_PLAN.md，待I归档验收；核对LIB-03及已有私有试演能力；先完成当前CHAT发送修复，再安排默认可体验分支。新需求不改变I/F当前源码范围。 用户否定旧三日常题材，新候选霓虹江湖/继承人/一夜成名仅待讨论；CREATOR-PRO-01专业后台已放末位待开发。 用户再补“今天的人生副本是”/黄毛身份参照；方案补身份→生活关系→参与→后果，上一版新版均未采纳，正式供稿待定。|
 |USER-ACCEPT-01|codex-main-useraccept01-20261010|根协调 / 文档|主登记目录|docs/DEVELOPMENT.md 本人行和第10节、docs/task-reports/USER-ACCEPT-01.md|无端口/数据库/模型；登记短锁串行|2026-10-10：文档待I集成；第10节10项已上线限定范围+8类未来能力，原报告/路径/差异核对通过，无业务变更。与头像批次串行部署；用户体验结论全部保持待反馈。 I限定文档技术验收：受控899167c/8d0635f已发布原报告，A12最新追加本次记录提交。12项已上线范围/7类未来组，用户A01–A12均待体验；Q仅分析完成，NOTES-WORLD父未实现。|
 |LOCK-02|codex-f-lock02-20261009-01|F|/Users/limengzhe/.codex/worktrees/lock-02-notifications/人生剧本|src/features/phone/phone-shell.tsx、phone.module.css、notification-state.ts（如需）、notification-projection.ts；tests/notification-projection.test.ts；docs/task-reports/LOCK-02.md；本人本行登记|3241/55447及浏览器已停止释放；无模型/生产资源|2026-10-09：独立提交675fa87，待I集成caller；360check/build、390/1440及长内容/空态/壁纸失败验证通过；未部署，真实全量通知仍依赖I去除源slice(0,4)|
 |NAR-02J|codex-main-nar02j-20260929|I / 单人|主登记目录|src/features/phone/world-phone-app.tsx、src/features/phone/auto-advance.ts、tests/phone-auto-advance.test.ts、docs/{DEVELOPMENT,DEPLOYMENT}.md、docs/task-reports/NAR-02J.md|本地浏览器 390/1440；生产 Supabase 迁移只读核验；Vercel 发布|2026-09-29：已集成验收；应用 6a5c6ac、Production q7cudpjg7 Ready；232 项测试、构建、双端、迁移 29/29，公网 health/首页/分支/访客入口 200|
@@ -952,7 +953,9 @@ EXPERIENCE-09用户随后明确：预设内容由相关人员提供，本轮只�
 |NOTES-WORLD-03|[ ] 待开发|预分配I；当前不领取源码，不占用R planner/组装。复用NOTES-WORLD/NAR/SCENE，先精确契约和领域提案。|导演可提出全世界跨现场的近期事项与较长追求；服务端校验来源/公开范围/依赖/状态；行动或观察后果驱动变更，玩家自述与世界核实分开。不改私人notes、不伪装旧choice列表为完整引擎。数量/内容按处境，多项可以关联而非强制冲突；完成不能移动门槛或重复奖励。先纯规则/真实PG/有限真实模型再开放。|
 |NOTES-WORLD-04|[ ] 待开发|依赖NOTES-WORLD-03稳定契约；预分配辅助；未领取源码。|备忘录展示『眼下要做的事／这段人生想做到的事／现在的处境／我的便签』；系统只读、真实状态与下一行动，来源跳人物/日程/地点/现场；私人独立编辑。首页少量关键事项卡+锁屏有因果通知，不空喊任务完成，旧世界不自动造主线。双端/刷新/权限与任务变化验收。|
 |HOME-VIS-02|[ ] 待开发|预分配辅助；先完成PHONE-TIME-REMOVE-01，后在公共范围释放后领取。|统一iPhone视觉、图标/层级/玻璃对比，首页时间/身份/近期事项/照片/应用统一；不同分支可用不同经授权的壁纸，不能把本人或朋友原图当新剧情照片。沿地图和任务契约接入，不摆无功能图标。手机短长屏及PC验收。|
-|CHAT-SEND-ERROR-01|[ ] 待开发|未领取；先核现有client/interview WIP归属，再精确登记公共helper和发送UI范围|用户要求消息发送失败已有消息下方提示时，撤掉底部重复提示“刚才没能完成，写好的内容还在。请稍后重试。”；根只读定位phone/apps/helpers.ts的errorText默认分支，不能盲删共用helper。保留消息局部错误/草稿/附件/明确重试；UNKNOWN先核回执，不误去除日历、便签等其他操作的必要错误。仅待办，本轮不改源码、不纳R验收。|
+|CHAT-SEND-ERROR-01|[x] 已完成（限定发送界面）|F codex-f-chat-send-error01-01a0c7c8-20261010；I统一验收，源码范围释放|稳定3ba6d3e/最终报告64f93fc，独立588check/build/专属格式通过；局部错误、原草稿与刷新恢复、unknown先核原回执、群恢复不execute及最新task核对、独立读取错误、迟到回执/实际8→9原命令均实测，0真实模型/生图。唯一I9699249/mxqf1bxxo READY，591联合check/build/39迁移及正式原receipt与受控手机长短/PC已验；不称真实附件/真机/AI自然性。F Ego112已finish，PG55458/3263-4及夹具/依赖仍按根保留由F本人管理；I已在报告确认无需为I保留，待F安全收尾，不误称停止或删除其他资源。详CHAT-SEND-ERROR-01及I报告。|
+|CHAT-SEND-RECEIPT-01I|[x] 已完成（限定发送恢复）|codex-chat-send-receipt-i-01a11a84-20261010；唯一I/scene-index-transitions；本批源码范围已释放|I cadc75e四新源码/两测试 + F3ba6d3e六src/tests受控合入9699249，Production mxqf1bxxo/dpl_8tDGVy4QUd7aoT5Bm9neoXdERJ7M READY，正式域已切换。591check/build、3纯/5真实PG（含父子）、本地HTTP六表不变、39生产迁移一致通过；正式两paused合成R原receipt/重复200、unconfirmed200、指纹409/跨owner404且六表整行不变。Ego115原生touch核原receipt/两次unknown无新send、受控拒绝一处局部alert/草稿及390短长/1440通过；自动选择器偏移及故障保护初轮失败诚实保留，非真机/AI效果。0真实模型/生图/新生产消息/任务执行；命名会话及局部存储恢复、finish一次，I夹具/端口已清理。主client/interview WIP保留。MAP/DEMO仅归档方案，根在途DEMO-SCRIPT排除；最终docs READY/当前版本见忽略chat-send-final-handoff.json。|
+|MAP-PREVIEW-01|[ ] 待验收|codex-main-map-preview-20261010；根仅docs/design/MAP_PREVIEW.md及docs/design/mockups/map-concept-v1.png、本人任务行|用户要求真实克制地图效果预览；生成两屏概念图，选地点/耗时/到达后可做事项；图与示例地点均非上线能力，不修改地图源码，不占SPACE-02A/B；预览说明与资产交唯一I本轮归档部署。|
 
 已有SPACE-02A→02B继续作为地图/真实移动的唯一任务，不另建重复空间引擎。先完成本批稳定发布，再任务后端与空间后端按实际公共文件互斥并行/串行；双方稳定后接首页、地图和备忘录。整体玩法与用户趣味性仍需验收；以上不算已采用全部细则或已开发。
 
@@ -1004,3 +1007,14 @@ EXPERIENCE-09用户随后明确：预设内容由相关人员提供，本轮只�
 ### 用户反馈如何收尾
 
 用户之后反馈时，在相应A项记录日期、自己的明确结论、复现条件和关联修复任务；没有反馈继续保留“待用户体验”。若发现阻断，原开发任务按证据标需返工；只是不满意美观或趣味时，记录具体体验差距再设改进范围。不能把技术自审标[x]自动复制为用户通过，也不能把用户一句“继续”当某项已验收。语音仍按用户要求暂缓。正式账号/多人生管理/真人参与/支付/生产运维等旧范围保留在第9节，之后有真实可体验交付再追加本节。
+
+|DEMO-WORLD-PLAN-01|[ ] 待验收|codex-main-demo-world-plan-20261010；主目录仅方案文档|用户新增：无需先聊天，默认几条内容充实的可体验分支；复用LIB-03，不另搭模拟聊天引擎|首批内容、直接入口、初始手机、独立存档及验收标准；仅方案不等于已实现，上线开发待CHAT收口后分配 用户否定旧三日常题材，新候选霓虹江湖/继承人/一夜成名仅待讨论；CREATOR-PRO-01专业后台已放末位待开发。 用户再补“今天的人生副本是”/黄毛身份参照；方案补身份→生活关系→参与→后果，上一版新版均未采纳，正式供稿待定。|
+
+
+## 11. 最后顺位：专业创作者后台
+
+用户2026-10-10明确要求放任务列表最后：先完成玩家体验与默认预设分支，不启动专业创作后台开发。与LIB-04普通创作助手、LIB-05发布治理复用基础，但专业内容工作台为后续范围，不能把现有私有稿/试演视为后台已完成。
+
+|任务ID|状态|负责人|范围及依赖|验收与接续|
+|---|---|---|---|---|
+|CREATOR-PRO-01|[ ] 待开发（最后顺位）|未领取|专业创作者后台；依赖预设分支可体验闭环及LIB版本/试演基础；后续再确定源码范围|内容编辑、人物/关系/知情范围、事件及发展条件、跨应用初始内容、素材管理、试演/版本/发布的专业工作台；先确认内容人员实际流程，不本轮实现、不扩大普通用户入口；详见DEMO_WORLD_EXPERIENCE_PLAN.md。|
