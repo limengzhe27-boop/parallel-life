@@ -19,6 +19,8 @@ export function useWorldMap(
     [operation, setOperation] = useState<TravelOperation | null>(null),
     [checking, setChecking] = useState(false),
     [working, setWorking] = useState(false);
+  const reloadRef = useRef(onReload);
+  reloadRef.current = onReload;
   const sequence = useRef(0),
     live = useRef(true),
     op = useRef<TravelOperation | null>(null),
@@ -61,6 +63,7 @@ export function useWorldMap(
     setError(null);
     try {
       const next = await client.read(worldId);
+      await reloadRef.current?.();
       if (live.current && id === sequence.current) setData(next);
     } catch (e) {
       if (live.current && id === sequence.current)
@@ -70,13 +73,13 @@ export function useWorldMap(
     } finally {
       if (live.current && id === sequence.current) setLoading(false);
     }
-  }, [client, worldId, enabled]);
+  }, [client, worldId, enabled, version]);
   useEffect(() => {
     void refresh();
   }, [version, refresh]);
   const after = useCallback(async () => {
-    await Promise.allSettled([refresh(), onReload?.()]);
-  }, [refresh, onReload]);
+    await refresh();
+  }, [refresh]);
   const accept = useCallback(
     async (r: TravelReceipt, previous: TravelOperation) => {
       publish({ ...previous, status: 'committed', receipt: r, message: undefined });
@@ -313,11 +316,12 @@ export function useWorldMap(
     }
   }, [data, client, worldId, after, refresh]);
   return {
-    data: data?.worldId === worldId && !error ? data : null,
+    data: data?.worldId === worldId && data.worldVersion === version && !error ? data : null,
     loading,
     error,
     refresh,
-    operation: data?.worldId === worldId && !error ? operation : null,
+    operation:
+      data?.worldId === worldId && data.worldVersion === version && !error ? operation : null,
     checking,
     working,
     resubmitTravel,

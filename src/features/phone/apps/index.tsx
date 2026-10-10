@@ -1,6 +1,7 @@
 'use client';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import { usePhoneApps } from './provider.tsx';
+import { MapApp } from './map.tsx';
 import { MessagesApp } from './messages.tsx';
 import { MomentsApp } from './moments.tsx';
 import { PhotosApp } from './photos.tsx';
@@ -23,7 +24,9 @@ export function PhoneAppView(context: PhoneAppContext) {
           <Refresh />
         </div>
       )}
-      {context.app === 'scenes' ? (
+      {context.app === 'map' ? (
+        <MapApp {...context} />
+      ) : context.app === 'scenes' ? (
         <SceneIndexApp />
       ) : loading && !hasData ? (
         <Empty title="正在打开…" />

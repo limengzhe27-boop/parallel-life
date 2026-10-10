@@ -121,6 +121,50 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
       },
     );
     await t.test(
+      'same command in parallel converges on one immutable receipt; concurrent clock control cannot reset travel',
+      async () => {
+        const before = await space.read(owner, worldId),
+          request = {
+            commandId: randomUUID(),
+            expectedVersion: before.worldVersion,
+            routeId: before.routes[0]!.id,
+          };
+        const results = await Promise.allSettled([
+          space.travel(owner, worldId, request),
+          space.travel(owner, worldId, request),
+        ]);
+        const success = results.find((r) => r.status === 'fulfilled');
+        assert.ok(success && success.status === 'fulfilled');
+        const replay = await space.travel(owner, worldId, request);
+        if (success.status === 'fulfilled') assert.deepEqual(replay, success.value);
+        assert.equal(
+          (
+            await admin.query(
+              'SELECT count(*)::int AS n FROM parallel_life.world_events WHERE world_id=$1 AND command_id=$2',
+              [worldId, request.commandId],
+            )
+          ).rows[0].n,
+          1,
+        );
+        await clocks.setClock(owner, worldId, { paused: true });
+        assert.equal((await clocks.read(owner, worldId)).storyNow, replay.arrivedAt);
+        await clocks.setClock(owner, worldId, { paused: false });
+        await assert.rejects(
+          db.transaction(other, (sql) =>
+            sql.query(
+              'INSERT INTO parallel_life.world_space_receipts(world_id,owner_id,command_id,request_hash,source_event_id,document) VALUES($1,$2,$3,$4,$5,$6)',
+              [worldId, owner, request.commandId, 'a'.repeat(64), replay.sourceEventId, replay],
+            ),
+          ),
+          (error: unknown) =>
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === '42501',
+        );
+      },
+    );
+    await t.test(
       'advance/paid-call advisory lock refuses travel and clock control without deadlock',
       async () => {
         const held = await db.pool.connect();
@@ -353,6 +397,51 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
           assert.equal(catalog.lives.find((p) => p.id === pack.card.id)!.worldId, saved.worldId);
         } finally {
           await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [freshOwner]);
+        }
+      },
+    );
+    await t.test(
+      'modified legacy lives and unverified old identities remain honest unknown',
+      async () => {
+        for (const mismatch of [false, true]) {
+          const fresh = randomUUID();
+          await identity.ensureGuest(fresh);
+          try {
+            const old = structuredClone(pack);
+            old.card.version = 1;
+            delete old.opening.space;
+            if (mismatch) old.opening.actors[0]!.relationship = 'Unsupported old role';
+            const started = await new OfficialLifeRepository(db, {
+              list: () => [old],
+              get: () => old,
+            }).start(fresh, pack.card.id, { commandId: randomUUID(), version: 1 });
+            await clocks.setClock(fresh, started.worldId, { paused: true, speed: 0 });
+            if (!mismatch)
+              await worlds.saveNote(
+                { userId: fresh },
+                {
+                  worldId: started.worldId,
+                  commandId: randomUUID(),
+                  expectedVersion: 0,
+                  id: randomUUID(),
+                  title: 'Fixture old activity',
+                  text: 'Only private note.',
+                },
+              );
+            const read = await space.read(fresh, started.worldId);
+            assert.equal(read.currentPlaceId, null);
+            assert.deepEqual(read.places, []);
+            assert.equal(read.canEstablish, false);
+            await assert.rejects(
+              space.establish(fresh, started.worldId, {
+                commandId: randomUUID(),
+                expectedVersion: read.worldVersion,
+              }),
+              { code: 'INVALID_COMMAND' },
+            );
+          } finally {
+            await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [fresh]);
+          }
         }
       },
     );
