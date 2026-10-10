@@ -1,0 +1,244 @@
+.section {
+  margin: 8px 0 28px;
+  color: #f2f5fb;
+}
+.introduction {
+  margin: 0 0 20px;
+}
+.eyebrow {
+  color: #a4b5cd;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+.introduction h2 {
+  margin: 8px 0;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.introduction p {
+  margin: 0;
+  color: #b2bfd2;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+.card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #29415e;
+  border-radius: 20px;
+  background: #10233d;
+}
+.cover {
+  position: relative;
+  min-height: 228px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.garage {
+  background: linear-gradient(135deg, #665056, #b17864);
+}
+.lake {
+  background: linear-gradient(135deg, #487986, #9db8a9);
+}
+.house {
+  background: linear-gradient(135deg, #7e687d, #c6a795);
+}
+.stage {
+  background: linear-gradient(135deg, #172742, #455f78);
+}
+.illustration {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 25%, #081426b3 63%, #081426f2 100%);
+}
+.artLabel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 4px 8px;
+  color: #f5f3eb;
+  background: #081426b3;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.copy {
+  position: relative;
+  padding: 104px 18px 18px;
+}
+.copy h3 {
+  margin: 0 0 7px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.copy p {
+  margin: 0;
+  max-width: 32em;
+  color: #dce4ef;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.actions {
+  padding: 12px 14px 14px;
+}
+.actions button,
+.loadError button {
+  display: flex;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #365678;
+  border-radius: 11px;
+  background: #1b3655;
+  color: #eef4ff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.actions button:hover:not(:disabled),
+.loadError button:hover:not(:disabled) {
+  background: #25486e;
+  border-color: #7298c5;
+}
+.actions button:active:not(:disabled),
+.loadError button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.actions button:focus-visible,
+.loadError button:focus-visible {
+  outline: 2px solid #99c0ff;
+  outline-offset: 3px;
+}
+.actions button:disabled,
+.loadError button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.error {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: #321f31;
+  border-radius: 9px;
+  color: #ffc0c7;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.loadError {
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #321f31;
+  color: #ffc0c7;
+  font-size: 14px;
+}
+.loadError p {
+  margin: 0 0 12px;
+  line-height: 1.7;
+}
+.loading {
+  margin: 0;
+  padding: 24px 0;
+  color: #b2bfd2;
+  font-size: 14px;
+}
+@media (max-height: 620px) {
+  .introduction {
+    margin-bottom: 16px;
+  }
+  .introduction h2 {
+    font-size: 24px;
+  }
+  .list {
+    gap: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .actions button,
+  .loadError button {
+    transition: none;
+    transform: none;
+  }
+}
+
+.experienceNote {
+  margin: 0 0 12px;
+  color: #b2bfd2;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.refresh {
+  min-height: 44px;
+  display: block;
+  margin: 14px auto 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #b2bfd2;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.refresh:hover:not(:disabled) {
+  color: #f2f5fb;
+  background: #10233d;
+}
+.refresh:focus-visible {
+  outline: 2px solid #99c0ff;
+  outline-offset: 3px;
+}
+.refresh:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.experienceDetails {
+  margin-top: 6px;
+  color: #b2bfd2;
+}
+.experienceDetails summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 2px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.experienceDetails summary::before {
+  content: '+';
+  color: #9fbbe0;
+  font-size: 16px;
+}
+.experienceDetails[open] summary::before {
+  content: '−';
+}
+.experienceDetails summary:focus-visible {
+  outline: 2px solid #99c0ff;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.experienceDetails .experienceNote {
+  margin: 0;
+  padding: 0 2px 8px;
+}

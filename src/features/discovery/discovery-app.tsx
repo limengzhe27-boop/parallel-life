@@ -1,5 +1,6 @@
 'use client';
 import { DraftEditor } from './draft-editor.tsx';
+import { OfficialLives } from './official-lives.tsx';
 import type { LifeDraft } from '../../contracts/life-drafts.ts';
 import { BranchList } from './branch-list.tsx';
 import { BuildControl } from './build-control.tsx';
@@ -283,6 +284,7 @@ export function DiscoveryApp() {
         </a>
       </header>
       <main className="discovery-main">
+        <OfficialLives connectSession={() => client.connect()} />
         {error && (
           <Notice>
             {error}
