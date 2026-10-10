@@ -69,3 +69,9 @@ Ego127 actual local Next+PG: first normal travel committed once to Lin home17:52
 ## Joint final local acceptance / 待验收
 
 2026-10-10: F final946f621 accepted asa889366; parent phone/time synchronization1fda3f6 and root independent report6e9b282 accepted1dc9ca7. Final653/653check and build passed. Full real PG208 total=203pass/5optional paid or HTTP skipped/0failure, including spatial10/10. Actual Next+PG browser390x500 lost-response restored original receipt after reload, world remainsv2/workshop18:07 and15minutes only once; statusbar/map both18:07 after fix. Three local authored places and actual route graph/detail/contacts/calendar verified390x844 and1440x1000; no horizontal overflow, desktopphone420px. Six final authenticated local HTTP source/strict-validation/CSRF/read checks passed. Zero upstream models/images/production new worlds/uploads. Public0041 migration/deployment/production existing dedicated fixture travel still pending; no delivery-complete claim.
+
+## I生产联合验收与资源收尾
+
+2026-10-10 I最终集成：业务dad824f，Production6w2u15n9v / dpl_GnmSM8UFLNf9pNinQ49ZWsCUqMcg READY；0041生产已应用且41项checksum一致；653check/build、真实PG203通过/5可选跳过、正式既有合成世界11检查与390/1440实图/返回通过。0模型/图片/新生产世界/上传；测试世界paused=true。Ego125/126/127均已finish，各HTTP/PG已停止；限定技术完成，用户A19待体验。
+
+生产首次脚本比较到达时刻与随后暂停时刻，实际230ms现实间隔按旧倍速正确结清，断言过严；恢复脚本又误把establish回执计作第二次旅行、误期望暂停409而实际契约422，三处验收脚本已修正。最终只读原命令/回执与暂停钟重读通过，只有一次12分钟旅行、worldv2/林悦家、暂停，未重复旅行。0031等原失败不删除。本批现场入口真实PG使用明确假planner验证，正式无模型/任务执行，不声称AI现场质量通过；普通创建/已发展旧档/保留存档开新版本/人物旅行后反馈及迟到裁定留SPACE-02D/E/F。
