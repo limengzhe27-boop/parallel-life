@@ -3,8 +3,11 @@ import { extractJsonObject } from '../../ai/application/model-json.ts';
 import type { ApprovedSeed } from '../../../contracts/seeds.ts';
 import { WorldOpeningSchema, type WorldOpening } from '../../../contracts/world-build.ts';
 import { validateMessageHistory } from '../domain/genesis-messages.ts';
+import { HistoryPlanner } from './history-planner.ts';
 import { contradictsSelectedRole } from '../domain/opening-validation.ts';
 export const WORLD_PROMPT_VERSION = 'world-opening-13-history-1';
+export const TWO_STEP_PROMPT_VERSION = 'world-opening-14-history-2step';
+export const WORLD_BUILD_DEADLINE_MS = 100000;
 /**
  * A world opening is the longest structured answer in the product: up to five
  * actors with personas, opening messages and notes, plus the model's own
@@ -92,12 +95,21 @@ function parseOpening(raw: string, mapped = false, historyEnabled = true): World
 export class WorldPlanner {
   private model: TextModel;
   readonly historyEnabled: boolean;
+  private twoStep: boolean;
   get promptVersion() {
-    return this.historyEnabled ? WORLD_PROMPT_VERSION : 'world-opening-11';
+    return this.twoStep
+      ? TWO_STEP_PROMPT_VERSION
+      : this.historyEnabled
+        ? WORLD_PROMPT_VERSION
+        : 'world-opening-11';
   }
-  constructor(model: TextModel, options: { historyEnabled: boolean } = { historyEnabled: true }) {
+  constructor(
+    model: TextModel,
+    options: { historyEnabled: boolean; historyMode?: 'two-step' } = { historyEnabled: true },
+  ) {
     this.model = model;
     this.historyEnabled = options.historyEnabled;
+    this.twoStep = options.historyEnabled && options.historyMode === 'two-step';
   }
   private async proposeSetting(
     seed: Extract<ApprovedSeed, { source: unknown }>,
@@ -231,6 +243,57 @@ export class WorldPlanner {
     signal?: AbortSignal,
     startAt = new Date().toISOString(),
   ): Promise<WorldOpening> {
+    if (this.twoStep) {
+      const deadline = AbortSignal.timeout(WORLD_BUILD_DEADLINE_MS);
+      const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+      try {
+        combined.throwIfAborted();
+        const opening = await new WorldPlanner(this.model, { historyEnabled: false }).propose(
+          seed,
+          combined,
+          startAt,
+        );
+        combined.throwIfAborted();
+        const publicRelationships = new Map<string, string>();
+        if ('personRoles' in seed)
+          for (const actor of opening.actors) {
+            const role = seed.personRoles?.find((r) => r.personId === actor.sourcePersonId)?.role;
+            if (role) publicRelationships.set(actor.key, role);
+          }
+        const messageHistory = await new HistoryPlanner(this.model).propose(
+          opening,
+          startAt,
+          combined,
+          publicRelationships,
+        );
+        combined.throwIfAborted();
+        // The world-stage result is already authorized and never regenerated to repair history.
+        const result = { ...opening, messageHistory };
+        if ('personRoles' in seed)
+          for (const actor of result.actors) {
+            const role = seed.personRoles?.find((r) => r.personId === actor.sourcePersonId)?.role;
+            if (
+              role &&
+              messageHistory.messages.some(
+                (m) => m.actorKey === actor.key && contradictsSelectedRole(role, m.text),
+              )
+            )
+              throw Object.assign(Error('SELECTED_ROLE_CONFLICT'), { code: 'INVALID_RESPONSE' });
+          }
+        return result;
+      } catch (error) {
+        if (combined.aborted) {
+          const timeout =
+            deadline.aborted ||
+            (combined.reason instanceof Error && combined.reason.name === 'TimeoutError');
+          throw Object.assign(Error(timeout ? 'WORLD_BUILD_DEADLINE' : 'WORLD_BUILD_CANCELLED'), {
+            code: timeout ? 'TIMEOUT' : 'CANCELLED',
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    }
     if ('source' in seed && seed.source.kind === 'setting_draft')
       return this.proposeSetting(seed, signal, startAt);
     const system = this.historyEnabled ? SYSTEM : LEGACY_SYSTEM;

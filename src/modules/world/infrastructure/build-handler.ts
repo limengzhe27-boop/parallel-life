@@ -52,6 +52,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       }
     } else if (opening.actors.some((a) => a.sourcePersonId))
       throw Error('UNEXPECTED_PERSON_MAPPING');
+    signal.throwIfAborted();
     const ids = new Map(opening.actors.map((a) => [a.key, randomUUID()]));
     const state: WorldState = {
       schemaVersion: 1,
@@ -148,6 +149,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
         },
       );
     }
+    signal.throwIfAborted();
     await queue.commit(lease, async (sql) => {
       const row = (
         await sql.query(
