@@ -44,11 +44,21 @@ export class ScenePlanner implements ScenePlannerPort {
   async propose(c: ScenePlanningContext, signal?: AbortSignal): Promise<SceneProposal> {
     const opening = !c.action;
     const boundary = c.action ? sceneAttemptBoundary(c.action.text) : null;
+    const placeAppointment = c.scene.placeId
+      ? c.world.appointments.find(
+          (a) =>
+            a.status === 'confirmed' &&
+            c.world.space?.places
+              .find((p) => p.id === c.scene.placeId)
+              ?.appointmentIds.includes(a.id) &&
+            Date.parse(a.at) <= Date.parse(c.storyAt),
+        )
+      : undefined;
+    const directAppointment = c.world.appointments.find((x) => x.id === c.scene.appointmentId);
+    const activeAppointment = directAppointment ?? placeAppointment;
     const candidates = opening
       ? c.world.actors.filter((a) =>
-          c.world.appointments
-            .find((x) => x.id === c.scene.appointmentId)
-            ?.participantIds.includes(a.id),
+          activeAppointment?.participantIds.includes(a.id),
         )
       : c.world.actors.filter((a) =>
           scenePresent(c.scene, c.world.version).some(
@@ -72,7 +82,7 @@ export class ScenePlanner implements ScenePlannerPort {
         label: worldDateTimeLabel(c.storyAt),
         instruction: '以当地故事时间描写光线、活动和环境；不要把UTC小时当作当地小时。',
       },
-      appointment: c.appointmentTitle,
+      appointment: activeAppointment?.title ?? c.appointmentTitle,
       opening,
       actors: candidates.map((a) => ({ id: a.id, name: a.name, relationship: a.relationship })),
       facts: c.world.facts.filter((f) => f.visibility.kind === 'world').slice(-16),

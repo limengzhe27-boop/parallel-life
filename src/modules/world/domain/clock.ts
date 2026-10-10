@@ -113,6 +113,10 @@ export function selectSpeaker(
     (thread) => thread.kind === 'choice_result' && available(thread.actorId),
   );
   if (choiceResult) return choiceResult.actorId;
+  const departureInquiry = agenda.find(
+    (thread) => thread.kind === 'departure_inquiry' && available(thread.actorId),
+  );
+  if (departureInquiry) return departureInquiry.actorId;
   const choice = agenda.find(
     (thread) => thread.kind === 'choice_followup' && available(thread.actorId),
   );

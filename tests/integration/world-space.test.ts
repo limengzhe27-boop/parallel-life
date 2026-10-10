@@ -21,6 +21,7 @@ import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/
 import { replayWorldHistory } from '../../src/modules/world/domain/world-history.ts';
 import type { WorldHistoryEvent } from '../../src/modules/world/domain/world-history.ts';
 import type { OfficialLifePack } from '../../src/modules/settings/application/official-life-pack.ts';
+import { buildAgenda } from '../../src/modules/world/domain/agenda.ts';
 import { ProfileRepository } from '../../src/modules/profile/infrastructure/profile-repository.ts';
 import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
 import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
@@ -351,6 +352,21 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
         );
         assert.ok(!departure.text.includes(arrived.destinationLabel));
         assert.deepEqual(departure.visibility, { kind: 'actors', actorIds: [actor.id] });
+        assert.ok(departure.departure);
+        assert.equal(departure.departure.fromPlaceName, arrived.fromLabel);
+        assert.equal(departure.departure.eventVersion, arrived.version);
+        const agenda = buildAgenda(world);
+        const observerThread = agenda.find(
+          (t) => t.kind === 'departure_inquiry' && t.actorId === actor.id,
+        );
+        assert.ok(observerThread, 'Observer receives departure_inquiry');
+        assert.match(observerThread.detail, /绝不能假装知道目的地/);
+        for (const otherActor of world.actors.filter((a) => a.id !== actor.id)) {
+          assert.ok(
+            !agenda.some((t) => t.kind === 'departure_inquiry' && t.actorId === otherActor.id),
+            'Uninformed NPC must not get departure_inquiry',
+          );
+        }
       },
     );
     await t.test(

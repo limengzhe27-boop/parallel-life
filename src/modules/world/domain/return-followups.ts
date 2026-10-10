@@ -61,6 +61,21 @@ export function followupAgenda(
         Date.parse(message.at) <= now
       );
     }
+    if (thread.kind === 'departure_inquiry') {
+      const fact = state.facts.find(
+        (f) =>
+          f.id === thread.basisId &&
+          f.visibility.kind === 'actors' &&
+          f.visibility.actorIds.includes(thread.actorId),
+      );
+      const departureVersion =
+        fact?.departure?.eventVersion ??
+        (state.space?.positionSource.kind === 'travel' &&
+        state.space.positionSource.eventId === fact?.sourceEventId
+          ? state.space.positionSource.eventVersion
+          : 0);
+      return Boolean(fact && departureVersion > previous.version);
+    }
     // A commitment, an unanswered invitation or one check-in is not daily progress.
     return false;
   });

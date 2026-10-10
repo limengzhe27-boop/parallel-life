@@ -152,6 +152,13 @@ export async function advanceWorld(
               f.believedByActorId === actorId &&
               thread.detail.includes(f.disclosure.quote),
           );
+        if (thread.kind === 'departure_inquiry')
+          return visible.facts.some(
+            (f) =>
+              f.visibility.kind === 'actors' &&
+              f.visibility.actorIds.includes(actorId) &&
+              (f.id === thread.basisId || f.text.includes('亲眼看到主角离开了')),
+          );
         return rebuilt.some(
           (t) => t.actorId === actorId && t.kind === thread.kind && t.detail === thread.detail,
         );

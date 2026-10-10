@@ -18,6 +18,7 @@ export type AgendaThread = {
     | 'choice_result'
     | 'commitment'
     | 'disclosure_followup'
+    | 'departure_inquiry'
     | 'reconnect';
   actorId: string;
   detail: string;
@@ -96,12 +97,18 @@ export function buildAgenda(
           )
         )
           continue;
+        const venue = state.space?.places.find((p) => p.appointmentIds.includes(appointment.id));
+        const detail = venue
+          ? state.space?.currentPlaceId === venue.id
+            ? `你们明确约在「${venue.name}」的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，时间已到，主角此刻就在${venue.name}。作为约定参与者，在现场自然碰面或开启当面交流；绝不能声称主角迟到或失约。`
+            : `你们明确约在「${venue.name}」的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，时间已到或已过，但主角尚未到达约定现场。作为等待的参与者，你可以询问主角是否路上耽搁或需要改期；你不知道主角去了哪里，绝不能无端指责主角故意失约，也不能假装主角已经到场。`
+          : `你们明确约好的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，这个节点现在已到或已过。承接这件事当前可做的调整或后续，不假装刚发邀请、不继续催赴已经过时的约；没有到场或结果记录时不能声称已经发生、失约或完成。`;
         threads.push({
           kind: 'appointment_due',
           actorId: participantId,
           basisId: appointment.id,
           basisAt: appointment.at,
-          detail: `你们明确约好的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，这个节点现在已到或已过。承接这件事当前可做的调整或后续，不假装刚发邀请、不继续催赴已经过时的约；没有到场或结果记录时不能声称已经发生、失约或完成。`,
+          detail,
         });
         continue;
       }
@@ -183,6 +190,40 @@ export function buildAgenda(
       detail: `你是从${state.actors.find((actor) => actor.id === fact.disclosure?.fromActorId)?.name ?? '另一位人物'}那里听到主角说过「${fact.disclosure.quote}」，不是主角亲自告诉你。是否向主角提起，取决于你的性格和关系；若提起必须说清消息来源，不能声称自己亲眼见过。`,
     });
   }
+  for (const fact of state.facts) {
+    if (fact.kind !== 'canonical' || fact.visibility.kind !== 'actors') continue;
+    const isDeparture =
+      fact.departure !== undefined || fact.text.includes('亲眼看到主角离开了');
+    if (!isDeparture) continue;
+    for (const actorId of fact.visibility.actorIds) {
+      if (!actorIds.has(actorId)) continue;
+      const departureVersion =
+        fact.departure?.eventVersion ??
+        (state.space?.positionSource.kind === 'travel' &&
+        state.space.positionSource.eventId === fact.sourceEventId
+          ? state.space.positionSource.eventVersion
+          : 0);
+      const alreadySpoke = state.messages.some(
+        (message) =>
+          message.actorId === actorId &&
+          message.role === 'assistant' &&
+          (departureVersion > 0
+            ? (message.sourceVersion ?? 0) >= departureVersion
+            : message.sourceEventId !== fact.sourceEventId),
+      );
+      if (alreadySpoke) continue;
+      const fromPlaceName =
+        fact.departure?.fromPlaceName ??
+        fact.text.match(/离开了(.+?)，没有/)?.[1] ??
+        '现场';
+      threads.push({
+        kind: 'departure_inquiry',
+        actorId,
+        basisId: fact.id,
+        detail: `你亲眼看到主角离开了${fromPlaceName}，没有获知目的地。基于你们的关系与现场情况，可以询问主角去向；绝不能假装知道目的地。`,
+      });
+    }
+  }
   // An established relationship can make one quiet, low-pressure check-in
   // after a day apart. Never treat an unopened world or an unanswered cold
   // opening as consent to keep pinging the player.
@@ -222,6 +263,7 @@ export function eligibleAgenda(
     'awaiting_reply',
     'choice_result',
     'appointment_result',
+    'departure_inquiry',
   ]);
   return agenda.filter((thread) => !recentActors.has(thread.actorId) || owedNow.has(thread.kind));
 }
@@ -231,6 +273,7 @@ export function threadFor(agenda: AgendaThread[], actorId: string): AgendaThread
   return (
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'awaiting_reply') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'choice_result') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'departure_inquiry') ??
     agenda.find((thread) => thread.actorId === actorId)
   );
 }

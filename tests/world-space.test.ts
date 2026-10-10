@@ -15,6 +15,7 @@ import { SpaceSourceSchema } from '../src/contracts/world-space.ts';
 import { replayWorldHistory } from '../src/modules/world/domain/world-history.ts';
 import { actorContext } from '../src/modules/world/application/actor-context.ts';
 import { restoreTravel, storeTravel } from '../src/features/phone/map/operation.ts';
+import { buildAgenda, threadFor, eligibleAgenda } from '../src/modules/world/domain/agenda.ts';
 function fixture() {
   const pack = OFFICIAL_LIFE_PACKS[0];
   return officialGenesis({
@@ -292,5 +293,148 @@ test('validateSpace strictly rejects invalid spatial proposals', () => {
       places: [{ ...validSpace.places[0]!, id: 'INVALID-UPPER' }, validSpace.places[1]!],
     }),
   );
+});
+
+test('departure inquiry only cues actual observers, clears after reply, uninformed NPCs remain silent', () => {
+  const w = fixture();
+  const observer = w.actors[0]!;
+  const uninformed = w.actors[1]!;
+  const fromPlace = w.space!.places[0]!;
+
+  // 1. Initially no departure inquiry
+  const agenda0 = buildAgenda(w);
+  assert.ok(!agenda0.some((t) => t.kind === 'departure_inquiry'));
+
+  // 2. Add departure observation fact visible ONLY to observer
+  const departureFact = {
+    id: randomUUID(),
+    text: `你亲眼看到主角离开了${fromPlace.name}，没有获知目的地。`,
+    kind: 'canonical' as const,
+    visibility: { kind: 'actors' as const, actorIds: [observer.id] },
+    sourceEventId: randomUUID(),
+    departure: { fromPlaceName: fromPlace.name, eventVersion: w.version + 1 },
+  };
+  const wWithFact = {
+    ...w,
+    version: w.version + 1,
+    facts: [...w.facts, departureFact],
+  };
+
+  const agenda1 = buildAgenda(wWithFact);
+  const observerThread = agenda1.find(
+    (t) => t.kind === 'departure_inquiry' && t.actorId === observer.id,
+  );
+  assert.ok(observerThread, 'Observer actor must receive departure_inquiry thread');
+  assert.match(observerThread.detail, new RegExp(fromPlace.name));
+  assert.match(observerThread.detail, /绝不能假装知道目的地/);
+
+  // Uninformed NPC must NOT receive departure_inquiry
+  const uninformedThread = agenda1.find(
+    (t) => t.kind === 'departure_inquiry' && t.actorId === uninformed.id,
+  );
+  assert.ok(!uninformedThread, 'Uninformed actor must NOT receive departure_inquiry');
+
+  // Eligible agenda owed now includes departure_inquiry even with recent actor filter
+  const eligible = eligibleAgenda(agenda1, new Set([observer.id]));
+  assert.ok(eligible.some((t) => t.kind === 'departure_inquiry' && t.actorId === observer.id));
+
+  // 3. Once observer replies, departure inquiry clears
+  const wAfterReply = {
+    ...wWithFact,
+    version: wWithFact.version + 1,
+    messages: [
+      ...wWithFact.messages,
+      {
+        id: randomUUID(),
+        actorId: observer.id,
+        role: 'assistant' as const,
+        text: '刚才看你急匆匆走了，是有什么急事吗？',
+        at: wWithFact.time,
+        sourceEventId: randomUUID(),
+        sourceVersion: wWithFact.version + 1,
+      },
+    ],
+  };
+  const agenda2 = buildAgenda(wAfterReply);
+  assert.ok(
+    !agenda2.some((t) => t.kind === 'departure_inquiry' && t.actorId === observer.id),
+    'Cleared after observer spoke',
+  );
+});
+
+test('appointment_due distinguishes player present at venue vs absent elsewhere; unconfirmed proposed stays quiet', () => {
+  const w = fixture();
+  const actor = w.actors[0]!;
+  const venue = w.space!.places[0]!;
+  const appointmentId = randomUUID();
+  const appointmentTime = w.time;
+
+  // Link appointment to venue
+  const placesWithAppt = w.space!.places.map((p) =>
+    p.id === venue.id ? { ...p, appointmentIds: [...p.appointmentIds, appointmentId] } : p,
+  );
+
+  // 1. Confirmed appointment when player IS at venue
+  const wAtVenue = {
+    ...w,
+    space: {
+      ...w.space!,
+      places: placesWithAppt,
+      currentPlaceId: venue.id,
+    },
+    appointments: [
+      ...w.appointments,
+      {
+        id: appointmentId,
+        title: '维修店工作交接',
+        at: appointmentTime,
+        status: 'confirmed' as const,
+        participantIds: [actor.id],
+        sourceEventId: randomUUID(),
+      },
+    ],
+  };
+  const agendaAtVenue = buildAgenda(wAtVenue);
+  const dueAtVenue = agendaAtVenue.find(
+    (t) => t.kind === 'appointment_due' && t.actorId === actor.id,
+  );
+  assert.ok(dueAtVenue);
+  assert.match(dueAtVenue.detail, /主角此刻就在/);
+  assert.match(dueAtVenue.detail, /绝不能声称主角迟到或失约/);
+
+  // 2. Confirmed appointment when player travelled to a different place
+  const otherPlace = w.space!.places[1]!;
+  const wAtOther = {
+    ...wAtVenue,
+    space: {
+      ...wAtVenue.space!,
+      currentPlaceId: otherPlace.id,
+    },
+  };
+  const agendaAtOther = buildAgenda(wAtOther);
+  const dueAtOther = agendaAtOther.find(
+    (t) => t.kind === 'appointment_due' && t.actorId === actor.id,
+  );
+  assert.ok(dueAtOther);
+  assert.match(dueAtOther.detail, /主角尚未到达约定现场/);
+  assert.match(dueAtOther.detail, /绝不能无端指责主角故意失约/);
+
+  // 3. Proposed (unconfirmed) appointment past due stays quiet, does not become missed or due
+  const wProposedPastDue = {
+    ...w,
+    appointments: [
+      ...w.appointments,
+      {
+        id: randomUUID(),
+        title: '未确认的聚餐邀请',
+        at: new Date(Date.parse(w.time) - 3600000).toISOString(),
+        status: 'proposed' as const,
+        participantIds: [actor.id],
+        sourceEventId: randomUUID(),
+      },
+    ],
+  };
+  const agendaProposed = buildAgenda(wProposedPastDue);
+  assert.ok(!agendaProposed.some((t) => t.detail.includes('未确认的聚餐邀请')));
 });
 

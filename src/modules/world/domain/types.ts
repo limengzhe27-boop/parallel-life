@@ -22,6 +22,8 @@ export type Fact = {
   believedByActorId?: Id;
   /** A sourced, character-private account of how this person heard a player's line. */
   disclosure?: { fromActorId: Id; sourceMessageId: Id; quote: string };
+  /** Witnessed departure observation metadata. */
+  departure?: { fromPlaceName: string; eventVersion: number };
 };
 export type Message = {
   id: Id;

@@ -499,6 +499,12 @@ export class SceneRepository {
         x = await experience(sql, ownerId, worldId);
       if (!place || world.space!.currentPlaceId !== place.id || x.currentSceneId)
         throw new DomainError('INVALID_COMMAND');
+      const activeAppointment = world.appointments.find(
+        (a) =>
+          a.status === 'confirmed' &&
+          place.appointmentIds.includes(a.id) &&
+          Date.parse(a.at) <= Date.parse(storyAt),
+      );
       const sceneId = randomUUID(),
         source = await event(
           sql,
@@ -506,7 +512,11 @@ export class SceneRepository {
           input.commandId,
           hash,
           'scene.entered',
-          { sceneId, placeId: place.id },
+          {
+            sceneId,
+            placeId: place.id,
+            ...(activeAppointment ? { appointmentId: activeAppointment.id } : {}),
+          },
           storyAt,
         );
       const scene: SceneSession = {
@@ -516,6 +526,7 @@ export class SceneRepository {
         ...source,
         title: place.name,
         placeId: place.id,
+        ...(activeAppointment ? { appointmentId: activeAppointment.id } : {}),
         status: 'active',
         presence: [{ participant: player, joinedVersion: source.sourceVersion, ...source }],
       };
@@ -806,8 +817,19 @@ export async function commitSceneProposal(
   const actualIds = scenePresent(c.scene, c.world.version).flatMap((x) =>
     x.kind === 'actor' ? [x.actorId] : [],
   );
-  const invited =
-    c.world.appointments.find((a) => a.id === c.scene.appointmentId)?.participantIds ?? [];
+  const placeAppointment = c.scene.placeId
+    ? c.world.appointments.find(
+        (a) =>
+          a.status === 'confirmed' &&
+          c.world.space?.places
+            .find((p) => p.id === c.scene.placeId)
+            ?.appointmentIds.includes(a.id) &&
+          Date.parse(a.at) <= Date.parse(c.storyAt),
+      )
+    : undefined;
+  const directAppointment = c.world.appointments.find((a) => a.id === c.scene.appointmentId);
+  const activeAppointment = directAppointment ?? placeAppointment;
+  const invited = activeAppointment?.participantIds ?? [];
   if (
     new Set(p.presentActorIds).size !== p.presentActorIds.length ||
     p.presentActorIds.some((id) => !(c.action ? actualIds : invited).includes(id)) ||

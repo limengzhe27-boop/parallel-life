@@ -369,16 +369,15 @@ export class PostgresWorldSpace implements WorldSpacePort {
         currentScene?.presence
           .filter((p) => p.participant.kind === 'actor' && p.leftVersion === undefined)
           .flatMap((p) => (p.participant.kind === 'actor' ? [p.participant.actorId] : [])) ?? [];
+      const fromPlaceName = w.space!.places.find((p) => p.id === t.route.fromPlaceId)!.name;
       const departureObservation = observerIds.length
         ? {
             id: randomUUID(),
-            text:
-              '你亲眼看到主角离开了' +
-              w.space!.places.find((p) => p.id === t.route.fromPlaceId)!.name +
-              '，没有获知目的地。',
+            text: '你亲眼看到主角离开了' + fromPlaceName + '，没有获知目的地。',
             kind: 'canonical' as const,
             visibility: { kind: 'actors' as const, actorIds: observerIds },
             sourceEventId: eventId,
+            departure: { fromPlaceName, eventVersion: w.version + 1 },
           }
         : undefined;
 
