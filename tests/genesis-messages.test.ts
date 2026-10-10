@@ -54,7 +54,7 @@ test('runtime fixes all NPC history to one story start, maps references and orde
   assert(m.slice(0, 3).every((x) => x.initialRead === true));
   assert.equal(m[3]!.initialRead, false);
   assert.equal(m[0]!.at, '1997-12-25T00:00:00.000Z');
-  assert.equal(m[3]!.at, '1998-01-01T00:00:00.000Z');
+  assert.equal(m[3]!.at, '1997-12-31T23:55:00.000Z');
   assert.equal(m[2]!.history?.replyToMessageId, m[0]!.id);
   assert.equal(new Set(m.map((x) => x.id)).size, 4);
   assert(m.every((x) => x.sourceEventId === 'genesis:world'));
@@ -165,4 +165,30 @@ test('actor context remembers its own old messages and cannot retrieve another a
   assert(!JSON.stringify(b).includes('场地时间仍然保留'));
   const blocked = actorContext(state, 'actor-a', '场地', [], new Set(['genesis:world']));
   assert.deepEqual(blocked.messages, []);
+});
+
+test('current unread messages retain distinct visible minutes inside the last hour', () => {
+  let n = 0;
+  const startAt = '1998-01-01T00:00:00.000Z';
+  const m = genesisMessages({
+    worldId: 'world',
+    startAt,
+    actors,
+    history: history(),
+    current: Array.from({ length: 4 }, (_, i) => ({
+      actorKey: i % 2 ? 'b' : 'a',
+      text: '当前来信' + i,
+    })),
+    newId: () => String(++n),
+  });
+  const current = m.filter((x) => x.initialRead === false);
+  assert.equal(new Set(current.map((x) => x.at.slice(0, 16))).size, 4);
+  assert.deepEqual(
+    current.map((x) => (Date.parse(startAt) - Date.parse(x.at)) / 60000),
+    [45, 25, 12, 5],
+  );
+  assert(
+    Math.max(...m.filter((x) => x.initialRead).map((x) => Date.parse(x.at))) <
+      Math.min(...current.map((x) => Date.parse(x.at))),
+  );
 });

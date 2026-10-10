@@ -118,12 +118,15 @@ export function genesisMessages(input: {
       ...(entry.replyToKey ? { replyToMessageId: ids.get(entry.replyToKey)! } : {}),
     },
   }));
+  const currentOffsets = [45, 25, 12, 5];
   const current: Message[] = input.current.map((entry, index) => ({
     id: input.newId(),
     actorId: input.actors.get(entry.actorKey)!,
     role: 'assistant',
     text: entry.text,
-    at: new Date(start - (input.current.length - index - 1) * 1000).toISOString(),
+    at: new Date(
+      start - currentOffsets[currentOffsets.length - input.current.length + index]! * 60_000,
+    ).toISOString(),
     sourceEventId,
     initialRead: false,
   }));
