@@ -396,6 +396,8 @@
 }
 .fullPhoto {
   width: 100%;
+  /* Reserve the image frame before pixels load so route scroll restoration can fit. */
+  height: 55svh;
   max-height: 55svh;
   object-fit: contain;
   background: #111;
