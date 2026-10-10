@@ -788,3 +788,11 @@ F真实PG/API/UI保存、共享取消、换图冲突重读、确认重发及现�
 内容b8f698d，Production 9tq2m8cfb / dpl_5AANqAfoGn1JJkkXbpGceLytjaXB READY，正式 https://parallel-life-nu.vercel.app 已切换；只读health、首页、possibilities均200。五份v0.2内容文档21982字符及根/F/I报告受控归档，原v0.1审查证据保留。修正知情时点、活动人数及相对日期，补资料、拒绝分支、身份回报与首段终点；两处集成时间措辞修正见I报告。39/39生产迁移只读一致，无SQL变更。纯文档没有重跑应用check/build或借用CHAT591测试当剧本体验验证；Vercel发布构建READY。
 
 业务仍为CHAT9699249，不新增预设入口/可执行剧情或生产世界，0数据库写/模型/生图。四稿未获逐条采用、未证明好玩，LIB-03实例化及完整场景/素材/任务待开发，专业后台仍最后。初次误用/branches404，实际/possibilities200，其他源码和旧WIP排除。最终文档发布及最新READY/public另存忽略demo-script-final-handoff.json。见[集成报告](task-reports/DEMO-SCRIPT-01I.md)与[四稿索引](story-presets/README.md)。
+
+## 2026-10-10 · DEMO-PLAY 四人生直接体验
+
+业务a41c3e80，Production co06or00l / dpl_3tncsgaMXLJ3Ybm8EnTbd2Tt4SLU READY，正式 https://parallel-life-nu.vercel.app 已实际验收。0040生产已应用，40/40迁移checksum一致；最终616check/build、全量真实PG193通过/5可选跳过及列表专项6父子通过。根固定内容、I确定性事务/实例与只读资料、F四卡入口一起集成；无需生日/访谈，按owner/内容版本独立且默认继续，丢结果沿原command核验。修复官方seed在个人列表重复显示待创建。
+
+正式两合成账号×4世界，57项创建/重放/继续/权限/API验收，8/8真实文字两轮核心称呼与意图承接；四聊世界v2/另一组v0，8事件来源episode记忆、initial/6公开关系/3只读资料保持，0媒体请求/生图。全部测试世界paused；390短长与1440真实入口/手机/回复无横溢，非真机或长期趣味证明。原会话恢复、Ego119 finish、I本机账号/端口/临时链接收尾，其他WIP和他人资源保留。
+
+四稿已由人类采用，五文档头更新；仅可自由聊天的四预设初始生活与有限原有日历/记录，不声称完整剧情任务/地图/公开舞台/素材已实现。相册iPhone改版ALBUM-IOS-02仍待开发，专业后台仍最后；A17待用户体验。详见[集成报告](task-reports/DEMO-PLAY-01I.md)。最终一次文档发布另存忽略handoff。
