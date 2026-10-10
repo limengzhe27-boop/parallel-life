@@ -764,3 +764,11 @@ F真实PG/API/UI保存、共享取消、换图冲突重读、确认重发及现�
 业务d59fe3f（独立d8274da），Production laid82hg9 / dpl_9TSTzZpENKSxdGzCCvf4vPCz8xrk READY，正式 https://parallel-life-nu.vercel.app 已切换。39生产迁移校验和一致，无SQL变更；563check、旧N+新P联合真实PG20项（含父子）/build通过。修复邀约成功保存却503、保持旧回执版本，接入来源标签/四应用兼容和相册返回高度；本地真实HTTP原command200/v1、改期取消、旧receipt不变/latest唯一、陈旧409及390/PC已验。公网health/三个旧来信世界200、8/4/4历史无回填、390无溢出/PC420、合成原图200通过，未宣称公网新关联或邀约正例。
 
 本批8/8真实文字预算停止，末次原普通world复用第6真实阶段+第8真实历史，模型仅写周末未给具体日期被拒，无world/initial半成品；固定cast已保存世界无关联且暂停。historyLinksEnabled:false，旧N两步来信保留；P完整关联和A16自动关联未开放，父BOOT未完成。0生图，NPC本批未验。测试会话和资源已恢复，最终三报告/主表一次文档归档，文档READY另存ignoredhandoff。见[本批报告](task-reports/BOOT-01P-I.md)。
+
+## 2026-10-10 · BOOT-01R 运行时时槽邀约及手机时间入口
+
+业务a24a8d4，Production4bvku0qbd / dpl_J8DR4KQwhz8Bmc5bheRsfx1dfmSB READY，正式 https://parallel-life-nu.vercel.app 已切换。生产39/39迁移哈希一致，无SQL变化。模型私有邀约slot/body经固定T0与UTC08归一化，完整年份正文/quote/日程同源，持久v1和旧N/旧回执保留；worker historyEnabled:true/historyMode:two-step/historyLinksEnabled:true，仅新世界开放来源关联，旧世界不回填，合法0不伪造。
+
+最终578check/build、29串行真实PG（含父子）通过；本轮真实人类授权最多2新world/0上传/8文字/0图，实际普通与固定cast两新阶段各2及NPC各1共6/8，原合成朋友图复用，两future proposed/角色承接/initial不变、已正常API暂停。实际生成仍是本机冻结planner+生产受限queue/store，不重复付费冒称正式HTTP tasks/run实测。有限字面时间门非完整语义判断；普通开场时段/称呼、NPC模板感及旧相册毫秒精度为遗留，不能承诺所有创建成功。
+
+手机独立时间入口/控制移除，首页/状态栏/锁屏共用标签、短屏可读性改善；旧time/director回home，schedule到真实calendar。公网390短长/1440PC420同源17:25、四App/深链/clock不变，新世界/记录/原图200、跨账号world/图404及旧N/P8/4/4无回填通过。系统来源记录只读、原图日期明确上传时间。Ego109原会话恢复并finish，I/F本地资源/夹具/临时链接清理。地图/导演长短期/壁纸及发送重复错误只规划或待开发，其他主WIP排除。四报告/主表/PHONE_EXPERIENCE_NEXT一次最终文档归档，文档READY另存ignoredhandoff。
