@@ -730,3 +730,11 @@ NOTES-SAFETY-01I候选c97ee5c在本版本之后，尚未上线或公网验收，
 业务eb2c456（独立76e82ee），记录6d96567；Production ngm13xf4d / dpl_CRNUqMfHuked4iLFxfn45DXhnHS7 READY，正式https://parallel-life-nu.vercel.app已切换。生产39迁移校验19:22:00Z一致，无SQL新增；500check/build，143完整真实PG=138pass/0fail/5显式可选skip（4模型、1HTTP导演）通过。
 
 独立GET records只读取有来源的公开起点、近期用户计划/人物建议/明确状态邀约，owner事务一致版本，不输出opening.notes/导演内心/私人便签；sys/ID不可写，无修改系统状态入口。公网合成暂停世界起点2项/近期真实空态、重复读稳定、跨owner404、notes系统ID422/records POST405且世界不变、旧phone与note原receipt兼容及health200通过，模型0。计划/建议/邀约正例及同owner双world由真实PG验证，公网此fixture无正例。client/provider/手机界面尚未接线，不能把后端发布当可体验完整任务应用或BOOT前史已交付。见NOTES-WORLD-01I冻结交接；原A01–A12仍待用户体验。
+
+## 2026-10-10 · NOTES-WORLD-02 系统记录与私人便签联合界面
+
+业务98a66a7（共享bc2ae12、加载5947f5d、界面84893e8/c3f0c5b、保存0140f95、输入98a66a7），Production3qs7jl8lj / dpl_5haFenDmXSUam6QPyG4buggG3aWm READY，正式https://parallel-life-nu.vercel.app已切换。生产03:08:30Z 39迁移校验一致，无SQL新增；521check/build通过，144真实PG=139pass/0fail/5明确可选skip（4模型、1HTTP导演），11便签专项包含于139。
+
+备忘录接真实系统记录：近期计划/人物建议/明确状态邀约、人生起点、可展开既往记录与私人便签分开；系统只读、来源跳正确聊天/日历，错误独立重试，不清私人草稿，晚响应和版本协调有界。详情返回/邀约可读日期，按用户要求删除私人分享；输入80/2000，已有超限草稿保留提示。新建ID在世界事务锁内分配或恢复旧回执ID，含ID完整签名保留，旧随机ID兼容且改payload仍409。
+
+公网新建无id200/同command原receipt200/改内容409/只1持久note，records200同phone version4/current0/about2/history0、私人正文不入records、跨owner404/health200，模型0。生产自有测试世界没有计划/邀约正例；正例来自本地明确领域夹具与辅助真实PG建世界夹具，非新AI成功。本地390×500/844/PC真实界面、草稿编辑保存刷新、503/404诚实状态及重试已验；Ego高层来源点击曾坐标失配，键盘成功，辅助CDP指针证据另记。根Ego98正式390×844/500真实点击系统详情与返回、0编辑控件、1440×900 phone420无横溢、私人80/2000与分享移除均通过，finish一次；A13仍待用户体验，完整长期任务/BOOT前史/地点时间方案不算交付。
