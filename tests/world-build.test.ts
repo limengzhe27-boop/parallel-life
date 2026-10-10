@@ -530,3 +530,26 @@ test('fixed authored cast openings also reject missing history without inventing
   );
   assert.equal(calls, 2);
 });
+
+test('correction keeps complete NPC fields and all history requirements after real shape failures', async () => {
+  let calls = 0;
+  const opening = await new WorldPlanner({
+    async complete(messages, _signal, _cap, options) {
+      calls++;
+      assert.deepEqual(options, { format: 'json_object' });
+      assert.match(messages[0]!.content, /绝不把主角\/玩家\/用户本人放入actors/);
+      assert.match(messages[0]!.content, /\"notes\":\[.*\"messageHistory\":/);
+      if (calls === 1)
+        return JSON.stringify({
+          ...historyFixture(output),
+          messageHistory: { version: 1, messages: [] },
+        });
+      assert.match(messages[2]!.content, /relationship、persona 四个字段都必填/);
+      assert.match(messages[2]!.content, /INVALID_FIELDS|INVALID_MESSAGE_HISTORY/);
+      assert.match(messages[2]!.content, /messageHistory 按版本1覆盖每个演员/);
+      return JSON.stringify(historyFixture(output));
+    },
+  }).propose(seed);
+  assert.equal(calls, 2);
+  assert.equal(opening.messageHistory!.messages.length, 3);
+});
