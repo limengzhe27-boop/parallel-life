@@ -10,6 +10,7 @@ import type { LifeDraft, SaveDraft, ConfirmDraft } from '../../contracts/life-dr
 import { Button, Modal, Notice } from '../../components/ui.tsx';
 import { ApiFailure, type LifeClient } from '../api/client.ts';
 import s from './draft-editor.module.css';
+import { optionalDraftPhotos, synchronizeDraftPhotos } from './draft-photo-selection.ts';
 const toggle = (ids: string[], id: string) =>
   ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
 export function DraftEditor({
@@ -31,17 +32,7 @@ export function DraftEditor({
     [profile, setProfile] = useState(initialProfile);
   const [story, setStory] = useState(draft.story),
     [setup, setSetup] = useState(draft.setup),
-    [selection, setSelection] = useState(() => ({
-      ...draft.selection,
-      assetIds: [
-        ...new Set([
-          ...draft.selection.assetIds,
-          ...(draft.status === 'confirmed' ? [] : initialProfile.people)
-            .filter((p) => draft.selection.personIds.includes(p.id))
-            .flatMap((p) => (p.assetId ? [p.assetId] : [])),
-        ]),
-      ],
-    }));
+    [selection, setSelection] = useState(draft.selection);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [saved, setSaved] = useState(false);
@@ -73,27 +64,7 @@ export function DraftEditor({
           throw new Error('资料刚有更新，请读取最新资料后再确认。');
         if (!live) return;
         setRoles(next);
-        if (current.status !== 'confirmed')
-          setSelection((old) => {
-            const allowed = new Set([
-              ...next.referenceAssetIds,
-              ...(next.portraitAssetId ? [next.portraitAssetId] : []),
-              ...next.personAssets
-                .filter((a) => old.personIds.includes(a.personId))
-                .map((a) => a.assetId),
-            ]);
-            const assetIds = old.assetIds.filter((id) => allowed.has(id));
-            if (assetIds.length !== old.assetIds.length)
-              setRoleError('已排除未选人物的照片或不可用图片。请核对本次带入内容并保存。');
-            return {
-              ...old,
-              assetIds,
-              portraitAssetId:
-                old.portraitAssetId && assetIds.includes(old.portraitAssetId)
-                  ? old.portraitAssetId
-                  : null,
-            };
-          });
+        setSelection((old) => synchronizeDraftPhotos(old, next));
       } catch (e) {
         if (live) setRoleError(e instanceof Error ? e.message : '照片用途暂时未能读取。');
       }
@@ -103,16 +74,9 @@ export function DraftEditor({
       live = false;
     };
   }, [profile.id, profile.version, roleRead, confirmed]);
-  const photosReady = roles?.profileVersion === profile.version;
-  const pictures = [
-    ...new Set([
-      ...(roles?.referenceAssetIds ?? []),
-      ...(roles?.portraitAssetId ? [roles.portraitAssetId] : []),
-      ...(roles?.personAssets
-        .filter((a) => selection.personIds.includes(a.personId))
-        .map((a) => a.assetId) ?? []),
-    ]),
-  ];
+  const photosReady = roles?.profileId === profile.id && roles?.profileVersion === profile.version;
+  const pictures = optionalDraftPhotos(roles);
+  const optionalPhotoCount = selection.assetIds.filter((id) => pictures.includes(id)).length;
   function close() {
     if (!busy && (!dirty || confirmed || window.confirm('更改还没有保存，仍要离开吗？'))) onClose();
   }
@@ -360,98 +324,95 @@ export function DraftEditor({
             <details>
               <summary>我身边的人 · 已选 {selection.personIds.length}</summary>
               <p className={s.hint}>
-                选填，最多8位。选中人物时，其关联原图会同时出现在角色头像和相册中。普通头像也可以，不会用于推断长相。
+                选填，最多8位。有照片的朋友会默认带入照片，用于角色头像和相册；没有照片也可以选择。
               </p>
-              {profile.people.map((p) => (
-                <div key={p.id} className={s.person}>
-                  <label className={s.choice}>
-                    <input
-                      type="checkbox"
-                      checked={selection.personIds.includes(p.id)}
-                      disabled={
-                        !selection.personIds.includes(p.id) && selection.personIds.length >= 8
-                      }
-                      onChange={() => {
-                        const personIds = toggle(selection.personIds, p.id);
-                        const personPhotos = profile.people
-                          .filter((p) => personIds.includes(p.id))
-                          .flatMap((p) => (p.assetId ? [p.assetId] : []));
-                        setSelection({
-                          ...selection,
-                          personIds,
-                          personRoles: (selection.personRoles ?? []).filter((r) =>
-                            personIds.includes(r.personId),
-                          ),
-                          assetIds: [
-                            ...new Set([
-                              ...selection.assetIds.filter(
-                                (id) =>
-                                  roles?.referenceAssetIds.includes(id) ||
-                                  roles?.portraitAssetId === id,
-                              ),
-                              ...personPhotos,
-                            ]),
-                          ],
-                        });
-                      }}
-                    />
-                    {p.assetId && (
-                      <img
-                        className={s.personAvatar}
-                        src={`/api/v1/assets/${p.assetId}`}
-                        alt={`${p.name}的原图`}
-                      />
-                    )}
-                    <span>
-                      {p.name}
-                      <small>
-                        {p.relationship === '照片人物'
-                          ? '照片称呼，未说明现实关系'
-                          : `现实关系：${p.relationship}`}
-                      </small>
-                      {p.interaction && (
-                        <small>
-                          我的描述：{p.interaction.slice(0, 600)}
-                          {p.interaction.length > 600 && '…'}
-                        </small>
-                      )}
-                      {!!p.experiences?.length && (
-                        <small>带入前 {Math.min(3, p.experiences.length)} 段共同经历作为背景</small>
-                      )}
-                      {p.assetId && <small>照片将用于角色头像和相册</small>}
-                    </span>
-                  </label>
-                  {selection.personIds.includes(p.id) && (
-                    <label className={s.personRole}>
-                      <span>在这段人生里，他是谁（选填）</span>
+              {profile.people.map((p) => {
+                const photo = roles?.personAssets.find((item) => item.personId === p.id);
+                return (
+                  <div key={p.id} className={s.person}>
+                    <label className={s.choice}>
                       <input
-                        aria-label={`${p.name}的分支角色`}
-                        maxLength={160}
-                        placeholder="比如，让现实中的老板成为我的下属"
-                        value={selection.personRoles?.find((r) => r.personId === p.id)?.role ?? ''}
-                        onChange={(e) =>
-                          setSelection({
-                            ...selection,
-                            personRoles: [
-                              ...(selection.personRoles ?? []).filter((r) => r.personId !== p.id),
-                              ...(e.target.value.trim()
-                                ? [{ personId: p.id, role: e.target.value }]
-                                : []),
-                            ],
-                          })
+                        type="checkbox"
+                        checked={selection.personIds.includes(p.id)}
+                        disabled={
+                          !selection.personIds.includes(p.id) && selection.personIds.length >= 8
                         }
+                        onChange={() => {
+                          setSelection((old) => {
+                            const personIds = toggle(old.personIds, p.id);
+                            const next = {
+                              ...old,
+                              personIds,
+                              personRoles: (old.personRoles ?? []).filter((r) =>
+                                personIds.includes(r.personId),
+                              ),
+                            };
+                            return roles ? synchronizeDraftPhotos(next, roles) : next;
+                          });
+                        }}
                       />
-                      <small className={s.hint}>
-                        留空则由故事安排虚构角色，不会改变现实人物资料。描述最多带入前600字，共同经历最多前3段、每段前300字；不会带入聊天原话。
-                      </small>
+                      {photo && (
+                        <img
+                          className={s.personAvatar}
+                          src={`/api/v1/assets/${photo.assetId}`}
+                          alt={`${p.name}的原图`}
+                        />
+                      )}
+                      <span>
+                        {p.name}
+                        <small>
+                          {p.relationship === '照片人物'
+                            ? '照片称呼，未说明现实关系'
+                            : `现实关系：${p.relationship}`}
+                        </small>
+                        {p.interaction && (
+                          <small>
+                            我的描述：{p.interaction.slice(0, 600)}
+                            {p.interaction.length > 600 && '…'}
+                          </small>
+                        )}
+                        {!!p.experiences?.length && (
+                          <small>
+                            带入前 {Math.min(3, p.experiences.length)} 段共同经历作为背景
+                          </small>
+                        )}
+                        {photo && <small>照片默认用于角色头像和相册</small>}
+                      </span>
                     </label>
-                  )}
-                </div>
-              ))}
+                    {selection.personIds.includes(p.id) && (
+                      <label className={s.personRole}>
+                        <span>在这段人生里，他是谁（选填）</span>
+                        <input
+                          aria-label={`${p.name}的分支角色`}
+                          maxLength={160}
+                          placeholder="比如，让现实中的老板成为我的下属"
+                          value={
+                            selection.personRoles?.find((r) => r.personId === p.id)?.role ?? ''
+                          }
+                          onChange={(e) =>
+                            setSelection({
+                              ...selection,
+                              personRoles: [
+                                ...(selection.personRoles ?? []).filter((r) => r.personId !== p.id),
+                                ...(e.target.value.trim()
+                                  ? [{ personId: p.id, role: e.target.value }]
+                                  : []),
+                              ],
+                            })
+                          }
+                        />
+                        <small className={s.hint}>
+                          留空则由故事安排虚构角色，不会改变现实人物资料。描述最多带入前600字，共同经历最多前3段、每段前300字；不会带入聊天原话。
+                        </small>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
               {!profile.people.length && <p className={s.hint}>还没有记录人物。</p>}
             </details>
             <details>
-              <summary>照片 · 已选 {selection.assetIds.length}</summary>
+              <summary>其他照片 · 已选 {optionalPhotoCount}</summary>
               {!photosReady ? <p role="status">正在核对照片用途…</p> : null}
               {roleError ? <p role="alert">{roleError}</p> : null}
               <Button type="button" variant="ghost" onClick={() => setRoleRead((n) => n + 1)}>
@@ -466,31 +427,32 @@ export function DraftEditor({
                         aria-label={`带入照片 ${i + 1}`}
                         type="checkbox"
                         checked={selection.assetIds.includes(id)}
-                        disabled={profile.people.some(
-                          (p) => selection.personIds.includes(p.id) && p.assetId === id,
-                        )}
                         onChange={() => {
-                          const assetIds = toggle(selection.assetIds, id);
-                          setSelection({
-                            ...selection,
-                            assetIds,
-                            portraitAssetId: assetIds.includes(profile.portraitAssetId ?? '')
-                              ? profile.portraitAssetId
-                              : null,
+                          setSelection((old) => {
+                            const assetIds = toggle(old.assetIds, id);
+                            return synchronizeDraftPhotos(
+                              {
+                                ...old,
+                                assetIds,
+                                portraitAssetId:
+                                  roles?.portraitAssetId && assetIds.includes(roles.portraitAssetId)
+                                    ? roles.portraitAssetId
+                                    : null,
+                              },
+                              roles!,
+                            );
                           });
                         }}
                       />
                       {id === roles?.portraitAssetId
                         ? '用作本人形象（勾选确认）'
-                        : profile.people.some((p) => p.assetId === id)
-                          ? '已选人物的原图'
-                          : '带入这张参考图'}
+                        : '带入这张参考图'}
                     </span>
                   </label>
                 ))}
               </div>
               {!pictures.length && (
-                <p className={s.hint}>还没有可选的参考照片。人物原图随选中的人物一起带入。</p>
+                <p className={s.hint}>还没有其他可选照片。朋友照片随选中的朋友一起带入。</p>
               )}
             </details>
           </fieldset>

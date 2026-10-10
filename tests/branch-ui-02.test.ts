@@ -102,6 +102,10 @@ test('editing remains a real form with original saved values and explicit save a
   assert(html.includes('My immutable title'));
   assert(html.includes('保存草案'));
   assert(!html.includes('正在筹拍第一部电影的导演'));
+  assert(html.includes('其他照片 · 已选'));
+  assert(!html.includes('已选人物的原图'));
+  assert(html.includes('没有照片也可以选择'));
+  assert(html.includes('最多8位'));
 });
 test('confirmed material count must remain its recorded snapshot despite current people photos', () => {
   const personId = randomUUID(),
