@@ -1,3 +1,4 @@
+import { GenesisSourceSchema } from './world-records.ts';
 import { AlbumPhotoSchema } from './album.ts';
 import { InvitationSchema } from './invitations.ts';
 import { z } from 'zod';
@@ -20,6 +21,10 @@ export const PlayerOpeningActorSchema = z.strictObject({
   source: z.strictObject({ kind: z.literal('selected_person'), personId: Id }),
   relationship: z.string().max(160),
 });
+export const HistoryConnectionSchema = z.strictObject({
+  quote: z.string().trim().min(1).max(80),
+  calendar: z.strictObject({ minutesAfterStart: z.number().int().min(30).max(10080) }).optional(),
+});
 export const MessageHistorySchema = z.strictObject({
   version: z.literal(1),
   messages: z
@@ -29,6 +34,7 @@ export const MessageHistorySchema = z.strictObject({
         actorKey: z.string().regex(/^[a-z0-9_]{1,24}$/),
         text: z.string().trim().min(1).max(160),
         minutesBeforeStart: z.number().int().min(60).max(43200),
+        connection: HistoryConnectionSchema.optional(),
         replyToKey: z
           .string()
           .regex(/^[a-z0-9_]{1,32}$/)
@@ -100,6 +106,10 @@ const WorldItemId = z.union([
 ]);
 export const WorldPhoneSchema = z.strictObject({
   photos: z.array(AlbumPhotoSchema).optional(),
+  historyLinks: z.array(z.strictObject({
+    recordId: z.string().startsWith('sys/history/'), actorId: Id, messageId: Id,
+    invitationId: Id.optional(), photoIds: z.array(Id).max(2), source: GenesisSourceSchema,
+  })).max(2).optional(),
   choices: z
     .array(
       z.strictObject({

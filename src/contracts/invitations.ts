@@ -1,3 +1,4 @@
+import { GenesisSourceSchema } from './world-records.ts';
 import { z } from 'zod';
 import { Id, Timestamp } from './api.ts';
 const AppointmentId = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -15,6 +16,7 @@ export const InvitationRequestSchema = z.discriminatedUnion('operation', [
 ]);
 export type InvitationRequest = z.input<typeof InvitationRequestSchema>;
 export const InvitationSchema = z.strictObject({
+  origin: GenesisSourceSchema.optional(),
   id: AppointmentId,
   title: z.string(),
   at: Timestamp,

@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { Id, Timestamp } from './api.ts';
+export const HistoryLinkSchema = z.strictObject({
+  app: z.enum(['messages', 'calendar', 'notes', 'photos']),
+  target: z.string().min(1).max(200),
+  label: z.string().min(1).max(40),
+});
+export const GenesisSourceSchema = z.strictObject({
+  kind: z.literal('world_genesis'), worldId: Id, seedId: Id, messageId: Id,
+  snapshotVersion: z.literal(0), at: Timestamp, timeBasis: z.literal('story'),
+});
 const SourceSchema = z.discriminatedUnion('kind', [
+  GenesisSourceSchema,
   z.strictObject({
     kind: z.literal('opening_field'),
     seedId: Id,
@@ -17,7 +27,7 @@ const SourceSchema = z.discriminatedUnion('kind', [
 ]);
 export const PlayerRecordSchema = z.strictObject({
   id: z.string().startsWith('sys/'),
-  kind: z.enum(['player_choice', 'actor_suggestion', 'invitation', 'opening_context']),
+  kind: z.enum(['player_choice', 'actor_suggestion', 'invitation', 'opening_context', 'history_message']),
   title: z.string(),
   text: z.string(),
   state: z.enum([
@@ -42,6 +52,8 @@ export const PlayerRecordSchema = z.strictObject({
     'starting_context',
   ]),
   source: SourceSchema,
+  origin: GenesisSourceSchema.optional(),
+  relatedLinks: z.array(HistoryLinkSchema).max(4).optional(),
   navigation: z
     .discriminatedUnion('app', [
       z.strictObject({ app: z.literal('wechat'), actorId: Id }),

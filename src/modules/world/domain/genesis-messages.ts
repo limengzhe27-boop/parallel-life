@@ -8,6 +8,7 @@ export type MessageHistoryProposal = {
     actorKey: string;
     text: string;
     minutesBeforeStart: number;
+    connection?: { quote: string; calendar?: { minutesAfterStart: number } };
     replyToKey?: string;
   }[];
 };
@@ -42,7 +43,7 @@ export function validateMessageHistory(
     if (
       !entry ||
       Object.keys(entry).some(
-        (key) => !['key', 'actorKey', 'text', 'minutesBeforeStart', 'replyToKey'].includes(key),
+        (key) => !['key', 'actorKey', 'text', 'minutesBeforeStart', 'replyToKey', 'connection'].includes(key),
       ) ||
       typeof entry.key !== 'string' ||
       !keyPattern.test(entry.key) ||
@@ -63,6 +64,15 @@ export function validateMessageHistory(
     instants.add(instant);
     entries.set(entry.key, entry);
     counts.set(entry.actorKey, (counts.get(entry.actorKey) ?? 0) + 1);
+  }
+  const connections = history.messages.filter((m) => m.connection !== undefined);
+  if (connections.length > 2) invalid();
+  for (const entry of connections) {
+    const c = entry.connection!;
+    if (!c || typeof c !== 'object' || Object.keys(c).some((k) => !['quote','calendar'].includes(k)) ||
+        typeof c.quote !== 'string' || !c.quote.trim() || c.quote.length > 80 || !entry.text.includes(c.quote)) invalid();
+    if (c.calendar !== undefined && (!c.calendar || typeof c.calendar !== 'object' || Object.keys(c.calendar).some((k) => k !== 'minutesAfterStart') ||
+        !Number.isInteger(c.calendar.minutesAfterStart) || c.calendar.minutesAfterStart < 30 || c.calendar.minutesAfterStart > 10080)) invalid();
   }
   for (const actor of actors) if (!counts.get(actor) || counts.get(actor)! > 6) invalid();
   for (const entry of history.messages) {
