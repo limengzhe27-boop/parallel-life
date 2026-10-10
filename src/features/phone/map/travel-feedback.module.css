@@ -1,0 +1,160 @@
+.feedback {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 22px 20px 18px;
+  border: 1px solid #e2e5e8;
+  border-radius: 22px;
+  background: #fff;
+  color: #17212b;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+.feedback h2 {
+  margin: 12px 0 6px;
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.description {
+  margin: 8px 0 0;
+  color: #636e78;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.arrivalTime {
+  margin: 0;
+  color: #17212b;
+  font-size: 16px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.route {
+  margin: 0 auto 14px;
+  max-width: 280px;
+}
+.route svg {
+  display: block;
+  width: 100%;
+  height: 52px;
+  overflow: visible;
+}
+.origin {
+  fill: #fff;
+  stroke: #788b9a;
+  stroke-width: 3;
+}
+.track {
+  fill: none;
+  stroke: #e2e9ee;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.routeLine {
+  fill: none;
+  stroke: #3478e5;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 224;
+  animation: arrive 0.65s ease-out both;
+}
+.destination {
+  fill: #3478e5;
+}
+.check {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.routeLabels {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  color: #596873;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.routeLabels span {
+  max-width: 45%;
+  overflow-wrap: anywhere;
+}
+.routeLabels span:last-child {
+  text-align: right;
+  color: #17212b;
+}
+.spinner {
+  display: block;
+  margin: 2px auto 14px;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border: 3px solid #e4ebf2;
+  border-top-color: #3478e5;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+.notice {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  color: #796b52;
+  background: #f5f0e8;
+  font-size: 20px;
+}
+.action {
+  appearance: none;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  margin: 18px 0 0;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #3478e5;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.action:disabled {
+  background: #dce6f1;
+  color: #6d7783;
+  cursor: default;
+}
+.action:focus-visible {
+  outline: 3px solid #173f72;
+  outline-offset: 3px;
+}
+.action:active:not(:disabled) {
+  background: #2164c9;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes arrive {
+  from {
+    stroke-dashoffset: 224;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .routeLine {
+    animation: none;
+  }
+}
