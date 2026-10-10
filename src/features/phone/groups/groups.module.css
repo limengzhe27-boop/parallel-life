@@ -384,3 +384,24 @@
     scroll-behavior: auto;
   }
 }
+
+.messageStatus {
+  padding: 6px 0;
+  color: #575757;
+  font-size: 12px;
+}
+.messageStatus p {
+  margin: 0 0 4px;
+}
+.messageStatus button {
+  color: #086a3c;
+  text-decoration: underline;
+  margin-right: 8px;
+}
+.pendingSend {
+  max-width: calc(100% - 62px);
+  margin-left: auto;
+}
+.pendingSend .bubble {
+  background: #e7e7e7;
+}

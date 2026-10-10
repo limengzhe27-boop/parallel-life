@@ -17,6 +17,7 @@ import { dayKey, timeText } from '../apps/helpers.ts';
 import { GroupMembers } from './group-members.tsx';
 import { playSendSound } from '../audio-feedback.ts';
 import s from './groups.module.css';
+import { retryLatestGroupTask } from '../chat-send-state.ts';
 function readLocal(key: string) {
   try {
     return sessionStorage.getItem(key);
@@ -109,6 +110,7 @@ export function GroupChat({
         .then((t) => {
           if (mounted.current) {
             setTask(t);
+            if (t.status === 'succeeded') pendingChange(undefined);
             if (!['queued', 'running'].includes(t.status))
               void update()
                 .then(() => groups.syncWorld())
@@ -204,6 +206,7 @@ export function GroupChat({
           expectedVersion: fresh.version,
           text: text.trim(),
         };
+        setTask(undefined);
         pendingChange(p);
       }
       if (!p) return;
@@ -217,7 +220,7 @@ export function GroupChat({
       await update();
       void groups.syncWorld();
       playSendSound();
-      await execute(receipt.task);
+      if (!reconcile) await execute(receipt.task);
     } catch (e) {
       if (mounted.current)
         setError(e instanceof Error ? e.message : '发送结果还没确认，请查看最新消息。');
@@ -248,12 +251,25 @@ export function GroupChat({
     setError(undefined);
     setRetryConfirm(false);
     try {
-      const commandId = p.retryCommandId ?? crypto.randomUUID();
-      pendingChange({ ...p, retryCommandId: commandId });
-      const replacement = await groups.client.retry(task.id, commandId);
-      pendingChange({ ...p, taskId: replacement.id });
-      setTask(replacement);
-      await execute(replacement);
+      const result = await retryLatestGroupTask(
+        task.id,
+        (id) => groups.client.task(id),
+        (id, commandId) => groups.client.retry(id, commandId),
+        () => {
+          const commandId = p.retryCommandId ?? crypto.randomUUID();
+          pendingChange({ ...p, retryCommandId: commandId });
+          return commandId;
+        },
+      );
+      setTask(result.task);
+      if (!result.retried) {
+        if (result.task.status === 'succeeded') pendingChange(undefined);
+        await update();
+        void groups.syncWorld();
+        return;
+      }
+      pendingChange({ ...p, taskId: result.task.id });
+      await execute(result.task);
     } catch (e) {
       setError(e instanceof Error ? e.message : '这次没能重新等到回复，消息还在。');
     } finally {
@@ -274,6 +290,49 @@ export function GroupChat({
       />
     );
   const joined = detail ? isJoined(detail.group) : false;
+  const pendingMessageId = pending
+    ? detail?.messages.find(
+        (m) =>
+          m.sender.kind === 'player' &&
+          m.sourceVersion === pending.expectedVersion + 1 &&
+          m.text === pending.text,
+      )?.id
+    : undefined;
+  const sendFeedback =
+    pending && (error || taskText(task) || !pending.taskId) ? (
+      <div className={s.messageStatus} aria-live="polite">
+        {(error || taskText(task)) && <p role="alert">{error || taskText(task)}</p>}
+        {pending && !pending.taskId && (
+          <button disabled={busy} onClick={() => void submit(true)}>
+            恢复发送结果
+          </button>
+        )}
+        {task && mayExecute(task) && (
+          <button disabled={busy} onClick={() => void continueTask()}>
+            继续等待回复
+          </button>
+        )}
+        {task && mayRetry(task) && pending && (
+          <button disabled={busy} onClick={() => setRetryConfirm(true)}>
+            重新尝试回复
+          </button>
+        )}
+        <button
+          disabled={busy}
+          onClick={() => {
+            setError(undefined);
+            void update()
+              .then(async () => {
+                if (task) setTask(await groups.client.task(task.id));
+              })
+              .catch(() => setError('暂时没能更新，请稍后再试。'));
+          }}
+        >
+          刷新查看
+        </button>
+      </div>
+    ) : null;
+
   return (
     <div className={s.page} data-phone-fixed-dock>
       <header className={s.header}>
@@ -328,11 +387,19 @@ export function GroupChat({
                   <span className={s.sender}>{name}</span>
                   <p className={s.bubble}>{message.text}</p>
                   {date && <time title={timeText(date)}>{timeText(date)}</time>}
+                  {message.id === pendingMessageId && sendFeedback}
                 </div>
               </div>
             </div>
           );
         })}
+        {pending && !pendingMessageId && (
+          <div className={s.pendingSend}>
+            <p className={s.hint}>待核对的消息</p>
+            <p className={s.bubble}>{pending.text}</p>
+            {sendFeedback}
+          </div>
+        )}
         {detail && !detail.messages.length && (
           <p className={s.hint}>还没有消息，和大家打个招呼吧。</p>
         )}
@@ -343,34 +410,15 @@ export function GroupChat({
           </div>
         )}
       </div>
-      {(error || groups.error || taskText(task) || (pending && !pending.taskId)) && (
-        <div className={s.status} aria-live="polite">
-          {(error || groups.error) && <p role="alert">{error || groups.error}</p>}
-          {taskText(task) && <p>{taskText(task)}</p>}
-          {pending && !pending.taskId && (
-            <button disabled={busy} onClick={() => void submit(true)}>
-              核对发送结果
-            </button>
-          )}
-          {task && mayExecute(task) && (
-            <button disabled={busy} onClick={() => void continueTask()}>
-              继续等待回复
-            </button>
-          )}
-          {task && mayRetry(task) && pending && (
-            <button disabled={busy} onClick={() => setRetryConfirm(true)}>
-              重新尝试回复
-            </button>
-          )}
+      {(groups.error || (!pending && error)) && (
+        <div className={s.status}>
+          <p role="alert">{groups.error || error}</p>
           <button
             disabled={busy}
             onClick={() => {
               setError(undefined);
-              void update()
-                .then(async () => {
-                  if (task) setTask(await groups.client.task(task.id));
-                })
-                .catch(() => setError('暂时没能更新，请稍后再试。'));
+              void update().catch(() => setError('暂时没能更新，请稍后再试。'));
+              void groups.refresh();
             }}
           >
             刷新查看

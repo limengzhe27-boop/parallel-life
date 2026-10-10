@@ -16,6 +16,7 @@ import { useGroups } from './groups/use-groups.ts';
 import { isJoined, groupTarget } from './groups/state.ts';
 import { projectMessageNotifications } from './notification-projection.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
+import { MessageReceiptClient } from '../api/message-receipt-client.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
@@ -39,7 +40,15 @@ import { playTapSound } from './audio-feedback.ts';
 import { routeHash } from './navigation.ts';
 import { ACTIVE_PHONE_CHECK_MS, autoAdvanceDue } from './auto-advance.ts';
 import styles from './phone.module.css';
+import {
+  sendFailureStatus,
+  restoreSendMessages,
+  storeSendMessages,
+  restoreSendCommands,
+  type SendCommand,
+} from './chat-send-state.ts';
 export function WorldPhoneApp({ worldId }: { worldId: string }) {
+  const [receiptClient] = useState(() => new MessageReceiptClient());
   const [client] = useState(() => new LifeClient()),
     [data, setData] = useState<WorldPhone | null>(null),
     [error, setError] = useState(''),
@@ -83,6 +92,34 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
   };
 
+  const sendCommands = useRef<Record<string, SendCommand>>({});
+  const [recoveryWorld, setRecoveryWorld] = useState<string>();
+  useEffect(() => {
+    let restored: PhoneMessage[] = [];
+    try {
+      const raw = sessionStorage.getItem(`pl-send:${worldId}`);
+      restored = restoreSendMessages(raw, worldId);
+      sendCommands.current = restoreSendCommands(raw, worldId);
+    } catch {
+      /* Storage may be disabled. */
+    }
+    setLocalMessages(restored);
+    setRecoveryWorld(worldId);
+  }, [worldId]);
+  useEffect(() => {
+    if (recoveryWorld !== worldId) return;
+    try {
+      if (localMessages.length)
+        sessionStorage.setItem(
+          `pl-send:${worldId}`,
+          storeSendMessages(worldId, localMessages, sendCommands.current),
+        );
+      else sessionStorage.removeItem(`pl-send:${worldId}`);
+    } catch {
+      /* Current screen still preserves the original message. */
+    }
+  }, [worldId, recoveryWorld, localMessages]);
+
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(`pl_wallpaper_${worldId}`) || '/art/first-window.webp';
@@ -110,6 +147,11 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     commandId: string,
     replacing?: string,
   ) {
+    const unresolved = localMessages.find(
+      (message) =>
+        message.actorId === actorId && message.status === 'unknown' && message.id !== replacing,
+    );
+    if (unresolved) throw new ApiFailure('UNKNOWN', '上一条发送结果还未确认，请先核对。');
     const entry: PhoneMessage = {
       id: commandId,
       actorId,
@@ -118,12 +160,28 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       at: data?.time ?? new Date().toISOString(),
       status: 'pending',
     };
+    function rememberCommand(expectedVersion: number) {
+      sendCommands.current[commandId] = { worldId, commandId, actorId, text, expectedVersion };
+      try {
+        sessionStorage.setItem(
+          `pl-send:${worldId}`,
+          storeSendMessages(
+            worldId,
+            [...localMessages.filter((m) => m.id !== commandId && m.id !== replacing), entry],
+            sendCommands.current,
+          ),
+        );
+      } catch {
+        /* Keep the same command in the current screen. */
+      }
+    }
     setLocalMessages((current) => [
       ...current.filter((message) => message.id !== commandId && message.id !== replacing),
       entry,
     ]);
     try {
       let currentVersion = data?.version ?? 0;
+      rememberCommand(currentVersion);
       try {
         await client.sendWorldMessage(worldId, {
           commandId,
@@ -136,6 +194,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
         const errorStatus = (err as { status?: number })?.status;
         // 如果是版本不同步引起的冲突，立刻重新同步服务端最新世界版本并再次递交
         if (
+          (err as { code?: string })?.code === 'VERSION_CONFLICT' ||
           errorMsg.includes('VERSION_CONFLICT') ||
           errorMsg.includes('409') ||
           errorStatus === 409
@@ -143,6 +202,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
           const freshWorld = await client.world(worldId);
           setData(freshWorld);
           currentVersion = freshWorld.version ?? 0;
+          rememberCommand(currentVersion);
           await client.sendWorldMessage(worldId, {
             commandId,
             actorId,
@@ -154,15 +214,18 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
         }
       }
       setLocalMessages((current) => current.filter((message) => message.id !== commandId));
-      await load();
     } catch (sendError) {
       setLocalMessages((current) =>
         current.map((message) =>
-          message.id === commandId ? { ...message, status: 'failed' } : message,
+          message.id === commandId ? { ...message, status: sendFailureStatus(sendError) } : message,
         ),
       );
+      if (sendFailureStatus(sendError) === 'unknown')
+        throw new ApiFailure('UNKNOWN', '发送结果还不能确认，原消息已保留。请先核对。');
       throw sendError;
     }
+    // The command is committed. A projection read failure must never turn it into a failed send.
+    await load();
   }
 
   /**
@@ -398,7 +461,32 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
           }}
           onRetryMessage={async (messageId, commandId) => {
             const failed = localMessages.find((message) => message.id === messageId);
-            if (!failed) return { status: 'committed' };
+            if (!failed) throw new ApiFailure('NOT_FOUND', '原消息已不可访问，请刷新核对。');
+            const original = sendCommands.current[messageId];
+            if (!original)
+              throw new ApiFailure(
+                'UNKNOWN',
+                '原发送资料不完整，暂时无法核对。内容仍保留，可返回其他页面。',
+              );
+            let result;
+            try {
+              const { worldId: originalWorldId, ...input } = original;
+              result = await receiptClient.lookup(originalWorldId, input);
+            } catch {
+              throw new ApiFailure('UNKNOWN', '暂时无法核对，原消息仍待确认。请稍后再核对。');
+            }
+            if (result.status === 'committed') {
+              setLocalMessages((current) => current.filter((message) => message.id !== messageId));
+              delete sendCommands.current[messageId];
+              await load();
+              return { status: 'committed' };
+            }
+            if (failed.status === 'unknown' && commandId === messageId)
+              throw new ApiFailure(
+                'UNKNOWN',
+                '尚未查到已提交结果，原消息仍待确认。可继续核对，或明确选择再次尝试。',
+              );
+            // A different command is permitted only by the explicit retry/confirmation button.
             await deliverMessage(failed.actorId, failed.text, commandId, messageId);
             return { status: 'committed' };
           }}

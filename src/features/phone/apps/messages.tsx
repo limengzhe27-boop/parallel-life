@@ -6,6 +6,7 @@ import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
+import { hasLocalSendFailure } from '../chat-send-state.ts';
 import { Id } from '../../../contracts/api.ts';
 import { useGroups } from '../groups/use-groups.ts';
 import { GroupCreate } from '../groups/group-create.tsx';
@@ -78,6 +79,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const [showEmojiKeyboard, setShowEmojiKeyboard] = useState(false);
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
+  const [confirmResend, setConfirmResend] = useState<string>();
   const [previewModalPhoto, setPreviewModalPhoto] = useState<PhonePhoto | null>(null);
 
   const messageScroll = useRef<HTMLDivElement>(null);
@@ -92,6 +94,28 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const key = `message:${target}`,
     text = drafts[key] ?? '',
     operation = operations[key];
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  const localFailure = hasLocalSendFailure(operation, messages, operations);
+  useEffect(() => {
+    if (!target || drafts[key] !== undefined) return;
+    try {
+      const saved = sessionStorage.getItem(`pl-message-draft:${worldId}:${target}`);
+      if (saved !== null) setDraft(key, saved);
+    } catch {
+      /* Keep current-screen drafts when storage is unavailable. */
+    }
+  }, [worldId, key]);
+  useEffect(() => {
+    if (!target || drafts[key] === undefined) return;
+    try {
+      const storageKey = `pl-message-draft:${worldId}:${target}`;
+      if (text) sessionStorage.setItem(storageKey, text);
+      else sessionStorage.removeItem(storageKey);
+    } catch {
+      /* The provider still owns the current-screen draft. */
+    }
+  }, [worldId, key, text, drafts[key] === undefined]);
 
   const totalUnread =
     data.contacts.reduce((sum, c) => sum + (c.unread || 0), 0) +
@@ -1069,7 +1093,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   // 微信单聊对话视图
   // -------------------------------------------------------------------------
   const disabled =
-    operation?.busy || (operation?.status === 'accepted' && operation.signature === text);
+    operation?.busy ||
+    (operation?.status === 'accepted' && operation.signature === text) ||
+    messages.some((m) => m.role === 'user' && (m.status === 'unknown' || m.status === 'pending'));
   const relatedInvitation =
     data.invitations.find((inv) => inv.participantIds.includes(actor.id)) ?? null;
 
@@ -1524,7 +1550,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 className={s.messageFailure}
                 style={{ alignSelf: 'flex-end', marginRight: '48px', marginTop: '2px' }}
               >
-                <span>{m.status === 'unknown' ? '待确认' : '发送失败'}</span>
+                <span role="alert">
+                  {operations[`retry:${m.id}`]?.error ??
+                    (m.status === 'unknown'
+                      ? '发送结果待确认，内容已保留。请先核对。'
+                      : '发送失败，内容已保留。')}
+                </span>
                 <button
                   disabled={
                     !actions.retryMessage ||
@@ -1532,12 +1563,59 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     operations[`retry:${m.id}`]?.status === 'accepted'
                   }
                   onClick={() =>
-                    void run(`retry:${m.id}`, m.id, (id) => actions.retryMessage!(m.id, id))
+                    void run(`retry:${m.id}`, m.id, async (id) => {
+                      const signature = hasLocalSendFailure(operation, [m], operations)
+                        ? operation?.signature
+                        : m.text;
+                      const receipt = await actions.retryMessage!(
+                        m.id,
+                        m.status === 'unknown' ? m.id : id,
+                      );
+                      if (receipt.status === 'committed' && draftsRef.current[key] === signature)
+                        setDraft(key, '');
+                      return receipt;
+                    })
                   }
                 >
-                  {m.status === 'unknown' ? '确认重试' : '重试'}
+                  {m.status === 'unknown' ? '核对结果' : '重试'}
                 </button>
-                <Feedback operation={operations[`retry:${m.id}`]} success="重试已完成" />
+                {m.status === 'unknown' && (
+                  <button
+                    disabled={!actions.retryMessage || operations[`retry:${m.id}`]?.busy}
+                    onClick={() => setConfirmResend(m.id)}
+                  >
+                    再次尝试…
+                  </button>
+                )}
+                {confirmResend === m.id && m.status === 'unknown' && (
+                  <div role="alert">
+                    <p>上次可能已发送。再次尝试可能重复发送并再次生成回复，要继续吗？</p>
+                    <button
+                      disabled={operations[`retry:${m.id}`]?.busy}
+                      onClick={() => {
+                        setConfirmResend(undefined);
+                        const signature = hasLocalSendFailure(operation, [m], operations)
+                          ? operation?.signature
+                          : m.text;
+                        void run(`retry:${m.id}`, `${m.id}:explicit`, async (id) => {
+                          const receipt = await actions.retryMessage!(m.id, id);
+                          if (
+                            receipt.status === 'committed' &&
+                            draftsRef.current[key] === signature
+                          )
+                            setDraft(key, '');
+                          return receipt;
+                        });
+                      }}
+                    >
+                      确认再次尝试
+                    </button>
+                    <button onClick={() => setConfirmResend(undefined)}>取消</button>
+                  </div>
+                )}
+                {!operations[`retry:${m.id}`]?.error && (
+                  <Feedback operation={operations[`retry:${m.id}`]} success="重试已完成" />
+                )}
               </div>
             )}
           </article>
@@ -1558,7 +1636,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           const value = text.trim();
           if (!value || !actions.sendMessage || disabled) return;
           playSendSound();
-          setDraft(key, '');
           await run(key, text, (id) => actions.sendMessage!(actor.id, value, id));
         }}
       >
@@ -1861,7 +1938,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           </div>
         )}
 
-        <Feedback operation={operation} success="消息已提交" />
+        {!localFailure && <Feedback operation={operation} success="消息已提交" />}
       </form>
 
       {callingContact && (
@@ -1964,6 +2041,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       flexDirection: 'column',
                     }}
                     onClick={async () => {
+                      if (disabled) return;
                       playSendSound();
                       setShowPhotoPicker(false);
                       const shareText = `[分享了相册照片：《${photo.title}》]`;
