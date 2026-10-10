@@ -20,7 +20,27 @@ export const PlayerOpeningActorSchema = z.strictObject({
   source: z.strictObject({ kind: z.literal('selected_person'), personId: Id }),
   relationship: z.string().max(160),
 });
+export const MessageHistorySchema = z.strictObject({
+  version: z.literal(1),
+  messages: z
+    .array(
+      z.strictObject({
+        key: z.string().regex(/^[a-z0-9_]{1,32}$/),
+        actorKey: z.string().regex(/^[a-z0-9_]{1,24}$/),
+        text: z.string().trim().min(1).max(160),
+        minutesBeforeStart: z.number().int().min(60).max(43200),
+        replyToKey: z
+          .string()
+          .regex(/^[a-z0-9_]{1,32}$/)
+          .optional(),
+      }),
+    )
+    .min(2)
+    .max(48),
+});
 export const WorldOpeningSchema = z.object({
+  // Optional only for reading already persisted legacy openings; new writes require it.
+  messageHistory: MessageHistorySchema.optional(),
   playerActors: z.array(PlayerOpeningActorSchema).max(8).optional(),
   identity: z.string().min(1).max(400),
   setting: z.string().min(1).max(500),
@@ -150,6 +170,8 @@ export const WorldPhoneSchema = z.strictObject({
       text: z.string(),
       at: Timestamp,
       role: z.enum(['user', 'assistant']).optional(),
+      initialRead: z.boolean().optional(),
+      origin: z.literal('fictional_history').optional(),
     }),
   ),
   notes: z.array(

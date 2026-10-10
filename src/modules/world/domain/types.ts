@@ -30,6 +30,9 @@ export type Message = {
   text: string;
   at: string;
   sourceEventId: Id;
+  /** Immutable initial read state; later browser reads remain a separate projection. */
+  initialRead?: boolean;
+  history?: { version: 1; key: string; replyToMessageId?: Id };
   /** Internal event ordering for deciding whether a later reply has addressed a choice. */
   sourceVersion?: number;
 };
@@ -109,6 +112,8 @@ export type WorldState = {
   version: number;
   title: string;
   time: string;
+  /** Absent for legacy worlds. Fixed UTC+08 follows the existing phone time policy. */
+  messageHistory?: { version: 1; startAt: string; timeZone: 'UTC+08:00' };
   actors: Actor[];
   /** Absent in old worlds: no unproven contact may be assumed for new disclosures. */
   actorTies?: ActorTie[];
