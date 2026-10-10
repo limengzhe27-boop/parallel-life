@@ -122,7 +122,7 @@ export class WorldPlanner {
     this.twoStep = options.historyEnabled && options.historyMode === 'two-step';
   }
   private async proposeSetting(
-    seed: Extract<ApprovedSeed, { source: unknown }>,
+    seed: Extract<ApprovedSeed, { settingContent: unknown }>,
     signal: AbortSignal | undefined,
     startAt: string,
   ): Promise<WorldOpening> {
@@ -302,8 +302,9 @@ export class WorldPlanner {
         throw error;
       }
     }
-    if ('source' in seed && seed.source.kind === 'setting_draft')
-      return this.proposeSetting(seed, signal, startAt);
+    if ('source' in seed && seed.source.kind === 'official_life')
+      throw Error('OFFICIAL_CREATION_REQUIRES_EDITORIAL_PACK');
+    if ('settingContent' in seed) return this.proposeSetting(seed, signal, startAt);
     const system = this.historyEnabled ? SYSTEM : LEGACY_SYSTEM;
     const correction = this.historyEnabled ? CORRECTION : LEGACY_CORRECTION;
     const mapped = 'personRoles' in seed;

@@ -104,7 +104,7 @@ export class BuildRepository {
                 WHERE task.scope_kind='world-build' AND task.scope_id=b.seed_id::text
                 ORDER BY task.created_at DESC, task.id DESC LIMIT 1
              ) t ON true
-            WHERE s.setting_draft_id IS NULL
+            WHERE s.setting_draft_id IS NULL AND s.document->'source'->>'kind' IS DISTINCT FROM 'official_life'
             ORDER BY b.created_at DESC
             LIMIT 100`,
         )

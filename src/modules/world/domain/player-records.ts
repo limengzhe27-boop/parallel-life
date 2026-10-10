@@ -12,7 +12,12 @@ export type RecordSource =
       at: string;
       timeBasis: 'story';
     }
-  | { kind: 'opening_field'; seedId: string; field: 'identity' | 'setting' }
+  | {
+      kind: 'opening_field';
+      seedId: string;
+      field: 'identity' | 'setting' | 'official_note' | 'official_invitation';
+      key?: string;
+    }
   | {
       kind: 'world_event';
       eventId: string;
@@ -64,7 +69,12 @@ export type PlayerRecordsInput = {
   worldVersion: number;
   initial?: WorldState;
   historyPhotos?: ReadonlyMap<string, string[]>;
-  opening?: { seedId: string; identity?: string; setting?: string };
+  opening?: {
+    seedId: string;
+    identity?: string;
+    setting?: string;
+    officialSource?: { presetId: string; version: number };
+  };
   choices: StoryChoice[];
   appointments: Appointment[];
   messages: Message[];
@@ -138,6 +148,76 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         source: { kind: 'opening_field', seedId: input.opening.seedId, field },
       });
   }
+  const official = input.initial?.officialLife;
+  const officialSource = input.opening?.officialSource;
+  if (
+    official &&
+    officialSource &&
+    input.opening &&
+    official.presetId === officialSource.presetId &&
+    official.version === officialSource.version
+  ) {
+    for (const note of official.notes)
+      output.about.push({
+        id: 'sys/official/' + input.worldId + '/note/' + note.key,
+        kind: 'opening_context',
+        title: note.title,
+        text: note.text,
+        state: 'starting_point',
+        stateLabel: labels.starting_point,
+        assertion: 'starting_context',
+        source: {
+          kind: 'opening_field',
+          seedId: input.opening.seedId,
+          field: 'official_note',
+          key: note.key,
+        },
+      });
+    for (const initial of input.initial!.appointments) {
+      const current = input.appointments.find((a) => a.id === initial.id);
+      if (
+        !current?.status ||
+        initial.sourceEventId !== 'genesis:' + input.worldId ||
+        current.sourceEventId !== initial.sourceEventId
+      )
+        continue;
+      const response =
+        current.responseVersion === undefined
+          ? undefined
+          : input.events.find(
+              (e) =>
+                e.type === 'invitation.responded' &&
+                e.version === current.responseVersion &&
+                e.data.id === current.id,
+            );
+      if (current.responseVersion !== undefined && !response) continue;
+      const recordSource: RecordSource = response
+        ? {
+            kind: 'world_event',
+            eventId: response.id,
+            eventVersion: response.version,
+            at: response.type === 'invitation.responded' ? response.storyTime : response.occurredAt,
+            timeBasis: 'story',
+          }
+        : {
+            kind: 'opening_field',
+            seedId: input.opening.seedId,
+            field: 'official_invitation',
+            key: current.id,
+          };
+      output.current.push({
+        id: 'sys/official/' + input.worldId + '/invitation/' + current.id,
+        kind: 'invitation',
+        title: current.title,
+        text: current.at,
+        state: current.status,
+        stateLabel: labels[current.status],
+        assertion: 'invitation_status',
+        source: recordSource,
+        navigation: { app: 'calendar', invitationId: current.id },
+      });
+    }
+  }
   if (input.initial?.genesisLinks) {
     if (
       input.initial.id !== input.worldId ||
@@ -159,13 +239,11 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
               },
             ]
           : []),
-        ...(input.historyPhotos?.get(entry.actorId) ?? [])
-          .slice(0, 2)
-          .map((target) => ({
-            app: 'photos' as const,
-            target,
-            label: '\u76f8\u5173\u4eba\u7269\u7167\u7247',
-          })),
+        ...(input.historyPhotos?.get(entry.actorId) ?? []).slice(0, 2).map((target) => ({
+          app: 'photos' as const,
+          target,
+          label: '\u76f8\u5173\u4eba\u7269\u7167\u7247',
+        })),
       ];
       output.history.push({
         id: entry.recordId,

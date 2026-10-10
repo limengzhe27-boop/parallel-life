@@ -24,7 +24,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
       if (!world) throw new DomainError('NOT_FOUND');
       const metadata = (
         await sql.query(
-          "SELECT seed_id,opening->>'identity' AS identity,opening->>'setting' AS setting FROM parallel_life.world_builds WHERE world_id=$1 AND owner_id=$2 AND opening IS NOT NULL",
+          "SELECT b.seed_id,b.opening->>'identity' AS identity,b.opening->>'setting' AS setting,s.document->'source' AS seed_source FROM parallel_life.world_builds b JOIN parallel_life.approved_seeds s ON s.id=b.seed_id AND s.owner_id=b.owner_id WHERE b.world_id=$1 AND b.owner_id=$2 AND b.opening IS NOT NULL",
           [worldId, ownerId],
         )
       ).rows[0];
@@ -114,6 +114,14 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
                 seedId: metadata.seed_id,
                 identity: metadata.identity,
                 setting: metadata.setting,
+                ...(metadata.seed_source?.kind === 'official_life'
+                  ? {
+                      officialSource: {
+                        presetId: metadata.seed_source.presetId,
+                        version: metadata.seed_source.version,
+                      },
+                    }
+                  : {}),
               },
             }
           : {}),

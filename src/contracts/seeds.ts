@@ -80,8 +80,26 @@ const TrialSeedSchema = PersonalSeedSchema.omit({
     )
       ctx.addIssue({ code: 'custom', message: '试演必须使用已选修订的完整起点' });
   });
+const OfficialSeedSchema = PersonalSeedSchema.omit({
+  profileVersion: true,
+  discoveryVersion: true,
+  directionId: true,
+  draftRef: true,
+  personRoles: true,
+}).extend({
+  source: z.strictObject({
+    kind: z.literal('official_life'),
+    presetId: z.enum(['county-yellow-hair', 'only-child', 'returned-daughter', 'retired-star']),
+    version: z.number().int().positive(),
+  }),
+  facts: z.array(BasisSchema).max(0),
+  events: z.array(z.never()).max(0),
+  people: z.array(PersonSchema).max(0),
+  portraitAssetId: z.null(),
+  assets: z.array(z.never()).max(0),
+});
 export const ApprovedSeedSchema = z
-  .union([PersonalSeedSchema, TrialSeedSchema])
+  .union([PersonalSeedSchema, TrialSeedSchema, OfficialSeedSchema])
   .superRefine((seed, ctx) => {
     if (
       'personRoles' in seed &&

@@ -19,7 +19,8 @@ const SourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('opening_field'),
     seedId: Id,
-    field: z.enum(['identity', 'setting']),
+    field: z.enum(['identity', 'setting', 'official_note', 'official_invitation']),
+    key: z.string().max(80).optional(),
   }),
   z.strictObject({
     kind: z.literal('world_event'),

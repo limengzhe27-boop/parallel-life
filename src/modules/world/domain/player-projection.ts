@@ -42,7 +42,10 @@ export function projectPlayerActors(
       {
         id: actor.id,
         name: person?.name ?? actor.name,
-        relationship: person?.relationship ?? '',
+        relationship:
+          person?.relationship ??
+          state.officialLife?.contacts.find((c) => c.actorId === actor.id)?.relationship ??
+          '',
         ...(person
           ? { sourcePersonId: person.personId, ...(person.photo ? { photo: person.photo } : {}) }
           : {}),

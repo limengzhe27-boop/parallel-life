@@ -1,3 +1,5 @@
+import { OfficialLifeRepository } from '../modules/settings/infrastructure/official-life-repository.ts';
+import { officialLifeCatalog } from '../modules/settings/infrastructure/official-presets/index.ts';
 import { PostgresPlayerRecords } from '../modules/world/infrastructure/player-records-repository.ts';
 import { createPrivateAssetStore } from './private-asset-store.ts';
 import {
@@ -176,6 +178,7 @@ function createServices() {
     drafts: new DraftRepository(db),
     settingDrafts: new SettingDraftRepository(db),
     settingTrials: new SettingTrialRepository(db),
+    officialLives: new OfficialLifeRepository(db, officialLifeCatalog),
     builds: new BuildRepository(db),
     scenes: new SceneRepository(db),
     worlds: new PostgresWorldRepository(db),

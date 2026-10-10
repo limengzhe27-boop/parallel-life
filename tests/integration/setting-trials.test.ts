@@ -74,6 +74,7 @@ test('private trial pins an owned revision, creates one queued world per command
     const seeds = new SeedRepository(f.db);
     const seed = await seeds.get(f.owner, a.seedId);
     assert.ok('source' in seed);
+    assert.ok('settingContent' in seed);
     assert.equal(seed.source.version, 0);
     assert.deepEqual(seed.settingContent, f.content);
     assert.deepEqual(seed.facts, []);

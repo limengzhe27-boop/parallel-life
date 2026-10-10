@@ -118,6 +118,13 @@ export type GenesisLinks = {
   }[];
 };
 export type WorldState = {
+  /** Immutable public editorial material; never the full director script. */
+  officialLife?: {
+    presetId: string;
+    version: number;
+    contacts: { actorId: string; relationship: string }[];
+    notes: { key: string; title: string; text: string }[];
+  };
   genesisLinks?: GenesisLinks;
   schemaVersion: 1;
   id: Id;
