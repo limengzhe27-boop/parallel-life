@@ -53,3 +53,7 @@ Root feedback followups b0c8174/bcdf8d6 accepted as60169ec/bbb7351; optional unk
 ## Backend and public phone freeze candidate
 
 Latest full check635/635 passed; build passed before last guard, spatial real PG8/8 rerun after canonical scene guard passed. Full DB206=201pass/5optional skip previously passed. Navigation expected desktop list had one known old assertion failure after map addition, updated exact active app list then635passed. Root can forward forthcoming source commit to F: navigation declares map (desktop and deep links), phone-shell title and optional map ctx, phone-icons map glyph, world-phone-app owns useWorldMap + busy propagation. apps/index will be wired to F MapApp only after its own source freeze. No intermediate deployment.
+
+Backend/public-phone freeze commit follows the latest source log; all registered source is now frozen except pending F MapApp registration and evidence-based fixes. Root/F can inspect or accept this commit without editing I-owned files. No HTTP/production paid calls or new worlds.
+
+Freeze correction: 3ad3118 staged the registered API/domain/controller/public phone sources but omitted the new space-repository.ts from the explicit allowlist; immediately following commit includes that repository before any downstream integration/deployment. Both commits are required; no source package is claimed complete from3ad3118 alone. Current local checks ran against the combined working tree, not the incomplete commit.
