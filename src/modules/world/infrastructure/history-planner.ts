@@ -70,6 +70,11 @@ export class HistoryPlanner {
         }),
       },
     ];
+    if (this.linksEnabled)
+      base[0]!.content = base[0]!.content.replace(
+        'message\u4ec5\u542btext\u548cminutesBeforeStart',
+        'message\u542btext\u548cminutesBeforeStart\uff0c\u5141\u8bb8\u4e0b\u8ff0\u6709\u9650\u53ef\u9009connection',
+      );
     let reason = 'INVALID_HISTORY_FIELDS';
     for (let attempt = 1; attempt <= HISTORY_OUTPUT_ATTEMPTS; attempt++) {
       signal?.throwIfAborted();
@@ -81,7 +86,13 @@ export class HistoryPlanner {
               ...base,
               {
                 role: 'user',
-                content: `上次输出未通过校验（${reason}）。重新只返回groups，每组只含actorIndex和messages，message只含text和minutesBeforeStart。必须恰好${cast.length}组、覆盖编号0至${cast.length - 1}各一次，每组至少1条，不添加角色资料或其他字段；分钟60..43200且每人不重复。${connectionRule}`,
+                content:
+                  `上次输出未通过校验（${reason}）。重新只返回groups，每组只含actorIndex和messages，message只含text和minutesBeforeStart。必须恰好${cast.length}组、覆盖编号0至${cast.length - 1}各一次，每组至少1条，不添加角色资料或其他字段；分钟60..43200且每人不重复。${connectionRule}`.replace(
+                    'message\u53ea\u542btext\u548cminutesBeforeStart',
+                    this.linksEnabled
+                      ? 'message\u542btext\u548cminutesBeforeStart\uff0c\u53ef\u9009connection'
+                      : 'message\u53ea\u542btext\u548cminutesBeforeStart',
+                  ),
               },
             ],
         signal,
