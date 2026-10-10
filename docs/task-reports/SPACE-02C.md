@@ -35,3 +35,9 @@
 根在原3258隔离支架编译I实际useWorldMap/SpaceClient（只读其源码、不修改）进行三种浏览器行为验收：存储拒绝时状态failed且0旅行POST；服务端已提交但响应丢失时，核对原回执变committed，仅1旅行POST、版本1和12分钟；请求未发出时unknown，核对unconfirmed后显式重提完全相同原command/版本/route，2发送尝试但仅1模拟提交、版本1和12分钟。实际控制器没有自动重提或新增command。证据主.local/space02c-preview/evidence/actual-controller.json。首轮合成Session响应不符合当前kind/csrfToken契约，加载超时，修正支架后3/3通过；此问题属于测试样例，不是业务失败。全为本机模拟transport，0模型/0生产/0数据库，不替代I真实PG和公网验收。
 
 unknown组件默认仅核对按钮，只有控制器明确允许时显示原行程重新提交；390×500两按钮均可见、点击触发original-resubmit回调、无横向溢出。截图unknown-confirmed-resubmit-390-500.png已人工查看。仍待整页地图与最终生产验收，不将本段局部验证标成整体完成。
+
+## 整页地图联合复核（隔离UI）
+
+根Ego125复用F3256，实际F MapApp、I PhoneShell/controller：选目的地0write；12分钟路线23:55至次日00:07，1travelPOST/1模拟commit，状态栏/当前位置/到达反馈一致；“查看这个地点”再“看看这里”导航到准确sceneId，无伪执行现场任务。unknown-unconfirmed核对没有新增travelPOST，随后显式原命令重提共2尝试/1模拟commit；长地点名390×500无横溢；1440桌面实际手机壳480宽，页面无横溢；read-error不显示当前位置或旧到达。截图map-selected-390.png、map-arrival-390.png、map-long-390-500.png、map-pc-1440.png均在主.local/space02c-preview/evidence，已实际查看；map-joint-review.json记录关键结果。图示只画正式routes的关系，没有GPS/虚构人物位置。手机壳在PC真实宽480，与根独立反馈支架420为不同检查，不混写尺寸。
+
+样例误用：最初unknown-unconfirmed未先触发前往，等待核对按钮超时；按样例实际流程选地点、前往后通过。随后医院同名点和列表双控件导致模糊locator被拒，改使用当前snapshot唯一ref完成，未产生重复动作。以上是验收操作修正，不作为产品失败或重复旅行。F仍须冻结绘图/读取失败隐藏增量，I须联合check/build、真实库、0041生产迁移、READY与公网；当前根证据不能替代这些完成条件。
