@@ -333,6 +333,8 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |任务 ID|负责人/任务标识|角色|工作目录|允许写入|独占资源|进展/下一步|
 |---|---|---|---|---|---|---|
+|DEMO-SCRIPT-01I|codex-demo-script-i-01a11a84-20261010|唯一I / 内容文档集成|主登记目录；不新建工作树|docs/task-reports/DEMO-SCRIPT-01I.md及本人行；根冻结后受控归档五稿及根/F报告，必要docs/DEPLOYMENT.md|无端口/浏览器/数据库写/模型/生图；仅文档部署|v0.2全文复核及两处相对时间措辞修正、5稿21982字符静态检查通过，39迁移只读一致；待受控归档READY/public验收，其他源码/旧WIP排除。|
+|DEMO-SCRIPT-01|codex-main-demo-script-20261010|根 / 内容构思|主登记目录|docs/story-presets/README.md、01-county-yellow-hair.md、02-only-child.md、03-returned-daughter.md、04-retired-star.md；docs/task-reports/DEMO-SCRIPT-01.md及本人登记|无端口/数据库/模型；仅原创剧本讨论稿|2026-10-10：四稿+索引共17602字符已成，结构检查通过；待F独立内容审查/根修订后I单独归档。用户认可人生副本方向，要求内容可以俗、不平，每个候选先构思完善；准备完整初始手机、人物动机、事件条件、行动后果、回访及开放发展。AI编辑提案不等于正式供稿/已上线；当前CHAT验收继续。 v0.2五稿21976字符冻结，F全文审查已采纳三明确矛盾及具体资料/身份回报/拒绝支线/时空/首版终点；结构/链接及措辞反例检查通过，I仅内容归档部署。0源码/模型/数据库。|
 |DEMO-WORLD-PLAN-01|codex-main-demo-world-plan-20261010|根 / 方案整理|主登记目录|docs/DEMO_WORLD_EXPERIENCE_PLAN.md；本人登记和任务行|无端口/模型/数据库；仅文档|2026-10-10：方案已写docs/DEMO_WORLD_EXPERIENCE_PLAN.md，待I归档验收；核对LIB-03及已有私有试演能力；先完成当前CHAT发送修复，再安排默认可体验分支。新需求不改变I/F当前源码范围。 用户否定旧三日常题材，新候选霓虹江湖/继承人/一夜成名仅待讨论；CREATOR-PRO-01专业后台已放末位待开发。 用户再补“今天的人生副本是”/黄毛身份参照；方案补身份→生活关系→参与→后果，上一版新版均未采纳，正式供稿待定。|
 |USER-ACCEPT-01|codex-main-useraccept01-20261010|根协调 / 文档|主登记目录|docs/DEVELOPMENT.md 本人行和第10节、docs/task-reports/USER-ACCEPT-01.md|无端口/数据库/模型；登记短锁串行|2026-10-10：文档待I集成；第10节10项已上线限定范围+8类未来能力，原报告/路径/差异核对通过，无业务变更。与头像批次串行部署；用户体验结论全部保持待反馈。 I限定文档技术验收：受控899167c/8d0635f已发布原报告，A12最新追加本次记录提交。12项已上线范围/7类未来组，用户A01–A12均待体验；Q仅分析完成，NOTES-WORLD父未实现。|
 |LOCK-02|codex-f-lock02-20261009-01|F|/Users/limengzhe/.codex/worktrees/lock-02-notifications/人生剧本|src/features/phone/phone-shell.tsx、phone.module.css、notification-state.ts（如需）、notification-projection.ts；tests/notification-projection.test.ts；docs/task-reports/LOCK-02.md；本人本行登记|3241/55447及浏览器已停止释放；无模型/生产资源|2026-10-09：独立提交675fa87，待I集成caller；360check/build、390/1440及长内容/空态/壁纸失败验证通过；未部署，真实全量通知仍依赖I去除源slice(0,4)|
@@ -1010,6 +1012,10 @@ EXPERIENCE-09用户随后明确：预设内容由相关人员提供，本轮只�
 
 |DEMO-WORLD-PLAN-01|[ ] 待验收|codex-main-demo-world-plan-20261010；主目录仅方案文档|用户新增：无需先聊天，默认几条内容充实的可体验分支；复用LIB-03，不另搭模拟聊天引擎|首批内容、直接入口、初始手机、独立存档及验收标准；仅方案不等于已实现，上线开发待CHAT收口后分配 用户否定旧三日常题材，新候选霓虹江湖/继承人/一夜成名仅待讨论；CREATOR-PRO-01专业后台已放末位待开发。 用户再补“今天的人生副本是”/黄毛身份参照；方案补身份→生活关系→参与→后果，上一版新版均未采纳，正式供稿待定。|
 
+|DEMO-SCRIPT-01|[ ] 待验收|codex-main-demo-script-20261010；仅四剧本讨论稿与索引/报告|依赖用户认可人生副本方向；沿用LIB-03入口，四候选非强制首批名单|人物/既往生活/开场/首段体验/条件与后果/拒绝及离线回访/跨应用素材/未实现能力标识齐全；检查因果、时间、知情范围与区别，不把内容稿记成业务已交付 初稿17602字符，F独立审查待反馈、I仅文档归档；不标预设功能已实现。 v0.2五稿21976字符冻结，F全文审查已采纳三明确矛盾及具体资料/身份回报/拒绝支线/时空/首版终点；结构/链接及措辞反例检查通过，I仅内容归档部署。0源码/模型/数据库。|
+
+|DEMO-SCRIPT-01R|[ ] 待验收|F codex-f-demo-script01r-01a0c7c8-20261010；根指定会话01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b|工作目录 /Users/limengzhe/Desktop/projects/demo/人生剧本；仅docs/story-presets/{README,01-county-yellow-hair,02-only-child,03-returned-daughter,04-retired-star}.md只读；写docs/task-reports/DEMO-SCRIPT-01R.md及本人行；无源码/模型/数据库/浏览器/端口，无新工作树|2026-10-10 v0.1全文475行审查及根冻结v0.2快速复核已交docs/task-reports/DEMO-SCRIPT-01R.md，历史指纹/问题保留。Y1知情/O1项目数据/O2相对日期三文本矛盾已修；四篇拒绝后独立局面与首版聊天终点存在，README区分完整场景交付。v0.2五源指纹5/5不变；顶流D+1晚饭求助“今天”需绑定出现日的小歧义记录。仅文档审查可供I验收勾选，未证明趣味/执行条件/世界实例化；0源码/模型/图片/DB/HTTP/浏览器/端口/部署，无check/build、不借旧测试。旧CHAT服务已停、夹具删除审批拒绝仍待用户授权，单独记录。下一步根/I读追加复核、冻结首篇并另行协调实现，不自动领其他任务。|
+|DEMO-SCRIPT-01I|[ ] 待验收|codex-demo-script-i-01a11a84-20261010；唯一I部署；主目录|根指定仅DEMO-SCRIPT-01内容文档集成，依赖F报告及根修订冻结；不做LIB-03实例化或专业后台|检查人物/时间/玩家知情与当前能力差距，受控五稿及报告/相关任务行归档，独立项目READY/public；0模型/生图/生产世界/数据库写。纯文档不重复591业务测试，39迁移及旧真实证据明确归属原CHAT批次。|
 
 ## 11. 最后顺位：专业创作者后台
 
