@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   authenticated,
   endpoint,
@@ -17,13 +16,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await requestLimit(s.db, s.ownerId);
     const input = NoteSaveRequestSchema.parse(await parseBody(request, NoteSaveRequestSchema));
     try {
-      /* The server assigns the id of a new note; the client only keeps opening-note ids. */
+      /* Assign new IDs inside the transaction so retries recover the same receipt. */
       const saved = await s.worlds.saveNote(
         { userId: s.ownerId },
         {
           commandId: input.commandId,
           worldId: worldId.data,
-          id: input.id ?? randomUUID(),
+          id: input.id,
           title: input.title,
           text: input.text,
           expectedVersion: input.expectedVersion,

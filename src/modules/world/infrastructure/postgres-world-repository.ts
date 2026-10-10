@@ -291,27 +291,32 @@ export class PostgresWorldRepository implements WorldRepository {
    * (not in the world snapshot) with the same receipt/event discipline as other
    * commands: replaying the same command id returns the original note.
    */
-  async saveNote(session: Session, command: NoteCommand & { commandId: string; id: string }) {
-    const hash = createHash('sha256')
-      .update(
-        JSON.stringify([
-          'note.saved',
-          command.worldId,
-          command.id ?? null,
-          command.expectedVersion,
-          command.title,
-          command.text,
-        ]),
-      )
-      .digest('hex');
+  async saveNote(session: Session, input: NoteCommand) {
     return this.db.transaction(session.userId, async (sql) => {
-      const current = await this.owned(sql, command.worldId, true);
+      const current = await this.owned(sql, input.worldId, true);
       const previous = (
         await sql.query(
-          'SELECT request_hash,result_state,result_event_id FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
-          [command.worldId, command.commandId],
+          'SELECT request_hash,request_payload,result_state,result_event_id FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
+          [input.worldId, input.commandId],
         )
       ).rows[0];
+      // The world lock serializes allocation and replay, including old random IDs.
+      const command = {
+        ...input,
+        id: input.id ?? previous?.request_payload?.id ?? randomUUID(),
+      };
+      const hash = createHash('sha256')
+        .update(
+          JSON.stringify([
+            'note.saved',
+            command.worldId,
+            command.id ?? null,
+            command.expectedVersion,
+            command.title,
+            command.text,
+          ]),
+        )
+        .digest('hex');
       if (previous) {
         if (previous.request_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
         if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
