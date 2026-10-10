@@ -74,6 +74,12 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     const changed = isNew
       ? !!(draft.title.trim() || draft.text.trim())
       : draft.title !== note!.title || draft.text !== note!.text;
+    const lengthError =
+      draft.title.trim().length > 80
+        ? '标题最多80字，请缩短后保存。'
+        : draft.text.length > 2000
+          ? '正文最多2000字，草稿已保留，请缩短后保存。'
+          : undefined;
     const signature = JSON.stringify(draft);
     const awaiting = operation?.status === 'accepted' && operation.signature === signature;
     const conflict =
@@ -90,7 +96,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             open('notes');
             return;
           }
-          if (!actions.saveNote || operation?.busy || awaiting) return;
+          if (!actions.saveNote || operation?.busy || awaiting || lengthError) return;
           const resolvedTitle =
             draft.title.trim() ||
             draft.text.trim().split('\n')[0]?.trim().slice(0, 25) ||
@@ -175,7 +181,9 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             <button
               className={s.noteAction}
               type="submit"
-              disabled={!actions.saveNote || operation?.busy || awaiting || !!conflict}
+              disabled={
+                !actions.saveNote || operation?.busy || awaiting || !!conflict || !!lengthError
+              }
               style={{
                 background: '#fef3c7',
                 color: '#b45309',
@@ -253,7 +261,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           id="note-title"
           className={s.noteTitle}
           value={draft.title}
-          maxLength={120}
+          maxLength={80}
           placeholder="标题"
           disabled={!!operation?.busy}
           onChange={(e) => setNoteDraft(key, { ...draft, title: e.target.value })}
@@ -265,13 +273,18 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           id="note-text"
           className={s.noteBody}
           value={draft.text}
-          maxLength={10000}
+          maxLength={2000}
           placeholder="记下此刻的想法…"
           disabled={!!operation?.busy}
           onChange={(e) => setNoteDraft(key, { ...draft, text: e.target.value })}
         />
 
         <div className={s.inline}>
+          {lengthError && (
+            <p role="alert" className={s.error}>
+              {lengthError}
+            </p>
+          )}
           {conflict && (
             <div role="alert" className={s.error}>
               <p>便签已有新版本。你的草稿还在，请核对最新内容后再保存。</p>
