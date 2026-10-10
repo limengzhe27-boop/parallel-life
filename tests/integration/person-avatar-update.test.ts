@@ -1,3 +1,4 @@
+import { historyFixture } from '../helpers/genesis-fixture.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -163,28 +164,30 @@ test('PHOTO-AVATAR-UPDATE-01: atomic current avatar sync with immutable history'
           false,
           'world prompt receives no private images or original chat',
         );
-        return JSON.stringify({
-          identity: '相册整理者',
-          setting: '合成工作室',
-          actors: [
-            ...seed.people.map((p, i) => ({
-              key: `person_${i}`,
-              name: p.name,
-              relationship: '我的搭档',
-              persona: '整理自己负责的照片',
-            })),
-            ...Array.from({ length: Math.max(0, 3 - seed.people.length) }, (_, i) => ({
-              key: `extra_${i}`,
-              name: `原创${i}`,
-              relationship: '同伴',
-              persona: '有自己的生活',
-            })),
-          ],
-          messages: [
-            { actorKey: seed.people.length ? 'person_0' : 'extra_0', text: '一起来整理相册吧。' },
-          ],
-          notes: [{ title: '相册', text: '只整理被选中的照片' }],
-        });
+        return JSON.stringify(
+          historyFixture({
+            identity: '相册整理者',
+            setting: '合成工作室',
+            actors: [
+              ...seed.people.map((p, i) => ({
+                key: `person_${i}`,
+                name: p.name,
+                relationship: '我的搭档',
+                persona: '整理自己负责的照片',
+              })),
+              ...Array.from({ length: Math.max(0, 3 - seed.people.length) }, (_, i) => ({
+                key: `extra_${i}`,
+                name: `原创${i}`,
+                relationship: '同伴',
+                persona: '有自己的生活',
+              })),
+            ],
+            messages: [
+              { actorKey: seed.people.length ? 'person_0' : 'extra_0', text: '一起来整理相册吧。' },
+            ],
+            notes: [{ title: '相册', text: '只整理被选中的照片' }],
+          }),
+        );
       },
     });
     const lease = await queue.claimForOwner(pending.task!.id, owner, ['world-build']);

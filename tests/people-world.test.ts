@@ -1,3 +1,4 @@
+import { historyFixture } from './helpers/genesis-fixture.ts';
 import type { WorldOpening } from '../src/contracts/world-build.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,7 +45,7 @@ test('selected identities and branch roles are fixed without exposing images or 
   const result = await new WorldPlanner({
     async complete(messages) {
       sent = messages[1]!.content;
-      return JSON.stringify(opening);
+      return JSON.stringify(historyFixture(opening));
     },
   }).propose(ApprovedSeedSchema.parse(seed));
   assert.equal(result.actors[0]!.name, person.name);
@@ -65,7 +66,7 @@ test('missing, repeated and foreign person mappings fail closed', async () => {
     await assert.rejects(
       new WorldPlanner({
         async complete() {
-          return JSON.stringify({ ...opening, actors });
+          return JSON.stringify(historyFixture({ ...opening, actors }));
         },
       }).propose(ApprovedSeedSchema.parse(seed)),
       { code: 'INVALID_RESPONSE' },
@@ -113,7 +114,7 @@ test('legacy snapshots remain unmapped, no-photo and same-name people remain usa
   await assert.rejects(
     new WorldPlanner({
       async complete() {
-        return JSON.stringify(opening);
+        return JSON.stringify(historyFixture(opening));
       },
     }).propose(ApprovedSeedSchema.parse(legacy)),
     { code: 'INVALID_RESPONSE' },
@@ -127,12 +128,14 @@ test('legacy snapshots remain unmapped, no-photo and same-name people remain usa
   };
   const result = await new WorldPlanner({
     async complete() {
-      return JSON.stringify({
-        ...opening,
-        actors: opening.actors.map((a, i) =>
-          i === 1 ? { ...a, name: person.name, sourcePersonId: second.id } : a,
-        ),
-      });
+      return JSON.stringify(
+        historyFixture({
+          ...opening,
+          actors: opening.actors.map((a, i) =>
+            i === 1 ? { ...a, name: person.name, sourcePersonId: second.id } : a,
+          ),
+        }),
+      );
     },
   }).propose(ApprovedSeedSchema.parse(noImage));
   assert.equal(result.actors[0]!.name, result.actors[1]!.name);
@@ -143,19 +146,21 @@ test('server roster keys map same-name people without requiring the model to cop
   const result = await new WorldPlanner({
     async complete(messages) {
       const people = JSON.parse(messages[1]!.content).people;
-      return JSON.stringify({
-        ...opening,
-        actors: [
-          ...people.map((p: { key: string; name: string }) => ({
-            key: p.key,
-            name: p.name,
-            relationship: '搭档',
-            persona: '专注自己的工作',
-          })),
-          { key: 'third', name: '其他人', relationship: '同事', persona: '有自己的打算' },
-        ],
-        messages: [{ actorKey: 'person_0', text: '初稿发你了，请看看？' }],
-      });
+      return JSON.stringify(
+        historyFixture({
+          ...opening,
+          actors: [
+            ...people.map((p: { key: string; name: string }) => ({
+              key: p.key,
+              name: p.name,
+              relationship: '搭档',
+              persona: '专注自己的工作',
+            })),
+            { key: 'third', name: '其他人', relationship: '同事', persona: '有自己的打算' },
+          ],
+          messages: [{ actorKey: 'person_0', text: '初稿发你了，请看看？' }],
+        }),
+      );
     },
   }).propose(
     ApprovedSeedSchema.parse({ ...seed, people: [person, second], personRoles: [], assets: [] }),
@@ -169,12 +174,14 @@ test('a foreign source ID on a known roster key is rejected rather than overwrit
   await assert.rejects(
     new WorldPlanner({
       async complete() {
-        return JSON.stringify({
-          ...opening,
-          actors: opening.actors.map((a, i) =>
-            i === 0 ? { ...a, key: 'person_0', sourcePersonId: randomUUID() } : a,
-          ),
-        });
+        return JSON.stringify(
+          historyFixture({
+            ...opening,
+            actors: opening.actors.map((a, i) =>
+              i === 0 ? { ...a, key: 'person_0', sourcePersonId: randomUUID() } : a,
+            ),
+          }),
+        );
       },
     }).propose(ApprovedSeedSchema.parse(seed)),
     { code: 'INVALID_RESPONSE' },
@@ -195,15 +202,17 @@ test('a contradictory persona or own message gets one targeted correction, never
         calls++;
         if (calls === 2) {
           assert.match(messages[2]!.content, /SELECTED_ROLE_CONFLICT/);
-          return JSON.stringify(opening);
+          return JSON.stringify(historyFixture(opening));
         }
-        return JSON.stringify({
-          ...opening,
-          actors: opening.actors.map((a, i) =>
-            i === 0 ? { ...a, persona: bad.persona ?? a.persona } : a,
-          ),
-          messages: [{ actorKey: 'a', text: bad.message ?? '初稿好了' }],
-        });
+        return JSON.stringify(
+          historyFixture({
+            ...opening,
+            actors: opening.actors.map((a, i) =>
+              i === 0 ? { ...a, persona: bad.persona ?? a.persona } : a,
+            ),
+            messages: [{ actorKey: 'a', text: bad.message ?? '初稿好了' }],
+          }),
+        );
       },
     });
     const result = await planner.propose(equalSeed);
@@ -212,12 +221,14 @@ test('a contradictory persona or own message gets one targeted correction, never
     await assert.rejects(
       new WorldPlanner({
         async complete() {
-          return JSON.stringify({
-            ...opening,
-            actors: opening.actors.map((a, i) =>
-              i === 0 ? { ...a, persona: '他是你的直属上司' } : a,
-            ),
-          });
+          return JSON.stringify(
+            historyFixture({
+              ...opening,
+              actors: opening.actors.map((a, i) =>
+                i === 0 ? { ...a, persona: '他是你的直属上司' } : a,
+              ),
+            }),
+          );
         },
       }).propose(equalSeed),
       { code: 'INVALID_RESPONSE' },
@@ -243,7 +254,7 @@ test('selected friend descriptions are bounded, source quotes and image IDs neve
   await new WorldPlanner({
     async complete(messages) {
       sent = messages[1]!.content;
-      return JSON.stringify(opening);
+      return JSON.stringify(historyFixture(opening));
     },
   }).propose(ApprovedSeedSchema.parse({ ...seed, people: [enriched] }));
   const data = JSON.parse(sent).people[0];

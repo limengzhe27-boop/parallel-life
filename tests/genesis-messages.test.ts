@@ -63,6 +63,11 @@ test('new write rejects missing history, actor gaps, duplicate keys/times, futur
   const base = history(),
     e = base.messages[0]!;
   const bad: unknown[] = [
+    ...[undefined, 123].map((key) => ({
+      ...base,
+      messages: [{ ...e, key }, ...base.messages.slice(1)],
+    })),
+    { ...base, messages: [{ ...e, replyToKey: 123 }, ...base.messages.slice(1)] },
     undefined,
     { ...base, version: 2 },
     { ...base, messages: base.messages.filter((x) => x.actorKey === 'a') },

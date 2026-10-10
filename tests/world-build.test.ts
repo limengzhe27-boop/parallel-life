@@ -1,3 +1,5 @@
+import { ApprovedSeedSchema } from '../src/contracts/seeds.ts';
+import { historyFixture } from './helpers/genesis-fixture.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -48,7 +50,7 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
     async complete(messages, _signal, maxTokens) {
       sent = messages[1]!.content;
       requestedCap = maxTokens;
-      return JSON.stringify(output);
+      return JSON.stringify(historyFixture(output));
     },
   });
   const result = await planner.propose(seed);
@@ -56,7 +58,14 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
   assert.deepEqual(result.actorTies, output.actorTies);
   assert.equal(requestedCap, WORLD_OPENING_MAX_TOKENS);
   assert.equal(requestedCap! > 4096, true);
-  assert.deepEqual(Object.keys(JSON.parse(sent)), ['story', 'setup', 'facts', 'events', 'people']);
+  assert.deepEqual(Object.keys(JSON.parse(sent)), [
+    'storyTime',
+    'story',
+    'setup',
+    'facts',
+    'events',
+    'people',
+  ]);
   assert.deepEqual(JSON.parse(sent).setup, { identity: '', place: '', tone: '' });
   assert.deepEqual(JSON.parse(sent).events, []);
   assert.equal(sent.includes(seed.id), false);
@@ -81,7 +90,7 @@ test('world planner only sends selected seed fields and refuses unknown or dupli
       new WorldPlanner({
         async complete() {
           calls += 1;
-          return JSON.stringify(invalid);
+          return JSON.stringify(historyFixture(invalid));
         },
       }).propose(seed),
       { code: 'INVALID_RESPONSE' },
@@ -149,11 +158,13 @@ test('selected identity is exact and the world opening must use the selected pla
     async complete(messages) {
       calls += 1;
       sent = messages[1]!.content;
-      return JSON.stringify({
-        ...output,
-        identity: '模型猜测的别的职业',
-        setting: calls === 1 ? '上海的早晨' : '杭州的早晨',
-      });
+      return JSON.stringify(
+        historyFixture({
+          ...output,
+          identity: '模型猜测的别的职业',
+          setting: calls === 1 ? '上海的早晨' : '杭州的早晨',
+        }),
+      );
     },
   });
   const chosen = { identity: '独立电影导演', place: '杭州', tone: '热闹但不总是顺利' };
@@ -165,7 +176,7 @@ test('selected identity is exact and the world opening must use the selected pla
   await assert.rejects(
     new WorldPlanner({
       async complete() {
-        return JSON.stringify({ ...output, setting: '上海的早晨' });
+        return JSON.stringify(historyFixture({ ...output, setting: '上海的早晨' }));
       },
     }).propose({ ...seed, setup: chosen }),
     { code: 'INVALID_RESPONSE' },
@@ -178,8 +189,10 @@ test('an unusable structure is retried once with a correction, and a good retry 
     async complete(messages) {
       sent.push(messages.at(-1)!.content);
       return sent.length === 1
-        ? JSON.stringify({ ...output, messages: [{ actorKey: 'outsider', text: 'hello' }] })
-        : JSON.stringify(output);
+        ? JSON.stringify(
+            historyFixture({ ...output, messages: [{ actorKey: 'outsider', text: 'hello' }] }),
+          )
+        : JSON.stringify(historyFixture(output));
     },
   });
   const result = await planner.propose(seed);
@@ -228,7 +241,7 @@ test('setting trials keep the exact authored cast and ties without sending futur
   const result = await new WorldPlanner({
     async complete(messages) {
       sent = messages[1]!.content;
-      return JSON.stringify(generated);
+      return JSON.stringify(historyFixture(generated));
     },
   }).propose(trial);
   assert.deepEqual(
@@ -250,7 +263,7 @@ test('setting trials keep the exact authored cast and ties without sending futur
     await assert.rejects(
       new WorldPlanner({
         async complete() {
-          return JSON.stringify(invalid);
+          return JSON.stringify(historyFixture(invalid));
         },
       }).propose(trial),
       { code: 'INVALID_RESPONSE' },
@@ -312,10 +325,15 @@ test('authored seven-person casts preserve long IDs, names and all 28 directed t
   });
   const opening = await new WorldPlanner({
     async complete() {
-      return JSON.stringify({
-        messages: [{ actorKey: 'c_0', text: '场地已经问好了' }],
-        notes: [{ title: '场地', text: '预算待定' }],
-      });
+      return JSON.stringify(
+        historyFixture(
+          {
+            messages: [{ actorKey: 'c_0', text: '场地已经问好了' }],
+            notes: [{ title: '场地', text: '预算待定' }],
+          },
+          content.characters.map((_, i) => `c_${i}`),
+        ),
+      );
     },
   }).propose(trial);
   assert.equal(opening.actors.length, 7);
@@ -335,7 +353,7 @@ test('personal worlds without selected people never prompt for placeholder perso
       calls++;
       assert.doesNotMatch(messages[0]!.content, /"sourcePersonId":"所选人物/);
       assert.match(messages[0]!.content, /全部省略sourcePersonId/);
-      return JSON.stringify(output);
+      return JSON.stringify(historyFixture(output));
     },
   }).propose({ ...seed, people: [], personRoles: [] });
   assert.equal(result.actors.length, 3);
@@ -348,12 +366,14 @@ test('world correction identifies rejected actor ties and keeps their privacy gu
     async complete(messages) {
       calls++;
       if (calls === 1)
-        return JSON.stringify({
-          ...output,
-          actorTies: [{ fromKey: 'a', toKey: 'b', relationship: '你的两个朋友', mayShare: true }],
-        });
+        return JSON.stringify(
+          historyFixture({
+            ...output,
+            actorTies: [{ fromKey: 'a', toKey: 'b', relationship: '你的两个朋友', mayShare: true }],
+          }),
+        );
       assert.match(messages[2]!.content, /INVALID_ACTOR/);
-      return JSON.stringify(output);
+      return JSON.stringify(historyFixture(output));
     },
   }).propose(seed);
   assert.equal(calls, 2);
@@ -428,14 +448,19 @@ test('photo-only labels do not become reality relationships in either world prot
         payload = JSON.parse(messages[1]!.content);
         assert.match(messages[0]!.content, /现实关系尚未说明/);
         return JSON.stringify(
-          mapped
-            ? {
-                ...output,
-                actors: output.actors.map((a, i) => ({ ...a, key: i === 0 ? 'person_0' : a.key })),
-                actorTies: [],
-                messages: [{ actorKey: 'person_0', text: '早，工具准备好了。' }],
-              }
-            : output,
+          historyFixture(
+            mapped
+              ? {
+                  ...output,
+                  actors: output.actors.map((a, i) => ({
+                    ...a,
+                    key: i === 0 ? 'person_0' : a.key,
+                  })),
+                  actorTies: [],
+                  messages: [{ actorKey: 'person_0', text: '早，工具准备好了。' }],
+                }
+              : output,
+          ),
         );
       },
     }).propose({ ...seed, people: [person], ...(mapped ? { personRoles: [] } : {}) });
@@ -447,4 +472,61 @@ test('photo-only labels do not become reality relationships in either world prot
       assert.equal(result.actors[0]!.sourcePersonId, person.id);
     }
   }
+});
+
+test('new personal openings cannot silently omit NPC history and share the caller fixed story anchor', async () => {
+  let calls = 0;
+  await assert.rejects(
+    new WorldPlanner({
+      async complete() {
+        calls++;
+        return JSON.stringify(output);
+      },
+    }).propose(seed),
+    { code: 'INVALID_RESPONSE' },
+  );
+  assert.equal(calls, WORLD_OUTPUT_ATTEMPTS);
+  const startAt = '1998-01-01T00:00:00.000Z';
+  const planned = await new WorldPlanner({
+    async complete(messages) {
+      assert.deepEqual(JSON.parse(messages[1]!.content).storyTime, {
+        startAt,
+        timeZone: 'UTC+08:00',
+      });
+      return JSON.stringify(historyFixture(output));
+    },
+  }).propose(seed, undefined, startAt);
+  assert.equal(planned.messageHistory!.messages.length, 3);
+});
+
+test('fixed authored cast openings also reject missing history without inventing fallback letters', async () => {
+  const { settingContent } = await import('./fixtures/life-setting.ts');
+  const content = settingContent();
+  const trial = ApprovedSeedSchema.parse({
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    source: { kind: 'setting_draft', draftId: randomUUID(), version: 0 },
+    settingContent: content,
+    story: content.story,
+    setup: content.setup,
+    facts: [],
+    events: [],
+    people: [],
+    assets: [],
+    portraitAssetId: null,
+  });
+  let calls = 0;
+  await assert.rejects(
+    new WorldPlanner({
+      async complete() {
+        calls++;
+        return JSON.stringify({
+          messages: [{ actorKey: 'c_0', text: '先比较场地？' }],
+          notes: [{ title: '场地', text: '待核对' }],
+        });
+      },
+    }).propose(trial),
+    { code: 'INVALID_RESPONSE' },
+  );
+  assert.equal(calls, 2);
 });

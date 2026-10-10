@@ -4,6 +4,7 @@ type Message = {
   id: string;
   actorId: string;
   role?: 'user' | 'assistant';
+  initialRead?: boolean;
   text: string;
   at: string;
 };
@@ -20,7 +21,13 @@ export function projectMessageNotifications(
   const seen = new Set<string>();
   return messages
     .filter((message) => {
-      if (message.role === 'user' || viewed.has(message.id) || seen.has(message.id)) return false;
+      if (
+        message.role === 'user' ||
+        message.initialRead === true ||
+        viewed.has(message.id) ||
+        seen.has(message.id)
+      )
+        return false;
       seen.add(message.id);
       return true;
     })

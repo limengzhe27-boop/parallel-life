@@ -1,3 +1,4 @@
+import { historyFixture } from './helpers/genesis-fixture.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -96,25 +97,27 @@ test('model self-reported playerActors are stripped, while internal personas are
   };
   const opening = await new WorldPlanner({
     complete: async () =>
-      JSON.stringify({
-        identity: 'shop owner',
-        setting: 'workshop',
-        actors: ['a', 'b', 'c'].map((key) => ({
-          key,
-          name: key,
-          relationship: marker,
-          persona: marker,
-        })),
-        messages: [{ actorKey: 'a', text: 'hello' }],
-        notes: [{ title: 'today', text: 'open shop' }],
-        playerActors: [
-          {
-            actorId: randomUUID(),
-            source: { kind: 'selected_person', personId: randomUUID() },
+      JSON.stringify(
+        historyFixture({
+          identity: 'shop owner',
+          setting: 'workshop',
+          actors: ['a', 'b', 'c'].map((key) => ({
+            key,
+            name: key,
             relationship: marker,
-          },
-        ],
-      }),
+            persona: marker,
+          })),
+          messages: [{ actorKey: 'a', text: 'hello' }],
+          notes: [{ title: 'today', text: 'open shop' }],
+          playerActors: [
+            {
+              actorId: randomUUID(),
+              source: { kind: 'selected_person', personId: randomUUID() },
+              relationship: marker,
+            },
+          ],
+        }),
+      ),
   }).propose(seed);
   assert.equal(opening.playerActors, undefined);
   assert.equal(opening.actors[0]!.persona, marker);

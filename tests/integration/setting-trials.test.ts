@@ -1,3 +1,4 @@
+import { historyFixture } from '../helpers/genesis-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -110,20 +111,25 @@ test('private trial pins an owned revision, creates one queued world per command
     assert.ok(lease);
     const planner = new WorldPlanner({
       async complete() {
-        return JSON.stringify({
-          messages: [{ actorKey: 'c_0', text: '两个场地问好了，你先看看？' }],
-          notes: [{ title: '场地方案', text: '先比较预算与时间' }],
-        });
+        return JSON.stringify(
+          historyFixture({
+            messages: [{ actorKey: 'c_0', text: '两个场地问好了，你先看看？' }],
+            notes: [{ title: '场地方案', text: '先比较预算与时间' }],
+          }),
+        );
       },
     });
     await buildHandler(f.queue, planner, 'fixture')(lease, new AbortController().signal);
     const phone = await new BuildRepository(f.db).phone(f.owner, a.worldId);
     assert.deepEqual(
       phone.actors.map((c) => c.name),
-      [f.content.characters[0]!.name],
+      f.content.characters.map((character) => character.name),
     );
     assert.equal(phone.identity, f.content.setup.identity);
-    assert.equal(phone.messages[0]!.actorId, phone.actors[0]!.id);
+    assert.equal(
+      phone.messages.find((message) => message.initialRead === false)!.actorId,
+      phone.actors[0]!.id,
+    );
     assert.equal((await f.trials.list(f.owner, f.draft.id))[0]!.ready, true);
     const snapshot = await f.admin.query(
       'SELECT approved_seed,state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',

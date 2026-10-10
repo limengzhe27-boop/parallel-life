@@ -32,7 +32,10 @@ export function worldAppData(
         : {}),
       unread: world.messages.filter(
         (message) =>
-          message.actorId === actor.id && message.role !== 'user' && !viewed.has(message.id),
+          message.actorId === actor.id &&
+          message.role !== 'user' &&
+          message.initialRead !== true &&
+          !viewed.has(message.id),
       ).length,
     })),
     photos: (world.photos ?? []).map((photo) => {
@@ -71,6 +74,7 @@ export function worldAppData(
           at: message.at,
           role: message.role ?? 'assistant',
           status: 'sent' as const,
+          ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
         };
       }),
       ...local.map((message) => ({ ...message })),

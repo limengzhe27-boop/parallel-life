@@ -1,3 +1,4 @@
+import { historyFixture } from '../helpers/genesis-fixture.ts';
 import { DraftRepository } from '../../src/modules/discovery/infrastructure/draft-repository.ts';
 import { SeedRepository } from '../../src/modules/discovery/infrastructure/seed-repository.ts';
 import type { Profile } from '../../src/contracts/api.ts';
@@ -89,27 +90,29 @@ test('PostgreSQL person bindings pin originals, enforce RLS and roll back an inv
       assert.equal((await builds.create(owner, request)).worldId, pending.worldId);
       const planner = new WorldPlanner({
         async complete() {
-          return JSON.stringify({
-            identity: '负责人',
-            setting: '合成工作室',
-            actors: [
-              ...seed.people.map((p, i) => ({
-                key: `p${i}`,
-                name: p.name,
-                sourcePersonId: p.id,
-                relationship: '同事',
-                persona: '独立生活，有自己的愿望',
-              })),
-              ...['a', 'b', 'c'].map((key) => ({
-                key,
-                name: key,
-                relationship: '朋友',
-                persona: '各有生活',
-              })),
-            ],
-            messages: [{ actorKey: seed.people.length ? 'p0' : 'a', text: '初稿好了，你看看？' }],
-            notes: [{ title: '今天', text: '看初稿' }],
-          });
+          return JSON.stringify(
+            historyFixture({
+              identity: '负责人',
+              setting: '合成工作室',
+              actors: [
+                ...seed.people.map((p, i) => ({
+                  key: `p${i}`,
+                  name: p.name,
+                  sourcePersonId: p.id,
+                  relationship: '同事',
+                  persona: '独立生活，有自己的愿望',
+                })),
+                ...['a', 'b', 'c'].map((key) => ({
+                  key,
+                  name: key,
+                  relationship: '朋友',
+                  persona: '各有生活',
+                })),
+              ],
+              messages: [{ actorKey: seed.people.length ? 'p0' : 'a', text: '初稿好了，你看看？' }],
+              notes: [{ title: '今天', text: '看初稿' }],
+            }),
+          );
         },
       });
       await runOne(queue, { 'world-build': buildHandler(queue, planner, 'fixture-no-real-model') });

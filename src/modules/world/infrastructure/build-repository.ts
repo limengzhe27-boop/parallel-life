@@ -313,6 +313,8 @@ export class BuildRepository {
         role: m.role,
         text: m.text,
         at: m.at,
+        ...(m.initialRead !== undefined ? { initialRead: m.initialRead } : {}),
+        ...(m.history ? { origin: 'fictional_history' as const } : {}),
       })),
       notes: [
         // Generated opening notes have no player-knowledge provenance. Keep them internal.

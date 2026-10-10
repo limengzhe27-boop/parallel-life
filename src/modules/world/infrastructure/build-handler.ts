@@ -4,7 +4,7 @@ import { ApprovedSeedSchema } from '../../../contracts/seeds.ts';
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { WorldState } from '../domain/types.ts';
-import { openingMessageAt } from '../domain/opening-time.ts';
+import { genesisMessages } from '../domain/genesis-messages.ts';
 import { WorldPlanner, WORLD_PROMPT_VERSION } from './world-planner.ts';
 
 export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, model: string) {
@@ -22,7 +22,8 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       if (!row) throw Error('INVALID_BUILD');
       return ApprovedSeedSchema.parse(row.document);
     });
-    const opening = await planner.propose(seed, signal).catch((error) => {
+    const time = new Date().toISOString();
+    const opening = await planner.propose(seed, signal, time).catch((error) => {
         /* Surface which model/prompt produced unusable output so the failure is diagnosable. */
         throw Object.assign(error instanceof Error ? error : Error('INVALID_WORLD_OUTPUT'), {
           model,
@@ -30,7 +31,6 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
           durationMs: Date.now() - started,
         });
       }),
-      time = new Date().toISOString(),
       sourceEventId = `genesis:${input.worldId}`;
     // Enforce the mapping at the write boundary, independently of model validation.
     if ('personRoles' in seed) {
@@ -59,6 +59,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       version: 0,
       title: seed.story.title,
       time,
+      messageHistory: { version: 1, startAt: time, timeZone: 'UTC+08:00' },
       actors: opening.actors.map((a) => ({
         id: ids.get(a.key)!,
         ...(a.sourcePersonId ? { sourcePersonId: a.sourcePersonId } : {}),
@@ -86,15 +87,13 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
           sourceEventId,
         },
       ],
-      messages: opening.messages.map((m, index) => {
-        return {
-          id: randomUUID(),
-          actorId: ids.get(m.actorKey)!,
-          role: 'assistant',
-          text: m.text,
-          at: openingMessageAt(time, index, opening.messages.length),
-          sourceEventId,
-        };
+      messages: genesisMessages({
+        worldId: input.worldId,
+        startAt: time,
+        actors: ids,
+        history: opening.messageHistory,
+        current: opening.messages,
+        newId: randomUUID,
       }),
       appointments: [],
       mediaRequests: [],

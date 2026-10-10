@@ -18,6 +18,8 @@ export type PhoneMessage = {
   text: string;
   at: string;
   status: 'pending' | 'sent' | 'failed' | 'unknown';
+  /** Initial server-verified history does not become a new notification. */
+  initialRead?: boolean;
   links?: PhoneLink[];
   photo?: PhonePhoto;
 };

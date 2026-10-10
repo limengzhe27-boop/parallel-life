@@ -290,3 +290,22 @@ test('a selected person uses the same scoped original image for avatar and album
   assert.match(data.photos[0]!.description ?? '', /上传时间/);
   assert.equal(data.photos[0]?.sourcePersonId, 'person-a');
 });
+
+test('fresh browser history is already read in both contacts and the notification caller display model', async () => {
+  const { projectMessageNotifications } =
+    await import('../src/features/phone/notification-projection.ts');
+  const history = {
+    ...world.messages[0]!,
+    id: 'past',
+    at: '2026-09-20T00:00:00Z',
+    initialRead: true,
+  };
+  const data = worldAppData({ ...world, messages: [history, ...world.messages] });
+  assert.equal(data.contacts[0]!.unread, 1);
+  assert.equal(data.messages[0]!.initialRead, true);
+  assert.deepEqual(
+    projectMessageNotifications(data.messages, data.contacts, new Set(), (x) => x).map((x) => x.id),
+    ['m1'],
+  );
+  assert.equal(worldAppData({ ...world, messages: [history] }, new Set()).contacts[0]!.unread, 0);
+});

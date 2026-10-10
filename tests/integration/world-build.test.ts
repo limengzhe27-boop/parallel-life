@@ -1,3 +1,4 @@
+import { historyFixture } from '../helpers/genesis-fixture.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -97,7 +98,7 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     const slow = new WorldPlanner({
       async complete() {
         await tasks.cancel(owner, first.task!.id);
-        return JSON.stringify(output);
+        return JSON.stringify(historyFixture(output));
       },
     });
     await runOne(queue, { 'world-build': buildHandler(queue, slow, 'test-model') });
@@ -106,7 +107,7 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     await tasks.retry(owner, first.task!.id, randomUUID());
     const planner = new WorldPlanner({
       async complete() {
-        return JSON.stringify(output);
+        return JSON.stringify(historyFixture(output));
       },
     });
     await runOne(queue, { 'world-build': buildHandler(queue, planner, 'test-model') });
@@ -130,8 +131,9 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
     assert.equal(olderBuild?.worldId, olderWorldId);
     assert.equal(olderBuild?.task, null, 'a legacy build without a task still appears');
     const phone = await new BuildRepository(db).phone(owner, first.worldId);
-    assert.equal(phone.messages.length, 1);
-    assert.equal(phone.actors.length, 1);
+    assert.equal(phone.messages.length, 4);
+    assert.equal(phone.messages.filter((message) => message.initialRead).length, 3);
+    assert.equal(phone.actors.length, 3);
     const builtState = await new PostgresWorldRepository(db).get({ userId: owner }, first.worldId);
     assert.deepEqual(builtState.actorTies, [
       {

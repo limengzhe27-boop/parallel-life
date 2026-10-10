@@ -1,3 +1,4 @@
+import { historyFixture } from '../helpers/genesis-fixture.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -89,29 +90,31 @@ test('real PostgreSQL player projection, memory writes and candidate second exit
         queue,
         new WorldPlanner({
           complete: async () =>
-            JSON.stringify({
-              identity: '维修铺店主',
-              setting: '维修铺清晨',
-              actors: [
-                {
-                  key: 'person_0',
-                  name: '小林',
-                  relationship: secret,
-                  persona: `合作伙伴。${secret}`,
-                },
-                { key: 'b', name: '街坊', relationship: secret, persona: secret },
-                { key: 'c', name: '尚未相识的人', relationship: secret, persona: secret },
-              ],
-              messages: [{ actorKey: 'b', text: '店开了吗？' }],
-              notes: [{ title: '内部便签', text: secret }],
-              playerActors: [
-                {
-                  actorId: randomUUID(),
-                  source: { kind: 'selected_person', personId },
-                  relationship: secret,
-                },
-              ],
-            }),
+            JSON.stringify(
+              historyFixture({
+                identity: '维修铺店主',
+                setting: '维修铺清晨',
+                actors: [
+                  {
+                    key: 'person_0',
+                    name: '小林',
+                    relationship: secret,
+                    persona: `合作伙伴。${secret}`,
+                  },
+                  { key: 'b', name: '街坊', relationship: secret, persona: secret },
+                  { key: 'c', name: '尚未相识的人', relationship: secret, persona: secret },
+                ],
+                messages: [{ actorKey: 'b', text: '店开了吗？' }],
+                notes: [{ title: '内部便签', text: secret }],
+                playerActors: [
+                  {
+                    actorId: randomUUID(),
+                    source: { kind: 'selected_person', personId },
+                    relationship: secret,
+                  },
+                ],
+              }),
+            ),
         }),
         'synthetic-fixture',
       ),
@@ -119,10 +122,10 @@ test('real PostgreSQL player projection, memory writes and candidate second exit
     const worlds = new PostgresWorldRepository(db);
     let state = await worlds.get({ userId: owner }, build.worldId);
     await t.test(
-      'raw serialization contains only selected role/photo and actual contacting speaker',
+      'raw serialization contains only selected role/photo and sourced contacting speakers',
       async () => {
         const phone = await builds.phone(owner, build.worldId);
-        assert.equal(phone.actors.length, 2);
+        assert.equal(phone.actors.length, 3);
         assert.deepEqual(phone.notes, []);
         assert.equal(state.actors.length, 3);
         assert.ok(!JSON.stringify(phone).includes(secret));

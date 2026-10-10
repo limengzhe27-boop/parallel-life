@@ -28,6 +28,9 @@ export function validateMessageHistory(
     Object.keys(history).some((key) => !['version', 'messages'].includes(key)) ||
     history.messages.length < actorKeys.length ||
     history.messages.length > 48 ||
+    actorKeys.length < 2 ||
+    actorKeys.length > 8 ||
+    actorKeys.some((key) => typeof key !== 'string' || !/^[a-z0-9_]{1,24}$/.test(key)) ||
     new Set(actorKeys).size !== actorKeys.length
   )
     invalid();
@@ -41,6 +44,7 @@ export function validateMessageHistory(
       Object.keys(entry).some(
         (key) => !['key', 'actorKey', 'text', 'minutesBeforeStart', 'replyToKey'].includes(key),
       ) ||
+      typeof entry.key !== 'string' ||
       !keyPattern.test(entry.key) ||
       entries.has(entry.key) ||
       !actors.has(entry.actorKey) ||
@@ -50,7 +54,8 @@ export function validateMessageHistory(
       !Number.isInteger(entry.minutesBeforeStart) ||
       entry.minutesBeforeStart < 60 ||
       entry.minutesBeforeStart > 43200 ||
-      (entry.replyToKey !== undefined && !keyPattern.test(entry.replyToKey))
+      (entry.replyToKey !== undefined &&
+        (typeof entry.replyToKey !== 'string' || !keyPattern.test(entry.replyToKey)))
     )
       invalid();
     const instant = `${entry.actorKey}:${entry.minutesBeforeStart}`;
