@@ -1,3 +1,4 @@
+import { PlayerRecordsSchema } from '../../contracts/world-records.ts';
 import {
   LifeDraftSchema,
   DraftListSchema,
@@ -165,6 +166,10 @@ export class LifeClient {
         body: JSON.stringify(input),
       },
     );
+  }
+  async readWorldRecords(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/records`, PlayerRecordsSchema);
   }
   async saveWorldNote(worldId: string, input: NoteSaveRequest) {
     await this.connect();

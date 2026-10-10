@@ -1,4 +1,5 @@
 'use client';
+import { useWorldRecords } from './use-world-records.ts';
 import { ProgressState } from '../../components/progress-state.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -23,7 +24,13 @@ import { PhoneShell } from './phone-shell.tsx';
 import { PhoneDesktop } from './phone-desktop.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { Avatar } from './apps/common.tsx';
-import type { PhoneActions, PhoneActionReceipt, PhoneAppsData, PhoneNote } from './apps/types.ts';
+import type {
+  PhoneActions,
+  PhoneActionReceipt,
+  PhoneAppsData,
+  PhoneNote,
+  PhoneRecordsState,
+} from './apps/types.ts';
 import { worldAppData } from './world-app-data.ts';
 import { mergeNoteReceipt } from './world-receipts.ts';
 import { dialogueText, formatChatTime } from './apps/helpers.ts';
@@ -41,6 +48,21 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     [localMessages, setLocalMessages] = useState<PhoneMessage[]>([]),
     [statusMessage, setStatusMessage] = useState('正在打开你的手机…'),
     [refreshing, setRefreshing] = useState(false);
+  const acceptRecordsPhone = useCallback(
+    (next: WorldPhone) => {
+      if (next.id !== worldId) return;
+      setData((current) =>
+        current?.id === worldId && (current.version ?? 0) <= (next.version ?? 0) ? next : current,
+      );
+    },
+    [worldId],
+  );
+  const { records, reloadRecords } = useWorldRecords(
+    client,
+    worldId,
+    data?.id === worldId ? (data.version ?? 0) : undefined,
+    acceptRecordsPhone,
+  );
   const request = useRef(0),
     retryCommand = useRef<{ taskId: string; id: string } | null>(null);
   const directorCheck = useRef<() => void>(() => {});
@@ -398,6 +420,8 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
           }}
           onExperienceBusy={setExperienceBusy}
           localMessages={localMessages}
+          records={records}
+          reloadRecords={reloadRecords}
           onReload={load}
           loading={refreshing}
           loadError={error}
@@ -412,6 +436,8 @@ export function WorldPhoneSurface({
   onExperienceBusy,
   preview = false,
   onReload,
+  records,
+  reloadRecords,
   onChangeInvitation,
   onSendMessage,
   onRetryMessage,
@@ -425,6 +451,8 @@ export function WorldPhoneSurface({
   onExperienceBusy?: (busy: boolean) => void;
   preview?: boolean;
   onReload?: () => Promise<void>;
+  records?: PhoneRecordsState;
+  reloadRecords?: () => Promise<void>;
   onChangeInvitation?: PhoneActions['changeInvitation'];
   onSendMessage?: PhoneActions['sendMessage'];
   onRetryMessage?: PhoneActions['retryMessage'];
@@ -641,6 +669,8 @@ export function WorldPhoneSurface({
       worldId={data.id}
       groups={groups}
       data={phoneData}
+      records={records}
+      reloadRecords={reloadRecords}
       loading={loading}
       loadError={loadError}
       onReload={onReload}
