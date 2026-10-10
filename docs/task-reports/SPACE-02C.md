@@ -41,3 +41,9 @@ unknown组件默认仅核对按钮，只有控制器明确允许时显示原行�
 根Ego125复用F3256，实际F MapApp、I PhoneShell/controller：选目的地0write；12分钟路线23:55至次日00:07，1travelPOST/1模拟commit，状态栏/当前位置/到达反馈一致；“查看这个地点”再“看看这里”导航到准确sceneId，无伪执行现场任务。unknown-unconfirmed核对没有新增travelPOST，随后显式原命令重提共2尝试/1模拟commit；长地点名390×500无横溢；1440桌面实际手机壳480宽，页面无横溢；read-error不显示当前位置或旧到达。截图map-selected-390.png、map-arrival-390.png、map-long-390-500.png、map-pc-1440.png均在主.local/space02c-preview/evidence，已实际查看；map-joint-review.json记录关键结果。图示只画正式routes的关系，没有GPS/虚构人物位置。手机壳在PC真实宽480，与根独立反馈支架420为不同检查，不混写尺寸。
 
 样例误用：最初unknown-unconfirmed未先触发前往，等待核对按钮超时；按样例实际流程选地点、前往后通过。随后医院同名点和列表双控件导致模糊locator被拒，改使用当前snapshot唯一ref完成，未产生重复动作。以上是验收操作修正，不作为产品失败或重复旅行。F仍须冻结绘图/读取失败隐藏增量，I须联合check/build、真实库、0041生产迁移、READY与公网；当前根证据不能替代这些完成条件。
+
+## 父级手机同步修复复核
+
+I真实Next+PG发现丢失响应时地图更新时间而手机顶部滞后，修复refresh同步父级授权读取、匹配phone/world版本。根只读重编I最新hook，同时将ignored测试父级从固定版本改为实际mock读取更新版本；storage/lost/before三类再次3/3通过，实际同原command，12分钟、版本1不重复，证据actual-controller-parent-sync.json。先前独立支架固定版本不能模拟此父级联动，前述图页证据明确对应当时源码快照；最终真实Next/PG和公网由I持续验收。
+
+根无更多UI源码改动，反馈组件待最终集成验证/部署。根将结束Ego125并停止自己3258，辅助3256及I3254/55450由各自持有人按报告收尾，不代删他人数据或锁。
