@@ -6,12 +6,36 @@ import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
 import { searchable, timeText } from './helpers.ts';
 import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
+import {
+  NotesRecords,
+  NotesRecordDetail,
+  NotesRecordsReadState,
+  isSystemRecordTarget,
+} from './notes-records.tsx';
+import r from './notes-records.module.css';
 /** Reserved navigation target, separate from opaque IDs via explicit prefix. */
 export const NEW_NOTE_TARGET = 'new-note';
 export function NotesApp({ target, open }: PhoneAppContext) {
-  const { data, actions, noteDrafts, setNoteDraft, clearNoteDraft, operations, run, setDraft } =
-    usePhoneApps();
-  const [query, setQuery] = useState('');
+  const {
+    data,
+    actions,
+    noteDrafts,
+    setNoteDraft,
+    clearNoteDraft,
+    operations,
+    run,
+    setDraft,
+    drafts,
+    records,
+    reloadRecords,
+  } = usePhoneApps();
+  const query = drafts['notes:search'] ?? '';
+  const setQuery = (value: string) => setDraft('notes:search', value);
+  const reload = reloadRecords
+    ? () => {
+        void reloadRecords();
+      }
+    : undefined;
   const [sharingNote, setSharingNote] = useState<{ title: string; text: string } | null>(null);
   const note = data.notes.find((n) => n.id === target),
     isNew = target === NEW_NOTE_TARGET && !note;
@@ -22,6 +46,20 @@ export function NotesApp({ target, open }: PhoneAppContext) {
       expectedVersion: note?.version,
     };
   const operation = operations[`note:${key}`];
+  if (isSystemRecordTarget(target))
+    return (
+      <div className={`${s.app} ${r.notesPage}`}>
+        {records.status === 'ready' ? (
+          <NotesRecordDetail data={records.data} target={target!} open={open} />
+        ) : (
+          <NotesRecordsReadState
+            status={records.status}
+            error={records.status === 'error' ? records.error : undefined}
+            reload={reload}
+          />
+        )}
+      </div>
+    );
   if (target && !note && !isNew)
     return <Empty title="找不到这条便签" text="便签可能已移除，请返回列表或刷新。" />;
   if (target) {
@@ -358,10 +396,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     )
     .sort((a, b) => b.at.localeCompare(a.at));
   return (
-    <div
-      className={`${s.app} ${s.notes}`}
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8fafc' }}
-    >
+    <div className={`${s.app} ${r.notesPage}`}>
       {/* 顶部 iOS 原生备忘录大标题栏 */}
       <div
         style={{
@@ -375,7 +410,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: '#0f172a' }}>备忘录</h2>
           <span style={{ fontSize: '12px', color: '#d97706', fontWeight: 500 }}>
-            这段人生 · {notes.length} 篇
+            我的便签 · {data.notes.length} 篇
           </span>
         </div>
         <button
@@ -399,106 +434,121 @@ export function NotesApp({ target, open }: PhoneAppContext) {
       </div>
 
       <div style={{ padding: '4px 12px 8px' }}>
-        <Search value={query} onChange={setQuery} label="搜索便签" />
+        <Search value={query} onChange={setQuery} label="搜索备忘录" />
       </div>
 
+      {records.status === 'ready' ? (
+        <NotesRecords
+          data={records.data}
+          query={query}
+          open={open}
+          historyOpen={drafts['notes:history-open'] === 'true'}
+          onHistoryToggle={(value) => setDraft('notes:history-open', String(value))}
+        />
+      ) : (
+        <NotesRecordsReadState
+          status={records.status}
+          error={records.status === 'error' ? records.error : undefined}
+          reload={reload}
+        />
+      )}
+      {records.status !== 'ready' && choices.length > 0 && (
+        <section className={s.choiceSection} aria-label="这段人生的选择">
+          <h3>已有选择记录</h3>
+          {choices.map((choice) => (
+            <details key={choice.id} className={s.choiceCard}>
+              <summary>
+                <span className={s.choiceMarker} aria-hidden="true" />
+                <span className={s.choiceSummary}>
+                  <strong>{choice.intent}</strong>
+                  <small>
+                    {choice.actorName} · {timeText(choice.at)}
+                  </small>
+                </span>
+                <span className={s.choiceState}>
+                  {choice.result?.kind === 'reported_done'
+                    ? '你说已完成'
+                    : choice.result?.kind === 'blocked'
+                      ? choice.recoveryStep
+                        ? '有新建议'
+                        : '遇到阻碍'
+                      : choice.result?.kind === 'abandoned'
+                        ? '你说已放下'
+                        : choice.nextStep
+                          ? '有下一步'
+                          : choice.status === 'followed_up'
+                            ? '有人问起'
+                            : '待续'}
+                </span>
+              </summary>
+              <div className={s.choiceDetail}>
+                <p>
+                  <span>你当时说</span>
+                  {choice.quote}
+                </p>
+                {choice.nextStep && (
+                  <>
+                    <p>
+                      <span>
+                        {choice.actorName}后来提出 · {timeText(choice.nextStep.at)}
+                      </span>
+                      {choice.nextStep.quote}
+                    </p>
+                    {choice.nextStep.calendar && (
+                      <button
+                        type="button"
+                        className={s.choiceCalendarLink}
+                        onClick={() =>
+                          choice.nextStep?.calendar && open('calendar', choice.nextStep.calendar.id)
+                        }
+                      >
+                        <span>
+                          日历 · {choice.nextStep.calendar.title}
+                          <small>
+                            {
+                              {
+                                proposed: '待你确认',
+                                confirmed: '已确认',
+                                cancelled: '已取消',
+                                attended: '你标记已赴约',
+                                missed: '你标记未赴约',
+                              }[choice.nextStep.calendar.status]
+                            }
+                          </small>
+                        </span>
+                        <span aria-hidden="true">›</span>
+                      </button>
+                    )}
+                  </>
+                )}
+                {choice.result && (
+                  <p>
+                    <span>你后来补充 · {timeText(choice.result.at)}</span>
+                    {choice.result.quote}
+                  </p>
+                )}
+                {choice.result?.kind === 'blocked' && choice.recoveryStep && (
+                  <p>
+                    <span>
+                      {choice.actorName}后来建议 · {timeText(choice.recoveryStep.at)}
+                    </span>
+                    {choice.recoveryStep.quote}
+                  </p>
+                )}
+                {choice.result && <small>结果来自你的讲述，尚无独立佐证。</small>}
+              </div>
+            </details>
+          ))}
+        </section>
+      )}
+      <h3 className={r.privateHeading}>我的便签</h3>
       {noteDrafts[NEW_NOTE_TARGET] && (
         <button className={s.draftRow} onClick={() => open('notes', NEW_NOTE_TARGET)}>
           继续未保存的新便签
         </button>
       )}
 
-      <div className={s.noteList} style={{ flex: 1, overflowY: 'auto' }}>
-        {choices.length > 0 && (
-          <section className={s.choiceSection} aria-label="这段人生的选择">
-            <h3>走过的路</h3>
-            {choices.map((choice) => (
-              <details key={choice.id} className={s.choiceCard}>
-                <summary>
-                  <span className={s.choiceMarker} aria-hidden="true" />
-                  <span className={s.choiceSummary}>
-                    <strong>{choice.intent}</strong>
-                    <small>
-                      {choice.actorName} · {timeText(choice.at)}
-                    </small>
-                  </span>
-                  <span className={s.choiceState}>
-                    {choice.result?.kind === 'reported_done'
-                      ? '你说已完成'
-                      : choice.result?.kind === 'blocked'
-                        ? choice.recoveryStep
-                          ? '有新建议'
-                          : '遇到阻碍'
-                        : choice.result?.kind === 'abandoned'
-                          ? '你说已放下'
-                          : choice.nextStep
-                            ? '有下一步'
-                            : choice.status === 'followed_up'
-                              ? '有人问起'
-                              : '待续'}
-                  </span>
-                </summary>
-                <div className={s.choiceDetail}>
-                  <p>
-                    <span>你当时说</span>
-                    {choice.quote}
-                  </p>
-                  {choice.nextStep && (
-                    <>
-                      <p>
-                        <span>
-                          {choice.actorName}后来提出 · {timeText(choice.nextStep.at)}
-                        </span>
-                        {choice.nextStep.quote}
-                      </p>
-                      {choice.nextStep.calendar && (
-                        <button
-                          type="button"
-                          className={s.choiceCalendarLink}
-                          onClick={() =>
-                            choice.nextStep?.calendar &&
-                            open('calendar', choice.nextStep.calendar.id)
-                          }
-                        >
-                          <span>
-                            日历 · {choice.nextStep.calendar.title}
-                            <small>
-                              {
-                                {
-                                  proposed: '待你确认',
-                                  confirmed: '已确认',
-                                  cancelled: '已取消',
-                                  attended: '你标记已赴约',
-                                  missed: '你标记未赴约',
-                                }[choice.nextStep.calendar.status]
-                              }
-                            </small>
-                          </span>
-                          <span aria-hidden="true">›</span>
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {choice.result && (
-                    <p>
-                      <span>你后来补充 · {timeText(choice.result.at)}</span>
-                      {choice.result.quote}
-                    </p>
-                  )}
-                  {choice.result?.kind === 'blocked' && choice.recoveryStep && (
-                    <p>
-                      <span>
-                        {choice.actorName}后来建议 · {timeText(choice.recoveryStep.at)}
-                      </span>
-                      {choice.recoveryStep.quote}
-                    </p>
-                  )}
-                  {choice.result && <small>结果来自你的讲述，尚无独立佐证。</small>}
-                </div>
-              </details>
-            ))}
-          </section>
-        )}
+      <div className={`${s.noteList} ${r.privateList}`}>
         {notes.map((n) => (
           <div key={n.id} style={{ position: 'relative' }}>
             <button className={s.noteRow} onClick={() => open('notes', n.id)}>
@@ -568,7 +618,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         }}
       >
         <div style={{ width: '28px' }} />
-        <span style={{ fontSize: '12px', color: '#64748b' }}>{notes.length} 篇备忘录</span>
+        <span style={{ fontSize: '12px', color: '#64748b' }}>{data.notes.length} 篇私人便签</span>
         <button
           type="button"
           onClick={() => {
