@@ -235,6 +235,118 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
         }
       },
     );
+    await t.test(
+      'SPACE-02D: user with legacy save continues old save by default, can explicitly start new version, and legacy world remains intact',
+      async () => {
+        const user = randomUUID();
+        const otherUser = randomUUID();
+        await identity.ensureGuest(user);
+        await identity.ensureGuest(otherUser);
+        try {
+          // 1. User started v1 previously
+          const v1Pack = officialFixture();
+          const v1Catalog = { list: () => [v1Pack], get: () => v1Pack };
+          const v1Repo = new OfficialLifeRepository(db, v1Catalog);
+          const oldCommandId = randomUUID();
+          const v1Result = await v1Repo.start(user, v1Pack.card.id, {
+            commandId: oldCommandId,
+            version: 1,
+          });
+          const oldWorldId = v1Result.worldId;
+
+          // 2. Now the catalog has been upgraded to v2
+          const v2Repo = new OfficialLifeRepository(db, officialLifeCatalog);
+          const listBefore = await v2Repo.list(user);
+          const cardBefore = listBefore.lives.find((l) => l.id === 'county-yellow-hair');
+          assert.ok(cardBefore);
+          assert.equal(cardBefore.version, 2);
+          // Default continues old save!
+          assert.equal(cardBefore.worldId, oldWorldId);
+          assert.equal(cardBefore.legacyWorldId, oldWorldId);
+          assert.equal(cardBefore.currentVersionWorldId, null);
+          assert.equal(cardBefore.hasNewVersion, true);
+
+          // 3. User explicitly starts new version (v2)
+          const newCommandId = randomUUID();
+          const v2Result = await v2Repo.start(user, 'county-yellow-hair', {
+            commandId: newCommandId,
+            version: 2,
+          });
+          const newWorldId = v2Result.worldId;
+          assert.notEqual(newWorldId, oldWorldId);
+          assert.equal(v2Result.resumed, false);
+
+          // 4. In PostgreSQL official_life_instances, both v1 and v2 rows exist
+          const instances = (
+            await admin.query(
+              'SELECT content_version, world_id FROM parallel_life.official_life_instances WHERE owner_id=$1 AND preset_id=$2 ORDER BY content_version',
+              [user, 'county-yellow-hair'],
+            )
+          ).rows;
+          assert.equal(instances.length, 2);
+          assert.equal(instances[0].content_version, 1);
+          assert.equal(instances[0].world_id, oldWorldId);
+          assert.equal(instances[1].content_version, 2);
+          assert.equal(instances[1].world_id, newWorldId);
+
+          // 5. Old world state is completely preserved and readable
+          const oldPhone = await builds.phone(user, oldWorldId);
+          assert.ok(oldPhone);
+          const newPhone = await builds.phone(user, newWorldId);
+          assert.ok(newPhone);
+          assert.ok(oldPhone.actors.length > 0);
+          assert.ok(newPhone.actors.length > 0);
+
+          // 6. User queries list: now both current and legacy exist, user can access both
+          const listAfter = await v2Repo.list(user);
+          const cardAfter = listAfter.lives.find((l) => l.id === 'county-yellow-hair');
+          assert.ok(cardAfter);
+          assert.equal(cardAfter.worldId, newWorldId);
+          assert.equal(cardAfter.currentVersionWorldId, newWorldId);
+          assert.equal(cardAfter.legacyWorldId, oldWorldId);
+          assert.equal(cardAfter.hasNewVersion, false);
+
+          // 7. Idempotency: replaying newCommandId returns the same result without creating a 3rd world
+          const replayed = await v2Repo.start(user, 'county-yellow-hair', {
+            commandId: newCommandId,
+            version: 2,
+          });
+          assert.equal(replayed.worldId, newWorldId);
+          assert.equal(replayed.resumed, false);
+
+          // Repeated request with another commandId returns resumed: true
+          const repeated = await v2Repo.start(user, 'county-yellow-hair', {
+            commandId: randomUUID(),
+            version: 2,
+          });
+          assert.equal(repeated.worldId, newWorldId);
+          assert.equal(repeated.resumed, true);
+
+          const finalInstances = (
+            await admin.query(
+              'SELECT count(*)::int AS count FROM parallel_life.official_life_instances WHERE owner_id=$1 AND preset_id=$2',
+              [user, 'county-yellow-hair'],
+            )
+          ).rows[0].count;
+          assert.equal(finalInstances, 2);
+
+          // 8. Cross-user isolation
+          const otherList = await v2Repo.list(otherUser);
+          const otherCard = otherList.lives.find((l) => l.id === 'county-yellow-hair');
+          assert.ok(otherCard);
+          assert.equal(otherCard.worldId, null);
+          assert.equal(otherCard.legacyWorldId, null);
+          assert.equal(otherCard.currentVersionWorldId, null);
+          assert.equal(otherCard.hasNewVersion, false);
+          await assert.rejects(builds.phone(otherUser, oldWorldId), /NOT_FOUND/);
+          await assert.rejects(builds.phone(otherUser, newWorldId), /NOT_FOUND/);
+        } finally {
+          await admin.query('DELETE FROM parallel_life.accounts WHERE id=ANY($1)', [
+            [user, otherUser],
+          ]);
+        }
+      },
+    );
   } finally {
     await db.close();
     await admin.query('DELETE FROM parallel_life.accounts WHERE id=ANY($1)', [[owner, other]]);

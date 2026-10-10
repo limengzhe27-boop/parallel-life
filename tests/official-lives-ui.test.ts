@@ -101,3 +101,39 @@ test('unavailable directory has honest read retry, no fabricated cards, and note
   assert.ok(!note.includes('<details open'));
   assert.ok(!note.includes('<script>'));
 });
+test('card with new version shows retained save notice, continue old save, and start new version', () => {
+  const html = render({
+    cards: [
+      {
+        ...cards[0],
+        hasSave: true,
+        hasNewVersion: true,
+        legacyWorldId: '10000000-0000-4000-8000-000000000001',
+        currentVersionWorldId: null,
+      },
+    ],
+  });
+  assert.ok(html.includes('有新版地图 · 原存档已保留'));
+  assert.ok(html.includes('县城黄毛，继续原存档'));
+  assert.ok(html.includes('县城黄毛，开启新版（原存档保留）'));
+  assert.ok(html.includes('继续原存档'));
+  assert.ok(html.includes('开启新版'));
+});
+test('card with both current and legacy instances allows continuing new version and returning to old save', () => {
+  const html = render({
+    cards: [
+      {
+        ...cards[0],
+        hasSave: true,
+        hasNewVersion: false,
+        legacyWorldId: '10000000-0000-4000-8000-000000000001',
+        currentVersionWorldId: '20000000-0000-4000-8000-000000000002',
+      },
+    ],
+  });
+  assert.ok(html.includes('新版体验中 · 原存档保留'));
+  assert.ok(html.includes('县城黄毛，继续新版'));
+  assert.ok(html.includes('县城黄毛，返回原存档'));
+  assert.ok(html.includes('继续新版'));
+  assert.ok(html.includes('返回原存档'));
+});

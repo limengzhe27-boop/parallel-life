@@ -16,6 +16,10 @@ export interface OfficialLifeCardView {
   artwork: OfficialLifeArtwork;
   hasSave: boolean;
   experienceNote?: string;
+  version?: number;
+  hasNewVersion?: boolean;
+  legacyWorldId?: string | null;
+  currentVersionWorldId?: string | null;
 }
 
 const artworkById: Record<OfficialLifeId, OfficialLifeArtwork> = {
@@ -109,6 +113,51 @@ export function OfficialLives({ connectSession }: { connectSession?: () => Promi
       if (mounted.current) setPendingId(null);
     }
   }
+  async function startNewVersion(id: string) {
+    const card = cards.find((item) => item.id === id);
+    if (!card || sending.current || loading) return;
+    if (!commands.current) return;
+    sending.current = true;
+    setPendingId(id);
+    setErrors((old) => ({ ...old, [id]: '' }));
+    try {
+      const request = commands.current.begin(card.id, card.version);
+      const result = await client.start(card.id, request);
+      commands.current.committed(card.id, card.version);
+      if (!mounted.current) return;
+      setCards((old) =>
+        old.map((item) =>
+          item.id === card.id
+            ? {
+                ...item,
+                worldId: result.worldId,
+                currentVersionWorldId: result.worldId,
+                hasNewVersion: false,
+              }
+            : item,
+        ),
+      );
+      try {
+        window.location.assign(`/worlds/${result.worldId}`);
+      } catch {
+        setErrors((old) => ({ ...old, [id]: '手机已准备好，暂时未能进入，请再试一次。' }));
+      }
+    } catch (error) {
+      if (mounted.current) setErrors((old) => ({ ...old, [id]: explain(error) }));
+    } finally {
+      sending.current = false;
+      if (mounted.current) setPendingId(null);
+    }
+  }
+  function openLegacy(id: string) {
+    const card = cards.find((item) => item.id === id);
+    if (!card?.legacyWorldId) return;
+    try {
+      window.location.assign(`/worlds/${card.legacyWorldId}`);
+    } catch {
+      setErrors((old) => ({ ...old, [id]: '存档仍保留，暂时未能进入，请再试一次。' }));
+    }
+  }
   return (
     <OfficialLivesView
       cards={cards.map((card) => ({
@@ -118,6 +167,10 @@ export function OfficialLives({ connectSession }: { connectSession?: () => Promi
         artwork: artworkById[card.id],
         hasSave: card.worldId !== null,
         experienceNote: card.experienceNote,
+        version: card.version,
+        hasNewVersion: card.hasNewVersion,
+        legacyWorldId: card.legacyWorldId,
+        currentVersionWorldId: card.currentVersionWorldId,
       }))}
       loading={loading}
       loadError={loadError}
@@ -125,6 +178,12 @@ export function OfficialLives({ connectSession }: { connectSession?: () => Promi
       errors={errors}
       onOpen={(id) => {
         void open(id);
+      }}
+      onStartNewVersion={(id) => {
+        void startNewVersion(id);
+      }}
+      onOpenLegacy={(id) => {
+        openLegacy(id);
       }}
       onReload={() => {
         if (!sending.current) void load();
@@ -140,6 +199,8 @@ export function OfficialLivesView({
   pendingId = null,
   errors = {},
   onOpen,
+  onStartNewVersion,
+  onOpenLegacy,
   onReload,
 }: {
   cards: readonly OfficialLifeCardView[];
@@ -148,6 +209,8 @@ export function OfficialLivesView({
   pendingId?: string | null;
   errors?: Readonly<Record<string, string>>;
   onOpen: (id: string) => void;
+  onStartNewVersion?: (id: string) => void;
+  onOpenLegacy?: (id: string) => void;
   onReload: () => void;
 }) {
   const headingId = useId();
@@ -183,6 +246,8 @@ export function OfficialLivesView({
             disabled={loading || pendingId !== null}
             error={errors[card.id] ?? ''}
             onOpen={onOpen}
+            onStartNewVersion={onStartNewVersion}
+            onOpenLegacy={onOpenLegacy}
           />
         ))}
       </div>
@@ -206,12 +271,16 @@ export function OfficialLifeCard({
   disabled,
   error,
   onOpen,
+  onStartNewVersion,
+  onOpenLegacy,
 }: {
   card: OfficialLifeCardView;
   pending: boolean;
   disabled: boolean;
   error: string;
   onOpen: (id: string) => void;
+  onStartNewVersion?: (id: string) => void;
+  onOpenLegacy?: (id: string) => void;
 }) {
   const titleId = useId(),
     errorId = useId();
@@ -239,16 +308,74 @@ export function OfficialLifeCard({
             {error}
           </p>
         )}
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label={`${card.title}，${action}`}
-          aria-describedby={error ? errorId : undefined}
-          onClick={() => onOpen(card.id)}
-        >
-          <span aria-live="polite">{action}</span>
-          {!pending && <span aria-hidden="true">↗</span>}
-        </button>
+        {card.hasNewVersion ? (
+          <>
+            <div className={styles.versionNotice}>有新版地图 · 原存档已保留</div>
+            <div className={styles.buttonGroup}>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`${card.title}，继续原存档`}
+                aria-describedby={error ? errorId : undefined}
+                onClick={() => onOpen(card.id)}
+              >
+                <span aria-live="polite">{pending ? '正在进入…' : '继续原存档'}</span>
+                {!pending && <span aria-hidden="true">↗</span>}
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={disabled}
+                aria-label={`${card.title}，开启新版（原存档保留）`}
+                aria-describedby={error ? errorId : undefined}
+                onClick={() => onStartNewVersion?.(card.id)}
+              >
+                <span aria-live="polite">
+                  {pending ? '正在准备这部手机…' : '开启新版'}
+                </span>
+                {!pending && <span aria-hidden="true">↗</span>}
+              </button>
+            </div>
+          </>
+        ) : card.legacyWorldId && card.currentVersionWorldId ? (
+          <>
+            <div className={styles.versionNotice}>新版体验中 · 原存档保留</div>
+            <div className={styles.buttonGroup}>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`${card.title}，继续新版`}
+                aria-describedby={error ? errorId : undefined}
+                onClick={() => onOpen(card.id)}
+              >
+                <span aria-live="polite">{pending ? '正在进入…' : '继续新版'}</span>
+                {!pending && <span aria-hidden="true">↗</span>}
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={disabled}
+                aria-label={`${card.title}，返回原存档`}
+                aria-describedby={error ? errorId : undefined}
+                onClick={() => onOpenLegacy?.(card.id)}
+              >
+                <span aria-live="polite">返回原存档</span>
+                <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={`${card.title}，${action}`}
+            aria-describedby={error ? errorId : undefined}
+            onClick={() => onOpen(card.id)}
+          >
+            <span aria-live="polite">{action}</span>
+            {!pending && <span aria-hidden="true">↗</span>}
+          </button>
+        )}
         {card.experienceNote && (
           <details className={styles.experienceDetails}>
             <summary>体验说明</summary>

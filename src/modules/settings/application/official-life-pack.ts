@@ -4,7 +4,10 @@ import type { OfficialOpeningDraft } from '../../world/domain/official-genesis.t
 
 /** Server-only authored content. GET emits card fields only, not this full pack. */
 export type OfficialLifePack = {
-  card: Omit<OfficialLifeCard, 'worldId'>;
+  card: Omit<
+    OfficialLifeCard,
+    'worldId' | 'hasNewVersion' | 'legacyWorldId' | 'currentVersionWorldId'
+  >;
   /** Only a safe public summary enters the approved seed. */
   story: ApprovedSeed['story'];
   opening: OfficialOpeningDraft;
