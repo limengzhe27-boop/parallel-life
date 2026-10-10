@@ -384,6 +384,11 @@ export class WorldPlanner {
       },
       { role: 'user', content: JSON.stringify(input) },
     ];
+    base[0]!.content +=
+      '\nBefore returning JSON: actorTies is optional and may be []; every tie describes ONLY its two NPCs, never the player, and its relationship must not contain the Chinese player-address word \u4f60. Current private messages address the player as \u4f60, never address another cast member as the player.' +
+      (seed.setup?.place
+        ? ` setting must literally include ${JSON.stringify(seed.setup.place)} even if the workshop or city is obvious; verify this before returning.`
+        : '');
     let reason = 'INVALID_OUTPUT';
     for (let attempt = 1; attempt <= WORLD_OUTPUT_ATTEMPTS; attempt += 1) {
       const raw = await this.model.complete(

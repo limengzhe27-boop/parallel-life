@@ -1,3 +1,4 @@
+import { publicInvitation } from '../../../../../../server/invitation-projection.ts';
 import {
   authenticated,
   endpoint,
@@ -27,9 +28,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           commandId: input.commandId,
           worldId: state.id,
           version: state.version,
-          invitation: (({ sourceEventId: _source, ...a }) => a)(
-            state.appointments.find((a) => a.id === input.id)!,
-          ),
+          invitation: publicInvitation(state, input.id),
         }),
       );
     } catch (error) {

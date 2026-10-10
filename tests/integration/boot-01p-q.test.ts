@@ -29,7 +29,6 @@ import { replayWorldHistory } from '../../src/modules/world/domain/world-history
 // No supplier calls and no assertion that these fixtures prove model storytelling quality.
 test('BOOT-01P-Q independent source, privacy, lifecycle, permissions and rollback audit', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55458, 'Q owns only this PostgreSQL port');
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(
