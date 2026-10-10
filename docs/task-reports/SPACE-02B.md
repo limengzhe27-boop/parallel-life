@@ -1,6 +1,6 @@
 # SPACE-02B · 手机地图 UI
 
-状态：进行中（依赖冻结前仅规划）；2026-10-10。
+状态：待验收；2026-10-10。最终业务70e5117 + 946f621已冻结；真实数据库、集成和上线由I验收。
 
 Agent：codex-f-space02b-01a0c7c8-20261010；会话01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b。
 
@@ -113,3 +113,28 @@ http://127.0.0.1:3256/?case=normal&world=11111111-1111-4111-8111-111111111111#li
 本F现场入口wait超时，但本地审计原请求1次、place=hospital、world位置仍hospital、时间00:07；仍在诊断，不冒称通过。未知样本有两类夹具问题：第一次固定777UUID被并行read-error案例使用，故读到错误模式；已换独立随机UUID。第二次未知连接断开被Chromium网络层自动重复相同POST（同command/expectedVersion/route，2尝试1mockcommit），直接得到committed，未出现预期unknown；不会把该超时写成产品恢复通过。将使用明确503未确认样本完成余下UI检查，不修改生产controller或扩大任务。
 
 不会因重复截图阻I发布。I请按独立增量提交合入，最终真实PG/check/build与部署由I证据确认。本F业务先仍进行中，截图报告随后接续。
+
+## 最终交付与验收记录（2026-10-10）
+
+交付提交：70e5117（初业务四文件）+946f621（真实路线图示/缓存隐藏四文件增量）。I已接受初业务为01964a6，最终增量由I受控取入；不要整合本F分支重复带入已接受的root/I依赖。源码未再修改，本次收尾只有报告与本人登记。独立工作树/分支仍为photo-compose-02/人生剧本、codex/space-02b，原交付分支保留。
+
+修改文件：src/features/phone/apps/map.tsx、map.module.css、tests/phone-map.test.ts、docs/task-reports/SPACE-02B.md；主目录DEVELOPMENT.md仅更新本人行。公共接口、navigation、icon、PhoneShell、controller、DB迁移、Repository/API/任务接线全部由I，根反馈组件由根；本F没有编辑这些源文件或client/interview其他WIP。
+
+完成能力：玩家已知地点/当前物理位置、实际route稳定端点关系图（非地理距离）、按route分钟与最近storyNow的跨日预计到达、作者设定环境、可见联系人/日程来源入口、明确旅行确认、受控pending/unknown/failed/committed及原command核对/明确原请求重提、已到达后查看地点/正式现场入口、canEstablish旧官方起点显式建立、无地点/unknown位置/读错空态、暂停/忙/working禁重入、减少动效与同次SPA选择/滚动返回。没有真实GPS、人物实时追踪、虚构道路或补造目的地/行动。
+
+实际测试：18项地图专项通过、typecheck与模块边界检查通过；最终npm run check退出1，647项643通过、4项既有character-image-flow/RLS测试因ECONNREFUSED 127.0.0.1:55458失败，未启动该旧资源、未改测试；npm run build退出0。完整log/退出码保留于独立树.local/space02b-ui/evidence/check-final.{log,exit}、build-final.{log,exit}。本F没有已成功的真实PostgreSQL验证；I自己的PG证据不算本F执行。没有新增领域原型/Repository/API/队列；ignored HTTP模拟器是明确UI夹具，其内存状态不能作为生产Repository或真实数据库证明。
+
+浏览器：本F唯一Ego126/p1实际检查390×844、390×500与1440×900（真实PhoneShell frame480）；没有横向溢出，長文本仍可滚动，短屏主动作48px且完全位于视口，prefers-reduced-motion=true已查。实际编译F源码与I公共Shell/控制器快照，合成HTTP Session/WorldSpace/Receipt响应，不访问生产或模型。普通旅行1POST/1mockcommit，23:55→次日00:07，世界位置与故事时刻一致；联系人目标正确，浏览器返回选中医院保留、scroll207→207，返回不发旅行。关联日历已跳正确target（早期场景脚本超时前已确认）。unknown503→硬刷新保留同一完整request→核对0新POST→明确原请求重提：2尝试/1mockcommit、两个body完全相同、仅12分钟一次变化。真实父级版本/时间reload支架接入后，新独立场景1POST旅行/1commit，再进入准确sceneId且时间/位置不再变化；现场页面为明确夹具说明，未声称完整真实场景模型验证。
+
+截图与JSON：主目录.local/space02b-ui/evidence。
+- mobile-long-current.png、mobile-long-selection.png、mobile-long-arrival.png：初编译快照长屏。
+- mobile-short-unknown.png、mobile-short-arrival.png：明确503与原请求恢复的短屏。
+- mobile-short-long-places.png、mobile-short-long-action.png：最新父级reload支架，长标题/说明和可达48px主动作。
+- pc-480-map.png、mobile-short-empty.png、mobile-short-read-error.png：PC与诚实空/错误状态。
+- normal-travel-and-return.json、unknown-refresh-check-resubmit.json、current-place-scene-final.json、short-action-reduced-motion.json、read-error-final.json、final-layout-cases.json；请求审计requests.jsonl、编译日志及初编译源指纹source-before/after.json。
+
+证据限制与诊断：初固定777样本与并行read-error案例冲突，后使用独立随机UUID；socket断开模拟被Chromium网络层重放同command，后明确503模拟unknown，不误称该早期超时为恢复通过。初现场wait超时没有登记通过；更新I新版本检查所需的支架父级reload后，用独立样本验证准确panel=scene/target。布局脚本前三场景断言通过，第四场景因ego不支持裸role选择器而中断；已读当前状态并用[role=alert]补完，不新建space、不盲目重复操作。没有为了这些支架问题修改生产controller。
+
+资源：Ego126已finish({keep:[]})一次，无保留页面。3256服务器原79815及重启6461均已停止，lsof无监听；.local夹具与截图保留供审查，没有删除生产或旧CHAT测试资料。根Ego125/I Ego127及PG/HTTP资源未操作。Ego更新提示已告用户，未升级。
+
+下一位Agent：I接受946f621接在已接受70e5117之上，并使用真实父级phone版本/time刷新的一套最终controller；真实PG/RLS/幂等并发/原回执恢复、旧世界来源建立与现场接线沿SPACE-02A验证，确认0041生产迁移后部署READY并公网实测关键地图流程。根可读取上述截图/JSON作为独立UI复核；本F状态先待验收，未证明生产地图已上线，未接其他任务。当前线上版本仍由DEPLOYMENT/唯一I发布记录核实，本F本轮没有部署或公网操作。
