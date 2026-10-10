@@ -758,3 +758,9 @@ F真实PG/API/UI保存、共享取消、换图冲突重读、确认重发及现�
 业务7a98c8f，Production2wwrxj6mp / dpl_F6DchQ4YWpsD62nNpuciofQsRYXk READY，正式域名 https://parallel-life-nu.vercel.app。先独立生成并授权校验世界，再以显式integer actorIndex生成小历史JSON、运行时绑定角色/编号，全覆盖后原事务保存；生产明确historyEnabled:true/historyMode:two-step，共100秒生成截止/原110秒HTTPsignal和120秒route，known纠错最多2+2，unknown不自动重付。历史只收public identity/setting/name及显式branchRole，内部relationship/persona/别人的私聊/原访谈不发送；无玩家历史气泡，旧世界不回填。
 
 550check/build、联合15串行专项通过（含F纯跨午夜和PG父/子，不称15均独立数据库case）。本批7/10真实文字请求：普通世界含一次地点纠正，4NPC8过去+3当前；固定cast2NPC4过去+4当前；各1真实NPC承接旧原句，版本1且immutable不变。设定是明确合成approved seed/创作草案，不冒称AI推荐；实际模型执行为本机冻结planner+生产受限queue/store，正式世界GET/refresh及390短/长屏与1440电脑420宽通过，未重复付费实测HTTP task/run。上一M四失败/本轮首失败与脚本误读记录保留；NPC语义与长期召回不承诺全面正确。安全模型元信息gpt-4o-mini与旧自有正式任务一致，gateway同实现/85秒；当前production敏感env返回[SENSITIVE]，无法直接比较key/baseURL，不输出密钥。39项生产迁移06:11:28Z一致、无SQL变更；health/新世界200、历史不通知/当前分钟独立，测试世界正常API已暂停，未新增推进/生图。资源/原会话已恢复释放。只有限旧来信A15待用户体验，父BOOT跨应用完整前史/任务地图仍未完。QA新test7e7fe79与三报告/主表一次最终归档，最终文档部署另存忽略handoff。
+
+## 2026-10-10 · BOOT-01P 兼容修复上线，自动关联保持关闭
+
+业务d59fe3f（独立d8274da），Production laid82hg9 / dpl_9TSTzZpENKSxdGzCCvf4vPCz8xrk READY，正式 https://parallel-life-nu.vercel.app 已切换。39生产迁移校验和一致，无SQL变更；563check、旧N+新P联合真实PG20项（含父子）/build通过。修复邀约成功保存却503、保持旧回执版本，接入来源标签/四应用兼容和相册返回高度；本地真实HTTP原command200/v1、改期取消、旧receipt不变/latest唯一、陈旧409及390/PC已验。公网health/三个旧来信世界200、8/4/4历史无回填、390无溢出/PC420、合成原图200通过，未宣称公网新关联或邀约正例。
+
+本批8/8真实文字预算停止，末次原普通world复用第6真实阶段+第8真实历史，模型仅写周末未给具体日期被拒，无world/initial半成品；固定cast已保存世界无关联且暂停。historyLinksEnabled:false，旧N两步来信保留；P完整关联和A16自动关联未开放，父BOOT未完成。0生图，NPC本批未验。测试会话和资源已恢复，最终三报告/主表一次文档归档，文档READY另存ignoredhandoff。见[本批报告](task-reports/BOOT-01P-I.md)。
