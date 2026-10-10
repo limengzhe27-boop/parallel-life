@@ -8,6 +8,8 @@ export type TravelFeedbackProps = {
   checking?: boolean;
   onCheckResult?: () => void;
   onRetry?: () => void;
+  /** Only after read-only recovery found no receipt; resubmits the identical atomic command. */
+  onResubmitOriginal?: () => void;
   onContinue?: () => void;
   continueLabel?: string;
 };
@@ -18,6 +20,7 @@ export function TravelFeedback({
   checking = false,
   onCheckResult,
   onRetry,
+  onResubmitOriginal,
   onContinue,
   continueLabel = '看看这里',
 }: TravelFeedbackProps) {
@@ -70,6 +73,16 @@ export function TravelFeedback({
       {handler && view.action && (
         <button type="button" disabled={checking} onClick={handler} className={s.action}>
           {label}
+        </button>
+      )}
+      {view.status === 'unknown' && onResubmitOriginal && (
+        <button
+          type="button"
+          disabled={checking}
+          onClick={onResubmitOriginal}
+          className={`${s.action} ${s.secondary}`}
+        >
+          重新提交这次行程
         </button>
       )}
     </section>

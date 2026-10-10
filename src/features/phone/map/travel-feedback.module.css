@@ -158,3 +158,12 @@
     animation: none;
   }
 }
+
+.secondary {
+  margin-top: 10px;
+  background: #edf3fa;
+  color: #235d9f;
+}
+.secondary:active:not(:disabled) {
+  background: #dae7f5;
+}

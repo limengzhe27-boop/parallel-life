@@ -25,3 +25,7 @@
 根使用ego-browser任务空间125/p1，HTTP3258/session98754，ignored .local/space02c-preview支架加载真实冻结组件及实际CSS；无世界数据、无API上游或生产会话。390×500长名称到达、pending无按钮、unknown仅核对、失败显式重试、减少动效0动画与1440视口420容器无横溢通过。真实按钮派发check/retry已核对。首张截图捕获路线动画中间帧，后改为等待SVG子树动画结束再保存稳定截图，不能用前图当最终路线。六项纯规则/typecheck/build已通过；这只是组件UI，不代表地图整页/后台时钟/生产旅行通过。
 
 本机证据主.local/space02c-preview/evidence/truth-states.json和arrival-390-500-stable.png。浏览器125暂保留供整页联合审阅，3258仅本机支架，结束后由根停止；未修改生产cookie/用户账号。Ego提示更新，本轮不升级。
+
+## 核对后原命令显式再提交
+
+联审I controller发现请求发送前断网也会unknown，核对unconfirmed若永久不能恢复会锁死地图。本组件新增可选onResubmitOriginal；仅unknown且控制器明确提供时显示“重新提交这次行程”。调用者必须先只读核对原回执并得到unconfirmed，再提交完全相同commandId/expectedVersion/routeId；该确定性原子命令没有模型调用，重复已提交只返回原回执，不能换新command或自动重试。默认unknown仍只核对；此出口不是unknown模型任务的重付机制。I负责运行时/持久状态授权，F不能自行推断可再提交。
