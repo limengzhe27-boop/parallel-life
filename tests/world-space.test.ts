@@ -6,8 +6,12 @@ import { OFFICIAL_LIFE_PACKS } from '../src/modules/settings/infrastructure/offi
 import {
   travelTimes,
   applySpaceEvent,
+  deriveInitialSpace,
+  validateSpace,
+  authoredSpace,
   type TravelEvent,
 } from '../src/modules/world/domain/space.ts';
+import { SpaceSourceSchema } from '../src/contracts/world-space.ts';
 import { replayWorldHistory } from '../src/modules/world/domain/world-history.ts';
 import { actorContext } from '../src/modules/world/application/actor-context.ts';
 import { restoreTravel, storeTravel } from '../src/features/phone/map/operation.ts';
@@ -134,3 +138,159 @@ test('persisted pending becomes unknown without losing original fingerprint; for
     null,
   );
 });
+test('deriveInitialSpace constructs coherent places, routes and starting position from seed setup', () => {
+  const seedId = randomUUID();
+  const actor1Id = randomUUID();
+  const actor2Id = randomUUID();
+  const actorIds = new Map([
+    ['actor_a', actor1Id],
+    ['actor_b', actor2Id],
+  ]);
+  const seed = {
+    setup: { place: '青石老街·林记汽修' },
+    story: { premise: '你接管了父亲在青石老街留下的汽修铺。', title: '汽修岁月' },
+  };
+  const opening = {
+    setting: '午后的老街修车铺里，满是旧工具和发动机的气味。',
+    actors: [
+      { key: 'actor_a', name: '林叔' },
+      { key: 'actor_b', name: '阿杰' },
+    ],
+  };
+  const apptId = randomUUID();
+  const space = deriveInitialSpace({
+    seed,
+    opening,
+    actorIds,
+    appointments: [{ id: apptId, title: '老茶馆碰头', participantIds: [actor1Id] }],
+    source: { kind: 'seed_genesis', seedId, snapshotVersion: 0 },
+  });
+  assert.ok(space);
+  assert.equal(space.currentPlaceId, 'primary_place');
+  assert.equal(space.places.length, 3);
+  assert.equal(space.places[0]!.id, 'primary_place');
+  assert.equal(space.places[0]!.name, '青石老街·林记汽修');
+  assert.deepEqual(space.places[0]!.contactActorIds, [actor1Id, actor2Id]);
+  assert.equal(space.places[1]!.id, 'community_area');
+  assert.ok(space.places[1]!.name.includes('周边街区'));
+  assert.equal(space.places[2]!.id, 'appointment_venue');
+  assert.ok(space.places[2]!.name.includes('老茶馆碰头'));
+  assert.deepEqual(space.places[2]!.appointmentIds, [apptId]);
+  assert.equal(space.routes.length, 6);
+  assert.ok(
+    space.routes.every(
+      (r) =>
+        r.durationMinutes >= 1 &&
+        r.durationMinutes <= 120 &&
+        r.fromPlaceId !== r.toPlaceId &&
+        Boolean(r.modeLabel),
+    ),
+  );
+  assert.doesNotThrow(() => validateSpace(space));
+  // Validates through SpaceSourceSchema
+  assert.ok(SpaceSourceSchema.safeParse(space.places[0]!.source).success);
+  assert.equal(space.places[0]!.source.kind, 'seed_genesis');
+});
+test('deriveInitialSpace returns undefined when seed has no reliable place, preserving honest empty state', () => {
+  const seedId = randomUUID();
+  const actorIds = new Map([['actor_a', randomUUID()]]);
+  const emptySeed = {
+    setup: { place: '   ' },
+    story: { premise: '一段没有设定地点的人生。', title: '无题' },
+  };
+  const opening = {
+    setting: '未指明任何地点。',
+    actors: [{ key: 'actor_a', name: '张三' }],
+  };
+  const space = deriveInitialSpace({
+    seed: emptySeed,
+    opening,
+    actorIds,
+    source: { kind: 'seed_genesis', seedId, snapshotVersion: 0 },
+  });
+  assert.equal(space, undefined);
+});
+test('validateSpace strictly rejects invalid spatial proposals', () => {
+  const seedId = randomUUID();
+  const baseSource = { kind: 'seed_genesis' as const, seedId, snapshotVersion: 0 as const };
+  const validSpace = {
+    places: [
+      {
+        id: 'place_a',
+        name: '地点A',
+        description: '描述A',
+        source: baseSource,
+        contactActorIds: [],
+        appointmentIds: [],
+      },
+      {
+        id: 'place_b',
+        name: '地点B',
+        description: '描述B',
+        source: baseSource,
+        contactActorIds: [],
+        appointmentIds: [],
+      },
+    ],
+    routes: [
+      {
+        id: 'a_to_b',
+        fromPlaceId: 'place_a',
+        toPlaceId: 'place_b',
+        durationMinutes: 10,
+        modeLabel: '步行',
+        source: baseSource,
+      },
+    ],
+    currentPlaceId: 'place_a',
+    positionSource: baseSource,
+  };
+  assert.doesNotThrow(() => validateSpace(validSpace));
+  // Reject missing current place
+  assert.throws(() => validateSpace({ ...validSpace, currentPlaceId: 'place_unknown' }));
+  // Reject route to unknown place
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [
+        {
+          ...validSpace.routes[0]!,
+          toPlaceId: 'place_unknown',
+        },
+      ],
+    }),
+  );
+  // Reject self route
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [
+        {
+          ...validSpace.routes[0]!,
+          toPlaceId: 'place_a',
+        },
+      ],
+    }),
+  );
+  // Reject route duration out of bounds (0 or >120)
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [{ ...validSpace.routes[0]!, durationMinutes: 0 }],
+    }),
+  );
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [{ ...validSpace.routes[0]!, durationMinutes: 121 }],
+    }),
+  );
+  // Reject invalid key pattern
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      places: [{ ...validSpace.places[0]!, id: 'INVALID-UPPER' }, validSpace.places[1]!],
+    }),
+  );
+});
+

@@ -21,6 +21,13 @@ import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/
 import { replayWorldHistory } from '../../src/modules/world/domain/world-history.ts';
 import type { WorldHistoryEvent } from '../../src/modules/world/domain/world-history.ts';
 import type { OfficialLifePack } from '../../src/modules/settings/application/official-life-pack.ts';
+import { ProfileRepository } from '../../src/modules/profile/infrastructure/profile-repository.ts';
+import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
+import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
+import { WorldPlanner } from '../../src/modules/world/infrastructure/world-planner.ts';
+import { buildHandler } from '../../src/modules/world/infrastructure/build-handler.ts';
+import { runOne } from '../../src/modules/tasks/application/run-worker.ts';
+import { historyFixture } from '../helpers/genesis-fixture.ts';
 
 test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async (t) => {
   const admin = await adminClient('parallel_life_test');
@@ -442,6 +449,279 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
           } finally {
             await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [fresh]);
           }
+        }
+      },
+    );
+    await t.test(
+      'normal world genesis attaches reliable space from approved seed; travel/empty/legacy establish respect verification and owner isolation',
+      async () => {
+        const queue = new PostgresTaskQueue(
+          `postgresql://pl_worker:${c.workerPassword}@127.0.0.1:${c.port}/parallel_life_test`,
+        );
+        const builds = new BuildRepository(db);
+        const normalOwner = randomUUID();
+        await identity.ensureGuest(normalOwner);
+        const profiles = new ProfileRepository(db);
+        const p = await profiles.edit(normalOwner, {
+          expectedVersion: 0,
+          operation: {
+            kind: 'set-fact',
+            category: 'identity',
+            value: '个人资料\n姓名：测试用户\n生日：2000-01-01\n所在城市：杭州',
+          },
+        });
+        try {
+          // 1. Normal world genesis with reliable setup place
+          const seedId = randomUUID();
+          const seed = {
+            id: seedId,
+            createdAt: new Date().toISOString(),
+            profileVersion: 1,
+            discoveryVersion: 1,
+            directionId: randomUUID(),
+            story: {
+              title: '老街汽修',
+              premise: '修车铺的故事',
+              opening: '清晨开门',
+              tradeoff: '收入波动',
+            },
+            setup: { identity: '修车师傅', place: '青石老街·林记汽修', tone: '朴实自然' },
+            facts: [],
+            people: [],
+            portraitAssetId: null,
+            assets: [],
+          };
+          await db.transaction(normalOwner, (sql) =>
+            sql.query(
+              'INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
+              [seedId, normalOwner, p.id, randomUUID(), 'hash_normal', seed],
+            ),
+          );
+          const buildReq = { seedId, commandId: randomUUID() };
+          const built = await builds.create(normalOwner, buildReq);
+          const output = {
+            identity: '修车师傅',
+            setting: '清晨的青石老街·林记汽修门前，修车铺拉起了卷帘门。',
+            actors: ['actor_a', 'actor_b', 'actor_c'].map((k) => ({
+              key: k,
+              name: '邻里_' + k,
+              relationship: '老主顾',
+              persona: '待人和气',
+            })),
+            actorTies: [
+              { fromKey: 'actor_a', toKey: 'actor_b', relationship: '同条街做街坊', mayShare: true },
+            ],
+            messages: [{ actorKey: 'actor_a', text: '师傅，今天能帮忙补个胎吗？' }],
+            notes: [{ title: '今日待办', text: '整理工具箱' }],
+          };
+          const planner = new WorldPlanner({
+            async complete() {
+              return JSON.stringify(historyFixture(output));
+            },
+          });
+          await runOne(queue, { 'world-build': buildHandler(queue, planner, 'test-model') });
+
+          const normalWorldId = built.worldId;
+          const read = await space.read(normalOwner, normalWorldId);
+          assert.equal(read.currentPlaceId, 'primary_place');
+          assert.equal(read.places.length, 2);
+          assert.equal(read.places[0]!.name, '青石老街·林记汽修');
+          assert.equal(read.places[0]!.source.kind, 'seed_genesis');
+          assert.ok(read.routes.length >= 1);
+          assert.equal(read.routes[0]!.toPlaceId, 'community_area');
+          assert.equal(read.canEstablish, false);
+
+          // Travel on normal world
+          const route = read.routes[0]!;
+          const travelRec = await space.travel(normalOwner, normalWorldId, {
+            commandId: randomUUID(),
+            expectedVersion: read.worldVersion,
+            routeId: route.id,
+          });
+          assert.equal(travelRec.status, 'committed');
+          assert.equal(travelRec.toPlaceId, route.toPlaceId);
+          const afterTravel = await space.read(normalOwner, normalWorldId);
+          assert.equal(afterTravel.currentPlaceId, route.toPlaceId);
+
+          // Owner isolation
+          await assert.rejects(space.read(other, normalWorldId), { code: 'NOT_FOUND' });
+          await assert.rejects(
+            space.travel(other, normalWorldId, {
+              commandId: randomUUID(),
+              expectedVersion: afterTravel.worldVersion,
+              routeId: route.id,
+            }),
+            { code: 'NOT_FOUND' },
+          );
+
+          // 2. Normal world creation without reliable place stays empty
+          const emptySeedId = randomUUID();
+          const emptySeed = {
+            id: emptySeedId,
+            createdAt: new Date().toISOString(),
+            profileVersion: 1,
+            discoveryVersion: 1,
+            directionId: randomUUID(),
+            story: {
+              title: '无地点人生',
+              premise: '故事未设定具体地点',
+              opening: '生活继续',
+              tradeoff: '自由发展',
+            },
+            setup: { identity: '自由职业者', place: '   ', tone: '平静' },
+            facts: [],
+            people: [],
+            portraitAssetId: null,
+            assets: [],
+          };
+          await db.transaction(normalOwner, (sql) =>
+            sql.query(
+              'INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
+              [emptySeedId, normalOwner, p.id, randomUUID(), 'hash_empty', emptySeed],
+            ),
+          );
+          const emptyBuilt = await builds.create(normalOwner, {
+            seedId: emptySeedId,
+            commandId: randomUUID(),
+          });
+          await runOne(queue, { 'world-build': buildHandler(queue, planner, 'test-model') });
+          const emptyRead = await space.read(normalOwner, emptyBuilt.worldId);
+          assert.equal(emptyRead.currentPlaceId, null);
+          assert.deepEqual(emptyRead.places, []);
+          assert.equal(emptyRead.canEstablish, false);
+
+          // 3. Legacy unestablished normal world at v0 can establish with verified basis
+          const legSeedId = randomUUID();
+          const legWorldId = randomUUID();
+          const legSeed = {
+            id: legSeedId,
+            createdAt: new Date().toISOString(),
+            profileVersion: 1,
+            discoveryVersion: 1,
+            directionId: randomUUID(),
+            story: {
+              title: '旧版自建世界',
+              premise: '旧版本创建的人生起点',
+              opening: '故事开端',
+              tradeoff: '时间取舍',
+            },
+            setup: { identity: '摄影师', place: '海边灯塔工作室', tone: '艺术质感' },
+            facts: [],
+            people: [],
+            portraitAssetId: null,
+            assets: [],
+          };
+          const legActors = [
+            { id: randomUUID(), name: '助手小周', relationship: '助理', persona: '细致周到' },
+            { id: randomUUID(), name: '模特阿琳', relationship: '合作者', persona: '专业敬业' },
+          ];
+          const legOpening = {
+            identity: '摄影师',
+            setting: '海边灯塔下的工作室里潮气未退。',
+            actors: [
+              { key: 'actor_1', name: '助手小周', relationship: '助理', persona: '细致周到' },
+              { key: 'actor_2', name: '模特阿琳', relationship: '合作者', persona: '专业敬业' },
+            ],
+            messages: [{ actorKey: 'actor_1', text: '老师，今天的胶片已经到了。' }],
+            notes: [{ title: '拍摄备忘', text: '下午两点' }],
+          };
+          const legInitialState = {
+            schemaVersion: 1,
+            id: legWorldId,
+            ownerId: normalOwner,
+            version: 0,
+            title: legSeed.story.title,
+            time: '2026-10-10T10:00:00.000Z',
+            actors: legActors,
+            facts: [],
+            messages: [],
+            appointments: [],
+            mediaRequests: [],
+          };
+          await db.transaction(normalOwner, async (sql) => {
+            await sql.query(
+              'INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
+              [legSeedId, normalOwner, p.id, randomUUID(), 'hash_leg', legSeed],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.worlds(id,owner_id,title,state) VALUES($1,$2,$3,$4)',
+              [legWorldId, normalOwner, legSeed.story.title, legInitialState],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',
+              [legWorldId, normalOwner, legInitialState, legSeed],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id,opening) VALUES($1,$2,$3,$4)',
+              [legSeedId, normalOwner, legWorldId, legOpening],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,1,false,$4,0,NULL)',
+              [legWorldId, normalOwner, legInitialState.time, new Date().toISOString()],
+            );
+          });
+
+          // Verify canEstablish is true for verified legacy world
+          const legBefore = await space.read(normalOwner, legWorldId);
+          assert.equal(legBefore.currentPlaceId, null);
+          assert.equal(legBefore.canEstablish, true);
+
+          // Establish space explicitly
+          const estCmd = { commandId: randomUUID(), expectedVersion: 0 };
+          const estRes = (await space.establish(normalOwner, legWorldId, estCmd)) as {
+            status: string;
+            version: number;
+          };
+          assert.equal(estRes.status, 'established');
+          assert.equal(estRes.version, 1);
+
+          // Replay establish returns identical receipt without creating duplicate event
+          assert.deepEqual(await space.establish(normalOwner, legWorldId, estCmd), estRes);
+
+          // Now space is established
+          const legAfter = await space.read(normalOwner, legWorldId);
+          assert.equal(legAfter.currentPlaceId, 'primary_place');
+          assert.equal(legAfter.places[0]!.name, '海边灯塔工作室');
+          assert.equal(legAfter.canEstablish, false);
+
+          // 4. Old developed normal world (version > 0) cannot establish space
+          const divergedWorldId = randomUUID();
+          const divergedSeedId = randomUUID();
+          const divergedSeed = { ...legSeed, id: divergedSeedId };
+          const divergedState = { ...legInitialState, id: divergedWorldId, version: 1 };
+          await db.transaction(normalOwner, async (sql) => {
+            await sql.query(
+              'INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
+              [divergedSeedId, normalOwner, p.id, randomUUID(), 'hash_diverged', divergedSeed],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.worlds(id,owner_id,title,state,version) VALUES($1,$2,$3,$4,1)',
+              [divergedWorldId, normalOwner, legSeed.story.title, divergedState],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',
+              [divergedWorldId, normalOwner, legInitialState, divergedSeed],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id,opening) VALUES($1,$2,$3,$4)',
+              [divergedSeedId, normalOwner, divergedWorldId, legOpening],
+            );
+            await sql.query(
+              'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,1,false,$4,0,NULL)',
+              [divergedWorldId, normalOwner, divergedState.time, new Date().toISOString()],
+            );
+          });
+          const divergedRead = await space.read(normalOwner, divergedWorldId);
+          assert.equal(divergedRead.canEstablish, false);
+          await assert.rejects(
+            space.establish(normalOwner, divergedWorldId, {
+              commandId: randomUUID(),
+              expectedVersion: 1,
+            }),
+            { code: 'INVALID_COMMAND' },
+          );
+        } finally {
+          await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [normalOwner]);
         }
       },
     );

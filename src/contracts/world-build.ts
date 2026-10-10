@@ -44,9 +44,29 @@ export const MessageHistorySchema = z.strictObject({
     .min(2)
     .max(48),
 });
+export const SpaceOpeningPlaceDraftSchema = z.strictObject({
+  key: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().min(1).max(1000),
+  actorKeys: z.array(z.string().regex(/^[a-z0-9_]{1,64}$/)),
+  invitationKeys: z.array(z.string().regex(/^[a-z0-9_]{1,64}$/)),
+});
+export const SpaceOpeningRouteDraftSchema = z.strictObject({
+  key: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  from: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  to: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  minutes: z.number().int().min(1).max(120),
+  modeLabel: z.string().trim().min(1).max(80),
+});
+export const SpaceOpeningDraftSchema = z.strictObject({
+  initialPlaceId: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  places: z.array(SpaceOpeningPlaceDraftSchema).min(1).max(16),
+  routes: z.array(SpaceOpeningRouteDraftSchema).max(64),
+});
 export const WorldOpeningSchema = z.object({
   // Optional only for reading already persisted legacy openings; new writes require it.
   messageHistory: MessageHistorySchema.optional(),
+  space: SpaceOpeningDraftSchema.optional(),
   playerActors: z.array(PlayerOpeningActorSchema).max(8).optional(),
   identity: z.string().min(1).max(400),
   setting: z.string().min(1).max(500),

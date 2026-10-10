@@ -14,9 +14,15 @@ export const SpaceSourceSchema = z.discriminatedUnion('kind', [
     snapshotVersion: z.literal(0),
   }),
   z.strictObject({
+    kind: z.literal('seed_genesis'),
+    seedId: Id,
+    snapshotVersion: z.literal(0),
+  }),
+  z.strictObject({
     kind: z.literal('world_event'),
-    presetId: z.string(),
-    contentVersion: z.number().int().positive(),
+    presetId: z.string().optional(),
+    seedId: Id.optional(),
+    contentVersion: z.number().int().positive().optional(),
     snapshotVersion: z.literal(0),
     eventId: Id,
     eventVersion: Version,

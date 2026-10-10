@@ -9,12 +9,17 @@ import {
   EstablishSpaceRequestSchema,
   type TravelRequest,
 } from '../../../contracts/world-space.ts';
+import { ApprovedSeedSchema } from '../../../contracts/seeds.ts';
+import { WorldOpeningSchema } from '../../../contracts/world-build.ts';
 import {
   authoredSpace,
+  deriveInitialSpace,
   applySpaceEvent,
   travelTimes,
   type TravelEvent,
   type SpaceEstablishedEvent,
+  type SpaceSource,
+  type WorldSpaceState,
 } from '../domain/space.ts';
 import type { WorldState } from '../domain/types.ts';
 import type { WorldClock } from '../domain/clock.ts';
@@ -228,22 +233,67 @@ export class PostgresWorldSpace implements WorldSpacePort {
       )
         busy = true;
       let canEstablish = false;
-      if (!w.space && w.version === 0 && w.officialLife && !x?.current_scene_id) {
-        const initial = (
+      if (!w.space && w.version === 0 && !x?.current_scene_id) {
+        const snap = (
           await sql.query(
-            'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            'SELECT state, approved_seed FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
             [id],
           )
-        ).rows[0]?.state;
-        try {
-          legacyBindings(
-            w,
-            initial,
-            this.catalog.get(w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0]),
-          );
-          canEstablish = true;
-        } catch {
-          /* Unsupported old source stays unknown. */
+        ).rows[0];
+        const initial = snap?.state as WorldState | undefined;
+        if (w.officialLife) {
+          try {
+            legacyBindings(
+              w,
+              initial,
+              this.catalog.get(w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0]),
+            );
+            canEstablish = true;
+          } catch {
+            /* Unsupported old source stays unknown. */
+          }
+        } else if (initial && snap?.approved_seed) {
+          try {
+            const seed = ApprovedSeedSchema.parse(snap.approved_seed);
+            const buildRow = (
+              await sql.query(
+                'SELECT opening FROM parallel_life.world_builds WHERE world_id=$1',
+                [id],
+              )
+            ).rows[0];
+            if (buildRow?.opening) {
+              const opening = WorldOpeningSchema.parse(buildRow.opening);
+              if (
+                initial.actors.length === w.actors.length &&
+                initial.actors.every((a, idx) => w.actors[idx]?.id === a.id) &&
+                initial.title === w.title
+              ) {
+                const ids = new Map(
+                  opening.actors.map((a) => {
+                    const match = initial.actors.find((act) => act.name === a.name);
+                    if (!match) throw Error('ACTOR_MISMATCH');
+                    return [a.key, match.id];
+                  }),
+                );
+                const candidateSpace = deriveInitialSpace({
+                  seed,
+                  opening,
+                  actorIds: ids,
+                  appointments: initial.appointments,
+                  source: {
+                    kind: 'world_event',
+                    seedId: seed.id,
+                    snapshotVersion: 0,
+                    eventId: randomUUID(),
+                    eventVersion: 1,
+                  },
+                });
+                if (candidateSpace) canEstablish = true;
+              }
+            }
+          } catch {
+            /* Unsupported or diverged old source stays unknown. */
+          }
         }
       }
       // A read does not anchor, establish or mutate a legacy world.
@@ -427,31 +477,81 @@ export class PostgresWorldSpace implements WorldSpacePort {
       await assertSpaceIdle(sql, id);
       const c = await clock(sql, w),
         realNow = new Date().toISOString();
-      if (w.space || w.version !== 0 || !w.officialLife) throw new DomainError('INVALID_COMMAND');
-      const initial = (
-        await sql.query(
-          'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
-          [id],
-        )
-      ).rows[0]?.state as WorldState | undefined;
-      const pack = this.catalog.get(
-        w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0],
-      );
-      const bindings = legacyBindings(w, initial, pack);
-      if (!pack?.opening.space) throw new DomainError('INVALID_COMMAND');
-      const eid = randomUUID(),
-        source = {
-          kind: 'world_event' as const,
+      if (w.space || w.version !== 0) throw new DomainError('INVALID_COMMAND');
+      let space: WorldSpaceState;
+      const eid = randomUUID();
+      if (w.officialLife) {
+        const initial = (
+          await sql.query(
+            'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            [id],
+          )
+        ).rows[0]?.state as WorldState | undefined;
+        const pack = this.catalog.get(
+          w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0],
+        );
+        const bindings = legacyBindings(w, initial, pack);
+        if (!pack?.opening.space) throw new DomainError('INVALID_COMMAND');
+        const source: SpaceSource = {
+          kind: 'world_event',
           presetId: pack.card.id,
           contentVersion: pack.card.version,
-          snapshotVersion: 0 as const,
+          snapshotVersion: 0,
           eventId: eid,
           eventVersion: 1,
         };
-      const actors = bindings.actors,
-        aps = bindings.appointments;
-      const space = authoredSpace(pack.opening.space, source, actors, aps),
-        storyAt = new Date(
+        space = authoredSpace(pack.opening.space, source, bindings.actors, bindings.appointments);
+      } else {
+        const snap = (
+          await sql.query(
+            'SELECT state, approved_seed FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            [id],
+          )
+        ).rows[0];
+        const initial = snap?.state as WorldState | undefined;
+        const buildRow = (
+          await sql.query(
+            'SELECT opening FROM parallel_life.world_builds WHERE world_id=$1',
+            [id],
+          )
+        ).rows[0];
+        if (!initial || !snap?.approved_seed || !buildRow?.opening) {
+          throw new DomainError('INVALID_COMMAND');
+        }
+        const seed = ApprovedSeedSchema.parse(snap.approved_seed);
+        const opening = WorldOpeningSchema.parse(buildRow.opening);
+        if (
+          initial.actors.length !== w.actors.length ||
+          !initial.actors.every((a, idx) => w.actors[idx]?.id === a.id) ||
+          initial.title !== w.title
+        ) {
+          throw new DomainError('INVALID_COMMAND');
+        }
+        const ids = new Map(
+          opening.actors.map((a) => {
+            const match = initial.actors.find((act) => act.name === a.name);
+            if (!match) throw new DomainError('INVALID_COMMAND');
+            return [a.key, match.id];
+          }),
+        );
+        const source: SpaceSource = {
+          kind: 'world_event',
+          seedId: seed.id,
+          snapshotVersion: 0,
+          eventId: eid,
+          eventVersion: 1,
+        };
+        const candidate = deriveInitialSpace({
+          seed,
+          opening,
+          actorIds: ids,
+          appointments: initial.appointments,
+          source,
+        });
+        if (!candidate) throw new DomainError('INVALID_COMMAND');
+        space = candidate;
+      }
+        const storyAt = new Date(
           Math.max(Date.parse(w.time), Date.parse(projectStoryTime(c, realNow))),
         ).toISOString();
       const e: SpaceEstablishedEvent = {
