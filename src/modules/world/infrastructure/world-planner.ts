@@ -98,7 +98,7 @@ export class WorldPlanner {
   private twoStep: boolean;
   readonly historyLinksEnabled: boolean;
   get promptVersion() {
-    if (this.twoStep && this.historyLinksEnabled) return 'world-opening-15-linked-history';
+    if (this.twoStep && this.historyLinksEnabled) return 'world-opening-16-linked-history';
     return this.twoStep
       ? TWO_STEP_PROMPT_VERSION
       : this.historyEnabled

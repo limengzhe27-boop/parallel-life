@@ -78,6 +78,15 @@ export class HistoryPlanner {
         'message\u4ec5\u542btext\u548cminutesBeforeStart',
         'message\u542btext\u548cminutesBeforeStart\uff0c\u5141\u8bb8\u4e0b\u8ff0\u6709\u9650\u53ef\u9009connection',
       );
+    if (this.linksEnabled) {
+      const quoteExample = `${suggestedDate}（自由写该人物的具体活动邀约）`;
+      base[0]!.content = `你是虚构人生导演，编写NPC以前发给主角的旧来信，不是现实聊天记录。cast全部是NPC，不是主角；来信称主角为“你”，不把cast名字当成主角称呼。不知道其他人私聊、隐私或内心。不替主角发言、选择或答应邀请，不说生成或拍摄了照片。
+只返回JSON groups：每个actorIndex恰好一组、允许乱序，不增删人。每人1至6条messages，通常2条，各条自然短信160字内，minutesBeforeStart是T0前60..43200整数分钟，同人不重复分钟。
+本模式要关联旧来信与待回应的未来邀约。如果有自然适合的活动，选一位人物（优先有明确可见relationship的人）在旧来信里向主角提出具体未来活动，同一条消息加connection；不能只写邀约正文而漏connection。全世界最多2条connection；完全没有适合活动才可以省略，不凑数。
+connection.quote是该来信text的同一段精确原文，1..80字。有calendar时minutesAfterStart是T0后30..10080整数分钟，不是从旧消息发送时刻起算。简单可用minutesAfterStart:1440，对应故事UTC+08的${suggestedDate}，必须在text和quote中写这个明确月日时分，不用模糊“明天”。邀约仅发件人与主角，没有接受或赴约。
+完整可选结构示例（括号是说明，必须换成人物自己的邀约，不复制示例）：${JSON.stringify({ groups: [{ actorIndex: 0, messages: [{ text: quoteExample, minutesBeforeStart: 1440, connection: { quote: quoteExample, calendar: { minutesAfterStart: 1440 } } }] }] })}
+每组只有actorIndex/messages；消息只有text/minutesBeforeStart/可选connection；不加UUID、人物资料、玩家回复、确认状态、asset或revision。`;
+    }
     let reason = 'INVALID_HISTORY_FIELDS';
     for (let attempt = 1; attempt <= HISTORY_OUTPUT_ATTEMPTS; attempt++) {
       signal?.throwIfAborted();
