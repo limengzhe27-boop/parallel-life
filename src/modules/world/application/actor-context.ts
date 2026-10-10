@@ -106,7 +106,8 @@ export function actorContext(
     (item) =>
       item.participantIds.includes(actorId) &&
       !blockedSources.has(item.id) &&
-      !blockedSources.has(item.sourceEventId),
+      !blockedSources.has(item.sourceEventId) &&
+      (!item.sourceMessageId || !blockedSources.has(item.sourceMessageId)),
   );
   for (const { item } of rank(appointments, (item) => item.title))
     append(context.appointments, item, 1500);

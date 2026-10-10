@@ -106,10 +106,19 @@ const WorldItemId = z.union([
 ]);
 export const WorldPhoneSchema = z.strictObject({
   photos: z.array(AlbumPhotoSchema).optional(),
-  historyLinks: z.array(z.strictObject({
-    recordId: z.string().startsWith('sys/history/'), actorId: Id, messageId: Id,
-    invitationId: Id.optional(), photoIds: z.array(Id).max(2), source: GenesisSourceSchema,
-  })).max(2).optional(),
+  historyLinks: z
+    .array(
+      z.strictObject({
+        recordId: z.string().startsWith('sys/history/'),
+        actorId: Id,
+        messageId: Id,
+        invitationId: Id.optional(),
+        photoIds: z.array(Id).max(2),
+        source: GenesisSourceSchema,
+      }),
+    )
+    .max(2)
+    .optional(),
   choices: z
     .array(
       z.strictObject({

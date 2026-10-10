@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { GenesisSourceSchema } from '../../../contracts/world-records.ts';
 import type { PlayerRecords } from '../../../contracts/world-records.ts';
 import type { PhoneApp } from '../navigation.ts';
 /** Display models only. The integration adapter owns authorization, storage and task polling. */
@@ -35,6 +37,7 @@ export type PhonePhoto = {
   links?: PhoneLink[];
 };
 export type PhoneInvitation = {
+  origin?: z.infer<typeof GenesisSourceSchema>;
   id: string;
   title: string;
   at: string;

@@ -5,6 +5,7 @@ import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { WorldState } from '../domain/types.ts';
 import { openingMessageAt } from '../domain/opening-time.ts';
+import { createGenesisLinks } from '../domain/genesis-links.ts';
 import { genesisMessages } from '../domain/genesis-messages.ts';
 import { WorldPlanner } from './world-planner.ts';
 
@@ -112,6 +113,19 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       appointments: [],
       mediaRequests: [],
     };
+    if (opening.messageHistory?.messages.some((m) => m.connection)) {
+      const initial = createGenesisLinks({
+        worldId: state.id,
+        seedId: input.seedId,
+        startAt: time,
+        history: opening.messageHistory,
+        actorIds: ids,
+        messages: state.messages,
+        newId: randomUUID,
+      });
+      state.genesisLinks = initial.genesisLinks;
+      state.appointments = initial.appointments;
+    }
     // Derived from the approved source selection, never from model-generated public claims.
     opening.playerActors = state.actors.flatMap((actor) => {
       const person = seed.people.find((person) => person.id === actor.sourcePersonId);

@@ -12,6 +12,23 @@ export function worldAppData(
   viewed: ReadonlySet<string> = new Set(),
   local: readonly PhoneMessage[] = [],
 ): PhoneAppsData {
+  const history = world.historyLinks ?? [];
+  const historyLinks = (entry: (typeof history)[number]) => [
+    {
+      app: 'notes' as const,
+      target: entry.recordId,
+      label: '\u67e5\u770b\u65e7\u6765\u4fe1\u8bb0\u5f55',
+    },
+    ...(entry.invitationId
+      ? [
+          {
+            app: 'calendar' as const,
+            target: entry.invitationId,
+            label: '\u67e5\u770b\u65e5\u7a0b',
+          },
+        ]
+      : []),
+  ];
   return {
     contacts: world.actors.map((actor) => ({
       id: actor.id,
@@ -54,6 +71,13 @@ export function worldAppData(
             ? '历史素材 · 生成来源待核验'
             : '历史素材 · 生成来源待核验';
       return {
+        links: history
+          .filter((e) => e.photoIds.includes(photo.id))
+          .map((e) => ({
+            app: 'notes' as const,
+            target: e.recordId,
+            label: '\u76f8\u5173\u65e7\u6765\u4fe1\u8bb0\u5f55',
+          })),
         id: photo.id,
         date: photo.date,
         title: photo.title,
@@ -67,6 +91,9 @@ export function worldAppData(
     messages: [
       ...world.messages.map((message) => {
         return {
+          ...(history.find((e) => e.messageId === message.id)
+            ? { links: historyLinks(history.find((e) => e.messageId === message.id)!) }
+            : {}),
           id: message.id,
           actorId: message.actorId,
           text: message.text,
@@ -116,6 +143,22 @@ export function worldAppData(
     })),
     invitations: (world.invitations ?? []).map((invitation) => ({
       ...invitation,
+      ...(history.find((e) => e.invitationId === invitation.id)
+        ? {
+            links: [
+              {
+                app: 'messages' as const,
+                target: history.find((e) => e.invitationId === invitation.id)!.actorId,
+                label: '\u67e5\u770b\u6765\u6e90\u5bf9\u8bdd',
+              },
+              {
+                app: 'notes' as const,
+                target: history.find((e) => e.invitationId === invitation.id)!.recordId,
+                label: '\u67e5\u770b\u65e7\u6765\u4fe1\u8bb0\u5f55',
+              },
+            ],
+          }
+        : {}),
       version: world.version ?? 0,
     })),
   };

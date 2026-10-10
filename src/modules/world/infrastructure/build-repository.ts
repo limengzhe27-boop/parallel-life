@@ -1,5 +1,6 @@
+import { verifiedGenesisLinks } from '../domain/genesis-links.ts';
 import { projectPlayerActors, type SelectedPlayerPerson } from '../domain/player-projection.ts';
-import { albumPhotos } from '../../media/infrastructure/album-projection.ts';
+import { albumPhotos, historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
 import { randomUUID } from 'node:crypto';
 import {
   WorldBuildRequestSchema,
@@ -217,10 +218,28 @@ export class BuildRepository {
         Date.parse(projectStoryTime(clock, new Date().toISOString())),
       ),
     ).toISOString();
+    const photos = await this.db.transaction(ownerId, (sql) => albumPhotos(sql, worldId));
+    const personPhotos = await this.db.transaction(ownerId, (sql) =>
+      historyPersonPhotos(sql, worldId),
+    );
+    if (state.genesisLinks && state.genesisLinks.seedId !== metadata.seed_id)
+      throw Error('INVALID_GENESIS_LINKS');
+    const history = verifiedGenesisLinks(state);
+    const historyLinks = history.map((e) => ({
+      recordId: e.recordId,
+      actorId: e.actorId,
+      messageId: e.messageId,
+      ...(e.invitationId ? { invitationId: e.invitationId } : {}),
+      photoIds: (personPhotos.get(e.actorId) ?? [])
+        .filter((id) => photos.some((p) => p.id === id))
+        .slice(0, 2),
+      source: e.source,
+    }));
     return WorldPhoneSchema.parse({
       id: state.id,
       seedId: metadata.seed_id,
-      photos: await this.db.transaction(ownerId, (sql) => albumPhotos(sql, worldId)),
+      photos,
+      ...(state.genesisLinks ? { historyLinks } : {}),
       choices: (state.choices ?? []).flatMap((choice) => {
         const at = eventTimes.get(choice.sourceEventId);
         if (!at) return [];
@@ -297,7 +316,12 @@ export class BuildRepository {
       version: state.version,
       invitations: state.appointments
         .filter((a) => a.status)
-        .map(({ sourceEventId: _source, ...a }) => a),
+        .map(({ sourceEventId: _source, sourceMessageId: _message, ...a }) => ({
+          ...a,
+          ...(history.find((e) => e.invitationId === a.id)
+            ? { origin: history.find((e) => e.invitationId === a.id)!.source }
+            : {}),
+        })),
       title: state.title,
       time: storyTime,
       identity: metadata.opening.identity,

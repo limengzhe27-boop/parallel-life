@@ -1,3 +1,4 @@
+import { mergeAppointments } from '../domain/genesis-links.ts';
 import {
   applyInvitationEvent,
   type InvitationCommand,
@@ -167,7 +168,8 @@ export class PostgresWorldRepository implements WorldRepository {
         ),
         ...results[0]!,
       ],
-      appointments: [...(initial?.appointments ?? []), ...results[1]!],
+      appointments: mergeAppointments(initial?.appointments ?? [], results[1]!),
+      ...(initial?.genesisLinks ? { genesisLinks: initial.genesisLinks } : {}),
       mediaRequests: [...(initial?.mediaRequests ?? []), ...results[2]!],
       notes: results[3]!,
       facts: retainFacts(

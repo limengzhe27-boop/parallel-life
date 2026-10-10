@@ -96,7 +96,9 @@ export class WorldPlanner {
   private model: TextModel;
   readonly historyEnabled: boolean;
   private twoStep: boolean;
+  readonly historyLinksEnabled: boolean;
   get promptVersion() {
+    if (this.twoStep && this.historyLinksEnabled) return 'world-opening-15-linked-history';
     return this.twoStep
       ? TWO_STEP_PROMPT_VERSION
       : this.historyEnabled
@@ -105,10 +107,15 @@ export class WorldPlanner {
   }
   constructor(
     model: TextModel,
-    options: { historyEnabled: boolean; historyMode?: 'two-step' } = { historyEnabled: true },
+    options: {
+      historyEnabled: boolean;
+      historyMode?: 'two-step';
+      historyLinksEnabled?: boolean;
+    } = { historyEnabled: true },
   ) {
     this.model = model;
     this.historyEnabled = options.historyEnabled;
+    this.historyLinksEnabled = options.historyLinksEnabled === true;
     this.twoStep = options.historyEnabled && options.historyMode === 'two-step';
   }
   private async proposeSetting(
@@ -260,12 +267,10 @@ export class WorldPlanner {
             const role = seed.personRoles?.find((r) => r.personId === actor.sourcePersonId)?.role;
             if (role) publicRelationships.set(actor.key, role);
           }
-        const messageHistory = await new HistoryPlanner(this.model).propose(
-          opening,
-          startAt,
-          combined,
-          publicRelationships,
-        );
+        const messageHistory = await new HistoryPlanner(
+          this.model,
+          this.historyLinksEnabled,
+        ).propose(opening, startAt, combined, publicRelationships);
         combined.throwIfAborted();
         // The world-stage result is already authorized and never regenerated to repair history.
         const result = { ...opening, messageHistory };

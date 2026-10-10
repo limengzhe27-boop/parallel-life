@@ -6,8 +6,13 @@ export const HistoryLinkSchema = z.strictObject({
   label: z.string().min(1).max(40),
 });
 export const GenesisSourceSchema = z.strictObject({
-  kind: z.literal('world_genesis'), worldId: Id, seedId: Id, messageId: Id,
-  snapshotVersion: z.literal(0), at: Timestamp, timeBasis: z.literal('story'),
+  kind: z.literal('world_genesis'),
+  worldId: Id,
+  seedId: Id,
+  messageId: Id,
+  snapshotVersion: z.literal(0),
+  at: Timestamp,
+  timeBasis: z.literal('story'),
 });
 const SourceSchema = z.discriminatedUnion('kind', [
   GenesisSourceSchema,
@@ -27,7 +32,13 @@ const SourceSchema = z.discriminatedUnion('kind', [
 ]);
 export const PlayerRecordSchema = z.strictObject({
   id: z.string().startsWith('sys/'),
-  kind: z.enum(['player_choice', 'actor_suggestion', 'invitation', 'opening_context', 'history_message']),
+  kind: z.enum([
+    'player_choice',
+    'actor_suggestion',
+    'invitation',
+    'opening_context',
+    'history_message',
+  ]),
   title: z.string(),
   text: z.string(),
   state: z.enum([

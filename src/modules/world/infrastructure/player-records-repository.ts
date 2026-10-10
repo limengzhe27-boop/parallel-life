@@ -1,3 +1,5 @@
+import { historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
+import { mergeAppointments } from '../domain/genesis-links.ts';
 import { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { PlayerRecordsReader } from '../application/player-records.ts';
 import { projectPlayerRecords, type PlayerRecordsInput } from '../domain/player-records.ts';
@@ -26,6 +28,12 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           [worldId, ownerId],
         )
       ).rows[0];
+      const initial = (
+        await sql.query(
+          'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
+          [worldId, ownerId],
+        )
+      ).rows[0]?.state;
       const choices = world.state.choices ?? [];
       let appointments = (
         await sql.query(
@@ -33,6 +41,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           [worldId, ownerId, world.version],
         )
       ).rows.map((r) => r.document);
+      appointments = mergeAppointments(initial?.appointments ?? [], appointments);
       const ids = [
         ...new Set([
           ...choices.flatMap(
@@ -93,6 +102,8 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         appointments,
         messages,
         events,
+        ...(initial ? { initial } : {}),
+        historyPhotos: await historyPersonPhotos(sql, worldId),
         actors: (world.state.actors ?? []).map((a: { id: string; name: string }) => ({
           id: a.id,
           name: a.name,

@@ -1,7 +1,17 @@
-import type { Appointment, Message, StoryChoice, WorldEvent } from './types.ts';
+import { verifiedGenesisLinks } from './genesis-links.ts';
+import type { Appointment, Message, StoryChoice, WorldEvent, WorldState } from './types.ts';
 import type { InvitationEvent } from './invitations.ts';
 
 export type RecordSource =
+  | {
+      kind: 'world_genesis';
+      worldId: string;
+      seedId: string;
+      messageId: string;
+      snapshotVersion: 0;
+      at: string;
+      timeBasis: 'story';
+    }
   | { kind: 'opening_field'; seedId: string; field: 'identity' | 'setting' }
   | {
       kind: 'world_event';
@@ -13,7 +23,7 @@ export type RecordSource =
     };
 export type PlayerRecord = {
   id: string;
-  kind: 'player_choice' | 'actor_suggestion' | 'invitation' | 'opening_context';
+  kind: 'player_choice' | 'actor_suggestion' | 'invitation' | 'opening_context' | 'history_message';
   title: string;
   text: string;
   state:
@@ -32,6 +42,12 @@ export type PlayerRecord = {
   stateLabel: string;
   assertion: 'player_statement' | 'actor_statement' | 'invitation_status' | 'starting_context';
   source: RecordSource;
+  origin?: Extract<RecordSource, { kind: 'world_genesis' }>;
+  relatedLinks?: {
+    app: 'messages' | 'calendar' | 'notes' | 'photos';
+    target: string;
+    label: string;
+  }[];
   navigation?: { app: 'wechat'; actorId: string } | { app: 'calendar'; invitationId: string };
 };
 export type PlayerRecords = {
@@ -46,6 +62,8 @@ export type PlayerRecords = {
 export type PlayerRecordsInput = {
   worldId: string;
   worldVersion: number;
+  initial?: WorldState;
+  historyPhotos?: ReadonlyMap<string, string[]>;
   opening?: { seedId: string; identity?: string; setting?: string };
   choices: StoryChoice[];
   appointments: Appointment[];
@@ -119,6 +137,117 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         assertion: 'starting_context',
         source: { kind: 'opening_field', seedId: input.opening.seedId, field },
       });
+  }
+  if (input.initial?.genesisLinks) {
+    if (
+      input.initial.id !== input.worldId ||
+      input.initial.version !== 0 ||
+      input.initial.genesisLinks.seedId !== input.opening?.seedId
+    )
+      throw Error('INVALID_GENESIS_LINKS');
+    for (const entry of verifiedGenesisLinks(input.initial)) {
+      const name = input.actors.find((a) => a.id === entry.actorId)?.name;
+      if (!name) throw Error('INVALID_GENESIS_LINKS');
+      const links: NonNullable<PlayerRecord['relatedLinks']> = [
+        { app: 'messages', target: entry.actorId, label: '\u67e5\u770b\u6765\u6e90\u5bf9\u8bdd' },
+        ...(entry.invitationId
+          ? [
+              {
+                app: 'calendar' as const,
+                target: entry.invitationId,
+                label: '\u67e5\u770b\u65e5\u7a0b',
+              },
+            ]
+          : []),
+        ...(input.historyPhotos?.get(entry.actorId) ?? [])
+          .slice(0, 2)
+          .map((target) => ({
+            app: 'photos' as const,
+            target,
+            label: '\u76f8\u5173\u4eba\u7269\u7167\u7247',
+          })),
+      ];
+      output.history.push({
+        id: entry.recordId,
+        kind: 'history_message',
+        title: name + '\u7684\u65e7\u6765\u4fe1',
+        text: entry.quote,
+        state: 'starting_point',
+        stateLabel: '\u865a\u6784\u8d77\u70b9\u6765\u4fe1',
+        assertion: 'actor_statement',
+        source: entry.source,
+        relatedLinks: links,
+        navigation: { app: 'wechat', actorId: entry.actorId },
+      });
+      if (!entry.appointment) continue;
+      const current = input.appointments.find((a) => a.id === entry.invitationId);
+      if (
+        !current ||
+        !current.status ||
+        current.title !== entry.quote ||
+        current.sourceMessageId !== entry.messageId ||
+        current.sourceEventId !== entry.message.sourceEventId ||
+        current.participantIds.length !== 1 ||
+        current.participantIds[0] !== entry.actorId
+      )
+        throw Error('INVALID_GENESIS_LINKS');
+      let currentSource: RecordSource = entry.source;
+      if (current.responseVersion !== undefined) {
+        const response = [...events.values()].find(
+          (e) =>
+            e.type === 'invitation.responded' &&
+            e.version === current.responseVersion &&
+            e.data.id === current.id,
+        );
+        const states = {
+          accept: 'confirmed',
+          cancel: 'cancelled',
+          reschedule: 'proposed',
+          attend: 'attended',
+          miss: 'missed',
+        } as const;
+        if (
+          !response ||
+          response.type !== 'invitation.responded' ||
+          states[response.data.operation] !== current.status ||
+          current.responseAt !== response.storyTime ||
+          (response.data.operation === 'reschedule' && response.data.at !== current.at)
+        )
+          throw Error('INVALID_GENESIS_LINKS');
+        currentSource = source(response);
+      } else if (
+        current.status !== 'proposed' ||
+        current.at !== entry.appointment.at ||
+        current.responseAt !== undefined
+      )
+        throw Error('INVALID_GENESIS_LINKS');
+      add(
+        {
+          id: `sys/invitation/${input.worldId}/${current.id}`,
+          kind: 'invitation',
+          title: current.title,
+          text: current.at,
+          state: current.status,
+          assertion: 'invitation_status',
+          source: currentSource,
+          origin: entry.source,
+          navigation: { app: 'calendar', invitationId: current.id },
+          relatedLinks: [
+            {
+              app: 'messages',
+              target: entry.actorId,
+              label: '\u67e5\u770b\u6765\u6e90\u5bf9\u8bdd',
+            },
+            {
+              app: 'notes',
+              target: entry.recordId,
+              label: '\u67e5\u770b\u65e7\u6765\u4fe1\u8bb0\u5f55',
+            },
+          ],
+        },
+        ['cancelled', 'attended', 'missed'].includes(current.status),
+      );
+    }
   }
   for (const choice of input.choices.slice(-5)) {
     const event = events.get(choice.sourceEventId);

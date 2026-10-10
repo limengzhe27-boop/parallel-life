@@ -35,3 +35,12 @@ export async function albumPhotos(sql: SqlClient, worldId: string) {
     ...references.filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i),
   ];
 }
+
+/** Only original immutable person bindings; a current avatar is not a history photo. */
+export async function historyPersonPhotos(sql: SqlClient, worldId: string) {
+  const rows = await sql.query(
+    "SELECT b.actor_id,b.asset_id FROM parallel_life.world_person_bindings b JOIN parallel_life.assets a ON a.id=b.asset_id AND a.owner_id=b.owner_id AND a.revision=b.asset_revision WHERE b.world_id=$1 AND a.status='ready' AND a.origin='upload' AND a.world_id IS NULL ORDER BY b.actor_id,b.asset_id",
+    [worldId],
+  );
+  return new Map<string, string[]>(rows.rows.map((r) => [r.actor_id, [r.asset_id]]));
+}

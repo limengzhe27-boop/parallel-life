@@ -106,9 +106,17 @@ export type StoryChoice = {
   };
 };
 
-export type GenesisLinks = { version: 1; seedId: Id; entries: {
-  id: Id; messageId: Id; actorId: Id; quote: string; invitationId?: Id;
-}[] };
+export type GenesisLinks = {
+  version: 1;
+  seedId: Id;
+  entries: {
+    id: Id;
+    messageId: Id;
+    actorId: Id;
+    quote: string;
+    invitationId?: Id;
+  }[];
+};
 export type WorldState = {
   genesisLinks?: GenesisLinks;
   schemaVersion: 1;
