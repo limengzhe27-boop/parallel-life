@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { WorldSpace } from '../../../contracts/world-space.ts';
 import { worldDateTimeLabel, worldTimeLabel } from '../../../modules/world/domain/display-time.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
@@ -28,6 +28,27 @@ export function mapSelection(data: WorldSpace, placeId?: string) {
         )
       : '';
   return { current, selected, route, arrival };
+}
+
+/** Logical layout only. Every line retains an actual published route and known stable endpoints. */
+export function mapDiagram(data: WorldSpace) {
+  const visible = data.places.slice(0, 16);
+  const current = data.places.find((place) => place.id === data.currentPlaceId);
+  if (current && !visible.some((place) => place.id === current.id))
+    visible[visible.length - 1] = current;
+  const columns = visible.length <= 4 ? 2 : visible.length <= 9 ? 3 : 4;
+  const rows = Math.max(1, Math.ceil(visible.length / columns));
+  const points = visible.map((place, index) => ({
+    place,
+    x: (((index % columns) + 0.5) * 320) / columns,
+    y: Math.floor(index / columns) * 100 + 32,
+  }));
+  const edges = data.routes.flatMap((route) => {
+    const from = points.find((point) => point.place.id === route.fromPlaceId);
+    const to = points.find((point) => point.place.id === route.toPlaceId);
+    return from && to && from.place.id !== to.place.id ? [{ route, from, to }] : [];
+  });
+  return { points, edges, height: rows * 100 + 24, partial: data.places.length > visible.length };
 }
 
 /** The persisted controller is the only command owner; absent or mismatched receipts stay unknown. */
@@ -84,12 +105,16 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   );
   const [readError, setReadError] = useState('');
   const [actionError, setActionError] = useState('');
+  const error = map?.error || readError;
+  const routeArrow = useId();
   const [busyAction, setBusyAction] = useState<'establish' | 'enter' | 'travel' | null>(null);
   const acting = useRef(false);
   const showFeedback = useRef(false);
   const feedbackElement = useRef<HTMLDivElement>(null);
   const detailsElement = useRef<HTMLElement>(null);
-  const feedback = mapFeedback(worldId, map?.operation ?? null);
+  const feedback: TravelFeedbackState = error
+    ? { status: 'idle' }
+    : mapFeedback(worldId, map?.operation ?? null);
   const operation = map?.operation;
   const waitingPosition =
     feedback.status === 'committed' &&
@@ -103,11 +128,11 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
     }
   }, [feedback.status]);
 
-  const space = map?.data?.worldId === worldId ? map.data : null;
+  const space = !error && map?.data?.worldId === worldId ? map.data : null;
   const { current, selected, route, arrival } = space
     ? mapSelection(space, selectedId)
     : { current: null, selected: null, route: undefined, arrival: '' };
-  const error = map?.error || readError;
+  const diagram = space ? mapDiagram(space) : null;
   const unavailable = !map || (!space && !map.loading && !error);
   async function refresh() {
     if (!map || map.loading) return;
@@ -358,29 +383,68 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
               <h2>{waitingPosition ? '正在更新当前位置' : current?.name || '位置尚未确认'}</h2>
             </div>
           </section>
-          <section className={s.diagram} aria-label="地点示意">
-            <span className={s.diagramLabel}>地点示意</span>
-            <div className={s.points}>
-              {space.places.map((place) => (
-                <button
-                  type="button"
-                  key={place.id}
-                  className={place.id === selected?.id ? s.selectedPoint : s.point}
-                  aria-pressed={place.id === selected?.id}
-                  onClick={() => selectPlace(place.id)}
+          {diagram && (
+            <section className={s.diagram} aria-label="地点示意">
+              <span className={s.diagramLabel}>地点示意 · 非地理距离</span>
+              <div className={s.graph} style={{ height: diagram.height }}>
+                <svg
+                  className={s.lines}
+                  viewBox={`0 0 320 ${diagram.height}`}
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                  focusable="false"
                 >
-                  <span
-                    className={place.id === current?.id && !waitingPosition ? s.currentPin : s.pin}
-                    aria-hidden="true"
+                  <defs>
+                    <marker
+                      id={routeArrow}
+                      markerWidth="4"
+                      markerHeight="4"
+                      refX="3"
+                      refY="2"
+                      orient="auto"
+                    >
+                      <path d="M0 0 L4 2 L0 4" fill="#82a598" />
+                    </marker>
+                  </defs>
+                  {diagram.edges.map(({ route, from, to }) => (
+                    <path
+                      key={route.id}
+                      data-known-route={route.id}
+                      className={
+                        route.id === mapSelection(space!, selected?.id).route?.id
+                          ? s.selectedLine
+                          : s.line
+                      }
+                      d={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                      markerEnd={`url(#${routeArrow})`}
+                    />
+                  ))}
+                </svg>
+                {diagram.points.map(({ place, x, y }) => (
+                  <button
+                    type="button"
+                    key={place.id}
+                    className={place.id === selected?.id ? s.selectedPoint : s.point}
+                    style={{ left: `${(x / 320) * 100}%`, top: y }}
+                    aria-pressed={place.id === selected?.id}
+                    onClick={() => selectPlace(place.id)}
                   >
-                    ●
-                  </span>
-                  <span>{place.name}</span>
-                  {place.id === current?.id && !waitingPosition && <small>当前位置</small>}
-                </button>
-              ))}
-            </div>
-          </section>
+                    <span
+                      className={
+                        place.id === current?.id && !waitingPosition ? s.currentPin : s.pin
+                      }
+                      aria-hidden="true"
+                    >
+                      ●
+                    </span>
+                    <span className={s.pointLabel}>{place.name}</span>
+                    {place.id === current?.id && !waitingPosition && <small>当前位置</small>}
+                  </button>
+                ))}
+              </div>
+              {diagram.partial && <p className={s.diagramLabel}>其余地点见下方列表</p>}
+            </section>
+          )}
           <section className={s.destinations} aria-label="选择目的地">
             <h2 className={s.sectionTitle}>想去哪里</h2>
             {space.places

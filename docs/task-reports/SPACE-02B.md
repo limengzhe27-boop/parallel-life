@@ -93,3 +93,23 @@ MapApp将引用根组件，不重复其状态或动画。只有 I 控制器验�
 独立预览变为更强的真实组件检查：编译F实际MapApp及Provider、I当前PhoneShell/navigation/icon与useWorldMap/SpaceClient/operation，**I未冻结源码仅只读编译快照，不修改，最终公共冻结后仍由I集成验收**。本地3256服务器仅提供显式合成WorldSpace/Receipt/Session API响应，没有上游代理、数据库或模型。不是生产Repository。请求审计保留以证明原command、读回与单次分钟变化；UI时间/位置来自模拟HTTP响应，不称真实PostgreSQL或线上验收。禁止非夹具API，页面有“隔离UI夹具·本地模拟API·无真实数据库/模型”提示。
 
 预览URL给根：HTTP127.0.0.1:3256/?case=normal&world=11111111-1111-4111-8111-111111111111#life=11111111-1111-4111-8111-111111111111&app=map。每个case请用新的合法UUID以免混合先前夹具状态；case可normal/long/empty/legacy/unknown-position/paused/busy/read-error/failed/conflict/unknown-unconfirmed/unknown-committed/pending。12分钟路线从23:55到次日00:07只是显式UI样本，不入生产。GET/fixture/audit是本地诊断，返回样本POST计数与commit计数。根使用自己的既有Ego125，本F将只建一个自己的地图验收space。此刻harness准备/编译中，服务器尚未启动，启动另记。
+
+## 给根/I：预览现在已可访问
+
+**初业务冻结70e5117（四登记文件）；根追加关系图/缓存失败隐藏的改进在途，18项专项与typecheck通过。3256已启动，session79815；本F唯一Ego126/p1。**
+
+http://127.0.0.1:3256/?case=normal&world=11111111-1111-4111-8111-111111111111#life=11111111-1111-4111-8111-111111111111&app=map
+
+根独立审看请用新的UUID，如66666666-6666-4666-8666-666666666666（query world与hash life一致），避免复用本F normal样本已发生行程。case=long可查长标题、8地点与长说明，case=unknown-unconfirmed需先选择医院、确认前往得到unknown再核对，随后原命令重提。初始story23:55，已知route12min预览次日00:07。所有均隔离样本，不是生产故事。Ego发现旧版本更新提示，本F未升级。
+
+前一启动默认沙箱拒绝本地监听EPERM，未产生服务器；已按授权资源通过沙箱升级启动。harness编译前后十个实际F/I源文件SHA相同，保留source-before/after.json；读取I在途公共导航/控制器快照只用于隔离UI，不改I文件。18专项检查包括真实route稳定端点图示与缓存error时无地点/回执信息；最新绘图改动尚待最终check/build复验。浏览器当前已打开真实Map路由，长/短屏/PC与恢复验证正在进行。
+
+## 最终业务增量立即供I集成
+
+根复核要求已实现：mapDiagram仅对最多16个已知stableID布局，SVG每条线保留实际route.id与from/to，未知端点不画线、不造点，明确“非地理距离”；保留下方目的地与详情。读取失败时连同缓存地点/环境/路线/到达回执全部隐藏。18专项+typecheck通过；真实来源线路与缓存隐藏两条专项通过。最终check/build针对这个增量正在跑，源码可以即刻取独立增量，不等待本F截图收尾。
+
+本F Ego126已真实验证390×844：选择0旅行、明确前往1POST/1mockcommit、12分钟23:55→次日00:07、状态/位置同步；继续地点详情与联系人目标正确，浏览器返回scroll207→207且选中医院保留，时间/位置不变。证据normal-travel-and-return.json与长屏PNG位于主.local/space02b-ui/evidence；本地模拟API不作PG证明。根Ego125的独立长短屏/PC/unknown/scene检查是根证据，不算本F完成。
+
+本F现场入口wait超时，但本地审计原请求1次、place=hospital、world位置仍hospital、时间00:07；仍在诊断，不冒称通过。未知样本有两类夹具问题：第一次固定777UUID被并行read-error案例使用，故读到错误模式；已换独立随机UUID。第二次未知连接断开被Chromium网络层自动重复相同POST（同command/expectedVersion/route，2尝试1mockcommit），直接得到committed，未出现预期unknown；不会把该超时写成产品恢复通过。将使用明确503未确认样本完成余下UI检查，不修改生产controller或扩大任务。
+
+不会因重复截图阻I发布。I请按独立增量提交合入，最终真实PG/check/build与部署由I证据确认。本F业务先仍进行中，截图报告随后接续。

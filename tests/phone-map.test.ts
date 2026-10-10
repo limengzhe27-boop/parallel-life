@@ -27,7 +27,8 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { MapApp, mapSelection, mapFeedback } = await import('../src/features/phone/apps/map.tsx');
+const { MapApp, mapSelection, mapFeedback, mapDiagram } =
+  await import('../src/features/phone/apps/map.tsx');
 const { PhoneAppsProvider } = await import('../src/features/phone/apps/provider.tsx');
 // Explicit render fixtures, never a production world or database validation.
 const worldId = '11111111-1111-4111-8111-111111111111';
@@ -345,4 +346,44 @@ test('controller working state prevents a second travel and disables operation c
     checking: true,
   });
   assert.match(failed, /disabled=""[^>]*>重新选地点/);
+});
+
+test('logical map lines use only actual published routes with known stable endpoints; no ghost places or invented streets', () => {
+  const diagram = mapDiagram({
+    ...space,
+    routes: [
+      ...space.routes,
+      { ...space.routes[0]!, id: 'hidden_route', toPlaceId: 'secret_place' },
+    ],
+  });
+  assert.equal(diagram.edges.length, 1);
+  assert.equal(diagram.edges[0]?.route.id, 'studio_hospital');
+  assert.deepEqual(
+    diagram.points.map((p) => p.place.id),
+    ['studio', 'hospital', 'park'],
+  );
+  assert.equal(diagram.edges[0]?.from.place.id, 'studio');
+  assert.equal(diagram.edges[0]?.to.place.id, 'hospital');
+  const html = render(space, {}, 'hospital');
+  assert.match(html, /data-known-route="studio_hospital"/);
+  assert.match(html, /非地理距离/);
+});
+test('read failure hides previously cached place, environment, route and committed arrival even in the same world', () => {
+  const html = render(
+    space,
+    {
+      error: '无法核实当前读取',
+      operation: {
+        request,
+        fromLabel: '缓存出发地',
+        destinationLabel: '缓存目标地',
+        status: 'committed',
+        receipt,
+      },
+    },
+    'hospital',
+  );
+  assert.match(html, /无法核实当前读取/);
+  assert.match(html, /暂时读不到地点/);
+  assert.doesNotMatch(html, /同名地点|可观察大厅|data-known-route|已到达|目标地点|前往这里/);
 });
