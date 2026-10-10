@@ -19,3 +19,9 @@
 ## 组件冻结前自审
 
 六项验证提交/unknown/失败无虚假到达、合法回执显示真实分钟与时刻、坏元数据退回核对、零分钟不谎称时长。Next.js构建成功；尚未真实接MapApp，未部署，状态待集成。组件不依赖SQL/模型，减弱动效CSS保持可读状态；不强行弹窗或自动导航，辅助决定嵌入层级。
+
+## 独立UI验收
+
+根使用ego-browser任务空间125/p1，HTTP3258/session98754，ignored .local/space02c-preview支架加载真实冻结组件及实际CSS；无世界数据、无API上游或生产会话。390×500长名称到达、pending无按钮、unknown仅核对、失败显式重试、减少动效0动画与1440视口420容器无横溢通过。真实按钮派发check/retry已核对。首张截图捕获路线动画中间帧，后改为等待SVG子树动画结束再保存稳定截图，不能用前图当最终路线。六项纯规则/typecheck/build已通过；这只是组件UI，不代表地图整页/后台时钟/生产旅行通过。
+
+本机证据主.local/space02c-preview/evidence/truth-states.json和arrival-390-500-stable.png。浏览器125暂保留供整页联合审阅，3258仅本机支架，结束后由根停止；未修改生产cookie/用户账号。Ego提示更新，本轮不升级。
