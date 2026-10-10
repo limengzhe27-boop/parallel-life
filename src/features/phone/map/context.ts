@@ -11,12 +11,15 @@ export type TravelOperation = {
   status: 'pending' | 'unknown' | 'failed' | 'committed';
   receipt?: TravelReceipt;
   message?: string;
+  recoveryUnconfirmed?: boolean;
 };
 /** World-scoped controller supplied by the integration layer. No model call on read/travel. */
 export type PhoneMapContext = {
   data: WorldSpace | null;
   operation: TravelOperation | null;
   checking: boolean;
+  working: boolean;
+  resubmitTravel: () => Promise<void>;
   checkTravel: () => Promise<void>;
   retryTravel: () => Promise<void>;
   clearTravel: () => void;
