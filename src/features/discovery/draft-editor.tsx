@@ -100,6 +100,9 @@ export function DraftEditor({
       saveRequest.current = { ...fields, commandId: crypto.randomUUID() };
     const next = await client.saveDraft(current.id, saveRequest.current);
     setCurrent(next);
+    setStory(next.story);
+    setSetup(next.setup);
+    setSelection(next.selection);
     setSaved(true);
     saveRequest.current = null;
     onSaved?.();
