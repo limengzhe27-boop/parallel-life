@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const onlyChild: OfficialLifePack = {
   card: {
     id: 'only-child',
-    version: 1,
+    version: 2,
     title: '江浙沪独生子',
     hook: '爸妈让你接班。朋友说，你只要出钱就行。',
     identityLabel: '25岁 · 家族企业独生子',
@@ -18,6 +18,80 @@ export const onlyChild: OfficialLifePack = {
     tradeoff: '资源能带来机会，却不能替你得到信任。你可以接班，也可以选择自己的生活。',
   },
   opening: {
+    // SPACE-02A author-defined fictional routes; no GPS or real traffic claim.
+    space: {
+      initialPlaceId: 'family_home',
+      places: [
+        {
+          key: 'family_home',
+          name: '\u8bb8\u5bb6\u4f4f\u5904',
+          description:
+            '\u4f60\u719f\u6089\u7684\u5bb6\u4e0e\u4e34\u6e56\u9732\u53f0\u3002\u9732\u53f0\u4f7f\u7528\u6761\u4ef6\u53ef\u5728\u4fbf\u7b7e\u548c\u4e0e\u6bcd\u4eb2\u7684\u5bf9\u8bdd\u4e2d\u6838\u5bf9\u3002',
+          actorKeys: ['shenqiu'],
+          invitationKeys: ['dinner'],
+        },
+        {
+          key: 'lake',
+          name: '\u6e56\u8fb9',
+          description:
+            '\u987e\u9065\u63d0\u8bae\u89c1\u9762\u7684\u6e56\u8fb9\u3002\u5bf9\u65b9\u7b54\u5e94\u3001\u62cd\u7167\u548c\u4f5c\u54c1\u5b8c\u6210\u4ecd\u987b\u771f\u5b9e\u884c\u52a8\u3002',
+          actorKeys: ['guyao', 'chenfang'],
+          invitationKeys: ['lake'],
+        },
+        {
+          key: 'company',
+          name: '\u5bb6\u65cf\u516c\u53f8',
+          description:
+            '\u5bb6\u65cf\u4f01\u4e1a\u7684\u529e\u516c\u5730\u70b9\uff1b\u62a5\u4ef7\u548c\u4eba\u8f66\u6388\u6743\u8bf7\u4e0e\u90b5\u6674\u6838\u5bf9\u3002',
+          actorKeys: ['shaoqing', 'xucheng'],
+          invitationKeys: [],
+        },
+      ],
+      routes: [
+        {
+          key: 'family_home_to_lake',
+          from: 'family_home',
+          to: 'lake',
+          minutes: 8,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'lake_to_family_home',
+          from: 'lake',
+          to: 'family_home',
+          minutes: 8,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'family_home_to_company',
+          from: 'family_home',
+          to: 'company',
+          minutes: 22,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'company_to_family_home',
+          from: 'company',
+          to: 'family_home',
+          minutes: 22,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'lake_to_company',
+          from: 'lake',
+          to: 'company',
+          minutes: 20,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'company_to_lake',
+          from: 'company',
+          to: 'lake',
+          minutes: 20,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+      ],
+    },
     startAt: '2026-10-09T08:20:00.000Z',
     identity:
       '你25岁，是许家独生子。家里经营规模有限的制造企业，生活资源较充足；父母希望你接班。陈放是多年朋友，顾遥是熟悉的旧同学。',

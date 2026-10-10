@@ -118,6 +118,7 @@ export type GenesisLinks = {
   }[];
 };
 export type WorldState = {
+  space?: import('./space.ts').WorldSpaceState;
   /** Immutable public editorial material; never the full director script. */
   officialLife?: {
     presetId: string;

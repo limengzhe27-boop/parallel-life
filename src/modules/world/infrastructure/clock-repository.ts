@@ -51,10 +51,10 @@ export class PostgresClockStore implements ClockStore {
       ).rows[0];
       if (row)
         return {
-          storyNow: new Date(String(row.story_now)).toISOString(),
+          storyNow: new Date(row.story_now).toISOString(),
           speed: Number(row.speed),
           paused: Boolean(row.paused),
-          lastTickAt: new Date(String(row.last_tick_at)).toISOString(),
+          lastTickAt: new Date(row.last_tick_at).toISOString(),
           missedBeats: Number(row.missed_beats),
           summary: row.summary ? String(row.summary) : null,
         };
@@ -122,16 +122,68 @@ export class PostgresClockStore implements ClockStore {
     input: { paused?: boolean; speed?: number },
     realNow = new Date().toISOString(),
   ): Promise<void> {
-    const clock = await this.read(ownerId, worldId);
-    await this.write(ownerId, worldId, {
-      ...clock,
-      storyNow: projectStoryTime(clock, realNow),
-      paused: input.paused ?? clock.paused,
-      speed: input.speed === undefined ? clock.speed : clampSpeed(input.speed),
-      /* Anchor the old rate before changing it; paused time never accumulates on resume. */
-      lastTickAt: realNow,
+    await this.db.transaction(ownerId, async (sql) => {
+      const accessible = await sql.query(
+        'SELECT id FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2',
+        [worldId, ownerId],
+      );
+      if (!accessible.rowCount) throw new DomainError('NOT_FOUND');
+      if (
+        !(
+          await sql.query('SELECT pg_try_advisory_xact_lock(hashtextextended($1,0)) AS locked', [
+            worldId,
+          ])
+        ).rows[0]?.locked
+      )
+        throw new DomainError('VERSION_CONFLICT');
+      const world = (
+        await sql.query(
+          'SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+          [worldId, ownerId],
+        )
+      ).rows[0];
+      const r = (
+        await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 FOR UPDATE', [
+          worldId,
+        ])
+      ).rows[0];
+      const clock: WorldClock = r
+        ? {
+            storyNow: new Date(r.story_now).toISOString(),
+            lastTickAt: new Date(r.last_tick_at).toISOString(),
+            speed: Number(r.speed),
+            paused: Boolean(r.paused),
+            missedBeats: Number(r.missed_beats),
+            summary: r.summary ?? null,
+          }
+        : {
+            storyNow: world.state.time,
+            lastTickAt: realNow,
+            speed: DEFAULT_SPEED,
+            paused: false,
+            missedBeats: 0,
+            summary: null,
+          };
+      const storyNow = new Date(
+        Math.max(Date.parse(world.state.time), Date.parse(projectStoryTime(clock, realNow))),
+      ).toISOString();
+      await sql.query(
+        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+      ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,speed=EXCLUDED.speed,paused=EXCLUDED.paused,last_tick_at=EXCLUDED.last_tick_at,updated_at=now()`,
+        [
+          worldId,
+          ownerId,
+          storyNow,
+          input.speed === undefined ? clock.speed : clampSpeed(input.speed),
+          input.paused ?? clock.paused,
+          realNow,
+          clock.missedBeats,
+          clock.summary,
+        ],
+      );
     });
   }
+
   async setStoryTime(ownerId: string, worldId: string, storyNow: string): Promise<void> {
     await this.db.transaction(ownerId, (sql) =>
       sql.query(

@@ -1,3 +1,4 @@
+import { PostgresWorldSpace } from '../modules/world/infrastructure/space-repository.ts';
 import { OfficialLifeRepository } from '../modules/settings/infrastructure/official-life-repository.ts';
 import { officialLifeCatalog } from '../modules/settings/infrastructure/official-presets/index.ts';
 import { PostgresPlayerRecords } from '../modules/world/infrastructure/player-records-repository.ts';
@@ -69,6 +70,9 @@ function createServices() {
   return {
     db,
     records: new PostgresPlayerRecords(db),
+    space: new PostgresWorldSpace(db, officialLifeCatalog),
+    withWorldActivityLock: <T>(worldId: string, run: () => Promise<T>) =>
+      new PostgresClockStore(db).withAdvanceLock(worldId, run),
     sessions: new SignedSession(secret),
     /**
      * Guest-creation quota for one caller. The route stays unaware of how a

@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 import type { PhoneApp, PhonePanel } from './navigation.ts';
 const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode> = {
+  map: (
+    <>
+      <path d="m3 7 8-3 10 4 8-3v20l-8 3-10-4-8 3ZM11 4v20M21 8v20" />
+      <circle cx="18" cy="14" r="3" />
+    </>
+  ),
   scenes: <path d="M4 26V8l12-4 12 4v18M10 26V13h12v13M16 13v13" />,
   scene: (
     <>
@@ -147,6 +153,15 @@ const appFaces: Partial<Record<keyof typeof shapes, ReactNode>> = {
       <path d="M7 0h18a7 7 0 0 1 7 7v3H0V7a7 7 0 0 1 7-7Z" fill="#f7cc46" />
       <path d="M0 10.6h32" stroke="#d2bd78" strokeWidth=".35" strokeDasharray=".4 1" />
       <path d="M0 16.5h32M0 22.5h32M0 28.5h32" stroke="#d6d6d0" strokeWidth=".35" />
+    </g>
+  ),
+  map: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#eef4e8" />
+      <path d="M0 21 32 8M9 0l5 32" stroke="#fff" strokeWidth="5" />
+      <path d="M0 21 32 8" stroke="#f4ce71" strokeWidth="2" />
+      <path d="M22 7a6 6 0 0 0-6 6c0 5 6 11 6 11s6-6 6-11a6 6 0 0 0-6-6Z" fill="#4085e5" />
+      <circle cx="22" cy="13" r="2" fill="#fff" />
     </g>
   ),
   scenes: (

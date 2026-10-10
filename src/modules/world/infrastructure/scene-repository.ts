@@ -1,3 +1,4 @@
+import { assertSpaceIdle, lockWorldActivity } from './space-repository.ts';
 import { deriveMemory } from '../../memory/application/derive-memory.ts';
 import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
@@ -425,6 +426,11 @@ export class SceneRepository {
         throw new DomainError('INVALID_COMMAND', 'Explicitly leave the current scene');
       const ap = world.appointments.find((a) => a.id === input.appointmentId);
       if (!ap) throw new DomainError('NOT_FOUND');
+      if (world.space) {
+        const place = world.space.places.find((p) => p.appointmentIds.includes(ap.id));
+        if (!place || world.space.currentPlaceId !== place.id)
+          throw new DomainError('INVALID_COMMAND', '请先前往约定地点');
+      }
       if (ap.status !== 'confirmed' || Date.parse(ap.at) > Date.parse(storyAt))
         throw new DomainError('INVALID_COMMAND', 'Appointment is not confirmed or has not started');
       const sceneId = randomUUID(),
@@ -444,6 +450,7 @@ export class SceneRepository {
         ...source,
         title: ap.title,
         appointmentId: ap.id,
+        ...(world.space ? { placeId: world.space.currentPlaceId } : {}),
         status: 'active',
         presence: [{ participant: player, joinedVersion: source.sourceVersion, ...source }],
       };
@@ -453,6 +460,77 @@ export class SceneRepository {
       );
       const ctx = await context(sql, { ...world, version: source.sourceVersion });
       await saveExperience(sql, enterCurrentScene(ctx, x, scene));
+      const task = await enqueue(
+        sql,
+        ownerId,
+        'world',
+        worldId,
+        input.commandId,
+        { type: 'scene', sceneId, actionId: null, expectedVersion: source.sourceVersion },
+        hash,
+      );
+      return receipt(sql, ownerId, {
+        commandId: input.commandId,
+        worldId,
+        version: source.sourceVersion,
+        sceneId,
+        task,
+      });
+    });
+  }
+  async enterPlace(
+    ownerId: string,
+    worldId: string,
+    input: { commandId: string; expectedVersion: number; placeId: string },
+  ) {
+    return this.db.transaction(ownerId, async (sql) => {
+      await sceneWorld(sql, ownerId, worldId);
+      const hash = requestHash(['scene.enter_place', worldId, input]);
+      const old = await previous(sql, worldId, input.commandId, hash);
+      if (old) return old;
+      await lockWorldActivity(sql, worldId);
+      const { world, storyAt, paused } = await sceneWorld(sql, ownerId, worldId, true);
+      const replay = await previous(sql, worldId, input.commandId, hash);
+      if (replay) return replay;
+      if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      if (paused) throw new DomainError('INVALID_COMMAND');
+      await assertSpaceIdle(sql, worldId);
+      const place = world.space?.places.find((p) => p.id === input.placeId),
+        x = await experience(sql, ownerId, worldId);
+      if (!place || world.space!.currentPlaceId !== place.id || x.currentSceneId)
+        throw new DomainError('INVALID_COMMAND');
+      const sceneId = randomUUID(),
+        source = await event(
+          sql,
+          world,
+          input.commandId,
+          hash,
+          'scene.entered',
+          { sceneId, placeId: place.id },
+          storyAt,
+        );
+      const scene: SceneSession = {
+        id: sceneId,
+        ownerId,
+        worldId,
+        ...source,
+        title: place.name,
+        placeId: place.id,
+        status: 'active',
+        presence: [{ participant: player, joinedVersion: source.sourceVersion, ...source }],
+      };
+      await sql.query(
+        'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
+        [sceneId, worldId, ownerId, source.sourceEventId, scene],
+      );
+      await saveExperience(
+        sql,
+        enterCurrentScene(
+          await context(sql, { ...world, version: source.sourceVersion }),
+          x,
+          scene,
+        ),
+      );
       const task = await enqueue(
         sql,
         ownerId,
@@ -632,6 +710,8 @@ export async function scenePlanning(
   const { world, storyAt, paused } = await sceneWorld(sql, ownerId, worldId),
     x = await experience(sql, ownerId, worldId),
     s = await loadScene(sql, worldId, input.sceneId);
+  if (s.scene.placeId && world.space?.currentPlaceId !== s.scene.placeId)
+    throw new DomainError('INVALID_COMMAND');
   if (paused || x.currentSceneId !== s.scene.id || s.scene.status !== 'active')
     throw new DomainError('INVALID_COMMAND');
   const action = input.actionId ? s.actions.find((a) => a.id === input.actionId) : undefined;
@@ -676,6 +756,10 @@ export async function commitSceneProposal(
 ) {
   const locked = await sceneWorld(sql, ownerId, worldId, true),
     c = await scenePlanning(sql, ownerId, worldId, input);
+  if (c.scene.placeId) {
+    const canonical = c.world.space?.places.find((p) => p.id === c.scene.placeId);
+    if (!canonical || p.location !== canonical.name) throw new DomainError('INVALID_PROPOSAL');
+  }
   const place = c.entries.filter((e) => e.kind === 'time_place').at(-1);
   if (c.action && place?.kind === 'time_place') p = { ...p, location: place.location };
   if (c.action && p.initialMatters?.length)

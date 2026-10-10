@@ -1,8 +1,10 @@
+import { authoredSpace, type SpaceOpening } from './space.ts';
 import type { WorldState } from './types.ts';
 import { isoInstant, validateEventId } from './validation.ts';
 
 /** Trusted editorial inputs still require reference, time and visibility validation. */
 export type OfficialOpeningDraft = {
+  space?: SpaceOpening;
   startAt: string;
   identity: string;
   setting: string;
@@ -199,6 +201,19 @@ export function officialGenesis(input: {
     },
     mediaRequests: [],
   };
+  if (o.space) {
+    state.space = authoredSpace(
+      o.space,
+      {
+        kind: 'official_genesis',
+        presetId: input.presetId,
+        contentVersion: input.contentVersion,
+        snapshotVersion: 0,
+      },
+      ids,
+      new Map(o.invitations.map((inv, i) => [inv.key, state.appointments[i]!.id])),
+    );
+  }
   const allIds = [
     state.id,
     ...state.actors.map((a) => a.id),

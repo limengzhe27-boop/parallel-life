@@ -37,6 +37,10 @@ export const SceneReceiptSchema = z.strictObject({
 });
 export const SceneRuntimeSessionSchema = SceneSessionSchema.extend({
   appointmentId: z.string().min(1).max(100).optional(),
+  placeId: z
+    .string()
+    .regex(/^[a-z0-9_]{1,64}$/)
+    .optional(),
 });
 const SavedInputText = z
   .string()
@@ -72,6 +76,10 @@ export const SceneSummarySchema = z.strictObject({
   title: z.string().min(1).max(120),
   status: z.enum(['active', 'paused', 'ended']),
   appointmentId: z.string().min(1).max(100).optional(),
+  placeId: z
+    .string()
+    .regex(/^[a-z0-9_]{1,64}$/)
+    .optional(),
   sourceVersion: Version,
   storyAt: Timestamp.optional(),
   location: z.string().min(1).max(200).optional(),

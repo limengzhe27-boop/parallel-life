@@ -40,7 +40,7 @@ test('phone internal auxiliary pages retain old deep links and return to their a
 
 test('desktop exposes shared apps plus an independent scene entrance', async () => {
   const { desktopApps } = await import('../src/features/phone/navigation.ts');
-  assert.deepEqual(desktopApps, ['messages', 'calendar', 'photos', 'notes', 'scenes']);
+  assert.deepEqual(desktopApps, ['messages', 'calendar', 'photos', 'notes', 'scenes', 'map']);
 });
 
 test('new notification ids arrive once while reordered or repeated ids do not replay', async () => {

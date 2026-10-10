@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const returnedDaughter: OfficialLifePack = {
   card: {
     id: 'returned-daughter',
-    version: 1,
+    version: 2,
     title: '刚回家的真千金',
     hook: '你回到了亲生父母家。今晚，却还是她的生日宴。',
     identityLabel: '24岁 · 刚找回身世的女儿',
@@ -19,6 +19,80 @@ export const returnedDaughter: OfficialLifePack = {
     tradeoff: '血缘给出一个入口，谁真心对你好仍要自己看。公开反击、共同协商和拒绝亮相都有后续。',
   },
   opening: {
+    // SPACE-02A author-defined fictional routes; no GPS or real traffic claim.
+    space: {
+      initialPlaceId: 'xu_home',
+      places: [
+        {
+          key: 'xu_home',
+          name: '\u8bb8\u5bb6\u4f4f\u5904',
+          description:
+            '\u4f60\u4e09\u5929\u524d\u642c\u6765\u7684\u5bb6\u3002\u4eca\u665a\u4ecb\u7ecd\u65b9\u5f0f\u5c1a\u672a\u5f97\u5230\u4f60\u7684\u540c\u610f\u3002',
+          actorKeys: ['zhoulan', 'xuwen'],
+          invitationKeys: [],
+        },
+        {
+          key: 'hotel',
+          name: '\u5bb4\u4f1a\u9152\u5e97',
+          description:
+            '\u4eca\u665a\u751f\u65e5\u5bb4\u7684\u4e3e\u529e\u5730\u70b9\uff1b\u73b0\u573a\u6d41\u7a0b\u4e0d\u7b49\u4e8e\u4f60\u5df2\u540c\u610f\u516c\u5f00\u4eae\u76f8\u3002',
+          actorKeys: ['chengye'],
+          invitationKeys: ['birthday'],
+        },
+        {
+          key: 'chen_home',
+          name: '\u9648\u7389\u5bb6',
+          description:
+            '\u628a\u4f60\u517b\u5927\u7684\u6bcd\u4eb2\u7684\u5bb6\u3002\u5979\u4eca\u592920:00\u624d\u4e0b\u73ed\uff0c\u6765\u5230\u8fd9\u91cc\u4e0d\u80fd\u5047\u5b9a\u5979\u5df2\u56de\u6765\u3002',
+          actorKeys: ['chenyu'],
+          invitationKeys: [],
+        },
+      ],
+      routes: [
+        {
+          key: 'xu_home_to_hotel',
+          from: 'xu_home',
+          to: 'hotel',
+          minutes: 20,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'hotel_to_xu_home',
+          from: 'hotel',
+          to: 'xu_home',
+          minutes: 20,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'xu_home_to_chen_home',
+          from: 'xu_home',
+          to: 'chen_home',
+          minutes: 35,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'chen_home_to_xu_home',
+          from: 'chen_home',
+          to: 'xu_home',
+          minutes: 35,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'hotel_to_chen_home',
+          from: 'hotel',
+          to: 'chen_home',
+          minutes: 25,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'chen_home_to_hotel',
+          from: 'chen_home',
+          to: 'hotel',
+          minutes: 25,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+      ],
+    },
     startAt: '2026-10-09T08:10:00.000Z',
     identity:
       '你24岁，幼年走失后被陈玉依法收养，一个月前确认与许家的亲生关系，三天前搬来。你原来在印刷店工作，做手工装帧。许明珠是许家养育多年的同龄女儿。',

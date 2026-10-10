@@ -4,7 +4,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const countyYellowHair: OfficialLifePack = {
   card: {
     id: 'county-yellow-hair',
-    version: 1,
+    version: 2,
     title: '县城黄毛',
     hook: '她坚持带你回家。饭桌上，却坐着她爸更中意的人。',
     identityLabel: '23岁 · 县城修车青年',
@@ -18,6 +18,80 @@ export const countyYellowHair: OfficialLifePack = {
     tradeoff: '争一口气、认真做事、维护关系，未必能一次兼顾。你也可以拒绝饭局或合伙。',
   },
   opening: {
+    // SPACE-02A author-defined fictional routes; no GPS or real traffic claim.
+    space: {
+      initialPlaceId: 'repair_shop',
+      places: [
+        {
+          key: 'repair_shop',
+          name: '\u8001\u5468\u4fee\u8f66\u94fa',
+          description:
+            '\u4f60\u5de5\u4f5c\u7684\u4fee\u8f66\u94fa\uff0c\u7ef4\u4fee\u6458\u5f55R17\u53ef\u5728\u4fbf\u7b7e\u6838\u5bf9\uff1b\u8f66\u8f86\u4ea4\u4ed8\u4ecd\u9700\u5b9e\u9645\u6c9f\u901a\u548c\u884c\u52a8\u3002',
+          actorKeys: ['laozhou', 'liuhang'],
+          invitationKeys: [],
+        },
+        {
+          key: 'lin_home',
+          name: '\u6797\u60a6\u5bb6',
+          description:
+            '\u6797\u60a6\u9080\u8bf7\u4f60\u6765\u5403\u665a\u996d\u7684\u5bb6\u3002\u5230\u95e8\u53e3\u4e0d\u4ee3\u8868\u5df2\u7b54\u5e94\u996d\u5c40\u6216\u5b8c\u6210\u62dc\u8bbf\u3002',
+          actorKeys: ['linyue'],
+          invitationKeys: ['family_dinner'],
+        },
+        {
+          key: 'old_workshop',
+          name: '\u65e7\u8f66\u95f4',
+          description:
+            '\u963f\u6770\u63d0\u8bae\u5408\u79df\u7684\u65e7\u8f66\u95f4\uff1b\u770b\u573a\u5730\u4e0d\u4ee3\u8868\u7b7e\u7ea6\u6216\u51fa\u8d44\u3002',
+          actorKeys: ['ajie'],
+          invitationKeys: ['workshop_visit'],
+        },
+      ],
+      routes: [
+        {
+          key: 'repair_shop_to_lin_home',
+          from: 'repair_shop',
+          to: 'lin_home',
+          minutes: 12,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'lin_home_to_repair_shop',
+          from: 'lin_home',
+          to: 'repair_shop',
+          minutes: 12,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'repair_shop_to_old_workshop',
+          from: 'repair_shop',
+          to: 'old_workshop',
+          minutes: 18,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'old_workshop_to_repair_shop',
+          from: 'old_workshop',
+          to: 'repair_shop',
+          minutes: 18,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'lin_home_to_old_workshop',
+          from: 'lin_home',
+          to: 'old_workshop',
+          minutes: 15,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'old_workshop_to_lin_home',
+          from: 'old_workshop',
+          to: 'lin_home',
+          minutes: 15,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+      ],
+    },
     startAt: '2026-10-09T09:40:00.000Z',
     identity:
       '你23岁，在南桥县的修车铺工作，头发染得张扬。林悦是交往半年的女友；阿杰是从小一起长大的朋友。你有自己的手艺，也在想下一步怎样生活。',

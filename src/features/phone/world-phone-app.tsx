@@ -1,4 +1,5 @@
 'use client';
+import { useWorldMap } from './map/use-map.ts';
 import { useWorldRecords } from './use-world-records.ts';
 import { ProgressState } from '../../components/progress-state.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -707,6 +708,7 @@ export function WorldPhoneSurface({
   const [sceneWaiting, setSceneWaiting] = useState(false);
   const sceneClient = useMemo(() => new SceneClient(), [data.id]);
   const groups = useGroups(data.id, !preview, onReload);
+  const map = useWorldMap(data.id, data.version ?? 0, !preview, onReload);
   useEffect(() => {
     if (!sceneWaiting || preview) return;
     const timer = setInterval(() => {
@@ -720,8 +722,8 @@ export function WorldPhoneSurface({
     return () => clearInterval(timer);
   }, [sceneWaiting, sceneClient, data.id, preview]);
   useEffect(() => {
-    onExperienceBusy?.(sceneWaiting || groups.pending);
-  }, [sceneWaiting, groups.pending, onExperienceBusy]);
+    onExperienceBusy?.(sceneWaiting || groups.pending || map.working);
+  }, [sceneWaiting, groups.pending, map.working, onExperienceBusy]);
   useEffect(() => {
     void groups.refresh();
   }, [data.version, groups.refresh]);
@@ -906,7 +908,7 @@ export function WorldPhoneSurface({
             openPanel={openPanel}
           />
         )}
-        renderApp={(context) => <PhoneAppView {...context} />}
+        renderApp={(context) => <PhoneAppView {...context} map={map} />}
         renderPanel={(panel) => {
           if (panel === 'timeline') {
             return (

@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const retiredStar: OfficialLifePack = {
   card: {
     id: 'retired-star',
-    version: 1,
+    version: 2,
     title: '退圈后的顶流',
     hook: '你说不回来了。今晚所有人，又在等你出现。',
     identityLabel: '28岁 · 搬到海边的退圈歌手',
@@ -18,6 +18,80 @@ export const retiredStar: OfficialLifePack = {
       '重返舞台、远程帮忙或继续普通生活，都有真实关系需要回应；名气不等于每个人都要迁就你。',
   },
   opening: {
+    // SPACE-02A author-defined fictional routes; no GPS or real traffic claim.
+    space: {
+      initialPlaceId: 'seaside_home',
+      places: [
+        {
+          key: 'seaside_home',
+          name: '\u6d77\u8fb9\u4f4f\u5904',
+          description:
+            '\u4f60\u9000\u5708\u540e\u4f4f\u7684\u6d77\u8fb9\u4f4f\u6240\uff0c\u53ef\u4ee5\u4fdd\u7559\u5b89\u9759\u751f\u6d3b\uff1b\u8fd9\u91cc\u6ca1\u6709\u9ed8\u8ba4\u767b\u53f0\u5b89\u6392\u3002',
+          actorKeys: ['songqing'],
+          invitationKeys: [],
+        },
+        {
+          key: 'cheng_shop',
+          name: '\u7a0b\u6653\u7684\u5c0f\u5e97',
+          description:
+            '\u4e0e\u4f60\u7684\u4f4f\u5904\u5728\u540c\u8857\u533a\u7684\u5c0f\u5e97\u3002\u665a\u996d\u9080\u8bf7\u5c1a\u672a\u4ee3\u8868\u4f60\u5df2\u63a5\u53d7\u6216\u5df2\u7ecf\u5403\u996d\u3002',
+          actorKeys: ['chengxiao'],
+          invitationKeys: ['meal'],
+        },
+        {
+          key: 'old_venue',
+          name: '\u65e7\u57ce\u6f14\u51fa\u573a\u5730',
+          description:
+            '\u9646\u58f0\u4eca\u665a\u6f14\u51fa\u7684\u573a\u5730\u3002\u5230\u8fbe\u4e0d\u4ee3\u8868\u540c\u610f\u590d\u51fa\u3001\u7b7e\u7ea6\u6216\u767b\u53f0\u3002',
+          actorKeys: ['lusheng', 'jiyuan'],
+          invitationKeys: ['show'],
+        },
+      ],
+      routes: [
+        {
+          key: 'seaside_home_to_cheng_shop',
+          from: 'seaside_home',
+          to: 'cheng_shop',
+          minutes: 5,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'cheng_shop_to_seaside_home',
+          from: 'cheng_shop',
+          to: 'seaside_home',
+          minutes: 5,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'seaside_home_to_old_venue',
+          from: 'seaside_home',
+          to: 'old_venue',
+          minutes: 95,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'old_venue_to_seaside_home',
+          from: 'old_venue',
+          to: 'seaside_home',
+          minutes: 95,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'cheng_shop_to_old_venue',
+          from: 'cheng_shop',
+          to: 'old_venue',
+          minutes: 95,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+        {
+          key: 'old_venue_to_cheng_shop',
+          from: 'old_venue',
+          to: 'cheng_shop',
+          minutes: 95,
+          modeLabel: '\u6545\u4e8b\u8bbe\u5b9a\u7684\u884c\u7a0b',
+        },
+      ],
+    },
     startAt: '2026-10-09T06:10:00.000Z',
     identity:
       '你28岁，是一年前停止公开演出的原创歌手，如今住在海边。陆声是旧搭档，唐梨是前经纪人，邻居程晓经营小店。大家还记得你的作品，也有人只把你当熟人。',

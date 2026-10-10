@@ -32,6 +32,7 @@ const apps: Record<PhoneApp, string> = {
   calendar: '日历',
   notes: '备忘录',
   scenes: '现场',
+  map: '地图',
 };
 const panels: Partial<Record<PhonePanel, string>> = {
   timeline: '人生轨迹',

@@ -56,6 +56,7 @@ export type SceneSession = ExperienceScope &
     id: string;
     title: string;
     appointmentId?: string;
+    placeId?: string;
     status: 'active' | 'paused' | 'ended';
     presence: ScenePresence[];
   };

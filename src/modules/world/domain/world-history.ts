@@ -1,3 +1,4 @@
+import { applySpaceEvent, type TravelEvent, type SpaceEstablishedEvent } from './space.ts';
 import type { WorldEvent, WorldState, OutboxJob } from './types.ts';
 import { applyEvent } from './reducer.ts';
 import { applyInvitationEvent, type InvitationEvent } from './invitations.ts';
@@ -31,7 +32,13 @@ type SceneWorldEvent = {
 };
 /** Stored event union is separate from the existing private-turn command contract. */
 export type WorldHistoryEvent =
-  WorldEvent | InvitationEvent | NoteEvent | GroupEvent | SceneWorldEvent;
+  | WorldEvent
+  | InvitationEvent
+  | NoteEvent
+  | GroupEvent
+  | SceneWorldEvent
+  | TravelEvent
+  | SpaceEstablishedEvent;
 export function applyWorldHistoryEvent(
   current: WorldState,
   event: WorldHistoryEvent,
@@ -43,6 +50,8 @@ export function applyWorldHistoryEvent(
   validateEventId(event.commandId);
   isoInstant(event.occurredAt);
   if (isGroupEvent(event)) return { state: applyGroupWorldEvent(current, event), jobs: [] };
+  if (event.type === 'travel.completed' || event.type === 'space.established')
+    return { state: applySpaceEvent(current, event), jobs: [] };
   if (event.type === 'turn.resolved') return applyEvent(current, event);
   if (event.type === 'invitation.responded') {
     isoInstant(event.storyTime);

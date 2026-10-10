@@ -114,6 +114,10 @@ export const SceneSessionSchema = z.strictObject({
   id: Id,
   title: z.string().trim().min(1).max(120),
   appointmentId: Id.optional(),
+  placeId: z
+    .string()
+    .regex(/^[a-z0-9_]{1,64}$/)
+    .optional(),
   status: z.enum(['active', 'paused', 'ended']),
   presence: z.array(ScenePresenceSchema).max(1000),
 }) satisfies z.ZodType<SceneSession>;

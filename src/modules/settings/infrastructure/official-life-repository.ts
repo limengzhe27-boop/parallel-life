@@ -36,7 +36,12 @@ export class OfficialLifeRepository {
               saved.find(
                 (row) =>
                   row.preset_id === pack.card.id && row.content_version === pack.card.version,
-              )?.world_id ?? null,
+              )?.world_id ??
+              saved
+                .filter((row) => row.preset_id === pack.card.id)
+                .sort((a, b) => Number(b.content_version) - Number(a.content_version))[0]
+                ?.world_id ??
+              null,
           }),
         ),
       };
