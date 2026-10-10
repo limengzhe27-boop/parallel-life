@@ -26,9 +26,23 @@ export function recordDestination(record: RecordItem) {
   return undefined;
 }
 
+/** Only the invitation timestamp is presentation formatting, never a new fact or changed time. */
+export function recordText(record: RecordItem): string {
+  if (record.kind !== 'invitation') return record.text;
+  const formatted = timeText(record.text);
+  return formatted ? `约定时间：${formatted}` : record.text;
+}
+
 export function searchRecords(records: readonly RecordItem[], query: string): RecordItem[] {
   return records.filter((record) =>
-    searchable(query, record.title, record.text, record.stateLabel, attribution[record.assertion]),
+    searchable(
+      query,
+      record.title,
+      record.text,
+      recordText(record),
+      record.stateLabel,
+      attribution[record.assertion],
+    ),
   );
 }
 
@@ -45,7 +59,7 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
           >
             <span className={s.rowText}>
               <strong>{record.title}</strong>
-              <span className={s.preview}>{record.text}</span>
+              <span className={s.preview}>{recordText(record)}</span>
               <small>{record.stateLabel}</small>
             </span>
             <span className={s.chevron} aria-hidden="true">
@@ -158,7 +172,7 @@ export function NotesRecordDetail({
       <p className={s.attribution}>{attribution[record.assertion]}</p>
       <h2>{record.title}</h2>
       <span className={s.state}>{record.stateLabel}</span>
-      <p className={s.body}>{record.text}</p>
+      <p className={s.body}>{recordText(record)}</p>
       <div className={s.source}>
         {record.source.kind === 'opening_field' ? (
           <p>来自这段人生的起点</p>

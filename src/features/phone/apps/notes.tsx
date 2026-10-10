@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import type { PhoneAppContext } from '../phone-shell.tsx';
-import type { PhoneContact } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
-import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
+import { Empty, Feedback, Links, Search } from './common.tsx';
 import { searchable, timeText } from './helpers.ts';
 import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
@@ -36,7 +34,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         void reloadRecords();
       }
     : undefined;
-  const [sharingNote, setSharingNote] = useState<{ title: string; text: string } | null>(null);
+
   const note = data.notes.find((n) => n.id === target),
     isNew = target === NEW_NOTE_TARGET && !note;
   const key = target ?? '',
@@ -49,6 +47,16 @@ export function NotesApp({ target, open }: PhoneAppContext) {
   if (isSystemRecordTarget(target))
     return (
       <div className={`${s.app} ${r.notesPage}`}>
+        <nav className={r.recordNavigation} aria-label="备忘录导航">
+          <button
+            type="button"
+            className={r.recordBack}
+            aria-label="返回备忘录"
+            onClick={() => open('notes')}
+          >
+            <span aria-hidden="true">‹</span> 备忘录
+          </button>
+        </nav>
         {records.status === 'ready' ? (
           <NotesRecordDetail data={records.data} target={target!} open={open} />
         ) : (
@@ -163,29 +171,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                 🗑️
               </button>
             )}
-            {data.contacts.length > 0 && (
-              <button
-                type="button"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#0284c7',
-                  fontSize: '18px',
-                  cursor: 'pointer',
-                  padding: '4px',
-                }}
-                title="分享到微信"
-                onClick={() => {
-                  playTapSound();
-                  setSharingNote({
-                    title: draft.title || note?.title || '便签',
-                    text: draft.text || note?.text || '',
-                  });
-                }}
-              >
-                📤
-              </button>
-            )}
+
             <button
               className={s.noteAction}
               type="submit"
@@ -284,50 +270,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           disabled={!!operation?.busy}
           onChange={(e) => setNoteDraft(key, { ...draft, text: e.target.value })}
         />
-        {data.contacts.length > 0 && (
-          <div
-            style={{
-              marginTop: '12px',
-              padding: '12px 14px',
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
-                💬 与身边的人讨论这段想法
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                一键把便签内容带入微信对话
-              </div>
-            </div>
-            <button
-              type="button"
-              style={{
-                padding: '7px 12px',
-                borderRadius: '8px',
-                background: '#07c160',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-              onClick={() =>
-                setSharingNote({
-                  title: draft.title || note?.title || '便签',
-                  text: draft.text || note?.text || '',
-                })
-              }
-            >
-              选择好友 →
-            </button>
-          </div>
-        )}
+
         <div className={s.inline}>
           {conflict && (
             <div role="alert" className={s.error}>
@@ -365,19 +308,6 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           )}
           <Links links={note?.links} open={open} />
         </div>
-        {sharingNote && (
-          <ShareNoteModal
-            note={sharingNote}
-            contacts={data.contacts}
-            onClose={() => setSharingNote(null)}
-            onShare={(contactId) => {
-              const text = `我刚在便签里记录了这段想法，你帮我看看：\n\n【${sharingNote.title || '便签'}】\n${sharingNote.text}`;
-              setDraft(`message:${contactId}`, text);
-              setSharingNote(null);
-              open('messages', contactId);
-            }}
-          />
-        )}
       </form>
     );
   }
@@ -591,19 +521,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           text={query ? '试试其他关键词。' : '点击“新建便签”开始记录。'}
         />
       )}
-      {sharingNote && (
-        <ShareNoteModal
-          note={sharingNote}
-          contacts={data.contacts}
-          onClose={() => setSharingNote(null)}
-          onShare={(contactId) => {
-            const text = `我刚在便签里记录了这段想法，你帮我看看：\n\n【${sharingNote.title || '便签'}】\n${sharingNote.text}`;
-            setDraft(`message:${contactId}`, text);
-            setSharingNote(null);
-            open('messages', contactId);
-          }}
-        />
-      )}
+
       {/* 底部 iOS 原生备忘录金黄色工具栏 */}
       <footer
         style={{
@@ -641,146 +559,6 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           📝
         </button>
       </footer>
-    </div>
-  );
-}
-
-function ShareNoteModal({
-  note,
-  contacts,
-  onClose,
-  onShare,
-}: {
-  note: { title: string; text: string };
-  contacts: readonly PhoneContact[];
-  onClose: () => void;
-  onShare: (contactId: string) => void;
-}) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-        zIndex: 100,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '430px',
-          background: '#ffffff',
-          borderTopLeftRadius: '20px',
-          borderTopRightRadius: '20px',
-          padding: '20px',
-          boxShadow: '0 -8px 30px rgba(0, 0, 0, 0.15)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-          maxHeight: '80vh',
-          overflowY: 'auto',
-          boxSizing: 'border-box',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
-              💬 分享便签至微信
-            </h4>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-              选择你想探讨想法的角色好友
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: '#f1f5f9',
-              border: 'none',
-              borderRadius: '50%',
-              width: '28px',
-              height: '28px',
-              fontSize: '14px',
-              color: '#64748b',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        <div
-          style={{
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: '10px',
-            padding: '10px 12px',
-            fontSize: '13px',
-            color: '#334155',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-          }}
-        >
-          <strong style={{ color: '#0f172a' }}>【{note.title || '无标题便签'}】</strong>
-          <span
-            style={{
-              color: '#64748b',
-              fontSize: '12px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {note.text || '（空便签）'}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '2px' }}>
-            微信联系人
-          </div>
-          {contacts.map((contact) => (
-            <button
-              key={contact.id}
-              type="button"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 12px',
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                width: '100%',
-              }}
-              onClick={() => onShare(contact.id)}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Avatar url={contact.avatarUrl} name={contact.name} />
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
-                    {contact.name}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>{contact.relationship}</div>
-                </div>
-              </div>
-              <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>发给TA →</span>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

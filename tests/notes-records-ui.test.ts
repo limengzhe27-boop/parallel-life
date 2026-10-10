@@ -40,6 +40,7 @@ const {
   isSystemRecordTarget,
   recordDestination,
   searchRecords,
+  recordText,
 } = await import('../src/features/phone/apps/notes-records.tsx');
 const { NotesApp } = await import('../src/features/phone/apps/notes.tsx');
 const { PhoneAppsProvider } = await import('../src/features/phone/apps/provider.tsx');
@@ -273,7 +274,7 @@ function renderNotes(
     createElement(PhoneAppsProvider, {
       worldId: fixture.worldId,
       data: {
-        contacts: [],
+        contacts: [{ id: 'test-contact', name: '测试同伴', relationship: '朋友', unread: 0 }],
         messages: [],
         photos: [],
         invitations: [],
@@ -316,14 +317,36 @@ test('system routes cannot reach private forms even with a colliding note ID or 
   const ready = renderNotes(fixture.current[0]!.id, { status: 'ready', data: fixture }, true);
   assert.doesNotMatch(ready, /<(?:form|input|textarea)\b|PRIVATE_NOTE_TEXT/);
   assert.match(ready, /data-system-record|查看对话/);
+  assert.match(ready, /aria-label="返回备忘录"/);
   for (const state of [
     { status: 'loading' } as const,
     { status: 'error', error: '正在恢复读取' } as const,
   ]) {
     const html = renderNotes('sys/unknown', state, true);
+    assert.match(html, /aria-label="返回备忘录"/);
     assert.doesNotMatch(html, /<(?:form|input|textarea)\b|PRIVATE_NOTE_TEXT/);
   }
   const personal = renderNotes('note-private', { status: 'error', error: '人生记录读取失败' });
   assert.match(personal, /<form|PRIVATE_NOTE_TEXT/);
+  assert.doesNotMatch(personal, /分享到微信|分享便签|与身边的人讨论|一键把便签|选择好友|发给TA/);
   assert.doesNotMatch(personal, /人生记录读取失败/);
+});
+
+test('invitation timestamps use world display time without changing source semantics or other text', () => {
+  const invitation = { ...fixture.current[2]!, text: '2026-10-11T00:00:00.000Z' };
+  assert.equal(recordText(invitation), '约定时间：2026-10-11 08:00');
+  const data = { ...fixture, current: [invitation] };
+  const list = renderToStaticMarkup(createElement(NotesRecords, { data, open: noop }));
+  const detail = renderToStaticMarkup(
+    createElement(NotesRecordDetail, { data, target: invitation.id, open: noop }),
+  );
+  assert.match(list, /约定时间：2026-10-11 08:00/);
+  assert.match(detail, /约定时间：2026-10-11 08:00/);
+  assert.doesNotMatch(list + detail, /2026-10-11T00:00:00.000Z/);
+  assert.match(detail, /故事时间.*2026-10-10 08:20/);
+  assert.equal(invitation.text, '2026-10-11T00:00:00.000Z');
+  assert.equal(searchRecords([invitation], '2026-10-11 08:00').length, 1);
+  assert.equal(recordText({ ...invitation, text: '2026-02-30T00:00:00Z' }), '2026-02-30T00:00:00Z');
+  assert.equal(recordText({ ...invitation, text: '周末咖啡店见。' }), '周末咖啡店见。');
+  assert.equal(recordText({ ...fixture.current[0]!, text: invitation.text }), invitation.text);
 });
