@@ -27,3 +27,9 @@ PhoneMapContext data/loading/error/refresh/travel(request)/recover(request) 是�
 ## 接续
 
 先完成官方空间来源与原子仓储/锁规则，再真实PG幂等并发/回滚/RLS/replay，接F/根冻结并执行 check/build、手机PC、生产迁移/READY和只读公网；原图/私人档案与NPC实时定位不混入地图。
+
+## Contract follow-up (2026-10-10)
+
+ab4350d frozen first interface; additive fields are now frozen: SpaceSource world_event includes eventId/eventVersion; WorldSpace.canEstablish; PhoneMapContext.enterPlace(placeId)/establish(). enterPlace requires actual current place and invokes the existing durable scene/free-action kernel. Contacts are never treated as present NPCs. Old official instances can explicitly establish authored locations only at version 0, no active scene or busy task, with checked unique original actor/invitation bindings. No read backfill or immutable rewrite; modified legacy worlds stay honest unknown. New four packs contentVersion 2; existing owners continue old saves. Retired-star keeps authored 95-minute venue journey.
+
+Synchronous paid messages route additionally owns the same advisory lock across the model call, blocking travel. setClock now locks world then clock in one transaction with that advisory key, avoiding lost travel anchors. Initial typecheck failed because the type insertion searched interface rather than type; corrected before revalidation. Root travel-feedback 8ec5796 accepted as 41a8093. PG 55450 started after checking the port; no HTTP/model/production mutation yet.
