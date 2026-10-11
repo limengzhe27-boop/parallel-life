@@ -31,3 +31,11 @@ B独占scene-planner.ts和新planner测试；Q独占新scene-step-progress.test.
 修复383be75 / almk7novd READY后显式检查原failed/resultVersion=null再retry，task succeeded。但开场旁白‘老周师傅在一旁忙碌’而持久presence仅player，无NPC对白，不能据旁白补在场。后续第一步核对R17输出schema被拒（Invalid scene proposal/INVALID_AI_OUTPUT），实际0步骤保存。已保守占5/18，原失败保留，正常API显式离场，没建第二world。B重新领取精确输出/schema白名单diagnostic，不记录raw/人物信息；Q独立语义复核，不称完整链通过。待新候选开场与精确格式验收，不盲重试同坏契约。
 
 B v6源9bdab15已集成f17e061：json_object明确结构、来源步骤例示、省略非接收人ID、已有正式R17不再新建重复独立小任务；不从旁白补presence。Q只读查到agenda与return-followups只认scene_action，根扩至scene_steps并加2消费专项，目击/日期/冷却/旧版本过滤仍保留。新812/812check、真实PG6/6专项过，待build/候选READY后新开场。另一ack人物ID归一化前判断风险暂记待核，不据静态猜旧503。
+
+## v7 有限开场到场与最终本地验证（2026-10-12）
+
+v6候选897d67d READY后第二次新开场成功但presence仍仅player，正式R17本地目标不再重复生成无来源小任务。已保守7/18文字，1合成世界，无图。正常API离场后保留原结果，未据旁白制造到场。
+
+集成B b040ba0/cd59f8c，并串行补显式scene预约无效不可回退其他预约。当前故事时间已到、同地点confirmed合法邀请角色（最多2）独立以present:boolean/text输出自己的在场判断，adapter绑定身份；false不写在场，true由原开场事务写presence来源/对白/预约到场，不产生接收或步骤动作。旧scene.entries不带入此独立判断；commit重复检查当前地点/邀请/时间，约定不等于到场证据。R17当前只有老周候选，开场最多2调用；后续每步2、后续2、手机1，余11严格不自动重试。中途人物进入现场仍待开发。
+
+最终npm run check 820/820；npm run test:db 248=243pass/5明确opt-in skip，0fail；npm run build exit0。真实PG新用实际ScenePlanner+独立NPC判断mock验证开场presence来源保存，再验证分步、NPC接收、整体完成、后续机会与下一行动、回执回放/事务回滚；mock不称真实模型通过。无新SQL，生产迁移41/41已一致。待候选READY及真实完整链，母任务未完成。

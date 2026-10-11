@@ -2,7 +2,7 @@
 
 ## 身份与范围
 
-- 状态：待验收（真实开场及手机完成承接静态审查已交；完整真实模型体验未通过）。
+- 状态：待验收（含独立NPC到场设计审查；结构化专项通过不代表完整真实模型体验通过）。
 - Agent：codex-f-matter-aiqa02q-01a0c7c8-20261011；辅助会话01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b。
 - 独立目录：/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本；codex/matter-ai-qa-02q；基线6e39217。旧codex/matter-ai-qa-q/f31bafb完整保留，不reset。
 - 根明确分配02Q；主表短锁登记并读回后开始。依赖01真实失败与6e39217既有规则/仓储，第一阶段已满足；新规则专项实施依赖根冻结接口，尚未满足。
@@ -185,3 +185,33 @@ turn-planner.ts先算ackReply是否存在正确actorId的message.received，再�
 - domain/character-policy.ts：e3633d24ca5922e5277c8443a83cc40a82e79af9b317fb434d5c8d78ae33bf34
 
 本增量只报告与主表本人行、diff检查；0新test/业务/模型/图/DB/HTTP/browser/生产写，不重复build。不再并写或补构造成功样本。下一根合B的明确开场JSON与真实presence输出，修agenda/回访kind漏项并独立验证；在保守5/18已占的根账本内继续有界显式验收，不自动unknown重付。此时开场有presence矛盾、下一行动schema失败、近期事项完成/NPC承接/机会/第二步仍没有本轮真实成功证据，保持未通过。Q报告待验收、范围冻结，等安全公开实际证据再审。
+
+## 2026-10-12 · 独立NPC到场候选设计只读复核
+
+根提供v6新真实摘要：schema成功、安静环境不编NPC、没有重复独立小事项，R17父目标保留；但实际presence仍仅player，当前scene后续没有加NPC入口，完整链未过。保守占7/18。相比旧矛盾开场，旁白/在场一致性有改善；合法无人现场不是NPC自然承接或R17完成的证明。本Q未独立读原任务/回执/调用日志，不将摘要补成完整成功证据。
+
+根拟让合法有效邀约候选在原有独立角色调用中返回present:boolean，max2人、自身Persona与获准约定/对话决定true或false；true在同开场事务正式到场，false无对白无动作。Q只审设计及当前根HEAD897d67d源码，不改业务/新测试，不调用模型、数据库、HTTP或生产端点。既有scenePlanning在付费前核world/current scene/paused/action freshness/非导航intervening events，commitSceneProposal再核有效邀约与实际候选，这是可复用的边界，不另建到场引擎。
+
+### 结论与必须保留的条件
+
+设计可以解决导演present=[]导致根本不询问独立NPC的有限接线缺口，并保持人物可以不到场。它是独立人物提出本人参与、运行时校验后保存的虚构世界事件，不是预约自动等于到场，也不是NPC自己有权绕开runtime。
+
+- 开场独立调用的候选先由有效邀约/当前地点/时间/owner-world和屏蔽来源核定，不由通讯录或导演旁白挑人。当前ScenePlanner directAppointment分支仅按scene.appointmentId找，没有与placeAppointment相同的confirmed/到时前过滤；Repository opening却只允许confirmed且已到时的参与者。新调用前应统一这套候选条件、提交时重查，避免付费问非法候选后整体拒绝。不擅自把proposed/cancelled/未到时或其他场景人物放进来；attended兼容是否允许须由根明确规则，不能默默扩状态。
+- opening时不能继续candidates.filter(director.presentActorIds)后才询问，否则导演[]时仍无人被问。导演只负责可见环境；当前开场最终presentIDs由本次独立本人判断及runtime校验产生，action阶段仍只允许既有实际presence，不增加人物。不从旁白名字补人。
+- present必须是真boolean，缺失/null/字符串“false”或数值不能靠强转变成true。独立调用绑定actor身份，不允许模型带其他actorId或替他人/玩家决定。false不会保存现场对白/动作/到场事实；协议需允许false无text或null/空，不为满足min1强迫不存在的人发现场对白。
+- true是本次正式加入的候选，不是接收/检查/事项完成。开场没有saved player handover/request时actions必须空，不能仅凭到场给received或可选检查credit，也不能自动完成R17。正式joinedVersion/sourceEvent和对白/可见性须在同事务统一，不先写presence再失败留半个人物。
+- 到场前只给该actor经actorContext过滤的本人资料/合法公开邀请、本人对白及记忆，不能给其他人的私聊/完整私人访谈。尚未join的人不能收到过去scene私密entries或已存步骤的未获准观测；当前未提交环境可标候选，不变成已保存事实。来源被屏蔽的邀请/消息/步骤不应经新候选支路复活。
+- 提交时重查地点、邀请status和到时、current scene、expected version/租约与人物授权；调用期间取消、离场、版本冲突要整轮拒绝，不静默重新调用付费补偿。保持scene旧事件及failed receipts，不删除过去的空presence，不回填人物已在场或已赴约。
+- NPC可以false，不能为走通目标强制true。若仍无人，保持真实无人现场和未完成事项，给明确可行接续方式并保留未覆盖，不能宣称NPC完成链通过。不得新增未知客户必到/签名/重复记录门槛。
+
+### 确切调用上界与当前R17候选
+
+897d67d官方county-yellow-hair作者资料：repair_shop关联联系人是laozhou和liuhang，但r17_handover邀请actorKeys只有laozhou，deliver_r17相关actorKeys也只有laozhou。店关联联系人不等于有效邀请参与者；当前有据候选只老周，不应因两个联系人把刘航额外询问或加入。
+
+根计划7已占+新opening2+steps6+后续2+phone1=18，仅在当前开场确实1导演+1合法NPC、三步也各最多2次时成立。通用max2独立候选的开场上界是1+2=3，总额则19；不能把“总1+2不增”当这次开场只花2。应在调用前以实际有据候选冻结此R17单NPC上界，或者缩减后续验证范围重新分配，不能多付第19次。角色false、schema失败/超时/unknown也占调用/保守额度，不退未知预算；“开场task数”不能替代供应商调用数量。
+
+不会建议扩授权或放宽guard来凑本轮通过；当前只有11保守余量，任何纠错都会减少后续覆盖。独立self判定与对白应合在同一现有角色complete请求，不先判断present再额外调用一次说话；对候选max2硬限和重试策略要在发送前生效，不依赖模型自己遵守次数。
+
+建议根/B在其已授权测试范围覆盖：合法单人true/false、无有效候选0角色调用、非法/未来/取消邀请不付费、缺或错boolean拒绝、false无对白/actions、true不可代他人或偷做目标、late commit失败整事务回滚、导演[]仍能询问合法本人、同命令重放不重复到场，以及当前单人2调用/双人最多3调用的明确计数。这是验收建议，本Q本次未执行这些新测试，旧51项不能代替新设计证据。
+
+已将候选过滤差异、权限/时序条件、父目标约束及预算单人前提回根。只追加本报告/本人主表行、执行diff检查；0源码/新test/模型/图/DB/生产写/浏览器/部署。完整真实“事项完成→NPC承接→机会→第二行动”仍未通过；下一根/B冻结实现、集成发布并按唯一18账本有界实测，给允许的公开合成输出再独立审，Q不常驻或自行调用。

@@ -625,3 +625,11 @@ test('opening stale scene place is rejected before spending any director or acto
   );
   assert.equal(calls, 0);
 });
+
+test('an invalid explicit opening invitation cannot silently fall back to another place invitation', async () => {
+  const f = openingFixture();
+  f.c.scene.appointmentId = 'foreign-invitation';
+  const { calls, proposal } = await propose(f, { present: true, text: '我在这儿。' });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(proposal.presentActorIds, []);
+});

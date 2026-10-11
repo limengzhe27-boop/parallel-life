@@ -19,8 +19,14 @@ import {
   replayWorldHistory,
   type WorldHistoryEvent,
 } from '../../src/modules/world/domain/world-history.ts';
-import { SceneProposalSchema } from '../../src/modules/world/infrastructure/scene-planner.ts';
-import type { SceneProposal } from '../../src/modules/world/application/scene-ports.ts';
+import {
+  ScenePlanner,
+  SceneProposalSchema,
+} from '../../src/modules/world/infrastructure/scene-planner.ts';
+import type {
+  SceneProposal,
+  ScenePlannerPort,
+} from '../../src/modules/world/application/scene-ports.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 // Real transactions, synthetic labelled planner outputs. No AI/production calls.
@@ -40,7 +46,7 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
     scenes = new SceneRepository(db);
   await new IdentityRepository(db).ensureGuest(owner);
   await new IdentityRepository(db).ensureGuest(other);
-  const run = (taskId: string, p: SceneProposal) =>
+  const run = (taskId: string, p: SceneProposal | ScenePlannerPort) =>
     runOne(
       {
         claim: (key) => queue.claimForOwner(taskId, owner, key),
@@ -50,11 +56,13 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       {
         world: sceneTaskHandler(
           queue,
-          {
-            async propose() {
-              return p;
-            },
-          },
+          'propose' in p
+            ? p
+            : {
+                async propose() {
+                  return p;
+                },
+              },
           'synthetic-no-model',
         ),
       },
@@ -107,9 +115,36 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       matterUpdates: [],
       dialogues: [],
     };
-    await run(entered.task!.id, SceneProposalSchema.parse(base));
-    assert.equal((await scenes.read(owner, worldId)).task?.status, 'succeeded');
-    assert.ok((await scenes.read(owner, worldId)).entries.length > 0);
+    let openingCalls = 0;
+    await run(
+      entered.task!.id,
+      new ScenePlanner({
+        async complete() {
+          openingCalls++;
+          return JSON.stringify(
+            openingCalls === 1
+              ? { ...SceneProposalSchema.parse(base), presentActorIds: [] }
+              : { present: true, text: '合成测试：我在柜台这里，先核对单子。' },
+          );
+        },
+      }),
+    );
+    const opened = await scenes.read(owner, worldId);
+    assert.equal(opened.task?.status, 'succeeded');
+    assert.equal(openingCalls, 2);
+    const presence = opened.scene!.presence.find(
+      (p) => p.participant.kind === 'actor' && p.participant.actorId === actor.id,
+    )!;
+    assert.ok(presence);
+    assert.equal(presence.joinedVersion, opened.worldVersion);
+    assert.equal(presence.sourceVersion, opened.worldVersion);
+    assert.ok(opened.entries.some((e) => e.kind === 'dialogue' && e.text.startsWith('合成测试：')));
+    assert.equal(
+      (await worlds.get({ userId: owner }, worldId)).appointments.find(
+        (a) => a.id === invitation.id,
+      )!.status,
+      'attended',
+    );
     const enqueue = async (text: string, target = trigger.id) => {
       const view = await scenes.read(owner, worldId),
         request = {

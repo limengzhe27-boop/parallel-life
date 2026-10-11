@@ -1048,7 +1048,17 @@ export async function commitSceneProposal(
       )
     : undefined;
   const directAppointment = c.world.appointments.find((a) => a.id === c.scene.appointmentId);
-  const activeAppointment = directAppointment ?? placeAppointment;
+  const effectiveDirect =
+    directAppointment?.status === 'confirmed' &&
+    Date.parse(directAppointment.at) <= Date.parse(c.storyAt) &&
+    (!c.world.space ||
+      (c.world.space.currentPlaceId === c.scene.placeId &&
+        c.world.space.places
+          .find((place) => place.id === c.scene.placeId)
+          ?.appointmentIds.includes(directAppointment.id)))
+      ? directAppointment
+      : undefined;
+  const activeAppointment = c.scene.appointmentId ? effectiveDirect : placeAppointment;
   const invited = activeAppointment?.participantIds ?? [];
   if (
     new Set(p.presentActorIds).size !== p.presentActorIds.length ||

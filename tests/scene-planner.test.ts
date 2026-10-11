@@ -90,7 +90,7 @@ test('scene director and NPC contexts crop private facts before the model call',
         });
       }
       assert.ok(content.includes('角色私有观察'));
-      return JSON.stringify({ text: '先测试这盏灯。' });
+      return JSON.stringify({ present: true, text: '先测试这盏灯。' });
     },
   });
   const p = await planner.propose(c);
@@ -230,6 +230,8 @@ test('scene proposal receives the established local evening across UTC date boun
       const payload = JSON.parse(messages.at(-1)!.content.split('\nCURRENT TASK:')[0]!);
       assert.equal(payload.localStoryTime.zone, 'UTC+08:00');
       assert.match(payload.localStoryTime.label, /21:12/);
+      if (!messages.at(-1)!.content.includes('\nCURRENT TASK:'))
+        return JSON.stringify({ present: false, text: null });
       return JSON.stringify({
         location: '工作室',
         narration: '室内的灯照着白墙。',
