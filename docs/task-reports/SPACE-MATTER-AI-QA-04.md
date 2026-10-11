@@ -31,3 +31,9 @@
 ## 最终候选验证
 
 根最后check首次因提前停止PG55452导致既有RLS测试ECONNREFUSED，失败日志保留；重新登记/核无监听并启动本人同一隔离库后1196/1196通过、332边界/type0。build0为同一最终业务源（Q只新test/report，无业务变化）；全真实PG251pass/5明确模型skip/0fail，最后专项10过。根B61接ad9f657、Q62接b094331，准确源码释放且没有修改domain/publiccontract/SQL。候选将提交发布；模型授权未到，实际供应商说明与完整链路仍待验。
+
+## READY与公网收口
+
+业务cc1057d/moc1ee02x/dpl_o986pEAVXDywZNUiPoexcryHjxnF READY，正式https://parallel-life-nu.vercel.app已切换。1196check/type0/332boundary/build0、真实本地PG251pass+5明确model opt-in skip/专项10、41生产迁移只读hash一致；正式旧paused世界1/4首次时间保持、8组只读投影/跨owner隔离过，0新增paid/正式世界写/图/私档。PG55452正常停无监听，无浏览器资源。本轮授权未回复，旧03 closed16of18不沿用；仅v3接收人格式与独立反例技术交付，不称实际供应商说明治愈/自然全链完成。
+
+本轮用户授权尚未回复，因此没有创建04正式世界或付费账本，不能用0模型只读回归证明新v3供应商输出。新授权到达后使用新live-chain-04-private/evidence路径并执行分轮完整链，结束暂停闭账；旧03所有证据只读保持。SCENE-NPC-ARRIVAL-01与NOTES-WORLD-03D仍待推进。最终文档归档部署信息放忽略handoff，避免循环追加tracked发布回执。

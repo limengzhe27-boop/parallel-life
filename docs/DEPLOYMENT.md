@@ -876,3 +876,9 @@ v14新候选准确B1ced6b2/Q2dc590a，有限人物独立动作索引格式，普
 B61bfdab→ad9f657，Q62d2b7d→b094331；新indexed-observations-v3只有显式所选matter实际allowedReceivers receiverIndex，不猜唯一人/补name/quote；旧wire保持严格，domain实收/source/whole完成边界不改。根实际PG10通过含v3说明→实收→机会→实际私聊adapter/事务/幂等，都是明确合成输出，不代表供应商自然完成。最终1196check/332boundary/type0/build0、全PG251pass+5明确model skip；41生产迁移本轮只读checksum一致，无新增SQL。
 
 待提交READY/public。上一批03 closed16of18，所有测试世界正常暂停，不沿用余2；本轮新2world/18文字授权已提请未回复，0新付费/生产世界业务写/图/私档。SPACE-MATTER-AI-QA-04继续待真实验收，现场人物中途进出/通用长线/真机仍待做。
+
+### SCENE-RECEIVER-04 正式发布与验收范围
+
+业务cc1057d/moc1ee02x/dpl_o986pEAVXDywZNUiPoexcryHjxnF READY，正式https://parallel-life-nu.vercel.app已切换。1196check/type0/332boundary/build0、真实本地PG251pass+5明确model opt-in skip/专项10、41生产迁移只读hash一致；正式旧paused世界1/4首次时间保持、8组只读投影/跨owner隔离过，0新增paid/正式世界写/图/私档。PG55452正常停无监听，无浏览器资源。本轮授权未回复，旧03 closed16of18不沿用；仅v3接收人格式与独立反例技术交付，不称实际供应商说明治愈/自然全链完成。
+
+没有本轮真实付费验收，母04维持待授权/供应商验收；42独立反例及实际PG完整合成保存链不代表供应商自然表现。下一先新授权下验证单独说明→交付→实收→机会→下一行动→私聊，若失败记录具体安全诊断，不自动重付/补成功。
