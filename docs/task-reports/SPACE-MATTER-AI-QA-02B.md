@@ -106,3 +106,11 @@ parsecatch现在生成stage=proposal与diagnosticMessage，只包含固定phase�
 版本scene-text-v8-exact-npc-action-kinds，旧混合kind例示替换为两个合法完整JSON，各自精确receive_r17/inspect_r17、引用本NPC已获准actorSteps当前world matterId、同次第一人称已执行quote。另有完整actions=[]自然回应示例，明确kind不接受混合值/别名/stepId/none/null，玩家核对属于player step不能复制review/order_reviewed进NPC actions；未实际交出对象、未请求检验、不满足合法当前/已存handed_over前置时不新增NPC执行。例示只是格式而非已发生证据，不要求每次合作，不从对白强制生成动作。strict schema和运行时边界均保持，非法枚举继续安全拒绝，不静默修正或加模型重试。
 
 新增2纯测覆盖完整合法精确例示+无动作例示、混合kind/player step/none仍INVALID_PROPOSAL且安全kind路径不露实际值，恰好2mock调用无第三重试。36相关纯测试、typecheck、diff通过（.local/matter-aiqa-02b-enum-pure.log）；不重跑全check/build/PG，根统一最后集成与发布。B模型/DB/生产write仍0，源码提交后立即再次冻结，不重复带cd/c5已由根等效集成的依赖；实际剩7次能否完成链未知，不能将提示风险消除记为真实闭环通过。
+
+## 2026-10-12 · 三个中性字段的严格省略兼容
+
+根提供v8真实人工复测failed，保守13/18余5；安全director诊断matterTitle:invalid_type、matterUpdates:invalid_type、dialogues:invalid_type，原failed无steps。诊断没有received values，因此不能声称原值必然缺失，也可能是显式null或其他类型错误。根限定重新释放原planner/newtest/report，要求仅missing/undefined兼容，不归一化错误值、不放宽真实副作用规则。
+
+版本scene-text-v9-no-effect-field-defaults：matterTitle.nullable().default(null)、matterUpdates.array(...).default([])、dialogues.array(...).default([])。只有省略/undefined有中性默认；原合法null标题仍合法，显式null数组/字符串/对象、错误枚举、unknown fields仍拒。director不能有NPC对白或行动的既有业务校验不变；无source的事项更新、分步和人物执行仍受原规则约束，不用默认值假完成/接收。prompt明确兼容语义并仍优先完整显式JSON输出，无额外模型重试。
+
+新增4纯专项：missing/undefined三字段默认均无effect；错误类型/枚举/陌生key严格拒；缺字段下当前玩家单次核对可succeeded，但实际propose→resolve无step/received、aggregate不completed；缺其它中性字段不能让导演伪NPC对白/接收。40相关pure/typecheck/diff通过（.local/matter-aiqa-02b-defaults-pure.log）。不新增domain/公共契约/SQL，不跑DB/生产写/全build/真实模型；冻结只交本次3文件。根余5若用一次合并核对+说明+交付2、后续2、手机1验收，不能因此声称已验三次分离自然模型累计，是否足够仍未知；技术省略兼容不证明已修真实失败。

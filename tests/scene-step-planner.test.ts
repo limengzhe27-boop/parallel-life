@@ -707,3 +707,110 @@ test('invalid or mixed action enums remain rejected with a safe kind path and ex
     assert.equal(calls, 2);
   }
 });
+
+test('missing or undefined neutral fields use empty defaults without inventing effects', () => {
+  const f = fixture();
+  const raw: Record<string, unknown> = { ...f.director, stepProposals: [] };
+  for (const key of ['matterTitle', 'matterUpdates', 'dialogues']) delete raw[key];
+  for (const proposal of [
+    raw,
+    { ...raw, matterTitle: undefined, matterUpdates: undefined, dialogues: undefined },
+  ]) {
+    const parsed = SceneProposalSchema.parse(proposal);
+    assert.equal(parsed.matterTitle, null);
+    assert.deepEqual(parsed.matterUpdates, []);
+    assert.deepEqual(parsed.dialogues, []);
+    assert.deepEqual(parsed.stepProposals, []);
+    assert.deepEqual(parsed.npcActions, []);
+  }
+});
+test('explicit wrong neutral field values, invalid enums and unknown keys stay strict', () => {
+  const base = { ...fixture().director, stepProposals: [] };
+  for (const bad of [
+    { matterTitle: 3 },
+    { matterTitle: {} },
+    { matterTitle: [] },
+    { matterUpdates: null },
+    { matterUpdates: '[]' },
+    { matterUpdates: {} },
+    { dialogues: null },
+    { dialogues: '[]' },
+    { dialogues: {} },
+    { matterUpdates: [{ id: 'any', status: 'done' }] },
+    { unexpected: 'secret' },
+  ])
+    assert.throws(() => SceneProposalSchema.parse({ ...base, ...bad }));
+});
+test('omitted neutral fields do not complete an aggregate or create a receiving action', async () => {
+  const f = fixture();
+  f.c.action!.text = '我核对R17维修单。';
+  const raw: Record<string, unknown> = {
+    ...f.director,
+    outcome: 'succeeded',
+    observation: '你核对R17维修单。',
+    stepProposals: [],
+  };
+  for (const key of ['matterTitle', 'matterUpdates', 'dialogues']) delete raw[key];
+  let calls = 0;
+  const proposal = await new ScenePlanner({
+    async complete() {
+      calls++;
+      return JSON.stringify(calls === 1 ? raw : { text: '单据在这里。', actions: [] });
+    },
+  }).propose(f.c);
+  assert.equal(calls, 2);
+  assert.equal(proposal.matterTitle, null);
+  assert.deepEqual(proposal.matterUpdates, []);
+  assert.deepEqual(proposal.stepProposals, []);
+  assert.deepEqual(proposal.npcActions, []);
+  const event = { id: randomUUID(), version: f.c.world.version + 1, at: f.c.world.time };
+  const result = resolveSceneStepProgress({
+    world: f.c.world,
+    initial: f.f.initial,
+    scene: f.c.scene,
+    action: {
+      ...f.c.action!,
+      status: 'resolved',
+      resolution: {
+        outcome: proposal.outcome!,
+        observation: proposal.observation!,
+        sourceEventId: event.id,
+        sourceVersion: event.version,
+      },
+    },
+    stepProposals: proposal.stepProposals!,
+    npcActions: proposal.npcActions!,
+    dialogues: proposal.dialogues,
+    event,
+  });
+  assert.deepEqual(result.completedMatterIds, []);
+  assert.ok(!completeSceneSteps(result.matters.find((m) => m.id === f.f.trigger.id)!));
+});
+test('missing neutral fields still cannot let the director speak for or receive as an NPC', async () => {
+  const f = fixture();
+  const raw: Record<string, unknown> = { ...f.director, stepProposals: [] };
+  delete raw.matterTitle;
+  delete raw.matterUpdates;
+  raw.dialogues = [{ actorId: f.f.actorId, text: '我接过R17钥匙和维修单。' }];
+  let calls = 0;
+  await assert.rejects(
+    new ScenePlanner({
+      async complete() {
+        calls++;
+        return JSON.stringify(raw);
+      },
+    }).propose(f.c),
+    { code: 'INVALID_PROPOSAL' },
+  );
+  assert.equal(calls, 1);
+  raw.dialogues = [];
+  raw.npcActions = [
+    {
+      actorId: f.f.actorId,
+      matterId: f.f.trigger.id,
+      kind: 'receive_r17',
+      quote: '我接过R17钥匙和维修单。',
+    },
+  ];
+  assert.throws(() => SceneProposalSchema.parse(raw));
+});
