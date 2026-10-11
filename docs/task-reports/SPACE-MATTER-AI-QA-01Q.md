@@ -105,3 +105,11 @@ I已选县城修车官方v3优先完整链：开场→实际R17交付→知情NP
 - 16-action-input.json：`9b0c4ed9d9ee09dad979ddde0d111c95aeb70731fb4427a5c1980841bc6ac14b`
 - 17-task-result.json：`fd2b2572543bac9efa0c5e70d6d46841373aa153609f6894657f767c8ed60f71`
 - 18-action-saved.json：`602d1988eb789b2bb7b7a3ba6df232d3dd7d937abc35a609fac9e32980719917`
+
+## 模型来源补证（I安全只读导出）
+
+I提供safe-task-metadata.json（当前3task），独立核对id与09/13/17 receipts完全一致，均succeeded、model=gpt-4o-mini、prompt_version=scene-text-v2。按精确taskId，opening为7772ms、首attempt9672ms、第二attempt43117ms；duration是整个task时长，不能推计费调用数量。它支持本批旧版正式模型任务来源，不能证明新B修复效果。读取来源是I使用APP角色按本次owner+精确task IDs导出的安全字段，本Q只读文件、没有查询生产DB/私有账本/凭据。
+
+前述publicTask视图没有model字段仍是当时API形状的准确观察；此单列元数据填补来源缺证。三任务共预留6上界来自I，不表示Q逐条读取了供应商计费日志。后续新任务需单列新prompt/build来源和保存结果，不覆盖本批partial。
+
+safe-task-metadata.json（此3task版本）SHA256：`e93ab85abf52369f9739de416e2e033006d0b859f66bb7f470d4e8fc83bc204a`
