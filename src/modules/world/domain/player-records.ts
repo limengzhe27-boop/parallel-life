@@ -1,6 +1,9 @@
 import { verifiedGenesisLinks } from './genesis-links.ts';
 import type { Appointment, Message, StoryChoice, WorldEvent, WorldState } from './types.ts';
 import type { InvitationEvent } from './invitations.ts';
+import type { SceneResultEvent } from './scene-world-results.ts';
+import { sceneMatterId } from './scene-matter-policy.ts';
+import type { WorldMatter } from './matters.ts';
 
 export type RecordSource =
   | {
@@ -75,6 +78,11 @@ export type PlayerRecord = {
     target: string;
     label: string;
   }[];
+  progress?: {
+    milestones: { title: string; at: string; recordId: string }[];
+    opportunities: { title: string; recordId: string }[];
+  };
+  opportunity?: { pursuitRecordId: string; triggerRecordId: string };
   navigation?:
     | { app: 'wechat'; actorId: string }
     | { app: 'calendar'; invitationId: string }
@@ -109,6 +117,8 @@ export type PlayerRecordsInput = {
   /** Only storage-validated, player-visible resolutions, keyed to the matching matter. */
   matterObservations?: ReadonlyMap<string, string>;
   sceneAttendanceSources?: ReadonlyMap<string, Extract<RecordSource, { kind: 'world_event' }>>;
+  /** Actual committed scene sources; never model descriptions or unverified snapshot flags. */
+  progressionEvents?: readonly SceneResultEvent[];
 };
 const labels: Record<PlayerRecord['state'], string> = {
   planned: '你记录的计划',
@@ -650,5 +660,119 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
       }
     }
   }
+  projectPursuitConnections(input, output);
   return output;
+}
+
+function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerRecords) {
+  const rows = [...output.current, ...output.about, ...output.history];
+  const rowFor = (id: string) => rows.find((r) => r.id === `sys/matter/${input.worldId}/${id}`);
+  const matters = input.matters ?? [];
+  const verifiedCompletion = (matter: WorldMatter) => {
+    const proof = matter.evidence;
+    if (
+      matter.worldId !== input.worldId ||
+      matter.visibility !== 'player_visible' ||
+      matter.span !== 'near_term' ||
+      matter.status !== 'completed' ||
+      matter.assertion !== 'world_verified' ||
+      proof?.kind !== 'scene_action' ||
+      proof.outcome !== 'succeeded'
+    )
+      return undefined;
+    const event = input.progressionEvents?.find(
+      (e) =>
+        e.id === proof.eventId &&
+        e.worldId === input.worldId &&
+        e.version === proof.eventVersion &&
+        e.version <= input.worldVersion &&
+        e.type === 'scene.action_resolved' &&
+        e.storyAt === proof.at,
+    );
+    const results = event?.data.worldResults,
+      action = results?.action;
+    if (
+      !event ||
+      !results ||
+      !action ||
+      results.scene.id !== proof.sceneId ||
+      results.scene.worldId !== input.worldId ||
+      action.worldId !== input.worldId ||
+      action.sceneId !== proof.sceneId ||
+      action.id !== proof.actionId ||
+      action.status !== 'resolved' ||
+      action.resolution?.outcome !== 'succeeded' ||
+      action.resolution.sourceEventId !== event.id ||
+      action.resolution.sourceVersion !== event.version ||
+      !action.relatedMatterIds.includes(sceneMatterId(proof.sceneId, matter.id)) ||
+      !results.updates.some(
+        (u) =>
+          u.matterId === matter.id &&
+          u.status === 'completed' &&
+          u.expectedMatterVersion < matter.version,
+      )
+    )
+      return undefined;
+    return proof;
+  };
+  for (const pursuit of matters) {
+    const row = rowFor(pursuit.id);
+    if (!row || pursuit.span !== 'pursuit' || !pursuit.pursuitProgress) continue;
+    const milestoneIds = new Set<string>();
+    const milestones = pursuit.pursuitProgress.milestones.flatMap((step) => {
+      const trigger = matters.find((m) => m.id === step.matterId),
+        triggerRow = rowFor(step.matterId);
+      const proof = trigger && verifiedCompletion(trigger);
+      if (
+        !proof ||
+        !triggerRow ||
+        step.title !== trigger!.title ||
+        step.eventId !== proof.eventId ||
+        step.eventVersion !== proof.eventVersion ||
+        step.at !== proof.at ||
+        milestoneIds.has(step.matterId)
+      )
+        return [];
+      milestoneIds.add(step.matterId);
+      return [{ title: step.title, at: step.at, recordId: triggerRow.id }];
+    });
+    if (!milestones.length) continue;
+    const opportunities: NonNullable<PlayerRecord['progress']>['opportunities'] = [];
+    for (const id of new Set(pursuit.pursuitProgress.nextOpportunityIds)) {
+      const opportunity = matters.find((m) => m.id === id),
+        next = rowFor(id);
+      const trigger = matters.find((m) => m.id === opportunity?.opportunity?.triggerMatterId);
+      const proof = trigger && verifiedCompletion(trigger);
+      if (
+        !next ||
+        !opportunity ||
+        !proof ||
+        opportunity.opportunity?.pursuitId !== pursuit.id ||
+        !milestoneIds.has(trigger!.id) ||
+        opportunity.worldId !== input.worldId ||
+        opportunity.visibility !== 'player_visible' ||
+        opportunity.source.kind !== 'director_proposal' ||
+        opportunity.source.eventId !== proof.eventId ||
+        opportunity.source.eventVersion !== proof.eventVersion ||
+        opportunity.source.at !== proof.at ||
+        opportunity.prerequisites?.length !== 1 ||
+        opportunity.prerequisites[0] !== trigger!.id
+      )
+        continue;
+      next.opportunity = { pursuitRecordId: row.id, triggerRecordId: rowFor(trigger!.id)!.id };
+      if (output.current.includes(next))
+        opportunities.push({ title: next.title, recordId: next.id });
+    }
+    row.progress = { milestones, opportunities };
+    for (const step of milestones) {
+      const previous = rows.find((r) => r.id === step.recordId)!;
+      previous.relatedLinks = [
+        ...(previous.relatedLinks ?? []),
+        { app: 'notes' as const, target: row.id, label: '看看这一步通向哪里' },
+        ...(opportunities[0]
+          ? [{ app: 'notes' as const, target: opportunities[0].recordId, label: '看看后续机会' }]
+          : []),
+      ].slice(0, 4);
+    }
+  }
 }

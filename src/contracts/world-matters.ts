@@ -140,6 +140,20 @@ export const WorldMatterSchema = z
       })
       .optional(),
   })
+  .refine(
+    (m) =>
+      (!m.pursuitProgress || m.span === 'pursuit') && (!m.opportunity || m.span === 'near_term'),
+    'Progress belongs to pursuits and opportunities belong to near-term matters',
+  )
+  .refine(
+    (m) =>
+      !m.pursuitProgress ||
+      (new Set(m.pursuitProgress.milestones.map((s) => s.matterId)).size ===
+        m.pursuitProgress.milestones.length &&
+        new Set(m.pursuitProgress.nextOpportunityIds).size ===
+          m.pursuitProgress.nextOpportunityIds.length),
+    'Progress sources and opportunities must be unique',
+  )
   .refine((m) => {
     // If assertion is world_verified, evidence CANNOT be user_report
     if (m.assertion === 'world_verified') {

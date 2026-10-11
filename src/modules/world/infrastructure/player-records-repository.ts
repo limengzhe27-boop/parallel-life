@@ -91,6 +91,10 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
               ].filter(Boolean),
           ),
           ...appointments.map((a) => a.sourceEventId),
+          ...(world.state.matters ?? []).flatMap((m: WorldMatter) => [
+            ...(m.source.kind === 'director_proposal' ? [m.source.eventId] : []),
+            ...(m.pursuitProgress?.milestones.map((step) => step.eventId) ?? []),
+          ]),
         ]),
       ];
       const events = (
@@ -198,6 +202,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         matters,
         matterObservations,
         sceneAttendanceSources,
+        progressionEvents: events.filter((e) => e.type === 'scene.action_resolved'),
         appointments,
         messages,
         events,
