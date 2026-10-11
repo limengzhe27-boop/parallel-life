@@ -1,3 +1,5 @@
+import { resolveSceneStepProgress } from './scene-step-progress.ts';
+import type { SceneStepProposal, SceneNpcActionProposal } from './matters.ts';
 import { progressSceneMatters } from './matter-progression.ts';
 import { DomainError } from './errors.ts';
 import type { WorldState, Fact, Appointment } from './types.ts';
@@ -19,6 +21,7 @@ export type SceneWorldResults = {
   }[];
   attendance?: { appointmentId: string };
   observerFacts: Fact[];
+  execution?: {stepProposals:SceneStepProposal[];npcActions:SceneNpcActionProposal[];dialogues:{actorId:string;text:string}[]};
 };
 export type SceneResultEvent = {
   id: string;
@@ -80,13 +83,20 @@ export function applySceneWorldResults(
   )
     throw new DomainError('INVALID_PROPOSAL', 'Action resolution does not belong to this source');
   let next = { ...current, matters: [...(current.matters ?? [])] };
+  if(results.execution){
+    if(!action)throw new DomainError('INVALID_PROPOSAL','Execution requires saved action');
+    const progress=resolveSceneStepProgress({world:current,initial,scene,action,...results.execution,event:{id:event.id,version:event.version,at:event.storyAt}});
+    next.matters=progress.matters;
+    if(progress.completedMatterIds.some(id=>!results.updates.some(u=>u.matterId===id&&u.status==='completed')))
+      throw new DomainError('INVALID_PROPOSAL','Verified endpoint not carried into matter result');
+  }
   const facts: Fact[] = [];
   for (const update of results.updates) {
     const target = next.matters.find((m) => m.id === update.matterId);
     if (
       !action ||
       !target ||
-      target.version !== update.expectedMatterVersion ||
+      current.matters?.find(m=>m.id===update.matterId)?.version !== update.expectedMatterVersion ||
       !action.relatedMatterIds.includes(sceneMatterId(scene.id, target.id))
     )
       throw new DomainError('INVALID_PROPOSAL', 'Invalid matter action binding');

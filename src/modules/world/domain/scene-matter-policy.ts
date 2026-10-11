@@ -1,3 +1,4 @@
+import { completeSceneSteps, sceneStepRule } from './scene-step-progress.ts';
 import { pursuitRules, trustedOpportunity } from './matter-progression.ts';
 import { DomainError } from './errors.ts';
 import type { WorldMatter } from './matters.ts';
@@ -214,12 +215,14 @@ export function validateWorldMatterSceneUpdate(input: {
         'INVALID_PROPOSAL',
         'Communication goal has no actual involved witness',
       );
-    if (
+    const stepComplete = sceneStepRule(world,m) && completeSceneSteps(m) &&
+      m.stepProgress!.steps.some(e=>e.eventId===input.eventId && e.eventVersion===input.eventVersion && e.sceneId===scene.id && e.actionId===action.id);
+    if (!stepComplete && (
       action.resolution.outcome !== 'succeeded' ||
       rule!.placeId !== m.relatedPlaceId ||
       !performed(action.text, rule!.actionAll) ||
       !performed(action.resolution.observation, rule!.observationAll)
-    )
+    ))
       throw new DomainError('INVALID_PROPOSAL', 'Matter completion condition not satisfied');
   } else if (input.status === 'blocked' && action.resolution.outcome !== 'failed')
     throw new DomainError(
@@ -244,17 +247,13 @@ export function validateWorldMatterSceneUpdate(input: {
           now: input.at,
         })
       : m;
+  const stepsCompleted = input.status==='completed' && sceneStepRule(world,m) && completeSceneSteps(m);
   return transitionWorldMatter(started, {
     status: input.status,
     assertion: 'world_verified',
-    evidence: {
-      kind: 'scene_action',
-      sceneId: scene.id,
-      actionId: action.id,
-      outcome: action.resolution.outcome,
-      eventId: input.eventId,
-      eventVersion: input.eventVersion,
-      at: input.at,
+    evidence: stepsCompleted ? {kind:'scene_steps',ruleVersion:'r17-delivery-v1',sceneId:scene.id,actionId:action.id,eventId:input.eventId,eventVersion:input.eventVersion,at:input.at} : {
+      kind: 'scene_action', sceneId:scene.id, actionId:action.id,
+      outcome:action.resolution.outcome, eventId:input.eventId, eventVersion:input.eventVersion, at:input.at,
     },
     allMatters: world.matters,
     now: input.at,
@@ -266,7 +265,7 @@ export function sceneMatterResultFact(
 ): Fact | undefined {
   const e = matter.evidence;
   if (
-    e?.kind !== 'scene_action' ||
+    (e?.kind !== 'scene_action' && e?.kind !== 'scene_steps') ||
     !['completed', 'blocked'].includes(matter.status) ||
     !witnessActorIds.length
   )
@@ -289,7 +288,7 @@ export function witnessedMatterResult(
     matter.worldId !== state.id ||
     matter.visibility !== 'player_visible' ||
     matter.assertion !== 'world_verified' ||
-    e?.kind !== 'scene_action' ||
+    (e?.kind !== 'scene_action' && e?.kind !== 'scene_steps') ||
     !['completed', 'blocked'].includes(matter.status)
   )
     return undefined;
