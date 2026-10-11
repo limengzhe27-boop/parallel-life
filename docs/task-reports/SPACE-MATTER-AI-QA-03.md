@@ -17,3 +17,15 @@
 ## 候选集成
 
 B8475691准确集成d980e84：八个固定安全条件码，保留原接受边界及顺序；中文观察/双ID模板、开场匿名玩家对话对象，禁止错认车主但不读全私档。899常规检查/332边界/类型0、现场累计真实PG6/6、build0；生产41/41迁移checksum只读一致，无SQL。Q独立反例进行中，B子任务不等同完整链完成。先发布有限候选，READY并公开核对后只单次复测原失败核对。
+
+## v10 真实复测定位
+
+68c7d43 / 3swzciy0c（dpl_D6s1VebRGm8kGL4bTjdsFmtg9M2m）READY，正式别名与8组只读回归通过。Q准确90b1b09集成52b7cce，相关联合64过、最终912check全过。原task读回failed/resultVersion=null后明确单次复测，仍failed，安全具体原因scene_step_evidence:observation_quote，77519ms；正式只读world version4仍無stepProgress，R17in_progress，不把重复执行误称成功。保守6/18（含失败/未触及角色的保守上限）。
+
+此次具体证明双写观察与引文不一致，不据此判断实际哪段文本。下一采用内部显式indexed-observations-v1：AI只写观察段一次，步骤以索引引用该段，adapter仅取原段作为canonical quote，所有输入/主体/接收人/真实事件/语义规则仍由旧runtime验证。旧格式不做自动修复/降级；null/越界/未知格式拒，不生成缺失证据。B独占planner，新pure；Q同独立新test审；根补实际PG新格式通过与非法索引零效果回滚。公共领域类型/SQL未改。
+
+## v11 内部证据结构集成
+
+B94f2ce9准确集成30602bd，仅明确新wire输出适配；公共domain/SceneProposal、SQL与旧classic来源边界不变，action角色也明确匿名玩家及旧错称不是身份依据。根新增PG基线旧source7项3pass/4fail；新source同一测试7/7通过，非法index在调用NPC前失败、事务投影/记忆/回执不增，有效indexed核对真实入库后旧classic第二步累计保持首次来源，接收/完成/机会/回放继续过。该PG使用明确合成模型输出，不是正式模型成功。923check/332边界/类型0，build进行中；Q独立新反例待接。真实保守6/18，尚无新付费。
+
+Qbc29951/c57782a准确集成58499fb/a5b1a0a；新36独立/联合92实际通过，v10新基线24pass/12fail保留，不放宽断言。最终946check全过/332边界/type0，build0，真实PG新版7/7（合成模型，不称真实）。无新SQL，前41生产checksum一致。准备发布v11，待READY/公网与真实原核对再次单次复测，预算仍6/18。

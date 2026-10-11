@@ -166,6 +166,40 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         )
       ).rows[0];
     await t.test(
+      'an out-of-range observation reference cannot commit any step or NPC effect',
+      async () => {
+        const a = await enqueue('我核对R17维修单。');
+        const before = await counts();
+        let calls = 0;
+        await run(
+          a.command.task!.id,
+          new ScenePlanner({
+            async complete() {
+              calls++;
+              return JSON.stringify({
+                ...base,
+                evidenceFormat: 'indexed-observations-v1',
+                outcome: 'partial',
+                observation: ['你核对R17维修单。'],
+                stepProposals: [
+                  {
+                    matterId: trigger.id,
+                    stepId: 'order_reviewed',
+                    inputQuote: '我核对R17维修单。',
+                    observationIndex: 1,
+                  },
+                ],
+              });
+            },
+          }),
+        );
+        assert.equal((await scenes.read(owner, worldId)).task?.status, 'failed');
+        assert.equal(calls, 1);
+        assert.equal((await target()).stepProgress, undefined);
+        assert.deepEqual(await counts(), before);
+      },
+    );
+    await t.test(
       'a future plan with schema-default empty step arrays stays unexecuted',
       async () => {
         const a = await enqueue('我打算明天核对R17维修单。');
@@ -181,19 +215,35 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         let text = '我核对R17维修单。',
           observation = '你核对R17维修单。';
         const a = await enqueue(text);
-        await run(a.command.task!.id, {
-          ...base,
-          outcome: 'partial',
-          observation,
-          stepProposals: [
-            {
-              matterId: trigger.id,
-              stepId: 'order_reviewed',
-              inputQuote: text,
-              observationQuote: observation,
+        let calls = 0;
+        await run(
+          a.command.task!.id,
+          new ScenePlanner({
+            async complete() {
+              calls++;
+              return JSON.stringify(
+                calls === 1
+                  ? {
+                      ...base,
+                      evidenceFormat: 'indexed-observations-v1',
+                      outcome: 'partial',
+                      observation: [observation],
+                      stepProposals: [
+                        {
+                          matterId: trigger.id,
+                          stepId: 'order_reviewed',
+                          inputQuote: text,
+                          observationIndex: 0,
+                        },
+                      ],
+                    }
+                  : { text: '我看见你核对单子了，接下来把检修情况说清楚。', actions: [] },
+              );
             },
-          ],
-        });
+          }),
+        );
+        assert.equal(calls, 2);
+        assert.equal((await scenes.read(owner, worldId)).task?.status, 'succeeded');
         assert.equal((await target()).status, 'in_progress');
         const first = (await target()).stepProgress!.steps[0]!;
         assert.equal(first.stepId, 'order_reviewed');
