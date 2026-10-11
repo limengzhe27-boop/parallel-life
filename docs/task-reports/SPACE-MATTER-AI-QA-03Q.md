@@ -33,3 +33,9 @@
 本人仅新增 tests/scene-output-evidence-audit.test.ts 与本报告，主表本人行按短锁更新待验收；B 源提交为准确依赖，集成时只接本人交付提交，不重复合本树 d6c12f7。范围冻结，无外部资源，不自动另领。
 
 真实 PostgreSQL验证：本 Q 0 项；真实模型/生产写/图片/部署：0。上述全为合成 TextModel 和领域纯函数，没有 Repository/API/Task Queue真实接线证据；不冒充真实数据库或线上完整体验。下一位 I 统一完整 check/build、真实数据库、迁移一致/READY/公网，并按新独立账本单次核对失败原回执与安全诊断，再逐轮确认累计→NPC实际接收→完成→后续机会/行动→私聊。Q 等待脱敏持久证据另行只读核对，不沿用旧15/18预算，不绕过队列/事务/RLS。
+
+## 接续：显式编号观察格式（等待冻结）
+
+根提供新脱敏实际：v10 原核对再次 failed，固定 scene_step_evidence:observation_quote、77519ms、累计保守6/18，无步骤；本 Q 未现场复验，不猜原始错误引文。根授权 B 内部 indexed-observations-v1 wire：观察段数组/null 与 observationIndex，适配为既有 canonical observation/quote 后继续原 schema/domain 校验，public/SQL/domain不改。本人同新test/report范围已短锁恢复进行中，旧13项证据保留；先只读设计，等 B 准确冻结后新增反例。
+
+设计风险：只有显式格式才能适配，classic坏quote/缺format数组/未知format/混字段不得回退；index整数且对应本次段，null加steps/越界拒；元素、join总长、quote长度仍受既有 canonical限制，不补造/截短观察；正确index不证明实际执行，最终runtime仍校验动作对象、你视角、否定/未来、receiver、WORLD ID与来源。继续0模型/DB/生产/端口/fullcheck/build，不改manual工具。

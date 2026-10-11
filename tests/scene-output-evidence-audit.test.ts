@@ -62,13 +62,17 @@ function fixture() {
   return { f, c, director };
 }
 type Fixture = ReturnType<typeof fixture>;
-async function run(f: Fixture, inspect?: (messages: ModelMessage[], index: number) => void) {
+async function run(
+  f: Fixture,
+  inspect?: (messages: ModelMessage[], index: number) => void,
+  directorOutput: unknown = f.director,
+) {
   let calls = 0;
   const planner = new ScenePlanner({
     async complete(messages) {
       const index = calls++;
       inspect?.(messages, index);
-      if (!index) return JSON.stringify(f.director);
+      if (!index) return JSON.stringify(directorOutput);
       return JSON.stringify(
         f.c.action
           ? { text: '这一步已核对，接下来再说明检修。', actions: [] }
@@ -288,3 +292,145 @@ test('Q: opening stays addressed to unnamed player when visible records name ano
   assert.equal(calls, 2);
   assert.equal(npcCalls, 1);
 });
+
+function indexed(f: Fixture) {
+  return {
+    ...f.director,
+    evidenceFormat: 'indexed-observations-v1',
+    observation: [f.director.observation!] as string[] | null,
+    stepProposals: f.director.stepProposals!.map(({ observationQuote: _quote, ...step }) => ({
+      ...step,
+      observationIndex: 0 as unknown,
+    })),
+  };
+}
+async function indexedReject(f: Fixture, output: unknown, indexError = false) {
+  const before = structuredClone(f.c);
+  let calls = 0;
+  await assert.rejects(
+    run(
+      f,
+      () => {
+        calls++;
+      },
+      output,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      const e = error as Error & { code: string; stage: string; diagnosticMessage: string };
+      assert.equal(e.code, 'INVALID_PROPOSAL');
+      assert.equal(e.stage, 'proposal');
+      if (indexError) assert.equal(e.message, 'scene_step_evidence:observation_index');
+      for (const raw of [sentinel, f.f.trigger.id, f.c.world.ownerId])
+        assert.ok(![e.message, e.stack, JSON.stringify(e)].join('\n').includes(raw));
+      return true;
+    },
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(f.c, before);
+}
+test('Q indexed: selects only the existing segment and canonical runtime keeps exact provenance', async () => {
+  const f = fixture(),
+    wire = indexed(f);
+  wire.observation = ['柜台上的单据没有变化。', '你核对R17维修单。'];
+  wire.stepProposals[0]!.observationIndex = 1;
+  const { proposal } = await run(
+    f,
+    (messages, index) => {
+      if (!index) return;
+      const payload = JSON.parse(messages[1]!.content);
+      assert.deepEqual(payload.addressee, { kind: 'player', name: null });
+    },
+    wire,
+  );
+  assert.equal(proposal.observation, wire.observation.join('\n'));
+  assert.equal(proposal.stepProposals![0]!.observationQuote, wire.observation[1]);
+  assert.ok(!('evidenceFormat' in proposal));
+  assert.ok(!('observationIndex' in proposal.stepProposals![0]!));
+  const { result } = resolve(f, proposal);
+  const evidence = result.matters.find((m) => m.id === f.f.trigger.id)!.stepProgress!.steps[0]!;
+  assert.equal(evidence.observationQuote, wire.observation[1]);
+  assert.equal(evidence.inputEventId, f.c.action!.sourceEventId);
+  assert.equal(evidence.actionId, f.c.action!.id);
+  assert.deepEqual(result.completedMatterIds, []);
+});
+for (const [label, index] of [
+  ['negative', -1],
+  ['fractional', 0.5],
+  ['string', '0'],
+  ['null', null],
+  ['missing', undefined],
+  ['outside schema bound', 8],
+  ['absent actual segment', 7],
+] as const) {
+  test(`Q indexed: ${label} index is rejected rather than coerced or filled`, async () => {
+    const f = fixture(),
+      wire = indexed(f);
+    wire.stepProposals[0]!.observationIndex = index;
+    await indexedReject(f, wire, true);
+  });
+}
+for (const [label, observation] of [
+  ['null with steps', null],
+  ['empty array', []],
+  ['nine segments', Array(9).fill('你核对R17维修单。')],
+  ['empty segment', ['   ']],
+  ['selected quote too short', ['你']],
+  ['selected quote over 500', ['你核对R17维修单。' + '字'.repeat(501)]],
+  ['joined observation over 1600', ['你核对R17维修单。', '字'.repeat(1595)]],
+  ['classic string in indexed wire', '你核对R17维修单。'],
+] as const) {
+  test(`Q indexed: ${label} remains bounded by wire and canonical schema`, async () => {
+    const f = fixture();
+    await indexedReject(f, { ...indexed(f), observation }, label === 'null with steps');
+  });
+}
+test('Q indexed: arrays require the explicit format and unknown format never falls back', async () => {
+  const f = fixture(),
+    { evidenceFormat: _format, ...unmarked } = indexed(f);
+  await indexedReject(f, unmarked);
+  await indexedReject(f, { ...indexed(f), evidenceFormat: sentinel });
+});
+test('Q indexed: mixed classic quote or unknown keys cannot be silently discarded', async () => {
+  const f = fixture(),
+    wire = indexed(f);
+  await indexedReject(f, {
+    ...wire,
+    stepProposals: wire.stepProposals.map((step) => ({ ...step, observationQuote: sentinel })),
+  });
+  await indexedReject(f, { ...wire, [sentinel]: sentinel });
+});
+test('Q indexed: classic mismatched quote retains the original rejection with no indexed fallback', async () => {
+  const f = fixture();
+  f.director.stepProposals![0]!.observationQuote = sentinel;
+  await assert.rejects(run(f), {
+    code: 'INVALID_PROPOSAL',
+    message: 'scene_step_evidence:observation_quote',
+  });
+});
+test('Q indexed: correct index does not authorize a fabricated input quote or foreign WORLD/local ID', async () => {
+  for (const mutation of ['input', 'matter'] as const) {
+    const f = fixture(),
+      wire = indexed(f);
+    if (mutation === 'input') wire.stepProposals[0]!.inputQuote = sentinel;
+    else wire.stepProposals[0]!.matterId = f.c.matters[0]!.id;
+    await indexedReject(f, wire);
+  }
+});
+for (const [label, text, observation] of [
+  ['future promise', '我会核对R17维修单。', '你将会核对R17维修单。'],
+  ['denial', '我没有核对R17维修单。', '你没有核对R17维修单。'],
+  ['wrong player perspective', '我核对R17维修单。', '核对R17维修单。'],
+] as const) {
+  test(`Q indexed: valid index cannot turn ${label} into runtime execution evidence`, async () => {
+    const f = fixture(),
+      wire = indexed(f);
+    f.c.action!.text = text;
+    wire.observation = [observation];
+    wire.stepProposals[0]!.inputQuote = text;
+    const { proposal } = await run(f, undefined, wire);
+    const before = structuredClone(f.c.world);
+    assert.throws(() => resolve(f, proposal), /SCENE_STEPS/);
+    assert.deepEqual(f.c.world, before);
+  });
+}
