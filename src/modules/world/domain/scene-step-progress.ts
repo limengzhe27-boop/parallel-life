@@ -46,16 +46,25 @@ const steps = [
   { id: 'receiver_inspected', title: '接收人实际检查', required: false, patterns: [] },
 ] as const;
 const denied =
-  /还没|没有|并未|尚未|未曾|没能|不能|拒绝|不(?:做|去|交|谈|说|核对|收)|如果|假如|假设|打算|计划|准备|将会|会(?:去|把|收|接|核对|检查|说明|交|写)|之后|以后|稍后|等.+(?:来|到|后)|声称|自称|宣称|据说|听说|已经完成全部|完成了所有/u;
+  /还没|没有|并未|尚未|未曾|没能|不能|拒绝|不(?:做|去|交|谈|说|核对|收)|如果|假如|假设|打算|计划|准备|明天|后天|下周|下个月|将会|会(?:去|把|收|接|核对|检查|说明|交|写)|之后|以后|稍后|等.+(?:来|到|后)|声称|自称|宣称|据说|听说|已经完成全部|完成了所有/u;
 function fail(message: string): never {
   throw new DomainError('INVALID_PROPOSAL', 'SCENE_STEPS: ' + message);
 }
 function actual(quote: string, source: string) {
-  const clause = source.split(/[。！？;；\n]/u).find((s) => s.includes(quote));
+  const offset = source.indexOf(quote);
+  const delimiters = /[。！？;；\n]/u;
+  const prefix = source.slice(0, Math.max(offset, 0));
+  const begin = Math.max(offset, 0) - (prefix.split(delimiters).at(-1)?.length ?? 0);
+  const tail = source.slice(Math.max(offset, 0) + quote.length),
+    next = tail.search(delimiters);
+  const end =
+    offset + quote.length + (/[。！？;；\n]$/u.test(quote) ? 0 : next < 0 ? tail.length : next + 1);
+  const clause = offset >= 0 ? source.slice(begin, end) : undefined;
   return (
     quote.trim().length >= 3 &&
     quote.length <= 500 &&
     Boolean(clause) &&
+    ![...clause!.matchAll(/R\d+/giu)].some((x) => x[0].toUpperCase() !== 'R17') &&
     !denied.test(clause!) &&
     !/[“「『"].*[”」』"]/u.test(clause!) &&
     !/昨天|上次|之前|以前|曾经/u.test(clause!)
@@ -285,7 +294,8 @@ export function resolveSceneStepProgress(input: {
           fail('Receiving lacks actual handed objects');
         add('received', 'actor', action.text, p.quote, actor.id, actor.id);
         if (!m.stepProgress?.steps.some((e) => e.stepId === 'received'))
-          actionTexts.push(`${actor.name}接过了R17钥匙与维修单。`);
+          if (!actionTexts.includes(`${actor.name}接过了R17钥匙与维修单。`))
+            actionTexts.push(`${actor.name}接过了R17钥匙与维修单。`);
       } else if (p.kind === 'inspect_r17') {
         const requested =
           /请|麻烦|帮我/u.test(sceneAttemptBoundary(action.text).now) &&
@@ -299,7 +309,8 @@ export function resolveSceneStepProgress(input: {
           fail('Inspection lacks bounded object/request');
         add('receiver_inspected', 'actor', action.text, p.quote, actor.id);
         if (!m.stepProgress?.steps.some((e) => e.stepId === 'receiver_inspected'))
-          actionTexts.push(`${actor.name}实际检查了R17接头。`);
+          if (!actionTexts.includes(`${actor.name}实际检查了R17接头。`))
+            actionTexts.push(`${actor.name}实际检查了R17接头。`);
       } else fail('Unsupported NPC action');
     }
     if (saved.length !== (m.stepProgress?.steps.length ?? 0))
