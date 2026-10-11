@@ -57,3 +57,8 @@ nextOpportunityIds保留已创建的唯一机会ID以便追溯，第二阶段不
 ## 隐私补丁最终复验
 
 运行时代码补丁8ede4e4已发root/Q；追加真实PG stored-world上下文回归（父trigger/追求屏蔽后没有机会）与最终收尾提交。该回合最终check720/720、build exit0、专项16/16、diff check通过；日志 .local/notes03cb-privacy-{check,build,special}.log。dev/test已迁移后运行，PG55471已关闭再核无监听。0供应商/图/生产写、无HTTP/浏览器。此项重新待验收，业务文件再冻结释放root，Q独立复验与最终上线仍归根。
+
+
+## 集成发布验收
+
+业务5ff3c09，production jwoouortv/dpl_CgoRiUNdjKdPiowYHL8Tu37xvN7F READY，正式https://parallel-life-nu.vercel.app；746check、237真实PG通过/5真实模型opt-in skip、build0、41生产迁移一致无SQL；公网8组只读验收、旧存档paused/版本/权限保持，0新增模型/图/世界/上传/业务写；390长短/1440PC420本机合成UI通过非真机/模型台词验收。PG55452/55471/55458及HTTP3268均已停，Ego141 finish；有限四v3近期成果→单后续→最多两里程碑，旧已完成无回填、自创/通用长线/兑现/真实模型留03D与AI-QA。

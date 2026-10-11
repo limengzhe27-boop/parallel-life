@@ -130,3 +130,8 @@ fresh cluster位于主目录.local/matter-progression-audit-pg/data，只监听1
 源码已冻结；PG55458/session55741已正常SIGINT停止，lsof确认无监听，fresh数据与安全日志留存忽略目录，不删除旧资源。本Q没有HTTP/browser资源，0生产写、0部署、未推main。
 
 I下一步只取上述Q独立patch及报告，在B8ede4e4/I c0e40da统一基线再跑联合check、真实PG、build及Notes双端/来源导航，确认既有生产41迁移一致后由I唯一提交部署、等待READY并公网实测。上线前只标待验收，不能已完成；真实模型质量仍由单列AI-QA接续，不自动领取其他任务。
+
+
+## 集成发布验收
+
+业务5ff3c09，production jwoouortv/dpl_CgoRiUNdjKdPiowYHL8Tu37xvN7F READY，正式https://parallel-life-nu.vercel.app；746check、237真实PG通过/5真实模型opt-in skip、build0、41生产迁移一致无SQL；公网8组只读验收、旧存档paused/版本/权限保持，0新增模型/图/世界/上传/业务写；390长短/1440PC420本机合成UI通过非真机/模型台词验收。PG55452/55471/55458及HTTP3268均已停，Ego141 finish；有限四v3近期成果→单后续→最多两里程碑，旧已完成无回填、自创/通用长线/兑现/真实模型留03D与AI-QA。
