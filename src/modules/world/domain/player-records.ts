@@ -4,6 +4,7 @@ import type { InvitationEvent } from './invitations.ts';
 import type { SceneResultEvent } from './scene-world-results.ts';
 import { sceneMatterId } from './scene-matter-policy.ts';
 import type { WorldMatter } from './matters.ts';
+import { trustedOpportunity } from './matter-progression.ts';
 
 export type RecordSource =
   | {
@@ -700,6 +701,12 @@ function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerReco
       action.worldId !== input.worldId ||
       action.sceneId !== proof.sceneId ||
       action.id !== proof.actionId ||
+      (input.initial &&
+        (input.initial.id !== input.worldId ||
+          action.ownerId !== input.initial.ownerId ||
+          results.scene.ownerId !== input.initial.ownerId)) ||
+      action.intent !== 'attempt' ||
+      action.sourceVersion >= event.version ||
       action.status !== 'resolved' ||
       action.resolution?.outcome !== 'succeeded' ||
       action.resolution.sourceEventId !== event.id ||
@@ -718,6 +725,16 @@ function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerReco
   for (const pursuit of matters) {
     const row = rowFor(pursuit.id);
     if (!row || pursuit.span !== 'pursuit' || !pursuit.pursuitProgress) continue;
+    const original = input.initial?.matters?.find((m) => m.id === pursuit.id);
+    if (
+      !original ||
+      original.worldId !== input.worldId ||
+      original.span !== 'pursuit' ||
+      original.title !== pursuit.title ||
+      original.description !== pursuit.description ||
+      JSON.stringify(original.source) !== JSON.stringify(pursuit.source)
+    )
+      continue;
     const milestoneIds = new Set<string>();
     const milestones = pursuit.pursuitProgress.milestones.flatMap((step) => {
       const trigger = matters.find((m) => m.id === step.matterId),
@@ -743,10 +760,26 @@ function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerReco
         next = rowFor(id);
       const trigger = matters.find((m) => m.id === opportunity?.opportunity?.triggerMatterId);
       const proof = trigger && verifiedCompletion(trigger);
+      const authoredOpportunity =
+        opportunity &&
+        input.initial &&
+        trustedOpportunity(
+          {
+            ...input.initial,
+            version: input.worldVersion,
+            matters,
+            facts: (input.progressionEvents ?? []).flatMap(
+              (e) => e.data.worldResults?.observerFacts ?? [],
+            ),
+          },
+          input.initial,
+          opportunity,
+        );
       if (
         !next ||
         !opportunity ||
         !proof ||
+        !authoredOpportunity ||
         opportunity.opportunity?.pursuitId !== pursuit.id ||
         !milestoneIds.has(trigger!.id) ||
         opportunity.worldId !== input.worldId ||

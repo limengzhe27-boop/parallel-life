@@ -10,7 +10,7 @@ import {
   projectPlayerRecords,
   type PlayerRecordsInput,
 } from '../src/modules/world/domain/player-records.ts';
-import { sceneMatterId } from '../src/modules/world/domain/scene-matter-policy.ts';
+import { progressionFixture, resolveProgressionFixture } from './fixtures/matter-progression.ts';
 registerHooks({
   load(url, context, nextLoad) {
     if (url.endsWith('.module.css'))
@@ -36,115 +36,24 @@ registerHooks({
 });
 const { NotesRecords, NotesRecordDetail, searchRecords } =
   await import('../src/features/phone/apps/notes-records.tsx');
-const worldId = '10000000-0000-4000-8000-000000000001',
-  at = '2026-10-11T10:00:00.000Z';
 function fixture(): PlayerRecordsInput {
-  const source = {
-    kind: 'preset',
-    presetId: 'county-yellow-hair',
-    version: 3,
-    matterKey: 'deliver_r17',
-  };
-  const base = {
-    worldId,
-    visibility: 'player_visible',
-    version: 2,
-    createdAt: at,
-    updatedAt: at,
-    relatedActorIds: ['actor'],
-    relatedPlaceId: 'repair_shop',
-  };
+  const f = progressionFixture('county-yellow-hair');
+  const result = resolveProgressionFixture(f, f.world, f.trigger.id, f.texts[0], f.texts[1]);
+  const trigger = result.world.matters!.find((m) => m.id === f.trigger.id)!;
+  const pursuit = result.world.matters!.find((m) => m.id === f.pursuit.id)!;
+  const opportunity = result.world.matters!.find((m) => m.opportunity)!;
   return {
-    worldId,
-    worldVersion: 4,
-    actors: [{ id: 'actor', name: '老周' }],
+    worldId: result.world.id,
+    worldVersion: result.world.version,
+    actors: result.world.actors.map((a) => ({ id: a.id, name: a.name })),
     choices: [],
     appointments: [],
     messages: [],
     events: [],
-    matters: [
-      {
-        ...base,
-        id: 'trigger',
-        span: 'near_term',
-        title: '交付R17',
-        description: '已完成核对与交接',
-        status: 'completed',
-        assertion: 'world_verified',
-        source,
-        evidence: {
-          kind: 'scene_action',
-          sceneId: 'scene',
-          actionId: 'action',
-          outcome: 'succeeded',
-          eventId: 'event',
-          eventVersion: 4,
-          at,
-        },
-      },
-      {
-        ...base,
-        id: 'pursuit',
-        span: 'pursuit',
-        title: '拥有独立工位',
-        description: '慢慢靠手艺立足',
-        status: 'in_progress',
-        assertion: 'actor_statement',
-        source: { ...source, matterKey: 'own_workshop' },
-        pursuitProgress: {
-          milestones: [
-            { matterId: 'trigger', title: '交付R17', eventId: 'event', eventVersion: 4, at },
-          ],
-          nextOpportunityIds: ['next'],
-        },
-      },
-      {
-        ...base,
-        id: 'next',
-        span: 'near_term',
-        title: '下一次独立接单的准备',
-        description: '复盘交接，准备与老周讨论独立接单；没有代你同意',
-        status: 'not_started',
-        assertion: 'world_verified',
-        source: { kind: 'director_proposal', eventId: 'event', eventVersion: 4, at },
-        prerequisites: ['trigger'],
-        opportunity: { pursuitId: 'pursuit', triggerMatterId: 'trigger', key: 'r17_review' },
-        evidence: {
-          kind: 'world_event',
-          reason: '解锁可选机会',
-          eventId: 'event',
-          eventVersion: 4,
-          at,
-        },
-      },
-    ],
-    progressionEvents: [
-      {
-        id: 'event',
-        worldId,
-        version: 4,
-        storyAt: at,
-        type: 'scene.action_resolved',
-        data: {
-          worldResults: {
-            scene: { id: 'scene', worldId, ownerId: 'owner' },
-            action: {
-              id: 'action',
-              worldId,
-              ownerId: 'owner',
-              sceneId: 'scene',
-              status: 'resolved',
-              sourceVersion: 3,
-              relatedMatterIds: [sceneMatterId('scene', 'trigger')],
-              resolution: { sourceEventId: 'event', sourceVersion: 4, outcome: 'succeeded' },
-            },
-            updates: [{ matterId: 'trigger', expectedMatterVersion: 1, status: 'completed' }],
-            observerFacts: [],
-          },
-        },
-      },
-    ],
-  } as unknown as PlayerRecordsInput;
+    initial: f.initial,
+    matters: [trigger, pursuit, opportunity],
+    progressionEvents: [result.event],
+  };
 }
 test('phone links verified success to pursuit and a separate unaccepted opportunity', () => {
   const view = PlayerRecordsSchema.parse(projectPlayerRecords(fixture()));
@@ -165,6 +74,11 @@ test('snapshot labels alone do not expose milestones or unlock linkage', () => {
       (f.progressionEvents![0]!.data.worldResults!.action!.resolution!.outcome = 'failed'),
     (f: PlayerRecordsInput) => (f.matters![0]!.assertion = 'player_statement'),
     (f: PlayerRecordsInput) => (f.matters![0]!.visibility = 'hidden'),
+    (f: PlayerRecordsInput) =>
+      (f.progressionEvents![0]!.data.worldResults!.action!.intent = 'plan'),
+    (f: PlayerRecordsInput) =>
+      (f.progressionEvents![0]!.data.worldResults!.action!.ownerId = 'another-owner'),
+    (f: PlayerRecordsInput) => (f.matters![1]!.title = '伪造的另一追求'),
   ]) {
     const f = fixture();
     mutate(f);
@@ -179,6 +93,9 @@ test('forged opportunity owner/source/prerequisite is not promoted as a continua
     (f: PlayerRecordsInput) => (f.matters![2]!.source = { kind: 'genesis', seedId: 'fake' }),
     (f: PlayerRecordsInput) => (f.matters![2]!.prerequisites = ['unrelated']),
     (f: PlayerRecordsInput) => (f.matters![2]!.opportunity!.pursuitId = 'unrelated'),
+    (f: PlayerRecordsInput) => (f.matters![2]!.opportunity!.key = 'invented-next-plot'),
+    (f: PlayerRecordsInput) => (f.matters![2]!.id = 'forged-next-id'),
+    (f: PlayerRecordsInput) => (f.matters![2]!.description = '未发生的预算与收入'),
   ]) {
     const f = fixture();
     mutate(f);
@@ -204,7 +121,7 @@ test('rendered records expose a real choice and source, without edit or reward b
   assert.match(next, /还没有替你作决定/);
   assert.match(next, /看看它从哪里来/);
   assert.doesNotMatch(detail + next, />领取奖励<|>编辑<|>完成任务</);
-  assert.equal(searchRecords(data.about, '交付R17').length, 1);
+  assert.equal(searchRecords(data.about, 'R17').length, 1);
 });
 function buttons(node: ReactNode): Array<{ children: ReactNode; onClick?: () => void }> {
   if (Array.isArray(node)) return node.flatMap(buttons);
@@ -222,7 +139,7 @@ test('pursuit steps navigate to the exact source record and next opportunity', (
   });
   for (const b of buttons(tree)) {
     const text = renderToStaticMarkup(createElement('span', {}, b.children));
-    if (text.includes('查看这一步') || text.includes('下一次独立接单')) b.onClick?.();
+    if (text.includes('查看这一步') || text.includes(data.current[0]!.title)) b.onClick?.();
   }
   assert.deepEqual(calls, ['notes:' + data.history[0]!.id, 'notes:' + data.current[0]!.id]);
 });
