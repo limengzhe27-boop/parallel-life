@@ -1,3 +1,4 @@
+import { resolveAvatarArt } from './avatar-art.ts';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import type { PhoneAppsData, PhoneMessage } from './apps/types.ts';
 /**
@@ -36,17 +37,7 @@ export function worldAppData(
       name: actor.name,
       relationship: actor.relationship,
       summary: actor.summary,
-      ...(actor.photo
-        ? {
-            avatarUrl:
-              '/api/v1/assets/' +
-              actor.photo.assetId +
-              '?worldId=' +
-              world.id +
-              '&revision=' +
-              actor.photo.revision,
-          }
-        : {}),
+      avatarUrl: resolveAvatarArt(world, actor).url,
       unread: world.messages.filter(
         (message) =>
           message.actorId === actor.id &&
