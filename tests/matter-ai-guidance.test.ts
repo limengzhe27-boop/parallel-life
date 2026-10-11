@@ -177,3 +177,28 @@ test('NPC result focus uses only already-authorized canonical sources and preser
     }).propose({ context: ctx, userText: '现在呢？' });
   }
 });
+
+test('partial observation stays provisional and guidance preserves completed steps without adding a customer or signature gate', async () => {
+  const f = progressionFixture('county-yellow-hair');
+  f.world.time = '2026-10-09T10:02:23.038Z';
+  const { calls } = await captureScene(f, f.world, f.trigger.id);
+  const director = calls[0]![1]!.content;
+  assert.match(director, /Preserve concrete checks, explanation, handover and record-writing/);
+  assert.match(director, /Do not erase finished steps/);
+  assert.match(
+    director,
+    /extra third-party inspection or another person's signature if that requirement is not defined/,
+  );
+  assert.match(director, /state the specific unsupported or unfinished step/);
+  assert.match(director, /do not invent environmental changes for variety/);
+  const npc = JSON.parse(calls[1]![1]!.content),
+    system = calls[1]![0]!.content;
+  assert.equal(npc.observedNow.outcome, 'partial');
+  assert.equal(npc.localStoryTime.label.includes('18:02'), true);
+  assert.match(npc.actor.persona, /车主是刘航，约17:55取/);
+  assert.match(system, /不能被你的对白补成已检查、已签收或全部通过/);
+  assert.match(system, /不重复要求已经完成的核对、交接或记录/);
+  assert.match(system, /旧约已过而没有到场/);
+  assert.match(system, /不能编迟到原因/);
+  assert.ok(!('presentActorIds' in npc.observedNow));
+});
