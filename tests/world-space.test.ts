@@ -45,7 +45,7 @@ test('all authored spatial openings are sourced, bounded and invitation/actor-bo
       w.space!.places.every(
         (place) =>
           place.source.kind === 'official_genesis' &&
-          place.source.contentVersion === 2 &&
+          place.source.contentVersion === p.card.version &&
           place.contactActorIds.every((id) => w.actors.some((a) => a.id === id)) &&
           place.appointmentIds.every((id) => w.appointments.some((a) => a.id === id)),
       ),

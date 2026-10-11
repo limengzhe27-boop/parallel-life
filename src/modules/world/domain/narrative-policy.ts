@@ -1,4 +1,4 @@
-import type { Appointment, Message } from './types.ts';
+import type { Appointment, Message, Fact } from './types.ts';
 
 /** Original, reusable scene directions, not fixed plots or a psychological profile. */
 export const NARRATIVE_MOVES = {
@@ -38,6 +38,12 @@ export const NARRATIVE_MOVES = {
       '只依据日历里主角自己记录的已赴约或未赴约状态回应，体现你这个人物的态度；没有现场细节就询问，不要虚构发生过的事情或再催同一邀约。',
     maxNewThreads: 0,
   },
+  matter_result: {
+    goal: '承接现场事项推进的客观结果。',
+    instruction:
+      '根据刚刚在现场达成的具体事项结果回应，体现角色的态度与关心；肯定行动成果或商量下一步，不无视已完成的事。',
+    maxNewThreads: 0,
+  },
   breathing_room: {
     goal: '给这一段生活留出轻松相处或自然收尾的空间。',
     instruction:
@@ -67,6 +73,7 @@ type Input = {
   origin?: 'director';
   messages: readonly Message[];
   appointments: readonly Appointment[];
+  facts?: readonly Fact[];
   time?: string;
   /** Already authorized by the context compiler. */
   memories: readonly {
@@ -100,6 +107,16 @@ export function narrativeBrief(input: Input): NarrativeBrief {
     )
   )
     return choose('breathing_room', '用户明确表达休息、收尾或减压意愿');
+
+  const resultFacts = (input.facts ?? []).filter(
+    (f) =>
+      f.kind === 'canonical' &&
+      f.id.startsWith('matter_result:') &&
+      f.visibility.kind === 'actors' &&
+      f.visibility.actorIds.includes(input.actorId),
+  );
+  if (resultFacts.length && input.origin === 'director')
+    return choose('matter_result', '已授权的现场见证结果', [resultFacts.at(-1)!.id]);
 
   const resultAppointments = input.appointments.filter(
     (a) =>

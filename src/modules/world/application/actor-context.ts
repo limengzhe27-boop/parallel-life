@@ -1,3 +1,4 @@
+import { witnessedMatterResult } from '../domain/scene-matter-policy.ts';
 import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
 import type { ActorContext } from './ports.ts';
@@ -119,7 +120,16 @@ export function actorContext(
         m.visibility === 'player_visible' &&
         m.relatedActorIds?.includes(actorId) &&
         !blockedSources.has(m.id) &&
-        !('eventId' in m.source && blockedSources.has(m.source.eventId)),
+        !('eventId' in m.source && blockedSources.has(m.source.eventId)) &&
+        !(m.evidence && 'eventId' in m.evidence && blockedSources.has(m.evidence.eventId)) &&
+        (m.evidence?.kind !== 'scene_action' ||
+          !['completed', 'blocked'].includes(m.status) ||
+          Boolean(
+            (() => {
+              const f = witnessedMatterResult(state, m, actorId);
+              return f && !blockedSources.has(f.id) && !blockedSources.has(f.sourceEventId);
+            })(),
+          )),
     )
     .slice(-6)) {
     const { id, title, description, span, status, assertion } = matter;

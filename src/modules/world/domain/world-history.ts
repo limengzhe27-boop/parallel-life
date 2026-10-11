@@ -1,3 +1,4 @@
+import { applySceneWorldResults, type SceneWorldResults } from './scene-world-results.ts';
 import { applySpaceEvent, type TravelEvent, type SpaceEstablishedEvent } from './space.ts';
 import type { WorldEvent, WorldState, OutboxJob } from './types.ts';
 import { applyEvent } from './reducer.ts';
@@ -75,8 +76,14 @@ export function applyWorldHistoryEvent(
     isoInstant(scene.storyAt);
     if (Date.parse(scene.storyAt) < Date.parse(current.time))
       throw new DomainError('INVALID_COMMAND');
-    // Scene-specific projections stay in their repository; these events only change World version/time.
-    return { state: { ...current, version: scene.version, time: scene.storyAt }, jobs: [] };
+    // Runtime-validated world deltas share the scene event and replay without jobs.
+    return {
+      state: applySceneWorldResults(current, {
+        ...scene,
+        data: scene.data as { worldResults?: SceneWorldResults },
+      }),
+      jobs: [],
+    };
   }
   throw new DomainError('INVALID_PROPOSAL', 'Unsupported historical event');
 }

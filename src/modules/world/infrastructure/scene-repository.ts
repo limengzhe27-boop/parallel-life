@@ -1,5 +1,14 @@
+import { applySceneWorldResults, type SceneWorldResults } from '../domain/scene-world-results.ts';
 import { assertSpaceIdle, lockWorldActivity } from './space-repository.ts';
 import { deriveMemory } from '../../memory/application/derive-memory.ts';
+import type { WorldMatter } from '../domain/matters.ts';
+import {
+  isSceneMatterLinked,
+  sceneMatterId,
+  sceneAttendance,
+  sceneMatterResultFact,
+  validateWorldMatterSceneUpdate,
+} from '../domain/scene-matter-policy.ts';
 import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -111,6 +120,8 @@ export async function sceneWorld(
   ).rows;
   for (const row of responses) {
     const response = row.payload as InvitationEvent;
+    const projected = world.appointments.find((a) => a.id === response.data.id);
+    if ((projected?.responseVersion ?? 0) >= response.version) continue;
     world = applyInvitationEvent(
       { ...world, version: response.version - 1, time: response.storyTime },
       response,
@@ -174,17 +185,20 @@ export async function loadScene(sql: SqlClient, worldId: string, sceneId: string
       [worldId, sceneId],
     )
   ).rows;
+  const scene = SceneRuntimeSessionSchema.parse(row.document);
+  const matters = items
+    .filter((r) => r.kind === 'matter')
+    .map((r) => CurrentMatterSchema.parse(r.document));
+
   return {
-    scene: SceneRuntimeSessionSchema.parse(row.document),
+    scene,
     actions: items
       .filter((r) => r.kind === 'action')
       .map((r) => SceneRuntimeActionSchema.parse(r.document)),
     entries: items
       .filter((r) => r.kind === 'entry')
       .map((r) => SceneRuntimeEntrySchema.parse(r.document)),
-    matters: items
-      .filter((r) => r.kind === 'matter')
-      .map((r) => CurrentMatterSchema.parse(r.document)),
+    matters,
   };
 }
 async function context(sql: SqlClient, world: WorldState): Promise<ExperienceContext> {
@@ -211,6 +225,46 @@ async function item(
     [x.id, x.worldId, x.ownerId, x.sceneId, x.sourceEventId, kind, x],
   );
 }
+async function seedSceneMatters(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+  scene: SceneSession,
+  worldMatters: readonly WorldMatter[] | undefined,
+  source: { sourceEventId: string; sourceVersion: number },
+) {
+  for (const m of worldMatters ?? []) {
+    if (m.visibility !== 'player_visible') continue;
+    if (['completed', 'abandoned', 'superseded'].includes(m.status)) continue;
+    if (
+      isSceneMatterLinked(
+        { id: worldId, space: { currentPlaceId: scene.placeId } } as WorldState,
+        scene,
+        m,
+      )
+    ) {
+      const isProgress = m.status === 'in_progress';
+      await item(sql, 'matter', {
+        id: sceneMatterId(scene.id, m.id),
+        ownerId,
+        worldId,
+        sceneId: scene.id,
+        ...source,
+        title: m.title,
+        status: isProgress ? 'in_progress' : 'not_started',
+        ...(isProgress
+          ? {
+              evidence: {
+                ...source,
+                kind: 'progression' as const,
+                reason: '重要事项已在进行中',
+              },
+            }
+          : {}),
+      });
+    }
+  }
+}
 async function saveScene(sql: SqlClient, scene: SceneSession) {
   await sql.query('UPDATE parallel_life.scene_sessions SET document=$2 WHERE id=$1', [
     scene.id,
@@ -227,8 +281,9 @@ async function event(
   data: unknown,
   storyAt: string,
   playerInput?: { text: string; intent: SceneAction['intent'] },
+  fixedEventId?: string,
 ) {
-  const id = randomUUID(),
+  const id = fixedEventId ?? randomUUID(),
     version = world.version + 1;
   await sql.query(
     "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
@@ -458,6 +513,7 @@ export class SceneRepository {
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
         [sceneId, worldId, ownerId, source.sourceEventId, scene],
       );
+      await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
       const ctx = await context(sql, { ...world, version: source.sourceVersion });
       await saveExperience(sql, enterCurrentScene(ctx, x, scene));
       const task = await enqueue(
@@ -534,6 +590,7 @@ export class SceneRepository {
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
         [sceneId, worldId, ownerId, source.sourceEventId, scene],
       );
+      await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
       await saveExperience(
         sql,
         enterCurrentScene(
@@ -776,9 +833,116 @@ export async function commitSceneProposal(
   if (c.action && p.initialMatters?.length)
     throw new DomainError('INVALID_PROPOSAL', 'Action cannot create unrelated matters');
   const hash = requestHash(['scene.result', input]);
+  const resultEventId = randomUUID(),
+    resultVersion = locked.world.version + 1;
+  const initial = (
+    await sql.query('SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
+      worldId,
+    ])
+  ).rows[0]?.state as WorldState;
+  if (!initial) throw new DomainError('INVALID_PROPOSAL');
+  const invitedAppointment = c.world.appointments.find(
+    (a) =>
+      a.status === 'confirmed' &&
+      (c.scene.appointmentId
+        ? a.id === c.scene.appointmentId
+        : c.world.space?.places
+            .find((place) => place.id === c.scene.placeId)
+            ?.appointmentIds.includes(a.id)) &&
+      Date.parse(a.at) <= Date.parse(locked.storyAt),
+  );
+  const actualBefore = scenePresent(c.scene, c.world.version).flatMap((p) =>
+    p.kind === 'actor' ? [p.actorId] : [],
+  );
+  const allowedActors = c.action ? actualBefore : (invitedAppointment?.participantIds ?? []);
+  if (
+    new Set(p.presentActorIds).size !== p.presentActorIds.length ||
+    p.presentActorIds.some((id) => !allowedActors.includes(id)) ||
+    (c.action && p.presentActorIds.length !== actualBefore.length)
+  )
+    throw new DomainError('INVALID_PROPOSAL');
+  const resultScene = c.action
+    ? c.scene
+    : {
+        ...c.scene,
+        presence: [
+          ...c.scene.presence,
+          ...p.presentActorIds.map((actorId) => ({
+            participant: { kind: 'actor' as const, actorId },
+            joinedVersion: resultVersion,
+            sourceEventId: resultEventId,
+            sourceVersion: resultVersion,
+          })),
+        ],
+      };
+  const resultAction =
+    c.action?.intent === 'attempt' && p.outcome && p.observation
+      ? {
+          ...c.action,
+          status: 'resolved' as const,
+          resolution: {
+            sourceEventId: resultEventId,
+            sourceVersion: resultVersion,
+            outcome: p.outcome,
+            observation: p.observation,
+          },
+        }
+      : undefined;
+  const updates: SceneWorldResults['updates'] = [];
+  const observerFacts: WorldState['facts'] = [];
+  for (const u of p.matterUpdates) {
+    const target = c.world.matters?.find((m) => sceneMatterId(c.scene.id, m.id) === u.id);
+    if (!target) continue;
+    if (!resultAction) throw new DomainError('INVALID_PROPOSAL');
+    const next = validateWorldMatterSceneUpdate({
+      world: c.world,
+      initial,
+      scene: resultScene,
+      action: resultAction,
+      status: u.status,
+      matterId: target.id,
+      eventId: resultEventId,
+      eventVersion: resultVersion,
+      at: locked.storyAt,
+    });
+    updates.push({ matterId: target.id, expectedMatterVersion: target.version, status: u.status });
+    const fact = sceneMatterResultFact(next, p.presentActorIds);
+    if (fact) observerFacts.push(fact);
+  }
+  const attendance =
+    !c.action || resultAction
+      ? sceneAttendance(c.world, resultScene, p.presentActorIds, locked.storyAt, resultVersion)
+      : undefined;
+  const worldResults: SceneWorldResults = {
+    scene: resultScene,
+    ...(resultAction ? { action: resultAction } : {}),
+    updates,
+    ...(attendance ? { attendance: { appointmentId: attendance.id } } : {}),
+    observerFacts,
+  };
+  const eventType = input.actionId
+    ? c.action?.intent === 'attempt'
+      ? 'scene.action_resolved'
+      : 'scene.reaction_recorded'
+    : 'scene.opened';
+  const applies = eventType !== 'scene.reaction_recorded';
+  const nextWorld = applies
+    ? applySceneWorldResults(
+        c.world,
+        {
+          id: resultEventId,
+          worldId,
+          version: resultVersion,
+          storyAt: locked.storyAt,
+          type: eventType,
+          data: { worldResults },
+        },
+        initial,
+      )
+    : c.world;
   const source = await event(
     sql,
-    locked.world,
+    { ...locked.world, matters: nextWorld.matters },
     commandId,
     hash,
     input.actionId
@@ -786,8 +950,10 @@ export async function commitSceneProposal(
         ? 'scene.action_resolved'
         : 'scene.reaction_recorded'
       : 'scene.opened',
-    { sceneId: input.sceneId, proposal: p },
+    { sceneId: input.sceneId, proposal: p, ...(applies ? { worldResults } : {}) },
     locked.storyAt,
+    undefined,
+    resultEventId,
   );
   const boundary = c.action ? sceneAttemptBoundary(c.action.text) : null;
   if (
@@ -913,9 +1079,9 @@ export async function commitSceneProposal(
         status: 'not_started',
       });
   }
+  const action = actions.find((a) => a.id === input.actionId);
   for (const update of p.matterUpdates) {
     const m = c.matters.find((m) => m.id === update.id);
-    const action = actions.find((a) => a.id === input.actionId);
     if (!m || !action?.resolution) throw new DomainError('INVALID_PROPOSAL');
     const next = transitionCurrentMatter(
       ctx,
@@ -932,6 +1098,17 @@ export async function commitSceneProposal(
     CurrentMatterSchema.parse(next);
     await item(sql, 'matter', next);
   }
+
+  if (attendance)
+    await sql.query(
+      'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET document=excluded.document',
+      [attendance.id, worldId, ownerId, attendance],
+    );
+  for (const fact of observerFacts)
+    await sql.query(
+      'INSERT INTO parallel_life.world_facts(id,world_id,owner_id,ordinal,document) SELECT $1,$2,$3,coalesce(max(ordinal)+1,0),$4 FROM parallel_life.world_facts WHERE world_id=$2',
+      [fact.id, worldId, ownerId, fact],
+    );
   // Observable narrative only; no invented private beliefs. Scene media requests are absent, so no Outbox is advertised.
   const memory = p.observation ?? p.narration;
   await deriveAndStoreMemories(sql, [

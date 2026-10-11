@@ -1,3 +1,4 @@
+import { witnessedMatterResult } from './scene-matter-policy.ts';
 import { worldDateTimeLabel } from './display-time.ts';
 import type { WorldState } from './types.ts';
 
@@ -19,6 +20,7 @@ export type AgendaThread = {
     | 'commitment'
     | 'disclosure_followup'
     | 'departure_inquiry'
+    | 'matter_result'
     | 'reconnect';
   actorId: string;
   detail: string;
@@ -192,8 +194,7 @@ export function buildAgenda(
   }
   for (const fact of state.facts) {
     if (fact.kind !== 'canonical' || fact.visibility.kind !== 'actors') continue;
-    const isDeparture =
-      fact.departure !== undefined || fact.text.includes('亲眼看到主角离开了');
+    const isDeparture = fact.departure !== undefined || fact.text.includes('亲眼看到主角离开了');
     if (!isDeparture) continue;
     for (const actorId of fact.visibility.actorIds) {
       if (!actorIds.has(actorId)) continue;
@@ -213,14 +214,36 @@ export function buildAgenda(
       );
       if (alreadySpoke) continue;
       const fromPlaceName =
-        fact.departure?.fromPlaceName ??
-        fact.text.match(/离开了(.+?)，没有/)?.[1] ??
-        '现场';
+        fact.departure?.fromPlaceName ?? fact.text.match(/离开了(.+?)，没有/)?.[1] ?? '现场';
       threads.push({
         kind: 'departure_inquiry',
         actorId,
         basisId: fact.id,
         detail: `你亲眼看到主角离开了${fromPlaceName}，没有获知目的地。基于你们的关系与现场情况，可以询问主角去向；绝不能假装知道目的地。`,
+      });
+    }
+  }
+  for (const matter of state.matters ?? []) {
+    const evidence = matter.evidence;
+    if (evidence?.kind !== 'scene_action') continue;
+    for (const actor of state.actors) {
+      const fact = witnessedMatterResult(state, matter, actor.id);
+      if (!fact) continue;
+      if (
+        state.messages.some(
+          (m) =>
+            m.actorId === actor.id &&
+            m.role === 'assistant' &&
+            (m.sourceVersion ?? 0) >= evidence.eventVersion,
+        )
+      )
+        continue;
+      threads.push({
+        kind: 'matter_result',
+        actorId: actor.id,
+        basisId: matter.id,
+        basisAt: evidence.at,
+        detail: fact.text,
       });
     }
   }
@@ -264,6 +287,7 @@ export function eligibleAgenda(
     'choice_result',
     'appointment_result',
     'departure_inquiry',
+    'matter_result',
   ]);
   return agenda.filter((thread) => !recentActors.has(thread.actorId) || owedNow.has(thread.kind));
 }
@@ -273,6 +297,8 @@ export function threadFor(agenda: AgendaThread[], actorId: string): AgendaThread
   return (
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'awaiting_reply') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'choice_result') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'appointment_result') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'matter_result') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'departure_inquiry') ??
     agenda.find((thread) => thread.actorId === actorId)
   );

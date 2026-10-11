@@ -4,7 +4,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const countyYellowHair: OfficialLifePack = {
   card: {
     id: 'county-yellow-hair',
-    version: 2,
+    version: 3,
     title: '县城黄毛',
     hook: '她坚持带你回家。饭桌上，却坐着她爸更中意的人。',
     identityLabel: '23岁 · 县城修车青年',
@@ -28,7 +28,7 @@ export const countyYellowHair: OfficialLifePack = {
           description:
             '\u4f60\u5de5\u4f5c\u7684\u4fee\u8f66\u94fa\uff0c\u7ef4\u4fee\u6458\u5f55R17\u53ef\u5728\u4fbf\u7b7e\u6838\u5bf9\uff1b\u8f66\u8f86\u4ea4\u4ed8\u4ecd\u9700\u5b9e\u9645\u6c9f\u901a\u548c\u884c\u52a8\u3002',
           actorKeys: ['laozhou', 'liuhang'],
-          invitationKeys: [],
+          invitationKeys: ['r17_handover'],
         },
         {
           key: 'lin_home',
@@ -242,7 +242,7 @@ export const countyYellowHair: OfficialLifePack = {
       {
         key: 'now_zhou',
         actorKey: 'laozhou',
-        text: '你上次修那辆车，车主一会儿来取。收尾你自己讲。',
+        text: '你上次修那辆车，车主一会儿来取。17:41来铺里和我核对R17工单，收尾你自己讲。',
         minutesBeforeStart: 45,
         history: false,
       },
@@ -262,6 +262,13 @@ export const countyYellowHair: OfficialLifePack = {
       },
     ],
     invitations: [
+      {
+        key: 'r17_handover',
+        title: 'R17车辆交接',
+        minutesAfterStart: 1,
+        actorKeys: ['laozhou'],
+        sourceMessageKey: 'now_zhou',
+      },
       {
         key: 'family_dinner',
         title: '林悦家的晚饭',
@@ -292,6 +299,34 @@ export const countyYellowHair: OfficialLifePack = {
         key: 'life',
         title: '留着的小事',
         text: '林悦送的夜市钥匙扣一直在用。阿杰提过合租车间，方案还没确定。老周最近说想把店做小一点。',
+      },
+    ],
+    matters: [
+      {
+        key: 'deliver_r17',
+        span: 'near_term',
+        title: '交付已修缮的R17',
+        description: '在老周修车铺核对维修单据，向车主或老周交代电源接头检修细节并完成交付。',
+        relatedPlaceKey: 'repair_shop',
+        relatedActorKeys: ['laozhou'],
+        relatedInvitationKey: 'r17_handover',
+      },
+      {
+        key: 'attend_dinner',
+        span: 'near_term',
+        title: '林悦家的晚饭邀约',
+        description: '林悦希望你晚上七点去她家。刘航也在场，需要当面把态度和心意表达清楚。',
+        relatedPlaceKey: 'lin_home',
+        relatedActorKeys: ['linyue'],
+        relatedInvitationKey: 'family_dinner',
+      },
+      {
+        key: 'own_workshop',
+        span: 'pursuit',
+        title: '拥有自己的独立工位与招牌',
+        description: '不想永远只给别人打杂，无论合伙还是单干，都要靠手艺在县城真正立足。',
+        relatedPlaceKey: 'old_workshop',
+        relatedActorKeys: ['ajie'],
       },
     ],
   },

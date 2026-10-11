@@ -1,3 +1,4 @@
+import { matterCriterion, sceneMatterId } from '../domain/scene-matter-policy.ts';
 import { worldDateTimeLabel } from '../domain/display-time.ts';
 import { actorContext } from '../application/actor-context.ts';
 import { extractJsonObject } from '../../ai/application/model-json.ts';
@@ -57,9 +58,7 @@ export class ScenePlanner implements ScenePlannerPort {
     const directAppointment = c.world.appointments.find((x) => x.id === c.scene.appointmentId);
     const activeAppointment = directAppointment ?? placeAppointment;
     const candidates = opening
-      ? c.world.actors.filter((a) =>
-          activeAppointment?.participantIds.includes(a.id),
-        )
+      ? c.world.actors.filter((a) => activeAppointment?.participantIds.includes(a.id))
       : c.world.actors.filter((a) =>
           scenePresent(c.scene, c.world.version).some(
             (p) => p.kind === 'actor' && p.actorId === a.id,
@@ -69,6 +68,24 @@ export class ScenePlanner implements ScenePlannerPort {
     const currentPlace = c.entries.filter((e) => e.kind === 'time_place').at(-1);
     const payload = {
       currentPlace: currentPlace ?? null,
+      worldMatterConditions: c.matters.flatMap((local) => {
+        const m = c.world.matters?.find((m) => sceneMatterId(c.scene.id, m.id) === local.id);
+        if (!m) return [];
+        const rule = matterCriterion(m);
+        return [
+          {
+            id: local.id,
+            title: m.title,
+            completionAllowed: Boolean(rule),
+            condition: rule
+              ? {
+                  actionAll: rule.actionAll.map((r) => r.source),
+                  observationAll: rule.observationAll.map((r) => r.source),
+                }
+              : null,
+          },
+        ];
+      }),
       authoredPlace: c.scene.placeId
         ? c.world.space?.places.find((p) => p.id === c.scene.placeId) && {
             name: c.world.space.places.find((p) => p.id === c.scene.placeId)!.name,
@@ -124,7 +141,7 @@ export class ScenePlanner implements ScenePlannerPort {
           role: 'user',
           content:
             JSON.stringify(payload) +
-            `\nCURRENT TASK: ${c.action ? (c.action.intent === 'attempt' ? 'Adjudicate the saved currentAction. Non-null outcome and observation REQUIRED. matterTitle=null.' : 'Record the plan/hypothesis only. outcome/observation=null.') : 'Generate the observable opening. No executed outcome.'} history is PAST, do not copy its dialogues or output its previous results. The currentAction was attempted by the PLAYER, never by an NPC. Do not change who acted. Narration describes ONLY the physical environment: never invent anyone's thoughts, hopes, anxieties, wishes or emotions, even when the history did. Do not describe NPC actions here; NPC actions and responses come ONLY from separate NPC calls. Observation must address the PLAYER as YOU, never substitute an actor name for the player. No hidden thoughts or feelings. dialogues MUST be [] because NPCs speak separately. ${c.action ? 'presentActorIds MUST equal ' + JSON.stringify(candidates.map((a) => a.id)) : ''} When deferredUntilAnotherPlayerInput is non-null, ONLY adjudicate currentAction.text and stop at the unanswered question. Never execute the deferred clause; outcome is partial or failed. If an actual attempt starts a related not_started matter, propose in_progress for that matter. Opening initialMatters must be an array of objects with ONLY a title string naming an actual step from this appointment, never copy a fact object, id, text or visibility. It can contain the necessary concrete small steps from this appointment; do not impose a fixed task count. matterTitle is legacy and should be null. On actions, initialMatters=[] and matterTitle=null; do not create new tasks. On opening, location must be a concrete non-empty Chinese place string, never null; derive it from authoredPlace when present, otherwise the appointment. authoredPlace is a trusted public setting, not a performed action. If no appointment or actual present actor exists, actors and presentActorIds must be empty; never bring contacts into this scene. On actions, keep location equal to currentPlace.location until the player explicitly leaves; movement only changes observable position within this scene. All narrative text in Chinese.`,
+            `\nCURRENT TASK: ${c.action ? (c.action.intent === 'attempt' ? 'Adjudicate the saved currentAction. Non-null outcome and observation REQUIRED. matterTitle=null.' : 'Record the plan/hypothesis only. outcome/observation=null.') : 'Generate the observable opening. No executed outcome.'} history is PAST, do not copy its dialogues or output its previous results. The currentAction was attempted by the PLAYER, never by an NPC. Do not change who acted. Narration describes ONLY the physical environment: never invent anyone's thoughts, hopes, anxieties, wishes or emotions, even when the history did. Do not describe NPC actions here; NPC actions and responses come ONLY from separate NPC calls. Observation must address the PLAYER as YOU, never substitute an actor name for the player. No hidden thoughts or feelings. dialogues MUST be [] because NPCs speak separately. ${c.action ? 'presentActorIds MUST equal ' + JSON.stringify(candidates.map((a) => a.id)) : ''} Only explicitly related currentAction.relatedMatterIds may get matterUpdates. A successful action does NOT complete every selected matter. World matter completed requires completionAllowed=true AND every trusted action/observation condition; otherwise propose only in_progress/blocked if justified, or no change. Greeting/arrival/looking/self-report do not complete other goals. Never manufacture completion evidence or rewards. When deferredUntilAnotherPlayerInput is non-null, ONLY adjudicate currentAction.text and stop at the unanswered question. Never execute the deferred clause; outcome is partial or failed. If an actual attempt starts a related not_started matter, propose in_progress for that matter. Opening initialMatters must be an array of objects with ONLY a title string naming an actual step from this appointment, never copy a fact object, id, text or visibility. It can contain the necessary concrete small steps from this appointment; do not impose a fixed task count. matterTitle is legacy and should be null. On actions, initialMatters=[] and matterTitle=null; do not create new tasks. On opening, location must be a concrete non-empty Chinese place string, never null; derive it from authoredPlace when present, otherwise the appointment. authoredPlace is a trusted public setting, not a performed action. If no appointment or actual present actor exists, actors and presentActorIds must be empty; never bring contacts into this scene. On actions, keep location equal to currentPlace.location until the player explicitly leaves; movement only changes observable position within this scene. All narrative text in Chinese.`,
         },
       ],
       signal,
