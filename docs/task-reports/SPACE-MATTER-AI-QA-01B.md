@@ -46,3 +46,7 @@
 根已批准同文件最小修复：ScenePlanner版本scene-text-v4-action-continuity，past adjudicated_result在私有history保留outcome；导演明确保留过去已建立的核对、说明、交接、记录步骤，按原描述/可信条件判本次新增实际行为。partial/failed须具体未完成/不支持步骤与原因，不泛泛抹掉已完成记录；不移动可向当前允许接收人交付的门槛；请求对方检查仍只是请求。不复制含NPC行为/意图的环境段落、不为变换措辞造新环境事件。
 
 现场NPC observedNow添加outcome；提示待检查/待确认不能由台词补成检查签收已通过，可以提出核对具体项。旧预约是计划，时点已过没有到场/新确认不能肯定马上来、编迟到原因或新增见证者。没有替14/18改partial或造inspection/signedreceipt。新capture回归覆盖具体剩余项/已有步骤连续/原接收人门槛与18:02的17:55旧计划；相关新旧planner专项14/14与typecheck已过，真实新效果未知，B仍0调用；完整check/build再次待复验。
+
+## 连续性补丁最终冻结
+
+业务553d51f，完整check751/751、相关专项14/14、build exit0、diff check通过。日志本树.local/matter-aiqa-b-continuity-{pure,typecheck,check,build}.log。源码再冻结释放I，55471已停止且无监听；没有HTTP/浏览器/生产写/供应商新增请求。主表回待验收。基线两次partial不能被新capture改写成成功，后续真实修复效果与剩余次数仅由根实账本及Q语义验收确认。
