@@ -106,6 +106,8 @@ export type PlayerRecordsInput = {
   actors: { id: string; name: string }[];
   events: (WorldEvent | InvitationEvent)[];
   matters?: import('./matters.ts').WorldMatter[];
+  /** Only storage-validated, player-visible resolutions, keyed to the matching matter. */
+  matterObservations?: ReadonlyMap<string, string>;
 };
 const labels: Record<PlayerRecord['state'], string> = {
   planned: '你记录的计划',
@@ -566,13 +568,15 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
       at: matter.updatedAt,
       timeBasis: 'story',
     };
+    const relatedActor = input.actors.find((actor) => matter.relatedActorIds?.includes(actor.id));
+    const relatedInvitation = input.appointments.find((a) => a.id === matter.relatedInvitationId);
     let nav: PlayerRecord['navigation'] = undefined;
     if (matter.relatedPlaceId) {
       nav = { app: 'map', placeId: matter.relatedPlaceId };
-    } else if (matter.relatedActorIds?.[0]) {
-      nav = { app: 'wechat', actorId: matter.relatedActorIds[0] };
-    } else if (matter.relatedInvitationId) {
-      nav = { app: 'calendar', invitationId: matter.relatedInvitationId };
+    } else if (relatedActor) {
+      nav = { app: 'wechat', actorId: relatedActor.id };
+    } else if (relatedInvitation) {
+      nav = { app: 'calendar', invitationId: relatedInvitation.id };
     }
     const state =
       matter.assertion === 'player_statement' && matter.status === 'completed'
@@ -583,22 +587,41 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
       kind: 'world_matter',
       span: matter.span,
       title: matter.title,
-      text: matter.description,
+      text: input.matterObservations?.has(matter.id)
+        ? `${matter.description}\n\n这次行动的反馈：${input.matterObservations.get(matter.id)}`
+        : matter.description,
       state,
       assertion: matter.assertion,
       source: matterRecordSource,
+      relatedLinks: [
+        ...(relatedActor
+          ? [{ app: 'messages' as const, target: relatedActor.id, label: '联系相关人物' }]
+          : []),
+        ...(relatedInvitation
+          ? [{ app: 'calendar' as const, target: relatedInvitation.id, label: '查看关联日程' }]
+          : []),
+      ],
       ...(nav ? { navigation: nav } : {}),
     };
 
     if (matter.span === 'near_term') {
-      add(record, isHistorical);
+      (isHistorical ? output.history : output.current).push({
+        ...record,
+        stateLabel:
+          matter.assertion === 'world_verified' && state === 'blocked' ? '遇到阻碍' : labels[state],
+      });
     } else {
       if (isHistorical) {
         add(record, true);
       } else {
         output.about.push({
           ...record,
-          stateLabel: matter.status === 'in_progress' ? '长期追求' : labels[state],
+          stateLabel:
+            matter.status === 'in_progress'
+              ? '长期追求'
+              : matter.assertion === 'world_verified' && state === 'blocked'
+                ? '遇到阻碍'
+                : labels[state],
         });
       }
     }

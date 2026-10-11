@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { Timestamp } from './api.ts';
 
-export const EntityId = z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(100);
+export const EntityId = z
+  .string()
+  .regex(/^[a-zA-Z0-9_-]+$/)
+  .min(1)
+  .max(100);
 
 export const MatterSpanSchema = z.enum(['near_term', 'pursuit']);
 export type MatterSpan = z.infer<typeof MatterSpanSchema>;
@@ -130,7 +134,14 @@ export const WorldMatterSchema = z
       return m.assertion === 'player_statement';
     }
     return true;
-  }, 'Player reported completion cannot masquerade as world verification');
+  }, 'Player reported completion cannot masquerade as world verification')
+  .refine(
+    (m) =>
+      m.status !== 'completed' ||
+      m.evidence?.kind !== 'scene_action' ||
+      m.evidence.outcome === 'succeeded',
+    'Failed or partial scene actions cannot complete a matter',
+  );
 
 export type WorldMatter = z.infer<typeof WorldMatterSchema>;
 

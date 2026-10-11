@@ -187,6 +187,16 @@ export function transitionWorldMatter(
 
   let finalAssertion: MatterAssertion = update.assertion ?? matter.assertion;
 
+  if (
+    update.status === 'completed' &&
+    update.evidence.kind === 'scene_action' &&
+    update.evidence.outcome !== 'succeeded'
+  )
+    throw new DomainError(
+      'INVALID_PROPOSAL',
+      'Failed or partial scene actions cannot complete a matter',
+    );
+
   // Strict truthfulness rule:
   // Player self-report (user_report) can never assert world_verified!
   if (update.evidence.kind === 'user_report') {
@@ -217,7 +227,13 @@ export function transitionWorldMatter(
 }
 
 export function claimMatterReward(matter: WorldMatter, now: string): WorldMatter {
-  if (matter.status !== 'completed' || matter.assertion !== 'world_verified') {
+  if (
+    matter.status !== 'completed' ||
+    matter.assertion !== 'world_verified' ||
+    !matter.evidence ||
+    matter.evidence.kind === 'user_report' ||
+    (matter.evidence.kind === 'scene_action' && matter.evidence.outcome !== 'succeeded')
+  ) {
     throw new DomainError(
       'INVALID_PROPOSAL',
       'MATTER_NOT_COMPLETED: Cannot claim reward for uncompleted matter',

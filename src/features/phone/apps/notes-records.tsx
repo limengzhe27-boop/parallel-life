@@ -28,8 +28,7 @@ export function recordDestination(record: RecordItem) {
   if (navigation?.app === 'wechat') return { app: 'messages' as const, target: navigation.actorId };
   if (navigation?.app === 'calendar')
     return { app: 'calendar' as const, target: navigation.invitationId };
-  if (navigation?.app === 'map')
-    return { app: 'map' as const, target: navigation.placeId };
+  if (navigation?.app === 'map') return { app: 'map' as const, target: navigation.placeId };
   return undefined;
 }
 
@@ -120,7 +119,9 @@ export function NotesRecords({
     query,
   );
   const situations = searchRecords(
-    data.about.filter((r) => r.kind === 'opening_context' || (r.span !== 'pursuit' && r.kind !== 'world_matter')),
+    data.about.filter(
+      (r) => r.kind === 'opening_context' || (r.span !== 'pursuit' && r.kind !== 'world_matter'),
+    ),
     query,
   );
   const history = searchRecords(data.history, query);
@@ -252,7 +253,7 @@ export function NotesRecordDetail({
             {destination.app === 'messages'
               ? '查看来源对话'
               : destination.app === 'map'
-                ? '前往地点现场'
+                ? '查看地点'
                 : '查看日程'}
             <span aria-hidden="true"> ›</span>
           </button>

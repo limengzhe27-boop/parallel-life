@@ -6,6 +6,9 @@ import { projectPlayerRecords, type PlayerRecordsInput } from '../domain/player-
 import { applyInvitationEvent } from '../domain/invitations.ts';
 import { DomainError } from '../domain/errors.ts';
 import { PlayerRecordsSchema } from '../../../contracts/world-records.ts';
+import { SceneRuntimeActionSchema } from '../../../contracts/scenes.ts';
+import { matterSceneObservation } from '../domain/matter-scene-observation.ts';
+import type { WorldMatter } from '../domain/matters.ts';
 
 /** Reads all sources at one locked, committed version. Never writes projections/tasks. */
 export class PostgresPlayerRecords implements PlayerRecordsReader {
@@ -95,11 +98,50 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           [worldId, ownerId, world.version, eventIds],
         )
       ).rows.map((r) => r.document);
+      const matters: WorldMatter[] = world.state.matters ?? [];
+      const actionIds = matters.flatMap((m) =>
+        m.evidence?.kind === 'scene_action' ? [m.evidence.actionId] : [],
+      );
+      const actionRows = actionIds.length
+        ? (
+            await sql.query(
+              `SELECT i.document,e.id AS event_id,e.version AS event_version,e.payload
+         FROM parallel_life.scene_items i JOIN parallel_life.world_events e
+           ON e.id=i.document#>>'{resolution,sourceEventId}' AND e.world_id=i.world_id AND e.owner_id=i.owner_id
+         WHERE i.world_id=$1 AND i.owner_id=$2 AND i.kind='action' AND i.id=ANY($4::text[]) AND e.version<=$3`,
+              [worldId, ownerId, world.version, actionIds],
+            )
+          ).rows
+        : [];
+      const matterObservations = new Map<string, string>();
+      for (const row of actionRows) {
+        const parsed = SceneRuntimeActionSchema.safeParse(row.document);
+        if (
+          !parsed.success ||
+          row.payload.type !== 'scene.action_resolved' ||
+          row.payload.id !== row.event_id ||
+          row.payload.worldId !== worldId ||
+          row.payload.version !== row.event_version ||
+          row.payload.data?.sceneId !== parsed.data.sceneId
+        )
+          continue;
+        for (const matter of matters) {
+          const observation = matterSceneObservation(matter, parsed.data, {
+            ownerId,
+            worldId,
+            worldVersion: world.version,
+            eventId: row.event_id,
+            eventVersion: row.event_version,
+          });
+          if (observation) matterObservations.set(matter.id, observation);
+        }
+      }
       const input: PlayerRecordsInput = {
         worldId,
         worldVersion: world.version,
         choices,
-        matters: world.state.matters ?? [],
+        matters,
+        matterObservations,
         appointments,
         messages,
         events,
