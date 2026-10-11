@@ -172,6 +172,14 @@ export type WorldEffect =
       quote: string;
       outcome: 'reported_done' | 'blocked' | 'abandoned';
     }
+  | {
+      type: 'matter.proposed';
+      id: Id;
+      title: string;
+      description: string;
+      span: 'near_term' | 'pursuit';
+      quote: string;
+    }
   | { type: 'matter.created'; id: Id; matter: WorldMatter }
   | {
       type: 'matter.updated';

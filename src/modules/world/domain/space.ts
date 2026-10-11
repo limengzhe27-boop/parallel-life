@@ -71,124 +71,12 @@ export function deriveInitialSpace(input: {
     }
     return authoredSpace(input.opening.space, input.source, input.actorIds, appointmentMap);
   }
-  let placeName = '';
-  if (input.seed.setup?.place) {
-    placeName = input.seed.setup.place.trim();
-  } else if (input.seed.settingContent?.setup?.place) {
-    placeName = input.seed.settingContent.setup.place.trim();
-  }
-  if (!placeName) return undefined;
-
-  const primaryName = placeName.length > 80 ? placeName.slice(0, 80) : placeName;
-  const primaryDesc = (input.opening.setting || input.seed.story?.premise || primaryName).trim().slice(0, 500);
-
-  const actorIdList = input.opening.actors
-    .map((a) => input.actorIds.get(a.key))
-    .filter((id): id is string => Boolean(id));
-  const primaryActorIds = actorIdList.slice(0, 2);
-  const remainingActorIds = actorIdList.slice(2);
-
-  const places: SpacePlace[] = [
-    {
-      id: 'primary_place',
-      name: primaryName,
-      description: primaryDesc,
-      source: input.source,
-      contactActorIds: primaryActorIds,
-      appointmentIds: [],
-    },
-  ];
-
-  const routes: SpaceRoute[] = [];
-
-  const areaLabel = placeName.includes('·') ? placeName.split('·')[0]!.trim() : placeName;
-  const communityName = ('周边街区 · ' + areaLabel).slice(0, 80);
-  places.push({
-    id: 'community_area',
-    name: communityName,
-    description: '生活与往来的周边活动街区。',
-    source: input.source,
-    contactActorIds: remainingActorIds.length ? remainingActorIds : primaryActorIds,
-    appointmentIds: [],
-  });
-
-  routes.push(
-    {
-      id: 'primary_to_community',
-      fromPlaceId: 'primary_place',
-      toPlaceId: 'community_area',
-      durationMinutes: 15,
-      modeLabel: '步行',
-      source: input.source,
-    },
-    {
-      id: 'community_to_primary',
-      fromPlaceId: 'community_area',
-      toPlaceId: 'primary_place',
-      durationMinutes: 15,
-      modeLabel: '步行',
-      source: input.source,
-    },
-  );
-
-  const firstAppointment = (input.appointments ?? [])[0];
-  if (firstAppointment) {
-    const venueTitle = firstAppointment.title.trim();
-    const venueName = ('约定地点 · ' + (venueTitle.length > 30 ? venueTitle.slice(0, 28) + '…' : venueTitle)).slice(0, 80);
-    places.push({
-      id: 'appointment_venue',
-      name: venueName,
-      description: '开场日程中约定的会面地点。',
-      source: input.source,
-      contactActorIds: firstAppointment.participantIds.filter((id) => actorIdList.includes(id)),
-      appointmentIds: [firstAppointment.id],
-    });
-
-    routes.push(
-      {
-        id: 'primary_to_appointment',
-        fromPlaceId: 'primary_place',
-        toPlaceId: 'appointment_venue',
-        durationMinutes: 25,
-        modeLabel: '车程',
-        source: input.source,
-      },
-      {
-        id: 'appointment_to_primary',
-        fromPlaceId: 'appointment_venue',
-        toPlaceId: 'primary_place',
-        durationMinutes: 25,
-        modeLabel: '车程',
-        source: input.source,
-      },
-      {
-        id: 'community_to_appointment',
-        fromPlaceId: 'community_area',
-        toPlaceId: 'appointment_venue',
-        durationMinutes: 20,
-        modeLabel: '车程',
-        source: input.source,
-      },
-      {
-        id: 'appointment_to_community',
-        fromPlaceId: 'appointment_venue',
-        toPlaceId: 'community_area',
-        durationMinutes: 20,
-        modeLabel: '车程',
-        source: input.source,
-      },
-    );
-  }
-
-  const spaceState: WorldSpaceState = {
-    places,
-    routes,
-    currentPlaceId: 'primary_place',
-    positionSource: input.source,
-  };
-  validateSpace(spaceState);
-  return spaceState;
+  // A legacy city/name is not a authored map. Never infer NPC locations, routes,
+  // appointment venues or journey duration from it. Explicit drafts are generated
+  // and validated during new world creation; old saves without one stay honest.
+  return undefined;
 }
+
 export function authoredSpace(
   opening: SpaceOpening,
   source: SpaceSource,

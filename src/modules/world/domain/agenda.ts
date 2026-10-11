@@ -100,7 +100,7 @@ export function buildAgenda(
         const venue = state.space?.places.find((p) => p.appointmentIds.includes(appointment.id));
         const detail = venue
           ? state.space?.currentPlaceId === venue.id
-            ? `你们明确约在「${venue.name}」的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，时间已到，主角此刻就在${venue.name}。作为约定参与者，在现场自然碰面或开启当面交流；绝不能声称主角迟到或失约。`
+            ? `你们明确约在「${venue.name}」的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，时间已到，主角的地图位置已到${venue.name}，但尚无实际参与或见面证据。你可以提出在哪里碰面，不能声称亲眼看见、已经赴约或完成活动；绝不能声称主角迟到或失约。`
             : `你们明确约在「${venue.name}」的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，时间已到或已过，但主角尚未到达约定现场。作为等待的参与者，你可以询问主角是否路上耽搁或需要改期；你不知道主角去了哪里，绝不能无端指责主角故意失约，也不能假装主角已经到场。`
           : `你们明确约好的「${appointment.title}」原定于${worldDateTimeLabel(appointment.at)}，这个节点现在已到或已过。承接这件事当前可做的调整或后续，不假装刚发邀请、不继续催赴已经过时的约；没有到场或结果记录时不能声称已经发生、失约或完成。`;
         threads.push({

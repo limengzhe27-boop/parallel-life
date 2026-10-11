@@ -55,14 +55,9 @@ function validateMatterSpan(value: unknown): MatterSpan {
 
 function validateMatterStatus(value: unknown): MatterStatus {
   if (
-    [
-      'not_started',
-      'in_progress',
-      'blocked',
-      'completed',
-      'abandoned',
-      'superseded',
-    ].includes(value as string)
+    ['not_started', 'in_progress', 'blocked', 'completed', 'abandoned', 'superseded'].includes(
+      value as string,
+    )
   )
     return value as MatterStatus;
   return fail();
@@ -402,6 +397,15 @@ export function parseProposal(value: unknown): TurnProposal {
           choiceId: id(item.choiceId),
           quote: text(item.quote, 160).trim(),
           outcome: item.outcome as 'reported_done' | 'blocked' | 'abandoned',
+        };
+      case 'matter.proposed':
+        return {
+          type: item.type,
+          id: effectId,
+          title: text(item.title, 100).trim(),
+          description: text(item.description, 500).trim(),
+          span: validateMatterSpan(item.span),
+          quote: text(item.quote, 160).trim(),
         };
       case 'matter.created': {
         const matter = validateWorldMatter(item.matter);

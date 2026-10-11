@@ -86,7 +86,7 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
                   onClick={() => open(destination.app, destination.target)}
                 >
                   {destination.app === 'map'
-                    ? '前往地点现场 ›'
+                    ? '查看地点 ›'
                     : destination.app === 'messages'
                       ? '查看来源对话 ›'
                       : '查看日程 ›'}

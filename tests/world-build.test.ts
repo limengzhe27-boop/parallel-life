@@ -567,7 +567,7 @@ test('production-disabled history preserves the previously deployed opening prot
   );
   const result = await planner.propose(seed);
   assert.equal(result.messageHistory, undefined);
-  assert.equal(planner.promptVersion, 'world-opening-11');
+  assert.equal(planner.promptVersion, 'world-opening-18-space');
 });
 
 test('disabled history authored cast retains server personas with legacy messages and notes', async () => {

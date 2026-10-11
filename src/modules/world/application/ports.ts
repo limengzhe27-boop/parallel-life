@@ -30,6 +30,11 @@ export type ActorContext = {
   messages: WorldState['messages'];
   appointments: WorldState['appointments'];
   choices?: WorldState['choices'];
+  /** Only player-visible matters this character is explicitly involved in; no hidden plot. */
+  matters?: Pick<
+    import('../domain/matters.ts').WorldMatter,
+    'id' | 'title' | 'description' | 'span' | 'status' | 'assertion'
+  >[];
   retrievedMemories?: MemoryRecord[];
   turnOrigin?: 'director';
 };

@@ -557,7 +557,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
     );
   }
   for (const matter of input.matters ?? []) {
-    if (matter.visibility !== 'player_visible') continue;
+    if (matter.worldId !== input.worldId || matter.visibility !== 'player_visible') continue;
     const isHistorical = ['completed', 'abandoned', 'superseded'].includes(matter.status);
     const matterRecordSource: RecordSource = {
       kind: 'world_matter',

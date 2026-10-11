@@ -139,58 +139,39 @@ test('persisted pending becomes unknown without losing original fingerprint; for
     null,
   );
 });
-test('deriveInitialSpace constructs coherent places, routes and starting position from seed setup', () => {
-  const seedId = randomUUID();
-  const actor1Id = randomUUID();
-  const actor2Id = randomUUID();
-  const actorIds = new Map([
-    ['actor_a', actor1Id],
-    ['actor_b', actor2Id],
-  ]);
-  const seed = {
-    setup: { place: '青石老街·林记汽修' },
-    story: { premise: '你接管了父亲在青石老街留下的汽修铺。', title: '汽修岁月' },
+test('deriveInitialSpace accepts explicit opening routes without inventing locations from a city', () => {
+  const seedId = randomUUID(),
+    actorId = randomUUID();
+  const source = { kind: 'seed_genesis' as const, seedId, snapshotVersion: 0 as const };
+  const base = {
+    seed: { setup: { place: '上海' } },
+    actorIds: new Map([['a', actorId]]),
+    source,
+    opening: { setting: '工作室', actors: [{ key: 'a', name: '阿杰' }] },
   };
-  const opening = {
-    setting: '午后的老街修车铺里，满是旧工具和发动机的气味。',
-    actors: [
-      { key: 'actor_a', name: '林叔' },
-      { key: 'actor_b', name: '阿杰' },
+  assert.equal(deriveInitialSpace(base), undefined);
+  const drafted = {
+    initialPlaceId: 'studio',
+    places: [
+      {
+        key: 'studio',
+        name: '青石街修车铺',
+        description: '工具台',
+        actorKeys: ['a'],
+        invitationKeys: [],
+      },
+      { key: 'shop', name: '零件店', description: '可以买零件', actorKeys: [], invitationKeys: [] },
     ],
+    routes: [{ key: 'walk', from: 'studio', to: 'shop', minutes: 7, modeLabel: '步行' }],
   };
-  const apptId = randomUUID();
-  const space = deriveInitialSpace({
-    seed,
-    opening,
-    actorIds,
-    appointments: [{ id: apptId, title: '老茶馆碰头', participantIds: [actor1Id] }],
-    source: { kind: 'seed_genesis', seedId, snapshotVersion: 0 },
-  });
-  assert.ok(space);
-  assert.equal(space.currentPlaceId, 'primary_place');
-  assert.equal(space.places.length, 3);
-  assert.equal(space.places[0]!.id, 'primary_place');
-  assert.equal(space.places[0]!.name, '青石老街·林记汽修');
-  assert.deepEqual(space.places[0]!.contactActorIds, [actor1Id, actor2Id]);
-  assert.equal(space.places[1]!.id, 'community_area');
-  assert.ok(space.places[1]!.name.includes('周边街区'));
-  assert.equal(space.places[2]!.id, 'appointment_venue');
-  assert.ok(space.places[2]!.name.includes('老茶馆碰头'));
-  assert.deepEqual(space.places[2]!.appointmentIds, [apptId]);
-  assert.equal(space.routes.length, 6);
-  assert.ok(
-    space.routes.every(
-      (r) =>
-        r.durationMinutes >= 1 &&
-        r.durationMinutes <= 120 &&
-        r.fromPlaceId !== r.toPlaceId &&
-        Boolean(r.modeLabel),
-    ),
-  );
+  const space = deriveInitialSpace({ ...base, opening: { ...base.opening, space: drafted } })!;
+  assert.equal(space.currentPlaceId, 'studio');
+  assert.equal(space.places.length, 2);
+  assert.deepEqual(space.places[0]!.contactActorIds, [actorId]);
+  assert.deepEqual(space.places[1]!.contactActorIds, []);
+  assert.equal(space.routes[0]!.durationMinutes, 7);
   assert.doesNotThrow(() => validateSpace(space));
-  // Validates through SpaceSourceSchema
   assert.ok(SpaceSourceSchema.safeParse(space.places[0]!.source).success);
-  assert.equal(space.places[0]!.source.kind, 'seed_genesis');
 });
 test('deriveInitialSpace returns undefined when seed has no reliable place, preserving honest empty state', () => {
   const seedId = randomUUID();
@@ -399,7 +380,8 @@ test('appointment_due distinguishes player present at venue vs absent elsewhere;
     (t) => t.kind === 'appointment_due' && t.actorId === actor.id,
   );
   assert.ok(dueAtVenue);
-  assert.match(dueAtVenue.detail, /主角此刻就在/);
+  assert.match(dueAtVenue.detail, /地图位置已到/);
+  assert.match(dueAtVenue.detail, /尚无实际参与或见面证据/);
   assert.match(dueAtVenue.detail, /绝不能声称主角迟到或失约/);
 
   // 2. Confirmed appointment when player travelled to a different place
@@ -437,4 +419,3 @@ test('appointment_due distinguishes player present at venue vs absent elsewhere;
   const agendaProposed = buildAgenda(wProposedPastDue);
   assert.ok(!agendaProposed.some((t) => t.detail.includes('未确认的聚餐邀请')));
 });
-
