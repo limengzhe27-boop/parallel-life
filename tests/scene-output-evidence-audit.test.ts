@@ -434,3 +434,120 @@ for (const [label, text, observation] of [
     assert.deepEqual(f.c.world, before);
   });
 }
+
+function savedReviewFixture() {
+  const f = fixture(),
+    { result, event } = resolve(f, f.director);
+  f.c.world.matters = result.matters;
+  f.c.world.version = event.version;
+  f.c.action = {
+    ...f.c.action!,
+    id: randomUUID(),
+    sourceEventId: randomUUID(),
+    sourceVersion: event.version,
+    text: '我向老周说明接头检修。',
+  };
+  f.director.observation = '你向老周说明接头检修。';
+  f.director.stepProposals = [
+    {
+      matterId: f.f.trigger.id,
+      stepId: 'repair_explained',
+      inputQuote: f.c.action.text,
+      observationQuote: f.director.observation,
+      receiverId: f.f.actorId,
+    },
+  ];
+  return f;
+}
+test('Q lists: current review stays candidate while saved remaining and done retain the prior snapshot', async () => {
+  const f = fixture(),
+    before = structuredClone(f.c.world);
+  let inspected = 0;
+  await run(f, (messages, index) => {
+    if (!index) return;
+    inspected++;
+    const npc = JSON.parse(messages[1]!.content),
+      ctx = npc.stepExecution[0];
+    assert.deepEqual(ctx.savedCompletedSteps, []);
+    assert.ok(ctx.savedRemainingSteps.some((step: { id: string }) => step.id === 'order_reviewed'));
+    assert.equal(
+      ctx.steps.find((step: { id: string }) => step.id === 'order_reviewed').done,
+      false,
+    );
+    assert.deepEqual(ctx.currentTurnStepCandidates, f.director.stepProposals);
+    assert.equal(npc.observedNow.observation, f.director.observation);
+    for (const alias of ['completedSteps', 'missingSteps', 'candidatePlayerSteps'])
+      assert.ok(!(alias in ctx), 'old ambiguous list aliases must be absent');
+    assert.match(messages[0]!.content, /不是已提交事实/);
+    assert.match(messages[0]!.content, /绝非默认台词/);
+    assert.ok(!messages[0]!.content.includes('{"text":"单号先核对清楚。","actions":[]}'));
+  });
+  assert.equal(inspected, 1);
+  assert.deepEqual(f.c.world, before);
+});
+test('Q lists: saved review has its original source while current explanation earns no saved credit', async () => {
+  const f = savedReviewFixture(),
+    before = structuredClone(f.c.world);
+  const prior = f.c.world.matters!.find((m) => m.id === f.f.trigger.id)!.stepProgress!.steps[0]!;
+  await run(f, (messages, index) => {
+    if (!index) return;
+    const ctx = JSON.parse(messages[1]!.content).stepExecution[0];
+    assert.equal(ctx.savedCompletedSteps.length, 1);
+    assert.equal(ctx.savedCompletedSteps[0].stepId, 'order_reviewed');
+    assert.equal(ctx.savedCompletedSteps[0].eventId, prior.eventId);
+    assert.equal(ctx.savedCompletedSteps[0].eventVersion, prior.eventVersion);
+    assert.ok(!('inputQuote' in ctx.savedCompletedSteps[0]));
+    assert.ok(!ctx.savedRemainingSteps.some((s: { id: string }) => s.id === 'order_reviewed'));
+    assert.ok(ctx.savedRemainingSteps.some((s: { id: string }) => s.id === 'repair_explained'));
+    assert.equal(ctx.steps.find((s: { id: string }) => s.id === 'repair_explained').done, false);
+    assert.deepEqual(ctx.currentTurnStepCandidates, f.director.stepProposals);
+  });
+  assert.deepEqual(f.c.world, before);
+});
+for (const privacy of ['blocked-input', 'blocked-result', 'unwitnessed'] as const) {
+  test(`Q lists: ${privacy} saved evidence does not reach the NPC or set done`, async () => {
+    const f = savedReviewFixture();
+    const prior = f.c.world.matters!.find((m) => m.id === f.f.trigger.id)!.stepProgress!.steps[0]!;
+    prior.observationQuote = sentinel;
+    if (privacy === 'unwitnessed') prior.witnessActorIds = [];
+    else
+      f.c.blockedSourcesByActor = {
+        [f.f.actorId]: [privacy === 'blocked-input' ? prior.inputEventId : prior.eventId],
+      };
+    await run(f, (messages, index) => {
+      if (!index) return;
+      assert.ok(!messages[1]!.content.includes(sentinel));
+      const ctx = JSON.parse(messages[1]!.content).stepExecution[0];
+      assert.deepEqual(ctx.savedCompletedSteps, []);
+      assert.equal(ctx.steps.find((s: { id: string }) => s.id === 'order_reviewed').done, false);
+      assert.ok(ctx.savedRemainingSteps.some((s: { id: string }) => s.id === 'order_reviewed'));
+      assert.deepEqual(ctx.currentTurnStepCandidates, f.director.stepProposals);
+    });
+  });
+}
+test('Q lists: only the addressed eligible receiver sees the current explanation candidate', async () => {
+  const f = savedReviewFixture();
+  const other = f.c.world.actors.find((actor) => actor.id !== f.f.actorId)!;
+  f.c.world.matters!.find((m) => m.id === f.f.trigger.id)!.relatedActorIds!.push(other.id);
+  f.c.scene.presence.push({
+    participant: { kind: 'actor', actorId: other.id },
+    joinedVersion: 0,
+    sourceVersion: 0,
+    sourceEventId: 'audit:other-arrival',
+  });
+  f.director.presentActorIds.push(other.id);
+  const seen = new Map<string, unknown[]>();
+  const before = structuredClone(f.c.world);
+  const { calls } = await run(f, (messages, index) => {
+    if (!index) return;
+    const npc = JSON.parse(messages[1]!.content);
+    seen.set(npc.actor.name, npc.stepExecution[0].currentTurnStepCandidates);
+  });
+  assert.equal(calls, 3);
+  assert.deepEqual(
+    seen.get(f.c.world.actors.find((a) => a.id === f.f.actorId)!.name),
+    f.director.stepProposals,
+  );
+  assert.deepEqual(seen.get(other.name), []);
+  assert.deepEqual(f.c.world, before);
+});

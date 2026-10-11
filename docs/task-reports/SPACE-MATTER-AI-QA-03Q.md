@@ -49,3 +49,17 @@
 正确index仍不能授权伪input或错WORLD/local ID；否定、未来承诺、未以你开头的观察即使到达候选层，最终domain仍拒且不修改输入。action NPC现在同样固定匿名player addressee；该项为payload验证，不是模型一定遵守。原3pass/10fail与本轮24pass/12fail都保留，不删断言、不用成功纯测覆盖真实6/18首步失败。
 
 二次交付bc29951只修改原本人test/report，最终证据补充另有报告提交，主表本人行短锁待验收；仅接本人两次交付提交（基于90b1b09），不要整分支重复B的d6c12f7/9a6da6a。一次报告追加工具出现编码错误未写入，随后修正；不是测试失败，也不冒充当时报告已更新。I报告真实PG7/7属于I执行证据，本Q实际PG仍0项；不是本Q数据库验收。范围冻结，无外部资源，不自动另领。I统一全check/build/生产迁移/READY公网与新授权真实核对、累计接收及完整链；Q按后续脱敏保存证据只读核对。
+
+## v11 实际第一步摘要独立判定
+
+I 提供：5ab1842/om2xmi5dj READY，946check/332边界/type0/build0、新PG7过，生产41一致；第三次原核对 succeeded v5，SQL proof 为 order_reviewed、player、event5，输入/action/resolution来源匹配，parent in_progress，保守8/18。Q仅审提供的脱敏摘要，没有自行执行SQL或读取完整proof，因此只能记录I提供的持久验证，不称Q实际PostgreSQL验收。按该摘要，单独核对步骤已保存，不能判整体交付、NPC接收、后续机会或完整链成功。
+
+NPC仍说“单号先核对清楚。”，重复本轮刚观察且已持久核对，语义质量未过；不能用 succeeded 或合法JSON覆盖缺陷。前两次失败与预算保留，不重复开付费核对。根计划下一步单独说明；B最小提示补充分 savedRemainingSteps 与 currentTurnStepCandidates/observedNow，候选不能改写为已存步骤或canonical事实，也不能提前整体完成。收到精确B冻结后，只在原本人test/report范围审列表隔离，不新领任务、不改业务源；当前0模型/DB/生产/端口。
+
+## v12 列表隔离独立复验
+
+根批准同scope接续，已短锁恢复进行中。仅在本人新test增加6项，旧36不变。先v11实际42=36pass/6fail/0skip/TODO，失败是旧列表名称缺少明确saved/current字段，不称旧代码已经把全部候选持久化。接准确B8ad5c8adefdae38819b7fe5d60e6ac380d60ac1c成本树8fa11df，无手改其源；本人42+B22合跑实际64pass/0fail/0cancelled/0skip/TODO。旧scene-step-planner第291行命名兼容由根负责，本Q没有接其未冻结修改，不将那一项默认为通过。
+
+6项包括：本轮核对仅进入currentTurnStepCandidates，savedCompleted空、savedRemaining仍为提交前快照、steps.done不提前设true；此前已存核对保留原event来源且不带full inputQuote，本轮说明不进入saved/提前剔除剩余；blocked input、blocked result、未目击三种已存证据均不泄露原观察，也不设done；两位合法receiver中仅被本次指定的NPC看到说明候选。所有提案不修改fixture输入世界，模板提示明确不是默认台词，原重复核对JSON示例已移除。此为模型输入/提示边界，不证明实际model会按要求说话或完整链已过。
+
+本Q仍0真实模型/PG/生产/部署/端口，不跑fullcheck/build。typecheck、边界332、本人Prettier、git diff --check均exit0；仅本人test/report提交并短锁待验收，范围冻结，无资源、不自动另领。下一位I接源码、旧测试命名适配和本Q提交统一验收，并继续单独说明，不重做持久核对；保留原真实NPC重复缺陷与前两failed记录。
