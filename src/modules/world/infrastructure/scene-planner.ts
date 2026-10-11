@@ -1,4 +1,8 @@
-import { sceneStepContext, sceneStepRule } from '../domain/scene-step-progress.ts';
+import {
+  sceneStepContext,
+  sceneStepRule,
+  resolveSceneStepProgress,
+} from '../domain/scene-step-progress.ts';
 import { trustedOpportunity } from '../domain/matter-progression.ts';
 import {
   matterCriterion,
@@ -23,7 +27,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v13-explicit-matter-index';
+export const SCENE_PROMPT_VERSION = 'scene-text-v14-indexed-npc-actions';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -97,6 +101,8 @@ const diagnosticFields = new Set([
   'kind',
   'quote',
   'present',
+  'actionFormat',
+  'actionIndex',
 ]);
 const diagnosticCodes = new Set([
   'invalid_type',
@@ -149,6 +155,72 @@ const npcReplySchema = z.strictObject({
   text,
   actions: z.array(npcActionSchema).max(4).default([]),
 });
+type NpcActionSlot = { actionIndex: number; matterId: string; kind: 'receive_r17' | 'inspect_r17' };
+const indexedNpcReplySchema = z.strictObject({
+  actionFormat: z.literal('indexed-npc-actions-v1'),
+  text,
+  actions: z.array(z.strictObject({ actionIndex: z.number().int().min(0).max(15), quote })).max(4),
+});
+function npcActionError(reason: 'action_index' | 'duplicate_index'): never {
+  const diagnosticMessage = `scene_npc_action:${reason}`;
+  throw Object.assign(new DomainError('INVALID_PROPOSAL', diagnosticMessage), {
+    stage: 'proposal',
+    diagnosticMessage,
+  });
+}
+function canonicalNpcReply(raw: unknown, slots: readonly NpcActionSlot[]) {
+  if (!raw || typeof raw !== 'object' || !('actionFormat' in raw)) {
+    const parsed = npcReplySchema.parse(raw);
+    if (
+      parsed.actions.some(
+        (action) =>
+          !slots.some((slot) => slot.matterId === action.matterId && slot.kind === action.kind),
+      )
+    )
+      npcActionError('action_index');
+    return parsed;
+  }
+  // An explicit discriminator commits to the strict new wire, including unknown or mixed formats.
+  const parsed = indexedNpcReplySchema.parse(raw);
+  const seen = new Set<number>();
+  return npcReplySchema.parse({
+    text: parsed.text,
+    actions: parsed.actions.map(({ actionIndex, quote }) => {
+      const slot = slots[actionIndex];
+      if (!slot || slot.actionIndex !== actionIndex) npcActionError('action_index');
+      if (seen.has(actionIndex)) npcActionError('duplicate_index');
+      seen.add(actionIndex);
+      return { matterId: slot.matterId, kind: slot.kind, quote };
+    }),
+  });
+}
+function requestsOwnInspection(now: string, name: string) {
+  // Requests need the actual recipient and bounded object in the same current unquoted clause.
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const directedRequest = new RegExp(
+    '(?:请|麻烦)\\s*(?:你)?\\s*' +
+      escapedName +
+      '\\s*(?:你)?\\s*(?:帮我)?\\s*(?:检查|核对|复检)' +
+      '|' +
+      escapedName +
+      '\\s*[，,:：]?\\s*(?:请|麻烦)?\\s*(?:你)?\\s*(?:帮我)?\\s*(?:检查|核对|复检)',
+    'u',
+  );
+  return now
+    .split(/[。！？;；\n]/u)
+    .some(
+      (clause) =>
+        directedRequest.test(clause) &&
+        /请|麻烦|帮我/u.test(clause) &&
+        /检查|核对|复检/u.test(clause) &&
+        /R17|接头/u.test(clause) &&
+        !/没有|并未|尚未|不会|别|不(?:用|要|必|请|让)|如果|假如|假设|打算|计划|准备|将会|明天|后天|下周|之后|以后|稍后|昨天|上次|之前|以前|曾经|等.+(?:来|到|后)/u.test(
+          clause,
+        ) &&
+        !/[“「『"].*[”」』"]/u.test(clause) &&
+        ![...clause.matchAll(/R\d+/giu)].some((m) => m[0].toUpperCase() !== 'R17'),
+    );
+}
 export const SceneProposalSchema = z.strictObject({
   location: z.string().trim().min(1).max(200),
   narration: text,
@@ -555,6 +627,38 @@ export class ScenePlanner implements ScenePlannerPort {
     )
       throw new DomainError('INVALID_PROPOSAL', 'Player step cannot be attributed to an NPC');
     // At most two relevant NPCs. Each receives its own visible facts/entries, never another private thread.
+    let currentHandovers: ReturnType<typeof resolveSceneStepProgress>['matters'] = [];
+    if (
+      c.action?.intent === 'attempt' &&
+      p.outcome !== 'failed' &&
+      p.stepProposals?.some((step) => step.stepId === 'handed_over')
+    ) {
+      const event = { id: 'scene-slot-candidate', version: c.world.version + 1, at: c.storyAt };
+      try {
+        currentHandovers = resolveSceneStepProgress({
+          world: c.world,
+          initial: c.world,
+          scene: c.scene,
+          action: {
+            ...c.action,
+            status: 'resolved',
+            resolution: {
+              sourceEventId: event.id,
+              sourceVersion: event.version,
+              outcome: p.outcome!,
+              observation: p.observation!,
+            },
+          },
+          stepProposals: p.stepProposals,
+          npcActions: [],
+          dialogues: [],
+          event,
+        }).matters;
+      } catch {
+        // Invalid player evidence grants no action slot; the original runtime still rejects that delta.
+        currentHandovers = [];
+      }
+    }
     const receiverIds = new Set(
       stepExecution.flatMap((context) =>
         context.allowedReceivers
@@ -683,6 +787,53 @@ export class ScenePlanner implements ScenePlannerPort {
             currentTurnStepCandidates,
           };
         });
+      const allowedActions: NpcActionSlot[] = [];
+      if (
+        c.action?.intent === 'attempt' &&
+        p.outcome !== 'failed' &&
+        !blockedSources.has(c.action.sourceEventId) &&
+        !blockedSources.has(c.action.id)
+      ) {
+        for (const context of actorSteps) {
+          const canonicalSteps = stepExecution.find(
+            (x) => x.matterId === context.matterId,
+          )!.completedSteps;
+          const savedHandover = context.savedCompletedSteps.some(
+            (step) =>
+              step.stepId === 'handed_over' &&
+              step.performer === 'player' &&
+              step.receiverId === actor.id,
+          );
+          const proposedHandover =
+            context.currentTurnStepCandidates.some(
+              (step) => step.stepId === 'handed_over' && step.receiverId === actor.id,
+            ) &&
+            !blockedSources.has(c.action.sourceEventId) &&
+            !blockedSources.has(c.action.id) &&
+            currentHandovers
+              .find((m) => m.id === context.matterId)
+              ?.stepProgress?.steps.some(
+                (step) => step.stepId === 'handed_over' && step.receiverId === actor.id,
+              );
+          const handover = savedHandover || proposedHandover;
+          if (handover && !canonicalSteps.some((step) => step.stepId === 'received'))
+            allowedActions.push({
+              actionIndex: allowedActions.length,
+              matterId: context.matterId,
+              kind: 'receive_r17',
+            });
+          if (
+            (handover || requestsOwnInspection(boundary?.now ?? '', actor.name)) &&
+            !canonicalSteps.some((step) => step.stepId === 'receiver_inspected')
+          )
+            allowedActions.push({
+              actionIndex: allowedActions.length,
+              matterId: context.matterId,
+              kind: 'inspect_r17',
+            });
+        }
+      }
+      if (allowedActions.length > 16) npcActionError('action_index');
       const npc = {
         currentStep: boundary?.now ?? null,
         deferredUntilPlayerDecision: boundary?.deferred ?? null,
@@ -698,6 +849,7 @@ export class ScenePlanner implements ScenePlannerPort {
         visibleFacts: remembered.facts,
         matters: visibleMatters,
         stepExecution: actorSteps,
+        allowedActions,
         rememberedEpisodes: remembered.retrievedMemories,
         entries: sceneContextEntries(
           c.entries.filter((e) => !blockedSources.has(e.sourceEventId)),
@@ -718,30 +870,13 @@ export class ScenePlanner implements ScenePlannerPort {
             role: 'system',
             content:
               (actorSteps.length
-                ? '本轮有获准stepExecution规则。【两套进度】savedCompletedSteps和savedRemainingSteps仅表示此前已提交且你获准目击的进度；steps.done也只依据这些已存证据。currentTurnStepCandidates和observedNow是本轮可见裁定候选，不是已提交事实。若本轮观察已经具体描述玩家核对，且同一事项有order_reviewed候选，应自然回应这次核对的具体结果，不再说“单号先核对清楚”或要求重做该步骤。savedRemainingSteps里仍列这一步只是提交前快照，不是本轮新增门槛；不要把它误当成玩家尚未做。可提一个本轮候选未覆盖且此前未完成的真实下一步；不得提前把候选markdone、宣布整体完成、领奖或新阶段/机会。全部观察、步骤和你的回复仍须同事务校验才保存。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。kind只允许两个精确字符串："receive_r17" 或 "inspect_r17"，绝不输出含“或”的组合值、别名、步骤ID、none/null或其他类型。未实际执行自己的动作时仅返回actions=[]；以下仅是无动作JSON格式，text应依本轮可见对象自然表达，绝非默认台词：{"text":"你这次说的步骤，我听清了。","actions":[]}。玩家仅核对维修单且未实际交出对象、也没有明确请求你检查时，不要新增接收或检修；玩家核对是player step，不是NPC action，不能复制order_reviewed/review等进actions。自然认可本次已执行步骤，不重复泛称未完成。以下两个JSON示例只是格式，不是已发生证据，不得照抄动作或强行合作。实际接过的合法完整示例（仅有真实handed_over指向你且你本轮实际接过时）：' +
-                  JSON.stringify({
-                    text: '我接过R17钥匙和维修单。',
-                    actions: [
-                      {
-                        matterId: actorSteps[0]!.matterId,
-                        kind: 'receive_r17',
-                        quote: '我接过R17钥匙和维修单。',
-                      },
-                    ],
-                  }) +
-                  '；实际检查的合法完整示例（仅玩家明确请求或合法交出对象且你本轮实际检查R17时）：' +
-                  JSON.stringify({
-                    text: '我检查了R17。',
-                    actions: [
-                      {
-                        matterId: actorSteps[0]!.matterId,
-                        kind: 'inspect_r17',
-                        quote: '我检查了R17。',
-                      },
-                    ],
-                  }) +
-                  '。quote必须是同次text中实际已执行的原文，matterId只取本次stepExecution获准世界事项；未执行不要填示例。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。本轮明确说自己实际接过或检查了时必须提交对应actions，不能只说已完成却省略行动；有自己获准目击且已保存的同一步证据时可正常回顾，不再次执行或推进。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.savedCompletedSteps只是你获准目击的已存证据；currentTurnStepCandidates与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
-                : '没有获准结构化事项，不得提出actions；仍仅返回JSON {"text":"对白"}。observedNow.outcome为partial/failed时，已完成步骤可以认可，待检查/待确认不能由对白冒充已检查、已签收或全部通过。') +
+                ? '本轮有获准stepExecution规则。【两套进度】savedCompletedSteps和savedRemainingSteps仅表示此前已提交且你获准目击的进度；steps.done也只依据这些已存证据。currentTurnStepCandidates和observedNow是本轮可见裁定候选，不是已提交事实。若本轮观察已具体描述玩家核对且有同事项order_reviewed候选，应自然回应核对结果，不再说“单号先核对清楚”或要求重做该步骤。savedRemainingSteps仍列该步骤只是提交前快照，不是本轮新增门槛。可提此前未完成且本轮候选未覆盖的真实下一步；不得提前把候选markdone、宣布整体完成、领奖、新阶段或机会。'
+                : '没有获准结构化事项，不得提出动作。') +
+              '本次人物动作只用显式索引格式：严格JSON {"actionFormat":"indexed-npc-actions-v1","text":"当前自己的自然对白","actions":[]}。allowedActions是运行时提供给你本人且本轮有限可选择的槽位；每项actionIndex为整数，从0开始，包含真实世界matterId和唯一kind说明。槽位存在只表示允许提案，不表示已执行、必须合作或已完成事项。只在你这次确实实际执行时选择该槽位，用actions:[{actionIndex:该槽位整数,quote:同次text中实际执行的精确原文}]。不输出matterId、kind或actorId字段，不猜索引或从别的角色列表借用，未知字段禁止。allowedActions=[]时actions必须[]，普通核对/说明不是你接收、检修；没有动作时仍用同一actionFormat与actions=[]。不要照示例制造动作，不输出旧别名、组合kind、null、字符串索引或步骤ID。' +
+              (allowedActions.length
+                ? '本轮已提供动作槽位。receive_r17只表示你本人实际接过玩家明确交给你的R17钥匙和维修单；quote必须是同次text里第一人称“我接过/我现在接过/我收下”等实际执行原文并包含钥匙和维修单。inspect_r17只表示你本人实际检查R17/接头，quote必须明确“我检查了/核对了R17或接头”。选择哪一个actionIndex须读allowedActions，不能固定假定某个索引永远表示接收。未来承诺、意向、假设、请求、失败或否定不能列actions。已存动作不再次执行。'
+                : '本轮没有可执行动作槽位。不声称已接过、已检查或把玩家说明误记成你自己的动作；可自然回应本轮说明及未完成的一项真实下一步。') +
+              '本轮明确说自己实际执行有槽位动作时必须提交对应actions，不能只有完成台词却省略动作；本人获准目击且已保存的同一步可回顾，不再次推进。只有你本人能执行，不替玩家或他人行动。玩家本次partial不禁止你接收实际已交出的对象，但不能补造其他未提供步骤；可选复检和记录不是新门槛。最终由原运行时核对quote、来源和聚合，不由槽位或对白决定整体完成。' +
               '当前对话对象addressee为玩家主角；车主、其他联系人或旧现场对白中的人物名都不能当作玩家姓名，先前错称不构成身份来源。未给玩家姓名时称“你”，只依已裁剪可见虚构事实理解身份，不查私档或全cast。扮演该人物，按你的立场、目标和可知事实回应现场，简短自然的一两句话。只知道提供的可见内容，别读取其他私聊或猜主角内心。不替玩家执行后续行动，不声称重大成果、图片、钱或奖励已经发生。没有受控actions支持时，待检查/待确认不能被你的对白补成已检查、已签收或全部通过，不能用含混的‘我看看，行了’冒充已完成动作。基于当前saved行动与历史可见结果，只提出真实未完成的一项，不重复要求已经完成的核对、交接或记录，也不把允许交给当前接收人的任务改成必须等其他客户到场。人物背景或旧消息里的预约只代表原计划，不等于当前到场或确定马上来；以localStoryTime核对时点，旧约已过而没有到场/新确认来源时，可说原约时间与当前未见，不能编迟到原因或把那个人当在场见证者。只说当前人物获准知道的安排，不引用别人的私聊。只返回上述JSON，不写Markdown。',
           },
           { role: 'user', content: JSON.stringify(npc) },
@@ -751,7 +886,7 @@ export class ScenePlanner implements ScenePlannerPort {
         { format: 'json_object' },
       );
       try {
-        const parsed = npcReplySchema.parse(extractJsonObject(reply));
+        const parsed = canonicalNpcReply(extractJsonObject(reply), allowedActions);
         for (const action of parsed.actions) {
           if (
             c.action?.intent !== 'attempt' ||
@@ -814,6 +949,13 @@ export class ScenePlanner implements ScenePlannerPort {
         p.npcActions ??= [];
         p.npcActions.push(...parsed.actions.map((action) => ({ ...action, actorId: actor.id })));
       } catch (error) {
+        if (
+          error instanceof DomainError &&
+          ['scene_npc_action:action_index', 'scene_npc_action:duplicate_index'].includes(
+            error.message,
+          )
+        )
+          throw error;
         throw sceneParseError(error, true);
       }
     }
