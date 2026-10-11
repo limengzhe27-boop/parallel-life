@@ -31,3 +31,9 @@ root独占 src/contracts/world-matters.ts、player-records/其仓储、UI，后�
 ## root 冻结后实现接口
 
 已读主目录03C根报告，采用root 10/10上限（替代上方候选4上限）。不改preset初始内容。B已实现独立纯规则初稿，导出：pursuitRules、opportunityId(worldId,pursuitId,key)、trustedOpportunity(world,initial,matter)、progressSceneMatters(previous,initial,validatedMatters,event:{id,version,at},witnessIds) -> {matters,observerFacts}。同一scene世界reducer校验原updates后调用；来源事实新增pursuit_result:<eventId>:<pursuitId>，actor visibility仅实际现场witness。供root/Q验证既有worldResults，不扩event负载API。后续机会第一次真实attempt可启动并达成；解锁时只not_started，不自动接受。预计机会成功写入第二里程碑，保留nextOpportunityIds用于可追溯历史，不继续解锁。
+
+## 首稳定与反馈收据补丁
+
+首稳定12d4f27，root/Q已接线；root合同c051a36在本树cherry-pick为fad521a。已读03C-Q负例并补后续完成、not_started受控开始与精确ack。私有planner acknowledgedResultFactIds仅在当前actor本轮有实际回复、ID精确属于授权canonical result事实时，转换既有belief凭证；模型不能直接伪造marker belief。prefix为[scene-result-ack:，actorContext排除凭证及其遗留memory；经root精确批准postgres-world-repository storeTurnMemories排除该内部belief，因此不写角色印象。ack只证明结构化承接声明，不证明自然台词质量。
+
+本轮专项14/14：四官方真实定义纯reducer成功→有限后续→实际第二阶段；精确来源/隐私ack两组；真实PG八项含正常包、同场景未开始投影、第二阶段、history/repeat/immutable initial以及真实WorldRepository commit确认marker来源fact存在但memory_records为0。旧本人NAR03测试已按新精确ack要求更新；完整check/build尚待。

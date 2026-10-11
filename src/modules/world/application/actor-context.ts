@@ -90,6 +90,43 @@ export function actorContext(
   const facts = state.facts.filter(
     (fact) =>
       !fact.text.startsWith(resultAckPrefix) &&
+      (!(fact.id.startsWith('matter_result:') || fact.id.startsWith('pursuit_result:')) ||
+        (state.matters ?? []).some((m) => {
+          if (
+            m.visibility !== 'player_visible' ||
+            m.worldId !== state.id ||
+            blockedSources.has(m.id)
+          )
+            return false;
+          if (fact.id === `matter_result:${fact.sourceEventId}:${m.id}`)
+            return m.evidence?.kind === 'scene_action' && m.evidence.eventId === fact.sourceEventId;
+          if (fact.id !== `pursuit_result:${fact.sourceEventId}:${m.id}`) return false;
+          const stages =
+            m.pursuitProgress?.milestones.filter((s) => s.eventId === fact.sourceEventId) ?? [];
+          return (
+            stages.length > 0 &&
+            stages.every(
+              (s) =>
+                !blockedSources.has(s.matterId) &&
+                state.matters?.some(
+                  (t) =>
+                    t.id === s.matterId &&
+                    t.worldId === state.id &&
+                    t.visibility === 'player_visible' &&
+                    t.evidence?.kind === 'scene_action' &&
+                    t.evidence.eventId === s.eventId &&
+                    t.evidence.eventVersion === s.eventVersion,
+                ),
+            ) &&
+            !state.matters?.some(
+              (o) =>
+                o.opportunity &&
+                o.source.kind === 'director_proposal' &&
+                o.source.eventId === fact.sourceEventId &&
+                blockedSources.has(o.id),
+            )
+          );
+        })) &&
       !blockedSources.has(fact.id) &&
       !blockedSources.has(fact.sourceEventId) &&
       (fact.visibility.kind === 'world' ||

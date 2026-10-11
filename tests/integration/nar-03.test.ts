@@ -1,3 +1,4 @@
+import { resultAckText } from '../../src/modules/world/domain/matter-progression.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -191,6 +192,129 @@ test('NAR-03 real PostgreSQL atomic scene results, conditions, witnesses and rep
       },
     );
     await t.test(
+      'finite follow-up is projected unstarted in the same scene; explicit saved attempt succeeds, replays and repeats without duplicates',
+      async () => {
+        const f = await fixture(true, false);
+        const input = await f.attempt('我核对R17工单，检查接头并交付车辆。');
+        await f.run(input.task!.id, {
+          ...f.base,
+          outcome: 'succeeded',
+          observation: '你核对R17接头并交付车辆，工单已签收。',
+          matterUpdates: [{ id: f.localId, status: 'completed' }],
+        });
+        const first = await f.read(),
+          op = first.matters!.find((m) => m.opportunity)!,
+          pursuit = first.matters!.find((m) => m.pursuitProgress)!;
+        assert.equal(op.status, 'not_started');
+        assert.equal(pursuit.pursuitProgress!.milestones.length, 1);
+        const snap = await scenes.read(f.owner, f.worldId),
+          local = sceneMatterId(snap.scene!.id, op.id);
+        assert.equal(snap.matters.find((m) => m.id === local)!.status, 'not_started');
+        const counts = (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.world_events WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].n;
+        await scenes.read(f.owner, f.worldId);
+        await new PostgresWorldRepository(db).get({ userId: f.owner }, f.worldId);
+        assert.equal((await f.read()).matters!.find((m) => m.id === op.id)!.status, 'not_started');
+        assert.equal(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM parallel_life.world_events WHERE world_id=$1',
+              [f.worldId],
+            )
+          ).rows[0].n,
+          counts,
+        );
+        const next = await f.attempt('我整理R17记录，写清接头检查和验收信息。', [local]);
+        const proposal = {
+          ...f.base,
+          outcome: 'succeeded' as const,
+          observation: '你整理R17记录，写下接头检查和验收信息。',
+          matterUpdates: [{ id: local, status: 'completed' as const }],
+        };
+        await f.run(next.task!.id, proposal);
+        const end = await f.read();
+        assert.equal(end.matters!.find((m) => m.id === op.id)!.status, 'completed');
+        assert.equal(end.matters!.find((m) => m.id === pursuit.id)!.status, 'in_progress');
+        assert.equal(
+          end.matters!.find((m) => m.id === pursuit.id)!.pursuitProgress!.milestones.length,
+          2,
+        );
+        assert.equal(end.matters!.filter((m) => m.opportunity).length, 1);
+        const evts = (
+          await admin.query(
+            'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 ORDER BY version',
+            [f.worldId],
+          )
+        ).rows.map((r) => r.payload) as WorldHistoryEvent[];
+        assert.deepEqual(replayWorldHistory(f.initial, evts).world.matters, end.matters);
+        await f.run(next.task!.id, proposal);
+        assert.deepEqual((await f.read()).matters, end.matters);
+        const initial = (
+          await admin.query(
+            'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].state;
+        assert.ok(!initial.matters.some((m: { opportunity?: unknown }) => m.opportunity));
+        const repository = new PostgresWorldRepository(db),
+          hydrated = await repository.get({ userId: f.owner }, f.worldId),
+          pf = hydrated.facts.find((f) => f.id.startsWith('pursuit_result:'))!;
+        const command = {
+          id: randomUUID(),
+          worldId: f.worldId,
+          expectedVersion: hydrated.version,
+          actorId: f.actorId,
+          text: '合成承接测试，不调用模型',
+        };
+        await repository.commit({ userId: f.owner }, command, {
+          schemaVersion: 1,
+          id: randomUUID(),
+          worldId: f.worldId,
+          version: hydrated.version + 1,
+          commandId: command.id,
+          occurredAt: new Date().toISOString(),
+          storyAt: hydrated.time,
+          type: 'turn.resolved',
+          data: {
+            actorId: f.actorId,
+            userText: command.text,
+            effects: [
+              {
+                type: 'message.received',
+                id: randomUUID(),
+                actorId: f.actorId,
+                text: '合成回复只证明来源收据持久化，不证明自然叙事质量。',
+              },
+              {
+                type: 'belief.recorded',
+                id: randomUUID(),
+                actorId: f.actorId,
+                text: resultAckText(pf),
+              },
+            ],
+          },
+        });
+        const memoryCount = (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.memory_records WHERE owner_id=$1 AND text LIKE $2',
+            [f.owner, '[scene-result-ack:%'],
+          )
+        ).rows[0].n;
+        assert.equal(memoryCount, 0);
+        const after = await repository.get({ userId: f.owner }, f.worldId);
+        assert.ok(after.facts.some((f) => f.text === resultAckText(pf)));
+        assert.ok(
+          !actorContext(after, f.actorId).facts.some((f) =>
+            f.text.startsWith('[scene-result-ack:'),
+          ),
+        );
+      },
+    );
+    await t.test(
       'only requested target completes; attended arrival is separate; persisted sources replay exactly; duplicate worker produces no second result',
       async () => {
         const f = await fixture();
@@ -306,6 +430,23 @@ test('NAR-03 real PostgreSQL atomic scene results, conditions, witnesses and rep
             },
           ],
         };
+        assert.ok(
+          buildAgenda(afterReply, 30).some(
+            (a) => a.kind === 'matter_result' && a.actorId === f.actorId,
+          ),
+        );
+        const pf = hydrated.facts.find((f) => f.id.startsWith('pursuit_result:'))!;
+        afterReply.facts = [
+          ...afterReply.facts,
+          {
+            id: randomUUID(),
+            kind: 'belief',
+            believedByActorId: f.actorId,
+            text: resultAckText(pf),
+            sourceEventId: afterReply.messages.at(-1)!.sourceEventId,
+            visibility: { kind: 'actors', actorIds: [f.actorId] },
+          },
+        ];
         assert.ok(
           !buildAgenda(afterReply, 30).some(
             (a) => a.kind === 'matter_result' && a.actorId === f.actorId,

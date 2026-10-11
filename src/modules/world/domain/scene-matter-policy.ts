@@ -150,6 +150,7 @@ export function validateWorldMatterSceneUpdate(input: {
   const opportunityRule = m?.opportunity ? trustedOpportunity(world, initial, m) : undefined;
   if (
     !m ||
+    (m.opportunity && !opportunityRule) ||
     (input.status === 'completed' && !original && !opportunityRule) ||
     initial.id !== world.id ||
     initial.ownerId !== world.ownerId ||

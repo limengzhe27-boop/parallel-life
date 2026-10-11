@@ -1,3 +1,4 @@
+import { resultAckPrefix } from '../domain/matter-progression.ts';
 import { replayWorldHistory, type WorldHistoryEvent } from '../domain/world-history.ts';
 import { mergeAppointments } from '../domain/genesis-links.ts';
 import {
@@ -52,7 +53,11 @@ async function storeTurnMemories(
   const effects = (event.data as { effects?: { type: string; actorId?: string; text?: string }[] })
     .effects;
   const beliefs = (effects ?? []).filter(
-    (effect) => effect.type === 'belief.recorded' && effect.actorId && effect.text,
+    (effect) =>
+      effect.type === 'belief.recorded' &&
+      effect.actorId &&
+      effect.text &&
+      !effect.text.startsWith(resultAckPrefix),
   );
   const items = [] as Parameters<typeof deriveAndStoreMemories>[1];
   for (const belief of beliefs) {

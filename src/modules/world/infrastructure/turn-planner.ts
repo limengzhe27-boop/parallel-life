@@ -214,6 +214,7 @@ export class WorldTurnPlanner implements TurnPlanner {
             typeof effect.text !== 'string' ||
             !effect.text.trim() ||
             structuredReply(effect.text) ||
+            effect.text.includes(resultAckPrefix) ||
             contradictsSelectedRole(context.actor.relationship ?? '', effect.text)
           ) {
             throw new Error('MODEL_OUTPUT_NOT_DIALOGUE');
