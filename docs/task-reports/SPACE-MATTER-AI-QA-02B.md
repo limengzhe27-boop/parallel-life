@@ -96,3 +96,13 @@ parsecatch现在生成stage=proposal与diagnosticMessage，只包含固定phase�
 包含旧scene-planner专项共37项35pass/2fail：旧privacy opening mock仍返{text}缺present；旧local-time opening mock始终返director JSON，独立NPC新增第二调用时无正确opening格式。两旧fixture公共范围本人只读，已回根更新测试，不为其放宽新strict output。根负责真实PG using actual ScenePlanner fixture的true/false/source/attendance/replay/rollback和统一check/build/READY真实样本。按根要求本人不额外全check/build/PG，0真实模型/DB/HTTP/浏览器/生产write，新批7/18仅根。源码提交后立即再冻结释放根，所有旧已保存空场/failed仍保留；真实人是否到场/完整链仍未确认。
 
 根/Q补充same-current-place预过滤后，同原scope补齐：direct invitation除confirmed/at<=storyAt，还须当前scenePlace.appointmentIds真实关联；opening若scene.placeId和world.currentPlaceId不匹配或place不存在，任何模型调用前拒INVALID_COMMAND。动作阶段actualpresent和既有行为保持。新增2负例验证同地点关联丢失时没有NPC调用、旧scene位置不符时0director/0NPC。新增及相关33/33通过、typecheck通过，根集成仍须更新两旧opening mock并统一check/build/PG。第一业务b040ba0与后续小补分开交付，主报告同步，源码再次冻结；本人0实际调用，不消耗7/18剩余。
+
+根已接b040ba0并更新旧2mock，817check/PG6通过；真实仓储专项用ScenePlanner mock导演空名单+NPC true验证正式presence.join/source、对白/attendance、累积/后续回放，这些为根运行证据，不称本人PG。按根最后selector要求，已明确scene.appointmentId存在时仅effectiveDirect，非法/未到期/异地点direct不fallback其他同地点预约，与root repo一致；新增取消原绑定预约但存在另一个同地点生效预约的0NPC负例。34相关pure/typecheck/diff通过（.local/matter-aiqa-02b-selector-pure.log），只补一行selector和本人新专项，无更多全check/build/PG/模型；cd59f8c之后小补冻结给根统一最后验收。实际7/18paid预算仍只归根。
+
+## 2026-10-12 · NPC action kind精确枚举例示
+
+根安全实样：v7开场成功、老周正式presence/sourceVersion10；第一“我核对R17维修单。”仍failed，安全路径scene_actor_schema:actions.[0].kind:invalid_value，来自独立NPC，非导演；保守11/18、余7，原failed没有steps。此信息只证明kind不合枚举，不记录实际非法值。源码旧NPC例示确写“receive_r17或inspect_r17”，存在模型照抄/混淆风险，但不能断言实际失败值就是该字符串。根重新释放ONLY原planner NPC提示、新planner测试与本人报告，公共schema/domain/repository不改。
+
+版本scene-text-v8-exact-npc-action-kinds，旧混合kind例示替换为两个合法完整JSON，各自精确receive_r17/inspect_r17、引用本NPC已获准actorSteps当前world matterId、同次第一人称已执行quote。另有完整actions=[]自然回应示例，明确kind不接受混合值/别名/stepId/none/null，玩家核对属于player step不能复制review/order_reviewed进NPC actions；未实际交出对象、未请求检验、不满足合法当前/已存handed_over前置时不新增NPC执行。例示只是格式而非已发生证据，不要求每次合作，不从对白强制生成动作。strict schema和运行时边界均保持，非法枚举继续安全拒绝，不静默修正或加模型重试。
+
+新增2纯测覆盖完整合法精确例示+无动作例示、混合kind/player step/none仍INVALID_PROPOSAL且安全kind路径不露实际值，恰好2mock调用无第三重试。36相关纯测试、typecheck、diff通过（.local/matter-aiqa-02b-enum-pure.log）；不重跑全check/build/PG，根统一最后集成与发布。B模型/DB/生产write仍0，源码提交后立即再次冻结，不重复带cd/c5已由根等效集成的依赖；实际剩7次能否完成链未知，不能将提示风险消除记为真实闭环通过。

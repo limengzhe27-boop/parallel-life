@@ -633,3 +633,77 @@ test('an invalid explicit opening invitation cannot silently fall back to anothe
   assert.equal(calls.length, 1);
   assert.deepEqual(proposal.presentActorIds, []);
 });
+
+test('NPC action examples use two exact legal enums and no mixed placeholder or automatic action', async () => {
+  const f = fixture();
+  const { calls } = await propose(f, { text: '单号先核对清楚。', actions: [] });
+  const prompt = calls[1]![0]!.content;
+  assert.ok(!prompt.includes('receive_r17或inspect_r17'));
+  assert.ok(
+    prompt.includes(
+      JSON.stringify({
+        text: '我接过R17钥匙和维修单。',
+        actions: [
+          {
+            matterId: f.f.trigger.id,
+            kind: 'receive_r17',
+            quote: '我接过R17钥匙和维修单。',
+          },
+        ],
+      }),
+    ),
+  );
+  assert.ok(
+    prompt.includes(
+      JSON.stringify({
+        text: '我检查了R17。',
+        actions: [
+          {
+            matterId: f.f.trigger.id,
+            kind: 'inspect_r17',
+            quote: '我检查了R17。',
+          },
+        ],
+      }),
+    ),
+  );
+  assert.match(prompt, /玩家仅核对维修单且未实际交出对象/);
+  assert.match(prompt, /不是已发生证据/);
+  assert.match(prompt, /actions":\[\]/);
+});
+test('invalid or mixed action enums remain rejected with a safe kind path and exactly two calls', async () => {
+  for (const kind of ['receive_r17或inspect_r17', 'order_reviewed', 'none']) {
+    const f = fixture();
+    let calls = 0;
+    await assert.rejects(
+      new ScenePlanner({
+        async complete() {
+          calls++;
+          return JSON.stringify(
+            calls === 1
+              ? f.director
+              : {
+                  text: '我接过R17钥匙和维修单。',
+                  actions: [
+                    {
+                      matterId: f.f.trigger.id,
+                      kind,
+                      quote: '我接过R17钥匙和维修单。',
+                    },
+                  ],
+                },
+          );
+        },
+      }).propose(f.c),
+      (error: unknown) => {
+        const e = error as Error & { code: string; stage: string; diagnosticMessage: string };
+        assert.equal(e.code, 'INVALID_PROPOSAL');
+        assert.equal(e.stage, 'proposal');
+        assert.equal(e.diagnosticMessage, 'scene_actor_schema:actions.[0].kind:invalid_value');
+        assert.ok(!e.message.includes(kind));
+        return true;
+      },
+    );
+    assert.equal(calls, 2);
+  }
+});

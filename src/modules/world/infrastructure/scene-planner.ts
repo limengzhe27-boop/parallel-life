@@ -23,7 +23,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v7-actor-opening-presence';
+export const SCENE_PROMPT_VERSION = 'scene-text-v8-exact-npc-action-kinds';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -592,7 +592,29 @@ export class ScenePlanner implements ScenePlannerPort {
             role: 'system',
             content:
               (actorSteps.length
-                ? '本轮有获准stepExecution规则。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。返回JSON {"text":"对白","actions":[{"matterId":"获准世界事项ID","kind":"receive_r17或inspect_r17","quote":"这次对白中明确已执行动作的完整原文片段"}]}。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。本轮明确说自己实际接过或检查了时必须提交对应actions，不能只说已完成却省略行动；有自己获准目击且已保存的同一步证据时可正常回顾，不再次执行或推进。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.completedSteps只是你获准目击的已存证据；candidatePlayerSteps与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
+                ? '本轮有获准stepExecution规则。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。kind只允许两个精确字符串："receive_r17" 或 "inspect_r17"，绝不输出含“或”的组合值、别名、步骤ID、none/null或其他类型。未实际执行只返回完整JSON {"text":"单号先核对清楚。","actions":[]}。玩家仅核对维修单且未实际交出对象、也没有明确请求你检查时，不要新增接收或检修；玩家核对是player step，不是NPC action，不能复制order_reviewed/review等进actions。自然认可本次已执行步骤，不重复泛称未完成。以下两个JSON示例只是格式，不是已发生证据，不得照抄动作或强行合作。实际接过的合法完整示例（仅有真实handed_over指向你且你本轮实际接过时）：' +
+                  JSON.stringify({
+                    text: '我接过R17钥匙和维修单。',
+                    actions: [
+                      {
+                        matterId: actorSteps[0]!.matterId,
+                        kind: 'receive_r17',
+                        quote: '我接过R17钥匙和维修单。',
+                      },
+                    ],
+                  }) +
+                  '；实际检查的合法完整示例（仅玩家明确请求或合法交出对象且你本轮实际检查R17时）：' +
+                  JSON.stringify({
+                    text: '我检查了R17。',
+                    actions: [
+                      {
+                        matterId: actorSteps[0]!.matterId,
+                        kind: 'inspect_r17',
+                        quote: '我检查了R17。',
+                      },
+                    ],
+                  }) +
+                  '。quote必须是同次text中实际已执行的原文，matterId只取本次stepExecution获准世界事项；未执行不要填示例。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。本轮明确说自己实际接过或检查了时必须提交对应actions，不能只说已完成却省略行动；有自己获准目击且已保存的同一步证据时可正常回顾，不再次执行或推进。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.completedSteps只是你获准目击的已存证据；candidatePlayerSteps与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
                 : '没有获准结构化事项，不得提出actions；仍仅返回JSON {"text":"对白"}。observedNow.outcome为partial/failed时，已完成步骤可以认可，待检查/待确认不能由对白冒充已检查、已签收或全部通过。') +
               '扮演该人物，按你的立场、目标和可知事实回应现场，简短自然的一两句话。只知道提供的可见内容，别读取其他私聊或猜主角内心。不替玩家执行后续行动，不声称重大成果、图片、钱或奖励已经发生。没有受控actions支持时，待检查/待确认不能被你的对白补成已检查、已签收或全部通过，不能用含混的‘我看看，行了’冒充已完成动作。基于当前saved行动与历史可见结果，只提出真实未完成的一项，不重复要求已经完成的核对、交接或记录，也不把允许交给当前接收人的任务改成必须等其他客户到场。人物背景或旧消息里的预约只代表原计划，不等于当前到场或确定马上来；以localStoryTime核对时点，旧约已过而没有到场/新确认来源时，可说原约时间与当前未见，不能编迟到原因或把那个人当在场见证者。只说当前人物获准知道的安排，不引用别人的私聊。只返回上述JSON，不写Markdown。',
           },
