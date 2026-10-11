@@ -41,6 +41,7 @@ import { PhoneIcon } from './phone-icons.tsx';
 import { playTapSound } from './audio-feedback.ts';
 import { routeHash } from './navigation.ts';
 import { ACTIVE_PHONE_CHECK_MS, autoAdvanceDue } from './auto-advance.ts';
+import { resolveDefaultWallpaper } from './wallpaper.ts';
 import styles from './phone.module.css';
 import {
   sendFailureStatus,
@@ -124,10 +125,24 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
 
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(`pl_wallpaper_${worldId}`) || '/art/first-window.webp';
+      const custom = localStorage.getItem(`pl_wallpaper_${worldId}`);
+      if (custom) return custom;
     }
-    return '/art/first-window.webp';
+    return resolveDefaultWallpaper(data?.title);
   });
+
+  useEffect(() => {
+    if (data?.title) {
+      try {
+        const custom = localStorage.getItem(`pl_wallpaper_${worldId}`);
+        if (!custom) {
+          setWallpaperUrl(resolveDefaultWallpaper(data.title));
+        }
+      } catch {
+        /* Storage may be unavailable. */
+      }
+    }
+  }, [worldId, data?.title]);
 
   const changeWallpaper = (url: string) => {
     setWallpaperUrl(url);
@@ -574,10 +589,22 @@ export function WorldPhoneSurface({
   const client = useMemo(() => new LifeClient(), []);
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(`pl_wallpaper_${data.id}`) || '/art/first-window.webp';
+      const custom = localStorage.getItem(`pl_wallpaper_${data.id}`);
+      if (custom) return custom;
     }
-    return '/art/first-window.webp';
+    return resolveDefaultWallpaper(data.title);
   });
+
+  useEffect(() => {
+    try {
+      const custom = localStorage.getItem(`pl_wallpaper_${data.id}`);
+      if (!custom) {
+        setWallpaperUrl(resolveDefaultWallpaper(data.title));
+      }
+    } catch {
+      /* Storage may be unavailable. */
+    }
+  }, [data.id, data.title]);
 
   const changeWallpaper = (url: string) => {
     setWallpaperUrl(url);

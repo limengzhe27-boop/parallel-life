@@ -150,17 +150,20 @@
 }
 .notification {
   width: 100%;
-  border: 0;
-  min-height: 78px;
-  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  min-height: 74px;
+  padding: 12px 14px;
   display: flex;
   gap: 10px;
   align-items: center;
   text-align: left;
-  border-radius: 24px;
-  background: var(--phone-notification);
-  backdrop-filter: blur(12px);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   color: var(--phone-ink);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: transform 0.14s ease, background 0.14s ease;
 }
 .notificationGroup {
   position: relative;
@@ -300,15 +303,15 @@
   transition: transform 0.14s;
 }
 .appIcon {
-  width: 60px;
-  height: 60px;
+  width: 58px;
+  height: 58px;
   display: grid;
   place-items: center;
-  border-radius: 15px;
+  border-radius: 14px;
   overflow: hidden;
   box-shadow:
-    0 3px 9px #0003,
-    inset 0 0 0 1px #ffffff29;
+    0 4px 12px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 .appIcon > svg {
   width: 100%;
@@ -338,6 +341,10 @@
   background: var(--phone-white);
   color: var(--phone-ink);
 }
+.map {
+  background: linear-gradient(145deg, #eef7ed, #d6ebd9);
+  color: #27522e;
+}
 .calendarFace {
   height: 100%;
   width: 100%;
@@ -362,13 +369,16 @@
 .dock {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0 12px;
-  padding: 13px 12px 10px;
-  background: var(--phone-glass);
-  backdrop-filter: blur(12px);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 10px;
+  padding: 12px 6px 8px;
+  background: rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 34px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
 }
 .gestureArea {
   height: max(30px, env(safe-area-inset-bottom));
@@ -469,23 +479,69 @@
 }
 @container (max-height:600px) {
   .home {
-    padding: 8px 16px;
+    padding: 8px 14px;
   }
   .dock {
-    padding-block: 10px;
+    padding-block: 8px;
+    gap: 5px;
+  }
+  .appIcon {
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+  }
+  .calendarFace strong {
+    font-size: 22px;
+    line-height: 24px;
+  }
+  .calendarFace > span {
+    font-size: 9px;
+    line-height: 12px;
   }
   .header {
     min-height: 48px;
   }
 }
-@container (max-width:350px) {
+@container (max-height:520px) {
+  .home {
+    padding: 4px 10px;
+  }
   .dock {
-    gap: 6px;
-    padding-inline: 8px;
+    padding-block: 6px;
+    gap: 4px;
+    margin: 0 6px;
   }
   .appIcon {
-    width: 56px;
-    height: 56px;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+  }
+  .appLabel {
+    font-size: 9px;
+    line-height: 11px;
+  }
+  .calendarFace strong {
+    font-size: 18px;
+    line-height: 20px;
+  }
+  .calendarFace > span {
+    display: none;
+  }
+}
+@container (max-width:350px) {
+  .dock {
+    gap: 4px;
+    padding-inline: 4px;
+    margin: 0 6px;
+  }
+  .appIcon {
+    width: 46px;
+    height: 46px;
+    border-radius: 11px;
+  }
+  .calendarFace strong {
+    font-size: 24px;
+    line-height: 26px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -580,23 +636,26 @@
 .lockClock {
   text-align: center;
   flex-shrink: 0;
-  padding-bottom: 36px;
+  padding-bottom: 28px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 .lockClock > svg {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .lockClock > p {
-  color: inherit;
+  color: rgba(255, 255, 255, 0.94);
   font-size: 19px;
   font-weight: 500;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 .lockClock > div {
-  font-size: 88px;
+  font-size: 84px;
   font-weight: 600;
-  line-height: 1.12;
-  letter-spacing: -0.055em;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
+  color: #fff;
 }
 .lockNotifications {
   margin-top: auto;
@@ -652,8 +711,10 @@
   touch-action: none;
 }
 .unlock > span {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .phone .unlock:focus-visible {
   outline: none;
@@ -668,7 +729,8 @@
   height: 5px;
   width: 134px;
   border-radius: 5px;
-  background: currentColor;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 .unlock:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -747,7 +809,7 @@
 }
 @container (max-height:600px) {
   .statusBar {
-    height: 52px;
+    height: 50px;
   }
   .lockContent {
     padding-top: 4px;
@@ -756,20 +818,38 @@
     padding-bottom: 12px;
   }
   .lockClock > div {
-    font-size: 64px;
+    font-size: 58px;
   }
   .lockClock > p {
-    font-size: 16px;
+    font-size: 15px;
   }
   .lockClock > svg {
     margin-bottom: 2px;
   }
   .unlock {
-    min-height: 64px;
-    gap: 10px;
+    min-height: 56px;
+    gap: 8px;
   }
   .homeGesture {
-    min-height: 36px;
+    min-height: 32px;
+  }
+}
+@container (max-height:520px) {
+  .lockClock {
+    padding-bottom: 6px;
+  }
+  .lockClock > div {
+    font-size: 46px;
+  }
+  .lockClock > p {
+    font-size: 13px;
+  }
+  .unlock {
+    min-height: 44px;
+    gap: 4px;
+  }
+  .unlock > span {
+    font-size: 11px;
   }
 }
 

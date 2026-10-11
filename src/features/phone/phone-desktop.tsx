@@ -212,7 +212,7 @@ export function PhoneDesktop({
             data-panel={item}
             onClick={() => (item === 'scenes' ? open('scenes') : openPanel(item))}
           >
-            <span className={styles.utilityIcon}>
+            <span className={`${styles.utilityIcon} ${styles[item] || ''}`}>
               <PhoneIcon name={item} variant="app" />
             </span>
             <span>{item === 'scenes' ? '现场' : '身份'}</span>
