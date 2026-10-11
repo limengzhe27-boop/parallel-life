@@ -1,3 +1,4 @@
+import { resultAckPrefix } from '../domain/matter-progression.ts';
 import { witnessedMatterResult } from '../domain/scene-matter-policy.ts';
 import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
@@ -88,6 +89,7 @@ export function actorContext(
   };
   const facts = state.facts.filter(
     (fact) =>
+      !fact.text.startsWith(resultAckPrefix) &&
       !blockedSources.has(fact.id) &&
       !blockedSources.has(fact.sourceEventId) &&
       (fact.visibility.kind === 'world' ||
@@ -120,6 +122,17 @@ export function actorContext(
         m.visibility === 'player_visible' &&
         m.relatedActorIds?.includes(actorId) &&
         !blockedSources.has(m.id) &&
+        (!m.opportunity ||
+          state.facts.some(
+            (f) =>
+              f.id.startsWith('pursuit_result:') &&
+              m.source.kind === 'director_proposal' &&
+              f.sourceEventId === m.source.eventId &&
+              !blockedSources.has(f.id) &&
+              !blockedSources.has(f.sourceEventId) &&
+              f.visibility.kind === 'actors' &&
+              f.visibility.actorIds.includes(actorId),
+          )) &&
         !('eventId' in m.source && blockedSources.has(m.source.eventId)) &&
         !(m.evidence && 'eventId' in m.evidence && blockedSources.has(m.evidence.eventId)) &&
         (m.evidence?.kind !== 'scene_action' ||
@@ -169,6 +182,7 @@ export function actorContext(
 
   if (memoryRecords.length > 0) {
     const scoped = memoryRecords.filter((record) => {
+      if (record.text.startsWith(resultAckPrefix)) return false;
       if (record.ownerId !== state.ownerId) return false;
       if (record.branchId && record.branchId !== state.id) return false;
       if (record.scopeType === 'branch')

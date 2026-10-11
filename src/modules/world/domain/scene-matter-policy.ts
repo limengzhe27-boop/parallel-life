@@ -1,3 +1,4 @@
+import { pursuitRules, trustedOpportunity } from './matter-progression.ts';
 import { DomainError } from './errors.ts';
 import type { WorldMatter } from './matters.ts';
 import { transitionWorldMatter } from './matters.ts';
@@ -93,6 +94,8 @@ const unsupported = () => {
   throw new DomainError('INVALID_PROPOSAL', 'Scene matter has no verified completion condition');
 };
 export function matterCriterion(matter: WorldMatter): SceneMatterCriterion | undefined {
+  if (matter.opportunity)
+    return pursuitRules.find((r) => r.key === matter.opportunity?.key)?.criterion;
   if (matter.source.kind !== 'preset' || matter.source.version !== 3 || matter.span !== 'near_term')
     return undefined;
   return criteria[matter.source.presetId]?.[matter.source.matterKey];
@@ -144,9 +147,10 @@ export function validateWorldMatterSceneUpdate(input: {
   const { world, initial, scene, action } = input,
     m = world.matters?.find((m) => m.id === input.matterId);
   const original = initial.matters?.find((m) => m.id === input.matterId);
+  const opportunityRule = m?.opportunity ? trustedOpportunity(world, initial, m) : undefined;
   if (
     !m ||
-    (input.status === 'completed' && !original) ||
+    (input.status === 'completed' && !original && !opportunityRule) ||
     initial.id !== world.id ||
     initial.ownerId !== world.ownerId ||
     !isSceneMatterLinked(world, scene, m) ||
@@ -188,9 +192,11 @@ export function validateWorldMatterSceneUpdate(input: {
     const rule = matterCriterion(m);
     if (
       !rule ||
-      m.source.kind !== 'preset' ||
-      world.officialLife?.presetId !== m.source.presetId ||
-      world.officialLife.version !== m.source.version
+      (m.opportunity
+        ? !opportunityRule
+        : m.source.kind !== 'preset' ||
+          world.officialLife?.presetId !== m.source.presetId ||
+          world.officialLife.version !== m.source.version)
     )
       unsupported();
     if (
@@ -219,7 +225,25 @@ export function validateWorldMatterSceneUpdate(input: {
       'INVALID_PROPOSAL',
       'Only failed actual attempt can establish a blocked result',
     );
-  return transitionWorldMatter(m, {
+  const started =
+    m.status === 'not_started' && opportunityRule && input.status === 'completed'
+      ? transitionWorldMatter(m, {
+          status: 'in_progress',
+          assertion: 'world_verified',
+          evidence: {
+            kind: 'scene_action',
+            sceneId: scene.id,
+            actionId: action.id,
+            outcome: action.resolution.outcome,
+            eventId: input.eventId,
+            eventVersion: input.eventVersion,
+            at: input.at,
+          },
+          allMatters: world.matters,
+          now: input.at,
+        })
+      : m;
+  return transitionWorldMatter(started, {
     status: input.status,
     assertion: 'world_verified',
     evidence: {

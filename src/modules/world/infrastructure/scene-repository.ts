@@ -1,3 +1,4 @@
+import { progressSceneMatters } from '../domain/matter-progression.ts';
 import { applySceneWorldResults, type SceneWorldResults } from '../domain/scene-world-results.ts';
 import { assertSpaceIdle, lockWorldActivity } from './space-repository.ts';
 import { deriveMemory } from '../../memory/application/derive-memory.ts';
@@ -890,6 +891,7 @@ export async function commitSceneProposal(
       : undefined;
   const updates: SceneWorldResults['updates'] = [];
   const observerFacts: WorldState['facts'] = [];
+  let validatedMatters = [...(c.world.matters ?? [])];
   for (const u of p.matterUpdates) {
     const target = c.world.matters?.find((m) => sceneMatterId(c.scene.id, m.id) === u.id);
     if (!target) continue;
@@ -905,10 +907,19 @@ export async function commitSceneProposal(
       eventVersion: resultVersion,
       at: locked.storyAt,
     });
+    validatedMatters = validatedMatters.map((m) => (m.id === next.id ? next : m));
     updates.push({ matterId: target.id, expectedMatterVersion: target.version, status: u.status });
     const fact = sceneMatterResultFact(next, p.presentActorIds);
     if (fact) observerFacts.push(fact);
   }
+  const progression = progressSceneMatters(
+    c.world,
+    initial,
+    validatedMatters,
+    { id: resultEventId, version: resultVersion, at: locked.storyAt },
+    p.presentActorIds,
+  );
+  observerFacts.push(...progression.observerFacts);
   const attendance =
     !c.action || resultAction
       ? sceneAttendance(c.world, resultScene, p.presentActorIds, locked.storyAt, resultVersion)
@@ -1083,9 +1094,26 @@ export async function commitSceneProposal(
   for (const update of p.matterUpdates) {
     const m = c.matters.find((m) => m.id === update.id);
     if (!m || !action?.resolution) throw new DomainError('INVALID_PROPOSAL');
+    const started =
+      m.status === 'not_started' &&
+      update.status === 'completed' &&
+      c.world.matters?.some((w) => w.opportunity && sceneMatterId(scene.id, w.id) === m.id)
+        ? transitionCurrentMatter(
+            ctx,
+            m,
+            'in_progress',
+            {
+              kind: 'progression',
+              reason: 'Saved explicit attempt starts the optional opportunity',
+              sourceEventId: action.sourceEventId,
+              sourceVersion: action.sourceVersion,
+            },
+            actions,
+          )
+        : m;
     const next = transitionCurrentMatter(
       ctx,
-      m,
+      started,
       update.status,
       {
         ...source,
@@ -1098,6 +1126,15 @@ export async function commitSceneProposal(
     CurrentMatterSchema.parse(next);
     await item(sql, 'matter', next);
   }
+
+  await seedSceneMatters(
+    sql,
+    ownerId,
+    worldId,
+    scene,
+    nextWorld.matters?.filter((m) => !c.world.matters?.some((old) => old.id === m.id)),
+    source,
+  );
 
   if (attendance)
     await sql.query(

@@ -1,3 +1,4 @@
+import { resultAckPrefix, resultAckText } from '../domain/matter-progression.ts';
 import { contradictsSelectedRole } from '../domain/opening-validation.ts';
 import { worldDateTimeLabel } from '../domain/display-time.ts';
 import type { TextModel } from '../../ai/application/ports.ts';
@@ -50,6 +51,7 @@ choices 是用户此前对这个角色说过的选择。如果用户本轮明确
 只输出JSON。至少包含一条当前角色的 message.received。可记录自己的 belief.recorded；约时间用 appointment.proposed，必须由用户确认，不能直接视为赴约。约定格式必须为 {"type":"appointment.proposed","id":"appointment_1","title":"具体约定","at":"2026-09-29T14:00:00.000Z","participantIds":["ACTOR_ID"]}，participantIds 仅含当前角色；日期依据当前世界时间与对话，示例日期不可照抄。未知日期时先聊清楚，不创建约定。belief.recorded 格式为 {"type":"belief.recorded","id":"belief_1","actorId":"ACTOR_ID","text":"自己的看法"}。media.requested 仅在用户明确索图或已发生的具体事件确实需要留影时提出；照片未完成不声称已拍好。不得建立全知世界事实、替其他角色发言或替主角完成重大成就。
 例形：{"schemaVersion":1,"effects":[{"type":"message.received","id":"reply_1","actorId":"ACTOR_ID","text":"当前人物的自然回应"}]}。
 possibleRecipients 中的 socialTie 是人物确实相识的依据；名单外人物不能转述。即便在名单内，仍须根据性格、事情性质和动机决定，不是自动传播。
+可选私有字段 acknowledgedResultFactIds 为本轮正文明确承接的 matter_result/pursuit_result 来源事实ID数组。仅使用world.facts中当前可见的精确ID；不相关回复、未承接的旧结果、仅知道但未回应的事实不要ack。此字段只用于内部有限消费，不写入正文，不证明故事或奖励成功。
 sceneDirection 只供创作参考，不要把策略名称、来源编号或幕后说明写进聊天。`;
 
 /** A conservative fallback when the actor wrote an actionable line but omitted its tag. */
@@ -184,6 +186,7 @@ export class WorldTurnPlanner implements TurnPlanner {
     ]);
 
     const parsed = parseJson(raw) as {
+      acknowledgedResultFactIds?: unknown;
       schemaVersion?: number;
       effects?: Array<{
         type?: string;
@@ -197,6 +200,14 @@ export class WorldTurnPlanner implements TurnPlanner {
     } | null;
 
     if (parsed && Array.isArray(parsed.effects) && parsed.effects.length > 0) {
+      const ackReply = parsed.effects.some(
+        (e) =>
+          e.type === 'message.received' &&
+          e.actorId === targetActorId &&
+          typeof e.text === 'string' &&
+          e.text.trim() &&
+          !structuredReply(e.text),
+      );
       for (const effect of parsed.effects) {
         if (effect.type === 'message.received') {
           if (
@@ -386,6 +397,30 @@ export class WorldTurnPlanner implements TurnPlanner {
         keptDisclosure = true;
         return true;
       });
+      parsed.effects = parsed.effects.filter(
+        (e) => !(e.type === 'belief.recorded' && e.text?.startsWith(resultAckPrefix)),
+      );
+      if (ackReply && Array.isArray(parsed.acknowledgedResultFactIds)) {
+        for (const id of [...new Set(parsed.acknowledgedResultFactIds)].slice(0, 10)) {
+          const f = context.facts.find(
+            (f) =>
+              f.id === id &&
+              f.kind === 'canonical' &&
+              (f.id.startsWith(`matter_result:${f.sourceEventId}:`) ||
+                f.id.startsWith(`pursuit_result:${f.sourceEventId}:`)) &&
+              f.visibility.kind === 'actors' &&
+              f.visibility.actorIds.includes(targetActorId),
+          );
+          if (f)
+            parsed.effects.push({
+              type: 'belief.recorded',
+              id: `acked_${parsed.effects.length}`,
+              actorId: targetActorId,
+              text: resultAckText(f),
+            });
+        }
+      }
+      delete parsed.acknowledgedResultFactIds;
       return parsed;
     }
 

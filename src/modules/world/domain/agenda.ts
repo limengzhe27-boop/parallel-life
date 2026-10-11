@@ -1,3 +1,4 @@
+import { resultWasAcknowledged } from './matter-progression.ts';
 import { witnessedMatterResult } from './scene-matter-policy.ts';
 import { worldDateTimeLabel } from './display-time.ts';
 import type { WorldState } from './types.ts';
@@ -229,13 +230,22 @@ export function buildAgenda(
     for (const actor of state.actors) {
       const fact = witnessedMatterResult(state, matter, actor.id);
       if (!fact) continue;
+      const progressionFacts = state.facts.filter(
+        (f) =>
+          f.id.startsWith('pursuit_result:') &&
+          f.sourceEventId === evidence.eventId &&
+          f.visibility.kind === 'actors' &&
+          f.visibility.actorIds.includes(actor.id),
+      );
       if (
-        state.messages.some(
-          (m) =>
-            m.actorId === actor.id &&
-            m.role === 'assistant' &&
-            (m.sourceVersion ?? 0) >= evidence.eventVersion,
-        )
+        progressionFacts.length
+          ? progressionFacts.every((f) => resultWasAcknowledged(state, actor.id, f))
+          : state.messages.some(
+              (m) =>
+                m.actorId === actor.id &&
+                m.role === 'assistant' &&
+                (m.sourceVersion ?? 0) >= evidence.eventVersion,
+            )
       )
         continue;
       threads.push({
@@ -243,7 +253,18 @@ export function buildAgenda(
         actorId: actor.id,
         basisId: matter.id,
         basisAt: evidence.at,
-        detail: fact.text,
+        detail: [
+          fact.text,
+          ...state.facts
+            .filter(
+              (f) =>
+                f.id.startsWith('pursuit_result:') &&
+                f.sourceEventId === evidence.eventId &&
+                f.visibility.kind === 'actors' &&
+                f.visibility.actorIds.includes(actor.id),
+            )
+            .map((f) => f.text),
+        ].join(' '),
       });
     }
   }

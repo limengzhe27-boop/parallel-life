@@ -1,3 +1,4 @@
+import { progressSceneMatters } from './matter-progression.ts';
 import { DomainError } from './errors.ts';
 import type { WorldState, Fact, Appointment } from './types.ts';
 import type { SceneSession, SceneAction } from './experience-rules.ts';
@@ -104,6 +105,15 @@ export function applySceneWorldResults(
     const fact = sceneMatterResultFact(result, witnesses);
     if (fact) facts.push(fact);
   }
+  const progression = progressSceneMatters(
+    current,
+    initial,
+    next.matters,
+    { id: event.id, version: event.version, at: event.storyAt },
+    witnesses,
+  );
+  next.matters = progression.matters;
+  facts.push(...progression.observerFacts);
   if (canonical(facts) !== canonical(results.observerFacts))
     throw new DomainError('INVALID_PROPOSAL', 'Forged observer facts');
   let attendance: Appointment | undefined;

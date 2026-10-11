@@ -60,6 +60,17 @@ export type WorldMatter = {
   createdAt: string;
   updatedAt: string;
   rewardClaimed?: boolean;
+  pursuitProgress?: {
+    milestones: {
+      matterId: string;
+      title: string;
+      eventId: string;
+      eventVersion: number;
+      at: string;
+    }[];
+    nextOpportunityIds: string[];
+  };
+  opportunity?: { pursuitId: string; triggerMatterId: string; key: string };
 };
 
 export const validMatterTransitions: Record<MatterStatus, readonly MatterStatus[]> = {
