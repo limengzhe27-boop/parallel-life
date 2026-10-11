@@ -50,3 +50,29 @@
 ## 连续性补丁最终冻结
 
 业务553d51f，完整check751/751、相关专项14/14、build exit0、diff check通过。日志本树.local/matter-aiqa-b-continuity-{pure,typecheck,check,build}.log。源码再冻结释放I，55471已停止且无监听；没有HTTP/浏览器/生产写/供应商新增请求。主表回待验收。基线两次partial不能被新capture改写成成功，后续真实修复效果与剩余次数仅由根实账本及Q语义验收确认。
+
+## v4真实修后25仍partial：只读根因分析（不写业务/不调用模型）
+
+根提供20-input、24-task-result、25-retry-saved，unknown85s后根明确手动retry。24 task.status=succeeded/resultVersion10只证明proposal已保存，不等于事项成功；25实际SceneAction.resolution=partial，世界无stage/opp。20玩家明确检查启动、电源接头、填写验收栏检查项/交车时间、交钥匙与单据给老周，25却重复18的“记录尚未完成、老周尚未检查或签收”，NPC又要求把记录留好/以后检查。此处真实连续性验收失败，不能把此前纯750/751检查解释成真实闭环通过。10/12只是根保守账本，B无新增调用，不重试未知请求。
+
+### 可以由代码确定的缺口
+
+1. 裁决与NPC效果单向串行。scene-planner约159–165先导演定outcome/observation/matterUpdates，约259–313才独立NPC调用。NPC仅strict {text}，追加dialogues，不反向更新既有裁决。scene-repository约879–946依据先前p.outcome/observation决定world goal与progress；约1063只把dialogue存SceneEntry。对白确实持久，但没有结构化NPC验收/接收/检查行动及其source/effect，不能把“我检查过/我收了”可信转成完成条件。
+2. 导演被禁止执行NPC动作，NPC又受partial不能补成已验收的护栏限制。若导演把NPC检查当必要前提，当前两个阶段都不能合法建立该效果：裁决等待检查，NPC只能说以后检查，下一轮再看到此前partial。这是当前接口对第三方效果的明确表达缺口；不意味着所有目标在当前架构数学上不可完成，独立玩家行为可由导演判succeeded，但对必须第三方动作的目标不能靠台词补足。
+3. 没有运行时可累计的部分步骤。SceneAction只有一次整体resolution（succeeded/failed/partial+text），world goal evidence不是“已核对/已写记录/已交钥匙”的有来源步集合；旧history可见但只是自由文本。scene-matter-policy约18–21、218–221仅匹配当前action及observation，不聚合过去步骤。因而语义模型可以遗忘已经完成的记录并重复待做步骤，运行时不会识别“已写又称未写”的矛盾；真实20虽重复完整要素，模型仍未承认，不是ActionBoundary截断。
+4. authored endpoint与实现含混。官方description允许向车主或老周说明并交付，没有指定客户必须在场、对方必须签字。当前registry observationAll要求“签收|验收”，未结构化区分玩家验收记录、接收人承接与另一次第三方检查；模型把“验收”理解成NPC检查/签名，容易擅加门槛。action候选又必须与已在场者完全一致，不会因旧persona17:55预约自动把客户加入现场；更不能用加人来绕过原允许老周接收的目标。
+
+### 只能列为假设，不能由现有样本断言因果
+
+- 格式示例attempt默认partial（scene-planner约159）会有先验偏向风险，旧历史两次partial也可能形成续写锚点。25与18多处近似措辞支持“重复旧欠项”的现象；本轮没有中立示例/无旧历史的受控对照，不能宣称这两点是唯一原因，也不能把示例改成succeeded来强过。
+- 仅继续追加prompt已在v4正式样本失败；新的长指令是否被模型忽略、模型本身是否过度保守，不能凭纯capture判断。当前不能宣称NPC自然承接了stage/opportunity，因为两者根本没产生。
+
+### 最小下一任务03D方案（本轮不实施）
+
+A. 先冻结R17等具体目标的结构化必要步骤与允许接收人，明确“交给老周可成立”与“另行NPC检查是否真是必要”的产品标准；别按一次paid失败改关键词，也不默默重解释旧v3历史。规则有版本和来源，旧存档/事件不自动回填完成。
+B. 给partial真实已完成子步骤建立有source的单调ledger（例如order_reviewed、connector_checked、record_written、handover_to_allowed_receiver）；每条绑定world/scene/action、真实执行主体/接收人、结果事件/version、actual witnesses。保存前校验AI提案与实际saved action/观察，不用自述、关键词或人物肯定语气充证据。后续基于这些步骤判固定endpoint，已经建立的记录不反复变成未写；缺项必须具体ID与理由。
+C. 对确实需要人物行为的事项，扩NPC提案为text+有限typed action/effects（当前人物、实际在场、对应当前request/action、具体对象、outcome）；运行时赋id/source并校验知识/权限/目标，和scene事件事务一并持久。随后用运行时聚合已验证玩家步骤+该人物实际效果计算goal；对白只是结果呈现，不能代替typed effect，不引入额外“模型说成功就成功”的通道。可复用现有一导演+一NPC调用，不加盲目第三次裁定请求。具体domain/public contracts与evidence链归下一任务根冻结，不由B本轮改。
+D. 把“玩家本次动作结果”和“整个多步骤事项结果”解耦：玩家完成写记录可succeeded而goal仍待真正必要的接收/检验；若原endpoint不需对方签名，不能因额外角色习惯让goal永远partial。stage/opp仍只在runtime确切goal completed后同事务触发，所有旧隐私/回放/回执/幂等护栏保留。
+E. 明确验收：同一真实多轮步骤不会复活欠项；允许接收人可达，不必新增客户；需要NPC效果时有正式source可回放；没有该效果时诚实未完成；self report/无关动作/不同world/离场NPC不得credit；重放/重复只一次、Q独立语义审核后再确认真实闭环。下一次模型调用必须新授权，本轮B停止业务及模型尝试。
+
+业务仍冻结553d51f，不新增源码/测试/DB/浏览器/模型/生产写；这里只更新报告及本人接续。此批prompt局部修复已验证静态路径，但真实体验闭环未通过，按根统一记录未通过及03D剩余。
