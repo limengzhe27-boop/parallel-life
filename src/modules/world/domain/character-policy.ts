@@ -11,7 +11,28 @@ export function validateCharacterEffects(
   if (!effects.some((effect) => effect.type === 'message.received')) {
     throw new DomainError('INVALID_PROPOSAL', 'A character turn requires a reply');
   }
+  if (effects.filter((effect) => effect.type === 'matter.proposed').length > 1)
+    throw new DomainError(
+      'INVALID_PROPOSAL',
+      'At most one grounded matter may be proposed per beat',
+    );
   for (const effect of effects) {
+    if (
+      (effect.type === 'matter.created' || effect.type === 'matter.proposed') &&
+      origin !== 'director'
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'Only a director beat can propose a world matter');
+    if (
+      effect.type === 'matter.updated' &&
+      (origin === 'director' ||
+        effect.evidence.kind !== 'user_report' ||
+        effect.assertion === 'world_verified')
+    )
+      throw new DomainError(
+        'INVALID_PROPOSAL',
+        'A character reply cannot verify or complete world actions',
+      );
+
     if (effect.type === 'information.shared' && origin !== 'director')
       throw new DomainError('INVALID_PROPOSAL', 'Only a director beat can carry a disclosure');
     if (

@@ -36,6 +36,11 @@ turnOrigin 为 director 时，userText 是幕后舞台指示，不是用户发�
 场景说明/人物动作属于幕后资料，不能作为微信群或私聊旁白；只写当前人物手机会发出的文字。不要在聊天中显示ISO时间戳、字段名、策略标签或来源编号，具体时间用自然的当地日期/时刻；结构化邀约at字段仍用严格时区时间。
 这轮文字本身应能完整使用，不发起media.requested或依赖生图制造吸引力；没有可见真实完成素材时，不说新照片已拍好/生成。邀约未被主角确认，只能是提议，不冒称日程已经确定。
 
+【系统事项】
+worldMatters只包含你参与且获准知道的事项，不含其他人的秘密。用它承接当前机会，不重复制造任务、不移动完成标准。
+仅turnOrigin=director时，如果本轮你确实在message.received中提出一个有具体对象和可行动步骤的新机会，并且不是已有worldMatters、choices或日程的重复，可附最多一条matter.proposed：{"type":"matter.proposed","id":"matter_1","span":"near_term","title":"具体要做的事100字内","description":"公开的下一步500字内","quote":"逐字截取本轮人物回复里的具体提议，5至160字"}。pursuit仅适用于已经公开的较长追求，不能替主角设定未表达的野心。这是待开始的提议，不表示主角答应、执行或成功。普通私聊不输出此效果。不要每轮增加事项；无法提出新而有依据的行动就只回复。
+禁止输出matter.created或matter.updated；模型不得指定世界ID、来源事件、版本、验证标记或奖励。角色台词不能证明任务已完成。
+
 【效果边界】
 当且仅当用户在这条消息里明确决定了自己接下来要做的事，可以在回复之外加一条 choice.recorded：{"type":"choice.recorded","id":"choice_1","quote":"用户消息中的原文连续片段","intent":"12至60字的具体行动"}。quote 必须逐字出自这条用户消息，并以“我决定/我选择/我要/我会/我打算/那就”等明确行动表达开头；假设、转述、提问、未定的愿望都不记录。只记录选择，绝不声称已执行或成功。导演舞台指示不可产生 choice.recorded。
 choices 是用户此前对这个角色说过的选择。如果用户本轮明确谈到其中一条选择的结果，并且亲口说“我完成了／我卡住了／我不做了”，可在回复之外加 choice.result_reported：{"type":"choice.result_reported","id":"result_1","choiceId":"choices中那条选择的id","quote":"本轮用户消息中的原文连续片段，含具体事情","outcome":"reported_done"}。outcome 只能为 reported_done、blocked、abandoned。必须是用户本人的陈述、与 choice 的具体事情对应；假设、引用他人的话、推测、问题都不能记录。reported_done 只是用户自述，不代表你看见成果或世界已证实成功；不要据此编造照片、奖项或完成证明。若本轮既报告旧结果又提出新选择，优先记录结果。导演指示不产生结果报告。
@@ -127,6 +132,7 @@ export class WorldTurnPlanner implements TurnPlanner {
           ),
           appointments: context.appointments,
           choices: context.choices,
+          worldMatters: context.matters,
           turnOrigin: context.turnOrigin ?? 'user',
           recalledMemories: (context.retrievedMemories ?? []).map((memory) => ({
             id: memory.id,

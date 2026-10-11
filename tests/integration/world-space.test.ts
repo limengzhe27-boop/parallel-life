@@ -516,6 +516,34 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
           const buildReq = { seedId, commandId: randomUUID() };
           const built = await builds.create(normalOwner, buildReq);
           const output = {
+            space: {
+              initialPlaceId: 'primary_place',
+              places: [
+                {
+                  key: 'primary_place',
+                  name: '青石老街·林记汽修',
+                  description: '修车铺工具台',
+                  actorKeys: ['actor_a'],
+                  invitationKeys: [],
+                },
+                {
+                  key: 'community_area',
+                  name: '老街零件店',
+                  description: '可以买备件',
+                  actorKeys: [],
+                  invitationKeys: [],
+                },
+              ],
+              routes: [
+                {
+                  key: 'route_1',
+                  from: 'primary_place',
+                  to: 'community_area',
+                  minutes: 7,
+                  modeLabel: '步行',
+                },
+              ],
+            },
             identity: '修车师傅',
             setting: '清晨的青石老街·林记汽修门前，修车铺拉起了卷帘门。',
             actors: ['actor_a', 'actor_b', 'actor_c'].map((k) => ({
@@ -525,7 +553,12 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
               persona: '待人和气',
             })),
             actorTies: [
-              { fromKey: 'actor_a', toKey: 'actor_b', relationship: '同条街做街坊', mayShare: true },
+              {
+                fromKey: 'actor_a',
+                toKey: 'actor_b',
+                relationship: '同条街做街坊',
+                mayShare: true,
+              },
             ],
             messages: [{ actorKey: 'actor_a', text: '师傅，今天能帮忙补个胎吗？' }],
             notes: [{ title: '今日待办', text: '整理工具箱' }],
@@ -600,7 +633,12 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
             seedId: emptySeedId,
             commandId: randomUUID(),
           });
-          await runOne(queue, { 'world-build': buildHandler(queue, planner, 'test-model') });
+          const emptyPlanner = new WorldPlanner({
+            async complete() {
+              return JSON.stringify(historyFixture({ ...output, space: undefined }));
+            },
+          });
+          await runOne(queue, { 'world-build': buildHandler(queue, emptyPlanner, 'test-model') });
           const emptyRead = await space.read(normalOwner, emptyBuilt.worldId);
           assert.equal(emptyRead.currentPlaceId, null);
           assert.deepEqual(emptyRead.places, []);
@@ -632,6 +670,19 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
             { id: randomUUID(), name: '模特阿琳', relationship: '合作者', persona: '专业敬业' },
           ];
           const legOpening = {
+            space: {
+              initialPlaceId: 'primary_place',
+              places: [
+                {
+                  key: 'primary_place',
+                  name: '海边灯塔工作室',
+                  description: '有胶片和桌子',
+                  actorKeys: ['actor_1'],
+                  invitationKeys: [],
+                },
+              ],
+              routes: [],
+            },
             identity: '摄影师',
             setting: '海边灯塔下的工作室里潮气未退。',
             actors: [

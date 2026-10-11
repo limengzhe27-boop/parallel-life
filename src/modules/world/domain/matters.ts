@@ -3,12 +3,7 @@ import { DomainError } from './errors.ts';
 export type MatterSpan = 'near_term' | 'pursuit';
 
 export type MatterStatus =
-  | 'not_started'
-  | 'in_progress'
-  | 'blocked'
-  | 'completed'
-  | 'abandoned'
-  | 'superseded';
+  'not_started' | 'in_progress' | 'blocked' | 'completed' | 'abandoned' | 'superseded';
 
 export type MatterAssertion = 'player_statement' | 'world_verified' | 'actor_statement';
 
@@ -20,9 +15,30 @@ export type MatterSource =
   | { kind: 'scene_action'; sceneId: string; actionId: string; at: string };
 
 export type MatterEvidence =
-  | { kind: 'director_progression'; reason: string; eventId: string; eventVersion: number; at: string }
-  | { kind: 'user_report'; quote: string; outcome: 'reported_done' | 'blocked' | 'abandoned'; eventId: string; eventVersion: number; at: string }
-  | { kind: 'scene_action'; sceneId: string; actionId: string; outcome: 'succeeded' | 'failed' | 'partial'; eventId: string; eventVersion: number; at: string }
+  | {
+      kind: 'director_progression';
+      reason: string;
+      eventId: string;
+      eventVersion: number;
+      at: string;
+    }
+  | {
+      kind: 'user_report';
+      quote: string;
+      outcome: 'reported_done' | 'blocked' | 'abandoned';
+      eventId: string;
+      eventVersion: number;
+      at: string;
+    }
+  | {
+      kind: 'scene_action';
+      sceneId: string;
+      actionId: string;
+      outcome: 'succeeded' | 'failed' | 'partial';
+      eventId: string;
+      eventVersion: number;
+      at: string;
+    }
   | { kind: 'world_event'; reason: string; eventId: string; eventVersion: number; at: string };
 
 export type WorldMatter = {
@@ -77,22 +93,27 @@ export function createWorldMatter(input: CreateMatterInput): WorldMatter {
   const title = input.title.trim();
   const description = input.description.trim();
   if (!title || title.length > 100) {
-    throw new DomainError('INVALID_PROPOSAL', 'INVALID_MATTER: Title must be between 1 and 100 characters');
+    throw new DomainError(
+      'INVALID_PROPOSAL',
+      'INVALID_MATTER: Title must be between 1 and 100 characters',
+    );
   }
   if (!description || description.length > 500) {
-    throw new DomainError('INVALID_PROPOSAL', 'INVALID_MATTER: Description must be between 1 and 500 characters');
+    throw new DomainError(
+      'INVALID_PROPOSAL',
+      'INVALID_MATTER: Description must be between 1 and 500 characters',
+    );
   }
 
   const status = input.status ?? 'in_progress';
   if (!['not_started', 'in_progress'].includes(status)) {
-    throw new DomainError('INVALID_PROPOSAL', 'INVALID_MATTER: Initial status must be not_started or in_progress');
+    throw new DomainError(
+      'INVALID_PROPOSAL',
+      'INVALID_MATTER: Initial status must be not_started or in_progress',
+    );
   }
 
-  const assertion =
-    input.assertion ??
-    (input.source.kind === 'scene_action' || input.source.kind === 'genesis'
-      ? 'world_verified'
-      : 'actor_statement');
+  const assertion = input.assertion ?? 'actor_statement';
 
   return {
     id: input.id,
@@ -128,7 +149,11 @@ export function transitionWorldMatter(
   matter: WorldMatter,
   update: TransitionMatterInput,
 ): WorldMatter {
-  if (matter.status === 'completed' || matter.status === 'abandoned' || matter.status === 'superseded') {
+  if (
+    matter.status === 'completed' ||
+    matter.status === 'abandoned' ||
+    matter.status === 'superseded'
+  ) {
     throw new DomainError(
       'INVALID_PROPOSAL',
       'MATTER_TERMINAL: Matter is in terminal state and cannot be altered',
@@ -146,11 +171,10 @@ export function transitionWorldMatter(
   // Prerequisites check: if transitioning to in_progress or completed, all prerequisites must be completed
   if (
     (update.status === 'in_progress' || update.status === 'completed') &&
-    matter.prerequisites?.length &&
-    update.allMatters
+    matter.prerequisites?.length
   ) {
     const uncompleted = matter.prerequisites.filter((preId) => {
-      const pre = update.allMatters!.find((m) => m.id === preId);
+      const pre = (update.allMatters ?? []).find((m) => m.id === preId);
       return !pre || pre.status !== 'completed';
     });
     if (uncompleted.length > 0) {
@@ -173,10 +197,7 @@ export function transitionWorldMatter(
       );
     }
     finalAssertion = 'player_statement';
-  } else if (
-    update.evidence.kind === 'scene_action' &&
-    update.evidence.outcome === 'succeeded'
-  ) {
+  } else if (update.evidence.kind === 'scene_action' && update.evidence.outcome === 'succeeded') {
     finalAssertion = 'world_verified';
   } else if (
     update.evidence.kind === 'world_event' ||
@@ -196,7 +217,7 @@ export function transitionWorldMatter(
 }
 
 export function claimMatterReward(matter: WorldMatter, now: string): WorldMatter {
-  if (matter.status !== 'completed') {
+  if (matter.status !== 'completed' || matter.assertion !== 'world_verified') {
     throw new DomainError(
       'INVALID_PROPOSAL',
       'MATTER_NOT_COMPLETED: Cannot claim reward for uncompleted matter',

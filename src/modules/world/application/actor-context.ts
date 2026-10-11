@@ -111,6 +111,20 @@ export function actorContext(
   );
   for (const { item } of rank(appointments, (item) => item.title))
     append(context.appointments, item, 1500);
+  context.matters = [];
+  for (const matter of (state.matters ?? [])
+    .filter(
+      (m) =>
+        m.worldId === state.id &&
+        m.visibility === 'player_visible' &&
+        m.relatedActorIds?.includes(actorId) &&
+        !blockedSources.has(m.id) &&
+        !('eventId' in m.source && blockedSources.has(m.source.eventId)),
+    )
+    .slice(-6)) {
+    const { id, title, description, span, status, assertion } = matter;
+    append(context.matters, { id, title, description, span, status, assertion }, 2000);
+  }
   for (const choice of (state.choices ?? []).filter((item) => item.actorId === actorId).slice(-3)) {
     if (blockedSources.has(choice.id) || blockedSources.has(choice.sourceEventId)) continue;
     const visible = structuredClone(choice);

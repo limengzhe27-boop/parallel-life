@@ -349,6 +349,7 @@ test('applyEvent atomically updates world.matters in reducer', () => {
     span: 'near_term',
     title: '去试镜',
     description: '1号影棚试镜。',
+    relatedActorIds: ['actor_director'],
     source: {
       kind: 'director_proposal',
       eventId: 'evt_turn_1',
@@ -405,8 +406,7 @@ test('applyEvent atomically updates world.matters in reducer', () => {
     storyAt: '2026-10-11T10:15:00.000Z',
     data: {
       actorId: 'actor_director',
-      userText: '演完了，您觉得怎么样？',
-      origin: 'director',
+      userText: '我完成了试镜表演，您觉得怎么样？',
       effects: [
         {
           type: 'message.received',
@@ -420,8 +420,9 @@ test('applyEvent atomically updates world.matters in reducer', () => {
           matterId: 'matter_audition_1',
           status: 'completed',
           evidence: {
-            kind: 'world_event',
-            reason: '试镜通过',
+            kind: 'user_report',
+            quote: '我完成了试镜表演',
+            outcome: 'reported_done',
             eventId: 'evt_turn_2',
             eventVersion: 2,
             at: '2026-10-11T10:15:00.000Z',
@@ -434,7 +435,7 @@ test('applyEvent atomically updates world.matters in reducer', () => {
   const { state: state2 } = applyEvent(state1, event2);
   assert.equal(state2.version, 2);
   assert.equal(state2.matters![0]!.status, 'completed');
-  assert.equal(state2.matters![0]!.assertion, 'world_verified');
+  assert.equal(state2.matters![0]!.assertion, 'player_statement');
 });
 
 test('projectPlayerRecords projects matters correctly to current, about, and history', () => {
