@@ -56,25 +56,46 @@ export function searchRecords(records: readonly RecordItem[], query: string): Re
 function RecordRows({ records, open }: { records: readonly RecordItem[]; open: Open }) {
   return (
     <ul className={s.rows}>
-      {records.map((record) => (
-        <li key={record.id}>
-          <button
-            type="button"
-            className={s.row}
-            onClick={() => open('notes', record.id)}
-            aria-label={`${record.title}，${record.stateLabel}`}
-          >
-            <span className={s.rowText}>
-              <strong>{record.title}</strong>
-              <span className={s.preview}>{recordText(record)}</span>
-              <small>{record.stateLabel}</small>
-            </span>
-            <span className={s.chevron} aria-hidden="true">
-              ›
-            </span>
-          </button>
-        </li>
-      ))}
+      {records.map((record) => {
+        const destination = recordDestination(record);
+        return (
+          <li key={record.id} className={s.rowItem}>
+            <button
+              type="button"
+              className={s.row}
+              onClick={() => open('notes', record.id)}
+              aria-label={`${record.title}，${record.stateLabel}`}
+            >
+              <span className={s.rowText}>
+                <strong>{record.title}</strong>
+                <span className={s.preview}>{recordText(record)}</span>
+                <span className={s.metaGroup}>
+                  <small className={s.stateBadge}>{record.stateLabel}</small>
+                  <small className={s.attributionBadge}>{recordAttribution(record)}</small>
+                </span>
+              </span>
+              <span className={s.chevron} aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {destination && (
+              <div className={s.rowAction}>
+                <button
+                  type="button"
+                  className={s.actionShortcut}
+                  onClick={() => open(destination.app, destination.target)}
+                >
+                  {destination.app === 'map'
+                    ? '前往地点现场 ›'
+                    : destination.app === 'messages'
+                      ? '查看来源对话 ›'
+                      : '查看日程 ›'}
+                </button>
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -94,7 +115,14 @@ export function NotesRecords({
   onHistoryToggle?: (value: boolean) => void;
 }) {
   const current = searchRecords(data.current, query);
-  const about = searchRecords(data.about, query);
+  const pursuits = searchRecords(
+    data.about.filter((r) => r.span === 'pursuit' || r.kind === 'world_matter'),
+    query,
+  );
+  const situations = searchRecords(
+    data.about.filter((r) => r.kind === 'opening_context' || (r.span !== 'pursuit' && r.kind !== 'world_matter')),
+    query,
+  );
   const history = searchRecords(data.history, query);
   const searching = Boolean(query.trim());
   return (
@@ -115,16 +143,28 @@ export function NotesRecords({
                 <button type="button" onClick={() => open('calendar')}>
                   看看日历
                 </button>
+                <button type="button" onClick={() => open('map')}>
+                  看看地图
+                </button>
               </div>
             )}
           </div>
         )}
       </section>
-      <section className={s.section} aria-label="关于这段人生">
-        <h3>关于这段人生</h3>
-        <p className={s.hint}>人生起点的身份与处境。</p>
-        {about.length ? (
-          <RecordRows records={about} open={open} />
+      <section className={s.section} aria-label="这段人生想做到的事">
+        <h3>这段人生想做到的事</h3>
+        <p className={s.hint}>长期追求与主要目标。</p>
+        {pursuits.length ? (
+          <RecordRows records={pursuits} open={open} />
+        ) : (
+          <p className={s.empty}>{searching ? '没有找到相关追求' : '暂时没有已记录的长期追求'}</p>
+        )}
+      </section>
+      <section className={s.section} aria-label="现在的处境">
+        <h3>现在的处境</h3>
+        <p className={s.hint}>关于这段人生 · 人生起点的身份与处境。</p>
+        {situations.length ? (
+          <RecordRows records={situations} open={open} />
         ) : (
           <p className={s.empty}>{searching ? '没有找到相关信息' : '人生起点的信息还未记录'}</p>
         )}
@@ -209,7 +249,11 @@ export function NotesRecordDetail({
             className={s.linkButton}
             onClick={() => open(destination.app, destination.target)}
           >
-            {destination.app === 'messages' ? '查看来源对话' : '查看日程'}
+            {destination.app === 'messages'
+              ? '查看来源对话'
+              : destination.app === 'map'
+                ? '前往地点现场'
+                : '查看日程'}
             <span aria-hidden="true"> ›</span>
           </button>
         ) : (

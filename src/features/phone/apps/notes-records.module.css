@@ -42,12 +42,21 @@
   color: inherit;
   cursor: pointer;
 }
+.rowItem {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+}
+.records .rows li:first-child,
 .records .rows li:first-child .row {
   border-radius: 12px 12px 0 0;
 }
+.records .rows li:last-child,
 .records .rows li:last-child .row {
   border-radius: 0 0 12px 12px;
 }
+.records .rows li:only-child,
 .records .rows li:only-child .row {
   border-radius: 12px;
 }
@@ -67,6 +76,59 @@
   font-size: 12px;
   line-height: 1.5;
   color: #946800;
+}
+.metaGroup {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.stateBadge {
+  display: inline-block;
+  color: #946800;
+  background: #fff7df;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.attributionBadge {
+  display: inline-block;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.rowAction {
+  padding: 0 12px 10px;
+  background: #fff;
+  display: flex;
+  justify-content: flex-end;
+}
+.actionShortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 550;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.actionShortcut:hover {
+  background: #fde68a;
+}
+.actionShortcut:focus-visible {
+  outline: 2px solid #92400e;
+  outline-offset: 2px;
 }
 .preview {
   color: #596574;

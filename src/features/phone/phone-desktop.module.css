@@ -346,6 +346,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.recordMeta {
+  font-size: 11px;
+  color: #c8d4df;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .record > svg {
   flex-shrink: 0;
   width: 17px;
@@ -383,6 +391,9 @@
   }
   .recordBody strong {
     font-size: 12px;
+  }
+  .recordMeta {
+    display: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {

@@ -24,6 +24,7 @@ import type { WorldPhone } from '../../contracts/world-build.ts';
 import { PhoneShell } from './phone-shell.tsx';
 import { PhoneDesktop } from './phone-desktop.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
+import { recordAttribution } from './apps/notes-records.tsx';
 import { Avatar } from './apps/common.tsx';
 import type {
   PhoneActions,
@@ -897,6 +898,26 @@ export function WorldPhoneSurface({
               actionableUntil: inv.at,
               timeLabel: '待回复',
             })),
+          ...(records?.status === 'ready'
+            ? records.data.current
+                .filter(
+                  (item) =>
+                    item.kind === 'world_matter' &&
+                    (item.state === 'in_progress' || item.state === 'blocked'),
+                )
+                .map((item) => ({
+                  id: `notif-matter-${item.id}`,
+                  title: item.title,
+                  summary: `${item.stateLabel} · ${recordAttribution(item)} · ${item.text}`,
+                  app: 'notes' as const,
+                  target: item.id,
+                  at:
+                    item.source.kind === 'world_matter' || item.source.kind === 'world_event'
+                      ? item.source.at
+                      : undefined,
+                  timeLabel: item.stateLabel,
+                }))
+            : []),
         ]}
         renderHome={({ open, openPanel }) => (
           <PhoneDesktop
@@ -904,6 +925,7 @@ export function WorldPhoneSurface({
             dateLabel={dateLabel}
             timeLabel={timeLabel}
             data={phoneData}
+            records={records}
             open={open}
             openPanel={openPanel}
           />
