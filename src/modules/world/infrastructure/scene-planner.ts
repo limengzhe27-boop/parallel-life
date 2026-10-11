@@ -1,3 +1,4 @@
+import { sceneStepContext } from '../domain/scene-step-progress.ts';
 import { trustedOpportunity } from '../domain/matter-progression.ts';
 import { matterCriterion, sceneMatterId } from '../domain/scene-matter-policy.ts';
 import { worldDateTimeLabel } from '../domain/display-time.ts';
@@ -18,8 +19,35 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v4-action-continuity';
+export const SCENE_PROMPT_VERSION = 'scene-text-v5-structured-steps';
 const text = z.string().trim().min(1).max(1600);
+const reference = z.string().trim().min(1).max(200);
+const quote = z.string().trim().min(3).max(500);
+const stepProposalSchema = z.strictObject({
+  matterId: reference,
+  stepId: reference,
+  inputQuote: quote,
+  observationQuote: quote,
+  receiverId: reference.optional(),
+});
+const npcActionSchema = z.strictObject({
+  matterId: reference,
+  kind: z.enum(['receive_r17', 'inspect_r17']),
+  quote,
+});
+function isUnexecutedQuote(quote: string, source: string): boolean {
+  const at = source.indexOf(quote);
+  if (at < 0) return true;
+  const before = source.slice(0, at);
+  const prefix = before.split(/[。！？；\n]/u).at(-1) ?? '';
+  return /(?:会|将|要|准备|打算|计划|希望|可以|能)[^。！？；\n]{0,20}(?:接过|收下|收到了|接收|检查|核对|复检)|没有|并未|尚未|没(?:有|能)|不(?:会|能|曾|去|收|接|检查|核对)/u.test(
+    prefix + quote,
+  );
+}
+const npcReplySchema = z.strictObject({
+  text,
+  actions: z.array(npcActionSchema).max(4).default([]),
+});
 export const SceneProposalSchema = z.strictObject({
   location: z.string().trim().min(1).max(200),
   narration: text,
@@ -37,6 +65,9 @@ export const SceneProposalSchema = z.strictObject({
     )
     .max(8),
   dialogues: z.array(z.strictObject({ actorId: z.string(), text })).max(2),
+  stepProposals: z.array(stepProposalSchema).max(8).default([]),
+  // Director cannot propose actions for actors; only the actor adapter binds these.
+  npcActions: z.array(z.never()).max(0).default([]),
 });
 export class ScenePlanner implements ScenePlannerPort {
   private model: TextModel;
@@ -67,7 +98,22 @@ export class ScenePlanner implements ScenePlannerPort {
         );
     // Director receives public scene information only: no owner facts, interviews or private conversations.
     const currentPlace = c.entries.filter((e) => e.kind === 'time_place').at(-1);
+    const stepExecution =
+      c.action?.intent === 'attempt'
+        ? c.matters
+            .filter((m) => c.action!.relatedMatterIds.includes(m.id))
+            .flatMap((local) => {
+              const m = c.world.matters?.find((m) => sceneMatterId(c.scene.id, m.id) === local.id);
+              if (!m || !['not_started', 'in_progress', 'blocked'].includes(m.status)) return [];
+              const context = sceneStepContext(c.world, c.scene, m);
+              return context ? [context] : [];
+            })
+        : [];
+    const executionInstructions = stepExecution.length
+      ? '\nSTRUCTURED EXECUTION: worldMatterConditions.stepExecution is a fixed versioned rule for the matching WORLD matterId, distinct from local scene IDs. Propose stepProposals only for actual player steps performed by this saved currentAction. Each proposal is {matterId,stepId,inputQuote,observationQuote,receiverId?}; inputQuote is an exact self-contained substring of currentAction.text, observationQuote is an exact self-contained substring of your observation starting with 你 and containing the concrete step action/object. For repair_explained/handed_over both quotes must explicitly name the allowed present receiver; use receiverId. Write observation as concrete clauses each starting with 你 so the quote can stand alone. Do not use promises, requests, prior self-report, imagined outcomes or deferred clauses as player execution evidence. Never propose received/receiver_inspected: only that NPC can act in its independent call. Already saved completedSteps remain done and need not be repeated, no old prose is backfilled. Required steps are only order_reviewed,repair_explained,handed_over,received; connector_checked,record_written,receiver_inspected are OPTIONAL, no new signature/customer-arrival/record/inspection prerequisite. The current player action can succeed even while the overall goal waits for actual receiving. Do not propose matterUpdates.completed for this structured matter: runtime aggregates validated steps and NPC actions, you do not decide whole-goal completion. Other legacy matters keep their existing rules. stepProposals defaults []; npcActions MUST be omitted or [].'
+      : '\nNo structured rule applies: stepProposals MUST be [].';
     const payload = {
+      executionInstructions,
       currentPlace: currentPlace ?? null,
       worldMatterConditions: c.matters
         .filter((local) => !c.action || c.action.relatedMatterIds.includes(local.id))
@@ -83,6 +129,7 @@ export class ScenePlanner implements ScenePlannerPort {
               title: m.title,
               description: m.description,
               status: m.status,
+              stepExecution: stepExecution.find((x) => x.matterId === m.id) ?? null,
               successfulAttemptCanStartAndComplete: Boolean(
                 c.action?.intent === 'attempt' &&
                 m.status === 'not_started' &&
@@ -156,7 +203,7 @@ export class ScenePlanner implements ScenePlannerPort {
       [
         {
           role: 'system',
-          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。日程约定者不等于到场者：开场只能从actors中选择实际在场者，允许为空；无action时outcome/observation必须null，可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? 'Observable result of this action' : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [] })}。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；没有关联事项时matters=[]，必须matterUpdates=[]，仍正常裁定行动观察，不自行猜测事项ID；completed仅由succeeded支撑，blocked只由failed支撑，partial仅in_progress或不变。普通事项not_started只能到in_progress；只有worldMatterConditions中successfulAttemptCanStartAndComplete=true的可信已定义机会，在本次完整实际attempt满足全部条件且succeeded时可提completed，运行时会受控开始再完成；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
+          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。日程约定者不等于到场者：开场只能从actors中选择实际在场者，允许为空；无action时outcome/observation必须null，可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? 'Observable result of this action' : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [], stepProposals: [] })}。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；没有关联事项时matters=[]，必须matterUpdates=[]，仍正常裁定行动观察，不自行猜测事项ID；completed仅由succeeded支撑，blocked只由failed支撑，partial仅in_progress或不变。普通事项not_started只能到in_progress；只有worldMatterConditions中successfulAttemptCanStartAndComplete=true的可信已定义机会，在本次完整实际attempt满足全部条件且succeeded时可提completed，运行时会受控开始再完成；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
         },
         {
           role: 'user',
@@ -187,6 +234,21 @@ export class ScenePlanner implements ScenePlannerPort {
     } catch {
       throw new DomainError('INVALID_PROPOSAL', 'Invalid scene proposal');
     }
+    for (const step of p.stepProposals ?? []) {
+      const context = stepExecution.find((x) => x.matterId === step.matterId);
+      if (
+        !context ||
+        !context.steps.some((s) => s.id === step.stepId) ||
+        ['received', 'receiver_inspected'].includes(step.stepId) ||
+        p.outcome === 'failed' ||
+        !boundary?.now.includes(step.inputQuote) ||
+        !p.observation?.includes(step.observationQuote) ||
+        (step.receiverId && !context.allowedReceivers.some((a) => a.id === step.receiverId))
+      )
+        throw new DomainError('INVALID_PROPOSAL', 'Unsupported current player step evidence');
+    }
+    if ((p.stepProposals?.length ?? 0) && c.action?.intent !== 'attempt')
+      throw new DomainError('INVALID_PROPOSAL', 'Only saved attempts can propose executed steps');
     if (!opening && p.matterTitle && c.matters.some((m) => m.title === p.matterTitle))
       p.matterTitle = null;
     if (c.scene.placeId && c.world.space) {
@@ -223,6 +285,14 @@ export class ScenePlanner implements ScenePlannerPort {
       throw new DomainError('INVALID_PROPOSAL', 'Plan/opening cannot become an executed result');
     for (const update of p.matterUpdates) {
       if (
+        update.status === 'completed' &&
+        stepExecution.some((x) => sceneMatterId(c.scene.id, x.matterId) === update.id)
+      )
+        throw new DomainError(
+          'INVALID_PROPOSAL',
+          'Structured matter completion belongs to the runtime',
+        );
+      if (
         !c.action?.relatedMatterIds.includes(update.id) ||
         !c.matters.some((m) => m.id === update.id)
       )
@@ -254,7 +324,23 @@ export class ScenePlanner implements ScenePlannerPort {
     )
       throw new DomainError('INVALID_PROPOSAL', 'Player step cannot be attributed to an NPC');
     // At most two relevant NPCs. Each receives its own visible facts/entries, never another private thread.
-    const speakers = candidates.filter((a) => p.presentActorIds.includes(a.id)).slice(0, 2);
+    const receiverIds = new Set(
+      stepExecution.flatMap((context) =>
+        context.allowedReceivers
+          .filter(
+            (actor) =>
+              boundary?.now.includes(actor.name) ||
+              (p.stepProposals ?? []).some(
+                (step) => step.matterId === context.matterId && step.receiverId === actor.id,
+              ),
+          )
+          .map((actor) => actor.id),
+      ),
+    );
+    const speakers = candidates
+      .filter((a) => p.presentActorIds.includes(a.id))
+      .sort((a, b) => Number(receiverIds.has(b.id)) - Number(receiverIds.has(a.id)))
+      .slice(0, 2);
     for (const actor of speakers) {
       const blockedSources = new Set(c.blockedSourcesByActor?.[actor.id] ?? []);
       const remembered = actorContext(
@@ -264,6 +350,59 @@ export class ScenePlanner implements ScenePlannerPort {
         c.memoriesByActor?.[actor.id] ?? [],
         blockedSources,
       );
+      const visibleMatters = (remembered.matters ?? []).filter((m) =>
+        stepExecution.some((x) => x.matterId === m.id),
+      );
+      const actorSteps = stepExecution
+        .filter(
+          (x) =>
+            visibleMatters.some((m) => m.id === x.matterId) &&
+            x.allowedReceivers.some((a) => a.id === actor.id),
+        )
+        .map((context) => {
+          const completedSteps = context.completedSteps.filter(
+            (e) =>
+              e.witnessActorIds.includes(actor.id) &&
+              !blockedSources.has(e.eventId) &&
+              !blockedSources.has(e.inputEventId) &&
+              !blockedSources.has(e.actionId),
+          );
+          const steps = context.steps.map((s) => ({
+            ...s,
+            done: completedSteps.some((e) => e.stepId === s.id),
+          }));
+          return {
+            ...context,
+            description: visibleMatters.find((m) => m.id === context.matterId)!.description,
+            steps,
+            completedSteps: completedSteps.map(
+              ({
+                stepId,
+                performer,
+                actorId,
+                receiverId,
+                eventId,
+                eventVersion,
+                observationQuote,
+              }) => ({
+                stepId,
+                performer,
+                actorId,
+                receiverId,
+                eventId,
+                eventVersion,
+                observationQuote,
+              }),
+            ),
+            missingSteps: steps
+              .filter((s) => s.required && !s.done)
+              .map(({ id, title }) => ({ id, title })),
+            candidatePlayerSteps: (p.stepProposals ?? []).filter(
+              (s) =>
+                s.matterId === context.matterId && (!s.receiverId || s.receiverId === actor.id),
+            ),
+          };
+        });
       const npc = {
         currentStep: boundary?.now ?? null,
         deferredUntilPlayerDecision: boundary?.deferred ?? null,
@@ -276,6 +415,8 @@ export class ScenePlanner implements ScenePlannerPort {
         },
         appointment: c.appointmentTitle,
         visibleFacts: remembered.facts,
+        matters: visibleMatters,
+        stepExecution: actorSteps,
         rememberedEpisodes: remembered.retrievedMemories,
         entries: sceneContextEntries(
           c.entries.filter((e) => !blockedSources.has(e.sourceEventId)),
@@ -295,7 +436,10 @@ export class ScenePlanner implements ScenePlannerPort {
           {
             role: 'system',
             content:
-              '扮演该人物，按你的立场、目标和可知事实回应现场，简短自然的一两句话。只知道提供的可见内容，别读取其他私聊或猜主角内心。不替玩家执行后续行动，不声称重大成果、图片、钱或奖励已经发生。observedNow.outcome为partial/failed时，已完成的具体步骤可以认可，但待检查/待确认的步骤不能被你的对白补成已检查、已签收或全部通过；可以说你接下来准备核对哪一项，不用含混的‘我看看，行了’冒充已完成动作。基于当前saved行动与历史可见结果，只提出真实未完成的一项，不重复要求已经完成的核对、交接或记录，也不把允许交给当前接收人的任务改成必须等其他客户到场。人物背景或旧消息里的预约只代表原计划，不等于当前到场或确定马上来；以localStoryTime核对时点，旧约已过而没有到场/新确认来源时，可说原约时间与当前未见，不能编迟到原因或把那个人当在场见证者。只说当前人物获准知道的安排，不引用别人的私聊。仅JSON {"text":"对白"}。',
+              (actorSteps.length
+                ? '本轮有获准stepExecution规则。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。返回JSON {"text":"对白","actions":[{"matterId":"获准世界事项ID","kind":"receive_r17或inspect_r17","quote":"这次对白中明确已执行动作的完整原文片段"}]}。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.completedSteps只是你获准目击的已存证据；candidatePlayerSteps与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
+                : '没有获准结构化事项，不得提出actions；仍仅返回JSON {"text":"对白"}。observedNow.outcome为partial/failed时，已完成步骤可以认可，待检查/待确认不能由对白冒充已检查、已签收或全部通过。') +
+              '扮演该人物，按你的立场、目标和可知事实回应现场，简短自然的一两句话。只知道提供的可见内容，别读取其他私聊或猜主角内心。不替玩家执行后续行动，不声称重大成果、图片、钱或奖励已经发生。没有受控actions支持时，待检查/待确认不能被你的对白补成已检查、已签收或全部通过，不能用含混的‘我看看，行了’冒充已完成动作。基于当前saved行动与历史可见结果，只提出真实未完成的一项，不重复要求已经完成的核对、交接或记录，也不把允许交给当前接收人的任务改成必须等其他客户到场。人物背景或旧消息里的预约只代表原计划，不等于当前到场或确定马上来；以localStoryTime核对时点，旧约已过而没有到场/新确认来源时，可说原约时间与当前未见，不能编迟到原因或把那个人当在场见证者。只说当前人物获准知道的安排，不引用别人的私聊。只返回上述JSON，不写Markdown。',
           },
           { role: 'user', content: JSON.stringify(npc) },
         ],
@@ -303,10 +447,24 @@ export class ScenePlanner implements ScenePlannerPort {
         1024,
       );
       try {
-        p.dialogues.push({
-          actorId: actor.id,
-          ...z.strictObject({ text }).parse(extractJsonObject(reply)),
-        });
+        const parsed = npcReplySchema.parse(extractJsonObject(reply));
+        for (const action of parsed.actions) {
+          if (
+            c.action?.intent !== 'attempt' ||
+            p.outcome === 'failed' ||
+            !actorSteps.some((m) => m.matterId === action.matterId) ||
+            isUnexecutedQuote(action.quote, parsed.text) ||
+            /还没|没有|并未|尚未|如果|假如|打算|计划|准备|将会|之后|以后|稍后|等.+(?:来|到|后)/u.test(
+              action.quote,
+            )
+          )
+            throw new DomainError('INVALID_PROPOSAL', 'Unsupported actor execution candidate');
+        }
+        if ((p.npcActions?.length ?? 0) + parsed.actions.length > 4)
+          throw new DomainError('INVALID_PROPOSAL', 'Unbounded actor execution candidates');
+        p.dialogues.push({ actorId: actor.id, text: parsed.text });
+        p.npcActions ??= [];
+        p.npcActions.push(...parsed.actions.map((action) => ({ ...action, actorId: actor.id })));
       } catch {
         throw new DomainError('INVALID_PROPOSAL', 'Invalid scene actor reply');
       }
