@@ -57,3 +57,15 @@ c67e214 / 7ujmwpif6（dpl_ADNFHPMAz4e37ZoVUYnwE3DAsjbY）READY，正式别名已
 ## v9 严格无效果省略兼容候选
 
 集成B c7a48bf→cf4ec8f：仅matterTitle缺失/undefined→null，matterUpdates/dialogues缺失/undefined→[]，语法接受范围有限扩大但不授权动作/事实；显式null数组、错误值/枚举、unknown、非空导演对白/假NPC动作仍拒，必需location/presence/outcome/observation不默认。4新pure证明中性默认不能完成整体或凭空接收。安全日志未给实际值，不称线上根因已证实缺失。826/826完整check、最终真实PG现场专项6/6通过（此前全PG243pass+5明确opt-in skip）；构建在途，无SQL/数据库迁移变更。Q 671d601独立复核边界与余5合并验收范围，跨轮累计质量仍未真实验证。
+
+## 最终真实结果与交接（2026-10-12）
+
+v9应用6b629ba / po54gy1kk（dpl_J7khbwtNXTwrXGKqaAawsADDY92j）READY，正式地址已切换、8组只读回归通过，41项迁移一致、无新SQL。826/826常规检查、最终真实PG现场专项6/6和生产build exit0；此前全PG248=243pass/5明确opt-in skip。本地/PGmock验证的是分步累计/独立接收效果/首次来源/幂等/rollback/跨用户/阶段与下一行动保存，不替代真实模型验收。
+
+新实际动作“我核对R17维修单。我向老周说明R17电源接头检修细节，并将R17钥匙与维修单交给老周。”结果unknown，安全日志TIMEOUT/stage=response/HTTP200/duration85125ms。只读world version12仍无stepProgress，R17in_progress；没有近期完成、阶段、后续机会或phone实际保存样本。不能宣布v9治愈实际格式问题，也不能把HTTP200、已有开场或数据库测试当完整链通过。未知provider执行结果不退预算/自动重付。
+
+本轮1官方合成world，保守15/18文字上限，失败和unknown全计，未耗尽但余3不足按原要求再验完整链且不盲retry。0照片上传/生图/个人资料。正常clock API确认全部测试世界paused=true；账本closed，manual工具补关账保护，只允许后续只读/摘要/重复暂停，关闭后尝试opening在发任何请求前被拒，计数仍15。旧预算不沿用。B/Q仅0模型独立源/规则审查，根唯一付费与发布。
+
+母任务待验收而非完成，优先SCENE-MODEL-STABILITY-01：结构化模型输出与完整响应超时、unknown原回执/任务安全恢复、真实分轮核对→说明→交付→接收→后续→私聊的新独立验收。开场合法人物独立到场已真实保存；中途NPC进入SCENE-NPC-ARRIVAL-01未开发。NPC-RESULT-ACK-01静态风险未真实验证。通用自由/旧世界达成、长期分歧/资源/关系兑现仍NOTES-WORLD-03D；地图A/E/F基础已上线，地点玩法及用户视觉/操作验收仍待，不说地图完全补齐。
+
+B83561cd与Q51028576最终独立报告均已集成：HTTP200只证明收到状态，不证明完整合法响应或schema通过，未归因到哪个Agent。只读v12无steps是该时点的保存证据；暂停不是退款或上游撤销，unknown今后恢复先核原command/task/receipt。两子任务仅技术/独立审查完成并释放范围，母项仍待真实完整体验验收。手工验收工具仅补closed账本保护，node --check/diff与闭账0请求负例通过，不是新的生产业务变更。

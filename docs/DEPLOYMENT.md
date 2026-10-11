@@ -832,3 +832,7 @@ Business `eacb6ab` production `5kv0fkvr0` (`dpl_A4AskWAvsuzrYEARHVxZjzRe74PD`) R
 1官方v3合成世界，文字保守上界11/12含unknown保留预算和明确手动重试，0图片/上传/个人资料，正常API已暂停。旧两partial与新版重试partial均保留，R17无成果/机会；原修后85秒unknown只存玩家输入，手动重试后task成功仅说明partial提交。跨App追问503/INVALID_PROPOSAL（具体子阶段未知），原receipt unconfirmed/worldv10未变。整链真实质量未通过，不将READY/单测改写为玩法达成。
 
 补充规则/候选时序/resultFocus提示已上线，但提示修复未解决实际循环。接续02先结构化目标终点/分步证据/NPC自身行动来源与事务，之后新授权实测成果→机会→第二行动。普通世界/通用长线03D仍待开发，语音暂缓。root/B本地PG停止，Q不运行DB/模型/浏览器，其他主目录WIP保留。最终文档部署及公众只读状态另存ignored handoff，不循环追加tracked状态。
+
+## 2026-10-12 · SPACE-MATTER-AI-QA-02 候选已上线，真实整链未通过
+
+应用6b629ba / Production po54gy1kk（dpl_J7khbwtNXTwrXGKqaAawsADDY92j）READY，正式域名已切换；826项检查/build0、真实PG现场6专项、此前全PG243pass+5 opt-in skip，生产41迁移一致，无新SQL，正式8只读检查通过。实现R17限定分步保存/有来源NPC动作/结果后续消费，开场独立人物presence真实验证通过。真实首步格式失败保留，最终合并动作unknown（响应体超时，HTTP200/85125ms），world v12无步骤，整体完成→阶段→机会→下一行动→私聊未通过；不得称完整体验上线验收。根保守15/18文字、1合成world，0图/个人资料；正常API已暂停并关闭批次，不沿用余量或重付unknown。主表母任务继续待验收，详见SPACE-MATTER-AI-QA-02报告；下一优先结构输出与响应稳定性。

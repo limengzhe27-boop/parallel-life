@@ -40,6 +40,10 @@ if (ledger.budgetCap === undefined) {
   ledger.budgetCap = maxCalls;
 }
 assert.equal(ledger.budgetCap, maxCalls, 'Budget cap is immutable within the owned batch');
+assert.ok(
+  !ledger.closed || ['snapshot', 'summary', 'check-reply-receipt', 'pause'].includes(command),
+  'Closed evaluation batch: do not reuse remaining authorization or resume paid work',
+);
 async function save() {
   await writeFile(ledgerPath, JSON.stringify(ledger, null, 2), { mode: 0o600 });
 }
@@ -360,6 +364,8 @@ if (command === 'create') {
     assert.equal(c.paused, true);
     w.paused = true;
   }
+  ledger.closed = true;
+  ledger.closedAt = new Date().toISOString();
   await save();
   await evidence('paused', {
     worlds: ledger.worlds.map((w) => ({ preset: w.preset, paused: w.paused })),

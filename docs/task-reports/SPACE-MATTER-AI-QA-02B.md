@@ -114,3 +114,13 @@ parsecatch现在生成stage=proposal与diagnosticMessage，只包含固定phase�
 版本scene-text-v9-no-effect-field-defaults：matterTitle.nullable().default(null)、matterUpdates.array(...).default([])、dialogues.array(...).default([])。只有省略/undefined有中性默认；原合法null标题仍合法，显式null数组/字符串/对象、错误枚举、unknown fields仍拒。director不能有NPC对白或行动的既有业务校验不变；无source的事项更新、分步和人物执行仍受原规则约束，不用默认值假完成/接收。prompt明确兼容语义并仍优先完整显式JSON输出，无额外模型重试。
 
 新增4纯专项：missing/undefined三字段默认均无effect；错误类型/枚举/陌生key严格拒；缺字段下当前玩家单次核对可succeeded，但实际propose→resolve无step/received、aggregate不completed；缺其它中性字段不能让导演伪NPC对白/接收。40相关pure/typecheck/diff通过（.local/matter-aiqa-02b-defaults-pure.log）。不新增domain/公共契约/SQL，不跑DB/生产写/全build/真实模型；冻结只交本次3文件。根余5若用一次合并核对+说明+交付2、后续2、手机1验收，不能因此声称已验三次分离自然模型累计，是否足够仍未知；技术省略兼容不证明已修真实失败。
+
+## 2026-10-12 · 本轮最终独立只读结论：真实闭环未通过
+
+根最终安全实样：v9业务6b629ba、Production po54gy1kk READY；826check、PG现场6、build exit0、8组公开读通过（均为根证据）。新增合并核对+说明+交付任务unknown，TIMEOUT/stage=response/HTTP200/duration85125ms；只读world version12仍无stepProgress，R17 in_progress，阶段/机会/后续/私聊链没有触达。根通过正常clock API将同一个合成world暂停，保守15/18、余3未用、0images；停止本轮付费、不retry unknown。不称额度耗尽，不以技术通过或task unknown当玩家事项成功。
+
+本人独立核对源：yibu-text-model.complete在await request取得Response后设stage=response，随后await response.json才进入parse。因而HTTP200只说明取得响应状态，不证明完整响应体、有效模型内容或SceneProposalSchema通过；此次85.125秒response阶段TIMEOUT不能归因为已证实v9字段仍错误，也不能证明缺字段兼容真实模型成功。sceneTaskHandler先await planner.propose再queue.commit，未得到有效proposal不能进入事件/步骤事务保存，这与root无stepProgress读结果一致。由于未取得完整合法提案，根预算采用保守reserve，不能据此推断实际成功NPC调用数或供应商精确收费。
+
+可明确的限定结果：此前v7真实老周独立present及正式presence sourceVersion10已通过；v6起不再假写空名单中的老周忙碌、不再生成重复小任务。分步ledger/NPC有来源行动、幂等/回放和严格默认/反例已有纯/真实库验证，v9缺字段兼容本人40pure过，但新真实分步执行、事项完成→NPC承接→后续机会→再次行动→私聊整体未通过；没有真实三次分离动作累计质量证据。旧failed/unknown、已保存input和已授准presence保留，无强成功/旧文本回填/automatic重付。
+
+收口状态仍待验收，母任务由根登记，不由B勾完成。优先接续响应体超时定位与稳定结构化输出，再用重新明确批准的真实分轮预算验累计/后续与私聊；勿只增加缺省兼容或继续盲改提示，不把当前剩余3当下一轮额度自动继承。B全部源码/测试继续冻结于c7a48bf，最终本轮只读报告，无新增模型/DB/生产写/HTTP/浏览器/构建；根唯一部署/上线和最终任务登记。
