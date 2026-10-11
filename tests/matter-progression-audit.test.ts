@@ -588,3 +588,137 @@ test('model matter proposals cannot supply progression or opportunity authority 
   assert.equal(effect.matter.opportunity, undefined);
   assert.equal(effect.matter.pursuitProgress, undefined);
 });
+
+test('blocking trigger, pursuit or opportunity identities removes witnessed stage details from NPC context', () => {
+  const f = auditFixture(),
+    first = resolveAuditAction(f),
+    next = findOpportunity(first.world);
+  for (const blocked of [f.trigger.id, f.pursuit.id, next.id]) {
+    const view = actorContext(first.world, f.actorId, '', [], new Set([blocked]));
+    assert.ok(!view.facts.some((fact) => fact.id.startsWith('pursuit_result:')));
+    assert.ok(!view.matters?.some((matter) => matter.id === next.id));
+  }
+});
+
+test('bounded proof survives unrelated history eviction without revealing future stages at an earlier version', async () => {
+  const { applyWorldHistoryEvent } = await import('../src/modules/world/domain/world-history.ts');
+  const f = auditFixture(),
+    first = resolveAuditAction(f),
+    next = findOpportunity(first.world);
+  let current = first.world;
+  const events: WorldHistoryEvent[] = [
+    {
+      ...first.event,
+      schemaVersion: 1,
+      commandId: randomUUID(),
+      occurredAt: first.event.storyAt,
+    } as WorldHistoryEvent,
+  ];
+  let earliestGenericId = '';
+  for (let i = 0; i < 70; i++) {
+    const beliefId = randomUUID();
+    if (i === 0) earliestGenericId = beliefId;
+    const event: WorldHistoryEvent = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: current.id,
+      commandId: randomUUID(),
+      version: current.version + 1,
+      occurredAt: current.time,
+      storyAt: current.time,
+      type: 'turn.resolved',
+      data: {
+        actorId: f.actorId,
+        userText: '普通交流',
+        effects: [
+          {
+            type: 'message.received',
+            id: randomUUID(),
+            actorId: f.actorId,
+            text: '合成的普通回复。',
+          },
+          {
+            type: 'belief.recorded',
+            id: beliefId,
+            actorId: f.actorId,
+            text: `背景看法${i}：` + '普通背景'.repeat(490),
+          },
+        ],
+      },
+    };
+    current = applyWorldHistoryEvent(current, event, f.initial).state;
+    events.push(event);
+  }
+  assert.ok(
+    !current.facts.some((fact) => fact.id === earliestGenericId),
+    'history actually exceeded the generic fact window',
+  );
+  assert.ok(current.facts.some((fact) => fact.id.startsWith('pursuit_result:')));
+  const second = resolveAuditAction(
+    f,
+    current,
+    next.id,
+    f.scenario.nextAction,
+    f.scenario.nextObservation,
+  );
+  events.push({
+    ...second.event,
+    schemaVersion: 1,
+    commandId: randomUUID(),
+    occurredAt: second.event.storyAt,
+  } as WorldHistoryEvent);
+  const complete = replayWorldHistory(f.world, events).world;
+  assert.deepEqual(complete.matters, second.world.matters);
+  assert.equal(findOpportunity(complete).status, 'completed');
+  const early = replayWorldHistory(f.world, events, first.world.version).world;
+  assert.equal(findOpportunity(early).status, 'not_started');
+  assert.equal(
+    early.matters!.find((matter) => matter.id === f.pursuit.id)!.pursuitProgress!.milestones.length,
+    1,
+  );
+  assert.ok(!early.facts.some((fact) => fact.sourceEventId === second.event.id));
+  assert.ok(
+    !replayWorldHistory(f.world, events, f.world.version).world.matters!.some(
+      (matter) => matter.pursuitProgress || matter.opportunity,
+    ),
+  );
+});
+
+test('all four genuine sourced record connections reject forged opportunity definitions at read time', async () => {
+  const { projectPlayerRecords } = await import('../src/modules/world/domain/player-records.ts');
+  for (const scenario of auditScenarios) {
+    const f = auditFixture(scenario),
+      first = resolveAuditAction(f);
+    const input = {
+      worldId: first.world.id,
+      worldVersion: first.world.version,
+      actors: first.world.actors.map(({ id, name }) => ({ id, name })),
+      choices: [],
+      appointments: [],
+      messages: [],
+      events: [],
+      initial: f.initial,
+      matters: first.world.matters!,
+      progressionEvents: [first.event],
+    };
+    const view = projectPlayerRecords(input);
+    assert.equal(
+      view.about.find((record) => record.span === 'pursuit')?.progress?.milestones.length,
+      1,
+    );
+    assert.equal(view.current.filter((record) => record.opportunity).length, 1);
+    for (const mutation of ['key', 'title', 'id'] as const) {
+      const forged = structuredClone(input);
+      const opportunity = forged.matters.find((matter) => matter.opportunity)!;
+      if (mutation === 'key') opportunity.opportunity!.key = 'unverified_model_condition';
+      else if (mutation === 'title') opportunity.title = '已经取得资金与长期成功';
+      else opportunity.id = randomUUID();
+      const rejected = projectPlayerRecords(forged);
+      assert.ok(rejected.current.every((record) => !record.opportunity));
+      assert.deepEqual(
+        rejected.about.find((record) => record.span === 'pursuit')?.progress?.opportunities,
+        [],
+      );
+    }
+  }
+});
