@@ -56,7 +56,7 @@
 
 ## 只读接线初审（尚非模型实测结论）
 
-6016acd中ScenePlanner对worldMatterConditions只调用matterCriterion；新机会可能被标completionAllowed=false，而且提示词not_started只能in_progress，与已验证运行时的受控真实机会完成路径需核对。NPC现场payload读取动作前c.world.facts与observedNow，没有直接读取同事务新阶段/机会结果，能否具体承接应由本轮实际输出验证。这两点已报I/B，仅是代码接线风险；没有伪造实际模型失败，本Q不修改prompt或公共context。
+6016acd中ScenePlanner调用matterCriterion；初审误以为该入口不识别新机会，经B提醒后已直接核对domain/scene-matter-policy.ts:96-101：该函数明确支持opportunity.key→pursuitRules，所以不能称新机会completionAllowed全false。此初读已更正并告I/B，不作为缺陷结论。确切需观察的是提示词not_started只能in_progress与受控真实机会完成路径的冲突，以及NPC现场payload读取动作前c.world.facts与observedNow、尚无已提交新阶段事实的时序。B经I批准修指导与候选观察说明；最终仍须本轮实际输出验证，不能提前将候选观察写成已解锁。本Q不修改prompt或公共context。
 
 当前完成：短锁登记、clean独立新分支、只读审查和预先语义标准。当前未完成：真实输出到达后的逐回合审查、修复后复验与最终联合验收。未新增代码测试、未运行模型/数据库/浏览器/check/build；旧237PG/746check不计本轮质量证据。
 
