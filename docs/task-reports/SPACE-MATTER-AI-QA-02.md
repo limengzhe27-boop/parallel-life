@@ -39,3 +39,13 @@ v6候选897d67d READY后第二次新开场成功但presence仍仅player，正式
 集成B b040ba0/cd59f8c，并串行补显式scene预约无效不可回退其他预约。当前故事时间已到、同地点confirmed合法邀请角色（最多2）独立以present:boolean/text输出自己的在场判断，adapter绑定身份；false不写在场，true由原开场事务写presence来源/对白/预约到场，不产生接收或步骤动作。旧scene.entries不带入此独立判断；commit重复检查当前地点/邀请/时间，约定不等于到场证据。R17当前只有老周候选，开场最多2调用；后续每步2、后续2、手机1，余11严格不自动重试。中途人物进入现场仍待开发。
 
 最终npm run check 820/820；npm run test:db 248=243pass/5明确opt-in skip，0fail；npm run build exit0。真实PG新用实际ScenePlanner+独立NPC判断mock验证开场presence来源保存，再验证分步、NPC接收、整体完成、后续机会与下一行动、回执回放/事务回滚；mock不称真实模型通过。无新SQL，生产迁移41/41已一致。待候选READY及真实完整链，母任务未完成。
+
+## v7真实开场通过，首步NPC格式失败
+
+c67e214 / 7ujmwpif6（dpl_ADNFHPMAz4e37ZoVUYnwE3DAsjbY）READY，正式别名已切换、8项只读回归过、41迁移一致。新开场成功，老周独立判断后正式presence joined/sourceVersion10，当前R17父任务保持in_progress，不再生成重复小目标。对白“这车修好了，刘航快来取吧”只承接原背景，不证明本轮交付/他人到场；旁白17:54说午后且引擎盖/轮胎打开，记语义质量观察，不据此生成重修门槛。
+
+第一步“我核对R17维修单。”failed，事务0步骤保存；安全diagnostic为scene_actor_schema:actions.[0].kind:invalid_value，来自NPC而非导演。保守11/18总额，不退失败预算、不自动重试。B重新领取原NPC精确JSON enum示例（当前混合占位可能误抄），schema不放宽，0额外模型；Q只读判定开场并未明确新增客户必等/签名门槛。剩余若修复后复测原核对2+说明交付合并2+后续2+私聊1最多7，只有真实保存才算通过；原三分离动作尚未验证。中途NPC到场和私聊ack静态风险已加未来待办。
+
+## v8 精确人物动作示例
+
+根集成B be3e049→28c9bb2：NPC的无动作完整JSON、实际接收receive_r17与请求检查inspect_r17各给独立合法示例；不再用“receive_r17或inspect_r17”混合枚举占位，不新增动作/放宽schema/静默归一化。玩家核对明确不是NPC动作。安全日志只能证明kind.invalid_value，不能断言实际非法值就是旧占位。822/822完整check通过，build待完；本小修无SQL/状态逻辑变更，真实PG243pass/5 opt-in skip证据见v7最终回归。Q独立报告ca9b879审核收口预算，若修后原核对重试2、说明+交付合并2、后续2、私聊1=剩余7，且首次来源不能改变、整体与接收必须真实保存；不能称原三分离动作均通过。待候选READY再明确单次复测，不自动循环。
