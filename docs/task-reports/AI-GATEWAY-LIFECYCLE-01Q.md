@@ -31,3 +31,13 @@ b930ef3下首版15项实际2pass/13fail、0skip/TODO，测试exit1：7个request
 Q只读stdin合成复现：possibleRecipients中另一真实UUID角色name恰为ACTOR_ID或actor_1，message.actorId同该name，两case实际ackMarkers=1，预期0。guard排他人id碰撞，但只在本人name分支排他人name，placeholder分支未排，同名意图不唯一。已同时回根/B；由B在原范围统一alias前排recipient.name，Q不写其源/旧test，也不把两合成case称线上故障。更广泛的合法回复是否实际承接成果仍需语义验收，marker存在不等于自然性通过。
 
 下一接根第二冻结4f8bcb2复验原33断言，根全PG252=247pass+5真实模型opt-in skip仅属第一683+B源，不能当第二取消修复的真实DB证据。本Q仍0PG/供应商，未跑fullcheck/build，closed预算不用。
+
+## 第二冻结复验与最终交接（2026-10-12）
+
+根准确4f8bcb2已接成本树2d8c665，没有修改其业务文件。专属33项全部通过；与既有gateway.test.ts、yibu-text-model.test.ts、gateway-lifetime.test.ts合跑实际48pass/0fail/0cancelled/0skip/TODO，exit0。原7个取消分类与暂停yield清理反例均保持断言并通过。typecheck、边界检查332文件、专属测试Prettier与git diff --check全部exit0。没有运行全量check/build、真实模型、数据库或部署。
+
+只读复核B冻结891afc1：他人姓名排除已移到所有alias共同前置条件，原明确target和canonical结果来源范围未放宽。实际运行其npc-result-ack.test.ts与matter-feedback-ack.test.ts共12pass/0fail/0skip/TODO，其中ACTOR_ID与actor_1匹配他人姓名的反例通过。该12项是本次实际输出，不能用先前口头15项代替；marker测试也不证明自然语言承接质量已经通过。
+
+本次交付只有tests/gateway-lifecycle-audit.test.ts及本报告；主表只更新本人行。本人测试/报告提交6151a0c与1b5f480，最终报告另有独立提交；不要整分支合入本树93b4818/2d8c665以免重复根源码提交。测试均使用注入的合成fetch/ReadableStream，不是生产Repository或真实供应商、PostgreSQL验收，Q真实数据库验证为0项。
+
+状态待验收，范围冻结，当前无端口、浏览器、数据库或付费资源。下一位根/I接本人两个测试/报告提交及最终报告提交，统一验证check/build、数据库持久化与unknown/replay、READY及公网；根报告的第二冻结gateway4+scene6真实PG10/10属于根执行证据，本Q未独立运行，不能冒称本Q数据库结果。真实供应商响应与完整场景质量仍须按独立验收范围确认；不自动领取其他任务。
