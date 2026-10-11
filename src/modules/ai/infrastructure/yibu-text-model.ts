@@ -1,3 +1,4 @@
+import { abortable, callLifetime, cancelBody, closeReader } from './call-lifetime.ts';
 import { modelRequestMessages } from '../application/model-content.ts';
 import type { ModelMessage, TextModel, ModelOutputOptions } from '../application/ports.ts';
 
@@ -71,26 +72,31 @@ export class YibuTextModel implements TextModel {
     } catch {
       throw new GatewayError('INVALID_CONFIG');
     }
-    const timeout = AbortSignal.timeout(this.config.timeoutMs);
-    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const lifetime = callLifetime(this.config.timeoutMs, signal);
+    const combined = lifetime.signal;
     try {
-      response = await this.request(`${this.config.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: preparedMessages,
-          stream: false,
-          max_tokens: outputCap,
-          ...(output ? { response_format: { type: output.format } } : {}),
+      combined.throwIfAborted();
+      response = await abortable(
+        this.request(`${this.config.baseUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.config.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: this.config.model,
+            messages: preparedMessages,
+            stream: false,
+            max_tokens: outputCap,
+            ...(output ? { response_format: { type: output.format } } : {}),
+          }),
+          signal: combined,
+          redirect: 'error',
+          cache: 'no-store',
         }),
-        signal: combined,
-        redirect: 'error',
-        cache: 'no-store',
-      });
+        combined,
+        (late) => cancelBody(late.body),
+      );
       stage = 'response';
       if (!response.ok)
         throw new GatewayError('UPSTREAM_FAILED', {
@@ -99,7 +105,25 @@ export class YibuTextModel implements TextModel {
         });
       let data: unknown;
       try {
-        data = await response.json();
+        if (!response.body) throw new GatewayError('INVALID_RESPONSE');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let text = '';
+        let bytes = 0;
+        try {
+          while (true) {
+            const { done, value } = await abortable(reader.read(), combined);
+            if (done) break;
+            bytes += value.byteLength;
+            if (bytes > 1048576) throw new GatewayError('INVALID_RESPONSE');
+            text += decoder.decode(value, { stream: true });
+          }
+          text += decoder.decode();
+          stage = 'parse';
+          data = JSON.parse(text);
+        } finally {
+          closeReader(reader);
+        }
       } catch (error) {
         if (error instanceof SyntaxError)
           throw new GatewayError('INVALID_RESPONSE', {
@@ -133,8 +157,11 @@ export class YibuTextModel implements TextModel {
           httpStatus: error.httpStatus ?? response?.status,
         });
       if (signal?.aborted) throw new GatewayError('CANCELLED', details);
-      if (timeout.aborted) throw new GatewayError('TIMEOUT', details);
+      if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       throw new GatewayError('UPSTREAM_FAILED', details);
+    } finally {
+      lifetime.dispose();
+      cancelBody(response?.body ?? null);
     }
   }
 
@@ -152,28 +179,33 @@ export class YibuTextModel implements TextModel {
     } catch {
       throw new GatewayError('INVALID_CONFIG');
     }
-    const timeout = AbortSignal.timeout(this.config.timeoutMs);
-    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const lifetime = callLifetime(this.config.timeoutMs, signal);
+    const combined = lifetime.signal;
     let response: Response | undefined;
     try {
-      response = await this.request(`${this.config.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: preparedMessages,
-          stream: true,
-          max_tokens: 4096,
-          ...(output ? { response_format: { type: output.format } } : {}),
+      combined.throwIfAborted();
+      response = await abortable(
+        this.request(`${this.config.baseUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.config.apiKey}`,
+            'Content-Type': 'application/json',
+            Accept: 'text/event-stream',
+          },
+          body: JSON.stringify({
+            model: this.config.model,
+            messages: preparedMessages,
+            stream: true,
+            max_tokens: 4096,
+            ...(output ? { response_format: { type: output.format } } : {}),
+          }),
+          signal: combined,
+          redirect: 'error',
+          cache: 'no-store',
         }),
-        signal: combined,
-        redirect: 'error',
-        cache: 'no-store',
-      });
+        combined,
+        (late) => cancelBody(late.body),
+      );
       if (!response.ok)
         throw new GatewayError('UPSTREAM_FAILED', {
           stage: 'response',
@@ -187,30 +219,52 @@ export class YibuTextModel implements TextModel {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let emittedLength = 0;
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value } = await abortable(reader.read(), combined);
           buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
           const lines = buffer.split(/\r?\n/);
-          buffer = lines.pop() ?? '';
+          buffer = done ? '' : (lines.pop() ?? '');
+          if (buffer.length > 131072) throw new GatewayError('INVALID_RESPONSE');
           for (const line of lines) {
+            combined.throwIfAborted();
+            if (line.length > 131072) throw new GatewayError('INVALID_RESPONSE');
             if (!line.startsWith('data:')) continue;
             const payload = line.slice(5).trim();
             if (!payload) continue;
-            if (payload === '[DONE]') return;
+            if (payload === '[DONE]') {
+              if (!emittedLength) throw new GatewayError('INVALID_RESPONSE');
+              return;
+            }
+            let item: {
+              error?: unknown;
+              choices?: { delta?: { content?: unknown }; finish_reason?: unknown }[];
+            } | null;
             try {
-              const content = (
-                JSON.parse(payload) as { choices?: { delta?: { content?: unknown } }[] }
-              ).choices?.[0]?.delta?.content;
-              if (typeof content === 'string' && content) yield content;
+              item = JSON.parse(payload);
             } catch {
-              // Ignore non-JSON ping/keepalive or unparseable SSE line
+              throw new GatewayError('INVALID_RESPONSE');
+            }
+            if (item?.error) throw new GatewayError('UPSTREAM_FAILED');
+            const choice = item?.choices?.[0];
+            if (choice?.finish_reason === 'length') throw new GatewayError('TRUNCATED');
+            if (choice?.finish_reason === 'content_filter')
+              throw new GatewayError('INVALID_RESPONSE');
+            const content = choice?.delta?.content;
+            if (content !== undefined && content !== null && typeof content !== 'string')
+              throw new GatewayError('INVALID_RESPONSE');
+            if (typeof content === 'string' && content) {
+              emittedLength += content.length;
+              if (emittedLength > 100000) throw new GatewayError('INVALID_RESPONSE');
+              yield content;
             }
           }
-          if (done) break;
+          // EOF is not a model completion: a dropped connection must not commit partial prose.
+          if (done) throw new GatewayError('UPSTREAM_FAILED');
         }
       } finally {
-        reader.releaseLock();
+        closeReader(reader);
       }
     } catch (error) {
       const details = {
@@ -225,8 +279,11 @@ export class YibuTextModel implements TextModel {
           httpStatus: error.httpStatus ?? response?.status,
         });
       if (signal?.aborted) throw new GatewayError('CANCELLED', details);
-      if (timeout.aborted) throw new GatewayError('TIMEOUT', details);
+      if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       throw new GatewayError('UPSTREAM_FAILED', details);
+    } finally {
+      lifetime.dispose();
+      cancelBody(response?.body ?? null);
     }
   }
 }
