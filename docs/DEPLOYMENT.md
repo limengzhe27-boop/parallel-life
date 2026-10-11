@@ -823,3 +823,12 @@ Business `eacb6ab` production `5kv0fkvr0` (`dpl_A4AskWAvsuzrYEARHVxZjzRe74PD`) R
 业务5ff3c09，production jwoouortv/dpl_CgoRiUNdjKdPiowYHL8Tu37xvN7F READY，正式https://parallel-life-nu.vercel.app；746check、237真实PG通过/5真实模型opt-in skip、build0、41生产迁移一致无SQL；公网8组只读验收、旧存档paused/版本/权限保持，0新增模型/图/世界/上传/业务写；390长短/1440PC420本机合成UI通过非真机/模型台词验收。PG55452/55471/55458及HTTP3268均已停，Ego141 finish；有限四v3近期成果→单后续→最多两里程碑，旧已完成无回填、自创/通用长线/兑现/真实模型留03D与AI-QA。
 
 完成真实近期现场事项后，备忘录呈现阶段来源和可参与后续，不替玩家开始；真实后续行动只再增一阶段。NPC仅承接实见成果，显式ack不变成印象记忆，屏蔽父/触发/来源同样阻断机会；长历史只保留有限真实来源，不带出未来事件。Q独立审计发现rawfacts机会泄露并保留失败断言复验。重复/失败/用户自述不假成功、旧存档/不可变起点保持。最终文档部署与公网核验另存ignored handoff，不循环追加tracked READY。
+
+
+## 2026-10-11 · SPACE-MATTER-AI-QA-01 有限提示修复与真实失败验收
+
+业务7740540，m8d9mk05q/dpl_3DvExQrCXNFYxByGqKUfHWkrvrnK READY且正式别名已切换，公网8组只读过。751check/237真实PG通过+5显式opt-in skip/build、41生产迁移一致无SQL变化；只改两planner、新capture与有界手工验收工具，没有本轮UI变更。
+
+1官方v3合成世界，文字保守上界11/12含unknown保留预算和明确手动重试，0图片/上传/个人资料，正常API已暂停。旧两partial与新版重试partial均保留，R17无成果/机会；原修后85秒unknown只存玩家输入，手动重试后task成功仅说明partial提交。跨App追问503/INVALID_PROPOSAL（具体子阶段未知），原receipt unconfirmed/worldv10未变。整链真实质量未通过，不将READY/单测改写为玩法达成。
+
+补充规则/候选时序/resultFocus提示已上线，但提示修复未解决实际循环。接续02先结构化目标终点/分步证据/NPC自身行动来源与事务，之后新授权实测成果→机会→第二行动。普通世界/通用长线03D仍待开发，语音暂缓。root/B本地PG停止，Q不运行DB/模型/浏览器，其他主目录WIP保留。最终文档部署及公众只读状态另存ignored handoff，不循环追加tracked状态。

@@ -262,6 +262,23 @@ if (command === 'create') {
   const receipt = (await api(prefix(w) + '/scenes/' + w.sceneId + '/actions', input)).data;
   await runTask(w, receipt.task, false);
   await snapshot(w, 'action-saved');
+} else if (command === 'retry-reviewed-scene') {
+  // Manual invocation only: preserve uncertain spend, inspect the original receipt,
+  // then reserve another complete upper bound. Never retry in an automatic loop.
+  const w = entry();
+  const old = ledger.operations.at(-1);
+  assert.equal(old?.kind, 'scene-task');
+  assert.equal(old.state, 'unknown');
+  assert.equal(old.details.worldId, w.worldId);
+  assert.ok(ledger.reservedModelCalls + old.reservedCalls <= 12);
+  const original = (await api('/api/v1/tasks/' + old.details.taskId)).data;
+  assert.equal(original.status, 'unknown', 'Read back the original task before deliberate retry');
+  assert.equal(original.resultVersion, null, 'Never retry a committed result');
+  await evidence('manual-retry-reviewed', { preset, original, uncertainSpendRetained: true });
+  const task = (await api('/api/v1/tasks/' + original.id + '/retry', { commandId: randomUUID() }))
+    .data;
+  await runTask(w, task, old.details.opening);
+  await snapshot(w, 'retry-saved');
 } else if (command === 'reply') {
   const w = entry(),
     s = await snapshot(w, 'before-reply');
@@ -285,6 +302,14 @@ if (command === 'create') {
   } finally {
     await save();
   }
+} else if (command === 'check-reply-receipt') {
+  const w = entry();
+  const name = ledger.evidence.findLast((n) => n.endsWith('-reply-input.json'));
+  assert.ok(name, 'Inspect only the original owned reply');
+  const original = JSON.parse(await readFile(evidenceDir + '/' + name, 'utf8'));
+  assert.equal(original.worldId, w.worldId);
+  const receipt = (await api(prefix(w) + '/messages/receipt', original.input)).data;
+  await evidence('reply-receipt-readonly', { preset, receipt, modelCalls: 0 });
 } else if (command === 'pause') {
   for (const w of ledger.worlds) {
     await api(prefix(w) + '/clock', { paused: true, speed: 0 });
