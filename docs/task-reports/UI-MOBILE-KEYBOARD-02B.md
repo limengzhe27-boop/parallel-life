@@ -1,5 +1,9 @@
 # UI-MOBILE-KEYBOARD-02B
 
+## 集成复验接续
+
+I 的 Ego142 极短屏 height220/offset90 聚焦复验：shell [90,310]、input [290.5,332.5]，快捷按钮仍 display:flex，不能通过。静态确认 messages.tsx 的快捷容器写有 inline display:flex，普通 CSS display:none 被覆盖。本次仅给既有键盘收起规则添加 !important 覆盖已存在 inline 布局；gesture 未写 inline，不改其规则。I 继续最终短屏/同页恢复复验，B不新建已结束的浏览器空间，0模型/生产写。
+
 负责人 codex-ui-keyboard02b-01a11a84-20261012；nar-03 工作树，codex/ui-keyboard-02b，基线 4b4dd99。集成人 I。状态：待集成验收，尚未部署。
 
 ## 诊断与范围

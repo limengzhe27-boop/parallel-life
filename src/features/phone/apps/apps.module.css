@@ -894,7 +894,8 @@
 /* Keep the composer visible even on very short keyboard viewports. */
 @container (max-height: 520px) {
   .chat:focus-within .composer [aria-label='快速发起互动'] {
-    display: none;
+    /* The existing composer declares display:flex inline. */
+    display: none !important;
   }
   .chat > .messages {
     padding-block: 4px !important;
