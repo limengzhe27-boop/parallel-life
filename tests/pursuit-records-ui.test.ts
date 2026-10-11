@@ -151,20 +151,20 @@ test('phone links verified success to pursuit and a separate unaccepted opportun
   const pursuit = view.about.find((r) => r.span === 'pursuit')!;
   assert.equal(pursuit.progress?.milestones.length, 1);
   assert.equal(pursuit.state, 'in_progress');
-  assert.equal(view.current[0].state, 'not_started');
-  assert.equal(view.current[0].opportunity?.pursuitRecordId, pursuit.id);
-  assert.equal(pursuit.progress?.opportunities[0].recordId, view.current[0].id);
-  assert.equal(view.history[0].relatedLinks?.at(-1)?.target, view.current[0].id);
+  assert.equal(view.current[0]!.state, 'not_started');
+  assert.equal(view.current[0]!.opportunity?.pursuitRecordId, pursuit.id);
+  assert.equal(pursuit.progress?.opportunities[0]!.recordId, view.current[0]!.id);
+  assert.equal(view.history[0]!.relatedLinks?.at(-1)?.target, view.current[0]!.id);
 });
 test('snapshot labels alone do not expose milestones or unlock linkage', () => {
   for (const mutate of [
     (f: PlayerRecordsInput) => (f.progressionEvents = []),
-    (f: PlayerRecordsInput) => (f.progressionEvents![0].worldId = 'another-world'),
-    (f: PlayerRecordsInput) => (f.progressionEvents![0].version = 5),
+    (f: PlayerRecordsInput) => (f.progressionEvents![0]!.worldId = 'another-world'),
+    (f: PlayerRecordsInput) => (f.progressionEvents![0]!.version = 5),
     (f: PlayerRecordsInput) =>
-      (f.progressionEvents![0].data.worldResults!.action!.resolution!.outcome = 'failed'),
-    (f: PlayerRecordsInput) => (f.matters![0].assertion = 'player_statement'),
-    (f: PlayerRecordsInput) => (f.matters![0].visibility = 'hidden'),
+      (f.progressionEvents![0]!.data.worldResults!.action!.resolution!.outcome = 'failed'),
+    (f: PlayerRecordsInput) => (f.matters![0]!.assertion = 'player_statement'),
+    (f: PlayerRecordsInput) => (f.matters![0]!.visibility = 'hidden'),
   ]) {
     const f = fixture();
     mutate(f);
@@ -175,16 +175,16 @@ test('snapshot labels alone do not expose milestones or unlock linkage', () => {
 });
 test('forged opportunity owner/source/prerequisite is not promoted as a continuation', () => {
   for (const mutate of [
-    (f: PlayerRecordsInput) => (f.matters![2].worldId = 'another-world'),
-    (f: PlayerRecordsInput) => (f.matters![2].source = { kind: 'genesis', seedId: 'fake' }),
-    (f: PlayerRecordsInput) => (f.matters![2].prerequisites = ['unrelated']),
-    (f: PlayerRecordsInput) => (f.matters![2].opportunity!.pursuitId = 'unrelated'),
+    (f: PlayerRecordsInput) => (f.matters![2]!.worldId = 'another-world'),
+    (f: PlayerRecordsInput) => (f.matters![2]!.source = { kind: 'genesis', seedId: 'fake' }),
+    (f: PlayerRecordsInput) => (f.matters![2]!.prerequisites = ['unrelated']),
+    (f: PlayerRecordsInput) => (f.matters![2]!.opportunity!.pursuitId = 'unrelated'),
   ]) {
     const f = fixture();
     mutate(f);
     const view = projectPlayerRecords(f);
     assert.ok(view.current.every((r) => !r.opportunity));
-    assert.deepEqual(view.about[0].progress?.opportunities, []);
+    assert.deepEqual(view.about[0]!.progress?.opportunities, []);
   }
 });
 test('rendered records expose a real choice and source, without edit or reward buttons', () => {
@@ -192,14 +192,14 @@ test('rendered records expose a real choice and source, without edit or reward b
   const open = () => {};
   const list = renderToStaticMarkup(createElement(NotesRecords, { data, open }));
   const detail = renderToStaticMarkup(
-    createElement(NotesRecordDetail, { data, target: data.about[0].id, open }),
+    createElement(NotesRecordDetail, { data, target: data.about[0]!.id, open }),
   );
   assert.match(list, /接下来可以试试/);
   assert.match(list, /已走过 1 步/);
   assert.match(detail, /已经走过的路/);
   assert.match(detail, /不代表这段追求已经完成/);
   const next = renderToStaticMarkup(
-    createElement(NotesRecordDetail, { data, target: data.current[0].id, open }),
+    createElement(NotesRecordDetail, { data, target: data.current[0]!.id, open }),
   );
   assert.match(next, /还没有替你作决定/);
   assert.match(next, /看看它从哪里来/);
@@ -217,12 +217,12 @@ test('pursuit steps navigate to the exact source record and next opportunity', (
     calls: string[] = [];
   const tree = NotesRecordDetail({
     data,
-    target: data.about[0].id,
+    target: data.about[0]!.id,
     open: (app, target) => calls.push(app + ':' + target),
   });
   for (const b of buttons(tree)) {
     const text = renderToStaticMarkup(createElement('span', {}, b.children));
     if (text.includes('查看这一步') || text.includes('下一次独立接单')) b.onClick?.();
   }
-  assert.deepEqual(calls, ['notes:' + data.history[0].id, 'notes:' + data.current[0].id]);
+  assert.deepEqual(calls, ['notes:' + data.history[0]!.id, 'notes:' + data.current[0]!.id]);
 });
