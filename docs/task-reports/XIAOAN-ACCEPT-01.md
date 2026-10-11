@@ -39,7 +39,9 @@
 
 ## 发布与剩余边界
 
-当前为待验收发布：待实际双端检查、受控提交推送、Vercel READY、正式域名只读实测后，才勾本轮完成。
+业务提交 `31410f3` 已推送；Vercel Production `r84dpeq2b` / `dpl_CqqV9ouLocs3HZvDZGPygZFB8TfD` READY，正式 https://parallel-life-nu.vercel.app 已切换。本轮限定接续已完成；后续未实现范围如下，不能称项目全部完成。
+
+正式只读验收：health/首页/possibilities 200；既有专属 paused 合成世界 phone/records/space 200 且世界版本一致、空间引用有效；四官方卡与旧存档保留；跨 owner 三接口 404。Ego139正式390地图原位置/故事时间17:52与旧源一致、电脑420无横溢、实际备忘录分区通过。公网没有新事项生成正例，仅本地真实库/真实页面验收；原会话已恢复，Ego139已结束一次。本地确定性夹具已删除，不留下演示假AI成功。
 
 **没有完成或没有验证**：
 
