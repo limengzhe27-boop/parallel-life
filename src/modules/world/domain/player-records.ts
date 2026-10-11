@@ -1,7 +1,8 @@
 import { verifiedGenesisLinks } from './genesis-links.ts';
 import type { Appointment, Message, StoryChoice, WorldEvent, WorldState } from './types.ts';
 import type { InvitationEvent } from './invitations.ts';
-import type { SceneResultEvent } from './scene-world-results.ts';
+import { applySceneWorldResults, type SceneResultEvent } from './scene-world-results.ts';
+import type { SceneAction } from './experience-rules.ts';
 import { sceneMatterId } from './scene-matter-policy.ts';
 import type { WorldMatter } from './matters.ts';
 import { trustedOpportunity } from './matter-progression.ts';
@@ -120,6 +121,19 @@ export type PlayerRecordsInput = {
   sceneAttendanceSources?: ReadonlyMap<string, Extract<RecordSource, { kind: 'world_event' }>>;
   /** Actual committed scene sources; never model descriptions or unverified snapshot flags. */
   progressionEvents?: readonly SceneResultEvent[];
+  /** Storage loads bounded event/action sources; the domain still validates their full evidence. */
+  sceneStepSources?: readonly {
+    inputEvent: {
+      id: string;
+      worldId: string;
+      version: number;
+      type: 'scene.input_recorded';
+      sceneId: string;
+      privateThought: boolean;
+    };
+    resultEvent: SceneResultEvent;
+    action: SceneAction;
+  }[];
 };
 const labels: Record<PlayerRecord['state'], string> = {
   planned: '你记录的计划',
@@ -665,6 +679,127 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
   return output;
 }
 
+function canonicalRecordEvidence(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(canonicalRecordEvidence).join(',') + ']';
+  if (value && typeof value === 'object')
+    return (
+      '{' +
+      Object.keys(value)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) +
+            ':' +
+            canonicalRecordEvidence((value as Record<string, unknown>)[key]),
+        )
+        .join(',') +
+      '}'
+    );
+  return JSON.stringify(value);
+}
+function verifiedStepCompletion(input: PlayerRecordsInput, matter: WorldMatter) {
+  const proof = matter.evidence,
+    initial = input.initial;
+  if (
+    proof?.kind !== 'scene_steps' ||
+    proof.ruleVersion !== 'r17-delivery-v1' ||
+    !initial ||
+    initial.id !== input.worldId ||
+    matter.stepProgress?.ruleVersion !== proof.ruleVersion ||
+    !matter.stepProgress.steps.length ||
+    matter.stepProgress.steps.length > 7 ||
+    initial.matters?.find((m) => m.id === matter.id)?.stepProgress
+  )
+    return;
+  const requiredEvents = new Set(matter.stepProgress.steps.map((step) => step.eventId));
+  const sources = new Map<string, NonNullable<PlayerRecordsInput['sceneStepSources']>[number]>();
+  for (const source of input.sceneStepSources ?? []) {
+    if (!requiredEvents.has(source.resultEvent.id)) continue;
+    const previous = sources.get(source.resultEvent.id);
+    if (previous && canonicalRecordEvidence(previous) !== canonicalRecordEvidence(source)) return;
+    sources.set(source.resultEvent.id, source);
+  }
+  if (sources.size !== requiredEvents.size || !requiredEvents.has(proof.eventId)) return;
+  const finalSource = sources.get(proof.eventId)?.resultEvent;
+  const finalProjection = input.progressionEvents?.find((event) => event.id === proof.eventId);
+  if (
+    !finalSource ||
+    !finalProjection ||
+    canonicalRecordEvidence(finalSource) !== canonicalRecordEvidence(finalProjection)
+  )
+    return;
+  let working = structuredClone(initial);
+  // Current invitation projections are source-validated by storage; do not backdate later responses.
+  working.appointments = structuredClone(input.appointments);
+  let previousVersion = initial.version;
+  try {
+    for (const source of [...sources.values()].sort(
+      (a, b) => a.resultEvent.version - b.resultEvent.version,
+    )) {
+      const { resultEvent: event, inputEvent, action } = source;
+      const results = event.data.worldResults;
+      if (
+        !results?.execution ||
+        event.type !== 'scene.action_resolved' ||
+        event.worldId !== input.worldId ||
+        !Number.isSafeInteger(event.version) ||
+        event.version <= previousVersion ||
+        event.version > input.worldVersion ||
+        inputEvent.type !== 'scene.input_recorded' ||
+        inputEvent.privateThought !== false ||
+        inputEvent.worldId !== input.worldId ||
+        inputEvent.sceneId !== action.sceneId ||
+        inputEvent.id !== action.sourceEventId ||
+        inputEvent.version !== action.sourceVersion ||
+        inputEvent.version < previousVersion ||
+        !Number.isSafeInteger(inputEvent.version) ||
+        inputEvent.version >= event.version ||
+        action.ownerId !== initial.ownerId ||
+        canonicalRecordEvidence(action) !== canonicalRecordEvidence(results.action)
+      )
+        return;
+      const invitation = working.appointments.find((a) => a.id === matter.relatedInvitationId);
+      if (
+        invitation?.responseVersion !== undefined &&
+        invitation.responseVersion > inputEvent.version
+      )
+        return;
+      // Only unrelated event-version gaps are skipped; all step deltas are replayed from empty progress.
+      working = applySceneWorldResults({ ...working, version: event.version - 1 }, event, initial);
+      previousVersion = event.version;
+    }
+    const reconstructed = working.matters?.find((m) => m.id === matter.id);
+    if (
+      !reconstructed ||
+      reconstructed.status !== 'completed' ||
+      reconstructed.assertion !== 'world_verified' ||
+      canonicalRecordEvidence(reconstructed.evidence) !== canonicalRecordEvidence(proof) ||
+      canonicalRecordEvidence(reconstructed.stepProgress) !==
+        canonicalRecordEvidence(matter.stepProgress)
+    )
+      return;
+    for (const key of [
+      'id',
+      'worldId',
+      'title',
+      'description',
+      'span',
+      'visibility',
+      'source',
+      'relatedPlaceId',
+      'relatedInvitationId',
+      'relatedActorIds',
+      'version',
+      'updatedAt',
+    ] as const)
+      if (canonicalRecordEvidence(reconstructed[key]) !== canonicalRecordEvidence(matter[key]))
+        return;
+    return proof;
+  } catch {
+    // A missing or inconsistent source hides the connection, never fabricates a completed milestone.
+    return;
+  }
+}
 function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerRecords) {
   const rows = [...output.current, ...output.about, ...output.history];
   const rowFor = (id: string) => rows.find((r) => r.id === `sys/matter/${input.worldId}/${id}`);
@@ -676,11 +811,11 @@ function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerReco
       matter.visibility !== 'player_visible' ||
       matter.span !== 'near_term' ||
       matter.status !== 'completed' ||
-      matter.assertion !== 'world_verified' ||
-      proof?.kind !== 'scene_action' ||
-      proof.outcome !== 'succeeded'
+      matter.assertion !== 'world_verified'
     )
       return undefined;
+    if (proof?.kind === 'scene_steps') return verifiedStepCompletion(input, matter);
+    if (proof?.kind !== 'scene_action' || proof.outcome !== 'succeeded') return undefined;
     const event = input.progressionEvents?.find(
       (e) =>
         e.id === proof.eventId &&
