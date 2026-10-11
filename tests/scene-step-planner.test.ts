@@ -354,6 +354,7 @@ test('a bounded affirmative NPC claim cannot silently omit its typed action', as
   for (const text of [
     '我接过R17钥匙和维修单。',
     '我现在收下R17钥匙和维修单。',
+    '好的。 我接过R17钥匙和维修单。',
     '我检查了R17。',
     '我核对了R17接头。',
   ]) {

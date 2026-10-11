@@ -338,7 +338,8 @@ export function resolveSceneStepProgress(input: {
     }
     for (const d of input.dialogues) {
       if (!present.includes(d.actorId) || !m.relatedActorIds?.includes(d.actorId)) continue;
-      for (const clause of d.text.split(/[。！？;；\n]/u)) {
+      for (const rawClause of d.text.split(/[。！？;；\n]/u)) {
+        const clause = rawClause.trim();
         if (!actual(clause, d.text)) continue;
         const received =
           /^我(?:现在|已经|当场|刚刚|刚)?(?:接过|收下|收到了|接收).*钥匙.*(?:维修单|工单|单据)/u.test(

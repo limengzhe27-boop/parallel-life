@@ -314,6 +314,7 @@ test('saved historical NPC message is not scanned into step evidence or mutated 
 for (const [label, text] of [
   ['receiving', '我接过钥匙和维修单。'],
   ['inspection', '我检查了R17接头。'],
+  ['spaced receiving clause', '好的。 我接过R17钥匙和维修单。'],
 ] as const) {
   test(
     'current NPC ' + label + ' claim without typed action is rejected, not silently backfilled',

@@ -9,13 +9,15 @@ import assert from 'node:assert/strict';
 const base = 'https://parallel-life-nu.vercel.app';
 const ledgerPath = process.env.MATTER_EVAL_LEDGER ?? '.local/matter-aiqa-private.json';
 const evidenceDir = process.env.MATTER_EVAL_EVIDENCE ?? '.local/matter-aiqa-evidence';
+const maxCalls = Number(process.env.MATTER_EVAL_MAX_CALLS ?? 12);
+assert.ok([12, 18].includes(maxCalls), 'Use only an explicitly authorized cap');
 const command = process.argv[2] ?? 'plan',
   preset = process.argv[3] ?? 'county-yellow-hair';
 if (command === 'plan') {
   console.log({
     manual: true,
     maxWorlds: 2,
-    maxReservedModelCalls: 12,
+    maxReservedModelCalls: maxCalls,
     media: 0,
     flow: ['create', 'prepare', 'opening', 'action', 'reply', 'pause'],
     note: 'Scene budget includes separate director and NPC calls; no automatic retries.',
@@ -30,6 +32,14 @@ let ledger = JSON.parse(
     return JSON.stringify({ worlds: [], reservedModelCalls: 0, operations: [], evidence: [] });
   }),
 );
+if (ledger.budgetCap === undefined) {
+  assert.ok(
+    maxCalls === 12 || ledger.operations.length === 0,
+    'Never extend a closed batch or reuse its remaining calls',
+  );
+  ledger.budgetCap = maxCalls;
+}
+assert.equal(ledger.budgetCap, maxCalls, 'Budget cap is immutable within the owned batch');
 async function save() {
   await writeFile(ledgerPath, JSON.stringify(ledger, null, 2), { mode: 0o600 });
 }
@@ -61,7 +71,7 @@ async function api(path, body) {
 }
 async function reserve(kind, calls, details) {
   assert.ok(
-    ledger.reservedModelCalls + calls <= 12,
+    ledger.reservedModelCalls + calls <= maxCalls,
     'Human budget exhausted; no request dispatched',
   );
   ledger.reservedModelCalls += calls;
@@ -270,7 +280,7 @@ if (command === 'create') {
   assert.equal(old?.kind, 'scene-task');
   assert.equal(old.state, 'unknown');
   assert.equal(old.details.worldId, w.worldId);
-  assert.ok(ledger.reservedModelCalls + old.reservedCalls <= 12);
+  assert.ok(ledger.reservedModelCalls + old.reservedCalls <= maxCalls);
   const original = (await api('/api/v1/tasks/' + old.details.taskId)).data;
   assert.equal(original.status, 'unknown', 'Read back the original task before deliberate retry');
   assert.equal(original.resultVersion, null, 'Never retry a committed result');
@@ -328,7 +338,7 @@ if (command === 'create') {
   console.log({
     worlds: ledger.worlds.length,
     reservedModelCalls: ledger.reservedModelCalls,
-    maximum: 12,
+    maximum: maxCalls,
     operations: ledger.operations.map((o) => ({
       kind: o.kind,
       reservedCalls: o.reservedCalls,

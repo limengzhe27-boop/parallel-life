@@ -461,7 +461,8 @@ export class ScenePlanner implements ScenePlannerPort {
             throw new DomainError('INVALID_PROPOSAL', 'Unsupported actor execution candidate');
         }
         // A claim cannot silently replace an executed action. Only this bounded R17 rule applies.
-        for (const clause of parsed.text.split(/[。！？;；\n]/u)) {
+        for (const rawClause of parsed.text.split(/[。！？;；\n]/u)) {
+          const clause = rawClause.trim();
           if (
             isUnexecutedQuote(clause, parsed.text) ||
             /如果|假如|假设|之后|以后|稍后|明天|昨天|上次|之前|以前|曾经|等.+(?:来|到|后)/u.test(
