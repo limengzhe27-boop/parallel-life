@@ -1,4 +1,19 @@
 /* The application keeps the same narrow viewport on every device. */
+/* One viewport owner: follow both visible height and keyboard-induced panning.
+   Inner chat lists keep their own scrolling; never subtract keyboard height twice. */
+@media (max-width: 600px) {
+  html[data-app-viewport='tracked'],
+  html[data-app-viewport='tracked'] body {
+    overflow: hidden;
+  }
+  html[data-app-viewport='tracked'] :is(.app-workspace, .discovery-page, .world-viewport) {
+    position: fixed;
+    top: var(--app-top, 0px);
+    left: 0;
+    right: 0;
+    margin-top: 0;
+  }
+}
 :root {
   --bg: #fbf9f5;
   --bg-rgb: 251, 249, 245;

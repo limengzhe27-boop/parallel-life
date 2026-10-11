@@ -891,6 +891,15 @@
 .chat textarea {
   width: 0;
 }
+/* Keep the composer visible even on very short keyboard viewports. */
+@container (max-height: 520px) {
+  .chat:focus-within .composer [aria-label='快速发起互动'] {
+    display: none;
+  }
+  .chat > .messages {
+    padding-block: 4px !important;
+  }
+}
 .calendar .monthHeader h3 {
   margin: 0;
 }

@@ -393,6 +393,11 @@
   border-radius: 5px;
   background: currentColor;
 }
+@container (max-height: 520px) {
+  .phone:has([data-phone-thread] textarea:focus) .gestureArea {
+    display: none;
+  }
+}
 .title {
   flex-shrink: 0;
   font-family: inherit;
