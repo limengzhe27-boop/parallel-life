@@ -19,6 +19,7 @@ export type AgendaThread = {
     | 'commitment'
     | 'disclosure_followup'
     | 'departure_inquiry'
+    | 'matter_result'
     | 'reconnect';
   actorId: string;
   detail: string;
@@ -224,6 +225,34 @@ export function buildAgenda(
       });
     }
   }
+  for (const matter of state.matters ?? []) {
+    if (!matter.relatedActorIds?.length) continue;
+    if (matter.status !== 'completed' && matter.status !== 'blocked') continue;
+    const evidenceVersion =
+      matter.evidence && 'eventVersion' in matter.evidence ? matter.evidence.eventVersion : undefined;
+    for (const actorId of matter.relatedActorIds) {
+      if (!actorIds.has(actorId)) continue;
+      if (
+        state.messages.some(
+          (message) =>
+            message.actorId === actorId &&
+            message.role === 'assistant' &&
+            ((evidenceVersion && (message.sourceVersion ?? -1) > evidenceVersion) ||
+              Date.parse(message.at) > Date.parse(matter.updatedAt)),
+        )
+      ) {
+        continue;
+      }
+      const outcomeLabel = matter.status === 'completed' ? '已达成' : '暂时受阻';
+      threads.push({
+        kind: 'matter_result',
+        actorId,
+        basisId: matter.id,
+        basisAt: matter.updatedAt,
+        detail: `重要事项「${matter.title}」现场行动${outcomeLabel}。作为关联人物，主动发信过问或跟进后续，肯定行动成果或商量下一步。`,
+      });
+    }
+  }
   // An established relationship can make one quiet, low-pressure check-in
   // after a day apart. Never treat an unopened world or an unanswered cold
   // opening as consent to keep pinging the player.
@@ -264,6 +293,7 @@ export function eligibleAgenda(
     'choice_result',
     'appointment_result',
     'departure_inquiry',
+    'matter_result',
   ]);
   return agenda.filter((thread) => !recentActors.has(thread.actorId) || owedNow.has(thread.kind));
 }
@@ -273,6 +303,8 @@ export function threadFor(agenda: AgendaThread[], actorId: string): AgendaThread
   return (
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'awaiting_reply') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'choice_result') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'appointment_result') ??
+    agenda.find((thread) => thread.actorId === actorId && thread.kind === 'matter_result') ??
     agenda.find((thread) => thread.actorId === actorId && thread.kind === 'departure_inquiry') ??
     agenda.find((thread) => thread.actorId === actorId)
   );

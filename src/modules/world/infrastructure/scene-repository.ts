@@ -1,5 +1,6 @@
 import { assertSpaceIdle, lockWorldActivity } from './space-repository.ts';
 import { deriveMemory } from '../../memory/application/derive-memory.ts';
+import { transitionWorldMatter, validMatterTransitions, type WorldMatter } from '../domain/matters.ts';
 import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -174,17 +175,59 @@ export async function loadScene(sql: SqlClient, worldId: string, sceneId: string
       [worldId, sceneId],
     )
   ).rows;
+  const scene = SceneRuntimeSessionSchema.parse(row.document);
+  const matters = items
+    .filter((r) => r.kind === 'matter')
+    .map((r) => CurrentMatterSchema.parse(r.document));
+  if (matters.length === 0) {
+    const worldRow = (
+      await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1', [worldId])
+    ).rows[0];
+    const worldMatters: WorldState['matters'] = worldRow?.state?.matters;
+    if (worldMatters && worldMatters.length > 0) {
+      for (const m of worldMatters) {
+        if (m.visibility !== 'player_visible') continue;
+        if (['completed', 'abandoned', 'superseded'].includes(m.status)) continue;
+        const matchesPlace = m.relatedPlaceId && m.relatedPlaceId === scene.placeId;
+        const matchesAppointment =
+          m.relatedInvitationId && m.relatedInvitationId === scene.appointmentId;
+        if (matchesPlace || matchesAppointment || (!m.relatedPlaceId && !m.relatedInvitationId)) {
+          const isProgress = m.status === 'in_progress';
+          const doc = {
+            id: m.id,
+            ownerId: scene.ownerId,
+            worldId,
+            sceneId,
+            sourceEventId: scene.sourceEventId,
+            sourceVersion: scene.sourceVersion,
+            title: m.title,
+            status: isProgress ? ('in_progress' as const) : ('not_started' as const),
+            ...(isProgress
+              ? {
+                  evidence: {
+                    sourceEventId: scene.sourceEventId,
+                    sourceVersion: scene.sourceVersion,
+                    kind: 'progression' as const,
+                    reason: '重要事项已在进行中',
+                  },
+                }
+              : {}),
+          };
+          await item(sql, 'matter', doc);
+          matters.push(CurrentMatterSchema.parse(doc));
+        }
+      }
+    }
+  }
   return {
-    scene: SceneRuntimeSessionSchema.parse(row.document),
+    scene,
     actions: items
       .filter((r) => r.kind === 'action')
       .map((r) => SceneRuntimeActionSchema.parse(r.document)),
     entries: items
       .filter((r) => r.kind === 'entry')
       .map((r) => SceneRuntimeEntrySchema.parse(r.document)),
-    matters: items
-      .filter((r) => r.kind === 'matter')
-      .map((r) => CurrentMatterSchema.parse(r.document)),
+    matters,
   };
 }
 async function context(sql: SqlClient, world: WorldState): Promise<ExperienceContext> {
@@ -210,6 +253,43 @@ async function item(
     'INSERT INTO parallel_life.scene_items(id,world_id,owner_id,scene_id,source_event_id,kind,document) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO UPDATE SET document=excluded.document',
     [x.id, x.worldId, x.ownerId, x.sceneId, x.sourceEventId, kind, x],
   );
+}
+async function seedSceneMatters(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+  scene: SceneSession,
+  worldMatters: readonly WorldMatter[] | undefined,
+  source: { sourceEventId: string; sourceVersion: number },
+) {
+  for (const m of worldMatters ?? []) {
+    if (m.visibility !== 'player_visible') continue;
+    if (['completed', 'abandoned', 'superseded'].includes(m.status)) continue;
+    const matchesPlace = m.relatedPlaceId && m.relatedPlaceId === scene.placeId;
+    const matchesAppointment =
+      m.relatedInvitationId && m.relatedInvitationId === scene.appointmentId;
+    if (matchesPlace || matchesAppointment || (!m.relatedPlaceId && !m.relatedInvitationId)) {
+      const isProgress = m.status === 'in_progress';
+      await item(sql, 'matter', {
+        id: m.id,
+        ownerId,
+        worldId,
+        sceneId: scene.id,
+        ...source,
+        title: m.title,
+        status: isProgress ? 'in_progress' : 'not_started',
+        ...(isProgress
+          ? {
+              evidence: {
+                ...source,
+                kind: 'progression' as const,
+                reason: '重要事项已在进行中',
+              },
+            }
+          : {}),
+      });
+    }
+  }
 }
 async function saveScene(sql: SqlClient, scene: SceneSession) {
   await sql.query('UPDATE parallel_life.scene_sessions SET document=$2 WHERE id=$1', [
@@ -458,6 +538,7 @@ export class SceneRepository {
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
         [sceneId, worldId, ownerId, source.sourceEventId, scene],
       );
+      await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
       const ctx = await context(sql, { ...world, version: source.sourceVersion });
       await saveExperience(sql, enterCurrentScene(ctx, x, scene));
       const task = await enqueue(
@@ -534,6 +615,7 @@ export class SceneRepository {
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
         [sceneId, worldId, ownerId, source.sourceEventId, scene],
       );
+      await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
       await saveExperience(
         sql,
         enterCurrentScene(
@@ -913,9 +995,11 @@ export async function commitSceneProposal(
         status: 'not_started',
       });
   }
+  const action = actions.find((a) => a.id === input.actionId);
+  const updatedMatterStatuses = new Map<string, 'in_progress' | 'blocked' | 'completed'>();
   for (const update of p.matterUpdates) {
+    updatedMatterStatuses.set(update.id, update.status);
     const m = c.matters.find((m) => m.id === update.id);
-    const action = actions.find((a) => a.id === input.actionId);
     if (!m || !action?.resolution) throw new DomainError('INVALID_PROPOSAL');
     const next = transitionCurrentMatter(
       ctx,
@@ -931,6 +1015,114 @@ export async function commitSceneProposal(
     );
     CurrentMatterSchema.parse(next);
     await item(sql, 'matter', next);
+  }
+
+  if (c.action?.intent === 'attempt' && action?.resolution) {
+    const candidateMatterIds = new Set(c.action.relatedMatterIds);
+    if (candidateMatterIds.size === 0) {
+      for (const m of c.matters) {
+        if (!['completed', 'abandoned'].includes(m.status)) {
+          candidateMatterIds.add(m.id);
+        }
+      }
+    }
+    if (action.resolution.outcome === 'succeeded') {
+      for (const id of candidateMatterIds) {
+        if (!updatedMatterStatuses.has(id)) {
+          const m = c.matters.find((m) => m.id === id);
+          if (m && !['completed', 'abandoned'].includes(m.status)) {
+            const next = transitionCurrentMatter(
+              ctx,
+              m,
+              'completed',
+              {
+                ...source,
+                kind: 'adjudicated_result',
+                actionId: action.id,
+                outcome: 'succeeded',
+              },
+              actions,
+            );
+            CurrentMatterSchema.parse(next);
+            await item(sql, 'matter', next);
+            updatedMatterStatuses.set(id, 'completed');
+          }
+        }
+      }
+    } else if (action.resolution.outcome === 'failed') {
+      for (const id of candidateMatterIds) {
+        if (!updatedMatterStatuses.has(id)) {
+          const m = c.matters.find((m) => m.id === id);
+          if (m && m.status === 'in_progress') {
+            const next = transitionCurrentMatter(
+              ctx,
+              m,
+              'blocked',
+              {
+                ...source,
+                kind: 'adjudicated_result',
+                actionId: action.id,
+                outcome: 'failed',
+              },
+              actions,
+            );
+            CurrentMatterSchema.parse(next);
+            await item(sql, 'matter', next);
+            updatedMatterStatuses.set(id, 'blocked');
+          }
+        }
+      }
+    }
+  }
+
+  let worldMattersChanged = false;
+  const worldMatters = [...(locked.world.matters ?? [])];
+  if (action?.resolution && worldMatters.length > 0) {
+    for (let i = 0; i < worldMatters.length; i++) {
+      const wm = worldMatters[i]!;
+      const newStatus = updatedMatterStatuses.get(wm.id);
+      if (newStatus && validMatterTransitions[wm.status]?.includes(newStatus)) {
+        worldMatters[i] = transitionWorldMatter(wm, {
+          status: newStatus,
+          assertion: 'world_verified',
+          evidence: {
+            kind: 'scene_action',
+            sceneId: scene.id,
+            actionId: action.id,
+            outcome: action.resolution.outcome,
+            eventId: source.sourceEventId,
+            eventVersion: source.sourceVersion,
+            at: locked.storyAt,
+          },
+          now: locked.storyAt,
+        });
+        worldMattersChanged = true;
+      }
+    }
+    if (worldMattersChanged) {
+      await sql.query(
+        `UPDATE parallel_life.worlds SET state = state || jsonb_build_object('matters', $2::jsonb) WHERE id=$1`,
+        [worldId, JSON.stringify(worldMatters)],
+      );
+    }
+  }
+
+  if (
+    activeAppointment &&
+    activeAppointment.status === 'confirmed' &&
+    c.action?.intent === 'attempt' &&
+    action?.resolution?.outcome === 'succeeded'
+  ) {
+    const attendedAppointment = {
+      ...activeAppointment,
+      status: 'attended' as const,
+      responseAt: locked.storyAt,
+      responseVersion: source.sourceVersion,
+    };
+    await sql.query(
+      'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET document=excluded.document',
+      [attendedAppointment.id, worldId, ownerId, attendedAppointment],
+    );
   }
   // Observable narrative only; no invented private beliefs. Scene media requests are absent, so no Outbox is advertised.
   const memory = p.observation ?? p.narration;

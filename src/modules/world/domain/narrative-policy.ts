@@ -38,6 +38,12 @@ export const NARRATIVE_MOVES = {
       '只依据日历里主角自己记录的已赴约或未赴约状态回应，体现你这个人物的态度；没有现场细节就询问，不要虚构发生过的事情或再催同一邀约。',
     maxNewThreads: 0,
   },
+  matter_result: {
+    goal: '承接现场事项推进的客观结果。',
+    instruction:
+      '根据刚刚在现场达成的具体事项结果回应，体现角色的态度与关心；肯定行动成果或商量下一步，不无视已完成的事。',
+    maxNewThreads: 0,
+  },
   breathing_room: {
     goal: '给这一段生活留出轻松相处或自然收尾的空间。',
     instruction:
@@ -67,6 +73,7 @@ type Input = {
   origin?: 'director';
   messages: readonly Message[];
   appointments: readonly Appointment[];
+  matters?: readonly import('./matters.ts').WorldMatter[];
   time?: string;
   /** Already authorized by the context compiler. */
   memories: readonly {
@@ -100,6 +107,19 @@ export function narrativeBrief(input: Input): NarrativeBrief {
     )
   )
     return choose('breathing_room', '用户明确表达休息、收尾或减压意愿');
+
+  const relevantMatters = (input.matters ?? []).filter(
+    (m) =>
+      m.relatedActorIds?.includes(input.actorId) &&
+      (m.status === 'completed' || m.status === 'blocked'),
+  );
+  if (
+    relevantMatters.length > 0 &&
+    (input.origin === 'director' || /事项|搞定|完成|做完|交差|车|晚饭|宴席|演出/u.test(text))
+  ) {
+    const topMatter = relevantMatters.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]!;
+    return choose('matter_result', '现场行动已改变该事项的状态', [topMatter.id]);
+  }
 
   const resultAppointments = input.appointments.filter(
     (a) =>

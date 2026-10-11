@@ -41,6 +41,18 @@ export function followupAgenda(
         : ['attended', 'missed'].includes(appointment.status ?? '') &&
             (appointment.responseVersion ?? 0) > previous.version;
     }
+    if (thread.kind === 'matter_result') {
+      const matter = state.matters?.find(
+        (m) => m.id === thread.basisId && m.relatedActorIds?.includes(thread.actorId),
+      );
+      if (!matter) return false;
+      const evidenceVersion =
+        matter.evidence && 'eventVersion' in matter.evidence ? matter.evidence.eventVersion : 0;
+      return (
+        ['completed', 'blocked'].includes(matter.status) &&
+        (evidenceVersion > previous.version || Date.parse(matter.updatedAt) > Date.parse(previous.at))
+      );
+    }
     if (thread.kind === 'choice_result' || thread.kind === 'choice_followup') {
       const choice = state.choices?.find(
         (c) => c.id === thread.sourceId && c.actorId === thread.actorId,

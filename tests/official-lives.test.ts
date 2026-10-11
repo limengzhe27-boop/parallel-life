@@ -112,3 +112,56 @@ test('public catalog cannot contain internal personas and starts cannot select p
     }).success,
   );
 });
+
+test('official genesis preserves authored matters and projects them to current/about records', () => {
+  const p = officialFixture();
+  p.opening.matters = [
+    {
+      key: 'near_task',
+      span: 'near_term',
+      title: 'Near term task',
+      description: 'Finish the repair order',
+      relatedActorKeys: ['a0'],
+      relatedInvitationKey: 'dinner',
+    },
+    {
+      key: 'future_pursuit',
+      span: 'pursuit',
+      title: 'Life pursuit',
+      description: 'Open own repair center',
+      relatedActorKeys: ['a1'],
+    },
+  ];
+  const s = build(p);
+  assert.ok(s.matters);
+  assert.equal(s.matters.length, 2);
+  assert.equal(s.matters[0]!.title, 'Near term task');
+  assert.equal(s.matters[0]!.span, 'near_term');
+  assert.equal(s.matters[0]!.status, 'in_progress');
+  assert.equal(s.matters[0]!.assertion, 'world_verified');
+  assert.equal(s.matters[0]!.relatedInvitationId, s.appointments[0]!.id);
+  assert.equal(s.matters[1]!.span, 'pursuit');
+  assert.equal(s.matters[1]!.status, 'in_progress');
+
+  const records = PlayerRecordsSchema.parse(
+    projectPlayerRecords({
+      worldId: s.id,
+      worldVersion: 0,
+      initial: s,
+      matters: s.matters,
+      opening: {
+        seedId: randomUUID(),
+        identity: p.opening.identity,
+        setting: p.opening.setting,
+      },
+      choices: [],
+      appointments: s.appointments,
+      messages: [],
+      actors: s.actors,
+      events: [],
+    }),
+  );
+  assert.ok(records.current.some((r) => r.title === 'Near term task' && r.kind === 'world_matter'));
+  assert.ok(records.about.some((r) => r.title === 'Life pursuit' && r.span === 'pursuit'));
+});
+

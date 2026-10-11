@@ -294,5 +294,32 @@ export const countyYellowHair: OfficialLifePack = {
         text: '林悦送的夜市钥匙扣一直在用。阿杰提过合租车间，方案还没确定。老周最近说想把店做小一点。',
       },
     ],
+    matters: [
+      {
+        key: 'deliver_r17',
+        span: 'near_term',
+        title: '交付已修缮的R17',
+        description: '在老周修车铺核对维修单据，向车主或老周交代电源接头检修细节并完成交付。',
+        relatedPlaceKey: 'repair_shop',
+        relatedActorKeys: ['laozhou'],
+      },
+      {
+        key: 'attend_dinner',
+        span: 'near_term',
+        title: '林悦家的晚饭邀约',
+        description: '林悦希望你晚上七点去她家。刘航也在场，需要当面把态度和心意表达清楚。',
+        relatedPlaceKey: 'lin_home',
+        relatedActorKeys: ['linyue'],
+        relatedInvitationKey: 'family_dinner',
+      },
+      {
+        key: 'own_workshop',
+        span: 'pursuit',
+        title: '拥有自己的独立工位与招牌',
+        description: '不想永远只给别人打杂，无论合伙还是单干，都要靠手艺在县城真正立足。',
+        relatedPlaceKey: 'old_workshop',
+        relatedActorKeys: ['ajie'],
+      },
+    ],
   },
 };

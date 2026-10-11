@@ -168,5 +168,16 @@ export function actorContext(
     }
   }
 
+  if (state.matters && state.matters.length > 0) {
+    const relevantMatters = state.matters.filter(
+      (m) =>
+        m.visibility === 'player_visible' &&
+        (m.relatedActorIds?.includes(actorId) || !m.relatedActorIds?.length),
+    );
+    if (relevantMatters.length > 0) {
+      context.matters = relevantMatters;
+    }
+  }
+
   return context;
 }

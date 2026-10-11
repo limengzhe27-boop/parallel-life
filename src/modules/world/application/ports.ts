@@ -30,6 +30,7 @@ export type ActorContext = {
   messages: WorldState['messages'];
   appointments: WorldState['appointments'];
   choices?: WorldState['choices'];
+  matters?: WorldState['matters'];
   retrievedMemories?: MemoryRecord[];
   turnOrigin?: 'director';
 };

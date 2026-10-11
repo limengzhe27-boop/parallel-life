@@ -296,5 +296,33 @@ export const onlyChild: OfficialLifePack = {
         text: '顾遥送的小册上写着：下次去一个没人替我们安排的地方。你挑，我带相机。没有为这句话定过结论，想知道可以找她聊。',
       },
     ],
+    matters: [
+      {
+        key: 'meet_guyao',
+        span: 'near_term',
+        title: '湖边与顾遥见面',
+        description: '顾遥约你在湖边散步拍照，聊聊摄影小册封底那句没说完的话。',
+        relatedPlaceKey: 'lake',
+        relatedActorKeys: ['guyao'],
+        relatedInvitationKey: 'lake',
+      },
+      {
+        key: 'family_dinner',
+        span: 'near_term',
+        title: '家里的晚宴',
+        description: '母亲沈秋安排了晚间宴席，需要决定是否出席并表明对家业规划的态度。',
+        relatedPlaceKey: 'family_home',
+        relatedActorKeys: ['shenqiu'],
+        relatedInvitationKey: 'dinner',
+      },
+      {
+        key: 'independent_project',
+        span: 'pursuit',
+        title: '自主掌控的文化创投计划',
+        description: '不再仅仅作为被安排的家族继承人，用自己的眼光与预算独立推进一次项目。',
+        relatedPlaceKey: 'company',
+        relatedActorKeys: ['shaoqing'],
+      },
+    ],
   },
 };

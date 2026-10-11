@@ -94,6 +94,28 @@ for (const pack of OFFICIAL_LIFE_PACKS) {
     assert(!JSON.stringify(o.notes).includes('https://'), 'No fictional file URLs');
     assert(!JSON.stringify(o.notes).includes('下一章'), 'Do not expose a fixed sequence');
     assert(!('assets' in pack), 'No invented photos in the content pack');
+    if (o.matters) {
+      assert.equal(o.matters.length, 3, 'Each opening has 2 near-term matters and 1 pursuit');
+      const nearTerm = o.matters.filter((m) => m.span === 'near_term');
+      const pursuit = o.matters.filter((m) => m.span === 'pursuit');
+      assert.equal(nearTerm.length, 2);
+      assert.equal(pursuit.length, 1);
+      const matterKeys = new Set(o.matters.map((m) => m.key));
+      assert.equal(matterKeys.size, 3);
+      for (const m of o.matters) {
+        assert(m.title.length > 0 && m.title.length <= 100);
+        assert(m.description.length > 0 && m.description.length <= 500);
+        if (m.relatedPlaceKey && o.space) {
+          assert(o.space.places.some((p) => p.key === m.relatedPlaceKey));
+        }
+        if (m.relatedActorKeys) {
+          assert(m.relatedActorKeys.every((k) => cast.has(k)));
+        }
+        if (m.relatedInvitationKey) {
+          assert(o.invitations.some((i) => i.key === m.relatedInvitationKey));
+        }
+      }
+    }
   });
 }
 

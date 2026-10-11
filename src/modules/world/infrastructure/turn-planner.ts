@@ -141,6 +141,7 @@ export class WorldTurnPlanner implements TurnPlanner {
             origin: context.turnOrigin,
             messages: context.messages,
             appointments: context.appointments,
+            matters: context.matters,
             time: context.time,
             memories: context.retrievedMemories ?? [],
           }),
