@@ -6,6 +6,7 @@ import type { SceneAction } from './experience-rules.ts';
 import { sceneMatterId } from './scene-matter-policy.ts';
 import type { WorldMatter } from './matters.ts';
 import { trustedOpportunity } from './matter-progression.ts';
+import { sceneStepRule } from './scene-step-progress.ts';
 
 export type RecordSource =
   | {
@@ -38,6 +39,20 @@ export type RecordSource =
       at: string;
       timeBasis: 'story' | 'recorded';
     };
+export type SceneStepChecklist = {
+  ruleVersion: 'r17-delivery-v1';
+  requiredTotal: 4;
+  completedRequired: number;
+  steps: {
+    id: NonNullable<ReturnType<typeof sceneStepRule>>['steps'][number]['id'];
+    title: string;
+    required: boolean;
+    performer: 'player' | 'actor';
+    state: 'pending' | 'completed';
+    actorName?: string;
+    at?: string;
+  }[];
+};
 export type PlayerRecord = {
   id: string;
   kind:
@@ -80,6 +95,7 @@ export type PlayerRecord = {
     target: string;
     label: string;
   }[];
+  stepChecklist?: SceneStepChecklist;
   progress?: {
     milestones: { title: string; at: string; recordId: string }[];
     opportunities: { title: string; recordId: string }[];
@@ -631,6 +647,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
       matter.assertion === 'player_statement' && matter.status === 'completed'
         ? ('reported_done' as const)
         : matter.status;
+    const stepChecklist = projectStepChecklist(input, matter);
     const record: Omit<PlayerRecord, 'stateLabel'> = {
       id: `sys/matter/${input.worldId}/${matter.id}`,
       kind: 'world_matter',
@@ -651,6 +668,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
           : []),
       ],
       ...(nav ? { navigation: nav } : {}),
+      ...(stepChecklist ? { stepChecklist } : {}),
     };
 
     if (matter.span === 'near_term') {
@@ -697,15 +715,12 @@ function canonicalRecordEvidence(value: unknown): string {
     );
   return JSON.stringify(value);
 }
-function verifiedStepCompletion(input: PlayerRecordsInput, matter: WorldMatter) {
-  const proof = matter.evidence,
-    initial = input.initial;
+function verifiedStepMatter(input: PlayerRecordsInput, matter: WorldMatter) {
+  const initial = input.initial;
   if (
-    proof?.kind !== 'scene_steps' ||
-    proof.ruleVersion !== 'r17-delivery-v1' ||
     !initial ||
     initial.id !== input.worldId ||
-    matter.stepProgress?.ruleVersion !== proof.ruleVersion ||
+    matter.stepProgress?.ruleVersion !== 'r17-delivery-v1' ||
     !matter.stepProgress.steps.length ||
     matter.stepProgress.steps.length > 7 ||
     initial.matters?.find((m) => m.id === matter.id)?.stepProgress
@@ -714,14 +729,17 @@ function verifiedStepCompletion(input: PlayerRecordsInput, matter: WorldMatter) 
   const requiredEvents = new Set(matter.stepProgress.steps.map((step) => step.eventId));
   const sources = new Map<string, NonNullable<PlayerRecordsInput['sceneStepSources']>[number]>();
   for (const source of input.sceneStepSources ?? []) {
+    if (!source?.resultEvent || !source.inputEvent || !source.action) return;
     if (!requiredEvents.has(source.resultEvent.id)) continue;
     const previous = sources.get(source.resultEvent.id);
     if (previous && canonicalRecordEvidence(previous) !== canonicalRecordEvidence(source)) return;
     sources.set(source.resultEvent.id, source);
   }
-  if (sources.size !== requiredEvents.size || !requiredEvents.has(proof.eventId)) return;
-  const finalSource = sources.get(proof.eventId)?.resultEvent;
-  const finalProjection = input.progressionEvents?.find((event) => event.id === proof.eventId);
+  if (sources.size !== requiredEvents.size) return;
+  const finalSource = [...sources.values()].sort(
+    (a, b) => b.resultEvent.version - a.resultEvent.version,
+  )[0]?.resultEvent;
+  const finalProjection = input.progressionEvents?.find((event) => event.id === finalSource?.id);
   if (
     !finalSource ||
     !finalProjection ||
@@ -771,34 +789,95 @@ function verifiedStepCompletion(input: PlayerRecordsInput, matter: WorldMatter) 
     const reconstructed = working.matters?.find((m) => m.id === matter.id);
     if (
       !reconstructed ||
-      reconstructed.status !== 'completed' ||
-      reconstructed.assertion !== 'world_verified' ||
-      canonicalRecordEvidence(reconstructed.evidence) !== canonicalRecordEvidence(proof) ||
-      canonicalRecordEvidence(reconstructed.stepProgress) !==
-        canonicalRecordEvidence(matter.stepProgress)
+      canonicalRecordEvidence(reconstructed) !== canonicalRecordEvidence(matter)
     )
       return;
-    for (const key of [
-      'id',
-      'worldId',
-      'title',
-      'description',
-      'span',
-      'visibility',
-      'source',
-      'relatedPlaceId',
-      'relatedInvitationId',
-      'relatedActorIds',
-      'version',
-      'updatedAt',
-    ] as const)
-      if (canonicalRecordEvidence(reconstructed[key]) !== canonicalRecordEvidence(matter[key]))
-        return;
-    return proof;
+    return reconstructed;
   } catch {
-    // A missing or inconsistent source hides the connection, never fabricates a completed milestone.
+    // A missing or inconsistent source hides the connection, never fabricates a checked step or completed milestone.
     return;
   }
+}
+const stepDefinitionFields = [
+  'id',
+  'worldId',
+  'title',
+  'description',
+  'span',
+  'visibility',
+  'source',
+  'prerequisites',
+  'relatedPlaceId',
+  'relatedInvitationId',
+  'relatedActorIds',
+  'createdAt',
+] as const;
+function sameStepDefinition(a: WorldMatter, b: WorldMatter) {
+  return stepDefinitionFields.every(
+    (key) => canonicalRecordEvidence(a[key]) === canonicalRecordEvidence(b[key]),
+  );
+}
+function projectStepChecklist(
+  input: PlayerRecordsInput,
+  matter: WorldMatter,
+): SceneStepChecklist | undefined {
+  const initial = input.initial,
+    original = initial?.matters?.find((m) => m.id === matter.id);
+  if (
+    !initial ||
+    initial.id !== input.worldId ||
+    matter.worldId !== input.worldId ||
+    !original ||
+    original.stepProgress ||
+    !Number.isSafeInteger(input.worldVersion) ||
+    input.worldVersion < initial.version ||
+    !sameStepDefinition(original, matter)
+  )
+    return;
+  const rule = sceneStepRule(initial, original);
+  if (!rule || !sceneStepRule(initial, matter)) return;
+  let saved: WorldMatter['stepProgress'];
+  if (matter.stepProgress?.steps.length) {
+    const verified = verifiedStepMatter(input, matter);
+    if (!verified) return;
+    saved = verified.stepProgress;
+  } else if (
+    ['completed', 'abandoned', 'superseded'].includes(matter.status) ||
+    canonicalRecordEvidence(matter) !== canonicalRecordEvidence(original)
+  )
+    return;
+  const steps: SceneStepChecklist['steps'] = rule.steps.map((spec) => {
+    const evidence = saved?.steps.find((step) => step.stepId === spec.id);
+    const performer = ['received', 'receiver_inspected'].includes(spec.id)
+      ? ('actor' as const)
+      : ('player' as const);
+    const actorName =
+      evidence?.performer === 'actor'
+        ? initial.actors.find((actor) => actor.id === evidence.actorId)?.name
+        : undefined;
+    return {
+      id: spec.id,
+      title: spec.title,
+      required: spec.required,
+      performer,
+      state: evidence ? 'completed' : 'pending',
+      ...(evidence ? { at: evidence.at, ...(actorName ? { actorName } : {}) } : {}),
+    };
+  });
+  return {
+    ruleVersion: rule.version,
+    requiredTotal: 4,
+    completedRequired: steps.filter((step) => step.required && step.state === 'completed').length,
+    steps,
+  };
+}
+function verifiedStepCompletion(input: PlayerRecordsInput, matter: WorldMatter) {
+  const proof = matter.evidence;
+  if (proof?.kind !== 'scene_steps' || proof.ruleVersion !== 'r17-delivery-v1') return;
+  const verified = verifiedStepMatter(input, matter);
+  if (!verified || verified.status !== 'completed' || verified.assertion !== 'world_verified')
+    return;
+  return proof;
 }
 function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerRecords) {
   const rows = [...output.current, ...output.about, ...output.history];
