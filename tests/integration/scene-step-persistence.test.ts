@@ -16,6 +16,8 @@ import { sceneTaskHandler } from '../../src/modules/world/infrastructure/scene-t
 import { runOne } from '../../src/modules/tasks/application/run-worker.ts';
 import { sceneMatterId } from '../../src/modules/world/domain/scene-matter-policy.ts';
 import { actorContext } from '../../src/modules/world/application/actor-context.ts';
+import { resolveTurn } from '../../src/modules/world/application/resolve-turn.ts';
+import { WorldTurnPlanner } from '../../src/modules/world/infrastructure/turn-planner.ts';
 import {
   replayWorldHistory,
   type WorldHistoryEvent,
@@ -201,6 +203,42 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       },
     );
     await t.test(
+      'an invalid explicit receiver index cannot commit an explanation or call an NPC',
+      async () => {
+        const a = await enqueue('我向老周说明R17电源接头检修细节。');
+        const before = await counts(),
+          beforeWorld = await state();
+        let calls = 0;
+        await run(
+          a.command.task!.id,
+          new ScenePlanner({
+            async complete() {
+              calls++;
+              return JSON.stringify({
+                ...base,
+                evidenceFormat: 'indexed-observations-v3',
+                outcome: 'partial',
+                observation: ['你向老周说明R17电源接头检修细节。'],
+                stepProposals: [
+                  {
+                    matterIndex: 0,
+                    stepId: 'repair_explained',
+                    inputQuote: '我向老周说明R17电源接头检修细节。',
+                    observationIndex: 0,
+                    receiverIndex: 1,
+                  },
+                ],
+              });
+            },
+          }),
+        );
+        assert.equal(calls, 1);
+        assert.equal((await scenes.read(owner, worldId)).task?.status, 'failed');
+        assert.deepEqual(await counts(), before);
+        assert.deepEqual((await state()).matters, beforeWorld.matters);
+      },
+    );
+    await t.test(
       'a future plan with schema-default empty step arrays stays unexecuted',
       async () => {
         const a = await enqueue('我打算明天核对R17维修单。');
@@ -296,7 +334,35 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           b.command.task!.id,
           new ScenePlanner({
             async complete(messages) {
-              if (++explanationCalls === 1) return JSON.stringify(explanation);
+              if (++explanationCalls === 1) {
+                const payload = JSON.parse(messages[1]!.content.split('\nCURRENT TASK:')[0]!);
+                const context = payload.structuredStepContexts[0];
+                const receiver = context.allowedReceivers.find(
+                  (value: { id: string }) => value.id === actor.id,
+                );
+                assert.ok(receiver);
+                assert.equal(receiver.receiverIndex, 0);
+                return JSON.stringify({
+                  ...explanation,
+                  evidenceFormat: 'indexed-observations-v3',
+                  observation: [observation],
+                  stepProposals: [
+                    {
+                      matterIndex: 0,
+                      stepId: 'repair_explained',
+                      inputQuote: text,
+                      observationIndex: 0,
+                      receiverIndex: receiver.receiverIndex,
+                    },
+                    {
+                      matterIndex: 0,
+                      stepId: 'record_written',
+                      inputQuote: text,
+                      observationIndex: 0,
+                    },
+                  ],
+                });
+              }
               const payload = JSON.parse(messages[1]!.content);
               assert.deepEqual(payload.allowedActions, []);
               return JSON.stringify({
@@ -553,6 +619,69 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           [worldId, actor.id],
         );
         assert.ok(npc.rowCount! > 0);
+      },
+    );
+    await t.test(
+      'private chat reads actual receipt and completed opportunity without redoing or granting another reward',
+      async () => {
+        const before = await state();
+        const completed = before.matters!.find((m) => m.id === trigger.id)!;
+        const opportunity = before.matters!.find((m) => m.opportunity)!;
+        const beforeMatters = structuredClone(before.matters);
+        const text = '老周，R17已经交给你了，记录也整理好了，下一次独立接单可以怎么准备？';
+        const reply =
+          'R17钥匙和单子我收到了，接头和验收的记录也看得明白。先用这份案例说明你能修什么，接不接新单还得看实际情况。';
+        let calls = 0;
+        const planner = new WorldTurnPlanner({
+          async complete(messages) {
+            calls++;
+            const payload = JSON.parse(messages[1]!.content);
+            const resultFocus = payload.resultFocus as { factId: string; text: string }[];
+            assert.ok(resultFocus.some((f) => f.text.includes('R17')));
+            assert.ok(
+              payload.worldMatters.some(
+                (m: { id: string; status: string }) =>
+                  m.id === completed.id && m.status === 'completed',
+              ),
+            );
+            assert.ok(
+              payload.worldMatters.some(
+                (m: { id: string; status: string }) =>
+                  m.id === opportunity.id && m.status === 'completed',
+              ),
+            );
+            return JSON.stringify({
+              schemaVersion: 1,
+              effects: [
+                { type: 'message.received', id: 'synthetic_reply', actorId: actor.id, text: reply },
+              ],
+              acknowledgedResultFactIds: resultFocus.map((f) => f.factId),
+            });
+          },
+        });
+        const command = {
+          id: randomUUID(),
+          worldId,
+          actorId: actor.id,
+          expectedVersion: before.version,
+          text,
+        };
+        const deps = { worlds, planner, now: () => before.time, newId: randomUUID };
+        const result = await resolveTurn(deps, { userId: owner }, command);
+        assert.equal(calls, 1);
+        assert.deepEqual(result.state.matters, beforeMatters);
+        const reread = await state();
+        assert.deepEqual(reread.matters, beforeMatters);
+        assert.ok(reread.messages.some((m) => m.actorId === actor.id && m.text === reply));
+        assert.ok(
+          !actorContext(reread, absent.id, text).facts.some(
+            (f) => f.id.startsWith('matter_result:') || f.id.startsWith('pursuit_result:'),
+          ),
+        );
+        const beforeReplay = await counts();
+        await resolveTurn(deps, { userId: owner }, command);
+        assert.equal(calls, 1);
+        assert.deepEqual(await counts(), beforeReplay);
       },
     );
   } finally {

@@ -870,3 +870,9 @@ v14新候选准确B1ced6b2/Q2dc590a，有限人物独立动作索引格式，普
 根最终业务39085f7/itpqc4wwb/dpl_J4iPUFY2p1JDx8BDw4zxtzEc8vPF READY，正式别名已切换；1122check/build0、真实PG249pass/5明确模型skip、专项8/8，41迁移无SQL变化；正式paused真实已存1/4旧时间保持，公网8组/跨owner隔离通过。根完整线上手机壳390×844、390×500、PC1440内420无横溢出、只读无checkbox、展开可选/短屏末尾可达，0新模型/世界业务写，Ego146结束并恢复本次Cookie。仅有限R17清单/诊断技术交付，真实母03说明仍failed/closed16of18，不能称全NPC链成功。
 
 来源严格支持已存部分进度；可选记录不计入必需4步，人物收到与玩家交出独立。没有新SQL/模型额度，完整说明→交付→实收→机会→下一行动→私聊尚未通过供应商验收；SCENE-NPC-ARRIVAL-01中途进入/离开与NOTES-WORLD-03D通用长线仍未实现。A25待用户体验。最终文档归档版本及资源清理存忽略handoff，不重复生成跟踪回执。
+
+## 2026-10-12 · SCENE-RECEIVER-04 显式接收者修复候选
+
+B61bfdab→ad9f657，Q62d2b7d→b094331；新indexed-observations-v3只有显式所选matter实际allowedReceivers receiverIndex，不猜唯一人/补name/quote；旧wire保持严格，domain实收/source/whole完成边界不改。根实际PG10通过含v3说明→实收→机会→实际私聊adapter/事务/幂等，都是明确合成输出，不代表供应商自然完成。最终1196check/332boundary/type0/build0、全PG251pass+5明确model skip；41生产迁移本轮只读checksum一致，无新增SQL。
+
+待提交READY/public。上一批03 closed16of18，所有测试世界正常暂停，不沿用余2；本轮新2world/18文字授权已提请未回复，0新付费/生产世界业务写/图/私档。SPACE-MATTER-AI-QA-04继续待真实验收，现场人物中途进出/通用长线/真机仍待做。
