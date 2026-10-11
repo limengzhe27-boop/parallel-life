@@ -167,6 +167,14 @@ export function resolveSceneStepProgress(input: {
   const ids = new Set([
     ...input.stepProposals.map((p) => p.matterId),
     ...input.npcActions.map((p) => p.matterId),
+    ...(world.matters ?? [])
+      .filter(
+        (m) =>
+          sceneStepRule(world, m) &&
+          ['not_started', 'in_progress', 'blocked'].includes(m.status) &&
+          action.relatedMatterIds.includes(sceneMatterId(scene.id, m.id)),
+      )
+      .map((m) => m.id),
   ]);
   for (const id of ids) {
     const i = matters.findIndex((m) => m.id === id),
@@ -324,9 +332,29 @@ export function resolveSceneStepProgress(input: {
           fail('Inspection lacks bounded object/request');
         add('receiver_inspected', 'actor', action.text, p.quote, actor.id);
         if (!m.stepProgress?.steps.some((e) => e.stepId === 'receiver_inspected'))
-          if (!actionTexts.includes(`${actor.name}实际检查了R17接头。`))
-            actionTexts.push(`${actor.name}实际检查了R17接头。`);
+          if (!actionTexts.includes(`${actor.name}实际检查了R17。`))
+            actionTexts.push(`${actor.name}实际检查了R17。`);
       } else fail('Unsupported NPC action');
+    }
+    for (const d of input.dialogues) {
+      if (!present.includes(d.actorId) || !m.relatedActorIds?.includes(d.actorId)) continue;
+      for (const clause of d.text.split(/[。！？;；\n]/u)) {
+        if (!actual(clause, d.text)) continue;
+        const received =
+          /^我(?:现在|已经|当场|刚刚|刚)?(?:接过|收下|收到了|接收).*钥匙.*(?:维修单|工单|单据)/u.test(
+            clause,
+          );
+        const inspected =
+          /^我(?:现在|已经|当场|刚刚|刚)?(?:检查了|检查过|核对了|复检了).*(?:R17|接头)/u.test(
+            clause,
+          );
+        if (
+          (received && !saved.some((e) => e.stepId === 'received' && e.actorId === d.actorId)) ||
+          (inspected &&
+            !saved.some((e) => e.stepId === 'receiver_inspected' && e.actorId === d.actorId))
+        )
+          fail('NPC claims execution without a saved bounded action');
+      }
     }
     if (saved.length !== (m.stepProgress?.steps.length ?? 0))
       matters[i] = {

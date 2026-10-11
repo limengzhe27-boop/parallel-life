@@ -891,14 +891,30 @@ export async function commitSceneProposal(
         }
       : undefined;
   const execution =
-    resultAction && (p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0
+    resultAction &&
+    ((p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0 ||
+      (p.stepProposals !== undefined &&
+        c.world.matters?.some(
+          (m) =>
+            sceneStepRule(c.world, m) &&
+            c.action!.relatedMatterIds.includes(sceneMatterId(c.scene.id, m.id)),
+        )))
       ? {
           stepProposals: p.stepProposals ?? [],
           npcActions: p.npcActions ?? [],
           dialogues: p.dialogues,
         }
       : undefined;
-  if (!resultAction && (p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0)
+  if (
+    !resultAction &&
+    ((p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0 ||
+      (p.stepProposals !== undefined &&
+        c.world.matters?.some(
+          (m) =>
+            sceneStepRule(c.world, m) &&
+            c.action!.relatedMatterIds.includes(sceneMatterId(c.scene.id, m.id)),
+        )))
+  )
     throw new DomainError('INVALID_PROPOSAL', 'Non-execution cannot credit steps');
   const stepResult =
     execution && resultAction
