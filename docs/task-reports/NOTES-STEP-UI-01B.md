@@ -33,3 +33,11 @@
 待集成验收，准确源码冻结后释放I/Q。rootrepo已接partial refs不由B改；若后续source不足，只省略清单，不能用已完成snapshot补勾。当前只支持固定官方R17，未实现自由世界通用清单、NPC中途移动或真实完整模型体验；arrival方案4850a79已归档不自动实施。
 
 根与Q集成后先验证partial来源在实际PG保存后1/4→2/4→4/4、坏source清单整体隐藏与恢复，原full里程碑未倒退、required/optional人物区别，最终上线证据到齐才标完成。
+
+## 根集成回执及最后只读复核
+
+根将97cfb14准确接为270508014a0ee713f765c407afa40b4960584d10，源审通过；实际本地PG8/8：1/4→新未决input保1/4→2/4+optional不增加必需→actor实收4/4，坏early actual action row隐藏整清单、恢复4且旧milestone保真。仅根合成模型/实际本地事务，B0PG/vendor，本批真实旧预算已closed16/18不复用；完整check正在跑，尚未声明本子批READY/public。
+
+根授权仅报告附注静态审其未发布receiver guard WIP，核查HEAD2705080、guard blob 8b5b5238fd1693df36cfd4538de78bf44f897295、public contract blob b3a569340deca19d68328eb0f9c7a53ff63de72b。原五个OR和short-circuit顺序完全保持：receiver不存在→非related→非present→inputQuote缺name→observationQuote缺name，依次只转not_found/not_related/not_present/input_not_named/observation_not_named五固定码。没有返回值/quote/姓名/ID插值，不改proposal、不补receiver、不改异常code或实际完成判定。静态未见泄漏或条件放宽；未运行新tests/PG，不替代根准确freeze后的动态验收，不证明旧复合错误具体子因或真实说明治愈。
+
+7597399 public契约strict固定7enum、4required/2actor、pending无at/name、completed需at/count一致/未知字段拒，仅读输出shape；来源信用仍由本人shared全source重放与完整matter相同提供，不能从contract单独声称有保存来源。本人源码持续97cfb14冻结，Q UI/双端和根全check/build/迁移/READY/public后才能完成。
