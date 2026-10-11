@@ -437,7 +437,7 @@ export class ScenePlanner implements ScenePlannerPort {
             role: 'system',
             content:
               (actorSteps.length
-                ? '本轮有获准stepExecution规则。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。返回JSON {"text":"对白","actions":[{"matterId":"获准世界事项ID","kind":"receive_r17或inspect_r17","quote":"这次对白中明确已执行动作的完整原文片段"}]}。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.completedSteps只是你获准目击的已存证据；candidatePlayerSteps与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
+                ? '本轮有获准stepExecution规则。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。返回JSON {"text":"对白","actions":[{"matterId":"获准世界事项ID","kind":"receive_r17或inspect_r17","quote":"这次对白中明确已执行动作的完整原文片段"}]}。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。本轮明确说自己实际接过或检查了时必须提交对应actions，不能只说已完成却省略行动；有自己获准目击且已保存的同一步证据时可正常回顾，不再次执行或推进。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.completedSteps只是你获准目击的已存证据；candidatePlayerSteps与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
                 : '没有获准结构化事项，不得提出actions；仍仅返回JSON {"text":"对白"}。observedNow.outcome为partial/failed时，已完成步骤可以认可，待检查/待确认不能由对白冒充已检查、已签收或全部通过。') +
               '扮演该人物，按你的立场、目标和可知事实回应现场，简短自然的一两句话。只知道提供的可见内容，别读取其他私聊或猜主角内心。不替玩家执行后续行动，不声称重大成果、图片、钱或奖励已经发生。没有受控actions支持时，待检查/待确认不能被你的对白补成已检查、已签收或全部通过，不能用含混的‘我看看，行了’冒充已完成动作。基于当前saved行动与历史可见结果，只提出真实未完成的一项，不重复要求已经完成的核对、交接或记录，也不把允许交给当前接收人的任务改成必须等其他客户到场。人物背景或旧消息里的预约只代表原计划，不等于当前到场或确定马上来；以localStoryTime核对时点，旧约已过而没有到场/新确认来源时，可说原约时间与当前未见，不能编迟到原因或把那个人当在场见证者。只说当前人物获准知道的安排，不引用别人的私聊。只返回上述JSON，不写Markdown。',
           },
@@ -459,6 +459,49 @@ export class ScenePlanner implements ScenePlannerPort {
             )
           )
             throw new DomainError('INVALID_PROPOSAL', 'Unsupported actor execution candidate');
+        }
+        // A claim cannot silently replace an executed action. Only this bounded R17 rule applies.
+        for (const clause of parsed.text.split(/[。！？;；\n]/u)) {
+          if (
+            isUnexecutedQuote(clause, parsed.text) ||
+            /如果|假如|假设|之后|以后|稍后|明天|昨天|上次|之前|以前|曾经|等.+(?:来|到|后)/u.test(
+              clause,
+            ) ||
+            /[“「『"].*[”」』"]/u.test(clause) ||
+            [...clause.matchAll(/R\d+/giu)].some((match) => match[0].toUpperCase() !== 'R17')
+          )
+            continue;
+          const received =
+            /^我(?:现在|已经|当场|刚刚|刚)?(?:接过|收下|收到了|接收).*钥匙.*(?:维修单|工单|单据)/u.test(
+              clause,
+            );
+          const inspected =
+            /^我(?:现在|已经|当场|刚刚|刚)?(?:检查了|检查过|核对了|复检了).*(?:R17|接头)/u.test(
+              clause,
+            );
+          for (const context of actorSteps) {
+            for (const [claims, kind, stepId] of [
+              [received, 'receive_r17', 'received'],
+              [inspected, 'inspect_r17', 'receiver_inspected'],
+            ] as const) {
+              if (
+                claims &&
+                !parsed.actions.some(
+                  (action) => action.matterId === context.matterId && action.kind === kind,
+                ) &&
+                !context.completedSteps.some(
+                  (step) =>
+                    step.stepId === stepId &&
+                    step.performer === 'actor' &&
+                    step.actorId === actor.id,
+                )
+              )
+                throw new DomainError(
+                  'INVALID_PROPOSAL',
+                  'Actor execution claim requires its own saved action evidence',
+                );
+            }
+          }
         }
         if ((p.npcActions?.length ?? 0) + parsed.actions.length > 4)
           throw new DomainError('INVALID_PROPOSAL', 'Unbounded actor execution candidates');

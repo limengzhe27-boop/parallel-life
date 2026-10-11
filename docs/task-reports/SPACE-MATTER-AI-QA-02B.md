@@ -38,3 +38,13 @@ ScenePlanner版本scene-text-v5-structured-steps。director strict stepProposals
 ## 最终交接
 
 业务2180a38已冻结释放根。25/25新旧专项、typecheck通过，冻结源码final build exit0（.local/matter-aiqa-02b-build-final.log）；完整check仍为本轮未启DB导致4项连接失败，不能记绿。根随后修复f14e3e2（本树b00d64d），本人只接该提交，没有修改domain/repository。串联测试现在直接使用完整input/observation/NPC句子且保留末尾句号，不strip符号；assert所有保存observationQuote以句号结尾，新旧25/25复验通过（.local/matter-aiqa-02b-pure-final.log）。该引用边界原失败已由根修正并实际纯规则复验，不冒称DB事务或真实模型通过。最终小补丁仅本人新专项与报告，所有业务planner继续停写、无模型/DB/HTTP/浏览器/生产写/部署；主报告与待验收行同步，根统一完整check/PG/语义/READY公网。
+
+最后接f14e3e2后的typecheck真实发现根新tests/integration/scene-step-persistence.test.ts五处错误：246/249 context.matters可选；290/292 getWorldRecords返回包不能直接读取matters，292回调m隐式any。已回根，其公共PG测试本人只读未修；先前2180a38冻结时typecheck/build成功不等于f14整树当前类型通过。边界323文件通过、25纯专项通过。根修复后需统一再验证。
+
+## R17对白肯定执行却漏typed action的有界护栏
+
+根明确重新释放原planner与新专项，主表先重新进行中；已只读接根caf8030/103e805/1123c03/77812a5/3d5c36a及1d3ae2d的运行时和独立审查修复，没有并写domain/repository/公共测试。根前轮集成797check、242真实PG+5明确skip及build过为根证据，不称本人执行。
+
+仅在本NPC获准actorSteps对应当前R17规则时，检查同次对白原句第一人称实际接收钥匙/维修单或检查R17/接头的肯定执行claim。若无对应当前typed action，也没有本人可见已保存performer=actor/actorId一致的received或receiver_inspected证据，拒INVALID_PROPOSAL；不从对白自动制造动作。未来、否定、条件、引述、其他人的动作与别的R18对象不强迫actions；已有本人获准执行证据可正常回顾而不重复推进。prompt明确同一一致性要求。
+
+新增3组专项（每组多反例）覆盖遗漏typed receive/inspect，未来否定/引述/他人/别的对象不强迫，历史自身证据回顾与different actor/未目击/blocked来源拒绝。新旧planner28/28通过；日志.local/matter-aiqa-02b-claims-pure.log。没有模型/DB/HTTP/浏览器/生产写或部署；源码完成后再次冻结交根，根repository同护栏负责其他FakePlanner不能绕过。最终check/build接续证据另补，未以纯mock宣称真实模型成功。

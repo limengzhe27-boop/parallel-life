@@ -349,3 +349,58 @@ test('captured planner evidence reaches real pure runtime completion without opt
   );
   assert.deepEqual(result.completedMatterIds, [f.f.trigger.id]);
 });
+
+test('a bounded affirmative NPC claim cannot silently omit its typed action', async () => {
+  for (const text of [
+    '我接过R17钥匙和维修单。',
+    '我现在收下R17钥匙和维修单。',
+    '我检查了R17。',
+    '我核对了R17接头。',
+  ]) {
+    await assert.rejects(propose(fixture(), { text, actions: [] }), { code: 'INVALID_PROPOSAL' });
+  }
+});
+test('future, negated, quoted and other-person lines do not force an executed NPC action', async () => {
+  for (const text of [
+    '我会接过R17钥匙和维修单。',
+    '我没有接过R17钥匙和维修单。',
+    '如果我接过R17钥匙和维修单，我会交给车主。',
+    '“我接过R17钥匙和维修单”是你刚才引用的话。',
+    '刘航接过R17钥匙和维修单。',
+    '我检查了R18。',
+  ]) {
+    const { proposal } = await propose(fixture(), { text, actions: [] });
+    assert.deepEqual(proposal.npcActions, []);
+  }
+});
+test('only this actor own authorized saved execution permits a no-action recap', async () => {
+  for (const mode of ['own', 'different-actor', 'unwitnessed', 'blocked'] as const) {
+    const f = fixture();
+    const eventId = randomUUID();
+    f.c.world.matters!.find((m) => m.id === f.f.trigger.id)!.stepProgress = {
+      ruleVersion: 'r17-delivery-v1',
+      steps: [
+        {
+          stepId: 'received',
+          performer: 'actor',
+          actorId: mode === 'different-actor' ? 'someone-else' : f.f.actorId,
+          receiverId: f.f.actorId,
+          sceneId: f.c.scene.id,
+          actionId: randomUUID(),
+          inputEventId: randomUUID(),
+          inputVersion: 0,
+          eventId,
+          eventVersion: 0,
+          at: f.c.world.time,
+          inputQuote: '我将R17钥匙和维修单交给老周。',
+          observationQuote: '我接过R17钥匙和维修单。',
+          witnessActorIds: mode === 'unwitnessed' ? [] : [f.f.actorId],
+        },
+      ],
+    };
+    if (mode === 'blocked') f.c.blockedSourcesByActor = { [f.f.actorId]: [eventId] };
+    const reply = { text: '我接过R17钥匙和维修单。', actions: [] };
+    if (mode === 'own') assert.deepEqual((await propose(f, reply)).proposal.npcActions, []);
+    else await assert.rejects(propose(f, reply), { code: 'INVALID_PROPOSAL' });
+  }
+});
