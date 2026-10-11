@@ -48,3 +48,5 @@ ScenePlanner版本scene-text-v5-structured-steps。director strict stepProposals
 仅在本NPC获准actorSteps对应当前R17规则时，检查同次对白原句第一人称实际接收钥匙/维修单或检查R17/接头的肯定执行claim。若无对应当前typed action，也没有本人可见已保存performer=actor/actorId一致的received或receiver_inspected证据，拒INVALID_PROPOSAL；不从对白自动制造动作。未来、否定、条件、引述、其他人的动作与别的R18对象不强迫actions；已有本人获准执行证据可正常回顾而不重复推进。prompt明确同一一致性要求。
 
 新增3组专项（每组多反例）覆盖遗漏typed receive/inspect，未来否定/引述/他人/别的对象不强迫，历史自身证据回顾与different actor/未目击/blocked来源拒绝。新旧planner28/28通过；日志.local/matter-aiqa-02b-claims-pure.log。没有模型/DB/HTTP/浏览器/生产写或部署；源码完成后再次冻结交根，根repository同护栏负责其他FakePlanner不能绕过。最终check/build接续证据另补，未以纯mock宣称真实模型成功。
+
+32dad92再次冻结释放根，typecheck通过、新旧planner28/28过；本树shared planner+Q纯50项49过/1失败，失败确切为Q旧“old dialogue alone does not backfill...”把本轮肯定“我接过钥匙和维修单”无typed actions视为合法，根新护栏正确拒绝。已回根由原负责人调整旧fixture/期望，不修改他人测试，不为其旧断言放松规则。完整check801项796pass/5fail：4项旧DB未启ECONNREFUSED+这1旧断言；323边界/typecheck通过。日志.local/matter-aiqa-02b-claims-{check,runtime,pure,build}.log；冻结32dad92 final build exit0。根新授权max2world/18total文字/0image仅由根独占，本人仍0模型/DB/生产write。另只读提示root两边split句子后应trim再^我，避免第二句前空白绕claim；源码已释放，不并写根集成修复。
