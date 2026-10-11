@@ -160,9 +160,21 @@ export function actorContext(
         m.relatedActorIds?.includes(actorId) &&
         !blockedSources.has(m.id) &&
         (!m.opportunity ||
-          state.facts.some(
+          context.facts.some(
             (f) =>
-              f.id.startsWith('pursuit_result:') &&
+              f.kind === 'canonical' &&
+              !blockedSources.has(m.opportunity!.pursuitId) &&
+              !blockedSources.has(m.opportunity!.triggerMatterId) &&
+              [m.opportunity!.pursuitId, m.opportunity!.triggerMatterId].every((id) =>
+                state.matters?.some(
+                  (parent) =>
+                    parent.id === id &&
+                    parent.worldId === state.id &&
+                    parent.visibility === 'player_visible',
+                ),
+              ) &&
+              m.source.kind === 'director_proposal' &&
+              f.id === `pursuit_result:${m.source.eventId}:${m.opportunity!.pursuitId}` &&
               m.source.kind === 'director_proposal' &&
               f.sourceEventId === m.source.eventId &&
               !blockedSources.has(f.id) &&

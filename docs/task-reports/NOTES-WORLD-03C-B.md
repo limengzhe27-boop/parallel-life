@@ -37,3 +37,23 @@ root独占 src/contracts/world-matters.ts、player-records/其仓储、UI，后�
 首稳定12d4f27，root/Q已接线；root合同c051a36在本树cherry-pick为fad521a。已读03C-Q负例并补后续完成、not_started受控开始与精确ack。私有planner acknowledgedResultFactIds仅在当前actor本轮有实际回复、ID精确属于授权canonical result事实时，转换既有belief凭证；模型不能直接伪造marker belief。prefix为[scene-result-ack:，actorContext排除凭证及其遗留memory；经root精确批准postgres-world-repository storeTurnMemories排除该内部belief，因此不写角色印象。ack只证明结构化承接声明，不证明自然台词质量。
 
 本轮专项14/14：四官方真实定义纯reducer成功→有限后续→实际第二阶段；精确来源/隐私ack两组；真实PG八项含正常包、同场景未开始投影、第二阶段、history/repeat/immutable initial以及真实WorldRepository commit确认marker来源fact存在但memory_records为0。旧本人NAR03测试已按新精确ack要求更新；完整check/build尚待。
+
+## 最终后端验收接续
+
+业务最终5197adb（首12d4f27→隐私/真库7c950a8→有限历史证明5197adb），全部业务文件冻结。root/Q已收到三个提交。合同fad521a是root c051a36等价cherry-pick，不重复发布两份合同。
+
+最终独立复验：check719/719（边界与类型通过），build成功exit0，真实PG/纯规则/ack/长历史专项15/15，diff check通过；日志本树.local/notes03cb-{check-final,build-final,special-final}.log。早期check718/build与专项14仅作为历史；最终以上述新日志为准。专属55471已退出且lsof无监听，无HTTP/浏览器；0供应商/图片/生产世界写。当前仅待验收，不标已完成，不代替root READY公网结论。
+
+world-history新补丁仅保留当前明确里程碑所需、同世界player_visible、真实成功完成且event/version匹配的canonical证明及每actor/source精确ack；不保留全部泛事实、不引入未来proof，仍沿用96k generic snapshot预算。40轮大belief历史后可实际完成第二阶段，through0不含未来机会，第一期无第二成果/未来ack。
+
+nextOpportunityIds保留已创建的唯一机会ID以便追溯，第二阶段不再创建下一个机会；UI/records请结合该事项已完成状态呈现，不能把已完成事项写成又有一个新的待选机会。完整NPC自然语义/台词质量未调用模型验收，结构化ack不是这项证据。通用自由事项/互斥失效/钱款好感/无限长线引擎不在本批。
+
+根集成人负责records source投影与UI、Q负例合并、全库/双端/生产迁移/READY公网。收到实质审查失败时只修本任务范围；否则保持业务冻结，释放全部独占文件给root。
+
+## Q隐私负例修复接续
+
+独立Q在冻结源码发现实际缺陷：blockedSources包含trigger/pursuit ID时，facts已过滤，但机会matters用raw state.facts授权，仍泄露机会标题/说明。已改用本轮真正授权且已入预算的context.facts，要求canonical精确pursuit_result:event:pursuit绑定，同时父追求与trigger同世界player_visible且未屏蔽。新增回归覆盖阻断trigger/pursuit/fact/event/机会ID、隐藏父事项、belief冒充canonical均不带出机会。纯相关8/8已过；check/build与真库再次待复验，旧最终结论暂停用于这次补丁，不能先标交付。
+
+## 隐私补丁最终复验
+
+运行时代码补丁8ede4e4已发root/Q；追加真实PG stored-world上下文回归（父trigger/追求屏蔽后没有机会）与最终收尾提交。该回合最终check720/720、build exit0、专项16/16、diff check通过；日志 .local/notes03cb-privacy-{check,build,special}.log。dev/test已迁移后运行，PG55471已关闭再核无监听。0供应商/图/生产写、无HTTP/浏览器。此项重新待验收，业务文件再冻结释放root，Q独立复验与最终上线仍归根。

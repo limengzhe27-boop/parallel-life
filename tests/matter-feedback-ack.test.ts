@@ -58,3 +58,21 @@ test('missing reply, another actor, stale/hidden/blocked sources and foreign IDs
     assert.ok(!r.effects.some((e) => e.text?.startsWith(resultAckPrefix)));
   }
 });
+
+test('a blocked or hidden stage source cannot leak through the unlocked opportunity description', () => {
+  const opportunity = first.world.matters!.find((m) => m.opportunity)!;
+  assert.ok(actorContext(first.world, f.actorId).matters?.some((m) => m.id === opportunity.id));
+  for (const blocked of [f.trigger.id, f.pursuit.id, fact.id, fact.sourceEventId, opportunity.id]) {
+    const context = actorContext(first.world, f.actorId, '', [], new Set([blocked]));
+    assert.ok(!context.matters?.some((m) => m.id === opportunity.id));
+    assert.ok(!JSON.stringify(context).includes(opportunity.description));
+  }
+  for (const id of [f.trigger.id, f.pursuit.id]) {
+    const hidden = structuredClone(first.world);
+    hidden.matters!.find((m) => m.id === id)!.visibility = 'hidden';
+    assert.ok(!actorContext(hidden, f.actorId).matters?.some((m) => m.id === opportunity.id));
+  }
+  const forged = structuredClone(first.world);
+  forged.facts.find((f) => f.id === fact.id)!.kind = 'belief';
+  assert.ok(!actorContext(forged, f.actorId).matters?.some((m) => m.id === opportunity.id));
+});
