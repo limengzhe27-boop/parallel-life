@@ -1,3 +1,4 @@
+import type { SceneStepProposal, SceneNpcActionProposal } from '../domain/matters.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
 import type { WorldState } from '../domain/types.ts';
 import type {
@@ -28,6 +29,9 @@ export type SceneProposal = {
   initialMatters?: { title: string }[];
   matterUpdates: { id: string; status: 'in_progress' | 'blocked' | 'completed' }[];
   dialogues: { actorId: string; text: string }[];
+  /** Candidates only. The runtime validates and owns saved step/action evidence. */
+  stepProposals?: SceneStepProposal[];
+  npcActions?: SceneNpcActionProposal[];
 };
 export interface ScenePlannerPort {
   propose(context: ScenePlanningContext, signal?: AbortSignal): Promise<SceneProposal>;
