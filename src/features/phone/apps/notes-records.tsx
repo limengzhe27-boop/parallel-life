@@ -10,6 +10,7 @@ const attribution: Record<RecordItem['assertion'], string> = {
   actor_statement: '人物建议',
   invitation_status: '日程记录',
   starting_context: '人生起点',
+  world_verified: '世界核实',
 };
 
 export function recordAttribution(record: RecordItem): string {
@@ -27,6 +28,8 @@ export function recordDestination(record: RecordItem) {
   if (navigation?.app === 'wechat') return { app: 'messages' as const, target: navigation.actorId };
   if (navigation?.app === 'calendar')
     return { app: 'calendar' as const, target: navigation.invitationId };
+  if (navigation?.app === 'map')
+    return { app: 'map' as const, target: navigation.placeId };
   return undefined;
 }
 

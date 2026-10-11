@@ -30,6 +30,13 @@ const SourceSchema = z.discriminatedUnion('kind', [
     at: Timestamp,
     timeBasis: z.enum(['story', 'recorded']),
   }),
+  z.strictObject({
+    kind: z.literal('world_matter'),
+    matterId: z.string(),
+    span: z.enum(['near_term', 'pursuit']),
+    at: Timestamp,
+    timeBasis: z.enum(['story', 'recorded']),
+  }),
 ]);
 export const PlayerRecordSchema = z.strictObject({
   id: z.string().startsWith('sys/'),
@@ -39,7 +46,9 @@ export const PlayerRecordSchema = z.strictObject({
     'invitation',
     'opening_context',
     'history_message',
+    'world_matter',
   ]),
+  span: z.enum(['near_term', 'pursuit']).optional(),
   title: z.string(),
   text: z.string(),
   state: z.enum([
@@ -55,6 +64,9 @@ export const PlayerRecordSchema = z.strictObject({
     'attended',
     'missed',
     'starting_point',
+    'in_progress',
+    'completed',
+    'not_started',
   ]),
   stateLabel: z.string(),
   assertion: z.enum([
@@ -62,6 +74,7 @@ export const PlayerRecordSchema = z.strictObject({
     'actor_statement',
     'invitation_status',
     'starting_context',
+    'world_verified',
   ]),
   source: SourceSchema,
   origin: GenesisSourceSchema.optional(),
@@ -70,6 +83,7 @@ export const PlayerRecordSchema = z.strictObject({
     .discriminatedUnion('app', [
       z.strictObject({ app: z.literal('wechat'), actorId: Id }),
       z.strictObject({ app: z.literal('calendar'), invitationId: z.string() }),
+      z.strictObject({ app: z.literal('map'), placeId: z.string() }),
     ])
     .optional(),
 });

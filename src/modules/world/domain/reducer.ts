@@ -11,6 +11,7 @@ import {
 } from './validation.ts';
 import { validateCharacterEffects } from './character-policy.ts';
 import { canShareWith } from './relationships.ts';
+import { transitionWorldMatter } from './matters.ts';
 import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
 
 /** Pure reducer. All effects validate before the caller commits anything. */
@@ -54,6 +55,7 @@ export function applyEvent(
       ...state.appointments,
       ...state.mediaRequests,
       ...(state.choices ?? []),
+      ...(state.matters ?? []),
     ].map((item) => item.id),
   );
   const jobs: OutboxJob[] = [];
@@ -333,6 +335,31 @@ export function applyEvent(
           prompt: effect.prompt,
           title,
         });
+        break;
+      }
+      case 'matter.created': {
+        if (!state.matters) state.matters = [];
+        if (state.matters.some((m) => m.id === effect.matter.id)) {
+          throw new DomainError('INVALID_PROPOSAL', 'Duplicate matter ID');
+        }
+        state.matters.push(effect.matter);
+        break;
+      }
+      case 'matter.updated': {
+        if (!state.matters) state.matters = [];
+        const matter = state.matters.find((m) => m.id === effect.matterId);
+        if (!matter) {
+          throw new DomainError('INVALID_PROPOSAL', 'Matter not found');
+        }
+        const updated = transitionWorldMatter(matter, {
+          status: effect.status,
+          evidence: effect.evidence,
+          assertion: effect.assertion,
+          now: replyAt,
+          allMatters: state.matters,
+        });
+        const index = state.matters.indexOf(matter);
+        state.matters[index] = updated;
         break;
       }
     }

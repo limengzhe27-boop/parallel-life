@@ -25,10 +25,24 @@ export type RecordSource =
       messageId?: string;
       at: string;
       timeBasis: 'story' | 'recorded';
+    }
+  | {
+      kind: 'world_matter';
+      matterId: string;
+      span: 'near_term' | 'pursuit';
+      at: string;
+      timeBasis: 'story' | 'recorded';
     };
 export type PlayerRecord = {
   id: string;
-  kind: 'player_choice' | 'actor_suggestion' | 'invitation' | 'opening_context' | 'history_message';
+  kind:
+    | 'player_choice'
+    | 'actor_suggestion'
+    | 'invitation'
+    | 'opening_context'
+    | 'history_message'
+    | 'world_matter';
+  span?: 'near_term' | 'pursuit';
   title: string;
   text: string;
   state:
@@ -43,9 +57,17 @@ export type PlayerRecord = {
     | 'cancelled'
     | 'attended'
     | 'missed'
-    | 'starting_point';
+    | 'starting_point'
+    | 'in_progress'
+    | 'completed'
+    | 'not_started';
   stateLabel: string;
-  assertion: 'player_statement' | 'actor_statement' | 'invitation_status' | 'starting_context';
+  assertion:
+    | 'player_statement'
+    | 'actor_statement'
+    | 'invitation_status'
+    | 'starting_context'
+    | 'world_verified';
   source: RecordSource;
   origin?: Extract<RecordSource, { kind: 'world_genesis' }>;
   relatedLinks?: {
@@ -53,7 +75,10 @@ export type PlayerRecord = {
     target: string;
     label: string;
   }[];
-  navigation?: { app: 'wechat'; actorId: string } | { app: 'calendar'; invitationId: string };
+  navigation?:
+    | { app: 'wechat'; actorId: string }
+    | { app: 'calendar'; invitationId: string }
+    | { app: 'map'; placeId: string };
 };
 export type PlayerRecords = {
   schemaVersion: 1;
@@ -80,6 +105,7 @@ export type PlayerRecordsInput = {
   messages: Message[];
   actors: { id: string; name: string }[];
   events: (WorldEvent | InvitationEvent)[];
+  matters?: import('./matters.ts').WorldMatter[];
 };
 const labels: Record<PlayerRecord['state'], string> = {
   planned: '你记录的计划',
@@ -94,6 +120,9 @@ const labels: Record<PlayerRecord['state'], string> = {
   attended: '已记录赴约',
   missed: '已记录错过',
   starting_point: '人生起点',
+  in_progress: '眼下事项',
+  completed: '已达成',
+  not_started: '待开始',
 };
 
 /** Whitelisted, sourced records only. No private facts, memories or model calls. */
@@ -526,6 +555,53 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
       },
       ['cancelled', 'attended', 'missed'].includes(appointment.status),
     );
+  }
+  for (const matter of input.matters ?? []) {
+    if (matter.visibility !== 'player_visible') continue;
+    const isHistorical = ['completed', 'abandoned', 'superseded'].includes(matter.status);
+    const matterRecordSource: RecordSource = {
+      kind: 'world_matter',
+      matterId: matter.id,
+      span: matter.span,
+      at: matter.updatedAt,
+      timeBasis: 'story',
+    };
+    let nav: PlayerRecord['navigation'] = undefined;
+    if (matter.relatedPlaceId) {
+      nav = { app: 'map', placeId: matter.relatedPlaceId };
+    } else if (matter.relatedActorIds?.[0]) {
+      nav = { app: 'wechat', actorId: matter.relatedActorIds[0] };
+    } else if (matter.relatedInvitationId) {
+      nav = { app: 'calendar', invitationId: matter.relatedInvitationId };
+    }
+    const state =
+      matter.assertion === 'player_statement' && matter.status === 'completed'
+        ? ('reported_done' as const)
+        : matter.status;
+    const record: Omit<PlayerRecord, 'stateLabel'> = {
+      id: `sys/matter/${input.worldId}/${matter.id}`,
+      kind: 'world_matter',
+      span: matter.span,
+      title: matter.title,
+      text: matter.description,
+      state,
+      assertion: matter.assertion,
+      source: matterRecordSource,
+      ...(nav ? { navigation: nav } : {}),
+    };
+
+    if (matter.span === 'near_term') {
+      add(record, isHistorical);
+    } else {
+      if (isHistorical) {
+        add(record, true);
+      } else {
+        output.about.push({
+          ...record,
+          stateLabel: matter.status === 'in_progress' ? '长期追求' : labels[state],
+        });
+      }
+    }
   }
   return output;
 }

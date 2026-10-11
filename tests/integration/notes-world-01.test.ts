@@ -105,7 +105,7 @@ test('player records: real committed sources, calendar replay, isolation and rea
           type: 'appointment.proposed',
           id: invitationId,
           title: '摄影练习',
-          at: '2026-10-11T00:00:00.000Z',
+          at: '2026-10-25T00:00:00.000Z',
           participantIds: [actorId],
         },
         { type: 'belief.recorded', id: randomUUID(), actorId, text: 'SECRET_CHARACTER_BELIEF' },

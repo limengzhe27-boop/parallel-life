@@ -1,3 +1,5 @@
+import type { WorldMatter, MatterStatus, MatterAssertion, MatterEvidence } from './matters.ts';
+
 /** Persisted contracts are versioned; timestamps are ISO 8601, all instants UTC. */
 export type Id = string;
 export type Session = { userId: Id };
@@ -148,6 +150,8 @@ export type WorldState = {
   notes?: Note[];
   /** Bounded active/recent decisions; absent for worlds created before this feature. */
   choices?: StoryChoice[];
+  /** Cross-scene near-term matters and life pursuits. */
+  matters?: WorldMatter[];
 };
 
 export type WorldEffect =
@@ -167,6 +171,15 @@ export type WorldEffect =
       choiceId: Id;
       quote: string;
       outcome: 'reported_done' | 'blocked' | 'abandoned';
+    }
+  | { type: 'matter.created'; id: Id; matter: WorldMatter }
+  | {
+      type: 'matter.updated';
+      id: Id;
+      matterId: Id;
+      status: MatterStatus;
+      evidence: MatterEvidence;
+      assertion?: MatterAssertion;
     };
 
 export type TurnProposal = { schemaVersion: 1; effects: WorldEffect[] };

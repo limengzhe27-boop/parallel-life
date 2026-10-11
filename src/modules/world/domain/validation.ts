@@ -1,5 +1,13 @@
 import { DomainError } from './errors.ts';
 import type { StoryChoice, TurnCommand, TurnProposal, WorldEffect, Visibility } from './types.ts';
+import type {
+  WorldMatter,
+  MatterSpan,
+  MatterStatus,
+  MatterAssertion,
+  MatterSource,
+  MatterEvidence,
+} from './matters.ts';
 
 function fail(): never {
   throw new DomainError('INVALID_PROPOSAL');
@@ -38,6 +46,197 @@ function visibility(value: unknown): Visibility {
     return { kind: 'actors', actorIds };
   }
   return fail();
+}
+
+function validateMatterSpan(value: unknown): MatterSpan {
+  if (value === 'near_term' || value === 'pursuit') return value;
+  return fail();
+}
+
+function validateMatterStatus(value: unknown): MatterStatus {
+  if (
+    [
+      'not_started',
+      'in_progress',
+      'blocked',
+      'completed',
+      'abandoned',
+      'superseded',
+    ].includes(value as string)
+  )
+    return value as MatterStatus;
+  return fail();
+}
+
+function validateMatterAssertion(value: unknown): MatterAssertion {
+  if (['player_statement', 'world_verified', 'actor_statement'].includes(value as string))
+    return value as MatterAssertion;
+  return fail();
+}
+
+function validateMatterSource(value: unknown): MatterSource {
+  const rec = record(value);
+  const kind = text(rec.kind, 40);
+  switch (kind) {
+    case 'genesis':
+      return {
+        kind: 'genesis',
+        seedId: id(rec.seedId),
+        ...(rec.openingKey ? { openingKey: text(rec.openingKey, 80) } : {}),
+      };
+    case 'preset':
+      return {
+        kind: 'preset',
+        presetId: text(rec.presetId, 80),
+        version:
+          typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version > 0
+            ? rec.version
+            : fail(),
+        matterKey: text(rec.matterKey, 80),
+      };
+    case 'director_proposal':
+      return {
+        kind: 'director_proposal',
+        eventId: id(rec.eventId),
+        eventVersion:
+          typeof rec.eventVersion === 'number' &&
+          Number.isInteger(rec.eventVersion) &&
+          rec.eventVersion > 0
+            ? rec.eventVersion
+            : fail(),
+        at: isoInstant(rec.at),
+      };
+    case 'actor_proposal':
+      return {
+        kind: 'actor_proposal',
+        actorId: id(rec.actorId),
+        eventId: id(rec.eventId),
+        eventVersion:
+          typeof rec.eventVersion === 'number' &&
+          Number.isInteger(rec.eventVersion) &&
+          rec.eventVersion > 0
+            ? rec.eventVersion
+            : fail(),
+        at: isoInstant(rec.at),
+      };
+    case 'scene_action':
+      return {
+        kind: 'scene_action',
+        sceneId: id(rec.sceneId),
+        actionId: id(rec.actionId),
+        at: isoInstant(rec.at),
+      };
+    default:
+      return fail();
+  }
+}
+
+function validateMatterEvidence(value: unknown): MatterEvidence {
+  const rec = record(value);
+  const kind = text(rec.kind, 40);
+  const eventVersion =
+    typeof rec.eventVersion === 'number' &&
+    Number.isInteger(rec.eventVersion) &&
+    rec.eventVersion > 0
+      ? rec.eventVersion
+      : fail();
+  const eventId = id(rec.eventId);
+  const at = isoInstant(rec.at);
+  switch (kind) {
+    case 'director_progression':
+      return {
+        kind: 'director_progression',
+        reason: text(rec.reason, 300),
+        eventId,
+        eventVersion,
+        at,
+      };
+    case 'user_report':
+      if (!['reported_done', 'blocked', 'abandoned'].includes(String(rec.outcome))) return fail();
+      return {
+        kind: 'user_report',
+        quote: text(rec.quote, 200),
+        outcome: rec.outcome as 'reported_done' | 'blocked' | 'abandoned',
+        eventId,
+        eventVersion,
+        at,
+      };
+    case 'scene_action':
+      if (!['succeeded', 'failed', 'partial'].includes(String(rec.outcome))) return fail();
+      return {
+        kind: 'scene_action',
+        sceneId: id(rec.sceneId),
+        actionId: id(rec.actionId),
+        outcome: rec.outcome as 'succeeded' | 'failed' | 'partial',
+        eventId,
+        eventVersion,
+        at,
+      };
+    case 'world_event':
+      return {
+        kind: 'world_event',
+        reason: text(rec.reason, 300),
+        eventId,
+        eventVersion,
+        at,
+      };
+    default:
+      return fail();
+  }
+}
+
+function validateWorldMatter(value: unknown): WorldMatter {
+  const rec = record(value);
+  const matterId = id(rec.id);
+  const worldId = id(rec.worldId);
+  const span = validateMatterSpan(rec.span);
+  const title = text(rec.title, 100).trim();
+  const description = text(rec.description, 500).trim();
+  const status = validateMatterStatus(rec.status);
+  const assertion = validateMatterAssertion(rec.assertion);
+  if (rec.visibility !== 'player_visible' && rec.visibility !== 'hidden') return fail();
+  const visibility = rec.visibility;
+  const prerequisites = Array.isArray(rec.prerequisites) ? ids(rec.prerequisites) : undefined;
+  const relatedActorIds = Array.isArray(rec.relatedActorIds) ? ids(rec.relatedActorIds) : undefined;
+  const relatedPlaceId = rec.relatedPlaceId ? id(rec.relatedPlaceId) : undefined;
+  const relatedInvitationId = rec.relatedInvitationId ? id(rec.relatedInvitationId) : undefined;
+  const source = validateMatterSource(rec.source);
+  const evidence = rec.evidence ? validateMatterEvidence(rec.evidence) : undefined;
+  const version =
+    typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version > 0
+      ? rec.version
+      : fail();
+  const createdAt = isoInstant(rec.createdAt);
+  const updatedAt = isoInstant(rec.updatedAt);
+  const rewardClaimed = typeof rec.rewardClaimed === 'boolean' ? rec.rewardClaimed : undefined;
+
+  if (assertion === 'world_verified' && (!evidence || evidence.kind === 'user_report')) {
+    return fail();
+  }
+  if (evidence?.kind === 'user_report' && assertion !== 'player_statement') {
+    return fail();
+  }
+
+  return {
+    id: matterId,
+    worldId,
+    span,
+    title,
+    description,
+    status,
+    assertion,
+    visibility,
+    ...(prerequisites ? { prerequisites } : {}),
+    ...(relatedActorIds ? { relatedActorIds } : {}),
+    ...(relatedPlaceId ? { relatedPlaceId } : {}),
+    ...(relatedInvitationId ? { relatedInvitationId } : {}),
+    source,
+    ...(evidence ? { evidence } : {}),
+    version,
+    createdAt,
+    updatedAt,
+    ...(rewardClaimed !== undefined ? { rewardClaimed } : {}),
+  };
 }
 /** A narrow gate: proposals may only cite a decision the player actually typed. */
 export function isExplicitChoice(quote: string, userText: string): boolean {
@@ -204,6 +403,28 @@ export function parseProposal(value: unknown): TurnProposal {
           quote: text(item.quote, 160).trim(),
           outcome: item.outcome as 'reported_done' | 'blocked' | 'abandoned',
         };
+      case 'matter.created': {
+        const matter = validateWorldMatter(item.matter);
+        return {
+          type: item.type,
+          id: effectId,
+          matter,
+        };
+      }
+      case 'matter.updated': {
+        const matterId = id(item.matterId);
+        const status = validateMatterStatus(item.status);
+        const evidence = validateMatterEvidence(item.evidence);
+        const assertion = item.assertion ? validateMatterAssertion(item.assertion) : undefined;
+        return {
+          type: item.type,
+          id: effectId,
+          matterId,
+          status,
+          evidence,
+          ...(assertion ? { assertion } : {}),
+        };
+      }
       default:
         return fail();
     }

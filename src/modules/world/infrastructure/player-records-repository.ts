@@ -99,6 +99,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         worldId,
         worldVersion: world.version,
         choices,
+        matters: world.state.matters ?? [],
         appointments,
         messages,
         events,
