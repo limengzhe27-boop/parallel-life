@@ -65,7 +65,7 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
               type="button"
               className={s.row}
               onClick={() => open('notes', record.id)}
-              aria-label={`${record.title}，${record.stateLabel}`}
+              aria-label={`${record.title}，${record.stateLabel}${record.stepChecklist ? `，已完成 ${record.stepChecklist.completedRequired}/${record.stepChecklist.requiredTotal}` : ''}`}
             >
               <span className={s.rowText}>
                 <strong>{record.title}</strong>
@@ -74,6 +74,12 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
                   <small className={s.stateBadge}>{record.stateLabel}</small>
                   <small className={s.attributionBadge}>{recordAttribution(record)}</small>
                 </span>
+                {record.stepChecklist && (
+                  <span className={s.checklistSummary}>
+                    已完成 {record.stepChecklist.completedRequired}/
+                    {record.stepChecklist.requiredTotal}
+                  </span>
+                )}
                 {record.progress?.milestones.length ? (
                   <span className={s.progressSummary}>
                     已走过 {record.progress.milestones.length} 步 ·{' '}
@@ -106,6 +112,56 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
         );
       })}
     </ul>
+  );
+}
+
+/** Completion comes only from the schema-checked server record, never input or task feedback. */
+function StepChecklist({ checklist }: { checklist: NonNullable<RecordItem['stepChecklist']> }) {
+  const rows = (steps: typeof checklist.steps) => (
+    <ol className={s.checklistRows}>
+      {steps.map((step) => {
+        const completed = step.state === 'completed';
+        const actor = step.actorName ?? '人物';
+        const action = step.id === 'received' ? '接收' : '检查';
+        const label =
+          step.performer === 'player'
+            ? completed
+              ? '你已完成'
+              : '待你继续'
+            : completed
+              ? `${actor}已${action}`
+              : `等待人物${action}`;
+        return (
+          <li key={step.id} data-step-id={step.id}>
+            <span className={completed ? s.completedMark : s.pendingMark} aria-hidden="true">
+              {completed ? '✓' : '○'}
+            </span>
+            <div className={s.checklistText}>
+              <strong>{step.title}</strong>
+              <span className={s.checklistStatus}>{label}</span>
+              {completed && step.at && <time dateTime={step.at}>{timeText(step.at)}</time>}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+  return (
+    <section className={s.checklist} aria-label="这件事的进展">
+      <h3>这件事的进展</h3>
+      <p className={s.checklistSummary}>
+        已完成 {checklist.completedRequired}/{checklist.requiredTotal}
+      </p>
+      <p className={s.hint}>交出东西与对方收到，是两步。</p>
+      <div role="group" aria-label="必需步骤">
+        {rows(checklist.steps.filter((step) => step.required))}
+      </div>
+      <details className={s.optionalSteps}>
+        <summary>可选记录</summary>
+        <p className={s.hint}>这些记录不计入必需步骤。</p>
+        {rows(checklist.steps.filter((step) => !step.required))}
+      </details>
+    </section>
   );
 }
 
@@ -264,6 +320,7 @@ export function NotesRecordDetail({
           </button>
         </div>
       )}
+      {record.stepChecklist && <StepChecklist checklist={record.stepChecklist} />}
       {record.progress && (
         <section className={s.progress} aria-label="已经走过的路">
           <h3>已经走过的路</h3>
