@@ -216,7 +216,15 @@ export class WorldTurnPlanner implements TurnPlanner {
       const ackReply = parsed.effects.some(
         (e) =>
           e.type === 'message.received' &&
-          e.actorId === targetActorId &&
+          // Keep foreign identities excluded even though dialogue below is target-bound.
+          // Only the current name and bounded single-speaker placeholders are aliases.
+          (e.actorId === targetActorId ||
+            (typeof e.actorId === 'string' &&
+              !context.possibleRecipients?.some((actor) => actor.id === e.actorId) &&
+              ((e.actorId === context.actor.name &&
+                !context.possibleRecipients?.some((actor) => actor.name === e.actorId)) ||
+                e.actorId === 'ACTOR_ID' ||
+                /^actor_\d+$/.test(e.actorId)))) &&
           typeof e.text === 'string' &&
           e.text.trim() &&
           !structuredReply(e.text),
