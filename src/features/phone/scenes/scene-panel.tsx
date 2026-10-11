@@ -15,6 +15,7 @@ import type { PhoneContact } from '../apps/types.ts';
 import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.ts';
 import { readRoute, routeHash } from '../navigation.ts';
 import s from './scenes.module.css';
+import { SceneWorldSync } from './world-sync.ts';
 const states = {
   not_started: '还未开始',
   in_progress: '正在进行',
@@ -25,15 +26,22 @@ const states = {
 export function ScenePanel({
   worldId,
   contacts,
+  phoneVersion = 0,
+  worldSync,
   onWorldChanged,
   onBusy,
 }: {
   worldId: string;
   contacts: readonly PhoneContact[];
-  onWorldChanged?: () => Promise<void>;
+  phoneVersion?: number;
+  worldSync?: SceneWorldSync;
+  onWorldChanged?: (minimumVersion: number) => Promise<void>;
   onBusy?: (busy: boolean) => void;
 }) {
   const client = useMemo(() => new SceneClient(), [worldId]);
+  const ownSync = useMemo(() => new SceneWorldSync(worldId), [worldId]);
+  const sync = worldSync ?? ownSync;
+  const [syncError, setSyncError] = useState('');
   const [data, setData] = useState<SceneRead>(),
     [task, setTask] = useState<SceneTask | null>(),
     [text, setText] = useState(''),
@@ -82,6 +90,22 @@ export function ScenePanel({
     }, 3000);
     return () => clearInterval(timer);
   }, [task?.id, task?.status, refresh]);
+  useEffect(() => {
+    if (!data || !onWorldChanged) return;
+    let current = true;
+    void sync
+      .sync(data, phoneVersion, onWorldChanged)
+      .then(() => {
+        if (current) setSyncError('');
+      })
+      .catch(() => {
+        if (current)
+          setSyncError('现场记录已保存，手机记录暂未同步。重新读取即可，不必再做一次行动。');
+      });
+    return () => {
+      current = false;
+    };
+  }, [data, phoneVersion, sync, onWorldChanged]);
   const overview = data ? sceneOverview(data) : undefined;
   const latestAction = data?.actions.at(-1);
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
@@ -102,8 +126,12 @@ export function ScenePanel({
       if (live.current)
         setError(e instanceof Error ? e.message : '结果还不能确认，请重新读取核对。');
     } finally {
-      await refresh().catch(() => {});
-      await Promise.allSettled([onWorldChanged?.()]);
+      const next = await refresh().catch(() => undefined);
+      if (next && onWorldChanged)
+        await sync.sync(next, phoneVersion, onWorldChanged).catch(() => {
+          if (live.current)
+            setSyncError('现场记录已保存，手机记录暂未同步。重新读取即可，不必再做一次行动。');
+        });
       running.current = false;
       if (live.current) setBusy(false);
     }
@@ -153,6 +181,11 @@ export function ScenePanel({
         </div>
       ) : (
         <>
+          {syncError ? (
+            <p className={s.notice} role="status">
+              {syncError}
+            </p>
+          ) : null}
           <div className={s.reading} data-scene-records>
             <section className={s.card}>
               <h3>{data.scene.title}</h3>

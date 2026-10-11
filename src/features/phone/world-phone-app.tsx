@@ -13,6 +13,7 @@ import {
 import { ScenePanel } from './scenes/scene-panel.tsx';
 import { appointmentScene } from './scenes/index-state.ts';
 import { SceneClient } from './scenes/client.ts';
+import { SceneWorldSync } from './scenes/world-sync.ts';
 import { useGroups } from './groups/use-groups.ts';
 import { isJoined, groupTarget } from './groups/state.ts';
 import { projectMessageNotifications } from './notification-projection.ts';
@@ -312,6 +313,19 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, worldId]);
 
+  // Scene polling must refresh the saved phone, without retrying a build or action.
+  const reloadSceneWorld = useCallback(
+    async (minimumVersion: number) => {
+      const next = await client.world(worldId);
+      if (next.id !== worldId || (next.version ?? 0) < minimumVersion)
+        throw new Error('手机记录还在同步，可以重新读取。');
+      setData((current) =>
+        current?.id === worldId && (current.version ?? 0) <= (next.version ?? 0) ? next : current,
+      );
+    },
+    [client, worldId],
+  );
+
   /** Explicit, user-initiated new attempt: same commandId is reused for one task. */
   async function retryBuild() {
     setError('');
@@ -527,6 +541,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
           records={records}
           reloadRecords={reloadRecords}
           onReload={load}
+          onSceneWorldChanged={reloadSceneWorld}
           loading={refreshing}
           loadError={error}
         />
@@ -540,6 +555,7 @@ export function WorldPhoneSurface({
   onExperienceBusy,
   preview = false,
   onReload,
+  onSceneWorldChanged,
   records,
   reloadRecords,
   onChangeInvitation,
@@ -555,6 +571,7 @@ export function WorldPhoneSurface({
   onExperienceBusy?: (busy: boolean) => void;
   preview?: boolean;
   onReload?: () => Promise<void>;
+  onSceneWorldChanged?: (minimumVersion: number) => Promise<void>;
   records?: PhoneRecordsState;
   reloadRecords?: () => Promise<void>;
   onChangeInvitation?: PhoneActions['changeInvitation'];
@@ -735,6 +752,9 @@ export function WorldPhoneSurface({
 
   const [sceneWaiting, setSceneWaiting] = useState(false);
   const sceneClient = useMemo(() => new SceneClient(), [data.id]);
+  const sceneSync = useMemo(() => new SceneWorldSync(data.id), [data.id]);
+  const scenePhoneVersion = useRef(data.version ?? 0);
+  scenePhoneVersion.current = data.version ?? 0;
   const groups = useGroups(data.id, !preview, onReload);
   const map = useWorldMap(data.id, data.version ?? 0, !preview, onReload);
   useEffect(() => {
@@ -743,12 +763,20 @@ export function WorldPhoneSurface({
       void sceneClient
         .read(data.id)
         .then((d) => {
-          setSceneWaiting(Boolean(d.task && ['queued', 'running'].includes(d.task.status)));
+          const waiting = Boolean(d.task && ['queued', 'running'].includes(d.task.status));
+          if (waiting) return;
+          if (!onSceneWorldChanged) {
+            setSceneWaiting(false);
+            return;
+          }
+          return sceneSync
+            .sync(d, scenePhoneVersion.current, onSceneWorldChanged)
+            .then(() => setSceneWaiting(false));
         })
         .catch(() => {});
     }, 3000);
     return () => clearInterval(timer);
-  }, [sceneWaiting, sceneClient, data.id, preview]);
+  }, [sceneWaiting, sceneClient, sceneSync, data.id, preview, onSceneWorldChanged]);
   useEffect(() => {
     onExperienceBusy?.(sceneWaiting || groups.pending || map.working);
   }, [sceneWaiting, groups.pending, map.working, onExperienceBusy]);
@@ -1428,7 +1456,9 @@ export function WorldPhoneSurface({
                 key={data.id}
                 worldId={data.id}
                 contacts={phoneData.contacts}
-                onWorldChanged={onReload}
+                phoneVersion={data.version ?? 0}
+                onWorldChanged={onSceneWorldChanged}
+                worldSync={sceneSync}
                 onBusy={setSceneWaiting}
               />
             );
