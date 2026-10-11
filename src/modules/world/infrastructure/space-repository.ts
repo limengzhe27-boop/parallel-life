@@ -151,6 +151,24 @@ async function commit(
   );
   return next;
 }
+/** The v3 release added matters and one R17 invitation; its existing v2 places,
+ * routes and identities are unchanged. Retain the narrowly versioned explicit
+ * v1 -> v2 space option without importing new v3 tasks/invitations into old saves.
+ * Future content versions must provide their own compatibility proof. */
+function legacySpacePack(pack: OfficialLifePack | undefined): OfficialLifePack | undefined {
+  if (!pack || pack.card.version !== 3) return pack;
+  const compatible = structuredClone(pack);
+  compatible.card.version = 2;
+  delete compatible.opening.matters;
+  if (pack.card.id === 'county-yellow-hair') {
+    compatible.opening.invitations = compatible.opening.invitations.filter(
+      (a) => a.key !== 'r17_handover',
+    );
+    for (const place of compatible.opening.space?.places ?? [])
+      place.invitationKeys = place.invitationKeys?.filter((key) => key !== 'r17_handover');
+  }
+  return compatible;
+}
 function legacyBindings(
   w: WorldState,
   initial: WorldState | undefined,
@@ -246,7 +264,11 @@ export class PostgresWorldSpace implements WorldSpacePort {
             legacyBindings(
               w,
               initial,
-              this.catalog.get(w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0]),
+              legacySpacePack(
+                this.catalog.get(
+                  w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0],
+                ),
+              ),
             );
             canEstablish = true;
           } catch {
@@ -256,10 +278,9 @@ export class PostgresWorldSpace implements WorldSpacePort {
           try {
             const seed = ApprovedSeedSchema.parse(snap.approved_seed);
             const buildRow = (
-              await sql.query(
-                'SELECT opening FROM parallel_life.world_builds WHERE world_id=$1',
-                [id],
-              )
+              await sql.query('SELECT opening FROM parallel_life.world_builds WHERE world_id=$1', [
+                id,
+              ])
             ).rows[0];
             if (buildRow?.opening) {
               const opening = WorldOpeningSchema.parse(buildRow.opening);
@@ -486,8 +507,8 @@ export class PostgresWorldSpace implements WorldSpacePort {
             [id],
           )
         ).rows[0]?.state as WorldState | undefined;
-        const pack = this.catalog.get(
-          w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0],
+        const pack = legacySpacePack(
+          this.catalog.get(w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0]),
         );
         const bindings = legacyBindings(w, initial, pack);
         if (!pack?.opening.space) throw new DomainError('INVALID_COMMAND');
@@ -509,10 +530,7 @@ export class PostgresWorldSpace implements WorldSpacePort {
         ).rows[0];
         const initial = snap?.state as WorldState | undefined;
         const buildRow = (
-          await sql.query(
-            'SELECT opening FROM parallel_life.world_builds WHERE world_id=$1',
-            [id],
-          )
+          await sql.query('SELECT opening FROM parallel_life.world_builds WHERE world_id=$1', [id])
         ).rows[0];
         if (!initial || !snap?.approved_seed || !buildRow?.opening) {
           throw new DomainError('INVALID_COMMAND');
@@ -550,9 +568,9 @@ export class PostgresWorldSpace implements WorldSpacePort {
         if (!candidate) throw new DomainError('INVALID_COMMAND');
         space = candidate;
       }
-        const storyAt = new Date(
-          Math.max(Date.parse(w.time), Date.parse(projectStoryTime(c, realNow))),
-        ).toISOString();
+      const storyAt = new Date(
+        Math.max(Date.parse(w.time), Date.parse(projectStoryTime(c, realNow))),
+      ).toISOString();
       const e: SpaceEstablishedEvent = {
         schemaVersion: 1,
         id: eid,

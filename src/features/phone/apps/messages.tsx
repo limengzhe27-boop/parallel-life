@@ -1392,7 +1392,16 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               aria-label="查看相关日程"
             >
               🗓️ 约定：{relatedInvitation.title} ·{' '}
-              {relatedInvitation.status === 'confirmed' ? '已约好' : '待回复'} ›
+              {
+                {
+                  proposed: '待回复',
+                  confirmed: '已约好',
+                  attended: '已赴约',
+                  cancelled: '已取消',
+                  missed: '未赴约',
+                }[relatedInvitation.status]
+              }{' '}
+              ›
             </span>
           </div>
         )}

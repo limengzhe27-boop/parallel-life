@@ -3,6 +3,7 @@ import { mergeAppointments } from '../domain/genesis-links.ts';
 import { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { PlayerRecordsReader } from '../application/player-records.ts';
 import { projectPlayerRecords, type PlayerRecordsInput } from '../domain/player-records.ts';
+import { replayWorldHistory, type WorldHistoryEvent } from '../domain/world-history.ts';
 import { applyInvitationEvent } from '../domain/invitations.ts';
 import { DomainError } from '../domain/errors.ts';
 import { PlayerRecordsSchema } from '../../../contracts/world-records.ts';
@@ -49,6 +50,30 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         )
       ).rows.map((r) => r.document);
       appointments = mergeAppointments(initial?.appointments ?? [], appointments);
+      // Genesis invitations keep their original source; a scene attendance result is
+      // recovered from committed events rather than an unverified projection overwrite.
+      if (initial) {
+        const attendance = await sql.query(
+          "SELECT 1 FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 AND payload->'data'->'worldResults'->'attendance' IS NOT NULL LIMIT 1",
+          [worldId, ownerId, world.version],
+        );
+        if (attendance.rowCount) {
+          const history = (
+            await sql.query(
+              'SELECT id,world_id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 ORDER BY version',
+              [worldId, ownerId, world.version],
+            )
+          ).rows
+            .filter(
+              (r) =>
+                r.payload.id === r.id &&
+                r.payload.worldId === r.world_id &&
+                r.payload.version === r.version,
+            )
+            .map((r) => r.payload) as WorldHistoryEvent[];
+          appointments = replayWorldHistory(initial, history, world.version).world.appointments;
+        }
+      }
       const ids = [
         ...new Set([
           ...choices.flatMap(

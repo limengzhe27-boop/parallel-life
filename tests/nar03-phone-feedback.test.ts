@@ -397,7 +397,7 @@ test(
           now: after,
         });
       } catch (error) {
-        assert.match(String(error), /INVALID|MATTER/);
+        assert.equal((error as { code: string }).code, 'INVALID_PROPOSAL');
         return { outcome, rejected: true };
       }
       // A reward-only fix is insufficient: objective completion itself must be rejected.

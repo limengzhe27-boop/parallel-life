@@ -110,7 +110,10 @@ test('scene consequences remain coherent in readonly phone records and invitatio
       async () => {
         const view = await records.read(owner, worldId);
         const attended = view.history.find(
-          (r) => r.kind === 'invitation' && r.navigation?.invitationId === invitation.id,
+          (r) =>
+            r.kind === 'invitation' &&
+            r.navigation?.app === 'calendar' &&
+            r.navigation.invitationId === invitation.id,
         );
         assert.equal(attended?.state, 'attended');
         assert.equal(

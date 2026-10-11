@@ -374,6 +374,10 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
       async () => {
         const oldPack: OfficialLifePack = structuredClone(pack);
         oldPack.card.version = 1;
+        oldPack.opening.invitations = oldPack.opening.invitations.filter(
+          (a) => a.key !== 'r17_handover',
+        );
+        delete oldPack.opening.matters;
         delete oldPack.opening.space;
         oldPack.opening.actors.reverse();
         const oldRepo = new OfficialLifeRepository(db, {
@@ -432,6 +436,10 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
           try {
             const old = structuredClone(pack);
             old.card.version = 1;
+            old.opening.invitations = old.opening.invitations.filter(
+              (a) => a.key !== 'r17_handover',
+            );
+            delete old.opening.matters;
             delete old.opening.space;
             if (mismatch) old.opening.actors[0]!.relationship = 'Unsupported old role';
             const started = await new OfficialLifeRepository(db, {
