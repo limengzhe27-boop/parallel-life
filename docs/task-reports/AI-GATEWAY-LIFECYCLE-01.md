@@ -17,3 +17,11 @@ B ACK待集成、Q独立审计待冻结复验，完整check/build及READY/public
 ## 第二候选 · 独立取消审查修复
 
 B只读实际复现：外部SyntaxError取消被误归解析错误，GatewayError取消被按其reason类型分类；consumer停在yield时deadline到期只在next恢复后才释放reader。根原范围修为signal/deadline优先判定，parse catch先排除aborted，reader绑定abort即时cancel/release且finally解绑；15gateway专项再通过。Q保留负例复验，真实供应商链仍未证明。
+
+## 联合待发布
+
+最终889/889check、332模块边界/类型0、build成功。全真实PG252=247pass/5明确可选真实模型skip（第一源+B阶段）；第二取消补最终访谈4+现场累计6=10/10再次通过。生产41/41迁移checksum只读一致，无SQL。
+
+Q原2pass/13fail，扩大22原3pass/19fail；第一补22pass后7取消边界失败，第二补最终33专属全通过（加既有15=48）。B alias原当前姓名漏承接与两placeholder-name碰撞均保留先fail后修，最终9新+旧6=15过。只接准确commit，不合整工作树分支。
+
+正在发布，尚不将READY/public标完成。真实完整场景模型链仍未过；旧18closed，本轮新限量18授权已询问但尚无回复，0新paid/图片/生产测试世界。本地PG55452待关闭，HTTP/browser未启。下一顺序：完成此批可靠性上线→获准后分轮真实验收→中途NPC进入/通用长期事项→地图具体玩法。
