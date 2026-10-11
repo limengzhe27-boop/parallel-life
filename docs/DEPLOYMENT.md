@@ -812,3 +812,7 @@ Q隔离390短长/PC480、750px恢复/history/坏图/上传失败与pending去重
 业务31410f3，Production r84dpeq2b / dpl_CqqV9ouLocs3HZvDZGPygZFB8TfD READY，正式 https://parallel-life-nu.vercel.app 已切换。41生产迁移只读校验一致，无SQL新增。680check/build、真实PG215总项=210pass/5明确可选skip通过；390长短/PC420实际事项卡→只读详情→正确来源聊天及地图/五App通过。正式旧合成paused世界phone/records/space同版本、四卡/旧存档、跨owner404/health200与390/PC地图和备忘录已验，0生产写/新世界/上传/模型/图。
 
 接续3ae8c52六个小安提交，修复通用地点/固定时长推断，允许明确开场空间草案；地图到达不冒称已赴约；导演有来源事项提议接真实事务/记录，权限/去重/自述与客观成果隔离。真实新模型空间/事项输出质量、现场客观事项进展和完整追求仍未验/未接线，不能将六个报告或本轮安全补齐称完整任务玩法。见XIAOAN-ACCEPT-01与总表03B/AI-QA。其他主目录在途修改排除。最终文档归档部署及资源状态存ignored handoff，不重复改tracked READY记录。
+
+## 2026-10-11 · NAR-03 / NOTES-WORLD-03B limited scene integration
+
+Business `eacb6ab` production `5kv0fkvr0` (`dpl_A4AskWAvsuzrYEARHVxZjzRe74PD`) READY; formal https://parallel-life-nu.vercel.app. Scene actions update validated authored near-term matters, source-backed attendance, observer-only facts and coherent phone projections. Existing saves preserved; four official new content versions are v3. No new migration: all 41 production checksums match. Final check 712/712; PostgreSQL 222 passed, 5 explicit model opt-in skipped, 0 failed; build successful. 390 long/short and 1440 PC local synthetic UI verified. Eight public readonly check groups passed, no new paid calls/images/worlds/uploads/production data writes. Generic completion rules, pursuit stages, actual rewards and real model quality remain pending. See task-reports/NOTES-WORLD-03B.md.
