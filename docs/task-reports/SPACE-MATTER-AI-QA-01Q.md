@@ -63,3 +63,32 @@
 ## 集成人确认抽样流程
 
 I已选县城修车官方v3优先完整链：开场→实际R17交付→知情NPC承接→实际整理交接记录→第二阶段反馈；预算余量再only-child局部Persona对照，不承诺两个完整world链。供应商complete实际次数含每个scene导演和独立NPC/纠错，硬上限12，不用HTTP/task数量当计费次数。输出路径预告主.local/matter-aiqa-evidence；账号/密钥会话与文本证据分开，不交本Q。尚无可审核真实文本。
+
+## 真实样本第一批 · 09–14（正式旧提示版本，非修复效果）
+
+实际证据根目录为主.local/worktrees/xiaoan-accept/.local/matter-aiqa-evidence（早先主.local/matter-aiqa-evidence只是预告，不能混用）。本Q只读此目录中I明确允许的合成public快照/input/receipt，从不读或复制私有ledger/session/cookie/key。I报告当前上界4/12已预留，含两scene各导演+单老周，不把这个上界写成独立确认的供应商精确计数。
+
+|阶段|来源与实际状态|独立语义结论|
+|---|---|---|
+|创建/准备|01前态v0；04邀约422 INVALID_INPUT，05进入scene422 INVALID_COMMAND；07公开重约说明原1分钟邀请过期；08测试时钟60倍|拒绝保存并保留证据，没有伪造模型成功；重约是明确合成验收准备，不是默认正常用户体验证据。拒绝不计模型输出，不能据此评价NPC|
+|开场|09 task succeeded/resultVersion4；10只老周presence，sceneEntries有实际保存对白|老周口吻简短合人物，R17具体对象合法；“我来处理交接”是他自己的待做承诺，不是玩家已交车。无stage/机会，不评完成承接通过。旁白写老周整理工具/似乎等待，超出纯环境导演分工，体验有保留|
+|首attempt|12原输入核维修单/接头、向老周说明、交车与单据并请求老周检查签收；13 task succeeded/v6；14 action.resolution=partial，R17仍in_progress/actor_statement、long无progress、无opportunity|提交与部分裁定确实保存；请求NPC检查不能当检查已经执行，partial合法，不要求首次必成。原完整体验链仍未完成|
+|首attempt对白|14老周：我看看，行了，没问题。刘航一会儿来了，你就好好交接吧。；同event观察：老周尚未检查车辆和单据|检查时序有保留，台词容易给已检验通过的印象，但没有明确签收来源，不据此强判完成。回应承接“交接”且没有奖励/私聊泄漏；只是泛泛没问题，未具体解释当前遗漏，仍需下一步实际文本|
+|刘航与时间|老周官方persona明确R17车主刘航、原约17:55取；当前storyAt10:02Z为当地18:02，实际presence只有老周|知车主有合法角色背景来源，不是越权读取其他私聊。“一会儿来了”是未来预测，不是已经到场，不作为新presence或成果见证。原安排已过去且测试重约，精确临近到场并无新证据，需有保留；不能把此句误报为刘航已实际到场|
+
+开场和首行动旁白逐字重复一段环境/老周整理工具与等待说明；新的partial观察确实不同，所以不是整轮完全假回复，但场景更新自然性有保留。当前没有真实机会记录，不能因对白提到交接就判机会承接完成，也不能用此前合成PG第二阶段成功补本轮缺项。
+
+本批可验证正式HTTP返回的任务/输入/已保存scene与records前后；这些public task视图暂未含model/prompt metadata，供应商配置及真实调用归I独立账本/安全元数据核验，不能将模型名缺失当假模型，也不能独立报告已确认精确调用次数。Q未调用供应商、数据库或生产API。
+
+已回传I/B：保留partial护栏与原样本，关注“尚待检查”观察与“行了没问题”台词时序，不用强制success、改字凑regex或模板话术粉饰。B c143cf4只是提示指导源修复，本批样本尚不能算其真实改善证据；等待修复上线后的真实对应样本或当前链的继续动作。
+
+### 第一批证据指纹（只哈希合成public文本）
+- 01-created.json：`ec7486a5cd8853f6d0b198a4aa929f20b03e1ca7332919c1720d8d01c604621e`
+- 04-http-rejection.json：`6869372d8b0c89b186fdf66b3f2966fa3939aaf5345c4ebb3f341f6ebdfa5a75`
+- 05-http-rejection.json：`0bf570c269adce2fa46770abd9b2cb0395bceed2b041722d1299cec8cfe47a17`
+- 07-explicit-test-reschedule.json：`c253534b68277682edc9437e8b34644958cf97f7528a7d83537c6797702738a6`
+- 09-task-result.json：`1feb3963eb5028d1383788db78055fc77017a1c331132c36a2c2dc055acf5eb9`
+- 10-opening-saved.json：`b5334b9501e15a32b3d2f8c921423c52be57ff920edfa65b4c4af38bbd3031a1`
+- 12-action-input.json：`5c42df244fc7d015561b149d32a8bcc9afe68af978829766877e1d297cedc933`
+- 13-task-result.json：`e234aa5937d83ccd8b0708a4965c6f39d328c6d9ae6d22c0d916510e7814c05c`
+- 14-action-saved.json：`bc1dab837494a2f6d0db11caa8bfad899c99683466ab4c0284434fff3be5e214`
