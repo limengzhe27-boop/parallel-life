@@ -29,3 +29,17 @@ B8475691准确集成d980e84：八个固定安全条件码，保留原接受边�
 B94f2ce9准确集成30602bd，仅明确新wire输出适配；公共domain/SceneProposal、SQL与旧classic来源边界不变，action角色也明确匿名玩家及旧错称不是身份依据。根新增PG基线旧source7项3pass/4fail；新source同一测试7/7通过，非法index在调用NPC前失败、事务投影/记忆/回执不增，有效indexed核对真实入库后旧classic第二步累计保持首次来源，接收/完成/机会/回放继续过。该PG使用明确合成模型输出，不是正式模型成功。923check/332边界/类型0，build进行中；Q独立新反例待接。真实保守6/18，尚无新付费。
 
 Qbc29951/c57782a准确集成58499fb/a5b1a0a；新36独立/联合92实际通过，v10新基线24pass/12fail保留，不放宽断言。最终946check全过/332边界/type0，build0，真实PG新版7/7（合成模型，不称真实）。无新SQL，前41生产checksum一致。准备发布v11，待READY/公网与真实原核对再次单次复测，预算仍6/18。
+
+## v11 正式候选
+
+5ab1842 / om2xmi5dj（dpl_5zTj6zbbn3kAPfa4a7gBAfgj5hKx）READY，正式别名已切换，公网8组既有暂停合成存档/隔离回归过。946check/332边界/type0、build0、真实PG7/7。没有新SQL，41迁移已核一致。原两次失败未提交读回后明确第三次单次原核对，保守8/18，当前在途；不合并动作、不因候选通过就称模型或全链通过。
+
+## v11 第一真实步骤已保存，NPC质量仍待修
+
+原核对任务第三次单次复测succeeded，world version5，order_reviewed/player/eventVersion5已保存。根正式只读校验其inputEvent/version、action/resolution、world_event、原输入与观察引用来源均匹配，首次完整记录存忽略first-source文件用于后轮不变断言；父事项in_progress不误报全完成。保守8/18。
+
+NPC实际发“单号先核对清楚。”仍重复本轮刚观察动作。此为真实自然性缺陷，不凭步骤入库说体验通过。B同scope分清内部NPC已存completed/remaining与currentTurnStepCandidates，不把本轮候选提前markdone/整体完成。根仅适配旧NPC内部字段断言命名，domain/public/SQL不变；继续单独说明，绝不重复已保存核对或使用新调用去重做已完成动作。
+
+## v12 候选集成检查
+
+B8ad5c8a/根3d0803c与Q48c4c11/根138f0b8准确集成，根仅更名旧NPC内部payload断言而不放宽行为。最终953check/332边界/type0全部通过，build0，根真实PG7/7（合成模型不是供应商）通过。首次不提升沙箱检查因本地PG连接EPERM退出，按已授权本地资源升级权限后原完整check通过；不是功能回归。无新SQL，生产41迁移一致已有读证。候选待READY/公网及真实下一步说明；已存核对不重做，保守8/18不变，整链仍未完成。

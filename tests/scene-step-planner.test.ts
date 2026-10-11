@@ -288,7 +288,7 @@ test('real visible saved steps persist in the NPC payload without copying full i
     true,
   );
   assert.ok(
-    !npc.stepExecution[0].missingSteps.some((s: { id: string }) => s.id === 'order_reviewed'),
+    !npc.stepExecution[0].savedRemainingSteps.some((s: { id: string }) => s.id === 'order_reviewed'),
   );
   assert.ok(!JSON.stringify(npc).includes('ORIGINAL_INPUT_NOT_EMBEDDED'));
 });
