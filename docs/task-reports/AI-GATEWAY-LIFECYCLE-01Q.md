@@ -17,3 +17,17 @@ b930ef3下首版15项实际2pass/13fail、0skip/TODO，测试exit1：7个request
 ## 下一步
 
 专属test/report首提交冻结回I，随后接68385b7准确源复验这22原断言及旧15专项，不放宽/删除失败。只读B b19d0b9 ACK候选：不能简单把ackReply挪到所有actor无条件归一化之后；合法别名需保留他人ID/姓名碰撞与已过滤canonical来源边界，后续只在本报告记录静态/合成证据，不改B文件。真实DB保存/unknown重放由I已有fake供应商PG4项证明，Q无真实PG，不能称现场实际模型完整链通过。
+
+## 第一冻结候选68385b7复验与取消边界追加
+
+先提交6151a0c本人test/report，再接根准确68385b7（本树93b4818）。原Q22+既有gateway/yibu/lifetime15实际37/37通过，0skip/TODO；没有读取根未提交WIP或手改源码。hard request/body deadline、EOF unknown、明确length/error、bytes/frame/total界限、late response/consumer break/DONE cancel、unicode/CRLF/尾部DONE和不合作cancel hook均通过。不是供应商真实响应验证。
+
+根/B要求再补custom abort reason及consumer yield暂停：Q追加8个complete/stream × request/body × SyntaxError/GatewayError取消矩阵、2个暂停时deadline/外部abort立即释放、成功timer dispose，共33专项。68385b7实际26pass/7fail、0skip/TODO，exit1保存在忽略.local/gateway-lifecycle-audit/68385b7-audit.tap；typecheck通过。失败为complete request GatewayError、complete body SyntaxError/GatewayError、stream request/body GatewayError错误分类（5），及yield暂停时超时/取消直到next前cancel=0且reader仍locked（2）。先前37过不证明这7边界已过，不删断言或改期待值。
+
+## B NPC ACK候选只读交叉审查
+
+审b19d0b9源码（B当时HEAD1f71d85仅docs），保留明确target/有限alias而不简单把判定后移到无条件actor归一化之后。新增alias只有context内可见canonical result来源可ACK，模型marker先过滤；不宣称任意错误ID/语义假ACK已解决。
+
+Q只读stdin合成复现：possibleRecipients中另一真实UUID角色name恰为ACTOR_ID或actor_1，message.actorId同该name，两case实际ackMarkers=1，预期0。guard排他人id碰撞，但只在本人name分支排他人name，placeholder分支未排，同名意图不唯一。已同时回根/B；由B在原范围统一alias前排recipient.name，Q不写其源/旧test，也不把两合成case称线上故障。更广泛的合法回复是否实际承接成果仍需语义验收，marker存在不等于自然性通过。
+
+下一接根第二冻结4f8bcb2复验原33断言，根全PG252=247pass+5真实模型opt-in skip仅属第一683+B源，不能当第二取消修复的真实DB证据。本Q仍0PG/供应商，未跑fullcheck/build，closed预算不用。

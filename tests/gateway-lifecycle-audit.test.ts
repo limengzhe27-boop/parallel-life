@@ -473,3 +473,114 @@ test('Q: an uncooperative upstream cancel hook cannot keep consumer cleanup pend
   assert.equal(canceled, 1);
   assert.equal(body.locked, false);
 });
+
+for (const kind of ['complete', 'stream'] as const) {
+  for (const phase of ['request', 'body'] as const) {
+    for (const reason of ['SyntaxError', 'GatewayError'] as const) {
+      test(`Q: ${kind} ${phase} cancellation reason ${reason} cannot override CANCELLED classification`, async () => {
+        const fixture = stalledBody();
+        const external = new AbortController();
+        let settle: ((response: Response) => void) | undefined;
+        let calls = 0;
+        const adapter = model(async () => {
+          calls++;
+          if (phase === 'body') return new Response(fixture.body);
+          return new Promise<Response>((resolve) => {
+            settle = resolve;
+          });
+        }, 1000);
+        const task =
+          kind === 'complete'
+            ? adapter.complete(messages, external.signal)
+            : collect(adapter.streamComplete(messages, external.signal));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        external.abort(
+          reason === 'SyntaxError'
+            ? new SyntaxError('audit-private-reason')
+            : new GatewayError('TRUNCATED', { stage: 'parse' }),
+        );
+        const result = await observe(task);
+        settle?.(Response.json({ choices: [{ message: { content: 'late synthetic content' } }] }));
+        fixture.cleanup();
+        await task.catch(() => {});
+        safeError(
+          result,
+          'CANCELLED',
+          phase === 'request' ? 'request' : kind === 'complete' ? 'response' : 'stream',
+        );
+        assert.equal(calls, 1);
+      });
+    }
+  }
+}
+
+test('Q: timeout cancels and unlocks the reader while a consumer is paused at yield', async () => {
+  let cancellations = 0;
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(encoder.encode(delta));
+    },
+    cancel() {
+      cancellations++;
+    },
+  });
+  const iterator = model(async () => new Response(body), 25)
+    .streamComplete(messages)
+    [Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value, '合成片段');
+  await new Promise<void>((resolve) => setTimeout(resolve, 80));
+  const atDeadline = { cancellations, locked: body.locked };
+  const resumed = await observe(iterator.next());
+  safeError(resumed, 'TIMEOUT', 'stream');
+  assert.deepEqual(
+    atDeadline,
+    { cancellations: 1, locked: false },
+    'cleanup must not depend on the next consumer iteration',
+  );
+});
+
+test('Q: external abort cancels and unlocks the reader while a consumer is paused at yield', async () => {
+  let cancellations = 0;
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(encoder.encode(delta));
+    },
+    cancel() {
+      cancellations++;
+    },
+  });
+  const external = new AbortController();
+  const iterator = model(async () => new Response(body), 1000)
+    .streamComplete(messages, external.signal)
+    [Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value, '合成片段');
+  external.abort();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const atAbort = { cancellations, locked: body.locked };
+  const resumed = await observe(iterator.next());
+  safeError(resumed, 'CANCELLED', 'stream');
+  assert.deepEqual(atAbort, { cancellations: 1, locked: false });
+});
+
+test('Q: normal complete and DONE stream dispose their deadline timer after success', async () => {
+  for (const streaming of [false, true]) {
+    let signal: AbortSignal | null | undefined;
+    const adapter = model(async (_url, init) => {
+      signal = init?.signal;
+      return streaming
+        ? new Response(delta + done)
+        : Response.json({ choices: [{ message: { content: 'synthetic reply' } }] });
+    }, 25);
+    assert.ok(
+      streaming
+        ? await collect(adapter.streamComplete(messages))
+        : await adapter.complete(messages),
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 65));
+    assert.equal(
+      signal?.aborted,
+      false,
+      'successful call must not leave a timer that aborts later',
+    );
+  }
+});
