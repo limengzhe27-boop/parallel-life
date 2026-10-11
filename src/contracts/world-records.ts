@@ -79,6 +79,33 @@ export const PlayerRecordSchema = z.strictObject({
   source: SourceSchema,
   origin: GenesisSourceSchema.optional(),
   relatedLinks: z.array(HistoryLinkSchema).max(4).optional(),
+  progress: z
+    .strictObject({
+      milestones: z
+        .array(
+          z.strictObject({
+            title: z.string().min(1).max(100),
+            at: Timestamp,
+            recordId: z.string().startsWith('sys/'),
+          }),
+        )
+        .max(10),
+      opportunities: z
+        .array(
+          z.strictObject({
+            title: z.string().min(1).max(100),
+            recordId: z.string().startsWith('sys/'),
+          }),
+        )
+        .max(10),
+    })
+    .optional(),
+  opportunity: z
+    .strictObject({
+      pursuitRecordId: z.string().startsWith('sys/'),
+      triggerRecordId: z.string().startsWith('sys/'),
+    })
+    .optional(),
   navigation: z
     .discriminatedUnion('app', [
       z.strictObject({ app: z.literal('wechat'), actorId: Id }),

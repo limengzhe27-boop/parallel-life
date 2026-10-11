@@ -48,6 +48,8 @@ export function searchRecords(records: readonly RecordItem[], query: string): Re
       recordText(record),
       record.stateLabel,
       recordAttribution(record),
+      ...(record.progress?.milestones.map((step) => step.title) ?? []),
+      ...(record.progress?.opportunities.map((step) => step.title) ?? []),
     ),
   );
 }
@@ -72,6 +74,12 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
                   <small className={s.stateBadge}>{record.stateLabel}</small>
                   <small className={s.attributionBadge}>{recordAttribution(record)}</small>
                 </span>
+                {record.progress?.milestones.length ? (
+                  <span className={s.progressSummary}>
+                    已走过 {record.progress.milestones.length} 步 ·{' '}
+                    {record.progress.milestones.at(-1)?.title}
+                  </span>
+                ) : null}
               </span>
               <span className={s.chevron} aria-hidden="true">
                 ›
@@ -116,6 +124,8 @@ export function NotesRecords({
   onHistoryToggle?: (value: boolean) => void;
 }) {
   const current = searchRecords(data.current, query);
+  const opportunities = current.filter((record) => record.opportunity);
+  const otherCurrent = current.filter((record) => !record.opportunity);
   const pursuits = searchRecords(
     data.about.filter((r) => r.span === 'pursuit' || r.kind === 'world_matter'),
     query,
@@ -130,11 +140,18 @@ export function NotesRecords({
   const searching = Boolean(query.trim());
   return (
     <div className={s.records}>
+      {opportunities.length > 0 && (
+        <section className={s.section} aria-label="接下来可以试试">
+          <h3>接下来可以试试</h3>
+          <p className={s.hint}>刚发生的事，带来了新的可能。要不要继续，由你决定。</p>
+          <RecordRows records={opportunities} open={open} />
+        </section>
+      )}
       <section className={s.section} aria-label="眼下要做的事">
         <h3>眼下要做的事</h3>
         <p className={s.hint}>这里只记录近期计划、建议和邀约。</p>
-        {current.length ? (
-          <RecordRows records={current} open={open} />
+        {otherCurrent.length ? (
+          <RecordRows records={otherCurrent} open={open} />
         ) : (
           <div className={s.empty}>
             <p>{searching ? '没有找到相关事项' : '暂时没有已记录的事项'}</p>
@@ -156,7 +173,7 @@ export function NotesRecords({
       </section>
       <section className={s.section} aria-label="这段人生想做到的事">
         <h3>这段人生想做到的事</h3>
-        <p className={s.hint}>长期追求与主要目标。</p>
+        <p className={s.hint}>想慢慢做成的事，也记下已经走过的路。</p>
         {pursuits.length ? (
           <RecordRows records={pursuits} open={open} />
         ) : (
@@ -228,6 +245,67 @@ export function NotesRecordDetail({
       <h2>{record.title}</h2>
       <span className={s.state}>{record.stateLabel}</span>
       <p className={s.body}>{recordText(record)}</p>
+      {record.opportunity && (
+        <div className={s.opportunityOrigin}>
+          <span>这是一个可以尝试的机会，还没有替你作决定。</span>
+          <button
+            className={s.linkButton}
+            type="button"
+            onClick={() => open('notes', record.opportunity!.triggerRecordId)}
+          >
+            看看它从哪里来 ›
+          </button>
+          <button
+            className={s.linkButton}
+            type="button"
+            onClick={() => open('notes', record.opportunity!.pursuitRecordId)}
+          >
+            这一步通向哪里 ›
+          </button>
+        </div>
+      )}
+      {record.progress && (
+        <section className={s.progress} aria-label="已经走过的路">
+          <h3>已经走过的路</h3>
+          <ol className={s.milestones}>
+            {record.progress.milestones.map((step) => (
+              <li key={step.recordId}>
+                <span className={s.stepDot} aria-hidden="true">
+                  ✓
+                </span>
+                <div>
+                  <strong>{step.title}</strong>
+                  <small>{timeText(step.at)}</small>
+                  <button
+                    className={s.linkButton}
+                    type="button"
+                    onClick={() => open('notes', step.recordId)}
+                  >
+                    查看这一步 ›
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {record.progress.opportunities.length > 0 && (
+            <div className={s.nextSteps}>
+              <h3>接下来可以试试</h3>
+              {record.progress.opportunities.map((step) => (
+                <button
+                  className={s.nextStep}
+                  type="button"
+                  key={step.recordId}
+                  onClick={() => open('notes', step.recordId)}
+                >
+                  <span>{step.title}</span>
+                  <span aria-hidden="true">›</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className={s.hint}>这些是已经发生的阶段成果，不代表这段追求已经完成。</p>
+        </section>
+      )}
       <div className={s.source}>
         {record.source.kind === 'world_genesis' ? (
           <p>来信时间 · {timeText(record.source.at)}</p>

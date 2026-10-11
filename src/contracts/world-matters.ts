@@ -116,6 +116,29 @@ export const WorldMatterSchema = z
     createdAt: Timestamp,
     updatedAt: Timestamp,
     rewardClaimed: z.boolean().optional(),
+    pursuitProgress: z
+      .strictObject({
+        milestones: z
+          .array(
+            z.strictObject({
+              matterId: EntityId,
+              title: z.string().min(1).max(100),
+              eventId: z.string().min(1),
+              eventVersion: z.number().int().positive(),
+              at: Timestamp,
+            }),
+          )
+          .max(10),
+        nextOpportunityIds: z.array(EntityId).max(10),
+      })
+      .optional(),
+    opportunity: z
+      .strictObject({
+        pursuitId: EntityId,
+        triggerMatterId: EntityId,
+        key: z.string().min(1).max(80),
+      })
+      .optional(),
   })
   .refine((m) => {
     // If assertion is world_verified, evidence CANNOT be user_report
