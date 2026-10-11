@@ -3,6 +3,8 @@ import { DraftEditor } from './draft-editor.tsx';
 import { OfficialLives } from './official-lives.tsx';
 import type { LifeDraft } from '../../contracts/life-drafts.ts';
 import { BranchList } from './branch-list.tsx';
+import { visibleSavedSeeds } from './branch-catalog.ts';
+import type { OfficialLifeCard } from '../../contracts/official-lives.ts';
 import { BuildControl } from './build-control.tsx';
 import type { WorldBuild } from '../../contracts/world-build.ts';
 import { AppTabs } from '../../components/app-tabs.tsx';
@@ -19,6 +21,8 @@ const explain = (error: unknown) =>
   error instanceof ApiFailure ? error.message : '暂时没有完成，你的想法仍保留在这里。';
 export function DiscoveryApp() {
   const [proposalOpen, setProposalOpen] = useState(false);
+  const [catalog, setCatalog] = useState<readonly OfficialLifeCard[]>([]);
+  const updateCatalog = useCallback((cards: readonly OfficialLifeCard[]) => setCatalog(cards), []);
   const [client] = useState(() => new LifeClient()),
     [data, setData] = useState<Discovery | null>(null),
     [profile, setProfile] = useState<Profile | null>(null),
@@ -284,7 +288,7 @@ export function DiscoveryApp() {
         </a>
       </header>
       <main className="discovery-main">
-        <OfficialLives connectSession={() => client.connect()} />
+        <OfficialLives connectSession={() => client.connect()} onCatalogChange={updateCatalog} />
         {error && (
           <Notice>
             {error}
@@ -353,15 +357,19 @@ export function DiscoveryApp() {
               )}
             {drafts.some((d) => d.status === 'draft') && (
               <section aria-label="待继续的人生草案">
-                <h2 style={{ fontSize: 18, margin: '20px 0 12px' }}>还在构思的人生</h2>
                 <BranchList
+                  label="还在构思的人生"
                   disabled={busy}
                   items={drafts
                     .filter((d) => d.status === 'draft')
                     .map((d) => ({
                       id: d.id,
                       title: d.story.title,
-                      description: d.story.premise,
+                      description: d.story.opening || d.story.premise,
+                      premise: d.story.premise,
+                      tradeoff: d.story.tradeoff,
+                      identity: d.setup?.identity,
+                      experienceNote: '这是尚未确认的起点，可以继续构思。它还没有创建为手机世界。',
                       status: '继续构思',
                     }))}
                   onOpen={(id) => {
@@ -371,13 +379,16 @@ export function DiscoveryApp() {
                 />
               </section>
             )}
-            {savedSeeds.length > 0 && (
+            {visibleSavedSeeds(savedSeeds, builds, catalog).length > 0 && (
               <BranchList
                 disabled={busy}
-                items={savedSeeds.map((saved) => ({
+                items={visibleSavedSeeds(savedSeeds, builds, catalog).map((saved) => ({
                   id: saved.id,
                   title: saved.story.title,
                   description: saved.story.opening || saved.story.premise,
+                  premise: saved.story.premise,
+                  tradeoff: saved.story.tradeoff,
+                  identity: saved.setup?.identity,
                   ready: Boolean(builds.find((b) => b.seedId === saved.id)?.ready),
                   status: builds.find((b) => b.seedId === saved.id)?.ready ? '进入体验' : '待创建',
                   imageUrl: saved.portraitAssetId
