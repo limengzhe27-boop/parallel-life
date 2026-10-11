@@ -23,7 +23,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v9-no-effect-field-defaults';
+export const SCENE_PROMPT_VERSION = 'scene-text-v10-evidence-diagnostics-player-addressee';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -39,6 +39,24 @@ const npcActionSchema = z.strictObject({
   kind: z.enum(['receive_r17', 'inspect_r17']),
   quote,
 });
+function stepEvidenceError(
+  reason:
+    | 'context'
+    | 'matter_id'
+    | 'step_id'
+    | 'forbidden_npc_step'
+    | 'failed_outcome'
+    | 'input_quote'
+    | 'observation_quote'
+    | 'receiver',
+): never {
+  // Fixed condition codes only. No output text, quotes, names or IDs enter diagnostics.
+  const diagnosticMessage = `scene_step_evidence:${reason}`;
+  throw Object.assign(new DomainError('INVALID_PROPOSAL', diagnosticMessage), {
+    stage: 'proposal',
+    diagnosticMessage,
+  });
+}
 function isUnexecutedQuote(quote: string, source: string): boolean {
   const at = source.indexOf(quote);
   if (at < 0) return true;
@@ -316,7 +334,7 @@ export class ScenePlanner implements ScenePlannerPort {
       [
         {
           role: 'system',
-          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。日程约定者不等于到场者：开场actors仅是合法当前生效预约候选：你不可强制赴约，presentActorIds只作候选建议并会由各自独立人物调用的当前到场决定替换，允许最终为空；无action时outcome/observation必须null；authoredStepDefinition非空时已有正式父事项及分步定义，initialMatters必须[]、matterTitle=null，不再创建核对/交代/交付等重复独立小事项；没有正式分步定义时可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? 'Observable result of this action' : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [], stepProposals: [] })}。精确JSON类型：location为非空字符串(最多200字)，narration为非空字符串(最多1600字)，presentActorIds为字符串数组(最多8)，outcome仅succeeded/failed/partial/null，observation为非空字符串(最多1600字)或null，matterTitle为非空字符串(最多200字)或null；initialMatters是最多32个{title:非空字符串}，matterUpdates是最多8个{id:现有现场事项字符串ID,status:in_progress/blocked/completed}；dialogues必须[]。stepProposals为最多8个{matterId:世界事项字符串ID,stepId:规则步骤字符串ID,inputQuote:当前玩家原文片段,observationQuote:本次观察原文片段,receiverId?:接收人字符串ID}，两个quote均3至500字。只有repair_explained和handed_over需要receiverId；无接收人字段时必须完全省略receiverId，绝不能写null、空串或undefined字面值。stepProposals和npcActions无候选时用[]，不得null；npcActions只能[]或省略，因为导演不能代人物行动。其他未知字段一律不要输出。仅结构示例（占位值不可照抄，未实际执行不得填步骤）：${JSON.stringify({ stepProposals: [{ matterId: '从stepExecution.matterId读取世界事项ID', stepId: 'order_reviewed', inputQuote: '仅截取本次实际核对R17维修单的完整原文', observationQuote: '你开头且仅描述这次实际核对R17维修单的原文' }] })}；交接类示例结构：${JSON.stringify({ matterId: '当前规则世界事项ID', stepId: 'handed_over', inputQuote: '本次实际将R17钥匙和维修单交给接收人的原文', observationQuote: '你开头且含同一接收人名字的本次实际交付观察原文', receiverId: 'allowedReceivers中本次明确接收人ID' })}。不得照示例创造动作或凑证据，未执行stepProposals=[]。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；没有关联事项时matters=[]，必须matterUpdates=[]，仍正常裁定行动观察，不自行猜测事项ID；completed仅由succeeded支撑，blocked只由failed支撑，partial仅in_progress或不变。普通事项not_started只能到in_progress；只有worldMatterConditions中successfulAttemptCanStartAndComplete=true的可信已定义机会，在本次完整实际attempt满足全部条件且succeeded时可提completed，运行时会受控开始再完成；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
+          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。日程约定者不等于到场者：开场actors仅是合法当前生效预约候选：你不可强制赴约，presentActorIds只作候选建议并会由各自独立人物调用的当前到场决定替换，允许最终为空；无action时outcome/observation必须null；authoredStepDefinition非空时已有正式父事项及分步定义，initialMatters必须[]、matterTitle=null，不再创建核对/交代/交付等重复独立小事项；没有正式分步定义时可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? '你本次实际执行动作的可观察结果；此为结构占位，不得照抄或补造成功' : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [], stepProposals: [] })}。ID区分：matterUpdates.id必须取worldMatterConditions.id（现场投影ID）；stepProposals.matterId和NPC actions.matterId必须取worldMatterConditions.stepExecution.matterId（世界事项ID），两者不可互换。observation用中文并以“你”描述玩家本次实际动作，具体引用只取当前原文，不造证据。精确JSON类型：location为非空字符串(最多200字)，narration为非空字符串(最多1600字)，presentActorIds为字符串数组(最多8)，outcome仅succeeded/failed/partial/null，observation为非空字符串(最多1600字)或null，matterTitle为非空字符串(最多200字)或null；initialMatters是最多32个{title:非空字符串}，matterUpdates是最多8个{id:现有现场事项字符串ID,status:in_progress/blocked/completed}；dialogues必须[]。stepProposals为最多8个{matterId:世界事项字符串ID,stepId:规则步骤字符串ID,inputQuote:当前玩家原文片段,observationQuote:本次观察原文片段,receiverId?:接收人字符串ID}，两个quote均3至500字。只有repair_explained和handed_over需要receiverId；无接收人字段时必须完全省略receiverId，绝不能写null、空串或undefined字面值。stepProposals和npcActions无候选时用[]，不得null；npcActions只能[]或省略，因为导演不能代人物行动。其他未知字段一律不要输出。仅结构示例（占位值不可照抄，未实际执行不得填步骤）：${JSON.stringify({ stepProposals: [{ matterId: '从stepExecution.matterId读取世界事项ID', stepId: 'order_reviewed', inputQuote: '仅截取本次实际核对R17维修单的完整原文', observationQuote: '你开头且仅描述这次实际核对R17维修单的原文' }] })}；交接类示例结构：${JSON.stringify({ matterId: '当前规则世界事项ID', stepId: 'handed_over', inputQuote: '本次实际将R17钥匙和维修单交给接收人的原文', observationQuote: '你开头且含同一接收人名字的本次实际交付观察原文', receiverId: 'allowedReceivers中本次明确接收人ID' })}。不得照示例创造动作或凑证据，未执行stepProposals=[]。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；没有关联事项时matters=[]，必须matterUpdates=[]，仍正常裁定行动观察，不自行猜测事项ID；completed仅由succeeded支撑，blocked只由failed支撑，partial仅in_progress或不变。普通事项not_started只能到in_progress；只有worldMatterConditions中successfulAttemptCanStartAndComplete=true的可信已定义机会，在本次完整实际attempt满足全部条件且succeeded时可提completed，运行时会受控开始再完成；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
         },
         {
           role: 'user',
@@ -349,17 +367,17 @@ export class ScenePlanner implements ScenePlannerPort {
       throw sceneParseError(error);
     }
     for (const step of p.stepProposals ?? []) {
+      if (!stepExecution.length) stepEvidenceError('context');
       const context = stepExecution.find((x) => x.matterId === step.matterId);
-      if (
-        !context ||
-        !context.steps.some((s) => s.id === step.stepId) ||
-        ['received', 'receiver_inspected'].includes(step.stepId) ||
-        p.outcome === 'failed' ||
-        !boundary?.now.includes(step.inputQuote) ||
-        !p.observation?.includes(step.observationQuote) ||
-        (step.receiverId && !context.allowedReceivers.some((a) => a.id === step.receiverId))
-      )
-        throw new DomainError('INVALID_PROPOSAL', 'Unsupported current player step evidence');
+      if (!context) stepEvidenceError('matter_id');
+      if (!context.steps.some((s) => s.id === step.stepId)) stepEvidenceError('step_id');
+      if (['received', 'receiver_inspected'].includes(step.stepId))
+        stepEvidenceError('forbidden_npc_step');
+      if (p.outcome === 'failed') stepEvidenceError('failed_outcome');
+      if (!boundary?.now.includes(step.inputQuote)) stepEvidenceError('input_quote');
+      if (!p.observation?.includes(step.observationQuote)) stepEvidenceError('observation_quote');
+      if (step.receiverId && !context.allowedReceivers.some((a) => a.id === step.receiverId))
+        stepEvidenceError('receiver');
     }
     if ((p.stepProposals?.length ?? 0) && c.action?.intent !== 'attempt')
       throw new DomainError('INVALID_PROPOSAL', 'Only saved attempts can propose executed steps');
@@ -471,12 +489,13 @@ export class ScenePlanner implements ScenePlannerPort {
             {
               role: 'system',
               content:
-                '你是此人物，独立决定这一刻是否实际在这个公开地点出现。这是本次开场的有限虚构行动提案，由运行时同开场事务校验保存，不是从预约或旧对白推定到场。结合自己的立场、已知约定/对话和当前当地故事时间判断，可true也可false；confirmed预约只是合法候选资格，不强制赴约。不得替玩家或其他人物行动、决定别人是否到场、编排未来玩家步骤，也不执行R17接收/检修/交付或产生事项进展。只看提供的本人知识与公开地点；还未正式加入，不知道旧现场历史或他人私聊。不能编迟到理由或瞬移跨地点。仅输出严格JSON {"present":true或false,"text":"当前现场自然的一两句发言"或null}，不含actorId/presentActorIds/actions等其他字段。present=true必须有非空当前现场发言，不能只说以后会到；present=false用null（解释文字也不会保存为现场发言）。身份由本次调用绑定，结果保存后才正式成为在场人。',
+                '你是此人物，独立决定这一刻是否实际在这个公开地点出现。这是本次开场的有限虚构行动提案，由运行时同开场事务校验保存，不是从预约或旧对白推定到场。结合自己的立场、已知约定/对话和当前当地故事时间判断，可true也可false；confirmed预约只是合法候选资格，不强制赴约。不得替玩家或其他人物行动、决定别人是否到场、编排未来玩家步骤，也不执行R17接收/检修/交付或产生事项进展。只看提供的本人知识与公开地点；还未正式加入，不知道旧现场历史或他人私聊。不能编迟到理由或瞬移跨地点。仅输出严格JSON {"present":true或false,"text":"当前现场自然的一两句发言"或null}，不含actorId/presentActorIds/actions等其他字段。present=true必须有非空当前现场发言，不能只说以后会到；present=false用null（解释文字也不会保存为现场发言）。身份由本次调用绑定，结果保存后才正式成为在场人。当前对话对象addressee固定为玩家主角，不是客户、车主或其他联系人；visibleFacts中谈及的车主姓名不能当作玩家姓名。仅按已裁剪可见事实中的虚构公开身份理解主角；未给玩家姓名时称“你”，不从actor.persona或他人姓名猜玩家是谁。已知维修价格只代表相应维修记录，不能据此向错误对象索款，不能声称已经收费；未给价格时不编金额，不把未提供的玩家身份或setting共享进来。',
             },
             {
               role: 'user',
               content: JSON.stringify({
                 actor: remembered.actor,
+                addressee: { kind: 'player', name: null },
                 storyAt: c.storyAt,
                 localStoryTime: { zone: 'UTC+08:00', label: worldDateTimeLabel(c.storyAt) },
                 authoredPlace: payload.authoredPlace,
