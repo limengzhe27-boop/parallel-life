@@ -484,3 +484,18 @@ test('once step ledger exists, incomplete ledger cannot bypass receiver through 
     /INVALID|condition|SCENE_STEPS/,
   );
 });
+
+test('first-person preface does not transfer a later NPC execution to player', () => {
+  const c = fixture();
+  c.action.text = '我把工具放下。老周核对R17维修单。';
+  c.action.resolution!.observation = '你核对R17维修单。';
+  c.stepProposals = [
+    {
+      matterId: c.targetId,
+      stepId: 'order_reviewed',
+      inputQuote: '核对R17维修单',
+      observationQuote: '你核对R17维修单',
+    },
+  ];
+  rejected(c);
+});
