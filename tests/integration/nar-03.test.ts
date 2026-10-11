@@ -207,6 +207,14 @@ test('NAR-03 real PostgreSQL atomic scene results, conditions, witnesses and rep
           pursuit = first.matters!.find((m) => m.pursuitProgress)!;
         assert.equal(op.status, 'not_started');
         assert.equal(pursuit.pursuitProgress!.milestones.length, 1);
+        const known = await new PostgresWorldRepository(db).get({ userId: f.owner }, f.worldId);
+        assert.ok(actorContext(known, f.actorId).matters?.some((m) => m.id === op.id));
+        for (const blocked of [f.matterId, pursuit.id])
+          assert.ok(
+            !actorContext(known, f.actorId, '', [], new Set([blocked])).matters?.some(
+              (m) => m.id === op.id,
+            ),
+          );
         const snap = await scenes.read(f.owner, f.worldId),
           local = sceneMatterId(snap.scene!.id, op.id);
         assert.equal(snap.matters.find((m) => m.id === local)!.status, 'not_started');
