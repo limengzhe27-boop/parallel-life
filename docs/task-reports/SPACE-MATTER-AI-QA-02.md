@@ -27,3 +27,5 @@ B独占scene-planner.ts和新planner测试；Q独占新scene-step-progress.test.
 候选32df2e0，Production racc3qapp / dpl_9rBtVMS4oqGhsAtvcw4VMP2KtzNJ READY、正式8组只读回归过。新独立合成官方v3存档1个，开场保守预留2/18文字；结果failed/AI_FAILED，日志分类TypeError，19874ms，resultVersion=null。未冒充开场成功，未自动重试，不退款/重用已占预算。
 
 根/B只读定位commitSceneProposal非执行分支：Schema默认空stepProposals进入c.action!.relatedMatterIds，开场无action而解引用。修为非执行只拒非空执行候选；实际attempt仍有空数组执行声明护栏。真实PG开场使用同生产SceneProposalSchema默认，新增未来plan未执行，专项6/6；完整806check过。待修复构建/部署后显式读取原failed无结果再人工重试，所有额外调用计入原18上限。
+
+修复383be75 / almk7novd READY后显式检查原failed/resultVersion=null再retry，task succeeded。但开场旁白‘老周师傅在一旁忙碌’而持久presence仅player，无NPC对白，不能据旁白补在场。后续第一步核对R17输出schema被拒（Invalid scene proposal/INVALID_AI_OUTPUT），实际0步骤保存。已保守占5/18，原失败保留，正常API显式离场，没建第二world。B重新领取精确输出/schema白名单diagnostic，不记录raw/人物信息；Q独立语义复核，不称完整链通过。待新候选开场与精确格式验收，不盲重试同坏契约。

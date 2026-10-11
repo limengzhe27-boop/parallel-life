@@ -234,6 +234,16 @@ if (command === 'create') {
     minutesUntilAppointment: Math.max(0, gap / 60000),
     testOnlyClockSpeed: gap > 0 ? 60 : 0,
   });
+} else if (command === 'leave') {
+  const w = entry(),
+    s = await snapshot(w, 'before-explicit-leave');
+  assert.equal(s.scene.scene?.id, w.sceneId);
+  assert.ok(!['queued', 'running', 'unknown'].includes(s.scene.task?.status));
+  await api(prefix(w) + '/scenes/' + w.sceneId + '/leave', {
+    commandId: randomUUID(),
+    expectedVersion: s.phone.version,
+  });
+  await snapshot(w, 'explicit-leave-saved');
 } else if (command === 'opening') {
   const w = entry();
   await api(prefix(w) + '/clock', { paused: false, speed: 0 });

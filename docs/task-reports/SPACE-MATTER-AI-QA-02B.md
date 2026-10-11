@@ -50,3 +50,13 @@ ScenePlanner版本scene-text-v5-structured-steps。director strict stepProposals
 新增3组专项（每组多反例）覆盖遗漏typed receive/inspect，未来否定/引述/他人/别的对象不强迫，历史自身证据回顾与different actor/未目击/blocked来源拒绝。新旧planner28/28通过；日志.local/matter-aiqa-02b-claims-pure.log。没有模型/DB/HTTP/浏览器/生产写或部署；源码完成后再次冻结交根，根repository同护栏负责其他FakePlanner不能绕过。最终check/build接续证据另补，未以纯mock宣称真实模型成功。
 
 32dad92再次冻结释放根，typecheck通过、新旧planner28/28过；本树shared planner+Q纯50项49过/1失败，失败确切为Q旧“old dialogue alone does not backfill...”把本轮肯定“我接过钥匙和维修单”无typed actions视为合法，根新护栏正确拒绝。已回根由原负责人调整旧fixture/期望，不修改他人测试，不为其旧断言放松规则。完整check801项796pass/5fail：4项旧DB未启ECONNREFUSED+这1旧断言；323边界/typecheck通过。日志.local/matter-aiqa-02b-claims-{check,runtime,pure,build}.log；冻结32dad92 final build exit0。根新授权max2world/18total文字/0image仅由根独占，本人仍0模型/DB/生产write。另只读提示root两边split句子后应trim再^我，避免第二句前空白绕claim；源码已释放，不并写根集成修复。
+
+## 候选32df2e0真实opening失败：只读诊断
+
+根告知新合成批≤18call已开始、opening failed且保守reserve2，本人仅只读根32df2e0，不使用预算或运行DB/真实模型。发现确定的保存路径缺陷：scene-repository.ts约910–916的!resultAction分支，在p.stepProposals!==undefined时对规则目标调用c.action!.relatedMatterIds。ScenePlannerSchema会给缺省字段填stepProposals=[]，开场没有c.action，但county官方v3存在deliver_r17规则，于是访问undefined.relatedMatterIds。开场actorSteps为空，新planner claim护栏不会执行，因此不能把此确定缺陷误归为新人物NL护栏。
+
+用既有合成county progressionFixture+相同predicate纯内存复现（node strip-types，不调用ScenePlanner/model/仓储）：TypeError "Cannot read properties of undefined (reading 'relatedMatterIds')"，actionAbsent=true。已立即回根停止对同候选付费重试，建议非执行分支只拒非空step/npc候选，或显式保护c.action；实际attempt structured-mode仍需要空数组启用runtime检查，不能移除该保护或靠省略新字段回避。根需补真实仓储/HTTP开场回归；本人不改公共repository/source/test。
+
+此处静态缺陷和predicate复现可证；尚未收到真实task安全error classification，因此尚不断言它就是该次failed的唯一原因。导演解析、本NPCschema或其他presence/observable拒绝仍须结合实际失败阶段确认。全程本人0模型/生产写/DB/HTTP/浏览器；只更新报告与本人登记，源码继续冻结。
+
+根随后提供安全分类：task9869fbb4，opening errorCode=AI_FAILED/detail=TypeError，耗时19874ms，非INVALID_PROPOSAL。这与上述确定解引用缺陷吻合；已经再次回根具体位置与复现，真实任务栈/修后开场回归仍由根确认，不把耗时误称网络超时。无需更多本轮模型调用来复现静态错误。
