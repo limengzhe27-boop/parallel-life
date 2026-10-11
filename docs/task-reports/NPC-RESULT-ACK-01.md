@@ -18,3 +18,12 @@
 - 0付费模型、0图片、0数据库/生产写、0部署；旧18预算closed。本地stub通过不是实际模型整条结果承接体验验收。
 
 文件范围仅turn-planner.ts、新npc-result-ack.test.ts、本报告和主登记本人行。源码冻结释放I。
+
+## I另授只读网关复核（68385b7）
+
+未改网关源/测试，仅在I工作树读取冻结源并运行内存fake fetch（0网络、模型、DB）。当前7b99fc5的yibu-text-model.ts相对68385b7无diff。两项已回I/Q：
+
+- complete headers返回后body pending，5ms后外部abort(new SyntaxError(...))实得INVALID_RESPONSE/parse，预期CANCELLED；普通Error得CANCELLED/response正确；外部reason为GatewayError(TRUNCATED)实得TRUNCATED/response，亦绕过取消分类。内层SyntaxError包装及外层GatewayError先于signal判定是原因。request阶段外部GatewayError同样可复现误分类。
+- streamComplete首次yield一个合法delta，消费者暂停45ms而总deadline25ms，fake body cancel次数仍0；恢复next才TIMEOUT并cancel1。真实fetch一般响应abort，本结果限定不合作传输在yield暂停期间无法即时清理。建议绑定reader abort清理并finally移除，不依赖消费者next；取消/超时优先于原错误类型分类。
+
+未修改公共源码/新增网关测试，交I修法与Q独立回归，不称真实上游或现场整链已修复。
