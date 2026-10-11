@@ -4,6 +4,16 @@
 
 ## 新实际证据与诊断修复
 
+### v12 NPC已存与本轮候选分离
+
+I实际v11原核对成功保存v5，SQL验证order_reviewed performer=player、eventVersion5、原input/action/resolution来源匹配；父事项仍in_progress。但同轮NPC说“单号先核对清楚”，重复已做核对，属于真实质量缺陷。新账本保守8/18，仅I使用。本次不重做/重付已保存核对。
+
+限定NPC内部stepExecution payload改为savedCompletedSteps/savedRemainingSteps/currentTurnStepCandidates，剔除旧completedSteps/missingSteps/candidatePlayerSteps同义别名避免歧义；director/domain sceneStepContext原字段与公开契约不变。saved只依据人物获准见证、未blocked的持久证据；steps.done不看本轮候选。current只取本轮已有p.stepProposals且当前人物合法context/receiver过滤，不扩可见范围。NPC claim校验同步使用savedCompletedSteps，来源门槛不变。
+
+提示明确savedRemaining是提交前快照，包含本轮已有核对候选并不要求玩家重做；应回应当前具体观察，并仅讨论本轮候选未覆盖且此前未完成的下一步，不提前markdone/宣布父事项完成/新阶段或机会。旧无actions JSON示例恰是“单号先核对清楚”，与实际失败台词相同；改中性结构并明示绝非默认台词，不注入成功回复。此仅是提示诱因，不断言模型内部复制因果。
+
+新22pure全过；联合57=56过/1旧scene-step-planner:291仍读已移除missingSteps导致TypeError（I负责仅内部命名引用适配，B不改旧test、不记全绿）。type/332边界/diff通过。新反例验证saved仍缺order_reviewed/done=false、current已有精确本轮核对候选、world无预写stepProgress、无NPC动作以及旧别名不存在。0模型/SQL/生产/端口/全check/build；冻结交I/Q，实际后续质量仍待复测，不把上下文清晰等于生成稳定。
+
 ### v11 显式分段索引 wire 接续
 
 I实际v10同动作复测失败：scene_step_evidence:observation_quote，77519ms。原world仍v4（retry没有新增input，不能写v5），没有stepProgress；新独立账本保守6/18，I唯一执行者。失败保留，不归因到任意不可见原文。

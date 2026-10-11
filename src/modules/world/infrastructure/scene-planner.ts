@@ -23,7 +23,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v11-indexed-observations';
+export const SCENE_PROMPT_VERSION = 'scene-text-v12-saved-and-current-step-context';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -595,36 +595,39 @@ export class ScenePlanner implements ScenePlannerPort {
             ...s,
             done: completedSteps.some((e) => e.stepId === s.id),
           }));
+          const savedCompletedSteps = completedSteps.map(
+            ({
+              stepId,
+              performer,
+              actorId,
+              receiverId,
+              eventId,
+              eventVersion,
+              observationQuote,
+            }) => ({
+              stepId,
+              performer,
+              actorId,
+              receiverId,
+              eventId,
+              eventVersion,
+              observationQuote,
+            }),
+          );
+          const savedRemainingSteps = steps
+            .filter((s) => s.required && !s.done)
+            .map(({ id, title }) => ({ id, title }));
+          const currentTurnStepCandidates = (p.stepProposals ?? []).filter(
+            (s) => s.matterId === context.matterId && (!s.receiverId || s.receiverId === actor.id),
+          );
+          const { completedSteps: _completed, missingSteps: _missing, ...ruleContext } = context;
           return {
-            ...context,
+            ...ruleContext,
             description: visibleMatters.find((m) => m.id === context.matterId)!.description,
             steps,
-            completedSteps: completedSteps.map(
-              ({
-                stepId,
-                performer,
-                actorId,
-                receiverId,
-                eventId,
-                eventVersion,
-                observationQuote,
-              }) => ({
-                stepId,
-                performer,
-                actorId,
-                receiverId,
-                eventId,
-                eventVersion,
-                observationQuote,
-              }),
-            ),
-            missingSteps: steps
-              .filter((s) => s.required && !s.done)
-              .map(({ id, title }) => ({ id, title })),
-            candidatePlayerSteps: (p.stepProposals ?? []).filter(
-              (s) =>
-                s.matterId === context.matterId && (!s.receiverId || s.receiverId === actor.id),
-            ),
+            savedCompletedSteps,
+            savedRemainingSteps,
+            currentTurnStepCandidates,
           };
         });
       const npc = {
@@ -662,7 +665,7 @@ export class ScenePlanner implements ScenePlannerPort {
             role: 'system',
             content:
               (actorSteps.length
-                ? '本轮有获准stepExecution规则。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。kind只允许两个精确字符串："receive_r17" 或 "inspect_r17"，绝不输出含“或”的组合值、别名、步骤ID、none/null或其他类型。未实际执行只返回完整JSON {"text":"单号先核对清楚。","actions":[]}。玩家仅核对维修单且未实际交出对象、也没有明确请求你检查时，不要新增接收或检修；玩家核对是player step，不是NPC action，不能复制order_reviewed/review等进actions。自然认可本次已执行步骤，不重复泛称未完成。以下两个JSON示例只是格式，不是已发生证据，不得照抄动作或强行合作。实际接过的合法完整示例（仅有真实handed_over指向你且你本轮实际接过时）：' +
+                ? '本轮有获准stepExecution规则。【两套进度】savedCompletedSteps和savedRemainingSteps仅表示此前已提交且你获准目击的进度；steps.done也只依据这些已存证据。currentTurnStepCandidates和observedNow是本轮可见裁定候选，不是已提交事实。若本轮观察已经具体描述玩家核对，且同一事项有order_reviewed候选，应自然回应这次核对的具体结果，不再说“单号先核对清楚”或要求重做该步骤。savedRemainingSteps里仍列这一步只是提交前快照，不是本轮新增门槛；不要把它误当成玩家尚未做。可提一个本轮候选未覆盖且此前未完成的真实下一步；不得提前把候选markdone、宣布整体完成、领奖或新阶段/机会。全部观察、步骤和你的回复仍须同事务校验才保存。你可以在当前现场实际执行有限自身动作：玩家向你交出R17钥匙和维修单（或已获准且有来源的先前handed_over指向你）时，可以实际接过，不必一律说以后再接；明确请你检查R17时可按有限对象检查。是否执行按你的立场和现场条件决定，不每轮强行成功。kind只允许两个精确字符串："receive_r17" 或 "inspect_r17"，绝不输出含“或”的组合值、别名、步骤ID、none/null或其他类型。未实际执行自己的动作时仅返回actions=[]；以下仅是无动作JSON格式，text应依本轮可见对象自然表达，绝非默认台词：{"text":"你这次说的步骤，我听清了。","actions":[]}。玩家仅核对维修单且未实际交出对象、也没有明确请求你检查时，不要新增接收或检修；玩家核对是player step，不是NPC action，不能复制order_reviewed/review等进actions。自然认可本次已执行步骤，不重复泛称未完成。以下两个JSON示例只是格式，不是已发生证据，不得照抄动作或强行合作。实际接过的合法完整示例（仅有真实handed_over指向你且你本轮实际接过时）：' +
                   JSON.stringify({
                     text: '我接过R17钥匙和维修单。',
                     actions: [
@@ -684,7 +687,7 @@ export class ScenePlanner implements ScenePlannerPort {
                       },
                     ],
                   }) +
-                  '。quote必须是同次text中实际已执行的原文，matterId只取本次stepExecution获准世界事项；未执行不要填示例。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。本轮明确说自己实际接过或检查了时必须提交对应actions，不能只说已完成却省略行动；有自己获准目击且已保存的同一步证据时可正常回顾，不再次执行或推进。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.completedSteps只是你获准目击的已存证据；candidatePlayerSteps与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
+                  '。quote必须是同次text中实际已执行的原文，matterId只取本次stepExecution获准世界事项；未执行不要填示例。不要输出actorId：身份由独立调用绑定。receive_r17的quote必须用第一人称“我接过/我现在接过/我收下”明确已经实际执行，并包含钥匙和维修单；inspect_r17必须明确实际检查了/核对了R17或接头。意向、未来承诺、假设、请求、失败或否定不得列actions，actions=[]即可。本轮明确说自己实际接过或检查了时必须提交对应actions，不能只说已完成却省略行动；有自己获准目击且已保存的同一步证据时可正常回顾，不再次执行或推进。只有自己能执行，不替玩家/他人执行后续动作，不能引用其他事项或未在场者。stepExecution.savedCompletedSteps只是你获准目击的已存证据；currentTurnStepCandidates与observedNow尚未提交，不代表事项完成、新阶段或新机会。可选复检和记录不是新的完成门槛。玩家本次partial不禁止你真实接收已交出的对象，但不能把未提供的其他步骤假装完成；最终由运行时验证聚合。'
                 : '没有获准结构化事项，不得提出actions；仍仅返回JSON {"text":"对白"}。observedNow.outcome为partial/failed时，已完成步骤可以认可，待检查/待确认不能由对白冒充已检查、已签收或全部通过。') +
               '当前对话对象addressee为玩家主角；车主、其他联系人或旧现场对白中的人物名都不能当作玩家姓名，先前错称不构成身份来源。未给玩家姓名时称“你”，只依已裁剪可见虚构事实理解身份，不查私档或全cast。扮演该人物，按你的立场、目标和可知事实回应现场，简短自然的一两句话。只知道提供的可见内容，别读取其他私聊或猜主角内心。不替玩家执行后续行动，不声称重大成果、图片、钱或奖励已经发生。没有受控actions支持时，待检查/待确认不能被你的对白补成已检查、已签收或全部通过，不能用含混的‘我看看，行了’冒充已完成动作。基于当前saved行动与历史可见结果，只提出真实未完成的一项，不重复要求已经完成的核对、交接或记录，也不把允许交给当前接收人的任务改成必须等其他客户到场。人物背景或旧消息里的预约只代表原计划，不等于当前到场或确定马上来；以localStoryTime核对时点，旧约已过而没有到场/新确认来源时，可说原约时间与当前未见，不能编迟到原因或把那个人当在场见证者。只说当前人物获准知道的安排，不引用别人的私聊。只返回上述JSON，不写Markdown。',
           },
@@ -738,7 +741,7 @@ export class ScenePlanner implements ScenePlannerPort {
                 !parsed.actions.some(
                   (action) => action.matterId === context.matterId && action.kind === kind,
                 ) &&
-                !context.completedSteps.some(
+                !context.savedCompletedSteps.some(
                   (step) =>
                     step.stepId === stepId &&
                     step.performer === 'actor' &&

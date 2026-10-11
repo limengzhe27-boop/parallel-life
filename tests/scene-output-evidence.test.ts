@@ -135,12 +135,62 @@ function indexed(f: ReturnType<typeof fixture>) {
     ...f.director,
     evidenceFormat: 'indexed-observations-v1',
     observation: [f.director.observation!] as string[] | null,
-    stepProposals: f.director.stepProposals.map(({ observationQuote: _quote, ...step }) => ({
-      ...step,
-      observationIndex: 0,
-    })),
+    stepProposals: f.director.stepProposals.map(
+      ({ observationQuote: _quote, receiverId, ...step }) => ({
+        ...step,
+        observationIndex: 0,
+        ...(receiverId ? { receiverId } : {}),
+      }),
+    ),
   };
 }
+test('NPC distinguishes saved missing steps from this turn review candidate without marking it done', async () => {
+  const f = fixture();
+  f.c.action!.text = '我核对R17维修单。';
+  const wire = indexed(f);
+  wire.observation = ['你核对了R17维修单。'];
+  wire.stepProposals = [
+    {
+      matterId: f.f.trigger.id,
+      stepId: 'order_reviewed',
+      inputQuote: f.c.action!.text,
+      observationIndex: 0,
+      receiverId: undefined,
+    },
+  ];
+  let actorCalls = 0;
+  const p = await run(
+    f,
+    (messages, index) => {
+      if (!index) return;
+      actorCalls++;
+      const input = JSON.parse(messages[1]!.content),
+        steps = input.stepExecution[0];
+      assert.deepEqual(steps.savedCompletedSteps, []);
+      assert.ok(steps.savedRemainingSteps.some((s: { id: string }) => s.id === 'order_reviewed'));
+      assert.equal(steps.steps.find((s: { id: string }) => s.id === 'order_reviewed').done, false);
+      assert.deepEqual(steps.currentTurnStepCandidates, [
+        {
+          matterId: f.f.trigger.id,
+          stepId: 'order_reviewed',
+          inputQuote: '我核对R17维修单。',
+          observationQuote: '你核对了R17维修单。',
+        },
+      ]);
+      assert.ok(!('completedSteps' in steps));
+      assert.ok(!('missingSteps' in steps));
+      assert.ok(!('candidatePlayerSteps' in steps));
+      assert.match(messages[0]!.content, /提交前快照，不是本轮新增门槛/);
+      assert.match(messages[0]!.content, /不再说“单号先核对清楚”/);
+      assert.match(messages[0]!.content, /不得提前把候选markdone/);
+      assert.ok(!messages[0]!.content.includes('{"text":"单号先核对清楚。","actions":[]}'));
+    },
+    wire,
+  );
+  assert.equal(actorCalls, 1);
+  assert.deepEqual(p.npcActions, []);
+  assert.ok(!f.c.world.matters!.find((m) => m.id === f.f.trigger.id)!.stepProgress);
+});
 test('explicit indexed wire binds a segment exactly and keeps domain evidence validation', async () => {
   const f = fixture(),
     wire = indexed(f);
