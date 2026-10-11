@@ -108,6 +108,7 @@ export type PlayerRecordsInput = {
   matters?: import('./matters.ts').WorldMatter[];
   /** Only storage-validated, player-visible resolutions, keyed to the matching matter. */
   matterObservations?: ReadonlyMap<string, string>;
+  sceneAttendanceSources?: ReadonlyMap<string, Extract<RecordSource, { kind: 'world_event' }>>;
 };
 const labels: Record<PlayerRecord['state'], string> = {
   planned: '你记录的计划',
@@ -165,6 +166,14 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
   });
   const add = (row: Omit<PlayerRecord, 'stateLabel'>, historical = false) =>
     (historical ? output.history : output.current).push({ ...row, stateLabel: labels[row.state] });
+  const attendanceSourceFor = (appointment: Appointment) => {
+    const proof = input.sceneAttendanceSources?.get(appointment.id);
+    return appointment.status === 'attended' &&
+      proof?.eventVersion === appointment.responseVersion &&
+      proof?.at === appointment.responseAt
+      ? proof
+      : undefined;
+  };
   for (const field of ['identity', 'setting'] as const) {
     const text = input.opening?.[field]?.trim();
     if (text && input.opening)
@@ -221,22 +230,29 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
                 e.version === current.responseVersion &&
                 e.data.id === current.id,
             );
-      if (current.responseVersion !== undefined && !response) continue;
-      const recordSource: RecordSource = response
-        ? {
-            kind: 'world_event',
-            eventId: response.id,
-            eventVersion: response.version,
-            at: response.type === 'invitation.responded' ? response.storyTime : response.occurredAt,
-            timeBasis: 'story',
-          }
-        : {
-            kind: 'opening_field',
-            seedId: input.opening.seedId,
-            field: 'official_invitation',
-            key: current.id,
-          };
-      output.current.push({
+      const attendanceSource = attendanceSourceFor(current);
+      if (current.responseVersion !== undefined && !response && !attendanceSource) continue;
+      const recordSource: RecordSource =
+        attendanceSource ??
+        (response
+          ? {
+              kind: 'world_event',
+              eventId: response.id,
+              eventVersion: response.version,
+              at:
+                response.type === 'invitation.responded' ? response.storyTime : response.occurredAt,
+              timeBasis: 'story',
+            }
+          : {
+              kind: 'opening_field',
+              seedId: input.opening.seedId,
+              field: 'official_invitation',
+              key: current.id,
+            });
+      (['cancelled', 'attended', 'missed'].includes(current.status)
+        ? output.history
+        : output.current
+      ).push({
         id: 'sys/official/' + input.worldId + '/invitation/' + current.id,
         kind: 'invitation',
         title: current.title,
@@ -302,6 +318,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         throw Error('INVALID_GENESIS_LINKS');
       let currentSource: RecordSource = entry.source;
       if (current.responseVersion !== undefined) {
+        const attendanceSource = attendanceSourceFor(current);
         const response = [...events.values()].find(
           (e) =>
             e.type === 'invitation.responded' &&
@@ -316,14 +333,15 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
           miss: 'missed',
         } as const;
         if (
-          !response ||
-          response.type !== 'invitation.responded' ||
-          states[response.data.operation] !== current.status ||
-          current.responseAt !== response.storyTime ||
-          (response.data.operation === 'reschedule' && response.data.at !== current.at)
+          !attendanceSource &&
+          (!response ||
+            response.type !== 'invitation.responded' ||
+            states[response.data.operation] !== current.status ||
+            current.responseAt !== response.storyTime ||
+            (response.data.operation === 'reschedule' && response.data.at !== current.at))
         )
           throw Error('INVALID_GENESIS_LINKS');
-        currentSource = source(response);
+        currentSource = attendanceSource ?? source(response!);
       } else if (
         current.status !== 'proposed' ||
         current.at !== entry.appointment.at ||
@@ -523,13 +541,14 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
 
     let currentSource: WorldEvent | InvitationEvent = e;
     if (appointment.responseVersion !== undefined) {
+      const attendanceSource = attendanceSourceFor(appointment);
       const response = [...events.values()].find(
         (r) =>
           r.type === 'invitation.responded' &&
           r.version === appointment.responseVersion &&
           r.data.id === appointment.id,
       );
-      if (!response || response.type !== 'invitation.responded') continue;
+      if ((!response || response.type !== 'invitation.responded') && !attendanceSource) continue;
       const states = {
         accept: 'confirmed',
         cancel: 'cancelled',
@@ -538,11 +557,14 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         miss: 'missed',
       } as const;
       if (
-        states[response.data.operation] !== appointment.status ||
-        (response.data.operation === 'reschedule' && response.data.at !== appointment.at)
+        !attendanceSource &&
+        response &&
+        response.type === 'invitation.responded' &&
+        (states[response.data.operation] !== appointment.status ||
+          (response.data.operation === 'reschedule' && response.data.at !== appointment.at))
       )
         continue;
-      currentSource = response;
+      if (response) currentSource = response;
     } else if (appointment.status !== 'proposed' || proposed.at !== appointment.at) continue;
     add(
       {
@@ -552,7 +574,9 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         text: appointment.at,
         state: appointment.status,
         assertion: 'invitation_status',
-        source: source(currentSource, currentSource.id === e.id ? visibleReply : undefined),
+        source:
+          attendanceSourceFor(appointment) ??
+          source(currentSource, currentSource.id === e.id ? visibleReply : undefined),
         navigation: { app: 'calendar', invitationId: appointment.id },
       },
       ['cancelled', 'attended', 'missed'].includes(appointment.status),

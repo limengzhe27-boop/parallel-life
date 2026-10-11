@@ -10,6 +10,12 @@ import {
 } from '../src/modules/world/domain/matters.ts';
 import { WorldMatterSchema } from '../src/contracts/world-matters.ts';
 import { projectPlayerRecords } from '../src/modules/world/domain/player-records.ts';
+import {
+  sceneAttendanceSource,
+  type SceneAttendanceEvent,
+} from '../src/modules/world/domain/scene-attendance-source.ts';
+import type { WorldState, Appointment } from '../src/modules/world/domain/types.ts';
+import type { SceneSession } from '../src/modules/world/domain/experience-rules.ts';
 
 const at = '2026-10-11T03:00:00.000Z';
 const source = {
@@ -159,4 +165,96 @@ test('system records show the stored consequence and correctly move terminal mat
   assert.equal(records.history[0]!.assertion, 'world_verified');
   assert.match(records.history[0]!.text, /这次行动的反馈：维修编号和签收记录一致/);
   assert.equal(records.history[0]!.state, 'completed');
+});
+
+test('attendance proves a due confirmed appointment with a present invited actor, not a successful unrelated action', () => {
+  const appointment: Appointment = {
+    id: 'dinner',
+    title: '晚饭',
+    at,
+    participantIds: ['invited'],
+    sourceEventId: 'genesis:world',
+    status: 'attended',
+    responseVersion: 6,
+    responseAt: at,
+  };
+  const world = {
+    id: 'world',
+    ownerId: 'owner',
+    version: 8,
+    space: { currentPlaceId: 'elsewhere', places: [{ id: 'home', appointmentIds: ['dinner'] }] },
+  } as WorldState;
+  const scene: SceneSession = {
+    id: 'scene',
+    worldId: 'world',
+    ownerId: 'owner',
+    placeId: 'home',
+    appointmentId: 'dinner',
+    title: '晚饭现场',
+    status: 'active',
+    sourceEventId: 'entry',
+    sourceVersion: 5,
+    presence: [
+      {
+        participant: { kind: 'player' },
+        joinedVersion: 5,
+        sourceEventId: 'entry',
+        sourceVersion: 5,
+      },
+      {
+        participant: { kind: 'actor', actorId: 'invited' },
+        joinedVersion: 6,
+        sourceEventId: 'result',
+        sourceVersion: 6,
+      },
+    ],
+  };
+  const event: SceneAttendanceEvent = {
+    id: 'result',
+    worldId: 'world',
+    version: 6,
+    storyAt: at,
+    type: 'scene.opened',
+    data: { sceneId: 'scene', worldResults: { scene, attendance: { appointmentId: 'dinner' } } },
+  };
+  const proof = sceneAttendanceSource(world, appointment, event);
+  assert.equal(proof?.eventId, 'result');
+  // The player may subsequently move; the previously saved attendance remains valid.
+  for (const altered of [
+    { ...scene, ownerId: 'another' },
+    { ...scene, worldId: 'another' },
+    { ...scene, placeId: 'elsewhere' },
+    { ...scene, presence: scene.presence.slice(0, 1) },
+    { ...scene, presence: scene.presence.slice(1) },
+    { ...scene, presence: scene.presence.map((p) => ({ ...p, leftVersion: 6 })) },
+  ])
+    assert.equal(
+      sceneAttendanceSource(world, appointment, {
+        ...event,
+        data: {
+          ...event.data,
+          worldResults: { scene: altered, attendance: { appointmentId: 'dinner' } },
+        },
+      }),
+      undefined,
+    );
+  assert.equal(
+    sceneAttendanceSource(world, { ...appointment, responseVersion: 7 }, event),
+    undefined,
+  );
+  assert.equal(
+    sceneAttendanceSource(world, { ...appointment, status: 'cancelled' }, event),
+    undefined,
+  );
+  assert.equal(
+    sceneAttendanceSource(world, { ...appointment, at: '2026-10-12T03:00:00.000Z' }, event),
+    undefined,
+  );
+  assert.equal(
+    sceneAttendanceSource(world, appointment, {
+      ...event,
+      data: { sceneId: scene.id, worldResults: { scene } },
+    }),
+    undefined,
+  );
 });

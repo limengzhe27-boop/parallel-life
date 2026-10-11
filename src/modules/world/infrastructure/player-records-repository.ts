@@ -9,6 +9,10 @@ import { PlayerRecordsSchema } from '../../../contracts/world-records.ts';
 import { SceneRuntimeActionSchema } from '../../../contracts/scenes.ts';
 import { matterSceneObservation } from '../domain/matter-scene-observation.ts';
 import type { WorldMatter } from '../domain/matters.ts';
+import {
+  sceneAttendanceSource,
+  type SceneAttendanceEvent,
+} from '../domain/scene-attendance-source.ts';
 
 /** Reads all sources at one locked, committed version. Never writes projections/tasks. */
 export class PostgresPlayerRecords implements PlayerRecordsReader {
@@ -66,8 +70,16 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
       ];
       const events = (
         await sql.query(
-          "SELECT id,world_id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 AND (id=ANY($4::text[]) OR payload->>'type'='invitation.responded') ORDER BY version",
-          [worldId, ownerId, world.version, ids],
+          "SELECT id,world_id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 AND (id=ANY($4::text[]) OR payload->>'type'='invitation.responded' OR (version=ANY($5::int[]) AND payload->>'type' IN ('scene.opened','scene.action_resolved'))) ORDER BY version",
+          [
+            worldId,
+            ownerId,
+            world.version,
+            ids,
+            appointments.flatMap((a) =>
+              a.responseVersion === undefined ? [] : [a.responseVersion],
+            ),
+          ],
         )
       ).rows
         .filter(
@@ -92,6 +104,22 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         }
       }
       const eventIds = events.map((e) => e.id);
+      const sceneAttendanceSources = new Map();
+      for (const event of events) {
+        if (
+          !['scene.opened', 'scene.action_resolved'].includes(event.type) ||
+          !event.data?.worldResults?.scene
+        )
+          continue;
+        for (const appointment of appointments) {
+          const proof = sceneAttendanceSource(
+            world.state,
+            appointment,
+            event as SceneAttendanceEvent,
+          );
+          if (proof) sceneAttendanceSources.set(appointment.id, proof);
+        }
+      }
       const messages = (
         await sql.query(
           "SELECT p.document FROM parallel_life.world_messages p JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id AND e.owner_id=p.owner_id WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$3 AND e.id=ANY($4::text[])",
@@ -142,6 +170,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         choices,
         matters,
         matterObservations,
+        sceneAttendanceSources,
         appointments,
         messages,
         events,
