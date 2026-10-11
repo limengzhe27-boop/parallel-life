@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { progressionFixture } from './fixtures/matter-progression.ts';
-import { sceneMatterId } from '../src/modules/world/domain/scene-matter-policy.ts';
+import {
+  sceneMatterId,
+  validateWorldMatterSceneUpdate,
+} from '../src/modules/world/domain/scene-matter-policy.ts';
 import {
   resolveSceneStepProgress,
   sceneStepContext,
@@ -357,7 +360,14 @@ for (const [name, text, quote] of [
   test('NPC quote rejects ' + name + ' before canonical action is saved', () => {
     const c = receiveFixture();
     c.dialogues[0]!.text = text;
-    c.npcActions = [{ matterId: c.targetId, actorId: c.actorId, kind: 'receive_r17', quote }];
+    c.npcActions = [
+      {
+        matterId: c.targetId,
+        actorId: c.actorId,
+        kind: 'receive_r17',
+        quote: quote.replace(/[。！？]+$/u, ''),
+      },
+    ];
     rejected(c);
   });
 }
@@ -371,4 +381,106 @@ test('duplicate NPC effects in same delta emit one observable action, not two', 
     1,
   );
   assert.equal(r.actionTexts.length, 1);
+});
+
+test('future date in current attempt is not this executed player step', () => {
+  const c = fixture();
+  c.action.text = '我明天核对R17维修单。';
+  c.action.resolution!.observation = '你明天核对R17维修单。';
+  c.stepProposals = [
+    {
+      matterId: c.targetId,
+      stepId: 'order_reviewed',
+      inputQuote: '我明天核对R17维修单',
+      observationQuote: '你明天核对R17维修单',
+    },
+  ];
+  rejected(c);
+});
+
+test('handover observation cannot credit another vehicle despite correctly related R17 input', () => {
+  const c = receiveFixture();
+  c.action.text = '我将R17钥匙和维修单交给老周。';
+  c.action.resolution!.observation = '你将R18钥匙和维修单交给老周。';
+  c.stepProposals = [
+    {
+      matterId: c.targetId,
+      stepId: 'handed_over',
+      receiverId: c.actorId,
+      inputQuote: '我将R17钥匙和维修单交给老周',
+      observationQuote: '你将R18钥匙和维修单交给老周',
+    },
+  ];
+  c.npcActions = [];
+  rejected(c);
+});
+
+test('NPC receipt cannot switch handed vehicle to R18', () => {
+  const c = receiveFixture();
+  c.stepProposals = c.stepProposals.map((p) => ({
+    ...p,
+    inputQuote: p.inputQuote.replace(/。$/u, ''),
+    observationQuote: p.observationQuote.replace(/。$/u, ''),
+  }));
+  c.dialogues = [{ actorId: c.actorId, text: '我接过R18钥匙和维修单。' }];
+  c.npcActions = [
+    {
+      matterId: c.targetId,
+      actorId: c.actorId,
+      kind: 'receive_r17',
+      quote: '我接过R18钥匙和维修单',
+    },
+  ];
+  rejected(c);
+});
+
+test('NPC inspection cannot switch requested R17 to R18', () => {
+  const c = fixture();
+  c.action.text = '请老周检查R17接头。';
+  c.action.resolution!.observation = '你请老周检查R17接头。';
+  c.dialogues = [{ actorId: c.actorId, text: '我检查了R18接头。' }];
+  c.npcActions = [
+    { matterId: c.targetId, actorId: c.actorId, kind: 'inspect_r17', quote: '我检查了R18接头' },
+  ];
+  rejected(c);
+});
+
+test('another actor performing order review cannot be credited to the player', () => {
+  const c = fixture();
+  c.action.text = '老周核对R17维修单。';
+  c.action.resolution!.observation = '你核对R17维修单。';
+  c.stepProposals = [
+    {
+      matterId: c.targetId,
+      stepId: 'order_reviewed',
+      inputQuote: '核对R17维修单',
+      observationQuote: '你核对R17维修单',
+    },
+  ];
+  rejected(c);
+});
+
+test('once step ledger exists, incomplete ledger cannot bypass receiver through legacy succeeded text', () => {
+  const c = fixture();
+  addPlayer(c, 'order_reviewed', '我核对R17维修单', '你核对R17维修单');
+  const r = resolveSceneStepProgress(c);
+  c.world = { ...c.world, matters: r.matters };
+  c.action.text = '我核对R17接头并交付车辆。';
+  c.action.resolution!.outcome = 'succeeded';
+  c.action.resolution!.observation = '你核对R17接头并交付车辆，工单已签收。';
+  assert.throws(
+    () =>
+      validateWorldMatterSceneUpdate({
+        world: c.world,
+        initial: c.initial,
+        scene: c.scene,
+        action: c.action,
+        status: 'completed',
+        matterId: c.targetId,
+        eventId: c.event.id,
+        eventVersion: c.event.version,
+        at: c.event.at,
+      }),
+    /INVALID|condition|SCENE_STEPS/,
+  );
 });
