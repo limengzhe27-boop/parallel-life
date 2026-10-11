@@ -50,7 +50,7 @@ const denied =
 function fail(message: string): never {
   throw new DomainError('INVALID_PROPOSAL', 'SCENE_STEPS: ' + message);
 }
-function actual(quote: string, source: string) {
+function quotedClause(quote: string, source: string) {
   const offset = source.indexOf(quote);
   const delimiters = /[。！？;；\n]/u;
   const prefix = source.slice(0, Math.max(offset, 0));
@@ -59,7 +59,10 @@ function actual(quote: string, source: string) {
     next = tail.search(delimiters);
   const end =
     offset + quote.length + (/[。！？;；\n]$/u.test(quote) ? 0 : next < 0 ? tail.length : next + 1);
-  const clause = offset >= 0 ? source.slice(begin, end) : undefined;
+  return offset >= 0 ? source.slice(begin, end) : undefined;
+}
+function actual(quote: string, source: string) {
+  const clause = quotedClause(quote, source);
   return (
     quote.trim().length >= 3 &&
     quote.length <= 500 &&
@@ -250,8 +253,19 @@ export function resolveSceneStepProgress(input: {
         !/^你/u.test(p.observationQuote)
       )
         fail('Unsupported player execution quote');
+      const clause = quotedClause(p.inputQuote, sceneAttemptBoundary(action.text).now) ?? '';
+      const otherPerformer = world.actors.some((a) => {
+        const name = a.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(
+          '(?<!向|对|给|跟|和)' +
+            name +
+            '\\s*(?:正在|已经|刚刚|刚)?(?:核对|对照|检查|复检|说明|交代|交给|递给|交付|填写|记录|写)',
+          'u',
+        ).test(clause);
+      });
       if (
-        !/^我/u.test(sceneAttemptBoundary(action.text).now.trim()) ||
+        otherPerformer ||
+        !/^(?:我|核对|对照|检查|把|将|向|递|交|写|填写|说明|复检|留下)/u.test(clause.trim()) ||
         /我(?:已|已经|早就|之前)|做过|交过|说过|昨天|上次|请|麻烦|让.+(?:核对|说明|交付|检查|写)/u.test(
           sceneAttemptBoundary(action.text).now,
         ) ||
