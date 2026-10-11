@@ -284,14 +284,20 @@ export function resolveSceneStepProgress(input: {
         fail('Self-report is not this execution');
       if (['repair_explained', 'handed_over'].includes(p.stepId)) {
         const receiver = world.actors.find((a) => a.id === p.receiverId);
-        if (
-          !receiver ||
-          !m.relatedActorIds?.includes(receiver.id) ||
-          !present.includes(receiver.id) ||
-          !p.inputQuote.includes(receiver.name) ||
-          !p.observationQuote.includes(receiver.name)
-        )
-          fail('Receiver not actually addressed/present');
+        // Preserve all original rejection conditions and their order; reveal no returned values.
+        const receiverCondition = !receiver
+          ? 'not_found'
+          : !m.relatedActorIds?.includes(receiver.id)
+            ? 'not_related'
+            : !present.includes(receiver.id)
+              ? 'not_present'
+              : !p.inputQuote.includes(receiver.name)
+                ? 'input_not_named'
+                : !p.observationQuote.includes(receiver.name)
+                  ? 'observation_not_named'
+                  : undefined;
+        if (receiverCondition)
+          fail(`Receiver not actually addressed/present;receiver_condition:${receiverCondition}`);
       } else if (p.receiverId) fail('Unexpected receiver');
       add(p.stepId, 'player', p.inputQuote, p.observationQuote, undefined, p.receiverId);
     }

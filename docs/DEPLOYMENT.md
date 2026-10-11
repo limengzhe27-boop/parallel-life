@@ -854,3 +854,13 @@ Business `eacb6ab` production `5kv0fkvr0` (`dpl_A4AskWAvsuzrYEARHVxZjzRe74PD`) R
 v13业务74fee47 / 3m7qj2yyh（dpl_CiV5v9bEAUE33Us6aJfhHzvyBU4d）READY；正式 https://parallel-life-nu.vercel.app 已切换且8组只读验收过。41/41生产迁移checksum一致，无新增SQL。仅完整source链验证后的scene_steps成果进入长期里程碑/后续机会；旧action路径保持，缺源/破坏真实action行不展示信用。v13最终1002check/build0、实际PG249pass/5明确opt-in skip及专项8通过；都是合成模型，不是供应商成功链。真实原说明仍failed/NPC kind非法7045ms，保守14/18，只有核对已存，未完成整体验收。
 
 v14新候选准确B1ced6b2/Q2dc590a，有限人物独立动作索引格式，普通说明无可执行动作；严格源/实际接收/事务保持。最终1062check/332边界/type0/build0，新adapter实际PG8/8通过（非供应商）。待提交发布READY、公网和剩余4真实有界验收；中途人物进入、只读分步UI、通用长线、私聊完整模型链仍未完成。
+
+### v14 实际发布与闭账
+
+业务3b48cc7 / g5b79qeri / dpl_Awjgu7bBAb6BP7Yu5c1TDcSrSNr9 READY，正式 https://parallel-life-nu.vercel.app。同源Git自动l7iiymfx8先READY并完成8组只读回归；有限NPC动作适配及来源保存接线已发布。最终1062check/build0、新adapter8真实PG通过、无SQL变化，41生产迁移保持一致。实际原说明仍failed9035ms，SCENE_STEPS receiver复合门；world v6仅核对已存，完整玩法验收未过。新账本1world/保守16of18，0图/个人资料，已正常API暂停全部世界并closed，余2不沿用。NOTES-STEP-UI-01只读分步显示另行开发，中途NPC进入仅计划，不把READY当成模型整链成功。
+
+## 2026-10-12 · NOTES-STEP-UI-01 只读分步与receiver诊断候选
+
+根公开契约7597399、B97cfb14/根2705080、Qd40748d/根34818fe集成；公开记录只有可信finite清单，不露raw输入/观察source。Notes列表分数、详情必需4及可选3、玩家交出与人物实收分开；未知/失败新输入保旧信用，缺源整表省略，legacy不误标0/4。receiver原五项拒绝顺序未改，只增加固定白名单诊断，没有额外模型调用或自动修复。
+
+最终1122check/332边界/type0/build0、实际PG249pass/5明确模型opt-in skip/0fail及8专项通过。Q390长短/PC420合成实际组件CSS布局通过，非线上或真机；无SQL/生产41迁移保持一致。待提交、READY/正式已存1/4与完整手机壳只读验证，当前真实16/18closed母链失败保持，不称完整玩法成功。

@@ -248,9 +248,29 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         assert.equal((await target()).status, 'in_progress');
         const first = (await target()).stepProgress!.steps[0]!;
         assert.equal(first.stepId, 'order_reviewed');
+        const firstRecords = await new PostgresPlayerRecords(db).read(owner, worldId);
+        const firstChecklist = firstRecords.current.find(
+          (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
+        )!.stepChecklist!;
+        assert.equal(firstChecklist.completedRequired, 1);
+        assert.equal(firstChecklist.requiredTotal, 4);
+        assert.equal(
+          firstChecklist.steps.find((step) => step.id === 'order_reviewed')?.at,
+          first.at,
+        );
+        assert.equal(firstChecklist.steps.find((step) => step.id === 'received')?.state, 'pending');
         text = '我向老周说明电源接头检修细节，并填写交接记录。';
         observation = '你向老周说明电源接头检修细节，并填写交接记录。';
         const b = await enqueue(text);
+        // An unresolved next input advances the world, but never retracts saved first-step credit.
+        const pendingRecords = await new PostgresPlayerRecords(db).read(owner, worldId);
+        assert.equal(pendingRecords.worldVersion, (await state()).version);
+        assert.equal(
+          pendingRecords.current.find(
+            (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
+          )!.stepChecklist?.completedRequired,
+          1,
+        );
         const explanation: SceneProposal = {
           ...base,
           outcome: 'partial',
@@ -291,6 +311,27 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         assert.deepEqual((await target()).stepProgress!.steps[0], first);
         assert.equal((await target()).stepProgress!.steps.length, 3);
         assert.equal((await target()).status, 'in_progress');
+        const explainedRecords = await new PostgresPlayerRecords(db).read(owner, worldId);
+        const explainedChecklist = explainedRecords.current.find(
+          (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
+        )!.stepChecklist!;
+        assert.equal(explainedChecklist.completedRequired, 2);
+        assert.equal(
+          explainedChecklist.steps.find((step) => step.id === 'record_written')?.required,
+          false,
+        );
+        assert.equal(
+          explainedChecklist.steps.find((step) => step.id === 'record_written')?.state,
+          'completed',
+        );
+        assert.equal(
+          explainedChecklist.steps.find((step) => step.id === 'order_reviewed')?.at,
+          first.at,
+        );
+        assert.equal(
+          explainedChecklist.steps.find((step) => step.id === 'received')?.state,
+          'pending',
+        );
         await assert.rejects(scenes.read(other, worldId), { code: 'NOT_FOUND' });
       },
     );
@@ -386,6 +427,14 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         assert.ok(!invisible.facts.some((f) => f.id.startsWith('matter_result:')));
         assert.ok(!invisible.matters?.some((m) => m.id === op.id));
         const records = await new PostgresPlayerRecords(db).read(owner, worldId);
+        const completeChecklist = records.history.find(
+          (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
+        )!.stepChecklist!;
+        assert.equal(completeChecklist.completedRequired, 4);
+        const actualReceiver = completeChecklist.steps.find((step) => step.id === 'received')!;
+        assert.equal(actualReceiver.state, 'completed');
+        assert.equal(actualReceiver.performer, 'actor');
+        assert.equal(actualReceiver.actorName, actor.name);
         const pursuitRecord = records.about.find(
           (r) => r.source.kind === 'world_matter' && r.source.matterId === pursuit.id,
         )!;
@@ -429,6 +478,12 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           const records = await new PostgresPlayerRecords(db).read(owner, worldId);
           assert.ok(records.about.every((r) => !r.progress));
           assert.ok(records.current.every((r) => !r.opportunity));
+          assert.equal(
+            records.history.find(
+              (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
+            )!.stepChecklist,
+            undefined,
+          );
         } finally {
           await admin.query(
             "UPDATE parallel_life.scene_items SET document=$4::jsonb WHERE owner_id=$1 AND world_id=$2 AND id=$3 AND kind='action'",
@@ -437,6 +492,12 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         }
         const restored = await new PostgresPlayerRecords(db).read(owner, worldId);
         assert.ok(restored.about.some((r) => r.progress?.milestones.length === 1));
+        assert.equal(
+          restored.history.find(
+            (row) => row.source.kind === 'world_matter' && row.source.matterId === trigger.id,
+          )!.stepChecklist?.completedRequired,
+          4,
+        );
         assert.deepEqual(await counts(), before);
       },
     );

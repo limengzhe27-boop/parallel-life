@@ -53,3 +53,11 @@ B8ad5c8a/根3d0803c与Q48c4c11/根138f0b8准确集成，根仅更名旧NPC内部
 v13业务74fee47 / 3m7qj2yyh（dpl_CiV5v9bEAUE33Us6aJfhHzvyBU4d）READY，正式别名及公网8组通过。生产41迁移无变化。显式indexed-observations-v2的事项序号及可信累计来源投影已上线；实际原说明单次复测仍failed/resultVersion null，7045ms，safe NPC actions.[0].kind:invalid_value。导演步骤来源阶段已通过，NPC格式使整轮回滚；v6旧核对不变，保守14/18，不将来源修复说成整链通过。
 
 v14准确B1ced6b2和Q2dc590a已集成，仅有限自有NPC动作槽/严格序号wire，原quote/接收/语义/事务边界保留；根旧格式断言适配和PG真实adapter接线。最终1062check/332边界/type0/build0，实际PG8/8（合成模型非供应商）。旧完整PG249pass/5明确opt-in skip，0失败；无新SQL。剩余4预算待READY/public后一次原说明复测、如成功再单独交付；额外下一机会行动/私聊本批没有足够预算，不自动追加。
+
+## v14 READY、实际失败与闭账
+
+应用3b48cc7。Git自动l7iiymfx8/dpl_BSZKqQwaxN1pTa4mjWbJ51DWJ6T3先READY并绑定正式域名；显式发布g5b79qeri/dpl_Awjgu7bBAb6BP7Yu5c1TDcSrSNr9随后READY并绑定正式别名。1062check/build0、实际PG8/8（合成模型）及公网8组通过，无SQL变化，生产41迁移一致。
+
+原说明任务读回failed/null结果后仅单次复测，实际failed/9035ms，safe SCENE_STEPS: Receiver not actually addressed/present。world v6仅旧order_reviewed，说明/交付/接收均未存；此前合法核对的真实来源保持。此为receiver存在/关联/在场/输入含名字/观察含名字的复合拒绝，未捕获原输出，不猜具体子因、不放宽来源门槛。
+
+保守16/18（含全部失败/未知），1官方合成世界、0图/个人资料，已正常API全部暂停且closed；余2不沿用，不盲重试。完成事项、实际接收、后续机会、下一行动与私聊的完整供应商链仍未通过。下一优先精确安全条件诊断与结构质量，再新授权复测；同时继续独立NOTES-STEP-UI-01，不把清单呈现称整链成功。
