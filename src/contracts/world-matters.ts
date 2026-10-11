@@ -87,9 +87,13 @@ export const MatterEvidenceSchema = z.discriminatedUnion('kind', [
     at: Timestamp,
   }),
   z.strictObject({
-    kind: z.literal('scene_steps'), sceneId: EntityId, actionId: EntityId,
-    ruleVersion: z.literal('r17-delivery-v1'), eventId: z.string().min(1),
-    eventVersion: z.number().int().positive(), at: Timestamp,
+    kind: z.literal('scene_steps'),
+    sceneId: EntityId,
+    actionId: EntityId,
+    ruleVersion: z.literal('r17-delivery-v1'),
+    eventId: z.string().min(1),
+    eventVersion: z.number().int().positive(),
+    at: Timestamp,
   }),
   z.strictObject({
     kind: z.literal('world_event'),
@@ -121,17 +125,39 @@ export const WorldMatterSchema = z
     createdAt: Timestamp,
     updatedAt: Timestamp,
     rewardClaimed: z.boolean().optional(),
-    stepProgress: z.strictObject({
-      ruleVersion: z.literal('r17-delivery-v1'),
-      steps: z.array(z.strictObject({
-        stepId: z.enum(['order_reviewed','repair_explained','handed_over','received','connector_checked','record_written','receiver_inspected']),
-        performer: z.enum(['player','actor']), actorId: EntityId.optional(), receiverId: EntityId.optional(),
-        sceneId: EntityId, actionId: EntityId, inputEventId: z.string().min(1), inputVersion: z.number().int().nonnegative(),
-        eventId: z.string().min(1), eventVersion: z.number().int().positive(), at: Timestamp,
-        inputQuote: z.string().min(1).max(4000), observationQuote: z.string().min(1).max(500),
-        witnessActorIds: z.array(EntityId).max(8),
-      })).max(7),
-    }).optional(),
+    stepProgress: z
+      .strictObject({
+        ruleVersion: z.literal('r17-delivery-v1'),
+        steps: z
+          .array(
+            z.strictObject({
+              stepId: z.enum([
+                'order_reviewed',
+                'repair_explained',
+                'handed_over',
+                'received',
+                'connector_checked',
+                'record_written',
+                'receiver_inspected',
+              ]),
+              performer: z.enum(['player', 'actor']),
+              actorId: EntityId.optional(),
+              receiverId: EntityId.optional(),
+              sceneId: EntityId,
+              actionId: EntityId,
+              inputEventId: z.string().min(1),
+              inputVersion: z.number().int().nonnegative(),
+              eventId: z.string().min(1),
+              eventVersion: z.number().int().positive(),
+              at: Timestamp,
+              inputQuote: z.string().min(1).max(4000),
+              observationQuote: z.string().min(1).max(500),
+              witnessActorIds: z.array(EntityId).max(8),
+            }),
+          )
+          .max(7),
+      })
+      .optional(),
     pursuitProgress: z
       .strictObject({
         milestones: z

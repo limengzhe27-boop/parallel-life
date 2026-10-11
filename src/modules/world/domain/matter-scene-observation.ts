@@ -19,7 +19,7 @@ export function matterSceneObservation(
   if (
     matter.worldId !== source.worldId ||
     matter.visibility !== 'player_visible' ||
-    evidence?.kind !== 'scene_action' ||
+    (evidence?.kind !== 'scene_action' && evidence?.kind !== 'scene_steps') ||
     action.worldId !== source.worldId ||
     action.ownerId !== source.ownerId ||
     action.sceneId !== evidence.sceneId ||
@@ -30,13 +30,23 @@ export function matterSceneObservation(
     !resolution ||
     resolution.sourceEventId !== evidence.eventId ||
     resolution.sourceVersion !== evidence.eventVersion ||
-    resolution.outcome !== evidence.outcome ||
+    (evidence.kind === 'scene_action' && resolution.outcome !== evidence.outcome) ||
     evidence.eventId !== source.eventId ||
     evidence.eventVersion !== source.eventVersion ||
     evidence.eventVersion > source.worldVersion ||
-    (matter.status === 'completed' && resolution.outcome !== 'succeeded')
+    (matter.status === 'completed' &&
+      evidence.kind === 'scene_action' &&
+      resolution.outcome !== 'succeeded')
   )
     return;
-  const observation = resolution.observation.trim();
+  const observation =
+    evidence.kind === 'scene_steps'
+      ? [
+          '已确认的累计步骤：',
+          ...(matter.stepProgress?.steps
+            .filter((s) => s.eventVersion <= source.worldVersion)
+            .map((s) => s.observationQuote) ?? []),
+        ].join(' ')
+      : resolution.observation.trim();
   return observation && observation.length <= 4000 ? observation : undefined;
 }

@@ -19,7 +19,8 @@ export const pursuitRules: readonly PursuitRule[] = [
     pursuitKey: 'own_workshop',
     key: 'r17_review',
     title: '整理 R17 交接记录',
-    description: '整理并复核 R17 交接记录，写清接头检查和验收信息，作为下一次独立接单的案例；可向老周说明准备怎样接单，不代表已得到订单。',
+    description:
+      '整理并复核 R17 交接记录，写清接头检查和验收信息，作为下一次独立接单的案例；可向老周说明准备怎样接单，不代表已得到订单。',
     criterion: {
       placeId: 'repair_shop',
       actionAll: [/R17/iu, /记录/u, /接头/u, /验收/u, /整理|写|复核/u],
@@ -46,7 +47,8 @@ export const pursuitRules: readonly PursuitRule[] = [
     pursuitKey: 'handcraft_binding',
     key: 'binding_memory_note',
     title: '整理装帧手艺记录',
-    description: '写下一份装帧手艺记录，整理工序与旧店记忆，作为与陈玉商量第一件装帧作品的依据；不代表作品已完成。',
+    description:
+      '写下一份装帧手艺记录，整理工序与旧店记忆，作为与陈玉商量第一件装帧作品的依据；不代表作品已完成。',
     criterion: {
       placeId: 'chen_home',
       actionAll: [/装帧/u, /工序/u, /旧店/u, /记录/u, /写|整理/u],
@@ -59,7 +61,8 @@ export const pursuitRules: readonly PursuitRule[] = [
     pursuitKey: 'quiet_music_life',
     key: 'quiet_song_brief',
     title: '写出新歌创作小稿',
-    description: '写出新歌创作小稿，明确署名与不公开演出的边界，作为与陆声讨论私下试唱的准备；不代表已试唱、发行或接受公开演出。',
+    description:
+      '写出新歌创作小稿，明确署名与不公开演出的边界，作为与陆声讨论私下试唱的准备；不代表已试唱、发行或接受公开演出。',
     criterion: {
       placeId: 'old_venue',
       actionAll: [/新歌/u, /小稿/u, /署名/u, /边界/u, /写|整理/u],
@@ -141,8 +144,8 @@ export function trustedOpportunity(
     pi.span !== 'pursuit' ||
     trigger.status !== 'completed' ||
     trigger.assertion !== 'world_verified' ||
-    e?.kind !== 'scene_action' ||
-    e.outcome !== 'succeeded'
+    (e?.kind !== 'scene_action' && e?.kind !== 'scene_steps') ||
+    (e.kind === 'scene_action' && e.outcome !== 'succeeded')
   )
     return;
   const witnesses = world.facts.find(
@@ -207,8 +210,8 @@ export function progressSceneMatters(
       before.status === 'completed' ||
       target.status !== 'completed' ||
       target.assertion !== 'world_verified' ||
-      e?.kind !== 'scene_action' ||
-      e.outcome !== 'succeeded' ||
+      (e?.kind !== 'scene_action' && e?.kind !== 'scene_steps') ||
+      (e.kind === 'scene_action' && e.outcome !== 'succeeded') ||
       e.eventId !== event.id ||
       e.eventVersion !== event.version ||
       e.at !== event.at

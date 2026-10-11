@@ -159,7 +159,9 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
       ).rows.map((r) => r.document);
       const matters: WorldMatter[] = world.state.matters ?? [];
       const actionIds = matters.flatMap((m) =>
-        m.evidence?.kind === 'scene_action' ? [m.evidence.actionId] : [],
+        m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps'
+          ? [m.evidence.actionId]
+          : [],
       );
       const actionRows = actionIds.length
         ? (

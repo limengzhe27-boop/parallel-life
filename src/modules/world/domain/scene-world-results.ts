@@ -21,7 +21,11 @@ export type SceneWorldResults = {
   }[];
   attendance?: { appointmentId: string };
   observerFacts: Fact[];
-  execution?: {stepProposals:SceneStepProposal[];npcActions:SceneNpcActionProposal[];dialogues:{actorId:string;text:string}[]};
+  execution?: {
+    stepProposals: SceneStepProposal[];
+    npcActions: SceneNpcActionProposal[];
+    dialogues: { actorId: string; text: string }[];
+  };
 };
 export type SceneResultEvent = {
   id: string;
@@ -83,12 +87,23 @@ export function applySceneWorldResults(
   )
     throw new DomainError('INVALID_PROPOSAL', 'Action resolution does not belong to this source');
   let next = { ...current, matters: [...(current.matters ?? [])] };
-  if(results.execution){
-    if(!action)throw new DomainError('INVALID_PROPOSAL','Execution requires saved action');
-    const progress=resolveSceneStepProgress({world:current,initial,scene,action,...results.execution,event:{id:event.id,version:event.version,at:event.storyAt}});
-    next.matters=progress.matters;
-    if(progress.completedMatterIds.some(id=>!results.updates.some(u=>u.matterId===id&&u.status==='completed')))
-      throw new DomainError('INVALID_PROPOSAL','Verified endpoint not carried into matter result');
+  if (results.execution) {
+    if (!action) throw new DomainError('INVALID_PROPOSAL', 'Execution requires saved action');
+    const progress = resolveSceneStepProgress({
+      world: current,
+      initial,
+      scene,
+      action,
+      ...results.execution,
+      event: { id: event.id, version: event.version, at: event.storyAt },
+    });
+    next.matters = progress.matters;
+    if (
+      progress.completedMatterIds.some(
+        (id) => !results.updates.some((u) => u.matterId === id && u.status === 'completed'),
+      )
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'Verified endpoint not carried into matter result');
   }
   const facts: Fact[] = [];
   for (const update of results.updates) {
@@ -96,7 +111,8 @@ export function applySceneWorldResults(
     if (
       !action ||
       !target ||
-      current.matters?.find(m=>m.id===update.matterId)?.version !== update.expectedMatterVersion ||
+      current.matters?.find((m) => m.id === update.matterId)?.version !==
+        update.expectedMatterVersion ||
       !action.relatedMatterIds.includes(sceneMatterId(scene.id, target.id))
     )
       throw new DomainError('INVALID_PROPOSAL', 'Invalid matter action binding');

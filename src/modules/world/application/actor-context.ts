@@ -99,7 +99,10 @@ export function actorContext(
           )
             return false;
           if (fact.id === `matter_result:${fact.sourceEventId}:${m.id}`)
-            return m.evidence?.kind === 'scene_action' && m.evidence.eventId === fact.sourceEventId;
+            return (
+              (m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps') &&
+              m.evidence.eventId === fact.sourceEventId
+            );
           if (fact.id !== `pursuit_result:${fact.sourceEventId}:${m.id}`) return false;
           const stages =
             m.pursuitProgress?.milestones.filter((s) => s.eventId === fact.sourceEventId) ?? [];
@@ -113,7 +116,7 @@ export function actorContext(
                     t.id === s.matterId &&
                     t.worldId === state.id &&
                     t.visibility === 'player_visible' &&
-                    t.evidence?.kind === 'scene_action' &&
+                    (t.evidence?.kind === 'scene_action' || t.evidence?.kind === 'scene_steps') &&
                     t.evidence.eventId === s.eventId &&
                     t.evidence.eventVersion === s.eventVersion,
                 ),
@@ -184,7 +187,7 @@ export function actorContext(
           )) &&
         !('eventId' in m.source && blockedSources.has(m.source.eventId)) &&
         !(m.evidence && 'eventId' in m.evidence && blockedSources.has(m.evidence.eventId)) &&
-        (m.evidence?.kind !== 'scene_action' ||
+        ((m.evidence?.kind !== 'scene_action' && m.evidence?.kind !== 'scene_steps') ||
           !['completed', 'blocked'].includes(m.status) ||
           Boolean(
             (() => {

@@ -15,6 +15,7 @@ export type CommittedExperienceEvent = ExperienceScope & {
 export type ExperienceContext = {
   world: Pick<WorldState, 'id' | 'ownerId' | 'version' | 'actors'> & {
     appointments?: WorldState['appointments'];
+    matters?: WorldState['matters'];
   };
   /** For atomic write validation, include the runtime-built event and resulting world version. */
   events: readonly CommittedExperienceEvent[];
@@ -102,6 +103,7 @@ export type MatterEvidence = ExperienceSource &
   (
     | { kind: 'progression'; reason: string }
     | { kind: 'user_report'; quote: string; outcome: 'reported_done' | 'blocked' | 'abandoned' }
+    | { kind: 'world_matter_result'; worldMatterId: string }
     | { kind: 'adjudicated_result'; actionId: string; outcome: ActionResolution['outcome'] }
   );
 export type CurrentMatter = ExperienceScope &
@@ -489,6 +491,20 @@ export function transitionCurrentMatter(
       (status === 'blocked' && evidence.outcome === 'succeeded')
     )
       invalid('Result does not support the target status');
+  } else if (evidence.kind === 'world_matter_result') {
+    const result = context.world.matters?.find((m) => m.id === evidence.worldMatterId);
+    if (
+      status !== 'completed' ||
+      !result ||
+      result.worldId !== matter.worldId ||
+      result.status !== 'completed' ||
+      result.assertion !== 'world_verified' ||
+      result.evidence?.kind !== 'scene_steps' ||
+      result.evidence.sceneId !== matter.sceneId ||
+      result.evidence.eventId !== evidence.sourceEventId ||
+      result.evidence.eventVersion !== evidence.sourceVersion
+    )
+      invalid('Projected step result needs a matching committed world matter');
   } else if (evidence.kind === 'user_report') {
     const input = context.events.find((event) => event.id === evidence.sourceEventId)?.playerInput;
     if (!input || input.intent !== 'report' || !input.text.includes(evidence.quote))

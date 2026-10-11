@@ -1,3 +1,4 @@
+import { resolveSceneStepProgress, sceneStepRule } from '../domain/scene-step-progress.ts';
 import { progressSceneMatters } from '../domain/matter-progression.ts';
 import { applySceneWorldResults, type SceneWorldResults } from '../domain/scene-world-results.ts';
 import { assertSpaceIdle, lockWorldActivity } from './space-repository.ts';
@@ -889,15 +890,49 @@ export async function commitSceneProposal(
           },
         }
       : undefined;
+  const execution =
+    resultAction && (p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0
+      ? {
+          stepProposals: p.stepProposals ?? [],
+          npcActions: p.npcActions ?? [],
+          dialogues: p.dialogues,
+        }
+      : undefined;
+  if (!resultAction && (p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0)
+    throw new DomainError('INVALID_PROPOSAL', 'Non-execution cannot credit steps');
+  const stepResult =
+    execution && resultAction
+      ? resolveSceneStepProgress({
+          world: c.world,
+          initial,
+          scene: resultScene,
+          action: resultAction,
+          ...execution,
+          event: { id: resultEventId, version: resultVersion, at: locked.storyAt },
+        })
+      : undefined;
+  // Model updates cannot contradict runtime-owned step completion or roll it back.
+  const effectiveUpdates = p.matterUpdates.filter((u) => {
+    const target = c.world.matters?.find((m) => sceneMatterId(c.scene.id, m.id) === u.id);
+    if (target && sceneStepRule(c.world, target) && (execution || target.stepProgress)) {
+      if (u.status === 'completed' && !stepResult?.completedMatterIds.includes(target.id))
+        throw new DomainError('INVALID_PROPOSAL', 'Missing cumulative completion steps');
+      return !stepResult?.completedMatterIds.includes(target.id);
+    }
+    return true;
+  });
+  for (const id of stepResult?.completedMatterIds ?? [])
+    effectiveUpdates.push({ id: sceneMatterId(c.scene.id, id), status: 'completed' });
+  p = { ...p, matterUpdates: effectiveUpdates };
   const updates: SceneWorldResults['updates'] = [];
   const observerFacts: WorldState['facts'] = [];
-  let validatedMatters = [...(c.world.matters ?? [])];
+  let validatedMatters = [...(stepResult?.matters ?? c.world.matters ?? [])];
   for (const u of p.matterUpdates) {
     const target = c.world.matters?.find((m) => sceneMatterId(c.scene.id, m.id) === u.id);
     if (!target) continue;
     if (!resultAction) throw new DomainError('INVALID_PROPOSAL');
     const next = validateWorldMatterSceneUpdate({
-      world: c.world,
+      world: { ...c.world, matters: validatedMatters },
       initial,
       scene: resultScene,
       action: resultAction,
@@ -930,6 +965,7 @@ export async function commitSceneProposal(
     updates,
     ...(attendance ? { attendance: { appointmentId: attendance.id } } : {}),
     observerFacts,
+    ...(execution ? { execution } : {}),
   };
   const eventType = input.actionId
     ? c.action?.intent === 'attempt'
@@ -1029,7 +1065,11 @@ export async function commitSceneProposal(
     };
     await saveScene(sql, scene);
   }
-  const ctx = await context(sql, { ...c.world, version: source.sourceVersion }),
+  const ctx = await context(sql, {
+      ...c.world,
+      matters: nextWorld.matters,
+      version: source.sourceVersion,
+    }),
     observers = scenePresent(scene, source.sourceVersion),
     base = { ownerId, worldId, sceneId: scene.id, ...source, observableTo: observers };
   const entries: SceneEntry[] = [
@@ -1060,6 +1100,8 @@ export async function commitSceneProposal(
     });
   } else if (p.outcome || p.observation || p.matterUpdates.length)
     throw new DomainError('INVALID_PROPOSAL');
+  for (const text of stepResult?.actionTexts ?? [])
+    entries.push({ ...base, id: randomUUID(), kind: 'narration', perspective: 'observable', text });
   for (const dialogue of p.dialogues)
     entries.push({
       ...base,
@@ -1115,12 +1157,20 @@ export async function commitSceneProposal(
       ctx,
       started,
       update.status,
-      {
-        ...source,
-        kind: 'adjudicated_result',
-        actionId: action.id,
-        outcome: action.resolution.outcome,
-      },
+      stepResult?.completedMatterIds.some((id) => sceneMatterId(scene.id, id) === m.id)
+        ? {
+            ...source,
+            kind: 'world_matter_result',
+            worldMatterId: stepResult.completedMatterIds.find(
+              (id) => sceneMatterId(scene.id, id) === m.id,
+            )!,
+          }
+        : {
+            ...source,
+            kind: 'adjudicated_result',
+            actionId: action.id,
+            outcome: action.resolution.outcome,
+          },
       actions,
     );
     CurrentMatterSchema.parse(next);
@@ -1147,7 +1197,7 @@ export async function commitSceneProposal(
       [fact.id, worldId, ownerId, fact],
     );
   // Observable narrative only; no invented private beliefs. Scene media requests are absent, so no Outbox is advertised.
-  const memory = p.observation ?? p.narration;
+  const memory = [p.observation ?? p.narration, ...(stepResult?.actionTexts ?? [])].join(' ');
   await deriveAndStoreMemories(sql, [
     {
       ownerId,

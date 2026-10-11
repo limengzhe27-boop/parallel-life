@@ -39,17 +39,46 @@ export type MatterEvidence =
       eventVersion: number;
       at: string;
     }
-  | { kind: 'scene_steps'; sceneId: string; actionId: string; ruleVersion: 'r17-delivery-v1'; eventId: string; eventVersion: number; at: string }
+  | {
+      kind: 'scene_steps';
+      sceneId: string;
+      actionId: string;
+      ruleVersion: 'r17-delivery-v1';
+      eventId: string;
+      eventVersion: number;
+      at: string;
+    }
   | { kind: 'world_event'; reason: string; eventId: string; eventVersion: number; at: string };
 
 /** Bounded runtime-owned evidence. Quotes are validated against saved inputs/results. */
-export type SceneStepProposal = { matterId: string; stepId: string; inputQuote: string; observationQuote: string; receiverId?: string };
-export type SceneNpcActionProposal = { matterId: string; actorId: string; kind: 'receive_r17' | 'inspect_r17'; quote: string };
+export type SceneStepProposal = {
+  matterId: string;
+  stepId: string;
+  inputQuote: string;
+  observationQuote: string;
+  receiverId?: string;
+};
+export type SceneNpcActionProposal = {
+  matterId: string;
+  actorId: string;
+  kind: 'receive_r17' | 'inspect_r17';
+  quote: string;
+};
 export type SceneStepEvidence = {
-  stepId: string; performer: 'player' | 'actor'; actorId?: string; receiverId?: string;
-  sceneId: string; actionId: string; inputEventId: string; inputVersion: number;
-  eventId: string; eventVersion: number; at: string; inputQuote: string;
-  observationQuote: string; witnessActorIds: string[];
+  stepId: string;
+  performer: 'player' | 'actor';
+  actorId?: string;
+  receiverId?: string;
+  sceneId: string;
+  actionId: string;
+  inputEventId: string;
+  inputVersion: number;
+  eventId: string;
+  eventVersion: number;
+  at: string;
+  inputQuote: string;
+  observationQuote: string;
+  witnessActorIds: string[];
 };
 export type SceneStepProgress = { ruleVersion: 'r17-delivery-v1'; steps: SceneStepEvidence[] };
 
