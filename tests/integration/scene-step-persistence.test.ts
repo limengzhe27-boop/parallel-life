@@ -10,6 +10,7 @@ import { OfficialLifeRepository } from '../../src/modules/settings/infrastructur
 import { officialLifeCatalog } from '../../src/modules/settings/infrastructure/official-presets/index.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { SceneRepository } from '../../src/modules/world/infrastructure/scene-repository.ts';
+import { PostgresPlayerRecords } from '../../src/modules/world/infrastructure/player-records-repository.ts';
 import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
 import { sceneTaskHandler } from '../../src/modules/world/infrastructure/scene-task-handler.ts';
 import { runOne } from '../../src/modules/tasks/application/run-worker.ts';
@@ -225,12 +226,12 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
                 calls === 1
                   ? {
                       ...base,
-                      evidenceFormat: 'indexed-observations-v1',
+                      evidenceFormat: 'indexed-observations-v2',
                       outcome: 'partial',
                       observation: [observation],
                       stepProposals: [
                         {
-                          matterId: trigger.id,
+                          matterIndex: 0,
                           stepId: 'order_reviewed',
                           inputQuote: text,
                           observationIndex: 0,
@@ -345,9 +346,58 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         const invisible = actorContext(current, absent.id, '下一步是什么？');
         assert.ok(!invisible.facts.some((f) => f.id.startsWith('matter_result:')));
         assert.ok(!invisible.matters?.some((m) => m.id === op.id));
+        const records = await new PostgresPlayerRecords(db).read(owner, worldId);
+        const pursuitRecord = records.about.find(
+          (r) => r.source.kind === 'world_matter' && r.source.matterId === pursuit.id,
+        )!;
+        assert.equal(pursuitRecord.progress?.milestones.length, 1);
+        assert.equal(
+          pursuitRecord.progress?.milestones[0]?.recordId,
+          `sys/matter/${worldId}/${trigger.id}`,
+        );
+        const nextRecord = records.current.find(
+          (r) => r.source.kind === 'world_matter' && r.source.matterId === op.id,
+        )!;
+        assert.equal(
+          nextRecord.opportunity?.triggerRecordId,
+          `sys/matter/${worldId}/${trigger.id}`,
+        );
+        assert.equal(nextRecord.state, 'not_started');
         const before = await counts();
         assert.deepEqual(await scenes.input(owner, worldId, sceneId, a.request), a.command);
         await run(a.command.task!.id, final);
+        assert.deepEqual(await counts(), before);
+      },
+    );
+    await t.test(
+      'records require the actual saved action row for every earlier step source',
+      async () => {
+        const first = (await target()).stepProgress!.steps.find(
+          (step) => step.stepId === 'order_reviewed',
+        )!;
+        const original = (
+          await admin.query(
+            "SELECT document FROM parallel_life.scene_items WHERE owner_id=$1 AND world_id=$2 AND id=$3 AND kind='action'",
+            [owner, worldId, first.actionId],
+          )
+        ).rows[0].document;
+        const before = await counts();
+        try {
+          await admin.query(
+            "UPDATE parallel_life.scene_items SET document=jsonb_set(document,'{text}',to_jsonb($4::text)) WHERE owner_id=$1 AND world_id=$2 AND id=$3 AND kind='action'",
+            [owner, worldId, first.actionId, '此为损坏来源夹具，不是原动作。'],
+          );
+          const records = await new PostgresPlayerRecords(db).read(owner, worldId);
+          assert.ok(records.about.every((r) => !r.progress));
+          assert.ok(records.current.every((r) => !r.opportunity));
+        } finally {
+          await admin.query(
+            "UPDATE parallel_life.scene_items SET document=$4::jsonb WHERE owner_id=$1 AND world_id=$2 AND id=$3 AND kind='action'",
+            [owner, worldId, first.actionId, JSON.stringify(original)],
+          );
+        }
+        const restored = await new PostgresPlayerRecords(db).read(owner, worldId);
+        assert.ok(restored.about.some((r) => r.progress?.milestones.length === 1));
         assert.deepEqual(await counts(), before);
       },
     );
@@ -372,6 +422,14 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           2,
         );
         assert.equal(after.matters!.find((m) => m.span === 'pursuit')?.status, 'in_progress');
+        const records = await new PostgresPlayerRecords(db).read(owner, worldId);
+        const pursuitRecord = records.about.find(
+          (r) =>
+            r.source.kind === 'world_matter' &&
+            r.source.matterId === after.matters!.find((m) => m.span === 'pursuit')!.id,
+        )!;
+        assert.equal(pursuitRecord.progress?.milestones.length, 2);
+        assert.equal(pursuitRecord.state, 'in_progress');
         const initial = (
           await admin.query(
             'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',

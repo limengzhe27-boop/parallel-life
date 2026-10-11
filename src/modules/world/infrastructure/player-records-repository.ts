@@ -1,4 +1,5 @@
 import { historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
+import { isDeepStrictEqual } from 'node:util';
 import { mergeAppointments } from '../domain/genesis-links.ts';
 import { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { PlayerRecordsReader } from '../application/player-records.ts';
@@ -94,6 +95,12 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           ...(world.state.matters ?? []).flatMap((m: WorldMatter) => [
             ...(m.source.kind === 'director_proposal' ? [m.source.eventId] : []),
             ...(m.pursuitProgress?.milestones.map((step) => step.eventId) ?? []),
+            ...(m.evidence?.kind === 'scene_steps' ? [m.evidence.eventId] : []),
+            ...(m.visibility === 'player_visible'
+              ? (m.stepProgress?.steps ?? [])
+                  .slice(0, 7)
+                  .flatMap((step) => [step.inputEventId, step.eventId])
+              : []),
           ]),
         ]),
       ];
@@ -158,11 +165,19 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         )
       ).rows.map((r) => r.document);
       const matters: WorldMatter[] = world.state.matters ?? [];
-      const actionIds = matters.flatMap((m) =>
-        m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps'
-          ? [m.evidence.actionId]
-          : [],
+      const stepRefs = matters.flatMap((m) =>
+        m.visibility === 'player_visible' ? (m.stepProgress?.steps ?? []).slice(0, 7) : [],
       );
+      const actionIds = [
+        ...new Set([
+          ...matters.flatMap((m) =>
+            m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps'
+              ? [m.evidence.actionId]
+              : [],
+          ),
+          ...stepRefs.map((step) => step.actionId),
+        ]),
+      ];
       const actionRows = actionIds.length
         ? (
             await sql.query(
@@ -175,6 +190,8 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           ).rows
         : [];
       const matterObservations = new Map<string, string>();
+      const sceneStepSources: NonNullable<PlayerRecordsInput['sceneStepSources']>[number][] = [];
+      const savedSources = new Set<string>();
       for (const row of actionRows) {
         const parsed = SceneRuntimeActionSchema.safeParse(row.document);
         if (
@@ -186,6 +203,34 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
           row.payload.data?.sceneId !== parsed.data.sceneId
         )
           continue;
+        const action = parsed.data;
+        const original = events.find((event) => event.id === action.sourceEventId);
+        if (
+          stepRefs.some((step) => step.actionId === action.id && step.eventId === row.event_id) &&
+          action.worldId === worldId &&
+          action.ownerId === ownerId &&
+          action.status === 'resolved' &&
+          original?.type === 'scene.input_recorded' &&
+          original.version === action.sourceVersion &&
+          original.data?.sceneId === action.sceneId &&
+          original.data?.privateThought === false &&
+          isDeepStrictEqual(row.payload.data?.worldResults?.action, action) &&
+          !savedSources.has(action.id + ':' + row.event_id)
+        ) {
+          savedSources.add(action.id + ':' + row.event_id);
+          sceneStepSources.push({
+            inputEvent: {
+              id: original.id,
+              worldId: original.worldId,
+              version: original.version,
+              type: 'scene.input_recorded',
+              sceneId: original.data.sceneId,
+              privateThought: false,
+            },
+            resultEvent: row.payload,
+            action,
+          });
+        }
         for (const matter of matters) {
           const observation = matterSceneObservation(matter, parsed.data, {
             ownerId,
@@ -205,6 +250,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         matterObservations,
         sceneAttendanceSources,
         progressionEvents: events.filter((e) => e.type === 'scene.action_resolved'),
+        sceneStepSources,
         appointments,
         messages,
         events,

@@ -43,3 +43,7 @@ NPC实际发“单号先核对清楚。”仍重复本轮刚观察动作。此�
 ## v12 候选集成检查
 
 B8ad5c8a/根3d0803c与Q48c4c11/根138f0b8准确集成，根仅更名旧NPC内部payload断言而不放宽行为。最终953check/332边界/type0全部通过，build0，根真实PG7/7（合成模型不是供应商）通过。首次不提升沙箱检查因本地PG连接EPERM退出，按已授权本地资源升级权限后原完整check通过；不是功能回归。无新SQL，生产41迁移一致已有读证。候选待READY/公网及真实下一步说明；已存核对不重做，保守8/18不变，整链仍未完成。
+
+## v12 READY与真实说明失败
+
+0de9bad / awku3xvbt（dpl_5AccxxeD2Dttxh7hmJo6LFj1CWhw）READY/正式别名已切换，公网8组回归通过。单独说明首次unknown/resultVersion null，安全response TIMEOUT/85125ms，仅input推进v6，核对source未被擦除。原receipt确认后明确一次manual复测failed/INVALID_AI_OUTPUT，7793ms固定matter_id。保守12/18，所有失败与未知预算保留，不自动重付；说明尚未保存、NPC质量仍无改善结论。根登记SCENE-EVIDENCE-MATTER-INDEX-01新增显式v2序号wire，B/Q另做NOTES-STEP-PROJECTION-01可信source投影；当前还未完整完成/接收/机会/私聊验收。
