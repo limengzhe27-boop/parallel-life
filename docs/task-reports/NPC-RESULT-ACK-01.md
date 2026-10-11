@@ -4,6 +4,8 @@
 
 ## 复现与修复
 
+独立Q后续发现两类占位姓名碰撞：其他recipient的真实UUID不撞alias，但其name为ACTOR_ID/actor_1时，原候选占位分支仍ack1。I重新释放原范围，新两负例先运行9项7过/2失败（两者实得1预期0），再把“其他recipient.name不碰撞”统一移到所有alias入口，真实targetId照旧。修后新9+旧6共15/15通过；不修改旧测试或可见来源规则。此补取代原候选13项证据作为最终回归，原失败保留追溯。
+
 原 ackReply 在 message.received.actorId 被归一化为当前人物之前，以真实ID严格相等判断。新专项首次运行 6 项、5通过/1失败：同一保存且当前人物可见的R17结果，回复为当前真实ID时 ack1，精确姓名“老周”时 ack0。因此可确认姓名漏承接；仅本地模型stub复现，未做真实模型概率评估。
 
 不能简单把判断后移：原归一化会把任意另一个actorId改为当前target，而旧测试明确要求 another-actor 不ack。保留该拒绝边界，只增加可识别的当前人物姓名与 ACTOR_ID / actor_数字占位。精确姓名不得与possibleRecipients的其他人物同名；任何别名不得与其真实ID碰撞。缺失ID、其他姓名、任意陌生字符串或外来UUID仍不ack。已有targetId行为不变。

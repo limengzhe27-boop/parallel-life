@@ -221,8 +221,8 @@ export class WorldTurnPlanner implements TurnPlanner {
           (e.actorId === targetActorId ||
             (typeof e.actorId === 'string' &&
               !context.possibleRecipients?.some((actor) => actor.id === e.actorId) &&
-              ((e.actorId === context.actor.name &&
-                !context.possibleRecipients?.some((actor) => actor.name === e.actorId)) ||
+              !context.possibleRecipients?.some((actor) => actor.name === e.actorId) &&
+              (e.actorId === context.actor.name ||
                 e.actorId === 'ACTOR_ID' ||
                 /^actor_\d+$/.test(e.actorId)))) &&
           typeof e.text === 'string' &&

@@ -100,6 +100,28 @@ test('an ambiguous current name and missing actor ID do not acknowledge', async 
   );
   assert.equal(acknowledgements(await propose(undefined)).length, 0);
 });
+for (const alias of ['ACTOR_ID', 'actor_1']) {
+  test(`placeholder matching another recipient name does not acknowledge: ${alias}`, async () => {
+    assert.equal(
+      acknowledgements(
+        await propose(alias, {
+          context: {
+            ...context,
+            possibleRecipients: [
+              {
+                id: '10000000-0000-4000-8000-000000000002',
+                name: alias,
+                relationship: '同事',
+                persona: '其他人物',
+              },
+            ],
+          },
+        }),
+      ).length,
+      0,
+    );
+  });
+}
 test('no explicit acknowledgement or no dialogue does not consume result', async () => {
   assert.equal(acknowledgements(await propose('老周', { ack: [] })).length, 0);
   assert.equal(acknowledgements(await propose('老周', { reply: false })).length, 0);
