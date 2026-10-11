@@ -11,6 +11,7 @@ import {
 } from '../src/modules/world/infrastructure/scene-planner.ts';
 import { sceneMatterId } from '../src/modules/world/domain/scene-matter-policy.ts';
 import { progressionFixture } from './fixtures/matter-progression.ts';
+import type { ModelOutputOptions } from '../src/modules/ai/application/ports.ts';
 import type { ScenePlanningContext } from '../src/modules/world/application/scene-ports.ts';
 
 function fixture(intent: 'attempt' | 'plan' = 'attempt') {
@@ -75,15 +76,18 @@ async function propose(
   },
 ) {
   const calls: { role: string; content: string }[][] = [];
+  const outputs: (ModelOutputOptions | undefined)[] = [];
   const proposal = await new ScenePlanner({
-    async complete(messages) {
+    async complete(messages, _signal, _maxTokens, output) {
       calls.push(messages);
+      outputs.push(output);
       return JSON.stringify(calls.length === 1 ? f.director : reply);
     },
   }).propose(f.c);
   return {
     proposal,
     calls,
+    outputs,
     director: JSON.parse(calls[0]![1]!.content.split('\nCURRENT TASK:')[0]!),
     npc: calls[1] ? JSON.parse(calls[1][1]!.content) : null,
   };
@@ -404,4 +408,92 @@ test('only this actor own authorized saved execution permits a no-action recap',
     if (mode === 'own') assert.deepEqual((await propose(f, reply)).proposal.npcActions, []);
     else await assert.rejects(propose(f, reply), { code: 'INVALID_PROPOSAL' });
   }
+});
+
+test('all scene calls request JSON without another model invocation', async () => {
+  const f = fixture();
+  const { calls, outputs } = await propose(f);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(outputs, [{ format: 'json_object' }, { format: 'json_object' }]);
+  assert.match(calls[0]![0]!.content, /完全省略receiverId/);
+  assert.match(calls[0]![0]!.content, /绝不能写null/);
+});
+test('schema diagnostics identify only allowed field paths/codes without raw values or unknown keys', async () => {
+  for (const mutation of ['null-receiver', 'unknown-secret', 'null-array'] as const) {
+    const f = fixture();
+    const raw: Record<string, unknown> = JSON.parse(JSON.stringify(f.director));
+    if (mutation === 'null-receiver')
+      (raw.stepProposals as Record<string, unknown>[])[0]!.receiverId = null;
+    else if (mutation === 'null-array') raw.stepProposals = null;
+    else raw.SECRET_UNKNOWN_FIELD = 'PRIVATE_USER_RAW_VALUE';
+    let calls = 0;
+    await assert.rejects(
+      new ScenePlanner({
+        async complete() {
+          calls++;
+          return JSON.stringify(raw);
+        },
+      }).propose(f.c),
+      (error: unknown) => {
+        const e = error as Error & { code: string; stage: string; diagnosticMessage: string };
+        assert.equal(e.code, 'INVALID_PROPOSAL');
+        assert.equal(e.stage, 'proposal');
+        assert.ok(e.message.includes(e.diagnosticMessage));
+        assert.ok(!e.message.includes('SECRET_UNKNOWN_FIELD'));
+        assert.ok(!e.message.includes('PRIVATE_USER_RAW_VALUE'));
+        assert.ok(e.diagnosticMessage.length <= 500);
+        assert.ok(!JSON.stringify(e).includes('SECRET_UNKNOWN_FIELD'));
+        assert.ok(!JSON.stringify(e).includes('PRIVATE_USER_RAW_VALUE'));
+        if (mutation === 'null-receiver')
+          assert.equal(
+            e.diagnosticMessage,
+            'scene_schema:stepProposals.[0].receiverId:invalid_type',
+          );
+        else if (mutation === 'null-array')
+          assert.equal(e.diagnosticMessage, 'scene_schema:stepProposals:invalid_type');
+        else assert.equal(e.diagnosticMessage, 'scene_schema:$:unrecognized_keys');
+        return true;
+      },
+    );
+    assert.equal(calls, 1);
+  }
+});
+test('non-JSON output has a fixed safe diagnostic, not the provider raw text', async () => {
+  const f = fixture();
+  await assert.rejects(
+    new ScenePlanner({
+      async complete() {
+        return 'PRIVATE_INVALID_RAW_WITH_SECRET';
+      },
+    }).propose(f.c),
+    (error: unknown) => {
+      const e = error as Error & { stage: string; diagnosticMessage: string };
+      assert.equal(e.stage, 'proposal');
+      assert.equal(e.diagnosticMessage, 'scene_schema:MODEL_OUTPUT_WITHOUT_OBJECT');
+      assert.ok(e.message.includes(e.diagnosticMessage));
+      assert.ok(!e.message.includes('PRIVATE_INVALID_RAW_WITH_SECRET'));
+      assert.ok(!JSON.stringify(e).includes('PRIVATE_INVALID_RAW_WITH_SECRET'));
+      return true;
+    },
+  );
+});
+test('opening uses authored step definitions without executing, duplicating tasks or inventing presence', async () => {
+  const f = fixture();
+  delete f.c.action;
+  f.director.stepProposals = [];
+  f.director.outcome = null;
+  f.director.observation = null;
+  f.director.presentActorIds = [];
+  const { calls, proposal, director } = await propose(f);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(proposal.presentActorIds, []);
+  assert.deepEqual(proposal.initialMatters, []);
+  assert.deepEqual(proposal.stepProposals, []);
+  assert.deepEqual(proposal.npcActions, []);
+  assert.equal(director.authoredStepDefinition.length, 1);
+  assert.equal(director.authoredStepDefinition[0].matterId, f.f.trigger.id);
+  assert.ok(!('completedSteps' in director.authoredStepDefinition[0]));
+  assert.match(calls[0]![0]!.content, /initialMatters必须\[\]/);
+  assert.match(calls[0]![1]!.content, /Appointment candidates are not proof of arrival/);
+  assert.match(calls[0]![1]!.content, /if presentActorIds is empty/);
 });

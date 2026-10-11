@@ -60,3 +60,15 @@ ScenePlanner版本scene-text-v5-structured-steps。director strict stepProposals
 此处静态缺陷和predicate复现可证；尚未收到真实task安全error classification，因此尚不断言它就是该次failed的唯一原因。导演解析、本NPCschema或其他presence/observable拒绝仍须结合实际失败阶段确认。全程本人0模型/生产写/DB/HTTP/浏览器；只更新报告与本人登记，源码继续冻结。
 
 根随后提供安全分类：task9869fbb4，opening errorCode=AI_FAILED/detail=TypeError，耗时19874ms，非INVALID_PROPOSAL。这与上述确定解引用缺陷吻合；已经再次回根具体位置与复现，真实任务栈/修后开场回归仍由根确认，不把耗时误称网络超时。无需更多本轮模型调用来复现静态错误。
+
+## 真实schema失败后的限定v6契约与安全诊断
+
+根提供：383be75原开场人工retry成功但actualpresentActorIds=[]，旁白称老周在旁忙碌；后续“我核对R17维修单”仅导演1call在extract/schema catch失败INVALID_AI_OUTPUT/Invalid scene proposal，新总保守5/18。不能以旁白替正式到场，不编造在场者或从失败样本自动补step。根重新释放原planner/new test/report，公共源只读；383be75同步报告冲突保留根提交版，未纳入本人业务diff。按根最新要求仅pure/type快验，全集成check/build由根统一，不另跑DB或重复构建。
+
+版本scene-text-v6-explicit-schema：主prompt精确列完整SceneProposal字段与上限，stepProposals示例明确world matterId/stepId/当前inputQuote/observationQuote/receiverId；非接收类步骤省略receiverId，不能null；默认数组不能null，director npcActions只能空。不用示例创造成功证据。导演和最多2NPC每次complete都通过已有第四参数{format:'json_object'}，无额外调用或解析失败自动模型重试。
+
+parsecatch现在生成stage=proposal与diagnosticMessage，只包含固定phase、固定schema字段白名单路径/有界数字index、issue.code白名单；最多8条、路径6段、总500字符，未知字段替*，unrecognized_keys不记录keys，extract失败仅固定MODEL_OUTPUT_NOT_JSON/WITHOUT_OBJECT或invalid。DomainError.message也带同一安全诊断，供现run-worker仅读取message.slice(120)的记录器实际定位；不需全局logger扩围。message/diagnostic都不保raw、error message、received values、陌生keys或用户原文，也不附ZodError cause。
+
+开场payload新增authoredStepDefinition，仅sceneStepRule+isSceneMatterLinked已获准官方R17定义的只读id/title/required/版本，不使用ledger或旧文本回填；已有父事项opening initialMatters=[]/matterTitle=null，避免重复悬空核对/交代/交付小事项。新增prompt明确合法候选由导演判这一刻实际在场者并显式列ID，预约不是到场，空名单时旁白不能说老周忙碌等实际在场行为；这里只提示，不根据narration自动增IDs/强制赴约成功。
+
+新增4组测试：director/NPC都请求json_object且不增调用；null receiver/null arrays/unknown secret严格schema失败仅安全路径code，message与diagnostic均不泄漏；非JSON仅固定码；无action/R17正式定义开场保持空presence、不重复任务、无执行提案、无旧步骤回填。32新旧planner专项通过，最终typecheck通过，日志.local/matter-aiqa-02b-schema-pure-final.log。现场是否出现合法receiver仍须根新开场真实样本，本批不宣称真实模型修复成功，5/18由根独占、本人成本0。
