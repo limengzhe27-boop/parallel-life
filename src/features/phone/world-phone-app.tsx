@@ -129,7 +129,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       const custom = localStorage.getItem(`pl_wallpaper_${worldId}`);
       if (custom) return custom;
     }
-    return resolveDefaultWallpaper(data?.title);
+    return resolveDefaultWallpaper(data?.title, data?.identity);
   });
 
   useEffect(() => {
@@ -137,13 +137,13 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       try {
         const custom = localStorage.getItem(`pl_wallpaper_${worldId}`);
         if (!custom) {
-          setWallpaperUrl(resolveDefaultWallpaper(data.title));
+          setWallpaperUrl(resolveDefaultWallpaper(data.title, data.identity));
         }
       } catch {
         /* Storage may be unavailable. */
       }
     }
-  }, [worldId, data?.title]);
+  }, [worldId, data?.title, data?.identity]);
 
   const changeWallpaper = (url: string) => {
     setWallpaperUrl(url);
@@ -609,19 +609,19 @@ export function WorldPhoneSurface({
       const custom = localStorage.getItem(`pl_wallpaper_${data.id}`);
       if (custom) return custom;
     }
-    return resolveDefaultWallpaper(data.title);
+    return resolveDefaultWallpaper(data.title, data.identity);
   });
 
   useEffect(() => {
     try {
       const custom = localStorage.getItem(`pl_wallpaper_${data.id}`);
       if (!custom) {
-        setWallpaperUrl(resolveDefaultWallpaper(data.title));
+        setWallpaperUrl(resolveDefaultWallpaper(data.title, data.identity));
       }
     } catch {
       /* Storage may be unavailable. */
     }
-  }, [data.id, data.title]);
+  }, [data.id, data.title, data.identity]);
 
   const changeWallpaper = (url: string) => {
     setWallpaperUrl(url);

@@ -8,6 +8,7 @@ import {
 } from './official-lives-client.ts';
 import styles from './official-lives.module.css';
 import { LifeCard } from './life-card.tsx';
+import { resolveOfficialLifeArt } from './life-art.ts';
 
 export type OfficialLifeArtwork = 'garage' | 'lake' | 'house' | 'stage';
 export interface OfficialLifeCardView {
@@ -295,6 +296,7 @@ export function OfficialLifeCard({
   onOpenLegacy?: (id: string) => void;
 }) {
   const errorId = useId();
+  const art = resolveOfficialLifeArt(card.id);
   const action = pending
     ? '正在准备这部手机…'
     : card.hasSave
@@ -307,8 +309,8 @@ export function OfficialLifeCard({
       title={card.title}
       description={card.hook}
       identity={card.identity}
-      imageUrl={`/art/lives/${card.id}-cover.svg`}
-      imageLabel="原创插画"
+      imageUrl={art?.coverUrl}
+      imageLabel={art?.label}
       pending={pending}
       detail={card.experienceNote ? <p>{card.experienceNote}</p> : undefined}
     >

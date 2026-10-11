@@ -4,6 +4,7 @@ import s from './life-card.module.css';
 
 /** One presentation for authored lives, approved lives, and unfinished drafts. */
 export function LifeCard({
+  id,
   title,
   description,
   identity,
@@ -14,6 +15,7 @@ export function LifeCard({
   children,
   pending = false,
 }: {
+  id?: string;
   title: string;
   description?: string;
   identity?: string;
@@ -28,7 +30,7 @@ export function LifeCard({
   const [failedUrl, setFailedUrl] = useState<string>();
   const hasImage = imageUrl && failedUrl !== imageUrl;
   return (
-    <article className={s.card} aria-labelledby={titleId} aria-busy={pending}>
+    <article id={id} className={s.card} aria-labelledby={titleId} aria-busy={pending}>
       <div className={s.cover}>
         <img
           className={s.image}

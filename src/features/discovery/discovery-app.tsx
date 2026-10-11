@@ -3,7 +3,9 @@ import { DraftEditor } from './draft-editor.tsx';
 import { OfficialLives } from './official-lives.tsx';
 import type { LifeDraft } from '../../contracts/life-drafts.ts';
 import { BranchList } from './branch-list.tsx';
+import { DirectionCard } from './direction-card.tsx';
 import { visibleSavedSeeds } from './branch-catalog.ts';
+import { resolveOfficialLifeArt } from './life-art.ts';
 import type { OfficialLifeCard } from '../../contracts/official-lives.ts';
 import { BuildControl } from './build-control.tsx';
 import type { WorldBuild } from '../../contracts/world-build.ts';
@@ -388,12 +390,27 @@ export function DiscoveryApp() {
                   description: saved.story.opening || saved.story.premise,
                   premise: saved.story.premise,
                   tradeoff: saved.story.tradeoff,
-                  identity: saved.setup?.identity,
+                  identity:
+                    saved.setup?.identity ||
+                    ('source' in saved && saved.source.kind === 'official_life'
+                      ? catalog.find(
+                          (card) =>
+                            'source' in saved &&
+                            saved.source.kind === 'official_life' &&
+                            card.id === saved.source.presetId,
+                        )?.identityLabel
+                      : undefined),
                   ready: Boolean(builds.find((b) => b.seedId === saved.id)?.ready),
                   status: builds.find((b) => b.seedId === saved.id)?.ready ? '进入体验' : '待创建',
                   imageUrl: saved.portraitAssetId
                     ? `/api/v1/assets/${saved.portraitAssetId}`
-                    : undefined,
+                    : 'source' in saved && saved.source.kind === 'official_life'
+                      ? resolveOfficialLifeArt(saved.source.presetId)?.coverUrl
+                      : undefined,
+                  imageLabel:
+                    'source' in saved && saved.source.kind === 'official_life'
+                      ? '原创插画'
+                      : '你的照片',
                 }))}
                 onOpen={(id) => {
                   const saved = savedSeeds.find((s) => s.id === id);
@@ -514,71 +531,21 @@ export function DiscoveryApp() {
                   </Notice>
                 )}
                 {availableDirections.length ? (
-                  <section className="direction-grid" aria-label="为你构想的人生方向">
+                  <section className="saved-lives" aria-label="为你构想的人生方向">
                     {availableDirections.map((direction, index) => (
-                      <article
-                        id={`direction-${direction.id}`}
-                        className="direction-card page-enter"
+                      <DirectionCard
                         key={direction.id}
-                      >
-                        <div className="direction-cover">
-                          <img
-                            loading="lazy"
-                            src={index === 1 ? '/art/open-door.webp' : '/art/meadow-door.webp'}
-                            alt="另一种可能的通用想象插画"
-                          />
-                          <small>想象插画</small>
-                        </div>
-                        <div className="direction-card-top">
-                          <span className="direction-number">可能 / 0{index + 1}</span>
-                          <Icon name={(['spark', 'clock', 'chat'] as const)[index]!} size={22} />
-                        </div>
-                        <h2>{direction.title}</h2>
-                        <p className="direction-premise">{direction.premise}</p>
-                        <details className="direction-scene">
-                          <summary>
-                            想象这样的一天 <Icon name="plus" size={14} />
-                          </summary>
-                          <p>{direction.premise}</p>
-                          <p>{direction.opening}</p>
-                        </details>
-                        <details className="direction-details">
-                          <summary>
-                            为什么想到它
-                            <Icon name="plus" size={14} />
-                          </summary>
-                          <p>{direction.reason}</p>
-                          <ul>
-                            {direction.sources.map((source) => (
-                              <li key={source.factId}>{source.value}</li>
-                            ))}
-                          </ul>
-                          {!direction.sources.length && <small>来自你这次写下的“如果”</small>}
-                          <h3>这条路，也有另一面</h3>
-                          <p>{direction.tradeoff}</p>
-                        </details>
-                        <Button
-                          className="direction-select"
-                          disabled={busy || waiting || stale}
-                          onClick={() => void reviewDirection(direction)}
-                        >
-                          {busy ? '正在读取草案…' : '查看人生起点'}
-                          <Icon name="arrow" size={16} />
-                        </Button>
-                        <Button
-                          className="direction-refine"
-                          variant="secondary"
-                          disabled={busy || waiting || stale}
-                          onClick={() => {
-                            setRefining(direction);
-                            setRefineText('');
-                            setError('');
-                          }}
-                        >
-                          按这个方向另作构思
-                          <Icon name="edit" size={15} />
-                        </Button>
-                      </article>
+                        direction={direction}
+                        index={index}
+                        disabled={busy || waiting || stale}
+                        busy={busy}
+                        onReview={() => void reviewDirection(direction)}
+                        onRefine={() => {
+                          setRefining(direction);
+                          setRefineText('');
+                          setError('');
+                        }}
+                      />
                     ))}
                   </section>
                 ) : (

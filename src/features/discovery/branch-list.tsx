@@ -7,6 +7,7 @@ export interface BranchEntry {
   status: string;
   ready?: boolean;
   imageUrl?: string;
+  imageLabel?: string;
   description?: string;
   identity?: string;
   premise?: string;
@@ -37,7 +38,7 @@ export function BranchList({
           description={item.description}
           identity={item.identity}
           imageUrl={item.imageUrl}
-          imageLabel="你的照片"
+          imageLabel={item.imageLabel ?? '你的照片'}
           fallbackUrl={
             ['/art/first-window.webp', '/art/meadow-door.webp', '/art/open-door.webp'][index % 3]
           }

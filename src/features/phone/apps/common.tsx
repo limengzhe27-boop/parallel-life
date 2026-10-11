@@ -102,10 +102,29 @@ export function Refresh() {
   ) : null;
 }
 export function Avatar({ url, name }: { url?: string; name: string }) {
-  const [failed, setFailed] = useState(false);
+  const [failures, setFailures] = useState<{ photo?: string; generic: boolean }>({
+    generic: false,
+  });
+  const imageUrl =
+    url && failures.photo !== url
+      ? url
+      : !failures.generic
+        ? '/art/lives/avatar-contact.svg'
+        : undefined;
   return (
     <span className={s.avatar}>
-      {url && !failed ? <img src={url} alt="" onError={() => setFailed(true)} /> : name.slice(0, 1)}
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt=""
+          onError={() => {
+            if (imageUrl === url) setFailures((previous) => ({ ...previous, photo: url }));
+            else setFailures((previous) => ({ ...previous, generic: true }));
+          }}
+        />
+      ) : (
+        name.slice(0, 1)
+      )}
     </span>
   );
 }
