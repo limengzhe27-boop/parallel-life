@@ -47,7 +47,7 @@ export function followupAgenda(
       return Boolean(
         m &&
         witnessedMatterResult(state, m, thread.actorId) &&
-        m.evidence?.kind === 'scene_action' &&
+        (m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps') &&
         m.evidence.eventVersion > previous.version,
       );
     }

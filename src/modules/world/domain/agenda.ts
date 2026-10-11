@@ -226,7 +226,7 @@ export function buildAgenda(
   }
   for (const matter of state.matters ?? []) {
     const evidence = matter.evidence;
-    if (evidence?.kind !== 'scene_action') continue;
+    if (evidence?.kind !== 'scene_action' && evidence?.kind !== 'scene_steps') continue;
     for (const actor of state.actors) {
       const fact = witnessedMatterResult(state, matter, actor.id);
       if (!fact) continue;

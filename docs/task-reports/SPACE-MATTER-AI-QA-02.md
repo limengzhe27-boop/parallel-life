@@ -29,3 +29,5 @@ B独占scene-planner.ts和新planner测试；Q独占新scene-step-progress.test.
 根/B只读定位commitSceneProposal非执行分支：Schema默认空stepProposals进入c.action!.relatedMatterIds，开场无action而解引用。修为非执行只拒非空执行候选；实际attempt仍有空数组执行声明护栏。真实PG开场使用同生产SceneProposalSchema默认，新增未来plan未执行，专项6/6；完整806check过。待修复构建/部署后显式读取原failed无结果再人工重试，所有额外调用计入原18上限。
 
 修复383be75 / almk7novd READY后显式检查原failed/resultVersion=null再retry，task succeeded。但开场旁白‘老周师傅在一旁忙碌’而持久presence仅player，无NPC对白，不能据旁白补在场。后续第一步核对R17输出schema被拒（Invalid scene proposal/INVALID_AI_OUTPUT），实际0步骤保存。已保守占5/18，原失败保留，正常API显式离场，没建第二world。B重新领取精确输出/schema白名单diagnostic，不记录raw/人物信息；Q独立语义复核，不称完整链通过。待新候选开场与精确格式验收，不盲重试同坏契约。
+
+B v6源9bdab15已集成f17e061：json_object明确结构、来源步骤例示、省略非接收人ID、已有正式R17不再新建重复独立小任务；不从旁白补presence。Q只读查到agenda与return-followups只认scene_action，根扩至scene_steps并加2消费专项，目击/日期/冷却/旧版本过滤仍保留。新812/812check、真实PG6/6专项过，待build/候选READY后新开场。另一ack人物ID归一化前判断风险暂记待核，不据静态猜旧503。

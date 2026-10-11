@@ -282,6 +282,28 @@ if (command === 'create') {
   const receipt = (await api(prefix(w) + '/scenes/' + w.sceneId + '/actions', input)).data;
   await runTask(w, receipt.task, false);
   await snapshot(w, 'action-saved');
+} else if (command === 'replay-action') {
+  const w = entry(),
+    before = await snapshot(w, 'before-action-replay');
+  const name = ledger.evidence.findLast((n) => n.endsWith('-action-input.json'));
+  assert.ok(name);
+  const original = JSON.parse(await readFile(evidenceDir + '/' + name, 'utf8'));
+  assert.equal(original.worldId, w.worldId);
+  const receipt = (
+    await api(prefix(w) + '/scenes/' + original.sceneId + '/actions', original.input)
+  ).data;
+  assert.equal(receipt.commandId, original.input.commandId);
+  assert.equal(receipt.task.status, 'succeeded');
+  const after = await snapshot(w, 'after-action-replay');
+  assert.equal(before.phone.version, after.phone.version);
+  assert.deepEqual(before.scene.actions, after.scene.actions);
+  assert.deepEqual(before.scene.matters, after.scene.matters);
+  await evidence('action-replay-proof', {
+    modelCalls: 0,
+    newEvents: 0,
+    beforeVersion: before.phone.version,
+    afterVersion: after.phone.version,
+  });
 } else if (command === 'retry-reviewed-scene') {
   // Manual invocation only: preserve uncertain spend, inspect the original receipt,
   // then reserve another complete upper bound. Never retry in an automatic loop.
