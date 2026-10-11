@@ -29,3 +29,9 @@
 - streamComplete首次yield一个合法delta，消费者暂停45ms而总deadline25ms，fake body cancel次数仍0；恢复next才TIMEOUT并cancel1。真实fetch一般响应abort，本结果限定不合作传输在yield暂停期间无法即时清理。建议绑定reader abort清理并finally移除，不依赖消费者next；取消/超时优先于原错误类型分类。
 
 未修改公共源码/新增网关测试，交I修法与Q独立回归，不称真实上游或现场整链已修复。
+
+## 集成正式验收 · 2026-10-12
+
+业务a1ef737，production 57rloofdv/dpl_A6GBHJZJvu7PEsH5hhLDsCVifzz9 READY/正式别名已切换；889check/332边界/type0/build0，全真实PG247pass+5明确模型opt-in skip、第二补最终PG10/10，生产41迁移一致无SQL。公网8组既有paused合成存档phone/records/map同版本、4目录/旧档保留/跨owner404及health页面通过；0新模型/图/世界/生产业务写，仅GET可能有基础限流记录。PG55452已停无监听，HTTP/browser未启，B/Q范围资源均释放。只证明传输及有限ACK，不证明旧85s供应商慢/场景结构输出或自然完整体验已治愈。
+
+真实模型母项仍待本轮新授权与分轮验收，不把纯传输、ACK或mock PostgreSQL统计当玩法自然性结果；保留所有原失败/unknown。下一顺序见主表末节。

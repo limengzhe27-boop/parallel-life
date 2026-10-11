@@ -41,3 +41,9 @@ Q只读stdin合成复现：possibleRecipients中另一真实UUID角色name恰为
 本次交付只有tests/gateway-lifecycle-audit.test.ts及本报告；主表只更新本人行。本人测试/报告提交6151a0c与1b5f480，最终报告另有独立提交；不要整分支合入本树93b4818/2d8c665以免重复根源码提交。测试均使用注入的合成fetch/ReadableStream，不是生产Repository或真实供应商、PostgreSQL验收，Q真实数据库验证为0项。
 
 状态待验收，范围冻结，当前无端口、浏览器、数据库或付费资源。下一位根/I接本人两个测试/报告提交及最终报告提交，统一验证check/build、数据库持久化与unknown/replay、READY及公网；根报告的第二冻结gateway4+scene6真实PG10/10属于根执行证据，本Q未独立运行，不能冒称本Q数据库结果。真实供应商响应与完整场景质量仍须按独立验收范围确认；不自动领取其他任务。
+
+## 集成正式验收 · 2026-10-12
+
+业务a1ef737，production 57rloofdv/dpl_A6GBHJZJvu7PEsH5hhLDsCVifzz9 READY/正式别名已切换；889check/332边界/type0/build0，全真实PG247pass+5明确模型opt-in skip、第二补最终PG10/10，生产41迁移一致无SQL。公网8组既有paused合成存档phone/records/map同版本、4目录/旧档保留/跨owner404及health页面通过；0新模型/图/世界/生产业务写，仅GET可能有基础限流记录。PG55452已停无监听，HTTP/browser未启，B/Q范围资源均释放。只证明传输及有限ACK，不证明旧85s供应商慢/场景结构输出或自然完整体验已治愈。
+
+真实模型母项仍待本轮新授权与分轮验收，不把纯传输、ACK或mock PostgreSQL统计当玩法自然性结果；保留所有原失败/unknown。下一顺序见主表末节。

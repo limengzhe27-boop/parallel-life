@@ -25,3 +25,9 @@ B只读实际复现：外部SyntaxError取消被误归解析错误，GatewayErro
 Q原2pass/13fail，扩大22原3pass/19fail；第一补22pass后7取消边界失败，第二补最终33专属全通过（加既有15=48）。B alias原当前姓名漏承接与两placeholder-name碰撞均保留先fail后修，最终9新+旧6=15过。只接准确commit，不合整工作树分支。
 
 正在发布，尚不将READY/public标完成。真实完整场景模型链仍未过；旧18closed，本轮新限量18授权已询问但尚无回复，0新paid/图片/生产测试世界。本地PG55452待关闭，HTTP/browser未启。下一顺序：完成此批可靠性上线→获准后分轮真实验收→中途NPC进入/通用长期事项→地图具体玩法。
+
+## 集成正式验收 · 2026-10-12
+
+业务a1ef737，production 57rloofdv/dpl_A6GBHJZJvu7PEsH5hhLDsCVifzz9 READY/正式别名已切换；889check/332边界/type0/build0，全真实PG247pass+5明确模型opt-in skip、第二补最终PG10/10，生产41迁移一致无SQL。公网8组既有paused合成存档phone/records/map同版本、4目录/旧档保留/跨owner404及health页面通过；0新模型/图/世界/生产业务写，仅GET可能有基础限流记录。PG55452已停无监听，HTTP/browser未启，B/Q范围资源均释放。只证明传输及有限ACK，不证明旧85s供应商慢/场景结构输出或自然完整体验已治愈。
+
+真实模型母项仍待本轮新授权与分轮验收，不把纯传输、ACK或mock PostgreSQL统计当玩法自然性结果；保留所有原失败/unknown。下一顺序见主表末节。
