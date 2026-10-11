@@ -29,3 +29,11 @@
 - 仅本人本地55452两暂停的官方夹具：目录实际4卡且没有下方重复；县城主题wallpaper正常、6联系人不同头像全部正常加载。已有三天前的聊天日期保留，不重写历史。假模型凭证+网络阻断检查0模型fetch，0生产世界创建/新模型/图。
 - 修复前220短屏失败记录保留：tips行内display覆盖CSS，补important后同样本通过。开发样板中官方无体验说明的测试夹具不能被当生产数据，改用有说明的有效夹具，最终13展示/去重/viewport专项全过。
 - 正在发布，尚不将READY/public或真机审美标完成。下一步最终公网核对，用户验收：微信键盘与新视觉。旧SCENE-MODEL-STABILITY-01、SCENE-NPC-ARRIVAL-01、NPC-RESULT-ACK-01与通用长线/地图玩法仍未完成。
+
+## 正式发布验收 · 2026-10-12
+
+业务8c1b1b2，production 49udqtqr4/dpl_BZefRTayTxqx2kRHDA6gQkbzUgZK Ready，正式域名已切换；843check/331边界/type0/build0，41生产迁移一致无SQL。公网/api/health与possibilities200、19SVG200、dev preview404；390/1440实际7卡均同结构及体验说明、可见封面loaded/无横溢出。两本地paused官方夹具去重及6头像、Phone/outer220-offset90输入可见同页恢复844已过；非真机微信/审美满意/真实模型链验收。0模型图及生产世界创建，PG55452/HTTP3265等已停，Ego142 finish。
+
+公网首次脚本误用/api/v1/health得到404，按实际/api/health复验200；浏览器首次等待不存在的data-life-card属性超时，读取实际article确认7张卡片结构/说明一致。上述是验收脚本定位错误，不抹掉记录、不算业务故障。公网已有资料仅只读，不披露内容，未发送消息、进入新世界或调用模型。
+
+用户仍需验收真实微信键盘展开/收起与新视觉；个人分支保留自己的封面，真实上传头像/自定义壁纸优先。插画不冒充新照片，旧世界历史不回填。旧真实模型限量账本已关闭，SCENE-MODEL-STABILITY-01等原任务未完成。

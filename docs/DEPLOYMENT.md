@@ -1,3 +1,9 @@
+## 2026-10-12 · UI-BRANCH-UNIFY-02 / UI-MOBILE-KEYBOARD-02B / UI-PRESET-ART-02Q
+
+业务8c1b1b2，production 49udqtqr4/dpl_BZefRTayTxqx2kRHDA6gQkbzUgZK Ready，正式域名已切换；843check/331边界/type0/build0，41生产迁移一致无SQL。公网/api/health与possibilities200、19SVG200、dev preview404；390/1440实际7卡均同结构及体验说明、可见封面loaded/无横溢出。两本地paused官方夹具去重及6头像、Phone/outer220-offset90输入可见同页恢复844已过；非真机微信/审美满意/真实模型链验收。0模型图及生产世界创建，PG55452/HTTP3265等已停，Ego142 finish。
+
+预设/已建/草案/生成方向共享卡片；同一官方存档去重，仅精确官方身份映射原创主题封面/壁纸/NPC插画，用户照片优先。修复可见视口offset与短屏tips覆盖导致输入越界。真机微信键盘及审美仍待用户验收；不声称旧现场完整真实模型链通过。验收脚本错误与首次220短屏失败保留在专属报告。
+
 ## 2026-10-09 · GROUP-01 / GROUP-01I 群聊后端
 
 应用6890d17，Production e3b7xf81l / dpl_GdcLxLKhNRj8mRzTq6VhYA9sV1Pr READY，正式域名 https://parallel-life-nu.vercel.app 已切换。0038已应用，38/38生产迁移校验和一致；367check、56真实PG/3可选跳过及build通过；两身份实际群回合与领先现实4天的故事时刻模型通过。公网通用worker→真实群回复、显式替代任务重试/重复、成员退出重入、已读、跨群/账号隔离、暂停和私聊不污染通过（恢复23项、脚本修正后接续13项）。初版89b7403/co2pro3wr过期邀约失败保留，原任务仍failed，不自动重新付费；合成世界已暂停。仅后端，media=[]，群/现场UI另验收。规划及只读报告快照归档不代表官方剧本/锁屏/界面能力完成；LIB-04B业务排除。见[GROUP-01I](task-reports/GROUP-01I.md)。
