@@ -484,8 +484,8 @@ test('opening uses authored step definitions without executing, duplicating task
   f.director.outcome = null;
   f.director.observation = null;
   f.director.presentActorIds = [];
-  const { calls, proposal, director } = await propose(f);
-  assert.equal(calls.length, 1);
+  const { calls, proposal, director } = await propose(f, { present: false, text: null });
+  assert.equal(calls.length, 2);
   assert.deepEqual(proposal.presentActorIds, []);
   assert.deepEqual(proposal.initialMatters, []);
   assert.deepEqual(proposal.stepProposals, []);
@@ -496,4 +496,108 @@ test('opening uses authored step definitions without executing, duplicating task
   assert.match(calls[0]![0]!.content, /initialMatters必须\[\]/);
   assert.match(calls[0]![1]!.content, /Appointment candidates are not proof of arrival/);
   assert.match(calls[0]![1]!.content, /if presentActorIds is empty/);
+});
+
+function openingFixture() {
+  const f = fixture();
+  delete f.c.action;
+  f.c.scene.presence = f.c.scene.presence.filter((p) => p.participant.kind === 'player');
+  f.director.stepProposals = [];
+  f.director.outcome = null;
+  f.director.observation = null;
+  f.director.presentActorIds = [];
+  return f;
+}
+test('opening calls the eligible actor despite an empty director list; own present true becomes a candidate source', async () => {
+  const f = openingFixture();
+  const { proposal, calls, npc, outputs } = await propose(f, {
+    present: true,
+    text: '先把R17工单拿过来核对。',
+  });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(outputs, [{ format: 'json_object' }, { format: 'json_object' }]);
+  assert.deepEqual(proposal.presentActorIds, [f.f.actorId]);
+  assert.deepEqual(proposal.dialogues, [{ actorId: f.f.actorId, text: '先把R17工单拿过来核对。' }]);
+  assert.deepEqual(proposal.npcActions, []);
+  assert.deepEqual(proposal.stepProposals, []);
+  assert.deepEqual(npc.entries, []);
+  assert.equal(npc.observedNow, null);
+  assert.ok(npc.ownMessages.every((m: { actorId: string }) => m.actorId === f.f.actorId));
+  assert.ok(
+    npc.ownAppointments.every((a: { participantIds: string[] }) =>
+      a.participantIds.includes(f.f.actorId),
+    ),
+  );
+});
+test('opening false overrides a director presence suggestion and never stores the declined speech', async () => {
+  const f = openingFixture();
+  f.director.presentActorIds = [f.f.actorId];
+  const { proposal, calls } = await propose(f, { present: false, text: '我晚点再来。' });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(proposal.presentActorIds, []);
+  assert.deepEqual(proposal.dialogues, []);
+});
+test('opening presence output is strict, true needs speech, and actors cannot inject other identities or effects', async () => {
+  for (const reply of [
+    { present: true, text: null },
+    { present: true, text: '' },
+    { present: 'true', text: '在这里。' },
+    { text: '在这里。' },
+    { present: true, text: '在这里。', actorId: 'another' },
+    { present: true, text: '收下了。', actions: [{ kind: 'receive_r17' }] },
+    { present: true, text: '在这里。', presentActorIds: ['another'] },
+  ]) {
+    await assert.rejects(propose(openingFixture(), reply), { code: 'INVALID_PROPOSAL' });
+  }
+});
+test('opening cannot use a future or cancelled invitation as an arrival candidate', async () => {
+  for (const mode of ['future', 'cancelled'] as const) {
+    const f = openingFixture();
+    const appointment = f.c.world.appointments.find(
+      (a) => a.id === f.f.trigger.relatedInvitationId,
+    )!;
+    f.c.scene.appointmentId = appointment.id;
+    if (mode === 'future') appointment.at = new Date(Date.parse(f.c.storyAt) + 60000).toISOString();
+    else appointment.status = 'cancelled';
+    const { calls, proposal } = await propose(f, { present: true, text: '在这里。' });
+    assert.equal(calls.length, 1);
+    assert.deepEqual(proposal.presentActorIds, []);
+  }
+});
+test('opening caps candidates at two and binds each independent decision without sharing another private thread', async () => {
+  const f = openingFixture();
+  const actors = f.c.world.actors.slice(0, 3);
+  const appointment = f.c.world.appointments.find((a) => a.id === f.f.trigger.relatedInvitationId)!;
+  appointment.participantIds = actors.map((a) => a.id);
+  f.c.scene.appointmentId = appointment.id;
+  f.c.world.messages = actors.map((actor, i) => ({
+    id: randomUUID(),
+    actorId: actor.id,
+    role: 'assistant',
+    text: `PRIVATE_ACTOR_${i}`,
+    at: f.c.storyAt,
+    sourceEventId: randomUUID(),
+  }));
+  const calls: { role: string; content: string }[][] = [];
+  const proposal = await new ScenePlanner({
+    async complete(messages) {
+      calls.push(messages);
+      if (calls.length === 1) return JSON.stringify(f.director);
+      const index = calls.length - 2;
+      const payload = JSON.parse(messages[1]!.content);
+      assert.ok(
+        payload.ownMessages.some((m: { text: string }) => m.text === `PRIVATE_ACTOR_${index}`),
+      );
+      assert.ok(!messages[1]!.content.includes(`PRIVATE_ACTOR_${1 - index}`));
+      assert.deepEqual(payload.entries, []);
+      assert.equal(payload.observedNow, null);
+      return JSON.stringify({ present: index === 0, text: index === 0 ? '我来了。' : null });
+    },
+  }).propose(f.c);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(proposal.presentActorIds, [actors[0]!.id]);
+  assert.deepEqual(
+    proposal.dialogues.map((d) => d.actorId),
+    [actors[0]!.id],
+  );
 });

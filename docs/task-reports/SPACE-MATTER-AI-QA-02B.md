@@ -72,3 +72,25 @@ parsecatch现在生成stage=proposal与diagnosticMessage，只包含固定phase�
 开场payload新增authoredStepDefinition，仅sceneStepRule+isSceneMatterLinked已获准官方R17定义的只读id/title/required/版本，不使用ledger或旧文本回填；已有父事项opening initialMatters=[]/matterTitle=null，避免重复悬空核对/交代/交付小事项。新增prompt明确合法候选由导演判这一刻实际在场者并显式列ID，预约不是到场，空名单时旁白不能说老周忙碌等实际在场行为；这里只提示，不根据narration自动增IDs/强制赴约成功。
 
 新增4组测试：director/NPC都请求json_object且不增调用；null receiver/null arrays/unknown secret严格schema失败仅安全路径code，message与diagnostic均不泄漏；非JSON仅固定码；无action/R17正式定义开场保持空presence、不重复任务、无执行提案、无旧步骤回填。32新旧planner专项通过，最终typecheck通过，日志.local/matter-aiqa-02b-schema-pure-final.log。现场是否出现合法receiver仍须根新开场真实样本，本批不宣称真实模型修复成功，5/18由根独占、本人成本0。
+
+## v6开场空在场的可达性：只读来源与方案
+
+根提供v6 READY新开场successful，actualpresence仅player；旁白已安静环境、不假说老周在旁，opening重复小事项已去除、只保父目标；保守7/18。本人未新增模型/源码/DB，根897d67d只读。
+
+官方county原始来源：now_zhou为“17:41来铺里和我核对R17工单”，minutesBeforeStart=45（原始17:40开场约16:55的来信），是邀约/未来共同活动，不是当前已到店位置事实。repair fact“17:55取车默认由老周接待”和persona“默认由你交车”是职责/计划；repair_shop.actorKeys是相关人物列表，不是实际presence。不能因confirmed appointment、地图相关人物或这句来信自动把老周当实际在场，更不能把客户刘航的17:55预约视为到场。
+
+现代码可证：opening candidates来自合法预约参与者，但speakers仍只candidates∩director.presentActorIds；present=[]时没有独立NPC调用。后续attempt candidates完全来自scenePresent，presentActorIds又必须保持其集合。没有后来受控NPC入场通道，因此这次空名单合法保存后，该R17允许接收人不可达；反复重开让导演随机选非空不是修复。
+
+有限建议：confirmed且已经生效、同scene/place的预约+本人获准同地点来信，可确定eligible arrival候选及优先级，不充当到场证据。根冻结单独受控NPC admission phase（最多1–2独立候选调用，严格预算计入），只给本人actorContext、其获准邀请/同地点来信与公开地点，不给未入场scene的私人history/旧未目击动作。人物可提出有限自身enter_scene实际行动或decline/not_here，身份由adapter绑定；runtime核验world/actor/place/候选/time/blocked sources/实际动作，事务保存来源事件和presence.joinVersion。只有保存成功后才作为receiver，并从joinVersion以后获得现场观察；不以台词自动加IDs，不回填旧场景观察/步骤、不假定预约必赴约、不得从不明远处瞬移或替其他人到场。
+
+此建议需要根新公共契约和真实PG幂等/回放/权限验证；现receive_r17/inspect_r17无法合法表达arrival，不能偷用它们。可复用一次原本因空名单没发生的NPC预算位置，但真正调用仍须根账本计入，不重复盲roll导演；paid7/18全部由根独占，本人成本仍0。用户完整链此时仍未通过，静态建议不等于已实现或到场成功。
+
+## 2026-10-12 · 有界opening人物独立到场提案
+
+根随后冻结无需新route/公共schema的有限方案并重新释放原planner/newtest/report：开场对合法当前有效受邀候选最多2个独立NPC调用，即使director名单为空；strict {present:boolean,text:string|null}，true须非空当前现场发言，false不保存对白。最终SceneProposal.presentActorIds仅取各自明确true，identity由adapter绑定，根existing scene.opened事务验证邀请/同世界/源版本并保存formal presence与回放。预约只是候选资格，不自动成立；不是从对白文字猜到场，动作分支仍只调用actual scenePresent，开场不执行接收/检修/交付。
+
+实现版本scene-text-v7-actor-opening-presence。direct appointment也先验confirmed且at<=storyAt，随后opening speakers取候选前2而不依赖director.pIDs；旧director名单经合法候选校验后清空，不决定最终到场。opening NPC独立收到本人actorContext.facts/messages/appointments/episodes与公开authoredPlace/current scene location/local story time；entries=[]/observedNow=null，不获旧现场观察或其他私聊。输出不接受actorId/presentActorIds/actions等陌生key，true无发言失败，false文字即使存在也不保存；所有call仍用json_object，无额外补偿调用，最大1导演+2人物。
+
+新增5组有界用例：空director名单NPC独立true后pIDs/对白、false覆盖director建议且不保存拒绝文字、true必须发言及boolean/foreign identity/actions严格拒、future/cancelled邀请无NPC调用、3合法候选严格上限2且每次只读自己thread。原新版opening只读定义测试改为NPCfalse模型输出，验证开场不回填steps/不重复小目标/不强加到场。新增与相关matter guidance31/31通过，最终typecheck通过；日志.local/matter-aiqa-02b-opening-pure-final.log。
+
+包含旧scene-planner专项共37项35pass/2fail：旧privacy opening mock仍返{text}缺present；旧local-time opening mock始终返director JSON，独立NPC新增第二调用时无正确opening格式。两旧fixture公共范围本人只读，已回根更新测试，不为其放宽新strict output。根负责真实PG using actual ScenePlanner fixture的true/false/source/attendance/replay/rollback和统一check/build/READY真实样本。按根要求本人不额外全check/build/PG，0真实模型/DB/HTTP/浏览器/生产write，新批7/18仅根。源码提交后立即再冻结释放根，所有旧已保存空场/failed仍保留；真实人是否到场/完整链仍未确认。
