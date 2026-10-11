@@ -107,6 +107,9 @@ export function resolveProgressionFixture(
   observation: string,
 ) {
   const event = {
+    schemaVersion: 1 as const,
+    commandId: randomUUID(),
+    occurredAt: world.time,
     id: randomUUID(),
     worldId: world.id,
     version: world.version + 1,

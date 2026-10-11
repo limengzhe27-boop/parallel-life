@@ -1,3 +1,4 @@
+import { resultAckText } from './matter-progression.ts';
 import { applySceneWorldResults, type SceneWorldResults } from './scene-world-results.ts';
 import { applySpaceEvent, type TravelEvent, type SpaceEstablishedEvent } from './space.ts';
 import type { WorldEvent, WorldState, OutboxJob } from './types.ts';
@@ -43,6 +44,7 @@ export type WorldHistoryEvent =
 export function applyWorldHistoryEvent(
   current: WorldState,
   event: WorldHistoryEvent,
+  initial: WorldState = current,
 ): { state: WorldState; jobs: OutboxJob[] } {
   if (event.worldId !== current.id || event.version !== current.version + 1)
     throw new DomainError('VERSION_CONFLICT');
@@ -53,7 +55,70 @@ export function applyWorldHistoryEvent(
   if (isGroupEvent(event)) return { state: applyGroupWorldEvent(current, event), jobs: [] };
   if (event.type === 'travel.completed' || event.type === 'space.established')
     return { state: applySpaceEvent(current, event), jobs: [] };
-  if (event.type === 'turn.resolved') return applyEvent(current, event);
+  if (event.type === 'turn.resolved') {
+    const next = applyEvent(current, event);
+    // Retain only the bounded proofs referenced by pursuit milestones. Generic
+    // facts still obey the existing snapshot budget; replay never runs jobs.
+    const proofRefs = (current.matters ?? [])
+      .filter((m) => m.worldId === current.id && m.visibility === 'player_visible')
+      .flatMap((m) =>
+        (m.pursuitProgress?.milestones ?? []).slice(0, 10).flatMap((s) => {
+          const target = current.matters?.find(
+            (t) =>
+              t.id === s.matterId && t.worldId === current.id && t.visibility === 'player_visible',
+          );
+          if (
+            s.eventVersion > current.version ||
+            target?.evidence?.kind !== 'scene_action' ||
+            target.evidence.eventId !== s.eventId ||
+            target.evidence.eventVersion !== s.eventVersion ||
+            target.evidence.outcome !== 'succeeded' ||
+            target.assertion !== 'world_verified' ||
+            target.status !== 'completed'
+          )
+            return [];
+          return [
+            { id: `matter_result:${s.eventId}:${s.matterId}`, eventId: s.eventId },
+            { id: `pursuit_result:${s.eventId}:${m.id}`, eventId: s.eventId },
+          ];
+        }),
+      );
+    const proofIds = new Set(
+      current.facts
+        .filter(
+          (f) =>
+            f.kind === 'canonical' &&
+            f.visibility.kind === 'actors' &&
+            proofRefs.some((r) => r.id === f.id && r.eventId === f.sourceEventId),
+        )
+        .map((f) => f.id),
+    );
+    for (const f of current.facts.filter((f) => proofIds.has(f.id))) {
+      if (f.visibility.kind !== 'actors') continue;
+      for (const actorId of f.visibility.actorIds) {
+        const receipt = current.facts.find(
+          (r) =>
+            r.kind === 'belief' &&
+            r.believedByActorId === actorId &&
+            r.text === resultAckText(f) &&
+            current.messages.some(
+              (m) =>
+                m.actorId === actorId &&
+                m.role === 'assistant' &&
+                m.sourceEventId === r.sourceEventId,
+            ),
+        );
+        if (receipt) proofIds.add(receipt.id);
+      }
+    }
+    next.state.facts = [
+      ...current.facts.filter(
+        (f) => proofIds.has(f.id) && !next.state.facts.some((n) => n.id === f.id),
+      ),
+      ...next.state.facts,
+    ];
+    return next;
+  }
   if (event.type === 'invitation.responded') {
     isoInstant(event.storyTime);
     if (Date.parse(event.storyTime) < Date.parse(current.time))
@@ -78,10 +143,14 @@ export function applyWorldHistoryEvent(
       throw new DomainError('INVALID_COMMAND');
     // Runtime-validated world deltas share the scene event and replay without jobs.
     return {
-      state: applySceneWorldResults(current, {
-        ...scene,
-        data: scene.data as { worldResults?: SceneWorldResults },
-      }),
+      state: applySceneWorldResults(
+        current,
+        {
+          ...scene,
+          data: scene.data as { worldResults?: SceneWorldResults },
+        },
+        initial,
+      ),
       jobs: [],
     };
   }
@@ -99,7 +168,7 @@ export function replayWorldHistory(
   const sources: { id: string; version: number; ownerId: string; worldId: string }[] = [];
   for (const event of events) {
     if (event.version > throughVersion) break;
-    const next = applyWorldHistoryEvent(world, event).state;
+    const next = applyWorldHistoryEvent(world, event, initial).state;
     sources.push({
       id: event.id,
       version: event.version,

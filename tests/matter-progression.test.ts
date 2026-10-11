@@ -110,3 +110,63 @@ for (const preset of Object.keys(stageActions) as (keyof typeof stageActions)[])
       assert.equal(trustedOpportunity(first.world, f.initial, changed), undefined);
     }
   });
+
+test('long turn history retains finite stage proof and precise acknowledgement before the actual follow-up result', async () => {
+  const { applyWorldHistoryEvent, replayWorldHistory } =
+    await import('../src/modules/world/domain/world-history.ts');
+  const { randomUUID } = await import('node:crypto');
+  const f = progressionFixture('county-yellow-hair'),
+    first = resolveProgressionFixture(f, f.world, f.trigger.id, f.texts[0], f.texts[1]);
+  const proof = first.world.facts.find((f) => f.id.startsWith('pursuit_result:'))!,
+    opportunity = first.world.matters!.find((m) => m.opportunity)!;
+  let world = first.world;
+  const events: any[] = [first.event];
+  for (let i = 0; i < 40; i++) {
+    const event = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      worldId: world.id,
+      version: world.version + 1,
+      commandId: randomUUID(),
+      occurredAt: world.time,
+      storyAt: world.time,
+      type: 'turn.resolved',
+      data: {
+        actorId: f.actorId,
+        userText: '普通交流',
+        effects: [
+          { type: 'message.received', id: randomUUID(), actorId: f.actorId, text: '普通回复' },
+          {
+            type: 'belief.recorded',
+            id: randomUUID(),
+            actorId: f.actorId,
+            text: i === 0 ? resultAckText(proof) : '普通看法' + String(i) + ' '.repeat(3990),
+          },
+        ],
+      },
+    };
+    world = applyWorldHistoryEvent(world, event as any, f.initial).state;
+    events.push(event);
+  }
+  assert.ok(world.facts.some((f) => f.id === proof.id));
+  assert.ok(
+    !buildAgenda(world, 30).some((a) => a.kind === 'matter_result' && a.actorId === f.actorId),
+  );
+  const last = resolveProgressionFixture(f, world, opportunity.id, f.texts[2], f.texts[3]);
+  events.push(last.event);
+  const before = replayWorldHistory(f.initial, events, 0).world;
+  assert.ok(!before.matters?.some((m) => m.opportunity || m.pursuitProgress));
+  const firstOnly = replayWorldHistory(f.initial, events, first.event.version).world;
+  assert.equal(
+    firstOnly.matters!.find((m) => m.id === f.pursuit.id)!.pursuitProgress!.milestones.length,
+    1,
+  );
+  assert.equal(firstOnly.matters!.find((m) => m.id === opportunity.id)!.status, 'not_started');
+  assert.ok(!firstOnly.facts.some((f) => f.text.startsWith('[scene-result-ack:')));
+  const rebuilt = replayWorldHistory(f.initial, events).world;
+  assert.deepEqual(rebuilt.matters, last.world.matters);
+  assert.equal(
+    rebuilt.matters!.find((m) => m.id === f.pursuit.id)!.pursuitProgress!.milestones.length,
+    2,
+  );
+});
