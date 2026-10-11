@@ -499,3 +499,20 @@ test('first-person preface does not transfer a later NPC execution to player', (
   ];
   rejected(c);
 });
+
+test('clear player action without first-person pronoun remains supported', () => {
+  const c = fixture();
+  addPlayer(
+    c,
+    'handed_over',
+    '把R17钥匙和维修单交给老周。',
+    '你把R17钥匙和维修单交给老周。',
+    c.actorId,
+  );
+  const r = resolveSceneStepProgress(c),
+    step = savedTarget(c, r).stepProgress!.steps[0]!;
+  assert.equal(step.stepId, 'handed_over');
+  assert.equal(step.performer, 'player');
+  assert.equal(step.receiverId, c.actorId);
+  assert.deepEqual(r.completedMatterIds, []);
+});
