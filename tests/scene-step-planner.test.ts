@@ -301,13 +301,13 @@ test('unsupported old content receives no new execution context or permission', 
 test('captured planner evidence reaches real pure runtime completion without optional steps or forced outcome', async () => {
   const f = fixture();
   f.director.outcome = 'partial';
-  const observation = '你核对R17维修单，向老周说明电源接头检修，将R17钥匙和维修单交给老周';
+  const observation = '你核对R17维修单，向老周说明电源接头检修，将R17钥匙和维修单交给老周。';
   f.director.observation = observation;
   f.director.stepProposals = ['order_reviewed', 'repair_explained', 'handed_over'].map(
     (stepId) => ({
       matterId: f.f.trigger.id,
       stepId,
-      inputQuote: f.c.action!.text.replace(/。$/u, ''),
+      inputQuote: f.c.action!.text,
       observationQuote: observation,
       ...(stepId === 'order_reviewed' ? {} : { receiverId: f.f.actorId }),
     }),
@@ -318,7 +318,7 @@ test('captured planner evidence reaches real pure runtime completion without opt
       {
         matterId: f.f.trigger.id,
         kind: 'receive_r17',
-        quote: '我接过R17钥匙和维修单',
+        quote: '我接过R17钥匙和维修单。',
       },
     ],
   });
@@ -342,6 +342,7 @@ test('captured planner evidence reaches real pure runtime completion without opt
   const matter = result.matters.find((m) => m.id === f.f.trigger.id)!;
   assert.equal(proposal.outcome, 'partial');
   assert.ok(completeSceneSteps(matter));
+  assert.ok(matter.stepProgress!.steps.every((step) => step.observationQuote.endsWith('。')));
   assert.deepEqual(
     matter.stepProgress!.steps.map((s) => s.stepId),
     ['order_reviewed', 'repair_explained', 'handed_over', 'received'],

@@ -34,3 +34,7 @@ ScenePlanner版本scene-text-v5-structured-steps。director strict stepProposals
 新旧24项专项曾通过，随后新增runtime串联项，新专项14/14通过；typecheck通过。首次prompt接线改变了JSON后分隔，capture发现解析失败，已将新instructions放回payload；旧提示断言随后补了“无受控actions时不以对白冒充结果”的限定，24/24复验通过。未来裁短反例首轮揭示adapter未检查源句，已修复并重验14/14。完整npm run check已实际运行：边界/类型通过，764项中760通过、4失败，全为旧测试连接本轮未启动的127.0.0.1:55471 ECONNREFUSED；按根0DB指令未自行启动。未把完整check记绿，日志.local/matter-aiqa-02b-check.log。build仍在进行，日志.local/matter-aiqa-02b-build.log。根集成需实际DB完整check/DB事务/重放/独立审查/正式模型及上线验收，不用此纯测试证明真实体验。
 
 只读发现根actual(quote,source)按句号split后includes完整quote会拒绝带“。”的自然完整句quote，已回根请求runtime修正；本人不改domain。当前runtime串联使用不带末尾标点quote以验证现有接口，不能称标点边界已通过。业务冻结后仅报告和经根授权必要修复，不调用模型/DB/生产部署。
+
+## 最终交接
+
+业务2180a38已冻结释放根。25/25新旧专项、typecheck通过，冻结源码final build exit0（.local/matter-aiqa-02b-build-final.log）；完整check仍为本轮未启DB导致4项连接失败，不能记绿。根随后修复f14e3e2（本树b00d64d），本人只接该提交，没有修改domain/repository。串联测试现在直接使用完整input/observation/NPC句子且保留末尾句号，不strip符号；assert所有保存observationQuote以句号结尾，新旧25/25复验通过（.local/matter-aiqa-02b-pure-final.log）。该引用边界原失败已由根修正并实际纯规则复验，不冒称DB事务或真实模型通过。最终小补丁仅本人新专项与报告，所有业务planner继续停写、无模型/DB/HTTP/浏览器/生产写/部署；主报告与待验收行同步，根统一完整check/PG/语义/READY公网。
