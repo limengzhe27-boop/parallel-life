@@ -39,3 +39,13 @@
 根提供新脱敏实际：v10 原核对再次 failed，固定 scene_step_evidence:observation_quote、77519ms、累计保守6/18，无步骤；本 Q 未现场复验，不猜原始错误引文。根授权 B 内部 indexed-observations-v1 wire：观察段数组/null 与 observationIndex，适配为既有 canonical observation/quote 后继续原 schema/domain 校验，public/SQL/domain不改。本人同新test/report范围已短锁恢复进行中，旧13项证据保留；先只读设计，等 B 准确冻结后新增反例。
 
 设计风险：只有显式格式才能适配，classic坏quote/缺format数组/未知format/混字段不得回退；index整数且对应本次段，null加steps/越界拒；元素、join总长、quote长度仍受既有 canonical限制，不补造/截短观察；正确index不证明实际执行，最终runtime仍校验动作对象、你视角、否定/未来、receiver、WORLD ID与来源。继续0模型/DB/生产/端口/fullcheck/build，不改manual工具。
+
+## indexed 冻结复验与二次交付
+
+准确 B 冻结94f2ce98443fe865296928cbd3607c7f91ae5d0a，接本树9a6da6a；只接依赖提交，没有手改B业务源/测试。本人旧13保留，追加23共36。先在v10原断言实际24pass/12fail/0skip/TODO；这12为新格式/编号/需要canonical适配的正例或领域边界无法走到对应层，不说明旧实现放行非法格式。接v11后原36全部通过，再联合B21与旧35实际92pass/0fail/0cancelled/0skip/TODO。typecheck、边界332、本人测试Prettier、git diff --check全部exit0；没有全check/build/PG/供应商/生产/端口。
+
+新增验证：7类非法index（负数/小数/字符串/null/缺失/8超schema范围/7在范围内却无实际段）固定安全observation_index且NPC前拒；null带steps、空数组/9段/空段、选中quote太短或超500、join超1600、indexed搭classic字符串拒，诊断不露合成哨兵/ID。缺显式format、未知format、混observationQuote、未知键均不默修/回退；classic坏quote仍按原observation_quote拒。有效第1号段只映射已有段与换行拼接，不补内容；去除内部format/index后用原canonical schema，领域纯函数保持本次action/input来源且不冒充整体完成。
+
+正确index仍不能授权伪input或错WORLD/local ID；否定、未来承诺、未以你开头的观察即使到达候选层，最终domain仍拒且不修改输入。action NPC现在同样固定匿名player addressee；该项为payload验证，不是模型一定遵守。原3pass/10fail与本轮24pass/12fail都保留，不删断言、不用成功纯测覆盖真实6/18首步失败。
+
+二次交付bc29951只修改原本人test/report，最终证据补充另有报告提交，主表本人行短锁待验收；仅接本人两次交付提交（基于90b1b09），不要整分支重复B的d6c12f7/9a6da6a。一次报告追加工具出现编码错误未写入，随后修正；不是测试失败，也不冒充当时报告已更新。I报告真实PG7/7属于I执行证据，本Q实际PG仍0项；不是本Q数据库验收。范围冻结，无外部资源，不自动另领。I统一全check/build/生产迁移/READY公网与新授权真实核对、累计接收及完整链；Q按后续脱敏保存证据只读核对。
