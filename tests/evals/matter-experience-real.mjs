@@ -57,6 +57,7 @@ async function api(path, body) {
   const method = body === undefined ? 'GET' : 'POST';
   const r = await fetch(base + path, {
     method,
+    redirect: 'error',
     headers: {
       origin: base,
       ...(ledger.cookie ? { cookie: ledger.cookie } : {}),
@@ -105,6 +106,12 @@ async function snapshot(w, label) {
     ),
   );
   await evidence(label, { preset, phone, records, scene, space, clock });
+  assert.ok(
+    [records.worldVersion, scene.worldVersion, space.worldVersion].every(
+      (version) => version === phone.version,
+    ),
+    'Mixed-version snapshot: retained as evidence, never treat it as one committed state',
+  );
   return { phone, records, scene, space, clock };
 }
 async function runTask(w, task, opening) {
@@ -304,7 +311,8 @@ if (command === 'create') {
   assert.deepEqual(before.scene.matters, after.scene.matters);
   await evidence('action-replay-proof', {
     modelCalls: 0,
-    newEvents: 0,
+    comparedProjectionsUnchanged: true,
+    eventCountVerified: false,
     beforeVersion: before.phone.version,
     afterVersion: after.phone.version,
   });
@@ -344,7 +352,8 @@ if (command === 'create') {
     await evidence('reply-receipt', { preset, result });
     await snapshot(w, 'reply-saved');
   } catch (e) {
-    op.state = 'unknown';
+    // A later read failure does not undo the already returned commit receipt.
+    if (op.state !== 'committed') op.state = 'unknown';
     throw e;
   } finally {
     await save();

@@ -1115,3 +1115,12 @@ EXPERIENCE-09用户随后明确：预设内容由相关人员提供，本轮只�
 5. 专业创作者后台仍最后顺位，不提前抢工。
 
 本轮母任务保持未完成；三项子交付以READY/公网证据收口。真实模型授权问题待用户，本次没有自动批准或额外测试世界。
+
+### 2026-10-12 新授权真实完整链验收
+
+|任务ID|状态|负责人|独占范围|验收与接续|
+|---|---|---|---|---|
+|SPACE-MATTER-AI-QA-03|[ ] 进行中|codex-main-live-chain-20261012；.local/worktrees/xiaoan-accept；基线b539948|根唯一付费/生产写与集成；有界manual工具、独立忽略私有账本、专属报告；B/Q先只读独立审查不并写|用户明确允许最多2官方合成世界/18文字，导演/NPC/纠错全计；0图上传/生图/个人资料。旧账本closed不沿用。本批新账本从0开始，逐条人工执行，不自动重试unknown，结束正常API暂停。验证分步核对→说明→交付→NPC实际接收→完成→后续机会→下一行动→私聊；失败保留，真实验收后继续SCENE-NPC-ARRIVAL-01等依赖任务。未验不勾完成。 本批开场真实保存v3/独立老周在场但错认玩家；首核对failed/Unsupported current player step evidence，v4无steps，保守4/18。B细分安全条件诊断，Q独立反例。根独占PG55452（开前核无监听），仅本隔离树自有dev/test cluster复用做check/专项PG，不写生产库。|
+
+|SPACE-MATTER-AI-QA-03B|[ ] 待验收|codex-scene-evidence03b-01a11a84-20261012；.local/worktrees/nar-03；codex/scene-output-evidence-03b，基线b539948|独占scene-planner.ts、新tests/scene-output-evidence.test.ts、本人报告，其他公共源只读|根新真实首步Unsupported current player step evidence事务无进展；只增加白名单条件码，不放宽规则；澄清world/scene ID、中文你观察、固定player addressee。0模型DB生产端口部署，I集成全检发布。 8475691冻结释放I/Q：白名单8条件码stageproposal不露raw/quote/ID/姓名，保原拒绝顺序；director world/local ID+中文你示例，opening固定无名player不借他人名/私档。新10+旧35=45pass/type/332boundary/diff过。0模型DB生产端口browser全check/build部署，不称首步治愈，待I/Q独立验收发布诊断。|
+|SPACE-MATTER-AI-QA-03Q|[ ] 进行中|codex-f-scene-evidence-03q-01a0c7c8-20261012；辅助01a0c7c8；独立/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本；codex/scene-output-evidence-03q；基线b539948|仅新tests/scene-output-evidence-audit.test.ts、docs/task-reports/SPACE-MATTER-AI-QA-03Q.md、本人登记；其他源/旧tests/manual只读|依赖03B冻结。错ID/伪引文不通过、安全诊断不输出raw/人名、未知玩家身份不冒认车主；先保留负例后接修，不跑fullcheck/build/DB/模型/生产/端口。实际脱敏结果独立核对，不凭task成功判完整链。 2026-10-12本人短锁确认指定领取；上项已由I完成释放，原树clean，旧提交/分支保留不reset。仅新tests/scene-output-evidence-audit.test.ts、docs/task-reports/SPACE-MATTER-AI-QA-03Q.md及主表本人行；所有业务源/旧tests/manual/config/SQL只读。先等待B准确freeze再新test，不读取WIP作验收；纯合成模型，无PG/付费/生产/部署/端口/browser，不跑fullcheck/build。|
