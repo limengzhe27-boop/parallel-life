@@ -21,3 +21,9 @@ B独占scene-planner.ts和新planner测试；Q独占新scene-step-progress.test.
 人类已明确授权新的最多2官方合成世界/18次文字（导演/NPC/所有重试计入），根唯一付费执行者；独立忽略账本，旧预算不延续。没有图片上传/生图/个人资料。当前0新调用，完成后正常API暂停；候选发布后真实验收，不凭任务成功认定整个事项完成。
 
 最终本地回归：npm run check 806/806（允许本地端口方式）；npm run test:db 总247=242pass/5明确opt-in跳过、0fail；npm run build exit0。生产只读校验41/41迁移，无新SQL。待发布候选及真实模型纵切，未标交付完成。
+
+## 真实验收第一失败与修复
+
+候选32df2e0，Production racc3qapp / dpl_9rBtVMS4oqGhsAtvcw4VMP2KtzNJ READY、正式8组只读回归过。新独立合成官方v3存档1个，开场保守预留2/18文字；结果failed/AI_FAILED，日志分类TypeError，19874ms，resultVersion=null。未冒充开场成功，未自动重试，不退款/重用已占预算。
+
+根/B只读定位commitSceneProposal非执行分支：Schema默认空stepProposals进入c.action!.relatedMatterIds，开场无action而解引用。修为非执行只拒非空执行候选；实际attempt仍有空数组执行声明护栏。真实PG开场使用同生产SceneProposalSchema默认，新增未来plan未执行，专项6/6；完整806check过。待修复构建/部署后显式读取原failed无结果再人工重试，所有额外调用计入原18上限。

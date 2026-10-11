@@ -278,11 +278,12 @@ if (command === 'create') {
   const w = entry();
   const old = ledger.operations.at(-1);
   assert.equal(old?.kind, 'scene-task');
-  assert.equal(old.state, 'unknown');
+  assert.ok(['unknown', 'failed'].includes(old.state));
   assert.equal(old.details.worldId, w.worldId);
   assert.ok(ledger.reservedModelCalls + old.reservedCalls <= maxCalls);
   const original = (await api('/api/v1/tasks/' + old.details.taskId)).data;
-  assert.equal(original.status, 'unknown', 'Read back the original task before deliberate retry');
+  assert.equal(original.status, old.state, 'Read back the original task before deliberate retry');
+  assert.ok(['unknown', 'failed'].includes(original.status));
   assert.equal(original.resultVersion, null, 'Never retry a committed result');
   await evidence('manual-retry-reviewed', { preset, original, uncertainSpendRetained: true });
   const task = (await api('/api/v1/tasks/' + original.id + '/retry', { commandId: randomUUID() }))

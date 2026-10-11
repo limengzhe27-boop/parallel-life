@@ -19,6 +19,7 @@ import {
   replayWorldHistory,
   type WorldHistoryEvent,
 } from '../../src/modules/world/domain/world-history.ts';
+import { SceneProposalSchema } from '../../src/modules/world/infrastructure/scene-planner.ts';
 import type { SceneProposal } from '../../src/modules/world/application/scene-ports.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
@@ -106,7 +107,9 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       matterUpdates: [],
       dialogues: [],
     };
-    await run(entered.task!.id, base);
+    await run(entered.task!.id, SceneProposalSchema.parse(base));
+    assert.equal((await scenes.read(owner, worldId)).task?.status, 'succeeded');
+    assert.ok((await scenes.read(owner, worldId)).entries.length > 0);
     const enqueue = async (text: string, target = trigger.id) => {
       const view = await scenes.read(owner, worldId),
         request = {
@@ -127,6 +130,16 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           [worldId],
         )
       ).rows[0];
+    await t.test(
+      'a future plan with schema-default empty step arrays stays unexecuted',
+      async () => {
+        const a = await enqueue('我打算明天核对R17维修单。');
+        await run(a.command.task!.id, SceneProposalSchema.parse(base));
+        assert.equal((await scenes.read(owner, worldId)).task?.status, 'succeeded');
+        assert.equal((await target()).stepProgress, undefined);
+        assert.equal((await target()).status, 'in_progress');
+      },
+    );
     await t.test(
       'partial verified steps persist through fresh repository reads without resetting prior steps',
       async () => {

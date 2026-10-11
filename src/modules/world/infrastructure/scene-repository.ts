@@ -905,16 +905,7 @@ export async function commitSceneProposal(
           dialogues: p.dialogues,
         }
       : undefined;
-  if (
-    !resultAction &&
-    ((p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0 ||
-      (p.stepProposals !== undefined &&
-        c.world.matters?.some(
-          (m) =>
-            sceneStepRule(c.world, m) &&
-            c.action!.relatedMatterIds.includes(sceneMatterId(c.scene.id, m.id)),
-        )))
-  )
+  if (!resultAction && (p.stepProposals?.length ?? 0) + (p.npcActions?.length ?? 0) > 0)
     throw new DomainError('INVALID_PROPOSAL', 'Non-execution cannot credit steps');
   const stepResult =
     execution && resultAction
