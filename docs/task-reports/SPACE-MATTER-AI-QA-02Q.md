@@ -248,3 +248,27 @@ NPC“这车修好了，刘航快来取吧”没有明确增加新完成条件�
 本次仅追加本报告及登记主表本人行，源代码和37项专项测试冻结；运行文档diff检查，没有新check/build或数据库测试。此前本人37+B14共51项纯测试、模块边界/typecheck/build通过仍仅对应1d3ae2d源版本，不能用于声称v7实际模型通过。根820check、243真实PG pass+5 opt-in skip/build是根报告证据，PG中独立NPC为mock，不替代上述真实模型链。
 
 结论已交根：有限收口可诚实验证主要纵切，但当前仅新开场正式到场已获根真实摘要，首核对失败，后续累计完成、机会、下一行动及手机承接全部仍待实际证据。Q任务待验收，由既有集成人合并和上线报告；Q不接管部署、不改B提示或公共契约、不自动另领任务。
+
+## 2026-10-12 · v8首步再失败，undefined空默认与单次合并收口
+
+根最新安全摘要：v8 READY后人工首步复测仍failed，director校验诊断matterTitle/matterUpdates/dialogues invalid_type，0steps保存；保守13/18，余5。Q只读根摘要、根主报告及scene-planner.ts/scene-repository.ts现有路径，没有原始非法received值、任务回执或独立DB读取；不能认定实际就是字段缺失，也不能认定补default必能修复这次真实输出。先前NPC kind非法与此次director类型错误是不同轮次，不合并原因或抹去失败。
+
+### 仅undefined的空效果兼容可接受，但语法边界确有有限变化
+
+本次读取的SceneProposalSchema尚有matterTitle nullable但必填、matterUpdates与dialogues数组必填；initialMatters、stepProposals及导演npcActions已有空数组default。B拟为前述三个辅助字段只加undefined缺省兼容，尚不能把拟议写成Q已验证新代码/新测试。
+
+缺失matterTitle→null只表示不提新事项，缺失matterUpdates→[]只表示无显式事项更新，缺失director dialogues→[]只表示导演不提角色对白。这一方案扩大了合法语法接受集合，应如实记录；在其他护栏保持时，空值本身不增加事实、角色行动或成果授权。已有合法stepProposals及独立NPC输出仍可能经过原运行时产生保存效果，“三个默认是空效果”不等于整个提案一定无效果。
+
+必要边界：只undefined触发default，不使用catch或宽泛preprocess吞掉非法值；两个数组显式null/字符串/对象/错误元素仍拒，matterTitle显式null原本合法保持，空字符串/错类型仍拒；strictObject未知字段仍拒。非空director dialogues仍在adapter拒绝，独立NPC本次对白与actions照原独立身份绑定和校验，不从default或旁白补NPC。不得顺势给location、narration、presentActorIds、outcome或observation空默认，attempt仍必须有实际裁定和观察；计划/开场不产生执行候选。
+
+scene-planner现有本次执行引文、人物在场、receiver、相关事项、结构化完成runtime专属等检查，及scene-repository最终来源/版本/事务/回执护栏必须保留。数组缺失不能删除已有ledger、代表事项完成、掩盖非法非空更新或使已拒提案自动重试。建议B/根自有测试明确：三个字段分别缺失/同时缺失得到空值；显式错误类型包括数组null仍失败；未知字段/非空导演对白/非法NPC kind/缺实际outcome与observation仍失败；合法step/NPC来源路径保持。Q本次未写或运行这些新测试。
+
+### 13+2+2+1=18仅能尝试单次动作内的有限主链
+
+根计划新实际输入“核对R17维修单。向老周说明R17电源接头检修。将R17钥匙与维修单交给老周”，单合法当前NPC下最多2次；有来源后续及下一行动最多2次；phone最多1次。总5是供应商调用上界，失败/unknown同计，不能增加自动重试、第二角色或第19次。候选READY/本地纯测不是成功事实，真实任一步失败或额度不足就保留未覆盖并收口。
+
+当前没有任何成功保存的order_reviewed，故不存在已成功第一步跨轮来源可保持的真实模型样本；不得把前两次failed当第一来源。若新合并动作被合法裁定且NPC真实typed接收，四required步骤可以来自同一新action/event，记录需如实标注。可有限证明单次实际动作内玩家核对/说明/交出与NPC本人接收、整体scene_steps完成，再在证据齐时评估有来源机会/一次下一行动/phone保存承接。
+
+这一收口不能证明成功的跨轮分步累计、第一来源跨轮保持、说明与交付分离时的角色记忆、三次分离动作交互质量；此前纯测试/真实PG模拟仍各归其版本和性质，不替代本轮真实模型缺失样本。机会须由已存同源结果形成，下一行动须真实选择并保存其结果，phone须真实存回复及receipt；没有这些证据不提前宣布通过。NPC可不接收，不强加客户到场/签字，也不硬置成果或兑现奖励。
+
+已将上述结论回根。只追加本人报告/主表行，源/tests保持冻结，本次仅文档diff检查，0模型/图/DB/生产写/部署。任务待验收，母任务仍进行中；后续新代码验证、发布、独立模型实测与最终暂停由既有集成人执行，Q待安全实际证据再独立复核。

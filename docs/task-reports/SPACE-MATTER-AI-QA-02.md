@@ -49,3 +49,11 @@ c67e214 / 7ujmwpif6（dpl_ADNFHPMAz4e37ZoVUYnwE3DAsjbY）READY，正式别名已
 ## v8 精确人物动作示例
 
 根集成B be3e049→28c9bb2：NPC的无动作完整JSON、实际接收receive_r17与请求检查inspect_r17各给独立合法示例；不再用“receive_r17或inspect_r17”混合枚举占位，不新增动作/放宽schema/静默归一化。玩家核对明确不是NPC动作。安全日志只能证明kind.invalid_value，不能断言实际非法值就是旧占位。822/822完整check通过，build待完；本小修无SQL/状态逻辑变更，真实PG243pass/5 opt-in skip证据见v7最终回归。Q独立报告ca9b879审核收口预算，若修后原核对重试2、说明+交付合并2、后续2、私聊1=剩余7，且首次来源不能改变、整体与接收必须真实保存；不能称原三分离动作均通过。待候选READY再明确单次复测，不自动循环。
+
+## v8正式复测第二失败
+
+42b80a5 / 2s95vc381（dpl_EQTo7Qx2puZQmUWwkUPbsAbYTkR1）READY、正式别名与8只读检查通过，822check/build0。明确读取原首步failed/resultVersion=null后人工复测仍failed，保守13/18，0步骤保存。精确safe diagnostic: scene_schema:matterTitle:invalid_type;matterUpdates:invalid_type;dialogues:invalid_type，director阶段，不能据日志断言实际字段值或已经调用了NPC。B仅新增缺失无副作用字段默认兼容与负例：matterTitle缺失null、matterUpdates/dialogues缺失[]，显式错误值仍拒，runtime动作来源/提案/事务不变；Q只读复核。不盲继续付费。余5如候选通过最多一条新核对+说明+交付2、真实后续行动2、私聊1，可验有限闭环但不能称三次分离累计模型通过。此前失败完整保留，不从旧文本回填。
+
+## v9 严格无效果省略兼容候选
+
+集成B c7a48bf→cf4ec8f：仅matterTitle缺失/undefined→null，matterUpdates/dialogues缺失/undefined→[]，语法接受范围有限扩大但不授权动作/事实；显式null数组、错误值/枚举、unknown、非空导演对白/假NPC动作仍拒，必需location/presence/outcome/observation不默认。4新pure证明中性默认不能完成整体或凭空接收。安全日志未给实际值，不称线上根因已证实缺失。826/826完整check、最终真实PG现场专项6/6通过（此前全PG243pass+5明确opt-in skip）；构建在途，无SQL/数据库迁移变更。Q 671d601独立复核边界与余5合并验收范围，跨轮累计质量仍未真实验证。
