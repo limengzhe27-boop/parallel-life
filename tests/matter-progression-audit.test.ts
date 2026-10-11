@@ -77,7 +77,6 @@ export function auditFixture(scenario: AuditScenario = auditScenarios[0]) {
   const at = invitation?.at ?? new Date(Date.parse(initial.time) + 60_000).toISOString();
   const world: WorldState = { ...structuredClone(initial), version: 3, time: at };
   world.space!.currentPlaceId = trigger.relatedPlaceId!;
-  world.space!.currentSceneId = undefined;
   if (invitation)
     world.appointments = world.appointments.map((a) =>
       a.id === invitation.id ? { ...a, status: 'confirmed' } : a,
@@ -163,8 +162,8 @@ export function resolveAuditAction(
   f: Fixture,
   state = f.world,
   targetId = f.trigger.id,
-  text = f.scenario.action,
-  observation = f.scenario.observation,
+  text: string = f.scenario.action,
+  observation: string = f.scenario.observation,
 ) {
   const source = { id: randomUUID(), version: state.version + 1, at: state.time };
   const action: SceneAction = {
