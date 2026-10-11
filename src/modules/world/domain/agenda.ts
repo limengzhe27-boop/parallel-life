@@ -1,3 +1,4 @@
+import { witnessedMatterResult } from './scene-matter-policy.ts';
 import { worldDateTimeLabel } from './display-time.ts';
 import type { WorldState } from './types.ts';
 
@@ -193,8 +194,7 @@ export function buildAgenda(
   }
   for (const fact of state.facts) {
     if (fact.kind !== 'canonical' || fact.visibility.kind !== 'actors') continue;
-    const isDeparture =
-      fact.departure !== undefined || fact.text.includes('亲眼看到主角离开了');
+    const isDeparture = fact.departure !== undefined || fact.text.includes('亲眼看到主角离开了');
     if (!isDeparture) continue;
     for (const actorId of fact.visibility.actorIds) {
       if (!actorIds.has(actorId)) continue;
@@ -214,9 +214,7 @@ export function buildAgenda(
       );
       if (alreadySpoke) continue;
       const fromPlaceName =
-        fact.departure?.fromPlaceName ??
-        fact.text.match(/离开了(.+?)，没有/)?.[1] ??
-        '现场';
+        fact.departure?.fromPlaceName ?? fact.text.match(/离开了(.+?)，没有/)?.[1] ?? '现场';
       threads.push({
         kind: 'departure_inquiry',
         actorId,
@@ -226,30 +224,26 @@ export function buildAgenda(
     }
   }
   for (const matter of state.matters ?? []) {
-    if (!matter.relatedActorIds?.length) continue;
-    if (matter.status !== 'completed' && matter.status !== 'blocked') continue;
-    const evidenceVersion =
-      matter.evidence && 'eventVersion' in matter.evidence ? matter.evidence.eventVersion : undefined;
-    for (const actorId of matter.relatedActorIds) {
-      if (!actorIds.has(actorId)) continue;
+    const evidence = matter.evidence;
+    if (evidence?.kind !== 'scene_action') continue;
+    for (const actor of state.actors) {
+      const fact = witnessedMatterResult(state, matter, actor.id);
+      if (!fact) continue;
       if (
         state.messages.some(
-          (message) =>
-            message.actorId === actorId &&
-            message.role === 'assistant' &&
-            ((evidenceVersion && (message.sourceVersion ?? -1) > evidenceVersion) ||
-              Date.parse(message.at) > Date.parse(matter.updatedAt)),
+          (m) =>
+            m.actorId === actor.id &&
+            m.role === 'assistant' &&
+            (m.sourceVersion ?? 0) >= evidence.eventVersion,
         )
-      ) {
+      )
         continue;
-      }
-      const outcomeLabel = matter.status === 'completed' ? '已达成' : '暂时受阻';
       threads.push({
         kind: 'matter_result',
-        actorId,
+        actorId: actor.id,
         basisId: matter.id,
-        basisAt: matter.updatedAt,
-        detail: `重要事项「${matter.title}」现场行动${outcomeLabel}。作为关联人物，主动发信过问或跟进后续，肯定行动成果或商量下一步。`,
+        basisAt: evidence.at,
+        detail: fact.text,
       });
     }
   }

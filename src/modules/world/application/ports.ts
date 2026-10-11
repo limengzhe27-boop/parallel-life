@@ -35,7 +35,6 @@ export type ActorContext = {
     import('../domain/matters.ts').WorldMatter,
     'id' | 'title' | 'description' | 'span' | 'status' | 'assertion'
   >[];
-
   retrievedMemories?: MemoryRecord[];
   turnOrigin?: 'director';
 };

@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const retiredStar: OfficialLifePack = {
   card: {
     id: 'retired-star',
-    version: 2,
+    version: 3,
     title: '退圈后的顶流',
     hook: '你说不回来了。今晚所有人，又在等你出现。',
     identityLabel: '28岁 · 搬到海边的退圈歌手',

@@ -1,3 +1,4 @@
+import { replayWorldHistory, type WorldHistoryEvent } from '../domain/world-history.ts';
 import { mergeAppointments } from '../domain/genesis-links.ts';
 import {
   applyInvitationEvent,
@@ -182,6 +183,28 @@ export class PostgresWorldRepository implements WorldRepository {
         ]),
       ),
     };
+    // Scene attendance retains the invitation's original immutable message source.
+    // Rebuild only in worlds with an actual new attendance event, through this exact
+    // receipt version: old response projections cannot overwrite newer attendance.
+    const attendanceEvent = await sql.query(
+      "SELECT 1 FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->'data'->'worldResults'->'attendance' IS NOT NULL LIMIT 1",
+      [state.id, state.version],
+    );
+    if (attendanceEvent.rowCount && initial) {
+      const events = (
+        await sql.query(
+          'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 ORDER BY version',
+          [state.id, state.version],
+        )
+      ).rows.map((r) => r.payload) as WorldHistoryEvent[];
+      const rebuilt = replayWorldHistory(initial as WorldState, events, state.version).world;
+      return {
+        ...hydrated,
+        appointments: rebuilt.appointments,
+        version: state.version,
+        time: state.time,
+      };
+    }
     const responses = await sql.query(
       "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
       [state.id, state.version],

@@ -138,7 +138,7 @@ test('official genesis preserves authored matters and projects them to current/a
   assert.equal(s.matters[0]!.title, 'Near term task');
   assert.equal(s.matters[0]!.span, 'near_term');
   assert.equal(s.matters[0]!.status, 'in_progress');
-  assert.equal(s.matters[0]!.assertion, 'world_verified');
+  assert.equal(s.matters[0]!.assertion, 'actor_statement');
   assert.equal(s.matters[0]!.relatedInvitationId, s.appointments[0]!.id);
   assert.equal(s.matters[1]!.span, 'pursuit');
   assert.equal(s.matters[1]!.status, 'in_progress');
@@ -164,4 +164,3 @@ test('official genesis preserves authored matters and projects them to current/a
   assert.ok(records.current.some((r) => r.title === 'Near term task' && r.kind === 'world_matter'));
   assert.ok(records.about.some((r) => r.title === 'Life pursuit' && r.span === 'pursuit'));
 });
-

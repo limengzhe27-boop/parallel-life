@@ -4,7 +4,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const countyYellowHair: OfficialLifePack = {
   card: {
     id: 'county-yellow-hair',
-    version: 2,
+    version: 3,
     title: '县城黄毛',
     hook: '她坚持带你回家。饭桌上，却坐着她爸更中意的人。',
     identityLabel: '23岁 · 县城修车青年',
@@ -28,7 +28,7 @@ export const countyYellowHair: OfficialLifePack = {
           description:
             '\u4f60\u5de5\u4f5c\u7684\u4fee\u8f66\u94fa\uff0c\u7ef4\u4fee\u6458\u5f55R17\u53ef\u5728\u4fbf\u7b7e\u6838\u5bf9\uff1b\u8f66\u8f86\u4ea4\u4ed8\u4ecd\u9700\u5b9e\u9645\u6c9f\u901a\u548c\u884c\u52a8\u3002',
           actorKeys: ['laozhou', 'liuhang'],
-          invitationKeys: [],
+          invitationKeys: ['r17_handover'],
         },
         {
           key: 'lin_home',
@@ -242,7 +242,7 @@ export const countyYellowHair: OfficialLifePack = {
       {
         key: 'now_zhou',
         actorKey: 'laozhou',
-        text: '你上次修那辆车，车主一会儿来取。收尾你自己讲。',
+        text: '你上次修那辆车，车主一会儿来取。17:41来铺里和我核对R17工单，收尾你自己讲。',
         minutesBeforeStart: 45,
         history: false,
       },
@@ -262,6 +262,13 @@ export const countyYellowHair: OfficialLifePack = {
       },
     ],
     invitations: [
+      {
+        key: 'r17_handover',
+        title: 'R17车辆交接',
+        minutesAfterStart: 1,
+        actorKeys: ['laozhou'],
+        sourceMessageKey: 'now_zhou',
+      },
       {
         key: 'family_dinner',
         title: '林悦家的晚饭',
@@ -302,6 +309,7 @@ export const countyYellowHair: OfficialLifePack = {
         description: '在老周修车铺核对维修单据，向车主或老周交代电源接头检修细节并完成交付。',
         relatedPlaceKey: 'repair_shop',
         relatedActorKeys: ['laozhou'],
+        relatedInvitationKey: 'r17_handover',
       },
       {
         key: 'attend_dinner',

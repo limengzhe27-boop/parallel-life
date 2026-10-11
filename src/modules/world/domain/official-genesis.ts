@@ -81,7 +81,7 @@ export function officialGenesis(input: {
     o.actors.length !== 6 ||
     o.facts.length > 32 ||
     o.messages.length > 48 ||
-    o.invitations.length > 2 ||
+    o.invitations.length > (input.contentVersion >= 3 ? 3 : 2) ||
     o.notes.length > 8 ||
     o.actorTies.length > 28
   )
@@ -213,7 +213,9 @@ export function officialGenesis(input: {
     },
     mediaRequests: [],
   };
-  const invitationMap = new Map(o.invitations.map((inv, i) => [inv.key, state.appointments[i]!.id]));
+  const invitationMap = new Map(
+    o.invitations.map((inv, i) => [inv.key, state.appointments[i]!.id]),
+  );
   if (o.space) {
     state.space = authoredSpace(
       o.space,
@@ -256,7 +258,7 @@ export function officialGenesis(input: {
         title: m.title,
         description: m.description,
         status: 'in_progress',
-        assertion: 'world_verified',
+        assertion: 'actor_statement',
         visibility: 'player_visible',
         relatedPlaceId,
         relatedActorIds,

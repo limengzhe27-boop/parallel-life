@@ -1,3 +1,4 @@
+import { witnessedMatterResult } from './scene-matter-policy.ts';
 import { worldDayKey } from './display-time.ts';
 import type { AgendaThread } from './agenda.ts';
 import type { WorldState } from './types.ts';
@@ -42,15 +43,12 @@ export function followupAgenda(
             (appointment.responseVersion ?? 0) > previous.version;
     }
     if (thread.kind === 'matter_result') {
-      const matter = state.matters?.find(
-        (m) => m.id === thread.basisId && m.relatedActorIds?.includes(thread.actorId),
-      );
-      if (!matter) return false;
-      const evidenceVersion =
-        matter.evidence && 'eventVersion' in matter.evidence ? matter.evidence.eventVersion : 0;
-      return (
-        ['completed', 'blocked'].includes(matter.status) &&
-        (evidenceVersion > previous.version || Date.parse(matter.updatedAt) > Date.parse(previous.at))
+      const m = state.matters?.find((m) => m.id === thread.basisId);
+      return Boolean(
+        m &&
+        witnessedMatterResult(state, m, thread.actorId) &&
+        m.evidence?.kind === 'scene_action' &&
+        m.evidence.eventVersion > previous.version,
       );
     }
     if (thread.kind === 'choice_result' || thread.kind === 'choice_followup') {

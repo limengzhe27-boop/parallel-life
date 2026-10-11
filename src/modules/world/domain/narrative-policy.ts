@@ -1,4 +1,4 @@
-import type { Appointment, Message } from './types.ts';
+import type { Appointment, Message, Fact } from './types.ts';
 
 /** Original, reusable scene directions, not fixed plots or a psychological profile. */
 export const NARRATIVE_MOVES = {
@@ -73,7 +73,7 @@ type Input = {
   origin?: 'director';
   messages: readonly Message[];
   appointments: readonly Appointment[];
-  matters?: readonly import('./matters.ts').WorldMatter[];
+  facts?: readonly Fact[];
   time?: string;
   /** Already authorized by the context compiler. */
   memories: readonly {
@@ -108,18 +108,15 @@ export function narrativeBrief(input: Input): NarrativeBrief {
   )
     return choose('breathing_room', '用户明确表达休息、收尾或减压意愿');
 
-  const relevantMatters = (input.matters ?? []).filter(
-    (m) =>
-      m.relatedActorIds?.includes(input.actorId) &&
-      (m.status === 'completed' || m.status === 'blocked'),
+  const resultFacts = (input.facts ?? []).filter(
+    (f) =>
+      f.kind === 'canonical' &&
+      f.id.startsWith('matter_result:') &&
+      f.visibility.kind === 'actors' &&
+      f.visibility.actorIds.includes(input.actorId),
   );
-  if (
-    relevantMatters.length > 0 &&
-    (input.origin === 'director' || /事项|搞定|完成|做完|交差|车|晚饭|宴席|演出/u.test(text))
-  ) {
-    const topMatter = relevantMatters.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]!;
-    return choose('matter_result', '现场行动已改变该事项的状态', [topMatter.id]);
-  }
+  if (resultFacts.length && input.origin === 'director')
+    return choose('matter_result', '已授权的现场见证结果', [resultFacts.at(-1)!.id]);
 
   const resultAppointments = input.appointments.filter(
     (a) =>

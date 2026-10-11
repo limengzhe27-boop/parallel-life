@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const onlyChild: OfficialLifePack = {
   card: {
     id: 'only-child',
-    version: 2,
+    version: 3,
     title: '江浙沪独生子',
     hook: '爸妈让你接班。朋友说，你只要出钱就行。',
     identityLabel: '25岁 · 家族企业独生子',

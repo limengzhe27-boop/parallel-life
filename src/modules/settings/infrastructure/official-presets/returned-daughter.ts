@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const returnedDaughter: OfficialLifePack = {
   card: {
     id: 'returned-daughter',
-    version: 2,
+    version: 3,
     title: '刚回家的真千金',
     hook: '你回到了亲生父母家。今晚，却还是她的生日宴。',
     identityLabel: '24岁 · 刚找回身世的女儿',

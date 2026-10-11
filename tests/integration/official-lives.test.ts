@@ -134,7 +134,7 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
           /IDEMPOTENCY_CONFLICT/,
         );
         await assert.rejects(
-          repo.start(owner, pack.card.id, { commandId: randomUUID(), version: 2 }),
+          repo.start(owner, pack.card.id, { commandId: randomUUID(), version: 3 }),
           /VERSION_CONFLICT/,
         );
       },
@@ -259,7 +259,7 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
           const listBefore = await v2Repo.list(user);
           const cardBefore = listBefore.lives.find((l) => l.id === 'county-yellow-hair');
           assert.ok(cardBefore);
-          assert.equal(cardBefore.version, 2);
+          assert.equal(cardBefore.version, 3);
           // Default continues old save!
           assert.equal(cardBefore.worldId, oldWorldId);
           assert.equal(cardBefore.legacyWorldId, oldWorldId);
@@ -270,7 +270,7 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
           const newCommandId = randomUUID();
           const v2Result = await v2Repo.start(user, 'county-yellow-hair', {
             commandId: newCommandId,
-            version: 2,
+            version: 3,
           });
           const newWorldId = v2Result.worldId;
           assert.notEqual(newWorldId, oldWorldId);
@@ -286,7 +286,7 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
           assert.equal(instances.length, 2);
           assert.equal(instances[0].content_version, 1);
           assert.equal(instances[0].world_id, oldWorldId);
-          assert.equal(instances[1].content_version, 2);
+          assert.equal(instances[1].content_version, 3);
           assert.equal(instances[1].world_id, newWorldId);
 
           // 5. Old world state is completely preserved and readable
@@ -309,7 +309,7 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
           // 7. Idempotency: replaying newCommandId returns the same result without creating a 3rd world
           const replayed = await v2Repo.start(user, 'county-yellow-hair', {
             commandId: newCommandId,
-            version: 2,
+            version: 3,
           });
           assert.equal(replayed.worldId, newWorldId);
           assert.equal(replayed.resumed, false);
@@ -317,7 +317,7 @@ test('official starts are atomic, owner-isolated and idempotent in real PostgreS
           // Repeated request with another commandId returns resumed: true
           const repeated = await v2Repo.start(user, 'county-yellow-hair', {
             commandId: randomUUID(),
-            version: 2,
+            version: 3,
           });
           assert.equal(repeated.worldId, newWorldId);
           assert.equal(repeated.resumed, true);
