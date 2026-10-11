@@ -243,10 +243,10 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         assert.equal(op.status, 'not_started');
         const visible = actorContext(current, actor.id, '刚才交车之后下一步是什么？');
         assert.ok(visible.facts.some((f) => f.id.startsWith('matter_result:')));
-        assert.ok(visible.matters.some((m) => m.id === op.id));
+        assert.ok(visible.matters?.some((m) => m.id === op.id));
         const invisible = actorContext(current, absent.id, '下一步是什么？');
         assert.ok(!invisible.facts.some((f) => f.id.startsWith('matter_result:')));
-        assert.ok(!invisible.matters.some((m) => m.id === op.id));
+        assert.ok(!invisible.matters?.some((m) => m.id === op.id));
         const before = await counts();
         assert.deepEqual(await scenes.input(owner, worldId, sceneId, a.request), a.command);
         await run(a.command.task!.id, final);
@@ -287,9 +287,9 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
           )
         ).rows.map((r) => r.payload as WorldHistoryEvent);
         const replay = replayWorldHistory(initial, history);
-        assert.deepEqual(replay.matters, after.matters);
+        assert.deepEqual(replay.world.matters, after.matters);
         assert.deepEqual(
-          replay.matters!.find((m) => m.id === trigger.id)?.stepProgress,
+          replay.world.matters!.find((m) => m.id === trigger.id)?.stepProgress,
           (await target()).stepProgress,
         );
         const npc = await admin.query(

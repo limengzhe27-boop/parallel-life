@@ -225,6 +225,8 @@ export function validateWorldMatterSceneUpdate(input: {
           e.sceneId === scene.id &&
           e.actionId === action.id,
       );
+    if (m.stepProgress && !stepComplete)
+      throw new DomainError('INVALID_PROPOSAL', 'SCENE_STEPS: Incomplete cumulative execution steps');
     if (
       !stepComplete &&
       (action.resolution.outcome !== 'succeeded' ||

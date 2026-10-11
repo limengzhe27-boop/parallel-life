@@ -251,6 +251,7 @@ export function resolveSceneStepProgress(input: {
       )
         fail('Unsupported player execution quote');
       if (
+        !/^我/u.test(sceneAttemptBoundary(action.text).now.trim()) ||
         /我(?:已|已经|早就|之前)|做过|交过|说过|昨天|上次|请|麻烦|让.+(?:核对|说明|交付|检查|写)/u.test(
           sceneAttemptBoundary(action.text).now,
         ) ||
