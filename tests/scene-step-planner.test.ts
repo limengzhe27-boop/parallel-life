@@ -288,7 +288,9 @@ test('real visible saved steps persist in the NPC payload without copying full i
     true,
   );
   assert.ok(
-    !npc.stepExecution[0].savedRemainingSteps.some((s: { id: string }) => s.id === 'order_reviewed'),
+    !npc.stepExecution[0].savedRemainingSteps.some(
+      (s: { id: string }) => s.id === 'order_reviewed',
+    ),
   );
   assert.ok(!JSON.stringify(npc).includes('ORIGINAL_INPUT_NOT_EMBEDDED'));
 });
@@ -634,42 +636,30 @@ test('an invalid explicit opening invitation cannot silently fall back to anothe
   assert.deepEqual(proposal.presentActorIds, []);
 });
 
-test('NPC action examples use two exact legal enums and no mixed placeholder or automatic action', async () => {
+test('NPC indexed action examples expose two exact eligible slots without defaulting to execution', async () => {
   const f = fixture();
-  const { calls } = await propose(f, { text: '单号先核对清楚。', actions: [] });
+  const { calls, proposal } = await propose(f, { text: '单号先核对清楚。', actions: [] });
   const prompt = calls[1]![0]!.content;
+  const payload = JSON.parse(calls[1]![1]!.content);
+  assert.deepEqual(payload.allowedActions, [
+    { actionIndex: 0, matterId: f.f.trigger.id, kind: 'receive_r17' },
+    { actionIndex: 1, matterId: f.f.trigger.id, kind: 'inspect_r17' },
+  ]);
   assert.ok(!prompt.includes('receive_r17或inspect_r17'));
   assert.ok(
     prompt.includes(
       JSON.stringify({
-        text: '我接过R17钥匙和维修单。',
-        actions: [
-          {
-            matterId: f.f.trigger.id,
-            kind: 'receive_r17',
-            quote: '我接过R17钥匙和维修单。',
-          },
-        ],
+        actionFormat: 'indexed-npc-actions-v1',
+        text: '当前自己的自然对白',
+        actions: [],
       }),
     ),
   );
-  assert.ok(
-    prompt.includes(
-      JSON.stringify({
-        text: '我检查了R17。',
-        actions: [
-          {
-            matterId: f.f.trigger.id,
-            kind: 'inspect_r17',
-            quote: '我检查了R17。',
-          },
-        ],
-      }),
-    ),
-  );
-  assert.match(prompt, /玩家仅核对维修单且未实际交出对象/);
-  assert.match(prompt, /不是已发生证据/);
+  assert.match(prompt, /不输出matterId、kind或actorId字段/);
+  assert.match(prompt, /普通核对.说明不是你接收、检修/);
+  assert.match(prompt, /不表示已执行/);
   assert.match(prompt, /actions":\[\]/);
+  assert.deepEqual(proposal.npcActions, []);
 });
 test('invalid or mixed action enums remain rejected with a safe kind path and exactly two calls', async () => {
   for (const kind of ['receive_r17或inspect_r17', 'order_reviewed', 'none']) {

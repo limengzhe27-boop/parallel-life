@@ -848,3 +848,9 @@ Business `eacb6ab` production `5kv0fkvr0` (`dpl_A4AskWAvsuzrYEARHVxZjzRe74PD`) R
 ## 2026-10-12 · SPACE-MATTER-AI-QA-02 候选已上线，真实整链未通过
 
 应用6b629ba / Production po54gy1kk（dpl_J7khbwtNXTwrXGKqaAawsADDY92j）READY，正式域名已切换；826项检查/build0、真实PG现场6专项、此前全PG243pass+5 opt-in skip，生产41迁移一致，无新SQL，正式8只读检查通过。实现R17限定分步保存/有来源NPC动作/结果后续消费，开场独立人物presence真实验证通过。真实首步格式失败保留，最终合并动作unknown（响应体超时，HTTP200/85125ms），world v12无步骤，整体完成→阶段→机会→下一行动→私聊未通过；不得称完整体验上线验收。根保守15/18文字、1合成world，0图/个人资料；正常API已暂停并关闭批次，不沿用余量或重付unknown。主表母任务继续待验收，详见SPACE-MATTER-AI-QA-02报告；下一优先结构输出与响应稳定性。
+
+## 2026-10-12 · v13 累计来源连接与 v14 人物动作格式候选
+
+v13业务74fee47 / 3m7qj2yyh（dpl_CiV5v9bEAUE33Us6aJfhHzvyBU4d）READY；正式 https://parallel-life-nu.vercel.app 已切换且8组只读验收过。41/41生产迁移checksum一致，无新增SQL。仅完整source链验证后的scene_steps成果进入长期里程碑/后续机会；旧action路径保持，缺源/破坏真实action行不展示信用。v13最终1002check/build0、实际PG249pass/5明确opt-in skip及专项8通过；都是合成模型，不是供应商成功链。真实原说明仍failed/NPC kind非法7045ms，保守14/18，只有核对已存，未完成整体验收。
+
+v14新候选准确B1ced6b2/Q2dc590a，有限人物独立动作索引格式，普通说明无可执行动作；严格源/实际接收/事务保持。最终1062check/332边界/type0/build0，新adapter实际PG8/8通过（非供应商）。待提交发布READY、公网和剩余4真实有界验收；中途人物进入、只读分步UI、通用长线、私聊完整模型链仍未完成。

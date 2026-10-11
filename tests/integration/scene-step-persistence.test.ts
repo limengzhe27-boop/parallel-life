@@ -251,7 +251,7 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
         text = '我向老周说明电源接头检修细节，并填写交接记录。';
         observation = '你向老周说明电源接头检修细节，并填写交接记录。';
         const b = await enqueue(text);
-        await run(b.command.task!.id, {
+        const explanation: SceneProposal = {
           ...base,
           outcome: 'partial',
           observation,
@@ -270,7 +270,24 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
               observationQuote: observation,
             },
           ],
-        });
+        };
+        let explanationCalls = 0;
+        await run(
+          b.command.task!.id,
+          new ScenePlanner({
+            async complete(messages) {
+              if (++explanationCalls === 1) return JSON.stringify(explanation);
+              const payload = JSON.parse(messages[1]!.content);
+              assert.deepEqual(payload.allowedActions, []);
+              return JSON.stringify({
+                actionFormat: 'indexed-npc-actions-v1',
+                text: '接头的情况我听清了，接下来把钥匙和单子交给我。',
+                actions: [],
+              });
+            },
+          }),
+        );
+        assert.equal(explanationCalls, 2);
         assert.deepEqual((await target()).stepProgress!.steps[0], first);
         assert.equal((await target()).stepProgress!.steps.length, 3);
         assert.equal((await target()).status, 'in_progress');
@@ -315,7 +332,29 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       'NPC actually receives the handed objects; overall completion does not rewrite partial player action',
       async () => {
         const a = await enqueue(text);
-        await run(a.command.task!.id, final);
+        let receiveCalls = 0;
+        await run(
+          a.command.task!.id,
+          new ScenePlanner({
+            async complete(messages) {
+              if (++receiveCalls === 1)
+                return JSON.stringify({ ...final, dialogues: [], npcActions: [] });
+              const payload = JSON.parse(messages[1]!.content);
+              const slot = payload.allowedActions.find(
+                (value: { kind: string }) => value.kind === 'receive_r17',
+              );
+              assert.ok(slot);
+              assert.equal(slot.matterId, trigger.id);
+              const text = final.dialogues[0]!.text;
+              return JSON.stringify({
+                actionFormat: 'indexed-npc-actions-v1',
+                text,
+                actions: [{ actionIndex: slot.actionIndex, quote: text }],
+              });
+            },
+          }),
+        );
+        assert.equal(receiveCalls, 2);
         const view = await scenes.read(owner, worldId);
         assert.equal(view.task?.status, 'succeeded');
         const m = await target();

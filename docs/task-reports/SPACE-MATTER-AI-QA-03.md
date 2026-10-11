@@ -47,3 +47,9 @@ B8ad5c8a/根3d0803c与Q48c4c11/根138f0b8准确集成，根仅更名旧NPC内部
 ## v12 READY与真实说明失败
 
 0de9bad / awku3xvbt（dpl_5AccxxeD2Dttxh7hmJo6LFj1CWhw）READY/正式别名已切换，公网8组回归通过。单独说明首次unknown/resultVersion null，安全response TIMEOUT/85125ms，仅input推进v6，核对source未被擦除。原receipt确认后明确一次manual复测failed/INVALID_AI_OUTPUT，7793ms固定matter_id。保守12/18，所有失败与未知预算保留，不自动重付；说明尚未保存、NPC质量仍无改善结论。根登记SCENE-EVIDENCE-MATTER-INDEX-01新增显式v2序号wire，B/Q另做NOTES-STEP-PROJECTION-01可信source投影；当前还未完整完成/接收/机会/私聊验收。
+
+## v13 实际说明仍失败，v14 格式限定候选
+
+v13业务74fee47 / 3m7qj2yyh（dpl_CiV5v9bEAUE33Us6aJfhHzvyBU4d）READY，正式别名及公网8组通过。生产41迁移无变化。显式indexed-observations-v2的事项序号及可信累计来源投影已上线；实际原说明单次复测仍failed/resultVersion null，7045ms，safe NPC actions.[0].kind:invalid_value。导演步骤来源阶段已通过，NPC格式使整轮回滚；v6旧核对不变，保守14/18，不将来源修复说成整链通过。
+
+v14准确B1ced6b2和Q2dc590a已集成，仅有限自有NPC动作槽/严格序号wire，原quote/接收/语义/事务边界保留；根旧格式断言适配和PG真实adapter接线。最终1062check/332边界/type0/build0，实际PG8/8（合成模型非供应商）。旧完整PG249pass/5明确opt-in skip，0失败；无新SQL。剩余4预算待READY/public后一次原说明复测、如成功再单独交付；额外下一机会行动/私聊本批没有足够预算，不自动追加。
