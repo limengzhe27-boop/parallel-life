@@ -601,3 +601,27 @@ test('opening caps candidates at two and binds each independent decision without
     [actors[0]!.id],
   );
 });
+
+test('opening direct invitation must belong to the current place before any actor call', async () => {
+  const f = openingFixture();
+  f.c.scene.appointmentId = f.f.trigger.relatedInvitationId;
+  f.c.world.space!.places.find((p) => p.id === f.c.scene.placeId)!.appointmentIds = [];
+  const { calls, proposal } = await propose(f, { present: true, text: '我在这儿。' });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(proposal.presentActorIds, []);
+});
+test('opening stale scene place is rejected before spending any director or actor call', async () => {
+  const f = openingFixture();
+  f.c.world.space!.currentPlaceId = 'lin_home';
+  let calls = 0;
+  await assert.rejects(
+    new ScenePlanner({
+      async complete() {
+        calls++;
+        return '{}';
+      },
+    }).propose(f.c),
+    { code: 'INVALID_COMMAND' },
+  );
+  assert.equal(calls, 0);
+});

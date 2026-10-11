@@ -94,3 +94,5 @@ parsecatch现在生成stage=proposal与diagnosticMessage，只包含固定phase�
 新增5组有界用例：空director名单NPC独立true后pIDs/对白、false覆盖director建议且不保存拒绝文字、true必须发言及boolean/foreign identity/actions严格拒、future/cancelled邀请无NPC调用、3合法候选严格上限2且每次只读自己thread。原新版opening只读定义测试改为NPCfalse模型输出，验证开场不回填steps/不重复小目标/不强加到场。新增与相关matter guidance31/31通过，最终typecheck通过；日志.local/matter-aiqa-02b-opening-pure-final.log。
 
 包含旧scene-planner专项共37项35pass/2fail：旧privacy opening mock仍返{text}缺present；旧local-time opening mock始终返director JSON，独立NPC新增第二调用时无正确opening格式。两旧fixture公共范围本人只读，已回根更新测试，不为其放宽新strict output。根负责真实PG using actual ScenePlanner fixture的true/false/source/attendance/replay/rollback和统一check/build/READY真实样本。按根要求本人不额外全check/build/PG，0真实模型/DB/HTTP/浏览器/生产write，新批7/18仅根。源码提交后立即再冻结释放根，所有旧已保存空场/failed仍保留；真实人是否到场/完整链仍未确认。
+
+根/Q补充same-current-place预过滤后，同原scope补齐：direct invitation除confirmed/at<=storyAt，还须当前scenePlace.appointmentIds真实关联；opening若scene.placeId和world.currentPlaceId不匹配或place不存在，任何模型调用前拒INVALID_COMMAND。动作阶段actualpresent和既有行为保持。新增2负例验证同地点关联丢失时没有NPC调用、旧scene位置不符时0director/0NPC。新增及相关33/33通过、typecheck通过，根集成仍须更新两旧opening mock并统一check/build/PG。第一业务b040ba0与后续小补分开交付，主报告同步，源码再次冻结；本人0实际调用，不消耗7/18剩余。

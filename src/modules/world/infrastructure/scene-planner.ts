@@ -155,6 +155,15 @@ export class ScenePlanner implements ScenePlannerPort {
   async propose(c: ScenePlanningContext, signal?: AbortSignal): Promise<SceneProposal> {
     const opening = !c.action;
     const boundary = c.action ? sceneAttemptBoundary(c.action.text) : null;
+    const scenePlace = c.scene.placeId
+      ? c.world.space?.places.find((p) => p.id === c.scene.placeId)
+      : undefined;
+    if (
+      opening &&
+      c.scene.placeId &&
+      (!scenePlace || c.world.space?.currentPlaceId !== c.scene.placeId)
+    )
+      throw new DomainError('INVALID_COMMAND', 'Current scene place does not match world location');
     const placeAppointment = c.scene.placeId
       ? c.world.appointments.find(
           (a) =>
@@ -168,7 +177,8 @@ export class ScenePlanner implements ScenePlannerPort {
     const directAppointment = c.world.appointments.find((x) => x.id === c.scene.appointmentId);
     const effectiveDirect =
       directAppointment?.status === 'confirmed' &&
-      Date.parse(directAppointment.at) <= Date.parse(c.storyAt)
+      Date.parse(directAppointment.at) <= Date.parse(c.storyAt) &&
+      (!c.scene.placeId || Boolean(scenePlace?.appointmentIds.includes(directAppointment.id)))
         ? directAppointment
         : undefined;
     const activeAppointment = effectiveDirect ?? placeAppointment;
