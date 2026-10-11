@@ -13,3 +13,7 @@
 单次截止覆盖请求和每次body读取，保留phase/status安全诊断；超时不依赖fetch合作，晚响应cancel，reader cancel/release、timer清理。complete envelope上限1MiB、stream frame131072字符/累计100000字符；流无正常DONE或explicit upstream error=>UPSTREAM_FAILED，length=>TRUNCATED，格式/大小错误=>INVALID_RESPONSE。未知不自动重付，无更换模型/重试/放宽业务校验。
 
 B ACK待集成、Q独立审计待冻结复验，完整check/build及READY/public未到，不标完成；旧85秒供应商/scene schema failure仍未证明已治愈。PG55452运行仅本地验收、无HTTP/browser/付费/生产业务写。
+
+## 第二候选 · 独立取消审查修复
+
+B只读实际复现：外部SyntaxError取消被误归解析错误，GatewayError取消被按其reason类型分类；consumer停在yield时deadline到期只在next恢复后才释放reader。根原范围修为signal/deadline优先判定，parse catch先排除aborted，reader绑定abort即时cancel/release且finally解绑；15gateway专项再通过。Q保留负例复验，真实供应商链仍未证明。

@@ -73,3 +73,14 @@ export function closeReader(reader: ReadableStreamDefaultReader<Uint8Array>) {
     // Preserve the original outcome even if a transport has already released its lock.
   }
 }
+
+/** Cancellation also closes a stream while its consumer is paused at a yielded token. */
+export function manageReader(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal) {
+  const abort = () => closeReader(reader);
+  if (signal.aborted) abort();
+  else signal.addEventListener('abort', abort, { once: true });
+  return () => {
+    signal.removeEventListener('abort', abort);
+    closeReader(reader);
+  };
+}

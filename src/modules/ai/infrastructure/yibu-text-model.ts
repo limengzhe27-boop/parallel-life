@@ -1,4 +1,4 @@
-import { abortable, callLifetime, cancelBody, closeReader } from './call-lifetime.ts';
+import { abortable, callLifetime, cancelBody, manageReader } from './call-lifetime.ts';
 import { modelRequestMessages } from '../application/model-content.ts';
 import type { ModelMessage, TextModel, ModelOutputOptions } from '../application/ports.ts';
 
@@ -107,6 +107,7 @@ export class YibuTextModel implements TextModel {
       try {
         if (!response.body) throw new GatewayError('INVALID_RESPONSE');
         const reader = response.body.getReader();
+        const releaseReader = manageReader(reader, combined);
         const decoder = new TextDecoder();
         let text = '';
         let bytes = 0;
@@ -122,9 +123,10 @@ export class YibuTextModel implements TextModel {
           stage = 'parse';
           data = JSON.parse(text);
         } finally {
-          closeReader(reader);
+          releaseReader();
         }
       } catch (error) {
+        if (combined.aborted) throw error;
         if (error instanceof SyntaxError)
           throw new GatewayError('INVALID_RESPONSE', {
             stage: 'parse',
@@ -150,14 +152,14 @@ export class YibuTextModel implements TextModel {
         httpStatus: response?.status,
         durationMs: Math.round(performance.now() - started),
       };
+      if (signal?.aborted) throw new GatewayError('CANCELLED', details);
+      if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       if (error instanceof GatewayError)
         throw new GatewayError(error.code, {
           ...details,
           stage: error.stage ?? stage,
           httpStatus: error.httpStatus ?? response?.status,
         });
-      if (signal?.aborted) throw new GatewayError('CANCELLED', details);
-      if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       throw new GatewayError('UPSTREAM_FAILED', details);
     } finally {
       lifetime.dispose();
@@ -217,6 +219,7 @@ export class YibuTextModel implements TextModel {
           httpStatus: response.status,
         });
       const reader = response.body.getReader();
+      const releaseReader = manageReader(reader, combined);
       const decoder = new TextDecoder();
       let buffer = '';
       let emittedLength = 0;
@@ -264,7 +267,7 @@ export class YibuTextModel implements TextModel {
           if (done) throw new GatewayError('UPSTREAM_FAILED');
         }
       } finally {
-        closeReader(reader);
+        releaseReader();
       }
     } catch (error) {
       const details = {
@@ -272,14 +275,14 @@ export class YibuTextModel implements TextModel {
         httpStatus: response?.status,
         durationMs: Math.round(performance.now() - started),
       };
+      if (signal?.aborted) throw new GatewayError('CANCELLED', details);
+      if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       if (error instanceof GatewayError)
         throw new GatewayError(error.code, {
           ...details,
           stage: error.stage ?? details.stage,
           httpStatus: error.httpStatus ?? response?.status,
         });
-      if (signal?.aborted) throw new GatewayError('CANCELLED', details);
-      if (lifetime.timedOut()) throw new GatewayError('TIMEOUT', details);
       throw new GatewayError('UPSTREAM_FAILED', details);
     } finally {
       lifetime.dispose();
