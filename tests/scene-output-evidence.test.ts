@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { ScenePlanner } from '../src/modules/world/infrastructure/scene-planner.ts';
 import { sceneMatterId } from '../src/modules/world/domain/scene-matter-policy.ts';
 import { progressionFixture } from './fixtures/matter-progression.ts';
+import { resolveSceneStepProgress } from '../src/modules/world/domain/scene-step-progress.ts';
 import type { ScenePlanningContext } from '../src/modules/world/application/scene-ports.ts';
 function fixture(intent: 'attempt' | 'plan' = 'attempt') {
   const f = progressionFixture('county-yellow-hair');
@@ -62,6 +63,7 @@ function fixture(intent: 'attempt' | 'plan' = 'attempt') {
 async function run(
   f: ReturnType<typeof fixture>,
   onCall?: (messages: { content: string }[], index: number) => void,
+  wire?: unknown,
 ) {
   let calls = 0;
   return new ScenePlanner({
@@ -69,7 +71,7 @@ async function run(
       onCall?.(messages, calls);
       return JSON.stringify(
         calls++ === 0
-          ? f.director
+          ? (wire ?? f.director)
           : f.c.action
             ? { text: '先按维修单核对。', actions: [] }
             : { present: true, text: '你先看一下维修单。' },
@@ -128,6 +130,182 @@ const cases: [string, (f: ReturnType<typeof fixture>) => void][] = [
     },
   ],
 ];
+function indexed(f: ReturnType<typeof fixture>) {
+  return {
+    ...f.director,
+    evidenceFormat: 'indexed-observations-v1',
+    observation: [f.director.observation!] as string[] | null,
+    stepProposals: f.director.stepProposals.map(({ observationQuote: _quote, ...step }) => ({
+      ...step,
+      observationIndex: 0,
+    })),
+  };
+}
+test('explicit indexed wire binds a segment exactly and keeps domain evidence validation', async () => {
+  const f = fixture(),
+    wire = indexed(f);
+  wire.observation = ['你核对R17维修单。', f.director.observation!];
+  wire.stepProposals[0]!.observationIndex = 1;
+  const p = await run(f, undefined, wire);
+  assert.equal(p.observation, wire.observation.join('\n'));
+  assert.equal(p.stepProposals![0]!.observationQuote, wire.observation[1]);
+  assert.ok(!('evidenceFormat' in p));
+  assert.ok(!('observationIndex' in p.stepProposals![0]!));
+  const event = { id: randomUUID(), version: f.c.world.version + 1, at: f.c.world.time };
+  const result = resolveSceneStepProgress({
+    world: f.c.world,
+    initial: f.f.initial,
+    scene: f.c.scene,
+    action: {
+      ...f.c.action!,
+      status: 'resolved',
+      resolution: {
+        outcome: p.outcome!,
+        observation: p.observation!,
+        sourceEventId: event.id,
+        sourceVersion: event.version,
+      },
+    },
+    stepProposals: p.stepProposals!,
+    npcActions: p.npcActions!,
+    dialogues: p.dialogues,
+    event,
+  });
+  assert.equal(
+    result.matters.find((m) => m.id === f.f.trigger.id)?.stepProgress?.steps[0]?.observationQuote,
+    wire.observation[1],
+  );
+  assert.deepEqual(result.completedMatterIds, []);
+});
+for (const index of [-1, 0.5, 8, 1, '0', null]) {
+  test(`indexed wire rejects invalid or nonexistent index without content diagnostics: ${index}`, async () => {
+    const f = fixture(),
+      wire = indexed(f);
+    Object.assign(wire.stepProposals[0]!, { observationIndex: index });
+    await assert.rejects(run(f, undefined, wire), (e: unknown) => {
+      assert.equal((e as Error).message, 'scene_step_evidence:observation_index');
+      return true;
+    });
+  });
+}
+test('indexed null observation with steps is rejected and null without steps remains neutral', async () => {
+  const f = fixture(),
+    wire = indexed(f);
+  wire.observation = null;
+  await assert.rejects(run(f, undefined, wire), {
+    message: 'scene_step_evidence:observation_index',
+  });
+  delete f.c.action;
+  f.c.scene.presence = f.c.scene.presence.filter((p) => p.participant.kind === 'player');
+  wire.stepProposals = [];
+  wire.outcome = null;
+  wire.presentActorIds = [];
+  assert.equal((await run(f, undefined, wire)).observation, null);
+});
+test('unknown version, mixed quote, invalid array and canonical length never fallback or normalize', async () => {
+  const mutations: ((wire: ReturnType<typeof indexed>) => void)[] = [
+    (w) => {
+      w.evidenceFormat = 'unknown-version';
+    },
+    (w) => {
+      Object.assign(w.stepProposals[0]!, { observationQuote: 'PRIVATE_MIXED_QUOTE' });
+    },
+    (w) => {
+      w.observation = [];
+    },
+    (w) => {
+      w.observation = Array(9).fill('你核对维修单。');
+    },
+    (w) => {
+      w.observation = [''];
+    },
+    (w) => {
+      Object.assign(w, { observation: '你核对维修单。' });
+    },
+    (w) => {
+      w.observation = ['你'.repeat(900), '你'.repeat(900)];
+    },
+    (w) => {
+      Object.assign(w.stepProposals[0]!, { unexpected: 'PRIVATE_UNKNOWN_VALUE' });
+    },
+  ];
+  for (const mutate of mutations) {
+    const f = fixture(),
+      wire = indexed(f);
+    mutate(wire);
+    await assert.rejects(run(f, undefined, wire), { code: 'INVALID_PROPOSAL' });
+  }
+  const f = fixture();
+  f.director.stepProposals[0]!.observationQuote = 'PRIVATE_BAD_CLASSIC_QUOTE';
+  await assert.rejects(run(f), { message: 'scene_step_evidence:observation_quote' });
+});
+test('indexed input, forbidden NPC step and false performer remain rejected', async () => {
+  for (const mutate of [
+    (w: ReturnType<typeof indexed>) => {
+      w.stepProposals[0]!.inputQuote = 'PRIVATE_UNSAVED_INPUT';
+    },
+    (w: ReturnType<typeof indexed>) => {
+      w.stepProposals[0]!.stepId = 'received';
+    },
+  ]) {
+    const f = fixture(),
+      wire = indexed(f);
+    mutate(wire);
+    await assert.rejects(run(f, undefined, wire), { code: 'INVALID_PROPOSAL' });
+  }
+  const f = fixture(),
+    wire = indexed(f);
+  wire.observation = ['老周核对R17维修单。'];
+  const p = await run(f, undefined, wire);
+  const event = { id: randomUUID(), version: f.c.world.version + 1, at: f.c.world.time };
+  assert.throws(
+    () =>
+      resolveSceneStepProgress({
+        world: f.c.world,
+        initial: f.f.initial,
+        scene: f.c.scene,
+        action: {
+          ...f.c.action!,
+          status: 'resolved',
+          resolution: {
+            outcome: p.outcome!,
+            observation: p.observation!,
+            sourceEventId: event.id,
+            sourceVersion: event.version,
+          },
+        },
+        stepProposals: p.stepProposals!,
+        npcActions: p.npcActions!,
+        dialogues: p.dialogues,
+        event,
+      }),
+    { code: 'INVALID_PROPOSAL' },
+  );
+});
+test('action NPC also receives anonymous player addressee without private identity', async () => {
+  const f = fixture();
+  f.c.world.facts.push({
+    id: 'owner',
+    text: 'PRIVATE_OWNER_PROFILE',
+    kind: 'canonical',
+    sourceEventId: 'genesis:owner',
+    visibility: { kind: 'owner' },
+  });
+  let actorCalls = 0;
+  await run(
+    f,
+    (messages, index) => {
+      if (!index) return;
+      actorCalls++;
+      const input = JSON.parse(messages[1]!.content);
+      assert.deepEqual(input.addressee, { kind: 'player', name: null });
+      assert.ok(!messages[1]!.content.includes('PRIVATE_OWNER_PROFILE'));
+      assert.match(messages[0]!.content, /先前错称不构成身份来源/);
+    },
+    indexed(f),
+  );
+  assert.equal(actorCalls, 1);
+});
 for (const [code, mutate] of cases) {
   test(`current player step rejection gives only a safe condition: ${code}`, async () => {
     const f = fixture();

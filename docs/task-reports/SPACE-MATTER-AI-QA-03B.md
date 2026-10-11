@@ -4,6 +4,16 @@
 
 ## 新实际证据与诊断修复
 
+### v11 显式分段索引 wire 接续
+
+I实际v10同动作复测失败：scene_step_evidence:observation_quote，77519ms。原world仍v4（retry没有新增input，不能写v5），没有stepProgress；新独立账本保守6/18，I唯一执行者。失败保留，不归因到任意不可见原文。
+
+根重新释放同3文件实现显式 evidenceFormat="indexed-observations-v1" 的内部strict wire。observation为1..8个非空段数组或null，每段现有text上限1600，步骤引用段仍经canonical quote的3..500上限；join换行后的canonical observation总上限1600。observationIndex必须整数0..7且实际段存在；缺失/非法/越界或null+steps为固定scene_step_evidence:observation_index，不输出值或文本。strict step不允许旧observationQuote/未知字段。只精确format进新schema；缺format的classic原规则不变，坏classic observationQuote仍拒，不回退、补写、推测引用或重付模型。
+
+合法新wire仅把索引选到的原段映射到canonical observationQuote，观察join换行后过原SceneProposalSchema。公开SceneProposal/DB/domain不变，inputQuote仍本轮原文；角色、来源、实际动作/观察模式、receiver、否定/未来和完成规则仍由原runtime验证。索引绑定不证明执行发生或任务完成。导演模板/步骤例改为新wire及中文“你”段，NPC独立actions结构不变；action NPC也加匿名player addressee和旧错称非身份来源，仍不读owner私档/全cast。
+
+最终新21+旧35=56/56纯测，typecheck/332边界/diff通过。涵盖合法分段精确映射及domain源绑定、不完成parent；负数/小数/8/数组长度以外/字符串/null index、null+step、未知format/混旧quote/空或9段/字符串观察/空段/总1801字/unknown字段、坏classic、无原文input/director NPC step。错误人物观察在planner可成候选但仍被原domain拒（初test误期待planner拒，首56=55/1，改为验证真实职责后全过，未改规则）。opening/action匿名player且owner身份不泄。没有全check/build、DB、端口或模型；源码冻结交I/Q精确复验，真实首步/整链尚未治愈。
+
 I提供新独立真实开场成功保存老周到场v3、父事项in_progress。老周叫玩家“刘航”并向错误对象索350元；350实际有官方persona和老周可见repair_record事实来源，不记为无来源新价格。正确问题是错认对话对象和索款对象，未证明实际收费。随后首步核对仅导演6575ms失败 Unsupported current player step evidence，事务未保存进展，I保守4/18；该复合错误不能推出具体哪项失败，不猜根因、不自动重付unknown。
 
 将原复合拒绝拆成固定白名单条件码。code仍INVALID_PROPOSAL，stage=proposal，message与diagnosticMessage只为 `scene_step_evidence:CODE`。CODE依原判断顺序：context（本轮没有结构化执行上下文）、matter_id（有上下文但world matterId不匹配）、step_id、forbidden_npc_step、failed_outcome、input_quote、observation_quote、receiver。不记录raw、引用、正文、人物姓名、任何ID、未知字段或实际值。保留拒绝规则和次序，没有缺字段补成功或导演代NPC动作。
