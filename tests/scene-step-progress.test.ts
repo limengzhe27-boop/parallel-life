@@ -291,12 +291,64 @@ for (const [name, alter] of [
   });
 }
 
-test('old dialogue alone does not backfill progress and another preset cannot use R17 rule', () => {
+test('saved historical NPC message is not scanned into step evidence or mutated by resolving an empty delta', () => {
   const c = fixture();
-  c.dialogues = [{ actorId: c.actorId, text: '我接过钥匙和维修单，已经交付。' }];
-  assert.equal(savedTarget(c, resolveSceneStepProgress(c)).stepProgress, undefined);
+  c.world.messages.push({
+    id: randomUUID(),
+    actorId: c.actorId,
+    role: 'assistant',
+    text: '我接过钥匙和维修单，已经交付。',
+    at: c.world.time,
+    sourceEventId: randomUUID(),
+    sourceVersion: c.world.version,
+  });
+  const before = structuredClone(c.world),
+    r = resolveSceneStepProgress(c);
+  assert.equal(savedTarget(c, r).stepProgress, undefined);
+  assert.deepEqual(c.world, before);
+  assert.deepEqual(r.actionTexts, []);
   const other = progressionFixture('only-child');
   assert.equal(sceneStepRule(other.world, other.trigger), undefined);
+});
+
+for (const [label, text] of [
+  ['receiving', '我接过钥匙和维修单。'],
+  ['inspection', '我检查了R17接头。'],
+] as const) {
+  test(
+    'current NPC ' + label + ' claim without typed action is rejected, not silently backfilled',
+    () => {
+      const c = fixture();
+      c.dialogues = [{ actorId: c.actorId, text }];
+      assert.deepEqual(c.npcActions, []);
+      rejected(c);
+      assert.equal(c.world.matters!.find((m) => m.id === c.targetId)!.stepProgress, undefined);
+    },
+  );
+}
+
+test('same receiver may refer to own already committed action without crediting it a second time', () => {
+  const c = receiveFixture();
+  const first = resolveSceneStepProgress(c);
+  c.world = { ...c.world, matters: first.matters, version: c.event.version };
+  c.event = { ...c.event, id: randomUUID(), version: c.world.version + 1 };
+  c.action = {
+    ...c.action,
+    id: randomUUID(),
+    sourceEventId: randomUUID(),
+    sourceVersion: c.world.version,
+    resolution: {
+      ...c.action.resolution!,
+      sourceEventId: c.event.id,
+      sourceVersion: c.event.version,
+    },
+  };
+  c.stepProposals = [];
+  c.npcActions = [];
+  c.dialogues = [{ actorId: c.actorId, text: '我已经接过钥匙和维修单。' }];
+  const r = resolveSceneStepProgress(c);
+  assert.deepEqual(savedTarget(c, r).stepProgress, savedTarget(c, first).stepProgress);
+  assert.deepEqual(r.actionTexts, []);
 });
 
 test('receipt replay event is not a fresh step event', () => {
