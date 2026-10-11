@@ -91,6 +91,8 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         .map((r) => r.payload);
       for (const e of events) {
         if (e.type === 'invitation.responded') {
+          const projected = appointments.find((a) => a.id === e.data.id);
+          if ((projected?.responseVersion ?? -1) >= e.version) continue;
           appointments = applyInvitationEvent(
             {
               ...world.state,

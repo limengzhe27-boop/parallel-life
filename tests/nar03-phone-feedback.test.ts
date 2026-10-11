@@ -24,8 +24,7 @@ import { projectMessageNotifications } from '../src/features/phone/notification-
 
 // Calls production rules/presenters and real callbacks using synthetic inputs only.
 // No repository replacement, database, browser layout, model or production writes.
-// TODO cases RUN their assertions: expected failures document d2f8eb8 defects,
-// and must become ordinary passing tests after the responsible agent fixes them.
+// Previously failing audit cases are mandatory regressions after integration.
 registerHooks({
   load(url, context, nextLoad) {
     if (url.endsWith('.module.css'))
@@ -51,7 +50,7 @@ registerHooks({
 });
 const { NotesRecords, NotesRecordDetail, recordDestination } =
   await import('../src/features/phone/apps/notes-records.tsx');
-const unresolved = (reason: string) => (process.env.NAR03_UXQA_STRICT === '1' ? false : reason);
+const unresolved = (_reason: string) => false;
 const worldId = '10000000-0000-4000-8000-000000000001';
 const actorA = '20000000-0000-4000-8000-000000000001';
 const actorB = '20000000-0000-4000-8000-000000000002';

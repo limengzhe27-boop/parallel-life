@@ -1,4 +1,5 @@
 import type { WorldMatter } from './matters.ts';
+import { sceneMatterId } from './scene-matter-policy.ts';
 import type { SceneAction } from './experience-rules.ts';
 
 /** A matching stored action resolution is the only source of this player-facing observation. */
@@ -25,7 +26,7 @@ export function matterSceneObservation(
     action.id !== evidence.actionId ||
     action.intent !== 'attempt' ||
     action.status !== 'resolved' ||
-    !action.relatedMatterIds.includes(matter.id) ||
+    !action.relatedMatterIds.includes(sceneMatterId(action.sceneId, matter.id)) ||
     !resolution ||
     resolution.sourceEventId !== evidence.eventId ||
     resolution.sourceVersion !== evidence.eventVersion ||

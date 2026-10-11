@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { sceneMatterId } from '../src/modules/world/domain/scene-matter-policy.ts';
 import assert from 'node:assert/strict';
 import type { SceneAction } from '../src/modules/world/domain/experience-rules.ts';
 import type { WorldMatter } from '../src/modules/world/domain/matters.ts';
@@ -59,7 +60,7 @@ const action: SceneAction = {
   intent: 'attempt',
   kind: 'inspect',
   text: '我核对工单。',
-  relatedMatterIds: ['matter'],
+  relatedMatterIds: [sceneMatterId('scene', 'matter')],
   status: 'resolved',
   resolution: {
     sourceEventId: 'result',

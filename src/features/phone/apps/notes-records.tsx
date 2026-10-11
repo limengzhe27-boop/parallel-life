@@ -87,7 +87,9 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
                   {destination.app === 'map'
                     ? '查看地点 ›'
                     : destination.app === 'messages'
-                      ? '查看来源对话 ›'
+                      ? record.kind === 'world_matter'
+                        ? '联系相关人物 ›'
+                        : '查看来源对话 ›'
                       : '查看日程 ›'}
                 </button>
               </div>
@@ -251,7 +253,9 @@ export function NotesRecordDetail({
             onClick={() => open(destination.app, destination.target)}
           >
             {destination.app === 'messages'
-              ? '查看来源对话'
+              ? record.kind === 'world_matter'
+                ? '联系相关人物'
+                : '查看来源对话'
               : destination.app === 'map'
                 ? '查看地点'
                 : '查看日程'}
@@ -272,7 +276,9 @@ export function NotesRecordDetail({
                 onClick={() => open(link.app, link.target)}
               >
                 {link.app === 'messages'
-                  ? '查看来源对话'
+                  ? record.kind === 'world_matter'
+                    ? link.label
+                    : '查看来源对话'
                   : link.app === 'photos'
                     ? '相关人物带入素材'
                     : link.label}
