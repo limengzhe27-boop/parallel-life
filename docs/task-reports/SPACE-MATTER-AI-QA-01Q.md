@@ -1,6 +1,6 @@
 # SPACE-MATTER-AI-QA-01Q · NPC真实承接独立语义审查
 
-- 状态：进行中，先建立评判标准；尚无本轮真实输出证据。
+- 状态：待验收（独立审查报告交付；完整真实模型体验未通过，范围已冻结）。
 - Agent：codex-f-matter-aiqa-q-01a0c7c8-20261011；辅助01a0c7c8。
 - 工作树：/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本；新分支codex/matter-ai-qa-q，基线6016acd。旧Q分支/提交保留，不reset。
 - 只写本报告和必要新tests/matter-experience-quality.test.ts、主表本人行；全部业务源/旧测试/公共接口/配置只读。
@@ -113,3 +113,97 @@ I提供safe-task-metadata.json（当前3task），独立核对id与09/13/17 rece
 前述publicTask视图没有model字段仍是当时API形状的准确观察；此单列元数据填补来源缺证。三任务共预留6上界来自I，不表示Q逐条读取了供应商计费日志。后续新任务需单列新prompt/build来源和保存结果，不覆盖本批partial。
 
 safe-task-metadata.json（此3task版本）SHA256：`e93ab85abf52369f9739de416e2e033006d0b859f66bb7f470d4e8fc83bc204a`
+
+## 新提示正式实测 · 19–22：unknown不是提交成功
+
+I确认业务ea07f17、发布7740540/m8d9mk05q READY与正式别名切换后，在同一官方县城world/scene继续唯一新attempt。19前态v8保留两个partial，20真实输入只写玩家核对R17接头、检查启动、填写检修/验收项目及交车时刻、交钥匙维修单给老周并留记录；没有写他人已经同意/签收或代他人签名。
+
+21 task ce5371b5-ac96-4cc4-8049-9bcdbbe5037d实际unknown、errorCode UNKNOWN、resultVersion=null。22只读state为v9，新增仅scene.input_recorded/user_action和status=pending的action，没有resolution、adjudicated_result或新NPC对白。records仍R17 in_progress、长期无progress/机会，history没有已完成world matter。因此只能证明玩家输入已存，不能称本轮裁定/NPC/阶段/机会已提交。
+
+更新safe-task-metadata精确同taskId为model gpt-4o-mini、prompt_version scene-text-v4-action-continuity、duration_ms85127、unknown。它支持新版任务确实被执行过的来源，不证明完整模型响应已经收到/提交，也不推具体是导演或NPC哪次付费失败。duration不是供应商计费次数。本Q不能对未保存的新台词评分，不能根据unknown断言新提示自然性已改善或变差。
+
+I报告保守预留8/12（含未知调用上界）、只有一个测试world，已停止自动重付。本Q没有代发新命令/重试、调用模型/DB或生产写。旧safe-task-metadata 3task版本已由I另存safe-task-metadata-before.json，SHA256与本Q先前记录一致；旧partial/HTTP拒绝档保留，未为验收全绿覆盖结果。
+
+### 当前覆盖结论
+
+|项目|当前证据结论|
+|---|---|
+|正式真实开场与保存|已覆盖一次；NPC人物口吻尚可，导演旁白行为/意图与重复有保留|
+|真实部分行动与保存|已覆盖两次partial；护栏没有虚假授予成果，检查时序与重复未给缺项有保留|
+|完成事项后NPC承接|未覆盖：尚无正式completed事项样本|
+|有来源后续机会/尚未接受|未覆盖：没有本轮真实机会记录|
+|机会实际参与/第二阶段反馈|未覆盖：不能用03C合成纯/PG补齐|
+|修复版NPC语义改善|不可判：unknown后无新已提交台词|
+|无关人物/撤销/跨场景隐私|本轮未覆盖实际人物对照；老周已知车主来源合理，不外推所有角色安全|
+|多Persona或第二world|未覆盖；没有为凑数强开第二world|
+|普通自建/旧版/通用长线/真实兑现/留存|仍属后续任务，不用有限样本替代|
+
+**当前独立结论：本轮完整“真实事项完成→NPC自然承接→后续机会→实际下一步反馈”尚未通过验收。** 已确认旧版问题与合法partial保存、新版只到unknown；技术检查/READY和提示修复不能代替缺失的真实成功链。独立语义报告可交付，父体验任务的未完成部分仍须保留。
+
+I接续：先精确只读核unknown任务/原回执与是否迟到提交；不静默再付费或造结果。恢复真实验收应由I协调未知状态与授权，沿原保存world/scene/来源继续，仍将未完成事项/机会/第二阶段保留。若本轮停止，I按原授权暂停合成world并记录最终状态。Q只待I最后安全诊断/暂停快照，随后冻结报告待验收，不扩源或自动领新任务。
+
+### 新提示/unknown证据指纹
+- 19-before-action.json：`602d1988eb789b2bb7b7a3ba6df232d3dd7d937abc35a609fac9e32980719917`
+- 20-action-input.json：`f9263127c2959bf6eae68b7334d3925a610710fc62c98ae0fd4264f7b7ff313e`
+- 21-task-result.json：`29fadeabb882128895e391f4fd5209e295a0d7d23bf55792a70c50c9e9d05edb`
+- 22-read-only.json：`0f4316bf4007b0d5ea8b481743382dd7fc34ba8cbcdced9194ef005933a69aa0`
+- safe-task-metadata-before.json：`e93ab85abf52369f9739de416e2e033006d0b859f66bb7f470d4e8fc83bc204a`
+- safe-task-metadata.json：`ec18e7d209b5bb4350402c8147f57df5a14ce3b4e5be1adad317c585935c095b`
+
+## 最终独立审查 · 23–31：报告交付，完整体验未通过
+
+23只读核原task仍unknown，未返还未知调用预算；I在已授权纠错额度内明确重试一次。24新task 4582d843-a726-4e25-95f3-cb2fea3aacc1 succeeded/resultVersion10。最终safe-task-metadata按精确task ID确认gpt-4o-mini / scene-text-v4-action-continuity / 44628ms；旧unknown任务仍单列，未覆盖历史。上节19–22和当时覆盖表为重试前记录，最终结果以本节为准。
+
+25新版实际保存的action 27307695-272b-48c5-bdf2-30aeac2630eb仍partial，来源event d45a661f-0eb7-433f-91bf-afe2d72b54c0/v10。观察为“你已对照R17维修单核对了修复的电源接头，并将车辆钥匙与维修单交给老周，但交接记录尚未完成，老周尚未进行检查或签收。”实际NPC为“好，维修单和钥匙都在这儿，等刘航来了我会进行交接。你先把记录留好，我再检查一下。”
+
+正例：NPC承接了维修单、钥匙，语气符合少夸人的老周；“我再检查一下”比旧“行了，没问题”更清楚地表达尚待检查，没有虚构签收、客户到场、收入或目标已完成。反例：20原输入已明确把检修细节、检查项目、交车时间写进单据并留记录，结果仍笼统说记录未完成，又要求留记录，未说明真正缺项。合法partial不等于体验合格，不能强制success掩盖连续性问题。旁白删去“似乎等待车主”有局部改善，但仍沿用旧房间/整理工具描述，不能判全部问题已修。
+
+原R17允许向车主或老周说明并交付，不得临时要求未到场刘航或另一个人的签名作为必经条件。刘航是老周已知车主，“等来了”只表示未来安排，不证明到场。25 records中R17仍in_progress，长期追求无新阶段进度、无本轮后续机会；赴约记录不是事项完成证据。
+
+26前态v10；27手机追问“刚才现场的交接，现在具体还差哪一步？接下来我该先做什么？”；28实际HTTP503/UNAVAILABLE，requestId 3a965db1-08b4-47ab-830e-c0e15a9362d7。I按该精确requestId读取该部署日志，报告11940ms / errMessage INVALID_PROPOSAL。诊断应写为模型回复提案不合法、未提交，不能把公开“暂时无法连接”直接归因为网关超时或网络不稳。Q没有读取生产日志或被拒原始提案，具体子阶段/非法字段/语义失败原因未知。29世界仍v10，无新手机回应；31原command receipt为unconfirmed。31的modelCalls=0仅表示这次只读核回执没有调用模型，不能写成此前手机请求未调用。
+
+30最终合成县城world paused=true。I保守预留11/12，含unknown和失败的预算未退还；这是保守上界，不是Q核验过的精确供应商账单。只有一个world，0图片上传/生成，无再付费请求。剩余1不足完整scene，不补造第二样本。
+
+### 最终覆盖与结论
+
+|能力|本轮真实证据|
+|---|---|
+|开场与持久保存|一次，旧v2；短对白人物感尚可，旁白分工/重复有保留|
+|部分行动与持久保存|三个已保存partial（旧版两个、新v4一个）；没有虚假授予成果，重复缺项仍未解决|
+|新v4修复效果|检查语气局部改善；整体连续性未通过；另保留一次unknown原任务|
+|手机承接现场追问|已尝试但提案拒绝/未提交，原receipt unconfirmed；没有可评的新回复|
+|真实近期事项completed后的NPC承接|未覆盖，没有真实完成样本|
+|阶段推进、有来源后续机会、实际第二步反馈|全部未覆盖，无stage/opportunity；不能借03C合成测试补齐|
+|第二world/Persona、无关人物隐私对照、退出恢复、双端视觉|本Q未覆盖，不从一个老周样本外推|
+|普通世界通用达成、奖励、长期终局/留存|仍是后续范围，不代表完整产品已完成|
+
+**独立审查交付已完成，任务标待验收；完整真实模型体验未通过。** 技术检查、提示修复、任务succeeded或READY都不能替代“完成事项→自然承接→新机会→实际下一步”的缺失证据。
+
+### 只读诊断与接续点
+
+Q已实际执行一次纯Node诊断：读取20合成输入、调用现有classifySceneInput及sceneAttemptBoundary，结果为attempt/inspect、now保留全文、deferred=null。因此这条输入没有被边界切掉后半段；inspect粗分类是否影响模型只是待验证假设。本次不写新测试或业务源码。
+
+静态接线可确认：ScenePlanner导演先裁决，NPC随后返回文本对白；NPCpayload含裁剪facts、记忆与observedNow，但没有与导演相同的相关matter描述。当前对白不是typed检查/接收效果，也没有仅凭人物后续文本执行事项聚合重判。信息不对称、自由历史重复锚、缺少单调步骤来源可能影响体验，均不能宣称为本样本唯一已证根因；没有ablation。B补充只读报告ad5c66f作参考，Q不把他人报告当自己执行的实验。
+
+下一位：根/I验收本报告并统一归档/部署文档，明确保留父体验未通过。后续03D由集成人协调版本化完成条件、明确交付终点、source-backed步骤及必要NPC typed效果，复用现有Task Queue/reducer/events/receipt；角色只获授权相关事实，不能拿完整私人访谈补上下文。需要真实模型复验时重新登记预算/调用与来源，不静默重试，不放宽护栏、代签/制造观察或新建第二引擎。Q冻结本人范围，不自动领取新任务。
+
+### 修改与验证归属
+
+- Q唯一交付文件：docs/task-reports/SPACE-MATTER-AI-QA-01Q.md；另按短锁更新主表本人行。独立提交不纳其他Agent文件，不新增源码、测试、配置或迁移。
+- Q验证：预先7维人工语义量表、实际合成public输入/保存结果/任务/回执及安全模型元数据核对、证据SHA256、上述纯Node边界诊断、git diff --check。没有把关键词匹配当自然性分数。
+- 本任务Q执行真实PostgreSQL集成测试0、模型调用0、生产API/数据写0、浏览器0；没有运行npm check/build，也不宣称执行I的验证。读到的是I按合成owner/精确task IDs安全导出的模型元信息与正式HTTP快照，不是Q连接生产库。
+- I报告新版发布7740540/m8d9mk05q READY、751check、237真实PG通过/5显式opt-in模型跳过、build通过、41生产迁移校验一致。归属I的技术证据，不证明模型体验通过。Q本轮无生产部署，最终文档由唯一I发布；不将报告待验收说成产品交付完成。
+- 先前领域/合成planner/PG成功链只证明各自规则与存储，仍不能替代本轮真实完成/机会链。没有以原型或内存仓储冒充生产验收。
+
+### 最终新增证据指纹（历史版本指纹保留）
+- 23-manual-retry-reviewed.json：`d7d55fc20718231b6014338960ac057766e94449f92e78738e2b21bf72a68105`
+- 24-task-result.json：`60bd9ad77f13d0b2a41e9598b5438ac0bc012211061dfa6e9c5c4a0a1fc53554`
+- 25-retry-saved.json：`8d79fb22c06a80a26c69d46fe8fbe90c323865ce51255b4fb345d2f81dc82b5c`
+- 26-before-reply.json：`8d79fb22c06a80a26c69d46fe8fbe90c323865ce51255b4fb345d2f81dc82b5c`
+- 27-reply-input.json：`7b1f46e35bd6778e06291136ec5a67797f40acc080f61c0d795f592e53df679a`
+- 28-http-rejection.json：`f44b812e2455dc37cfccfe446e63ea5382754b59906da75e462dc1351a7c0f8c`
+- 29-read-only.json：`8d79fb22c06a80a26c69d46fe8fbe90c323865ce51255b4fb345d2f81dc82b5c`
+- 30-paused.json：`d480fc891d41adddaed8ac8867f51a77d4231dad7b6d251cf9083bb030036fb2`
+- 31-reply-receipt-readonly.json：`6625c58039cad68d4536ecc4c252779d2f245b3a5e98abfc4e57e759e52e520e`
+- safe-task-metadata-timeout.json：`ec18e7d209b5bb4350402c8147f57df5a14ce3b4e5be1adad317c585935c095b`
+- safe-task-metadata.json：`4ac6a305b360788c4169730f39d9e00f9d5ea00117d666e8e20f66d028378289`
