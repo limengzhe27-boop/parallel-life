@@ -789,3 +789,25 @@ test('non-JSON hidden fields and sparse/extra-property arrays cannot disappear w
   }
   assert.equal(calls, 0);
 });
+
+test('documented minimal two-character example is valid and remains unavailable without a runtime adapter', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const report = await readFile(
+    new URL('../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+    'utf8',
+  );
+  const block = /```json\n([\s\S]*?)\n```/.exec(report);
+  assert.ok(block?.[1]);
+  const raw = JSON.parse(block[1]);
+  const parsed = PublishedWorldContentSchema.parse(raw);
+  assert.equal(parsed.actors.length, 2);
+  assert.equal(parsed.actors[0]?.name, parsed.actors[1]?.name);
+  assert.notEqual(parsed.actors[0]?.key, parsed.actors[1]?.key);
+  assert.deepEqual(parsed.phone.messages, []);
+  assert.deepEqual(parsed.history, []);
+  const result = inspectPublishedWorldSupport(parsed);
+  assert.deepEqual(result.requiredCapabilities, ['publication.opening.v1']);
+  assert.deepEqual(result.missingCapabilities, ['publication.opening.v1']);
+  assert.equal(result.runtimeReady, false);
+  assert.equal(result.grantsPublicationAuthority, false);
+});

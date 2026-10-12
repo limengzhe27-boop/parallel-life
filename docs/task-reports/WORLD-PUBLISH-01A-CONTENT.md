@@ -45,8 +45,60 @@ extensions为显式namespace/version/purpose/description/data内部JSON包络：
 
 ## 验收证据
 
-59项新专项全过，npm run typecheck 0、check:boundaries 338文件通过、git diff --check通过。涵盖两角色/同名稳定key、完整未知编辑扩展roundtrip不trim、返回值与输入独立、隐藏actor/地点/关系/历史/未来节点/扩展不进入预览；6主命名空间及4手机命名空间重复键；悬空关系/地点/素材/事实/消息/节点、跨scope/用途/可见性错误；依赖环与真实committed条件；未来事实/初始消息混入、伪confirmed/玩家完成；不支持能力/扩展保留但不执行；未知schema/未知字段；UTF8/字段/数量/扩展/总预算；getter不执行与非JSON值拒绝。
+60项新专项全过，npm run typecheck 0、check:boundaries 338文件通过、git diff --check通过。涵盖两角色/同名稳定key、完整未知编辑扩展roundtrip不trim、返回值与输入独立、隐藏actor/地点/关系/历史/未来节点/扩展不进入预览；6主命名空间及4手机命名空间重复键；悬空关系/地点/素材/事实/消息/节点、跨scope/用途/可见性错误；依赖环与真实committed条件；未来事实/初始消息混入、伪confirmed/玩家完成；不支持能力/扩展保留但不执行；未知schema/未知字段；UTF8/字段/数量/扩展/总预算；getter不执行与非JSON值拒绝。
 
 第一轮boundary脚本将错误path字符串from词误匹配为import（没有实际domain import）；本人将关系错误定位保留在关系条目路径，源不新增依赖，不修改公共scanner，最终338通过。所有旧tests保持只读，新样例为非露骨虚构河边小店，与同事原稿/个人档案无关。局部证据在ignored .local/content-{tests,type,boundary}.log。
 
 本轮未跑完整check/build/PG/浏览器/真实模型，不代表权限、资产真实性、数据库幂等、UI或人物生成质量通过。新文件未接现有消费者；根审核后需统一全检/编译兼容，后端SQL/身份/发布/实例化仍后续分配。未写任何published状态、worker任务、模板实例或玩家过去；母04closed不续。
+
+## 交I的导出接口与有效最小样例
+
+contract导出 PublishedWorldContentSchema（Zod parse/safeParse），PublishedWorldContent（推导type），previewPublishedWorldContent(raw: unknown)，inspectPublishedWorldSupport(raw: unknown, supported: ReadonlySet<string> = new Set())。后两者输入始终先完整parse，非法schema/shape/ref/预算throw ZodError，不返回看似有效的部分预览。
+
+domain导出 PublicationContent / PublicationJson / PublicationVisibility / PublicationParticipant / PublicationPrerequisite / PublicationIntent / PublicationIssue types；PUBLICATION_CONTENT_MAX_BYTES=65536；publicationStorageIssues(value:unknown):PublicationIssue[]；publicationContentIssues(c:PublicationContent):PublicationIssue[]；publicationPlayerPreview(c:PublicationContent)；publicationSupport(c:PublicationContent,supported:ReadonlySet<string>=new Set())。domain后3入口的内容应先经过contract解析，不从请求体直接as类型调用。
+
+以下最小内容仅有两个稳定角色和一个地点，无旧聊天/节点/素材时不编造数据；未来可以增加经校验内容。它是虚构作者草稿，不是已经发生的玩家存档。新专项会从本报告读取该JSON并实际验证，避免文档样例漂移。
+
+```json
+{
+  "schemaVersion": 1,
+  "work": {
+    "key": "river_shop",
+    "title": "河边的小店",
+    "hook": "和伙伴商量小店的第一天",
+    "description": "原创虚构起点",
+    "experienceNote": "玩家可以自行决定先做什么"
+  },
+  "world": {
+    "publicSetting": "玩家在河边的小店，尚未作出新选择。",
+    "tone": "平和",
+    "startAt": "2026-10-12T09:00:00Z",
+    "startPlaceKey": "shop",
+    "hiddenContext": "无额外幕后安排"
+  },
+  "protagonist": { "identity": "小店合伙人", "situation": "准备商量开业", "knownFactKeys": [] },
+  "actors": [
+    {
+      "key": "ning_one", "name": "阿宁", "knownAtStart": true,
+      "publicCard": { "identity": "开业伙伴", "traits": [] },
+      "privatePersona": { "background": "参与筹备", "motivation": "做好自己的部分", "voice": "说话简短", "boundaries": "先讨论再作决定" }
+    },
+    {
+      "key": "ning_two", "name": "阿宁", "knownAtStart": true,
+      "publicCard": { "traits": [] },
+      "privatePersona": { "background": "另一位伙伴", "motivation": "弄清安排", "voice": "慢慢说", "boundaries": "不代替别人承诺" }
+    }
+  ],
+  "relationships": [],
+  "places": [{ "key": "shop", "name": "河边小店", "description": "明亮的小店", "knownAtStart": true }],
+  "routes": [], "history": [], "initialKnowledge": [],
+  "phone": { "messages": [], "notes": [], "invitations": [], "album": [] },
+  "media": [], "candidates": [], "extensions": []
+}
+```
+
+其默认能力结果为requiredCapabilities=[publication.opening.v1]、missingCapabilities同上、storedOnlyExtensions=[]、unsupportedRuntimeExtensions=[]、runtimeReady=false、grantsPublicationAuthority=false。没有真实publication.opening.v1适配器时不能试演/发布此内容；不要为绕过检查把虚假的feature字符串从浏览器传入supported。
+
+含素材或候选意图时分别要求publication.media.v1及candidate.offer_message.v1/candidate.offer_invitation.v1；缺少任意required capability即false。即使可信运行注册表全匹配得到runtimeReady=true，grantsPublicationAuthority仍恒false，还须根后续员工权限、正式素材manifest、校验/试演依据与发布事务审核。rawOriginal或任意extension不可进preview；safe preview也不返回完整模板、后台权限、发布操作或资产可访问URL。
+
+最终接续：初始源码/59测试冻结19f70c8e7fc0aefad3526a574e900c03d4bc6a85；本次仅追加报告导出签名/有效JSON最小样例及第60项实际校验样例测试，源码两文件逐字不变。完整提交序列为19f70c8及其本次后继提交，根不要只cherry后继而缺初始源。最终60pass/type0/338boundary/三新代码文件Prettier/diff0，0其他范围。
