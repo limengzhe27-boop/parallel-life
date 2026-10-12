@@ -108,6 +108,58 @@ test('an ordinary scene action uses the string observation wire without indexed 
   assert.equal(p.outcome, 'succeeded');
   assert.deepEqual(p.stepProposals, []);
 });
+test('a present ordinary NPC answers with dialogue instead of indexed novel paragraphs', async () => {
+  const c = context(),
+    actor = c.world.actors[0]!;
+  c.scene.presence.push({
+    participant: { kind: 'actor', actorId: actor.id },
+    joinedVersion: 1,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+  });
+  c.action = {
+    id: randomUUID(),
+    commandId: randomUUID(),
+    sceneId: c.scene.id,
+    ownerId: c.scene.ownerId,
+    worldId: c.world.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+    intent: 'attempt',
+    kind: 'speak',
+    text: '我说：你可以自己决定，我在旁边。',
+    relatedMatterIds: [],
+    status: 'pending',
+  };
+  let calls = 0;
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      calls++;
+      if (calls === 1)
+        return JSON.stringify({
+          location: '工作室',
+          narration: '灯光照着桌面。',
+          presentActorIds: [actor.id],
+          outcome: 'partial',
+          observation: '你表达了愿意陪伴的立场。',
+          matterTitle: null,
+          initialMatters: [],
+          matterUpdates: [],
+          dialogues: [],
+          stepProposals: [],
+          npcActions: [],
+        });
+      assert.ok(messages[0]!.content.includes('本轮是普通现场即时回应'));
+      assert.ok(!messages[1]!.content.includes('PRIVATE_OWNER_SENTINEL'));
+      return JSON.stringify({ text: '好，我自己说清楚。你坐在旁边就行。', actions: [] });
+    },
+  });
+  const result = await planner.propose(c);
+  assert.equal(calls, 2);
+  assert.equal(result.dialogues[0]!.actorId, actor.id);
+  assert.equal(result.dialogues[0]!.text, '好，我自己说清楚。你坐在旁边就行。');
+  assert.deepEqual(result.npcActions, []);
+});
 test('current publication direction is limited to the actual invitation, place and own participant', () => {
   const c = context(),
     a = c.world.appointments[0]!;
