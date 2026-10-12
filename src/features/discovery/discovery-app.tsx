@@ -1,11 +1,17 @@
 'use client';
 import { DraftEditor } from './draft-editor.tsx';
+import categoryStyles from './discovery-category.module.css';
 import { OfficialLives } from './official-lives.tsx';
 import type { LifeDraft } from '../../contracts/life-drafts.ts';
-import { BranchList } from './branch-list.tsx';
+import {
+  BranchList,
+  BranchCategoryTabs,
+  categorySavedSeeds,
+  savedWorldIds,
+  savedBranchEntry,
+  type BranchCategory,
+} from './branch-list.tsx';
 import { DirectionCard } from './direction-card.tsx';
-import { visibleSavedSeeds } from './branch-catalog.ts';
-import { resolveOfficialLifeArt } from './life-art.ts';
 import type { OfficialLifeCard } from '../../contracts/official-lives.ts';
 import { BuildControl } from './build-control.tsx';
 import type { WorldBuild } from '../../contracts/world-build.ts';
@@ -22,6 +28,7 @@ import type { Discovery, DiscoverRequest, LifeDirection } from '../../contracts/
 const explain = (error: unknown) =>
   error instanceof ApiFailure ? error.message : '暂时没有完成，你的想法仍保留在这里。';
 export function DiscoveryApp() {
+  const [category, setCategory] = useState<BranchCategory>('all');
   const [proposalOpen, setProposalOpen] = useState(false);
   const [catalog, setCatalog] = useState<readonly OfficialLifeCard[]>([]);
   const updateCatalog = useCallback((cards: readonly OfficialLifeCard[]) => setCatalog(cards), []);
@@ -289,8 +296,15 @@ export function DiscoveryApp() {
           <Icon name="plus" size={24} />
         </a>
       </header>
+      <BranchCategoryTabs selected={category} onSelect={setCategory} />
       <main className="discovery-main">
-        <OfficialLives connectSession={() => client.connect()} onCatalogChange={updateCatalog} />
+        <OfficialLives
+          category={category}
+          representedWorldIds={savedWorldIds(savedSeeds, builds)}
+          onShowFeatured={() => setCategory('featured')}
+          connectSession={() => client.connect()}
+          onCatalogChange={updateCatalog}
+        />
         {error && (
           <Notice>
             {error}
@@ -308,12 +322,19 @@ export function DiscoveryApp() {
           </Notice>
         )}
         {!data || !profile ? (
-          <div className="discovery-loading">
+          <div
+            className={`discovery-loading ${categoryStyles.personal}`}
+            hidden={category === 'featured'}
+          >
             <span className="spinner" />
             正在翻开你的故事…
           </div>
         ) : (
-          <>
+          <div
+            className={categoryStyles.personal}
+            hidden={category === 'featured'}
+            data-personal-branches
+          >
             <div className="branch-introduction">
               <h2>
                 换一条路，
@@ -327,6 +348,9 @@ export function DiscoveryApp() {
               </p>
             </div>
             {savedSeeds.length === 0 &&
+              !catalog.some(
+                (card) => card.worldId || card.legacyWorldId || card.currentVersionWorldId,
+              ) &&
               data.directions.length === 0 &&
               !drafts.some((d) => d.status === 'draft') &&
               !waiting && (
@@ -381,41 +405,25 @@ export function DiscoveryApp() {
                 />
               </section>
             )}
-            {visibleSavedSeeds(savedSeeds, builds, catalog).length > 0 && (
+            {categorySavedSeeds(savedSeeds, builds, catalog, category).length > 0 && (
               <BranchList
                 disabled={busy}
-                items={visibleSavedSeeds(savedSeeds, builds, catalog).map((saved) => ({
-                  id: saved.id,
-                  title: saved.story.title,
-                  description: saved.story.opening || saved.story.premise,
-                  premise: saved.story.premise,
-                  tradeoff: saved.story.tradeoff,
-                  identity:
-                    saved.setup?.identity ||
-                    ('source' in saved && saved.source.kind === 'official_life'
-                      ? catalog.find(
-                          (card) =>
-                            'source' in saved &&
-                            saved.source.kind === 'official_life' &&
-                            card.id === saved.source.presetId,
-                        )?.identityLabel
-                      : undefined),
-                  ready: Boolean(builds.find((b) => b.seedId === saved.id)?.ready),
-                  status: builds.find((b) => b.seedId === saved.id)?.ready ? '进入体验' : '待创建',
-                  imageUrl: saved.portraitAssetId
-                    ? `/api/v1/assets/${saved.portraitAssetId}`
-                    : 'source' in saved && saved.source.kind === 'official_life'
-                      ? resolveOfficialLifeArt(saved.source.presetId)?.coverUrl
-                      : undefined,
-                  imageLabel:
-                    'source' in saved && saved.source.kind === 'official_life'
-                      ? '原创插画'
-                      : '你的照片',
-                }))}
+                items={categorySavedSeeds(savedSeeds, builds, catalog, category).map((saved) =>
+                  savedBranchEntry(
+                    saved,
+                    builds.find((build) => build.seedId === saved.id),
+                    catalog,
+                  ),
+                )}
                 onOpen={(id) => {
                   const saved = savedSeeds.find((s) => s.id === id);
                   if (!saved) return;
-                  void enterWorldForSeed(saved);
+                  if (builds.find((build) => build.seedId === id)?.ready)
+                    void enterWorldForSeed(saved);
+                  else {
+                    setSeed(saved);
+                    setReceipt(true);
+                  }
                 }}
               />
             )}
@@ -622,7 +630,7 @@ export function DiscoveryApp() {
                 </form>
               </details>
             )}
-          </>
+          </div>
         )}
       </main>
       <AppTabs active="possibilities" />

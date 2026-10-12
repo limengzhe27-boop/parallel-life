@@ -9,6 +9,8 @@ import {
 import styles from './official-lives.module.css';
 import { LifeCard } from './life-card.tsx';
 import { resolveOfficialLifeArt } from './life-art.ts';
+import type { BranchCategory } from './branch-list.tsx';
+import categoryStyles from './discovery-category.module.css';
 
 export type OfficialLifeArtwork = 'garage' | 'lake' | 'house' | 'stage';
 export interface OfficialLifeCardView {
@@ -17,6 +19,7 @@ export interface OfficialLifeCardView {
   hook: string;
   artwork: OfficialLifeArtwork;
   hasSave: boolean;
+  worldId?: string | null;
   identity?: string;
   experienceNote?: string;
   version?: number;
@@ -37,9 +40,15 @@ const explain = (error: unknown) =>
 export function OfficialLives({
   connectSession,
   onCatalogChange,
+  category = 'all',
+  representedWorldIds = [],
+  onShowFeatured,
 }: {
   connectSession?: () => Promise<void>;
   onCatalogChange?: (cards: readonly OfficialLifeCard[]) => void;
+  category?: BranchCategory;
+  representedWorldIds?: readonly string[];
+  onShowFeatured?: () => void;
 }) {
   const [client] = useState(() => new OfficialLivesClient(undefined, connectSession));
   const commands = useRef<OfficialLifeCommands | null>(null);
@@ -172,6 +181,9 @@ export function OfficialLives({
   }
   return (
     <OfficialLivesView
+      category={category}
+      representedWorldIds={representedWorldIds}
+      onShowFeatured={onShowFeatured}
       cards={cards.map((card) => ({
         id: card.id,
         title: card.title,
@@ -179,6 +191,7 @@ export function OfficialLives({
         identity: card.identityLabel,
         artwork: artworkById[card.id],
         hasSave: card.worldId !== null,
+        worldId: card.worldId,
         experienceNote: card.experienceNote,
         version: card.version,
         hasNewVersion: card.hasNewVersion,
@@ -205,6 +218,32 @@ export function OfficialLives({
   );
 }
 
+export interface OfficialSavedWorld {
+  worldId: string;
+  card: OfficialLifeCardView;
+  legacy: boolean;
+}
+/** Only explicit catalog instance IDs are saves; hasSave alone never fabricates a world. */
+export function officialSavedWorlds(
+  cards: readonly OfficialLifeCardView[],
+  representedWorldIds: readonly string[] = [],
+): OfficialSavedWorld[] {
+  const seen = new Set(representedWorldIds);
+  return cards.flatMap((card) =>
+    [card.currentVersionWorldId, card.worldId, card.legacyWorldId].flatMap((worldId) => {
+      if (!worldId || seen.has(worldId)) return [];
+      seen.add(worldId);
+      return [
+        {
+          worldId,
+          card,
+          legacy: worldId === card.legacyWorldId && worldId !== card.currentVersionWorldId,
+        },
+      ];
+    }),
+  );
+}
+
 export function OfficialLivesView({
   cards,
   loading = false,
@@ -215,8 +254,14 @@ export function OfficialLivesView({
   onStartNewVersion,
   onOpenLegacy,
   onReload,
+  category = 'featured',
+  representedWorldIds = [],
+  onShowFeatured,
 }: {
   cards: readonly OfficialLifeCardView[];
+  category?: BranchCategory;
+  representedWorldIds?: readonly string[];
+  onShowFeatured?: () => void;
   loading?: boolean;
   loadError?: string;
   pendingId?: string | null;
@@ -227,12 +272,103 @@ export function OfficialLivesView({
   onReload: () => void;
 }) {
   const headingId = useId();
+  if (category === 'mine') {
+    const saves = officialSavedWorlds(cards, representedWorldIds);
+    const recovery = cards.filter((card) => errors[card.id]);
+    const alreadyListed = officialSavedWorlds(cards).some((save) =>
+      representedWorldIds.includes(save.worldId),
+    );
+    return (
+      <section className={styles.section} aria-labelledby={headingId}>
+        <h2 className={categoryStyles.savedHeading} id={headingId}>
+          从精选保存的人生
+        </h2>
+        {loadError ? (
+          <div className={styles.loadError} role="alert">
+            <p>{loadError}</p>
+            <p>精选存档暂时无法核对，请重新读取目录。</p>
+            <button type="button" onClick={onReload} disabled={loading}>
+              重新加载
+            </button>
+          </div>
+        ) : loading ? (
+          <p className={styles.loading} role="status">
+            正在核对已保存的精选人生…
+          </p>
+        ) : (
+          <>
+            {saves.length > 0 && (
+              <div className={styles.list}>
+                {saves.map(({ worldId, card, legacy }) => {
+                  const art = resolveOfficialLifeArt(card.id);
+                  return (
+                    <LifeCard
+                      key={worldId}
+                      title={legacy ? `${card.title} · 原存档` : card.title}
+                      description={
+                        legacy
+                          ? '保留此前版本的人物、来信和进展。'
+                          : '你已经保存的精选人生，可以继续上次的故事。'
+                      }
+                      imageUrl={art?.coverUrl}
+                      imageLabel={art?.label}
+                      detail={
+                        <p>
+                          {legacy
+                            ? '继续此存档会保留它创建时的设定，不会重建或自动改成新版。'
+                            : '这是真实保存的手机世界。这里的入口继续现有存档，不会重新创建人生。'}
+                        </p>
+                      }
+                    >
+                      <a
+                        className={categoryStyles.worldLink}
+                        href={`/worlds/${encodeURIComponent(worldId)}`}
+                      >
+                        <span>{legacy ? '继续原存档' : '继续体验'}</span>
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    </LifeCard>
+                  );
+                })}
+              </div>
+            )}
+            {saves.length === 0 && recovery.length === 0 && !pendingId && (
+              <p className={styles.loading}>
+                {alreadyListed ? '精选存档已列在下方的我的分支中。' : '还没有保存的精选人生。'}
+              </p>
+            )}
+          </>
+        )}
+        {pendingId && <p role="status">正在核对这次精选打开操作，未确认前不算新存档。</p>}
+        {recovery.map((card) => (
+          <p key={card.id} role="alert" className={styles.error}>
+            {card.title}：{errors[card.id]}
+          </p>
+        ))}
+        {(recovery.length > 0 || pendingId) && onShowFeatured && (
+          <button type="button" onClick={onShowFeatured}>
+            查看精选中的恢复操作
+          </button>
+        )}
+        {!loadError && !loading && cards.length > 0 && (
+          <button
+            type="button"
+            className={styles.refresh}
+            onClick={onReload}
+            disabled={pendingId !== null}
+          >
+            刷新人生目录
+          </button>
+        )}
+      </section>
+    );
+  }
   return (
     <section className={styles.section} aria-labelledby={headingId}>
       <div className={styles.introduction}>
-        <span className={styles.eyebrow}>原创人生副本</span>
-        <h2 id={headingId}>今天，换一种人生</h2>
-        <p>选一部手机，走进已经开始的生活。</p>
+        <span className={styles.eyebrow}>精选 · 人生设定目录</span>
+        <h2 id={headingId}>挑一段想体验的人生</h2>
+        <p>从精选设定开始；有存档就继续，新版本由你选择开启。</p>
       </div>
       {loadError && (
         <div className={styles.loadError} role="alert">
