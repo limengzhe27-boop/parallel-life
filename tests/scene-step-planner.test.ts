@@ -650,14 +650,14 @@ test('NPC indexed action examples expose two exact eligible slots without defaul
     prompt.includes(
       JSON.stringify({
         actionFormat: 'indexed-npc-actions-v2',
-        text: ['当前自己的自然对白'],
+        text: ['当前本人直接对玩家的一段自然发言'],
         actions: [],
       }),
     ),
   );
-  assert.match(prompt, /不输出matterId、kind或actorId字段/);
-  assert.match(prompt, /普通核对.说明不是你接收、检修/);
-  assert.match(prompt, /不表示已执行/);
+  assert.match(prompt, /不输出matterId\/kind\/actorId\/quote字段/);
+  assert.match(prompt, /普通核对.说明不是你接收\/检修/);
+  assert.match(prompt, /许可不是已经执行/);
   assert.match(prompt, /actions":\[\]/);
   assert.deepEqual(proposal.npcActions, []);
 });

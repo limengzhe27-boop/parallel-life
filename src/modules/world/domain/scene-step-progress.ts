@@ -50,28 +50,58 @@ const denied =
 function fail(message: string): never {
   throw new DomainError('INVALID_PROPOSAL', 'SCENE_STEPS: ' + message);
 }
-function quotedClause(quote: string, source: string) {
-  const offset = source.indexOf(quote);
-  const delimiters = /[。！？;；\n]/u;
-  const prefix = source.slice(0, Math.max(offset, 0));
-  const begin = Math.max(offset, 0) - (prefix.split(delimiters).at(-1)?.length ?? 0);
-  const tail = source.slice(Math.max(offset, 0) + quote.length),
-    next = tail.search(delimiters);
-  const end =
-    offset + quote.length + (/[。！？;；\n]$/u.test(quote) ? 0 : next < 0 ? tail.length : next + 1);
-  return offset >= 0 ? source.slice(begin, end) : undefined;
+function quotedRanges(source: string) {
+  const pairs: Record<string, string> = { '“': '”', '「': '」', '『': '』', '"': '"' };
+  const stack: { start: number; close: string }[] = [],
+    ranges: { start: number; end: number }[] = [];
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i]!,
+      current = stack.at(-1);
+    if (current && char === current.close) {
+      ranges.push({ start: current.start, end: i + 1 });
+      stack.pop();
+    } else if (pairs[char]) stack.push({ start: i, close: pairs[char]! });
+  }
+  // An unfinished quotation remains quotation; never rescue its internal action words.
+  for (const open of stack) ranges.push({ start: open.start, end: source.length });
+  return ranges;
+}
+function actualClause(quote: string, source: string): string | undefined {
+  if (quote.trim().length < 3 || quote.length > 500) return;
+  const ranges = quotedRanges(source),
+    delimiters = /[。！？;；\n]/u;
+  const insideQuote = (index: number) =>
+    ranges.some((range) => range.start <= index && index < range.end);
+  for (
+    let offset = source.indexOf(quote);
+    offset >= 0;
+    offset = source.indexOf(quote, offset + 1)
+  ) {
+    const endOfQuote = offset + quote.length;
+    if (ranges.some((range) => range.start < endOfQuote && offset < range.end)) continue;
+    let begin = 0,
+      end = source.length;
+    for (let i = 0; i < offset; i++)
+      if (delimiters.test(source[i]!) && !insideQuote(i)) begin = i + 1;
+    if (delimiters.test(source[endOfQuote - 1]!) && !insideQuote(endOfQuote - 1)) end = endOfQuote;
+    else
+      for (let i = endOfQuote; i < source.length; i++)
+        if (delimiters.test(source[i]!) && !insideQuote(i)) {
+          end = i + 1;
+          break;
+        }
+    const clause = source.slice(begin, end);
+    if (
+      ![...clause.matchAll(/R\d+/giu)].some((x) => x[0].toUpperCase() !== 'R17') &&
+      !denied.test(clause) &&
+      !/[“”「」『』"]/u.test(clause) &&
+      !/昨天|上次|之前|以前|曾经/u.test(clause)
+    )
+      return clause;
+  }
 }
 function actual(quote: string, source: string) {
-  const clause = quotedClause(quote, source);
-  return (
-    quote.trim().length >= 3 &&
-    quote.length <= 500 &&
-    Boolean(clause) &&
-    ![...clause!.matchAll(/R\d+/giu)].some((x) => x[0].toUpperCase() !== 'R17') &&
-    !denied.test(clause!) &&
-    !/[“「『"].*[”」』"]/u.test(clause!) &&
-    !/昨天|上次|之前|以前|曾经/u.test(clause!)
-  );
+  return actualClause(quote, source) !== undefined;
 }
 export function sceneStepRule(world: WorldState, matter: WorldMatter) {
   return world.officialLife?.presetId === 'county-yellow-hair' &&
@@ -261,7 +291,7 @@ export function resolveSceneStepProgress(input: {
         !/^你/u.test(p.observationQuote)
       )
         fail('Unsupported player execution quote');
-      const clause = quotedClause(p.inputQuote, sceneAttemptBoundary(action.text).now) ?? '';
+      const clause = actualClause(p.inputQuote, sceneAttemptBoundary(action.text).now) ?? '';
       const otherPerformer = world.actors.some((a) => {
         const name = a.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         return new RegExp(
