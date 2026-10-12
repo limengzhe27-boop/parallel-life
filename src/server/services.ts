@@ -1,4 +1,6 @@
 import { PostgresWorldSpace } from '../modules/world/infrastructure/space-repository.ts';
+import { PostgresAppointmentWaitRepository } from '../modules/world/infrastructure/appointment-wait-repository.ts';
+import type { AppointmentWaitRequest } from '../contracts/appointment-wait.ts';
 import { PublicationStoryRepository } from '../modules/settings/infrastructure/publication-story-repository.ts';
 import { advancePublicationStory } from './publication-story-service.ts';
 import { OfficialLifeRepository } from '../modules/settings/infrastructure/official-life-repository.ts';
@@ -150,6 +152,8 @@ function createServices() {
     ) => new PostgresClockStore(db).setClock(ownerId, worldId, input),
     readWorldClock: (ownerId: string, worldId: string) =>
       new PostgresClockStore(db).read(ownerId, worldId),
+    waitToAppointment: (ownerId: string, worldId: string, input: AppointmentWaitRequest) =>
+      new PostgresAppointmentWaitRepository(db).wait(ownerId, worldId, input),
     story: new PublicationStoryRepository(db),
     advanceStoryOnly: async (ownerId: string, worldId: string, automatic = false) => {
       const result = await advancePublicationStory(

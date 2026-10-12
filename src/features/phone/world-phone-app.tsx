@@ -1,4 +1,5 @@
 'use client';
+import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
 import {
   AppointmentWaitRequestSchema,
   type AppointmentWaitRequest,
@@ -772,13 +773,21 @@ export function WorldPhoneSurface({
 
   const [sceneWaiting, setSceneWaiting] = useState(false);
   const [waitWorking, setWaitWorking] = useState(false);
+  const [pendingWait, setPendingWait] = useState<AppointmentWaitRequest | null>(null);
+  const [waitRecoveryMessage, setWaitRecoveryMessage] = useState('');
   const waitRequest = useRef<AppointmentWaitRequest | null>(null);
   const waitGuard = useRef(false);
   useEffect(() => {
+    waitRequest.current = null;
+    setPendingWait(null);
+    setWaitRecoveryMessage('');
     try {
       const raw = localStorage.getItem('pl-appointment-wait:' + data.id);
       const parsed = raw ? AppointmentWaitRequestSchema.safeParse(JSON.parse(raw)) : null;
-      if (parsed?.success) waitRequest.current = parsed.data;
+      if (parsed?.success) {
+        waitRequest.current = parsed.data;
+        setPendingWait(parsed.data);
+      }
     } catch {}
   }, [data.id]);
   const sceneClient = useMemo(() => new SceneClient(transport), [data.id, transport]);
@@ -808,8 +817,10 @@ export function WorldPhoneSurface({
     return () => clearInterval(timer);
   }, [sceneWaiting, sceneClient, sceneSync, data.id, preview, onSceneWorldChanged]);
   useEffect(() => {
-    onExperienceBusy?.(sceneWaiting || groups.pending || map.working || waitWorking);
-  }, [sceneWaiting, groups.pending, map.working, waitWorking, onExperienceBusy]);
+    onExperienceBusy?.(
+      sceneWaiting || groups.pending || map.working || waitWorking || Boolean(pendingWait),
+    );
+  }, [sceneWaiting, groups.pending, map.working, waitWorking, pendingWait, onExperienceBusy]);
   useEffect(() => {
     void groups.refresh();
   }, [data.version, groups.refresh]);
@@ -839,6 +850,58 @@ export function WorldPhoneSurface({
     [basePhoneData, notes, currentReferenceTime, onSaveNote],
   );
 
+  async function performWait(input: AppointmentWaitRequest) {
+    if (waitGuard.current) throw new ApiFailure('BUSY', '正在核对这个等待，请稍等。');
+    // Persist before the request, so a lost response or refresh can only replay this exact command.
+    try {
+      localStorage.setItem('pl-appointment-wait:' + data.id, JSON.stringify(input));
+    } catch {
+      throw new ApiFailure('UNAVAILABLE', '请允许浏览器保存等待记录后再试。');
+    }
+    waitRequest.current = input;
+    setPendingWait(input);
+    setWaitRecoveryMessage('');
+    waitGuard.current = true;
+    setWaitWorking(true);
+    try {
+      const receipt = await client.waitToAppointment(data.id, input);
+      waitRequest.current = null;
+      setPendingWait(null);
+      try {
+        localStorage.removeItem('pl-appointment-wait:' + data.id);
+      } catch {}
+      await Promise.allSettled([
+        onSceneWorldChanged?.(receipt.version),
+        onReload?.(),
+        map.refresh(),
+        reloadRecords?.(),
+      ]);
+      return receipt;
+    } catch (e) {
+      if (
+        e instanceof ApiFailure &&
+        [
+          'VERSION_CONFLICT',
+          'INVALID_COMMAND',
+          'NOT_FOUND',
+          'FORBIDDEN',
+          'INVALID_INPUT',
+          'IDEMPOTENCY_CONFLICT',
+        ].includes(e.code)
+      ) {
+        waitRequest.current = null;
+        setPendingWait(null);
+        try {
+          localStorage.removeItem('pl-appointment-wait:' + data.id);
+        } catch {}
+        await Promise.allSettled([onReload?.(), map.refresh()]);
+      }
+      throw e;
+    } finally {
+      waitGuard.current = false;
+      setWaitWorking(false);
+    }
+  }
   return (
     <PhoneAppsProvider
       transport={transport}
@@ -856,6 +919,7 @@ export function WorldPhoneSurface({
             m = map.data;
           if (
             preview ||
+            pendingWait ||
             waitWorking ||
             sceneWaiting ||
             !a ||
@@ -879,8 +943,12 @@ export function WorldPhoneSurface({
           ? undefined
           : async (invitationId, commandId) => {
               if (waitGuard.current) throw new ApiFailure('BUSY', '正在核对这个等待，请稍等。');
-              if (waitRequest.current && waitRequest.current.invitationId !== invitationId)
-                throw new ApiFailure('BUSY', '上次等待的结果还需要核对，请先重试原邀约。');
+              if (
+                waitRequest.current &&
+                (waitRequest.current.invitationId !== invitationId ||
+                  waitRequest.current.commandId !== commandId)
+              )
+                throw new ApiFailure('BUSY', '上次等待的结果还需要核对，请点击“核对原等待”。');
               const input =
                 waitRequest.current ??
                 AppointmentWaitRequestSchema.parse({
@@ -888,51 +956,7 @@ export function WorldPhoneSurface({
                   commandId,
                   expectedVersion: data.version ?? 0,
                 });
-              // Persist before the request, so a lost response or refresh can only replay this exact command.
-              try {
-                localStorage.setItem('pl-appointment-wait:' + data.id, JSON.stringify(input));
-              } catch {
-                throw new ApiFailure('UNAVAILABLE', '请允许浏览器保存等待记录后再试。');
-              }
-              waitRequest.current = input;
-              waitGuard.current = true;
-              setWaitWorking(true);
-              try {
-                const receipt = await client.waitToAppointment(data.id, input);
-                waitRequest.current = null;
-                try {
-                  localStorage.removeItem('pl-appointment-wait:' + data.id);
-                } catch {}
-                await Promise.allSettled([
-                  onSceneWorldChanged?.(receipt.version),
-                  onReload?.(),
-                  map.refresh(),
-                  reloadRecords?.(),
-                ]);
-                return receipt;
-              } catch (e) {
-                if (
-                  e instanceof ApiFailure &&
-                  [
-                    'VERSION_CONFLICT',
-                    'INVALID_COMMAND',
-                    'NOT_FOUND',
-                    'FORBIDDEN',
-                    'INVALID_INPUT',
-                    'IDEMPOTENCY_CONFLICT',
-                  ].includes(e.code)
-                ) {
-                  waitRequest.current = null;
-                  try {
-                    localStorage.removeItem('pl-appointment-wait:' + data.id);
-                  } catch {}
-                  await Promise.allSettled([onReload?.(), map.refresh()]);
-                }
-                throw e;
-              } finally {
-                waitGuard.current = false;
-                setWaitWorking(false);
-              }
+              return performWait(input);
             },
         enterScene: preview
           ? undefined
@@ -1022,7 +1046,30 @@ export function WorldPhoneSurface({
         dateLabel={dateLabel}
         timeLabel={timeLabel}
         wallpaperUrl={wallpaperUrl}
-        notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
+        notice={
+          preview ? (
+            <span>开发样板 · 合成数据 · 未调用模型</span>
+          ) : (
+            <AppointmentWaitRecovery
+              pending={Boolean(pendingWait)}
+              working={waitWorking}
+              message={waitRecoveryMessage}
+              onRecover={() => {
+                const input = waitRequest.current;
+                if (!input || waitWorking) return;
+                void performWait(input)
+                  .then(() =>
+                    setWaitRecoveryMessage('已核对原等待。是否进入现场，请在日程里决定。'),
+                  )
+                  .catch((e) =>
+                    setWaitRecoveryMessage(
+                      e instanceof Error ? e.message : '这次结果还没能确认，请稍后再核对。',
+                    ),
+                  );
+              }}
+            />
+          )
+        }
         referenceTime={currentReferenceTime}
         onOpenNotification={(notification) => {
           window.location.hash = routeHash(data.id, {

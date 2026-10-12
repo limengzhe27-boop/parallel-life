@@ -425,7 +425,8 @@ function InvitationDetail({
     operation = operations[key];
   const changedAfterAccept =
     operation?.status === 'accepted' && operation.signature?.startsWith(`${n.version}:`);
-  const disabled = !actions.changeInvitation || operation?.busy || changedAfterAccept;
+  const disabled =
+    !actions.changeInvitation || operation?.busy || waitOperation?.busy || changedAfterAccept;
   const date = drafts[`date:${n.id}`] ?? worldDateTimeInput(n.at);
   const leadActor = data.contacts.find((c) => n.participantIds.includes(c.id));
   const isDue = Date.parse(data.referenceTime ?? '') >= Date.parse(n.at);

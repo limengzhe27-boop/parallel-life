@@ -143,7 +143,7 @@ test('SSR offers three editable sections and honest Chinese setup guidance witho
     '新增阶段',
     '新增事件',
     '先配置和保存，能否运行以检查结果为准',
-    'UTC',
+    '北京时间',
     '仅备注',
   ])
     assert.ok(html.includes(value), value);

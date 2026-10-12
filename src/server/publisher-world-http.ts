@@ -1,4 +1,5 @@
 import 'server-only';
+import { getServices } from './services.ts';
 import { publicationStoryAdvanceRoute } from './publication-story-http.ts';
 import { z } from 'zod';
 import { trialOwnerToken, trialProxyTarget } from './publisher-trial-request.ts';
@@ -69,6 +70,14 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
     // A scoped client handshake uses staff-bound CSRF and never creates or replaces a player's cookie.
     if (path.length === 1 && path[0] === 'session' && request.method === 'POST')
       return publisherJson({ kind: 'guest', csrfToken: request.headers.get('X-Publisher-CSRF') });
+    // Staff can start/pause only this separately bound private trial. No arbitrary clock input.
+    if (path.length === 1 && path[0] === 'lifecycle' && request.method === 'POST') {
+      const input = await publisherBody(request, z.strictObject({ paused: z.boolean() }));
+      const svc = getServices();
+      await svc.setWorldClock(trial.ownerId, trial.worldId, input);
+      const clock = await svc.readWorldClock(trial.ownerId, trial.worldId);
+      return publisherJson({ trialId, worldId: trial.worldId, paused: clock.paused });
+    }
     const route = trialProxyTarget(
       path,
       request.method,

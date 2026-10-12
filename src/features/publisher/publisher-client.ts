@@ -2,6 +2,7 @@ import {
   PublicationWorldResultSchema,
   PublicationTrialSchema,
 } from '../../contracts/publication-worlds.ts';
+import { WorldClockSchema } from '../../contracts/world-clock.ts';
 import { z } from 'zod';
 import {
   PublisherSessionStateSchema,
@@ -162,6 +163,24 @@ export class PublisherClient {
   }
   trial(id: string) {
     return this.request('/trials/' + encodeURIComponent(id), PublicationTrialSchema);
+  }
+  setTrialPaused(trialId: string, paused: boolean) {
+    return this.request(
+      '/trials/' + encodeURIComponent(trialId) + '/lifecycle',
+      z.strictObject({
+        trialId: z.string().uuid(),
+        worldId: z.string().uuid(),
+        paused: z.boolean(),
+      }),
+      'POST',
+      { paused },
+    );
+  }
+  trialClock(trialId: string) {
+    return this.request(
+      '/trials/' + encodeURIComponent(trialId) + '/world/clock',
+      WorldClockSchema,
+    );
   }
   trialTransport(trialId: string, worldId: string): typeof fetch {
     return async (path, options = {}) => {

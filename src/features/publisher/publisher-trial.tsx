@@ -10,13 +10,19 @@ export function PublisherTrial({ trialId }: { trialId: string }) {
   const [refresh, setRefresh] = useState(0),
     [advancing, setAdvancing] = useState(false),
     [storyNotice, setStoryNotice] = useState('');
+  const [paused, setPaused] = useState<boolean | null>(null),
+    [changingLifecycle, setChangingLifecycle] = useState(false);
   useEffect(() => {
     let alive = true;
     void (async () => {
       try {
         await client.session();
         const value = await client.trial(trialId);
-        if (alive) setTrial(value);
+        const clock = await client.trialClock(trialId);
+        if (alive) {
+          setTrial(value);
+          setPaused(clock.paused);
+        }
       } catch {
         if (alive) setError('无法打开这份试演。请回到后台核对登录状态和草稿。');
       }
@@ -29,6 +35,21 @@ export function PublisherTrial({ trialId }: { trialId: string }) {
     () => (trial ? client.trialTransport(trial.trialId, trial.worldId) : undefined),
     [client, trial],
   );
+  async function changeLifecycle() {
+    if (!trial || paused === null || changingLifecycle) return;
+    setChangingLifecycle(true);
+    setStoryNotice('');
+    try {
+      const result = await client.setTrialPaused(trial.trialId, !paused);
+      if (result.worldId !== trial.worldId) throw Error('wrong trial');
+      setPaused(result.paused);
+      setRefresh((v) => v + 1);
+    } catch {
+      setStoryNotice('这次试演状态没能确认，请重新打开核对。');
+    } finally {
+      setChangingLifecycle(false);
+    }
+  }
   async function advanceStory() {
     if (!transport || !trial || advancing) return;
     setAdvancing(true);
@@ -70,6 +91,15 @@ export function PublisherTrial({ trialId }: { trialId: string }) {
         }}
       >
         <summary>试演剧情</summary>
+        <button
+          disabled={changingLifecycle || advancing || paused === null}
+          onClick={() => void changeLifecycle()}
+        >
+          {changingLifecycle || paused === null ? '正在核对…' : paused ? '开始试演' : '暂停试演'}
+        </button>
+        <p style={{ fontSize: 13 }}>
+          开始后可使用地图与现场；不会自动调用导演，也不会影响玩家存档。
+        </p>
         <p style={{ fontSize: 13 }}>每次只演绎一个已满足条件的机会，不改写玩家的选择。</p>
         <button disabled={advancing} onClick={() => void advanceStory()}>
           {advancing ? '正在试演…' : '推进一条剧情'}
