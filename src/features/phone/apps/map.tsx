@@ -108,6 +108,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   const [filterFavorite, setFilterFavorite] = useState(false);
   const [mapTheme, setMapTheme] = useState<'standard' | 'transit'>('standard');
   const [zoomScale, setZoomScale] = useState(1);
+  const [transitMode, setTransitMode] = useState<'scooter' | 'walk' | 'taxi'>('scooter');
   const [readError, setReadError] = useState('');
   const [actionError, setActionError] = useState('');
   const error = map?.error || readError;
@@ -569,39 +570,76 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                           markerEnd={`url(#${routeArrow})`}
                         />
                         {isSelectedRoute && isTraveling && (
-                          <circle r="4" fill="#2563eb" className={s.movingVehicle}>
-                            <animateMotion
-                              path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
-                              dur="2s"
-                              repeatCount="indefinite"
-                            />
-                          </circle>
+                          <g className={s.movingVehicle}>
+                            <circle r="4" fill="#2563eb">
+                              <animateMotion
+                                path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                                dur="2.2s"
+                                repeatCount="indefinite"
+                              />
+                            </circle>
+                            <text textAnchor="middle" dy="-6" fontSize="12">
+                              <animateMotion
+                                path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                                dur="2.2s"
+                                repeatCount="indefinite"
+                              />
+                              {transitMode === 'walk' ? '🚶' : transitMode === 'taxi' ? '🚕' : '🛵'}
+                            </text>
+                          </g>
                         )}
                       </g>
                     );
                   })}
                 </svg>
-                {diagram.points.map(({ place, x, y }) => (
-                  <button
-                    type="button"
-                    key={place.id}
-                    className={place.id === selected?.id ? s.selectedPoint : s.point}
-                    style={{ left: `${(x / 320) * 100}%`, top: y }}
-                    aria-pressed={place.id === selected?.id}
-                    onClick={() => selectPlace(place.id)}
-                  >
-                    <span
-                      className={
-                        place.id === current?.id && !waitingPosition ? s.currentPin : s.pin
-                      }
-                      aria-hidden="true"
+                {diagram.points.map(({ place, x, y }) => {
+                  const isMatchQuery =
+                    !searchQuery.trim() ||
+                    place.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+                    Boolean(
+                      place.description &&
+                        place.description.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+                    );
+                  const isMatchCat =
+                    !activeCategory ||
+                    (activeCategory === 'food' &&
+                      /餐|吃|饭|店|馆|食|酒|茶|咖/.test(place.name + (place.description || ''))) ||
+                    (activeCategory === 'pharmacy' &&
+                      /药|医|院|急救|诊所|康/.test(place.name + (place.description || ''))) ||
+                    (activeCategory === 'park' &&
+                      /园|湖|林|绿|树|山|草/.test(place.name + (place.description || ''))) ||
+                    (activeCategory === 'wc' &&
+                      /公厕|卫|洗手|厕/.test(place.name + (place.description || '')));
+                  const isDimmed = !isMatchQuery || !isMatchCat;
+
+                  return (
+                    <button
+                      type="button"
+                      key={place.id}
+                      className={place.id === selected?.id ? s.selectedPoint : s.point}
+                      style={{
+                        left: `${(x / 320) * 100}%`,
+                        top: y,
+                        opacity: isDimmed ? 0.35 : 1,
+                        transition:
+                          'opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      }}
+                      aria-pressed={place.id === selected?.id}
+                      onClick={() => selectPlace(place.id)}
                     >
-                      ●
-                    </span>
-                    <span className={s.pointLabel}>{place.name}</span>
-                    {place.id === current?.id && !waitingPosition && <small>当前位置</small>}
-                  </button>
-                ))}
+                      <span
+                        className={
+                          place.id === current?.id && !waitingPosition ? s.currentPin : s.pin
+                        }
+                        aria-hidden="true"
+                      >
+                        ●
+                      </span>
+                      <span className={s.pointLabel}>{place.name}</span>
+                      {place.id === current?.id && !waitingPosition && <small>当前位置</small>}
+                    </button>
+                  );
+                })}
               </div>
               {diagram.partial && <p className={s.diagramLabel}>其余地点见下方列表</p>}
             </section>
@@ -745,24 +783,57 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
               {route && arrival && !operation && (
                 <>
                   <div className={s.routeModes} aria-label="出行方式">
-                    <span className={`${s.modeChip} ${s.modeChipActive}`}>
+                    <button
+                      type="button"
+                      className={`${s.modeChip} ${transitMode === 'scooter' ? s.modeChipActive : ''}`}
+                      onClick={() => setTransitMode('scooter')}
+                      aria-pressed={transitMode === 'scooter'}
+                    >
                       🛵 {route.modeLabel || '电瓶车'}
-                    </span>
-                    <span className={s.modeChip} style={{ opacity: 0.7 }}>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${s.modeChip} ${transitMode === 'walk' ? s.modeChipActive : ''}`}
+                      onClick={() => setTransitMode('walk')}
+                      aria-pressed={transitMode === 'walk'}
+                    >
                       🚶 步行 {Math.round(route.durationMinutes * 2.5)}分
-                    </span>
-                    <span className={s.modeChip} style={{ opacity: 0.7 }}>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${s.modeChip} ${transitMode === 'taxi' ? s.modeChipActive : ''}`}
+                      onClick={() => setTransitMode('taxi')}
+                      aria-pressed={transitMode === 'taxi'}
+                    >
                       🚕 打车 {Math.max(3, Math.round(route.durationMinutes * 0.6))}分
-                    </span>
+                    </button>
                   </div>
                   <div className={s.routeSummary}>
-                    <strong>{route.durationMinutes} 分钟</strong>
+                    <strong>
+                      {transitMode === 'walk'
+                        ? Math.round(route.durationMinutes * 2.5)
+                        : transitMode === 'taxi'
+                          ? Math.max(3, Math.round(route.durationMinutes * 0.6))
+                          : route.durationMinutes}{' '}
+                      分钟
+                    </strong>
                     <span>
-                      {route.modeLabel} · 约{' '}
+                      {transitMode === 'walk'
+                        ? '步行'
+                        : transitMode === 'taxi'
+                          ? '打车'
+                          : route.modeLabel || '电瓶车'}{' '}
+                      · 约{' '}
                       {arrival.slice(0, 10) === worldDateTimeLabel(space.storyNow).slice(0, 10)
                         ? worldTimeLabel(
                             new Date(
-                              Date.parse(space.storyNow) + route.durationMinutes * 60_000,
+                              Date.parse(space.storyNow) +
+                                (transitMode === 'walk'
+                                  ? Math.round(route.durationMinutes * 2.5)
+                                  : transitMode === 'taxi'
+                                    ? Math.max(3, Math.round(route.durationMinutes * 0.6))
+                                    : route.durationMinutes) *
+                                  60_000,
                             ).toISOString(),
                           )
                         : arrival}{' '}
