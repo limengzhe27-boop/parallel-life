@@ -461,6 +461,7 @@ function LifePhone({
             ref={panelScroll}
             className={styles.panelPage}
             data-phone-panel
+            data-scene-view={route.panel === 'scene' ? 'true' : undefined}
             onScroll={(event) => {
               if (!locked)
                 positions.current.set(`panel:${route.panel}`, event.currentTarget.scrollTop);

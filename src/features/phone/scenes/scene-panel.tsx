@@ -11,10 +11,12 @@ import {
   type SceneTask,
 } from './state.ts';
 import type { SceneRead } from '../../../contracts/scenes.ts';
-import type { PhoneContact } from '../apps/types.ts';
+import type { PhoneContact, PhonePhoto } from '../apps/types.ts';
 import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.ts';
 import { readRoute, routeHash } from '../navigation.ts';
 import s from './scenes.module.css';
+import { SceneStage, SceneFace, SceneMedia } from './scene-stage.tsx';
+import { visibleSceneEntries, scenePhotoUrl } from './stage-presentation.ts';
 import { SceneWorldSync } from './world-sync.ts';
 const states = {
   not_started: '还未开始',
@@ -26,6 +28,8 @@ const states = {
 export function ScenePanel({
   worldId,
   contacts,
+  photos = [],
+  transport,
   phoneVersion = 0,
   worldSync,
   onWorldChanged,
@@ -33,12 +37,15 @@ export function ScenePanel({
 }: {
   worldId: string;
   contacts: readonly PhoneContact[];
+  photos?: readonly PhonePhoto[];
+  /** Explicit transport seam for development-only UI fixtures. */
+  transport?: typeof fetch;
   phoneVersion?: number;
   worldSync?: SceneWorldSync;
   onWorldChanged?: (minimumVersion: number) => Promise<void>;
   onBusy?: (busy: boolean) => void;
 }) {
-  const client = useMemo(() => new SceneClient(), [worldId]);
+  const client = useMemo(() => new SceneClient(transport), [worldId, transport]);
   const ownSync = useMemo(() => new SceneWorldSync(worldId), [worldId]);
   const sync = worldSync ?? ownSync;
   const [syncError, setSyncError] = useState('');
@@ -49,6 +56,9 @@ export function ScenePanel({
     [error, setError] = useState(''),
     [retryConfirm, setRetryConfirm] = useState(false),
     [leaveConfirm, setLeaveConfirm] = useState(false);
+  const reading = useRef<HTMLDivElement>(null);
+  const restoredScene = useRef<string | undefined>(undefined);
+  const followEnd = useRef(false);
   const live = useRef(true),
     running = useRef(false),
     retryId = useRef<{ taskId: string; id: string } | undefined>(undefined),
@@ -106,8 +116,21 @@ export function ScenePanel({
       current = false;
     };
   }, [data, phoneVersion, sync, onWorldChanged]);
+  useEffect(() => {
+    const element = reading.current;
+    const id = data?.scene?.id;
+    if (!element || !id) return;
+    if (restoredScene.current !== id) {
+      restoredScene.current = id;
+      try {
+        const saved = Number(sessionStorage.getItem('pl-scene-scroll:' + worldId + ':' + id));
+        if (Number.isFinite(saved) && saved >= 0) element.scrollTop = saved;
+      } catch {}
+    } else if (followEnd.current) element.scrollTop = element.scrollHeight;
+  }, [data?.scene?.id, data?.worldVersion, worldId]);
   const overview = data ? sceneOverview(data) : undefined;
   const latestAction = data?.actions.at(-1);
+  const entries = data ? visibleSceneEntries(data) : [];
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
   async function run(action: () => Promise<void>) {
     if (running.current) return;
@@ -186,29 +209,30 @@ export function ScenePanel({
               {syncError}
             </p>
           ) : null}
-          <div className={s.reading} data-scene-records>
-            <section className={s.card}>
-              <h3>{data.scene.title}</h3>
+          <div
+            className={s.reading}
+            data-scene-records
+            ref={reading}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              followEnd.current =
+                element.scrollHeight - element.scrollTop - element.clientHeight < 90;
+              if (data.scene)
+                try {
+                  sessionStorage.setItem(
+                    'pl-scene-scroll:' + worldId + ':' + data.scene.id,
+                    String(element.scrollTop),
+                  );
+                } catch {}
+            }}
+          >
+            <SceneStage read={data} contacts={contacts} photos={photos} />
+            <section className={s.sceneControls}>
               <time>
                 {worldDateTimeLabel(
                   overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
                 )}
               </time>
-              {overview?.place?.kind === 'time_place' ? <p>{overview.place.location}</p> : null}
-              {overview?.environment?.kind === 'narration' ? (
-                <details>
-                  <summary>可见环境</summary>
-                  <p>{overview.environment.text}</p>
-                </details>
-              ) : null}
-              <p className={s.notice}>
-                在场的人：
-                {overview?.people.length
-                  ? overview.people
-                      .map((p) => (p.kind === 'actor' ? name(p.actorId) : ''))
-                      .join('、')
-                  : '尚无已记录的在场人物'}
-              </p>
               <p>
                 {data.scene.status === 'ended'
                   ? '已离场 · 可以回看'
@@ -218,55 +242,58 @@ export function ScenePanel({
                       ? '现场已暂停'
                       : '正在现场'}
               </p>
-              <div className={s.buttons}>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      if (data.scene!.status !== 'ended')
-                        await client.navigate(worldId, data.scene!.id, {
-                          commandId: crypto.randomUUID(),
-                          expectedVersion: data.worldVersion,
-                          view: 'phone',
-                        });
-                      window.location.hash = routeHash(worldId, { app: null });
-                    })
-                  }
-                >
-                  回到手机
-                </button>
-                {data.scene.status === 'paused' ? (
+              <details className={s.sceneMenu}>
+                <summary>更多</summary>
+                <div className={s.buttons}>
                   <button
-                    disabled={busy || data.paused}
+                    disabled={busy}
                     onClick={() =>
                       void run(async () => {
-                        await client.navigate(worldId, data.scene!.id, {
-                          commandId: crypto.randomUUID(),
-                          expectedVersion: data.worldVersion,
-                          view: 'scene',
-                        });
+                        if (data.scene!.status !== 'ended')
+                          await client.navigate(worldId, data.scene!.id, {
+                            commandId: crypto.randomUUID(),
+                            expectedVersion: data.worldVersion,
+                            view: 'phone',
+                          });
+                        window.location.hash = routeHash(worldId, { app: null });
                       })
                     }
                   >
-                    返回现场
+                    回到手机
                   </button>
-                ) : null}
-                {data.scene.status !== 'ended' ? (
-                  <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
-                    离开现场
+                  {data.scene.status === 'paused' ? (
+                    <button
+                      disabled={busy || data.paused}
+                      onClick={() =>
+                        void run(async () => {
+                          await client.navigate(worldId, data.scene!.id, {
+                            commandId: crypto.randomUUID(),
+                            expectedVersion: data.worldVersion,
+                            view: 'scene',
+                          });
+                        })
+                      }
+                    >
+                      返回现场
+                    </button>
+                  ) : null}
+                  {data.scene.status !== 'ended' ? (
+                    <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
+                      离开现场
+                    </button>
+                  ) : null}
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await refresh();
+                      })
+                    }
+                  >
+                    重新读取现场
                   </button>
-                ) : null}
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await refresh();
-                    })
-                  }
-                >
-                  重新读取现场
-                </button>
-              </div>
+                </div>
+              </details>
               {leaveConfirm ? (
                 <div>
                   <p>离场会停止尚未完成的现场回应，记录仍可回看。</p>
@@ -300,8 +327,8 @@ export function ScenePanel({
               ) : null}
             </section>
             {latestAction ? (
-              <section className={s.card} data-scene-latest-action>
-                <h3>最近一次行动</h3>
+              <details className={s.card} data-scene-latest-action>
+                <summary>最近一次行动</summary>
                 <p className={s.savedInput}>{latestAction.text}</p>
                 {latestAction.resolution ? (
                   <p>
@@ -315,7 +342,7 @@ export function ScenePanel({
                       : '只记录想法，尚未执行。'}
                   </p>
                 )}
-              </section>
+              </details>
             ) : null}
             {data.matters.length ? (
               <details className={s.card}>
@@ -331,11 +358,10 @@ export function ScenePanel({
             ) : null}
             <div className={s.stream}>
               {[
-                ...data.entries,
+                ...entries,
                 ...data.actions
                   .filter(
-                    (a) =>
-                      !data.entries.some((e) => e.kind === 'user_action' && e.actionId === a.id),
+                    (a) => !entries.some((e) => e.kind === 'user_action' && e.actionId === a.id),
                   )
                   .map((a) => ({
                     kind: 'private_input' as const,
@@ -347,28 +373,45 @@ export function ScenePanel({
                 .sort((a, b) => a.sourceVersion - b.sourceVersion)
                 .map((e) =>
                   e.kind === 'time_place' ? (
-                    <div key={e.id} className={s.place}>
-                      {e.location} · {worldDateTimeLabel(e.storyAt)}
-                    </div>
-                  ) : e.kind === 'media_reference' ? null : (
+                    e.id === entries.find((item) => item.kind === 'time_place')?.id ? null : (
+                      <div key={e.id} className={s.place}>
+                        {e.location} · {worldDateTimeLabel(e.storyAt)}
+                      </div>
+                    )
+                  ) : e.kind === 'media_reference' ? (
+                    <SceneMedia
+                      key={e.id}
+                      url={scenePhotoUrl(data, e.media.assetId, photos)}
+                      reference={e.media.purpose !== 'scene_illustration'}
+                    />
+                  ) : (
                     <article
                       key={e.id}
                       className={`${s.entry} ${e.kind === 'dialogue' ? s.dialogue : e.kind === 'user_action' || e.kind === 'private_input' ? s.user : e.kind === 'adjudicated_result' ? s.result : ''}`}
                     >
-                      <small>
-                        {e.kind === 'dialogue'
-                          ? e.speaker.kind === 'player'
-                            ? '我'
-                            : name(e.speaker.actorId)
-                          : e.kind === 'private_input'
-                            ? '我的想法 · 仅自己可见'
-                            : e.kind === 'user_action'
-                              ? '我的输入'
-                              : e.kind === 'adjudicated_result'
-                                ? '行动结果'
-                                : '眼前的情景'}
-                      </small>
-                      {e.text}
+                      {e.kind === 'dialogue' && e.speaker.kind === 'actor' ? (
+                        <SceneFace
+                          person={contacts.find(
+                            (c) => e.speaker.kind === 'actor' && c.id === e.speaker.actorId,
+                          )}
+                        />
+                      ) : null}
+                      <div className={s.entryCopy}>
+                        <small>
+                          {e.kind === 'dialogue'
+                            ? e.speaker.kind === 'player'
+                              ? '我'
+                              : name(e.speaker.actorId)
+                            : e.kind === 'private_input'
+                              ? '我的想法 · 仅自己可见'
+                              : e.kind === 'user_action'
+                                ? '我的输入'
+                                : e.kind === 'adjudicated_result'
+                                  ? '行动结果'
+                                  : '旁白'}
+                        </small>
+                        <p>{e.text}</p>
+                      </div>
                     </article>
                   ),
                 )}
@@ -462,7 +505,9 @@ export function ScenePanel({
                 });
               }}
             >
-              <label htmlFor="scene-input">你想说什么，或做些什么？</label>
+              <label className={s.srOnly} htmlFor="scene-input">
+                说点什么，或做点什么
+              </label>
               <textarea
                 id="scene-input"
                 value={text}
@@ -474,10 +519,14 @@ export function ScenePanel({
                     sessionStorage.setItem(draftKey, e.target.value);
                   } catch {}
                 }}
-                placeholder="直接写下想法、计划或行动"
+                onInput={(event) => {
+                  event.currentTarget.style.height = '46px';
+                  event.currentTarget.style.height =
+                    Math.min(event.currentTarget.scrollHeight, 100) + 'px';
+                }}
+                placeholder="说点什么，或做点什么…"
               />
               <button disabled={disabled || !text.trim()}>发送</button>
-              <small className={s.notice}>结果以现场的实际回应为准。</small>
             </form>
           ) : null}
         </>

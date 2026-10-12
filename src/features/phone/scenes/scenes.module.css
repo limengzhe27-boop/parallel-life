@@ -180,3 +180,143 @@
 .scenePanel .card p {
   margin: 6px 0;
 }
+
+/* Scene stage: content, people and narration retain distinct visual roles. */
+.scenePanel {
+  padding: 12px;
+  background: #f2f3f0;
+  gap: 8px;
+}
+.sceneControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 2px 3px;
+  color: #67757e;
+  font-size: 11px;
+}
+.sceneControls > h3 {
+  width: 100%;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #283c46;
+}
+.sceneControls > p {
+  margin: 0;
+}
+.sceneMenu {
+  width: 100%;
+}
+.sceneMenu > summary {
+  font-size: 12px;
+  color: #596d7b;
+}
+.sceneMenu .buttons {
+  padding-bottom: 10px;
+}
+.scenePanel .entry {
+  display: flex;
+  gap: 10px;
+  border: 0;
+  padding: 12px 8px;
+  border-radius: 16px;
+  color: #50606a;
+  line-height: 1.75;
+  background: none;
+}
+.scenePanel .entryCopy {
+  min-width: 0;
+  flex: 1;
+}
+.scenePanel .entryCopy > p {
+  margin: 3px 0 0;
+  white-space: pre-wrap;
+}
+.scenePanel .entry small {
+  font-size: 11px;
+  color: #819098;
+}
+.scenePanel .dialogue {
+  background: #fff;
+  box-shadow: 0 3px 12px #1d354305;
+  color: #233640;
+  padding: 14px;
+}
+.scenePanel .dialogue small {
+  color: #324b59;
+  font-weight: 600;
+  font-size: 12px;
+}
+.scenePanel .user {
+  margin-left: 22px;
+  padding: 12px 14px;
+  background: #e4edf4;
+  color: #294356;
+}
+.scenePanel .result {
+  background: #e7efe9;
+  color: #365448;
+}
+.scenePanel .reading {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-bottom: 6px;
+}
+.scenePanel .composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px 0 max(5px, env(safe-area-inset-bottom));
+  border-top: 1px solid #dce3e1;
+  background: #f2f3f0;
+}
+.scenePanel .composer textarea {
+  min-height: 46px;
+  height: 46px;
+  max-height: 100px;
+  resize: none;
+  border-radius: 16px;
+  font-size: 16px;
+  padding: 12px;
+  line-height: 22px;
+}
+.scenePanel .composer button {
+  min-height: 46px;
+  background: #347bfa;
+  border-color: #347bfa;
+  color: #fff;
+  border-radius: 15px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.scenePanel {
+  container-name: scene-panel;
+  container-type: size;
+}
+
+.sceneMenu {
+  width: auto;
+  margin-left: auto;
+}
+.sceneMenu > summary {
+  min-height: 36px;
+}
+.sceneMenu[open] {
+  width: 100%;
+}
+.sceneControls {
+  min-height: 36px;
+}

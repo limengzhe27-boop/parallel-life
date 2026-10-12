@@ -1456,6 +1456,7 @@ export function WorldPhoneSurface({
                 key={data.id}
                 worldId={data.id}
                 contacts={phoneData.contacts}
+                photos={phoneData.photos}
                 phoneVersion={data.version ?? 0}
                 onWorldChanged={onSceneWorldChanged}
                 worldSync={sceneSync}
