@@ -265,7 +265,9 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
     }),
   );
 
-  assert.ok(html.includes('检查未通过'));
-  assert.ok(html.includes('actors.0.name: name_required'));
-  assert.ok(html.includes('model_budget_unapproved'));
+  assert.ok(html.includes('还需要完善'));
+  assert.ok(html.includes('人物第 1 项 · 姓名或地点名称'));
+  assert.ok(html.includes('部分内容暂时不支持运行'));
+  assert.ok(!html.includes('actors.0.name: name_required'));
+  assert.ok(!html.includes('model_budget_unapproved'));
 });

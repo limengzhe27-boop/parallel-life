@@ -3,15 +3,20 @@
   border-radius: 18px;
   padding: 0;
   width: min(760px, calc(100vw - 24px));
-  max-height: calc(100dvh - 24px);
+  max-height: calc(var(--dialog-viewport-height, 100dvh) - 24px);
   color: #172033;
   background: #fff;
   overflow: hidden;
+}
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
 }
 .dialog::backdrop {
   background: rgb(8 20 38 / 50%);
 }
 .header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -21,6 +26,11 @@
 .header h2 {
   margin: 0 0 8px;
   font-size: 22px;
+}
+.header > button {
+  flex-shrink: 0;
+  align-self: flex-start;
+  white-space: nowrap;
 }
 .header p,
 .help {
@@ -32,7 +42,8 @@
 .body {
   padding: 20px;
   overflow: auto;
-  max-height: calc(100dvh - 230px);
+  min-height: 0;
+  flex: 1;
 }
 .field {
   display: grid;
@@ -108,6 +119,7 @@
   line-height: 1.6;
 }
 .footer {
+  flex-shrink: 0;
   padding: 16px 20px;
   display: flex;
   justify-content: flex-end;

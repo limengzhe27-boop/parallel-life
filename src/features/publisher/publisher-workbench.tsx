@@ -6,6 +6,8 @@ import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
 import { PublisherImportDialog } from './publisher-import-dialog.tsx';
+import { PublisherSpaceEditor } from './publisher-space-editor.tsx';
+import { PublisherOpeningEditor } from './publisher-opening-editor.tsx';
 import type { ImportSummary } from './publisher-importer.ts';
 import { plotChoices } from './publisher-plot-model.ts';
 import { PublisherDraftContentSchema } from '../../contracts/world-publisher.ts';
@@ -27,6 +29,59 @@ import {
 import s from './publisher-workbench.module.css';
 
 type MainTab = 'settings' | 'actors' | 'plot';
+
+function issueLabel(path: readonly (string | number)[], code: string) {
+  if (code === 'trial_unverified') return '请先试演，并完成一条真实的角色对话，再重新检查。';
+  if (code === 'media_unverified') return '素材尚未核验，请检查所选图片后再试。';
+  const fields: Record<string, string> = {
+    title: '名称',
+    hook: '一句话吸引点',
+    description: '说明',
+    experienceNote: '体验说明',
+    publicSetting: '公开世界设定',
+    hiddenContext: '幕后世界设定',
+    tone: '叙事氛围',
+    startAt: '开场日期与时间',
+    startPlaceKey: '开场地点',
+    identity: '身份',
+    situation: '主角当前处境',
+    name: '姓名或地点名称',
+    background: '人物背景',
+    voice: '说话方式',
+    motivation: '人物动机',
+    boundaries: '人物边界',
+    at: '发生时间',
+    origin: '消息来源',
+    intent: '事件运行方式',
+    editorialIntent: '剧情说明',
+    minutes: '移动耗时',
+    fromPlaceKey: '出发地点',
+    toPlaceKey: '到达地点',
+  };
+  const groups: Record<string, string> = {
+    actors: '人物',
+    places: '地点',
+    candidates: '可选事件',
+    routes: '路线',
+    history: '已发生事实',
+    phone: '开场手机内容',
+    timeline: '阶段与时间线',
+  };
+  const group = groups[String(path[0])] ?? '';
+  const row = typeof path[1] === 'number' ? `第 ${path[1] + 1} 项` : '';
+  const field = fields[String(path[path.length - 1])] ?? (group ? '设定' : '世界内容');
+  const reason =
+    code === 'too_small'
+      ? '请补充完整内容'
+      : code === 'too_big'
+        ? '内容过长，请精简后重试'
+        : code === 'invalid_format'
+          ? '请检查填写格式'
+          : code === 'unrecognized_keys'
+            ? '有暂不支持的字段，请按填写示例调整'
+            : '请核对内容与引用是否完整一致';
+  return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
+}
 
 export function PublisherWorkbench(props: PublisherWorkbenchProps) {
   const session = props.session;
@@ -178,12 +233,18 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
   const handleActorChange = useCallback(
     (field: keyof ActorEditorForm, value: unknown) => {
       if (!currentActorForm) return;
-      const updatedForm: ActorEditorForm = {
-        ...currentActorForm,
-        [field]: value,
-      };
-      const nextContent = updateActorInContent(draftContent, updatedForm);
-      setDraftContent(nextContent);
+      const key = currentActorForm.key;
+      setDraftContent((previous) => {
+        const record = Array.isArray(previous.actors)
+          ? previous.actors.find((row: Record<string, unknown>) => row?.key === key)
+          : undefined;
+        if (!record) return previous;
+        const updatedForm: ActorEditorForm = {
+          ...parseActorEditor(record, previous),
+          [field]: value,
+        };
+        return updateActorInContent(previous, updatedForm);
+      });
     },
     [currentActorForm, draftContent],
   );
@@ -202,15 +263,15 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
   };
   const handleWorldSettingsChange = useCallback(
     (field: keyof WorldSettingsForm, value: string) => {
-      const nextSettings: WorldSettingsForm = {
-        ...worldSettings,
-        [field]: value,
-      };
       if (field === 'title') {
         setDraftTitle(value);
       }
-      const nextContent = updateWorldSettingsInContent(draftContent, nextSettings);
-      setDraftContent(nextContent);
+      setDraftContent((previous) =>
+        updateWorldSettingsInContent(previous, {
+          ...parseWorldSettings(previous, draftTitle),
+          [field]: value,
+        }),
+      );
     },
     [worldSettings, draftContent],
   );
@@ -602,15 +663,12 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
         {check && check.status !== 'ready' && (
           <div className={`${s.banner} ${s.bannerWarning}`} role="status">
             <div>
-              <strong>检查未通过 ({check.status})：</strong> 发现 {check.issues.length} 处规范问题
-              {check.missingCapabilities.length > 0 &&
-                `，缺少能力: ${check.missingCapabilities.join(', ')}`}
+              <strong>还需要完善：</strong> 发现 {check.issues.length} 处需要核对的内容
+              {check.missingCapabilities.length > 0 && '，部分内容暂时不支持运行，请调整后再试演'}
               {check.issues.length > 0 && (
                 <ul style={{ margin: '6px 0 0 16px', padding: 0, fontSize: '13px' }}>
                   {check.issues.slice(0, 5).map((iss, i) => (
-                    <li key={i}>
-                      {iss.path.join('.')}: {iss.code}
-                    </li>
+                    <li key={i}>{issueLabel(iss.path, iss.code)}</li>
                   ))}
                   {check.issues.length > 5 && <li>…还有 {check.issues.length - 5} 项</li>}
                 </ul>
@@ -936,6 +994,22 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
           </div>
         )}
 
+        {work && activeTab === 'settings' && (
+          <PublisherSpaceEditor
+            content={draftContent}
+            disabled={busy || !session.canEdit}
+            onChange={setDraftContent}
+          />
+        )}
+
+        {work && activeTab === 'settings' && (
+          <PublisherOpeningEditor
+            content={draftContent}
+            disabled={busy || !session.canEdit}
+            onChange={setDraftContent}
+          />
+        )}
+
         {/* ================= Tab 2: 人物 (5 区编辑) ================= */}
         {work && activeTab === 'actors' && (
           <div className={s.workspace}>
@@ -1127,6 +1201,15 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                     <h4 className={s.sectionTitle}>2. 与主角的初始关系</h4>
                     <span className={s.fieldHint}>开场双方的既有认知关系</span>
                   </div>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={currentActorForm.knownAtStart}
+                      disabled={!session.canEdit || busy}
+                      onChange={(event) => handleActorChange('knownAtStart', event.target.checked)}
+                    />
+                    开场时玩家已经认识这个人物
+                  </label>
                   <div className={s.formFieldFull}>
                     <label className={s.fieldLabel} htmlFor="actor-rel-input">
                       初始人际关系描述

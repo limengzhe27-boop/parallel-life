@@ -33,8 +33,26 @@ export function PublisherImportDialog({
   const stagedBaseline = useRef<string | undefined>(undefined);
   useEffect(() => {
     dialog.current?.showModal();
+    const viewport = window.visualViewport;
+    const fit = () => {
+      const node = dialog.current;
+      if (!node) return;
+      node.style.setProperty(
+        '--dialog-viewport-height',
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
+      const keyboard = !!viewport && viewport.height < window.innerHeight - 80;
+      node.style.top = keyboard ? `${viewport.offsetTop + 12}px` : '';
+      node.style.bottom = keyboard ? 'auto' : '';
+      node.style.margin = keyboard ? '0 auto' : '';
+    };
+    fit();
+    viewport?.addEventListener('resize', fit);
+    viewport?.addEventListener('scroll', fit);
     return () => {
       sequence.current++;
+      viewport?.removeEventListener('resize', fit);
+      viewport?.removeEventListener('scroll', fit);
     };
   }, []);
   useEffect(() => {
@@ -73,7 +91,12 @@ export function PublisherImportDialog({
     for (const file of list) {
       if (/\.zip$/i.test(file.name)) {
         if (file.size > 5 * 1024 * 1024) throw Error('压缩包不能超过 5 MB。');
-        result.push(...(await extractZipEntries(await file.arrayBuffer())));
+        result.push(
+          ...(await extractZipEntries(await file.arrayBuffer())).map((entry) => ({
+            ...entry,
+            filename: `${file.name} > ${entry.filename}`,
+          })),
+        );
       } else {
         if (!/\.(md|markdown|txt)$/i.test(file.name))
           throw Error('请选择 Markdown、文本或 ZIP 文件。');
