@@ -47,3 +47,32 @@ B计划显式marked indexed-npc-actions-v2：text为1至8完整中文段数组�
 首次类型检查退出2：新测试unknown-or-callback参数未给箭头回调上下文，p及其slot回调隐式any；仅新audit显式标注Payload后重查，未改业务源码。
 
 类型修正后tsc --noEmit --incremental false退出0；332文件边界/本人新test格式/diff通过。当前59项57通过2真实引用信用反例失败，准备提交定位基线给根，不当交付完成；源码只冻结新test/report，等根域修复后独立复验，不自行改或跳过红测试。
+
+准确红测定位阶段提交2d9a85da6f213c45d2e66c450bb6f95d2ba2c089已交根（仅新audit/report两文件），主表本人短锁仍进行中，非待验收或通过；报告镜像已同步，源2d9只读冻结等待根域修复。
+
+后续额外只读pure domain同根因复现：玩家action.text为 `我引用“我将R17钥匙和维修单交给老周。”`，inputQuote为内部完整句（含内句号），NPCactions为空，原domain错误新增handed_over/whole0。因此shared actual/quotedClause修复需防NPC假接收和玩家引用假交出。此额外结果只做领域纯运行并回I，不修改已冻结审计test或root源码，不跑PG/付费，root可在自己的domain测试覆盖该分支。
+
+## 集成职责交接
+
+根最新明确用户让Q/B继续、根转用户讨论；主表母04已把B `codex-npcquote04b-01a11a84-20261012` 设为唯一集成人、实际PG/付费测试写/暂停与部署执行者。Q保持0模型/PG/生产/部署及原审计范围，已把准确红测2d9和NPC/玩家引用同根因直接交B；等B准确domain fix后同59复验，不自行接管域修。根原PG55452已停、无模型在途；权威04原忽略账本10/18、1world、open，仅B有界剩8，不能新账本扩大额度或沿用closed03。完成标记仍需B集成READY/public及明确验收证据。
+
+## 修复后独立复验与交付
+
+准确接新唯一集成人B修复 `ef60f2d770cf083844b2b98074bf1ef681aa9b31`，本地等价依赖 `7d9871bb496c2a5cd840d66da174bfe36d6c6fcd`。首次cherry旧scene-step-planner提示test冲突（Q未接root8c前置例文改动）；只物化ef60该文件完整冻结字节解决，不自行改旧断言/业务源。最终domain、source-quotation新test及旧planner test三个依赖文件逐字节与ef60相同。冲突标记存在时提前类型检查出现TS1185；完成准确cherry后再type查0，保留操作错误不冒称当时成功。
+
+Q原59测试**一字未改**，原classic/v1两条引用假接收红断言复验均通过，合法第二实际原段和单receive信用正例也通过。共享actualClause按完整源引号范围（含嵌套/未闭界限）排除引用，查所有原文出现、仅未引用完整当前句；人物和玩家主体后续校验使用同一可信句。没有切段/补我或物件，也没有改变原receiver/owner/source/物件/whole规则。
+
+独立执行六个相关文件：
+
+- `tests/scene-npc-quote-index-audit.test.ts`
+- `tests/scene-npc-quote-index.test.ts`
+- `tests/scene-source-quotation.test.ts`
+- `tests/scene-receiving-diagnostics.test.ts`
+- `tests/scene-step-progress.test.ts`
+- `tests/scene-receiver-wire-audit.test.ts`
+
+实际195通过、0失败/取消/跳过/TODO；包括原Q59/59。最终 `tsc --noEmit --incremental false` 退出0、332文件边界通过、本人新test Prettier和diff通过。没有跑完整check/build或实际PG；B/I自己的225/全check/PG/线上结果仅由其报告提供，不能混算成Q亲验。
+
+本Q仅改新audit和专属报告、本人主表行；准确测试源2d9已由B接，本次只提交报告复验/交接补记。等待B整合全check/实际PG/build/READY/public再标限定完成；有界实际供应商交付、接收、后续机会和私聊是否成功/自然，继续按B回传真实保存来源只读评审，不能由本195项合成测试宣称通过。
+
+当前0模型/PG/生产/端口/浏览器/部署，无资源需停；旧03 closed不可用，04权威原账本剩余只由B唯一有界执行、最后全部正常API暂停/closed及部署。代码及新audit源冻结，不领新scope，报告与行先待验收。
