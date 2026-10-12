@@ -509,7 +509,7 @@ export function ScenePanel({
                     disabled={busy || data.paused}
                     onClick={() => void run(() => execute(task))}
                   >
-                    继续等待现场回应
+                    推动故事继续展开
                   </button>
                 ) : null}
                 {['failed', 'unknown', 'cancelled'].includes(task.status) &&
@@ -609,14 +609,30 @@ export function ScenePanel({
                 const suggestions: string[] = [];
                 if (firstActorName) {
                   suggestions.push(`跟${firstActorName}打声招呼，问问近况`);
-                }
-                if (title) {
-                  suggestions.push(`提一下「${title}」，听听对方怎么看`);
+                  if (title) {
+                    suggestions.push(`提一下「${title}」，听听对方怎么看`);
+                  } else {
+                    suggestions.push('问问眼下的情况，看接下来怎么安排');
+                  }
+                  if (presentActors.length > 1) {
+                    const secondId = presentActors[1]?.actorId;
+                    const second = secondId ? contacts.find((c) => c.id === secondId)?.name : null;
+                    if (second) {
+                      suggestions.push(`看向${second}，问问对方的意思`);
+                    }
+                  }
+                  suggestions.push('四处瞅瞅，观察周围环境');
+                  suggestions.push('先不吭声，看看大家怎么说');
                 } else {
-                  suggestions.push('问问眼下的情况，看接下来怎么安排');
+                  if (title) {
+                    suggestions.push(`琢磨一下「${title}」，理理头绪`);
+                  } else {
+                    suggestions.push('在周围转转，打量一下这里的环境');
+                  }
+                  suggestions.push('仔细看看四周，观察有什么动静');
+                  suggestions.push('找个地方坐下，稍作歇息');
+                  suggestions.push('静下心来，想想接下来该做点什么');
                 }
-                suggestions.push('四处瞅瞅，观察周围环境');
-                suggestions.push('先不吭声，看看大家怎么说');
                 return (
                   <div className={s.suggestionRow} aria-label="行动灵感">
                     <span className={s.suggestionLabel}>试试：</span>
