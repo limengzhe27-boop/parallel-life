@@ -26,9 +26,22 @@ const participant = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('player') }),
   z.strictObject({ kind: z.literal('actor'), actorKey: key }),
 ]);
+const window = z.strictObject({ notBefore: at, expiresAt: at });
+const resolution = z.strictObject({
+  nodeKey: key,
+  outcomes: z
+    .array(z.enum(['committed', 'declined', 'skipped', 'expired']))
+    .min(1)
+    .max(4),
+});
 const prerequisite = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('history_fact'), factKey: key }),
   z.strictObject({ kind: z.literal('after_committed_node'), nodeKey: key }),
+  z.strictObject({
+    kind: z.literal('after_resolved_node'),
+    nodeKey: key,
+    outcomes: resolution.shape.outcomes,
+  }),
   z.strictObject({ kind: z.literal('at_place'), placeKey: key }),
   z.strictObject({ kind: z.literal('not_before'), at }),
 ]);
@@ -183,6 +196,23 @@ const shape = z
         }),
       )
       .max(64),
+    timeline: z
+      .strictObject({
+        initialStageKey: key,
+        stages: z
+          .array(
+            z.strictObject({
+              key,
+              title: text(120),
+              order: z.number().int().min(0).max(31),
+              afterStageKeys: refs(8),
+              window: window.optional(),
+            }),
+          )
+          .min(1)
+          .max(16),
+      })
+      .optional(),
     candidates: z
       .array(
         z.strictObject({
@@ -195,6 +225,19 @@ const shape = z
           prerequisites: z.array(prerequisite).max(16),
           mutuallyExclusiveNodeKeys: refs(16),
           intent,
+          timeline: z
+            .strictObject({
+              stageKey: key,
+              window: window.optional(),
+              timeNote: text(300).optional(),
+              excludeIfResolved: z.array(resolution).max(16),
+              alternatives: z.strictObject({
+                onDeclined: refs(8),
+                onSkipped: refs(8),
+                onExpired: refs(8),
+              }),
+            })
+            .optional(),
         }),
       )
       .max(32),

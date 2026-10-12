@@ -4,9 +4,16 @@ export type PublicationJson =
 export type PublicationVisibility =
   { kind: 'player' } | { kind: 'world' } | { kind: 'actors'; actorKeys: string[] };
 export type PublicationParticipant = { kind: 'player' } | { kind: 'actor'; actorKey: string };
+export type PublicationStoryWindow = { notBefore: string; expiresAt: string };
+export type PublicationNodeOutcome = 'committed' | 'declined' | 'skipped' | 'expired';
+export type PublicationResolutionCondition = {
+  nodeKey: string;
+  outcomes: PublicationNodeOutcome[];
+};
 export type PublicationPrerequisite =
   | { kind: 'history_fact'; factKey: string }
   | { kind: 'after_committed_node'; nodeKey: string }
+  | ({ kind: 'after_resolved_node' } & PublicationResolutionCondition)
   | { kind: 'at_place'; placeKey: string }
   | { kind: 'not_before'; at: string };
 export type PublicationIntent =
@@ -102,6 +109,16 @@ export type PublicationContent = {
     label: string;
     visibility: PublicationVisibility;
   }[];
+  timeline?: {
+    initialStageKey: string;
+    stages: {
+      key: string;
+      title: string;
+      order: number;
+      afterStageKeys: string[];
+      window?: PublicationStoryWindow;
+    }[];
+  };
   candidates: {
     key: string;
     kind: 'candidate';
@@ -112,6 +129,13 @@ export type PublicationContent = {
     prerequisites: PublicationPrerequisite[];
     mutuallyExclusiveNodeKeys: string[];
     intent: PublicationIntent;
+    timeline?: {
+      stageKey: string;
+      window?: PublicationStoryWindow;
+      timeNote?: string;
+      excludeIfResolved: PublicationResolutionCondition[];
+      alternatives: { onDeclined: string[]; onSkipped: string[]; onExpired: string[] };
+    };
   }[];
   extensions: {
     namespace: string;
@@ -356,7 +380,10 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     n.prerequisites.forEach((p, j) => {
       const path = ['candidates', i, 'prerequisites', j];
       if (p.kind === 'history_fact' && !facts.has(p.factKey)) issue(path, 'unknown_fact');
-      if (p.kind === 'after_committed_node' && (!nodes.has(p.nodeKey) || p.nodeKey === n.key))
+      if (
+        (p.kind === 'after_committed_node' || p.kind === 'after_resolved_node') &&
+        (!nodes.has(p.nodeKey) || p.nodeKey === n.key)
+      )
         issue(path, 'invalid_node_reference');
       if (p.kind === 'at_place' && !places.has(p.placeKey)) issue(path, 'unknown_place');
       if (p.kind === 'not_before' && Date.parse(p.at) < start)
@@ -396,6 +423,140 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     return false;
   }
   if (c.candidates.some((n) => cycle(n.key))) issue(['candidates'], 'candidate_dependency_cycle');
+  // Timeline is editorial structure. No author-selected phase or outcome becomes runtime state.
+  const stages = new Map((c.timeline?.stages ?? []).map((stage) => [stage.key, stage]));
+  if (c.timeline) {
+    unique(
+      c.timeline.stages.map((stage) => stage.key),
+      ['timeline', 'stages'],
+    );
+    const initial = stages.get(c.timeline.initialStageKey);
+    if (!initial) issue(['timeline', 'initialStageKey'], 'unknown_stage');
+    else if (
+      initial.window &&
+      (start < Date.parse(initial.window.notBefore) ||
+        start >= Date.parse(initial.window.expiresAt))
+    )
+      issue(['timeline', 'initialStageKey'], 'start_outside_stage_window');
+  }
+  function windowValid(w: PublicationStoryWindow | undefined, path: (string | number)[]) {
+    if (w && Date.parse(w.notBefore) >= Date.parse(w.expiresAt))
+      issue(path, 'invalid_story_window');
+  }
+  for (const [i, stage] of (c.timeline?.stages ?? []).entries()) {
+    const path = ['timeline', 'stages', i];
+    windowValid(stage.window, [...path, 'window']);
+    unique(stage.afterStageKeys, [...path, 'afterStageKeys']);
+    for (const key of stage.afterStageKeys) {
+      const prior = stages.get(key);
+      if (!prior) issue([...path, 'afterStageKeys'], 'unknown_stage');
+      else if (prior.key === stage.key || prior.order >= stage.order)
+        issue([...path, 'afterStageKeys'], 'reverse_stage_dependency');
+      if (
+        stage.window &&
+        prior?.window &&
+        Date.parse(stage.window.expiresAt) <= Date.parse(prior.window.notBefore)
+      )
+        issue([...path, 'window'], 'stage_window_before_dependency');
+    }
+  }
+  function hasCycle(graph: Map<string, string[]>) {
+    const visiting = new Set<string>(),
+      visited = new Set<string>();
+    function visit(key: string): boolean {
+      if (visiting.has(key)) return true;
+      if (visited.has(key)) return false;
+      visiting.add(key);
+      if ((graph.get(key) ?? []).some(visit)) return true;
+      visiting.delete(key);
+      visited.add(key);
+      return false;
+    }
+    return [...graph.keys()].some(visit);
+  }
+  if (
+    hasCycle(new Map((c.timeline?.stages ?? []).map((stage) => [stage.key, stage.afterStageKeys])))
+  )
+    issue(['timeline', 'stages'], 'stage_dependency_cycle');
+  const nodeMap = new Map(c.candidates.map((node) => [node.key, node]));
+  const progress = new Map(c.candidates.map((node) => [node.key, [] as string[]]));
+  const nodeWindow = (node: PublicationContent['candidates'][number]) =>
+    node.timeline?.window ?? stages.get(node.timeline?.stageKey ?? '')?.window;
+  for (const [i, node] of c.candidates.entries()) {
+    const t = node.timeline,
+      path = ['candidates', i, 'timeline'];
+    if (c.timeline && !t) issue(path, 'candidate_stage_missing');
+    if (t && !c.timeline) issue(path, 'timeline_missing');
+    if (!t && node.prerequisites.some((p) => p.kind === 'after_resolved_node'))
+      issue(path, 'timeline_missing');
+    const stage = t && stages.get(t.stageKey);
+    if (t && !stage) issue([...path, 'stageKey'], 'unknown_stage');
+    windowValid(t?.window, [...path, 'window']);
+    if (
+      t?.window &&
+      stage?.window &&
+      (Date.parse(t.window.notBefore) < Date.parse(stage.window.notBefore) ||
+        Date.parse(t.window.expiresAt) > Date.parse(stage.window.expiresAt))
+    )
+      issue([...path, 'window'], 'node_window_outside_stage');
+    const w = nodeWindow(node);
+    if (w && Date.parse(w.expiresAt) <= start)
+      issue([...path, 'window'], 'candidate_expired_at_start');
+    function nodeRef(key: string, position: (string | number)[]) {
+      if (!nodeMap.has(key) || key === node.key) issue(position, 'invalid_node_reference');
+      return nodeMap.get(key);
+    }
+    for (const p of node.prerequisites) {
+      if (p.kind !== 'after_committed_node' && p.kind !== 'after_resolved_node') continue;
+      const prior = nodeRef(p.nodeKey, ['candidates', i, 'prerequisites']);
+      if (prior) progress.get(prior.key)!.push(node.key);
+      const priorStage = stages.get(prior?.timeline?.stageKey ?? '');
+      if (stage && priorStage && priorStage.order > stage.order)
+        issue(['candidates', i, 'prerequisites'], 'reverse_node_stage_dependency');
+      const priorWindow = prior && nodeWindow(prior);
+      if (w && priorWindow && Date.parse(w.expiresAt) <= Date.parse(priorWindow.notBefore))
+        issue(['candidates', i, 'prerequisites'], 'node_window_before_dependency');
+      const outcomes = p.kind === 'after_committed_node' ? ['committed'] : p.outcomes;
+      if (p.kind === 'after_resolved_node') unique(p.outcomes, ['candidates', i, 'prerequisites']);
+      const exclusion =
+        t?.excludeIfResolved.filter((e) => e.nodeKey === p.nodeKey).flatMap((e) => e.outcomes) ??
+        [];
+      if (
+        outcomes.every((outcome) => exclusion.includes(outcome as PublicationNodeOutcome)) ||
+        (p.kind === 'after_committed_node' && node.mutuallyExclusiveNodeKeys.includes(p.nodeKey))
+      )
+        issue(['candidates', i], 'contradictory_node_condition');
+    }
+    if (t) {
+      unique(
+        t.excludeIfResolved.map((e) => e.nodeKey),
+        [...path, 'excludeIfResolved'],
+      );
+      for (const exclusion of t.excludeIfResolved) {
+        nodeRef(exclusion.nodeKey, [...path, 'excludeIfResolved']);
+        unique(exclusion.outcomes, [...path, 'excludeIfResolved']);
+      }
+      for (const [kind, keys] of Object.entries(t.alternatives)) {
+        unique(keys, [...path, 'alternatives', kind]);
+        for (const key of keys) {
+          const next = nodeRef(key, [...path, 'alternatives', kind]);
+          const nextStage = stages.get(next?.timeline?.stageKey ?? '');
+          if (stage && nextStage && nextStage.order < stage.order)
+            issue([...path, 'alternatives', kind], 'reverse_alternative_stage');
+          const nextWindow = next && nodeWindow(next);
+          if (
+            w &&
+            nextWindow &&
+            Date.parse(nextWindow.expiresAt) <=
+              Date.parse(kind === 'onExpired' ? w.expiresAt : w.notBefore)
+          )
+            issue([...path, 'alternatives', kind], 'alternative_window_before_trigger');
+          if (next) progress.get(node.key)!.push(next.key);
+        }
+      }
+    }
+  }
+  if (hasCycle(progress)) issue(['candidates'], 'candidate_progression_cycle');
   const extensionBytes = c.extensions.reduce(
     (sum, x) => sum + new TextEncoder().encode(JSON.stringify(x.data)).length,
     0,
@@ -414,6 +575,7 @@ export function publicationSupport(
   supported: ReadonlySet<string> = new Set(),
 ) {
   const required = new Set(['publication.opening.v1']);
+  if (c.timeline) required.add('publication.timeline.v1');
   if (c.media.length) required.add('publication.media.v1');
   for (const node of c.candidates)
     if (node.intent.kind !== 'editorial_only')
@@ -538,4 +700,16 @@ export function publicationPlayerPreview(c: PublicationContent) {
       album: c.phone.album.map((p) => ({ key: p.key, title: p.title, image: picture(p.mediaKey) })),
     },
   };
+}
+
+/** Story-time window only; it does not grant phase eligibility, satisfy prerequisites or record an event. */
+export function publicationStoryWindowState(
+  window: PublicationStoryWindow,
+  storyAt: string,
+): 'not_open' | 'open' | 'expired' {
+  const now = Date.parse(storyAt),
+    open = Date.parse(window.notBefore),
+    end = Date.parse(window.expiresAt);
+  if (![now, open, end].every(Number.isFinite) || open >= end) throw Error('INVALID_STORY_WINDOW');
+  return now < open ? 'not_open' : now >= end ? 'expired' : 'open';
 }

@@ -102,3 +102,43 @@ domain导出 PublicationContent / PublicationJson / PublicationVisibility / Publ
 含素材或候选意图时分别要求publication.media.v1及candidate.offer_message.v1/candidate.offer_invitation.v1；缺少任意required capability即false。即使可信运行注册表全匹配得到runtimeReady=true，grantsPublicationAuthority仍恒false，还须根后续员工权限、正式素材manifest、校验/试演依据与发布事务审核。rawOriginal或任意extension不可进preview；safe preview也不返回完整模板、后台权限、发布操作或资产可访问URL。
 
 最终接续：初始源码/59测试冻结19f70c8e7fc0aefad3526a574e900c03d4bc6a85；本次仅追加报告导出签名/有效JSON最小样例及第60项实际校验样例测试，源码两文件逐字不变。完整提交序列为19f70c8及其本次后继提交，根不要只cherry后继而缺初始源。最终60pass/type0/338boundary/三新代码文件Prettier/diff0，0其他范围。
+
+## 时间线续补（用户最新顺序要求，同四文件）
+
+保留19f70c8→87f95f5两个检查点及原60测试全文不改。新optional timeline定义initialStageKey与1–16个stages：稳定key/title、order0–31、afterStageKeys最多8、optional故事window。order是偏序等级，不要求连续编号或全部节点遍历；并行独立阶段可同order，有前置的阶段必须大于其依赖。旧无timeline草稿继续可读，无默默补阶段；一旦声明timeline，所有候选必须有有效stageKey，不允许混入游离阶段的可执行候选。
+
+candidate.timeline提供stageKey、optional window、timeNote（300字符编辑说明，不当可执行时间条件）、excludeIfResolved（最多16）及alternatives.onDeclined/onSkipped/onExpired（每类最多8稳定nodeKey）。窗口是世界故事时间UTC序列化区间[notBefore,expiresAt)，不读取墙钟；节点窗口不能超出阶段窗口，初始阶段窗口包含世界起点，候选截止不得早于/等于起点，也不能依赖在自身截止后才开启的前置或把已经结束的替代节点补演。
+
+新增after_resolved_node前置，outcomes只能真实保存的committed/declined/skipped/expired之一或有界组合，不能director_selected或作者预填当前status。初始timeline只是作者拟定的起点结构，不把此前阶段/节点批量标完成。mutuallyExclusiveNodeKeys及excludeIfResolved是未满足时才可考虑的排除规则；与必要前置完全冲突会拒绝。阶段/节点前置及替代进展的引用、自依赖、环、跨阶段反向依赖、错误窗口静态拒绝；可拒绝/跳过/过期后另一个候选有不同合格前置，不重演原候选。
+
+声明timeline即额外要求publication.timeline.v1；没有实际适配器时inspect默认仍runtimeReady=false。旧登记opening/media/intent能力不能自动支持timeline。publicationStoryWindowState(window:PublicationStoryWindow, storyAt:string)仅返回not_open/open/expired并拒绝坏时间，不写事件、不判断整体eligible、不推进phase。实际适配器后续必须从可信world当前阶段、故事时钟、已保存结果source判断前置/排除，再让导演选择；本切片没有调度器、阶段变更命令或运行结果表，不能用纯结构通过声称节点已经发生。
+
+公开preview仍不包含timeline/stages/节点窗口/后续候选/替代/排除/编辑说明。即使作者提供时间线，玩家只看批准起点与已知内容；以下增量样例合并上方最小JSON仍可存，但没有timeline适配器不能运行。该样例不声明玩家已经拒绝、跳过或参与。
+
+```json
+{
+  "timeline": {
+    "initialStageKey": "opening",
+    "stages": [
+      { "key": "opening", "title": "起步", "order": 0, "afterStageKeys": [], "window": { "notBefore": "2026-10-12T09:00:00Z", "expiresAt": "2026-10-12T11:00:00Z" } },
+      { "key": "followup", "title": "后续", "order": 1, "afterStageKeys": ["opening"], "window": { "notBefore": "2026-10-12T10:00:00Z", "expiresAt": "2026-10-12T15:00:00Z" } }
+    ]
+  },
+  "candidates": [
+    {
+      "key": "first_plan", "kind": "candidate", "title": "先商量一下", "editorialIntent": "可以选择，也可以跳过", "actorKeys": ["ning_one"], "placeKey": "shop", "prerequisites": [], "mutuallyExclusiveNodeKeys": [], "intent": { "kind": "editorial_only" },
+      "timeline": { "stageKey": "opening", "excludeIfResolved": [], "alternatives": { "onDeclined": ["later_plan"], "onSkipped": ["later_plan"], "onExpired": ["later_plan"] } }
+    },
+    {
+      "key": "later_plan", "kind": "candidate", "title": "再考虑另一种安排", "editorialIntent": "正确阶段和真实结果满足后才可考虑", "actorKeys": ["ning_two"], "placeKey": "shop", "prerequisites": [{ "kind": "after_resolved_node", "nodeKey": "first_plan", "outcomes": ["declined", "skipped", "expired"] }], "mutuallyExclusiveNodeKeys": [], "intent": { "kind": "editorial_only" },
+      "timeline": { "stageKey": "followup", "excludeIfResolved": [{ "nodeKey": "first_plan", "outcomes": ["committed"] }], "alternatives": { "onDeclined": [], "onSkipped": [], "onExpired": [] } }
+    }
+  ]
+}
+```
+
+静态边界说明：可以证明字段引用/偏序/时间窗是否自洽，不能证明现实中玩家已拒绝、演员已执行或故事时钟已经推进。declined/skipped/expired都要实际持久来源；过期本身不算玩家选择或目标完成。作者文字时间说明也不代替结构条件或实际调度。
+
+时间线最终验收：原87f95f5测试文件作为新文件prefix逐字一致（原60项未改），新增34专项，总94pass、type0/338boundary、三代码文件Prettier/diff0。覆盖正确先后、可选拒绝/跳过/过期替代、并行节点/阶段、未知阶段、逆序/循环/矛盾条件、窗口/截止、过期不入初始事实、完整最小样例加timeline增量可解析、额外timeline capability缺失保持不可运行。原稿未用，0SQL/auth/API/UI/模型PG生产图端口部署。
+
+最终导出新增PublicationStoryWindow / PublicationNodeOutcome / PublicationResolutionCondition types和publicationStoryWindowState；contract raw Schema/preview/support签名不变。完整源依次为19f70c8→87f95f5→本次时间线后继，根须整体审核或按顺序集成，不能仅取后继漏掉初始新文件。所有source新字段/上限仍是本切片提出的契约，待根批准冻结后才能被实际API/后台UI消费。

@@ -811,3 +811,397 @@ test('documented minimal two-character example is valid and remains unavailable 
   assert.equal(result.runtimeReady, false);
   assert.equal(result.grantsPublicationAuthority, false);
 });
+
+// Timeline additions preserve every earlier checkpoint test and its fixture unchanged.
+function stagedContent(): PublicationContent {
+  const c = content();
+  c.timeline = {
+    initialStageKey: 'opening',
+    stages: [
+      {
+        key: 'opening',
+        title: '开业准备',
+        order: 0,
+        afterStageKeys: [],
+        window: { notBefore: '2026-10-12T09:00:00Z', expiresAt: '2026-10-12T11:00:00Z' },
+      },
+      {
+        key: 'followup',
+        title: '之后的安排',
+        order: 1,
+        afterStageKeys: ['opening'],
+        window: { notBefore: '2026-10-12T10:00:00Z', expiresAt: '2026-10-12T15:00:00Z' },
+      },
+    ],
+  };
+  c.candidates[0]!.timeline = {
+    stageKey: 'opening',
+    window: { notBefore: '2026-10-12T09:00:00Z', expiresAt: '2026-10-12T10:30:00Z' },
+    excludeIfResolved: [],
+    alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+    timeNote: '只在开业准备阶段提出，可不选择。',
+  };
+  c.candidates.push({
+    ...structuredClone(c.candidates[0]!),
+    key: 'talk_later',
+    title: '可选择的之后讨论',
+    intent: { kind: 'editorial_only' },
+    prerequisites: [
+      {
+        kind: 'after_resolved_node',
+        nodeKey: 'look_courtyard',
+        outcomes: ['declined', 'skipped', 'expired'],
+      },
+    ],
+    timeline: {
+      stageKey: 'followup',
+      excludeIfResolved: [],
+      alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+    },
+  });
+  c.candidates[0]!.timeline!.alternatives = {
+    onDeclined: ['talk_later'],
+    onSkipped: ['talk_later'],
+    onExpired: ['talk_later'],
+  };
+  return c;
+}
+function timelineRejected(change: (c: PublicationContent) => void, code?: string) {
+  const c = stagedContent();
+  change(c);
+  const parsed = PublishedWorldContentSchema.safeParse(c);
+  assert.equal(parsed.success, false);
+  if (code && !parsed.success)
+    assert.ok(
+      parsed.error.issues.some((e) => e.message === code),
+      JSON.stringify(parsed.error.issues.map((e) => ({ path: e.path, message: e.message }))),
+    );
+}
+test('stage order, story windows and optional decline/skip paths store without marking any node occurred', () => {
+  const c = stagedContent(),
+    before = structuredClone(c),
+    parsed = PublishedWorldContentSchema.parse(c);
+  assert.deepEqual(parsed, c);
+  assert.equal(parsed.history.length, before.history.length);
+  assert.equal(parsed.candidates[0]!.kind, 'candidate');
+  const preview = JSON.stringify(previewPublishedWorldContent(parsed));
+  assert.doesNotMatch(
+    preview,
+    /timeline|opening.*order|talk_later|onSkipped|after_resolved_node|开业准备阶段/,
+  );
+  assert.deepEqual(c, before);
+});
+test('parallel independent nodes in the same stage need not be forced into one linear sequence', () => {
+  const c = stagedContent();
+  c.candidates.push({
+    ...structuredClone(c.candidates[0]!),
+    key: 'independent',
+    prerequisites: [],
+    timeline: {
+      stageKey: 'opening',
+      excludeIfResolved: [],
+      alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+    },
+  });
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  assert.equal(c.candidates.find((n) => n.key === 'independent')!.prerequisites.length, 0);
+});
+test('parallel stages can share an order without declaring a false dependency', () => {
+  const c = stagedContent();
+  c.timeline!.stages.push({
+    key: 'parallel',
+    title: '并行安排',
+    order: 1,
+    afterStageKeys: ['opening'],
+  });
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+});
+const invalidTimeline: [string, (c: PublicationContent) => void, string][] = [
+  [
+    'unknown initial stage',
+    (c) => {
+      c.timeline!.initialStageKey = 'missing';
+    },
+    'unknown_stage',
+  ],
+  [
+    'duplicate stage key',
+    (c) => {
+      c.timeline!.stages.push(structuredClone(c.timeline!.stages[0]!));
+    },
+    'duplicate_key',
+  ],
+  [
+    'unknown predecessor stage',
+    (c) => {
+      c.timeline!.stages[1]!.afterStageKeys = ['missing'];
+    },
+    'unknown_stage',
+  ],
+  [
+    'reverse stage dependency',
+    (c) => {
+      c.timeline!.stages[0]!.afterStageKeys = ['followup'];
+    },
+    'reverse_stage_dependency',
+  ],
+  [
+    'same-order predecessor is not a parallel independent stage',
+    (c) => {
+      c.timeline!.stages[1]!.order = 0;
+    },
+    'reverse_stage_dependency',
+  ],
+  [
+    'stage cycle',
+    (c) => {
+      c.timeline!.stages[0]!.afterStageKeys = ['followup'];
+    },
+    'stage_dependency_cycle',
+  ],
+  [
+    'unknown candidate stage',
+    (c) => {
+      c.candidates[0]!.timeline!.stageKey = 'missing';
+    },
+    'unknown_stage',
+  ],
+  [
+    'stage-less candidate in a staged work',
+    (c) => {
+      delete c.candidates[0]!.timeline;
+    },
+    'candidate_stage_missing',
+  ],
+  [
+    'candidate timeline without declared work timeline',
+    (c) => {
+      delete c.timeline;
+    },
+    'timeline_missing',
+  ],
+  [
+    'equal story window endpoints',
+    (c) => {
+      c.candidates[0]!.timeline!.window!.expiresAt = c.candidates[0]!.timeline!.window!.notBefore;
+    },
+    'invalid_story_window',
+  ],
+  [
+    'reverse stage window',
+    (c) => {
+      c.timeline!.stages[0]!.window!.expiresAt = '2026-10-12T08:00:00Z';
+    },
+    'invalid_story_window',
+  ],
+  [
+    'initial phase not open at start',
+    (c) => {
+      c.timeline!.stages[0]!.window!.notBefore = '2026-10-12T09:30:00Z';
+    },
+    'start_outside_stage_window',
+  ],
+  [
+    'candidate window outside stage',
+    (c) => {
+      c.candidates[0]!.timeline!.window!.expiresAt = '2026-10-12T12:00:00Z';
+    },
+    'node_window_outside_stage',
+  ],
+  [
+    'expired candidate cannot be current at world start',
+    (c) => {
+      c.candidates[0]!.timeline!.window = {
+        notBefore: '2026-10-12T07:00:00Z',
+        expiresAt: c.world.startAt,
+      };
+    },
+    'candidate_expired_at_start',
+  ],
+  [
+    'earlier stage depends on future node',
+    (c) => {
+      c.candidates[0]!.prerequisites = [{ kind: 'after_committed_node', nodeKey: 'talk_later' }];
+    },
+    'reverse_node_stage_dependency',
+  ],
+  [
+    'late fallback points back to prior stage',
+    (c) => {
+      c.candidates[1]!.timeline!.alternatives.onSkipped = ['look_courtyard'];
+    },
+    'reverse_alternative_stage',
+  ],
+  [
+    'unknown fallback node',
+    (c) => {
+      c.candidates[0]!.timeline!.alternatives.onDeclined = ['missing'];
+    },
+    'invalid_node_reference',
+  ],
+  [
+    'self fallback node',
+    (c) => {
+      c.candidates[0]!.timeline!.alternatives.onSkipped = ['look_courtyard'];
+    },
+    'invalid_node_reference',
+  ],
+  [
+    'unknown exclusion',
+    (c) => {
+      c.candidates[1]!.timeline!.excludeIfResolved = [
+        { nodeKey: 'missing', outcomes: ['committed'] },
+      ];
+    },
+    'invalid_node_reference',
+  ],
+  [
+    'same required and excluded actual result',
+    (c) => {
+      c.candidates[1]!.timeline!.excludeIfResolved = [
+        { nodeKey: 'look_courtyard', outcomes: ['declined', 'skipped', 'expired'] },
+      ];
+    },
+    'contradictory_node_condition',
+  ],
+  [
+    'progression cycle in alternatives',
+    (c) => {
+      c.candidates[1]!.timeline!.stageKey = 'opening';
+      c.candidates[1]!.timeline!.alternatives.onSkipped = ['look_courtyard'];
+    },
+    'candidate_progression_cycle',
+  ],
+];
+for (const [name, change, code] of invalidTimeline)
+  test(name, () => timelineRejected(change, code));
+test('declined or skipped prerequisites cannot be forged with director_selected or empty outcomes', () => {
+  for (const outcomes of [[], ['director_selected'], ['completed_without_event']]) {
+    const c = stagedContent();
+    (c.candidates[1]!.prerequisites[0] as unknown as { outcomes: string[] }).outcomes = outcomes;
+    assert.equal(PublishedWorldContentSchema.safeParse(c).success, false);
+  }
+});
+test('an excluded committed result still permits an actual skipped or declined alternate path', () => {
+  const c = stagedContent();
+  c.candidates[1]!.timeline!.excludeIfResolved = [
+    { nodeKey: 'look_courtyard', outcomes: ['committed'] },
+  ];
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+});
+test('timeline capability is additionally required and a legacy adapter list cannot make it runnable', () => {
+  const c = stagedContent(),
+    legacy = inspectPublishedWorldSupport(content());
+  const result = inspectPublishedWorldSupport(c, new Set(legacy.requiredCapabilities));
+  assert.deepEqual(result.missingCapabilities, ['publication.timeline.v1']);
+  assert.equal(result.runtimeReady, false);
+  assert.equal(result.grantsPublicationAuthority, false);
+});
+test('story-time expiry is half-open and never consults a real wall clock or writes history', async () => {
+  const { publicationStoryWindowState } =
+    await import('../src/modules/settings/domain/publication-content.ts');
+  const c = stagedContent(),
+    before = structuredClone(c),
+    window = c.candidates[0]!.timeline!.window!;
+  assert.equal(publicationStoryWindowState(window, '2026-10-12T08:59:00Z'), 'not_open');
+  assert.equal(publicationStoryWindowState(window, window.notBefore), 'open');
+  assert.equal(publicationStoryWindowState(window, window.expiresAt), 'expired');
+  assert.equal(publicationStoryWindowState(window, '2026-10-12T11:00:00Z'), 'expired');
+  assert.throws(() => publicationStoryWindowState(window, 'bad'), /INVALID_STORY_WINDOW/);
+  assert.deepEqual(c, before);
+  assert.doesNotMatch(
+    JSON.stringify(previewPublishedWorldContent(c)),
+    /look_courtyard|expired|stageKey|onExpired/,
+  );
+});
+test('node chronology cannot require a prerequisite that only opens after its own deadline', () => {
+  timelineRejected((c) => {
+    c.timeline!.stages[0]!.window = {
+      notBefore: '2026-10-12T09:00:00Z',
+      expiresAt: '2026-10-12T15:00:00Z',
+    };
+    c.candidates[1]!.timeline!.stageKey = 'opening';
+    c.candidates[1]!.timeline!.window = {
+      notBefore: '2026-10-12T12:00:00Z',
+      expiresAt: '2026-10-12T14:00:00Z',
+    };
+    c.candidates[0]!.prerequisites = [{ kind: 'after_committed_node', nodeKey: 'talk_later' }];
+  }, 'node_window_before_dependency');
+});
+test('an expired fallback cannot re-offer a node whose own deadline has already passed', () => {
+  timelineRejected((c) => {
+    c.candidates[1]!.timeline!.stageKey = 'opening';
+    c.candidates[1]!.timeline!.window = {
+      notBefore: '2026-10-12T09:30:00Z',
+      expiresAt: '2026-10-12T10:00:00Z',
+    };
+  }, 'alternative_window_before_trigger');
+});
+test('bounded stage counts/orders and time-note sizes reject instead of dropping fields', () => {
+  timelineRejected((c) => {
+    c.timeline!.stages[0]!.order = -1;
+  });
+  timelineRejected((c) => {
+    c.timeline!.stages = Array.from({ length: 17 }, (_, i) => ({
+      key: `stage_${i}`,
+      title: '阶段',
+      order: i,
+      afterStageKeys: [],
+    }));
+    c.timeline!.initialStageKey = 'stage_0';
+  });
+  timelineRejected((c) => {
+    c.candidates[0]!.timeline!.timeNote = '字'.repeat(301);
+  });
+});
+
+test('a distinct expired-path fallback is a condition on a saved expiry, not a replay of the original invitation', () => {
+  const c = stagedContent();
+  const later = c.candidates[1]!;
+  later.prerequisites = [
+    { kind: 'after_resolved_node', nodeKey: 'look_courtyard', outcomes: ['expired'] },
+  ];
+  const parsed = PublishedWorldContentSchema.parse(c);
+  assert.equal(parsed.candidates[0]!.timeline!.alternatives.onExpired[0], later.key);
+  assert.equal(parsed.candidates[0]!.kind, 'candidate');
+  assert.equal(parsed.history.length, 2);
+  assert.equal(inspectPublishedWorldSupport(parsed).runtimeReady, false);
+  assert.doesNotMatch(
+    JSON.stringify(previewPublishedWorldContent(parsed)),
+    /onExpired|look_courtyard|expired/,
+  );
+});
+
+test('documented timeline increment composes with minimal draft while all actual outcomes remain absent', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const report = await readFile(
+    new URL('../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+    'utf8',
+  );
+  const blocks = [...report.matchAll(/```json\n([\s\S]*?)\n```/g)];
+  assert.equal(blocks.length, 2);
+  const raw = { ...JSON.parse(blocks[0]![1]!), ...JSON.parse(blocks[1]![1]!) };
+  const parsed = PublishedWorldContentSchema.parse(raw);
+  assert.equal(parsed.candidates.length, 2);
+  assert.deepEqual(parsed.history, []);
+  assert.deepEqual(parsed.phone.messages, []);
+  assert.deepEqual(inspectPublishedWorldSupport(parsed).missingCapabilities, [
+    'publication.opening.v1',
+    'publication.timeline.v1',
+  ]);
+  assert.doesNotMatch(
+    JSON.stringify(previewPublishedWorldContent(parsed)),
+    /timeline|later_plan|onExpired/,
+  );
+});
+test('all supported actual outcome alternatives can be expressed without treating selection as an outcome', () => {
+  const c = stagedContent();
+  c.candidates[1]!.prerequisites = [
+    {
+      kind: 'after_resolved_node',
+      nodeKey: 'look_courtyard',
+      outcomes: ['committed', 'declined', 'skipped', 'expired'],
+    },
+  ];
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+});
