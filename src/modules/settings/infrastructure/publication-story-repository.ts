@@ -29,6 +29,7 @@ type Context = {
   currentPlaceId: string | null;
   availableFactIds: string[];
   version: number;
+  followupNodeKeys: Set<string>;
 };
 const iso = (v: unknown) => new Date(v as string).toISOString();
 function state(row: Record<string, any>): StoryState {
@@ -184,6 +185,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
           storyNow,
           currentPlaceId: w.state.space?.currentPlaceId ?? null,
           availableFactIds: [...initial.facts.map((f: { id: string }) => f.id), ...facts],
+          followupNodeKeys: new Set(),
         };
         return run(sql, c);
       });
@@ -331,7 +333,9 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     };
   }
   private async reconcile(sql: SqlClient, ownerId: string, worldId: string, c: Context) {
+    await this.reconcileFollowups(sql, ownerId, worldId, c);
     for (const old of [...c.states]) {
+      if (c.followupNodeKeys.has(old.nodeKey)) continue;
       const node = c.plan.nodes.find((n) => n.key === old.nodeKey)!;
       if (['claimed', 'unknown', 'failed'].includes(old.status) && !old.sourceEventId) {
         const proof = (
@@ -506,6 +510,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     }
     const e = evaluateStory(c.plan, c.states, { ...c, automatic: false });
     for (const key of e.expired) {
+      if (c.followupNodeKeys.has(key)) continue;
       const node = c.plan.nodes.find((n) => n.key === key)!,
         existing = c.states.find((s) => s.nodeKey === key),
         s = existing ?? this.fresh(c, node, 'expired');
@@ -522,6 +527,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       );
     }
     for (const x of e.excluded) {
+      if (c.followupNodeKeys.has(x.nodeKey)) continue;
       const node = c.plan.nodes.find((n) => n.key === x.nodeKey)!,
         existing = c.states.find((s) => s.nodeKey === x.nodeKey),
         s = existing ?? this.fresh(c, node, 'skipped');
@@ -536,6 +542,116 @@ export class PublicationStoryRepository implements PublicationStoryPort {
         { sourceNodeKey: x.sourceNodeKey },
         c.storyNow,
       );
+    }
+  }
+  private async reconcileFollowups(sql: SqlClient, ownerId: string, worldId: string, c: Context) {
+    await this.overlayFollowups(sql, ownerId, worldId, c);
+    if (!c.states.some((s) => ['claimed', 'unknown'].includes(s.status))) {
+      for (const s of c.states) {
+        const node = c.plan.nodes.find((n) => n.key === s.nodeKey);
+        if (
+          !node ||
+          node.intent.kind !== 'offer_invitation' ||
+          s.status !== 'failed' ||
+          s.outcome ||
+          !s.sourceEventId ||
+          !s.sourceMessageId ||
+          s.invitationId ||
+          !legalPresentation(c.plan, node, c.storyNow)
+        )
+          continue;
+        const evaluation = evaluateStory(c.plan, c.states, { ...c, automatic: false });
+        if (
+          (node.timeline && !evaluation.currentStages.includes(node.timeline.stageKey)) ||
+          evaluation.excluded.some((x) => x.nodeKey === s.nodeKey)
+        )
+          continue;
+        const invitationTitle = node.intent.title;
+        // Two presented opportunities with the same actor/title cannot safely claim one invitation.
+        if (
+          c.states.filter((other) => {
+            const n = c.plan.nodes.find((n) => n.key === other.nodeKey);
+            return (
+              other.status === 'failed' &&
+              !other.outcome &&
+              !!other.sourceEventId &&
+              other.actorId === s.actorId &&
+              n?.intent.kind === 'offer_invitation' &&
+              n.intent.title === invitationTitle &&
+              legalPresentation(c.plan, n, c.storyNow)
+            );
+          }).length !== 1
+        )
+          continue;
+        const existing = (
+          await sql.query(
+            'SELECT 1 FROM parallel_life.publication_story_followups WHERE world_id=$1 AND owner_id=$2 AND node_key=$3',
+            [worldId, ownerId, s.nodeKey],
+          )
+        ).rowCount;
+        if (existing) continue;
+        const candidates = (
+          await sql.query(
+            "SELECT DISTINCT ON(a.id) a.id invitation_id,e.id source_event_id,m.id source_message_id FROM parallel_life.world_appointments a JOIN parallel_life.world_events e ON e.id=a.document->>'sourceEventId' AND e.world_id=a.world_id AND e.owner_id=a.owner_id JOIN parallel_life.world_messages m ON m.world_id=e.world_id AND m.owner_id=e.owner_id AND m.document->>'sourceEventId'=e.id AND m.document->>'role'='assistant' AND m.actor_id=$4 WHERE a.world_id=$1 AND a.owner_id=$2 AND a.document->>'title'=$5 AND parallel_life.publication_story_followup_valid($1,$2,$3,e.id,m.id,a.id) AND NOT EXISTS(SELECT 1 FROM parallel_life.publication_story_followups f WHERE f.world_id=a.world_id AND f.invitation_id=a.id) ORDER BY a.id,m.ordinal LIMIT 2",
+            [worldId, ownerId, s.nodeKey, s.actorId, node.intent.title],
+          )
+        ).rows;
+        if (candidates.length !== 1) continue;
+        const proof = candidates[0];
+        await sql.query(
+          'INSERT INTO parallel_life.publication_story_followups(world_id,owner_id,node_key,source_event_id,source_message_id,invitation_id) VALUES($1,$2,$3,$4,$5,$6)',
+          [
+            worldId,
+            ownerId,
+            s.nodeKey,
+            proof.source_event_id,
+            proof.source_message_id,
+            proof.invitation_id,
+          ],
+        );
+      }
+    }
+    await this.overlayFollowups(sql, ownerId, worldId, c);
+  }
+  private async overlayFollowups(sql: SqlClient, ownerId: string, worldId: string, c: Context) {
+    const rows = (
+      await sql.query(
+        "SELECT f.*,s.status original_status,r.id response_id,r.payload response_payload FROM parallel_life.publication_story_followups f JOIN parallel_life.publication_story_nodes s ON s.world_id=f.world_id AND s.owner_id=f.owner_id AND s.node_key=f.node_key LEFT JOIN LATERAL(SELECT e.id,e.payload FROM parallel_life.world_events e JOIN parallel_life.commands cmd ON cmd.id=e.command_id AND cmd.world_id=e.world_id AND cmd.owner_id=e.owner_id AND cmd.status='succeeded' AND cmd.result_event_id=e.id WHERE e.world_id=f.world_id AND e.owner_id=f.owner_id AND e.payload->>'type'='invitation.responded' AND e.payload->'data'->>'id'=f.invitation_id ORDER BY e.version DESC LIMIT 1) r ON true WHERE f.world_id=$1 AND f.owner_id=$2",
+        [worldId, ownerId],
+      )
+    ).rows;
+    for (const f of rows) {
+      const original = c.states.find((s) => s.nodeKey === f.node_key);
+      const node = c.plan.nodes.find((n) => n.key === f.node_key);
+      if (!original || !node) throw new TaskError('INVALID_STATE');
+      c.followupNodeKeys.add(f.node_key);
+      const op = f.response_payload?.data?.operation;
+      const accepted =
+        ['accept', 'attend'].includes(op) &&
+        legalPresentation(c.plan, node, f.response_payload.storyTime);
+      const status: StoryState['status'] =
+        f.original_status !== 'failed'
+          ? f.original_status
+          : op === 'cancel'
+            ? 'declined'
+            : op === 'miss'
+              ? 'expired'
+              : accepted
+                ? 'committed'
+                : legalPresentation(c.plan, node, c.storyNow)
+                  ? 'offered'
+                  : 'expired';
+      c.states[c.states.indexOf(original)] = {
+        ...original,
+        status,
+        outcome: ['committed', 'declined', 'expired', 'skipped'].includes(status)
+          ? (status as StoryState['outcome'])
+          : null,
+        sourceEventId: f.source_event_id,
+        sourceMessageId: f.source_message_id,
+        invitationId: f.invitation_id,
+        responseEventId: f.response_id ?? null,
+      };
     }
   }
   prepare(
@@ -593,6 +709,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       const node = c.plan.nodes.find((n) => n.key === nodeKey);
       if (!node) throw new TaskError('NOT_FOUND');
       const existing = c.states.find((s) => s.nodeKey === nodeKey);
+      if (c.followupNodeKeys.has(nodeKey)) throw new TaskError('INVALID_STATE');
       if (existing?.outcome) throw new TaskError('INVALID_STATE');
       if (existing && ['claimed', 'unknown'].includes(existing.status)) throw new TaskError('BUSY');
       const e = evaluateStory(c.plan, c.states, { ...c, automatic: false });
@@ -643,6 +760,73 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       if (!c) return [];
       await this.reconcile(sql, ownerId, worldId, c);
       return readPublicationInvitationLinks(sql, ownerId, worldId);
+    });
+  }
+  /** A clipped, already presented opportunity; never a calendar entry or knowledge grant. */
+  invitationContext(
+    ownerId: string,
+    worldId: string,
+    actorId: string,
+  ): Promise<{ title: string; placeName: string | null; earliestAt: string } | null> {
+    id(actorId);
+    return this.tx(ownerId, worldId, async (sql, c) => {
+      if (!c) return null;
+      await this.overlayFollowups(sql, ownerId, worldId, c);
+      if (c.states.some((s) => ['claimed', 'unknown'].includes(s.status))) return null;
+      const evaluation = evaluateStory(c.plan, c.states, { ...c, automatic: false });
+      const contexts: { title: string; placeName: string | null; earliestAt: string }[] = [];
+      const followed = new Set(
+        (
+          await sql.query(
+            'SELECT node_key FROM parallel_life.publication_story_followups WHERE world_id=$1 AND owner_id=$2',
+            [worldId, ownerId],
+          )
+        ).rows.map((r) => r.node_key),
+      );
+      for (const s of c.states) {
+        const node = c.plan.nodes.find((n) => n.key === s.nodeKey);
+        if (
+          !node ||
+          followed.has(s.nodeKey) ||
+          node.intent.kind !== 'offer_invitation' ||
+          s.actorId !== actorId ||
+          s.status !== 'failed' ||
+          s.outcome ||
+          s.invitationId ||
+          !s.sourceEventId ||
+          !s.sourceMessageId ||
+          !legalPresentation(c.plan, node, c.storyNow) ||
+          (node.timeline && !evaluation.currentStages.includes(node.timeline.stageKey)) ||
+          evaluation.excluded.some((x) => x.nodeKey === s.nodeKey)
+        )
+          continue;
+        const proof = (
+          await sql.query(
+            "SELECT e.payload,cmd.result_state FROM parallel_life.world_events e JOIN parallel_life.commands cmd ON cmd.id=e.command_id AND cmd.world_id=e.world_id AND cmd.owner_id=e.owner_id AND cmd.status='succeeded' AND cmd.result_event_id=e.id JOIN parallel_life.world_messages m ON m.id=$4 AND m.world_id=e.world_id AND m.owner_id=e.owner_id AND m.actor_id=$5 AND m.document->>'actorId'=$5 AND m.document->>'role'='assistant' AND m.document->>'sourceEventId'=e.id AND length(trim(m.document->>'text'))>0 WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id=$3 AND e.command_id=$6 AND e.version=$7 AND e.version<=$8 AND e.payload->>'type'='turn.resolved' AND e.payload->'data'->>'actorId'=$5 AND EXISTS(SELECT 1 FROM parallel_life.publication_story_receipts r WHERE r.world_id=e.world_id AND r.owner_id=e.owner_id AND r.node_key=$9 AND r.command_id=$6::uuid AND r.source_event_id=e.id AND r.kind='failure' AND r.data->>'reason'='no_matching_actual_invitation')",
+            [
+              worldId,
+              ownerId,
+              s.sourceEventId,
+              s.sourceMessageId,
+              actorId,
+              s.commandId,
+              s.expectedVersion + 1,
+              c.version,
+              s.nodeKey,
+            ],
+          )
+        ).rows[0];
+        const at = proof?.payload.storyAt ?? proof?.result_state?.time;
+        if (!at || !legalPresentation(c.plan, node, at) || Date.parse(at) > Date.parse(c.storyNow))
+          continue;
+        const placeKey = node.intent.placeKey;
+        contexts.push({
+          title: node.intent.title,
+          placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
+          earliestAt: node.intent.earliestAt,
+        });
+      }
+      return contexts.length === 1 ? contexts[0]! : null;
     });
   }
   sceneBrief(
