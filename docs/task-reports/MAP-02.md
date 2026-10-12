@@ -2,8 +2,8 @@
 
 - **任务 ID**: MAP-02
 - **负责人**: Antigravity Pair Programmer
-- **执行分支**: `codex/map-realistic-01` -> 合入 `main`（提交 `fa1b83c`）
-- **发布状态**: Production READY (`dpl_HY6sbohXWZdbYYK4d3EuL75gDSg2`)
+- **执行分支**: `codex/map-realistic-01` -> 合入 `main`（最新提交 `02ba147`）
+- **发布状态**: Production READY (`dpl_EpNiCcE82ptUA54WX5KExwSDNMZy`)
 - **正式公网地址**: `https://parallel-life-nu.vercel.app/api/health`
 
 ---
