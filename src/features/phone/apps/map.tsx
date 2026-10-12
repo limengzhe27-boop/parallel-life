@@ -103,6 +103,11 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   const [selectedId, select] = useState<string | undefined>(
     () => target ?? selectedPlaces.get(worldId),
   );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<'food' | 'pharmacy' | 'park' | 'wc' | null>(null);
+  const [filterFavorite, setFilterFavorite] = useState(false);
+  const [mapTheme, setMapTheme] = useState<'standard' | 'transit'>('standard');
+  const [zoomScale, setZoomScale] = useState(1);
   const [readError, setReadError] = useState('');
   const [actionError, setActionError] = useState('');
   const error = map?.error || readError;
@@ -376,6 +381,46 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
         </div>
       ) : (
         <>
+          <div className={s.searchBarContainer}>
+            <div className={s.searchBar}>
+              <button
+                type="button"
+                className={s.searchBack}
+                onClick={() => {
+                  setSearchQuery('');
+                  if (current) selectPlace(current.id);
+                }}
+                aria-label="重置路线"
+              >
+                ‹
+              </button>
+              <div className={s.citySelector}>
+                <span className={s.cityName}>槐城</span>
+                <span className={s.cityDivider}>|</span>
+              </div>
+              <input
+                type="search"
+                className={s.searchInput}
+                placeholder="搜地点、查路线"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="搜索已知地点"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  className={s.clearSearchBtn}
+                  onClick={() => setSearchQuery('')}
+                  aria-label="清空输入"
+                >
+                  ×
+                </button>
+              ) : null}
+              <span className={s.searchGlass} aria-hidden="true">
+                🔍
+              </span>
+            </div>
+          </div>
           <section className={s.location} aria-label="当前位置">
             <span className={s.currentDot} aria-hidden="true" />
             <div>
@@ -386,7 +431,65 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
           {diagram && (
             <section className={s.diagram} aria-label="地点示意">
               <span className={s.diagramLabel}>地点示意 · 非地理距离</span>
-              <div className={s.graph} style={{ height: Math.max(220, diagram.height) }}>
+              <div
+                className={`${s.graph} ${mapTheme === 'transit' ? s.graphTransit : ''}`}
+                style={{
+                  height: Math.max(220, diagram.height),
+                  transform: zoomScale !== 1 ? `scale(${zoomScale})` : undefined,
+                  transformOrigin: 'center center',
+                  transition: 'transform 0.25s ease',
+                }}
+              >
+                {/* Decorative Elements */}
+                <div className={s.compassBadge} aria-hidden="true">
+                  <span>N ↑</span>
+                </div>
+                <div className={s.floatingTools} aria-label="地图辅助控制">
+                  <button
+                    type="button"
+                    className={`${s.toolBtn} ${mapTheme !== 'standard' ? s.toolBtnActive : ''}`}
+                    onClick={() => setMapTheme((t) => (t === 'standard' ? 'transit' : 'standard'))}
+                    aria-label="切换图层"
+                  >
+                    <span className={s.toolIcon} aria-hidden="true">
+                      ⊞
+                    </span>
+                    <span className={s.toolLabel}>图层</span>
+                  </button>
+                  <div className={s.zoomGroup}>
+                    <button
+                      type="button"
+                      className={s.zoomBtn}
+                      onClick={() =>
+                        setZoomScale((z) => Math.min(1.3, Number((z + 0.15).toFixed(2))))
+                      }
+                      aria-label="放大地图"
+                    >
+                      +
+                    </button>
+                    <div className={s.zoomDivider} />
+                    <button
+                      type="button"
+                      className={s.zoomBtn}
+                      onClick={() =>
+                        setZoomScale((z) => Math.max(0.85, Number((z - 0.15).toFixed(2))))
+                      }
+                      aria-label="缩小地图"
+                    >
+                      −
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className={s.locateBtn}
+                    onClick={() => {
+                      if (current) selectPlace(current.id);
+                    }}
+                    aria-label="回到当前地点"
+                  >
+                    ◎
+                  </button>
+                </div>
                 {/* Decorative Street Blocks */}
                 <div
                   className={s.gridBlock}
@@ -413,6 +516,22 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                   style={{ right: 36, bottom: 20, width: 96, height: 48 }}
                   aria-hidden="true"
                 />
+                <span className={s.streetNameOne} aria-hidden="true">
+                  丰和路
+                </span>
+                <span className={s.streetNameTwo} aria-hidden="true">
+                  长宁路
+                </span>
+                <span className={s.streetNameThree} aria-hidden="true">
+                  长宁巷
+                </span>
+                <div className={s.mapWatermark} aria-hidden="true">
+                  <span>◇ 槐城导航</span>
+                </div>
+                <div className={s.scaleBar} aria-hidden="true">
+                  <span>200米</span>
+                  <div className={s.scaleLine} />
+                </div>
                 <svg
                   className={s.lines}
                   viewBox={`0 0 320 ${Math.max(220, diagram.height)}`}
@@ -435,18 +554,30 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                   {diagram.edges.map(({ route, from, to }) => {
                     const isSelectedRoute =
                       route.id === mapSelection(space!, selected?.id).route?.id;
+                    const isTraveling =
+                      busyAction === 'travel' || operation?.status === 'pending';
                     return (
-                      <path
-                        key={route.id}
-                        data-known-route={route.id}
-                        className={
-                          isSelectedRoute
-                            ? `${s.selectedLine} ${busyAction === 'travel' ? s.animatedRoute : ''}`
-                            : s.line
-                        }
-                        d={`M${from.x} ${from.y} L${to.x} ${to.y}`}
-                        markerEnd={`url(#${routeArrow})`}
-                      />
+                      <g key={route.id}>
+                        <path
+                          data-known-route={route.id}
+                          className={
+                            isSelectedRoute
+                              ? `${s.selectedLine} ${busyAction === 'travel' ? s.animatedRoute : ''}`
+                              : s.line
+                          }
+                          d={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                          markerEnd={`url(#${routeArrow})`}
+                        />
+                        {isSelectedRoute && isTraveling && (
+                          <circle r="4" fill="#2563eb" className={s.movingVehicle}>
+                            <animateMotion
+                              path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                              dur="2s"
+                              repeatCount="indefinite"
+                            />
+                          </circle>
+                        )}
+                      </g>
                     );
                   })}
                 </svg>
@@ -476,12 +607,102 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
             </section>
           )}
           <section className={s.destinations} aria-label="选择目的地">
+            <div className={s.sheetHandle} aria-hidden="true" />
             <div className={s.exploreHeader}>
-              <h2 className={s.sectionTitle}>探索附近</h2>
-              <small>{space.places.length} 个已知地点</small>
+              <div className={s.exploreTitleGroup}>
+                <h2 className={s.sectionTitle}>探索附近</h2>
+                <small>{space.places.length} 个已知地点</small>
+              </div>
+              <span className={s.weatherBadge}>槐城区 · 晴 22°C</span>
+            </div>
+            <div className={s.categoryGrid} role="group" aria-label="地点快捷分类">
+              <button
+                type="button"
+                className={`${s.catBtn} ${activeCategory === 'food' ? s.catBtnActive : ''}`}
+                onClick={() => setActiveCategory((c) => (c === 'food' ? null : 'food'))}
+              >
+                <span className={`${s.catBadge} ${s.catFood}`}>餐</span>
+                <span className={s.catText}>美食</span>
+              </button>
+              <button
+                type="button"
+                className={`${s.catBtn} ${activeCategory === 'pharmacy' ? s.catBtnActive : ''}`}
+                onClick={() => setActiveCategory((c) => (c === 'pharmacy' ? null : 'pharmacy'))}
+              >
+                <span className={`${s.catBadge} ${s.catMed}`}>+</span>
+                <span className={s.catText}>药店</span>
+              </button>
+              <button
+                type="button"
+                className={`${s.catBtn} ${activeCategory === 'park' ? s.catBtnActive : ''}`}
+                onClick={() => setActiveCategory((c) => (c === 'park' ? null : 'park'))}
+              >
+                <span className={`${s.catBadge} ${s.catPark}`}>叶</span>
+                <span className={s.catText}>公园</span>
+              </button>
+              <button
+                type="button"
+                className={`${s.catBtn} ${activeCategory === 'wc' ? s.catBtnActive : ''}`}
+                onClick={() => setActiveCategory((c) => (c === 'wc' ? null : 'wc'))}
+              >
+                <span className={`${s.catBadge} ${s.catWc}`}>WC</span>
+                <span className={s.catText}>公厕</span>
+              </button>
+            </div>
+            <div className={s.quickActions}>
+              <button
+                type="button"
+                className={s.quickPill}
+                onClick={() => {
+                  if (current) selectPlace(current.id);
+                }}
+              >
+                <span className={s.quickIcon} aria-hidden="true">
+                  ◎
+                </span>{' '}
+                我的位置
+              </button>
+              <button
+                type="button"
+                className={`${s.quickPill} ${filterFavorite ? s.quickPillActive : ''}`}
+                onClick={() => setFilterFavorite((v) => !v)}
+              >
+                <span className={s.quickIcon} aria-hidden="true">
+                  🔖
+                </span>{' '}
+                收藏地点
+              </button>
             </div>
             {space.places
               .filter((place) => place.id !== current?.id)
+              .filter((place) => {
+                if (searchQuery.trim()) {
+                  const q = searchQuery.trim().toLowerCase();
+                  return (
+                    place.name.toLowerCase().includes(q) ||
+                    Boolean(place.description && place.description.toLowerCase().includes(q))
+                  );
+                }
+                if (activeCategory === 'food') {
+                  return /餐|吃|饭|店|馆|食|酒|茶|咖/.test(
+                    place.name + (place.description || ''),
+                  );
+                }
+                if (activeCategory === 'pharmacy') {
+                  return /药|医|院|急救|诊所|康/.test(
+                    place.name + (place.description || ''),
+                  );
+                }
+                if (activeCategory === 'park') {
+                  return /园|湖|林|绿|树|山|草/.test(
+                    place.name + (place.description || ''),
+                  );
+                }
+                if (activeCategory === 'wc') {
+                  return /公厕|卫|洗手|厕/.test(place.name + (place.description || ''));
+                }
+                return true;
+              })
               .map((place) => {
                 const knownRoute =
                   current &&
@@ -522,20 +743,33 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
             >
               <h2>{selected.name}</h2>
               {route && arrival && !operation && (
-                <div className={s.routeSummary}>
-                  <strong>{route.durationMinutes} 分钟</strong>
-                  <span>
-                    {route.modeLabel} · 约{' '}
-                    {arrival.slice(0, 10) === worldDateTimeLabel(space.storyNow).slice(0, 10)
-                      ? worldTimeLabel(
-                          new Date(
-                            Date.parse(space.storyNow) + route.durationMinutes * 60_000,
-                          ).toISOString(),
-                        )
-                      : arrival}{' '}
-                    到达
-                  </span>
-                </div>
+                <>
+                  <div className={s.routeModes} aria-label="出行方式">
+                    <span className={`${s.modeChip} ${s.modeChipActive}`}>
+                      🛵 {route.modeLabel || '电瓶车'}
+                    </span>
+                    <span className={s.modeChip} style={{ opacity: 0.7 }}>
+                      🚶 步行 {Math.round(route.durationMinutes * 2.5)}分
+                    </span>
+                    <span className={s.modeChip} style={{ opacity: 0.7 }}>
+                      🚕 打车 {Math.max(3, Math.round(route.durationMinutes * 0.6))}分
+                    </span>
+                  </div>
+                  <div className={s.routeSummary}>
+                    <strong>{route.durationMinutes} 分钟</strong>
+                    <span>
+                      {route.modeLabel} · 约{' '}
+                      {arrival.slice(0, 10) === worldDateTimeLabel(space.storyNow).slice(0, 10)
+                        ? worldTimeLabel(
+                            new Date(
+                              Date.parse(space.storyNow) + route.durationMinutes * 60_000,
+                            ).toISOString(),
+                          )
+                        : arrival}{' '}
+                      到达
+                    </span>
+                  </div>
+                </>
               )}
               {selected.description && <p className={s.description}>{selected.description}</p>}
               <p className={s.source}>

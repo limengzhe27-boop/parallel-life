@@ -366,6 +366,31 @@
   font-weight: 650;
   margin: 0 0 10px;
 }
+.routeModes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.modeChip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.modeChipActive {
+  background: #eff6ff;
+  border-color: #237af0;
+  color: #1d4ed8;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
+}
 .routeSummary {
   display: flex;
   flex-wrap: wrap;
@@ -479,3 +504,335 @@
   border: 0;
   text-align: center;
 }
+
+/* Realistic Search Bar */
+.searchBarContainer {
+  margin-bottom: 12px;
+}
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  padding: 6px 14px;
+  border-radius: 22px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+}
+.searchBack {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+}
+.citySelector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.cityDivider {
+  color: #cbd5e1;
+  font-weight: 300;
+}
+.searchInput {
+  flex: 1;
+  border: 0;
+  outline: none;
+  font-size: 13px;
+  color: #334155;
+  background: transparent;
+  min-width: 0;
+}
+.searchInput::placeholder {
+  color: #94a3b8;
+}
+.clearSearchBtn {
+  border: 0;
+  background: #e2e8f0;
+  color: #64748b;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.searchGlass {
+  font-size: 14px;
+  color: #237af0;
+  margin-left: 2px;
+}
+
+/* Compass & Canvas Decorators */
+.compassBadge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 6;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.streetNameOne {
+  position: absolute;
+  left: 110px;
+  top: 106px;
+  font-size: 9px;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  z-index: 1;
+}
+.streetNameTwo {
+  position: absolute;
+  left: 110px;
+  top: 172px;
+  font-size: 9px;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  z-index: 1;
+}
+.streetNameThree {
+  position: absolute;
+  left: 48px;
+  top: 128px;
+  font-size: 8px;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  writing-mode: vertical-rl;
+  pointer-events: none;
+  z-index: 1;
+}
+.mapWatermark {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  font-size: 9px;
+  color: #94a3b8;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 1;
+}
+.scaleBar {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 9px;
+  color: #64748b;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 1;
+}
+.scaleLine {
+  width: 32px;
+  height: 2px;
+  background: #64748b;
+}
+
+/* Floating Tools on the Right */
+.floatingTools {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toolBtn,
+.locateBtn {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  color: #334155;
+  min-width: 38px;
+  min-height: 38px;
+}
+.toolBtnActive {
+  background: #eff6ff;
+  border-color: #237af0;
+  color: #1d4ed8;
+}
+.toolIcon {
+  font-size: 14px;
+  line-height: 1;
+}
+.toolLabel {
+  font-size: 9px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.zoomGroup {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.zoomBtn {
+  border: 0;
+  background: transparent;
+  width: 38px;
+  height: 32px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #334155;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.zoomDivider {
+  height: 1px;
+  background: #e2e8f0;
+}
+.locateBtn {
+  font-size: 18px;
+  font-weight: 700;
+  color: #237af0;
+}
+
+/* Transit Theme */
+.graphTransit {
+  filter: contrast(1.05) saturate(1.1);
+}
+
+/* Bottom Sheet */
+.sheetHandle {
+  width: 36px;
+  height: 4px;
+  background: #cbd5e1;
+  border-radius: 2px;
+  margin: 0 auto 12px;
+}
+.exploreTitleGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.exploreTitleGroup small {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.weatherBadge {
+  font-size: 11px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+/* 4-Grid Categories */
+.categoryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 14px 0 12px;
+}
+.catBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  padding: 10px 4px;
+  transition: all 0.15s ease;
+}
+.catBtnActive {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+}
+.catBadge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+.catFood {
+  background: #fef3c7;
+  color: #d97706;
+}
+.catMed {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.catPark {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.catWc {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+.catText {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* Quick Actions */
+.quickActions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.quickPill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+.quickPillActive {
+  background: #eff6ff;
+  border-color: #237af0;
+  color: #1d4ed8;
+}
+.quickIcon {
+  font-size: 13px;
+}
+
