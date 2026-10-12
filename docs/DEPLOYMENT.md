@@ -1,3 +1,7 @@
+## 2026-10-12 · SCRIPT-INTAKE-01 内部发布后台规划
+
+首份资料版本 f357a8c / qjpht7ik8 / dpl_DXi7CRXvc9QuYLzNgEympqhAdHmh READY；正式alias匹配，health/possibilities200，私有源目录与docs直链404。业务仍83f9c11对应既有现场呈现，0源码/SQL/生产世界变更、0模型图调用。本地1335check/type0/336边界/build0，生产41迁移只读一致；首次未就绪默认55432沙箱连接EPERM保留，独立本地55476既有迁移后全过，PG/启动器已释放。原件4份与ZIP解包4项（1稿3图）保存在主.local私有目录、8摘要核验，不推Git/上传部署。仅安全索引/缺项/规划/报告归档，**发布后台和同事新剧本未上线**。剧情节点明确为可能性，未来字段版本化结构内容与稳定发布关系分开，旧存档不改写。详见WORLD_PUBLISHING_MVP_PLAN与SCRIPT-INTAKE-01；B/Q规划已接收，真实PG矩阵/15编辑操作均是待实施验收项。
+
 ## 2026-10-12 · SCENE-STAGE-01 现场舞台呈现
 
 业务 b7679a8488648ec6705b714c96adbf715125780a（adeb022呈现、b01916f媒体源修复）；生产 cjf1qa972 / dpl_G61acanuNRomCYkPxKUHLp9TpRCy READY，正式域名 https://parallel-life-nu.vercel.app 精确alias核验。1335check/336边界/type0/build0、10新SSR/源范围用例通过，生产41迁移checksum只读匹配，无SQL变更。公网旧暂停合成存档8组读取/隔离/版本一致通过，3场景SVG200，开发场景预览404；0新模型、世界创建/业务写、上传/生图。390×844、390×500及PC1440内420已检查，通知→微信→返回草稿/内滚位置恢复；220/top90仅几何模拟，不称真机键盘通过。
