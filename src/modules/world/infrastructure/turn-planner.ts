@@ -118,6 +118,22 @@ export class WorldTurnPlanner implements TurnPlanner {
       )
       .slice(-6)
       .map((f) => ({ factId: f.id, sourceEventId: f.sourceEventId, text: f.text }));
+    const invitation = context.turnOrigin === 'director' ? context.storyInvitation : undefined;
+    const storyOpportunity = invitation
+      ? {
+          kind: 'offer_invitation',
+          actorId: targetActorId,
+          title: invitation.title,
+          placeName: invitation.placeName,
+          earliestAtUtc: invitation.earliestAt,
+          earliestAtLocal: worldDateTimeLabel(invitation.earliestAt),
+          nowUtc: context.time,
+          nowLocal: worldDateTimeLabel(context.time),
+          timeZone: 'UTC+08:00',
+          allowRefusal: true,
+          playerAccepted: false,
+        }
+      : undefined;
     const raw = await this.model.complete(
       [
         {
@@ -127,6 +143,9 @@ export class WorldTurnPlanner implements TurnPlanner {
             '\nresultFocus只含当前人物已经获准知道的已保存现场结果。若本轮涉及它，先用具体对象与实际成果自然回应，再商量其中已开放但尚未执行的一步；不照抄来源ID或幕后说明，不给虚构收入、好感、合作、发行或完成整个人生追求。后续阶段事实只说留下了实际成果，不再发明新任务。不要把用户现在自述或候选观察替代已保存结果。仅正文确实承接相应结果时才在私有acknowledgedResultFactIds中填resultFocus的精确factId，不相关回复不ack；漏ack不得用假台词弥补。' +
             (context.turnOrigin === 'director'
               ? '\n【本轮JSON来源要求】当returnFocus.pendingChoiceStep非空，本轮必须在message.received之外输出一条choice.next_step：{"type":"choice.next_step","id":"step_1","choiceId":"pendingChoiceStep中实际choiceId","quote":"逐字截取本轮回复中提出的具体步骤"}。不虚构ID，不把缺少该来源的普通回复当下一步记录。主角尚未执行时，先提出待做条件或方法，不要求已经剪好/做好的成果。\n【本轮交付要求】正文用事实或上次原话中的具体对象/数量/限制来提出一个可实行的步骤，不能只写泛泛的“我准备好了，有需要告诉我”。读者需要能看出是哪件事情、你能具体做什么、下一句怎样接。尚未收到执行结果的决定只能当计划；不能把“我决定做”写成“你做好的”。没有期间发生的记录时，以现在可做的提议推进，不能假称期间已完成。具体步骤必须有做法，不能只是“看看/检查进展/准备材料”；例如核对一个已知限制、先试小批再比较、列出待确认的一项条件，取材于当前人生而非照抄例句。不要凭空加明天截止/已经交付等时间压力，不能说他人已经执行。只输出一两句自然手机来信的JSON，不重复上次已有的帮助原话。'
+              : '') +
+            (storyOpportunity
+              ? '\n【本轮邀约输出】storyOpportunity是此刻唯一合法候选，不是已赴约事实。根据本人性格决定邀请或拒绝。若邀请：一次提出明确日期和时间，effects同时包含本人message.received及{type:"appointment.proposed",id:"invite_1",title:storyOpportunity.title,at:"实际提议时间的UTC带毫秒时刻",participantIds:[storyOpportunity.actorId]}。title逐字一致。正文按UTC+08说同一时刻；at晚于nowUtc且不早于earliestAtUtc。proposed只是未答应的邀请，不是强制用户确认，不是已见面。不要只问有空吗却省略日程，也不要仅输出说明文字。若拒绝/暂不能约：只给本人真实回复，不生成日程。'
               : ''),
         },
         {
@@ -140,6 +159,7 @@ export class WorldTurnPlanner implements TurnPlanner {
               facts: context.facts,
             },
             actor: context.actor,
+            ...(storyOpportunity ? { storyOpportunity } : {}),
             possibleRecipients: context.possibleRecipients,
             previousDisclosures: context.previousDisclosures,
             recentMessages: context.messages.filter(

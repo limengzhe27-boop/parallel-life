@@ -71,7 +71,23 @@ export async function advancePublicationStory(
           memories: deps.memories,
           planner: {
             async propose(input) {
-              const proposal = parseProposal(await deps.planner.propose(input));
+              const proposal = parseProposal(
+                await deps.planner.propose({
+                  ...input,
+                  context: {
+                    ...input.context,
+                    ...(claim.intent.kind === 'offer_invitation'
+                      ? {
+                          storyInvitation: {
+                            title: claim.intent.title,
+                            placeName: claim.placeName,
+                            earliestAt: new Date(claim.intent.earliestAt).toISOString(),
+                          },
+                        }
+                      : {}),
+                  },
+                }),
+              );
               if (proposal.effects.some((e) => e.type === 'media.requested'))
                 throw new DomainError('INVALID_PROPOSAL', 'Story offers do not request images');
               if (claim.intent.kind === 'offer_invitation') {

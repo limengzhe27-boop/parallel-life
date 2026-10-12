@@ -117,6 +117,8 @@ test('a sourced story offer uses character context and persists an unaccepted in
   assert.equal(s.counts().calls, 1);
   assert.equal(s.counts().finishes, 1);
   assert.ok(!s.counts().seen.includes('PRIVATE_OWNER_ONLY'));
+  assert.ok(s.counts().seen.includes('"storyInvitation"'));
+  assert.ok(s.counts().seen.includes('"earliestAt":"2026-10-16T11:30:00.000Z"'));
   const w = await s.deps.worlds.get({ userId: 'o' }, 'w');
   assert.equal(w.messages.filter((m) => m.role === 'user').length, 0);
   assert.equal(w.appointments.length, 1);
