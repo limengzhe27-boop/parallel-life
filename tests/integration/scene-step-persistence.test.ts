@@ -421,6 +421,45 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
       dialogues: [{ actorId: actor.id, text: quote }],
     };
     await t.test(
+      'quoted receiving in either legacy wire rolls back actual handover and all result effects',
+      async () => {
+        for (const format of ['classic', 'v1']) {
+          const a = await enqueue(text),
+            before = await counts(),
+            beforeWorld = await state();
+          const quoted = '我现在接过R17钥匙和维修单。';
+          let calls = 0;
+          await run(
+            a.command.task!.id,
+            new ScenePlanner({
+              async complete(messages) {
+                if (++calls === 1)
+                  return JSON.stringify({ ...final, dialogues: [], npcActions: [] });
+                const payload = JSON.parse(messages[1]!.content);
+                const slot = payload.allowedActions.find(
+                  (candidate: { kind: string }) => candidate.kind === 'receive_r17',
+                );
+                assert.ok(slot);
+                return JSON.stringify({
+                  ...(format === 'v1' ? { actionFormat: 'indexed-npc-actions-v1' } : {}),
+                  text: `你说“${quoted}”`,
+                  actions: [
+                    format === 'v1'
+                      ? { actionIndex: slot.actionIndex, quote: quoted }
+                      : { matterId: trigger.id, kind: 'receive_r17', quote: quoted },
+                  ],
+                });
+              },
+            }),
+          );
+          assert.equal(calls, 2);
+          assert.equal((await scenes.read(owner, worldId)).task?.status, 'failed');
+          assert.deepEqual(await counts(), before);
+          assert.deepEqual((await state()).matters, beforeWorld.matters);
+        }
+      },
+    );
+    await t.test(
       'late failure after provisional completion rolls back step, NPC effects, opportunity and receipts',
       async () => {
         const a = await enqueue(text),
