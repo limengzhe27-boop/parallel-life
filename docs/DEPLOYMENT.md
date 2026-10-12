@@ -904,3 +904,12 @@ B61bfdab→ad9f657，Q62d2b7d→b094331；新indexed-observations-v3只有显式
 新NPC indexed-npc-actions-v2段数组/quoteIndex只保完整原段，不trim或补我/物件，legacy经典/v1严格兼容且内句号引用信用漏洞由ef60源全文界限修复，player/NPC共用；任务回滚真实数据库验证。不把技术发布当模型整链通过。
 
 READY后原handover仅一次manual复测实际failed8485ms、固定Unsupported player execution quote，world v8仍真实2/4，原review/explain源保持，唯一04权威账本10→12/18/open/1world，0图/个人资料。不是上一receiving_condition重复，不知八项具体子因，不猜raw。随后cce1acf只同原8条件/顺序新增固定player_step_condition/trustedpattern编号诊断，不改任何regex/接受规则：新9+相关157pure/type0/332过，完整1320check/build0、真实事务专项11过、生产41校验再次一致，待Q只读确认后发布READY再原任务最多一次manual复测。root主WIP保留未纳发布；旧03closed不动，剩6不扩，最后必须全部world正常APIpause并closed。
+
+
+## 2026-10-12 · WORLD-PUBLISH 首期基础规则
+
+基础业务74de967a4cebf9e3bec543c25aafccc99ea17b2f；Production18s9pbvjt / dpl_5vFByZhSwYmUmxgsHEYaJxhTdnKV READY，正式https://parallel-life-nu.vercel.app精确alias同部署。1541check/type0/339边界/build0；生产41迁移checksum只读一致，无新SQL。公网health/possibilities200，私有源归档/docs和未接publisher入口404。CLI手动部署返回Not authorized，Git自动部署成功经commit状态与Vercel精确alias双核，不称手动操作成功。根PG55476已正常停止无监听。
+
+已交付仅：版本化内容、隐藏/公开与历史/未来静态边界、阶段/前置/故事窗口校验，安全玩家编辑预览和未支持能力门；独立内部身份helper与后台设计文档。B102+Q92+根身份12=206专项全过，原6安全红例断言保留已修复；Q身份原12与5独立stdin反例通过，无新实质源码缺陷。快照重建撤权不等于在线自动重载；后续每次HTTP/数据库事务仍须当前权限校验。
+
+后台真实保存/发布、员工登录与cookie、发布素材、实际编辑UI、动态玩家实例化和试演未完成，新供稿仅私有归档，不称新作品已可体验。根仅部署基础，0新增员工配置/付费模型/图/上传/生产世界。B STORE0042方案已冻结给独占本地实施，生产未应用42。Q身份报告98f316d归档继续文档部署，最终非凭证交接存ignored.local/world-publish-foundation-handoff.json。
