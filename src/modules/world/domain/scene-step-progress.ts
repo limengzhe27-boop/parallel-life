@@ -372,12 +372,18 @@ export function resolveSceneStepProgress(input: {
           /请|麻烦|帮我/u.test(sceneAttemptBoundary(action.text).now) &&
           /检查|核对|复检/u.test(sceneAttemptBoundary(action.text).now) &&
           action.text.includes(actor.name);
-        if (
-          (!handover && !requested) ||
-          !/R17|接头/u.test(p.quote) ||
-          !/^我(?:现在|已经|当场|刚刚|刚)?(?:检查了|检查过|核对了|复检了)/u.test(p.quote)
-        )
-          fail('Inspection lacks bounded object/request');
+        const inspectionCondition =
+          !handover && !requested
+            ? 'handover_or_request_missing'
+            : !/R17|接头/u.test(p.quote)
+              ? 'object_not_named'
+              : !/^我(?:现在|已经|当场|刚刚|刚)?(?:检查了|检查过|核对了|复检了)/u.test(p.quote)
+                ? 'execution_not_explicit'
+                : undefined;
+        if (inspectionCondition)
+          fail(
+            `Inspection lacks bounded object/request;inspection_condition:${inspectionCondition}`,
+          );
         add('receiver_inspected', 'actor', action.text, p.quote, actor.id);
         if (!m.stepProgress?.steps.some((e) => e.stepId === 'receiver_inspected'))
           if (!actionTexts.includes(`${actor.name}实际检查了R17。`))

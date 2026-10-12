@@ -27,7 +27,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v16-indexed-npc-quote-segments';
+export const SCENE_PROMPT_VERSION = 'scene-text-v17-slot-quote-requirements';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -993,6 +993,19 @@ export class ScenePlanner implements ScenePlannerPort {
         matters: visibleMatters,
         stepExecution: actorSteps,
         allowedActions,
+        actionQuoteRequirements: allowedActions.map((slot) => ({
+          actionIndex: slot.actionIndex,
+          optionalProposal: true,
+          completeIndependentSegment: true,
+          startsWithPattern:
+            slot.kind === 'receive_r17'
+              ? '^我(?:现在|已经|当场|刚刚|刚)?(?:接过|收下|收到了|接收)'
+              : '^我(?:现在|已经|当场|刚刚|刚)?(?:检查了|检查过|核对了|复检了)',
+          requiredObjectAlternatives:
+            slot.kind === 'receive_r17'
+              ? [['钥匙'], ['维修单', '工单', '单据']]
+              : [['R17', '接头']],
+        })),
         rememberedEpisodes: remembered.retrievedMemories,
         entries: sceneContextEntries(
           c.entries.filter((e) => !blockedSources.has(e.sourceEventId)),
@@ -1016,7 +1029,7 @@ export class ScenePlanner implements ScenePlannerPort {
               (actorSteps.length
                 ? '本轮有获准stepExecution规则。【两套进度】savedCompletedSteps和savedRemainingSteps仅表示此前已提交且你获准目击的进度；steps.done也只依据这些已存证据。currentTurnStepCandidates和observedNow是本轮可见裁定候选，不是已提交事实。若本轮观察已具体描述玩家核对且有同事项order_reviewed候选，应自然回应核对结果，不再说“单号先核对清楚”或要求重做该步骤。savedRemainingSteps仍列该步骤只是提交前快照，不是本轮新增门槛。可提此前未完成且本轮候选未覆盖的真实下一步；不得提前把候选markdone、宣布整体完成、领奖、新阶段或机会。'
                 : '没有获准结构化事项，不得提出动作。') +
-              '本次人物回复只用显式完整段索引格式：严格JSON {"actionFormat":"indexed-npc-actions-v2","text":["当前本人直接对玩家的一段自然发言"],"actions":[]}。text为1至8个完整非空中文段，合计含段间换行最多1600字。每个实际动作单独一段，以“我”及本人此刻已执行的动作开头并写全对象；闲聊另成段，不截取或省略主语和物件。allowedActions是你本人本轮有限可选择的槽位，actionIndex整数从0开始；许可不是已经执行、强制合作或整体完成。只在你这次确实执行时用actions:[{actionIndex:实际槽位整数,quoteIndex:text中该完整动作段从0开始的整数序号}]，动作段3至500字，quoteIndex必须实际存在，不重抄quote，不选择半句话或另一段。最多4动作，不猜任何索引，不从别的角色借槽，不输出matterId/kind/actorId/quote字段。allowedActions=[]时actions必须[]，普通核对/说明不是你接收/检修；无动作也使用同一marker和text数组。示例仅展示格式、绝非默认台词或执行证据，不照抄制造动作。' +
+              '本次人物回复只用显式完整段索引格式：严格JSON {"actionFormat":"indexed-npc-actions-v2","text":["当前本人直接对玩家的一段自然发言"],"actions":[]}。text为1至8个完整非空中文段，合计含段间换行最多1600字。每个实际动作单独一段，以“我”及本人此刻已执行的动作开头并写全对象；闲聊另成段，不截取或省略主语和物件。allowedActions是你本人本轮有限可选择的槽位，actionIndex整数从0开始；许可不是已经执行、强制合作或整体完成。actionQuoteRequirements按actionIndex列出本动作原有句形和对象要求，属于格式约束而非已发生证据；不必填满所有槽，仅接收时不额外报检查。每个已执行动作必须各自有符合其类型的完整独立段，不能把接收段拿去填检查，不修改原段来凑要求。只在你这次确实执行时用actions:[{actionIndex:实际槽位整数,quoteIndex:text中该完整动作段从0开始的整数序号}]，动作段3至500字，quoteIndex必须实际存在，不重抄quote，不选择半句话或另一段。最多4动作，不猜任何索引，不从别的角色借槽，不输出matterId/kind/actorId/quote字段。allowedActions=[]时actions必须[]，普通核对/说明不是你接收/检修；无动作也使用同一marker和text数组。示例仅展示格式、绝非默认台词或执行证据，不照抄制造动作。' +
               (allowedActions.length
                 ? '本轮已提供动作槽位。receive_r17只表示你本人实际接过玩家明确交给你的R17钥匙和维修单；quote必须是同次text里第一人称“我接过/我现在接过/我收下”等实际执行原文并包含钥匙和维修单。inspect_r17只表示你本人实际检查R17/接头，quote必须明确“我检查了/核对了R17或接头”。选择哪一个actionIndex须读allowedActions，不能固定假定某个索引永远表示接收。未来承诺、意向、假设、请求、失败或否定不能列actions。已存动作不再次执行。'
                 : '本轮没有可执行动作槽位。不声称已接过、已检查或把玩家说明误记成你自己的动作；可自然回应本轮说明及未完成的一项真实下一步。') +

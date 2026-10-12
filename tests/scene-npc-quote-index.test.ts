@@ -417,3 +417,35 @@ test('v2 rejects more than four proposed actions without clipping the excess or 
     { code: 'INVALID_PROPOSAL' },
   );
 });
+
+test('each authorized action carries its own original grammar and objects without granting execution or changing slot identity', async () => {
+  const f = fixture('handover'),
+    r = await propose(f, segmentsReply());
+  assert.deepEqual(r.npc.actionQuoteRequirements, [
+    {
+      actionIndex: 0,
+      optionalProposal: true,
+      completeIndependentSegment: true,
+      startsWithPattern: '^我(?:现在|已经|当场|刚刚|刚)?(?:接过|收下|收到了|接收)',
+      requiredObjectAlternatives: [['钥匙'], ['维修单', '工单', '单据']],
+    },
+    {
+      actionIndex: 1,
+      optionalProposal: true,
+      completeIndependentSegment: true,
+      startsWithPattern: '^我(?:现在|已经|当场|刚刚|刚)?(?:检查了|检查过|核对了|复检了)',
+      requiredObjectAlternatives: [['R17', '接头']],
+    },
+  ]);
+  assert.deepEqual(
+    r.proposal.npcActions!.map((a) => a.kind),
+    ['receive_r17'],
+  );
+  const no = await propose(fixture());
+  assert.deepEqual(no.npc.actionQuoteRequirements, []);
+  const inspection = await propose(fixture('inspect'), segmentsReply([inspected]));
+  assert.equal(inspection.npc.actionQuoteRequirements[0].actionIndex, 0);
+  assert.deepEqual(inspection.npc.actionQuoteRequirements[0].requiredObjectAlternatives, [
+    ['R17', '接头'],
+  ]);
+});
