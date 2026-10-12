@@ -68,6 +68,46 @@ function context(): ScenePlanningContext {
     appointmentTitle: '拍摄',
   };
 }
+test('an ordinary scene action uses the string observation wire without indexed step instructions', async () => {
+  const c = context();
+  c.action = {
+    id: randomUUID(),
+    commandId: randomUUID(),
+    sceneId: c.scene.id,
+    ownerId: c.scene.ownerId,
+    worldId: c.world.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+    intent: 'attempt',
+    kind: 'move',
+    text: '我在桌边坐下。',
+    relatedMatterIds: [],
+    status: 'pending',
+  };
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      assert.ok(messages[0]!.content.includes('observation只用一个中文字符串'));
+      assert.ok(!messages[0]!.content.includes('evidenceFormat必须精确'));
+      return JSON.stringify({
+        location: '工作室',
+        narration: '桌边的灯亮着。',
+        presentActorIds: [],
+        outcome: 'succeeded',
+        observation: '你在桌边坐下。',
+        matterTitle: null,
+        initialMatters: [],
+        matterUpdates: [],
+        dialogues: [],
+        stepProposals: [],
+        npcActions: [],
+      });
+    },
+  });
+  const p = await planner.propose(c);
+  assert.equal(p.observation, '你在桌边坐下。');
+  assert.equal(p.outcome, 'succeeded');
+  assert.deepEqual(p.stepProposals, []);
+});
 test('current publication direction is limited to the actual invitation, place and own participant', () => {
   const c = context(),
     a = c.world.appointments[0]!;
