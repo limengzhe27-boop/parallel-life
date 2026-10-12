@@ -823,6 +823,7 @@ export function WorldPhoneSurface({
 
   return (
     <PhoneAppsProvider
+      transport={transport}
       worldId={data.id}
       groups={groups}
       data={phoneData}
@@ -1465,6 +1466,7 @@ export function WorldPhoneSurface({
           if (panel === 'scene')
             return (
               <ScenePanel
+                transport={transport}
                 key={data.id}
                 worldId={data.id}
                 contacts={phoneData.contacts}

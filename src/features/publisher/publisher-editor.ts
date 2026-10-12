@@ -333,7 +333,7 @@ export function updateActorInContent(
       });
     }
     next.initialKnowledge = knowledgeList;
-  } else if (form.knownFactKeys.length > 0) {
+  } else if (changed('knownFactKeys') && form.knownFactKeys.length > 0) {
     next.initialKnowledge = [
       {
         actorKey: form.key,

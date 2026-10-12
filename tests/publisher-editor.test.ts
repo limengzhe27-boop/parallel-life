@@ -325,3 +325,25 @@ test('visibility and indirect event intent references block deletion without des
   assert.throws(() => deleteActorFromContent(content, 'a'), /ACTOR_REFERENCED/);
   assert.equal(JSON.stringify(content), before);
 });
+
+test('editing one actor name or voice retains both actors independent knowledge', () => {
+  const content = deepClone(mockDraftContent);
+  (content.initialKnowledge as unknown[]).push({
+    actorKey: 'laozhou',
+    factKeys: ['fact_clinic_history'],
+  });
+  const before = deepClone(content.initialKnowledge);
+  const actor = (content.actors as Record<string, unknown>[])[0]!;
+  for (const field of ['name', 'voice'] as const) {
+    const form = parseActorEditor(actor, content);
+    form[field] = '新的文字';
+    assert.deepEqual(updateActorInContent(content, form).initialKnowledge, before);
+  }
+  const form = parseActorEditor(actor, content);
+  form.knownFactKeys = ['fact_clinic_history'];
+  assert.deepEqual(updateActorInContent(content, form).initialKnowledge, [
+    { actorKey: 'qingqing', factKeys: ['fact_clinic_history'] },
+    { actorKey: 'laozhou', factKeys: ['fact_clinic_history'] },
+  ]);
+  assert.deepEqual(content.initialKnowledge, before);
+});

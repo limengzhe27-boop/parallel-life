@@ -9,8 +9,8 @@ import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.t
 import s from './scenes.module.css';
 const status = { active: '正在现场', paused: '现场已暂停', ended: '已离场' };
 export function SceneIndexApp() {
-  const { worldId, data, actions } = usePhoneApps(),
-    client = useMemo(() => new SceneClient(), [worldId]);
+  const { transport, worldId, data, actions } = usePhoneApps(),
+    client = useMemo(() => new SceneClient(transport), [worldId, transport]);
   const [history, setHistory] = useState<SceneHistory>(),
     [records, setRecords] = useState<SceneSummary[]>([]),
     [loading, setLoading] = useState(false),

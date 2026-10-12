@@ -29,17 +29,8 @@ export function PublicationController() {
       );
       if (!r.ok) throw Error('load');
       const data = PublicationPlayerCatalogSchema.parse(await r.json());
-      setCatalog((old) =>
-        cursor && old
-          ? {
-              works: [
-                ...old.works,
-                ...data.works.filter((c) => !old.works.some((o) => o.id === c.id)),
-              ],
-              nextCursor: data.nextCursor,
-            }
-          : data,
-      );
+      // Each response remains a bounded page; accumulating pages exceeds the DTO limit.
+      setCatalog(data);
     } catch {
       setError('暂时无法读取已发布的世界，请稍后重新打开。');
     } finally {
