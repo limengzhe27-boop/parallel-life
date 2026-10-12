@@ -860,8 +860,14 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
     'downlisting blocks new admission while preserving old save and trial isolation',
     async () => {
       await works.unpublish(staff, w.id, { commandId: randomUUID(), expectedMetadataVersion: 1 });
+      const savedCard = (await worlds.catalog(owner)).works.find((x) => x.id === w.id);
+      assert.ok(savedCard);
+      assert.equal(savedCard.version, 1);
+      assert.equal(savedCard.worldId, first.worldId);
+      const noSaveOwner = randomUUID();
+      await new IdentityRepository(app).ensureGuest(noSaveOwner);
       assert.equal(
-        (await worlds.catalog(owner)).works.some((x) => x.id === w.id),
+        (await worlds.catalog(noSaveOwner)).works.some((x) => x.id === w.id),
         false,
       );
       await assert.rejects(
