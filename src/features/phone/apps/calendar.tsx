@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import {
+  AppointmentWaitReceiptSchema,
+  type AppointmentWaitPhoneActions,
+} from '../../../contracts/appointment-wait.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneInvitation } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
@@ -341,6 +345,42 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
     </div>
   );
 }
+/** A real host eligibility callback is required; no unconfigured or early-venue button is fabricated. */
+export function CalendarWaitAction({
+  invitation,
+  referenceTime,
+  eligible,
+  busy,
+  onWait,
+}: {
+  invitation: Pick<PhoneInvitation, 'status' | 'at'>;
+  referenceTime: string;
+  eligible: boolean;
+  busy: boolean;
+  onWait: () => void;
+}) {
+  if (
+    !eligible ||
+    invitation.status !== 'confirmed' ||
+    !(Date.parse(invitation.at) > Date.parse(referenceTime))
+  )
+    return null;
+  return (
+    <button
+      className={s.primary}
+      disabled={busy}
+      onClick={() => {
+        if (!busy) onWait();
+      }}
+    >
+      等到约定时间
+    </button>
+  );
+}
+export function calendarWaitTransition(from: string, to: string) {
+  const cross = dayKey(from) !== dayKey(to);
+  return `${cross ? `日期从${dayKey(from)}过渡到了${dayKey(to)}。` : ''}时间到了${timeText(to)}，还没有替你进入现场或记录赴约。`;
+}
 function InvitationDetail({
   invitation: n,
   open,
@@ -348,7 +388,35 @@ function InvitationDetail({
   invitation: PhoneInvitation;
   open: PhoneAppContext['open'];
 }) {
-  const { data, actions, drafts, setDraft, operations, run } = usePhoneApps();
+  const { worldId, data, actions, drafts, setDraft, operations, run } = usePhoneApps();
+  const waitActions = actions as typeof actions & AppointmentWaitPhoneActions;
+  const [waitNote, setWaitNote] = useState('');
+  const waitKey = `appointment-wait:${n.id}`,
+    waitOperation = operations[waitKey];
+  const waitEligible = Boolean(
+    waitActions.waitToAppointment && waitActions.canWaitToAppointment?.(n.id) === true,
+  );
+  async function waitForInvitation() {
+    if (!waitEligible || waitOperation?.busy || !waitActions.waitToAppointment) return;
+    setWaitNote('');
+    let sentCommand: string | undefined;
+    const receipt = await run(
+      waitKey,
+      `${n.id}:${n.responseVersion ?? n.version}:${n.at}`,
+      (commandId) => {
+        sentCommand = commandId;
+        return waitActions.waitToAppointment!(n.id, commandId);
+      },
+    );
+    const result = AppointmentWaitReceiptSchema.safeParse(receipt);
+    if (
+      result.success &&
+      result.data.invitationId === n.id &&
+      result.data.worldId === worldId &&
+      result.data.commandId === sentCommand
+    )
+      setWaitNote(calendarWaitTransition(result.data.fromStoryAt, result.data.storyNow));
+  }
   const [edit, setEdit] = useState(false),
     [confirmCancel, setConfirmCancel] = useState(false),
     [confirmResult, setConfirmResult] = useState<'attend' | 'miss' | null>(null),
@@ -452,6 +520,23 @@ function InvitationDetail({
         </p>
       )}
       <Links links={n.links} open={open} />
+      {waitNote && (
+        <p className={s.info} role="status">
+          {waitNote}
+        </p>
+      )}
+      <Feedback
+        operation={waitOperation}
+        success="等待时间已保存，请查看最新日程；尚未记录赴约。"
+      />
+      <CalendarWaitAction
+        invitation={n}
+        referenceTime={data.referenceTime ?? ''}
+        eligible={waitEligible}
+        busy={Boolean(waitOperation?.busy || operation?.busy)}
+        onWait={() => void waitForInvitation()}
+      />
+
       {(n.status === 'proposed' || n.status === 'confirmed') && (
         <div className={s.invitationActions}>
           {n.status === 'confirmed' && isDue && actions.enterScene && (

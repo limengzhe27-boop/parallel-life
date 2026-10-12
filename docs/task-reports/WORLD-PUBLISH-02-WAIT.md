@@ -17,3 +17,19 @@
 类型复验再发现同一领域fixture缺WorldState.schemaVersion；已补真实V1字段，源码也明确拒绝非V1世界。尚待最终type结果，不以首个prototype测试通过替代类型通过。55482独立ignored新cluster正在启动，旧runtime已私有备份、.env未动；当前无PG验收结论。
 
 最终接口段复验：便签与WorldState真实字段补齐后type退出0，23/23纯测试再次通过；384boundary。本阶段只有五个已登记新文件，暂无repo/API/PG用例，仍进行中。独立PG18.4/55482已启动，dev/test独立，未运行本任务迁移测试或写入fixtures；旧.env保存。
+
+## 后半段源码冻结与实际证据
+
+PostgresAppointmentWaitRepository使用真实PostgresDatabase与既有PostgresWorldRepository.get，不接内存生产仓储、不复制hydrate。owner/RLS读取原command+event派生严格原回执；fresh snapshot后同tx advisory activity lock、world FOR UPDATE/version复核、在途/unknown与activeScene、clock FOR UPDATE。事务以raw已锁world.time更新有效快照，防同版本时间读差；plan/apply验证可信邀约/唯一地点/更早别地确认；只写commands、world_events、worlds(time/version)、world_clock锚。保存raw紧凑状态只time/version，不把hydrated幕后投影或派生place links复制回原状态；不写world_space_receipts、不造travel/attendance/tasks/outbox/model。后半段没有新迁移。
+
+新POST /api/v1/worlds/[id]/invitations/wait，body严格仅三字段；owner由authenticated/CSRF提供，limit+parseBody后调用根组装的s.waitToAppointment，无真实方法时503。回执须match当前world/command/invitation/version。已知domain挡点回中文消息，未知错误仍原sanitized endpoint，不dump隐私。services/client/phone host/types/private-trial allowlist由根接，本树未写这些旧文件，独立API组装尚未完成，不能称接口/线上已可用。
+
+CalendarWaitAction只在canWaitToAppointment callback明确true、wait callback真实存在、confirmed未来时显示“等到约定时间”；未给资格不摆假入口。读busy并在手调handler时也防写；provider原run以invitation/responseVersion/at固定signature提供stable command，root host负责unknown维持expectedVersion/持久恢复与刷新。只在严格真实回执且当前world/command/invitation一致后显示跨天日期和“时间到了，还没有替你进入现场或记录赴约”；不自动入场/ModelExecute。日历保原接受/更改/赴约入口，场景仍另点进入。
+
+46/46本任务联合专项通过、0skip：23domain/合同/application原型 +9实际React SSR/native callback（32纯）+13 child与parent合14真实PostgreSQL集成。独立fresh55482 dev/test已应用基线45迁移，PG fixture用真实initialize/commit/accept/travel/wait，初始proposal明确本地合成不是供应商，fixture世界只有本地数据；真实20分钟travel→19:30等待、clock同event锚、其它投影/任务/初快照不改、confirmed不冒attended、重连原回执/暂停后回放、篡body冲突、owner与RLS隔离、改期取消版本冲突、更早别地/可选未接受、跨天、真实queued scene BUSY与activeScene、晚clock失败完全rollback、并发仅一推进。PG通过不代表模型、HTTP、worker或线上证明。
+
+后半段type首次查到UI畸形undefined status用例与PostgresWorldSpace测试漏catalog参数，再发现试猜catalog模块路径错误；均补真实catalog export和JSON畸形record，未弱化行为断言；46联合原断言再过，最终type退出0。先前SQL核验证据14与pureUI31保留，最新补畸形JSON回归32/14=46。全check/build仍下一步，根等待源码所以先冻结，不以missing组装/旧history或未来brief/worker未验伪绿。
+
+根已接fcef90f4a4cbe11c03d5d549335ac84f69fd30fe的核心（准确以首次已发hash为准），提供8744330e/context/history与a75f852/B48 worker后继。本人未将这些公共WIP复制进本树；旧已赴约存档完整history/动态offer地点证据/worker scene复合验证仍待在根最新准确集成树检验。private trial仍paused拒fresh wait；不偷偷resume。0生产/模型/图片/浏览器，无截图。
+
+独立PG55482仍在运行（session82402），完整check/build/根复合接续完成后必须停止并核无监听；此前runtime已ignored私有备份，.env从未改。日志 /private/tmp/appointment-wait-{core,ui,pg,delivery-tests}.log；不输出凭据、不提交ignored运行资源。报告将继续更新，源码后半段先交根，不自动领取其它任务。
