@@ -585,6 +585,9 @@ export function ScenePanel({
                     sessionStorage.removeItem(draftKey);
                     sessionStorage.removeItem(draftKey + ':command');
                   } catch {}
+                  if (inputRef.current) {
+                    inputRef.current.style.height = '46px';
+                  }
                   inputId.current = undefined;
                   setTask(receipt.task);
                   if (receipt.task) await execute(receipt.task);
@@ -654,6 +657,11 @@ export function ScenePanel({
                   maxLength={4000}
                   disabled={disabled}
                   enterKeyHint="send"
+                  onFocus={(e) => {
+                    setTimeout(() => {
+                      e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }, 250);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();

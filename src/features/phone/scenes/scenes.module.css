@@ -251,6 +251,16 @@
 .sceneMenu .buttons {
   padding-bottom: 10px;
 }
+@keyframes sceneFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .scenePanel .entry {
   display: flex;
   gap: 10px;
@@ -260,6 +270,7 @@
   color: #50606a;
   line-height: 1.75;
   background: none;
+  animation: sceneFadeIn 0.2s ease-out;
 }
 .scenePanel .entryCopy {
   min-width: 0;
@@ -348,6 +359,7 @@
 .suggestionPill {
   flex: 0 0 auto;
   max-width: 220px;
+  min-height: 28px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -360,6 +372,8 @@
   cursor: pointer;
   transition: all 0.15s ease;
   line-height: 1.4;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .suggestionPill:hover,
 .suggestionPill:focus-visible {
