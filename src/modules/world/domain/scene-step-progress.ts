@@ -280,17 +280,25 @@ export function resolveSceneStepProgress(input: {
     };
     for (const p of input.stepProposals.filter((p) => p.matterId === id)) {
       const spec = steps.find((s) => s.id === p.stepId);
-      if (
-        !spec ||
-        ['received', 'receiver_inspected'].includes(p.stepId) ||
-        action.resolution.outcome === 'failed' ||
-        !actual(p.inputQuote, sceneAttemptBoundary(action.text).now) ||
-        !actual(p.observationQuote, action.resolution.observation) ||
-        !spec.patterns.every((r) => r.test(p.inputQuote)) ||
-        !spec.patterns.every((r) => r.test(p.observationQuote)) ||
-        !/^你/u.test(p.observationQuote)
-      )
-        fail('Unsupported player execution quote');
+      const playerCondition = !spec
+        ? 'unsupported_step'
+        : ['received', 'receiver_inspected'].includes(p.stepId)
+          ? 'npc_only_step'
+          : action.resolution.outcome === 'failed'
+            ? 'action_failed'
+            : !actual(p.inputQuote, sceneAttemptBoundary(action.text).now)
+              ? 'input_not_actual'
+              : !actual(p.observationQuote, action.resolution.observation)
+                ? 'observation_not_actual'
+                : !spec.patterns.every((r) => r.test(p.inputQuote))
+                  ? `input_condition_${spec.patterns.findIndex((r) => !r.test(p.inputQuote))}`
+                  : !spec.patterns.every((r) => r.test(p.observationQuote))
+                    ? `observation_condition_${spec.patterns.findIndex((r) => !r.test(p.observationQuote))}`
+                    : !/^你/u.test(p.observationQuote)
+                      ? 'observation_not_player'
+                      : undefined;
+      if (playerCondition)
+        fail(`Unsupported player execution quote;player_step_condition:${playerCondition}`);
       const clause = actualClause(p.inputQuote, sceneAttemptBoundary(action.text).now) ?? '';
       const otherPerformer = world.actors.some((a) => {
         const name = a.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
