@@ -84,18 +84,108 @@
   box-shadow: 0 0 0 5px #dceaff;
 }
 .diagram {
-  padding: 14px 12px 20px;
-  background: #eaf0ed;
-  border: 1px solid #dde7e3;
-  border-radius: 22px;
+  position: relative;
+  padding: 0;
+  background: #edf1f3;
+  border: 1px solid #dbe2e6;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+.mapTopBar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  padding: 8px 14px;
+  border-radius: 24px;
+  box-shadow: 0 2px 10px rgba(23, 39, 53, 0.08);
+  border: 1px solid rgba(220, 228, 235, 0.8);
+}
+.searchCity {
+  font-size: 13px;
+  font-weight: 650;
+  color: #1a2d3d;
+  flex: 0 0 auto;
+}
+.searchDivider {
+  width: 1px;
+  height: 14px;
+  background: #d8e0e6;
+}
+.searchPlaceholder {
+  font-size: 12px;
+  color: #8c9ba5;
+  flex: 1;
+}
+.searchIcon {
+  font-size: 13px;
+  color: #237af0;
+}
+.floatingTools {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.toolButton {
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid #dce4eb;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4a5c68;
+  padding: 0;
 }
 .diagramLabel {
-  color: #657b72;
-  font-size: 11px;
+  display: none;
 }
 .graph {
   position: relative;
-  margin-top: 12px;
+  margin-top: 0;
+  width: 100%;
+  background: 
+    linear-gradient(rgba(235, 240, 243, 0.9), rgba(235, 240, 243, 0.9)),
+    repeating-linear-gradient(0deg, transparent, transparent 39px, #d6e0e6 39px, #d6e0e6 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, #d6e0e6 39px, #d6e0e6 40px);
+  background-size: auto, 40px 40px, 40px 40px;
+}
+.gridBlock {
+  position: absolute;
+  background: #f7f9fa;
+  border: 1px solid #e1e7ec;
+  border-radius: 6px;
+  pointer-events: none;
+}
+.greenBlock {
+  position: absolute;
+  background: #d9ebd8;
+  border: 1px solid #cce0cb;
+  border-radius: 8px;
+  pointer-events: none;
+}
+.roadName {
+  position: absolute;
+  font-size: 9px;
+  color: #9cb0bd;
+  pointer-events: none;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 .lines {
   position: absolute;
@@ -104,16 +194,31 @@
   height: 100%;
   overflow: visible;
   pointer-events: none;
+  z-index: 2;
 }
 .line,
 .selectedLine {
   fill: none;
-  stroke: #9bb7ab;
-  stroke-width: 2;
+  stroke: #c2d1db;
+  stroke-width: 5;
+  stroke-linecap: round;
 }
 .selectedLine {
-  stroke: #4a87d8;
-  stroke-width: 3;
+  stroke: #237af0;
+  stroke-width: 6;
+  filter: drop-shadow(0 2px 6px rgba(35, 122, 240, 0.35));
+}
+.animatedRoute {
+  stroke-dasharray: 6 6;
+  animation: routeFlow 1s linear infinite;
+}
+@keyframes routeFlow {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 .point,
 .selectedPoint {
@@ -121,82 +226,177 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  width: 76px;
+  gap: 3px;
+  width: 84px;
   min-height: 60px;
   padding: 0;
-  color: #3e554e;
+  color: #1a2c3a;
   background: transparent;
   border: 0;
-  transform: translate(-50%, -16px);
+  transform: translate(-50%, -20px);
   line-height: 1.3;
+  z-index: 5;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .selectedPoint {
-  color: #1e5189;
+  color: #0b51ad;
+  transform: translate(-50%, -23px) scale(1.05);
+  z-index: 7;
 }
 .pointLabel {
-  background: #f4f8f3;
-  padding: 3px 5px;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
+  padding: 2px 7px;
+  border-radius: 12px;
   max-width: 100%;
   font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #d5e0e7;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   overflow: hidden;
 }
 .selectedPoint .pointLabel {
-  color: #1c5b9c;
-  background: #f7fbff;
+  color: #0d5bc0;
+  background: #ffffff;
+  border-color: #237af0;
+  box-shadow: 0 3px 8px rgba(35, 122, 240, 0.22);
 }
 .point small,
 .selectedPoint small {
-  font-size: 10px;
-  color: #527ab1;
-  padding: 0 2px;
-  background: #f4f8f3;
+  font-size: 9px;
+  color: #237af0;
+  padding: 1px 5px;
+  background: #eef5ff;
+  border-radius: 8px;
+  font-weight: 600;
 }
 .pin,
 .currentPin {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 5px solid #f7faf8;
+  width: 28px;
+  height: 28px;
+  border: 3px solid white;
   border-radius: 50%;
-  background: #86a092;
-  font-size: 10px;
+  background: #507185;
+  font-size: 12px;
   color: white;
   line-height: 1;
-  box-shadow: 0 1px 5px #506b5e25;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.16);
+  transition: all 0.2s ease;
 }
 .currentPin {
   background: #237af0;
-  box-shadow: 0 0 0 4px #237af022;
+  box-shadow: 0 0 0 4px rgba(35, 122, 240, 0.25), 0 2px 8px rgba(0, 0, 0, 0.18);
+  position: relative;
+}
+.currentPin::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid #237af0;
+  opacity: 0.6;
+  animation: pulseRadar 2s ease-out infinite;
+}
+@keyframes pulseRadar {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
 }
 .selectedPoint .pin {
   background: #237af0;
+  transform: scale(1.1);
+}
+.travelingBeacon {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #ff5722;
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 87, 34, 0.7);
+  z-index: 8;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: white;
+  transition: left 0.4s linear, top 0.4s linear;
 }
 .destinations {
-  margin-top: 20px;
+  margin-top: 14px;
+  background: white;
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e7ecf0;
 }
+.exploreHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.quickTags {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f0f3f6;
+}
+.tagItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #556877;
+}
+.tagIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+.tagFood { background: #fef5ea; color: #d97706; }
+.tagMed { background: #fee2e2; color: #ef4444; }
+.tagPark { background: #ecfdf5; color: #10b981; }
+.tagWc { background: #eff6ff; color: #3b82f6; }
 .sectionTitle {
-  margin: 0 0 8px;
-  font-size: 16px;
+  margin: 0;
+  font-size: 15px;
   font-weight: 650;
+  color: #172735;
 }
 .destination {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 58px;
+  min-height: 52px;
   padding: 10px 0;
   border: 0;
-  border-bottom: 1px solid #e3e9ed;
+  border-bottom: 1px solid #f0f3f6;
   text-align: left;
   color: #223746;
   background: transparent;
+  transition: background 0.15s ease;
+}
+.destination:last-child {
+  border-bottom: 0;
 }
 .destination[aria-pressed='true'] {
   color: #1967c4;
@@ -207,32 +407,37 @@
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
-  background: white;
+  background: #f0f4f8;
   border-radius: 10px;
-  color: #668c7d;
-  font-size: 24px;
+  color: #486b88;
+  font-size: 18px;
 }
 .destinationName {
   flex: 1;
   min-width: 0;
   font-weight: 550;
   line-height: 1.4;
+  font-size: 14px;
 }
 .destination small {
   flex: 0 0 auto;
-  color: #75848d;
+  color: #7b8b95;
   font-size: 11px;
+  background: #f4f7f9;
+  padding: 2px 6px;
+  border-radius: 6px;
 }
 .chevron {
-  color: #91a0aa;
-  font-size: 22px;
+  color: #b0bdc6;
+  font-size: 20px;
 }
 .details {
-  margin-top: 20px;
+  margin-top: 14px;
   padding: 18px 16px;
   background: white;
-  border: 1px solid #e4eaf0;
-  border-radius: 22px;
+  border: 1px solid #e1e7ec;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 .details h2 {
   font-size: 19px;

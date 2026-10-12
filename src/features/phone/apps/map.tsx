@@ -386,10 +386,65 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
           {diagram && (
             <section className={s.diagram} aria-label="地点示意">
               <span className={s.diagramLabel}>地点示意 · 非地理距离</span>
-              <div className={s.graph} style={{ height: diagram.height }}>
+              {/* Realistic Map Search Bar */}
+              <div className={s.mapTopBar} aria-hidden="true">
+                <span className={s.searchCity}>槐城</span>
+                <span className={s.searchDivider} />
+                <span className={s.searchPlaceholder}>搜地点、查路线</span>
+                <span className={s.searchIcon}>🔍</span>
+              </div>
+              {/* Floating Map Tools */}
+              <div className={s.floatingTools} aria-hidden="true">
+                <button type="button" className={s.toolButton} tabIndex={-1} aria-label="图层">
+                  ⊞
+                </button>
+                <button type="button" className={s.toolButton} tabIndex={-1} aria-label="放大">
+                  +
+                </button>
+                <button type="button" className={s.toolButton} tabIndex={-1} aria-label="缩小">
+                  -
+                </button>
+                <button type="button" className={s.toolButton} tabIndex={-1} aria-label="定位">
+                  ◎
+                </button>
+              </div>
+              <div className={s.graph} style={{ height: Math.max(220, diagram.height) }}>
+                {/* Decorative Street Blocks */}
+                <div
+                  className={s.gridBlock}
+                  style={{ left: 16, top: 58, width: 68, height: 42 }}
+                  aria-hidden="true"
+                />
+                <div
+                  className={s.gridBlock}
+                  style={{ left: 104, top: 58, width: 88, height: 42 }}
+                  aria-hidden="true"
+                />
+                <div
+                  className={s.greenBlock}
+                  style={{ right: 16, top: 62, width: 72, height: 50 }}
+                  aria-hidden="true"
+                />
+                <div
+                  className={s.gridBlock}
+                  style={{ left: 24, bottom: 24, width: 84, height: 44 }}
+                  aria-hidden="true"
+                />
+                <div
+                  className={s.gridBlock}
+                  style={{ right: 36, bottom: 20, width: 96, height: 48 }}
+                  aria-hidden="true"
+                />
+                <span className={s.roadName} style={{ left: 24, top: 114 }} aria-hidden="true">
+                  丰和路
+                </span>
+                <span className={s.roadName} style={{ left: 140, top: 114 }} aria-hidden="true">
+                  长宁路
+                </span>
+
                 <svg
                   className={s.lines}
-                  viewBox={`0 0 320 ${diagram.height}`}
+                  viewBox={`0 0 320 ${Math.max(220, diagram.height)}`}
                   preserveAspectRatio="none"
                   aria-hidden="true"
                   focusable="false"
@@ -403,22 +458,26 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                       refY="2"
                       orient="auto"
                     >
-                      <path d="M0 0 L4 2 L0 4" fill="#82a598" />
+                      <path d="M0 0 L4 2 L0 4" fill="#237af0" />
                     </marker>
                   </defs>
-                  {diagram.edges.map(({ route, from, to }) => (
-                    <path
-                      key={route.id}
-                      data-known-route={route.id}
-                      className={
-                        route.id === mapSelection(space!, selected?.id).route?.id
-                          ? s.selectedLine
-                          : s.line
-                      }
-                      d={`M${from.x} ${from.y} L${to.x} ${to.y}`}
-                      markerEnd={`url(#${routeArrow})`}
-                    />
-                  ))}
+                  {diagram.edges.map(({ route, from, to }) => {
+                    const isSelectedRoute =
+                      route.id === mapSelection(space!, selected?.id).route?.id;
+                    return (
+                      <path
+                        key={route.id}
+                        data-known-route={route.id}
+                        className={
+                          isSelectedRoute
+                            ? `${s.selectedLine} ${busyAction === 'travel' ? s.animatedRoute : ''}`
+                            : s.line
+                        }
+                        d={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                        markerEnd={`url(#${routeArrow})`}
+                      />
+                    );
+                  })}
                 </svg>
                 {diagram.points.map(({ place, x, y }) => (
                   <button
@@ -446,7 +505,30 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
             </section>
           )}
           <section className={s.destinations} aria-label="选择目的地">
-            <h2 className={s.sectionTitle}>想去哪里</h2>
+            <div className={s.exploreHeader}>
+              <h2 className={s.sectionTitle}>探索附近</h2>
+              <small style={{ color: '#8899a6', fontSize: 11 }}>槐城区 · 晴 22°C</small>
+            </div>
+            {/* Quick Categories Bar like Amap/Baidu */}
+            <div className={s.quickTags} aria-hidden="true">
+              <div className={s.tagItem}>
+                <span className={`${s.tagIcon} ${s.tagFood}`}>餐</span>
+                <span>美食</span>
+              </div>
+              <div className={s.tagItem}>
+                <span className={`${s.tagIcon} ${s.tagMed}`}>+</span>
+                <span>药店</span>
+              </div>
+              <div className={s.tagItem}>
+                <span className={`${s.tagIcon} ${s.tagPark}`}>叶</span>
+                <span>公园</span>
+              </div>
+              <div className={s.tagItem}>
+                <span className={`${s.tagIcon} ${s.tagWc}`}>WC</span>
+                <span>公厕</span>
+              </div>
+            </div>
+            <h3 style={{ margin: '0 0 6px', fontSize: 13, color: '#687d8d' }}>已知地点</h3>
             {space.places
               .filter((place) => place.id !== current?.id)
               .map((place) => {
