@@ -1281,3 +1281,5 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 2026-10-12 根限定交付：206c8bed0f8cd2909d561c6e37d9a4f0c4b9caa9（小安836ea2c、B存储/43/45、Q编译/目录及根接线修复）Git自动5LxUL2fJYMqnRk9gcihf28ANRvVv READY，正式alias准确匹配。生产45checksum验证；check1642/type0/377边界/build0，完整真实库315pass+5明确模型opt-in skip。首次全库未传3专属端口环境，在连接前守卫拒绝；显式三TEST_PORT=55476后完整315绿，未放宽守卫。线上2合成存档（trial/player）、3真实角色回合全提交，按2/次保守占6/12，旧饮品设定和新回合先后决策承接成功；重复进入同world、历史时间各异、trial消息不混player、跨owner404。12非模型权限/页面probe，390/1440人物保存及390trial现场诚实空态通过。测试work已下架/两world paused/账本closed，无个人资料/图/上传。下架后本人目录保精确原卡片/world/进度v2，新guest不见且直接world404，0新增world/model。报告AUTH-HTTP/E-INTEGRATE/G。仅限定范围完成，不把有限样例当全部剧情成功。
 
 待接续：SOURCE-PREP原供稿差异仍需修订确认；候选剧情与章节时间线运行适配、发布素材manifest及头像/封面/场景图读取、全部字段可视化编辑（均未领取，依现有安全合同）。WORLD-PUBLISH-VERSIONS-LATER仍后置；目录仅继续每作品最近实际存档，不宣称所有版本切换。原现场事项/NPC行动/后续机会旧任务保持原记录，本批不替代旧任务验收。
+
+|WORLD-PUBLISH-01AUTH-ACCOUNT|[ ] 进行中|codex-main-publisher-account-20261012；根唯一集成|独立world-publish-intake-01；仅publisher-auth.ts/publisher-session.ts数字用户名兼容与专项测试、本任务报告、主表；只更新忽略员工配置/登录文件与生产PUBLISHER_PRINCIPALS，不动DB角色密码/员工UUID/玩家资料|用户明确要求更换后台账号密码；允许数字账号，保持签名/CSRF/权限/限流，新配置部署READY后验证登录及旧会话失效。凭证仅忽略服务端文件，不提交/日志，不调用模型。|

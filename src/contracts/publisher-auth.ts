@@ -3,13 +3,13 @@ import { Id } from './api.ts';
 
 /** Employee credentials are checked server-side; a player cannot submit privileges. */
 export const PublisherLoginSchema = z.strictObject({
-  username: z.string().regex(/^[a-z][a-z0-9_-]{2,31}$/),
+  username: z.string().regex(/^[a-z0-9][a-z0-9_-]{2,31}$/),
   password: z.string().min(1).max(160),
 });
 
 export const PublisherPublicIdentitySchema = z.strictObject({
   id: Id,
-  username: z.string().regex(/^[a-z][a-z0-9_-]{2,31}$/),
+  username: z.string().regex(/^[a-z0-9][a-z0-9_-]{2,31}$/),
   displayName: z
     .string()
     .min(1)

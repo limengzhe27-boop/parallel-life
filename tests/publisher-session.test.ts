@@ -8,6 +8,10 @@ import {
   publisherOriginAllowed,
 } from '../src/modules/identity/infrastructure/publisher-session.ts';
 import { SignedSession } from '../src/modules/identity/infrastructure/signed-session.ts';
+import {
+  PublisherLoginSchema,
+  PublisherSessionStateSchema,
+} from '../src/contracts/publisher-auth.ts';
 
 const secret = 'fictional-test-only-publisher-key-000000000000';
 const now = Date.parse('2026-10-12T09:00:00Z');
@@ -29,6 +33,27 @@ async function token() {
   assert.ok(value);
   return value.token;
 }
+
+test('numeric staff names work through login and public DTO while replacing a name revokes old sessions', async () => {
+  const numeric = '735281';
+  assert.ok(PublisherLoginSchema.safeParse({ username: numeric, password }).success);
+  const svc = new PublisherSessions(
+    secret,
+    config().map((p) => ({ ...p, username: numeric })),
+  );
+  const result = await svc.login(numeric, password, now);
+  assert.ok(result);
+  assert.equal(await svc.login(numeric, 'wrong', now), null);
+  assert.equal(await svc.login('editor_one', password, now), null);
+  assert.ok(
+    PublisherSessionStateSchema.safeParse({
+      publisher: result.publisher,
+      csrfToken: svc.csrf(result.token, now),
+    }).success,
+  );
+  assert.equal(svc.verify(await token(), now), null);
+  assert.ok(!PublisherLoginSchema.safeParse({ username: '_735281', password }).success);
+});
 
 test('publisher identity is separate from guest identity and does not serialize credential configuration', async () => {
   const svc = session(),

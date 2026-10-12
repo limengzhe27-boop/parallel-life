@@ -24,7 +24,7 @@ export type PublisherPrincipalConfig = PublisherPrincipal & {
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const usernamePattern = /^[a-z][a-z0-9_-]{2,31}$/;
+const usernamePattern = /^[a-z0-9][a-z0-9_-]{2,31}$/;
 const hashPattern = /^scrypt-v1\$([0-9a-f]{32})\$([0-9a-f]{128})$/;
 const ttlSeconds = 2 * 60 * 60;
 const equal = (left: string, right: string) => {
