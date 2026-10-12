@@ -31,6 +31,10 @@ import {
 import { DiscoverySchema, type DiscoverRequest } from '../../contracts/discovery.ts';
 import { z } from 'zod';
 import {
+  AppointmentWaitRequestSchema,
+  AppointmentWaitReceiptSchema,
+} from '../../contracts/appointment-wait.ts';
+import {
   ApiErrorSchema,
   SessionSchema,
   InterviewWorkspaceSchema,
@@ -150,6 +154,14 @@ export class LifeClient {
         method: 'POST',
         body: JSON.stringify(InvitationRequestSchema.parse(input)),
       },
+    );
+  }
+  async waitToAppointment(worldId: string, input: unknown) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/invitations/wait`,
+      AppointmentWaitReceiptSchema,
+      { method: 'POST', body: JSON.stringify(AppointmentWaitRequestSchema.parse(input)) },
     );
   }
   async world(id: string) {

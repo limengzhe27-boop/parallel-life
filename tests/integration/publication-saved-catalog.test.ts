@@ -1,3 +1,4 @@
+import { findPublicationCard } from './publication-catalog-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -210,7 +211,7 @@ test('real PG saved publication catalog keeps exact own editions without exposin
   const preMigration = await snapshot();
   await migrate(admin);
   const entry = async (id: string) =>
-    (await worlds.catalog(id)).works.find((card) => card.id === work.id);
+    await findPublicationCard((input) => worlds.catalog(id, input), work.id);
   await t.test(
     'function replacement changes no source revision/world/seed/baseline/message/receipt or account',
     async () => {
@@ -243,11 +244,19 @@ test('real PG saved publication catalog keeps exact own editions without exposin
   await t.test(
     'catalog row exposes only the fixed eight SQL columns and safe public card fields',
     async () => {
-      const row = (
-        await app.transaction(owner, (s) =>
-          s.query('SELECT * FROM parallel_life.publication_player_catalog(NULL,100)'),
-        )
-      ).rows.find((r) => r.id === work.id);
+      const row = await findPublicationCard(async ({ limit, cursor }) => {
+        const result = await app.transaction(owner, (s) =>
+          s.query('SELECT * FROM parallel_life.publication_player_catalog($1,$2)', [
+            cursor ?? null,
+            limit,
+          ]),
+        );
+        return {
+          works: result.rows.slice(0, limit),
+          nextCursor: result.rows.length > limit ? result.rows[limit - 1].id : null,
+        };
+      }, work.id);
+      assert.ok(row);
       assert.deepEqual(Object.keys(row), [
         'id',
         'version',
@@ -351,16 +360,20 @@ test('real PG saved publication catalog keeps exact own editions without exposin
         expectedMetadataVersion: work.metadataVersion,
       });
       for (const id of [owner, newPlayer, other, '', randomUUID(), owner]) {
-        const rows = (
-          await app.transaction(id, (s) =>
-            s.query('SELECT * FROM parallel_life.publication_player_catalog(NULL,100)'),
-          )
-        ).rows;
-        assert.equal(
-          rows.some((r) => r.id === work.id),
-          id === owner || id === other,
-        );
-        assert.ok(rows.every((r) => r.world_id !== trial.worldId));
+        const card = await findPublicationCard(async ({ limit, cursor }) => {
+          const result = await app.transaction(id, (s) =>
+            s.query('SELECT * FROM parallel_life.publication_player_catalog($1,$2)', [
+              cursor ?? null,
+              limit,
+            ]),
+          );
+          assert.ok(result.rows.every((r) => r.world_id !== trial.worldId));
+          return {
+            works: result.rows.slice(0, limit),
+            nextCursor: result.rows.length > limit ? result.rows[limit - 1].id : null,
+          };
+        }, work.id);
+        assert.equal(Boolean(card), id === owner || id === other);
       }
     },
   );

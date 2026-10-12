@@ -1,4 +1,8 @@
 'use client';
+import {
+  AppointmentWaitRequestSchema,
+  type AppointmentWaitRequest,
+} from '../../contracts/appointment-wait.ts';
 import { useWorldMap } from './map/use-map.ts';
 import { useWorldRecords } from './use-world-records.ts';
 import { ProgressState } from '../../components/progress-state.tsx';
@@ -767,6 +771,16 @@ export function WorldPhoneSurface({
   }, [data.id]);
 
   const [sceneWaiting, setSceneWaiting] = useState(false);
+  const [waitWorking, setWaitWorking] = useState(false);
+  const waitRequest = useRef<AppointmentWaitRequest | null>(null);
+  const waitGuard = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('pl-appointment-wait:' + data.id);
+      const parsed = raw ? AppointmentWaitRequestSchema.safeParse(JSON.parse(raw)) : null;
+      if (parsed?.success) waitRequest.current = parsed.data;
+    } catch {}
+  }, [data.id]);
   const sceneClient = useMemo(() => new SceneClient(transport), [data.id, transport]);
   const sceneSync = useMemo(() => new SceneWorldSync(data.id), [data.id]);
   const scenePhoneVersion = useRef(data.version ?? 0);
@@ -794,8 +808,8 @@ export function WorldPhoneSurface({
     return () => clearInterval(timer);
   }, [sceneWaiting, sceneClient, sceneSync, data.id, preview, onSceneWorldChanged]);
   useEffect(() => {
-    onExperienceBusy?.(sceneWaiting || groups.pending || map.working);
-  }, [sceneWaiting, groups.pending, map.working, onExperienceBusy]);
+    onExperienceBusy?.(sceneWaiting || groups.pending || map.working || waitWorking);
+  }, [sceneWaiting, groups.pending, map.working, waitWorking, onExperienceBusy]);
   useEffect(() => {
     void groups.refresh();
   }, [data.version, groups.refresh]);
@@ -837,6 +851,89 @@ export function WorldPhoneSurface({
       loadError={loadError}
       onReload={onReload}
       actions={{
+        canWaitToAppointment: (id) => {
+          const a = phoneData.invitations.find((a) => a.id === id),
+            m = map.data;
+          if (
+            preview ||
+            waitWorking ||
+            sceneWaiting ||
+            !a ||
+            a.status !== 'confirmed' ||
+            !m ||
+            m.paused ||
+            m.busy ||
+            m.currentSceneId ||
+            map.working ||
+            (map.operation && map.operation.status !== 'committed')
+          )
+            return false;
+          const places = m.places.filter((p) => p.appointmentIds.includes(id));
+          return (
+            places.length === 1 &&
+            places[0]!.id === m.currentPlaceId &&
+            Date.parse(a.at) > Date.parse(m.storyNow)
+          );
+        },
+        waitToAppointment: preview
+          ? undefined
+          : async (invitationId, commandId) => {
+              if (waitGuard.current) throw new ApiFailure('BUSY', '正在核对这个等待，请稍等。');
+              if (waitRequest.current && waitRequest.current.invitationId !== invitationId)
+                throw new ApiFailure('BUSY', '上次等待的结果还需要核对，请先重试原邀约。');
+              const input =
+                waitRequest.current ??
+                AppointmentWaitRequestSchema.parse({
+                  invitationId,
+                  commandId,
+                  expectedVersion: data.version ?? 0,
+                });
+              // Persist before the request, so a lost response or refresh can only replay this exact command.
+              try {
+                localStorage.setItem('pl-appointment-wait:' + data.id, JSON.stringify(input));
+              } catch {
+                throw new ApiFailure('UNAVAILABLE', '请允许浏览器保存等待记录后再试。');
+              }
+              waitRequest.current = input;
+              waitGuard.current = true;
+              setWaitWorking(true);
+              try {
+                const receipt = await client.waitToAppointment(data.id, input);
+                waitRequest.current = null;
+                try {
+                  localStorage.removeItem('pl-appointment-wait:' + data.id);
+                } catch {}
+                await Promise.allSettled([
+                  onSceneWorldChanged?.(receipt.version),
+                  onReload?.(),
+                  map.refresh(),
+                  reloadRecords?.(),
+                ]);
+                return receipt;
+              } catch (e) {
+                if (
+                  e instanceof ApiFailure &&
+                  [
+                    'VERSION_CONFLICT',
+                    'INVALID_COMMAND',
+                    'NOT_FOUND',
+                    'FORBIDDEN',
+                    'INVALID_INPUT',
+                    'IDEMPOTENCY_CONFLICT',
+                  ].includes(e.code)
+                ) {
+                  waitRequest.current = null;
+                  try {
+                    localStorage.removeItem('pl-appointment-wait:' + data.id);
+                  } catch {}
+                  await Promise.allSettled([onReload?.(), map.refresh()]);
+                }
+                throw e;
+              } finally {
+                waitGuard.current = false;
+                setWaitWorking(false);
+              }
+            },
         enterScene: preview
           ? undefined
           : async (appointmentId) => {

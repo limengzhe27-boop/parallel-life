@@ -34,6 +34,12 @@ export async function assertSpaceIdle(sql: SqlClient, worldId: string): Promise<
   if (
     (
       await sql.query(
+        "SELECT 1 FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND status IN ('claimed','unknown') LIMIT 1",
+        [worldId],
+      )
+    ).rowCount ||
+    (
+      await sql.query(
         "SELECT 1 FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1 AND status IN ('queued','running','unknown') LIMIT 1",
         [worldId],
       )

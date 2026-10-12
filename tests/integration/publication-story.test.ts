@@ -621,6 +621,7 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
   await t.test(
     'actual accept/cancel responses, not model promises, control typed invitation outcomes',
     async () => {
+      const historicalLinks = await story.invitationLinks(owner, world.worldId);
       let state = await runtime.get({ userId: owner }, world.worldId);
       await runtime.respondToInvitation(
         { userId: owner },
@@ -648,7 +649,7 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
       );
       p = await story.progress(owner, world.worldId);
       assert.equal(p.presented.find((s) => s.nodeKey === 'invite')!.outcome, 'declined');
-      assert.deepEqual(await story.invitationLinks(owner, world.worldId), []);
+      assert.deepEqual(await story.invitationLinks(owner, world.worldId), historicalLinks);
       assert.equal(await story.sceneBrief(owner, world.worldId, invitationId), null);
     },
   );

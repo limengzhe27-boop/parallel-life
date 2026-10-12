@@ -269,7 +269,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
         <div className={s.group}>
           <h4>可发生时段（选填）</h4>
           <p className={s.hint}>
-            开始包含，到期不包含；都用带Z的UTC时间。事件未配置窗口时沿用所属阶段窗口。
+            开始包含，到期不包含；按北京时间选择日期和时间。事件未配置窗口时沿用所属阶段窗口。
           </p>
           {field('不早于', [...path, 'notBefore'], '例如2026-10-12T09:00:00Z')}
           {field('到期时间', [...path, 'expiresAt'], '开始必须早于到期')}
@@ -362,7 +362,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                 1000,
               )}
               {field(
-                '发生时间（UTC）',
+                '发生时间（北京时间）',
                 ['occurredAt'],
                 `不得晚于世界起点 ${start || '尚未填写'}；例如2026-10-11T09:00:00Z`,
               )}
@@ -493,7 +493,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                     {selectField('邀约地点', ['intent', 'placeKey'], places)}
                     {field('邀约标题', ['intent', 'title'], '', false, 120)}
                     {field(
-                      '邀约最早时间（UTC）',
+                      '邀约最早时间（北京时间）',
                       ['intent', 'earliestAt'],
                       '例如2026-10-12T10:00:00Z',
                     )}
@@ -525,7 +525,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                         selectField('玩家所在地点', [...path, 'placeKey'], places)}
                       {kind === 'not_before' &&
                         field(
-                          '前置时间（UTC）',
+                          '前置时间（北京时间）',
                           [...path, 'at'],
                           '不得早于世界起点，也不能超过节点到期时间。',
                         )}

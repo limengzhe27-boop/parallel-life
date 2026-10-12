@@ -5,6 +5,7 @@ import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
 import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
+import { plotChoices } from './publisher-plot-model.ts';
 import { PublisherDraftContentSchema } from '../../contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
 import {
@@ -852,16 +853,28 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                   </div>
                   <div className={s.formField}>
                     <label className={s.fieldLabel} htmlFor="world-start-place">
-                      起点地点标识 (Place Key)
+                      故事开始时你在哪里
                     </label>
-                    <input
+                    <select
                       id="world-start-place"
                       className={s.input}
                       value={worldSettings.startPlaceKey}
                       onChange={(e) => handleWorldSettingsChange('startPlaceKey', e.target.value)}
-                      placeholder="place_office"
                       disabled={!session.canEdit || busy}
-                    />
+                    >
+                      <option value="">请选择起点地点</option>
+                      {worldSettings.startPlaceKey &&
+                      !plotChoices(draftContent, 'places').some(
+                        (p) => p.key === worldSettings.startPlaceKey,
+                      ) ? (
+                        <option value={worldSettings.startPlaceKey}>原地点引用待核对</option>
+                      ) : null}
+                      {plotChoices(draftContent, 'places').map((p) => (
+                        <option key={p.key} value={p.key}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className={s.formFieldFull}>
                     <label className={s.fieldLabel} htmlFor="world-tone-input">
@@ -907,6 +920,13 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                     const isSelected = selectedActorKey === a.key;
                     const identity = (a.publicCard as Record<string, unknown> | undefined)
                       ?.identity;
+                    const key = (a.publicCard as Record<string, unknown> | undefined)
+                      ?.avatarMediaKey;
+                    const art = publisherArtUrl(
+                      draftContent,
+                      typeof key === 'string' ? key : undefined,
+                      'avatar',
+                    );
                     return (
                       <button
                         key={a.key}
@@ -917,7 +937,21 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         onClick={() => setSelectedActorKey(a.key)}
                       >
                         <div className={`${s.avatarCircle} ${isSelected ? s.activeAvatar : ''}`}>
-                          {getAvatarChar(a.name)}
+                          {art ? (
+                            <img
+                              src={art}
+                              alt=""
+                              loading="lazy"
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                borderRadius: 'inherit',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          ) : (
+                            getAvatarChar(a.name)
+                          )}
                         </div>
                         <div className={s.actorMeta}>
                           <span className={s.actorName}>{a.name || '未命名'}</span>

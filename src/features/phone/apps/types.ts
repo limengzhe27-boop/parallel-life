@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { AppointmentWaitPhoneActions } from '../../../contracts/appointment-wait.ts';
 import type { GenesisSourceSchema } from '../../../contracts/world-records.ts';
 import type { PlayerRecords } from '../../../contracts/world-records.ts';
 import type { PhoneApp } from '../navigation.ts';
@@ -100,7 +101,7 @@ export type PhoneAppsData = {
   referenceTime?: string;
 };
 export type PhoneActionReceipt = { status: 'accepted' | 'committed'; taskId?: string };
-export type PhoneActions = {
+export type PhoneActions = AppointmentWaitPhoneActions & {
   enterScene?: (appointmentId: string) => Promise<PhoneActionReceipt>;
   setWallpaper?: (url: string) => void;
   uploadPhoto?: (file: File, commandId: string) => Promise<PhoneActionReceipt>;
