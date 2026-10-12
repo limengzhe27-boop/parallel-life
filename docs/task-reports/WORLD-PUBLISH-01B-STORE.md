@@ -54,3 +54,49 @@ check返回invalid/blocked/ready和安全code/path/missingCapabilities/mediaVeri
 当前只新增contract提案，类型/边界检查待记录；尚未写42 SQL或启55477。Root请冻结上述team范围、方法/输出/错误、ReviewPort检查证据与限流规则后再实施，同六文件独占保持。
 
 提案检查：新contract专项6/6pass、type0/339boundary、git diff --check过；尚未实现repository/42或启动PG。这些只证明请求/私稿结构边界，不证明保存/发布后台可用。版本列拟bigint并约束<=JS MAX_SAFE_INTEGER，与现Version契约一致，回DTO显式转换，不让超大expectedVersion默入32位截断。根可在冻结时缩为int并同步新契约，不改旧Version类型。
+
+## 给I的具体冻结表（团队与登录桶方向已批准）
+
+|命令/读取|请求字段（只这些）|返回|
+|---|---|---|
+|create|commandId UUID；title非空<=80；content纯JSON object，可{}，compact UTF8<=64KB|PublisherWork|
+|save|commandId；expectedDraftVersion；content同上|PublisherWork，draftVersion+1，metadataVersion/正式pointer不变|
+|check|commandId；expectedDraftVersion|PublisherCheckResult；绑定当前精确draft/hash；非完整或unsupported照实invalid/blocked|
+|publish|commandId；expectedDraftVersion；expectedMetadataVersion；checkId UUID|PublisherPublicationResult，服务端新publicationVersion、meta+1；不由body给approved/caps|
+|unpublish|commandId；expectedMetadataVersion|PublisherPublicationResult，meta+1/status=unpublished，保正式版本及pointer|
+|restore|commandId；expectedMetadataVersion；publicationVersion>=1|PublisherPublicationResult，meta+1/status=published，恢复指定已有本作品版；重新Root gate核验，不造新版本|
+|list|可信principalId独立参数；limit1..100、cursor UUID可省略|works summary[]/nextCursor nullable，不返回正文|
+|get|可信principalId、workId UUID，draftVersion可省略（当前）|PublisherWork，可读不可变历史修订|
+|publicCatalog|limit1..100、cursor UUID可省略，无员工principal参数|安全work cards[]/nextCursor，只已上架，无原稿/实例|
+|consumeLoginLimit|kind=global/client/username；服务端HMAC bucketHash 64hex，无body窗口/limit参数|allowed bool/retryAfterSeconds int，Root登录前消费3桶|
+
+所有请求version为0..Number.MAX_SAFE_INTEGER整数，正式version>=1；数据库bigint+同上限，禁止负数/小数/截断。请求体一律strict，员工id/role/owner/approved/supported/canPublish不在合同中。
+
+PublisherWorkSummary：id/title/draftVersion/metadataVersion/status(draft|published|unpublished)/publicationVersion(nullable)/createdAt/updatedAt。
+PublisherWork：上述summary+draft{version/contentHash64hex/content(JSON)/createdAt/createdByUUID}。
+PublisherCheckResult：id/workId/draftVersion/contentHash/status(invalid|blocked|ready)/issues[{path:(string|number)[],code}]/missingCapabilities[]/mediaVerified/trialVerified/checkedAt；无原稿文本/密码/模型原始错误。
+PublisherPublicationResult：workId/publicationVersion/metadataVersion/status(published|unpublished)。
+PublishedWorkCard：id/version/title/hook/identityLabel/experienceNote/description；初版不返回任何素材URL或完整结构模板。
+
+|数据库对象|pl_publisher内部服务|pl_app普通玩家|pl_worker|管理员bootstrap|
+|---|---|---|---|---|
+|publisher_principals|SELECT仅当前上下文自身；无INSERT/UPDATE/DELETE|无|无|可登记/撤权active和edit/publish，密码不入表|
+|publication_works|active team SELECT；edit create/save；publish上下架指针，trigger限制字段/单调版本|无原表权限|无|迁移/恢复维护|
+|draft revisions|active team SELECT；edit INSERT；禁止UPDATE/DELETE|无|无|本地fixture清理/受控维护|
+|checks|active team SELECT；edit或publish可检查后INSERT，immutable|无|无|维护|
+|formal versions|active team SELECT；publish INSERT，immutable|无隐藏全文|无|维护，非自动覆盖旧版|
+|receipts|只当前principal SELECT/INSERT，immutable，重放前权限检查|无|无|维护|
+|login buckets|无直接表权限，仅consume函数|无|无|清理过期桶|
+|internal has/lock_permission functions|EXECUTE；principal来自可信事务上下文，提交前锁核当前active/权限|无|无|函数所有者|
+|consume_login_limit函数|EXECUTE（私有服务连接，登录前可调用但不授作品权限）|无|无|函数所有者|
+|published_work_catalog只读函数|EXECUTE|仅此safe目录EXECUTE（不是内部publisher写/原稿函数）|无|函数所有者|
+
+所有新表ENABLE+FORCE RLS，新角色NOLOGIN/NOBYPASS；函数SECURITY DEFINER固定search_path=pg_catalog、全qualified表名，REVOKE PUBLIC。主要FK：work-currentDraft→draftRevision、work-publicationPointer→formalVersion均复合work/version且deferrable；check→精确draft/hash；formalVersion→精确draft/hash和check；receipt→principal/work。当前draft可变，修订/check/formal/receipt UPDATE/DELETE禁止。版本身份createdBy、创建时间不可改；metadata更新不改draft，save不改published内容。
+
+Root API错误冻结建议：身份cookie缺失/签名失效由Root UNAUTHORIZED/401；DB未知/inactive/operation权限不足FORBIDDEN/403；相关记录不存在NOT_FOUND/404；draft/meta冲突VERSION_CONFLICT/409；同command异请求IDEMPOTENCY_CONFLICT/409；非法JSON/strict体INVALID_INPUT/422；未ready或restore/unpublish状态不允许INVALID_STATE/409；登录桶不足RATE_LIMITED/429+retry；真实DB/gate依赖故障UNAVAILABLE/503。check invalid/blocked本身为200可读检查结果，不吞成成功发布。
+
+Trusted ReviewPort建议内部输入{workId,draftVersion,contentHash,content:严格parse后的PublishedWorldContent}；返回{reviewerVersion,runtimeCapabilities:ReadonlySet<string>,media:{verified,manifestHash:null|64hex},trial:{verified,receiptId:null|UUID}}。默认返回runtime空、media/trial未核。该参数只Root constructor/service注册，不从body传入。publish需原check精确revision/hash+同素材manifest/试演依据，且当次gate仍ready；restore核已有formal的精确内容/依据，不依赖新草稿当前内容。长核验在事务外，提交再锁work+principal、比版本/hash、原子版本/metadata/receipt，不占锁等模型。
+
+拟登录桶固定额度仍为global60/60秒、client10/900秒、username6/900秒；哈希用Root服务端HMAC，不存IP/username、密码、token、验证值。窗口计数用DB真实时间，不接世界clock；同桶原子并发upsert，未过期超额仍不放行，过期重置。若Root调整额度，仅本0042独占落实，不扩旧guest登录或limits表。
+
+以上具体合同/权限/错误待I最终冻结后实施repository与42；合同当前34421ac可直接审新src/contracts/world-publisher.ts，未启动55477/执行任何SQL。
