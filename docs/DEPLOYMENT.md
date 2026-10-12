@@ -922,3 +922,8 @@ READY后原handover仅一次manual复测实际failed8485ms、固定Unsupported p
 入口：https://parallel-life-nu.vercel.app/workbench 与 /published。员工凭证仅在主目录忽略文件中，不提交或输出。原编剧完整稿仍未正式上架；母任务保留。文档归档后的最终SHA/alias证据存忽略交接文件。
 
 待接续：SOURCE-PREP原供稿差异仍需修订确认；候选剧情与章节时间线运行适配、发布素材manifest及头像/封面/场景图读取、全部字段可视化编辑（均未领取，依现有安全合同）。WORLD-PUBLISH-VERSIONS-LATER仍后置；目录仅继续每作品最近实际存档，不宣称所有版本切换。原现场事项/NPC行动/后续机会旧任务保持原记录，本批不替代旧任务验收。
+
+
+## 2026-10-13 - Screenplay first public release
+
+Public version 2 is visible at /published. Eight actors and places, three stages, fourteen optional nodes, fourteen staggered historical/opening messages; eight original portraits and cover. Production 49 migration checksums verified; check 1749/1749, build success, PostgreSQL 391 pass/0 fail/5 explicit model opt-in skips. Real QA: 2 isolated saves, at most 20/24 text requests, no uploads/new image/personal data; actual invitation, travel20m, wait19:30, worker scene, partial action progress and subsequent private chat continuity passed. Both saves paused. Public discovery/cover, owner and trial404, manual director403, idempotent resume and matching projection versions checked. 390/1440 layout checked, no device keyboard claim. Original failures preserved; full original screenplay and remaining product work not complete. Exact final SHA/READY/alias evidence is in ignored script02-final-handoff.json. See WORLD-PUBLISH-02-INTEGRATE and plot guide.
