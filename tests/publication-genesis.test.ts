@@ -397,32 +397,6 @@ const unsupportedCases: [string, (c: PublicationContent) => void, string][] = [
     'unsupported_media',
   ],
   [
-    'timeline',
-    (c) => {
-      c.timeline = {
-        initialStageKey: 'start',
-        stages: [{ key: 'start', title: '阶段', order: 0, afterStageKeys: [] }],
-      };
-    },
-    'unsupported_timeline',
-  ],
-  [
-    'editorial candidate',
-    (c) => {
-      c.candidates.push({
-        key: 'later',
-        kind: 'candidate',
-        title: '未来',
-        editorialIntent: '以后也许发生',
-        actorKeys: ['a_first'],
-        prerequisites: [],
-        mutuallyExclusiveNodeKeys: [],
-        intent: { kind: 'editorial_only' },
-      });
-    },
-    'unsupported_candidates',
-  ],
-  [
     'runtime extension',
     (c) => {
       c.extensions.push({
@@ -707,4 +681,32 @@ test('repeated public world data for 12 actors still respects the original 65KB 
   c.world.publicSetting = '世'.repeat(1600);
   assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
   noCompile(input(c), 'unsupported', 'world_budget');
+});
+
+test('eligible authored timeline stays out of genesis facts and initial phone messages', () => {
+  const c = content();
+  c.timeline = {
+    initialStageKey: 'start',
+    stages: [{ key: 'start', title: '阶段', order: 0, afterStageKeys: [] }],
+  };
+  c.candidates.push({
+    key: 'future',
+    kind: 'candidate',
+    title: '未发生的机会',
+    editorialIntent: 'FUTURE_NOT_A_FACT',
+    actorKeys: ['a_first'],
+    timeline: {
+      stageKey: 'start',
+      excludeIfResolved: [],
+      alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+    },
+    prerequisites: [],
+    mutuallyExclusiveNodeKeys: [],
+    intent: { kind: 'offer_message', actorKey: 'a_first', text: 'FUTURE_NOT_A_MESSAGE' },
+  });
+  const r = compiled(input(c));
+  assert.ok(r.capabilities.includes('publication.timeline.v1'));
+  assert.ok(r.capabilities.includes('candidate.offer_message.v1'));
+  assert.ok(!JSON.stringify(r.world).includes('FUTURE_NOT_A_'));
+  assert.equal(r.world.messages.length, 3);
 });

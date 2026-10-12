@@ -1,3 +1,4 @@
+import {findPublicationCard} from './publication-catalog-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -347,7 +348,7 @@ test('real PostgreSQL isolated staff publication workspace, role boundaries and 
       async () => {
         const w = await make(),
           pub = await publish(w.id),
-          card = (await repo.publicCatalog()).works.find((x) => x.id === w.id)!;
+          card = (await findPublicationCard(input=>repo.publicCatalog(input),w.id))!;
         const before = (
           await admin.query('SELECT * FROM parallel_life.publication_versions WHERE work_id=$1', [
             w.id,
@@ -363,7 +364,7 @@ test('real PostgreSQL isolated staff publication workspace, role boundaries and 
         assert.equal(saved.draftVersion, 1);
         assert.equal(saved.metadataVersion, pub.metadataVersion);
         assert.equal(
-          (await repo.publicCatalog()).works.find((x) => x.id === w.id)!.title,
+          (await findPublicationCard(input=>repo.publicCatalog(input),w.id))!.title,
           card.title,
         );
         await repo.save(editor, w.id, {
@@ -529,14 +530,14 @@ test('real PostgreSQL isolated staff publication workspace, role boundaries and 
         const input = { commandId: randomUUID(), expectedMetadataVersion: pub.metadataVersion },
           unlisted = await repo.unpublish(publisher, w.id, input);
         assert.deepEqual(await repo.unpublish(publisher, w.id, input), unlisted);
-        assert.ok(!(await repo.publicCatalog()).works.some((x) => x.id === w.id));
+        assert.ok(!Boolean(await findPublicationCard(input=>repo.publicCatalog(input),w.id)));
         const restored = await repo.restore(publisher, w.id, {
           commandId: randomUUID(),
           expectedMetadataVersion: unlisted.metadataVersion,
           publicationVersion: pub.publicationVersion,
         });
         assert.equal(restored.status, 'published');
-        assert.ok((await repo.publicCatalog()).works.some((x) => x.id === w.id));
+        assert.ok(Boolean(await findPublicationCard(input=>repo.publicCatalog(input),w.id)));
         assert.equal((await repo.get(editor, w.id)).draftVersion, 1);
         assert.equal(
           Number(

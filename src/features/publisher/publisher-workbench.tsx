@@ -1,6 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
+import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
+import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
+import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
 import { PublisherDraftContentSchema } from '../../contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
 import {
@@ -10,8 +14,8 @@ import {
   checkActorDeletionSafety,
   deleteActorFromContent,
   parseWorldSettings,
-  updateWorldSettingsInContent,
   parsePlotData,
+  updateWorldSettingsInContent,
   isDraftDirty,
   deepClone,
   type ActorEditorForm,
@@ -161,10 +165,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
     return parseWorldSettings(draftContent, draftTitle);
   }, [draftContent, draftTitle]);
 
-  // Plot data
-  const plotData = useMemo(() => {
-    return parsePlotData(draftContent);
-  }, [draftContent]);
+  const plotData = useMemo(() => parsePlotData(draftContent), [draftContent]);
 
   // Handle actor field edits
   const handleActorChange = useCallback(
@@ -181,6 +182,17 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
   );
 
   // Handle world settings edits
+  const handleArtChange = (use: 'avatar' | 'cover', key: string) => {
+    if (!session.canEdit || busy) return;
+    try {
+      setDraftContent(selectPublisherArt(draftContent, use, key, currentActorForm?.key));
+    } catch {
+      setNotice({
+        type: 'error',
+        message: '这份素材暂时不能使用，请检查是否有重复或冲突的素材引用。',
+      });
+    }
+  };
   const handleWorldSettingsChange = useCallback(
     (field: keyof WorldSettingsForm, value: string) => {
       const nextSettings: WorldSettingsForm = {
@@ -705,6 +717,52 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                   幕后背景不会作为玩家已知信息。角色实际知道哪些事实，需要分别指定。
                 </p>
               </section>
+              <section className={s.card}>
+                <h3 className={s.sectionTitle}>剧本封面</h3>
+                <label className={s.fieldLabel} htmlFor="publication-cover">
+                  选择创作封面
+                </label>
+                <select
+                  id="publication-cover"
+                  className={s.input}
+                  disabled={!session.canEdit || busy}
+                  value={String(
+                    (draftContent.work as Record<string, unknown>)?.coverMediaKey ?? '',
+                  )}
+                  onChange={(e) => handleArtChange('cover', e.target.value)}
+                >
+                  <option value="">暂不设置</option>
+                  {PUBLICATION_ART.filter((a) => a.uses.includes('cover')).map((a) => (
+                    <option key={a.key} value={a.key}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+                {publisherArtUrl(
+                  draftContent,
+                  String((draftContent.work as Record<string, unknown>)?.coverMediaKey ?? ''),
+                  'cover',
+                ) ? (
+                  <img
+                    style={{
+                      width: '100%',
+                      maxHeight: 220,
+                      objectFit: 'cover',
+                      borderRadius: 12,
+                      marginTop: 12,
+                    }}
+                    alt="剧本创作封面"
+                    src={publisherArtUrl(
+                      draftContent,
+                      String((draftContent.work as Record<string, unknown>)?.coverMediaKey ?? ''),
+                      'cover',
+                    )}
+                  />
+                ) : null}
+                <p className={s.fieldHint}>
+                  这些图片是虚构世界的AI创作素材，不会使用玩家的私人照片。
+                </p>
+              </section>
               <details className={s.card}>
                 <summary>导入完整结构化草稿</summary>
                 <p className={s.fieldHint}>
@@ -778,13 +836,16 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                 <div className={s.formGrid}>
                   <div className={s.formField}>
                     <label className={s.fieldLabel} htmlFor="world-start-at">
-                      开场世界时间 (ISO 8601)
+                      开场日期和时间（北京时间）
                     </label>
                     <input
                       id="world-start-at"
                       className={s.input}
-                      value={worldSettings.startAt}
-                      onChange={(e) => handleWorldSettingsChange('startAt', e.target.value)}
+                      type="datetime-local"
+                      value={publicationLocalTime(worldSettings.startAt)}
+                      onChange={(e) =>
+                        handleWorldSettingsChange('startAt', publicationUtcTime(e.target.value))
+                      }
                       placeholder="2024-05-18T18:00:00Z"
                       disabled={!session.canEdit || busy}
                     />
@@ -880,7 +941,24 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                 <div className={s.actorHeaderCard}>
                   <div className={s.actorHeaderInfo}>
                     <div className={`${s.avatarCircle} ${s.largeAvatar} ${s.activeAvatar}`}>
-                      {getAvatarChar(currentActorForm.name)}
+                      {publisherArtUrl(draftContent, currentActorForm.avatarMediaKey, 'avatar') ? (
+                        <img
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            borderRadius: 'inherit',
+                          }}
+                          alt={`${currentActorForm.name}的创作形象`}
+                          src={publisherArtUrl(
+                            draftContent,
+                            currentActorForm.avatarMediaKey,
+                            'avatar',
+                          )}
+                        />
+                      ) : (
+                        getAvatarChar(currentActorForm.name)
+                      )}
                     </div>
                     <div>
                       <div className={s.actorHeaderTitle}>
@@ -889,15 +967,23 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         </strong>
                         <span className={s.tagFiction}>虚构角色</span>
                       </div>
-                      <button
-                        type="button"
-                        className={s.avatarLink}
-                        onClick={() =>
-                          alert('素材库上传将在独立素材管理器中开放，当前使用文字首字母头像。')
-                        }
+                      <label className={s.fieldLabel} htmlFor="publication-avatar">
+                        人物形象（AI创作）
+                      </label>
+                      <select
+                        id="publication-avatar"
+                        className={s.input}
+                        disabled={!session.canEdit || busy}
+                        value={currentActorForm.avatarMediaKey}
+                        onChange={(e) => handleArtChange('avatar', e.target.value)}
                       >
-                        更换头像
-                      </button>
+                        <option value="">使用姓名头像</option>
+                        {PUBLICATION_ART.filter((a) => a.uses.includes('avatar')).map((a) => (
+                          <option key={a.key} value={a.key}>
+                            {a.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -1119,87 +1205,14 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
           </div>
         )}
 
-        {/* ================= Tab 3: 剧情 ================= */}
+        {/* Plot authoring uses the same unsaved draft and real save/check pipeline. */}
         {work && activeTab === 'plot' && (
           <div className={s.workspace}>
-            <div className={s.editorPane}>
-              {/* History Facts */}
-              <section className={s.card}>
-                <div className={s.sectionHeader}>
-                  <h3 className={s.sectionTitle}>已发生客观历史事实 ({plotData.history.length})</h3>
-                  <p className={s.sectionHint}>开场前已确立的事实，可被人物知情引用</p>
-                </div>
-                {plotData.history.length === 0 ? (
-                  <p className={s.configNotice}>尚未录入既定历史事实</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {plotData.history.map((h) => (
-                      <div
-                        key={h.key}
-                        style={{
-                          padding: '10px 14px',
-                          background: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 8,
-                        }}
-                      >
-                        <div
-                          style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}
-                        >
-                          <strong>{h.key}</strong>
-                          <span style={{ color: '#64748b' }}>{h.occurredAt}</span>
-                        </div>
-                        <p style={{ margin: '6px 0 0', fontSize: 14 }}>{h.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              {/* Candidates */}
-              <section className={s.card}>
-                <div className={s.sectionHeader}>
-                  <h3 className={s.sectionTitle}>剧情候选节点 ({plotData.candidates.length})</h3>
-                  <p className={s.sectionHint}>待满足条件触发的可选事件（非必经任务）</p>
-                </div>
-                {plotData.candidates.length === 0 ? (
-                  <p className={s.configNotice}>尚未配置候选剧情事件</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {plotData.candidates.map((c) => (
-                      <div
-                        key={c.key}
-                        style={{
-                          padding: '12px 16px',
-                          background: '#ffffff',
-                          border: '1px solid #d8dee9',
-                          borderRadius: 8,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <strong style={{ fontSize: 15 }}>{c.title}</strong>
-                          <span style={{ fontSize: 12, color: '#566276' }}>{c.key}</span>
-                        </div>
-                        <p style={{ margin: '6px 0 0', fontSize: 14, color: '#334155' }}>
-                          {c.editorialIntent}
-                        </p>
-                        {c.actorKeys.length > 0 && (
-                          <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
-                            参与角色：{c.actorKeys.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
+            <PublisherPlotEditor
+              content={draftContent}
+              disabled={busy || !session.canEdit}
+              onChange={setDraftContent}
+            />
           </div>
         )}
       </main>

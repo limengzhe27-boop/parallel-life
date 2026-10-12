@@ -17,6 +17,15 @@ export type ScenePlanningContext = {
   action?: SceneAction;
   storyAt: string;
   appointmentTitle: string;
+  /** Only this sourced invitation; no future nodes or private character profiles. */
+  currentOfferBrief?: {
+    editorialIntent: string;
+    actorIds: string[];
+    placeId: string;
+    placeName: string;
+    invitationId: string;
+    sourceEventId: string;
+  } | null;
 };
 export type SceneProposal = {
   location: string;

@@ -1,3 +1,5 @@
+import { publicationPlaceLinks } from './publication-context.ts';
+import { readPublicationSceneBrief } from '../../settings/infrastructure/publication-story-repository.ts';
 import { resolveSceneStepProgress, sceneStepRule } from '../domain/scene-step-progress.ts';
 import { progressSceneMatters } from '../domain/matter-progression.ts';
 import { applySceneWorldResults, type SceneWorldResults } from '../domain/scene-world-results.ts';
@@ -114,6 +116,7 @@ export async function sceneWorld(
       ).values(),
     ],
   } as WorldState;
+  world = await publicationPlaceLinks(sql, world);
   const responses = (
     await sql.query(
       "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 AND payload->>'type'='invitation.responded' ORDER BY version",
@@ -814,6 +817,9 @@ export async function scenePlanning(
     matters: s.matters,
     action,
     appointmentTitle: s.scene.title,
+    currentOfferBrief: s.scene.appointmentId
+      ? await readPublicationSceneBrief(sql, ownerId, worldId, s.scene.appointmentId)
+      : null,
   };
 }
 export async function commitSceneProposal(

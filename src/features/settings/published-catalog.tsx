@@ -87,6 +87,14 @@ export function PublishedCatalog({
                 aria-label={card.title}
                 aria-busy={pending}
               >
+                {card.coverUrl ? (
+                  <img
+                    className={styles.cover}
+                    src={card.coverUrl}
+                    alt={`${card.title} · 创作封面`}
+                    loading="lazy"
+                  />
+                ) : null}
                 <p className={styles.identity}>
                   <span>你的身份</span>
                   {card.identityLabel}

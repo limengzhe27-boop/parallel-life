@@ -56,6 +56,9 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
       'publication_bridge_immutable',
       'publication_admission_consumed',
       'publication_seed_binding',
+      'publication_story_immutable',
+      'publication_story_node_identity',
+      'publication_story_node_source',
     ]);
     assert.equal(rows.filter((row) => triggerOnly.has(row.proname)).length, triggerOnly.size);
     for (const row of rows.filter((row) => triggerOnly.has(row.proname))) {

@@ -1,4 +1,6 @@
 import { PostgresWorldSpace } from '../modules/world/infrastructure/space-repository.ts';
+import { PublicationStoryRepository } from '../modules/settings/infrastructure/publication-story-repository.ts';
+import { advancePublicationStory } from './publication-story-service.ts';
 import { OfficialLifeRepository } from '../modules/settings/infrastructure/official-life-repository.ts';
 import { officialLifeCatalog } from '../modules/settings/infrastructure/official-presets/index.ts';
 import { PostgresPlayerRecords } from '../modules/world/infrastructure/player-records-repository.ts';
@@ -148,8 +150,50 @@ function createServices() {
     ) => new PostgresClockStore(db).setClock(ownerId, worldId, input),
     readWorldClock: (ownerId: string, worldId: string) =>
       new PostgresClockStore(db).read(ownerId, worldId),
-    advanceWorld: (ownerId: string, worldId: string, maxBeats?: number, automatic = false) =>
-      advanceWorld(
+    story: new PublicationStoryRepository(db),
+    advanceStoryOnly: async (ownerId: string, worldId: string, automatic = false) => {
+      const result = await advancePublicationStory(
+        {
+          story: new PublicationStoryRepository(db),
+          clock: new PostgresClockStore(db),
+          worlds: new PostgresWorldRepository(db),
+          planner: new WorldTurnPlanner(createTextModel()),
+          now: () => new Date().toISOString(),
+          newId: randomUUID,
+          memories: (actorId) =>
+            db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),
+        },
+        ownerId,
+        worldId,
+        automatic,
+      );
+      if (result.result) return result.result;
+      const clock = await new PostgresClockStore(db).read(ownerId, worldId);
+      return { storyNow: clock.storyNow, played: 0, folded: 0, summary: null, actors: [] };
+    },
+    advanceWorld: async (
+      ownerId: string,
+      worldId: string,
+      maxBeats?: number,
+      automatic = false,
+    ) => {
+      const scripted = await advancePublicationStory(
+        {
+          story: new PublicationStoryRepository(db),
+          clock: new PostgresClockStore(db),
+          worlds: new PostgresWorldRepository(db),
+          planner: new WorldTurnPlanner(createTextModel()),
+          now: () => new Date().toISOString(),
+          newId: randomUUID,
+          memories: (actorId) =>
+            db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),
+        },
+        ownerId,
+        worldId,
+        automatic,
+      );
+      if (scripted.handled && scripted.result) return scripted.result;
+      return advanceWorld(
         {
           clock: new PostgresClockStore(db),
           worlds: new PostgresWorldRepository(db),
@@ -166,7 +210,8 @@ function createServices() {
         },
         { userId: ownerId },
         worldId,
-      ),
+      );
+    },
     /** What one character may recall in this world; private profile records excluded. */
     actorMemories: (ownerId: string, actorId: string, worldId: string) =>
       db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),

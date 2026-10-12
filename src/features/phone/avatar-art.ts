@@ -1,8 +1,9 @@
 import type { WorldPhone } from '../../contracts/world-build.ts';
+import { PublicationAssetUrlSchema } from '../../contracts/publication-assets.ts';
 import { resolveWorldLifeArt } from '../discovery/life-art.ts';
 export type AvatarArt = Readonly<{
   url: string;
-  kind: 'authorized-photo' | 'character-illustration' | 'generic-illustration';
+  kind: 'authorized-photo' | 'character-illustration' | 'generic-illustration' | 'publication-art';
   label: string;
 }>;
 const characterArt = [
@@ -167,6 +168,12 @@ export function resolveAvatarArt(
         actor.photo.revision,
       kind: 'authorized-photo',
       label: '用户授权照片',
+    };
+  if (PublicationAssetUrlSchema.safeParse(actor.publicationAvatarUrl).success)
+    return {
+      url: actor.publicationAvatarUrl!,
+      kind: 'publication-art',
+      label: 'AI创作的虚构人物形象',
     };
   const official = actor.sourcePersonId ? null : resolveWorldLifeArt(world);
   const portrait = official

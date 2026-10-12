@@ -3,6 +3,7 @@ import { GenesisSourceSchema } from './world-records.ts';
 import { AlbumPhotoSchema } from './album.ts';
 import { InvitationSchema } from './invitations.ts';
 import { z } from 'zod';
+import { PublicationAssetUrlSchema } from './publication-assets.ts';
 import { Id, Timestamp, TaskSchema } from './api.ts';
 export const WorldBuildRequestSchema = z.strictObject({ commandId: Id, seedId: Id });
 export type WorldBuildRequest = z.infer<typeof WorldBuildRequestSchema>;
@@ -126,6 +127,7 @@ const WorldItemId = z.union([
     }, 'Invalid world item ID'),
 ]);
 export const WorldPhoneSchema = z.strictObject({
+  publicationWallpaperUrl: PublicationAssetUrlSchema.optional(),
   photos: z.array(AlbumPhotoSchema).optional(),
   historyLinks: z
     .array(
@@ -201,6 +203,7 @@ export const WorldPhoneSchema = z.strictObject({
       summary: z.string().optional(),
       sourcePersonId: Id.optional(),
       photo: z.strictObject({ assetId: Id, revision: z.number().int().positive() }).optional(),
+      publicationAvatarUrl: PublicationAssetUrlSchema.optional(),
     }),
   ),
   messages: z.array(

@@ -1,4 +1,5 @@
 import 'server-only';
+import { publicationStoryAdvanceRoute } from './publication-story-http.ts';
 import { z } from 'zod';
 import { trialOwnerToken, trialProxyTarget } from './publisher-trial-request.ts';
 import { Id } from '../contracts/api.ts';
@@ -104,6 +105,23 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
     let body: string | undefined;
     if (route.body === 'json')
       body = JSON.stringify(await publisherBody(request, z.record(z.string(), z.unknown()), 20000));
+    // Only this staff-authorized, exact trial binding may manually test an approved plot opportunity.
+    // The public player route cannot set this server argument or bypass automatic pacing.
+    if (path.join('/') === 'world/story/advance' && request.method === 'POST')
+      return publicationStoryAdvanceRoute(
+        new Request(origin + route.target, {
+          method: 'POST',
+          headers: {
+            Origin: origin,
+            Cookie: 'pl_session=' + token,
+            'X-CSRF-Token': guest.csrf(token),
+            'Content-Type': 'application/json',
+          },
+          body,
+        }),
+        trial.worldId,
+        true,
+      );
     const response = await fetch(origin + route.target, {
       method: request.method,
       headers: {

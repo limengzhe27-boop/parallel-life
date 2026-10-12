@@ -1,3 +1,11 @@
+.cover {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+  margin-bottom: 16px;
+}
 .catalog {
   --catalog-surface: #10233d;
   --catalog-alt: #152b46;

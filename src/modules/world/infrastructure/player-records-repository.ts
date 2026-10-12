@@ -5,6 +5,7 @@ import { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { PlayerRecordsReader } from '../application/player-records.ts';
 import { projectPlayerRecords, type PlayerRecordsInput } from '../domain/player-records.ts';
 import { replayWorldHistory, type WorldHistoryEvent } from '../domain/world-history.ts';
+import { readPublicationInvitationLinks } from '../../settings/infrastructure/publication-story-repository.ts';
 import { applyInvitationEvent } from '../domain/invitations.ts';
 import { DomainError } from '../domain/errors.ts';
 import { PlayerRecordsSchema } from '../../../contracts/world-records.ts';
@@ -72,7 +73,7 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
                 r.payload.version === r.version,
             )
             .map((r) => r.payload) as WorldHistoryEvent[];
-          appointments = replayWorldHistory(initial, history, world.version).world.appointments;
+          appointments = replayWorldHistory(initial, history, world.version, await readPublicationInvitationLinks(sql,ownerId,worldId)).world.appointments;
         }
       }
       const ids = [

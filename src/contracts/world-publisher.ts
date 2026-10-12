@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Id, Timestamp, Version } from './api.ts';
+import { PublicationAssetUrlSchema } from './publication-assets.ts';
 import { publicationStorageIssues } from '../modules/settings/domain/publication-content.ts';
 
 const text = (max: number) =>
@@ -111,6 +112,7 @@ export const PublishedWorkCardSchema = z.strictObject({
   identityLabel: text(300),
   experienceNote: text(300),
   description: text(1600),
+  coverUrl: PublicationAssetUrlSchema.optional(),
 });
 export const PublishedWorkCatalogSchema = z.strictObject({
   works: z.array(PublishedWorkCardSchema).max(100),

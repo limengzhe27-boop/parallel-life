@@ -3,6 +3,7 @@ import { compilePublicationGenesis } from '../modules/settings/infrastructure/pu
 import type { PublicationWorldCompilerPort } from '../modules/settings/application/publication-world-ports.ts';
 import type { PublicationReviewPort } from '../modules/settings/infrastructure/publication-repository.ts';
 import { TaskError } from '../modules/tasks/infrastructure/task-repository.ts';
+import { publicationArt } from '../contracts/publication-assets.ts';
 export const publicationWorldCompiler: PublicationWorldCompilerPort = {
   prepare(input) {
     const compiled = compilePublicationGenesis({
@@ -50,20 +51,30 @@ export function publicationReview(
         seedId: randomUUID(),
         newId: randomUUID,
       });
-      const mediaAbsent =
-        input.content.media.length === 0 &&
+      const mediaVerified =
+        input.content.media.every(
+          (m) => (m.use === 'avatar' || m.use === 'cover') && Boolean(publicationArt(m, m.use)),
+        ) &&
         input.content.phone.album.length === 0 &&
-        !input.content.work.coverMediaKey &&
-        input.content.actors.every((a) => !a.publicCard.avatarMediaKey) &&
         input.content.places.every((p) => !p.sceneMediaKey);
       const trial = await evidence(input.workId, input.draftVersion, input.contentHash);
       return {
-        reviewerVersion: 'publication_opening_v1',
+        reviewerVersion: 'publication_story_media_v2',
         runtimeCapabilities: new Set(compiled.status === 'compiled' ? compiled.capabilities : []),
         media: {
-          verified: mediaAbsent,
-          manifestHash: mediaAbsent
-            ? createHash('sha256').update('empty-publication-media-manifest-v1').digest('hex')
+          verified: mediaVerified,
+          manifestHash: mediaVerified
+            ? createHash('sha256')
+                .update(
+                  input.content.media.length
+                    ? JSON.stringify(
+                        input.content.media
+                          .map((m) => publicationArt(m, m.use as 'avatar' | 'cover')?.sha256)
+                          .sort(),
+                      )
+                    : 'empty-publication-media-manifest-v1',
+                )
+                .digest('hex')
             : null,
         },
         trial,

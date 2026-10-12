@@ -11,6 +11,7 @@ import {
   type PublicationTrialStartRequest,
 } from '../../../contracts/publication-worlds.ts';
 import { Id, Timestamp } from '../../../contracts/api.ts';
+import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { PublishedWorldContentSchema } from '../../../contracts/published-world-content.ts';
 import { publicationStorageIssues } from '../domain/publication-content.ts';
 import type {
@@ -429,6 +430,17 @@ export class PublicationWorldRepository {
           limit,
         ])
       ).rows;
+      const covers = new Map<string, string>();
+      for (const r of rows.slice(0, limit)) {
+        const media = (
+          await sql.query('SELECT parallel_life.publication_catalog_visual($1,$2) AS media', [
+            r.id,
+            r.version,
+          ])
+        ).rows[0]?.media;
+        const art = publicationArt(media, 'cover');
+        if (art) covers.set(r.id, art.url);
+      }
       return PublicationPlayerCatalogSchema.parse({
         works: rows.slice(0, limit).map((r) => ({
           id: r.id,
@@ -439,6 +451,7 @@ export class PublicationWorldRepository {
           experienceNote: r.experience_note,
           description: r.description,
           worldId: r.world_id ?? null,
+          ...(covers.has(r.id) ? { coverUrl: covers.get(r.id) } : {}),
         })),
         nextCursor: rows.length > limit ? rows[limit - 1].id : null,
       });

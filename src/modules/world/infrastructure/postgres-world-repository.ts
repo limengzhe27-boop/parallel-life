@@ -1,3 +1,5 @@
+import { publicationPlaceLinks } from './publication-context.ts';
+import { readPublicationInvitationLinks } from '../../settings/infrastructure/publication-story-repository.ts';
 import { resultAckPrefix } from '../domain/matter-progression.ts';
 import { replayWorldHistory, type WorldHistoryEvent } from '../domain/world-history.ts';
 import { mergeAppointments } from '../domain/genesis-links.ts';
@@ -188,6 +190,7 @@ export class PostgresWorldRepository implements WorldRepository {
         ]),
       ),
     };
+    hydrated = await publicationPlaceLinks(sql, hydrated);
     // Scene attendance retains the invitation's original immutable message source.
     // Rebuild only in worlds with an actual new attendance event, through this exact
     // receipt version: old response projections cannot overwrite newer attendance.
@@ -202,7 +205,7 @@ export class PostgresWorldRepository implements WorldRepository {
           [state.id, state.version],
         )
       ).rows.map((r) => r.payload) as WorldHistoryEvent[];
-      const rebuilt = replayWorldHistory(initial as WorldState, events, state.version).world;
+      const rebuilt = replayWorldHistory(initial as WorldState, events, state.version, await readPublicationInvitationLinks(sql,state.ownerId,state.id)).world;
       return {
         ...hydrated,
         appointments: rebuilt.appointments,

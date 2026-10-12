@@ -1,3 +1,4 @@
+import { sceneOfferIntent } from '../application/scene-offer-context.ts';
 import {
   sceneStepContext,
   sceneStepRule,
@@ -27,7 +28,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v17-slot-quote-requirements';
+export const SCENE_PROMPT_VERSION = 'scene-text-v18-sourced-offer-direction';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -599,6 +600,7 @@ export class ScenePlanner implements ScenePlannerPort {
         instruction: '以当地故事时间描写光线、活动和环境；不要把UTC小时当作当地小时。',
       },
       appointment: activeAppointment?.title ?? c.appointmentTitle,
+      currentOfferBrief: sceneOfferIntent(c),
       opening,
       actors: candidates.map((a) => ({ id: a.id, name: a.name, relationship: a.relationship })),
       facts: c.world.facts.filter((f) => f.visibility.kind === 'world').slice(-16),
@@ -841,6 +843,7 @@ export class ScenePlanner implements ScenePlannerPort {
               role: 'user',
               content: JSON.stringify({
                 actor: remembered.actor,
+                currentOfferBrief: sceneOfferIntent(c, actor.id),
                 addressee: { kind: 'player', name: null },
                 storyAt: c.storyAt,
                 localStoryTime: { zone: 'UTC+08:00', label: worldDateTimeLabel(c.storyAt) },
@@ -989,6 +992,7 @@ export class ScenePlanner implements ScenePlannerPort {
           instruction: '以当地故事时间描写光线、活动和环境；不要把UTC小时当作当地小时。',
         },
         appointment: c.appointmentTitle,
+        currentOfferBrief: sceneOfferIntent(c, actor.id),
         visibleFacts: remembered.facts,
         matters: visibleMatters,
         stepExecution: actorSteps,

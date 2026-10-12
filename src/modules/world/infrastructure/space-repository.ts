@@ -1,3 +1,4 @@
+import { publicationPlaceLinks } from './publication-context.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { WorldSpacePort } from '../application/space.ts';
@@ -71,7 +72,7 @@ async function owned(sql: SqlClient, owner: string, id: string, lock = false): P
     )
   ).rows[0];
   if (!row) throw new DomainError('NOT_FOUND');
-  return { ...row.state, version: Number(row.version) };
+  return publicationPlaceLinks(sql, { ...row.state, version: Number(row.version) });
 }
 async function clock(sql: SqlClient, w: WorldState): Promise<WorldClock> {
   const r = (

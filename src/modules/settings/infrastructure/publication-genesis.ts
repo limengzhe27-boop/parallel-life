@@ -1,4 +1,5 @@
 import { Id } from '../../../contracts/api.ts';
+import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { PublishedWorldContentSchema } from '../../../contracts/published-world-content.ts';
 import { authoredSpace } from '../../world/domain/space.ts';
 import { actorContext } from '../../world/application/actor-context.ts';
@@ -107,15 +108,18 @@ function persona(c: PublicationContent, key: string): string {
 function unsupported(c: PublicationContent): PublicationCompileIssue[] {
   const out: PublicationCompileIssue[] = [];
   if (
-    c.media.length ||
-    c.work.coverMediaKey ||
+    c.media.some(
+      (m) =>
+        !['avatar', 'cover'].includes(m.use) || !publicationArt(m, m.use as 'avatar' | 'cover'),
+    ) ||
     c.phone.album.length ||
-    c.actors.some((a) => a.publicCard.avatarMediaKey) ||
     c.places.some((p) => p.sceneMediaKey)
   )
     out.push(issue('unsupported_media', ['media']));
-  if (c.timeline) out.push(issue('unsupported_timeline', ['timeline']));
-  if (c.candidates.length) out.push(issue('unsupported_candidates', ['candidates']));
+  c.candidates.forEach((node, i) => {
+    if (node.intent.kind === 'offer_invitation' && node.intent.actorKeys.length !== 1)
+      out.push(issue('unsupported_multi_actor_invitation', ['candidates', i, 'intent']));
+  });
   c.extensions.forEach((e, i) => {
     if (e.purpose === 'runtime_required')
       out.push(issue('unsupported_runtime_extension', ['extensions', i]));
@@ -388,7 +392,17 @@ export function compilePublicationGenesis(
         source: originKind === 'trial' ? 'publication_trial' : 'published_work',
         origin: { ...origin },
       },
-      capabilities: ['publication.opening.v1'],
+      capabilities: [
+        'publication.opening.v1',
+        ...(c.media.length ? ['publication.media.v1'] : []),
+        ...(c.timeline ? ['publication.timeline.v1'] : []),
+        ...(c.candidates.some((n) => n.intent.kind === 'offer_message')
+          ? ['candidate.offer_message.v1']
+          : []),
+        ...(c.candidates.some((n) => n.intent.kind === 'offer_invitation')
+          ? ['candidate.offer_invitation.v1']
+          : []),
+      ],
     };
   } catch {
     return failure('invalid', [issue('invalid_genesis_allocation_or_state')]);

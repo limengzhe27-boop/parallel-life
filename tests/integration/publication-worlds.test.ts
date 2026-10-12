@@ -1,3 +1,5 @@
+import { PUBLICATION_ART } from '../../src/contracts/publication-assets.ts';
+import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -57,7 +59,7 @@ const review: PublicationReviewPort = {
   async review() {
     return {
       reviewerVersion: 'local_fixture_only',
-      runtimeCapabilities: new Set(['publication.opening.v1']),
+      runtimeCapabilities: new Set(['publication.opening.v1', 'publication.media.v1']),
       media: { verified: true, manifestHash: 'a'.repeat(64) },
       trial: { verified: true, receiptId: localReviewReceipt },
     };
@@ -162,8 +164,22 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
   const works = new PublicationRepository(pub, review),
     worlds = new PublicationWorldRepository(app, compiler),
     trials = new PublicationWorldRepository(pub, compiler);
-  const make = async () => {
-    const c = await content();
+  // Persistent isolated test databases may contain more than one page of other fixture works.
+  // Find the exact work through the actual cursor API, never presume it is on page one.
+  const catalogAll = async (user: string) => {
+    const list: Awaited<ReturnType<typeof worlds.catalog>>['works'] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 100; page++) {
+      const r = await worlds.catalog(user, { limit: 100, ...(cursor ? { cursor } : {}) });
+      list.push(...r.works);
+      if (!r.nextCursor) return { works: list, nextCursor: null };
+      assert.notEqual(r.nextCursor, cursor);
+      cursor = r.nextCursor;
+    }
+    throw Error('fixture catalog exceeded bounded pagination');
+  };
+  const make = async (override?: Awaited<ReturnType<typeof content>>) => {
+    const c = override ?? (await content());
     const w = await works.create(staff, {
       commandId: randomUUID(),
       title: c.work.title,
@@ -469,11 +485,11 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
         new PostgresWorldRepository(app).get({ userId: otherOwner }, first.worldId),
       );
       assert.equal(
-        (await worlds.catalog(owner)).works.find((x) => x.id === w.id)!.worldId,
+        (await catalogAll(owner)).works.find((x) => x.id === w.id)!.worldId,
         first.worldId,
       );
       assert.equal(
-        (await worlds.catalog(otherOwner)).works.find((x) => x.id === w.id)!.worldId,
+        (await catalogAll(otherOwner)).works.find((x) => x.id === w.id)!.worldId,
         p.worldId,
       );
     },
@@ -860,14 +876,14 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
     'downlisting blocks new admission while preserving old save and trial isolation',
     async () => {
       await works.unpublish(staff, w.id, { commandId: randomUUID(), expectedMetadataVersion: 1 });
-      const savedCard = (await worlds.catalog(owner)).works.find((x) => x.id === w.id);
+      const savedCard = (await catalogAll(owner)).works.find((x) => x.id === w.id);
       assert.ok(savedCard);
       assert.equal(savedCard.version, 1);
       assert.equal(savedCard.worldId, first.worldId);
       const noSaveOwner = randomUUID();
       await new IdentityRepository(app).ensureGuest(noSaveOwner);
       assert.equal(
-        (await worlds.catalog(noSaveOwner)).works.some((x) => x.id === w.id),
+        (await catalogAll(noSaveOwner)).works.some((x) => x.id === w.id),
         false,
       );
       await assert.rejects(
@@ -1034,6 +1050,66 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
         ]),
         (e) => (e as { code: string }).code === '23514',
       );
+    },
+  );
+  await t.test(
+    'publication art binds exact immutable version without leaking Persona or other-owner media',
+    async () => {
+      const visual = await content();
+      visual.media = PUBLICATION_ART.filter((a) => a.key === 'cover' || a.key === 'qingqing').map(
+        (a) => ({
+          key: a.key,
+          asset: { namespace: 'publication', key: a.key, revision: a.revision },
+          use: a.uses[0]!,
+          depiction: 'generated_image' as const,
+          label: a.label,
+          visibility: { kind: 'world' as const },
+        }),
+      );
+      visual.work.coverMediaKey = 'cover';
+      visual.actors[0]!.publicCard.avatarMediaKey = 'qingqing';
+      const v = await make(visual),
+        entry = await worlds.startPublished(owner, v.w.id, {
+          commandId: randomUUID(),
+          publicationVersion: 1,
+        });
+      const read = (user: string) =>
+        app.transaction(user, (s) =>
+          s.query('SELECT parallel_life.publication_world_visuals($1) AS v', [entry.worldId]),
+        );
+      const own = (await read(owner)).rows[0].v;
+      assert.equal(own.actors[0].actorKey, visual.actors[0]!.key);
+      assert.ok(!JSON.stringify(own).includes('PRIVATE_'));
+      assert.ok(!JSON.stringify(own).includes('privatePersona'));
+      assert.equal((await read(otherOwner)).rows[0].v, null);
+      const phone = await new BuildRepository(app).phone(owner, entry.worldId);
+      assert.equal(
+        phone.publicationWallpaperUrl,
+        PUBLICATION_ART.find((a) => a.key === 'cover')!.url,
+      );
+      assert.equal(
+        phone.actors[0]!.publicationAvatarUrl,
+        PUBLICATION_ART.find((a) => a.key === 'qingqing')!.url,
+      );
+      await assert.rejects(new BuildRepository(app).phone(otherOwner, entry.worldId));
+      await works.unpublish(staff, v.w.id, { commandId: randomUUID(), expectedMetadataVersion: 1 });
+      const card = (user: string) =>
+        app.transaction(user, (s) =>
+          s.query('SELECT parallel_life.publication_catalog_visual($1,1) AS v', [v.w.id]),
+        );
+      assert.equal((await card(owner)).rows[0].v.asset.key, 'cover');
+      assert.equal((await card(otherOwner)).rows[0].v, null);
+      assert.equal((await read(owner)).rows[0].v.coverMediaKey, 'cover');
+      for (const role of ['pl_worker', 'pl_publisher'])
+        for (const fn of [
+          'parallel_life.publication_world_visuals(text)',
+          'parallel_life.publication_catalog_visual(uuid,bigint)',
+        ])
+          assert.equal(
+            (await admin.query("SELECT has_function_privilege($1,$2,'EXECUTE') AS ok", [role, fn]))
+              .rows[0].ok,
+            false,
+          );
     },
   );
   await t.test(

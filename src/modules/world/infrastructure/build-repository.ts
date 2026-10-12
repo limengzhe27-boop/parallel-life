@@ -2,6 +2,7 @@ import {
   PublicationSeedSchema,
   PublicationOpeningSchema,
 } from '../../../contracts/publication-phone.ts';
+import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { verifiedGenesisLinks } from '../domain/genesis-links.ts';
 import { projectPlayerActors, type SelectedPlayerPerson } from '../domain/player-projection.ts';
 import { albumPhotos, historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
@@ -171,6 +172,25 @@ export class BuildRepository {
     );
     const publication = published ? PublicationSeedSchema.parse(metadata.approved_seed) : null;
     const opening = published ? PublicationOpeningSchema.parse(metadata.opening) : null;
+    const visual = published
+      ? await this.db.transaction(
+          ownerId,
+          async (sql) =>
+            (
+              await sql.query('SELECT parallel_life.publication_world_visuals($1) AS visual', [
+                worldId,
+              ])
+            ).rows[0]?.visual,
+        )
+      : null;
+    const avatarFor = (actorId: string): string | undefined => {
+      const contact = opening?.contacts.find((c) => c.actorId === actorId);
+      const link = visual?.actors?.find(
+        (a: { actorKey: string }) => a.actorKey === contact?.actorKey,
+      );
+      const media = visual?.media?.find((m: { key: string }) => m.key === link?.mediaKey);
+      return publicationArt(media, 'avatar')?.url;
+    };
     const seed = publication ? null : ApprovedSeedSchema.parse(metadata.approved_seed);
     if (publication && opening) {
       const { kind, ...origin } = publication.source;
@@ -186,10 +206,10 @@ export class BuildRepository {
         throw new TaskError('INVALID_STATE');
       // A compiled opening is usable only with the immutable source binding created with this exact world.
       const binding = await this.db.transaction(ownerId, (sql) =>
-        sql.query(
-          'SELECT parallel_life.player_publication_origin($1,$2) AS origin',
-          [worldId, metadata.seed_id],
-        ),
+        sql.query('SELECT parallel_life.player_publication_origin($1,$2) AS origin', [
+          worldId,
+          metadata.seed_id,
+        ]),
       );
       const b = binding.rows[0]?.origin;
       if (
@@ -365,12 +385,26 @@ export class BuildRepository {
       time: storyTime,
       identity: metadata.opening.identity,
       setting: metadata.opening.setting,
+      ...(publicationArt(
+        visual?.media?.find((m: { key: string }) => m.key === visual?.coverMediaKey),
+        'cover',
+      )
+        ? {
+            publicationWallpaperUrl: publicationArt(
+              visual.media.find((m: { key: string }) => m.key === visual.coverMediaKey),
+              'cover',
+            )!.url,
+          }
+        : {}),
       actors: projectPlayerActors(
         state,
         selected,
         sceneContacts.rows.map((row) => row.actor_id),
         opening?.contacts ?? [],
-      ),
+      ).map((actor) => ({
+        ...actor,
+        ...(avatarFor(actor.id) ? { publicationAvatarUrl: avatarFor(actor.id) } : {}),
+      })),
       messages: state.messages.map((m) => ({
         id: m.id,
         actorId: m.actorId,

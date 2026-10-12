@@ -1,4 +1,5 @@
 'use client';
+import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import type { ReactNode } from 'react';
 import {
   addPlotRow,
@@ -185,11 +186,34 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           maxLength,
           onChange: (e: { target: { value: string } }) => patch(path, e.target.value),
         };
+      const timeField = ['occurredAt', 'notBefore', 'expiresAt', 'earliestAt'].includes(
+        String(path[path.length - 1]),
+      );
       return (
         <label className={`${s.field} ${multiline ? s.wide : ''}`} htmlFor={id(path)}>
           {label}
-          {multiline ? <textarea {...props} /> : <input {...props} />}{' '}
-          {help && <span className={s.hint}>{help}</span>}
+          {timeField ? (
+            <input
+              {...props}
+              type="datetime-local"
+              value={publicationLocalTime(plotText(value))}
+              onChange={(e) => patch(path, publicationUtcTime(e.target.value))}
+            />
+          ) : multiline ? (
+            <textarea {...props} />
+          ) : (
+            <input {...props} />
+          )}{' '}
+          {timeField ? (
+            <span className={s.hint}>
+              按世界当地日期和时间填写（北京时间），无需填写时间代码。
+              {typeof value === 'string' && value && !publicationLocalTime(value)
+                ? ' 原稿时间格式待修正，未修改前保持原值。'
+                : ''}
+            </span>
+          ) : (
+            help && <span className={s.hint}>{help}</span>
+          )}
           {value !== undefined && typeof value !== 'string' && (
             <span className={s.error}>原字段不是文字，未编辑前保持原值。</span>
           )}
@@ -387,7 +411,10 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           {section === 'candidates' && (
             <>
               {field('事件标题', ['title'], '例如朋友邀请你看店', false, 120)}
-              {selectField('发生地点（选填）', ['placeKey'], places)}
+              {selectField('触发时玩家必须所在的地点（可不限制）', ['placeKey'], places)}
+              <p className={s.hint}>
+                手机来信和邀约通常不限制玩家位置；下面的邀约地点才是见面目的地。
+              </p>
               {field(
                 '导演意图',
                 ['editorialIntent'],

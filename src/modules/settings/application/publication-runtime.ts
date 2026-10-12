@@ -65,7 +65,7 @@ export type PublicationCompileResult =
         source: 'published_work' | 'publication_trial';
         origin: PublicationRuntimeOrigin;
       };
-      capabilities: ['publication.opening.v1'];
+      capabilities: string[];
     }
   | { status: 'invalid' | 'unsupported'; issues: PublicationCompileIssue[]; capabilities: [] };
 export interface PublicationRuntimeCompiler {

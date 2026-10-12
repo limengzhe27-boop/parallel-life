@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ScenePlanner } from '../src/modules/world/infrastructure/scene-planner.ts';
 import type { ScenePlanningContext } from '../src/modules/world/application/scene-ports.ts';
+import { sceneOfferIntent } from '../src/modules/world/application/scene-offer-context.ts';
 function context(): ScenePlanningContext {
   const actorId = randomUUID(),
     worldId = randomUUID(),
@@ -67,6 +68,38 @@ function context(): ScenePlanningContext {
     appointmentTitle: '拍摄',
   };
 }
+test('current publication direction is limited to the actual invitation, place and own participant', () => {
+  const c = context(),
+    a = c.world.appointments[0]!;
+  c.scene.placeId = 'studio';
+  c.world.space = {
+    currentPlaceId: 'studio',
+    places: [],
+    routes: [],
+    positionSource: { kind: 'seed_genesis', seedId: 'seed', snapshotVersion: 0 },
+  };
+  c.currentOfferBrief = {
+    editorialIntent: 'A_CURRENT_STAGE_DIRECTION',
+    actorIds: [c.world.actors[0]!.id],
+    placeId: 'studio',
+    placeName: '棚内',
+    invitationId: a.id,
+    sourceEventId: a.sourceEventId,
+  };
+  assert.equal(
+    sceneOfferIntent(c, c.world.actors[0]!.id)?.editorialIntent,
+    'A_CURRENT_STAGE_DIRECTION',
+  );
+  assert.equal(sceneOfferIntent(c, 'another_actor'), null);
+  const altered = structuredClone(c);
+  altered.currentOfferBrief!.sourceEventId = 'foreign';
+  assert.equal(sceneOfferIntent(altered), null);
+  altered.currentOfferBrief!.sourceEventId = a.sourceEventId;
+  altered.world.space!.currentPlaceId = 'home';
+  assert.equal(sceneOfferIntent(altered), null);
+  c.world.appointments[0]!.status = 'cancelled';
+  assert.equal(sceneOfferIntent(c), null);
+});
 test('scene director and NPC contexts crop private facts before the model call', async () => {
   const c = context(),
     actor = c.world.actors[0]!.id;

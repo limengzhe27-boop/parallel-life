@@ -1,4 +1,5 @@
 import { resultAckText } from './matter-progression.ts';
+import { applyAppointmentWaitEvent, type AppointmentWaitEvent } from './appointment-wait.ts';
 import { applySceneWorldResults, type SceneWorldResults } from './scene-world-results.ts';
 import { applySpaceEvent, type TravelEvent, type SpaceEstablishedEvent } from './space.ts';
 import type { WorldEvent, WorldState, OutboxJob } from './types.ts';
@@ -40,6 +41,7 @@ export type WorldHistoryEvent =
   | GroupEvent
   | SceneWorldEvent
   | TravelEvent
+  | AppointmentWaitEvent
   | SpaceEstablishedEvent;
 export function applyWorldHistoryEvent(
   current: WorldState,
@@ -53,6 +55,8 @@ export function applyWorldHistoryEvent(
   validateEventId(event.commandId);
   isoInstant(event.occurredAt);
   if (isGroupEvent(event)) return { state: applyGroupWorldEvent(current, event), jobs: [] };
+  if (event.type === 'appointment.waited')
+    return { state: applyAppointmentWaitEvent(current, event), jobs: [] };
   if (event.type === 'travel.completed' || event.type === 'space.established')
     return { state: applySpaceEvent(current, event), jobs: [] };
   if (event.type === 'turn.resolved') {
@@ -161,6 +165,7 @@ export function replayWorldHistory(
   initial: WorldState,
   events: WorldHistoryEvent[],
   throughVersion = Infinity,
+  invitationPlaces: readonly {invitationId:string;placeId:string;sourceEventId:string}[] = [],
 ) {
   let world = structuredClone(initial);
   const groups = new Map<string, GroupConversation>();
@@ -168,7 +173,11 @@ export function replayWorldHistory(
   const sources: { id: string; version: number; ownerId: string; worldId: string }[] = [];
   for (const event of events) {
     if (event.version > throughVersion) break;
-    const next = applyWorldHistoryEvent(world, event, initial).state;
+    let next = applyWorldHistoryEvent(world, event, initial).state;
+    // Associations come from the verified publication binding, and become available
+    // only with the actual offering event. They never move anyone or create an invitation.
+    const linked=invitationPlaces.filter(l=>l.sourceEventId===event.id&&next.appointments.some(a=>a.id===l.invitationId&&a.sourceEventId===event.id));
+    if(next.space&&linked.length)next={...next,space:{...next.space,places:next.space.places.map(p=>({...p,appointmentIds:[...new Set([...p.appointmentIds,...linked.filter(l=>l.placeId===p.id).map(l=>l.invitationId)])]}))}};
     sources.push({
       id: event.id,
       version: event.version,
