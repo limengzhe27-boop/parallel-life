@@ -74,3 +74,22 @@ AppViewport现已有height/offsetTop补偿，并对pinch zoom不追踪。媒体�
 本次仅本地源码/契约只读核对及文档diff/主表回读，未运行test/check/build、浏览器、PG、HTTP、模型、上传/生图/部署，没有截图。以上矩阵为待执行建议，不能当产品UI已实现、真机/真实图片/模型或数据库通过。
 
 计划报告提交待验收后由根决定有限素材props/滚动与可用高度方案，独占实现并给准确freeze；Q再按另行明确的只读UI验收范围复核实际呈现与路由/通知。根负责全check/build、41生产迁移只读、READY/public和完整记录。其他排队任务不在本报告开工，旧04模型链失败/closed状态不改变。
+
+## 候选源码静态审查与修复 · 2026-10-12
+
+根最新授权只读源码审，Q0浏览器/PG/模型/端口/生产写/部署；只可更新本报告及本人行。准确候选 `adeb022e5386f63dcc063c58ccd3f64bb0fa257e` 已冻结在根独立lock-02-notifications树，Q通过git show准确commit读取，不读/碰next-env.d.ts的开发生成WIP。
+
+首轮发现一项发布前源资格缺口：hero的embedded media有额外world/owner筛选，stream却只基于entry同scene/world/owner/player/version，直接按assetId找本world已授权图片；错误embedded scope/purpose/source关联可能仍被作为本scene参考图显示。world-scoped URL的资产权限仍存在，缺的是引用在此scene的资格与用途/版本/事件关系检查。已具体回根，没有改源或自己新增test。
+
+根准确修复 `b01916f7e8b3dd8a448a747c1206708b9dd31535`（候选+根归档原报告20b4505基础，仅helper/test变更）。Q只读diff及最终helper复核：
+
+- visibleSceneEntries共同筛entry同scene/world/owner、player可见、版本<=read.worldVersion；embedded media同owner/world且sourceVersion<=entry.sourceVersion。
+- 仅scene_reference或scene_illustration，illustration必须sourceEventId===entry.sourceEventId；reference合法复用不同event仍保留；phone attachment、未来源、重标及跨范围引用均剔除。
+- hero和stream均消费该共同集合，不能再因有本world合法图片URL就展示无资格引用；URL仍来自现成ready map、精确asset路径、同world及正整数revision，不退owner-only资产端口。
+- 原SSR合法illustration夹具修为同event，反例新增stream过滤断言；没有弱化此前scope/visibility断言或修改域规则。
+
+**对准确b01916f限定静态审核通过，未发现进一步发布阻断。** 人物用实际scenePresence与安全contacts，不引入Persona；原输入command/expectedVersion/相关事项、failed/unknown显式重试与原worldSync/phoneVersion/onBusy保留。PhoneShell只增加scene-view容器标志并清外层padding/overflow，原banner层没有移走；reading按worldId+sceneId存回，scene容器查询收图，developer fixture route服务端仅development、transport显式合成不走真实API。
+
+根回传实际浏览器390×844/390×500/PC内420无横溢出，短屏输入底451<500、图片136.5；通知→私聊→返回draft及scroll76.5恢复；模拟visual220/top90输入底309.5<=310，非真机。根回传10新SSR反例、final check1335/type0/build0、生产41迁移checksum匹配无SQL；边界文件总数以根最终日志为准，不引用其消息中未确认数字。根自己的PG55456/HTTP3275停止、Ego149结束。以上都是根实测回传，**不是Q亲自跑浏览器/数据库/构建或真实模型**。
+
+Root还须按最终精确commit推送、READY/正式别名及公网同类关键流程验证后决定完成。Q报告-only交接先待验收，源/旧audit继续冻结；真机体验与真实模型/图片生成自然性未由本静态审核证明，旧04closed与完整链失败记录不改。分类/人物名片/新媒体任务仍排队。
