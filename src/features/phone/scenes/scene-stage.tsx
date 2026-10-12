@@ -70,7 +70,7 @@ export function SceneStage({
                       className={s.speakBtn}
                       onClick={() => onSelectPerson(person)}
                     >
-                      💬 与{person.name}对话
+                      💬 找{person.name}搭话
                     </button>
                   ) : null}
                 </div>
@@ -78,7 +78,7 @@ export function SceneStage({
             );
           })
         ) : (
-          <p className={s.empty}>还没有记录到在场人物</p>
+          <p className={s.empty}>此时周围暂无其他人</p>
         )}
       </div>
     </section>

@@ -372,18 +372,18 @@ export function ScenePanel({
             </section>
             {latestAction ? (
               <details className={s.card} data-scene-latest-action>
-                <summary>最近一次行动</summary>
+                <summary>刚才的一幕</summary>
                 <p className={s.savedInput}>{latestAction.text}</p>
                 {latestAction.resolution ? (
                   <p>
-                    <strong>这次动作的反馈：</strong>
+                    <strong>随后发生的事：</strong>
                     {latestAction.resolution.observation}
                   </p>
                 ) : (
                   <p className={s.notice}>
                     {latestAction.intent === 'attempt'
-                      ? '原文已保存，结果尚未确认。'
-                      : '只记录想法，尚未执行。'}
+                      ? '打算要做的事已记下，正等待展开。'
+                      : '心里的想法已记下。'}
                   </p>
                 )}
               </details>
@@ -447,12 +447,12 @@ export function ScenePanel({
                               ? '我'
                               : name(e.speaker.actorId)
                             : e.kind === 'private_input'
-                              ? '我的想法 · 仅自己可见'
+                              ? '心想 · 仅自己可见'
                               : e.kind === 'user_action'
-                                ? '我的输入'
+                                ? '我的举动'
                                 : e.kind === 'adjudicated_result'
-                                  ? '行动结果'
-                                  : '旁白'}
+                                  ? '随后的情势'
+                                  : '场景'}
                         </small>
                         <p>{e.text}</p>
                       </div>
@@ -468,8 +468,8 @@ export function ScenePanel({
                   detail={
                     sceneBusy(task)
                       ? data.actions.some((a) => a.status === 'pending')
-                        ? '你的行动原文已保存，正在等待现场裁定。'
-                        : '正在准备现场环境和在场人物。'
+                        ? '大家正看着你，听你把话说完……'
+                        : '故事正在继续展开……'
                       : undefined
                   }
                 />
@@ -563,18 +563,18 @@ export function ScenePanel({
 
                 const suggestions: string[] = [];
                 if (firstActorName) {
-                  suggestions.push(`向${firstActorName}打招呼，试探对方态度`);
+                  suggestions.push(`跟${firstActorName}打声招呼，问问近况`);
                 }
                 if (title) {
-                  suggestions.push(`推进「${title}」：主动说明来意与最新情况`);
+                  suggestions.push(`提一下「${title}」，听听对方怎么看`);
                 } else {
-                  suggestions.push('说明自己的来意，询问当前状况');
+                  suggestions.push('问问眼下的情况，看接下来怎么安排');
                 }
-                suggestions.push('环顾四周，仔细观察周围动静与细节');
-                suggestions.push('保持克制，静观其变');
+                suggestions.push('四处瞅瞅，观察周围环境');
+                suggestions.push('先不吭声，看看大家怎么说');
                 return (
                   <div className={s.suggestionRow} aria-label="行动灵感">
-                    <span className={s.suggestionLabel}>灵感：</span>
+                    <span className={s.suggestionLabel}>试试：</span>
                     {suggestions.map((sug, idx) => (
                       <button
                         type="button"
@@ -631,7 +631,7 @@ export function ScenePanel({
                     event.currentTarget.style.height =
                       Math.min(event.currentTarget.scrollHeight, 100) + 'px';
                   }}
-                  placeholder="说点什么，或做点什么…（按回车发送）"
+                  placeholder="想说点什么，或者做个动作……"
                 />
                 <button disabled={disabled || !text.trim()}>发送</button>
               </div>

@@ -1102,7 +1102,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                     <div className={s.currentPlaceSceneBadgeContent}>
                       <strong>已身处当前地点</strong>
                       <span>
-                        进入现场可查看当前场景、环境旁白，并与在场人物当面对话互动。
+                        进入现场，可以打量周围动静、找在场的人当面搭话，或把手头的事往前推进。
                       </span>
                     </div>
                   </div>
