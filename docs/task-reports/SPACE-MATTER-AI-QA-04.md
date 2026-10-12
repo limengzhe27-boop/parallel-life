@@ -37,3 +37,17 @@
 业务cc1057d/moc1ee02x/dpl_o986pEAVXDywZNUiPoexcryHjxnF READY，正式https://parallel-life-nu.vercel.app已切换。1196check/type0/332boundary/build0、真实本地PG251pass+5明确model opt-in skip/专项10、41生产迁移只读hash一致；正式旧paused世界1/4首次时间保持、8组只读投影/跨owner隔离过，0新增paid/正式世界写/图/私档。PG55452正常停无监听，无浏览器资源。本轮授权未回复，旧03 closed16of18不沿用；仅v3接收人格式与独立反例技术交付，不称实际供应商说明治愈/自然全链完成。
 
 本轮用户授权尚未回复，因此没有创建04正式世界或付费账本，不能用0模型只读回归证明新v3供应商输出。新授权到达后使用新live-chain-04-private/evidence路径并执行分轮完整链，结束暂停闭账；旧03所有证据只读保持。SCENE-NPC-ARRIVAL-01与NOTES-WORLD-03D仍待推进。最终文档归档部署信息放忽略handoff，避免循环追加tracked发布回执。
+
+## 新授权真实验收开始
+
+用户本轮明确回复允许新2个官方测试世界/18次文字（导演/NPC/纠错全部计入）；0图/用户资料，结束正常API暂停并发布。根新04独立私有账本从0开始，旧03 closed证据不动。当前正式9573884 READY，先新county v3开场→核对→说明→交出→NPC实收→机会→下一行动→私聊，逐次记录保守上界，失败unknown不回退计数、不自动重付。B/Q仅只读审根提供的安全结果，根唯一付费/世界业务写。
+
+## 04首次真实分步结果及交接失败
+
+新独立county官方v3存档1个。开场succeeded/v3/老周本人presence；2次保守。核对succeeded/v5/order_reviewed已存、SQL原输入/事件/action/result源校验及Notes1of4；4次。单独说明succeeded/v7/repair_explained已存、核对first source完全不变/Notes2of4；6次。NPC实际两轮都第三人称提到“向老周说明”，像任务播报；没有重复索要已保存核对，但自然性未过。开场narration替玩家写准备意图、说明narration混动作结果进环境，作为独立文案缺口保留。
+
+单独交出R17钥匙维修单给老周failed5723ms/INVALID_AI_OUTPUT/v8，safe Receiving lacks actual handed objects；本轮handed_over/received均未保存，旧2of4保留，保守8of18。只查询本任务运行日志得固定复合拒绝，未捕获模型raw不猜4条件哪项。B/Q静态复核建议先固定诊断。
+
+根仅domain原四条件同顺序拆固定码（handover_not_saved_or_current/execution_not_explicit/keys_not_named/paperwork_not_named），接受/拒绝集合未改，不修quote/补物件/放宽实际来源。5新test通过+B只读diff确认，最终1201check/type0/332boundary、原实际PG10/10过（合成）；build在途。待READY后仅一次原failed手动复测，失败unknown保预算，不循环重付。NPC自然语气短提示待完整链后独立scope，不拿假话术替换实际回复。
+
+诊断候选最后build0通过。没有SQL或原gate变更，既有41本轮生产迁移checksum一致；新5test/全1201check/专项10过，准备发布，仅有界一次manual原handover失败复测。

@@ -314,13 +314,17 @@ export function resolveSceneStepProgress(input: {
         fail('NPC action not owned/witnessed/quoted');
       const handover = saved.find((e) => e.stepId === 'handed_over' && e.receiverId === actor.id);
       if (p.kind === 'receive_r17') {
-        if (
-          !handover ||
-          !/^我(?:现在|已经|当场|刚刚|刚)?(?:接过|收下|收到了|接收)/u.test(p.quote) ||
-          !/钥匙/u.test(p.quote) ||
-          !/维修单|工单|单据/u.test(p.quote)
-        )
-          fail('Receiving lacks actual handed objects');
+        const receivingCondition = !handover
+          ? 'handover_not_saved_or_current'
+          : !/^我(?:现在|已经|当场|刚刚|刚)?(?:接过|收下|收到了|接收)/u.test(p.quote)
+            ? 'execution_not_explicit'
+            : !/钥匙/u.test(p.quote)
+              ? 'keys_not_named'
+              : !/维修单|工单|单据/u.test(p.quote)
+                ? 'paperwork_not_named'
+                : undefined;
+        if (receivingCondition)
+          fail(`Receiving lacks actual handed objects;receiving_condition:${receivingCondition}`);
         add('received', 'actor', action.text, p.quote, actor.id, actor.id);
         if (!m.stepProgress?.steps.some((e) => e.stepId === 'received'))
           if (!actionTexts.includes(`${actor.name}接过了R17钥匙与维修单。`))
