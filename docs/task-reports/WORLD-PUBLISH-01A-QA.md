@@ -56,3 +56,22 @@ assert.equal(stored.success, false);
 - 自有getter/序列化器、原型保留键、函数、非JSON类、symbols、非可枚举属性、稀疏/带额外属性数组、循环/深度/值数/UTF8预算均有负例，null-prototype普通对象可以作为数据保存而不会获得运行权。
 
 下一步：冻结本QA提交/镜像，主表先待验收但明确2红；等I给B准确修复提交后，在独立树接同一原始反例复验。B新的stage/窗口/跳过协议尚未作为本轮证据，不读取未冻结WIP或推断已支持；收到准确freeze后同任务追加独立时间线负例。根负责源合并、fullcheck/build/真实PG/员工API/试演/部署，不能以本轮54通过代替2红或完整后台上线。
+
+## 第二轮：准确fc6时间线（仍非实际推进资格）
+
+首轮QA准确提交7d57e64e2f0c04ed0172fcaa24f264e133738c37。收到根明确续派后，独立树cherry-pick B准确fc6a3fd51d088a838a0520f7f596497a6749f0a2（本地依赖提交dfab638a13928709a104423ecb0b5ff309b07cd8），逐字验证其contract/domain/原tests/B报告四文件和fc6一致。未读未冻结WIP、未自行写源。最初56测试/fixture/两getter断言仍是新文件逐字相同的prefix；只追加36项独立时间线测试。
+
+原94+QA92合计186，180通过、6失败、零skip；原B94通过，QA92中的86过6红（首轮2继承序列化+本轮4）。type退出0，338边界、指定test格式及diff check过。全部源和B原94test相对准确fc6没有QA修改。未运行fullcheck/build/PG/浏览器或真实模型/部署。
+
+新增验证：阶段和候选稳定引用/必要偏序、同阶并行与跳过路径、初始窗口、阶段自依赖/同rank错误/环、候选缺阶段/反向前置/缺失或self resolved节点、重复或空outcomes、完整排除与合法部分排除、后退/不存在/重复自身替代、已过期替代、额外timeline能力、严格区间端点与无世界状态副作用。preview不出阶段/时间线/未来节点/编辑备注，纯时间helper的open不能变成eligible/已发生。after_resolved_node skipped与after_committed_node不可互换：alternative指针可以保存，但不改目标的必要commit前置，也不能因此说它跳过后实际可推进。实际适配器仍需核可信结果与当前阶段。
+
+新增四红例原输入/断言在测试文件末端：
+
+1. 候选显式window为`[2026-10-12T09:15:00Z, 2026-10-12T09:45:00Z)`，结构prerequisite为`not_before=2026-10-12T09:45:00Z`。没有任何合法时刻，raw schema仍success=true，mustReject要求false失败。
+2. 删除候选自身window，继承阶段`[09:00Z,10:00Z)`；结构prerequisite为`not_before=10:30Z`，同样success=true。这不是自由timeNote，不能忽略其与有效截止的矛盾。
+3. `publicationStoryWindowState({notBefore:'2026-03-01T00:00:00Z',expiresAt:'2026-03-05T00:00:00Z'}, '2026-02-30T09:00:00Z')`预期抛错，实际没有：Date.parse将非法二月三十日归一化。
+4. 窗口边界notBefore为`2026-02-30T00:00:00Z`、expiresAt为`2026-03-05T00:00:00Z`，storyAt为`2026-03-03T09:00:00Z`，helper同样未抛错。
+
+第3/4是直接导出纯helper输入边界，**不是**raw PublishedWorldContentSchema失守：原始schema已正确拒绝非法日历日期，HTTP/世界时钟也未在本轮实测。不能将此描述成生产时钟已被篡改。修复由B唯一决定具体验证方式，QA不镜像其日期regex、不宽断言。邀请的活动时间晚于候选提出窗口本身可以合法，专门保留正例，未把“提出邀约的截止”误当活动必须完成时间。
+
+所有6红仍保留，已交根协调B唯一修复；下一步冻结本轮新增QA提交，等待准确修复源后在同一反例上复验。此时只有阶段/窗口/路径元数据和纯检查，无调度器、实际stage状态或资格API，不能用180绿称可发布，更不能写人物已行动或阶段已推进。身份helper由根独占，不纳入本次源QA范围。

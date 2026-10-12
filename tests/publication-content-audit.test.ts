@@ -759,3 +759,397 @@ test('total byte and JSON value limits reject before unbounded recursive shape p
   assert.ok(publicationStorageIssues(many).some((i) => i.code === 'storage_values'));
   mustReject(many);
 });
+
+// Second audit phase targets exact fc6; the first 56 cases/input/assertions above stay unchanged.
+const { publicationStoryWindowState } =
+  await import('../src/modules/settings/domain/publication-content.ts');
+function timedFixture(): PublicationContent {
+  const c = fixture();
+  c.timeline = {
+    initialStageKey: 'shift_start',
+    stages: [
+      {
+        key: 'shift_start',
+        title: 'SECRET_OPENING_CHAPTER',
+        order: 0,
+        afterStageKeys: [],
+        window: { notBefore: '2026-10-12T09:00:00Z', expiresAt: '2026-10-12T10:00:00Z' },
+      },
+      {
+        key: 'later_shift',
+        title: 'SECRET_LATER_CHAPTER',
+        order: 2,
+        afterStageKeys: ['shift_start'],
+        window: { notBefore: '2026-10-12T10:00:00Z', expiresAt: '2026-10-12T15:00:00Z' },
+      },
+    ],
+  };
+  c.candidates[0]!.timeline = {
+    stageKey: 'shift_start',
+    window: { notBefore: '2026-10-12T09:15:00Z', expiresAt: '2026-10-12T09:45:00Z' },
+    timeNote: 'SECRET_TIMELINE_AUTHOR_NOTE',
+    excludeIfResolved: [],
+    alternatives: {
+      onDeclined: ['alternate_arrangement'],
+      onSkipped: ['alternate_arrangement'],
+      onExpired: ['alternate_arrangement'],
+    },
+  };
+  c.candidates.push({
+    key: 'alternate_arrangement',
+    kind: 'candidate',
+    title: 'SECRET_ALTERNATE_TITLE',
+    editorialIntent: '需要合法结果和阶段才能提出',
+    actorKeys: ['a_first'],
+    placeKey: 'station',
+    prerequisites: [
+      {
+        kind: 'after_resolved_node',
+        nodeKey: 'later_opportunity',
+        outcomes: ['declined', 'skipped', 'expired'],
+      },
+    ],
+    mutuallyExclusiveNodeKeys: [],
+    intent: { kind: 'editorial_only' },
+    timeline: {
+      stageKey: 'later_shift',
+      window: { notBefore: '2026-10-12T10:00:00Z', expiresAt: '2026-10-12T14:00:00Z' },
+      excludeIfResolved: [{ nodeKey: 'later_opportunity', outcomes: ['committed'] }],
+      alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+    },
+  });
+  return c;
+}
+test('stage/skip metadata remains internal and never proves current eligibility or a saved outcome', () => {
+  const c = timedFixture(),
+    before = structuredClone(c);
+  const p = noHidden(c, [
+    'timeline',
+    'stages',
+    'shift_start',
+    'later_shift',
+    'alternate_arrangement',
+    'SECRET_OPENING_CHAPTER',
+    'SECRET_LATER_CHAPTER',
+    'SECRET_ALTERNATE_TITLE',
+    'SECRET_TIMELINE_AUTHOR_NOTE',
+  ]);
+  assert.deepEqual(c, before);
+  assert.equal(p.history.length, 1);
+  assert.ok(!('eligibleNodes' in p) && !('stageState' in p));
+  assert.equal(p.phone.invitations[0]?.status, 'proposed');
+});
+test('parallel nodes and same-ranked independent stages are permitted without invented required traversal', () => {
+  const c = timedFixture();
+  c.timeline!.stages.push({
+    key: 'parallel_stage',
+    title: '并行人物线',
+    order: 2,
+    afterStageKeys: ['shift_start'],
+  });
+  c.candidates.push({
+    ...structuredClone(c.candidates[0]!),
+    key: 'independent_opportunity',
+    prerequisites: [],
+    timeline: {
+      stageKey: 'shift_start',
+      excludeIfResolved: [],
+      alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+    },
+  });
+  const parsed = PublishedWorldContentSchema.parse(c);
+  assert.equal(parsed.candidates.length, 3);
+  assert.deepEqual(parsed.candidates[2]!.prerequisites, []);
+});
+test('explicit skipped outcome is an alternative prerequisite, never a substitute for required committed result', () => {
+  const c = timedFixture();
+  c.candidates[1]!.prerequisites = [
+    { kind: 'after_resolved_node', nodeKey: 'later_opportunity', outcomes: ['skipped'] },
+  ];
+  const parsed = PublishedWorldContentSchema.parse(c);
+  assert.deepEqual(parsed.candidates[1]!.prerequisites, [
+    { kind: 'after_resolved_node', nodeKey: 'later_opportunity', outcomes: ['skipped'] },
+  ]);
+  assert.equal(parsed.history.length, fixture().history.length);
+  assert.equal(inspectPublishedWorldSupport(parsed).runtimeReady, false);
+});
+test('an alternative pointer cannot turn an actual committed prerequisite into an already-satisfied skipped one', () => {
+  const c = timedFixture();
+  c.candidates[1]!.prerequisites = [{ kind: 'after_committed_node', nodeKey: 'later_opportunity' }];
+  c.candidates[1]!.timeline!.excludeIfResolved = [];
+  const parsed = PublishedWorldContentSchema.parse(c);
+  assert.deepEqual(parsed.candidates[1]!.prerequisites, [
+    { kind: 'after_committed_node', nodeKey: 'later_opportunity' },
+  ]);
+  assert.equal(parsed.candidates[0]!.timeline!.alternatives.onSkipped[0], 'alternate_arrangement');
+  // Metadata can nominate the target, but no runtime engine or current outcome exists here.
+  assert.equal(inspectPublishedWorldSupport(parsed).grantsPublicationAuthority, false);
+  assert.ok(!('eligibleNodes' in previewPublishedWorldContent(parsed)));
+});
+test('partial outcome exclusion leaves a legitimate skipped path without forcing a decline', () => {
+  const c = timedFixture();
+  c.candidates[1]!.prerequisites = [
+    {
+      kind: 'after_resolved_node',
+      nodeKey: 'later_opportunity',
+      outcomes: ['declined', 'skipped'],
+    },
+  ];
+  c.candidates[1]!.timeline!.excludeIfResolved = [
+    { nodeKey: 'later_opportunity', outcomes: ['declined'] },
+  ];
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+});
+test('future invitation appointment can follow the candidate offer window without pretending the invitation already happened', () => {
+  const c = timedFixture();
+  c.candidates[0]!.intent = {
+    kind: 'offer_invitation',
+    actorKeys: ['a_first'],
+    placeKey: 'station',
+    title: '下午再讨论',
+    earliestAt: '2026-10-12T11:00:00Z',
+  };
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  assert.equal(previewPublishedWorldContent(c).phone.invitations.length, 1);
+});
+const timelineFailures: [string, (c: PublicationContent) => void][] = [
+  [
+    'missing initial stage',
+    (c) => {
+      c.timeline!.initialStageKey = 'absent';
+    },
+  ],
+  [
+    'duplicate stage key',
+    (c) => {
+      c.timeline!.stages.push(structuredClone(c.timeline!.stages[0]!));
+    },
+  ],
+  [
+    'initial story time outside its stage',
+    (c) => {
+      c.timeline!.initialStageKey = 'later_shift';
+    },
+  ],
+  [
+    'unknown stage predecessor',
+    (c) => {
+      c.timeline!.stages[1]!.afterStageKeys = ['absent'];
+    },
+  ],
+  [
+    'self stage predecessor',
+    (c) => {
+      c.timeline!.stages[0]!.afterStageKeys = ['shift_start'];
+    },
+  ],
+  [
+    'same-rank necessary predecessor',
+    (c) => {
+      c.timeline!.stages[1]!.order = 0;
+    },
+  ],
+  [
+    'cyclic stages',
+    (c) => {
+      c.timeline!.stages[0]!.afterStageKeys = ['later_shift'];
+    },
+  ],
+  [
+    'declared timeline with an unassigned candidate',
+    (c) => {
+      delete c.candidates[0]!.timeline;
+    },
+  ],
+  [
+    'candidate timeline without world timeline',
+    (c) => {
+      delete c.timeline;
+    },
+  ],
+  [
+    'candidate stage reference missing',
+    (c) => {
+      c.candidates[0]!.timeline!.stageKey = 'absent';
+    },
+  ],
+  [
+    'empty effective window',
+    (c) => {
+      c.candidates[0]!.timeline!.window!.expiresAt = '2026-10-12T09:15:00Z';
+    },
+  ],
+  [
+    'node window outside stage',
+    (c) => {
+      c.candidates[0]!.timeline!.window!.expiresAt = '2026-10-12T10:01:00Z';
+    },
+  ],
+  [
+    'candidate entirely expired at world start',
+    (c) => {
+      c.timeline!.stages[0]!.window = {
+        notBefore: '2026-10-12T08:00:00Z',
+        expiresAt: '2026-10-12T10:00:00Z',
+      };
+      c.candidates[0]!.timeline!.window = {
+        notBefore: '2026-10-12T08:00:00Z',
+        expiresAt: '2026-10-12T09:00:00Z',
+      };
+    },
+  ],
+  [
+    'dependency on later stage',
+    (c) => {
+      c.candidates[0]!.prerequisites = [
+        { kind: 'after_committed_node', nodeKey: 'alternate_arrangement' },
+      ];
+    },
+  ],
+  [
+    'resolved prerequisite with self key',
+    (c) => {
+      c.candidates[1]!.prerequisites = [
+        { kind: 'after_resolved_node', nodeKey: 'alternate_arrangement', outcomes: ['skipped'] },
+      ];
+    },
+  ],
+  [
+    'resolved prerequisite with missing key',
+    (c) => {
+      c.candidates[1]!.prerequisites = [
+        { kind: 'after_resolved_node', nodeKey: 'absent', outcomes: ['skipped'] },
+      ];
+    },
+  ],
+  [
+    'duplicate outcome in resolved prerequisite',
+    (c) => {
+      c.candidates[1]!.prerequisites = [
+        {
+          kind: 'after_resolved_node',
+          nodeKey: 'later_opportunity',
+          outcomes: ['skipped', 'skipped'],
+        },
+      ];
+    },
+  ],
+  [
+    'empty resolved outcomes',
+    (c) => {
+      c.candidates[1]!.prerequisites = [
+        { kind: 'after_resolved_node', nodeKey: 'later_opportunity', outcomes: [] },
+      ];
+    },
+  ],
+  [
+    'all possible prerequisite outcomes excluded',
+    (c) => {
+      c.candidates[1]!.timeline!.excludeIfResolved = [
+        { nodeKey: 'later_opportunity', outcomes: ['declined', 'skipped', 'expired'] },
+      ];
+    },
+  ],
+  [
+    'fallback key absent',
+    (c) => {
+      c.candidates[0]!.timeline!.alternatives.onSkipped = ['absent'];
+    },
+  ],
+  [
+    'fallback to same node',
+    (c) => {
+      c.candidates[0]!.timeline!.alternatives.onSkipped = ['later_opportunity'];
+    },
+  ],
+  [
+    'reverse-stage fallback',
+    (c) => {
+      c.candidates[1]!.timeline!.alternatives.onSkipped = ['later_opportunity'];
+    },
+  ],
+  [
+    'fallback already closed when source expires',
+    (c) => {
+      c.candidates[1]!.timeline!.stageKey = 'shift_start';
+      c.candidates[1]!.timeline!.window = {
+        notBefore: '2026-10-12T09:20:00Z',
+        expiresAt: '2026-10-12T09:40:00Z',
+      };
+    },
+  ],
+];
+for (const [name, change] of timelineFailures)
+  test('timeline validator rejects ' + name, () => {
+    const c = timedFixture();
+    change(c);
+    mustReject(c);
+  });
+test('director-selected is not an actual saved node outcome', () => {
+  const c = timedFixture();
+  const raw = {
+    ...c,
+    candidates: c.candidates.map((node, i) =>
+      i !== 1
+        ? node
+        : {
+            ...node,
+            prerequisites: [
+              {
+                kind: 'after_resolved_node',
+                nodeKey: 'later_opportunity',
+                outcomes: ['director_selected'],
+              },
+            ],
+          },
+    ),
+  };
+  mustReject(raw);
+});
+test('old runtime capability list cannot enable staged content or grant a publishing role', () => {
+  const c = timedFixture(),
+    legacy = inspectPublishedWorldSupport(fixture());
+  const status = inspectPublishedWorldSupport(c, new Set(legacy.requiredCapabilities));
+  assert.deepEqual(status.missingCapabilities, ['publication.timeline.v1']);
+  assert.equal(status.runtimeReady, false);
+  assert.equal(status.grantsPublicationAuthority, false);
+});
+test('story window uses the supplied clock and half-open endpoints, without changing content or evaluating phase eligibility', () => {
+  const c = timedFixture(),
+    before = structuredClone(c),
+    window = c.candidates[0]!.timeline!.window!;
+  assert.equal(publicationStoryWindowState(window, '2026-10-12T09:14:59Z'), 'not_open');
+  assert.equal(publicationStoryWindowState(window, window.notBefore), 'open');
+  assert.equal(publicationStoryWindowState(window, '2026-10-12T09:44:59Z'), 'open');
+  assert.equal(publicationStoryWindowState(window, window.expiresAt), 'expired');
+  assert.deepEqual(c, before);
+  assert.ok(!('eligibleNodes' in previewPublishedWorldContent(c)));
+});
+// Impossible not_before conditions are not editorial timeNote: they are structured prerequisites.
+test('structured not_before at node deadline leaves no possible instant and must reject', () => {
+  const c = timedFixture();
+  c.candidates[0]!.prerequisites = [{ kind: 'not_before', at: '2026-10-12T09:45:00Z' }];
+  mustReject(c);
+});
+test('structured not_before after inherited stage deadline cannot be stored as a satisfiable candidate', () => {
+  const c = timedFixture();
+  delete c.candidates[0]!.timeline!.window;
+  c.candidates[0]!.prerequisites = [{ kind: 'not_before', at: '2026-10-12T10:30:00Z' }];
+  mustReject(c);
+});
+test('window helper rejects an impossible real-calendar clock date instead of normalizing it to March', () => {
+  assert.throws(() =>
+    publicationStoryWindowState(
+      { notBefore: '2026-03-01T00:00:00Z', expiresAt: '2026-03-05T00:00:00Z' },
+      '2026-02-30T09:00:00Z',
+    ),
+  );
+});
+test('window helper rejects an impossible real-calendar boundary date, even outside the raw schema wrapper', () => {
+  assert.throws(() =>
+    publicationStoryWindowState(
+      { notBefore: '2026-02-30T00:00:00Z', expiresAt: '2026-03-05T00:00:00Z' },
+      '2026-03-03T09:00:00Z',
+    ),
+  );
+});
