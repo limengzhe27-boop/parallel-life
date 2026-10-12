@@ -458,6 +458,11 @@
 @media (prefers-reduced-motion: reduce) {
   .page * {
     scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+  .currentPin::after {
+    animation: none;
   }
 }
 

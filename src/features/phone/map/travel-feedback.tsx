@@ -60,20 +60,9 @@ export function TravelFeedback({
             <span>{view.destinationLabel}</span>
           </div>
         </div>
-      ) : pending ? (
-        <div className={s.transitBox} aria-hidden="true">
-          <div className={s.transitTrack}>
-            <div className={s.transitVehicle}>🛵</div>
-          </div>
-          <div className={s.transitLabels}>
-            <span>{view.fromLabel || '正在出发'}</span>
-            <span className={s.transitArrow}>⇢ 沿途通勤中 ⇢</span>
-            <span>{view.destinationLabel}</span>
-          </div>
-        </div>
       ) : (
-        <span className={checking ? s.spinner : s.notice} aria-hidden="true">
-          {checking ? '' : '!'}
+        <span className={pending || checking ? s.spinner : s.notice} aria-hidden="true">
+          {pending || checking ? '' : '!'}
         </span>
       )}
       <div role={view.status === 'failed' ? 'alert' : 'status'} aria-atomic="true">
