@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const result = await resolveTurn(
         {
           worlds: s.worlds,
-          planner: s.worldPlanner,
+          planner: s.characterPlannerFor(s.ownerId, parsedWorldId.data),
           now: () => new Date().toISOString(),
           storyNow: (realNow) => projectStoryTime(clock, realNow),
           newId: () => crypto.randomUUID(),

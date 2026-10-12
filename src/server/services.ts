@@ -2,7 +2,8 @@ import { PostgresWorldSpace } from '../modules/world/infrastructure/space-reposi
 import { PostgresAppointmentWaitRepository } from '../modules/world/infrastructure/appointment-wait-repository.ts';
 import type { AppointmentWaitRequest } from '../contracts/appointment-wait.ts';
 import { PublicationStoryRepository } from '../modules/settings/infrastructure/publication-story-repository.ts';
-import { advancePublicationStory } from './publication-story-service.ts';
+import { advancePublicationStory, validateStoryInvitation } from './publication-story-service.ts';
+import { parseProposal } from '../modules/world/domain/validation.ts';
 import { OfficialLifeRepository } from '../modules/settings/infrastructure/official-life-repository.ts';
 import { officialLifeCatalog } from '../modules/settings/infrastructure/official-presets/index.ts';
 import { PostgresPlayerRecords } from '../modules/world/infrastructure/player-records-repository.ts';
@@ -251,6 +252,34 @@ function createServices() {
     ),
     interviewPlanner: new InterviewPlanner(createTextModel()),
     worldPlanner: new WorldTurnPlanner(createTextModel()),
+    characterPlannerFor: (ownerId: string, worldId: string) => ({
+      async propose(
+        input: Parameters<
+          import('../modules/world/application/ports.ts').TurnPlanner['propose']
+        >[0],
+      ) {
+        if (input.context.worldId !== worldId) throw Error('INVALID_STATE');
+        const store: import('../modules/settings/application/publication-story-ports.ts').PublicationStoryPort =
+          new PublicationStoryRepository(db);
+        const invitation = await store.invitationContext?.(
+          ownerId,
+          worldId,
+          input.context.actor.id,
+        );
+        const proposal = await new WorldTurnPlanner(createTextModel()).propose({
+          ...input,
+          context: {
+            ...input.context,
+            ...(invitation
+              ? { storyInvitation: { ...invitation, source: 'presented' as const } }
+              : {}),
+          },
+        });
+        if (invitation)
+          validateStoryInvitation(parseProposal(proposal), input.context.actor.id, invitation);
+        return proposal;
+      },
+    }),
     memoryQuestions: new InterviewQuestionRepository(db),
     memoryCandidates: new MemoryCandidateRepository(db),
     profile: new ProfileRepository(db),

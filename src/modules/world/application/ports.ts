@@ -38,7 +38,12 @@ export type ActorContext = {
   retrievedMemories?: MemoryRecord[];
   turnOrigin?: 'director';
   /** A single eligible author opportunity supplied by the server, never parsed from player text. */
-  storyInvitation?: { title: string; placeName: string | null; earliestAt: string };
+  storyInvitation?: {
+    title: string;
+    placeName: string | null;
+    earliestAt: string;
+    source?: 'eligible' | 'presented';
+  };
 };
 /** A character model only receives a filtered context, never the complete world. */
 export interface TurnPlanner {

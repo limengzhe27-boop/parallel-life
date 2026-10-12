@@ -53,6 +53,11 @@ export type PublicationSceneBrief = {
   sourceEventId: string;
 };
 export interface PublicationStoryPort {
+  invitationContext?(
+    ownerId: string,
+    worldId: string,
+    actorId: string,
+  ): Promise<{ title: string; placeName: string | null; earliestAt: string } | null>;
   prepare(
     ownerId: string,
     worldId: string,

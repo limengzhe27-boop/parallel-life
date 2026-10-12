@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advancePublicationStory } from '../src/server/publication-story-service.ts';
+import {
+  advancePublicationStory,
+  validateStoryInvitation,
+} from '../src/server/publication-story-service.ts';
 import { MemoryWorldRepository } from '../src/modules/world/infrastructure/memory-world-repository.ts';
 import type { WorldState } from '../src/modules/world/domain/types.ts';
 import type { ClockStore } from '../src/modules/world/application/ports.ts';
@@ -11,6 +14,34 @@ import type {
 } from '../src/modules/settings/application/publication-story-ports.ts';
 
 const time = '2026-10-16T10:30:00.000Z';
+test('a presented invitation uses the same guard as a director offer, while allowing refusal', () => {
+  const intention = { title: '约定', earliestAt: '2026-10-16T11:30:00.000Z' };
+  const reply = { type: 'message.received' as const, id: 'r', actorId: 'a', text: '今天不约。' };
+  const invite = {
+    type: 'appointment.proposed' as const,
+    id: 'i',
+    title: '约定',
+    at: '2026-10-16T11:30:00.000Z',
+    participantIds: ['a'],
+  };
+  validateStoryInvitation({ schemaVersion: 1, effects: [reply] }, 'a', intention);
+  validateStoryInvitation({ schemaVersion: 1, effects: [reply, invite] }, 'a', intention);
+  for (const invalid of [
+    { ...invite, title: '别的事' },
+    { ...invite, at: '2026-10-16T11:00:00.000Z' },
+    { ...invite, participantIds: ['b'] },
+  ])
+    assert.throws(() =>
+      validateStoryInvitation({ schemaVersion: 1, effects: [reply, invalid] }, 'a', intention),
+    );
+  assert.throws(() =>
+    validateStoryInvitation(
+      { schemaVersion: 1, effects: [reply, invite, { ...invite, id: 'another' }] },
+      'a',
+      intention,
+    ),
+  );
+});
 const claim: PublicationStoryClaim = {
   claimId: 'claim',
   nodeKey: 'dinner',

@@ -136,6 +136,45 @@ test('explicit ISO offsets normalize to the same instant; invalid calendar dates
   assert.equal(bad.effects[1]!.at, at);
 });
 
+test('a server-proven presented invitation can continue a player reply without becoming a director command', async () => {
+  let payload: Record<string, unknown> = {};
+  let system = '';
+  const planner = new WorldTurnPlanner({
+    async complete(messages) {
+      system = messages[0]!.content;
+      payload = JSON.parse(messages[1]!.content);
+      return JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          {
+            type: 'message.received',
+            id: 'reply',
+            actorId: mockContext.actor.id,
+            text: '今天先不约，改天再说吧。',
+          },
+        ],
+      });
+    },
+  });
+  const result = (await planner.propose({
+    context: {
+      ...mockContext,
+      storyInvitation: {
+        source: 'presented',
+        title: '见面',
+        placeName: '餐厅',
+        earliestAt: '2026-09-24T13:00:00.000Z',
+      },
+    },
+    userText: '今晚九点可以吗？',
+  })) as { effects: { type: string }[] };
+  assert.equal(payload.turnOrigin, 'user');
+  assert.equal(payload.userText, '今晚九点可以吗？');
+  assert.equal((payload.storyOpportunity as { title: string }).title, '见面');
+  assert.ok(system.includes('proposed本身不代表玩家确认'));
+  assert.equal(result.effects.length, 1);
+});
+
 test('WorldTurnPlanner normalizes mismatched actorId and placeholder into targetActorId', async () => {
   const planner = new WorldTurnPlanner({
     async complete() {

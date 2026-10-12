@@ -10,6 +10,30 @@ import type {
 import type { MemoryRecord } from '../modules/memory/domain/types.ts';
 import { parseProposal } from '../modules/world/domain/validation.ts';
 import { worldDateTimeLabel } from '../modules/world/domain/display-time.ts';
+import type { TurnProposal } from '../modules/world/domain/types.ts';
+
+/** One actual invitation must match this scoped opportunity; silence/refusal is not an offer. */
+export function validateStoryInvitation(
+  proposal: TurnProposal,
+  actorId: string,
+  intention: { title: string; earliestAt: string },
+) {
+  const invitations = proposal.effects.filter((e) => e.type === 'appointment.proposed');
+  if (
+    invitations.length > 1 ||
+    invitations.some(
+      (e) =>
+        e.title !== intention.title ||
+        e.participantIds.length !== 1 ||
+        e.participantIds[0] !== actorId ||
+        Date.parse(e.at) < Date.parse(intention.earliestAt),
+    )
+  )
+    throw new DomainError(
+      'INVALID_PROPOSAL',
+      'The actual character invitation does not match this authorized opportunity',
+    );
+}
 
 /** Run one eligible approved story opportunity through the existing character transaction. */
 export async function advancePublicationStory(
@@ -85,6 +109,7 @@ export async function advancePublicationStory(
                             title: claim.intent.title,
                             placeName: claim.placeName,
                             earliestAt: new Date(claim.intent.earliestAt).toISOString(),
+                            source: 'eligible' as const,
                           },
                         }
                       : {}),
@@ -95,23 +120,7 @@ export async function advancePublicationStory(
                 throw new DomainError('INVALID_PROPOSAL', 'Story offers do not request images');
               if (claim.intent.kind === 'offer_invitation') {
                 const intention = claim.intent;
-                const invitations = proposal.effects.filter(
-                  (e) => e.type === 'appointment.proposed',
-                );
-                if (
-                  invitations.length > 1 ||
-                  invitations.some(
-                    (e) =>
-                      e.title !== intention.title ||
-                      e.participantIds.length !== 1 ||
-                      e.participantIds[0] !== claim.actorId ||
-                      Date.parse(e.at) < Date.parse(intention.earliestAt),
-                  )
-                )
-                  throw new DomainError(
-                    'INVALID_PROPOSAL',
-                    'The actual character invitation does not match this authorized opportunity',
-                  );
+                validateStoryInvitation(proposal, claim.actorId, intention);
                 // No invitation effect means no invitation. A refusal or message is never
                 // turned into a fabricated offer by the orchestration layer.
               }
