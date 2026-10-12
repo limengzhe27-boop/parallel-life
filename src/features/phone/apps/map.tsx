@@ -108,6 +108,13 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   const [filterFavorite, setFilterFavorite] = useState(false);
   const [mapTheme, setMapTheme] = useState<'standard' | 'transit'>('standard');
   const [zoomScale, setZoomScale] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isGesturing, setIsGesturing] = useState(false);
+  const touchStartDist = useRef<number | null>(null);
+  const touchStartZoom = useRef<number>(1);
+  const touchStartPoint = useRef<{ x: number; y: number } | null>(null);
+  const touchStartPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastTapTime = useRef<number>(0);
   const [transitMode, setTransitMode] = useState<'scooter' | 'walk' | 'taxi'>('scooter');
   const [readError, setReadError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -244,6 +251,63 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
       return () => clearTimeout(timer);
     }
   }, [feedback.status, waitingPosition, current?.id, operation?.receipt]);
+
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0]!.clientX - e.touches[1]!.clientX,
+        e.touches[0]!.clientY - e.touches[1]!.clientY,
+      );
+      touchStartDist.current = dist;
+      touchStartZoom.current = zoomScale;
+      setIsGesturing(true);
+    } else if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - lastTapTime.current < 300) {
+        setZoomScale((z) => (z > 1.15 ? 1 : 1.3));
+        setPanOffset({ x: 0, y: 0 });
+        lastTapTime.current = 0;
+      } else {
+        lastTapTime.current = now;
+      }
+      if (zoomScale > 1.05) {
+        touchStartPoint.current = {
+          x: e.touches[0]!.clientX,
+          y: e.touches[0]!.clientY,
+        };
+        touchStartPan.current = { ...panOffset };
+        setIsGesturing(true);
+      }
+    }
+  }
+
+  function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
+    if (e.touches.length === 2 && touchStartDist.current && touchStartDist.current > 0) {
+      const currentDist = Math.hypot(
+        e.touches[0]!.clientX - e.touches[1]!.clientX,
+        e.touches[0]!.clientY - e.touches[1]!.clientY,
+      );
+      const ratio = currentDist / touchStartDist.current;
+      const nextZoom = Math.min(1.5, Math.max(0.8, Number((touchStartZoom.current * ratio).toFixed(2))));
+      setZoomScale(nextZoom);
+    } else if (e.touches.length === 1 && touchStartPoint.current && zoomScale > 1.05) {
+      const dx = e.touches[0]!.clientX - touchStartPoint.current.x;
+      const dy = e.touches[0]!.clientY - touchStartPoint.current.y;
+      const maxPanX = Math.round((zoomScale - 1) * 100);
+      const maxPanY = Math.round((zoomScale - 1) * 60);
+      setPanOffset({
+        x: Math.min(maxPanX, Math.max(-maxPanX, touchStartPan.current.x + dx)),
+        y: Math.min(maxPanY, Math.max(-maxPanY, touchStartPan.current.y + dy)),
+      });
+    }
+  }
+
+  function handleTouchEnd() {
+    touchStartDist.current = null;
+    touchStartPoint.current = null;
+    setIsGesturing(false);
+  }
+
   function selectPlace(placeId: string) {
     if (selectedPlaces.size >= 32 && !selectedPlaces.has(worldId))
       selectedPlaces.delete(selectedPlaces.keys().next().value!);
@@ -450,13 +514,27 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                 className={`${s.graph} ${mapTheme === 'transit' ? s.graphTransit : ''}`}
                 style={{
                   height: Math.max(220, diagram.height),
-                  transform: zoomScale !== 1 ? `scale(${zoomScale})` : undefined,
+                  transform:
+                    zoomScale !== 1 || panOffset.x !== 0 || panOffset.y !== 0
+                      ? `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomScale})`
+                      : undefined,
                   transformOrigin: 'center center',
-                  transition: 'transform 0.25s ease',
+                  transition: isGesturing ? 'none' : 'transform 0.25s ease',
                 }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
               >
                 {/* Decorative Elements */}
-                <div className={s.compassBadge} aria-hidden="true">
+                <div
+                  className={s.compassBadge}
+                  aria-hidden="true"
+                  onClick={() => {
+                    setZoomScale(1);
+                    setPanOffset({ x: 0, y: 0 });
+                  }}
+                >
                   <span>N ↑</span>
                 </div>
                 <div className={s.floatingTools} aria-label="地图辅助控制">
@@ -476,7 +554,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                       type="button"
                       className={s.zoomBtn}
                       onClick={() =>
-                        setZoomScale((z) => Math.min(1.3, Number((z + 0.15).toFixed(2))))
+                        setZoomScale((z) => Math.min(1.5, Number((z + 0.15).toFixed(2))))
                       }
                       aria-label="放大地图"
                     >
@@ -487,7 +565,11 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                       type="button"
                       className={s.zoomBtn}
                       onClick={() =>
-                        setZoomScale((z) => Math.max(0.85, Number((z - 0.15).toFixed(2))))
+                        setZoomScale((z) => {
+                          const next = Math.max(0.8, Number((z - 0.15).toFixed(2)));
+                          if (next <= 1) setPanOffset({ x: 0, y: 0 });
+                          return next;
+                        })
                       }
                       aria-label="缩小地图"
                     >
@@ -498,6 +580,8 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                     type="button"
                     className={s.locateBtn}
                     onClick={() => {
+                      setZoomScale(1);
+                      setPanOffset({ x: 0, y: 0 });
                       if (current) selectPlace(current.id);
                     }}
                     aria-label="回到当前地点"
