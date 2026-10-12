@@ -77,14 +77,19 @@ class SyntheticReview implements PublicationReviewPort {
   }
 }
 test('real PostgreSQL isolated staff publication workspace, role boundaries and atomic history', async (t) => {
-  const admin = await adminClient('parallel_life_test'),
-    config = await localConfig();
+  const config = await localConfig();
+  const portText = process.env.PUBLISHER_TEST_PORT ?? '55477';
+  assert.match(portText, /^[1-9][0-9]{0,4}$/, 'Explicit local test port must be an integer');
+  const port = Number(portText);
+  assert.ok(Number.isSafeInteger(port) && port <= 65535, 'Explicit local test port is invalid');
+  assert.equal(config.port, port, 'Use only explicitly owned local test port');
+  // adminClient fixes the loopback host and this dedicated database; never use DATABASE_URL.
+  const admin = await adminClient('parallel_life_test');
   const resources: PostgresDatabase[] = [];
   t.after(async () => {
     for (const resource of resources) await resource.close();
     await admin.end();
   });
-  assert.equal(config.port, 55477, 'Use only owned local test port');
   await before42(admin);
   const app = new PostgresDatabase(
       `postgresql://pl_app:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_test`,

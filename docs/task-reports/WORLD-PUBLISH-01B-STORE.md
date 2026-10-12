@@ -112,3 +112,9 @@ Trusted ReviewPort建议内部输入{workId,draftVersion,contentHash,content:严
 首次旧库测试strip-only不支持本人constructor参数属性，修自己repo为显式字段；首次42 PLpgsql NOT CASE表达式缺括号，整个42事务回滚，修源后才本地正式应用；首个truncation fixture只产生60issues不足100，换本人的多字段错型fixture产生实际>100，未改实现阈值/旧测试。完整check第一次因只准备test而dev未迁移，旧character-image-flow连接未准备dev清理挂起；只停止本人test进程、对本地dev应用迁移后完整重跑1444/build0，不改旧tests/假跳过。错误/回滚与接续均如实保留，本轮0真实AI/图/上传/生产库/新生产世界/生产角色/部署。
 
 交接：源码六文件冻结，Root可按提案34421ac→304d02a→本次实现后继集成（前置content安全两文件与359869c字节一致，原依赖各cherry仅供独立树准备，不再作为STORE差异重入Root）。唯一I需要先对旧role-grants正确新增staffOnly审计/权限反例，再全PG/fullcheck/build；生产42/受控NOLOGIN成员连接及principal bootstrap、登录/HTTP限流、内部工作台、真实review/素材/试演、动态实例化与上架公众体验均由后续已分配切片，未在本项假称完成。
+
+## 根集成本地端口守卫小后继（2026-10-12）
+
+根在本人登记55476集成时被新test硬编码55477挡住，23项业务断言尚未执行，不是业务失败。按根明确要求仅改本新test与本报告：PUBLISHER_TEST_PORT默认55477；显式值须正十进制整数、1..65535、等于当前localConfig.port；在adminClient连接前拒绝非法/不匹配值。adminClient仍固定127.0.0.1与parallel_life_test，全部app/worker/publisher夹具沿该local config连接，绝不读生产DATABASE_URL、不自动改配置/切库。所有23项业务用例/fixture/迁移/repository/合同均未改。
+
+本人55477确认无监听后重启原独立本地cluster；默认与显式55477各23/23真实PG通过；0/65536/小数/负数/带空格/显式55476不匹配六反例在连接前失败。完整check1444/1444、build0、diff0。第一轮check在本人PG尚未启动前遇旧character-image-flow ECONNREFUSED，启动原库后完整重跑通过；未改原test/跳过。根应以PUBLISHER_TEST_PORT=55476在自己库复验，不宣称根23已绿。本次0生产迁移/图/模型/部署，新43另独立树准备。
