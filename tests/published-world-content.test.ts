@@ -1205,3 +1205,52 @@ test('all supported actual outcome alternatives can be expressed without treatin
   ];
   assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
 });
+
+// Independent audit reproduction: array prototypes must not supply executable serializers.
+for (const kind of ['method', 'getter'] as const)
+  test(`custom array prototype ${kind} cannot execute during internal JSON validation`, () => {
+    let calls = 0;
+    const array = ['plain'];
+    const prototype =
+      kind === 'method'
+        ? {
+            toJSON() {
+              calls++;
+              return { changedByCode: 'SERIALIZER_REPLACEMENT' };
+            },
+          }
+        : Object.defineProperty({}, 'toJSON', {
+            get() {
+              calls++;
+              return () => ({ changedByCode: 'SERIALIZER_REPLACEMENT' });
+            },
+          });
+    Object.setPrototypeOf(array, prototype);
+    const c = content();
+    c.extensions[0]!.data = array;
+    const result = PublishedWorldContentSchema.safeParse(c);
+    assert.equal(calls, 0, 'Budget checks must not execute inherited serializers or getters');
+    assert.equal(result.success, false, 'Custom array prototypes are not inert JSON');
+  });
+
+test('standard and null-prototype arrays remain inert JSON; array subclasses cannot supply code', () => {
+  for (const array of [[1, true, null], Object.setPrototypeOf([1, true, null], null)]) {
+    const c = content();
+    c.extensions[0]!.data = array;
+    const parsed = PublishedWorldContentSchema.parse(c);
+    assert.deepEqual(JSON.parse(JSON.stringify(parsed.extensions[0]!.data)), [1, true, null]);
+  }
+  let calls = 0;
+  class ExecutableArray extends Array {
+    toJSON() {
+      calls++;
+      return 'replacement';
+    }
+  }
+  const c = content();
+  const subclass = new ExecutableArray();
+  subclass.push('plain');
+  c.extensions[0]!.data = subclass as unknown as PublicationContent['extensions'][number]['data'];
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, false);
+  assert.equal(calls, 0);
+});

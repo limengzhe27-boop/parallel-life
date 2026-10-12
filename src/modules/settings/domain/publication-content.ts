@@ -166,12 +166,9 @@ export function publicationStorageIssues(value: unknown): PublicationIssue[] {
     if (typeof v === 'number') return Number.isFinite(v);
     if (typeof v !== 'object') return false;
     if (ancestors.has(v)) return false;
-    if (
-      !Array.isArray(v) &&
-      Object.getPrototypeOf(v) !== Object.prototype &&
-      Object.getPrototypeOf(v) !== null
-    )
-      return false;
+    const prototype = Object.getPrototypeOf(v);
+    const standardPrototype = Array.isArray(v) ? Array.prototype : Object.prototype;
+    if (prototype !== standardPrototype && prototype !== null) return false;
     if (
       Reflect.ownKeys(v).some(
         (k) => typeof k !== 'string' || ['__proto__', 'prototype', 'constructor'].includes(k),

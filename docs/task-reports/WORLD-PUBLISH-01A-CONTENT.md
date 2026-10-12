@@ -142,3 +142,13 @@ candidate.timeline提供stageKey、optional window、timeNote（300字符编辑�
 时间线最终验收：原87f95f5测试文件作为新文件prefix逐字一致（原60项未改），新增34专项，总94pass、type0/338boundary、三代码文件Prettier/diff0。覆盖正确先后、可选拒绝/跳过/过期替代、并行节点/阶段、未知阶段、逆序/循环/矛盾条件、窗口/截止、过期不入初始事实、完整最小样例加timeline增量可解析、额外timeline capability缺失保持不可运行。原稿未用，0SQL/auth/API/UI/模型PG生产图端口部署。
 
 最终导出新增PublicationStoryWindow / PublicationNodeOutcome / PublicationResolutionCondition types和publicationStoryWindowState；contract raw Schema/preview/support签名不变。完整源依次为19f70c8→87f95f5→本次时间线后继，根须整体审核或按顺序集成，不能仅取后继漏掉初始新文件。所有source新字段/上限仍是本切片提出的契约，待根批准冻结后才能被实际API/后台UI消费。
+
+## 独立审计数组原型红例修复
+
+根指出Q准确冻结7d57e64两个真实红例：extension.data是Array，但Object.setPrototypeOf改为具有toJSON方法或getter的原型；原守卫在Array.isArray分支跳过原型约束，整体与扩展预算JSON.stringify合计调用/读取3次。本人在未修源码前用专属新2反例复现3!=0，并在ignored隔离测试目录读取Q准确commit逐字原test再次复现两个3!=0。不是普通HTTP JSON生产RCE实测，而是内部纯JSON入口的明确执行副作用与静默替换漏洞。
+
+本次唯一源修复只在publicationStorageIssues：按Array/普通object各取标准Array.prototype/Object.prototype，拒绝其之外的非null原型；此门在所有序列化之前执行。null原型数据保持可存；不克隆/strip/先执行后捕获以掩盖输入。未改时间线、合同shape、能力/预览/权限语义或任何既有/Q测试断言。本人追加方法/getter2负例与标准/null数组及Array子类1正反例，继承序列化代码不能执行。
+
+Q tests/publication-content-audit.test.ts来自准确7d57e64，临时副本仅ignored .local/q-audit/tests，src相对路径指向本树源；逐字校验一致，SHA256 e16d1fd0a00f04de10c2bdff690299c4a2ba99a2fc0ba5e71f72ff2197b98f00。未cherry Q源码/报告、未改Q工作树；Q只读断言calls/reads=0与safeParse=false原样保持。第一临时symlink路径多一层导致module resolve失败，修本人的ignored链接后真实复现；第一次本人新增Array子类constructor TS overload错误，只修新fixture为new后push，未影响原94或Q断言，最后type0。
+
+最终实际测试：本人97（原fc6a3fd的94完整文件prefix逐字保留）+Q原56合计153pass/0fail；type0/338boundary/Prettier/diff0。Q两原红例修后0调用/0读取且拒绝，null-prototype object旧正例与新null数组均保留。证据ignored .local/array-prototype-{before,after,type,boundary,format}.log及q-array-before.log。仍0模型/PG/生产写/SQL/API/UI/素材/端口/部署；根身份源码不碰，修复作为fc6之后单一后继提交释放I复审/集成。
