@@ -667,3 +667,44 @@ test('published and trial origin versions cannot be exchanged or inferred from a
   const ready = compiled(input());
   assert.equal(ready.seedMetadata.source, 'published_work');
 });
+
+test('real actorContext receives explicit public world and protagonist identity, not just phone metadata', () => {
+  const c = content();
+  c.world.publicSetting = 'PUBLIC_WORLD_SETTING_VISIBLE_TO_NPC';
+  c.protagonist.identity = 'PUBLIC_PLAYER_IDENTITY_VISIBLE_TO_NPC';
+  c.protagonist.situation = 'PRIVATE_PLAYER_SITUATION_MUST_NOT_ENTER_NPC';
+  const r = compiled(input(c));
+  for (const a of r.world.actors) {
+    const ctx = actorContext(r.world, a.id);
+    const p = JSON.parse(ctx.actor.persona);
+    assert.equal(p.publicSetting, c.world.publicSetting);
+    assert.equal(p.protagonistPublicIdentity, c.protagonist.identity);
+    const text = JSON.stringify(ctx);
+    assert.ok(!text.includes(c.protagonist.situation));
+    assert.ok(!text.includes(c.world.hiddenContext));
+    const other = r.world.actors.find((b) => b.id !== a.id)!;
+    assert.ok(!text.includes(JSON.parse(other.persona).background));
+  }
+  assert.equal(r.opening.situation, c.protagonist.situation); // player's own phone metadata remains separate.
+});
+test('public world and identity additions count toward the original Persona budget, never truncate', () => {
+  const c = content();
+  c.actors[0]!.privatePersona.background = 'A'.repeat(1200);
+  c.actors[0]!.privatePersona.motivation = 'B'.repeat(600);
+  c.actors[0]!.privatePersona.voice = 'C'.repeat(600);
+  c.actors[0]!.privatePersona.boundaries = 'D'.repeat(600);
+  c.world.publicSetting = 'S'.repeat(1000);
+  c.protagonist.identity = 'I'.repeat(200);
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  noCompile(input(c), 'unsupported', 'persona_budget');
+  assert.equal(c.world.publicSetting.length, 1000);
+  assert.equal(c.actors[0]!.privatePersona.background.length, 1200);
+});
+test('repeated public world data for 12 actors still respects the original 65KB total budget', () => {
+  const c = content();
+  for (let n = 2; n < 12; n++)
+    c.actors.push({ ...structuredClone(c.actors[0]!), key: `more_${n}` });
+  c.world.publicSetting = '世'.repeat(1600);
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  noCompile(input(c), 'unsupported', 'world_budget');
+});

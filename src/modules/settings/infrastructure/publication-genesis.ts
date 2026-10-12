@@ -97,6 +97,8 @@ function persona(c: PublicationContent, key: string): string {
   const actor = c.actors.find((a) => a.key === key)!;
   return JSON.stringify({
     ...actor.privatePersona,
+    publicSetting: c.world.publicSetting,
+    protagonistPublicIdentity: c.protagonist.identity,
     relationships: sorted(c.relationships)
       .filter((r) => actorAllowed(r.visibility, key))
       .map((r) => ({ key: r.key, from: r.from, to: r.to, description: r.description })),

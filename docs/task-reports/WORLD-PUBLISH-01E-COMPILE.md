@@ -86,3 +86,9 @@ hiddenContext、编辑说明及editorial扩展只在原不可变内容版本保�
 这些是领域/适配器真实函数的合成验证，不是实际PostgreSQL/员工API/线上手机或真实模型。Q没有Repository/新SQL/HTTP、任务执行、数据库、浏览器/模型/图片调用或部署；不会把编译成功当真实发布/已完成。状态先待验收，根全check/build及43/HTTP/源绑定/真实DB/公网证据后才能整体完成。
 
 root/B43接续：消费上述精确端口的world/opening/keys/origin/seedMetadata，在prepare→trusted compiler→commit中核实际pub或trial版本/摘要/许可，真实保存origin与seed绑定、初始snapshot/clock/phone元数据/回执；published_work和publication_trial新seed只安全summary+指针，不造旧tradeoff、不放全私人稿。root接公开contacts/notes读投影（带初知引用和作者来源），不JSON输出完整world，不混用旧Model WorldOpening。人物5区UI交小安，Q不改；未来规则与媒体接线仍必须明确unsupported，用户实际Model流程预算另批。
+
+## 公开世界/玩家身份进入实际NPC上下文的小后继
+
+根审615后指出opening metadata未由现actorContext/turn planner消费；本次按根明确公开范围，在本编译器persona() JSON加入`publicSetting=c.world.publicSetting`及`protagonistPublicIdentity=c.protagonist.identity`。不创建全局canonical身份事实，不修改旧actorContext/source；玩家situation、hiddenContext、他人privatePersona及未来节点仍不加入NPC JSON。phone的玩家situation metadata与NPC上下文分开，原端口/trial/publication身份全部不变。
+
+附加两个公开值参与原Persona4000字符和整份65KB预算，超限unsupported不截断。新增3实际调用反例：每个真实actorContext含两个公开值但无私有处境/幕后/另一Persona；有效长Persona+公开值突破4000拒；12演员重复1600汉字世界值突破总65KB拒。原31测试回归保留，现34新增专项及原相关6文件合**246/246通过，零skip**；type退出0、341边界、两TS格式及diff过。仅本报告/新genesis适配器/新tests后继，application端口和所有旧源不改，0模型PG浏览器部署。此证据为函数编译与实际上下文读取，不是已真实调用模型，root/B43继续数据库/HTTP/公网接线。
