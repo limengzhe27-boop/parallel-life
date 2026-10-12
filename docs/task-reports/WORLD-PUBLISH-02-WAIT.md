@@ -33,3 +33,15 @@ CalendarWaitAction只在canWaitToAppointment callback明确true、wait callback�
 根已接fcef90f4a4cbe11c03d5d549335ac84f69fd30fe的核心（准确以首次已发hash为准），提供8744330e/context/history与a75f852/B48 worker后继。本人未将这些公共WIP复制进本树；旧已赴约存档完整history/动态offer地点证据/worker scene复合验证仍待在根最新准确集成树检验。private trial仍paused拒fresh wait；不偷偷resume。0生产/模型/图片/浏览器，无截图。
 
 独立PG55482仍在运行（session82402），完整check/build/根复合接续完成后必须停止并核无监听；此前runtime已ignored私有备份，.env从未改。日志 /private/tmp/appointment-wait-{core,ui,pg,delivery-tests}.log；不输出凭据、不提交ignored运行资源。报告将继续更新，源码后半段先交根，不自动领取其它任务。
+
+## 最终本树检查、只读联调发现与资源释放
+
+2026-10-12，本树完整 npm run check 1725/1725（3 suites，0skip/0TODO），387boundary/type0；npm run build退出0，十个范围代码/测试Prettier通过、diff通过、业务源码自f9364fd50b2c0bc0caefcc55a916fbfad55be02b未改。源码冻结根已受控cherry为9344a94dd6d3fa385b3ff3a5719cd670c1f4a51d；本段只是报告，不能将本树旧e59的完整检查说成覆盖根新B46/B48或线上。日志 /private/tmp/appointment-wait-full-check.log 与 appointment-wait-full-build.log。32领域/SSR+14真实PG证据保留。
+
+根要求后续仅只读、不新增PG/model/browser/源。本次只读9344及四文件lifecycle WIP：services真实组装PostgresAppointmentWaitRepository，host以map.data可靠地点/at/paused/busy/currentScene资格，保存unknown原command与expectedVersion到本机；历史已接appointment.waited union/dispatch。private lifecycle只接受paused bool，principal authorize与exact trialSession决定private owner/world，不接受caller owner/world/speed/time；读真实clock状态、automatic=false，clock代理POST仍未开放。只有源码审查，不声称该lifecycle真实HTTP或撤权并发已验。
+
+发现且已回根的UNKNOWN恢复缺口：响应丢失但wait已commit后，重读at已到会被host canWait和Calendar未来资格双门隐藏原按钮；localStorage原命令未核对导致其它邀约永远BUSY，但没有可点原回放入口。刷新后provider.run产生新cmdB而host使用cachedA，Calendar对sentCommandB严格匹配也会拒绝真实A的过渡文案。Repo的原owner/hash真实event回执在paused/due之后可重放已有PG证据，根需增加“核对上次等待”的明确replay入口与canonical command协调，不能放开全部过去日程fresh wait或删除记录冒成功。Root最终修复/浏览器/public尚未回传，不标完成。无需为此新增付费/model/世界。
+
+资源：依据自有.local/wait-02/postgres/postmaster.pid核postgres与父bootstrap脚本/cwd，向仅本人wrapper发SIGTERM，原session82402退出0；lsof55482无监听。恢复私有backup.runtime到此前55458，只恢复本人文件，.env从未修改；未删除既有ignored旧库或其它任务数据。新fixture/cluster留本人ignored目录可复核，不推生产。原普通沙箱读取ps EPERM后通过任务已授权的提权核自有进程，仅关闭本人资源，无其它进程操作。
+
+交付状态待验收：Repository/API路由/UI源和本地PG证据已提供；root services/client/host/history/context复合旧存档/worker/FK、UNKNOWN恢复、真实手机PC/公网与READY统一由根最终验收。没有供应商调用/生产数据/浏览器/截图，母项目仍非全部完成。下一步仅等待根修复与验收结果，不续领其它任务。
