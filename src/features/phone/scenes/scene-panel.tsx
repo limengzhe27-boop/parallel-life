@@ -72,11 +72,22 @@ export function ScenePanel({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [retryConfirm, setRetryConfirm] = useState(false),
-    [leaveConfirm, setLeaveConfirm] = useState(false);
+    [leaveConfirm, setLeaveConfirm] = useState(false),
+    [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const reading = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const restoredScene = useRef<string | undefined>(undefined);
   const followEnd = useRef(false);
+  const scrollToBottom = useCallback(() => {
+    if (reading.current) {
+      reading.current.scrollTo({
+        top: reading.current.scrollHeight,
+        behavior: 'smooth',
+      });
+      followEnd.current = true;
+      setShowScrollToBottom(false);
+    }
+  }, []);
   const live = useRef(true),
     running = useRef(false),
     retryId = useRef<{ taskId: string; id: string } | undefined>(undefined),
@@ -236,23 +247,26 @@ export function ScenePanel({
               {syncError}
             </p>
           ) : null}
-          <div
-            className={s.reading}
-            data-scene-records
-            ref={reading}
-            onScroll={(event) => {
-              const element = event.currentTarget;
-              followEnd.current =
-                element.scrollHeight - element.scrollTop - element.clientHeight < 90;
-              if (data.scene)
-                try {
-                  sessionStorage.setItem(
-                    'pl-scene-scroll:' + worldId + ':' + data.scene.id,
-                    String(element.scrollTop),
-                  );
-                } catch {}
-            }}
-          >
+          <div className={s.readingArea}>
+            <div
+              className={s.reading}
+              data-scene-records
+              ref={reading}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                const distance =
+                  element.scrollHeight - element.scrollTop - element.clientHeight;
+                followEnd.current = distance < 90;
+                setShowScrollToBottom(distance > 160);
+                if (data.scene)
+                  try {
+                    sessionStorage.setItem(
+                      'pl-scene-scroll:' + worldId + ':' + data.scene.id,
+                      String(element.scrollTop),
+                    );
+                  } catch {}
+              }}
+            >
             <SceneStage
               read={data}
               contacts={contacts}
@@ -528,6 +542,17 @@ export function ScenePanel({
               </div>
             ) : null}
           </div>
+          {showScrollToBottom && (
+            <button
+              type="button"
+              className={s.scrollToBottomBtn}
+              onClick={scrollToBottom}
+              aria-label="回到底部最新剧情"
+            >
+              <span>↓</span> 回到最新
+            </button>
+          )}
+        </div>
           {data.scene.status !== 'ended' ? (
             <form
               className={s.composer}

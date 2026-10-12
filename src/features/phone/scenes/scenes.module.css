@@ -134,6 +134,13 @@
   min-height: 0;
   overflow: hidden;
 }
+.readingArea {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .reading {
   flex: 1;
   min-height: 0;
@@ -142,6 +149,34 @@
   flex-direction: column;
   gap: 14px;
   padding-right: 2px;
+}
+.scrollToBottomBtn {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px !important;
+  height: 32px;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  color: #1e3a5f !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid #c8d9e6 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.scrollToBottomBtn:hover {
+  background: #ffffff !important;
+  border-color: #347bfa !important;
+  color: #0b4f8a !important;
+  transform: translateY(-1px);
 }
 .scenePanel > button {
   flex-shrink: 0;

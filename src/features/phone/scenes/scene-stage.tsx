@@ -32,6 +32,7 @@ export function SceneStage({
   const [failed, setFailed] = useState<string>();
   const fallback = art.illustration || failed === art.url;
   const people = sceneOverview(read).people;
+  const actors = people.filter((participant) => participant.kind === 'actor');
   return (
     <section className={s.stage} aria-label="现场画面" data-scene-stage>
       <div className={s.picture}>
@@ -50,9 +51,8 @@ export function SceneStage({
         </div>
       </div>
       <div className={s.people} aria-label="在场人物">
-        {people.length ? (
-          people.map((participant) => {
-            if (participant.kind !== 'actor') return null;
+        {actors.length ? (
+          actors.map((participant) => {
             const person = contacts.find((contact) => contact.id === participant.actorId);
             return (
               <details key={participant.actorId} className={s.person}>

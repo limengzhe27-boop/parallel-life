@@ -103,6 +103,13 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   const [selectedId, select] = useState<string | undefined>(
     () => target ?? selectedPlaces.get(worldId),
   );
+  useEffect(() => {
+    if (target) {
+      select(target);
+      selectedPlaces.set(worldId, target);
+      requestAnimationFrame(() => detailsElement.current?.scrollIntoView({ block: 'nearest' }));
+    }
+  }, [target, worldId]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchActive, setSearchActive] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);

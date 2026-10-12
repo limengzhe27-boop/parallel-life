@@ -99,7 +99,7 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
                   onClick={() => open(destination.app, destination.target)}
                 >
                   {destination.app === 'map'
-                    ? '查看地点 ›'
+                    ? '前往现场推进 ›'
                     : destination.app === 'messages'
                       ? record.kind === 'world_matter'
                         ? '联系相关人物 ›'
@@ -392,7 +392,7 @@ export function NotesRecordDetail({
                 ? '联系相关人物'
                 : '查看来源对话'
               : destination.app === 'map'
-                ? '查看地点'
+                ? '前往现场推进'
                 : '查看日程'}
             <span aria-hidden="true"> ›</span>
           </button>
