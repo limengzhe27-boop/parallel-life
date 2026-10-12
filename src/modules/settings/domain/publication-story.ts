@@ -310,7 +310,10 @@ export function evaluateStory(
   const autoClaims = states.filter((s) => s.automatic),
     day = storyDay(context.storyNow);
   const today = autoClaims.filter((s) => storyDay(s.storyAt) === day).length;
-  const last = autoClaims.reduce(
+  const attempted = states.filter(
+    (s) => s.sourceEventId !== null || ['claimed', 'unknown', 'failed'].includes(s.status),
+  );
+  const last = attempted.reduce(
     (v, s) => Math.max(v, Date.parse(s.storyAt)),
     Number.NEGATIVE_INFINITY,
   );

@@ -22,7 +22,12 @@ export type PublicationStoryClaim = {
 };
 export type PublicationStoryPrepare =
   | { status: 'claimed'; claim: PublicationStoryClaim }
-  | { status: 'none' | 'busy' | 'unknown' | 'rate_limited'; pendingClaimId?: string };
+  | {
+      status: 'none' | 'busy' | 'unknown' | 'rate_limited';
+      /** False only for a world with no story sidecar; a managed wait must not run generic auto-director. */
+      managed?: boolean;
+      pendingClaimId?: string;
+    };
 /** Only already presented source references, active stage keys and a pending opaque receipt are public. */
 export type PublicationStoryProgress = {
   currentStageKeys: string[];
