@@ -1,0 +1,137 @@
+.dialog {
+  border: 1px solid #dbe1e8;
+  border-radius: 18px;
+  padding: 0;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  color: #172033;
+  background: #fff;
+  overflow: hidden;
+}
+.dialog::backdrop {
+  background: rgb(8 20 38 / 50%);
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid #e5e9ef;
+}
+.header h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.header p,
+.help {
+  color: #596579;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 4px 0;
+}
+.body {
+  padding: 20px;
+  overflow: auto;
+  max-height: calc(100dvh - 230px);
+}
+.field {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+.field input,
+.field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccd4df;
+  border-radius: 9px;
+  padding: 12px;
+  color: #172033;
+  background: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+.field textarea {
+  resize: vertical;
+  max-height: 280px;
+}
+.help {
+  margin-bottom: 18px;
+}
+.dialog button {
+  border: 1px solid #ccd4df;
+  padding: 10px 14px;
+  border-radius: 9px;
+  color: #172033;
+  background: #fff;
+  min-height: 44px;
+  font: inherit;
+  cursor: pointer;
+}
+.dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dialog button:focus-visible,
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.preview {
+  margin-top: 20px;
+  border-top: 1px solid #e5e9ef;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  background: #f4f6f9;
+  padding: 12px;
+}
+.preview details {
+  border-bottom: 1px solid #e5e9ef;
+  padding: 10px 0;
+}
+.warnings {
+  color: #735219;
+  background: #fff7e5;
+  border-radius: 9px;
+  padding: 14px 14px 14px 30px;
+}
+.error {
+  color: #9c3028;
+  line-height: 1.6;
+}
+.footer {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #e5e9ef;
+}
+.footer button:last-child {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+@media (max-width: 480px) {
+  .header,
+  .body {
+    padding: 14px;
+  }
+  .header h2 {
+    font-size: 20px;
+  }
+  .footer {
+    padding: 12px;
+    justify-content: stretch;
+  }
+  .footer button {
+    flex: 1;
+  }
+}

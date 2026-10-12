@@ -5,6 +5,8 @@ import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
 import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
+import { PublisherImportDialog } from './publisher-import-dialog.tsx';
+import type { ImportSummary } from './publisher-importer.ts';
 import { plotChoices } from './publisher-plot-model.ts';
 import { PublisherDraftContentSchema } from '../../contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
@@ -84,6 +86,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
   const [newWorkTitle, setNewWorkTitle] = useState('');
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
+  const [showMarkdownImport, setShowMarkdownImport] = useState(false);
+  const [markdownReview, setMarkdownReview] = useState<ImportSummary>();
 
   // Sync state when props.work updates or changes workId/draftVersion
   useEffect(() => {
@@ -100,6 +104,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
     const isNewVersion = work.draft.version !== loadedDraftVersion;
 
     if (isNewWork || isNewVersion) {
+      setShowMarkdownImport(false);
+      if (isNewWork) setMarkdownReview(undefined);
       setDraftTitle(work.title);
       setDraftContent(deepClone(work.draft.content));
       setImportText('');
@@ -452,6 +458,15 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
 
                 <button
                   type="button"
+                  className={`${s.btn} ${s.btnSecondary}`}
+                  disabled={busy || !session.canEdit}
+                  onClick={() => setShowMarkdownImport(true)}
+                >
+                  导入 Markdown
+                </button>
+
+                <button
+                  type="button"
                   className={`${s.btn} ${s.btnTrial}`}
                   onClick={onTrial ? () => onTrial() : undefined}
                   disabled={busy || isDirty || !onTrial}
@@ -529,6 +544,32 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
         </header>
 
         {/* Global Feedback Banners */}
+        {markdownReview && (
+          <details className={s.banner}>
+            <summary>
+              本次文稿导入记录 · {markdownReview.actors.length} 位人物、
+              {markdownReview.candidatesCount} 个候选
+            </summary>
+            <p>此记录仅供当前编辑时核对，不自动保存为世界事实或公开资料。原始文档保持原样。</p>
+            <ul>
+              {markdownReview.diagnostics.map((item, index) => (
+                <li key={index}>
+                  {item.filename}：{item.message}
+                </li>
+              ))}
+            </ul>
+            {markdownReview.unmapped.map((item, index) => (
+              <details key={index}>
+                <summary>
+                  {item.filename} · {item.reason}
+                </summary>
+                <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                  {item.content}
+                </pre>
+              </details>
+            ))}
+          </details>
+        )}
         {error && (
           <div className={`${s.banner} ${s.bannerError}`} role="alert">
             <span>
@@ -1316,6 +1357,26 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
       )}
 
       {/* ================= Create Work Modal ================= */}
+      {showMarkdownImport && work && (
+        <PublisherImportDialog
+          workId={work.id}
+          version={work.draft.version}
+          content={draftContent}
+          disabled={busy || !session.canEdit}
+          onClose={() => setShowMarkdownImport(false)}
+          onApply={(next, summary) => {
+            setDraftContent(next);
+            setMarkdownReview(summary);
+            const nextWork = next.work as { title?: unknown } | undefined;
+            if (typeof nextWork?.title === 'string') setDraftTitle(nextWork.title);
+            setNotice({
+              type: 'warning',
+              message: '已填入当前编辑稿，尚未保存。请补齐提示的缺项，再保存、检查和试演。',
+            });
+          }}
+        />
+      )}
+
       {showCreateModal && (
         <div
           style={{

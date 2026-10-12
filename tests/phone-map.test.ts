@@ -27,9 +27,17 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { MapApp, mapSelection, mapFeedback, mapDiagram } =
+const { MapApp, mapSelection, mapFeedback, mapDiagram, mapPlaceMatchesCategory } =
   await import('../src/features/phone/apps/map.tsx');
 const { PhoneAppsProvider } = await import('../src/features/phone/apps/provider.tsx');
+test('map name filtering does not classify a person named Lin as a forest or a clinic as a restaurant', () => {
+  assert.equal(mapPlaceMatchesCategory('林白语家', 'park'), false);
+  assert.equal(mapPlaceMatchesCategory('市立医院', 'food'), false);
+  assert.equal(mapPlaceMatchesCategory('市立医院', 'pharmacy'), true);
+  assert.equal(mapPlaceMatchesCategory('街角餐厅', 'food'), true);
+  assert.equal(mapPlaceMatchesCategory('中央公园', 'park'), true);
+  assert.equal(mapPlaceMatchesCategory('林白语家', null), true);
+});
 // Explicit render fixtures, never a production world or database validation.
 const worldId = '11111111-1111-4111-8111-111111111111';
 const actorId = '22222222-2222-4222-8222-222222222222';
@@ -400,4 +408,3 @@ test('mobile search bar provides virtual keyboard attributes and clean quick act
   assert.match(html, /全部地点/);
   assert.doesNotMatch(html, /收藏地点|🔖/);
 });
-

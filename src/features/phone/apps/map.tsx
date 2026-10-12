@@ -10,6 +10,18 @@ import type { TravelFeedbackState } from '../map/travel-presentation.ts';
 import { usePhoneApps } from './provider.tsx';
 import s from './map.module.css';
 
+/** Name filtering is a view convenience, not a newly inferred world fact. */
+export function mapPlaceMatchesCategory(name: string, category: string | null) {
+  if (!category) return true;
+  const patterns: Record<string, RegExp> = {
+    food: /餐厅|饭店|食堂|酒吧|咖啡|茶馆|餐馆|小吃|面馆|甜品/,
+    pharmacy: /药房|药店|医院|诊所|急救中心/,
+    park: /公园|森林|植物园|湖畔|绿地|游园/,
+    wc: /公厕|洗手间|卫生间|厕所/,
+  };
+  return patterns[category]?.test(name) ?? false;
+}
+
 /** Preview uses the published world clock and authored route, never device time or map distance. */
 export function mapSelection(data: WorldSpace, placeId?: string) {
   const current = data.places.find((place) => place.id === data.currentPlaceId) ?? null;
@@ -107,7 +119,6 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
     if (target) {
       select(target);
       selectedPlaces.set(worldId, target);
-      requestAnimationFrame(() => detailsElement.current?.scrollIntoView({ block: 'nearest' }));
     }
   }, [target, worldId]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,6 +131,14 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   const [zoomScale, setZoomScale] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isGesturing, setIsGesturing] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduceMotion(preference.matches);
+    update();
+    preference.addEventListener('change', update);
+    return () => preference.removeEventListener('change', update);
+  }, []);
   const touchStartDist = useRef<number | null>(null);
   const touchStartZoom = useRef<number>(1);
   const touchStartPoint = useRef<{ x: number; y: number } | null>(null);
@@ -155,6 +174,14 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
     ? mapSelection(space, selectedId)
     : { current: null, selected: null, route: undefined, arrival: '' };
   const diagram = space ? mapDiagram(space) : null;
+  const targetAvailable = !target || !space || space.places.some((place) => place.id === target);
+  useEffect(() => {
+    if (!target || !space || !targetAvailable || selected?.id !== target) return;
+    const frame = requestAnimationFrame(() =>
+      detailsElement.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [target, targetAvailable, selected?.id, space?.worldVersion]);
   const unavailable = !map || (!space && !map.loading && !error);
   async function refresh() {
     if (!map || map.loading) return;
@@ -254,12 +281,15 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
       operation?.receipt &&
       current?.id === operation.receipt.toPlaceId
     ) {
-      const timer = setTimeout(() => {
-        continueAtPlace();
-      }, 1400);
+      const timer = setTimeout(
+        () => {
+          continueAtPlace();
+        },
+        reduceMotion ? 0 : 1400,
+      );
       return () => clearTimeout(timer);
     }
-  }, [feedback.status, waitingPosition, current?.id, operation?.receipt]);
+  }, [feedback.status, waitingPosition, current?.id, operation?.receipt, reduceMotion]);
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     if (e.touches.length === 2) {
@@ -342,25 +372,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
             Boolean(place.description && place.description.toLowerCase().includes(q))
           );
         }
-        if (activeCategory === 'food') {
-          return /餐|吃|饭|店|馆|食|酒|茶|咖/.test(
-            place.name + (place.description || ''),
-          );
-        }
-        if (activeCategory === 'pharmacy') {
-          return /药|医|院|急救|诊所|康/.test(
-            place.name + (place.description || ''),
-          );
-        }
-        if (activeCategory === 'park') {
-          return /园|湖|林|绿|树|山|草/.test(
-            place.name + (place.description || ''),
-          );
-        }
-        if (activeCategory === 'wc') {
-          return /公厕|卫|洗手|厕/.test(place.name + (place.description || ''));
-        }
-        return true;
+        return mapPlaceMatchesCategory(place.name, activeCategory);
       })
     : [];
   return (
@@ -501,6 +513,11 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
         </div>
       ) : (
         <>
+          {!targetAvailable && (
+            <p className={s.muted} role="status">
+              原记录中的地点暂时不可用。下方展示当前已知地点，请重新选择。
+            </p>
+          )}
           <div className={s.searchBarContainer}>
             <div className={`${s.searchBar} ${searchActive ? s.searchBarFocused : ''}`}>
               <button
@@ -642,7 +659,9 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
               {filteredPlaces.length === 0 ? (
                 <div className={s.searchEmpty}>
                   <p className={s.searchEmptyTitle}>未找到与“{searchQuery.trim()}”相关的已知地点</p>
-                  <p className={s.searchEmptyHint}>可核对地点全称，或点击右上角“取消”查看全部地图。</p>
+                  <p className={s.searchEmptyHint}>
+                    可核对地点全称，或点击右上角“取消”查看全部地图。
+                  </p>
                 </div>
               ) : (
                 <div className={s.searchResultList}>
@@ -694,496 +713,468 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
             </section>
           ) : (
             <>
-          <section className={s.location} aria-label="当前位置">
-            <span className={s.currentDot} aria-hidden="true" />
-            <div>
-              <p className={s.eyebrow}>你现在在</p>
-              <h2>{waitingPosition ? '正在更新当前位置' : current?.name || '位置尚未确认'}</h2>
-            </div>
-          </section>
-          {diagram && (
-            <section className={s.diagram} aria-label="地点示意">
-              <span className={s.diagramLabel}>地点示意 · 非地理距离</span>
-              <div
-                className={`${s.graph} ${mapTheme === 'transit' ? s.graphTransit : ''}`}
-                style={{
-                  height: Math.max(220, diagram.height),
-                  transform:
-                    zoomScale !== 1 || panOffset.x !== 0 || panOffset.y !== 0
-                      ? `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomScale})`
-                      : undefined,
-                  transformOrigin: 'center center',
-                  transition: isGesturing ? 'none' : 'transform 0.25s ease',
-                }}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onTouchCancel={handleTouchEnd}
-              >
-                {/* Decorative Elements */}
-                <div
-                  className={s.compassBadge}
-                  aria-hidden="true"
-                  onClick={() => {
-                    setZoomScale(1);
-                    setPanOffset({ x: 0, y: 0 });
-                  }}
-                >
-                  <span>N ↑</span>
+              <section className={s.location} aria-label="当前位置">
+                <span className={s.currentDot} aria-hidden="true" />
+                <div>
+                  <p className={s.eyebrow}>你现在在</p>
+                  <h2>{waitingPosition ? '正在更新当前位置' : current?.name || '位置尚未确认'}</h2>
                 </div>
-                <div className={s.floatingTools} aria-label="地图辅助控制">
-                  <button
-                    type="button"
-                    className={`${s.toolBtn} ${mapTheme !== 'standard' ? s.toolBtnActive : ''}`}
-                    onClick={() => setMapTheme((t) => (t === 'standard' ? 'transit' : 'standard'))}
-                    aria-label="切换图层"
+              </section>
+              {diagram && (
+                <section className={s.diagram} aria-label="地点示意">
+                  <span className={s.diagramLabel}>地点示意 · 非地理距离</span>
+                  <div
+                    className={`${s.graph} ${mapTheme === 'transit' ? s.graphTransit : ''}`}
+                    style={{
+                      height: Math.max(220, diagram.height),
+                      transform:
+                        zoomScale !== 1 || panOffset.x !== 0 || panOffset.y !== 0
+                          ? `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomScale})`
+                          : undefined,
+                      transformOrigin: 'center center',
+                      transition: isGesturing || reduceMotion ? 'none' : 'transform 0.25s ease',
+                    }}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchEnd}
                   >
-                    <span className={s.toolIcon} aria-hidden="true">
-                      ⊞
-                    </span>
-                    <span className={s.toolLabel}>图层</span>
-                  </button>
-                  <div className={s.zoomGroup}>
-                    <button
-                      type="button"
-                      className={s.zoomBtn}
-                      onClick={() =>
-                        setZoomScale((z) => Math.min(1.5, Number((z + 0.15).toFixed(2))))
-                      }
-                      aria-label="放大地图"
+                    {/* Decorative Elements */}
+                    <div
+                      className={s.compassBadge}
+                      aria-hidden="true"
+                      onClick={() => {
+                        setZoomScale(1);
+                        setPanOffset({ x: 0, y: 0 });
+                      }}
                     >
-                      +
-                    </button>
-                    <div className={s.zoomDivider} />
-                    <button
-                      type="button"
-                      className={s.zoomBtn}
-                      onClick={() =>
-                        setZoomScale((z) => {
-                          const next = Math.max(0.8, Number((z - 0.15).toFixed(2)));
-                          if (next <= 1) setPanOffset({ x: 0, y: 0 });
-                          return next;
-                        })
-                      }
-                      aria-label="缩小地图"
+                      <span>N ↑</span>
+                    </div>
+                    <div className={s.floatingTools} aria-label="地图辅助控制">
+                      <button
+                        type="button"
+                        className={`${s.toolBtn} ${mapTheme !== 'standard' ? s.toolBtnActive : ''}`}
+                        onClick={() =>
+                          setMapTheme((t) => (t === 'standard' ? 'transit' : 'standard'))
+                        }
+                        aria-label="切换图层"
+                      >
+                        <span className={s.toolIcon} aria-hidden="true">
+                          ⊞
+                        </span>
+                        <span className={s.toolLabel}>图层</span>
+                      </button>
+                      <div className={s.zoomGroup}>
+                        <button
+                          type="button"
+                          className={s.zoomBtn}
+                          onClick={() =>
+                            setZoomScale((z) => Math.min(1.5, Number((z + 0.15).toFixed(2))))
+                          }
+                          aria-label="放大地图"
+                        >
+                          +
+                        </button>
+                        <div className={s.zoomDivider} />
+                        <button
+                          type="button"
+                          className={s.zoomBtn}
+                          onClick={() =>
+                            setZoomScale((z) => {
+                              const next = Math.max(0.8, Number((z - 0.15).toFixed(2)));
+                              if (next <= 1) setPanOffset({ x: 0, y: 0 });
+                              return next;
+                            })
+                          }
+                          aria-label="缩小地图"
+                        >
+                          −
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className={s.locateBtn}
+                        onClick={() => {
+                          setZoomScale(1);
+                          setPanOffset({ x: 0, y: 0 });
+                          if (current) selectPlace(current.id);
+                        }}
+                        aria-label="回到当前地点"
+                      >
+                        ◎
+                      </button>
+                    </div>
+                    {/* Decorative Street Blocks */}
+                    <div
+                      className={s.gridBlock}
+                      style={{ left: 16, top: 58, width: 68, height: 42 }}
+                      aria-hidden="true"
+                    />
+                    <div
+                      className={s.gridBlock}
+                      style={{ left: 104, top: 58, width: 88, height: 42 }}
+                      aria-hidden="true"
+                    />
+                    <div
+                      className={s.greenBlock}
+                      style={{ right: 16, top: 62, width: 72, height: 50 }}
+                      aria-hidden="true"
+                    />
+                    <div
+                      className={s.gridBlock}
+                      style={{ left: 24, bottom: 24, width: 84, height: 44 }}
+                      aria-hidden="true"
+                    />
+                    <div
+                      className={s.gridBlock}
+                      style={{ right: 36, bottom: 20, width: 96, height: 48 }}
+                      aria-hidden="true"
+                    />
+                    <div className={s.mapWatermark} aria-hidden="true">
+                      <span>◇路线示意</span>
+                    </div>
+                    <svg
+                      className={s.lines}
+                      viewBox={`0 0 320 ${Math.max(220, diagram.height)}`}
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                      focusable="false"
                     >
-                      −
-                    </button>
+                      <defs>
+                        <marker
+                          id={routeArrow}
+                          markerWidth="4"
+                          markerHeight="4"
+                          refX="3"
+                          refY="2"
+                          orient="auto"
+                        >
+                          <path d="M0 0 L4 2 L0 4" fill="#237af0" />
+                        </marker>
+                      </defs>
+                      {diagram.edges.map(({ route, from, to }) => {
+                        const isSelectedRoute =
+                          route.id === mapSelection(space!, selected?.id).route?.id;
+                        const isTraveling =
+                          operation?.status === 'committed' &&
+                          operation.receipt?.routeId === route.id;
+                        return (
+                          <g key={route.id}>
+                            <path
+                              data-known-route={route.id}
+                              className={
+                                isSelectedRoute
+                                  ? `${s.selectedLine} ${busyAction === 'travel' ? s.animatedRoute : ''}`
+                                  : s.line
+                              }
+                              d={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                              markerEnd={`url(#${routeArrow})`}
+                            />
+                            {isSelectedRoute && isTraveling && !reduceMotion && (
+                              <g className={s.movingVehicle}>
+                                <circle r="4" fill="#2563eb">
+                                  <animateMotion
+                                    path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                                    dur="2.2s"
+                                    repeatCount="indefinite"
+                                  />
+                                </circle>
+                                <text textAnchor="middle" dy="-6" fontSize="12">
+                                  <animateMotion
+                                    path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
+                                    dur="2.2s"
+                                    repeatCount="indefinite"
+                                  />
+                                  {route.modeLabel.includes('步行')
+                                    ? '🚶'
+                                    : route.modeLabel.includes('车')
+                                      ? '🚗'
+                                      : '•'}
+                                </text>
+                              </g>
+                            )}
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    {diagram.points.map(({ place, x, y }) => {
+                      const isMatchQuery =
+                        !searchQuery.trim() ||
+                        place.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+                        Boolean(
+                          place.description &&
+                          place.description
+                            .toLowerCase()
+                            .includes(searchQuery.trim().toLowerCase()),
+                        );
+                      const isMatchCat = mapPlaceMatchesCategory(place.name, activeCategory);
+                      const isDimmed = !isMatchQuery || !isMatchCat;
+
+                      return (
+                        <button
+                          type="button"
+                          key={place.id}
+                          className={place.id === selected?.id ? s.selectedPoint : s.point}
+                          style={{
+                            left: `${(x / 320) * 100}%`,
+                            top: y,
+                            opacity: isDimmed ? 0.35 : 1,
+                            transition: reduceMotion
+                              ? 'none'
+                              : 'opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          }}
+                          aria-pressed={place.id === selected?.id}
+                          onClick={() => selectPlace(place.id)}
+                        >
+                          <span
+                            className={
+                              place.id === current?.id && !waitingPosition ? s.currentPin : s.pin
+                            }
+                            aria-hidden="true"
+                          >
+                            ●
+                          </span>
+                          <span className={s.pointLabel}>{place.name}</span>
+                          {place.id === current?.id && !waitingPosition && <small>当前位置</small>}
+                        </button>
+                      );
+                    })}
                   </div>
+                  {diagram.partial && <p className={s.diagramLabel}>其余地点见下方列表</p>}
+                </section>
+              )}
+              <section className={s.destinations} aria-label="选择目的地">
+                <div className={s.sheetHandle} aria-hidden="true" />
+                <div className={s.exploreHeader}>
+                  <div className={s.exploreTitleGroup}>
+                    <h2 className={s.sectionTitle}>探索附近</h2>
+                    <small>{space.places.length} 个已知地点</small>
+                  </div>
+                </div>
+                <div className={s.categoryGrid} role="group" aria-label="地点快捷分类">
                   <button
                     type="button"
-                    className={s.locateBtn}
+                    className={`${s.catBtn} ${activeCategory === 'food' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'food' ? null : 'food'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catFood}`}>餐</span>
+                    <span className={s.catText}>美食</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.catBtn} ${activeCategory === 'pharmacy' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'pharmacy' ? null : 'pharmacy'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catMed}`}>+</span>
+                    <span className={s.catText}>药店</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.catBtn} ${activeCategory === 'park' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'park' ? null : 'park'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catPark}`}>叶</span>
+                    <span className={s.catText}>公园</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.catBtn} ${activeCategory === 'wc' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'wc' ? null : 'wc'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catWc}`}>WC</span>
+                    <span className={s.catText}>公厕</span>
+                  </button>
+                </div>
+                <div className={s.quickActions}>
+                  <button
+                    type="button"
+                    className={s.quickPill}
                     onClick={() => {
-                      setZoomScale(1);
-                      setPanOffset({ x: 0, y: 0 });
                       if (current) selectPlace(current.id);
                     }}
-                    aria-label="回到当前地点"
                   >
-                    ◎
+                    <span className={s.quickIcon} aria-hidden="true">
+                      ◎
+                    </span>{' '}
+                    我的位置
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.quickPill} ${!activeCategory && !searchQuery ? s.quickPillActive : ''}`}
+                    onClick={() => {
+                      setActiveCategory(null);
+                      setSearchQuery('');
+                      setSearchActive(false);
+                      searchInputRef.current?.blur();
+                    }}
+                  >
+                    <span className={s.quickIcon} aria-hidden="true">
+                      🗺️
+                    </span>{' '}
+                    全部地点
                   </button>
                 </div>
-                {/* Decorative Street Blocks */}
-                <div
-                  className={s.gridBlock}
-                  style={{ left: 16, top: 58, width: 68, height: 42 }}
-                  aria-hidden="true"
-                />
-                <div
-                  className={s.gridBlock}
-                  style={{ left: 104, top: 58, width: 88, height: 42 }}
-                  aria-hidden="true"
-                />
-                <div
-                  className={s.greenBlock}
-                  style={{ right: 16, top: 62, width: 72, height: 50 }}
-                  aria-hidden="true"
-                />
-                <div
-                  className={s.gridBlock}
-                  style={{ left: 24, bottom: 24, width: 84, height: 44 }}
-                  aria-hidden="true"
-                />
-                <div
-                  className={s.gridBlock}
-                  style={{ right: 36, bottom: 20, width: 96, height: 48 }}
-                  aria-hidden="true"
-                />
-                <span className={s.streetNameOne} aria-hidden="true">
-                  丰和路
-                </span>
-                <span className={s.streetNameTwo} aria-hidden="true">
-                  长宁路
-                </span>
-                <span className={s.streetNameThree} aria-hidden="true">
-                  长宁巷
-                </span>
-                <div className={s.mapWatermark} aria-hidden="true">
-                  <span>◇路线示意</span>
-                </div>
-                <div className={s.scaleBar} aria-hidden="true">
-                  <span>200米</span>
-                  <div className={s.scaleLine} />
-                </div>
-                <svg
-                  className={s.lines}
-                  viewBox={`0 0 320 ${Math.max(220, diagram.height)}`}
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <defs>
-                    <marker
-                      id={routeArrow}
-                      markerWidth="4"
-                      markerHeight="4"
-                      refX="3"
-                      refY="2"
-                      orient="auto"
-                    >
-                      <path d="M0 0 L4 2 L0 4" fill="#237af0" />
-                    </marker>
-                  </defs>
-                  {diagram.edges.map(({ route, from, to }) => {
-                    const isSelectedRoute =
-                      route.id === mapSelection(space!, selected?.id).route?.id;
-                    const isTraveling =
-                      operation?.status === 'committed' && operation.receipt?.routeId === route.id;
+                {space.places
+                  .filter((place) => place.id !== current?.id)
+                  .filter((place) => {
+                    if (searchQuery.trim()) {
+                      const q = searchQuery.trim().toLowerCase();
+                      return (
+                        place.name.toLowerCase().includes(q) ||
+                        Boolean(place.description && place.description.toLowerCase().includes(q))
+                      );
+                    }
+                    return mapPlaceMatchesCategory(place.name, activeCategory);
+                  })
+                  .map((place) => {
+                    const knownRoute =
+                      current &&
+                      space.routes.find(
+                        (r) => r.fromPlaceId === current.id && r.toPlaceId === place.id,
+                      );
                     return (
-                      <g key={route.id}>
-                        <path
-                          data-known-route={route.id}
-                          className={
-                            isSelectedRoute
-                              ? `${s.selectedLine} ${busyAction === 'travel' ? s.animatedRoute : ''}`
-                              : s.line
-                          }
-                          d={`M${from.x} ${from.y} L${to.x} ${to.y}`}
-                          markerEnd={`url(#${routeArrow})`}
-                        />
-                        {isSelectedRoute && isTraveling && (
-                          <g className={s.movingVehicle}>
-                            <circle r="4" fill="#2563eb">
-                              <animateMotion
-                                path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
-                                dur="2.2s"
-                                repeatCount="indefinite"
-                              />
-                            </circle>
-                            <text textAnchor="middle" dy="-6" fontSize="12">
-                              <animateMotion
-                                path={`M${from.x} ${from.y} L${to.x} ${to.y}`}
-                                dur="2.2s"
-                                repeatCount="indefinite"
-                              />
-                              {route.modeLabel.includes('步行')
-                                ? '🚶'
-                                : route.modeLabel.includes('车')
-                                  ? '🚗'
-                                  : '•'}
-                            </text>
-                          </g>
-                        )}
-                      </g>
+                      <button
+                        type="button"
+                        className={s.destination}
+                        key={place.id}
+                        aria-pressed={selected?.id === place.id}
+                        onClick={() => selectPlace(place.id)}
+                      >
+                        <span className={s.destinationIcon} aria-hidden="true">
+                          ⌖
+                        </span>
+                        <span className={s.destinationName}>{place.name}</span>
+                        <small>
+                          {knownRoute ? `${knownRoute.durationMinutes} 分钟` : '路线未建立'}
+                        </small>
+                        <span className={s.chevron} aria-hidden="true">
+                          ›
+                        </span>
+                      </button>
                     );
                   })}
-                </svg>
-                {diagram.points.map(({ place, x, y }) => {
-                  const isMatchQuery =
-                    !searchQuery.trim() ||
-                    place.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
-                    Boolean(
-                      place.description &&
-                      place.description.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-                    );
-                  const isMatchCat =
-                    !activeCategory ||
-                    (activeCategory === 'food' &&
-                      /餐|吃|饭|店|馆|食|酒|茶|咖/.test(place.name + (place.description || ''))) ||
-                    (activeCategory === 'pharmacy' &&
-                      /药|医|院|急救|诊所|康/.test(place.name + (place.description || ''))) ||
-                    (activeCategory === 'park' &&
-                      /园|湖|林|绿|树|山|草/.test(place.name + (place.description || ''))) ||
-                    (activeCategory === 'wc' &&
-                      /公厕|卫|洗手|厕/.test(place.name + (place.description || '')));
-                  const isDimmed = !isMatchQuery || !isMatchCat;
-
-                  return (
-                    <button
-                      type="button"
-                      key={place.id}
-                      className={place.id === selected?.id ? s.selectedPoint : s.point}
-                      style={{
-                        left: `${(x / 320) * 100}%`,
-                        top: y,
-                        opacity: isDimmed ? 0.35 : 1,
-                        transition:
-                          'opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                      }}
-                      aria-pressed={place.id === selected?.id}
-                      onClick={() => selectPlace(place.id)}
-                    >
-                      <span
-                        className={
-                          place.id === current?.id && !waitingPosition ? s.currentPin : s.pin
-                        }
-                        aria-hidden="true"
-                      >
-                        ●
-                      </span>
-                      <span className={s.pointLabel}>{place.name}</span>
-                      {place.id === current?.id && !waitingPosition && <small>当前位置</small>}
-                    </button>
-                  );
-                })}
-              </div>
-              {diagram.partial && <p className={s.diagramLabel}>其余地点见下方列表</p>}
-            </section>
-          )}
-          <section className={s.destinations} aria-label="选择目的地">
-            <div className={s.sheetHandle} aria-hidden="true" />
-            <div className={s.exploreHeader}>
-              <div className={s.exploreTitleGroup}>
-                <h2 className={s.sectionTitle}>探索附近</h2>
-                <small>{space.places.length} 个已知地点</small>
-              </div>
-            </div>
-            <div className={s.categoryGrid} role="group" aria-label="地点快捷分类">
-              <button
-                type="button"
-                className={`${s.catBtn} ${activeCategory === 'food' ? s.catBtnActive : ''}`}
-                onClick={() => setActiveCategory((c) => (c === 'food' ? null : 'food'))}
-              >
-                <span className={`${s.catBadge} ${s.catFood}`}>餐</span>
-                <span className={s.catText}>美食</span>
-              </button>
-              <button
-                type="button"
-                className={`${s.catBtn} ${activeCategory === 'pharmacy' ? s.catBtnActive : ''}`}
-                onClick={() => setActiveCategory((c) => (c === 'pharmacy' ? null : 'pharmacy'))}
-              >
-                <span className={`${s.catBadge} ${s.catMed}`}>+</span>
-                <span className={s.catText}>药店</span>
-              </button>
-              <button
-                type="button"
-                className={`${s.catBtn} ${activeCategory === 'park' ? s.catBtnActive : ''}`}
-                onClick={() => setActiveCategory((c) => (c === 'park' ? null : 'park'))}
-              >
-                <span className={`${s.catBadge} ${s.catPark}`}>叶</span>
-                <span className={s.catText}>公园</span>
-              </button>
-              <button
-                type="button"
-                className={`${s.catBtn} ${activeCategory === 'wc' ? s.catBtnActive : ''}`}
-                onClick={() => setActiveCategory((c) => (c === 'wc' ? null : 'wc'))}
-              >
-                <span className={`${s.catBadge} ${s.catWc}`}>WC</span>
-                <span className={s.catText}>公厕</span>
-              </button>
-            </div>
-            <div className={s.quickActions}>
-              <button
-                type="button"
-                className={s.quickPill}
-                onClick={() => {
-                  if (current) selectPlace(current.id);
-                }}
-              >
-                <span className={s.quickIcon} aria-hidden="true">
-                  ◎
-                </span>{' '}
-                我的位置
-              </button>
-              <button
-                type="button"
-                className={`${s.quickPill} ${!activeCategory && !searchQuery ? s.quickPillActive : ''}`}
-                onClick={() => {
-                  setActiveCategory(null);
-                  setSearchQuery('');
-                  setSearchActive(false);
-                  searchInputRef.current?.blur();
-                }}
-              >
-                <span className={s.quickIcon} aria-hidden="true">
-                  🗺️
-                </span>{' '}
-                全部地点
-              </button>
-            </div>
-            {space.places
-              .filter((place) => place.id !== current?.id)
-              .filter((place) => {
-                if (searchQuery.trim()) {
-                  const q = searchQuery.trim().toLowerCase();
-                  return (
-                    place.name.toLowerCase().includes(q) ||
-                    Boolean(place.description && place.description.toLowerCase().includes(q))
-                  );
-                }
-                if (activeCategory === 'food') {
-                  return /餐|吃|饭|店|馆|食|酒|茶|咖/.test(place.name + (place.description || ''));
-                }
-                if (activeCategory === 'pharmacy') {
-                  return /药|医|院|急救|诊所|康/.test(place.name + (place.description || ''));
-                }
-                if (activeCategory === 'park') {
-                  return /园|湖|林|绿|树|山|草/.test(place.name + (place.description || ''));
-                }
-                if (activeCategory === 'wc') {
-                  return /公厕|卫|洗手|厕/.test(place.name + (place.description || ''));
-                }
-                return true;
-              })
-              .map((place) => {
-                const knownRoute =
-                  current &&
-                  space.routes.find(
-                    (r) => r.fromPlaceId === current.id && r.toPlaceId === place.id,
-                  );
-                return (
-                  <button
-                    type="button"
-                    className={s.destination}
-                    key={place.id}
-                    aria-pressed={selected?.id === place.id}
-                    onClick={() => selectPlace(place.id)}
-                  >
-                    <span className={s.destinationIcon} aria-hidden="true">
-                      ⌖
-                    </span>
-                    <span className={s.destinationName}>{place.name}</span>
-                    <small>
-                      {knownRoute ? `${knownRoute.durationMinutes} 分钟` : '路线未建立'}
-                    </small>
-                    <span className={s.chevron} aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                );
-              })}
-            {space.places.every((place) => place.id === current?.id) && (
-              <p className={s.muted}>还没有其他已知地点。</p>
-            )}
-          </section>
-          {selected && (
-            <section
-              className={s.details}
-              ref={detailsElement}
-              tabIndex={-1}
-              aria-label={`${selected.name}详情`}
-            >
-              <h2>{selected.name}</h2>
-              {route && arrival && !operation && (
-                <>
-                  <div className={s.routeSummary}>
-                    <strong>{route.durationMinutes} 分钟</strong>
-                    <span>
-                      {route.modeLabel || '移动'} · 约{' '}
-                      {arrival.slice(0, 10) === worldDateTimeLabel(space.storyNow).slice(0, 10)
-                        ? arrival.slice(11, 16)
-                        : arrival}{' '}
-                      到达
-                    </span>
-                  </div>
-                </>
-              )}
-              {selected.description && <p className={s.description}>{selected.description}</p>}
-              <p className={s.source}>
-                {selected.source.kind === 'world_event'
-                  ? '已确认的地点记录 · 来源于人生起点'
-                  : '来自这段人生的作者设定'}
-              </p>
-              {!current && <p className={s.muted}>确认当前位置后才能前往。</p>}
-              {current && selected.id !== current.id && !route && (
-                <p className={s.muted}>暂时没有可用路线。</p>
-              )}
-              {space.paused && <p className={s.muted}>这段人生已暂停。</p>}
-              {space.busy && <p className={s.muted}>这段人生正在处理中，稍后再前往。</p>}
-              {current?.id === selected.id && !operation && (
-                <>
-                  <div className={s.currentPlaceSceneBadge} role="status">
-                    <span className={s.currentPlaceSceneBadgeIcon} aria-hidden="true">
-                      📍
-                    </span>
-                    <div className={s.currentPlaceSceneBadgeContent}>
-                      <strong>已身处当前地点</strong>
-                      <span>
-                        进入现场，可以打量周围动静、找在场的人当面搭话，或把手头的事往前推进。
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className={s.primary}
-                    disabled={Boolean(
-                      map?.loading ||
-                      map?.working ||
-                      error ||
-                      actionError ||
-                      space.paused ||
-                      space.busy ||
-                      busyAction,
-                    )}
-                    onClick={() => void placeAction('enter')}
-                  >
-                    {busyAction === 'enter'
-                      ? '正在打开…'
-                      : space.currentSceneId
-                        ? '看看这里（回到现场）'
-                        : '看看这里（进入现场）'}
-                  </button>
-                </>
-              )}
-              {route && !operation && (
-                <button
-                  type="button"
-                  className={s.primary}
-                  disabled={Boolean(
-                    !arrival ||
-                    map?.loading ||
-                    map?.working ||
-                    error ||
-                    actionError ||
-                    space.paused ||
-                    space.busy ||
-                    busyAction,
-                  )}
-                  onClick={() => void startTravel()}
+                {space.places.every((place) => place.id === current?.id) && (
+                  <p className={s.muted}>还没有其他已知地点。</p>
+                )}
+              </section>
+              {selected && (
+                <section
+                  className={s.details}
+                  ref={detailsElement}
+                  tabIndex={-1}
+                  aria-label={`${selected.name}详情`}
                 >
-                  {busyAction === 'travel' ? '正在确认行程…' : '前往这里'}
-                </button>
-              )}
-              {contacts.length > 0 && (
-                <nav className={s.actions} aria-label="相关联系人">
-                  {contacts.map((contact) => (
+                  <h2>{selected.name}</h2>
+                  {route && arrival && !operation && (
+                    <>
+                      <div className={s.routeSummary}>
+                        <strong>{route.durationMinutes} 分钟</strong>
+                        <span>
+                          {route.modeLabel || '移动'} · 约{' '}
+                          {arrival.slice(0, 10) === worldDateTimeLabel(space.storyNow).slice(0, 10)
+                            ? arrival.slice(11, 16)
+                            : arrival}{' '}
+                          到达
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {selected.description && <p className={s.description}>{selected.description}</p>}
+                  <p className={s.source}>
+                    {selected.source.kind === 'world_event'
+                      ? '已确认的地点记录 · 来源于人生起点'
+                      : '来自这段人生的作者设定'}
+                  </p>
+                  {!current && <p className={s.muted}>确认当前位置后才能前往。</p>}
+                  {current && selected.id !== current.id && !route && (
+                    <p className={s.muted}>暂时没有可用路线。</p>
+                  )}
+                  {space.paused && <p className={s.muted}>这段人生已暂停。</p>}
+                  {space.busy && <p className={s.muted}>这段人生正在处理中，稍后再前往。</p>}
+                  {current?.id === selected.id && !operation && (
+                    <>
+                      <div className={s.currentPlaceSceneBadge} role="status">
+                        <span className={s.currentPlaceSceneBadgeIcon} aria-hidden="true">
+                          📍
+                        </span>
+                        <div className={s.currentPlaceSceneBadgeContent}>
+                          <strong>已身处当前地点</strong>
+                          <span>
+                            进入现场，可以打量周围动静、找在场的人当面搭话，或把手头的事往前推进。
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={s.primary}
+                        disabled={Boolean(
+                          map?.loading ||
+                          map?.working ||
+                          error ||
+                          actionError ||
+                          space.paused ||
+                          space.busy ||
+                          busyAction,
+                        )}
+                        onClick={() => void placeAction('enter')}
+                      >
+                        {busyAction === 'enter'
+                          ? '正在打开…'
+                          : space.currentSceneId
+                            ? '看看这里（回到现场）'
+                            : '看看这里（进入现场）'}
+                      </button>
+                    </>
+                  )}
+                  {route && !operation && (
                     <button
                       type="button"
-                      key={contact.id}
-                      onClick={() => open('messages', contact.id)}
+                      className={s.primary}
+                      disabled={Boolean(
+                        !arrival ||
+                        map?.loading ||
+                        map?.working ||
+                        error ||
+                        actionError ||
+                        space.paused ||
+                        space.busy ||
+                        busyAction,
+                      )}
+                      onClick={() => void startTravel()}
                     >
-                      联系{contact.name}
-                      <span aria-hidden="true">↗</span>
+                      {busyAction === 'travel' ? '正在确认行程…' : '前往这里'}
                     </button>
-                  ))}
-                </nav>
+                  )}
+                  {contacts.length > 0 && (
+                    <nav className={s.actions} aria-label="相关联系人">
+                      {contacts.map((contact) => (
+                        <button
+                          type="button"
+                          key={contact.id}
+                          onClick={() => open('messages', contact.id)}
+                        >
+                          联系{contact.name}
+                          <span aria-hidden="true">↗</span>
+                        </button>
+                      ))}
+                    </nav>
+                  )}
+                  {appointments.length > 0 && (
+                    <nav className={s.actions} aria-label="关联日程">
+                      {appointments.map((appointment) => (
+                        <button
+                          type="button"
+                          key={appointment.id}
+                          onClick={() => open('calendar', appointment.id)}
+                        >
+                          查看{appointment.title}
+                          <span aria-hidden="true">↗</span>
+                        </button>
+                      ))}
+                    </nav>
+                  )}
+                </section>
               )}
-              {appointments.length > 0 && (
-                <nav className={s.actions} aria-label="关联日程">
-                  {appointments.map((appointment) => (
-                    <button
-                      type="button"
-                      key={appointment.id}
-                      onClick={() => open('calendar', appointment.id)}
-                    >
-                      查看{appointment.title}
-                      <span aria-hidden="true">↗</span>
-                    </button>
-                  ))}
-                </nav>
-              )}
-            </section>
-          )}
             </>
           )}
         </>
