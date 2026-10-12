@@ -33,6 +33,12 @@ type MainTab = 'settings' | 'actors' | 'plot';
 function issueLabel(path: readonly (string | number)[], code: string) {
   if (code === 'trial_unverified') return '请先试演，并完成一条真实的角色对话，再重新检查。';
   if (code === 'media_unverified') return '素材尚未核验，请检查所选图片后再试。';
+  const hints: Record<string, string> = {
+    future_opening_message: '发送时间不能晚于世界开场。',
+    history_message_not_past: '过去的对话应发生在世界开场之前。',
+    sender_not_player_known: '请选择开场时玩家已认识的人物，或先完善人物的开场关系。',
+    space_route_budget: '当前单段路线支持最多 120 分钟，请调整路线或拆成多段。',
+  };
   const fields: Record<string, string> = {
     title: '名称',
     hook: '一句话吸引点',
@@ -67,11 +73,14 @@ function issueLabel(path: readonly (string | number)[], code: string) {
     phone: '开场手机内容',
     timeline: '阶段与时间线',
   };
-  const group = groups[String(path[0])] ?? '';
-  const row = typeof path[1] === 'number' ? `第 ${path[1] + 1} 项` : '';
+  const opening = path[0] === 'phone' && path[1] === 'messages';
+  const group = opening ? '开场消息' : (groups[String(path[0])] ?? '');
+  const rowIndex = opening ? path[2] : path[1];
+  const row = typeof rowIndex === 'number' ? `第 ${rowIndex + 1} ${opening ? '条' : '项'}` : '';
   const field = fields[String(path[path.length - 1])] ?? (group ? '设定' : '世界内容');
   const reason =
-    code === 'too_small'
+    hints[code] ??
+    (code === 'too_small'
       ? '请补充完整内容'
       : code === 'too_big'
         ? '内容过长，请精简后重试'
@@ -79,7 +88,7 @@ function issueLabel(path: readonly (string | number)[], code: string) {
           ? '请检查填写格式'
           : code === 'unrecognized_keys'
             ? '有暂不支持的字段，请按填写示例调整'
-            : '请核对内容与引用是否完整一致';
+            : '请核对内容与引用是否完整一致');
   return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
 }
 
@@ -235,10 +244,18 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
       if (!currentActorForm) return;
       const key = currentActorForm.key;
       setDraftContent((previous) => {
-        const record = Array.isArray(previous.actors)
-          ? previous.actors.find((row: Record<string, unknown>) => row?.key === key)
-          : undefined;
+        const records = Array.isArray(previous.actors) ? previous.actors : [];
+        const record = records.find((row: Record<string, unknown>) => row?.key === key);
         if (!record) return previous;
+        if (field === 'knownAtStart') {
+          if (typeof value !== 'boolean') return previous;
+          return {
+            ...previous,
+            actors: records.map((row: Record<string, unknown>) =>
+              row === record ? { ...row, knownAtStart: value } : row,
+            ),
+          };
+        }
         const updatedForm: ActorEditorForm = {
           ...parseActorEditor(record, previous),
           [field]: value,

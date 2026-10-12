@@ -143,13 +143,13 @@ export function PublisherSpaceEditor({
             </select>
           </label>
           <label className={s.formField}>
-            移动耗时（分钟）
+            移动耗时（分钟，最多 120）
             <input
               type="number"
               className={s.input}
               disabled={disabled}
               min={1}
-              max={1440}
+              max={120}
               step={1}
               value={typeof route.minutes === 'number' ? route.minutes : ''}
               onChange={(event) => updateRoute(index, { minutes: Number(event.target.value) })}

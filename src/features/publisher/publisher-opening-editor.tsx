@@ -82,6 +82,7 @@ export function PublisherOpeningEditor({
                 value={typeof message.origin === 'string' ? message.origin : ''}
                 onChange={(event) => update(index, { origin: event.target.value })}
               >
+                <option value="">选择消息类别</option>
                 <option value="history">过去的对话</option>
                 <option value="incoming">开场来信</option>
               </select>
