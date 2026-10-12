@@ -52,3 +52,9 @@ I cce1acff1ae071a99148034382edf4c6f47d16e2仅同原8 OR与短路顺序固定诊�
 诊断候选最终1320check/type0/332boundary/build0与实际PG专项11全部通过，源接受判定不变，仍采用上一整批PG252/5显式模型skip证据（SQL和接受逻辑无新变更）；生产41checksum再次只读一致。第二次PG55471已正常停止，无监听/HTTP/browser。Q新固定码静态审在途，待其确认/READY/public才动唯一账本。
 
 Q对准确cce1acf静态逐项确认8条件/短路不变，regex为nonglobal静态长度最大3，重读findIndex无lastIndex副作用，编号仅0..2、不含regex/raw/name/stepID；Q无新tests或PG。没有安全候选step身份时，不单凭N断言具体交付动词/对象缺失，更不回填上次失败子因。1320check/build/专项PG11/41生产迁移一致，诊断发布待READY后仅一次原retry，保持预算12/18。
+
+## v17最小提案语法修复冻结
+
+7f250d2/3pstub7me READY后原交付一次复测12→14/18，failed15277ms，固定Inspection lacks bounded object/request；snapshot v8/2of4、旧核对/说明source保持，无新增信用。305163df0470b8241fc9a368c0f9912feee4e544仅实际本人allowedActions对应actionQuoteRequirements（原固定prefix/物件/独立完整段/optional），不造slot或动作、输出v2与quote/source规则保持。inspection原三项OR同顺序固定码；新增4诊断+1metadata，共105pure过。Q准确SHA只读审通过，无模型PG。最后4不足全链：READY后至多交付2，真成功才下一action2，私聊欠验；失败即停、正常APIpauseclosed，不循环诊断。开始最终check/build/PG11，生产41只读再核。
+
+最终1325check/type0/332boundary/build0、真实PG专项11/11、41生产迁移只读checksum一致。首次check在PG启动前ECONNREFUSED只为资源顺序失败，启动后完整重跑通过，未改业务/跳过测试。Q305163d准确静态审通过；此前全PG252pass/5显式model skip接受逻辑不变证据保留。PG55471已正常停止，准备推送候选部署；14of18不先消费。
