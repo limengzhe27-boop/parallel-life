@@ -92,78 +92,25 @@
   overflow: hidden;
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.05);
 }
-.mapTopBar {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(10px);
-  padding: 8px 14px;
-  border-radius: 24px;
-  box-shadow: 0 2px 10px rgba(23, 39, 53, 0.08);
-  border: 1px solid rgba(220, 228, 235, 0.8);
-}
-.searchCity {
-  font-size: 13px;
-  font-weight: 650;
-  color: #1a2d3d;
-  flex: 0 0 auto;
-}
-.searchDivider {
-  width: 1px;
-  height: 14px;
-  background: #d8e0e6;
-}
-.searchPlaceholder {
-  font-size: 12px;
-  color: #8c9ba5;
-  flex: 1;
-}
-.searchIcon {
-  font-size: 13px;
-  color: #237af0;
-}
-.floatingTools {
-  position: absolute;
-  top: 60px;
-  right: 12px;
-  z-index: 9;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.toolButton {
-  width: 34px;
-  height: 34px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border: 1px solid #dce4eb;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  display: grid;
-  place-items: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: #4a5c68;
-  padding: 0;
-}
 .diagramLabel {
-  display: none;
+  display: block;
+  padding: 10px 14px;
+  font-size: 11px;
+  color: #526675;
+  background: #fff;
 }
 .graph {
   position: relative;
   margin-top: 0;
   width: 100%;
-  background: 
+  background:
     linear-gradient(rgba(235, 240, 243, 0.9), rgba(235, 240, 243, 0.9)),
     repeating-linear-gradient(0deg, transparent, transparent 39px, #d6e0e6 39px, #d6e0e6 40px),
     repeating-linear-gradient(90deg, transparent, transparent 39px, #d6e0e6 39px, #d6e0e6 40px);
-  background-size: auto, 40px 40px, 40px 40px;
+  background-size:
+    auto,
+    40px 40px,
+    40px 40px;
 }
 .gridBlock {
   position: absolute;
@@ -290,7 +237,9 @@
 }
 .currentPin {
   background: #237af0;
-  box-shadow: 0 0 0 4px rgba(35, 122, 240, 0.25), 0 2px 8px rgba(0, 0, 0, 0.18);
+  box-shadow:
+    0 0 0 4px rgba(35, 122, 240, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.18);
   position: relative;
 }
 .currentPin::after {
@@ -330,7 +279,9 @@
   place-items: center;
   font-size: 10px;
   color: white;
-  transition: left 0.4s linear, top 0.4s linear;
+  transition:
+    left 0.4s linear,
+    top 0.4s linear;
 }
 .destinations {
   margin-top: 14px;
@@ -346,35 +297,6 @@
   justify-content: space-between;
   margin-bottom: 12px;
 }
-.quickTags {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #f0f3f6;
-}
-.tagItem {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #556877;
-}
-.tagIcon {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-size: 14px;
-  font-weight: 600;
-}
-.tagFood { background: #fef5ea; color: #d97706; }
-.tagMed { background: #fee2e2; color: #ef4444; }
-.tagPark { background: #ecfdf5; color: #10b981; }
-.tagWc { background: #eff6ff; color: #3b82f6; }
 .sectionTitle {
   margin: 0;
   font-size: 15px;

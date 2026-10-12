@@ -26,6 +26,42 @@ const mockContext: ActorContext = {
   appointments: [],
 };
 
+test('the character requests JSON output so dialogue and invitation effects can be saved together', async () => {
+  let format: unknown;
+  const planner = new WorldTurnPlanner({
+    async complete(_messages, _signal, _maxTokens, output) {
+      format = output;
+      return JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          {
+            type: 'message.received',
+            id: 'reply',
+            actorId: mockContext.actor.id,
+            text: '今晚九点见，可以吗？',
+          },
+          {
+            type: 'appointment.proposed',
+            id: 'invite',
+            title: '见面',
+            at: '2026-09-24T13:00:00.000Z',
+            participantIds: [mockContext.actor.id],
+          },
+        ],
+      });
+    },
+  });
+  const result = (await planner.propose({
+    context: { ...mockContext, turnOrigin: 'director' },
+    userText: '本人考虑邀请主角见面，可以拒绝。',
+  })) as { effects: { type: string }[] };
+  assert.deepEqual(format, { format: 'json_object' });
+  assert.deepEqual(
+    result.effects.map((e) => e.type),
+    ['message.received', 'appointment.proposed'],
+  );
+});
+
 test('WorldTurnPlanner normalizes mismatched actorId and placeholder into targetActorId', async () => {
   const planner = new WorldTurnPlanner({
     async complete() {

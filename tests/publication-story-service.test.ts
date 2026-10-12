@@ -83,7 +83,7 @@ function setup(prepared: PublicationStoryPrepare, paused = false) {
     now: () => time,
     newId: () => 'event',
     planner: {
-      async propose(input: unknown):Promise<unknown> {
+      async propose(input: unknown): Promise<unknown> {
         calls++;
         seen = JSON.stringify(input);
         return {
@@ -95,7 +95,13 @@ function setup(prepared: PublicationStoryPrepare, paused = false) {
               actorId: 'a',
               text: '晚上有空吗？我想请你吃顿饭。',
             },
-            {type:'appointment.proposed',id:'local_invite',title:'晚饭',at:'2026-10-16T11:30:00.000Z',participantIds:['a']},
+            {
+              type: 'appointment.proposed',
+              id: 'local_invite',
+              title: '晚饭',
+              at: '2026-10-16T11:30:00.000Z',
+              participantIds: ['a'],
+            },
           ],
         };
       },
@@ -117,14 +123,39 @@ test('a sourced story offer uses character context and persists an unaccepted in
   assert.equal(w.appointments[0]!.status, 'proposed');
   assert.deepEqual(w.appointments[0]!.participantIds, ['a']);
 });
-test('a character refusal remains a real message, without a fabricated invitation',async()=>{
- const s=setup({status:'claimed',claim});s.deps.planner.propose=async()=>({schemaVersion:1,effects:[{type:'message.received',id:'no',actorId:'a',text:'今天不能约，别来了。'}]});
- await advancePublicationStory(s.deps,'o','w',false);const w=await s.deps.worlds.get({userId:'o'},'w');assert.equal(w.appointments.length,0);assert.equal(w.messages[0]!.text,'今天不能约，别来了。');assert.equal(s.counts().finishes,1);
+test('a character refusal remains a real message, without a fabricated invitation', async () => {
+  const s = setup({ status: 'claimed', claim });
+  s.deps.planner.propose = async () => ({
+    schemaVersion: 1,
+    effects: [{ type: 'message.received', id: 'no', actorId: 'a', text: '今天不能约，别来了。' }],
+  });
+  await advancePublicationStory(s.deps, 'o', 'w', false);
+  const w = await s.deps.worlds.get({ userId: 'o' }, 'w');
+  assert.equal(w.appointments.length, 0);
+  assert.equal(w.messages[0]!.text, '今天不能约，别来了。');
+  assert.equal(s.counts().finishes, 1);
 });
-test('authored time without milliseconds is normalized in the cue and earliest is a lower bound',async()=>{
- const later={...claim,intent:{...claim.intent,kind:'offer_invitation' as const,actorKeys:['a'],placeKey:'restaurant',title:'晚饭',earliestAt:'2026-10-16T09:30:00Z'}};
- const s=setup({status:'claimed',claim:later});await advancePublicationStory(s.deps,'o','w',false);
- assert.ok(s.counts().seen.includes('2026-10-16T09:30:00.000Z'));assert.equal((await s.deps.worlds.get({userId:'o'},'w')).appointments[0]!.at,'2026-10-16T11:30:00.000Z');
+test('authored time without milliseconds is normalized in the cue and earliest is a lower bound', async () => {
+  const later = {
+    ...claim,
+    intent: {
+      ...claim.intent,
+      kind: 'offer_invitation' as const,
+      actorKeys: ['a'],
+      placeKey: 'restaurant',
+      title: '晚饭',
+      earliestAt: '2026-10-16T09:30:00Z',
+    },
+  };
+  const s = setup({ status: 'claimed', claim: later });
+  await advancePublicationStory(s.deps, 'o', 'w', false);
+  assert.ok(s.counts().seen.includes('2026-10-16T09:30:00.000Z'));
+  assert.equal(
+    (await s.deps.worlds.get({ userId: 'o' }, 'w')).appointments[0]!.at,
+    '2026-10-16T11:30:00.000Z',
+  );
+  assert.ok(s.counts().seen.includes('2026-10-16 17:30'));
+  assert.ok(s.counts().seen.includes('当前世界当地时间：2026-10-16 18:30'));
 });
 test('paused automatic checks never claim or call the model', async () => {
   const s = setup({ status: 'claimed', claim }, true);
