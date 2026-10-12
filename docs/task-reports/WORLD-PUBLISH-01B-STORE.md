@@ -100,3 +100,15 @@ Trusted ReviewPort建议内部输入{workId,draftVersion,contentHash,content:严
 拟登录桶固定额度仍为global60/60秒、client10/900秒、username6/900秒；哈希用Root服务端HMAC，不存IP/username、密码、token、验证值。窗口计数用DB真实时间，不接世界clock；同桶原子并发upsert，未过期超额仍不放行，过期重置。若Root调整额度，仅本0042独占落实，不扩旧guest登录或limits表。
 
 以上具体合同/权限/错误待I最终冻结后实施repository与42；合同当前34421ac可直接审新src/contracts/world-publisher.ts，未启动55477/执行任何SQL。
+
+## 最终候选源冻结（技术持久化已实现，后台未接线）
+
+根最新优先级已执行：只保存/检查/发布/目录及原写好的下架恢复底座，不增加高级版本面板。Repository新增getPrincipal(principalId):Promise<PublisherPrincipal|null>，可信事务local publisher.principal_id、自身SELECT+active过滤，停用/不存在返回null，错误角色FORBIDDEN；不从请求取角色、不增加42权限，Root signed与DB交集由HTTP接线负责。新增实际PG证明当前改权立即反映/连接上下文不泄露。
+
+实际导出与最后合同：PublicationRepository(db, reviews=unavailable)，PublicationReviewPort；getPrincipal/list/get/create/save/check/publish/unpublish/restore/publicCatalog/consumeLoginLimit。world-publisher.ts保持344提案字段，仅根明确补save optional title、checkResult issuesTruncated以及list/result/catalog type导出。完整方法/请求/DTO见上表。save改title同revision乐观锁与回执，正式card从immutable content读取；不传title保旧。hash含principal/op/workId与canonical key排序JSON，null-prototype数组也能无代码执行地canon/roundtrip。provider输入深拷贝，exceptions不当ready，默认能力空/媒体与试演未核；ready与成功发布仅在本地明确合成review夹具中验证，不冒充真实运行支持。
+
+最终发布专项23/23真实PG（22独立子项+父项）、7新契约、npm run check1444/1444/type0/340boundary/build0/指定格式diff0。整批PG此前279=273pass/5明示real-model opt-in skip/1旧role-grants分类断言fail；新增getPrincipal后其自身23专门复验过，未把该整批旧断言写成绿，等I精确修只读oldtest后统一复验。旧41hash与四官方template/真实initial/world/instance值保持；最终local dev/test全42hash逐项只读与files一致，证据ignored .local/store-local-migrations.json。本地55477已正常停止，无端口/HTTP/worker/模型在途。42尚未生产应用。
+
+首次旧库测试strip-only不支持本人constructor参数属性，修自己repo为显式字段；首次42 PLpgsql NOT CASE表达式缺括号，整个42事务回滚，修源后才本地正式应用；首个truncation fixture只产生60issues不足100，换本人的多字段错型fixture产生实际>100，未改实现阈值/旧测试。完整check第一次因只准备test而dev未迁移，旧character-image-flow连接未准备dev清理挂起；只停止本人test进程、对本地dev应用迁移后完整重跑1444/build0，不改旧tests/假跳过。错误/回滚与接续均如实保留，本轮0真实AI/图/上传/生产库/新生产世界/生产角色/部署。
+
+交接：源码六文件冻结，Root可按提案34421ac→304d02a→本次实现后继集成（前置content安全两文件与359869c字节一致，原依赖各cherry仅供独立树准备，不再作为STORE差异重入Root）。唯一I需要先对旧role-grants正确新增staffOnly审计/权限反例，再全PG/fullcheck/build；生产42/受控NOLOGIN成员连接及principal bootstrap、登录/HTTP限流、内部工作台、真实review/素材/试演、动态实例化与上架公众体验均由后续已分配切片，未在本项假称完成。

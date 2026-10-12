@@ -32,6 +32,7 @@ export const PublisherCreateWorkSchema = z.strictObject({
 export const PublisherSaveDraftSchema = z.strictObject({
   commandId: Id,
   expectedDraftVersion: Version,
+  title: text(80).optional(),
   content: PublisherDraftContentSchema,
 });
 export const PublisherCheckDraftSchema = z.strictObject({
@@ -90,6 +91,7 @@ export const PublisherCheckResultSchema = z.strictObject({
       }),
     )
     .max(100),
+  issuesTruncated: z.boolean(),
   missingCapabilities: z.array(z.string().max(100)).max(32),
   mediaVerified: z.boolean(),
   trialVerified: z.boolean(),
@@ -123,3 +125,7 @@ export type PublisherRestore = z.infer<typeof PublisherRestoreSchema>;
 export type PublisherWork = z.infer<typeof PublisherWorkSchema>;
 export type PublisherCheckResult = z.infer<typeof PublisherCheckResultSchema>;
 export type PublishedWorkCard = z.infer<typeof PublishedWorkCardSchema>;
+
+export type PublisherWorkList = z.infer<typeof PublisherWorkListSchema>;
+export type PublisherPublicationResult = z.infer<typeof PublisherPublicationResultSchema>;
+export type PublishedWorkCatalog = z.infer<typeof PublishedWorkCatalogSchema>;

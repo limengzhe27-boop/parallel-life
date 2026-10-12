@@ -109,3 +109,31 @@ test('versions cannot be negative, fractional or unsafe and future commands cann
     false,
   );
 });
+
+test('optional save title is versioned and unknown authority fields remain rejected', () => {
+  const commandId = randomUUID();
+  assert.ok(
+    PublisherSaveDraftSchema.safeParse({
+      commandId,
+      expectedDraftVersion: 0,
+      title: '团队作品新名',
+      content: {},
+    }).success,
+  );
+  for (const title of ['', ' ', 'x'.repeat(81)])
+    assert.equal(
+      PublisherSaveDraftSchema.safeParse({ commandId, expectedDraftVersion: 0, title, content: {} })
+        .success,
+      false,
+    );
+  assert.equal(
+    PublisherSaveDraftSchema.safeParse({
+      commandId,
+      expectedDraftVersion: 0,
+      title: '名',
+      metadataVersion: 5,
+      content: {},
+    }).success,
+    false,
+  );
+});
