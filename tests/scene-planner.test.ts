@@ -160,6 +160,61 @@ test('a present ordinary NPC answers with dialogue instead of indexed novel para
   assert.equal(result.dialogues[0]!.text, '好，我自己说清楚。你坐在旁边就行。');
   assert.deepEqual(result.npcActions, []);
 });
+test('ordinary matter updates keep a strict two-field wire and never discard unsupported fields', async () => {
+  const c = context(),
+    matterId = randomUUID();
+  c.matters = [
+    {
+      ownerId: c.scene.ownerId,
+      worldId: c.world.id,
+      sceneId: c.scene.id,
+      sourceEventId: randomUUID(),
+      sourceVersion: 1,
+      id: matterId,
+      title: '把想法说清楚',
+      status: 'not_started',
+    },
+  ];
+  c.action = {
+    id: randomUUID(),
+    commandId: randomUUID(),
+    sceneId: c.scene.id,
+    ownerId: c.scene.ownerId,
+    worldId: c.world.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+    intent: 'attempt',
+    kind: 'speak',
+    text: '我说出了自己的安排。',
+    relatedMatterIds: [matterId],
+    status: 'pending',
+  };
+  let extra = true;
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      assert.ok(messages[0]!.content.includes('每个更新只能包含两个字段'));
+      return JSON.stringify({
+        location: '工作室',
+        narration: '灯光照着桌面。',
+        presentActorIds: [],
+        outcome: 'partial',
+        observation: '你说出了自己的安排。',
+        matterTitle: null,
+        initialMatters: [],
+        matterUpdates: [
+          { id: matterId, status: 'in_progress', ...(extra ? { title: '把想法说清楚' } : {}) },
+        ],
+        dialogues: [],
+        stepProposals: [],
+        npcActions: [],
+      });
+    },
+  });
+  await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
+  extra = false;
+  const result = await planner.propose(c);
+  assert.deepEqual(result.matterUpdates, [{ id: matterId, status: 'in_progress' }]);
+});
 test('current publication direction is limited to the actual invitation, place and own participant', () => {
   const c = context(),
     a = c.world.appointments[0]!;
