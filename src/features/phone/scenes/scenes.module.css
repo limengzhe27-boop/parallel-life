@@ -239,25 +239,44 @@
   color: #819098;
 }
 .scenePanel .dialogue {
-  background: #fff;
-  box-shadow: 0 3px 12px #1d354305;
-  color: #233640;
-  padding: 14px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  color: #1e293b;
+  padding: 12px 14px;
+  border-radius: 16px 16px 16px 4px;
+  border: 1px solid #e2e8f0;
 }
 .scenePanel .dialogue small {
-  color: #324b59;
+  color: #1e40af;
   font-weight: 600;
   font-size: 12px;
 }
 .scenePanel .user {
-  margin-left: 22px;
+  margin-left: 20px;
   padding: 12px 14px;
-  background: #e4edf4;
-  color: #294356;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-radius: 16px 16px 4px 16px;
+  border: 1px solid #dbeafe;
+}
+.scenePanel .user small {
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 11px;
 }
 .scenePanel .result {
-  background: #e7efe9;
-  color: #365448;
+  background: #f8fafc;
+  color: #334155;
+  border-left: 3px solid #64748b;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.stageDirection {
+  display: inline;
+  color: #64748b;
+  font-size: 0.93em;
+  opacity: 0.92;
+  margin: 0 1px;
 }
 .scenePanel .reading {
   overscroll-behavior: contain;

@@ -25,6 +25,23 @@ const states = {
   completed: '已完成',
   abandoned: '已放下',
 };
+function renderStoryContent(text: string) {
+  const parts = text.split(/(（[^）\n]+）|\([^)\n]+\))/g);
+  if (parts.length <= 1) return text;
+  return parts.map((part, index) => {
+    if (
+      (part.startsWith('（') && part.endsWith('）')) ||
+      (part.startsWith('(') && part.endsWith(')'))
+    ) {
+      return (
+        <span key={index} className={s.stageDirection}>
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
 export function ScenePanel({
   worldId,
   contacts,
@@ -454,7 +471,7 @@ export function ScenePanel({
                                   ? '随后的情势'
                                   : '场景'}
                         </small>
-                        <p>{e.text}</p>
+                        <p>{renderStoryContent(e.text)}</p>
                       </div>
                     </article>
                   ),
