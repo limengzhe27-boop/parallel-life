@@ -1,3 +1,4 @@
+import { PublicationOriginSchema } from './publication-worlds.ts';
 import { GenesisSourceSchema } from './world-records.ts';
 import { AlbumPhotoSchema } from './album.ts';
 import { InvitationSchema } from './invitations.ts';
@@ -220,6 +221,7 @@ export const WorldPhoneSchema = z.strictObject({
       text: z.string(),
       version: z.number().int().nonnegative(),
       updatedAt: Timestamp,
+      origin: PublicationOriginSchema.extend({ kind: z.literal('publication_opening') }).optional(),
     }),
   ),
 });

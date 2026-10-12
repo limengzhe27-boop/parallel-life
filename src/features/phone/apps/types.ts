@@ -49,6 +49,13 @@ export type PhoneInvitation = {
   links?: PhoneLink[];
 };
 export type PhoneNote = {
+  origin?: {
+    kind: 'publication_opening';
+    workId: string;
+    publicationVersion: number;
+    draftVersion: number;
+    contentHash: string;
+  };
   id: string;
   title: string;
   text: string;

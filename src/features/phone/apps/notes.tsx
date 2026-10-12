@@ -70,6 +70,18 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     );
   if (target && !note && !isNew)
     return <Empty title="找不到这条便签" text="便签可能已移除，请返回列表或刷新。" />;
+  if (note?.origin?.kind === 'publication_opening')
+    return (
+      <article className={s.app}>
+        <button type="button" onClick={() => open('notes')}>
+          ‹ 备忘录
+        </button>
+        <h2>{note.title}</h2>
+        <p>这段人生的开场记录 · 来自已确认的设定</p>
+        <p style={{ whiteSpace: 'pre-wrap' }}>{note.text}</p>
+        <p>内容由世界设定提供，你可以另建个人便签。</p>
+      </article>
+    );
   if (target) {
     const changed = isNew
       ? !!(draft.title.trim() || draft.text.trim())

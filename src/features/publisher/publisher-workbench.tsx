@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { PublisherDraftContentSchema } from '../../contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
 import {
   parseActorEditor,
@@ -21,7 +22,7 @@ import s from './publisher-workbench.module.css';
 type MainTab = 'settings' | 'actors' | 'plot';
 
 export function PublisherWorkbench(props: PublisherWorkbenchProps) {
-  const session = props.session ?? { displayName: '编剧', canEdit: true, canPublish: true };
+  const session = props.session;
   const {
     works,
     work,
@@ -56,10 +57,15 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
 
   // Track the baseline version corresponding to currently loaded props.work
   const [loadedWorkId, setLoadedWorkId] = useState<string | null>(() => work?.id ?? null);
-  const [loadedDraftVersion, setLoadedDraftVersion] = useState<number | null>(() => work?.draft?.version ?? null);
+  const [loadedDraftVersion, setLoadedDraftVersion] = useState<number | null>(
+    () => work?.draft?.version ?? null,
+  );
 
   // Status message notice
-  const [notice, setNotice] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
 
   // Deletion confirmation warning dialog state
   const [deletionWarning, setDeletionWarning] = useState<{
@@ -71,6 +77,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
   // Modal for creating new work
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newWorkTitle, setNewWorkTitle] = useState('');
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
 
   // Sync state when props.work updates or changes workId/draftVersion
   useEffect(() => {
@@ -89,6 +97,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
     if (isNewWork || isNewVersion) {
       setDraftTitle(work.title);
       setDraftContent(deepClone(work.draft.content));
+      setImportText('');
+      setImportError('');
       setLoadedWorkId(work.id);
       setLoadedDraftVersion(work.draft.version);
 
@@ -113,8 +123,21 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
 
   // Check if draft has unsaved changes
   const isDirty = useMemo(() => {
-    return isDraftDirty(savedState, { title: draftTitle, content: draftContent });
-  }, [savedState, draftTitle, draftContent]);
+    return (
+      importText.length > 0 ||
+      isDraftDirty(savedState, { title: draftTitle, content: draftContent })
+    );
+  }, [savedState, draftTitle, draftContent, importText]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const protect = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protect);
+    return () => window.removeEventListener('beforeunload', protect);
+  }, [isDirty]);
 
   // Actors list extracted from working draftContent
   const actorList = useMemo(() => {
@@ -203,20 +226,13 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
     setNotice({ type: 'success', message: `已移除人物「${currentActorForm.name}」` });
   }, [currentActorForm, draftContent, actorList]);
 
-  // Confirm delete despite warnings or after user acknowledgment
-  const handleForceDeleteActor = useCallback(() => {
-    if (!deletionWarning) return;
-    const nextContent = deleteActorFromContent(draftContent, deletionWarning.actorKey);
-    setDraftContent(nextContent);
-    const remaining = actorList.filter((a) => a.key !== deletionWarning.actorKey);
-    setSelectedActorKey(remaining[0]?.key ?? null);
-    setDeletionWarning(null);
-    setNotice({ type: 'warning', message: `已强制删除人物「${deletionWarning.actorName}」，请核对相关剧情。` });
-  }, [deletionWarning, draftContent, actorList]);
-
   // Save draft
   const handleSaveDraft = useCallback(() => {
     if (!work) return;
+    if (importText) {
+      setImportError('请先应用或清空导入的内容，再保存草稿。');
+      return;
+    }
     if (!session.canEdit) {
       setNotice({ type: 'error', message: '权限不足：当前账号未被授予编辑作品权限。' });
       return;
@@ -226,7 +242,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
       title: draftTitle,
       content: draftContent,
     });
-  }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft]);
+  }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft, importText]);
 
   // Create work
   const handleCreateWorkSubmit = useCallback(
@@ -238,6 +254,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
         content: {
           schemaVersion: 1,
           work: {
+            key: 'work_' + crypto.randomUUID().replaceAll('-', '').slice(0, 24),
             title: newWorkTitle.trim(),
             hook: '',
             description: '',
@@ -246,7 +263,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
           world: {
             publicSetting: '',
             tone: '',
-            startAt: '2024-05-18T10:00:00Z',
+            startAt: '',
             startPlaceKey: 'place_home',
             hiddenContext: '',
           },
@@ -264,6 +281,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
           phone: { messages: [], notes: [], invitations: [], album: [] },
           media: [],
           candidates: [],
+          extensions: [],
         },
       });
       setShowCreateModal(false);
@@ -276,7 +294,9 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
   const handleSelectWorkSafe = useCallback(
     (targetWorkId: string) => {
       if (isDirty && work) {
-        const confirmed = window.confirm('当前作品有未保存的编辑内容，切换后未保存草稿将被放弃，是否继续？');
+        const confirmed = window.confirm(
+          '当前作品有未保存的编辑内容，切换后未保存草稿将被放弃，是否继续？',
+        );
         if (!confirmed) return;
       }
       onSelectWork(targetWorkId);
@@ -319,7 +339,9 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                     <span className={s.workIcon} aria-hidden="true">
                       📄
                     </span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span
+                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
                       {w.title}
                     </span>
                   </button>
@@ -339,7 +361,14 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
             + 新建世界
           </button>
           <p className={s.configNotice}>登录身份：{session.displayName}</p>
-          <button type="button" className={s.btnLogout} onClick={onLogout}>
+          <button
+            type="button"
+            className={s.btnLogout}
+            disabled={busy}
+            onClick={() => {
+              if (!isDirty || window.confirm('还有未保存的修改，确认退出并放弃吗？')) onLogout();
+            }}
+          >
             退出登录
           </button>
         </div>
@@ -402,8 +431,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                   type="button"
                   className={`${s.btn} ${s.btnSecondary}`}
                   onClick={onCheck}
-                  disabled={busy}
-                  title="运行发布前完整一致性检查"
+                  disabled={busy || isDirty}
+                  title="检查已保存的草稿，请先保存修改"
                 >
                   检查
                 </button>
@@ -412,7 +441,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                   type="button"
                   className={`${s.btn} ${s.btnTrial}`}
                   onClick={onTrial ? () => onTrial() : undefined}
-                  disabled={busy || !onTrial}
+                  disabled={busy || isDirty || !onTrial}
                   title={!onTrial ? '试演功能待后端接口接通' : '在手机沙盒中试演当前草稿'}
                 >
                   {onTrial ? '试演' : '试演 (未接通)'}
@@ -427,7 +456,12 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                     !onPublish ||
                     !session.canPublish ||
                     isDirty ||
-                    check?.status !== 'ready'
+                    check?.status !== 'ready' ||
+                    check.workId !== work.id ||
+                    check.draftVersion !== work.draftVersion ||
+                    check.contentHash !== work.draft.contentHash ||
+                    !check.trialVerified ||
+                    !check.mediaVerified
                   }
                   title={
                     !onPublish
@@ -515,7 +549,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
           <div className={`${s.banner} ${s.bannerWarning}`} role="status">
             <div>
               <strong>检查未通过 ({check.status})：</strong> 发现 {check.issues.length} 处规范问题
-              {check.missingCapabilities.length > 0 && `，缺少能力: ${check.missingCapabilities.join(', ')}`}
+              {check.missingCapabilities.length > 0 &&
+                `，缺少能力: ${check.missingCapabilities.join(', ')}`}
               {check.issues.length > 0 && (
                 <ul style={{ margin: '6px 0 0 16px', padding: 0, fontSize: '13px' }}>
                   {check.issues.slice(0, 5).map((iss, i) => (
@@ -560,7 +595,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={worldSettings.title}
                       onChange={(e) => handleWorldSettingsChange('title', e.target.value)}
                       placeholder="例：如果，我的公司上市了"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                   <div className={s.formField}>
@@ -573,7 +608,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={worldSettings.hook}
                       onChange={(e) => handleWorldSettingsChange('hook', e.target.value)}
                       placeholder="例：从负债累累到敲钟上市，周旋在多重利益之间"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                   <div className={s.formFieldFull}>
@@ -586,7 +621,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={worldSettings.description}
                       onChange={(e) => handleWorldSettingsChange('description', e.target.value)}
                       placeholder="作品完整的世界观与故事背景描述…"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                   <div className={s.formFieldFull}>
@@ -599,7 +634,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={worldSettings.experienceNote}
                       onChange={(e) => handleWorldSettingsChange('experienceNote', e.target.value)}
                       placeholder="例：本体验包含职场利益抉择与成人情感纠葛，请理性对待"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                 </div>
@@ -619,9 +654,11 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       id="protag-identity-input"
                       className={s.input}
                       value={worldSettings.protagonistIdentity}
-                      onChange={(e) => handleWorldSettingsChange('protagonistIdentity', e.target.value)}
+                      onChange={(e) =>
+                        handleWorldSettingsChange('protagonistIdentity', e.target.value)
+                      }
                       placeholder="例：28岁，某初创科技公司CEO，单身"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                   <div className={s.formFieldFull}>
@@ -632,14 +669,107 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       id="protag-sit-input"
                       className={s.textarea}
                       value={worldSettings.protagonistSituation}
-                      onChange={(e) => handleWorldSettingsChange('protagonistSituation', e.target.value)}
+                      onChange={(e) =>
+                        handleWorldSettingsChange('protagonistSituation', e.target.value)
+                      }
                       placeholder="例：公司刚刚完成敲钟，今晚面临庆功宴与私人赴约的严峻冲突…"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                 </div>
               </section>
 
+              <section className={s.card}>
+                <h3 className={s.sectionTitle}>故事舞台与幕后背景</h3>
+                <label className={s.fieldLabel} htmlFor="world-public-setting">
+                  玩家可以知道的世界背景
+                </label>
+                <textarea
+                  id="world-public-setting"
+                  className={s.textarea}
+                  value={worldSettings.publicSetting}
+                  onChange={(e) => handleWorldSettingsChange('publicSetting', e.target.value)}
+                  disabled={!session.canEdit || busy}
+                />
+                <label className={s.fieldLabel} htmlFor="world-hidden-context">
+                  仅供内容创作保留的幕后背景
+                </label>
+                <textarea
+                  id="world-hidden-context"
+                  className={s.textarea}
+                  value={worldSettings.hiddenContext}
+                  onChange={(e) => handleWorldSettingsChange('hiddenContext', e.target.value)}
+                  disabled={!session.canEdit || busy}
+                />
+                <p className={s.fieldHint}>
+                  幕后背景不会作为玩家已知信息。角色实际知道哪些事实，需要分别指定。
+                </p>
+              </section>
+              <details className={s.card}>
+                <summary>导入完整结构化草稿</summary>
+                <p className={s.fieldHint}>
+                  用于补全地点、历史消息、日历与剧情等内容。导入只修改当前编辑稿；保存、检查和试演需另外执行。暂不支持的字段会在检查时显示。
+                </p>
+                <label className={s.fieldLabel} htmlFor="publication-import">
+                  完整内容（JSON）
+                </label>
+                <textarea
+                  id="publication-import"
+                  className={s.textarea}
+                  value={importText}
+                  onChange={(e) => {
+                    setImportText(e.target.value);
+                    setImportError('');
+                  }}
+                  disabled={!session.canEdit || busy}
+                  spellCheck={false}
+                />
+                {importError && <p role="alert">{importError}</p>}
+                <button
+                  type="button"
+                  className={s.btn}
+                  disabled={!session.canEdit || busy || !importText}
+                  onClick={() => {
+                    try {
+                      const raw = JSON.parse(importText);
+                      const parsed = PublisherDraftContentSchema.safeParse(raw);
+                      if (!parsed.success) {
+                        setImportError(
+                          '内容不是可保存的草稿，或超过大小限制。原来的编辑内容已保留。',
+                        );
+                        return;
+                      }
+                      if (
+                        isDraftDirty(savedState, { title: draftTitle, content: draftContent }) &&
+                        !window.confirm('导入将替换当前未保存的编辑稿，确认应用吗？')
+                      )
+                        return;
+                      setDraftContent(deepClone(parsed.data));
+                      const value = parseWorldSettings(parsed.data, draftTitle);
+                      setDraftTitle(value.title);
+                      setSelectedActorKey(null);
+                      setImportText('');
+                      setImportError('');
+                      setNotice({ type: 'warning', message: '内容已应用到编辑稿，请核对后保存。' });
+                    } catch {
+                      setImportError('内容格式有误。原来的编辑内容已保留，请检查后再试。');
+                    }
+                  }}
+                >
+                  应用到编辑稿
+                </button>
+                <button
+                  type="button"
+                  className={s.btn}
+                  disabled={busy}
+                  onClick={() => {
+                    setImportText('');
+                    setImportError('');
+                  }}
+                >
+                  清空导入文字
+                </button>
+              </details>
               <section className={s.card}>
                 <div className={s.sectionHeader}>
                   <h3 className={s.sectionTitle}>3. 世界时空基准</h3>
@@ -656,7 +786,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={worldSettings.startAt}
                       onChange={(e) => handleWorldSettingsChange('startAt', e.target.value)}
                       placeholder="2024-05-18T18:00:00Z"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                   <div className={s.formField}>
@@ -669,7 +799,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={worldSettings.startPlaceKey}
                       onChange={(e) => handleWorldSettingsChange('startPlaceKey', e.target.value)}
                       placeholder="place_office"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                   <div className={s.formFieldFull}>
@@ -682,7 +812,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={worldSettings.tone}
                       onChange={(e) => handleWorldSettingsChange('tone', e.target.value)}
                       placeholder="例：现代都市，现实主义，带有轻度讽刺与职场压迫感"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                 </div>
@@ -714,7 +844,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                 ) : (
                   actorList.map((a) => {
                     const isSelected = selectedActorKey === a.key;
-                    const identity = (a.publicCard as Record<string, unknown> | undefined)?.identity;
+                    const identity = (a.publicCard as Record<string, unknown> | undefined)
+                      ?.identity;
                     return (
                       <button
                         key={a.key}
@@ -753,13 +884,17 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                     </div>
                     <div>
                       <div className={s.actorHeaderTitle}>
-                        <strong style={{ fontSize: 18 }}>{currentActorForm.name || '未命名'}</strong>
+                        <strong style={{ fontSize: 18 }}>
+                          {currentActorForm.name || '未命名'}
+                        </strong>
                         <span className={s.tagFiction}>虚构角色</span>
                       </div>
                       <button
                         type="button"
                         className={s.avatarLink}
-                        onClick={() => alert('素材库上传将在独立素材管理器中开放，当前使用文字首字母头像。')}
+                        onClick={() =>
+                          alert('素材库上传将在独立素材管理器中开放，当前使用文字首字母头像。')
+                        }
                       >
                         更换头像
                       </button>
@@ -793,7 +928,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         value={currentActorForm.name}
                         onChange={(e) => handleActorChange('name', e.target.value)}
                         placeholder="例：青青"
-                        disabled={!session.canEdit}
+                        disabled={!session.canEdit || busy}
                       />
                     </div>
                     <div className={s.formField}>
@@ -806,7 +941,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         value={currentActorForm.identity}
                         onChange={(e) => handleActorChange('identity', e.target.value)}
                         placeholder="例：21岁 · 大三学生"
-                        disabled={!session.canEdit}
+                        disabled={!session.canEdit || busy}
                       />
                     </div>
                     <div className={s.formFieldFull}>
@@ -819,7 +954,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         value={currentActorForm.appearance}
                         onChange={(e) => handleActorChange('appearance', e.target.value)}
                         placeholder="例：黑色中长发，常穿浅色外套，笑起来带一点狡黠"
-                        disabled={!session.canEdit}
+                        disabled={!session.canEdit || busy}
                       />
                     </div>
                   </div>
@@ -842,7 +977,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={currentActorForm.relationshipToPlayer}
                       onChange={(e) => handleActorChange('relationshipToPlayer', e.target.value)}
                       placeholder="例：从小一起长大的邻家朋友，无血缘关系。习惯叫你哥。"
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
                 </section>
@@ -864,13 +999,15 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={currentActorForm.voice}
                       onChange={(e) => handleActorChange('voice', e.target.value)}
                       placeholder={`嘴硬心软，爱开玩笑，失落时会装作不在乎。\n说话短，习惯叫你哥，不会直说自己吃醋。`}
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                   </div>
 
                   {/* Collapsible deep background */}
                   <details className={s.disclosure}>
-                    <summary className={s.disclosureSummary}>展开完整经历与背景故事（可选）</summary>
+                    <summary className={s.disclosureSummary}>
+                      展开完整经历与背景故事（可选）
+                    </summary>
                     <div className={s.disclosureContent}>
                       <label className={s.fieldLabel} htmlFor="actor-bg-input">
                         成长背景与深层心理
@@ -881,7 +1018,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         value={currentActorForm.background}
                         onChange={(e) => handleActorChange('background', e.target.value)}
                         placeholder="记录该人物的家庭出身、求学及工作经历，供长上下文参考…"
-                        disabled={!session.canEdit}
+                        disabled={!session.canEdit || busy}
                       />
                     </div>
                   </details>
@@ -904,7 +1041,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         value={currentActorForm.caresAbout}
                         onChange={(e) => handleActorChange('caresAbout', e.target.value)}
                         placeholder="例：被认真对待，不因你的身份变化而变得疏远。"
-                        disabled={!session.canEdit}
+                        disabled={!session.canEdit || busy}
                       />
                     </div>
                     <div className={s.formFieldFull}>
@@ -917,7 +1054,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                         value={currentActorForm.immediateGoal}
                         onChange={(e) => handleActorChange('immediateGoal', e.target.value)}
                         placeholder="例：今晚和你单独吃一碗以前常吃的面。"
-                        disabled={!session.canEdit}
+                        disabled={!session.canEdit || busy}
                       />
                     </div>
                   </div>
@@ -929,6 +1066,30 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                     <h4 className={s.sectionTitle}>5. 关系、知情范围与底线</h4>
                     <span className={s.fieldHint}>明确已知信息差与行为底线</span>
                   </div>
+                  <fieldset disabled={!session.canEdit || busy}>
+                    <legend>这个人物开场已经知道的事实</legend>
+                    {plotData.history.length === 0 ? (
+                      <p className={s.fieldHint}>还没有已发生的历史事实，不能凭空授予知情。</p>
+                    ) : (
+                      plotData.history.map((f) => (
+                        <label key={f.key} style={{ display: 'block', margin: '8px 0' }}>
+                          <input
+                            type="checkbox"
+                            checked={currentActorForm.knownFactKeys.includes(f.key)}
+                            onChange={(e) =>
+                              handleActorChange(
+                                'knownFactKeys',
+                                e.target.checked
+                                  ? [...currentActorForm.knownFactKeys, f.key]
+                                  : currentActorForm.knownFactKeys.filter((k) => k !== f.key),
+                              )
+                            }
+                          />
+                          {f.text}
+                        </label>
+                      ))
+                    )}
+                  </fieldset>
                   <div className={s.formFieldFull}>
                     <label className={s.fieldLabel} htmlFor="actor-bounds-input">
                       知情范围与底线规则
@@ -940,7 +1101,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                       value={currentActorForm.boundaries}
                       onChange={(e) => handleActorChange('boundaries', e.target.value)}
                       placeholder={`知道：今天是你公司上市的大日子。\n不知道：庆功宴也在今晚，她还没收到改期消息。\n底线：不接受用钱替代陪伴，拒绝后不会自动答应。`}
-                      disabled={!session.canEdit}
+                      disabled={!session.canEdit || busy}
                     />
                     <p className={s.fieldHint} style={{ marginTop: 4 }}>
                       提示：写清楚她知道什么、不知道什么，以及遇到拒绝后的坚守底线。
@@ -982,7 +1143,9 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                           borderRadius: 8,
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <div
+                          style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}
+                        >
                           <strong>{h.key}</strong>
                           <span style={{ color: '#64748b' }}>{h.occurredAt}</span>
                         </div>
@@ -1013,7 +1176,13 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                           borderRadius: 8,
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
                           <strong style={{ fontSize: 15 }}>{c.title}</strong>
                           <span style={{ fontSize: 12, color: '#566276' }}>{c.key}</span>
                         </div>
@@ -1069,8 +1238,8 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
               存在关联引用，无法直接删除
             </h3>
             <p style={{ margin: 0, fontSize: 14, color: '#475569' }}>
-              人物「{deletionWarning.actorName}」在当前剧情中已被以下 {deletionWarning.references.length}{' '}
-              处设定直接引用。直接删除会导致剧情断层：
+              人物「{deletionWarning.actorName}」在当前剧情中已被以下{' '}
+              {deletionWarning.references.length} 处设定直接引用。直接删除会导致剧情断层：
             </p>
             <ul
               style={{
@@ -1093,14 +1262,6 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                 onClick={() => setDeletionWarning(null)}
               >
                 取消
-              </button>
-              <button
-                type="button"
-                className={`${s.btn}`}
-                style={{ background: '#a32632', color: '#fff' }}
-                onClick={handleForceDeleteActor}
-              >
-                强行解除引用并删除
               </button>
             </div>
           </div>
@@ -1165,7 +1326,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
               <button
                 type="submit"
                 className={`${s.btn} ${s.btnPrimary}`}
-                disabled={!newWorkTitle.trim()}
+                disabled={busy || !session.canEdit || !newWorkTitle.trim()}
               >
                 确认创建
               </button>

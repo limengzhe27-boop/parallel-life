@@ -12,6 +12,7 @@ export type PlayerActor = {
   id: string;
   name: string;
   relationship: string;
+  summary?: string;
   sourcePersonId?: string;
   photo?: { assetId: string; revision: number };
 };
@@ -24,6 +25,14 @@ export function projectPlayerActors(
   state: WorldState,
   selected: SelectedPlayerPerson[],
   observableContactActorIds: readonly string[] = [],
+  publishedContacts: readonly {
+    actorId: string;
+    name: string;
+    relationship: string;
+    identity?: string;
+    traits: string[];
+    appearance?: string;
+  }[] = [],
 ): PlayerActor[] {
   const contacts = new Set(observableContactActorIds);
   for (const message of state.messages) {
@@ -37,15 +46,24 @@ export function projectPlayerActors(
     const person = selected.find(
       (person) => person.actorId === actor.id && person.personId === actor.sourcePersonId,
     );
-    if (!person && !contacts.has(actor.id)) return [];
+    const authored = publishedContacts.find((c) => c.actorId === actor.id && c.name === actor.name);
+    if (!person && !authored && !contacts.has(actor.id)) return [];
     return [
       {
         id: actor.id,
         name: person?.name ?? actor.name,
         relationship:
           person?.relationship ??
+          authored?.relationship ??
           state.officialLife?.contacts.find((c) => c.actorId === actor.id)?.relationship ??
           '',
+        ...(authored
+          ? {
+              summary: [authored.identity, ...authored.traits, authored.appearance]
+                .filter(Boolean)
+                .join(' · '),
+            }
+          : {}),
         ...(person
           ? { sourcePersonId: person.personId, ...(person.photo ? { photo: person.photo } : {}) }
           : {}),

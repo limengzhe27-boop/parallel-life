@@ -53,16 +53,38 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
       'binding_current_avatar_sync',
       'profile_current_avatar_sync',
       'protect_current_avatar_asset',
+      'publication_bridge_immutable',
+      'publication_admission_consumed',
+      'publication_seed_binding',
     ]);
     assert.equal(rows.filter((row) => triggerOnly.has(row.proname)).length, triggerOnly.size);
     for (const row of rows.filter((row) => triggerOnly.has(row.proname))) {
       assert.equal(row.app_ok, false);
       assert.equal(row.worker_ok, false);
     }
+    // Employee publication writes use a separate restricted role. Neither
+    // consumer requests nor background workers may call these helpers.
+    const staffOnly = new Set([
+      'publication_immutable',
+      'publication_work_update',
+      'publication_version_insert',
+    ]);
+    assert.equal(rows.filter((row) => staffOnly.has(row.proname)).length, staffOnly.size);
+    for (const row of rows.filter((row) => staffOnly.has(row.proname))) {
+      assert.equal(row.app_ok, false);
+      assert.equal(row.worker_ok, false);
+      const access = await admin.query('SELECT has_function_privilege($1,$2,$3) AS allowed', [
+        'pl_publisher',
+        `parallel_life.${row.proname}(${row.args})`,
+        'EXECUTE',
+      ]);
+      assert.equal(access.rows[0].allowed, true);
+    }
     const denied = rows.filter(
       (row) =>
         !authorOnly.has(row.proname) &&
         !triggerOnly.has(row.proname) &&
+        !staffOnly.has(row.proname) &&
         (!row.app_ok || !row.worker_ok),
     );
     assert.deepEqual(

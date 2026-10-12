@@ -11,8 +11,9 @@ export function useWorldMap(
   version: number,
   enabled: boolean,
   onReload?: () => Promise<void>,
+  transport?: typeof fetch,
 ): PhoneMapContext {
-  const client = useMemo(() => new SpaceClient(), [worldId]);
+  const client = useMemo(() => new SpaceClient(transport), [worldId, transport]);
   const [data, setData] = useState<WorldSpace | null>(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState<string | null>(null),
@@ -276,7 +277,7 @@ export function useWorldMap(
         });
         await after();
         if (r.task?.status === 'queued') {
-          await new SceneClient().execute(r.task.id);
+          await new SceneClient(transport).execute(r.task.id);
           await after();
         }
         enter.current = null;

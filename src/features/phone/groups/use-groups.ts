@@ -3,8 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeGroupDetail } from './state.ts';
 import { GroupClient, type GroupDetail, type GroupList, type GroupTask } from './client.ts';
 /** Group query cache only. Canonical World versions are always read from the API. */
-export function useGroups(worldId: string, enabled: boolean, onWorldChanged?: () => Promise<void>) {
-  const client = useMemo(() => new GroupClient(), [worldId]);
+export function useGroups(
+  worldId: string,
+  enabled: boolean,
+  onWorldChanged?: () => Promise<void>,
+  transport?: typeof fetch,
+) {
+  const client = useMemo(() => new GroupClient(transport), [worldId, transport]);
   const [list, setList] = useState<{ worldId: string; value: GroupList }>();
   const [details, setDetails] = useState<Record<string, GroupDetail>>({});
   const [watchedTasks, setWatchedTasks] = useState<Record<string, GroupTask>>({});

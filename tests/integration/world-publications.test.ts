@@ -30,7 +30,7 @@ async function before42(admin: Awaited<ReturnType<typeof adminClient>>) {
     'CREATE TABLE IF NOT EXISTS public.pl_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz DEFAULT now())',
   );
   for (const name of (await readdir(new URL('../../db/migrations/', import.meta.url)))
-    .filter((n) => n.endsWith('.sql') && !n.startsWith('0042'))
+    .filter((n) => n.endsWith('.sql') && n < '0042')
     .sort()) {
     const sql = await readFile(new URL('../../db/migrations/' + name, import.meta.url), 'utf8'),
       hash = createHash('sha256').update(sql).digest('hex');

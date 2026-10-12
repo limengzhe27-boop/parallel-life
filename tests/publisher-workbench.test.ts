@@ -245,6 +245,7 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
     draftVersion: 1,
     contentHash: 'hash-001',
     status: 'invalid',
+    issuesTruncated: false,
     issues: [
       {
         path: ['actors', 0, 'name'],

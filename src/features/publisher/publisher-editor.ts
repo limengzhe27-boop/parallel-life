@@ -70,15 +70,23 @@ export function deepClone<T>(value: T): T {
   }
   const copy: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value)) {
-    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-    copy[k] = deepClone(v);
+    Object.defineProperty(copy, k, {
+      value: deepClone(v),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   }
   return copy as T;
 }
 
 /** Generates a unique, valid actor key matching /^[a-z][a-z0-9_]{0,31}$/. */
 export function generateActorKey(existingKeys: string[], prefix = 'actor'): string {
-  const safePrefix = prefix.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 12) || 'actor';
+  const safePrefix =
+    prefix
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_')
+      .slice(0, 12) || 'actor';
   const cleanPrefix = /^[a-z]/.test(safePrefix) ? safePrefix : `a_${safePrefix}`;
   let count = existingKeys.length + 1;
   while (true) {
@@ -94,25 +102,21 @@ export function generateActorKey(existingKeys: string[], prefix = 'actor'): stri
  * Parses dual motivation fields (在乎什么 / 眼前想法) from stored motivation string.
  * Preserves raw motivation to ensure lossless round-trip when not formatted.
  */
-export function splitMotivation(raw: string): { caresAbout: string; immediateGoal: string; raw: string } {
+export function splitMotivation(raw: string): {
+  caresAbout: string;
+  immediateGoal: string;
+  raw: string;
+} {
   const trimmed = raw.trim();
   if (!trimmed) {
     return { caresAbout: '', immediateGoal: '', raw: '' };
   }
   // Check common dual format patterns
-  const match = trimmed.match(/在乎[：:]\s*(.*?)(?:\r?\n|;；)\s*眼前[：:]\s*(.*)$/s);
+  const match = trimmed.match(/^在乎[：:][ \t]*(.*?)(?:\r?\n|[;；])[ \t]*眼前[：:][ \t]*(.*)$/s);
   if (match) {
     return {
       caresAbout: match[1]?.trim() ?? '',
       immediateGoal: match[2]?.trim() ?? '',
-      raw: trimmed,
-    };
-  }
-  const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length >= 2 && !lines[0]?.includes('：') && !lines[1]?.includes('：')) {
-    return {
-      caresAbout: lines[0] ?? '',
-      immediateGoal: lines.slice(1).join('\n'),
       raw: trimmed,
     };
   }
@@ -124,15 +128,18 @@ export function splitMotivation(raw: string): { caresAbout: string; immediateGoa
 }
 
 /** Formats caresAbout and immediateGoal back into a motivation text. */
-export function joinMotivation(caresAbout: string, immediateGoal: string, fallbackRaw = ''): string {
+export function joinMotivation(
+  caresAbout: string,
+  immediateGoal: string,
+  fallbackRaw = '',
+): string {
+  const original = splitMotivation(fallbackRaw);
+  if (original.caresAbout === caresAbout && original.immediateGoal === immediateGoal)
+    return fallbackRaw;
   const cleanCares = caresAbout.trim();
   const cleanGoal = immediateGoal.trim();
-  if (cleanCares && cleanGoal) {
-    return `在乎：${cleanCares}\n眼前：${cleanGoal}`;
-  }
-  if (cleanCares) return cleanCares;
-  if (cleanGoal) return cleanGoal;
-  return fallbackRaw.trim();
+  if (!cleanCares && !cleanGoal) return '';
+  return `在乎：${cleanCares}\n眼前：${cleanGoal}`;
 }
 
 /** Parses raw actor data into the 5-section editor form. */
@@ -144,12 +151,12 @@ export function parseActorEditor(
   const name = String(actor.name ?? '');
   const knownAtStart = Boolean(actor.knownAtStart ?? true);
 
-  const publicCard = (actor.publicCard && typeof actor.publicCard === 'object'
-    ? actor.publicCard
-    : {}) as Record<string, unknown>;
-  const privatePersona = (actor.privatePersona && typeof actor.privatePersona === 'object'
-    ? actor.privatePersona
-    : {}) as Record<string, unknown>;
+  const publicCard = (
+    actor.publicCard && typeof actor.publicCard === 'object' ? actor.publicCard : {}
+  ) as Record<string, unknown>;
+  const privatePersona = (
+    actor.privatePersona && typeof actor.privatePersona === 'object' ? actor.privatePersona : {}
+  ) as Record<string, unknown>;
 
   // Section 1: 名字与身份
   const identity = typeof publicCard.identity === 'string' ? publicCard.identity : '';
@@ -157,7 +164,8 @@ export function parseActorEditor(
   const traits = Array.isArray(publicCard.traits)
     ? publicCard.traits.filter((t): t is string => typeof t === 'string')
     : [];
-  const avatarMediaKey = typeof publicCard.avatarMediaKey === 'string' ? publicCard.avatarMediaKey : undefined;
+  const avatarMediaKey =
+    typeof publicCard.avatarMediaKey === 'string' ? publicCard.avatarMediaKey : undefined;
 
   // Section 2: 与主角初始关系
   let relationshipToPlayer = '';
@@ -183,7 +191,8 @@ export function parseActorEditor(
   const background = typeof privatePersona.background === 'string' ? privatePersona.background : '';
 
   // Section 4: 动机与眼前目标
-  const rawMotivation = typeof privatePersona.motivation === 'string' ? privatePersona.motivation : '';
+  const rawMotivation =
+    typeof privatePersona.motivation === 'string' ? privatePersona.motivation : '';
   const { caresAbout, immediateGoal } = splitMotivation(rawMotivation);
 
   // Section 5: 底线与知情范围
@@ -224,28 +233,32 @@ export function updateActorInContent(
 ): Record<string, unknown> {
   const next = deepClone(content);
   const actors = Array.isArray(next.actors) ? (next.actors as Record<string, unknown>[]) : [];
-  const actorIdx = actors.findIndex((a) => a.key === form.key);
+  const actorIdx = actors.findIndex((a) => a && a.key === form.key);
+  const original = actorIdx >= 0 ? parseActorEditor(actors[actorIdx]!, content) : null;
+  const changed = (field: keyof ActorEditorForm) =>
+    !original || JSON.stringify(original[field]) !== JSON.stringify(form[field]);
 
   const motivationText = joinMotivation(form.caresAbout, form.immediateGoal, form.rawMotivation);
 
   const updatedActor: Record<string, unknown> = {
     ...(actorIdx >= 0 ? actors[actorIdx] : {}),
     key: form.key,
-    name: form.name.trim(),
-    knownAtStart: form.knownAtStart,
+    ...(changed('name') ? { name: form.name.trim() } : {}),
+    ...(changed('knownAtStart') ? { knownAtStart: form.knownAtStart } : {}),
     publicCard: {
       ...((actorIdx >= 0 ? (actors[actorIdx]?.publicCard as Record<string, unknown>) : null) ?? {}),
-      identity: form.identity.trim() || undefined,
-      appearance: form.appearance.trim() || undefined,
-      traits: form.traits.filter((t) => t.trim().length > 0),
-      avatarMediaKey: form.avatarMediaKey || undefined,
+      ...(changed('identity') ? { identity: form.identity.trim() || undefined } : {}),
+      ...(changed('appearance') ? { appearance: form.appearance.trim() || undefined } : {}),
+      ...(changed('traits') ? { traits: form.traits.filter((t) => t.trim().length > 0) } : {}),
+      ...(changed('avatarMediaKey') ? { avatarMediaKey: form.avatarMediaKey || undefined } : {}),
     },
     privatePersona: {
-      ...((actorIdx >= 0 ? (actors[actorIdx]?.privatePersona as Record<string, unknown>) : null) ?? {}),
-      background: form.background.trim(),
-      voice: form.voice.trim(),
-      motivation: motivationText,
-      boundaries: form.boundaries.trim(),
+      ...((actorIdx >= 0 ? (actors[actorIdx]?.privatePersona as Record<string, unknown>) : null) ??
+        {}),
+      ...(changed('background') ? { background: form.background.trim() } : {}),
+      ...(changed('voice') ? { voice: form.voice.trim() } : {}),
+      ...(changed('caresAbout') || changed('immediateGoal') ? { motivation: motivationText } : {}),
+      ...(changed('boundaries') ? { boundaries: form.boundaries.trim() } : {}),
     },
   };
 
@@ -257,7 +270,7 @@ export function updateActorInContent(
   next.actors = actors;
 
   // Update initial relationship with player in content.relationships
-  if (Array.isArray(next.relationships)) {
+  if (changed('relationshipToPlayer') && Array.isArray(next.relationships)) {
     const rels = next.relationships as Record<string, unknown>[];
     let found = false;
     for (let i = 0; i < rels.length; i++) {
@@ -265,8 +278,10 @@ export function updateActorInContent(
       if (!r || typeof r !== 'object') continue;
       const from = r.from as Record<string, unknown> | undefined;
       const to = r.to as Record<string, unknown> | undefined;
-      const isActorFrom = from?.kind === 'actor' && from?.actorKey === form.key && to?.kind === 'player';
-      const isActorTo = from?.kind === 'player' && to?.kind === 'actor' && to?.actorKey === form.key;
+      const isActorFrom =
+        from?.kind === 'actor' && from?.actorKey === form.key && to?.kind === 'player';
+      const isActorTo =
+        from?.kind === 'player' && to?.kind === 'actor' && to?.actorKey === form.key;
       if (isActorFrom || isActorTo) {
         rels[i] = {
           ...r,
@@ -277,30 +292,33 @@ export function updateActorInContent(
       }
     }
     if (!found && form.relationshipToPlayer.trim()) {
-      const relKey = `rel_${form.key}_player`.slice(0, 31);
+      const relKey = generateActorKey(
+        rels.map((r) => String(r?.key ?? '')),
+        'relation',
+      );
       rels.push({
         key: relKey,
         from: { kind: 'actor', actorKey: form.key },
         to: { kind: 'player' },
         description: form.relationshipToPlayer.trim(),
-        visibility: { kind: 'world' },
+        visibility: { kind: 'player' },
       });
     }
     next.relationships = rels;
-  } else if (form.relationshipToPlayer.trim()) {
+  } else if (changed('relationshipToPlayer') && form.relationshipToPlayer.trim()) {
     next.relationships = [
       {
         key: `rel_${form.key}_player`.slice(0, 31),
         from: { kind: 'actor', actorKey: form.key },
         to: { kind: 'player' },
         description: form.relationshipToPlayer.trim(),
-        visibility: { kind: 'world' },
+        visibility: { kind: 'player' },
       },
     ];
   }
 
   // Update initialKnowledge
-  if (Array.isArray(next.initialKnowledge)) {
+  if (changed('knownFactKeys') && Array.isArray(next.initialKnowledge)) {
     const knowledgeList = next.initialKnowledge as Record<string, unknown>[];
     const kIdx = knowledgeList.findIndex((k) => k.actorKey === form.key);
     if (kIdx >= 0) {
@@ -308,7 +326,7 @@ export function updateActorInContent(
         ...knowledgeList[kIdx],
         factKeys: form.knownFactKeys,
       };
-    } else if (form.knownFactKeys.length > 0) {
+    } else if (changed('knownFactKeys') && form.knownFactKeys.length > 0) {
       knowledgeList.push({
         actorKey: form.key,
         factKeys: form.knownFactKeys,
@@ -349,7 +367,7 @@ export function createEmptyActor(existingKeys: string[]): ActorEditorForm {
 }
 
 export type ActorReference = {
-  category: 'relationship' | 'message' | 'invitation' | 'history' | 'candidate';
+  category: 'relationship' | 'message' | 'invitation' | 'history' | 'candidate' | 'visibility';
   key: string;
   label: string;
 };
@@ -433,6 +451,29 @@ export function checkActorDeletionSafety(
     }
   }
 
+  // Visibility, intent and extension references also survive deletion; never silently broaden them.
+  function inspect(value: unknown, path: string[]) {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach((v, i) => inspect(v, [...path, String(i)]));
+      return;
+    }
+    const obj = value as Record<string, unknown>;
+    if (
+      obj.actorKey === actorKey ||
+      (Array.isArray(obj.actorKeys) && obj.actorKeys.includes(actorKey))
+    )
+      references.push({
+        category: 'visibility',
+        key: path.join('.'),
+        label: '相关人物引用: ' + path.join('.'),
+      });
+    Object.entries(obj).forEach(([k, v]) => inspect(v, [...path, k]));
+  }
+  Object.entries(content).forEach(([k, v]) => {
+    if (k !== 'actors' && k !== 'initialKnowledge') inspect(v, [k]);
+  });
+
   return {
     canDelete: references.length === 0,
     references,
@@ -444,6 +485,7 @@ export function deleteActorFromContent(
   content: Record<string, unknown>,
   actorKey: string,
 ): Record<string, unknown> {
+  if (!checkActorDeletionSafety(content, actorKey).canDelete) throw new Error('ACTOR_REFERENCED');
   const next = deepClone(content);
   if (Array.isArray(next.actors)) {
     next.actors = (next.actors as Record<string, unknown>[]).filter((a) => a?.key !== actorKey);
@@ -476,9 +518,9 @@ export function parseWorldSettings(
     string,
     unknown
   >;
-  const protagonist = (content.protagonist && typeof content.protagonist === 'object'
-    ? content.protagonist
-    : {}) as Record<string, unknown>;
+  const protagonist = (
+    content.protagonist && typeof content.protagonist === 'object' ? content.protagonist : {}
+  ) as Record<string, unknown>;
 
   return {
     title: String(work.title ?? world.title ?? workTitleFallback ?? ''),
@@ -503,32 +545,31 @@ export function updateWorldSettingsInContent(
 ): Record<string, unknown> {
   const next = deepClone(content);
 
-  next.work = {
-    ...((next.work as Record<string, unknown>) ?? {}),
-    title: settings.title.trim(),
-    hook: settings.hook.trim(),
-    description: settings.description.trim(),
-    experienceNote: settings.experienceNote.trim(),
-    coverMediaKey: settings.coverMediaKey || undefined,
+  const before = parseWorldSettings(content);
+  const patch = (section: string, target: string, field: keyof WorldSettingsForm) => {
+    if (before[field] === settings[field]) return;
+    const object = (
+      next[section] && typeof next[section] === 'object' && !Array.isArray(next[section])
+        ? next[section]
+        : {}
+    ) as Record<string, unknown>;
+    next[section] = { ...object, [target]: settings[field] };
   };
-
-  const worldObj = ((next.world as Record<string, unknown>) ?? {});
-  next.world = {
-    ...worldObj,
-    ...('title' in worldObj ? { title: settings.title.trim() } : {}),
-    ...('hook' in worldObj ? { hook: settings.hook.trim() } : {}),
-    publicSetting: settings.publicSetting.trim(),
-    tone: settings.tone.trim(),
-    startAt: settings.startAt.trim(),
-    startPlaceKey: settings.startPlaceKey.trim(),
-    hiddenContext: settings.hiddenContext.trim(),
-  };
-
-  next.protagonist = {
-    ...((next.protagonist as Record<string, unknown>) ?? {}),
-    identity: settings.protagonistIdentity.trim(),
-    situation: settings.protagonistSituation.trim(),
-  };
+  for (const field of ['title', 'hook', 'description', 'experienceNote', 'coverMediaKey'] as const)
+    patch('work', field, field);
+  for (const field of [
+    'publicSetting',
+    'tone',
+    'startAt',
+    'startPlaceKey',
+    'hiddenContext',
+  ] as const)
+    patch('world', field, field);
+  const legacy = content.world as Record<string, unknown> | undefined;
+  for (const field of ['title', 'hook'] as const)
+    if (legacy && Object.hasOwn(legacy, field)) patch('world', field, field);
+  patch('protagonist', 'identity', 'protagonistIdentity');
+  patch('protagonist', 'situation', 'protagonistSituation');
 
   return next;
 }

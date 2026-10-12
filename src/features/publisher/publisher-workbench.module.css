@@ -86,7 +86,9 @@
   font-size: 15px;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
   min-height: 44px;
   width: 100%;
 }
@@ -129,7 +131,9 @@
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 
 .newWorkButton:hover:not(:disabled) {
@@ -248,7 +252,10 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
   border: 1px solid transparent;
 }
 
@@ -330,7 +337,9 @@
   font-weight: 500;
   color: var(--pub-secondary);
   cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
 }
 
 .tabButton:hover:not(:disabled) {
@@ -445,7 +454,9 @@
   background: var(--pub-surface);
   cursor: pointer;
   text-align: left;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
   min-height: 52px;
 }
 

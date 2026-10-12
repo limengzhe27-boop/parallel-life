@@ -51,9 +51,17 @@ import {
   restoreSendCommands,
   type SendCommand,
 } from './chat-send-state.ts';
-export function WorldPhoneApp({ worldId }: { worldId: string }) {
-  const [receiptClient] = useState(() => new MessageReceiptClient());
-  const [client] = useState(() => new LifeClient()),
+export function WorldPhoneApp({
+  worldId,
+  transport,
+  automatic = true,
+}: {
+  worldId: string;
+  transport?: typeof fetch;
+  automatic?: boolean;
+}) {
+  const [receiptClient] = useState(() => new MessageReceiptClient(transport));
+  const [client] = useState(() => new LifeClient(transport)),
     [data, setData] = useState<WorldPhone | null>(null),
     [error, setError] = useState(''),
     [isBuilding, setIsBuilding] = useState(false),
@@ -366,6 +374,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     let active = true;
     async function checkForWorldNews() {
       if (
+        !automatic ||
         !active ||
         document.visibilityState !== 'visible' ||
         !phoneReady.current.hasData ||
@@ -416,7 +425,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       window.clearInterval(interval);
       directorCheck.current = () => {};
     };
-  }, [client, load, worldId]);
+  }, [client, load, worldId, automatic]);
   useEffect(() => {
     if (data?.id === worldId && !refreshing) directorCheck.current();
   }, [data?.id, refreshing, worldId]);
@@ -451,6 +460,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
       ) : (
         <WorldPhoneSurface
           key={data.id}
+          transport={transport}
           data={data}
           onUploadPhoto={async (file, commandId) => {
             const photo = await client.uploadPhoto(worldId, file, commandId);
@@ -554,6 +564,7 @@ export function WorldPhoneSurface({
   data,
   onExperienceBusy,
   preview = false,
+  transport,
   onReload,
   onSceneWorldChanged,
   records,
@@ -570,6 +581,7 @@ export function WorldPhoneSurface({
   data: WorldPhone;
   onExperienceBusy?: (busy: boolean) => void;
   preview?: boolean;
+  transport?: typeof fetch;
   onReload?: () => Promise<void>;
   onSceneWorldChanged?: (minimumVersion: number) => Promise<void>;
   records?: PhoneRecordsState;
@@ -603,7 +615,7 @@ export function WorldPhoneSurface({
       /* Read receipts remain usable in this session. */
     }
   }, [data.id, viewed]);
-  const client = useMemo(() => new LifeClient(), []);
+  const client = useMemo(() => new LifeClient(transport), [transport]);
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const custom = localStorage.getItem(`pl_wallpaper_${data.id}`);
@@ -751,12 +763,12 @@ export function WorldPhoneSurface({
   }, [data.id]);
 
   const [sceneWaiting, setSceneWaiting] = useState(false);
-  const sceneClient = useMemo(() => new SceneClient(), [data.id]);
+  const sceneClient = useMemo(() => new SceneClient(transport), [data.id, transport]);
   const sceneSync = useMemo(() => new SceneWorldSync(data.id), [data.id]);
   const scenePhoneVersion = useRef(data.version ?? 0);
   scenePhoneVersion.current = data.version ?? 0;
-  const groups = useGroups(data.id, !preview, onReload);
-  const map = useWorldMap(data.id, data.version ?? 0, !preview, onReload);
+  const groups = useGroups(data.id, !preview, onReload, transport);
+  const map = useWorldMap(data.id, data.version ?? 0, !preview, onReload, transport);
   useEffect(() => {
     if (!sceneWaiting || preview) return;
     const timer = setInterval(() => {

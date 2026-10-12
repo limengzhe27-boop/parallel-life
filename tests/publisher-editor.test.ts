@@ -275,3 +275,53 @@ test('isDraftDirty detects changes in title and draft content', () => {
     true,
   );
 });
+
+test('editing a name retains all untouched raw text, hidden fields and legal JSON keys', () => {
+  const content = deepClone(mockDraftContent);
+  const actor = (content.actors as Record<string, unknown>[])[0]!;
+  actor.name = '  青青  ';
+  delete actor.knownAtStart;
+  const persona = actor.privatePersona as Record<string, unknown>;
+  persona.motivation = '  不想离家\n仍在犹豫  ';
+  persona.voice = '  直说  ';
+  content.extensions = JSON.parse(
+    '[{"data":{"constructor":{"key":"secret"},"__proto__":{"safe":true}}}]',
+  );
+  const form = parseActorEditor(actor, content);
+  form.name = '青';
+  const result = updateActorInContent(content, form);
+  const expected = deepClone(content);
+  (expected.actors as Record<string, unknown>[])[0]!.name = '青';
+  assert.deepEqual(result, expected);
+  assert.equal(
+    Object.hasOwn((result.actors as Record<string, unknown>[])[0]!, 'knownAtStart'),
+    false,
+  );
+  assert.equal(Object.getPrototypeOf(result), Object.prototype);
+});
+
+test('motivation fields can independently be entered or cleared without changing unrelated raw motivation', () => {
+  assert.equal(
+    joinMotivation('不想离家\n仍在犹豫', '', '  不想离家\n仍在犹豫  '),
+    '  不想离家\n仍在犹豫  ',
+  );
+  const goalOnly = joinMotivation('', '谈工资', '原话');
+  assert.equal(splitMotivation(goalOnly).immediateGoal, '谈工资');
+  assert.equal(splitMotivation(goalOnly).caresAbout, '');
+  assert.equal(joinMotivation('', '', '原话'), '');
+});
+
+test('visibility and indirect event intent references block deletion without destroying source', () => {
+  const content = {
+    actors: [{ key: 'a', name: 'A' }],
+    initialKnowledge: [{ actorKey: 'a', factKeys: [] }],
+    history: [{ key: 'f', actorKeys: [], visibility: { kind: 'actors', actorKeys: ['a'] } }],
+    candidates: [
+      { key: 'c', actorKeys: [], intent: { kind: 'offer_message', actorKey: 'a', text: 'hi' } },
+    ],
+  };
+  const before = JSON.stringify(content);
+  assert.equal(checkActorDeletionSafety(content, 'a').canDelete, false);
+  assert.throws(() => deleteActorFromContent(content, 'a'), /ACTOR_REFERENCED/);
+  assert.equal(JSON.stringify(content), before);
+});

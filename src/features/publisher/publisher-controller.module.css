@@ -1,0 +1,82 @@
+.gate {
+  min-height: 100dvh;
+  background: #f5f7fb;
+  color: #172033;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  font-family: system-ui, sans-serif;
+}
+.card {
+  background: white;
+  border: 1px solid #dce3ef;
+  border-radius: 16px;
+  padding: 32px;
+  display: grid;
+  gap: 14px;
+  width: min(100%, 460px);
+  box-sizing: border-box;
+}
+.card h1 {
+  font-size: 26px;
+  margin: 0;
+  line-height: 1.4;
+}
+.card p {
+  margin: 0;
+  line-height: 1.7;
+  color: #566276;
+}
+.card .eyebrow {
+  color: #245fe5;
+  font-weight: 600;
+}
+.card input {
+  background: white;
+  color: #172033;
+  border: 1px solid #ccd6e6;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 16px;
+  min-height: 44px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.card button {
+  background: #245fe5;
+  color: white;
+  border: 0;
+  border-radius: 8px;
+  min-height: 46px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.card button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.card a {
+  color: #245fe5;
+  text-align: center;
+  padding: 8px;
+}
+.card .error {
+  color: #a32632;
+}
+.card input:focus-visible,
+.card button:focus-visible,
+.card a:focus-visible {
+  outline: 3px solid #a7befe;
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .gate {
+    padding: 16px;
+  }
+  .card {
+    padding: 24px;
+  }
+  .card h1 {
+    font-size: 22px;
+  }
+}

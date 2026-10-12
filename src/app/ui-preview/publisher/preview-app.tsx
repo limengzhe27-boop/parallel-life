@@ -58,7 +58,8 @@ const INITIAL_WORK_IPO: PublisherWork = {
         key: 'work_ipo',
         title: '如果，我的公司上市了',
         hook: '从敲钟上市到多重利益博弈',
-        description: '你经历多年苦拼终于带领公司敲钟上市，但今晚不仅有庆功宴，更有旧人与暗流等待回应。',
+        description:
+          '你经历多年苦拼终于带领公司敲钟上市，但今晚不仅有庆功宴，更有旧人与暗流等待回应。',
         experienceNote: '包含职场与情感多方选择。',
       },
       world: {
@@ -84,10 +85,14 @@ const INITIAL_WORK_IPO: PublisherWork = {
             appearance: '黑色中长发，常穿浅色外套，笑容灵动',
           },
           privatePersona: {
-            background: '与主角从小在同一个老家筒子楼长大，两家大人关系密切。看着主角一步步走出老家打拼。',
-            voice: '嘴硬心软，爱开玩笑，失落时会装作不在乎。\n说话短，习惯叫你哥，不会直说自己吃醋。',
-            motivation: '在乎：被认真对待，不因你的身份变化而变得疏远。\n眼前：今晚和你单独吃一碗以前常吃的面。',
-            boundaries: '知道：今天是你公司上市的大日子。\n不知道：庆功宴也在今晚，她还没收到改期消息。\n底线：不接受用钱替代陪伴，拒绝后不会自动答应。',
+            background:
+              '与主角从小在同一个老家筒子楼长大，两家大人关系密切。看着主角一步步走出老家打拼。',
+            voice:
+              '嘴硬心软，爱开玩笑，失落时会装作不在乎。\n说话短，习惯叫你哥，不会直说自己吃醋。',
+            motivation:
+              '在乎：被认真对待，不因你的身份变化而变得疏远。\n眼前：今晚和你单独吃一碗以前常吃的面。',
+            boundaries:
+              '知道：今天是你公司上市的大日子。\n不知道：庆功宴也在今晚，她还没收到改期消息。\n底线：不接受用钱替代陪伴，拒绝后不会自动答应。',
           },
         },
         {
@@ -102,8 +107,10 @@ const INITIAL_WORK_IPO: PublisherWork = {
           privatePersona: {
             background: '曾经创办公司雇佣过主角，后来破产被主角反向收购，如今在供应链部门任职。',
             voice: '客气而保留距离，话里有话。习惯称呼您。',
-            motivation: '在乎：保全自己在团队里的尊严与家庭开销。\n眼前：今晚在庆功宴上拿回当年承诺的股份证明。',
-            boundaries: '知道：主角现在是风头无两的上市公司老板。\n不知道：主角对当年的旧情分是否还认。\n底线：不可当众羞辱。',
+            motivation:
+              '在乎：保全自己在团队里的尊严与家庭开销。\n眼前：今晚在庆功宴上拿回当年承诺的股份证明。',
+            boundaries:
+              '知道：主角现在是风头无两的上市公司老板。\n不知道：主角对当年的旧情分是否还认。\n底线：不可当众羞辱。',
           },
         },
         {
@@ -118,8 +125,10 @@ const INITIAL_WORK_IPO: PublisherWork = {
           privatePersona: {
             background: '大学校花，家族实业背景，曾与主角是同专业同学。',
             voice: '温和平静，带着体面的疏离感与淡淡的调侃。',
-            motivation: '在乎：寻找规则之外不受安排的真实生活体验。\n眼前：祝贺你上市，并确认大学时期的旧事你是否还记得。',
-            boundaries: '知道：你公司成功敲钟上市。\n不知道：你私下与青青的紧密联络。\n底线：不接受被利用当做商务背景板。',
+            motivation:
+              '在乎：寻找规则之外不受安排的真实生活体验。\n眼前：祝贺你上市，并确认大学时期的旧事你是否还记得。',
+            boundaries:
+              '知道：你公司成功敲钟上市。\n不知道：你私下与青青的紧密联络。\n底线：不接受被利用当做商务背景板。',
           },
         },
       ],
@@ -147,8 +156,18 @@ const INITIAL_WORK_IPO: PublisherWork = {
         },
       ],
       places: [
-        { key: 'place_hotel', name: '君悦酒店宴会厅', description: '庆功宴现场', knownAtStart: true },
-        { key: 'place_noodle', name: '老街面馆', description: '以前常去的小店', knownAtStart: true },
+        {
+          key: 'place_hotel',
+          name: '君悦酒店宴会厅',
+          description: '庆功宴现场',
+          knownAtStart: true,
+        },
+        {
+          key: 'place_noodle',
+          name: '老街面馆',
+          description: '以前常去的小店',
+          knownAtStart: true,
+        },
       ],
       routes: [{ fromPlaceKey: 'place_hotel', toPlaceKey: 'place_noodle', minutes: 25 }],
       history: [
@@ -299,7 +318,12 @@ export function PublisherPreviewApp() {
       setWorks((prev) =>
         prev.map((w) =>
           w.id === updatedWork.id
-            ? { ...w, title: input.title, draftVersion: newVersion, updatedAt: updatedWork.updatedAt }
+            ? {
+                ...w,
+                title: input.title,
+                draftVersion: newVersion,
+                updatedAt: updatedWork.updatedAt,
+              }
             : w,
         ),
       );
@@ -321,6 +345,7 @@ export function PublisherPreviewApp() {
           draftVersion: currentWork.draft.version,
           contentHash: currentWork.draft.contentHash,
           status: 'invalid',
+          issuesTruncated: false,
           issues: [{ path: ['actors'], code: 'too_few_actors' }],
           missingCapabilities: [],
           mediaVerified: true,
@@ -333,11 +358,12 @@ export function PublisherPreviewApp() {
           workId: currentWork.id,
           draftVersion: currentWork.draft.version,
           contentHash: currentWork.draft.contentHash,
-          status: 'ready',
-          issues: [],
+          status: 'blocked',
+          issuesTruncated: false,
+          issues: [{ path: [], code: 'preview_only' }],
           missingCapabilities: [],
           mediaVerified: true,
-          trialVerified: true,
+          trialVerified: false,
           checkedAt: new Date().toISOString(),
         });
       }
@@ -382,8 +408,6 @@ export function PublisherPreviewApp() {
         onCreateWork={handleCreateWork}
         onSaveDraft={handleSaveDraft}
         onCheck={handleCheck}
-        onTrial={handleTrial}
-        onPublish={handlePublish}
         onLogout={handleLogout}
       />
     </div>
