@@ -53,3 +53,11 @@ npm run check 已运行，边界/type通过，完整单测有4旧DB测试ECONNRE
 root用本地真实库补旧4测试及保存partial→作者补全→检查/试演→发布；手机/PC、ZIP与原文预览/版本读入守卫由root/Q验收。本执行者模型、生产、数据库、端口、浏览器均0，原剧情31fdbd8源仍冻结。
 
 最终冻结验证：26/26专属pure、完整check1775=1771pass/4旧DB连接失败、401边界/type0、build0/formatdiff0。无PG/端口启动；Q临时ZIP依赖只用于验证，提交前移除，最终仅三文件。
+
+## 限定精确去重后继
+
+root新增明确授权：仅候选kind=candidate、intent只有editorial_only、原key合法、actorKeys/prerequisites/mutuallyExclusiveNodeKeys均为空且无timeline/placeKey/其他未知字段的既有记录，当title与完整editorialIntent全等，warning exact_editorial_duplicate后跳过，原key不变；当前batch也适用。检查在32候选数量守卫之前，已满数量但只重导同一无scope稿件不会误报超限。相同标题但改正文仍新增不同key；任何actor/place/条件/timeline不合并。
+
+新增一个综合API回归，实际schema/domain验证重复导入0新增/原key保留、同batch仅1项、改正文同标题仍独立、有actor scope仍独立。27/27专项、typecheck通过、diff/格式通过；按root限定不再全check/build，保留上面的26专项交付及1775完整check/4旧DB环境失败证据。
+
+messages目前没有exactduplicate跳过。建议若后续授权，可对完整schema合法的原消息仅actorKey+text+at+origin全等、原key合法时warning跳过；不同时间或来源不能去重。本后继没有改messages，也没有新DB/端口/model/生产。Q临时ZIP依赖不提交并收尾移除。

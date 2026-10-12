@@ -715,6 +715,39 @@ export function parseFeishuMarkdownBundle(
       }
       if (!Array.isArray(copy.candidates)) copy.candidates = [];
       for (const cand of plot.candidates) {
+        const exactUnscoped = copy.candidates.some(
+          (existing: Record<string, any>) =>
+            typeof existing.key === 'string' &&
+            /^[a-z][a-z0-9_]{0,31}$/.test(existing.key) &&
+            existing.kind === 'candidate' &&
+            existing.intent?.kind === 'editorial_only' &&
+            Object.keys(existing.intent).length === 1 &&
+            Object.keys(existing).every((k) =>
+              [
+                'key',
+                'kind',
+                'title',
+                'editorialIntent',
+                'actorKeys',
+                'prerequisites',
+                'mutuallyExclusiveNodeKeys',
+                'intent',
+              ].includes(k),
+            ) &&
+            ['actorKeys', 'prerequisites', 'mutuallyExclusiveNodeKeys'].every(
+              (k) => Array.isArray(existing[k]) && existing[k].length === 0,
+            ) &&
+            existing.title === cand.title &&
+            existing.editorialIntent === cand.editorialIntent,
+        );
+        if (exactUnscoped) {
+          note(
+            'exact_editorial_duplicate',
+            filename,
+            `${filename}：「${cand.title}」与无作用范围的已有幕后候选标题及完整原段落完全相同，跳过重复，保留原key。`,
+          );
+          continue;
+        }
         if (copy.candidates.length >= 32) {
           note(
             'candidate_count_budget',

@@ -410,3 +410,32 @@ test('structural headings without a real name do not fabricate a partial charact
   assert.equal(r.summary.actors.length, 0);
   assert.ok(codes(r).includes('actor_missing_name'));
 });
+
+test('exact unscoped editorial reimport retains original key; same title with changed body or actor scope remains distinct', () => {
+  const file = { filename: '节点.md', content: '## （一）同标题\n完整原正文' };
+  const first = parseFeishuMarkdownBundle([file], fixture());
+  const doc = valid(first),
+    oldKey = doc.candidates[0]!.key;
+  const repeated = parseFeishuMarkdownBundle([file], doc);
+  const repeatedDoc = valid(repeated);
+  assert.equal(repeated.summary.candidatesCount, 0);
+  assert.equal(repeatedDoc.candidates.length, 1);
+  assert.equal(repeatedDoc.candidates[0]!.key, oldKey);
+  assert.ok(codes(repeated).includes('exact_editorial_duplicate'));
+  const batch = parseFeishuMarkdownBundle([file, file], fixture());
+  assert.equal(valid(batch).candidates.length, 1);
+  assert.equal(batch.summary.candidatesCount, 1);
+  const changed = parseFeishuMarkdownBundle(
+    [{ ...file, content: '## （一）同标题\n已经修改的原正文' }],
+    doc,
+  );
+  const changedDoc = valid(changed);
+  assert.equal(changed.summary.candidatesCount, 1);
+  assert.equal(changedDoc.candidates.length, 2);
+  assert.notEqual(changedDoc.candidates[1]!.key, oldKey);
+  const scoped = structuredClone(doc);
+  scoped.candidates[0]!.actorKeys = ['actor_0'];
+  const scopedResult = parseFeishuMarkdownBundle([file], scoped);
+  assert.equal(valid(scopedResult).candidates.length, 2);
+  assert.equal(scopedResult.summary.candidatesCount, 1);
+});
