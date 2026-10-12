@@ -48,3 +48,11 @@ opening editor 的 origin select 以不存在/非法 origin 显示 value=""，�
 根通知的1827完整check、HTTP template r1→手填r2/r3且仅trial_unverified、ZIP真实浏览器/同名与延迟关闭重开/390证据属于根验收，Q 未复跑；也不能为未冻结 WIP 或 P1 非法原稿形状背书。新12次2存档授权仍待用户、旧20/24账本已closed，本报告不请求或消耗它们。
 
 根先修人物未编辑 malformed nested shape保留并完成合适反例验证，再补两处可定位/缺失类别文案；以最终精确提交继续全check/build与已有浏览器/真实HTTP门禁。模型试演/上线依已有授权由根统筹。本报告独立交付待验收，不把只读检查标成产品完成，Q 不修改旧源或自动扩任务。
+
+## 追加：根限定修正已只读核对
+
+根收到初审后明确只修本轮新增 knownAtStart 接点，旧 helper 的其他 malformed 行为单列后续，不扩大本批。再读时 root HEAD `5238f51827e2147b3beb131e9af56c28b6e19ad2`，workbench 仍有 WIP，源码 SHA256 `bf23f64140863c26d4b0c58bc088ee4a4ed426c7736d38e1cb16567123d244dc`。
+
+functional updater 新分支先核 `field === 'knownAtStart'`、`typeof value === 'boolean'`，再仅对找到的本人 row spread 并写该字段；其他 row、publicCard、privatePersona、关系/初始知识/未知扩展原值不动，不再经过 updateActorInContent。这使初审反例中的未编辑字符串、数组或 null 均保留原形状。**本轮新增接点 P1 在该源码快照已修正；两份新 editor 未见其他具体 P1。**
+
+此结论仅是只读源码验证，不称新补丁类型检查/测试已通过；`previous.actors.map` 的 TS 收窄仍由根完整 typecheck 确认，必要时使用已判数组的局部变量。关联消息删除仍 native disabled + 完整检查，具体 P2 仍为 nested message 序号/人话规则与 origin 空占位（含旧 knownAtStart 非法值显示的提示）。不再发散审所有旧 helper，不新增广泛测试；根负责最终验证和上线，Q 只提交本报告修正记录。
