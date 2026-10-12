@@ -1254,3 +1254,79 @@ test('standard and null-prototype arrays remain inert JSON; array subclasses can
   assert.equal(PublishedWorldContentSchema.safeParse(c).success, false);
   assert.equal(calls, 0);
 });
+
+// Preserve every earlier audit/checkpoint while checking satisfiable temporal constraints.
+test('a not_before prerequisite at its own deadline has no possible story instant', () => {
+  timelineRejected((c) => {
+    c.candidates[0]!.prerequisites = [
+      { kind: 'not_before', at: c.candidates[0]!.timeline!.window!.expiresAt },
+    ];
+  }, 'not_before_at_or_after_deadline');
+});
+test('a not_before prerequisite cannot begin after an inherited stage deadline', () => {
+  timelineRejected((c) => {
+    delete c.candidates[0]!.timeline!.window;
+    c.candidates[0]!.prerequisites = [{ kind: 'not_before', at: '2026-10-12T12:00:00Z' }];
+  }, 'not_before_at_or_after_deadline');
+});
+test('a not_before within a declared or inherited window remains an optional satisfiable condition', () => {
+  for (const inherited of [false, true]) {
+    const c = stagedContent();
+    if (inherited) delete c.candidates[0]!.timeline!.window;
+    c.candidates[0]!.prerequisites = [{ kind: 'not_before', at: '2026-10-12T09:30:00Z' }];
+    assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  }
+});
+test('the standalone story window helper refuses invalid calendar dates for clocks and boundaries', async () => {
+  const { publicationStoryWindowState } =
+    await import('../src/modules/settings/domain/publication-content.ts');
+  const window = { notBefore: '2026-03-01T00:00:00Z', expiresAt: '2026-03-05T00:00:00Z' };
+  for (const clock of [
+    '2026-02-30T09:00:00Z',
+    '2026-02-29T09:00:00Z',
+    '2026-03-01T24:00:00Z',
+    '2026-13-01T09:00:00Z',
+  ])
+    assert.throws(() => publicationStoryWindowState(window, clock), /INVALID_STORY_WINDOW/);
+  assert.throws(
+    () =>
+      publicationStoryWindowState(
+        { ...window, notBefore: '2026-02-30T00:00:00Z' },
+        '2026-03-03T00:00:00Z',
+      ),
+    /INVALID_STORY_WINDOW/,
+  );
+  assert.throws(
+    () =>
+      publicationStoryWindowState(
+        { ...window, expiresAt: '2026-02-30T00:00:00Z' },
+        '2026-03-03T00:00:00Z',
+      ),
+    /INVALID_STORY_WINDOW/,
+  );
+});
+test('valid leap days, minute precision and fractional timestamps still use story-time half-open boundaries', async () => {
+  const { publicationStoryWindowState } =
+    await import('../src/modules/settings/domain/publication-content.ts');
+  assert.equal(
+    publicationStoryWindowState(
+      { notBefore: '2024-02-29T00:00:00Z', expiresAt: '2024-03-01T00:00:00Z' },
+      '2024-02-29T12:00:00Z',
+    ),
+    'open',
+  );
+  assert.equal(
+    publicationStoryWindowState(
+      { notBefore: '2026-10-12T09:00Z', expiresAt: '2026-10-12T10:00Z' },
+      '2026-10-12T09:30Z',
+    ),
+    'open',
+  );
+  assert.equal(
+    publicationStoryWindowState(
+      { notBefore: '2026-10-12T09:00:00.001Z', expiresAt: '2026-10-12T09:00:00.002Z' },
+      '2026-10-12T09:00:00.002Z',
+    ),
+    'expired',
+  );
+});

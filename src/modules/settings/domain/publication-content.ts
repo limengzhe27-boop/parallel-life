@@ -499,6 +499,14 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     const w = nodeWindow(node);
     if (w && Date.parse(w.expiresAt) <= start)
       issue([...path, 'window'], 'candidate_expired_at_start');
+    node.prerequisites.forEach((condition, j) => {
+      if (
+        condition.kind === 'not_before' &&
+        w &&
+        Date.parse(condition.at) >= Date.parse(w.expiresAt)
+      )
+        issue(['candidates', i, 'prerequisites', j], 'not_before_at_or_after_deadline');
+    });
     function nodeRef(key: string, position: (string | number)[]) {
       if (!nodeMap.has(key) || key === node.key) issue(position, 'invalid_node_reference');
       return nodeMap.get(key);
@@ -704,9 +712,26 @@ export function publicationStoryWindowState(
   window: PublicationStoryWindow,
   storyAt: string,
 ): 'not_open' | 'open' | 'expired' {
-  const now = Date.parse(storyAt),
-    open = Date.parse(window.notBefore),
-    end = Date.parse(window.expiresAt);
+  function instant(value: string): number {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?Z$/.exec(value);
+    if (!match) throw Error('INVALID_STORY_WINDOW');
+    const result = Date.parse(value),
+      date = new Date(result);
+    if (
+      !Number.isFinite(result) ||
+      date.getUTCFullYear() !== Number(match[1]) ||
+      date.getUTCMonth() + 1 !== Number(match[2]) ||
+      date.getUTCDate() !== Number(match[3]) ||
+      date.getUTCHours() !== Number(match[4]) ||
+      date.getUTCMinutes() !== Number(match[5]) ||
+      date.getUTCSeconds() !== Number(match[6] ?? 0)
+    )
+      throw Error('INVALID_STORY_WINDOW');
+    return result;
+  }
+  const now = instant(storyAt),
+    open = instant(window.notBefore),
+    end = instant(window.expiresAt);
   if (![now, open, end].every(Number.isFinite) || open >= end) throw Error('INVALID_STORY_WINDOW');
   return now < open ? 'not_open' : now >= end ? 'expired' : 'open';
 }

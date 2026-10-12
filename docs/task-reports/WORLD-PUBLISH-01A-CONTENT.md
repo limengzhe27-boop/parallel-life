@@ -152,3 +152,13 @@ candidate.timeline提供stageKey、optional window、timeNote（300字符编辑�
 Q tests/publication-content-audit.test.ts来自准确7d57e64，临时副本仅ignored .local/q-audit/tests，src相对路径指向本树源；逐字校验一致，SHA256 e16d1fd0a00f04de10c2bdff690299c4a2ba99a2fc0ba5e71f72ff2197b98f00。未cherry Q源码/报告、未改Q工作树；Q只读断言calls/reads=0与safeParse=false原样保持。第一临时symlink路径多一层导致module resolve失败，修本人的ignored链接后真实复现；第一次本人新增Array子类constructor TS overload错误，只修新fixture为new后push，未影响原94或Q断言，最后type0。
 
 最终实际测试：本人97（原fc6a3fd的94完整文件prefix逐字保留）+Q原56合计153pass/0fail；type0/338boundary/Prettier/diff0。Q两原红例修后0调用/0读取且拒绝，null-prototype object旧正例与新null数组均保留。证据ignored .local/array-prototype-{before,after,type,boundary,format}.log及q-array-before.log。仍0模型/PG/生产写/SQL/API/UI/素材/端口/部署；根身份源码不碰，修复作为fc6之后单一后继提交释放I复审/集成。
+
+## 最新时间线审计四红修复（发布库依赖前）
+
+根/Q准确21afe51b11ccbb998cad4d7c84526f926241388c，原56prefix加36时间线=92。旧fc6原94+Q92在Q记录186项180绿6红；此前4fb解决2原型红后，本人准确原样QA92基线实际88绿4红：not_before等于自身截止、超过继承阶段截止仍允许；standalone window helper用Date.parse归一化2026-02-30。原raw Schema已有严格日历验证，并未宣称HTTP失守。
+
+同原四文件范围的唯一源码修改仍在publication-content.ts：节点实际有效window（自身或继承阶段）存在时，structured not_before>=expiresAt即不可能，拒not_before_at_or_after_deadline；这是条件约束，不对offer_invitation.earliestAt加错误限制，邀约活动可晚于提案窗口的正例保持。window helper新增domain本地UTC格式/日历组件往返核验，拒不可能clock/边界日期而不归一化；接受合法闰日、分钟精度和小数秒，仍用给定故事时间半开区间，不读Date.now，不引Zod/framework，也不判实际eligible或写历史。
+
+本人新5反例/正例追加在原97文件之后，旧97文件prefix逐字一致（包含原60/94及原型修复3例）。独立Q92输入/断言逐字来自21afe51，SHA256 e08766fd6eeaf40f3b90d09e997aec3a250c8730fbeaf21ea7ff1cab5d239d4a，不改Q树/报告/测试。最终本人102+Q92共194pass/0fail/0skip；type0/338boundary/Prettier/diff0。两个原型红与四时间线红在同一最终source snapshot全部通过，证据ignored .local/timeline-qa-{before,after,type,boundary,format}.log。
+
+本次是4fb之后单一安全修复后继，完整内容源仍按19f→87f→fc6→4fb→本次后继读取/集成。发布持久化WORLD-PUBLISH-01B-STORE尚未领取，主表/依赖尚待I确认；未启动55477或改42迁移/SQL/auth/API/UI/生产。根继续唯一身份/API/集成负责人，本人先释放安全内容源复验。
