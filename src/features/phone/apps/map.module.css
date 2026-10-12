@@ -999,3 +999,35 @@
   font-size: 13px;
 }
 
+/* Current place scene callout badge */
+.currentPlaceSceneBadge {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #e6f7ec 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 10px 0 12px;
+}
+.currentPlaceSceneBadgeIcon {
+  font-size: 16px;
+  line-height: 1.2;
+  flex: 0 0 auto;
+}
+.currentPlaceSceneBadgeContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.currentPlaceSceneBadgeContent strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #166534;
+}
+.currentPlaceSceneBadgeContent span {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #15803d;
+}
+

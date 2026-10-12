@@ -1094,22 +1094,39 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
               {space.paused && <p className={s.muted}>这段人生已暂停。</p>}
               {space.busy && <p className={s.muted}>这段人生正在处理中，稍后再前往。</p>}
               {current?.id === selected.id && !operation && (
-                <button
-                  type="button"
-                  className={s.primary}
-                  disabled={Boolean(
-                    map?.loading ||
-                    map?.working ||
-                    error ||
-                    actionError ||
-                    space.paused ||
-                    space.busy ||
-                    busyAction,
-                  )}
-                  onClick={() => void placeAction('enter')}
-                >
-                  {busyAction === 'enter' ? '正在打开…' : '看看这里'}
-                </button>
+                <>
+                  <div className={s.currentPlaceSceneBadge} role="status">
+                    <span className={s.currentPlaceSceneBadgeIcon} aria-hidden="true">
+                      📍
+                    </span>
+                    <div className={s.currentPlaceSceneBadgeContent}>
+                      <strong>已身处当前地点</strong>
+                      <span>
+                        进入现场可查看当前场景、环境旁白，并与在场人物当面对话互动。
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={s.primary}
+                    disabled={Boolean(
+                      map?.loading ||
+                      map?.working ||
+                      error ||
+                      actionError ||
+                      space.paused ||
+                      space.busy ||
+                      busyAction,
+                    )}
+                    onClick={() => void placeAction('enter')}
+                  >
+                    {busyAction === 'enter'
+                      ? '正在打开…'
+                      : space.currentSceneId
+                        ? '看看这里（回到现场）'
+                        : '看看这里（进入现场）'}
+                  </button>
+                </>
               )}
               {route && !operation && (
                 <button

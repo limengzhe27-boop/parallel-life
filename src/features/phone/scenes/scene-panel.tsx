@@ -57,6 +57,7 @@ export function ScenePanel({
     [retryConfirm, setRetryConfirm] = useState(false),
     [leaveConfirm, setLeaveConfirm] = useState(false);
   const reading = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const restoredScene = useRef<string | undefined>(undefined);
   const followEnd = useRef(false);
   const live = useRef(true),
@@ -193,14 +194,23 @@ export function ScenePanel({
       ) : !data.scene ? (
         <div className={s.card}>
           <h3>还没有进入现场</h3>
-          <p>在日历中打开已确认的约定，到了时间即可进入。</p>
-          <button
-            onClick={() => {
-              window.location.hash = routeHash(worldId, { app: 'calendar' });
-            }}
-          >
-            打开日历
-          </button>
+          <p>可以在日历中打开已确认的约定赴约，或者在地图中选择当前所在地点直接进入现场。</p>
+          <div className={s.buttons}>
+            <button
+              onClick={() => {
+                window.location.hash = routeHash(worldId, { app: 'map' });
+              }}
+            >
+              🗺️ 打开地图前往地点现场
+            </button>
+            <button
+              onClick={() => {
+                window.location.hash = routeHash(worldId, { app: 'calendar' });
+              }}
+            >
+              📅 打开日历查看约定
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -536,6 +546,12 @@ export function ScenePanel({
                           try {
                             sessionStorage.setItem(draftKey, sug);
                           } catch {}
+                          if (inputRef.current) {
+                            inputRef.current.focus();
+                            inputRef.current.style.height = '46px';
+                            inputRef.current.style.height =
+                              Math.min(inputRef.current.scrollHeight, 100) + 'px';
+                          }
                         }}
                       >
                         {sug}
@@ -551,9 +567,19 @@ export function ScenePanel({
                 </label>
                 <textarea
                   id="scene-input"
+                  ref={inputRef}
                   value={text}
                   maxLength={4000}
                   disabled={disabled}
+                  enterKeyHint="send"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!disabled && text.trim()) {
+                        e.currentTarget.form?.requestSubmit();
+                      }
+                    }
+                  }}
                   onChange={(e) => {
                     setText(e.target.value);
                     try {
@@ -565,7 +591,7 @@ export function ScenePanel({
                     event.currentTarget.style.height =
                       Math.min(event.currentTarget.scrollHeight, 100) + 'px';
                   }}
-                  placeholder="说点什么，或做点什么…"
+                  placeholder="说点什么，或做点什么…（按回车发送）"
                 />
                 <button disabled={disabled || !text.trim()}>发送</button>
               </div>

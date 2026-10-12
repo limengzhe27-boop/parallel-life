@@ -108,7 +108,15 @@ export function SceneIndexApp() {
       ) : history ? (
         <section className={s.card}>
           <h3>当前没有进行中的现场</h3>
-          <p>可以回看记录，或从已确认且已到时间的约定进入。</p>
+          <p>可以回看记录，或从已确认且已到时间的约定进入。你也可以前往地图在当前所在地点直接进入现场。</p>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.hash = routeHash(worldId, { app: 'map' });
+            }}
+          >
+            🗺️ 打开地图前往地点进入现场
+          </button>
         </section>
       ) : null}
       {appointments.length && history ? (
