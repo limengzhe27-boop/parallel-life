@@ -155,7 +155,12 @@ function createServices() {
     waitToAppointment: (ownerId: string, worldId: string, input: AppointmentWaitRequest) =>
       new PostgresAppointmentWaitRepository(db).wait(ownerId, worldId, input),
     story: new PublicationStoryRepository(db),
-    advanceStoryOnly: async (ownerId: string, worldId: string, automatic = false) => {
+    advanceStoryOnly: async (
+      ownerId: string,
+      worldId: string,
+      automatic = false,
+      retryClaimId?: string,
+    ) => {
       const result = await advancePublicationStory(
         {
           story: new PublicationStoryRepository(db),
@@ -170,6 +175,7 @@ function createServices() {
         ownerId,
         worldId,
         automatic,
+        retryClaimId,
       );
       if (result.result) return result.result;
       const clock = await new PostgresClockStore(db).read(ownerId, worldId);

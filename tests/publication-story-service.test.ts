@@ -173,6 +173,21 @@ test('unknown sends never invoke the model or silently retry', async () => {
   await assert.rejects(advancePublicationStory(s.deps, 'o', 'w', true));
   assert.equal(s.counts().calls, 0);
 });
+
+test('explicit recovery uses the original claimed command, never prepares another opportunity', async () => {
+  const s = setup({ status: 'unknown', pendingClaimId: 'claim' });
+  s.deps.story.prepare = async () => {
+    throw Error('must not prepare a new node');
+  };
+  s.deps.story.retry = async (_owner, _world, id) => {
+    assert.equal(id, 'claim');
+    return { status: 'claimed', claim };
+  };
+  const result = await advancePublicationStory(s.deps, 'o', 'w', false, 'claim');
+  assert.equal(result.result?.played, 1);
+  assert.equal((await s.deps.worlds.get({ userId: 'o' }, 'w')).appointments.length, 1);
+  assert.equal(s.counts().calls, 1);
+});
 test('managed waiting keeps the authored timeline; only legacy worlds fall back to the generic director', async () => {
   const s = setup({ status: 'none', managed: true });
   const waiting = await advancePublicationStory(s.deps, 'o', 'w', true);

@@ -101,6 +101,41 @@ test('only a server director context supplies the current invitation, with local
   assert.equal(payloads[1]!.storyOpportunity, undefined);
 });
 
+test('explicit ISO offsets normalize to the same instant; invalid calendar dates are not repaired', async () => {
+  let at = '2026-09-24T21:00:00+08:00';
+  const planner = new WorldTurnPlanner({
+    async complete() {
+      return JSON.stringify({
+        schemaVersion: 1,
+        effects: [
+          {
+            type: 'message.received',
+            id: 'reply',
+            actorId: mockContext.actor.id,
+            text: '晚上九点见？',
+          },
+          {
+            type: 'appointment.proposed',
+            id: 'invite',
+            title: '见面',
+            at,
+            participantIds: [mockContext.actor.id],
+          },
+        ],
+      });
+    },
+  });
+  const good = (await planner.propose({ context: mockContext, userText: '商量时间' })) as {
+    effects: { type: string; at?: string }[];
+  };
+  assert.equal(good.effects[1]!.at, '2026-09-24T13:00:00.000Z');
+  at = '2026-02-30T21:00:00+08:00';
+  const bad = (await planner.propose({ context: mockContext, userText: '商量时间' })) as {
+    effects: { at?: string }[];
+  };
+  assert.equal(bad.effects[1]!.at, at);
+});
+
 test('WorldTurnPlanner normalizes mismatched actorId and placeholder into targetActorId', async () => {
   const planner = new WorldTurnPlanner({
     async complete() {

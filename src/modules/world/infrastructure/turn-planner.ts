@@ -255,6 +255,27 @@ export class WorldTurnPlanner implements TurnPlanner {
           !structuredReply(e.text),
       );
       for (const effect of parsed.effects) {
+        if (effect.type === 'appointment.proposed') {
+          const appointment = effect as typeof effect & { at?: unknown };
+          // Canonicalize a fully specified ISO offset, preserving the model's instant.
+          // Never infer a timezone/date or repair a rolled-over calendar date.
+          if (
+            typeof appointment.at === 'string' &&
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(
+              appointment.at,
+            )
+          ) {
+            const [date, time] = appointment.at.split('T');
+            const wall = new Date(date + 'T' + time!.replace(/(?:Z|[+-]\d{2}:\d{2})$/, 'Z'));
+            const instant = new Date(appointment.at);
+            if (
+              Number.isFinite(wall.getTime()) &&
+              wall.toISOString().slice(0, 19) === appointment.at.slice(0, 19) &&
+              Number.isFinite(instant.getTime())
+            )
+              appointment.at = instant.toISOString();
+          }
+        }
         if (effect.type === 'message.received') {
           if (
             typeof effect.text !== 'string' ||
@@ -468,6 +489,29 @@ export class WorldTurnPlanner implements TurnPlanner {
         }
       }
       delete parsed.acknowledgedResultFactIds;
+      if (storyOpportunity) {
+        const invitations = parsed.effects.filter(
+          (e) => e.type === 'appointment.proposed',
+        ) as Array<{ id?: unknown; at?: unknown; participantIds?: unknown }>;
+        console.info(
+          JSON.stringify({
+            planner: 'authored_invitation',
+            schemaVersionValid: parsed.schemaVersion === 1,
+            effectCount: parsed.effects.length,
+            invitationCount: invitations.length,
+            invitations: invitations.map((e) => ({
+              idValid: typeof e.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(e.id),
+              canonicalTime:
+                typeof e.at === 'string' &&
+                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(e.at),
+              ownParticipant:
+                Array.isArray(e.participantIds) &&
+                e.participantIds.length === 1 &&
+                e.participantIds[0] === targetActorId,
+            })),
+          }),
+        );
+      }
       return parsed;
     }
 

@@ -1,6 +1,26 @@
-import { authenticated, endpoint, json, HttpError } from './http.ts';
+import { authenticated, endpoint, json, HttpError, parseBody } from './http.ts';
 import { Id } from '../contracts/api.ts';
 import { requestLimit } from './limits.ts';
+import { z } from 'zod';
+
+/** Explicit owner recovery only: cannot choose a node or start a new director opportunity. */
+export function publicationStoryRetryRoute(request: Request, worldId: string) {
+  return endpoint(async () => {
+    const s = await authenticated(request);
+    if (!Id.safeParse(worldId).success) throw new HttpError('NOT_FOUND', 404);
+    const input = await parseBody(
+      request,
+      z.strictObject({ claimId: Id, confirmRetry: z.literal(true) }),
+    );
+    await requestLimit(s.db, s.ownerId);
+    await s.worlds.get({ userId: s.ownerId }, worldId);
+    return json({
+      status: 'advanced',
+      worldId,
+      ...(await s.advanceStoryOnly(s.ownerId, worldId, false, input.claimId)),
+    });
+  });
+}
 
 export function publicationStoryProgressRoute(request: Request, worldId: string) {
   return endpoint(async () => {

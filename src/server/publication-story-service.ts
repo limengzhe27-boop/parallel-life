@@ -27,6 +27,7 @@ export async function advancePublicationStory(
   ownerId: string,
   worldId: string,
   automatic: boolean,
+  retryClaimId?: string,
 ) {
   return deps.clock.withAdvanceLock(worldId, async () => {
     const clock = await deps.clock.read(ownerId, worldId),
@@ -36,7 +37,9 @@ export async function advancePublicationStory(
         handled: true,
         result: { storyNow, played: 0, folded: 0, summary: null, actors: [] },
       };
-    const prepared = await deps.story.prepare(ownerId, worldId, { automatic });
+    const prepared = retryClaimId
+      ? await deps.story.retry(ownerId, worldId, retryClaimId)
+      : await deps.story.prepare(ownerId, worldId, { automatic });
     if (prepared.status === 'none')
       return prepared.managed
         ? { handled: true, result: { storyNow, played: 0, folded: 0, summary: null, actors: [] } }
