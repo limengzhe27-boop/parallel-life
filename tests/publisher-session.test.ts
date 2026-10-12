@@ -158,6 +158,39 @@ test('configuration getters are rejected without executing and password hashing 
   assert.notEqual(another, verifier);
   await assert.rejects(hashPublisherPassword('short'), /PUBLISHER_PASSWORD_INVALID/);
 });
+test('configuration arrays cannot execute element getters or caller supplied iteration methods', () => {
+  let calls = 0;
+  const getter = config();
+  Object.defineProperty(getter, '0', {
+    enumerable: true,
+    get: () => {
+      calls++;
+      return config()[0];
+    },
+  });
+  assert.throws(() => parsePublisherPrincipals(getter), /PUBLISHER_CONFIG_INVALID/);
+  const custom = config();
+  Object.setPrototypeOf(custom, {
+    map() {
+      calls++;
+      return config();
+    },
+  });
+  assert.throws(() => parsePublisherPrincipals(custom), /PUBLISHER_CONFIG_INVALID/);
+  const permissions = ['edit'];
+  Object.defineProperty(permissions, Symbol.iterator, {
+    get: () => {
+      calls++;
+      return Array.prototype[Symbol.iterator];
+    },
+  });
+  assert.throws(
+    () => parsePublisherPrincipals([{ ...config()[0], permissions }]),
+    /PUBLISHER_CONFIG_INVALID/,
+  );
+  assert.equal(calls, 0);
+});
+
 test('administrative origin checks allow only exact configured sites and reject hostile forwarded hosts', () => {
   const origins = ['https://parallel-life.example', 'http://127.0.0.1:3218'];
   const request = (origin: string, more: Record<string, string> = {}) =>

@@ -39,11 +39,31 @@ function plain(value: unknown): value is Record<string, unknown> {
 }
 function onlyKeys(value: Record<string, unknown>, keys: readonly string[]) {
   return (
-    Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key))
+    Reflect.ownKeys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key))
+  );
+}
+function dataArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return false;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const keys = Reflect.ownKeys(descriptors);
+  return (
+    keys.length === value.length + 1 &&
+    keys.every((key) => {
+      if (typeof key !== 'string') return false;
+      if (key === 'length') return true;
+      const d = descriptors[key];
+      return (
+        /^(0|[1-9]\d*)$/.test(key) &&
+        Number(key) < value.length &&
+        !!d &&
+        'value' in d &&
+        d.enumerable
+      );
+    })
   );
 }
 export function parsePublisherPrincipals(raw: unknown): PublisherPrincipalConfig[] {
-  if (!Array.isArray(raw) || raw.length > 20) throw Error('PUBLISHER_CONFIG_INVALID');
+  if (!dataArray(raw) || raw.length > 20) throw Error('PUBLISHER_CONFIG_INVALID');
   const ids = new Set<string>(),
     names = new Set<string>();
   return raw.map((value) => {
@@ -66,7 +86,7 @@ export function parsePublisherPrincipals(raw: unknown): PublisherPrincipalConfig
       typeof passwordHash !== 'string' ||
       !hashPattern.test(passwordHash) ||
       typeof enabled !== 'boolean' ||
-      !Array.isArray(permissions) ||
+      !dataArray(permissions) ||
       permissions.length < 1 ||
       permissions.length > 2 ||
       new Set(permissions).size !== permissions.length ||
