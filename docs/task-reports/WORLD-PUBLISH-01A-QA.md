@@ -75,3 +75,23 @@ assert.equal(stored.success, false);
 第3/4是直接导出纯helper输入边界，**不是**raw PublishedWorldContentSchema失守：原始schema已正确拒绝非法日历日期，HTTP/世界时钟也未在本轮实测。不能将此描述成生产时钟已被篡改。修复由B唯一决定具体验证方式，QA不镜像其日期regex、不宽断言。邀请的活动时间晚于候选提出窗口本身可以合法，专门保留正例，未把“提出邀约的截止”误当活动必须完成时间。
 
 所有6红仍保留，已交根协调B唯一修复；下一步冻结本轮新增QA提交，等待准确修复源后在同一反例上复验。此时只有阶段/窗口/路径元数据和纯检查，无调度器、实际stage状态或资格API，不能用180绿称可发布，更不能写人物已行动或阶段已推进。身份helper由根独占，不纳入本次源QA范围。
+
+## 最终准确修复复验（六红原断言全部变绿）
+
+根明确给最终冻结源 `359869c36dbfd88c46a543fd86c875b3728a5b66`，依赖完整`4fb21a2d12b4fbbd672ccefe7aa54517f22e6e60`，再依fc6→87→19。Q确认依赖祖先关系后按两个完整SHA接入，本地对应依赖提交82013e7/92ef425fb4bba2cbdbe786dce2ae200e04a147b0；未使用短缩写、未读WIP、不自行修B源。四个B冻结文件逐字与359一致。
+
+再次执行相同两个实际测试文件：B102+Q92=**194/194通过、0失败、0skip**。前轮准确fc6是B94+Q92=186项180过6红；增加的8项来自B冻结修复自身回归，Q92一字未改。六红各自原断言均已通过：方法/getter调用数从3变0且拒绝自定义数组原型；显式/继承窗口中的不可能not_before拒绝；直接helper的非法日历时钟/边界抛错。QA测试字节等于21afe51冻结版，不删除/skip测试、没有放宽断言。type退出0、338模块边界、同一QA测试格式检查、diff检查通过，依赖接入后树clean。
+
+|准确冻结文件|SHA-256|
+|---|---|
+|src/contracts/published-world-content.ts|0e2ebbfa37b98aa09a933a1aaa7be35a9f38e306f2cd23f04487953b44b233a0|
+|src/modules/settings/domain/publication-content.ts|008b96a8740a26cc118b0e325ca05b45edf45586245eafabe599d573da715943|
+|tests/published-world-content.test.ts|0a1e6347499c8f129ff4e6d350395256146f26406862dad17c549ee3eed512f8|
+|docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md|27c0600c02ddd5767a7172b8966a0bf0e8ca0bdc1109ec92a6afe41b8aef5d59|
+|Q原92项tests/publication-content-audit.test.ts|e08766fd6eeaf40f3b90d09e997aec3a250c8730fbeaf21ea7ff1cab5d239d4a|
+
+本轮仅追加本报告。源保持B冻结、审计测试保持Q原冻结，交付报告冻结SHA由最终提交/主表/根交接消息记录；历史红例记录保留，不抹成从来全绿。根消息报告其内容+Q审查+身份206局部通过，Q这里只独立跑上述194，没有把根身份12当作自己已验证。
+
+验收边界不变：无Repository/API/员工权限/PG或实际世界推进、模型、图片、浏览器、部署验证；源码中stage/window仍是可存元数据，window open不是实际合法资格，capability满足不是发布权。此QA限定源审查通过，不宣称WORLD-PUBLISH后台已上线。根继续全check/build、身份/持久化/API接线、真实DB和部署。Q不处理根曾发生的cherry冲突或其WIP，根自己的恢复证据由根报告负责。
+
+范围释放：本报告冻结交根后，本QA不再修改测试或内容源，不自动接STORE/前端/后续任务；本独立树及旧分支保留，文件写范围已冻结返I，主表由I归档释放最终状态。其他Agent无需等Q继续审查本六红；若未来新源需要额外QA，由I另行明确分配。
