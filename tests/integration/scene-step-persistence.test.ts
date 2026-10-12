@@ -454,9 +454,9 @@ test('real PostgreSQL cumulative player steps, bounded NPC receipt, completion a
               assert.equal(slot.matterId, trigger.id);
               const text = final.dialogues[0]!.text;
               return JSON.stringify({
-                actionFormat: 'indexed-npc-actions-v1',
-                text,
-                actions: [{ actionIndex: slot.actionIndex, quote: text }],
+                actionFormat: 'indexed-npc-actions-v2',
+                text: [text],
+                actions: [{ actionIndex: slot.actionIndex, quoteIndex: 0 }],
               });
             },
           }),

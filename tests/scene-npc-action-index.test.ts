@@ -157,7 +157,7 @@ test('ordinary repair explanation emits explicit empty action slots and accepts 
   const r = await propose(fixture());
   assert.deepEqual(r.npc.allowedActions, []);
   assert.deepEqual(r.proposal.npcActions, []);
-  assert.ok(r.prompt.includes('indexed-npc-actions-v1'));
+  assert.ok(r.prompt.includes('indexed-npc-actions-v2'));
   assert.ok(!r.prompt.includes('"kind":"receive_r17"'));
   assert.ok(!r.prompt.includes('"kind":"inspect_r17"'));
 });

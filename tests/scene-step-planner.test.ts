@@ -649,8 +649,8 @@ test('NPC indexed action examples expose two exact eligible slots without defaul
   assert.ok(
     prompt.includes(
       JSON.stringify({
-        actionFormat: 'indexed-npc-actions-v1',
-        text: '当前自己的自然对白',
+        actionFormat: 'indexed-npc-actions-v2',
+        text: ['当前自己的自然对白'],
         actions: [],
       }),
     ),
