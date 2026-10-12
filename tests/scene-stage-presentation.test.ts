@@ -109,15 +109,17 @@ function media(
   version = 3,
   purpose = 'scene_illustration' as 'scene_illustration' | 'scene_reference',
 ) {
+  const sourceEventId = randomUUID();
   return {
     ...base,
+    sourceEventId,
     id: randomUUID(),
     sourceVersion: version,
     kind: 'media_reference' as const,
     media: {
       ownerId,
       worldId,
-      sourceEventId: randomUUID(),
+      sourceEventId,
       sourceVersion: version,
       assetId: randomUUID(),
       purpose,
@@ -186,6 +188,10 @@ test('cross-owner and cross-world media metadata are not displayed as current st
       m = media();
     m.media[key] = randomUUID();
     r.entries.push(m);
+    assert.equal(
+      visibleSceneEntries(r).some((entry) => entry.id === m.id),
+      false,
+    );
     assert.equal(sceneArtwork(r).illustration, true);
   }
 });
@@ -236,4 +242,27 @@ test('missing revisions, owner-only images, wrong world and unavailable assets a
   const html = renderToStaticMarkup(createElement(SceneMedia, { reference: true }));
   assert.match(html, /暂时无法查看/);
   assert.doesNotMatch(html, /<img/);
+});
+
+test('scene stream rejects phone attachments, future source metadata and relabelled illustrations', () => {
+  const r = read(),
+    m = media(3);
+  r.entries.push(
+    { ...m, id: randomUUID(), media: { ...m.media, sourceVersion: 4 } },
+    { ...m, id: randomUUID(), media: { ...m.media, sourceEventId: randomUUID() } },
+    {
+      ...m,
+      id: randomUUID(),
+      media: { ...m.media, purpose: 'message_attachment', sharedByEventId: randomUUID() },
+    },
+  );
+  assert.equal(visibleSceneEntries(r).length, 1);
+  assert.equal(sceneArtwork(r, [photo(m.media.assetId)]).illustration, true);
+  const reference = {
+    ...m,
+    id: randomUUID(),
+    media: { ...m.media, purpose: 'scene_reference' as const, sourceEventId: randomUUID() },
+  };
+  r.entries.push(reference);
+  assert.equal(visibleSceneEntries(r).at(-1)?.id, reference.id);
 });

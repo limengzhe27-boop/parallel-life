@@ -22,7 +22,14 @@ export function visibleSceneEntries(read: SceneRead) {
       entry.worldId === read.scene.worldId &&
       entry.ownerId === read.scene.ownerId &&
       entry.sourceVersion <= read.worldVersion &&
-      entry.observableTo.some((observer) => observer.kind === 'player'),
+      entry.observableTo.some((observer) => observer.kind === 'player') &&
+      (entry.kind !== 'media_reference' ||
+        (entry.media.worldId === entry.worldId &&
+          entry.media.ownerId === entry.ownerId &&
+          entry.media.sourceVersion <= entry.sourceVersion &&
+          (entry.media.purpose === 'scene_reference' ||
+            (entry.media.purpose === 'scene_illustration' &&
+              entry.media.sourceEventId === entry.sourceEventId)))),
   );
 }
 export function sceneArtwork(read: SceneRead, photos: readonly PhonePhoto[] = []) {
