@@ -34,3 +34,21 @@ ef60f2d770cf083844b2b98074bf1ef681aa9b31：domain建立源全文引号区间（�
 Q最终c3e4393仅报告准确集成，本人原59红测逐字不变且59全过，Q相关195/type0/332boundary通过；最终验证到齐，准备发布，READY/public前不得调用原handover。保持唯一账本10/18，source引用修复不能代真实模型执行或称完整链已过。发布后公网旧paused存档/权限/scene/records同版本与health先验证；真实新增结果必须读SQL source、保留原review/explain、实际actor received及里程碑/机会/私聊回执证据。
 
 本报告会记录部署READY、实际新调用与最后暂停/closed，不自动借未消耗预算开发首五分钟、小游戏、人像或中途人物移动；这些仍是主讨论未确定方向。
+
+## 首次正式发布与真实复测在途
+
+技术业务413b3ae8e9ca4050a398d3ff41341faf0c9fa9f0，Vercel eiublxcrc / dpl_xM8G5pkWcinSbQZbWxBBCWYtEfNL READY，正式aliasAPI确指向该部署；public8旧paused/投影/权限过，本轮active world v8/2of4保持。PG55471已正常停止无监听，无HTTP/browser。1311check/type0/332boundary/build0、全PG252pass/5明确model skip/引用专项11；Q原两red修后59及独立相关195过。
+
+READY/public之后才唯一权威账本执行一次原failed retry，预留2在途（10→12/18），0新增world/图/个人资料。成功与否待真实task/source证据，不能以部署或测试数声称人物已接收；Q只读安全结果不付费，原root讨论不执行。
+
+## v16原交付复测失败与安全player诊断
+
+正式413b3ae READY/public后，仅一次原failed manualretry实际failed/8485ms，固定 `SCENE_STEPS: Unsupported player execution quote`，预算10→12/18（失败预留不退），snapshot v8仍2/4且核对/说明source完整。不是此前receiving_condition重复；不知八条件中的哪个，不读/猜raw。多个临时候选可能已验证、NPC可能已调用，只有失败事务+正式snapshot证明未保存新增信用。op/private暂止。
+
+I cce1acff1ae071a99148034382edf4c6f47d16e2仅同原8 OR与短路顺序固定诊断，原regex/.every/actual/prefix/接受条件不变：unsupported_step、npc_only_step、action_failed、input_not_actual、observation_not_actual、input_condition_N、observation_condition_N、observation_not_player；N是trusted静态规则pattern数组0..2，不输出regex/name/raw/IDs。原Unsupported前缀与INVALID_PROPOSAL保留。新9各条件及合法实收case+相关157pass/type0/332boundary，Q只读source审，新增tests只本人文件。
+
+55471前再次核无监听/短锁登记，仅重起自有dev/test；root/Q资源0，完整check/build/实际PG专项在跑，再确认生产41checksum/READY/public才可以原任务单次复测。余6不扩、旧03closed不动；若失败或不足完整后续链，诚实欠验并最后正常APIpause/closed。
+
+诊断候选最终1320check/type0/332boundary/build0与实际PG专项11全部通过，源接受判定不变，仍采用上一整批PG252/5显式模型skip证据（SQL和接受逻辑无新变更）；生产41checksum再次只读一致。第二次PG55471已正常停止，无监听/HTTP/browser。Q新固定码静态审在途，待其确认/READY/public才动唯一账本。
+
+Q对准确cce1acf静态逐项确认8条件/短路不变，regex为nonglobal静态长度最大3，重读findIndex无lastIndex副作用，编号仅0..2、不含regex/raw/name/stepID；Q无新tests或PG。没有安全候选step身份时，不单凭N断言具体交付动词/对象缺失，更不回填上次失败子因。1320check/build/专项PG11/41生产迁移一致，诊断发布待READY后仅一次原retry，保持预算12/18。

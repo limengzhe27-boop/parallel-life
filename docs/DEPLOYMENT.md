@@ -886,3 +886,11 @@ B61bfdab→ad9f657，Q62d2b7d→b094331；新indexed-observations-v3只有显式
 ## 2026-10-12 · 04真实说明通过与接收固定诊断候选
 
 新授权04 1world，开场/核对/说明真实succeeded（Notes2of4/SQL先前来源保持），交付failed5723ms/Receiving lacks actual handed objects，保守8of18，未接收/完成/机会。根同顺序原四条件仅增加固定码，不暴露raw/放宽规则；1201check/type0/build0、原本地PG10过、B只读diff通过。无SQL，41生产迁移一致。待READY后仅一次原failed手动复测，不自动循环。自然第三人称NPC与导演混动作环境仍待修。
+
+## 2026-10-12 · 委派集成 NPC完整段与引用信用修复
+
+用户指定辅助接管唯一集成/付费/发布，原主任务转讨论；I为codex-npcquote04b-01a11a84-20261012。技术业务413b3ae8e9ca4050a398d3ff41341faf0c9fa9f0，eiublxcrc / dpl_xM8G5pkWcinSbQZbWxBBCWYtEfNL READY，正式aliasAPI精确指向新部署；1311check/type0/332boundary/build0、全真实本地PG252pass+5明确model opt-in skip、引用rollback专项11；Q59原引用红测及独立195pure通过，41生产迁移只读checksum一致无SQL。公开8组旧paused保存/权限/投影通过，root/Q本地资源停止，I55471正常停无监听，无新UI源码变更。
+
+新NPC indexed-npc-actions-v2段数组/quoteIndex只保完整原段，不trim或补我/物件，legacy经典/v1严格兼容且内句号引用信用漏洞由ef60源全文界限修复，player/NPC共用；任务回滚真实数据库验证。不把技术发布当模型整链通过。
+
+READY后原handover仅一次manual复测实际failed8485ms、固定Unsupported player execution quote，world v8仍真实2/4，原review/explain源保持，唯一04权威账本10→12/18/open/1world，0图/个人资料。不是上一receiving_condition重复，不知八项具体子因，不猜raw。随后cce1acf只同原8条件/顺序新增固定player_step_condition/trustedpattern编号诊断，不改任何regex/接受规则：新9+相关157pure/type0/332过，完整1320check/build0、真实事务专项11过、生产41校验再次一致，待Q只读确认后发布READY再原任务最多一次manual复测。root主WIP保留未纳发布；旧03closed不动，剩6不扩，最后必须全部world正常APIpause并closed。
