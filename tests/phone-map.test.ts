@@ -387,3 +387,17 @@ test('read failure hides previously cached place, environment, route and committ
   assert.match(html, /暂时读不到地点/);
   assert.doesNotMatch(html, /同名地点|可观察大厅|data-known-route|已到达|目标地点|前往这里/);
 });
+
+test('mobile search bar provides virtual keyboard attributes and clean quick actions without fake bookmarks', () => {
+  const html = render(space, {}, 'hospital');
+  assert.match(html, /type="search"/);
+  assert.match(html, /inputMode="search"/);
+  assert.match(html, /enterKeyHint="search"/);
+  assert.match(html, /placeholder="搜地点、查路线"/);
+  assert.match(html, /aria-label="搜索已知地点"/);
+  assert.match(html, /这段人生/);
+  assert.match(html, /我的位置/);
+  assert.match(html, /全部地点/);
+  assert.doesNotMatch(html, /收藏地点|🔖/);
+});
+

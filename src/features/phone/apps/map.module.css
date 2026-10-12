@@ -2,7 +2,7 @@
   min-height: 100%;
   color: #172735;
   background: #f7f8fa;
-  padding: 4px 18px 28px;
+  padding: 4px 18px max(28px, env(safe-area-inset-bottom, 28px));
   overflow-wrap: anywhere;
   font-size: 14px;
 }
@@ -511,7 +511,13 @@
 
 /* Realistic Search Bar */
 .searchBarContainer {
-  margin-bottom: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  background: #f7f8fa;
+  padding-top: 2px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
 }
 .searchBar {
   display: flex;
@@ -522,6 +528,11 @@
   border-radius: 22px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   border: 1px solid #e2e8f0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.searchBarFocused {
+  border-color: #237af0;
+  box-shadow: 0 2px 12px rgba(35, 122, 240, 0.18);
 }
 .searchBack {
   border: 0;
@@ -550,30 +561,178 @@
   flex: 1;
   border: 0;
   outline: none;
-  font-size: 13px;
+  font-size: 16px; /* Prevents mobile Safari forced viewport auto-zoom */
   color: #334155;
   background: transparent;
   min-width: 0;
+  line-height: 1.4;
 }
 .searchInput::placeholder {
   color: #94a3b8;
+  font-size: 13px;
 }
 .clearSearchBtn {
   border: 0;
   background: #e2e8f0;
   color: #64748b;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   font-size: 12px;
   display: grid;
   place-items: center;
   padding: 0;
+  flex-shrink: 0;
 }
 .searchGlass {
   font-size: 14px;
   color: #237af0;
   margin-left: 2px;
+  flex-shrink: 0;
+}
+.cancelSearchBtn {
+  border: 0;
+  background: transparent;
+  color: #237af0;
+  font-size: 14px;
+  font-weight: 550;
+  padding: 2px 6px;
+  margin-left: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+.cancelSearchBtn:active {
+  opacity: 0.6;
+}
+
+/* Search Overlay & Results */
+.searchOverlay {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 14px 16px;
+  margin-top: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  min-height: 220px;
+  max-height: 65vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+}
+.searchResultHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.searchResultCount {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+.clearTextLink {
+  border: 0;
+  background: transparent;
+  color: #237af0;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.searchEmpty {
+  text-align: center;
+  padding: 36px 16px;
+  color: #64748b;
+}
+.searchEmptyTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin: 0 0 6px;
+}
+.searchEmptyHint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
+}
+.searchResultList {
+  display: flex;
+  flex-direction: column;
+}
+.searchResultItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.searchResultItem:last-child {
+  border-bottom: 0;
+}
+.searchResultItem:active {
+  background: #f8fafc;
+}
+.searchResultIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  background: #eff6ff;
+  color: #237af0;
+  border-radius: 10px;
+  font-size: 16px;
+}
+.searchResultBody {
+  flex: 1;
+  min-width: 0;
+}
+.searchResultNameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.searchResultName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.currentTag {
+  font-size: 10px;
+  color: #237af0;
+  background: #eef5ff;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.searchResultDesc {
+  font-size: 11px;
+  color: #64748b;
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.searchResultRoute {
+  flex: 0 0 auto;
+  color: #7b8b95;
+  font-size: 11px;
+  background: #f4f7f9;
+  padding: 2px 6px;
+  border-radius: 6px;
 }
 
 /* Compass & Canvas Decorators */

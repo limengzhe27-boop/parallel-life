@@ -104,10 +104,11 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
     () => target ?? selectedPlaces.get(worldId),
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchActive, setSearchActive] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [activeCategory, setActiveCategory] = useState<'food' | 'pharmacy' | 'park' | 'wc' | null>(
     null,
   );
-  const [filterFavorite, setFilterFavorite] = useState(false);
   const [mapTheme, setMapTheme] = useState<'standard' | 'transit'>('standard');
   const [zoomScale, setZoomScale] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -325,6 +326,36 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   const appointments = selected
     ? phone.invitations.filter((invitation) => selected.appointmentIds.includes(invitation.id))
     : [];
+  const filteredPlaces = space
+    ? space.places.filter((place) => {
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          return (
+            place.name.toLowerCase().includes(q) ||
+            Boolean(place.description && place.description.toLowerCase().includes(q))
+          );
+        }
+        if (activeCategory === 'food') {
+          return /餐|吃|饭|店|馆|食|酒|茶|咖/.test(
+            place.name + (place.description || ''),
+          );
+        }
+        if (activeCategory === 'pharmacy') {
+          return /药|医|院|急救|诊所|康/.test(
+            place.name + (place.description || ''),
+          );
+        }
+        if (activeCategory === 'park') {
+          return /园|湖|林|绿|树|山|草/.test(
+            place.name + (place.description || ''),
+          );
+        }
+        if (activeCategory === 'wc') {
+          return /公厕|卫|洗手|厕/.test(place.name + (place.description || ''));
+        }
+        return true;
+      })
+    : [];
   return (
     <div className={s.page} data-phone-map>
       <header className={s.header}>
@@ -464,12 +495,14 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
       ) : (
         <>
           <div className={s.searchBarContainer}>
-            <div className={s.searchBar}>
+            <div className={`${s.searchBar} ${searchActive ? s.searchBarFocused : ''}`}>
               <button
                 type="button"
                 className={s.searchBack}
                 onClick={() => {
                   setSearchQuery('');
+                  setSearchActive(false);
+                  searchInputRef.current?.blur();
                   if (current) selectPlace(current.id);
                 }}
                 aria-label="重置路线"
@@ -481,18 +514,36 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                 <span className={s.cityDivider}>|</span>
               </div>
               <input
+                ref={searchInputRef}
                 type="search"
+                inputMode="search"
+                enterKeyHint="search"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className={s.searchInput}
                 placeholder="搜地点、查路线"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchActive(true)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (!searchActive) setSearchActive(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    searchInputRef.current?.blur();
+                  }
+                }}
                 aria-label="搜索已知地点"
               />
               {searchQuery ? (
                 <button
                   type="button"
                   className={s.clearSearchBtn}
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
                   aria-label="清空输入"
                 >
                   ×
@@ -501,8 +552,141 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
               <span className={s.searchGlass} aria-hidden="true">
                 🔍
               </span>
+              {searchActive && (
+                <button
+                  type="button"
+                  className={s.cancelSearchBtn}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchActive(false);
+                    searchInputRef.current?.blur();
+                  }}
+                  aria-label="取消搜索"
+                >
+                  取消
+                </button>
+              )}
             </div>
           </div>
+          {searchActive ? (
+            <section
+              className={s.searchOverlay}
+              aria-label="搜索结果"
+              onTouchStart={() => searchInputRef.current?.blur()}
+              onScroll={() => searchInputRef.current?.blur()}
+            >
+              <div className={s.searchResultHeader}>
+                <span className={s.searchResultCount}>
+                  {filteredPlaces.length > 0
+                    ? `找到 ${filteredPlaces.length} 个相关已知地点`
+                    : searchQuery.trim()
+                      ? '未找到相关已知地点'
+                      : '全部已知地点'}
+                </span>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className={s.clearTextLink}
+                    onClick={() => {
+                      setSearchQuery('');
+                      searchInputRef.current?.focus();
+                    }}
+                  >
+                    清空输入
+                  </button>
+                )}
+              </div>
+              {!searchQuery.trim() && (
+                <div className={s.categoryGrid} role="group" aria-label="地点快捷分类">
+                  <button
+                    type="button"
+                    className={`${s.catBtn} ${activeCategory === 'food' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'food' ? null : 'food'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catFood}`}>餐</span>
+                    <span className={s.catText}>美食</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.catBtn} ${activeCategory === 'pharmacy' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'pharmacy' ? null : 'pharmacy'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catMed}`}>+</span>
+                    <span className={s.catText}>药店</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.catBtn} ${activeCategory === 'park' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'park' ? null : 'park'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catPark}`}>叶</span>
+                    <span className={s.catText}>公园</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${s.catBtn} ${activeCategory === 'wc' ? s.catBtnActive : ''}`}
+                    onClick={() => setActiveCategory((c) => (c === 'wc' ? null : 'wc'))}
+                  >
+                    <span className={`${s.catBadge} ${s.catWc}`}>WC</span>
+                    <span className={s.catText}>公厕</span>
+                  </button>
+                </div>
+              )}
+              {filteredPlaces.length === 0 ? (
+                <div className={s.searchEmpty}>
+                  <p className={s.searchEmptyTitle}>未找到与“{searchQuery.trim()}”相关的已知地点</p>
+                  <p className={s.searchEmptyHint}>可核对地点全称，或点击右上角“取消”查看全部地图。</p>
+                </div>
+              ) : (
+                <div className={s.searchResultList}>
+                  {filteredPlaces.map((place) => {
+                    const knownRoute =
+                      current &&
+                      space.routes.find(
+                        (r) => r.fromPlaceId === current.id && r.toPlaceId === place.id,
+                      );
+                    const isCurrent = current?.id === place.id;
+                    return (
+                      <button
+                        type="button"
+                        className={s.searchResultItem}
+                        key={place.id}
+                        onClick={() => {
+                          searchInputRef.current?.blur();
+                          setSearchActive(false);
+                          selectPlace(place.id);
+                        }}
+                      >
+                        <div className={s.searchResultIcon} aria-hidden="true">
+                          {isCurrent ? '📍' : '⌖'}
+                        </div>
+                        <div className={s.searchResultBody}>
+                          <div className={s.searchResultNameRow}>
+                            <span className={s.searchResultName}>{place.name}</span>
+                            {isCurrent && <span className={s.currentTag}>当前位置</span>}
+                          </div>
+                          {place.description && (
+                            <p className={s.searchResultDesc}>{place.description}</p>
+                          )}
+                        </div>
+                        <small className={s.searchResultRoute}>
+                          {isCurrent
+                            ? '就在这里'
+                            : knownRoute
+                              ? `${knownRoute.durationMinutes} 分钟`
+                              : '路线未建立'}
+                        </small>
+                        <span className={s.chevron} aria-hidden="true">
+                          ›
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : (
+            <>
           <section className={s.location} aria-label="当前位置">
             <span className={s.currentDot} aria-hidden="true" />
             <div>
@@ -806,13 +990,18 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
               </button>
               <button
                 type="button"
-                className={`${s.quickPill} ${filterFavorite ? s.quickPillActive : ''}`}
-                onClick={() => setFilterFavorite((v) => !v)}
+                className={`${s.quickPill} ${!activeCategory && !searchQuery ? s.quickPillActive : ''}`}
+                onClick={() => {
+                  setActiveCategory(null);
+                  setSearchQuery('');
+                  setSearchActive(false);
+                  searchInputRef.current?.blur();
+                }}
               >
                 <span className={s.quickIcon} aria-hidden="true">
-                  🔖
+                  🗺️
                 </span>{' '}
-                收藏地点
+                全部地点
               </button>
             </div>
             {space.places
@@ -970,6 +1159,8 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                 </nav>
               )}
             </section>
+          )}
+            </>
           )}
         </>
       )}
