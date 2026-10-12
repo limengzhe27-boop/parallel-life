@@ -12,7 +12,6 @@ export type TravelFeedbackProps = {
   onResubmitOriginal?: () => void;
   onContinue?: () => void;
   continueLabel?: string;
-  vehicleIcon?: string;
 };
 
 /** Presentational only: animation never updates location or advances the story clock. */
@@ -24,7 +23,6 @@ export function TravelFeedback({
   onResubmitOriginal,
   onContinue,
   continueLabel = '看看这里',
-  vehicleIcon = '🛵',
 }: TravelFeedbackProps) {
   const view = travelPresentation(state);
   if (!view) return null;
@@ -62,20 +60,9 @@ export function TravelFeedback({
             <span>{view.destinationLabel}</span>
           </div>
         </div>
-      ) : pending ? (
-        <div className={s.transitBox} aria-hidden="true">
-          <div className={s.transitLabels}>
-            <span>{view.fromLabel || '出发地'}</span>
-            <span className={s.transitArrow}>通勤中 ⇢</span>
-            <span>{view.destinationLabel || '目的地'}</span>
-          </div>
-          <div className={s.transitTrack}>
-            <span className={s.transitVehicle}>{vehicleIcon}</span>
-          </div>
-        </div>
       ) : (
-        <span className={checking ? s.spinner : s.notice} aria-hidden="true">
-          {checking ? '' : '!'}
+        <span className={pending || checking ? s.spinner : s.notice} aria-hidden="true">
+          {pending || checking ? '' : '!'}
         </span>
       )}
       <div role={view.status === 'failed' ? 'alert' : 'status'} aria-atomic="true">

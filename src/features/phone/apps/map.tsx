@@ -104,7 +104,9 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
     () => target ?? selectedPlaces.get(worldId),
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<'food' | 'pharmacy' | 'park' | 'wc' | null>(null);
+  const [activeCategory, setActiveCategory] = useState<'food' | 'pharmacy' | 'park' | 'wc' | null>(
+    null,
+  );
   const [filterFavorite, setFilterFavorite] = useState(false);
   const [mapTheme, setMapTheme] = useState<'standard' | 'transit'>('standard');
   const [zoomScale, setZoomScale] = useState(1);
@@ -115,7 +117,6 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
   const touchStartPoint = useRef<{ x: number; y: number } | null>(null);
   const touchStartPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const lastTapTime = useRef<number>(0);
-  const [transitMode, setTransitMode] = useState<'scooter' | 'walk' | 'taxi'>('scooter');
   const [readError, setReadError] = useState('');
   const [actionError, setActionError] = useState('');
   const error = map?.error || readError;
@@ -288,7 +289,10 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
         e.touches[0]!.clientY - e.touches[1]!.clientY,
       );
       const ratio = currentDist / touchStartDist.current;
-      const nextZoom = Math.min(1.5, Math.max(0.8, Number((touchStartZoom.current * ratio).toFixed(2))));
+      const nextZoom = Math.min(
+        1.5,
+        Math.max(0.8, Number((touchStartZoom.current * ratio).toFixed(2))),
+      );
       setZoomScale(nextZoom);
     } else if (e.touches.length === 1 && touchStartPoint.current && zoomScale > 1.05) {
       const dx = e.touches[0]!.clientX - touchStartPoint.current.x;
@@ -407,7 +411,6 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                 : undefined
             }
             continueLabel="查看这个地点"
-            vehicleIcon={transitMode === 'walk' ? '🚶' : transitMode === 'taxi' ? '🚕' : '🛵'}
           />
           {feedback.status === 'failed' && map && (
             <button
@@ -474,7 +477,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                 ‹
               </button>
               <div className={s.citySelector}>
-                <span className={s.cityName}>槐城</span>
+                <span className={s.cityName}>这段人生</span>
                 <span className={s.cityDivider}>|</span>
               </div>
               <input
@@ -625,7 +628,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                   长宁巷
                 </span>
                 <div className={s.mapWatermark} aria-hidden="true">
-                  <span>◇ 槐城导航</span>
+                  <span>◇路线示意</span>
                 </div>
                 <div className={s.scaleBar} aria-hidden="true">
                   <span>200米</span>
@@ -654,7 +657,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                     const isSelectedRoute =
                       route.id === mapSelection(space!, selected?.id).route?.id;
                     const isTraveling =
-                      busyAction === 'travel' || operation?.status === 'pending';
+                      operation?.status === 'committed' && operation.receipt?.routeId === route.id;
                     return (
                       <g key={route.id}>
                         <path
@@ -682,7 +685,11 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                                 dur="2.2s"
                                 repeatCount="indefinite"
                               />
-                              {transitMode === 'walk' ? '🚶' : transitMode === 'taxi' ? '🚕' : '🛵'}
+                              {route.modeLabel.includes('步行')
+                                ? '🚶'
+                                : route.modeLabel.includes('车')
+                                  ? '🚗'
+                                  : '•'}
                             </text>
                           </g>
                         )}
@@ -696,7 +703,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                     place.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
                     Boolean(
                       place.description &&
-                        place.description.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+                      place.description.toLowerCase().includes(searchQuery.trim().toLowerCase()),
                     );
                   const isMatchCat =
                     !activeCategory ||
@@ -749,7 +756,6 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                 <h2 className={s.sectionTitle}>探索附近</h2>
                 <small>{space.places.length} 个已知地点</small>
               </div>
-              <span className={s.weatherBadge}>槐城区 · 晴 22°C</span>
             </div>
             <div className={s.categoryGrid} role="group" aria-label="地点快捷分类">
               <button
@@ -820,19 +826,13 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                   );
                 }
                 if (activeCategory === 'food') {
-                  return /餐|吃|饭|店|馆|食|酒|茶|咖/.test(
-                    place.name + (place.description || ''),
-                  );
+                  return /餐|吃|饭|店|馆|食|酒|茶|咖/.test(place.name + (place.description || ''));
                 }
                 if (activeCategory === 'pharmacy') {
-                  return /药|医|院|急救|诊所|康/.test(
-                    place.name + (place.description || ''),
-                  );
+                  return /药|医|院|急救|诊所|康/.test(place.name + (place.description || ''));
                 }
                 if (activeCategory === 'park') {
-                  return /园|湖|林|绿|树|山|草/.test(
-                    place.name + (place.description || ''),
-                  );
+                  return /园|湖|林|绿|树|山|草/.test(place.name + (place.description || ''));
                 }
                 if (activeCategory === 'wc') {
                   return /公厕|卫|洗手|厕/.test(place.name + (place.description || ''));
@@ -880,60 +880,12 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
               <h2>{selected.name}</h2>
               {route && arrival && !operation && (
                 <>
-                  <div className={s.routeModes} aria-label="出行方式">
-                    <button
-                      type="button"
-                      className={`${s.modeChip} ${transitMode === 'scooter' ? s.modeChipActive : ''}`}
-                      onClick={() => setTransitMode('scooter')}
-                      aria-pressed={transitMode === 'scooter'}
-                    >
-                      🛵 {route.modeLabel || '电瓶车'}
-                    </button>
-                    <button
-                      type="button"
-                      className={`${s.modeChip} ${transitMode === 'walk' ? s.modeChipActive : ''}`}
-                      onClick={() => setTransitMode('walk')}
-                      aria-pressed={transitMode === 'walk'}
-                    >
-                      🚶 步行 {Math.round(route.durationMinutes * 2.5)}分
-                    </button>
-                    <button
-                      type="button"
-                      className={`${s.modeChip} ${transitMode === 'taxi' ? s.modeChipActive : ''}`}
-                      onClick={() => setTransitMode('taxi')}
-                      aria-pressed={transitMode === 'taxi'}
-                    >
-                      🚕 打车 {Math.max(3, Math.round(route.durationMinutes * 0.6))}分
-                    </button>
-                  </div>
                   <div className={s.routeSummary}>
-                    <strong>
-                      {transitMode === 'walk'
-                        ? Math.round(route.durationMinutes * 2.5)
-                        : transitMode === 'taxi'
-                          ? Math.max(3, Math.round(route.durationMinutes * 0.6))
-                          : route.durationMinutes}{' '}
-                      分钟
-                    </strong>
+                    <strong>{route.durationMinutes} 分钟</strong>
                     <span>
-                      {transitMode === 'walk'
-                        ? '步行'
-                        : transitMode === 'taxi'
-                          ? '打车'
-                          : route.modeLabel || '电瓶车'}{' '}
-                      · 约{' '}
+                      {route.modeLabel || '移动'} · 约{' '}
                       {arrival.slice(0, 10) === worldDateTimeLabel(space.storyNow).slice(0, 10)
-                        ? worldTimeLabel(
-                            new Date(
-                              Date.parse(space.storyNow) +
-                                (transitMode === 'walk'
-                                  ? Math.round(route.durationMinutes * 2.5)
-                                  : transitMode === 'taxi'
-                                    ? Math.max(3, Math.round(route.durationMinutes * 0.6))
-                                    : route.durationMinutes) *
-                                  60_000,
-                            ).toISOString(),
-                          )
+                        ? arrival.slice(11, 16)
                         : arrival}{' '}
                       到达
                     </span>
