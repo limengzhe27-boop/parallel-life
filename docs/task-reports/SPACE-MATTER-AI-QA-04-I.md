@@ -26,11 +26,11 @@ ef60f2d770cf083844b2b98074bf1ef681aa9b31：domain建立源全文引号区间（�
 
 - 默认沙箱下首次check/PG因本地55471连接EPERM失败，保留日志；不是业务成功。显式授权本地连接后完整1311check通过、build成功，第一全PG251pass/5明确模型opt-in skip；未启模型测试。
 - PG55471启动前lsof无监听核对、主表本人短锁登记；复用nar-03旧独立dev/test cluster，ignored local env旧55432与runtime55471不符只修本树loopback端点，不碰生产变量。root55452已停，Q不启数据库。
-- 增加原PGfixture一个子项：实际classic/v1引用接收经过ScenePlanner及持久任务后失败，world event/scene items/memory/receipt计数及原事项完全不变；两个引用形式不保存handed/received/机会。追加专项11/11通过（包括既有合法新v2收件、完成、机会和私聊事务）。最终全检及全PG因新增实库测试正在重跑。
+- 增加原PGfixture一个子项：实际classic/v1引用接收经过ScenePlanner及持久任务后失败，world event/scene items/memory/receipt计数及原事项完全不变；两个引用形式不保存handed/received/机会。追加专项11/11通过（包括既有合法新v2收件、完成、机会和私聊事务）。最终整批复验1311check/type0/332boundary、完整PG252pass/5明确model opt-in skip/0fail，build0；引用专项11过。
 - 生产独立项目只读41/41迁移checksum与当前files一致，0SQL变更；2026-10-12T03:25:32Z。Vercel目标parallel-life、team limengzhe27-boops-projects已只读确认，禁止探索原型项目。提交身份已关联用户GitHub/Vercel。
 
 ## 当前接续
 
-等待Q精确修复复验与最终全PG/check结果；发布前不得调用原handover。保持唯一账本10/18，source引用修复不能代真实模型执行或称完整链已过。发布后公网旧paused存档/权限/scene/records同版本与health先验证；真实新增结果必须读SQL source、保留原review/explain、实际actor received及里程碑/机会/私聊回执证据。
+Q最终c3e4393仅报告准确集成，本人原59红测逐字不变且59全过，Q相关195/type0/332boundary通过；最终验证到齐，准备发布，READY/public前不得调用原handover。保持唯一账本10/18，source引用修复不能代真实模型执行或称完整链已过。发布后公网旧paused存档/权限/scene/records同版本与health先验证；真实新增结果必须读SQL source、保留原review/explain、实际actor received及里程碑/机会/私聊回执证据。
 
 本报告会记录部署READY、实际新调用与最后暂停/closed，不自动借未消耗预算开发首五分钟、小游戏、人像或中途人物移动；这些仍是主讨论未确定方向。
