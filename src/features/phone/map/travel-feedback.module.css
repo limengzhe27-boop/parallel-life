@@ -123,26 +123,22 @@
   font-size: 18px;
   z-index: 2;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-  animation: vehicleRide 1.8s ease-in-out infinite alternate;
+  animation: vehicleRide 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 @keyframes vehicleRide {
   0% {
     left: 4%;
-    transform: scaleX(1);
+    opacity: 0.8;
   }
-  48% {
-    transform: scaleX(1);
+  15% {
+    opacity: 1;
   }
-  50% {
-    left: 88%;
-    transform: scaleX(-1);
-  }
-  98% {
-    transform: scaleX(-1);
+  85% {
+    opacity: 1;
   }
   100% {
-    left: 4%;
-    transform: scaleX(1);
+    left: 88%;
+    opacity: 0.8;
   }
 }
 .transitLabels {

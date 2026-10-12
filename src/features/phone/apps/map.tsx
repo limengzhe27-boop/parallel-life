@@ -231,6 +231,19 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
       detailsElement.current?.scrollIntoView({ block: 'nearest' });
     });
   }
+  useEffect(() => {
+    if (
+      feedback.status === 'committed' &&
+      !waitingPosition &&
+      operation?.receipt &&
+      current?.id === operation.receipt.toPlaceId
+    ) {
+      const timer = setTimeout(() => {
+        continueAtPlace();
+      }, 1400);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback.status, waitingPosition, current?.id, operation?.receipt]);
   function selectPlace(placeId: string) {
     if (selectedPlaces.size >= 32 && !selectedPlaces.has(worldId))
       selectedPlaces.delete(selectedPlaces.keys().next().value!);
@@ -330,6 +343,7 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                 : undefined
             }
             continueLabel="查看这个地点"
+            vehicleIcon={transitMode === 'walk' ? '🚶' : transitMode === 'taxi' ? '🚕' : '🛵'}
           />
           {feedback.status === 'failed' && map && (
             <button
