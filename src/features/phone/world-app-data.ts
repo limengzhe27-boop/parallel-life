@@ -31,21 +31,26 @@ export function worldAppData(
       : []),
   ];
   return {
-    contacts: world.actors.map((actor) => ({
-      id: actor.id,
-      ...(actor.sourcePersonId ? { sourcePersonId: actor.sourcePersonId } : {}),
-      name: actor.name,
-      relationship: actor.relationship,
-      summary: actor.summary,
-      avatarUrl: resolveAvatarArt(world, actor).url,
-      unread: world.messages.filter(
-        (message) =>
-          message.actorId === actor.id &&
-          message.role !== 'user' &&
-          message.initialRead !== true &&
-          !viewed.has(message.id),
-      ).length,
-    })),
+    contacts: world.actors.map((actor) => {
+      const art = resolveAvatarArt(world, actor);
+      return {
+        id: actor.id,
+        ...(actor.sourcePersonId ? { sourcePersonId: actor.sourcePersonId } : {}),
+        name: actor.name,
+        relationship: actor.relationship,
+        summary: actor.summary,
+        avatarUrl: art.url,
+        avatarKind: art.kind,
+        avatarLabel: art.label,
+        unread: world.messages.filter(
+          (message) =>
+            message.actorId === actor.id &&
+            message.role !== 'user' &&
+            message.initialRead !== true &&
+            !viewed.has(message.id),
+        ).length,
+      };
+    }),
     photos: (world.photos ?? []).map((photo) => {
       const uploaded = photo.kind === 'upload';
       const identity = !uploaded && /写真|肖像/.test(photo.title);

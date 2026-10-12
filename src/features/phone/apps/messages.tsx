@@ -3,6 +3,7 @@ import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
+import { PersonCard } from './person-card.tsx';
 import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
@@ -398,7 +399,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       }}
                     >
                       <div style={{ position: 'relative' }}>
-                        <Avatar url={c.avatarUrl} name={c.name} />
+                        <Avatar
+                          url={c.avatarUrl}
+                          name={c.name}
+                          kind={c.avatarKind}
+                          label={c.avatarLabel}
+                        />
                         {c.unread > 0 && (
                           <span
                             style={{
@@ -497,7 +503,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       borderRadius: 0,
                     }}
                   >
-                    <Avatar url={c.avatarUrl} name={c.name} />
+                    <Avatar
+                      url={c.avatarUrl}
+                      name={c.name}
+                      kind={c.avatarKind}
+                      label={c.avatarLabel}
+                    />
                     <span className={s.contactText} style={{ flex: 1 }}>
                       <strong
                         style={{
@@ -526,7 +537,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                           ? c.summary.length > 26
                             ? c.summary.slice(0, 26) + '…'
                             : c.summary
-                          : '查看名片与生平'}
+                          : '查看人物名片'}
                       </small>
                     </span>
                     <span style={{ fontSize: '13px', color: '#9ca3af' }}>名片 ›</span>
@@ -898,84 +909,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                }}
-              >
-                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                  <Avatar url={selectedProfile.avatarUrl} name={selectedProfile.name} />
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>
-                      {selectedProfile.name}
-                    </h3>
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: '6px',
-                        alignItems: 'center',
-                        marginTop: '4px',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '12px',
-                          background: '#f1f5f9',
-                          color: '#334155',
-                          padding: '2px 8px',
-                          borderRadius: '8px',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {selectedProfile.relationship}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#16a34a' }}>● 在线</span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedProfileId(null)}
-                  style={{
-                    background: '#f1f5f9',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '28px',
-                    height: '28px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: '#64748b',
-                  }}
-                  aria-label="关闭名片"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div
-                style={{
-                  background: '#f8fafc',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '12px',
-                    color: '#64748b',
-                    marginBottom: '4px',
-                    fontWeight: 600,
-                  }}
-                >
-                  人物生平与性格
-                </div>
-                <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
-                  {selectedProfile.summary ||
-                    `在当前人生中与你相识，是你的${selectedProfile.relationship}。`}
-                </div>
-              </div>
+              <PersonCard contact={selectedProfile} onClose={() => setSelectedProfileId(null)} />
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <button
@@ -1067,7 +1001,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     open('photos');
                   }}
                 >
-                  🖼️ 共同回忆
+                  🖼️ 查看相册
                 </button>
               </div>
             </div>
@@ -1259,45 +1193,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Avatar url={actor.avatarUrl} name={actor.name} />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
-                    {actor.name}
-                  </h3>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>
-                    {actor.relationship || '朋友'}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPerson(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '18px',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <p
-              style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#475569', lineHeight: 1.6 }}
-            >
-              {actor.summary ??
-                `在当前人生世界中与你紧密相连的${actor.relationship || '重要人物'}。`}
-            </p>
+            <PersonCard contact={actor} onClose={() => setShowPerson(false)} />
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"
@@ -1337,7 +1233,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   cursor: 'pointer',
                 }}
               >
-                🖼️ 查看共同回忆
+                🖼️ 查看相册
               </button>
             </div>
           </div>
@@ -1458,7 +1354,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 </div>
               ) : (
                 <div style={{ flexShrink: 0 }}>
-                  <Avatar url={actor.avatarUrl} name={actor.name} />
+                  <Avatar
+                    url={actor.avatarUrl}
+                    name={actor.name}
+                    kind={actor.avatarKind}
+                    label={actor.avatarLabel}
+                  />
                 </div>
               )}
               <div

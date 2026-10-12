@@ -11,6 +11,8 @@ export type PhoneContact = {
   relationship: string;
   summary?: string;
   avatarUrl?: string;
+  avatarKind?: 'authorized-photo' | 'character-illustration' | 'generic-illustration';
+  avatarLabel?: string;
   unread: number;
 };
 export type PhoneMessage = {

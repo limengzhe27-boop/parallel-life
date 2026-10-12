@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { avatarPresentation, type AvatarArt } from '../avatar-art.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneLink } from './types.ts';
 import type { Operation } from './provider.tsx';
@@ -101,25 +102,31 @@ export function Refresh() {
     </span>
   ) : null;
 }
-export function Avatar({ url, name }: { url?: string; name: string }) {
-  const [failures, setFailures] = useState<{ photo?: string; generic: boolean }>({
-    generic: false,
-  });
-  const imageUrl =
-    url && failures.photo !== url
-      ? url
-      : !failures.generic
-        ? '/art/lives/avatar-contact.svg'
-        : undefined;
+export function Avatar({
+  url,
+  name,
+  kind,
+  label,
+}: {
+  url?: string;
+  name: string;
+  kind?: AvatarArt['kind'];
+  label?: string;
+}) {
+  const [failedUrls, setFailedUrls] = useState<ReadonlySet<string>>(new Set());
+  const art = avatarPresentation(
+    { avatarUrl: url, avatarKind: kind, avatarLabel: label },
+    failedUrls,
+  );
   return (
-    <span className={s.avatar}>
-      {imageUrl ? (
+    <span className={s.avatar} title={art.label}>
+      {art.url ? (
         <img
-          src={imageUrl}
+          src={art.url}
           alt=""
           onError={() => {
-            if (imageUrl === url) setFailures((previous) => ({ ...previous, photo: url }));
-            else setFailures((previous) => ({ ...previous, generic: true }));
+            const failed = art.url!;
+            setFailedUrls((previous) => new Set([...previous, failed]));
           }}
         />
       ) : (
