@@ -32,7 +32,7 @@
 
 其中两个故障注入用例替换测试进程中的 DecompressionStream：浏览器能力缺失提示、实际输出超限时 reader.cancel。它们是纯适配器防护测试，不是真实浏览器、模型或数据库验收；普通 stored/deflate 正例与谎报大小压缩数据仍使用实际 Web API。
 
-`npm run check` 已运行：**400 个模块边界通过、类型 0 错误；1799 项中 1795 通过、4 失败、0 skip**。四失败均为旧 `album-workflow.test.ts` 的两项及 `rls-tenant-isolation.test.ts` 的两项连接 `127.0.0.1:55458` ECONNREFUSED；没有成功 SQL，也未启动 PostgreSQL/端口或改变忽略环境。不能把完整 check 标通过，交根统一真实库环境继续验收。
+`npm run check` 已运行：**400 个模块边界通过、类型 0 错误；1799 项中 1795 通过、4 失败、0 skip**。四失败均为旧 `character-image-flow.test.ts` 的两项及 `rls-tenant-isolation.test.ts` 的两项连接 `127.0.0.1:55458` ECONNREFUSED；没有成功 SQL，也未启动 PostgreSQL/端口或改变忽略环境。不能把完整 check 标通过，交根统一真实库环境继续验收。
 
 `npm run build`：成功，退出 0。仅两个新 TS 文件的 Prettier check 与 git diff --check 通过，未格式化或改变其他 Agent 源码。
 
