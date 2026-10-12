@@ -27,7 +27,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v15-explicit-receiver-index';
+export const SCENE_PROMPT_VERSION = 'scene-text-v16-indexed-npc-quote-segments';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -107,6 +107,7 @@ const diagnosticFields = new Set([
   'present',
   'actionFormat',
   'actionIndex',
+  'quoteIndex',
 ]);
 const diagnosticCodes = new Set([
   'invalid_type',
@@ -165,7 +166,34 @@ const indexedNpcReplySchema = z.strictObject({
   text,
   actions: z.array(z.strictObject({ actionIndex: z.number().int().min(0).max(15), quote })).max(4),
 });
-function npcActionError(reason: 'action_index' | 'duplicate_index'): never {
+// Preserve the new source segments; legacy trim transforms must never repair their execution prefix.
+const preservedNpcText = z
+  .string()
+  .min(1)
+  .max(1600)
+  .refine((value) => Boolean(value.trim()));
+const preservedNpcQuote = z
+  .string()
+  .min(3)
+  .max(500)
+  .refine((value) => Boolean(value.trim()));
+const indexedNpcSegmentsReplySchema = z.strictObject({
+  actionFormat: z.literal('indexed-npc-actions-v2'),
+  text: z.array(preservedNpcText).min(1).max(8),
+  actions: z
+    .array(
+      z.strictObject({
+        actionIndex: z.number().int().min(0).max(15),
+        quoteIndex: z.number().int().min(0).max(7),
+      }),
+    )
+    .max(4),
+});
+const preservedNpcCanonicalSchema = npcReplySchema.extend({
+  text: preservedNpcText,
+  actions: z.array(npcActionSchema.extend({ quote: preservedNpcQuote })).max(4),
+});
+function npcActionError(reason: 'action_index' | 'duplicate_index' | 'quote_index'): never {
   const diagnosticMessage = `scene_npc_action:${reason}`;
   throw Object.assign(new DomainError('INVALID_PROPOSAL', diagnosticMessage), {
     stage: 'proposal',
@@ -173,6 +201,33 @@ function npcActionError(reason: 'action_index' | 'duplicate_index'): never {
   });
 }
 function canonicalNpcReply(raw: unknown, slots: readonly NpcActionSlot[]) {
+  if (
+    raw &&
+    typeof raw === 'object' &&
+    'actionFormat' in raw &&
+    raw.actionFormat === 'indexed-npc-actions-v2'
+  ) {
+    const checked = indexedNpcSegmentsReplySchema.safeParse(raw);
+    if (!checked.success) {
+      if (checked.error.issues.some((issue) => issue.path.includes('quoteIndex')))
+        npcActionError('quote_index');
+      throw checked.error;
+    }
+    const parsed = checked.data,
+      seen = new Set<number>();
+    return preservedNpcCanonicalSchema.parse({
+      text: parsed.text.join('\n'),
+      actions: parsed.actions.map(({ actionIndex, quoteIndex }) => {
+        const slot = slots[actionIndex];
+        if (!slot || slot.actionIndex !== actionIndex) npcActionError('action_index');
+        if (seen.has(actionIndex)) npcActionError('duplicate_index');
+        seen.add(actionIndex);
+        const segment = parsed.text[quoteIndex];
+        if (segment === undefined) npcActionError('quote_index');
+        return { matterId: slot.matterId, kind: slot.kind, quote: segment };
+      }),
+    });
+  }
   if (!raw || typeof raw !== 'object' || !('actionFormat' in raw)) {
     const parsed = npcReplySchema.parse(raw);
     if (
@@ -580,7 +635,7 @@ export class ScenePlanner implements ScenePlannerPort {
       [
         {
           role: 'system',
-          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。日程约定者不等于到场者：开场actors仅是合法当前生效预约候选：你不可强制赴约，presentActorIds只作候选建议并会由各自独立人物调用的当前到场决定替换，允许最终为空；无action时outcome/observation必须null；authoredStepDefinition非空时已有正式父事项及分步定义，initialMatters必须[]、matterTitle=null，不再创建核对/交代/交付等重复独立小事项；没有正式分步定义时可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ evidenceFormat: 'indexed-observations-v3', location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? ['你本次实际执行动作的可观察结果；此为结构占位，不得照抄或补造成功'] : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [], stepProposals: [] })}。ID区分：matterUpdates.id必须取worldMatterConditions.id（现场投影ID）；stepProposals.matterIndex必须是structuredStepContexts里给定的数字序号，不是现场或世界事项ID。NPC actions.matterId仍由独立NPC调用取其已授权stepExecution.matterId（世界事项ID）；导演不输出NPC动作。evidenceFormat必须精确为indexed-observations-v3。observation用中文字符串数组，每段以“你”描述玩家本次实际动作；步骤通过observationIndex从0起引用其中一段，不重复抄写观察，不造证据。精确JSON类型：location为非空字符串(最多200字)，narration为非空字符串(最多1600字)，presentActorIds为字符串数组(最多8)，outcome仅succeeded/failed/partial/null，observation为1至8个非空字符串的数组或null，拼接换行后总计最多1600字，供步骤引用的每段3至500字，matterTitle为非空字符串(最多200字)或null；initialMatters是最多32个{title:非空字符串}，matterUpdates是最多8个{id:现有现场事项字符串ID,status:in_progress/blocked/completed}；dialogues必须[]。stepProposals为最多8个{matterIndex:给定规则序号整数,stepId:规则步骤字符串ID,inputQuote:当前玩家原文片段,observationIndex:0至7整数,receiverIndex?:本规则接收人列表整数序号}，inputQuote为3至500字，observationIndex必须指向本次observation数组实际存在的段落；禁止matterId和observationQuote字段；v3必须完全省略receiverId字段；matterIndex必须从当前structuredStepContexts选取，示例0只展示数字类型，未给第0项时不可使用；不得同时输出新旧格式。null观察不得带步骤。repair_explained和handed_over必须显式给receiverIndex整数，选本matterIndex对应allowedReceivers中明确的receiverIndex；其他步骤必须省略receiverIndex，绝不能写null、字符串或undefined字面值。接收者不能从另一事项借来，即使当前只有一个接收者也不能省略索引或默认补人。inputQuote和所选观察段必须原样包含同一接收者name，截取原文时保留向谁说明/交给谁；若原文未点名不得补名字或制造该步骤。stepProposals和npcActions无候选时用[]，不得null；npcActions只能[]或省略，因为导演不能代人物行动。其他未知字段一律不要输出。仅结构示例（占位值不可照抄，未实际执行不得填步骤）：${JSON.stringify({ stepProposals: [{ matterIndex: 0, stepId: 'order_reviewed', inputQuote: '仅截取本次实际核对R17维修单的完整原文', observationIndex: 0 }] })}；交接类示例结构：${JSON.stringify({ matterIndex: 0, stepId: 'handed_over', inputQuote: '本次实际将R17钥匙和维修单交给接收人的原文', observationIndex: 0, receiverIndex: 0 })}。不得照示例创造动作或凑证据，未执行stepProposals=[]。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；没有关联事项时matters=[]，必须matterUpdates=[]，仍正常裁定行动观察，不自行猜测事项ID；completed仅由succeeded支撑，blocked只由failed支撑，partial仅in_progress或不变。普通事项not_started只能到in_progress；只有worldMatterConditions中successfulAttemptCanStartAndComplete=true的可信已定义机会，在本次完整实际attempt满足全部条件且succeeded时可提completed，运行时会受控开始再完成；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
+          content: `你是幕后现场导演，提出纯文字可观察的环境和行动裁定，不能改时间、身份、替玩家作下一决定。narration只写环境；玩家此刻动作和结果只放observation，不替玩家写准备或心理，不代人物执行动作。日程约定者不等于到场者：开场actors仅是合法当前生效预约候选：你不可强制赴约，presentActorIds只作候选建议并会由各自独立人物调用的当前到场决定替换，允许最终为空；无action时outcome/observation必须null；authoredStepDefinition非空时已有正式父事项及分步定义，initialMatters必须[]、matterTitle=null，不再创建核对/交代/交付等重复独立小事项；没有正式分步定义时可建立与日程相关的具体未开始事项，不设固定任务数量。action存在时presentActorIds必须是当前实际在场者，不增删人物；plan/hypothesis仅记录，outcome/observation=null、matterUpdates=[]，不执行想象。attempt有已保存原文，只裁定这一动作；有条件和协商过程，不因一句“同意/成功”给事业成果、钱、奖励或他人同意；行动只到下一必要选择。dialogues始终[]，对白由独立人物提出。不得发明图片/视频。仅JSON，不写Markdown：${JSON.stringify({ evidenceFormat: 'indexed-observations-v3', location: '实际地点', narration: '可见现象', presentActorIds: ['人物id'], outcome: c.action?.intent === 'attempt' ? 'partial' : null, observation: c.action?.intent === 'attempt' ? ['你本次实际执行动作的可观察结果；此为结构占位，不得照抄或补造成功'] : null, matterTitle: null, initialMatters: [], matterUpdates: [], dialogues: [], stepProposals: [] })}。ID区分：matterUpdates.id必须取worldMatterConditions.id（现场投影ID）；stepProposals.matterIndex必须是structuredStepContexts里给定的数字序号，不是现场或世界事项ID。NPC actions.matterId仍由独立NPC调用取其已授权stepExecution.matterId（世界事项ID）；导演不输出NPC动作。evidenceFormat必须精确为indexed-observations-v3。observation用中文字符串数组，每段以“你”描述玩家本次实际动作；步骤通过observationIndex从0起引用其中一段，不重复抄写观察，不造证据。精确JSON类型：location为非空字符串(最多200字)，narration为非空字符串(最多1600字)，presentActorIds为字符串数组(最多8)，outcome仅succeeded/failed/partial/null，observation为1至8个非空字符串的数组或null，拼接换行后总计最多1600字，供步骤引用的每段3至500字，matterTitle为非空字符串(最多200字)或null；initialMatters是最多32个{title:非空字符串}，matterUpdates是最多8个{id:现有现场事项字符串ID,status:in_progress/blocked/completed}；dialogues必须[]。stepProposals为最多8个{matterIndex:给定规则序号整数,stepId:规则步骤字符串ID,inputQuote:当前玩家原文片段,observationIndex:0至7整数,receiverIndex?:本规则接收人列表整数序号}，inputQuote为3至500字，observationIndex必须指向本次observation数组实际存在的段落；禁止matterId和observationQuote字段；v3必须完全省略receiverId字段；matterIndex必须从当前structuredStepContexts选取，示例0只展示数字类型，未给第0项时不可使用；不得同时输出新旧格式。null观察不得带步骤。repair_explained和handed_over必须显式给receiverIndex整数，选本matterIndex对应allowedReceivers中明确的receiverIndex；其他步骤必须省略receiverIndex，绝不能写null、字符串或undefined字面值。接收者不能从另一事项借来，即使当前只有一个接收者也不能省略索引或默认补人。inputQuote和所选观察段必须原样包含同一接收者name，截取原文时保留向谁说明/交给谁；若原文未点名不得补名字或制造该步骤。stepProposals和npcActions无候选时用[]，不得null；npcActions只能[]或省略，因为导演不能代人物行动。其他未知字段一律不要输出。仅结构示例（占位值不可照抄，未实际执行不得填步骤）：${JSON.stringify({ stepProposals: [{ matterIndex: 0, stepId: 'order_reviewed', inputQuote: '仅截取本次实际核对R17维修单的完整原文', observationIndex: 0 }] })}；交接类示例结构：${JSON.stringify({ matterIndex: 0, stepId: 'handed_over', inputQuote: '本次实际将R17钥匙和维修单交给接收人的原文', observationIndex: 0, receiverIndex: 0 })}。不得照示例创造动作或凑证据，未执行stepProposals=[]。matterTitle只用于开场，更新只能关联action.relatedMatterIds的现有事项；没有关联事项时matters=[]，必须matterUpdates=[]，仍正常裁定行动观察，不自行猜测事项ID；completed仅由succeeded支撑，blocked只由failed支撑，partial仅in_progress或不变。普通事项not_started只能到in_progress；只有worldMatterConditions中successfulAttemptCanStartAndComplete=true的可信已定义机会，在本次完整实际attempt满足全部条件且succeeded时可提completed，运行时会受控开始再完成；in_progress可到blocked/completed；blocked可到in_progress/completed；completed/abandoned不再更新。不要每轮完成事项或制造困难。`,
         },
         {
           role: 'user',
@@ -765,6 +820,7 @@ export class ScenePlanner implements ScenePlannerPort {
     if (opening) p.presentActorIds = [];
     for (const actor of speakers) {
       const blockedSources = new Set(c.blockedSourcesByActor?.[actor.id] ?? []);
+      const actorVoice = `你正在扮演${actor.name}。以人物本人第一人称“我”直接对玩家“你”说话，说“给我”，不以自己的姓名作第三人称任务播报；旧对白中此类复述不是你本轮的语气模板。只说本人实际知道的内容；身份与动作许可不等于动作已经发生。`;
       const remembered = actorContext(
         c.world,
         actor.id,
@@ -778,6 +834,7 @@ export class ScenePlanner implements ScenePlannerPort {
             {
               role: 'system',
               content:
+                actorVoice +
                 '你是此人物，独立决定这一刻是否实际在这个公开地点出现。这是本次开场的有限虚构行动提案，由运行时同开场事务校验保存，不是从预约或旧对白推定到场。结合自己的立场、已知约定/对话和当前当地故事时间判断，可true也可false；confirmed预约只是合法候选资格，不强制赴约。不得替玩家或其他人物行动、决定别人是否到场、编排未来玩家步骤，也不执行R17接收/检修/交付或产生事项进展。只看提供的本人知识与公开地点；还未正式加入，不知道旧现场历史或他人私聊。不能编迟到理由或瞬移跨地点。仅输出严格JSON {"present":true或false,"text":"当前现场自然的一两句发言"或null}，不含actorId/presentActorIds/actions等其他字段。present=true必须有非空当前现场发言，不能只说以后会到；present=false用null（解释文字也不会保存为现场发言）。身份由本次调用绑定，结果保存后才正式成为在场人。当前对话对象addressee固定为玩家主角，不是客户、车主或其他联系人；visibleFacts中谈及的车主姓名不能当作玩家姓名。仅按已裁剪可见事实中的虚构公开身份理解主角；未给玩家姓名时称“你”，不从actor.persona或他人姓名猜玩家是谁。已知维修价格只代表相应维修记录，不能据此向错误对象索款，不能声称已经收费；未给价格时不编金额，不把未提供的玩家身份或setting共享进来。',
             },
             {
@@ -955,10 +1012,11 @@ export class ScenePlanner implements ScenePlannerPort {
           {
             role: 'system',
             content:
+              actorVoice +
               (actorSteps.length
                 ? '本轮有获准stepExecution规则。【两套进度】savedCompletedSteps和savedRemainingSteps仅表示此前已提交且你获准目击的进度；steps.done也只依据这些已存证据。currentTurnStepCandidates和observedNow是本轮可见裁定候选，不是已提交事实。若本轮观察已具体描述玩家核对且有同事项order_reviewed候选，应自然回应核对结果，不再说“单号先核对清楚”或要求重做该步骤。savedRemainingSteps仍列该步骤只是提交前快照，不是本轮新增门槛。可提此前未完成且本轮候选未覆盖的真实下一步；不得提前把候选markdone、宣布整体完成、领奖、新阶段或机会。'
                 : '没有获准结构化事项，不得提出动作。') +
-              '本次人物动作只用显式索引格式：严格JSON {"actionFormat":"indexed-npc-actions-v1","text":"当前自己的自然对白","actions":[]}。allowedActions是运行时提供给你本人且本轮有限可选择的槽位；每项actionIndex为整数，从0开始，包含真实世界matterId和唯一kind说明。槽位存在只表示允许提案，不表示已执行、必须合作或已完成事项。只在你这次确实实际执行时选择该槽位，用actions:[{actionIndex:该槽位整数,quote:同次text中实际执行的精确原文}]。不输出matterId、kind或actorId字段，不猜索引或从别的角色列表借用，未知字段禁止。allowedActions=[]时actions必须[]，普通核对/说明不是你接收、检修；没有动作时仍用同一actionFormat与actions=[]。示例只说明JSON格式，text应按本轮可见内容自然表达，绝非默认台词。不要照示例制造动作，不输出旧别名、组合kind、null、字符串索引或步骤ID。' +
+              '本次人物回复只用显式完整段索引格式：严格JSON {"actionFormat":"indexed-npc-actions-v2","text":["当前本人直接对玩家的一段自然发言"],"actions":[]}。text为1至8个完整非空中文段，合计含段间换行最多1600字。每个实际动作单独一段，以“我”及本人此刻已执行的动作开头并写全对象；闲聊另成段，不截取或省略主语和物件。allowedActions是你本人本轮有限可选择的槽位，actionIndex整数从0开始；许可不是已经执行、强制合作或整体完成。只在你这次确实执行时用actions:[{actionIndex:实际槽位整数,quoteIndex:text中该完整动作段从0开始的整数序号}]，动作段3至500字，quoteIndex必须实际存在，不重抄quote，不选择半句话或另一段。最多4动作，不猜任何索引，不从别的角色借槽，不输出matterId/kind/actorId/quote字段。allowedActions=[]时actions必须[]，普通核对/说明不是你接收/检修；无动作也使用同一marker和text数组。示例仅展示格式、绝非默认台词或执行证据，不照抄制造动作。' +
               (allowedActions.length
                 ? '本轮已提供动作槽位。receive_r17只表示你本人实际接过玩家明确交给你的R17钥匙和维修单；quote必须是同次text里第一人称“我接过/我现在接过/我收下”等实际执行原文并包含钥匙和维修单。inspect_r17只表示你本人实际检查R17/接头，quote必须明确“我检查了/核对了R17或接头”。选择哪一个actionIndex须读allowedActions，不能固定假定某个索引永远表示接收。未来承诺、意向、假设、请求、失败或否定不能列actions。已存动作不再次执行。'
                 : '本轮没有可执行动作槽位。不声称已接过、已检查或把玩家说明误记成你自己的动作；可自然回应本轮说明及未完成的一项真实下一步。') +
@@ -1037,9 +1095,11 @@ export class ScenePlanner implements ScenePlannerPort {
       } catch (error) {
         if (
           error instanceof DomainError &&
-          ['scene_npc_action:action_index', 'scene_npc_action:duplicate_index'].includes(
-            error.message,
-          )
+          [
+            'scene_npc_action:action_index',
+            'scene_npc_action:duplicate_index',
+            'scene_npc_action:quote_index',
+          ].includes(error.message)
         )
           throw error;
         throw sceneParseError(error, true);
