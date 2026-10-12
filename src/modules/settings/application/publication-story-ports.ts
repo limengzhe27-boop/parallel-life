@@ -38,6 +38,15 @@ export type PublicationStoryProgress = {
   }[];
   pending: { claimId: string; commandId: string; status: 'claimed' | 'unknown' } | null;
 };
+export type PublicationSceneBrief = {
+  nodeKey: string;
+  editorialIntent: string;
+  actorIds: string[];
+  placeId: string;
+  placeName: string;
+  invitationId: string;
+  sourceEventId: string;
+};
 export interface PublicationStoryPort {
   prepare(
     ownerId: string,
@@ -53,6 +62,11 @@ export interface PublicationStoryPort {
     commandId: string,
   ): Promise<PublicationStoryProgress>;
   retry(ownerId: string, worldId: string, claimId: string): Promise<PublicationStoryPrepare>;
+  sceneBrief(
+    ownerId: string,
+    worldId: string,
+    invitationId: string,
+  ): Promise<PublicationSceneBrief | null>;
   invitationLinks(
     ownerId: string,
     worldId: string,
