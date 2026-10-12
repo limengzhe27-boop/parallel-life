@@ -1179,3 +1179,35 @@ EXPERIENCE-09用户随后明确：预设内容由相关人员提供，本轮只�
 |BRANCH-CATEGORY-01|[ ] 待开发（排在当前真实链路后）|建议Q负责前端，B负责契约/集成与验收；均未领取|分支顶部分类导航及预设、草案、存档统一展示；实施前登记具体文件|用户明确要求全部、我的等顶部分类，不继续异构内容一组堆叠。研究建议全部/精选/我的，名称尚可讨论；我的含个人存档（包括源自预设）与可继续草案，精选是预设目录而非存档；统一卡片层级/说明入口/动作语义，不假计数/按钮、不跨用户显示、不自动重建。当前母04收口后再实施。|
 |SCENE-STAGE-01|[x] 已完成（限定现场呈现）|codex-root-scene-stage-01-20261012；复用附加干净lock-02-notifications工作树；codex/scene-stage-01；778eff3|scene-panel.tsx、scenes.module.css、新stage呈现组件/纯helper/专属css、world-phone-app.tsx必要字段传递、phone-shell.tsx/phone.module.css必要现场布局、public/art/scenes原创新静态示意、新tests、DESIGN.md现场附录、专属报告与本行；无domain/planner/repo/SQL/AI prompt更改|用户批准场景画面、在场人物、分离旁白/对白、顶部真实微信通知及原自由输入。根接回本轮唯一集成/发布；B已结束04（16of18closed、测试world暂停、完整链仍未过），Q仅只读审UI与notification。复用player可见media_reference，不冒充生图，缺图明确原创示意；图片失败有fallback。保持原幂等/动作保存/unknown和重试/权限，不自动发消息或生成。双端/短屏/手机输入、check/build、生产41迁移只读确认、准确commit推送/READY/public验收再交付。0新增模型/上传/生产业务写。 根源初版已写独立树，Q指出不能owner-only资产访问；改接phoneData.photos已有world/revision URL，空/404明示fallback。首次check旧RLS因55456未启动失败；此刻已lsof确认无监听，根独占该附加树原本地PG55456，仅check/RLS合成验证，后续dev3275核空后启，非生产模型。 根候选adeb022、Q规划e46准确归档20b4505，Q流媒体源阻断已修b01916f；final1335check/type0/build0、新10SSR都过；41生产hash只读匹配0SQL；actual合成UI390/短500/PC内420/来信路由与draft/scroll恢复过，220/top90几何模拟输入底309.5<=310，非真机。PG55456/HTTP3275停、Ego149已结束；0新模型/生产世界写/图，04closed不动，等待Q准确复核与READY/public。新增生产notFound的ui-preview/scene-stage及开发合成transport用于实际组件QA，无真实API；文件范围已扩展该页面/preview组件。 业务b7679a8/cjf1qa972/dpl_G61acanuNRomCYkPxKUHLp9TpRCy READY，正式alias准确匹配；public旧paused存档8组/跨owner隔离和一致版本、3新SVG200、dev-only scene preview404过，0模型生产世界写。Q准确b019静态通过、6456报告补记已归档5737870；最后1335check/336boundary/type0/build0、41迁移匹配。本项完成限UI与通知/媒体安全，任意动作、真实生图、自然全链仍未完成；准备最终报告归档提交。|
 |SCENE-STAGE-01Q-PLAN|[x] 已完成（只读规划与源审）|codex-scene-stage01q-plan-01a0c7c8-20261012；辅助独立树|仅新docs/task-reports/SCENE-STAGE-01Q-PLAN.md与本人行；全部源码/契约/SQL只读|对准确已发布778eff3审scene媒体、通知层与短屏，根源码独占；冻结后审真实UI；0模型PG生产端口发布。 2026-10-12本人短锁领取确认，沿用独立/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本，新codex/scene-stage-01q-plan自准确已发布778eff3；旧树clean/2d9+c3源和报告冻结、旧分支保留。不读根WIP验收，仅只读shell通知/media_reference授权图/在场人物字段、390长短/键盘限制；专属新报告及本人行，无src/tests/contract/SQL改动。0模型PG生产/端口/浏览器/部署，04已closed不沿用，分类/人物名片先排队。 2026-10-12精确PLAN freeze e46ba586db0d7da074e47fcd87f66ba6bc0f1ffc仅报告1file，已发布基线778eff3；确认shell scene仍可新ID真实微信横幅但非OS push、旧ID不冒新；media_ref空分支/无URLrevision需同world ready授权map、头像kind与实际presence安全字段；reading内scroll恢复、群/私聊返回、visual height/offset、paused旧世界防autoAdvance及历史时间/人物语义均给验收矩阵。根已采纳player可见media映射/示意标注/壳保留等。仅只读/diff/登记回读，0test/checkbuild/浏览器端口/HTTP/PG/model/upload/部署、无截图。报告镜像同步、树clean，待根实现freeze及另明只读UI验收，不能以矩阵当产品或真机通过；旧04closed/全链未过，分类名片仍排队。 2026-10-12报告补记精确6456ac5b46be2013b33fb21a8be7a2acd7f4e71c仅本人report；对adeb022指出hero/stream媒体关联过滤不一致，根b01916f统一entry+嵌media世界/owner/player/scene/版本/purpose/illustration同event后限定静态审核通过，无进一步发布阻断。源/test未改；通知层、原command/failedunknown/worldsync/phoneVersion/onBusy与scene内scroll缓存/container保留。根实际浏览器和final1335/type/build/41校验回传分开归属，Q0浏览器PG模型端口/部署，报告矩阵非亲验；仅文档diff/本人行回读，树clean。等待根最终READY/public决定完成，报告主镜像同步，旧04closed不改。 根已准确归档e46/6456（20b4505/5737870），b019限定静态过，b7679已READY/public，Q0模型PG浏览器与发布，范围释放。|
+
+
+## 18. 同事剧本接收与内部发布后台（2026-10-12）
+
+用户提供人物、世界观及任务节点原稿，要求归档并规划可发布给所有用户体验的内部后台。最新要求将 CREATOR-PRO-01 第一阶段收窄为内部世界发布；当前 BRANCH-CATEGORY-01 / NPC-AVATAR-UNIFY-03B 独占范围不变。
+
+|任务|状态|负责人|范围|验收与接续|
+|---|---|---|---|---|
+|SCRIPT-INTAKE-01|[ ] 待验收（原件已归档、方案已整理）|codex-main-script-intake-publish-plan-20261012；根唯一集成|干净独立树.local/worktrees/world-publish-intake-01（83f9c11）；原件主.local/script-library；docs/script-library/**、docs/WORLD_PUBLISHING_MVP_PLAN.md、本人报告及主表相关行；业务只读|原稿完整字节及SHA256、ZIP安全解包/附件引用、来源与缺失/冲突索引。不自动将私有原稿、内部链接或未经核对内容公开；归档不等于剧本上线。0模型/图/生产写。归档8/8摘要核验、四文本及三图片已读；两JPG为白板非人像。1335check/type0/336边界/build0，生产41校验一致；0业务/生产改写。方案/报告已保存，原件不上传；仍待文档提交部署和公网核验，后台未实现。根独占本轮新工作树本地PG55476（dev/test）用于必需check内RLS；无HTTP/生产写，启动前核监听。|
+|WORLD-PUBLISH-01|[ ] 规划与分工进行中（用户最新优先级）|根唯一公共契约与集成，Q界面规划、B发布数据规划|内部后台：世界草稿、结构化人物/开场、试演、发布版本、所有用户独立体验；源码与迁移领取前逐项冻结|先核对内容编排及可执行事件差距、内部发布身份、公共素材、动态目录和旧存档隔离。不要求先开发完整导演编排器，不把导入文档当作可玩发布；详见WORLD_PUBLISHING_MVP_PLAN.md。|
+
+WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；01B 目录/发布持久化与权限；01C 发布素材；01D 编辑后台；01E 玩家动态目录与独立实例化；01F 样例真实试演及部署。依赖与验收见方案，不另设状态总表。
+
+
+用户补充（2026-10-12）：任务节点是可被导演推动的剧情可能性，不是必经步骤；原稿格式允许未来新增字段。优先完成内部发布世界后台，取代CREATOR-PRO-01旧末位对第一阶段的排期，完整专业后台仍保留；旧存档不批量改写。世界/角色/候选优先版本化JSONB，发布权限/关系/版本/查询等稳定信息按必要增量迁移。未知原稿留源资料，运行未知字段不能自动生效。
+
+|任务|状态|负责人|范围|验收与接续|
+|---|---|---|---|---|
+|WORLD-PUBLISH-01A|[ ] 进行中（公共规划，未改契约源码）|codex-main-script-intake-publish-plan-20261012；根唯一集成|独立world-publish-intake-01；方案/本人报告/主表，发布内容/权限/素材/旧版本源码只读|先汇集B/Q意见并冻结能力与契约；新字段可存/可编辑/可影响运行分开；当前不执行生产迁移。|
+|WORLD-PUBLISH-01D-PLAN|[ ] 进行中|codex-worldpublish01d-plan-01a0c7c8-20261012；辅助01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b|仅docs/task-reports/WORLD-PUBLISH-01D-PLAN.md及本人行，业务/SQL/公共契约只读|分支分类77b0fd2已冻；转后台作品、世界、角色、候选、初始手机、素材、试演发布的条理化布局与操作；按当前稿格式导入，公开/隐藏/已发生/未来分区。根冻结后另派实际UI。0模型DB端口部署。 2026-10-12本人短锁领取；独立/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本，新codex/world-publish-01d-plan从clean77b0fd2保原分支。已读最新候选/JSONB/旧档政策，只报告结构/操作/接口需求，不定义01D实现或公共协议；0源码/模型DB图端口部署。先交可审核页面结构，再完善状态和验收。|
+|WORLD-PUBLISH-01B-PLAN|[ ] 待验收|codex-world-publish01b-plan-01a11a84-20261012；排查分支创建失败01a11a84-9572-7ab0-92fb-967f963dfc20|仅docs/task-reports/WORLD-PUBLISH-01B-PLAN.md及本人行，业务/SQL/公共契约只读|核对动态目录、员工权限、发布素材、候选而非必经剧情、JSONB及必要关系字段、旧4模板/世界兼容和12真实PG负例；根冻结后另派实际后端。0模型生产写端口部署。 2026-10-12本人只读规划报告已交：83f9c11/0032–34/0040–41真实边界、版本化JSON/六类核心持久边界与草稿复用、兼容旧四seed/独立instance、稳定角色映射、可选节点不代玩家选择、dry-run/回滚及18真实PG例。无源码/SQL/contract、0模型PG生产图端口部署，等I冻结后另派实施。主表I后补同任务分配行与本人先登记行已按本人范围短锁合并保I定义；NPC名片源2fd8917已冻结32局部/type0/337。同步工具虽有人类授权仍policy never，未发成功。|
+
+保留的未完成接续（摘要不替代原任务行）：
+- BRANCH-CATEGORY-01：77b0fd2冻结待根双端/集成部署，未上线；NPC-AVATAR-UNIFY-03B：当前实施待冻结与根验收。
+- NPC-PROFILE-02：公开身份/性格/经历的创作者来源、玩家投影与旧档策略尚未完成；不能拿后台Persona直接展示。
+- SPACE-MATTER-AI-QA-04：真实模型交付仍2/4、closed16/18；实际接收→完成→机会→下一行动→私聊全链未过，不能沿用旧预算。
+- NAR-02/03/04：可持续剧情候选/导演选择、NPC实际后果、回访与首次轻互动质量仍需开发/评测，局部上线不等于整个主任务完成。
+- CHAT-SESS-02/03/04/05：多聊天身份、持久化、资料/照片和构思隔离及切换界面仍待串行契约与开发；旧WIP不自动算完成。
+- NAR-03S/M媒体：真实图生图、角色一致性、按需图片与消息/相册/现场联动等待实测，不以插画当生成结果。
+- 地图/现场/时间：已有到达、现场呈现等限定上线；任意内容节点、动态地点与人物行动/机会/回访的整体体验、真机键盘与视觉仍需验收。
+- LIB-02B/03/04/05/06：一般内容版本、创作与公开发布完整链仍未完成；本WORLD-PUBLISH首期承接内部发布子范围，不删除普通用户创作或未来发布治理需求。
+- 完整专业创作者后台、多人与语音等保持原清单；语音按用户要求暂缓，本轮不实施。
