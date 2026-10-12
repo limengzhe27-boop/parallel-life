@@ -21,10 +21,12 @@ export function SceneStage({
   read,
   contacts,
   photos = [],
+  onSelectPerson,
 }: {
   read: SceneRead;
   contacts: readonly PhoneContact[];
   photos?: readonly PhonePhoto[];
+  onSelectPerson?: (person: PhoneContact) => void;
 }) {
   const art = sceneArtwork(read, photos);
   const [failed, setFailed] = useState<string>();
@@ -62,6 +64,15 @@ export function SceneStage({
                   <strong>{person?.name ?? '在场的人'}</strong>
                   {person?.relationship ? <small>{person.relationship}</small> : null}
                   {person?.summary ? <p>{person.summary}</p> : <p>暂无更多公开介绍。</p>}
+                  {person && onSelectPerson ? (
+                    <button
+                      type="button"
+                      className={s.speakBtn}
+                      onClick={() => onSelectPerson(person)}
+                    >
+                      💬 与{person.name}对话
+                    </button>
+                  ) : null}
                 </div>
               </details>
             );

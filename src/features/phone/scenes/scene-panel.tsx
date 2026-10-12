@@ -236,8 +236,42 @@ export function ScenePanel({
                 } catch {}
             }}
           >
-            <SceneStage read={data} contacts={contacts} photos={photos} />
+            <SceneStage
+              read={data}
+              contacts={contacts}
+              photos={photos}
+              onSelectPerson={(person) => {
+                const prefix = `对${person.name}说：`;
+                setText(prefix);
+                try {
+                  sessionStorage.setItem(draftKey, prefix);
+                } catch {}
+                if (inputRef.current) {
+                  inputRef.current.focus();
+                  inputRef.current.setSelectionRange(prefix.length, prefix.length);
+                }
+              }}
+            />
             <section className={s.sceneControls}>
+              <button
+                type="button"
+                className={s.quickPhoneBtn}
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    if (data.scene!.status !== 'ended')
+                      await client.navigate(worldId, data.scene!.id, {
+                        commandId: crypto.randomUUID(),
+                        expectedVersion: data.worldVersion,
+                        view: 'phone',
+                      });
+                    window.location.hash = routeHash(worldId, { app: null });
+                  })
+                }
+                title="返回手机主界面"
+              >
+                <span>📱</span> 回到手机
+              </button>
               <time>
                 {worldDateTimeLabel(
                   overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
@@ -521,17 +555,23 @@ export function ScenePanel({
                   (m) => !['completed', 'abandoned'].includes(m.status),
                 );
                 const title = activeMatter?.title || '';
-                const suggestions = title
-                  ? [
-                      `推进「${title}」：主动说明来意与最新情况`,
-                      `试探对方对「${title}」的真实态度`,
-                      '暂时按下不表，先闲聊观察周围动静',
-                    ]
-                  : [
-                      '诚恳打个招呼，观察现场气氛',
-                      '直奔主题，提出眼下最紧要的问题',
-                      '保持沉默，静观其变',
-                    ];
+                const presentActors = overview?.people.filter((p) => p.kind === 'actor') ?? [];
+                const firstActor = presentActors[0];
+                const firstActorName = firstActor
+                  ? contacts.find((c) => c.id === firstActor.actorId)?.name ?? '在场的人'
+                  : null;
+
+                const suggestions: string[] = [];
+                if (firstActorName) {
+                  suggestions.push(`向${firstActorName}打招呼，试探对方态度`);
+                }
+                if (title) {
+                  suggestions.push(`推进「${title}」：主动说明来意与最新情况`);
+                } else {
+                  suggestions.push('说明自己的来意，询问当前状况');
+                }
+                suggestions.push('环顾四周，仔细观察周围动静与细节');
+                suggestions.push('保持克制，静观其变');
                 return (
                   <div className={s.suggestionRow} aria-label="行动灵感">
                     <span className={s.suggestionLabel}>灵感：</span>
