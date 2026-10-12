@@ -1,3 +1,9 @@
+## 2026-10-12 · SCENE-STAGE-01 现场舞台呈现
+
+业务 b7679a8488648ec6705b714c96adbf715125780a（adeb022呈现、b01916f媒体源修复）；生产 cjf1qa972 / dpl_G61acanuNRomCYkPxKUHLp9TpRCy READY，正式域名 https://parallel-life-nu.vercel.app 精确alias核验。1335check/336边界/type0/build0、10新SSR/源范围用例通过，生产41迁移checksum只读匹配，无SQL变更。公网旧暂停合成存档8组读取/隔离/版本一致通过，3场景SVG200，开发场景预览404；0新模型、世界创建/业务写、上传/生图。390×844、390×500及PC1440内420已检查，通知→微信→返回草稿/内滚位置恢复；220/top90仅几何模拟，不称真机键盘通过。
+
+现有现场改为场景图、实际在场人物和分离的旁白/对白/行动；只使用已有world/revision授权素材，无图明确原创场景示意。原回执/unknown恢复、原真实顶部来信不变。Q e46规划/6456复核已准确归档，旧母04真实交付仍failed、2/4保持、16of18closed不动。PG55456/HTTP3275与Ego149已结束；无额外付费。仅现场呈现交付，角色自然性/任意复杂动作/场景生图与成果→机会→私聊全模型链仍待验。详见SCENE-STAGE-01报告。
+
 ## 2026-10-12 · AI-GATEWAY-LIFECYCLE-01 / NPC-RESULT-ACK-01 / 独立Q审计
 
 业务a1ef737，production 57rloofdv/dpl_A6GBHJZJvu7PEsH5hhLDsCVifzz9 READY/正式别名已切换；889check/332边界/type0/build0，全真实PG247pass+5明确模型opt-in skip、第二补最终PG10/10，生产41迁移一致无SQL。公网8组既有paused合成存档phone/records/map同版本、4目录/旧档保留/跨owner404及health页面通过；0新模型/图/世界/生产业务写，仅GET可能有基础限流记录。PG55452已停无监听，HTTP/browser未启，B/Q范围资源均释放。只证明传输及有限ACK，不证明旧85s供应商慢/场景结构输出或自然完整体验已治愈。
