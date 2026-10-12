@@ -505,28 +505,70 @@ export function ScenePanel({
                 });
               }}
             >
-              <label className={s.srOnly} htmlFor="scene-input">
-                说点什么，或做点什么
-              </label>
-              <textarea
-                id="scene-input"
-                value={text}
-                maxLength={4000}
-                disabled={disabled}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  try {
-                    sessionStorage.setItem(draftKey, e.target.value);
-                  } catch {}
-                }}
-                onInput={(event) => {
-                  event.currentTarget.style.height = '46px';
-                  event.currentTarget.style.height =
-                    Math.min(event.currentTarget.scrollHeight, 100) + 'px';
-                }}
-                placeholder="说点什么，或做点什么…"
-              />
-              <button disabled={disabled || !text.trim()}>发送</button>
+              {/* Dynamic Action Suggestions */}
+              {(() => {
+                const activeMatter = data.matters.find(
+                  (m) => !['completed', 'abandoned'].includes(m.status),
+                );
+                const title = activeMatter?.title || '';
+                const suggestions = title
+                  ? [
+                      `推进「${title}」：主动说明来意与最新情况`,
+                      `试探对方对「${title}」的真实态度`,
+                      '暂时按下不表，先闲聊观察周围动静',
+                    ]
+                  : [
+                      '诚恳打个招呼，观察现场气氛',
+                      '直奔主题，提出眼下最紧要的问题',
+                      '保持沉默，静观其变',
+                    ];
+                return (
+                  <div className={s.suggestionRow} aria-label="行动灵感">
+                    <span className={s.suggestionLabel}>灵感：</span>
+                    {suggestions.map((sug, idx) => (
+                      <button
+                        type="button"
+                        key={idx}
+                        className={s.suggestionPill}
+                        disabled={disabled}
+                        onClick={() => {
+                          setText(sug);
+                          try {
+                            sessionStorage.setItem(draftKey, sug);
+                          } catch {}
+                        }}
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className={s.composerInputRow}>
+                <label className={s.srOnly} htmlFor="scene-input">
+                  说点什么，或做点什么
+                </label>
+                <textarea
+                  id="scene-input"
+                  value={text}
+                  maxLength={4000}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    try {
+                      sessionStorage.setItem(draftKey, e.target.value);
+                    } catch {}
+                  }}
+                  onInput={(event) => {
+                    event.currentTarget.style.height = '46px';
+                    event.currentTarget.style.height =
+                      Math.min(event.currentTarget.scrollHeight, 100) + 'px';
+                  }}
+                  placeholder="说点什么，或做点什么…"
+                />
+                <button disabled={disabled || !text.trim()}>发送</button>
+              </div>
             </form>
           ) : null}
         </>
