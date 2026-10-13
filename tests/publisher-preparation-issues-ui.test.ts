@@ -13,7 +13,7 @@ registerHooks({
         shortCircuit: true,
         source: 'export default new Proxy({}, {get:(_t,k)=>String(k)})',
       };
-    if (url.endsWith('publisher-import-dialog.tsx') || url.endsWith('publisher-source-review.tsx'))
+    if (url.endsWith('.tsx'))
       return {
         format: 'module',
         shortCircuit: true,
@@ -46,7 +46,7 @@ test('three empty work fields produce three concrete Chinese hints from six sche
     messages.every((m) => m.reason === '内容尚不完整，请补充后再检查。' && m.details.length === 2),
   );
 });
-test('technical errors remain in collapsed details, absent from the main panel', () => {
+test('technical errors are not shown in the writer panel, including disclosures', () => {
   const html = renderToStaticMarkup(
     createElement(PublisherPreparationIssues, { issues: duplicateIssues, content: emptyWork }),
   );
@@ -54,9 +54,8 @@ test('technical errors remain in collapsed details, absent from the main panel',
   assert.doesNotMatch(main, /too_small|custom|experienceNote|work \/ hook/);
   assert.match(main, /一句话简介/);
   assert.equal((main.match(/<li>/g) ?? []).length, 3);
-  assert.match(html, /<details><summary>查看详细定位<\/summary>/);
+  assert.doesNotMatch(html, /查看详细定位|experienceNote|too_small|work \/ hook/);
   assert.doesNotMatch(html, /<details open/);
-  assert.match(html, /work \/ hook（too_small）/);
 });
 test('same field with different reasons and different rows do not lose distinct errors', () => {
   const messages = preparationIssueMessages([
@@ -87,9 +86,7 @@ test('unknown paths/codes remain reviewable, escaped and technically traceable w
   assert.equal(preparationIssueMessages(issues).length, 2);
   assert.match(main, /仍需核对/);
   assert.doesNotMatch(main, /futureExtension|FUTURE_RULE|__proto__|constructor|script/);
-  assert.match(html, /futureExtension/);
-  assert.match(html, /FUTURE_RULE/);
-  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /futureExtension|FUTURE_RULE|&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>/);
 });
 test('custom does not claim nonempty content is missing; empty list produces no warning panel', () => {

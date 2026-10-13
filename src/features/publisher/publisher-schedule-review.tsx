@@ -108,7 +108,7 @@ const reasons: Record<string, string> = {
 function reason(value: string) {
   return (
     reasons[value] ??
-    (/[\u3400-\u9fff]/.test(value) ? value : '按照本次排期规则补齐缺省时间；具体依据可展开查看。')
+    (/[\u3400-\u9fff]/.test(value) ? value : '按照本次排期规则补齐缺省时间，请对照原稿核对。')
   );
 }
 /** Read-only metadata paired with the exact current content; never runs the planner or writes a draft. */
@@ -154,19 +154,14 @@ export function PublisherScheduleReview({
               <li key={index}>
                 <strong>{scheduleLocation(content, issue.path)}</strong>
                 <p>{issues[issue.code] ?? '这处时间暂未能可靠安排，请核对原稿与现有时间。'}</p>
-                <details>
-                  <summary>查看定位与说明</summary>
-                  <p>
-                    {issue.path.join(' / ')} · {issue.code}
-                  </p>
-                  {issue.source && (
-                    <>
-                      <p>关联文稿：{issue.source.filename}</p>
-                      <blockquote>{issue.source.quote}</blockquote>
-                      <p>以上为待核对的文稿线索，不表示已验证原稿全部时序。</p>
-                    </>
-                  )}
-                </details>
+                {issue.source && (
+                  <details>
+                    <summary>查看原文线索</summary>
+                    <p>关联文稿：{issue.source.filename}</p>
+                    <blockquote>{issue.source.quote}</blockquote>
+                    <p>以上为待核对的文稿线索，不表示已验证原稿全部时序。</p>
+                  </details>
+                )}
               </li>
             ))}
           </ul>
@@ -192,13 +187,6 @@ export function PublisherScheduleReview({
                     {applied ? '安排时间' : '当前稿件时间'}：{scheduleTime(actual)}
                   </p>
                   <p className={s.help}>{reason(change.reason)}</p>
-                  <details>
-                    <summary>详细依据</summary>
-                    <p>{change.path.join(' / ')}</p>
-                    <p>排期记录值：{change.value}</p>
-                    <p>{change.reason}</p>
-                    {!applied && <p>此条排期记录未作为当前稿件时间展示。</p>}
-                  </details>
                 </li>
               );
             })}

@@ -117,7 +117,7 @@ test('labels use actual history, stages and future plot names; missing paths sta
   assert.match(html, /尚未安排/);
   assert.match(html, /不一致/);
 });
-test('unknown machine reasons remain available only as detailed evidence and all author text is escaped', () => {
+test('unknown machine reasons stay out of author view and all author text is escaped', () => {
   const c = {
     ...content,
     phone: { messages: [{ actorKey: 'person-a', text: '<script>原文</script>', at: stamp }] },
@@ -127,7 +127,7 @@ test('unknown machine reasons remain available only as detailed evidence and all
     c,
   );
   assert.match(html, /按照本次排期规则/);
-  assert.match(html, /SOME_FUTURE_REASON/);
+  assert.doesNotMatch(html, /SOME_FUTURE_REASON/);
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>/);
 });
@@ -160,7 +160,7 @@ test('large plans and issues default to collapsed summaries while preserving eve
   assert.match(html, /<details class="changes"><summary>/);
   assert.match(html, /<details class="warning"><summary>/);
   assert.match(html, /依据5/);
-  assert.match(html, /问题5/);
+  assert.doesNotMatch(html, /问题5/);
   assert.match(render(), /<details class="changes" open="">/);
 });
 test('blocked import distinguishes extracted material from a runnable publication', () => {

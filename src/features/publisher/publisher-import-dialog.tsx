@@ -1,5 +1,6 @@
 'use client';
 
+import { authorNotice } from './publisher-author-notice.ts';
 import { useEffect, useRef, useState } from 'react';
 import { extractZipEntries, parseFeishuMarkdownBundle } from './publisher-importer.ts';
 import {
@@ -10,6 +11,11 @@ import { PublisherClientError, type PublisherClient } from './publisher-client.t
 import s from './publisher-import-dialog.module.css';
 import { PublisherReviewView } from './publisher-review-view.ts';
 import { PublisherSourceReview } from './publisher-source-review.tsx';
+import {
+  detectPublisherPreparationScope,
+  type PreparationScope,
+} from '../../modules/settings/domain/publication-preparation-scope.ts';
+import { manuscriptBatches } from './publisher-manuscript-batches.ts';
 import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
 
 type Proposal = ReturnType<typeof parseFeishuMarkdownBundle>;
@@ -44,8 +50,10 @@ export function preparationMatches(
   content: Record<string, unknown>,
   sources?: Source[],
   commandId?: string,
+  scope?: PreparationScope,
 ) {
   return (
+    (!scope || record.material.scope === scope) &&
     record.workId === workId &&
     record.draftVersion === version &&
     (!commandId || record.commandId === commandId) &&
@@ -75,7 +83,7 @@ export function preparationChangeSummary(
     const labelOf = (row: unknown, index: number) => {
       if (!row || typeof row !== 'object') return `第 ${index + 1} 项`;
       const r = row as Record<string, unknown>;
-      return String(r.name ?? r.title ?? r.text ?? r.key ?? `第 ${index + 1} 项`).slice(0, 100);
+      return String(r.name ?? r.title ?? r.text ?? `第 ${index + 1} 项`).slice(0, 100);
     };
     b.forEach((row, index) => {
       const old = previous.find((value, i) => keyOf(value, i) === keyOf(row, index));
@@ -128,7 +136,7 @@ function groupLabel(key: string) {
 type PreparationIssue = NonNullable<PublisherPreparationRecord['result']>['issues'][number];
 const issueFields: Record<string, string> = {
   ...groupNames,
-  key: '编号',
+  key: '条目对应关系',
   title: '名称',
   hook: '一句话简介',
   description: '作品简介',
@@ -191,8 +199,8 @@ const issueReasons: Record<string, string> = {
   invalid_type: '内容格式不正确或尚未填写，请补充后再检查。',
   invalid_value: '请选择支持的内容或填写方式。',
   invalid_union: '内容结构不完整，请补齐后再检查。',
-  unrecognized_keys: '包含暂不支持的字段，请核对后调整。',
-  duplicate_key: '存在重复编号，请分别设置不同编号。',
+  unrecognized_keys: '部分内容暂不能用于体验，请核对后调整。',
+  duplicate_key: '有条目无法正确区分，请核对重复内容，或重新整理这些条目。',
   unknown_actor: '关联人物不存在，请重新选择人物。',
   unknown_place: '关联地点不存在，请补充地点或重新选择。',
   unknown_fact: '关联事实不存在，请补充事实或重新选择。',
@@ -243,7 +251,7 @@ export function preparationIssueMessages(
             ? `第 ${part + 1} 项`
             : Object.hasOwn(issueFields, part)
               ? issueFields[part]
-              : '其它字段',
+              : '其它内容',
         )
         .join(' · ') || '世界内容';
     const value = ownValue(content, issue.path);
@@ -284,16 +292,6 @@ export function PublisherPreparationIssues({
           </li>
         ))}
       </ul>
-      <details>
-        <summary>查看详细定位</summary>
-        <ul>
-          {issues.map((issue, index) => (
-            <li key={index}>
-              {issue.path.join(' / ') || '（世界内容）'}（{issue.code}）
-            </li>
-          ))}
-        </ul>
-      </details>
       <p>填入后仍需保存并通过完整检查，再试演和发布。</p>
     </div>
   );
@@ -315,7 +313,11 @@ export function PublisherImportDialog({
   content: Record<string, unknown>;
   disabled: boolean;
   preparationClient?: PreparationClient;
-  onApply: (content: Record<string, unknown>, summary: Proposal['summary']) => void;
+  onApply: (
+    content: Record<string, unknown>,
+    summary: Proposal['summary'],
+    options?: { keepOpen?: boolean },
+  ) => void;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -326,6 +328,20 @@ export function PublisherImportDialog({
   const [operationId, setOperationId] = useState<string>();
   const [notFound, setNotFound] = useState(false);
   const [sources, setSources] = useState<Source[]>([]);
+  const [scopeChoice, setScopeChoice] = useState<'auto' | PreparationScope>('auto');
+  const operationScope = useRef<PreparationScope | undefined>(undefined);
+  const detectedScope = detectPublisherPreparationScope(sources);
+  const chosenScope =
+    scopeChoice === 'auto'
+      ? detectedScope.confidence === 'recognized'
+        ? detectedScope.scope
+        : 'characters'
+      : scopeChoice;
+  const [library, setLibrary] = useState<Source[]>([]);
+  const [remainingSources, setRemainingSources] = useState<Source[]>([]);
+  const continuation = useRef<{ workId: string; remaining: Source[] } | undefined>(undefined);
+  const queue = manuscriptBatches(remainingSources, content);
+
   const [reading, setReading] = useState(false);
   const [activity, setActivity] = useState('');
   const [error, setError] = useState('');
@@ -355,8 +371,19 @@ export function PublisherImportDialog({
     result: PublisherPreparationRecord,
     expectedSources?: Source[],
     expectedId?: string,
+    expectedScope?: PreparationScope,
   ) {
-    if (!preparationMatches(result, workId, version, content, expectedSources, expectedId)) {
+    if (
+      !preparationMatches(
+        result,
+        workId,
+        version,
+        content,
+        expectedSources,
+        expectedId,
+        expectedScope,
+      )
+    ) {
       setError('整理结果属于不同的作品、原稿或编辑版本，未填入当前草稿。请核对后重新整理。');
       return;
     }
@@ -364,6 +391,7 @@ export function PublisherImportDialog({
     setRecord(result);
     setOperationId(result.commandId);
     setSources(result.material.sources);
+    setScopeChoice(result.material.scope ?? 'world');
     setReviewedOriginal(false);
     setReviewedAdditions(false);
     setProposal(undefined);
@@ -398,10 +426,21 @@ export function PublisherImportDialog({
     const start = baseline;
     clearResult();
     setSources([]);
+    setScopeChoice('auto');
+    operationScope.current = undefined;
     setText('');
     setReading(false);
     inFlight.current = false;
     setActivity('');
+    if (continuation.current?.workId === workId) {
+      const remaining = continuation.current.remaining;
+      continuation.current = undefined;
+      setRemainingSources(remaining);
+      setSources(manuscriptBatches(remaining, content).batches[0] ?? []);
+      return;
+    }
+    setLibrary([]);
+    setRemainingSources([]);
     if (!preparationClient || disabled) return;
     // Server scopes latest to this signed-in staff member. No manuscript enters browser storage.
     inFlight.current = true;
@@ -435,12 +474,22 @@ export function PublisherImportDialog({
     inFlight.current = true;
     setReading(true);
     clearResult();
-    setSources([]);
     try {
       const files = await read();
       if (!files.length || !files.some((file) => file.content.trim()))
         throw Error('没有可读取的文稿，请选择 Markdown 或粘贴正文。');
-      if (stillCurrent(id, start)) setSources(files);
+      if (stillCurrent(id, start)) {
+        if (
+          files.length > 64 ||
+          files.reduce((n, f) => n + new TextEncoder().encode(f.content).length, 0) >
+            4 * 1024 * 1024
+        )
+          throw Error('正文最多64份、合计4 MB，请分两次选择。原有文稿仍保留。');
+        setScopeChoice('auto');
+        setLibrary(files);
+        setRemainingSources(files);
+        setSources(manuscriptBatches(files, content).batches[0] ?? []);
+      }
     } catch (e) {
       if (stillCurrent(id, start))
         setError(e instanceof Error ? e.message : '没能读取文稿，请检查格式。');
@@ -452,11 +501,11 @@ export function PublisherImportDialog({
     }
   }
   async function readFiles(list: File[]) {
-    if (!list.length || list.length > 32) throw Error('一次请选择 1—32 份文稿或压缩包。');
+    if (!list.length || list.length > 64) throw Error('一次请选择 1—64 份文稿或压缩包。');
     const result: Source[] = [];
     for (const file of list) {
       if (/\.zip$/i.test(file.name)) {
-        if (file.size > 5 * 1024 * 1024) throw Error('压缩包不能超过 5 MB。');
+        if (file.size > 50 * 1024 * 1024) throw Error('压缩包不能超过 50 MB。');
         result.push(
           ...(await extractZipEntries(await file.arrayBuffer())).map((entry) => ({
             ...entry,
@@ -466,18 +515,18 @@ export function PublisherImportDialog({
       } else {
         if (!/\.(md|markdown|txt)$/i.test(file.name))
           throw Error('请选择 Markdown、文本或 ZIP 文件。');
-        if (file.size > 128 * 1024) throw Error('单份文稿不能超过 128 KB，请拆分整理。');
+        if (file.size > 2 * 1024 * 1024) throw Error('单份正文最多 2 MB，请按人物或剧情章节拆分。');
         result.push({
           filename: file.name,
           content: new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()),
         });
       }
       if (
-        result.length > 32 ||
+        result.length > 64 ||
         result.reduce((sum, item) => sum + new TextEncoder().encode(item.content).length, 0) >
-          128 * 1024
+          4 * 1024 * 1024
       )
-        throw Error('一次最多导入 32 份、合计 128 KB 的文稿，请分批整理。');
+        throw Error('一次最多读取 64 份、合计 4 MB 的正文，原有文稿仍保留。');
     }
     return result;
   }
@@ -489,7 +538,9 @@ export function PublisherImportDialog({
       return;
     if (!preparationClient || current.current.disabled || inFlight.current || !sources.length)
       return;
+    const scope = replay ? operationScope.current : chosenScope;
     const input = PublisherPreparationInputSchema.safeParse({
+      ...(scope ? { scope } : {}),
       commandId: replay ? operationId : crypto.randomUUID(),
       expectedDraftVersion: version,
       currentContent: content,
@@ -504,12 +555,14 @@ export function PublisherImportDialog({
     inFlight.current = true;
     clearResult();
     setOperationId(input.data.commandId);
+    operationScope.current = input.data.scope;
     setSources(input.data.sources);
     setActivity('正在整理文稿，可能需要约两分钟。可以关闭，稍后重新打开查看结果。');
     stagedBaseline.current = start;
     try {
       const result = await preparationClient.prepareManuscript(workId, input.data);
-      if (stillCurrent(id, start)) accept(result, input.data.sources, input.data.commandId);
+      if (stillCurrent(id, start))
+        accept(result, input.data.sources, input.data.commandId, input.data.scope);
     } catch (error) {
       if (stillCurrent(id, start)) {
         const definite = error instanceof PublisherClientError && error.code !== 'UNAVAILABLE';
@@ -545,7 +598,7 @@ export function PublisherImportDialog({
     try {
       if (operationId) {
         const result = await preparationClient.getPreparation(workId, operationId);
-        if (stillCurrent(id, start)) accept(result, sources, operationId);
+        if (stillCurrent(id, start)) accept(result, sources, operationId, operationScope.current);
       } else {
         const { preparation } = await preparationClient.latestPreparation(workId);
         if (stillCurrent(id, start)) {
@@ -572,7 +625,7 @@ export function PublisherImportDialog({
     }
   }
   function downloadSources() {
-    const raw = sources
+    const raw = (library.length ? library : sources)
       .map((source) => `# ${source.filename}\n\n${source.content}`)
       .join('\n\n---\n\n');
     const url = URL.createObjectURL(new Blob([raw], { type: 'text/markdown;charset=utf-8' }));
@@ -655,8 +708,13 @@ export function PublisherImportDialog({
         reason: 'AI 整理来源原稿（仅供编剧核对，不代表世界内事实）',
       })),
     };
-    current.current.onApply(updatedContent, summary);
-    onClose();
+    const remaining = remainingSources.filter(
+      (file) => !sources.some((s) => s.filename === file.filename && s.content === file.content),
+    );
+    const keepOpen = remaining.length > 0;
+    if (keepOpen) continuation.current = { workId, remaining };
+    current.current.onApply(updatedContent, summary, { keepOpen });
+    if (!keepOpen) onClose();
   }
   const unavailable = disabled || reading || !!activity;
   return (
@@ -698,7 +756,8 @@ export function PublisherImportDialog({
             />
           </label>
           <p className={s.help}>
-            支持自由叙述、人物设定、世界观和任务节点，无需套用固定表格。ZIP 中的照片附件不导入。
+            支持自由叙述、人物设定、世界观和剧情。压缩包最多50 MB，正文合计4
+            MB；多份文稿会分批整理，不会截掉正文。ZIP中的照片附件不在此导入。
           </p>
           <p>
             <a href="/templates/world-script.md" download>
@@ -716,6 +775,8 @@ export function PublisherImportDialog({
                 sequence.current++;
                 setText(event.target.value);
                 setSources([]);
+                setLibrary([]);
+                setRemainingSources([]);
                 clearResult();
               }}
             />
@@ -730,9 +791,61 @@ export function PublisherImportDialog({
             读取粘贴内容
           </button>
           {reading && <p role="status">正在读取文稿…</p>}
+          {remainingSources.length > 0 && (
+            <section className={s.preview} aria-label="文稿处理范围">
+              <h3>已读取 {library.length || remainingSources.length} 份文稿</h3>
+              <p>
+                尚有 {remainingSources.length} 份待填入。本次整理 {sources.length}{' '}
+                份，核对填入后可继续下一批；不会自动连续调用 AI。
+              </p>
+              {queue.batches.length > 1 && (
+                <label className={s.field}>
+                  本次整理哪一批
+                  <select
+                    aria-label="选择文稿批次"
+                    disabled={unavailable}
+                    value={Math.max(
+                      0,
+                      queue.batches.findIndex(
+                        (batch) => manuscriptFingerprint(batch) === manuscriptFingerprint(sources),
+                      ),
+                    )}
+                    onChange={(event) => {
+                      sequence.current++;
+                      clearResult();
+                      setSources(queue.batches[Number(event.target.value)] ?? []);
+                      setScopeChoice('auto');
+                    }}
+                  >
+                    {queue.batches.map((batch, index) => (
+                      <option value={index} key={index}>
+                        第 {index + 1} 批 · {batch.length} 份文稿
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {queue.oversized.length > 0 && (
+                <div role="status">
+                  <p>
+                    以下文稿与当前故事合计仍超过一次整理容量，尚未处理，也没有截取或丢弃。请按人物、剧情章节拆分后再读入。
+                  </p>
+                  <ul>
+                    {queue.oversized.map((file, index) => (
+                      <li key={index}>{file.filename}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button type="button" onClick={downloadSources}>
+                下载全部原稿备份
+              </button>
+              <p className={s.help}>本次未处理的文稿保留在此窗口，关闭或刷新前请保留原文件。</p>
+            </section>
+          )}
           {!!sources.length && (
             <section className={s.preview} aria-label="原稿">
-              <h3>已读取 {sources.length} 份原稿</h3>
+              <h3>本次使用 {sources.length} 份原稿</h3>
               <button type="button" onClick={downloadSources}>
                 下载原稿备份
               </button>
@@ -747,6 +860,31 @@ export function PublisherImportDialog({
                 整理，会把以上文稿和当前编辑稿发送给项目文字模型。每次最多调用两次，包含一次已知格式问题的纠正。AI
                 补充内容需要你核对；作者设定与人物知情范围也请逐项检查。
               </p>
+              <label>
+                本批整理范围
+                <select
+                  aria-label="本批整理范围"
+                  value={scopeChoice}
+                  disabled={unavailable || record?.status === 'running'}
+                  onChange={(event) => {
+                    sequence.current++;
+                    clearResult();
+                    setScopeChoice(event.target.value as 'auto' | PreparationScope);
+                  }}
+                >
+                  <option value="auto">自动判断</option>
+                  <option value="characters">只整理人物</option>
+                  <option value="world">整理整个故事</option>
+                </select>
+              </label>
+              <p className={s.help}>
+                {chosenScope === 'characters'
+                  ? '本批只补充文稿明确写到的人物，保留已有世界、剧情和开场内容，不会凭人物稿编造整部故事。'
+                  : '本批整理世界、人物和剧情；原稿未说明而由 AI 补充的内容仍需核对。'}
+                {scopeChoice === 'auto' &&
+                  detectedScope.confidence === 'uncertain' &&
+                  ' 暂不能确定文稿类型，先按只整理人物处理；若是整部剧本，可切换为整理整个故事。'}
+              </p>
               <div className={s.actions}>
                 <button
                   type="button"
@@ -754,7 +892,7 @@ export function PublisherImportDialog({
                   disabled={unavailable || !preparationClient || record?.status === 'running'}
                   onClick={() => void startAI()}
                 >
-                  {operationId ? '重新整理（新请求）' : '让 AI 整理世界'}
+                  {operationId ? '重新整理（新请求）' : '让 AI 整理本批文稿'}
                 </button>
                 <button type="button" disabled={unavailable} onClick={parseOnly}>
                   仅解析，不调用 AI
@@ -813,15 +951,13 @@ export function PublisherImportDialog({
             <ul>
               {proposal.summary.diagnostics.map((item, index) => (
                 <li key={index}>
-                  {item.filename}：{item.message}
+                  {item.filename}：{authorNotice(item.message)}
                 </li>
               ))}
             </ul>
             {proposal.summary.unmapped.map((item, index) => (
               <details key={index}>
-                <summary>
-                  {item.filename} · {item.reason}
-                </summary>
+                <summary>{item.filename} · 尚未填入的原文</summary>
                 <pre>{item.content}</pre>
               </details>
             ))}
@@ -868,7 +1004,7 @@ export function PublisherImportDialog({
               <p className={s.help}>
                 以下是模型对本次整理的说明，不是来源核验结果。请以上方实际内容与原稿对照，核对整理结果。
               </p>
-              <p>{aiResult.summary}</p>
+              <p>{authorNotice(aiResult.summary)}</p>
               {(['extracted', 'supplemented', 'review'] as const).map((kind) => (
                 <div key={kind}>
                   <h4>
@@ -884,7 +1020,7 @@ export function PublisherImportDialog({
                     {aiResult.notes
                       .filter((note) => note.kind === kind)
                       .map((note, index) => (
-                        <li key={index}>{note.text}</li>
+                        <li key={index}>{authorNotice(note.text)}</li>
                       ))}
                   </ul>
                 </div>
@@ -920,18 +1056,6 @@ export function PublisherImportDialog({
               ))}
             </ul>
             {!changed.length && <p>整理结果与当前草稿相同，无需填入。</p>}
-            <details>
-              <summary>高级：查看完整字段变化</summary>
-              {changed.map((key) => (
-                <details key={key}>
-                  <summary>{groupLabel(key)}</summary>
-                  <h4>当前内容</h4>
-                  <pre>{JSON.stringify(content[key], null, 2) ?? '（无）'}</pre>
-                  <h4>整理后</h4>
-                  <pre>{JSON.stringify(updatedContent[key], null, 2) ?? '（移除）'}</pre>
-                </details>
-              ))}
-            </details>
           </section>
         )}
       </div>

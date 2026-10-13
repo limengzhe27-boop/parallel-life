@@ -259,8 +259,8 @@ test('PublisherWorkbench honestly indicates unhooked callbacks when onTrial or o
   };
   const html = renderToStaticMarkup(createElement(PublisherWorkbench, unhookedProps));
 
-  assert.ok(html.includes('title="试演功能待后端接口接通"'));
-  assert.ok(html.includes('title="发布功能待后端接口接通"'));
+  assert.ok(html.includes('title="试演功能暂不可用"'));
+  assert.ok(html.includes('title="发布功能暂不可用"'));
 });
 
 test('PublisherWorkbench disables edit controls when session.canEdit is false', () => {

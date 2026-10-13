@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
@@ -280,6 +280,104 @@ test('publisher manuscript preparation: durable admission, isolation, no repeate
       assert.equal(repeated.status, 'unchanged');
       assert.deepEqual(repeated.updatedContent, saved.draft.content);
       assert.equal(calls, 1);
+    },
+  );
+  await t.test(
+    'character scope survives durable recovery; legacy absent scope replays without rewriting receipts',
+    async () => {
+      const principal = randomUUID();
+      await admin.query(
+        'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
+        [principal, '局部人物核对'],
+      );
+      const content = { world: { hiddenContext: '已有幕后原文', startAt: '' }, actors: [] };
+      const w = await works.create(principal, {
+        commandId: randomUUID(),
+        title: '人物局部测试',
+        content,
+      });
+      const input = {
+        commandId: randomUUID(),
+        expectedDraftVersion: 0,
+        currentContent: content,
+        sources: [{ filename: '人物_小林.md', content: '# 人物：小林\n姓名：小林' }],
+        scope: 'characters' as const,
+      };
+      let calls = 0;
+      const planner = {
+        async propose(material: { scope?: 'characters' | 'world' }) {
+          calls++;
+          assert.equal(material.scope, 'characters');
+          return {
+            scope: 'characters' as const,
+            updatedContent: content,
+            summary: '受控人物结果，仅验收存储，不调用模型',
+            notes: [],
+            issues: [],
+          };
+        },
+      };
+      const first = await preparePublisherManuscript(repo, planner, principal, w.id, input);
+      assert.equal(first.material.scope, 'characters');
+      assert.equal(first.result?.scope, 'characters');
+      assert.deepEqual((await repo.read(principal, w.id, input.commandId))?.result, first.result);
+      await preparePublisherManuscript(repo, planner, principal, w.id, input);
+      assert.equal(calls, 1);
+      await assert.rejects(
+        repo.begin(principal, w.id, { ...input, scope: 'world' }),
+        (e: any) => e.code === 'IDEMPOTENCY_CONFLICT',
+      );
+      const { scope: _scope, ...legacy } = { ...input, commandId: randomUUID() };
+      const canonical = (v: unknown): unknown =>
+        Array.isArray(v)
+          ? v.map(canonical)
+          : v && typeof v === 'object'
+            ? Object.fromEntries(
+                Object.keys(v)
+                  .sort()
+                  .map((k) => [k, canonical((v as Record<string, unknown>)[k])]),
+              )
+            : v;
+      const hash = createHash('sha256')
+        .update(JSON.stringify(canonical({ workId: w.id, ...legacy })))
+        .digest('hex');
+      // Seed an old-format admission directly, respecting the same permissions and transition trigger.
+      await db.transaction(principal, async (sql) => {
+        await sql.query("SELECT set_config('publisher.principal_id',$1,true)", [principal]);
+        await sql.query(
+          "INSERT INTO parallel_life.publisher_preparations(principal_id,command_id,work_id,draft_version,request_hash,material,status) VALUES($1,$2,$3,0,$4,$5::jsonb,'running')",
+          [
+            principal,
+            legacy.commandId,
+            w.id,
+            hash,
+            JSON.stringify({ currentContent: content, sources: legacy.sources }),
+          ],
+        );
+      });
+      await repo.finish(principal, w.id, legacy.commandId, {
+        status: 'succeeded',
+        result: { updatedContent: content, summary: '旧记录', notes: [], issues: [] },
+        errorCode: null,
+      });
+      const before = (
+        await admin.query(
+          'SELECT request_hash,material,result FROM parallel_life.publisher_preparations WHERE principal_id=$1 AND command_id=$2',
+          [principal, legacy.commandId],
+        )
+      ).rows[0];
+      const replay = await preparePublisherManuscript(repo, planner, principal, w.id, legacy);
+      assert.equal(replay.material.scope, undefined);
+      assert.equal(calls, 1);
+
+      const after = (
+        await admin.query(
+          'SELECT request_hash,material,result FROM parallel_life.publisher_preparations WHERE principal_id=$1 AND command_id=$2',
+          [principal, legacy.commandId],
+        )
+      ).rows[0];
+      assert.deepEqual(after, before);
+      assert.deepEqual((await works.get(principal, w.id)).draft.content, content);
     },
   );
 });

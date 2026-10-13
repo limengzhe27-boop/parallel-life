@@ -179,34 +179,34 @@ test('unflagged ASCII ordinary ZIP remains supported', async () => {
   );
 });
 test('input size is checked before attempting to parse invalid content', async () => {
-  await rejects(new Uint8Array(5 * 1024 * 1024 + 1), 'ZIP_LIMIT');
+  await rejects(new Uint8Array(50 * 1024 * 1024 + 1), 'ZIP_LIMIT');
 });
 test('all entries including skipped attachments count toward the entry limit', async () => {
   await rejects(
-    archive(Array.from({ length: 129 }, (_, i) => ({ name: i + '.png' }))).bytes,
+    archive(Array.from({ length: 513 }, (_, i) => ({ name: i + '.png' }))).bytes,
     'ZIP_LIMIT',
   );
 });
 test('document count is bounded independently of bytes', async () => {
   await rejects(
-    archive(Array.from({ length: 33 }, (_, i) => ({ name: i + '.md', data: '' }))).bytes,
+    archive(Array.from({ length: 65 }, (_, i) => ({ name: i + '.md', data: '' }))).bytes,
     'ZIP_LIMIT',
   );
 });
 test('single document declaration is checked before decompression', async () => {
   const a = archive([{ name: 'a.md', data: 'x', method: 8 }]);
-  changeSize(a, 0, 128 * 1024 + 1);
+  changeSize(a, 0, 2 * 1024 * 1024 + 1);
   await rejects(a.bytes, 'ZIP_LIMIT');
 });
 test('cumulative declaration is bounded even when each document is valid', async () => {
   const a = archive(
     Array.from({ length: 5 }, (_, i) => ({ name: i + '.md', data: 'x', method: 8 })),
   );
-  for (let i = 0; i < 5; i++) changeSize(a, i, 128 * 1024);
+  for (let i = 0; i < 5; i++) changeSize(a, i, 1024 * 1024);
   await rejects(a.bytes, 'ZIP_LIMIT');
 });
-test('exact expanded budget succeeds for four 128KiB documents', async () => {
-  const data = 'x'.repeat(128 * 1024);
+test('exact expanded budget succeeds for four 1MiB documents', async () => {
+  const data = 'x'.repeat(1024 * 1024);
   const result = await extractZipEntries(
     archive(Array.from({ length: 4 }, (_, i) => ({ name: i + '.md', data, method: 8 }))).bytes,
   );
@@ -390,7 +390,7 @@ test('actual stream overflow cancels the reader rather than collecting a full do
     class OversizedStream {
       readable = new ReadableStream<Uint8Array>({
         start(controller) {
-          controller.enqueue(new Uint8Array(128 * 1024 + 1));
+          controller.enqueue(new Uint8Array(2 * 1024 * 1024 + 1));
         },
         cancel() {
           cancelled++;
@@ -408,4 +408,15 @@ test('actual stream overflow cancels the reader rather than collecting a full do
   } finally {
     Object.defineProperty(globalThis, 'DecompressionStream', descriptor);
   }
+});
+
+test('archives larger than the old 5 MB limit can carry skipped attachments and intact scripts', async () => {
+  const data = new Uint8Array(6 * 1024 * 1024);
+  const result = await extractZipEntries(
+    archive([
+      { name: '原稿.md', data: '明确的剧本正文' },
+      { name: '照片.jpg', data },
+    ]).bytes,
+  );
+  assert.deepEqual(result, [{ filename: '原稿.md', content: '明确的剧本正文' }]);
 });

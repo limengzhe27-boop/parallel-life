@@ -152,7 +152,11 @@ function record(input?: PublisherPreparationInput): PublisherPreparationRecord {
     workId,
     draftVersion: input?.expectedDraftVersion ?? 0,
     status: 'succeeded',
-    material: { currentContent: input?.currentContent ?? base, sources: input?.sources ?? source },
+    material: {
+      ...(input?.scope ? { scope: input.scope } : {}),
+      currentContent: input?.currentContent ?? base,
+      sources: input?.sources ?? source,
+    },
     result: {
       updatedContent: {
         ...base,
@@ -252,7 +256,7 @@ test('file/text reading never calls AI, consent and two review checks precede lo
   let nodes = await loadText(s);
   assert.equal(s.posts.length, 0);
   assert.match(label(nodes), /发送给项目文字模型/);
-  click(button(nodes, '让 AI 整理世界'));
+  click(button(nodes, '让 AI 整理本批文稿'));
   await settle();
   nodes = s.render();
   assert.equal(s.posts.length, 1);
@@ -288,7 +292,7 @@ test('one immediate double-click creates only one POST and stable command', asyn
     return pending.promise;
   };
   const nodes = await loadText(s),
-    start = button(nodes, '让 AI 整理世界');
+    start = button(nodes, '让 AI 整理本批文稿');
   click(start);
   click(start);
   assert.equal(s.posts.length, 1);
@@ -306,7 +310,7 @@ test('network uncertainty performs no automatic second POST; recovery queries or
     s.queries.push(id);
     return record(s.posts[0]);
   };
-  click(button(await loadText(s), '让 AI 整理世界'));
+  click(button(await loadText(s), '让 AI 整理本批文稿'));
   await settle();
   assert.equal(s.posts.length, 1);
   assert.match(label(s.render()), /尚未确认整理结果/);
@@ -322,7 +326,7 @@ test('explicit new preparation uses a new command ID, while failed/unknown canno
     s.posts.push(input);
     return { ...record(input), status: 'unknown', result: null };
   };
-  click(button(await loadText(s), '让 AI 整理世界'));
+  click(button(await loadText(s), '让 AI 整理本批文稿'));
   await settle();
   assert.ok(button(s.render(), '填入当前编辑稿').props.disabled);
   click(button(s.render(), '重新整理（新请求）'));
@@ -336,14 +340,14 @@ test('running status can be queried but cannot launch another model request', as
     s.posts.push(input);
     return { ...record(input), status: 'running', result: null };
   };
-  click(button(await loadText(s), '让 AI 整理世界'));
+  click(button(await loadText(s), '让 AI 整理本批文稿'));
   await settle();
   assert.ok(button(s.render(), '重新整理（新请求）').props.disabled);
   assert.ok(!button(s.render(), '查询已有整理结果').props.disabled);
 });
 test('changing manuscript invalidates a confirmed suggestion and clears apply', async () => {
   const s = setup();
-  click(button(await loadText(s), '让 AI 整理世界'));
+  click(button(await loadText(s), '让 AI 整理本批文稿'));
   await settle();
   confirm(s);
   assert.ok(!button(s.render(), '填入当前编辑稿').props.disabled);
@@ -360,7 +364,7 @@ test('old POST after work switch or permission loss cannot render or apply', asy
       s.posts.push(input);
       return pending.promise;
     };
-    click(button(await loadText(s), '让 AI 整理世界'));
+    click(button(await loadText(s), '让 AI 整理本批文稿'));
     if (change === 'work') s.props.workId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     else s.props.disabled = true;
     s.render();
@@ -373,7 +377,7 @@ test('old POST after work switch or permission loss cannot render or apply', asy
 });
 test('stale captured apply handler rejects latest baseline before effects run', async () => {
   const s = setup();
-  click(button(await loadText(s), '让 AI 整理世界'));
+  click(button(await loadText(s), '让 AI 整理本批文稿'));
   await settle();
   confirm(s);
   const oldApply = button(s.render(), '填入当前编辑稿');
@@ -415,7 +419,7 @@ test('late latest response after editing input and after unmount does not restor
 test('pure parsing remains available without model client and leaves missing fields honest', async () => {
   const s = setup({ preparationClient: undefined });
   const nodes = await loadText(s);
-  assert.ok(button(nodes, '让 AI 整理世界').props.disabled);
+  assert.ok(button(nodes, '让 AI 整理本批文稿').props.disabled);
   click(button(nodes, '仅解析，不调用 AI'));
   assert.match(label(s.render()), /纯解析结果/);
   assert.equal(s.posts.length, 0);
@@ -489,7 +493,7 @@ test('404 recovery offers explicit same-command resend without automatically cal
   s.props.preparationClient!.getPreparation = async () => {
     throw new PublisherClientError('NOT_FOUND');
   };
-  click(button(await loadText(s), '让 AI 整理世界'));
+  click(button(await loadText(s), '让 AI 整理本批文稿'));
   await settle();
   click(button(s.render(), '查询已有整理结果'));
   await settle();
@@ -513,7 +517,7 @@ test('definite API failures are not described as unknown or offered same-command
     s.props.preparationClient!.prepareManuscript = async () => {
       throw new PublisherClientError(code as string);
     };
-    click(button(await loadText(s), '让 AI 整理世界'));
+    click(button(await loadText(s), '让 AI 整理本批文稿'));
     await settle();
     const text = label(s.render());
     assert.match(text, expected as RegExp);
@@ -530,7 +534,7 @@ test('server response from different source or command is never applied', async 
       else value.commandId = commandId;
       return value;
     };
-    click(button(await loadText(s), '让 AI 整理世界'));
+    click(button(await loadText(s), '让 AI 整理本批文稿'));
     await settle();
     assert.doesNotMatch(label(s.render()), /合成测试结果/);
     assert.ok(button(s.render(), '填入当前编辑稿').props.disabled);
@@ -575,13 +579,17 @@ test('AI schedule metadata and actual content are displayed without re-planning 
       getPreparation: async () => server,
       prepareManuscript: async (_work, input) => {
         server.commandId = input.commandId;
-        server.material = { currentContent: input.currentContent, sources: input.sources };
+        server.material = {
+          scope: input.scope,
+          currentContent: input.currentContent,
+          sources: input.sources,
+        };
         return server;
       },
     },
   });
   const nodes = await loadText(s);
-  click(button(nodes, '让 AI 整理世界'));
+  click(button(nodes, '让 AI 整理本批文稿'));
   await settle();
   const view = s.render().find((n) => n.type === PublisherScheduleReview);
   assert.ok(view);
@@ -595,7 +603,7 @@ test('AI schedule metadata and actual content are displayed without re-planning 
 });
 test('changing a stable reference invalidates the old staged proposal and confirmation', async () => {
   const s = setup({ referenceAt: '2026-01-01T00:00:00Z' });
-  click(button(await loadText(s), '让 AI 整理世界'));
+  click(button(await loadText(s), '让 AI 整理本批文稿'));
   await settle();
   confirm(s);
   const old = button(s.render(), '填入当前编辑稿');
@@ -633,4 +641,56 @@ test('actual pure parser schedules before validation and applies the same displa
   click(button(nodes, '填入当前编辑稿'));
   assert.equal((s.applied[0] as unknown[])[0], view.props.content);
   assert.equal(s.posts.length, 0);
+});
+
+test('single-character and uncertain manuscripts default to characters, with explicit whole-story override', async () => {
+  const s = setup();
+  let nodes = await loadText(s, '# 人物：小林\n姓名：小林\n性格：直率');
+  assert.match(label(nodes), /只补充文稿明确写到的人物/);
+  click(button(nodes, '让 AI 整理本批文稿'));
+  await settle();
+  s.render();
+  assert.equal(s.posts[0]?.scope, 'characters');
+  const select = s
+    .render()
+    .find((n) => n.type === 'select' && n.props['aria-label'] === '本批整理范围')!;
+  (select.props.onChange as (e: unknown) => void)({ target: { value: 'world' } });
+  nodes = s.render();
+  assert.ok(button(nodes, '填入当前编辑稿').props.disabled);
+  click(button(nodes, '让 AI 整理本批文稿'));
+  await settle();
+  assert.equal(s.posts[1]?.scope, 'world');
+});
+
+test('all uploaded manuscripts remain queued after applying one batch, without another model call', async () => {
+  const s = setup();
+  s.render();
+  await settle();
+  const files = Array.from({ length: 40 }, (_, i) => ({
+    name: `人物${i}.md`,
+    size: 4000,
+    arrayBuffer: async () =>
+      new TextEncoder().encode(`# 人物：小林${i}\n${'生活'.repeat(1500)}`).buffer,
+  }));
+  const upload = s.render().find((n) => n.type === 'input' && n.props.type === 'file')!;
+  (upload.props.onChange as (e: unknown) => void)({ currentTarget: { files, value: 'files' } });
+  for (let i = 0; i < 60; i++) await settle();
+  let nodes = s.render();
+  assert.match(label(nodes), /已读取 40/);
+  click(button(nodes, '让 AI 整理本批文稿'));
+  await settle();
+  s.render();
+  confirm(s);
+  click(button(s.render(), '填入当前编辑稿'));
+  const args = s.applied[0] as [Record<string, unknown>, unknown, { keepOpen: boolean }];
+  assert.equal(args[2].keepOpen, true);
+  assert.equal(s.closed(), 0);
+  s.props.content = args[0];
+  s.render();
+  nodes = s.render();
+  assert.match(label(nodes), /已读取 40/);
+  assert.match(label(nodes), /尚有 26 份待填入/);
+  assert.equal(s.posts.length, 1);
+  assert.equal(s.queries.length, 1);
+  assert.ok(!button(nodes, '让 AI 整理本批文稿').props.disabled);
 });

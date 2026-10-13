@@ -1,5 +1,6 @@
 'use client';
 
+import { authorNotice } from './publisher-author-notice.ts';
 import { useMemo, useState } from 'react';
 import { buildPublicationSourceReview } from '../../modules/settings/domain/publication-source-review.ts';
 import type {
@@ -95,9 +96,7 @@ const sections: Record<string, string> = {
   candidates: '未来剧情',
 };
 function Target({ target }: { target: SourceReviewTarget }) {
-  const section = Object.hasOwn(sections, target.section)
-    ? sections[target.section]
-    : target.section;
+  const section = Object.hasOwn(sections, target.section) ? sections[target.section] : '其它内容';
   return (
     <div className={s.target}>
       <p className={s.position}>
@@ -123,7 +122,7 @@ function Row({ row, sources }: { row: SourceReviewRow; sources: ManuscriptSource
     <article className={s.row}>
       <h5>{located ? `第 ${located.line} 行` : '未能定位到当前原文'}</h5>
       <p className={s.status}>{status}</p>
-      <p className={s.help}>{assessment.reason}</p>
+      <p className={s.help}>{authorNotice(assessment.reason)}</p>
       {located ? (
         <>
           <blockquote className={s.quote}>{located.quote}</blockquote>
@@ -159,20 +158,20 @@ function Row({ row, sources }: { row: SourceReviewRow; sources: ManuscriptSource
           <section
             className={s.match}
             key={match.target.id + ':' + index}
-            aria-label={`对照字段 ${index + 1}`}
+            aria-label={`对照内容 ${index + 1}`}
           >
             <h6>
-              {match.kind === 'literal' ? '含相同文字的实际字段' : '可能对应的实际字段（待核对）'}
+              {match.kind === 'literal' ? '含相同文字的实际内容' : '可能对应的实际内容（待核对）'}
             </h6>
             <Target target={match.target} />
             {(match.missingNumbers.length > 0 || match.addedNumbers.length > 0) && (
               <div className={s.numberNotice}>
                 <strong>数字文字线索（不单独判定改错）</strong>
                 {!!match.missingNumbers.length && (
-                  <p>原句中的这些数字未在该字段出现：{match.missingNumbers.join('、')}</p>
+                  <p>原句中的这些数字未在该内容出现：{match.missingNumbers.join('、')}</p>
                 )}
                 {!!match.addedNumbers.length && (
-                  <p>该字段另含这些数字：{match.addedNumbers.join('、')}</p>
+                  <p>该内容另含这些数字：{match.addedNumbers.join('、')}</p>
                 )}
                 <p>这只是文字差异，不能据此确定含义改变或哪一处正确。</p>
               </div>
@@ -181,7 +180,7 @@ function Row({ row, sources }: { row: SourceReviewRow; sources: ManuscriptSource
         ))}
         {!row.matches.length && (
           <p className={s.notice}>
-            未找到可展示的对照字段。未匹配不代表遗漏，可能换了写法或暂未支持比对；请结合实际内容检查。
+            未找到可展示的对照内容。未匹配不代表遗漏，可能换了写法或暂未支持比对；请结合实际内容检查。
           </p>
         )}
         {row.matches.length > 2 && (
@@ -224,8 +223,8 @@ export function PublisherSourceReview({
   const report = result.report;
   if (!report)
     return (
-      <section className={s.review} aria-label="原文与实际字段对照">
-        <h3>原文与实际字段对照</h3>
+      <section className={s.review} aria-label="原文与实际内容对照">
+        <h3>原文与实际内容对照</h3>
         <p role="status">
           本次未能计算文字对照，未显示旧结果。原稿与最终提案仍可查看，请人工核对后继续。
         </p>
@@ -266,8 +265,8 @@ export function PublisherSourceReview({
   const visibleRows = rows.slice(0, limit);
   const fileIndexes = [...new Set(visibleRows.map((row) => row.fileIndex))];
   return (
-    <section className={s.review} aria-label="原文与实际字段对照">
-      <h3>原文与实际字段对照</h3>
+    <section className={s.review} aria-label="原文与实际内容对照">
+      <h3>原文与实际内容对照</h3>
       <p className={s.help}>
         这里只比较原文片段与最终提案的文字线索，不能判断语义是否全面正确，也不能保证无遗漏。找到相同文字不代表已核实；请核对年龄、关系和约定等重要细节。
       </p>
@@ -276,7 +275,7 @@ export function PublisherSourceReview({
           <h4>比对限制与提示</h4>
           <ul>
             {report.warnings.map((warning, index) => (
-              <li key={index}>{warning}</li>
+              <li key={index}>{authorNotice(warning)}</li>
             ))}
           </ul>
         </aside>
@@ -391,7 +390,7 @@ export function PublisherSourceReview({
                       })
                     }
                   >
-                    显示更多实际字段（还有{' '}
+                    显示更多实际内容（还有{' '}
                     {origins.reduce(
                       (count, origin) =>
                         count +

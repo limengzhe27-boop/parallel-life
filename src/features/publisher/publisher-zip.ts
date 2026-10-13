@@ -1,10 +1,10 @@
 /** Bounded, browser-only ZIP text import. Never fetches, writes files, or executes document content. */
 const limits = {
-  input: 5 * 1024 * 1024,
-  entries: 128,
-  documents: 32,
-  single: 128 * 1024,
-  total: 512 * 1024,
+  input: 50 * 1024 * 1024,
+  entries: 512,
+  documents: 64,
+  single: 2 * 1024 * 1024,
+  total: 4 * 1024 * 1024,
 };
 type ZipCode =
   | 'INVALID_ZIP'
@@ -37,7 +37,7 @@ const unsupported = () =>
 const exceeded = () =>
   fail(
     'ZIP_LIMIT',
-    'ZIP 超过导入上限：5MiB 文件、128 个条目、32 份文稿、单文 128KiB、文稿总计 512KiB。',
+    'ZIP 超过导入上限：50 MB 压缩包、512 个附件、64 份文稿、单篇正文 2 MB、正文合计 4 MB。正文会按整理容量分批，照片附件不在此导入。',
   );
 function utf8(bytes: Uint8Array) {
   try {

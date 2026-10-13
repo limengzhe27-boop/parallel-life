@@ -233,7 +233,7 @@ test('numeric arrays and generic notices do not upgrade covered rows; their deta
   click(walk(h.render(sources)), '文字已对应');
   const markup = html(h, sources);
   assert.match(markup, /数字文字线索（不单独判定改错）/);
-  assert.match(markup, /未在该字段出现：26/);
+  assert.match(markup, /未在该内容出现：26/);
   assert.match(markup, /另含这些数字：28/);
   assert.match(markup, /同名人物需核对/);
 });
@@ -305,20 +305,20 @@ test('same filenames stay distinct by file ordinal and show their own exact text
 test('targets remain full length, with at most two candidates and visible note when more are supplied', () => {
   const { sources, report } = fixture(),
     r = report.rows[1]!;
-  const long = '字段完整内容'.repeat(300) + '最后一句';
+  const long = '内容完整内容'.repeat(300) + '最后一句';
   r.matches = [target(long, 'a'), target('候选二', 'b'), target('候选三不在此显示', 'c')].map(
     (t) => ({ target: t, kind: 'candidate', missingNumbers: [], addedNumbers: [] }),
   );
   const markup = html(setup({ rows: [r], unlinkedTargets: [], warnings: [] }), sources);
   assert.match(markup, /最后一句/);
-  assert.equal((markup.match(/aria-label="对照字段/g) ?? []).length, 2);
+  assert.equal((markup.match(/aria-label="对照内容/g) ?? []).length, 2);
   assert.match(markup, /仅展示前两个候选/);
   assert.doesNotMatch(markup, /候选三不在此显示/);
 });
 test('all limitations remain visible even when the needs-review filter has no rows', () => {
   const { sources, report } = fixture();
   report.rows = report.rows.slice(0, 1);
-  report.warnings = ['最多400个片段', '最多512个字段', '尚未支持扩展字段'];
+  report.warnings = ['最多400个片段', '最多512个内容', '尚未支持扩展内容'];
   const markup = html(setup(report), sources);
   report.warnings.forEach((w) => assert.ok(markup.includes(w)));
   assert.match(markup, /不代表原稿全部正确带入/);
@@ -488,7 +488,7 @@ test('unlinked fields load only on expand in batches and reset on filter change'
   let markup = html(h, sources, content);
   assert.match(markup, /独立值19/);
   assert.doesNotMatch(markup, /独立值20/);
-  click(walk(h.render(sources, content)), '显示更多实际字段');
+  click(walk(h.render(sources, content)), '显示更多实际内容');
   markup = html(h, sources, content);
   assert.match(markup, /独立值39/);
   assert.doesNotMatch(markup, /独立值40/);

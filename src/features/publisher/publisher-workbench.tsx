@@ -441,7 +441,7 @@ export function PublisherWorkbench(
         ...check.missingCapabilities.map((capability) =>
           capability === 'model_budget_unapproved'
             ? '真实模型调用预算尚未确认，请联系管理员。'
-            : '这项内容暂不支持运行，请查看详细限制并调整。',
+            : '这项内容暂不支持运行，请查看待确认问题并调整。',
         ),
         ...(!check.trialVerified && !check.issues.some((issue) => issue.code === 'trial_unverified')
           ? ['请完成真实试演，再重新检查。']
@@ -617,9 +617,9 @@ export function PublisherWorkbench(
                   className={`${s.btn} ${s.btnTrial}`}
                   onClick={onTrial ? () => onTrial() : undefined}
                   disabled={busy || isDirty || !onTrial}
-                  title={!onTrial ? '试演功能待后端接口接通' : '在手机沙盒中试演当前草稿'}
+                  title={!onTrial ? '试演功能暂不可用' : '用独立体验存档试演当前故事'}
                 >
-                  {onTrial ? '试演' : '试演 (未接通)'}
+                  {onTrial ? '试演' : '试演 （暂不可用）'}
                 </button>
 
                 <button
@@ -640,7 +640,7 @@ export function PublisherWorkbench(
                   }
                   title={
                     !onPublish
-                      ? '发布功能待后端接口接通'
+                      ? '发布功能暂不可用'
                       : !session.canPublish
                         ? '您没有发布权限'
                         : isDirty
@@ -650,7 +650,7 @@ export function PublisherWorkbench(
                             : '将当前草稿发布上架'
                   }
                 >
-                  {onPublish ? '发布' : '发布 (未接通)'}
+                  {onPublish ? '发布' : '发布 （暂不可用）'}
                 </button>
               </div>
             )}

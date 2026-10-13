@@ -430,7 +430,11 @@ async function dialog(mode: 'ai' | 'parser') {
         commandId: input.commandId,
         workId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         draftVersion: 0,
-        material: { currentContent: input.currentContent, sources: input.sources },
+        material: {
+          scope: input.scope,
+          currentContent: input.currentContent,
+          sources: input.sources,
+        },
         status: 'succeeded',
         result: {
           updatedContent: c,
@@ -455,7 +459,7 @@ async function dialog(mode: 'ai' | 'parser') {
   click(button(nodes, '读取粘贴内容'));
   await settle();
   nodes = h.render(props);
-  click(button(nodes, mode === 'ai' ? '让 AI 整理世界' : '仅解析，不调用 AI'));
+  click(button(nodes, mode === 'ai' ? '让 AI 整理本批文稿' : '仅解析，不调用 AI'));
   await settle();
   return { nodes: h.render(props), c, applied };
 }
