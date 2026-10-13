@@ -1102,3 +1102,15 @@ test('characters-only does not force completion of an unrelated existing partial
   assert.deepEqual(result.updatedContent.actors, [other, actor]);
   assert.deepEqual(result.issues, []);
 });
+
+test('character preparation requests writer-facing notes and emits no internal paths in merge notices', async () => {
+  const actor = { ...fixture().actors[0]!, name: '阿禾' };
+  const { planner, calls } = harness(reply({ actors: [actor] }));
+  const result = await planner.propose({
+    scope: 'characters',
+    currentContent: {},
+    sources: [{ filename: '人物.md', content: '姓名：阿禾' }],
+  });
+  assert.ok(calls[0]!.messages[0]!.content.includes('不写JSON字段名、内部编号或技术路径'));
+  assert.ok(result.notes.every((n) => !/actors\.|privatePersona|publicCard/.test(n.text)));
+});

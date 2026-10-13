@@ -14,7 +14,7 @@
 
 ## 验证证据
 
-- 50/50 纯专项通过，0 skip：publisher-preparation-planner、publisher-preparation-scope、publisher-preparation-repository、原 publisher-preparation tests。
+- 51/51 纯专项通过，0 skip：publisher-preparation-planner、publisher-preparation-scope、publisher-preparation-repository、原 publisher-preparation tests。
 - 新仓储测试为 SQL 接口模拟，验证实际 JSON material、原请求 hash、旧成功结果原样回放、scope 改变冲突、显式覆盖和模糊 fallback；不是实际 PostgreSQL 证据。
 - 覆盖单人物无世界通过、拒额外编造人物、所有非 actors 原样、原 false/unknown、同名新 key 拒绝、缺 persona/坏 key 拒绝、旧无 scope 继续整世界、无明确姓名报告待确认、无关半成人物不强制补全、人物模式无排期与非人物私密输入。
 - typecheck 退出 0，模块边界 417 文件通过，Prettier 与 git diff --check 通过。
@@ -23,3 +23,5 @@
 ## 接续
 
 root 接 scope 选择/结果标签和原请求恢复语义，并在人物局部结果使用后继续保留正式全稿检查/试演/发布门槛。名字提取是保守、有界的显式格式识别，不是完整自然语言人物实体识别；未明确命名或格式歧义会保留原稿并返回待确认，不编造替代人物。多文件收取/分批/ZIP、作者界面由 root/Q 负责。
+
+root 最后要求的人话提示已补：world/characters prompt 均要求 summary/notes 用人物名、事件标题和文件位置，不输出 JSON 字段名或内部编号；人物系统合并提示移除内部路径。新增对应测试通过，主交付 3f43082 后仅此窄追加。
