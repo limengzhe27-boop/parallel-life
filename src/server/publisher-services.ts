@@ -5,6 +5,7 @@ import { isPreviewOnly } from '../contracts/preview.ts';
 import { PublisherSessions } from '../modules/identity/infrastructure/publisher-session.ts';
 import { PublicationRepository } from '../modules/settings/infrastructure/publication-repository.ts';
 import { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
+import { PublisherPreparationRepository } from '../modules/settings/infrastructure/publisher-preparation-repository.ts';
 import {
   PublisherHttp,
   PublisherHttpError,
@@ -55,7 +56,7 @@ export function publisherServices(request: Request) {
     trustedOrigins: [new URL(origin).origin],
     bucketSecret: secret,
   });
-  return { http, worlds, repo };
+  return { http, worlds, repo, preparations: new PublisherPreparationRepository(database) };
 }
 export function publisherRoute(request: Request, operation: PublisherOperation, workId?: string) {
   return publisherEndpoint(() =>
