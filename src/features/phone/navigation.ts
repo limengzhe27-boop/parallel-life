@@ -49,7 +49,7 @@ export function activePhoneRoute(route: PhoneRoute): PhoneRoute {
 }
 
 export function parentRoute(route: PhoneRoute): PhoneRoute {
-  if (route.panel === 'scene') return { app: 'scenes' };
+  if (route.panel === 'scene') return homeRoute;
   if (route.panel) return { app: route.app, ...(route.target ? { target: route.target } : {}) };
   if (route.target) return { app: route.app };
   return homeRoute;

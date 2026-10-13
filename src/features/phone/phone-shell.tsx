@@ -198,6 +198,12 @@ function LifePhone({
     setRoute(activePhoneRoute(readRoute(hash, worldId)));
   }
   function back() {
+    if (route.panel === 'scene') {
+      const next = homeRoute;
+      history.replaceState({ ...history.state, plPhone: null }, '', routeHash(worldId, next));
+      setRoute(next);
+      return;
+    }
     const entry = history.state?.plPhone;
     if (entry?.worldId === worldId && entry.to === location.hash) history.back();
     else {
