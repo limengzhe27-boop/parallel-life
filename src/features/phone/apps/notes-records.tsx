@@ -165,6 +165,39 @@ function StepChecklist({ checklist }: { checklist: NonNullable<RecordItem['stepC
   );
 }
 
+export function isNotesBackgroundRecord(record: RecordItem) {
+  return (
+    record.kind === 'opening_context' ||
+    (record.span !== 'pursuit' && record.kind !== 'world_matter')
+  );
+}
+function ordinaryInvitation(record: RecordItem) {
+  return (
+    record.kind === 'invitation' && !record.opportunity && !record.progress && !record.stepChecklist
+  );
+}
+export function NotesAbout({
+  data,
+  query = '',
+  open,
+}: {
+  data: PlayerRecords;
+  query?: string;
+  open: Open;
+}) {
+  const situations = searchRecords(data.about.filter(isNotesBackgroundRecord), query);
+  return (
+    <div className={s.records}>
+      <p className={s.hint}>人生起点的身份与处境，来自这段人生已有的记录。</p>
+      {situations.length ? (
+        <RecordRows records={situations} open={open} />
+      ) : (
+        <p className={s.empty}>{query.trim() ? '没有找到相关背景' : '人生起点的信息还未记录'}</p>
+      )}
+    </div>
+  );
+}
+
 /** Only renders the already authorized server projection; no client task inference. */
 export function NotesRecords({
   data,
@@ -179,20 +212,20 @@ export function NotesRecords({
   historyOpen?: boolean;
   onHistoryToggle?: (value: boolean) => void;
 }) {
-  const current = searchRecords(data.current, query);
+  const current = searchRecords(
+    data.current.filter((record) => !ordinaryInvitation(record)),
+    query,
+  );
   const opportunities = current.filter((record) => record.opportunity);
   const otherCurrent = current.filter((record) => !record.opportunity);
   const pursuits = searchRecords(
     data.about.filter((r) => r.span === 'pursuit' || r.kind === 'world_matter'),
     query,
   );
-  const situations = searchRecords(
-    data.about.filter(
-      (r) => r.kind === 'opening_context' || (r.span !== 'pursuit' && r.kind !== 'world_matter'),
-    ),
+  const history = searchRecords(
+    data.history.filter((record) => !ordinaryInvitation(record)),
     query,
   );
-  const history = searchRecords(data.history, query);
   const searching = Boolean(query.trim());
   return (
     <div className={s.records}>
@@ -205,7 +238,7 @@ export function NotesRecords({
       )}
       <section className={s.section} aria-label="眼下要做的事">
         <h3>眼下要做的事</h3>
-        <p className={s.hint}>这里只记录近期计划、建议和邀约。</p>
+        <p className={s.hint}>记录近期事项与建议，进展随实际行动更新。</p>
         {otherCurrent.length ? (
           <RecordRows records={otherCurrent} open={open} />
         ) : (
@@ -236,16 +269,12 @@ export function NotesRecords({
           <p className={s.empty}>{searching ? '没有找到相关追求' : '暂时没有已记录的长期追求'}</p>
         )}
       </section>
-      <section className={s.section} aria-label="现在的处境">
-        <h3>现在的处境</h3>
-        <p className={s.hint}>关于这段人生 · 人生起点的身份与处境。</p>
-        {situations.length ? (
-          <RecordRows records={situations} open={open} />
-        ) : (
-          <p className={s.empty}>{searching ? '没有找到相关信息' : '人生起点的信息还未记录'}</p>
-        )}
-      </section>
-      {data.history.length > 0 && (
+      <div className={s.links}>
+        <button type="button" onClick={() => open('calendar')}>
+          邀约与日程，去日历查看
+        </button>
+      </div>
+      {data.history.some((record) => !ordinaryInvitation(record)) && (
         <details
           className={s.history}
           open={searching || historyOpen}

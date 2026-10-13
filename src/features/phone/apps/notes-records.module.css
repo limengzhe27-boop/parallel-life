@@ -463,3 +463,123 @@
   outline: 2px solid #946800;
   outline-offset: 2px;
 }
+
+.notesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+.notesHeader h2 {
+  margin: 0;
+  font-size: 26px;
+}
+.newNote {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  background: #fff4d4;
+  border-radius: 10px;
+  color: #805800;
+  font: inherit;
+  cursor: pointer;
+}
+.sections {
+  display: flex;
+  padding: 4px;
+  gap: 4px;
+  background: #eceef2;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+.sections button {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #596574;
+  font: inherit;
+  cursor: pointer;
+}
+.sections button[aria-pressed='true'] {
+  background: #fff;
+  color: #805800;
+  font-weight: 600;
+}
+.privateRow {
+  position: relative;
+}
+.privateRow > button:first-child {
+  padding-right: 56px;
+}
+.deleteNote {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  color: #596574;
+  font-size: 20px;
+  cursor: pointer;
+}
+.background {
+  border-top: 1px solid #e6e8ed;
+  padding-top: 8px;
+  margin-top: 8px;
+  min-width: 0;
+}
+.background summary {
+  min-height: 44px;
+  padding: 12px 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-size: 15px;
+  color: #596574;
+}
+.openingNote {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: #18212d;
+  padding: 14px;
+  margin: 8px 0;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.openingNote strong,
+.openingNote span {
+  display: block;
+}
+.openingNote span {
+  color: #596574;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.openingNote p {
+  white-space: pre-wrap;
+}
+.newNote:focus-visible,
+.sections button:focus-visible,
+.deleteNote:focus-visible,
+.background summary:focus-visible,
+.openingNote:focus-visible {
+  outline: 2px solid #946800;
+  outline-offset: 2px;
+}
+.notesPage > .links button {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: #805800;
+  font: inherit;
+  cursor: pointer;
+}
