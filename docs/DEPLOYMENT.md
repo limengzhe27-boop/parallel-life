@@ -1,3 +1,11 @@
+## 2026-10-13 · 通用人物、导演事件与真实手机试演
+
+业务063c8576d9c4fb9d5ad29d59ef2b2c48001467f0 / dpl_BY18TWJSxy9DGCoojZcCuHwcUkxh READY，正式 https://parallel-life-nu.vercel.app 精确匹配，GitHub CI38421596634成功。生产55迁移checksum一致。最终2179check、build/format通过，完整真实PG408pass+5明确opt-in skip，world-clock3与真实交易池并发/提交/回滚释放验证通过。
+
+人物页复用玩家PhoneShell/WorldPhoneApp，显式保存后私有试演，不另造聊天。五模块及公开介绍通用导入，项目整理Agent提议5条双向历史与2条文本动态，作者保存后绑定试演/发布/玩家独立存档；导演真实选择主角相关合格必推事件、实际NPC入场，呈现不当完成。公网真实手机聊天回复保存version2、人物资料、朋友圈两条、1440/390无横溢出通过；health/workbench/published200。
+
+新授权12文字/2存档保守11/12、2/2已闭账，测试作品下架且存档确认暂停；无个人资料/上传/图片生成。本批公开玩家初始化/隔离验证，未另发起玩家NPC模型回复。首轮模型未补历史及交易池连接中断都有保留证据，经修复/安全重试通过。事务池会话锁泄漏修复不包含全局清锁；旧残留安全恢复、完整事件多步/多角色生命周期、真实回复张力仍待办。见AUTHORING-14-I/P2/LOCK报告及主任务表。
+
 ## 2026-10-13 · WRITER-CONDITIONS-13
 
 业务 f355634，生产 dpl_5FZSxtrj3nBosrC46jUYMwiKxzvA READY，正式 https://parallel-life-nu.vercel.app alias/commit一致。生产51项迁移checksum一致；0051保持不可变来源与原权限。

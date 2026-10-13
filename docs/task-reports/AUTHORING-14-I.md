@@ -22,7 +22,7 @@
 - 私有试演与公开玩家存档来源、历史双方/朋友圈、目录、重复进入同存档、跨owner隔离通过。公开玩家存档本批没有另外发起NPC模型回复，不将私有试演结果冒充该项通过。
 - 临时作品已下架，两个测试存档已确认暂停，无个人资料、上传或图片生成。
 - 公网1440/390人物页：已有真实试演iframe仅1个，已保存真实回复可见，没有自制聊天，390无横向溢出。不代替iOS微信真机软键盘验收。
-- 真实手机业务 b629971 READY / dpl_Aew2sSdeowABmzdCZApYnWHqGPpx；最终锁修复063c857部署确认后补登记。独立地址 https://parallel-life-nu.vercel.app。
+- 真实手机业务 b629971 READY / dpl_Aew2sSdeowABmzdCZApYnWHqGPpx；最终锁修复063c857 READY / dpl_BY18TWJSxy9DGCoojZcCuHwcUkxh，正式别名精确匹配，GitHub CI38421596634成功。公网私有手机读取200/version2、人物资料及朋友圈两条实际打开，health200。独立地址 https://parallel-life-nu.vercel.app。
 
 ## 未完成与接续
 

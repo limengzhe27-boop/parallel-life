@@ -1,5 +1,7 @@
 # AUTHORING-14-LOCK · 事务池中的世界活动锁
 
+root集成8133eac/063c857：最终2179 check、build/format通过，真实world-clock PG3项通过；生产55迁移一致，真实交易池并发拒绝/提交释放/异常回滚后再入通过，测试world暂停且0模型。首轮连接中断保留，第二轮通过。正式063c857 READY dpl_BY18TWJSxy9DGCoojZcCuHwcUkxh，公网手机200/version2；未强制清理旧会话残留，旧锁恢复另列待办。
+
 2026-10-13；author-events-director-14；工作树 author-events-director-14。唯一状态总表是主目录 docs/DEVELOPMENT.md。
 
 ## 修复范围
