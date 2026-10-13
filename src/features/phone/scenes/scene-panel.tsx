@@ -418,18 +418,7 @@ export function ScenePanel({
                   )}
                 </details>
               ) : null}
-              {data.matters.length ? (
-                <details className={s.card}>
-                  <summary>眼下的事 · {data.matters.length}</summary>
-                  <ul>
-                    {data.matters.map((m) => (
-                      <li key={m.id}>
-                        {m.title} · {states[m.status]}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ) : null}
+
               <div className={s.stream}>
                 {[
                   ...entries,

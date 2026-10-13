@@ -43,7 +43,7 @@ export function PublisherCharacterPreview({
       <section className={s.phonePane} aria-label="真实手机试演">
         <div className={s.header}>
           <h3>手机试演</h3>
-          {trial && !isDirty && onCloseTrial && (
+          {trial && onCloseTrial && (
             <button type="button" onClick={onCloseTrial}>
               收起试演
             </button>
@@ -72,7 +72,11 @@ export function PublisherCharacterPreview({
         ) : (
           <div className={s.empty}>
             <p>保存后试演，查看玩家实际会使用的手机。</p>
-            <button type="button" disabled={busy || !onStartTrial} onClick={onStartTrial}>
+            <button
+              type="button"
+              disabled={busy || !onStartTrial || isDirty || saveBlocked}
+              onClick={onStartTrial}
+            >
               {busy ? '正在准备…' : '试演这份草稿'}
             </button>
           </div>
