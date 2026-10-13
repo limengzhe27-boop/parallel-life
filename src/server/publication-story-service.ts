@@ -165,6 +165,9 @@ export async function advancePublicationStory(
                   ...input,
                   context: {
                     ...input.context,
+                    ...(claim.intent.kind === 'director_event'
+                      ? { storyEvent: { title: claim.editorialIntent } }
+                      : {}),
                     ...(claim.intent.kind === 'offer_invitation'
                       ? {
                           storyInvitation: {

@@ -37,6 +37,8 @@ export type ActorContext = {
   >[];
   retrievedMemories?: MemoryRecord[];
   turnOrigin?: 'director';
+  /** A server-selected optional event; constrains this opening to a character message. */
+  storyEvent?: { title: string };
   /** A single eligible author opportunity supplied by the server, never parsed from player text. */
   storyInvitation?: {
     title: string;
