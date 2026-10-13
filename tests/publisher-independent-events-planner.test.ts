@@ -123,7 +123,7 @@ test('world model prompt defaults new director events to entry progression and d
   const result = await h.planner.propose({ currentContent: {}, sources });
   assert.deepEqual(result.issues, []);
   assert.equal(h.calls.length, 1);
-  assert.equal(PUBLICATION_MANUSCRIPT_PROMPT_VERSION, 'publication-manuscript-10');
+  assert.equal(PUBLICATION_MANUSCRIPT_PROMPT_VERSION, 'publication-manuscript-11');
   const system = h.calls[0]![0]!.content;
   for (const instruction of [
     '新director_event默认direction:{mode:"required"}',

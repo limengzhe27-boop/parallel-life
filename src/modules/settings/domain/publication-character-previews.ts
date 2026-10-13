@@ -304,3 +304,103 @@ export function characterPreviewCompletenessIssues(
   }
   return issues;
 }
+
+/** A world proposal cannot reassign or fill blanks in a pre-existing phone receipt. */
+export function protectAuthoredPhoneRecords(baseline: RecordValue, proposal: RecordValue) {
+  const prior = record(baseline.phone) ? baseline.phone : {};
+  const next = record(proposal.phone) ? proposal.phone : undefined;
+  const reviews: PublicationIssue[] = [];
+  if (!next) return { proposal, reviews };
+  const phone = { ...next };
+  for (const collection of ['messages', 'moments'] as const) {
+    if (!Array.isArray(phone[collection])) continue;
+    const originals = rows(prior[collection]);
+    phone[collection] = (phone[collection] as unknown[]).filter((entry, index) => {
+      if (!record(entry) || typeof entry.key !== 'string') return true;
+      const matching = originals.filter((old) => old.key === entry.key);
+      if (!matching.length) return true;
+      if (matching.length !== 1 || JSON.stringify(matching[0]) !== JSON.stringify(entry))
+        reviews.push({ path: ['phone', collection, index], code: 'authored_value_preserved' });
+      // The normal merge retains the original record as a whole, including absent speaker.
+      return false;
+    });
+  }
+  return { proposal: { ...proposal, phone }, reviews };
+}
+
+/** Only explicit author material can confirm a newly imported familiar person.
+ * Proposed relationships are never their own evidence of pre-existing acquaintance. */
+export function worldCharacterPreviewBaseline(
+  baseline: RecordValue,
+  updated: RecordValue,
+  sources: readonly Source[],
+) {
+  const authored = rows(baseline.actors);
+  const additions: RecordValue[] = [];
+  const relationshipLabel = /^(?:L5\s*)?(?:Relationships?\s*(?:Model)?\s*)?(?:关系模型)?$/i;
+  for (const source of sources) {
+    const names = preparationCharacterNames([source]);
+    if (names.length !== 1) continue;
+    const name = names[0]!;
+    if (authored.some((actor) => actor.name === name)) continue;
+    const matches = rows(updated.actors).filter((actor) => actor.name === name);
+    if (matches.length !== 1 || !validKey(matches[0]!.key)) continue;
+    const content = source.content.replace(/^> /gm, '');
+    const lines = content.split(/\r?\n/);
+    const relationship: string[] = [];
+    let infoIndex = 2,
+      tableRelation = false;
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index]!.replace(/\*\*|__/g, '').trim();
+      const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+      if (heading && relationshipLabel.test(heading[2]!)) {
+        const depth = heading[1]!.length;
+        while (index + 1 < lines.length) {
+          const next = /^(#{1,6})\s+/.exec(lines[index + 1]!.trim());
+          if (next && next[1]!.length <= depth) break;
+          relationship.push(lines[++index]!);
+        }
+        continue;
+      }
+      const inline =
+        /^(?:[-*]\s*)?(?:与(?:用户(?:（主角）)?|主角|玩家|男主)|初始关系|关系模型)\s*[:：]\s*(.+)$/.exec(
+          line,
+        );
+      if (inline) relationship.push(line);
+      if (!line.startsWith('|') || !line.endsWith('|')) {
+        tableRelation = false;
+        continue;
+      }
+      const cells = line
+        .slice(1, -1)
+        .split(/(?<!\\)\|/)
+        .map((value) => value.trim());
+      if (cells.includes('需要刻画的信息')) {
+        infoIndex = cells.indexOf('需要刻画的信息');
+        tableRelation = false;
+        continue;
+      }
+      if (/^[\s|:-]+$/.test(line)) continue;
+      const labelled = cells
+        .slice(0, infoIndex)
+        .some((cell) => !!cell && relationshipLabel.test(cell));
+      tableRelation = labelled || (tableRelation && !cells[0]);
+      if (tableRelation && cells[infoIndex]) relationship.push(cells[infoIndex]!);
+    }
+    const raw = relationship.join('\n').trim();
+    if (!text(raw, 4000) || /尚未|未曾|从未|不认识|还不认识|未相识|陌生|将来|未来|将成为/.test(raw))
+      continue;
+    const explicitlyKnown =
+      /(?:^|\n)\s*(?:[-*]\s*)?开场(?:已)?认识\s*[:：]\s*(?:是|true)\s*(?:$|\n)/i.test(
+        content.replace(/\*\*|__/g, ''),
+      );
+    const familiar =
+      /与(?:用户(?:（主角）)?|主角|玩家|男主|你)[^\n。]{0,40}(?:认识|相识|熟人|同事|共事|合作|朋友|邻居|从小|青梅|旧友)/.test(
+        raw,
+      );
+    if (!explicitlyKnown && !familiar) continue;
+    if (additions.some((actor) => actor.key === matches[0]!.key)) continue;
+    additions.push({ ...matches[0]!, knownAtStart: true, lifeModules: { relationships: raw } });
+  }
+  return additions.length ? { ...baseline, actors: [...authored, ...additions] } : baseline;
+}
