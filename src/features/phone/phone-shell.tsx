@@ -31,6 +31,7 @@ const apps: Record<PhoneApp, string> = {
   photos: '相册',
   calendar: '日历',
   notes: '备忘录',
+  records: '人生记录',
   scenes: '现场',
   map: '地图',
 };

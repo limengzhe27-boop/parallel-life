@@ -1,5 +1,6 @@
 import type { PlayerRecords } from '../../../contracts/world-records.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
+import { usePhoneApps } from './provider.tsx';
 import { searchable, timeText } from './helpers.ts';
 import s from './notes-records.module.css';
 
@@ -481,5 +482,107 @@ export function NotesRecordsReadState({
         </>
       )}
     </section>
+  );
+}
+
+/** Standalone RecordsApp: dedicated read-only viewer for world background and player records */
+export function RecordsApp({
+  target,
+  open,
+}: PhoneAppContext) {
+  const { records, reloadRecords, drafts, setDraft } = usePhoneApps();
+  const query = drafts['records:search'] ?? '';
+  const setQuery = (value: string) => setDraft('records:search', value);
+  const reload = reloadRecords
+    ? () => {
+        void reloadRecords();
+      }
+    : undefined;
+
+  if (target) {
+    return (
+      <div className={`${s.records} ${s.notesPage}`}>
+        <nav className={s.recordNavigation} aria-label="人生记录导航">
+          <button
+            type="button"
+            className={s.recordBack}
+            aria-label="返回人生记录"
+            onClick={() => open('records')}
+          >
+            <span aria-hidden="true">‹</span> 人生记录
+          </button>
+        </nav>
+        {records.status === 'ready' ? (
+          <NotesRecordDetail data={records.data} target={target} open={open} />
+        ) : (
+          <NotesRecordsReadState
+            status={records.status}
+            error={records.status === 'error' ? records.error : undefined}
+            reload={reload}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${s.records} ${s.notesPage}`} style={{ padding: '0 12px 24px' }}>
+      <header style={{ padding: '16px 4px 8px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0 }}>人生记录</h2>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+          记录这段人生已知的事实、进展与起点设定（只读）
+        </p>
+      </header>
+
+      {/* 搜索框 */}
+      <div style={{ margin: '8px 0 16px' }}>
+        <input
+          type="search"
+          value={query}
+          placeholder="搜索人生记录…"
+          onChange={(e) => setQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: '10px',
+            border: '1px solid #e2e8f0',
+            background: '#ffffff',
+            fontSize: '14px',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+
+      {/* 首屏：关于这段人生 */}
+      <details
+        className={s.background}
+        open={true}
+        style={{ margin: '0 0 16px', background: '#ffffff', padding: '12px', borderRadius: '12px' }}
+      >
+        <summary style={{ fontWeight: 600, fontSize: '15px', cursor: 'pointer' }}>
+          关于这段人生（起点与设定）
+        </summary>
+        {records.status === 'ready' ? (
+          <NotesAbout data={records.data} query={query} open={open} />
+        ) : null}
+      </details>
+
+      {/* 进展与事项列表 */}
+      {records.status === 'ready' ? (
+        <NotesRecords
+          data={records.data}
+          query={query}
+          open={open}
+          historyOpen={drafts['records:history-open'] === 'true'}
+          onHistoryToggle={(value) => setDraft('records:history-open', String(value))}
+        />
+      ) : (
+        <NotesRecordsReadState
+          status={records.status}
+          error={records.status === 'error' ? records.error : undefined}
+          reload={reload}
+        />
+      )}
+    </div>
   );
 }

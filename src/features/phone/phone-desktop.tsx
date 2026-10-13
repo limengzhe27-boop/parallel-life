@@ -179,17 +179,17 @@ export function PhoneDesktop({
 
       <button
         className={styles.record}
-        onClick={() => open('notes', cardTarget)}
+        onClick={() => (keyRecord ? open('records', cardTarget) : open('notes', cardTarget))}
         aria-label={
           keyRecord
-            ? `打开备忘录事项：${cardTitle}，${cardMeta ?? ''}`
+            ? `打开人生记录事项：${cardTitle}，${cardMeta ?? ''}`
             : record
               ? `打开备忘录：${record}`
               : '打开备忘录'
         }
       >
         <span className={styles.recordIcon}>
-          <PhoneIcon name="notes" variant="app" />
+          <PhoneIcon name={keyRecord ? 'records' : 'notes'} variant="app" />
         </span>
         <span className={styles.recordBody}>
           <span className={styles.recordLabel}>{cardLabel}</span>
@@ -200,18 +200,24 @@ export function PhoneDesktop({
       </button>
 
       <div className={styles.utilities} aria-label="手机工具">
-        {(['scenes', 'timeline'] as const).map((item) => (
-          <button
-            key={item}
-            data-panel={item}
-            onClick={() => (item === 'scenes' ? open('scenes') : openPanel(item))}
-          >
-            <span className={`${styles.utilityIcon} ${styles[item] || ''}`}>
-              <PhoneIcon name={item} variant="app" />
-            </span>
-            <span>{item === 'scenes' ? '现场' : '身份'}</span>
-          </button>
-        ))}
+        <button data-panel="scenes" onClick={() => open('scenes')}>
+          <span className={`${styles.utilityIcon} ${styles.scenes || ''}`}>
+            <PhoneIcon name="scenes" variant="app" />
+          </span>
+          <span>现场</span>
+        </button>
+        <button data-panel="records" onClick={() => open('records')}>
+          <span className={`${styles.utilityIcon} ${styles.records || ''}`}>
+            <PhoneIcon name="records" variant="app" />
+          </span>
+          <span>记录</span>
+        </button>
+        <button data-panel="timeline" onClick={() => openPanel('timeline')}>
+          <span className={`${styles.utilityIcon} ${styles.timeline || ''}`}>
+            <PhoneIcon name="timeline" variant="app" />
+          </span>
+          <span>身份</span>
+        </button>
       </div>
     </div>
   );

@@ -219,8 +219,8 @@
 }
 .utilities {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 .utilities button {
   min-width: 0;
@@ -260,6 +260,10 @@
 }
 .timeline {
   background: linear-gradient(145deg, #dfae81, #a67147);
+  color: #fff;
+}
+.records {
+  background: linear-gradient(145deg, #818cf8, #4f46e5);
   color: #fff;
 }
 .scenes {

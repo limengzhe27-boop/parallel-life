@@ -7,6 +7,7 @@ import { MomentsApp } from './moments.tsx';
 import { PhotosApp } from './photos.tsx';
 import { CalendarApp } from './calendar.tsx';
 import { NotesApp } from './notes.tsx';
+import { RecordsApp } from './notes-records.tsx';
 import { SceneIndexApp } from '../scenes/scene-index.tsx';
 import { Empty, Refresh } from './common.tsx';
 import s from './apps.module.css';
@@ -42,6 +43,8 @@ export function PhoneAppView(context: PhoneAppContext) {
         <CalendarApp {...context} />
       ) : context.app === 'notes' ? (
         <NotesApp {...context} />
+      ) : context.app === 'records' ? (
+        <RecordsApp {...context} />
       ) : (
         <Empty title="这个应用尚未开放" />
       )}

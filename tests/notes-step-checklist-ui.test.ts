@@ -31,7 +31,7 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { NotesRecords, NotesRecordDetail } =
+const { NotesRecords, NotesRecordDetail, RecordsApp } =
   await import('../src/features/phone/apps/notes-records.tsx');
 const { NotesApp } = await import('../src/features/phone/apps/notes.tsx');
 const { PhoneAppsProvider } = await import('../src/features/phone/apps/provider.tsx');
@@ -219,12 +219,12 @@ for (const status of ['unknown', 'failed', 'pending'] as const) {
             },
           ],
         },
-        children: createElement(NotesApp, { app: 'notes', target, open: noop }),
+        children: createElement(RecordsApp, { app: 'records', target, open: noop }),
       }),
     );
     assert.match(html, /已完成 1\/4/);
     assert.equal((html.match(/class="completedMark"/g) ?? []).length, 1);
     assert.doesNotMatch(html, /我已经全做完了|已完成 4\/4/);
-    assert.match(html, /aria-label="返回待办"/);
+    assert.match(html, /aria-label="返回人生记录"/);
   });
 }
