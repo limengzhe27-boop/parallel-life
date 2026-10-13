@@ -426,3 +426,36 @@ test('scene proposal receives the established local evening across UTC date boun
   });
   await p.propose(c);
 });
+
+test('arrival uses opening-only instructions and still rejects invented execution', async () => {
+  const c = context();
+  c.world.appointments = [];
+  delete c.scene.appointmentId;
+  let inventResult = false;
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      assert.ok(messages[0]!.content.includes('这次没有玩家行动'));
+      assert.ok(!messages[0]!.content.includes('交接类示例'));
+      assert.ok(!messages[1]!.content.includes('Non-null outcome and observation REQUIRED'));
+      return JSON.stringify({
+        location: '旧车间',
+        narration: '窗边有一张空工作台。',
+        presentActorIds: [],
+        outcome: inventResult ? 'succeeded' : null,
+        observation: inventResult ? '你完成了车间的租赁。' : null,
+        matterTitle: null,
+        initialMatters: [],
+        matterUpdates: [],
+        dialogues: [],
+        stepProposals: [],
+        npcActions: [],
+      });
+    },
+  });
+  const opening = await planner.propose(c);
+  assert.equal(opening.outcome, null);
+  assert.equal(opening.observation, null);
+  assert.deepEqual(opening.matterUpdates, []);
+  inventResult = true;
+  await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
+});

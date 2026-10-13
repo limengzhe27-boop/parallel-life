@@ -30,6 +30,14 @@ import { requestHash, TaskError } from '../../tasks/infrastructure/task-reposito
 import type { OfficialLifePack } from '../../settings/application/official-life-pack.ts';
 import type { OfficialLifeCatalog } from '../../settings/application/official-life-pack.ts';
 import type { PlayerExperience, SceneSession } from '../domain/experience-rules.ts';
+/**
+ * An unresolved director attempt is an audit of an uncertain model result, not
+ * evidence of work still running. The shared world advisory lock protects every
+ * active director call; location writes acquire it before checking this queue.
+ * Keep old attempts for receipt reconciliation and to prevent automatic repayment,
+ * but let explicit location actions proceed once no director owns the lock.
+ * A late result still has to pass the world's expected-version commit fence.
+ */
 export async function assertSpaceIdle(sql: SqlClient, worldId: string): Promise<void> {
   if (
     (
@@ -47,12 +55,6 @@ export async function assertSpaceIdle(sql: SqlClient, worldId: string): Promise<
     (
       await sql.query(
         "SELECT 1 FROM parallel_life.commands WHERE world_id=$1 AND status IN ('queued','running','unknown') LIMIT 1",
-        [worldId],
-      )
-    ).rowCount ||
-    (
-      await sql.query(
-        "SELECT 1 FROM parallel_life.world_director_attempts a WHERE world_id=$1 AND status<>'committed' AND NOT EXISTS(SELECT 1 FROM parallel_life.world_events e WHERE e.world_id=a.world_id AND e.command_id=a.command_id::text) LIMIT 1",
         [worldId],
       )
     ).rowCount
