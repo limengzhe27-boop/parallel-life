@@ -1147,3 +1147,43 @@ test('numbered character document in a world-named ZIP admits its named actor wi
   assert.deepEqual(result.updatedContent, { actors: [actor] });
   assert.deepEqual(JSON.parse(calls[0]!.messages[1]!.content).allowedCharacterNames, ['青青']);
 });
+
+test('world scheduling prompts use the real reference for relative opening and repair while leaving date-less prose to system scheduling', async () => {
+  const relativeSource = [
+    { filename: '世界.md', content: '开场傍晚，今晚朋友发消息，明天再约见面。未规定日历日期。' },
+  ];
+  const wrong = fixture();
+  wrong.world.startAt = '';
+  wrong.protagonist.identity = '';
+  const corrected = fixture();
+  corrected.world.startAt = '2031-03-06T10:00:00Z';
+  const h = sequenceHarness([reply(wrong), reply(corrected)]);
+  const referenceAt = '2031-03-06T01:00:00Z';
+  const result = await h.planner.propose(
+    { currentContent: {}, sources: relativeSource },
+    undefined,
+    { referenceAt },
+  );
+  assert.equal(h.calls.length, 2);
+  for (const call of h.calls) {
+    const payload = JSON.parse(call.messages[1]!.content);
+    assert.equal(payload.previewReferenceAt, referenceAt);
+    assert.equal(payload.scheduling.referenceAt, referenceAt);
+    assert.deepEqual(payload.sources, relativeSource);
+  }
+  const system = h.calls[0]!.messages[0]!.content;
+  assert.ok(system.includes('未定开场日期且没有相对时间依据时startAt留空'));
+  assert.ok(system.includes('只有开场傍晚、今晚、明天等相对依据时'));
+  assert.ok(system.includes('为一次性系统日历参考，换算具体合法UTC'));
+  assert.ok(system.includes('原稿或currentContent的明确日期、钟点、先后关系必须保留'));
+  assert.ok(system.includes('某事件完成后N天是动态条件，目前不支持精确延时'));
+  assert.ok(!system.includes('均未定开场日期时startAt必须留空'));
+  const repair = h.calls[1]!.messages[0]!.content;
+  assert.ok(repair.includes('时间来源待核对'));
+  assert.ok(repair.includes('不推给编剧填写日期'));
+  assert.ok(repair.includes('已有明确作者日期保持'));
+  assert.equal(
+    (result.updatedContent.world as { startAt: string }).startAt,
+    corrected.world.startAt,
+  );
+});
