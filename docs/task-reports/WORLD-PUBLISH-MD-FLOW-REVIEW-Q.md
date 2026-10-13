@@ -74,3 +74,15 @@ importer :776 将已识别候选原段落写为 `intent:{kind:'editorial_only'}`
 在准确9f4d200读到的限定链路没有发现新的来源/权限/版本接线P1。最重要的是验收范围与用词：editorial_only/hiddenContext不会自动成为当前导演事件，trialVerified不等于全剧情完成，unknown/played或数字不能替代实际提交来源。
 
 Q本轮只读源码/历史报告，**0新测试、check/build、实际PostgreSQL、HTTP/browser、模型、生产写、端口、新世界/图片/部署**；根1827check/404边界/type/build与之前HTTP/390/ZIP证据只是根报告，Q没有重新验证。真实模型QA新结果仍由根回传，不提前标成功。本报告待根集成后归档，原报告独立提交，Q不接管公共源/运行额度，也不继续自动extract或扩任务。
+
+## 追加：集成人回传本轮核心真实 QA 结果
+
+根随后明确回传：新一个临时 work 已发布 v1，两个测试存档为一个 trial 与一个独立 player；trial 完成剧情来信和一次 NPC 交谈，player 初始 version0仅两条作者历史消息，不混入trial讨论的263金额。player 的实际剧情来信及两次NPC回复后version3，追问能承接本存档的317金额且表述为未到账。保守占用10/12，两个存档，没有重付。这是根回传的有限实际结果，Q未访问生产、模型或数据库，不把金额话术当整个经济/记忆规则都已覆盖。
+
+trial-story 的传输曾断开：根保留原错误，通过读取 story 结果确认 `cand_import_4` outcome=committed、sourceEventId及精确sourceMessageId匹配实际phone消息、pending=null，没有再付费。符合“真实来源比HTTP表象和played数值更重要”的验收条件；不能把这段失联历史删掉后宣称全流程从未失败。
+
+根另回传新viewer可见临时目录、跨owner与privateTrial读取404、同command恢复同world、投影version一致。具体work/world/command/source/check/binding值及provider/预算明细应保留在根自有验收记录，本文不猜ID或复制凭据。
+
+截至回传，解析器两处小修（L5明确主角关系在导入UI未显示、最后候选错误吸收“导入后还要补全”说明）已由根交B窄修；暂停/下架、账本关闭与修复后最终部署归档仍待根收尾。不为这两处确定性解析修复增加trial、world或模型；最终原发布v1/已有world不可被新解析器重写。
+
+本批可确认的结论限定为：原稿导入与人工补齐后的临时作品、一个可执行来信节点的真实提交、试演与玩家隔离/有限承接及创建恢复。第二editorial_only仍应在最终记录列出无source/无claim；根没有回传它已演绎，不能把两个候选数说成全节点通过。不能称任意MD自动AI生成、全剧情/结局/多步完成或所有长期世界质量已验收。Q报告冻结后由根补最终收尾与上线证据，不自动扩大任务。
