@@ -2,6 +2,7 @@ import { authenticated, endpoint, HttpError, json } from '../../../../../../serv
 import { requestLimit } from '../../../../../../server/limits.ts';
 import { Id } from '../../../../../../contracts/api.ts';
 export const runtime = 'nodejs';
+export const maxDuration = 240;
 /**
  * Moves this life's clock and lets a bounded number of beats happen on their own.
  *

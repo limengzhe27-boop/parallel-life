@@ -13,6 +13,8 @@ import {
   parseBody,
 } from '../../../../../../server/http.ts';
 
+export const runtime = 'nodejs';
+export const maxDuration = 240;
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   return endpoint(async () => {
     const s = await authenticated(request);

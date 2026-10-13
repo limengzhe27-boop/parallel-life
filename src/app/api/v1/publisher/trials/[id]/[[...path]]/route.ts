@@ -1,6 +1,6 @@
 import { publisherTrialRoute } from '../../../../../../../server/publisher-world-http.ts';
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 240;
 async function handle(
   request: Request,
   context: { params: Promise<{ id: string; path?: string[] }> },
