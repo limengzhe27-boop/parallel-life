@@ -26,6 +26,9 @@ export type ActorContext = {
     'id' | 'name' | 'relationship' | 'persona'
   > & { socialTie?: string })[];
   previousDisclosures?: { sourceMessageId: string; recipientActorId: string }[];
+  authoredLifeModules?: Partial<
+    Record<'lifeContext' | 'traits' | 'drives' | 'behavior' | 'relationships', string>
+  >;
   authoredPosts?: { text: string; at: string }[];
   facts: WorldState['facts'];
   messages: WorldState['messages'];

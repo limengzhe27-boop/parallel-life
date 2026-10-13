@@ -120,6 +120,39 @@ function unsupported(c: PublicationContent): PublicationCompileIssue[] {
     if (node.intent.kind === 'offer_invitation' && node.intent.actorKeys.length !== 1)
       out.push(issue('unsupported_multi_actor_invitation', ['candidates', i, 'intent']));
   });
+  const directorKeys = new Set(
+    c.candidates.filter((n) => n.intent.kind === 'director_event').map((n) => n.key),
+  );
+  c.candidates.forEach((node, i) => {
+    node.prerequisites.forEach((condition, j) => {
+      if (
+        (condition.kind === 'after_committed_node' && directorKeys.has(condition.nodeKey)) ||
+        (condition.kind === 'after_resolved_node' &&
+          directorKeys.has(condition.nodeKey) &&
+          condition.outcomes.every((o) => o === 'committed' || o === 'declined'))
+      )
+        out.push(
+          issue('unsupported_director_completion_dependency', [
+            'candidates',
+            i,
+            'prerequisites',
+            j,
+          ]),
+        );
+    });
+  });
+  c.timeline?.stages.forEach((stage, i) => {
+    if (
+      stage.afterStageKeys.some((key) => {
+        const prior = c.timeline!.stages.find((s) => s.key === key)!;
+        return (
+          !prior.window &&
+          c.candidates.some((n) => n.timeline?.stageKey === key && directorKeys.has(n.key))
+        );
+      })
+    )
+      out.push(issue('unsupported_director_completion_stage', ['timeline', 'stages', i]));
+  });
   c.extensions.forEach((e, i) => {
     if (e.purpose === 'runtime_required')
       out.push(issue('unsupported_runtime_extension', ['extensions', i]));

@@ -45,6 +45,10 @@ function issueLabel(path: readonly (string | number)[], code: string) {
   if (code === 'trial_unverified') return '请先试演，并完成一条真实的角色对话，再重新检查。';
   if (code === 'media_unverified') return '素材尚未核验，请检查所选图片后再试。';
   const hints: Record<string, string> = {
+    unsupported_director_completion_dependency:
+      '这里需要前一事件真正完成。目前支持事件入场，尚不能判定整件事完成；请保留原稿，等待分步演绎支持。',
+    unsupported_director_completion_stage:
+      '这一阶段需要前面事件真正完成。目前不能可靠推进这种阶段衔接，请保留原稿，等待分步演绎支持。',
     future_opening_message: '发送时间不能晚于世界开场。',
     history_message_not_past: '过去的对话应发生在世界开场之前。',
     sender_not_player_known: '请选择开场时玩家已认识的人物，或先完善人物的开场关系。',

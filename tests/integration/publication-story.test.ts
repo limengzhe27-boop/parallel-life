@@ -370,6 +370,16 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
         },
       ];
       doc.actors[0].publicCard.introduction = '作者公开介绍';
+      doc.actors[0].lifeModules = { traits: 'ONLY_THIS_PERSON_PRIVATE_MODULE' };
+      doc.extensions = [
+        {
+          namespace: 'parallel_life.authoring_overall',
+          version: 1,
+          purpose: 'editorial',
+          description: '作者总体设定',
+          data: { text: 'DIRECTOR_OVERALL_PRIVATE_TEXT' },
+        },
+      ];
       doc.phone.messages = [
         {
           key: 'past_player',
@@ -452,6 +462,48 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
         ),
         { moments: [] },
       );
+      const privateSetting = await app.transaction(
+        owner,
+        async (sql) =>
+          (await sql.query('SELECT parallel_life.publication_director_setting($1) AS d', [wid]))
+            .rows[0].d,
+      );
+      assert.equal(privateSetting.overallSetting, 'DIRECTOR_OVERALL_PRIVATE_TEXT');
+      assert.equal(
+        privateSetting.characterSettings[0].lifeModules.traits,
+        'ONLY_THIS_PERSON_PRIVATE_MODULE',
+      );
+      const ownActorId = initial.actors.find((actor) => actor.name === doc.actors[0].name)!.id;
+      const ownModules = await app.transaction(
+        owner,
+        async (sql) =>
+          (
+            await sql.query('SELECT parallel_life.publication_actor_life_modules($1,$2) AS d', [
+              wid,
+              ownActorId,
+            ])
+          ).rows[0].d,
+      );
+      assert.deepEqual(ownModules, { traits: 'ONLY_THIS_PERSON_PRIVATE_MODULE' });
+      for (const fn of [
+        'publication_director_setting($1)',
+        'publication_actor_life_modules($1,$2)',
+      ])
+        assert.equal(
+          await app.transaction(
+            other,
+            async (sql) =>
+              (
+                await sql.query(
+                  'SELECT parallel_life.' + fn + ' AS d',
+                  fn.includes('$2') ? [wid, ownActorId] : [wid],
+                )
+              ).rows[0].d,
+          ),
+          null,
+        );
+      assert.ok(!JSON.stringify(social).includes('ONLY_THIS_PERSON_PRIVATE_MODULE'));
+      assert.ok(!JSON.stringify(initial).includes('DIRECTOR_OVERALL_PRIVATE_TEXT'));
       const pool = await story.opportunities(owner, wid, false);
       assert.equal(pool.directorPool, true);
       assert.deepEqual(

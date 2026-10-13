@@ -13,3 +13,12 @@ export const AuthoredSocialSchema = z.strictObject({
     .max(48),
 });
 export type AuthoredSocial = z.infer<typeof AuthoredSocialSchema>;
+
+/** Server-only input context; the social HTTP route does not include these modules. */
+export const AuthoredLifeModulesSchema = z.strictObject({
+  lifeContext: z.string().min(1).max(4000).optional(),
+  traits: z.string().min(1).max(4000).optional(),
+  drives: z.string().min(1).max(4000).optional(),
+  behavior: z.string().min(1).max(4000).optional(),
+  relationships: z.string().min(1).max(4000).optional(),
+});

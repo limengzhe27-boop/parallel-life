@@ -723,3 +723,46 @@ test('eligible authored timeline stays out of genesis facts and initial phone me
   assert.ok(!JSON.stringify(r.world).includes('FUTURE_NOT_A_'));
   assert.equal(r.world.messages.length, 3);
 });
+
+test('unsupported full-event completion prerequisites are blocked without changing author intent', () => {
+  const c = content();
+  const event = {
+    key: 'event_a',
+    kind: 'candidate' as const,
+    title: '主角面临的事',
+    editorialIntent: '由导演开启事件',
+    actorKeys: ['a_first'],
+    prerequisites: [],
+    mutuallyExclusiveNodeKeys: [],
+    intent: { kind: 'director_event' as const, actorKey: 'a_first' },
+  };
+  c.candidates = [
+    event,
+    {
+      ...event,
+      key: 'event_b',
+      prerequisites: [{ kind: 'after_committed_node', nodeKey: 'event_a' }],
+    },
+  ];
+  noCompile(input(c), 'unsupported', 'unsupported_director_completion_dependency');
+  c.candidates[1]!.prerequisites = [{ kind: 'after_presented_node', nodeKey: 'event_a' }];
+  assert.equal(compilePublicationGenesis(input(c)).status, 'compiled');
+  c.timeline = {
+    initialStageKey: 'first',
+    stages: [
+      { key: 'first', title: '之前', order: 0, afterStageKeys: [] },
+      { key: 'second', title: '之后', order: 1, afterStageKeys: ['first'] },
+    ],
+  };
+  c.candidates[0]!.timeline = {
+    stageKey: 'first',
+    excludeIfResolved: [],
+    alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+  };
+  c.candidates[1]!.timeline = {
+    stageKey: 'second',
+    excludeIfResolved: [],
+    alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+  };
+  noCompile(input(c), 'unsupported', 'unsupported_director_completion_stage');
+});
