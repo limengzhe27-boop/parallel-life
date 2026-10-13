@@ -48,7 +48,7 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
         assert.equal(access.rows[0].allowed, false);
       }
     }
-    // These definer triggers are invoked by table writes, never directly by runtime roles.
+    // These restricted triggers are invoked by table writes, never directly by runtime roles.
     const triggerOnly = new Set([
       'binding_current_avatar_sync',
       'profile_current_avatar_sync',
@@ -60,6 +60,7 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
       'publication_story_node_identity',
       'publication_story_node_source',
       'publication_story_followup_source',
+      'publisher_preparation_transition',
     ]);
     assert.equal(rows.filter((row) => triggerOnly.has(row.proname)).length, triggerOnly.size);
     for (const row of rows.filter((row) => triggerOnly.has(row.proname))) {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Id, Version, Timestamp } from './api.ts';
 import { PublisherDraftContentSchema } from './world-publisher.ts';
+import { publicationStorageIssues } from '../modules/settings/domain/publication-content.ts';
 
 export const PublisherPreparationMaterialSchema = z
   .strictObject({
@@ -16,6 +17,8 @@ export const PublisherPreparationMaterialSchema = z
       .max(32),
   })
   .superRefine((value, ctx) => {
+    // Invalid/non-JSON private drafts are already rejected; never serialize them a second time.
+    if (publicationStorageIssues(value.currentContent).length) return;
     if (
       value.sources.reduce((n, s) => n + new TextEncoder().encode(s.content).length, 0) > 131072 ||
       JSON.stringify(value).length > 48000
@@ -30,6 +33,7 @@ export const PublisherPreparationInputSchema = z
     sources: PublisherPreparationMaterialSchema.shape.sources,
   })
   .superRefine((value, ctx) => {
+    if (publicationStorageIssues(value.currentContent).length) return;
     if (
       !PublisherPreparationMaterialSchema.safeParse({
         currentContent: value.currentContent,
