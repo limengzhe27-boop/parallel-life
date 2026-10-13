@@ -63,6 +63,10 @@ import {
   WorldMessageReceiptSchema,
   type WorldMessageRequest,
 } from '../../contracts/world-interaction.ts';
+// Chat allows the server's 85s model deadline plus persistence; director advance
+// may call the model twice. Both remain bounded below the route's 240s limit.
+const WORLD_MESSAGE_TIMEOUT_MS = 125_000;
+const WORLD_ADVANCE_TIMEOUT_MS = 185_000;
 export class ApiFailure extends Error {
   readonly code: ApiErrorBody['error']['code'];
   readonly requestId?: string;
@@ -177,6 +181,7 @@ export class LifeClient {
       {
         method: 'POST',
         body: JSON.stringify(input),
+        signal: AbortSignal.timeout(WORLD_MESSAGE_TIMEOUT_MS),
       },
     );
   }
@@ -214,6 +219,7 @@ export class LifeClient {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/advance`, AdvanceReceiptSchema, {
       method: 'POST',
+      signal: AbortSignal.timeout(WORLD_ADVANCE_TIMEOUT_MS),
       ...(automatic ? { body: JSON.stringify({ automatic: true }) } : {}),
     });
   }
