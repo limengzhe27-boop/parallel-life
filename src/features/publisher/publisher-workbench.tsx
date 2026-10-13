@@ -882,21 +882,23 @@ export function PublisherWorkbench(
               >
                 剧情发展
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'review'}
-                className={`${s.tabButton} ${activeTab === 'review' ? s.activeTab : ''}`}
-                onClick={() => setActiveTab('review')}
-              >
-                待确认问题{check && pendingChecks.length > 0 ? `（${pendingChecks.length}）` : ''}
-              </button>
+              {(activeTab === 'review' || (check && pendingChecks.length > 0)) && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'review'}
+                  className={`${s.tabButton} ${activeTab === 'review' ? s.activeTab : ''}`}
+                  onClick={() => setActiveTab('review')}
+                >
+                  待确认问题{check && pendingChecks.length > 0 ? `（${pendingChecks.length}）` : ''}
+                </button>
+              )}
             </div>
           )}
         </header>
 
         {/* Global Feedback Banners */}
-        {markdownReview && activeTab === 'review' && (
+        {markdownReview && activeTab === 'settings' && (
           <details className={s.banner}>
             <summary>本次文稿导入记录 · 原稿与待核对内容</summary>
             <p>此记录仅供当前编辑时核对，不自动保存为世界事实或公开资料。原始文档保持原样。</p>
@@ -957,7 +959,8 @@ export function PublisherWorkbench(
             </button>
           </div>
         )}
-        {work && activeTab === 'review' && (
+
+        {work && (activeTab as string) === 'review' && (
           <section className={s.reviewPanel} aria-label="待确认问题">
             <h3>先核对，再试演与发布</h3>
             <p>
@@ -1025,7 +1028,7 @@ export function PublisherWorkbench(
           </section>
         )}
 
-        {work && activeTab === 'review' && (
+        {work && (activeTab as string) === 'review' && (
           <details className={s.scheduling} aria-label="安排故事时间">
             <summary>故事时间（按需安排）</summary>
             <button
@@ -1046,6 +1049,7 @@ export function PublisherWorkbench(
             )}
           </details>
         )}
+
         {/* Empty workspace state */}
         {!work && (
           <div className={s.workspace}>

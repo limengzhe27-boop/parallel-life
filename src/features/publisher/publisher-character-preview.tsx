@@ -52,18 +52,44 @@ export function PublisherCharacterPreview({
         <p className={s.hint}>
           在手机微信中选择联系人，查看人物资料、朋友圈并直接聊天。试演使用独立存档。
         </p>
-        {isDirty ? (
-          <div className={s.empty}>
-            <p>有未保存的修改，先保存这份草稿，再进入手机试演。</p>
+        {/* 手机试演常驻区域：有试演则始终展示手机，有修改提示保存 */}
+        {isDirty && (
+          <div
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              background: '#fef3c7',
+              border: '1px solid #fde68a',
+              color: '#92400e',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '10px',
+            }}
+          >
+            <span>当前有未保存的修改；试演运行的是已保存版本。</span>
             <button
               type="button"
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                background: '#b45309',
+                color: '#ffffff',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '12px',
+              }}
               disabled={busy || !canEdit || saveBlocked || !onSave}
               onClick={onSave}
             >
-              {busy ? '正在处理…' : '保存草稿'}
+              {busy ? '保存中…' : '保存草稿'}
             </button>
           </div>
-        ) : trial ? (
+        )}
+
+        {trial && !isDirty ? (
           <iframe
             className={s.phone}
             title="这份已保存草稿的真实试演手机"
@@ -71,13 +97,23 @@ export function PublisherCharacterPreview({
           />
         ) : (
           <div className={s.empty}>
-            <p>保存后试演，查看玩家实际会使用的手机。</p>
+            <p>
+              {isDirty
+                ? '有未保存的修改，先保存这份草稿，再进入手机试演。'
+                : '保存后试演，查看玩家实际会使用的手机与角色对话、朋友圈。'}
+            </p>
             <button
               type="button"
-              disabled={busy || !onStartTrial || isDirty || saveBlocked}
-              onClick={onStartTrial}
+              disabled={busy || (isDirty ? !canEdit || saveBlocked || !onSave : !onStartTrial || saveBlocked)}
+              onClick={async () => {
+                if (isDirty && onSave) {
+                  await onSave();
+                } else {
+                  onStartTrial?.();
+                }
+              }}
             >
-              {busy ? '正在准备…' : '试演这份草稿'}
+              {busy ? '正在处理…' : isDirty ? '保存草稿' : '试演这份草稿'}
             </button>
           </div>
         )}

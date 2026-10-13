@@ -640,13 +640,9 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                     },
                     id(['intent', 'actorKey']),
                   )}
-                  <p className={`${s.hint} ${s.wide}`} style={{ margin: '4px 0 8px' }}>
-                    提示：若此事件涉及多角博弈或多名角色入局，可在下方「更多安排」中勾选。
-                  </p>
                 </>
               )}
-              <div className={`${s.preconditions} ${s.wide}`} aria-label="事件前提">
-                <strong>发生前提</strong>
+              <div className={`${s.preconditions} ${s.wide}`} aria-label="事件前提" style={{ margin: '4px 0 8px' }}>
                 {preconditionSummaries.length ? (
                   <ul className={s.references}>
                     {preconditionSummaries.map((summary, i) => (
@@ -654,7 +650,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                     ))}
                   </ul>
                 ) : (
-                  <p className={s.hint}>无前提，导演可以结合当前处境安排。</p>
+                  <p className={s.hint}>无前提，导演结合当前处境演绎。</p>
                 )}
               </div>
               <details
