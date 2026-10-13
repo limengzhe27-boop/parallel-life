@@ -13,3 +13,15 @@
 - 真实本地草稿保存回读、PC/手机编辑及流程图。
 - npm check/build，生产迁移校验与 READY 公网复核。
 - 本轮无新付费模型额度，0模型/0新世界/0图片。
+
+## Integration acceptance before deployment
+- Root e0eb210; Q 49851b integrated as b4ad39a; B c275612 integrated as c267a02; graph UI root 1262a5b.
+- check: 2113 passed, 423 module boundaries, typecheck passed. Production build passed.
+- Real local PostgreSQL: world-publications + publisher-preparation 33 passed, zero skipped.
+- Ego space 167: isolated local synthetic draft saved as revision 1 and read back with complete author manuscript. Existing public fields preserved. Graph selects exact event editor. Removing a prerequisite reference removes its edge and reports missing association; restoring it restores the edge.
+- Browser caught a 2px grid track collapse and click interception. Fixed intrinsic row sizing with grid-auto-rows:max-content; verified non-overlap and click accessibility.
+- 1440px desktop and 390px mobile: no page horizontal overflow; graph has its own horizontal scroll. Overall preparation dialog is 352px within mobile viewport, no repeated upload/paste step. This is viewport testing, not real iPhone keyboard validation.
+- Private editorial overall manuscript excluded from compiled player/NPC world; exact namespace privacy regression passed.
+- Overall preparation uses existing project Agent only on explicit action. Reopening queries matching source/scope to recover prior operation, without automatic generation.
+- Production 50 migration checksums match; no SQL changes. Zero new model calls, worlds, images. READY and public verification pending.
+- Followups remain: drag wiring/complex conditions; live trial condition state and distinct acceptance/arrival/task completion outcomes; reviewed replacement of existing content after overall changes. Existing long-source/dynamic-delay/live-model QA tasks remain open.
