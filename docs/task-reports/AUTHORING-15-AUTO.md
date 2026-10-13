@@ -23,7 +23,7 @@ tests/authoring15-auto.test.ts + phone-auto-advance/clock-client/client：14/14�
 
 覆盖同anchor跨真实窗口可继续、同窗口防重旧标记保留；暂停/非法clock阻止；generic原节奏；开场需无presented/pending；cache不重复读取/不会过时重启；ready版本变化再核验；consume丢响应不重做；读取失败不伪造；客户端拒绝隐藏稿件与假完成数据。
 
-typecheck已通过；此前独立build完整通过，前置防重微调后的最终build另行回传。完整check：2182通过，4项全部默认PG55432未运行ECONNREFUSED（character-image-flow两项、rls-tenant-isolation两项），没有跳过或削弱测试守卫。未调用模型/PG/生产/浏览器，不以专项代替root真实综合验收。
+typecheck及前置防重微调后的最终独立build均完整通过（exit 0）。完整check：2182通过，4项全部默认PG55432未运行ECONNREFUSED（character-image-flow两项、rls-tenant-isolation两项），没有跳过或削弱测试守卫。未调用模型/PG/生产/浏览器，不以专项代替root真实综合验收。
 
 ## 尚未完成
 
