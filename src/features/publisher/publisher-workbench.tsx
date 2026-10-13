@@ -6,6 +6,7 @@ import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { readOverallSetting, updateOverallSetting } from './publisher-overall-setting.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
+import { phoneTrialMatches, type PublisherPhoneTrial } from './publisher-phone-trial.ts';
 import { PublisherCharacterPreview } from './publisher-character-preview.tsx';
 import { PublisherImportDialog, manuscriptFingerprint } from './publisher-import-dialog.tsx';
 import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
@@ -108,7 +109,12 @@ function issueLabel(path: readonly (string | number)[], code: string) {
 }
 
 export function PublisherWorkbench(
-  props: PublisherWorkbenchProps & { preparationClient?: PublisherClient },
+  props: PublisherWorkbenchProps & {
+    preparationClient?: PublisherClient;
+    characterTrial?: PublisherPhoneTrial | null;
+    onCharacterTrial?: () => void;
+    onCloseCharacterTrial?: () => void;
+  },
 ) {
   const session = props.session;
   const {
@@ -743,7 +749,14 @@ export function PublisherWorkbench(
                 <button
                   type="button"
                   className={`${s.btn} ${s.btnTrial}`}
-                  onClick={onTrial ? () => onTrial() : undefined}
+                  onClick={
+                    onTrial
+                      ? () =>
+                          activeTab === 'actors' && props.onCharacterTrial
+                            ? props.onCharacterTrial()
+                            : onTrial()
+                      : undefined
+                  }
                   disabled={busy || isDirty || !onTrial}
                   title={!onTrial ? '试演功能暂不可用' : '用独立体验存档试演当前故事'}
                 >
@@ -1394,11 +1407,18 @@ export function PublisherWorkbench(
             {currentActorForm ? (
               <div className={s.editorPane}>
                 <PublisherCharacterPreview
-                  key={currentActorForm.key}
                   content={draftContent}
                   actorKey={currentActorForm.key}
                   canEdit={session.canEdit}
                   busy={busy}
+                  isDirty={isDirty}
+                  saveBlocked={overallBlocked}
+                  trial={
+                    phoneTrialMatches(work, props.characterTrial) ? props.characterTrial : null
+                  }
+                  onStartTrial={props.onCharacterTrial}
+                  onSave={handleSaveDraft}
+                  onCloseTrial={props.onCloseCharacterTrial}
                   onChange={setDraftContent}
                 />
                 <details className={s.disclosure}>

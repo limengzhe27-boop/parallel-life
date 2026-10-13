@@ -174,7 +174,7 @@ test('editing one module preserves authored extensions, legacy persona, other pe
   assert.equal(characterPreview(legacyEdit, 'guide')!.introduction, '新的公开介绍');
   assert.equal(characterModuleText(legacyEdit, 'guide', 'traits'), '谨慎但好奇');
 });
-test('chat preview renders real bidirectional bubbles, accessible navigation and universal author fields', () => {
+test('character pane uses saved-trial guidance and universal author fields without manufacturing a phone conversation', () => {
   const html = renderToStaticMarkup(
     createElement(PublisherCharacterPreview, {
       content: fixture(),
@@ -184,11 +184,11 @@ test('chat preview renders real bidirectional bubbles, accessible navigation and
       onChange() {},
     }),
   );
-  assert.match(html, /aria-label="向导的手机预览"/);
-  assert.match(html, /我带上地图/);
-  assert.match(html, /按昨天的路线走/);
-  assert.match(html, /playerMessage/);
-  assert.match(html, /查看向导的角色介绍/);
+  assert.match(html, /aria-label="真实手机试演"/);
+  assert.ok(!html.includes('我带上地图'));
+  assert.ok(!html.includes('按昨天的路线走'));
+  assert.ok(!html.includes('playerMessage'));
+  assert.match(html, /向导 · 角色介绍/);
   assert.match(html, /朋友圈/);
   for (const field of [
     '人生背景',
@@ -215,7 +215,7 @@ test('empty chat is honest, does not synthesize conversation, and read-only draf
       onChange() {},
     }),
   );
-  assert.match(html, /尚未认识，没有既有聊天记录/);
+  assert.match(html, /保存后试演/);
   assert.ok(!html.includes('OTHER_PERSON'));
   assert.equal((html.match(/<textarea[^>]*disabled=""/g) ?? []).length, 6);
   assert.equal(characterPreviewTime('2026-10-12T20:30:00Z'), '10月13日 04:30');

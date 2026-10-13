@@ -1,14 +1,17 @@
 .character {
+  display: grid;
+  grid-template-columns: minmax(0, 430px) minmax(0, 1fr);
+  gap: 20px;
   min-width: 0;
   color: var(--pub-text);
+  align-items: start;
 }
-.preview {
-  width: min(100%, 440px);
-  margin: 0 auto 20px;
-  border: 1px solid var(--pub-border);
-  border-radius: 18px;
-  overflow: hidden;
+.phonePane {
+  min-width: 0;
   background: var(--pub-surface);
+  border: 1px solid var(--pub-border);
+  border-radius: 12px;
+  overflow: hidden;
 }
 .header {
   display: flex;
@@ -16,195 +19,70 @@
   justify-content: space-between;
   padding: 12px 16px;
   gap: 12px;
-  border-bottom: 1px solid var(--pub-border);
 }
-.profile {
-  display: flex;
-  text-align: left;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  background: var(--pub-clear);
-  border: 0;
-}
-.profile strong {
-  display: block;
+.header h3 {
+  margin: 0;
   font-size: 18px;
-  overflow-wrap: anywhere;
-}
-.profile small {
-  display: block;
-  color: var(--pub-secondary);
 }
 .character button {
   font: inherit;
-  color: inherit;
+  color: var(--pub-text);
   cursor: pointer;
   min-height: 44px;
   border-radius: 8px;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-border);
+  padding: 6px 12px;
 }
 .character button:hover {
   background: var(--pub-accent-soft);
+}
+.character button:disabled {
+  color: var(--pub-secondary);
+  cursor: not-allowed;
 }
 .character :is(button, textarea, summary):focus-visible {
   outline: 2px solid var(--pub-ring);
   outline-offset: 2px;
 }
-.momentsButton {
-  flex-shrink: 0;
-  border: 1px solid var(--pub-border);
-  background: var(--pub-surface);
-  padding: 0 12px;
-}
-.avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 9px;
-  overflow: hidden;
-  background: var(--pub-accent-soft);
-  color: var(--pub-accent);
-  font-weight: 600;
-}
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.tabs {
-  display: flex;
-  border-bottom: 1px solid var(--pub-border);
-  padding: 0 8px;
-  background: var(--pub-surface);
-}
-.tabs button {
-  flex: 1;
-  border: 0;
-  border-radius: 0;
-  background: var(--pub-clear);
-  padding: 6px 8px;
-  border-bottom: 2px solid var(--pub-clear);
-}
-.tabs button.active {
-  border-bottom-color: var(--pub-accent);
-  color: var(--pub-accent);
-}
-.chat {
-  background: var(--pub-bg);
-  min-height: 280px;
-  max-height: 540px;
-  overflow-y: auto;
-  padding: 20px 14px 24px;
-}
-.time {
-  text-align: center;
-  font-size: 12px;
-  color: var(--pub-secondary);
-  margin: 4px 0 12px;
-}
-.message {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  margin-bottom: 20px;
-}
-.bubble {
-  max-width: 80%;
-  background: var(--pub-surface);
-  padding: 10px 12px;
+.phonePane > .hint {
   margin: 0;
-  border: 1px solid var(--pub-border);
-  border-radius: 6px 12px 12px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  line-height: 1.7;
+  padding: 0 16px 12px;
 }
-.playerMessage {
-  justify-content: flex-end;
-}
-.playerMessage .bubble {
-  background: var(--pub-accent-soft);
-  border-radius: 12px 6px 12px 12px;
-}
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+.phone {
+  display: block;
+  width: 100%;
+  height: min(780px, 85dvh);
+  min-height: 500px;
   border: 0;
 }
 .empty {
+  padding: 20px 16px 28px;
   color: var(--pub-secondary);
-  font-size: 14px;
   line-height: 1.8;
-  padding: 24px 8px;
-  margin: 0;
+}
+.empty p {
+  margin: 0 0 16px;
+}
+.manuscript {
+  min-width: 0;
 }
 .introduction {
-  padding: 28px 24px;
-  min-height: 280px;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
 }
 .introduction h3 {
-  margin: 12px 0 4px;
-  font-size: 20px;
-}
-.identity {
-  color: var(--pub-secondary);
-  margin: 0 0 18px;
+  margin: 0 0 12px;
+  font-size: 18px;
+  overflow-wrap: anywhere;
 }
 .publicText {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.8;
-}
-.moments {
-  min-height: 280px;
-  padding-bottom: 16px;
-}
-.momentsCover {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 10px;
-  padding: 30px 20px;
-  background: var(--pub-accent-soft);
-}
-.post {
-  display: flex;
-  gap: 12px;
-  margin: 0 16px;
-  padding: 20px 0;
-  border-bottom: 1px solid var(--pub-border);
-}
-.post > div {
-  min-width: 0;
-}
-.post strong {
-  color: var(--pub-accent);
-}
-.post p {
-  margin: 8px 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  line-height: 1.8;
-}
-.post time {
-  color: var(--pub-secondary);
-  font-size: 12px;
-}
-.caption {
-  border-top: 1px solid var(--pub-border);
-  color: var(--pub-secondary);
-  font-size: 12px;
-  line-height: 1.7;
-  padding: 10px 16px;
 }
 .editing {
   border: 1px solid var(--pub-border);
@@ -258,9 +136,18 @@
   color: var(--pub-secondary);
   cursor: not-allowed;
 }
+@media (max-width: 1199px) {
+  .character {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .phonePane {
+    width: min(100%, 430px);
+    margin-inline: auto;
+  }
+}
 @media (max-width: 767px) {
-  .preview {
-    border-radius: 12px;
+  .character {
+    gap: 16px;
   }
   .header {
     padding: 10px 12px;
@@ -268,7 +155,8 @@
   .editing {
     padding: 10px 12px;
   }
-  .bubble {
-    max-width: 82%;
+  .phone {
+    height: 78dvh;
+    min-height: 480px;
   }
 }

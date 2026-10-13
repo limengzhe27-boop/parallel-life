@@ -8,6 +8,13 @@ import type {
   PublisherCheckResult,
   PublisherWorkList,
 } from '../../contracts/world-publisher.ts';
+import {
+  phoneTrialFromResult,
+  phoneTrialMatches,
+  phoneTrialMount,
+  phoneTrialUrl,
+  type PublisherPhoneTrial,
+} from './publisher-phone-trial.ts';
 import s from './publisher-controller.module.css';
 
 export function PublisherController() {
@@ -15,7 +22,9 @@ export function PublisherController() {
   const [session, setSession] = useState<PublisherSessionState | null>(null);
   const [works, setWorks] = useState<PublisherWorkList['works']>([]);
   const [work, setWork] = useState<PublisherWork | null>(null);
-  const [trialId, setTrialId] = useState<string | null>(null);
+  const [phoneTrial, setPhoneTrial] = useState<PublisherPhoneTrial | null>(null);
+  const [trialPlacement, setTrialPlacement] = useState<'inline' | 'drawer' | null>(null);
+  const trialMount = phoneTrialMount(work, phoneTrial, trialPlacement);
   const [check, setCheck] = useState<PublisherCheckResult | null>(null);
   const [busy, setBusy] = useState(true),
     running = useRef(false);
@@ -44,6 +53,21 @@ export function PublisherController() {
       running.current = false;
       setBusy(false);
     }
+  }
+  function openTrial(placement: 'inline' | 'drawer') {
+    if (!work) return;
+    void run(async () => {
+      if (!phoneTrialMatches(work, phoneTrial)) {
+        const result = await client.startTrial(work);
+        try {
+          setPhoneTrial(phoneTrialFromResult(work, result));
+        } catch {
+          throw new PublisherClientError('INVALID_STATE');
+        }
+        setCheck(null);
+      }
+      setTrialPlacement(placement);
+    });
   }
   useEffect(() => {
     let alive = true;
@@ -133,15 +157,10 @@ export function PublisherController() {
         check={check}
         busy={busy}
         error={error}
-        onTrial={() => {
-          if (work)
-            void run(async () => {
-              const started = await client.startTrial(work);
-              if (!started.trialId) throw new PublisherClientError('INVALID_STATE');
-              setTrialId(started.trialId);
-              setCheck(null);
-            });
-        }}
+        onTrial={() => openTrial('drawer')}
+        characterTrial={trialMount.inline}
+        onCharacterTrial={() => openTrial('inline')}
+        onCloseCharacterTrial={() => setTrialPlacement(null)}
         onPublish={() => {
           if (work && check)
             void run(async () => {
@@ -152,6 +171,7 @@ export function PublisherController() {
             });
         }}
         onSelectWork={(id) => {
+          setTrialPlacement(null);
           void run(async () => {
             const next = await client.get(id);
             setWork(next);
@@ -159,6 +179,7 @@ export function PublisherController() {
           });
         }}
         onCreateWork={(draft) => {
+          setTrialPlacement(null);
           void run(async () => {
             const next = await client.create(draft);
             setWork(next);
@@ -170,6 +191,7 @@ export function PublisherController() {
           if (work)
             void run(async () => {
               const next = await client.save(work, draft);
+              setTrialPlacement(null);
               setWork(next);
               setCheck(null);
               await loadWorks();
@@ -187,6 +209,7 @@ export function PublisherController() {
         onDeleteWork={(workId) => {
           void run(async () => {
             await client.delete(workId);
+            setTrialPlacement(null);
             const remaining = await loadWorks();
             if (work && work.id === workId) {
               const first = remaining[0];
@@ -208,13 +231,15 @@ export function PublisherController() {
         onLogout={() => {
           void run(async () => {
             setSession(await client.logout());
+            setTrialPlacement(null);
+            setPhoneTrial(null);
             setWork(null);
             setWorks([]);
             setCheck(null);
           });
         }}
       />
-      {trialId && (
+      {trialMount.drawer && (
         <div
           role="dialog"
           aria-modal="true"
@@ -250,14 +275,14 @@ export function PublisherController() {
               <button
                 type="button"
                 style={{ marginLeft: 'auto', minHeight: 44 }}
-                onClick={() => setTrialId(null)}
+                onClick={() => setTrialPlacement(null)}
               >
                 关闭试演
               </button>
             </header>
             <iframe
               title="这份草稿的真实试演手机"
-              src={'/workbench/trials/' + trialId}
+              src={phoneTrialUrl(trialMount.drawer)}
               style={{ width: '100%', flex: 1, border: 0 }}
             />
           </section>
