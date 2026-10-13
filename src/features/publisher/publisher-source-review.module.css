@@ -1,0 +1,149 @@
+.review {
+  margin-top: 24px;
+  border-top: 1px solid #dbe1e8;
+  padding-top: 8px;
+  color: #172033;
+  line-height: 1.7;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.help,
+.location {
+  color: #596579;
+  font-size: 14px;
+}
+.warnings,
+.numberNotice,
+.notice {
+  background: #fff7e5;
+  color: #735219;
+  padding: 12px;
+  border-radius: 9px;
+}
+.warnings h4 {
+  margin: 0 0 8px;
+}
+.warnings ul,
+.notices {
+  padding-left: 20px;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.filters button {
+  min-height: 44px;
+}
+.filters button[aria-pressed='true'] {
+  background: #e8efff;
+  color: #194fc8;
+  border-color: #245fe5;
+}
+.file {
+  margin: 20px 0;
+}
+.file > h4 {
+  font-size: 16px;
+}
+.row {
+  border: 1px solid #dbe1e8;
+  border-radius: 10px;
+  padding: 14px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.row h5 {
+  font-size: 16px;
+  margin: 0;
+}
+.status {
+  color: #596579;
+  font-weight: 600;
+  margin: 6px 0 10px;
+}
+.quote {
+  border-left: 3px solid #a8b8cf;
+  padding: 10px 12px;
+  margin: 0;
+  background: #f4f6f9;
+  white-space: pre-wrap;
+}
+.matches {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+.match {
+  border-top: 1px solid #e5e9ef;
+  min-width: 0;
+}
+.match h6 {
+  font-size: 14px;
+  margin: 12px 0 8px;
+}
+.position {
+  color: #596579;
+  font-size: 14px;
+  margin: 6px 0;
+}
+.fullText {
+  margin: 8px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.numberNotice {
+  font-size: 14px;
+}
+.numberNotice p {
+  margin: 6px 0;
+}
+.context,
+.unlinked {
+  padding: 8px 0;
+}
+.context summary,
+.unlinked summary {
+  min-height: 44px;
+  padding: 10px 0;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.context summary:focus-visible,
+.unlinked summary:focus-visible,
+.filters button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.context pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  background: #f8fafc;
+  padding: 12px;
+}
+.context mark {
+  color: #172033;
+  background: #ffedb3;
+}
+.unlinked {
+  border-top: 1px solid #dbe1e8;
+}
+.unlinked .target {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e9ef;
+}
+@media (max-width: 480px) {
+  .row {
+    padding: 12px;
+  }
+  .filters button {
+    flex: 1;
+  }
+}
+
+.more {
+  min-height: 44px;
+  margin: 10px 0;
+}

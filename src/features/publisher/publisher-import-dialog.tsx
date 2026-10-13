@@ -9,6 +9,7 @@ import {
 import { PublisherClientError, type PublisherClient } from './publisher-client.ts';
 import s from './publisher-import-dialog.module.css';
 import { PublisherReviewView } from './publisher-review-view.ts';
+import { PublisherSourceReview } from './publisher-source-review.tsx';
 
 type Proposal = ReturnType<typeof parseFeishuMarkdownBundle>;
 type Source = { filename: string; content: string };
@@ -816,6 +817,7 @@ export function PublisherImportDialog({
             )}
           </section>
         )}
+        {updatedContent && <PublisherSourceReview sources={sources} content={updatedContent} />}
         {updatedContent && <PublisherReviewView content={updatedContent} />}
         {aiResult && (
           <section className={s.preview} aria-label="AI 整理结果">
