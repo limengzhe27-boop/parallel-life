@@ -5,6 +5,7 @@ import { publicationStorageIssues } from '../modules/settings/domain/publication
 
 export const PublisherPreparationMaterialSchema = z
   .strictObject({
+    scope: z.enum(['world', 'characters']).optional(),
     currentContent: PublisherDraftContentSchema,
     sources: z
       .array(
@@ -29,6 +30,7 @@ export const PublisherPreparationInputSchema = z
   .strictObject({
     commandId: Id,
     expectedDraftVersion: Version,
+    scope: z.enum(['world', 'characters']).optional(),
     currentContent: PublisherDraftContentSchema,
     sources: PublisherPreparationMaterialSchema.shape.sources,
   })
@@ -36,6 +38,7 @@ export const PublisherPreparationInputSchema = z
     if (publicationStorageIssues(value.currentContent).length) return;
     if (
       !PublisherPreparationMaterialSchema.safeParse({
+        ...(value.scope ? { scope: value.scope } : {}),
         currentContent: value.currentContent,
         sources: value.sources,
       }).success
@@ -74,6 +77,7 @@ export const PublisherScheduleSchema = z.strictObject({
 export type PublisherSchedule = z.infer<typeof PublisherScheduleSchema>;
 
 export const PublisherPreparationOutputSchema = z.strictObject({
+  scope: z.enum(['world', 'characters']).optional(),
   updatedContent: PublisherDraftContentSchema,
   schedule: PublisherScheduleSchema.optional(),
   summary: z.string().trim().min(1).max(1000),

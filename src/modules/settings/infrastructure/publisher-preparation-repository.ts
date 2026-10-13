@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { detectPublisherPreparationScope } from '../domain/publication-preparation-scope.ts';
 import { Id } from '../../../contracts/api.ts';
 import {
   PublisherPreparationInputSchema,
@@ -65,7 +66,11 @@ export class PublisherPreparationRepository implements PublisherPreparationStore
     const hash = createHash('sha256')
       .update(JSON.stringify(canonical({ workId, ...input })))
       .digest('hex');
-    const material = { currentContent: input.currentContent, sources: input.sources };
+    const material = {
+      currentContent: input.currentContent,
+      sources: input.sources,
+      scope: input.scope ?? detectPublisherPreparationScope(input.sources).scope,
+    };
     return this.tx(principal, async (sql) => {
       // Serialize admission and per-principal cost limits across every server instance.
       await sql.query(

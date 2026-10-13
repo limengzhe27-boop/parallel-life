@@ -972,3 +972,133 @@ test('system date provenance survives one structural correction and unsupported 
   );
   assert.ok(delayed.issues.some((i) => i.code === 'scheduling_unsupported_relative_delay'));
 });
+
+test('characters-only accepts one source actor without world completeness or scheduling and ignores out-of-scope mutations', async () => {
+  const actor = { ...fixture().actors[0]!, name: '阿禾' };
+  const currentContent = {
+    world: { hiddenContext: '不能送入人物模型的秘密' },
+    relationships: [{ custom: '原有关系' }],
+    initialKnowledge: [{ private: '原有知情' }],
+    custom: { future: [false, 0, null] },
+  };
+  const before = structuredClone(currentContent);
+  const { planner, calls } = harness(
+    reply({ ...fixture(), actors: [actor], world: { hiddenContext: '覆写' } }),
+  );
+  const result = await planner.propose(
+    {
+      scope: 'characters',
+      currentContent,
+      sources: [{ filename: '人物.md', content: '# 人物：阿禾\n她经营一家店。' }],
+    },
+    undefined,
+    { referenceAt: '2030-01-01T00:00:00Z' },
+  );
+  assert.equal(calls.length, 1);
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.scope, 'characters');
+  assert.equal(result.schedule, undefined);
+  assert.deepEqual(result.updatedContent, { ...currentContent, actors: [actor] });
+  assert.deepEqual(currentContent, before);
+  const sent = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(sent.currentContent, {});
+  assert.deepEqual(sent.allowedCharacterNames, ['阿禾']);
+  assert.equal(JSON.stringify(calls).includes('不能送入人物模型的秘密'), false);
+  assert.equal(sent.scheduling, undefined);
+});
+test('characters-only excludes invented second actor and only permits one bounded correction', async () => {
+  const actors = fixture().actors.map((actor, index) => ({
+    ...actor,
+    name: index ? '随机第二个人' : '阿禾',
+  }));
+  const { planner, calls } = harness(reply({ actors }));
+  const result = await planner.propose({
+    scope: 'characters',
+    currentContent: {},
+    sources: [{ filename: '人物.md', content: '# 人物：阿禾\n正文中提到路过的随机第二个人。' }],
+  });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(
+    (result.updatedContent.actors as typeof actors).map((a) => a.name),
+    ['阿禾'],
+  );
+  assert.ok(result.issues.some((i) => i.code === 'character_source_identity_unconfirmed'));
+  assert.equal(JSON.parse(calls[1]!.messages[1]!.content).scheduling, undefined);
+  assert.ok(calls[1]!.messages[0]!.content.includes('只修validationIssues中人物问题'));
+});
+test('characters-only keeps stable identity and author false/unknown fields; does not append same-name new key', async () => {
+  const old = {
+    ...fixture().actors[0]!,
+    name: '阿禾',
+    knownAtStart: false,
+    custom: { kept: 0 },
+    privatePersona: { ...fixture().actors[0]!.privatePersona, voice: '' },
+  };
+  const proposed = { ...fixture().actors[0]!, name: '阿禾' };
+  const result = await harness(
+    reply({ actors: [proposed, { ...proposed, key: 'new_key' }] }),
+  ).planner.propose({
+    scope: 'characters',
+    currentContent: { actors: [old], unknown: '保留' },
+    sources: [{ filename: '角色.md', content: '姓名：阿禾' }],
+  });
+  assert.equal((result.updatedContent.actors as unknown[]).length, 1);
+  assert.deepEqual(result.updatedContent.actors, [
+    { ...old, privatePersona: { ...old.privatePersona, voice: proposed.privatePersona.voice } },
+  ]);
+  assert.equal(result.updatedContent.unknown, '保留');
+  assert.ok(result.issues.some((i) => i.code === 'character_source_identity_unconfirmed'));
+});
+test('characters-only still validates actual actor shape and rejects invalid keys or missing persona', async () => {
+  const { planner, calls } = harness(
+    reply({
+      actors: [{ key: 'Bad Key', name: '阿禾', knownAtStart: false, publicCard: { traits: [] } }],
+    }),
+  );
+  const result = await planner.propose({
+    scope: 'characters',
+    currentContent: {},
+    sources: [{ filename: '人物.md', content: '姓名：阿禾' }],
+  });
+  assert.equal(calls.length, 2);
+  assert.ok(result.issues.length);
+  assert.ok(result.issues.every((i) => i.path[0] === 'actors'));
+});
+test('characters-only unnamed source keeps original content and reports clarification instead of inventing names', async () => {
+  const currentContent = { work: { title: '保留' }, actors: [] };
+  const result = await harness(reply(fixture())).planner.propose({
+    scope: 'characters',
+    currentContent,
+    sources: [{ filename: '人物.md', content: '# 人物设定\n有一位朋友。' }],
+  });
+  assert.deepEqual(result.updatedContent, currentContent);
+  assert.ok(result.issues.some((i) => i.code === 'character_source_name_required'));
+});
+test('old material without scope still uses whole-world validation even for a character filename', async () => {
+  const result = await harness(
+    reply({ actors: [{ ...fixture().actors[0]!, name: '阿禾' }] }),
+  ).planner.propose({
+    currentContent: {},
+    sources: [{ filename: '人物.md', content: '姓名：阿禾' }],
+  });
+  assert.equal(result.scope, undefined);
+  assert.ok(result.issues.some((i) => i.path[0] === 'world'));
+});
+
+test('characters-only does not force completion of an unrelated existing partial actor', async () => {
+  const other = {
+    key: 'old_partial',
+    name: '旧人物',
+    privatePersona: { background: '原文未填完' },
+  };
+  const actor = { ...fixture().actors[0]!, name: '阿禾' };
+  const { planner, calls } = harness(reply({ actors: [actor] }));
+  const result = await planner.propose({
+    scope: 'characters',
+    currentContent: { actors: [other] },
+    sources: [{ filename: '人物.md', content: '姓名：阿禾' }],
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(result.updatedContent.actors, [other, actor]);
+  assert.deepEqual(result.issues, []);
+});
