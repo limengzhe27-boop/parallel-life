@@ -13,6 +13,7 @@ export type PublicationResolutionCondition = {
 export type PublicationPrerequisite =
   | { kind: 'history_fact'; factKey: string }
   | { kind: 'after_committed_node'; nodeKey: string }
+  | { kind: 'after_presented_node'; nodeKey: string }
   | ({ kind: 'after_resolved_node' } & PublicationResolutionCondition)
   | { kind: 'at_place'; placeKey: string }
   | { kind: 'not_before'; at: string };
@@ -411,7 +412,9 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       const path = ['conditions', i, 'prerequisites', j];
       if (p.kind === 'history_fact' && !facts.has(p.factKey)) issue(path, 'unknown_fact');
       if (
-        (p.kind === 'after_committed_node' || p.kind === 'after_resolved_node') &&
+        (p.kind === 'after_committed_node' ||
+          p.kind === 'after_resolved_node' ||
+          p.kind === 'after_presented_node') &&
         !nodes.has(p.nodeKey)
       )
         issue(path, 'invalid_node_reference');
@@ -438,7 +441,9 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       if (
         group?.prerequisites.some(
           (p) =>
-            (p.kind === 'after_committed_node' || p.kind === 'after_resolved_node') &&
+            (p.kind === 'after_committed_node' ||
+              p.kind === 'after_resolved_node' ||
+              p.kind === 'after_presented_node') &&
             p.nodeKey === n.key,
         )
       )
@@ -455,7 +460,9 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       const path = ['candidates', i, 'prerequisites', j];
       if (p.kind === 'history_fact' && !facts.has(p.factKey)) issue(path, 'unknown_fact');
       if (
-        (p.kind === 'after_committed_node' || p.kind === 'after_resolved_node') &&
+        (p.kind === 'after_committed_node' ||
+          p.kind === 'after_resolved_node' ||
+          p.kind === 'after_presented_node') &&
         (!nodes.has(p.nodeKey) || p.nodeKey === n.key)
       )
         issue(path, 'invalid_node_reference');
@@ -482,7 +489,9 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
   const dependencies = new Map(
     c.candidates.map((n) => [
       n.key,
-      requiredTerms(n).flatMap((p) => (p.kind === 'after_committed_node' ? [p.nodeKey] : [])),
+      requiredTerms(n).flatMap((p) =>
+        p.kind === 'after_committed_node' || p.kind === 'after_presented_node' ? [p.nodeKey] : [],
+      ),
     ]),
   );
   const visiting = new Set<string>(),
@@ -589,7 +598,12 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       return nodeMap.get(key);
     }
     for (const p of requiredTerms(node)) {
-      if (p.kind !== 'after_committed_node' && p.kind !== 'after_resolved_node') continue;
+      if (
+        p.kind !== 'after_committed_node' &&
+        p.kind !== 'after_resolved_node' &&
+        p.kind !== 'after_presented_node'
+      )
+        continue;
       const prior = nodeRef(p.nodeKey, ['candidates', i, 'prerequisites']);
       if (prior) progress.get(prior.key)!.push(node.key);
       const priorStage = stages.get(prior?.timeline?.stageKey ?? '');
@@ -725,6 +739,7 @@ export function publicationPlayerPreview(c: PublicationContent) {
         key: a.key,
         name: a.name,
         publicCard: {
+          ...(a.publicCard.introduction ? { introduction: a.publicCard.introduction } : {}),
           ...(a.publicCard.identity ? { identity: a.publicCard.identity } : {}),
           traits: [...a.publicCard.traits],
           ...(a.publicCard.appearance ? { appearance: a.publicCard.appearance } : {}),
@@ -762,6 +777,13 @@ export function publicationPlayerPreview(c: PublicationContent) {
       .filter((h) => knownFacts.has(h.key) && h.visibility.kind !== 'actors')
       .map((h) => ({ key: h.key, text: h.text, occurredAt: h.occurredAt })),
     phone: {
+      ...(c.phone.moments
+        ? {
+            moments: c.phone.moments
+              .filter((m) => actorKeys.has(m.actorKey))
+              .map((m) => ({ ...m })),
+          }
+        : {}),
       messages: c.phone.messages.map((m) => ({
         key: m.key,
         actorKey: m.actorKey,

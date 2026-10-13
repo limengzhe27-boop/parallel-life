@@ -37,6 +37,7 @@ const resolution = z.strictObject({
 const prerequisite = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('history_fact'), factKey: key }),
   z.strictObject({ kind: z.literal('after_committed_node'), nodeKey: key }),
+  z.strictObject({ kind: z.literal('after_presented_node'), nodeKey: key }),
   z.strictObject({
     kind: z.literal('after_resolved_node'),
     nodeKey: key,
