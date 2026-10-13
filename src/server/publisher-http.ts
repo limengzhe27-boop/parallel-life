@@ -378,8 +378,7 @@ export class PublisherHttp {
           await publisherBody(request, PublisherRenameWorkSchema),
         ),
       );
-    if (operation === 'delete')
-      return publisherJson(await this.repo.delete(publisher.id, id));
+    if (operation === 'delete') return publisherJson(await this.repo.delete(publisher.id, id));
     if (operation === 'check')
       return publisherJson(
         await this.repo.check(

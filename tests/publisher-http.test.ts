@@ -338,10 +338,7 @@ test('rename forwards title and optional expected draft version under edit permi
   const p = fixture(['publish']),
     pc = await credentials(p);
   p.state.principal.canEdit = false;
-  assert.equal(
-    (await run(p, 'rename', req(input, pc.token, pc.csrf, {}, 'PATCH'))).status,
-    403,
-  );
+  assert.equal((await run(p, 'rename', req(input, pc.token, pc.csrf, {}, 'PATCH'))).status, 403);
 });
 test('delete executes under edit permission and requires session and CSRF', async () => {
   const f = fixture(),

@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { YibuTextModel, DEFAULT_MAX_TOKENS } from '../src/modules/ai/infrastructure/yibu-text-model.ts';
-import { DiscoveryPlanner, DISCOVERY_MAX_TOKENS } from '../src/modules/discovery/infrastructure/discovery-planner.ts';
+import {
+  YibuTextModel,
+  DEFAULT_MAX_TOKENS,
+} from '../src/modules/ai/infrastructure/yibu-text-model.ts';
+import {
+  DiscoveryPlanner,
+  DISCOVERY_MAX_TOKENS,
+} from '../src/modules/discovery/infrastructure/discovery-planner.ts';
 
 const config = {
   apiKey: 'test-only-secret',
@@ -13,7 +19,9 @@ const config = {
 test('a length-capped reply is reported as truncated, never as a usable answer', async () => {
   const request: typeof fetch = async () =>
     Response.json({
-      choices: [{ message: { content: '{"directions":[{"title":"如果…' }, finish_reason: 'length' }],
+      choices: [
+        { message: { content: '{"directions":[{"title":"如果…' }, finish_reason: 'length' },
+      ],
     });
   await assert.rejects(
     new YibuTextModel(config, request).complete([{ role: 'user', content: 'hi' }]),

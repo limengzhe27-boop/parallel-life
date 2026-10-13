@@ -59,7 +59,9 @@
   text-align: left;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  transition: transform 0.14s ease, background 0.14s ease;
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease;
 }
 .identity:hover {
   background: rgba(255, 255, 255, 0.2);
@@ -116,7 +118,9 @@
   overflow: hidden;
   text-align: left;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .widgets > button:hover {
   transform: translateY(-2px);
@@ -245,7 +249,9 @@
   display: grid;
   place-items: center;
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   overflow: hidden;
 }
 .utilityIcon svg {
@@ -353,7 +359,9 @@
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  transition: transform 0.14s ease, background 0.14s ease;
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease;
 }
 .record:hover {
   background: rgba(23, 35, 42, 0.86);

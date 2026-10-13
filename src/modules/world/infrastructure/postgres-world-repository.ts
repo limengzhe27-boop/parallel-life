@@ -205,7 +205,12 @@ export class PostgresWorldRepository implements WorldRepository {
           [state.id, state.version],
         )
       ).rows.map((r) => r.payload) as WorldHistoryEvent[];
-      const rebuilt = replayWorldHistory(initial as WorldState, events, state.version, await readPublicationInvitationLinks(sql,state.ownerId,state.id)).world;
+      const rebuilt = replayWorldHistory(
+        initial as WorldState,
+        events,
+        state.version,
+        await readPublicationInvitationLinks(sql, state.ownerId, state.id),
+      ).world;
       return {
         ...hydrated,
         appointments: rebuilt.appointments,

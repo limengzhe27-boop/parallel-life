@@ -31,9 +31,7 @@ export class OfficialLifeRepository {
       return {
         lives: this.catalog.list().map((pack) => {
           const rows = saved.filter((row) => row.preset_id === pack.card.id);
-          const currentInstance = rows.find(
-            (row) => row.content_version === pack.card.version,
-          );
+          const currentInstance = rows.find((row) => row.content_version === pack.card.version);
           const legacyRows = rows
             .filter((row) => row.content_version < pack.card.version)
             .sort((a, b) => Number(b.content_version) - Number(a.content_version));

@@ -1,3 +1,8 @@
+## 2026-10-13 · WRITER-CONDITIONS-13
+
+业务 f355634，生产 dpl_5FZSxtrj3nBosrC46jUYMwiKxzvA READY，正式 https://parallel-life-nu.vercel.app alias/commit一致。生产51项迁移checksum一致；0051保持不可变来源与原权限。
+独立命名条件、全部/任一、复用事件、勾选连线和真实资格判断；旧稿兼容，条件不制造剧情完成或角色知情。2125 check/build通过，407真实PG通过/5原配置跳过，双Agent只读审查无阻断。公网1440/390、私有临时草稿改名保存r1精确回读与删除404通过，health/workbench200、匿名works401。0模型/世界/图片；Cookie恢复、Ego171已关闭。拖拽、嵌套条件、动态知情和试演条件透视仍待开发。CI旧配置修复另行收口，详见任务报告。
+
 ## 2026-10-13 - WRITER-UX-10 author setting and story graph
 
 Baseline 62a7895 deployed as dpl_HqUrMBi4Q9WrD3wafBfLB3A5hjrX READY; formal https://parallel-life-nu.vercel.app matched. check 2113, module boundaries 423, type/build passed; 33 real local PG tests, no skips. Production 50 migrations checksum matched, no SQL changes.

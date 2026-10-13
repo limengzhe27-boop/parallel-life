@@ -254,8 +254,7 @@ export function ScenePanel({
               ref={reading}
               onScroll={(event) => {
                 const element = event.currentTarget;
-                const distance =
-                  element.scrollHeight - element.scrollTop - element.clientHeight;
+                const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
                 followEnd.current = distance < 90;
                 setShowScrollToBottom(distance > 160);
                 if (data.scene)
@@ -267,292 +266,292 @@ export function ScenePanel({
                   } catch {}
               }}
             >
-            <SceneStage
-              read={data}
-              contacts={contacts}
-              photos={photos}
-              onSelectPerson={(person) => {
-                const prefix = `对${person.name}说：`;
-                setText(prefix);
-                try {
-                  sessionStorage.setItem(draftKey, prefix);
-                } catch {}
-                if (inputRef.current) {
-                  inputRef.current.focus();
-                  inputRef.current.setSelectionRange(prefix.length, prefix.length);
-                }
-              }}
-            />
-            <section className={s.sceneControls}>
-              <button
-                type="button"
-                className={s.quickPhoneBtn}
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    if (data.scene!.status !== 'ended')
-                      await client.navigate(worldId, data.scene!.id, {
-                        commandId: crypto.randomUUID(),
-                        expectedVersion: data.worldVersion,
-                        view: 'phone',
-                      });
-                    window.location.hash = routeHash(worldId, { app: null });
-                  })
-                }
-                title="返回手机主界面"
-              >
-                <span>📱</span> 回到手机
-              </button>
-              <time>
-                {worldDateTimeLabel(
-                  overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
-                )}
-              </time>
-              <p>
-                {data.scene.status === 'ended'
-                  ? '已离场 · 可以回看'
-                  : data.paused
-                    ? '世界已暂停'
-                    : data.scene.status === 'paused'
-                      ? '现场已暂停'
-                      : '正在现场'}
-              </p>
-              <details className={s.sceneMenu}>
-                <summary>更多</summary>
-                <div className={s.buttons}>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        if (data.scene!.status !== 'ended')
-                          await client.navigate(worldId, data.scene!.id, {
-                            commandId: crypto.randomUUID(),
-                            expectedVersion: data.worldVersion,
-                            view: 'phone',
-                          });
-                        window.location.hash = routeHash(worldId, { app: null });
-                      })
-                    }
-                  >
-                    回到手机
-                  </button>
-                  {data.scene.status === 'paused' ? (
-                    <button
-                      disabled={busy || data.paused}
-                      onClick={() =>
-                        void run(async () => {
-                          await client.navigate(worldId, data.scene!.id, {
-                            commandId: crypto.randomUUID(),
-                            expectedVersion: data.worldVersion,
-                            view: 'scene',
-                          });
-                        })
-                      }
-                    >
-                      返回现场
-                    </button>
-                  ) : null}
-                  {data.scene.status !== 'ended' ? (
-                    <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
-                      离开现场
-                    </button>
-                  ) : null}
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await refresh();
-                      })
-                    }
-                  >
-                    重新读取现场
-                  </button>
-                </div>
-              </details>
-              {leaveConfirm ? (
-                <div>
-                  <p>离场会停止尚未完成的现场回应，记录仍可回看。</p>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await client.navigate(
-                          worldId,
-                          data.scene!.id,
-                          {
-                            commandId: crypto.randomUUID(),
-                            expectedVersion: data.worldVersion,
-                            view: 'phone',
-                          },
-                          true,
-                        );
-                        window.location.hash = routeHash(worldId, {
-                          app: null,
-                          panel: 'scene',
-                          target: data.scene!.id,
-                        });
-                        setLeaveConfirm(false);
-                      })
-                    }
-                  >
-                    确认离场
-                  </button>
-                  <button onClick={() => setLeaveConfirm(false)}>留下</button>
-                </div>
-              ) : null}
-            </section>
-            {latestAction ? (
-              <details className={s.card} data-scene-latest-action>
-                <summary>刚才的一幕</summary>
-                <p className={s.savedInput}>{latestAction.text}</p>
-                {latestAction.resolution ? (
-                  <p>
-                    <strong>随后发生的事：</strong>
-                    {latestAction.resolution.observation}
-                  </p>
-                ) : (
-                  <p className={s.notice}>
-                    {latestAction.intent === 'attempt'
-                      ? '打算要做的事已记下，正等待展开。'
-                      : '心里的想法已记下。'}
-                  </p>
-                )}
-              </details>
-            ) : null}
-            {data.matters.length ? (
-              <details className={s.card}>
-                <summary>眼下的事 · {data.matters.length}</summary>
-                <ul>
-                  {data.matters.map((m) => (
-                    <li key={m.id}>
-                      {m.title} · {states[m.status]}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-            <div className={s.stream}>
-              {[
-                ...entries,
-                ...data.actions
-                  .filter(
-                    (a) => !entries.some((e) => e.kind === 'user_action' && e.actionId === a.id),
-                  )
-                  .map((a) => ({
-                    kind: 'private_input' as const,
-                    id: 'input-' + a.id,
-                    text: a.text,
-                    sourceVersion: a.sourceVersion,
-                  })),
-              ]
-                .sort((a, b) => a.sourceVersion - b.sourceVersion)
-                .map((e) =>
-                  e.kind === 'time_place' ? (
-                    e.id === entries.find((item) => item.kind === 'time_place')?.id ? null : (
-                      <div key={e.id} className={s.place}>
-                        {e.location} · {worldDateTimeLabel(e.storyAt)}
-                      </div>
-                    )
-                  ) : e.kind === 'media_reference' ? (
-                    <SceneMedia
-                      key={e.id}
-                      url={scenePhotoUrl(data, e.media.assetId, photos)}
-                      reference={e.media.purpose !== 'scene_illustration'}
-                    />
-                  ) : (
-                    <article
-                      key={e.id}
-                      className={`${s.entry} ${e.kind === 'dialogue' ? s.dialogue : e.kind === 'user_action' || e.kind === 'private_input' ? s.user : e.kind === 'adjudicated_result' ? s.result : ''}`}
-                    >
-                      {e.kind === 'dialogue' && e.speaker.kind === 'actor' ? (
-                        <SceneFace
-                          person={contacts.find(
-                            (c) => e.speaker.kind === 'actor' && c.id === e.speaker.actorId,
-                          )}
-                        />
-                      ) : null}
-                      <div className={s.entryCopy}>
-                        <small>
-                          {e.kind === 'dialogue'
-                            ? e.speaker.kind === 'player'
-                              ? '我'
-                              : name(e.speaker.actorId)
-                            : e.kind === 'private_input'
-                              ? '心想 · 仅自己可见'
-                              : e.kind === 'user_action'
-                                ? '我的举动'
-                                : e.kind === 'adjudicated_result'
-                                  ? '随后的情势'
-                                  : '场景'}
-                        </small>
-                        <p>{renderStoryContent(e.text)}</p>
-                      </div>
-                    </article>
-                  ),
-                )}
-            </div>
-            {task && task.status !== 'succeeded' ? (
-              <div className={s.card} role="status">
-                <ProgressState
-                  label={sceneStatus(task)}
-                  busy={sceneBusy(task)}
-                  detail={
-                    sceneBusy(task)
-                      ? data.actions.some((a) => a.status === 'pending')
-                        ? '大家正看着你，听你把话说完……'
-                        : '故事正在继续展开……'
-                      : undefined
+              <SceneStage
+                read={data}
+                contacts={contacts}
+                photos={photos}
+                onSelectPerson={(person) => {
+                  const prefix = `对${person.name}说：`;
+                  setText(prefix);
+                  try {
+                    sessionStorage.setItem(draftKey, prefix);
+                  } catch {}
+                  if (inputRef.current) {
+                    inputRef.current.focus();
+                    inputRef.current.setSelectionRange(prefix.length, prefix.length);
                   }
-                />
-                {task.status === 'queued' ? (
-                  <button
-                    disabled={busy || data.paused}
-                    onClick={() => void run(() => execute(task))}
-                  >
-                    推动故事继续展开
-                  </button>
-                ) : null}
-                {['failed', 'unknown', 'cancelled'].includes(task.status) &&
-                data.scene.status === 'active' ? (
-                  <button disabled={busy || data.paused} onClick={() => setRetryConfirm(true)}>
-                    重试这次回应
-                  </button>
-                ) : null}
-                {retryConfirm ? (
-                  <div>
-                    <p>先核对已保存记录。确认后将发起一次新的回应，可能再次产生费用。</p>
+                }}
+              />
+              <section className={s.sceneControls}>
+                <button
+                  type="button"
+                  className={s.quickPhoneBtn}
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      if (data.scene!.status !== 'ended')
+                        await client.navigate(worldId, data.scene!.id, {
+                          commandId: crypto.randomUUID(),
+                          expectedVersion: data.worldVersion,
+                          view: 'phone',
+                        });
+                      window.location.hash = routeHash(worldId, { app: null });
+                    })
+                  }
+                  title="返回手机主界面"
+                >
+                  <span>📱</span> 回到手机
+                </button>
+                <time>
+                  {worldDateTimeLabel(
+                    overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
+                  )}
+                </time>
+                <p>
+                  {data.scene.status === 'ended'
+                    ? '已离场 · 可以回看'
+                    : data.paused
+                      ? '世界已暂停'
+                      : data.scene.status === 'paused'
+                        ? '现场已暂停'
+                        : '正在现场'}
+                </p>
+                <details className={s.sceneMenu}>
+                  <summary>更多</summary>
+                  <div className={s.buttons}>
                     <button
-                      disabled={busy || data.paused}
+                      disabled={busy}
                       onClick={() =>
                         void run(async () => {
-                          if (retryId.current?.taskId !== task.id)
-                            retryId.current = { taskId: task.id, id: crypto.randomUUID() };
-                          const t = await client.retry(task.id, retryId.current.id);
-                          setTask(t);
-                          setRetryConfirm(false);
-                          await execute(t);
+                          if (data.scene!.status !== 'ended')
+                            await client.navigate(worldId, data.scene!.id, {
+                              commandId: crypto.randomUUID(),
+                              expectedVersion: data.worldVersion,
+                              view: 'phone',
+                            });
+                          window.location.hash = routeHash(worldId, { app: null });
                         })
                       }
                     >
-                      确认重试
+                      回到手机
                     </button>
-                    <button onClick={() => setRetryConfirm(false)}>取消</button>
+                    {data.scene.status === 'paused' ? (
+                      <button
+                        disabled={busy || data.paused}
+                        onClick={() =>
+                          void run(async () => {
+                            await client.navigate(worldId, data.scene!.id, {
+                              commandId: crypto.randomUUID(),
+                              expectedVersion: data.worldVersion,
+                              view: 'scene',
+                            });
+                          })
+                        }
+                      >
+                        返回现场
+                      </button>
+                    ) : null}
+                    {data.scene.status !== 'ended' ? (
+                      <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
+                        离开现场
+                      </button>
+                    ) : null}
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await refresh();
+                        })
+                      }
+                    >
+                      重新读取现场
+                    </button>
+                  </div>
+                </details>
+                {leaveConfirm ? (
+                  <div>
+                    <p>离场会停止尚未完成的现场回应，记录仍可回看。</p>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await client.navigate(
+                            worldId,
+                            data.scene!.id,
+                            {
+                              commandId: crypto.randomUUID(),
+                              expectedVersion: data.worldVersion,
+                              view: 'phone',
+                            },
+                            true,
+                          );
+                          window.location.hash = routeHash(worldId, {
+                            app: null,
+                            panel: 'scene',
+                            target: data.scene!.id,
+                          });
+                          setLeaveConfirm(false);
+                        })
+                      }
+                    >
+                      确认离场
+                    </button>
+                    <button onClick={() => setLeaveConfirm(false)}>留下</button>
                   </div>
                 ) : null}
+              </section>
+              {latestAction ? (
+                <details className={s.card} data-scene-latest-action>
+                  <summary>刚才的一幕</summary>
+                  <p className={s.savedInput}>{latestAction.text}</p>
+                  {latestAction.resolution ? (
+                    <p>
+                      <strong>随后发生的事：</strong>
+                      {latestAction.resolution.observation}
+                    </p>
+                  ) : (
+                    <p className={s.notice}>
+                      {latestAction.intent === 'attempt'
+                        ? '打算要做的事已记下，正等待展开。'
+                        : '心里的想法已记下。'}
+                    </p>
+                  )}
+                </details>
+              ) : null}
+              {data.matters.length ? (
+                <details className={s.card}>
+                  <summary>眼下的事 · {data.matters.length}</summary>
+                  <ul>
+                    {data.matters.map((m) => (
+                      <li key={m.id}>
+                        {m.title} · {states[m.status]}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+              <div className={s.stream}>
+                {[
+                  ...entries,
+                  ...data.actions
+                    .filter(
+                      (a) => !entries.some((e) => e.kind === 'user_action' && e.actionId === a.id),
+                    )
+                    .map((a) => ({
+                      kind: 'private_input' as const,
+                      id: 'input-' + a.id,
+                      text: a.text,
+                      sourceVersion: a.sourceVersion,
+                    })),
+                ]
+                  .sort((a, b) => a.sourceVersion - b.sourceVersion)
+                  .map((e) =>
+                    e.kind === 'time_place' ? (
+                      e.id === entries.find((item) => item.kind === 'time_place')?.id ? null : (
+                        <div key={e.id} className={s.place}>
+                          {e.location} · {worldDateTimeLabel(e.storyAt)}
+                        </div>
+                      )
+                    ) : e.kind === 'media_reference' ? (
+                      <SceneMedia
+                        key={e.id}
+                        url={scenePhotoUrl(data, e.media.assetId, photos)}
+                        reference={e.media.purpose !== 'scene_illustration'}
+                      />
+                    ) : (
+                      <article
+                        key={e.id}
+                        className={`${s.entry} ${e.kind === 'dialogue' ? s.dialogue : e.kind === 'user_action' || e.kind === 'private_input' ? s.user : e.kind === 'adjudicated_result' ? s.result : ''}`}
+                      >
+                        {e.kind === 'dialogue' && e.speaker.kind === 'actor' ? (
+                          <SceneFace
+                            person={contacts.find(
+                              (c) => e.speaker.kind === 'actor' && c.id === e.speaker.actorId,
+                            )}
+                          />
+                        ) : null}
+                        <div className={s.entryCopy}>
+                          <small>
+                            {e.kind === 'dialogue'
+                              ? e.speaker.kind === 'player'
+                                ? '我'
+                                : name(e.speaker.actorId)
+                              : e.kind === 'private_input'
+                                ? '心想 · 仅自己可见'
+                                : e.kind === 'user_action'
+                                  ? '我的举动'
+                                  : e.kind === 'adjudicated_result'
+                                    ? '随后的情势'
+                                    : '场景'}
+                          </small>
+                          <p>{renderStoryContent(e.text)}</p>
+                        </div>
+                      </article>
+                    ),
+                  )}
               </div>
-            ) : null}
+              {task && task.status !== 'succeeded' ? (
+                <div className={s.card} role="status">
+                  <ProgressState
+                    label={sceneStatus(task)}
+                    busy={sceneBusy(task)}
+                    detail={
+                      sceneBusy(task)
+                        ? data.actions.some((a) => a.status === 'pending')
+                          ? '大家正看着你，听你把话说完……'
+                          : '故事正在继续展开……'
+                        : undefined
+                    }
+                  />
+                  {task.status === 'queued' ? (
+                    <button
+                      disabled={busy || data.paused}
+                      onClick={() => void run(() => execute(task))}
+                    >
+                      推动故事继续展开
+                    </button>
+                  ) : null}
+                  {['failed', 'unknown', 'cancelled'].includes(task.status) &&
+                  data.scene.status === 'active' ? (
+                    <button disabled={busy || data.paused} onClick={() => setRetryConfirm(true)}>
+                      重试这次回应
+                    </button>
+                  ) : null}
+                  {retryConfirm ? (
+                    <div>
+                      <p>先核对已保存记录。确认后将发起一次新的回应，可能再次产生费用。</p>
+                      <button
+                        disabled={busy || data.paused}
+                        onClick={() =>
+                          void run(async () => {
+                            if (retryId.current?.taskId !== task.id)
+                              retryId.current = { taskId: task.id, id: crypto.randomUUID() };
+                            const t = await client.retry(task.id, retryId.current.id);
+                            setTask(t);
+                            setRetryConfirm(false);
+                            await execute(t);
+                          })
+                        }
+                      >
+                        确认重试
+                      </button>
+                      <button onClick={() => setRetryConfirm(false)}>取消</button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {showScrollToBottom && (
+              <button
+                type="button"
+                className={s.scrollToBottomBtn}
+                onClick={scrollToBottom}
+                aria-label="回到底部最新剧情"
+              >
+                <span>↓</span> 回到最新
+              </button>
+            )}
           </div>
-          {showScrollToBottom && (
-            <button
-              type="button"
-              className={s.scrollToBottomBtn}
-              onClick={scrollToBottom}
-              aria-label="回到底部最新剧情"
-            >
-              <span>↓</span> 回到最新
-            </button>
-          )}
-        </div>
           {data.scene.status !== 'ended' ? (
             <form
               className={s.composer}
@@ -603,7 +602,7 @@ export function ScenePanel({
                 const presentActors = overview?.people.filter((p) => p.kind === 'actor') ?? [];
                 const firstActor = presentActors[0];
                 const firstActorName = firstActor
-                  ? contacts.find((c) => c.id === firstActor.actorId)?.name ?? '在场的人'
+                  ? (contacts.find((c) => c.id === firstActor.actorId)?.name ?? '在场的人')
                   : null;
 
                 const suggestions: string[] = [];

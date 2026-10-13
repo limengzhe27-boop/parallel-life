@@ -73,7 +73,12 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
                 r.payload.version === r.version,
             )
             .map((r) => r.payload) as WorldHistoryEvent[];
-          appointments = replayWorldHistory(initial, history, world.version, await readPublicationInvitationLinks(sql,ownerId,worldId)).world.appointments;
+          appointments = replayWorldHistory(
+            initial,
+            history,
+            world.version,
+            await readPublicationInvitationLinks(sql, ownerId, worldId),
+          ).world.appointments;
         }
       }
       const ids = [

@@ -44,7 +44,9 @@ describe('AUD-20 账号数据导出与会话清理客户端契约', () => {
       }
       if (String(url).endsWith('/session') && options?.method === 'DELETE') {
         methodUsed = options.method;
-        csrfUsed = String(options.headers ? (options.headers as Record<string, string>)['x-csrf-token'] : '');
+        csrfUsed = String(
+          options.headers ? (options.headers as Record<string, string>)['x-csrf-token'] : '',
+        );
         return Response.json({ status: 'cleared' });
       }
       return Response.json({});

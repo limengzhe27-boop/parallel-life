@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FACTS_BUDGET_CHARS, GENESIS_FACTS, retainFacts } from '../src/modules/world/domain/retention.ts';
+import {
+  FACTS_BUDGET_CHARS,
+  GENESIS_FACTS,
+  retainFacts,
+} from '../src/modules/world/domain/retention.ts';
 import type { Fact } from '../src/modules/world/domain/types.ts';
 
 const fact = (n: number, size = 100): Fact => ({

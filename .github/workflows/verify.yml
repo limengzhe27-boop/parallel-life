@@ -11,6 +11,25 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pl_admin
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: postgres
+        ports:
+          - 55476:5432
+        options: >-
+          --health-cmd "pg_isready -U pl_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '55476'
+      PGUSER: pl_admin
+      PGPASSWORD: ci-postgres-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,6 +37,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Provision runtime roles and databases
+        run: node scripts/ci-db.mjs
+      - name: Apply dev database migrations
+        run: npm run db:migrate
       - name: Module boundaries, types and unit tests
         run: npm run check
       - name: Formatting
@@ -35,7 +58,7 @@ jobs:
           POSTGRES_PASSWORD: ci-postgres-password
           POSTGRES_DB: postgres
         ports:
-          - 55432:5432
+          - 55476:5432
         options: >-
           --health-cmd "pg_isready -U pl_admin"
           --health-interval 5s
@@ -43,9 +66,16 @@ jobs:
           --health-retries 20
     env:
       PGHOST: 127.0.0.1
-      PGPORT: '55432'
+      PGPORT: '55476'
       PGUSER: pl_admin
       PGPASSWORD: ci-postgres-password
+      APPOINTMENT_WAIT_TEST_PORT: '55476'
+      PUBLICATION_PLAY_TEST_PORT: '55476'
+      SAVED_CATALOG_TEST_PORT: '55476'
+      PUBLICATION_STORY_TEST_PORT: '55476'
+      PUBLICATION_STORY_WORKER_TEST_PORT: '55476'
+      PUBLICATION_WORLD_TEST_PORT: '55476'
+      PUBLISHER_TEST_PORT: '55476'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

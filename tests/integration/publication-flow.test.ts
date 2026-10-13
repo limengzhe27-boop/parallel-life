@@ -1,4 +1,4 @@
-import {findPublicationCard} from './publication-catalog-fixture.ts';
+import { findPublicationCard } from './publication-catalog-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -156,7 +156,7 @@ test('local integrated save → private trial → explicit synthetic NPC turn �
   await identity.ensureGuest(owner);
   await identity.ensureGuest(other);
   const playerWorlds = new PublicationWorldRepository(app, publicationWorldCompiler);
-  const card = (await findPublicationCard(input=>playerWorlds.catalog(owner,input),work.id))!;
+  const card = (await findPublicationCard((input) => playerWorlds.catalog(owner, input), work.id))!;
   assert.equal(card.worldId, null);
   assert.equal(JSON.stringify(card).includes('hiddenContext'), false);
   const request = { commandId: randomUUID(), publicationVersion: published.publicationVersion };
@@ -203,7 +203,7 @@ test('local integrated save → private trial → explicit synthetic NPC turn �
   );
   assert.equal(tableGrant.rows[0].yes, false);
   assert.equal(
-    (await findPublicationCard(input=>playerWorlds.catalog(owner,input),work.id))!.worldId,
+    (await findPublicationCard((input) => playerWorlds.catalog(owner, input), work.id))!.worldId,
     opened.worldId,
   );
 });

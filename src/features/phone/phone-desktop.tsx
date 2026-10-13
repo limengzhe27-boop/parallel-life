@@ -60,23 +60,17 @@ export function PhoneDesktop({
   const activeMatter =
     currentItems.find(
       (item) =>
-        item.kind === 'world_matter' &&
-        (item.state === 'in_progress' || item.state === 'blocked'),
+        item.kind === 'world_matter' && (item.state === 'in_progress' || item.state === 'blocked'),
     ) ??
     currentItems.find(
       (item) =>
-        item.kind === 'world_matter' &&
-        item.state !== 'completed' &&
-        item.state !== 'abandoned',
+        item.kind === 'world_matter' && item.state !== 'completed' && item.state !== 'abandoned',
     );
   const currentItem = currentItems.find(
     (item) => item.kind === 'invitation' || item.kind === 'actor_suggestion',
   );
   const pursuitItem = aboutItems.find(
-    (item) =>
-      item.span === 'pursuit' &&
-      item.state !== 'completed' &&
-      item.state !== 'abandoned',
+    (item) => item.span === 'pursuit' && item.state !== 'completed' && item.state !== 'abandoned',
   );
   const keyRecord = activeMatter ?? currentItem ?? pursuitItem;
 

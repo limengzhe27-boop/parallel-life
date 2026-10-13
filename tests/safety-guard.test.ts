@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectCrisisIntent, CRISIS_HOTLINES, CRISIS_RESPONSE } from '../src/modules/ai/safety-guard.ts';
+import {
+  detectCrisisIntent,
+  CRISIS_HOTLINES,
+  CRISIS_RESPONSE,
+} from '../src/modules/ai/safety-guard.ts';
 import { rejectReason } from '../src/modules/profile/application/fact-quality.ts';
 
 describe('AUD-19 AI 内容安全与危机干预守卫', () => {
@@ -39,10 +43,7 @@ describe('AUD-19 AI 内容安全与危机干预守卫', () => {
 
   it('危机意图绝不被提炼为档案事实或经历（rejectReason 返回 CRISIS_GUARDED）', () => {
     const existing = { facts: [], events: [] };
-    const reason = rejectReason(
-      { category: 'personality', text: '经常想自杀结束生命' },
-      existing,
-    );
+    const reason = rejectReason({ category: 'personality', text: '经常想自杀结束生命' }, existing);
     assert.equal(reason, 'CRISIS_GUARDED');
   });
 

@@ -165,7 +165,11 @@ export function replayWorldHistory(
   initial: WorldState,
   events: WorldHistoryEvent[],
   throughVersion = Infinity,
-  invitationPlaces: readonly {invitationId:string;placeId:string;sourceEventId:string}[] = [],
+  invitationPlaces: readonly {
+    invitationId: string;
+    placeId: string;
+    sourceEventId: string;
+  }[] = [],
 ) {
   let world = structuredClone(initial);
   const groups = new Map<string, GroupConversation>();
@@ -176,8 +180,27 @@ export function replayWorldHistory(
     let next = applyWorldHistoryEvent(world, event, initial).state;
     // Associations come from the verified publication binding, and become available
     // only with the actual offering event. They never move anyone or create an invitation.
-    const linked=invitationPlaces.filter(l=>l.sourceEventId===event.id&&next.appointments.some(a=>a.id===l.invitationId&&a.sourceEventId===event.id));
-    if(next.space&&linked.length)next={...next,space:{...next.space,places:next.space.places.map(p=>({...p,appointmentIds:[...new Set([...p.appointmentIds,...linked.filter(l=>l.placeId===p.id).map(l=>l.invitationId)])]}))}};
+    const linked = invitationPlaces.filter(
+      (l) =>
+        l.sourceEventId === event.id &&
+        next.appointments.some((a) => a.id === l.invitationId && a.sourceEventId === event.id),
+    );
+    if (next.space && linked.length)
+      next = {
+        ...next,
+        space: {
+          ...next.space,
+          places: next.space.places.map((p) => ({
+            ...p,
+            appointmentIds: [
+              ...new Set([
+                ...p.appointmentIds,
+                ...linked.filter((l) => l.placeId === p.id).map((l) => l.invitationId),
+              ]),
+            ],
+          })),
+        },
+      };
     sources.push({
       id: event.id,
       version: event.version,

@@ -67,4 +67,3 @@ export function sameOrigin(request: Request, origin: string) {
 
   return false;
 }
-

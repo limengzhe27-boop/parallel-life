@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  resolveDefaultWallpaper,
-  AUTHORIZED_WALLPAPERS,
-} from '../src/features/phone/wallpaper.ts';
+import { resolveDefaultWallpaper, AUTHORIZED_WALLPAPERS } from '../src/features/phone/wallpaper.ts';
 import { desktopApps } from '../src/features/phone/navigation.ts';
 
 test('resolveDefaultWallpaper resolves branch-specific authorized art and falls back safely', () => {

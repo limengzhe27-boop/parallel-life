@@ -290,7 +290,13 @@ export function DiscoveryApp() {
         </a>
       </header>
       <main className="discovery-main">
-        <a href="/published" className="button secondary" style={{display:'flex',justifyContent:'space-between',marginBottom:16}}>探索已发布的剧本 <span aria-hidden>→</span></a>
+        <a
+          href="/published"
+          className="button secondary"
+          style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}
+        >
+          探索已发布的剧本 <span aria-hidden>→</span>
+        </a>
         <OfficialLives connectSession={() => client.connect()} onCatalogChange={updateCatalog} />
         {error && (
           <Notice>
