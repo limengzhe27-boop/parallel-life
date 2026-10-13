@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
 import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
+import { PublisherReviewView } from './publisher-review-view.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
 import { PublisherImportDialog } from './publisher-import-dialog.tsx';
 import { PublisherSpaceEditor } from './publisher-space-editor.tsx';
@@ -35,7 +36,7 @@ import {
 } from './publisher-editor.ts';
 import s from './publisher-workbench.module.css';
 
-type MainTab = 'settings' | 'actors' | 'plot';
+type MainTab = 'settings' | 'actors' | 'plot' | 'review';
 
 function issueLabel(path: readonly (string | number)[], code: string) {
   if (code === 'trial_unverified') return '请先试演，并完成一条真实的角色对话，再重新检查。';
@@ -119,7 +120,8 @@ export function PublisherWorkbench(
   } = props;
 
   // Active main tab
-  const [activeTab, setActiveTab] = useState<MainTab>('actors');
+  const [activeTab, setActiveTab] = useState<MainTab>('settings');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Local working draft: initialized from props.work, retained upon server errors or user edits
   const [draftTitle, setDraftTitle] = useState(() => work?.title ?? '');
@@ -190,6 +192,10 @@ export function PublisherWorkbench(
       const actors = Array.isArray(work.draft.content.actors)
         ? (work.draft.content.actors as Array<{ key?: string }>)
         : [];
+      if (isNewWork) {
+        setActiveTab('settings');
+        setSettingsOpen(false);
+      }
       if (isNewWork || !selectedActorKey) {
         setSelectedActorKey(actors[0]?.key ?? null);
       }
@@ -416,6 +422,32 @@ export function PublisherWorkbench(
     return trimmed ? trimmed[0] : '人';
   };
 
+  const currentCheck = !!(
+    work &&
+    check &&
+    !isDirty &&
+    check.workId === work.id &&
+    check.draftVersion === work.draftVersion &&
+    check.contentHash === work.draft.contentHash
+  );
+  const pendingChecks = check
+    ? [
+        ...check.issues.map((issue) => issueLabel(issue.path, issue.code)),
+        ...check.missingCapabilities.map((capability) =>
+          capability === 'model_budget_unapproved'
+            ? '真实模型调用预算尚未确认，请联系管理员。'
+            : '这项内容暂不支持运行，请查看详细限制并调整。',
+        ),
+        ...(!check.trialVerified && !check.issues.some((issue) => issue.code === 'trial_unverified')
+          ? ['请完成真实试演，再重新检查。']
+          : []),
+        ...(!check.mediaVerified && !check.issues.some((issue) => issue.code === 'media_unverified')
+          ? ['所用素材尚未核验，请核对后重新检查。']
+          : []),
+      ]
+    : [];
+  const needsStartTime = !publicationLocalTime(worldSettings.startAt);
+
   return (
     <div className={s.workbench}>
       {/* ================= Left Sidebar (Works) ================= */}
@@ -504,10 +536,10 @@ export function PublisherWorkbench(
                     }`}
                   >
                     {work.status === 'published'
-                      ? `已上架 v${work.publicationVersion ?? 1}`
+                      ? '已上架'
                       : work.status === 'unpublished'
                         ? '已下架'
-                        : `草稿 r${work.draft.version}`}
+                        : '草稿'}
                   </span>
                 )}
                 {isDirty && <span className={s.dirtyFlag}>（存在未保存修改）</span>}
@@ -606,7 +638,7 @@ export function PublisherWorkbench(
                 className={`${s.tabButton} ${activeTab === 'settings' ? s.activeTab : ''}`}
                 onClick={() => setActiveTab('settings')}
               >
-                世界设定
+                故事概览
               </button>
               <button
                 type="button"
@@ -624,7 +656,16 @@ export function PublisherWorkbench(
                 className={`${s.tabButton} ${activeTab === 'plot' ? s.activeTab : ''}`}
                 onClick={() => setActiveTab('plot')}
               >
-                剧情
+                剧情发展
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'review'}
+                className={`${s.tabButton} ${activeTab === 'review' ? s.activeTab : ''}`}
+                onClick={() => setActiveTab('review')}
+              >
+                待确认问题{check && pendingChecks.length > 0 ? `（${pendingChecks.length}）` : ''}
               </button>
             </div>
           )}
@@ -683,21 +724,129 @@ export function PublisherWorkbench(
             </button>
           </div>
         )}
-        {check && check.status !== 'ready' && (
-          <div className={`${s.banner} ${s.bannerWarning}`} role="status">
-            <div>
-              <strong>还需要完善：</strong> 发现 {check.issues.length} 处需要核对的内容
-              {check.missingCapabilities.length > 0 && '，部分内容暂时不支持运行，请调整后再试演'}
-              {check.issues.length > 0 && (
-                <ul style={{ margin: '6px 0 0 16px', padding: 0, fontSize: '13px' }}>
-                  {check.issues.slice(0, 5).map((iss, i) => (
-                    <li key={i}>{issueLabel(iss.path, iss.code)}</li>
-                  ))}
-                  {check.issues.length > 5 && <li>…还有 {check.issues.length - 5} 项</li>}
-                </ul>
+        {work &&
+          (!currentCheck ||
+            check?.status !== 'ready' ||
+            pendingChecks.length > 0 ||
+            needsStartTime) && (
+            <div className={`${s.banner} ${s.bannerWarning}`} role="status">
+              <div>
+                <strong>待确认问题：</strong>
+                {check
+                  ? `${pendingChecks.length} 项${check.issuesTruncated ? '（后台结果尚有未列出项）' : ''}`
+                  : '尚未检查草稿'}
+                {check && !currentCheck && (
+                  <p>这是上次检查结果；当前编辑稿尚未重新检查，请先保存修改。</p>
+                )}
+                {check?.missingCapabilities.length ? (
+                  <p>部分内容暂时不支持运行，请调整后再试演。</p>
+                ) : null}
+                {needsStartTime && (
+                  <p>
+                    开场日期尚未填写或无法识别。当前运行仍需一个明确起点，请在故事概览补齐；不会自动猜测日期。
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnSecondary}`}
+                onClick={() => setActiveTab('review')}
+              >
+                查看全部问题
+              </button>
+              {needsStartTime && (
+                <button
+                  type="button"
+                  className={`${s.btn} ${s.btnSecondary}`}
+                  onClick={() => {
+                    setActiveTab('settings');
+                    setSettingsOpen(true);
+                  }}
+                >
+                  补齐开场日期
+                </button>
               )}
             </div>
-          </div>
+          )}
+
+        {work && activeTab === 'review' && (
+          <section className={s.reviewPanel} aria-label="待确认问题">
+            <h3>先核对，再试演与发布</h3>
+            <p>保存草稿 → 检查 → 试演 → 发布。这里列出后台返回的全部问题，不会自动修改你的故事。</p>
+            {!check ? (
+              <p>尚未检查，请先保存草稿，再点击“检查”。</p>
+            ) : (
+              <>
+                {!currentCheck && (
+                  <p role="status">以下检查对应旧稿或其他版本，不代表当前编辑稿可以发布。</p>
+                )}
+                <ol className={s.issueList}>
+                  {check.issues.map((issue, index) => (
+                    <li key={index}>
+                      <p>{issueLabel(issue.path, issue.code)}</p>
+                      <details>
+                        <summary>详细定位</summary>
+                        <p>
+                          {issue.path.join(' / ')} · {issue.code}
+                        </p>
+                      </details>
+                    </li>
+                  ))}
+                </ol>
+                {check.issuesTruncated && (
+                  <p role="alert">
+                    后台仅返回了部分问题，仍有未列出的项；修正后请重新检查，不代表其余内容已经通过。
+                  </p>
+                )}
+                {check.missingCapabilities.length > 0 && (
+                  <section>
+                    <h4>当前运行限制</h4>
+                    <ul>
+                      {check.missingCapabilities.map((capability, index) => (
+                        <li key={index}>
+                          <p>
+                            {capability === 'model_budget_unapproved'
+                              ? '真实模型调用预算尚未确认，请联系管理员。'
+                              : '这项内容暂不支持运行，需要调整后再检查。'}
+                          </p>
+                          <details>
+                            <summary>限制详情 {index + 1}</summary>
+                            <p>{capability}</p>
+                          </details>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+                {!check.trialVerified && <p>尚未完成真实试演验证，请试演角色对话并重新检查。</p>}
+                {!check.mediaVerified && <p>素材尚未核验，请核对所用图片后重新检查。</p>}
+                {check.status === 'ready' && currentCheck && pendingChecks.length === 0 && (
+                  <p>当前已保存稿的检查通过；发布仍以现有权限和操作结果为准。</p>
+                )}
+                {check.status !== 'ready' && pendingChecks.length === 0 && (
+                  <p>后台尚未确认可发布，请重新检查；没有列出问题不代表已经通过。</p>
+                )}
+              </>
+            )}
+            {needsStartTime && <p>开场日期待补齐或修正，当前版本仍需要明确起点才能运行。</p>}
+            <button
+              type="button"
+              className={`${s.btn} ${s.btnSecondary}`}
+              onClick={() => setActiveTab('settings')}
+            >
+              回故事概览核对与编辑
+            </button>
+            <details className={s.disclosure}>
+              <summary>高级：版本与权限</summary>
+              <p>
+                草稿版本：{work.draft.version}；发布版本：{work.publicationVersion ?? '尚未发布'}
+              </p>
+              <p>
+                编辑权限：{session.canEdit ? '可编辑' : '只读'}；发布权限：
+                {session.canPublish ? '可发布' : '未授予'}
+              </p>
+            </details>
+          </section>
         )}
 
         {/* Empty workspace state */}
@@ -710,327 +859,359 @@ export function PublisherWorkbench(
           </div>
         )}
 
-        {/* ================= Tab 1: 世界设定 ================= */}
         {work && activeTab === 'settings' && (
-          <div className={s.workspace}>
-            <div className={s.editorPane}>
-              <section className={s.card}>
-                <div className={s.sectionHeader}>
-                  <h3 className={s.sectionTitle}>1. 作品基本信息</h3>
-                  <p className={s.sectionHint}>展示在发现页与开局卡片</p>
-                </div>
-                <div className={s.formGrid}>
-                  <div className={s.formField}>
-                    <label className={s.fieldLabel} htmlFor="work-title-input">
-                      作品标题
-                    </label>
-                    <input
-                      id="work-title-input"
-                      className={s.input}
-                      value={worldSettings.title}
-                      onChange={(e) => handleWorldSettingsChange('title', e.target.value)}
-                      placeholder="例：如果，我的公司上市了"
-                      disabled={!session.canEdit || busy}
-                    />
-                  </div>
-                  <div className={s.formField}>
-                    <label className={s.fieldLabel} htmlFor="work-hook-input">
-                      一句话吸引点 (Hook)
-                    </label>
-                    <input
-                      id="work-hook-input"
-                      className={s.input}
-                      value={worldSettings.hook}
-                      onChange={(e) => handleWorldSettingsChange('hook', e.target.value)}
-                      placeholder="例：从负债累累到敲钟上市，周旋在多重利益之间"
-                      disabled={!session.canEdit || busy}
-                    />
-                  </div>
-                  <div className={s.formFieldFull}>
-                    <label className={s.fieldLabel} htmlFor="work-desc-input">
-                      详细背景说明
+          <section className={s.storyOverview} aria-label="故事概览">
+            <PublisherReviewView content={draftContent} mode="draft" />
+          </section>
+        )}
+        {work && activeTab === 'settings' && (
+          <details
+            className={s.settingsDisclosure}
+            open={settingsOpen}
+            onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
+          >
+            <summary>编辑故事介绍与世界设置</summary>
+            {/* ================= Tab 1: 世界设定 ================= */}
+            {work && activeTab === 'settings' && (
+              <div className={s.workspace}>
+                <div className={s.editorPane}>
+                  <section className={s.card}>
+                    <div className={s.sectionHeader}>
+                      <h3 className={s.sectionTitle}>作品介绍</h3>
+                      <p className={s.sectionHint}>展示在发现页与开局卡片</p>
+                    </div>
+                    <div className={s.formGrid}>
+                      <div className={s.formField}>
+                        <label className={s.fieldLabel} htmlFor="work-title-input">
+                          作品标题
+                        </label>
+                        <input
+                          id="work-title-input"
+                          className={s.input}
+                          value={worldSettings.title}
+                          onChange={(e) => handleWorldSettingsChange('title', e.target.value)}
+                          placeholder="例：如果，我的公司上市了"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </div>
+                      <div className={s.formField}>
+                        <label className={s.fieldLabel} htmlFor="work-hook-input">
+                          一句话吸引点 (Hook)
+                        </label>
+                        <input
+                          id="work-hook-input"
+                          className={s.input}
+                          value={worldSettings.hook}
+                          onChange={(e) => handleWorldSettingsChange('hook', e.target.value)}
+                          placeholder="例：从负债累累到敲钟上市，周旋在多重利益之间"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </div>
+                      <div className={s.formFieldFull}>
+                        <label className={s.fieldLabel} htmlFor="work-desc-input">
+                          详细背景说明
+                        </label>
+                        <textarea
+                          id="work-desc-input"
+                          className={s.textarea}
+                          value={worldSettings.description}
+                          onChange={(e) => handleWorldSettingsChange('description', e.target.value)}
+                          placeholder="作品完整的世界观与故事背景描述…"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </div>
+                      <div className={s.formFieldFull}>
+                        <label className={s.fieldLabel} htmlFor="work-exp-note-input">
+                          体验注意事项
+                        </label>
+                        <input
+                          id="work-exp-note-input"
+                          className={s.input}
+                          value={worldSettings.experienceNote}
+                          onChange={(e) =>
+                            handleWorldSettingsChange('experienceNote', e.target.value)
+                          }
+                          placeholder="例：本体验包含职场利益抉择与成人情感纠葛，请理性对待"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className={s.card}>
+                    <div className={s.sectionHeader}>
+                      <h3 className={s.sectionTitle}>玩家从怎样的处境开始</h3>
+                      <p className={s.sectionHint}>仅作为虚构剧本内角色设定，不写入现实档案</p>
+                    </div>
+                    <div className={s.formGrid}>
+                      <div className={s.formFieldFull}>
+                        <label className={s.fieldLabel} htmlFor="protag-identity-input">
+                          主角公开身份
+                        </label>
+                        <input
+                          id="protag-identity-input"
+                          className={s.input}
+                          value={worldSettings.protagonistIdentity}
+                          onChange={(e) =>
+                            handleWorldSettingsChange('protagonistIdentity', e.target.value)
+                          }
+                          placeholder="例：28岁，某初创科技公司CEO，单身"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </div>
+                      <div className={s.formFieldFull}>
+                        <label className={s.fieldLabel} htmlFor="protag-sit-input">
+                          开场现实处境
+                        </label>
+                        <textarea
+                          id="protag-sit-input"
+                          className={s.textarea}
+                          value={worldSettings.protagonistSituation}
+                          onChange={(e) =>
+                            handleWorldSettingsChange('protagonistSituation', e.target.value)
+                          }
+                          placeholder="例：公司刚刚完成敲钟，今晚面临庆功宴与私人赴约的严峻冲突…"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className={s.card}>
+                    <h3 className={s.sectionTitle}>故事舞台与幕后背景</h3>
+                    <label className={s.fieldLabel} htmlFor="world-public-setting">
+                      玩家可以知道的世界背景
                     </label>
                     <textarea
-                      id="work-desc-input"
+                      id="world-public-setting"
                       className={s.textarea}
-                      value={worldSettings.description}
-                      onChange={(e) => handleWorldSettingsChange('description', e.target.value)}
-                      placeholder="作品完整的世界观与故事背景描述…"
+                      value={worldSettings.publicSetting}
+                      onChange={(e) => handleWorldSettingsChange('publicSetting', e.target.value)}
                       disabled={!session.canEdit || busy}
                     />
-                  </div>
-                  <div className={s.formFieldFull}>
-                    <label className={s.fieldLabel} htmlFor="work-exp-note-input">
-                      体验注意事项
-                    </label>
-                    <input
-                      id="work-exp-note-input"
-                      className={s.input}
-                      value={worldSettings.experienceNote}
-                      onChange={(e) => handleWorldSettingsChange('experienceNote', e.target.value)}
-                      placeholder="例：本体验包含职场利益抉择与成人情感纠葛，请理性对待"
-                      disabled={!session.canEdit || busy}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section className={s.card}>
-                <div className={s.sectionHeader}>
-                  <h3 className={s.sectionTitle}>2. 主角设定 (玩家角色)</h3>
-                  <p className={s.sectionHint}>仅作为虚构剧本内角色设定，不写入现实档案</p>
-                </div>
-                <div className={s.formGrid}>
-                  <div className={s.formFieldFull}>
-                    <label className={s.fieldLabel} htmlFor="protag-identity-input">
-                      主角公开身份
-                    </label>
-                    <input
-                      id="protag-identity-input"
-                      className={s.input}
-                      value={worldSettings.protagonistIdentity}
-                      onChange={(e) =>
-                        handleWorldSettingsChange('protagonistIdentity', e.target.value)
-                      }
-                      placeholder="例：28岁，某初创科技公司CEO，单身"
-                      disabled={!session.canEdit || busy}
-                    />
-                  </div>
-                  <div className={s.formFieldFull}>
-                    <label className={s.fieldLabel} htmlFor="protag-sit-input">
-                      开场现实处境
+                    <label className={s.fieldLabel} htmlFor="world-hidden-context">
+                      仅供内容创作保留的幕后背景
                     </label>
                     <textarea
-                      id="protag-sit-input"
+                      id="world-hidden-context"
                       className={s.textarea}
-                      value={worldSettings.protagonistSituation}
-                      onChange={(e) =>
-                        handleWorldSettingsChange('protagonistSituation', e.target.value)
-                      }
-                      placeholder="例：公司刚刚完成敲钟，今晚面临庆功宴与私人赴约的严峻冲突…"
+                      value={worldSettings.hiddenContext}
+                      onChange={(e) => handleWorldSettingsChange('hiddenContext', e.target.value)}
                       disabled={!session.canEdit || busy}
                     />
-                  </div>
-                </div>
-              </section>
-
-              <section className={s.card}>
-                <h3 className={s.sectionTitle}>故事舞台与幕后背景</h3>
-                <label className={s.fieldLabel} htmlFor="world-public-setting">
-                  玩家可以知道的世界背景
-                </label>
-                <textarea
-                  id="world-public-setting"
-                  className={s.textarea}
-                  value={worldSettings.publicSetting}
-                  onChange={(e) => handleWorldSettingsChange('publicSetting', e.target.value)}
-                  disabled={!session.canEdit || busy}
-                />
-                <label className={s.fieldLabel} htmlFor="world-hidden-context">
-                  仅供内容创作保留的幕后背景
-                </label>
-                <textarea
-                  id="world-hidden-context"
-                  className={s.textarea}
-                  value={worldSettings.hiddenContext}
-                  onChange={(e) => handleWorldSettingsChange('hiddenContext', e.target.value)}
-                  disabled={!session.canEdit || busy}
-                />
-                <p className={s.fieldHint}>
-                  幕后背景不会作为玩家已知信息。角色实际知道哪些事实，需要分别指定。
-                </p>
-              </section>
-              <section className={s.card}>
-                <h3 className={s.sectionTitle}>剧本封面</h3>
-                <label className={s.fieldLabel} htmlFor="publication-cover">
-                  选择创作封面
-                </label>
-                <select
-                  id="publication-cover"
-                  className={s.input}
-                  disabled={!session.canEdit || busy}
-                  value={String(
-                    (draftContent.work as Record<string, unknown>)?.coverMediaKey ?? '',
-                  )}
-                  onChange={(e) => handleArtChange('cover', e.target.value)}
-                >
-                  <option value="">暂不设置</option>
-                  {PUBLICATION_ART.filter((a) => a.uses.includes('cover')).map((a) => (
-                    <option key={a.key} value={a.key}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
-                {publisherArtUrl(
-                  draftContent,
-                  String((draftContent.work as Record<string, unknown>)?.coverMediaKey ?? ''),
-                  'cover',
-                ) ? (
-                  <img
-                    style={{
-                      width: '100%',
-                      maxHeight: 220,
-                      objectFit: 'cover',
-                      borderRadius: 12,
-                      marginTop: 12,
-                    }}
-                    alt="剧本创作封面"
-                    src={publisherArtUrl(
-                      draftContent,
-                      String((draftContent.work as Record<string, unknown>)?.coverMediaKey ?? ''),
-                      'cover',
-                    )}
-                  />
-                ) : null}
-                <p className={s.fieldHint}>
-                  这些图片是虚构世界的AI创作素材，不会使用玩家的私人照片。
-                </p>
-              </section>
-              <details className={s.card}>
-                <summary>导入完整结构化草稿</summary>
-                <p className={s.fieldHint}>
-                  用于补全地点、历史消息、日历与剧情等内容。导入只修改当前编辑稿；保存、检查和试演需另外执行。暂不支持的字段会在检查时显示。
-                </p>
-                <label className={s.fieldLabel} htmlFor="publication-import">
-                  完整内容（JSON）
-                </label>
-                <textarea
-                  id="publication-import"
-                  className={s.textarea}
-                  value={importText}
-                  onChange={(e) => {
-                    setImportText(e.target.value);
-                    setImportError('');
-                  }}
-                  disabled={!session.canEdit || busy}
-                  spellCheck={false}
-                />
-                {importError && <p role="alert">{importError}</p>}
-                <button
-                  type="button"
-                  className={s.btn}
-                  disabled={!session.canEdit || busy || !importText}
-                  onClick={() => {
-                    try {
-                      const raw = JSON.parse(importText);
-                      const parsed = PublisherDraftContentSchema.safeParse(raw);
-                      if (!parsed.success) {
-                        setImportError(
-                          '内容不是可保存的草稿，或超过大小限制。原来的编辑内容已保留。',
-                        );
-                        return;
-                      }
-                      if (
-                        isDraftDirty(savedState, { title: draftTitle, content: draftContent }) &&
-                        !window.confirm('导入将替换当前未保存的编辑稿，确认应用吗？')
-                      )
-                        return;
-                      setDraftContent(deepClone(parsed.data));
-                      const value = parseWorldSettings(parsed.data, draftTitle);
-                      setDraftTitle(value.title);
-                      setSelectedActorKey(null);
-                      setImportText('');
-                      setImportError('');
-                      setNotice({ type: 'warning', message: '内容已应用到编辑稿，请核对后保存。' });
-                    } catch {
-                      setImportError('内容格式有误。原来的编辑内容已保留，请检查后再试。');
-                    }
-                  }}
-                >
-                  应用到编辑稿
-                </button>
-                <button
-                  type="button"
-                  className={s.btn}
-                  disabled={busy}
-                  onClick={() => {
-                    setImportText('');
-                    setImportError('');
-                  }}
-                >
-                  清空导入文字
-                </button>
-              </details>
-              <section className={s.card}>
-                <div className={s.sectionHeader}>
-                  <h3 className={s.sectionTitle}>3. 世界时空基准</h3>
-                  <p className={s.sectionHint}>客观时间与物理位置起点</p>
-                </div>
-                <div className={s.formGrid}>
-                  <div className={s.formField}>
-                    <label className={s.fieldLabel} htmlFor="world-start-at">
-                      开场日期和时间（北京时间）
-                    </label>
-                    <input
-                      id="world-start-at"
-                      className={s.input}
-                      type="datetime-local"
-                      value={publicationLocalTime(worldSettings.startAt)}
-                      onChange={(e) =>
-                        handleWorldSettingsChange('startAt', publicationUtcTime(e.target.value))
-                      }
-                      placeholder="2024-05-18T18:00:00Z"
-                      disabled={!session.canEdit || busy}
-                    />
-                  </div>
-                  <div className={s.formField}>
-                    <label className={s.fieldLabel} htmlFor="world-start-place">
-                      故事开始时你在哪里
+                    <p className={s.fieldHint}>
+                      幕后背景不会作为玩家已知信息。角色实际知道哪些事实，需要分别指定。
+                    </p>
+                  </section>
+                  <section className={s.card}>
+                    <h3 className={s.sectionTitle}>剧本封面</h3>
+                    <label className={s.fieldLabel} htmlFor="publication-cover">
+                      选择创作封面
                     </label>
                     <select
-                      id="world-start-place"
+                      id="publication-cover"
                       className={s.input}
-                      value={worldSettings.startPlaceKey}
-                      onChange={(e) => handleWorldSettingsChange('startPlaceKey', e.target.value)}
                       disabled={!session.canEdit || busy}
+                      value={String(
+                        (draftContent.work as Record<string, unknown>)?.coverMediaKey ?? '',
+                      )}
+                      onChange={(e) => handleArtChange('cover', e.target.value)}
                     >
-                      <option value="">请选择起点地点</option>
-                      {worldSettings.startPlaceKey &&
-                      !plotChoices(draftContent, 'places').some(
-                        (p) => p.key === worldSettings.startPlaceKey,
-                      ) ? (
-                        <option value={worldSettings.startPlaceKey}>原地点引用待核对</option>
-                      ) : null}
-                      {plotChoices(draftContent, 'places').map((p) => (
-                        <option key={p.key} value={p.key}>
-                          {p.label}
+                      <option value="">暂不设置</option>
+                      {PUBLICATION_ART.filter((a) => a.uses.includes('cover')).map((a) => (
+                        <option key={a.key} value={a.key}>
+                          {a.label}
                         </option>
                       ))}
                     </select>
-                  </div>
-                  <div className={s.formFieldFull}>
-                    <label className={s.fieldLabel} htmlFor="world-tone-input">
-                      叙事基调与氛围
+                    {publisherArtUrl(
+                      draftContent,
+                      String((draftContent.work as Record<string, unknown>)?.coverMediaKey ?? ''),
+                      'cover',
+                    ) ? (
+                      <img
+                        style={{
+                          width: '100%',
+                          maxHeight: 220,
+                          objectFit: 'cover',
+                          borderRadius: 12,
+                          marginTop: 12,
+                        }}
+                        alt="剧本创作封面"
+                        src={publisherArtUrl(
+                          draftContent,
+                          String(
+                            (draftContent.work as Record<string, unknown>)?.coverMediaKey ?? '',
+                          ),
+                          'cover',
+                        )}
+                      />
+                    ) : null}
+                    <p className={s.fieldHint}>
+                      这些图片是虚构世界的AI创作素材，不会使用玩家的私人照片。
+                    </p>
+                  </section>
+                  <details className={s.card}>
+                    <summary>导入完整结构化草稿</summary>
+                    <p className={s.fieldHint}>
+                      用于补全地点、历史消息、日历与剧情等内容。导入只修改当前编辑稿；保存、检查和试演需另外执行。暂不支持的字段会在检查时显示。
+                    </p>
+                    <label className={s.fieldLabel} htmlFor="publication-import">
+                      完整内容（JSON）
                     </label>
-                    <input
-                      id="world-tone-input"
-                      className={s.input}
-                      value={worldSettings.tone}
-                      onChange={(e) => handleWorldSettingsChange('tone', e.target.value)}
-                      placeholder="例：现代都市，现实主义，带有轻度讽刺与职场压迫感"
+                    <textarea
+                      id="publication-import"
+                      className={s.textarea}
+                      value={importText}
+                      onChange={(e) => {
+                        setImportText(e.target.value);
+                        setImportError('');
+                      }}
                       disabled={!session.canEdit || busy}
+                      spellCheck={false}
                     />
-                  </div>
+                    {importError && <p role="alert">{importError}</p>}
+                    <button
+                      type="button"
+                      className={s.btn}
+                      disabled={!session.canEdit || busy || !importText}
+                      onClick={() => {
+                        try {
+                          const raw = JSON.parse(importText);
+                          const parsed = PublisherDraftContentSchema.safeParse(raw);
+                          if (!parsed.success) {
+                            setImportError(
+                              '内容不是可保存的草稿，或超过大小限制。原来的编辑内容已保留。',
+                            );
+                            return;
+                          }
+                          if (
+                            isDraftDirty(savedState, {
+                              title: draftTitle,
+                              content: draftContent,
+                            }) &&
+                            !window.confirm('导入将替换当前未保存的编辑稿，确认应用吗？')
+                          )
+                            return;
+                          setDraftContent(deepClone(parsed.data));
+                          const value = parseWorldSettings(parsed.data, draftTitle);
+                          setDraftTitle(value.title);
+                          setSelectedActorKey(null);
+                          setImportText('');
+                          setImportError('');
+                          setNotice({
+                            type: 'warning',
+                            message: '内容已应用到编辑稿，请核对后保存。',
+                          });
+                        } catch {
+                          setImportError('内容格式有误。原来的编辑内容已保留，请检查后再试。');
+                        }
+                      }}
+                    >
+                      应用到编辑稿
+                    </button>
+                    <button
+                      type="button"
+                      className={s.btn}
+                      disabled={busy}
+                      onClick={() => {
+                        setImportText('');
+                        setImportError('');
+                      }}
+                    >
+                      清空导入文字
+                    </button>
+                  </details>
+                  <section className={s.card}>
+                    <div className={s.sectionHeader}>
+                      <h3 className={s.sectionTitle}>故事从哪里、何时开始</h3>
+                      <p className={s.sectionHint}>起点只需统一核对；精确日期在下方展开设置</p>
+                    </div>
+                    <div className={s.formGrid}>
+                      {needsStartTime && (
+                        <p className={s.timeWarning} role="status">
+                          开场日期待补齐或修正。当前系统仍需一个明确起点；展开下方设置填写，不会自动替你决定。
+                        </p>
+                      )}
+                      <details className={s.timeDisclosure} open={needsStartTime}>
+                        <summary>精确开场日期和时间（北京时间）</summary>
+                        <label className={s.fieldLabel} htmlFor="world-start-at">
+                          开场日期和时间（北京时间）
+                        </label>
+                        <input
+                          id="world-start-at"
+                          className={s.input}
+                          type="datetime-local"
+                          value={publicationLocalTime(worldSettings.startAt)}
+                          onChange={(e) =>
+                            handleWorldSettingsChange('startAt', publicationUtcTime(e.target.value))
+                          }
+                          placeholder="2024-05-18T18:00:00Z"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </details>
+                      <div className={s.formField}>
+                        <label className={s.fieldLabel} htmlFor="world-start-place">
+                          故事开始时你在哪里
+                        </label>
+                        <select
+                          id="world-start-place"
+                          className={s.input}
+                          value={worldSettings.startPlaceKey}
+                          onChange={(e) =>
+                            handleWorldSettingsChange('startPlaceKey', e.target.value)
+                          }
+                          disabled={!session.canEdit || busy}
+                        >
+                          <option value="">请选择起点地点</option>
+                          {worldSettings.startPlaceKey &&
+                          !plotChoices(draftContent, 'places').some(
+                            (p) => p.key === worldSettings.startPlaceKey,
+                          ) ? (
+                            <option value={worldSettings.startPlaceKey}>原地点引用待核对</option>
+                          ) : null}
+                          {plotChoices(draftContent, 'places').map((p) => (
+                            <option key={p.key} value={p.key}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className={s.formFieldFull}>
+                        <label className={s.fieldLabel} htmlFor="world-tone-input">
+                          叙事基调与氛围
+                        </label>
+                        <input
+                          id="world-tone-input"
+                          className={s.input}
+                          value={worldSettings.tone}
+                          onChange={(e) => handleWorldSettingsChange('tone', e.target.value)}
+                          placeholder="例：现代都市，现实主义，带有轻度讽刺与职场压迫感"
+                          disabled={!session.canEdit || busy}
+                        />
+                      </div>
+                    </div>
+                  </section>
                 </div>
-              </section>
-            </div>
-          </div>
-        )}
+              </div>
+            )}
 
-        {work && activeTab === 'settings' && (
-          <PublisherSpaceEditor
-            content={draftContent}
-            disabled={busy || !session.canEdit}
-            onChange={setDraftContent}
-          />
-        )}
+            {work && activeTab === 'settings' && (
+              <PublisherSpaceEditor
+                content={draftContent}
+                disabled={busy || !session.canEdit}
+                onChange={setDraftContent}
+              />
+            )}
 
-        {work && activeTab === 'settings' && (
-          <PublisherOpeningEditor
-            content={draftContent}
-            disabled={busy || !session.canEdit}
-            onChange={setDraftContent}
-          />
+            {work && activeTab === 'settings' && (
+              <PublisherOpeningEditor
+                content={draftContent}
+                disabled={busy || !session.canEdit}
+                onChange={setDraftContent}
+              />
+            )}
+          </details>
         )}
 
         {/* ================= Tab 2: 人物 (5 区编辑) ================= */}

@@ -383,26 +383,53 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
   ];
 }
 
-export function PublisherReviewView({ content }: { content: Data }) {
+export function PublisherReviewView({
+  content,
+  mode = 'proposal',
+}: {
+  content: Data;
+  mode?: 'proposal' | 'draft';
+}) {
   const groups = buildPublisherReview(content);
   return h(
     'section',
-    { className: s.reviewContent, 'aria-label': '最终提案实际内容' },
-    h('h3', null, '将填入的实际内容'),
+    {
+      className: s.reviewContent,
+      'aria-label': mode === 'draft' ? '当前草稿故事概览' : '最终提案实际内容',
+    },
+    h('h3', null, mode === 'draft' ? '这段故事现在是什么样' : '将填入的实际内容'),
     h(
       'p',
       { className: s.reviewNotice },
-      '以下内容只读取最终提案，不使用模型说明补齐缺失字段。原稿可在上方展开查看；文字对应检查不能代替语义核对，也不能保证无遗漏。请特别核对年龄、人物关系和已经作出的约定。',
+      mode === 'draft'
+        ? '当前编辑稿包含尚未保存的修改；未填写的内容不会自动补齐。'
+        : '以下为实际整理稿，请核对事实与补充；未填写不代表原稿没有提及。',
     ),
     h(
-      'p',
-      { className: s.help },
-      '未填写不代表原稿没有提及。人物背景等长文本完整展示；可见范围与开场知情引用分开列出。未来剧情仍是候选，不代表已经发生。',
+      'details',
+      { className: s.reviewGroup },
+      h('summary', null, '如何核对这段故事'),
+      h(
+        'p',
+        { className: s.help },
+        mode === 'draft'
+          ? '先读故事，再到人物与剧情发展调整。概览只读取当前编辑稿，不使用模型说明补齐缺失字段。'
+          : '原稿可在导入区展开查看；文字对应检查不能代替语义核对，也不能保证无遗漏。请特别核对年龄、人物关系和已经作出的约定。',
+      ),
+      h(
+        'p',
+        { className: s.help },
+        '人物背景等长文本完整展示；可见范围与开场知情引用分开列出。未来剧情仍是候选，不代表已经发生。',
+      ),
     ),
     ...groups.map((group) =>
       h(
         'details',
-        { key: group.title, className: s.reviewGroup, open: group.title === '人物' },
+        {
+          key: group.title,
+          className: s.reviewGroup,
+          open: group.title === '世界与主角',
+        },
         h('summary', null, group.title),
         h(
           'div',

@@ -1,6 +1,6 @@
 # WRITER-UX-06Q：编剧视图只读方案
 
-2026-10-13；Agent codex-writer-ux-06q-01a0c7c8-20261013；root唯一集成。状态：只读方案待确认，未实施UI。主目录短锁登记；独立photo-compose-02 / codex/writer-ux06-q-review，审查root当前f7125df。Notes05保持冻结。
+2026-10-13；Agent codex-writer-ux-06q-01a0c7c8-20261013；root唯一集成。状态：实现待验收；下方保留先前只读方案，最新交付见末节。主目录短锁登记；独立photo-compose-02 / codex/writer-ux06-q-review，审查root当前f7125df。Notes05保持冻结。
 
 ## 当前证据
 
@@ -37,3 +37,27 @@
 ## 验证和接续
 
 本轮仅阅读源码、登记和写报告，0业务代码修改、0模型/世界/DB/浏览器、未跑测试或构建；不存在上线交付或真实PostgreSQL证据。方案已回传root，等相对时间审查和明确文件范围/基线后实施。后续应验证全量阻断可见、未知扩展保留、草稿编辑不丢值、导入双勾和发布守卫不变、手机PC可读；root统一check/build/READY公网，验收前不标已完成。
+
+
+## 06Q冻结范围实现交付
+
+root批准后已按主目录短锁把本行改为进行中并登记精确6文件：publisher-workbench.tsx/.module.css、publisher-review-view.ts、tests/publisher-workbench.test.ts、publisher-review-view.test.ts、本报告。基线f7125df+本人只读报告a90b067，未修改plot/opening/import或B规则，未修改公共契约。
+
+- 四入口：故事概览（默认）、人物、剧情发展、待确认问题；换作品重回概览。概览直接读取当前draftContent，包括未保存内容，不借模型notes补事实。
+- 复用既有实际内容预览，新增可选draft展示模式，默认proposal接口兼容；两模式默认展开世界与主角，人物等完整内容仍可展开。首屏声明缩一句，详细核对方法折叠；全量原始JSON及未知扩展仍可查看，不改数据。
+- 世界业务表单放在可逆“编辑故事介绍与世界设置”折叠，原字段/回调保留；精确开场时间进一步折叠。日期缺失/无法识别时顶层明显提醒，补齐按钮切回概览并打开设置，空日期细项打开。不假称已经支持无需运行起点或自动相对时间。
+- 顶层持续提示未检查/旧检查/实际问题数量，待确认入口完整列出check.issues、missingCapabilities和试演/素材状态。issuesTruncated显式说明后台还有未列出项。旧work/version/hash或未保存稿绝不显示当前检查通过。
+- 版本和权限详情收在待确认的高级折叠，顶栏保留草稿/上架/下架及未保存状态。真正权限不足原因仍在原操作入口。
+- 人物知情、事实编辑和底线保持原文与原权限；原保存、检查、试演、发布和导入动作未替换。发布onClick与disabled完整表达式逐字忽略空白比对f7125df一致。
+
+### 实际验证
+
+30/30专项、0skip：publisher-workbench.test.ts + publisher-review-view.test.ts。覆盖四入口/默认实际概览、保留人物五区与共享事实编辑/禁止重复key编辑/只读busy限制、全量8个issue与2运行限制/试演媒体显示、服务端截断、旧hash不冒称就绪、原权限work/version/hash/trial/media发布门槛、空/非法日期可补齐、未保存实际稿和未知扩展不丢、核对方法折叠及两模式默认故事展开、原AI/纯解析最终稿预览边界。
+
+Typecheck最终退出0；范围内格式检查与git diff --check通过。最初测试修改脚本因缩进定位失败未写入，旧23项出现18pass/5默认人物旧断言失败；修正脚本并更新明确入口后29项过。新增fixture extensions类型声明错误已修；补核对方法测试后30项全过/type0。保留事实/权限安全断言而非移除。
+
+测试是SSR和测试专用初始tab选择，不是真浏览器/供应商/数据库证据。0新模型/世界/图片/DB/API调用；未跑完整check/build或推送部署，root按分工统一验收。没有真实PostgreSQL验证，本轮仅重排现有UI，不新增Repository或领域运行能力。
+
+### 集成接续
+
+root只取本实现提交（前只读报告可不另取，本提交包含报告改动）；与B的plot/opening及root import相互无源码重叠。完整check/build，390/1440检查四入口、详细编辑折叠、补齐日期按钮、全量阻断与旧check、实际稿长文、人物知情、导入双勾和原save/trial/publish流程。生产迁移核对/READY/公网验证后才标完成。Notes05已由root通知489061c READY并验收，本轮不回写其代码或状态。

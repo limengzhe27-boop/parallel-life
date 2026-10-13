@@ -20,13 +20,21 @@ registerHooks({
       return {
         format: 'module',
         shortCircuit: true,
-        source: ts.transpileModule(readFileSync(new URL(url), 'utf8'), {
-          compilerOptions: {
-            target: ts.ScriptTarget.ES2022,
-            module: ts.ModuleKind.ESNext,
-            jsx: ts.JsxEmit.ReactJSX,
+        source: ts.transpileModule(
+          url.endsWith('publisher-workbench.tsx')
+            ? readFileSync(new URL(url), 'utf8').replace(
+                "import React, { useState, useEffect, useMemo, useCallback } from 'react';",
+                "import React, { useState as actualUseState, useEffect, useMemo, useCallback } from 'react'; const useState = initial => actualUseState(initial === 'settings' && globalThis.__writerTestTab ? globalThis.__writerTestTab : initial);",
+              )
+            : readFileSync(new URL(url), 'utf8'),
+          {
+            compilerOptions: {
+              target: ts.ScriptTarget.ES2022,
+              module: ts.ModuleKind.ESNext,
+              jsx: ts.JsxEmit.ReactJSX,
+            },
           },
-        }).outputText,
+        ).outputText,
       };
     return nextLoad(url, context);
   },
@@ -174,41 +182,52 @@ const defaultProps: PublisherWorkbenchProps = {
   onLogout: () => {},
 };
 
-test('PublisherWorkbench renders complete light-theme 3-column UI', () => {
+function renderTab(props: PublisherWorkbenchProps, tab: 'settings' | 'actors' | 'plot' | 'review') {
+  Object.assign(globalThis, { __writerTestTab: tab });
+  try {
+    return renderToStaticMarkup(createElement(PublisherWorkbench, props));
+  } finally {
+    Reflect.deleteProperty(globalThis, '__writerTestTab');
+  }
+}
+test('workbench defaults to actual story overview with four writer-facing entries and folded business editing', () => {
   const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
-
-  // Sidebar works list and create button
-  assert.ok(html.includes('海边诊所的午后'));
-  assert.ok(html.includes('旧城咖啡馆之夜'));
-  assert.ok(html.includes('+ 新建世界'));
-
-  // Header operations
-  assert.ok(html.includes('保存草稿'));
-  assert.ok(html.includes('检查'));
-  assert.ok(html.includes('试演'));
-  assert.ok(html.includes('发布'));
-
-  // Navigation tabs
-  assert.ok(html.includes('世界设定'));
-  assert.ok(html.includes('人物'));
-  assert.ok(html.includes('人物 · 2'));
-  assert.ok(html.includes('剧情'));
-
-  // Character list and 5-section form
-  assert.ok(html.includes('青青'));
-  assert.ok(html.includes('诊所助手'));
-  assert.ok(html.includes('1. 名字与身份'));
-  assert.ok(html.includes('2. 与主角的初始关系'));
-  assert.ok(html.includes('3. 性格与说话方式'));
-  assert.ok(html.includes('4. 在乎什么、眼前想法'));
-  assert.ok(html.includes('5. 关系、知情范围与底线'));
-
-  // Populated character details
-  assert.ok(html.includes('青梅竹马 / 邻居'));
-  assert.ok(html.includes('说话简洁轻柔，习惯用陈述句。'));
-  assert.ok(html.includes('诊所的平静与祖父留下的医案'));
-  assert.ok(html.includes('查清昨晚私自取药的人是谁'));
-  assert.ok(html.includes('讨厌别人翻动内室诊柜。'));
+  for (const text of [
+    '海边诊所的午后',
+    '旧城咖啡馆之夜',
+    '+ 新建世界',
+    '保存草稿',
+    '检查',
+    '试演',
+    '发布',
+    '故事概览',
+    '人物',
+    '剧情发展',
+    '待确认问题',
+    '当前草稿故事概览',
+    '青青',
+    '青梅竹马 / 邻居',
+  ])
+    assert.ok(html.includes(text), text);
+  assert.match(html, /<details class="settingsDisclosure">/);
+  assert.match(html, /尚未检查草稿/);
+  assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
+});
+test('character form preserves all five existing authoring sections and real values after navigation', () => {
+  const html = renderTab(defaultProps, 'actors');
+  for (const text of [
+    '人物 · 2',
+    '1. 名字与身份',
+    '2. 与主角的初始关系',
+    '3. 性格与说话方式',
+    '4. 在乎什么、眼前想法',
+    '5. 关系、知情范围与底线',
+    '诊所助手',
+    '青梅竹马 / 邻居',
+    '说话简洁轻柔',
+    '讨厌别人翻动内室诊柜',
+  ])
+    assert.ok(html.includes(text), text);
 });
 
 test('PublisherWorkbench honestly indicates unhooked callbacks when onTrial or onPublish omitted', () => {
@@ -258,22 +277,18 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
     checkedAt: '2026-10-12T10:00:00.000Z',
   };
 
-  const html = renderToStaticMarkup(
-    createElement(PublisherWorkbench, {
-      ...defaultProps,
-      check: checkResult,
-    }),
-  );
+  const html = renderTab({ ...defaultProps, check: checkResult }, 'review');
 
-  assert.ok(html.includes('还需要完善'));
+  assert.ok(html.includes('待确认问题'));
   assert.ok(html.includes('人物第 1 项 · 姓名或地点名称'));
   assert.ok(html.includes('部分内容暂时不支持运行'));
   assert.ok(!html.includes('actors.0.name: name_required'));
-  assert.ok(!html.includes('model_budget_unapproved'));
+  assert.ok(html.includes('真实模型调用预算尚未确认'));
+  assert.match(html, /<summary>限制详情 1<\/summary><p>model_budget_unapproved/);
 });
 
 test('character knowledge includes an editable shared fact with a separate knowledge checkbox', () => {
-  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  const html = renderTab(defaultProps, 'actors');
   assert.ok(html.includes('不是固定示例'));
   assert.ok(html.includes('修改这条事实'));
   assert.ok(html.includes('到剧情页管理或新增事实'));
@@ -286,9 +301,7 @@ test('character knowledge includes an editable shared fact with a separate knowl
 
 test('shared fact editor remains disabled while busy or without edit permission', () => {
   for (const extra of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
-    const html = renderToStaticMarkup(
-      createElement(PublisherWorkbench, { ...defaultProps, ...extra }),
-    );
+    const html = renderTab({ ...defaultProps, ...extra }, 'actors');
     assert.match(html, /<textarea[^>]*id="actor-fact-0-fact_clinic_01"[^>]*disabled=""/);
   }
 });
@@ -296,12 +309,90 @@ test('shared fact editor remains disabled while busy or without edit permission'
 test('ambiguous duplicate fact keys do not expose an unsafe inline editor', () => {
   const content = structuredClone(mockContent);
   content.history = [...(content.history as unknown[]), ...(content.history as unknown[])];
-  const html = renderToStaticMarkup(
-    createElement(PublisherWorkbench, {
-      ...defaultProps,
-      work: { ...mockWork, draft: { ...mockWork.draft, content } },
-    }),
+  const html = renderTab(
+    { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
+    'actors',
   );
   assert.ok(html.includes('这条事实的格式或标识待核对'));
   assert.ok(!html.includes('id="actor-fact-'));
+});
+
+const readyCheck: PublisherCheckResult = {
+  id: 'check-ready',
+  workId: mockWork.id,
+  draftVersion: mockWork.draftVersion,
+  contentHash: mockWork.draft.contentHash,
+  status: 'ready',
+  issuesTruncated: false,
+  issues: [],
+  missingCapabilities: [],
+  mediaVerified: true,
+  trialVerified: true,
+  checkedAt: '2026-10-13T00:00:00Z',
+};
+test('all returned issues and run restrictions are available, with server truncation explicitly retained', () => {
+  const check: PublisherCheckResult = {
+    ...readyCheck,
+    status: 'invalid',
+    issuesTruncated: true,
+    issues: Array.from({ length: 8 }, (_, i) => ({
+      path: ['actors', i, 'name'],
+      code: 'name_required',
+    })),
+    missingCapabilities: ['model_budget_unapproved', 'unrecognized_runtime_feature'],
+    mediaVerified: false,
+    trialVerified: false,
+  };
+  const html = renderTab({ ...defaultProps, check }, 'review');
+  for (let i = 1; i <= 8; i++) assert.ok(html.includes(`人物第 ${i} 项`));
+  assert.match(html, /待确认问题：.*12 项/);
+  assert.match(html, /仍有未列出的项/);
+  assert.match(html, /尚未完成真实试演|素材尚未核验/);
+  assert.match(html, /unrecognized_runtime_feature/);
+  assert.doesNotMatch(html, /…还有/);
+});
+test('a ready check for an old hash never labels the current draft publishable', () => {
+  const html = renderTab(
+    { ...defaultProps, check: { ...readyCheck, contentHash: 'old-hash' } },
+    'review',
+  );
+  assert.match(html, /旧稿或其他版本/);
+  assert.doesNotMatch(html, /当前已保存稿的检查通过/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>发布<\/button>/);
+});
+test('existing permission, version, hash, trial and media publication guards stay enforced', () => {
+  const allowed = renderTab({ ...defaultProps, check: readyCheck }, 'review');
+  assert.match(allowed, /<button(?![^>]*disabled)[^>]*>发布<\/button>/);
+  for (const patch of [
+    { workId: 'other-work' },
+    { draftVersion: 2 },
+    { contentHash: 'other-hash' },
+    { trialVerified: false },
+    { mediaVerified: false },
+    { status: 'blocked' as const },
+  ]) {
+    const html = renderTab({ ...defaultProps, check: { ...readyCheck, ...patch } }, 'review');
+    assert.match(html, /<button[^>]*disabled=""[^>]*>发布<\/button>/);
+  }
+  const readOnly = renderTab(
+    { ...defaultProps, check: readyCheck, session: { ...defaultProps.session, canPublish: false } },
+    'review',
+  );
+  assert.match(readOnly, /<button[^>]*disabled=""[^>]*>发布<\/button>/);
+});
+test('missing or unrecognized start date stays explicitly actionable outside folded settings', () => {
+  for (const startAt of ['', '初夏午后']) {
+    const content = {
+      ...mockContent,
+      world: { ...(mockContent.world as Record<string, unknown>), startAt },
+    };
+    const html = renderTab(
+      { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
+      'settings',
+    );
+    assert.match(html, /开场日期尚未填写或无法识别/);
+    assert.match(html, /补齐开场日期/);
+    assert.match(html, /精确开场日期和时间/);
+    assert.match(html, /<details class="timeDisclosure" open="">/);
+  }
 });

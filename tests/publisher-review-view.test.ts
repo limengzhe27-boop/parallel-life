@@ -476,3 +476,26 @@ test('pure parser uses the same final-content preview with no model summary or a
   assert.match(label(nodes), /纯解析结果/);
   assert.equal(applied.length, 0);
 });
+
+test('draft overview reads actual unsaved values and preserves extensions without proposal claims', () => {
+  const content: Record<string, unknown> = fixture();
+  content.extensions = [{ opaque: 'UNSUPPORTED_AUTHOR_VALUE' }];
+  (content.world as Record<string, unknown>).publicSetting = 'LOCAL_UNSAVED_STORY';
+  const before = JSON.stringify(content);
+  const html = renderToStaticMarkup(createElement(PublisherReviewView, { content, mode: 'draft' }));
+  assert.match(html, /当前草稿故事概览|这段故事现在是什么样/);
+  assert.match(html, /LOCAL_UNSAVED_STORY/);
+  assert.match(html, /尚未保存的修改/);
+  assert.match(html, /UNSUPPORTED_AUTHOR_VALUE/);
+  assert.doesNotMatch(html, /将填入的实际内容|原稿可在上方展开/);
+  assert.equal(JSON.stringify(content), before);
+  assert.match(html, /<details[^>]*open=""><summary>世界与主角/);
+});
+
+test('proposal starts with actual world and protagonist; detailed review guidance stays folded', () => {
+  const html = renderToStaticMarkup(createElement(PublisherReviewView, { content: fixture() }));
+  assert.match(html, /<details[^>]*><summary>如何核对这段故事<\/summary>/);
+  assert.match(html, /<details[^>]*open=""><summary>世界与主角/);
+  assert.doesNotMatch(html, /<details[^>]*open=""><summary>如何核对/);
+  assert.match(html, /年龄、人物关系和已经作出的约定/);
+});
