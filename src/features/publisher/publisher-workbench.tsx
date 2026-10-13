@@ -828,8 +828,14 @@ export function PublisherWorkbench(
                     </ul>
                   </section>
                 )}
-                {!check.trialVerified && <p>尚未完成真实试演验证，请试演角色对话并重新检查。</p>}
-                {!check.mediaVerified && <p>素材尚未核验，请核对所用图片后重新检查。</p>}
+                {!check.trialVerified &&
+                  !check.issues.some((issue) => issue.code === 'trial_unverified') && (
+                    <p>尚未完成真实试演验证，请试演角色对话并重新检查。</p>
+                  )}
+                {!check.mediaVerified &&
+                  !check.issues.some((issue) => issue.code === 'media_unverified') && (
+                    <p>素材尚未核验，请核对所用图片后重新检查。</p>
+                  )}
                 {check.status === 'ready' && currentCheck && pendingChecks.length === 0 && (
                   <p>当前已保存稿的检查通过；发布仍以现有权限和操作结果为准。</p>
                 )}

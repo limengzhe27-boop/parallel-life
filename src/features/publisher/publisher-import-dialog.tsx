@@ -850,7 +850,11 @@ export function PublisherImportDialog({
         {aiResult && (
           <section className={s.preview} aria-label="AI 整理结果">
             <details>
-              <summary>查看 AI 的整理说明与补充内容</summary>
+              <summary>
+                查看 AI 的整理说明与补充内容
+                {aiResult.notes.some((note) => note.kind === 'review') &&
+                  `（含 ${aiResult.notes.filter((note) => note.kind === 'review').length} 条待核对提醒）`}
+              </summary>
               <h3>模型整理说明（待核对）</h3>
               <p className={s.help}>
                 以下是模型对本次整理的说明，不是来源核验结果。请以上方实际内容与原稿对照，核对整理结果。
