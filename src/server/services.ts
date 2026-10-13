@@ -55,6 +55,7 @@ import { MemoryCandidateRepository } from '../modules/memory/infrastructure/cand
 import { InterviewPlanner } from '../modules/profile/infrastructure/interview-planner.ts';
 import { WorldTurnPlanner } from '../modules/world/infrastructure/turn-planner.ts';
 import { createTextModel } from './composition.ts';
+import { publicationCharacterPlanner } from './publication-character-planner.ts';
 let services: ReturnType<typeof createServices> | undefined;
 function createServices() {
   // Marketplace integrations expose an administrative DATABASE_URL for
@@ -167,7 +168,7 @@ function createServices() {
           story: new PublicationStoryRepository(db),
           clock: new PostgresClockStore(db),
           worlds: new PostgresWorldRepository(db),
-          planner: new WorldTurnPlanner(createTextModel()),
+          planner: publicationCharacterPlanner(db, ownerId, worldId, createTextModel()),
           now: () => new Date().toISOString(),
           newId: randomUUID,
           memories: (actorId) =>
@@ -193,7 +194,7 @@ function createServices() {
           story: new PublicationStoryRepository(db),
           clock: new PostgresClockStore(db),
           worlds: new PostgresWorldRepository(db),
-          planner: new WorldTurnPlanner(createTextModel()),
+          planner: publicationCharacterPlanner(db, ownerId, worldId, createTextModel()),
           now: () => new Date().toISOString(),
           newId: randomUUID,
           memories: (actorId) =>
@@ -208,7 +209,7 @@ function createServices() {
         {
           clock: new PostgresClockStore(db),
           worlds: new PostgresWorldRepository(db),
-          planner: new WorldTurnPlanner(createTextModel()),
+          planner: publicationCharacterPlanner(db, ownerId, worldId, createTextModel()),
           now: () => new Date().toISOString(),
           newId: () => randomUUID(),
           memories: (actorId) =>
@@ -266,7 +267,12 @@ function createServices() {
           worldId,
           input.context.actor.id,
         );
-        const proposal = await new WorldTurnPlanner(createTextModel()).propose({
+        const proposal = await publicationCharacterPlanner(
+          db,
+          ownerId,
+          worldId,
+          createTextModel(),
+        ).propose({
           ...input,
           context: {
             ...input.context,

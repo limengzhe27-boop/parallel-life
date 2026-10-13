@@ -1,0 +1,54 @@
+.list {
+  background: #fff;
+  padding: 0 18px;
+}
+.post {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  padding: 22px 0;
+  border-bottom: 1px solid #e6e6e6;
+}
+.post strong {
+  font-size: 15px;
+  color: #526782;
+}
+.post p {
+  font-size: 16px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 8px 0;
+}
+.post time {
+  font-size: 12px;
+  color: #777;
+}
+.avatar {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #e8eef2;
+  color: #526782;
+  font-size: 20px;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.feedback {
+  padding: 24px 18px;
+  line-height: 1.7;
+}
+.feedback button {
+  min-height: 44px;
+  margin-left: 12px;
+}
+.avatar:focus-visible,
+.feedback button:focus-visible {
+  outline: 2px solid #347bfa;
+  outline-offset: 2px;
+}

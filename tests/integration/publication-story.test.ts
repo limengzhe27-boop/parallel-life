@@ -348,6 +348,164 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
       );
     },
   );
+  await t.test(
+    'optional director events retain true presentation, selection admission and safe authored phone content',
+    async () => {
+      const doc = authored();
+      delete doc.timeline;
+      const event = {
+        ...doc.candidates[0],
+        intent: { kind: 'director_event', actorKey: a },
+        prerequisites: [],
+        mutuallyExclusiveNodeKeys: [],
+      };
+      delete event.timeline;
+      doc.candidates = [
+        { ...event, key: 'optional_a', title: '可能发生的交谈' },
+        {
+          ...event,
+          key: 'optional_b',
+          title: '之后的交谈',
+          prerequisites: [{ kind: 'after_presented_node', nodeKey: 'optional_a' }],
+        },
+      ];
+      doc.actors[0].publicCard.introduction = '作者公开介绍';
+      doc.phone.messages = [
+        {
+          key: 'past_player',
+          actorKey: a,
+          speaker: 'player',
+          origin: 'history',
+          text: '之前那份资料收到了。',
+          at: '2026-10-12T08:00:00.000Z',
+        },
+        {
+          key: 'past_actor',
+          actorKey: a,
+          speaker: 'actor',
+          origin: 'history',
+          text: '好，我也留了一份。',
+          at: '2026-10-12T08:01:00.000Z',
+        },
+      ];
+      doc.phone.moments = [
+        {
+          key: 'normal_life',
+          actorKey: a,
+          text: '整理资料的一天。',
+          at: '2026-10-11T08:00:00.000Z',
+        },
+      ];
+      const made = await make(doc),
+        wid = made.world.worldId;
+      for (const role of [null, undefined, 'user']) {
+        await assert.rejects(
+          () =>
+            app.transaction(other, async (sql) => {
+              const admission = (
+                await sql.query('SELECT parallel_life.publication_admit_published($1,1,$2) AS a', [
+                  made.w.id,
+                  randomUUID(),
+                ])
+              ).rows[0].a;
+              const prepared = await compiler.prepare({
+                content: admission.content,
+                origin: admission.origin,
+                originKind: admission.originKind,
+                worldId: admission.worldId,
+                ownerId: admission.ownerId,
+                seedId: admission.seedId,
+              });
+              const malformed = prepared as unknown as {
+                world: { messages: Record<string, unknown>[] };
+              };
+              if (role === undefined) delete malformed.world.messages[1]!.role;
+              else malformed.world.messages[1]!.role = role;
+              await sql.query('SELECT parallel_life.publication_commit_published($1,$2)', [
+                admission.ticket,
+                prepared,
+              ]);
+            }),
+          (error: unknown) => ['22023', '23514'].includes((error as { code: string }).code),
+        );
+      }
+      const initial = await runtime.get({ userId: owner }, wid);
+      assert.deepEqual(
+        initial.messages.map((m) => m.role),
+        ['user', 'assistant'],
+      );
+      const social = await app.transaction(
+        owner,
+        async (sql) =>
+          (await sql.query('SELECT parallel_life.publication_social_opening($1) AS d', [wid]))
+            .rows[0].d,
+      );
+      assert.equal(social.moments.length, 1);
+      assert.equal(social.moments[0].text, '整理资料的一天。');
+      assert.ok(!JSON.stringify(social).includes('HIDDEN_FULL_CONTEXT'));
+      assert.deepEqual(
+        await app.transaction(
+          other,
+          async (sql) =>
+            (await sql.query('SELECT parallel_life.publication_social_opening($1) AS d', [wid]))
+              .rows[0].d,
+        ),
+        { moments: [] },
+      );
+      const pool = await story.opportunities(owner, wid, false);
+      assert.equal(pool.directorPool, true);
+      assert.deepEqual(
+        pool.candidates.map((c) => c.nodeKey),
+        ['optional_a'],
+      );
+      assert.equal(await story.beginSelection(owner, wid, 0, randomUUID(), ['optional_b']), false);
+      const attempt = randomUUID();
+      assert.equal(await story.beginSelection(owner, wid, 0, attempt, ['optional_a']), true);
+      await assert.rejects(
+        () => story.finishSelection(owner, wid, attempt, 'selected', 'optional_b'),
+        code('INVALID_STATE'),
+      );
+      await story.finishSelection(owner, wid, attempt, 'selected', 'optional_a');
+      assert.equal(await story.beginSelection(owner, wid, 0, randomUUID(), ['optional_a']), false);
+      const claimed = await story.prepare(owner, wid, {
+        automatic: false,
+        nodeKey: 'optional_a',
+        expectedVersion: 0,
+      });
+      assert.equal(claimed.status, 'claimed');
+      if (claimed.status !== 'claimed') throw Error('MISSING_CLAIM');
+      await commit(wid, claimed.claim, [reply(claimed.claim)]);
+      const progress = await story.finish(owner, wid, claimed.claim.claimId);
+      assert.equal(progress.presented[0]!.status, 'presented');
+      assert.equal(progress.presented[0]!.outcome, null);
+      assert.equal(progress.presented[0]!.playerCompleted, false);
+      assert.deepEqual(
+        (await story.opportunities(owner, wid, false)).candidates.map((c) => c.nodeKey),
+        ['optional_b'],
+      );
+      assert.equal(
+        (
+          await story.prepare(owner, wid, {
+            automatic: false,
+            nodeKey: 'optional_a',
+            expectedVersion: 1,
+          })
+        ).status,
+        'none',
+      );
+      await works.unpublish(staff, made.w.id, {
+        commandId: randomUUID(),
+        expectedMetadataVersion: 1,
+      });
+      const still = await app.transaction(
+        owner,
+        async (sql) =>
+          (await sql.query('SELECT parallel_life.publication_social_opening($1) AS d', [wid]))
+            .rows[0].d,
+      );
+      assert.deepEqual(still, social);
+    },
+  );
   const { w, world } = await make();
   let first: PublicationStoryClaim, invite: PublicationStoryClaim, invitationId: string;
   await t.test(

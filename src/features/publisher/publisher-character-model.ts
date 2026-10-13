@@ -40,7 +40,10 @@ export function updateCharacterField(
   const actor = uniqueActor(content, actorKey);
   if (!actor) return content;
   const container = field === 'introduction' ? 'publicCard' : 'lifeModules';
-  const updated = { ...actor, [container]: { ...record(actor[container]), [field]: value } };
+  const fields = { ...record(actor[container]) };
+  if (value.trim()) fields[field] = value;
+  else delete fields[field];
+  const updated = { ...actor, [container]: fields };
   return {
     ...content,
     actors: (content.actors as unknown[]).map((a) => (a === actor ? updated : a)),

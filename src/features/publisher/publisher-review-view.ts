@@ -178,6 +178,8 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
     );
   function prerequisite(raw: unknown): string {
     switch (own(raw, 'kind')) {
+      case 'after_presented_node':
+        return `剧情「${node(own(raw, 'nodeKey'))}」实际展开之后（不代表玩家完成）`;
       case 'history_fact':
         return `已有事实：${fact(own(raw, 'factKey'))}`;
       case 'after_committed_node':
@@ -265,6 +267,20 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
         title:
           typeof own(row, 'name') === 'string' ? text(own(row, 'name')) : `第 ${index + 1} 位人物`,
         fields: [
+          ...(own(card, 'introduction') === undefined
+            ? []
+            : [field('玩家看到的角色介绍', text(own(card, 'introduction')))]),
+          ...[
+            ['lifeContext', '人生背景'],
+            ['traits', '人格特质'],
+            ['drives', '动机与价值观'],
+            ['behavior', '行为模式'],
+            ['relationships', '关系模型'],
+          ].flatMap(([key, label]) =>
+            own(own(row, 'lifeModules'), key!) === undefined
+              ? []
+              : [field(label!, text(own(own(row, 'lifeModules'), key!)))],
+          ),
           field('身份', text(own(card, 'identity'))),
           field('人物背景', text(own(persona, 'background'))),
           field('性格特点', strings(own(card, 'traits'))),
@@ -308,9 +324,28 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
               : '未填写或格式需核对',
         ),
         field('发送时间', reviewTime(own(row, 'at'))),
+        ...(own(row, 'speaker') === undefined
+          ? []
+          : [
+              field(
+                '发送方',
+                own(row, 'speaker') === 'player' ? '主角' : actor(own(row, 'actorKey')),
+              ),
+            ]),
         field('消息正文', text(own(row, 'text'))),
       ],
     })),
+    ...(own(phone, 'moments') === undefined
+      ? []
+      : [
+          collection('开场朋友圈', own(phone, 'moments'), (row, index) => ({
+            title: `第 ${index + 1} 条 · ${actor(own(row, 'actorKey'))}`,
+            fields: [
+              field('发布时间', reviewTime(own(row, 'at'))),
+              field('动态正文', text(own(row, 'text'))),
+            ],
+          })),
+        ]),
     collection('地点', own(content, 'places'), (row) => ({
       title: text(own(row, 'name')),
       fields: [

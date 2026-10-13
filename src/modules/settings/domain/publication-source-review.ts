@@ -313,10 +313,25 @@ export function buildPublicationSourceReview(
     const card = obj(a.publicCard),
       persona = obj(a.privatePersona);
     for (const [field, label] of [
+      ['introduction', '角色介绍'],
       ['identity', '公开身份'],
       ['appearance', '外貌'],
     ])
       add(`actor:${k}:publicCard:${field}`, '人物', `${name} · ${label}`, card[field!], [k]);
+    for (const [field, label] of [
+      ['lifeContext', '人生背景'],
+      ['traits', '人格特质'],
+      ['drives', '动机与价值观'],
+      ['behavior', '行为模式'],
+      ['relationships', '关系模型'],
+    ])
+      add(
+        `actor:${k}:lifeModules:${field}`,
+        '人物',
+        `${name} · ${label}`,
+        obj(a.lifeModules)[field!],
+        [k],
+      );
     list(card.traits).forEach((value, i) =>
       add(`actor:${k}:trait:${i}`, '人物', `${name} · 性格特点`, value, [k]),
     );
@@ -368,6 +383,9 @@ export function buildPublicationSourceReview(
       [str(m.actorKey)].filter(Boolean),
     );
   });
+  entities(phone.moments, '朋友圈', (m, k) =>
+    add(`moment:${k}:text`, '朋友圈', '动态正文', m.text, [str(m.actorKey)].filter(Boolean)),
+  );
   entities(phone.notes, '便签', (n, k, title) => {
     add(`note:${k}:title`, '便签', `${title} · 标题`, n.title);
     add(`note:${k}:text`, '便签', `${title} · 正文`, n.text);

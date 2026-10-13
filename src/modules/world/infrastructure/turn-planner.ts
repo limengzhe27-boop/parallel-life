@@ -221,6 +221,7 @@ export class WorldTurnPlanner implements TurnPlanner {
               facts: context.facts,
             },
             actor: context.actor,
+            ...(context.authoredPosts?.length ? { ownPublishedPosts: context.authoredPosts } : {}),
             ...(storyOpportunity ? { storyOpportunity } : {}),
             ...(context.storyEvent ? { storyEvent: context.storyEvent } : {}),
             possibleRecipients: context.possibleRecipients,

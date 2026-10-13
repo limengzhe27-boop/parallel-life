@@ -26,7 +26,7 @@ export function trialProxyTarget(
   let target: string, taskId: string | undefined;
   const uuid = '[0-9a-f-]{36}';
   const routes: Array<[RegExp, string[]]> = [
-    [/^(?:|clock|records|space|scenes|groups|story)$/, ['GET']],
+    [/^(?:|clock|records|space|scenes|groups|story|social)$/, ['GET']],
     [
       /^(?:notes|messages|messages\/receipt|invitations|space\/establish|space\/travel|space\/receipt|space\/enter|scenes|groups)$/,
       ['POST'],

@@ -26,6 +26,7 @@ export type ActorContext = {
     'id' | 'name' | 'relationship' | 'persona'
   > & { socialTie?: string })[];
   previousDisclosures?: { sourceMessageId: string; recipientActorId: string }[];
+  authoredPosts?: { text: string; at: string }[];
   facts: WorldState['facts'];
   messages: WorldState['messages'];
   appointments: WorldState['appointments'];
