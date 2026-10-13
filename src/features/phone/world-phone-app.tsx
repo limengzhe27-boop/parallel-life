@@ -46,7 +46,12 @@ import type { PhoneMessage } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { playTapSound } from './audio-feedback.ts';
 import { routeHash } from './navigation.ts';
-import { ACTIVE_PHONE_CHECK_MS, autoAdvanceDue } from './auto-advance.ts';
+import {
+  ACTIVE_PHONE_CHECK_MS,
+  autoAdvanceDue,
+  autoAdvanceAttemptKey,
+  PhoneStoryBootstrap,
+} from './auto-advance.ts';
 import { resolveDefaultWallpaper } from './wallpaper.ts';
 import styles from './phone.module.css';
 import {
@@ -93,6 +98,7 @@ export function WorldPhoneApp({
   const directorCheck = useRef<() => void>(() => {});
   const directorInFlight = useRef(false);
   const directorAttemptedKeys = useRef(new Set<string>());
+  const storyBootstrap = useRef(new PhoneStoryBootstrap());
   const experienceBusy = useRef(false);
   const setExperienceBusy = useCallback(
     (busy: boolean) => {
@@ -101,9 +107,10 @@ export function WorldPhoneApp({
     },
     [localMessages],
   );
-  const phoneReady = useRef({ hasData: false, refreshing: true, sending: false });
+  const phoneReady = useRef({ hasData: false, refreshing: true, sending: false, version: 0 });
   phoneReady.current = {
     hasData: data?.id === worldId,
+    version: data?.id === worldId ? (data.version ?? 0) : 0,
     refreshing,
     sending:
       experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
@@ -398,20 +405,41 @@ export function WorldPhoneApp({
           !active ||
           document.visibilityState !== 'visible' ||
           phoneReady.current.refreshing ||
-          phoneReady.current.sending ||
-          !autoAdvanceDue(clock, Date.now())
+          phoneReady.current.sending
         )
           return;
-        const attemptKey = `pl_director_resume_${worldId}_${clock.lastTickAt}`;
-        if (directorAttemptedKeys.current.has(attemptKey)) return;
+        const realNowMs = Date.now();
+        const attemptKey = autoAdvanceAttemptKey(worldId, clock, realNowMs);
+        if (!attemptKey || directorAttemptedKeys.current.has(attemptKey)) return;
         try {
           if (sessionStorage.getItem(attemptKey)) return;
+        } catch {
+          // In-memory protection remains active when browser storage is unavailable.
+        }
+        const due = autoAdvanceDue(clock, realNowMs);
+        if (!due) {
+          const checkedVersion = phoneReady.current.version;
+          const canStart = await storyBootstrap.current.check(worldId, checkedVersion, () =>
+            client.readWorldStory(worldId),
+          );
+          if (
+            !canStart ||
+            phoneReady.current.version !== checkedVersion ||
+            !active ||
+            document.visibilityState !== 'visible' ||
+            phoneReady.current.refreshing ||
+            phoneReady.current.sending
+          )
+            return;
+        }
+        try {
           sessionStorage.setItem(attemptKey, '1');
         } catch {
           // Private browsing can disable storage; the in-memory guard still
           // prevents a repeated paid attempt for this phone instance.
         }
         directorAttemptedKeys.current.add(attemptKey);
+        if (!due) storyBootstrap.current.consume(worldId);
         advancing = true;
         const result = await client.advanceWorld(worldId, true);
         // Reading the committed world lets the phone's existing message notification

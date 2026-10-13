@@ -1,3 +1,4 @@
+import { PublicWorldStorySchema } from '../../contracts/world-story.ts';
 import { PlayerRecordsSchema } from '../../contracts/world-records.ts';
 import {
   LifeDraftSchema,
@@ -194,6 +195,11 @@ export class LifeClient {
   async readWorldClock(worldId: string) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema);
+  }
+  /** Already presented story progress; no hidden author candidates or director instructions. */
+  async readWorldStory(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/story`, PublicWorldStorySchema);
   }
   /** Pause/resume or change the speed of one life. */
   async setWorldClock(worldId: string, input: { paused?: boolean; speed?: number }) {
