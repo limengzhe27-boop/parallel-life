@@ -239,8 +239,8 @@ test('unknown intent extensions disable destructive switching rather than silent
 test('native prerequisite controls add each real kind with stable-key selectors', () => {
   for (const [label, kind] of [
     ['某事实已成立', 'history_fact'],
-    ['某节点已提交', 'after_committed_node'],
-    ['某节点已有指定结果', 'after_resolved_node'],
+    ['上一事件已落实', 'after_committed_node'],
+    ['上一事件被拒绝、跳过或有其他结果', 'after_resolved_node'],
     ['玩家在某地点', 'at_place'],
     ['世界时间已到达', 'not_before'],
   ]) {
@@ -301,4 +301,128 @@ test('malformed collection renders a preservation warning and blocks adding inst
   assert.equal(el.props.disabled, true);
   click(el);
   assert.equal(t.calls, 0);
+});
+
+function visibleText(value: ReactNode): string {
+  if (Array.isArray(value)) return value.map(visibleText).join('');
+  if (!isValidElement(value))
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  const el = value as Native;
+  const children = el.props.children as ReactNode;
+  if (el.type === 'details' && !el.props.open) {
+    const summary = (Array.isArray(children) ? children : [children]).find(
+      (c) => isValidElement(c) && c.type === 'summary',
+    );
+    return visibleText(summary);
+  }
+  return visibleText(children);
+}
+function details(nodes: Native[], prefix: string) {
+  const node = nodes.find((n) => {
+    if (n.type !== 'details') return false;
+    const children = n.props.children;
+    return (Array.isArray(children) ? children : [children]).some(
+      (c) =>
+        isValidElement(c) &&
+        c.type === 'summary' &&
+        text((c.props as Record<string, unknown>).children).startsWith(prefix),
+    );
+  });
+  assert.ok(node, prefix);
+  return node;
+}
+test('writer first view hides internal keys and optional date controls without mutating the draft', () => {
+  const t = setup();
+  const before = structuredClone(t.props.content);
+  const value = visibleText(PublisherPlotEditor(t.props));
+  for (const label of [
+    '已经发生的事',
+    '剧情阶段',
+    '可能发生的剧情',
+    '不必逐条填写日期',
+    '同名（第1项）',
+    '同名（第2项）',
+  ])
+    assert.ok(value.includes(label), label);
+  for (const key of ['fact_a', 'stage_a', 'node_a', 'alice', 'bob', 'history.0'])
+    assert.ok(!value.includes(key), key);
+  const nodes = tree(t.props);
+  const windows = nodes.filter(
+    (n) =>
+      n.type === 'details' && text((n.props.children as ReactNode[])[0]).startsWith('限定日期'),
+  );
+  assert.equal(windows.length, 2);
+  assert.ok(windows.every((n) => !n.props.open));
+  assert.deepEqual(t.props.content, before);
+  assert.equal(t.calls, 0);
+});
+test('missing required history and invitation dates open even non-first rows and do not invent times', () => {
+  const c = content();
+  const histories = plotRows(c, 'history');
+  histories.push({ ...plotRecord(histories[0]), key: 'fact_b', occurredAt: '' });
+  const node = plotRecord(plotRows(c, 'candidates')[0]);
+  node.intent = {
+    kind: 'offer_invitation',
+    actorKeys: ['alice'],
+    placeKey: 'home',
+    title: '谈谈',
+    earliestAt: '',
+  };
+  const t = setup(false, c);
+  const nodes = tree(t.props);
+  const blankHistory = nodes.find(
+    (n) =>
+      n.type === 'details' &&
+      walk(n.props.children as ReactNode).some(
+        (e) => e.props.id === 'plot_history_fact_b_1_occurredAt',
+      ),
+  )!;
+  assert.equal(blankHistory.props.open, true);
+  assert.ok(visibleText(PublisherPlotEditor(t.props)).includes('试演'));
+  assert.equal(details(nodes, '邀约最早时间').props.open, true);
+  assert.equal(input(nodes, 'plot_history_fact_b_1_occurredAt').props.value, '');
+  assert.equal(t.calls, 0);
+});
+test('existing date windows remain discoverable, collapsed and unchanged by unrelated edits', () => {
+  const c = content();
+  const stage = plotRecord(plotRows(c, 'stages')[0]);
+  stage.window = { notBefore: '2026-10-12T08:00:00Z', expiresAt: '2026-10-15T08:00:00Z' };
+  const t = setup(false, c);
+  const nodes = tree(t.props);
+  assert.ok(
+    visibleText(PublisherPlotEditor(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'),
+  );
+  assert.equal(details(nodes, '限定日期（选填） · 2026').props.open, false);
+  change(input(nodes, 'plot_candidates_node_a_0_title'), '新的故事标题');
+  assert.deepEqual(plotRecord(plotRows(t.next!, 'stages')[0]).window, stage.window);
+  assert.deepEqual(t.next!.extensions, c.extensions);
+});
+test('date prerequisites use actual local datetime controls, with incomplete dates expanded', () => {
+  const c = content();
+  plotRecord(plotRows(c, 'candidates')[0]).prerequisites = [{ kind: 'not_before', at: '' }];
+  const t = setup(false, c);
+  const nodes = tree(t.props);
+  assert.equal(details(nodes, '前置时间').props.open, true);
+  const date = input(nodes, 'plot_candidates_node_a_0_prerequisites_0_at');
+  assert.equal(date.props.type, 'datetime-local');
+  change(date, '2026-10-13T18:00');
+  const prerequisites = plotRecord(plotRows(t.next!, 'candidates')[0]).prerequisites as {
+    at: string;
+  }[];
+  assert.equal(prerequisites[0]!.at, '2026-10-13T10:00:00.000Z');
+});
+test('time notes stay honest and runtime conditions retain their original keys and outcomes', () => {
+  const c = content();
+  const node = plotRecord(plotRows(c, 'candidates')[0]);
+  node.prerequisites = [{ kind: 'after_resolved_node', nodeKey: 'prior', outcomes: ['declined'] }];
+  plotRecord(node.timeline).timeNote = '拒绝后隔一天再问';
+  const t = setup(false, c);
+  const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
+  assert.ok(html.includes('这里只是作者说明，不替代实际时间条件'));
+  change(input(tree(t.props), 'plot_candidates_node_a_0_title'), '新标题');
+  assert.deepEqual(
+    plotRecord(plotRows(t.next!, 'candidates')[0]).prerequisites,
+    node.prerequisites,
+  );
+  assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).timeline, node.timeline);
 });

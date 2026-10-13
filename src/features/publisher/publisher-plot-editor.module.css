@@ -247,3 +247,33 @@ textarea.input {
     transform: none;
   }
 }
+
+.advanced {
+  min-width: 0;
+  border: 1px solid var(--plot-border, #d8dee9);
+  border-radius: 8px;
+  background: var(--plot-surface, #ffffff);
+}
+.advanced > summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+.advanced > summary:focus-visible {
+  outline: 2px solid var(--plot-accent, #245fe5);
+  outline-offset: 2px;
+}
+.advancedBody {
+  min-width: 0;
+  padding: 0 14px 14px;
+  display: grid;
+  gap: 12px;
+}
+.message {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 1px solid #d8dee9;
+  border-radius: 10px;
+}

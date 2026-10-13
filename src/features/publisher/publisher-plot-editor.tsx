@@ -32,28 +32,28 @@ export type PublisherPlotEditorProps = {
 };
 const sections = {
   history: {
-    title: '1. 已发生事实',
-    help: '只写世界开场前已确立的事情，时间不晚于起点。未来可能发生的事放在可选事件。',
+    title: '1. 已经发生的事',
+    help: '只写世界开场前已确立的事情，时间不晚于起点。未来可能发生的事放在可能发生的剧情。',
     add: '新增事实',
     limit: 64,
   },
   stages: {
     title: '2. 剧情阶段',
-    help: '整理先后与可发生时段，不代表玩家必须逐项完成。',
+    help: '按故事的先后组织阶段，不必逐个填写日期，也不代表玩家必须逐项完成。',
     add: '新增阶段',
     limit: 16,
   },
   candidates: {
-    title: '3. 可选事件',
-    help: '条件满足时可能发生，候选不是正史，也不是必经任务。',
+    title: '3. 可能发生的剧情',
+    help: '先写人物、内容和出现条件。日期限制可不填；条件满足后仍是可能发生，不是已经发生。',
     add: '新增事件',
     limit: 32,
   },
 };
 const conditionNames = {
   history_fact: '某事实已成立',
-  after_committed_node: '某节点已提交',
-  after_resolved_node: '某节点已有指定结果',
+  after_committed_node: '上一事件已落实',
+  after_resolved_node: '上一事件被拒绝、跳过或有其他结果',
   at_place: '玩家在某地点',
   not_before: '世界时间已到达',
 };
@@ -62,6 +62,43 @@ const intentNames = {
   offer_message: '角色来信',
   offer_invitation: '发出邀约',
 };
+const timeLabel = (raw: unknown) => publicationLocalTime(plotText(raw)).replace('T', ' ');
+function choiceLabel(option: PlotChoice, options: PlotChoice[]) {
+  const label = option.label === option.key ? '待命名条目' : option.label;
+  const same = options.filter((o) => o.label === option.label);
+  return same.length > 1
+    ? `${label}（第${same.findIndex((o) => o.key === option.key) + 1}项）`
+    : label;
+}
+function issueText(issue: string) {
+  const [path, ...reason] = issue.split('：');
+  const parts = (path ?? '').split('.');
+  const section =
+    (
+      {
+        history: '已发生的事',
+        candidates: '可能发生的剧情',
+        timeline: '剧情阶段',
+        initialKnowledge: '人物知情',
+      } as Record<string, string>
+    )[parts[0] ?? ''] ?? '剧情设置';
+  const index = parts.find((p) => /^\d+$/u.test(p));
+  const field = (
+    {
+      occurredAt: '发生时间',
+      at: '时间',
+      earliestAt: '邀约时间',
+      stageKey: '所属阶段',
+      order: '阶段顺序',
+      text: '正文',
+      title: '标题',
+      actorKey: '人物',
+      actorKeys: '参与人物',
+      visibility: '可见范围',
+    } as Record<string, string>
+  )[parts.at(-1) ?? ''];
+  return `${section}${index === undefined ? '' : `第${Number(index) + 1}项`}${field ? ` · ${field}` : ''}：${reason.join('：') || '请核对内容'}`;
+}
 function refsControl(
   label: string,
   raw: unknown,
@@ -92,7 +129,7 @@ function refsControl(
                   );
               }}
             />
-            {o.label}（{o.key}）
+            {choiceLabel(o, options)}
           </label>
         ))
       ) : (
@@ -126,7 +163,7 @@ function selectControl(
         {missing && <option value={value}>未找到原引用（{value}）</option>}
         {options.map((o) => (
           <option value={o.key} key={o.key}>
-            {o.label}（{o.key}）
+            {choiceLabel(o, options)}
           </option>
         ))}
       </select>
@@ -186,10 +223,10 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           maxLength,
           onChange: (e: { target: { value: string } }) => patch(path, e.target.value),
         };
-      const timeField = ['occurredAt', 'notBefore', 'expiresAt', 'earliestAt'].includes(
+      const timeField = ['occurredAt', 'notBefore', 'expiresAt', 'earliestAt', 'at'].includes(
         String(path[path.length - 1]),
       );
-      return (
+      const control = (
         <label className={`${s.field} ${multiline ? s.wide : ''}`} htmlFor={id(path)}>
           {label}
           {timeField ? (
@@ -219,6 +256,23 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           )}
           {lock && !blocked && <span className={s.error}>原上层字段格式待核对，未替换原稿。</span>}
         </label>
+      );
+      if (!timeField || ['notBefore', 'expiresAt'].includes(String(path.at(-1)))) return control;
+      const needsTime = !timeLabel(value);
+      return (
+        <details className={`${s.advanced} ${s.wide}`} open={needsTime}>
+          <summary className={s.summary}>
+            {label} · {needsTime ? '待补齐' : timeLabel(value)}
+          </summary>
+          <div className={s.advancedBody}>
+            {needsTime && (
+              <p className={s.error}>
+                这项时间会影响试演，请补齐或通过系统整理后核对；尚未自动安排。
+              </p>
+            )}
+            {control}
+          </div>
+        </details>
       );
     }
     function refsField(label: string, path: PlotPath, options: PlotChoice[]) {
@@ -266,26 +320,40 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
     function windowFields(path: PlotPath) {
       const rawWindow = plotValue(row, path);
       return (
-        <div className={s.group}>
-          <h4>可发生时段（选填）</h4>
-          <p className={s.hint}>
-            开始包含，到期不包含；按北京时间选择日期和时间。事件未配置窗口时沿用所属阶段窗口。
-          </p>
-          {field('不早于', [...path, 'notBefore'], '例如2026-10-12T09:00:00Z')}
-          {field('到期时间', [...path, 'expiresAt'], '开始必须早于到期')}
-          {rawWindow !== undefined && (
-            <button
-              type="button"
-              className={s.button}
-              disabled={blocked}
-              onClick={() => {
-                if (!blocked) emit(() => removePlotField(content, section, key, path));
-              }}
-            >
-              移除这个时段设置
-            </button>
-          )}
-        </div>
+        <details
+          className={`${s.advanced} ${s.wide}`}
+          open={
+            rawWindow !== undefined &&
+            (!timeLabel(plotRecord(rawWindow).notBefore) ||
+              !timeLabel(plotRecord(rawWindow).expiresAt))
+          }
+        >
+          <summary className={s.summary}>
+            限定日期（选填） ·{' '}
+            {rawWindow === undefined
+              ? '未设置'
+              : `${timeLabel(plotRecord(rawWindow).notBefore) || '开始待补'} 至 ${timeLabel(plotRecord(rawWindow).expiresAt) || '结束待补'}`}
+          </summary>
+          <div className={s.advancedBody}>
+            <p className={s.hint}>
+              不限制日期时可留空，按阶段和前置条件推进。若所属阶段已有日期限制，事件沿用该限制。设置后开始包含、到期不包含。
+            </p>
+            {field('不早于', [...path, 'notBefore'], '例如2026-10-12T09:00:00Z')}
+            {field('到期时间', [...path, 'expiresAt'], '开始必须早于到期')}
+            {rawWindow !== undefined && (
+              <button
+                type="button"
+                className={s.button}
+                disabled={blocked}
+                onClick={() => {
+                  if (!blocked) emit(() => removePlotField(content, section, key, path));
+                }}
+              >
+                移除这个时段设置
+              </button>
+            )}
+          </div>
+        </details>
       );
     }
     function arrayActions(path: PlotPath, item: unknown, label: string, max: number) {
@@ -339,14 +407,37 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
         Array.isArray(row.intent) ||
         Object.keys(intent).some((k) => !allowedIntentKeys.includes(k)) ||
         !Object.hasOwn(intentNames, intentKind));
+    const requiredTimes =
+      section === 'history'
+        ? [row.occurredAt]
+        : section === 'candidates'
+          ? [
+              ...(intentKind === 'offer_invitation' ? [intent.earliestAt] : []),
+              ...plotArray(row.prerequisites)
+                .map(plotRecord)
+                .filter((p) => p.kind === 'not_before')
+                .map((p) => p.at),
+            ]
+          : [];
+    const missingTime = requiredTimes.some((v) => !timeLabel(v));
     return (
-      <details className={s.item} key={`${key || 'raw'}_${index}`} open={index === 0}>
+      <details
+        className={s.item}
+        key={`${key || 'raw'}_${index}`}
+        open={index === 0 || missingTime}
+      >
         <summary className={s.summary}>
           {plotText(row.title) || plotText(row.text) || '待填写'}{' '}
-          <small>（{key || '缺少稳定标识'}）</small>
+          {missingTime && <small className={s.error}>时间待补齐</small>}
         </summary>
         <fieldset className={s.form} disabled={blocked}>
-          <legend className={s.hint}>标识 {key || '缺失'} · 改文字不会改变引用</legend>
+          <legend className={s.hint}>
+            {section === 'history'
+              ? '编辑已发生的事'
+              : section === 'stages'
+                ? '编辑阶段'
+                : '编辑可能发生的剧情'}
+          </legend>
           {!editable && (
             <p className={`${s.error} ${s.wide}`}>
               稳定标识缺失、重复或格式异常。原条目保留，请核对导入稿。
@@ -387,36 +478,46 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           {section === 'stages' && (
             <>
               {field('阶段名称', ['title'], '例如开业准备', false, 120)}
-              <label className={s.field} htmlFor={id(['order'])}>
-                阶段顺序（0–31）
-                <input
-                  id={id(['order'])}
-                  className={s.input}
-                  type="number"
-                  min={0}
-                  max={31}
-                  value={typeof row.order === 'number' ? row.order : ''}
-                  disabled={blocked}
-                  onChange={(e) => {
-                    if (!blocked)
-                      patch(['order'], e.target.value === '' ? '' : Number(e.target.value));
-                  }}
-                />
-                <span className={s.hint}>前置阶段要比本阶段靠前，不靠标题猜顺序。</span>
-              </label>
-              {refsField('前置阶段', ['afterStageKeys'], otherStages)}
+              {refsField('在哪些阶段之后', ['afterStageKeys'], otherStages)}
+              <details className={`${s.advanced} ${s.wide}`} open={typeof row.order !== 'number'}>
+                <summary className={s.summary}>
+                  阶段排序设置
+                  {typeof row.order === 'number' ? ` · 第${row.order + 1}位` : ' · 待设置'}
+                </summary>
+                <div className={s.advancedBody}>
+                  <label className={s.field} htmlFor={id(['order'])}>
+                    阶段顺序（0–31）
+                    <input
+                      id={id(['order'])}
+                      className={s.input}
+                      type="number"
+                      min={0}
+                      max={31}
+                      value={typeof row.order === 'number' ? row.order : ''}
+                      disabled={blocked}
+                      onChange={(e) => {
+                        if (!blocked)
+                          patch(['order'], e.target.value === '' ? '' : Number(e.target.value));
+                      }}
+                    />
+                    <span className={s.hint}>前置阶段要比本阶段靠前，不靠标题猜顺序。</span>
+                  </label>
+                </div>
+              </details>
               {windowFields(['window'])}
             </>
           )}
           {section === 'candidates' && (
             <>
               {field('事件标题', ['title'], '例如朋友邀请你看店', false, 120)}
+              {(content.timeline !== undefined || row.timeline !== undefined) &&
+                selectField('属于哪个阶段', ['timeline', 'stageKey'], stages)}
               {selectField('触发时玩家必须所在的地点（可不限制）', ['placeKey'], places)}
               <p className={s.hint}>
                 手机来信和邀约通常不限制玩家位置；下面的邀约地点才是见面目的地。
               </p>
               {field(
-                '导演意图',
+                '这一段想带出什么',
                 ['editorialIntent'],
                 '写双方顾虑、这个节点为何出现；不把所有角色台词固定死。',
                 true,
@@ -537,90 +638,144 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                   <p className={s.error}>原前置条件不是列表，未替换原稿。</p>
                 )}
                 <div className={s.actions}>
-                  {Object.entries(conditionNames).map(([kind, label]) =>
-                    arrayActions(
+                  {Object.entries(conditionNames)
+                    .filter(([kind]) => kind !== 'not_before')
+                    .map(([kind, label]) =>
+                      arrayActions(
+                        ['prerequisites'],
+                        kind === 'history_fact'
+                          ? { kind, factKey: '' }
+                          : kind === 'at_place'
+                            ? { kind, placeKey: '' }
+                            : kind === 'not_before'
+                              ? { kind, at: '' }
+                              : kind === 'after_resolved_node'
+                                ? { kind, nodeKey: '', outcomes: [] }
+                                : { kind, nodeKey: '' },
+                        `添加：${label}`,
+                        16,
+                      ),
+                    )}
+                </div>
+                <details className={s.advanced}>
+                  <summary className={s.summary}>指定日期后才出现（选填）</summary>
+                  <div className={s.advancedBody}>
+                    {arrayActions(
                       ['prerequisites'],
-                      kind === 'history_fact'
-                        ? { kind, factKey: '' }
-                        : kind === 'at_place'
-                          ? { kind, placeKey: '' }
-                          : kind === 'not_before'
-                            ? { kind, at: '' }
-                            : kind === 'after_resolved_node'
-                              ? { kind, nodeKey: '', outcomes: [] }
-                              : { kind, nodeKey: '' },
-                      `添加：${label}`,
+                      { kind: 'not_before', at: '' },
+                      '添加：世界时间已到达',
                       16,
-                    ),
+                    )}
+                  </div>
+                </details>
+              </div>
+              <details className={`${s.advanced} ${s.wide}`}>
+                <summary className={s.summary}>
+                  时间说明（选填）
+                  {plotRecord(row.timeline).timeNote !== undefined ? ' · 已填写' : ''}
+                </summary>
+                <div className={s.advancedBody}>
+                  {field(
+                    '时间说明（选填）',
+                    ['timeline', 'timeNote'],
+                    '例如拒绝后隔一天再问；这里只是作者说明，不替代实际时间条件。',
+                    true,
+                    300,
+                  )}
+                  {plotRecord(row.timeline).timeNote !== undefined && (
+                    <button
+                      type="button"
+                      className={s.button}
+                      disabled={blocked}
+                      onClick={() => {
+                        if (!blocked)
+                          emit(() =>
+                            removePlotField(content, section, key, ['timeline', 'timeNote']),
+                          );
+                      }}
+                    >
+                      移除时间说明
+                    </button>
                   )}
                 </div>
-              </div>
-              {refsField('与哪些节点互斥', ['mutuallyExclusiveNodeKeys'], otherNodes)}
-              <div className={s.group}>
-                <h4>阶段、时间与后续路径</h4>
-                {selectField('所属阶段', ['timeline', 'stageKey'], stages)}
-                <p className={s.hint}>
-                  先创建阶段，再选择所属阶段。已有节点不会在新增阶段时自动改写。
-                </p>
-                {field(
-                  '时间说明（选填）',
-                  ['timeline', 'timeNote'],
-                  '例如拒绝后隔一天再问；这里只是作者说明，不替代实际时间条件。',
-                  true,
-                  300,
-                )}
-                {plotRecord(row.timeline).timeNote !== undefined && (
-                  <button
-                    type="button"
-                    className={s.button}
-                    disabled={blocked}
-                    onClick={() => {
-                      if (!blocked)
-                        emit(() =>
-                          removePlotField(content, section, key, ['timeline', 'timeNote']),
-                        );
-                    }}
-                  >
-                    移除时间说明
-                  </button>
-                )}
-                {windowFields(['timeline', 'window'])}
-                <h4>哪些结果出现后不再考虑此节点</h4>
-                {plotArray(plotRecord(row.timeline).excludeIfResolved).map((_, i) => (
-                  <div className={s.group} key={i}>
-                    {selectField(
-                      '排除关联节点',
-                      ['timeline', 'excludeIfResolved', i, 'nodeKey'],
+              </details>
+              {windowFields(['timeline', 'window'])}
+              <details className={`${s.advanced} ${s.wide}`}>
+                <summary className={s.summary}>
+                  分路与排除（选填）
+                  {plotStrings(row.mutuallyExclusiveNodeKeys).length ||
+                  plotArray(plotRecord(row.timeline).excludeIfResolved).length ||
+                  Object.values(plotRecord(plotRecord(row.timeline).alternatives)).some(
+                    (v) => plotArray(v).length,
+                  )
+                    ? ' · 已有设置'
+                    : ''}
+                </summary>
+                <div className={s.advancedBody}>
+                  {refsField('与哪些节点互斥', ['mutuallyExclusiveNodeKeys'], otherNodes)}
+                  <div className={s.group}>
+                    <p className={s.hint}>
+                      先创建阶段，再选择所属阶段。已有节点不会在新增阶段时自动改写。
+                    </p>
+                    <h4>哪些结果出现后不再考虑此节点</h4>
+                    {plotArray(plotRecord(row.timeline).excludeIfResolved).map((_, i) => (
+                      <div className={s.group} key={i}>
+                        {selectField(
+                          '排除关联节点',
+                          ['timeline', 'excludeIfResolved', i, 'nodeKey'],
+                          otherNodes,
+                        )}
+                        {refsField(
+                          '出现这些结果后排除',
+                          ['timeline', 'excludeIfResolved', i, 'outcomes'],
+                          plotOutcomes,
+                        )}
+                        {removeArrayItem(['timeline', 'excludeIfResolved'], i, '移除这条结果排除')}
+                      </div>
+                    ))}
+                    {arrayActions(
+                      ['timeline', 'excludeIfResolved'],
+                      { nodeKey: '', outcomes: [] },
+                      '新增结果排除',
+                      16,
+                    )}
+                    <h4>被拒绝、跳过或过期后的替代</h4>
+                    <p className={s.hint}>
+                      替代节点仍须满足自己的前置和时段，不强行推动用户，也不是已发生事实。
+                    </p>
+                    {refsField(
+                      '被拒绝后可考虑',
+                      ['timeline', 'alternatives', 'onDeclined'],
                       otherNodes,
                     )}
                     {refsField(
-                      '出现这些结果后排除',
-                      ['timeline', 'excludeIfResolved', i, 'outcomes'],
-                      plotOutcomes,
+                      '被跳过后可考虑',
+                      ['timeline', 'alternatives', 'onSkipped'],
+                      otherNodes,
                     )}
-                    {removeArrayItem(['timeline', 'excludeIfResolved'], i, '移除这条结果排除')}
+                    {refsField(
+                      '已过期后可考虑',
+                      ['timeline', 'alternatives', 'onExpired'],
+                      otherNodes,
+                    )}
                   </div>
-                ))}
-                {arrayActions(
-                  ['timeline', 'excludeIfResolved'],
-                  { nodeKey: '', outcomes: [] },
-                  '新增结果排除',
-                  16,
-                )}
-                <h4>被拒绝、跳过或过期后的替代</h4>
-                <p className={s.hint}>
-                  替代节点仍须满足自己的前置和时段，不强行推动用户，也不是已发生事实。
-                </p>
-                {refsField(
-                  '被拒绝后可考虑',
-                  ['timeline', 'alternatives', 'onDeclined'],
-                  otherNodes,
-                )}
-                {refsField('被跳过后可考虑', ['timeline', 'alternatives', 'onSkipped'], otherNodes)}
-                {refsField('已过期后可考虑', ['timeline', 'alternatives', 'onExpired'], otherNodes)}
-              </div>
+                </div>
+              </details>
             </>
           )}
+          <details className={`${s.advanced} ${s.wide}`}>
+            <summary className={s.summary}>技术详情</summary>
+            <div className={s.advancedBody}>
+              <p className={s.hint}>内部标识：{key || '缺失'}。修改文字不改变关联。</p>
+              {refs.length > 0 && (
+                <ul className={s.references}>
+                  {refs.map((path) => (
+                    <li key={path}>{path}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
           <div className={`${s.wide} ${s.actions}`}>
             <button
               type="button"
@@ -632,15 +787,10 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
             >
               删除{section === 'history' ? '事实' : section === 'stages' ? '阶段' : '事件'}
             </button>
-            {refs.length > 0 && <span className={s.hint}>仍被引用，请先在对应位置调整：</span>}
+            {refs.length > 0 && (
+              <span className={s.hint}>仍有关联内容，需先调整后才能删除。详情可展开查看。</span>
+            )}
           </div>
-          {refs.length > 0 && (
-            <ul className={`${s.references} ${s.wide}`}>
-              {refs.map((path) => (
-                <li key={path}>{path}</li>
-              ))}
-            </ul>
-          )}
         </fieldset>
       </details>
     );
@@ -648,7 +798,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
   return (
     <div className={s.editor} aria-label="剧情编辑器">
       <p className={s.notice}>
-        先配置和保存，能否运行以检查结果为准。编辑本页不代表已保存或发布；可选事件不是已发生事实。
+        先写故事，再安排先后条件。阶段和可能发生的剧情不必逐条填写日期。先配置和保存，能否运行以检查结果为准；可能发生的剧情不是已发生事实。
       </p>
       {disabled && <p className={s.hint}>当前只读或正在处理操作，修改入口暂不可用。</p>}
       <details className={s.card}>
@@ -662,13 +812,21 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
       </details>
       {issues.length > 0 && (
         <div className={s.card} role="status">
-          <h3>以下字段还需核对</h3>
+          <h3>需要补齐的内容</h3>
           <p className={s.hint}>可以保留为未完整草稿；发布条件由真实后台检查，未在这里判定就绪。</p>
           <ul className={s.references}>
             {issues.map((issue, i) => (
-              <li key={i}>{issue}</li>
+              <li key={i}>{issueText(issue)}</li>
             ))}
           </ul>
+          <details className={s.advanced}>
+            <summary className={s.summary}>技术详情</summary>
+            <ul className={s.references}>
+              {issues.map((issue, i) => (
+                <li key={i}>{issue}</li>
+              ))}
+            </ul>
+          </details>
         </div>
       )}
       {(Object.keys(sections) as PlotSection[]).map((section) => {

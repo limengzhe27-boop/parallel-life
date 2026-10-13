@@ -1,6 +1,7 @@
 'use client';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import s from './publisher-workbench.module.css';
+import p from './publisher-plot-editor.module.css';
 type Row = Record<string, unknown>;
 export function PublisherOpeningEditor({
   content,
@@ -41,104 +42,109 @@ export function PublisherOpeningEditor({
       <div className={s.sectionHeader}>
         <h3 className={s.sectionTitle}>5. 开场时手机里已有的消息</h3>
         <p className={s.sectionHint}>
-          从文稿中整理已存在的消息，明确发送人和北京时间。每条时间都不能晚于世界开场；过去对话应早于开场。
+          先核对发送人、原文和消息类别。已有时间收在下方；缺少的必填时间会展开提示，不会自动改写。
         </p>
       </div>
-      {messages.map((message, index) => (
-        <fieldset
-          key={String(message.key ?? index)}
-          disabled={disabled}
-          style={{
-            border: '1px solid #dbe1e8',
-            borderRadius: 10,
-            padding: 14,
-            margin: '0 0 14px',
-            minWidth: 0,
-          }}
-        >
-          <legend>消息 {index + 1}</legend>
-          <div className={s.formGrid}>
-            <label className={s.formField}>
-              发送人物
-              <select
-                className={s.input}
-                value={typeof message.actorKey === 'string' ? message.actorKey : ''}
-                onChange={(event) => update(index, { actorKey: event.target.value })}
-              >
-                <option value="">选择开场已认识的人物</option>
-                {actors
-                  .filter((a) => a.knownAtStart === true)
-                  .map((actor) => (
-                    <option key={String(actor.key)} value={String(actor.key)}>
-                      {String(actor.name || '待命名人物')}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label className={s.formField}>
-              消息类别
-              <select
-                className={s.input}
-                value={typeof message.origin === 'string' ? message.origin : ''}
-                onChange={(event) => update(index, { origin: event.target.value })}
-              >
-                <option value="">选择消息类别</option>
-                <option value="history">过去的对话</option>
-                <option value="incoming">开场来信</option>
-              </select>
-            </label>
-            <label className={s.formField}>
-              发送时间（北京时间）
-              <input
-                className={s.input}
-                type="datetime-local"
-                value={publicationLocalTime(typeof message.at === 'string' ? message.at : '')}
-                onChange={(event) => {
-                  try {
-                    update(index, { at: publicationUtcTime(event.target.value) });
-                  } catch {
-                    /* Invalid native input is not saved as a fabricated time. */
-                  }
-                }}
-              />
-            </label>
-            <label className={s.formFieldFull}>
-              消息原文
-              <textarea
-                className={s.textarea}
-                rows={3}
-                maxLength={500}
-                value={typeof message.text === 'string' ? message.text : ''}
-                onChange={(event) => update(index, { text: event.target.value })}
-              />
-            </label>
-          </div>
-          <button
-            type="button"
-            className={s.btn}
-            disabled={
-              disabled ||
-              (Array.isArray(base.invitations) &&
-                base.invitations.some((invitation) => invitation?.messageKey === message.key))
-            }
-            title={
-              Array.isArray(base.invitations) &&
-              base.invitations.some((invitation) => invitation?.messageKey === message.key)
-                ? '这条消息关联了开场邀约，请先整理关联的邀约。'
-                : undefined
-            }
-            onClick={() => {
-              if (!disabled)
-                onChange({
-                  ...content,
-                  phone: { ...base, messages: messages.filter((_, i) => i !== index) },
-                });
-            }}
-          >
-            移除消息
-          </button>
-        </fieldset>
-      ))}
+      {messages.map((message, index) => {
+        const localTime = publicationLocalTime(typeof message.at === 'string' ? message.at : '');
+        const needsTime = !localTime;
+        return (
+          <fieldset key={String(message.key ?? index)} disabled={disabled} className={p.message}>
+            <legend>消息 {index + 1}</legend>
+            <div className={s.formGrid}>
+              <label className={s.formField}>
+                发送人物
+                <select
+                  className={s.input}
+                  value={typeof message.actorKey === 'string' ? message.actorKey : ''}
+                  onChange={(event) => update(index, { actorKey: event.target.value })}
+                >
+                  <option value="">选择开场已认识的人物</option>
+                  {actors
+                    .filter((a) => a.knownAtStart === true)
+                    .map((actor) => (
+                      <option key={String(actor.key)} value={String(actor.key)}>
+                        {String(actor.name || '待命名人物')}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className={s.formField}>
+                消息类别
+                <select
+                  className={s.input}
+                  value={typeof message.origin === 'string' ? message.origin : ''}
+                  onChange={(event) => update(index, { origin: event.target.value })}
+                >
+                  <option value="">选择消息类别</option>
+                  <option value="history">过去的对话</option>
+                  <option value="incoming">开场来信</option>
+                </select>
+              </label>
+              <label className={s.formFieldFull}>
+                消息原文
+                <textarea
+                  className={s.textarea}
+                  rows={3}
+                  maxLength={500}
+                  value={typeof message.text === 'string' ? message.text : ''}
+                  onChange={(event) => update(index, { text: event.target.value })}
+                />
+              </label>
+              <details className={`${s.formFieldFull} ${p.advanced}`} open={needsTime}>
+                <summary>发送时间 · {needsTime ? '待补齐' : localTime.replace('T', ' ')}</summary>
+                <div className={p.advancedBody}>
+                  {needsTime && (
+                    <p role="status">
+                      这条消息缺少有效时间，试演前需要补齐。可通过系统整理后核对；尚未自动安排。
+                    </p>
+                  )}
+                  <p>已有消息不能晚于世界开场；过去对话须早于开场。时间按北京时间显示。</p>
+                  <label className={s.formField}>
+                    发送时间（北京时间）
+                    <input
+                      className={s.input}
+                      type="datetime-local"
+                      value={publicationLocalTime(typeof message.at === 'string' ? message.at : '')}
+                      onChange={(event) => {
+                        try {
+                          update(index, { at: publicationUtcTime(event.target.value) });
+                        } catch {
+                          /* Invalid native input is not saved as a fabricated time. */
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </details>
+            </div>
+            <button
+              type="button"
+              className={s.btn}
+              disabled={
+                disabled ||
+                (Array.isArray(base.invitations) &&
+                  base.invitations.some((invitation) => invitation?.messageKey === message.key))
+              }
+              title={
+                Array.isArray(base.invitations) &&
+                base.invitations.some((invitation) => invitation?.messageKey === message.key)
+                  ? '这条消息关联了开场邀约，请先整理关联的邀约。'
+                  : undefined
+              }
+              onClick={() => {
+                if (!disabled)
+                  onChange({
+                    ...content,
+                    phone: { ...base, messages: messages.filter((_, i) => i !== index) },
+                  });
+              }}
+            >
+              移除消息
+            </button>
+          </fieldset>
+        );
+      })}
       <button
         type="button"
         className={s.btn}
