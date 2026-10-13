@@ -38,6 +38,14 @@ import s from './publisher-workbench.module.css';
 
 type MainTab = 'settings' | 'actors' | 'plot' | 'review';
 
+function needsStorySetup(content: Record<string, unknown>) {
+  const work = plotRecord(content.work),
+    world = plotRecord(content.world);
+  return ![work.hook, work.description, world.publicSetting].some(
+    (value) => typeof value === 'string' && value.trim(),
+  );
+}
+
 function issueLabel(path: readonly (string | number)[], code: string) {
   if (code === 'trial_unverified') return '请先试演，并完成一条真实的角色对话，再重新检查。';
   if (code === 'media_unverified') return '素材尚未核验，请检查所选图片后再试。';
@@ -121,7 +129,9 @@ export function PublisherWorkbench(
 
   // Active main tab
   const [activeTab, setActiveTab] = useState<MainTab>('settings');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() =>
+    needsStorySetup(work?.draft.content ?? {}),
+  );
 
   // Local working draft: initialized from props.work, retained upon server errors or user edits
   const [draftTitle, setDraftTitle] = useState(() => work?.title ?? '');
@@ -194,7 +204,7 @@ export function PublisherWorkbench(
         : [];
       if (isNewWork) {
         setActiveTab('settings');
-        setSettingsOpen(false);
+        setSettingsOpen(needsStorySetup(work.draft.content));
       }
       if (isNewWork || !selectedActorKey) {
         setSelectedActorKey(actors[0]?.key ?? null);
@@ -861,12 +871,33 @@ export function PublisherWorkbench(
 
         {work && activeTab === 'settings' && (
           <section className={s.storyOverview} aria-label="故事概览">
+            <button
+              type="button"
+              className={`${s.btn} ${s.btnSecondary}`}
+              onClick={() => {
+                setSettingsOpen(true);
+                window.requestAnimationFrame(() =>
+                  document
+                    .getElementById('writer-story-editor')
+                    ?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+                );
+              }}
+            >
+              编辑故事
+            </button>
+            {needsStorySetup(draftContent) && (
+              <p>
+                先在下方填写故事介绍，或使用“导入
+                Markdown”整理已有文稿。填写只改编辑稿，保存由你决定。
+              </p>
+            )}
             <PublisherReviewView content={draftContent} mode="draft" />
           </section>
         )}
         {work && activeTab === 'settings' && (
           <details
             className={s.settingsDisclosure}
+            id="writer-story-editor"
             open={settingsOpen}
             onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
           >
@@ -1723,6 +1754,9 @@ export function PublisherWorkbench(
           onClose={() => setShowMarkdownImport(false)}
           onApply={(next, summary) => {
             setDraftContent(next);
+            setActiveTab('settings');
+            setSettingsOpen(needsStorySetup(next));
+            setShowMarkdownImport(false);
             setMarkdownReview(summary);
             const nextWork = next.work as { title?: unknown } | undefined;
             if (typeof nextWork?.title === 'string') setDraftTitle(nextWork.title);

@@ -402,7 +402,7 @@ export function PublisherReviewView({
       'p',
       { className: s.reviewNotice },
       mode === 'draft'
-        ? '当前编辑稿包含尚未保存的修改；未填写的内容不会自动补齐。'
+        ? '这里展示当前编辑稿；修改后请保存。未填写的内容不会自动补齐。'
         : '以下为实际整理稿，请核对事实与补充；未填写不代表原稿没有提及。',
     ),
     h(

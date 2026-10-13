@@ -485,7 +485,8 @@ test('draft overview reads actual unsaved values and preserves extensions withou
   const html = renderToStaticMarkup(createElement(PublisherReviewView, { content, mode: 'draft' }));
   assert.match(html, /当前草稿故事概览|这段故事现在是什么样/);
   assert.match(html, /LOCAL_UNSAVED_STORY/);
-  assert.match(html, /尚未保存的修改/);
+  assert.match(html, /修改后请保存/);
+  assert.doesNotMatch(html, /当前编辑稿包含尚未保存/);
   assert.match(html, /UNSUPPORTED_AUTHOR_VALUE/);
   assert.doesNotMatch(html, /将填入的实际内容|原稿可在上方展开/);
   assert.equal(JSON.stringify(content), before);

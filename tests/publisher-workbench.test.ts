@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
-import { createElement } from 'react';
+import { createElement, isValidElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PublisherWork, PublisherCheckResult } from '../src/contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../src/contracts/publisher-workbench.ts';
@@ -24,7 +24,7 @@ registerHooks({
           url.endsWith('publisher-workbench.tsx')
             ? readFileSync(new URL(url), 'utf8').replace(
                 "import React, { useState, useEffect, useMemo, useCallback } from 'react';",
-                "import React, { useState as actualUseState, useEffect, useMemo, useCallback } from 'react'; const useState = initial => actualUseState(initial === 'settings' && globalThis.__writerTestTab ? globalThis.__writerTestTab : initial);",
+                "import React, { useState as actualUseState, useEffect as actualUseEffect, useMemo as actualUseMemo, useCallback as actualUseCallback } from 'react'; const useState = initial => globalThis.__writerHooks ? globalThis.__writerHooks.useState(initial) : actualUseState(initial === 'settings' && globalThis.__writerTestTab ? globalThis.__writerTestTab : initial); const useMemo = (f,d) => globalThis.__writerHooks ? f() : actualUseMemo(f,d); const useCallback = (f,d) => globalThis.__writerHooks ? f : actualUseCallback(f,d); const useEffect = (f,d) => globalThis.__writerHooks ? undefined : actualUseEffect(f,d);",
               )
             : readFileSync(new URL(url), 'utf8'),
           {
@@ -209,7 +209,7 @@ test('workbench defaults to actual story overview with four writer-facing entrie
     '青梅竹马 / 邻居',
   ])
     assert.ok(html.includes(text), text);
-  assert.match(html, /<details class="settingsDisclosure">/);
+  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
   assert.match(html, /尚未检查草稿/);
   assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
 });
@@ -394,5 +394,94 @@ test('missing or unrecognized start date stays explicitly actionable outside fol
     assert.match(html, /补齐开场日期/);
     assert.match(html, /精确开场日期和时间/);
     assert.match(html, /<details class="timeDisclosure" open="">/);
+  }
+});
+
+test('an empty new story visibly opens editing without automatically saving', () => {
+  let saved = 0;
+  const content = { work: { title: '新故事' }, world: { startAt: '' } };
+  const html = renderToStaticMarkup(
+    createElement(PublisherWorkbench, {
+      ...defaultProps,
+      onSaveDraft: () => {
+        saved++;
+      },
+      work: { ...mockWork, draft: { ...mockWork.draft, content } },
+    }),
+  );
+  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor" open="">/);
+  assert.match(html, /先在下方填写故事介绍/);
+  assert.match(html, /id="work-title-input"/);
+  assert.equal(saved, 0);
+});
+test('applying import from character or plot returns to overview, closes import and never auto-saves', async () => {
+  const { PublisherImportDialog } =
+    await import('../src/features/publisher/publisher-import-dialog.tsx');
+  const { PublisherReviewView } =
+    await import('../src/features/publisher/publisher-review-view.ts');
+  function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
+    if (Array.isArray(value)) return value.flatMap(nodes);
+    if (!isValidElement(value)) return [];
+    const e = value as ReactElement<Record<string, unknown>>;
+    return [e, ...nodes(e.props.children)];
+  }
+  for (const initial of ['actors', 'plot']) {
+    let cursor = 0,
+      saved = 0;
+    const states: unknown[] = [initial];
+    Object.assign(globalThis, {
+      __writerHooks: {
+        useState: (v: unknown) => {
+          const i = cursor++;
+          if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
+          return [
+            states[i],
+            (next: unknown) => {
+              states[i] = typeof next === 'function' ? next(states[i]) : next;
+            },
+          ];
+        },
+      },
+    });
+    try {
+      const render = () => {
+        cursor = 0;
+        return PublisherWorkbench({
+          ...defaultProps,
+          onSaveDraft: () => {
+            saved++;
+          },
+        });
+      };
+      let tree = render();
+      const button = nodes(tree).find(
+        (e) => e.type === 'button' && e.props.children === '导入 Markdown',
+      );
+      assert.ok(button);
+      (button.props.onClick as () => void)();
+      tree = render();
+      const dialog = nodes(tree).find((e) => e.type === PublisherImportDialog);
+      assert.ok(dialog);
+      const next = {
+        work: { title: '整理后的标题', description: '完整故事介绍' },
+        world: { publicSetting: '新的舞台' },
+        extensions: [{ unchanged: '作者扩展' }],
+      };
+      (dialog.props.onApply as (v: unknown, s: unknown) => void)(next, {
+        actors: [],
+        initialMessagesCount: 0,
+        candidatesCount: 0,
+        warnings: [],
+        diagnostics: [],
+        unmapped: [],
+      });
+      tree = render();
+      assert.equal(states[0], 'settings');
+      assert.equal(saved, 0);
+      assert.ok(!nodes(tree).some((e) => e.type === PublisherImportDialog));
+      assert.equal(nodes(tree).find((e) => e.type === PublisherReviewView)!.props.content, next);
+    } finally {
+      Reflect.deleteProperty(globalThis, '__writerHooks');
+    }
   }
 });
