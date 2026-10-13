@@ -19,28 +19,36 @@ export class PostgresClockStore implements ClockStore {
   }
   async withAdvanceLock<T>(worldId: string, run: () => Promise<T>): Promise<T> {
     const client = await this.db.pool.connect();
-    let locked = false;
+    let discard = false;
     try {
-      locked = Boolean(
+      // A transaction pool may switch backends after each autocommit statement.
+      // Keep the lock and callback inside one transaction so release is automatic.
+      await client.query('BEGIN');
+      const locked = Boolean(
         (
-          await client.query('SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked', [
-            worldId,
-          ])
+          await client.query(
+            'SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS locked',
+            [worldId],
+          )
         ).rows[0]?.locked,
       );
       if (!locked) throw new DomainError('VERSION_CONFLICT', '导演正在处理这段人生');
-      return await run();
+      const result = await run();
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Do not put an uncertain/open transaction back into the pool.
+        discard = true;
+      }
+      throw error;
     } finally {
-      if (locked) {
-        try {
-          await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [worldId]);
-          client.release();
-        } catch {
-          client.release(true);
-        }
-      } else client.release();
+      client.release(discard);
     }
   }
+
   async read(ownerId: string, worldId: string): Promise<WorldClock> {
     return this.db.transaction(ownerId, async (sql) => {
       const row = (
