@@ -1,3 +1,4 @@
+import { publicationLocalTime } from './publisher-story-time.ts';
 import { PublishedWorldContentSchema } from '../../contracts/published-world-content.ts';
 
 export type PlotRecord = Record<string, unknown>;
@@ -239,11 +240,74 @@ export function deletePlotRow(content: PlotRecord, section: PlotSection, key: st
   return next;
 }
 export const plotOutcomes = [
-  { key: 'committed', label: '已提交' },
-  { key: 'declined', label: '已拒绝' },
+  { key: 'committed', label: '来信已发出／邀约已接受或已赴约' },
+  { key: 'declined', label: '被拒绝或取消' },
   { key: 'skipped', label: '已跳过' },
-  { key: 'expired', label: '已过期' },
+  { key: 'expired', label: '已过期或错过' },
 ];
+/** Resolve author-facing names only; missing or ambiguous references never expose raw identifiers. */
+export function plotName(
+  content: PlotRecord,
+  kind: 'actors' | 'places' | PlotSection,
+  key: unknown,
+): string {
+  const fallback = {
+    actors: '人物',
+    places: '地点',
+    history: '事实',
+    stages: '阶段',
+    candidates: '剧情',
+  }[kind];
+  const choice = plotChoices(content, kind).find((item) => item.key === key);
+  return choice
+    ? choice.label === choice.key
+      ? `未命名${fallback}`
+      : choice.label
+    : `待核对的${fallback}`;
+}
+export function plotOutcomeLabel(content: PlotRecord, nodeKey: unknown, outcome: unknown): string {
+  if (outcome !== 'committed')
+    return plotOutcomes.find((option) => option.key === outcome)?.label ?? '结果待核对';
+  const nodes = plotRows(content, 'candidates')
+    .map(plotRecord)
+    .filter((row) => row.key === nodeKey);
+  const kind = nodes.length === 1 ? plotRecord(nodes[0]!.intent).kind : undefined;
+  return kind === 'offer_message'
+    ? '来信已发出'
+    : kind === 'offer_invitation'
+      ? '邀约已接受或已赴约（当前不区分这两种结果）'
+      : kind === 'editorial_only'
+        ? '仅备注不会执行，此结果需调整'
+        : '来信或邀约的结果含义待核对';
+}
+export function plotOutcomeChoices(content: PlotRecord, nodeKey: unknown): PlotChoice[] {
+  return plotOutcomes.map(({ key }) => ({ key, label: plotOutcomeLabel(content, nodeKey, key) }));
+}
+export function plotTimeLabel(value: unknown): string {
+  const local = publicationLocalTime(plotText(value));
+  return local ? `${local.replace('T', ' ')}（北京时间）` : '时间待补齐';
+}
+export function plotConditionText(content: PlotRecord, raw: unknown): string {
+  const condition = plotRecord(raw);
+  switch (condition.kind) {
+    case 'history_fact':
+      return `事实「${plotName(content, 'history', condition.factKey)}」已成立，且来信或邀约人物有权知晓`;
+    case 'after_committed_node':
+      return `「${plotName(content, 'candidates', condition.nodeKey)}」：${plotOutcomeLabel(content, condition.nodeKey, 'committed')}`;
+    case 'after_resolved_node': {
+      const outcomes = plotStrings(condition.outcomes).map((outcome) =>
+        plotOutcomeLabel(content, condition.nodeKey, outcome),
+      );
+      return `「${plotName(content, 'candidates', condition.nodeKey)}」出现以下任一结果：${outcomes.join(' / ') || '尚未选择结果'}`;
+    }
+    case 'at_place':
+      return `玩家位于「${plotName(content, 'places', condition.placeKey)}」`;
+    case 'not_before':
+      return `故事时间不早于${plotTimeLabel(condition.at)}`;
+    default:
+      return '这条出现条件暂不支持或尚未填完整，请核对原稿';
+  }
+}
 export function plotIssues(content: PlotRecord): string[] {
   const result = PublishedWorldContentSchema.safeParse(content);
   if (result.success) return [];

@@ -35,6 +35,7 @@ registerHooks({
   },
 });
 const { PublisherPlotEditor } = await import('../src/features/publisher/publisher-plot-editor.tsx');
+const { PublisherStoryGraph } = await import('../src/features/publisher/publisher-story-graph.tsx');
 function content(): PlotRecord {
   return {
     world: { startAt: '2026-10-12T09:00:00Z', hiddenContext: 'PRIVATE_NEVER_RENDER' },
@@ -82,6 +83,7 @@ function walk(value: ReactNode): Native[] {
   if (Array.isArray(value)) return value.flatMap(walk);
   if (!isValidElement(value)) return [];
   const e = value as Native;
+  if (e.type === PublisherStoryGraph) return [e];
   if (typeof e.type === 'function') return walk((e.type as (p: unknown) => ReactNode)(e.props));
   return [e, ...walk(e.props.children as ReactNode)];
 }
@@ -239,8 +241,8 @@ test('unknown intent extensions disable destructive switching rather than silent
 test('native prerequisite controls add each real kind with stable-key selectors', () => {
   for (const [label, kind] of [
     ['某事实已成立', 'history_fact'],
-    ['上一事件已落实', 'after_committed_node'],
-    ['上一事件被拒绝、跳过或有其他结果', 'after_resolved_node'],
+    ['之前的来信已发出或邀约已接受', 'after_committed_node'],
+    ['之前的剧情出现指定结果', 'after_resolved_node'],
     ['玩家在某地点', 'at_place'],
     ['世界时间已到达', 'not_before'],
   ]) {
@@ -449,7 +451,15 @@ test('empty optional objects stay unset and story alternatives begin as a read-o
 test('existing alternatives resolve to story names, preserve conditions and expose no raw IDs or technical panel', () => {
   const c = content();
   const row = plotRecord(plotRows(c, 'candidates')[0]);
-  c.candidates = [row, { ...structuredClone(row), key: 'node_other', title: '稍后再来信' }];
+  c.candidates = [
+    row,
+    {
+      ...structuredClone(row),
+      key: 'node_other',
+      title: '稍后再来信',
+      intent: { kind: 'offer_message', actorKey: 'alice', text: '问候' },
+    },
+  ];
   row.mutuallyExclusiveNodeKeys = ['node_other'];
   row.timeline = {
     alternatives: { onDeclined: ['node_other'] },
@@ -462,8 +472,8 @@ test('existing alternatives resolve to story names, preserve conditions and expo
     .filter((n) => !['input', 'select', 'textarea', 'option'].includes(String(n.type)))
     .map((n) => text(n.props.children))
     .join(' ');
-  assert.match(visible, /被拒绝后，可以考虑「稍后再来信」/);
-  assert.match(visible, /不能与「稍后再来信」同时发生/);
+  assert.match(visible, /被拒绝或取消后，可以考虑「稍后再来信」/);
+  assert.match(visible, /「稍后再来信」来信已发出后，这段剧情不再出现/);
   assert.doesNotMatch(visible, /技术详情|内部标识|node_other|excludeIfResolved/);
   assert.equal(t.calls, 0);
   assert.equal(JSON.stringify(c), before);
@@ -475,4 +485,72 @@ test('author stage numbering is one-based while stored order and unrelated data 
   change(order, '3');
   assert.equal(plotRecord(plotRows(t.next!, 'stages')[0]).order, 2);
   assert.deepEqual(t.next!.extensions, t.props.content.extensions);
+});
+
+test('condition controls explain AND, per-event outcome semantics and director suggestions in writer language', () => {
+  const c = content();
+  const node = plotRecord(plotRows(c, 'candidates')[0]);
+  node.prerequisites = [
+    { kind: 'after_resolved_node', nodeKey: 'invitation', outcomes: ['committed'] },
+  ];
+  (c.candidates as unknown[]).push({
+    key: 'invitation',
+    title: '喝咖啡',
+    intent: { kind: 'offer_invitation' },
+    prerequisites: [],
+    mutuallyExclusiveNodeKeys: [],
+  });
+  const html = renderToStaticMarkup(createElement(PublisherPlotEditor, setup(false, c).props));
+  assert.ok(html.includes('前置条件需要全部满足'));
+  assert.ok(html.includes('任意一个满足即可'));
+  assert.ok(html.includes('邀约已接受或已赴约（当前不区分这两种结果）'));
+  assert.ok(html.includes('这是给导演的建议，不是必须满足的出现条件'));
+  assert.ok(!html.includes('>已提交<'));
+});
+test('graph selection opens and focuses the exact editable event without changing the draft', () => {
+  const t = setup();
+  const node = tree(t.props).find((e) => e.type === PublisherStoryGraph)!;
+  let requested = '',
+    scrolled = 0,
+    focused = 0;
+  const element = {
+    tagName: 'DETAILS',
+    open: false,
+    scrollIntoView() {
+      scrolled++;
+    },
+    querySelector() {
+      return {
+        focus() {
+          focused++;
+        },
+      };
+    },
+  };
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      getElementById(id: string) {
+        requested = id;
+        return element;
+      },
+    },
+  });
+  try {
+    (node.props.onSelect as (key: string) => void)('node_a');
+    assert.equal(requested, 'plot_event_0_node_a');
+    assert.equal(element.open, true);
+    assert.equal(scrolled, 1);
+    assert.equal(focused, 1);
+    assert.equal(t.calls, 0);
+    (node.props.onSelect as (key: string) => void)('not_found');
+    assert.equal(scrolled, 1);
+    const readOnly = tree(setup(true).props).find((e) => e.type === PublisherStoryGraph)!;
+    (readOnly.props.onSelect as (key: string) => void)('node_a');
+    assert.equal(scrolled, 1);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'document', previous);
+    else Reflect.deleteProperty(globalThis, 'document');
+  }
 });

@@ -277,3 +277,15 @@ textarea.input {
   border: 1px solid #d8dee9;
   border-radius: 10px;
 }
+
+.conditionSummary {
+  padding: 10px 12px;
+  border-left: 3px solid var(--plot-accent);
+  background: var(--plot-soft);
+  border-radius: 0 8px 8px 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.item {
+  scroll-margin-block: 24px;
+}

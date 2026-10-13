@@ -18,12 +18,15 @@ import {
   plotRowEditable,
   plotDeletionReferences,
   plotIssues,
-  plotOutcomes,
+  plotOutcomeChoices,
+  plotOutcomeLabel,
+  plotConditionText,
   type PlotRecord,
   type PlotSection,
   type PlotPath,
   type PlotChoice,
 } from './publisher-plot-model.ts';
+import { PublisherStoryGraph } from './publisher-story-graph.tsx';
 import s from './publisher-plot-editor.module.css';
 export type PublisherPlotEditorProps = {
   content: Record<string, unknown>;
@@ -52,8 +55,8 @@ const sections = {
 };
 const conditionNames = {
   history_fact: '某事实已成立',
-  after_committed_node: '上一事件已落实',
-  after_resolved_node: '上一事件被拒绝、跳过或有其他结果',
+  after_committed_node: '之前的来信已发出或邀约已接受',
+  after_resolved_node: '之前的剧情出现指定结果',
   at_place: '玩家在某地点',
   not_before: '世界时间已到达',
 };
@@ -64,12 +67,7 @@ const intentNames = {
 };
 const timeLabel = (raw: unknown) => publicationLocalTime(plotText(raw)).replace('T', ' ');
 function choiceLabel(option: PlotChoice, options: PlotChoice[]) {
-  const label =
-    option.label === option.key
-      ? '待命名条目'
-      : option.label === '已提交'
-        ? '已发生'
-        : option.label;
+  const label = option.label === option.key ? '待命名条目' : option.label;
   const same = options.filter((o) => o.label === option.label);
   return same.length > 1
     ? `${label}（第${same.findIndex((o) => o.key === option.key) + 1}项）`
@@ -185,6 +183,16 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
     start = plotText(plotRecord(content.world).startAt);
   function emit(next: () => PlotRecord) {
     if (!disabled) onChange(next());
+  }
+  function selectGraphEvent(key: string) {
+    if (disabled || typeof document === 'undefined' || !plotRowEditable(content, 'candidates', key))
+      return;
+    const index = plotRows(content, 'candidates').findIndex((row) => plotRecord(row).key === key);
+    const element = document.getElementById(`plot_event_${index}_${key}`);
+    if (element?.tagName !== 'DETAILS') return;
+    (element as HTMLDetailsElement).open = true;
+    element.scrollIntoView({ block: 'center', behavior: 'auto' });
+    element.querySelector('summary')?.focus({ preventScroll: true });
   }
   function rowForm(section: PlotSection, raw: unknown, index: number): ReactNode {
     const row = plotRecord(raw),
@@ -428,27 +436,24 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           return matches.length === 1 ? choiceLabel(matches[0]!, nodes) : '待核对的剧情';
         })
         .join('、');
-    if (plotStrings(row.mutuallyExclusiveNodeKeys).length)
-      directions.push(`不能与「${named(row.mutuallyExclusiveNodeKeys)}」同时发生。`);
+    for (const otherKey of plotStrings(row.mutuallyExclusiveNodeKeys))
+      directions.push(
+        `「${named([otherKey])}」${plotOutcomeLabel(content, otherKey, 'committed')}后，这段剧情不再出现。`,
+      );
     for (const item of plotArray(plotRecord(row.timeline).excludeIfResolved)) {
       const rule = plotRecord(item);
       const outcomes = plotStrings(rule.outcomes)
-        .map(
-          (v) =>
-            ({ committed: '已发生', declined: '被拒绝', skipped: '被跳过', expired: '已过期' })[
-              v
-            ] ?? '结果待核对',
-        )
-        .join('、');
+        .map((value) => plotOutcomeLabel(content, rule.nodeKey, value))
+        .join(' / ');
       directions.push(
         `「${named([rule.nodeKey]) || '待核对的剧情'}」${outcomes || '结果待核对'}后，这段剧情不再出现。`,
       );
     }
     const alternatives = plotRecord(plotRecord(row.timeline).alternatives);
     for (const [key, label] of [
-      ['onDeclined', '被拒绝'],
+      ['onDeclined', '被拒绝或取消'],
       ['onSkipped', '被跳过'],
-      ['onExpired', '已过期'],
+      ['onExpired', '已过期或错过'],
     ]) {
       if (plotStrings(alternatives[key!]).length)
         directions.push(`${label}后，可以考虑「${named(alternatives[key!])}」。`);
@@ -469,6 +474,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
     return (
       <details
         className={s.item}
+        id={section === 'candidates' ? `plot_event_${index}_${key}` : undefined}
         key={`${key || 'raw'}_${index}`}
         open={index === 0 || missingTime}
       >
@@ -559,9 +565,9 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                 手机来信和邀约通常不限制玩家位置；下面的邀约地点才是见面目的地。
               </p>
               {field(
-                '这一段想带出什么',
+                '导演建议：这一段想带出什么',
                 ['editorialIntent'],
-                '写双方顾虑、这段剧情为何出现；不把所有角色台词固定死。',
+                '描述双方顾虑和创作意图。这是给导演的建议，不是必须满足的出现条件，也不会固定角色台词。',
                 true,
                 1600,
               )}
@@ -646,7 +652,9 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
               </div>
               <div className={s.group}>
                 <h4>出现前要满足什么</h4>
-                <p className={s.hint}>这些是必要前置，拒绝、跳过与过期不代表剧情已发生。</p>
+                <p className={s.hint}>
+                  以下前置条件需要全部满足；同一条件勾选的多个结果，任意一个满足即可。满足条件只表示可以考虑这段剧情，不保证立即发生，也不代表任务已经完成。
+                </p>
                 {plotArray(row.prerequisites).map((p, i) => {
                   const condition = plotRecord(p),
                     kind = plotText(condition.kind),
@@ -661,7 +669,11 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                       {(kind === 'after_committed_node' || kind === 'after_resolved_node') &&
                         selectField('之前的剧情', [...path, 'nodeKey'], otherNodes)}
                       {kind === 'after_resolved_node' &&
-                        refsField('允许的结果', [...path, 'outcomes'], plotOutcomes)}
+                        refsField(
+                          '允许的结果（任选其一）',
+                          [...path, 'outcomes'],
+                          plotOutcomeChoices(content, condition.nodeKey),
+                        )}
                       {kind === 'at_place' &&
                         selectField('玩家所在地点', [...path, 'placeKey'], places)}
                       {kind === 'not_before' &&
@@ -670,6 +682,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                           [...path, 'at'],
                           '不得早于世界起点，也不能超过剧情到期时间。',
                         )}
+                      <p className={s.conditionSummary}>{plotConditionText(content, condition)}</p>
                       {removeArrayItem(['prerequisites'], i, '移除这条前置条件')}
                     </div>
                   );
@@ -787,7 +800,11 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                             {refsField(
                               '出现以下结果后不再继续',
                               ['timeline', 'excludeIfResolved', i, 'outcomes'],
-                              plotOutcomes,
+                              plotOutcomeChoices(
+                                content,
+                                plotRecord(plotArray(plotRecord(row.timeline).excludeIfResolved)[i])
+                                  .nodeKey,
+                              ),
                             )}
                             {removeArrayItem(['timeline', 'excludeIfResolved'], i, '移除这项安排')}
                           </div>
@@ -849,6 +866,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
       <p className={s.notice}>
         先写故事，再安排先后条件。阶段和可能发生的剧情不必逐条填写日期。先填写并保存，能否运行以检查结果为准；可能发生的剧情不是已发生事实。
       </p>
+      <PublisherStoryGraph content={content} disabled={disabled} onSelect={selectGraphEvent} />
       {disabled && <p className={s.hint}>当前只读或正在处理操作，修改入口暂不可用。</p>}
       <details className={s.card}>
         <summary className={s.summary}>不会填写？看一个简短例子</summary>
