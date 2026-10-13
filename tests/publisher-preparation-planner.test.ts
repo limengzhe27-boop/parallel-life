@@ -82,7 +82,7 @@ test('one JSON model call yields a genuinely schema/domain/compiler-valid propos
   assert.deepEqual(JSON.parse(calls[0]!.messages[1]!.content), { currentContent: {}, sources });
   assert.ok(result.notes.some((n) => n.kind === 'review'));
 });
-test('same-name actors match stable keys, preserve authored text/false/0, ordering and unknown JSON', async () => {
+test('same-name actors keep stable keys and reject a renamed identity without filling its old empty voice', async () => {
   const old = fixture();
   old.actors[0]!.knownAtStart = false;
   old.actors[0]!.privatePersona.voice = '';
@@ -102,7 +102,9 @@ test('same-name actors match stable keys, preserve authored text/false/0, orderi
   );
   assert.equal(got.actors[0]!.name, '同名');
   assert.equal(got.actors[0]!.knownAtStart, false);
-  assert.equal(got.actors[0]!.privatePersona.voice, '新补声音');
+  assert.equal(got.actors[0]!.privatePersona.voice, '');
+  assert.ok(result.issues.some((issue) => issue.code === 'character_source_identity_unconfirmed'));
+  assert.deepEqual(got.actors[1], old.actors[1]);
   assert.deepEqual(result.updatedContent.unknown, current.unknown);
   assert.deepEqual(current, before);
   assert.ok(result.issues.length);
@@ -114,10 +116,24 @@ test('same-name actors match stable keys, preserve authored text/false/0, orderi
     { timeline: { stages: [{ key: 's', order: 0 }] } },
   );
 });
+test('an exact stable actor identity may fill an empty voice without changing its authored name or acquaintance', async () => {
+  const old = fixture();
+  old.actors[0]!.privatePersona.voice = '';
+  const proposal = fixture();
+  proposal.actors[0]!.privatePersona.voice = '新补声音';
+  const result = await harness(reply(proposal)).planner.propose({ currentContent: old, sources });
+  const got = PublishedWorldContentSchema.parse(result.updatedContent);
+  assert.deepEqual(result.issues, []);
+  assert.equal(got.actors[0]!.privatePersona.voice, '新补声音');
+  assert.equal(got.actors[0]!.name, old.actors[0]!.name);
+  assert.equal(got.actors[0]!.knownAtStart, old.actors[0]!.knownAtStart);
+  assert.deepEqual(got.actors[1], old.actors[1]);
+});
 test('nonempty entity collections retain old rows and append missing actors/places with review provenance', async () => {
   const old = fixture();
   old.actors = old.actors.slice(0, 1);
   const proposal = fixture();
+  proposal.actors[1]!.name = '新朋友';
   proposal.places.push({ key: 'cafe', name: '咖啡店', description: '可赴约', knownAtStart: true });
   proposal.routes.push({ fromPlaceKey: 'home', toPlaceKey: 'cafe', minutes: 10 });
   const result = await harness(reply(proposal)).planner.propose({ currentContent: old, sources });
@@ -419,7 +435,10 @@ test('merging two legal size drafts cannot silently exceed content storage budge
 test('duplicate proposal identity never rewrites the matched original, new duplicates remain invalid', async () => {
   const old = fixture();
   const proposal = fixture();
-  proposal.actors.push({ ...proposal.actors[0]!, name: 'duplicate' });
+  proposal.actors.push({
+    ...proposal.actors[0]!,
+    privatePersona: { ...proposal.actors[0]!.privatePersona, voice: '重复条目的改写' },
+  });
   const r = await harness(reply(proposal)).planner.propose({ currentContent: old, sources });
   assert.deepEqual((r.updatedContent as unknown as PublicationContent).actors, old.actors);
   assert.ok(r.notes.some((n) => n.text.includes('模型返回重复编号')));
