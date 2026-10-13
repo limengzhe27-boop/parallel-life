@@ -1,3 +1,9 @@
+## 2026-10-13 · PUBLISHER-SOURCE-03 原文与实际字段对照
+
+业务2ce8a6d5d66e308af68fde43e2d251e2e0759a17，生产dpl_FrXSQsTenRsGCk7i4aGDQMv1Grts READY，正式alias匹配。1955check、415边界、type/build0；50生产迁移checksum一致，无SQL变更。Staff导入新增精确原文定位、实际字段候选、数字及知情/未来条件提醒、20项分页，不调用额外模型，不代替语义核对或自动改稿。
+
+本地旧真实合成结果回放390/1440、双勾到填入到真实保存r1与最终内容深度一致。公网Markdown25项20到25、ZIP两文件50项20到40及更换原稿重算通过，390/1440无横溢出；既有测试作品r1/下架前后完全相同，health/workbench200、未登录作品401。0新模型/世界/图片。Ego162已结束、正式cookie已恢复、自有HTTP/PG退出。完整语义对应、结构化字段来源、误报收敛和备忘录重排仍待完成，见PUBLISHER-SOURCE-03报告与唯一主登记表。
+
 ## 2026-10-13 · PUBLISHER-REVIEW-02 导入实际内容核对
 
 业务78d969b7ef84e51fb3e37ed952cd4a0ef8a4fb24，生产dpl_2n36guqiugoAjPn6KmC585DcByLb READY，正式alias匹配。1913常规检查、412边界、类型与build通过；50生产迁移checksum一致，本轮无SQL。最终提案人物/关系/历史知情/消息时间/地点路线/阶段候选中文分组预览，模型说明明确待核对；原作者未知值保留与AI新未知字段未采用分开提示。AI与纯解析共用，保双核对和版本权限守卫。
