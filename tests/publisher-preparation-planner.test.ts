@@ -1114,3 +1114,17 @@ test('character preparation requests writer-facing notes and emits no internal p
   assert.ok(calls[0]!.messages[0]!.content.includes('不写JSON字段名、内部编号或技术路径'));
   assert.ok(result.notes.every((n) => !/actors\.|privatePersona|publicCard/.test(n.text)));
 });
+
+test('numbered character document in a world-named ZIP admits its named actor without world completion', async () => {
+  const actor = { ...fixture().actors[0]!, name: '青青' };
+  const { planner, calls } = harness(reply({ actors: [actor] }));
+  const result = await planner.propose({
+    scope: 'characters',
+    currentContent: {},
+    sources: [{ filename: '世界剧本.zip > 人物1_青青.md', content: '她经营花店，偶尔提到小明。' }],
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(result.updatedContent, { actors: [actor] });
+  assert.deepEqual(JSON.parse(calls[0]!.messages[1]!.content).allowedCharacterNames, ['青青']);
+});

@@ -3,6 +3,15 @@ type Source = { filename: string; content: string };
 export type PreparationScope = 'world' | 'characters';
 const characterLabel = /人物|角色|朋友|character|people|actor/i;
 const worldLabel = /世界|剧情|剧本|开场|地点|场景|故事大纲|world|plot|opening|location|scene/i;
+function sourceBasename(filename: string): string {
+  // Import labels may include an archive name; only the individual document names its subject.
+  return filename
+    .split(/\s+(?:>|&gt;)\s+/)
+    .at(-1)!
+    .split(/[\\/]/)
+    .at(-1)!
+    .trim();
+}
 function headings(content: string): string[] {
   return content.split(/\r?\n/).filter((line) => /^\s{0,3}#{1,6}\s/.test(line));
 }
@@ -12,7 +21,9 @@ export function detectPublisherPreparationScope(sources: readonly Source[]): {
 } {
   if (!sources.length || sources.length > 32 || sources.some((s) => s.content.length > 131072))
     return { scope: 'world', confidence: 'uncertain' };
-  const labels = sources.map((s) => [s.filename, ...headings(s.content)].join('\n'));
+  const labels = sources.map((s) =>
+    [sourceBasename(s.filename), ...headings(s.content)].join('\n'),
+  );
   if (labels.some((s) => worldLabel.test(s))) return { scope: 'world', confidence: 'recognized' };
   if (labels.every((s) => characterLabel.test(s)))
     return { scope: 'characters', confidence: 'recognized' };
@@ -44,6 +55,7 @@ export function preparationCharacterNames(sources: readonly Source[]): string[] 
   };
   for (const source of sources.slice(0, 32)) {
     const text = source.content.slice(0, 131072);
+    const filename = sourceBasename(source.filename);
     let explicit = false;
     for (const line of text.split(/\r?\n/)) {
       const match =
@@ -55,7 +67,7 @@ export function preparationCharacterNames(sources: readonly Source[]): string[] 
         explicit = true;
       }
       // A named top-level heading in a character file is an explicit subject.
-      else if (characterLabel.test(source.filename) && /^#\s+/.test(line)) {
+      else if (characterLabel.test(filename) && /^#\s+/.test(line)) {
         const before = names.size;
         add(line.replace(/^#\s+/, ''));
         explicit ||= names.size > before;
@@ -63,15 +75,9 @@ export function preparationCharacterNames(sources: readonly Source[]): string[] 
     }
     // A single named file can itself identify its subject, but a generic file cannot.
     if (!explicit) {
-      const basename = source.filename
-        .split(/[\\/]/)
-        .at(-1)!
-        .replace(/\.(?:md|txt)$/i, '');
-      if (
-        characterLabel.test(source.filename) ||
-        headings(text).some((s) => characterLabel.test(s))
-      )
-        add(basename.replace(/^(?:人物|角色|朋友)[-_\s：:]+/, ''));
+      const basename = filename.replace(/\.(?:md|txt)$/i, '');
+      if (characterLabel.test(filename) || headings(text).some((s) => characterLabel.test(s)))
+        add(basename.replace(/^(?:人物|角色|朋友)(?:\s*\d+)?[-_\s：:]+/, ''));
     }
   }
   return [...names].slice(0, 100);
