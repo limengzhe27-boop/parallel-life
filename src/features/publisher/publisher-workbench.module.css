@@ -963,3 +963,41 @@
     flex: 1;
   }
 }
+
+.overallSetting {
+  margin: 24px 28px;
+  padding: 24px;
+  border: 1px solid var(--pub-border);
+  border-radius: 12px;
+  background: var(--pub-surface);
+  min-width: 0;
+}
+.overallSetting h3 {
+  margin: 20px 0 8px;
+  font-size: 18px;
+}
+.overallTextarea {
+  min-height: 280px;
+  resize: vertical;
+  line-height: 1.8;
+}
+.overallNotice {
+  color: var(--pub-warning);
+  background: var(--pub-warning-bg);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.scheduling > summary {
+  min-height: 44px;
+  cursor: pointer;
+}
+@media (max-width: 767px) {
+  .overallSetting {
+    margin: 16px;
+    padding: 16px;
+  }
+  .overallTextarea {
+    min-height: 240px;
+  }
+}

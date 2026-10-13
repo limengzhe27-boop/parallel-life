@@ -5,6 +5,7 @@ import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
 import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { PublisherReviewView } from './publisher-review-view.ts';
+import { readOverallSetting, updateOverallSetting } from './publisher-overall-setting.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
 import { PublisherImportDialog, manuscriptFingerprint } from './publisher-import-dialog.tsx';
 import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
@@ -39,14 +40,6 @@ import {
 import s from './publisher-workbench.module.css';
 
 type MainTab = 'settings' | 'actors' | 'plot' | 'review';
-
-function needsStorySetup(content: Record<string, unknown>) {
-  const work = plotRecord(content.work),
-    world = plotRecord(content.world);
-  return ![work.hook, work.description, world.publicSetting].some(
-    (value) => typeof value === 'string' && value.trim(),
-  );
-}
 
 function issueLabel(path: readonly (string | number)[], code: string) {
   if (code === 'trial_unverified') return '请先试演，并完成一条真实的角色对话，再重新检查。';
@@ -131,9 +124,7 @@ export function PublisherWorkbench(
 
   // Active main tab
   const [activeTab, setActiveTab] = useState<MainTab>('settings');
-  const [settingsOpen, setSettingsOpen] = useState(() =>
-    needsStorySetup(work?.draft.content ?? {}),
-  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Local working draft: initialized from props.work, retained upon server errors or user edits
   const [draftTitle, setDraftTitle] = useState(() => work?.title ?? '');
@@ -178,9 +169,51 @@ export function PublisherWorkbench(
     schedule: PublisherSchedule;
   }>();
 
+  const [overallInput, setOverallInput] = useState<string | undefined>();
+  const [overallPreparationText, setOverallPreparationText] = useState<string | undefined>();
+  const overall = useMemo(() => readOverallSetting(draftContent), [draftContent]);
+  const overallText = overallInput ?? overall.text;
+  const overallUpdate = useMemo(
+    () => updateOverallSetting(draftContent, overallText),
+    [draftContent, overallText],
+  );
+  const overallBlocked = overallInput !== undefined && !overallUpdate.ok;
+  const overallProblem = overallUpdate.ok ? undefined : overallUpdate.reason;
+  const overallMessage =
+    overallProblem === 'extension_budget'
+      ? '这段总体设定太长，暂不能保存或整理。文字已完整留在这里，请精简后再试。'
+      : overallProblem === 'extensions_budget' ||
+          overallProblem === 'content_budget' ||
+          overallProblem === 'extension_limit'
+        ? '这份作品的资料已接近容量上限，暂不能加入这段总体设定。文字已保留，请精简后再试。'
+        : overallProblem
+          ? '已有创作资料还需核对，暂不能替换总体设定。原资料和当前输入均已保留。'
+          : undefined;
+  function changeOverall(text: string) {
+    if (busy || !session.canEdit) return;
+    setOverallInput(text);
+    const result = updateOverallSetting(draftContent, text);
+    if (result.ok) setDraftContent(result.content);
+  }
+  function onPrepareOverall(text: string) {
+    if (
+      !work ||
+      busy ||
+      !session.canEdit ||
+      !props.preparationClient ||
+      !text.trim() ||
+      !updateOverallSetting(draftContent, text).ok
+    )
+      return;
+    setOverallPreparationText(text);
+    setShowMarkdownImport(true);
+  }
+
   // Sync state when props.work updates or changes workId/draftVersion
   useEffect(() => {
     if (!work) {
+      setOverallInput(undefined);
+      setOverallPreparationText(undefined);
       setDraftTitle('');
       setDraftContent({});
       setSelectedActorKey(null);
@@ -193,6 +226,8 @@ export function PublisherWorkbench(
     const isNewVersion = work.draft.version !== loadedDraftVersion;
 
     if (isNewWork || isNewVersion) {
+      setOverallInput(undefined);
+      setOverallPreparationText(undefined);
       setShowMarkdownImport(false);
       if (isNewWork) setMarkdownReview(undefined);
       setDraftTitle(work.title);
@@ -206,7 +241,7 @@ export function PublisherWorkbench(
         : [];
       if (isNewWork) {
         setActiveTab('settings');
-        setSettingsOpen(needsStorySetup(work.draft.content));
+        setSettingsOpen(false);
       }
       if (isNewWork || !selectedActorKey) {
         setSelectedActorKey(actors[0]?.key ?? null);
@@ -225,8 +260,8 @@ export function PublisherWorkbench(
 
   // Check if draft has unsaved changes
   const isDirty = useMemo(() => {
-    return isDraftDirty(savedState, { title: draftTitle, content: draftContent });
-  }, [savedState, draftTitle, draftContent]);
+    return overallBlocked || isDraftDirty(savedState, { title: draftTitle, content: draftContent });
+  }, [savedState, draftTitle, draftContent, overallBlocked]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -349,7 +384,7 @@ export function PublisherWorkbench(
 
   // Save draft
   const handleSaveDraft = useCallback(() => {
-    if (!work) return;
+    if (!work || busy || overallBlocked) return;
     if (!session.canEdit) {
       setNotice({ type: 'error', message: '权限不足：当前账号未被授予编辑作品权限。' });
       return;
@@ -359,7 +394,7 @@ export function PublisherWorkbench(
       title: draftTitle,
       content: draftContent,
     });
-  }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft]);
+  }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft, overallBlocked, busy]);
 
   // Create work
   const handleCreateWorkSubmit = useCallback(
@@ -581,7 +616,7 @@ export function PublisherWorkbench(
                   type="button"
                   className={`${s.btn} ${s.btnSecondary}`}
                   onClick={handleSaveDraft}
-                  disabled={busy || !session.canEdit || !isDirty}
+                  disabled={busy || !session.canEdit || !isDirty || overallBlocked}
                   title={
                     !session.canEdit
                       ? '您没有编辑权限'
@@ -606,8 +641,11 @@ export function PublisherWorkbench(
                 <button
                   type="button"
                   className={`${s.btn} ${s.btnSecondary}`}
-                  disabled={busy || !session.canEdit}
-                  onClick={() => setShowMarkdownImport(true)}
+                  disabled={busy || !session.canEdit || overallBlocked}
+                  onClick={() => {
+                    setOverallPreparationText(undefined);
+                    setShowMarkdownImport(true);
+                  }}
                 >
                   导入 Markdown
                 </button>
@@ -666,7 +704,7 @@ export function PublisherWorkbench(
                 className={`${s.tabButton} ${activeTab === 'settings' ? s.activeTab : ''}`}
                 onClick={() => setActiveTab('settings')}
               >
-                故事概览
+                总体设定
               </button>
               <button
                 type="button"
@@ -855,13 +893,14 @@ export function PublisherWorkbench(
               className={`${s.btn} ${s.btnSecondary}`}
               onClick={() => setActiveTab('settings')}
             >
-              回故事概览核对与编辑
+              回总体设定核对与编辑
             </button>
           </section>
         )}
 
         {work && (
-          <section className={s.scheduling} aria-label="安排故事时间">
+          <details className={s.scheduling} aria-label="安排故事时间">
+            <summary>故事时间（按需安排）</summary>
             <button
               type="button"
               className={`${s.btn} ${s.btnSecondary}`}
@@ -878,7 +917,7 @@ export function PublisherWorkbench(
                 context="draft"
               />
             )}
-          </section>
+          </details>
         )}
         {/* Empty workspace state */}
         {!work && (
@@ -891,28 +930,68 @@ export function PublisherWorkbench(
         )}
 
         {work && activeTab === 'settings' && (
-          <section className={s.storyOverview} aria-label="故事概览">
-            <button
-              type="button"
-              className={`${s.btn} ${s.btnSecondary}`}
-              onClick={() => {
-                setSettingsOpen(true);
-                window.requestAnimationFrame(() =>
-                  document
-                    .getElementById('writer-story-editor')
-                    ?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
-                );
-              }}
-            >
-              编辑故事
-            </button>
-            {needsStorySetup(draftContent) && (
-              <p>
-                先在下方填写故事介绍，或使用“导入
-                Markdown”整理已有文稿。填写只改编辑稿，保存由你决定。
+          <section className={s.overallSetting} id="writer-overall-setting" aria-label="总体设定">
+            <label className={s.fieldLabel} htmlFor="work-title-input">
+              作品标题
+            </label>
+            <input
+              id="work-title-input"
+              className={s.input}
+              value={worldSettings.title}
+              onChange={(e) => handleWorldSettingsChange('title', e.target.value)}
+              placeholder="给这段故事起个名字"
+              disabled={!session.canEdit || busy}
+            />
+            <h3>
+              <label htmlFor="writer-overall-text">总体设定</label>
+            </h3>
+            <p className={s.fieldHint}>
+              把背景、人物处境、矛盾和你想探索的可能性写在这里。这里保存私有创作原稿，不会直接改变玩家世界；公开内容在下方另行核对。
+            </p>
+            {overall.source === 'existing' && overallInput === undefined && (
+              <p className={s.overallNotice}>
+                以下是从既有设定汇总的回顾，不是原始文稿。可以从这里改写；未编辑前不会另存一份原稿。
               </p>
             )}
-            <PublisherReviewView content={draftContent} mode="draft" />
+            <textarea
+              id="writer-overall-text"
+              className={`${s.textarea} ${s.overallTextarea}`}
+              rows={12}
+              value={overallText}
+              disabled={!session.canEdit || busy}
+              onChange={(event) => changeOverall(event.target.value)}
+              placeholder="在这里写下你的世界和故事想法…"
+              aria-describedby="writer-overall-help"
+            />
+            <p id="writer-overall-help" className={s.fieldHint}>
+              已输入 {Array.from(overallText).length} 字。编辑后请保存；不会自动整理或发布。
+            </p>
+            {overallMessage && (
+              <p role="alert" className={s.overallNotice}>
+                {overallMessage}
+              </p>
+            )}
+            <button
+              type="button"
+              className={`${s.btn} ${s.btnPrimary}`}
+              disabled={
+                busy ||
+                !session.canEdit ||
+                !props.preparationClient ||
+                !overallText.trim() ||
+                !overallUpdate.ok
+              }
+              onClick={() => onPrepareOverall(overallText)}
+            >
+              根据总体设定整理
+            </button>
+            <p className={s.fieldHint}>
+              整理只作补充，核对后再填入；已有人物和剧情不会自动重写。要改写已有内容，请在下方展开核对并修改。幕后秘密不会直接当作玩家已知内容。
+            </p>
+            <details className={s.disclosure}>
+              <summary>查看已整理的故事</summary>
+              <PublisherReviewView content={draftContent} mode="draft" />
+            </details>
           </section>
         )}
         {work && activeTab === 'settings' && (
@@ -922,7 +1001,7 @@ export function PublisherWorkbench(
             open={settingsOpen}
             onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
           >
-            <summary>编辑故事介绍与世界设置</summary>
+            <summary>玩家进入后看到的内容 / 发布展示</summary>
             {/* ================= Tab 1: 世界设定 ================= */}
             {work && activeTab === 'settings' && (
               <div className={s.workspace}>
@@ -933,19 +1012,6 @@ export function PublisherWorkbench(
                       <p className={s.sectionHint}>展示在发现页与开局卡片</p>
                     </div>
                     <div className={s.formGrid}>
-                      <div className={s.formField}>
-                        <label className={s.fieldLabel} htmlFor="work-title-input">
-                          作品标题
-                        </label>
-                        <input
-                          id="work-title-input"
-                          className={s.input}
-                          value={worldSettings.title}
-                          onChange={(e) => handleWorldSettingsChange('title', e.target.value)}
-                          placeholder="例：如果，我的公司上市了"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
                       <div className={s.formField}>
                         <label className={s.fieldLabel} htmlFor="work-hook-input">
                           一句话吸引点 (Hook)
@@ -1715,11 +1781,18 @@ export function PublisherWorkbench(
           referenceAt={work.createdAt}
           content={draftContent}
           disabled={busy || !session.canEdit}
-          onClose={() => setShowMarkdownImport(false)}
+          initialOverallText={overallPreparationText}
+          onClose={() => {
+            setShowMarkdownImport(false);
+            setOverallPreparationText(undefined);
+          }}
           onApply={(next, summary, options?: { keepOpen?: boolean }) => {
+            if (overallBlocked) return;
+            setOverallInput(undefined);
+            setOverallPreparationText(undefined);
             setDraftContent(next);
             setActiveTab('settings');
-            setSettingsOpen(needsStorySetup(next));
+            setSettingsOpen(false);
             setShowMarkdownImport(!!options?.keepOpen);
             setMarkdownReview(summary);
             const nextWork = next.work as { title?: unknown } | undefined;

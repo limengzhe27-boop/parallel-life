@@ -419,7 +419,7 @@ test('missing or unrecognized start date stays explicitly actionable outside fol
   }
 });
 
-test('an empty new story visibly opens editing without automatically saving', () => {
+test('an empty new story shows only the overall author input by default without automatically saving', () => {
   let saved = 0;
   const content = { work: { title: '新故事' }, world: { startAt: '' } };
   const html = renderToStaticMarkup(
@@ -431,8 +431,10 @@ test('an empty new story visibly opens editing without automatically saving', ()
       work: { ...mockWork, draft: { ...mockWork.draft, content } },
     }),
   );
-  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor" open="">/);
-  assert.match(html, /先在下方填写故事介绍/);
+  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
+  assert.match(html, /id="writer-overall-text"/);
+  assert.doesNotMatch(html, /id="writer-overall-text"[^>]*maxLength/);
+  assert.match(html, /玩家进入后看到的内容 \/ 发布展示/);
   assert.match(html, /id="work-title-input"/);
   assert.equal(saved, 0);
 });
@@ -668,4 +670,158 @@ test('author settings retain optional old descriptions but remove raw-data editi
   assert.match(html, /故事介绍（玩家可知）/);
   const actor = renderTab(defaultProps, 'actors');
   assert.doesNotMatch(actor, /稳定标识|内部标识/);
+});
+
+function overallNodes(value: unknown): ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(value)) return value.flatMap(overallNodes);
+  if (!isValidElement(value)) return [];
+  const e = value as ReactElement<Record<string, unknown>>;
+  return [e, ...overallNodes(e.props.children)];
+}
+function overallHarness(overrides: Partial<Parameters<typeof PublisherWorkbench>[0]> = {}) {
+  let cursor = 0;
+  const states: unknown[] = [];
+  Object.assign(globalThis, {
+    __writerHooks: {
+      useState: (v: unknown) => {
+        const i = cursor++;
+        if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
+        return [
+          states[i],
+          (next: unknown) => {
+            states[i] = typeof next === 'function' ? next(states[i]) : next;
+          },
+        ];
+      },
+    },
+  });
+  const content = {
+    work: { title: '旧标题', description: '原简介' },
+    world: { publicSetting: '公开故事', hiddenContext: '不公开的秘密' },
+    actors: [],
+    extensions: [],
+  };
+  const saved: unknown[] = [];
+  const props = {
+    ...defaultProps,
+    work: { ...mockWork, draft: { ...mockWork.draft, content } },
+    onSaveDraft: (value: unknown) => saved.push(value),
+    ...overrides,
+  };
+  const render = () => {
+    cursor = 0;
+    return overallNodes(PublisherWorkbench(props));
+  };
+  const input = () => render().find((n) => n.props.id === 'writer-overall-text')!;
+  const button = (label: string) => {
+    const b = render().find((n) => n.type === 'button' && n.props.children === label);
+    assert.ok(b, label);
+    return b;
+  };
+  const change = (value: string) =>
+    (input().props.onChange as (v: unknown) => void)({ target: { value } });
+  const click = (label: string) => (button(label).props.onClick as () => void)();
+  return {
+    props,
+    render,
+    input,
+    button,
+    change,
+    click,
+    saved,
+    content,
+    close: () => Reflect.deleteProperty(globalThis, '__writerHooks'),
+  };
+}
+test('overall editing preserves author text, secret/public separation and existing fields while only explicit save persists', () => {
+  const h = overallHarness();
+  try {
+    assert.match(String(h.input().props.value), /公开故事/);
+    assert.equal(h.saved.length, 0);
+    h.change('新总体稿\n含幕后秘密，不能公开。');
+    assert.equal(h.input().props.value, '新总体稿\n含幕后秘密，不能公开。');
+    assert.equal(h.saved.length, 0);
+    h.click('保存草稿');
+    const saved = h.saved[0] as { content: Record<string, unknown> };
+    assert.deepEqual(saved.content.world, h.content.world);
+    assert.deepEqual(saved.content.work, h.content.work);
+    const extensions = saved.content.extensions as {
+      namespace: string;
+      purpose: string;
+      data: { text: string };
+    }[];
+    assert.equal(extensions[0]!.purpose, 'editorial');
+    assert.equal(extensions[0]!.namespace, 'parallel_life.authoring_overall');
+    assert.equal(extensions[0]!.data.text, h.input().props.value);
+  } finally {
+    h.close();
+  }
+});
+test('over-budget input stays intact, blocks stale partial save and can be corrected without lost typing', () => {
+  const h = overallHarness();
+  try {
+    h.change('正常草稿');
+    const long = '中'.repeat(3000) + '保留末尾';
+    h.change(long);
+    assert.equal(h.input().props.value, long);
+    assert.equal(h.input().props.maxLength, undefined);
+    assert.equal(h.button('保存草稿').props.disabled, true);
+    h.click('保存草稿');
+    assert.equal(h.saved.length, 0);
+    assert.equal(h.button('根据总体设定整理').props.disabled, true);
+    assert.ok(h.render().some((n) => n.props.role === 'alert'));
+    h.change('改短后的完整原文');
+    h.click('保存草稿');
+    assert.equal(h.saved.length, 1);
+    const saved = h.saved[0] as { content: { extensions: { data: { text: string } }[] } };
+    assert.equal(saved.content.extensions[0]!.data.text, '改短后的完整原文');
+  } finally {
+    h.close();
+  }
+});
+test('overall preparation only opens the real dialog with explicit text and ordinary import clears that seed', async () => {
+  const { PublisherImportDialog } =
+    await import('../src/features/publisher/publisher-import-dialog.tsx');
+  let calls = 0;
+  const client = new Proxy(
+    {},
+    {
+      get() {
+        calls++;
+        throw Error('no model or network call expected');
+      },
+    },
+  ) as NonNullable<Parameters<typeof PublisherWorkbench>[0]['preparationClient']>;
+  const h = overallHarness({ preparationClient: client });
+  try {
+    h.change('只送这段总体原稿');
+    h.click('根据总体设定整理');
+    const dialog = h.render().find((n) => n.type === PublisherImportDialog)!;
+    assert.ok(dialog);
+    assert.equal(dialog.props.initialOverallText, '只送这段总体原稿');
+    assert.equal(calls, 0);
+    assert.equal(h.saved.length, 0);
+    (dialog.props.onClose as () => void)();
+    h.click('导入 Markdown');
+    assert.equal(
+      h.render().find((n) => n.type === PublisherImportDialog)!.props.initialOverallText,
+      undefined,
+    );
+  } finally {
+    h.close();
+  }
+});
+test('overall change and preparation handlers cannot bypass read-only or busy states', () => {
+  for (const patch of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
+    const h = overallHarness(patch);
+    try {
+      const before = h.input().props.value;
+      h.change('不能写入');
+      assert.equal(h.input().props.value, before);
+      h.click('根据总体设定整理');
+      assert.equal(h.saved.length, 0);
+    } finally {
+      h.close();
+    }
+  }
 });
