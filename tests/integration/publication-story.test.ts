@@ -46,6 +46,7 @@ const compiler: PublicationWorldCompilerPort = {
   prepare(i) {
     const c = structuredClone(i.content) as Record<string, unknown>;
     delete c.timeline;
+    delete c.conditions;
     c.candidates = [];
     const r = compilePublicationGenesis({
       ...i,
@@ -291,6 +292,62 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
     actorId: c.actorId,
     text: '仅本地合成回复，不代表真实模型',
   });
+  await t.test(
+    'named conditions persist from exact published source and block/allow real preparation',
+    async () => {
+      const doc = authored();
+      doc.conditions = [
+        {
+          key: 'ready_gate',
+          title: '时间与地点',
+          match: 'all',
+          prerequisites: [
+            { kind: 'at_place', placeKey: doc.world.startPlaceKey },
+            { kind: 'not_before', at: '2026-10-12T10:00:00.000Z' },
+          ],
+        },
+      ];
+      doc.candidates[0].conditionKeys = ['ready_gate'];
+      const blocked = await make(doc);
+      assert.notEqual(
+        (await story.prepare(owner, blocked.world.worldId, { automatic: false })).status,
+        'claimed',
+      );
+      const saved = (
+        await admin.query(
+          'SELECT document FROM parallel_life.publication_story_plans WHERE world_id=$1',
+          [blocked.world.worldId],
+        )
+      ).rows[0].document;
+      assert.deepEqual(saved.conditions, doc.conditions);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.publication_story_nodes WHERE world_id=$1',
+            [blocked.world.worldId],
+          )
+        ).rows[0].n,
+        0,
+      );
+      // Changing the caller plan cannot bypass its immutable authored gate.
+      await assert.rejects(
+        () =>
+          app.transaction(owner, async (sql) => {
+            await sql.query('SELECT parallel_life.publication_story_store_plan($1,$2)', [
+              blocked.world.worldId,
+              { ...saved, conditions: [] },
+            ]);
+          }),
+        (e: unknown) => (e as { code: string }).code === '23514',
+      );
+      doc.conditions[0].match = 'any';
+      const allowed = await make(doc);
+      assert.equal(
+        (await story.prepare(owner, allowed.world.worldId, { automatic: false })).status,
+        'claimed',
+      );
+    },
+  );
   const { w, world } = await make();
   let first: PublicationStoryClaim, invite: PublicationStoryClaim, invitationId: string;
   await t.test(

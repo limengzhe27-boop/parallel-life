@@ -213,6 +213,17 @@ const shape = z
           .max(16),
       })
       .optional(),
+    conditions: z
+      .array(
+        z.strictObject({
+          key,
+          title: text(120),
+          match: z.enum(['all', 'any']),
+          prerequisites: z.array(prerequisite).min(1).max(16),
+        }),
+      )
+      .max(32)
+      .optional(),
     candidates: z
       .array(
         z.strictObject({
@@ -223,6 +234,7 @@ const shape = z
           actorKeys: refs(12),
           placeKey: key.optional(),
           prerequisites: z.array(prerequisite).max(16),
+          conditionKeys: refs(16).optional(),
           mutuallyExclusiveNodeKeys: refs(16),
           intent,
           timeline: z

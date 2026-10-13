@@ -1,3 +1,4 @@
+import { conditionChoices } from './publisher-condition-model.ts';
 import {
   plotArray,
   plotRecord,
@@ -13,6 +14,7 @@ import {
 
 export type StoryGraphNode = {
   key: string;
+  conditionKey?: string;
   title: string;
   stageKey?: string;
   stageLabel: string;
@@ -212,6 +214,48 @@ export function buildStoryGraph(raw: Record<string, unknown>): StoryGraph {
       }
     }
   }
+  const groups = conditionChoices(content);
+  if (content.conditions !== undefined && !Array.isArray(content.conditions))
+    warnings.add('独立条件列表待核对，原稿未修改。');
+  if (plotArray(content.conditions).length !== groups.length)
+    warnings.add('部分独立条件的关联缺失或重复，请先核对。');
+  const conditionNodes: StoryGraphNode[] = groups.map((group) => {
+    const row = plotArray(content.conditions)
+      .map(plotRecord)
+      .find((r) => r.key === group.key)!;
+    const terms = plotArray(row.prerequisites);
+    if (!terms.length || !['all', 'any'].includes(plotText(row.match)))
+      warnings.add('部分独立条件还没有填写完整，不会放行事件。');
+    const node: StoryGraphNode = {
+      key: `condition:${group.key}`,
+      conditionKey: group.key,
+      title: group.label,
+      stageKey: '__conditions',
+      stageLabel: '独立条件',
+      editable: true,
+      intentLabel: row.match === 'any' ? '条件 · 任一满足' : '条件 · 全部满足',
+      conditions: [
+        row.match === 'any' ? '以下任意一项满足即可' : '以下条件需要全部满足',
+        ...terms.map((p) => plotConditionText(content, p)),
+      ],
+    };
+    for (const term of terms.map(plotRecord))
+      if (term.kind === 'after_committed_node' || term.kind === 'after_resolved_node')
+        edge(target(term.nodeKey), node, 'prerequisite', plotConditionText(content, term));
+    return node;
+  });
+  for (const [index, raw] of candidateRows.entries()) {
+    for (const key of strings(plotRecord(raw).conditionKeys, '关联的独立条件')) {
+      const group = conditionNodes.find((n) => n.conditionKey === key);
+      edge(
+        group,
+        nodes[index],
+        'prerequisite',
+        `条件「${group?.title ?? '待核对'}」满足后才可发生`,
+      );
+      nodes[index]!.conditions.push(`独立条件「${group?.title ?? '待核对'}」须满足`);
+    }
+  }
   for (const node of nodes) {
     const inbound = inboundAlternatives.get(node.key);
     if (inbound?.length) node.conditions.push(`替代入口（任一满足）：${inbound.join('；')}`);
@@ -222,5 +266,5 @@ export function buildStoryGraph(raw: Record<string, unknown>): StoryGraph {
         '出现要求须全部满足；同一项结果或替代入口任选其一，排除情况会阻止出现',
       );
   }
-  return { nodes, edges, stages, warnings: [...warnings] };
+  return { nodes: [...conditionNodes, ...nodes], edges, stages, warnings: [...warnings] };
 }

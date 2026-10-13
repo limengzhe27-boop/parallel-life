@@ -1,0 +1,136 @@
+.root {
+  border: 1px solid var(--pub-border, #d8dee9);
+  background: var(--pub-surface, #fff);
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 0;
+  color: var(--pub-text, #172033);
+  scroll-margin-top: 80px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.heading h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.root p {
+  color: var(--pub-secondary, #566276);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.root button,
+.root input:not([type='checkbox']),
+.root select {
+  font: inherit;
+  min-height: 44px;
+  border: 1px solid var(--pub-border, #d8dee9);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: inherit;
+  background: var(--pub-surface, #fff);
+  max-width: 100%;
+}
+.root button {
+  cursor: pointer;
+}
+.root button:hover {
+  background: var(--pub-accent-soft, #e8efff);
+}
+.root button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.root :is(button, input, select):focus-visible {
+  outline: 2px solid var(--pub-ring, #245fe5);
+  outline-offset: 2px;
+}
+.body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 22px;
+  margin-top: 18px;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.list button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.list button[aria-pressed='true'] {
+  background: var(--pub-accent-soft, #e8efff);
+  border-color: var(--pub-accent, #245fe5);
+}
+.editor {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 15px;
+}
+.field input,
+.field select {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 16px !important;
+  min-width: 0;
+}
+.term {
+  border-bottom: 1px solid var(--pub-border, #d8dee9);
+  padding-bottom: 16px;
+  display: grid;
+  gap: 10px;
+}
+.root fieldset {
+  border: 1px solid var(--pub-border, #d8dee9);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  overflow-wrap: anywhere;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.add {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.root .error {
+  color: var(--pub-error, #a32632);
+}
+@media (max-width: 700px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .list {
+    flex-direction: row;
+    overflow: auto;
+  }
+  .list button {
+    flex: 0 0 150px;
+  }
+  .root {
+    padding: 14px;
+  }
+}

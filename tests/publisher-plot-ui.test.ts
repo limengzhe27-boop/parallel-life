@@ -36,6 +36,8 @@ registerHooks({
 });
 const { PublisherPlotEditor } = await import('../src/features/publisher/publisher-plot-editor.tsx');
 const { PublisherStoryGraph } = await import('../src/features/publisher/publisher-story-graph.tsx');
+const { PublisherConditionEditor } =
+  await import('../src/features/publisher/publisher-condition-editor.tsx');
 function content(): PlotRecord {
   return {
     world: { startAt: '2026-10-12T09:00:00Z', hiddenContext: 'PRIVATE_NEVER_RENDER' },
@@ -83,7 +85,7 @@ function walk(value: ReactNode): Native[] {
   if (Array.isArray(value)) return value.flatMap(walk);
   if (!isValidElement(value)) return [];
   const e = value as Native;
-  if (e.type === PublisherStoryGraph) return [e];
+  if (e.type === PublisherStoryGraph || e.type === PublisherConditionEditor) return [e];
   if (typeof e.type === 'function') return walk((e.type as (p: unknown) => ReactNode)(e.props));
   return [e, ...walk(e.props.children as ReactNode)];
 }
@@ -92,8 +94,17 @@ function text(value: unknown): string {
   if (isValidElement(value)) return text((value.props as Record<string, unknown>).children);
   return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 }
+function renderPlot(props: PublisherPlotEditorProps): ReactNode {
+  let result: ReactNode = null;
+  function Capture() {
+    result = PublisherPlotEditor(props);
+    return null;
+  }
+  renderToStaticMarkup(createElement(Capture));
+  return result;
+}
 function tree(props: PublisherPlotEditorProps) {
-  return walk(PublisherPlotEditor(props));
+  return walk(renderPlot(props));
 }
 function button(nodes: Native[], label: string) {
   const e = nodes.find((n) => n.type === 'button' && text(n.props.children) === label);
@@ -336,7 +347,7 @@ function details(nodes: Native[], prefix: string) {
 test('writer first view hides internal keys and optional date controls without mutating the draft', () => {
   const t = setup();
   const before = structuredClone(t.props.content);
-  const value = visibleText(PublisherPlotEditor(t.props));
+  const value = visibleText(renderPlot(t.props));
   for (const label of [
     '已经发生的事',
     '剧情阶段',
@@ -380,7 +391,7 @@ test('missing required history and invitation dates open even non-first rows and
       ),
   )!;
   assert.equal(blankHistory.props.open, true);
-  assert.ok(visibleText(PublisherPlotEditor(t.props)).includes('试演'));
+  assert.ok(visibleText(renderPlot(t.props)).includes('试演'));
   assert.equal(details(nodes, '邀约最早时间').props.open, true);
   assert.equal(input(nodes, 'plot_history_fact_b_1_occurredAt').props.value, '');
   assert.equal(t.calls, 0);
@@ -391,9 +402,7 @@ test('existing date windows remain discoverable, collapsed and unchanged by unre
   stage.window = { notBefore: '2026-10-12T08:00:00Z', expiresAt: '2026-10-15T08:00:00Z' };
   const t = setup(false, c);
   const nodes = tree(t.props);
-  assert.ok(
-    visibleText(PublisherPlotEditor(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'),
-  );
+  assert.ok(visibleText(renderPlot(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'));
   assert.equal(details(nodes, '限定日期（选填） · 2026').props.open, false);
   change(input(nodes, 'plot_candidates_node_a_0_title'), '新的故事标题');
   assert.deepEqual(plotRecord(plotRows(t.next!, 'stages')[0]).window, stage.window);

@@ -328,6 +328,8 @@ export function plotIssues(content: PlotRecord): string[] {
     start_outside_stage_window: '世界起点不在初阶段窗口内',
     fact_not_actor_visible: '已知事实超出人物可见范围',
     unknown_fact: '事实引用不存在',
+    unknown_condition: '关联的独立条件不存在',
+    condition_self_dependency: '事件不能等待自身的结果，请调整条件',
     candidate_stage_missing: '请选择事件所属阶段',
     timeline_missing: '请先建立剧情阶段',
     not_before_at_or_after_deadline: '前置时间已经超过节点窗口',
@@ -340,7 +342,9 @@ export function plotIssues(content: PlotRecord): string[] {
       ...local,
       ...result.error.issues
         .filter((i) =>
-          ['history', 'timeline', 'candidates', 'initialKnowledge'].includes(String(i.path[0])),
+          ['history', 'timeline', 'candidates', 'conditions', 'initialKnowledge'].includes(
+            String(i.path[0]),
+          ),
         )
         .map(
           (i) =>

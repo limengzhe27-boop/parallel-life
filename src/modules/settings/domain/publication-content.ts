@@ -16,6 +16,12 @@ export type PublicationPrerequisite =
   | ({ kind: 'after_resolved_node' } & PublicationResolutionCondition)
   | { kind: 'at_place'; placeKey: string }
   | { kind: 'not_before'; at: string };
+export type PublicationConditionNode = {
+  key: string;
+  title: string;
+  match: 'all' | 'any';
+  prerequisites: PublicationPrerequisite[];
+};
 export type PublicationIntent =
   | { kind: 'editorial_only' }
   | { kind: 'offer_message'; actorKey: string; text: string }
@@ -119,6 +125,7 @@ export type PublicationContent = {
       window?: PublicationStoryWindow;
     }[];
   };
+  conditions?: PublicationConditionNode[];
   candidates: {
     key: string;
     kind: 'candidate';
@@ -126,6 +133,7 @@ export type PublicationContent = {
     editorialIntent: string;
     actorKeys: string[];
     placeKey?: string;
+    conditionKeys?: string[];
     prerequisites: PublicationPrerequisite[];
     mutuallyExclusiveNodeKeys: string[];
     intent: PublicationIntent;
@@ -366,7 +374,51 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       issue(['phone', 'album', i, 'historyFactKey'], 'fact_not_player_known');
   });
   c.media.forEach((m, i) => visibility(m.visibility, ['media', i, 'visibility']));
+  const conditionNodes = new Map(
+    (c.conditions ?? []).map((condition) => [condition.key, condition]),
+  );
+  unique(
+    (c.conditions ?? []).map((condition) => condition.key),
+    ['conditions'],
+  );
+  for (const [i, condition] of (c.conditions ?? []).entries()) {
+    for (const [j, p] of condition.prerequisites.entries()) {
+      const path = ['conditions', i, 'prerequisites', j];
+      if (p.kind === 'history_fact' && !facts.has(p.factKey)) issue(path, 'unknown_fact');
+      if (
+        (p.kind === 'after_committed_node' || p.kind === 'after_resolved_node') &&
+        !nodes.has(p.nodeKey)
+      )
+        issue(path, 'invalid_node_reference');
+      if (p.kind === 'at_place' && !places.has(p.placeKey)) issue(path, 'unknown_place');
+      if (p.kind === 'not_before' && Date.parse(p.at) < start)
+        issue(path, 'candidate_time_before_start');
+    }
+  }
+  // Only mandatory terms participate in contradiction/dependency checks. An OR branch is not mandatory.
+  const requiredTerms = (n: PublicationContent['candidates'][number]) => [
+    ...n.prerequisites,
+    ...(n.conditionKeys ?? []).flatMap((key) => {
+      const group = conditionNodes.get(key);
+      return group && (group.match === 'all' || group.prerequisites.length === 1)
+        ? group.prerequisites
+        : [];
+    }),
+  ];
   c.candidates.forEach((n, i) => {
+    unique(n.conditionKeys ?? [], ['candidates', i, 'conditionKeys']);
+    for (const key of n.conditionKeys ?? []) {
+      const group = conditionNodes.get(key);
+      if (!group) issue(['candidates', i, 'conditionKeys'], 'unknown_condition');
+      if (
+        group?.prerequisites.some(
+          (p) =>
+            (p.kind === 'after_committed_node' || p.kind === 'after_resolved_node') &&
+            p.nodeKey === n.key,
+        )
+      )
+        issue(['candidates', i, 'conditionKeys'], 'condition_self_dependency');
+    }
     actorRefs(n.actorKeys, ['candidates', i, 'actorKeys']);
     if (n.placeKey && !places.has(n.placeKey))
       issue(['candidates', i, 'placeKey'], 'unknown_place');
@@ -405,7 +457,7 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
   const dependencies = new Map(
     c.candidates.map((n) => [
       n.key,
-      n.prerequisites.flatMap((p) => (p.kind === 'after_committed_node' ? [p.nodeKey] : [])),
+      requiredTerms(n).flatMap((p) => (p.kind === 'after_committed_node' ? [p.nodeKey] : [])),
     ]),
   );
   const visiting = new Set<string>(),
@@ -484,7 +536,7 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       path = ['candidates', i, 'timeline'];
     if (c.timeline && !t) issue(path, 'candidate_stage_missing');
     if (t && !c.timeline) issue(path, 'timeline_missing');
-    if (!t && node.prerequisites.some((p) => p.kind === 'after_resolved_node'))
+    if (!t && requiredTerms(node).some((p) => p.kind === 'after_resolved_node'))
       issue(path, 'timeline_missing');
     const stage = t && stages.get(t.stageKey);
     if (t && !stage) issue([...path, 'stageKey'], 'unknown_stage');
@@ -499,7 +551,7 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     const w = nodeWindow(node);
     if (w && Date.parse(w.expiresAt) <= start)
       issue([...path, 'window'], 'candidate_expired_at_start');
-    node.prerequisites.forEach((condition, j) => {
+    requiredTerms(node).forEach((condition, j) => {
       if (
         condition.kind === 'not_before' &&
         w &&
@@ -511,7 +563,7 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       if (!nodeMap.has(key) || key === node.key) issue(position, 'invalid_node_reference');
       return nodeMap.get(key);
     }
-    for (const p of node.prerequisites) {
+    for (const p of requiredTerms(node)) {
       if (p.kind !== 'after_committed_node' && p.kind !== 'after_resolved_node') continue;
       const prior = nodeRef(p.nodeKey, ['candidates', i, 'prerequisites']);
       if (prior) progress.get(prior.key)!.push(node.key);

@@ -42,6 +42,7 @@ export type StoryPlan = {
   origin: StoryOrigin;
   timeline: PublicationContent['timeline'] | null;
   nodes: StoryNode[];
+  conditions?: PublicationContent['conditions'];
   actors: { key: string; id: string }[];
   places: { key: string; name: string }[];
   history: { key: string; factIds: string[]; allowedActorIds: string[] }[];
@@ -50,6 +51,7 @@ export type StorySource = {
   origin: StoryOrigin;
   timeline: PublicationContent['timeline'] | null;
   nodes: StoryNode[];
+  conditions?: PublicationContent['conditions'];
   actorKeys: string[];
   history: PublicationContent['history'];
   knownFactKeys: string[];
@@ -151,6 +153,7 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
     origin: { ...s.origin },
     timeline: s.timeline ? structuredClone(s.timeline) : null,
     nodes: structuredClone(s.nodes),
+    ...(s.conditions?.length ? { conditions: structuredClone(s.conditions) } : {}),
     actors,
     places: structuredClone(s.places.filter((p) => s.initialPlaceKeys.includes(p.key))),
     history: histories,
@@ -284,7 +287,7 @@ export function evaluateStory(
         ),
       );
       if (inbound.length && !inbound.some((p) => virtual.get(p.key) === p.outcome)) return false;
-      return n.prerequisites.every((p) => {
+      const matches = (p: StoryNode['prerequisites'][number]): boolean => {
         if (p.kind === 'not_before') return Date.parse(context.storyNow) >= Date.parse(p.at);
         if (p.kind === 'at_place') return p.placeKey === context.currentPlaceId;
         if (p.kind === 'after_committed_node') return virtual.get(p.nodeKey) === 'committed';
@@ -299,7 +302,18 @@ export function evaluateStory(
           h.factIds.length > 0 &&
           h.factIds.every((id) => context.availableFactIds.includes(id))
         );
-      });
+      };
+      return (
+        n.prerequisites.every(matches) &&
+        (n.conditionKeys ?? []).every((key) => {
+          const groups = (plan.conditions ?? []).filter((group) => group.key === key);
+          const group = groups.length === 1 ? groups[0] : undefined;
+          if (!group || !group.prerequisites.length) return false;
+          if (group.match === 'all') return group.prerequisites.every(matches);
+          if (group.match === 'any') return group.prerequisites.some(matches);
+          return false;
+        })
+      );
     })
     .sort((a, b) => {
       const order = (n: StoryNode) =>

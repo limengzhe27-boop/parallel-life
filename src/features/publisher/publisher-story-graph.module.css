@@ -229,3 +229,12 @@
     scroll-behavior: auto;
   }
 }
+
+.node.conditionNode {
+  border-radius: 28px 8px 28px 8px;
+  border-color: var(--pub-warning, #8a5418);
+  background: var(--pub-warning-bg, #fff2d8);
+}
+.node.conditionNode.selected {
+  border-color: var(--pub-accent, #245fe5);
+}

@@ -1,6 +1,8 @@
 'use client';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { PublisherConditionEditor } from './publisher-condition-editor.tsx';
+import { conditionChoices } from './publisher-condition-model.ts';
 import {
   addPlotRow,
   deletePlotRow,
@@ -81,6 +83,7 @@ function issueText(issue: string) {
       {
         history: '已发生的事',
         candidates: '可能发生的剧情',
+        conditions: '独立条件',
         timeline: '剧情阶段',
         initialKnowledge: '人物知情',
       } as Record<string, string>
@@ -174,6 +177,7 @@ function selectControl(
   );
 }
 export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPlotEditorProps) {
+  const [selectedCondition, setSelectedCondition] = useState<string>();
   const actors = plotChoices(content, 'actors'),
     places = plotChoices(content, 'places'),
     facts = plotChoices(content, 'history'),
@@ -652,6 +656,8 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
               </div>
               <div className={s.group}>
                 <h4>出现前要满足什么</h4>
+                {conditionChoices(content).length > 0 &&
+                  refsField('需要满足的独立条件', ['conditionKeys'], conditionChoices(content))}
                 <p className={s.hint}>
                   以下前置条件需要全部满足；同一条件勾选的多个结果，任意一个满足即可。满足条件只表示可以考虑这段剧情，不保证立即发生，也不代表任务已经完成。
                 </p>
@@ -866,7 +872,22 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
       <p className={s.notice}>
         先写故事，再安排先后条件。阶段和可能发生的剧情不必逐条填写日期。先填写并保存，能否运行以检查结果为准；可能发生的剧情不是已发生事实。
       </p>
-      <PublisherStoryGraph content={content} disabled={disabled} onSelect={selectGraphEvent} />
+      <PublisherStoryGraph
+        content={content}
+        disabled={disabled}
+        onSelect={selectGraphEvent}
+        onSelectCondition={(key) => {
+          setSelectedCondition(key);
+          document.getElementById('publisher-conditions')?.scrollIntoView({ block: 'start' });
+        }}
+      />
+      <PublisherConditionEditor
+        content={content}
+        disabled={disabled}
+        selectedKey={selectedCondition}
+        onSelect={setSelectedCondition}
+        onChange={onChange}
+      />
       {disabled && <p className={s.hint}>当前只读或正在处理操作，修改入口暂不可用。</p>}
       {issues.length > 0 && (
         <div className={s.card} role="status">

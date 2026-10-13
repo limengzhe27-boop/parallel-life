@@ -8,6 +8,7 @@ export type PublisherStoryGraphProps = {
   content: Record<string, unknown>;
   disabled: boolean;
   onSelect: (key: string) => void;
+  onSelectCondition?: (key: string) => void;
 };
 const cardWidth = 258;
 const cardHeight = 164;
@@ -21,6 +22,7 @@ export function layoutStoryGraph(graph: StoryGraph) {
     if (!groups.some((group) => group.key === key))
       groups.push({ key, label: node.stageLabel || '未分阶段' });
   }
+  groups.sort((a, b) => (a.key === '__conditions' ? -1 : b.key === '__conditions' ? 1 : 0));
   const counts = new Map<string, number>();
   const positioned = graph.nodes.map((node) => {
     const key = node.stageKey ?? '';
@@ -46,7 +48,12 @@ const edgeNames = {
   stage: '阶段先后',
 };
 
-export function PublisherStoryGraph({ content, disabled, onSelect }: PublisherStoryGraphProps) {
+export function PublisherStoryGraph({
+  content,
+  disabled,
+  onSelect,
+  onSelectCondition,
+}: PublisherStoryGraphProps) {
   const graph = buildStoryGraph(content);
   const layout = layoutStoryGraph(graph);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -62,9 +69,14 @@ export function PublisherStoryGraph({ content, disabled, onSelect }: PublisherSt
       <div className={s.heading}>
         <div>
           <h3>剧情流程图</h3>
-          <p>先看故事的走向，再点事件查看条件和编辑内容。</p>
+          <p>事件与独立条件一起看，点选卡片查看关联并编辑。</p>
         </div>
-        <span className={s.count}>{graph.nodes.length} 个事件</span>
+        <span className={s.count}>
+          {graph.nodes.filter((n) => !n.conditionKey).length} 个事件
+          {graph.nodes.some((n) => n.conditionKey)
+            ? ` · ${graph.nodes.filter((n) => n.conditionKey).length} 个条件`
+            : ''}
+        </span>
       </div>
       <p className={s.note}>
         连线表示发生条件或可能的发展，不代表事件一定发生。满足全部条件后，由导演结合当前情况安排。
@@ -179,7 +191,7 @@ export function PublisherStoryGraph({ content, disabled, onSelect }: PublisherSt
                 <button
                   key={node.key}
                   type="button"
-                  className={`${s.node} ${node.key === selectedKey ? s.selected : ''}`}
+                  className={`${s.node} ${node.conditionKey ? s.conditionNode : ''} ${node.key === selectedKey ? s.selected : ''}`}
                   style={{ left: node.x, top: node.y, width: cardWidth, height: cardHeight }}
                   aria-pressed={node.key === selectedKey}
                   onClick={() => setSelectedKey(node.key)}
@@ -207,10 +219,18 @@ export function PublisherStoryGraph({ content, disabled, onSelect }: PublisherSt
                 <button
                   type="button"
                   className={s.edit}
-                  disabled={disabled || !selected.editable}
-                  onClick={() => onSelect(selected.key)}
+                  disabled={
+                    disabled ||
+                    !selected.editable ||
+                    (!!selected.conditionKey && !onSelectCondition)
+                  }
+                  onClick={() =>
+                    selected.conditionKey
+                      ? onSelectCondition?.(selected.conditionKey)
+                      : onSelect(selected.key)
+                  }
                 >
-                  编辑此事件
+                  {selected.conditionKey ? '编辑此条件' : '编辑此事件'}
                 </button>
               </div>
               <strong>什么时候可以考虑发生</strong>
