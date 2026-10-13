@@ -143,6 +143,7 @@ export type PublicationContent = {
     kind: 'candidate';
     title: string;
     editorialIntent: string;
+    direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
     actorKeys: string[];
     placeKey?: string;
     conditionKeys?: string[];

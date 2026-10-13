@@ -248,6 +248,13 @@ const shape = z
           kind: z.literal('candidate'),
           title: text(120),
           editorialIntent: text(1600),
+          direction: z
+            .strictObject({
+              mode: z.enum(['required', 'optional']),
+              expectedImpact: text(1200).optional(),
+              experience: text(1200).optional(),
+            })
+            .optional(),
           actorKeys: refs(12),
           placeKey: key.optional(),
           prerequisites: z.array(prerequisite).max(16),
