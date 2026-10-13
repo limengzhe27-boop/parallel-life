@@ -1049,20 +1049,24 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
   }
   return (
     <div className={s.editor} aria-label="剧情编辑器">
-      <p className={s.notice}>
-        先写一组围绕主角的事件概述，再按需要添加前提。每件事可以独立发生，不必连接成固定路线，也不必逐条填写日期。先填写并保存，能否运行以检查结果为准。导演结合世界设定与人物开始演绎，事件展开不代表玩家已经完成。
+      <p className={s.hint}>
+        先写事件概述，按需添加前提，不必逐条填写日期。先填写并保存，能否运行以检查结果为准；事件展开不代表玩家已完成。
       </p>
       {disabled && <p className={s.hint}>当前只读或正在处理操作，修改入口暂不可用。</p>}
       {issues.length > 0 && (
-        <div className={s.card} role="status">
-          <h3>需要补齐的内容</h3>
-          <p className={s.hint}>可以保留为未完整草稿；发布条件由真实后台检查，未在这里判定就绪。</p>
-          <ul className={s.references}>
-            {issues.map((issue, i) => (
-              <li key={i}>{issueText(issue)}</li>
-            ))}
-          </ul>
-        </div>
+        <details className={s.compactIssues}>
+          <summary className={s.summary}>
+            <span role="status">有 {issues.length} 处内容待核对</span>
+          </summary>
+          <div className={s.advancedBody}>
+            <p className={s.hint}>可以先保存草稿；这些问题仍需核对，能否发布以实际检查结果为准。</p>
+            <ul className={s.references}>
+              {issues.map((issue, i) => (
+                <li key={i}>{issueText(issue)}</li>
+              ))}
+            </ul>
+          </div>
+        </details>
       )}
       {(['candidates', 'history', 'stages'] as PlotSection[]).map((section) => {
         const config = sections[section],

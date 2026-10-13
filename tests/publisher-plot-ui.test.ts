@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   plotRecord,
   plotRows,
+  plotIssues,
   type PlotRecord,
 } from '../src/features/publisher/publisher-plot-model.ts';
 import type { PublisherPlotEditorProps } from '../src/features/publisher/publisher-plot-editor.tsx';
@@ -266,6 +267,37 @@ test('SSR offers three editable sections and honest Chinese setup guidance witho
     assert.ok(html.includes(value), value);
   assert.ok(!html.includes('PRIVATE_NEVER_RENDER'));
   assert.ok(!html.includes('UNKNOWN_NEVER_RENDER'));
+  assert.equal(t.calls, 0);
+});
+test('incomplete event feedback is a collapsed count while each problem remains available without edits', () => {
+  const c = content();
+  const node = plotRecord(plotRows(c, 'candidates')[0]);
+  node.title = '';
+  node.editorialIntent = '';
+  node.intent = { kind: 'director_event', actorKey: '' };
+  const t = setup(false, c);
+  const before = structuredClone(c);
+  const expected = plotIssues(c).length;
+  assert.ok(expected > 0);
+  const rendered = renderPlot(t.props);
+  const disclosure = tree(t.props).find(
+    (item) => item.type === 'details' && item.props.className === 'compactIssues',
+  )!;
+  assert.ok(disclosure);
+  assert.ok(!disclosure.props.open);
+  assert.ok(visibleText(rendered).includes(`有 ${expected} 处内容待核对`));
+  assert.ok(!visibleText(rendered).includes('这些问题仍需核对'));
+  assert.equal(
+    walk(disclosure.props.children as ReactNode).filter((item) => item.type === 'li').length,
+    expected,
+  );
+  assert.equal(
+    tree(t.props).find(
+      (item) => item.type === 'p' && text(item.props.children).startsWith('先写事件概述'),
+    )?.props.className,
+    'hint',
+  );
+  assert.deepEqual(c, before);
   assert.equal(t.calls, 0);
 });
 test('add buttons call the controlled change callback with incomplete drafts and no auto save', () => {
