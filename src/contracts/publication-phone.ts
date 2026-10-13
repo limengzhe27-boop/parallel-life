@@ -28,6 +28,7 @@ export const PublicationOpeningSchema = z.strictObject({
         name: z.string().min(1).max(80),
         relationship: z.string().max(600),
         identity: z.string().max(160).optional(),
+        introduction: z.string().max(1600).optional(),
         traits: z.array(z.string().max(60)).max(3),
         appearance: z.string().max(240).optional(),
       }),

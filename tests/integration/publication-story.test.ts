@@ -17,6 +17,7 @@ import {
   readPublicationInvitationLinks,
   readPublicationSceneBrief,
 } from '../../src/modules/settings/infrastructure/publication-story-repository.ts';
+import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { compilePublicationGenesis } from '../../src/modules/settings/infrastructure/publication-genesis.ts';
 import {
@@ -444,6 +445,14 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
         initial.messages.map((m) => m.role),
         ['user', 'assistant'],
       );
+      const phone = await new BuildRepository(app).phone(owner, wid);
+      assert.deepEqual(
+        phone.messages.map((m) => m.role),
+        ['user', 'assistant'],
+      );
+      assert.ok(phone.actors.some((a) => a.summary?.includes('作者公开介绍')));
+      assert.ok(!JSON.stringify(phone).includes('ONLY_THIS_PERSON_PRIVATE_MODULE'));
+      assert.ok(!JSON.stringify(phone).includes('HIDDEN_FULL_CONTEXT'));
       const social = await app.transaction(
         owner,
         async (sql) =>
