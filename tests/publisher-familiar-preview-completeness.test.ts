@@ -173,3 +173,90 @@ test('one-sided, other-contact or future records do not satisfy the required fam
     ['character_preview_history_missing', 'character_preview_moments_missing'],
   );
 });
+
+test('whole-world scope uses the same confirmed familiar completeness rule without relying on a role upload', async () => {
+  const before = current();
+  const h = harness((n) => ({
+    actors: [actor()],
+    phone: n === 1 ? { messages: [], moments: [] } : phone,
+  }));
+  const result = await h.planner.propose({
+    scope: 'world',
+    currentContent: before,
+    sources: [
+      { filename: '总体设定.md', content: '博物馆同事准备新展览，人物关系以已填写的设定为准。' },
+    ],
+  });
+  assert.equal(h.calls.length, 2);
+  const correction = JSON.parse(h.calls[1]![1]!.content);
+  assert.ok(
+    correction.validationIssues.some(
+      (i: { code: string }) => i.code === 'character_preview_history_missing',
+    ),
+  );
+  assert.ok(
+    correction.validationIssues.some(
+      (i: { code: string }) => i.code === 'character_preview_moments_missing',
+    ),
+  );
+  assert.ok(!result.issues.some((i) => i.code.startsWith('character_preview_')));
+  assert.ok(h.calls[0]![0]!.content.includes('不要要求编剧预写聊天台词'));
+  assert.deepEqual(
+    (result.updatedContent.phone as Record<string, unknown>).notes,
+    (before.phone as Record<string, unknown>).notes,
+  );
+});
+test('whole-world empty familiar output stays incomplete after the bounded correction; unconfirmed and dateless roles are exempt', async () => {
+  const h = harness(() => ({ actors: [actor()], phone: { messages: [], moments: [] } }));
+  const result = await h.planner.propose({
+    scope: 'world',
+    currentContent: current(),
+    sources: [{ filename: '总体设定.md', content: '普通生活' }],
+  });
+  assert.equal(h.calls.length, 2);
+  assert.ok(result.issues.some((i) => i.code === 'character_preview_history_missing'));
+  for (const a of [
+    { ...actor(), knownAtStart: false },
+    { ...actor(), lifeModules: {} },
+  ])
+    assert.deepEqual(
+      characterPreviewCompletenessIssues({ actors: [a] }, { phone: {} }, [], referenceAt, true),
+      [],
+    );
+  assert.deepEqual(
+    characterPreviewCompletenessIssues(current(), { phone: {} }, [], undefined, true),
+    [],
+  );
+});
+test('whole-world preparation does not turn unlabelled private material into a public introduction', async () => {
+  const a = actor();
+  delete (a.publicCard as { introduction?: string }).introduction;
+  const h = harness(() => ({
+    actors: [{ ...a, publicCard: { ...a.publicCard, introduction: 'PRIVATE_WORLD' } }],
+    phone,
+  }));
+  const result = await h.planner.propose({
+    scope: 'world',
+    currentContent: { ...current(), actors: [a] },
+    sources: [{ filename: '总体设定.md', content: '幕后动机：PRIVATE_WORLD。' }],
+  });
+  const saved = (
+    result.updatedContent.actors as Array<{ publicCard: Record<string, unknown> }>
+  )[0]!;
+  assert.equal(saved.publicCard.introduction, undefined);
+  assert.ok(result.notes.some((n) => n.kind === 'review' && n.text.includes('公开介绍')));
+  const keep = actor();
+  const retained = harness(() => ({
+    actors: [{ ...keep, publicCard: { ...keep.publicCard, introduction: '模型另写' } }],
+    phone,
+  }));
+  const next = await retained.planner.propose({
+    scope: 'world',
+    currentContent: current(),
+    sources: [{ filename: '总体设定.md', content: '作者总体设定' }],
+  });
+  assert.equal(
+    (next.updatedContent.actors as (typeof keep)[])[0]!.publicCard.introduction,
+    keep.publicCard.introduction,
+  );
+});

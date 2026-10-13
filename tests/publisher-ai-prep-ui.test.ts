@@ -744,3 +744,82 @@ test('reopening overall preparation restores only matching source and scope with
   assert.equal(button(changed.render(), '让 AI 整理本批文稿').props.disabled, false);
   assert.equal(changed.applied.length, 0);
 });
+
+test('authored character seed is an explicit local preparation, locks scope and sends its unchanged source only on click', async () => {
+  const sources = [
+    { filename: '人物表单_顾夏.md', content: '# 人物：顾夏\n## 关系模型\n> 多年的同事' },
+  ];
+  const s = setup({ initialSources: sources, initialScope: 'characters' });
+  s.render();
+  await settle();
+  let nodes = s.render();
+  assert.equal(s.posts.length, 0);
+  assert.equal(s.applied.length, 0);
+  assert.ok(label(nodes).includes('整理人物文稿'));
+  assert.ok(!nodes.some((n) => n.type === 'input' && n.props.type === 'file'));
+  const scope = nodes.find((n) => n.type === 'select' && n.props['aria-label'] === '本批整理范围')!;
+  assert.equal(scope.props.value, 'characters');
+  assert.equal(scope.props.disabled, true);
+  click(button(nodes, '让 AI 整理本批文稿'));
+  await settle();
+  assert.equal(s.posts[0]?.scope, 'characters');
+  assert.deepEqual(s.posts[0]?.sources, sources);
+  assert.deepEqual(s.posts[0]?.currentContent, base);
+  assert.equal(s.applied.length, 0);
+});
+test('changing the seeded character or preparation scope invalidates an in-flight response even with the same draft', async () => {
+  const pending = deferred<PublisherPreparationRecord>();
+  const s = setup({
+    initialSources: [{ filename: '人物_甲.md', content: '# 人物：甲' }],
+    initialScope: 'characters',
+    preparationClient: {
+      latestPreparation: async () => ({ preparation: null }),
+      getPreparation: async () => record(),
+      prepareManuscript: (_work, input) => {
+        s.posts.push(input);
+        return pending.promise;
+      },
+    },
+  });
+  s.render();
+  await settle();
+  click(button(s.render(), '让 AI 整理本批文稿'));
+  s.props.initialSources = [{ filename: '人物_乙.md', content: '# 人物：乙' }];
+  s.render();
+  await settle();
+  pending.resolve(record(s.posts[0]));
+  await settle();
+  assert.ok(!label(s.render()).includes('合成测试结果'));
+  assert.equal(s.applied.length, 0);
+});
+test('overall form includes authored role manuscripts and cannot restore a role-only or changed-source result', async () => {
+  const sources = [{ filename: '人物_顾夏.md', content: '# 人物：顾夏\n## 人生背景\n> 作者原文' }];
+  const s = setup({
+    initialOverallText: '旧城生活',
+    initialSources: sources,
+    initialScope: 'world',
+  });
+  s.render();
+  await settle();
+  click(button(s.render(), '让 AI 整理本批文稿'));
+  await settle();
+  assert.equal(s.posts[0]?.scope, 'world');
+  assert.deepEqual(s.posts[0]?.sources, [
+    { filename: '总体设定.md', content: '旧城生活' },
+    ...sources,
+  ]);
+  const previous = record(s.posts[0]);
+  previous.status = 'unknown';
+  previous.result = null;
+  previous.material.scope = 'characters';
+  const restored = setup({
+    ...s.props,
+    preparationClient: {
+      ...s.props.preparationClient!,
+      latestPreparation: async () => ({ preparation: previous }),
+    },
+  });
+  restored.render();
+  await settle();
+  assert.ok(!label(restored.render()).includes('重新整理（新请求）'));
+});

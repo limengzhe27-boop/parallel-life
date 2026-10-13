@@ -7,6 +7,10 @@ import { publicationLocalTime, publicationUtcTime } from './publisher-story-time
 import { readOverallSetting, updateOverallSetting } from './publisher-overall-setting.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
 import { phoneTrialMatches, type PublisherPhoneTrial } from './publisher-phone-trial.ts';
+import {
+  characterManuscriptSource,
+  currentCharacterManuscripts,
+} from './publisher-character-manuscript.ts';
 import { PublisherCharacterPreview } from './publisher-character-preview.tsx';
 import { PublisherImportDialog, manuscriptFingerprint } from './publisher-import-dialog.tsx';
 import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
@@ -183,6 +187,12 @@ export function PublisherWorkbench(
 
   const [overallInput, setOverallInput] = useState<string | undefined>();
   const [overallPreparationText, setOverallPreparationText] = useState<string | undefined>();
+  const [formPreparationSources, setFormPreparationSources] = useState<
+    { filename: string; content: string }[] | undefined
+  >();
+  const [formPreparationScope, setFormPreparationScope] = useState<
+    'world' | 'characters' | undefined
+  >();
   const overall = useMemo(() => readOverallSetting(draftContent), [draftContent]);
   const overallText = overallInput ?? overall.text;
   const overallUpdate = useMemo(
@@ -218,6 +228,8 @@ export function PublisherWorkbench(
     )
       return;
     setOverallPreparationText(text);
+    setFormPreparationSources(currentCharacterManuscripts(draftContent));
+    setFormPreparationScope('world');
     setShowMarkdownImport(true);
   }
 
@@ -256,6 +268,8 @@ export function PublisherWorkbench(
     if (!work) {
       setOverallInput(undefined);
       setOverallPreparationText(undefined);
+      setFormPreparationSources(undefined);
+      setFormPreparationScope(undefined);
       setDraftTitle('');
       setDraftContent({});
       setSelectedActorKey(null);
@@ -270,6 +284,8 @@ export function PublisherWorkbench(
     if (isNewWork || isNewVersion) {
       setOverallInput(undefined);
       setOverallPreparationText(undefined);
+      setFormPreparationSources(undefined);
+      setFormPreparationScope(undefined);
       setShowMarkdownImport(false);
       if (isNewWork) setMarkdownReview(undefined);
       setDraftTitle(work.title);
@@ -740,6 +756,8 @@ export function PublisherWorkbench(
                   disabled={busy || !session.canEdit || overallBlocked}
                   onClick={() => {
                     setOverallPreparationText(undefined);
+                    setFormPreparationSources(undefined);
+                    setFormPreparationScope(undefined);
                     setShowMarkdownImport(true);
                   }}
                 >
@@ -1018,7 +1036,7 @@ export function PublisherWorkbench(
               <label htmlFor="writer-overall-text">总体设定</label>
             </h3>
             <p className={s.fieldHint}>
-              把背景、人物处境、矛盾和你想探索的可能性写在这里。这里保存私有创作原稿，不会直接改变玩家世界；公开内容在下方另行核对。
+              把背景、人物处境、矛盾和你想探索的可能性写在这里。整理出的内容核对后再保存、试演和发布。
             </p>
             {overall.source === 'existing' && overallInput === undefined && (
               <p className={s.overallNotice}>
@@ -1079,7 +1097,7 @@ export function PublisherWorkbench(
                     <div className={s.formGrid}>
                       <div className={s.formField}>
                         <label className={s.fieldLabel} htmlFor="work-hook-input">
-                          一句话吸引点 (Hook)
+                          一句话介绍
                         </label>
                         <input
                           id="work-hook-input"
@@ -1406,6 +1424,48 @@ export function PublisherWorkbench(
             {/* Right Form: 5 Sections for Active Character */}
             {currentActorForm ? (
               <div className={s.editorPane}>
+                <div className={s.characterPreparation}>
+                  <label htmlFor="character-author-name">
+                    人物姓名
+                    <input
+                      id="character-author-name"
+                      className={s.input}
+                      value={currentActorForm.name}
+                      maxLength={80}
+                      disabled={busy || !session.canEdit}
+                      onChange={(event) => handleActorChange('name', event.currentTarget.value)}
+                    />
+                  </label>
+                  <div>
+                    <button
+                      type="button"
+                      className={s.btnPrimary}
+                      disabled={
+                        busy ||
+                        !session.canEdit ||
+                        !props.preparationClient ||
+                        !characterManuscriptSource(draftContent, currentActorForm.key)
+                      }
+                      onClick={() => {
+                        if (busy || !session.canEdit || !props.preparationClient) return;
+                        const source = characterManuscriptSource(
+                          draftContent,
+                          currentActorForm.key,
+                        );
+                        if (!source) return;
+                        setOverallPreparationText(undefined);
+                        setFormPreparationSources([source]);
+                        setFormPreparationScope('characters');
+                        setShowMarkdownImport(true);
+                      }}
+                    >
+                      整理本角色的历史与朋友圈
+                    </button>
+                    <p className={s.characterPreparationHint}>
+                      把下方的人物设定与作者介绍带入整理，核对补充的历史和动态后填入、保存，再用真实手机试演。
+                    </p>
+                  </div>
+                </div>
                 <PublisherCharacterPreview
                   content={draftContent}
                   actorKey={currentActorForm.key}
@@ -1878,16 +1938,22 @@ export function PublisherWorkbench(
           content={draftContent}
           disabled={busy || !session.canEdit}
           initialOverallText={overallPreparationText}
+          initialSources={formPreparationSources}
+          initialScope={formPreparationScope}
           onClose={() => {
             setShowMarkdownImport(false);
             setOverallPreparationText(undefined);
+            setFormPreparationSources(undefined);
+            setFormPreparationScope(undefined);
           }}
           onApply={(next, summary, options?: { keepOpen?: boolean }) => {
             if (overallBlocked) return;
             setOverallInput(undefined);
             setOverallPreparationText(undefined);
+            setFormPreparationSources(undefined);
+            setFormPreparationScope(undefined);
             setDraftContent(next);
-            setActiveTab('settings');
+            setActiveTab(formPreparationScope === 'characters' ? 'actors' : 'settings');
             setSettingsOpen(false);
             setShowMarkdownImport(!!options?.keepOpen);
             setMarkdownReview(summary);

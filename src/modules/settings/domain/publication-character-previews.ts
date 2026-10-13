@@ -255,6 +255,7 @@ export function characterPreviewCompletenessIssues(
   updated: RecordValue,
   sources: readonly Source[],
   referenceAt?: string,
+  allAuthoredActors = false,
 ): PublicationIssue[] {
   if (!validCharacterPreviewTime(referenceAt)) return [];
   const names = new Set(preparationCharacterNames(sources));
@@ -266,7 +267,7 @@ export function characterPreviewCompletenessIssues(
     if (
       !validKey(actor.key) ||
       typeof actor.name !== 'string' ||
-      !names.has(actor.name) ||
+      (!allAuthoredActors && !names.has(actor.name)) ||
       actor.knownAtStart !== true ||
       !text(modules.relationships, 4000) ||
       actors.filter((a) => a.key === actor.key).length !== 1

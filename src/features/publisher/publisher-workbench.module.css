@@ -1205,3 +1205,28 @@
     min-height: 44px;
   }
 }
+
+.characterPreparation {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+.characterPreparation label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+@media (max-width: 767px) {
+  .characterPreparation {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.characterPreparationHint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--pub-secondary);
+  line-height: 1.6;
+}

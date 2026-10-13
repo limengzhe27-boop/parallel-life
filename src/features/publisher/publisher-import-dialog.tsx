@@ -312,6 +312,8 @@ export function PublisherImportDialog({
   version,
   referenceAt,
   initialOverallText,
+  initialSources,
+  initialScope,
   content,
   disabled,
   preparationClient,
@@ -323,6 +325,8 @@ export function PublisherImportDialog({
   referenceAt?: string;
   /** Explicit author action opens a private source; never automatically calls the model. */
   initialOverallText?: string;
+  initialSources?: Source[];
+  initialScope?: PreparationScope;
   content: Record<string, unknown>;
   disabled: boolean;
   preparationClient?: PreparationClient;
@@ -367,7 +371,17 @@ export function PublisherImportDialog({
     referenceAt,
     content,
     initialOverallText,
+    initialSources,
+    initialScope,
   ]);
+  const seededSources = [
+    ...(initialOverallText?.trim()
+      ? [{ filename: '总体设定.md', content: initialOverallText }]
+      : []),
+    ...(initialSources ?? []),
+  ];
+  const seeded = seededSources.length > 0;
+  const seededScope = initialScope ?? (initialOverallText ? 'world' : undefined);
   const current = useRef({ baseline, disabled, onApply });
   current.current = { baseline, disabled, onApply };
   const stagedBaseline = useRef<string | undefined>(undefined);
@@ -460,13 +474,13 @@ export function PublisherImportDialog({
     }
     setLibrary([]);
     setRemainingSources([]);
-    if (initialOverallText?.trim()) {
-      const files = [{ filename: '总体设定.md', content: initialOverallText }];
-      setText(initialOverallText);
+    if (seeded) {
+      const files = seededSources;
+      setText(initialOverallText ?? '');
       setLibrary(files);
       setRemainingSources(files);
       setSources(manuscriptBatches(files, content).batches[0] ?? []);
-      setScopeChoice('world');
+      setScopeChoice(seededScope ?? 'auto');
     }
     if (!preparationClient || disabled) return;
     // Server scopes latest to this signed-in staff member. No manuscript enters browser storage.
@@ -476,12 +490,20 @@ export function PublisherImportDialog({
       .latestPreparation(workId)
       .then(({ preparation }) => {
         if (!stillCurrent(id, start) || !preparation) return;
-        if (initialOverallText?.trim()) {
-          const expected = [{ filename: '总体设定.md', content: initialOverallText }];
+        if (seeded) {
+          const expected = manuscriptBatches(seededSources, content).batches[0] ?? [];
           if (
-            preparationMatches(preparation, workId, version, content, expected, undefined, 'world')
+            preparationMatches(
+              preparation,
+              workId,
+              version,
+              content,
+              expected,
+              undefined,
+              seededScope,
+            )
           )
-            accept(preparation, expected, undefined, 'world');
+            accept(preparation, expected, undefined, seededScope);
         } else accept(preparation);
       })
       .catch(() => {
@@ -764,12 +786,14 @@ export function PublisherImportDialog({
       <header className={s.header}>
         <div>
           <h2 id="publisher-import-title">
-            {initialOverallText ? '整理总体设定' : '导入与整理文稿'}
+            {initialOverallText ? '整理总体设定' : seeded ? '整理人物文稿' : '导入与整理文稿'}
           </h2>
           <p>
             {initialOverallText
               ? '总体设定已带入 → 查看整理稿 → 核对后填入'
-              : '导入故事 → 查看整理稿 → 核对问题 → 填入草稿'}
+              : seeded
+                ? '人物设定已带入 → 核对历史与动态 → 填入并保存草稿'
+                : '导入故事 → 查看整理稿 → 核对问题 → 填入草稿'}
           </p>
         </div>
         <button type="button" onClick={onClose} aria-label="关闭文稿导入">
@@ -783,9 +807,11 @@ export function PublisherImportDialog({
               ? `原稿与重新整理 · ${sources.length} 份文稿`
               : initialOverallText
                 ? '核对这份总体设定'
-                : '第一步：导入你的故事'}
+                : seeded
+                  ? '核对这位人物的设定'
+                  : '第一步：导入你的故事'}
           </summary>
-          {initialOverallText ? null : (
+          {seeded ? null : (
             <>
               <label className={s.field}>
                 选择文稿或 ZIP 压缩包
@@ -839,58 +865,60 @@ export function PublisherImportDialog({
             </>
           )}
           {reading && <p role="status">正在读取文稿…</p>}
-          {remainingSources.length > 0 && !initialOverallText && (
-            <section className={s.preview} aria-label="文稿处理范围">
-              <h3>已读取 {library.length || remainingSources.length} 份文稿</h3>
-              <p>
-                尚有 {remainingSources.length} 份待填入。本次整理 {sources.length}{' '}
-                份，核对填入后可继续下一批；不会自动连续调用 AI。
-              </p>
-              {queue.batches.length > 1 && (
-                <label className={s.field}>
-                  本次整理哪一批
-                  <select
-                    aria-label="选择文稿批次"
-                    disabled={unavailable}
-                    value={Math.max(
-                      0,
-                      queue.batches.findIndex(
-                        (batch) => manuscriptFingerprint(batch) === manuscriptFingerprint(sources),
-                      ),
-                    )}
-                    onChange={(event) => {
-                      sequence.current++;
-                      clearResult();
-                      setSources(queue.batches[Number(event.target.value)] ?? []);
-                      setScopeChoice('auto');
-                    }}
-                  >
-                    {queue.batches.map((batch, index) => (
-                      <option value={index} key={index}>
-                        第 {index + 1} 批 · {batch.length} 份文稿
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {queue.oversized.length > 0 && (
-                <div role="status">
-                  <p>
-                    以下文稿与当前故事合计仍超过一次整理容量，尚未处理，也没有截取或丢弃。请按人物、剧情章节拆分后再读入。
-                  </p>
-                  <ul>
-                    {queue.oversized.map((file, index) => (
-                      <li key={index}>{file.filename}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <button type="button" onClick={downloadSources}>
-                下载全部原稿备份
-              </button>
-              <p className={s.help}>本次未处理的文稿保留在此窗口，关闭或刷新前请保留原文件。</p>
-            </section>
-          )}
+          {remainingSources.length > 0 &&
+            (!seeded || queue.batches.length > 1 || queue.oversized.length > 0) && (
+              <section className={s.preview} aria-label="文稿处理范围">
+                <h3>已读取 {library.length || remainingSources.length} 份文稿</h3>
+                <p>
+                  尚有 {remainingSources.length} 份待填入。本次整理 {sources.length}{' '}
+                  份，核对填入后可继续下一批；不会自动连续调用 AI。
+                </p>
+                {queue.batches.length > 1 && (
+                  <label className={s.field}>
+                    本次整理哪一批
+                    <select
+                      aria-label="选择文稿批次"
+                      disabled={unavailable}
+                      value={Math.max(
+                        0,
+                        queue.batches.findIndex(
+                          (batch) =>
+                            manuscriptFingerprint(batch) === manuscriptFingerprint(sources),
+                        ),
+                      )}
+                      onChange={(event) => {
+                        sequence.current++;
+                        clearResult();
+                        setSources(queue.batches[Number(event.target.value)] ?? []);
+                        setScopeChoice('auto');
+                      }}
+                    >
+                      {queue.batches.map((batch, index) => (
+                        <option value={index} key={index}>
+                          第 {index + 1} 批 · {batch.length} 份文稿
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {queue.oversized.length > 0 && (
+                  <div role="status">
+                    <p>
+                      以下文稿与当前故事合计仍超过一次整理容量，尚未处理，也没有截取或丢弃。请按人物、剧情章节拆分后再读入。
+                    </p>
+                    <ul>
+                      {queue.oversized.map((file, index) => (
+                        <li key={index}>{file.filename}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <button type="button" onClick={downloadSources}>
+                  下载全部原稿备份
+                </button>
+                <p className={s.help}>本次未处理的文稿保留在此窗口，关闭或刷新前请保留原文件。</p>
+              </section>
+            )}
           {!!sources.length && (
             <section className={s.preview} aria-label="原稿">
               <h3>本次使用 {sources.length} 份原稿</h3>
@@ -913,7 +941,11 @@ export function PublisherImportDialog({
                 <select
                   aria-label="本批整理范围"
                   value={scopeChoice}
-                  disabled={unavailable || record?.status === 'running'}
+                  disabled={
+                    unavailable ||
+                    record?.status === 'running' ||
+                    (seeded && seededScope === 'characters')
+                  }
                   onChange={(event) => {
                     sequence.current++;
                     clearResult();
