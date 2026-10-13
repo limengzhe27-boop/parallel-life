@@ -112,6 +112,43 @@ function issueLabel(path: readonly (string | number)[], code: string) {
   return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
 }
 
+function syncWorldSettingsFromOverall(
+  content: Record<string, unknown>,
+  overallText: string,
+  title: string,
+): Record<string, unknown> {
+  const text = overallText.trim();
+  if (!text) return content;
+  const current = parseWorldSettings(content, title);
+  const firstLine = text.split('\n').find((l) => l.trim().length > 0)?.trim() || title;
+  const hook = current.hook || (firstLine.slice(0, 60) || '一段关于抉择与羁绊的平行人生');
+  const description = current.description || (text.slice(0, 500) || hook);
+  const experienceNote = current.experienceNote || '沉浸式平行人生体验，请根据内心直觉做出抉择。';
+  const publicSetting = current.publicSetting || (text.slice(0, 800) || description);
+  const hiddenContext = current.hiddenContext || text;
+  const tone = current.tone || '现实质感 · 情感波澜';
+  const startAt = current.startAt || '2026-10-14T09:00:00Z';
+  const places = Array.isArray(content.places) ? content.places : [];
+  const firstPlaceKey =
+    places.length > 0 && typeof (places[0] as Record<string, unknown>)?.key === 'string'
+      ? ((places[0] as Record<string, unknown>).key as string)
+      : '';
+  const startPlaceKey = current.startPlaceKey || firstPlaceKey;
+
+  return updateWorldSettingsInContent(content, {
+    ...current,
+    title: current.title || title,
+    hook,
+    description,
+    experienceNote,
+    publicSetting,
+    hiddenContext,
+    tone,
+    startAt,
+    startPlaceKey,
+  });
+}
+
 export function PublisherWorkbench(
   props: PublisherWorkbenchProps & {
     preparationClient?: PublisherClient;
@@ -1061,20 +1098,33 @@ export function PublisherWorkbench(
                 {overallMessage}
               </p>
             )}
-            <button
-              type="button"
-              className={`${s.btn} ${s.btnPrimary}`}
-              disabled={
-                busy ||
-                !session.canEdit ||
-                !props.preparationClient ||
-                !overallText.trim() ||
-                !overallUpdate.ok
-              }
-              onClick={() => onPrepareOverall(overallText)}
-            >
-              根据总体设定整理
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnPrimary}`}
+                disabled={
+                  busy ||
+                  !session.canEdit ||
+                  !props.preparationClient ||
+                  !overallText.trim() ||
+                  !overallUpdate.ok
+                }
+                onClick={() => onPrepareOverall(overallText)}
+              >
+                根据总体设定整理
+              </button>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnSecondary}`}
+                disabled={busy || !session.canEdit || !overallText.trim()}
+                onClick={() => {
+                  setDraftContent((prev) => syncWorldSettingsFromOverall(prev, overallText, draftTitle));
+                  setNotice({ type: 'success', message: '已根据总体设定自动填充底层展示与开局参数。' });
+                }}
+              >
+                同步到展示字段
+              </button>
+            </div>
           </section>
         )}
         {work && activeTab === 'settings' && (
@@ -1084,7 +1134,7 @@ export function PublisherWorkbench(
             open={settingsOpen}
             onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
           >
-            <summary>玩家进入后看到的内容 / 发布展示</summary>
+            <summary>玩家进入后看到的内容 / 发布展示（已由总体设定自动填充）</summary>
             {/* ================= Tab 1: 世界设定 ================= */}
             {work && activeTab === 'settings' && (
               <div className={s.workspace}>

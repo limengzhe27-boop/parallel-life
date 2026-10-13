@@ -50,10 +50,10 @@ const sections = {
     limit: 16,
   },
   candidates: {
-    title: '事件概述列表',
-    help: '每件事独立写清主角会面临什么，前提可不填。需要推进的事件在条件允许时开始演绎，可选事件由导演择机采用。',
+    title: '事件概述列表（核心事件库）',
+    help: '数量由编导按需自由增删（支持任意数量）。每件事独立写清主角面临的起因、博弈与必须达成的结局（约150~200字），前提可不填。需要推进的事件在条件允许时开始演绎，可选事件由导演择机采用。',
     add: '新增事件',
-    limit: 32,
+    limit: 64,
   },
 };
 const conditionNames = {
@@ -232,6 +232,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
       help = '',
       multiline = false,
       maxLength?: number,
+      placeholder?: string,
     ) {
       const value = plotValue(row, path),
         lock = branchBlocked(path),
@@ -241,6 +242,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           value: plotText(value),
           disabled: lock,
           maxLength,
+          placeholder,
           onChange: (e: { target: { value: string } }) => patch(path, e.target.value),
         };
       const timeField = ['occurredAt', 'notBefore', 'expiresAt', 'earliestAt', 'at'].includes(
@@ -616,26 +618,33 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           )}
           {section === 'candidates' && (
             <>
-              {field('事件标题', ['title'], '例如朋友邀请你看店', false, 120)}
+              {field('事件标题', ['title'], '例如前女友上门捉奸、突发被裁员危机', false, 120)}
               {field(
                 '事件概述：主角将面临什么',
                 ['editorialIntent'],
-                '写清这件事的处境与可能变化，长短按内容需要。导演结合人物与世界设定演绎，不用预写台词。',
+                '写清这件事的处境与可能变化（建议包含：【起因】+【博弈两难】+【收敛结局与冲击】，约150~200字）。导演结合人物与世界设定演绎，不用预写台词。',
                 true,
                 1600,
+                '【起因】突发了什么打破主角现状…\n【博弈】主角面临什么两难抉择…\n【结局】最终导演把冲突引向什么收敛局面与主角感受…',
               )}
-              {intentKind === 'director_event' &&
-                selectControl(
-                  '主要人物（由谁开启）',
-                  plotText(intent.actorKey),
-                  actors,
-                  blocked || unsafeIntent || malformedParticipants,
-                  (actorKey) => {
-                    if (!blocked && !unsafeIntent && !malformedParticipants)
-                      emit(() => setPlotEventLead(content, key, actorKey));
-                  },
-                  id(['intent', 'actorKey']),
-                )}
+              {intentKind === 'director_event' && (
+                <>
+                  {selectControl(
+                    '主要人物（由谁开启）',
+                    plotText(intent.actorKey),
+                    actors,
+                    blocked || unsafeIntent || malformedParticipants,
+                    (actorKey) => {
+                      if (!blocked && !unsafeIntent && !malformedParticipants)
+                        emit(() => setPlotEventLead(content, key, actorKey));
+                    },
+                    id(['intent', 'actorKey']),
+                  )}
+                  <p className={`${s.hint} ${s.wide}`} style={{ margin: '4px 0 8px' }}>
+                    提示：若此事件涉及多角博弈或多名角色入局，可在下方「更多安排」中勾选。
+                  </p>
+                </>
+              )}
               <div className={`${s.preconditions} ${s.wide}`} aria-label="事件前提">
                 <strong>发生前提</strong>
                 {preconditionSummaries.length ? (
