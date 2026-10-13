@@ -256,6 +256,20 @@ test('file/text reading never calls AI, consent and two review checks precede lo
   nodes = s.render();
   assert.equal(s.posts.length, 1);
   assert.equal(s.applied.length, 0);
+  const sourcePanel = nodes.find(
+    (n) => n.type === 'details' && n.props.className === 'sourceInput',
+  );
+  assert.equal(sourcePanel?.props.open, false);
+  const modelPanel = nodes.find(
+    (n) => n.type === 'details' && label(n).includes('查看 AI 的整理说明与补充内容'),
+  );
+  assert.ok(modelPanel);
+  assert.ok(!modelPanel.props.open);
+  const problemPanel = nodes.find(
+    (n) => n.type === 'section' && n.props['aria-label'] === '需要处理的问题',
+  );
+  assert.ok(problemPanel, 'validation problems remain outside the collapsed model explanation');
+
   assert.ok(button(nodes, '填入当前编辑稿').props.disabled);
   assert.match(label(nodes), /AI 补充的内容/);
   assert.doesNotMatch(label(nodes), /作者秘密/); // unchanged backstage content is not a change

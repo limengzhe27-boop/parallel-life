@@ -666,95 +666,102 @@ export function PublisherImportDialog({
       <header className={s.header}>
         <div>
           <h2 id="publisher-import-title">导入与整理文稿</h2>
-          <p>原稿 → AI 整理 → 编剧核对 → 填入草稿。不会自动保存、试演或发布。</p>
+          <p>导入故事 → 查看整理稿 → 核对问题 → 填入草稿</p>
         </div>
         <button type="button" onClick={onClose} aria-label="关闭文稿导入">
           关闭
         </button>
       </header>
       <div className={s.body}>
-        <label className={s.field}>
-          选择文稿或 ZIP 压缩包
-          <input
-            type="file"
-            multiple
-            accept=".md,.markdown,.txt,.zip"
-            disabled={unavailable}
-            onChange={(event) => {
-              const files = Array.from(event.currentTarget.files ?? []);
-              event.currentTarget.value = '';
-              if (files.length) void readSources(() => readFiles(files));
-            }}
-          />
-        </label>
-        <p className={s.help}>
-          支持自由叙述、人物设定、世界观和任务节点，无需套用固定表格。ZIP 中的照片附件不导入。
-        </p>
-        <p>
-          <a href="/templates/world-script.md" download>
-            下载编剧填写示例
-          </a>
-        </p>
-        <label className={s.field}>
-          或粘贴文稿
-          <textarea
-            value={text}
-            disabled={unavailable}
-            rows={5}
-            placeholder="粘贴你想讲述的世界与人物…"
-            onChange={(event) => {
-              sequence.current++;
-              setText(event.target.value);
-              setSources([]);
-              clearResult();
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          disabled={unavailable || !text.trim()}
-          onClick={() => void readSources(async () => [{ filename: '粘贴文稿.md', content: text }])}
-        >
-          读取粘贴内容
-        </button>
-        {reading && <p role="status">正在读取文稿…</p>}
-        {!!sources.length && (
-          <section className={s.preview} aria-label="原稿">
-            <h3>已读取 {sources.length} 份原稿</h3>
-            <button type="button" onClick={downloadSources}>
-              下载原稿备份
-            </button>
-            {sources.map((source, index) => (
-              <details key={index}>
-                <summary>{source.filename}</summary>
-                <pre>{source.content}</pre>
-              </details>
-            ))}
-            <p className={s.help}>
-              点击 AI
-              整理，会把以上文稿和当前编辑稿发送给项目文字模型。每次最多调用两次，包含一次已知格式问题的纠正。AI
-              补充内容需要你核对；作者设定与人物知情范围也请逐项检查。
-            </p>
-            <div className={s.actions}>
-              <button
-                type="button"
-                className={s.primary}
-                disabled={unavailable || !preparationClient || record?.status === 'running'}
-                onClick={() => void startAI()}
-              >
-                {operationId ? '重新整理（新请求）' : '让 AI 整理世界'}
+        <details className={s.sourceInput} open={!updatedContent}>
+          <summary>
+            {updatedContent ? `原稿与重新整理 · ${sources.length} 份文稿` : '第一步：导入你的故事'}
+          </summary>
+          <label className={s.field}>
+            选择文稿或 ZIP 压缩包
+            <input
+              type="file"
+              multiple
+              accept=".md,.markdown,.txt,.zip"
+              disabled={unavailable}
+              onChange={(event) => {
+                const files = Array.from(event.currentTarget.files ?? []);
+                event.currentTarget.value = '';
+                if (files.length) void readSources(() => readFiles(files));
+              }}
+            />
+          </label>
+          <p className={s.help}>
+            支持自由叙述、人物设定、世界观和任务节点，无需套用固定表格。ZIP 中的照片附件不导入。
+          </p>
+          <p>
+            <a href="/templates/world-script.md" download>
+              下载编剧填写示例
+            </a>
+          </p>
+          <label className={s.field}>
+            或粘贴文稿
+            <textarea
+              value={text}
+              disabled={unavailable}
+              rows={5}
+              placeholder="粘贴你想讲述的世界与人物…"
+              onChange={(event) => {
+                sequence.current++;
+                setText(event.target.value);
+                setSources([]);
+                clearResult();
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={unavailable || !text.trim()}
+            onClick={() =>
+              void readSources(async () => [{ filename: '粘贴文稿.md', content: text }])
+            }
+          >
+            读取粘贴内容
+          </button>
+          {reading && <p role="status">正在读取文稿…</p>}
+          {!!sources.length && (
+            <section className={s.preview} aria-label="原稿">
+              <h3>已读取 {sources.length} 份原稿</h3>
+              <button type="button" onClick={downloadSources}>
+                下载原稿备份
               </button>
-              <button type="button" disabled={unavailable} onClick={parseOnly}>
-                仅解析，不调用 AI
-              </button>
-            </div>
-            {operationId && (
+              {sources.map((source, index) => (
+                <details key={index}>
+                  <summary>{source.filename}</summary>
+                  <pre>{source.content}</pre>
+                </details>
+              ))}
               <p className={s.help}>
-                重新整理会开始新的整理，最多包含两次文字模型调用。结果尚未确认时，请先查询原操作。
+                点击 AI
+                整理，会把以上文稿和当前编辑稿发送给项目文字模型。每次最多调用两次，包含一次已知格式问题的纠正。AI
+                补充内容需要你核对；作者设定与人物知情范围也请逐项检查。
               </p>
-            )}
-          </section>
-        )}
+              <div className={s.actions}>
+                <button
+                  type="button"
+                  className={s.primary}
+                  disabled={unavailable || !preparationClient || record?.status === 'running'}
+                  onClick={() => void startAI()}
+                >
+                  {operationId ? '重新整理（新请求）' : '让 AI 整理世界'}
+                </button>
+                <button type="button" disabled={unavailable} onClick={parseOnly}>
+                  仅解析，不调用 AI
+                </button>
+              </div>
+              {operationId && (
+                <p className={s.help}>
+                  重新整理会开始新的整理，最多包含两次文字模型调用。结果尚未确认时，请先查询原操作。
+                </p>
+              )}
+            </section>
+          )}
+        </details>
         {preparationClient && (
           <button
             type="button"
@@ -818,44 +825,59 @@ export function PublisherImportDialog({
           </section>
         )}
         {updatedContent && (
+          <p className={s.reviewIntro} role="status">
+            整理稿已准备好。先看故事与人物，再核对下方提示。填入后仍可编辑，保存、试演和发布由你决定。
+          </p>
+        )}
+        {updatedContent && <PublisherReviewView content={updatedContent} />}
+        {aiResult && (
+          <section className={s.preview} aria-label="需要处理的问题">
+            <h3>需要处理的问题</h3>
+            <PublisherPreparationIssues
+              issues={aiResult.issues}
+              content={aiResult.updatedContent}
+            />
+            {!aiResult.issues.length && <p>未发现结构问题；故事是否准确仍请对照原稿确认。</p>}
+          </section>
+        )}
+        {updatedContent && (
           <PublisherSourceReview
             sources={sources}
             content={updatedContent}
             baselineContent={content}
           />
         )}
-        {updatedContent && <PublisherReviewView content={updatedContent} />}
         {aiResult && (
           <section className={s.preview} aria-label="AI 整理结果">
-            <h3>模型整理说明（待核对）</h3>
-            <p className={s.help}>
-              以下是模型对本次整理的说明，不是来源核验结果。请以上方实际内容与原稿对照，核对整理结果。
-            </p>
-            <p>{aiResult.summary}</p>
-            {(['extracted', 'supplemented', 'review'] as const).map((kind) => (
-              <div key={kind}>
-                <h4>
-                  {
+            <details>
+              <summary>查看 AI 的整理说明与补充内容</summary>
+              <h3>模型整理说明（待核对）</h3>
+              <p className={s.help}>
+                以下是模型对本次整理的说明，不是来源核验结果。请以上方实际内容与原稿对照，核对整理结果。
+              </p>
+              <p>{aiResult.summary}</p>
+              {(['extracted', 'supplemented', 'review'] as const).map((kind) => (
+                <div key={kind}>
+                  <h4>
                     {
-                      extracted: '模型认为已提取',
-                      supplemented: 'AI 补充的内容',
-                      review: '需要编剧核对',
-                    }[kind]
-                  }
-                </h4>
-                <ul>
-                  {aiResult.notes
-                    .filter((note) => note.kind === kind)
-                    .map((note, index) => (
-                      <li key={index}>{note.text}</li>
-                    ))}
-                </ul>
-              </div>
-            ))}
-            <PublisherPreparationIssues
-              issues={aiResult.issues}
-              content={aiResult.updatedContent}
-            />
+                      {
+                        extracted: '模型认为已提取',
+                        supplemented: 'AI 补充的内容',
+                        review: '需要编剧核对',
+                      }[kind]
+                    }
+                  </h4>
+                  <ul>
+                    {aiResult.notes
+                      .filter((note) => note.kind === kind)
+                      .map((note, index) => (
+                        <li key={index}>{note.text}</li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+            </details>
+            <h3>核对后填入</h3>
             <label className={s.reviewCheck}>
               <input
                 type="checkbox"
@@ -885,15 +907,18 @@ export function PublisherImportDialog({
               ))}
             </ul>
             {!changed.length && <p>整理结果与当前草稿相同，无需填入。</p>}
-            {changed.map((key) => (
-              <details key={key}>
-                <summary>{groupLabel(key)}</summary>
-                <h4>当前内容</h4>
-                <pre>{JSON.stringify(content[key], null, 2) ?? '（无）'}</pre>
-                <h4>整理后</h4>
-                <pre>{JSON.stringify(updatedContent[key], null, 2) ?? '（移除）'}</pre>
-              </details>
-            ))}
+            <details>
+              <summary>高级：查看完整字段变化</summary>
+              {changed.map((key) => (
+                <details key={key}>
+                  <summary>{groupLabel(key)}</summary>
+                  <h4>当前内容</h4>
+                  <pre>{JSON.stringify(content[key], null, 2) ?? '（无）'}</pre>
+                  <h4>整理后</h4>
+                  <pre>{JSON.stringify(updatedContent[key], null, 2) ?? '（移除）'}</pre>
+                </details>
+              ))}
+            </details>
           </section>
         )}
       </div>

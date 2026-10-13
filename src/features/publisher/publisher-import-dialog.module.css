@@ -267,3 +267,25 @@
     padding: 12px;
   }
 }
+
+.sourceInput {
+  border: 1px solid #e5e9ef;
+  border-radius: 12px;
+  padding: 12px;
+}
+.sourceInput > summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 44px;
+  align-content: center;
+}
+.sourceInput[open] > summary {
+  margin-bottom: 16px;
+}
+.reviewIntro {
+  color: #334155;
+  background: #eff6ff;
+  border-radius: 12px;
+  padding: 16px;
+  line-height: 1.7;
+}
