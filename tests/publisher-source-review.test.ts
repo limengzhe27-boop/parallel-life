@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { parseFeishuMarkdownBundle } from '../src/features/publisher/publisher-importer.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPublicationSourceReview } from '../src/modules/settings/domain/publication-source-review.ts';
@@ -140,7 +142,7 @@ test('markdown headers and separators are discarded but data rows, factual headi
   const text =
     '# 人物档案\n|项目|说明|\n|---|---|\n|年龄|26岁|\n- 喜欢阅读天文资料。\n# 宁遥，26岁\n---\n```\n正文需要核对\n```';
   const r = run(text, {});
-  assert.equal(r.rows.length, 4);
+  assert.equal(r.rows.length, 5);
   assert.ok(r.rows.some((r) => r.quote.includes('26岁')));
   assert.ok(r.rows.some((r) => r.quote === '宁遥，26岁'));
   for (const row of r.rows) assert.equal(text.slice(row.start, row.end), row.quote);
@@ -248,7 +250,10 @@ test('compound character paragraphs retain missing-age notices when only the rel
     ],
   });
   assert.equal(r.rows[0]!.status, 'possible_rewrite');
-  assert.ok(r.rows[0]!.matches.some((m) => m.missingNumbers.includes('26岁')));
+  assert.equal(r.rows[0]!.assessment?.kind, 'possible_change');
+  assert.match(r.rows[0]!.assessment!.reason, /26岁.*未出现/);
+  assert.match(r.rows[0]!.assessment!.reason, /相识三年.*共事三年/);
+  assert.ok(r.rows[0]!.matches.every((m) => !m.missingNumbers.includes('26岁')));
   assert.ok(r.rows[0]!.notices.some((n) => n.includes('否定')));
 });
 test('numeric signs, arithmetic and apostrophes are not erased as harmless formatting', () => {
@@ -271,4 +276,305 @@ test('near-limit 400 by 512 review retains distinct literal hits with bounded ca
   assert.equal(r.rows.length, 400);
   assert.ok(r.rows.every((row) => row.status === 'literal_match'));
   assert.ok(r.rows.every((row) => row.matches.length <= 2));
+});
+
+test('table value cells and br slices retain exact offsets, omit L labels and compare explicit slots', () => {
+  const text =
+    '# 宁遥\r\n|层级|模块|设定|\r\n|---|---|---|\r\n|L1|人生背景|年龄：26岁<br>身份：记录员<BR />外貌：短发|';
+  const content = {
+    actors: [
+      { key: 'a', name: '宁遥', publicCard: { identity: '26岁的记录员', appearance: '短发' } },
+    ],
+  };
+  const r = run(text, content);
+  assert.deepEqual(
+    r.rows.map((v) => v.quote),
+    ['年龄：26岁', '身份：记录员', '外貌：短发'],
+  );
+  for (const row of r.rows) {
+    assert.equal(text.slice(row.start, row.end), row.quote);
+    assert.equal(row.line, 4);
+  }
+  assert.equal(r.rows[0]!.assessment?.kind, 'covered');
+  assert.equal(r.rows[2]!.assessment?.kind, 'covered');
+  assert.ok(r.rows.every((row) => row.matches.every((m) => !m.missingNumbers.includes('1'))));
+});
+
+test('true missing ages remain omissions and annotations are not evidence', () => {
+  for (const age of [26, 45]) {
+    const r = run(`宁遥${age}岁。`, {
+      actors: [actor('a', '宁遥', '负责整理旧档案。')],
+      notes: [`年龄${age}岁`],
+    });
+    assert.equal(r.rows[0]!.assessment?.kind, 'possible_omission');
+    assert.match(r.rows[0]!.assessment!.reason, new RegExp(`${age}岁`));
+  }
+  const other = run('宁遥26岁。', {
+    actors: [actor('a', '宁遥', '路帆45岁。'), actor('b', '路帆', '宁遥26岁。')],
+  });
+  assert.equal(other.rows[0]!.assessment?.kind, 'possible_omission');
+});
+
+test('same-name ambiguity is unresolved even when a field is identical or an age is missing', () => {
+  const content = {
+    actors: [actor('a', '宁遥', '在观察站负责记录。'), actor('b', '宁遥', '在观察站负责记录。')],
+  };
+  for (const text of ['宁遥26岁。', '宁遥在观察站负责记录。', '# 宁遥\n年龄：26岁']) {
+    assert.equal(run(text, content).rows[0]!.assessment?.kind, 'unresolved');
+  }
+});
+
+test('literal clause does not inherit unrelated negation or numbers from another sentence', () => {
+  const r = run('主角刚接手一家街角小店。', {
+    world: { hiddenContext: '主角刚接手一家街角小店。阿禾不替主角付款，有3笔旧账。' },
+  });
+  assert.equal(r.rows[0]!.assessment?.kind, 'covered');
+  assert.ok(
+    !r.rows[0]!.notices.some((n) => n.includes('否定用语不同') || n.includes('数字或数量')),
+  );
+  const differentSlot = run('宁遥卖了20元茶叶。', {
+    actors: [actor('a', '宁遥', '宁遥买了50元纸张。')],
+  });
+  assert.ok(
+    differentSlot.rows[0]!.matches.every((m) => !m.missingNumbers.length && !m.addedNumbers.length),
+  );
+  assert.notEqual(differentSlot.rows[0]!.assessment?.kind, 'possible_change');
+});
+
+test('relative message time uses explicit source date and Beijing timezone with actual ISO evidence', () => {
+  const text = '开场2026年10月16日18:30北京时间。昨天17:20宁遥说“明天先核一下账再决定进多少。”';
+  const content = {
+    actors: [actor('a', '宁遥', '')],
+    phone: {
+      messages: [
+        {
+          key: 'm',
+          actorKey: 'a',
+          at: '2026-10-15T09:20:00Z',
+          text: '明天先核一下账再决定进多少。',
+        },
+      ],
+    },
+  };
+  const row = run(text, content).rows.find((r) => r.quote.includes('昨天'))!;
+  assert.equal(row.assessment?.kind, 'covered');
+  assert.equal(
+    row.matches.find((m) => m.target.id.endsWith(':at'))?.target.value,
+    '2026-10-15T09:20:00Z',
+  );
+  assert.ok(row.matches.every((m) => !m.missingNumbers.length && !m.addedNumbers.length));
+  content.phone.messages[0]!.at = '2026-10-15T10:20:00Z';
+  assert.equal(
+    run(text, content).rows.find((r) => r.quote.includes('昨天'))!.assessment?.kind,
+    'possible_change',
+  );
+  for (const unanchored of [
+    text.replace('北京时间', ''),
+    text.replace('2026年10月16日', ''),
+    text.replace('10月16日', '2月30日'),
+  ]) {
+    assert.equal(
+      run(unanchored, content).rows.find((r) => r.quote.includes('昨天'))!.assessment?.kind,
+      'unresolved',
+    );
+  }
+});
+
+test('time cannot be borrowed from another sender or an ambiguous same-sender message', () => {
+  const text = '开场2026年10月16日18:30北京时间。昨天17:20宁遥说“明天先核一下账再决定进多少。”';
+  const message = {
+    key: 'm',
+    actorKey: 'b',
+    at: '2026-10-15T09:20:00Z',
+    text: '明天先核一下账再决定进多少。',
+  };
+  const content = {
+    actors: [actor('a', '宁遥', ''), actor('b', '路帆', '')],
+    phone: { messages: [message] },
+  };
+  assert.equal(run(text, content).rows.at(-1)!.assessment?.kind, 'unresolved');
+  message.actorKey = 'a';
+  content.phone.messages.push({ ...message, key: 'm2' });
+  assert.equal(run(text, content).rows.at(-1)!.assessment?.kind, 'unresolved');
+});
+
+test('baseline provenance uses stable entity fields, empty values and same-actor trait reorder', () => {
+  const baseline = {
+    work: { title: '原作', hook: '' },
+    actors: [
+      { key: 'a', name: '宁遥', publicCard: { traits: ['谨慎', '直接'], identity: '记录员' } },
+      { key: 'b', name: '路帆', publicCard: { traits: ['热情'] } },
+    ],
+  };
+  const content = {
+    work: { title: '原作', hook: '新引子', description: '新简介' },
+    actors: [
+      {
+        key: 'a',
+        name: '宁遥',
+        publicCard: { traits: ['直接', '谨慎', '热情'], identity: '管理员' },
+      },
+    ],
+  };
+  const r = buildPublicationSourceReview([], content, baseline);
+  const get = (id: string) => r.unlinkedTargets.find((t) => t.id === id)!;
+  assert.equal(get('work:title').origin, 'existing');
+  assert.equal(get('work:hook').origin, 'modified');
+  assert.equal(get('work:hook').previousValue, '');
+  assert.equal(get('work:description').origin, 'added');
+  assert.equal(get('actor:a:publicCard:identity').previousValue, '记录员');
+  assert.equal(get('actor:a:trait:0').origin, 'existing');
+  assert.equal(get('actor:a:trait:1').origin, 'existing');
+  assert.equal(get('actor:a:trait:2').origin, 'added');
+  assert.ok(
+    buildPublicationSourceReview([], content).unlinkedTargets.every((t) => t.origin === 'unknown'),
+  );
+  assert.ok(
+    buildPublicationSourceReview([], content, {}).unlinkedTargets.every(
+      (t) => t.origin === 'added',
+    ),
+  );
+  const unsafe = Object.defineProperty({}, 'actors', {
+    enumerable: true,
+    get() {
+      throw new Error('getter must not run');
+    },
+  });
+  assert.ok(
+    buildPublicationSourceReview([], content, unsafe).unlinkedTargets.every(
+      (t) => t.origin === 'unknown',
+    ),
+  );
+  const duplicate = { actors: [baseline.actors[0], baseline.actors[0]] };
+  assert.equal(
+    buildPublicationSourceReview([], content, duplicate).unlinkedTargets.find(
+      (t) => t.id === 'actor:a:trait:0',
+    )!.origin,
+    'unknown',
+  );
+});
+
+test('document instructions are distinguished, while future history and knowledge restrictions remain unresolved', () => {
+  const r = run('# 导入后还要补全\n在后台填写日期。\n# 正文\n玩家可能参加明天的可选活动。', {
+    history: [{ key: 'h', text: '玩家可能参加明天的可选活动。' }],
+  });
+  assert.equal(r.rows[0]!.assessment?.kind, 'instruction');
+  assert.equal(r.rows[1]!.assessment?.kind, 'unresolved');
+  const safe = run('玩家可能参加明天的可选活动。', {
+    candidates: [{ key: 'c', editorialIntent: '玩家可能参加明天的可选活动。' }],
+  });
+  assert.equal(safe.rows[0]!.assessment?.kind, 'covered');
+});
+
+test('actual public template is split for empty baseline and same-name reimport stays unresolved', () => {
+  const text = readFileSync(
+    new URL('../public/templates/world-script.md', import.meta.url),
+    'utf8',
+  );
+  const files = [source(text, 'world-script.md')];
+  const content = parseFeishuMarkdownBundle(files, {}).updatedContent;
+  const r = buildPublicationSourceReview(files, content, {});
+  assert.ok(r.rows.some((row) => row.assessment?.kind === 'covered'));
+  assert.ok(r.rows.some((row) => row.assessment?.kind === 'instruction'));
+  assert.ok(r.rows.every((row) => !/<br|^L[1-5]\b/iu.test(row.quote)));
+  for (const row of r.rows) assert.equal(text.slice(row.start, row.end), row.quote);
+  const duplicate = structuredClone(content);
+  const actors = duplicate.actors as Record<string, unknown>[];
+  actors.push({ ...actors[0]!, key: 'old_same_name' });
+  const repeated = buildPublicationSourceReview(files, duplicate, { actors: [actors.at(-1)] });
+  const actorName = String(actors[0]!.name);
+  const firstActorRows = repeated.rows.filter((row) =>
+    row.matches.some((m) => m.target.label.startsWith(actorName + ' ·')),
+  );
+  assert.ok(firstActorRows.length > 0);
+  assert.ok(firstActorRows.every((row) => row.assessment?.kind === 'unresolved'));
+});
+
+test('negated, hypothetical and historical ages are not current-age omissions or changes', () => {
+  const content = { actors: [actor('a', '宁遥', '年龄45岁。')] };
+  for (const text of [
+    '宁遥不是26岁。',
+    '宁遥如果26岁就可以报名。',
+    '宁遥十岁时离家。',
+    '宁遥10岁时离家。',
+    '宁遥年龄相差十岁。',
+    '# 宁遥\n年龄：不是26岁。',
+  ]) {
+    const row = run(text, content).rows[0]!;
+    assert.equal(row.assessment?.kind, 'unresolved', text);
+    assert.ok(
+      row.matches.every((m) => !m.missingNumbers.length && !m.addedNumbers.length),
+      text,
+    );
+  }
+  assert.equal(
+    run('宁遥26岁。', { actors: [actor('a', '宁遥', '不是26岁，10岁时离家。')] }).rows[0]!
+      .assessment?.kind,
+    'possible_omission',
+  );
+});
+
+test('dialogue instructions and same-unit unrelated relationships never become automatic verdicts', () => {
+  for (const text of [
+    '请核对这笔货款，不然今晚无法发车。',
+    '请选择你想坐的那辆车。',
+    '请补齐这笔尾款，今天货才能出库。',
+  ]) {
+    assert.equal(run(text, {}).rows[0]!.assessment?.kind, 'unresolved');
+  }
+  for (const text of ['宁遥与主角相识五年。', '宁遥与主角不是相识五年。']) {
+    const r = run(text, { actors: [actor('a', '宁遥', '与主角签订三年合同。')] });
+    assert.equal(r.rows[0]!.assessment?.kind, 'unresolved');
+    assert.ok(r.rows[0]!.matches.every((m) => !m.missingNumbers.length && !m.addedNumbers.length));
+  }
+});
+
+test('traits duplicated in either baseline or final draft do not claim a unique existing value', () => {
+  const data = (traits: string[]) => ({
+    actors: [{ key: 'a', name: '宁遥', publicCard: { traits } }],
+  });
+  assert.equal(
+    buildPublicationSourceReview([], data(['谨慎']), data(['谨慎', '谨慎'])).unlinkedTargets[0]!
+      .origin,
+    'unknown',
+  );
+  assert.ok(
+    buildPublicationSourceReview([], data(['谨慎', '谨慎']), data(['谨慎'])).unlinkedTargets.every(
+      (t) => t.origin === 'unknown',
+    ),
+  );
+});
+
+test('message evidence does not certify trailing historical claims in the source', () => {
+  const text =
+    '开场2026年10月16日18:30北京时间。昨天17:20宁遥说“明天先核账再采购。”没有付钱或完成采购。';
+  const content = {
+    actors: [actor('a', '宁遥', '')],
+    phone: {
+      messages: [
+        { key: 'm', actorKey: 'a', at: '2026-10-15T09:20:00Z', text: '明天先核账再采购。' },
+      ],
+    },
+  };
+  const r = run(text, content);
+  assert.equal(r.rows.length, 3);
+  assert.equal(r.rows[1]!.assessment?.kind, 'covered');
+  assert.equal(r.rows[2]!.assessment?.kind, 'unresolved');
+  for (const row of r.rows) assert.equal(text.slice(row.start, row.end), row.quote);
+  assert.equal(
+    run(text.replace('昨天17:20', '昨天17:20带了三张纸的'), content).rows[1]!.assessment?.kind,
+    'unresolved',
+  );
+});
+
+test('age spacing and Chinese numeral variants do not become false omissions or changes', () => {
+  for (const age of ['二十六岁', '26 岁']) {
+    const row = run('宁遥26岁。', { actors: [actor('a', '宁遥', `年龄${age}。`)] }).rows[0]!;
+    assert.ok(!['possible_change', 'possible_omission'].includes(row.assessment!.kind));
+  }
+  const r = run('宁遥与主角相识三年。', { actors: [actor('a', '宁遥', '与主角相识3年。')] });
+  assert.equal(r.rows[0]!.assessment?.kind, 'unresolved');
+  assert.match(r.rows[0]!.assessment!.reason, /不同写法/);
+  const reversed = run('宁遥与主角相识3年。', { actors: [actor('a', '宁遥', '与主角相识三年。')] });
+  assert.equal(reversed.rows[0]!.assessment?.kind, 'unresolved');
 });
