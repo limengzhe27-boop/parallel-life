@@ -932,3 +932,14 @@ Public version 2 is visible at /published. Eight actors and places, three stages
 ## 2026-10-13 - Markdown authoring and map followup
 
 514344b09d09a2a8746b4adfa45ce6bb258cb20a / dpl_FTqcvGEyxJvban9r579iXeWDmRLD READY; exact formal alias matched. 1827 check pass, 404 boundaries/type0/build success; production49 checksums reverified, no new SQL. Public staff login/ZIP manuscript preview/container provenance, existing real screenplay listing/cover and health200 checked; production preview not applied to original work. Parser/ZIP/source review, native modal/version guards and places/routes/opening-message authoring are delivered. Local real HTTP draft r1-to-r3/full-content checks passed up to required actual trial; fresh 12-text/2-save synthetic QA scope still awaits user response, old20/24 closed. No new paid project calls/worlds/images. Source remains editable draft, not automatic full-story publication; private raw documents not pushed. Pending work stays in DEVELOPMENT; guide WORLD_PUBLISH_MD_GUIDE. Final evidence ignored md-final-handoff.json.
+
+
+## 2026-10-13 · 文稿真实发布验收与人物事实编辑
+
+业务bfedd54（B明确L5关系/候选说明截断e261ff6、root人物页事实文字编辑），Q只读报告0257bc1/6ade8cd归档。完整check1835/1835、0失败/0跳过、404边界/type0/build成功；正式49迁移checksum本轮核验，无新增SQL。
+
+新授权独立批次1临时作品/2存档，5次会发起模型的操作保守预留10/12文字，0图/私人资料。项目实际来信节点、trial角色回合、精确试演证据、发布v1、player独立version0、真实来信/两轮317承接、跨owner/trial404/同command恢复/下架继续通过。原传输失联保留后只读精确source核对，无重付；两存档暂停、临时作品下架、账本closed。仅备注节点未触发、playerCompleted=false；不冒充完整任务成果/所有剧情或AI自动扩写。
+
+本地真实UI两事实改字→保存r1→刷新读回全量deepEqual仅text变化，知情/日期/可见范围/引用不变；390无横溢出、编辑宽276/原checkbox保持，1440玩家手机420居中。角色页原显示列表现可原地编辑并跳剧情新增。当前发布开场是系统确定性初始化，运行时角色/合格剧情/现场才调模型；任意Markdown自动AI整理完整世界仍待做。
+
+本批Git部署的最终READY/正式别名SHA与公网新入口验证另存忽略md-live-final-handoff.json，不以排队算完成。任务仅正式验证后由主登记目录DEVELOPMENT更新，保旧原稿全部结局/长线任务/图片/真机/自动世界准备待办。
