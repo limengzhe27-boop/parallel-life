@@ -19,7 +19,10 @@
   color: var(--pub-text);
   background: var(--pub-bg);
   color-scheme: light;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: row;
   font-size: 16px;
@@ -29,6 +32,11 @@
 
 /* ================= Left Sidebar (Works) ================= */
 .sidebar {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  flex-shrink: 0;
   width: 220px;
   min-width: 220px;
   background: var(--pub-surface);
@@ -67,6 +75,8 @@
 }
 
 .workList {
+  min-height: 0;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -109,6 +119,7 @@
 }
 
 .sidebarFooter {
+  flex-shrink: 0;
   padding-top: 16px;
   border-top: 1px solid var(--pub-border);
   display: flex;
@@ -150,6 +161,9 @@
 
 /* ================= Main Content Area ================= */
 .main {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -876,5 +890,76 @@
 @media (max-width: 767px) {
   .scheduling {
     margin: 16px;
+  }
+}
+
+.sidebarBody {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.sidebarBody > .brand,
+.sidebarBody > .sectionHeading {
+  flex-shrink: 0;
+}
+.workList > * {
+  flex-shrink: 0;
+}
+.placeSummary {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--pub-secondary);
+  font-size: 13px;
+  max-width: 100%;
+}
+.placeDetails {
+  min-width: 0;
+  margin-bottom: 14px;
+}
+.placeDetails > summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 8px 0;
+}
+@media (max-width: 767px) {
+  .sidebar {
+    height: auto;
+    max-height: 42dvh;
+    padding: 8px 12px;
+  }
+  .sidebarBody {
+    flex: 1 1 auto;
+  }
+  .brand {
+    margin-bottom: 4px;
+  }
+  .brandSub,
+  .sidebarBody > .sectionHeading {
+    display: none;
+  }
+  .workList {
+    flex: none;
+    min-height: 44px;
+    overflow-y: hidden;
+  }
+  .sidebarFooter {
+    flex-direction: row;
+    align-items: center;
+    padding-top: 6px;
+    gap: 8px;
+  }
+  .sidebarFooter .newWorkButton {
+    width: auto;
+    flex: 1;
+  }
+  .sidebarFooter .configNotice {
+    display: none;
+  }
+  .main {
+    flex: 1;
   }
 }

@@ -329,15 +329,15 @@ test('duplicate or missing references never silently choose the first named enti
   const c = fixture();
   c.actors.push({ ...c.actors[0]!, name: '另一个宁遥' });
   c.routes[0]!.toPlaceKey = 'missing';
-  assert.match(group(c, '人物关系').cards[0]!.title, /人物编号重复/);
-  assert.match(group(c, '地点之间的路线').cards[0]!.title, /地点未找到（missing）/);
+  assert.match(group(c, '人物关系').cards[0]!.title, /人物有重复条目/);
+  assert.match(group(c, '地点之间的路线').cards[0]!.title, /地点未找到，请核对关联内容/);
 });
 test('messages show exact sender/body and fixed UTC+08 time including seconds', () => {
   const card = group(fixture(), '开场手机消息').cards[0]!;
   assert.match(card.title, /宁遥/);
   assert.equal(value(card, '消息正文'), '今晚只讨论，不代表已经修好。');
   assert.equal(value(card, '消息类型'), '过去的对话');
-  assert.equal(value(card, '发送时间'), '2035-04-06 15:59:37（UTC+08:00）');
+  assert.equal(value(card, '发送时间'), '2035-04-06 15:59:37（北京时间）');
 });
 test('malformed dates remain verbatim rather than normalized to a different calendar day', () => {
   assert.equal(
@@ -381,8 +381,9 @@ test('invalid collections/entries and unknown fields are retained in detailed da
   assert.match(html, /这组内容的格式不完整/);
   assert.match(html, /第 1 项格式需核对/);
   assert.match(html, /保留异常事实/);
-  assert.match(html, /unknownExtension/);
-  assert.match(html, /旧格式原文/);
+  assert.doesNotMatch(html, /unknownExtension|JSON/);
+  assert.deepEqual(c.unknownExtension, { age: 26 });
+  assert.equal(c.actors, '旧格式原文');
 });
 test('read-only preview has no adoption controls and escapes author text', () => {
   const c = fixture();
@@ -488,7 +489,7 @@ test('draft overview reads actual unsaved values and preserves extensions withou
   assert.match(html, /LOCAL_UNSAVED_STORY/);
   assert.match(html, /修改后请保存/);
   assert.doesNotMatch(html, /当前编辑稿包含尚未保存/);
-  assert.match(html, /UNSUPPORTED_AUTHOR_VALUE/);
+  assert.doesNotMatch(html, /UNSUPPORTED_AUTHOR_VALUE|JSON/);
   assert.doesNotMatch(html, /将填入的实际内容|原稿可在上方展开/);
   assert.equal(JSON.stringify(content), before);
   assert.match(html, /<details[^>]*open=""><summary>世界与主角/);
@@ -500,4 +501,14 @@ test('proposal starts with actual world and protagonist; detailed review guidanc
   assert.match(html, /<details[^>]*open=""><summary>世界与主角/);
   assert.doesNotMatch(html, /<details[^>]*open=""><summary>如何核对/);
   assert.match(html, /年龄、人物关系和已经作出的约定/);
+});
+
+test('review never exposes missing reference keys or technical fallback data even in collapsed details', () => {
+  const c = fixture();
+  c.routes[0]!.toPlaceKey = 'secret_internal_key';
+  const before = JSON.stringify(c);
+  const html = renderToStaticMarkup(createElement(PublisherReviewView, { content: c }));
+  assert.match(html, /地点未找到/);
+  assert.doesNotMatch(html, /secret_internal_key|完整详细资料|JSON|稳定标识/);
+  assert.equal(JSON.stringify(c), before);
 });

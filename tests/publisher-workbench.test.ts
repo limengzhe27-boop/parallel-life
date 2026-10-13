@@ -305,7 +305,7 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
   assert.ok(html.includes('部分内容暂时不支持运行'));
   assert.ok(!html.includes('actors.0.name: name_required'));
   assert.ok(html.includes('真实模型调用预算尚未确认'));
-  assert.match(html, /<summary>限制详情 1<\/summary><p>model_budget_unapproved/);
+  assert.doesNotMatch(html, /限制详情|model_budget_unapproved/);
 });
 
 test('character knowledge includes an editable shared fact with a separate knowledge checkbox', () => {
@@ -334,7 +334,7 @@ test('ambiguous duplicate fact keys do not expose an unsafe inline editor', () =
     { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
     'actors',
   );
-  assert.ok(html.includes('这条事实的格式或标识待核对'));
+  assert.ok(html.includes('这条事实尚不能安全修改'));
   assert.ok(!html.includes('id="actor-fact-'));
 });
 
@@ -369,7 +369,8 @@ test('all returned issues and run restrictions are available, with server trunca
   assert.match(html, /待确认问题：.*12 项/);
   assert.match(html, /仍有未列出的项/);
   assert.match(html, /尚未完成真实试演|素材尚未核验/);
-  assert.match(html, /unrecognized_runtime_feature/);
+  assert.doesNotMatch(html, /unrecognized_runtime_feature/);
+  assert.match(html, /这项内容暂不支持运行/);
   assert.doesNotMatch(html, /…还有/);
 });
 test('a ready check for an old hash never labels the current draft publishable', () => {
@@ -446,7 +447,11 @@ test('applying import from character or plot returns to overview, closes import 
     const e = value as ReactElement<Record<string, unknown>>;
     return [e, ...nodes(e.props.children)];
   }
-  for (const initial of ['actors', 'plot']) {
+  for (const [initial, keepOpen] of [
+    ['actors', false],
+    ['plot', false],
+    ['actors', true],
+  ] as const) {
     let cursor = 0,
       saved = 0;
     const states: unknown[] = [initial];
@@ -488,18 +493,25 @@ test('applying import from character or plot returns to overview, closes import 
         world: { publicSetting: '新的舞台' },
         extensions: [{ unchanged: '作者扩展' }],
       };
-      (dialog.props.onApply as (v: unknown, s: unknown) => void)(next, {
-        actors: [],
-        initialMessagesCount: 0,
-        candidatesCount: 0,
-        warnings: [],
-        diagnostics: [],
-        unmapped: [],
-      });
+      (dialog.props.onApply as (v: unknown, s: unknown, options?: { keepOpen?: boolean }) => void)(
+        next,
+        {
+          actors: [],
+          initialMessagesCount: 0,
+          candidatesCount: 0,
+          warnings: [],
+          diagnostics: [],
+          unmapped: [],
+        },
+        { keepOpen },
+      );
       tree = render();
       assert.equal(states[0], 'settings');
       assert.equal(saved, 0);
-      assert.ok(!nodes(tree).some((e) => e.type === PublisherImportDialog));
+      assert.equal(
+        nodes(tree).some((e) => e.type === PublisherImportDialog),
+        keepOpen,
+      );
       assert.equal(nodes(tree).find((e) => e.type === PublisherReviewView)!.props.content, next);
     } finally {
       Reflect.deleteProperty(globalThis, '__writerHooks');
@@ -644,4 +656,16 @@ test('manual scheduling cannot execute with edit permission missing or while bus
     }
   }
   assert.equal(calls, 0);
+});
+
+test('author settings retain optional old descriptions but remove raw-data editing and technical disclosures', () => {
+  const html = renderTab(defaultProps, 'settings');
+  assert.doesNotMatch(
+    html,
+    /完整内容（JSON）|导入完整结构化草稿|publication-import|技术详情|高级：版本/,
+  );
+  assert.match(html, /另写作品展示简介（选填）/);
+  assert.match(html, /故事介绍（玩家可知）/);
+  const actor = renderTab(defaultProps, 'actors');
+  assert.doesNotMatch(actor, /稳定标识|内部标识/);
 });

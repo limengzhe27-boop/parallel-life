@@ -21,7 +21,6 @@ import {
   plotRows,
   plotRowEditable,
 } from './publisher-plot-model.ts';
-import { PublisherDraftContentSchema } from '../../contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
 import {
   parseActorEditor,
@@ -106,7 +105,7 @@ function issueLabel(path: readonly (string | number)[], code: string) {
         : code === 'invalid_format'
           ? '请检查填写格式'
           : code === 'unrecognized_keys'
-            ? '有暂不支持的字段，请按填写示例调整'
+            ? '有暂不支持的内容，请核对后调整'
             : '请核对内容与引用是否完整一致');
   return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
 }
@@ -172,8 +171,6 @@ export function PublisherWorkbench(
   // Modal for creating new work
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newWorkTitle, setNewWorkTitle] = useState('');
-  const [importText, setImportText] = useState('');
-  const [importError, setImportError] = useState('');
   const [showMarkdownImport, setShowMarkdownImport] = useState(false);
   const [markdownReview, setMarkdownReview] = useState<ImportSummary>();
   const [scheduleReview, setScheduleReview] = useState<{
@@ -200,8 +197,6 @@ export function PublisherWorkbench(
       if (isNewWork) setMarkdownReview(undefined);
       setDraftTitle(work.title);
       setDraftContent(deepClone(work.draft.content));
-      setImportText('');
-      setImportError('');
       setLoadedWorkId(work.id);
       setLoadedDraftVersion(work.draft.version);
 
@@ -230,11 +225,8 @@ export function PublisherWorkbench(
 
   // Check if draft has unsaved changes
   const isDirty = useMemo(() => {
-    return (
-      importText.length > 0 ||
-      isDraftDirty(savedState, { title: draftTitle, content: draftContent })
-    );
-  }, [savedState, draftTitle, draftContent, importText]);
+    return isDraftDirty(savedState, { title: draftTitle, content: draftContent });
+  }, [savedState, draftTitle, draftContent]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -358,10 +350,6 @@ export function PublisherWorkbench(
   // Save draft
   const handleSaveDraft = useCallback(() => {
     if (!work) return;
-    if (importText) {
-      setImportError('请先应用或清空导入的内容，再保存草稿。');
-      return;
-    }
     if (!session.canEdit) {
       setNotice({ type: 'error', message: '权限不足：当前账号未被授予编辑作品权限。' });
       return;
@@ -371,7 +359,7 @@ export function PublisherWorkbench(
       title: draftTitle,
       content: draftContent,
     });
-  }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft, importText]);
+  }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft]);
 
   // Create work
   const handleCreateWorkSubmit = useCallback(
@@ -492,7 +480,7 @@ export function PublisherWorkbench(
     <div className={s.workbench}>
       {/* ================= Left Sidebar (Works) ================= */}
       <aside className={s.sidebar} aria-label="作品导航">
-        <div>
+        <div className={s.sidebarBody}>
           <div className={s.brand}>
             <h1 className={s.brandTitle}>如果 内容后台</h1>
             <p className={s.brandSub}>世界创作与发布管理</p>
@@ -719,15 +707,13 @@ export function PublisherWorkbench(
             <ul>
               {markdownReview.diagnostics.map((item, index) => (
                 <li key={index}>
-                  {item.filename}：{item.message}
+                  {item.filename}：有内容需要核对，请回到导入区查看原文与整理结果。
                 </li>
               ))}
             </ul>
             {markdownReview.unmapped.map((item, index) => (
               <details key={index}>
-                <summary>
-                  {item.filename} · {item.reason}
-                </summary>
+                <summary>{item.filename} · 尚未整理的原文</summary>
                 <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                   {item.content}
                 </pre>
@@ -738,7 +724,8 @@ export function PublisherWorkbench(
         {error && (
           <div className={`${s.banner} ${s.bannerError}`} role="alert">
             <span>
-              <strong>操作失败 [{error.code}]：</strong> {error.message}
+              <strong>操作未完成：</strong>{' '}
+              请检查登录状态及当前故事后重试；如仍无法继续，请联系管理员。
             </span>
           </div>
         )}
@@ -822,12 +809,6 @@ export function PublisherWorkbench(
                   {check.issues.map((issue, index) => (
                     <li key={index}>
                       <p>{issueLabel(issue.path, issue.code)}</p>
-                      <details>
-                        <summary>详细定位</summary>
-                        <p>
-                          {issue.path.join(' / ')} · {issue.code}
-                        </p>
-                      </details>
                     </li>
                   ))}
                 </ol>
@@ -847,10 +828,6 @@ export function PublisherWorkbench(
                               ? '真实模型调用预算尚未确认，请联系管理员。'
                               : '这项内容暂不支持运行，需要调整后再检查。'}
                           </p>
-                          <details>
-                            <summary>限制详情 {index + 1}</summary>
-                            <p>{capability}</p>
-                          </details>
                         </li>
                       ))}
                     </ul>
@@ -880,16 +857,6 @@ export function PublisherWorkbench(
             >
               回故事概览核对与编辑
             </button>
-            <details className={s.disclosure}>
-              <summary>高级：版本与权限</summary>
-              <p>
-                草稿版本：{work.draft.version}；发布版本：{work.publicationVersion ?? '尚未发布'}
-              </p>
-              <p>
-                编辑权限：{session.canEdit ? '可编辑' : '只读'}；发布权限：
-                {session.canPublish ? '可发布' : '未授予'}
-              </p>
-            </details>
           </section>
         )}
 
@@ -992,19 +959,23 @@ export function PublisherWorkbench(
                           disabled={!session.canEdit || busy}
                         />
                       </div>
-                      <div className={s.formFieldFull}>
+                      <details className={s.formFieldFull}>
+                        <summary>另写作品展示简介（选填）</summary>
+                        <p className={s.fieldHint}>
+                          故事背景在下方统一填写；这里仅在需要不同的展示简介时修改，原有文字保留。
+                        </p>
                         <label className={s.fieldLabel} htmlFor="work-desc-input">
-                          详细背景说明
+                          作品展示简介
                         </label>
                         <textarea
                           id="work-desc-input"
                           className={s.textarea}
                           value={worldSettings.description}
                           onChange={(e) => handleWorldSettingsChange('description', e.target.value)}
-                          placeholder="作品完整的世界观与故事背景描述…"
+                          placeholder="可留空，不必重复填写故事背景"
                           disabled={!session.canEdit || busy}
                         />
-                      </div>
+                      </details>
                       <div className={s.formFieldFull}>
                         <label className={s.fieldLabel} htmlFor="work-exp-note-input">
                           体验注意事项
@@ -1063,9 +1034,9 @@ export function PublisherWorkbench(
                   </section>
 
                   <section className={s.card}>
-                    <h3 className={s.sectionTitle}>故事舞台与幕后背景</h3>
+                    <h3 className={s.sectionTitle}>故事背景</h3>
                     <label className={s.fieldLabel} htmlFor="world-public-setting">
-                      玩家可以知道的世界背景
+                      故事介绍（玩家可知）
                     </label>
                     <textarea
                       id="world-public-setting"
@@ -1136,77 +1107,6 @@ export function PublisherWorkbench(
                       这些图片是虚构世界的AI创作素材，不会使用玩家的私人照片。
                     </p>
                   </section>
-                  <details className={s.card}>
-                    <summary>导入完整结构化草稿</summary>
-                    <p className={s.fieldHint}>
-                      用于补全地点、历史消息、日历与剧情等内容。导入只修改当前编辑稿；保存、检查和试演需另外执行。暂不支持的字段会在检查时显示。
-                    </p>
-                    <label className={s.fieldLabel} htmlFor="publication-import">
-                      完整内容（JSON）
-                    </label>
-                    <textarea
-                      id="publication-import"
-                      className={s.textarea}
-                      value={importText}
-                      onChange={(e) => {
-                        setImportText(e.target.value);
-                        setImportError('');
-                      }}
-                      disabled={!session.canEdit || busy}
-                      spellCheck={false}
-                    />
-                    {importError && <p role="alert">{importError}</p>}
-                    <button
-                      type="button"
-                      className={s.btn}
-                      disabled={!session.canEdit || busy || !importText}
-                      onClick={() => {
-                        try {
-                          const raw = JSON.parse(importText);
-                          const parsed = PublisherDraftContentSchema.safeParse(raw);
-                          if (!parsed.success) {
-                            setImportError(
-                              '内容不是可保存的草稿，或超过大小限制。原来的编辑内容已保留。',
-                            );
-                            return;
-                          }
-                          if (
-                            isDraftDirty(savedState, {
-                              title: draftTitle,
-                              content: draftContent,
-                            }) &&
-                            !window.confirm('导入将替换当前未保存的编辑稿，确认应用吗？')
-                          )
-                            return;
-                          setDraftContent(deepClone(parsed.data));
-                          const value = parseWorldSettings(parsed.data, draftTitle);
-                          setDraftTitle(value.title);
-                          setSelectedActorKey(null);
-                          setImportText('');
-                          setImportError('');
-                          setNotice({
-                            type: 'warning',
-                            message: '内容已应用到编辑稿，请核对后保存。',
-                          });
-                        } catch {
-                          setImportError('内容格式有误。原来的编辑内容已保留，请检查后再试。');
-                        }
-                      }}
-                    >
-                      应用到编辑稿
-                    </button>
-                    <button
-                      type="button"
-                      className={s.btn}
-                      disabled={busy}
-                      onClick={() => {
-                        setImportText('');
-                        setImportError('');
-                      }}
-                    >
-                      清空导入文字
-                    </button>
-                  </details>
                   <section className={s.card}>
                     <div className={s.sectionHeader}>
                       <h3 className={s.sectionTitle}>故事从哪里、何时开始</h3>
@@ -1257,7 +1157,7 @@ export function PublisherWorkbench(
                           ) : null}
                           {plotChoices(draftContent, 'places').map((p) => (
                             <option key={p.key} value={p.key}>
-                              {p.label}
+                              {p.label === p.key ? '待命名地点' : p.label}
                             </option>
                           ))}
                         </select>
@@ -1439,7 +1339,6 @@ export function PublisherWorkbench(
                 <section className={s.card}>
                   <div className={s.sectionHeader}>
                     <h4 className={s.sectionTitle}>1. 名字与身份</h4>
-                    <span className={s.fieldHint}>稳定标识: {currentActorForm.key}</span>
                   </div>
                   <div className={s.formGrid}>
                     <div className={s.formField}>
@@ -1676,7 +1575,7 @@ export function PublisherWorkbench(
                               </details>
                             ) : (
                               <p className={s.fieldHint}>
-                                这条事实的格式或标识待核对，原内容已保留。
+                                这条事实尚不能安全修改，请先核对重复或不完整内容，原内容已保留。
                               </p>
                             )}
                           </div>
@@ -1781,7 +1680,17 @@ export function PublisherWorkbench(
               }}
             >
               {deletionWarning.references.map((ref, idx) => (
-                <li key={idx}>{ref.label}</li>
+                <li key={idx}>
+                  {(
+                    {
+                      relationship: '人际关系仍在使用这个人物',
+                      message: '开场消息仍在使用这个人物',
+                      invitation: '日历约定仍在使用这个人物',
+                      history: '过去经历仍在使用这个人物',
+                      candidate: '后续剧情仍在使用这个人物',
+                    } as Record<string, string>
+                  )[ref.category] ?? '其他故事内容仍与这个人物有关联'}
+                </li>
               ))}
             </ul>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
@@ -1807,11 +1716,11 @@ export function PublisherWorkbench(
           content={draftContent}
           disabled={busy || !session.canEdit}
           onClose={() => setShowMarkdownImport(false)}
-          onApply={(next, summary) => {
+          onApply={(next, summary, options?: { keepOpen?: boolean }) => {
             setDraftContent(next);
             setActiveTab('settings');
             setSettingsOpen(needsStorySetup(next));
-            setShowMarkdownImport(false);
+            setShowMarkdownImport(!!options?.keepOpen);
             setMarkdownReview(summary);
             const nextWork = next.work as { title?: unknown } | undefined;
             if (typeof nextWork?.title === 'string') setDraftTitle(nextWork.title);

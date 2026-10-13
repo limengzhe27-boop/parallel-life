@@ -38,52 +38,63 @@ export function PublisherSpaceEditor({
     <section className={s.card} aria-label="地点与路线编辑">
       <div className={s.sectionHeader}>
         <h3 className={s.sectionTitle}>4. 地点与路线</h3>
-        <p className={s.sectionHint}>填写场所与实际移动耗时；地点不表示任何人物已经到场。</p>
+        <p className={s.sectionHint}>
+          先核对地点名称与一句说明，需要时展开修改；不用在这里重写故事背景。
+        </p>
       </div>
       {places.map((place, index) => (
-        <fieldset
-          key={String(place.key ?? index)}
-          disabled={disabled}
-          style={{
-            border: '1px solid #dbe1e8',
-            borderRadius: 10,
-            padding: 14,
-            margin: '0 0 14px',
-            minWidth: 0,
-          }}
-        >
-          <legend>{(typeof place.name === 'string' && place.name) || `地点 ${index + 1}`}</legend>
-          <div className={s.formGrid}>
-            <label className={s.formField}>
-              地点名称
+        <details className={s.placeDetails} key={String(place.key ?? index)} open={!place.name}>
+          <summary>
+            {(typeof place.name === 'string' && place.name) || `地点 ${index + 1}`}
+            <span className={s.placeSummary}>
+              {typeof place.description === 'string' && place.description
+                ? place.description
+                : '尚无地点说明，点击修改（选填）'}
+            </span>
+          </summary>
+          <fieldset
+            disabled={disabled}
+            style={{
+              border: '1px solid #dbe1e8',
+              borderRadius: 10,
+              padding: 14,
+              margin: '0 0 14px',
+              minWidth: 0,
+            }}
+          >
+            <legend>{(typeof place.name === 'string' && place.name) || `地点 ${index + 1}`}</legend>
+            <div className={s.formGrid}>
+              <label className={s.formField}>
+                地点名称
+                <input
+                  className={s.input}
+                  value={typeof place.name === 'string' ? place.name : ''}
+                  maxLength={100}
+                  onChange={(event) => updatePlace(index, { name: event.target.value })}
+                />
+              </label>
+              <label className={s.formFieldFull}>
+                场所说明（选填）
+                <textarea
+                  className={s.textarea}
+                  value={typeof place.description === 'string' ? place.description : ''}
+                  maxLength={800}
+                  rows={3}
+                  onChange={(event) => updatePlace(index, { description: event.target.value })}
+                  placeholder="一句说明即可；原有长文可以保留，无需重写故事背景。"
+                />
+              </label>
+            </div>
+            <label>
               <input
-                className={s.input}
-                value={typeof place.name === 'string' ? place.name : ''}
-                maxLength={100}
-                onChange={(event) => updatePlace(index, { name: event.target.value })}
+                type="checkbox"
+                checked={place.knownAtStart === true}
+                onChange={(event) => updatePlace(index, { knownAtStart: event.target.checked })}
               />
+              开场时玩家知道这个地点
             </label>
-            <label className={s.formFieldFull}>
-              场所说明
-              <textarea
-                className={s.textarea}
-                value={typeof place.description === 'string' ? place.description : ''}
-                maxLength={800}
-                rows={3}
-                onChange={(event) => updatePlace(index, { description: event.target.value })}
-                placeholder="这里是什么地方，玩家抵达后能观察到什么？"
-              />
-            </label>
-          </div>
-          <label>
-            <input
-              type="checkbox"
-              checked={place.knownAtStart === true}
-              onChange={(event) => updatePlace(index, { knownAtStart: event.target.checked })}
-            />
-            开场时玩家知道这个地点
-          </label>
-        </fieldset>
+          </fieldset>
+        </details>
       ))}
       <button
         type="button"

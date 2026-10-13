@@ -17,7 +17,7 @@ const text = (value: unknown): string =>
       : '未填写'
     : value === undefined || value === null
       ? '未填写'
-      : '格式需核对，请查看详细资料';
+      : '格式需核对，请核对原稿或到对应页面修改';
 const bool = (value: unknown): string =>
   value === true ? '是' : value === false ? '否' : '未填写或格式需核对';
 const field = (label: string, value: string): ReviewField => ({ label, value });
@@ -37,7 +37,7 @@ export function reviewTime(value: unknown): string {
     .toISOString()
     .replace('T', ' ')
     .replace(/\.000Z$/, '')
-    .replace(/Z$/, '')}（UTC+08:00）`;
+    .replace(/Z$/, '')}（北京时间）`;
 }
 
 /** Read-only presentation of final content, deliberately accepts no model notes or source claims. */
@@ -55,9 +55,9 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
     if (typeof key !== 'string' || !key) return `${label}未填写或格式需核对`;
     const matches = rows.filter((row) => own(row, 'key') === key);
     if (matches.length !== 1)
-      return matches.length ? `${label}编号重复（${key}），请核对` : `${label}未找到（${key}）`;
+      return matches.length ? `${label}有重复条目，请核对` : `${label}未找到，请核对关联内容`;
     const value = own(matches[0], name);
-    return typeof value === 'string' && value.trim() ? value : `${label}名称未填写（${key}）`;
+    return typeof value === 'string' && value.trim() ? value : `${label}名称未填写`;
   }
   const actor = (key: unknown) => reference(actors, key, '人物');
   const place = (key: unknown) => reference(places, key, '地点');
@@ -103,7 +103,7 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
       !Array.isArray(playerRefs) ||
       !['world', 'player', 'actors'].includes(String(kind))
     )
-      return [field('开场知情核对', '知情配置不完整或事实编号重复，请查看详细资料与完整检查。')];
+      return [field('开场知情核对', '知情安排不完整或事实有重复条目，请到待确认问题中检查。')];
     const referenced = knowledgeRows
       .filter((k) => Array.isArray(own(k, 'factKeys')) && list(own(k, 'factKeys')).includes(key))
       .map((k) => own(k, 'actorKey'));
@@ -132,7 +132,7 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
       );
     if (knowledgeRows.some((k) => !Array.isArray(own(k, 'factKeys'))))
       fields.push(
-        field('知情配置提醒', '部分人物的知情列表格式需核对，当前显示不能替代完整检查。'),
+        field('知情安排提醒', '部分人物的知情列表格式需核对，当前显示不能替代完整检查。'),
       );
     return fields;
   }
@@ -150,7 +150,9 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
             fields: [
               field(
                 '当前提案',
-                raw === undefined ? '未填写这组内容。' : '这组内容的格式不完整，请查看详细资料。',
+                raw === undefined
+                  ? '未填写这组内容。'
+                  : '这组内容的格式不完整，请核对原稿或到对应页面修改。',
               ),
             ],
           },
@@ -187,11 +189,15 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
       case 'not_before':
         return `不早于：${reviewTime(own(raw, 'at'))}`;
       default:
-        return '发生条件未识别，请查看详细资料。';
+        return '发生条件未识别，请核对原稿或到对应页面修改。';
     }
   }
   const windowFields = (window: unknown): ReviewField[] =>
-    window === undefined
+    window === undefined ||
+    (typeof window === 'object' &&
+      window !== null &&
+      !Array.isArray(window) &&
+      Object.keys(window).length === 0)
       ? []
       : [
           field('可发生时间起点', reviewTime(own(window, 'notBefore'))),
@@ -216,7 +222,7 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
           field('最早邀约时间', reviewTime(own(intent, 'earliestAt'))),
         ];
       default:
-        return [field('事件方式', '未填写或暂未识别，请查看详细资料')];
+        return [field('事件方式', '未填写或暂未识别，请核对原稿或到对应页面修改')];
     }
   }
   const work = own(content, 'work');
@@ -247,7 +253,7 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
           fields: [
             field('身份', text(own(protagonist, 'identity'))),
             field('当前处境', text(own(protagonist, 'situation'))),
-            field('开场已知事实引用', refs(own(protagonist, 'knownFactKeys'), fact)),
+            field('开场已知的事', refs(own(protagonist, 'knownFactKeys'), fact)),
           ],
         },
       ],
@@ -354,9 +360,15 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
           ...(own(row, 'placeKey') === undefined
             ? []
             : [field('发生地点', place(own(row, 'placeKey')))]),
-          field('所属阶段', timing === undefined ? '未设置阶段' : stage(own(timing, 'stageKey'))),
+          field(
+            '所属阶段',
+            !own(timing, 'stageKey') ? '未设置阶段' : stage(own(timing, 'stageKey')),
+          ),
           field('发生条件', refs(own(row, 'prerequisites'), prerequisite, '未设置前置条件')),
-          field('互斥剧情', refs(own(row, 'mutuallyExclusiveNodeKeys'), node, '未列出')),
+          field(
+            '与这些剧情不能同时发生',
+            refs(own(row, 'mutuallyExclusiveNodeKeys') ?? [], node, '未设置'),
+          ),
           ...intentFields(own(row, 'intent')),
           ...windowFields(own(timing, 'window')),
           ...(own(timing, 'timeNote') === undefined
@@ -368,14 +380,17 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
                 field(
                   '不再出现的条件',
                   refs(
-                    own(timing, 'excludeIfResolved'),
+                    own(timing, 'excludeIfResolved') ?? [],
                     (r) => `「${node(own(r, 'nodeKey'))}」结果为${outcomes(own(r, 'outcomes'))}`,
                     '未列出',
                   ),
                 ),
-                field('被拒绝后的候选', refs(own(alternatives, 'onDeclined'), node, '未列出')),
-                field('被跳过后的候选', refs(own(alternatives, 'onSkipped'), node, '未列出')),
-                field('过期后的候选', refs(own(alternatives, 'onExpired'), node, '未列出')),
+                field(
+                  '被拒绝后的候选',
+                  refs(own(alternatives, 'onDeclined') ?? [], node, '未设置'),
+                ),
+                field('被跳过后的候选', refs(own(alternatives, 'onSkipped') ?? [], node, '未设置')),
+                field('过期后的候选', refs(own(alternatives, 'onExpired') ?? [], node, '未设置')),
               ]),
         ],
       };
@@ -413,13 +428,13 @@ export function PublisherReviewView({
         'p',
         { className: s.help },
         mode === 'draft'
-          ? '先读故事，再到人物与剧情发展调整。概览只读取当前编辑稿，不使用模型说明补齐缺失字段。'
+          ? '先读故事，再到人物与剧情发展调整。概览只读取当前编辑稿，不使用模型说明补齐未填写的内容。'
           : '原稿可在导入区展开查看；文字对应检查不能代替语义核对，也不能保证无遗漏。请特别核对年龄、人物关系和已经作出的约定。',
       ),
       h(
         'p',
         { className: s.help },
-        '人物背景等长文本完整展示；可见范围与开场知情引用分开列出。未来剧情仍是候选，不代表已经发生。',
+        '人物背景等长文本完整展示；可见范围与开场知情情况分开列出。未来剧情仍是候选，不代表已经发生。',
       ),
     ),
     ...groups.map((group) =>
@@ -455,12 +470,6 @@ export function PublisherReviewView({
           ),
         ),
       ),
-    ),
-    h(
-      'details',
-      { className: s.reviewGroup },
-      h('summary', null, '完整详细资料（JSON）'),
-      h('pre', null, JSON.stringify(content, null, 2)),
     ),
   );
 }

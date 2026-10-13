@@ -142,7 +142,7 @@ test('SSR offers three editable sections and honest Chinese setup guidance witho
     '新增事实',
     '新增阶段',
     '新增事件',
-    '先配置和保存，能否运行以检查结果为准',
+    '先填写并保存，能否运行以检查结果为准',
     '北京时间',
     '仅备注',
   ])
@@ -218,7 +218,7 @@ test('explicit intent buttons set exact message/invitation/editorial structure a
   const html = renderToStaticMarkup(
     createElement(PublisherPlotEditor, { ...t.props, content: t.next! }),
   );
-  assert.ok(html.includes('多人物邀约仍未支持'));
+  assert.ok(html.includes('多人物邀约尚未开放'));
 });
 test('unknown intent extensions disable destructive switching rather than silently stripping original data', () => {
   const c = content();
@@ -230,7 +230,7 @@ test('unknown intent extensions disable destructive switching rather than silent
   };
   const t = setup(false, c);
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
-  assert.ok(html.includes('原意图有未知字段'));
+  assert.ok(html.includes('原剧情方式有暂不支持的内容'));
   assert.equal(
     tree(t.props).some((n) => n.type === 'button' && text(n.props.children) === '改为发出邀约'),
     false,
@@ -279,7 +279,7 @@ test('missing original reference remains visible as an explicit option instead o
   const c = content();
   plotRecord(plotRows(c, 'candidates')[0]).placeKey = 'missing_place';
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, setup(false, c).props));
-  assert.ok(html.includes('未找到原引用（missing_place）'));
+  assert.ok(html.includes('未找到对应内容，请核对'));
 });
 test('long business text and hostile HTML remain escaped readable text with no generated story inserts', () => {
   const c = content();
@@ -425,4 +425,54 @@ test('time notes stay honest and runtime conditions retain their original keys a
     node.prerequisites,
   );
   assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).timeline, node.timeline);
+});
+
+test('empty optional objects stay unset and story alternatives begin as a read-only summary', () => {
+  const c = content();
+  const row = plotRecord(plotRows(c, 'candidates')[0]);
+  row.timeline = { window: {}, alternatives: {}, timeNote: '' };
+  const before = JSON.stringify(c),
+    t = setup(false, c);
+  const nodes = tree(t.props);
+  const summaries = nodes.filter((n) => n.type === 'summary').map((n) => text(n.props.children));
+  assert.ok(summaries.includes('限定日期（选填） · 未设置'));
+  assert.ok(summaries.some((v) => v.includes('故事的其他走向') && v.includes('未设置')));
+  const edit = nodes.find(
+    (n) =>
+      n.type === 'details' && text((n.props.children as ReactNode[])[0]).includes('修改这些走向'),
+  );
+  assert.ok(edit);
+  assert.ok(!edit.props.open);
+  assert.equal(t.calls, 0);
+  assert.equal(JSON.stringify(c), before);
+});
+test('existing alternatives resolve to story names, preserve conditions and expose no raw IDs or technical panel', () => {
+  const c = content();
+  const row = plotRecord(plotRows(c, 'candidates')[0]);
+  c.candidates = [row, { ...structuredClone(row), key: 'node_other', title: '稍后再来信' }];
+  row.mutuallyExclusiveNodeKeys = ['node_other'];
+  row.timeline = {
+    alternatives: { onDeclined: ['node_other'] },
+    excludeIfResolved: [{ nodeKey: 'node_other', outcomes: ['committed'] }],
+  };
+  const before = JSON.stringify(c),
+    t = setup(false, c),
+    nodes = tree(t.props);
+  const visible = nodes
+    .filter((n) => !['input', 'select', 'textarea', 'option'].includes(String(n.type)))
+    .map((n) => text(n.props.children))
+    .join(' ');
+  assert.match(visible, /被拒绝后，可以考虑「稍后再来信」/);
+  assert.match(visible, /不能与「稍后再来信」同时发生/);
+  assert.doesNotMatch(visible, /技术详情|内部标识|node_other|excludeIfResolved/);
+  assert.equal(t.calls, 0);
+  assert.equal(JSON.stringify(c), before);
+});
+test('author stage numbering is one-based while stored order and unrelated data remain intact', () => {
+  const t = setup();
+  const order = input(tree(t.props), 'plot_stages_stage_a_0_order');
+  assert.equal(order.props.value, 1);
+  change(order, '3');
+  assert.equal(plotRecord(plotRows(t.next!, 'stages')[0]).order, 2);
+  assert.deepEqual(t.next!.extensions, t.props.content.extensions);
 });
