@@ -47,6 +47,7 @@ const prerequisite = z.discriminatedUnion('kind', [
 ]);
 const intent = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('editorial_only') }),
+  z.strictObject({ kind: z.literal('director_event'), actorKey: key }),
   z.strictObject({ kind: z.literal('offer_message'), actorKey: key, text: text(500) }),
   z.strictObject({
     kind: z.literal('offer_invitation'),
@@ -86,7 +87,17 @@ const shape = z
           key,
           name: text(80),
           knownAtStart: z.boolean(),
+          lifeModules: z
+            .strictObject({
+              lifeContext: text(4000).optional(),
+              traits: text(4000).optional(),
+              drives: text(4000).optional(),
+              behavior: text(4000).optional(),
+              relationships: text(4000).optional(),
+            })
+            .optional(),
           publicCard: z.strictObject({
+            introduction: text(1600).optional(),
             identity: text(160).optional(),
             traits: z.array(text(60)).max(3),
             appearance: text(240).optional(),
@@ -155,11 +166,16 @@ const shape = z
             key,
             actorKey: key,
             origin: z.enum(['history', 'incoming']),
+            speaker: z.enum(['actor', 'player']).optional(),
             text: text(500),
             at,
           }),
         )
         .max(40),
+      moments: z
+        .array(z.strictObject({ key, actorKey: key, text: text(1600), at }))
+        .max(48)
+        .optional(),
       notes: z
         .array(z.strictObject({ key, title: text(100), text: text(1600), factKeys: refs(64) }))
         .max(12),

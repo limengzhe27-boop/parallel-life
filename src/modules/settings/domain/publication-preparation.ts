@@ -24,8 +24,9 @@ const fields: Record<string, string[]> = {
   work: ['key', 'title', 'hook', 'description', 'experienceNote', 'coverMediaKey'],
   world: ['publicSetting', 'tone', 'startAt', 'startPlaceKey', 'hiddenContext'],
   protagonist: ['identity', 'situation', 'knownFactKeys'],
-  actors: ['key', 'name', 'knownAtStart', 'publicCard', 'privatePersona'],
-  'actors.publicCard': ['identity', 'traits', 'appearance', 'avatarMediaKey'],
+  actors: ['key', 'name', 'knownAtStart', 'publicCard', 'privatePersona', 'lifeModules'],
+  'actors.publicCard': ['identity', 'traits', 'appearance', 'avatarMediaKey', 'introduction'],
+  'actors.lifeModules': ['lifeContext', 'traits', 'drives', 'behavior', 'relationships'],
   'actors.privatePersona': ['background', 'motivation', 'voice', 'boundaries'],
   relationships: ['key', 'fr\u006fm', 'to', 'description', 'visibility'],
   'relationships.fr\u006fm': ['kind', 'actorKey'],
@@ -36,8 +37,9 @@ const fields: Record<string, string[]> = {
   history: ['key', 'kind', 'text', 'occurredAt', 'actorKeys', 'placeKey', 'visibility'],
   'history.visibility': ['kind', 'actorKeys'],
   initialKnowledge: ['actorKey', 'factKeys'],
-  phone: ['messages', 'notes', 'invitations', 'album'],
-  'phone.messages': ['key', 'actorKey', 'origin', 'text', 'at'],
+  phone: ['messages', 'notes', 'invitations', 'album', 'moments'],
+  'phone.messages': ['key', 'actorKey', 'origin', 'text', 'at', 'speaker'],
+  'phone.moments': ['key', 'actorKey', 'text', 'at'],
   'phone.notes': ['key', 'title', 'text', 'factKeys'],
   'phone.invitations': ['key', 'actorKeys', 'placeKey', 'messageKey', 'title', 'at', 'status'],
   timeline: ['initialStageKey', 'stages'],
@@ -79,6 +81,7 @@ const keyed = new Set([
   'places',
   'history',
   'phone.messages',
+  'phone.moments',
   'phone.notes',
   'phone.invitations',
   'candidates',
@@ -115,7 +118,7 @@ export function mergePublicationPreparation(current: RecordValue, proposal: Reco
       Object.keys(old).length === 1 &&
       old.kind === 'editorial_only' &&
       record(next) &&
-      ['offer_message', 'offer_invitation'].includes(String(next.kind))
+      ['offer_message', 'offer_invitation', 'director_event'].includes(String(next.kind))
     ) {
       warn(path, 'editorial_intent_supplemented');
       return merge(undefined, next, path);

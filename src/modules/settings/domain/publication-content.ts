@@ -24,6 +24,7 @@ export type PublicationConditionNode = {
 };
 export type PublicationIntent =
   | { kind: 'editorial_only' }
+  | { kind: 'director_event'; actorKey: string }
   | { kind: 'offer_message'; actorKey: string; text: string }
   | {
       kind: 'offer_invitation';
@@ -54,7 +55,15 @@ export type PublicationContent = {
     key: string;
     name: string;
     knownAtStart: boolean;
+    lifeModules?: {
+      lifeContext?: string;
+      traits?: string;
+      drives?: string;
+      behavior?: string;
+      relationships?: string;
+    };
     publicCard: {
+      introduction?: string;
       identity?: string;
       traits: string[];
       appearance?: string;
@@ -92,9 +101,11 @@ export type PublicationContent = {
       key: string;
       actorKey: string;
       origin: 'history' | 'incoming';
+      speaker?: 'actor' | 'player';
       text: string;
       at: string;
     }[];
+    moments?: { key: string; actorKey: string; text: string; at: string }[];
     notes: { key: string; title: string; text: string; factKeys: string[] }[];
     invitations: {
       key: string;
@@ -346,6 +357,20 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     if (m.origin === 'history' && Date.parse(m.at) >= start)
       issue(['phone', 'messages', i, 'at'], 'history_message_not_past');
   });
+  unique(
+    (c.phone.moments ?? []).map((m) => m.key),
+    ['phone', 'moments'],
+  );
+  (c.phone.moments ?? []).forEach((m, i) => {
+    if (!actors.has(m.actorKey)) issue(['phone', 'moments', i, 'actorKey'], 'unknown_actor');
+    else if (!actors.get(m.actorKey)?.knownAtStart)
+      issue(['phone', 'moments', i, 'actorKey'], 'sender_not_player_known');
+    if (Date.parse(m.at) > start) issue(['phone', 'moments', i, 'at'], 'future_in_history');
+  });
+  c.phone.messages.forEach((m, i) => {
+    if (m.speaker === 'player' && m.origin !== 'history')
+      issue(['phone', 'messages', i, 'speaker'], 'player_message_not_history');
+  });
   c.phone.notes.forEach((n, i) => {
     playerFacts(n.factKeys, ['phone', 'notes', i, 'factKeys']);
     if (n.factKeys.some((key) => !playerKnown.has(key)))
@@ -440,7 +465,7 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     });
     const intent = n.intent;
     if (
-      intent.kind === 'offer_message' &&
+      (intent.kind === 'offer_message' || intent.kind === 'director_event') &&
       (!actors.has(intent.actorKey) || !n.actorKeys.includes(intent.actorKey))
     )
       issue(['candidates', i, 'intent'], 'intent_actor_outside_node');
