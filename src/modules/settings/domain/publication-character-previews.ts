@@ -247,3 +247,59 @@ export function mergeCharacterPreviewProposal(
   const merged = mergePublicationPreparation(baseline, { phone });
   return { ...merged, reviews: [...reviews, ...merged.reviews], issues };
 }
+
+/** A confirmed familiar relationship provides enough fictional context for ordinary preview content.
+ * This checks completeness of the proposal, never fabricates lines or changes an author's dates. */
+export function characterPreviewCompletenessIssues(
+  baseline: RecordValue,
+  updated: RecordValue,
+  sources: readonly Source[],
+  referenceAt?: string,
+): PublicationIssue[] {
+  if (!validCharacterPreviewTime(referenceAt)) return [];
+  const names = new Set(preparationCharacterNames(sources));
+  const actors = rows(baseline.actors);
+  const phone = record(updated.phone) ? updated.phone : {};
+  const issues: PublicationIssue[] = [];
+  for (const [index, actor] of actors.entries()) {
+    const modules = record(actor.lifeModules) ? actor.lifeModules : {};
+    if (
+      !validKey(actor.key) ||
+      typeof actor.name !== 'string' ||
+      !names.has(actor.name) ||
+      actor.knownAtStart !== true ||
+      !text(modules.relationships, 4000) ||
+      actors.filter((a) => a.key === actor.key).length !== 1
+    )
+      continue;
+    const history = rows(phone.messages).filter(
+      (m) =>
+        m.actorKey === actor.key &&
+        m.origin === 'history' &&
+        text(m.text, 500) &&
+        validCharacterPreviewTime(m.at) &&
+        Date.parse(m.at) < Date.parse(referenceAt),
+    );
+    const hasActor = history.some((m) => m.speaker === undefined || m.speaker === 'actor');
+    const hasPlayer = history.some((m) => m.speaker === 'player');
+    if (!hasActor || !hasPlayer)
+      issues.push({
+        path: ['actors', index, 'historyPreview'],
+        code: 'character_preview_history_missing',
+      });
+    if (
+      !rows(phone.moments).some(
+        (m) =>
+          m.actorKey === actor.key &&
+          text(m.text, 1600) &&
+          validCharacterPreviewTime(m.at) &&
+          Date.parse(m.at) <= Date.parse(referenceAt),
+      )
+    )
+      issues.push({
+        path: ['actors', index, 'momentsPreview'],
+        code: 'character_preview_moments_missing',
+      });
+  }
+  return issues;
+}

@@ -313,7 +313,9 @@ test('one correction can repair invalid preview evidence using the same isolated
     phone: {
       messages: [
         { ...message('repair'), at: count === 1 ? '2038-01-01T00:00:00Z' : '2037-01-10T00:00:00Z' },
+        ...(count === 2 ? [message('repair_reply', 'player')] : []),
       ],
+      ...(count === 2 ? { moments: [moment('repair_post')] } : {}),
     },
   }));
   const result = await h.planner.propose(
@@ -354,7 +356,7 @@ test('character prompt requests generic modules and grounded previews but privat
     '行为模式',
     '关系模型',
     '不替玩家作',
-    '数量根据素材决定',
+    '不统一固定条数',
     '不增加图片',
     '不写JSON字段名、内部编号或技术路径',
   ])
