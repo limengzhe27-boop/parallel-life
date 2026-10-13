@@ -8,6 +8,7 @@ import {
 } from '../../contracts/publisher-preparation.ts';
 import { PublisherClientError, type PublisherClient } from './publisher-client.ts';
 import s from './publisher-import-dialog.module.css';
+import { PublisherReviewView } from './publisher-review-view.ts';
 
 type Proposal = ReturnType<typeof parseFeishuMarkdownBundle>;
 type Source = { filename: string; content: string };
@@ -621,13 +622,13 @@ export function PublisherImportDialog({
             {
               code: 'ai_summary',
               severity: 'warning',
-              filename: '整理摘要',
+              filename: '模型整理摘要（待核对）',
               message: aiResult.summary,
             },
             ...aiResult.notes.map((note) => ({
               code: note.kind,
               severity: 'warning' as const,
-              filename: { extracted: '原稿提取', supplemented: 'AI 补充', review: '待核对' }[
+              filename: { extracted: '模型认为已提取', supplemented: 'AI 补充', review: '待核对' }[
                 note.kind
               ],
               message: note.text,
@@ -815,16 +816,20 @@ export function PublisherImportDialog({
             )}
           </section>
         )}
+        {updatedContent && <PublisherReviewView content={updatedContent} />}
         {aiResult && (
           <section className={s.preview} aria-label="AI 整理结果">
-            <h3>核对整理结果</h3>
+            <h3>模型整理说明（待核对）</h3>
+            <p className={s.help}>
+              以下是模型对本次整理的说明，不是来源核验结果。请以上方实际内容与原稿对照，核对整理结果。
+            </p>
             <p>{aiResult.summary}</p>
             {(['extracted', 'supplemented', 'review'] as const).map((kind) => (
               <div key={kind}>
                 <h4>
                   {
                     {
-                      extracted: '原稿中提取的设定',
+                      extracted: '模型认为已提取',
                       supplemented: 'AI 补充的内容',
                       review: '需要编剧核对',
                     }[kind]

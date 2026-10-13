@@ -187,3 +187,83 @@
 .body {
   overflow-wrap: anywhere;
 }
+
+.reviewContent {
+  margin-top: 24px;
+  border-top: 1px solid #dbe1e8;
+  line-height: 1.7;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.reviewNotice {
+  padding: 12px;
+  background: #fff7e5;
+  color: #735219;
+  border-radius: 9px;
+}
+.reviewGroup {
+  min-width: 0;
+  border-bottom: 1px solid #dbe1e8;
+  padding: 8px 0;
+}
+.reviewGroup > summary {
+  min-height: 44px;
+  padding: 10px 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-weight: 600;
+}
+.reviewGroup > summary:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.reviewCards {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.reviewCard {
+  border: 1px solid #e5e9ef;
+  border-radius: 9px;
+  padding: 14px;
+  background: #f8fafc;
+  min-width: 0;
+}
+.reviewCard h4 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.reviewCard dl {
+  margin: 0;
+}
+.reviewField {
+  display: grid;
+  grid-template-columns: minmax(90px, 128px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 7px 0;
+}
+.reviewField dt {
+  color: #596579;
+}
+.reviewField dd {
+  margin: 0;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reviewGroup pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  background: #f4f6f9;
+  padding: 12px;
+}
+@media (max-width: 480px) {
+  .reviewField {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+  .reviewCard {
+    padding: 12px;
+  }
+}
