@@ -5,6 +5,9 @@ export type SourceReviewTarget = {
   section: string;
   label: string;
   value: string;
+  /** Compared only with the supplied pre-import draft, never inferred from model notes. */
+  origin?: 'existing' | 'added' | 'modified' | 'unknown';
+  previousValue?: string;
 };
 export type SourceReviewMatch = {
   target: SourceReviewTarget;
@@ -24,6 +27,11 @@ export type SourceReviewRow = {
   status: 'literal_match' | 'possible_rewrite' | 'unmapped';
   matches: SourceReviewMatch[];
   notices: string[];
+  /** Evidence triage, not an automatic semantic verdict or permission to publish. */
+  assessment?: {
+    kind: 'covered' | 'possible_omission' | 'possible_change' | 'unresolved' | 'instruction';
+    reason: string;
+  };
 };
 export type SourceReview = {
   rows: SourceReviewRow[];
