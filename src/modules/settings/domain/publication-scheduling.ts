@@ -45,9 +45,9 @@ const iso = (n: number) => {
   return d.toISOString();
 };
 const temporal =
-  /\d{4}\s*(?:年|[-/]\d{1,2})|\d{1,2}[:：]\d{2}|\d{1,2}月\d{1,2}日|(?:\d{1,2}|[一二三四五六七八九十两]+)(?:点|时)(?:\d{1,2}|[一二三四五六七八九十两]+)?分?|第(?:\d+|[一二三四五六七八九十百两]+)(?:天|日)|(?:今天|明天|昨天|今晚|明晚|昨晚|后天|前天|次日|翌日|隔天|第二天)|(?:\d+|[一二三四五六七八九十百两]+)\s*(?:天|日|小时|分钟|周|星期|个月|月|年)(?:后|前|内)|(?:周|星期)[一二三四五六日天]|(?:凌晨|早上|上午|中午|下午|傍晚|晚上)\s*(?:\d+|[一二三四五六七八九十两]+)\s*点/gu;
+  /\d{4}\s*(?:年|[-/]\d{1,2})|\d{1,2}[:：]\d{2}|\d{1,2}月\d{1,2}日|(?:\d{1,2}|[一二三四五六七八九十两]+)(?:点|时)(?:\d{1,2}|[一二三四五六七八九十两]+)?分?|第(?:\d{1,6}|[一二三四五六七八九十百两]{1,8})(?:天|日)|(?:今天|明天|昨天|今晚|明晚|昨晚|后天|前天|次日|翌日|隔天|第二天)|(?:\d{1,6}|[一二三四五六七八九十百两]{1,8})\s*(?:天|日|小时|分钟|周|星期|个月|月|年)(?:后|前|内)|(?:周|星期)[一二三四五六日天]|(?:凌晨|早上|上午|中午|下午|傍晚|晚上)\s*(?:\d{1,6}|[一二三四五六七八九十两]+)\s*点/gu;
 const dynamic =
-  /(?:完成|发生|结束|拒绝|同意|接受|落实|跳过|过期|事件|剧情|邀约|节点)[^。！？!?；;\r\n]{0,32}?(?:后|之后|以后)(?:再|隔|过|等|的|，|,|\s){0,6}(?:\d+|[一二三四五六七八九十百两]+)\s*(?:天|日|小时|分钟|周|星期|个月)|(?:完成|发生|结束|拒绝|同意|接受|落实|跳过|过期|事件|剧情|邀约|节点)[^。！？!?；;\r\n]{0,24}?(?:次日|翌日|第二天|隔天)/gu;
+  /(?:完成|发生|结束|拒绝|同意|接受|落实|跳过|过期|事件|剧情|邀约|节点)[^。！？!?；;\r\n]{0,32}?(?:后|之后|以后)(?:再|隔|过|等|的|，|,|\s){0,6}(?:\d{1,6}|[一二三四五六七八九十百两]{1,8})\s*(?:天|日|小时|分钟|周|星期|个月)|(?:完成|发生|结束|拒绝|同意|接受|落实|跳过|过期|事件|剧情|邀约|节点)[^。！？!?；;\r\n]{0,24}?(?:次日|翌日|第二天|隔天)/gu;
 
 /** Proposes only missing runtime timestamps. No clock, model, persistence or semantic approval. */
 export function planPublicationTimes(
@@ -372,6 +372,24 @@ export function planPublicationTimes(
       lower = Math.max(lower, s.time + (s.row.value.origin === 'history' ? 1 : 0));
   for (const s of [...inviteSlots, ...candidateSlots.values()])
     if (s.time !== undefined) upper = Math.min(upper, s.time);
+  // Reserve minute slots after a fixed tail before choosing a missing opening clock.
+  for (const sequence of [histories, messageSlots]) {
+    let lastFixed = -1;
+    sequence.forEach((s, i) => {
+      if (s.time !== undefined) lastFixed = i;
+    });
+    if (lastFixed >= 0) {
+      const trailing = sequence
+        .slice(lastFixed + 1)
+        .filter((s) => s.blank && s.row.value.origin !== 'incoming').length;
+      if (trailing) lower = Math.max(lower, sequence[lastFixed]!.time! + (trailing + 1) * MINUTE);
+    }
+  }
+  // The runtime requires every not_before constraint to be at or after the opening.
+  for (const ps of conditions.values())
+    for (const p of ps)
+      if (p.value.kind === 'not_before') upper = Math.min(upper, instant(p.value.at)!);
+
   const initialKey = timeline?.initialStageKey;
   if (timeline && (typeof initialKey !== 'string' || !stages.some((s) => s.key === initialKey)))
     issue(['timeline', 'initialStageKey'], 'scheduling_unknown_stage');
@@ -465,11 +483,10 @@ export function planPublicationTimes(
     const dates = (conditions.get(key) ?? [])
       .filter((p) => p.value.kind === 'not_before')
       .map((p) => instant(p.value.at)!);
-    fill(
-      s,
-      Math.max(start, nodeWindows.get(key)?.begin ?? start, ...dates),
-      'default_invitation_lower_bound',
-    );
+    const earliest = Math.max(start, nodeWindows.get(key)?.begin ?? start, ...dates);
+    const window = nodeWindows.get(key);
+    if (s.blank && window && earliest >= window.end) issue(s.path, 'scheduling_window_conflict');
+    else fill(s, earliest, 'default_invitation_lower_bound');
   }
   if (publicationStorageIssues(next).length) issue([], 'scheduling_content_budget');
   return result();
