@@ -394,7 +394,7 @@ test('whole-world instructions include optional modules, bidirectional history, 
     'phone.moments',
     'speaker="actor"|"player"',
     'director_event',
-    '导演可选择演绎或暂缓',
+    '不能无限暂缓或静默跳过',
     '不从幕后设定自动公开',
   ])
     assert.ok(system.includes(phrase), phrase);
