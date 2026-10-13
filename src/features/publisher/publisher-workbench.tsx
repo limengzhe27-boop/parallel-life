@@ -572,9 +572,7 @@ export function PublisherWorkbench(
                       <span className={s.workIcon} aria-hidden="true">
                         📄
                       </span>
-                      <span className={s.workTitleText}>
-                        {w.title}
-                      </span>
+                      <span className={s.workTitleText}>{w.title}</span>
                     </button>
                     <div className={s.workActions}>
                       <button
@@ -644,9 +642,6 @@ export function PublisherWorkbench(
         <header className={s.topbar}>
           <div className={s.topbarMeta}>
             <div className={s.titleArea}>
-              <div className={s.breadcrumb}>
-                世界 / {work ? draftTitle || work.title : '未选择作品'}
-              </div>
               <div className={s.titleRow}>
                 <h2 className={s.workTitle}>
                   {work ? draftTitle || work.title : '请在左侧选择或新建世界'}
@@ -696,7 +691,7 @@ export function PublisherWorkbench(
                         : '草稿'}
                   </span>
                 )}
-                {isDirty && <span className={s.dirtyFlag}>（存在未保存修改）</span>}
+                {isDirty && <span className={s.dirtyFlag}>未保存</span>}
               </div>
             </div>
 
@@ -716,7 +711,7 @@ export function PublisherWorkbench(
                         : '保存当前草稿'
                   }
                 >
-                  {busy ? '正在保存…' : '保存草稿'}
+                  {busy ? '处理中…' : '保存草稿'}
                 </button>
 
                 <button
@@ -829,7 +824,7 @@ export function PublisherWorkbench(
         </header>
 
         {/* Global Feedback Banners */}
-        {markdownReview && (
+        {markdownReview && activeTab === 'review' && (
           <details className={s.banner}>
             <summary>本次文稿导入记录 · 原稿与待核对内容</summary>
             <p>此记录仅供当前编辑时核对，不自动保存为世界事实或公开资料。原始文档保持原样。</p>
@@ -851,16 +846,26 @@ export function PublisherWorkbench(
           </details>
         )}
         {error && (
-          <div className={`${s.banner} ${s.bannerError}`} role="alert">
-            <span>
-              <strong>操作未完成：</strong>{' '}
-              请检查登录状态及当前故事后重试；如仍无法继续，请联系管理员。
-            </span>
-          </div>
+          <details className={s.feedback}>
+            <summary role="alert" className={s.feedbackError}>
+              操作未完成，当前编辑内容仍保留 · 查看处理方式
+            </summary>
+            <p>
+              {error.code === 'VERSION_CONFLICT'
+                ? '草稿已被其他人更新。你的修改还在，请先核对，不能直接覆盖。'
+                : error.code === 'UNAUTHORIZED'
+                  ? '登录已失效，请重新登录后再试。'
+                  : error.code === 'FORBIDDEN'
+                    ? '当前账号没有这项操作的权限，请联系管理员。'
+                    : error.code === 'RATE_LIMITED'
+                      ? '操作较频繁，请稍后再试。'
+                      : '请核对当前故事后重试；如仍无法继续，请联系管理员。是否保存或发布成功，请以重新读取的结果为准。'}
+            </p>
+          </details>
         )}
-        {notice && (
+        {notice && !error && (
           <div
-            className={`${s.banner} ${
+            className={`${s.feedback} ${
               notice.type === 'error'
                 ? s.bannerError
                 : notice.type === 'warning'
@@ -880,53 +885,12 @@ export function PublisherWorkbench(
             </button>
           </div>
         )}
-        {work &&
-          (!currentCheck ||
-            check?.status !== 'ready' ||
-            pendingChecks.length > 0 ||
-            needsStartTime) && (
-            <div className={`${s.banner} ${s.bannerWarning}`} role="status">
-              <div>
-                <strong>待确认问题：</strong>
-                {check
-                  ? `${pendingChecks.length} 项${check.issuesTruncated ? '（后台结果尚有未列出项）' : ''}`
-                  : '尚未检查草稿'}
-                {check && !currentCheck && (
-                  <p>这是上次检查结果；当前编辑稿尚未重新检查，请先保存修改。</p>
-                )}
-                {check?.missingCapabilities.length ? (
-                  <p>部分内容暂时不支持运行，请调整后再试演。</p>
-                ) : null}
-                {needsStartTime && (
-                  <p>开场时间尚未安排或需核对。可一键安排缺省时间；已有明确时间不会被替换。</p>
-                )}
-              </div>
-              <button
-                type="button"
-                className={`${s.btn} ${s.btnSecondary}`}
-                onClick={() => setActiveTab('review')}
-              >
-                查看全部问题
-              </button>
-              {needsStartTime && (
-                <button
-                  type="button"
-                  className={`${s.btn} ${s.btnSecondary}`}
-                  onClick={() => {
-                    setActiveTab('settings');
-                    setSettingsOpen(true);
-                  }}
-                >
-                  查看时间设置
-                </button>
-              )}
-            </div>
-          )}
-
         {work && activeTab === 'review' && (
           <section className={s.reviewPanel} aria-label="待确认问题">
             <h3>先核对，再试演与发布</h3>
-            <p>保存草稿 → 检查 → 试演 → 发布。这里列出后台返回的全部问题，不会自动修改你的故事。</p>
+            <p>
+              这里集中核对缺失内容、剧情冲突和试演、发布前需要处理的问题，不会自动修改你的故事。保存草稿后点击顶部“检查”。
+            </p>
             {!check ? (
               <p>尚未检查，请先保存草稿，再点击“检查”。</p>
             ) : (
@@ -989,7 +953,7 @@ export function PublisherWorkbench(
           </section>
         )}
 
-        {work && (
+        {work && activeTab === 'review' && (
           <details className={s.scheduling} aria-label="安排故事时间">
             <summary>故事时间（按需安排）</summary>
             <button
@@ -1272,7 +1236,7 @@ export function PublisherWorkbench(
                     <div className={s.formGrid}>
                       {needsStartTime && (
                         <p className={s.timeWarning} role="status">
-                          可先用“安排缺省时间”补齐开场，再核对实际安排；如有明确日期，也可以在下方设置。
+                          可到“待确认问题”中安排缺省时间；如有明确日期，也可以在下方设置。
                         </p>
                       )}
                       <details className={s.timeDisclosure}>

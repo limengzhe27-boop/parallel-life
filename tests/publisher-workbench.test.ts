@@ -231,7 +231,7 @@ test('workbench defaults to actual story overview with four writer-facing entrie
   ])
     assert.ok(html.includes(text), text);
   assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
-  assert.match(html, /尚未检查草稿/);
+  assert.doesNotMatch(html, /尚未检查草稿|查看全部问题|安排故事时间/);
   assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
 });
 test('character form preserves all five existing authoring sections and real values after navigation', () => {
@@ -302,7 +302,7 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
 
   assert.ok(html.includes('待确认问题'));
   assert.ok(html.includes('人物第 1 项 · 姓名或地点名称'));
-  assert.ok(html.includes('部分内容暂时不支持运行'));
+  assert.ok(html.includes('当前运行限制'));
   assert.ok(!html.includes('actors.0.name: name_required'));
   assert.ok(html.includes('真实模型调用预算尚未确认'));
   assert.doesNotMatch(html, /限制详情|model_budget_unapproved/);
@@ -366,7 +366,7 @@ test('all returned issues and run restrictions are available, with server trunca
   };
   const html = renderTab({ ...defaultProps, check }, 'review');
   for (let i = 1; i <= 8; i++) assert.ok(html.includes(`人物第 ${i} 项`));
-  assert.match(html, /待确认问题：.*12 项/);
+  assert.match(html, /待确认问题（12）/);
   assert.match(html, /仍有未列出的项/);
   assert.match(html, /尚未完成真实试演|素材尚未核验/);
   assert.doesNotMatch(html, /unrecognized_runtime_feature/);
@@ -402,7 +402,7 @@ test('existing permission, version, hash, trial and media publication guards sta
   );
   assert.match(readOnly, /<button[^>]*disabled=""[^>]*>发布<\/button>/);
 });
-test('missing or unrecognized start date stays explicitly actionable outside folded settings', () => {
+test('missing start date is actionable in review without interrupting authoring tabs', () => {
   for (const startAt of ['', '初夏午后']) {
     const content = {
       ...mockContent,
@@ -410,12 +410,11 @@ test('missing or unrecognized start date stays explicitly actionable outside fol
     };
     const html = renderTab(
       { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
-      'settings',
+      'review',
     );
-    assert.match(html, /开场时间尚未安排或需核对/);
-    assert.match(html, /查看时间设置/);
-    assert.match(html, /精确开场日期和时间/);
-    assert.match(html, /<details class="timeDisclosure">/);
+    assert.match(html, /开场时间待安排或核对/);
+    assert.match(html, /安排缺省时间/);
+    assert.match(html, /安排故事时间/);
   }
 });
 
@@ -537,7 +536,7 @@ test('manual scheduling uses work creation time, adopts only successful plans, a
       calls = 0,
       saved = 0,
       trials = 0;
-    const states: unknown[] = [];
+    const states: unknown[] = ['review'];
     const source = {
       work: { title: '手工故事' },
       world: { startAt: '' },
@@ -604,9 +603,12 @@ test('manual scheduling uses work creation time, adopts only successful plans, a
       assert.equal(calls, 1);
       assert.equal(saved, 0);
       assert.equal(trials, 0);
+      states[0] = 'settings';
+      tree = render();
       const field = nodes(tree).find((e) => e.props.id === 'world-tone-input');
       assert.ok(field);
       (field.props.onChange as (e: unknown) => void)({ target: { value: '新的氛围' } });
+      states[0] = 'review';
       tree = render();
       assert.ok(!nodes(tree).some((e) => e.type === PublisherScheduleReview));
       const importButton = nodes(tree).find(
@@ -636,7 +638,7 @@ test('manual scheduling cannot execute with edit permission missing or while bus
   };
   for (const patch of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
     let cursor = 0;
-    const states: unknown[] = [];
+    const states: unknown[] = ['review'];
     Object.assign(globalThis, {
       __writerHooks: {
         useState: (v: unknown) => {
@@ -832,4 +834,18 @@ test('PublisherWorkbench renders draft rename and delete controls in sidebar and
   assert.ok(html.includes('删除草稿「海边诊所的午后」'));
   assert.ok(html.includes('✏️ 重命名'));
   assert.ok(html.includes('🗑️ 删除'));
+});
+
+test('actor editing is not preceded by global checks or scheduling, while failures stay accessible inline', () => {
+  const html = renderTab(
+    { ...defaultProps, error: { code: 'network_error', message: 'private details' } },
+    'actors',
+  );
+  assert.doesNotMatch(html, /安排故事时间|查看全部问题|尚未检查草稿|private details/);
+  assert.match(html, /<details class="feedback"><summary role="alert"/);
+  assert.doesNotMatch(html, /<details[^>]*class="feedback"[^>]*open/);
+  assert.match(html, /当前编辑内容仍保留/);
+  assert.match(html, /查看处理方式/);
+  assert.match(html, /姓名/);
+  assert.match(renderTab(defaultProps, 'review'), /尚未检查，请先保存草稿/);
 });

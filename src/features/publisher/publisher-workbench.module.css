@@ -293,10 +293,10 @@
 .topbar {
   background: var(--pub-surface);
   border-bottom: 1px solid var(--pub-border);
-  padding: 16px 28px;
+  padding: 8px 20px 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
 }
 
 .topbarMeta {
@@ -457,7 +457,7 @@
   display: flex;
   gap: 24px;
   border-top: 1px solid #eef2f7;
-  padding-top: 10px;
+  padding-top: 0;
 }
 
 .tabButton {
@@ -1117,5 +1117,91 @@
   }
   .overallTextarea {
     min-height: 240px;
+  }
+}
+
+/* Keep editing content prominent; detailed checks live in their own tab. */
+.topbar {
+  flex-shrink: 0;
+}
+.titleRow {
+  gap: 8px;
+}
+.workTitle {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.topbar .btn {
+  min-height: 36px;
+  padding: 6px 12px;
+}
+.feedback {
+  flex-shrink: 0;
+  margin: 6px 20px 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.feedback > summary {
+  cursor: pointer;
+}
+.feedback > p {
+  margin: 8px 0 2px;
+  color: var(--pub-secondary);
+}
+.feedbackError {
+  color: var(--pub-error);
+}
+.feedback[role='status'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.feedback button {
+  min-width: 36px;
+  min-height: 36px;
+  flex-shrink: 0;
+}
+@media (max-width: 767px) {
+  .topbar {
+    padding: 8px 12px 0;
+    gap: 4px;
+  }
+  .topbarMeta {
+    gap: 4px;
+  }
+  .topbar .btn {
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+  .actionsRow {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    gap: 4px;
+  }
+  .actionsRow .btn {
+    flex-shrink: 0;
+  }
+  .tabsRow {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+  }
+  .tabButton {
+    flex: 0 0 auto;
+    padding: 8px 4px;
+    min-height: 44px;
+  }
+  .feedback {
+    margin: 6px 12px 0;
+  }
+  .feedback button {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
