@@ -558,3 +558,20 @@ test('explicit imported start stays fixed and non-ISO source time is never repla
   assert.equal(ambiguous.summary.blocked, true);
   assert.deepEqual(ambiguous.updatedContent, base);
 });
+
+test('uncertain source time does not discard otherwise safe partial manuscript extraction', async () => {
+  const source = await readFile(
+    new URL('../public/templates/world-script.md', import.meta.url),
+    'utf8',
+  );
+  const r = parseFeishuMarkdownBundle(
+    [{ filename: 'world-script.md', content: source }],
+    {},
+    { referenceAt: '2030-01-01T00:00:00.000Z' },
+  );
+  assert.equal(r.summary.blocked, false);
+  assert.equal(r.summary.actors.length, 2);
+  assert.equal(r.summary.candidatesCount, 2);
+  assert.equal(r.schedule?.status, 'blocked');
+  assert.ok(r.summary.diagnostics.some((d) => d.code === 'schedule_needs_review'));
+});

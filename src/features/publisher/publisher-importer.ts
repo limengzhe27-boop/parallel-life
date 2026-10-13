@@ -896,8 +896,16 @@ export function parseFeishuMarkdownBundle(
       note(
         'schedule_needs_review',
         '',
-        '原稿时间存在冲突或尚未定位，未套用默认日期；请查看排期问题或让Agent结合原文整理。',
-        'error',
+        '原稿时间存在冲突或尚未定位，未套用默认日期；可核对已提取内容，时间问题仍需结合原文整理，不能直接视为可发布。',
+        plan.issues.every((i) =>
+          [
+            'scheduling_source_time_needs_review',
+            'scheduling_unsupported_relative_delay',
+            'scheduling_invalid_container',
+          ].includes(i.code),
+        )
+          ? 'warning'
+          : 'error',
       );
     } else copy = plan.updatedContent;
   }
@@ -929,12 +937,22 @@ export function parseFeishuMarkdownBundle(
             issue.path[0] === 'actors' &&
             actors.length < 2 &&
             pathValue(['actors']) === undefined));
-      const introduced = !previous.has(signature(issue)) && !pendingMissing && !pendingActor;
+      const path = issue.path.join('.');
+      const pendingDate =
+        !!scheduling &&
+        schedule?.status === 'blocked' &&
+        proposed === '' &&
+        (path === 'world.startAt' ||
+          /^history\.\d+\.occurredAt$/.test(path) ||
+          /^phone\.(messages|invitations)\.\d+\.at$/.test(path) ||
+          /^candidates\.\d+\.intent\.earliestAt$/.test(path));
+      const introduced =
+        !previous.has(signature(issue)) && !pendingMissing && !pendingActor && !pendingDate;
       note(
         introduced ? 'content_validation_failed' : 'draft_needs_completion',
         '',
         `草稿待核对：${issue.path.join('.')} ${issue.message}`,
-        baseline.success || introduced ? 'error' : 'warning',
+        (!pendingDate && baseline.success) || introduced ? 'error' : 'warning',
         issue.path.join('.'),
       );
     }
