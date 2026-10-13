@@ -29,3 +29,9 @@
 - 普通现场生成/AI质量与用户尚未说明的精确存档个案仍不冒称验证。本聊天已异步询问具体人生/地点。
 
 本批待主集成人统一合入最新publisher基线、确认50生产迁移并部署READY/公网后才标完成。本人不独立覆盖生产；HTTP开发服务已停，PG已正常停止；Ego158保留本任务用于最终公网只读复验，不开新空间。
+
+## 公网地图只读验收（2026-10-13）
+
+主集成报告 a81106999fce69bfb6ee1636ad9e255c19c90a5d / dpl_77Rhb26wGAejBteXdqzk9J59bogQ READY，正式 alias 一致。本任务在正式 parallel-life-nu.vercel.app 使用指定旧暂停合成存档复核：GET space 200/paused=true/busy=false；390×844与1440×900/phone420无横溢出，三工具44px；搜索和探索附近均不存在，真实街角小店选择及详情正常。截图 .local/map-public-mobile.png/map-public-pc.png 已人工查看。只允许既有测试身份的 session POST 握手，其余业务写拦截，最终blocked为空、0模型调用；未前往/进入现场。CLI点击地图点出现坐标偏移，DOM中心hit确为按钮，改用原DOM click；不声称真机触摸验收。原同名cookie恢复值验证通过，备份已删除，Ego158 finish完成。
+
+用户补充问题人生是县城黄毛；当前浏览器既有会话县城存档只读显示 old_workshop/worldVersion2/busy=true/currentSceneId=null。未确认就是用户原存档，未清任务或改数据，此后端忙碌无现场个案转主集成待办，不能称全部解决。地图代码已上线，业务回执/进入恢复验收证据是本地真实PG；公网此轮仅只读UI。最终主表/报告由主集成人统一登记，无独立重复部署。

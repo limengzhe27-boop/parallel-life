@@ -19,3 +19,13 @@ opening-only修复后第3次真实调用成功，task succeeded/version3，保�
 最终check1889/1889、0失败/skip、build成功；PG空间+新增恢复16/16；planner11/11（含负例拒假成果及原行动），格式检查/diff通过。首轮新迟到case遗漏schemaVersion导致INVALID_PROPOSAL，补合法proposal后验证到真实版本栅栏；旧开场提示审计词句断言第一次不符，保留同义安全短句后全量通过。无SQL/契约/前端改动。
 
 本地模型累计3，尚剩1公网，0图片；当前等待root集成/迁移50核验/READY后公网新合成县城实际前往与开场。HTTP3287已停止，Ego160保留公网验收，localhost原同名cookie已恢复。
+
+## 正式验收通过（2026-10-13）
+
+根业务SHA58d0d018de44fc8ed2a19c3ef29230f3a10c8d2b / dpl_DM6S46QvR8pokxtFGPjW5VuSWRHB READY，正式alias一致。根联合1893check/build、16实PG通过，生产50checksum一致，无新迁移。
+
+Ego160在正式网址先只读原旧县城：GET space200、busy=false、old_workshop/version2/currentScene=null，原位置版本不变；未替真实玩家移动、入场、重试旧unknown。
+
+独立公网新县城合成存档（无root批次账户），正常API创建后speed0，实际UI选择旧车间→前往18分钟，v1/old_workshop/busyfalse→点击进入现场→真实gpt-4o-mini成功task succeeded/v3，保存time_place旧车间+narration环境，无appointment且presence仅player，0独立NPC/0图片。浏览器task/run计数1，未触发auto advance；本地3+公网1=4/4文字，全部停止。公网390×844/1440×900-phone420均无横溢出，原控件点击走完，截图county-public-scene-mobile.png/county-public-scene-pc.png已人工查看。脚本首次预算guard的正则转义导致未注入，在任何前往/入场前改用路径条件并reload，确认runs0后开始；不隐瞒工具问题，也未增加模型请求。
+
+测试存档用正式clock API暂停成功；原同名cookie恢复比对true，临时cookie备份删除，Ego160已finish。HTTP3287/PG55487都已正常停止。仅限定旧导演busy与现场开场通过，不声称旧unknown已成功/自动剧情已恢复或所有NPC场景质量全面验收。待root将本报告归档并更新主表，代码已上线且关键流程实测通过。
