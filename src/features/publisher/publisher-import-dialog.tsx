@@ -729,7 +729,8 @@ export function PublisherImportDialog({
               </details>
             ))}
             <p className={s.help}>
-              点击 AI 整理，会把以上文稿和当前编辑稿发送给项目文字模型。AI
+              点击 AI
+              整理，会把以上文稿和当前编辑稿发送给项目文字模型。每次最多调用两次，包含一次已知格式问题的纠正。AI
               补充内容需要你核对；作者设定与人物知情范围也请逐项检查。
             </p>
             <div className={s.actions}>
@@ -747,7 +748,7 @@ export function PublisherImportDialog({
             </div>
             {operationId && (
               <p className={s.help}>
-                重新整理会发起一次新的模型请求。结果尚未确认时，建议先查询原操作。
+                重新整理会开始新的整理，最多包含两次文字模型调用。结果尚未确认时，请先查询原操作。
               </p>
             )}
           </section>
