@@ -1,3 +1,11 @@
+## 2026-10-14 · AUTHORING-15 编剧录入与首次自动开场
+
+业务2d5a1bbb1191f1e0166558f44a90cce8fe14edf0 / dpl_GHEVDqj86TPQbDRCUELJEAYtgr8Z READY，正式 https://parallel-life-nu.vercel.app 精确同SHA，GitHub CI38430288012成功。生产55迁移checksum一致，无新SQL。2207check/type/439边界、build/format通过；完整PG首轮323通过、5专属端口拒绝、5明确模型opt-in跳过，明确本人55476重检5组85通过，综合408通过/5跳过。不将环境守卫失败写成一次全绿。
+
+人物表单直接带五模块/作者介绍进入项目Agent整理核对入口，默认characters范围；完整世界整理亦拒熟人空历史/动态，保护作者介绍。事件默认标题/概述/明确主要人物/前提摘要，其他规则折叠，一次选人联动真实保存的开启与参与者，原稿保留。玩家phone受控首次故事开场、后续有限时间窗检查，保冷却/版本/unknown，private trial不自动调用。NPC的后续回话补本人实际已发开场来源，校验owner/actor/world/time/version/回执/忘记来源及18k/24k预算，不注入未来剧本。
+
+本地主要人物选择→保存r3→全量回读仅两处关联变化，其余完全一致；原生人物整理dialog实际打开且scope=characters，0模型。公网1440/390新人物入口、原介绍、事件核心项/前提摘要及折叠/无横溢出通过；既有合成存档实际开场来源生产只读核对通过。QA曾错误以紧凑world JSON当完整消息，改核真实投影后通过，0世界写。新24文字/2存档真实验收范围仍待用户确认，0新模型/存档/图，不沿用旧14 closed账本；AUTHORING-15-LIVE-QA和完整事件多拍生命周期未完成。见15-I报告及主登记表。
+
 ## 2026-10-13 · 通用人物、导演事件与真实手机试演
 
 业务063c8576d9c4fb9d5ad29d59ef2b2c48001467f0 / dpl_BY18TWJSxy9DGCoojZcCuHwcUkxh READY，正式 https://parallel-life-nu.vercel.app 精确匹配，GitHub CI38421596634成功。生产55迁移checksum一致。最终2179check、build/format通过，完整真实PG408pass+5明确opt-in skip，world-clock3与真实交易池并发/提交/回滚释放验证通过。

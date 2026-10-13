@@ -1465,3 +1465,15 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 |AUTHORING-14-LEGACY-LOCK|[ ] 待办|待安全恢复方案，root集成|旧会话锁残留|新事务锁防新增泄漏；已有残留需不影响他人世界的恢复方案，不全局解锁/强制结束共享连接。|
 
 |DIRECTOR-EVENT-QUALITY-15|[ ] 待办|待领取，root集成|导演与NPC具体引导/事件生命周期|14真实NPC仍泛泛追问；需具体行动、张力、持续回馈和跨回合证据，独立限量真实模型多轮验证后才称完整。|
+
+
+## AUTHORING-15 明日真实编剧录入与玩家体验收口（2026-10-13）
+
+|任务|状态|负责人|文件与资源范围|验收与接续|
+|---|---|---|---|---|
+|AUTHORING-15-I|[ ] 本批代码已上线，待新真实模型验收|codex-main-author15-20261013 唯一集成|world-publish-intake-01 自149cb61；公共新world-story读契约/ActorContext、已呈现事件本人上下文读取/helper、publication-character-planner、turn-planner、集成/报告/部署；PG55476|不删底层校验，项目AI自动整理后作者核对；持续聊天保本人的实际事件开场来源，不泄露未来概述或他人私密；真实PG/check/build/390/1440/READY。旧11/12模型账本closed，新真实调用须新范围，不沿用。完整多拍生命周期仍DIRECTOR-EVENT-LIFECYCLE-15待办。| 2d5a1bb READY dpl_GHEVDqj86TPQbDRCUELJEAYtgr8Z，2207check/build/format、综合PG408pass+5opt-in skip、生产55一致、公网390/1440，0新项目模型/存档。见15-I报告。
+|AUTHORING-15-P|[x] 已交付（本批代码与非模型验收）|author_people14|独立author-people-preview-14基线149cb61，codex/authoring15-people；workbench.tsx/CSS、import-dialog必要prop/恢复、character-manuscript helper、manuscript-planner、character-preview守卫及专项/本人报告；不公共Phone/plot/SQL/契约|人物姓名/五模块/作者介绍→既有仅人物整理核对采用保存→真实手机试演；总体主框及已命名角色原稿接world整理，熟人空历史/动态进入唯一纠错，公开介绍必须作者原文。typecheck及79专项通过、diff检查通过；root统一check/build/PG/双端/部署，见task-reports/AUTHORING-15-P.md。| root集成2d5a1bb READY，2207check/build、保存回读/人物整理入口/PC手机公网验证；自动开场与新整理的真实模型验收仍15-LIVE-QA待新授权，不冒称完整多拍。
+|AUTHORING-15-M|[x] 已交付（本批代码与非模型验收）|author_import14|独立author-import-modules-14更新149cb61；plot-editor.tsx/CSS、plot-model及必要专项/报告；不workbench/server/契约|事件标题/概述/主要人物/可空前提首屏，主要人物联动开启者与参与者，不任意选第一人；更多规则折叠、旧原稿/阶段/日期/意图保留，PC手机验收。| 2026-10-14 独立codex/authoring15-events自149cb61；核心标题/概述/明确主要人物联动/可空前提摘要，旧阶段地点模式预期执行时间走向收更多安排，ALL/ANY等已有硬限制仍可见且无默认角色猜测。54专项/type/build/435边界/格式diff过。报告AUTHORING-15-M已镜像；0模型DBbrowser端口生产，root全check/双端/READY后完成。 root浏览器反馈窄追加：顶部黄色说明改普通轻提示，问题列表默认收为一行有N处待核对的details，原检查与发布门槛保留；55专项/type/build/格式diff通过。仅原plot-editor/CSS/UI断言/本人报告，待root接续真双端与部署。 root集成2d5a1bb READY，2207check/build、保存回读/人物整理入口/PC手机公网验证；自动开场与新整理的真实模型验收仍15-LIVE-QA待新授权，不冒称完整多拍。
+|AUTHORING-15-AUTO|[x] 已交付（本批代码与非模型验收）|author_events14|独立author-events-director-14更新149cb61；phone/auto-advance.ts、world-phone-app.tsx、api/client.ts、新AUTO专项/报告；公共world-story契约由root|修固定anchor导致自动只运行一次；发布事件首次手机入口不需等30分钟，未开始且无pending才考虑开场；随后有限时间窗/版本/后台冷却和unknown守卫保持，员工试演不自动调用；真数据库和真实付费验收root。 本人bfd5a2a；14专项/type/build通过，check2182通过4默认PG未运行失败；root真实PG/浏览器/上线验收后完成。| root集成2d5a1bb READY，2207check/build、保存回读/人物整理入口/PC手机公网验证；自动开场与新整理的真实模型验收仍15-LIVE-QA待新授权，不冒称完整多拍。
+
+|AUTHORING-15-LIVE-QA|[ ] 等待新真实验收范围确认|root独占执行|新合成剧本/最多24文字/2存档范围已询问，0新调用|总体一框/人物表单/三事件→项目Agent整理→核对保存→实际手机试演→临时发布→玩家自动开场及聊天承接；未获授权不计费，旧11/12 closed不沿用。结束临时下架/暂停/closed；此未通过不称整链完成。|
