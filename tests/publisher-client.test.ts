@@ -119,3 +119,27 @@ test('ready result from another work or revision cannot initiate publish', () =>
     assert.throws(() => client.publish(work, { ...ready, ...changed }), { code: 'INVALID_STATE' });
   assert.equal(calls, 0);
 });
+test('client supports rename and delete operations with proper method and payload', async () => {
+  const requests: Array<{ path: string; method: string; body?: unknown }> = [];
+  const client = new PublisherClient((async (path, options) => {
+    requests.push({
+      path: String(path),
+      method: options?.method ?? 'GET',
+      body: options?.body ? JSON.parse(String(options.body)) : undefined,
+    });
+    if (options?.method === 'DELETE') {
+      return Response.json({ acknowledged: true, id: work.id });
+    }
+    return Response.json(work);
+  }) as typeof fetch);
+  const renamed = await client.rename(work.id, '重命名标题', 0);
+  assert.equal(renamed.id, work.id);
+  assert.equal(requests[0]!.method, 'PATCH');
+  assert.match(requests[0]!.path, new RegExp(`/works/${work.id}`));
+  assert.equal((requests[0]!.body as { title: string }).title, '重命名标题');
+
+  const deleted = await client.delete(work.id);
+  assert.equal(deleted.acknowledged, true);
+  assert.equal(requests[1]!.method, 'DELETE');
+  assert.match(requests[1]!.path, new RegExp(`/works/${work.id}`));
+});

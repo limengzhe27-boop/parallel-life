@@ -36,6 +36,17 @@ export const PublisherSaveDraftSchema = z.strictObject({
   title: text(80).optional(),
   content: PublisherDraftContentSchema,
 });
+export const PublisherRenameWorkSchema = z.strictObject({
+  commandId: Id.optional(),
+  title: text(80),
+  expectedDraftVersion: Version.optional(),
+});
+export type PublisherRenameWork = z.infer<typeof PublisherRenameWorkSchema>;
+export const PublisherDeleteWorkResultSchema = z.strictObject({
+  acknowledged: z.boolean(),
+  id: Id,
+});
+export type PublisherDeleteWorkResult = z.infer<typeof PublisherDeleteWorkResultSchema>;
 export const PublisherCheckDraftSchema = z.strictObject({
   commandId: Id,
   expectedDraftVersion: Version,

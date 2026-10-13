@@ -14,6 +14,8 @@ import {
   PublisherPublishSchema,
   PublisherUnpublishSchema,
   PublisherRestoreSchema,
+  PublisherRenameWorkSchema,
+  PublisherDeleteWorkResultSchema,
   PublisherWorkSchema,
   PublisherWorkListSchema,
   PublisherCheckResultSchema,
@@ -21,6 +23,8 @@ import {
   PublishedWorkCatalogSchema,
   type PublisherCreateWork,
   type PublisherSaveDraft,
+  type PublisherRenameWork,
+  type PublisherDeleteWorkResult,
   type PublisherCheckDraft,
   type PublisherPublish,
   type PublisherUnpublish,
@@ -231,7 +235,7 @@ export class PublicationRepository {
     return this.tx(principal, 'view', async (sql) => {
       const rows = (
         await sql.query(
-          'SELECT * FROM parallel_life.publication_works WHERE ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2',
+          "SELECT * FROM parallel_life.publication_works WHERE ($1::uuid IS NULL OR id>$1) AND NOT (title LIKE '[deleted]%') ORDER BY id LIMIT $2",
           [p.cursor ?? null, p.limit + 1],
         )
       ).rows;
@@ -244,13 +248,18 @@ export class PublicationRepository {
   async get(principal: string, id: string, version?: number) {
     parse(Id, id);
     if (version !== undefined) parse(z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), version);
-    return this.tx(principal, 'view', async (sql) =>
-      this.dto(sql, await this.work(sql, id), version),
-    );
+    return this.tx(principal, 'view', async (sql) => {
+      const w = await this.work(sql, id);
+      if (typeof w.title === 'string' && w.title.startsWith('[deleted]')) {
+        throw new TaskError('NOT_FOUND');
+      }
+      return this.dto(sql, w, version);
+    });
   }
   async create(principal: string, raw: PublisherCreateWork) {
-    const input = parse(PublisherCreateWorkSchema, raw),
-      hash = this.hash(principal, 'create', null, input);
+    const input = parse(PublisherCreateWorkSchema, raw);
+    if (input.title.startsWith('[deleted]')) throw new TaskError('INVALID_INPUT');
+    const hash = this.hash(principal, 'create', null, input);
     return this.command(principal, 'edit', 'create', input.commandId, hash, async (sql) => {
       const id = randomUUID();
       await sql.query(
@@ -266,10 +275,14 @@ export class PublicationRepository {
   }
   async save(principal: string, id: string, raw: PublisherSaveDraft) {
     parse(Id, id);
-    const input = parse(PublisherSaveDraftSchema, raw),
-      hash = this.hash(principal, 'save', id, input);
+    const input = parse(PublisherSaveDraftSchema, raw);
+    if (input.title && input.title.startsWith('[deleted]')) throw new TaskError('INVALID_INPUT');
+    const hash = this.hash(principal, 'save', id, input);
     return this.command(principal, 'edit', 'save', input.commandId, hash, async (sql) => {
       const w = await this.work(sql, id, true);
+      if (typeof w.title === 'string' && w.title.startsWith('[deleted]')) {
+        throw new TaskError('NOT_FOUND');
+      }
       if (Number(w.draft_version) !== input.expectedDraftVersion)
         throw new TaskError('VERSION_CONFLICT');
       const version = input.expectedDraftVersion + 1;
@@ -283,6 +296,83 @@ export class PublicationRepository {
         [id, version, input.title ?? w.title],
       );
       return { workId: id, result: await this.dto(sql, await this.work(sql, id)) };
+    });
+  }
+  async rename(principal: string, id: string, raw: PublisherRenameWork) {
+    parse(Id, id);
+    const input = parse(PublisherRenameWorkSchema, raw);
+    if (input.title.startsWith('[deleted]')) throw new TaskError('INVALID_INPUT');
+    const commandId = input.commandId ?? randomUUID();
+    const hash = this.hash(principal, 'save', id, { op: 'rename', title: input.title, commandId });
+    return this.command(principal, 'edit', 'save', commandId, hash, async (sql) => {
+      const w = await this.work(sql, id, true);
+      if (typeof w.title === 'string' && w.title.startsWith('[deleted]')) {
+        throw new TaskError('NOT_FOUND');
+      }
+      if (
+        input.expectedDraftVersion !== undefined &&
+        Number(w.draft_version) !== input.expectedDraftVersion
+      )
+        throw new TaskError('VERSION_CONFLICT');
+      const version = Number(w.draft_version) + 1;
+      if (!Number.isSafeInteger(version)) throw new TaskError('INVALID_STATE');
+      const d = await this.draft(sql, id, Number(w.draft_version));
+      let content = d.content;
+      if (
+        content &&
+        typeof content === 'object' &&
+        'world' in content &&
+        content.world &&
+        typeof content.world === 'object'
+      ) {
+        content = {
+          ...content,
+          world: {
+            ...(content.world as Record<string, unknown>),
+            title: input.title,
+          },
+        };
+      }
+      await sql.query(
+        'INSERT INTO parallel_life.publication_draft_revisions(work_id,version,content,content_hash,created_by) VALUES($1,$2,$3,$4,$5)',
+        [id, version, content, digest(content), principal],
+      );
+      await sql.query(
+        'UPDATE parallel_life.publication_works SET draft_version=$2,title=$3,updated_at=now() WHERE id=$1',
+        [id, version, input.title],
+      );
+      return { workId: id, result: await this.dto(sql, await this.work(sql, id)) };
+    });
+  }
+  async delete(principal: string, id: string) {
+    parse(Id, id);
+    const commandId = randomUUID();
+    const hash = this.hash(principal, 'save', id, { op: 'delete', id, commandId });
+    return this.command(principal, 'edit', 'save', commandId, hash, async (sql) => {
+      const w = await this.work(sql, id, true);
+      if (typeof w.title === 'string' && w.title.startsWith('[deleted]')) {
+        throw new TaskError('NOT_FOUND');
+      }
+      if (w.listed) throw new TaskError('INVALID_STATE');
+      const version = Number(w.draft_version) + 1;
+      if (!Number.isSafeInteger(version)) throw new TaskError('INVALID_STATE');
+      const d = await this.draft(sql, id, Number(w.draft_version));
+      const deletedTitle = `[deleted] ${w.title}`.slice(0, 80);
+      await sql.query(
+        'INSERT INTO parallel_life.publication_draft_revisions(work_id,version,content,content_hash,created_by) VALUES($1,$2,$3,$4,$5)',
+        [id, version, d.content, d.content_hash, principal],
+      );
+      await sql.query(
+        'UPDATE parallel_life.publication_works SET draft_version=$2,title=$3,updated_at=now() WHERE id=$1',
+        [id, version, deletedTitle],
+      );
+      return {
+        workId: id,
+        result: PublisherDeleteWorkResultSchema.parse({
+          acknowledged: true,
+          id,
+        }),
+      };
     });
   }
   private async assess(id: string, version: number, hash: string, raw: unknown) {

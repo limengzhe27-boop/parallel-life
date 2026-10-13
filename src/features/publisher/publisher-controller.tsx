@@ -175,6 +175,30 @@ export function PublisherController() {
               await loadWorks();
             });
         }}
+        onRenameWork={(workId, newTitle) => {
+          void run(async () => {
+            const next = await client.rename(workId, newTitle);
+            if (work && work.id === workId) {
+              setWork(next);
+            }
+            await loadWorks();
+          });
+        }}
+        onDeleteWork={(workId) => {
+          void run(async () => {
+            await client.delete(workId);
+            const remaining = await loadWorks();
+            if (work && work.id === workId) {
+              const first = remaining[0];
+              if (first) {
+                setWork(await client.get(first.id));
+              } else {
+                setWork(null);
+              }
+              setCheck(null);
+            }
+          });
+        }}
         onCheck={() => {
           if (work)
             void run(async () => {

@@ -116,6 +116,8 @@ export function PublisherWorkbench(
     onSelectWork,
     onCreateWork,
     onSaveDraft,
+    onRenameWork,
+    onDeleteWork,
     onCheck,
     onTrial,
     onPublish,
@@ -208,6 +210,36 @@ export function PublisherWorkbench(
     setOverallPreparationText(text);
     setShowMarkdownImport(true);
   }
+
+  // Modals for renaming and deleting works
+  const [renamingWork, setRenamingWork] = useState<{ id: string; title: string } | null>(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [deletingWork, setDeletingWork] = useState<{ id: string; title: string } | null>(null);
+
+  const handleOpenRename = (target: { id: string; title: string }) => {
+    setRenamingWork(target);
+    setRenameTitle(target.title);
+  };
+
+  const handleRenameSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renamingWork || !renameTitle.trim() || !session.canEdit) return;
+    const trimmed = renameTitle.trim();
+    if (trimmed !== renamingWork.title) {
+      onRenameWork?.(renamingWork.id, trimmed);
+    }
+    setRenamingWork(null);
+  };
+
+  const handleOpenDelete = (target: { id: string; title: string }) => {
+    setDeletingWork(target);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deletingWork || !session.canEdit) return;
+    onDeleteWork?.(deletingWork.id);
+    setDeletingWork(null);
+  };
 
   // Sync state when props.work updates or changes workId/draftVersion
   useEffect(() => {
@@ -529,23 +561,54 @@ export function PublisherWorkbench(
               works.map((w) => {
                 const isActive = work?.id === w.id;
                 return (
-                  <button
-                    key={w.id}
-                    type="button"
-                    className={`${s.workItem} ${isActive ? s.active : ''}`}
-                    onClick={() => handleSelectWorkSafe(w.id)}
-                    aria-current={isActive ? 'page' : undefined}
-                    disabled={busy}
-                  >
-                    <span className={s.workIcon} aria-hidden="true">
-                      📄
-                    </span>
-                    <span
-                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  <div key={w.id} className={`${s.workItemRow} ${isActive ? s.activeRow : ''}`}>
+                    <button
+                      type="button"
+                      className={`${s.workItem} ${isActive ? s.active : ''}`}
+                      onClick={() => handleSelectWorkSafe(w.id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      disabled={busy}
                     >
-                      {w.title}
-                    </span>
-                  </button>
+                      <span className={s.workIcon} aria-hidden="true">
+                        📄
+                      </span>
+                      <span className={s.workTitleText}>
+                        {w.title}
+                      </span>
+                    </button>
+                    <div className={s.workActions}>
+                      <button
+                        type="button"
+                        className={s.workActionBtn}
+                        title={`重命名草稿「${w.title}」`}
+                        aria-label={`重命名草稿「${w.title}」`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenRename(w);
+                        }}
+                        disabled={busy || !session.canEdit}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        className={`${s.workActionBtn} ${s.workDeleteBtn}`}
+                        title={
+                          w.status === 'published'
+                            ? '已上架作品不可直接删除，请先下架'
+                            : `删除草稿「${w.title}」`
+                        }
+                        aria-label={`删除草稿「${w.title}」`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDelete(w);
+                        }}
+                        disabled={busy || !session.canEdit || w.status === 'published'}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
                 );
               })
             )}
@@ -588,6 +651,34 @@ export function PublisherWorkbench(
                 <h2 className={s.workTitle}>
                   {work ? draftTitle || work.title : '请在左侧选择或新建世界'}
                 </h2>
+                {work && (
+                  <>
+                    <button
+                      type="button"
+                      className={s.workHeaderActionBtn}
+                      title="重命名当前草稿"
+                      aria-label="重命名当前草稿"
+                      onClick={() => handleOpenRename(work)}
+                      disabled={busy || !session.canEdit}
+                    >
+                      ✏️ 重命名
+                    </button>
+                    <button
+                      type="button"
+                      className={`${s.workHeaderActionBtn} ${s.workHeaderDeleteBtn}`}
+                      title={
+                        work.status === 'published'
+                          ? '已上架作品不可直接删除，请先下架'
+                          : '删除当前草稿'
+                      }
+                      aria-label="删除当前草稿"
+                      onClick={() => handleOpenDelete(work)}
+                      disabled={busy || !session.canEdit || work.status === 'published'}
+                    >
+                      🗑️ 删除
+                    </button>
+                  </>
+                )}
                 {work && (
                   <span
                     className={`${s.statusBadge} ${
@@ -1868,6 +1959,131 @@ export function PublisherWorkbench(
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Rename Work Modal */}
+      {renamingWork && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: 20,
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rename-work-title"
+        >
+          <form
+            onSubmit={handleRenameSubmit}
+            style={{
+              background: '#ffffff',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 440,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+            }}
+          >
+            <h3 id="rename-work-title" style={{ margin: 0, fontSize: 18 }}>
+              重命名草稿作品
+            </h3>
+            <div className={s.formField}>
+              <label className={s.fieldLabel} htmlFor="rename-work-input">
+                作品新名称
+              </label>
+              <input
+                id="rename-work-input"
+                className={s.input}
+                value={renameTitle}
+                onChange={(e) => setRenameTitle(e.target.value)}
+                placeholder="请输入作品名称"
+                maxLength={80}
+                autoFocus
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnSecondary}`}
+                onClick={() => setRenamingWork(null)}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className={`${s.btn} ${s.btnPrimary}`}
+                disabled={busy || !session.canEdit || !renameTitle.trim()}
+              >
+                确认重命名
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Delete Work Modal */}
+      {deletingWork && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: 20,
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-work-title"
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 440,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+            }}
+          >
+            <h3 id="delete-work-title" style={{ margin: 0, fontSize: 18, color: '#dc2626' }}>
+              删除草稿作品
+            </h3>
+            <p style={{ margin: 0, fontSize: 14, color: '#4b5563', lineHeight: 1.6 }}>
+              确定要删除草稿<strong>「{deletingWork.title}」</strong>吗？删除后该草稿将移出工作台。
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnSecondary}`}
+                onClick={() => setDeletingWork(null)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnDanger}`}
+                onClick={handleDeleteConfirm}
+                disabled={busy || !session.canEdit}
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

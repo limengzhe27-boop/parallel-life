@@ -5,6 +5,7 @@ import { PublisherLoginSchema, PublisherSessionStateSchema } from '../contracts/
 import {
   PublisherCreateWorkSchema,
   PublisherSaveDraftSchema,
+  PublisherRenameWorkSchema,
   PublisherCheckDraftSchema,
   PublisherPublishSchema,
   PublisherUnpublishSchema,
@@ -24,6 +25,8 @@ export type PublisherOperation =
   | 'get'
   | 'create'
   | 'save'
+  | 'rename'
+  | 'delete'
   | 'check'
   | 'publish'
   | 'unpublish'
@@ -36,6 +39,8 @@ export type PublisherRepositoryPort = Pick<
   | 'get'
   | 'create'
   | 'save'
+  | 'rename'
+  | 'delete'
   | 'check'
   | 'publish'
   | 'unpublish'
@@ -365,6 +370,16 @@ export class PublisherHttp {
           await publisherBody(request, PublisherSaveDraftSchema),
         ),
       );
+    if (operation === 'rename')
+      return publisherJson(
+        await this.repo.rename(
+          publisher.id,
+          id,
+          await publisherBody(request, PublisherRenameWorkSchema),
+        ),
+      );
+    if (operation === 'delete')
+      return publisherJson(await this.repo.delete(publisher.id, id));
     if (operation === 'check')
       return publisherJson(
         await this.repo.check(

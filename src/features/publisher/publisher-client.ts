@@ -176,6 +176,21 @@ export class PublisherClient {
       PublisherWorkSchema,
     );
   }
+  rename(workId: string, title: string, expectedDraftVersion?: number) {
+    return this.command(
+      '/works/' + encodeURIComponent(workId),
+      'PATCH',
+      { title, ...(expectedDraftVersion !== undefined ? { expectedDraftVersion } : {}) },
+      PublisherWorkSchema,
+    );
+  }
+  delete(workId: string) {
+    return this.request(
+      '/works/' + encodeURIComponent(workId),
+      z.strictObject({ acknowledged: z.boolean(), id: z.string() }),
+      'DELETE',
+    );
+  }
   check(work: PublisherWork) {
     return this.command(
       '/works/' + work.id + '/check',

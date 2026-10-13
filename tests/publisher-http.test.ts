@@ -58,6 +58,8 @@ function fixture(permissions: ('edit' | 'publish')[] = ['edit', 'publish']) {
     get: async (...a: unknown[]) => record('get', a),
     create: async (...a: unknown[]) => record('create', a),
     save: async (...a: unknown[]) => record('save', a),
+    rename: async (...a: unknown[]) => record('rename', a),
+    delete: async (...a: unknown[]) => record('delete', a),
     check: async (...a: unknown[]) => record('check', a),
     publish: async (...a: unknown[]) => record('publish', a),
     unpublish: async (...a: unknown[]) => record('unpublish', a),
@@ -321,4 +323,32 @@ test('logout clears only publisher identity and checks CSRF for live sessions', 
   assert.match(r.headers.get('set-cookie')!, /pl_publisher_session=;.*Max-Age=0; Secure/);
   assert.equal(r.headers.get('set-cookie')!.includes('pl_session='), false);
   assert.equal((await run(f, 'logout', req(null, 'expired', '', {}, 'DELETE'))).status, 200);
+});
+test('rename forwards title and optional expected draft version under edit permission', async () => {
+  const f = fixture(),
+    c = await credentials(f),
+    input = { title: '全新作品名称', expectedDraftVersion: 1 };
+  const r = await run(f, 'rename', req(input, c.token, c.csrf, {}, 'PATCH'));
+  assert.equal(r.status, 200);
+  assert.deepEqual(f.calls[0], {
+    method: 'rename',
+    args: [principalId, workId, input],
+  });
+  // Without edit permission
+  const p = fixture(['publish']),
+    pc = await credentials(p);
+  p.state.principal.canEdit = false;
+  assert.equal(
+    (await run(p, 'rename', req(input, pc.token, pc.csrf, {}, 'PATCH'))).status,
+    403,
+  );
+});
+test('delete executes under edit permission and requires session and CSRF', async () => {
+  const f = fixture(),
+    c = await credentials(f);
+  const r = await run(f, 'delete', req(null, c.token, c.csrf, {}, 'DELETE'));
+  assert.equal(r.status, 200);
+  assert.deepEqual(f.calls[0], { method: 'delete', args: [principalId, workId] });
+  // Without CSRF
+  assert.equal((await run(f, 'delete', req(null, c.token, '', {}, 'DELETE'))).status, 403);
 });

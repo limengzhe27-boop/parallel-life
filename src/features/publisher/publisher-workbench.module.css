@@ -118,6 +118,124 @@
   opacity: 0.8;
 }
 
+.workItemRow {
+  display: flex;
+  align-items: center;
+  position: relative;
+  border-radius: 8px;
+  transition: background-color 120ms ease;
+}
+
+.workItemRow:hover {
+  background: var(--pub-bg);
+}
+
+.workItemRow.activeRow {
+  background: var(--pub-accent-soft);
+}
+
+.workItemRow .workItem {
+  flex: 1;
+  min-width: 0;
+  padding-right: 60px;
+}
+
+.workTitleText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.workActions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.4;
+  transition: opacity 150ms ease;
+  z-index: 2;
+}
+
+.workItemRow:hover .workActions,
+.workItemRow:focus-within .workActions,
+.workItemRow.activeRow .workActions {
+  opacity: 1;
+}
+
+.workActionBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 13px;
+  border-radius: 4px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  transition: background 120ms ease;
+}
+
+.workActionBtn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.workActionBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.workDeleteBtn:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.workHeaderActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--pub-border);
+  background: #ffffff;
+  color: var(--pub-text);
+  cursor: pointer;
+  transition: all 120ms ease;
+  min-height: 32px;
+}
+
+.workHeaderActionBtn:hover:not(:disabled) {
+  border-color: var(--pub-accent);
+  color: var(--pub-accent);
+}
+
+.workHeaderActionBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.workHeaderDeleteBtn:hover:not(:disabled) {
+  border-color: #ef4444;
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.btnDanger {
+  background: #dc2626;
+  color: #ffffff;
+  border: 1px solid #b91c1c;
+}
+
+.btnDanger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
 .sidebarFooter {
   flex-shrink: 0;
   padding-top: 16px;

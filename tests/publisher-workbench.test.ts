@@ -825,3 +825,11 @@ test('overall change and preparation handlers cannot bypass read-only or busy st
     }
   }
 });
+
+test('PublisherWorkbench renders draft rename and delete controls in sidebar and header', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  assert.ok(html.includes('重命名草稿「海边诊所的午后」'));
+  assert.ok(html.includes('删除草稿「海边诊所的午后」'));
+  assert.ok(html.includes('✏️ 重命名'));
+  assert.ok(html.includes('🗑️ 删除'));
+});
