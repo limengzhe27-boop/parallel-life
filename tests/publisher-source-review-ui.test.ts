@@ -14,7 +14,11 @@ import type {
 
 // Contract-bound UI fixtures only: no production matcher replacement, network, model, DB or DOM.
 let active: Harness;
-let build: (sources: ManuscriptSource[], content: Record<string, unknown>) => SourceReview;
+let build: (
+  sources: ManuscriptSource[],
+  content: Record<string, unknown>,
+  baseline?: Record<string, unknown>,
+) => SourceReview;
 let calls = 0;
 class Harness {
   values: unknown[] = [];
@@ -36,10 +40,14 @@ class Harness {
       this.values[i] = { deps, value: fn() };
     return (this.values[i] as { value: unknown }).value;
   }
-  render(sources: ManuscriptSource[], content: Record<string, unknown> = {}) {
+  render(
+    sources: ManuscriptSource[],
+    content: Record<string, unknown> = {},
+    baselineContent?: Record<string, unknown>,
+  ) {
     active = this;
     this.cursor = 0;
-    return PublisherSourceReview({ sources, content });
+    return PublisherSourceReview({ sources, content, baselineContent });
   }
 }
 Object.assign(globalThis, {
@@ -47,9 +55,13 @@ Object.assign(globalThis, {
     useState: (v: unknown) => active.useState(v),
     useMemo: (f: () => unknown, d: unknown[]) => active.useMemo(f, d),
   },
-  __sourceReviewUiBuilder: (s: ManuscriptSource[], c: Record<string, unknown>) => {
+  __sourceReviewUiBuilder: (
+    s: ManuscriptSource[],
+    c: Record<string, unknown>,
+    b?: Record<string, unknown>,
+  ) => {
     calls++;
-    return build(s, c);
+    return build(s, c, b);
   },
 });
 registerHooks({
@@ -64,7 +76,7 @@ registerHooks({
         format: 'module',
         shortCircuit: true,
         source:
-          'export const buildPublicationSourceReview=(s,c)=>globalThis.__sourceReviewUiBuilder(s,c)',
+          'export const buildPublicationSourceReview=(s,c,b)=>globalThis.__sourceReviewUiBuilder(s,c,b)',
       };
     if (url.endsWith('.module.css'))
       return {
@@ -92,8 +104,12 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { PublisherSourceReview, locateSourceReviewRow, sourceReviewNeedsAttention } =
-  await import('../src/features/publisher/publisher-source-review.tsx');
+const {
+  PublisherSourceReview,
+  locateSourceReviewRow,
+  sourceReviewNeedsAttention,
+  sourceReviewAssessment,
+} = await import('../src/features/publisher/publisher-source-review.tsx');
 type Native = ReactElement<Record<string, unknown>>;
 function walk(value: unknown): Native[] {
   if (Array.isArray(value)) return value.flatMap(walk);
@@ -136,6 +152,15 @@ function row(
     line: sources[fileIndex]!.content.slice(0, start).split('\n').length,
     quote,
     status,
+    assessment: {
+      kind:
+        status === 'literal_match'
+          ? 'covered'
+          : status === 'possible_rewrite'
+            ? 'possible_change'
+            : 'possible_omission',
+      reason: '测试夹具已提供分类依据',
+    },
     matches: [],
     notices: [],
   };
@@ -170,21 +195,26 @@ function setup(report: SourceReview) {
   calls = 0;
   return new Harness();
 }
-function html(h: Harness, sources: ManuscriptSource[], content: Record<string, unknown> = {}) {
-  return renderToStaticMarkup(h.render(sources, content));
+function html(
+  h: Harness,
+  sources: ManuscriptSource[],
+  content: Record<string, unknown> = {},
+  baselineContent?: Record<string, unknown>,
+) {
+  return renderToStaticMarkup(h.render(sources, content, baselineContent));
 }
 
-test('default filter focuses unmapped and possible rewrites; all switch shows literal text without verification claims', () => {
+test('default filter prioritizes assessed risks; all switch exposes covered text without verification claims', () => {
   const { sources, report } = fixture(),
     h = setup(report);
   let nodes = walk(h.render(sources));
   assert.equal(nodes.filter((n) => n.type === 'article').length, 2);
-  assert.match(label(nodes), /需核对（2）/);
+  assert.match(label(nodes), /可能遗漏 \/ 改错（2）/);
   assert.doesNotMatch(html(h, sources), /已核实完成|100%|未导入/);
   click(nodes, '全部片段');
   nodes = walk(h.render(sources));
   assert.equal(nodes.filter((n) => n.type === 'article').length, 3);
-  assert.match(label(nodes), /找到相同文字/);
+  assert.match(label(nodes), /文字已对应/);
   assert.equal(
     nodes.find((n) => n.type === 'button' && label(n).startsWith('全部片段'))!.props[
       'aria-pressed'
@@ -192,15 +222,17 @@ test('default filter focuses unmapped and possible rewrites; all switch shows li
     true,
   );
 });
-test('same-text row with numeric differences or notices stays in needs-review filter', () => {
+test('numeric arrays and generic notices do not upgrade covered rows; their details stay accessible', () => {
   const { sources, report } = fixture();
   const literal = report.rows[0]!;
   literal.matches[0]!.missingNumbers = ['26'];
   literal.matches[0]!.addedNumbers = ['28'];
   literal.notices = ['同名人物需核对'];
-  assert.ok(sourceReviewNeedsAttention(literal, sources));
-  const markup = html(setup(report), sources);
-  assert.match(markup, /数字差异，请核对/);
+  assert.equal(sourceReviewNeedsAttention(literal, sources), false);
+  const h = setup(report);
+  click(walk(h.render(sources)), '文字已对应');
+  const markup = html(h, sources);
+  assert.match(markup, /数字文字线索（不单独判定改错）/);
   assert.match(markup, /未在该字段出现：26/);
   assert.match(markup, /另含这些数字：28/);
   assert.match(markup, /同名人物需核对/);
@@ -234,8 +266,10 @@ test('invalid or stale source offset, line, filename and quote never become loca
   ])
     assert.equal(locateSourceReviewRow(sources, { ...original, ...patch }), null);
   const r = { ...original, quote: '伪造的原文' };
-  assert.ok(sourceReviewNeedsAttention(r, sources));
-  const markup = html(setup({ rows: [r], unlinkedTargets: [], warnings: [] }), sources);
+  assert.equal(sourceReviewNeedsAttention(r, sources), false);
+  const h = setup({ rows: [r], unlinkedTargets: [], warnings: [] });
+  click(walk(h.render(sources)), '暂不能判断');
+  const markup = html(h, sources);
   assert.match(markup, /无法|未能定位/);
   assert.doesNotMatch(markup, /伪造的原文|<mark>/);
 });
@@ -300,7 +334,7 @@ test('unlinked actual fields are collapsed and described as possible existing ma
   );
   assert.ok(details);
   assert.ok(!details.props.open);
-  assert.match(label(details), /已有草稿或合理补充/);
+  assert.match(label(details), /新增不代表错误，也不代表已经合理/);
   assert.doesNotMatch(renderToStaticMarkup(h.render(sources)), /已有草稿的背景/);
   (details.props.onToggle as (e: unknown) => void)({ currentTarget: { open: true } });
   assert.match(html(h, sources), /已有草稿的背景/);
@@ -324,7 +358,7 @@ test('changes to final content recompute even when its object identity is reused
   const activeButton = walk(h.render(sources, content)).find(
     (n) => n.type === 'button' && n.props['aria-pressed'],
   );
-  assert.match(label(activeButton), /需核对/);
+  assert.match(label(activeButton), /可能遗漏 \/ 改错/);
 });
 test('editing source text recomputes instead of keeping its old mapping/context', () => {
   const { sources, report } = fixture();
@@ -375,7 +409,7 @@ test('source and target markup are escaped and UI contains no editing, save or c
   assert.match(markup, /&lt;script&gt;/);
   assert.match(markup, /&lt;img/);
   assert.doesNotMatch(markup, /<script>|<img|<input|<textarea|<form/);
-  assert.equal(walk(h.render(sources)).filter((n) => n.type === 'button').length, 2);
+  assert.equal(walk(h.render(sources)).filter((n) => n.type === 'button').length, 4);
 });
 test('reviewing and changing filters never mutate source, final draft or report', () => {
   const { sources, report } = fixture(),
@@ -484,4 +518,104 @@ test('CR-only source line numbers match the domain scanner without treating the 
   assert.equal(located.line, 2);
   assert.equal(located.quote, 'only original');
   assert.equal(located.before + located.quote + located.after, sources[0]!.content);
+});
+
+test('legacy missing assessment remains unresolved even with literal status or numeric arrays', () => {
+  const { sources, report } = fixture();
+  for (const r of report.rows) delete r.assessment;
+  report.rows[0]!.matches[0]!.missingNumbers = ['26'];
+  const h = setup(report);
+  assert.equal(walk(h.render(sources)).filter((n) => n.type === 'article').length, 0);
+  assert.match(html(h, sources), /暂不能判断（3）/);
+  click(walk(h.render(sources)), '暂不能判断');
+  assert.equal(walk(h.render(sources)).filter((n) => n.type === 'article').length, 3);
+  assert.match(html(h, sources), /未匹配不代表遗漏/);
+  assert.equal(sourceReviewAssessment(report.rows[0]!, sources).kind, 'unresolved');
+});
+test('explicit changes precede omissions, while instructions only appear in all and count separately', () => {
+  const { sources, report } = fixture();
+  report.rows[0]!.assessment = { kind: 'instruction', reason: '格式要求' };
+  const h = setup(report);
+  const articles = walk(h.render(sources)).filter((n) => n.type === 'article');
+  assert.match(label(articles[0]), /可能改错/);
+  assert.match(label(articles[1]), /可能遗漏/);
+  assert.match(html(h, sources), /暂不能判断（0）/);
+  assert.match(html(h, sources), /格式 \/ 整理说明 1 条/);
+  click(walk(h.render(sources)), '全部片段');
+  assert.match(html(h, sources), /格式要求/);
+});
+test('baseline is the exact read-only third argument; its same-object value change recomputes and resets views', () => {
+  const { sources, report } = fixture();
+  report.unlinkedTargets = [{ ...target('旧稿'), origin: 'existing' }];
+  const h = setup(report),
+    content = { value: '新' },
+    baseline = { value: '尚未保存的本地旧稿' };
+  let seen: unknown;
+  build = (_s, _c, b) => {
+    seen = b;
+    return report;
+  };
+  h.render(sources, content, baseline);
+  assert.equal(seen, baseline);
+  click(walk(h.render(sources, content, baseline)), '全部片段');
+  const detail = walk(h.render(sources, content, baseline)).find(
+    (n) => n.type === 'details' && label(n).includes('实际内容中未找到原文线索'),
+  )!;
+  (detail.props.onToggle as (e: unknown) => void)({ currentTarget: { open: true } });
+  assert.match(
+    renderToStaticMarkup(h.render(sources, content, baseline)),
+    /原有内容已保留（1 项）/,
+  );
+  const before = calls;
+  baseline.value = '本地编辑已经变化';
+  const nodes = walk(h.render(sources, content, baseline));
+  assert.equal(calls, before + 1);
+  assert.match(
+    label(nodes.find((n) => n.type === 'button' && n.props['aria-pressed'])),
+    /可能遗漏/,
+  );
+  assert.equal(
+    nodes.find((n) => n.type === 'details' && label(n).includes('实际内容中未找到原文线索'))!.props
+      .open,
+    false,
+  );
+  assert.equal(baseline.value, '本地编辑已经变化');
+});
+test('unlinked origins separate authored old content, added supplements, changed values, and unknown baseline', () => {
+  const { sources, report } = fixture();
+  report.unlinkedTargets = [
+    { ...target('原有值', 'old'), origin: 'existing' },
+    { ...target('新补充值', 'new'), origin: 'added' },
+    { ...target('改后的值', 'modified'), origin: 'modified', previousValue: '改前的值' },
+    target('不明值', 'unknown'),
+  ];
+  const h = setup(report);
+  assert.doesNotMatch(html(h, sources), /原有值|新补充值|改前的值|不明值/);
+  const detail = walk(h.render(sources)).find(
+    (n) => n.type === 'details' && label(n).includes('实际内容中未找到原文线索'),
+  )!;
+  (detail.props.onToggle as (e: unknown) => void)({ currentTarget: { open: true } });
+  const markup = html(h, sources);
+  for (const word of [
+    '原有内容已保留（1 项）',
+    '新增补充，待核对合理性（1 项）',
+    '原有内容有改动（1 项）',
+    '来源基线未知（1 项）',
+    '改前的值',
+    '改后的值',
+    '不算本次新增',
+  ])
+    assert.ok(markup.includes(word), word);
+  assert.doesNotMatch(markup, /已验证合理|AI新增错误/);
+});
+test('missing baseline stays undefined instead of an invented empty draft', () => {
+  const { sources, report } = fixture();
+  const h = setup(report);
+  let seen: unknown = 'unset';
+  build = (_s, _c, b) => {
+    seen = b;
+    return report;
+  };
+  h.render(sources);
+  assert.equal(seen, undefined);
 });

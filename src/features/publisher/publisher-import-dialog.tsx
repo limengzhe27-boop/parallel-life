@@ -817,7 +817,13 @@ export function PublisherImportDialog({
             )}
           </section>
         )}
-        {updatedContent && <PublisherSourceReview sources={sources} content={updatedContent} />}
+        {updatedContent && (
+          <PublisherSourceReview
+            sources={sources}
+            content={updatedContent}
+            baselineContent={content}
+          />
+        )}
         {updatedContent && <PublisherReviewView content={updatedContent} />}
         {aiResult && (
           <section className={s.preview} aria-label="AI 整理结果">
