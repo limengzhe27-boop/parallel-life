@@ -404,3 +404,24 @@ export function worldCharacterPreviewBaseline(
   }
   return additions.length ? { ...baseline, actors: [...authored, ...additions] } : baseline;
 }
+
+/** Stable keys and exact authored names are the only supported identity match. */
+export function characterIdentityConfirmed(
+  actor: unknown,
+  baseline: RecordValue,
+  allowedNames?: ReadonlySet<string>,
+): actor is RecordValue {
+  if (
+    !record(actor) ||
+    typeof actor.name !== 'string' ||
+    (allowedNames && !allowedNames.has(actor.name))
+  )
+    return false;
+  const existing = rows(baseline.actors);
+  const old = existing.filter((prior) => prior.key === actor.key);
+  const sameName = existing.filter((prior) => prior.name === actor.name);
+  return (
+    !(old.length > 0 && (old.length !== 1 || old[0]!.name !== actor.name)) &&
+    !(old.length === 0 && sameName.length > 0)
+  );
+}

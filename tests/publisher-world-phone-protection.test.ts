@@ -234,3 +234,82 @@ test('unconfirmed model relations and ambiguous, unfamiliar or future source des
   const checked = worldCharacterPreviewBaseline(baseline, updated, [table]);
   assert.equal((checked.actors as { knownAtStart: boolean }[])[0]!.knownAtStart, true);
 });
+
+test('world rejects cross-person key/name binding and does not leak the other persons explicit introduction or new phone prose', () => {
+  const before = fixture();
+  const source = [
+    {
+      filename: '人物_叶舟.md',
+      content: '# 人物：叶舟\n公开介绍：叶舟的作者介绍。\n## 关系模型\n与主角认识多年',
+    },
+  ];
+  const original = structuredClone(before);
+  const wrong = assess(
+    before,
+    {
+      actors: [
+        { ...actor('a', '叶舟'), publicCard: { traits: [], introduction: '叶舟的作者介绍。' } },
+      ],
+      phone: {
+        messages: [
+          {
+            key: 'wrong_line',
+            actorKey: 'a',
+            origin: 'history',
+            speaker: 'player',
+            text: '叶舟的原文不属于周宁。',
+            at: '2039-01-01T08:01:00Z',
+          },
+        ],
+        moments: [
+          { key: 'wrong_post', actorKey: 'a', text: '叶舟的动态', at: '2039-01-01T07:01:00Z' },
+        ],
+      },
+    },
+    source,
+  );
+  assert.ok(wrong.issues.some((i) => i.code === 'character_source_identity_unconfirmed'));
+  assert.deepEqual(wrong.updatedContent.actors, before.actors);
+  assert.deepEqual(wrong.updatedContent.phone, before.phone);
+  assert.deepEqual(before, original);
+});
+test('world exact identity permits filling an author introduction but rejects duplicate same-name new keys', () => {
+  const before = fixture();
+  const source = [
+    { filename: '人物_周宁.md', content: '# 人物：周宁\n公开介绍：周宁的作者介绍。' },
+  ];
+  const valid = assess(
+    before,
+    { actors: [{ ...actor(), publicCard: { traits: [], introduction: '模型重写' } }] },
+    source,
+  );
+  assert.equal(
+    (valid.updatedContent.actors as { publicCard: { introduction?: string } }[])[0]!.publicCard
+      .introduction,
+    '周宁的作者介绍。',
+  );
+  const duplicate = assess(
+    before,
+    {
+      actors: [
+        { ...actor('duplicate', '周宁'), publicCard: { traits: [], introduction: '另一份周宁' } },
+      ],
+      phone: {
+        messages: [
+          {
+            key: 'duplicate_line',
+            actorKey: 'duplicate',
+            origin: 'history',
+            speaker: 'actor',
+            text: '错误重复人物',
+            at: '2039-01-01T08:01:00Z',
+          },
+        ],
+      },
+    },
+    source,
+  );
+  assert.ok(duplicate.issues.some((i) => i.code === 'character_source_identity_unconfirmed'));
+  assert.deepEqual(duplicate.updatedContent.actors, before.actors);
+  assert.deepEqual(duplicate.updatedContent.phone, before.phone);
+});
