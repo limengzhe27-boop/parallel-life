@@ -1,6 +1,6 @@
 # WRITER-UX-10 总体设定与可视化剧情编排
 
-状态：进行中；基线 ca49787。根 codex-main-source04-20261013，独立 world-publish-intake-01。主登记表在主目录，本文为过程证据。
+状态：本批范围已验收上线；基线 ca49787。根 codex-main-source04-20261013，独立 world-publish-intake-01。主登记表在主目录，本文为过程证据。
 
 ## 范围
 - Q：一个总体设定主框，保留私有作者原稿与旧稿，公开内容另行核对。
@@ -25,3 +25,9 @@
 - Overall preparation uses existing project Agent only on explicit action. Reopening queries matching source/scope to recover prior operation, without automatic generation.
 - Production 50 migration checksums match; no SQL changes. Zero new model calls, worlds, images. READY and public verification pending.
 - Followups remain: drag wiring/complex conditions; live trial condition state and distinct acceptance/arrival/task completion outcomes; reviewed replacement of existing content after overall changes. Existing long-source/dynamic-delay/live-model QA tasks remain open.
+
+## Deployment and public acceptance
+Code/document baseline 62a789564839737eb8aa8d0803cefec6e43740dc, production dpl_HqUrMBi4Q9WrD3wafBfLB3A5hjrX READY; formal alias https://parallel-life-nu.vercel.app matched that deployment.
+Public 1440/390: overall textarea and preloaded overall preparation without file input, 352px dialog inside 390px; graph empty state and two actual existing event cards display correctly, no false edges between separate stages. Diagram and edit entry are reachable. Page and health 200; anonymous publisher works 401. Two existing synthetic works retain original draftVersion/status/updatedAt, no production manuscript edits or new publication.
+Local two-event fixture verified a real prerequisite edge and removal/recovery, precise editor navigation and persistence. Overall manuscript stored only in editorial extension, not compiled player facts/phone/persona. No new model quality claim: preparation harness is controlled, not paid live generation.
+Ego167 finished, formal publisher cookies restored without touching player sessions; own HTTP3278 and PG55476 stopped. Browser upgrade notice observed; no upgrade performed. All production sources are this batch; pending followups remain in the authoritative task table.

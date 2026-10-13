@@ -1,3 +1,9 @@
+## 2026-10-13 - WRITER-UX-10 author setting and story graph
+
+Baseline 62a7895 deployed as dpl_HqUrMBi4Q9WrD3wafBfLB3A5hjrX READY; formal https://parallel-life-nu.vercel.app matched. check 2113, module boundaries 423, type/build passed; 33 real local PG tests, no skips. Production 50 migrations checksum matched, no SQL changes.
+One private overall-setting textarea with explicit preparation/review; existing detailed fields retained in collapsed review. Event conditions use actual outcome semantics; graph projects saved conditions, alternatives and exclusions, stages remain organizational. Clicking a card opens condition details and an edit entry. No fake completion or mandatory plot path.
+Local and public 390/1440 verified, graph layout compression fixed; real local draft save/read, private manuscript exclusion, stale-result recovery passed. Public health/workbench 200 and anonymous works 401. Synthetic production works unchanged, zero new model calls/worlds/images. Drag connections, complex conditions, live trial condition tracing and reviewed rewrite of existing settings remain open. See task-reports/WRITER-UX-10.md.
+
 ## 2026-10-13 · PUBLISHER-SOURCE-03 原文与实际字段对照
 
 业务2ce8a6d5d66e308af68fde43e2d251e2e0759a17，生产dpl_FrXSQsTenRsGCk7i4aGDQMv1Grts READY，正式alias匹配。1955check、415边界、type/build0；50生产迁移checksum一致，无SQL变更。Staff导入新增精确原文定位、实际字段候选、数字及知情/未来条件提醒、20项分页，不调用额外模型，不代替语义核对或自动改稿。
