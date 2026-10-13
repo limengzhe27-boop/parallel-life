@@ -127,10 +127,11 @@ const groupNames: Record<string, string> = {
   places: '地点',
   routes: '路线',
   phone: '开场手机内容',
+  extensions: '作者原稿',
 };
 
 function groupLabel(key: string) {
-  return Object.hasOwn(groupNames, key) ? groupNames[key] : key;
+  return Object.hasOwn(groupNames, key) ? groupNames[key] : '其他保留内容';
 }
 
 type PreparationIssue = NonNullable<PublisherPreparationRecord['result']>['issues'][number];
@@ -301,6 +302,7 @@ export function PublisherImportDialog({
   workId,
   version,
   referenceAt,
+  initialOverallText,
   content,
   disabled,
   preparationClient,
@@ -310,6 +312,8 @@ export function PublisherImportDialog({
   workId: string;
   version: number;
   referenceAt?: string;
+  /** Explicit author action opens a private source; never automatically calls the model. */
+  initialOverallText?: string;
   content: Record<string, unknown>;
   disabled: boolean;
   preparationClient?: PreparationClient;
@@ -348,7 +352,13 @@ export function PublisherImportDialog({
   const [text, setText] = useState('');
   const [reviewedOriginal, setReviewedOriginal] = useState(false);
   const [reviewedAdditions, setReviewedAdditions] = useState(false);
-  const baseline = manuscriptFingerprint([workId, version, referenceAt, content]);
+  const baseline = manuscriptFingerprint([
+    workId,
+    version,
+    referenceAt,
+    content,
+    initialOverallText,
+  ]);
   const current = useRef({ baseline, disabled, onApply });
   current.current = { baseline, disabled, onApply };
   const stagedBaseline = useRef<string | undefined>(undefined);
@@ -441,6 +451,15 @@ export function PublisherImportDialog({
     }
     setLibrary([]);
     setRemainingSources([]);
+    if (initialOverallText?.trim()) {
+      const files = [{ filename: '总体设定.md', content: initialOverallText }];
+      setText(initialOverallText);
+      setLibrary(files);
+      setRemainingSources(files);
+      setSources(manuscriptBatches(files, content).batches[0] ?? []);
+      setScopeChoice('world');
+      return;
+    }
     if (!preparationClient || disabled) return;
     // Server scopes latest to this signed-in staff member. No manuscript enters browser storage.
     inFlight.current = true;

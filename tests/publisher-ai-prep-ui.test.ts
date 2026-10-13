@@ -694,3 +694,22 @@ test('all uploaded manuscripts remain queued after applying one batch, without a
   assert.equal(s.queries.length, 1);
   assert.ok(!button(nodes, '让 AI 整理本批文稿').props.disabled);
 });
+
+test('overall setting starts as a private whole-world source without restoring unrelated records or automatically calling a model', async () => {
+  const text = '总体设定：旧城小店。幕后秘密：店主准备转让，但朋友尚不知情。';
+  const s = setup({ initialOverallText: text });
+  s.render();
+  await settle();
+  const nodes = s.render();
+  assert.equal(s.posts.length, 0);
+  assert.equal(s.queries.length, 0);
+  assert.equal(s.applied.length, 0);
+  assert.ok(label(nodes).includes('总体设定.md'));
+  click(button(nodes, '让 AI 整理本批文稿'));
+  await settle();
+  assert.equal(s.posts.length, 1);
+  assert.equal(s.posts[0]?.scope, 'world');
+  assert.deepEqual(s.posts[0]?.sources, [{ filename: '总体设定.md', content: text }]);
+  assert.deepEqual(s.posts[0]?.currentContent, base);
+  assert.equal(s.applied.length, 0);
+});
