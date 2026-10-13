@@ -651,7 +651,27 @@ test('request includes one fully valid generic JSON format example, never substi
   assert.equal(content.work.key, 'observatory');
   assert.equal(content.timeline!.stages.length, 1);
   assert.equal(content.candidates.length, 1);
-  assert.equal(content.phone.messages.length, 1);
+  assert.equal(content.phone.messages.length, 2);
+  assert.deepEqual(
+    content.phone.messages.map((message) => message.speaker),
+    ['actor', 'player'],
+  );
+  assert.ok(
+    content.phone.messages.every(
+      (message) =>
+        message.actorKey === 'ning_yao' &&
+        Date.parse(message.at) < Date.parse(content.world.startAt),
+    ),
+  );
+  assert.equal(content.phone.moments?.length, 1);
+  assert.ok(
+    content.phone.moments?.every(
+      (moment) =>
+        moment.actorKey === 'ning_yao' &&
+        Date.parse(moment.at) <= Date.parse(content.world.startAt),
+    ),
+  );
+  assert.equal(Object.hasOwn(example.updatedContent, 'phoneMoments'), false);
   assert.equal(content.routes.length, 2);
   assert.ok(content.actors.every((a) => /^[a-z][a-z0-9_]{0,31}$/.test(a.key)));
   assert.ok(content.places.every((p) => typeof p.knownAtStart === 'boolean'));
@@ -1186,4 +1206,19 @@ test('world scheduling prompts use the real reference for relative opening and r
     (result.updatedContent.world as { startAt: string }).startAt,
     corrected.world.startAt,
   );
+});
+
+test('whole-world correction directs missing daily posts into the actual phone collection rather than claims or a top-level alias', async () => {
+  const wrong = fixture();
+  wrong.protagonist.identity = '';
+  const h = sequenceHarness([reply(wrong), reply(fixture())]);
+  await h.planner.propose({ currentContent: {}, sources });
+  assert.equal(h.calls.length, 2);
+  const repair = h.calls[1]!.messages[0]!.content;
+  assert.ok(repair.includes('实际内容必须放updatedContent.phone.moments'));
+  assert.ok(repair.includes('每条为{key,actorKey,text,at}'));
+  assert.ok(repair.includes('禁止顶层phoneMoments'));
+  assert.ok(repair.includes('不能只在notes声称已经补好'));
+  assert.ok(repair.includes('沿用其正文和人物归属整理到正确位置'));
+  assert.ok(repair.includes('数量不照抄范例'));
 });
