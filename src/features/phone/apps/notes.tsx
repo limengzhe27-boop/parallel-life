@@ -95,9 +95,11 @@ export function NotesApp({ target, open }: PhoneAppContext) {
         )}
       </div>
     );
+  const isPrivateNote = (n: (typeof data.notes)[number]) => n.origin === undefined;
+
   if (target && !note && !isNew)
     return <Empty title="找不到这条便签" text="便签可能已移除，请返回列表或刷新。" />;
-  if (note?.origin?.kind === 'publication_opening')
+  if (note && !isPrivateNote(note))
     return (
       <article className={s.app}>
         <button type="button" onClick={() => navigate('notes')}>
@@ -364,7 +366,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     );
   }
   const notes = [...data.notes]
-    .filter((n) => n.origin?.kind !== 'publication_opening')
+    .filter(isPrivateNote)
     .filter((n) =>
       searchable(query, noteDrafts[n.id]?.title ?? n.title, noteDrafts[n.id]?.text ?? n.text),
     )
@@ -381,7 +383,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     )
     .sort((a, b) => b.at.localeCompare(a.at));
   const openingNotes = data.notes.filter(
-    (n) => n.origin?.kind === 'publication_opening' && searchable(query, n.title, n.text),
+    (n) => !isPrivateNote(n) && searchable(query, n.title, n.text),
   );
   const backgroundRecords =
     records.status === 'ready' && records.data.about.some(isNotesBackgroundRecord);
