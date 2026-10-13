@@ -974,3 +974,8 @@ MD/ZIP文稿 → 项目自己的整理Agent → 原稿/补充/变化双核对 �
 边界：原稿仍可能细节遗漏或未充分标注补充，年龄只notes、旧约定遗漏等已列PUBLISHER-AI-SOURCE-COVERAGE-02。ZIP图片自动绑定、长文分段、未知玩法、全面多题材覆盖与真机键盘不属于本批已验。人物/地点/历史/两阶段候选的有限合成样例通过，不等于整篇同事剧本全部分支验完。
 
 地图已去顶部搜索/探索附近/无实际内容分类，保真实已有地点与前往入场；390/1440公网已检查。县城旧导演unknown不再无限阻塞玩家明确地点操作，实际在途锁和晚到版本栅栏保留；现场开场与行动提示分开，实际结果仍经校验。该后续公网最终验收已由执行者完成：原旧存档只读busy=false且版本/位置不变；正式测试县城前往旧车间18分钟→进入→最后1次真实开场成功，环境持久化，390/1440检查，暂停存档并恢复会话。完整证据见MAP-COUNTY-BUSY-01；其独立模型4次（前2失败/后2成功），不计入根已关闭11/12批次。文档归档最终SHA/READY另存忽略prep-final-handoff.json。
+
+
+## 2026-10-13 / WRITER-UX-12-HEADER
+
+6c725e5 deployed READY (dpl_3B6Ca4DJmuiKdkgumAhJ4j8U2nHf), formal https://parallel-life-nu.vercel.app verified on desktop/mobile. Compact toolbar, consolidated checks/time panel, inline collapsible failures. 2118 check, build, 50 migration checksums; no SQL/model calls. Health/workbench 200 and anonymous works 401. See task-reports/WRITER-UX-12-HEADER.md.

@@ -1428,4 +1428,4 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 
 |Task|Status|Owner|Scope|Acceptance|
 |---|---|---|---|---|
-|WRITER-UX-12-HEADER|PENDING DEPLOYMENT|codex-main-header12-20261013|world-publish-intake-01; publisher-workbench.tsx/.module.css, workbench tests, report and deployment records|Compact header and feedback; no global scheduling on actor page; preserve checks and publish gates; check/build, PC/mobile, READY and public verification. Base 5080db4; preserve rename/delete work.|
+|WRITER-UX-12-HEADER|[x] COMPLETE 6c725e5 READY|codex-main-header12-20261013|world-publish-intake-01; publisher-workbench.tsx/.module.css, workbench tests, report and deployment records|Compact header and feedback; no global scheduling on actor page; preserve checks and publish gates; check/build, PC/mobile, READY and public verification. Base 5080db4; preserve rename/delete work. 2118 check/build pass; 50 production checksums; READY dpl_3B6Ca4DJmuiKdkgumAhJ4j8U2nHf; formal PC/mobile verified. Inline failure tested locally. 0 models/worlds; ownership released.|
