@@ -267,7 +267,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           <div className={s.advancedBody}>
             {needsTime && (
               <p className={s.error}>
-                这项时间会影响试演，请补齐或通过系统整理后核对；尚未自动安排。
+                这项时间会影响试演，可使用页面上方“安排缺省时间”，再核对结果。
               </p>
             )}
             {control}

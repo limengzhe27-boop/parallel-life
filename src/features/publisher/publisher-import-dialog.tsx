@@ -10,6 +10,7 @@ import { PublisherClientError, type PublisherClient } from './publisher-client.t
 import s from './publisher-import-dialog.module.css';
 import { PublisherReviewView } from './publisher-review-view.ts';
 import { PublisherSourceReview } from './publisher-source-review.tsx';
+import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
 
 type Proposal = ReturnType<typeof parseFeishuMarkdownBundle>;
 type Source = { filename: string; content: string };
@@ -301,6 +302,7 @@ export function PublisherPreparationIssues({
 export function PublisherImportDialog({
   workId,
   version,
+  referenceAt,
   content,
   disabled,
   preparationClient,
@@ -309,6 +311,7 @@ export function PublisherImportDialog({
 }: {
   workId: string;
   version: number;
+  referenceAt?: string;
   content: Record<string, unknown>;
   disabled: boolean;
   preparationClient?: PreparationClient;
@@ -329,7 +332,7 @@ export function PublisherImportDialog({
   const [text, setText] = useState('');
   const [reviewedOriginal, setReviewedOriginal] = useState(false);
   const [reviewedAdditions, setReviewedAdditions] = useState(false);
-  const baseline = manuscriptFingerprint([workId, version, content]);
+  const baseline = manuscriptFingerprint([workId, version, referenceAt, content]);
   const current = useRef({ baseline, disabled, onApply });
   current.current = { baseline, disabled, onApply };
   const stagedBaseline = useRef<string | undefined>(undefined);
@@ -584,7 +587,9 @@ export function PublisherImportDialog({
     sequence.current++;
     clearResult();
     try {
-      setProposal(parseFeishuMarkdownBundle(sources, content));
+      setProposal(
+        parseFeishuMarkdownBundle(sources, content, referenceAt ? { referenceAt } : undefined),
+      );
       stagedBaseline.current = baseline;
     } catch {
       setError('未能解析文稿，原稿和当前草稿均已保留。');
@@ -592,6 +597,7 @@ export function PublisherImportDialog({
   }
   const aiResult = record?.status === 'succeeded' ? record.result : null;
   const updatedContent = aiResult?.updatedContent ?? proposal?.updatedContent;
+  const schedule = aiResult?.schedule ?? proposal?.schedule;
   const changed = updatedContent ? preparationChanges(content, updatedContent) : [];
   const canApply =
     !!updatedContent &&
@@ -830,6 +836,9 @@ export function PublisherImportDialog({
           </p>
         )}
         {updatedContent && <PublisherReviewView content={updatedContent} />}
+        {updatedContent && schedule && (
+          <PublisherScheduleReview schedule={schedule} content={updatedContent} />
+        )}
         {aiResult && (
           <section className={s.preview} aria-label="需要处理的问题">
             <h3>需要处理的问题</h3>

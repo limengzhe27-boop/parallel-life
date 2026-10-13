@@ -6,7 +6,10 @@ import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { PublisherReviewView } from './publisher-review-view.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
-import { PublisherImportDialog } from './publisher-import-dialog.tsx';
+import { PublisherImportDialog, manuscriptFingerprint } from './publisher-import-dialog.tsx';
+import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
+import { planPublicationTimes } from '../../modules/settings/domain/publication-scheduling.ts';
+import type { PublisherSchedule } from '../../contracts/publisher-preparation.ts';
 import { PublisherSpaceEditor } from './publisher-space-editor.tsx';
 import { PublisherOpeningEditor } from './publisher-opening-editor.tsx';
 import type { PublisherClient } from './publisher-client.ts';
@@ -173,6 +176,10 @@ export function PublisherWorkbench(
   const [importError, setImportError] = useState('');
   const [showMarkdownImport, setShowMarkdownImport] = useState(false);
   const [markdownReview, setMarkdownReview] = useState<ImportSummary>();
+  const [scheduleReview, setScheduleReview] = useState<{
+    key: string;
+    schedule: PublisherSchedule;
+  }>();
 
   // Sync state when props.work updates or changes workId/draftVersion
   useEffect(() => {
@@ -457,6 +464,29 @@ export function PublisherWorkbench(
       ]
     : [];
   const needsStartTime = !publicationLocalTime(worldSettings.startAt);
+  const scheduleKey = manuscriptFingerprint([
+    work?.id,
+    work?.draft.version,
+    work?.createdAt,
+    draftContent,
+  ]);
+  const visibleSchedule = scheduleReview?.key === scheduleKey ? scheduleReview.schedule : undefined;
+  function arrangeTimes() {
+    if (!work || busy || !session.canEdit) return;
+    setScheduleReview(undefined);
+    try {
+      const plan = planPublicationTimes(draftContent, { referenceAt: work.createdAt });
+      const { updatedContent, ...schedule } = plan;
+      const next = plan.status === 'proposed' ? updatedContent : draftContent;
+      if (plan.status === 'proposed') setDraftContent(next);
+      setScheduleReview({
+        key: manuscriptFingerprint([work.id, work.draft.version, work.createdAt, next]),
+        schedule,
+      });
+    } catch {
+      setNotice({ type: 'error', message: '本次未能安排时间，当前草稿未修改。请核对内容后重试。' });
+    }
+  }
 
   return (
     <div className={s.workbench}>
@@ -752,9 +782,7 @@ export function PublisherWorkbench(
                   <p>部分内容暂时不支持运行，请调整后再试演。</p>
                 ) : null}
                 {needsStartTime && (
-                  <p>
-                    开场日期尚未填写或无法识别。当前运行仍需一个明确起点，请在故事概览补齐；不会自动猜测日期。
-                  </p>
+                  <p>开场时间尚未安排或需核对。可一键安排缺省时间；已有明确时间不会被替换。</p>
                 )}
               </div>
               <button
@@ -773,7 +801,7 @@ export function PublisherWorkbench(
                     setSettingsOpen(true);
                   }}
                 >
-                  补齐开场日期
+                  查看时间设置
                 </button>
               )}
             </div>
@@ -844,7 +872,7 @@ export function PublisherWorkbench(
                 )}
               </>
             )}
-            {needsStartTime && <p>开场日期待补齐或修正，当前版本仍需要明确起点才能运行。</p>}
+            {needsStartTime && <p>开场时间待安排或核对，请使用“安排缺省时间”后查看实际结果。</p>}
             <button
               type="button"
               className={`${s.btn} ${s.btnSecondary}`}
@@ -865,6 +893,26 @@ export function PublisherWorkbench(
           </section>
         )}
 
+        {work && (
+          <section className={s.scheduling} aria-label="安排故事时间">
+            <button
+              type="button"
+              className={`${s.btn} ${s.btnSecondary}`}
+              disabled={busy || !session.canEdit}
+              onClick={arrangeTimes}
+            >
+              安排缺省时间
+            </button>
+            <p>按当前故事补齐缺省时间，保留已有明确日期；只修改编辑稿，不会自动保存或试演。</p>
+            {visibleSchedule && (
+              <PublisherScheduleReview
+                schedule={visibleSchedule}
+                content={draftContent}
+                context="draft"
+              />
+            )}
+          </section>
+        )}
         {/* Empty workspace state */}
         {!work && (
           <div className={s.workspace}>
@@ -1167,10 +1215,10 @@ export function PublisherWorkbench(
                     <div className={s.formGrid}>
                       {needsStartTime && (
                         <p className={s.timeWarning} role="status">
-                          开场日期待补齐或修正。当前系统仍需一个明确起点；展开下方设置填写，不会自动替你决定。
+                          可先用“安排缺省时间”补齐开场，再核对实际安排；如有明确日期，也可以在下方设置。
                         </p>
                       )}
-                      <details className={s.timeDisclosure} open={needsStartTime}>
+                      <details className={s.timeDisclosure}>
                         <summary>精确开场日期和时间（北京时间）</summary>
                         <label className={s.fieldLabel} htmlFor="world-start-at">
                           开场日期和时间（北京时间）
@@ -1755,6 +1803,7 @@ export function PublisherWorkbench(
           preparationClient={props.preparationClient}
           workId={work.id}
           version={work.draft.version}
+          referenceAt={work.createdAt}
           content={draftContent}
           disabled={busy || !session.canEdit}
           onClose={() => setShowMarkdownImport(false)}

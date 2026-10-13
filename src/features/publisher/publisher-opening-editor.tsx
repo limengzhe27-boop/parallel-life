@@ -42,7 +42,7 @@ export function PublisherOpeningEditor({
       <div className={s.sectionHeader}>
         <h3 className={s.sectionTitle}>5. 开场时手机里已有的消息</h3>
         <p className={s.sectionHint}>
-          先核对发送人、原文和消息类别。已有时间收在下方；缺少的必填时间会展开提示，不会自动改写。
+          先核对发送人、原文和消息类别。已有时间收在下方；缺少的必填时间可通过页面上方“安排缺省时间”处理，已有明确时间保留。
         </p>
       </div>
       {messages.map((message, index) => {
@@ -96,7 +96,7 @@ export function PublisherOpeningEditor({
                 <div className={p.advancedBody}>
                   {needsTime && (
                     <p role="status">
-                      这条消息缺少有效时间，试演前需要补齐。可通过系统整理后核对；尚未自动安排。
+                      这条消息缺少有效时间，试演前需要补齐。请使用页面上方“安排缺省时间”，再核对结果。
                     </p>
                   )}
                   <p>已有消息不能晚于世界开场；过去对话须早于开场。时间按北京时间显示。</p>

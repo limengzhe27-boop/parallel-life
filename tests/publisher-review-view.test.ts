@@ -63,7 +63,8 @@ registerHooks({
       };
     if (
       url.endsWith('publisher-import-dialog.tsx') ||
-      url.endsWith('publisher-source-review.tsx')
+      url.endsWith('publisher-source-review.tsx') ||
+      url.endsWith('publisher-schedule-review.tsx')
     ) {
       const original = readFileSync(new URL(url), 'utf8');
       const source = url.endsWith('publisher-import-dialog.tsx')

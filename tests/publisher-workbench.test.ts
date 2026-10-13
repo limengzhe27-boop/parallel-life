@@ -8,8 +8,29 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { PublisherWork, PublisherCheckResult } from '../src/contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../src/contracts/publisher-workbench.ts';
 
+let scheduleForTest: (
+  content: Record<string, unknown>,
+  options: { referenceAt: string },
+) => unknown = () => {
+  throw Error('test planner not configured');
+};
+Object.assign(globalThis, {
+  __writerSchedule: (content: Record<string, unknown>, options: { referenceAt: string }) =>
+    scheduleForTest(content, options),
+});
 registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.endsWith('/publication-scheduling.ts'))
+      return { url: 'writer-test:scheduling', shortCircuit: true };
+    return nextResolve(specifier, context);
+  },
   load(url, context, nextLoad) {
+    if (url === 'writer-test:scheduling')
+      return {
+        format: 'module',
+        shortCircuit: true,
+        source: 'export const planPublicationTimes=(c,o)=>globalThis.__writerSchedule(c,o)',
+      };
     if (url.endsWith('.module.css'))
       return {
         format: 'module',
@@ -390,10 +411,10 @@ test('missing or unrecognized start date stays explicitly actionable outside fol
       { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
       'settings',
     );
-    assert.match(html, /开场日期尚未填写或无法识别/);
-    assert.match(html, /补齐开场日期/);
+    assert.match(html, /开场时间尚未安排或需核对/);
+    assert.match(html, /查看时间设置/);
     assert.match(html, /精确开场日期和时间/);
-    assert.match(html, /<details class="timeDisclosure" open="">/);
+    assert.match(html, /<details class="timeDisclosure">/);
   }
 });
 
@@ -484,4 +505,143 @@ test('applying import from character or plot returns to overview, closes import 
       Reflect.deleteProperty(globalThis, '__writerHooks');
     }
   }
+});
+
+test('manual scheduling uses work creation time, adopts only successful plans, and never saves or trials', async () => {
+  const { PublisherScheduleReview } =
+    await import('../src/features/publisher/publisher-schedule-review.tsx');
+  const { PublisherImportDialog } =
+    await import('../src/features/publisher/publisher-import-dialog.tsx');
+  function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
+    if (Array.isArray(value)) return value.flatMap(nodes);
+    if (!isValidElement(value)) return [];
+    const e = value as ReactElement<Record<string, unknown>>;
+    return [e, ...nodes(e.props.children)];
+  }
+  for (const status of ['proposed', 'unchanged', 'blocked'] as const) {
+    let cursor = 0,
+      calls = 0,
+      saved = 0,
+      trials = 0;
+    const states: unknown[] = [];
+    const source = {
+      work: { title: '手工故事' },
+      world: { startAt: '' },
+      extensions: [{ opaque: '作者内容' }],
+    };
+    const next = { ...source, world: { startAt: mockWork.createdAt } };
+    Object.assign(globalThis, {
+      __writerHooks: {
+        useState: (v: unknown) => {
+          const i = cursor++;
+          if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
+          return [
+            states[i],
+            (n: unknown) => {
+              states[i] = typeof n === 'function' ? n(states[i]) : n;
+            },
+          ];
+        },
+      },
+    });
+    scheduleForTest = (content, options) => {
+      calls++;
+      assert.deepEqual(content, source);
+      assert.equal(options.referenceAt, mockWork.createdAt);
+      return {
+        status,
+        updatedContent: next,
+        changes:
+          status === 'proposed'
+            ? [{ path: ['world', 'startAt'], value: mockWork.createdAt, reason: 'default_start' }]
+            : [],
+        issues:
+          status === 'blocked'
+            ? [{ path: ['world', 'startAt'], code: 'scheduling_no_feasible_start' }]
+            : [],
+      };
+    };
+    const props = {
+      ...defaultProps,
+      work: { ...mockWork, draft: { ...mockWork.draft, content: source } },
+      onSaveDraft: () => {
+        saved++;
+      },
+      onTrial: () => {
+        trials++;
+      },
+    };
+    const render = () => {
+      cursor = 0;
+      return PublisherWorkbench(props);
+    };
+    try {
+      let tree = render();
+      assert.equal(calls, 0);
+      const action = nodes(tree).find(
+        (e) => e.type === 'button' && e.props.children === '安排缺省时间',
+      );
+      assert.ok(action);
+      (action.props.onClick as () => void)();
+      tree = render();
+      const view = nodes(tree).find((e) => e.type === PublisherScheduleReview);
+      assert.ok(view);
+      assert.deepEqual(view.props.content, status === 'proposed' ? next : source);
+      assert.equal(calls, 1);
+      assert.equal(saved, 0);
+      assert.equal(trials, 0);
+      const field = nodes(tree).find((e) => e.props.id === 'world-tone-input');
+      assert.ok(field);
+      (field.props.onChange as (e: unknown) => void)({ target: { value: '新的氛围' } });
+      tree = render();
+      assert.ok(!nodes(tree).some((e) => e.type === PublisherScheduleReview));
+      const importButton = nodes(tree).find(
+        (e) => e.type === 'button' && e.props.children === '导入 Markdown',
+      )!;
+      (importButton.props.onClick as () => void)();
+      assert.equal(
+        nodes(render()).find((e) => e.type === PublisherImportDialog)!.props.referenceAt,
+        mockWork.createdAt,
+      );
+    } finally {
+      Reflect.deleteProperty(globalThis, '__writerHooks');
+    }
+  }
+});
+test('manual scheduling cannot execute with edit permission missing or while busy', () => {
+  function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
+    if (Array.isArray(value)) return value.flatMap(nodes);
+    if (!isValidElement(value)) return [];
+    const e = value as ReactElement<Record<string, unknown>>;
+    return [e, ...nodes(e.props.children)];
+  }
+  let calls = 0;
+  scheduleForTest = () => {
+    calls++;
+    throw Error('must not run');
+  };
+  for (const patch of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
+    let cursor = 0;
+    const states: unknown[] = [];
+    Object.assign(globalThis, {
+      __writerHooks: {
+        useState: (v: unknown) => {
+          const i = cursor++;
+          if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
+          return [states[i], () => {}];
+        },
+      },
+    });
+    try {
+      const tree = PublisherWorkbench({ ...defaultProps, ...patch });
+      const action = nodes(tree).find(
+        (e) => e.type === 'button' && e.props.children === '安排缺省时间',
+      )!;
+      assert.equal(action.props.disabled, true);
+      (action.props.onClick as () => void)();
+    } finally {
+      Reflect.deleteProperty(globalThis, '__writerHooks');
+    }
+  }
+  assert.equal(calls, 0);
 });

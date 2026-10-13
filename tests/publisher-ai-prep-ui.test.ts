@@ -78,7 +78,8 @@ registerHooks({
       };
     if (
       url.endsWith('publisher-import-dialog.tsx') ||
-      url.endsWith('publisher-source-review.tsx')
+      url.endsWith('publisher-source-review.tsx') ||
+      url.endsWith('publisher-schedule-review.tsx')
     ) {
       const source = readFileSync(new URL(url), 'utf8');
       const original = url.endsWith('publisher-import-dialog.tsx')
@@ -199,12 +200,12 @@ function setup(overrides: Partial<Props> = {}) {
   const h = new Harness();
   return { h, props, applied, posts, queries, closed: () => closed, render: () => h.render(props) };
 }
-async function loadText(s: ReturnType<typeof setup>) {
+async function loadText(s: ReturnType<typeof setup>, value = source[0]!.content) {
   s.render();
   await settle();
   let nodes = s.render();
   const input = nodes.find((n) => n.type === 'textarea')!;
-  (input.props.onChange as (e: unknown) => void)({ target: { value: source[0]!.content } });
+  (input.props.onChange as (e: unknown) => void)({ target: { value } });
   nodes = s.render();
   click(button(nodes, '读取粘贴内容'));
   await settle();
@@ -554,4 +555,82 @@ test('adding explicit null and removing unknown keys remain visible changes', ()
   assert.deepEqual(preparationChanges({}, JSON.parse('{"__proto__":{"note":"preserve"}}')), [
     '__proto__',
   ]);
+});
+
+test('AI schedule metadata and actual content are displayed without re-planning against the UI anchor', async () => {
+  const { PublisherScheduleReview } =
+    await import('../src/features/publisher/publisher-schedule-review.tsx');
+  const server = record();
+  const value = '2003-03-04T05:06:07.000Z';
+  server.result!.updatedContent = { ...server.result!.updatedContent, world: { startAt: value } };
+  server.result!.schedule = {
+    status: 'proposed',
+    changes: [{ path: ['world', 'startAt'], value, reason: 'default_start' }],
+    issues: [],
+  };
+  const s = setup({
+    referenceAt: '2026-01-01T00:00:00Z',
+    preparationClient: {
+      latestPreparation: async () => ({ preparation: null }),
+      getPreparation: async () => server,
+      prepareManuscript: async (_work, input) => {
+        server.commandId = input.commandId;
+        server.material = { currentContent: input.currentContent, sources: input.sources };
+        return server;
+      },
+    },
+  });
+  const nodes = await loadText(s);
+  click(button(nodes, '让 AI 整理世界'));
+  await settle();
+  const view = s.render().find((n) => n.type === PublisherScheduleReview);
+  assert.ok(view);
+  assert.equal(view.props.schedule, server.result!.schedule);
+  assert.equal(view.props.content, server.result!.updatedContent);
+  assert.equal(s.applied.length, 0);
+  assert.ok(button(s.render(), '填入当前编辑稿').props.disabled);
+  confirm(s);
+  click(button(s.render(), '填入当前编辑稿'));
+  assert.equal((s.applied[0] as unknown[])[0], server.result!.updatedContent);
+});
+test('changing a stable reference invalidates the old staged proposal and confirmation', async () => {
+  const s = setup({ referenceAt: '2026-01-01T00:00:00Z' });
+  click(button(await loadText(s), '让 AI 整理世界'));
+  await settle();
+  confirm(s);
+  const old = button(s.render(), '填入当前编辑稿');
+  s.props.referenceAt = '2026-02-01T00:00:00Z';
+  s.render();
+  click(old);
+  assert.equal(s.applied.length, 0);
+  await settle();
+  assert.ok(button(s.render(), '填入当前编辑稿').props.disabled);
+});
+
+test('actual pure parser schedules before validation and applies the same displayed content without AI', async () => {
+  const { PublisherScheduleReview } =
+    await import('../src/features/publisher/publisher-schedule-review.tsx');
+  const { PublisherReviewView } =
+    await import('../src/features/publisher/publisher-review-view.ts');
+  const referenceAt = '2030-02-01T01:00:00.000Z';
+  const s = setup({ referenceAt });
+  click(
+    button(
+      await loadText(s, '# 世界观\n世界名称：一段故事\n公开设定：海边小镇'),
+      '仅解析，不调用 AI',
+    ),
+  );
+  await settle();
+  const nodes = s.render();
+  const view = nodes.find((n) => n.type === PublisherScheduleReview)!;
+  const preview = nodes.find((n) => n.type === PublisherReviewView)!;
+  assert.ok(view);
+  assert.ok(preview);
+  assert.equal((view.props.schedule as { status: string }).status, 'proposed');
+  assert.equal((view.props.content as typeof base).world.startAt, referenceAt);
+  assert.equal(view.props.content, preview.props.content);
+  assert.equal(button(nodes, '填入当前编辑稿').props.disabled, false);
+  click(button(nodes, '填入当前编辑稿'));
+  assert.equal((s.applied[0] as unknown[])[0], view.props.content);
+  assert.equal(s.posts.length, 0);
 });
