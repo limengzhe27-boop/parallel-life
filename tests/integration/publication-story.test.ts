@@ -18,6 +18,7 @@ import {
   readPublicationSceneBrief,
 } from '../../src/modules/settings/infrastructure/publication-story-repository.ts';
 import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
+import { readPresentedActorStory } from '../../src/modules/settings/infrastructure/presented-story-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { compilePublicationGenesis } from '../../src/modules/settings/infrastructure/publication-genesis.ts';
 import {
@@ -540,6 +541,58 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
       assert.equal(progress.presented[0]!.status, 'presented');
       assert.equal(progress.presented[0]!.outcome, null);
       assert.equal(progress.presented[0]!.playerCompleted, false);
+      const knownThreads = await readPresentedActorStory(
+        app,
+        owner,
+        wid,
+        claimed.claim.actorId,
+        1,
+        start,
+      );
+      assert.equal(knownThreads.length, 1);
+      assert.equal(knownThreads[0]!.sourceMessageId, progress.presented[0]!.sourceMessageId);
+      const savedOpening = (await runtime.get({ userId: owner }, wid)).messages.find(
+        (m) => m.id === progress.presented[0]!.sourceMessageId,
+      )!;
+      assert.equal(knownThreads[0]!.openingText, savedOpening.text);
+      assert.equal(JSON.stringify(knownThreads).includes('DIRECTOR_OVERALL_PRIVATE_TEXT'), false);
+      assert.deepEqual(
+        await readPresentedActorStory(app, other, wid, claimed.claim.actorId, 1, start),
+        [],
+      );
+      assert.deepEqual(
+        await readPresentedActorStory(app, owner, wid, claimed.claim.actorId, 0, start),
+        [],
+      );
+      assert.deepEqual(
+        await readPresentedActorStory(
+          app,
+          owner,
+          wid,
+          initial.actors.find((x) => x.id !== claimed.claim.actorId)!.id,
+          1,
+          start,
+        ),
+        [],
+      );
+      const forgottenId = randomUUID();
+      await admin.query(
+        `INSERT INTO parallel_life.memory_records
+        (id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,source_type,source_ids,status)
+        VALUES($1,$2,'character',$3,$4,$3,'episode','local forgotten opening','agent_inference',$5,'forgotten')`,
+        [
+          forgottenId,
+          owner,
+          claimed.claim.actorId,
+          wid,
+          JSON.stringify([knownThreads[0]!.sourceMessageId]),
+        ],
+      );
+      assert.deepEqual(
+        await readPresentedActorStory(app, owner, wid, claimed.claim.actorId, 1, start),
+        [],
+      );
+      await admin.query('DELETE FROM parallel_life.memory_records WHERE id=$1', [forgottenId]);
       assert.deepEqual(
         (await story.opportunities(owner, wid, false)).candidates.map((c) => c.nodeKey),
         ['optional_b'],

@@ -30,6 +30,14 @@ export type ActorContext = {
     Record<'lifeContext' | 'traits' | 'drives' | 'behavior' | 'relationships', string>
   >;
   authoredPosts?: { text: string; at: string }[];
+  /** This speaker's actual event opening messages, retained after the recent-chat window. */
+  presentedStoryThreads?: {
+    sourceMessageId: string;
+    sourceEventId: string;
+    openingText: string;
+    at: string;
+    sourceVersion: number;
+  }[];
   facts: WorldState['facts'];
   messages: WorldState['messages'];
   appointments: WorldState['appointments'];

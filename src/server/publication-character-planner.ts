@@ -6,6 +6,11 @@ import {
   readPublicationSocial,
   readPublicationActorModules,
 } from '../modules/settings/infrastructure/publication-social-repository.ts';
+import { readPresentedActorStory } from '../modules/settings/infrastructure/presented-story-repository.ts';
+import {
+  ACTOR_CONTEXT_LIMIT,
+  ACTOR_INPUT_LIMIT,
+} from '../modules/world/application/actor-context.ts';
 /** Only this speaker's saved public posts are supplied, never another character's private source. */
 export function publicationCharacterPlanner(
   db: PostgresDatabase,
@@ -18,9 +23,17 @@ export function publicationCharacterPlanner(
     chooseStoryOpportunity: (input) => planner.chooseStoryOpportunity(input),
     async propose(input) {
       if (input.context.worldId !== worldId) throw Error('INVALID_STATE');
-      const [social, modules] = await Promise.all([
+      const [social, modules, threads] = await Promise.all([
         readPublicationSocial(db, ownerId, worldId),
         readPublicationActorModules(db, ownerId, worldId, input.context.actor.id),
+        readPresentedActorStory(
+          db,
+          ownerId,
+          worldId,
+          input.context.actor.id,
+          input.context.worldVersion,
+          input.context.time,
+        ),
       ]);
       const ownPosts = social.moments
         .filter((m) => m.actorId === input.context.actor.id)
@@ -29,16 +42,24 @@ export function publicationCharacterPlanner(
       const {
         authoredPosts: _unscoped,
         authoredLifeModules: _unscopedModules,
+        presentedStoryThreads: _unscopedThreads,
         ...context
       } = input.context;
-      return planner.propose({
-        ...input,
-        context: {
-          ...context,
-          ...(ownPosts.length ? { authoredPosts: ownPosts } : {}),
-          ...(modules ? { authoredLifeModules: modules } : {}),
-        },
-      });
+      let scopedContext = context;
+      const supplements = [
+        ...(modules ? [{ authoredLifeModules: modules }] : []),
+        ...(threads.length ? [{ presentedStoryThreads: threads }] : []),
+        ...(ownPosts.length ? [{ authoredPosts: ownPosts }] : []),
+      ];
+      for (const supplement of supplements) {
+        const next = { ...scopedContext, ...supplement };
+        if (
+          JSON.stringify(next).length <= ACTOR_CONTEXT_LIMIT &&
+          JSON.stringify({ context: next, userText: input.userText }).length <= ACTOR_INPUT_LIMIT
+        )
+          scopedContext = next;
+      }
+      return planner.propose({ ...input, context: scopedContext });
     },
   };
 }

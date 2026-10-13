@@ -20,6 +20,10 @@ test('NPC sees only its own bounded saved public posts, not another character or
         assert.equal(ownerId, 'owner');
         return run({
           async query(sql: string, args: string[]) {
+            if (sql.includes('SELECT m.document AS opening')) {
+              assert.deepEqual(args, ['world', 'owner', actorId, 0]);
+              return { rows: [] };
+            }
             if (sql.includes('publication_actor_life_modules')) {
               assert.deepEqual(args, ['world', actorId]);
               return {
@@ -82,6 +86,43 @@ test('NPC sees only its own bounded saved public posts, not another character or
       userText: '还记得你的动态吗？',
     });
   }
+});
+test('inherited story scripts are stripped before NPC input even when no actor story is stored', async () => {
+  const db = {
+    async transaction(_owner: string, run: (sql: any) => unknown) {
+      return run({
+        async query(sql: string) {
+          if (sql.includes('SELECT m.document AS opening')) return { rows: [] };
+          return {
+            rows: [
+              { document: sql.includes('publication_social_opening') ? { moments: [] } : null },
+            ],
+          };
+        },
+      });
+    },
+  } as unknown as PostgresDatabase;
+  const planner = publicationCharacterPlanner(db, 'owner', 'world', {
+    async complete(messages) {
+      assert.equal(JSON.stringify(messages).includes('unseen plot ending'), false);
+      return '我们先聊眼前的事。';
+    },
+  });
+  await planner.propose({
+    context: {
+      ...context,
+      presentedStoryThreads: [
+        {
+          sourceMessageId: 'fake',
+          sourceEventId: 'fake',
+          openingText: 'unseen plot ending',
+          sourceVersion: 1,
+          at: context.time,
+        },
+      ],
+    },
+    userText: '你好',
+  });
 });
 test('world mismatch rejects before reading any saved posts or calling model', async () => {
   let calls = 0;
