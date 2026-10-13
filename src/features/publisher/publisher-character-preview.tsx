@@ -89,12 +89,15 @@ export function PublisherCharacterPreview({
           </div>
         )}
 
-        {trial && !isDirty ? (
-          <iframe
-            className={s.phone}
-            title="这份已保存草稿的真实试演手机"
-            src={phoneTrialUrl(trial)}
-          />
+        {trial ? (
+          <div className={s.trialWrap}>
+            <iframe
+              className={s.phone}
+              title="这份已保存草稿的真实试演手机"
+              src={phoneTrialUrl(trial)}
+            />
+            {isDirty && <span className={s.staleBadge}>以已保存版本运行</span>}
+          </div>
         ) : (
           <div className={s.empty}>
             <p>

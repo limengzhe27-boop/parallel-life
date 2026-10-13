@@ -644,7 +644,7 @@ test('NotesApp renders pure private notes and top entrance to records', () => {
     const html = renderToStaticMarkup(tree);
     assert.match(html, /新建便签/);
     assert.match(html, /自己的便签/);
-    assert.match(html, /关于这段人生 · 事实与进展/);
+    assert.match(html, /关于这段人生/);
     assert.doesNotMatch(html, /眼下要做的事/);
     assert.doesNotMatch(html, /aria-pressed="true">便签/);
 

@@ -388,10 +388,10 @@ export function NotesApp({ target, open }: PhoneAppContext) {
       >
         <div>
           <strong style={{ fontSize: '14px', color: '#1e293b', display: 'block' }}>
-            关于这段人生 · 事实与进展
+            关于这段人生
           </strong>
           <span style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', display: 'block' }}>
-            起点身份、世界设定、眼下事项与阶段记录
+            世界设定、你的身份与起点处境 · 只读
           </span>
         </div>
         <span style={{ fontSize: '14px', color: '#3b82f6', fontWeight: 600 }}>查看 ›</span>

@@ -564,7 +564,9 @@ export function RecordsApp({
             <span>① 关于这段人生（起点与设定）</span>
             <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>起点与世界设定 · 只读</small>
           </summary>
-          <p className={s.hint} style={{ margin: '6px 0 10px' }}>世界设定、我的身份与起点处境（由剧本设定确立）。</p>
+          <p className={s.hint} style={{ margin: '6px 0 10px' }}>
+            世界设定、我的身份与起点处境由剧本确立，你只需了解，不必修改（只读）。
+          </p>
           {records.status === 'ready' ? (
             <NotesAbout data={records.data} query={query} open={open} />
           ) : null}
@@ -598,7 +600,7 @@ export function RecordsApp({
           <details className={s.background} open={!query.trim() || !!data.choices.some(c => searchable(query, c.actorName, c.quote, c.intent))}>
             <summary style={{ fontWeight: 650, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>④ 处境与选择</span>
-              <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>{data.choices.length} 项处境 · 只读</small>
+              <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>{data.choices.length} 条处境与选择（只读）</small>
             </summary>
             <p className={s.hint} style={{ margin: '6px 0 10px' }}>
               人物来信或对话中带来的关键处境与分歧。选择已发生或待续，不在此处就地编辑。
