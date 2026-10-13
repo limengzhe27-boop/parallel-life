@@ -140,7 +140,7 @@ test('SSR offers three editable sections and honest Chinese setup guidance witho
   for (const value of [
     '已发生事实',
     '剧情阶段',
-    '可选事件',
+    '3. 可能发生的剧情',
     '新增事实',
     '新增阶段',
     '新增事件',

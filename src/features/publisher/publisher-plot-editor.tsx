@@ -868,15 +868,6 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
       </p>
       <PublisherStoryGraph content={content} disabled={disabled} onSelect={selectGraphEvent} />
       {disabled && <p className={s.hint}>当前只读或正在处理操作，修改入口暂不可用。</p>}
-      <details className={s.card}>
-        <summary className={s.summary}>不会填写？看一个简短例子</summary>
-        <p>
-          开场前：“双方上周讨论过开店”是已发生事实。开场后：“朋友可能邀请你看店”是可选事件。先录事实，再建“开业准备”阶段，最后写邀约剧情；拒绝后可考虑另一段来信剧情。这只是说明，不会写入你的原稿。
-        </p>
-        <p className={s.hint}>
-          先在世界设定核对起点，在人物页录入人物，在地点中准备现有地点，再用下拉框引用。
-        </p>
-      </details>
       {issues.length > 0 && (
         <div className={s.card} role="status">
           <h3>需要补齐的内容</h3>
