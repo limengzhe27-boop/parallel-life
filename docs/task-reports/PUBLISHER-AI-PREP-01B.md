@@ -65,3 +65,15 @@ root第二次实测v2：work补齐但多类key为中文、地点漏knownAtStart�
 21/21专项（0skip）与typecheck/Prettier/diff通过。新增检查实际发给TextModel的JSON范例经过PublishedWorldContentSchema、PublisherPreparationOutputSchema、compilePublicationGenesis；真实actorContext中宁遥可知密封圈事实，路帆不知。验证范例无本验收人物/库存/15分钟答案，且缺字段受控模型响应仍原样带issues返回，没有用范例填结果。原20专项保留（两项prompt文本期待更新至等价短规则）。单次complete/16000/json_object、合并规则、所有validator/权限保持不变，没有schema放宽或结果修补。
 
 这仍是提高单次模型遵从的提示/格式改进，不是语义完整性证明。根下一次必须逐项核原稿实际来信、候选、方向和私密范围后再保存；即使模型自称无遗漏也不据此通过。B 0真实模型/DB/端口/生产；root当前2/12文字、0世界，准备最多另4尝试并留6次NPC预算，不由B使用。仅本Planner/原专项/报告三文件冻结供root统一check/build/部署。
+
+## 根最新授权：最多一次已知校验纠错（publication-manuscript-4）
+
+本节替代前文历史“始终一次complete”限定。根第三次真实v3报告已有2消息/ASCII/定向scope改善，但主角两必填空、UTC偏移格式不符、stage order反向、第二候选缺失；不宣称第三稿通过。用户12次总预算明确包含纠错，根已占3/12文字/0世界，下一准备预占2并保留NPC额度。根明确保留原110秒共享deadline，不改生命周期/SQL/契约；两次调用不承诺各自110秒。
+
+仅Planner/test/report实现：首次完整响应经ResponseSchema解析、原作者合并，再跑实际PublishedWorldContentSchema/compilePublicationGenesis，issues为空立即返回（1次）；issues非空且整包input合预算才允许同TextModel最多一次纠正（总2次）。损坏JSON、响应体/内容存储超限或网关异常不进入该分支，没有自动网络重试。第二次data包含完整sources、originalCurrentContent、firstProposal（首次合并提案）、真实validationIssues，全属非可信数据；system另有简短纠错要求，覆盖逐项校验路径、原稿事项/来信/路线/知情范围、ISO偏移转等价UTC Z、阶段有向先后。只把originalCurrentContent作为author merge基线，AI首稿非空错误可改，原作者非空仍保留。
+
+二次所有messages.content长度总和（含system范例/纠错要求和user完整材料）≤64000才发请求。超限不截任何原稿/首提案/问题，返回首稿与中文review说明未调用纠错。第二次仍有issues正常返回并提示仍需修改；第二次网关异常/超时/取消/损坏响应直接原异常，不第三次、不模板fallback、不伪造成功。signal与16000/json_object两次原样传递，共享根110秒。来源覆盖的语义遗漏在零结构issues时不会自动触发纠错；必须仍由作者/根实测核对，模型声明不能作为证据。
+
+25/25专项通过、0skip；typecheck/Prettier/diff通过。原有效1-call与原failure不重付证据保留；原两个invalid-return案例次数更新至2。新增4项验证：真实issues/原稿完整进入第二调用、错误AI非空可修而作者原文保留/UTC等价修正/阶段纠正；compiler-only不支持原false触发一次且仍保false与issue；第二次TIMEOUT/unknown-provider/坏JSON不第三次、不返回假成功；完整输入64000字符恰好调用而64001不调用并保首稿，完整source逐字核对。纯测试受控响应不证明真实模型改好。
+
+B0真实模型/SQL/DB/端口/部署。三文件冻结；根按至多2预占继续实际质量验证，统一check/build/部署。前文v1–v3及首轮完整check/build是历史阶段证据，不冒充本轮全库门禁。

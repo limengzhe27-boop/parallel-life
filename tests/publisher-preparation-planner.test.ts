@@ -506,7 +506,7 @@ test('new-work blanks are filled and two authored events survive in their origin
   assert.deepEqual(JSON.parse(h.calls[0]!.messages[1]!.content), material);
 });
 
-test('a model that still leaves required work fields empty is surfaced with validation issues, never silently repaired or retried', async () => {
+test('a still-invalid correction keeps required field issues and never triggers a third call', async () => {
   const proposed = fixture();
   proposed.work.hook = '';
   proposed.work.description = '';
@@ -517,7 +517,7 @@ test('a model that still leaves required work fields empty is surfaced with vali
     assert.ok(result.issues.some((issue) => issue.path.join('.') === `work.${field}`));
     assert.equal((result.updatedContent.work as Record<string, unknown>)[field], '');
   }
-  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls.length, 2);
 });
 
 test('two dated private messages and two directed routes survive, while a split-scope secret reaches only the intended NPC', async () => {
@@ -664,9 +664,159 @@ test('request includes one fully valid generic JSON format example, never substi
   assert.equal(JSON.stringify(actorContext(compiled.world, unknown)).includes('密封圈'), false);
   assert.deepEqual(result.updatedContent, { work: { title: '仍然缺字段的模型回答' } });
   assert.ok(result.issues.length);
-  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls.length, 2);
   assert.ok(system.includes('按notes、summary、updatedContent顺序'));
   assert.ok(system.includes('不能以notes代替实际字段'));
   assert.ok(system.includes('不能中文'));
   assert.ok(system.length < 8000);
+});
+
+function sequenceHarness(responses: unknown[]) {
+  const calls: {
+    messages: ModelMessage[];
+    signal?: AbortSignal;
+    tokens?: number;
+    output?: unknown;
+  }[] = [];
+  const planner = new PublicationManuscriptPlanner({
+    async complete(messages, signal, tokens, output) {
+      calls.push({ messages, signal, tokens, output });
+      const response = responses[calls.length - 1];
+      if (response instanceof Error) throw response;
+      if (response === undefined) throw Error('unexpected additional model call');
+      return typeof response === 'string' ? response : JSON.stringify(response);
+    },
+  });
+  return { planner, calls };
+}
+
+test('one correction uses original author baseline, actual validation issues and complete source, not first AI values as locked content', async () => {
+  const wrong = fixture();
+  wrong.protagonist.identity = '';
+  wrong.protagonist.situation = '首次AI错误处境';
+  wrong.work.title = '首次AI标题';
+  wrong.world.startAt = '2030-01-01T14:00:00+08:00';
+  wrong.timeline = {
+    initialStageKey: 'early',
+    stages: [
+      { key: 'early', title: '早', order: 0, afterStageKeys: ['late'] },
+      { key: 'late', title: '晚', order: 1, afterStageKeys: [] },
+    ],
+  };
+  const corrected = fixture();
+  corrected.protagonist.situation = '纠正后的处境';
+  corrected.timeline = {
+    initialStageKey: 'early',
+    stages: [
+      { key: 'early', title: '早', order: 0, afterStageKeys: [] },
+      { key: 'late', title: '晚', order: 1, afterStageKeys: ['early'] },
+    ],
+  };
+  const currentContent = { work: { title: '作者最初标题' }, world: { tone: '作者原语气' } };
+  const before = structuredClone(currentContent),
+    sourceCopy = structuredClone(sources);
+  const h = sequenceHarness([reply(wrong), reply(corrected)]);
+  const signal = new AbortController().signal;
+  const result = await h.planner.propose({ currentContent, sources }, signal);
+  assert.equal(h.calls.length, 2);
+  assert.deepEqual(result.issues, []);
+  const content = PublishedWorldContentSchema.parse(result.updatedContent);
+  assert.equal(content.work.title, '作者最初标题');
+  assert.equal(content.world.tone, '作者原语气');
+  assert.equal(content.protagonist.situation, '纠正后的处境');
+  assert.equal(content.world.startAt, '2030-01-01T06:00:00Z');
+  const material = JSON.parse(h.calls[1]!.messages[1]!.content);
+  assert.deepEqual(material.originalCurrentContent, before);
+  assert.deepEqual(material.sources, sourceCopy);
+  assert.equal(material.firstProposal.protagonist.situation, '首次AI错误处境');
+  assert.ok(
+    material.validationIssues.some(
+      (i: { path: (string | number)[] }) => i.path.join('.') === 'protagonist.identity',
+    ),
+  );
+  assert.ok(
+    material.validationIssues.some(
+      (i: { path: (string | number)[] }) => i.path.join('.') === 'world.startAt',
+    ),
+  );
+  assert.ok(h.calls[1]!.messages[0]!.content.includes('不能直接把+08:00后缀改Z'));
+  assert.ok(h.calls[1]!.messages[0]!.content.includes('每条有时间来信、每方向路线'));
+  for (const call of h.calls) {
+    assert.equal(call.signal, signal);
+    assert.equal(call.tokens, 16000);
+    assert.deepEqual(call.output, { format: 'json_object' });
+  }
+  assert.deepEqual(currentContent, before);
+  assert.deepEqual(sources, sourceCopy);
+  assert.ok(result.notes.some((n) => n.text.includes('已完成一次校验纠错')));
+});
+
+test('compiler-only known issues permit one correction, preserving authored false even if the model changes it', async () => {
+  const original = fixture();
+  original.actors[0]!.knownAtStart = false;
+  const initial = fixture(),
+    corrected = fixture();
+  const h = sequenceHarness([reply(initial), reply(corrected)]);
+  const result = await h.planner.propose({ currentContent: original, sources });
+  assert.equal(h.calls.length, 2);
+  const issueCode = 'unsupported_unknown_actor_projection';
+  assert.ok(
+    JSON.parse(h.calls[1]!.messages[1]!.content).validationIssues.some(
+      (i: { code: string }) => i.code === issueCode,
+    ),
+  );
+  assert.ok(result.issues.some((i) => i.code === issueCode));
+  assert.equal(
+    (result.updatedContent as unknown as PublicationContent).actors[0]!.knownAtStart,
+    false,
+  );
+  assert.ok(result.notes.some((n) => n.text.includes('仍有待修问题')));
+});
+
+test('transport failure or malformed repair response never permits a third call or a fallback success', async () => {
+  for (const bad of [
+    Object.assign(Error('late transport failure'), { code: 'TIMEOUT' }),
+    Object.assign(Error('unknown provider outcome'), { code: 'UPSTREAM_FAILED' }),
+    'invalid repair JSON',
+  ]) {
+    const h = sequenceHarness([reply({}), bad]);
+    await assert.rejects(h.planner.propose({ currentContent: {}, sources }), (e) =>
+      bad instanceof Error ? e === bad : (e as { code?: string }).code === 'INVALID_RESPONSE',
+    );
+    assert.equal(h.calls.length, 2);
+  }
+});
+
+test('correction input budget includes system, full original source, proposal and issues: 64000 allowed, 64001 skipped without truncation', async () => {
+  const proposal = { work: { description: 'x'.repeat(20000) } };
+  const probe = sequenceHarness([reply(proposal), reply({})]);
+  await probe.planner.propose({
+    currentContent: {},
+    sources: [{ filename: 'large.md', content: 'x' }],
+  });
+  const initialSize = probe.calls[1]!.messages.reduce((sum, m) => sum + m.content.length, 0);
+  const exactSource = 'x'.repeat(64000 - initialSize + 1);
+  assert.ok(exactSource.length < 47000);
+  const exact = sequenceHarness([reply(proposal), reply({})]);
+  await exact.planner.propose({
+    currentContent: {},
+    sources: [{ filename: 'large.md', content: exactSource }],
+  });
+  assert.equal(exact.calls.length, 2);
+  assert.equal(
+    exact.calls[1]!.messages.reduce((sum, m) => sum + m.content.length, 0),
+    64000,
+  );
+  assert.equal(JSON.parse(exact.calls[1]!.messages[1]!.content).sources[0].content, exactSource);
+  const above = sequenceHarness([reply(proposal)]);
+  const result = await above.planner.propose({
+    currentContent: {},
+    sources: [{ filename: 'large.md', content: exactSource + 'x' }],
+  });
+  assert.equal(above.calls.length, 1);
+  assert.deepEqual(result.updatedContent, proposal);
+  assert.ok(result.issues.length);
+  assert.ok(
+    result.notes.some((n) => n.text.includes('超过纠错输入容量') && n.text.includes('未调用纠错')),
+  );
 });
