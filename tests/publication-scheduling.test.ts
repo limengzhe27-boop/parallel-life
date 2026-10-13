@@ -11,6 +11,63 @@ const plan = (
   referenceAt = REF,
 ) => planPublicationTimes(c, { referenceAt, ...(sources ? { sources } : {}) });
 const source = (content: string) => [{ filename: '测试稿.md', content }];
+test('ordinary undated posts receive past times without reordering or replacing dated author posts', () => {
+  const base = fixture();
+  base.world.startAt = REF;
+  const dated = [
+    { key: 'newer', actorKey: 'a', text: '完成了一张画。', at: '2026-10-12T10:00:00Z' },
+    { key: 'older', actorKey: 'b', text: '换了一件工具。', at: '2026-10-10T10:00:00Z' },
+  ];
+  const content = {
+    ...base,
+    phone: {
+      ...base.phone,
+      moments: [...dated, { key: 'blank', actorKey: 'a', text: '收拾好了。', at: '' }],
+    },
+  };
+  const result = plan(content);
+  assert.equal(result.status, 'proposed');
+  assert.deepEqual(result.issues, []);
+  const filled = PublishedWorldContentSchema.parse(result.updatedContent);
+  assert.deepEqual(filled.phone.moments!.slice(0, 2), dated);
+  assert.ok(Date.parse(filled.phone.moments![2]!.at) < Date.parse(REF));
+  assert.deepEqual(
+    plan(result.updatedContent, undefined, '2040-01-01T00:00:00Z').updatedContent,
+    result.updatedContent,
+  );
+  assert.equal(content.phone.moments[2]!.at, '');
+});
+test('future or unresolved time-bearing posts block a plan atomically instead of being moved into history', () => {
+  const base = fixture();
+  base.world.startAt = REF;
+  const future = {
+    ...base,
+    phone: {
+      ...base.phone,
+      moments: [{ key: 'future', actorKey: 'a', text: '普通记录', at: '2026-10-14T10:00:00Z' }],
+    },
+  };
+  const invalid = plan(future);
+  assert.equal(invalid.status, 'blocked');
+  assert.deepEqual(invalid.updatedContent, future);
+  assert.ok(
+    invalid.issues.some(
+      (i) =>
+        i.path.join('.') === 'phone.moments.0.at' && i.code === 'scheduling_history_after_start',
+    ),
+  );
+  const relative = {
+    ...base,
+    phone: {
+      ...base.phone,
+      moments: [{ key: 'relative', actorKey: 'a', text: '明天19点聚餐。', at: '' }],
+    },
+  };
+  const unresolved = plan(relative);
+  assert.equal(unresolved.status, 'blocked');
+  assert.deepEqual(unresolved.updatedContent, relative);
+  assert.ok(unresolved.issues.some((i) => i.code === 'scheduling_source_time_needs_review'));
+});
 function fixture() {
   return {
     schemaVersion: 1,

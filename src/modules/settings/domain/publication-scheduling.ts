@@ -144,6 +144,7 @@ export function planPublicationTimes(
     issue(['phone'], 'scheduling_invalid_container');
   const phone = data(next.phone) ? next.phone : {};
   const messages = rows(phone.messages, ['phone', 'messages'], 40);
+  const moments = rows(phone.moments, ['phone', 'moments'], 48);
   const invitations = rows(phone.invitations, ['phone', 'invitations'], 12);
   const candidates = rows(next.candidates, ['candidates'], 32);
   if (next.timeline !== undefined && !data(next.timeline))
@@ -160,6 +161,7 @@ export function planPublicationTimes(
       issue([...r.path, 'origin'], 'scheduling_unknown_message_origin');
     return slot(r, 'at');
   });
+  const momentSlots = moments.map((r) => slot(r, 'at'));
   const inviteSlots = invitations.map((r) => {
     if (r.value.status !== 'proposed')
       issue([...r.path, 'status'], 'scheduling_unknown_invitation_status');
@@ -309,6 +311,7 @@ export function planPublicationTimes(
     startSlot,
     ...histories,
     ...messageSlots,
+    ...momentSlots,
     ...inviteSlots,
     ...candidateSlots.values(),
   ].some((s) => s.blank);
@@ -355,7 +358,7 @@ export function planPublicationTimes(
     }
   }
   // Text belongs to its real record; metadata/keys/numerical ages are never temporal evidence.
-  for (const row of [...history, ...messages, ...invitations, ...candidates]) {
+  for (const row of [...history, ...messages, ...moments, ...invitations, ...candidates]) {
     for (const key of ['text', 'title', 'editorialIntent'])
       if (typeof row.value[key] === 'string') scan(row.value[key] as string, [...row.path, key]);
     if (data(row.value.timeline) && typeof row.value.timeline.timeNote === 'string')
@@ -367,6 +370,7 @@ export function planPublicationTimes(
   let lower = -Infinity,
     upper = Infinity;
   for (const s of histories) if (s.time !== undefined) lower = Math.max(lower, s.time);
+  for (const s of momentSlots) if (s.time !== undefined) lower = Math.max(lower, s.time);
   for (const s of messageSlots)
     if (s.time !== undefined)
       lower = Math.max(lower, s.time + (s.row.value.origin === 'history' ? 1 : 0));
@@ -406,6 +410,8 @@ export function planPublicationTimes(
   const start = startSlot.time;
   if (start === undefined || issues.length) return result();
   for (const s of histories)
+    if (s.time !== undefined && s.time > start) issue(s.path, 'scheduling_history_after_start');
+  for (const s of momentSlots)
     if (s.time !== undefined && s.time > start) issue(s.path, 'scheduling_history_after_start');
   for (const s of messageSlots)
     if (
@@ -470,6 +476,9 @@ export function planPublicationTimes(
   for (const s of messageSlots)
     if (s.row.value.origin === 'incoming') fill(s, start, 'default_opening_message');
   fillPast(messageSlots, 'default_history_message_order');
+  // A feed need not be stored chronologically. Preserve authored dates and order,
+  // and give only undated ordinary posts a stable past slot.
+  momentSlots.forEach((s, i) => fill(s, start - (i + 1) * MINUTE, 'default_past_moment'));
   if (messagesHadMissing)
     for (let i = 1; i < messageSlots.length; i++)
       if (

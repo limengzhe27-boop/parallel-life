@@ -44,3 +44,6 @@
 - 两位Agent追加专属保护与客户端超时修复；root只改真实手机advance/messages和私有trial路由执行预算为240秒，适配85秒模型链，保次数/幂等/unknown约束。prepare应用整体110秒预算和原路由150秒保持。
 
 - 根因修复已集成：ec02f65/63ea586/0a75c00（root重建759b167/4cfe5d4/d592b9d），保原消息/动态整条及角色身份，按实际startAt验证双向历史并指导唯一纠错。原全量检查3项旧身份语义冲突已保留日志，再修合法fixture与拒改名断言，不削守卫。客户端f4f4e49已集成adba4c6，普通读15秒、消息125秒、推进185秒、无自动重试；编译产物确认真手机三路由maxDuration240。真实准备PG10、build通过，待最终check和线上真实复验。
+
+- 第二次真实整理：2/24追加，合计4/24、0/2存档，仍被时间校验拦截（8项invalid_format），提案未采用。直接发现publisher-preparation-http只转material/signal而漏第三参scheduling，线上根本未运行排期/传reference；旧纯planner和仓储桩验证未覆盖此真实组合。root改typed lazy composition全参转发，增加application→同一HTTP factory→真实planner→自动排期→缓存重读不建模型的功能验证。补普通空日期moments支持，保已有日期/顺序、未来/含未解析钟点原子拒绝。首次专项测试自身material混入command输入及必填空示例已修后33项通过，错误日志保留。
+- 相对时间prompt9470550→9adb305修复无日期却有今晚/明天锚点时仍硬要求空日期的矛盾；依据本次真实参考输出合法UTC并标补充，明确原日期和完成后N天unsupported不变。不用手写QA聊天/日期冒充成功。正在最终check/build及第二次部署后重新整理。

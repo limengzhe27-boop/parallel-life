@@ -9,7 +9,7 @@ import {
   PublisherHttpError,
 } from './publisher-http.ts';
 import { createManuscriptTextModel } from './composition.ts';
-import { PublicationManuscriptPlanner } from '../modules/settings/infrastructure/publication-manuscript-planner.ts';
+import { lazyPublicationManuscriptPlanner } from './publisher-manuscript-composition.ts';
 import { preparePublisherManuscript } from '../modules/settings/application/publisher-preparation.ts';
 
 export function publisherPreparationRoute(request: Request, workId: string) {
@@ -27,10 +27,7 @@ export function publisherPreparationRoute(request: Request, workId: string) {
     // Instantiate the gateway lazily: cached results still recover during provider outages.
     const result = await preparePublisherManuscript(
       s.preparations,
-      {
-        propose: (material, signal) =>
-          new PublicationManuscriptPlanner(createManuscriptTextModel()).propose(material, signal),
-      },
+      lazyPublicationManuscriptPlanner(createManuscriptTextModel),
       principal.id,
       workId,
       input,
