@@ -180,7 +180,8 @@ const invalid = (code: string) => Object.assign(new Error(code), { code: 'INVALI
 const REVIEW_MESSAGES: Record<string, string> = {
   authored_value_preserved: '已保留作者原有内容',
   authored_list_preserved: '已保留作者原有列表及顺序',
-  unknown_field_preserved: '已保留原有未知字段，未采纳模型新增或改写的未知字段',
+  unknown_field_preserved: '作者原有的这项内容已保留',
+  unknown_field_omitted: 'AI新增的这项内容不属于当前支持的填写项目，未写入提案；请对照原稿核对',
   asset_or_extension_preserved: '图片与扩展引用保持原样，未添加模型提供的引用',
   editorial_intent_supplemented: '已为候选剧情补充执行方式，原有标题和剧情说明保持不变',
   entity_supplemented: '已补充人物、地点或其他内容条目，请核对是否符合原稿',

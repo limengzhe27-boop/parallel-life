@@ -166,8 +166,10 @@ export function mergePublicationPreparation(current: RecordValue, proposal: Reco
       const allowed = fields[name] ?? [];
       for (const key of new Set([...Object.keys(existing), ...Object.keys(next)])) {
         if (!allowed.includes(key)) {
-          if (Object.hasOwn(existing, key)) result[key] = existing[key];
-          if (!equal(existing[key], next[key])) warn([...path, key], 'unknown_field_preserved');
+          const authored = Object.hasOwn(existing, key);
+          if (authored) result[key] = existing[key];
+          if (!equal(existing[key], next[key]))
+            warn([...path, key], authored ? 'unknown_field_preserved' : 'unknown_field_omitted');
           continue;
         }
         const value = merge(existing[key], next[key], [...path, key]);

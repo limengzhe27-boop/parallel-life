@@ -820,3 +820,66 @@ test('correction input budget includes system, full original source, proposal an
     result.notes.some((n) => n.text.includes('超过纠错输入容量') && n.text.includes('未调用纠错')),
   );
 });
+
+test('review distinguishes preserved authored unknown content from newly omitted AI content', () => {
+  const current = { work: { authorMemo: { detail: '作者原有内容', flags: [] } } };
+  const before = structuredClone(current);
+  const result = mergePublicationPreparation(current, { work: {} });
+  assert.deepEqual(result.updatedContent, before);
+  assert.deepEqual(result.reviews, [
+    { path: ['work', 'authorMemo'], code: 'unknown_field_preserved' },
+  ]);
+  assert.deepEqual(current, before);
+
+  const added = mergePublicationPreparation({}, { work: { age: 26 } });
+  assert.deepEqual(added.updatedContent, { work: {} });
+  assert.deepEqual(added.reviews, [{ path: ['work', 'age'], code: 'unknown_field_omitted' }]);
+});
+
+test('conflicting existing unknown values including empty author values are retained, not reported as newly omitted', () => {
+  for (const original of [26, '', false, 0, null, [], { detail: '原值' }]) {
+    const current = { work: { age: original } };
+    const before = structuredClone(current);
+    const result = mergePublicationPreparation(current, { work: { age: 'AI改写' } });
+    assert.deepEqual(result.updatedContent, before);
+    assert.deepEqual(result.reviews, [{ path: ['work', 'age'], code: 'unknown_field_preserved' }]);
+    assert.deepEqual(current, before);
+  }
+});
+
+test('Planner explains omitted new age accurately without copying it into public or private supported fields', async () => {
+  const proposal = fixture();
+  const response = {
+    ...proposal,
+    actors: proposal.actors.map((a, i) =>
+      i === 0 ? { ...a, publicCard: { ...a.publicCard, age: 26 } } : a,
+    ),
+  };
+  const h = harness(reply(response));
+  const result = await h.planner.propose({ currentContent: {}, sources });
+  const content = PublishedWorldContentSchema.parse(result.updatedContent);
+  assert.deepEqual(content, proposal);
+  assert.deepEqual(result.issues, []);
+  assert.equal(h.calls.length, 1);
+  const note = result.notes.find((n) => n.text.startsWith('actors.0.publicCard.age：'));
+  assert.ok(note);
+  assert.equal(note.kind, 'review');
+  assert.ok(note.text.includes('未写入提案'));
+  assert.equal(note.text.includes('已保留'), false);
+  assert.equal(Object.hasOwn(content.actors[0]!.publicCard, 'age'), false);
+  assert.equal(JSON.stringify(content).includes('26'), false);
+});
+
+test('Planner accurately describes retention of a conflicting authored unknown field and preserves schema issues', async () => {
+  const current = { ...fixture(), authorMemo: { detail: '作者私有备注' } };
+  const proposed = { ...fixture(), authorMemo: { detail: 'AI替换备注' } };
+  const h = harness(reply(proposed));
+  const result = await h.planner.propose({ currentContent: current, sources });
+  assert.deepEqual(result.updatedContent.authorMemo, current.authorMemo);
+  assert.ok(result.issues.length);
+  const note = result.notes.find((n) => n.text.startsWith('authorMemo：'));
+  assert.ok(note);
+  assert.ok(note.text.includes('作者原有的这项内容已保留'));
+  assert.equal(note.text.includes('未写入提案'), false);
+  assert.equal(h.calls.length, 2);
+});
