@@ -18,6 +18,6 @@
 
 新增world-client-timeouts.test.ts用虚拟时钟/AbortSignal和合成回执，0外部请求，模拟超过15秒真实形态的消息回执、两模型175秒推进回执仍只发一次原请求；普通读取仍15秒中止；125/185秒请求上限有限，丢失结果归unknown且不重试。
 
-新专项+既有client/clock-client/authoring15-auto：16/16通过，typecheck通过。首次虚拟测试因微任务未排空出现等待，已修正flush并停止本人旧测试进程；修正后专项完整返回，不残留后台测试。独立build执行中，最终结果回传root。
+新专项+既有client/clock-client/authoring15-auto：16/16通过，typecheck通过。首次虚拟测试因微任务未排空出现等待，已修正flush并停止本人旧测试进程；修正后专项完整返回，不残留后台测试。独立build完整通过（exit 0）。完整check：2186通过，4项均默认PG55432未运行ECONNREFUSED（character-image-flow两项、rls-tenant-isolation两项）；root按真实PG环境集成重跑。
 
 没有模型/数据库/生产/浏览器调用。独立树服务端仍是旧baseline，240秒配套为root职责；不能据客户端调整声称服务端已上线延长。
