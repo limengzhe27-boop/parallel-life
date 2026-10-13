@@ -50,3 +50,11 @@ Q只读具体 diff、helper/契约/保存链和 SHA256，**0新测试、check/bu
 根可用既有本地staff及合成作品完成0模型操作：实际角色A facts文字输入→保存→刷新/重读，确认精确新text；再看角色B同key文字一致，而其勾选、所有key/date/visibility、未知扩展、initialKnowledge及候选引用都不变。canEditfalse/busy状态实际不可编辑；duplicate/nonstring old稿无editor且raw保存原样，陌生/未授权事实勾选仍被完整check拒绝。
 
 同时核原check失效、旧已创建合成world仍是原版内容，且此编辑不生成事件/task/model/world。用真实HTTP/数据库保存读回与浏览器输入刷新证明接线，不能只用mock onChange或pre-render HTML。根负责这些实际验收、精确提交、部署READY/公网验证，本报告先待验收并冻结回传，Q不写UI或续领其他任务。
+
+## 追加：根实际验收回传与提示修正
+
+根回传：本地staff实际UI改两条text→保存草稿r0到r1→刷新重选→GETdraft严格deepEqual，仅两处history.text改变，key/date/visibility、所有knownrefs与其余内容保持。390px编辑控件宽276、无横向溢出、两个知情checkbox仍true、剧情管理入口可实际切换。没有模型或新world。本次最终fullcheck1835/404边界/type0由根运行通过；build及部署仍由根收尾，Q不冒认自己运行这些检查。
+
+证据是根的忽略文件 `.local/md-fact-local-proof.json`。Q只读核文件存在及限定结果字段，与根回传一致；没有重放HTTP、DB或浏览器操作，也没有凭这些flags独立重算数据库deepEqual。真实操作证据明确属于根，静态源码审核仍是Q独立范围。
+
+P2空态已根改为“还没有可选择的既有事实。请到剧情页新增或核对原稿，不会自动授予人物知情。”Q再次只读确认该文字位于workbench :1343，root HEAD仍 `e261ff6821595b0e6792798304a41301a1b3c51b`、UI WIP尚待最后提交；不会再将不可用原结构直接说成不存在，数据行为没有改变。本批未发现新的P1，报告冻结交根；所有其它旧helper问题保持原任务后续，不扩审或另跑模型/测试/端口。
