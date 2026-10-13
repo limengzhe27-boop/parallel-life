@@ -10,6 +10,7 @@ export type PublicationStoryClaim = {
   placeName: string | null;
   editorialIntent: string;
   intent:
+    | { kind: 'director_event'; actorKey: string }
     | { kind: 'offer_message'; actorKey: string; text: string }
     | {
         kind: 'offer_invitation';
@@ -52,7 +53,40 @@ export type PublicationSceneBrief = {
   invitationId: string;
   sourceEventId: string;
 };
+export type PublicationStoryOpportunities = {
+  managed: boolean;
+  directorPool: boolean;
+  version: number;
+  storyNow: string;
+  candidates: {
+    nodeKey: string;
+    title: string;
+    editorialIntent: string;
+    actorId: string;
+    placeName: string | null;
+  }[];
+};
 export interface PublicationStoryPort {
+  /** Server-only eligible pool. Never return author intents through player progress. */
+  opportunities?(
+    ownerId: string,
+    worldId: string,
+    automatic: boolean,
+  ): Promise<PublicationStoryOpportunities>;
+  beginSelection?(
+    ownerId: string,
+    worldId: string,
+    version: number,
+    attemptId: string,
+    candidateKeys: string[],
+  ): Promise<boolean>;
+  finishSelection?(
+    ownerId: string,
+    worldId: string,
+    attemptId: string,
+    status: 'selected' | 'deferred' | 'unknown',
+    nodeKey: string | null,
+  ): Promise<void>;
   invitationContext?(
     ownerId: string,
     worldId: string,
@@ -61,7 +95,7 @@ export interface PublicationStoryPort {
   prepare(
     ownerId: string,
     worldId: string,
-    options?: { automatic?: boolean },
+    options?: { automatic?: boolean; nodeKey?: string; expectedVersion?: number },
   ): Promise<PublicationStoryPrepare>;
   finish(ownerId: string, worldId: string, claimId: string): Promise<PublicationStoryProgress>;
   progress(ownerId: string, worldId: string): Promise<PublicationStoryProgress>;

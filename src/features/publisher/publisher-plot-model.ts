@@ -190,7 +190,7 @@ export function addPlotRow(content: PlotRecord, section: PlotSection): PlotRecor
             actorKeys: [],
             prerequisites: [],
             mutuallyExclusiveNodeKeys: [],
-            intent: { kind: 'editorial_only' },
+            intent: { kind: 'director_event', actorKey: '' },
           };
   if (section === 'stages' && next.timeline === undefined)
     next.timeline = { initialStageKey: key, stages: [row] };
@@ -276,9 +276,11 @@ export function plotOutcomeLabel(content: PlotRecord, nodeKey: unknown, outcome:
     ? '来信已发出'
     : kind === 'offer_invitation'
       ? '邀约已接受或已赴约（当前不区分这两种结果）'
-      : kind === 'editorial_only'
-        ? '仅备注不会执行，此结果需调整'
-        : '来信或邀约的结果含义待核对';
+      : kind === 'director_event'
+        ? '事件已展开不代表玩家完成，此结果需另有依据'
+        : kind === 'editorial_only'
+          ? '仅备注不会执行，此结果需调整'
+          : '来信或邀约的结果含义待核对';
 }
 export function plotOutcomeChoices(content: PlotRecord, nodeKey: unknown): PlotChoice[] {
   return plotOutcomes.map(({ key }) => ({ key, label: plotOutcomeLabel(content, nodeKey, key) }));
@@ -292,6 +294,8 @@ export function plotConditionText(content: PlotRecord, raw: unknown): string {
   switch (condition.kind) {
     case 'history_fact':
       return `事实「${plotName(content, 'history', condition.factKey)}」已成立，且来信或邀约人物有权知晓`;
+    case 'after_presented_node':
+      return `「${plotName(content, 'candidates', condition.nodeKey)}」已经通过真实消息展开；不表示玩家完成`;
     case 'after_committed_node':
       return `「${plotName(content, 'candidates', condition.nodeKey)}」：${plotOutcomeLabel(content, condition.nodeKey, 'committed')}`;
     case 'after_resolved_node': {

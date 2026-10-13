@@ -46,7 +46,22 @@ export type ActorContext = {
   };
 };
 /** A character model only receives a filtered context, never the complete world. */
+export type StoryOpportunityInput = {
+  storyNow: string;
+  worldTitle: string;
+  currentPlaceId: string | null;
+  recentMessages: { role: 'user' | 'assistant'; actorId: string; text: string }[];
+  candidates: {
+    nodeKey: string;
+    title: string;
+    editorialIntent: string;
+    actorId: string;
+    placeName: string | null;
+  }[];
+};
 export interface TurnPlanner {
+  /** A null decision leaves every candidate unresolved. Failure cannot auto-pick a candidate. */
+  chooseStoryOpportunity?(input: StoryOpportunityInput): Promise<string | null>;
   propose(input: { context: ActorContext; userText: string }): Promise<unknown>;
 }
 

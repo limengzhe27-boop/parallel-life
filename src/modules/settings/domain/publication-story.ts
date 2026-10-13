@@ -136,7 +136,9 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
     if (node.kind !== 'candidate') throw new PublicationStoryError();
     if (node.intent.kind === 'editorial_only') continue;
     const actorKey =
-      node.intent.kind === 'offer_message' ? node.intent.actorKey : node.intent.actorKeys[0];
+      node.intent.kind === 'offer_message' || node.intent.kind === 'director_event'
+        ? node.intent.actorKey
+        : node.intent.actorKeys[0];
     if (node.intent.kind === 'offer_invitation' && node.intent.actorKeys.length !== 1)
       throw new PublicationStoryError('UNSUPPORTED_INVITATION');
     if (!actorKey || !node.actorKeys.includes(actorKey) || !actors.some((a) => a.key === actorKey))
@@ -162,7 +164,9 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
 export function nodeActor(plan: StoryPlan, node: StoryNode) {
   if (node.intent.kind === 'editorial_only') return null;
   const key =
-    node.intent.kind === 'offer_message' ? node.intent.actorKey : node.intent.actorKeys[0];
+    node.intent.kind === 'offer_message' || node.intent.kind === 'director_event'
+      ? node.intent.actorKey
+      : node.intent.actorKeys[0];
   return plan.actors.find((a) => a.key === key) ?? null;
 }
 export function storyNodeWindow(
@@ -290,6 +294,13 @@ export function evaluateStory(
       const matches = (p: StoryNode['prerequisites'][number]): boolean => {
         if (p.kind === 'not_before') return Date.parse(context.storyNow) >= Date.parse(p.at);
         if (p.kind === 'at_place') return p.placeKey === context.currentPlaceId;
+        if (p.kind === 'after_presented_node') {
+          const prior = byKey.get(p.nodeKey);
+          return (
+            !!prior?.sourceEventId &&
+            ['presented', 'offered', 'committed', 'declined'].includes(prior.status)
+          );
+        }
         if (p.kind === 'after_committed_node') return virtual.get(p.nodeKey) === 'committed';
         if (p.kind === 'after_resolved_node') {
           const o = virtual.get(p.nodeKey);

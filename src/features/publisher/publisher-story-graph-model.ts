@@ -91,6 +91,7 @@ export function buildStoryGraph(raw: Record<string, unknown>): StoryGraph {
           offer_message: '角色来信',
           offer_invitation: '发出邀约',
           editorial_only: '导演建议（仅备注，不自动执行）',
+          director_event: '由导演择机演绎，也可暂缓',
         };
         const kind = plotText(plotRecord(row.intent).kind);
         return Object.hasOwn(labels, kind) ? labels[kind as keyof typeof labels] : '剧情方式待核对';
@@ -160,7 +161,11 @@ export function buildStoryGraph(raw: Record<string, unknown>): StoryGraph {
       if (condition.kind === 'after_resolved_node') strings(condition.outcomes, '部分前置结果');
       const label = plotConditionText(content, condition);
       node.conditions.push(label);
-      if (condition.kind === 'after_committed_node' || condition.kind === 'after_resolved_node')
+      if (
+        condition.kind === 'after_presented_node' ||
+        condition.kind === 'after_committed_node' ||
+        condition.kind === 'after_resolved_node'
+      )
         edge(target(condition.nodeKey), node, 'prerequisite', label);
       else if (!['history_fact', 'at_place', 'not_before'].includes(plotText(condition.kind)))
         warnings.add('部分出现条件暂不支持，原文保留，请在编辑区核对。');
@@ -240,7 +245,11 @@ export function buildStoryGraph(raw: Record<string, unknown>): StoryGraph {
       ],
     };
     for (const term of terms.map(plotRecord))
-      if (term.kind === 'after_committed_node' || term.kind === 'after_resolved_node')
+      if (
+        term.kind === 'after_presented_node' ||
+        term.kind === 'after_committed_node' ||
+        term.kind === 'after_resolved_node'
+      )
         edge(target(term.nodeKey), node, 'prerequisite', plotConditionText(content, term));
     return node;
   });

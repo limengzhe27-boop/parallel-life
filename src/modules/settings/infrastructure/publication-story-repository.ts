@@ -20,6 +20,7 @@ import type {
   PublicationStoryProgress,
   PublicationStoryClaim,
   PublicationSceneBrief,
+  PublicationStoryOpportunities,
 } from '../application/publication-story-ports.ts';
 
 type Context = {
@@ -380,7 +381,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
             );
             continue;
           }
-          if (node.intent.kind === 'offer_message')
+          if (node.intent.kind === 'offer_message' || node.intent.kind === 'director_event')
             await this.save(
               sql,
               ownerId,
@@ -389,7 +390,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
               {
                 ...old,
                 status: 'presented',
-                outcome: 'committed',
+                outcome: node.intent.kind === 'director_event' ? null : 'committed',
                 sourceEventId: proof.id,
                 sourceMessageId: message.id,
               },
@@ -654,10 +655,91 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       };
     }
   }
+  opportunities(
+    ownerId: string,
+    worldId: string,
+    automatic: boolean,
+  ): Promise<PublicationStoryOpportunities> {
+    return this.tx(ownerId, worldId, async (sql, c) => {
+      if (!c)
+        return { managed: false, directorPool: false, version: 0, storyNow: '', candidates: [] };
+      await this.reconcile(sql, ownerId, worldId, c);
+      const directorPool = c.plan.nodes.some((node) => node.intent.kind === 'director_event');
+      const pending = c.states.some((s) => ['claimed', 'unknown'].includes(s.status));
+      const evaluation = evaluateStory(c.plan, c.states, { ...c, automatic });
+      return {
+        managed: true,
+        directorPool,
+        version: c.version,
+        storyNow: c.storyNow,
+        candidates:
+          !directorPool || pending
+            ? []
+            : evaluation.eligible.map((node) => {
+                const actor = nodeActor(c.plan, node)!;
+                const placeKey =
+                  node.intent.kind === 'offer_invitation' ? node.intent.placeKey : node.placeKey;
+                return {
+                  nodeKey: node.key,
+                  title: node.title,
+                  editorialIntent: node.editorialIntent,
+                  actorId: actor.id,
+                  placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
+                };
+              }),
+      };
+    });
+  }
+  beginSelection(
+    ownerId: string,
+    worldId: string,
+    version: number,
+    attemptId: string,
+    candidateKeys: string[],
+  ): Promise<boolean> {
+    id(attemptId);
+    return this.tx(ownerId, worldId, async (sql, c) => {
+      if (!c || c.version !== version || !candidateKeys.length) return false;
+      await this.reconcile(sql, ownerId, worldId, c);
+      if (c.states.some((s) => ['claimed', 'unknown'].includes(s.status))) return false;
+      const legal = evaluateStory(c.plan, c.states, { ...c, automatic: false }).eligible;
+      if (candidateKeys.some((key) => !legal.some((n) => n.key === key))) return false;
+      return (
+        (
+          await sql.query(
+            'SELECT parallel_life.publication_story_selection_begin($1,$2,$3,$4,$5) AS allowed',
+            [worldId, ownerId, version, attemptId, JSON.stringify(candidateKeys)],
+          )
+        ).rows[0].allowed === true
+      );
+    });
+  }
+  async finishSelection(
+    ownerId: string,
+    worldId: string,
+    attemptId: string,
+    status: 'selected' | 'deferred' | 'unknown',
+    nodeKey: string | null,
+  ): Promise<void> {
+    id(attemptId);
+    await this.tx(ownerId, worldId, async (sql) => {
+      await sql.query('SELECT parallel_life.publication_story_selection_finish($1,$2,$3,$4,$5)', [
+        worldId,
+        ownerId,
+        attemptId,
+        status,
+        nodeKey,
+      ]);
+    });
+  }
   prepare(
     ownerId: string,
     worldId: string,
-    { automatic = true }: { automatic?: boolean } = {},
+    {
+      automatic = true,
+      nodeKey,
+      expectedVersion,
+    }: { automatic?: boolean; nodeKey?: string; expectedVersion?: number } = {},
   ): Promise<PublicationStoryPrepare> {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c) return { status: 'none', managed: false };
@@ -670,7 +752,12 @@ export class PublicationStoryRepository implements PublicationStoryPort {
         };
       const e = evaluateStory(c.plan, c.states, { ...c, automatic });
       if (e.rateLimited) return { status: 'rate_limited' };
-      const node = e.eligible[0];
+      if (expectedVersion !== undefined && expectedVersion !== c.version)
+        throw new TaskError('VERSION_CONFLICT');
+      // A director pool requires an explicit validated choice; never silently pick the first event.
+      if (c.plan.nodes.some((n) => n.intent.kind === 'director_event') && !nodeKey)
+        return { status: 'none', managed: true };
+      const node = nodeKey ? e.eligible.find((n) => n.key === nodeKey) : e.eligible[0];
       if (!node) return { status: 'none', managed: true };
       const s = this.fresh(c, node, 'claimed', automatic);
       await this.save(sql, ownerId, worldId, c, s, 'claim', null, { automatic });
@@ -749,6 +836,15 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       if (s.expectedVersion !== c.version) throw new TaskError('VERSION_CONFLICT');
       const node = c.plan.nodes.find((n) => n.key === s.nodeKey)!;
       if (!legalPresentation(c.plan, node, c.storyNow)) throw new TaskError('INVALID_STATE');
+      if (
+        node.intent.kind === 'director_event' &&
+        !evaluateStory(
+          c.plan,
+          c.states.filter((state) => state.nodeKey !== node.key),
+          { ...c, automatic: false },
+        ).eligible.some((candidate) => candidate.key === node.key)
+      )
+        throw new TaskError('INVALID_STATE');
       await this.save(sql, ownerId, worldId, c, { ...s, status: 'claimed' }, 'retry', null, {
         explicit: true,
       });

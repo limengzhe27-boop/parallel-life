@@ -57,12 +57,14 @@ const sections = {
 };
 const conditionNames = {
   history_fact: '某事实已成立',
+  after_presented_node: '某事件已展开',
   after_committed_node: '之前的来信已发出或邀约已接受',
   after_resolved_node: '之前的剧情出现指定结果',
   at_place: '玩家在某地点',
   not_before: '世界时间已到达',
 };
 const intentNames = {
+  director_event: '导演演绎',
   editorial_only: '仅备注',
   offer_message: '角色来信',
   offer_invitation: '发出邀约',
@@ -420,11 +422,13 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
     const intent = plotRecord(row.intent),
       intentKind = plotText(intent.kind);
     const allowedIntentKeys =
-      intentKind === 'offer_message'
-        ? ['kind', 'actorKey', 'text']
-        : intentKind === 'offer_invitation'
-          ? ['kind', 'actorKeys', 'placeKey', 'title', 'earliestAt']
-          : ['kind'];
+      intentKind === 'director_event'
+        ? ['kind', 'actorKey']
+        : intentKind === 'offer_message'
+          ? ['kind', 'actorKey', 'text']
+          : intentKind === 'offer_invitation'
+            ? ['kind', 'actorKeys', 'placeKey', 'title', 'earliestAt']
+            : ['kind'];
     const unsafeIntent =
       row.intent !== undefined &&
       (typeof row.intent !== 'object' ||
@@ -579,7 +583,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
               <div className={s.group}>
                 <h4>这段剧情会发生什么</h4>
                 <p className={s.hint}>
-                  切换按钮会替换当前类型的专属设置，请先核对原输入。仅备注不执行；先填写并保存，能否运行以检查结果为准。
+                  事件内容由导演结合人物与当前经历演绎。前提可不填；满足前提仅代表可以发生，导演仍可暂缓。切换方式前请核对原输入。
                 </p>
                 <p>
                   当前：
@@ -603,17 +607,19 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                           if (!blocked && !unsafeIntent && kind !== intentKind)
                             patch(
                               ['intent'],
-                              kind === 'editorial_only'
-                                ? { kind }
-                                : kind === 'offer_message'
-                                  ? { kind, actorKey: '', text: '' }
-                                  : {
-                                      kind,
-                                      actorKeys: [],
-                                      placeKey: '',
-                                      title: '',
-                                      earliestAt: '',
-                                    },
+                              kind === 'director_event'
+                                ? { kind, actorKey: plotStrings(row.actorKeys)[0] ?? '' }
+                                : kind === 'editorial_only'
+                                  ? { kind }
+                                  : kind === 'offer_message'
+                                    ? { kind, actorKey: '', text: '' }
+                                    : {
+                                        kind,
+                                        actorKeys: [],
+                                        placeKey: '',
+                                        title: '',
+                                        earliestAt: '',
+                                      },
                             );
                         }}
                       >
@@ -621,6 +627,14 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                       </button>
                     ))}
                   </div>
+                )}
+                {intentKind === 'director_event' && (
+                  <>
+                    {selectField('由谁开启这件事', ['intent', 'actorKey'], actors)}
+                    <p className={s.hint}>
+                      导演可以选择展开或暂缓；角色按自己的性格联系玩家。发出消息不表示玩家已答应或完成。
+                    </p>
+                  </>
                 )}
                 {intentKind === 'offer_message' && (
                   <>
@@ -672,7 +686,9 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                       </strong>
                       {kind === 'history_fact' &&
                         selectField('前置事实', [...path, 'factKey'], facts)}
-                      {(kind === 'after_committed_node' || kind === 'after_resolved_node') &&
+                      {(kind === 'after_presented_node' ||
+                        kind === 'after_committed_node' ||
+                        kind === 'after_resolved_node') &&
                         selectField('之前的剧情', [...path, 'nodeKey'], otherNodes)}
                       {kind === 'after_resolved_node' &&
                         refsField(
