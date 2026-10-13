@@ -122,11 +122,14 @@ test('same-name actors within a new batch stay separate and do not guess a messa
   assert.equal(doc.phone.messages.length, 0);
   assert.ok(codes(r).includes('opening_message_unmapped'));
 });
-test('incomplete persona remains entirely in review proposal; no fake mandatory data', () => {
+test('incomplete authored module is retained as a partial actor; no fake mandatory data', () => {
   const source = '# 人物1: 丙\n|L1|身份|身份：合成人物|';
   const r = run(source);
-  valid(r);
-  assert.equal(r.summary.actors.length, 0);
+  assert.equal(r.summary.blocked, false);
+  assert.equal(PublishedWorldContentSchema.safeParse(r.updatedContent).success, false);
+  assert.equal(r.summary.actors.length, 1);
+  assert.equal((r.updatedContent.actors as any[])[2].lifeModules.lifeContext, '身份：合成人物');
+  assert.equal((r.updatedContent.actors as any[])[2].privatePersona.voice, '');
   assert.ok(codes(r).includes('actor_missing_persona'));
   assert.equal(r.summary.unmapped[0]!.content, source);
 });
@@ -345,8 +348,11 @@ test('wrong baseline field types are blocked and never normalized away', () => {
 test('explicit future background cannot become initial NPC persona', () => {
   const source = actor('丙').replace('年龄：25岁', '未来经历：将会发生合成事件');
   const r = run(source);
-  const doc = valid(r);
-  assert.equal(doc.actors.length, 2);
+  assert.equal(r.summary.blocked, false);
+  assert.equal(PublishedWorldContentSchema.safeParse(r.updatedContent).success, false);
+  const imported = (r.updatedContent.actors as any[])[2];
+  assert.equal(imported.privatePersona.background, '');
+  assert.equal(imported.lifeModules.lifeContext.includes('未来经历：将会发生合成事件'), true);
   assert.ok(codes(r).includes('actor_unconfirmed_background'));
   assert.equal(r.summary.unmapped[0]!.content, source);
 });

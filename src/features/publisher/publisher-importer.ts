@@ -14,9 +14,13 @@ import {
   type ActorEditorForm,
   type WorldSettingsForm,
 } from './publisher-editor.ts';
+import { importLifeModules, type ImportedLifeModules } from './publisher-life-modules-import.ts';
 
 export type ImportedActor = {
   form: ActorEditorForm;
+  lifeModules?: ImportedLifeModules;
+  introduction?: string;
+  diagnostics?: string[];
   sourceFilename?: string;
 };
 
@@ -99,26 +103,6 @@ function cleanMdText(text: string): string {
 }
 
 /**
- * Parses a table row from Markdown table format: | col1 | col2 | col3 | col4 |
- */
-function parseTableRows(content: string): Array<string[]> {
-  const lines = content.split(/\r?\n/);
-  const rows: Array<string[]> = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) continue;
-    // Skip separator rows like |---|---|
-    if (/^\|[\s\-:|]+\|$/.test(trimmed)) continue;
-    const cols = trimmed
-      .slice(1, -1)
-      .split('|')
-      .map((c) => cleanMdText(c));
-    rows.push(cols);
-  }
-  return rows;
-}
-
-/**
  * Extracts section text under a specific markdown heading (e.g. # 基础设定, ## 画像).
  */
 function extractHeadingSection(content: string, headingRegex: RegExp): string {
@@ -184,7 +168,7 @@ export function parseFeishuActorMarkdown(
       if (
         heading1 &&
         heading1[1] &&
-        !/^(基础设定|性格设定|背景|世界观|任务节点|开场事件|人物合集)/.test(
+        !/^(基础设定|性格设定|背景|世界观|任务节点|开场事件|人物合集|人生背景|人格特质|动机与价值观|行为模式|关系模型|角色介绍|公开介绍|给玩家的介绍|给用户的介绍|L[1-5]\b|Life Context\b|Traits\b|Drives\b|Behavior(?:al)?\b|Relationships?\b)/i.test(
           cleanMdText(heading1[1]),
         )
       ) {
@@ -201,28 +185,13 @@ export function parseFeishuActorMarkdown(
   const safePrefix = name.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'actor';
   const key = generateActorKey(existingKeys, safePrefix.length > 2 ? `a_${safePrefix}` : 'actor');
 
-  // 3. Inspect L1-L5 table rows
-  const tableRows = parseTableRows(content);
-  let l1Content = '';
-  let l2Content = '';
-  let l3Content = '';
-  let l4Content = '';
-  let l5Content = '';
-
-  let previousLevel = '';
-  for (const row of tableRows) {
-    const tag = (row[0] ?? '').toUpperCase();
-    const match = /L[1-5]/.exec(tag);
-    const level = match?.[0] ?? (tag.trim() === '' ? previousLevel : '');
-    if (!level) continue;
-    previousLevel = level;
-    const info = row[2] ?? row[1] ?? '';
-    if (level === 'L1') l1Content = [l1Content, info].filter(Boolean).join('\n');
-    if (level === 'L2') l2Content = [l2Content, info].filter(Boolean).join('\n');
-    if (level === 'L3') l3Content = [l3Content, info].filter(Boolean).join('\n');
-    if (level === 'L4') l4Content = [l4Content, info].filter(Boolean).join('\n');
-    if (level === 'L5') l5Content = [l5Content, info].filter(Boolean).join('\n');
-  }
+  // Keep each authored module whole; bounded legacy fields remain compatible projections.
+  const imported = importLifeModules(content);
+  const l1Content = imported.modules.lifeContext ?? '';
+  const l2Content = imported.modules.traits ?? '';
+  const l3Content = imported.modules.drives ?? '';
+  const l4Content = imported.modules.behavior ?? '';
+  const l5Content = imported.modules.relationships ?? '';
 
   // 4. Fallback to freeform headings if table rows are not populated
   const baseSection = extractHeadingSection(content, /^#+\s*基础设定/);
@@ -335,7 +304,13 @@ export function parseFeishuActorMarkdown(
     knownFactKeys: [],
   };
 
-  return { form, sourceFilename: filename };
+  return {
+    form,
+    ...(Object.keys(imported.modules).length ? { lifeModules: imported.modules } : {}),
+    ...(imported.introduction ? { introduction: imported.introduction } : {}),
+    ...(imported.diagnostics.length ? { diagnostics: imported.diagnostics } : {}),
+    sourceFilename: filename,
+  };
 }
 
 /**
@@ -407,16 +382,7 @@ export function parseFeishuPlotMarkdown(content: string, filename = ''): Importe
 }
 
 function explicitPlayerRelationship(content: string): string {
-  const pieces: string[] = [];
-  let inL5 = false;
-  for (const row of parseTableRows(content)) {
-    const tag = (row[0] ?? '').toUpperCase(),
-      level = /L[1-5]/.exec(tag)?.[0];
-    if (level) inL5 = level === 'L5';
-    else if (tag.trim()) inL5 = false;
-    if (inL5) pieces.push(row[2] ?? row[1] ?? '');
-  }
-  const raw = pieces.join('\n');
+  const raw = importLifeModules(content).modules.relationships ?? '';
   const field = /(?:^|\n)\s*(?:与主角|与玩家|与用户（主角）|与用户\(主角\))[：:]\s*([^\r\n]+)/.exec(
     raw,
   );
@@ -559,6 +525,12 @@ export function parseFeishuMarkdownBundle(
   for (const file of files) {
     const { filename, content } = file;
     let recognized = false;
+    const actorFilename = /(?:^|[/ >])(?:人物|角色)[0-9一二三四五六七八九十]*[_：: .-]/.test(
+      filename,
+    );
+    const actorHeading = /^#+\s*(?:人物|角色)[0-9一二三四五六七八九十]*\s*[:：]/m.test(content);
+    const moduleDocument = importLifeModules(content);
+    const hasLifeModules = Object.keys(moduleDocument.modules).length > 0;
     // Retain the whole bounded input only in the front-end review proposal, never extensions/public fields.
     summary.unmapped.push({ filename, reason: 'source_review', content });
     note(
@@ -568,8 +540,11 @@ export function parseFeishuMarkdownBundle(
     );
     if (
       /世界观/.test(filename) ||
-      /^#+\s*世界观/m.test(content) ||
-      /^#+\s*(?:公开简介|开场钩子)/m.test(content)
+      /^#+\s*世界观\s*[0-9一二三四五六七八九十]*\s*[:：]/m.test(content) ||
+      (!actorFilename &&
+        !actorHeading &&
+        !hasLifeModules &&
+        /^#+\s*(?:世界观|公开简介|开场钩子)/m.test(content))
     ) {
       recognized = true;
       const importedWorld = parseFeishuWorldMarkdown(content, filename);
@@ -595,19 +570,20 @@ export function parseFeishuMarkdownBundle(
         `${filename}：只填写明确字段；梗概仅作幕后内容，未映射段落保留供核对。`,
       );
     }
-    if (
-      /(?:^|[/ >])(?:人物|角色)[0-9一二三四五六七八九十]*[_：: -]/.test(filename) ||
-      /^#+\s*(?:人物|角色)[0-9一二三四五六七八九十]*\s*[:：]/m.test(content) ||
-      /\|\s*(?:\*\*)?L1/.test(content)
-    ) {
+    if (actorFilename || actorHeading || hasLifeModules || /\|\s*(?:\*\*)?L1/.test(content)) {
       recognized = true;
       for (const chunk of splitMultiActorMarkdown(content)) {
         if (
           !/^#+\s*(?:人物|角色)[0-9一二三四五六七八九十]*\s*[:：]/m.test(chunk) &&
-          !/\|\s*(?:\*\*)?L1/.test(chunk)
+          !/\|\s*(?:\*\*)?L1/.test(chunk) &&
+          !actorFilename &&
+          !Object.keys(importLifeModules(chunk).modules).length
         )
           continue;
-        const form = parseFeishuActorMarkdown(chunk, actorKeys, filename).form;
+        const importedActor = parseFeishuActorMarkdown(chunk, actorKeys, filename);
+        const form = importedActor.form;
+        for (const message of importedActor.diagnostics ?? [])
+          note('actor_modules_need_review', filename, `${filename}：${message}`);
         if (form.name === '未命名角色') {
           note('actor_missing_name', filename, `${filename}：人物缺少明确名字，未填入人物列表。`);
           continue;
@@ -637,6 +613,12 @@ export function parseFeishuMarkdownBundle(
           );
           return '';
         };
+        const lifeModules: ImportedLifeModules = {};
+        for (const [key, value] of Object.entries(importedActor.lifeModules ?? {})) {
+          const complete = bounded('人物设定模块', value, 4000);
+          if (complete) lifeModules[key as keyof ImportedLifeModules] = complete;
+        }
+        const hasModules = Object.keys(lifeModules).length > 0;
         let background = bounded('background', form.background, 1200);
         if (/当前与后续|未来经历|后续经历|未来剧情|后期剧情|将会/.test(form.background)) {
           note(
@@ -657,9 +639,9 @@ export function parseFeishuMarkdownBundle(
           note(
             'actor_missing_persona',
             filename,
-            `${filename}：「${form.name}」有待补全的人格字段${baseline.success ? '，已有合法草稿不加入非法人物' : '，以空字段草稿显示待补全，不能发布'}。`,
+            `${filename}：「${form.name}」有待整理的运行摘要${baseline.success && !hasModules ? '，已有合法草稿暂不加入' : '，已保留人物设定供整理，补齐前不能发布'}。`,
           );
-          if (baseline.success) continue;
+          if (baseline.success && !hasModules) continue;
         }
         const identity = bounded('identity', form.identity, 160),
           appearance = bounded('appearance', form.appearance, 240);
@@ -678,6 +660,10 @@ export function parseFeishuMarkdownBundle(
         const publicCard: Record<string, unknown> = { traits: [] };
         if (identity) publicCard.identity = identity;
         if (appearance) publicCard.appearance = appearance;
+        if (importedActor.introduction) {
+          const introduction = bounded('公开介绍', importedActor.introduction, 1600);
+          if (introduction) publicCard.introduction = introduction;
+        }
         if (partial) partialActorIndices.add(actors.length);
         actors.push({
           key: actorKey,
@@ -685,12 +671,15 @@ export function parseFeishuMarkdownBundle(
           knownAtStart: form.knownAtStart,
           publicCard,
           privatePersona: persona,
+          ...(hasModules ? { lifeModules } : {}),
         });
         summary.actors.push({
           name: form.name,
           key: actorKey,
           identity,
-          sectionsCount: (identity ? 1 : 0) + Object.values(persona).filter((v) => v.trim()).length,
+          sectionsCount: hasModules
+            ? Object.keys(lifeModules).length
+            : (identity ? 1 : 0) + Object.values(persona).filter((v) => v.trim()).length,
           completeness: partial ? 'partial' : 'complete',
         });
         if (!/开场(?:已)?认识[：:]/.test(chunk))
@@ -922,7 +911,6 @@ export function parseFeishuMarkdownBundle(
             ? (proposed as Record<PropertyKey, unknown>)[key]
             : undefined;
       const pendingActor =
-        !baseline.success &&
         issue.path[0] === 'actors' &&
         typeof issue.path[1] === 'number' &&
         partialActorIndices.has(issue.path[1]) &&
@@ -952,7 +940,7 @@ export function parseFeishuMarkdownBundle(
         introduced ? 'content_validation_failed' : 'draft_needs_completion',
         '',
         `草稿待核对：${issue.path.join('.')} ${issue.message}`,
-        (!pendingDate && baseline.success) || introduced ? 'error' : 'warning',
+        (!pendingDate && !pendingActor && baseline.success) || introduced ? 'error' : 'warning',
         issue.path.join('.'),
       );
     }
