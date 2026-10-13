@@ -64,8 +64,9 @@ export function useWorldMap(
     setError(null);
     try {
       const next = await client.read(worldId);
-      await reloadRef.current?.();
       if (live.current && id === sequence.current) setData(next);
+      // The map read is authoritative even if another phone projection cannot refresh.
+      await Promise.allSettled([reloadRef.current?.()]);
     } catch (e) {
       if (live.current && id === sequence.current)
         setError(
@@ -246,6 +247,17 @@ export function useWorldMap(
   }, [publish]);
   const enterPlace = useCallback(
     async (placeId: string) => {
+      if (data?.currentPlaceId !== placeId)
+        throw new SpaceFailure('INVALID_COMMAND', '请先前往这个地点。', false);
+      // Opening a saved scene is navigation, including while its task is running or paused.
+      if (data.currentSceneId) {
+        window.location.hash = routeHash(worldId, {
+          app: 'scenes',
+          panel: 'scene',
+          target: data.currentSceneId,
+        });
+        return;
+      }
       if (guard.current || !data || data.paused || data.busy || op.current?.status === 'unknown')
         throw new SpaceFailure(
           'BUSY',
@@ -255,14 +267,6 @@ export function useWorldMap(
       guard.current = true;
       setWorking(true);
       try {
-        if (data.currentSceneId) {
-          window.location.hash = routeHash(worldId, {
-            app: 'scenes',
-            panel: 'scene',
-            target: data.currentSceneId,
-          });
-          return;
-        }
         if (enter.current?.placeId !== placeId)
           enter.current = {
             commandId: crypto.randomUUID(),
@@ -282,6 +286,9 @@ export function useWorldMap(
         }
         enter.current = null;
       } catch (e) {
+        // Definitive rejection did not create a scene. A user retry needs a fresh version.
+        // Unknown transport results keep the exact command so they cannot create duplicates.
+        if (e instanceof SpaceFailure && !e.unknown) enter.current = null;
         setError(
           e instanceof Error ? e.message : '\u73b0\u573a\u6682\u65f6\u6ca1\u80fd\u6253\u5f00\u3002',
         );
@@ -317,12 +324,12 @@ export function useWorldMap(
     }
   }, [data, client, worldId, after, refresh]);
   return {
-    data: data?.worldId === worldId && data.worldVersion === version && !error ? data : null,
+    data: data?.worldId === worldId && data.worldVersion >= version && !error ? data : null,
     loading,
     error,
     refresh,
-    operation:
-      data?.worldId === worldId && data.worldVersion === version && !error ? operation : null,
+    // A failed or lagging read must never hide the original command recovery controls.
+    operation,
     checking,
     working,
     resubmitTravel,
