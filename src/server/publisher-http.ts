@@ -58,7 +58,7 @@ const messages: Record<string, string> = {
   IDEMPOTENCY_CONFLICT: '这次操作的内容发生了变化，请重新提交。',
   INVALID_INPUT: '请检查填写的内容。',
   INVALID_STATE: '当前内容尚不满足这项操作的条件。',
-  RATE_LIMITED: '登录尝试较多，请稍后再试。',
+  RATE_LIMITED: '操作较频繁，请稍后再试。',
   UNAVAILABLE: '内容后台暂时不可用，请稍后重试。',
 };
 const status: Record<string, number> = {
