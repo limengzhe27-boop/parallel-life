@@ -1,4 +1,10 @@
 import {
+  PublisherPreparationInputSchema,
+  PublisherPreparationRecordSchema,
+  PublisherPreparationLatestSchema,
+  type PublisherPreparationInput,
+} from '../../contracts/publisher-preparation.ts';
+import {
   PublicationWorldResultSchema,
   PublicationTrialSchema,
 } from '../../contracts/publication-worlds.ts';
@@ -27,7 +33,7 @@ const messages: Record<string, string> = {
   IDEMPOTENCY_CONFLICT: '这次提交已发生变化，请核对后重新操作。',
   INVALID_INPUT: '请检查填写的内容。',
   INVALID_STATE: '当前草稿尚不满足这项操作的条件。',
-  RATE_LIMITED: '登录尝试较多，请稍后再试。',
+  RATE_LIMITED: '操作较频繁，请稍后再试。',
   UNAVAILABLE: '暂时没有收到完整结果。内容已保留，再次提交相同内容会核对原来的操作。',
 };
 export class PublisherClientError extends Error {
@@ -55,6 +61,7 @@ export class PublisherClient {
     schema: z.ZodType<T>,
     method = 'GET',
     input?: unknown,
+    timeout = 20000,
   ): Promise<T> {
     const headers = new Headers();
     if (input !== undefined) headers.set('Content-Type', 'application/json');
@@ -67,7 +74,7 @@ export class PublisherClient {
         body: input === undefined ? undefined : JSON.stringify(input),
         credentials: 'same-origin',
         cache: 'no-store',
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(timeout),
       });
     } catch {
       throw new PublisherClientError('UNAVAILABLE');
@@ -133,6 +140,30 @@ export class PublisherClient {
       if (e instanceof PublisherClientError && e.code !== 'UNAVAILABLE') this.pending.delete(key);
       throw e;
     }
+  }
+  prepareManuscript(workId: string, input: PublisherPreparationInput) {
+    return this.request(
+      '/works/' + encodeURIComponent(workId) + '/prepare',
+      PublisherPreparationRecordSchema,
+      'POST',
+      PublisherPreparationInputSchema.parse(input),
+      130000,
+    );
+  }
+  getPreparation(workId: string, commandId: string) {
+    return this.request(
+      '/works/' +
+        encodeURIComponent(workId) +
+        '/prepare?commandId=' +
+        encodeURIComponent(commandId),
+      PublisherPreparationRecordSchema,
+    );
+  }
+  latestPreparation(workId: string) {
+    return this.request(
+      '/works/' + encodeURIComponent(workId) + '/prepare',
+      PublisherPreparationLatestSchema,
+    );
   }
   create(draft: PublisherWorkbenchDraft) {
     return this.command('/works', 'POST', draft, PublisherWorkSchema);

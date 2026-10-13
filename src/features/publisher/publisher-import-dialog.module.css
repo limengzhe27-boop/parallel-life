@@ -147,3 +147,43 @@
     flex: 1;
   }
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+.dialog .primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.recover {
+  margin-top: 16px;
+}
+.reviewCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  min-height: 44px;
+}
+.reviewCheck input {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+}
+.preview summary {
+  cursor: pointer;
+  min-height: 44px;
+}
+.preview summary:focus-visible,
+.reviewCheck input:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.body {
+  overflow-wrap: anywhere;
+}

@@ -8,6 +8,7 @@ import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
 import { PublisherImportDialog } from './publisher-import-dialog.tsx';
 import { PublisherSpaceEditor } from './publisher-space-editor.tsx';
 import { PublisherOpeningEditor } from './publisher-opening-editor.tsx';
+import type { PublisherClient } from './publisher-client.ts';
 import type { ImportSummary } from './publisher-importer.ts';
 import {
   patchPlotField,
@@ -98,7 +99,9 @@ function issueLabel(path: readonly (string | number)[], code: string) {
   return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
 }
 
-export function PublisherWorkbench(props: PublisherWorkbenchProps) {
+export function PublisherWorkbench(
+  props: PublisherWorkbenchProps & { preparationClient?: PublisherClient },
+) {
   const session = props.session;
   const {
     works,
@@ -367,7 +370,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
             publicSetting: '',
             tone: '',
             startAt: '',
-            startPlaceKey: 'place_home',
+            startPlaceKey: '',
             hiddenContext: '',
           },
           protagonist: {
@@ -377,7 +380,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
           },
           actors: [],
           relationships: [],
-          places: [{ key: 'place_home', name: '起点住处', description: '', knownAtStart: true }],
+          places: [],
           routes: [],
           history: [],
           initialKnowledge: [],
@@ -630,10 +633,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
         {/* Global Feedback Banners */}
         {markdownReview && (
           <details className={s.banner}>
-            <summary>
-              本次文稿导入记录 · {markdownReview.actors.length} 位人物、
-              {markdownReview.candidatesCount} 个候选
-            </summary>
+            <summary>本次文稿导入记录 · 原稿与待核对内容</summary>
             <p>此记录仅供当前编辑时核对，不自动保存为世界事实或公开资料。原始文档保持原样。</p>
             <ul>
               {markdownReview.diagnostics.map((item, index) => (
@@ -1534,6 +1534,7 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
       {/* ================= Create Work Modal ================= */}
       {showMarkdownImport && work && (
         <PublisherImportDialog
+          preparationClient={props.preparationClient}
           workId={work.id}
           version={work.draft.version}
           content={draftContent}

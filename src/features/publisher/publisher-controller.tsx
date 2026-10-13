@@ -122,6 +122,7 @@ export function PublisherController() {
   return (
     <>
       <PublisherWorkbench
+        preparationClient={client}
         session={{
           displayName: session.publisher.displayName,
           canEdit: session.publisher.permissions.includes('edit'),
