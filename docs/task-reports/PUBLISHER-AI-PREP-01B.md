@@ -55,3 +55,13 @@ root在c93e50c线上首调用报告：结果为succeeded但work三个必填简�
 20/20专项通过（原17+3）：受控模型提案中的空work得到非空、两阶段事件含editorial_only被实际schema/compiler接受；仍缺字段的模型提案保持原结果和issues、不手工补/重调；明确两条来信/双向两边保持，并用真实compilePublicationGenesis+actorContext证明玩家owner事实存在、阿禾上下文含库存、老陈上下文不含库存。检查实际发送的系统提示含本次约束。typecheck退出0、Prettier/diff通过。受控模型测试不证明真实模型遵从，尤其来源遗漏/语义泄漏不能仅靠结构validator发现；root仍需继续已授权批次真实验收。
 
 仅Planner/原专项/本报告三文件；不重复全check/build（上节已有基线证据，root统一门禁）。B仍0真实模型/DB/SQL/端口/生产；root本批来信时预算已占1/12、0存档，B不使用额度。源冻结待root集成。
+
+## 第二真实失败后的格式方案（publication-manuscript-3）
+
+root第二次实测v2：work补齐但多类key为中文、地点漏knownAtStart、candidate.timeline漏excludeIfResolved/alternatives，phone仍空、两个事件只一个editorial_only，私密history仍world/initialKnowledge空。由root保留失败证据；B不以结构通过/模型notes自述代替来源覆盖验收，不重调。
+
+按根同意方案，替换长手册为短规则+完全合法JSON输出范例，不继续叠同等长自然语言：v2 SYSTEM 6101字符 → v3规则2752字符 + 范例2675字符，完整SYSTEM5449字符。通用观察站场景只示范1阶段/1事件/1来信/双向7分钟路线，非本轮库存/两阶段/两事件/两来信/15分钟答案；禁止复制范例内容/数量。范例实际包含ASCII稳定key、地点knownAtStart、完整候选timeline必需空容器、私密事实player/actors分范围、initialKnowledge、带日期消息与有向路线。请求接口及user JSON原样不变，只让同次输出先notes列来源文件/提取项key/待核对项，再完整updatedContent；不要求模型声称“全部提取/没有遗漏/安全通过”。notes不是可信证据，不是独立评审模型。
+
+21/21专项（0skip）与typecheck/Prettier/diff通过。新增检查实际发给TextModel的JSON范例经过PublishedWorldContentSchema、PublisherPreparationOutputSchema、compilePublicationGenesis；真实actorContext中宁遥可知密封圈事实，路帆不知。验证范例无本验收人物/库存/15分钟答案，且缺字段受控模型响应仍原样带issues返回，没有用范例填结果。原20专项保留（两项prompt文本期待更新至等价短规则）。单次complete/16000/json_object、合并规则、所有validator/权限保持不变，没有schema放宽或结果修补。
+
+这仍是提高单次模型遵从的提示/格式改进，不是语义完整性证明。根下一次必须逐项核原稿实际来信、候选、方向和私密范围后再保存；即使模型自称无遗漏也不据此通过。B 0真实模型/DB/端口/生产；root当前2/12文字、0世界，准备最多另4尝试并留6次NPC预算，不由B使用。仅本Planner/原专项/报告三文件冻结供root统一check/build/部署。

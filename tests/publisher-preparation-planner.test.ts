@@ -500,7 +500,7 @@ test('new-work blanks are filled and two authored events survive in their origin
   assert.equal(h.calls.length, 1);
   const system = h.calls[0]!.messages[0]!.content;
   assert.ok(system.includes('空字符串或只有空白的字段是待补内容'));
-  assert.ok(system.includes('不能只生成两个stages却返回candidates=[]'));
+  assert.ok(system.includes('不能只有阶段却遗漏事件'));
   assert.ok(system.includes('仍保留该事件，intent={kind:"editorial_only"}'));
   assert.ok(system.includes('将sources中的明确阶段与每个事件逐一对应到stages/candidates'));
   assert.deepEqual(JSON.parse(h.calls[0]!.messages[1]!.content), material);
@@ -616,7 +616,57 @@ test('two dated private messages and two directed routes survive, while a split-
   assert.equal(h.calls.length, 1);
   const system = h.calls[0]!.messages[0]!.content;
   assert.ok(system.includes('不能因为phone.messages原本为空而遗漏'));
-  assert.ok(system.includes('分别输出A到B和B到A两条minutes=15的路线'));
+  assert.ok(system.includes('原稿双向必须输出A到B、B到A两条'));
   assert.ok(system.includes('不能为了让玩家引用就把visibility改world'));
   assert.ok(system.includes('不能仅有history却initialKnowledge=[]'));
+});
+
+test('request includes one fully valid generic JSON format example, never substitutes its content for a model answer', async () => {
+  const h = harness(reply({ work: { title: '仍然缺字段的模型回答' } }));
+  const result = await h.planner.propose({ currentContent: {}, sources });
+  const system = h.calls[0]!.messages[0]!.content;
+  const marker = '合法JSON格式范例（禁止当作作者内容）：\n';
+  const example = JSON.parse(system.slice(system.indexOf(marker) + marker.length));
+  const content = PublishedWorldContentSchema.parse(example.updatedContent);
+  PublisherPreparationOutputSchema.parse({ ...example, issues: [] });
+  assert.equal(content.work.key, 'observatory');
+  assert.equal(content.timeline!.stages.length, 1);
+  assert.equal(content.candidates.length, 1);
+  assert.equal(content.phone.messages.length, 1);
+  assert.equal(content.routes.length, 2);
+  assert.ok(content.actors.every((a) => /^[a-z][a-z0-9_]{0,31}$/.test(a.key)));
+  assert.ok(content.places.every((p) => typeof p.knownAtStart === 'boolean'));
+  assert.deepEqual(content.candidates[0]!.timeline!.alternatives, {
+    onDeclined: [],
+    onSkipped: [],
+    onExpired: [],
+  });
+  assert.deepEqual(content.candidates[0]!.timeline!.excludeIfResolved, []);
+  const emitted = JSON.stringify(example);
+  for (const qaDetail of ['阿禾', '老陈', '库存', '街区', '15分钟'])
+    assert.equal(emitted.includes(qaDetail), false);
+  let seq = 10;
+  const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const compiled = compilePublicationGenesis({
+    content,
+    origin: { workId: id(4), publicationVersion: 0, draftVersion: 0, contentHash: '0'.repeat(64) },
+    originKind: 'trial',
+    worldId: id(1),
+    ownerId: id(2),
+    seedId: id(3),
+    newId: () => id(seq++),
+  });
+  assert.equal(compiled.status, 'compiled');
+  if (compiled.status !== 'compiled') throw Error('invalid format example');
+  const known = compiled.keys.actors.find((a) => a.key === 'ning_yao')!.id;
+  const unknown = compiled.keys.actors.find((a) => a.key === 'lu_fan')!.id;
+  assert.ok(JSON.stringify(actorContext(compiled.world, known)).includes('密封圈'));
+  assert.equal(JSON.stringify(actorContext(compiled.world, unknown)).includes('密封圈'), false);
+  assert.deepEqual(result.updatedContent, { work: { title: '仍然缺字段的模型回答' } });
+  assert.ok(result.issues.length);
+  assert.equal(h.calls.length, 1);
+  assert.ok(system.includes('按notes、summary、updatedContent顺序'));
+  assert.ok(system.includes('不能以notes代替实际字段'));
+  assert.ok(system.includes('不能中文'));
+  assert.ok(system.length < 8000);
 });
