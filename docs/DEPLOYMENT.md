@@ -1,3 +1,9 @@
+## 2026-10-13 · PUBLISHER-REVIEW-02 导入实际内容核对
+
+业务78d969b7ef84e51fb3e37ed952cd4a0ef8a4fb24，生产dpl_2n36guqiugoAjPn6KmC585DcByLb READY，正式alias匹配。1913常规检查、412边界、类型与build通过；50生产迁移checksum一致，本轮无SQL。最终提案人物/关系/历史知情/消息时间/地点路线/阶段候选中文分组预览，模型说明明确待核对；原作者未知值保留与AI新未知字段未采用分开提示。AI与纯解析共用，保双核对和版本权限守卫。
+
+本地旧合成模型结果回放390/1440、双勾→填入→真实保存r1→GET精确等于updatedContent通过，非新模型质量验收。公网390/1440纯解析10组预览、旧结果基线拒绝、合成原稿r1/下架不变、health/workbench200/未登录作品401通过；未修改同事作品。0新模型/世界/图，旧账本closed。正式cookie恢复，Ego161 finish、自有HTTP3278与PG55476停止。完整来源对应/遗漏检测与备忘录重排未完成，见PUBLISHER-REVIEW-02A及唯一主表。
+
 ## 2026-10-12 · SCRIPT-INTAKE-01 内部发布后台规划
 
 首份资料版本 f357a8c / qjpht7ik8 / dpl_DXi7CRXvc9QuYLzNgEympqhAdHmh READY；正式alias匹配，health/possibilities200，私有源目录与docs直链404。业务仍83f9c11对应既有现场呈现，0源码/SQL/生产世界变更、0模型图调用。本地1335check/type0/336边界/build0，生产41迁移只读一致；首次未就绪默认55432沙箱连接EPERM保留，独立本地55476既有迁移后全过，PG/启动器已释放。原件4份与ZIP解包4项（1稿3图）保存在主.local私有目录、8摘要核验，不推Git/上传部署。仅安全索引/缺项/规划/报告归档，**发布后台和同事新剧本未上线**。剧情节点明确为可能性，未来字段版本化结构内容与稳定发布关系分开，旧存档不改写。详见WORLD_PUBLISHING_MVP_PLAN与SCRIPT-INTAKE-01；B/Q规划已接收，真实PG矩阵/15编辑操作均是待实施验收项。
