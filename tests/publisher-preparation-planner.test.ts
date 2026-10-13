@@ -6,6 +6,8 @@ import { mergePublicationPreparation } from '../src/modules/settings/domain/publ
 import type { PublicationContent } from '../src/modules/settings/domain/publication-content.ts';
 import { PublishedWorldContentSchema } from '../src/contracts/published-world-content.ts';
 import { PublisherPreparationOutputSchema } from '../src/contracts/publisher-preparation.ts';
+import { compilePublicationGenesis } from '../src/modules/settings/infrastructure/publication-genesis.ts';
+import { actorContext } from '../src/modules/world/application/actor-context.ts';
 
 function fixture(): PublicationContent {
   return {
@@ -423,4 +425,198 @@ test('duplicate proposal identity never rewrites the matched original, new dupli
   assert.ok(r.notes.some((n) => n.text.includes('模型返回重复编号')));
   const invalid = await harness(reply(proposal)).planner.propose({ currentContent: {}, sources });
   assert.ok(invalid.issues.some((i) => i.code === 'duplicate_key'));
+});
+
+test('new-work blanks are filled and two authored events survive in their original stages including an editorial-only event', async () => {
+  const first = '第一阶段：朋友可以发来消息讨论店铺营业安排，玩家可拒绝。';
+  const second = '第二阶段：可选择参与街区群体活动，尚无对应运行能力。';
+  const material = {
+    currentContent: {
+      work: { key: 'test', title: '作者故事', hook: '', description: '  ', experienceNote: '' },
+    },
+    sources: [{ filename: '两阶段.md', content: `${first}\n${second}` }],
+  };
+  const proposal = fixture();
+  proposal.timeline = {
+    initialStageKey: 'opening',
+    stages: [
+      { key: 'opening', title: '第一阶段', order: 0, afterStageKeys: [] },
+      { key: 'later', title: '第二阶段', order: 1, afterStageKeys: ['opening'] },
+    ],
+  };
+  proposal.candidates = [
+    {
+      key: 'discussion',
+      kind: 'candidate',
+      title: '营业安排',
+      editorialIntent: first,
+      actorKeys: ['a'],
+      prerequisites: [],
+      mutuallyExclusiveNodeKeys: [],
+      intent: { kind: 'offer_message', actorKey: 'a', text: '想一起商量营业安排吗？' },
+      timeline: {
+        stageKey: 'opening',
+        excludeIfResolved: [],
+        alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+      },
+    },
+    {
+      key: 'community',
+      kind: 'candidate',
+      title: '街区活动',
+      editorialIntent: second,
+      actorKeys: [],
+      prerequisites: [],
+      mutuallyExclusiveNodeKeys: [],
+      intent: { kind: 'editorial_only' },
+      timeline: {
+        stageKey: 'later',
+        excludeIfResolved: [],
+        alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+      },
+    },
+  ];
+  const h = harness({
+    ...reply(proposal),
+    notes: [
+      { kind: 'supplemented', text: '补充了公开简介和体验说明，请作者核对。' },
+      { kind: 'review', text: '街区群体活动保留为剧情说明，暂未配置执行方式。' },
+    ],
+  });
+  const result = await h.planner.propose(material);
+  const content = PublishedWorldContentSchema.parse(result.updatedContent);
+  for (const field of ['hook', 'description', 'experienceNote'] as const)
+    assert.ok(content.work[field].trim());
+  assert.deepEqual(
+    content.candidates.map((n) => [n.key, n.editorialIntent, n.timeline?.stageKey]),
+    [
+      ['discussion', first, 'opening'],
+      ['community', second, 'later'],
+    ],
+  );
+  assert.equal(content.candidates[1]!.intent.kind, 'editorial_only');
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(content.history, []);
+  assert.equal(h.calls.length, 1);
+  const system = h.calls[0]!.messages[0]!.content;
+  assert.ok(system.includes('空字符串或只有空白的字段是待补内容'));
+  assert.ok(system.includes('不能只生成两个stages却返回candidates=[]'));
+  assert.ok(system.includes('仍保留该事件，intent={kind:"editorial_only"}'));
+  assert.ok(system.includes('将sources中的明确阶段与每个事件逐一对应到stages/candidates'));
+  assert.deepEqual(JSON.parse(h.calls[0]!.messages[1]!.content), material);
+});
+
+test('a model that still leaves required work fields empty is surfaced with validation issues, never silently repaired or retried', async () => {
+  const proposed = fixture();
+  proposed.work.hook = '';
+  proposed.work.description = '';
+  proposed.work.experienceNote = '';
+  const h = harness(reply(proposed));
+  const result = await h.planner.propose({ currentContent: {}, sources });
+  for (const field of ['hook', 'description', 'experienceNote']) {
+    assert.ok(result.issues.some((issue) => issue.path.join('.') === `work.${field}`));
+    assert.equal((result.updatedContent.work as Record<string, unknown>)[field], '');
+  }
+  assert.equal(h.calls.length, 1);
+});
+
+test('two dated private messages and two directed routes survive, while a split-scope secret reaches only the intended NPC', async () => {
+  const secret = '合成库存只剩三盒';
+  const proposed = fixture();
+  proposed.actors[0]!.name = '阿禾';
+  proposed.actors[1]!.name = '老陈';
+  proposed.places.push({ key: 'cafe', name: '咖啡馆', description: '街口', knownAtStart: true });
+  proposed.routes = [
+    { fromPlaceKey: 'home', toPlaceKey: 'cafe', minutes: 15 },
+    { fromPlaceKey: 'cafe', toPlaceKey: 'home', minutes: 15 },
+  ];
+  proposed.phone.messages = [
+    {
+      key: 'stock_message',
+      actorKey: 'a',
+      origin: 'history',
+      text: secret,
+      at: '2030-01-01T05:00:00Z',
+    },
+    {
+      key: 'greeting_message',
+      actorKey: 'b',
+      origin: 'incoming',
+      text: '早上好。',
+      at: '2030-01-01T06:00:00Z',
+    },
+  ];
+  proposed.history = [
+    {
+      key: 'stock_player',
+      kind: 'established_fact',
+      text: secret,
+      occurredAt: '2030-01-01T05:00:00Z',
+      actorKeys: ['a'],
+      visibility: { kind: 'player' },
+    },
+    {
+      key: 'stock_a',
+      kind: 'established_fact',
+      text: secret,
+      occurredAt: '2030-01-01T05:00:00Z',
+      actorKeys: ['a'],
+      visibility: { kind: 'actors', actorKeys: ['a'] },
+    },
+  ];
+  proposed.protagonist.knownFactKeys = ['stock_player'];
+  proposed.initialKnowledge = [
+    { actorKey: 'a', factKeys: ['stock_a'] },
+    { actorKey: 'b', factKeys: [] },
+  ];
+  const source = [
+    {
+      filename: '定向事实.md',
+      content: `店到咖啡馆双向各15分钟。阿禾于2030-01-01T05:00:00Z私信玩家：“${secret}”；库存阿禾与玩家知道、老陈不知道。老陈于2030-01-01T06:00:00Z来信：“早上好。”`,
+    },
+  ];
+  const h = harness({
+    ...reply(proposed),
+    notes: [
+      { kind: 'review', text: '同一库存事实以玩家和阿禾两个定向知情范围表达，并非发生两次。' },
+    ],
+  });
+  const result = await h.planner.propose({
+    currentContent: { phone: { messages: [] }, routes: [] },
+    sources: source,
+  });
+  const content = PublishedWorldContentSchema.parse(result.updatedContent);
+  assert.deepEqual(content.phone.messages, proposed.phone.messages);
+  assert.deepEqual(content.routes, proposed.routes);
+  assert.deepEqual(result.issues, []);
+  assert.equal(
+    content.history.some((f) => f.visibility.kind === 'world'),
+    false,
+  );
+  let sequence = 10;
+  const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const compiled = compilePublicationGenesis({
+    content,
+    origin: { workId: id(4), publicationVersion: 0, draftVersion: 0, contentHash: '0'.repeat(64) },
+    originKind: 'trial',
+    worldId: id(1),
+    ownerId: id(2),
+    seedId: id(3),
+    newId: () => id(sequence++),
+  });
+  assert.equal(compiled.status, 'compiled');
+  if (compiled.status !== 'compiled') throw Error('expected compiler success');
+  const a = compiled.keys.actors.find((a) => a.key === 'a')!.id,
+    b = compiled.keys.actors.find((a) => a.key === 'b')!.id;
+  assert.ok(JSON.stringify(actorContext(compiled.world, a)).includes(secret));
+  assert.equal(JSON.stringify(actorContext(compiled.world, b)).includes(secret), false);
+  assert.ok(compiled.world.facts.some((f) => f.text === secret && f.visibility.kind === 'owner'));
+  assert.equal(compiled.keys.messages.length, 2);
+  assert.equal(compiled.keys.routes.length, 2);
+  assert.equal(h.calls.length, 1);
+  const system = h.calls[0]!.messages[0]!.content;
+  assert.ok(system.includes('不能因为phone.messages原本为空而遗漏'));
+  assert.ok(system.includes('分别输出A到B和B到A两条minutes=15的路线'));
+  assert.ok(system.includes('不能为了让玩家引用就把visibility改world'));
+  assert.ok(system.includes('不能仅有history却initialKnowledge=[]'));
 });

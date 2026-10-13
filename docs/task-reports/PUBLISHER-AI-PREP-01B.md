@@ -39,3 +39,19 @@ root取本次四新文件提交，接已冻结HTTP构造器，统一库/前端�
 ## 根指定小后继：作者提示中文化
 
 已在收到根冻结前完成指定中文notes映射，原结构issues code/纯merge/接口不变。保留作者值、列表/未知字段、图片扩展引用、候选执行方式、追加实体、模型重复/无效编号均显示中文，路径保留定位。沿用既有17专项调整两个中文期待，17/17重跑通过，typecheck退出0/Prettier/diff通过；未重复全库check/build，前述基线结果有效，根集成后统一门禁。SYSTEM已对照实际schema/compiler：2–12人物、原false不能改true且真实compiler报unsupported；未来history与opening日期校验、空phone集合允许但不假造来信、persona预算/单NPC邀约/图片限制均已有专项或既有真实compiler路径。不扩张模型资源。
+
+## 真实首调用后的限定提示词后继（publication-manuscript-2）
+
+root在c93e50c线上首调用报告：结果为succeeded但work三个必填简介字段仍空、6项schema issues；明确两阶段两事件只留下阶段、candidates为空；明确两条带时间来信未入phone.messages；明确双向15分钟仅一条route；“阿禾知、老陈不知”的库存被模型写world且initialKnowledge空。首调用证据由root保留，不能称该提案安全或完整，B没有复调。
+
+遵根限定仅加强本Planner系统提示，原merge、validator、返回契约、单次付费规则全部不改：
+
+- 空字符串/空数组是待补而非禁止提取；work及核心必填字段简洁非空，保已有非空，不用待填写占位。
+- 逐事件提取并归阶段/先后；原稿明确两个事件不能只有两个stages和空candidates；无法执行仍保editorial_only和review，不删除事件、不伪造为历史/玩家已经接受。
+- 逐条保合法明确发送人/正文/时间来信；history不能替代phone.messages；未来来信保候选，不猜歧义发送人；明确双向路线输出两条有向边，仅单向原稿不编反向。
+- 定向秘密不能升world；具体NPC的actors-only事实必须有其initialKnowledge引用，不自动给第三人。实际schema不支持一个fact同时player+actors：确有双方知情原稿时可用两条同原文、不同key、分别player/actors范围的事实，并review说明同一来源的两个范围表达而非两次事件；玩家引用player那条、NPC引用自身actors那条。不明确或无法表达则只保私聊并review，不能用world绕过。
+- 一次生成返回前自核必填、来源阶段/事件/来信条数、路线方向/条数、定向知情；不调用独立评审模型、不自动重试、不手工修输出。
+
+20/20专项通过（原17+3）：受控模型提案中的空work得到非空、两阶段事件含editorial_only被实际schema/compiler接受；仍缺字段的模型提案保持原结果和issues、不手工补/重调；明确两条来信/双向两边保持，并用真实compilePublicationGenesis+actorContext证明玩家owner事实存在、阿禾上下文含库存、老陈上下文不含库存。检查实际发送的系统提示含本次约束。typecheck退出0、Prettier/diff通过。受控模型测试不证明真实模型遵从，尤其来源遗漏/语义泄漏不能仅靠结构validator发现；root仍需继续已授权批次真实验收。
+
+仅Planner/原专项/本报告三文件；不重复全check/build（上节已有基线证据，root统一门禁）。B仍0真实模型/DB/SQL/端口/生产；root本批来信时预算已占1/12、0存档，B不使用额度。源冻结待root集成。
