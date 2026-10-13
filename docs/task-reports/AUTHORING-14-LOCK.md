@@ -20,4 +20,4 @@ run内原有仓储事务仍用独立连接，不改变角色、所有权、版�
 
 新增tests/clock-transaction-lock.test.ts模拟autocommit backend轮换与事务pinning：复现旧session锁释放失败反例；新锁阻断同世界并发、commit后可重取；回调异常rollback释放；commit失败rollback；rollback失败丢连接；同名重入明确冲突、其他世界独立；release仅一次。
 
-该专项加既有world-clock：25/25通过。typecheck/build在独立树执行，最终结果回传root。没有调用模型、生产、PG或占用新端口；真实PG由root集成验证。本提交不包含本树临时公共publication-content修复。
+该专项加既有world-clock：25/25通过。typecheck及独立树build均完整通过（exit 0）。没有调用模型、生产、PG或占用新端口；真实PG由root集成验证。本提交不包含本树临时公共publication-content修复。
