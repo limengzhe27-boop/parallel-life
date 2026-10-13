@@ -35,3 +35,7 @@ P2：HTTP RATE_LIMITED沿旧后台统一“登录尝试较多”文案，用于�
 ## 接续
 
 root取本次四新文件提交，接已冻结HTTP构造器，统一库/前端核对、真实模型质量与失败恢复、手机PC/部署READY/公网验证后方可标交付完成。B源冻结，不自动运行模型或扩展任务。
+
+## 根指定小后继：作者提示中文化
+
+已在收到根冻结前完成指定中文notes映射，原结构issues code/纯merge/接口不变。保留作者值、列表/未知字段、图片扩展引用、候选执行方式、追加实体、模型重复/无效编号均显示中文，路径保留定位。沿用既有17专项调整两个中文期待，17/17重跑通过，typecheck退出0/Prettier/diff通过；未重复全库check/build，前述基线结果有效，根集成后统一门禁。SYSTEM已对照实际schema/compiler：2–12人物、原false不能改true且真实compiler报unsupported；未来history与opening日期校验、空phone集合允许但不假造来信、persona预算/单NPC邀约/图片限制均已有专项或既有真实compiler路径。不扩张模型资源。

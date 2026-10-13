@@ -125,7 +125,9 @@ test('nonempty entity collections retain old rows and append missing actors/plac
   assert.equal(got.routes.length, 1);
   assert.deepEqual(result.issues, []);
   assert.ok(
-    result.notes.some((n) => n.kind === 'supplemented' && n.text.includes('entity_supplemented')),
+    result.notes.some(
+      (n) => n.kind === 'supplemented' && n.text.includes('已补充人物、地点或其他内容条目'),
+    ),
   );
 });
 test('known fact rows merge by actorKey and routes by ordered endpoints without changing old scopes', () => {
@@ -418,7 +420,7 @@ test('duplicate proposal identity never rewrites the matched original, new dupli
   proposal.actors.push({ ...proposal.actors[0]!, name: 'duplicate' });
   const r = await harness(reply(proposal)).planner.propose({ currentContent: old, sources });
   assert.deepEqual((r.updatedContent as unknown as PublicationContent).actors, old.actors);
-  assert.ok(r.notes.some((n) => n.text.includes('ambiguous_model_key')));
+  assert.ok(r.notes.some((n) => n.text.includes('模型返回重复编号')));
   const invalid = await harness(reply(proposal)).planner.propose({ currentContent: {}, sources });
   assert.ok(invalid.issues.some((i) => i.code === 'duplicate_key'));
 });

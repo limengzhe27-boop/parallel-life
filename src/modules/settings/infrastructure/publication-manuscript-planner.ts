@@ -30,6 +30,16 @@ const ResponseSchema = z.strictObject({
   issues: z.unknown().optional(),
 });
 const invalid = (code: string) => Object.assign(new Error(code), { code: 'INVALID_RESPONSE' });
+const REVIEW_MESSAGES: Record<string, string> = {
+  authored_value_preserved: '已保留作者原有内容',
+  authored_list_preserved: '已保留作者原有列表及顺序',
+  unknown_field_preserved: '已保留原有未知字段，未采纳模型新增或改写的未知字段',
+  asset_or_extension_preserved: '图片与扩展引用保持原样，未添加模型提供的引用',
+  editorial_intent_supplemented: '已为候选剧情补充执行方式，原有标题和剧情说明保持不变',
+  entity_supplemented: '已补充人物、地点或其他内容条目，请核对是否符合原稿',
+  ambiguous_model_key: '模型返回重复编号，已保留该编号对应的原有条目',
+  invalid_model_entity: '模型条目缺少有效编号，未加入提案',
+};
 
 export class PublicationManuscriptPlanner implements PublisherPreparationPlanner {
   private readonly model: TextModel;
@@ -111,7 +121,7 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
     for (const review of reviews.slice(0, 38))
       notes.push({
         kind: review.code.endsWith('supplemented') ? 'supplemented' : 'review',
-        text: `${review.path.join('.') || '内容'}：${review.code}；保留原作者内容，新增内容请核对。`.slice(
+        text: `${review.path.join('.') || '内容'}：${REVIEW_MESSAGES[review.code] ?? '这处内容需要与原稿核对'}。`.slice(
           0,
           1000,
         ),
