@@ -122,6 +122,180 @@ function groupLabel(key: string) {
   return Object.hasOwn(groupNames, key) ? groupNames[key] : key;
 }
 
+type PreparationIssue = NonNullable<PublisherPreparationRecord['result']>['issues'][number];
+const issueFields: Record<string, string> = {
+  ...groupNames,
+  key: '编号',
+  title: '名称',
+  hook: '一句话简介',
+  description: '作品简介',
+  experienceNote: '体验说明',
+  publicSetting: '公开世界设定',
+  hiddenContext: '幕后世界设定',
+  tone: '叙事氛围',
+  startAt: '开场日期与时间',
+  startPlaceKey: '开场地点',
+  identity: '身份',
+  situation: '当前处境',
+  name: '姓名',
+  publicCard: '公开资料',
+  privatePersona: '人物内心设定',
+  background: '人物背景',
+  motivation: '人物动机',
+  voice: '说话方式',
+  boundaries: '人物边界',
+  traits: '性格特点',
+  appearance: '外貌',
+  knownAtStart: '开场是否已认识',
+  knownFactKeys: '已知事实',
+  factKeys: '知情事实',
+  actorKey: '关联人物',
+  actorKeys: '参与人物',
+  text: '正文',
+  occurredAt: '发生时间',
+  at: '时间',
+  earliestAt: '最早发生时间',
+  origin: '消息来源',
+  visibility: '可见范围',
+  stages: '阶段',
+  initialStageKey: '开场阶段',
+  stageKey: '所属阶段',
+  afterStageKeys: '前置阶段',
+  order: '阶段顺序',
+  prerequisites: '发生条件',
+  mutuallyExclusiveNodeKeys: '互斥剧情',
+  intent: '事件运行方式',
+  editorialIntent: '剧情说明',
+  messages: '消息',
+  invitations: '邀约',
+  notes: '便签',
+  album: '相册',
+  placeKey: '关联地点',
+  fromPlaceKey: '出发地点',
+  toPlaceKey: '到达地点',
+  minutes: '移动耗时',
+  messageKey: '关联消息',
+  historyFactKey: '照片来源事实',
+  media: '素材',
+  mediaKey: '关联素材',
+  coverMediaKey: '封面素材',
+  avatarMediaKey: '头像素材',
+  sceneMediaKey: '场景素材',
+};
+const issueReasons: Record<string, string> = {
+  too_big: '内容过多或过长，请精简后再检查。',
+  invalid_format: '格式不正确，请核对后修改。',
+  invalid_type: '内容格式不正确或尚未填写，请补充后再检查。',
+  invalid_value: '请选择支持的内容或填写方式。',
+  invalid_union: '内容结构不完整，请补齐后再检查。',
+  unrecognized_keys: '包含暂不支持的字段，请核对后调整。',
+  duplicate_key: '存在重复编号，请分别设置不同编号。',
+  unknown_actor: '关联人物不存在，请重新选择人物。',
+  unknown_place: '关联地点不存在，请补充地点或重新选择。',
+  unknown_fact: '关联事实不存在，请补充事实或重新选择。',
+  unknown_message: '关联消息不存在，请补充消息或重新选择。',
+  unknown_media: '关联素材不存在，请重新选择素材。',
+  future_in_history: '已发生事实的时间不能晚于世界开场。',
+  future_opening_message: '开场消息不能晚于世界开场时间。',
+  history_message_not_past: '过去的对话必须早于世界开场。',
+  invitation_before_start: '邀约时间不能早于世界开场。',
+  candidate_time_before_start: '剧情候选的发生时间不能早于世界开场。',
+  sender_not_player_known: '发送者须为开场时玩家已认识的人物，请核对人物关系。',
+  participant_not_player_known: '邀约参与者须为开场时玩家已认识的人物。',
+  fact_not_actor_visible: '这项事实对该人物不可见，请核对事实的可见范围与人物知情设置。',
+  fact_not_player_visible: '这项事实对玩家不可见，请核对事实的可见范围。',
+  fact_not_player_known: '玩家尚不知道这项事实，请核对开场知情设置。',
+  start_place_not_known: '开场地点须为玩家已知地点，请核对地点设置。',
+  place_not_player_known: '该地点对玩家尚不可见，请核对地点设置。',
+  invalid_node_reference: '关联剧情不存在或引用了自身，请核对剧情编号。',
+  self_relationship: '关系的双方不能是同一人物。',
+  self_route: '路线的起点和终点不能相同。',
+  invitation_sender_mismatch: '邀约关联消息的发送者须为参与人物。',
+  intent_actor_outside_node: '事件涉及的人物应包含在本条剧情参与人物中。',
+  intent_place_outside_node: '事件地点应与本条剧情地点一致。',
+  space_route_budget: '单段路线最多支持 120 分钟，请调整或拆分路线。',
+  content_budget: '内容总量超出限制，请精简后再整理。',
+};
+function ownValue(content: unknown, path: (string | number)[]) {
+  let value = content;
+  for (const key of path) {
+    if (!value || typeof value !== 'object' || !Object.hasOwn(value, key)) return undefined;
+    value = (value as Record<string | number, unknown>)[key];
+  }
+  return value;
+}
+export function preparationIssueMessages(
+  issues: PreparationIssue[],
+  content?: Record<string, unknown>,
+) {
+  const grouped = new Map<
+    string,
+    { path: PreparationIssue['path']; field: string; reason: string; details: PreparationIssue[] }
+  >();
+  for (const issue of issues) {
+    const field =
+      issue.path
+        .map((part) =>
+          typeof part === 'number'
+            ? `第 ${part + 1} 项`
+            : Object.hasOwn(issueFields, part)
+              ? issueFields[part]
+              : '其它字段',
+        )
+        .join(' · ') || '世界内容';
+    const value = ownValue(content, issue.path);
+    const emptyText = typeof value === 'string' && !value.trim();
+    const reason =
+      issue.code === 'too_small'
+        ? issue.path.length === 1 && issue.path[0] === 'actors'
+          ? '请补充至少 2 位人物。'
+          : '内容尚不完整，请补充后再检查。'
+        : issue.code === 'custom' && emptyText
+          ? '内容尚不完整，请补充后再检查。'
+          : Object.hasOwn(issueReasons, issue.code)
+            ? issueReasons[issue.code]!
+            : '这项设定仍需核对，请对照原稿与相关设定检查；可展开详细定位。';
+    const key = JSON.stringify([issue.path, reason]);
+    const entry = grouped.get(key);
+    if (entry) entry.details.push(issue);
+    else grouped.set(key, { path: issue.path, field, reason, details: [issue] });
+  }
+  return [...grouped.values()];
+}
+export function PublisherPreparationIssues({
+  issues,
+  content,
+}: {
+  issues: PreparationIssue[];
+  content?: Record<string, unknown>;
+}) {
+  const messages = preparationIssueMessages(issues, content);
+  if (!messages.length) return null;
+  return (
+    <div className={s.warnings}>
+      <h4>仍需补齐或检查</h4>
+      <ul>
+        {messages.map((item, index) => (
+          <li key={index}>
+            {item.field}：{item.reason}
+          </li>
+        ))}
+      </ul>
+      <details>
+        <summary>查看详细定位</summary>
+        <ul>
+          {issues.map((issue, index) => (
+            <li key={index}>
+              {issue.path.join(' / ') || '（世界内容）'}（{issue.code}）
+            </li>
+          ))}
+        </ul>
+      </details>
+      <p>填入后仍需保存并通过完整检查，再试演和发布。</p>
+    </div>
+  );
+}
+
 export function PublisherImportDialog({
   workId,
   version,
@@ -458,12 +632,12 @@ export function PublisherImportDialog({
               ],
               message: note.text,
             })),
-            ...aiResult.issues.map((issue) => ({
-              code: issue.code,
+            ...preparationIssueMessages(aiResult.issues, aiResult.updatedContent).map((issue) => ({
+              code: issue.details[0]!.code,
               severity: 'warning' as const,
               filename: '待检查',
               path: issue.path.join('.'),
-              message: `${groupLabel(String(issue.path[0] ?? '世界内容'))}：请在完整检查中核对（${issue.code}）`,
+              message: `${issue.field}：${issue.reason}`,
             })),
           ]
         : [],
@@ -664,23 +838,10 @@ export function PublisherImportDialog({
                 </ul>
               </div>
             ))}
-            {!!aiResult.issues.length && (
-              <div className={s.warnings}>
-                <h4>仍需补齐或检查</h4>
-                <ul>
-                  {aiResult.issues.map((issue, index) => (
-                    <li key={index}>
-                      {groupLabel(String(issue.path[0] ?? '世界内容'))}：
-                      {issue.path
-                        .map((part) => (typeof part === 'number' ? `第 ${part + 1} 项` : part))
-                        .join(' / ')}
-                      （{issue.code}）
-                    </li>
-                  ))}
-                </ul>
-                <p>填入后仍需保存并通过完整检查，再试演和发布。</p>
-              </div>
-            )}
+            <PublisherPreparationIssues
+              issues={aiResult.issues}
+              content={aiResult.updatedContent}
+            />
             <label className={s.reviewCheck}>
               <input
                 type="checkbox"
