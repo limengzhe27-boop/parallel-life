@@ -145,6 +145,110 @@ function setup(disabled = false, c = content()) {
     },
   };
 }
+test('simple event view exposes one speaker and preserves source on render; extra arrangements are folded', () => {
+  const c = content();
+  delete c.timeline;
+  const node = plotRecord(plotRows(c, 'candidates')[0]);
+  delete node.timeline;
+  node.intent = { kind: 'director_event', actorKey: '' };
+  node.actorKeys = [];
+  const t = setup(false, c);
+  const before = structuredClone(c);
+  const visible = visibleText(renderPlot(t.props));
+  for (const label of [
+    '事件标题',
+    '事件概述',
+    '主要人物（由谁开启）',
+    '无前提',
+    '设置前提',
+    '更多安排',
+  ])
+    assert.ok(visible.includes(label), label);
+  for (const label of [
+    '预期影响',
+    '希望玩家感受到什么',
+    '改为角色来信',
+    '触发时玩家必须所在',
+    '其他参与人物',
+    '指定日期后才出现',
+  ])
+    assert.ok(!visible.includes(label), label);
+  assert.equal(details(tree(t.props), '更多安排').props.open, false);
+  assert.equal(details(tree(t.props), '设置前提').props.open, false);
+  assert.deepEqual(c, before);
+  const speaker = input(tree(t.props), 'plot_candidates_node_a_0_intent_actorKey');
+  assert.equal(speaker.props.value, '');
+  change(speaker, 'bob');
+  const updated = plotRecord(plotRows(t.next!, 'candidates')[0]);
+  assert.deepEqual(updated.intent, { kind: 'director_event', actorKey: 'bob' });
+  assert.deepEqual(updated.actorKeys, ['bob']);
+  assert.equal(t.calls, 1);
+});
+
+test('read-only and malformed event speaker controls never publish an edit callback', () => {
+  for (const kind of ['readonly', 'malformed', 'unknown-intent']) {
+    const c = content();
+    const node = plotRecord(plotRows(c, 'candidates')[0]);
+    node.intent = { kind: 'director_event', actorKey: 'alice' };
+    if (kind === 'malformed') node.actorKeys = { raw: '保留' };
+    if (kind === 'unknown-intent')
+      node.intent = { kind: 'director_event', actorKey: 'alice', raw: '保留' };
+    const t = setup(kind === 'readonly', c);
+    const control = input(tree(t.props), 'plot_candidates_node_a_0_intent_actorKey');
+    assert.equal(control.props.disabled, true);
+    change(control, 'bob');
+    assert.equal(t.calls, 0);
+  }
+});
+
+test('folded controls leave all authored prerequisites visible, including named OR groups and exclusion rules', () => {
+  const c = content();
+  const node = plotRecord(plotRows(c, 'candidates')[0]);
+  node.intent = { kind: 'director_event', actorKey: 'alice' };
+  node.prerequisites = [{ kind: 'history_fact', factKey: 'fact_a' }];
+  node.conditionKeys = ['ready'];
+  node.placeKey = 'home';
+  node.timeline = {
+    ...plotRecord(node.timeline),
+    window: { notBefore: '2026-10-12T09:00:00.000Z', expiresAt: '2026-10-13T09:00:00.000Z' },
+  };
+  c.conditions = [
+    {
+      key: 'ready',
+      title: '已经可以见面',
+      match: 'any',
+      prerequisites: [
+        { kind: 'at_place', placeKey: 'home' },
+        { kind: 'not_before', at: '2026-10-12T12:00:00.000Z' },
+      ],
+    },
+  ];
+  plotRows(c, 'candidates').push({
+    key: 'other',
+    title: '另一件事',
+    intent: { kind: 'offer_message', actorKey: 'alice', text: '消息' },
+  });
+  node.mutuallyExclusiveNodeKeys = ['other'];
+  const t = setup(false, c);
+  const before = structuredClone(c);
+  const visible = visibleText(renderPlot(t.props));
+  for (const label of [
+    '上周讨论过',
+    '已经可以见面',
+    '任一满足',
+    '玩家必须在',
+    '店铺',
+    '准备',
+    '限定时段',
+    '北京时间',
+    '另一件事',
+    '不再出现',
+  ])
+    assert.ok(visible.includes(label), label);
+  assert.equal(details(tree(t.props), '设置前提').props.open, false);
+  assert.equal(details(tree(t.props), '更多安排').props.open, false);
+  assert.deepEqual(c, before);
+});
 test('SSR offers three editable sections and honest Chinese setup guidance without exposing private raw data', () => {
   const t = setup();
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
@@ -348,14 +452,7 @@ test('writer first view hides internal keys and optional date controls without m
   const t = setup();
   const before = structuredClone(t.props.content);
   const value = visibleText(renderPlot(t.props));
-  for (const label of [
-    '已经发生的事',
-    '剧情阶段',
-    '事件概述列表',
-    '不必逐条填写日期',
-    '同名（第1项）',
-    '同名（第2项）',
-  ])
+  for (const label of ['已经发生的事', '剧情阶段', '事件概述列表', '不必逐条填写日期', '更多安排'])
     assert.ok(value.includes(label), label);
   for (const key of ['fact_a', 'stage_a', 'node_a', 'alice', 'bob', 'history.0'])
     assert.ok(!value.includes(key), key);

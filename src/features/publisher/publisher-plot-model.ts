@@ -121,6 +121,30 @@ export function patchPlotField(
   writePath(row, path, value);
   return next;
 }
+/** One explicit speaker choice, retaining every other authored participant and setting. */
+export function setPlotEventLead(content: PlotRecord, key: string, actorKey: string): PlotRecord {
+  const index = rowIndex(content, 'candidates', key);
+  const row = plotRecord(plotRows(content, 'candidates')[index]);
+  const intent = plotRecord(row.intent);
+  if (
+    intent.kind !== 'director_event' ||
+    Object.keys(intent).some((name) => !['kind', 'actorKey'].includes(name)) ||
+    (row.actorKeys !== undefined &&
+      (!Array.isArray(row.actorKeys) || row.actorKeys.some((value) => typeof value !== 'string')))
+  )
+    throw new PlotEditError('MALFORMED_BRANCH');
+  if (actorKey !== '' && !plotChoices(content, 'actors').some((actor) => actor.key === actorKey))
+    throw new PlotEditError('INVALID_ACTOR');
+  const participants = plotStrings(row.actorKeys);
+  const updated =
+    actorKey && !participants.includes(actorKey) ? [...participants, actorKey] : [...participants];
+  if (updated.length > 12) throw new PlotEditError('ROW_LIMIT');
+  const next = clonePlot(content);
+  const candidate = plotRecord(plotRows(next, 'candidates')[index]);
+  candidate.intent = { ...intent, actorKey };
+  candidate.actorKeys = updated;
+  return next;
+}
 export function removePlotField(
   content: PlotRecord,
   section: PlotSection,

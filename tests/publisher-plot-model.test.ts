@@ -6,6 +6,7 @@ import {
   addPlotRow,
   clonePlot,
   patchPlotField,
+  setPlotEventLead,
   removePlotField,
   setPlotInitialStage,
   deletePlotRow,
@@ -18,6 +19,76 @@ import {
   plotIssues,
   type PlotRecord,
 } from '../src/features/publisher/publisher-plot-model.ts';
+
+test('one explicit event speaker yields a valid no-date event and retains the other participants and metadata', () => {
+  const original = fixture();
+  delete original.timeline;
+  original.candidates = [];
+  let next = addPlotRow(original, 'candidates');
+  const key = String(plotRecord(plotRows(next, 'candidates')[0]).key);
+  const blank = plotRecord(plotRows(next, 'candidates')[0]);
+  assert.deepEqual(blank.intent, { kind: 'director_event', actorKey: '' });
+  assert.deepEqual(blank.actorKeys, []);
+  next = patchPlotField(next, 'candidates', key, ['title'], '讨论一件事');
+  next = patchPlotField(next, 'candidates', key, ['editorialIntent'], '完整描述'.repeat(60));
+  const ready = setPlotEventLead(next, key, 'alice');
+  const doc = PublishedWorldContentSchema.parse(ready);
+  assert.deepEqual(doc.candidates[0]!.prerequisites, []);
+  assert.equal(doc.candidates[0]!.timeline, undefined);
+  assert.deepEqual(doc.candidates[0]!.intent, { kind: 'director_event', actorKey: 'alice' });
+  assert.deepEqual(doc.candidates[0]!.actorKeys, ['alice']);
+  assert.deepEqual(doc.history, original.history);
+  const before = structuredClone(ready);
+  const changed = setPlotEventLead(ready, key, 'bob');
+  assert.deepEqual(plotRecord(plotRows(changed, 'candidates')[0]).actorKeys, ['alice', 'bob']);
+  assert.deepEqual(plotRecord(plotRows(changed, 'candidates')[0]).direction, { mode: 'required' });
+  assert.deepEqual(changed.extensions, before.extensions);
+  assert.deepEqual(ready, before);
+  const cleared = setPlotEventLead(changed, key, '');
+  assert.deepEqual(plotRecord(plotRows(cleared, 'candidates')[0]).actorKeys, ['alice', 'bob']);
+  assert.equal(PublishedWorldContentSchema.safeParse(cleared).success, false);
+});
+
+test('speaker choice rejects unknown or ambiguous people and malformed legacy branches without replacing source data', () => {
+  for (const variant of ['unknown', 'duplicate', 'malformed', 'fixed', 'extension']) {
+    const source = fixture();
+    const node = plotRecord(plotRows(source, 'candidates')[0]);
+    node.intent = { kind: 'director_event', actorKey: 'alice' };
+    if (variant === 'duplicate') (source.actors as unknown[]).push({ key: 'bob', name: '另一人' });
+    if (variant === 'malformed') node.actorKeys = { raw: '保留' };
+    if (variant === 'fixed')
+      node.intent = { kind: 'offer_message', actorKey: 'alice', text: '原来信' };
+    if (variant === 'extension')
+      node.intent = { kind: 'director_event', actorKey: 'alice', custom: '保留' };
+    const before = structuredClone(source);
+    assert.throws(() =>
+      setPlotEventLead(source, 'node_a', variant === 'unknown' ? 'missing' : 'bob'),
+    );
+    assert.deepEqual(source, before);
+  }
+});
+
+test('independent event editing keeps more than twelve events and has no two-hundred-character validation', () => {
+  const source = fixture();
+  delete source.timeline;
+  source.candidates = [];
+  let result = source;
+  for (let i = 0; i < 14; i++) {
+    result = addPlotRow(result, 'candidates');
+    const key = String(plotRecord(plotRows(result, 'candidates').at(-1)).key);
+    result = patchPlotField(result, 'candidates', key, ['title'], `独立事件${i + 1}`);
+    result = patchPlotField(
+      result,
+      'candidates',
+      key,
+      ['editorialIntent'],
+      i === 13 ? '甲'.repeat(201) : '简短概述',
+    );
+    result = setPlotEventLead(result, key, 'bob');
+  }
+  assert.equal(PublishedWorldContentSchema.parse(result).candidates.length, 14);
+  assert.equal(plotRecord(plotRows(result, 'candidates')[13]).editorialIntent, '甲'.repeat(201));
+});
 function fixture(): PlotRecord {
   return {
     schemaVersion: 1,
