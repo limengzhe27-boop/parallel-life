@@ -378,12 +378,42 @@ export function parseFeishuPlotMarkdown(content: string, filename = ''): Importe
       });
   }
   const headings = [...content.matchAll(/^##\s*[（(][^）)]+[）)]\s*([^\r\n]+)/gm)];
+  const instructionTitles = new Set([
+    '导入后还要补全',
+    '导入说明',
+    '使用说明',
+    '导入注意事项',
+    '填写说明',
+  ]);
+  const instructions = [...content.matchAll(/^#{1,6}\s+([^\r\n]+)/gm)].filter((h) =>
+    instructionTitles.has(cleanMdText(h[1]!)),
+  );
   for (let i = 0; i < headings.length; i++) {
     const heading = headings[i]!;
-    const body = content.slice(heading.index!, headings[i + 1]?.index ?? content.length).trim();
+    let end = headings[i + 1]?.index ?? content.length;
+    const instruction = instructions.find((h) => h.index! > heading.index! && h.index! < end);
+    if (instruction) end = instruction.index!;
+    const body = content.slice(heading.index!, end).trim();
     candidates.push({ title: heading[1]!.trim(), actorNames: [], editorialIntent: body });
   }
   return { initialMessages, candidates, sourceFilename: filename };
+}
+
+function explicitPlayerRelationship(content: string): string {
+  const pieces: string[] = [];
+  let inL5 = false;
+  for (const row of parseTableRows(content)) {
+    const tag = (row[0] ?? '').toUpperCase(),
+      level = /L[1-5]/.exec(tag)?.[0];
+    if (level) inL5 = level === 'L5';
+    else if (tag.trim()) inL5 = false;
+    if (inL5) pieces.push(row[2] ?? row[1] ?? '');
+  }
+  const raw = pieces.join('\n');
+  const field = /(?:^|\n)\s*(?:与主角|与玩家|与用户（主角）|与用户\(主角\))[：:]\s*([^\r\n]+)/.exec(
+    raw,
+  );
+  return field?.[1]?.trim() ?? '';
 }
 
 /**
@@ -655,12 +685,57 @@ export function parseFeishuMarkdownBundle(
             filename,
             `${filename}：「${form.name}」未指定开场认识，保持未知人物，需作者确认后才能运行相关来信。`,
           );
-        if (form.relationshipToPlayer)
+        const relationship = explicitPlayerRelationship(chunk);
+        if (relationship) {
+          if (
+            relationship.length > 400 ||
+            /未来|将会|后续|后期|将成为|可能成为|以后/.test(relationship)
+          ) {
+            note(
+              'relationship_unmapped',
+              filename,
+              `${filename}：「${form.name}」明确关系过长或含未来标记，原文保留待审，未创建关系。`,
+            );
+          } else {
+            if (!Array.isArray(copy.relationships)) copy.relationships = [];
+            const existingPair = copy.relationships.some(
+              (r: Record<string, any>) =>
+                (r.from?.kind === 'player' &&
+                  r.to?.kind === 'actor' &&
+                  r.to.actorKey === actorKey) ||
+                (r.to?.kind === 'player' &&
+                  r.from?.kind === 'actor' &&
+                  r.from.actorKey === actorKey),
+            );
+            if (existingPair)
+              note(
+                'existing_relationship_preserved',
+                filename,
+                `${filename}：「${form.name}」已有与主角关系，原记录保持不变。`,
+              );
+            else if (copy.relationships.length >= 64)
+              note(
+                'relationship_count_budget',
+                filename,
+                '关系总数超过64，已阻止整批导入。',
+                'error',
+              );
+            else
+              copy.relationships.push({
+                key: fresh('relation_import'),
+                from: { kind: 'actor', actorKey },
+                to: { kind: 'player' },
+                description: relationship,
+                visibility: { kind: 'player' },
+              });
+          }
+        } else if (form.relationshipToPlayer) {
           note(
             'relationship_unmapped',
             filename,
-            `${filename}：「${form.name}」关系尚未填写明确两端与可见范围，未新增或覆盖任何关系。`,
+            `${filename}：「${form.name}」未明确L5与主角/玩家字段，未推断初始关系，原文保留。`,
           );
+        }
       }
     }
     const plot = parseFeishuPlotMarkdown(content, filename);

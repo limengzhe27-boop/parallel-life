@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {
   parseFeishuMarkdownBundle,
@@ -76,14 +77,18 @@ const valid = (r: ReturnType<typeof run>) => {
   return doc;
 };
 
-test('complete explicit new actor yields schema/domain-valid fields, unique stable key and no invented relation', () => {
+test('complete explicit new actor yields schema/domain-valid fields and only the explicit player relation', () => {
   const base = fixture(),
     before = structuredClone(base),
     r = run(actor('丙'));
   const doc = valid(r);
   assert.equal(doc.actors.length, 3);
   assert.equal(doc.actors[2]!.knownAtStart, true);
-  assert.deepEqual(doc.relationships, []);
+  assert.equal(doc.relationships.length, 1);
+  assert.deepEqual(doc.relationships[0]!.from, { kind: 'actor', actorKey: doc.actors[2]!.key });
+  assert.deepEqual(doc.relationships[0]!.to, { kind: 'player' });
+  assert.deepEqual(doc.relationships[0]!.visibility, { kind: 'player' });
+  assert.equal(doc.relationships[0]!.description, '普通朋友');
   assert.equal(doc.actors[2]!.privatePersona.motivation.includes('保留自主选择'), true);
   assert.equal(r.summary.actors[0]!.key, doc.actors[2]!.key);
   assert.deepEqual(base, before);
@@ -438,4 +443,74 @@ test('exact unscoped editorial reimport retains original key; same title with ch
   const scopedResult = parseFeishuMarkdownBundle([file], scoped);
   assert.equal(valid(scopedResult).candidates.length, 2);
   assert.equal(scopedResult.summary.candidatesCount, 1);
+});
+
+test('real public template maps two explicit player relationships and excludes import instructions from final candidate', async () => {
+  const source = await readFile(
+    new URL('../public/templates/world-script.md', import.meta.url),
+    'utf8',
+  );
+  const r = run(source, 'world-script.md', {});
+  assert.equal(r.summary.blocked, false);
+  assert.equal(r.summary.actors.length, 2);
+  const actors = r.updatedContent.actors as any[],
+    relationships = r.updatedContent.relationships as any[],
+    nodes = r.updatedContent.candidates as any[];
+  assert.equal(relationships.length, 2);
+  assert.equal(nodes.length, 2);
+  for (const relation of relationships) {
+    assert.deepEqual(relation.to, { kind: 'player' });
+    assert.deepEqual(relation.visibility, { kind: 'player' });
+    assert.ok(actors.some((a) => a.key === relation.from.actorKey));
+  }
+  const a = actors.find((a) => a.name === '阿禾');
+  assert.equal(
+    relationships.find((r) => r.from.actorKey === a.key).description,
+    '认识三年的朋友，也是合伙人。',
+  );
+  assert.ok(nodes.every((n) => !n.editorialIntent.includes('导入后还要补全')));
+  assert.ok(nodes[1].editorialIntent.includes('熟客愿意下单'));
+  assert.equal(r.summary.unmapped[0]!.content, source);
+});
+test('only explicit L5 player fields map, not a vague first sentence or identity-based guess', () => {
+  for (const source of [
+    actor('丙').replace('与主角：普通朋友', '这段话没有明确关系字段'),
+    actor('丙').replace('与主角：普通朋友', '与其他角色：普通朋友'),
+  ]) {
+    const r = run(source);
+    const doc = valid(r);
+    assert.deepEqual(doc.relationships, []);
+    assert.ok(codes(r).includes('relationship_unmapped'));
+  }
+  const r = run(actor('丙').replace('与主角：普通朋友', '与玩家：明确伙伴'));
+  assert.equal(valid(r).relationships[0]!.description, '明确伙伴');
+});
+test('old player and NPC relationships are untouched when same-name source is reimported', () => {
+  const initial = valid(run(actor('丙')));
+  initial.relationships.push({
+    key: 'npc_old',
+    from: { kind: 'actor', actorKey: 'actor_0' },
+    to: { kind: 'actor', actorKey: initial.actors[2]!.key },
+    description: '原NPC之间关系',
+    visibility: { kind: 'actors', actorKeys: ['actor_0', initial.actors[2]!.key] },
+  });
+  const before = structuredClone(initial.relationships);
+  const r = run(actor('丙').replace('普通朋友', '改写的关系'), '人物.md', initial);
+  assert.deepEqual(valid(r).relationships, before);
+  assert.ok(codes(r).includes('actor_name_conflict'));
+});
+test('overlong or explicit future L5 relation stays unmapped and does not fabricate initial state', () => {
+  for (const description of ['未来将成为合作伙伴', '字'.repeat(401)]) {
+    const r = run(actor('丙').replace('普通朋友', description));
+    assert.equal(valid(r).relationships.length, 0);
+    assert.ok(codes(r).includes('relationship_unmapped'));
+  }
+});
+test('instruction words in normal plot prose or a real candidate title do not truncate the story', () => {
+  const source =
+    '## （一）导入说明以后的真实候选\n剧情人物提到导入后还要补全，仍是剧情正文。\n### 任务说明\n这些是实际条件。\n## 导入说明\n这段仅编辑说明，不是剧情。';
+  const p = parseFeishuPlotMarkdown(source);
+  assert.equal(p.candidates.length, 1);
+  assert.ok(p.candidates[0]!.editorialIntent.includes('这些是实际条件'));
+  assert.ok(!p.candidates[0]!.editorialIntent.includes('这段仅编辑说明'));
 });
