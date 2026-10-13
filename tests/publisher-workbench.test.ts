@@ -271,3 +271,37 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
   assert.ok(!html.includes('actors.0.name: name_required'));
   assert.ok(!html.includes('model_budget_unapproved'));
 });
+
+test('character knowledge includes an editable shared fact with a separate knowledge checkbox', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  assert.ok(html.includes('不是固定示例'));
+  assert.ok(html.includes('修改这条事实'));
+  assert.ok(html.includes('到剧情页管理或新增事实'));
+  assert.match(
+    html,
+    /<textarea[^>]*id="actor-fact-0-fact_clinic_01"[^>]*>周记诊所是小镇唯一的全科诊所。<\/textarea>/,
+  );
+  assert.ok(html.includes('勾选保持不变'));
+});
+
+test('shared fact editor remains disabled while busy or without edit permission', () => {
+  for (const extra of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
+    const html = renderToStaticMarkup(
+      createElement(PublisherWorkbench, { ...defaultProps, ...extra }),
+    );
+    assert.match(html, /<textarea[^>]*id="actor-fact-0-fact_clinic_01"[^>]*disabled=""/);
+  }
+});
+
+test('ambiguous duplicate fact keys do not expose an unsafe inline editor', () => {
+  const content = structuredClone(mockContent);
+  content.history = [...(content.history as unknown[]), ...(content.history as unknown[])];
+  const html = renderToStaticMarkup(
+    createElement(PublisherWorkbench, {
+      ...defaultProps,
+      work: { ...mockWork, draft: { ...mockWork.draft, content } },
+    }),
+  );
+  assert.ok(html.includes('这条事实的格式或标识待核对'));
+  assert.ok(!html.includes('id="actor-fact-'));
+});

@@ -9,7 +9,13 @@ import { PublisherImportDialog } from './publisher-import-dialog.tsx';
 import { PublisherSpaceEditor } from './publisher-space-editor.tsx';
 import { PublisherOpeningEditor } from './publisher-opening-editor.tsx';
 import type { ImportSummary } from './publisher-importer.ts';
-import { plotChoices } from './publisher-plot-model.ts';
+import {
+  patchPlotField,
+  plotChoices,
+  plotRecord,
+  plotRows,
+  plotRowEditable,
+} from './publisher-plot-model.ts';
 import { PublisherDraftContentSchema } from '../../contracts/world-publisher.ts';
 import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
 import {
@@ -1329,28 +1335,97 @@ export function PublisherWorkbench(props: PublisherWorkbenchProps) {
                   </div>
                   <fieldset disabled={!session.canEdit || busy}>
                     <legend>这个人物开场已经知道的事实</legend>
+                    <p className={s.fieldHint}>
+                      这些是剧本中的既有事实，可以修改，不是固定示例。勾选只决定这个人物是否知情。
+                    </p>
                     {plotData.history.length === 0 ? (
-                      <p className={s.fieldHint}>还没有已发生的历史事实，不能凭空授予知情。</p>
+                      <p className={s.fieldHint}>
+                        还没有可选择的既有事实。请到剧情页新增或核对原稿，不会自动授予人物知情。
+                      </p>
                     ) : (
-                      plotData.history.map((f) => (
-                        <label key={f.key} style={{ display: 'block', margin: '8px 0' }}>
-                          <input
-                            type="checkbox"
-                            checked={currentActorForm.knownFactKeys.includes(f.key)}
-                            onChange={(e) =>
-                              handleActorChange(
-                                'knownFactKeys',
-                                e.target.checked
-                                  ? [...currentActorForm.knownFactKeys, f.key]
-                                  : currentActorForm.knownFactKeys.filter((k) => k !== f.key),
-                              )
-                            }
-                          />
-                          {f.text}
-                        </label>
-                      ))
+                      plotData.history.map((f, index) => {
+                        const raw = plotRows(draftContent, 'history').find(
+                          (row) => plotRecord(row).key === f.key,
+                        );
+                        const editable =
+                          plotRowEditable(draftContent, 'history', f.key) &&
+                          typeof plotRecord(raw).text === 'string';
+                        const inputId = `actor-fact-${index}-${f.key}`;
+                        return (
+                          <div key={`${index}-${f.key}`} style={{ margin: '12px 0' }}>
+                            <label style={{ display: 'block', margin: '8px 0' }}>
+                              <input
+                                type="checkbox"
+                                disabled={!editable}
+                                checked={currentActorForm.knownFactKeys.includes(f.key)}
+                                onChange={(e) =>
+                                  handleActorChange(
+                                    'knownFactKeys',
+                                    e.target.checked
+                                      ? [...currentActorForm.knownFactKeys, f.key]
+                                      : currentActorForm.knownFactKeys.filter((k) => k !== f.key),
+                                  )
+                                }
+                              />
+                              {f.text}
+                            </label>
+                            {editable ? (
+                              <details>
+                                <summary>修改这条事实</summary>
+                                <label className={s.fieldLabel} htmlFor={inputId}>
+                                  事实文字（剧本共用）
+                                </label>
+                                <textarea
+                                  id={inputId}
+                                  className={s.textarea}
+                                  rows={3}
+                                  maxLength={1000}
+                                  value={f.text}
+                                  disabled={!session.canEdit || busy}
+                                  onChange={(e) => {
+                                    if (!session.canEdit || busy) return;
+                                    const text = e.target.value;
+                                    setDraftContent((current) => {
+                                      const fact = plotRows(current, 'history').find(
+                                        (row) => plotRecord(row).key === f.key,
+                                      );
+                                      if (
+                                        !plotRowEditable(current, 'history', f.key) ||
+                                        typeof plotRecord(fact).text !== 'string'
+                                      )
+                                        return current;
+                                      return patchPlotField(
+                                        current,
+                                        'history',
+                                        f.key,
+                                        ['text'],
+                                        text,
+                                      );
+                                    });
+                                  }}
+                                />
+                                <p className={s.fieldHint}>
+                                  修改后请保存草稿。这条事实在各人物的知情列表中同步更新，勾选保持不变；不改动已发布的玩家存档。
+                                </p>
+                              </details>
+                            ) : (
+                              <p className={s.fieldHint}>
+                                这条事实的格式或标识待核对，原内容已保留。
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </fieldset>
+                  <button
+                    type="button"
+                    className={`${s.btn} ${s.btnSecondary}`}
+                    disabled={busy}
+                    onClick={() => setActiveTab('plot')}
+                  >
+                    到剧情页管理或新增事实
+                  </button>
                   <div className={s.formFieldFull}>
                     <label className={s.fieldLabel} htmlFor="actor-bounds-input">
                       知情范围与底线规则
