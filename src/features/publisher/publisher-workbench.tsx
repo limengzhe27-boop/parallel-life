@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
 import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
-import { PublisherReviewView } from './publisher-review-view.ts';
 import { readOverallSetting, updateOverallSetting } from './publisher-overall-setting.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
 import { PublisherImportDialog, manuscriptFingerprint } from './publisher-import-dialog.tsx';
@@ -1040,13 +1039,6 @@ export function PublisherWorkbench(
             >
               根据总体设定整理
             </button>
-            <p className={s.fieldHint}>
-              整理只作补充，核对后再填入；已有人物和剧情不会自动重写。要改写已有内容，请在下方展开核对并修改。幕后秘密不会直接当作玩家已知内容。
-            </p>
-            <details className={s.disclosure}>
-              <summary>查看已整理的故事</summary>
-              <PublisherReviewView content={draftContent} mode="draft" />
-            </details>
           </section>
         )}
         {work && activeTab === 'settings' && (

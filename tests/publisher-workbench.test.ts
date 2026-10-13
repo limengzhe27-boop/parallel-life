@@ -211,7 +211,7 @@ function renderTab(props: PublisherWorkbenchProps, tab: 'settings' | 'actors' | 
     Reflect.deleteProperty(globalThis, '__writerTestTab');
   }
 }
-test('workbench defaults to actual story overview with four writer-facing entries and folded business editing', () => {
+test('workbench defaults to overall setting without the removed explanation or story preview', () => {
   const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
   for (const text of [
     '海边诊所的午后',
@@ -221,15 +221,13 @@ test('workbench defaults to actual story overview with four writer-facing entrie
     '检查',
     '试演',
     '发布',
-    '故事概览',
+    '总体设定',
     '人物',
     '剧情发展',
     '待确认问题',
-    '当前草稿故事概览',
-    '青青',
-    '青梅竹马 / 邻居',
   ])
     assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, /整理只作补充|查看已整理的故事|当前草稿故事概览/);
   assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
   assert.doesNotMatch(html, /尚未检查草稿|查看全部问题|安排故事时间/);
   assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
@@ -440,8 +438,6 @@ test('an empty new story shows only the overall author input by default without 
 test('applying import from character or plot returns to overview, closes import and never auto-saves', async () => {
   const { PublisherImportDialog } =
     await import('../src/features/publisher/publisher-import-dialog.tsx');
-  const { PublisherReviewView } =
-    await import('../src/features/publisher/publisher-review-view.ts');
   function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
     if (Array.isArray(value)) return value.flatMap(nodes);
     if (!isValidElement(value)) return [];
@@ -513,7 +509,14 @@ test('applying import from character or plot returns to overview, closes import 
         nodes(tree).some((e) => e.type === PublisherImportDialog),
         keepOpen,
       );
-      assert.equal(nodes(tree).find((e) => e.type === PublisherReviewView)!.props.content, next);
+      assert.equal(
+        nodes(tree).find((e) => e.props.id === 'work-title-input')!.props.value,
+        '整理后的标题',
+      );
+      assert.equal(
+        nodes(tree).find((e) => e.props.id === 'world-public-setting')!.props.value,
+        '新的舞台',
+      );
     } finally {
       Reflect.deleteProperty(globalThis, '__writerHooks');
     }
