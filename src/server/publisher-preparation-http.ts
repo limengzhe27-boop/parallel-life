@@ -8,7 +8,7 @@ import {
   publisherJson,
   PublisherHttpError,
 } from './publisher-http.ts';
-import { createTextModel } from './composition.ts';
+import { createManuscriptTextModel } from './composition.ts';
 import { PublicationManuscriptPlanner } from '../modules/settings/infrastructure/publication-manuscript-planner.ts';
 import { preparePublisherManuscript } from '../modules/settings/application/publisher-preparation.ts';
 
@@ -29,7 +29,7 @@ export function publisherPreparationRoute(request: Request, workId: string) {
       s.preparations,
       {
         propose: (material, signal) =>
-          new PublicationManuscriptPlanner(createTextModel()).propose(material, signal),
+          new PublicationManuscriptPlanner(createManuscriptTextModel()).propose(material, signal),
       },
       principal.id,
       workId,
