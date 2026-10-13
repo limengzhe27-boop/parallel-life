@@ -21,6 +21,7 @@ export type PublicationOpeningMetadata = {
     actorId: string;
     name: string;
     relationship: string;
+    introduction?: string;
     identity?: string;
     traits: string[];
     appearance?: string;

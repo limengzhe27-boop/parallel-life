@@ -272,7 +272,7 @@ export function compilePublicationGenesis(
         return {
           id: messageId,
           actorId: actorIds.get(m.actorKey)!,
-          role: 'assistant',
+          role: m.speaker === 'player' ? 'user' : 'assistant',
           text: m.text,
           at: m.at,
           sourceEventId,
@@ -344,6 +344,7 @@ export function compilePublicationGenesis(
         actorId: actorIds.get(a.key)!,
         name: a.name,
         relationship: playerRelationship(c, a.key, 'player'),
+        ...(a.publicCard.introduction ? { introduction: a.publicCard.introduction } : {}),
         ...(a.publicCard.identity ? { identity: a.publicCard.identity } : {}),
         traits: [...a.publicCard.traits],
         ...(a.publicCard.appearance ? { appearance: a.publicCard.appearance } : {}),
@@ -396,6 +397,9 @@ export function compilePublicationGenesis(
         'publication.opening.v1',
         ...(c.media.length ? ['publication.media.v1'] : []),
         ...(c.timeline ? ['publication.timeline.v1'] : []),
+        ...(c.candidates.some((n) => n.intent.kind === 'director_event')
+          ? ['candidate.director_event.v1']
+          : []),
         ...(c.candidates.some((n) => n.intent.kind === 'offer_message')
           ? ['candidate.offer_message.v1']
           : []),

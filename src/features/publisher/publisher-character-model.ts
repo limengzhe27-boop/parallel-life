@@ -62,7 +62,7 @@ export function characterPreview(content: Record<string, unknown>, actorKey: str
   if (!actor) return undefined;
   const card = record(actor.publicCard),
     phone = record(content.phone);
-  const known = actor.knownAtStart !== false;
+  const known = actor.knownAtStart === true;
   const start = Date.parse(string(record(content.world).startAt));
   const occurred = (entry: Record<string, unknown>) => {
     const at = Date.parse(string(entry.at));

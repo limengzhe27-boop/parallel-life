@@ -38,7 +38,7 @@ const actor = z.strictObject({
 const message = z.strictObject({
   id: ref,
   actorId: ref,
-  role: z.literal('assistant'),
+  role: z.enum(['assistant', 'user']),
   text: text(8000),
   at: Timestamp,
   sourceEventId: ref,
@@ -128,6 +128,7 @@ const openingSchema = z.strictObject({
         actorId: ref,
         name: text(80),
         relationship: z.string().max(600),
+        introduction: text(1600).optional(),
         identity: text(160).optional(),
         traits: z.array(text(60)).max(3),
         appearance: text(240).optional(),
@@ -226,7 +227,17 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare) {
     if (
       m.sourceEventId !== genesis ||
       !ids.has(m.actorId) ||
-      Date.parse(m.at) > Date.parse(p.world.time)
+      Date.parse(m.at) > Date.parse(p.world.time) ||
+      (m.role === 'user' &&
+        !c.phone.messages.some(
+          (source) =>
+            source.key === m.history?.key &&
+            source.actorKey === p.opening.contacts.find((a) => a.actorId === m.actorId)?.actorKey &&
+            source.speaker === 'player' &&
+            source.origin === 'history' &&
+            source.text === m.text &&
+            source.at === m.at,
+        ))
     )
       throw new TaskError('INVALID_STATE');
   for (const f of p.world.facts)
@@ -249,6 +260,7 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare) {
       !a.knownAtStart ||
       !ids.has(contact.actorId) ||
       contact.name !== a.name ||
+      contact.introduction !== a.publicCard.introduction ||
       contact.identity !== a.publicCard.identity ||
       contact.appearance !== a.publicCard.appearance ||
       !equal(contact.traits, a.publicCard.traits)

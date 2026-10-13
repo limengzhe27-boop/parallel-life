@@ -612,6 +612,7 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       const priorWindow = prior && nodeWindow(prior);
       if (w && priorWindow && Date.parse(w.expiresAt) <= Date.parse(priorWindow.notBefore))
         issue(['candidates', i, 'prerequisites'], 'node_window_before_dependency');
+      if (p.kind === 'after_presented_node') continue;
       const outcomes = p.kind === 'after_committed_node' ? ['committed'] : p.outcomes;
       if (p.kind === 'after_resolved_node') unique(p.outcomes, ['candidates', i, 'prerequisites']);
       const exclusion =
@@ -788,6 +789,7 @@ export function publicationPlayerPreview(c: PublicationContent) {
         key: m.key,
         actorKey: m.actorKey,
         origin: m.origin,
+        ...(m.speaker ? { speaker: m.speaker } : {}),
         text: m.text,
         at: m.at,
       })),

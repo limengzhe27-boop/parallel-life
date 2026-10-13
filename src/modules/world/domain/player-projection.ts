@@ -29,6 +29,7 @@ export function projectPlayerActors(
     actorId: string;
     name: string;
     relationship: string;
+    introduction?: string;
     identity?: string;
     traits: string[];
     appearance?: string;
@@ -59,7 +60,12 @@ export function projectPlayerActors(
           '',
         ...(authored
           ? {
-              summary: [authored.identity, ...authored.traits, authored.appearance]
+              summary: [
+                authored.introduction,
+                authored.identity,
+                ...authored.traits,
+                authored.appearance,
+              ]
                 .filter(Boolean)
                 .join(' · '),
             }

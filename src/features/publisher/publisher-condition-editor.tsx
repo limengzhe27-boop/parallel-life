@@ -32,6 +32,7 @@ const kinds = {
   at_place: '玩家所在地点',
   not_before: '故事时间到达',
   after_committed_node: '来信已发出或邀约已接受',
+  after_presented_node: '某事件已展开',
 };
 export function PublisherConditionEditor({
   content,
@@ -172,7 +173,9 @@ export function PublisherConditionEditor({
                       plotChoices(content, 'history'),
                       (factKey) => patchTerm(i, { factKey }),
                     )}
-                  {(kind === 'after_resolved_node' || kind === 'after_committed_node') &&
+                  {(kind === 'after_resolved_node' ||
+                    kind === 'after_committed_node' ||
+                    kind === 'after_presented_node') &&
                     select(
                       '关联事件',
                       term.nodeKey,
@@ -244,9 +247,11 @@ export function PublisherConditionEditor({
                             ? { kind, factKey: '' }
                             : kind === 'at_place'
                               ? { kind, placeKey: '' }
-                              : kind === 'not_before'
-                                ? { kind, at: '' }
-                                : { kind, nodeKey: '', outcomes: [] },
+                              : kind === 'after_presented_node'
+                                ? { kind, nodeKey: '' }
+                                : kind === 'not_before'
+                                  ? { kind, at: '' }
+                                  : { kind, nodeKey: '', outcomes: [] },
                         ],
                       })
                     }

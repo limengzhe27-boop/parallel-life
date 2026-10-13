@@ -675,7 +675,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
         candidates:
           !directorPool || pending
             ? []
-            : evaluation.eligible.map((node) => {
+            : evaluation.eligible.slice(0, 24).map((node) => {
                 const actor = nodeActor(c.plan, node)!;
                 const placeKey =
                   node.intent.kind === 'offer_invitation' ? node.intent.placeKey : node.placeKey;

@@ -367,7 +367,8 @@ export function createEmptyActor(existingKeys: string[]): ActorEditorForm {
 }
 
 export type ActorReference = {
-  category: 'relationship' | 'message' | 'invitation' | 'history' | 'candidate' | 'visibility';
+  category:
+    'relationship' | 'message' | 'moment' | 'invitation' | 'history' | 'candidate' | 'visibility';
   key: string;
   label: string;
 };
@@ -410,6 +411,16 @@ export function checkActorDeletionSafety(
         });
       }
     }
+  }
+
+  if (phone && Array.isArray(phone.moments)) {
+    for (const moment of phone.moments as Record<string, unknown>[])
+      if (moment?.actorKey === actorKey)
+        references.push({
+          category: 'moment',
+          key: String(moment.key ?? ''),
+          label: `朋友圈: ${String(moment.text ?? '').slice(0, 20)}`,
+        });
   }
 
   // Check phone invitations
