@@ -42,8 +42,40 @@ export const PublisherPreparationInputSchema = z
     )
       ctx.addIssue({ code: 'custom', message: 'MANUSCRIPT_TOO_LARGE' });
   });
+/** Scheduling metadata is a proposal, never a second copy of the manuscript. */
+export const PublisherScheduleSchema = z.strictObject({
+  status: z.enum(['unchanged', 'proposed', 'blocked']),
+  changes: z
+    .array(
+      z.strictObject({
+        path: z.array(z.union([z.string().max(100), z.number().int().nonnegative()])).max(16),
+        value: z.string().max(100),
+        reason: z.string().max(1000),
+      }),
+    )
+    .max(256),
+  issues: z
+    .array(
+      z.strictObject({
+        path: z.array(z.union([z.string().max(100), z.number().int().nonnegative()])).max(16),
+        code: z.string().regex(/^[a-zA-Z0-9_]{1,100}$/),
+        source: z
+          .strictObject({
+            filename: z.string().max(500),
+            start: z.number().int().nonnegative(),
+            end: z.number().int().nonnegative(),
+            quote: z.string().max(1000),
+          })
+          .optional(),
+      }),
+    )
+    .max(256),
+});
+export type PublisherSchedule = z.infer<typeof PublisherScheduleSchema>;
+
 export const PublisherPreparationOutputSchema = z.strictObject({
   updatedContent: PublisherDraftContentSchema,
+  schedule: PublisherScheduleSchema.optional(),
   summary: z.string().trim().min(1).max(1000),
   notes: z
     .array(

@@ -883,3 +883,92 @@ test('Planner accurately describes retention of a conflicting authored unknown f
   assert.equal(note.text.includes('未写入提案'), false);
   assert.equal(h.calls.length, 2);
 });
+
+test('persisted scheduling reference fills missing dates before compile and remains stable on correction', async () => {
+  const draft = fixture();
+  draft.world.startAt = '';
+  draft.phone.messages = [
+    { key: 'notice', actorKey: 'a', origin: 'history', text: '钥匙已经放在柜台。', at: '' },
+  ];
+  const { planner, calls } = harness(reply(draft));
+  const referenceAt = '2031-03-06T01:00:00.000Z';
+  const result = await planner.propose({ currentContent: {}, sources }, undefined, { referenceAt });
+  assert.deepEqual(result.issues, []);
+  const doc = PublishedWorldContentSchema.parse(result.updatedContent);
+  assert.equal(doc.world.startAt, referenceAt);
+  assert.ok(Date.parse(doc.phone.messages[0]!.at) < Date.parse(referenceAt));
+  assert.equal(result.schedule?.status, 'proposed');
+  assert.ok(result.schedule?.changes.some((c) => c.path.join('.') === 'world.startAt'));
+  assert.equal(JSON.parse(calls[0]!.messages[1]!.content).scheduling.referenceAt, referenceAt);
+  assert.equal(calls.length, 1, 'missing runtime dates do not consume a correction call');
+  const again = await harness(reply(draft)).planner.propose(
+    { currentContent: result.updatedContent, sources },
+    undefined,
+    { referenceAt: '2040-01-01T00:00:00.000Z' },
+  );
+  assert.deepEqual(again.updatedContent, result.updatedContent);
+  assert.equal(again.schedule?.changes.length, 0);
+});
+
+test('automatic preparation keeps authored times and causal prerequisites exactly', async () => {
+  const draft = fixture();
+  draft.candidates = [
+    {
+      key: 'later',
+      kind: 'candidate',
+      title: '下一步',
+      editorialIntent: '可以见面',
+      actorKeys: ['a'],
+      prerequisites: [{ kind: 'not_before', at: '2030-01-02T06:00:00Z' }],
+      mutuallyExclusiveNodeKeys: [],
+      intent: {
+        kind: 'offer_invitation',
+        actorKeys: ['a'],
+        placeKey: 'home',
+        title: '见面',
+        earliestAt: '',
+      },
+    },
+  ];
+  const result = await harness(reply(draft)).planner.propose(
+    { currentContent: draft as unknown as Record<string, unknown>, sources },
+    undefined,
+    { referenceAt: '2040-01-01T00:00:00.000Z' },
+  );
+  assert.equal(
+    (result.updatedContent.world as Record<string, unknown>).startAt,
+    draft.world.startAt,
+  );
+  const got = PublishedWorldContentSchema.parse(result.updatedContent);
+  assert.deepEqual(got.candidates[0]!.prerequisites, draft.candidates[0]!.prerequisites);
+  assert.deepEqual(result.issues, []);
+});
+
+test('system date provenance survives one structural correction and unsupported causal delay remains a review issue', async () => {
+  const first = fixture();
+  first.world.startAt = '';
+  first.actors[0]!.privatePersona.voice = '';
+  let calls = 0;
+  const planner = new PublicationManuscriptPlanner({
+    async complete(messages) {
+      calls++;
+      if (calls === 1) return JSON.stringify(reply(first));
+      const input = JSON.parse(messages[1]!.content);
+      input.firstProposal.actors[0].privatePersona.voice = '简短';
+      return JSON.stringify(reply(input.firstProposal));
+    },
+  });
+  const result = await planner.propose({ currentContent: {}, sources }, undefined, {
+    referenceAt: '2030-03-01T01:00:00.000Z',
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.schedule?.status, 'proposed');
+  assert.ok(result.schedule?.changes.some((c) => c.path.join('.') === 'world.startAt'));
+  const delayed = await harness(reply(fixture())).planner.propose(
+    { currentContent: {}, sources: [{ filename: '事件.md', content: '完成签约后两天再赴约。' }] },
+    undefined,
+    { referenceAt: '2030-03-01T01:00:00.000Z' },
+  );
+  assert.ok(delayed.issues.some((i) => i.code === 'scheduling_unsupported_relative_delay'));
+});

@@ -9,6 +9,7 @@ export interface PublisherPreparationPlanner {
   propose(
     input: PublisherPreparationMaterial,
     signal?: AbortSignal,
+    scheduling?: { referenceAt: string },
   ): Promise<PublisherPreparationOutput>;
 }
 export interface PublisherPreparationStore {
@@ -46,7 +47,9 @@ export async function preparePublisherManuscript(
   if (!admission.claimed) return admission.record;
   let result: PublisherPreparationOutput;
   try {
-    result = await planner.propose(admission.record.material, AbortSignal.timeout(110000));
+    result = await planner.propose(admission.record.material, AbortSignal.timeout(110000), {
+      referenceAt: admission.record.createdAt,
+    });
   } catch (error) {
     const code = (error as { code?: string })?.code;
     const invalid = ['INVALID_RESPONSE', 'TRUNCATED', 'INVALID_INPUT'].includes(code ?? '');

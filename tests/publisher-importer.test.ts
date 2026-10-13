@@ -514,3 +514,47 @@ test('instruction words in normal plot prose or a real candidate title do not tr
   assert.ok(p.candidates[0]!.editorialIntent.includes('这些是实际条件'));
   assert.ok(!p.candidates[0]!.editorialIntent.includes('这段仅编辑说明'));
 });
+
+test('optional one-time scheduling imports identified history messages without requiring authored dates', () => {
+  const base = fixture();
+  base.world.startAt = '';
+  const files = [
+    {
+      filename: '剧情.md',
+      content:
+        '# 开场事件\n**actor_0：**\n来源：history\n> 第一条来信\n**actor_1：**\n来源：history\n> 第二条来信',
+    },
+  ];
+  const r = parseFeishuMarkdownBundle(files, base, { referenceAt: '2030-02-01T01:00:00.000Z' });
+  assert.equal(r.summary.blocked, false);
+  assert.equal(r.summary.initialMessagesCount, 2);
+  const doc = PublishedWorldContentSchema.parse(r.updatedContent);
+  assert.equal(doc.world.startAt, '2030-02-01T01:00:00.000Z');
+  assert.equal(doc.phone.messages.length, 2);
+  assert.ok(Date.parse(doc.phone.messages[0]!.at) < Date.parse(doc.phone.messages[1]!.at));
+  assert.ok(Date.parse(doc.phone.messages[1]!.at) < Date.parse(doc.world.startAt));
+  assert.equal(r.schedule?.status, 'proposed');
+  assert.equal(base.world.startAt, '');
+});
+
+test('explicit imported start stays fixed and non-ISO source time is never replaced by a guessed date', () => {
+  const base = fixture();
+  base.world.startAt = '';
+  const explicit = parseFeishuMarkdownBundle(
+    [{ filename: '世界观.md', content: '# 世界观: 测试\n开场时间：2030-02-01T01:00:00.000Z' }],
+    base,
+    { referenceAt: '2040-01-01T00:00:00.000Z' },
+  );
+  assert.equal(explicit.summary.blocked, false);
+  assert.equal(
+    (explicit.updatedContent.world as Record<string, unknown>).startAt,
+    '2030-02-01T01:00:00.000Z',
+  );
+  const ambiguous = parseFeishuMarkdownBundle(
+    [{ filename: '世界观.md', content: '# 世界观: 测试\n开场时间：毕业后的一个星期天' }],
+    base,
+    { referenceAt: '2040-01-01T00:00:00.000Z' },
+  );
+  assert.equal(ambiguous.summary.blocked, true);
+  assert.deepEqual(ambiguous.updatedContent, base);
+});

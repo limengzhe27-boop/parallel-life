@@ -10,10 +10,11 @@ import {
 import { PublisherDraftContentSchema } from '../../../contracts/world-publisher.ts';
 import { PublishedWorldContentSchema } from '../../../contracts/published-world-content.ts';
 import { publicationStorageIssues } from '../domain/publication-content.ts';
+import { planPublicationTimes } from '../domain/publication-scheduling.ts';
 import { mergePublicationPreparation } from '../domain/publication-preparation.ts';
 import { compilePublicationGenesis } from './publication-genesis.ts';
 
-export const PUBLICATION_MANUSCRIPT_PROMPT_VERSION = 'publication-manuscript-4';
+export const PUBLICATION_MANUSCRIPT_PROMPT_VERSION = 'publication-manuscript-5';
 // A format demonstration only: never used as output, a fallback, or an author's draft.
 const FORMAT_EXAMPLE = {
   notes: [
@@ -166,6 +167,7 @@ const SYSTEM = `你是虚构世界文稿整理Agent。把user JSON中的currentC
 5. 私聊/定向秘密绝不能升world或进公开简介/其他人物persona。NPC仅知history.visibility={kind:"actors",actorKeys:[该NPC]}且在其initialKnowledge.factKeys引用的事实；不能仅有history却initialKnowledge=[]。protagonist.knownFactKeys只能引用player/world事实，不能为了让玩家引用就把visibility改world。明确玩家和特定NPC共同知道时，照范例用同原文不同key的player与actors两范围事实，review说明同一来源分范围而非发生两次；第三人不引用、不泄露。知情范围不清则保原私聊、review，不猜全员已知。
 6. 不新增media/extensions/phone.album或封面/头像/场景图引用，不造图片资产。未提供就空数组并省图片字段。没有依据不造历史/消息/便签。新的便签需主角已知factKeys；新的phone邀请status只能proposed且有参与者消息messageKey与未来at，非已接受。
 7. 完整内容≤65536 UTF8字节；公开文字简洁：title≤80/hook≤180/description≤1600/experienceNote≤300；publicSetting≤1600/hiddenContext≤4000/tone≤200；主角identity≤300/situation≤1000。人物name≤80，traits≤3且每项≤60，publicCard.identity≤160/appearance≤240；background≤1200，其他persona各≤600且整个persona含公开世界/主角/可见关系≤4000。最多16已知地点name≤80/description≤800；routes≤64条、minutes=1..120整数；history≤64条text≤1000，关系≤64条description≤400；messages≤40条text≤500；候选≤32条title≤120/editorialIntent≤1600，阶段≤16/title≤120。保原稿超限字段并review，不删原稿凑成功。
+8. 时间遵循原稿，不要求编剧先写具体日期。原稿或currentContent的明确日期、钟点、先后关系必须保留并对应同一事件；不随意平移到今天。若user JSON提供scheduling.referenceAt，它只是缺省排期的稳定参考，不是作者指定的故事日期。没有时间依据的必填startAt/occurredAt/at/earliestAt用空字符串留给系统统一排期，不仿照范例编日期。明确的相对开场时间（如开场次日19点）可以依据已确定开场换算；若原稿仅规定相对开场而无具体开场日期，可用scheduling.referenceAt作为一次性系统开场参考，但必须在notes标supplemented说明参考日期是系统安排，原相对间隔保持。中国语境无时区的钟点按UTC+08换算，原稿明确其他时区则按原稿，不得把本地19点直接写19:00Z。某事件完成后N天是动态条件，目前不支持精确延时，必须保留原文并列review，相关节点保持editorial_only等待支持，不能改为开场后N天；只写先后关系则使用after_committed_node/after_resolved_node、阶段afterStageKeys，不造强制日期窗口。原稿既无日期又无开场设定时无需追问，系统会一次性安排缺省时间。
 返回前对照notes核验事件/消息/路线方向与条数、知情范围和初始知识均落入updatedContent，补充/遗漏/歧义如实说明；逐项核对上述必填、ASCII key、空容器及时间。不得自报校验成功；运行时独立校验。只返回本次完整回答，不自行请求额外调用。
 合法JSON格式范例（禁止当作作者内容）：
 ${JSON.stringify(FORMAT_EXAMPLE)}`;
@@ -209,6 +211,7 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
   async propose(
     raw: PublisherPreparationMaterial,
     signal?: AbortSignal,
+    scheduling?: { referenceAt: string },
   ): Promise<PublisherPreparationOutput> {
     signal?.throwIfAborted();
     const currentDescriptor = raw && Object.getOwnPropertyDescriptor(raw, 'currentContent');
@@ -224,11 +227,14 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
     const input = JSON.parse(JSON.stringify(parsed.data)) as PublisherPreparationMaterial;
     const messages = [
       { role: 'system' as const, content: SYSTEM },
-      { role: 'user' as const, content: JSON.stringify(input) },
+      {
+        role: 'user' as const,
+        content: JSON.stringify({ ...input, ...(scheduling ? { scheduling } : {}) }),
+      },
     ];
     if (messages.reduce((n, m) => n + m.content.length, 0) > 63000)
       throw Object.assign(new Error('PREPARATION_INPUT_BUDGET'), { code: 'INVALID_INPUT' });
-    const first = this.assess(input, await this.complete(messages, signal));
+    const first = this.assess(input, await this.complete(messages, signal), scheduling);
     if (!first.issues.length) return first;
     const correctionMessages: ModelMessage[] = [
       { role: 'system', content: SYSTEM + CORRECTION_INSTRUCTION },
@@ -237,6 +243,7 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
         content: JSON.stringify({
           originalCurrentContent: input.currentContent,
           sources: input.sources,
+          ...(scheduling ? { scheduling } : {}),
           firstProposal: first.updatedContent,
           validationIssues: first.issues,
         }),
@@ -249,7 +256,31 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
       );
     // Only a known, fully received invalid proposal permits one correction. Transport failures
     // propagate; neither an unknown paid outcome nor a still-invalid correction is retried.
-    const corrected = this.assess(input, await this.complete(correctionMessages, signal));
+    const corrected = this.assess(
+      input,
+      await this.complete(correctionMessages, signal),
+      scheduling,
+    );
+    // A correction sees the scheduled first proposal. Keep the provenance of unchanged
+    // system-filled dates even when the corrected response now contains concrete values.
+    if (
+      first.schedule?.status === 'proposed' &&
+      corrected.schedule &&
+      corrected.schedule.status !== 'blocked'
+    ) {
+      const existingPaths = new Set(corrected.schedule.changes.map((c) => JSON.stringify(c.path)));
+      const carried = first.schedule.changes.filter((change) => {
+        let value: unknown = corrected.updatedContent;
+        for (const key of change.path)
+          value =
+            value && typeof value === 'object'
+              ? (value as Record<string | number, unknown>)[key]
+              : undefined;
+        return value === change.value && !existingPaths.has(JSON.stringify(change.path));
+      });
+      corrected.schedule.changes = [...carried, ...corrected.schedule.changes].slice(0, 256);
+      if (corrected.schedule.changes.length) corrected.schedule.status = 'proposed';
+    }
     return withReview(
       corrected,
       corrected.issues.length
@@ -276,12 +307,19 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
   private assess(
     input: PublisherPreparationMaterial,
     output: z.infer<typeof ResponseSchema>,
+    scheduling?: { referenceAt: string },
   ): PublisherPreparationOutput {
-    const { updatedContent, reviews } = mergePublicationPreparation(
+    const { updatedContent: mergedContent, reviews } = mergePublicationPreparation(
       input.currentContent,
       output.updatedContent,
     );
-    const issues: PublisherPreparationOutput['issues'] = [];
+    const plan = scheduling
+      ? planPublicationTimes(mergedContent, { ...scheduling, sources: input.sources })
+      : undefined;
+    const updatedContent = plan?.updatedContent ?? mergedContent;
+    const issues: PublisherPreparationOutput['issues'] = (plan?.issues ?? []).map(
+      ({ path, code }) => ({ path, code }),
+    );
     const shape = PublishedWorldContentSchema.safeParse(updatedContent);
     if (!shape.success) {
       for (const e of shape.error.issues)
@@ -335,6 +373,15 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
     return PublisherPreparationOutputSchema.parse({
       updatedContent,
       summary: output.summary,
+      ...(plan
+        ? {
+            schedule: {
+              status: plan.status,
+              changes: plan.changes.slice(0, 256),
+              issues: plan.issues.slice(0, 256),
+            },
+          }
+        : {}),
       notes,
       issues,
     });

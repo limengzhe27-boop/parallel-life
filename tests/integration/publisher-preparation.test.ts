@@ -7,6 +7,7 @@ import { migrate } from '../../scripts/migrate.mjs';
 import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
 import { PublicationRepository } from '../../src/modules/settings/infrastructure/publication-repository.ts';
 import { PublisherPreparationRepository } from '../../src/modules/settings/infrastructure/publisher-preparation-repository.ts';
+import { planPublicationTimes } from '../../src/modules/settings/domain/publication-scheduling.ts';
 import { preparePublisherManuscript } from '../../src/modules/settings/application/publisher-preparation.ts';
 
 test('publisher manuscript preparation: durable admission, isolation, no repeated paid call and draft protection', async (t) => {
@@ -210,4 +211,75 @@ test('publisher manuscript preparation: durable admission, isolation, no repeate
     }
     await assert.rejects(repo.begin(staff, work.id, make()), (e: any) => e.code === 'RATE_LIMITED');
   });
+  await t.test(
+    'scheduled proposal persists once and saving/replaying does not move its dates',
+    async () => {
+      const principal = randomUUID();
+      await admin.query(
+        'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
+        [principal, '合成排期回读'],
+      );
+      const content = {
+        world: { startAt: '' },
+        history: [],
+        phone: { messages: [], invitations: [] },
+        candidates: [],
+      };
+      const w = await works.create(principal, {
+        commandId: randomUUID(),
+        title: '稳定排期本地测试',
+        content,
+      });
+      const input = {
+        commandId: randomUUID(),
+        expectedDraftVersion: w.draftVersion,
+        currentContent: content,
+        sources: [{ filename: '无日期.md', content: '这是尚未指定日期的合成世界。' }],
+      };
+      let calls = 0;
+      const scheduler = {
+        async propose(
+          _material: unknown,
+          _signal?: AbortSignal,
+          context?: { referenceAt: string },
+        ) {
+          calls++;
+          assert.ok(context);
+          const plan = planPublicationTimes(content, context);
+          return {
+            updatedContent: plan.updatedContent,
+            summary: '受控排期测试，不调用模型',
+            notes: [],
+            issues: plan.issues.map(({ path, code }) => ({ path, code })),
+            schedule: { status: plan.status, changes: plan.changes, issues: plan.issues },
+          };
+        },
+      };
+      const prepared = await preparePublisherManuscript(repo, scheduler, principal, w.id, input);
+      assert.equal(prepared.status, 'succeeded');
+      assert.equal(prepared.result?.schedule?.status, 'proposed');
+      assert.equal(
+        (prepared.result?.updatedContent.world as Record<string, unknown>).startAt,
+        prepared.createdAt,
+      );
+      const recovered = await repo.read(principal, w.id, input.commandId);
+      assert.deepEqual(recovered?.result, prepared.result);
+      const saved = await works.save(principal, w.id, {
+        commandId: randomUUID(),
+        expectedDraftVersion: w.draftVersion,
+        content: prepared.result!.updatedContent,
+      });
+      assert.deepEqual(saved.draft.content, prepared.result!.updatedContent);
+      assert.deepEqual(
+        (await works.get(principal, w.id)).draft.content,
+        prepared.result!.updatedContent,
+      );
+      const repeated = planPublicationTimes(saved.draft.content, {
+        referenceAt: '2045-01-01T00:00:00.000Z',
+      });
+      assert.equal(repeated.status, 'unchanged');
+      assert.deepEqual(repeated.updatedContent, saved.draft.content);
+      assert.equal(calls, 1);
+    },
+  );
 });

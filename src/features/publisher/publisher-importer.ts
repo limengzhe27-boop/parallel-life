@@ -4,6 +4,8 @@
  * Completely deterministic, zero external network or model dependencies.
  */
 
+import type { PublisherSchedule } from '../../contracts/publisher-preparation.ts';
+import { planPublicationTimes } from '../../modules/settings/domain/publication-scheduling.ts';
 import { PublishedWorldContentSchema } from '../../contracts/published-world-content.ts';
 import { publicationStorageIssues } from '../../modules/settings/domain/publication-content.ts';
 import {
@@ -19,6 +21,7 @@ export type ImportedActor = {
 };
 
 export type ImportedWorld = {
+  startAt?: string;
   settings: Partial<WorldSettingsForm>;
   sourceFilename?: string;
 };
@@ -350,7 +353,11 @@ export function parseFeishuWorldMarkdown(content: string, filename = ''): Import
   settings.publicSetting = explicit('公开设定');
   settings.hiddenContext = extractHeadingSection(content, /^#+\s*世界观梗概/);
   settings.protagonistIdentity = extractField(content, ['主角身份', '用户的角色身份']);
-  return { settings, sourceFilename: filename };
+  return {
+    settings,
+    sourceFilename: filename,
+    startAt: extractField(content, ['开场时间', '开始时间', 'startAt']) || undefined,
+  };
 }
 
 export function parseFeishuPlotMarkdown(content: string, filename = ''): ImportedPlot {
@@ -422,7 +429,12 @@ function explicitPlayerRelationship(content: string): string {
 export function parseFeishuMarkdownBundle(
   files: Array<{ filename: string; content: string }>,
   currentContent: Record<string, unknown> = {},
-): { updatedContent: Record<string, unknown>; summary: ImportSummary } {
+  scheduling?: { referenceAt: string },
+): {
+  updatedContent: Record<string, unknown>;
+  summary: ImportSummary;
+  schedule?: PublisherSchedule;
+} {
   const summary: ImportSummary = {
     actors: [],
     initialMessagesCount: 0,
@@ -453,7 +465,7 @@ export function parseFeishuMarkdownBundle(
     return { updatedContent: currentContent, summary };
   }
   const original = JSON.parse(JSON.stringify(currentContent)) as Record<string, unknown>;
-  const copy = JSON.parse(JSON.stringify(original)) as Record<string, any>;
+  let copy = JSON.parse(JSON.stringify(original)) as Record<string, any>;
   const baseline = PublishedWorldContentSchema.safeParse(original);
   const pathValue = (path: PropertyKey[]) => {
     let v: unknown = original;
@@ -560,13 +572,15 @@ export function parseFeishuMarkdownBundle(
       /^#+\s*(?:公开简介|开场钩子)/m.test(content)
     ) {
       recognized = true;
-      const world = parseFeishuWorldMarkdown(content, filename).settings;
+      const importedWorld = parseFeishuWorldMarkdown(content, filename);
+      const world = importedWorld.settings;
       const work = object('work'),
         setting = object('world'),
         player = object('protagonist');
       fill(work, 'title', world.title, filename);
       fill(work, 'description', world.description, filename);
       fill(work, 'hook', world.hook, filename);
+      fill(setting, 'startAt', importedWorld.startAt, filename);
       fill(setting, 'publicSetting', world.publicSetting, filename);
       fill(setting, 'hiddenContext', world.hiddenContext, filename);
       fill(player, 'identity', world.protagonistIdentity, filename);
@@ -745,25 +759,29 @@ export function parseFeishuMarkdownBundle(
         const match = actors.filter((a) => a.key === msg.actorName || a.name === msg.actorName);
         if (
           match.length !== 1 ||
-          !msg.at ||
           !msg.origin ||
-          !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(msg.at) ||
-          !Number.isFinite(Date.parse(msg.at)) ||
           !match[0]!.knownAtStart ||
-          !copy.world?.startAt ||
-          !Number.isFinite(Date.parse(copy.world.startAt))
+          (!scheduling &&
+            (!msg.at ||
+              !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(msg.at) ||
+              !Number.isFinite(Date.parse(msg.at)) ||
+              !copy.world?.startAt ||
+              !Number.isFinite(Date.parse(copy.world.startAt))))
         ) {
           note(
             'opening_message_unmapped',
             filename,
-            `${filename}：开场消息未写入，需唯一已认识的发送者、明确ISO UTC时间和history/incoming来源。`,
+            `${filename}：开场消息未写入，需唯一已认识的发送者及明确history/incoming来源；未提供时间可使用自动排期，非标准时间请交给Agent结合原文整理。`,
           );
           continue;
         }
         if (
           msg.text.length > 500 ||
-          Date.parse(msg.at) > Date.parse(copy.world.startAt) ||
-          (msg.origin === 'history' && Date.parse(msg.at) >= Date.parse(copy.world.startAt))
+          (msg.at && copy.world?.startAt && Date.parse(msg.at) > Date.parse(copy.world.startAt)) ||
+          (msg.origin === 'history' &&
+            msg.at &&
+            copy.world?.startAt &&
+            Date.parse(msg.at) >= Date.parse(copy.world.startAt))
         ) {
           note(
             'opening_message_invalid',
@@ -783,7 +801,7 @@ export function parseFeishuMarkdownBundle(
           key: fresh('msg_import'),
           actorKey: match[0]!.key,
           text: msg.text,
-          at: msg.at,
+          at: msg.at ?? '',
           origin: msg.origin,
         });
         summary.initialMessagesCount++;
@@ -866,6 +884,23 @@ export function parseFeishuMarkdownBundle(
       );
   }
   if (Array.isArray(original.actors) || actors.length) copy.actors = actors;
+  let schedule: PublisherSchedule | undefined;
+  if (scheduling && !summary.blocked) {
+    const plan = planPublicationTimes(copy, { ...scheduling, sources: files });
+    schedule = {
+      status: plan.status,
+      changes: plan.changes.slice(0, 256),
+      issues: plan.issues.slice(0, 256),
+    };
+    if (plan.status === 'blocked') {
+      note(
+        'schedule_needs_review',
+        '',
+        '原稿时间存在冲突或尚未定位，未套用默认日期；请查看排期问题或让Agent结合原文整理。',
+        'error',
+      );
+    } else copy = plan.updatedContent;
+  }
   const result = PublishedWorldContentSchema.safeParse(copy);
   if (!result.success) {
     const signature = (i: { code: string; path: PropertyKey[]; message: string }) =>
@@ -909,7 +944,7 @@ export function parseFeishuMarkdownBundle(
     summary.initialMessagesCount = 0;
     summary.candidatesCount = 0;
     summary.world = undefined;
-    return { updatedContent: original, summary };
+    return { updatedContent: original, summary, ...(schedule ? { schedule } : {}) };
   }
-  return { updatedContent: copy, summary };
+  return { updatedContent: copy, summary, ...(schedule ? { schedule } : {}) };
 }

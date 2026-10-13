@@ -99,3 +99,48 @@ test('paid success followed by persistence failure is not changed to failed or r
   assert.equal(calls, 1);
   assert.equal(finishes, 1);
 });
+
+test('preparation reference is the admitted record time, never request or retry time', async () => {
+  const input = {
+    commandId: randomUUID(),
+    expectedDraftVersion: 0,
+    currentContent: {},
+    sources: [{ filename: 'a.md', content: '虚构故事' }],
+  };
+  const record = {
+    commandId: input.commandId,
+    workId: randomUUID(),
+    draftVersion: 0,
+    material: { currentContent: {}, sources: input.sources },
+    status: 'running' as const,
+    result: null,
+    errorCode: null,
+    createdAt: '2032-01-03T01:00:00.000Z',
+    updatedAt: '2032-01-04T01:00:00.000Z',
+  };
+  let reference: string | undefined;
+  const store: PublisherPreparationStore = {
+    async begin() {
+      return { record, claimed: true };
+    },
+    async read() {
+      return record;
+    },
+    async finish(_p, _w, _c, outcome) {
+      return { ...record, ...outcome };
+    },
+  };
+  await preparePublisherManuscript(
+    store,
+    {
+      async propose(_m, _s, context) {
+        reference = context?.referenceAt;
+        return { updatedContent: {}, summary: '合成提案', notes: [], issues: [] };
+      },
+    },
+    randomUUID(),
+    record.workId,
+    input,
+  );
+  assert.equal(reference, record.createdAt);
+});
