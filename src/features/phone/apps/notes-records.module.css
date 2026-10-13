@@ -475,7 +475,7 @@
   margin: 0;
   font-size: 26px;
 }
-.newNote {
+.notesPage .newNote {
   min-height: 44px;
   padding: 8px 12px;
   border: 0;
@@ -493,7 +493,7 @@
   border-radius: 12px;
   margin-bottom: 12px;
 }
-.sections button {
+.notesPage .sections button {
   flex: 1;
   min-width: 0;
   min-height: 44px;
@@ -504,7 +504,7 @@
   font: inherit;
   cursor: pointer;
 }
-.sections button[aria-pressed='true'] {
+.notesPage .sections button[aria-pressed='true'] {
   background: #fff;
   color: #805800;
   font-weight: 600;
@@ -515,7 +515,7 @@
 .privateRow > button:first-child {
   padding-right: 56px;
 }
-.deleteNote {
+.notesPage .deleteNote {
   position: absolute;
   right: 4px;
   top: 4px;
@@ -541,7 +541,7 @@
   font-size: 15px;
   color: #596574;
 }
-.openingNote {
+.notesPage .openingNote {
   display: block;
   width: 100%;
   min-height: 44px;

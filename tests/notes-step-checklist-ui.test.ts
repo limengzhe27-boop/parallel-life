@@ -225,6 +225,6 @@ for (const status of ['unknown', 'failed', 'pending'] as const) {
     assert.match(html, /已完成 1\/4/);
     assert.equal((html.match(/class="completedMark"/g) ?? []).length, 1);
     assert.doesNotMatch(html, /我已经全做完了|已完成 4\/4/);
-    assert.match(html, /aria-label="返回备忘录"/);
+    assert.match(html, /aria-label="返回待办"/);
   });
 }

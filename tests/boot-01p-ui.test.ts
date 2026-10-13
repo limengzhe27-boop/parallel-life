@@ -32,7 +32,7 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { NotesRecordDetail, NotesRecords, recordAttribution, searchRecords } =
+const { NotesRecordDetail, NotesRecords, NotesAbout, recordAttribution, searchRecords } =
   await import('../src/features/phone/apps/notes-records.tsx');
 const { NotesApp } = await import('../src/features/phone/apps/notes.tsx');
 const { MessagesApp } = await import('../src/features/phone/apps/messages.tsx');
@@ -305,5 +305,7 @@ test('legacy record without genesis origin keeps its old text and source navigat
   assert(!html.includes('虚构起点来信</p>'));
   const list = renderToStaticMarkup(createElement(NotesRecords, { data: legacy, open: noop }));
   assert(list.includes('眼下要做的事'));
-  assert(list.includes('人生起点的身份与处境'));
+  assert(!list.includes('人生起点的身份与处境'));
+  const about = renderToStaticMarkup(createElement(NotesAbout, { data: legacy, open: noop }));
+  assert(about.includes('人生起点的身份与处境'));
 });
