@@ -61,11 +61,17 @@ registerHooks({
         shortCircuit: true,
         source: 'export default new Proxy({}, {get:(_t,k)=>String(k)})',
       };
-    if (url.endsWith('publisher-import-dialog.tsx')) {
-      const source = readFileSync(new URL(url), 'utf8').replace(
-        "import { useEffect, useRef, useState } from 'react';",
-        'const {useEffect,useRef,useState}=globalThis.__publisherReviewHooks;',
-      );
+    if (
+      url.endsWith('publisher-import-dialog.tsx') ||
+      url.endsWith('publisher-source-review.tsx')
+    ) {
+      const original = readFileSync(new URL(url), 'utf8');
+      const source = url.endsWith('publisher-import-dialog.tsx')
+        ? original.replace(
+            "import { useEffect, useRef, useState } from 'react';",
+            'const {useEffect,useRef,useState}=globalThis.__publisherReviewHooks;',
+          )
+        : original;
       return {
         format: 'module',
         shortCircuit: true,
@@ -383,7 +389,7 @@ test('read-only preview has no adoption controls and escapes author text', () =>
   const html = renderToStaticMarkup(createElement(PublisherReviewView, { content: c }));
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>|<input|<button|<form/);
-  assert.match(html, /没有逐项来源定位/);
+  assert.match(html, /文字对应检查不能代替语义核对/);
   assert.match(html, /年龄、人物关系和已经作出的约定/);
   assert.match(html, /将填入的实际内容/);
 });

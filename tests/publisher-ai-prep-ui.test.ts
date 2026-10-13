@@ -76,11 +76,17 @@ registerHooks({
         shortCircuit: true,
         source: 'export default new Proxy({}, {get:(_t,k)=>String(k)})',
       };
-    if (url.endsWith('publisher-import-dialog.tsx')) {
-      const original = readFileSync(new URL(url), 'utf8').replace(
-        "import { useEffect, useRef, useState } from 'react';",
-        `const { useEffect, useRef, useState } = globalThis.${hookKey};`,
-      );
+    if (
+      url.endsWith('publisher-import-dialog.tsx') ||
+      url.endsWith('publisher-source-review.tsx')
+    ) {
+      const source = readFileSync(new URL(url), 'utf8');
+      const original = url.endsWith('publisher-import-dialog.tsx')
+        ? source.replace(
+            "import { useEffect, useRef, useState } from 'react';",
+            `const { useEffect, useRef, useState } = globalThis.${hookKey};`,
+          )
+        : source;
       return {
         format: 'module',
         shortCircuit: true,

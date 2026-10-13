@@ -13,7 +13,7 @@ registerHooks({
         shortCircuit: true,
         source: 'export default new Proxy({}, {get:(_t,k)=>String(k)})',
       };
-    if (url.endsWith('publisher-import-dialog.tsx'))
+    if (url.endsWith('publisher-import-dialog.tsx') || url.endsWith('publisher-source-review.tsx'))
       return {
         format: 'module',
         shortCircuit: true,
