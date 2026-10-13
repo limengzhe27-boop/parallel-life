@@ -702,7 +702,7 @@ test('overall setting starts as a private whole-world source without restoring u
   await settle();
   const nodes = s.render();
   assert.equal(s.posts.length, 0);
-  assert.equal(s.queries.length, 0);
+  assert.deepEqual(s.queries, ['latest']);
   assert.equal(s.applied.length, 0);
   assert.ok(label(nodes).includes('总体设定.md'));
   click(button(nodes, '让 AI 整理本批文稿'));
@@ -712,4 +712,35 @@ test('overall setting starts as a private whole-world source without restoring u
   assert.deepEqual(s.posts[0]?.sources, [{ filename: '总体设定.md', content: text }]);
   assert.deepEqual(s.posts[0]?.currentContent, base);
   assert.equal(s.applied.length, 0);
+});
+
+test('reopening overall preparation restores only matching source and scope without duplicate generation', async () => {
+  const sourceText = '旧城小店的总体设定';
+  const matching = record();
+  matching.status = 'unknown';
+  matching.result = null;
+  matching.material.sources = [{ filename: '总体设定.md', content: sourceText }];
+  matching.material.scope = 'world';
+  const client = {
+    latestPreparation: async () => ({ preparation: matching }),
+    getPreparation: async () => matching,
+    prepareManuscript: async () => {
+      throw Error('must not automatically generate');
+    },
+  };
+  const same = setup({ initialOverallText: sourceText, preparationClient: client });
+  same.render();
+  await settle();
+  const sameNodes = same.render();
+  assert.ok(button(sameNodes, '重新整理（新请求）'));
+  assert.equal(button(sameNodes, '查询已有整理结果').props.disabled, false);
+  assert.equal(same.applied.length, 0);
+  const changed = setup({
+    initialOverallText: sourceText + '（已改稿）',
+    preparationClient: client,
+  });
+  changed.render();
+  await settle();
+  assert.equal(button(changed.render(), '让 AI 整理本批文稿').props.disabled, false);
+  assert.equal(changed.applied.length, 0);
 });

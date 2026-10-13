@@ -458,7 +458,6 @@ export function PublisherImportDialog({
       setRemainingSources(files);
       setSources(manuscriptBatches(files, content).batches[0] ?? []);
       setScopeChoice('world');
-      return;
     }
     if (!preparationClient || disabled) return;
     // Server scopes latest to this signed-in staff member. No manuscript enters browser storage.
@@ -467,7 +466,14 @@ export function PublisherImportDialog({
     void preparationClient
       .latestPreparation(workId)
       .then(({ preparation }) => {
-        if (stillCurrent(id, start) && preparation) accept(preparation);
+        if (!stillCurrent(id, start) || !preparation) return;
+        if (initialOverallText?.trim()) {
+          const expected = [{ filename: '总体设定.md', content: initialOverallText }];
+          if (
+            preparationMatches(preparation, workId, version, content, expected, undefined, 'world')
+          )
+            accept(preparation, expected, undefined, 'world');
+        } else accept(preparation);
       })
       .catch(() => {
         if (stillCurrent(id, start))
@@ -748,8 +754,14 @@ export function PublisherImportDialog({
     >
       <header className={s.header}>
         <div>
-          <h2 id="publisher-import-title">导入与整理文稿</h2>
-          <p>导入故事 → 查看整理稿 → 核对问题 → 填入草稿</p>
+          <h2 id="publisher-import-title">
+            {initialOverallText ? '整理总体设定' : '导入与整理文稿'}
+          </h2>
+          <p>
+            {initialOverallText
+              ? '总体设定已带入 → 查看整理稿 → 核对后填入'
+              : '导入故事 → 查看整理稿 → 核对问题 → 填入草稿'}
+          </p>
         </div>
         <button type="button" onClick={onClose} aria-label="关闭文稿导入">
           关闭
@@ -758,59 +770,67 @@ export function PublisherImportDialog({
       <div className={s.body}>
         <details className={s.sourceInput} open={!updatedContent}>
           <summary>
-            {updatedContent ? `原稿与重新整理 · ${sources.length} 份文稿` : '第一步：导入你的故事'}
+            {updatedContent
+              ? `原稿与重新整理 · ${sources.length} 份文稿`
+              : initialOverallText
+                ? '核对这份总体设定'
+                : '第一步：导入你的故事'}
           </summary>
-          <label className={s.field}>
-            选择文稿或 ZIP 压缩包
-            <input
-              type="file"
-              multiple
-              accept=".md,.markdown,.txt,.zip"
-              disabled={unavailable}
-              onChange={(event) => {
-                const files = Array.from(event.currentTarget.files ?? []);
-                event.currentTarget.value = '';
-                if (files.length) void readSources(() => readFiles(files));
-              }}
-            />
-          </label>
-          <p className={s.help}>
-            支持自由叙述、人物设定、世界观和剧情。压缩包最多50 MB，正文合计4
-            MB；多份文稿会分批整理，不会截掉正文。ZIP中的照片附件不在此导入。
-          </p>
-          <p>
-            <a href="/templates/world-script.md" download>
-              下载编剧填写示例
-            </a>
-          </p>
-          <label className={s.field}>
-            或粘贴文稿
-            <textarea
-              value={text}
-              disabled={unavailable}
-              rows={5}
-              placeholder="粘贴你想讲述的世界与人物…"
-              onChange={(event) => {
-                sequence.current++;
-                setText(event.target.value);
-                setSources([]);
-                setLibrary([]);
-                setRemainingSources([]);
-                clearResult();
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            disabled={unavailable || !text.trim()}
-            onClick={() =>
-              void readSources(async () => [{ filename: '粘贴文稿.md', content: text }])
-            }
-          >
-            读取粘贴内容
-          </button>
+          {initialOverallText ? null : (
+            <>
+              <label className={s.field}>
+                选择文稿或 ZIP 压缩包
+                <input
+                  type="file"
+                  multiple
+                  accept=".md,.markdown,.txt,.zip"
+                  disabled={unavailable}
+                  onChange={(event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    event.currentTarget.value = '';
+                    if (files.length) void readSources(() => readFiles(files));
+                  }}
+                />
+              </label>
+              <p className={s.help}>
+                支持自由叙述、人物设定、世界观和剧情。压缩包最多50 MB，正文合计4
+                MB；多份文稿会分批整理，不会截掉正文。ZIP中的照片附件不在此导入。
+              </p>
+              <p>
+                <a href="/templates/world-script.md" download>
+                  下载编剧填写示例
+                </a>
+              </p>
+              <label className={s.field}>
+                或粘贴文稿
+                <textarea
+                  value={text}
+                  disabled={unavailable}
+                  rows={5}
+                  placeholder="粘贴你想讲述的世界与人物…"
+                  onChange={(event) => {
+                    sequence.current++;
+                    setText(event.target.value);
+                    setSources([]);
+                    setLibrary([]);
+                    setRemainingSources([]);
+                    clearResult();
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={unavailable || !text.trim()}
+                onClick={() =>
+                  void readSources(async () => [{ filename: '粘贴文稿.md', content: text }])
+                }
+              >
+                读取粘贴内容
+              </button>
+            </>
+          )}
           {reading && <p role="status">正在读取文稿…</p>}
-          {remainingSources.length > 0 && (
+          {remainingSources.length > 0 && !initialOverallText && (
             <section className={s.preview} aria-label="文稿处理范围">
               <h3>已读取 {library.length || remainingSources.length} 份文稿</h3>
               <p>

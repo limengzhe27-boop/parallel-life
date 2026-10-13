@@ -478,6 +478,19 @@ test('editorial extensions are stored elsewhere, never become facts, Persona, no
   assert.ok(!JSON.stringify(r).includes('EXTENSION_ONLY_SECRET'));
   assert.deepEqual(r.capabilities, ['publication.opening.v1']);
 });
+test('private overall author manuscript is retained in publication content but never enters the player or NPC world', () => {
+  const c = content();
+  c.extensions.push({
+    namespace: 'parallel_life.authoring_overall',
+    version: 1,
+    purpose: 'editorial',
+    description: '作者总体设定原稿',
+    data: { text: 'OVERALL_PRIVATE_SECRET，结局和动机仅供编剧核对' },
+  });
+  const r = compiled(input(c));
+  assert.ok(!JSON.stringify(r).includes('OVERALL_PRIVATE_SECRET'));
+  assert.ok(JSON.stringify(c).includes('OVERALL_PRIVATE_SECRET'));
+});
 test('raw malformed content, unauthorized note facts and future history do not compile', () => {
   const i = input();
   i.content = { ...content(), schemaVersion: 2 };

@@ -22,6 +22,8 @@
   max-width: 960px;
   min-width: 0;
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 20px;
   animation: enter 160ms ease-out;
 }
