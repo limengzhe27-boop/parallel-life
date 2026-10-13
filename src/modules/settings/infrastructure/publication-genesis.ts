@@ -123,19 +123,37 @@ function unsupported(c: PublicationContent): PublicationCompileIssue[] {
   const directorKeys = new Set(
     c.candidates.filter((n) => n.intent.kind === 'director_event').map((n) => n.key),
   );
+  const unsupportedCompletion = (
+    condition: PublicationContent['candidates'][number]['prerequisites'][number],
+  ) =>
+    (condition.kind === 'after_committed_node' && directorKeys.has(condition.nodeKey)) ||
+    (condition.kind === 'after_resolved_node' &&
+      directorKeys.has(condition.nodeKey) &&
+      condition.outcomes.every((o) => o === 'committed' || o === 'declined'));
   c.candidates.forEach((node, i) => {
     node.prerequisites.forEach((condition, j) => {
-      if (
-        (condition.kind === 'after_committed_node' && directorKeys.has(condition.nodeKey)) ||
-        (condition.kind === 'after_resolved_node' &&
-          directorKeys.has(condition.nodeKey) &&
-          condition.outcomes.every((o) => o === 'committed' || o === 'declined'))
-      )
+      if (unsupportedCompletion(condition))
         out.push(
           issue('unsupported_director_completion_dependency', [
             'candidates',
             i,
             'prerequisites',
+            j,
+          ]),
+        );
+    });
+    node.conditionKeys?.forEach((key, j) => {
+      const condition = c.conditions!.find((g) => g.key === key)!;
+      const blocked =
+        condition.match === 'all'
+          ? condition.prerequisites.some(unsupportedCompletion)
+          : condition.prerequisites.every(unsupportedCompletion);
+      if (blocked)
+        out.push(
+          issue('unsupported_director_completion_dependency', [
+            'candidates',
+            i,
+            'conditionKeys',
             j,
           ]),
         );

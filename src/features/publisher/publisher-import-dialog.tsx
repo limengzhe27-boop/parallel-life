@@ -202,6 +202,8 @@ const issueFields: Record<string, string> = {
   sceneMediaKey: '场景素材',
 };
 const issueReasons: Record<string, string> = {
+  character_preview_history_missing: '这位熟人的日常聊天还没有补齐，请重新整理；无需先编写台词。',
+  character_preview_moments_missing: '这位人物的日常朋友圈还没有补齐，请重新整理；无需先编写动态。',
   too_big: '内容过多或过长，请精简后再检查。',
   invalid_format: '格式不正确，请核对后修改。',
   invalid_type: '内容格式不正确或尚未填写，请补充后再检查。',

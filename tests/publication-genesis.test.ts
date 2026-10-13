@@ -747,6 +747,26 @@ test('unsupported full-event completion prerequisites are blocked without changi
   noCompile(input(c), 'unsupported', 'unsupported_director_completion_dependency');
   c.candidates[1]!.prerequisites = [{ kind: 'after_presented_node', nodeKey: 'event_a' }];
   assert.equal(compilePublicationGenesis(input(c)).status, 'compiled');
+  c.candidates[1]!.prerequisites = [];
+  c.conditions = [
+    {
+      key: 'completed_group',
+      title: '前一事件的进展',
+      match: 'all',
+      prerequisites: [
+        { kind: 'after_committed_node', nodeKey: 'event_a' },
+        { kind: 'after_presented_node', nodeKey: 'event_a' },
+      ],
+    },
+  ];
+  c.candidates[1]!.conditionKeys = ['completed_group'];
+  noCompile(input(c), 'unsupported', 'unsupported_director_completion_dependency');
+  c.conditions[0]!.match = 'any';
+  assert.equal(compilePublicationGenesis(input(c)).status, 'compiled');
+  c.conditions[0]!.prerequisites = [{ kind: 'after_committed_node', nodeKey: 'event_a' }];
+  noCompile(input(c), 'unsupported', 'unsupported_director_completion_dependency');
+  delete c.conditions;
+  delete c.candidates[1]!.conditionKeys;
   c.timeline = {
     initialStageKey: 'first',
     stages: [
