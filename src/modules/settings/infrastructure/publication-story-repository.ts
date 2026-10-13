@@ -667,26 +667,55 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       const directorPool = c.plan.nodes.some((node) => node.intent.kind === 'director_event');
       const pending = c.states.some((s) => ['claimed', 'unknown'].includes(s.status));
       const evaluation = evaluateStory(c.plan, c.states, { ...c, automatic });
+      const setting = directorPool
+        ? (
+            await sql.query('SELECT parallel_life.publication_director_setting($1) AS setting', [
+              worldId,
+            ])
+          ).rows[0].setting
+        : null;
       return {
         managed: true,
         directorPool,
+        ...(setting ? { worldSetting: JSON.stringify(setting) } : {}),
         version: c.version,
         storyNow: c.storyNow,
         candidates:
           !directorPool || pending
             ? []
-            : evaluation.eligible.slice(0, 24).map((node) => {
-                const actor = nodeActor(c.plan, node)!;
-                const placeKey =
-                  node.intent.kind === 'offer_invitation' ? node.intent.placeKey : node.placeKey;
-                return {
-                  nodeKey: node.key,
-                  title: node.title,
-                  editorialIntent: node.editorialIntent,
-                  actorId: actor.id,
-                  placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
-                };
-              }),
+            : [...evaluation.eligible]
+                .sort(
+                  (a, b) =>
+                    Number(
+                      (b.direction?.mode ??
+                        (b.intent.kind === 'director_event' ? 'required' : 'optional')) ===
+                        'required',
+                    ) -
+                    Number(
+                      (a.direction?.mode ??
+                        (a.intent.kind === 'director_event' ? 'required' : 'optional')) ===
+                        'required',
+                    ),
+                )
+                .slice(0, 24)
+                .map((node) => {
+                  const actor = nodeActor(c.plan, node)!;
+                  const placeKey =
+                    node.intent.kind === 'offer_invitation' ? node.intent.placeKey : node.placeKey;
+                  return {
+                    nodeKey: node.key,
+                    title: node.title,
+                    editorialIntent: node.editorialIntent,
+                    direction: {
+                      ...node.direction,
+                      mode:
+                        node.direction?.mode ??
+                        (node.intent.kind === 'director_event' ? 'required' : 'optional'),
+                    },
+                    actorId: actor.id,
+                    placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
+                  };
+                }),
       };
     });
   }

@@ -151,7 +151,7 @@ test('SSR offers three editable sections and honest Chinese setup guidance witho
   for (const value of [
     '已发生事实',
     '剧情阶段',
-    '3. 可能发生的剧情',
+    '事件概述列表',
     '新增事实',
     '新增阶段',
     '新增事件',
@@ -351,7 +351,7 @@ test('writer first view hides internal keys and optional date controls without m
   for (const label of [
     '已经发生的事',
     '剧情阶段',
-    '可能发生的剧情',
+    '事件概述列表',
     '不必逐条填写日期',
     '同名（第1项）',
     '同名（第2项）',
@@ -386,6 +386,7 @@ test('missing required history and invitation dates open even non-first rows and
   const blankHistory = nodes.find(
     (n) =>
       n.type === 'details' &&
+      n.props.className === 'item' &&
       walk(n.props.children as ReactNode).some(
         (e) => e.props.id === 'plot_history_fact_b_1_occurredAt',
       ),
@@ -402,7 +403,8 @@ test('existing date windows remain discoverable, collapsed and unchanged by unre
   stage.window = { notBefore: '2026-10-12T08:00:00Z', expiresAt: '2026-10-15T08:00:00Z' };
   const t = setup(false, c);
   const nodes = tree(t.props);
-  assert.ok(visibleText(renderPlot(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'));
+  assert.ok(text(renderPlot(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'));
+  assert.ok(!visibleText(renderPlot(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'));
   assert.equal(details(nodes, '限定日期（选填） · 2026').props.open, false);
   change(input(nodes, 'plot_candidates_node_a_0_title'), '新的故事标题');
   assert.deepEqual(plotRecord(plotRows(t.next!, 'stages')[0]).window, stage.window);
@@ -513,7 +515,8 @@ test('condition controls explain AND, per-event outcome semantics and director s
   assert.ok(html.includes('前置条件需要全部满足'));
   assert.ok(html.includes('任意一个满足即可'));
   assert.ok(html.includes('邀约已接受或已赴约（当前不区分这两种结果）'));
-  assert.ok(html.includes('这是给导演的建议，不是必须满足的出现条件'));
+  assert.ok(html.includes('事件概述：主角将面临什么'));
+  assert.ok(html.includes('不用预写台词'));
   assert.ok(!html.includes('>已提交<'));
 });
 test('graph selection opens and focuses the exact editable event without changing the draft', () => {

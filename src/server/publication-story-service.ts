@@ -95,6 +95,23 @@ export async function advancePublicationStory(
           selected = await deps.planner.chooseStoryOpportunity({
             storyNow: pool.storyNow,
             worldTitle: world.title,
+            worldSetting:
+              pool.worldSetting ??
+              world.facts
+                .filter(
+                  (fact) =>
+                    fact.kind === 'canonical' && ['owner', 'world'].includes(fact.visibility.kind),
+                )
+                .slice(-16)
+                .map((fact) => fact.text)
+                .join('\n')
+                .slice(0, 12000),
+            cast: world.actors.map(({ id, name, persona, relationship }) => ({
+              id,
+              name,
+              persona,
+              relationship,
+            })),
             currentPlaceId: world.space?.currentPlaceId ?? null,
             // Only messages from the player's own phone, never another person's private memories.
             recentMessages: world.messages
@@ -102,6 +119,14 @@ export async function advancePublicationStory(
               .map(({ role, actorId, text }) => ({ role, actorId, text: text.slice(0, 500) })),
             candidates: pool.candidates,
           });
+          const required = pool.candidates.filter(
+            (candidate) => candidate.direction?.mode === 'required',
+          );
+          if (
+            required.length &&
+            (selected === null || !required.some((candidate) => candidate.nodeKey === selected))
+          )
+            throw new DomainError('INVALID_PROPOSAL', '这组剧情需要推进，导演尚未给出有效安排。');
           if (selected !== null && !pool.candidates.some((n) => n.nodeKey === selected))
             throw new DomainError('INVALID_PROPOSAL', '导演选择的剧情暂不能发生。');
         } catch (error) {

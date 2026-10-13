@@ -52,6 +52,9 @@ export type ActorContext = {
 export type StoryOpportunityInput = {
   storyNow: string;
   worldTitle: string;
+  /** Director-only fictional world setting and cast; never an NPC's private memory. */
+  worldSetting?: string;
+  cast?: Pick<WorldState['actors'][number], 'id' | 'name' | 'persona' | 'relationship'>[];
   currentPlaceId: string | null;
   recentMessages: { role: 'user' | 'assistant'; actorId: string; text: string }[];
   candidates: {
@@ -60,6 +63,7 @@ export type StoryOpportunityInput = {
     editorialIntent: string;
     actorId: string;
     placeName: string | null;
+    direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
   }[];
 };
 export interface TurnPlanner {

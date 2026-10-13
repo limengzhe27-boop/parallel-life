@@ -91,7 +91,10 @@ export function buildStoryGraph(raw: Record<string, unknown>): StoryGraph {
           offer_message: '角色来信',
           offer_invitation: '发出邀约',
           editorial_only: '导演建议（仅备注，不自动执行）',
-          director_event: '由导演择机演绎，也可暂缓',
+          director_event:
+            plotRecord(row.direction).mode === 'optional'
+              ? '导演择机开始演绎'
+              : '满足前提后推进 · 开始演绎',
         };
         const kind = plotText(plotRecord(row.intent).kind);
         return Object.hasOwn(labels, kind) ? labels[kind as keyof typeof labels] : '剧情方式待核对';

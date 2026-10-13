@@ -37,20 +37,20 @@ export type PublisherPlotEditorProps = {
 };
 const sections = {
   history: {
-    title: '1. 已经发生的事',
+    title: '已经发生的事',
     help: '只写世界开场前已确立的事情，时间不晚于起点。未来可能发生的事放在可能发生的剧情。',
     add: '新增事实',
     limit: 64,
   },
   stages: {
-    title: '2. 剧情阶段',
+    title: '剧情阶段',
     help: '按故事的先后组织阶段，不必逐个填写日期，也不代表玩家必须逐项完成。',
     add: '新增阶段',
     limit: 16,
   },
   candidates: {
-    title: '3. 可能发生的剧情',
-    help: '先写人物、内容和出现条件。日期限制可不填；条件满足后仍是可能发生，不是已经发生。',
+    title: '事件概述列表',
+    help: '每件事独立写清主角会面临什么，前提可不填。需要推进的事件在条件允许时开始演绎，可选事件由导演择机采用。',
     add: '新增事件',
     limit: 32,
   },
@@ -573,17 +573,52 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                 手机来信和邀约通常不限制玩家位置；下面的邀约地点才是见面目的地。
               </p>
               {field(
-                '导演建议：这一段想带出什么',
+                '事件概述：主角将面临什么',
                 ['editorialIntent'],
-                '描述双方顾虑和创作意图。这是给导演的建议，不是必须满足的出现条件，也不会固定角色台词。',
+                '描述围绕主角会发生什么，约200字即可。导演会结合人物性格与世界设定安排过程，不用预写台词。',
                 true,
                 1600,
               )}
               {refsField('参与人物', ['actorKeys'], actors)}
+              {intentKind === 'director_event' && (
+                <div className={s.group}>
+                  <label className={s.field}>
+                    <span className={s.label}>导演如何安排</span>
+                    <select
+                      className={s.input}
+                      value={plotText(plotRecord(row.direction).mode) || 'required'}
+                      disabled={blocked}
+                      onChange={(e) => {
+                        if (!blocked) patch(['direction', 'mode'], e.target.value);
+                      }}
+                    >
+                      <option value="required">满足前提后需要推进</option>
+                      <option value="optional">导演可以择机采用或暂缓</option>
+                    </select>
+                  </label>
+                  {field(
+                    '预期影响（选填）',
+                    ['direction', 'expectedImpact'],
+                    '例如引出一个新的选择、改变人物关系；这是期望，不是已经发生的结果。',
+                    true,
+                    800,
+                  )}
+                  {field(
+                    '希望玩家感受到什么（选填）',
+                    ['direction', 'experience'],
+                    '写希望带来的体验，不要求玩家作出指定选择。',
+                    true,
+                    800,
+                  )}
+                  <p className={s.hint}>
+                    需要推进的事件也必须满足前提。导演先开始演绎，人物来信不表示事件全部完成，也不表示玩家已经答应。
+                  </p>
+                </div>
+              )}
               <div className={s.group}>
                 <h4>这段剧情会发生什么</h4>
                 <p className={s.hint}>
-                  事件内容由导演结合人物与当前经历演绎。前提可不填；满足前提仅代表可以发生，导演仍可暂缓。切换方式前请核对原输入。
+                  事件内容由导演结合人物与当前经历演绎。前提可不填；需要推进的事件满足前提后会进入安排，可选事件可以暂缓。切换方式前请核对原输入。
                 </p>
                 <p>
                   当前：
@@ -632,7 +667,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                   <>
                     {selectField('由谁开启这件事', ['intent', 'actorKey'], actors)}
                     <p className={s.hint}>
-                      导演可以选择展开或暂缓；角色按自己的性格联系玩家。发出消息不表示玩家已答应或完成。
+                      角色按自己的性格联系玩家，开始演绎这件事。发出消息不表示玩家已答应或事件全部完成。
                     </p>
                   </>
                 )}
@@ -886,24 +921,8 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
   return (
     <div className={s.editor} aria-label="剧情编辑器">
       <p className={s.notice}>
-        先写故事，再安排先后条件。阶段和可能发生的剧情不必逐条填写日期。先填写并保存，能否运行以检查结果为准；可能发生的剧情不是已发生事实。
+        先写一组围绕主角的事件概述，再按需要添加前提。每件事可以独立发生，不必连接成固定路线，也不必逐条填写日期。先填写并保存，能否运行以检查结果为准。导演结合世界设定与人物开始演绎，事件展开不代表玩家已经完成。
       </p>
-      <PublisherStoryGraph
-        content={content}
-        disabled={disabled}
-        onSelect={selectGraphEvent}
-        onSelectCondition={(key) => {
-          setSelectedCondition(key);
-          document.getElementById('publisher-conditions')?.scrollIntoView({ block: 'start' });
-        }}
-      />
-      <PublisherConditionEditor
-        content={content}
-        disabled={disabled}
-        selectedKey={selectedCondition}
-        onSelect={setSelectedCondition}
-        onChange={onChange}
-      />
       {disabled && <p className={s.hint}>当前只读或正在处理操作，修改入口暂不可用。</p>}
       {issues.length > 0 && (
         <div className={s.card} role="status">
@@ -916,11 +935,11 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           </ul>
         </div>
       )}
-      {(Object.keys(sections) as PlotSection[]).map((section) => {
+      {(['candidates', 'history', 'stages'] as PlotSection[]).map((section) => {
         const config = sections[section],
           rows = plotRows(content, section),
           allowed = plotCollectionEditable(content, section);
-        return (
+        const sectionContent = (
           <section className={s.card} key={section} aria-label={config.title}>
             <header className={s.header}>
               <div>
@@ -957,7 +976,41 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
             {rows.map((raw, i) => rowForm(section, raw, i))}
           </section>
         );
+        return section === 'candidates' ? (
+          sectionContent
+        ) : (
+          <details key={section} className={s.card}>
+            <summary className={s.summary}>
+              {config.title}（{rows.length}）
+            </summary>
+            {sectionContent}
+          </details>
+        );
       })}
+      <details className={s.card}>
+        <summary className={s.summary}>事件关系图（选看）</summary>
+        <PublisherStoryGraph
+          content={content}
+          disabled={disabled}
+          onSelect={selectGraphEvent}
+          onSelectCondition={(key) => {
+            setSelectedCondition(key);
+            const area = document.getElementById('publisher-condition-area');
+            if (area instanceof HTMLDetailsElement) area.open = true;
+            document.getElementById('publisher-conditions')?.scrollIntoView({ block: 'start' });
+          }}
+        />
+      </details>
+      <details id="publisher-condition-area" className={s.card}>
+        <summary className={s.summary}>独立条件（按需设置）</summary>
+        <PublisherConditionEditor
+          content={content}
+          disabled={disabled}
+          selectedKey={selectedCondition}
+          onSelect={setSelectedCondition}
+          onChange={onChange}
+        />
+      </details>
     </div>
   );
 }

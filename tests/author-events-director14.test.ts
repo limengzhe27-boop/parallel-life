@@ -276,3 +276,65 @@ test('a changed world or newly invalid prerequisite stops before character gener
   assert.deepEqual(s.evidence, ['reserve', 'choose', 'selected', 'recheck-conflict']);
   assert.equal((await s.deps.worlds.get({ userId: 'o' }, 'w')).version, 0);
 });
+
+test('required events cannot be deferred or replaced by an optional candidate', async () => {
+  const requiredInput: StoryOpportunityInput = {
+    ...input,
+    candidates: [
+      {
+        ...input.candidates[0]!,
+        direction: { mode: 'required', expectedImpact: '引出选择', experience: '感受到关系' },
+      },
+      { ...input.candidates[0]!, nodeKey: 'optional-other', direction: { mode: 'optional' } },
+    ],
+  };
+  for (const raw of ['{"nodeKey":null}', '{"nodeKey":"optional-other"}']) {
+    const planner = new WorldTurnPlanner({ complete: async () => raw });
+    await assert.rejects(
+      planner.chooseStoryOpportunity(requiredInput),
+      /REQUIRED_STORY_SELECTION_MISSING/,
+    );
+  }
+  const planner = new WorldTurnPlanner({ complete: async () => '{"nodeKey":"optional"}' });
+  assert.equal(await planner.chooseStoryOpportunity(requiredInput), 'optional');
+  const s = setup(null);
+  s.deps.story.opportunities = async () => ({
+    managed: true,
+    directorPool: true,
+    version: 0,
+    storyNow: now,
+    candidates: requiredInput.candidates,
+  });
+  await assert.rejects(advancePublicationStory(s.deps, 'o', 'w', true), /需要推进/);
+  assert.deepEqual(s.evidence, ['reserve', 'choose', 'unknown']);
+  assert.equal((await s.deps.worlds.get({ userId: 'o' }, 'w')).version, 0);
+});
+test('director sees fictional world setting and the cast while the acting NPC keeps its scoped context', async () => {
+  const s = setup('optional');
+  s.deps.story.opportunities = async () => ({
+    managed: true,
+    directorPool: true,
+    version: 0,
+    storyNow: now,
+    worldSetting: '合成世界总体设定',
+    candidates: input.candidates,
+  });
+  let seen: StoryOpportunityInput | undefined;
+  let npcInput = '';
+  const character = s.deps.planner.propose;
+  s.deps.planner.propose = async (value) => {
+    npcInput = JSON.stringify(value);
+    return character(value);
+  };
+  s.deps.planner.chooseStoryOpportunity = async (value) => {
+    seen = value;
+    return 'optional';
+  };
+  await advancePublicationStory(s.deps, 'o', 'w', false);
+  assert.equal(seen!.worldSetting, '合成世界总体设定');
+  assert.ok(!npcInput.includes('合成世界总体设定'));
+  assert.ok(!npcInput.includes('\"cast\"'));
+  assert.deepEqual(seen!.cast, [
+    { id: 'a', name: '甲', persona: '说话简短', relationship: undefined },
+  ]);
+});

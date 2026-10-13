@@ -191,6 +191,7 @@ export function addPlotRow(content: PlotRecord, section: PlotSection): PlotRecor
             prerequisites: [],
             mutuallyExclusiveNodeKeys: [],
             intent: { kind: 'director_event', actorKey: '' },
+            direction: { mode: 'required' },
           };
   if (section === 'stages' && next.timeline === undefined)
     next.timeline = { initialStageKey: key, stages: [row] };

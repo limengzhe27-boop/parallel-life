@@ -58,12 +58,14 @@ export type PublicationStoryOpportunities = {
   directorPool: boolean;
   version: number;
   storyNow: string;
+  worldSetting?: string;
   candidates: {
     nodeKey: string;
     title: string;
     editorialIntent: string;
     actorId: string;
     placeName: string | null;
+    direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
   }[];
 };
 export interface PublicationStoryPort {
