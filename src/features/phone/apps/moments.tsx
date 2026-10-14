@@ -6,6 +6,8 @@ import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty } from './common.tsx';
 import s from './apps.module.css';
 import feed from './moments.module.css';
+import { MomentGallery } from '../../media/moment-gallery.tsx';
+import { momentImages } from '../../../modules/settings/domain/moment-visibility.ts';
 /** Authored opening posts are saved content, not fabricated real-time reactions. */
 export function MomentsApp({ open, target }: PhoneAppContext) {
   const { worldId, transport, data } = usePhoneApps();
@@ -79,11 +81,7 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
                 <div>
                   <strong>{m.name}</strong>
                   <p>{m.text}</p>
-                  {m.image && (
-                    <div style={{ marginTop: 6, maxWidth: '100%', borderRadius: 8, overflow: 'hidden' }}>
-                      <img src={m.image} alt="" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
-                    </div>
-                  )}
+                  <MomentGallery images={momentImages(m)} label={`${m.name}的朋友圈`} />
                   <time dateTime={m.at}>
                     {new Date(m.at).toLocaleString('zh-CN', {
                       timeZone: 'Asia/Shanghai',

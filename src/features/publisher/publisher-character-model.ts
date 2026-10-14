@@ -89,7 +89,14 @@ export type CharacterPreviewMessage = {
   speaker: 'actor' | 'player';
   attachment?: { kind: 'image' | 'video'; assetId: string; label?: string };
 };
-export type CharacterPreviewMoment = { key: string; text: string; at: string; image?: string };
+export type CharacterPreviewMoment = {
+  key: string;
+  text: string;
+  at: string;
+  image?: string;
+  images?: string[];
+  visibility?: { kind: 'after_statement'; actorKey: string; statement: string };
+};
 function chronological<T extends { at: string }>(entries: T[]) {
   return entries.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
@@ -146,6 +153,22 @@ export function characterPreview(content: Record<string, unknown>, actorKey: str
           text: string(m.text),
           at: string(m.at),
           ...(typeof m.image === 'string' && m.image ? { image: m.image } : {}),
+          ...(Array.isArray(m.images)
+            ? {
+                images: m.images.filter(
+                  (url): url is string => typeof url === 'string' && Boolean(url),
+                ),
+              }
+            : {}),
+          ...(record(m.visibility).kind === 'after_statement'
+            ? {
+                visibility: record(m.visibility) as {
+                  kind: 'after_statement';
+                  actorKey: string;
+                  statement: string;
+                },
+              }
+            : {}),
         }))
     : [];
   return {

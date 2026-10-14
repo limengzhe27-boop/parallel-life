@@ -16,6 +16,11 @@ import {
   type HistoryAttachment,
 } from './publisher-character-social-editor-model.ts';
 import s from './publisher-character-social-editor.module.css';
+import { MomentGallery } from '../media/moment-gallery.tsx';
+import {
+  momentImages,
+  type MomentUnlock,
+} from '../../modules/settings/domain/moment-visibility.ts';
 
 type Props = {
   content: Record<string, unknown>;
@@ -31,8 +36,10 @@ type Props = {
 };
 type Page = 'chat' | 'profile' | 'moments';
 function localMediaKind(file: File): HistoryAttachment['kind'] | undefined {
-  if (['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
-      (!file.type && /\.(?:jpe?g|png|webp)$/i.test(file.name)))
+  if (
+    ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+    (!file.type && /\.(?:jpe?g|png|webp)$/i.test(file.name))
+  )
     return 'image';
   if (file.type === 'video/mp4' || (!file.type && /\.mp4$/i.test(file.name))) return 'video';
   return undefined;
@@ -61,7 +68,15 @@ export function PublisherCharacterSocialEditor({
   const [postText, setPostText] = useState('');
   const [postDay, setPostDay] = useState('');
   const [editingPost, setEditingPost] = useState<string | null>(null);
-  const [postImage, setPostImage] = useState<string>('');
+  const [postImages, setPostImages] = useState<string[]>([]);
+  const [postFiles, setPostFiles] = useState<File[]>([]);
+  const [postLocked, setPostLocked] = useState(false);
+  const [confirmActor, setConfirmActor] = useState(actorKey);
+  const [confirmStatement, setConfirmStatement] = useState('');
+  const currentContent = useRef(content);
+  const currentActor = useRef(actorKey);
+  currentContent.current = content;
+  currentActor.current = actorKey;
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const mediaInput = useRef<HTMLInputElement>(null);
@@ -77,7 +92,12 @@ export function PublisherCharacterSocialEditor({
     setPostOpen(false);
     setPostText('');
     setPostDay('');
-    setPostImage('');
+    setPostImages([]);
+    setPostFiles([]);
+    setPostLocked(false);
+    setConfirmActor(actorKey);
+    setConfirmStatement('');
+    setUploading(false);
     setEditingPost(null);
     setError('');
     setNotice('');
@@ -91,6 +111,13 @@ export function PublisherCharacterSocialEditor({
   const person = characterPreview(content, actorKey);
   if (!person) return <p className={s.empty}>请先核对人物资料，重复的人物暂不能编辑微信。</p>;
   const name = person.name || '未命名人物';
+  const actorRows = Array.isArray(content.actors)
+    ? (content.actors as Record<string, unknown>[])
+    : [];
+  const ownActor = actorRows.find((a) => a.key === actorKey);
+  const ownCard = ownActor?.publicCard as Record<string, unknown> | undefined;
+  const audience = ownCard?.momentsVisibility === 'three_days' ? 'three_days' : 'all';
+
   const disabled = busy || uploading || !canEdit;
   const history = historySegments(content, actorKey);
   const editableHistoryKeys = new Set(
@@ -154,22 +181,64 @@ export function PublisherCharacterSocialEditor({
         );
     apply(result, resetMessage);
   };
-  const submitPost = () => {
+  const submitPost = async () => {
+    const unlock: MomentUnlock | null = postLocked
+      ? { kind: 'after_statement', actorKey: confirmActor, statement: confirmStatement.trim() }
+      : null;
+    if (unlock && (!unlock.actorKey || !unlock.statement))
+      return setError('请选择确认身份的人物，并填写确认语句。');
+    let pictures = [...postImages];
+    if (postFiles.length) {
+      if (!uploadAttachment) return setError('暂时无法上传图片，请刷新后重试。');
+      setUploading(true);
+      try {
+        for (const file of postFiles) {
+          const uploaded = await uploadAttachment(file);
+          const url = uploaded.url ?? previewAttachment?.(uploaded.assetId);
+          if (uploaded.kind !== 'image' || !url)
+            throw new Error('图片未返回可保存的引用，请重试。');
+          if (currentActor.current !== actorKey) return;
+          pictures = [...pictures, url];
+          setPostImages(pictures);
+          setPostFiles((files) => files.filter((item) => item !== file));
+        }
+      } catch (error) {
+        setError(
+          error instanceof Error ? error.message : '上传失败，未完成的图片仍保留，可以重试。',
+        );
+        return;
+      } finally {
+        setUploading(false);
+      }
+    }
+    if (currentActor.current !== actorKey) return;
     const result = editingPost
       ? editMoment(
-          content,
+          currentContent.current,
           actorKey,
           editingPost,
           postText,
           postDay || undefined,
           referenceAt,
-          postImage,
+          undefined,
+          { images: pictures, visibility: unlock },
         )
-      : addMoment(content, actorKey, postText, postDay || undefined, referenceAt, postImage);
+      : addMoment(
+          currentContent.current,
+          actorKey,
+          postText,
+          postDay || undefined,
+          referenceAt,
+          undefined,
+          { images: pictures, visibility: unlock },
+        );
     apply(result, () => {
       setPostText('');
       setPostDay('');
-      setPostImage('');
+      setPostImages([]);
+      setPostFiles([]);
+      setPostLocked(false);
+      setConfirmStatement('');
       setEditingPost(null);
       setPostOpen(false);
     });
@@ -514,6 +583,27 @@ export function PublisherCharacterSocialEditor({
               {avatar}
             </div>
           </div>
+          {canEdit ? (
+            <label className={s.audience}>
+              朋友圈可见范围
+              <select
+                aria-label="朋友圈可见范围"
+                value={audience}
+                disabled={disabled}
+                onChange={(event) =>
+                  onChange(
+                    editPublicProfile(content, actorKey, 'momentsVisibility', event.target.value),
+                  )
+                }
+              >
+                <option value="all">全部动态</option>
+                <option value="three_days">仅三天可见</option>
+              </select>
+              <span className={s.smallHint}>按世界时间计算最近72小时；编剧仍可编辑全部动态。</span>
+            </label>
+          ) : audience === 'three_days' ? (
+            <p className={s.smallHint}>仅三天可见</p>
+          ) : null}
           {postOpen && canEdit && (
             <div className={s.postComposer}>
               <h3>{editingPost ? '编辑朋友圈' : '发布朋友圈草稿'}</h3>
@@ -537,64 +627,118 @@ export function PublisherCharacterSocialEditor({
                   onChange={(event) => setPostDay(event.target.value)}
                 />
               </label>
-              <div style={{ margin: '8px 0' }}>
-                <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
-                  配图（选填）
-                </label>
-                {postImage ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <img
-                      src={postImage}
-                      alt="动态配图预览"
-                      style={{
-                        width: 80,
-                        height: 80,
-                        objectFit: 'cover',
-                        borderRadius: 6,
-                        border: '1px solid #cbd5e1',
-                      }}
-                    />
+              <div className={s.photoEditor}>
+                <span>配图（最多9张）</span>
+                <MomentGallery images={postImages} label="动态配图预览" />
+                {postImages.map((url, i) => (
+                  <div key={url} className={s.imageControls}>
+                    <span>第{i + 1}张</span>
                     <button
                       type="button"
-                      className={s.secondary}
-                      style={{ fontSize: 12, padding: '4px 8px' }}
-                      onClick={() => setPostImage('')}
+                      disabled={disabled || i === 0}
+                      onClick={() =>
+                        setPostImages((images) => {
+                          const next = [...images];
+                          [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
+                          return next;
+                        })
+                      }
                     >
-                      移除图片
+                      前移
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setPostImages((images) => images.filter((_, n) => n !== i))}
+                    >
+                      移除
                     </button>
                   </div>
-                ) : (
-                  <label
-                    className={s.secondary}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      cursor: disabled ? 'not-allowed' : 'pointer',
-                      fontSize: 13,
-                      padding: '6px 12px',
-                    }}
-                  >
-                    <span>+ 导入动态配图</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: 'none' }}
+                ))}
+                {postFiles.map((file, i) => (
+                  <div key={i} className={s.imageControls}>
+                    <span>{file.name}（待上传）</span>
+                    <button
+                      type="button"
                       disabled={disabled}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          const dataUrl = event.target?.result as string;
-                          if (dataUrl) setPostImage(dataUrl);
-                        };
-                        reader.readAsDataURL(file);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                )}
+                      onClick={() => setPostFiles((files) => files.filter((_, n) => n !== i))}
+                    >
+                      移除
+                    </button>
+                  </div>
+                ))}
+                <label className={s.secondary}>
+                  + 添加配图
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                    disabled={
+                      disabled || !uploadAttachment || postImages.length + postFiles.length >= 9
+                    }
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? []);
+                      event.target.value = '';
+                      if (postImages.length + postFiles.length + files.length > 9)
+                        return setError('每条朋友圈最多添加9张图片。');
+                      if (
+                        files.some(
+                          (file) =>
+                            localMediaKind(file) !== 'image' || !file.size || file.size > 10000000,
+                        )
+                      )
+                        return setError('请选择10MB以内的JPG、PNG或WebP图片。');
+                      setPostFiles((prior) => [...prior, ...files]);
+                      setError('');
+                    }}
+                  />
+                </label>
               </div>
+              <fieldset className={s.ruleEditor}>
+                <legend>这条动态何时可见</legend>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={postLocked}
+                    disabled={disabled}
+                    onChange={(event) => setPostLocked(event.target.checked)}
+                  />
+                  指定人物确认身份后可见
+                </label>
+                {postLocked && (
+                  <>
+                    <label>
+                      确认人物
+                      <select
+                        aria-label="确认身份的人物"
+                        value={confirmActor}
+                        disabled={disabled}
+                        onChange={(event) => setConfirmActor(event.target.value)}
+                      >
+                        {actorRows.map((a) => (
+                          <option key={String(a.key)} value={String(a.key)}>
+                            {String(a.name)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      确认语句
+                      <textarea
+                        rows={2}
+                        maxLength={500}
+                        value={confirmStatement}
+                        disabled={disabled}
+                        onChange={(event) => setConfirmStatement(event.target.value)}
+                        placeholder="例如：你照看的这个孩子是我的儿子。"
+                      />
+                    </label>
+                    <p className={s.smallHint}>
+                      这位人物在微信或主角在场的现场中完整说出这句确认，并成功保存后解锁。原句需要一致；不会按关键词猜测。
+                    </p>
+                  </>
+                )}
+              </fieldset>
               <p className={s.smallHint}>未选日期时会安排在故事开场前。支持文字与动态配图。</p>
               <div className={s.composerActions}>
                 <button
@@ -605,7 +749,10 @@ export function PublisherCharacterSocialEditor({
                     setEditingPost(null);
                     setPostText('');
                     setPostDay('');
-                    setPostImage('');
+                    setPostImages([]);
+                    setPostFiles([]);
+                    setPostLocked(false);
+                    setConfirmStatement('');
                   }}
                 >
                   取消
@@ -630,19 +777,9 @@ export function PublisherCharacterSocialEditor({
               <div className={s.postContent}>
                 <strong>{name}</strong>
                 <p>{post.text}</p>
-                {post.image && (
-                  <div style={{ marginTop: 8, maxWidth: 260, borderRadius: 8, overflow: 'hidden' }}>
-                    <img
-                      src={post.image}
-                      alt=""
-                      style={{
-                        width: '100%',
-                        maxHeight: 200,
-                        objectFit: 'cover',
-                        display: 'block',
-                      }}
-                    />
-                  </div>
+                <MomentGallery images={momentImages(post)} label={name + '的朋友圈'} />
+                {post.visibility && (
+                  <p className={s.smallHint}>确认身份后可见（编剧可查看完整内容）</p>
                 )}
                 <time dateTime={post.at}>{characterPreviewTime(post.at)}</time>
                 {canEdit && (
@@ -654,7 +791,11 @@ export function PublisherCharacterSocialEditor({
                         setEditingPost(post.key);
                         setPostText(post.text);
                         setPostDay('');
-                        setPostImage(post.image ?? '');
+                        setPostImages(momentImages(post));
+                        setPostFiles([]);
+                        setPostLocked(Boolean(post.visibility));
+                        setConfirmActor(post.visibility?.actorKey ?? actorKey);
+                        setConfirmStatement(post.visibility?.statement ?? '');
                         setPostOpen(true);
                         setError('');
                       }}

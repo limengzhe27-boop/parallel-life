@@ -1,4 +1,8 @@
 import { characterPreview } from './publisher-character-model.ts';
+import {
+  momentImages,
+  type MomentUnlock,
+} from '../../modules/settings/domain/moment-visibility.ts';
 
 type Draft = Record<string, unknown>;
 type Entry = Record<string, unknown>;
@@ -99,7 +103,7 @@ export function addHistoryMessage(
   if (attachment && !historyAttachment(attachment))
     return { content, error: '这份图片或视频尚未保存，请重新上传。' };
   const all = list(record(content.phone).messages);
-  if (all.length >= 40) return { content, error: '历史聊天已达到 40 条上限。' };
+  if (all.length >= 200) return { content, error: '历史聊天已达到 200 条上限。' };
   const at = chooseHistoryTime(content, actorKey, interval, referenceAt);
   if (!at)
     return {
@@ -221,12 +225,15 @@ export function addMoment(
   day?: string,
   referenceAt?: string,
   image?: string,
+  options?: { images?: string[]; visibility?: MomentUnlock | null },
 ): { content: Draft; error?: string } {
   const subject = actor(content, actorKey);
   if (!subject || subject.knownAtStart !== true)
     return { content, error: '请先确认这位人物与主角开场已经认识。' };
   if (!text.trim() || text.trim().length > 1600)
     return { content, error: '朋友圈正文请填写 1 至 1600 字。' };
+  const error = momentOptionsError(content, options);
+  if (error) return { content, error };
   const all = list(record(content.phone).moments);
   if (all.length >= 48) return { content, error: '朋友圈已达到 48 条上限。' };
   const at = momentTime(content, day, referenceAt);
@@ -242,7 +249,8 @@ export function addMoment(
     actorKey,
     text: text.trim(),
     at,
-    ...(image ? { image } : {}),
+    ...momentMediaFields({ ...(image ? { image } : {}) }, options),
+    ...(options?.visibility ? { visibility: options.visibility } : {}),
   };
   return { content: withPhoneEntries(content, 'moments', [...all, added]) };
 }
@@ -255,9 +263,12 @@ export function editMoment(
   day?: string,
   referenceAt?: string,
   image?: string,
+  options?: { images?: string[]; visibility?: MomentUnlock | null },
 ): { content: Draft; error?: string } {
   if (!text.trim() || text.trim().length > 1600)
     return { content, error: '朋友圈正文请填写 1 至 1600 字。' };
+  const error = momentOptionsError(content, options);
+  if (error) return { content, error };
   const all = list(record(content.phone).moments);
   const existing = all.find((item) => item.key === key && item.actorKey === actorKey);
   if (!existing) return { content, error: '这条朋友圈已不存在，请刷新后重试。' };
@@ -267,24 +278,48 @@ export function editMoment(
     content: withPhoneEntries(
       content,
       'moments',
-      all.map((item) =>
-        item === existing
-          ? {
-              ...item,
-              text: text.trim(),
-              at,
-              ...(image !== undefined
-                ? image
-                  ? { image }
-                  : {}
-                : (item as any).image
-                  ? { image: (item as any).image }
-                  : {}),
-            }
-          : item,
-      ),
+      all.map((item) => {
+        if (item !== existing) return item;
+        const next: Entry = { ...item, text: text.trim(), at };
+        delete next.image;
+        delete next.images;
+        Object.assign(next, momentMediaFields(item, options, image));
+        if (options?.visibility === null) delete next.visibility;
+        else if (options?.visibility) next.visibility = options.visibility;
+        return next;
+      }),
     ),
   };
+}
+
+function momentOptionsError(
+  content: Draft,
+  options?: { images?: string[]; visibility?: MomentUnlock | null },
+): string | undefined {
+  if (options?.images && (options.images.length > 9 || options.images.some((s) => !s.trim())))
+    return '每条朋友圈最多添加9张图片。';
+  if (
+    options?.visibility &&
+    (!actor(content, options.visibility.actorKey) ||
+      !options.visibility.statement.trim() ||
+      options.visibility.statement.trim().length > 500)
+  )
+    return '请选择确认身份的人物，并填写1至500字的确认语句。';
+}
+function momentMediaFields(
+  existing: Entry,
+  options?: { images?: string[] },
+  image?: string,
+): Entry {
+  const pictures =
+    options?.images !== undefined
+      ? momentImages({ images: options.images })
+      : image !== undefined
+        ? image
+          ? [image]
+          : []
+        : momentImages(existing as { image?: string; images?: string[] });
+  return pictures.length ? { image: pictures[0], images: pictures } : {};
 }
 
 export function removeMoment(content: Draft, actorKey: string, key: string): Draft {
@@ -301,10 +336,11 @@ export function removeMoment(content: Draft, actorKey: string, key: string): Dra
 export function editPublicProfile(
   content: Draft,
   actorKey: string,
-  field: 'identity' | 'introduction',
+  field: 'identity' | 'introduction' | 'momentsVisibility',
   value: string,
 ): Draft {
   const subject = actor(content, actorKey);
+  if (field === 'momentsVisibility' && value !== 'all' && value !== 'three_days') return content;
   if (!subject || value.length > (field === 'identity' ? 160 : 1600)) return content;
   const card = { ...record(subject.publicCard) };
   if (value.trim()) card[field] = value;

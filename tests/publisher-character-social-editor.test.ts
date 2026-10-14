@@ -11,6 +11,57 @@ import {
   removeMoment,
 } from '../src/features/publisher/publisher-character-social-editor-model.ts';
 
+test('multi-photo editing preserves order and confirmation, supports removal and keeps private character modules', () => {
+  const source = fixture();
+  const rule = { kind: 'after_statement' as const, actorKey: 'lin', statement: '我确认这件事。' };
+  const added = addMoment(source, 'lin', '照片', undefined, undefined, undefined, {
+    images: ['first', 'second', 'third'],
+    visibility: rule,
+  });
+  assert.equal(added.error, undefined);
+  const key = String(phone(added.content).moments.at(-1)!.key);
+  const edited = editMoment(added.content, 'lin', key, '只改正文');
+  assert.deepEqual(phone(edited.content).moments.at(-1)!.images, ['first', 'second', 'third']);
+  assert.deepEqual(phone(edited.content).moments.at(-1)!.visibility, rule);
+  const removed = editMoment(edited.content, 'lin', key, '改图', undefined, undefined, undefined, {
+    images: ['third', 'second'],
+  });
+  assert.equal(phone(removed.content).moments.at(-1)!.image, 'third');
+  const cleared = editMoment(removed.content, 'lin', key, '清除', undefined, undefined, undefined, {
+    images: [],
+    visibility: null,
+  });
+  const post = phone(cleared.content).moments.at(-1)!;
+  assert.equal(post.image, undefined);
+  assert.equal(post.images, undefined);
+  assert.equal(post.visibility, undefined);
+  assert.deepEqual(cleared.content.actors, source.actors);
+  assert.deepEqual(cleared.content.extensions, source.extensions);
+  assert.equal(
+    addMoment(source, 'lin', '错误', undefined, undefined, undefined, {
+      images: Array(10).fill('a'),
+    }).content,
+    source,
+  );
+  assert.equal(
+    addMoment(source, 'lin', '错误', undefined, undefined, undefined, {
+      visibility: { ...rule, actorKey: 'absent' },
+    }).content,
+    source,
+  );
+});
+
+test('three-day policy changes only the selected public card and rejects unknown policy', () => {
+  const source = fixture();
+  const updated = editPublicProfile(source, 'lin', 'momentsVisibility', 'three_days');
+  const actors = updated.actors as Record<string, unknown>[];
+  assert.equal((actors[0]!.publicCard as Record<string, unknown>).momentsVisibility, 'three_days');
+  assert.deepEqual(actors[1], (source.actors as unknown[])[1]);
+  assert.deepEqual(updated.phone, source.phone);
+  assert.deepEqual(updated.extensions, source.extensions);
+  assert.equal(editPublicProfile(source, 'lin', 'momentsVisibility', 'seven_days'), source);
+});
+
 function fixture(): Record<string, unknown> {
   return {
     world: { startAt: '2026-10-14T12:00:00.000Z', hiddenContext: '世界私密内容' },

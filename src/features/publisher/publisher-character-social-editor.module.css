@@ -452,3 +452,36 @@
     max-width: 75%;
   }
 }
+.photoEditor,
+.ruleEditor,
+.audience {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 12px 0;
+}
+.ruleEditor {
+  border: 1px solid #e4e7eb;
+  border-radius: 8px;
+  padding: 12px;
+}
+.imageControls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.imageControls span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.imageControls button,
+.audience select,
+.ruleEditor select {
+  min-height: 44px;
+}
+.ruleEditor textarea,
+.ruleEditor select,
+.audience select {
+  max-width: 100%;
+}
