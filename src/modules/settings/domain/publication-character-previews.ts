@@ -28,10 +28,14 @@ export function characterPreviewReferenceAt(
       : undefined;
 }
 /** Supply the requested subjects and their existing phone entries, never another person's private context. */
-export function characterPreparationContext(content: RecordValue, sources: readonly Source[]) {
+export function characterPreparationContext(
+  content: RecordValue,
+  sources: readonly Source[],
+  actorKey?: string,
+) {
   const names = new Set(preparationCharacterNames(sources));
   const actors = rows(content.actors).filter(
-    (a) => typeof a.name === 'string' && names.has(a.name),
+    (a) => typeof a.name === 'string' && names.has(a.name) && (!actorKey || a.key === actorKey),
   );
   const keys = new Set(actors.map((a) => a.key));
   const context: RecordValue = Object.hasOwn(content, 'actors') ? { actors } : {};
@@ -132,6 +136,7 @@ export function mergeCharacterPreviewProposal(
   proposal: RecordValue,
   allowedActorKeys: ReadonlySet<string>,
   referenceAt?: string,
+  socialFocus?: 'history' | 'moments' | 'both',
 ) {
   const issues: PublicationIssue[] = [];
   const reviews: PublicationIssue[] = [];
@@ -142,6 +147,8 @@ export function mergeCharacterPreviewProposal(
   const add = (path: (string | number)[], code: string) => issues.push({ path, code });
   const oldEntries = [...rows(priorPhone.messages), ...rows(priorPhone.moments)];
   for (const kind of ['messages', 'moments'] as const) {
+    if (socialFocus === 'history' && kind !== 'messages') continue;
+    if (socialFocus === 'moments' && kind !== 'moments') continue;
     if (!Object.hasOwn(nextPhone, kind)) continue;
     const values = nextPhone[kind];
     if (!Array.isArray(values)) {
@@ -256,6 +263,7 @@ export function characterPreviewCompletenessIssues(
   sources: readonly Source[],
   referenceAt?: string,
   allAuthoredActors = false,
+  socialFocus?: 'history' | 'moments' | 'both',
 ): PublicationIssue[] {
   if (!validCharacterPreviewTime(referenceAt)) return [];
   const names = new Set(preparationCharacterNames(sources));
@@ -269,7 +277,7 @@ export function characterPreviewCompletenessIssues(
       typeof actor.name !== 'string' ||
       (!allAuthoredActors && !names.has(actor.name)) ||
       actor.knownAtStart !== true ||
-      !text(modules.relationships, 4000) ||
+      (socialFocus === undefined && !text(modules.relationships, 4000)) ||
       actors.filter((a) => a.key === actor.key).length !== 1
     )
       continue;
@@ -283,12 +291,13 @@ export function characterPreviewCompletenessIssues(
     );
     const hasActor = history.some((m) => m.speaker === undefined || m.speaker === 'actor');
     const hasPlayer = history.some((m) => m.speaker === 'player');
-    if (!hasActor || !hasPlayer)
+    if (socialFocus !== 'moments' && text(modules.relationships, 4000) && (!hasActor || !hasPlayer))
       issues.push({
         path: ['actors', index, 'historyPreview'],
         code: 'character_preview_history_missing',
       });
     if (
+      socialFocus !== 'history' &&
       !rows(phone.moments).some(
         (m) =>
           m.actorKey === actor.key &&

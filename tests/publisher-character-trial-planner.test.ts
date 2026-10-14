@@ -146,6 +146,9 @@ test('trusted character trial completes an empty world for one authored person t
   assert.deepEqual(content.actors[0]!.publicCard, before.actors[0]!.publicCard);
   assert.deepEqual(before, snapshot);
   assert.deepEqual(content.candidates, []);
+  assert.deepEqual(content.phone.messages, []);
+  assert.deepEqual(content.phone.moments, []);
+  assert.ok(h.calls[0]![0]!.content.includes('本次不新增历史聊天或朋友圈动态'));
   assert.ok(result.notes.some((n) => n.text.includes('私有未发布草稿')));
   assert.ok(h.calls[0]![0]!.content.includes('允许仅一个角色'));
   let seq = 10;
@@ -304,7 +307,7 @@ test('trusted role preparation dry-compiles a still-unacquainted actor with zero
     [],
   );
   assert.deepEqual((result.updatedContent.phone as { moments: unknown[] }).moments, []);
-  assert.ok(h.calls[0]![0]!.content.includes('phone.messages和phone.moments均留空'));
+  assert.ok(h.calls[0]![0]!.content.includes('本次不新增历史聊天或朋友圈动态'));
   const ordinary = harness([output], false);
   const denied = await ordinary.planner.propose(
     { scope: 'world', currentContent: before, sources },
@@ -375,7 +378,7 @@ test('private first proposal and bounded correction explicitly keep absent histo
     assert.ok(privateInstruction.includes('已有值逐项原样保留'));
     assert.ok(privateInstruction.includes('不能自动变成关系图、过去事实或知情记录'));
     assert.ok(privateInstruction.includes('缺省[]'));
-    assert.ok(privateInstruction.includes('phone.messages里的普通双向历史'));
+    assert.ok(privateInstruction.includes('phone.messages和phone.moments只保留编剧已有记录'));
   }
   const correction = JSON.parse(h.calls[1]![1]!.content);
   for (const field of ['history', 'initialKnowledge', 'relationships'])
