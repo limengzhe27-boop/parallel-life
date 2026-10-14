@@ -1,6 +1,6 @@
 # STORY-PLACE-01 · 剧情地点、地图与导演承接
 
-负责人：codex-main-story-place-20261014；工作树：world-publish-intake-01。状态：最新主线已集成，待部署与公网验收。
+负责人：codex-main-story-place-20261014；工作树：world-publish-intake-01。状态：已部署，集成与公网访问验收完成。
 
 ## 交付
 
@@ -17,6 +17,7 @@
 - 真实本地 PostgreSQL 剧情集成：26/26。验证玩家尚在起点时导演可取得医院名称和虚构地址，而强制到场条件仍会阻断；邀约目的地与当前所在位置独立。合并最新主线后真实 PostgreSQL 剧情和发布/试演/独立存档/权限/回执合计 55/55。
 - 本地 UI 预览：电脑宽 1046、手机宽 390，剧情地点选择和地图核对入口可见；文档宽度等于视口，无横向溢出。
 - 生产库 57/57 迁移及校验和只读核对一致；本批无 SQL 迁移。
+- 业务提交 `5a43e5a` 已部署为 Production `dpl_2oG2U2q4FVd1dVKyFEZDMWwnsxSo`，Vercel 返回 READY，正式域名 `https://parallel-life-nu.vercel.app` 在该部署的别名列表内。公网 `/api/health`、`/workbench`、`/published` 均为 200；匿名后台作品接口按预期为 401。
 
 ## 后续
 

@@ -1,3 +1,9 @@
+## 2026-10-14 · STORY-PLACE-01 剧情地点与导演承接
+
+业务提交 `5a43e5a` 已部署到 Production `dpl_2oG2U2q4FVd1dVKyFEZDMWwnsxSo`，状态 READY，正式域名 `https://parallel-life-nu.vercel.app` 已列为该部署别名。原稿整理会提取明确地点和地址，编导可在剧情事件中选涉及地点并核对地图与路线；导演在推进事件和时间时取得地点名称、地址说明，且不会把「涉及地点」误当作玩家已经到场。开场已知且可达地点可供玩家地图导航；剧情中才揭示的新地点列为 `STORY-PLACE-02`。
+
+`npm run check` 2307/2307、`npm run build`、真实 PostgreSQL 故事及发布集成 55/55 通过；生产数据库 57/57 迁移校验和一致，本批无新迁移。本地编导界面 1046px 桌面和 390px 手机无横向溢出。公网健康、工作台、玩家目录均为 200，匿名后台作品接口按预期为 401。未在生产调用文字模型、创建测试存档或生成图片；模型提取质量仍需单独抽样，详见 [STORY-PLACE-01 报告](task-reports/STORY-PLACE-01.md)。
+
 ## 2026-10-14 · PUBLISHER-INPUT-FLUIDITY-AND-IMAGE-IMPORT-06
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
