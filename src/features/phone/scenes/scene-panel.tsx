@@ -408,10 +408,13 @@ export function ScenePanel({
                   <summary>刚才的一幕</summary>
                   <p className={s.savedInput}>{latestAction.text}</p>
                   {latestAction.resolution ? (
-                    <p>
-                      <strong>随后发生的事：</strong>
-                      {latestAction.resolution.observation}
-                    </p>
+                    isSimpleSceneQuestion(latestAction, true) &&
+                    latestAction.resolution.observation === latestAction.text.trim() ? null : (
+                      <p>
+                        <strong>随后发生的事：</strong>
+                        {latestAction.resolution.observation}
+                      </p>
+                    )
                   ) : (
                     <p className={s.notice}>
                       {latestAction.intent === 'attempt'

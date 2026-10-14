@@ -150,6 +150,10 @@
   gap: 14px;
   padding-right: 2px;
 }
+/* The scrolling column must not compress earlier content into overlapping hit targets. */
+.reading > * {
+  flex-shrink: 0;
+}
 .scrollToBottomBtn {
   position: absolute;
   bottom: 12px;

@@ -25,3 +25,15 @@ I确认上述范围后开始，基线d7389b4。已实现内部可选delivery、�
 最终check2219/2219（构建与check初次并发曾产生.next types文件竞态，按顺序重跑已过，不掩盖）；PG5/5顶级通过；最新build正在顺序复跑。代码WIP未公开部署；不能把旧线上地图交付当本次现场修复。
 
 顺序最终build成功，check2219全过，PG5顶级全过。代码冻结仅供I审阅，仍未真实质量验收；等待预算用途调整/模型策略，未发布。
+
+## 18/18闭账与本地自然回复通过
+
+用户明确将剩4转本地；同一local1存档，无新存档/图，忽略的启动器仅本地model=gpt-4.1。原未知任务在明确leave后仍unknown造成space busy，已定位navigate仅取消queued/running；现在包含unknown并保历史。旧已保存leave回执相同hash重放也取消同scene遗留unknown，保原回执/版本，不自动付费。实际旧回执正常HTTP200恢复，然后UI进入新scene6a5b34fd…；该老版本恢复暂依赖精确leave回执重放，旧已离场且不掌握回执的纯UI用户仍需I补受控恢复入口/space audit过滤，不能遗漏这点。
+
+call15/16新开场真实成功：午后阳光/玻璃门/桌椅环境，人物擦杯直接招呼眼前玩家。call17有人吗真实成功，答柜台后在场，微动作在台词前。call18吃饭问句真实成功，说明桌未收拾、先坐、晚上六点开饭，也提本人已知明天熟人晚饭。两输入均resolved/relatedMatterIds[]、0事项完成。保存v21；完整原结果在ignored .local/scene-natural-4.1-result.json。台词仍可能带人物调侃/提明天话题，不宣称通用质量已穷尽；本例不再机械等邀约回复且有观察动作。
+
+实际390×844/390×500/1440×900无横溢出，textarea分别737–783/405–451/775–821；本轮发现滚动flex子项被压缩造成菜单点击重叠，reading子项禁压缩，保输入框可见。刚才一幕也不再把完全相同发声回执称随后结果。截图均ignored .local/scene-natural-real-*，实际非桩。
+
+最新check2219/2219；PG6顶级/0fail含新unknown leave/replay/late lease/RLS/真正往返travel+entry。最终build需在新模型选择器任务后统一顺序跑。存档pause200、HTTP已停、ledger18/18 closed；原localhostcookie待本次恢复。root已确认此证据，要求先冻结本组，不自行部署；允许下一SCENE-MODEL-01独立服务端配置YIBU_SCENE_MODEL默认inherit全局，只用于ScenePlanner内部导演与独立人物轮，其他服务不变。root审后决定正式env/发布；不把local通过称线上完成。
+
+官方模型指导只作为对比设计，实际采用结果以网关与本地真实回合证据为准：[GPT-4.1文档](https://developers.openai.com/api/docs/models/gpt-4.1)、[提示指导](https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide)。

@@ -198,6 +198,69 @@ test('visible delivery persists beside independent speech without fabricating ou
         }
       },
     );
+    await t.test(
+      'explicit leave stops unknown attempts, replays old leave receipts and permits real travel and entry',
+      async () => {
+        const read = await repo.read(owner, worldId);
+        const lease = await queue.claimForOwner(read.task!.id, owner, ['world']);
+        assert.ok(lease);
+        await queue.finish(lease, { status: 'unknown', errorCode: 'TIMEOUT' });
+        assert.equal((await space.read(owner, worldId)).busy, true);
+        const leave = { commandId: randomUUID(), expectedVersion: read.worldVersion };
+        const receipt = await repo.navigate(owner, worldId, entered.sceneId, leave, true);
+        assert.equal((await repo.read(owner, worldId, entered.sceneId)).task?.status, 'cancelled');
+        assert.equal((await space.read(owner, worldId)).busy, false);
+        await assert.rejects(
+          queue.commit(lease, async () => {
+            throw Error('Late application must not run');
+          }),
+          /LEASE_LOST/,
+        );
+        // Reproduce an already-saved leave from the older implementation: same audit, uncertain task.
+        await admin.query(
+          "UPDATE parallel_life.tasks SET status='unknown',error_code='TIMEOUT' WHERE id=$1",
+          [lease.id],
+        );
+        await assert.rejects(repo.navigate(other, worldId, entered.sceneId, leave, true), {
+          code: 'NOT_FOUND',
+        });
+        await assert.rejects(
+          repo.navigate(
+            owner,
+            worldId,
+            entered.sceneId,
+            { ...leave, expectedVersion: leave.expectedVersion + 1 },
+            true,
+          ),
+          { code: 'IDEMPOTENCY_CONFLICT' },
+        );
+        assert.equal((await space.read(owner, worldId)).busy, true);
+        assert.deepEqual(
+          await repo.navigate(owner, worldId, entered.sceneId, leave, true),
+          receipt,
+        );
+        assert.equal((await space.read(owner, worldId)).busy, false);
+        const history = await repo.read(owner, worldId, entered.sceneId);
+        assert.equal(history.actions.at(-1)?.text, '我在窗边问：晚饭几点？');
+        const moved = await space.travel(owner, worldId, {
+          commandId: randomUUID(),
+          expectedVersion: receipt.version,
+          routeId: 'cheng_shop_to_seaside_home',
+        });
+        const back = await space.travel(owner, worldId, {
+          commandId: randomUUID(),
+          expectedVersion: moved.version,
+          routeId: 'seaside_home_to_cheng_shop',
+        });
+        const fresh = await repo.enterPlace(owner, worldId, {
+          commandId: randomUUID(),
+          expectedVersion: back.version,
+          placeId: 'cheng_shop',
+        });
+        assert.notEqual(fresh.sceneId, entered.sceneId);
+        assert.equal(fresh.task?.status, 'queued');
+      },
+    );
   } finally {
     await admin.query('DELETE FROM parallel_life.accounts WHERE id=ANY($1::text[])', [
       [owner, other],

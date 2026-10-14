@@ -720,13 +720,22 @@ export class SceneRepository {
     return this.db.transaction(ownerId, async (sql) => {
       if (leave)
         await sql.query(
-          "SELECT id FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 AND status IN ('queued','running') ORDER BY id FOR UPDATE",
+          "SELECT id FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 AND status IN ('queued','running','unknown') ORDER BY id FOR UPDATE",
           [worldId, sceneId],
         );
       const { world, storyAt } = await sceneWorld(sql, ownerId, worldId, true),
         hash = requestHash([leave ? 'scene.leave' : 'scene.view', worldId, sceneId, input]);
       const replay = await previous(sql, worldId, input.commandId, hash);
-      if (replay) return replay;
+      if (replay) {
+        // The original explicit leave remains the cancellation authority on receipt replay.
+        // Older versions left uncertain attempts behind; preserve records and fence late commits.
+        if (leave)
+          await sql.query(
+            "UPDATE parallel_life.tasks SET status='cancelled',error_code='CANCELLED',updated_at=now() WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 AND status IN ('queued','running','unknown')",
+            [worldId, sceneId],
+          );
+        return replay;
+      }
       if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
       const x = await experience(sql, ownerId, worldId),
         s = await loadScene(sql, worldId, sceneId);
@@ -760,7 +769,7 @@ export class SceneRepository {
         await saveScene(sql, { ...next.scene, status: 'ended' });
         await saveExperience(sql, next.experience);
         await sql.query(
-          "UPDATE parallel_life.tasks SET status='cancelled',error_code='CANCELLED',updated_at=now() WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 AND status IN ('queued','running')",
+          "UPDATE parallel_life.tasks SET status='cancelled',error_code='CANCELLED',updated_at=now() WHERE scope_kind='world' AND scope_id=$1 AND input->>'type'='scene' AND input->>'sceneId'=$2 AND status IN ('queued','running','unknown')",
           [worldId, sceneId],
         );
       }
