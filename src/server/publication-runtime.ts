@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { compilePublicationGenesis } from '../modules/settings/infrastructure/publication-genesis.ts';
-import { ensurePublishableDefaults } from '../modules/settings/domain/publication-defaults.ts';
 import type { PublicationWorldCompilerPort } from '../modules/settings/application/publication-world-ports.ts';
 import type { PublicationReviewPort } from '../modules/settings/infrastructure/publication-repository.ts';
 import { TaskError } from '../modules/tasks/infrastructure/task-repository.ts';
@@ -10,14 +9,10 @@ function worldCompiler(characterTrial = false): PublicationWorldCompilerPort {
   return {
     prepare(input) {
       if (characterTrial && input.originKind !== 'trial') throw new TaskError('INVALID_STATE');
-      const enriched = (
-        PublishedWorldContentSchema.safeParse(input.content).success
-          ? input.content
-          : ensurePublishableDefaults(input.content as Record<string, unknown>)
-      ) as typeof input.content;
+      const content = PublishedWorldContentSchema.parse(input.content);
       const compiled = compilePublicationGenesis({
         ...input,
-        content: enriched,
+        content,
         originKind: input.originKind === 'trial' ? 'trial' : 'published',
         newId: randomUUID,
         ...(characterTrial ? { privateCharacterDemo: true as const } : {}),
@@ -52,13 +47,9 @@ export function publicationReview(
 ): PublicationReviewPort {
   return {
     async review(input) {
-      const enriched = (
-        PublishedWorldContentSchema.safeParse(input.content).success
-          ? input.content
-          : ensurePublishableDefaults(input.content as Record<string, unknown>)
-      ) as typeof input.content;
+      const content = PublishedWorldContentSchema.parse(input.content);
       const compiled = compilePublicationGenesis({
-        content: enriched,
+        content,
         originKind: 'trial',
         origin: {
           workId: input.workId,

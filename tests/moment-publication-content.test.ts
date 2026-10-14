@@ -2,13 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ensurePublishableDefaults } from '../src/modules/settings/domain/publication-defaults.ts';
 import { PublishedWorldContentSchema } from '../src/contracts/published-world-content.ts';
+import { readFileSync } from 'node:fs';
 import { trialMomentImageUrl } from '../src/modules/settings/domain/moment-media-url.ts';
 
 function source() {
+  const base = PublishedWorldContentSchema.parse(
+    JSON.parse(
+      /```json\n([\s\S]*?)\n```/.exec(
+        readFileSync(
+          new URL('../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+          'utf8',
+        ),
+      )![1]!,
+    ),
+  );
   return {
-    world: { startAt: '2026-10-14T08:00:00.000Z' },
+    ...base,
+    relationships: [],
+    history: [],
+    initialKnowledge: [],
+    routes: [],
+    candidates: [],
+    protagonist: { ...base.protagonist, knownFactKeys: [] },
+    world: { ...base.world, startAt: '2026-10-14T08:00:00.000Z' },
     actors: [
       {
+        ...base.actors[0],
         key: 'shu',
         name: '舒雅婷',
         knownAtStart: true,
@@ -16,6 +35,9 @@ function source() {
       },
     ],
     phone: {
+      notes: [],
+      invitations: [],
+      album: [],
       messages: [],
       moments: [
         {

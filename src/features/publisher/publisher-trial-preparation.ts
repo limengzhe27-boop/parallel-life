@@ -16,6 +16,7 @@ import {
   quoteCharacterProse,
 } from './publisher-character-manuscript.ts';
 import type { PublisherClient } from './publisher-client.ts';
+import { publicationAuthoredIssues, publicationDraft } from './publisher-publication-draft.ts';
 
 type Client = Pick<
   PublisherClient,
@@ -180,6 +181,7 @@ export class PublisherTrialPreparation {
       mode?: 'character' | 'world';
     },
   ) {
+    draft = publicationDraft(draft);
     let work = initial;
     if (trialDraftChanged(work, draft)) {
       options.onProgress('正在保存你刚写的设定…');
@@ -209,6 +211,9 @@ export class PublisherTrialPreparation {
       check.missingCapabilities.length ||
       check.status === 'invalid'
     ) {
+      const authoredIssues = publicationAuthoredIssues(work.draft.content);
+      if (authoredIssues.length)
+        throw new PublisherTrialError('TRIAL_AUTHOR_INPUT_INVALID', issuesMessage(authoredIssues));
       const sources = trialManuscripts(work.draft.content);
       if (!sources.length)
         throw new PublisherTrialError(

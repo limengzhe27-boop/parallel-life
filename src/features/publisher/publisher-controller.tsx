@@ -16,6 +16,7 @@ import {
   type PublisherPhoneTrial,
 } from './publisher-phone-trial.ts';
 import s from './publisher-controller.module.css';
+import { publicationDraft } from './publisher-publication-draft.ts';
 import {
   PublisherTrialPreparation,
   PublisherTrialError,
@@ -274,10 +275,13 @@ export function PublisherController() {
           if (!work) return;
           void run(async () => {
             let current = workRef.current ?? work;
-            if (draft) {
+            const prepared = publicationDraft(
+              draft ?? { title: current.title, content: current.draft.content },
+            );
+            if (trialDraftChanged(current, prepared)) {
               setDraftSaving(true);
               try {
-                current = await client.save(current, draft);
+                current = await client.save(current, prepared);
                 updateWork(current);
                 await loadWorks();
               } finally {
