@@ -76,7 +76,7 @@ const worldSchema = z.strictObject({
     startAt: Timestamp,
     timeZone: z.literal('UTC+08:00'),
   }),
-  actors: z.array(actor).min(2).max(12),
+  actors: z.array(actor).min(1).max(12),
   actorTies: z.array(z.never()).max(0),
   facts: z.array(fact).max(128),
   messages: z.array(message).max(40),
