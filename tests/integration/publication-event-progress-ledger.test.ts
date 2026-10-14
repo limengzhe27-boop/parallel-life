@@ -79,7 +79,10 @@ const compiler: PublicationWorldCompilerPort = {
 
 test('real PG progress ledger binds actual node introduction and records unrelated input, refusal and bounded non-success closure', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55503);
+  const port = process.env.PUBLICATION_STORY_TEST_PORT ?? '55503';
+  assert.match(port, /^[1-9][0-9]{0,4}$/);
+  assert.ok(Number(port) <= 65535);
+  assert.equal(config.port, Number(port));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const app = new PostgresDatabase(
