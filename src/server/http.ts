@@ -1,3 +1,4 @@
+import { GatewayError } from '../modules/ai/infrastructure/yibu-text-model.ts';
 import { isPreviewOnly } from '../contracts/preview.ts';
 import 'server-only';
 import { randomUUID } from 'node:crypto';
@@ -76,6 +77,23 @@ export async function endpoint(run: () => Promise<Response>) {
         status,
         durationMs: Date.now() - started,
         errMessage: error instanceof Error ? error.message : String(error),
+        ...(error instanceof GatewayError
+          ? {
+              gatewayStage: ['request', 'response', 'parse', 'stream'].includes(error.stage ?? '')
+                ? error.stage
+                : undefined,
+              upstreamHttpStatus:
+                Number.isInteger(error.httpStatus) &&
+                error.httpStatus! >= 100 &&
+                error.httpStatus! <= 599
+                  ? error.httpStatus
+                  : undefined,
+              gatewayDurationMs:
+                Number.isFinite(error.durationMs) && error.durationMs! >= 0
+                  ? Math.round(error.durationMs!)
+                  : undefined,
+            }
+          : {}),
       }),
     );
     const response = json(
