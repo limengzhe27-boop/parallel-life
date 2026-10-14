@@ -326,7 +326,17 @@ export class PublicationMediaRepository {
         'SELECT * FROM parallel_life.publication_media_for_world($1,$2)',
         [worldId, assetId],
       );
-      return result.rows[0] as
+      if (result.rows[0])
+        return result.rows[0] as
+          { storage_key: string; mime_type: string; byte_length: string } | undefined;
+      // A hidden Moment is never made readable by this fallback. SQL grants it
+      // only when the exact private image is attached to a place already
+      // present in this owner's actual world map and immutable source.
+      const scene = await sql.query(
+        'SELECT * FROM parallel_life.publication_scene_image_for_world($1,$2)',
+        [worldId, assetId],
+      );
+      return scene.rows[0] as
         { storage_key: string; mime_type: string; byte_length: string } | undefined;
     });
     if (!row) throw new TaskError('NOT_FOUND');

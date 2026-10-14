@@ -31,6 +31,20 @@ test('authored media-only history retains its reference through playable genesis
   assert.deepEqual(message?.attachment, { kind: 'video', assetId, label: '旧录像' });
 });
 
+test('an unreferenced legacy scene row does not block runtime compilation', () => {
+  const c = content();
+  c.media.push({
+    key: 'unused_old_scene',
+    asset: { namespace: 'publication', key: 'old_scene', revision: 1 },
+    use: 'scene',
+    depiction: 'illustration',
+    label: '旧素材',
+    visibility: { kind: 'world' },
+  });
+  const result = compilePublicationGenesis(input(c));
+  assert.equal(result.status, 'compiled');
+});
+
 function content(): PublicationContent {
   return {
     schemaVersion: 1,
@@ -399,7 +413,7 @@ test('generated entity IDs must be UUIDs and cannot collide with a trusted exist
 });
 const unsupportedCases: [string, (c: PublicationContent) => void, string][] = [
   [
-    'media record',
+    'legacy scene media reference',
     (c) => {
       c.media.push({
         key: 'image',
@@ -409,6 +423,7 @@ const unsupportedCases: [string, (c: PublicationContent) => void, string][] = [
         label: '图片',
         visibility: { kind: 'world' },
       });
+      c.places[0]!.sceneMediaKey = 'image';
     },
     'unsupported_media',
   ],

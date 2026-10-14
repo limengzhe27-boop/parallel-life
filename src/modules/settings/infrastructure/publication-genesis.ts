@@ -124,12 +124,21 @@ function unsupported(
   privateCharacterDemo = false,
 ): PublicationCompileIssue[] {
   const out: PublicationCompileIssue[] = [];
+  const media = new Map(c.media.map((entry) => [entry.key, entry]));
+  const referencedArt = [
+    ...(c.work.coverMediaKey ? [{ key: c.work.coverMediaKey, use: 'cover' as const }] : []),
+    ...c.actors.flatMap((actor) =>
+      actor.publicCard.avatarMediaKey
+        ? [{ key: actor.publicCard.avatarMediaKey, use: 'avatar' as const }]
+        : [],
+    ),
+  ];
   if (
-    c.media.some(
-      (m) =>
-        !['avatar', 'cover'].includes(m.use) || !publicationArt(m, m.use as 'avatar' | 'cover'),
-    ) ||
+    referencedArt.some(({ key, use }) => !publicationArt(media.get(key), use)) ||
     c.phone.album.length ||
+    // Legacy authored sceneMediaKey belongs to the old registry path and has
+    // never had a playable private-media implementation. The new optional
+    // sceneImage reference is checked against private ready images at binding.
     c.places.some((p) => p.sceneMediaKey)
   )
     out.push(issue('unsupported_media', ['media']));
