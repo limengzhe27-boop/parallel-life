@@ -219,6 +219,11 @@ export const WorldPhoneSchema = z.strictObject({
       role: z.enum(['user', 'assistant']).optional(),
       initialRead: z.boolean().optional(),
       origin: z.literal('fictional_history').optional(),
+      attachment: z.strictObject({
+        kind: z.enum(['image', 'video']),
+        assetId: Id,
+        label: z.string().max(120).optional(),
+      }).optional(),
     }),
   ),
   notes: z.array(

@@ -414,6 +414,7 @@ export class BuildRepository {
         role: m.role,
         text: m.text,
         at: m.at,
+        ...(m.attachment ? { attachment: { ...m.attachment } } : {}),
         ...(m.initialRead !== undefined ? { initialRead: m.initialRead } : {}),
         ...(m.history ? { origin: 'fictional_history' as const } : {}),
       })),

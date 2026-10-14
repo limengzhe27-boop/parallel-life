@@ -584,7 +584,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                             marginTop: '2px',
                           }}
                         >
-                          {latest?.text ?? '开始聊聊'}
+                          {latest
+                            ? latest.text.trim() ||
+                              (latest.attachment?.kind === 'image'
+                                ? '[图片]'
+                                : latest.attachment?.kind === 'video'
+                                  ? '[视频]'
+                                  : '开始聊聊')
+                            : '开始聊聊'}
                         </small>
                       </span>
                     </button>
@@ -1341,7 +1348,76 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 {m.role === 'assistant' && m.initialRead === true && (
                   <small className={s.genesisOrigin}>虚构起点来信</small>
                 )}
-                <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                {m.text && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>}
+                {m.attachment && (
+                  <div
+                    style={{
+                      marginTop: m.text ? 8 : 0,
+                      maxWidth: 250,
+                      borderRadius: 7,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {m.attachment.kind === 'image' ? (
+                      <button
+                        type="button"
+                        style={{
+                          display: 'block',
+                          border: 0,
+                          padding: 0,
+                          background: 'transparent',
+                          cursor: 'pointer',
+                        }}
+                        aria-label={`查看${m.attachment.label || '历史聊天图片'}`}
+                        onClick={() =>
+                          setPreviewModalPhoto({
+                            id: m.attachment!.assetId,
+                            date: m.at,
+                            title: m.attachment!.label || '历史聊天图片',
+                            description: '这段关系中的历史聊天图片',
+                            url: m.attachment!.url,
+                            status: 'ready',
+                            tag: 'memory',
+                          })
+                        }
+                      >
+                        <img
+                          src={m.attachment.url}
+                          alt={m.attachment.label || '历史聊天图片'}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            maxHeight: 260,
+                            objectFit: 'contain',
+                          }}
+                        />
+                      </button>
+                    ) : (
+                      <video
+                        src={m.attachment.url}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        aria-label={m.attachment.label || '历史聊天视频'}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          maxHeight: 300,
+                          background: '#111827',
+                        }}
+                      >
+                        当前浏览器无法播放这段视频。
+                      </video>
+                    )}
+                    {m.attachment.label && (
+                      <small
+                        style={{ display: 'block', padding: '4px 2px', overflowWrap: 'anywhere' }}
+                      >
+                        {m.attachment.label}
+                      </small>
+                    )}
+                  </div>
+                )}
                 {m.photo && (
                   <div
                     style={{

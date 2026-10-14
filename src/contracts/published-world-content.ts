@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Id } from './api.ts';
 import {
   publicationContentIssues,
   publicationPlayerPreview,
@@ -169,8 +170,18 @@ const shape = z
             actorKey: key,
             origin: z.enum(['history', 'incoming']),
             speaker: z.enum(['actor', 'player']).optional(),
-            text: text(500),
+            text: z.string().max(500),
             at,
+            attachment: z
+              .strictObject({
+                kind: z.enum(['image', 'video']),
+                assetId: Id,
+                label: z.string().trim().min(1).max(120).optional(),
+              })
+              .optional(),
+          }).superRefine((message, ctx) => {
+            if (!message.text.trim() && !message.attachment)
+              ctx.addIssue({ code: 'custom', path: ['text'], message: 'message_content_required' });
           }),
         )
         .max(40),

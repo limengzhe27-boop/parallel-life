@@ -3,6 +3,11 @@ import { characterPreview } from './publisher-character-model.ts';
 type Draft = Record<string, unknown>;
 type Entry = Record<string, unknown>;
 export type Speaker = 'actor' | 'player';
+export type HistoryAttachment = {
+  kind: 'image' | 'video';
+  assetId: string;
+  label?: string;
+};
 
 function record(value: unknown): Draft {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Draft) : {};
@@ -14,6 +19,20 @@ function list(value: unknown): Entry[] {
 }
 function str(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+export function historyAttachment(value: unknown): HistoryAttachment | undefined {
+  const entry = record(value);
+  if (
+    (entry.kind !== 'image' && entry.kind !== 'video') ||
+    typeof entry.assetId !== 'string' ||
+    !entry.assetId.trim()
+  )
+    return undefined;
+  return {
+    kind: entry.kind,
+    assetId: entry.assetId,
+    ...(typeof entry.label === 'string' && entry.label.trim() ? { label: entry.label.trim() } : {}),
+  };
 }
 function actor(content: Draft, actorKey: string): Entry | undefined {
   const matches = list(content.actors).filter((item) => item.key === actorKey);
@@ -70,12 +89,15 @@ export function addHistoryMessage(
   text: string,
   interval = false,
   referenceAt?: string,
+  attachment?: HistoryAttachment,
 ): { content: Draft; error?: string; notice?: string } {
   const subject = actor(content, actorKey);
   if (!subject || subject.knownAtStart !== true)
     return { content, error: '请先确认这位人物与主角开场已经认识。' };
-  if (!text.trim() || text.trim().length > 500)
-    return { content, error: '消息请填写 1 至 500 字。' };
+  if ((!text.trim() && !attachment) || text.trim().length > 500)
+    return { content, error: '请填写消息或添加图片、视频；文字最多 500 字。' };
+  if (attachment && !historyAttachment(attachment))
+    return { content, error: '这份图片或视频尚未保存，请重新上传。' };
   const all = list(record(content.phone).messages);
   if (all.length >= 40) return { content, error: '历史聊天已达到 40 条上限。' };
   const at = chooseHistoryTime(content, actorKey, interval, referenceAt);
@@ -93,6 +115,7 @@ export function addHistoryMessage(
     speaker,
     text: text.trim(),
     at,
+    ...(attachment ? { attachment: historyAttachment(attachment) } : {}),
   };
   const prior = all
     .filter((item) => item.actorKey === actorKey && item.origin === 'history')
@@ -113,23 +136,30 @@ export function editHistoryMessage(
   key: string,
   speaker: Speaker,
   text: string,
+  attachment?: HistoryAttachment | null,
 ): { content: Draft; error?: string } {
-  if (!text.trim() || text.trim().length > 500)
-    return { content, error: '消息请填写 1 至 500 字。' };
   const all = list(record(content.phone).messages);
-  if (
-    !all.some((item) => item.key === key && item.actorKey === actorKey && item.origin === 'history')
-  )
-    return { content, error: '这条历史消息已不存在，请刷新后重试。' };
+  const existing = all.find(
+    (item) => item.key === key && item.actorKey === actorKey && item.origin === 'history',
+  );
+  if (!existing) return { content, error: '这条历史消息已不存在，请刷新后重试。' };
+  const nextAttachment =
+    attachment === undefined ? historyAttachment(existing.attachment) : attachment;
+  if ((!text.trim() && !nextAttachment) || text.trim().length > 500)
+    return { content, error: '请填写消息或添加图片、视频；文字最多 500 字。' };
+  if (nextAttachment && !historyAttachment(nextAttachment))
+    return { content, error: '这份图片或视频尚未保存，请重新上传。' };
   return {
     content: withPhoneEntries(
       content,
       'messages',
-      all.map((item) =>
-        item.key === key && item.actorKey === actorKey
-          ? { ...item, text: text.trim(), speaker }
-          : item,
-      ),
+      all.map((item) => {
+        if (item.key !== key || item.actorKey !== actorKey) return item;
+        const updated: Entry = { ...item, text: text.trim(), speaker };
+        delete updated.attachment;
+        if (nextAttachment) updated.attachment = historyAttachment(nextAttachment);
+        return updated;
+      }),
     ),
   };
 }
@@ -243,7 +273,13 @@ export function editMoment(
               ...item,
               text: text.trim(),
               at,
-              ...(image !== undefined ? (image ? { image } : {}) : (item as any).image ? { image: (item as any).image } : {}),
+              ...(image !== undefined
+                ? image
+                  ? { image }
+                  : {}
+                : (item as any).image
+                  ? { image: (item as any).image }
+                  : {}),
             }
           : item,
       ),

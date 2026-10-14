@@ -40,11 +40,19 @@ const message = z.strictObject({
   id: ref,
   actorId: ref,
   role: z.enum(['assistant', 'user']),
-  text: text(8000),
+  text: z.string().max(8000),
   at: Timestamp,
   sourceEventId: ref,
+  attachment: z.strictObject({
+    kind: z.enum(['image', 'video']),
+    assetId: Id,
+    label: z.string().trim().min(1).max(120).optional(),
+  }).optional(),
   initialRead: z.boolean(),
   history: z.strictObject({ version: z.literal(1), key: ref }).optional(),
+}).superRefine((item, ctx) => {
+  if (!item.text.trim() && !item.attachment)
+    ctx.addIssue({ code: 'custom', path: ['text'], message: 'message_content_required' });
 });
 const fact = z.strictObject({
   id: ref,
@@ -213,6 +221,7 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare, characte
     p.seed.setting !== p.opening.setting ||
     p.seed.experienceNote !== p.opening.experienceNote ||
     messageIds.size !== p.world.messages.length ||
+    p.world.messages.length !== c.phone.messages.length ||
     !placeIds.has(p.world.space.currentPlaceId)
   )
     throw new TaskError('INVALID_STATE');
@@ -230,16 +239,15 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare, characte
       m.sourceEventId !== genesis ||
       !ids.has(m.actorId) ||
       Date.parse(m.at) > Date.parse(p.world.time) ||
-      (m.role === 'user' &&
-        !c.phone.messages.some(
-          (source) =>
-            source.key === m.history?.key &&
-            source.actorKey === p.opening.contacts.find((a) => a.actorId === m.actorId)?.actorKey &&
-            source.speaker === 'player' &&
-            source.origin === 'history' &&
-            source.text === m.text &&
-            source.at === m.at,
-        ))
+      !c.phone.messages.some(
+        (source) =>
+          source.actorKey === p.opening.contacts.find((a) => a.actorId === m.actorId)?.actorKey &&
+          (source.speaker === 'player' ? 'user' : 'assistant') === m.role &&
+          (source.origin === 'history' ? source.key === m.history?.key : !m.history) &&
+          source.text === m.text &&
+          source.at === m.at &&
+          equal(source.attachment ?? null, m.attachment ?? null),
+      )
     )
       throw new TaskError('INVALID_STATE');
   for (const f of p.world.facts)

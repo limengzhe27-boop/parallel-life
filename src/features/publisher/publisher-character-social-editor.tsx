@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { characterPreview, characterPreviewTime } from './publisher-character-model.ts';
 import {
   addHistoryMessage,
@@ -8,10 +8,12 @@ import {
   editHistoryMessage,
   editMoment,
   editPublicProfile,
+  historyAttachment,
   historySegments,
   removeHistoryMessage,
   removeMoment,
   type Speaker,
+  type HistoryAttachment,
 } from './publisher-character-social-editor-model.ts';
 import s from './publisher-character-social-editor.module.css';
 
@@ -23,8 +25,18 @@ type Props = {
   canEdit: boolean;
   busy: boolean;
   onChange: (content: Record<string, unknown>) => void;
+  /** The workbench owns the authenticated, private upload; this editor stores only its asset ID. */
+  uploadAttachment?: (file: File) => Promise<HistoryAttachment & { url?: string }>;
+  previewAttachment?: (assetId: string) => string;
 };
 type Page = 'chat' | 'profile' | 'moments';
+function localMediaKind(file: File): HistoryAttachment['kind'] | undefined {
+  if (['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+      (!file.type && /\.(?:jpe?g|png|webp)$/i.test(file.name)))
+    return 'image';
+  if (file.type === 'video/mp4' || (!file.type && /\.mp4$/i.test(file.name))) return 'video';
+  return undefined;
+}
 
 export function PublisherCharacterSocialEditor({
   content,
@@ -33,10 +45,16 @@ export function PublisherCharacterSocialEditor({
   canEdit,
   busy,
   onChange,
+  uploadAttachment,
+  previewAttachment,
 }: Props) {
   const [page, setPage] = useState<Page>('chat');
   const [speaker, setSpeaker] = useState<Speaker>('actor');
   const [messageText, setMessageText] = useState('');
+  const [messageAttachment, setMessageAttachment] = useState<HistoryAttachment | null>(null);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [nextInterval, setNextInterval] = useState(false);
   const [postOpen, setPostOpen] = useState(false);
@@ -46,10 +64,14 @@ export function PublisherCharacterSocialEditor({
   const [postImage, setPostImage] = useState<string>('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const mediaInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     setPage('chat');
     setSpeaker('actor');
     setMessageText('');
+    setMessageAttachment(null);
+    setAttachmentFile(null);
+    setAttachmentPreview('');
     setEditingMessage(null);
     setNextInterval(false);
     setPostOpen(false);
@@ -60,10 +82,16 @@ export function PublisherCharacterSocialEditor({
     setError('');
     setNotice('');
   }, [actorKey]);
+  useEffect(
+    () => () => {
+      if (attachmentPreview.startsWith('blob:')) URL.revokeObjectURL(attachmentPreview);
+    },
+    [attachmentPreview],
+  );
   const person = characterPreview(content, actorKey);
   if (!person) return <p className={s.empty}>请先核对人物资料，重复的人物暂不能编辑微信。</p>;
   const name = person.name || '未命名人物';
-  const disabled = busy || !canEdit;
+  const disabled = busy || uploading || !canEdit;
   const history = historySegments(content, actorKey);
   const editableHistoryKeys = new Set(
     (Array.isArray((content.phone as Record<string, unknown> | undefined)?.messages)
@@ -84,19 +112,59 @@ export function PublisherCharacterSocialEditor({
     onChange(result.content);
     done();
   };
-  const submitMessage = () => {
+  const resetMessage = () => {
+    setMessageText('');
+    setMessageAttachment(null);
+    setAttachmentFile(null);
+    setAttachmentPreview('');
+    setEditingMessage(null);
+    setNextInterval(false);
+  };
+  const submitMessage = async () => {
+    if (disabled) return;
+    let attachment = messageAttachment;
+    if (attachmentFile) {
+      if (!uploadAttachment) return setError('暂时无法上传图片或视频，请刷新后重试。');
+      setUploading(true);
+      setError('');
+      try {
+        const uploaded = await uploadAttachment(attachmentFile);
+        attachment = historyAttachment(uploaded) ?? null;
+        if (!attachment) throw new Error('上传未返回可保存的素材，请重试。');
+        setMessageAttachment(attachment);
+        setAttachmentFile(null);
+        setAttachmentPreview(uploaded.url ?? '');
+      } catch (error) {
+        setError(error instanceof Error ? error.message : '上传失败，原文件仍在这里，请重试。');
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
     const result = editingMessage
-      ? editHistoryMessage(content, actorKey, editingMessage, speaker, messageText)
-      : addHistoryMessage(content, actorKey, speaker, messageText, nextInterval, referenceAt);
-    apply(result, () => {
-      setMessageText('');
-      setEditingMessage(null);
-      setNextInterval(false);
-    });
+      ? editHistoryMessage(content, actorKey, editingMessage, speaker, messageText, attachment)
+      : addHistoryMessage(
+          content,
+          actorKey,
+          speaker,
+          messageText,
+          nextInterval,
+          referenceAt,
+          attachment ?? undefined,
+        );
+    apply(result, resetMessage);
   };
   const submitPost = () => {
     const result = editingPost
-      ? editMoment(content, actorKey, editingPost, postText, postDay || undefined, referenceAt, postImage)
+      ? editMoment(
+          content,
+          actorKey,
+          editingPost,
+          postText,
+          postDay || undefined,
+          referenceAt,
+          postImage,
+        )
       : addMoment(content, actorKey, postText, postDay || undefined, referenceAt, postImage);
     apply(result, () => {
       setPostText('');
@@ -111,6 +179,12 @@ export function PublisherCharacterSocialEditor({
       {person.avatar ? <img src={person.avatar} alt="" /> : name.slice(0, 1)}
     </span>
   );
+  const previewUrl = (assetId: string) => previewAttachment?.(assetId) ?? '';
+  const currentPreviewUrl =
+    attachmentPreview || (messageAttachment ? previewUrl(messageAttachment.assetId) : '');
+  const currentAttachmentKind = attachmentFile
+    ? localMediaKind(attachmentFile)
+    : messageAttachment?.kind;
   return (
     <section className={s.shell} aria-label={`${name}的微信内容`}>
       <div className={s.topbar}>
@@ -163,7 +237,38 @@ export function PublisherCharacterSocialEditor({
                 >
                   {message.speaker === 'actor' && avatar}
                   <div className={s.messageBlock}>
-                    <div className={s.bubble}>{message.text}</div>
+                    <div className={s.bubble}>
+                      {message.text && <span>{message.text}</span>}
+                      {message.attachment && (
+                        <div className={s.messageMedia}>
+                          {previewUrl(message.attachment.assetId) ? (
+                            message.attachment.kind === 'image' ? (
+                              <img
+                                src={previewUrl(message.attachment.assetId)}
+                                alt={message.attachment.label || '历史聊天图片'}
+                              />
+                            ) : (
+                              <video
+                                src={previewUrl(message.attachment.assetId)}
+                                controls
+                                playsInline
+                                preload="metadata"
+                                aria-label={message.attachment.label || '历史聊天视频'}
+                              >
+                                当前浏览器无法播放这段视频。
+                              </video>
+                            )
+                          ) : (
+                            <span>{message.attachment.kind === 'image' ? '图片' : '视频'}</span>
+                          )}
+                          {message.attachment.label && (
+                            <small title={message.attachment.label}>
+                              {message.attachment.label}
+                            </small>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {canEdit && editableHistoryKeys.has(message.key) && (
                       <div className={s.rowActions}>
                         <button
@@ -172,6 +277,9 @@ export function PublisherCharacterSocialEditor({
                           onClick={() => {
                             setEditingMessage(message.key);
                             setMessageText(message.text);
+                            setMessageAttachment(message.attachment ?? null);
+                            setAttachmentFile(null);
+                            setAttachmentPreview('');
                             setSpeaker(message.speaker);
                             setNextInterval(false);
                             setError('');
@@ -185,8 +293,7 @@ export function PublisherCharacterSocialEditor({
                           onClick={() =>
                             apply(removeHistoryMessage(content, actorKey, message.key), () => {
                               if (editingMessage === message.key) {
-                                setEditingMessage(null);
-                                setMessageText('');
+                                resetMessage();
                               }
                             })
                           }
@@ -238,7 +345,70 @@ export function PublisherCharacterSocialEditor({
                 value={messageText}
                 onChange={(event) => setMessageText(event.target.value)}
               />
+              {(attachmentFile || messageAttachment) && (
+                <div className={s.attachmentDraft}>
+                  {currentPreviewUrl &&
+                    (currentAttachmentKind === 'image' ? (
+                      <img src={currentPreviewUrl} alt="待发送图片" />
+                    ) : (
+                      <video
+                        src={currentPreviewUrl}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        aria-label="待发送视频"
+                      >
+                        当前浏览器无法播放这段视频。
+                      </video>
+                    ))}
+                  <span>{attachmentFile?.name || messageAttachment?.label || '已添加素材'}</span>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setAttachmentFile(null);
+                      setMessageAttachment(null);
+                      setAttachmentPreview('');
+                    }}
+                  >
+                    移除
+                  </button>
+                </div>
+              )}
               <div className={s.composerActions}>
+                <button
+                  type="button"
+                  className={`${s.secondary} ${s.fileChoice}`}
+                  disabled={disabled || !person.knownAtStart || !uploadAttachment}
+                  onClick={() => mediaInput.current?.click()}
+                >
+                  ＋ 图片或视频
+                </button>
+                <input
+                  ref={mediaInput}
+                  className={s.fileInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,video/mp4,.mp4"
+                  disabled={disabled || !person.knownAtStart || !uploadAttachment}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (!file) return;
+                    const kind = localMediaKind(file);
+                    if (!kind) {
+                      setError('请选择 JPG、PNG、WebP 图片或 MP4 视频。');
+                      return;
+                    }
+                    if (file.size > (kind === 'video' ? 50_000_000 : 10_000_000)) {
+                      setError(kind === 'video' ? '视频不能超过 50 MB。' : '图片不能超过 10 MB。');
+                      return;
+                    }
+                    setAttachmentFile(file);
+                    setMessageAttachment(null);
+                    setAttachmentPreview(URL.createObjectURL(file));
+                    setError('');
+                  }}
+                />
                 <button
                   type="button"
                   className={s.secondary}
@@ -253,8 +423,7 @@ export function PublisherCharacterSocialEditor({
                     type="button"
                     className={s.secondary}
                     onClick={() => {
-                      setEditingMessage(null);
-                      setMessageText('');
+                      resetMessage();
                     }}
                   >
                     取消编辑
@@ -263,10 +432,14 @@ export function PublisherCharacterSocialEditor({
                 <button
                   type="button"
                   className={s.primary}
-                  disabled={disabled || !person.knownAtStart || !messageText.trim()}
-                  onClick={submitMessage}
+                  disabled={
+                    disabled ||
+                    !person.knownAtStart ||
+                    (!messageText.trim() && !attachmentFile && !messageAttachment)
+                  }
+                  onClick={() => void submitMessage()}
                 >
-                  {editingMessage ? '保存修改' : '发送到历史'}
+                  {uploading ? '上传中…' : editingMessage ? '保存修改' : '发送到历史'}
                 </button>
               </div>
               {nextInterval && !editingMessage && (
@@ -365,13 +538,21 @@ export function PublisherCharacterSocialEditor({
                 />
               </label>
               <div style={{ margin: '8px 0' }}>
-                <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>配图（选填）</label>
+                <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                  配图（选填）
+                </label>
                 {postImage ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <img
                       src={postImage}
                       alt="动态配图预览"
-                      style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                      style={{
+                        width: 80,
+                        height: 80,
+                        objectFit: 'cover',
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
+                      }}
                     />
                     <button
                       type="button"
@@ -414,9 +595,7 @@ export function PublisherCharacterSocialEditor({
                   </label>
                 )}
               </div>
-              <p className={s.smallHint}>
-                未选日期时会安排在故事开场前。支持文字与动态配图。
-              </p>
+              <p className={s.smallHint}>未选日期时会安排在故事开场前。支持文字与动态配图。</p>
               <div className={s.composerActions}>
                 <button
                   type="button"
@@ -456,7 +635,12 @@ export function PublisherCharacterSocialEditor({
                     <img
                       src={post.image}
                       alt=""
-                      style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+                      style={{
+                        width: '100%',
+                        maxHeight: 200,
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
                     />
                   </div>
                 )}

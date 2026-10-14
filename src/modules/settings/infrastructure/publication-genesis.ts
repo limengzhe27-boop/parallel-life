@@ -356,6 +356,7 @@ export function compilePublicationGenesis(
           text: m.text,
           at: m.at,
           sourceEventId,
+          ...(m.attachment ? { attachment: { ...m.attachment } } : {}),
           initialRead: m.origin === 'history',
           ...(m.origin === 'history' ? { history: { version: 1 as const, key: m.key } } : {}),
         };

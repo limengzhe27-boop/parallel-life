@@ -10,6 +10,7 @@ import {
 } from '../../contracts/publication-worlds.ts';
 import { WorldClockSchema } from '../../contracts/world-clock.ts';
 import { z } from 'zod';
+import { Id } from '../../contracts/api.ts';
 import {
   PublisherSessionStateSchema,
   PublisherLoginSchema,
@@ -44,6 +45,20 @@ export class PublisherClientError extends Error {
     this.code = code;
   }
 }
+const MediaUploadStartSchema = z.strictObject({
+  assetId: Id,
+  kind: z.enum(['image', 'video']),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4']),
+  byteLength: z.number().int().positive(),
+  uploadUrl: z.url(),
+  uploadToken: z.string().min(1),
+});
+const MediaUploadDoneSchema = MediaUploadStartSchema.pick({
+  assetId: true,
+  kind: true,
+  mimeType: true,
+  byteLength: true,
+});
 /** Command IDs survive an uncertain response; explicit same-content retries replay, never duplicate writes. */
 export class PublisherClient {
   private csrf: string | null = null;
@@ -120,6 +135,64 @@ export class PublisherClient {
   }
   get(id: string) {
     return this.request('/works/' + encodeURIComponent(id), PublisherWorkSchema);
+  }
+  async uploadWorkMedia(workId: string, file: File) {
+    const mimeType =
+      file.type ||
+      (/\.mp4$/i.test(file.name)
+        ? 'video/mp4'
+        : /\.png$/i.test(file.name)
+          ? 'image/png'
+          : /\.webp$/i.test(file.name)
+            ? 'image/webp'
+            : /\.jpe?g$/i.test(file.name)
+              ? 'image/jpeg'
+              : '');
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'];
+    if (!allowed.includes(mimeType))
+      throw new Error('请选择 JPG、PNG、WebP 图片或 MP4 视频。');
+    const limit = mimeType === 'video/mp4' ? 50_000_000 : 10_000_000;
+    if (!file.size || file.size > limit)
+      throw new Error(mimeType === 'video/mp4' ? '视频不能超过 50 MB。' : '图片不能超过 10 MB。');
+    const path = '/works/' + encodeURIComponent(workId) + '/media';
+    const start = await this.request(
+      path,
+      MediaUploadStartSchema,
+      'POST',
+      { mimeType, byteLength: file.size },
+    );
+    if (
+      start.mimeType !== mimeType ||
+      start.byteLength !== file.size ||
+      !start.uploadUrl.startsWith('https://')
+    )
+      throw new PublisherClientError('UNAVAILABLE');
+    let uploaded: Response;
+    try {
+      uploaded = await this.transport(start.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType, 'x-upsert': 'false' },
+        body: file,
+        credentials: 'omit',
+        signal: AbortSignal.timeout(180000),
+      });
+    } catch {
+      throw new Error('视频上传中断，原文件仍在此处，可以重试。');
+    }
+    if (!uploaded.ok) throw new Error('素材上传未完成，原文件仍在此处，可以重试。');
+    const done = await this.request(
+      `${path}/${encodeURIComponent(start.assetId)}/finalize`,
+      MediaUploadDoneSchema,
+      'POST',
+    );
+    if (done.assetId !== start.assetId || done.kind !== start.kind)
+      throw new PublisherClientError('UNAVAILABLE');
+    return {
+      assetId: done.assetId,
+      kind: done.kind,
+      label: file.name.slice(0, 120),
+      url: `/api/v1/publisher${path}/${encodeURIComponent(done.assetId)}`,
+    };
   }
   private async command<T>(
     path: string,

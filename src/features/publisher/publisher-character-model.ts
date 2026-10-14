@@ -87,10 +87,25 @@ export type CharacterPreviewMessage = {
   text: string;
   at: string;
   speaker: 'actor' | 'player';
+  attachment?: { kind: 'image' | 'video'; assetId: string; label?: string };
 };
 export type CharacterPreviewMoment = { key: string; text: string; at: string; image?: string };
 function chronological<T extends { at: string }>(entries: T[]) {
   return entries.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+function previewAttachment(value: unknown): CharacterPreviewMessage['attachment'] {
+  const item = record(value);
+  if (
+    (item.kind !== 'image' && item.kind !== 'video') ||
+    typeof item.assetId !== 'string' ||
+    !item.assetId.trim()
+  )
+    return undefined;
+  return {
+    kind: item.kind,
+    assetId: item.assetId,
+    ...(typeof item.label === 'string' && item.label.trim() ? { label: item.label.trim() } : {}),
+  };
 }
 /** Public preview uses an explicit allowlist, never the private persona or five authored modules. */
 export function characterPreview(content: Record<string, unknown>, actorKey: string) {
@@ -109,7 +124,7 @@ export function characterPreview(content: Record<string, unknown>, actorKey: str
         .filter(
           (m) =>
             m.actorKey === actorKey &&
-            string(m.text).trim() &&
+            (string(m.text).trim() || previewAttachment(m.attachment)) &&
             occurred(m) &&
             (m.speaker === undefined || m.speaker === 'actor' || m.speaker === 'player'),
         )
@@ -118,6 +133,9 @@ export function characterPreview(content: Record<string, unknown>, actorKey: str
           text: string(m.text),
           at: string(m.at),
           speaker: m.speaker === 'player' ? 'player' : 'actor',
+          ...(previewAttachment(m.attachment)
+            ? { attachment: previewAttachment(m.attachment) }
+            : {}),
         }))
     : [];
   const moments: CharacterPreviewMoment[] = known

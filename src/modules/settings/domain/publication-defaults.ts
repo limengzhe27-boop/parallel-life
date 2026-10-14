@@ -304,8 +304,9 @@ export function ensurePublishableDefaults(
       actorKey,
       origin,
       speaker,
-      text: safeText(m.text, 500, '你好'),
+      text: m.attachment ? (typeof m.text === 'string' ? m.text : '') : safeText(m.text, 500, '你好'),
       at: new Date(atTime).toISOString(),
+      ...(Object.hasOwn(m, 'attachment') ? { attachment: m.attachment } : {}),
     });
   });
 

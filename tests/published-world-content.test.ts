@@ -16,6 +16,26 @@ import {
 import { AuthoredLifeModulesSchema } from '../src/contracts/authored-social.ts';
 import { ensurePublishableDefaults } from '../src/modules/settings/domain/publication-defaults.ts';
 
+test('authored history may contain a privately referenced image or video without embedded file bytes', () => {
+  const draft = content();
+  const assetId = '7317f3cc-c3fd-46ed-a9f6-41c7449de671';
+  draft.phone.messages[0] = {
+    ...draft.phone.messages[0]!,
+    text: '',
+    attachment: { kind: 'video', assetId, label: '开业前的录像' },
+  };
+  const parsed = PublishedWorldContentSchema.parse(draft);
+  assert.deepEqual(parsed.phone.messages[0]!.attachment, { kind: 'video', assetId, label: '开业前的录像' });
+  assert.deepEqual(publicationPlayerPreview(parsed).phone.messages[0]!.attachment, parsed.phone.messages[0]!.attachment);
+  assert.deepEqual((ensurePublishableDefaults(draft) as PublicationContent).phone.messages[0]!.attachment, parsed.phone.messages[0]!.attachment);
+  const missing = structuredClone(draft);
+  delete missing.phone.messages[0]!.attachment;
+  assert.equal(PublishedWorldContentSchema.safeParse(missing).success, false);
+  const injected = structuredClone(draft);
+  injected.phone.messages[0]!.attachment = { kind: 'video', assetId: 'not-an-id' };
+  assert.equal(PublishedWorldContentSchema.safeParse(injected).success, false);
+});
+
 function content(): PublicationContent {
   return {
     schemaVersion: 1,

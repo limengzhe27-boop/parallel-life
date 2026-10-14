@@ -15,6 +15,22 @@ import { actorContext } from '../src/modules/world/application/actor-context.ts'
 import { openingMessagesForDisplay } from '../src/modules/world/domain/opening-time.ts';
 import { WorldPhoneSchema } from '../src/contracts/world-build.ts';
 
+test('authored media-only history retains its reference through playable genesis', () => {
+  const c = content();
+  const assetId = '7317f3cc-c3fd-46ed-a9f6-41c7449de671';
+  c.phone.messages[0] = {
+    ...c.phone.messages[0]!,
+    text: '',
+    attachment: { kind: 'video', assetId, label: '旧录像' },
+  };
+  const result = compilePublicationGenesis(input(c));
+  assert.equal(result.status, 'compiled');
+  if (result.status !== 'compiled') return;
+  const message = result.world.messages.find((m) => m.history?.key === 'old_a');
+  assert.equal(message?.text, '');
+  assert.deepEqual(message?.attachment, { kind: 'video', assetId, label: '旧录像' });
+});
+
 function content(): PublicationContent {
   return {
     schemaVersion: 1,

@@ -1390,6 +1390,12 @@ export function PublisherWorkbench(
                     canEdit={session.canEdit}
                     busy={busy}
                     onChange={setDraftContent}
+                    uploadAttachment={props.preparationClient
+                      ? (file) => props.preparationClient!.uploadWorkMedia(work.id, file)
+                      : undefined}
+                    previewAttachment={(assetId) =>
+                      `/api/v1/publisher/works/${encodeURIComponent(work.id)}/media/${encodeURIComponent(assetId)}`
+                    }
                   />
                   <PublisherCharacterPreview
                     content={draftContent}

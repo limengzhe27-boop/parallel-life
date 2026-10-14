@@ -213,6 +213,47 @@ test('chat can continue when imported history ends immediately before opening', 
   );
 });
 
+test('an image or video can be the whole historical message and survives edit until explicitly removed', () => {
+  const original = fixture();
+  const video = { kind: 'video' as const, assetId: 'video-asset', label: '旧日合影视频.mp4' };
+  const added = addHistoryMessage(original, 'lin', 'actor', '', false, undefined, video);
+  assert.equal(added.error, undefined);
+  const entry = phone(added.content).messages.at(-1)!;
+  assert.equal(entry.text, '');
+  assert.deepEqual(entry.attachment, video);
+  assert.deepEqual(historySegments(added.content, 'lin').at(-1)?.attachment, video);
+
+  const editedText = editHistoryMessage(
+    added.content,
+    'lin',
+    String(entry.key),
+    'player',
+    '你看',
+    video,
+  );
+  assert.deepEqual(phone(editedText.content).messages.at(-1)?.attachment, video);
+  const removedVideo = editHistoryMessage(
+    editedText.content,
+    'lin',
+    String(entry.key),
+    'player',
+    '只保留文字',
+    null,
+  );
+  assert.equal(phone(removedVideo.content).messages.at(-1)?.attachment, undefined);
+  assert.equal(
+    editHistoryMessage(editedText.content, 'lin', String(entry.key), 'player', '', null).error,
+    '请填写消息或添加图片、视频；文字最多 500 字。',
+  );
+  const image = addHistoryMessage(original, 'lin', 'player', '', false, undefined, {
+    kind: 'image',
+    assetId: 'image-asset',
+    label: '旧照片.jpg',
+  });
+  assert.equal(historySegments(image.content, 'lin').at(-1)?.attachment?.kind, 'image');
+  assert.equal(addHistoryMessage(original, 'lin', 'actor', '').content, original);
+});
+
 test('friend profile edits only public card and leaves private identity, life modules, and other actor intact', () => {
   const original = fixture();
   const updated = editPublicProfile(original, 'lin', 'introduction', '玩家能读到的新介绍');

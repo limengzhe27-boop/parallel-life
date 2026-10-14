@@ -12,6 +12,8 @@ export function worldAppData(
   world: WorldPhone,
   viewed: ReadonlySet<string> = new Set(),
   local: readonly PhoneMessage[] = [],
+  mediaUrlFor: (worldId: string, assetId: string) => string = (worldId, assetId) =>
+    `/api/v1/worlds/${encodeURIComponent(worldId)}/media/${encodeURIComponent(assetId)}`,
 ): PhoneAppsData {
   const history = world.historyLinks ?? [];
   const historyLinks = (entry: (typeof history)[number]) => [
@@ -81,6 +83,15 @@ export function worldAppData(
     }),
     messages: [
       ...world.messages.map((message) => {
+        const media = (
+          message as typeof message & {
+            attachment?: {
+              kind: 'image' | 'video';
+              assetId: string;
+              label?: string;
+            };
+          }
+        ).attachment;
         return {
           ...(history.find((e) => e.messageId === message.id)
             ? { links: historyLinks(history.find((e) => e.messageId === message.id)!) }
@@ -93,6 +104,16 @@ export function worldAppData(
           role: message.role ?? 'assistant',
           status: 'sent' as const,
           ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
+          ...(media && (media.kind === 'image' || media.kind === 'video') && media.assetId
+            ? {
+                attachment: {
+                  kind: media.kind,
+                  assetId: media.assetId,
+                  ...(media.label ? { label: media.label } : {}),
+                  url: mediaUrlFor(world.id, media.assetId),
+                },
+              }
+            : {}),
         };
       }),
       ...local.map((message) => ({ ...message })),

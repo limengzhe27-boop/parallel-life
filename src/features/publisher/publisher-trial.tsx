@@ -120,6 +120,9 @@ export function PublisherTrial({
         transport={transport}
         automatic={false}
         wechatActorKey={wechatActorKey}
+        mediaUrlFor={(_worldId, assetId) =>
+          `/api/v1/publisher/trials/${encodeURIComponent(trial.trialId)}/world/media/${encodeURIComponent(assetId)}`
+        }
       />
     </>
   ) : (

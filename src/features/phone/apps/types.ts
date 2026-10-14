@@ -25,6 +25,13 @@ export type PhoneMessage = {
   initialRead?: boolean;
   links?: PhoneLink[];
   photo?: PhonePhoto;
+  /** An authored historical chat attachment, read through this world's media authorization. */
+  attachment?: {
+    kind: 'image' | 'video';
+    assetId: string;
+    label?: string;
+    url: string;
+  };
 };
 export type PhonePhoto = {
   sourcePersonId?: string;

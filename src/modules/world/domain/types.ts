@@ -34,6 +34,7 @@ export type Message = {
   text: string;
   at: string;
   sourceEventId: Id;
+  attachment?: { kind: 'image' | 'video'; assetId: Id; label?: string };
   /** Immutable initial read state; later browser reads remain a separate projection. */
   initialRead?: boolean;
   history?: { version: 1; key: string; replyToMessageId?: Id };

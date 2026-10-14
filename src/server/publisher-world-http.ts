@@ -67,6 +67,23 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       principal = await s.http.authorize(request, request.method !== 'GET');
     const trial = await s.worlds.trialSession(principal.id, Id.parse(trialId));
     if (path.length === 0) return publisherJson(await s.worlds.getTrial(principal.id, trialId));
+    if (
+      request.method === 'GET' &&
+      path.length === 3 &&
+      path[0] === 'world' &&
+      path[1] === 'media' &&
+      Id.safeParse(path[2]).success
+    ) {
+      const origin = process.env.APP_ORIGIN;
+      if (!origin) throw new PublisherHttpError('UNAVAILABLE');
+      return Response.redirect(
+        new URL(
+          `/api/v1/publisher/works/${encodeURIComponent(trial.origin.workId)}/media/${encodeURIComponent(path[2]!)}`,
+          origin,
+        ),
+        302,
+      );
+    }
     // A scoped client handshake uses staff-bound CSRF and never creates or replaces a player's cookie.
     if (path.length === 1 && path[0] === 'session' && request.method === 'POST')
       return publisherJson({ kind: 'guest', csrfToken: request.headers.get('X-Publisher-CSRF') });

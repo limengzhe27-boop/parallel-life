@@ -105,6 +105,8 @@ export type PublicationContent = {
       speaker?: 'actor' | 'player';
       text: string;
       at: string;
+      /** Privately stored author media; the draft never embeds file bytes or an access URL. */
+      attachment?: { kind: 'image' | 'video'; assetId: string; label?: string };
     }[];
     moments?: {
       key: string;
@@ -956,6 +958,7 @@ export function publicationPlayerPreview(c: PublicationContent) {
         ...(m.speaker ? { speaker: m.speaker } : {}),
         text: m.text,
         at: m.at,
+        ...(m.attachment ? { attachment: { ...m.attachment } } : {}),
       })),
       notes: c.phone.notes.map((n) => ({ key: n.key, title: n.title, text: n.text })),
       invitations: c.phone.invitations.map((a) => ({
