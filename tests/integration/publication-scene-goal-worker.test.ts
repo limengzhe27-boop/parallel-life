@@ -79,7 +79,7 @@ const compiler: PublicationWorldCompilerPort = {
 
 test('leased scene goals expose only real introduced current-actor directions and reject future, foreign and expired leases', async (t) => {
   const config = await localConfig();
-  const port = process.env.PUBLICATION_STORY_TEST_PORT ?? '55503';
+  const port = process.env.PUBLICATION_STORY_TEST_PORT ?? process.env.STORY_PROGRESS_TEST_PORT ?? process.env.PUBLISHER_TEST_PORT ?? '55503';
   assert.match(port, /^[1-9][0-9]{0,4}$/);
   assert.ok(Number(port) <= 65535);
   assert.equal(config.port, Number(port));
