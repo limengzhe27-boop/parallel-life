@@ -24,6 +24,7 @@ import {
   worldCharacterPreviewBaseline,
   characterIdentityConfirmed,
 } from '../domain/publication-character-previews.ts';
+import { protectCharacterTrialProposal } from '../domain/publication-character-trial-policy.ts';
 import { compilePublicationGenesis } from './publication-genesis.ts';
 
 export const PUBLICATION_MANUSCRIPT_PROMPT_VERSION = 'publication-manuscript-14';
@@ -245,10 +246,15 @@ function withReview(result: PublisherPreparationOutput, text: string): Publisher
   });
 }
 
+const CHARACTER_TRIAL_SYSTEM =
+  '\n受信服务端已选择私有角色演示准备：只补当前稿运行真实手机所需的最少日常环境，不发布、不创建玩家存档。原角色key/name、五模块、编剧公开介绍、图片和已有事件全部保留，允许仅一个角色，严禁为过关新增第二人或新增剧情事件/邀约/任务/条件/过往事实。world或protagonist等运行信息缺少时，围绕已写人物补一个普通日常地点、平常身份和此刻处境；不假定恋爱、借贷、重大经历或玩家承诺。未提供关系不编双向历史，可留历史为空并提供普通当下来信；熟人历史/动态按已确认关系生成。publicCard沿原稿，不编公开介绍；privatePersona仅在原空处基于五模块写兼容运行摘要。结果是待编剧核对的私有未发布草稿。不要照抄格式例人物、事件或阶段。';
+
 export class PublicationManuscriptPlanner implements PublisherPreparationPlanner {
   private readonly model: TextModel;
-  constructor(model: TextModel) {
+  private readonly characterTrial: boolean;
+  constructor(model: TextModel, options: { characterTrial?: boolean } = {}) {
     this.model = model;
+    this.characterTrial = options.characterTrial === true;
   }
   async propose(
     raw: PublisherPreparationMaterial,
@@ -267,6 +273,10 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
     if (!parsed.success)
       throw Object.assign(new Error('INVALID_PREPARATION_INPUT'), { code: 'INVALID_INPUT' });
     const input = JSON.parse(JSON.stringify(parsed.data)) as PublisherPreparationMaterial;
+    if (this.characterTrial && input.scope === 'characters')
+      throw Object.assign(new Error('CHARACTER_TRIAL_REQUIRES_WORLD_SCOPE'), {
+        code: 'INVALID_INPUT',
+      });
     const charactersOnly = input.scope === 'characters';
     const actorContent = (content: PublisherPreparationMaterial['currentContent']) =>
       characterPreparationContext(content, input.sources);
@@ -297,7 +307,12 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
           ...(scheduling ? { scheduling } : {}),
         };
     const messages = [
-      { role: 'system' as const, content: charactersOnly ? CHARACTER_SYSTEM : SYSTEM },
+      {
+        role: 'system' as const,
+        content: charactersOnly
+          ? CHARACTER_SYSTEM
+          : SYSTEM + (this.characterTrial ? CHARACTER_TRIAL_SYSTEM : ''),
+      },
       {
         role: 'user' as const,
         content: JSON.stringify(modelInput),
@@ -312,7 +327,7 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
         role: 'system',
         content: charactersOnly
           ? CHARACTER_SYSTEM + CHARACTER_CORRECTION
-          : SYSTEM + CORRECTION_INSTRUCTION,
+          : SYSTEM + CORRECTION_INSTRUCTION + (this.characterTrial ? CHARACTER_TRIAL_SYSTEM : ''),
       },
       {
         role: 'user',
@@ -397,7 +412,10 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
     if (input.scope === 'characters') return this.assessCharacters(input, output, scheduling);
     const introductions = explicitCharacterIntroductions(input.sources);
     const introductionReviews: string[] = [];
-    const authoredProposal = { ...output.updatedContent };
+    const trialPolicy = this.characterTrial
+      ? protectCharacterTrialProposal(input.currentContent, output.updatedContent)
+      : undefined;
+    const authoredProposal = { ...(trialPolicy?.proposal ?? output.updatedContent) };
     const identityIssues: PublisherPreparationOutput['issues'] = [];
     const rejectedKeys = new Set<unknown>();
     if (Array.isArray(authoredProposal.actors))
@@ -456,7 +474,7 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
     const issues: PublisherPreparationOutput['issues'] = (plan?.issues ?? []).map(
       ({ path, code }) => ({ path, code }),
     );
-    issues.push(...identityIssues);
+    issues.push(...identityIssues, ...(trialPolicy?.issues ?? []));
     issues.push(
       ...characterPreviewCompletenessIssues(
         worldCharacterPreviewBaseline(input.currentContent, updatedContent, input.sources),
@@ -505,6 +523,11 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
       notes.push({
         kind: 'review',
         text: '部分人物尚无作者明确提供的公开介绍，已避免把幕后设定编成介绍；请在人物页填写并核对。',
+      });
+    if (this.characterTrial)
+      notes.push({
+        kind: 'review',
+        text: '这是只供角色演示的私有未发布草稿；日常环境等必要补充仍需核对，尚未保存或试演。',
       });
     const authoredTimeline = input.currentContent.timeline;
     if (
