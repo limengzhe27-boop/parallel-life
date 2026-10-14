@@ -62,6 +62,7 @@ export async function advancePublicationStory(
         result: { storyNow, played: 0, folded: 0, summary: null, actors: [] },
       };
     let selection: { nodeKey: string; expectedVersion: number } | undefined;
+    let continuing = false;
     if (!retryClaimId && deps.story.opportunities) {
       const pool = await deps.story.opportunities(ownerId, worldId, automatic);
       if (pool.directorPool) {
@@ -70,85 +71,104 @@ export async function advancePublicationStory(
           result: { storyNow, played: 0, folded: 0, summary: null, actors: [] },
         });
         if (!pool.candidates.length) return quiet();
-        if (
-          !deps.planner.chooseStoryOpportunity ||
-          !deps.story.beginSelection ||
-          !deps.story.finishSelection
-        )
-          throw new DomainError('INVALID_PROPOSAL', '导演暂时无法安排这组剧情。');
-        const attemptId = deps.newId();
-        if (
-          !(await deps.story.beginSelection(
+        const only = pool.candidates.length === 1 ? pool.candidates[0] : undefined;
+        if (only?.eventProgress) {
+          // Continuing an already introduced event is not another paid new-event selection.
+          // The continuation port rechecks version, pending receipts, source and its own cadence.
+          if (!deps.story.prepareProgressBeat || !deps.story.finishProgressBeat)
+            throw new DomainError('INVALID_PROPOSAL', '这件事的后续暂时无法安排。');
+          if (['wait', 'finished'].includes(only.eventProgress.nextMove)) return quiet();
+          continuing = true;
+          selection = { nodeKey: only.nodeKey, expectedVersion: pool.version };
+        } else {
+          if (
+            !deps.planner.chooseStoryOpportunity ||
+            !deps.story.beginSelection ||
+            !deps.story.finishSelection
+          )
+            throw new DomainError('INVALID_PROPOSAL', '导演暂时无法安排这组剧情。');
+          const attemptId = deps.newId();
+          if (
+            !(await deps.story.beginSelection(
+              ownerId,
+              worldId,
+              pool.version,
+              attemptId,
+              pool.candidates.map((n) => n.nodeKey),
+            ))
+          )
+            return quiet();
+          let selected: string | null;
+          try {
+            const world = await deps.worlds.get({ userId: ownerId }, worldId);
+            if (world.version !== pool.version)
+              throw new DomainError('VERSION_CONFLICT', '世界已有新的进展，请稍后继续。');
+            selected = await deps.planner.chooseStoryOpportunity({
+              storyNow: pool.storyNow,
+              worldTitle: world.title,
+              worldSetting:
+                pool.worldSetting ??
+                world.facts
+                  .filter(
+                    (fact) =>
+                      fact.kind === 'canonical' &&
+                      ['owner', 'world'].includes(fact.visibility.kind),
+                  )
+                  .slice(-16)
+                  .map((fact) => fact.text)
+                  .join('\n')
+                  .slice(0, 12000),
+              cast: world.actors.map(({ id, name, persona, relationship }) => ({
+                id,
+                name,
+                persona,
+                relationship,
+              })),
+              currentPlaceId: world.space?.currentPlaceId ?? null,
+              // Only messages from the player's own phone, never another person's private memories.
+              recentMessages: world.messages
+                .slice(-12)
+                .map(({ role, actorId, text }) => ({ role, actorId, text: text.slice(0, 500) })),
+              candidates: pool.candidates,
+            });
+            const required = pool.candidates.filter(
+              (candidate) => candidate.direction?.mode === 'required',
+            );
+            if (
+              required.length &&
+              (selected === null || !required.some((candidate) => candidate.nodeKey === selected))
+            )
+              throw new DomainError('INVALID_PROPOSAL', '这组剧情需要推进，导演尚未给出有效安排。');
+            if (selected !== null && !pool.candidates.some((n) => n.nodeKey === selected))
+              throw new DomainError('INVALID_PROPOSAL', '导演选择的剧情暂不能发生。');
+          } catch (error) {
+            await deps.story
+              .finishSelection(ownerId, worldId, attemptId, 'unknown', null)
+              .catch(() => {});
+            throw error;
+          }
+          await deps.story.finishSelection(
             ownerId,
             worldId,
-            pool.version,
             attemptId,
-            pool.candidates.map((n) => n.nodeKey),
-          ))
-        )
-          return quiet();
-        let selected: string | null;
-        try {
-          const world = await deps.worlds.get({ userId: ownerId }, worldId);
-          if (world.version !== pool.version)
-            throw new DomainError('VERSION_CONFLICT', '世界已有新的进展，请稍后继续。');
-          selected = await deps.planner.chooseStoryOpportunity({
-            storyNow: pool.storyNow,
-            worldTitle: world.title,
-            worldSetting:
-              pool.worldSetting ??
-              world.facts
-                .filter(
-                  (fact) =>
-                    fact.kind === 'canonical' && ['owner', 'world'].includes(fact.visibility.kind),
-                )
-                .slice(-16)
-                .map((fact) => fact.text)
-                .join('\n')
-                .slice(0, 12000),
-            cast: world.actors.map(({ id, name, persona, relationship }) => ({
-              id,
-              name,
-              persona,
-              relationship,
-            })),
-            currentPlaceId: world.space?.currentPlaceId ?? null,
-            // Only messages from the player's own phone, never another person's private memories.
-            recentMessages: world.messages
-              .slice(-12)
-              .map(({ role, actorId, text }) => ({ role, actorId, text: text.slice(0, 500) })),
-            candidates: pool.candidates,
-          });
-          const required = pool.candidates.filter(
-            (candidate) => candidate.direction?.mode === 'required',
+            selected === null ? 'deferred' : 'selected',
+            selected,
           );
-          if (
-            required.length &&
-            (selected === null || !required.some((candidate) => candidate.nodeKey === selected))
-          )
-            throw new DomainError('INVALID_PROPOSAL', '这组剧情需要推进，导演尚未给出有效安排。');
-          if (selected !== null && !pool.candidates.some((n) => n.nodeKey === selected))
-            throw new DomainError('INVALID_PROPOSAL', '导演选择的剧情暂不能发生。');
-        } catch (error) {
-          await deps.story
-            .finishSelection(ownerId, worldId, attemptId, 'unknown', null)
-            .catch(() => {});
-          throw error;
+          if (selected === null) return quiet();
+          continuing = !!pool.candidates.find((candidate) => candidate.nodeKey === selected)
+            ?.eventProgress;
+          selection = { nodeKey: selected, expectedVersion: pool.version };
         }
-        await deps.story.finishSelection(
-          ownerId,
-          worldId,
-          attemptId,
-          selected === null ? 'deferred' : 'selected',
-          selected,
-        );
-        if (selected === null) return quiet();
-        selection = { nodeKey: selected, expectedVersion: pool.version };
       }
     }
     const prepared = retryClaimId
       ? await deps.story.retry(ownerId, worldId, retryClaimId)
-      : await deps.story.prepare(ownerId, worldId, { automatic, ...selection });
+      : continuing && selection && deps.story.prepareProgressBeat
+        ? await deps.story.prepareProgressBeat(ownerId, worldId, selection.nodeKey, {
+            automatic,
+            expectedVersion: selection.expectedVersion,
+          })
+        : await deps.story.prepare(ownerId, worldId, { automatic, ...selection });
     if (prepared.status === 'none')
       return prepared.managed
         ? { handled: true, result: { storyNow, played: 0, folded: 0, summary: null, actors: [] } }
@@ -174,6 +194,9 @@ export async function advancePublicationStory(
         : null,
       claim.placeNeedsReveal && claim.placeName
         ? `主角目前还不知道「${claim.placeName}」在地图上的位置。如果你此刻想让主角去那里，请在发给主角的消息正文里自然地、明确地说出「${claim.placeName}」；否则地图不会提前揭示这个地点。不要假称主角已经知道或已经到达。`
+        : null,
+      claim.eventProgress
+        ? `这是同一件事的后续，不是重新开场。本人已保存的目标与立场：${JSON.stringify(claim.eventProgress.ownGoal)}。已有${claim.eventProgress.productiveBeats}个有效进展，目前第${claim.eventProgress.segmentIndex + 1}段；当前安排建议${claim.eventProgress.nextMove}。先承接玩家真实答复与已发生变化，再提出本人一个具体小下一步；不要求主角聊满轮数，不重演旧邀请，不复述整段前情。玩家拒绝或不回应时允许自己改方案、暂缓或结束这次请求，不能逼主角答应、制造危机处罚或宣称玩家已行动。每次自然一至三句，最多一个需要玩家决定的入口。seek_closure表示应整理实际结果或明确暂缓，绝不表示条件已经完成；advance_without_player只允许本人合法的发言/计划，不编物理成果、其他人物行动或主角决定。`
         : null,
       `本次导演意图：${claim.editorialIntent}`,
       claim.intent.kind === 'director_event'
@@ -245,7 +268,9 @@ export async function advancePublicationStory(
           origin: 'director',
         },
       );
-      await deps.story.finish(ownerId, worldId, claim.claimId);
+      if (claim.eventProgress && deps.story.finishProgressBeat)
+        await deps.story.finishProgressBeat(ownerId, worldId, claim.claimId);
+      else await deps.story.finish(ownerId, worldId, claim.claimId);
       return {
         handled: true,
         result: {
@@ -258,7 +283,11 @@ export async function advancePublicationStory(
       };
     } catch (error) {
       // Reconcile durable receipts after a lost response; absence must never auto-spend again.
-      await deps.story.finish(ownerId, worldId, claim.claimId).catch(() => {});
+      await (
+        claim.eventProgress && deps.story.finishProgressBeat
+          ? deps.story.finishProgressBeat(ownerId, worldId, claim.claimId)
+          : deps.story.finish(ownerId, worldId, claim.claimId)
+      ).catch(() => {});
       throw error;
     }
   });

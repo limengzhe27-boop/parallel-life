@@ -1,3 +1,8 @@
+import type {
+  NextStoryMove,
+  StoryEventProgress,
+  ownGoalBrief,
+} from '../domain/story-event-progress.ts';
 import type { StoryOrigin, StoryStatus } from '../domain/publication-story.ts';
 export type PublicationStoryClaim = {
   claimId: string;
@@ -22,6 +27,8 @@ export type PublicationStoryClaim = {
         earliestAt: string;
       };
   origin: StoryOrigin;
+  /** Current own goal/progress only; neither other actors' private goals nor future steps. */
+  eventProgress?: PublicationEventProgressContext;
 };
 export type PublicationStoryPrepare =
   | { status: 'claimed'; claim: PublicationStoryClaim }
@@ -55,6 +62,16 @@ export type PublicationSceneBrief = {
   invitationId: string;
   sourceEventId: string;
 };
+export type PublicationEventProgressContext = {
+  nodeKey: string;
+  actorId: string;
+  phase: StoryEventProgress['phase'];
+  resolution: StoryEventProgress['resolution'];
+  ownGoal: NonNullable<ReturnType<typeof ownGoalBrief>>;
+  productiveBeats: number;
+  segmentIndex: number;
+  nextMove: NextStoryMove;
+};
 export type PublicationStoryOpportunities = {
   managed: boolean;
   directorPool: boolean;
@@ -69,9 +86,28 @@ export type PublicationStoryOpportunities = {
     placeName: string | null;
     placeDescription?: string | null;
     direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
+    /** A continuation is never a new opening or a forced player action. */
+    eventProgress?: PublicationEventProgressContext;
   }[];
 };
 export interface PublicationStoryPort {
+  eventProgressContext?(
+    ownerId: string,
+    worldId: string,
+    actorId: string,
+  ): Promise<PublicationEventProgressContext[]>;
+  prepareProgressBeat?(
+    ownerId: string,
+    worldId: string,
+    nodeKey: string,
+    options: { expectedVersion: number; automatic: boolean },
+  ): Promise<PublicationStoryPrepare>;
+  finishProgressBeat?(
+    ownerId: string,
+    worldId: string,
+    claimId: string,
+  ): Promise<PublicationStoryProgress>;
+
   /** Server-only eligible pool. Never return author intents through player progress. */
   opportunities?(
     ownerId: string,

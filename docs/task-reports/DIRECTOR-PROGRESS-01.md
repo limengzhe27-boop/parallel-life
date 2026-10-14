@@ -33,3 +33,13 @@ I已短锁授予既有publication-story.ts、publication-story-ports.ts、public
 用户明确已批新24(local16/public8)+2临时存档，账本仍0/24；旧local封口、公网4+4不挪。代码未全接/无模型/未上线，保持进行中，后续真实PG和三场景及事件收尾、最终check/build/READY公网缺一不可。
 
 纯helper隐私加固：新增每actor边界/状态当前来源（event+record，固定两项），可见brief对blockedSources不恢复忘却原话；goal anchor若被忘却则不供该frame。此redaction不改全局已提交世界进展，也不授权重新施压。16纯+4stage专项20/20过；状态sourceKeys最终由SQL evidence ledger去重，不无界存world/state。refusalScope明确只针对当前向玩家请求，NPC可继续自己的目标，实际新动作仍需原运行时权限。整体0paid，业务pending slot/adapter不是完成。
+
+## 业务接线中间检查点
+
+已在I分配文件中实现stage的有来源终态投影、私有eventProgress端口及service的续拍分支。唯一合法活动续拍不再重复选新事件或走0052的10真实分钟选择冷却；准备续拍端口仍必须重新核版本/pending/source/自身主动间隔。相关输入可立即承接；wait不调用模型，缺能力诚实失败，模型失败不完成、不重开原开场。4新service fixture+原9=13/13过；16 helper+4阶段=20/20过，都是明确测试替身，非付费生成/实际生产验收。
+
+I已通知0060由其作为35bc3bc数据库部分应用生产并随后应用媒体0061，生产61/61；这是I外部证据，本人不重复写/提交0060，也不把空表上线说成导演功能上线。公共progress配置仍未正式开放；本树借用三份公共草案保持未修改、未提交，待I提供正式共同基线。
+
+尚待I协调两项接线边界：新独立ledger adapter文件（避免旧repository继续膨胀）范围；普通NPC及scene持续ownGoal上下文与同次生成的有quote幕后判断槽。现有turn/scene仍冻结只读，不并写。缺槽时不能用关键词猜无关输入，也不能在GET中偷加付费分类。实际ledger读写、真实PG和本地16/公网8尚未执行，账本0/24、0新存档、0图。任务继续进行中，不能标交付完成。
+
+检查点最终验证：npm run check首次4个已有数据库用例因默认端口凭据不符失败；为本树独立PG55503初始化并应用本地迁移后，最终2332/2332通过、0失败/跳过，type/boundaries通过。npm run build成功。PG55503正常停止，无HTTP启动/浏览器更改/模型调用/新真实存档；借用公共草案仍不在本人提交。上述是中间接线的技术检查，不是三场景真实验收，也不是功能已上线。

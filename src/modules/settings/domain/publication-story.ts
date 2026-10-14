@@ -1,3 +1,4 @@
+import type { EventResolution } from './story-event-progress.ts';
 import {
   publicationStoryWindowState,
   type PublicationContent,
@@ -36,7 +37,19 @@ export type StoryState = {
   sourceMessageId: string | null;
   invitationId: string | null;
   responseEventId: string | null;
+  /** Hydrated only from the receipt-validated private progress ledger; never model-authored. */
+  progressResolution?: { resolution: EventResolution; sourceEventId: string };
 };
+/** Explicit conversation/event resolution is not a proof of physical player completion. */
+export function storyStateOutcome(s: StoryState): PublicationNodeOutcome | null {
+  if (s.outcome) return s.outcome;
+  const progress = s.progressResolution;
+  if (!progress?.sourceEventId || ['claimed', 'unknown', 'failed'].includes(s.status)) return null;
+  if (progress.resolution === 'fulfilled') return 'committed';
+  if (progress.resolution === 'withdrawn') return 'declined';
+  if (progress.resolution === 'missed') return 'expired';
+  return 'skipped';
+}
 export type StoryPlan = {
   schemaVersion: 1;
   origin: StoryOrigin;
@@ -258,10 +271,14 @@ export function evaluateStory(
   const byKey = new Map(states.map((s) => [s.nodeKey, s])),
     expired: string[] = [],
     excluded: StoryEvaluation['excluded'] = [];
-  const outcome = (key: string) => byKey.get(key)?.outcome ?? null;
+  const outcome = (key: string) => {
+    const state = byKey.get(key);
+    return state ? storyStateOutcome(state) : null;
+  };
   for (const n of plan.nodes) {
     const st = byKey.get(n.key);
-    if (st?.outcome || st?.status === 'claimed' || st?.status === 'unknown') continue;
+    if ((st && storyStateOutcome(st)) || st?.status === 'claimed' || st?.status === 'unknown')
+      continue;
     const w = storyNodeWindow(plan, n);
     if (w && publicationStoryWindowState(w, context.storyNow) === 'expired') {
       expired.push(n.key);
@@ -276,7 +293,10 @@ export function evaluateStory(
       excluded.push({ nodeKey: n.key, sourceNodeKey: mutually ?? resolved!.nodeKey });
   }
   const virtual = new Map<string, PublicationNodeOutcome>();
-  for (const s of states) if (s.outcome) virtual.set(s.nodeKey, s.outcome);
+  for (const s of states) {
+    const result = storyStateOutcome(s);
+    if (result) virtual.set(s.nodeKey, result);
+  }
   for (const k of expired) virtual.set(k, 'expired');
   for (const x of excluded) virtual.set(x.nodeKey, 'skipped');
   const resolvedStages: string[] = [],
