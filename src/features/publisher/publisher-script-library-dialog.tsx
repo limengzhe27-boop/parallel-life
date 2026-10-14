@@ -143,13 +143,7 @@ export function PublisherScriptLibraryDialog(props: Props) {
             }
           />
         </label>
-        <button
-          type="button"
-          disabled={props.disabled || reading || !text.trim()}
-          onClick={recognize}
-        >
-          {reading ? '正在读取…' : '识别并预览'}
-        </button>
+
         {error && (
           <p className={s.error} role="alert">
             {error}
@@ -288,6 +282,13 @@ export function PublisherScriptLibraryDialog(props: Props) {
         )}
       </div>
       <footer className={s.footer}>
+        <button
+          type="button"
+          disabled={props.disabled || reading || !text.trim()}
+          onClick={recognize}
+        >
+          {reading ? '正在读取…' : '识别并预览'}
+        </button>
         <button type="button" onClick={props.onClose}>
           取消
         </button>
