@@ -7,7 +7,13 @@ export function publisherArtUrl(
   use: 'avatar' | 'cover',
 ) {
   if (!mediaKey) return undefined;
-  if (typeof mediaKey === 'string' && (mediaKey.startsWith('data:') || mediaKey.startsWith('http://') || mediaKey.startsWith('https://') || mediaKey.startsWith('/'))) {
+  if (
+    typeof mediaKey === 'string' &&
+    (mediaKey.startsWith('data:') ||
+      mediaKey.startsWith('http://') ||
+      mediaKey.startsWith('https://') ||
+      mediaKey.startsWith('/'))
+  ) {
     return mediaKey;
   }
   const entry = Array.isArray(content.media)
@@ -29,6 +35,8 @@ export function selectPublisherArt(
   const list = Array.isArray(next.media) ? [...next.media] : [];
   const selected = PUBLICATION_ART.find((a) => a.key === key && a.uses.includes(use));
   const custom = list.find((m) => m?.key === key && m?.use === use);
+  if (key && selected && list.some((m) => m?.key === key && !publicationArt(m, use)))
+    throw Error('MEDIA_KEY_CONFLICT');
   if (key && !selected && !custom) throw Error('UNKNOWN_PUBLICATION_ART');
   let target: Record<string, unknown>;
   if (use === 'cover') {
@@ -94,4 +102,3 @@ export function importCustomPublisherArt(
   target[field] = key;
   return next;
 }
-
