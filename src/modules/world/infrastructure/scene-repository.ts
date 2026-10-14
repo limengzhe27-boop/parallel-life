@@ -1,6 +1,7 @@
 import { sceneConversationMemory } from '../domain/scene-conversation-memory.ts';
 import { assertSceneDialogueConsistency, sceneDeliveryText } from '../domain/scene-delivery.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
+import { readPublicationSceneImages } from '../../settings/infrastructure/publication-scene-image-repository.ts';
 import { readPublicationSceneBrief } from '../../settings/infrastructure/publication-story-repository.ts';
 import { resolveSceneStepProgress, sceneStepRule } from '../domain/scene-step-progress.ts';
 import { progressSceneMatters } from '../domain/matter-progression.ts';
@@ -383,12 +384,18 @@ export class SceneRepository {
           [worldId, id ?? ''],
         )
       ).rows[0];
+      const placeId = s.scene?.placeId;
+      const images =
+        placeId && w.world.space?.places.some((place) => place.id === placeId)
+          ? await readPublicationSceneImages(sql, worldId, [placeId])
+          : new Map<string, string>();
       return SceneReadSchema.parse({
         worldVersion: w.world.version,
         storyNow: w.storyAt,
         paused: w.paused,
         experience: x,
         ...s,
+        ...(placeId && images.has(placeId) ? { sceneImageUrl: images.get(placeId) } : {}),
         task: task ? publicTask(task) : null,
       });
     });

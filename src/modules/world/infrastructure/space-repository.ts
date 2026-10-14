@@ -1,4 +1,6 @@
 import { publicationPlaceLinks } from './publication-context.ts';
+import { readPublicationSceneImages } from '../../settings/infrastructure/publication-scene-image-repository.ts';
+import { defaultTravelRoutes } from '../domain/space-travel-policy.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { WorldSpacePort } from '../application/space.ts';
@@ -327,6 +329,12 @@ export class PostgresWorldSpace implements WorldSpacePort {
         }
       }
       // A read does not anchor, establish or mutate a legacy world.
+      const places = w.space?.places ?? [];
+      const images = await readPublicationSceneImages(
+        sql,
+        id,
+        places.map((place) => place.id),
+      );
       return WorldSpaceSchema.parse({
         worldId: id,
         worldVersion: w.version,
@@ -336,8 +344,16 @@ export class PostgresWorldSpace implements WorldSpacePort {
         paused: c.paused,
         busy,
         currentPlaceId: w.space?.currentPlaceId ?? null,
-        places: w.space?.places ?? [],
-        routes: w.space?.routes.filter((r) => r.fromPlaceId === w.space!.currentPlaceId) ?? [],
+        places: places.map((place) => ({
+          ...place,
+          ...(images.has(place.id) ? { sceneImageUrl: images.get(place.id) } : {}),
+        })),
+        routes: w.space
+          ? [
+              ...w.space.routes.filter((r) => r.fromPlaceId === w.space!.currentPlaceId),
+              ...defaultTravelRoutes(w.space),
+            ]
+          : [],
         currentSceneId: x?.current_scene_id ?? null,
         canEstablish,
       });
@@ -428,6 +444,7 @@ export class PostgresWorldSpace implements WorldSpacePort {
           departedAt: t.departedAt,
           arrivedAt: t.arrivedAt,
           leftSceneId: sceneId,
+          ...(t.route.source.kind === 'system_policy' ? { generatedRoute: t.route } : {}),
           ...(departureObservation ? { departureObservation } : {}),
         },
       };
