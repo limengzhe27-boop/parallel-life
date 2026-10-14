@@ -1,6 +1,6 @@
 ## 2026-10-14 · PUBLISHER-REMOVE-REVIEW-DIRECT-PUBLISH-07
 
-Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 513 publisher tests passed. No SQL migration changes.
+业务提交 `e7d7434` 已部署到 Production `dpl_AENVGpsRmqzPwfFuUeZ1ybgWNabX`，状态 READY，正式域名 `https://parallel-life-nu.vercel.app` 已列为该部署别名。Boundaries 453，typecheck 与 build 通过；513 项 publisher 测试全部通过。无 SQL 迁移变更。
 - 贯彻落实用户指令「把”待确认的问题“这里，都删掉，我们基本就是确定的用户在后台输入，随后就是发布」：
 - 彻底删除编导后台中的“待确认问题”Tab 与所有排期面板（scheduling / reviewPanel），彻底移除各种检查阻断文案与过时校验；
 - 确立“编导输入设定 -> 点击发布”的极简闭环：发布按钮保持常态可用，编导点击发布后由服务端自动清洗并填补运行时默认值，其他交由导演 Agent 和角色 Agent 后续演绎；
