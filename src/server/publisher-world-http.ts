@@ -74,13 +74,17 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       path[1] === 'media' &&
       Id.safeParse(path[2]).success
     ) {
-      return Response.redirect(
-        new URL(
-          `/api/v1/publisher/works/${encodeURIComponent(trial.origin.workId)}/media/${encodeURIComponent(path[2]!)}`,
-          request.url,
-        ),
-        302,
-      );
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: new URL(
+            `/api/v1/publisher/works/${encodeURIComponent(trial.origin.workId)}/media/${encodeURIComponent(path[2]!)}`,
+            request.url,
+          ).toString(),
+          'Cache-Control': 'private, no-store',
+          'Referrer-Policy': 'no-referrer',
+        },
+      });
     }
     // A scoped client handshake uses staff-bound CSRF and never creates or replaces a player's cookie.
     if (path.length === 1 && path[0] === 'session' && request.method === 'POST')
