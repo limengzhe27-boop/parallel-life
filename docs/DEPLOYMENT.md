@@ -1014,3 +1014,12 @@ MD/ZIP文稿 → 项目自己的整理Agent → 原稿/补充/变化双核对 �
 ## 2026-10-13 / WRITER-UX-12-HEADER
 
 6c725e5 deployed READY (dpl_3B6Ca4DJmuiKdkgumAhJ4j8U2nHf), formal https://parallel-life-nu.vercel.app verified on desktop/mobile. Compact toolbar, consolidated checks/time panel, inline collapsible failures. 2118 check, build, 50 migration checksums; no SQL/model calls. Health/workbench 200 and anonymous works 401. See task-reports/WRITER-UX-12-HEADER.md.
+
+
+## 2026-10-14 · 指定开场与人物原文编辑
+
+正式业务40b947b007be57de49875b7358be12183bb93055 / dpl_DA9JUXm7yXkAF8NTRnZ34EBo9KyN READY，formal https://parallel-life-nu.vercel.app精确同SHA，CI38516307957 check/database成功；health/workbench200、匿名works401。生产57全部checksum核验，旧世界未重建。2267check/63真实PG开场story/world/phone专项/build/format通过。
+
+编导可选择同事件作为开场，不复制剧情；未呈现前真实skip/expiry/decline与同轮expiry/exclusion释放后续，不把呈现算完成；发布前拦不可达因果、保真正可达日期/地点/ANY/阶段成员clock前提及角色知情。整理保作者开场key不被模型改掉。人物公开介绍/五维精确原文保存，私密L5不写公开关系；旧摘要保留不自动迁移。PC1500/mobile390实际六字段及开场选择正文保存/读取full deepEqual与截图通过，Ego177完成，本地服务与PG停。
+
+辅助18独立人类授权2新存档/6文字范围已验收并closed：复制此前真实项目Agent整理的合成稿，私有试演和发布新访客手机均实际指定show_change真实NPC开场，来源保存，v1/presented1且outcome null/未完成。历史/两朋友圈390/1440显示，目录重复进入同存档无再开场，跨私有404；测试作品下架/freshguest不可见，两存档暂停/cookie精准恢复/Ego178完成。root0新模型/世界，不混旧17/24/2或辅助17账本；没有额外玩家私聊，不宣称从零新文稿一次完美或完整连续剧情。长稿NPC上下文整组省略、历史质量/标签、持续多拍、现场新模型未整合等保持任务表。
