@@ -143,3 +143,75 @@ test('client supports rename and delete operations with proper method and payloa
   assert.equal(requests[1]!.method, 'DELETE');
   assert.match(requests[1]!.path, new RegExp(`/works/${work.id}`));
 });
+
+test('one-click character preparation uses dedicated endpoint and uncertain recovery stays a read', async () => {
+  const calls: Array<{ path: string; method: string; body: unknown }> = [];
+  const input = {
+    commandId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    expectedDraftVersion: 0,
+    scope: 'world' as const,
+    currentContent: work.draft.content,
+    sources: [{ filename: '人物.md', content: '作者原稿' }],
+  };
+  const record = {
+    commandId: input.commandId,
+    workId: work.id,
+    draftVersion: 0,
+    status: 'running',
+    material: { scope: 'world', currentContent: input.currentContent, sources: input.sources },
+    result: null,
+    errorCode: null,
+    createdAt: work.createdAt,
+    updatedAt: work.updatedAt,
+  };
+  const client = new PublisherClient((async (path, options) => {
+    calls.push({
+      path: String(path),
+      method: options?.method ?? 'GET',
+      body: options?.body ? JSON.parse(String(options.body)) : null,
+    });
+    return Response.json(record);
+  }) as typeof fetch);
+  await client.prepareTrial(work.id, input);
+  await client.getPreparation(work.id, input.commandId);
+  assert.ok(calls[0]!.path.endsWith('/prepare-trial'));
+  assert.equal(calls[0]!.method, 'POST');
+  assert.deepEqual(calls[0]!.body, input);
+  assert.ok(calls[1]!.path.includes('/prepare?commandId='));
+  assert.equal(calls[1]!.method, 'GET');
+});
+
+test('private character trial does not change ordinary world trial request or command identity', async () => {
+  const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
+  const response = {
+    worldId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    seedId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    trialId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    origin: {
+      workId: work.id,
+      publicationVersion: 0,
+      draftVersion: 0,
+      contentHash: work.draft.contentHash,
+    },
+    originKind: 'trial',
+    resumed: false,
+    replayed: false,
+  };
+  let n = 0;
+  const client = new PublisherClient(
+    (async (path, options) => {
+      calls.push({ path: String(path), body: JSON.parse(String(options?.body)) });
+      return Response.json(response);
+    }) as typeof fetch,
+    () => `cccccccc-cccc-4ccc-8ccc-${String(++n).padStart(12, '0')}`,
+  );
+  await client.startCharacterTrial(work);
+  await client.startTrial(work);
+  assert.ok(calls[0]!.path.endsWith('/character-trial'));
+  assert.ok(calls[1]!.path.endsWith('/trial'));
+  assert.notEqual(calls[0]!.body.commandId, calls[1]!.body.commandId);
+  for (const call of calls) {
+    assert.equal(call.body.draftVersion, work.draftVersion);
+    assert.equal(call.body.contentHash, work.draft.contentHash);
+  }
+});

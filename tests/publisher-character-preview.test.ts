@@ -206,7 +206,35 @@ test('empty chat is honest, does not synthesize conversation, and reports honest
       onChange() {},
     }),
   );
-  assert.match(html, /保存后试演/);
+  assert.match(html, /试演这份草稿/);
   assert.ok(!html.includes('OTHER_PERSON'));
   assert.equal(characterPreviewTime('2026-10-12T20:30:00Z'), '10月13日 04:30');
+});
+
+test('trial remains actionable during autosave, while preparation itself stays locked and feedback is inline', () => {
+  for (const allowTrialWhileSaving of [true, false]) {
+    const html = renderToStaticMarkup(
+      createElement(PublisherCharacterPreview, {
+        content: fixture(),
+        actorKey: 'guide',
+        canEdit: true,
+        busy: true,
+        allowTrialWhileSaving,
+        onStartTrial() {},
+        onChange() {},
+        trialMessage: '正在保存，随后启动试演',
+        trialError: '原稿仍在，请核对人物设定。',
+      }),
+    );
+    assert.match(html, /role="status"/);
+    assert.match(html, /role="alert" class="trialError"/);
+    const buttons = [...html.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)];
+    const trial = buttons.find(([, , label]) =>
+      label?.includes(allowTrialWhileSaving ? '保存后试演' : '正在准备试演'),
+    );
+    assert.ok(trial);
+    assert.equal(trial[1]!.includes('disabled'), !allowTrialWhileSaving);
+    assert.ok(!html.includes('<iframe'));
+    assert.ok(!html.includes('role="dialog"'));
+  }
 });

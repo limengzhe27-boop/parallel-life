@@ -16,13 +16,66 @@ import {
   type PublisherPhoneTrial,
 } from './publisher-phone-trial.ts';
 import s from './publisher-controller.module.css';
+import {
+  PublisherTrialPreparation,
+  PublisherTrialError,
+  trialDraftChanged,
+  type TrialAttempt,
+} from './publisher-trial-preparation.ts';
 
 export function PublisherController() {
   const [client] = useState(() => new PublisherClient());
   const [session, setSession] = useState<PublisherSessionState | null>(null);
   const [works, setWorks] = useState<PublisherWorkList['works']>([]);
   const [work, setWork] = useState<PublisherWork | null>(null);
+  const workRef = useRef<PublisherWork | null>(work);
+  workRef.current = work;
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [trialMessage, setTrialMessage] = useState<string | null>(null);
+  const queuedTrial = useRef<{
+    workId: string;
+    placement: 'inline' | 'drawer';
+    draft?: { title: string; content: Record<string, unknown> };
+  } | null>(null);
+  const [trialPreparation] = useState(
+    () =>
+      new PublisherTrialPreparation(client, () => crypto.randomUUID(), {
+        get(key) {
+          try {
+            const raw = sessionStorage.getItem('publisher-trial-preparation:' + key);
+            if (!raw) return undefined;
+            const value = JSON.parse(raw) as TrialAttempt;
+            return typeof value.commandId === 'string' &&
+              typeof value.workId === 'string' &&
+              Number.isSafeInteger(value.draftVersion) &&
+              typeof value.contentHash === 'string'
+              ? value
+              : undefined;
+          } catch {
+            return undefined;
+          }
+        },
+        put(key, value) {
+          try {
+            sessionStorage.setItem('publisher-trial-preparation:' + key, JSON.stringify(value));
+          } catch {
+            /* The live coordinator still retains the original command. */
+          }
+        },
+      }),
+  );
+  function updateWork(value: PublisherWork | null) {
+    workRef.current = value;
+    setWork(value);
+  }
   const [phoneTrial, setPhoneTrial] = useState<PublisherPhoneTrial | null>(null);
+  const phoneTrialRef = useRef<PublisherPhoneTrial | null>(phoneTrial);
+  const phoneTrialMode = useRef<'character' | 'world' | null>(null);
+  phoneTrialRef.current = phoneTrial;
+  function updatePhoneTrial(value: PublisherPhoneTrial | null) {
+    phoneTrialRef.current = value;
+    setPhoneTrial(value);
+  }
   const [trialPlacement, setTrialPlacement] = useState<'inline' | 'drawer' | null>(null);
   const trialMount = phoneTrialMount(work, phoneTrial, trialPlacement);
   const [check, setCheck] = useState<PublisherCheckResult | null>(null);
@@ -32,7 +85,11 @@ export function PublisherController() {
   const [username, setUsername] = useState(''),
     [password, setPassword] = useState('');
   function fail(e: unknown) {
-    const f = e instanceof PublisherClientError ? e : new PublisherClientError('UNAVAILABLE');
+    setTrialMessage(null);
+    const f =
+      e instanceof PublisherClientError || e instanceof PublisherTrialError
+        ? e
+        : new PublisherClientError('UNAVAILABLE');
     setError({ code: f.code, message: f.message });
   }
   async function loadWorks() {
@@ -52,32 +109,57 @@ export function PublisherController() {
     } finally {
       running.current = false;
       setBusy(false);
+      const request = queuedTrial.current;
+      queuedTrial.current = null;
+      if (request && workRef.current?.id === request.workId)
+        openTrial(request.placement, request.draft);
     }
   }
   function openTrial(
     placement: 'inline' | 'drawer',
     draftToSaveFirst?: { title: string; content: Record<string, unknown> },
   ) {
-    if (!work) return;
+    const current = workRef.current;
+    if (!current) return;
+    if (running.current) {
+      queuedTrial.current = { workId: current.id, placement, draft: draftToSaveFirst };
+      setTrialMessage('正在保存修改，随后为你启动试演…');
+      return;
+    }
     void run(async () => {
-      let currentWork = work;
-      if (draftToSaveFirst) {
-        currentWork = await client.save(work, draftToSaveFirst);
-        setWork(currentWork);
-        await loadWorks();
-      }
-      if (!phoneTrialMatches(currentWork, phoneTrial)) {
-        const result = await client.startTrial(currentWork);
+      setTrialMessage(null);
+      const draft = draftToSaveFirst ?? { title: current.title, content: current.draft.content };
+      // Reopen the same actual saved trial without creating another draft revision or model call.
+      let finalWork = current;
+      const mode = placement === 'inline' ? 'character' : 'world';
+      if (
+        !phoneTrialMatches(current, phoneTrialRef.current) ||
+        trialDraftChanged(current, draft) ||
+        phoneTrialMode.current !== mode
+      ) {
+        const ready = await trialPreparation.open(current, draft, {
+          onProgress: setTrialMessage,
+          mode,
+          onWork: (value) => {
+            updateWork(value);
+            setCheck(null);
+          },
+        });
+        finalWork = ready.work;
         try {
-          setPhoneTrial(phoneTrialFromResult(currentWork, result));
+          updatePhoneTrial(phoneTrialFromResult(finalWork, ready.result));
+          phoneTrialMode.current = mode;
         } catch {
           throw new PublisherClientError('INVALID_STATE');
         }
+        setTrialMessage(ready.supplemented ? '已为试演补齐所需内容，本次补充尚未发布。' : null);
         setCheck(null);
+        await loadWorks();
       }
       setTrialPlacement(placement);
     });
   }
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -91,7 +173,7 @@ export function PublisherController() {
           setWorks(list.works);
           if (list.works[0]) {
             const value = await client.get(list.works[0].id);
-            if (alive) setWork(value);
+            if (alive) updateWork(value);
           }
         }
       } catch (e) {
@@ -116,7 +198,7 @@ export function PublisherController() {
               setPassword('');
               setSession(next);
               const list = await loadWorks();
-              if (list[0]) setWork(await client.get(list[0].id));
+              if (list[0]) updateWork(await client.get(list[0].id));
             });
           }}
         >
@@ -165,6 +247,9 @@ export function PublisherController() {
         work={work}
         check={check}
         busy={busy}
+        draftSaving={draftSaving}
+        characterTrialMessage={trialMessage}
+        characterTrialError={error?.message}
         error={error}
         onTrial={(draft) => openTrial('drawer', draft)}
         characterTrial={trialMount.inline}
@@ -174,16 +259,17 @@ export function PublisherController() {
           if (work && check)
             void run(async () => {
               await client.publish(work, check);
-              setWork(await client.get(work.id));
+              updateWork(await client.get(work.id));
               setCheck(null);
               await loadWorks();
             });
         }}
         onSelectWork={(id) => {
           setTrialPlacement(null);
+          setTrialMessage(null);
           void run(async () => {
             const next = await client.get(id);
-            setWork(next);
+            updateWork(next);
             setCheck(null);
           });
         }}
@@ -191,7 +277,7 @@ export function PublisherController() {
           setTrialPlacement(null);
           void run(async () => {
             const next = await client.create(draft);
-            setWork(next);
+            updateWork(next);
             setCheck(null);
             await loadWorks();
           });
@@ -199,17 +285,24 @@ export function PublisherController() {
         onSaveDraft={(draft) => {
           if (work)
             void run(async () => {
-              const next = await client.save(work, draft);
-              setWork(next);
-              setCheck(null);
-              await loadWorks();
+              setDraftSaving(true);
+              try {
+                const current = workRef.current;
+                if (!current || current.id !== work.id) return;
+                const next = await client.save(current, draft);
+                updateWork(next);
+                setCheck(null);
+                await loadWorks();
+              } finally {
+                setDraftSaving(false);
+              }
             });
         }}
         onRenameWork={(workId, newTitle) => {
           void run(async () => {
             const next = await client.rename(workId, newTitle);
             if (work && work.id === workId) {
-              setWork(next);
+              updateWork(next);
             }
             await loadWorks();
           });
@@ -222,9 +315,9 @@ export function PublisherController() {
             if (work && work.id === workId) {
               const first = remaining[0];
               if (first) {
-                setWork(await client.get(first.id));
+                updateWork(await client.get(first.id));
               } else {
-                setWork(null);
+                updateWork(null);
               }
               setCheck(null);
             }
@@ -240,8 +333,8 @@ export function PublisherController() {
           void run(async () => {
             setSession(await client.logout());
             setTrialPlacement(null);
-            setPhoneTrial(null);
-            setWork(null);
+            updatePhoneTrial(null);
+            updateWork(null);
             setWorks([]);
             setCheck(null);
           });

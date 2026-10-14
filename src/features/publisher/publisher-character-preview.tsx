@@ -18,6 +18,9 @@ type Props = {
   saveBlocked?: boolean;
   trial?: PublisherPhoneTrial | null;
   onStartTrial?: () => void;
+  allowTrialWhileSaving?: boolean;
+  trialMessage?: string | null;
+  trialError?: string;
   onSave?: () => void;
   onCloseTrial?: () => void;
   onChange: (content: Record<string, unknown>) => void;
@@ -31,6 +34,9 @@ export function PublisherCharacterPreview({
   saveBlocked = false,
   trial,
   onStartTrial,
+  allowTrialWhileSaving = false,
+  trialMessage,
+  trialError,
   onSave,
   onCloseTrial,
   onChange,
@@ -52,6 +58,16 @@ export function PublisherCharacterPreview({
         <p className={s.hint}>
           在手机微信中选择联系人，查看人物资料、朋友圈并直接聊天。试演使用独立存档。
         </p>
+        {trialMessage && (
+          <p role="status" className={s.hint}>
+            {trialMessage}
+          </p>
+        )}
+        {trialError && (
+          <p role="alert" className={s.trialError}>
+            {trialError}
+          </p>
+        )}
         {/* 手机试演常驻区域：有试演则始终展示手机，有修改提示保存 */}
         {isDirty && (
           <div
@@ -122,10 +138,10 @@ export function PublisherCharacterPreview({
                     fontWeight: 600,
                     boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
                   }}
-                  disabled={busy || !onStartTrial || saveBlocked}
+                  disabled={(busy && !allowTrialWhileSaving) || !onStartTrial || saveBlocked}
                   onClick={() => onStartTrial?.()}
                 >
-                  {busy ? '更新中…' : '同步更新试演'}
+                  {busy ? (allowTrialWhileSaving ? '保存后更新试演' : '更新中…') : '同步更新试演'}
                 </button>
               </div>
             )}
@@ -135,16 +151,16 @@ export function PublisherCharacterPreview({
             <p>
               {isDirty
                 ? '有未保存的修改，点击下方按钮将自动保存并进入手机试演。'
-                : '保存后试演，查看玩家实际会使用的手机与角色对话、朋友圈。'}
+                : '点击试演，项目 Agent 会按你的人物设定补齐手机所需内容，再打开真实手机。已有完整世界将直接进入。'}
             </p>
             <button
               type="button"
-              disabled={busy || !onStartTrial || saveBlocked}
+              disabled={(busy && !allowTrialWhileSaving) || !onStartTrial || saveBlocked}
               onClick={() => {
                 onStartTrial?.();
               }}
             >
-              {busy ? '正在启动试演…' : '试演这份草稿'}
+              {busy ? (allowTrialWhileSaving ? '保存后试演' : '正在准备试演…') : '试演这份草稿'}
             </button>
           </div>
         )}

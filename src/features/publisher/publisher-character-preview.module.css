@@ -176,3 +176,11 @@
     min-height: 480px;
   }
 }
+
+.trialError {
+  margin: 0;
+  color: #a32632;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

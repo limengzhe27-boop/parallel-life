@@ -150,6 +150,15 @@ export class PublisherClient {
       130000,
     );
   }
+  prepareTrial(workId: string, input: PublisherPreparationInput) {
+    return this.request(
+      '/works/' + encodeURIComponent(workId) + '/prepare-trial',
+      PublisherPreparationRecordSchema,
+      'POST',
+      PublisherPreparationInputSchema.parse(input),
+      130000,
+    );
+  }
   getPreparation(workId: string, commandId: string) {
     return this.request(
       '/works/' +
@@ -202,6 +211,14 @@ export class PublisherClient {
   startTrial(work: PublisherWork) {
     return this.command(
       '/works/' + work.id + '/trial',
+      'POST',
+      { draftVersion: work.draftVersion, contentHash: work.draft.contentHash },
+      PublicationWorldResultSchema,
+    );
+  }
+  startCharacterTrial(work: PublisherWork) {
+    return this.command(
+      '/works/' + work.id + '/character-trial',
       'POST',
       { draftVersion: work.draftVersion, contentHash: work.draft.contentHash },
       PublicationWorldResultSchema,

@@ -123,11 +123,15 @@ function syncWorldSettingsFromOverall(
   const text = overallText.trim();
   if (!text) return content;
   const current = parseWorldSettings(content, title);
-  const firstLine = text.split('\n').find((l) => l.trim().length > 0)?.trim() || title;
-  const hook = current.hook || (firstLine.slice(0, 60) || '一段关于抉择与羁绊的平行人生');
-  const description = current.description || (text.slice(0, 500) || hook);
+  const firstLine =
+    text
+      .split('\n')
+      .find((l) => l.trim().length > 0)
+      ?.trim() || title;
+  const hook = current.hook || firstLine.slice(0, 60) || '一段关于抉择与羁绊的平行人生';
+  const description = current.description || text.slice(0, 500) || hook;
   const experienceNote = current.experienceNote || '沉浸式平行人生体验，请根据内心直觉做出抉择。';
-  const publicSetting = current.publicSetting || (text.slice(0, 800) || description);
+  const publicSetting = current.publicSetting || text.slice(0, 800) || description;
   const hiddenContext = current.hiddenContext || text;
   const tone = current.tone || '现实质感 · 情感波澜';
   const startAt = current.startAt || '2026-10-14T09:00:00Z';
@@ -156,6 +160,9 @@ export function PublisherWorkbench(
   props: PublisherWorkbenchProps & {
     preparationClient?: PublisherClient;
     characterTrial?: PublisherPhoneTrial | null;
+    draftSaving?: boolean;
+    characterTrialMessage?: string | null;
+    characterTrialError?: string;
     onCharacterTrial?: (draft?: PublisherWorkbenchDraft) => void;
     onCloseCharacterTrial?: () => void;
   },
@@ -361,6 +368,10 @@ export function PublisherWorkbench(
   const isDirty = useMemo(() => {
     return overallBlocked || isDraftDirty(savedState, { title: draftTitle, content: draftContent });
   }, [savedState, draftTitle, draftContent, overallBlocked]);
+  const [trialRequested] = useState(() => ({ current: false }));
+  useEffect(() => {
+    if (!busy) trialRequested.current = false;
+  }, [busy]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -497,12 +508,13 @@ export function PublisherWorkbench(
 
   // Handle character trial: atomically pass latest draft
   const handleCharacterTrial = useCallback(() => {
-    if (busy || overallBlocked) return;
+    if ((busy && !props.draftSaving) || overallBlocked) return;
+    trialRequested.current = true;
     props.onCharacterTrial?.({
       title: draftTitle,
       content: draftContent,
     });
-  }, [busy, overallBlocked, props.onCharacterTrial, draftTitle, draftContent]);
+  }, [busy, props.draftSaving, overallBlocked, props.onCharacterTrial, draftTitle, draftContent]);
 
   // Auto-save: 填写即自动保存（防抖 800ms）
   useEffect(() => {
@@ -510,13 +522,23 @@ export function PublisherWorkbench(
     if (!isDraftDirty(savedState, { title: draftTitle, content: draftContent })) return;
 
     const timer = setTimeout(() => {
+      if (trialRequested.current) return;
       onSaveDraft({
         title: draftTitle,
         content: draftContent,
       });
     }, 800);
     return () => clearTimeout(timer);
-  }, [draftTitle, draftContent, savedState, work, session.canEdit, busy, overallBlocked, onSaveDraft]);
+  }, [
+    draftTitle,
+    draftContent,
+    savedState,
+    work,
+    session.canEdit,
+    busy,
+    overallBlocked,
+    onSaveDraft,
+  ]);
 
   // Create work
   const handleCreateWorkSubmit = useCallback(
@@ -835,11 +857,11 @@ export function PublisherWorkbench(
                     onTrial
                       ? () =>
                           activeTab === 'actors' && props.onCharacterTrial
-                            ? props.onCharacterTrial()
-                            : onTrial()
+                            ? handleCharacterTrial()
+                            : onTrial({ title: draftTitle, content: draftContent })
                       : undefined
                   }
-                  disabled={busy || isDirty || !onTrial}
+                  disabled={(busy && !props.draftSaving) || overallBlocked || !onTrial}
                   title={!onTrial ? '试演功能暂不可用' : '用独立体验存档试演当前故事'}
                 >
                   {onTrial ? '试演' : '试演 （暂不可用）'}
@@ -1149,8 +1171,13 @@ export function PublisherWorkbench(
                 className={`${s.btn} ${s.btnSecondary}`}
                 disabled={busy || !session.canEdit || !overallText.trim()}
                 onClick={() => {
-                  setDraftContent((prev) => syncWorldSettingsFromOverall(prev, overallText, draftTitle));
-                  setNotice({ type: 'success', message: '已根据总体设定自动填充底层展示与开局参数。' });
+                  setDraftContent((prev) =>
+                    syncWorldSettingsFromOverall(prev, overallText, draftTitle),
+                  );
+                  setNotice({
+                    type: 'success',
+                    message: '已根据总体设定自动填充底层展示与开局参数。',
+                  });
                 }}
               >
                 同步到展示字段
@@ -1238,7 +1265,8 @@ export function PublisherWorkbench(
 
                   {(() => {
                     const defaultAvatarArtKey =
-                      PUBLICATION_ART.filter((a) => a.uses.includes('avatar'))[0]?.key ?? 'qingqing';
+                      PUBLICATION_ART.filter((a) => a.uses.includes('avatar'))[0]?.key ??
+                      'qingqing';
                     const activeAvatarKey = currentActorForm.avatarMediaKey || defaultAvatarArtKey;
                     const avatarImgUrl = publisherArtUrl(draftContent, activeAvatarKey, 'avatar');
 
@@ -1255,16 +1283,16 @@ export function PublisherWorkbench(
                             value={currentActorForm.name}
                             maxLength={80}
                             disabled={busy || !session.canEdit}
-                            onChange={(event) => handleActorChange('name', event.currentTarget.value)}
+                            onChange={(event) =>
+                              handleActorChange('name', event.currentTarget.value)
+                            }
                             placeholder="输入角色姓名（如：林白语、苏青）"
                           />
                         </div>
 
                         {/* 2. 微信头像（默认使用默认图片，支持三种选择方式） */}
                         <div className={s.formFieldFull}>
-                          <label className={s.fieldLabel}>
-                            微信头像（默认使用预设图片）
-                          </label>
+                          <label className={s.fieldLabel}>微信头像（默认使用预设图片）</label>
                           <div className={s.avatarSettingBox}>
                             <div className={s.avatarPreviewThumb}>
                               {avatarImgUrl ? (
@@ -1288,17 +1316,21 @@ export function PublisherWorkbench(
                                   onChange={(e) => handleArtChange('avatar', e.target.value)}
                                   aria-label="选择预设默认图片"
                                 >
-                                  {PUBLICATION_ART.filter((a) => a.uses.includes('avatar')).map((a) => (
-                                    <option key={a.key} value={a.key}>
-                                      默认图片：{a.label}
-                                    </option>
-                                  ))}
+                                  {PUBLICATION_ART.filter((a) => a.uses.includes('avatar')).map(
+                                    (a) => (
+                                      <option key={a.key} value={a.key}>
+                                        默认图片：{a.label}
+                                      </option>
+                                    ),
+                                  )}
                                 </select>
 
                                 {/* 方式二：导入本地图片 */}
                                 <label
                                   className={s.avatarActionBtn}
-                                  style={{ cursor: session.canEdit && !busy ? 'pointer' : 'not-allowed' }}
+                                  style={{
+                                    cursor: session.canEdit && !busy ? 'pointer' : 'not-allowed',
+                                  }}
                                 >
                                   📁 导入本地图片
                                   <input
@@ -1330,11 +1362,12 @@ export function PublisherWorkbench(
                                   className={s.avatarActionBtn}
                                   disabled={!session.canEdit || busy}
                                   onClick={() => {
-                                    const avatars = PUBLICATION_ART.filter((a) => a.uses.includes('avatar'));
-                                    const nameHash = Array.from(currentActorForm.name || 'AI').reduce(
-                                      (acc, c) => acc + c.charCodeAt(0),
-                                      0,
+                                    const avatars = PUBLICATION_ART.filter((a) =>
+                                      a.uses.includes('avatar'),
                                     );
+                                    const nameHash = Array.from(
+                                      currentActorForm.name || 'AI',
+                                    ).reduce((acc, c) => acc + c.charCodeAt(0), 0);
                                     const picked = avatars[nameHash % avatars.length] ?? avatars[0];
                                     if (picked) {
                                       handleArtChange('avatar', picked.key);
@@ -1450,7 +1483,9 @@ export function PublisherWorkbench(
                                 className={s.textarea}
                                 rows={2}
                                 value={currentActorForm.relationshipToPlayer}
-                                onChange={(e) => handleActorChange('relationshipToPlayer', e.target.value)}
+                                onChange={(e) =>
+                                  handleActorChange('relationshipToPlayer', e.target.value)
+                                }
                                 placeholder="与玩家/主角的初始关系、相处模式与互动底线…"
                                 disabled={!session.canEdit || busy}
                               />
@@ -1460,7 +1495,6 @@ export function PublisherWorkbench(
                       </div>
                     );
                   })()}
-
                 </div>
 
                 {/* 右侧：手机界面与对话框 */}
@@ -1475,6 +1509,9 @@ export function PublisherWorkbench(
                     trial={
                       phoneTrialMatches(work, props.characterTrial) ? props.characterTrial : null
                     }
+                    trialMessage={props.characterTrialMessage}
+                    trialError={props.characterTrialError}
+                    allowTrialWhileSaving={props.draftSaving}
                     onStartTrial={handleCharacterTrial}
                     onSave={handleSaveDraft}
                     onCloseTrial={props.onCloseCharacterTrial}
