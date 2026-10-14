@@ -239,6 +239,54 @@ function content(): PublicationContent {
     ],
   };
 }
+
+test('author-confirmed event pacing and observable conversation outcomes stay private', () => {
+  const c = content();
+  c.candidates[0]!.direction = {
+    mode: 'optional',
+    expectedImpact: '见面后可能改变彼此看法；这不是已发生事实。',
+    progress: {
+      pace: 'brief',
+      refusal: 'defer',
+      completion: {
+        mode: 'any',
+        criteria: [
+          { key: 'reply', kind: 'invitation_response', response: 'declined' },
+          { key: 'line', kind: 'npc_exact_message', actorKey: 'ning_one', phrase: '先缓一缓' },
+        ],
+      },
+    },
+  };
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  assert.equal(publicationContentIssues(c).length, 0);
+  assert.doesNotMatch(
+    JSON.stringify(publicationPlayerPreview(c)),
+    /先缓一缓|expectedImpact|progress/,
+  );
+
+  const invalid = structuredClone(c);
+  invalid.candidates[0]!.direction!.progress!.completion!.criteria[1] = {
+    key: 'line',
+    kind: 'npc_exact_message',
+    actorKey: 'ning_two',
+    phrase: '先缓一缓',
+  };
+  assert.ok(
+    publicationContentIssues(invalid).some((issue) => issue.code === 'progress_actor_outside_node'),
+  );
+  invalid.candidates[0]!.direction!.progress!.completion!.criteria[1] = {
+    key: 'reply',
+    kind: 'invitation_response',
+    response: 'accepted',
+  };
+  assert.ok(publicationContentIssues(invalid).some((issue) => issue.code === 'duplicate_key'));
+  invalid.candidates[0]!.intent = { kind: 'editorial_only' };
+  assert.ok(
+    publicationContentIssues(invalid).some(
+      (issue) => issue.code === 'progress_requires_director_or_invitation',
+    ),
+  );
+});
 function rejected(change: (c: PublicationContent) => void, code?: string) {
   const c = content();
   change(c);

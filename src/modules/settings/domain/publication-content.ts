@@ -23,6 +23,20 @@ export type PublicationConditionNode = {
   match: 'all' | 'any';
   prerequisites: PublicationPrerequisite[];
 };
+/** Optional author-confirmed pacing and observable conversation outcomes.
+ * A physical result needs a separately verified runtime source; the author's
+ * expectedImpact is never evidence of completion. */
+export type PublicationEventProgressSpec = {
+  pace?: 'brief' | 'standard' | 'extended';
+  refusal?: 'defer' | 'withdraw';
+  completion?: {
+    mode: 'all' | 'any';
+    criteria: (
+      | { key: string; kind: 'invitation_response'; response: 'accepted' | 'declined' }
+      | { key: string; kind: 'npc_exact_message'; actorKey: string; phrase: string }
+    )[];
+  };
+};
 export type PublicationIntent =
   | { kind: 'editorial_only' }
   | { kind: 'director_event'; actorKey: string }
@@ -154,7 +168,12 @@ export type PublicationContent = {
     kind: 'candidate';
     title: string;
     editorialIntent: string;
-    direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
+    direction?: {
+      mode: 'required' | 'optional';
+      expectedImpact?: string;
+      experience?: string;
+      progress?: PublicationEventProgressSpec;
+    };
     actorKeys: string[];
     /** Story destination or setting; unlike placeKey this never requires the player to be there. */
     settingPlaceKey?: string;
@@ -486,6 +505,22 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
         issue(['candidates', i, 'conditionKeys'], 'condition_self_dependency');
     }
     actorRefs(n.actorKeys, ['candidates', i, 'actorKeys']);
+    const authoredProgress = n.direction?.progress;
+    if (authoredProgress) {
+      const path = ['candidates', i, 'direction', 'progress'];
+      if (n.intent.kind !== 'director_event' && n.intent.kind !== 'offer_invitation')
+        issue(path, 'progress_requires_director_or_invitation');
+      const criteria = authoredProgress.completion?.criteria ?? [];
+      unique(
+        criteria.map((criterion) => criterion.key),
+        [...path, 'completion', 'criteria'],
+      );
+      criteria.forEach((criterion, j) => {
+        const criterionPath = [...path, 'completion', 'criteria', j];
+        if (criterion.kind === 'npc_exact_message' && !n.actorKeys.includes(criterion.actorKey))
+          issue(criterionPath, 'progress_actor_outside_node');
+      });
+    }
     if (n.settingPlaceKey) {
       const setting = places.get(n.settingPlaceKey);
       if (!setting) issue(['candidates', i, 'settingPlaceKey'], 'unknown_place');

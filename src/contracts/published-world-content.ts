@@ -276,6 +276,35 @@ const shape = z
               mode: z.enum(['required', 'optional']),
               expectedImpact: text(1200).optional(),
               experience: text(1200).optional(),
+              progress: z
+                .strictObject({
+                  pace: z.enum(['brief', 'standard', 'extended']).optional(),
+                  refusal: z.enum(['defer', 'withdraw']).optional(),
+                  completion: z
+                    .strictObject({
+                      mode: z.enum(['all', 'any']),
+                      criteria: z
+                        .array(
+                          z.discriminatedUnion('kind', [
+                            z.strictObject({
+                              key,
+                              kind: z.literal('invitation_response'),
+                              response: z.enum(['accepted', 'declined']),
+                            }),
+                            z.strictObject({
+                              key,
+                              kind: z.literal('npc_exact_message'),
+                              actorKey: key,
+                              phrase: text(120),
+                            }),
+                          ]),
+                        )
+                        .min(1)
+                        .max(8),
+                    })
+                    .optional(),
+                })
+                .optional(),
             })
             .optional(),
           actorKeys: refs(12),
