@@ -37,7 +37,7 @@ export type SceneProposal = {
   matterTitle: string | null;
   initialMatters?: { title: string }[];
   matterUpdates: { id: string; status: 'in_progress' | 'blocked' | 'completed' }[];
-  dialogues: { actorId: string; text: string }[];
+  dialogues: { actorId: string; text: string; delivery?: string }[];
   /** Candidates only. The runtime validates and owns saved step/action evidence. */
   stepProposals?: SceneStepProposal[];
   npcActions?: SceneNpcActionProposal[];

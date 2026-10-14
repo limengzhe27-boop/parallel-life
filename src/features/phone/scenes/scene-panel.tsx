@@ -1,4 +1,7 @@
 'use client';
+import { isSimpleSceneQuestion } from '../../../modules/world/domain/scene-delivery.ts';
+import { classifySceneInput } from '../../../modules/world/domain/scene-runtime.ts';
+import { sceneTimelineEntries } from './scene-timeline.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ProgressState } from '../../../components/progress-state.tsx';
 import { sceneOverview } from './index-state.ts';
@@ -159,7 +162,7 @@ export function ScenePanel({
   }, [data?.scene?.id, data?.worldVersion, worldId]);
   const overview = data ? sceneOverview(data) : undefined;
   const latestAction = data?.actions.at(-1);
-  const entries = data ? visibleSceneEntries(data) : [];
+  const entries = data ? sceneTimelineEntries(visibleSceneEntries(data), data.actions) : [];
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
   async function run(action: () => Promise<void>) {
     if (running.current) return;
@@ -470,8 +473,8 @@ export function ScenePanel({
                                 : e.kind === 'user_action'
                                   ? '我的举动'
                                   : e.kind === 'adjudicated_result'
-                                    ? '随后的情势'
-                                    : '场景'}
+                                    ? '眼前'
+                                    : '现场'}
                           </small>
                           <p>{renderStoryContent(e.text)}</p>
                         </div>
@@ -553,10 +556,16 @@ export function ScenePanel({
                       text,
                       id: crypto.randomUUID(),
                       version: data.worldVersion,
-                      relatedMatterIds: data.matters
-                        .filter((m) => !['completed', 'abandoned'].includes(m.status))
-                        .map((m) => m.id)
-                        .slice(0, 8),
+                      relatedMatterIds: isSimpleSceneQuestion({
+                        ...classifySceneInput(text),
+                        text,
+                        relatedMatterIds: [],
+                      })
+                        ? []
+                        : data.matters
+                            .filter((m) => !['completed', 'abandoned'].includes(m.status))
+                            .map((m) => m.id)
+                            .slice(0, 8),
                     };
                   const cmd = inputId.current;
                   try {

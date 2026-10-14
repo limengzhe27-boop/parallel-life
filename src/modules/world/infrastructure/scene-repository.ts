@@ -1,3 +1,4 @@
+import { assertSceneDialogueConsistency, sceneDeliveryText } from '../domain/scene-delivery.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
 import { readPublicationSceneBrief } from '../../settings/infrastructure/publication-story-repository.ts';
 import { resolveSceneStepProgress, sceneStepRule } from '../domain/scene-step-progress.ts';
@@ -840,6 +841,17 @@ export async function commitSceneProposal(
   if (c.action && place?.kind === 'time_place') p = { ...p, location: place.location };
   if (c.action && p.initialMatters?.length)
     throw new DomainError('INVALID_PROPOSAL', 'Action cannot create unrelated matters');
+  assertSceneDialogueConsistency(p);
+  if (!c.action && !p.narration.trim()) throw new DomainError('INVALID_PROPOSAL');
+  for (const dialogue of p.dialogues) {
+    const actor = c.world.actors.find((a) => a.id === dialogue.actorId);
+    if (!actor || !p.presentActorIds.includes(actor.id)) throw new DomainError('INVALID_PROPOSAL');
+    sceneDeliveryText(
+      actor,
+      dialogue.delivery,
+      c.world.actors.map((a) => a.name),
+    );
+  }
   const hash = requestHash(['scene.result', input]);
   const resultEventId = randomUUID(),
     resultVersion = locked.world.version + 1;
@@ -1157,7 +1169,21 @@ export async function commitSceneProposal(
     throw new DomainError('INVALID_PROPOSAL');
   for (const text of stepResult?.actionTexts ?? [])
     entries.push({ ...base, id: randomUUID(), kind: 'narration', perspective: 'observable', text });
-  for (const dialogue of p.dialogues)
+  for (const dialogue of p.dialogues) {
+    const actor = c.world.actors.find((a) => a.id === dialogue.actorId)!;
+    const delivery = sceneDeliveryText(
+      actor,
+      dialogue.delivery,
+      c.world.actors.map((a) => a.name),
+    );
+    if (delivery)
+      entries.push({
+        ...base,
+        id: randomUUID(),
+        kind: 'narration',
+        perspective: 'observable',
+        text: delivery,
+      });
     entries.push({
       ...base,
       id: randomUUID(),
@@ -1165,6 +1191,7 @@ export async function commitSceneProposal(
       speaker: { kind: 'actor', actorId: dialogue.actorId },
       text: dialogue.text,
     });
+  }
   for (const e of entries) {
     assertSceneEntry(ctx, scene, e, actions);
     await item(sql, 'entry', e);

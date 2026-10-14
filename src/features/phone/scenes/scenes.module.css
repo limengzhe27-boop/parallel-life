@@ -286,36 +286,36 @@
 }
 .scenePanel .dialogue {
   background: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  color: #1e293b;
+  box-shadow: none;
+  color: #26343a;
   padding: 12px 14px;
-  border-radius: 16px 16px 16px 4px;
-  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  border: 0;
 }
 .scenePanel .dialogue small {
-  color: #1e40af;
+  color: #324d58;
   font-weight: 600;
   font-size: 12px;
 }
 .scenePanel .user {
-  margin-left: 20px;
-  padding: 12px 14px;
-  background: #eff6ff;
-  color: #1e3a8a;
-  border-radius: 16px 16px 4px 16px;
-  border: 1px solid #dbeafe;
+  margin: 14px 0 4px;
+  padding: 10px 14px;
+  background: #edf1f0;
+  color: #34454a;
+  border-radius: 10px;
+  border: 0;
 }
 .scenePanel .user small {
-  color: #2563eb;
-  font-weight: 600;
+  color: #607278;
+  font-weight: 500;
   font-size: 11px;
 }
 .scenePanel .result {
-  background: #f8fafc;
-  color: #334155;
-  border-left: 3px solid #64748b;
-  border-radius: 8px;
-  padding: 10px 14px;
+  background: none;
+  color: #607278;
+  border: 0;
+  border-radius: 0;
+  padding: 4px 10px 10px;
 }
 .stageDirection {
   display: inline;
