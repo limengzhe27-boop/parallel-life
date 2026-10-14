@@ -23,3 +23,15 @@
 - root 的 prepare-trial route/factory 使用受信 constructor，附固定私有目的来源并固定 world scope；已有准备记录、手动采用/保存、真正 startTrial、PhoneShell 和 API 运输链由 root/前端 Agent 联调。没有改公共契约、SQL、路由、client/controller。
 - 现存原稿若自带无法运行的事件、时间/图片引用或未相识可见性，仍需诚实返回具体问题；本模式不会改事件结果、突破知情或生成图片解决。
 - 真实项目 Agent 生成、保存、实际单NPC手机聊天与部署仍由 root 验收，单测 compile 成功不称线上体验已完成。
+
+## 追加：未相识角色的私有真手机入口
+
+createEmptyActor 新版默认 knownAtStart=false，严格普通编译此前会以 unsupported_unknown_actor_projection 拒绝新角色演示。本次只对明确受信的私有角色演示增加入口：
+
+- 内部 PublicationCompileInput 可带 privateCharacterDemo:true，仅 originKind=trial有效；published试图带此标志直接invalid，不从作者JSON读取。
+- 默认 publicationWorldCompiler 与普通 trial、公开 review 均维持原拒绝。新增 publicationCharacterTrialCompiler 仅接受 trial 组装并注入该内部标志。
+- PublicationWorldRepository 第三个受信选项 {characterTrial:true} 才允许试演的未知联系人通过源数据验证；该 repository 的 startPublished 在访问数据库前拒绝。没有改SQL或用户命令字段。
+- constructor characterTrial 模式的 planner 仅干编译此私有演示时转发标志。提示未相识角色保持作者false、phone.messages/moments空，在真实手机发起首次实时对话；不伪造过去关系或当前通知。
+- 联系人投影不修改作者稿的 knownAtStart、介绍与人格，也不制造历史。公开校验继续按原稿与严格编译工作，私有演示成功不表示作品可发布。
+
+验证：typecheck、边界、diff通过；普通genesis + 私有联系人/适配器/repository + 人物planner 44/44通过。新增断言普通trial/公开拒绝、显式私有成功且原false/空历史不变；公开模式滥用flag拒绝；作者JSON中的同名字段无效；默认repository即使拿私有adapter仍拒，必须双重受信opt-in；私有repo不能启动公开玩家世界。root另做真实PG和新专用路由集成，不调用模型或创建测试存档。

@@ -47,6 +47,8 @@ export type PublicationGenesisKeys = {
 export type PublicationCompileIssue = { code: string; path: (string | number)[] };
 export type PublicationCompileInput = {
   originKind: 'published' | 'trial';
+  /** Trusted private role-demo assembly only; never read from authored content or public commands. */
+  privateCharacterDemo?: true;
   content: unknown;
   origin: PublicationRuntimeOrigin;
   worldId: string;

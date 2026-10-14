@@ -272,3 +272,44 @@ test('an input flag never enables trusted character-trial policy, and a conflict
   );
   assert.equal(trusted.calls.length, 0);
 });
+
+test('trusted role preparation dry-compiles a still-unacquainted actor with zero initial history while ordinary preparation remains unsupported', async () => {
+  const before = baseline();
+  before.actors[0]!.knownAtStart = false;
+  delete (before.actors[0]!.lifeModules as { relationships?: string }).relationships;
+  const output = completeDraft();
+  output.actors[0]!.knownAtStart = false;
+  output.actors[0]!.lifeModules = structuredClone(before.actors[0]!.lifeModules);
+  output.actors[0]!.privatePersona.background = '花艺师，尚未与主角相识。';
+  output.phone.messages = [];
+  output.phone.moments = [];
+  const h = harness([output]);
+  const result = await h.planner.propose(
+    {
+      scope: 'world',
+      currentContent: before,
+      sources: [{ filename: '人物_林夏.md', content: '# 人物：林夏\n尚未与主角相识。' }],
+    },
+    undefined,
+    { referenceAt },
+  );
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual(result.issues, []);
+  assert.equal(
+    (result.updatedContent.actors as { knownAtStart: boolean }[])[0]!.knownAtStart,
+    false,
+  );
+  assert.deepEqual(
+    (result.updatedContent.phone as { messages: unknown[]; moments: unknown[] }).messages,
+    [],
+  );
+  assert.deepEqual((result.updatedContent.phone as { moments: unknown[] }).moments, []);
+  assert.ok(h.calls[0]![0]!.content.includes('phone.messages和phone.moments均留空'));
+  const ordinary = harness([output], false);
+  const denied = await ordinary.planner.propose(
+    { scope: 'world', currentContent: before, sources },
+    undefined,
+    { referenceAt },
+  );
+  assert.ok(denied.issues.some((i) => i.code === 'unsupported_unknown_actor_projection'));
+});

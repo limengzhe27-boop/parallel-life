@@ -247,7 +247,7 @@ function withReview(result: PublisherPreparationOutput, text: string): Publisher
 }
 
 const CHARACTER_TRIAL_SYSTEM =
-  '\n受信服务端已选择私有角色演示准备：只补当前稿运行真实手机所需的最少日常环境，不发布、不创建玩家存档。原角色key/name、五模块、编剧公开介绍、图片和已有事件全部保留，允许仅一个角色，严禁为过关新增第二人或新增剧情事件/邀约/任务/条件/过往事实。world或protagonist等运行信息缺少时，围绕已写人物补一个普通日常地点、平常身份和此刻处境；不假定恋爱、借贷、重大经历或玩家承诺。未提供关系不编双向历史，可留历史为空并提供普通当下来信；熟人历史/动态按已确认关系生成。publicCard沿原稿，不编公开介绍；privatePersona仅在原空处基于五模块写兼容运行摘要。结果是待编剧核对的私有未发布草稿。不要照抄格式例人物、事件或阶段。';
+  '\n受信服务端已选择私有角色演示准备：只补当前稿运行真实手机所需的最少日常环境，不发布、不创建玩家存档。原角色key/name、五模块、编剧公开介绍、图片和已有事件全部保留，允许仅一个角色，严禁为过关新增第二人或新增剧情事件/邀约/任务/条件/过往事实。world或protagonist等运行信息缺少时，围绕已写人物补一个普通日常地点、平常身份和此刻处境；不假定恋爱、借贷、重大经历或玩家承诺。knownAtStart=false保持未相识，phone.messages和phone.moments均留空，不编历史或开场通知；私有演示可在真手机实时发起第一次对话，不代表过去认识。knownAtStart=true但未提供关系时不编双向历史；熟人历史/动态只按已确认关系生成。publicCard沿原稿，不编公开介绍；privatePersona仅在原空处基于五模块写兼容运行摘要。结果是待编剧核对的私有未发布草稿。不要照抄格式例人物、事件或阶段。';
 
 export class PublicationManuscriptPlanner implements PublisherPreparationPlanner {
   private readonly model: TextModel;
@@ -507,6 +507,7 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
           contentHash: '0'.repeat(64),
         },
         originKind: 'trial',
+        ...(this.characterTrial ? { privateCharacterDemo: true as const } : {}),
         worldId: id(1),
         ownerId: id(2),
         seedId: id(3),

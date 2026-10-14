@@ -4,29 +4,36 @@ import type { PublicationWorldCompilerPort } from '../modules/settings/applicati
 import type { PublicationReviewPort } from '../modules/settings/infrastructure/publication-repository.ts';
 import { TaskError } from '../modules/tasks/infrastructure/task-repository.ts';
 import { publicationArt } from '../contracts/publication-assets.ts';
-export const publicationWorldCompiler: PublicationWorldCompilerPort = {
-  prepare(input) {
-    const compiled = compilePublicationGenesis({
-      ...input,
-      originKind: input.originKind === 'trial' ? 'trial' : 'published',
-      newId: randomUUID,
-    });
-    if (compiled.status !== 'compiled') throw new TaskError('INVALID_STATE');
-    return {
-      world: compiled.world,
-      opening: compiled.opening,
-      seed: {
-        id: input.seedId,
-        createdAt: new Date().toISOString(),
-        source: { kind: compiled.seedMetadata.source, ...input.origin },
-        identity: compiled.opening.identity,
-        situation: compiled.opening.situation,
-        setting: compiled.opening.setting,
-        experienceNote: compiled.opening.experienceNote,
-      },
-    };
-  },
-};
+function worldCompiler(characterTrial = false): PublicationWorldCompilerPort {
+  return {
+    prepare(input) {
+      if (characterTrial && input.originKind !== 'trial') throw new TaskError('INVALID_STATE');
+      const compiled = compilePublicationGenesis({
+        ...input,
+        originKind: input.originKind === 'trial' ? 'trial' : 'published',
+        newId: randomUUID,
+        ...(characterTrial ? { privateCharacterDemo: true as const } : {}),
+      });
+      if (compiled.status !== 'compiled') throw new TaskError('INVALID_STATE');
+      return {
+        world: compiled.world,
+        opening: compiled.opening,
+        seed: {
+          id: input.seedId,
+          createdAt: new Date().toISOString(),
+          source: { kind: compiled.seedMetadata.source, ...input.origin },
+          identity: compiled.opening.identity,
+          situation: compiled.opening.situation,
+          setting: compiled.opening.setting,
+          experienceNote: compiled.opening.experienceNote,
+        },
+      };
+    },
+  };
+}
+export const publicationWorldCompiler = worldCompiler();
+/** Explicit trusted staff-demo adapter; never used by normal trial/review/player publication. */
+export const publicationCharacterTrialCompiler = worldCompiler(true);
 /** Evidence comes from persisted trial events, never initial scripted messages or browser flags. */
 export function publicationReview(
   evidence: (

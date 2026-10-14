@@ -50,7 +50,21 @@ function dataRecord(value: unknown, keys: readonly string[]): boolean {
 }
 function validInput(input: PublicationCompileInput): boolean {
   if (
-    !dataRecord(input, ['content', 'origin', 'originKind', 'worldId', 'ownerId', 'seedId', 'newId'])
+    !dataRecord(input, [
+      'content',
+      'origin',
+      'originKind',
+      'worldId',
+      'ownerId',
+      'seedId',
+      'newId',
+      ...(Object.hasOwn(input, 'privateCharacterDemo') ? ['privateCharacterDemo'] : []),
+    ])
+  )
+    return false;
+  if (
+    Object.hasOwn(input, 'privateCharacterDemo') &&
+    (input.privateCharacterDemo !== true || input.originKind !== 'trial')
   )
     return false;
   if (!dataRecord(input.origin, ['workId', 'publicationVersion', 'draftVersion', 'contentHash']))
@@ -105,7 +119,10 @@ function persona(c: PublicationContent, key: string): string {
       .map((r) => ({ key: r.key, from: r.from, to: r.to, description: r.description })),
   });
 }
-function unsupported(c: PublicationContent): PublicationCompileIssue[] {
+function unsupported(
+  c: PublicationContent,
+  privateCharacterDemo = false,
+): PublicationCompileIssue[] {
   const out: PublicationCompileIssue[] = [];
   if (
     c.media.some(
@@ -176,7 +193,7 @@ function unsupported(c: PublicationContent): PublicationCompileIssue[] {
       out.push(issue('unsupported_runtime_extension', ['extensions', i]));
   });
   c.actors.forEach((a, i) => {
-    if (!a.knownAtStart)
+    if (!a.knownAtStart && !privateCharacterDemo)
       out.push(issue('unsupported_unknown_actor_projection', ['actors', i, 'knownAtStart']));
     if (persona(c, a.key).length > PERSONA_MAX_CHARS)
       out.push(issue('persona_budget', ['actors', i, 'privatePersona']));
@@ -226,7 +243,7 @@ export function compilePublicationGenesis(
       ),
     );
   const c = parsed.data,
-    missing = unsupported(c);
+    missing = unsupported(c, input.originKind === 'trial' && input.privateCharacterDemo === true);
   if (missing.length) return failure('unsupported', missing);
   const { worldId, ownerId, seedId, newId, originKind } = input;
   const allocated = new Set([worldId, ownerId, seedId, input.origin.workId]);

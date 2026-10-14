@@ -177,7 +177,8 @@ const unavailable: PublicationWorldCompilerPort = {
   },
 };
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-function validatePrepared(raw: unknown, input: PublicationWorldPrepare) {
+function validatePrepared(raw: unknown, input: PublicationWorldPrepare, characterTrial = false) {
+  if (characterTrial && input.originKind !== 'trial') throw new TaskError('INVALID_STATE');
   if (publicationStorageIssues(raw).length) throw new TaskError('INVALID_STATE');
   const parsed = preparedSchema.safeParse(raw);
   if (!parsed.success) throw new TaskError('INVALID_STATE');
@@ -257,7 +258,7 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare) {
     const a = c.actors.find((a) => a.key === contact.actorKey);
     if (
       !a ||
-      !a.knownAtStart ||
+      (!a.knownAtStart && !(characterTrial && input.originKind === 'trial')) ||
       !ids.has(contact.actorId) ||
       contact.name !== a.name ||
       contact.introduction !== a.publicCard.introduction ||
@@ -313,9 +314,15 @@ function error(e: unknown): never {
 export class PublicationWorldRepository {
   private db: PostgresDatabase;
   private compiler: PublicationWorldCompilerPort;
-  constructor(db: PostgresDatabase, compiler: PublicationWorldCompilerPort = unavailable) {
+  private readonly characterTrial: boolean;
+  constructor(
+    db: PostgresDatabase,
+    compiler: PublicationWorldCompilerPort = unavailable,
+    options: { characterTrial?: boolean } = {},
+  ) {
     this.db = db;
     this.compiler = compiler;
+    this.characterTrial = options.characterTrial === true;
   }
   private async tx<T>(
     identity: string,
@@ -346,7 +353,7 @@ export class PublicationWorldRepository {
       if (e instanceof TaskError) throw e;
       throw new TaskError('INVALID_STATE');
     }
-    const p = validatePrepared(raw, input);
+    const p = validatePrepared(raw, input, this.characterTrial);
     // PostgreSQL JSONB text inserts whitespace. Check the actual physical budget before writes.
     const sizes = (
       await sql.query(
@@ -363,6 +370,7 @@ export class PublicationWorldRepository {
     return PublicationWorldResultSchema.parse(row.result);
   }
   startPublished(ownerId: string, workId: string, raw: PublishedWorldStartRequest) {
+    if (this.characterTrial) throw new TaskError('INVALID_STATE');
     const input = parse(PublishedWorldStartRequestSchema, raw);
     parse(Id, workId);
     return this.tx(ownerId, false, async (sql) =>
