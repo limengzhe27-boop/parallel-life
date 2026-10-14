@@ -4,6 +4,12 @@
 
 `npm run check` 2304/2304、build、format通过；本地 PostgreSQL 发布整链通过，全量 270 pass / 5 显式模型跳过 / 9 固定端口环境守卫拒绝（未冒充全绿）。本地开发预览 390/1440 无横向溢出；公网 `/api/health`、`/workbench`、`/published` 200，匿名后台作品 401。本批无 SQL 迁移；此前生产 57/57 校验和已确认。0 新模型调用、0 生产测试存档、0 图。真实模型生成质量/线上保存刷新验收和朋友圈图片继续留 `CHARACTER-AUTHOR-20-LIVE/M`，见任务报告。
 
+## 2026-10-14 · PUBLISHER-STREAMLINE-PUBLISH-02
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 451, typecheck and build passed; 504 publisher and 547 scene tests all passed. No SQL migration changes.
+- 发布按钮全面激活与智能串联：彻底消除“保存草稿后发布置灰必须手动猜点检查”的问题，发布按钮常态可用，点击直接触发自动保存、后台静默检查并秒速上架；若有缺失项自动切换至待确认清单并明确指引；
+- 试演职责清晰解耦：顶部试演统一为“试演完整世界故事”，人物详情页保持独立的“与TA试聊”，彻底解决单人试演与世界试演混淆问题。
+
 ## 2026-10-14 · PUBLISHER-UNBLOCK-PUBLISH-01
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Check 2241, boundaries 440, typecheck and build passed; 555 publisher tests all passed. No SQL migration changes.
