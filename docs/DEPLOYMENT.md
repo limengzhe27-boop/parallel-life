@@ -1,3 +1,10 @@
+## 2026-10-14 · PUBLISHER-ACTOR-NAME-CLEAN-EDIT-08
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 515 publisher tests passed. No SQL migration changes.
+- 修复编辑角色姓名时清空内容导致「人物_actor_X」反弹无法删除的问题：
+- 根因：`updateActorInContent` 中对 `name` 字段使用了 `form.name.trim() || \`人物_\${form.key}\`` 兜底，导致编导退格清空输入框时，因空字符串触发兜底，强制回填为内部 key「人物_actor_7」，造成删不掉的异常死循环；同时修复了背景、口吻等字段清空时的同类文本替回；
+- 优化新建角色体验：新建角色默认姓名为空，输入框显示标准引导 placeholder，编导可直接输入自定义名称，删除和修改顺畅无阻。
+
 ## 2026-10-14 · PUBLISHER-REMOVE-REVIEW-DIRECT-PUBLISH-07
 
 业务提交 `e7d7434` 已部署到 Production `dpl_AENVGpsRmqzPwfFuUeZ1ybgWNabX`，状态 READY，正式域名 `https://parallel-life-nu.vercel.app` 已列为该部署别名。Boundaries 453，typecheck 与 build 通过；513 项 publisher 测试全部通过。无 SQL 迁移变更。

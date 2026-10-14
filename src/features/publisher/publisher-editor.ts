@@ -308,13 +308,13 @@ export function updateActorInContent(
 
   const privatePersona: Record<string, unknown> = {
     ...existingPrivatePersona,
-    ...(changed('background') ? { background: form.background.trim() || '暂无详细背景' } : {}),
-    ...(changed('voice') ? { voice: form.voice.trim() || '自然生活化语气' } : {}),
+    ...(changed('background') ? { background: form.background } : {}),
+    ...(changed('voice') ? { voice: form.voice } : {}),
     ...(changed('caresAbout') || changed('immediateGoal')
-      ? { motivation: motivationText || '按既定处境与玩家互动' }
+      ? { motivation: motivationText }
       : {}),
     ...(changed('boundaries')
-      ? { boundaries: form.boundaries.trim() || '不脱离当前世界与人物底色' }
+      ? { boundaries: form.boundaries }
       : {}),
   };
 
@@ -334,7 +334,7 @@ export function updateActorInContent(
   const updatedActor: Record<string, unknown> = {
     ...(actorIdx >= 0 ? actors[actorIdx] : {}),
     key: form.key,
-    ...(changed('name') ? { name: form.name.trim() || `人物_${form.key}` } : {}),
+    ...(changed('name') ? { name: form.name } : {}),
     ...(changed('knownAtStart')
       ? typeof form.knownAtStart === 'boolean'
         ? { knownAtStart: form.knownAtStart }
