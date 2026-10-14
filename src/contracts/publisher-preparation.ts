@@ -6,6 +6,8 @@ import { publicationStorageIssues } from '../modules/settings/domain/publication
 export const PublisherPreparationMaterialSchema = z
   .strictObject({
     scope: z.enum(['world', 'characters']).optional(),
+    socialFocus: z.enum(['history', 'moments', 'both']).optional(),
+    socialActorKey: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
     currentContent: PublisherDraftContentSchema,
     sources: z
       .array(
@@ -18,6 +20,10 @@ export const PublisherPreparationMaterialSchema = z
       .max(32),
   })
   .superRefine((value, ctx) => {
+    if (value.socialFocus && value.scope !== 'characters')
+      ctx.addIssue({ code: 'custom', message: 'SOCIAL_FOCUS_REQUIRES_CHARACTERS' });
+    if (value.socialActorKey && !value.socialFocus)
+      ctx.addIssue({ code: 'custom', message: 'SOCIAL_ACTOR_REQUIRES_FOCUS' });
     // Invalid/non-JSON private drafts are already rejected; never serialize them a second time.
     if (publicationStorageIssues(value.currentContent).length) return;
     if (
@@ -31,14 +37,22 @@ export const PublisherPreparationInputSchema = z
     commandId: Id,
     expectedDraftVersion: Version,
     scope: z.enum(['world', 'characters']).optional(),
+    socialFocus: z.enum(['history', 'moments', 'both']).optional(),
+    socialActorKey: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
     currentContent: PublisherDraftContentSchema,
     sources: PublisherPreparationMaterialSchema.shape.sources,
   })
   .superRefine((value, ctx) => {
+    if (value.socialFocus && value.scope !== 'characters')
+      ctx.addIssue({ code: 'custom', message: 'SOCIAL_FOCUS_REQUIRES_CHARACTERS' });
+    if (value.socialActorKey && !value.socialFocus)
+      ctx.addIssue({ code: 'custom', message: 'SOCIAL_ACTOR_REQUIRES_FOCUS' });
     if (publicationStorageIssues(value.currentContent).length) return;
     if (
       !PublisherPreparationMaterialSchema.safeParse({
         ...(value.scope ? { scope: value.scope } : {}),
+        ...(value.socialFocus ? { socialFocus: value.socialFocus } : {}),
+        ...(value.socialActorKey ? { socialActorKey: value.socialActorKey } : {}),
         currentContent: value.currentContent,
         sources: value.sources,
       }).success

@@ -5,7 +5,7 @@ import {
 
 /** The trusted purpose is part of the durable admission fingerprint, never a draft field. */
 export function characterTrialPreparationInput(input: PublisherPreparationInput) {
-  if (input.scope === 'characters')
+  if (input.scope === 'characters' || input.socialFocus || input.socialActorKey)
     throw Object.assign(Error('INVALID_INPUT'), { code: 'INVALID_INPUT' });
   return PublisherPreparationInputSchema.parse({
     ...input,

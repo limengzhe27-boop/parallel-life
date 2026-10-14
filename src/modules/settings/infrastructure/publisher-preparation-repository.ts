@@ -70,6 +70,8 @@ export class PublisherPreparationRepository implements PublisherPreparationStore
       currentContent: input.currentContent,
       sources: input.sources,
       scope: input.scope ?? detectPublisherPreparationScope(input.sources).scope,
+      ...(input.socialFocus ? { socialFocus: input.socialFocus } : {}),
+      ...(input.socialActorKey ? { socialActorKey: input.socialActorKey } : {}),
     };
     return this.tx(principal, async (sql) => {
       // Serialize admission and per-principal cost limits across every server instance.
