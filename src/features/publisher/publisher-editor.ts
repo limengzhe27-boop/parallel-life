@@ -1,7 +1,4 @@
-/**
- * Pure editor state and content mapping for the publisher workbench.
- * Independent of network, database, and React runtime.
- */
+import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
 
 export type ActorEditorForm = {
   key: string;
@@ -164,8 +161,12 @@ export function parseActorEditor(
   const traits = Array.isArray(publicCard.traits)
     ? publicCard.traits.filter((t): t is string => typeof t === 'string')
     : [];
+  const defaultAvatarKey =
+    PUBLICATION_ART.find((a) => a.uses.includes('avatar'))?.key ?? 'qingqing';
   const avatarMediaKey =
-    typeof publicCard.avatarMediaKey === 'string' ? publicCard.avatarMediaKey : undefined;
+    typeof publicCard.avatarMediaKey === 'string' && publicCard.avatarMediaKey
+      ? publicCard.avatarMediaKey
+      : defaultAvatarKey;
 
   // Section 2: 与主角初始关系
   let relationshipToPlayer = '';
@@ -353,7 +354,8 @@ export function createEmptyActor(existingKeys: string[]): ActorEditorForm {
     identity: '',
     appearance: '',
     traits: [],
-    avatarMediaKey: undefined,
+    avatarMediaKey:
+      PUBLICATION_ART.find((a) => a.uses.includes('avatar'))?.key ?? 'qingqing',
     knownAtStart: true,
     relationshipToPlayer: '',
     voice: '',

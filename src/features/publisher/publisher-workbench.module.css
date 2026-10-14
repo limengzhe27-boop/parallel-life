@@ -1398,3 +1398,107 @@
   color: var(--pub-secondary);
   line-height: 1.6;
 }
+
+/* Avatar Setting Section: Default, Upload, AI Generate */
+.avatarSettingBox {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  background: var(--pub-bg);
+  border: 1px solid var(--pub-border);
+  border-radius: 10px;
+}
+
+.avatarPreviewThumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  border: 1px solid var(--pub-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--pub-secondary);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.avatarControls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.avatarMethodRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.avatarSelectInput {
+  flex: 1;
+  min-width: 140px;
+  height: 34px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--pub-border);
+  background: var(--pub-surface);
+  font-size: 13px;
+  color: var(--pub-text);
+}
+
+.avatarActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--pub-border);
+  background: var(--pub-surface);
+  color: var(--pub-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 120ms ease;
+}
+
+.avatarActionBtn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.dimensionSection {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dimensionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--pub-border);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.dimensionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pub-text);
+  margin: 0;
+}
+
+.dimensionHint {
+  font-size: 12px;
+  color: var(--pub-secondary);
+}

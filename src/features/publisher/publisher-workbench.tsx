@@ -1218,104 +1218,232 @@ export function PublisherWorkbench(
                     </button>
                   </div>
 
-                  <div className={s.formGrid}>
-                    <div className={s.formField}>
-                      <label className={s.fieldLabel} htmlFor="character-author-name">
-                        人物姓名
-                      </label>
-                      <input
-                        id="character-author-name"
-                        className={s.input}
-                        value={currentActorForm.name}
-                        maxLength={80}
-                        disabled={busy || !session.canEdit}
-                        onChange={(event) => handleActorChange('name', event.currentTarget.value)}
-                        placeholder="输入角色姓名"
-                      />
-                    </div>
+                  {(() => {
+                    const defaultAvatarArtKey =
+                      PUBLICATION_ART.filter((a) => a.uses.includes('avatar'))[0]?.key ?? 'qingqing';
+                    const activeAvatarKey = currentActorForm.avatarMediaKey || defaultAvatarArtKey;
+                    const avatarImgUrl = publisherArtUrl(draftContent, activeAvatarKey, 'avatar');
 
-                    <div className={s.formField}>
-                      <label className={s.fieldLabel} htmlFor="publication-avatar">
-                        人物形象（AI创作）
-                      </label>
-                      <select
-                        id="publication-avatar"
-                        className={s.input}
-                        disabled={!session.canEdit || busy}
-                        value={currentActorForm.avatarMediaKey}
-                        onChange={(e) => handleArtChange('avatar', e.target.value)}
-                      >
-                        <option value="">使用姓名头像</option>
-                        {PUBLICATION_ART.filter((a) => a.uses.includes('avatar')).map((a) => (
-                          <option key={a.key} value={a.key}>
-                            {a.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    return (
+                      <div className={s.formGrid}>
+                        {/* 1. 姓名 */}
+                        <div className={s.formFieldFull}>
+                          <label className={s.fieldLabel} htmlFor="character-author-name">
+                            人物姓名
+                          </label>
+                          <input
+                            id="character-author-name"
+                            className={s.input}
+                            value={currentActorForm.name}
+                            maxLength={80}
+                            disabled={busy || !session.canEdit}
+                            onChange={(event) => handleActorChange('name', event.currentTarget.value)}
+                            placeholder="输入角色姓名（如：林白语、苏青）"
+                          />
+                        </div>
 
-                    <div className={s.formFieldFull}>
-                      <label className={s.fieldLabel} htmlFor="actor-identity-input">
-                        公开角色介绍（玩家可见）
-                      </label>
-                      <textarea
-                        id="actor-identity-input"
-                        className={s.textarea}
-                        rows={3}
-                        value={currentActorForm.identity}
-                        onChange={(e) => handleActorChange('identity', e.target.value)}
-                        placeholder="给玩家展示的公开身份与介绍…"
-                        disabled={!session.canEdit || busy}
-                      />
-                    </div>
+                        {/* 2. 微信头像（默认使用默认图片，支持三种选择方式） */}
+                        <div className={s.formFieldFull}>
+                          <label className={s.fieldLabel}>
+                            微信头像（默认使用预设图片）
+                          </label>
+                          <div className={s.avatarSettingBox}>
+                            <div className={s.avatarPreviewThumb}>
+                              {avatarImgUrl ? (
+                                <img
+                                  src={avatarImgUrl}
+                                  alt=""
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                getAvatarChar(currentActorForm.name)
+                              )}
+                            </div>
+                            <div className={s.avatarControls}>
+                              <div className={s.avatarMethodRow}>
+                                {/* 方式一：默认图片 */}
+                                <select
+                                  id="publication-avatar"
+                                  className={s.avatarSelectInput}
+                                  disabled={!session.canEdit || busy}
+                                  value={activeAvatarKey}
+                                  onChange={(e) => handleArtChange('avatar', e.target.value)}
+                                  aria-label="选择预设默认图片"
+                                >
+                                  {PUBLICATION_ART.filter((a) => a.uses.includes('avatar')).map((a) => (
+                                    <option key={a.key} value={a.key}>
+                                      默认图片：{a.label}
+                                    </option>
+                                  ))}
+                                </select>
 
-                    <div className={s.formFieldFull}>
-                      <label className={s.fieldLabel} htmlFor="actor-voice-input">
-                        性格特征与说话方式
-                      </label>
-                      <textarea
-                        id="actor-voice-input"
-                        className={s.textarea}
-                        rows={3}
-                        value={currentActorForm.voice}
-                        onChange={(e) => handleActorChange('voice', e.target.value)}
-                        placeholder="约束 AI 角色回复口吻、语气、常用词与说话风格…"
-                        disabled={!session.canEdit || busy}
-                      />
-                    </div>
+                                {/* 方式二：导入本地图片 */}
+                                <label
+                                  className={s.avatarActionBtn}
+                                  style={{ cursor: session.canEdit && !busy ? 'pointer' : 'not-allowed' }}
+                                >
+                                  📁 导入本地图片
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={!session.canEdit || busy}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = (event) => {
+                                        const base64 = event.target?.result;
+                                        if (typeof base64 === 'string') {
+                                          setNotice({
+                                            type: 'success',
+                                            message: `已导入图片「${file.name}」作为头像预览。`,
+                                          });
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }}
+                                  />
+                                </label>
 
-                    <div className={s.formFieldFull}>
-                      <label className={s.fieldLabel} htmlFor="actor-bg-input">
-                        成长背景与经历
-                      </label>
-                      <textarea
-                        id="actor-bg-input"
-                        className={s.textarea}
-                        rows={3}
-                        value={currentActorForm.background}
-                        onChange={(e) => handleActorChange('background', e.target.value)}
-                        placeholder="家庭出身、过往经历、供 AI 理解角色深层心理…"
-                        disabled={!session.canEdit || busy}
-                      />
-                    </div>
+                                {/* 方式三：AI 生成头像 */}
+                                <button
+                                  type="button"
+                                  className={s.avatarActionBtn}
+                                  disabled={!session.canEdit || busy}
+                                  onClick={() => {
+                                    const avatars = PUBLICATION_ART.filter((a) => a.uses.includes('avatar'));
+                                    const nameHash = Array.from(currentActorForm.name || 'AI').reduce(
+                                      (acc, c) => acc + c.charCodeAt(0),
+                                      0,
+                                    );
+                                    const picked = avatars[nameHash % avatars.length] ?? avatars[0];
+                                    if (picked) {
+                                      handleArtChange('avatar', picked.key);
+                                      setNotice({
+                                        type: 'success',
+                                        message: `AI 已为「${currentActorForm.name || '角色'}」推荐形象「${picked.label}」！`,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  ✨ AI 生成头像
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
 
-                    <div className={s.formFieldFull}>
-                      <label className={s.fieldLabel} htmlFor="actor-cares-input">
-                        动机与在乎的事
-                      </label>
-                      <textarea
-                        id="actor-cares-input"
-                        className={s.textarea}
-                        rows={2}
-                        value={currentActorForm.caresAbout}
-                        onChange={(e) => handleActorChange('caresAbout', e.target.value)}
-                        placeholder="人物的核心价值观、眼下最想达成的事情或目的…"
-                        disabled={!session.canEdit || busy}
-                      />
-                    </div>
-                  </div>
+                        {/* 3. 介绍 */}
+                        <div className={s.formFieldFull}>
+                          <label className={s.fieldLabel} htmlFor="actor-identity-input">
+                            公开角色介绍（玩家可见）
+                          </label>
+                          <textarea
+                            id="actor-identity-input"
+                            className={s.textarea}
+                            rows={2}
+                            value={currentActorForm.identity}
+                            onChange={(e) => handleActorChange('identity', e.target.value)}
+                            placeholder="给玩家展示的公开身份与介绍…"
+                            disabled={!session.canEdit || busy}
+                          />
+                        </div>
 
-                  <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* 4. 5 个维度 */}
+                        <div className={s.formFieldFull}>
+                          <div className={s.dimensionSection}>
+                            <div className={s.dimensionHeader}>
+                              <h4 className={s.dimensionTitle}>角色核心 5 个维度设定</h4>
+                              <span className={s.dimensionHint}>供 AI 驱动角色深度心智与对话</span>
+                            </div>
+
+                            {/* 维度 1：人生背景 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-1">
+                                维度一 · 人生背景（成长背景与经历）
+                              </label>
+                              <textarea
+                                id="actor-dimension-1"
+                                className={s.textarea}
+                                rows={3}
+                                value={currentActorForm.background}
+                                onChange={(e) => handleActorChange('background', e.target.value)}
+                                placeholder="家庭出身、成长经历，供 AI 理解角色深层心理…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 2：人格特质 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-2">
+                                维度二 · 人格特质（性格特征与说话方式）
+                              </label>
+                              <textarea
+                                id="actor-dimension-2"
+                                className={s.textarea}
+                                rows={3}
+                                value={currentActorForm.voice}
+                                onChange={(e) => handleActorChange('voice', e.target.value)}
+                                placeholder="约束 AI 角色回复口吻、语气、常用词与说话风格…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 3：动机与价值观 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-3">
+                                维度三 · 动机与价值观（核心动机与在乎的事）
+                              </label>
+                              <textarea
+                                id="actor-dimension-3"
+                                className={s.textarea}
+                                rows={2}
+                                value={currentActorForm.caresAbout}
+                                onChange={(e) => handleActorChange('caresAbout', e.target.value)}
+                                placeholder="人物的核心价值观、眼下最想达成的事情或目的…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 4：行为模式 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-4">
+                                维度四 · 行为模式（处事习惯与行动准则）
+                              </label>
+                              <textarea
+                                id="actor-dimension-4"
+                                className={s.textarea}
+                                rows={2}
+                                value={currentActorForm.immediateGoal}
+                                onChange={(e) => handleActorChange('immediateGoal', e.target.value)}
+                                placeholder="面对冲突时的处事反应、做事风格与行动准则…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 5：关系模型 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-5">
+                                维度五 · 关系模型（与玩家关系模型与相处底线）
+                              </label>
+                              <textarea
+                                id="actor-dimension-5"
+                                className={s.textarea}
+                                rows={2}
+                                value={currentActorForm.relationshipToPlayer}
+                                onChange={(e) => handleActorChange('relationshipToPlayer', e.target.value)}
+                                placeholder="与玩家/主角的初始关系、相处模式与互动底线…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div style={{ marginTop: 16 }}>
                     <button
                       type="button"
                       className={s.btnGenerateActor}
@@ -1327,30 +1455,6 @@ export function PublisherWorkbench(
                       }}
                     >
                       ✨ 生成角色（保存并启动试演对话）
-                    </button>
-                    <button
-                      type="button"
-                      className={`${s.btn} ${s.btnSecondary}`}
-                      disabled={
-                        busy ||
-                        !session.canEdit ||
-                        !props.preparationClient ||
-                        !characterManuscriptSource(draftContent, currentActorForm.key)
-                      }
-                      onClick={() => {
-                        if (busy || !session.canEdit || !props.preparationClient) return;
-                        const source = characterManuscriptSource(
-                          draftContent,
-                          currentActorForm.key,
-                        );
-                        if (!source) return;
-                        setOverallPreparationText(undefined);
-                        setFormPreparationSources([source]);
-                        setFormPreparationScope('characters');
-                        setShowMarkdownImport(true);
-                      }}
-                    >
-                      整理本角色的历史与朋友圈
                     </button>
                   </div>
                 </div>

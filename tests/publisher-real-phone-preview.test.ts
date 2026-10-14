@@ -145,7 +145,6 @@ test('author pane embeds only the actual trial route and keeps draft messages/mo
   );
   assert.equal((html.match(/<iframe/g) ?? []).length, 1);
   assert.match(html, new RegExp(`/workbench/trials/${id(5)}`));
-  assert.match(html, /公开介绍/);
   assert.ok(!html.includes('SHOULD_ONLY_APPEAR_IN_REAL_APP'));
   assert.ok(!html.includes('PRIVATE_VOICE'));
   const phonePane = html.slice(html.indexOf('<section'), html.indexOf('</section>'));

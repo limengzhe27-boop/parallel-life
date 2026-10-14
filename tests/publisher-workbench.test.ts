@@ -306,11 +306,13 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
   assert.doesNotMatch(html, /限制详情|model_budget_unapproved/);
 });
 
-test('character form removes redundant known fact checkboxes and focuses on core dimensions', () => {
+test('character form removes redundant legacy buttons and focuses on name, avatar, identity and core 5 dimensions', () => {
   const html = renderTab(defaultProps, 'actors');
   assert.doesNotMatch(html, /不是固定示例|修改这条事实|这条事实在各人物的知情列表中同步更新/);
   assert.ok(html.includes('✨ 生成角色（保存并启动试演对话）'));
-  assert.ok(html.includes('整理本角色的历史与朋友圈'));
+  assert.ok(html.includes('微信头像（默认使用预设图片）'));
+  assert.ok(html.includes('角色核心 5 个维度设定'));
+  assert.doesNotMatch(html, /整理本角色的历史与朋友圈/);
 });
 
 const readyCheck: PublisherCheckResult = {
@@ -829,103 +831,31 @@ test('actor editing is not preceded by global checks or scheduling, while failur
   assert.match(renderTab(defaultProps, 'review'), /尚未检查，请先保存草稿/);
 });
 
-test('the character form hands authored modules to existing character preparation and retains actor navigation until explicit save', async () => {
-  const { PublisherImportDialog } =
-    await import('../src/features/publisher/publisher-import-dialog.tsx');
-  const { characterManuscriptSource } =
-    await import('../src/features/publisher/publisher-character-manuscript.ts');
-  const a = {
-    key: 'form_actor',
-    name: '顾夏',
-    knownAtStart: true,
-    lifeModules: {
-      lifeContext: '作者写的人生背景',
-      traits: '作者写的人格',
-      drives: '作者写的价值观',
-      behavior: '作者写的行为',
-      relationships: '认识主角多年',
-    },
-    publicCard: { introduction: '作者公开介绍' },
-    privatePersona: {
-      background: '旧背景',
-      motivation: '旧动机',
-      voice: '旧表达',
-      boundaries: '旧边界',
-    },
-  };
-  const content = {
-    actors: [a],
-    world: { hiddenContext: '世界秘密' },
-    opaque: { preserved: true },
-  };
-  let calls = 0;
+test('the character form correctly renders 5 core dimensions and triggers save on generate actor', async () => {
+  let trialCalled = false;
   const h = overallHarness({
-    work: { ...mockWork, draft: { ...mockWork.draft, content } },
-    preparationClient: {
-      latestPreparation: async () => ({ preparation: null }),
-      getPreparation: async () => {
-        throw Error('not invoked');
-      },
-      prepareManuscript: async () => {
-        calls++;
-        throw Error('not invoked');
-      },
-    } as unknown as NonNullable<Parameters<typeof PublisherWorkbench>[0]['preparationClient']>,
+    work: mockWork,
+    onCharacterTrial: () => {
+      trialCalled = true;
+    },
   });
   try {
     h.click('人物');
     const name = h.render().find((n) => n.props.id === 'character-author-name')!;
-    assert.equal(name.props.value, a.name);
-    h.click('整理本角色的历史与朋友圈');
-    const dialog = h.render().find((n) => n.type === PublisherImportDialog)!;
-    assert.equal(dialog.props.initialScope, 'characters');
-    assert.equal(dialog.props.initialOverallText, undefined);
-    assert.deepEqual(dialog.props.initialSources, [characterManuscriptSource(content, a.key)]);
-    assert.deepEqual(dialog.props.content, content);
-    assert.equal(calls, 0);
-    assert.equal(h.saved.length, 0);
-    const next = { ...content, phone: { messages: [{ key: 'new', text: '待核对' }] } };
-    (dialog.props.onApply as (v: unknown, s: unknown) => void)(next, {
-      actors: [],
-      initialMessagesCount: 1,
-      candidatesCount: 0,
-      warnings: [],
-      diagnostics: [],
-      unmapped: [],
-    });
-    assert.equal(
-      h.render().find((n) => n.type === 'button' && n.props.children === '人物')!.props[
-        'aria-selected'
-      ],
-      true,
-    );
-    assert.equal(h.saved.length, 0);
-    h.click('保存草稿');
-    assert.deepEqual((h.saved[0] as { content: unknown }).content, next);
-    assert.deepEqual(
-      (h.saved[0] as { content: typeof content }).content.actors[0]!.privatePersona,
-      a.privatePersona,
-    );
+    assert.ok(name);
+    // Verify 5 dimensions textareas exist
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-1'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-2'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-3'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-4'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-5'));
+
+    // Click Generate Actor button
+    await (
+      h.button('✨ 生成角色（保存并启动试演对话）').props.onClick as () => Promise<void>
+    )();
+    assert.equal(trialCalled, true);
   } finally {
     h.close();
-  }
-});
-test('character preparation handlers cannot call or open import while read-only, busy, unnamed or missing the project preparation service', () => {
-  for (const overrides of [
-    { busy: true },
-    { session: { ...defaultProps.session, canEdit: false } },
-    { preparationClient: undefined },
-  ]) {
-    const h = overallHarness({ ...overrides, work: mockWork });
-    try {
-      h.click('人物');
-      const b = h.button('整理本角色的历史与朋友圈');
-      assert.equal(b.props.disabled, true);
-      (b.props.onClick as () => void)();
-      assert.equal(h.saved.length, 0);
-      assert.ok(!h.render().some((n) => n.props.initialScope === 'characters'));
-    } finally {
-      h.close();
-    }
   }
 });

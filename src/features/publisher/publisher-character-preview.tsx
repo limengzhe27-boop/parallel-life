@@ -121,45 +121,6 @@ export function PublisherCharacterPreview({
           </div>
         )}
       </section>
-      <div className={s.manuscript}>
-        <section className={s.introduction} aria-label="角色介绍文稿">
-          <h3>{name} · 角色介绍</h3>
-          {person.identity && <p className={s.hint}>{person.identity}</p>}
-          <p className={s.publicText}>{person.introduction || '尚未填写给玩家看的角色介绍。'}</p>
-        </section>
-        <details className={s.editing}>
-          <summary>编辑人物设定</summary>
-          <p className={s.hint}>
-            五个模块保存编剧的人物设定，按已有材料填写。玩家只看到单独核对的公开介绍。
-          </p>
-          <label className={s.field}>
-            给玩家看的角色介绍
-            <textarea
-              rows={4}
-              value={person.introduction}
-              maxLength={1600}
-              disabled={!canEdit || busy}
-              onChange={(e) =>
-                onChange(updateCharacterField(content, actorKey, 'introduction', e.target.value))
-              }
-            />
-          </label>
-          {CHARACTER_MODULES.map((module) => (
-            <label className={s.field} key={module.key}>
-              {module.label}
-              <textarea
-                rows={5}
-                value={characterModuleText(content, actorKey, module.key)}
-                maxLength={4000}
-                disabled={!canEdit || busy}
-                onChange={(e) =>
-                  onChange(updateCharacterField(content, actorKey, module.key, e.target.value))
-                }
-              />
-            </label>
-          ))}
-        </details>
-      </div>
     </div>
   );
 }

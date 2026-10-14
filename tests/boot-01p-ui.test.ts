@@ -195,9 +195,15 @@ test('history records stay sourced and readonly; related targets use IDs and a c
   ]);
   assert.equal(searchRecords(fixture.current, '虚构起点').length, 1);
   assert.equal(recordAttribution(fixture.current[0]!), '虚构起点来信');
-  const notes = renderApp(NotesApp, 'notes', recordId);
-  assert(notes.includes('虚构起点来信'));
-  assert.doesNotMatch(notes, /textarea|PRIVATE_NOTE_NOT_IN_SYS_DETAIL/);
+  const recordMarkup = renderToStaticMarkup(
+    createElement(NotesRecordDetail, {
+      data: fixture,
+      target: recordId,
+      open: noop,
+    }),
+  );
+  assert(recordMarkup.includes('虚构起点来信'));
+  assert.doesNotMatch(recordMarkup, /textarea|PRIVATE_NOTE_NOT_IN_SYS_DETAIL/);
 });
 test('invitation source time, activity time and later owner response retain distinct provenance', () => {
   const invitation = PlayerRecordsSchema.parse({

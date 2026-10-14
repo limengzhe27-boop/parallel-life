@@ -1073,16 +1073,19 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           </div>
         </details>
       )}
-      {(['candidates', 'history', 'stages'] as PlotSection[]).map((section) => {
-        const config = sections[section],
-          rows = plotRows(content, section),
-          allowed = plotCollectionEditable(content, section);
-        const sectionContent = (
-          <section className={s.card} key={section} aria-label={config.title}>
+      {(() => {
+        const section = 'candidates' as const;
+        const config = sections[section];
+        const rows = plotRows(content, section);
+        const allowed = plotCollectionEditable(content, section);
+        return (
+          <section className={s.card} key={section} aria-label="核心事件库">
             <header className={s.header}>
               <div>
-                <h3>{config.title}</h3>
-                <p className={s.hint}>{config.help}</p>
+                <h3>事件列表（核心事件库）</h3>
+                <p className={s.hint}>
+                  由编导按需自由增删。每件事写清主角面临的起因、博弈与必须达成的结局（约150~200字）。导演 Agent 会结合世界与人物推进事件。
+                </p>
               </div>
               <button
                 type="button"
@@ -1093,62 +1096,18 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                     emit(() => addPlotRow(content, section));
                 }}
               >
-                {config.add}
+                + 增加事件
               </button>
             </header>
             {!allowed ? (
               <p className={s.error}>原列表格式待核对，内容保留，未替换为空列表。</p>
             ) : rows.length === 0 ? (
-              <p className={s.hint}>还没有条目，可以新增后逐项填写，暂不完整也不会自动执行。</p>
+              <p className={s.hint}>还没有事件，点击上方「+ 增加事件」添加首个核心事件。</p>
             ) : null}
-            {section === 'stages' &&
-              rows.length > 0 &&
-              selectControl(
-                '开场所在阶段',
-                plotText(plotRecord(content.timeline).initialStageKey),
-                stages,
-                disabled || !allowed,
-                (key) => emit(() => setPlotInitialStage(content, key)),
-                'plot_initial_stage',
-              )}
             {rows.map((raw, i) => rowForm(section, raw, i))}
           </section>
         );
-        return section === 'candidates' ? (
-          sectionContent
-        ) : (
-          <details key={section} className={s.card}>
-            <summary className={s.summary}>
-              {config.title}（{rows.length}）
-            </summary>
-            {sectionContent}
-          </details>
-        );
-      })}
-      <details className={s.card}>
-        <summary className={s.summary}>事件关系图（选看）</summary>
-        <PublisherStoryGraph
-          content={content}
-          disabled={disabled}
-          onSelect={selectGraphEvent}
-          onSelectCondition={(key) => {
-            setSelectedCondition(key);
-            const area = document.getElementById('publisher-condition-area');
-            if (area instanceof HTMLDetailsElement) area.open = true;
-            document.getElementById('publisher-conditions')?.scrollIntoView({ block: 'start' });
-          }}
-        />
-      </details>
-      <details id="publisher-condition-area" className={s.card}>
-        <summary className={s.summary}>独立条件（按需设置）</summary>
-        <PublisherConditionEditor
-          content={content}
-          disabled={disabled}
-          selectedKey={selectedCondition}
-          onSelect={setSelectedCondition}
-          onChange={onChange}
-        />
-      </details>
+      })()}
     </div>
   );
 }
