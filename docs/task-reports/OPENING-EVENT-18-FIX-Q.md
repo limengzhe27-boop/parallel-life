@@ -2,7 +2,13 @@
 
 2026-10-14，author_people14，root指派。只读8165828e9cb10df20013c731fe2b18c1860082a3；仅本人报告与主登记，不改业务。0模型/数据库/浏览器/生产/推送。
 
-## 结论
+## 最新复验：0fa6db8两P2已解除
+
+2026-10-14，复验源码0fa6db864602593fe185d56c67a0f6d0dc0ddee4；下方原问题及第一次失败记录保留为历史证据。原51专项加published-world-content专项合计155/155通过，无skip。原样重跑两份Schema/evaluate纯反例：全部阶段成员期限到达后resolvedStages=[before]、eligible=[opening]，schema由拒绝改为成功；ANY晚于开场截止的时间分支由成功改为拒绝。
+
+补充正反例：删前阶段唯一成员期限后仍拒普通未解决前阶段；把ANY时间改为窗口内0.5分钟后schema成功且evaluate实际eligible=[opening]；同组改ALL后因硬依赖被压制prior仍拒；原作者对象深比较未变。源码对齐stage真实成员终态与not_before实际deadline，没有偷偷迁移窗口或更改前提。本次未发现新增阻断。0模型/数据库/浏览器/生产/推送，root继续统一全check/build/PG与上线验收。本次只读scope交付完成，整体任务仍待root验收。
+
+## 首次8165828结论（已修历史）
 
 原两项P1首演死锁已经针对性修复：真实未呈现的skip/expiry等终态，以及同轮expiry/exclusion可以释放首演gate；未完成或错误终态不能充当真实呈现。普通因果硬依赖、ALL与无可达分支的ANY、依赖前阶段与入站alternatives均新增校验，不削作者条件。但是新增可达性检查仍有两个已复现P2边界，已第一时间发root；请修后统一部署。它们不是SQL/权限问题。
 
@@ -31,4 +37,4 @@
 - stage/node window运行按交集算有效期，新增deadline也取两者最早expiry，未改变普通日期地点数据。
 - 51/51纯专项通过（publication-story、publisher-opening-event、publisher-plot-model）；两项额外纯合成反例用实际PublishedWorldContentSchema与evaluateStory得到上述结果。未运行完整check/build/PG，纯审查不把其他Agent的34项真实PG记成本人证据。
 
-root接续：修上述两边界并加正反例，重新check/build/真实PG、双端与READY；本报告仍待验收，未称真实导演演绎成功。
+首次交接：上述两边界当时请求修复；现已由0fa6db8修复并按报告顶部复验。root仍需check/build/真实PG、双端与READY；未称真实导演演绎成功。

@@ -18,6 +18,7 @@ const fields: Record<string, string[]> = {
     'media',
     'timeline',
     'candidates',
+    'openingEventKey',
     'conditions',
     'extensions',
   ],
