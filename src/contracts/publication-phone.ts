@@ -33,7 +33,7 @@ export const PublicationOpeningSchema = z.strictObject({
         appearance: z.string().max(240).optional(),
       }),
     )
-    .min(2)
+    .min(1)
     .max(12),
   notes: z
     .array(

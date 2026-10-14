@@ -1495,7 +1495,7 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 
 |任务ID|状态|主负责人|范围|验收|
 |---|---|---|---|---|
-|AUTHORING-16-TRIAL-I|[ ] 进行中（前端bd974aa/政策已集成，准备最后部署）|codex-main-author15-20261013 唯一集成|8fd4799保小安d738等全部新版；publisher prepare-trial与character-trial路由/HTTP目的绑定/lazy factory/专项、0056单角色事务下限、集成真数据库/真实手机/部署；不scene不覆盖另外两位源码|单角色仅人设→项目Agent补运行信息（不手填）→保存→真手机开场/真实NPC；原文不改、不增假人/事件/图片、不自动发布；24/2范围仍同本轮账本，当前11/24、1/2，剩余一个存档优先此修复，原公开链未完成。|
+|AUTHORING-16-TRIAL-I|[ ] 进行中（前端bd974aa/政策已集成，准备最后部署）|codex-main-author15-20261013 唯一集成|8fd4799保小安d738等全部新版；publisher prepare-trial与character-trial路由/HTTP目的绑定/lazy factory/专项、0056单角色事务下限、publication-phone单联系人读契约、集成真数据库/真实手机/部署；不scene不覆盖另外两位源码|单角色仅人设→项目Agent补运行信息（不手填）→保存→真手机开场/真实NPC；原文不改、不增假人/事件/图片、不自动发布；24/2范围仍同本轮账本，当前11/24、1/2，剩余一个存档优先此修复，原公开链未完成。|
 
 |AUTHORING-16-TRIAL-M|[ ] 待验收|author-import-modules-14；root指派|独立author-import-modules-14自8fd4799/codex/authoring16-character-trial；publisher-controller/client、必要workbench/character-preview props/CSS、纯试演orchestration与专项/报告；0模型DBbrowser生产|角色稿dirty先保存、真实check预检、项目prepare-trial补运行字段、仅成功无issues提案保存再真手机；原command恢复不重付、自动保存竞态不吞点击、紧凑中文进度与错误；42专项/type/boundary/build通过；全check2217/2221，4旧PG连接28P01待root隔离PG复跑；准备/角色专用trial真实API、原command恢复、保存排队、false保留；详见本人报告；root24额度/backend/部署独占。补只读审查：五模块/公开介绍UI错位及L5公开泄露风险；后续最小修复见AUTHORING-16-CHARACTER-MAPPING-Q，未改业务源码/付费样本。追加已确认终态允许下次显式点击新command重做；未知仍同ID只GET；49专项通过，待root集成，0模型/生产。|
 

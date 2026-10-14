@@ -17,3 +17,5 @@
 正式首版6c72ec2/dpl_DC19xZN1dBS7WQQrE9CTZTaFtLjC READY，56checksum应用后单人事务通过。本地2233check/build/PG39通过；CI仅小安继承10文件prettier失败，root仅格式修正并重新检查。真实角色一键初次2预留文字(累计13/24)，模型擅补history/initialKnowledge/relationships，被三集合保护拒绝，未保存或创建第二存档；保错误，43be15b强调私有目的三集合须原样，5479a86只有已确认终态后允许下一显式手动重试，unknown仍原命令GET，绝不自动重付。
 
 辅助2获得其聊天独立1存档/3文字授权，17B从本批真实AI有效稿实际check→发布→新玩家自动剧情开场→下架/暂停通过；独立账本已closed，不占root24/2。实际开场不当事件完成，没有额外玩家私聊。未完成canonical人物表单错位/私密L5外泄风险、下架入口已入主表；本轮角色付费fixture不改。
+
+2559a1a/dpl_4uRAK6tTNLyTK6U4Sexx1qB88dgb正式READY、CI38510000026成功，2241check/build/format通过。真实下一显式点击在同原稿下项目Agent成功，原actor全文不变，普通双向history及moments/运行world自动补齐；创建第二private存档成功，但真实phone读取503又揭露PublicationOpeningSchema.contacts.min(2)旧读契约。root只改min(1)，补实际BuildRepository.phone真实PG读取单未知contact/零history，29/29过；不重建存档或再整理。当前15/24保守、2/2真实存档，等待最后手机读取与聊天验收。

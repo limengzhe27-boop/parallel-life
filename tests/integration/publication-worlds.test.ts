@@ -259,6 +259,10 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
       assert.equal(snapshot.actors.length, 1);
       assert.equal(snapshot.messages.length, 0);
       assert.equal(snapshot.facts.length, 0);
+      const phone = await new BuildRepository(app).phone(session.ownerId, session.worldId);
+      assert.equal(phone.actors.length, 1);
+      assert.equal(phone.messages.length, 0);
+      assert.equal(phone.actors[0]!.name, c.actors[0]!.name);
       assert.deepEqual((await works.get(staff, w.id)).draft.content, w.draft.content);
       assert.equal((await demos.startTrial(staff, w.id, demoCommand)).worldId, demo.worldId);
       await assert.rejects(async () =>
