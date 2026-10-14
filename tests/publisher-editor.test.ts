@@ -347,3 +347,37 @@ test('editing one actor name or voice retains both actors independent knowledge'
   ]);
   assert.deepEqual(content.initialKnowledge, before);
 });
+
+test('updateActorInContent allows clearing actor name without falling back to internal key or placeholder', () => {
+  const actor = (mockDraftContent.actors as Record<string, unknown>[])[0]!;
+  const form = parseActorEditor(actor, mockDraftContent);
+  form.name = '';
+
+  const updatedContent = updateActorInContent(mockDraftContent, form);
+  const updatedActors = updatedContent.actors as Record<string, unknown>[];
+  const updatedActor = updatedActors.find((a) => a.key === 'qingqing');
+
+  assert.equal(updatedActor?.name, '');
+});
+
+test('updateActorInContent allows clearing background, voice, motivation and boundaries without fallback injection', () => {
+  const actor = (mockDraftContent.actors as Record<string, unknown>[])[0]!;
+  const form = parseActorEditor(actor, mockDraftContent);
+  form.background = '';
+  form.voice = '';
+  form.boundaries = '';
+  form.caresAbout = '';
+  form.immediateGoal = '';
+  form.rawMotivation = '';
+
+  const updatedContent = updateActorInContent(mockDraftContent, form);
+  const updatedActors = updatedContent.actors as Record<string, unknown>[];
+  const updatedActor = updatedActors.find((a) => a.key === 'qingqing');
+  const persona = updatedActor?.privatePersona as Record<string, unknown>;
+
+  assert.equal(persona.background, '');
+  assert.equal(persona.voice, '');
+  assert.equal(persona.boundaries, '');
+  assert.equal(persona.motivation, '');
+});
+

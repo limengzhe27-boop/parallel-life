@@ -522,7 +522,7 @@ export function PublisherWorkbench(
   const handleAddActor = useCallback(() => {
     const existingKeys = actorList.map((a) => a.key);
     const newActor = createEmptyActor(existingKeys);
-    newActor.name = `新人物 ${existingKeys.length + 1}`;
+    newActor.name = '';
     const nextContent = updateActorInContent(draftContent, newActor);
     setDraftContent(nextContent);
     setSelectedActorKey(newActor.key);
