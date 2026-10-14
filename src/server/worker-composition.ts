@@ -14,6 +14,8 @@ import { buildHandler } from '../modules/world/infrastructure/build-handler.ts';
 import { DiscoveryPlanner } from '../modules/discovery/infrastructure/discovery-planner.ts';
 import { discoveryHandler } from '../modules/discovery/infrastructure/discovery-handler.ts';
 import 'server-only';
+import { sceneGatewayConfig } from './scene-model-config.ts';
+import { createSceneTextModel } from './composition.ts';
 import { gatewayConfig } from './config.ts';
 import { YibuTextModel } from '../modules/ai/infrastructure/yibu-text-model.ts';
 import { PostgresTaskQueue } from '../modules/tasks/infrastructure/postgres-task-queue.ts';
@@ -29,13 +31,24 @@ export function createWorker() {
   const config = gatewayConfig(),
     queue = new PostgresTaskQueue(url);
 
+  let sceneHandler: ReturnType<typeof sceneTaskHandler> | undefined;
   let assetStore: AssetStore | undefined;
   const readStore = () => (assetStore ??= createPrivateAssetStore());
   return {
     queue,
     handlers: {
       world: worldTaskDispatcher({
-        scene: sceneTaskHandler(queue, new ScenePlanner(new YibuTextModel(config)), config.model),
+        scene: (lease, signal) => {
+          if (!sceneHandler) {
+            const sceneConfig = sceneGatewayConfig();
+            sceneHandler = sceneTaskHandler(
+              queue,
+              new ScenePlanner(createSceneTextModel(sceneConfig)),
+              sceneConfig.model,
+            );
+          }
+          return sceneHandler(lease, signal);
+        },
         group: groupTaskHandler(
           queue,
           new WorldGroupPlanner(new YibuTextModel(config)),
