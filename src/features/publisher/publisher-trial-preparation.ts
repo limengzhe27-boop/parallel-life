@@ -31,6 +31,7 @@ export type TrialAttempt = {
 export type TrialAttemptStore = {
   get(key: string): TrialAttempt | undefined;
   put(key: string, value: TrialAttempt): void;
+  remove?(key: string): void;
 };
 export class PublisherTrialError extends Error {
   readonly code: string;
@@ -113,6 +114,7 @@ function issuesMessage(issues: { code: string; path: (string | number)[] }[]) {
 /** Coordinates one paid preparation at most; uncertain operations are only read on subsequent clicks. */
 export class PublisherTrialPreparation {
   private attempts = new Map<string, TrialAttempt>();
+  private retiredAttempts = new Set<string>();
   private client: Client;
   private newId: () => string;
   private store?: TrialAttemptStore;
@@ -174,6 +176,7 @@ export class PublisherTrialPreparation {
         );
       const key = `${work.id}:${work.draft.contentHash}`;
       let attempt = this.attempts.get(key) ?? this.store?.get(key);
+      if (attempt && this.retiredAttempts.has(attempt.commandId)) attempt = undefined;
       let record: PublisherPreparationRecord;
       if (attempt) {
         this.attempts.set(key, attempt);
@@ -220,17 +223,21 @@ export class PublisherTrialPreparation {
           'TRIAL_PENDING',
           '这次准备结果尚未确认。再次点击试演会核对同一次操作，不会重新生成。',
         );
+      const terminalFailure = (code: string, message: string): never => {
+        // Only retire a verified terminal record. Uncertain operations keep their original ID.
+        this.attempts.delete(key);
+        this.retiredAttempts.add(record.commandId);
+        this.store?.remove?.(key);
+        throw new PublisherTrialError(code, message + ' 再次点击试演会重新准备。');
+      };
       if (record.status !== 'succeeded' || !record.result)
-        throw new PublisherTrialError(
-          'TRIAL_FAILED',
-          '这次没有得到可试演的完整结果，原稿已保存。请核对设定后再试演；相同内容会查看原结果。',
-        );
+        return terminalFailure('TRIAL_FAILED', '这次没有得到可试演的完整结果，原稿已保存。');
       if (record.result.scope !== 'world' || record.result.issues.length)
-        throw new PublisherTrialError('TRIAL_INVALID', issuesMessage(record.result.issues));
+        terminalFailure('TRIAL_INVALID', issuesMessage(record.result.issues));
       const proposed = record.result.updatedContent;
       const preserved = mergePublicationPreparation(work.draft.content, proposed).updatedContent;
       if (trialJson(preserved) !== trialJson(proposed))
-        throw new PublisherTrialError(
+        terminalFailure(
           'TRIAL_SOURCE_CHANGED',
           '准备结果改动了你已有的设定，未自动采用。原稿仍保留，请先核对。',
         );

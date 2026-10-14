@@ -62,6 +62,13 @@ export function PublisherController() {
             /* The live coordinator still retains the original command. */
           }
         },
+        remove(key) {
+          try {
+            sessionStorage.removeItem('publisher-trial-preparation:' + key);
+          } catch {
+            /* No storage permission; the live coordinator already retired this result. */
+          }
+        },
       }),
   );
   function updateWork(value: PublisherWork | null) {

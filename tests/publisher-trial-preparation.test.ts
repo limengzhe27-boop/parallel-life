@@ -58,7 +58,15 @@ function setup() {
   let current = fixture(),
     preparedInput: PublisherPreparationInput | undefined;
   const calls: string[] = [];
-  let mode: 'success' | 'unknown' | 'invalid' | 'overwrite' | 'badmaterial' = 'success';
+  let mode:
+    | 'success'
+    | 'unknown'
+    | 'invalid'
+    | 'overwrite'
+    | 'badmaterial'
+    | 'failed'
+    | 'unavailable'
+    | 'running' = 'success';
   let uncertainSave = false;
   const result = {
     trialId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -80,14 +88,21 @@ function setup() {
       commandId: preparedInput.commandId,
       workId: id,
       draftVersion: preparedInput.expectedDraftVersion,
-      status: mode === 'unknown' ? 'unknown' : 'succeeded',
+      status:
+        mode === 'unknown'
+          ? 'unknown'
+          : mode === 'running'
+            ? 'running'
+            : mode === 'failed'
+              ? 'failed'
+              : 'succeeded',
       material: {
         scope: 'world',
         currentContent: mode === 'badmaterial' ? {} : preparedInput.currentContent,
         sources: [...preparedInput.sources, { filename: '服务端目的.md', content: '仅试演准备' }],
       },
       result:
-        mode === 'unknown'
+        mode === 'unknown' || mode === 'failed' || mode === 'running'
           ? null
           : {
               scope: 'world',
@@ -148,6 +163,8 @@ function setup() {
     async prepareTrial(_id: string, input: PublisherPreparationInput) {
       calls.push('prepare');
       preparedInput = structuredClone(input);
+      if (mode === 'unavailable')
+        throw Object.assign(Error('upstream uncertain'), { code: 'UNAVAILABLE' });
       return record();
     },
     async getPreparation(_id: string, cmd: string) {
@@ -310,4 +327,90 @@ test('full five modules are preserved as source and unsupported future extension
   const sources = trialManuscripts(c);
   assert.match(sources[0]!.content, /五模块原文/);
   assert.equal(c.actors[0]!.knownAtStart, false);
+});
+
+for (const mode of ['invalid', 'failed', 'overwrite'] as const)
+  test(`confirmed ${mode} only permits a new generation on the next explicit click`, async () => {
+    const s = setup();
+    s.mode = mode;
+    const entries = new Map<string, TrialAttempt>();
+    const store = {
+      get: (key: string) => entries.get(key),
+      put: (key: string, value: TrialAttempt) => {
+        entries.set(key, value);
+      },
+      remove: (key: string) => {
+        entries.delete(key);
+      },
+    };
+    let n = 0;
+    const freshId = () => `cccccccc-cccc-4ccc-8ccc-${String(++n).padStart(12, '0')}`;
+    const draft = { title: s.current.title, content: s.current.draft.content };
+    await assert.rejects(
+      new PublisherTrialPreparation(s.client, freshId, store).open(s.current, draft, options),
+      (error: unknown) =>
+        error instanceof Error && error.message.includes('再次点击试演会重新准备'),
+    );
+    assert.deepEqual(s.calls, ['check', 'prepare']);
+    assert.equal(n, 1);
+    assert.equal(entries.size, 0);
+    const oldId = s.input!.commandId;
+    s.mode = 'success';
+    await new PublisherTrialPreparation(s.client, freshId, store).open(s.current, draft, options);
+    assert.equal(n, 2);
+    assert.notEqual(s.input!.commandId, oldId);
+    assert.deepEqual(s.calls, ['check', 'prepare', 'check', 'prepare', 'save', 'start']);
+  });
+for (const mode of ['running', 'unknown', 'unavailable'] as const)
+  test(`${mode} keeps its command and never creates another generation on another click`, async () => {
+    const s = setup();
+    s.mode = mode;
+    const entries = new Map<string, TrialAttempt>();
+    const store = {
+      get: (key: string) => entries.get(key),
+      put: (key: string, value: TrialAttempt) => {
+        entries.set(key, value);
+      },
+      remove: () => {
+        throw Error('must not retire uncertain');
+      },
+    };
+    const draft = { title: s.current.title, content: s.current.draft.content };
+    await assert.rejects(
+      new PublisherTrialPreparation(s.client, () => command, store).open(s.current, draft, options),
+    );
+    assert.equal(entries.size, 1);
+    if (mode === 'unavailable') s.mode = 'unknown';
+    await assert.rejects(
+      new PublisherTrialPreparation(
+        s.client,
+        () => {
+          throw Error('must not regenerate');
+        },
+        store,
+      ).open(s.current, draft, options),
+    );
+    assert.deepEqual(s.calls, ['check', 'prepare', 'check', 'recover']);
+    assert.equal(entries.size, 1);
+  });
+test('wrong material never retires a command or triggers automatic regeneration', async () => {
+  const s = setup();
+  s.mode = 'badmaterial';
+  let retired = 0;
+  const entries = new Map<string, TrialAttempt>();
+  const store = {
+    get: (key: string) => entries.get(key),
+    put: (key: string, value: TrialAttempt) => {
+      entries.set(key, value);
+    },
+    remove: () => {
+      retired++;
+    },
+  };
+  const coordinator = new PublisherTrialPreparation(s.client, () => command, store),
+    draft = { title: s.current.title, content: s.current.draft.content };
+  await assert.rejects(coordinator.open(s.current, draft, options), { code: 'VERSION_CONFLICT' });
+  await assert.rejects(coordinator.open(s.current, draft, options), { code: 'VERSION_CONFLICT' });
+  assert.equal(retired, 0);
+  assert.deepEqual(s.calls, ['check', 'prepare', 'check', 'recover']);
 });
