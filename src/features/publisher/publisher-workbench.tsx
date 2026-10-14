@@ -27,7 +27,10 @@ import {
   plotRows,
   plotRowEditable,
 } from './publisher-plot-model.ts';
-import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
+import type {
+  PublisherWorkbenchProps,
+  PublisherWorkbenchDraft,
+} from '../../contracts/publisher-workbench.ts';
 import {
   parseActorEditor,
   updateActorInContent,
@@ -153,7 +156,7 @@ export function PublisherWorkbench(
   props: PublisherWorkbenchProps & {
     preparationClient?: PublisherClient;
     characterTrial?: PublisherPhoneTrial | null;
-    onCharacterTrial?: () => void;
+    onCharacterTrial?: (draft?: PublisherWorkbenchDraft) => void;
     onCloseCharacterTrial?: () => void;
   },
 ) {
@@ -491,6 +494,29 @@ export function PublisherWorkbench(
       content: draftContent,
     });
   }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft, overallBlocked, busy]);
+
+  // Handle character trial: atomically pass latest draft
+  const handleCharacterTrial = useCallback(() => {
+    if (busy || overallBlocked) return;
+    props.onCharacterTrial?.({
+      title: draftTitle,
+      content: draftContent,
+    });
+  }, [busy, overallBlocked, props.onCharacterTrial, draftTitle, draftContent]);
+
+  // Auto-save: 填写即自动保存（防抖 800ms）
+  useEffect(() => {
+    if (!work || !session.canEdit || busy || overallBlocked) return;
+    if (!isDraftDirty(savedState, { title: draftTitle, content: draftContent })) return;
+
+    const timer = setTimeout(() => {
+      onSaveDraft({
+        title: draftTitle,
+        content: draftContent,
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [draftTitle, draftContent, savedState, work, session.canEdit, busy, overallBlocked, onSaveDraft]);
 
   // Create work
   const handleCreateWorkSubmit = useCallback(
@@ -1169,29 +1195,7 @@ export function PublisherWorkbench(
                         className={`${s.actorScrollItem} ${isSelected ? s.activeActorScrollItem : ''}`}
                         onClick={() => setSelectedActorKey(a.key)}
                       >
-                        <div className={s.actorScrollAvatar}>
-                          {art ? (
-                            <img
-                              src={art}
-                              alt=""
-                              loading="lazy"
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                borderRadius: 'inherit',
-                                objectFit: 'cover',
-                              }}
-                            />
-                          ) : (
-                            getAvatarChar(a.name)
-                          )}
-                        </div>
-                        <div className={s.actorScrollMeta}>
-                          <span className={s.actorScrollName}>{a.name || '未命名'}</span>
-                          {typeof identity === 'string' && identity.trim() ? (
-                            <span className={s.actorScrollIdentity}>{identity}</span>
-                          ) : null}
-                        </div>
+                        <span className={s.actorScrollName}>{a.name || '未命名'}</span>
                       </button>
                     );
                   })
@@ -1205,9 +1209,23 @@ export function PublisherWorkbench(
                 {/* 左侧：角色信息与核心维度 */}
                 <div className={s.card}>
                   <div className={s.sectionHeader}>
-                    <h3 className={s.sectionTitle}>
-                      角色设定 · {currentActorForm.name || '未命名'}
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <h3 className={s.sectionTitle}>
+                        角色设定 · {currentActorForm.name || '未命名'}
+                      </h3>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          color: isDirty ? '#d97706' : '#16a34a',
+                          background: isDirty ? '#fef3c7' : '#dcfce7',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {busy ? '正在保存…' : isDirty ? '填写即自动保存' : '已自动保存'}
+                      </span>
+                    </div>
                     <button
                       type="button"
                       className={s.deleteActorBtn}
@@ -1443,20 +1461,6 @@ export function PublisherWorkbench(
                     );
                   })()}
 
-                  <div style={{ marginTop: 16 }}>
-                    <button
-                      type="button"
-                      className={s.btnGenerateActor}
-                      disabled={busy || !session.canEdit || !currentActorForm.name.trim()}
-                      onClick={async () => {
-                        if (busy || !session.canEdit) return;
-                        await handleSaveDraft();
-                        props.onCharacterTrial?.();
-                      }}
-                    >
-                      ✨ 生成角色（保存并启动试演对话）
-                    </button>
-                  </div>
                 </div>
 
                 {/* 右侧：手机界面与对话框 */}
@@ -1471,7 +1475,7 @@ export function PublisherWorkbench(
                     trial={
                       phoneTrialMatches(work, props.characterTrial) ? props.characterTrial : null
                     }
-                    onStartTrial={props.onCharacterTrial}
+                    onStartTrial={handleCharacterTrial}
                     onSave={handleSaveDraft}
                     onCloseTrial={props.onCloseCharacterTrial}
                     onChange={setDraftContent}

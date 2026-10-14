@@ -21,7 +21,7 @@ export type PublisherWorkbenchProps = {
   onRenameWork?: (workId: string, newTitle: string) => void;
   onDeleteWork?: (workId: string) => void;
   onCheck: () => void;
-  onTrial?: () => void;
+  onTrial?: (draft?: PublisherWorkbenchDraft) => void;
   onPublish?: () => void;
   onLogout: () => void;
 };

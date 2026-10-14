@@ -231,19 +231,18 @@ test('workbench defaults to overall setting without the removed explanation or s
   assert.doesNotMatch(html, /尚未检查草稿|查看全部问题|安排故事时间/);
   assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
 });
-test('character form renders horizontal navigation bar, clean dimensions, and direct generation button', () => {
+test('character form renders horizontal navigation bar, clean dimensions, and direct preview trial', () => {
   const html = renderTab(defaultProps, 'actors');
   for (const text of [
     '+ 新建角色',
     '青青',
-    '诊所助手',
     '人物姓名',
     '公开角色介绍（玩家可见）',
     '性格特征与说话方式',
     '成长背景与经历',
     '动机与在乎的事',
     '说话简洁轻柔',
-    '✨ 生成角色（保存并启动试演对话）',
+    '试演这份草稿',
   ])
     assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /1\. 名字与身份|2\. 与主角的初始关系|5\. 关系、知情范围与底线/);
@@ -309,9 +308,10 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
 test('character form removes redundant legacy buttons and focuses on name, avatar, identity and core 5 dimensions', () => {
   const html = renderTab(defaultProps, 'actors');
   assert.doesNotMatch(html, /不是固定示例|修改这条事实|这条事实在各人物的知情列表中同步更新/);
-  assert.ok(html.includes('✨ 生成角色（保存并启动试演对话）'));
+  assert.doesNotMatch(html, /✨ 生成角色（保存并启动试演对话）/);
   assert.ok(html.includes('微信头像（默认使用预设图片）'));
   assert.ok(html.includes('角色核心 5 个维度设定'));
+  assert.ok(html.includes('试演这份草稿'));
   assert.doesNotMatch(html, /整理本角色的历史与朋友圈/);
 });
 
@@ -831,12 +831,12 @@ test('actor editing is not preceded by global checks or scheduling, while failur
   assert.match(renderTab(defaultProps, 'review'), /尚未检查，请先保存草稿/);
 });
 
-test('the character form correctly renders 5 core dimensions and triggers save on generate actor', async () => {
-  let trialCalled = false;
+test('the character form correctly renders 5 core dimensions and triggers trial from preview', async () => {
+  let trialDraft: unknown = null;
   const h = overallHarness({
     work: mockWork,
-    onCharacterTrial: () => {
-      trialCalled = true;
+    onCharacterTrial: (draft) => {
+      trialDraft = draft;
     },
   });
   try {
@@ -850,11 +850,17 @@ test('the character form correctly renders 5 core dimensions and triggers save o
     assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-4'));
     assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-5'));
 
-    // Click Generate Actor button
-    await (
-      h.button('✨ 生成角色（保存并启动试演对话）').props.onClick as () => Promise<void>
-    )();
-    assert.equal(trialCalled, true);
+    // Redundant left bottom button is removed
+    assert.equal(
+      h.render().some((n) => n.props.children === '✨ 生成角色（保存并启动试演对话）'),
+      false,
+    );
+
+    // Trigger trial from character preview
+    const preview = h.render().find((n) => typeof n.type === 'function' && Boolean(n.props.onStartTrial));
+    assert.ok(preview);
+    (preview.props.onStartTrial as () => void)();
+    assert.ok(trialDraft);
   } finally {
     h.close();
   }

@@ -499,7 +499,11 @@ export class ScenePlanner implements ScenePlannerPort {
         : undefined;
     const activeAppointment = c.scene.appointmentId ? effectiveDirect : placeAppointment;
     const candidates = opening
-      ? c.world.actors.filter((a) => activeAppointment?.participantIds.includes(a.id))
+      ? c.world.actors.filter(
+          (a) =>
+            activeAppointment?.participantIds.includes(a.id) ||
+            Boolean(scenePlace?.contactActorIds?.includes(a.id)),
+        )
       : c.world.actors.filter((a) =>
           scenePresent(c.scene, c.world.version).some(
             (p) => p.kind === 'actor' && p.actorId === a.id,

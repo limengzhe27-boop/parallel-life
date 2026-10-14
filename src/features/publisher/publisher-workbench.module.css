@@ -588,16 +588,16 @@
 .actorScrollItem {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 14px 6px 8px;
+  justify-content: center;
+  padding: 6px 18px;
   background: var(--pub-surface);
   border: 1px solid var(--pub-border);
-  border-radius: 24px;
+  border-radius: 20px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
   transition: all 120ms ease;
-  min-height: 40px;
+  min-height: 36px;
 }
 
 .actorScrollItem:hover:not(:disabled) {

@@ -1103,8 +1103,19 @@ export async function commitSceneProposal(
       storyAt: locked.storyAt,
       location: p.location,
     },
-    { ...base, id: randomUUID(), kind: 'narration', perspective: 'observable', text: p.narration },
   ];
+  const isDuplicateNarration = c.entries.some(
+    (e) => e.kind === 'narration' && e.text.trim() === p.narration.trim(),
+  );
+  if (!isDuplicateNarration && (!c.action || p.narration.trim() !== '')) {
+    entries.push({
+      ...base,
+      id: randomUUID(),
+      kind: 'narration',
+      perspective: 'observable',
+      text: p.narration,
+    });
+  }
   let actions = (await loadScene(sql, worldId, scene.id)).actions;
   if (c.action?.intent === 'attempt') {
     if (!p.outcome || !p.observation) throw new DomainError('INVALID_PROPOSAL');
