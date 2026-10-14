@@ -22,3 +22,5 @@ Owner `codex-moments26-01a11a84-20261015`；复用managed publication-story-02�
 本地真实后台3图保存与规则回读、PC1440/手机390无横溢；实际私有试演201/social200，锁帖隐藏、公开三图可点击第3张与Escape、三天提示。试演已暂停。HTTP已停止，PG55566留作集成需要；Ego189留作生产QA。证据均在忽略.local，生产写0。独立发现raw experienceNote缺省时check ready但trial409，已交I的27修复；本任务不修改来源保护，使用完整合法note的明确合成夹具测试。
 
 接续：I串行cherry-pick提交链并应用生产0063、部署READY；本Agent再做公网多图/受限媒体验收，协同expectedVersion仅更新真实草稿actor_3三天及syt_m01确认规则，保留全部事件地点/79消息/24动态/34图，不发布世界。之后按照用户新授权生成16张场景图并配合I上传到地点草稿（02手机UI仅素材）。
+
+Test-only后继：CI既有55476配置没有PUBLICATION_MOMENTS_TEST_PORT，测试现在专用变量优先、回退既有PUBLICATION_STORY_TEST_PORT/PUBLICATION_MEDIA_TEST_PORT/PUBLISHER_TEST_PORT，保留localConfig实际端口断言与55566默认。不改workflow或运行时。仅设置PUBLICATION_STORY_TEST_PORT=55566重跑本批真实PG1/1通过，验证CI同类回退路径。

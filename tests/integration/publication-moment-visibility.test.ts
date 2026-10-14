@@ -68,7 +68,16 @@ const compiler: PublicationWorldCompilerPort = {
 
 test('real PostgreSQL: visible post set and private image reads share time, confirmation and immutable owner-bound edition', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, Number(process.env.PUBLICATION_MOMENTS_TEST_PORT ?? '55566'));
+  assert.equal(
+    cfg.port,
+    Number(
+      process.env.PUBLICATION_MOMENTS_TEST_PORT ??
+        process.env.PUBLICATION_STORY_TEST_PORT ??
+        process.env.PUBLICATION_MEDIA_TEST_PORT ??
+        process.env.PUBLISHER_TEST_PORT ??
+        '55566',
+    ),
+  );
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const role = 'pl_moments26_fixture';
