@@ -1,3 +1,9 @@
+## 2026-10-14 · PUBLISHER-UNBLOCK-PUBLISH-01
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Check 2241, boundaries 440, typecheck and build passed; 555 publisher tests all passed. No SQL migration changes.
+- 消除创作者发布时的强制试演对白卡点：放宽 publicationReview 审查逻辑，在创世纪编译成功且设定完整时，不再因缺少实机 assistant 对白而强行卡死为 blocked，使创作者在后台通过“检查”后能直接一键发布上架；
+- 优化错误提示：将冷冰冰的“操作未完成，请联系管理员”替换为清晰的人性化指引，告知具体原因为检查或设定未就绪并给出建议处理路径。
+
 ## 2026-10-14 · 角色一键真手机演示
 
 业务f74b6577e535fe795aca2379056ed6fda7b04dac / dpl_2rk388xqQDakvxmiqhC1KHuwoN8S READY，正式 https://parallel-life-nu.vercel.app 精确同SHA；CI38510790051成功。2241check/build/format通过；准备和world实际PG39、新增真实phone读29通过。0056修数据库人数下限1，56生产checksum核验，不改旧存档或旧迁移。
