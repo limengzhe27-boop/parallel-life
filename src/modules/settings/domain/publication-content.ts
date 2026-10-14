@@ -39,7 +39,7 @@ export type PublicationEventProgressSpec = {
 };
 export type PublicationIntent =
   | { kind: 'editorial_only' }
-  | { kind: 'director_event'; actorKey: string }
+  | { kind: 'director_event'; actorKey?: string }
   | { kind: 'offer_message'; actorKey: string; text: string }
   | {
       kind: 'offer_invitation';
@@ -168,6 +168,10 @@ export type PublicationContent = {
     kind: 'candidate';
     title: string;
     editorialIntent: string;
+    /** Full author manuscript block, never shown to a player as a future fact. */
+    script?: string;
+    sceneText?: string;
+    scenePlaceKeys?: string[];
     direction?: {
       mode: 'required' | 'optional';
       expectedImpact?: string;
@@ -505,6 +509,12 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
         issue(['candidates', i, 'conditionKeys'], 'condition_self_dependency');
     }
     actorRefs(n.actorKeys, ['candidates', i, 'actorKeys']);
+    if (n.scenePlaceKeys) {
+      unique(n.scenePlaceKeys, ['candidates', i, 'scenePlaceKeys']);
+      n.scenePlaceKeys.forEach((placeKey, j) => {
+        if (!places.has(placeKey)) issue(['candidates', i, 'scenePlaceKeys', j], 'unknown_place');
+      });
+    }
     const authoredProgress = n.direction?.progress;
     if (authoredProgress) {
       const path = ['candidates', i, 'direction', 'progress'];
@@ -559,6 +569,7 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     const intent = n.intent;
     if (
       (intent.kind === 'offer_message' || intent.kind === 'director_event') &&
+      intent.actorKey !== undefined &&
       (!actors.has(intent.actorKey) || !n.actorKeys.includes(intent.actorKey))
     )
       issue(['candidates', i, 'intent'], 'intent_actor_outside_node');
@@ -688,7 +699,8 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       };
       const historyReachable = (key: string): boolean => {
         const fact = facts.get(key);
-        const actorKey = opening.intent.kind === 'director_event' ? opening.intent.actorKey : '';
+        const actorKey =
+          opening.intent.kind === 'director_event' ? (opening.intent.actorKey ?? '') : '';
         return (
           !!fact &&
           (fact.visibility.kind === 'world' ||

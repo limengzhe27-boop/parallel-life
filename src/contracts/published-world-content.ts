@@ -50,7 +50,7 @@ const prerequisite = z.discriminatedUnion('kind', [
 ]);
 const intent = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('editorial_only') }),
-  z.strictObject({ kind: z.literal('director_event'), actorKey: key }),
+  z.strictObject({ kind: z.literal('director_event'), actorKey: key.optional() }),
   z.strictObject({ kind: z.literal('offer_message'), actorKey: key, text: text(500) }),
   z.strictObject({
     kind: z.literal('offer_invitation'),
@@ -165,24 +165,30 @@ const shape = z
     phone: z.strictObject({
       messages: z
         .array(
-          z.strictObject({
-            key,
-            actorKey: key,
-            origin: z.enum(['history', 'incoming']),
-            speaker: z.enum(['actor', 'player']).optional(),
-            text: z.string().max(500),
-            at,
-            attachment: z
-              .strictObject({
-                kind: z.enum(['image', 'video']),
-                assetId: Id,
-                label: z.string().trim().min(1).max(120).optional(),
-              })
-              .optional(),
-          }).superRefine((message, ctx) => {
-            if (!message.text.trim() && !message.attachment)
-              ctx.addIssue({ code: 'custom', path: ['text'], message: 'message_content_required' });
-          }),
+          z
+            .strictObject({
+              key,
+              actorKey: key,
+              origin: z.enum(['history', 'incoming']),
+              speaker: z.enum(['actor', 'player']).optional(),
+              text: z.string().max(500),
+              at,
+              attachment: z
+                .strictObject({
+                  kind: z.enum(['image', 'video']),
+                  assetId: Id,
+                  label: z.string().trim().min(1).max(120).optional(),
+                })
+                .optional(),
+            })
+            .superRefine((message, ctx) => {
+              if (!message.text.trim() && !message.attachment)
+                ctx.addIssue({
+                  code: 'custom',
+                  path: ['text'],
+                  message: 'message_content_required',
+                });
+            }),
         )
         .max(40),
       moments: z
@@ -270,7 +276,10 @@ const shape = z
           key,
           kind: z.literal('candidate'),
           title: text(120),
-          editorialIntent: text(1600),
+          editorialIntent: text(16384),
+          script: text(16384).optional(),
+          sceneText: z.string().max(1600).optional(),
+          scenePlaceKeys: refs(32).optional(),
           direction: z
             .strictObject({
               mode: z.enum(['required', 'optional']),

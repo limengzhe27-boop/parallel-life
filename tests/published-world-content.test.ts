@@ -240,6 +240,22 @@ function content(): PublicationContent {
   };
 }
 
+test('library event preserves long manuscript and several scenes without preassigning a speaker', () => {
+  const c = content();
+  const node = c.candidates[0]!;
+  node.intent = { kind: 'director_event' };
+  node.direction = { mode: 'optional' };
+  node.script = '作者原文与可能发生的前提。'.repeat(400);
+  node.editorialIntent = node.script;
+  node.sceneText = '手机聊天界面与多个既有地点';
+  node.scenePlaceKeys = c.places.map((place) => place.key);
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  assert.equal(publicationContentIssues(c).length, 0);
+  assert.doesNotMatch(JSON.stringify(publicationPlayerPreview(c)), /作者原文与可能发生的前提|scenePlaceKeys/);
+  node.scenePlaceKeys.push('missing');
+  assert.ok(publicationContentIssues(c).some((issue) => issue.code === 'unknown_place'));
+});
+
 test('author-confirmed event pacing and observable conversation outcomes stay private', () => {
   const c = content();
   c.candidates[0]!.direction = {

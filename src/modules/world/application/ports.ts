@@ -73,14 +73,18 @@ export type StoryOpportunityInput = {
     nodeKey: string;
     title: string;
     editorialIntent: string;
-    actorId: string;
+    actorId?: string;
+    actorOptions?: { id: string; key: string; name: string }[];
+    places?: { key: string; name: string; description?: string }[];
     placeName: string | null;
     direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
   }[];
 };
 export interface TurnPlanner {
   /** A null decision leaves every candidate unresolved. Failure cannot auto-pick a candidate. */
-  chooseStoryOpportunity?(input: StoryOpportunityInput): Promise<string | null>;
+  chooseStoryOpportunity?(
+    input: StoryOpportunityInput,
+  ): Promise<string | { nodeKey: string; actorId: string } | null>;
   propose(input: { context: ActorContext; userText: string }): Promise<unknown>;
 }
 
