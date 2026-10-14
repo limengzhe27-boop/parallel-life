@@ -451,3 +451,29 @@ test('real new progress clears unrelated-input streak without creating success',
     'wait',
   );
 });
+
+test('forgotten anchors and private boundary sources are not resurrected by sidecar context', () => {
+  const d = definition();
+  d.goals[0]!.anchorSourceIds = ['opening', 'record_opening'];
+  const p = apply(
+    d,
+    introduce(d),
+    { sourceEventId: 'private_no', kind: 'declined' },
+    source('private_no', 'player_decision', 1),
+  );
+  assert.equal(ownGoalBrief(d, p, 'npc', new Set(['opening'])), null);
+  const redacted = ownGoalBrief(d, p, 'npc', new Set(['record_private_no']));
+  assert.equal(redacted?.participation, 'unknown');
+  assert.equal(redacted?.status, 'active');
+  // Memory redaction does not rewrite committed world progress or authorize a fresh pressure cycle.
+  assert.equal(p.participation, 'declined');
+  assert.equal(
+    nextStoryMove({
+      definition: d,
+      progress: p,
+      storyNow: at(2),
+      autonomousActionAvailable: false,
+    }),
+    'wait',
+  );
+});

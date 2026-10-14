@@ -31,3 +31,5 @@ I已短锁授予既有publication-story.ts、publication-story-ports.ts、public
 私有port草案与service cue已在本人分配范围接线WIP：续拍prepare/finish独立，不覆盖opening。stage outcome仅由实际progress ledger终态投影，未知/失败不解锁，fulfilled不代表physical playerCompleted；拒绝/错过走非成功branch。尚未完成ledger adapter/普通NPC上下文与本轮幕后提案quote槽。为保持模块化已请求I批准新独立infrastructure/publication-event-progress-repository.ts，未获范围前不写该新file；root将公共ActorContext/slot与0060单写。
 
 用户明确已批新24(local16/public8)+2临时存档，账本仍0/24；旧local封口、公网4+4不挪。代码未全接/无模型/未上线，保持进行中，后续真实PG和三场景及事件收尾、最终check/build/READY公网缺一不可。
+
+纯helper隐私加固：新增每actor边界/状态当前来源（event+record，固定两项），可见brief对blockedSources不恢复忘却原话；goal anchor若被忘却则不供该frame。此redaction不改全局已提交世界进展，也不授权重新施压。16纯+4stage专项20/20过；状态sourceKeys最终由SQL evidence ledger去重，不无界存world/state。refusalScope明确只针对当前向玩家请求，NPC可继续自己的目标，实际新动作仍需原运行时权限。整体0paid，业务pending slot/adapter不是完成。

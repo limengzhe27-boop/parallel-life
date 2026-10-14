@@ -17,6 +17,7 @@ export type PersistentActorGoal = {
   /** References an immutable authorized fictional character setting, never a player interview. */
   authoredSourceId: string;
   completionCriterionIds: string[];
+  anchorSourceIds?: string[];
 };
 export type StoryProgressDefinition = {
   ownerId: string;
@@ -37,6 +38,8 @@ export type StoryEventProgress = {
   /** Refusal is participation state, not proof the NPC achieved its objective. */
   participation: 'unknown' | 'engaged' | 'declined';
   actorParticipation: Record<string, 'unknown' | 'engaged' | 'declined'>;
+  actorParticipationSources: Record<string, string[]>;
+  actorGoalStatusSources: Record<string, string[]>;
   productiveBeats: number;
   nudges: number;
   unrelatedInputs: number;
@@ -139,6 +142,8 @@ export function createStoryEventProgress(d: StoryProgressDefinition): StoryEvent
     criterionSources: {},
     actorGoalStatus: Object.fromEntries(d.goals.map((g) => [g.actorId, 'active'])),
     actorParticipation: Object.fromEntries(d.goals.map((g) => [g.actorId, 'unknown'])),
+    actorParticipationSources: {},
+    actorGoalStatusSources: {},
   };
 }
 const basisOf = (o: CommittedProgressObservation): CompletionBasis =>
@@ -219,6 +224,8 @@ export function applyStoryProgressSignal(input: {
     next.participation = 'declined';
     for (const id of o.observableActorIds) {
       next.actorParticipation[id] = 'declined';
+      next.actorParticipationSources[id] = [o.id, o.recordId];
+      next.actorGoalStatusSources[id] = [o.id, o.recordId];
       next.actorGoalStatus[id] = d.refusal === 'withdraw' ? 'withdrawn' : 'deferred';
     }
   } else if (s.kind === 'reopened' || s.kind === 'engaged') {
@@ -228,6 +235,8 @@ export function applyStoryProgressSignal(input: {
     next.phase = 'engaged';
     for (const id of o.observableActorIds) {
       next.actorParticipation[id] = 'engaged';
+      next.actorParticipationSources[id] = [o.id, o.recordId];
+      next.actorGoalStatusSources[id] = [o.id, o.recordId];
       next.actorGoalStatus[id] = 'active';
     }
   } else if (s.kind === 'nudge') {
@@ -235,7 +244,10 @@ export function applyStoryProgressSignal(input: {
   } else if (s.kind === 'closure') {
     next.phase = 'resolved';
     next.resolution = s.closure!;
-    for (const id of o.observableActorIds) next.actorGoalStatus[id] = 'withdrawn';
+    for (const id of o.observableActorIds) {
+      next.actorGoalStatus[id] = 'withdrawn';
+      next.actorGoalStatusSources[id] = [o.id, o.recordId];
+    }
   } else if (next.phase === 'pending') {
     throw new StoryProgressError('EVENT_NOT_INTRODUCED');
   }
@@ -260,8 +272,10 @@ export function applyStoryProgressSignal(input: {
       o.observableActorIds.includes(goal.actorId) &&
       goal.completionCriterionIds.length &&
       goal.completionCriterionIds.every((id) => next.criterionSources[id]?.length)
-    )
+    ) {
       next.actorGoalStatus[goal.actorId] = 'fulfilled';
+      next.actorGoalStatusSources[goal.actorId] = [o.id, o.recordId];
+    }
   }
   if (fulfilled && s.kind !== 'closure') {
     next.phase = 'resolved';
@@ -311,17 +325,36 @@ export function nextStoryMove(input: {
   return 'wait';
 }
 /** NPCs receive only their own persistent goal and the progress they were authorized to observe. */
-export function ownGoalBrief(d: StoryProgressDefinition, p: StoryEventProgress, actorId: string) {
+export function ownGoalBrief(
+  d: StoryProgressDefinition,
+  p: StoryEventProgress,
+  actorId: string,
+  blockedSources: ReadonlySet<string> = new Set(),
+) {
   const goal = d.goals.find((g) => g.actorId === actorId);
-  if (!goal || p.nodeKey !== d.nodeKey) return null;
+  if (
+    !goal ||
+    p.nodeKey !== d.nodeKey ||
+    goal.anchorSourceIds?.some((id) => blockedSources.has(id))
+  )
+    return null;
+  const participation = p.actorParticipationSources[actorId]?.some((id) => blockedSources.has(id))
+    ? 'unknown'
+    : p.actorParticipation[actorId];
+  const status = p.actorGoalStatusSources[actorId]?.some((id) => blockedSources.has(id))
+    ? 'active'
+    : p.actorGoalStatus[actorId];
   return {
     want: goal.want,
     stance: goal.stance,
     boundaries: [...goal.boundaries],
-    status: p.actorGoalStatus[actorId],
-    participation: p.actorParticipation[actorId],
-    shouldRespectRefusal: p.actorParticipation[actorId] === 'declined',
+    status,
+    participation,
+    shouldRespectRefusal: participation === 'declined',
     mayChangeApproach: true,
+    refusalScope: 'current_player_request' as const,
+    mayPursueOwnGoalWithoutPlayer: true,
+    actualMovesRequireRuntimeAuthorization: true,
     mayRewriteGoalWithoutNewAuthorizedSource: false,
     speechDoesNotProveWorldOutcome: true,
   };
