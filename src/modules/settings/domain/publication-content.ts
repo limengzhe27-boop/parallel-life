@@ -382,22 +382,10 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
   });
   // A scene destination must actually be visible and reachable in the published map.
   // It does not mean the player must already be at that place when the event starts.
-  const reachablePlaces = new Set<string>();
-  if (startPlace?.knownAtStart) reachablePlaces.add(startPlace.key);
-  let expanded = true;
-  while (expanded) {
-    expanded = false;
-    for (const route of c.routes) {
-      if (
-        reachablePlaces.has(route.fromPlaceKey) &&
-        places.get(route.toPlaceKey)?.knownAtStart &&
-        !reachablePlaces.has(route.toPlaceKey)
-      ) {
-        reachablePlaces.add(route.toPlaceKey);
-        expanded = true;
-      }
-    }
-  }
+  // Default travel connects already-known places; writers need not author route tables.
+  const reachablePlaces = new Set(
+    c.places.filter((place) => place.knownAtStart).map((place) => place.key),
+  );
   c.history.forEach((h, i) => {
     if (Date.parse(h.occurredAt) > start) issue(['history', i, 'occurredAt'], 'future_in_history');
     actorRefs(h.actorKeys, ['history', i, 'actorKeys']);
