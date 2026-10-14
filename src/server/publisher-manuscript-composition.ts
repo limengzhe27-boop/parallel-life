@@ -5,10 +5,11 @@ import { PublicationManuscriptPlanner } from '../modules/settings/infrastructure
 /** Cached preparations never initialize a provider; fresh admissions retain their fixed time reference. */
 export function lazyPublicationManuscriptPlanner(
   createModel: () => TextModel,
+  options?: { characterTrial?: boolean },
 ): PublisherPreparationPlanner {
   return {
     propose(...args) {
-      return new PublicationManuscriptPlanner(createModel()).propose(...args);
+      return new PublicationManuscriptPlanner(createModel(), options).propose(...args);
     },
   };
 }

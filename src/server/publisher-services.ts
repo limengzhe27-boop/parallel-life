@@ -1,5 +1,9 @@
 import { PublicationWorldRepository } from '../modules/settings/infrastructure/publication-world-repository.ts';
-import { publicationWorldCompiler, publicationReview } from './publication-runtime.ts';
+import {
+  publicationWorldCompiler,
+  publicationCharacterTrialCompiler,
+  publicationReview,
+} from './publication-runtime.ts';
 import 'server-only';
 import { isPreviewOnly } from '../contracts/preview.ts';
 import { PublisherSessions } from '../modules/identity/infrastructure/publisher-session.ts';
@@ -15,7 +19,7 @@ import {
 
 let database: PostgresDatabase | undefined;
 let databaseUrl: string | undefined;
-export function publisherServices(request: Request) {
+export function publisherServices(request: Request, options?: { characterTrial?: boolean }) {
   const url = process.env.PUBLISHER_DATABASE_URL,
     secret = process.env.PUBLISHER_SESSION_SECRET,
     principals = process.env.PUBLISHER_PRINCIPALS,
@@ -33,7 +37,11 @@ export function publisherServices(request: Request) {
   databaseUrl = url;
   // Credentials and permission configuration are re-read for every request, not a cached identity instance.
   const sessions = new PublisherSessions(secret, JSON.parse(principals));
-  const worlds = new PublicationWorldRepository(database, publicationWorldCompiler);
+  const worlds = new PublicationWorldRepository(
+    database,
+    options?.characterTrial ? publicationCharacterTrialCompiler : publicationWorldCompiler,
+    { characterTrial: options?.characterTrial === true },
+  );
   const token =
     request.headers
       .get('cookie')

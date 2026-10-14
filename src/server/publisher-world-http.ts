@@ -47,9 +47,9 @@ export function publishedStartRoute(request: Request, workId: string) {
     );
   });
 }
-export function publisherStartTrialRoute(request: Request, workId: string) {
+export function publisherStartTrialRoute(request: Request, workId: string, characterTrial = false) {
   return publisherEndpoint(async () => {
-    const s = publisherServices(request),
+    const s = publisherServices(request, { characterTrial }),
       principal = await s.http.authorize(request, true);
     return publisherJson(
       await s.worlds.startTrial(

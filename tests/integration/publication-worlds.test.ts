@@ -198,6 +198,74 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
     });
     return { w, c };
   };
+  await t.test(
+    'private character demo persists an unfamiliar contact without rewriting author knowledge or public compiler',
+    async () => {
+      const c = await content();
+      c.actors = [c.actors[0]!];
+      c.actors[0]!.knownAtStart = false;
+      c.history = [];
+      c.initialKnowledge = [];
+      c.relationships = [];
+      c.protagonist.knownFactKeys = [];
+      c.candidates = [];
+      delete c.timeline;
+      c.phone = { messages: [], notes: [], invitations: [], album: [], moments: [] };
+      const w = await works.create(staff, {
+        commandId: randomUUID(),
+        title: c.work.title,
+        content: c,
+      });
+      const trialInput = {
+        commandId: randomUUID(),
+        draftVersion: 0,
+        contentHash: w.draft.contentHash,
+      };
+      await assert.rejects(trials.startTrial(staff, w.id, trialInput));
+      const demoCompiler: PublicationWorldCompilerPort = {
+        prepare(input) {
+          assert.equal(input.originKind, 'trial');
+          const r = compilePublicationGenesis({
+            ...input,
+            originKind: 'trial',
+            newId: randomUUID,
+            privateCharacterDemo: true,
+          });
+          assert.equal(r.status, 'compiled');
+          if (r.status !== 'compiled') throw Error('PRIVATE_DEMO_COMPILATION_FAILED');
+          return {
+            world: r.world,
+            opening: r.opening,
+            seed: {
+              id: input.seedId,
+              createdAt: new Date().toISOString(),
+              source: { kind: 'publication_trial', ...input.origin },
+              identity: r.opening.identity,
+              situation: r.opening.situation,
+              setting: r.opening.setting,
+              experienceNote: r.opening.experienceNote,
+            },
+          };
+        },
+      };
+      const demos = new PublicationWorldRepository(pub, demoCompiler, { characterTrial: true });
+      const demoCommand = { ...trialInput, commandId: randomUUID() };
+      const demo = await demos.startTrial(staff, w.id, demoCommand);
+      const session = await demos.trialSession(staff, demo.trialId!);
+      const snapshot = await new PostgresWorldRepository(app).get(
+        { userId: session.ownerId },
+        session.worldId,
+      );
+      assert.equal(snapshot.actors.length, 1);
+      assert.equal(snapshot.messages.length, 0);
+      assert.equal(snapshot.facts.length, 0);
+      assert.deepEqual((await works.get(staff, w.id)).draft.content, w.draft.content);
+      assert.equal((await demos.startTrial(staff, w.id, demoCommand)).worldId, demo.worldId);
+      await assert.rejects(async () =>
+        demos.startPublished(owner, w.id, { commandId: randomUUID(), publicationVersion: 1 }),
+      );
+    },
+  );
   const { w, c } = await make();
   let first: Awaited<ReturnType<typeof worlds.startPublished>>;
   let trial: Awaited<ReturnType<typeof trials.startTrial>>;

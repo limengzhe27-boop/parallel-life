@@ -11,8 +11,13 @@ import {
 import { createManuscriptTextModel } from './composition.ts';
 import { lazyPublicationManuscriptPlanner } from './publisher-manuscript-composition.ts';
 import { preparePublisherManuscript } from '../modules/settings/application/publisher-preparation.ts';
+import { characterTrialPreparationInput } from './publisher-trial-preparation-material.ts';
 
-export function publisherPreparationRoute(request: Request, workId: string) {
+export function publisherPreparationRoute(
+  request: Request,
+  workId: string,
+  characterTrial = false,
+) {
   return publisherEndpoint(async () => {
     const s = publisherServices(request);
     const principal = await s.http.authorize(request, request.method === 'POST', 'edit');
@@ -23,11 +28,19 @@ export function publisherPreparationRoute(request: Request, workId: string) {
       if (commandId && !found) throw new PublisherHttpError('NOT_FOUND');
       return publisherJson(commandId ? found : { preparation: found });
     }
-    const input = await publisherBody(request, PublisherPreparationInputSchema, 393216);
+    const submitted = await publisherBody(request, PublisherPreparationInputSchema, 393216);
+    let input = submitted;
+    if (characterTrial) {
+      try {
+        input = characterTrialPreparationInput(submitted);
+      } catch {
+        throw new PublisherHttpError('INVALID_INPUT');
+      }
+    }
     // Instantiate the gateway lazily: cached results still recover during provider outages.
     const result = await preparePublisherManuscript(
       s.preparations,
-      lazyPublicationManuscriptPlanner(createManuscriptTextModel),
+      lazyPublicationManuscriptPlanner(createManuscriptTextModel, { characterTrial }),
       principal.id,
       workId,
       input,
