@@ -57,3 +57,22 @@ root/P复核发现发布误报（前阶段无stage.window，但全部非editoria
 ## 最后history知识精确可达
 
 root确认运行buildStoryPlan/evaluateStory目标actor必须实际获得history事实，最后窄修将history分支与实际visibility(world或actors含目标)及目标initialKnowledge精确对齐。无人知、另一人物知、目标不在可见人物范围不能作为开场唯一可达前提；ANY仍可使用独立地点/时间分支，不推测未来学习秘密。纯两例保原稿，106/106 content专项/type，最终check2259/2259、0skip，build0。本次首次actors-only正例夹具仍保原玩家历史，导致一般可见性校验正确阻断；调整为只检查本开场问题消失，未削通用隐私规则。一次check与build并跑触发Next生成类型竞态TS6053，build完毕后顺序全check通过，原日志保留。ownPG正常关闭/env恢复，0新模型/生产写；所有源冻结，后续仅root集成/READY与独立授权2/6真实验收。
+
+
+## 正式READY后的独立真实验收（已完成、已清理）
+
+人类本线程明确批准新的最多2临时存档/6文字模型、结束下架暂停。root提供独占线上窗口，正式https://parallel-life-nu.vercel.app，40b947b007be57de49875b7358be12183bb93055，dpl_DA9JUXm7yXkAF8NTRnZ34EBo9KyN READY/formal精确同SHA；生产57全部checksum核验。root最终2267check/63真实PG/build/format，以及PC1500/mobile390作者绑定/编辑/保存读回及canonical六字段deepEqual均通过。
+
+B的独立.local/opening18-live/ledger.json现CLOSED：新存档2/2、保守文字模型预留6/6，两次开场各3槽；未追加玩家聊天/图片/新整理模型，不挪closed17或root预算。Ego178全过程唯一TaskSpace，已finish；仅pl_publisher_session/pl_session精确备份恢复，复验true，0全profile清理。
+
+临时作品a5e6c61e-a248-4980-b419-abf9cbe301f1复制此前项目Agent真实整理源作品1bfb672f-2701-4696-9614-931146757a08，以新标题并绑定已有show_change；不填入假AI台词，不改源稿，不写新世界预设。源稿/测试稿分别full deepEqual清理复验通过，测试内容hash d3838d839e18225751fa46513a3687ae78ea05f1f4cf74014f903d61b9036d2d。
+
+1. 私有试演01ccb810-5f51-474a-b2a9-f5c6cb32bf51/world fdc6131d-6c86-4aeb-bd0e-dd98de7687f4，浏览器实际点击“推进一条剧情”。真实NPC来信围绕主办方临时换展位向玩家询问布局。实际world version1、恰好presented show_change，sourceEvent 42da0902-9eb9-4693-82ab-172dedf22f1f和对应effect_0 message，outcome=null/playerCompleted=false。手机通知/聊天实际显示，不以初始历史冒充新回复。
+2. 新检查ready/issues[]/trialVerified=true，实际发布，新guest目录可见。新player world7723818a-d423-4fe8-b8f4-6f7741e79c87初始v0；guest读private world404。浏览器进入自动开场，真实NPC来信讨论换展位与设计方案，实际v1/presented恰好show_change，sourceEvent8e5b0c82-f6f1-437c-9f52-7f1e53b2fe6f及effect_0 message，outcome=null/playerCompleted=false。
+3. 390手机/1440PC实际聊天和2条真实已编制朋友圈均显示；截图已view_image检查，手机无横向溢出。早期截图恰逢界面进入动画，后待有限动画结束重取清晰player-390-final.png；未改CSS来掩饰。
+4. 从“分支→探索已发布的剧本”进正式/published，实际点击“继续这段人生”回同一个world。重读world version仍1、同一条开场消息与source、presented仍1，无重演/新存档。首次误在/possibilities直接找标题超时，按真实页面入口进入/published恢复；第一次URL endsWith误报因含#life和app，改比较pathname精确同ID，保原证据不归咎产品。
+5. 已unpublish临时作品，新guest目录不再出现；两个新clock均paused=true；源稿和测试稿保留原文，旧存档未动。账本闭合、cookie复原、Ego finish已完成。
+
+证据全部在本独立树被忽略.local/opening18-live/：state/ledger/reentry/browser-cleanup.json，trial-390.png、player-390-final.png、player-1440.png、moments-390.png/moments-1440.png。首次Ego脚本用相对保存路径ENOENT，创建空间后按inventory找回同178，使用绝对路径续用，未创建第二空间；没有供应商调用损失。浏览器更新通知此前已告知，未升级。
+
+结论：本次可交付“作者指定开场→真实私有试演→检查发布→新玩家独立存档自动开场→再次进入不重演”。未新增完整持续多拍/多角色导演、任意剧本无人核对质量或额外玩家聊天验收，不把这项交付扩大为全产品完成。
