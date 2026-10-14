@@ -34,15 +34,18 @@ function withPhoneEntries(
 ): Draft {
   return { ...content, phone: { ...record(content.phone), [collection]: entries } };
 }
-function startTime(content: Draft): number {
-  return Date.parse(str(record(content.world).startAt));
+function startTime(content: Draft, referenceAt?: string): number {
+  const authoredStart = Date.parse(str(record(content.world).startAt));
+  if (Number.isFinite(authoredStart)) return authoredStart;
+  return Date.parse(referenceAt ?? '');
 }
 function chooseHistoryTime(
   content: Draft,
   actorKey: string,
   interval: boolean,
+  referenceAt?: string,
 ): string | undefined {
-  const start = startTime(content);
+  const start = startTime(content, referenceAt);
   if (!Number.isFinite(start)) return undefined;
   const times = list(record(content.phone).messages)
     .filter((item) => item.actorKey === actorKey && item.origin === 'history')
@@ -60,6 +63,7 @@ export function addHistoryMessage(
   speaker: Speaker,
   text: string,
   interval = false,
+  referenceAt?: string,
 ): { content: Draft; error?: string } {
   const subject = actor(content, actorKey);
   if (!subject || subject.knownAtStart !== true)
@@ -68,8 +72,14 @@ export function addHistoryMessage(
     return { content, error: '消息请填写 1 至 500 字。' };
   const all = list(record(content.phone).messages);
   if (all.length >= 40) return { content, error: '历史聊天已达到 40 条上限。' };
-  const at = chooseHistoryTime(content, actorKey, interval);
-  if (!at) return { content, error: '现有聊天已接近开场，请核对原稿时间后再添加。' };
+  const at = chooseHistoryTime(content, actorKey, interval, referenceAt);
+  if (!at)
+    return {
+      content,
+      error: Number.isFinite(startTime(content, referenceAt))
+        ? '现有聊天已接近开场，请核对原稿时间后再添加。'
+        : '尚未取得作品的创建时间，请先保存草稿后重试。',
+    };
   const added = {
     key: nextKey(all, 'chat'),
     actorKey,
@@ -144,9 +154,9 @@ export function historySegments(content: Draft, actorKey: string) {
   }));
 }
 
-/** An empty day uses the stable latest available instant before the world opens. */
-function momentTime(content: Draft, day?: string): string | undefined {
-  const start = startTime(content);
+/** An empty day uses the stable latest available instant before the authored start or work creation. */
+function momentTime(content: Draft, day?: string, referenceAt?: string): string | undefined {
+  const start = startTime(content, referenceAt);
   if (!Number.isFinite(start)) return undefined;
   if (!day) return new Date(start - 3600000).toISOString();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return undefined;
@@ -163,6 +173,7 @@ export function addMoment(
   actorKey: string,
   text: string,
   day?: string,
+  referenceAt?: string,
 ): { content: Draft; error?: string } {
   const subject = actor(content, actorKey);
   if (!subject || subject.knownAtStart !== true)
@@ -171,8 +182,14 @@ export function addMoment(
     return { content, error: '朋友圈正文请填写 1 至 1600 字。' };
   const all = list(record(content.phone).moments);
   if (all.length >= 48) return { content, error: '朋友圈已达到 48 条上限。' };
-  const at = momentTime(content, day);
-  if (!at) return { content, error: '发布日期需要早于或等于故事开场。' };
+  const at = momentTime(content, day, referenceAt);
+  if (!at)
+    return {
+      content,
+      error: Number.isFinite(startTime(content, referenceAt))
+        ? '发布日期需要早于或等于故事开场。'
+        : '尚未取得作品的创建时间，请先保存草稿后重试。',
+    };
   const added = { key: nextKey(all, 'moment'), actorKey, text: text.trim(), at };
   return { content: withPhoneEntries(content, 'moments', [...all, added]) };
 }
@@ -183,13 +200,14 @@ export function editMoment(
   key: string,
   text: string,
   day?: string,
+  referenceAt?: string,
 ): { content: Draft; error?: string } {
   if (!text.trim() || text.trim().length > 1600)
     return { content, error: '朋友圈正文请填写 1 至 1600 字。' };
   const all = list(record(content.phone).moments);
   const existing = all.find((item) => item.key === key && item.actorKey === actorKey);
   if (!existing) return { content, error: '这条朋友圈已不存在，请刷新后重试。' };
-  const at = day ? momentTime(content, day) : str(existing.at);
+  const at = day ? momentTime(content, day, referenceAt) : str(existing.at);
   if (!at) return { content, error: '发布日期需要早于或等于故事开场。' };
   return {
     content: withPhoneEntries(

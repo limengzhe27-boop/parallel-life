@@ -18,6 +18,8 @@ import s from './publisher-character-social-editor.module.css';
 type Props = {
   content: Record<string, unknown>;
   actorKey: string;
+  /** Stable work creation time used only until the author sets the world's opening time. */
+  referenceAt?: string;
   canEdit: boolean;
   busy: boolean;
   onChange: (content: Record<string, unknown>) => void;
@@ -27,6 +29,7 @@ type Page = 'chat' | 'profile' | 'moments';
 export function PublisherCharacterSocialEditor({
   content,
   actorKey,
+  referenceAt,
   canEdit,
   busy,
   onChange,
@@ -79,7 +82,7 @@ export function PublisherCharacterSocialEditor({
   const submitMessage = () => {
     const result = editingMessage
       ? editHistoryMessage(content, actorKey, editingMessage, speaker, messageText)
-      : addHistoryMessage(content, actorKey, speaker, messageText, nextInterval);
+      : addHistoryMessage(content, actorKey, speaker, messageText, nextInterval, referenceAt);
     apply(result, () => {
       setMessageText('');
       setEditingMessage(null);
@@ -88,8 +91,8 @@ export function PublisherCharacterSocialEditor({
   };
   const submitPost = () => {
     const result = editingPost
-      ? editMoment(content, actorKey, editingPost, postText, postDay || undefined)
-      : addMoment(content, actorKey, postText, postDay || undefined);
+      ? editMoment(content, actorKey, editingPost, postText, postDay || undefined, referenceAt)
+      : addMoment(content, actorKey, postText, postDay || undefined, referenceAt);
     apply(result, () => {
       setPostText('');
       setPostDay('');

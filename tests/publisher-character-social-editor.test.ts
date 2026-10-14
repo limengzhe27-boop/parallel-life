@@ -144,6 +144,43 @@ test('new posts use stable pre-opening time, preserve imported posts, and reject
   assert.deepEqual(phone(removed).moments, phone(original).moments);
 });
 
+test('unfinished world uses its saved creation time for chat and posts without changing explicit source dates', () => {
+  const original = fixture();
+  (original.world as Record<string, unknown>).startAt = '';
+  const referenceAt = '2026-10-14T12:00:00.000Z';
+  const first = addHistoryMessage(original, 'lin', 'player', '先说一句', false, referenceAt);
+  const second = addHistoryMessage(
+    first.content,
+    'lin',
+    'actor',
+    '过了几天再聊',
+    true,
+    referenceAt,
+  );
+  const post = addMoment(second.content, 'lin', '发个近况', undefined, referenceAt);
+  assert.equal(first.error, undefined);
+  assert.equal(second.error, undefined);
+  assert.equal(post.error, undefined);
+  assert.equal(phone(post.content).messages[0]?.at, phone(original).messages[0]?.at);
+  assert.equal(phone(post.content).moments[0]?.at, phone(original).moments[0]?.at);
+  assert.ok(Date.parse(String(phone(post.content).messages.at(-1)?.at)) < Date.parse(referenceAt));
+  assert.equal(phone(post.content).moments.at(-1)?.at, '2026-10-14T11:00:00.000Z');
+  assert.equal(historySegments(post.content, 'lin').at(-1)?.intervalBefore, true);
+  const repeated = addMoment(second.content, 'lin', '发个近况', undefined, referenceAt);
+  assert.equal(phone(repeated.content).moments.at(-1)?.at, phone(post.content).moments.at(-1)?.at);
+});
+
+test('authored opening time takes priority over work creation time; missing both remains explicit', () => {
+  const original = fixture();
+  const referenceAt = '2030-01-01T00:00:00.000Z';
+  const post = addMoment(original, 'lin', '只按剧本开场排期', undefined, referenceAt);
+  assert.equal(phone(post.content).moments.at(-1)?.at, '2026-10-14T11:00:00.000Z');
+  (original.world as Record<string, unknown>).startAt = '';
+  const missing = addHistoryMessage(original, 'lin', 'actor', '未保存作品');
+  assert.equal(missing.content, original);
+  assert.match(missing.error ?? '', /保存草稿/);
+});
+
 test('friend profile edits only public card and leaves private identity, life modules, and other actor intact', () => {
   const original = fixture();
   const updated = editPublicProfile(original, 'lin', 'introduction', '玩家能读到的新介绍');
