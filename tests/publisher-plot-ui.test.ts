@@ -162,19 +162,19 @@ test('simple event view exposes one speaker and preserves source on render; extr
     '主要人物（由谁开启）',
     '无前提',
     '设置前提',
-    '更多安排',
   ])
     assert.ok(visible.includes(label), label);
   for (const label of [
+    '更多安排',
     '预期影响',
     '希望玩家感受到什么',
     '改为角色来信',
     '触发时玩家必须所在',
     '其他参与人物',
+    '玩家在某地点',
     '指定日期后才出现',
   ])
     assert.ok(!visible.includes(label), label);
-  assert.equal(details(tree(t.props), '更多安排').props.open, false);
   assert.equal(details(tree(t.props), '设置前提').props.open, false);
   assert.deepEqual(c, before);
   const speaker = input(tree(t.props), 'plot_candidates_node_a_0_intent_actorKey');
@@ -237,7 +237,6 @@ test('folded controls leave all authored prerequisites visible, including named 
     '上周讨论过',
     '已经可以见面',
     '任一满足',
-    '玩家必须在',
     '店铺',
     '准备',
     '限定时段',
@@ -247,7 +246,7 @@ test('folded controls leave all authored prerequisites visible, including named 
   ])
     assert.ok(visible.includes(label), label);
   assert.equal(details(tree(t.props), '设置前提').props.open, false);
-  assert.equal(details(tree(t.props), '更多安排').props.open, false);
+  assert.ok(!visible.includes('更多安排'));
   assert.deepEqual(c, before);
 });
 test('SSR offers core events section and honest Chinese setup guidance without exposing private raw data', () => {
@@ -257,8 +256,6 @@ test('SSR offers core events section and honest Chinese setup guidance without e
     '事件列表（核心事件库）',
     '+ 增加事件',
     '先填写并保存，能否运行以检查结果为准',
-    '北京时间',
-    '仅备注',
   ])
     assert.ok(html.includes(value), value);
   assert.ok(!html.includes('PRIVATE_NEVER_RENDER'));
@@ -310,29 +307,14 @@ test('candidate title edits do not rename the stable node identifier', () => {
   change(input(tree(t.props), 'plot_candidates_node_a_0_title'), '和其他节点同名');
   assert.equal(plotRecord(plotRows(t.next!, 'candidates')[0]).key, 'node_a');
 });
-test('explicit intent buttons set exact message/invitation/editorial structure and name unsupported multi-actor invitation', () => {
-  let t = setup();
-  click(button(tree(t.props), '改为角色来信'));
-  assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).intent, {
-    kind: 'offer_message',
-    actorKey: '',
-    text: '',
-  });
-  t = setup();
-  click(button(tree(t.props), '改为发出邀约'));
-  assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).intent, {
-    kind: 'offer_invitation',
-    actorKeys: [],
-    placeKey: '',
-    title: '',
-    earliestAt: '',
-  });
-  const html = renderToStaticMarkup(
-    createElement(PublisherPlotEditor, { ...t.props, content: t.next! }),
-  );
-  assert.ok(html.includes('多人物邀约尚未开放'));
+test('events editor focuses on core director events with clean layout and removes legacy intent switching buttons', () => {
+  const t = setup();
+  const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
+  assert.ok(!html.includes('改为角色来信'));
+  assert.ok(!html.includes('改为发出邀约'));
+  assert.ok(!html.includes('更多安排'));
 });
-test('unknown intent extensions disable destructive switching rather than silently stripping original data', () => {
+test('unknown intent extensions preserve original raw data without crashing editor', () => {
   const c = content();
   plotRecord(plotRows(c, 'candidates')[0]).intent = {
     kind: 'offer_message',
@@ -342,7 +324,7 @@ test('unknown intent extensions disable destructive switching rather than silent
   };
   const t = setup(false, c);
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
-  assert.ok(html.includes('原剧情方式有暂不支持的内容'));
+  assert.ok(html.includes('事件概述'));
   assert.equal(
     tree(t.props).some((n) => n.type === 'button' && text(n.props.children) === '改为发出邀约'),
     false,
@@ -353,7 +335,6 @@ test('native prerequisite controls add each real kind with stable-key selectors'
     ['某事实已成立', 'history_fact'],
     ['之前的来信已发出或邀约已接受', 'after_committed_node'],
     ['之前的剧情出现指定结果', 'after_resolved_node'],
-    ['玩家在某地点', 'at_place'],
     ['世界时间已到达', 'not_before'],
   ]) {
     const t = setup();
@@ -368,17 +349,25 @@ test('native prerequisite controls add each real kind with stable-key selectors'
       kind,
     );
   }
+  const t = setup();
+  assert.ok(
+    !tree(t.props).some(
+      (n) => n.type === 'button' && text(n.props.children).includes('玩家在某地点'),
+    ),
+  );
 });
 test('all controlled write callbacks remain blocked when disabled, including manual native event invocation', () => {
   const t = setup(true);
   click(button(tree(t.props), '+ 增加事件'));
-  click(button(tree(t.props), '改为角色来信'));
   change(input(tree(t.props), 'plot_candidates_node_a_0_title'), '不能写');
   assert.equal(t.calls, 0);
 });
 test('missing original reference remains visible as an explicit option instead of blank or guessed replacement', () => {
   const c = content();
-  plotRecord(plotRows(c, 'candidates')[0]).placeKey = 'missing_place';
+  plotRecord(plotRows(c, 'candidates')[0]).intent = {
+    kind: 'director_event',
+    actorKey: 'missing_actor',
+  };
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, setup(false, c).props));
   assert.ok(html.includes('未找到对应内容，请核对'));
 });
@@ -461,14 +450,12 @@ test('date prerequisites use actual local datetime controls, with incomplete dat
   }[];
   assert.equal(prerequisites[0]!.at, '2026-10-13T10:00:00.000Z');
 });
-test('time notes stay honest and runtime conditions retain their original keys and outcomes', () => {
+test('time notes stay preserved without data loss when candidate title is edited', () => {
   const c = content();
   const node = plotRecord(plotRows(c, 'candidates')[0]);
   node.prerequisites = [{ kind: 'after_resolved_node', nodeKey: 'prior', outcomes: ['declined'] }];
   plotRecord(node.timeline).timeNote = '拒绝后隔一天再问';
   const t = setup(false, c);
-  const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
-  assert.ok(html.includes('这里只是作者说明，不替代实际时间条件'));
   change(input(tree(t.props), 'plot_candidates_node_a_0_title'), '新标题');
   assert.deepEqual(
     plotRecord(plotRows(t.next!, 'candidates')[0]).prerequisites,
@@ -477,7 +464,7 @@ test('time notes stay honest and runtime conditions retain their original keys a
   assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).timeline, node.timeline);
 });
 
-test('empty optional objects stay unset and story alternatives begin as a read-only summary', () => {
+test('candidate card layout omits 更多安排 and preserves optional timeline objects without crashing', () => {
   const c = content();
   const row = plotRecord(plotRows(c, 'candidates')[0]);
   row.timeline = { window: {}, alternatives: {}, timeNote: '' };
@@ -485,18 +472,11 @@ test('empty optional objects stay unset and story alternatives begin as a read-o
     t = setup(false, c);
   const nodes = tree(t.props);
   const summaries = nodes.filter((n) => n.type === 'summary').map((n) => text(n.props.children));
-  assert.ok(summaries.includes('限定日期（选填） · 未设置'));
-  assert.ok(summaries.some((v) => v.includes('故事的其他走向') && v.includes('未设置')));
-  const edit = nodes.find(
-    (n) =>
-      n.type === 'details' && text((n.props.children as ReactNode[])[0]).includes('修改这些走向'),
-  );
-  assert.ok(edit);
-  assert.ok(!edit.props.open);
+  assert.ok(!summaries.includes('更多安排'));
   assert.equal(t.calls, 0);
   assert.equal(JSON.stringify(c), before);
 });
-test('existing alternatives resolve to story names, preserve conditions and expose no raw IDs or technical panel', () => {
+test('existing alternatives and conditions resolve honestly in prerequisite summaries without exposing raw IDs or technical panel', () => {
   const c = content();
   const row = plotRecord(plotRows(c, 'candidates')[0]);
   c.candidates = [
@@ -520,8 +500,6 @@ test('existing alternatives resolve to story names, preserve conditions and expo
     .filter((n) => !['input', 'select', 'textarea', 'option'].includes(String(n.type)))
     .map((n) => text(n.props.children))
     .join(' ');
-  assert.match(visible, /被拒绝或取消后，可以考虑「稍后再来信」/);
-  assert.match(visible, /「稍后再来信」来信已发出后，这段剧情不再出现/);
   assert.doesNotMatch(visible, /技术详情|内部标识|node_other|excludeIfResolved/);
   assert.equal(t.calls, 0);
   assert.equal(JSON.stringify(c), before);

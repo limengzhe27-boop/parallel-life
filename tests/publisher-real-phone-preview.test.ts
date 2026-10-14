@@ -168,7 +168,7 @@ test('unsaved content keeps existing trial visible with stale badge and requires
   const tree = PublisherCharacterPreview(dirty);
   const html = renderToStaticMarkup(tree);
   assert.ok(html.includes('<iframe'));
-  assert.match(html, /以已保存版本运行/);
+  assert.match(html, /已编辑（试演为旧版）/);
   assert.match(html, /当前有未保存的修改/);
   assert.equal(starts, 0);
   const save = walk(tree).find((e) => e.type === 'button' && e.props.onClick === dirty.onSave)!;

@@ -61,7 +61,6 @@ const conditionNames = {
   after_presented_node: '某事件已展开',
   after_committed_node: '之前的来信已发出或邀约已接受',
   after_resolved_node: '之前的剧情出现指定结果',
-  at_place: '玩家在某地点',
   not_before: '世界时间已到达',
 };
 const intentNames = {
@@ -504,11 +503,6 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
       ...plotArray(row.prerequisites).map((value) => plotConditionText(content, value)),
       ...plotStrings(row.conditionKeys).map((key) => `需要满足条件${namedCondition(key)}`),
       ...restrictions,
-      ...(row.placeKey
-        ? [
-            `玩家必须在「${choiceLabel(places.find((place) => place.key === row.placeKey) ?? { key: '', label: '原地点待核对' }, places)}」`,
-          ]
-        : []),
       ...(plotRecord(row.timeline).stageKey
         ? [
             `在「${choiceLabel(stages.find((stage) => stage.key === plotRecord(row.timeline).stageKey) ?? { key: '', label: '原阶段待核对' }, stages)}」阶段`,
@@ -619,6 +613,18 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
           {section === 'candidates' && (
             <>
               {field('事件标题', ['title'], '例如前女友上门捉奸、突发被裁员危机', false, 120)}
+              {intentKind === 'director_event' &&
+                selectControl(
+                  '主要人物（由谁开启）',
+                  plotText(intent.actorKey),
+                  actors,
+                  blocked || unsafeIntent || malformedParticipants,
+                  (actorKey) => {
+                    if (!blocked && !unsafeIntent && !malformedParticipants)
+                      emit(() => setPlotEventLead(content, key, actorKey));
+                  },
+                  id(['intent', 'actorKey']),
+                )}
               {field(
                 '事件概述：主角将面临什么',
                 ['editorialIntent'],
@@ -626,21 +632,6 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                 true,
                 1600,
                 '【起因】突发了什么打破主角现状…\n【博弈】主角面临什么两难抉择…\n【结局】最终导演把冲突引向什么收敛局面与主角感受…',
-              )}
-              {intentKind === 'director_event' && (
-                <>
-                  {selectControl(
-                    '主要人物（由谁开启）',
-                    plotText(intent.actorKey),
-                    actors,
-                    blocked || unsafeIntent || malformedParticipants,
-                    (actorKey) => {
-                      if (!blocked && !unsafeIntent && !malformedParticipants)
-                        emit(() => setPlotEventLead(content, key, actorKey));
-                    },
-                    id(['intent', 'actorKey']),
-                  )}
-                </>
               )}
               <div className={`${s.preconditions} ${s.wide}`} aria-label="事件前提" style={{ margin: '4px 0 8px' }}>
                 {preconditionSummaries.length ? (
@@ -675,7 +666,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                       return (
                         <div className={s.group} key={i}>
                           <strong>
-                            {conditionNames[kind as keyof typeof conditionNames] || '原条件待核对'}
+                            {conditionNames[kind as keyof typeof conditionNames] || (kind === 'at_place' ? '玩家在某地点' : '原条件待核对')}
                           </strong>
                           {kind === 'history_fact' &&
                             selectField('前置事实', [...path, 'factKey'], facts)}
@@ -689,8 +680,6 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                               [...path, 'outcomes'],
                               plotOutcomeChoices(content, condition.nodeKey),
                             )}
-                          {kind === 'at_place' &&
-                            selectField('玩家所在地点', [...path, 'placeKey'], places)}
                           {kind === 'not_before' &&
                             field(
                               '前置时间（北京时间）',
@@ -715,13 +704,11 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                             ['prerequisites'],
                             kind === 'history_fact'
                               ? { kind, factKey: '' }
-                              : kind === 'at_place'
-                                ? { kind, placeKey: '' }
-                                : kind === 'not_before'
-                                  ? { kind, at: '' }
-                                  : kind === 'after_resolved_node'
-                                    ? { kind, nodeKey: '', outcomes: [] }
-                                    : { kind, nodeKey: '' },
+                              : kind === 'not_before'
+                                ? { kind, at: '' }
+                                : kind === 'after_resolved_node'
+                                  ? { kind, nodeKey: '', outcomes: [] }
+                                  : { kind, nodeKey: '' },
                             `添加：${label}`,
                             16,
                           ),
@@ -739,295 +726,6 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                       </div>
                     </details>
                   </div>
-                </div>
-              </details>
-              <details
-                className={`${s.advanced} ${s.wide}`}
-                open={intentKind === 'offer_invitation' && !timeLabel(intent.earliestAt)}
-              >
-                <summary className={s.summary}>
-                  更多安排
-                  {intentKind !== 'director_event'
-                    ? ` · ${intentNames[intentKind as keyof typeof intentNames] ?? '方式待核对'}`
-                    : plotRecord(row.direction).mode === 'optional'
-                      ? ' · 可选事件'
-                      : ''}
-                </summary>
-                <div className={s.eventOptions}>
-                  {(content.timeline !== undefined || row.timeline !== undefined) &&
-                    selectField('属于哪个阶段', ['timeline', 'stageKey'], stages)}
-                  {selectField('触发时玩家必须所在的地点（可不限制）', ['placeKey'], places)}
-                  <p className={s.hint}>
-                    手机来信和邀约通常不限制玩家位置；下面的邀约地点才是见面目的地。
-                  </p>
-                  {intentKind === 'director_event' && !malformedParticipants
-                    ? refsControl(
-                        '其他参与人物（选填）',
-                        plotStrings(row.actorKeys).filter(
-                          (value) => value !== plotText(intent.actorKey),
-                        ),
-                        actors.filter((actor) => actor.key !== plotText(intent.actorKey)),
-                        blocked,
-                        (values) =>
-                          patch(
-                            ['actorKeys'],
-                            [
-                              ...(plotText(intent.actorKey) ? [plotText(intent.actorKey)] : []),
-                              ...values,
-                            ],
-                          ),
-                      )
-                    : refsField('参与人物', ['actorKeys'], actors)}
-                  {intentKind === 'director_event' && (
-                    <div className={s.group}>
-                      <label className={s.field}>
-                        <span className={s.label}>导演如何安排</span>
-                        <select
-                          className={s.input}
-                          value={plotText(plotRecord(row.direction).mode) || 'required'}
-                          disabled={blocked}
-                          onChange={(e) => {
-                            if (!blocked) patch(['direction', 'mode'], e.target.value);
-                          }}
-                        >
-                          <option value="required">满足前提后需要推进</option>
-                          <option value="optional">导演可以择机采用或暂缓</option>
-                        </select>
-                      </label>
-                      {field(
-                        '预期影响（选填）',
-                        ['direction', 'expectedImpact'],
-                        '例如引出一个新的选择、改变人物关系；这是期望，不是已经发生的结果。',
-                        true,
-                        800,
-                      )}
-                      {field(
-                        '希望玩家感受到什么（选填）',
-                        ['direction', 'experience'],
-                        '写希望带来的体验，不要求玩家作出指定选择。',
-                        true,
-                        800,
-                      )}
-                      <p className={s.hint}>
-                        需要推进的事件也必须满足前提。导演先开始演绎，人物来信不表示事件全部完成，也不表示玩家已经答应。
-                      </p>
-                    </div>
-                  )}
-                  <div className={s.group}>
-                    <h4>这段剧情会发生什么</h4>
-                    <p className={s.hint}>
-                      事件内容由导演结合人物与当前经历演绎。前提可不填；需要推进的事件满足前提后会进入安排，可选事件可以暂缓。切换方式前请核对原输入。
-                    </p>
-                    <p>
-                      当前：
-                      {Object.hasOwn(intentNames, intentKind)
-                        ? intentNames[intentKind as keyof typeof intentNames]
-                        : '尚未设置'}
-                    </p>
-                    {unsafeIntent ? (
-                      <p className={s.error}>
-                        原剧情方式有暂不支持的内容或仍需核对，保留原稿，暂不切换类型。
-                      </p>
-                    ) : (
-                      <div className={s.actions}>
-                        {Object.entries(intentNames).map(([kind, label]) => (
-                          <button
-                            type="button"
-                            className={s.button}
-                            key={kind}
-                            disabled={blocked || kind === intentKind}
-                            onClick={() => {
-                              if (!blocked && !unsafeIntent && kind !== intentKind)
-                                patch(
-                                  ['intent'],
-                                  kind === 'director_event'
-                                    ? { kind, actorKey: plotStrings(row.actorKeys)[0] ?? '' }
-                                    : kind === 'editorial_only'
-                                      ? { kind }
-                                      : kind === 'offer_message'
-                                        ? { kind, actorKey: '', text: '' }
-                                        : {
-                                            kind,
-                                            actorKeys: [],
-                                            placeKey: '',
-                                            title: '',
-                                            earliestAt: '',
-                                          },
-                                );
-                            }}
-                          >
-                            改为{label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {intentKind === 'director_event' && (
-                      <>
-                        <p className={s.hint}>
-                          角色按自己的性格联系玩家，开始演绎这件事。发出消息不表示玩家已答应或事件全部完成。
-                        </p>
-                      </>
-                    )}
-                    {intentKind === 'offer_message' && (
-                      <>
-                        {selectField(
-                          '由谁来信',
-                          ['intent', 'actorKey'],
-                          actors.filter((a) => plotStrings(row.actorKeys).includes(a.key)),
-                        )}
-                        {field(
-                          '来信内容',
-                          ['intent', 'text'],
-                          '最多500字；人物必须属于这段剧情参与人物。',
-                          true,
-                          500,
-                        )}
-                      </>
-                    )}
-                    {intentKind === 'offer_invitation' && (
-                      <>
-                        {refsField(
-                          '邀约人物',
-                          ['intent', 'actorKeys'],
-                          actors.filter((a) => plotStrings(row.actorKeys).includes(a.key)),
-                        )}
-                        {selectField('邀约地点', ['intent', 'placeKey'], places)}
-                        {field('邀约标题', ['intent', 'title'], '', false, 120)}
-                        {field(
-                          '邀约最早时间（北京时间）',
-                          ['intent', 'earliestAt'],
-                          '按北京时间选择',
-                        )}
-                        <p className={s.notice}>
-                          当前支持单人物邀约，多人物邀约尚未开放；不要把保存成功当执行成功。
-                        </p>
-                      </>
-                    )}
-                  </div>
-                  <details className={`${s.advanced} ${s.wide}`}>
-                    <summary className={s.summary}>
-                      时间说明（选填）
-                      {plotText(plotRecord(row.timeline).timeNote).trim()
-                        ? ' · 已填写'
-                        : ' · 未设置'}
-                    </summary>
-                    <div className={s.advancedBody}>
-                      {field(
-                        '时间说明（选填）',
-                        ['timeline', 'timeNote'],
-                        '例如拒绝后隔一天再问；这里只是作者说明，不替代实际时间条件。',
-                        true,
-                        300,
-                      )}
-                      {plotRecord(row.timeline).timeNote !== undefined && (
-                        <button
-                          type="button"
-                          className={s.button}
-                          disabled={blocked}
-                          onClick={() => {
-                            if (!blocked)
-                              emit(() =>
-                                removePlotField(content, section, key, ['timeline', 'timeNote']),
-                              );
-                          }}
-                        >
-                          移除时间说明
-                        </button>
-                      )}
-                    </div>
-                  </details>
-                  {windowFields(['timeline', 'window'])}
-                  <details className={`${s.advanced} ${s.wide}`}>
-                    <summary className={s.summary}>
-                      故事的其他走向（选填）
-                      {plotStrings(row.mutuallyExclusiveNodeKeys).length ||
-                      plotArray(plotRecord(row.timeline).excludeIfResolved).length ||
-                      Object.values(plotRecord(plotRecord(row.timeline).alternatives)).some(
-                        (v) => plotArray(v).length,
-                      )
-                        ? ' · 已有设置'
-                        : ' · 未设置'}
-                    </summary>
-                    <div className={s.advancedBody}>
-                      <p className={s.hint}>
-                        仅核对已有的故事走向；没有填写就不会替你添加。如果原稿没有这些安排，可以保持未设置。
-                      </p>
-                      {directions.length ? (
-                        <ul>
-                          {directions.map((line, i) => (
-                            <li key={i}>{line}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p>未设置其他走向。</p>
-                      )}
-                      <details className={s.advanced}>
-                        <summary className={s.summary}>修改这些走向</summary>
-                        <div className={s.advancedBody}>
-                          {refsField(
-                            '与哪些剧情不能同时发生',
-                            ['mutuallyExclusiveNodeKeys'],
-                            otherNodes,
-                          )}
-                          <div className={s.group}>
-                            <p className={s.hint}>
-                              先创建阶段，再选择所属阶段。已有剧情不会在新增阶段时自动改写。
-                            </p>
-                            <h4>哪些事情发生后，这段剧情就不再出现</h4>
-                            {plotArray(plotRecord(row.timeline).excludeIfResolved).map((_, i) => (
-                              <div className={s.group} key={i}>
-                                {selectField(
-                                  '另一段剧情',
-                                  ['timeline', 'excludeIfResolved', i, 'nodeKey'],
-                                  otherNodes,
-                                )}
-                                {refsField(
-                                  '出现以下结果后不再继续',
-                                  ['timeline', 'excludeIfResolved', i, 'outcomes'],
-                                  plotOutcomeChoices(
-                                    content,
-                                    plotRecord(
-                                      plotArray(plotRecord(row.timeline).excludeIfResolved)[i],
-                                    ).nodeKey,
-                                  ),
-                                )}
-                                {removeArrayItem(
-                                  ['timeline', 'excludeIfResolved'],
-                                  i,
-                                  '移除这项安排',
-                                )}
-                              </div>
-                            ))}
-                            {arrayActions(
-                              ['timeline', 'excludeIfResolved'],
-                              { nodeKey: '', outcomes: [] },
-                              '添加不再继续的条件',
-                              16,
-                            )}
-                            <h4>被拒绝、跳过或过期后的替代</h4>
-                            <p className={s.hint}>
-                              其他走向仍须满足各自的条件和时间，不强行推动用户，也不是已发生事实。
-                            </p>
-                            {refsField(
-                              '被拒绝后可考虑',
-                              ['timeline', 'alternatives', 'onDeclined'],
-                              otherNodes,
-                            )}
-                            {refsField(
-                              '被跳过后可考虑',
-                              ['timeline', 'alternatives', 'onSkipped'],
-                              otherNodes,
-                            )}
-                            {refsField(
-                              '已过期后可考虑',
-                              ['timeline', 'alternatives', 'onExpired'],
-                              otherNodes,
-                            )}
-                          </div>
-                        </div>
-                      </details>
-                    </div>
-                  </details>
                 </div>
               </details>
             </>
