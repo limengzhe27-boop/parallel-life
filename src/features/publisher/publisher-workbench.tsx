@@ -467,11 +467,6 @@ export function PublisherWorkbench(
     if (!busy) trialRequested.current = false;
   }, [busy]);
 
-  useEffect(() => {
-    if (check && check.status !== 'ready') {
-      setActiveTab('review');
-    }
-  }, [check]);
 
   useEffect(() => {
     if (!isDirty) return;
