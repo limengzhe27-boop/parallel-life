@@ -1556,3 +1556,25 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 |NPC-GOALS-01|[ ] 待验收|codex-scene-natural-01a1334b-20261014；root唯一集成/部署|用户最新明确实施；独立map-travel-repair从ff43397接续；先独占新application/actor-engagement.ts、新domain/scene-conversation-memory.ts、tests/actor-engagement.test.ts、tests/scene-conversation-memory.test.ts、本人docs/task-reports/NPC-GOALS-01.md；按用户最新明确实施要求接续本人唯一已登记scene-planner.ts/scene-repository.ts与tests/scene-natural-planner.test.ts、tests/integration/scene-natural-delivery.test.ts；已向I同步，root树当前只改publisher三文件无scene交叉。接续src/modules/world/infrastructure/turn-planner.ts及新tests/actor-engagement-planner.test.ts；NAR-02S旧行虽待验收，但NAR-02SI报告已明确集成完成并释放业务文件，旧执行者停止、已发布origin/main与本树turn-planner完全相同，root仅publisher三文件dirty，无当下交叉；不修改他人任务状态，已向I同步；增加domain/scene-runtime.ts私有思想前缀兼容（我在心里/我心中），新tests/scene-conversation-memory.test.ts及既有集成验证；原tasknull/owner-only机制不变。无ActorContext/contracts/services/publisher/SQL改动。|e5bada6已冻结；最终check2230/2230、边界/type/build通过，真实PG专项9/9，0SQL变更。真实local8/8全成功落库，回复/主动请求/接受拒绝/手机回现场记忆有实际证据；仍有时段用词、泛化“我们都”和“等着你决定”措辞缺点，已报告I，不称自然性全过。localClosed，公网新增0/4、旧小店0/4各自保留；local1已暂停/原cookie恢复/HTTP已停/自有PG正常停，Ego175空白待公网。唯一I审核合入部署/scene4.1/正式READY后才能跑已授权公网；正式尚不含本批，未完成。详本人报告。|
 
 |PUBLISHER-TRIAL-NONBLOCK-20Q|[ ] 进行中（纯逻辑；UI窗口待I协调）|codex-trial-nonblock-20q-01a0c7c8-20261014；root唯一集成/部署|用户本聊天明确指派修复；原独立photo-compose-02，新codex/trial-nonblock20-q自9632b0c；当前仅新src/features/publisher/publisher-trial-background.ts、新tests/publisher-trial-background.test.ts、docs/task-reports/PUBLISHER-TRIAL-NONBLOCK-20Q.md及主目录本人行/报告镜像；controller/workbench仍由20-I占用，未领取未改|预演独立进度与编辑并行，保护生成后新输入/版本/跨作品/unknown不重复付费。先做不冲突纯逻辑并请I冻结实际UI接线窗口；不绕队列/回执/权限，不自动模型/生产；纯测试后root真实库/双端/READY公网上线才完成。 逻辑阶段32e59d6（仅3本人文件），6纯反例/type/diff过；另未交付hook实验真实复现controller generation时busy=true（预期false），线上修复尚未接线。root20-I当前workbench/preparation等确有在途diff，已请求窗口，未擅改。任务仍进行中，0模型DBbrowser生产，不称完成。|
+
+
+## CHARACTER-PASTE-23（2026-10-14：按角色粘贴识别和事件地址简化）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|CHARACTER-PASTE-23|[x] 已完成（已部署）|codex-character-paste23-01a0c7c8-20261014；root唯一集成/部署|独立/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本，新codex/character-paste23-q自a11ce28；仅新src/features/publisher/publisher-character-paste.ts、publisher-character-paste-dialog.tsx、publisher-character-paste-dialog.module.css；publisher-workbench.tsx、publisher-plot-editor.tsx；tests/publisher-character-paste.test.ts、publisher-character-paste-ui.test.ts、publisher-workbench.test.ts、publisher-plot-ui.test.ts，必要新tests/integration/character-paste23.test.ts；docs/task-reports/CHARACTER-PASTE-23.md与主目录本人行/报告镜像|已核原负责人释放，DIRECTOR-PROGRESS活跃范围不重叠；I当前dirty容量公共契约只读并已请求冻结SHA。确定性单角色分节识别、源文定位/逐项确认/阻断原子不写、聊天/动态追加幂等、待配图说明不伪造图；移除事件手动地点不删已存。>4000单维存储/试演/发布必须验证，AI长文理解22另保未完。0默认模型/正式世界写；check/build、真PG与PC手机后交I尽快READY/公网验收，未上线不完成。 本树PG55523/HTTP3323独占，启动前核空闲；Ego新taskspace本任务唯一，0付费模型/生产世界写；旧55458不启动。 已接容量4f273e5→e561bca，check2329/build/聚焦62/真实PG55523新增场景通过（59迁移）；UI PC1440/390实际文件与幂等确认无横溢；0模型，发布审查fixture明确。待独立23SHA交I串行部署READY/公网，22长文模型理解不完成。 冻结业务ee4aa83及仅DB测试端口可移植性e91a6ce已交I；own clean，HTTP3323/PG55523已停；Ego185本地验收已finish、截图保留，公网由唯一I执行；不续领。 `275da88`/`9902287`上线/Production READY；PC/390px、真实PG、2329check/build，未调用模型；见本人报告。|
+
+
+## CHARACTER-CAPACITY-23-I（2026-10-14：长篇人物五维容量契约）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|CHARACTER-CAPACITY-23-I|[x] 已完成（已部署）|codex-character-capacity23-i-20261014；root集成，先于DIRECTOR-PROGRESS公共契约窗口串行提交|managed /Users/limengzhe/.codex/worktrees/character-capacity23/人生剧本，自a11ce28；仅人物五维有界上限相关的 src/contracts/published-world-content.ts、src/contracts/authored-social.ts、src/modules/settings/domain/publication-content.ts、src/modules/settings/domain/publication-defaults.ts、src/features/publisher/publisher-importer.ts、src/modules/settings/domain/publication-character-previews.ts、src/modules/settings/infrastructure/publication-manuscript-planner.ts 与直接聚焦测试/本报告；不改导演0060、现有业务推进文件|单维提升至有界长文，保存、旧导入、默认值、朋友圈私有读取一致；整稿1MiB及紧凑运行预算不放宽、不截断原稿伪装成功。check/build后独立提交SHA交23执行者并尽快集成部署；真实长文试演/发布由23共同验收。 `4f273e5`随`9902287`上线/Production READY，单维16,384字符，真PG>4000存储与试演发布、check/build通过。|
+
+
+## CHARACTER-HISTORY-MEDIA-24（2026-10-14：编剧历史微信图片与视频）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|CHARACTER-HISTORY-MEDIA-24|[x] 已完成（已部署）|codex-main-history-media-20261014；root唯一公共契约/SQL/存储/集成与部署；协作Agent仅UI|独立managed `/Users/limengzhe/.codex/worktrees/history-chat-media/人生剧本` 从a11ce28；root独占db/migrations/0061、src/contracts/published-world-content.ts及后端/服务路由；UI Agent独立history-media-ui树仅publisher-character-social-editor/其model/CSS、publisher-character-model、phone UI及聚焦测试，待root冻结媒体引用契约后写；辅助线程workbench/client由root在其交付后串行接线；主表仅root短锁更新，专属报告`docs/task-reports/CHARACTER-HISTORY-MEDIA-24.md`|历史微信可添加图片或视频，纯媒体消息也可保存；文件独立私有存储、草稿只存引用，编辑/删除/试演/发布/玩家微信一致可见；跨作品/用户不可读，真视频Range播放；check/build、真实PG和双端、公网READY验收，未部署不完成。与0060导演迁移串行，生产新桶先建/验证。 `b631e1d`/Production `dpl_D3468fDmGT5u9CqML393ajCPc8fP` READY，61/61生产迁移+私有桶；check2335/build/真实PG，公网上传保存→试演→临时发布→玩家视频Range206/跨用户404，测试作品删除、2存档暂停；详见[报告](task-reports/CHARACTER-HISTORY-MEDIA-24.md)。|
+|CHARACTER-HISTORY-MEDIA-24R|[ ] 待做|未领取；接续本任务|视频大文件弱网续传与临界50MB实测、图片生产实物抽样；不影响已上线MP4首版|优先补TUS分片/断点续传与明确失败重试，再做50MB/图片真机抽样；原文件不丢失、私有权限不放松。|

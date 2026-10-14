@@ -1098,3 +1098,10 @@ MD/ZIP文稿 → 项目自己的整理Agent → 原稿/补充/变化双核对 �
 编导可选择同事件作为开场，不复制剧情；未呈现前真实skip/expiry/decline与同轮expiry/exclusion释放后续，不把呈现算完成；发布前拦不可达因果、保真正可达日期/地点/ANY/阶段成员clock前提及角色知情。整理保作者开场key不被模型改掉。人物公开介绍/五维精确原文保存，私密L5不写公开关系；旧摘要保留不自动迁移。PC1500/mobile390实际六字段及开场选择正文保存/读取full deepEqual与截图通过，Ego177完成，本地服务与PG停。
 
 辅助18独立人类授权2新存档/6文字范围已验收并closed：复制此前真实项目Agent整理的合成稿，私有试演和发布新访客手机均实际指定show_change真实NPC开场，来源保存，v1/presented1且outcome null/未完成。历史/两朋友圈390/1440显示，目录重复进入同存档无再开场，跨私有404；测试作品下架/freshguest不可见，两存档暂停/cookie精准恢复/Ego178完成。root0新模型/世界，不混旧17/24/2或辅助17账本；没有额外玩家私聊，不宣称从零新文稿一次完美或完整连续剧情。长稿NPC上下文整组省略、历史质量/标签、持续多拍、现场新模型未整合等保持任务表。
+## 2026-10-14 · CHARACTER-HISTORY-MEDIA-24 历史微信图片与 MP4
+
+`35bc3bc` 与修复 `b631e1d` 已部署到 Production `dpl_D3468fDmGT5u9CqML393ajCPc8fP` READY，正式别名 `https://parallel-life-nu.vercel.app` 已核。编剧历史微信新增私有图片与不超过 50 MB 的 MP4，保存、试演、发布和玩家微信使用同一附件引用；跨玩家读取拒绝。生产迁移 0060、0061 已应用并校验 61/61；新私有桶限制 MIME 和大小。`npm run check` 2335/2335、`npm run build`、真实 PostgreSQL 专项通过；公网合成 MP4 的上传、试演、临时发布、玩家视频加载和 Range 206 通过，测试作品已下架删除、存档暂停。大视频弱网续传与图片公网实物抽样仍待，见 [报告](task-reports/CHARACTER-HISTORY-MEDIA-24.md)。
+
+## 2026-10-14 · CHARACTER-CAPACITY-23-I / CHARACTER-PASTE-23
+
+`4f273e5`、`275da88`、`9902287` 已部署到 Production `dpl_2zvPE8eSvDC1E3if4TKyPCYSJtth` READY，正式别名已核。人物五维长文上限提升至 16,384 字符；当前人物可粘贴/导入 Markdown，逐项预览核对后填入，未知章节阻断、重复导入不追加；事件编辑移除手动地点入口。集成 `check:boundaries`、typecheck、19 项聚焦和 build 通过；执行树完整 2329 项检查与真实 PostgreSQL、PC/390px 验收通过。无新增迁移；部署前生产 59/59 校验和一致。公网健康 200、工作台 200、匿名作品接口 401。
