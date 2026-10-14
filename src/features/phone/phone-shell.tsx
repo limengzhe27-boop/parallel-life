@@ -199,7 +199,7 @@ function LifePhone({
     setRoute(activePhoneRoute(readRoute(hash, worldId)));
   }
   function back() {
-    if (route.panel === 'scene') {
+    if (route.panel === 'scene' || route.app === 'scenes') {
       const next = homeRoute;
       history.replaceState({ ...history.state, plPhone: null }, '', routeHash(worldId, next));
       setRoute(next);

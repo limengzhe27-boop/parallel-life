@@ -524,6 +524,174 @@
   overflow-y: auto;
 }
 
+/* ================= Character Top Horizontal Bar ================= */
+.actorWorkspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 20px 28px;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.actorTopNav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.createActorTopBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--pub-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 40px;
+  transition: background-color 120ms ease, transform 100ms ease;
+}
+
+.createActorTopBtn:hover:not(:disabled) {
+  background: var(--pub-accent-hover);
+  transform: translateY(-1px);
+}
+
+.createActorTopBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.actorScrollList {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 2px;
+  scrollbar-width: thin;
+}
+
+.actorScrollItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 8px;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-border);
+  border-radius: 24px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 120ms ease;
+  min-height: 40px;
+}
+
+.actorScrollItem:hover:not(:disabled) {
+  background: var(--pub-bg);
+  border-color: #bcc6d6;
+}
+
+.actorScrollItem.activeActorScrollItem {
+  background: var(--pub-accent-soft);
+  border-color: var(--pub-accent);
+  box-shadow: 0 0 0 1px var(--pub-accent);
+}
+
+.actorScrollAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #d8dee9;
+  color: var(--pub-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.actorScrollItem.activeActorScrollItem .actorScrollAvatar {
+  background: var(--pub-accent);
+  color: #ffffff;
+}
+
+.actorScrollMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.actorScrollName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pub-text);
+}
+
+.actorScrollIdentity {
+  font-size: 12px;
+  color: var(--pub-secondary);
+  opacity: 0.85;
+}
+
+/* Character Detail Split Area */
+.actorContentGrid {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(360px, 440px);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .actorContentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btnGenerateActor {
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  transition: all 150ms ease;
+  min-height: 48px;
+}
+
+.btnGenerateActor:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+
+.btnGenerateActor:active:not(:disabled) {
+  transform: translateY(0);
+}
+
 /* ================= Character Sub-Column ================= */
 .actorNav {
   width: 260px;

@@ -200,12 +200,6 @@ export function PhoneDesktop({
       </button>
 
       <div className={styles.utilities} aria-label="手机工具">
-        <button data-panel="scenes" onClick={() => open('scenes')}>
-          <span className={`${styles.utilityIcon} ${styles.scenes || ''}`}>
-            <PhoneIcon name="scenes" variant="app" />
-          </span>
-          <span>现场</span>
-        </button>
         <button data-panel="records" onClick={() => open('records')}>
           <span className={`${styles.utilityIcon} ${styles.records || ''}`}>
             <PhoneIcon name="records" variant="app" />

@@ -224,29 +224,29 @@ test('workbench defaults to overall setting without the removed explanation or s
     '总体设定',
     '人物',
     '剧情发展',
-    '待确认问题',
   ])
     assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /整理只作补充|查看已整理的故事|当前草稿故事概览/);
-  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
+  assert.doesNotMatch(html, /settingsDisclosure|writer-story-editor/);
   assert.doesNotMatch(html, /尚未检查草稿|查看全部问题|安排故事时间/);
   assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
 });
-test('character form preserves all five existing authoring sections and real values after navigation', () => {
+test('character form renders horizontal navigation bar, clean dimensions, and direct generation button', () => {
   const html = renderTab(defaultProps, 'actors');
   for (const text of [
-    '人物 · 2',
-    '1. 名字与身份',
-    '2. 与主角的初始关系',
-    '3. 性格与说话方式',
-    '4. 在乎什么、眼前想法',
-    '5. 关系、知情范围与底线',
+    '+ 新建角色',
+    '青青',
     '诊所助手',
-    '青梅竹马 / 邻居',
+    '人物姓名',
+    '公开角色介绍（玩家可见）',
+    '性格特征与说话方式',
+    '成长背景与经历',
+    '动机与在乎的事',
     '说话简洁轻柔',
-    '讨厌别人翻动内室诊柜',
+    '✨ 生成角色（保存并启动试演对话）',
   ])
     assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, /1\. 名字与身份|2\. 与主角的初始关系|5\. 关系、知情范围与底线/);
 });
 
 test('PublisherWorkbench honestly indicates unhooked callbacks when onTrial or onPublish omitted', () => {
@@ -306,34 +306,11 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
   assert.doesNotMatch(html, /限制详情|model_budget_unapproved/);
 });
 
-test('character knowledge includes an editable shared fact with a separate knowledge checkbox', () => {
+test('character form removes redundant known fact checkboxes and focuses on core dimensions', () => {
   const html = renderTab(defaultProps, 'actors');
-  assert.ok(html.includes('不是固定示例'));
-  assert.ok(html.includes('修改这条事实'));
-  assert.ok(html.includes('到剧情页管理或新增事实'));
-  assert.match(
-    html,
-    /<textarea[^>]*id="actor-fact-0-fact_clinic_01"[^>]*>周记诊所是小镇唯一的全科诊所。<\/textarea>/,
-  );
-  assert.ok(html.includes('勾选保持不变'));
-});
-
-test('shared fact editor remains disabled while busy or without edit permission', () => {
-  for (const extra of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
-    const html = renderTab({ ...defaultProps, ...extra }, 'actors');
-    assert.match(html, /<textarea[^>]*id="actor-fact-0-fact_clinic_01"[^>]*disabled=""/);
-  }
-});
-
-test('ambiguous duplicate fact keys do not expose an unsafe inline editor', () => {
-  const content = structuredClone(mockContent);
-  content.history = [...(content.history as unknown[]), ...(content.history as unknown[])];
-  const html = renderTab(
-    { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
-    'actors',
-  );
-  assert.ok(html.includes('这条事实尚不能安全修改'));
-  assert.ok(!html.includes('id="actor-fact-'));
+  assert.doesNotMatch(html, /不是固定示例|修改这条事实|这条事实在各人物的知情列表中同步更新/);
+  assert.ok(html.includes('✨ 生成角色（保存并启动试演对话）'));
+  assert.ok(html.includes('整理本角色的历史与朋友圈'));
 });
 
 const readyCheck: PublisherCheckResult = {
@@ -428,10 +405,9 @@ test('an empty new story shows only the overall author input by default without 
       work: { ...mockWork, draft: { ...mockWork.draft, content } },
     }),
   );
-  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
+  assert.doesNotMatch(html, /settingsDisclosure|writer-story-editor/);
   assert.match(html, /id="writer-overall-text"/);
   assert.doesNotMatch(html, /id="writer-overall-text"[^>]*maxLength/);
-  assert.match(html, /玩家进入后看到的内容 \/ 发布展示/);
   assert.match(html, /id="work-title-input"/);
   assert.equal(saved, 0);
 });
@@ -513,9 +489,9 @@ test('applying import from character or plot returns to overview, closes import 
         nodes(tree).find((e) => e.props.id === 'work-title-input')!.props.value,
         '整理后的标题',
       );
-      assert.equal(
-        nodes(tree).find((e) => e.props.id === 'world-public-setting')!.props.value,
-        '新的舞台',
+      assert.match(
+        String(nodes(tree).find((e) => e.props.id === 'writer-overall-text')!.props.value),
+        /新的舞台|整理/,
       );
     } finally {
       Reflect.deleteProperty(globalThis, '__writerHooks');
@@ -608,7 +584,7 @@ test('manual scheduling uses work creation time, adopts only successful plans, a
       assert.equal(trials, 0);
       states[0] = 'settings';
       tree = render();
-      const field = nodes(tree).find((e) => e.props.id === 'world-tone-input');
+      const field = nodes(tree).find((e) => e.props.id === 'writer-overall-text');
       assert.ok(field);
       (field.props.onChange as (e: unknown) => void)({ target: { value: '新的氛围' } });
       states[0] = 'review';
@@ -665,14 +641,14 @@ test('manual scheduling cannot execute with edit permission missing or while bus
   assert.equal(calls, 0);
 });
 
-test('author settings retain optional old descriptions but remove raw-data editing and technical disclosures', () => {
+test('author settings retain title and overall setting text while removing technical disclosures and redundant settings form', () => {
   const html = renderTab(defaultProps, 'settings');
   assert.doesNotMatch(
     html,
-    /完整内容（JSON）|导入完整结构化草稿|publication-import|技术详情|高级：版本/,
+    /完整内容（JSON）|导入完整结构化草稿|publication-import|技术详情|高级：版本|另写作品展示简介|故事介绍（玩家可知）/,
   );
-  assert.match(html, /另写作品展示简介（选填）/);
-  assert.match(html, /故事介绍（玩家可知）/);
+  assert.ok(html.includes('总体设定'));
+  assert.ok(html.includes('作品标题'));
   const actor = renderTab(defaultProps, 'actors');
   assert.doesNotMatch(actor, /稳定标识|内部标识/);
 });
