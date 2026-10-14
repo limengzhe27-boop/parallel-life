@@ -1330,3 +1330,132 @@ test('valid leap days, minute precision and fractional timestamps still use stor
     'expired',
   );
 });
+
+test('opening after a stage with only clock-expiring members is publishable without a stage window', async () => {
+  const { evaluateStory } = await import('../src/modules/settings/domain/publication-story.ts');
+  const c = content();
+  const event = {
+    ...structuredClone(c.candidates[0]!),
+    intent: { kind: 'director_event' as const, actorKey: c.actors[0]!.key },
+    prerequisites: [],
+    placeKey: c.world.startPlaceKey,
+    mutuallyExclusiveNodeKeys: [],
+  };
+  c.timeline = {
+    initialStageKey: 'before',
+    stages: [
+      { key: 'before', title: '之前', order: 0, afterStageKeys: [] },
+      { key: 'later', title: '开场', order: 1, afterStageKeys: ['before'] },
+    ],
+  };
+  c.candidates = ['prior', 'opening'].map((key, i) => ({
+    ...structuredClone(event),
+    key,
+    timeline: {
+      stageKey: i ? 'later' : 'before',
+      excludeIfResolved: [],
+      alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+      ...(!i ? { window: { notBefore: c.world.startAt, expiresAt: '2026-10-12T09:01:00Z' } } : {}),
+    },
+  }));
+  c.openingEventKey = 'opening';
+  const original = structuredClone(c);
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  assert.deepEqual(c, original);
+  const p = {
+    schemaVersion: 1 as const,
+    origin: { workId: 'test', publicationVersion: 1, draftVersion: 0, contentHash: 'a'.repeat(64) },
+    timeline: c.timeline,
+    openingEventKey: c.openingEventKey,
+    nodes: c.candidates,
+    actors: c.actors.map((a) => ({ key: a.key, id: a.key })),
+    places: c.places.map((p) => ({ key: p.key, name: p.name })),
+    history: [],
+  };
+  const result = evaluateStory(p, [], {
+    storyNow: '2026-10-12T09:02:00Z',
+    currentPlaceId: c.world.startPlaceKey,
+    availableFactIds: [],
+  });
+  assert.deepEqual(result.expired, ['prior']);
+  assert.deepEqual(result.resolvedStages, ['before']);
+  assert.deepEqual(
+    result.eligible.map((n) => n.key),
+    ['opening'],
+  );
+  delete c.candidates[0]!.timeline!.window;
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_stage'),
+  );
+  c.candidates.shift();
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_stage'),
+  );
+});
+
+test('opening ANY branch must be reachable before its effective deadline; ordinary time and known place remain allowed', () => {
+  const c = content();
+  const event = {
+    ...structuredClone(c.candidates[0]!),
+    intent: { kind: 'director_event' as const, actorKey: c.actors[0]!.key },
+    prerequisites: [],
+    placeKey: c.world.startPlaceKey,
+    mutuallyExclusiveNodeKeys: [],
+  };
+  c.timeline = {
+    initialStageKey: 'start',
+    stages: [
+      {
+        key: 'start',
+        title: '起步',
+        order: 0,
+        afterStageKeys: [],
+        window: { notBefore: c.world.startAt, expiresAt: '2026-10-12T09:03:00Z' },
+      },
+    ],
+  };
+  c.candidates = ['prior', 'opening'].map((key) => ({
+    ...structuredClone(event),
+    key,
+    timeline: {
+      stageKey: 'start',
+      excludeIfResolved: [],
+      alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+    },
+  }));
+  c.candidates[1]!.timeline!.window = {
+    notBefore: c.world.startAt,
+    expiresAt: '2026-10-12T09:02:00Z',
+  };
+  c.openingEventKey = 'opening';
+  c.conditions = [
+    {
+      key: 'opening_any',
+      title: '开场前提',
+      match: 'any',
+      prerequisites: [
+        { kind: 'after_presented_node', nodeKey: 'prior' },
+        { kind: 'not_before', at: '2026-10-12T09:02:00Z' },
+      ],
+    },
+  ];
+  c.candidates[1]!.conditionKeys = ['opening_any'];
+  const original = structuredClone(c);
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_event'),
+  );
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, false);
+  assert.deepEqual(c, original);
+  c.conditions[0]!.prerequisites[1] = { kind: 'not_before', at: '2026-10-12T09:01:00Z' };
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  c.conditions[0]!.prerequisites[1] = { kind: 'at_place', placeKey: c.world.startPlaceKey };
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  c.conditions[0]!.prerequisites[1] = { kind: 'history_fact', factKey: 'missing' };
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_event'),
+  );
+  delete c.timeline.stages[0]!.window;
+  delete c.candidates[1]!.timeline!.window;
+  c.conditions[0]!.prerequisites[1] = { kind: 'not_before', at: '2026-10-12T12:00:00Z' };
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+});

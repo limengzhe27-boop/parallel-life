@@ -603,9 +603,11 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
         );
       };
       const reachable = (term: PublicationPrerequisite): boolean =>
-        term.kind === 'history_fact' ||
-        term.kind === 'at_place' ||
-        term.kind === 'not_before' ||
+        (term.kind === 'history_fact' && facts.has(term.factKey)) ||
+        (term.kind === 'at_place' && places.has(term.placeKey)) ||
+        (term.kind === 'not_before' &&
+          Number.isFinite(Date.parse(term.at)) &&
+          Date.parse(term.at) < openingDeadline) ||
         (term.kind === 'after_resolved_node' &&
           term.outcomes.some((outcome) => terminalByClock(term.nodeKey, outcome)));
       opening.prerequisites.forEach((term, j) => {
@@ -627,11 +629,20 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       if (
         stage?.afterStageKeys.some((key) => {
           const prior = stages.get(key);
+          if (!prior) return false; // The general reference validator reports missing stages.
+          if (timestamp(prior.window?.expiresAt) < openingDeadline) return false;
+          // evaluateStory resolves a stage once every executable member has a terminal
+          // outcome, even if the stage has no window or is not active yet. Clock expiry
+          // does not require presenting a member or activating its predecessor stages.
+          const members = c.candidates.filter(
+            (node) => node.timeline?.stageKey === key && node.intent.kind !== 'editorial_only',
+          );
           return (
-            prior &&
-            (!prior.window ||
-              !Number.isFinite(Date.parse(prior.window.expiresAt)) ||
-              Date.parse(prior.window.expiresAt) >= openingDeadline)
+            !members.length ||
+            !members.every(
+              (node) =>
+                terminalByClock(node.key, 'expired') || terminalByClock(node.key, 'skipped'),
+            )
           );
         })
       )

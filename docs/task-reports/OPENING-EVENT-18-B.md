@@ -45,3 +45,10 @@ root接精确提交，复核57，应用生产迁移并全check/build/真实PG、
 - 最终check2255/2255、0skip；build退出0。纯story19/19。真实PG34/34：新增开场9含未呈现skip/expiry无source、因果阻断/ANY可达、clock-only因果可达；既有story25全部通过。测试夹具首次type错误把notBefore写为opensAt，修正夹具后通过；不削产品规则。
 - 独立PG55490验证own cwd后正常停止，端口无监听，own env/runtime恢复。尚0真实模型、0生产写入/部署。
 - 人类现已明确批准本线程独立最多2临时存档/6次文字模型，测试完成下架作品并暂停存档。opening18-live独立额度尚0使用/0预留，不挪closed17或root旧额度。仅最终READY后开始供应商验收；未验前不称真实开场已跑通。
+
+
+## 第二轮只读复核：阶段时钟可达与ANY有效窗口
+
+root/P复核发现发布误报（前阶段无stage.window，但全部非editorial成员实际时钟过期后可完成）及漏报（ANY的唯一非因果not_before分支晚于开场截止）。本次精确窄修允许stage自己的真实deadline或全部可执行成员真实clock终态结束，空阶段/需先呈现成员仍拦；与evaluateStory阶段终态独立于前置阶段激活的现有逻辑一致，不增造递归阶段完成。ANY时间分支必须有限且早于node/stage最早有效截止，history/place引用必须实际存在；正常无截止时间/窗口内时间和地点不被拒绝。作者提示涵盖有效时段，原稿不改。
+
+新增两个纯回归覆盖schema与实际evaluateStory两分钟expiry→resolvedStages→opening可用、无期限成员/空阶段阻断、ANY等于截止阻断/窗口内及地点允许/未知fact拒绝/无截止正常等待。104/104 content专项/type通过，最终check2257/2257、0skip，build0。首次runtime夹具沿用旧节点courtyard但context为shop，修为实际startPlace后通过；首次check在已停止的own本地数据库端口55478失败ECONNREFUSED，重新启动独立55490后2257全通过，无产品削守卫。无新模型/生产写，own PG按cwd确认正常关闭并恢复env。root最终集成再检查后部署。
