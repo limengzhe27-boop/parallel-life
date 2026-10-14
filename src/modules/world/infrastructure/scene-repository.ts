@@ -1,3 +1,4 @@
+import { sceneConversationMemory } from '../domain/scene-conversation-memory.ts';
 import { assertSceneDialogueConsistency, sceneDeliveryText } from '../domain/scene-delivery.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
 import { readPublicationSceneBrief } from '../../settings/infrastructure/publication-story-repository.ts';
@@ -1308,21 +1309,34 @@ export async function commitSceneProposal(
   // Scene episodes are private to actual observers; branch episodes alone are not delivered to NPCs.
   for (const observer of observers) {
     if (observer.kind !== 'actor') continue;
-    const actorSources = [source.sourceEventId, ...(c.action ? [c.action.sourceEventId] : [])];
+    const episode = sceneConversationMemory({
+      actorId: observer.actorId,
+      storyAt: locked.storyAt,
+      location: p.location,
+      presentActorIds: observers.filter((p) => p.kind === 'actor').map((p) => p.actorId),
+      action: c.action,
+      entries: c.entries,
+      dialogues: p.dialogues,
+      observableResult: memory,
+      resultSourceEventId: source.sourceEventId,
+      blockedSources: new Set(c.blockedSourcesByActor?.[observer.actorId] ?? []),
+    });
+    if (!episode) continue;
+    const actorSources = episode.sourceIds;
     const actorMemory = deriveMemory({
       ownerId,
       scopeType: 'character',
       scopeId: observer.actorId,
       branchId: worldId,
       characterId: observer.actorId,
-      text: memory.slice(0, 400),
+      text: episode.text,
       kind: 'episode',
       sourceType: 'world_event',
       sourceIds: actorSources,
       importance: 2,
       evidence: {
-        [source.sourceEventId]: { id: source.sourceEventId, text: memory.slice(0, 400) },
-        ...(c.action
+        [source.sourceEventId]: { id: source.sourceEventId, text: episode.text },
+        ...(c.action && actorSources.includes(c.action.sourceEventId)
           ? { [c.action.sourceEventId]: { id: c.action.sourceEventId, text: c.action.text } }
           : {}),
       },

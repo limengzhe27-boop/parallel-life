@@ -1,3 +1,4 @@
+import { actorEngagementBrief, ACTOR_ENGAGEMENT_RULES } from '../application/actor-engagement.ts';
 import {
   assertSceneDialogueConsistency,
   sceneDeliveryText,
@@ -33,7 +34,7 @@ import {
   attributesPlayerStepToActor,
 } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
-export const SCENE_PROMPT_VERSION = 'scene-text-v23-present-player-delivery';
+export const SCENE_PROMPT_VERSION = 'scene-text-v24-goals-and-conversation';
 const text = z.string().trim().min(1).max(1600);
 const reference = z.string().trim().min(1).max(200);
 const quote = z.string().trim().min(3).max(500);
@@ -910,6 +911,7 @@ location必须是非空中文字符串且最多200字，narration非空且最多
               content:
                 actorVoice +
                 deliveryRule +
+                ACTOR_ENGAGEMENT_RULES +
                 '你是此人物，独立决定这一刻是否实际在这个公开地点出现。这是本次开场的有限虚构行动提案，由运行时同开场事务校验保存，不是从预约或旧对白推定到场。结合自己的立场、已知约定/对话和当前当地故事时间判断，可true也可false；confirmed预约只是合法候选资格，不强制赴约。不得替玩家或其他人物行动、决定别人是否到场、编排未来玩家步骤，也不执行R17接收/检修/交付或产生事项进展。只看提供的本人知识与公开地点；还未正式加入，不知道旧现场历史或他人私聊。不能编迟到理由或瞬移跨地点。若你选择present=true，玩家已实际走进这个地点，你在与眼前的人当面相见，应自然招呼或承接当前事，不把旧私聊里等邀约回复当作当前唯一任务，不重复客服式索要确认。到场不等于已接受晚饭；以当前当地时间说清现在与稍后的安排。仅输出严格JSON {"present":true或false,"text":"当前现场自然的一两句发言"或null,"delivery":"本人当前可观察的微动作"或null}，不含actorId/presentActorIds/actions等其他字段。present=true必须有非空当前现场发言，不能只说以后会到；present=false的text和delivery均为null（解释文字也不会保存为现场发言）。身份由本次调用绑定，结果保存后才正式成为在场人。当前对话对象addressee固定为玩家主角，不是客户、车主或其他联系人；visibleFacts中谈及的车主姓名不能当作玩家姓名。仅按已裁剪可见事实中的虚构公开身份理解主角；未给玩家姓名时称“你”，不从actor.persona或他人姓名猜玩家是谁。已知维修价格只代表相应维修记录，不能据此向错误对象索款，不能声称已经收费；未给价格时不编金额，不把未提供的玩家身份或setting共享进来。',
             },
             {
@@ -932,6 +934,9 @@ location必须是非空中文字符串且最多200字，narration非空且最多
                   remembered.appointments.find((a) => a.id === activeAppointment?.id) ?? null,
                 visibleFacts: remembered.facts,
                 ownMessages: remembered.messages,
+                knownMatters: remembered.matters ?? [],
+                knownChoices: remembered.choices ?? [],
+                engagement: actorEngagementBrief(remembered),
                 ownAppointments: remembered.appointments,
                 rememberedEpisodes: remembered.retrievedMemories,
                 entries: [],
@@ -1071,6 +1076,10 @@ location必须是非空中文字符串且最多200字，narration非空且最多
       }
       if (allowedActions.length > 16) npcActionError('action_index');
       const npc = {
+        engagement: actorEngagementBrief(remembered),
+        ownMessages: remembered.messages,
+        knownMatters: remembered.matters ?? [],
+        knownChoices: remembered.choices ?? [],
         playerHere: scenePresent(c.scene, c.world.version).some((p) => p.kind === 'player'),
         currentScene: {
           location: p.location,
@@ -1143,8 +1152,10 @@ location必须是非空中文字符串且最多200字，narration非空且最多
             role: 'system',
             content: !actorSteps.length
               ? actorVoice +
+                ACTOR_ENGAGEMENT_RULES +
                 '本轮是普通现场即时回应。这是面对面现场，不是手机消息。currentScene与playerHere是当前已保存的地点和在场事实；currentStep是现在要回应的话，entries只是过去记录，不能把旧对白当台词模板。先回答当前话，再按本人实际知道的安排自然聊一两句。玩家已经在场时，不说等他来、欢迎他来、让他确认何时来；不反复发旧邀请。人物可有自己的立场，不替玩家同意、决定或写内心。只用可见事实和自己的记忆，不透露别人私聊，也不编任务成果、转账或已经交接。当前没有结构化动作许可，actions必须[]。可用delivery写本人此刻一个可观察的姿态、视线或停顿，最多240字，写短句；不能写玩家/别人动作、心理、期待、担心或任务执行。微动作不构成任务执行证据。无新动作可null。text只写自然台词，不混旁白；不要客服话术、机械复述或每句都反问。只输出JSON {"text":"本人直接台词","delivery":"可观察的小动作"或null,"actions":[]}，text必须非空字符串。'
               : actorVoice +
+                ACTOR_ENGAGEMENT_RULES +
                 deliveryRule +
                 (actorSteps.length
                   ? '本轮有获准stepExecution规则。【两套进度】savedCompletedSteps和savedRemainingSteps仅表示此前已提交且你获准目击的进度；steps.done也只依据这些已存证据。currentTurnStepCandidates和observedNow是本轮可见裁定候选，不是已提交事实。若本轮观察已具体描述玩家核对且有同事项order_reviewed候选，应自然回应核对结果，不再说“单号先核对清楚”或要求重做该步骤。savedRemainingSteps仍列该步骤只是提交前快照，不是本轮新增门槛。可提此前未完成且本轮候选未覆盖的真实下一步；不得提前把候选markdone、宣布整体完成、领奖、新阶段或机会。'
@@ -1163,6 +1174,10 @@ location必须是非空中文字符串且最多200字，narration非空且最多
                 ? npc
                 : {
                     actor: npc.actor,
+                    engagement: npc.engagement,
+                    ownMessages: npc.ownMessages,
+                    knownMatters: npc.knownMatters,
+                    knownChoices: npc.knownChoices,
                     stepExecution: [],
                     allowedActions: [],
                     matters: [],

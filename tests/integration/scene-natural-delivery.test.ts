@@ -1,3 +1,6 @@
+import { loadActorMemories } from '../../src/modules/memory/infrastructure/memory-store.ts';
+import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { resolveTurn } from '../../src/modules/world/application/resolve-turn.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,7 +90,11 @@ test('visible delivery persists beside independent speech without fabricating ou
           turns === 1
             ? { present: true, text: '进来坐，窗边有位置。', delivery: '把手里的笔搁在桌上。' }
             : {
-                text: turns === 2 ? '在呢，我刚在柜台这边。' : '晚饭是六点，现在先坐一会儿吧。',
+                text: messages[1]!.content.includes('今天不吃饭了')
+                  ? '好，今天的饭就不算你。先坐着歇会儿。'
+                  : turns === 2
+                    ? '在呢，我刚在柜台这边。'
+                    : '晚饭是六点，现在先坐一会儿吧。',
                 delivery: turns === 2 ? '抬起头朝门口看了一眼。' : '朝窗边的空椅子示意。',
                 actions: [],
               },
@@ -147,6 +154,115 @@ test('visible delivery persists beside independent speech without fabricating ou
         );
         assert.equal(read.matters.filter((m) => m.status === 'completed').length, 0);
         await assert.rejects(repo.read(other, worldId), { code: 'NOT_FOUND' });
+      },
+    );
+    await t.test(
+      'public refusal and own scene reply reach a real persisted phone turn, without absent-actor or outcome leakage',
+      async () => {
+        const text = '今天不吃饭了，我想先安静坐一会儿。';
+        let read = await repo.read(owner, worldId);
+        const sent = await repo.input(owner, worldId, entered.sceneId, {
+          commandId: randomUUID(),
+          expectedVersion: read.worldVersion,
+          text,
+          relatedMatterIds: [],
+        });
+        await run(sent.task!.id);
+        read = await repo.read(owner, worldId);
+        assert.equal(read.task?.status, 'succeeded');
+        const action = read.actions.at(-1)!;
+        const memories = await db.transaction(owner, (sql) =>
+          loadActorMemories(sql, owner, { actorId, worldId }),
+        );
+        const episode = memories.records.find((r) => r.sourceIds.includes(action.sourceEventId));
+        assert.ok(episode?.text.includes(text));
+        assert.ok(episode?.text.includes('好，今天的饭就不算你'));
+        assert.ok(episode?.text.includes('不证明事件完成'));
+        const worldRepo = new PostgresWorldRepository(db),
+          session = { userId: owner };
+        const state = await worldRepo.get(session, worldId);
+        const absent = state.actors.find((a) => a.id !== actorId)!;
+        const absentMemory = await db.transaction(owner, (sql) =>
+          loadActorMemories(sql, owner, { actorId: absent.id, worldId }),
+        );
+        assert.ok(!absentMemory.records.some((r) => r.text.includes(text)));
+        const switched = await repo.navigate(owner, worldId, entered.sceneId, {
+          commandId: randomUUID(),
+          expectedVersion: read.worldVersion,
+          view: 'phone',
+        });
+        const result = await resolveTurn(
+          {
+            worlds: worldRepo,
+            planner: {
+              async propose({ context }) {
+                assert.ok(
+                  context.retrievedMemories?.some(
+                    (r) => r.text.includes(text) && r.text.includes('好，今天的饭就不算你'),
+                  ),
+                );
+                return {
+                  schemaVersion: 1,
+                  effects: [
+                    {
+                      type: 'message.received',
+                      id: randomUUID(),
+                      actorId,
+                      text: '记得，今晚不吃饭，先歇着。',
+                    },
+                  ],
+                };
+              },
+            },
+            now: () => state.time,
+            newId: randomUUID,
+            memories: (id) =>
+              db.transaction(owner, (sql) =>
+                loadActorMemories(sql, owner, { actorId: id, worldId }),
+              ),
+          },
+          session,
+          {
+            worldId,
+            actorId,
+            id: randomUUID(),
+            expectedVersion: switched.version,
+            text: '刚才当面说今晚不吃饭了，你记得吗？',
+          },
+        );
+        const after = await worldRepo.get(session, worldId);
+        assert.ok(after.messages.some((m) => m.text === '记得，今晚不吃饭，先歇着。'));
+        assert.equal(after.matters?.filter((m) => m.status === 'completed').length ?? 0, 0);
+        await repo.navigate(owner, worldId, entered.sceneId, {
+          commandId: randomUUID(),
+          expectedVersion: result.state.version,
+          view: 'scene',
+        });
+      },
+    );
+    await t.test(
+      'common private thought spelling stays owner-only and never creates an NPC task or memory',
+      async () => {
+        const before = await db.transaction(owner, (sql) =>
+          loadActorMemories(sql, owner, { actorId, worldId }),
+        );
+        const read = await repo.read(owner, worldId);
+        const text = '我在心里想：PRIVATE_INNER_SENTINEL';
+        const sent = await repo.input(owner, worldId, entered.sceneId, {
+          commandId: randomUUID(),
+          expectedVersion: read.worldVersion,
+          text,
+          relatedMatterIds: [],
+        });
+        assert.equal(sent.task, null);
+        const next = await repo.read(owner, worldId),
+          entry = next.entries.find((e) => e.kind === 'user_action' && e.text === text);
+        assert.ok(entry);
+        assert.deepEqual(entry.observableTo, [{ kind: 'player' }]);
+        assert.deepEqual(
+          await db.transaction(owner, (sql) => loadActorMemories(sql, owner, { actorId, worldId })),
+          before,
+        );
       },
     );
     await t.test(
