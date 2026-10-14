@@ -313,3 +313,85 @@ test('trusted role preparation dry-compiles a still-unacquainted actor with zero
   );
   assert.ok(denied.issues.some((i) => i.code === 'unsupported_unknown_actor_projection'));
 });
+
+test('private first proposal and bounded correction explicitly keep absent history, knowledge and relationship graphs empty without changing authored false', async () => {
+  const before = baseline();
+  before.actors[0]!.knownAtStart = false;
+  const clean = completeDraft();
+  clean.actors[0]!.knownAtStart = false;
+  clean.phone.messages = [];
+  clean.phone.moments = [];
+  const wrong = {
+    ...clean,
+    history: [
+      {
+        key: 'invented',
+        kind: 'established_fact',
+        text: '模型把关系设定当成已发生事实',
+        occurredAt: '2031-03-05T08:00:00Z',
+        actorKeys: ['solo'],
+        visibility: { kind: 'actors', actorKeys: ['solo'] },
+      },
+    ],
+    initialKnowledge: [{ actorKey: 'solo', factKeys: ['invented'] }],
+    relationships: [
+      {
+        key: 'invented_rel',
+        from: { kind: 'actor', actorKey: 'solo' },
+        to: { kind: 'player' },
+        description: '不该从原模块生出关系图',
+        visibility: { kind: 'actors', actorKeys: ['solo'] },
+      },
+    ],
+  };
+  const h = harness([wrong, clean]);
+  const result = await h.planner.propose(
+    { scope: 'world', currentContent: before, sources },
+    undefined,
+    { referenceAt },
+  );
+  assert.equal(h.calls.length, 2);
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(result.updatedContent.history, []);
+  assert.deepEqual(result.updatedContent.initialKnowledge, []);
+  assert.deepEqual(result.updatedContent.relationships, []);
+  assert.equal(
+    (result.updatedContent.actors as { knownAtStart: boolean }[])[0]!.knownAtStart,
+    false,
+  );
+  assert.deepEqual(
+    (result.updatedContent.actors as { lifeModules: unknown }[])[0]!.lifeModules,
+    before.actors[0]!.lifeModules,
+  );
+  for (const call of h.calls) {
+    const system = call[0]!.content;
+    const privateInstruction = system.slice(system.lastIndexOf('受信服务端已选择私有角色演示准备'));
+    assert.ok(
+      privateInstruction.includes(
+        'currentContent.history、initialKnowledge、relationships未提供或为空时',
+      ),
+    );
+    assert.ok(privateInstruction.includes('这三项必须严格为[]'));
+    assert.ok(privateInstruction.includes('已有值逐项原样保留'));
+    assert.ok(privateInstruction.includes('不能自动变成关系图、过去事实或知情记录'));
+    assert.ok(privateInstruction.includes('缺省[]'));
+    assert.ok(privateInstruction.includes('phone.messages里的普通双向历史'));
+  }
+  const correction = JSON.parse(h.calls[1]![1]!.content);
+  for (const field of ['history', 'initialKnowledge', 'relationships'])
+    assert.ok(
+      correction.validationIssues.some(
+        (issue: { path: unknown[]; code: string }) =>
+          issue.path[0] === field && issue.code === 'character_trial_author_content_changed',
+      ),
+    );
+  assert.equal(correction.originalCurrentContent.actors[0].knownAtStart, false);
+  const refused = harness([wrong]);
+  const invalid = await refused.planner.propose(
+    { scope: 'world', currentContent: before, sources },
+    undefined,
+    { referenceAt },
+  );
+  assert.equal(refused.calls.length, 2);
+  assert.ok(invalid.issues.some((i) => i.code === 'character_trial_author_content_changed'));
+});
