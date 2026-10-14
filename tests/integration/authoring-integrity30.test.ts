@@ -38,7 +38,15 @@ const code = (expected: string) => (error: unknown) => {
 };
 test('real PostgreSQL: saved author content is the sole check/trial/publication source', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, Number(process.env.AUTHORING_INTEGRITY_TEST_PORT ?? '55570'));
+  assert.equal(
+    config.port,
+    Number(
+      process.env.AUTHORING_INTEGRITY_TEST_PORT ??
+        process.env.PUBLISHER_TEST_PORT ??
+        process.env.PUBLICATION_STORY_TEST_PORT ??
+        '55570',
+    ),
+  );
   const admin = await adminClient('parallel_life_test');
   const role = 'pl_authoring_integrity30_fixture';
   let pub: PostgresDatabase | undefined;

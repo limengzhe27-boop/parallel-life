@@ -41,3 +41,5 @@ I接收冻结提交后串行集成；27由本任务提供同版本修复，不�
 - 浏览器工具提示有可用更新，本轮未升级；与交付无关。
 - 文件精确：src/modules/settings/domain/publication-defaults.ts；src/modules/settings/infrastructure/{publication-repository.ts,publication-world-repository.ts}；src/server/publication-runtime.ts；src/features/publisher/{publisher-publication-draft.ts,publisher-trial-preparation.ts,publisher-controller.tsx}；tests/{publication-authoring-integrity.test.ts,moment-publication-content.test.ts,integration/authoring-integrity30.test.ts}；本报告。无SQL/公共contract修改。
 - I接续：合入本提交，生产迁移一致性核对，与28/26串行部署，等待READY后聚焦公网合成草稿试演/原文不变；不发布真实渣男体验。
+
+- 冻结实现dfc72665c489c5831391011d0a10927a6fb47b78已由I合入b408956f，I再次完整check2415/build通过。仅追加test-only端口适配：30测试仍优先专用55570，允许显式现有PUBLISHER_TEST_PORT/PUBLICATION_STORY_TEST_PORT复用CI55476或I55564，不降低localConfig匹配断言；无需改公共workflow。自有PG以PUBLICATION_STORY_TEST_PORT路径7/7重验，typecheck/diff通过。无业务源码续改。
