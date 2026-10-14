@@ -56,7 +56,10 @@
   font-size: 14px;
 }
 .field textarea,
-.field input {
+.field input,
+.field select,
+.optional select,
+.optional input[type='datetime-local'] {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #cbd5e5;
@@ -145,8 +148,97 @@
 .editor textarea {
   min-height: 200px;
 }
+.eventCard {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #dbe2ee;
+  border-radius: 16px;
+  background: #fff;
+}
+.eventHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.eventHeading h4 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.eventCard .field {
+  margin: 0;
+}
+.eventCard .field textarea {
+  min-height: 110px;
+}
+.eventCard .field:has(textarea[rows='8']) textarea {
+  min-height: 220px;
+}
+.scene {
+  display: grid;
+  gap: 10px;
+}
+.optional {
+  border: 1px solid #e1e6ee;
+  border-radius: 10px;
+  padding: 0 14px;
+  min-width: 0;
+}
+.optional[open] {
+  padding-bottom: 14px;
+}
+.optional summary,
+.nestedOptional summary {
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.optional > * + * {
+  margin-top: 10px;
+}
+.nestedOptional {
+  margin-top: 12px;
+}
+.prerequisite {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 8px;
+}
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 8px 0;
+}
+.choices legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  line-height: 1.5;
+}
+.check input {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
 .editor :is(button, input, textarea, select):focus-visible,
-.dialog :is(button, input, textarea, select, summary):focus-visible {
+.dialog :is(button, input, textarea, select, summary):focus-visible,
+.optional summary:focus-visible {
   outline: 2px solid #3673ea;
   outline-offset: 2px;
 }
@@ -158,8 +250,12 @@
   .card {
     padding: 12px;
   }
+  .eventCard {
+    padding: 14px;
+  }
   .header {
     align-items: flex-start;
+    flex-direction: column;
   }
   .place {
     align-items: flex-start;
