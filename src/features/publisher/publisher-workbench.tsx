@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
-import { publisherArtUrl, selectPublisherArt } from './publisher-art-model.ts';
+import { publisherArtUrl, selectPublisherArt, importCustomPublisherArt } from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { readOverallSetting, updateOverallSetting } from './publisher-overall-setting.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
@@ -551,6 +551,25 @@ export function PublisherWorkbench(
       });
     }
   };
+  const handleCustomAvatarImport = (dataUrl: string) => {
+    if (!session.canEdit || busy || !currentActorForm) return;
+    try {
+      const next = importCustomPublisherArt(
+        draftContent,
+        'avatar',
+        dataUrl,
+        currentActorForm.key,
+        `${currentActorForm.name}的头像`,
+      );
+      setDraftContent(next);
+      setNotice({ type: 'success', message: '已成功导入自定义头像。' });
+    } catch {
+      setNotice({
+        type: 'error',
+        message: '头像导入失败，请检查图片格式后再试。',
+      });
+    }
+  };
   const handleWorldSettingsChange = useCallback(
     (field: keyof WorldSettingsForm, value: string) => {
       if (field === 'title') {
@@ -620,30 +639,7 @@ export function PublisherWorkbench(
     });
   }, [busy, props.draftSaving, overallBlocked, props.onCharacterTrial, draftTitle, draftContent]);
 
-  // Auto-save: 填写即自动保存（防抖 800ms）
-  useEffect(() => {
-    if (!work || !session.canEdit || busy || overallBlocked || socialGenerating) return;
-    if (!isDraftDirty(savedState, { title: draftTitle, content: draftContent })) return;
 
-    const timer = setTimeout(() => {
-      if (trialRequested.current) return;
-      onSaveDraft({
-        title: draftTitle,
-        content: draftContent,
-      });
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [
-    draftTitle,
-    draftContent,
-    savedState,
-    work,
-    session.canEdit,
-    busy,
-    overallBlocked,
-    socialGenerating,
-    onSaveDraft,
-  ]);
 
   // Create work
   const handleCreateWorkSubmit = useCallback(
@@ -1405,7 +1401,7 @@ export function PublisherWorkbench(
                               )}
                             </div>
                             <div className={s.avatarControls}>
-                              <div className={s.avatarMethodRow}>
+                              <div className={s.avatarMethodRow} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <select
                                   id="publication-avatar"
                                   className={s.avatarSelectInput}
@@ -1421,7 +1417,44 @@ export function PublisherWorkbench(
                                       </option>
                                     ),
                                   )}
+                                  {activeAvatarKey &&
+                                    !PUBLICATION_ART.some((a) => a.key === activeAvatarKey) && (
+                                      <option value={activeAvatarKey}>已导入自定义头像</option>
+                                    )}
                                 </select>
+                                <label
+                                  className={`${s.btn} ${s.btnSecondary}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    cursor: !session.canEdit || busy ? 'not-allowed' : 'pointer',
+                                    fontSize: 13,
+                                    padding: '4px 10px',
+                                    margin: 0,
+                                  }}
+                                  title="从本地导入图片作为角色微信头像"
+                                >
+                                  <span>导入头像图片</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={!session.canEdit || busy}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = (event) => {
+                                        const dataUrl = event.target?.result as string;
+                                        if (dataUrl) {
+                                          handleCustomAvatarImport(dataUrl);
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
                               </div>
                             </div>
                           </div>

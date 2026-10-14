@@ -88,7 +88,7 @@ export type CharacterPreviewMessage = {
   at: string;
   speaker: 'actor' | 'player';
 };
-export type CharacterPreviewMoment = { key: string; text: string; at: string };
+export type CharacterPreviewMoment = { key: string; text: string; at: string; image?: string };
 function chronological<T extends { at: string }>(entries: T[]) {
   return entries.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
@@ -127,6 +127,7 @@ export function characterPreview(content: Record<string, unknown>, actorKey: str
           key: string(m.key) || `moment-${index}`,
           text: string(m.text),
           at: string(m.at),
+          ...(typeof m.image === 'string' && m.image ? { image: m.image } : {}),
         }))
     : [];
   return {

@@ -8,6 +8,8 @@ export const AuthoredSocialSchema = z.strictObject({
         name: z.string().min(1).max(80),
         text: z.string().min(1).max(1600),
         at: z.iso.datetime(),
+        image: z.string().optional(),
+        images: z.array(z.string()).max(9).optional(),
       }),
     )
     .max(48),

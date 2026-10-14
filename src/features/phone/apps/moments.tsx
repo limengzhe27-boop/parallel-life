@@ -79,6 +79,11 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
                 <div>
                   <strong>{m.name}</strong>
                   <p>{m.text}</p>
+                  {m.image && (
+                    <div style={{ marginTop: 6, maxWidth: '100%', borderRadius: 8, overflow: 'hidden' }}>
+                      <img src={m.image} alt="" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
+                    </div>
+                  )}
                   <time dateTime={m.at}>
                     {new Date(m.at).toLocaleString('zh-CN', {
                       timeZone: 'Asia/Shanghai',

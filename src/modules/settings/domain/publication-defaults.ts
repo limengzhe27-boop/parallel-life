@@ -325,12 +325,16 @@ export function ensurePublishableDefaults(
       atTime = startTime - (rawMoments.length - idx) * 7200000;
     }
 
-    momMap.set(k, {
+    const momObj: Record<string, any> = {
       key: k,
       actorKey,
       text: safeText(mom.text, 1600, '美好的一天'),
       at: new Date(atTime).toISOString(),
-    });
+    };
+    if (typeof mom.image === 'string' && mom.image) {
+      momObj.image = mom.image;
+    }
+    momMap.set(k, momObj);
   });
 
   content.phone = {
@@ -345,7 +349,32 @@ export function ensurePublishableDefaults(
   content.actors = Array.from(actorsMap.values()).slice(0, 12);
 
   // 11. Media, Candidates, Extensions
-  content.media = Array.isArray(content.media) ? content.media : [];
+  const rawMedia = Array.isArray(content.media) ? content.media : [];
+  content.media = rawMedia
+    .map((m: any, idx: number) => {
+      if (!m || typeof m !== 'object') return null;
+      const k = safeKey(m.key, `media_${idx + 1}`);
+      const mediaObj: Record<string, any> = {
+        key: k,
+        asset: {
+          namespace: 'publication',
+          key: safeKey(m.asset?.key ?? k, k),
+          revision: typeof m.asset?.revision === 'number' ? m.asset.revision : 1,
+        },
+        use: ['cover', 'avatar', 'scene', 'album'].includes(m.use) ? m.use : 'avatar',
+        depiction: ['uploaded_image', 'illustration', 'generated_image'].includes(m.depiction)
+          ? m.depiction
+          : 'uploaded_image',
+        label: safeText(m.label, 160, '自定义图片'),
+        visibility: { kind: 'world' },
+      };
+      if (typeof m.url === 'string' && m.url) {
+        mediaObj.url = m.url;
+      }
+      return mediaObj;
+    })
+    .filter(Boolean)
+    .slice(0, 64);
   content.candidates = Array.isArray(content.candidates) ? content.candidates : [];
   content.extensions = Array.isArray(content.extensions) ? content.extensions : [];
 

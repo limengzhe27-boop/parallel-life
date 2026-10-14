@@ -106,7 +106,14 @@ export type PublicationContent = {
       text: string;
       at: string;
     }[];
-    moments?: { key: string; actorKey: string; text: string; at: string }[];
+    moments?: {
+      key: string;
+      actorKey: string;
+      text: string;
+      at: string;
+      image?: string;
+      images?: string[];
+    }[];
     notes: { key: string; title: string; text: string; factKeys: string[] }[];
     invitations: {
       key: string;
@@ -126,6 +133,7 @@ export type PublicationContent = {
     depiction: 'uploaded_image' | 'illustration' | 'generated_image';
     label: string;
     visibility: PublicationVisibility;
+    url?: string;
   }[];
   openingEventKey?: string;
   timeline?: {

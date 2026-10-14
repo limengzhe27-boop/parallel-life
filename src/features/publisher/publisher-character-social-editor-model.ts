@@ -190,6 +190,7 @@ export function addMoment(
   text: string,
   day?: string,
   referenceAt?: string,
+  image?: string,
 ): { content: Draft; error?: string } {
   const subject = actor(content, actorKey);
   if (!subject || subject.knownAtStart !== true)
@@ -206,7 +207,13 @@ export function addMoment(
         ? '发布日期需要早于或等于故事开场。'
         : '尚未取得作品的创建时间，请先保存草稿后重试。',
     };
-  const added = { key: nextKey(all, 'moment'), actorKey, text: text.trim(), at };
+  const added = {
+    key: nextKey(all, 'moment'),
+    actorKey,
+    text: text.trim(),
+    at,
+    ...(image ? { image } : {}),
+  };
   return { content: withPhoneEntries(content, 'moments', [...all, added]) };
 }
 
@@ -217,6 +224,7 @@ export function editMoment(
   text: string,
   day?: string,
   referenceAt?: string,
+  image?: string,
 ): { content: Draft; error?: string } {
   if (!text.trim() || text.trim().length > 1600)
     return { content, error: '朋友圈正文请填写 1 至 1600 字。' };
@@ -229,7 +237,16 @@ export function editMoment(
     content: withPhoneEntries(
       content,
       'moments',
-      all.map((item) => (item === existing ? { ...item, text: text.trim(), at } : item)),
+      all.map((item) =>
+        item === existing
+          ? {
+              ...item,
+              text: text.trim(),
+              at,
+              ...(image !== undefined ? (image ? { image } : {}) : (item as any).image ? { image: (item as any).image } : {}),
+            }
+          : item,
+      ),
     ),
   };
 }
