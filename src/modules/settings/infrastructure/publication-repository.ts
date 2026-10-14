@@ -377,7 +377,11 @@ export class PublicationRepository {
     });
   }
   private async assess(id: string, version: number, hash: string, raw: unknown) {
-    const enriched = raw && typeof raw === 'object' ? ensurePublishableDefaults(raw as Record<string, unknown>) : raw;
+    const enriched = PublishedWorldContentSchema.safeParse(raw).success
+      ? raw
+      : raw && typeof raw === 'object'
+        ? ensurePublishableDefaults(raw as Record<string, unknown>)
+        : raw;
     const parsed = PublishedWorldContentSchema.safeParse(enriched);
     if (!parsed.success) {
       const all = parsed.error.issues;
@@ -535,8 +539,10 @@ export class PublicationRepository {
       );
       if (!Number.isSafeInteger(version)) throw new TaskError('INVALID_STATE');
       const content = PublishedWorldContentSchema.parse(
-        ensurePublishableDefaults(d.content as Record<string, unknown>, w.title),
-      ),
+          PublishedWorldContentSchema.safeParse(d.content).success
+            ? d.content
+            : ensurePublishableDefaults(d.content as Record<string, unknown>, w.title),
+        ),
         card = {
           title: content.work.title,
           hook: content.work.hook,

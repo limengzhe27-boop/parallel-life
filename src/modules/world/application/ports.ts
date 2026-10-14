@@ -55,6 +55,7 @@ export type ActorContext = {
   storyInvitation?: {
     title: string;
     placeName: string | null;
+    placeDescription?: string | null;
     earliestAt: string;
     source?: 'eligible' | 'presented';
   };

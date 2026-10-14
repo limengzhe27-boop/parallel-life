@@ -217,6 +217,8 @@ const issueReasons: Record<string, string> = {
   duplicate_key: '有条目无法正确区分，请核对重复内容，或重新整理这些条目。',
   unknown_actor: '关联人物不存在，请重新选择人物。',
   unknown_place: '关联地点不存在，请补充地点或重新选择。',
+  story_place_not_player_known: '剧情地点尚未在地图中开放，请核对地点。',
+  story_place_unreachable: '从开场地点暂时无法到达剧情地点，请补充路线。',
   unknown_fact: '关联事实不存在，请补充事实或重新选择。',
   unknown_message: '关联消息不存在，请补充消息或重新选择。',
   unknown_media: '关联素材不存在，请重新选择素材。',

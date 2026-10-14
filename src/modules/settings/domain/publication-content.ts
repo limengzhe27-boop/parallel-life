@@ -146,6 +146,8 @@ export type PublicationContent = {
     editorialIntent: string;
     direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
     actorKeys: string[];
+    /** Story destination or setting; unlike placeKey this never requires the player to be there. */
+    settingPlaceKey?: string;
     placeKey?: string;
     conditionKeys?: string[];
     prerequisites: PublicationPrerequisite[];
@@ -332,6 +334,24 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
       issue(['routes', i], 'unknown_place');
     if (r.fromPlaceKey === r.toPlaceKey) issue(['routes', i], 'self_route');
   });
+  // A scene destination must actually be visible and reachable in the published map.
+  // It does not mean the player must already be at that place when the event starts.
+  const reachablePlaces = new Set<string>();
+  if (startPlace?.knownAtStart) reachablePlaces.add(startPlace.key);
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const route of c.routes) {
+      if (
+        reachablePlaces.has(route.fromPlaceKey) &&
+        places.get(route.toPlaceKey)?.knownAtStart &&
+        !reachablePlaces.has(route.toPlaceKey)
+      ) {
+        reachablePlaces.add(route.toPlaceKey);
+        expanded = true;
+      }
+    }
+  }
   c.history.forEach((h, i) => {
     if (Date.parse(h.occurredAt) > start) issue(['history', i, 'occurredAt'], 'future_in_history');
     actorRefs(h.actorKeys, ['history', i, 'actorKeys']);
@@ -452,6 +472,14 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
         issue(['candidates', i, 'conditionKeys'], 'condition_self_dependency');
     }
     actorRefs(n.actorKeys, ['candidates', i, 'actorKeys']);
+    if (n.settingPlaceKey) {
+      const setting = places.get(n.settingPlaceKey);
+      if (!setting) issue(['candidates', i, 'settingPlaceKey'], 'unknown_place');
+      else if (n.intent.kind !== 'editorial_only' && !setting.knownAtStart)
+        issue(['candidates', i, 'settingPlaceKey'], 'story_place_not_player_known');
+      else if (n.intent.kind !== 'editorial_only' && !reachablePlaces.has(n.settingPlaceKey))
+        issue(['candidates', i, 'settingPlaceKey'], 'story_place_unreachable');
+    }
     if (n.placeKey && !places.has(n.placeKey))
       issue(['candidates', i, 'placeKey'], 'unknown_place');
     unique(n.mutuallyExclusiveNodeKeys, ['candidates', i, 'mutuallyExclusiveNodeKeys']);

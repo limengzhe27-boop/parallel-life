@@ -164,7 +164,14 @@ export async function advancePublicationStory(
     const cue = [
       '你是这个世界里的具体人物。下面是此刻满足条件的一个剧情机会，不是主角已经完成的行动。',
       `当前世界当地时间：${worldDateTimeLabel(storyNow)}（北京时间，UTC+08:00）。导演提到你的名字时是在描述你本人，不要把自己说成另一个人。`,
-      claim.placeName ? `这件事发生或约在：${claim.placeName}。` : null,
+      claim.placeName
+        ? claim.intent.kind === 'director_event'
+          ? `这件事涉及地点「${claim.placeName}」。主角未必已经到达；如果需要前往，请用人物自己的方式告诉主角地点和出行缘由，不要声称主角已抵达。推进剧情和时间时保留这个地点，不擅自换成别处。`
+          : `这件事发生或约在：${claim.placeName}。`
+        : null,
+      claim.placeDescription
+        ? `地图中该地点的地址或场所说明：${claim.placeDescription}。只把人物自然会说出的寻路信息告诉主角，不编造额外门牌或路线。`
+        : null,
       `本次导演意图：${claim.editorialIntent}`,
       claim.intent.kind === 'director_event'
         ? '请根据本人的性格、动机和已知关系，自然开启这件事。事件是可演绎的机会，不是固定台词；可以询问、提出具体请求或透露本人知道的情况。只输出本人真实手机消息，不替主角选择，不编他人已行动，不生成日历或图片。'

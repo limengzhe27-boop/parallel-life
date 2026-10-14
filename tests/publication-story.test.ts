@@ -313,6 +313,27 @@ test('single-NPC invitation rejects absent mappings and promises for multiple ac
   assert.throws(() => buildStoryPlan(s), /UNSUPPORTED_INVITATION/);
 });
 
+test('director can introduce a destination before the player travels; arrival remains an explicit gate', () => {
+  const p = plan();
+  p.places.push({ key: 'hospital', name: '医院' });
+  p.nodes[0] = {
+    ...node('first'),
+    settingPlaceKey: 'hospital',
+    intent: { kind: 'director_event', actorKey: 'a' },
+  };
+  assert.deepEqual(
+    evaluateStory(p, [], context).eligible.map((event) => event.key),
+    ['first'],
+  );
+  p.nodes[0]!.placeKey = 'hospital';
+  assert.deepEqual(evaluateStory(p, [], context).eligible, []);
+  const s = source();
+  s.initialPlaceKeys.push('hospital');
+  s.places.push({ key: 'hospital', name: '医院' });
+  s.nodes[0] = { ...node('first'), settingPlaceKey: 'hospital' };
+  assert.equal(buildStoryPlan(s).nodes[0]!.settingPlaceKey, 'hospital');
+});
+
 test('explicit opening is the only initially eligible event even when its key sorts after unrelated events', () => {
   const p = plan();
   p.nodes = [

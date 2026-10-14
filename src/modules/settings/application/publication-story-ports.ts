@@ -8,6 +8,7 @@ export type PublicationStoryClaim = {
   actorKey: string;
   placeId: string | null;
   placeName: string | null;
+  placeDescription?: string | null;
   editorialIntent: string;
   intent:
     | { kind: 'director_event'; actorKey: string }
@@ -65,6 +66,7 @@ export type PublicationStoryOpportunities = {
     editorialIntent: string;
     actorId: string;
     placeName: string | null;
+    placeDescription?: string | null;
     direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
   }[];
 };

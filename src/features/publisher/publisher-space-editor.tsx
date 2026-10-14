@@ -37,7 +37,7 @@ export function PublisherSpaceEditor({
   return (
     <section className={s.card} aria-label="地点与路线编辑">
       <div className={s.sectionHeader}>
-        <h3 className={s.sectionTitle}>4. 地点与路线</h3>
+        <h3 className={s.sectionTitle}>地点与路线</h3>
         <p className={s.sectionHint}>
           先核对地点名称与一句说明，需要时展开修改；不用在这里重写故事背景。
         </p>
@@ -74,7 +74,7 @@ export function PublisherSpaceEditor({
                 />
               </label>
               <label className={s.formFieldFull}>
-                场所说明（选填）
+                地图地址与场所说明（选填）
                 <textarea
                   className={s.textarea}
                   value={typeof place.description === 'string' ? place.description : ''}

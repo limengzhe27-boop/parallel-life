@@ -53,6 +53,7 @@ const fields: Record<string, string[]> = {
     'editorialIntent',
     'direction',
     'actorKeys',
+    'settingPlaceKey',
     'placeKey',
     'prerequisites',
     'conditionKeys',

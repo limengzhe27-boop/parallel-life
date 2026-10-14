@@ -5,11 +5,16 @@ import type { PublicationWorldCompilerPort } from '../modules/settings/applicati
 import type { PublicationReviewPort } from '../modules/settings/infrastructure/publication-repository.ts';
 import { TaskError } from '../modules/tasks/infrastructure/task-repository.ts';
 import { publicationArt } from '../contracts/publication-assets.ts';
+import { PublishedWorldContentSchema } from '../contracts/published-world-content.ts';
 function worldCompiler(characterTrial = false): PublicationWorldCompilerPort {
   return {
     prepare(input) {
       if (characterTrial && input.originKind !== 'trial') throw new TaskError('INVALID_STATE');
-      const enriched = ensurePublishableDefaults(input.content as Record<string, unknown>) as typeof input.content;
+      const enriched = (
+        PublishedWorldContentSchema.safeParse(input.content).success
+          ? input.content
+          : ensurePublishableDefaults(input.content as Record<string, unknown>)
+      ) as typeof input.content;
       const compiled = compilePublicationGenesis({
         ...input,
         content: enriched,
@@ -47,7 +52,11 @@ export function publicationReview(
 ): PublicationReviewPort {
   return {
     async review(input) {
-      const enriched = ensurePublishableDefaults(input.content as Record<string, unknown>) as typeof input.content;
+      const enriched = (
+        PublishedWorldContentSchema.safeParse(input.content).success
+          ? input.content
+          : ensurePublishableDefaults(input.content as Record<string, unknown>)
+      ) as typeof input.content;
       const compiled = compilePublicationGenesis({
         content: enriched,
         originKind: 'trial',

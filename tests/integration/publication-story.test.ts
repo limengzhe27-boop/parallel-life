@@ -1197,6 +1197,7 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
         chosen = await claim(x.worldId);
       assert.equal(chosen.placeId, 'restaurant');
       assert.equal(chosen.placeName, '餐厅');
+      assert.equal(chosen.placeDescription, '公开可去的地点');
       assert.equal(
         (await runtime.get({ userId: owner }, x.worldId)).space!.currentPlaceId,
         base.world.startPlaceKey,
@@ -1224,6 +1225,47 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
       assert.deepEqual(blocked, { status: 'none', managed: true });
     },
   );
+  await t.test('director sees an authored address before the player travels there', async () => {
+    const c = authored();
+    c.places.push({
+      key: 'hospital',
+      name: '医院',
+      description: '虚构城市中心路 8 号',
+      knownAtStart: true,
+    });
+    c.routes.push({
+      fromPlaceKey: c.world.startPlaceKey,
+      toPlaceKey: 'hospital',
+      minutes: 15,
+    });
+    c.candidates[0].settingPlaceKey = 'hospital';
+    c.candidates[0].intent = { kind: 'director_event', actorKey: a };
+    const { world: x } = await make(c);
+    const pool = await story.opportunities(owner, x.worldId, false);
+    assert.equal(pool.candidates[0]?.placeName, '医院');
+    assert.equal(pool.candidates[0]?.placeDescription, '虚构城市中心路 8 号');
+    const attempt = randomUUID();
+    assert.equal(
+      await story.beginSelection(owner, x.worldId, pool.version, attempt, ['first']),
+      true,
+    );
+    await story.finishSelection(owner, x.worldId, attempt, 'selected', 'first');
+    const prepared = await story.prepare(owner, x.worldId, {
+      automatic: false,
+      nodeKey: 'first',
+      expectedVersion: pool.version,
+    });
+    assert.equal(prepared.status, 'claimed');
+    if (prepared.status !== 'claimed') throw Error('MISSING_CLAIM');
+    const chosen = prepared.claim;
+    assert.equal(chosen.nodeKey, 'first');
+    assert.equal(chosen.placeName, '医院');
+    assert.equal(chosen.placeDescription, '虚构城市中心路 8 号');
+    assert.equal(
+      (await runtime.get({ userId: owner }, x.worldId)).space!.currentPlaceId,
+      c.world.startPlaceKey,
+    );
+  });
   await t.test(
     'unknown retry after another world event cannot silently change original expectedVersion',
     async () => {

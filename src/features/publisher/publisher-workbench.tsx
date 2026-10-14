@@ -77,6 +77,8 @@ function issueLabel(path: readonly (string | number)[], code: string) {
     history_message_not_past: '过去的对话应发生在世界开场之前。',
     sender_not_player_known: '请选择开场时玩家已认识的人物，或先完善人物的开场关系。',
     space_route_budget: '当前单段路线支持最多 120 分钟，请调整路线或拆成多段。',
+    story_place_not_player_known: '这段剧情涉及的地点尚未在地图中开放，请核对后再试演。',
+    story_place_unreachable: '从开场地点暂时无法到达这个剧情地点，请补一条可走的路线。',
   };
   const fields: Record<string, string> = {
     title: '名称',
@@ -99,6 +101,7 @@ function issueLabel(path: readonly (string | number)[], code: string) {
     origin: '消息来源',
     intent: '事件运行方式',
     editorialIntent: '剧情说明',
+    settingPlaceKey: '剧情地点',
     minutes: '移动耗时',
     fromPlaceKey: '出发地点',
     toPlaceKey: '到达地点',
@@ -466,7 +469,6 @@ export function PublisherWorkbench(
   useEffect(() => {
     if (!busy) trialRequested.current = false;
   }, [busy]);
-
 
   useEffect(() => {
     if (!isDirty) return;
@@ -1579,6 +1581,14 @@ export function PublisherWorkbench(
               disabled={busy || !session.canEdit}
               onChange={setDraftContent}
             />
+            <details className={s.card}>
+              <summary>地图地点与路线 · 核对剧情涉及的地点</summary>
+              <PublisherSpaceEditor
+                content={draftContent}
+                disabled={busy || !session.canEdit}
+                onChange={setDraftContent}
+              />
+            </details>
           </div>
         )}
       </main>

@@ -155,6 +155,7 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
     if (!actorKey || !node.actorKeys.includes(actorKey) || !actors.some((a) => a.key === actorKey))
       throw new PublicationStoryError();
     const places = [
+      node.settingPlaceKey,
       node.placeKey,
       ...(node.intent.kind === 'offer_invitation' ? [node.intent.placeKey] : []),
     ].filter((x): x is string => !!x);

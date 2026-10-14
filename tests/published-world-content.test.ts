@@ -238,6 +238,24 @@ test('two same-named characters remain distinct by stable key; all valid content
   assert.notEqual(p.actors[0]?.key, p.actors[1]?.key);
   assert.deepEqual(publicationContentIssues(p), []);
 });
+test('event location is distinct from an arrival requirement and must be reachable on the player map', () => {
+  const c = content();
+  c.candidates[0]!.settingPlaceKey = 'courtyard';
+  assert.deepEqual(publicationContentIssues(c), []);
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  c.routes = [];
+  assert.ok(publicationContentIssues(c).some((issue) => issue.code === 'story_place_unreachable'));
+  c.routes = [{ fromPlaceKey: 'shop', toPlaceKey: 'courtyard', minutes: 5 }];
+  c.places[1]!.knownAtStart = false;
+  assert.ok(
+    publicationContentIssues(c).some((issue) => issue.code === 'story_place_not_player_known'),
+  );
+  c.candidates[0]!.intent = { kind: 'editorial_only' };
+  assert.equal(
+    publicationContentIssues(c).some((issue) => issue.code.startsWith('story_place_')),
+    false,
+  );
+});
 test('public preview whitelist excludes hidden personas, knowledge, hidden history, future nodes and extensions', () => {
   const c = content(),
     before = structuredClone(c),

@@ -257,6 +257,7 @@ const shape = z
             })
             .optional(),
           actorKeys: refs(12),
+          settingPlaceKey: key.optional(),
           placeKey: key.optional(),
           prerequisites: z.array(prerequisite).max(16),
           conditionKeys: refs(16).optional(),

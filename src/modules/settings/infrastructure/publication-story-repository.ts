@@ -29,6 +29,7 @@ type Context = {
   states: StoryState[];
   storyNow: string;
   currentPlaceId: string | null;
+  placeDescriptions: Map<string, string>;
   availableFactIds: string[];
   version: number;
   followupNodeKeys: Set<string>;
@@ -186,6 +187,12 @@ export class PublicationStoryRepository implements PublicationStoryPort {
           version: w.version,
           storyNow,
           currentPlaceId: w.state.space?.currentPlaceId ?? null,
+          placeDescriptions: new Map(
+            (w.state.space?.places ?? []).map((place: { id: string; description: string }) => [
+              place.id,
+              place.description,
+            ]),
+          ),
           availableFactIds: [...initial.facts.map((f: { id: string }) => f.id), ...facts],
           followupNodeKeys: new Set(),
         };
@@ -199,7 +206,10 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     const node = c.plan.nodes.find((n) => n.key === s.nodeKey)!,
       actor = nodeActor(c.plan, node);
     if (!actor || node.intent.kind === 'editorial_only') throw new TaskError('INVALID_STATE');
-    const placeKey = node.intent.kind === 'offer_invitation' ? node.intent.placeKey : node.placeKey;
+    const placeKey =
+      node.intent.kind === 'offer_invitation'
+        ? node.intent.placeKey
+        : (node.settingPlaceKey ?? node.placeKey);
     const place = c.plan.places.find((p) => p.key === placeKey);
     return {
       claimId: s.claimId,
@@ -210,6 +220,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       actorKey: actor.key,
       placeId: place?.key ?? null,
       placeName: place?.name ?? null,
+      placeDescription: place ? (c.placeDescriptions.get(place.key) ?? null) : null,
       editorialIntent: node.editorialIntent,
       intent: structuredClone(node.intent),
       origin: { ...c.plan.origin },
@@ -702,7 +713,9 @@ export class PublicationStoryRepository implements PublicationStoryPort {
                 .map((node) => {
                   const actor = nodeActor(c.plan, node)!;
                   const placeKey =
-                    node.intent.kind === 'offer_invitation' ? node.intent.placeKey : node.placeKey;
+                    node.intent.kind === 'offer_invitation'
+                      ? node.intent.placeKey
+                      : (node.settingPlaceKey ?? node.placeKey);
                   return {
                     nodeKey: node.key,
                     title: node.title,
@@ -718,6 +731,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
                     },
                     actorId: actor.id,
                     placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
+                    placeDescription: placeKey ? (c.placeDescriptions.get(placeKey) ?? null) : null,
                   };
                 }),
       };

@@ -14,6 +14,7 @@ import { Id, Timestamp } from '../../../contracts/api.ts';
 import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { PublishedWorldContentSchema } from '../../../contracts/published-world-content.ts';
 import { publicationStorageIssues } from '../domain/publication-content.ts';
+import { ensurePublishableDefaults } from '../domain/publication-defaults.ts';
 import type {
   PublicationWorldCompilerPort,
   PublicationWorldPrepare,
@@ -346,14 +347,24 @@ export class PublicationWorldRepository {
     const a = admissionSchema.parse(admission);
     if (a.originKind !== kind) throw new TaskError('INVALID_STATE');
     const { ticket, ...input } = a;
+    // The compiler and the admission validator must see the same normalized content.
+    // Publication versions are already normalized on publish; draft trials need this too.
+    const preparedInput = {
+      ...input,
+      content: PublishedWorldContentSchema.parse(
+        PublishedWorldContentSchema.safeParse(input.content).success
+          ? input.content
+          : ensurePublishableDefaults(input.content as Record<string, unknown>),
+      ),
+    };
     let raw: unknown;
     try {
-      raw = await this.compiler.prepare(structuredClone(input));
+      raw = await this.compiler.prepare(structuredClone(preparedInput));
     } catch (e) {
       if (e instanceof TaskError) throw e;
       throw new TaskError('INVALID_STATE');
     }
-    const p = validatePrepared(raw, input, this.characterTrial);
+    const p = validatePrepared(raw, preparedInput, this.characterTrial);
     // PostgreSQL JSONB text inserts whitespace. Check the actual physical budget before writes.
     const sizes = (
       await sql.query(
