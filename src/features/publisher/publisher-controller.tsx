@@ -180,7 +180,15 @@ export function PublisherController() {
           setWorks(list.works);
           if (list.works[0]) {
             const value = await client.get(list.works[0].id);
-            if (alive) updateWork(value);
+            if (alive) {
+              updateWork(value);
+              try {
+                const autoCheck = await client.check(value);
+                if (alive) setCheck(autoCheck);
+              } catch {
+                // Ignore initial check error
+              }
+            }
           }
         }
       } catch (e) {
@@ -262,13 +270,35 @@ export function PublisherController() {
         characterTrial={trialMount.inline}
         onCharacterTrial={(draft) => openTrial('inline', draft)}
         onCloseCharacterTrial={() => setTrialPlacement(null)}
-        onPublish={() => {
-          if (!work || !check) return;
+        onPublish={(draft) => {
+          if (!work) return;
           void run(async () => {
-            await client.publish(work, check);
-            updateWork(await client.get(work.id));
-            setCheck(null);
-            await loadWorks();
+            let current = workRef.current ?? work;
+            if (draft) {
+              setDraftSaving(true);
+              try {
+                current = await client.save(current, draft);
+                updateWork(current);
+                await loadWorks();
+              } finally {
+                setDraftSaving(false);
+              }
+            }
+            const currentCheck =
+              check &&
+              check.status === 'ready' &&
+              check.workId === current.id &&
+              check.draftVersion === current.draftVersion &&
+              check.contentHash === current.draft.contentHash
+                ? check
+                : await client.check(current);
+            setCheck(currentCheck);
+            if (currentCheck.status === 'ready') {
+              await client.publish(current, currentCheck);
+              updateWork(await client.get(current.id));
+              setCheck(null);
+              await loadWorks();
+            }
           });
         }}
         onSelectWork={(id) => {
@@ -277,7 +307,12 @@ export function PublisherController() {
           void run(async () => {
             const next = await client.get(id);
             updateWork(next);
-            setCheck(null);
+            try {
+              const autoCheck = await client.check(next);
+              setCheck(autoCheck);
+            } catch {
+              setCheck(null);
+            }
           });
         }}
         onCreateWork={(draft) => {
@@ -285,7 +320,12 @@ export function PublisherController() {
           void run(async () => {
             const next = await client.create(draft);
             updateWork(next);
-            setCheck(null);
+            try {
+              const autoCheck = await client.check(next);
+              setCheck(autoCheck);
+            } catch {
+              setCheck(null);
+            }
             await loadWorks();
           });
         }}
@@ -298,8 +338,13 @@ export function PublisherController() {
                 if (!current || current.id !== work.id) return;
                 const next = await client.save(current, draft);
                 updateWork(next);
-                setCheck(null);
                 await loadWorks();
+                try {
+                  const autoCheck = await client.check(next);
+                  setCheck(autoCheck);
+                } catch {
+                  setCheck(null);
+                }
               } finally {
                 setDraftSaving(false);
               }

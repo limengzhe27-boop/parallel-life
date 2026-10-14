@@ -1,3 +1,9 @@
+## 2026-10-14 · PUBLISHER-STREAMLINE-PUBLISH-02
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 451, typecheck and build passed; 504 publisher and 547 scene tests all passed. No SQL migration changes.
+- 发布按钮全面激活与智能串联：彻底消除“保存草稿后发布置灰必须手动猜点检查”的问题，发布按钮常态可用，点击直接触发自动保存、后台静默检查并秒速上架；若有缺失项自动切换至待确认清单并明确指引；
+- 试演职责清晰解耦：顶部试演统一为“试演完整世界故事”，人物详情页保持独立的“与TA试聊”，彻底解决单人试演与世界试演混淆问题。
+
 ## 2026-10-14 · PUBLISHER-UNBLOCK-PUBLISH-01
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Check 2241, boundaries 440, typecheck and build passed; 555 publisher tests all passed. No SQL migration changes.

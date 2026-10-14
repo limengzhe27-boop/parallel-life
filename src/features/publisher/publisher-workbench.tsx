@@ -468,6 +468,12 @@ export function PublisherWorkbench(
   }, [busy]);
 
   useEffect(() => {
+    if (check && check.status !== 'ready') {
+      setActiveTab('review');
+    }
+  }, [check]);
+
+  useEffect(() => {
     if (!isDirty) return;
     const protect = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -961,14 +967,11 @@ export function PublisherWorkbench(
                   className={`${s.btn} ${s.btnTrial}`}
                   onClick={
                     onTrial
-                      ? () =>
-                          activeTab === 'actors' && props.onCharacterTrial
-                            ? handleCharacterTrial()
-                            : onTrial({ title: draftTitle, content: draftContent })
+                      ? () => onTrial({ title: draftTitle, content: draftContent })
                       : undefined
                   }
                   disabled={(busy && !props.draftSaving) || overallBlocked || !onTrial}
-                  title={!onTrial ? '试演功能暂不可用' : '用独立体验存档试演当前故事'}
+                  title={!onTrial ? '试演功能暂不可用' : '以玩家视角试演完整世界故事'}
                 >
                   {onTrial ? '试演' : '试演 （暂不可用）'}
                 </button>
@@ -976,18 +979,28 @@ export function PublisherWorkbench(
                 <button
                   type="button"
                   className={`${s.btn} ${s.btnPublish}`}
-                  onClick={onPublish ? () => onPublish() : undefined}
+                  onClick={
+                    onPublish
+                      ? () => {
+                          if (isDirty) {
+                            handleSaveDraft();
+                          }
+                          onPublish(isDirty ? { title: draftTitle, content: draftContent } : undefined);
+                        }
+                      : undefined
+                  }
                   disabled={
                     busy ||
                     !onPublish ||
                     !session.canPublish ||
-                    isDirty ||
-                    check?.status !== 'ready' ||
-                    check.workId !== work.id ||
-                    check.draftVersion !== work.draftVersion ||
-                    check.contentHash !== work.draft.contentHash ||
-                    !check.trialVerified ||
-                    !check.mediaVerified
+                    overallBlocked ||
+                    (check !== null &&
+                      (check.status !== 'ready' ||
+                        check.workId !== work.id ||
+                        check.draftVersion !== work.draftVersion ||
+                        check.contentHash !== work.draft.contentHash ||
+                        !check.trialVerified ||
+                        !check.mediaVerified))
                   }
                   title={
                     !onPublish
@@ -995,13 +1008,13 @@ export function PublisherWorkbench(
                       : !session.canPublish
                         ? '您没有发布权限'
                         : isDirty
-                          ? '请先保存草稿'
+                          ? '保存草稿并检查发布'
                           : check?.status !== 'ready'
-                            ? '请点击“检查”，检查通过后即可发布'
+                            ? '检查并发布当前故事'
                             : '将当前草稿发布上架'
                   }
                 >
-                  {onPublish ? '发布' : '发布 （暂不可用）'}
+                  {busy ? '正在发布…' : onPublish ? '发布' : '发布 （暂不可用）'}
                 </button>
               </div>
             )}
