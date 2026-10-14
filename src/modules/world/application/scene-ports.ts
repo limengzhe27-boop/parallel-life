@@ -14,6 +14,12 @@ import type {
   CurrentMatter,
 } from '../domain/experience-rules.ts';
 export type ScenePlanningContext = {
+  /** Trusted orchestration mode; autonomous runs contain no fabricated player input. */
+  runMode?: 'opening' | 'player_input' | 'autonomous';
+  /** Sourced wake-up reason, independent of a player's UI action. */
+  trigger?: 'idle' | 'world_change';
+  /** Candidates admitted by the runtime; each independent NPC must confirm actual presence. */
+  autonomousActorIds?: string[];
   world: WorldState;
   memoriesByActor?: Record<string, MemoryRecord[]>;
   blockedSourcesByActor?: Record<string, string[]>;
