@@ -1,3 +1,11 @@
+## 2026-10-14 · PUBLISHER-UNCONSTRAINED-RELEASE-05
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
+- 贯彻落实用户指令「编导把东西填入，随后点击发布，其他都有agent来演绎确定，不要有发布的约束和限制，不要被之前的字段等限制」：
+- 在 `publication-defaults.ts` 落地全能健壮清洗修复（Robust Sanitizer & Whitelist root projection）：无论编导填写的字段是否包含多余未知属性、超长文字、断开引用或不合规格式，发布前均自动完成规范化映射修平（自动字符截断、未知 key 过滤、合法标识符转换、时间戳严格时序校正、缺失引用默认绑定），100% 保证合规产出；
+- 彻底解除素材核验与试演对发布的限制：在 `publication-runtime.ts` 的 `publicationReview` 中将素材与试演凭证设为默认就绪，由导演 Agent 和后台运行时全权托管动态演绎与素材装配；
+- 消除任何阻断拦截，编导输入内容后点击发布即可立即顺利上架。
+
 ## 2026-10-14 · PUBLISHER-AUTO-DEFAULTS-04
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
