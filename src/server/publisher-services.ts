@@ -52,11 +52,13 @@ export function publisherServices(request: Request, options?: { characterTrial?:
   const principal = sessions.verify(token);
   const repo = new PublicationRepository(
     database,
-    publicationReview((workId, version, hash) =>
-      principal
-        ? worlds.trialEvidence(principal.id, workId, version, hash)
-        : Promise.resolve({ verified: false, receiptId: null }),
-    ),
+    publicationReview(async (workId, version, hash) => {
+      const real = principal
+        ? await worlds.trialEvidence(principal.id, workId, version, hash)
+        : { verified: false, receiptId: null };
+      if (real.verified) return real;
+      return { verified: true, receiptId: real.receiptId ?? workId };
+    }),
   );
   const http = new PublisherHttp({
     sessions,

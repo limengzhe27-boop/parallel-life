@@ -263,13 +263,13 @@ export function PublisherController() {
         onCharacterTrial={(draft) => openTrial('inline', draft)}
         onCloseCharacterTrial={() => setTrialPlacement(null)}
         onPublish={() => {
-          if (work && check)
-            void run(async () => {
-              await client.publish(work, check);
-              updateWork(await client.get(work.id));
-              setCheck(null);
-              await loadWorks();
-            });
+          if (!work || !check) return;
+          void run(async () => {
+            await client.publish(work, check);
+            updateWork(await client.get(work.id));
+            setCheck(null);
+            await loadWorks();
+          });
         }}
         onSelectWork={(id) => {
           setTrialPlacement(null);
