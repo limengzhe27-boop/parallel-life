@@ -203,7 +203,7 @@ const defaultProps: PublisherWorkbenchProps = {
   onLogout: () => {},
 };
 
-function renderTab(props: PublisherWorkbenchProps, tab: 'settings' | 'actors' | 'plot' | 'review') {
+function renderTab(props: PublisherWorkbenchProps, tab: 'settings' | 'actors' | 'plot') {
   Object.assign(globalThis, { __writerTestTab: tab });
   try {
     return renderToStaticMarkup(createElement(PublisherWorkbench, props));
@@ -275,7 +275,7 @@ test('PublisherWorkbench disables edit controls when session.canEdit is false', 
   assert.ok(html.includes('disabled=""'));
 });
 
-test('PublisherWorkbench displays check failure issues accurately', () => {
+test('PublisherWorkbench completely removes review tab and issues panel, keeping workflow focused on authoring and publishing', () => {
   const checkResult: PublisherCheckResult = {
     id: 'chk-01',
     workId: 'w-101',
@@ -295,14 +295,12 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
     checkedAt: '2026-10-12T10:00:00.000Z',
   };
 
-  const html = renderTab({ ...defaultProps, check: checkResult }, 'review');
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, { ...defaultProps, check: checkResult }));
 
-  assert.ok(html.includes('待确认问题'));
-  assert.ok(html.includes('人物第 1 项 · 姓名或地点名称'));
-  assert.ok(html.includes('当前运行限制'));
-  assert.ok(!html.includes('actors.0.name: name_required'));
-  assert.ok(html.includes('真实模型调用预算尚未确认'));
-  assert.doesNotMatch(html, /限制详情|model_budget_unapproved/);
+  assert.ok(!html.includes('待确认问题'));
+  assert.ok(!html.includes('开场时间待安排或核对'));
+  assert.ok(!html.includes('安排缺省时间'));
+  assert.ok(!html.includes('reviewPanel'));
 });
 
 test('character form removes redundant legacy buttons and focuses on name, avatar, identity and core 5 dimensions', () => {
@@ -311,90 +309,15 @@ test('character form removes redundant legacy buttons and focuses on name, avata
   assert.doesNotMatch(html, /✨ 生成角色（保存并启动试演对话）/);
   assert.ok(html.includes('微信头像（可发布的预设图片）'));
   assert.ok(!html.includes('AI 生成头像'));
-  assert.ok(!html.includes('导入本地图片'));
+  assert.ok(html.includes('导入头像图片'));
   assert.ok(html.includes('角色核心 5 个维度设定'));
   assert.ok(html.includes('与TA试聊'));
   assert.doesNotMatch(html, /整理本角色的历史与朋友圈/);
 });
 
-const readyCheck: PublisherCheckResult = {
-  id: 'check-ready',
-  workId: mockWork.id,
-  draftVersion: mockWork.draftVersion,
-  contentHash: mockWork.draft.contentHash,
-  status: 'ready',
-  issuesTruncated: false,
-  issues: [],
-  missingCapabilities: [],
-  mediaVerified: true,
-  trialVerified: true,
-  checkedAt: '2026-10-13T00:00:00Z',
-};
-test('all returned issues and run restrictions are available, with server truncation explicitly retained', () => {
-  const check: PublisherCheckResult = {
-    ...readyCheck,
-    status: 'invalid',
-    issuesTruncated: true,
-    issues: Array.from({ length: 8 }, (_, i) => ({
-      path: ['actors', i, 'name'],
-      code: 'name_required',
-    })),
-    missingCapabilities: ['model_budget_unapproved', 'unrecognized_runtime_feature'],
-    mediaVerified: false,
-    trialVerified: false,
-  };
-  const html = renderTab({ ...defaultProps, check }, 'review');
-  for (let i = 1; i <= 8; i++) assert.ok(html.includes(`人物第 ${i} 项`));
-  assert.match(html, /待确认问题（12）/);
-  assert.match(html, /仍有未列出的项/);
-  assert.match(html, /尚未完成真实试演|素材尚未核验/);
-  assert.doesNotMatch(html, /unrecognized_runtime_feature/);
-  assert.match(html, /这项内容暂不支持运行/);
-  assert.doesNotMatch(html, /…还有/);
-});
-test('a ready check for an old hash never labels the current draft publishable', () => {
-  const html = renderTab(
-    { ...defaultProps, check: { ...readyCheck, contentHash: 'old-hash' } },
-    'review',
-  );
-  assert.match(html, /旧稿或其他版本/);
-  assert.doesNotMatch(html, /当前已保存稿的检查通过/);
-  assert.match(html, /<button[^>]*disabled=""[^>]*>发布<\/button>/);
-});
-test('existing permission, version, hash, trial and media publication guards stay enforced', () => {
-  const allowed = renderTab({ ...defaultProps, check: readyCheck }, 'review');
-  assert.match(allowed, /<button(?![^>]*disabled)[^>]*>发布<\/button>/);
-  for (const patch of [
-    { workId: 'other-work' },
-    { draftVersion: 2 },
-    { contentHash: 'other-hash' },
-    { trialVerified: false },
-    { mediaVerified: false },
-    { status: 'blocked' as const },
-  ]) {
-    const html = renderTab({ ...defaultProps, check: { ...readyCheck, ...patch } }, 'review');
-    assert.match(html, /<button[^>]*disabled=""[^>]*>发布<\/button>/);
-  }
-  const readOnly = renderTab(
-    { ...defaultProps, check: readyCheck, session: { ...defaultProps.session, canPublish: false } },
-    'review',
-  );
-  assert.match(readOnly, /<button[^>]*disabled=""[^>]*>发布<\/button>/);
-});
-test('missing start date is actionable in review without interrupting authoring tabs', () => {
-  for (const startAt of ['', '初夏午后']) {
-    const content = {
-      ...mockContent,
-      world: { ...(mockContent.world as Record<string, unknown>), startAt },
-    };
-    const html = renderTab(
-      { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
-      'review',
-    );
-    assert.match(html, /开场时间待安排或核对/);
-    assert.match(html, /安排缺省时间/);
-    assert.match(html, /安排故事时间/);
-  }
+test('publish button is actionable for authors and never blocked by review tab or unverified states', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  assert.match(html, /<button(?![^>]*disabled)[^>]*>发布<\/button>/);
 });
 
 test('an empty new story shows only the overall author input by default without automatically saving', () => {
@@ -503,146 +426,9 @@ test('applying import from character or plot returns to overview, closes import 
   }
 });
 
-test('manual scheduling uses work creation time, adopts only successful plans, and never saves or trials', async () => {
-  const { PublisherScheduleReview } =
-    await import('../src/features/publisher/publisher-schedule-review.tsx');
-  const { PublisherImportDialog } =
-    await import('../src/features/publisher/publisher-import-dialog.tsx');
-  function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
-    if (Array.isArray(value)) return value.flatMap(nodes);
-    if (!isValidElement(value)) return [];
-    const e = value as ReactElement<Record<string, unknown>>;
-    return [e, ...nodes(e.props.children)];
-  }
-  for (const status of ['proposed', 'unchanged', 'blocked'] as const) {
-    let cursor = 0,
-      calls = 0,
-      saved = 0,
-      trials = 0;
-    const states: unknown[] = ['review'];
-    const source = {
-      work: { title: '手工故事' },
-      world: { startAt: '' },
-      extensions: [{ opaque: '作者内容' }],
-    };
-    const next = { ...source, world: { startAt: mockWork.createdAt } };
-    Object.assign(globalThis, {
-      __writerHooks: {
-        useState: (v: unknown) => {
-          const i = cursor++;
-          if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
-          return [
-            states[i],
-            (n: unknown) => {
-              states[i] = typeof n === 'function' ? n(states[i]) : n;
-            },
-          ];
-        },
-      },
-    });
-    scheduleForTest = (content, options) => {
-      calls++;
-      assert.deepEqual(content, source);
-      assert.equal(options.referenceAt, mockWork.createdAt);
-      return {
-        status,
-        updatedContent: next,
-        changes:
-          status === 'proposed'
-            ? [{ path: ['world', 'startAt'], value: mockWork.createdAt, reason: 'default_start' }]
-            : [],
-        issues:
-          status === 'blocked'
-            ? [{ path: ['world', 'startAt'], code: 'scheduling_no_feasible_start' }]
-            : [],
-      };
-    };
-    const props = {
-      ...defaultProps,
-      work: { ...mockWork, draft: { ...mockWork.draft, content: source } },
-      onSaveDraft: () => {
-        saved++;
-      },
-      onTrial: () => {
-        trials++;
-      },
-    };
-    const render = () => {
-      cursor = 0;
-      return PublisherWorkbench(props);
-    };
-    try {
-      let tree = render();
-      assert.equal(calls, 0);
-      const action = nodes(tree).find(
-        (e) => e.type === 'button' && e.props.children === '安排缺省时间',
-      );
-      assert.ok(action);
-      (action.props.onClick as () => void)();
-      tree = render();
-      const view = nodes(tree).find((e) => e.type === PublisherScheduleReview);
-      assert.ok(view);
-      assert.deepEqual(view.props.content, status === 'proposed' ? next : source);
-      assert.equal(calls, 1);
-      assert.equal(saved, 0);
-      assert.equal(trials, 0);
-      states[0] = 'settings';
-      tree = render();
-      const field = nodes(tree).find((e) => e.props.id === 'writer-overall-text');
-      assert.ok(field);
-      (field.props.onChange as (e: unknown) => void)({ target: { value: '新的氛围' } });
-      states[0] = 'review';
-      tree = render();
-      assert.ok(!nodes(tree).some((e) => e.type === PublisherScheduleReview));
-      const importButton = nodes(tree).find(
-        (e) => e.type === 'button' && e.props.children === '导入 Markdown',
-      )!;
-      (importButton.props.onClick as () => void)();
-      assert.equal(
-        nodes(render()).find((e) => e.type === PublisherImportDialog)!.props.referenceAt,
-        mockWork.createdAt,
-      );
-    } finally {
-      Reflect.deleteProperty(globalThis, '__writerHooks');
-    }
-  }
-});
-test('manual scheduling cannot execute with edit permission missing or while busy', () => {
-  function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
-    if (Array.isArray(value)) return value.flatMap(nodes);
-    if (!isValidElement(value)) return [];
-    const e = value as ReactElement<Record<string, unknown>>;
-    return [e, ...nodes(e.props.children)];
-  }
-  let calls = 0;
-  scheduleForTest = () => {
-    calls++;
-    throw Error('must not run');
-  };
-  for (const patch of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
-    let cursor = 0;
-    const states: unknown[] = ['review'];
-    Object.assign(globalThis, {
-      __writerHooks: {
-        useState: (v: unknown) => {
-          const i = cursor++;
-          if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
-          return [states[i], () => {}];
-        },
-      },
-    });
-    try {
-      const tree = PublisherWorkbench({ ...defaultProps, ...patch });
-      const action = nodes(tree).find(
-        (e) => e.type === 'button' && e.props.children === '安排缺省时间',
-      )!;
-      assert.equal(action.props.disabled, true);
-      (action.props.onClick as () => void)();
-    } finally {
-      Reflect.deleteProperty(globalThis, '__writerHooks');
-    }
-  }
-  assert.equal(calls, 0);
+test('workbench workflow eliminates scheduling panels and keeps authoring direct to publish', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  assert.doesNotMatch(html, /安排缺省时间|安排故事时间|待确认问题/);
 });
 
 test('author settings retain title and overall setting text while removing technical disclosures and redundant settings form', () => {
@@ -830,7 +616,6 @@ test('actor editing is not preceded by global checks or scheduling, while failur
   assert.match(html, /当前编辑内容仍保留/);
   assert.match(html, /查看处理方式/);
   assert.match(html, /姓名/);
-  assert.match(renderTab(defaultProps, 'review'), /尚未检查，请先保存草稿/);
 });
 
 test('the character form correctly renders 5 core dimensions and triggers trial from preview', async () => {

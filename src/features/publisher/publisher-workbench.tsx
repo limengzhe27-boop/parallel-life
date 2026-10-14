@@ -63,76 +63,7 @@ import {
 } from './publisher-editor.ts';
 import s from './publisher-workbench.module.css';
 
-type MainTab = 'settings' | 'actors' | 'plot' | 'review';
-
-function issueLabel(path: readonly (string | number)[], code: string) {
-  if (code === 'trial_unverified') return '请先试演，并完成一条真实的角色对话，再重新检查。';
-  if (code === 'media_unverified') return '素材尚未核验，请检查所选图片后再试。';
-  const hints: Record<string, string> = {
-    unsupported_director_completion_dependency:
-      '这里需要前一事件真正完成。目前支持事件入场，尚不能判定整件事完成；请保留原稿，等待分步演绎支持。',
-    unsupported_director_completion_stage:
-      '这一阶段需要前面事件真正完成。目前不能可靠推进这种阶段衔接，请保留原稿，等待分步演绎支持。',
-    future_opening_message: '发送时间不能晚于世界开场。',
-    history_message_not_past: '过去的对话应发生在世界开场之前。',
-    sender_not_player_known: '请选择开场时玩家已认识的人物，或先完善人物的开场关系。',
-    space_route_budget: '当前单段路线支持最多 120 分钟，请调整路线或拆成多段。',
-    story_place_not_player_known: '这段剧情涉及的地点尚未在地图中开放，请核对后再试演。',
-    story_place_unreachable: '从开场地点暂时无法到达这个剧情地点，请补一条可走的路线。',
-  };
-  const fields: Record<string, string> = {
-    title: '名称',
-    hook: '一句话吸引点',
-    description: '说明',
-    experienceNote: '体验说明',
-    publicSetting: '公开世界设定',
-    hiddenContext: '幕后世界设定',
-    tone: '叙事氛围',
-    startAt: '开场日期与时间',
-    startPlaceKey: '开场地点',
-    identity: '身份',
-    situation: '主角当前处境',
-    name: '姓名或地点名称',
-    background: '人物背景',
-    voice: '说话方式',
-    motivation: '人物动机',
-    boundaries: '人物边界',
-    at: '发生时间',
-    origin: '消息来源',
-    intent: '事件运行方式',
-    editorialIntent: '剧情说明',
-    settingPlaceKey: '剧情地点',
-    minutes: '移动耗时',
-    fromPlaceKey: '出发地点',
-    toPlaceKey: '到达地点',
-  };
-  const groups: Record<string, string> = {
-    actors: '人物',
-    places: '地点',
-    candidates: '可选事件',
-    routes: '路线',
-    history: '已发生事实',
-    phone: '开场手机内容',
-    timeline: '阶段与时间线',
-  };
-  const opening = path[0] === 'phone' && path[1] === 'messages';
-  const group = opening ? '开场消息' : (groups[String(path[0])] ?? '');
-  const rowIndex = opening ? path[2] : path[1];
-  const row = typeof rowIndex === 'number' ? `第 ${rowIndex + 1} ${opening ? '条' : '项'}` : '';
-  const field = fields[String(path[path.length - 1])] ?? (group ? '设定' : '世界内容');
-  const reason =
-    hints[code] ??
-    (code === 'too_small'
-      ? '请补充完整内容'
-      : code === 'too_big'
-        ? '内容过长，请精简后重试'
-        : code === 'invalid_format'
-          ? '请检查填写格式'
-          : code === 'unrecognized_keys'
-            ? '有暂不支持的内容，请核对后调整'
-            : '请核对内容与引用是否完整一致');
-  return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
-}
+type MainTab = 'settings' | 'actors' | 'plot';
 
 export function PublisherWorkbench(
   props: PublisherWorkbenchProps & {
@@ -709,54 +640,7 @@ export function PublisherWorkbench(
     return trimmed ? trimmed[0] : '人';
   };
 
-  const currentCheck = !!(
-    work &&
-    check &&
-    !isDirty &&
-    check.workId === work.id &&
-    check.draftVersion === work.draftVersion &&
-    check.contentHash === work.draft.contentHash
-  );
-  const pendingChecks = check
-    ? [
-        ...check.issues.map((issue) => issueLabel(issue.path, issue.code)),
-        ...check.missingCapabilities.map((capability) =>
-          capability === 'model_budget_unapproved'
-            ? '真实模型调用预算尚未确认，请联系管理员。'
-            : '这项内容暂不支持运行，请查看待确认问题并调整。',
-        ),
-        ...(!check.trialVerified && !check.issues.some((issue) => issue.code === 'trial_unverified')
-          ? ['请完成真实试演，再重新检查。']
-          : []),
-        ...(!check.mediaVerified && !check.issues.some((issue) => issue.code === 'media_unverified')
-          ? ['所用素材尚未核验，请核对后重新检查。']
-          : []),
-      ]
-    : [];
-  const needsStartTime = !publicationLocalTime(worldSettings.startAt);
-  const scheduleKey = manuscriptFingerprint([
-    work?.id,
-    work?.draft.version,
-    work?.createdAt,
-    draftContent,
-  ]);
-  const visibleSchedule = scheduleReview?.key === scheduleKey ? scheduleReview.schedule : undefined;
-  function arrangeTimes() {
-    if (!work || busy || !session.canEdit) return;
-    setScheduleReview(undefined);
-    try {
-      const plan = planPublicationTimes(draftContent, { referenceAt: work.createdAt });
-      const { updatedContent, ...schedule } = plan;
-      const next = plan.status === 'proposed' ? updatedContent : draftContent;
-      if (plan.status === 'proposed') setDraftContent(next);
-      setScheduleReview({
-        key: manuscriptFingerprint([work.id, work.draft.version, work.createdAt, next]),
-        schedule,
-      });
-    } catch {
-      setNotice({ type: 'error', message: '本次未能安排时间，当前草稿未修改。请核对内容后重试。' });
-    }
-  }
+
 
   return (
     <div className={s.workbench}>
@@ -980,22 +864,7 @@ export function PublisherWorkbench(
                           )
                       : undefined
                   }
-                  disabled={
-                    busy ||
-                    !onPublish ||
-                    !session.canPublish ||
-                    overallBlocked ||
-                    (!work) ||
-                    (activeTab === 'review' &&
-                      !isDirty &&
-                      check !== null &&
-                      (check.status !== 'ready' ||
-                        check.workId !== work.id ||
-                        check.draftVersion !== work.draftVersion ||
-                        check.contentHash !== work.draft.contentHash ||
-                        !check.trialVerified ||
-                        !check.mediaVerified))
-                  }
+                  disabled={busy || !onPublish || !session.canPublish || overallBlocked || !work}
                   title={
                     !onPublish
                       ? '发布功能暂不可用'
@@ -1003,9 +872,7 @@ export function PublisherWorkbench(
                         ? '您没有发布权限'
                         : isDirty
                           ? '保存草稿并检查发布'
-                          : check?.status !== 'ready'
-                            ? '检查并发布当前故事'
-                            : '将当前草稿发布上架'
+                          : '将当前草稿发布上架'
                   }
                 >
                   {busy ? '正在发布…' : onPublish ? '发布' : '发布 （暂不可用）'}
@@ -1044,17 +911,6 @@ export function PublisherWorkbench(
               >
                 剧情发展
               </button>
-              {activeTab === 'review' && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={true}
-                  className={`${s.tabButton} ${s.activeTab}`}
-                  onClick={() => setActiveTab('review')}
-                >
-                  待确认问题{check && pendingChecks.length > 0 ? `（${pendingChecks.length}）` : ''}
-                </button>
-              )}
             </div>
           )}
         </header>
@@ -1124,95 +980,7 @@ export function PublisherWorkbench(
           </div>
         )}
 
-        {work && activeTab === 'review' && (
-          <section className={s.reviewPanel} aria-label="待确认问题">
-            <h3>先核对，再试演与发布</h3>
-            <p>
-              这里集中核对缺失内容、剧情冲突和试演、发布前需要处理的问题，不会自动修改你的故事。保存草稿后点击顶部“检查”。
-            </p>
-            {!check ? (
-              <p>尚未检查，请先保存草稿，再点击“检查”。</p>
-            ) : (
-              <>
-                {!currentCheck && (
-                  <p role="status">以下检查对应旧稿或其他版本，不代表当前编辑稿可以发布。</p>
-                )}
-                <ol className={s.issueList}>
-                  {check.issues.map((issue, index) => (
-                    <li key={index}>
-                      <p>{issueLabel(issue.path, issue.code)}</p>
-                    </li>
-                  ))}
-                </ol>
-                {check.issuesTruncated && (
-                  <p role="alert">
-                    后台仅返回了部分问题，仍有未列出的项；修正后请重新检查，不代表其余内容已经通过。
-                  </p>
-                )}
-                {check.missingCapabilities.length > 0 && (
-                  <section>
-                    <h4>当前运行限制</h4>
-                    <ul>
-                      {check.missingCapabilities.map((capability, index) => (
-                        <li key={index}>
-                          <p>
-                            {capability === 'model_budget_unapproved'
-                              ? '真实模型调用预算尚未确认，请联系管理员。'
-                              : '这项内容暂不支持运行，需要调整后再检查。'}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-                {!check.trialVerified &&
-                  !check.issues.some((issue) => issue.code === 'trial_unverified') && (
-                    <p>尚未完成真实试演验证，请试演角色对话并重新检查。</p>
-                  )}
-                {!check.mediaVerified &&
-                  !check.issues.some((issue) => issue.code === 'media_unverified') && (
-                    <p>素材尚未核验，请核对所用图片后重新检查。</p>
-                  )}
-                {check.status === 'ready' && currentCheck && pendingChecks.length === 0 && (
-                  <p>当前已保存稿的检查通过；发布仍以现有权限和操作结果为准。</p>
-                )}
-                {check.status !== 'ready' && pendingChecks.length === 0 && (
-                  <p>后台尚未确认可发布，请重新检查；没有列出问题不代表已经通过。</p>
-                )}
-              </>
-            )}
-            {needsStartTime && <p>开场时间待安排或核对，请使用“安排缺省时间”后查看实际结果。</p>}
-            <button
-              type="button"
-              className={`${s.btn} ${s.btnSecondary}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              回总体设定核对与编辑
-            </button>
-          </section>
-        )}
 
-        {work && activeTab === 'review' && (
-          <details className={s.scheduling} aria-label="安排故事时间">
-            <summary>故事时间（按需安排）</summary>
-            <button
-              type="button"
-              className={`${s.btn} ${s.btnSecondary}`}
-              disabled={busy || !session.canEdit}
-              onClick={arrangeTimes}
-            >
-              安排缺省时间
-            </button>
-            <p>按当前故事补齐缺省时间，保留已有明确日期；只修改编辑稿，不会自动保存或试演。</p>
-            {visibleSchedule && (
-              <PublisherScheduleReview
-                schedule={visibleSchedule}
-                content={draftContent}
-                context="draft"
-              />
-            )}
-          </details>
-        )}
 
         {/* Empty workspace state */}
         {!work && (

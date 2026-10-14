@@ -1,3 +1,11 @@
+## 2026-10-14 · PUBLISHER-REMOVE-REVIEW-DIRECT-PUBLISH-07
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 513 publisher tests passed. No SQL migration changes.
+- 贯彻落实用户指令「把”待确认的问题“这里，都删掉，我们基本就是确定的用户在后台输入，随后就是发布」：
+- 彻底删除编导后台中的“待确认问题”Tab 与所有排期面板（scheduling / reviewPanel），彻底移除各种检查阻断文案与过时校验；
+- 确立“编导输入设定 -> 点击发布”的极简闭环：发布按钮保持常态可用，编导点击发布后由服务端自动清洗并填补运行时默认值，其他交由导演 Agent 和角色 Agent 后续演绎；
+- 消除任何历史残留字段卡点与弹窗提示，实现无阻碍一键发布。
+
 ## 2026-10-14 · STORY-PLACE-01 剧情地点与导演承接
 
 业务提交 `5a43e5a` 已部署到 Production `dpl_2oG2U2q4FVd1dVKyFEZDMWwnsxSo`，状态 READY，正式域名 `https://parallel-life-nu.vercel.app` 已列为该部署别名。原稿整理会提取明确地点和地址，编导可在剧情事件中选涉及地点并核对地图与路线；导演在推进事件和时间时取得地点名称、地址说明，且不会把「涉及地点」误当作玩家已经到场。开场已知且可达地点可供玩家地图导航；剧情中才揭示的新地点列为 `STORY-PLACE-02`。

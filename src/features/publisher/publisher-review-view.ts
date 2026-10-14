@@ -103,7 +103,7 @@ export function buildPublisherReview(content: Data): ReviewGroup[] {
       !Array.isArray(playerRefs) ||
       !['world', 'player', 'actors'].includes(String(kind))
     )
-      return [field('开场知情核对', '知情安排不完整或事实有重复条目，请到待确认问题中检查。')];
+      return [field('开场知情核对', '知情安排不完整或事实有重复条目，请核对知情设置。')];
     const referenced = knowledgeRows
       .filter((k) => Array.isArray(own(k, 'factKeys')) && list(own(k, 'factKeys')).includes(key))
       .map((k) => own(k, 'actorKey'));
