@@ -38,13 +38,21 @@ export function SceneStage({
       <div className={s.picture}>
         <img
           src={fallback ? art.fallbackUrl : art.url}
-          alt={fallback ? '原创场地示意，非现场生成照片' : '已保存的现场画面'}
+          alt={
+            fallback
+              ? '原创场地示意，非现场生成照片'
+              : art.authored
+                ? '场景配图'
+                : '已保存的现场画面'
+          }
           onError={() => {
             if (!fallback) setFailed(art.url);
           }}
         />
         <div className={s.shade} />
-        <span className={s.imageLabel}>{fallback ? '场景示意' : '场景画面'}</span>
+        <span className={s.imageLabel}>
+          {fallback ? '场景示意' : art.authored ? '场景配图' : '场景画面'}
+        </span>
         <div className={s.caption}>
           <small>{read.scene?.title}</small>
           <h3>{art.location}</h3>

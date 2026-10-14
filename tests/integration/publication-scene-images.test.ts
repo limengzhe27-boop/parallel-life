@@ -32,7 +32,12 @@ const catalog = {
 
 test('scene images follow pinned publication, ready same-work image and actual visible map', async (t) => {
   const config = await localConfig();
-  const expectedPort = process.env.PUBLICATION_SCENE_TEST_PORT ?? '55568';
+  const expectedPort =
+    process.env.PUBLICATION_SCENE_TEST_PORT ??
+    process.env.STORY_PROGRESS_TEST_PORT ??
+    process.env.MEDIA_HISTORY_TEST_PORT ??
+    process.env.PUBLISHER_TEST_PORT ??
+    '55568';
   assert.equal(config.port, Number(expectedPort));
   const admin = await adminClient('parallel_life_test');
   const app = new PostgresDatabase(

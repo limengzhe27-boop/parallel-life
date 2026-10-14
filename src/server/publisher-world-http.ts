@@ -25,6 +25,7 @@ import { AuthoredSocialSchema } from '../contracts/authored-social.ts';
 import { trialMomentImageUrl } from '../modules/settings/domain/moment-media-url.ts';
 import { trialSceneImageUrl } from '../modules/settings/domain/publication-scene-images.ts';
 import { WorldSpaceSchema } from '../contracts/world-space.ts';
+import { SceneReadSchema } from '../contracts/scenes.ts';
 
 export function publishedCatalogRoute(request: Request) {
   return endpoint(async () => {
@@ -186,6 +187,21 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
             ? { sceneImageUrl: trialSceneImageUrl(place.sceneImageUrl, trial.worldId, trialId) }
             : {}),
         })),
+      };
+    }
+    if (
+      response.ok &&
+      request.method === 'GET' &&
+      path[0] === 'world' &&
+      path[1] === 'scenes' &&
+      (path.length === 2 || (path.length === 3 && /^[0-9a-f-]{36}$/.test(path[2]!)))
+    ) {
+      const scene = SceneReadSchema.parse(result);
+      result = {
+        ...scene,
+        ...(scene.sceneImageUrl
+          ? { sceneImageUrl: trialSceneImageUrl(scene.sceneImageUrl, trial.worldId, trialId) }
+          : {}),
       };
     }
     return publisherJson(result, response.status);

@@ -1450,14 +1450,27 @@ export function PublisherWorkbench(
               disabled={busy || !session.canEdit}
               onChange={setDraftContent}
             />
-            <details className={s.card}>
-              <summary>地图地点与路线 · 核对剧情涉及的地点</summary>
-              <PublisherSpaceEditor
-                content={draftContent}
-                disabled={busy || !session.canEdit}
-                onChange={setDraftContent}
-              />
-            </details>
+            <PublisherSpaceEditor
+              content={draftContent}
+              workId={work.id}
+              disabled={busy || !session.canEdit}
+              onChange={setDraftContent}
+              uploadSceneImage={
+                props.preparationClient
+                  ? async (file) => {
+                      const uploaded = await props.preparationClient!.uploadWorkMedia(
+                        work.id,
+                        file,
+                      );
+                      if (uploaded.kind !== 'image') throw new Error('请选择图片文件。');
+                      return { ...uploaded, kind: 'image' as const };
+                    }
+                  : undefined
+              }
+              previewSceneImage={(assetId) =>
+                `/api/v1/publisher/works/${encodeURIComponent(work.id)}/media/${encodeURIComponent(assetId)}`
+              }
+            />
           </div>
         )}
       </main>

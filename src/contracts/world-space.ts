@@ -42,16 +42,16 @@ export const EnterPlaceRequestSchema = z.strictObject({
   expectedVersion: Version,
   placeId: Key,
 });
+export const SceneImageUrlSchema = z
+  .string()
+  .regex(
+    /^\/api\/v1\/(?:worlds|publisher\/trials)\/[0-9a-f-]{36}\/(?:world\/)?media\/[0-9a-f-]{36}$/,
+  );
 export const SpacePlaceSchema = z.strictObject({
   id: Key,
   name: z.string(),
   description: z.string(),
-  sceneImageUrl: z
-    .string()
-    .regex(
-      /^\/api\/v1\/(?:worlds|publisher\/trials)\/[0-9a-f-]{36}\/(?:world\/)?media\/[0-9a-f-]{36}$/,
-    )
-    .optional(),
+  sceneImageUrl: SceneImageUrlSchema.optional(),
   source: SpaceSourceSchema,
   contactActorIds: z.array(Id),
   appointmentIds: z.array(z.string()),

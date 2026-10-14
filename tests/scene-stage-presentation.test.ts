@@ -266,3 +266,18 @@ test('scene stream rejects phone attachments, future source metadata and relabel
   r.entries.push(reference);
   assert.equal(visibleSceneEntries(r).at(-1)?.id, reference.id);
 });
+
+test('authored place image is a scene reference and does not invent an event photo', () => {
+  const current = read();
+  current.sceneImageUrl = '/api/v1/worlds/' + worldId + '/media/' + randomUUID();
+  const image = sceneArtwork(current);
+  assert.equal(image.url, current.sceneImageUrl);
+  assert.equal(image.authored, true);
+  assert.equal(image.illustration, false);
+  assert.equal(visibleSceneEntries(current).length, current.entries.length);
+  const invalid = SceneReadSchema.safeParse({
+    ...current,
+    sceneImageUrl: 'https://private.example/photo.png',
+  });
+  assert.equal(invalid.success, false);
+});

@@ -615,6 +615,14 @@ export function MapApp({ map: providedMap, target, open }: PhoneAppContext) {
                     <MapIcon name="pin" />
                   </span>
                 </div>
+                {selected.sceneImageUrl && (
+                  <img
+                    className={s.sceneImage}
+                    src={selected.sceneImageUrl}
+                    alt={`${selected.name}场景配图`}
+                    loading="lazy"
+                  />
+                )}
                 {route && arrival && !operation && (
                   <div className={s.routeSummary}>
                     <strong>

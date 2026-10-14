@@ -34,10 +34,10 @@ export type ActorContext = {
   /** Trusted current claimed opportunity, not an already happened goal or a future source. */
   introducingEventGoalKey?: string;
   /** Bounded cast sketches for a director beat; never another NPC's private memory. */
-  possibleRecipients?: (Pick<
-    WorldState['actors'][number],
-    'id' | 'name' | 'relationship' | 'persona'
-  > & { socialTie?: string })[];
+  possibleRecipients?: (Pick<WorldState['actors'][number], 'id' | 'name' | 'relationship'> & {
+    socialTie?: string;
+    persona?: string;
+  })[];
   previousDisclosures?: { sourceMessageId: string; recipientActorId: string }[];
   authoredLifeModules?: Partial<
     Record<'lifeContext' | 'traits' | 'drives' | 'behavior' | 'relationships', string>
@@ -96,6 +96,11 @@ export type StoryOpportunityInput = {
   }[];
 };
 export interface TurnPlanner {
+  /** Load only the current actor's sourced private context before proposing a paid turn. */
+  prepareContext?(
+    context: ActorContext,
+    blockedSources: ReadonlySet<string>,
+  ): Promise<ActorContext>;
   /** A null decision leaves every candidate unresolved. Failure cannot auto-pick a candidate. */
   chooseStoryOpportunity?(
     input: StoryOpportunityInput,

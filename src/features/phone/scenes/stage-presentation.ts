@@ -53,14 +53,16 @@ export function sceneArtwork(read: SceneRead, photos: readonly PhonePhoto[] = []
   };
   const fallbackUrl =
     '/art/scenes/' + (backgrounds[read.scene?.placeId ?? ''] ?? 'interior') + '.svg';
-  const imageUrl =
+  const eventImageUrl =
     image?.kind === 'media_reference'
       ? scenePhotoUrl(read, image.media.assetId, photos)
       : undefined;
+  const imageUrl = eventImageUrl ?? (read.scene ? read.sceneImageUrl : undefined);
   return {
     url: imageUrl ?? fallbackUrl,
     fallbackUrl,
     illustration: !imageUrl,
+    authored: Boolean(imageUrl && !eventImageUrl),
     location: place?.kind === 'time_place' ? place.location : (read.scene?.title ?? '现场'),
   };
 }

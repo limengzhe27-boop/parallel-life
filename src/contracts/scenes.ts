@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Id, Version, TaskSchema, Timestamp } from './api.ts';
+import { SceneImageUrlSchema } from './world-space.ts';
 import {
   SceneSessionSchema,
   SceneEntrySchema,
@@ -57,6 +58,7 @@ export const SceneRuntimeEntrySchema = z.discriminatedUnion('kind', [
   SceneEntrySchema.options[5],
 ]);
 export const SceneReadSchema = z.strictObject({
+  sceneImageUrl: SceneImageUrlSchema.optional(),
   worldVersion: Version,
   storyNow: Timestamp,
   paused: z.boolean(),

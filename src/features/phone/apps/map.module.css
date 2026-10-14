@@ -517,3 +517,12 @@
 .page button.selectedPoint:hover:not(:disabled) {
   background: transparent;
 }
+
+.sceneImage {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
