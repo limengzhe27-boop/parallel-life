@@ -1,0 +1,139 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  addHistoryMessage,
+  addMoment,
+  editHistoryMessage,
+  editMoment,
+  editPublicProfile,
+  historySegments,
+  removeHistoryMessage,
+  removeMoment,
+} from '../src/features/publisher/publisher-character-social-editor-model.ts';
+
+function fixture(): Record<string, unknown> {
+  return {
+    world: { startAt: '2026-10-14T12:00:00.000Z', hiddenContext: '世界私密内容' },
+    actors: [
+      {
+        key: 'lin',
+        name: '林',
+        knownAtStart: true,
+        publicCard: { identity: '邻居', introduction: '公开介绍', traits: [] },
+        lifeModules: { relationships: '不向玩家公开的私密关系' },
+        privatePersona: { boundaries: '隐秘边界' },
+      },
+      { key: 'unknown', name: '陌生人', knownAtStart: false, publicCard: { traits: [] } },
+    ],
+    phone: {
+      messages: [
+        {
+          key: 'source',
+          actorKey: 'lin',
+          origin: 'history',
+          speaker: 'actor',
+          text: '原稿台词',
+          at: '2025-10-01T00:00:00.000Z',
+        },
+        {
+          key: 'other',
+          actorKey: 'unknown',
+          origin: 'history',
+          speaker: 'actor',
+          text: '他人消息',
+          at: '2025-10-01T00:00:00.000Z',
+        },
+      ],
+      moments: [
+        {
+          key: 'original_post',
+          actorKey: 'lin',
+          text: '原稿朋友圈',
+          at: '2025-09-01T00:00:00.000Z',
+        },
+      ],
+      notes: [{ key: 'private', text: '其他手机内容' }],
+    },
+    extensions: [{ namespace: 'author.note', data: { keep: true } }],
+  };
+}
+function phone(content: Record<string, unknown>) {
+  return content.phone as {
+    messages: Record<string, unknown>[];
+    moments: Record<string, unknown>[];
+    notes: unknown[];
+  };
+}
+
+test('single composer stores each sender and a stable interval while preserving explicit source dates and other phone content', () => {
+  const original = fixture();
+  const first = addHistoryMessage(original, 'lin', 'player', '我明天带地图。');
+  assert.equal(first.error, undefined);
+  const second = addHistoryMessage(first.content, 'lin', 'actor', '那天见。', true);
+  assert.equal(second.error, undefined);
+  assert.equal(historySegments(second.content, 'lin').at(-1)?.intervalBefore, true);
+  assert.equal(phone(second.content).messages[0]?.at, phone(original).messages[0]?.at);
+  assert.equal(phone(second.content).messages[1]?.text, '他人消息');
+  assert.deepEqual(phone(second.content).notes, phone(original).notes);
+  assert.deepEqual(second.content.extensions, original.extensions);
+  const message = phone(second.content).messages.at(-1)!;
+  const edited = editHistoryMessage(
+    second.content,
+    'lin',
+    String(message.key),
+    'player',
+    '换成我来。',
+  );
+  assert.equal(phone(edited.content).messages.at(-1)?.at, message.at);
+  assert.equal(phone(edited.content).messages.at(-1)?.speaker, 'player');
+  const removed = removeHistoryMessage(edited.content, 'lin', String(message.key));
+  assert.equal(phone(removed.content).messages.length, phone(first.content).messages.length);
+  assert.deepEqual(
+    phone(original).messages.map((m) => m.text),
+    ['原稿台词', '他人消息'],
+  );
+});
+
+test('author cannot invent history for unknown contacts or silently alter a referenced invitation', () => {
+  const original = fixture();
+  assert.equal(addHistoryMessage(original, 'unknown', 'actor', '你好').content, original);
+  const withInvite = {
+    ...original,
+    phone: { ...phone(original), invitations: [{ messageKey: 'source' }] },
+  };
+  const removal = removeHistoryMessage(withInvite, 'lin', 'source');
+  assert.equal(removal.content, withInvite);
+  assert.match(removal.error ?? '', /邀约/);
+  assert.equal(addMoment(original, 'unknown', '陌生人的动态').content, original);
+});
+
+test('new posts use stable pre-opening time, preserve imported posts, and reject a future day', () => {
+  const original = fixture();
+  const added = addMoment(original, 'lin', '今天晒晒花。');
+  assert.equal(added.error, undefined);
+  const newPost = phone(added.content).moments.at(-1)!;
+  assert.equal(newPost.at, '2026-10-14T11:00:00.000Z');
+  const future = addMoment(added.content, 'lin', '未来动态', '2026-10-15');
+  assert.equal(future.content, added.content);
+  const edited = editMoment(added.content, 'lin', String(newPost.key), '刚浇过水。', '2026-10-13');
+  assert.equal(phone(edited.content).moments[0]?.text, '原稿朋友圈');
+  assert.equal(phone(edited.content).moments[1]?.text, '刚浇过水。');
+  assert.equal(phone(edited.content).moments[1]?.at, '2026-10-13T04:00:00.000Z');
+  const removed = removeMoment(edited.content, 'lin', String(newPost.key));
+  assert.deepEqual(phone(removed).moments, phone(original).moments);
+});
+
+test('friend profile edits only public card and leaves private identity, life modules, and other actor intact', () => {
+  const original = fixture();
+  const updated = editPublicProfile(original, 'lin', 'introduction', '玩家能读到的新介绍');
+  const actors = updated.actors as Record<string, unknown>[];
+  const oldActors = original.actors as Record<string, unknown>[];
+  assert.equal(
+    (actors[0]?.publicCard as Record<string, unknown>).introduction,
+    '玩家能读到的新介绍',
+  );
+  assert.deepEqual(actors[0]?.lifeModules, oldActors[0]?.lifeModules);
+  assert.deepEqual(actors[0]?.privatePersona, oldActors[0]?.privatePersona);
+  assert.equal(actors[1], oldActors[1]);
+  assert.equal(JSON.stringify(updated).includes('隐秘边界'), true);
+});
