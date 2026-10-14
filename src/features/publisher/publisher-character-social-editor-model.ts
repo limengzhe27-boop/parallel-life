@@ -131,7 +131,13 @@ export function removeHistoryMessage(
 
 export function historySegments(content: Draft, actorKey: string) {
   const preview = characterPreview(content, actorKey);
-  return (preview?.messages ?? []).map((item, index, messages) => ({
+  const historyKeys = new Set(
+    list(record(content.phone).messages)
+      .filter((entry) => entry.actorKey === actorKey && entry.origin === 'history')
+      .map((entry) => entry.key),
+  );
+  const messages = (preview?.messages ?? []).filter((item) => historyKeys.has(item.key));
+  return messages.map((item, index) => ({
     ...item,
     intervalBefore:
       index > 0 && Date.parse(item.at) - Date.parse(messages[index - 1]!.at) >= 12 * 3600000,

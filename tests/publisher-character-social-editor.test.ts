@@ -107,6 +107,27 @@ test('author cannot invent history for unknown contacts or silently alter a refe
   assert.equal(addMoment(original, 'unknown', '陌生人的动态').content, original);
 });
 
+test('opening incoming messages stay out of editable history and are left untouched', () => {
+  const original = fixture();
+  phone(original).messages.push({
+    key: 'opening',
+    actorKey: 'lin',
+    origin: 'incoming',
+    speaker: 'actor',
+    text: '开场来信',
+    at: '2026-10-14T12:00:00.000Z',
+  });
+  assert.deepEqual(
+    historySegments(original, 'lin').map((item) => item.key),
+    ['source'],
+  );
+  const added = addHistoryMessage(original, 'lin', 'player', '之前的回复');
+  assert.equal(
+    phone(added.content).messages.find((item) => item.key === 'opening')?.text,
+    '开场来信',
+  );
+});
+
 test('new posts use stable pre-opening time, preserve imported posts, and reject a future day', () => {
   const original = fixture();
   const added = addMoment(original, 'lin', '今天晒晒花。');
