@@ -483,10 +483,17 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     if (n.settingPlaceKey) {
       const setting = places.get(n.settingPlaceKey);
       if (!setting) issue(['candidates', i, 'settingPlaceKey'], 'unknown_place');
-      else if (n.intent.kind !== 'editorial_only' && !setting.knownAtStart)
-        issue(['candidates', i, 'settingPlaceKey'], 'story_place_not_player_known');
-      else if (n.intent.kind !== 'editorial_only' && !reachablePlaces.has(n.settingPlaceKey))
-        issue(['candidates', i, 'settingPlaceKey'], 'story_place_unreachable');
+      else if (n.intent.kind !== 'editorial_only') {
+        // A hidden destination may become visible with this event, but it needs
+        // an authored inbound route from the map the player already knows.
+        const reachable = setting.knownAtStart
+          ? reachablePlaces.has(n.settingPlaceKey)
+          : c.routes.some(
+              (route) =>
+                route.toPlaceKey === n.settingPlaceKey && reachablePlaces.has(route.fromPlaceKey),
+            );
+        if (!reachable) issue(['candidates', i, 'settingPlaceKey'], 'story_place_unreachable');
+      }
     }
     if (n.placeKey && !places.has(n.placeKey))
       issue(['candidates', i, 'placeKey'], 'unknown_place');

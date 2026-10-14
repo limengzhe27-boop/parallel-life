@@ -334,6 +334,19 @@ test('director can introduce a destination before the player travels; arrival re
   assert.equal(buildStoryPlan(s).nodes[0]!.settingPlaceKey, 'hospital');
 });
 
+test('hidden authored location requires an inbound route and stays private to the story plan', () => {
+  const s = source();
+  s.places.push({ key: 'hospital', name: '医院', description: '虚构路 8 号' });
+  s.nodes[0] = { ...node('first'), settingPlaceKey: 'hospital' };
+  assert.throws(() => buildStoryPlan(s), /UNSUPPORTED_PLACE/);
+  s.routes = [{ fromPlaceKey: 'shop', toPlaceKey: 'hospital', minutes: 15 }];
+  const p = buildStoryPlan(s);
+  assert.equal(p.places.find((place) => place.key === 'hospital')?.name, '医院');
+  assert.equal(JSON.stringify(p).includes('虚构路 8 号'), false);
+  s.nodes[0]!.placeKey = 'hospital';
+  assert.throws(() => buildStoryPlan(s), /UNSUPPORTED_PLACE/);
+});
+
 test('explicit opening is the only initially eligible event even when its key sorts after unrelated events', () => {
   const p = plan();
   p.nodes = [

@@ -172,6 +172,9 @@ export async function advancePublicationStory(
       claim.placeDescription
         ? `地图中该地点的地址或场所说明：${claim.placeDescription}。只把人物自然会说出的寻路信息告诉主角，不编造额外门牌或路线。`
         : null,
+      claim.placeNeedsReveal && claim.placeName
+        ? `主角目前还不知道「${claim.placeName}」在地图上的位置。如果你此刻想让主角去那里，请在发给主角的消息正文里自然地、明确地说出「${claim.placeName}」；否则地图不会提前揭示这个地点。不要假称主角已经知道或已经到达。`
+        : null,
       `本次导演意图：${claim.editorialIntent}`,
       claim.intent.kind === 'director_event'
         ? '请根据本人的性格、动机和已知关系，自然开启这件事。事件是可演绎的机会，不是固定台词；可以询问、提出具体请求或透露本人知道的情况。只输出本人真实手机消息，不替主角选择，不编他人已行动，不生成日历或图片。'

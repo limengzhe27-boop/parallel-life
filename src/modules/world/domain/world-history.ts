@@ -1,7 +1,12 @@
 import { resultAckText } from './matter-progression.ts';
 import { applyAppointmentWaitEvent, type AppointmentWaitEvent } from './appointment-wait.ts';
 import { applySceneWorldResults, type SceneWorldResults } from './scene-world-results.ts';
-import { applySpaceEvent, type TravelEvent, type SpaceEstablishedEvent } from './space.ts';
+import {
+  applySpaceEvent,
+  type TravelEvent,
+  type SpaceEstablishedEvent,
+  type SpacePlaceRevealedEvent,
+} from './space.ts';
 import type { WorldEvent, WorldState, OutboxJob } from './types.ts';
 import { applyEvent } from './reducer.ts';
 import { applyInvitationEvent, type InvitationEvent } from './invitations.ts';
@@ -42,7 +47,8 @@ export type WorldHistoryEvent =
   | SceneWorldEvent
   | TravelEvent
   | AppointmentWaitEvent
-  | SpaceEstablishedEvent;
+  | SpaceEstablishedEvent
+  | SpacePlaceRevealedEvent;
 export function applyWorldHistoryEvent(
   current: WorldState,
   event: WorldHistoryEvent,
@@ -57,7 +63,11 @@ export function applyWorldHistoryEvent(
   if (isGroupEvent(event)) return { state: applyGroupWorldEvent(current, event), jobs: [] };
   if (event.type === 'appointment.waited')
     return { state: applyAppointmentWaitEvent(current, event), jobs: [] };
-  if (event.type === 'travel.completed' || event.type === 'space.established')
+  if (
+    event.type === 'travel.completed' ||
+    event.type === 'space.established' ||
+    event.type === 'space.place_revealed'
+  )
     return { state: applySpaceEvent(current, event), jobs: [] };
   if (event.type === 'turn.resolved') {
     const next = applyEvent(current, event);

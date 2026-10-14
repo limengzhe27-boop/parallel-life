@@ -10,6 +10,7 @@ import {
   validateSpace,
   authoredSpace,
   type TravelEvent,
+  type SpacePlaceRevealedEvent,
 } from '../src/modules/world/domain/space.ts';
 import { SpaceSourceSchema } from '../src/contracts/world-space.ts';
 import { replayWorldHistory } from '../src/modules/world/domain/world-history.ts';
@@ -121,6 +122,64 @@ test('travel replay retains exactly sourced departure knowledge, private destina
   assert.ok(!unknown.facts.some((f) => f.sourceEventId === eid));
   assert.throws(() => applySpaceEvent(w, { ...e, data: { ...e.data, durationMinutes: 30 } }));
   assert.equal(replayWorldHistory(w, [e], 0).world.space!.currentPlaceId, w.space!.currentPlaceId);
+});
+test('authored place revelation is a replayable map change with no player movement', () => {
+  const w = fixture();
+  const eid = randomUUID();
+  const source = {
+    kind: 'world_event' as const,
+    snapshotVersion: 0 as const,
+    eventId: eid,
+    eventVersion: 1,
+  };
+  const e: SpacePlaceRevealedEvent = {
+    schemaVersion: 1,
+    id: eid,
+    worldId: w.id,
+    commandId: randomUUID(),
+    version: 1,
+    occurredAt: w.time,
+    storyAt: w.time,
+    type: 'space.place_revealed',
+    data: {
+      nodeKey: 'meeting',
+      sourceEventId: randomUUID(),
+      sourceMessageId: randomUUID(),
+      place: {
+        id: 'hidden_hospital',
+        name: '医院',
+        description: '虚构路 8 号',
+        source,
+        contactActorIds: [],
+        appointmentIds: [],
+      },
+      routes: [
+        {
+          id: 'publication_discovery_route_0',
+          fromPlaceId: w.space!.currentPlaceId,
+          toPlaceId: 'hidden_hospital',
+          durationMinutes: 15,
+          modeLabel: '移动',
+          source,
+        },
+      ],
+    },
+  };
+  assert.equal(
+    w.space!.places.some((p) => p.id === 'hidden_hospital'),
+    false,
+  );
+  const next = applySpaceEvent(w, e);
+  assert.equal(next.space!.currentPlaceId, w.space!.currentPlaceId);
+  assert.deepEqual(replayWorldHistory(w, [e]).world.space, next.space);
+  assert.equal(
+    replayWorldHistory(w, [e], 0).world.space!.places.some((p) => p.id === 'hidden_hospital'),
+    false,
+  );
+  assert.throws(() => applySpaceEvent(next, { ...e, version: 2 }), { code: 'INVALID_PROPOSAL' });
+  assert.throws(() => applySpaceEvent(w, { ...e, data: { ...e.data, routes: [] } }), {
+    code: 'INVALID_PROPOSAL',
+  });
 });
 test('persisted pending becomes unknown without losing original fingerprint; forged committed receipt rejected', () => {
   const worldId = randomUUID(),

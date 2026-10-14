@@ -150,6 +150,20 @@ export function validateSpace(space: WorldSpaceState): void {
     )
       throw new DomainError('INVALID_PROPOSAL');
 }
+export function reachableSpacePlaces(space: WorldSpaceState): Set<string> {
+  const reached = new Set([space.currentPlaceId]);
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const route of space.routes) {
+      if (reached.has(route.fromPlaceId) && !reached.has(route.toPlaceId)) {
+        reached.add(route.toPlaceId);
+        expanded = true;
+      }
+    }
+  }
+  return reached;
+}
 export type TravelEvent = {
   schemaVersion: 1;
   id: string;
@@ -181,6 +195,24 @@ export type SpaceEstablishedEvent = {
   type: 'space.established';
   data: { space: WorldSpaceState };
 };
+/** An authored destination enters one player's map only after a verified story message. */
+export type SpacePlaceRevealedEvent = {
+  schemaVersion: 1;
+  id: string;
+  worldId: string;
+  commandId: string;
+  version: number;
+  occurredAt: string;
+  storyAt: string;
+  type: 'space.place_revealed';
+  data: {
+    nodeKey: string;
+    sourceEventId: string;
+    sourceMessageId: string;
+    place: SpacePlace;
+    routes: SpaceRoute[];
+  };
+};
 export function travelTimes(
   world: WorldState,
   clock: WorldClock,
@@ -204,7 +236,7 @@ export function travelTimes(
 }
 export function applySpaceEvent(
   world: WorldState,
-  e: TravelEvent | SpaceEstablishedEvent,
+  e: TravelEvent | SpaceEstablishedEvent | SpacePlaceRevealedEvent,
 ): WorldState {
   if (e.worldId !== world.id || e.version !== world.version + 1)
     throw new DomainError('VERSION_CONFLICT');
@@ -225,6 +257,35 @@ export function applySpaceEvent(
     return { ...world, version: e.version, time: e.storyAt, space: structuredClone(e.data.space) };
   }
   if (!world.space) throw new DomainError('INVALID_COMMAND');
+  if (e.type === 'space.place_revealed') {
+    const { place, routes } = e.data;
+    if (
+      !/^[a-z][a-z0-9_]{0,31}$/.test(e.data.nodeKey) ||
+      world.space.places.some((existing) => existing.id === place.id) ||
+      place.source.kind !== 'world_event' ||
+      place.source.eventId !== e.id ||
+      place.source.eventVersion !== e.version ||
+      routes.some(
+        (route) =>
+          route.source.kind !== 'world_event' ||
+          route.source.eventId !== e.id ||
+          route.source.eventVersion !== e.version ||
+          world.space!.routes.some((existing) => existing.id === route.id),
+      )
+    )
+      throw new DomainError('INVALID_PROPOSAL');
+    validateEventId(e.data.sourceEventId);
+    validateEventId(e.data.sourceMessageId);
+    const space = {
+      ...world.space,
+      places: [...world.space.places, structuredClone(place)],
+      routes: [...world.space.routes, ...structuredClone(routes)],
+    };
+    validateSpace(space);
+    // The destination must be navigable from the player's actual current location.
+    if (!reachableSpacePlaces(space).has(place.id)) throw new DomainError('INVALID_PROPOSAL');
+    return { ...world, version: e.version, time: e.storyAt, space };
+  }
   const route = world.space.routes.find((r) => r.id === e.data.routeId);
   if (
     !route ||

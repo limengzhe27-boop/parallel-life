@@ -42,14 +42,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           text: input.text,
         },
       );
-      if (result.event.data.effects.some((effect) => effect.type === 'appointment.proposed')) {
-        try {
-          // Link only the already committed, independently proven character invitation.
-          // A failed optional reconciliation must not turn the saved message into a failed send.
-          await s.story.progress(s.ownerId, parsedWorldId.data);
-        } catch {
-          console.warn(JSON.stringify({ scope: 'story-invitation-reconcile', code: 'FAILED' }));
-        }
+      try {
+        // Reconcile only already committed character output: an invitation or a later
+        // explicit mention of an authored place may complete a pending story disclosure.
+        // The saved message remains valid if this retryable projection fails.
+        await s.story.progress(s.ownerId, parsedWorldId.data);
+      } catch {
+        console.warn(JSON.stringify({ scope: 'story-message-reconcile', code: 'FAILED' }));
       }
       /*
       回合已提交，立刻把该人生待执行的 outbox 任务派发出去（例如索图产生的

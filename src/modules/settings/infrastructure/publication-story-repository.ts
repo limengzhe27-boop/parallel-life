@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Id } from '../../../contracts/api.ts';
 import { PostgresDatabase, type SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
@@ -23,6 +23,13 @@ import type {
   PublicationSceneBrief,
   PublicationStoryOpportunities,
 } from '../application/publication-story-ports.ts';
+import { discoveredRouteIds } from '../domain/publication-route-ids.ts';
+import {
+  applySpaceEvent,
+  reachableSpacePlaces,
+  type SpacePlaceRevealedEvent,
+} from '../../world/domain/space.ts';
+import type { WorldState } from '../../world/domain/types.ts';
 
 type Context = {
   plan: StoryPlan;
@@ -30,6 +37,9 @@ type Context = {
   storyNow: string;
   currentPlaceId: string | null;
   placeDescriptions: Map<string, string>;
+  authoredPlaces: StorySource['places'];
+  authoredRoutes: NonNullable<StorySource['routes']>;
+  world: WorldState;
   availableFactIds: string[];
   version: number;
   followupNodeKeys: Set<string>;
@@ -162,6 +172,11 @@ export class PublicationStoryRepository implements PublicationStoryPort {
             [worldId, ownerId],
           )
         ).rows[0].state;
+        const source = (
+          await sql.query('SELECT parallel_life.publication_story_source($1) AS source', [worldId])
+        ).rows[0].source as StorySource | null;
+        if (!source || JSON.stringify(source.origin) !== JSON.stringify(plan.origin))
+          throw new TaskError('INVALID_STATE');
         const facts = (
           await sql.query(
             "SELECT f.id FROM parallel_life.world_facts f JOIN parallel_life.world_events e ON e.world_id=f.world_id AND e.owner_id=f.owner_id AND e.id=f.document->>'sourceEventId' WHERE f.world_id=$1 AND f.owner_id=$2 AND e.version<=$3",
@@ -185,14 +200,14 @@ export class PublicationStoryRepository implements PublicationStoryPort {
           plan,
           states: rows.map(state),
           version: w.version,
+          world: { ...w.state, version: w.version } as WorldState,
           storyNow,
           currentPlaceId: w.state.space?.currentPlaceId ?? null,
           placeDescriptions: new Map(
-            (w.state.space?.places ?? []).map((place: { id: string; description: string }) => [
-              place.id,
-              place.description,
-            ]),
+            source.places.map((place) => [place.key, place.description ?? '']),
           ),
+          authoredPlaces: source.places,
+          authoredRoutes: source.routes ?? [],
           availableFactIds: [...initial.facts.map((f: { id: string }) => f.id), ...facts],
           followupNodeKeys: new Set(),
         };
@@ -221,6 +236,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       placeId: place?.key ?? null,
       placeName: place?.name ?? null,
       placeDescription: place ? (c.placeDescriptions.get(place.key) ?? null) : null,
+      placeNeedsReveal: !!place && !c.world.space?.places.some((known) => known.id === place.key),
       editorialIntent: node.editorialIntent,
       intent: structuredClone(node.intent),
       origin: { ...c.plan.origin },
@@ -345,6 +361,119 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       responseEventId: null,
     };
   }
+  private canIntroducePlace(c: Context, node: StoryNode): boolean {
+    const key = node.settingPlaceKey;
+    if (!key || c.world.space?.places.some((p) => p.id === key)) return true;
+    if (!c.world.space) return false;
+    const reachable = reachableSpacePlaces(c.world.space);
+    return c.authoredRoutes.some(
+      (route) =>
+        route.toPlaceKey === key && route.minutes <= 120 && reachable.has(route.fromPlaceKey),
+    );
+  }
+  private async revealAuthoredPlace(
+    sql: SqlClient,
+    ownerId: string,
+    worldId: string,
+    c: Context,
+    node: StoryNode,
+    proof: { id: string },
+    messageId: string,
+    presentedAt: string,
+  ) {
+    const placeKey = node.settingPlaceKey;
+    if (!placeKey || !c.world.space || c.world.space.places.some((p) => p.id === placeKey)) return;
+    const authored = c.authoredPlaces.find((p) => p.key === placeKey);
+    if (!authored?.description || !c.plan.places.some((p) => p.key === placeKey))
+      throw new TaskError('INVALID_STATE');
+    if (!this.canIntroducePlace(c, node)) throw new TaskError('INVALID_STATE');
+    const known = new Set(c.world.space.places.map((p) => p.id));
+    const routes = discoveredRouteIds(c.authoredRoutes)
+      .filter(
+        (r) =>
+          (r.fromPlaceKey === placeKey && known.has(r.toPlaceKey)) ||
+          (r.toPlaceKey === placeKey && known.has(r.fromPlaceKey)),
+      )
+      .map((r) => ({
+        id: r.id,
+        fromPlaceId: r.fromPlaceKey,
+        toPlaceId: r.toPlaceKey,
+        durationMinutes: r.minutes,
+        modeLabel: '移动',
+      }));
+    if (!routes.some((r) => r.toPlaceId === placeKey && known.has(r.fromPlaceId)))
+      throw new TaskError('INVALID_STATE');
+    const eventId = randomUUID(),
+      commandId = randomUUID(),
+      version = c.version + 1,
+      eventSource = {
+        kind: 'world_event' as const,
+        snapshotVersion: 0 as const,
+        eventId,
+        eventVersion: version,
+      };
+    const event: SpacePlaceRevealedEvent = {
+      schemaVersion: 1,
+      id: eventId,
+      worldId,
+      commandId,
+      version,
+      occurredAt: new Date().toISOString(),
+      storyAt: new Date(Math.max(Date.parse(c.world.time), Date.parse(presentedAt))).toISOString(),
+      type: 'space.place_revealed',
+      data: {
+        nodeKey: node.key,
+        sourceEventId: proof.id,
+        sourceMessageId: messageId,
+        place: {
+          id: placeKey,
+          name: authored.name,
+          description: authored.description,
+          source: eventSource,
+          contactActorIds: [],
+          appointmentIds: [],
+        },
+        routes: routes.map((route) => ({ ...route, source: eventSource })),
+      },
+    };
+    const next = applySpaceEvent(c.world, event);
+    const snapshot = {
+      ...next,
+      messages: [],
+      appointments: [],
+      mediaRequests: [],
+      notes: [],
+      facts: [],
+    };
+    if (JSON.stringify(event).length >= 65536 || JSON.stringify(snapshot).length >= 262144)
+      throw new TaskError('INVALID_STATE');
+    const request = {
+      kind: 'publication_story_place_reveal',
+      nodeKey: node.key,
+      sourceEventId: proof.id,
+      sourceMessageId: messageId,
+      placeKey,
+    };
+    const hash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
+    await sql.query(
+      "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
+      [commandId, worldId, ownerId, c.version, hash, request],
+    );
+    await sql.query(
+      'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [eventId, worldId, ownerId, version, commandId, event, event.occurredAt],
+    );
+    await sql.query(
+      'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1 AND owner_id=$4',
+      [worldId, version, snapshot, ownerId],
+    );
+    await sql.query(
+      "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
+      [worldId, commandId, eventId, snapshot],
+    );
+    c.world = next;
+    c.version = version;
+  }
   private async reconcile(sql: SqlClient, ownerId: string, worldId: string, c: Context) {
     await this.reconcileFollowups(sql, ownerId, worldId, c);
     for (const old of [...c.states]) {
@@ -393,7 +522,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
             );
             continue;
           }
-          if (node.intent.kind === 'offer_message' || node.intent.kind === 'director_event')
+          if (node.intent.kind === 'offer_message' || node.intent.kind === 'director_event') {
             await this.save(
               sql,
               ownerId,
@@ -411,7 +540,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
               {},
               at,
             );
-          else if (node.intent.kind === 'offer_invitation') {
+          } else if (node.intent.kind === 'offer_invitation') {
             const invitation = (
               await sql.query(
                 "SELECT id FROM parallel_life.world_appointments WHERE world_id=$1 AND owner_id=$2 AND document->>'sourceEventId'=$3 AND document->'participantIds'=$4::jsonb AND document->>'title'=$5 AND (document->>'at')::timestamptz>=$6::timestamptz ORDER BY id LIMIT 1",
@@ -425,7 +554,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
                 ],
               )
             ).rows[0];
-            if (invitation)
+            if (invitation) {
               await this.save(
                 sql,
                 ownerId,
@@ -443,7 +572,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
                 {},
                 at,
               );
-            else
+            } else
               await this.save(
                 sql,
                 ownerId,
@@ -520,6 +649,41 @@ export class PublicationStoryRepository implements PublicationStoryPort {
             );
         }
       }
+    }
+    // A story receipt proves that the actor spoke, but does not prove that the player
+    // learned an address. Only a successful, committed assistant message that actually
+    // names the authored place (or its authored address) can disclose it. This scan also
+    // catches a later NPC clarification after the original presentation omitted it.
+    for (const s of c.states) {
+      if (
+        !['presented', 'offered', 'committed'].includes(s.status) ||
+        !s.sourceEventId ||
+        !s.sourceMessageId ||
+        !s.actorId
+      )
+        continue;
+      const node = c.plan.nodes.find((n) => n.key === s.nodeKey);
+      const placeKey = node?.settingPlaceKey;
+      if (!node || !placeKey || c.world.space?.places.some((p) => p.id === placeKey)) continue;
+      const place = c.authoredPlaces.find((p) => p.key === placeKey);
+      if (!place?.description || !this.canIntroducePlace(c, node)) continue;
+      const message = (
+        await sql.query(
+          "SELECT e.id AS event_id,e.payload,m.id AS message_id FROM parallel_life.world_events source JOIN parallel_life.world_events e ON e.world_id=source.world_id AND e.owner_id=source.owner_id AND e.version>=source.version JOIN parallel_life.commands cmd ON cmd.id=e.command_id AND cmd.world_id=e.world_id AND cmd.owner_id=e.owner_id AND cmd.status='succeeded' AND cmd.result_event_id=e.id JOIN parallel_life.world_messages m ON m.world_id=e.world_id AND m.owner_id=e.owner_id AND m.actor_id=$4 AND m.document->>'actorId'=$4 AND m.document->>'role'='assistant' AND m.document->>'sourceEventId'=e.id WHERE source.world_id=$1 AND source.owner_id=$2 AND source.id=$3 AND e.payload->>'type'='turn.resolved' AND e.payload->'data'->>'actorId'=$4 AND ((char_length($5)>1 AND position($5 in m.document->>'text')>0) OR position($6 in m.document->>'text')>0) ORDER BY e.version,m.ordinal LIMIT 1",
+          [worldId, ownerId, s.sourceEventId, s.actorId, place.name, place.description],
+        )
+      ).rows[0];
+      if (message)
+        await this.revealAuthoredPlace(
+          sql,
+          ownerId,
+          worldId,
+          c,
+          node,
+          { id: message.event_id },
+          message.message_id,
+          message.payload.storyAt ?? c.storyNow,
+        );
     }
     const e = evaluateStory(c.plan, c.states, { ...c, automatic: false });
     for (const key of e.expired) {
@@ -696,6 +860,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
           !directorPool || pending
             ? []
             : [...evaluation.eligible]
+                .filter((node) => this.canIntroducePlace(c, node))
                 .sort(
                   (a, b) =>
                     Number(
@@ -748,8 +913,11 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c || c.version !== version || !candidateKeys.length) return false;
       await this.reconcile(sql, ownerId, worldId, c);
+      if (c.version !== version) return false;
       if (c.states.some((s) => ['claimed', 'unknown'].includes(s.status))) return false;
-      const legal = evaluateStory(c.plan, c.states, { ...c, automatic: false }).eligible;
+      const legal = evaluateStory(c.plan, c.states, { ...c, automatic: false }).eligible.filter(
+        (node) => this.canIntroducePlace(c, node),
+      );
       if (candidateKeys.some((key) => !legal.some((n) => n.key === key))) return false;
       return (
         (
@@ -804,7 +972,8 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       // A director pool requires an explicit validated choice; never silently pick the first event.
       if (c.plan.nodes.some((n) => n.intent.kind === 'director_event') && !nodeKey)
         return { status: 'none', managed: true };
-      const node = nodeKey ? e.eligible.find((n) => n.key === nodeKey) : e.eligible[0];
+      const eligible = e.eligible.filter((n) => this.canIntroducePlace(c, n));
+      const node = nodeKey ? eligible.find((n) => n.key === nodeKey) : eligible[0];
       if (!node) return { status: 'none', managed: true };
       const s = this.fresh(c, node, 'claimed', automatic);
       await this.save(sql, ownerId, worldId, c, s, 'claim', null, { automatic });

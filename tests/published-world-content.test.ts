@@ -247,9 +247,10 @@ test('event location is distinct from an arrival requirement and must be reachab
   assert.ok(publicationContentIssues(c).some((issue) => issue.code === 'story_place_unreachable'));
   c.routes = [{ fromPlaceKey: 'shop', toPlaceKey: 'courtyard', minutes: 5 }];
   c.places[1]!.knownAtStart = false;
-  assert.ok(
-    publicationContentIssues(c).some((issue) => issue.code === 'story_place_not_player_known'),
-  );
+  c.phone.invitations = [];
+  assert.deepEqual(publicationContentIssues(c), []);
+  c.routes = [];
+  assert.ok(publicationContentIssues(c).some((issue) => issue.code === 'story_place_unreachable'));
   c.candidates[0]!.intent = { kind: 'editorial_only' };
   assert.equal(
     publicationContentIssues(c).some((issue) => issue.code.startsWith('story_place_')),

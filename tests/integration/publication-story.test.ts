@@ -20,7 +20,10 @@ import {
 import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
 import { readPresentedActorStory } from '../../src/modules/settings/infrastructure/presented-story-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { PostgresWorldSpace } from '../../src/modules/world/infrastructure/space-repository.ts';
+import { officialLifeCatalog } from '../../src/modules/settings/infrastructure/official-presets/index.ts';
 import { compilePublicationGenesis } from '../../src/modules/settings/infrastructure/publication-genesis.ts';
+import { buildStoryPlan } from '../../src/modules/settings/domain/publication-story.ts';
 import {
   PublishedWorldContentSchema,
   inspectPublishedWorldSupport,
@@ -294,6 +297,67 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
     actorId: c.actorId,
     text: '仅本地合成回复，不代表真实模型',
   });
+  await t.test(
+    'migration accepts legacy initial-only plans except when a hidden event is executable',
+    async () => {
+      const c = authored();
+      c.places.push({
+        key: 'hidden_hospital',
+        name: '医院',
+        description: '虚构医院路 8 号',
+        knownAtStart: false,
+      });
+      c.routes.push({
+        fromPlaceKey: c.world.startPlaceKey,
+        toPlaceKey: 'hidden_hospital',
+        minutes: 15,
+      });
+      const legacy = await make(c);
+      const source = (
+        await app.transaction(owner, (sql) =>
+          sql.query('SELECT parallel_life.publication_story_source($1) AS source', [
+            legacy.world.worldId,
+          ]),
+        )
+      ).rows[0].source;
+      const plan = buildStoryPlan(source);
+      const oldPlan = {
+        ...plan,
+        places: plan.places.filter((p) => source.initialPlaceKeys.includes(p.key)),
+      };
+      await app.transaction(owner, (sql) =>
+        sql.query('SELECT parallel_life.publication_story_store_plan($1,$2)', [
+          legacy.world.worldId,
+          oldPlan,
+        ]),
+      );
+      assert.equal(
+        (await story.progress(owner, legacy.world.worldId)).totalNodes,
+        c.candidates.length,
+      );
+      const hiddenEvent = structuredClone(c);
+      hiddenEvent.candidates[0].settingPlaceKey = 'hidden_hospital';
+      const fresh = await make(hiddenEvent);
+      const freshSource = (
+        await app.transaction(owner, (sql) =>
+          sql.query('SELECT parallel_life.publication_story_source($1) AS source', [
+            fresh.world.worldId,
+          ]),
+        )
+      ).rows[0].source;
+      const invalid = buildStoryPlan(freshSource);
+      invalid.places = invalid.places.filter((p) => freshSource.initialPlaceKeys.includes(p.key));
+      await assert.rejects(
+        app.transaction(owner, (sql) =>
+          sql.query('SELECT parallel_life.publication_story_store_plan($1,$2)', [
+            fresh.world.worldId,
+            invalid,
+          ]),
+        ),
+        (e: unknown) => (e as { code: string }).code === '23514',
+      );
+    },
+  );
   await t.test(
     'named conditions persist from exact published source and block/allow real preparation',
     async () => {
@@ -1266,6 +1330,394 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
       c.world.startPlaceKey,
     );
   });
+  await t.test(
+    'hidden authored place appears only after a committed NPC story message and survives retry',
+    async () => {
+      const c = authored();
+      c.places.push({
+        key: 'hidden_hospital',
+        name: '医院',
+        description: '虚构城市中心路 8 号',
+        knownAtStart: false,
+      });
+      c.routes.push({
+        fromPlaceKey: c.world.startPlaceKey,
+        toPlaceKey: 'hidden_hospital',
+        minutes: 15,
+      });
+      c.candidates[0].settingPlaceKey = 'hidden_hospital';
+      c.candidates[0].intent = { kind: 'director_event', actorKey: a };
+      const { w, world: x } = await make(c);
+      const wid = x.worldId;
+      const before = await runtime.get({ userId: owner }, wid);
+      assert.equal(
+        before.space!.places.some((p) => p.id === 'hidden_hospital'),
+        false,
+      );
+      assert.equal(
+        before.space!.routes.some((r) => r.toPlaceId === 'hidden_hospital'),
+        false,
+      );
+      const otherWorld = await worlds.startPublished(other, w.id, {
+        commandId: randomUUID(),
+        publicationVersion: 1,
+      });
+      assert.equal(
+        (await runtime.get({ userId: other }, otherWorld.worldId)).space!.places.some(
+          (p) => p.id === 'hidden_hospital',
+        ),
+        false,
+      );
+      await assert.rejects(runtime.get({ userId: other }, wid), code('NOT_FOUND'));
+      const pool = await story.opportunities(owner, wid, false);
+      assert.equal(pool.candidates[0]?.placeName, '医院');
+      assert.equal(pool.candidates[0]?.placeDescription, '虚构城市中心路 8 号');
+      const attempt = randomUUID();
+      assert.equal(await story.beginSelection(owner, wid, pool.version, attempt, ['first']), true);
+      await story.finishSelection(owner, wid, attempt, 'selected', 'first');
+      const prepared = await story.prepare(owner, wid, {
+        automatic: false,
+        nodeKey: 'first',
+        expectedVersion: pool.version,
+      });
+      assert.equal(prepared.status, 'claimed');
+      if (prepared.status !== 'claimed') throw Error('MISSING_CLAIM');
+      const chosen = prepared.claim;
+      assert.equal(chosen.placeDescription, '虚构城市中心路 8 号');
+      assert.equal(
+        (await runtime.get({ userId: owner }, wid)).space!.places.length,
+        before.space!.places.length,
+      );
+      const turn = await commit(wid, chosen, [
+        {
+          type: 'message.received',
+          id: randomUUID(),
+          actorId: chosen.actorId,
+          text: '请到医院，虚构城市中心路 8 号见。',
+        },
+      ]);
+      assert.equal(
+        (await runtime.get({ userId: owner }, wid)).space!.places.some(
+          (p) => p.id === 'hidden_hospital',
+        ),
+        false,
+      );
+      await admin.query(
+        "CREATE FUNCTION parallel_life.story_place_local_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.payload->>'type'='space.place_revealed' THEN RAISE EXCEPTION 'LOCAL_REVEAL_FAILURE'; END IF; RETURN NEW; END $$",
+      );
+      await admin.query(
+        'CREATE TRIGGER story_place_local_failure BEFORE INSERT ON parallel_life.world_events FOR EACH ROW EXECUTE FUNCTION parallel_life.story_place_local_failure()',
+      );
+      try {
+        await assert.rejects(story.finish(owner, wid, chosen.claimId));
+      } finally {
+        await admin.query('DROP TRIGGER story_place_local_failure ON parallel_life.world_events');
+        await admin.query('DROP FUNCTION parallel_life.story_place_local_failure()');
+      }
+      assert.equal(
+        (await runtime.get({ userId: owner }, wid)).space!.places.some(
+          (p) => p.id === 'hidden_hospital',
+        ),
+        false,
+      );
+      const progress = await story.finish(owner, wid, chosen.claimId);
+      assert.equal(progress.presented[0]?.sourceEventId, turn.event.id);
+      const after = await runtime.get({ userId: owner }, wid);
+      const place = after.space!.places.find((p) => p.id === 'hidden_hospital');
+      assert.equal(place?.description, '虚构城市中心路 8 号');
+      assert.equal(place?.source.kind, 'world_event');
+      assert.equal(after.space!.currentPlaceId, c.world.startPlaceKey);
+      const route = after.space!.routes.find((r) => r.toPlaceId === 'hidden_hospital');
+      assert.equal(route?.durationMinutes, 15);
+      assert.match(route!.id, /^publication_discovery_route_/);
+      const map = new PostgresWorldSpace(app, officialLifeCatalog);
+      assert.equal(
+        (await map.read(owner, wid)).routes.some((r) => r.id === route!.id),
+        true,
+      );
+      const reveal = (
+        await admin.query(
+          "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND payload->>'type'='space.place_revealed'",
+          [wid],
+        )
+      ).rows;
+      assert.equal(reveal.length, 1);
+      assert.equal(reveal[0].payload.data.sourceEventId, turn.event.id);
+      await story.finish(owner, wid, chosen.claimId);
+      assert.equal((await runtime.get({ userId: owner }, wid)).version, after.version);
+      await admin.query('UPDATE parallel_life.world_clock SET paused=false WHERE world_id=$1', [
+        wid,
+      ]);
+      const journey = await map.travel(owner, wid, {
+        commandId: randomUUID(),
+        expectedVersion: after.version,
+        routeId: route!.id,
+      });
+      assert.equal(journey.destinationLabel, '医院');
+      assert.equal(
+        (await runtime.get({ userId: owner }, wid)).space!.currentPlaceId,
+        'hidden_hospital',
+      );
+      assert.equal(
+        (await runtime.get({ userId: other }, otherWorld.worldId)).space!.places.some(
+          (p) => p.id === 'hidden_hospital',
+        ),
+        false,
+      );
+    },
+  );
+  await t.test(
+    'a greeting or player text cannot reveal an address; a later committed NPC message can',
+    async () => {
+      const c = authored();
+      c.places.push({
+        key: 'hidden_hospital',
+        name: '医院',
+        description: '虚构城市中心路 8 号',
+        knownAtStart: false,
+      });
+      c.routes.push({
+        fromPlaceKey: c.world.startPlaceKey,
+        toPlaceKey: 'hidden_hospital',
+        minutes: 15,
+      });
+      c.candidates[0].settingPlaceKey = 'hidden_hospital';
+      c.candidates[0].intent = { kind: 'director_event', actorKey: a };
+      const { world: x } = await make(c);
+      const wid = x.worldId;
+      const pool = await story.opportunities(owner, wid, false);
+      const attempt = randomUUID();
+      assert.equal(await story.beginSelection(owner, wid, pool.version, attempt, ['first']), true);
+      await story.finishSelection(owner, wid, attempt, 'selected', 'first');
+      const prepared = await story.prepare(owner, wid, {
+        automatic: false,
+        nodeKey: 'first',
+        expectedVersion: pool.version,
+      });
+      assert.equal(prepared.status, 'claimed');
+      if (prepared.status !== 'claimed') throw Error('MISSING_CLAIM');
+      const chosen = prepared.claim;
+      await commit(wid, chosen, [reply(chosen)]);
+      await story.finish(owner, wid, chosen.claimId);
+      assert.equal(
+        (await runtime.get({ userId: owner }, wid)).space!.places.some(
+          (p) => p.id === 'hidden_hospital',
+        ),
+        false,
+      );
+      const normalReply = async (text: string, userText: string) => {
+        const previous = await runtime.get({ userId: owner }, wid);
+        const commandId = randomUUID();
+        return runtime.commit(
+          { userId: owner },
+          {
+            id: commandId,
+            worldId: wid,
+            actorId: chosen.actorId,
+            expectedVersion: previous.version,
+            text: userText,
+          },
+          {
+            schemaVersion: 1,
+            id: randomUUID(),
+            worldId: wid,
+            version: previous.version + 1,
+            commandId,
+            type: 'turn.resolved',
+            occurredAt: new Date().toISOString(),
+            storyAt: start,
+            data: {
+              actorId: chosen.actorId,
+              userText,
+              effects: [
+                {
+                  type: 'message.received',
+                  id: randomUUID(),
+                  actorId: chosen.actorId,
+                  text,
+                },
+              ],
+            },
+          },
+        );
+      };
+      await normalReply('你好，我们晚点再说。', '医院在哪里？');
+      await story.progress(owner, wid);
+      assert.equal(
+        (await runtime.get({ userId: owner }, wid)).space!.places.some(
+          (p) => p.id === 'hidden_hospital',
+        ),
+        false,
+      );
+      const later = await normalReply(
+        '我在医院等你，地址是虚构城市中心路 8 号。',
+        '请告诉我具体位置。',
+      );
+      await story.progress(owner, wid);
+      const after = await runtime.get({ userId: owner }, wid);
+      assert.equal(
+        after.space!.places.some((p) => p.id === 'hidden_hospital'),
+        true,
+      );
+      const reveals = (
+        await admin.query(
+          "SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND payload->>'type'='space.place_revealed'",
+          [wid],
+        )
+      ).rows;
+      assert.equal(reveals.length, 1);
+      assert.equal(reveals[0].payload.data.sourceEventId, later.event.id);
+      await story.progress(owner, wid);
+      assert.equal((await runtime.get({ userId: owner }, wid)).version, after.version);
+    },
+  );
+  await t.test(
+    'one-way player travel cannot select a hidden event whose address would be unreachable',
+    async () => {
+      const c = authored();
+      c.places.push({ key: 'waypoint', name: '码头', description: '虚构码头', knownAtStart: true });
+      c.places.push({
+        key: 'hidden_hospital',
+        name: '医院',
+        description: '虚构城市中心路 8 号',
+        knownAtStart: false,
+      });
+      c.routes.push({ fromPlaceKey: c.world.startPlaceKey, toPlaceKey: 'waypoint', minutes: 5 });
+      c.routes.push({
+        fromPlaceKey: c.world.startPlaceKey,
+        toPlaceKey: 'hidden_hospital',
+        minutes: 15,
+      });
+      c.candidates[0].settingPlaceKey = 'hidden_hospital';
+      c.candidates[0].intent = { kind: 'director_event', actorKey: a };
+      const { world: x } = await make(c);
+      const wid = x.worldId;
+      const before = await runtime.get({ userId: owner }, wid);
+      const map = new PostgresWorldSpace(app, officialLifeCatalog);
+      const route = before.space!.routes.find((r) => r.toPlaceId === 'waypoint')!;
+      await admin.query('UPDATE parallel_life.world_clock SET paused=false WHERE world_id=$1', [
+        wid,
+      ]);
+      await map.travel(owner, wid, {
+        commandId: randomUUID(),
+        expectedVersion: before.version,
+        routeId: route.id,
+      });
+      assert.equal((await runtime.get({ userId: owner }, wid)).space!.currentPlaceId, 'waypoint');
+      assert.equal(
+        (await story.opportunities(owner, wid, false)).candidates.some(
+          (n) => n.nodeKey === 'first',
+        ),
+        false,
+      );
+      assert.equal(
+        (await story.prepare(owner, wid, { automatic: false, nodeKey: 'first' })).status,
+        'none',
+      );
+      assert.equal(
+        (await map.read(owner, wid)).places.some((p) => p.id === 'hidden_hospital'),
+        false,
+      );
+    },
+  );
+  await t.test(
+    'multiple authored places reveal separately with stable independent route IDs',
+    async () => {
+      const c = authored();
+      delete c.timeline;
+      c.places.push({
+        key: 'hidden_hospital',
+        name: '医院',
+        description: '虚构医院路 8 号',
+        knownAtStart: false,
+      });
+      c.places.push({
+        key: 'hidden_cafe',
+        name: '咖啡馆',
+        description: '虚构咖啡街 9 号',
+        knownAtStart: false,
+      });
+      c.routes.push({
+        fromPlaceKey: c.world.startPlaceKey,
+        toPlaceKey: 'hidden_hospital',
+        minutes: 15,
+      });
+      c.routes.push({
+        fromPlaceKey: c.world.startPlaceKey,
+        toPlaceKey: 'hidden_cafe',
+        minutes: 12,
+      });
+      const first = {
+        ...c.candidates[0],
+        intent: { kind: 'director_event', actorKey: a },
+        settingPlaceKey: 'hidden_hospital',
+      };
+      const second = {
+        ...c.candidates[0],
+        key: 'second',
+        title: '咖啡馆的来信',
+        intent: { kind: 'director_event', actorKey: a },
+        settingPlaceKey: 'hidden_cafe',
+        prerequisites: [],
+      };
+      delete first.timeline;
+      delete second.timeline;
+      c.candidates = [first, second];
+      const { world: x } = await make(c);
+      const wid = x.worldId;
+      const reveal = async (nodeKey: string, placeName: string) => {
+        const pool = await story.opportunities(owner, wid, false);
+        const attempt = randomUUID();
+        assert.equal(
+          await story.beginSelection(owner, wid, pool.version, attempt, [nodeKey]),
+          true,
+        );
+        await story.finishSelection(owner, wid, attempt, 'selected', nodeKey);
+        const prepared = await story.prepare(owner, wid, {
+          automatic: false,
+          nodeKey,
+          expectedVersion: pool.version,
+        });
+        assert.equal(prepared.status, 'claimed');
+        if (prepared.status !== 'claimed') throw Error('MISSING_CLAIM');
+        const chosen = prepared.claim;
+        await commit(wid, chosen, [
+          {
+            type: 'message.received',
+            id: randomUUID(),
+            actorId: chosen.actorId,
+            text: `在${placeName}见。`,
+          },
+        ]);
+        await story.finish(owner, wid, chosen.claimId);
+      };
+      await reveal('first', '医院');
+      let after = await runtime.get({ userId: owner }, wid);
+      assert.equal(
+        after.space!.places.some((p) => p.id === 'hidden_hospital'),
+        true,
+      );
+      assert.equal(
+        after.space!.places.some((p) => p.id === 'hidden_cafe'),
+        false,
+      );
+      await admin.query(
+        "UPDATE parallel_life.publication_story_selections SET created_at=clock_timestamp()-interval '11 minutes' WHERE world_id=$1",
+        [wid],
+      );
+      await reveal('second', '咖啡馆');
+      after = await runtime.get({ userId: owner }, wid);
+      const hiddenRoutes = after.space!.routes.filter((r) =>
+        r.id.startsWith('publication_discovery_route_'),
+      );
+      assert.equal(hiddenRoutes.length, 2);
+      assert.equal(new Set(hiddenRoutes.map((r) => r.id)).size, 2);
+      assert.deepEqual(
+        new Set(hiddenRoutes.map((r) => r.toPlaceId)),
+        new Set(['hidden_hospital', 'hidden_cafe']),
+      );
+    },
+  );
   await t.test(
     'unknown retry after another world event cannot silently change original expectedVersion',
     async () => {

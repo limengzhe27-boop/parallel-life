@@ -68,7 +68,8 @@ export type StorySource = {
     visibility: { kind: string; actorIds?: string[] };
   }[];
   initialPlaceKeys: string[];
-  places: { key: string; name: string }[];
+  places: { key: string; name: string; description?: string }[];
+  routes?: { fromPlaceKey: string; toPlaceKey: string; minutes: number }[];
   genesisSource: string;
 };
 export class PublicationStoryError extends Error {
@@ -155,12 +156,24 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
     if (!actorKey || !node.actorKeys.includes(actorKey) || !actors.some((a) => a.key === actorKey))
       throw new PublicationStoryError();
     const places = [
-      node.settingPlaceKey,
       node.placeKey,
       ...(node.intent.kind === 'offer_invitation' ? [node.intent.placeKey] : []),
     ].filter((x): x is string => !!x);
     if (places.some((place) => !s.initialPlaceKeys.includes(place)))
       throw new PublicationStoryError('UNSUPPORTED_PLACE');
+    if (node.settingPlaceKey) {
+      if (!s.places.some((place) => place.key === node.settingPlaceKey))
+        throw new PublicationStoryError('UNSUPPORTED_PLACE');
+      if (
+        !s.initialPlaceKeys.includes(node.settingPlaceKey) &&
+        !(s.routes ?? []).some(
+          (route) =>
+            route.toPlaceKey === node.settingPlaceKey &&
+            s.initialPlaceKeys.includes(route.fromPlaceKey),
+        )
+      )
+        throw new PublicationStoryError('UNSUPPORTED_PLACE');
+    }
   }
   return {
     schemaVersion: 1,
@@ -170,7 +183,7 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
     nodes: structuredClone(s.nodes),
     ...(s.conditions?.length ? { conditions: structuredClone(s.conditions) } : {}),
     actors,
-    places: structuredClone(s.places.filter((p) => s.initialPlaceKeys.includes(p.key))),
+    places: structuredClone(s.places.map(({ key, name }) => ({ key, name }))),
     history: histories,
   };
 }

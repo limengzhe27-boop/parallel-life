@@ -9,6 +9,7 @@ export type PublicationStoryClaim = {
   placeId: string | null;
   placeName: string | null;
   placeDescription?: string | null;
+  placeNeedsReveal?: boolean;
   editorialIntent: string;
   intent:
     | { kind: 'director_event'; actorKey: string }

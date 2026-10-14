@@ -208,13 +208,25 @@ function unsupported(
   });
   const knownPlaces = c.places.filter((p) => p.knownAtStart);
   if (knownPlaces.length > 16) out.push(issue('space_place_budget', ['places']));
+  const revealKeys = new Set(
+    c.candidates
+      .filter((node) => node.intent.kind !== 'editorial_only' && node.settingPlaceKey)
+      .map((node) => node.settingPlaceKey!),
+  );
+  if (new Set([...knownPlaces.map((p) => p.key), ...revealKeys]).size > 16)
+    out.push(issue('space_place_budget', ['places']));
   c.places.forEach((p, i) => {
     if (p.knownAtStart && p.name.length > 80)
       out.push(issue('space_name_budget', ['places', i, 'name']));
   });
   const knownKeys = new Set(knownPlaces.map((p) => p.key));
   c.routes.forEach((r, i) => {
-    if (knownKeys.has(r.fromPlaceKey) && knownKeys.has(r.toPlaceKey) && r.minutes > 120)
+    if (
+      ((knownKeys.has(r.fromPlaceKey) && knownKeys.has(r.toPlaceKey)) ||
+        revealKeys.has(r.fromPlaceKey) ||
+        revealKeys.has(r.toPlaceKey)) &&
+      r.minutes > 120
+    )
       out.push(issue('space_route_budget', ['routes', i, 'minutes']));
   });
   return out;
