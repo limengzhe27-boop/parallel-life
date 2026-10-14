@@ -15,6 +15,7 @@ import {
   characterManuscriptSource,
   currentCharacterManuscripts,
 } from './publisher-character-manuscript.ts';
+import { PublisherScriptLibraryDialog } from './publisher-script-library-dialog.tsx';
 import { PublisherCharacterPreview } from './publisher-character-preview.tsx';
 import pasteStyles from './publisher-character-paste-dialog.module.css';
 import { PublisherCharacterPasteDialog } from './publisher-character-paste-dialog.tsx';
@@ -103,6 +104,7 @@ export function PublisherWorkbench(
 
   // Active main tab
   const [activeTab, setActiveTab] = useState<MainTab>('settings');
+  const [showScriptLibraryImport, setShowScriptLibraryImport] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Local working draft: initialized from props.work, retained upon server errors or user edits
@@ -371,6 +373,7 @@ export function PublisherWorkbench(
       setFormSocialFocus(undefined);
       setFormSocialActorKey(undefined);
       setShowMarkdownImport(false);
+      setShowScriptLibraryImport(false);
       if (isNewWork) setMarkdownReview(undefined);
       setDraftTitle(work.title);
       setDraftContent(deepClone(work.draft.content));
@@ -832,6 +835,10 @@ export function PublisherWorkbench(
                   className={`${s.btn} ${s.btnSecondary}`}
                   disabled={busy || !session.canEdit || overallBlocked}
                   onClick={() => {
+                    if (activeTab === 'plot') {
+                      setShowScriptLibraryImport(true);
+                      return;
+                    }
                     setOverallPreparationText(undefined);
                     setFormPreparationSources(undefined);
                     setFormPreparationScope(undefined);
@@ -840,7 +847,7 @@ export function PublisherWorkbench(
                     setShowMarkdownImport(true);
                   }}
                 >
-                  导入 Markdown
+                  {activeTab === 'plot' ? '导入事件与地点' : '导入 Markdown'}
                 </button>
 
                 <button
@@ -1390,9 +1397,11 @@ export function PublisherWorkbench(
                     canEdit={session.canEdit}
                     busy={busy}
                     onChange={setDraftContent}
-                    uploadAttachment={props.preparationClient
-                      ? (file) => props.preparationClient!.uploadWorkMedia(work.id, file)
-                      : undefined}
+                    uploadAttachment={
+                      props.preparationClient
+                        ? (file) => props.preparationClient!.uploadWorkMedia(work.id, file)
+                        : undefined
+                    }
                     previewAttachment={(assetId) =>
                       `/api/v1/publisher/works/${encodeURIComponent(work.id)}/media/${encodeURIComponent(assetId)}`
                     }
@@ -1543,6 +1552,19 @@ export function PublisherWorkbench(
             setDraftContent(next);
             setShowCharacterPaste(false);
             setNotice({ type: 'warning', message });
+          }}
+        />
+      )}
+      {showScriptLibraryImport && work && (
+        <PublisherScriptLibraryDialog
+          key={work.id}
+          content={draftContent}
+          disabled={busy || !session.canEdit}
+          onClose={() => setShowScriptLibraryImport(false)}
+          onApply={(next) => {
+            if (busy || !session.canEdit) return;
+            setDraftContent(next);
+            setNotice({ type: 'warning', message: '已填入事件与地点，请保存草稿。' });
           }}
         />
       )}

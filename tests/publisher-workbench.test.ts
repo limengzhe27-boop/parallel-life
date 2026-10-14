@@ -295,7 +295,9 @@ test('PublisherWorkbench completely removes review tab and issues panel, keeping
     checkedAt: '2026-10-12T10:00:00.000Z',
   };
 
-  const html = renderToStaticMarkup(createElement(PublisherWorkbench, { ...defaultProps, check: checkResult }));
+  const html = renderToStaticMarkup(
+    createElement(PublisherWorkbench, { ...defaultProps, check: checkResult }),
+  );
 
   assert.ok(!html.includes('待确认问题'));
   assert.ok(!html.includes('开场时间待安排或核对'));
@@ -338,7 +340,7 @@ test('an empty new story shows only the overall author input by default without 
   assert.match(html, /id="work-title-input"/);
   assert.equal(saved, 0);
 });
-test('applying import from character or plot returns to overview, closes import and never auto-saves', async () => {
+test('applying the existing character import returns to overview, closes import and never auto-saves', async () => {
   const { PublisherImportDialog } =
     await import('../src/features/publisher/publisher-import-dialog.tsx');
   function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
@@ -349,7 +351,6 @@ test('applying import from character or plot returns to overview, closes import 
   }
   for (const [initial, keepOpen] of [
     ['actors', false],
-    ['plot', false],
     ['actors', true],
   ] as const) {
     let cursor = 0,

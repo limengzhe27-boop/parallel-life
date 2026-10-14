@@ -25,9 +25,19 @@ test('authored history may contain a privately referenced image or video without
     attachment: { kind: 'video', assetId, label: '开业前的录像' },
   };
   const parsed = PublishedWorldContentSchema.parse(draft);
-  assert.deepEqual(parsed.phone.messages[0]!.attachment, { kind: 'video', assetId, label: '开业前的录像' });
-  assert.deepEqual(publicationPlayerPreview(parsed).phone.messages[0]!.attachment, parsed.phone.messages[0]!.attachment);
-  assert.deepEqual((ensurePublishableDefaults(draft) as PublicationContent).phone.messages[0]!.attachment, parsed.phone.messages[0]!.attachment);
+  assert.deepEqual(parsed.phone.messages[0]!.attachment, {
+    kind: 'video',
+    assetId,
+    label: '开业前的录像',
+  });
+  assert.deepEqual(
+    publicationPlayerPreview(parsed).phone.messages[0]!.attachment,
+    parsed.phone.messages[0]!.attachment,
+  );
+  assert.deepEqual(
+    (ensurePublishableDefaults(draft) as PublicationContent).phone.messages[0]!.attachment,
+    parsed.phone.messages[0]!.attachment,
+  );
   const missing = structuredClone(draft);
   delete missing.phone.messages[0]!.attachment;
   assert.equal(PublishedWorldContentSchema.safeParse(missing).success, false);
@@ -251,7 +261,10 @@ test('library event preserves long manuscript and several scenes without preassi
   node.scenePlaceKeys = c.places.map((place) => place.key);
   assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
   assert.equal(publicationContentIssues(c).length, 0);
-  assert.doesNotMatch(JSON.stringify(publicationPlayerPreview(c)), /作者原文与可能发生的前提|scenePlaceKeys/);
+  assert.doesNotMatch(
+    JSON.stringify(publicationPlayerPreview(c)),
+    /作者原文与可能发生的前提|scenePlaceKeys/,
+  );
   node.scenePlaceKeys.push('missing');
   assert.ok(publicationContentIssues(c).some((issue) => issue.code === 'unknown_place'));
 });

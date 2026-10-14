@@ -119,6 +119,13 @@ export function patchPlotField(
       alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
     };
   writePath(row, path, value);
+  if (
+    section === 'candidates' &&
+    path.length === 1 &&
+    path[0] === 'editorialIntent' &&
+    row.script !== undefined
+  )
+    row.script = clonePlot(value);
   return next;
 }
 /** One explicit speaker choice, retaining every other authored participant and setting. */

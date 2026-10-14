@@ -39,6 +39,8 @@ const { PublisherPlotEditor } = await import('../src/features/publisher/publishe
 const { PublisherStoryGraph } = await import('../src/features/publisher/publisher-story-graph.tsx');
 const { PublisherConditionEditor } =
   await import('../src/features/publisher/publisher-condition-editor.tsx');
+const { PublisherScriptLibraryEditor } =
+  await import('../src/features/publisher/publisher-script-library-editor.tsx');
 function content(): PlotRecord {
   return {
     world: { startAt: '2026-10-12T09:00:00Z', hiddenContext: 'PRIVATE_NEVER_RENDER' },
@@ -86,6 +88,7 @@ function walk(value: ReactNode): Native[] {
   if (Array.isArray(value)) return value.flatMap(walk);
   if (!isValidElement(value)) return [];
   const e = value as Native;
+  if (e.type === PublisherScriptLibraryEditor) return walk(renderLibrary(e.props));
   if (e.type === PublisherStoryGraph || e.type === PublisherConditionEditor) return [e];
   if (typeof e.type === 'function') return walk((e.type as (p: unknown) => ReactNode)(e.props));
   return [e, ...walk(e.props.children as ReactNode)];
@@ -146,7 +149,7 @@ function setup(disabled = false, c = content()) {
     },
   };
 }
-test('simple event view exposes one speaker and preserves source on render; extra arrangements are folded', () => {
+test('simple library keeps speaker arrangements optional and preserves existing edit callbacks', () => {
   const c = content();
   delete c.timeline;
   const node = plotRecord(plotRows(c, 'candidates')[0]);
@@ -156,7 +159,7 @@ test('simple event view exposes one speaker and preserves source on render; extr
   const t = setup(false, c);
   const before = structuredClone(c);
   const visible = visibleText(renderPlot(t.props));
-  for (const label of ['事件标题', '事件概述', '主要人物（由谁开启）', '无前提', '设置前提'])
+  for (const label of ['事件库', '导入事件与地点', '精细安排（选填）'])
     assert.ok(visible.includes(label), label);
   for (const label of [
     '更多安排',
@@ -196,7 +199,7 @@ test('read-only and malformed event speaker controls never publish an edit callb
   }
 });
 
-test('folded controls leave all authored prerequisites visible, including named OR groups and exclusion rules', () => {
+test('optional precise arrangements retain all authored prerequisites, OR groups and exclusions', () => {
   const c = content();
   const node = plotRecord(plotRows(c, 'candidates')[0]);
   node.intent = { kind: 'director_event', actorKey: 'alice' };
@@ -226,7 +229,7 @@ test('folded controls leave all authored prerequisites visible, including named 
   node.mutuallyExclusiveNodeKeys = ['other'];
   const t = setup(false, c);
   const before = structuredClone(c);
-  const visible = visibleText(renderPlot(t.props));
+  const visible = text(renderPlot(t.props));
   for (const label of [
     '上周讨论过',
     '已经可以见面',
@@ -240,7 +243,7 @@ test('folded controls leave all authored prerequisites visible, including named 
   ])
     assert.ok(visible.includes(label), label);
   assert.equal(details(tree(t.props), '设置前提').props.open, false);
-  assert.ok(!visible.includes('更多安排'));
+  assert.ok(!visibleText(renderPlot(t.props)).includes('更多安排'));
   assert.deepEqual(c, before);
 });
 test('SSR offers core events section and honest Chinese setup guidance without exposing private raw data', () => {
@@ -274,7 +277,8 @@ test('incomplete event feedback is a collapsed count while each problem remains 
   )!;
   assert.ok(disclosure);
   assert.ok(!disclosure.props.open);
-  assert.ok(visibleText(rendered).includes(`有 ${expected} 处内容待核对`));
+  assert.ok(text(rendered).includes(`有 ${expected} 处内容待核对`));
+  assert.ok(!visibleText(rendered).includes(`有 ${expected} 处内容待核对`));
   assert.ok(!visibleText(rendered).includes('这些问题仍需核对'));
   assert.equal(
     walk(disclosure.props.children as ReactNode).filter((item) => item.type === 'li').length,
@@ -390,11 +394,21 @@ test('malformed collection renders a preservation warning and blocks adding inst
   assert.equal(t.calls, 0);
 });
 
+function renderLibrary(props: Record<string, unknown>): ReactNode {
+  let result: ReactNode = null;
+  function Capture() {
+    result = PublisherScriptLibraryEditor(props as never);
+    return null;
+  }
+  renderToStaticMarkup(createElement(Capture));
+  return result;
+}
 function visibleText(value: ReactNode): string {
   if (Array.isArray(value)) return value.map(visibleText).join('');
   if (!isValidElement(value))
     return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   const el = value as Native;
+  if (el.type === PublisherScriptLibraryEditor) return visibleText(renderLibrary(el.props));
   const children = el.props.children as ReactNode;
   if (el.type === 'details' && !el.props.open) {
     const summary = (Array.isArray(children) ? children : [children]).find(
@@ -422,9 +436,9 @@ test('writer first view displays core events library and add event button, and r
   const t = setup();
   const before = structuredClone(t.props.content);
   const value = visibleText(renderPlot(t.props));
-  assert.ok(value.includes('事件列表（核心事件库）'), '核心事件库标题');
-  assert.ok(value.includes('+ 增加事件'), '增加事件按钮');
-  assert.ok(value.includes('事件概述：主角将面临什么'), '事件概述');
+  assert.ok(value.includes('事件库'), '核心事件库标题');
+  assert.ok(value.includes('＋ 添加事件'), '增加事件按钮');
+  assert.ok(value.includes('未来可能'), '事件标题');
   // Removed sections are not rendered
   assert.ok(!value.includes('已经发生的事'), '已经发生的事已被删除');
   assert.ok(!value.includes('剧情阶段'), '剧情阶段已被删除');

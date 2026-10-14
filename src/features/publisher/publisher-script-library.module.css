@@ -1,0 +1,168 @@
+.dialog {
+  width: min(840px, calc(100vw - 32px));
+  max-height: 88dvh;
+  box-sizing: border-box;
+  padding: 24px;
+  border: 1px solid #dbe2ee;
+  border-radius: 16px;
+  background: #fff;
+  color: #202b40;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.dialog::backdrop {
+  background: rgb(14 18 28 / 45%);
+}
+.header,
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.header h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.dialog button,
+.dialog select,
+.editor button {
+  min-height: 44px;
+  border: 1px solid #cbd5e5;
+  border-radius: 8px;
+  background: #f6f8fc;
+  color: #233d6c;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.dialog button:disabled,
+.editor button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.field {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  font-size: 14px;
+}
+.field textarea,
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e5;
+  border-radius: 8px;
+  padding: 12px;
+  font: inherit;
+  line-height: 1.7;
+  color: inherit;
+  background: #fff;
+}
+.field textarea {
+  resize: vertical;
+  min-height: 140px;
+}
+.hint {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #66758b;
+}
+.error {
+  font-size: 14px;
+  color: #a23939;
+}
+.card {
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid #e1e6ee;
+  border-radius: 12px;
+  background: white;
+}
+.card summary {
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.card pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.8;
+  font-size: 14px;
+}
+.place {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0;
+}
+.place select {
+  max-width: 65%;
+}
+.footer {
+  position: sticky;
+  bottom: -24px;
+  padding: 16px 0;
+  background: white;
+}
+.editor {
+  display: grid;
+  gap: 12px;
+}
+.editor h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #586b87;
+}
+.tag {
+  padding: 3px 8px;
+  background: #f2f5f9;
+  border-radius: 6px;
+}
+.editor .field {
+  margin: 12px 0;
+}
+.editor textarea {
+  min-height: 200px;
+}
+.editor :is(button, input, textarea, select):focus-visible,
+.dialog :is(button, input, textarea, select, summary):focus-visible {
+  outline: 2px solid #3673ea;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .dialog {
+    padding: 16px;
+    width: calc(100vw - 20px);
+  }
+  .footer {
+    bottom: -16px;
+  }
+  .card {
+    padding: 12px;
+  }
+  .header {
+    align-items: flex-start;
+  }
+  .place {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .place select {
+    max-width: 100%;
+    width: 100%;
+  }
+}

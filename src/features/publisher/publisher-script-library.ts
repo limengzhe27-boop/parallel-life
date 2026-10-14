@@ -31,6 +31,8 @@ export const SCRIPT_DOCUMENT_MAX_BYTES = 1_048_576;
 const cleanName = (text: string) => text.replace(/\*\*/g, '').trim();
 const presentation = new Set([
   '手机聊天界面',
+  '手机聊天页面',
+  '微信聊天页面',
   '微信聊天界面',
   '手机界面',
   '微信界面',
@@ -72,11 +74,12 @@ function lines(text: string) {
 }
 function locationNames(text: string) {
   return text
-    .split(/[、，,；;\r\n]|与/u)
+    .split(/[、，,；;\r\n]|与|(?:以及|及)(?=手机|微信|电话|视频通话)/u)
     .map((v) =>
       cleanName(v)
         .replace(/^[ \t]*(?:[-*+] |\d+[.、]\s*)/, '')
         .replace(/[…]+$/u, '')
+        .replace(/[。．.]+$/u, '')
         .trim(),
     )
     .filter((v) => v && !presentation.has(v));
