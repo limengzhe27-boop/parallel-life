@@ -43,6 +43,7 @@ export function PublisherCharacterSocialEditor({
   const [postText, setPostText] = useState('');
   const [postDay, setPostDay] = useState('');
   const [editingPost, setEditingPost] = useState<string | null>(null);
+  const [postImage, setPostImage] = useState<string>('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   useEffect(() => {
@@ -54,6 +55,7 @@ export function PublisherCharacterSocialEditor({
     setPostOpen(false);
     setPostText('');
     setPostDay('');
+    setPostImage('');
     setEditingPost(null);
     setError('');
     setNotice('');
@@ -94,11 +96,12 @@ export function PublisherCharacterSocialEditor({
   };
   const submitPost = () => {
     const result = editingPost
-      ? editMoment(content, actorKey, editingPost, postText, postDay || undefined, referenceAt)
-      : addMoment(content, actorKey, postText, postDay || undefined, referenceAt);
+      ? editMoment(content, actorKey, editingPost, postText, postDay || undefined, referenceAt, postImage)
+      : addMoment(content, actorKey, postText, postDay || undefined, referenceAt, postImage);
     apply(result, () => {
       setPostText('');
       setPostDay('');
+      setPostImage('');
       setEditingPost(null);
       setPostOpen(false);
     });
@@ -361,8 +364,58 @@ export function PublisherCharacterSocialEditor({
                   onChange={(event) => setPostDay(event.target.value)}
                 />
               </label>
+              <div style={{ margin: '8px 0' }}>
+                <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>配图（选填）</label>
+                {postImage ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <img
+                      src={postImage}
+                      alt="动态配图预览"
+                      style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    />
+                    <button
+                      type="button"
+                      className={s.secondary}
+                      style={{ fontSize: 12, padding: '4px 8px' }}
+                      onClick={() => setPostImage('')}
+                    >
+                      移除图片
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    className={s.secondary}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      fontSize: 13,
+                      padding: '6px 12px',
+                    }}
+                  >
+                    <span>+ 导入动态配图</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      disabled={disabled}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const dataUrl = event.target?.result as string;
+                          if (dataUrl) setPostImage(dataUrl);
+                        };
+                        reader.readAsDataURL(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
               <p className={s.smallHint}>
-                未选日期时会安排在故事开场前。当前朋友圈支持文字；图片尚未接入发布。
+                未选日期时会安排在故事开场前。支持文字与动态配图。
               </p>
               <div className={s.composerActions}>
                 <button
@@ -373,6 +426,7 @@ export function PublisherCharacterSocialEditor({
                     setEditingPost(null);
                     setPostText('');
                     setPostDay('');
+                    setPostImage('');
                   }}
                 >
                   取消
@@ -389,7 +443,7 @@ export function PublisherCharacterSocialEditor({
             </div>
           )}
           {person.moments.length === 0 && (
-            <p className={s.empty}>还没有朋友圈内容。可以发布一条体现人物日常的文字动态。</p>
+            <p className={s.empty}>还没有朋友圈内容。可以发布一条体现人物日常的文字或图文动态。</p>
           )}
           {person.moments.map((post) => (
             <article className={s.post} key={post.key}>
@@ -397,6 +451,15 @@ export function PublisherCharacterSocialEditor({
               <div className={s.postContent}>
                 <strong>{name}</strong>
                 <p>{post.text}</p>
+                {post.image && (
+                  <div style={{ marginTop: 8, maxWidth: 260, borderRadius: 8, overflow: 'hidden' }}>
+                    <img
+                      src={post.image}
+                      alt=""
+                      style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+                    />
+                  </div>
+                )}
                 <time dateTime={post.at}>{characterPreviewTime(post.at)}</time>
                 {canEdit && (
                   <div className={s.rowActions}>
@@ -407,6 +470,7 @@ export function PublisherCharacterSocialEditor({
                         setEditingPost(post.key);
                         setPostText(post.text);
                         setPostDay('');
+                        setPostImage(post.image ?? '');
                         setPostOpen(true);
                         setError('');
                       }}

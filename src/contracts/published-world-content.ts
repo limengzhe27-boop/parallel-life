@@ -174,7 +174,16 @@ const shape = z
         )
         .max(40),
       moments: z
-        .array(z.strictObject({ key, actorKey: key, text: text(1600), at }))
+        .array(
+          z.strictObject({
+            key,
+            actorKey: key,
+            text: text(1600),
+            at,
+            image: z.string().optional(),
+            images: z.array(z.string()).max(9).optional(),
+          }),
+        )
         .max(48)
         .optional(),
       notes: z
@@ -210,6 +219,7 @@ const shape = z
           depiction: z.enum(['uploaded_image', 'illustration', 'generated_image']),
           label: text(160),
           visibility,
+          url: z.string().optional(),
         }),
       )
       .max(64),

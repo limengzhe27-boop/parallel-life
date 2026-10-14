@@ -1,3 +1,12 @@
+## 2026-10-14 · PUBLISHER-INPUT-FLUIDITY-AND-IMAGE-IMPORT-06
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
+- 修复打字输入打断体验：彻底移除此前 800ms 防抖 auto-save 触发全局 busy 导致输入框被 disabled、焦点丢失及输入法被打断的缺陷。编导输入全程平滑不卡顿，草稿由编导显式点击保存或发布时自动提交；
+- 开放图片导入与发布朋友圈支持：
+  1. 角色头像支持本地导入自定义图片，通过 FileReader 将图片无缝映射入世界媒体体系，左侧卡片与微信预览即时更新；
+  2. 朋友圈（Moments）发布草稿支持从本地导入配图，动态列表与玩家移动端朋友圈应用（Moments App）均已支持优雅展示图文动态；
+  3. 全链路 schema、domain 及 defaults 自动清洗层均已打通对 moments `image` 和 media `url` 的合规支持。
+
 ## 2026-10-14 · PUBLISHER-UNCONSTRAINED-RELEASE-05
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.

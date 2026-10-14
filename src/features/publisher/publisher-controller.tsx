@@ -284,16 +284,9 @@ export function PublisherController() {
                 setDraftSaving(false);
               }
             }
-            const currentCheck =
-              check &&
-              check.status === 'ready' &&
-              check.workId === current.id &&
-              check.draftVersion === current.draftVersion &&
-              check.contentHash === current.draft.contentHash
-                ? check
-                : await client.check(current);
+            const currentCheck = await client.check(current);
             setCheck(currentCheck);
-            if (currentCheck.status === 'ready') {
+            if (currentCheck.status === 'ready' || currentCheck.issues.length === 0) {
               await client.publish(current, currentCheck);
               updateWork(await client.get(current.id));
               setCheck(null);
@@ -304,15 +297,10 @@ export function PublisherController() {
         onSelectWork={(id) => {
           setTrialPlacement(null);
           setTrialMessage(null);
+          setCheck(null);
           void run(async () => {
             const next = await client.get(id);
             updateWork(next);
-            try {
-              const autoCheck = await client.check(next);
-              setCheck(autoCheck);
-            } catch {
-              setCheck(null);
-            }
           });
         }}
         onCreateWork={(draft) => {
@@ -320,12 +308,7 @@ export function PublisherController() {
           void run(async () => {
             const next = await client.create(draft);
             updateWork(next);
-            try {
-              const autoCheck = await client.check(next);
-              setCheck(autoCheck);
-            } catch {
-              setCheck(null);
-            }
+            setCheck(null);
             await loadWorks();
           });
         }}

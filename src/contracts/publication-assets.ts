@@ -95,14 +95,29 @@ export function publicationArt(raw: unknown, use: 'avatar' | 'cover'): Publicati
     return d && 'value' in d ? d.value : undefined;
   };
   const asset = own(raw, 'asset'),
-    visibility = own(raw, 'visibility');
+    visibility = own(raw, 'visibility'),
+    url = own(raw, 'url'),
+    depiction = own(raw, 'depiction');
   if (
     own(asset, 'namespace') !== 'publication' ||
     own(raw, 'use') !== use ||
-    own(visibility, 'kind') !== 'world' ||
-    own(raw, 'depiction') !== 'generated_image'
+    own(visibility, 'kind') !== 'world'
   )
     return null;
+
+  if (typeof url === 'string' && url) {
+    return {
+      key: typeof own(asset, 'key') === 'string' ? (own(asset, 'key') as string) : 'custom',
+      revision: typeof own(asset, 'revision') === 'number' ? (own(asset, 'revision') as number) : 1,
+      label: typeof own(raw, 'label') === 'string' ? (own(raw, 'label') as string) : '自定义图片',
+      url,
+      sha256: 'custom_' + (typeof own(raw, 'key') === 'string' ? own(raw, 'key') : 'art'),
+      uses: [use],
+    };
+  }
+
+  if (depiction !== 'generated_image') return null;
+
   return (
     PUBLICATION_ART.find(
       (a) =>
