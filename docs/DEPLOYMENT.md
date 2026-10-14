@@ -1,3 +1,11 @@
+## 2026-10-14 · 角色一键真手机演示
+
+业务f74b6577e535fe795aca2379056ed6fda7b04dac / dpl_2rk388xqQDakvxmiqhC1KHuwoN8S READY，正式 https://parallel-life-nu.vercel.app 精确同SHA；CI38510790051成功。2241check/build/format通过；准备和world实际PG39、新增真实phone读29通过。0056修数据库人数下限1，56生产checksum核验，不改旧存档或旧迁移。
+
+单角色草稿实际按钮→项目Agent补运行缺项→保持作者角色全文→保存→真PhoneShell→实际NPC回复v1，生成2历史/1文字朋友圈。PC1500/mobile390实际查看无横溢出。自动保存点击排队；未知只原command恢复，已确认失败下一次手动点击才重新准备。数据库和读契约旧min2两处实测修复，原失败保留。不手填世界，不造第二人，不假称AI成功。
+
+同批24/2授权保守17文字、2private存档closed并暂停，Ego174结束且会话精准恢复，无私人资料/上传/生图。辅助2独立1/3授权17B实际检查/发布→新玩家自动开场→下架/暂停通过，不混入根账本；见两报告。人物表单映射、历史关系一致性、下架入口、持续事件演绎仍待做；scene新版本与开场绑定18尚未部署。
+
 ## 2026-10-14 · AUTHORING-15 编剧录入与首次自动开场
 
 业务2d5a1bbb1191f1e0166558f44a90cce8fe14edf0 / dpl_GHEVDqj86TPQbDRCUELJEAYtgr8Z READY，正式 https://parallel-life-nu.vercel.app 精确同SHA，GitHub CI38430288012成功。生产55迁移checksum一致，无新SQL。2207check/type/439边界、build/format通过；完整PG首轮323通过、5专属端口拒绝、5明确模型opt-in跳过，明确本人55476重检5组85通过，综合408通过/5跳过。不将环境守卫失败写成一次全绿。

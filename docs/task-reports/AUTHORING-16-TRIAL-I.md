@@ -19,3 +19,9 @@
 辅助2获得其聊天独立1存档/3文字授权，17B从本批真实AI有效稿实际check→发布→新玩家自动剧情开场→下架/暂停通过；独立账本已closed，不占root24/2。实际开场不当事件完成，没有额外玩家私聊。未完成canonical人物表单错位/私密L5外泄风险、下架入口已入主表；本轮角色付费fixture不改。
 
 2559a1a/dpl_4uRAK6tTNLyTK6U4Sexx1qB88dgb正式READY、CI38510000026成功，2241check/build/format通过。真实下一显式点击在同原稿下项目Agent成功，原actor全文不变，普通双向history及moments/运行world自动补齐；创建第二private存档成功，但真实phone读取503又揭露PublicationOpeningSchema.contacts.min(2)旧读契约。root只改min(1)，补实际BuildRepository.phone真实PG读取单未知contact/零history，29/29过；不重建存档或再整理。当前15/24保守、2/2真实存档，等待最后手机读取与聊天验收。
+
+最终限定交付：f74b6577e535fe795aca2379056ed6fda7b04dac / dpl_2rk388xqQDakvxmiqhC1KHuwoN8S正式READY，CI38510790051成功。2241check/build、准备与world实际PG39、新增真实phone读取29通过；56生产checksum核对。真实角色按钮由项目Agent补齐日期、地点、主角、2历史和1动态，没有手填运行内容，actor全文deepEqual作者原稿，无第二角色或新增剧情。真phone显示锁屏、桌面、微信；实际发送后模型回复保存v1。PC1500与mobile390实际截图无横溢出，朋友圈正文真实读取显示。原校验失败及旧读503保留，不冒称一次全绿或全部人物质量完成。
+
+本批保守17/24文字、2/2存档已closed；两private存档确认paused，17B已下架旧测试作品，无个人资料、上传或生成图片。原浏览器publisher cookie精准恢复，其他cookie不动，Ego174已finish。17B独立1/3账本closed，未混算。截图与凭证仅ignored.local，未推送。
+
+限制与后续：历史称多年同事为新同事、历史标签仍起点来信、人物表单介绍/五模块错绑及私人L5公开风险、下架入口、持续多拍事件已入主表。此次仅角色生成、真手机显示和实际回复闭环完成。scene新模型适配和开场绑定18由另外两对话继续独立实施，尚未整合上线，不计入本交付。
