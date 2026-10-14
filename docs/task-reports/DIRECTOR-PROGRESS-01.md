@@ -53,3 +53,37 @@ I已通知0060由其作为35bc3bc数据库部分应用生产并随后应用媒�
 发现完整稿件直接作为world command会撞4000字符限制；现在命令仅稳定事件/claim引用，完整原稿和cue只放服务端角色propose输入，未截正文，不产生玩家消息。超过模型网关实际输入预算会诚实失败，不静默截尾。实际本批原稿最大387字，由I核验，本人未读/修改作者作品。
 
 专项4纯用例通过（第二演员选择、无默认演员/外国演员拒绝、演员真实知情、超4000完整稿通过角色环节），真实PG55503新专项1/1、原story集成31/31通过；首次新PG测试误期待自动恢复claimed，实际unknown隔离正确，修正测试为明确retry后通过。0付费调用、0实际玩家/临时模型测试存档、0图，纯与PG合成测试不冒充模型验收。最终npm run check：2365/2365、0fail/skip，type/boundaries通过；npm run build成功。root要求本轮优先冻结动态演员接线供导入联编，完整goal/ledger留进行中，未部署也不标业务完成。
+
+## 独立ledger证据层检查点（2026-10-15，未开放业务hook）
+
+root已集成动态演员0b6d6d7及前置helper/私有service检查点；当前四story与turn动态代码冻结，root联编导入。按root后续明确范围，本人只继续新增publication-event-progress-repository.ts和新的真实PG专项，不改现有业务。
+
+adapter在调用方事务内先锁实际world版本，再锁projection，验证节点真实开场source_event/source_message、每个record真实world_messages记录及payload引用，成功command exactevent/version、source不倒序、actor/document双核、原话quote和类型。invitation_response只接受同node实际绑定invitation的accept/cancel，信号不能把拒绝改成engaged。AI无criterionIds/complete输入；非成功closure限定withdrawn/missed/alternative/unresolved，非法kind或complete:true及fulfilled闭合均拒绝。criterion只由已提交NPC逐字发言/真实邀请回执匹配；不支持物理selector、不把台词当实际吃饭/交付。
+
+证据SQL去重并CAS revision，状态源数组清空、criterion每项只留首证据，actor知情源固定event/record对，避免无限JSON。测试发现pg将JS数组编码PG数组导致jsonb check失败，已用JSON.stringify修复；真实PG专项1/1通过：节点intro、重复record、无关不计beat、拒绝记deferred/阻止nudge、withdrawn非成功收尾、实际NPC criterion两拍即可fulfilled、伪record/quote/未绑定intro/未来版本/越权隔离、非法kind与假完成拒绝。所有回合明确合成提案，无真实模型调用，不冒充产品验收。
+
+最新npm run check2365/2365、0fail/skip、type/boundaries过；最终npm run build成功。没有接prepareProgressBeat/finishProgressBeat普通NPC/scene hook，没有持久续拍pending协议；不能声称沉默时世界已持续推进，也不能声称手机/现场已记住持久goal。24(local16/public8)+2临时模型存档仍0使用，旧额度不挪。长期事件分段运行尚未接线，仅纯策略有边界建议；这个检查点不部署/不标完整任务完成，等待I公共槽与下一业务窗口。
+
+## 2026-10-15 用户明确继续完整接线
+
+用户重申24额度验收完整现场/手机目标、沉默/无关/拒绝/收尾/节奏后上线，并要求实际到达地点/现场行动成为导演输入、地图日历便签记录等APP围绕同源事件联动、NPC参考本人性格/行动对白模块/历史聊天并短且自然。向唯一I请求最新共同SHA与ActorGoal/quote/pending冻结/重新放行窗口；I已集成旧动态code，不覆盖其四story/turn。当前查origin/main5d1e8fb，包含确定性剧情导入，但新ledgerffd未集成，尚未merge。
+
+已读实际链路：旅行写travel.completed+真实到达时间/位置来源，不向离开现场NPC泄露目的地；已邀约有日历与地图链接，现场有真实observer memories/记录；角色server已读取本人五模块、本人posts与已介绍storythreads。导演有currentPlaceId但缺最近世界变化来源；scene/turn持续goal与quote、续拍pending仍无hook。phone active check没有显式scene view guard，是否卸载后停止须实际验证，不误称已实现后台推进。保留真实24账本0/24，0新模型验收存档/图，不挪旧预算。
+
+## 新真实世界输入证据（当前仍无业务hook）
+
+在I允许的新ledger范围新增travel.completed：实际同node作者placeKey/settingPlaceKey/scenePlaceKeys/intent.placeKey对应真实toPlace，精确travel:event:place记录键；增加有效beat但criteria=[]、observableActorIds=[]，不当完成、不向远方NPC泄露目的地。recentWorldInputs只读最近8个当前snapshot版本内、同owner/world、成功command真实旅行/邀约回应/现场结果，输出有限source/time/place/operation/outcome，不包含NPC私聊或玩家私有思想，不调用模型。
+
+现场证据读取实际scene_items entry并核source event/version、scene_id、原文quote、speaker与事件proposal真实对白；同node实际绑定invitation或源稿关联地点匹配。公开user_action按已保存observableTo裁剪NPC知情，privateThought=true不进入参与/拒绝判断；NPC逐字criterion可从实际本人dialogue满足，未测试的NPC正例留实际完整链验收。真实PG通过实际PostgresWorldSpace.travel、SceneRepository.enterPlace/input、真实commitSceneProposal（明确合成环境提案，fixture自己的queued任务由admin标完成模拟worker结束，不假称AI生成）。证明导演得知到达、公开拒绝不会自动让空场外NPC知道、私有思想不进入goal、world inputs在旧snapshot/跨owner不可读。
+
+首次scene PG因合成opening已提交但queue未完成正确BUSY；修正fixture限定该queued任务收尾后通过。测试发现旧scenePrivateThought不含“我在心里”，已用旧受支持“我心里”验证，e5bada6原修复仍待I串行集成，不改冻结source。新type错误PostgresWorldSpace需要catalog第二参数已修。最终check2365/2365、type/boundaries及build过；本批0 paid/模型验收save/生图。普通NPC/scene hook、ActorGoal/quote/pending、到达后真实NPC候选、官方无publication sidecar兼容、UI APP联动与实际模型验收均未完成，不把证据层说成用户功能上线。55503暂运行，等待I公共窗口。
+
+## 公共接口最小提案（待I审核冻结）
+
+I正式主表释放world/application/ports.ts、scene-ports.ts、domain/types.ts、validation.ts与新聚焦测试，仅接口/纯schema，不改story/turn/scene/composition/SQL。同步70d6768得到merge117bf23：报告add/add保本人完整接续、turn与出版tests/CI端口test保I版本；无策略覆盖。
+
+ActorEventGoal只本人actual已激活来源(pubnode/matter/director真实锚)、want/stance/boundaries、phase/status/participation、pace/beats/segment/nextMove，明确拒绝只当前请求、NPC仍可自有目标且实际动作需要授权。ActorContext可选eventGoals；ScenePlanningContext按actor分goal/本人modules及有源地点候选（候选非到场）；StoryOpportunityInput可选最近真实世界inputs。这些类型本身不宣称已按forget/visibility装配，I hook必须先过滤。
+
+EventGoalAssessment只有goalKey、target=user/npc、kind、literal quote与可选non-success closure；pub/matter/general不伪造publication node。模型不能提供actor/source/record/command IDs、criterionIds、complete；fulfilled与missed留运行时真实条件/时钟。parseEventGoalAssessments限定最多8，单goal/target只一判断，玩家输入排NPC回复前以免closure先执行而吞掉拒绝；validateEventGoalAssessmentQuotes核active keys、当前本人raw quote，director不假主角决策。parseProposal旧缺field原形保持，可选field会严校。
+
+WorldRepository.commit增加可选trusted progress参数{goalKeys,assessments}，供后续正式仓储同SQL事务核actual记录与保存进度；不把未校模型source塞WorldEvent payload，不改变HTTP。SceneProposal同样可选assessment，实际raw scene parser/generation仍未改，所以当前绝不启用该输出。6新纯用例通过、check2383/2383、0fail/skip、type/boundaries/build过，0paid/模型验收save/图。接口先待I审定，待e5串行集成与明确现有source下一窗口后继续实际hook和原24验收，未部署持续goal。

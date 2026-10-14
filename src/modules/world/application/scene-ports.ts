@@ -1,6 +1,12 @@
 import type { SceneStepProposal, SceneNpcActionProposal } from '../domain/matters.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
-import type { WorldState } from '../domain/types.ts';
+import type {
+  WorldState,
+  ActorEventGoal,
+  EventGoalAssessment,
+  EventGoalSource,
+} from '../domain/types.ts';
+import type { ActorContext } from './ports.ts';
 import type {
   SceneSession,
   SceneAction,
@@ -11,6 +17,16 @@ export type ScenePlanningContext = {
   world: WorldState;
   memoriesByActor?: Record<string, MemoryRecord[]>;
   blockedSourcesByActor?: Record<string, string[]>;
+  /** Split before each independent NPC call; never pass another actor's private frame. */
+  eventGoalsByActor?: Record<string, ActorEventGoal[]>;
+  authoredLifeModulesByActor?: Record<string, NonNullable<ActorContext['authoredLifeModules']>>;
+  /** Sourced eligibility only. Independent NPC decisions still establish actual presence. */
+  eventActorCandidates?: {
+    actorId: string;
+    goalKey: string;
+    placeId: string;
+    source: EventGoalSource;
+  }[];
   scene: SceneSession;
   entries: SceneEntry[];
   matters: CurrentMatter[];
@@ -41,6 +57,8 @@ export type SceneProposal = {
   /** Candidates only. The runtime validates and owns saved step/action evidence. */
   stepProposals?: SceneStepProposal[];
   npcActions?: SceneNpcActionProposal[];
+  /** Quote-bound candidates from independent actor calls, not director-authored dialogue. */
+  eventGoalAssessments?: EventGoalAssessment[];
 };
 export interface ScenePlannerPort {
   propose(context: ScenePlanningContext, signal?: AbortSignal): Promise<SceneProposal>;

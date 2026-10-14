@@ -191,7 +191,68 @@ export type WorldEffect =
       assertion?: MatterAssertion;
     };
 
-export type TurnProposal = { schemaVersion: 1; effects: WorldEffect[] };
+/** Trusted anchors of already presented events; never supplied by a model assessment. */
+export type EventGoalSource = {
+  sourceEventId: string;
+  sourceRecordId: string;
+} & (
+  | { kind: 'publication_node'; nodeKey: string }
+  | { kind: 'matter'; matterId: string }
+  | { kind: 'director_event' }
+);
+/** Private current-speaker direction. This is neither action permission nor a world fact. */
+export type ActorEventGoal = {
+  goalKey: string;
+  actorId: string;
+  source: EventGoalSource;
+  want: string;
+  stance: string;
+  boundaries: string[];
+  phase: 'introduced' | 'engaged' | 'resolved';
+  status: 'active' | 'deferred' | 'fulfilled' | 'withdrawn';
+  participation: 'unknown' | 'engaged' | 'declined';
+  refusalScope: 'current_player_request';
+  mayPursueOwnGoalWithoutPlayer: true;
+  actualMovesRequireRuntimeAuthorization: true;
+  pace: 'brief' | 'standard' | 'extended';
+  productiveBeats: number;
+  segmentIndex: number;
+  nextMove:
+    | 'wait'
+    | 'continue_in_current_turn'
+    | 'invite_once'
+    | 'advance_without_player'
+    | 'seek_closure'
+    | 'finished';
+};
+/** Semantic candidates only. The runtime assigns record/event/actor IDs and completion evidence. */
+export type EventGoalAssessment = {
+  goalKey: string;
+  target: 'user' | 'npc';
+  kind: 'engaged' | 'declined' | 'reopened' | 'unrelated' | 'npc_progress' | 'nudge' | 'closure';
+  quote: string;
+  /** Time expiry and fulfillment require separate verified runtime evidence. */
+  closure?: 'withdrawn' | 'alternative' | 'unresolved';
+};
+/** Director-only actual inputs. These never grant an NPC knowledge of remote activity. */
+export type StoryWorldInput = {
+  sourceEventId: string;
+  version: number;
+  storyAt: string;
+} & (
+  | { kind: 'arrival'; fromPlaceId: string; placeId: string }
+  | {
+      kind: 'invitation_response';
+      invitationId: string;
+      operation: 'accept' | 'cancel' | 'attend' | 'miss' | 'reschedule';
+    }
+  | { kind: 'scene_result'; sceneId: string; outcome: 'succeeded' | 'partial' | 'failed' | null }
+);
+export type TurnProposal = {
+  schemaVersion: 1;
+  effects: WorldEffect[];
+  eventGoalAssessments?: EventGoalAssessment[];
+};
 export type TurnCommand = {
   /** Internal orchestration only; public message input does not accept this field. */
   origin?: 'director';

@@ -1,5 +1,12 @@
 import { DomainError } from './errors.ts';
-import type { StoryChoice, TurnCommand, TurnProposal, WorldEffect, Visibility } from './types.ts';
+import type {
+  StoryChoice,
+  TurnCommand,
+  TurnProposal,
+  WorldEffect,
+  Visibility,
+  EventGoalAssessment,
+} from './types.ts';
 import type {
   WorldMatter,
   MatterSpan,
@@ -322,6 +329,67 @@ export function isoInstant(value: unknown): string {
     return fail();
   return result;
 }
+/** No source IDs, actor reassignment, completion flags or physical selectors in model judgments. */
+export function parseEventGoalAssessments(value: unknown): EventGoalAssessment[] {
+  if (!Array.isArray(value) || value.length > 8) return fail();
+  const assessments = value.map((raw): EventGoalAssessment => {
+    const item = record(raw);
+    if (
+      Object.keys(item).some(
+        (key) => !['goalKey', 'target', 'kind', 'quote', 'closure'].includes(key),
+      )
+    )
+      return fail();
+    const goalKey = text(item.goalKey, 160);
+    if (!/^[a-zA-Z0-9_:-]+$/.test(goalKey)) return fail();
+    const userKinds = ['engaged', 'declined', 'reopened', 'unrelated'];
+    const npcKinds = ['npc_progress', 'nudge', 'closure'];
+    if (
+      (item.target !== 'user' && item.target !== 'npc') ||
+      typeof item.kind !== 'string' ||
+      !(item.target === 'user' ? userKinds : npcKinds).includes(item.kind)
+    )
+      return fail();
+    if (item.kind === 'closure') {
+      if (!['withdrawn', 'alternative', 'unresolved'].includes(item.closure as string))
+        return fail();
+    } else if (Object.hasOwn(item, 'closure')) return fail();
+    return {
+      goalKey,
+      target: item.target,
+      kind: item.kind as EventGoalAssessment['kind'],
+      quote: text(item.quote, 240),
+      ...(item.kind === 'closure'
+        ? { closure: item.closure as EventGoalAssessment['closure'] }
+        : {}),
+    };
+  });
+  const keys = assessments.map((a) => JSON.stringify([a.goalKey, a.target]));
+  if (new Set(keys).size !== keys.length) return fail();
+  // A reply follows its player input, even if the model emits judgments out of order.
+  return assessments.sort((a, b) => Number(a.target === 'npc') - Number(b.target === 'npc'));
+}
+/** Pre-commit scope/quote check only; it does not claim a saved source or completion. */
+export function validateEventGoalAssessmentQuotes(
+  assessments: readonly EventGoalAssessment[],
+  scope: {
+    goalKeys: readonly string[];
+    userText?: string;
+    npcTexts: readonly string[];
+    director?: boolean;
+  },
+): void {
+  parseEventGoalAssessments(assessments);
+  for (const a of assessments) {
+    if (!scope.goalKeys.includes(a.goalKey)) return fail();
+    if (
+      a.target === 'user'
+        ? scope.director || !scope.userText?.includes(a.quote)
+        : !scope.npcTexts.some((text) => text.includes(a.quote))
+    )
+      return fail();
+  }
+}
 /** Construct allowlisted objects: model output cannot supply owner/version/SQL/etc. */
 export function parseProposal(value: unknown): TurnProposal {
   const proposal = record(value);
@@ -434,7 +502,13 @@ export function parseProposal(value: unknown): TurnProposal {
     }
   });
   if (new Set(effects.map((effect) => effect.id)).size !== effects.length) return fail();
-  return { schemaVersion: 1, effects };
+  return {
+    schemaVersion: 1,
+    effects,
+    ...(Object.hasOwn(proposal, 'eventGoalAssessments')
+      ? { eventGoalAssessments: parseEventGoalAssessments(proposal.eventGoalAssessments) }
+      : {}),
+  };
 }
 export function validateCommand(command: TurnCommand): void {
   try {

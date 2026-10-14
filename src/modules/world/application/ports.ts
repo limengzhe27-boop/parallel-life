@@ -4,6 +4,9 @@ import type {
   TurnCommand,
   WorldEvent,
   WorldState,
+  ActorEventGoal,
+  EventGoalAssessment,
+  StoryWorldInput,
 } from '../domain/types.ts';
 
 import type { MemoryRecord } from '../../memory/domain/types.ts';
@@ -12,7 +15,13 @@ import type { MemoryRecord } from '../../memory/domain/types.ts';
 export interface WorldRepository {
   get(session: Session, worldId: string): Promise<WorldState>;
   receipt(session: Session, command: TurnCommand): Promise<CommitResult | null>;
-  commit(session: Session, command: TurnCommand, event: WorldEvent): Promise<CommitResult>;
+  commit(
+    session: Session,
+    command: TurnCommand,
+    event: WorldEvent,
+    /** Trusted context keys; assessments must be validated again against actual committed records. */
+    progress?: { goalKeys: string[]; assessments: EventGoalAssessment[] },
+  ): Promise<CommitResult>;
 }
 export type ActorContext = {
   worldId: string;
@@ -20,6 +29,8 @@ export type ActorContext = {
   time: string;
   worldTitle?: string;
   actor: WorldState['actors'][number];
+  /** Only this actor's sourced goals after visibility, forgetting and budget checks. */
+  eventGoals?: ActorEventGoal[];
   /** Bounded cast sketches for a director beat; never another NPC's private memory. */
   possibleRecipients?: (Pick<
     WorldState['actors'][number],
@@ -68,6 +79,8 @@ export type StoryOpportunityInput = {
   worldSetting?: string;
   cast?: Pick<WorldState['actors'][number], 'id' | 'name' | 'persona' | 'relationship'>[];
   currentPlaceId: string | null;
+  /** Current snapshot's verified changes, supplied to the director only. */
+  recentWorldInputs?: StoryWorldInput[];
   recentMessages: { role: 'user' | 'assistant'; actorId: string; text: string }[];
   candidates: {
     nodeKey: string;
