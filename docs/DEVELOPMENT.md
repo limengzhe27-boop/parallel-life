@@ -1523,3 +1523,16 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 |OPENING-EVENT-18-FIX-Q|[x] 已集成复核|author_people14；root指派|独立people树只读8165828及0fa6db8复验；仅本人docs/task-reports/OPENING-EVENT-18-FIX-Q.md与登记|复核真实terminal一致、同轮expiry/exclusion首演释放，因果ALL/ANY/阶段/alternatives拒死锁，保正常时间地点；51专项通过；确认2P2已报root：阶段成员全过期可达误拒、ANY时间超开场deadline漏检，报告3dd7874e已镜像。接续0fa6db8复验两P2及原专项；0模型DBbrowser生产、不改业务。 Recheck 0fa6db8: both P2 fixed, original counterexamples and 155 pure tests pass; b19b9ab2 report mirrored, no new blockers, 0 DB/model/production.|
 
 |AUTHORING-16-LONG-PERSONA|[ ] 待开发|未领取；root集成安排|角色可保存五维各4000，但publicationCharacterPlanner当前18000上下文阈值会整组静默省略|已由canonical-Q纯stub复现；需显式预算与保核心优先/诚实提示、不截断原存储/不泄露他人私密；任意长人设完整承接未完成。见AUTHORING-16-CANONICAL-FORM-Q。|
+
+|SCENE-PUBLIC-01|[ ] 进行中|codex-scene-natural-01a1334b-20261014；root唯一集成/部署|独立map-travel-repair；仅本人docs/task-reports/SCENE-PUBLIC-01.md、ignored public QA账本/状态及第二临时测试存档；无源码/SQL/正式env/push改动；Ego175复用。|本聊天用户现明确新最多4文字仅上线后公网开场2+有人吗1+吃饭问话1，0图，使用尚未创建的第二临时存档，结束暂停。原18/18 closed不可重开，不沿用root24/2。当前0新调用/0新公网存档，等I审/整合5937687及scene提交、正式4.1配置/生产checksum/精确READY；未部署不提前付费。|
+
+
+## CHARACTER-WECHAT-19（用户2026-10-14：只需微信聊天及有内容的人物朋友圈）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|CHARACTER-WECHAT-19-I|[ ] 进行中（本地验收通过待上线实测）|codex-main-wechat19-20261014 唯一集成|world-publish-intake-01；publisher-character-preview/phone-trial/trial/page/trial-preparation、WechatCharacter/target/CharacterPhoneShell、world-phone-app opt-in、world-build公开actorKey/build-repository来源绑定、server私有prepare purpose/manuscriptplanner最小提示、相关tests/report/登记/部署；PG55476|直接真实微信选中NPC，无锁屏桌面；共用原provider/发送/回执，按不可变opening actorKey不猜名字。缺朋友圈即使普通check ready也prepare、结果缺项不创建。P31de732已接1e101ba，Q30专项无阻断；根2277check/build/format全过，新增真实PG29含映射/越权通过。首轮UI旧文案断言/未启PG失败保留后更正。生产57核验中无新SQL。用户新授权1独立存档/6文字、不发布/图/个人资料；root唯一新账本，旧全closed。待READY与390/1440实际补齐/聊天/朋友圈及暂停清理。|
+
+|CHARACTER-WECHAT-19-P|[ ] Awaiting integration review|author_people14; root assigned|Independent people tree codex/character-wechat19-p from ebea677; only apps/messages.tsx, apps/moments.tsx/.module.css, own UI tests/report|Actual actor.id scoped Moments entry from chat/profile; persisted social body/name, return same NPC, honest empty/error; no host/publisher/contracts/DB/model/production. Source frozen 31de732fd9d0bd684a7ef1796ed844d27a86e9a8: 6 UI tests, type/446 boundaries/build/format pass; initial full check 2268 pass, 4 old local PG auth failures. Own report mirrored; 0 real models/saves/production.|
+
+|CHARACTER-WECHAT-19-Q|[ ] 待验收|author-import-modules-14；root指派|仅只读root当前world-publish-intake-01微信diff/纯stub实验；本人CHARACTER-WECHAT-19-Q.md与短锁|核实际provider/消息回执、actor不可变key准确绑定、URL选人不猜名、缺动态用已有prepare且unknown同cmd、未补齐不建trial；0模型DBbrowser生产。本轮未见新阻断；30纯专项通过、actual provider/发送回执/精确opening映射/社交未补齐不建trial已核；root双端真实与部署验收，报告主镜像。|

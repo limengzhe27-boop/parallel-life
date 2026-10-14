@@ -3,7 +3,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { PublisherClient } from './publisher-client.ts';
 import { WorldPhoneApp } from '../phone/world-phone-app.tsx';
 import type { PublicationTrial } from '../../contracts/publication-worlds.ts';
-export function PublisherTrial({ trialId }: { trialId: string }) {
+export function PublisherTrial({
+  trialId,
+  wechatActorKey,
+}: {
+  trialId: string;
+  wechatActorKey?: string;
+}) {
   const [client] = useState(() => new PublisherClient()),
     [trial, setTrial] = useState<PublicationTrial | null>(null),
     [error, setError] = useState('');
@@ -76,41 +82,44 @@ export function PublisherTrial({ trialId }: { trialId: string }) {
   }
   return trial ? (
     <>
-      <details
-        style={{
-          position: 'fixed',
-          right: 12,
-          bottom: 12,
-          zIndex: 1000,
-          maxWidth: 250,
-          padding: 12,
-          borderRadius: 12,
-          background: '#fff',
-          color: '#172033',
-          boxShadow: '0 2px 12px #0002',
-        }}
-      >
-        <summary>试演剧情</summary>
-        <button
-          disabled={changingLifecycle || advancing || paused === null}
-          onClick={() => void changeLifecycle()}
+      {!wechatActorKey && (
+        <details
+          style={{
+            position: 'fixed',
+            right: 12,
+            bottom: 12,
+            zIndex: 1000,
+            maxWidth: 250,
+            padding: 12,
+            borderRadius: 12,
+            background: '#fff',
+            color: '#172033',
+            boxShadow: '0 2px 12px #0002',
+          }}
         >
-          {changingLifecycle || paused === null ? '正在核对…' : paused ? '开始试演' : '暂停试演'}
-        </button>
-        <p style={{ fontSize: 13 }}>
-          开始后可使用地图与现场；不会自动调用导演，也不会影响玩家存档。
-        </p>
-        <p style={{ fontSize: 13 }}>每次只演绎一个已满足条件的机会，不改写玩家的选择。</p>
-        <button disabled={advancing} onClick={() => void advanceStory()}>
-          {advancing ? '正在试演…' : '推进一条剧情'}
-        </button>
-        {storyNotice ? <p role="status">{storyNotice}</p> : null}
-      </details>
+          <summary>试演剧情</summary>
+          <button
+            disabled={changingLifecycle || advancing || paused === null}
+            onClick={() => void changeLifecycle()}
+          >
+            {changingLifecycle || paused === null ? '正在核对…' : paused ? '开始试演' : '暂停试演'}
+          </button>
+          <p style={{ fontSize: 13 }}>
+            开始后可使用地图与现场；不会自动调用导演，也不会影响玩家存档。
+          </p>
+          <p style={{ fontSize: 13 }}>每次只演绎一个已满足条件的机会，不改写玩家的选择。</p>
+          <button disabled={advancing} onClick={() => void advanceStory()}>
+            {advancing ? '正在试演…' : '推进一条剧情'}
+          </button>
+          {storyNotice ? <p role="status">{storyNotice}</p> : null}
+        </details>
+      )}
       <WorldPhoneApp
         key={trial.worldId + ':' + refresh}
         worldId={trial.worldId}
         transport={transport}
         automatic={false}
+        wechatActorKey={wechatActorKey}
       />
     </>
   ) : (

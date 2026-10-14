@@ -403,6 +403,9 @@ export class BuildRepository {
         opening?.contacts ?? [],
       ).map((actor) => ({
         ...actor,
+        ...(opening?.contacts.some((c) => c.actorId === actor.id)
+          ? { publicationActorKey: opening.contacts.find((c) => c.actorId === actor.id)!.actorKey }
+          : {}),
         ...(avatarFor(actor.id) ? { publicationAvatarUrl: avatarFor(actor.id) } : {}),
       })),
       messages: state.messages.map((m) => ({

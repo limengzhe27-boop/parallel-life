@@ -1155,6 +1155,7 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
       assert.ok(!JSON.stringify(own).includes('privatePersona'));
       assert.equal((await read(otherOwner)).rows[0].v, null);
       const phone = await new BuildRepository(app).phone(owner, entry.worldId);
+      assert.equal(phone.actors[0]!.publicationActorKey, visual.actors[0]!.key);
       assert.equal(
         phone.publicationWallpaperUrl,
         PUBLICATION_ART.find((a) => a.key === 'cover')!.url,

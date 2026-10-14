@@ -201,6 +201,10 @@ export const WorldPhoneSchema = z.strictObject({
       name: z.string(),
       relationship: z.string(),
       summary: z.string().optional(),
+      publicationActorKey: z
+        .string()
+        .regex(/^[a-z][a-z0-9_]{0,31}$/)
+        .optional(),
       sourcePersonId: Id.optional(),
       photo: z.strictObject({ assetId: Id, revision: z.number().int().positive() }).optional(),
       publicationAvatarUrl: PublicationAssetUrlSchema.optional(),

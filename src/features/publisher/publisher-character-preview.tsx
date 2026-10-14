@@ -46,18 +46,16 @@ export function PublisherCharacterPreview({
   const name = person.name || '未命名人物';
   return (
     <div className={s.character}>
-      <section className={s.phonePane} aria-label="真实手机试演">
+      <section className={s.phonePane} aria-label="角色微信试聊">
         <div className={s.header}>
-          <h3>手机试演</h3>
+          <h3>微信试聊 · {name}</h3>
           {trial && onCloseTrial && (
             <button type="button" onClick={onCloseTrial}>
               收起试演
             </button>
           )}
         </div>
-        <p className={s.hint}>
-          在手机微信中选择联系人，查看人物资料、朋友圈并直接聊天。试演使用独立存档。
-        </p>
+        <p className={s.hint}>直接与{name}聊天，查看人物资料与朋友圈。试聊使用独立存档。</p>
         {trialMessage && (
           <p role="status" className={s.hint}>
             {trialMessage}
@@ -109,8 +107,8 @@ export function PublisherCharacterPreview({
           <div className={s.trialWrap}>
             <iframe
               className={s.phone}
-              title="这份已保存草稿的真实试演手机"
-              src={phoneTrialUrl(trial)}
+              title={`与${name}的真实微信试聊`}
+              src={phoneTrialUrl(trial, actorKey)}
             />
             {isDirty && (
               <div
@@ -150,8 +148,8 @@ export function PublisherCharacterPreview({
           <div className={s.empty}>
             <p>
               {isDirty
-                ? '有未保存的修改，点击下方按钮将自动保存并进入手机试演。'
-                : '点击试演，项目 Agent 会按你的人物设定补齐手机所需内容，再打开真实手机。已有完整世界将直接进入。'}
+                ? '点击试聊会先保存修改，再打开这位人物的微信。'
+                : '点击试聊，项目 Agent 会补齐缺少的历史聊天与朋友圈，再打开这位人物的微信。'}
             </p>
             <button
               type="button"
@@ -160,7 +158,7 @@ export function PublisherCharacterPreview({
                 onStartTrial?.();
               }}
             >
-              {busy ? (allowTrialWhileSaving ? '保存后试演' : '正在准备试演…') : '试演这份草稿'}
+              {busy ? (allowTrialWhileSaving ? '保存后试聊' : '正在准备试聊…') : '与TA试聊'}
             </button>
           </div>
         )}

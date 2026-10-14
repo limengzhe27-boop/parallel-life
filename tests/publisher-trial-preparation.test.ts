@@ -60,6 +60,8 @@ function setup() {
   const calls: string[] = [];
   let mode:
     | 'success'
+    | 'socialsuccess'
+    | 'socialmissing'
     | 'unknown'
     | 'invalid'
     | 'overwrite'
@@ -79,7 +81,17 @@ function setup() {
   function record(): PublisherPreparationRecord {
     assert.ok(preparedInput);
     const proposed = structuredClone(preparedInput.currentContent);
-    (proposed.world as Record<string, unknown>).publicSetting = '项目 Agent 的试演补充';
+    if (!(proposed.world as Record<string, unknown>).publicSetting)
+      (proposed.world as Record<string, unknown>).publicSetting = '项目 Agent 的试演补充';
+    if (mode === 'socialsuccess')
+      (proposed.phone as Record<string, unknown>).moments = [
+        {
+          key: 'new_post',
+          actorKey: 'person',
+          text: '整理完今天的材料，终于能歇一会儿。',
+          at: '2026-10-13T01:00:00Z',
+        },
+      ];
     if (mode === 'overwrite')
       (
         (proposed.actors as Record<string, unknown>[])[0]!.privatePersona as Record<string, unknown>
@@ -413,4 +425,66 @@ test('wrong material never retires a command or triggers automatic regeneration'
   await assert.rejects(coordinator.open(s.current, draft, options), { code: 'VERSION_CONFLICT' });
   assert.equal(retired, 0);
   assert.deepEqual(s.calls, ['check', 'prepare', 'check', 'recover']);
+});
+
+function familiarWithMissingMoments(s: ReturnType<typeof setup>) {
+  const c = s.current.draft.content;
+  (c.world as Record<string, unknown>).publicSetting = '作者已完整填写的世界';
+  (c.world as Record<string, unknown>).startAt = '2026-10-14T01:00:00Z';
+  const a = (c.actors as Record<string, unknown>[])[0]!;
+  a.knownAtStart = true;
+  a.lifeModules = { relationships: '与主角合作三年的熟人' };
+  (c.phone as Record<string, unknown>).messages = [
+    {
+      key: 'a_old',
+      actorKey: 'person',
+      speaker: 'actor',
+      origin: 'history',
+      text: '原有消息逐字保留',
+      at: '2026-10-12T01:00:00Z',
+    },
+    {
+      key: 'p_old',
+      actorKey: 'person',
+      speaker: 'player',
+      origin: 'history',
+      text: '玩家的旧回复也保留',
+      at: '2026-10-12T01:01:00Z',
+    },
+  ];
+}
+test('a world passing ordinary checks still prepares missing NPC moments and preserves existing messages', async () => {
+  const s = setup();
+  familiarWithMissingMoments(s);
+  s.mode = 'socialsuccess';
+  const original = structuredClone(s.current.draft.content);
+  const result = await new PublisherTrialPreparation(s.client, () => command).open(
+    s.current,
+    { title: s.current.title, content: s.current.draft.content },
+    options,
+  );
+  assert.deepEqual(s.calls, ['check', 'prepare', 'save', 'start']);
+  assert.equal(result.supplemented, true);
+  assert.deepEqual(
+    (result.work.draft.content.phone as Record<string, unknown>).messages,
+    (original.phone as Record<string, unknown>).messages,
+  );
+  assert.equal(
+    ((result.work.draft.content.phone as Record<string, unknown>).moments as unknown[]).length,
+    1,
+  );
+});
+test('a succeeded preparation without required moments never creates an empty character demo', async () => {
+  const s = setup();
+  familiarWithMissingMoments(s);
+  s.mode = 'socialmissing';
+  await assert.rejects(
+    new PublisherTrialPreparation(s.client, () => command).open(
+      s.current,
+      { title: s.current.title, content: s.current.draft.content },
+      options,
+    ),
+    { code: 'TRIAL_SOCIAL_MISSING' },
+  );
+  assert.deepEqual(s.calls, ['check', 'prepare']);
 });

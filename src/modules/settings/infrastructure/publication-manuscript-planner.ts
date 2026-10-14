@@ -249,6 +249,9 @@ function withReview(result: PublisherPreparationOutput, text: string): Publisher
 const CHARACTER_TRIAL_SYSTEM =
   '\n受信服务端已选择私有角色演示准备：只补当前稿运行真实手机所需的最少日常环境，不发布、不创建玩家存档。原角色key/name、五模块、编剧公开介绍、图片和已有事件全部保留，允许仅一个角色，严禁为过关新增第二人或新增剧情事件/邀约/任务/条件/过往事实。本私有模式覆盖普通世界整理中扩写事实/关系的规则：currentContent.history、initialKnowledge、relationships未提供或为空时，输出这三项必须严格为[]；已有值逐项原样保留，不添加或删除。lifeModules.relationships仅是编剧的人物私有关系设定，可在原空privatePersona中写兼容摘要，不能自动变成关系图、过去事实或知情记录。格式范例里的history/initialKnowledge/relationships不适用于本私有演示。纠错若这三项出现character_trial_author_content_changed，直接恢复originalCurrentContent原值（缺省[]），不要将人生背景或关系模型再次转存到这些列表。phone.messages里的普通双向历史是不同的内容，仍仅在已确认熟人关系时允许。world或protagonist等运行信息缺少时，围绕已写人物补一个普通日常地点、平常身份和此刻处境；不假定恋爱、借贷、重大经历或玩家承诺。knownAtStart=false保持未相识，phone.messages和phone.moments均留空，不编历史或开场通知；私有演示可在真手机实时发起第一次对话，不代表过去认识。knownAtStart=true但未提供关系时不编双向历史；熟人历史/动态只按已确认关系生成。publicCard沿原稿，不编公开介绍；privatePersona仅在原空处基于五模块写兼容运行摘要。结果是待编剧核对的私有未发布草稿。不要照抄格式例人物、事件或阶段。';
 
+const CHARACTER_SOCIAL_SYSTEM =
+  '\n私有微信演示必须补齐所有knownAtStart=true人物缺失的phone.moments：每人至少一条有正文的普通生活动态，key唯一、actorKey准确、UTC at不晚于previewReferenceAt/world.startAt，体现公开身份和性格，不泄露私密关系、秘密或未来事件。已有phone.messages和moments逐字保留，仅追加缺少的角色记录；knownAtStart=false保持原未知关系，不给他们编造过往聊天或动态。已确认熟人关系缺双向历史时才补phone.messages，至少actor和player各一句，origin=history，时间严格早于开场。其余世界已经完整时不改动它。';
+
 export class PublicationManuscriptPlanner implements PublisherPreparationPlanner {
   private readonly model: TextModel;
   private readonly characterTrial: boolean;
@@ -311,7 +314,7 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
         role: 'system' as const,
         content: charactersOnly
           ? CHARACTER_SYSTEM
-          : SYSTEM + (this.characterTrial ? CHARACTER_TRIAL_SYSTEM : ''),
+          : SYSTEM + (this.characterTrial ? CHARACTER_TRIAL_SYSTEM + CHARACTER_SOCIAL_SYSTEM : ''),
       },
       {
         role: 'user' as const,
@@ -327,7 +330,9 @@ export class PublicationManuscriptPlanner implements PublisherPreparationPlanner
         role: 'system',
         content: charactersOnly
           ? CHARACTER_SYSTEM + CHARACTER_CORRECTION
-          : SYSTEM + CORRECTION_INSTRUCTION + (this.characterTrial ? CHARACTER_TRIAL_SYSTEM : ''),
+          : SYSTEM +
+            CORRECTION_INSTRUCTION +
+            (this.characterTrial ? CHARACTER_TRIAL_SYSTEM + CHARACTER_SOCIAL_SYSTEM : ''),
       },
       {
         role: 'user',

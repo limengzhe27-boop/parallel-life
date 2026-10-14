@@ -41,8 +41,11 @@ export function phoneTrialFromResult(
     contentHash: work.draft.contentHash,
   };
 }
-export function phoneTrialUrl(trial: PublisherPhoneTrial) {
-  return '/workbench/trials/' + encodeURIComponent(trial.trialId);
+export function phoneTrialUrl(trial: PublisherPhoneTrial, actorKey?: string) {
+  const base = '/workbench/trials/' + encodeURIComponent(trial.trialId);
+  return actorKey && /^[a-z][a-z0-9_]{0,31}$/.test(actorKey)
+    ? base + '?' + new URLSearchParams({ view: 'wechat', actor: actorKey })
+    : base;
 }
 
 export function phoneTrialMount(

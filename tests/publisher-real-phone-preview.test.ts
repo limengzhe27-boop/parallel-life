@@ -184,9 +184,7 @@ test('unsaved content keeps existing trial visible with stale badge and requires
   });
   assert.ok(!renderToStaticMarkup(unopened).includes('<iframe'));
   assert.equal(starts, 0);
-  const open = walk(unopened).find(
-    (e) => e.type === 'button' && e.props.children === '试演这份草稿',
-  )!;
+  const open = walk(unopened).find((e) => e.type === 'button' && e.props.children === '与TA试聊')!;
   (open.props.onClick as () => void)();
   assert.equal(starts, 1);
 });

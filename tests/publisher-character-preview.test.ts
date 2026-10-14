@@ -184,15 +184,15 @@ test('character pane uses saved-trial guidance and honest phone trial without sq
       onChange() {},
     }),
   );
-  assert.match(html, /aria-label="真实手机试演"/);
+  assert.match(html, /aria-label="角色微信试聊"/);
   assert.ok(!html.includes('我带上地图'));
   assert.ok(!html.includes('按昨天的路线走'));
   assert.ok(!html.includes('playerMessage'));
   // The duplicated squeezed editing column has been removed from preview
   assert.doesNotMatch(html, /向导 · 角色介绍/);
   assert.doesNotMatch(html, /details class="editing"/);
-  assert.ok(html.includes('手机试演'));
-  assert.ok(html.includes('试演使用独立存档'));
+  assert.ok(html.includes('微信试聊'));
+  assert.ok(html.includes('试聊使用独立存档'));
 });
 
 test('empty chat is honest, does not synthesize conversation, and reports honest preview state', () => {
@@ -206,7 +206,7 @@ test('empty chat is honest, does not synthesize conversation, and reports honest
       onChange() {},
     }),
   );
-  assert.match(html, /试演这份草稿/);
+  assert.match(html, /与TA试聊/);
   assert.ok(!html.includes('OTHER_PERSON'));
   assert.equal(characterPreviewTime('2026-10-12T20:30:00Z'), '10月13日 04:30');
 });
@@ -230,7 +230,7 @@ test('trial remains actionable during autosave, while preparation itself stays l
     assert.match(html, /role="alert" class="trialError"/);
     const buttons = [...html.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)];
     const trial = buttons.find(([, , label]) =>
-      label?.includes(allowTrialWhileSaving ? '保存后试演' : '正在准备试演'),
+      label?.includes(allowTrialWhileSaving ? '保存后试聊' : '正在准备试聊'),
     );
     assert.ok(trial);
     assert.equal(trial[1]!.includes('disabled'), !allowTrialWhileSaving);

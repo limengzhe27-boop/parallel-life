@@ -27,7 +27,8 @@ import { MessageReceiptClient } from '../api/message-receipt-client.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
-import { PhoneShell } from './phone-shell.tsx';
+import { CharacterPhoneShell as PhoneShell } from './character-phone-shell.tsx';
+import { wechatCharacterTarget } from './wechat-character-target.ts';
 import { PhoneDesktop } from './phone-desktop.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { recordAttribution } from './apps/notes-records.tsx';
@@ -65,10 +66,12 @@ export function WorldPhoneApp({
   worldId,
   transport,
   automatic = true,
+  wechatActorKey,
 }: {
   worldId: string;
   transport?: typeof fetch;
   automatic?: boolean;
+  wechatActorKey?: string;
 }) {
   const [receiptClient] = useState(() => new MessageReceiptClient(transport));
   const [client] = useState(() => new LifeClient(transport)),
@@ -495,6 +498,7 @@ export function WorldPhoneApp({
       ) : (
         <WorldPhoneSurface
           key={data.id}
+          wechatActorKey={wechatActorKey}
           transport={transport}
           data={data}
           onUploadPhoto={async (file, commandId) => {
@@ -612,6 +616,7 @@ export function WorldPhoneSurface({
   localMessages = [],
   loading = false,
   loadError,
+  wechatActorKey,
 }: {
   data: WorldPhone;
   onExperienceBusy?: (busy: boolean) => void;
@@ -630,6 +635,7 @@ export function WorldPhoneSurface({
   onSaveNote?: PhoneActions['saveNote'];
   loading?: boolean;
   loadError?: string;
+  wechatActorKey?: string;
 }) {
   const [viewed, setViewed] = useState<ReadonlySet<string>>(() => {
     try {
@@ -1069,6 +1075,10 @@ export function WorldPhoneSurface({
       }}
     >
       <PhoneShell
+        wechatActorKey={wechatActorKey}
+        wechatActorId={
+          wechatActorKey ? wechatCharacterTarget(data.actors, wechatActorKey) : undefined
+        }
         worldId={data.id}
         lifeName={data.title}
         dateLabel={dateLabel}

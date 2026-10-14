@@ -242,7 +242,7 @@ test('character form renders horizontal navigation bar, clean dimensions, and di
     '成长背景与经历',
     '动机与在乎的事',
     '说话简洁轻柔',
-    '试演这份草稿',
+    '与TA试聊',
   ])
     assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /1\. 名字与身份|2\. 与主角的初始关系|5\. 关系、知情范围与底线/);
@@ -311,7 +311,7 @@ test('character form removes redundant legacy buttons and focuses on name, avata
   assert.doesNotMatch(html, /✨ 生成角色（保存并启动试演对话）/);
   assert.ok(html.includes('微信头像（默认使用预设图片）'));
   assert.ok(html.includes('角色核心 5 个维度设定'));
-  assert.ok(html.includes('试演这份草稿'));
+  assert.ok(html.includes('与TA试聊'));
   assert.doesNotMatch(html, /整理本角色的历史与朋友圈/);
 });
 

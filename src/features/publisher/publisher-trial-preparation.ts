@@ -5,6 +5,11 @@ import {
   type PublisherPreparationRecord,
 } from '../../contracts/publisher-preparation.ts';
 import { mergePublicationPreparation } from '../../modules/settings/domain/publication-preparation.ts';
+import {
+  characterPreviewCompletenessIssues,
+  characterPreviewReferenceAt,
+} from '../../modules/settings/domain/publication-character-previews.ts';
+import { characterPreview } from './publisher-character-model.ts';
 import { readOverallSetting } from './publisher-overall-setting.ts';
 import {
   currentCharacterManuscripts,
@@ -111,6 +116,38 @@ function issuesMessage(issues: { code: string; path: (string | number)[] }[]) {
   return `试演准备还有 ${issues.length} 处需核对：${parts.slice(0, 3).join('、')}。原稿已保留，没有启动手机或采用这份补充。`;
 }
 
+/** Complete worlds can still lack a character's social content. No fabricated posts. */
+export function trialCharacterPreviewIssues(content: Record<string, unknown>) {
+  const issues = characterPreviewCompletenessIssues(
+    content,
+    content,
+    [],
+    characterPreviewReferenceAt(content),
+    true,
+  );
+  const actors = Array.isArray(content.actors) ? content.actors : [];
+  actors.forEach((actor, index) => {
+    if (
+      !actor ||
+      typeof actor !== 'object' ||
+      typeof actor.key !== 'string' ||
+      actor.knownAtStart !== true
+    )
+      return;
+    const preview = characterPreview(content, actor.key);
+    if (
+      preview &&
+      !preview.moments.length &&
+      !issues.some((i) => i.code === 'character_preview_moments_missing' && i.path[1] === index)
+    )
+      issues.push({
+        path: ['actors', index, 'momentsPreview'],
+        code: 'character_preview_moments_missing',
+      });
+  });
+  return issues;
+}
+
 /** Coordinates one paid preparation at most; uncertain operations are only read on subsequent clicks. */
 export class PublisherTrialPreparation {
   private attempts = new Map<string, TrialAttempt>();
@@ -161,9 +198,12 @@ export class PublisherTrialPreparation {
         '草稿已有变化，请核对最新保存内容后再试演。',
       );
     const issues = check.issues.filter((issue) => issue.code !== 'trial_unverified');
+    const previewIssues =
+      options.mode === 'world' ? [] : trialCharacterPreviewIssues(work.draft.content);
     let supplemented = false;
     if (
       issues.length ||
+      previewIssues.length ||
       check.issuesTruncated ||
       check.missingCapabilities.length ||
       check.status === 'invalid'
@@ -240,6 +280,13 @@ export class PublisherTrialPreparation {
         terminalFailure(
           'TRIAL_SOURCE_CHANGED',
           '准备结果改动了你已有的设定，未自动采用。原稿仍保留，请先核对。',
+        );
+      const incompletePreview =
+        options.mode === 'world' ? [] : trialCharacterPreviewIssues(proposed);
+      if (incompletePreview.length)
+        terminalFailure(
+          'TRIAL_SOCIAL_MISSING',
+          '人物的历史聊天或朋友圈还没有补齐，未启动试聊。已有内容仍保留。',
         );
       const preparedDraft = { title: work.title, content: proposed };
       if (trialDraftChanged(work, preparedDraft)) {

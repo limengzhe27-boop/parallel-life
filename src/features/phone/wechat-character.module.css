@@ -1,0 +1,53 @@
+.wechat {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #ebebeb;
+  color: #111827;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ddd;
+  background: #fff;
+}
+.tabs button {
+  min-height: 44px;
+  flex: 1;
+  font: inherit;
+  font-size: 14px;
+  border: 0;
+  border-radius: 8px;
+  color: #475569;
+  background: #f1f5f9;
+  cursor: pointer;
+}
+.tabs button[aria-pressed='true'] {
+  color: #176b42;
+  background: #e5f6eb;
+  font-weight: 600;
+}
+.tabs button:focus-visible {
+  outline: 2px solid #347bfa;
+  outline-offset: 2px;
+}
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.content > div {
+  height: 100%;
+}
+.notice,
+.empty {
+  padding: 12px;
+  margin: 0;
+  color: #475569;
+  background: #fff;
+  line-height: 1.7;
+}
