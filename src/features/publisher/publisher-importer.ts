@@ -7,7 +7,10 @@
 import type { PublisherSchedule } from '../../contracts/publisher-preparation.ts';
 import { planPublicationTimes } from '../../modules/settings/domain/publication-scheduling.ts';
 import { PublishedWorldContentSchema } from '../../contracts/published-world-content.ts';
-import { publicationStorageIssues } from '../../modules/settings/domain/publication-content.ts';
+import {
+  publicationStorageIssues,
+  PUBLICATION_LIFE_MODULE_MAX_CHARS,
+} from '../../modules/settings/domain/publication-content.ts';
 import {
   generateActorKey,
   joinMotivation,
@@ -615,7 +618,7 @@ export function parseFeishuMarkdownBundle(
         };
         const lifeModules: ImportedLifeModules = {};
         for (const [key, value] of Object.entries(importedActor.lifeModules ?? {})) {
-          const complete = bounded('人物设定模块', value, 4000);
+          const complete = bounded('人物设定模块', value, PUBLICATION_LIFE_MODULE_MAX_CHARS);
           if (complete) lifeModules[key as keyof ImportedLifeModules] = complete;
         }
         const hasModules = Object.keys(lifeModules).length > 0;

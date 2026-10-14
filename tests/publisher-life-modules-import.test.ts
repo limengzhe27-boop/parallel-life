@@ -6,6 +6,7 @@ import {
   parseFeishuMarkdownBundle,
 } from '../src/features/publisher/publisher-importer.ts';
 import { PublishedWorldContentSchema } from '../src/contracts/published-world-content.ts';
+import { PUBLICATION_LIFE_MODULE_MAX_CHARS } from '../src/modules/settings/domain/publication-content.ts';
 
 const source = (name = '丙') => `# 角色：${name}
 开场已认识：是
@@ -186,18 +187,25 @@ test('same-name import preserves original identity, modules, public introduction
 });
 
 test('overlong authored module is not truncated or silently replaced; original remains reviewable', () => {
-  const text = '# 角色：长稿人物\n## 人生背景\n' + '甲'.repeat(4001);
+  const text =
+    '# 角色：长稿人物\n## 人生背景\n' + '甲'.repeat(PUBLICATION_LIFE_MODULE_MAX_CHARS + 1);
   const result = parseFeishuMarkdownBundle([{ filename: '人物_长稿.md', content: text }]);
   assert.equal(result.summary.unmapped[0]!.content, text);
   assert.equal(
     result.summary.diagnostics.some((d) => d.code === 'actor_field_unmapped'),
     true,
   );
-  assert.equal(JSON.stringify(result.updatedContent).includes('甲'.repeat(4000)), false);
+  assert.equal(
+    JSON.stringify(result.updatedContent).includes('甲'.repeat(PUBLICATION_LIFE_MODULE_MAX_CHARS)),
+    false,
+  );
   const exact = parseFeishuMarkdownBundle([
     { filename: '人物_长稿.md', content: text.slice(0, -1) },
   ]);
-  assert.equal((exact.updatedContent.actors as any[])[0].lifeModules.lifeContext.length, 4000);
+  assert.equal(
+    (exact.updatedContent.actors as any[])[0].lifeModules.lifeContext.length,
+    PUBLICATION_LIFE_MODULE_MAX_CHARS,
+  );
 });
 
 test('multiple declared characters receive stable distinct keys and no inferred public biographies', () => {

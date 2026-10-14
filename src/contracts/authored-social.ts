@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PUBLICATION_LIFE_MODULE_MAX_CHARS } from '../modules/settings/domain/publication-content.ts';
 export const AuthoredSocialSchema = z.strictObject({
   moments: z
     .array(
@@ -18,9 +19,9 @@ export type AuthoredSocial = z.infer<typeof AuthoredSocialSchema>;
 
 /** Server-only input context; the social HTTP route does not include these modules. */
 export const AuthoredLifeModulesSchema = z.strictObject({
-  lifeContext: z.string().min(1).max(4000).optional(),
-  traits: z.string().min(1).max(4000).optional(),
-  drives: z.string().min(1).max(4000).optional(),
-  behavior: z.string().min(1).max(4000).optional(),
-  relationships: z.string().min(1).max(4000).optional(),
+  lifeContext: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+  traits: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+  drives: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+  behavior: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+  relationships: z.string().min(1).max(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
 });

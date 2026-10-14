@@ -4,6 +4,7 @@ import {
   publicationPlayerPreview,
   publicationSupport,
   publicationStorageIssues,
+  PUBLICATION_LIFE_MODULE_MAX_CHARS,
   type PublicationContent,
   type PublicationJson,
 } from '../modules/settings/domain/publication-content.ts';
@@ -90,11 +91,11 @@ const shape = z
           knownAtStart: z.boolean(),
           lifeModules: z
             .strictObject({
-              lifeContext: text(4000).optional(),
-              traits: text(4000).optional(),
-              drives: text(4000).optional(),
-              behavior: text(4000).optional(),
-              relationships: text(4000).optional(),
+              lifeContext: text(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+              traits: text(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+              drives: text(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+              behavior: text(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
+              relationships: text(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),
             })
             .optional(),
           publicCard: z.strictObject({

@@ -181,6 +181,8 @@ export type PublicationIssue = { path: (string | number)[]; code: string };
 // Authoring includes every character's original five modules, social history and plot notes.
 // The compact playable-world budget is enforced separately during compilation.
 export const PUBLICATION_CONTENT_MAX_BYTES = 1_048_576;
+/** Long authored prose stays in the immutable publication; runtime model budgets remain separate. */
+export const PUBLICATION_LIFE_MODULE_MAX_CHARS = 16_384;
 
 /** Run before recursive shape parsing. Internal JSON only, never executable extensions. */
 export function publicationStorageIssues(value: unknown): PublicationIssue[] {

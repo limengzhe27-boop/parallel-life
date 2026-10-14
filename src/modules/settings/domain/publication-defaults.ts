@@ -140,11 +140,10 @@ export function ensurePublishableDefaults(
     if (a.lifeModules && typeof a.lifeModules === 'object') {
       const lm = a.lifeModules;
       const lifeModules: Record<string, any> = {};
-      if (lm.lifeContext) lifeModules.lifeContext = safeText(lm.lifeContext, 4000);
-      if (lm.traits) lifeModules.traits = safeText(lm.traits, 4000);
-      if (lm.drives) lifeModules.drives = safeText(lm.drives, 4000);
-      if (lm.behavior) lifeModules.behavior = safeText(lm.behavior, 4000);
-      if (lm.relationships) lifeModules.relationships = safeText(lm.relationships, 4000);
+      // Keep authored prose intact; validation reports text over the supported limit.
+      for (const key of ['lifeContext', 'traits', 'drives', 'behavior', 'relationships']) {
+        if (typeof lm[key] === 'string' && lm[key].trim()) lifeModules[key] = lm[key];
+      }
       if (Object.keys(lifeModules).length > 0) {
         actorObj.lifeModules = lifeModules;
       }

@@ -1,4 +1,4 @@
-import type { PublicationIssue } from './publication-content.ts';
+import { PUBLICATION_LIFE_MODULE_MAX_CHARS, type PublicationIssue } from './publication-content.ts';
 import { mergePublicationPreparation } from './publication-preparation.ts';
 import { preparationCharacterNames } from './publication-preparation-scope.ts';
 
@@ -277,7 +277,8 @@ export function characterPreviewCompletenessIssues(
       typeof actor.name !== 'string' ||
       (!allAuthoredActors && !names.has(actor.name)) ||
       actor.knownAtStart !== true ||
-      (socialFocus === undefined && !text(modules.relationships, 4000)) ||
+      (socialFocus === undefined &&
+        !text(modules.relationships, PUBLICATION_LIFE_MODULE_MAX_CHARS)) ||
       actors.filter((a) => a.key === actor.key).length !== 1
     )
       continue;
@@ -291,7 +292,11 @@ export function characterPreviewCompletenessIssues(
     );
     const hasActor = history.some((m) => m.speaker === undefined || m.speaker === 'actor');
     const hasPlayer = history.some((m) => m.speaker === 'player');
-    if (socialFocus !== 'moments' && text(modules.relationships, 4000) && (!hasActor || !hasPlayer))
+    if (
+      socialFocus !== 'moments' &&
+      text(modules.relationships, PUBLICATION_LIFE_MODULE_MAX_CHARS) &&
+      (!hasActor || !hasPlayer)
+    )
       issues.push({
         path: ['actors', index, 'historyPreview'],
         code: 'character_preview_history_missing',
@@ -397,7 +402,10 @@ export function worldCharacterPreviewBaseline(
       if (tableRelation && cells[infoIndex]) relationship.push(cells[infoIndex]!);
     }
     const raw = relationship.join('\n').trim();
-    if (!text(raw, 4000) || /尚未|未曾|从未|不认识|还不认识|未相识|陌生|将来|未来|将成为/.test(raw))
+    if (
+      !text(raw, PUBLICATION_LIFE_MODULE_MAX_CHARS) ||
+      /尚未|未曾|从未|不认识|还不认识|未相识|陌生|将来|未来|将成为/.test(raw)
+    )
       continue;
     const explicitlyKnown =
       /(?:^|\n)\s*(?:[-*]\s*)?开场(?:已)?认识\s*[:：]\s*(?:是|true)\s*(?:$|\n)/i.test(

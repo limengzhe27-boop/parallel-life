@@ -10,8 +10,11 @@ import {
   publicationPlayerPreview,
   publicationStorageIssues,
   publicationSupport,
+  PUBLICATION_LIFE_MODULE_MAX_CHARS,
   type PublicationContent,
 } from '../src/modules/settings/domain/publication-content.ts';
+import { AuthoredLifeModulesSchema } from '../src/contracts/authored-social.ts';
+import { ensurePublishableDefaults } from '../src/modules/settings/domain/publication-defaults.ts';
 
 function content(): PublicationContent {
   return {
@@ -719,6 +722,27 @@ test('storage budget measures UTF-8 bytes; extension and total budgets reject', 
     ),
   );
 });
+test('long authored character prose survives validation and defaults without leaking into the player preview', () => {
+  const c = content();
+  const prose = '成长经历。'.repeat(1500);
+  assert.ok(prose.length > 4000 && prose.length < PUBLICATION_LIFE_MODULE_MAX_CHARS);
+  c.actors[0]!.lifeModules = { lifeContext: prose, relationships: prose };
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  assert.equal(AuthoredLifeModulesSchema.safeParse(c.actors[0]!.lifeModules).success, true);
+  const defaults = ensurePublishableDefaults(c as unknown as Record<string, unknown>);
+  const modules = (defaults.actors as { lifeModules: { lifeContext: string } }[])[0]!.lifeModules;
+  assert.equal(modules.lifeContext, prose);
+  assert.doesNotMatch(JSON.stringify(previewPublishedWorldContent(c)), /成长经历/);
+  c.actors[0]!.lifeModules!.lifeContext = '界'.repeat(PUBLICATION_LIFE_MODULE_MAX_CHARS + 1);
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, false);
+  assert.equal(AuthoredLifeModulesSchema.safeParse(c.actors[0]!.lifeModules).success, false);
+  const oversized = ensurePublishableDefaults(c as unknown as Record<string, unknown>);
+  assert.equal(
+    (oversized.actors as { lifeModules: { lifeContext: string } }[])[0]!.lifeModules.lifeContext,
+    c.actors[0]!.lifeModules!.lifeContext,
+  );
+});
+
 test('plain JSON extensions reject prototype keys, cycles, infinite values, functions and excessive depth before parsing', () => {
   const cyclic: Record<string, unknown> = {};
   cyclic.self = cyclic;
