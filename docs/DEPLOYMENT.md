@@ -1105,3 +1105,10 @@ MD/ZIP文稿 → 项目自己的整理Agent → 原稿/补充/变化双核对 �
 ## 2026-10-14 · CHARACTER-CAPACITY-23-I / CHARACTER-PASTE-23
 
 `4f273e5`、`275da88`、`9902287` 已部署到 Production `dpl_2zvPE8eSvDC1E3if4TKyPCYSJtth` READY，正式别名已核。人物五维长文上限提升至 16,384 字符；当前人物可粘贴/导入 Markdown，逐项预览核对后填入，未知章节阻断、重复导入不追加；事件编辑移除手动地点入口。集成 `check:boundaries`、typecheck、19 项聚焦和 build 通过；执行树完整 2329 项检查与真实 PostgreSQL、PC/390px 验收通过。无新增迁移；部署前生产 59/59 校验和一致。公网健康 200、工作台 200、匿名作品接口 401。
+
+
+## 2026-10-15 · SCRIPT-LIBRARY-25-I 剧情与地点库
+
+业务 `5484b4a6eb111e972ec829c89cf22eadac047f95` 已 Production READY，部署 `parallel-life-ox85v2sal-limengzhe27-boops-projects.vercel.app`，正式 https://parallel-life-nu.vercel.app/workbench 已真实浏览器验证。生产 62/62 迁移校验和一致；check 2377/2377、build 与真实 PostgreSQL 33/33 通过。Markdown/ZIP 默认按格式解析，保留事件全文、多地点及明确开场；作者核对后填入，不默认调用 AI 或抽取硬条件，重复导入不追加。PC1440/mobile390已检查并修复长稿识别按钮被滚动区遮挡。
+
+《渣男体验》在版本冲突保护下从最新草稿116保存为117：1开场+17事件、16地点（14原稿+2保留）；原有79历史消息、24朋友圈及人物/图片完整保留，原稿18块逐项一致。实际作品保持草稿、没有发布；本轮0模型/0新世界。新地点地图揭示/导航与连续多拍事件尚待单独验收，见 SCRIPT-LIBRARY-25-I 报告与总表，不能把导入成功当成全部分支已玩通。
