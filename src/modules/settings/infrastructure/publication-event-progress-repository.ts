@@ -23,6 +23,15 @@ export type ProgressLedgerDefinition = {
   spec: PublicationEventProgressSpec;
   actorIdsByKey: ReadonlyMap<string, string>;
 };
+export type RecentStoryWorldInput = {
+  sourceEventId: string;
+  version: number;
+  storyAt: string;
+} & (
+  | { kind: 'arrival'; fromPlaceId: string; placeId: string }
+  | { kind: 'invitation_response'; invitationId: string; operation: string }
+  | { kind: 'scene_result'; sceneId: string; outcome: string | null }
+);
 function hashDefinition(value: ProgressLedgerDefinition) {
   return createHash('sha256')
     .update(JSON.stringify([value.definition, value.spec, [...value.actorIdsByKey].sort()]))
@@ -30,6 +39,74 @@ function hashDefinition(value: ProgressLedgerDefinition) {
 }
 /** A private projection of successful world records. No model call and no raw client write port. */
 export class PublicationEventProgressRepository {
+  private async authoredPlaces(sql: SqlClient, d: StoryProgressDefinition) {
+    const plan = (
+      await sql.query(
+        'SELECT document FROM parallel_life.publication_story_plans WHERE world_id=$1 AND owner_id=$2',
+        [d.worldId, d.ownerId],
+      )
+    ).rows[0]?.document;
+    const authored = plan?.nodes?.find(
+      (candidate: { key?: string }) => candidate.key === d.nodeKey,
+    );
+    if (!authored) throw new TaskError('INVALID_STATE');
+    return [
+      authored.placeKey,
+      authored.settingPlaceKey,
+      ...(authored.scenePlaceKeys ?? []),
+      ...(authored.intent?.kind === 'offer_invitation' ? [authored.intent.placeKey] : []),
+    ].filter((key): key is string => typeof key === 'string');
+  }
+  /** Director-only real changes, without private thoughts, dialogue or inferred NPC knowledge. */
+  async recentWorldInputs(sql: SqlClient, ownerId: string, worldId: string, worldVersion: number) {
+    const rows = (
+      await sql.query(
+        "SELECT e.id,e.version,e.payload FROM parallel_life.world_events e JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version<=$3 AND c.status='succeeded' AND c.result_event_id=e.id AND e.payload->>'type' IN ('travel.completed','invitation.responded','scene.opened','scene.action_resolved','scene.reaction_recorded') ORDER BY e.version DESC LIMIT 8",
+        [worldId, ownerId, worldVersion],
+      )
+    ).rows;
+    const inputs: RecentStoryWorldInput[] = [];
+    for (const row of rows.reverse()) {
+      const payload = row.payload,
+        data = payload.data;
+      const storyAt = payload.storyAt ?? payload.storyTime;
+      if (typeof storyAt !== 'string' || !Number.isFinite(Date.parse(storyAt))) continue;
+      const source = { sourceEventId: row.id as string, version: row.version as number, storyAt };
+      if (
+        payload.type === 'travel.completed' &&
+        typeof data?.fromPlaceId === 'string' &&
+        typeof data.toPlaceId === 'string'
+      )
+        inputs.push({
+          ...source,
+          kind: 'arrival',
+          fromPlaceId: data.fromPlaceId,
+          placeId: data.toPlaceId,
+        });
+      else if (
+        payload.type === 'invitation.responded' &&
+        typeof data?.id === 'string' &&
+        ['accept', 'cancel', 'attend', 'miss', 'reschedule'].includes(data.operation)
+      )
+        inputs.push({
+          ...source,
+          kind: 'invitation_response',
+          invitationId: data.id,
+          operation: data.operation,
+        });
+      else if (typeof data?.sceneId === 'string')
+        inputs.push({
+          ...source,
+          kind: 'scene_result',
+          sceneId: data.sceneId,
+          outcome: ['succeeded', 'partial', 'failed'].includes(data.proposal?.outcome)
+            ? data.proposal.outcome
+            : null,
+        });
+    }
+    return inputs;
+  }
+
   async load(sql: SqlClient, value: ProgressLedgerDefinition) {
     const d = value.definition;
     const row = (
@@ -214,6 +291,89 @@ export class PublicationEventProgressRepository {
         (!proposal.quote || proposal.quote.length > 240 || !doc.text.includes(proposal.quote))
       )
         throw new TaskError('INVALID_STATE');
+    } else if (payload.type === 'travel.completed') {
+      const places = await this.authoredPlaces(sql, d);
+      const destination = payload.data?.toPlaceId;
+      if (
+        signal.kind !== 'npc_progress' ||
+        proposal.quote !== undefined ||
+        typeof destination !== 'string' ||
+        !places.includes(destination) ||
+        signal.sourceRecordId !== `travel:${source.id}:${destination}`
+      )
+        throw new TaskError('INVALID_STATE');
+      observation = {
+        ...common,
+        kind: 'verified_world_result',
+        // The director knows the actual arrival. NPC knowledge still needs a witness
+        // or disclosure; travelling never broadcasts the destination to the cast.
+        observableActorIds: [],
+        criterionIds: [],
+      };
+    } else if (
+      [
+        'scene.input_recorded',
+        'scene.opened',
+        'scene.action_resolved',
+        'scene.reaction_recorded',
+      ].includes(payload.type)
+    ) {
+      const item = (
+        await sql.query(
+          "SELECT i.document,s.document scene FROM parallel_life.scene_items i JOIN parallel_life.scene_sessions s ON s.world_id=i.world_id AND s.owner_id=i.owner_id AND s.id=i.scene_id WHERE i.world_id=$1 AND i.owner_id=$2 AND i.id=$3 AND i.kind='entry' AND i.source_event_id=$4 AND i.scene_id=$5",
+          [d.worldId, d.ownerId, signal.sourceRecordId, source.id, payload.data?.sceneId],
+        )
+      ).rows[0];
+      const entry = item?.document;
+      const places = await this.authoredPlaces(sql, d);
+      if (
+        !entry ||
+        entry.sourceEventId !== source.id ||
+        entry.sourceVersion !== source.version ||
+        typeof entry.text !== 'string' ||
+        !proposal.quote ||
+        !entry.text.includes(proposal.quote) ||
+        (node.invitation_id
+          ? item.scene.appointmentId !== node.invitation_id
+          : places.length > 0 && !places.includes(item.scene.placeId))
+      )
+        throw new TaskError('INVALID_STATE');
+      const visible = (entry.observableTo ?? [])
+        .filter(
+          (p: { kind?: string; actorId?: string }) =>
+            p.kind === 'actor' && d.goals.some((g) => g.actorId === p.actorId),
+        )
+        .map((p: { actorId: string }) => p.actorId);
+      if (entry.kind === 'user_action' && payload.type === 'scene.input_recorded') {
+        if (payload.data.privateThought || payload.playerInput?.text !== entry.text)
+          throw new TaskError('INVALID_STATE');
+        observation = { ...common, kind: 'player_decision', observableActorIds: visible };
+      } else if (entry.kind === 'dialogue' && entry.speaker?.kind === 'actor') {
+        const actorId = entry.speaker.actorId;
+        if (
+          !d.goals.some((g) => g.actorId === actorId) ||
+          !visible.includes(actorId) ||
+          !payload.data?.proposal?.dialogues?.some(
+            (line: { actorId?: string; text?: string }) =>
+              line.actorId === actorId && line.text === entry.text,
+          )
+        )
+          throw new TaskError('INVALID_STATE');
+        observation = {
+          ...common,
+          kind: 'npc_message',
+          actorId,
+          observableActorIds: visible,
+          criterionIds: (value.spec.completion?.criteria ?? [])
+            .filter(
+              (c) =>
+                c.kind === 'npc_exact_message' &&
+                value.actorIdsByKey.get(c.actorKey) === actorId &&
+                entry.text.includes(c.phrase),
+            )
+            .map((c) => c.key),
+        };
+      } else throw new TaskError('INVALID_STATE');
     } else if (payload.type === 'invitation.responded') {
       const response =
         payload.data?.operation === 'accept'

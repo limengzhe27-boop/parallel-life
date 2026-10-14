@@ -13,6 +13,12 @@ import {
 } from '../../src/modules/settings/infrastructure/publication-repository.ts';
 import { PublicationWorldRepository } from '../../src/modules/settings/infrastructure/publication-world-repository.ts';
 import { PublicationStoryRepository } from '../../src/modules/settings/infrastructure/publication-story-repository.ts';
+import { officialLifeCatalog } from '../../src/modules/settings/infrastructure/official-presets/index.ts';
+import {
+  SceneRepository,
+  commitSceneProposal,
+} from '../../src/modules/world/infrastructure/scene-repository.ts';
+import { PostgresWorldSpace } from '../../src/modules/world/infrastructure/space-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { compilePublicationGenesis } from '../../src/modules/settings/infrastructure/publication-genesis.ts';
 import {
@@ -143,6 +149,24 @@ test('real PG progress ledger binds actual node introduction and records unrelat
         },
       },
     },
+  });
+  content.places.push({
+    key: 'arrival_place',
+    name: '约定地点',
+    description: '明确合成地点',
+    knownAtStart: true,
+  });
+  content.routes.push({
+    fromPlaceKey: content.world.startPlaceKey,
+    toPlaceKey: 'arrival_place',
+    minutes: 10,
+  });
+  content.candidates.push({
+    ...structuredClone(content.candidates[0]),
+    key: 'arrival',
+    actorKeys: [content.actors[1].key],
+    scenePlaceKeys: ['arrival_place'],
+    intent: { kind: 'director_event', actorKey: content.actors[1].key },
   });
   delete content.timeline;
   delete content.openingEventKey;
@@ -461,4 +485,208 @@ test('real PG progress ledger binds actual node introduction and records unrelat
     ),
     (e) => (e as { code: string }).code === 'VERSION_CONFLICT',
   );
+  const arrivalClaim = await story.prepare(owner, world.worldId, {
+    automatic: false,
+    nodeKey: 'arrival',
+    expectedVersion: 6,
+  });
+  assert.equal(arrivalClaim.status, 'claimed');
+  if (arrivalClaim.status !== 'claimed') throw Error('NO_ARRIVAL_CLAIM');
+  const arrivalValue = { ...value, definition: { ...value.definition, nodeKey: 'arrival' } };
+  const arrivalIntro = await turn(
+    6,
+    'director',
+    '你方便的话，可以来约定地点。',
+    arrivalClaim.claim.commandId,
+  );
+  await story.finish(owner, world.worldId, arrivalClaim.claim.claimId);
+  await app.transaction(owner, (sql) =>
+    ledger.apply(
+      sql,
+      arrivalValue,
+      {
+        signal: {
+          sourceEventId: arrivalIntro.eventId,
+          sourceRecordId: arrivalIntro.recordId,
+          kind: 'introduced',
+        },
+      },
+      7,
+    ),
+  );
+  await admin.query(
+    'UPDATE parallel_life.world_clock SET paused=false,last_tick_at=now() WHERE world_id=$1',
+    [world.worldId],
+  );
+  const route = (await runtime.get({ userId: owner }, world.worldId)).space!.routes.find(
+    (r) => r.toPlaceId === 'arrival_place',
+  )!;
+  const travel = await new PostgresWorldSpace(app, officialLifeCatalog).travel(
+    owner,
+    world.worldId,
+    {
+      commandId: randomUUID(),
+      expectedVersion: 7,
+      routeId: route.id,
+    },
+  );
+  const recordId = `travel:${travel.sourceEventId}:arrival_place`;
+  await assert.rejects(
+    app.transaction(owner, (sql) =>
+      ledger.apply(
+        sql,
+        arrivalValue,
+        {
+          signal: {
+            sourceEventId: travel.sourceEventId,
+            sourceRecordId: `travel:${travel.sourceEventId}:wrong_place`,
+            kind: 'npc_progress',
+          },
+        },
+        8,
+      ),
+    ),
+    (e) => (e as { code: string }).code === 'INVALID_STATE',
+  );
+  const arrived = await app.transaction(owner, (sql) =>
+    ledger.apply(
+      sql,
+      arrivalValue,
+      {
+        signal: {
+          sourceEventId: travel.sourceEventId,
+          sourceRecordId: recordId,
+          kind: 'npc_progress',
+        },
+      },
+      8,
+    ),
+  );
+  assert.equal(arrived.productiveBeats, 2);
+  assert.equal(arrived.resolution, null);
+  assert.equal(arrived.actorParticipation[chosen], 'unknown');
+  assert.equal(arrived.actorGoalStatus[chosen], 'active');
+  assert.equal(
+    (await runtime.get({ userId: owner }, world.worldId)).space!.currentPlaceId,
+    'arrival_place',
+  );
+  const changes = await app.transaction(owner, (sql) =>
+    ledger.recentWorldInputs(sql, owner, world.worldId, 8),
+  );
+  assert.deepEqual(
+    changes.map((x) => x.kind),
+    ['arrival'],
+  );
+  assert.equal(changes[0]?.sourceEventId, travel.sourceEventId);
+  assert.equal(changes[0]?.version, 8);
+  assert.equal(JSON.stringify(changes).includes('我不参加'), false);
+  assert.deepEqual(
+    await app.transaction(owner, (sql) => ledger.recentWorldInputs(sql, owner, world.worldId, 7)),
+    [],
+  );
+  assert.deepEqual(
+    await app.transaction(randomUUID(), (sql) =>
+      ledger.recentWorldInputs(sql, owner, world.worldId, 8),
+    ),
+    [],
+  );
+  const scenes = new SceneRepository(app);
+  const entered = await scenes.enterPlace(owner, world.worldId, {
+    commandId: randomUUID(),
+    expectedVersion: 8,
+    placeId: 'arrival_place',
+  });
+  await app.transaction(owner, (sql) =>
+    commitSceneProposal(
+      sql,
+      owner,
+      world.worldId,
+      { type: 'scene', sceneId: entered.sceneId, actionId: null, expectedVersion: entered.version },
+      {
+        location: '约定地点',
+        narration: '桌边留着一把空椅子。',
+        presentActorIds: [],
+        outcome: null,
+        observation: null,
+        matterTitle: null,
+        initialMatters: [],
+        matterUpdates: [],
+        dialogues: [],
+      },
+      randomUUID(),
+    ),
+  );
+  // Complete only this synthetic fixture's queued opening after its real commit.
+  await admin.query(
+    "UPDATE parallel_life.tasks SET status='succeeded',result_version=10,model='explicit_fixture',prompt_version='explicit_fixture' WHERE id=$1",
+    [entered.task!.id],
+  );
+  const input = await scenes.input(owner, world.worldId, entered.sceneId, {
+    commandId: randomUUID(),
+    expectedVersion: 10,
+    text: '我不参加这次安排。',
+    relatedMatterIds: [],
+  });
+  const saved = (
+    await admin.query(
+      "SELECT id,source_event_id FROM parallel_life.scene_items WHERE world_id=$1 AND kind='entry' AND document->>'kind'='user_action' AND document->>'text'=$2",
+      [world.worldId, '我不参加这次安排。'],
+    )
+  ).rows[0];
+  const publicDecision = await app.transaction(owner, (sql) =>
+    ledger.apply(
+      sql,
+      arrivalValue,
+      {
+        signal: {
+          sourceEventId: saved.source_event_id,
+          sourceRecordId: saved.id,
+          kind: 'declined',
+        },
+        quote: '我不参加',
+      },
+      input.version,
+    ),
+  );
+  assert.equal(publicDecision.participation, 'declined');
+  assert.equal(publicDecision.actorParticipation[chosen], 'unknown');
+  assert.equal(publicDecision.actorGoalStatus[chosen], 'active');
+  const thought = await scenes.input(owner, world.worldId, entered.sceneId, {
+    commandId: randomUUID(),
+    expectedVersion: 11,
+    text: '我心里想，这次我不参加。',
+    relatedMatterIds: [],
+  });
+  const privateEntry = (
+    await admin.query(
+      "SELECT id,source_event_id FROM parallel_life.scene_items WHERE world_id=$1 AND kind='entry' AND document->>'kind'='user_action' AND document->>'text'=$2",
+      [world.worldId, '我心里想，这次我不参加。'],
+    )
+  ).rows[0];
+  await assert.rejects(
+    app.transaction(owner, (sql) =>
+      ledger.apply(
+        sql,
+        arrivalValue,
+        {
+          signal: {
+            sourceEventId: privateEntry.source_event_id,
+            sourceRecordId: privateEntry.id,
+            kind: 'declined',
+          },
+          quote: '我不参加',
+        },
+        thought.version,
+      ),
+    ),
+    (e) => (e as { code: string }).code === 'INVALID_STATE',
+  );
+  const sceneChanges = await app.transaction(owner, (sql) =>
+    ledger.recentWorldInputs(sql, owner, world.worldId, thought.version),
+  );
+  assert.deepEqual(
+    sceneChanges.map((x) => x.kind),
+    ['arrival', 'scene_result'],
+  );
+  assert.equal(JSON.stringify(sceneChanges).includes('心里'), false);
 });
