@@ -12,6 +12,15 @@ import {
   currentCharacterManuscripts,
 } from './publisher-character-manuscript.ts';
 import { PublisherCharacterPreview } from './publisher-character-preview.tsx';
+import {
+  CHARACTER_MODULES,
+  characterModuleText,
+  characterIntroductionText,
+  characterLegacyModuleText,
+  characterFieldEditable,
+  updateCharacterField,
+  type CharacterModuleKey,
+} from './publisher-character-model.ts';
 import { PublisherImportDialog, manuscriptFingerprint } from './publisher-import-dialog.tsx';
 import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
 import { planPublicationTimes } from '../../modules/settings/domain/publication-scheduling.ts';
@@ -433,6 +442,15 @@ export function PublisherWorkbench(
       });
     },
     [currentActorForm, draftContent],
+  );
+
+  const handleCharacterFieldChange = useCallback(
+    (field: CharacterModuleKey | 'introduction', value: string) => {
+      if (!currentActorForm || !session.canEdit || busy) return;
+      const actorKey = currentActorForm.key;
+      setDraftContent((previous) => updateCharacterField(previous, actorKey, field, value));
+    },
+    [currentActorForm, session.canEdit, busy],
   );
 
   // Handle world settings edits
@@ -1385,111 +1403,97 @@ export function PublisherWorkbench(
                           </div>
                         </div>
 
-                        {/* 3. 介绍 */}
                         <div className={s.formFieldFull}>
                           <label className={s.fieldLabel} htmlFor="actor-identity-input">
-                            公开角色介绍（玩家可见）
+                            公开身份（玩家可见）
                           </label>
-                          <textarea
+                          <input
                             id="actor-identity-input"
-                            className={s.textarea}
-                            rows={2}
+                            className={s.input}
                             value={currentActorForm.identity}
                             onChange={(e) => handleActorChange('identity', e.target.value)}
-                            placeholder="给玩家展示的公开身份与介绍…"
+                            placeholder="角色的职业或身份"
                             disabled={!session.canEdit || busy}
                           />
                         </div>
+                        <div className={s.formFieldFull}>
+                          <label className={s.fieldLabel} htmlFor="actor-introduction-input">
+                            公开角色介绍（玩家可见）
+                          </label>
+                          <textarea
+                            id="actor-introduction-input"
+                            className={s.textarea}
+                            rows={3}
+                            value={characterIntroductionText(draftContent, currentActorForm.key)}
+                            onChange={(e) =>
+                              handleCharacterFieldChange('introduction', e.target.value)
+                            }
+                            placeholder="编剧写给玩家看的角色介绍"
+                            disabled={
+                              !session.canEdit ||
+                              busy ||
+                              !characterFieldEditable(
+                                draftContent,
+                                currentActorForm.key,
+                                'introduction',
+                              )
+                            }
+                          />
+                        </div>
 
-                        {/* 4. 5 个维度 */}
                         <div className={s.formFieldFull}>
                           <div className={s.dimensionSection}>
                             <div className={s.dimensionHeader}>
                               <h4 className={s.dimensionTitle}>角色核心 5 个维度设定</h4>
-                              <span className={s.dimensionHint}>供 AI 驱动角色深度心智与对话</span>
+                              <span className={s.dimensionHint}>仅供角色演绎，不向玩家展示</span>
                             </div>
-
-                            {/* 维度 1：人生背景 */}
-                            <div className={s.formFieldFull}>
-                              <label className={s.fieldLabel} htmlFor="actor-dimension-1">
-                                维度一 · 人生背景（成长背景与经历）
-                              </label>
-                              <textarea
-                                id="actor-dimension-1"
-                                className={s.textarea}
-                                rows={3}
-                                value={currentActorForm.background}
-                                onChange={(e) => handleActorChange('background', e.target.value)}
-                                placeholder="家庭出身、成长经历，供 AI 理解角色深层心理…"
-                                disabled={!session.canEdit || busy}
-                              />
-                            </div>
-
-                            {/* 维度 2：人格特质 */}
-                            <div className={s.formFieldFull}>
-                              <label className={s.fieldLabel} htmlFor="actor-dimension-2">
-                                维度二 · 人格特质（性格特征与说话方式）
-                              </label>
-                              <textarea
-                                id="actor-dimension-2"
-                                className={s.textarea}
-                                rows={3}
-                                value={currentActorForm.voice}
-                                onChange={(e) => handleActorChange('voice', e.target.value)}
-                                placeholder="约束 AI 角色回复口吻、语气、常用词与说话风格…"
-                                disabled={!session.canEdit || busy}
-                              />
-                            </div>
-
-                            {/* 维度 3：动机与价值观 */}
-                            <div className={s.formFieldFull}>
-                              <label className={s.fieldLabel} htmlFor="actor-dimension-3">
-                                维度三 · 动机与价值观（核心动机与在乎的事）
-                              </label>
-                              <textarea
-                                id="actor-dimension-3"
-                                className={s.textarea}
-                                rows={2}
-                                value={currentActorForm.caresAbout}
-                                onChange={(e) => handleActorChange('caresAbout', e.target.value)}
-                                placeholder="人物的核心价值观、眼下最想达成的事情或目的…"
-                                disabled={!session.canEdit || busy}
-                              />
-                            </div>
-
-                            {/* 维度 4：行为模式 */}
-                            <div className={s.formFieldFull}>
-                              <label className={s.fieldLabel} htmlFor="actor-dimension-4">
-                                维度四 · 行为模式（处事习惯与行动准则）
-                              </label>
-                              <textarea
-                                id="actor-dimension-4"
-                                className={s.textarea}
-                                rows={2}
-                                value={currentActorForm.immediateGoal}
-                                onChange={(e) => handleActorChange('immediateGoal', e.target.value)}
-                                placeholder="面对冲突时的处事反应、做事风格与行动准则…"
-                                disabled={!session.canEdit || busy}
-                              />
-                            </div>
-
-                            {/* 维度 5：关系模型 */}
-                            <div className={s.formFieldFull}>
-                              <label className={s.fieldLabel} htmlFor="actor-dimension-5">
-                                维度五 · 关系模型（与玩家关系模型与相处底线）
-                              </label>
-                              <textarea
-                                id="actor-dimension-5"
-                                className={s.textarea}
-                                rows={2}
-                                value={currentActorForm.relationshipToPlayer}
-                                onChange={(e) =>
-                                  handleActorChange('relationshipToPlayer', e.target.value)
-                                }
-                                placeholder="与玩家/主角的初始关系、相处模式与互动底线…"
-                                disabled={!session.canEdit || busy}
-                              />
-                            </div>
+                            {CHARACTER_MODULES.map((module, index) => {
+                              const legacy = characterLegacyModuleText(
+                                draftContent,
+                                currentActorForm.key,
+                                module.key,
+                              );
+                              return (
+                                <div className={s.formFieldFull} key={module.key}>
+                                  <label
+                                    className={s.fieldLabel}
+                                    htmlFor={`actor-dimension-${index + 1}`}
+                                  >
+                                    {module.label}（{module.hint}）
+                                  </label>
+                                  <textarea
+                                    id={`actor-dimension-${index + 1}`}
+                                    className={s.textarea}
+                                    rows={3}
+                                    value={characterModuleText(
+                                      draftContent,
+                                      currentActorForm.key,
+                                      module.key,
+                                    )}
+                                    onChange={(e) =>
+                                      handleCharacterFieldChange(module.key, e.target.value)
+                                    }
+                                    placeholder={`填写人物的${module.label}`}
+                                    disabled={
+                                      !session.canEdit ||
+                                      busy ||
+                                      !characterFieldEditable(
+                                        draftContent,
+                                        currentActorForm.key,
+                                        module.key,
+                                      )
+                                    }
+                                  />
+                                  {legacy && (
+                                    <details>
+                                      <summary>查看保留的旧版设定</summary>
+                                      <p style={{ whiteSpace: 'pre-wrap' }}>{legacy}</p>
+                                      <p>仅供参考；填写上方内容后使用新的设定，旧文稿保持不变。</p>
+                                    </details>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>

@@ -1,11 +1,11 @@
 import { publisherArtUrl } from './publisher-art-model.ts';
 
 export const CHARACTER_MODULES = [
-  { key: 'lifeContext', label: '人生背景' },
-  { key: 'traits', label: '人格特质' },
-  { key: 'drives', label: '动机与价值观' },
-  { key: 'behavior', label: '行为模式' },
-  { key: 'relationships', label: '关系模型' },
+  { key: 'lifeContext', label: '人生背景', hint: '成长背景与经历' },
+  { key: 'traits', label: '人格特质', hint: '性格特征与说话方式' },
+  { key: 'drives', label: '动机与价值观', hint: '核心动机与在乎的事' },
+  { key: 'behavior', label: '行为模式', hint: '处事习惯与行动准则' },
+  { key: 'relationships', label: '关系模型', hint: '相处模式、知情差异与底线' },
 ] as const;
 export type CharacterModuleKey = (typeof CHARACTER_MODULES)[number]['key'];
 function record(value: unknown): Record<string, unknown> {
@@ -30,6 +30,39 @@ export function characterModuleText(
 ) {
   return string(record(uniqueActor(content, actorKey)?.lifeModules)[module]);
 }
+export function characterIntroductionText(content: Record<string, unknown>, actorKey: string) {
+  return string(record(uniqueActor(content, actorKey)?.publicCard).introduction);
+}
+/** Legacy prose is a read-only reference, not a replacement for the five authored dimensions. */
+export function characterLegacyModuleText(
+  content: Record<string, unknown>,
+  actorKey: string,
+  module: CharacterModuleKey,
+) {
+  const actor = uniqueActor(content, actorKey);
+  if (Object.hasOwn(record(actor?.lifeModules), module)) return '';
+  const legacy = record(actor?.privatePersona);
+  const field = {
+    lifeContext: 'background',
+    traits: 'voice',
+    drives: 'motivation',
+    behavior: undefined,
+    relationships: 'boundaries',
+  }[module];
+  return field ? string(legacy[field]) : '';
+}
+export function characterFieldEditable(
+  content: Record<string, unknown>,
+  actorKey: string,
+  field: CharacterModuleKey | 'introduction',
+) {
+  const actor = uniqueActor(content, actorKey);
+  if (!actor) return false;
+  const raw = actor[field === 'introduction' ? 'publicCard' : 'lifeModules'];
+  if (raw !== undefined && (!raw || typeof raw !== 'object' || Array.isArray(raw))) return false;
+  const value = record(raw)[field];
+  return value === undefined || typeof value === 'string';
+}
 /** Edit exactly one authored field. Preserve the other modules and all legacy settings. */
 export function updateCharacterField(
   content: Record<string, unknown>,
@@ -38,7 +71,7 @@ export function updateCharacterField(
   value: string,
 ): Record<string, unknown> {
   const actor = uniqueActor(content, actorKey);
-  if (!actor) return content;
+  if (!actor || !characterFieldEditable(content, actorKey, field)) return content;
   const container = field === 'introduction' ? 'publicCard' : 'lifeModules';
   const fields = { ...record(actor[container]) };
   if (value.trim()) fields[field] = value;
