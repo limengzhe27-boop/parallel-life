@@ -1112,3 +1112,9 @@ MD/ZIP文稿 → 项目自己的整理Agent → 原稿/补充/变化双核对 �
 业务 `5484b4a6eb111e972ec829c89cf22eadac047f95` 已 Production READY，部署 `parallel-life-ox85v2sal-limengzhe27-boops-projects.vercel.app`，正式 https://parallel-life-nu.vercel.app/workbench 已真实浏览器验证。生产 62/62 迁移校验和一致；check 2377/2377、build 与真实 PostgreSQL 33/33 通过。Markdown/ZIP 默认按格式解析，保留事件全文、多地点及明确开场；作者核对后填入，不默认调用 AI 或抽取硬条件，重复导入不追加。PC1440/mobile390已检查并修复长稿识别按钮被滚动区遮挡。
 
 《渣男体验》在版本冲突保护下从最新草稿116保存为117：1开场+17事件、16地点（14原稿+2保留）；原有79历史消息、24朋友圈及人物/图片完整保留，原稿18块逐项一致。实际作品保持草稿、没有发布；本轮0模型/0新世界。新地点地图揭示/导航与连续多拍事件尚待单独验收，见 SCRIPT-LIBRARY-25-I 报告与总表，不能把导入成功当成全部分支已玩通。
+
+## 2026-10-15 / WRITER-LIBRARY-28 and author-source preservation
+
+Production 5cb35db25f1b35faa6e9685ba90d881133f47593, dpl_9m2ak2jhEhAPojewbw3X8mztH1b1 READY; formal https://parallel-life-nu.vercel.app verified. Production67/67 migration checksums. Complete check2417/build and integrated real PostgreSQL46 pass. One event library replaces duplicate details; optional prerequisites and legacy arrangements start closed. Names-only places and optional same-work private scene pictures are connected to map/scene reads and deterministic default navigation. No authored original event/history text erased.
+
+Actual manuscript draft118 remains unpublished: 18 event blocks, 79 history messages, 24 Moments, 16 places, 14 scene pictures. Public 1440/390 checked. Synthetic publication/player acceptance preserves both speakers, history attachment, curated avatar, three-image Moments and identity visibility; scene image302->200/default actual travel10m/start retry sameworld verified with zero model calls. Test work downlisted/soft-deleted and three QA saves paused. Complete director model progression and custom inline avatar legacy migration remain tracked separately; do not infer them from this scoped deployment.
