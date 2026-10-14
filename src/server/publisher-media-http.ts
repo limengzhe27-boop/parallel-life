@@ -14,6 +14,7 @@ import {
   PublisherHttpError,
 } from './publisher-http.ts';
 import { publisherServices } from './publisher-services.ts';
+import { getServices } from './services.ts';
 
 const beginBody = z.strictObject({
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4']),
@@ -57,6 +58,17 @@ function mediaRedirect(location: string) {
       'X-Content-Type-Options': 'nosniff',
     },
   });
+}
+
+/** Caller has already authenticated the staff principal and resolved this exact trial binding. */
+export async function readTrialPublicationMedia(ownerId: string, worldId: string, assetId: string) {
+  const repo = new PublicationMediaRepository(getServices().db, {
+    signUpload: (key) => store().signUpload(key),
+    inspect: (key) => store().inspect(key),
+    signRead: (key) => store().signRead(key),
+  });
+  const asset = await repo.playerAsset(ownerId, worldId, assetId);
+  return mediaRedirect(await repo.signedRead(asset.storage_key));
 }
 
 export function publisherMediaBeginRoute(request: Request, workId: string) {

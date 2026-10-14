@@ -20,6 +20,9 @@ import {
   PublisherHttpError,
 } from './publisher-http.ts';
 import { publicationWorldCompiler } from './publication-runtime.ts';
+import { readTrialPublicationMedia } from './publisher-media-http.ts';
+import { AuthoredSocialSchema } from '../contracts/authored-social.ts';
+import { trialMomentImageUrl } from '../modules/settings/domain/moment-media-url.ts';
 
 export function publishedCatalogRoute(request: Request) {
   return endpoint(async () => {
@@ -74,17 +77,7 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       path[1] === 'media' &&
       Id.safeParse(path[2]).success
     ) {
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: new URL(
-            `/api/v1/publisher/works/${encodeURIComponent(trial.origin.workId)}/media/${encodeURIComponent(path[2]!)}`,
-            request.url,
-          ).toString(),
-          'Cache-Control': 'private, no-store',
-          'Referrer-Policy': 'no-referrer',
-        },
-      });
+      return readTrialPublicationMedia(trial.ownerId, trial.worldId, path[2]!);
     }
     // A scoped client handshake uses staff-bound CSRF and never creates or replaces a player's cookie.
     if (path.length === 1 && path[0] === 'session' && request.method === 'POST')
@@ -168,6 +161,18 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       result = await response.json();
     } catch {
       throw new PublisherHttpError('UNAVAILABLE');
+    }
+    if (response.ok && path.length === 2 && path[0] === 'world' && path[1] === 'social') {
+      const social = AuthoredSocialSchema.parse(result);
+      const map = (url: string) => trialMomentImageUrl(url, trial.worldId, trialId);
+      result = {
+        ...social,
+        moments: social.moments.map((post) => ({
+          ...post,
+          ...(post.image ? { image: map(post.image) } : {}),
+          ...(post.images ? { images: post.images.map(map) } : {}),
+        })),
+      };
     }
     return publisherJson(result, response.status);
   });

@@ -14,6 +14,9 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
   const [loaded, setResult] = useState<{ worldId: string; social: AuthoredSocial } | null>(null),
     [error, setError] = useState(false),
     [reload, setReload] = useState(0);
+  const reference = Date.parse(data.referenceTime ?? '');
+  const storyMinute = Number.isFinite(reference) ? Math.floor(reference / 60000) : null;
+  const latestMessage = data.messages.at(-1)?.id;
   useEffect(() => {
     const controller = new AbortController();
     setResult(null);
@@ -26,14 +29,28 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
         );
         if (!response.ok) throw Error();
         const parsed = AuthoredSocialSchema.parse(await response.json());
-        if (!controller.signal.aborted) setResult({ worldId, social: parsed });
+        if (!controller.signal.aborted) {
+          setError(false);
+          setResult({ worldId, social: parsed });
+        }
       } catch {
         if (!controller.signal.aborted) setError(true);
       }
     };
     void run();
-    return () => controller.abort();
-  }, [worldId, transport, reload]);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void run();
+    };
+    const timer =
+      typeof document !== 'undefined' ? setInterval(() => void run(), 30000) : undefined;
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      controller.abort();
+      if (timer !== undefined) clearInterval(timer);
+      if (typeof document !== 'undefined')
+        document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [worldId, transport, reload, storyMinute, latestMessage]);
   const result = loaded?.worldId === worldId ? loaded.social : null;
   const moments = result?.moments.filter((m) => !target || m.actorId === target) ?? [];
   const person = target ? data.contacts.find((contact) => contact.id === target) : undefined;
@@ -56,6 +73,10 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
           <strong>{person.name}</strong>
         </section>
       )}
+      {target &&
+        result?.profiles?.some(
+          (profile) => profile.actorId === target && profile.momentsVisibility === 'three_days',
+        ) && <p className={feed.feedback}>朋友仅展示最近三天的朋友圈</p>}
       {error ? (
         <div role="alert" className={feed.feedback}>
           动态暂时没能读取。<button onClick={() => setReload((r) => r + 1)}>重试</button>

@@ -179,6 +179,9 @@ export function ensurePublishableDefaults(
     if (pubCard.avatarMediaKey) {
       actorObj.publicCard.avatarMediaKey = safeKey(pubCard.avatarMediaKey, 'avatar');
     }
+    // Invalid policies must reach validation, never silently become public.
+    if (Object.hasOwn(pubCard, 'momentsVisibility'))
+      actorObj.publicCard.momentsVisibility = pubCard.momentsVisibility;
 
     if (a.lifeModules && typeof a.lifeModules === 'object') {
       const lm = a.lifeModules;
@@ -407,6 +410,8 @@ export function ensurePublishableDefaults(
     if (typeof mom.image === 'string' && mom.image) {
       momObj.image = mom.image;
     }
+    if (Object.hasOwn(mom, 'images')) momObj.images = mom.images;
+    if (Object.hasOwn(mom, 'visibility')) momObj.visibility = mom.visibility;
     momMap.set(k, momObj);
   });
 

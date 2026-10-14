@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { PUBLICATION_LIFE_MODULE_MAX_CHARS } from '../modules/settings/domain/publication-content.ts';
 export const AuthoredSocialSchema = z.strictObject({
+  profiles: z
+    .array(
+      z.strictObject({
+        actorId: z.string().min(1).max(200),
+        momentsVisibility: z.enum(['all', 'three_days']),
+      }),
+    )
+    .max(12)
+    .optional(),
   moments: z
     .array(
       z.strictObject({

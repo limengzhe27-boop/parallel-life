@@ -83,6 +83,7 @@ export type PublicationContent = {
       traits: string[];
       appearance?: string;
       avatarMediaKey?: string;
+      momentsVisibility?: 'all' | 'three_days';
     };
     privatePersona: { background: string; motivation: string; voice: string; boundaries: string };
   }[];
@@ -130,6 +131,7 @@ export type PublicationContent = {
       at: string;
       image?: string;
       images?: string[];
+      visibility?: { kind: 'after_statement'; actorKey: string; statement: string };
     }[];
     notes: { key: string; title: string; text: string; factKeys: string[] }[];
     invitations: {
@@ -427,6 +429,8 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     else if (!actors.get(m.actorKey)?.knownAtStart)
       issue(['phone', 'moments', i, 'actorKey'], 'sender_not_player_known');
     if (Date.parse(m.at) > start) issue(['phone', 'moments', i, 'at'], 'future_in_history');
+    if (m.visibility && !actors.get(m.visibility.actorKey)?.knownAtStart)
+      issue(['phone', 'moments', i, 'visibility', 'actorKey'], 'unknown_confirmation_actor');
   });
   c.phone.messages.forEach((m, i) => {
     if (m.speaker === 'player' && m.origin !== 'history')
