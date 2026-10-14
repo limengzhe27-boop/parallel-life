@@ -602,8 +602,20 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
           rule.outcomes.some((result) => terminalByClock(rule.nodeKey, result, next)),
         );
       };
+      const historyReachable = (key: string): boolean => {
+        const fact = facts.get(key);
+        const actorKey = opening.intent.kind === 'director_event' ? opening.intent.actorKey : '';
+        return (
+          !!fact &&
+          (fact.visibility.kind === 'world' ||
+            (fact.visibility.kind === 'actors' && fact.visibility.actorKeys.includes(actorKey))) &&
+          c.initialKnowledge.some(
+            (knowledge) => knowledge.actorKey === actorKey && knowledge.factKeys.includes(key),
+          )
+        );
+      };
       const reachable = (term: PublicationPrerequisite): boolean =>
-        (term.kind === 'history_fact' && facts.has(term.factKey)) ||
+        (term.kind === 'history_fact' && historyReachable(term.factKey)) ||
         (term.kind === 'at_place' && places.has(term.placeKey)) ||
         (term.kind === 'not_before' &&
           Number.isFinite(Date.parse(term.at)) &&

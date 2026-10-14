@@ -52,3 +52,8 @@ root接精确提交，复核57，应用生产迁移并全check/build/真实PG、
 root/P复核发现发布误报（前阶段无stage.window，但全部非editorial成员实际时钟过期后可完成）及漏报（ANY的唯一非因果not_before分支晚于开场截止）。本次精确窄修允许stage自己的真实deadline或全部可执行成员真实clock终态结束，空阶段/需先呈现成员仍拦；与evaluateStory阶段终态独立于前置阶段激活的现有逻辑一致，不增造递归阶段完成。ANY时间分支必须有限且早于node/stage最早有效截止，history/place引用必须实际存在；正常无截止时间/窗口内时间和地点不被拒绝。作者提示涵盖有效时段，原稿不改。
 
 新增两个纯回归覆盖schema与实际evaluateStory两分钟expiry→resolvedStages→opening可用、无期限成员/空阶段阻断、ANY等于截止阻断/窗口内及地点允许/未知fact拒绝/无截止正常等待。104/104 content专项/type通过，最终check2257/2257、0skip，build0。首次runtime夹具沿用旧节点courtyard但context为shop，修为实际startPlace后通过；首次check在已停止的own本地数据库端口55478失败ECONNREFUSED，重新启动独立55490后2257全通过，无产品削守卫。无新模型/生产写，own PG按cwd确认正常关闭并恢复env。root最终集成再检查后部署。
+
+
+## 最后history知识精确可达
+
+root确认运行buildStoryPlan/evaluateStory目标actor必须实际获得history事实，最后窄修将history分支与实际visibility(world或actors含目标)及目标initialKnowledge精确对齐。无人知、另一人物知、目标不在可见人物范围不能作为开场唯一可达前提；ANY仍可使用独立地点/时间分支，不推测未来学习秘密。纯两例保原稿，106/106 content专项/type，最终check2259/2259、0skip，build0。本次首次actors-only正例夹具仍保原玩家历史，导致一般可见性校验正确阻断；调整为只检查本开场问题消失，未削通用隐私规则。一次check与build并跑触发Next生成类型竞态TS6053，build完毕后顺序全check通过，原日志保留。ownPG正常关闭/env恢复，0新模型/生产写；所有源冻结，后续仅root集成/READY与独立授权2/6真实验收。

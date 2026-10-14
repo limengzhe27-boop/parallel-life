@@ -1459,3 +1459,57 @@ test('opening ANY branch must be reachable before its effective deadline; ordina
   c.conditions[0]!.prerequisites[1] = { kind: 'not_before', at: '2026-10-12T12:00:00Z' };
   assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
 });
+
+test('opening history prerequisite requires exact target actor knowledge and allowed visibility', () => {
+  const c = content();
+  c.openingEventKey = c.candidates[0]!.key;
+  c.candidates[0]!.intent = { kind: 'director_event', actorKey: 'ning_one' };
+  c.candidates[0]!.prerequisites = [{ kind: 'history_fact', factKey: 'old_meeting' }];
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  c.initialKnowledge = [];
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_event'),
+  );
+  c.initialKnowledge = [{ actorKey: 'ning_two', factKeys: ['old_meeting'] }];
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_event'),
+  );
+  c.initialKnowledge = [{ actorKey: 'ning_one', factKeys: ['old_meeting'] }];
+  c.history[0]!.visibility = { kind: 'actors', actorKeys: ['ning_two'] };
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_event'),
+  );
+  c.history[0]!.visibility = { kind: 'actors', actorKeys: ['ning_one'] };
+  assert.ok(
+    !publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_event'),
+  );
+});
+
+test('opening ANY keeps a reachable place or time when its history fact is not initially known to the target', () => {
+  const c = content();
+  c.openingEventKey = c.candidates[0]!.key;
+  c.candidates[0]!.intent = { kind: 'director_event', actorKey: 'ning_one' };
+  c.candidates[0]!.prerequisites = [];
+  c.initialKnowledge = [];
+  c.conditions = [
+    {
+      key: 'opening_any',
+      title: '可达开场',
+      match: 'any',
+      prerequisites: [
+        { kind: 'history_fact', factKey: 'old_meeting' },
+        { kind: 'at_place', placeKey: 'shop' },
+      ],
+    },
+  ];
+  c.candidates[0]!.conditionKeys = ['opening_any'];
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  c.conditions[0]!.prerequisites[1] = { kind: 'not_before', at: '2026-10-12T10:00:00Z' };
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  c.conditions[0]!.match = 'all';
+  const original = structuredClone(c);
+  assert.ok(
+    publicationContentIssues(c).some((i) => i.code === 'opening_event_requires_prior_event'),
+  );
+  assert.deepEqual(c, original);
+});
