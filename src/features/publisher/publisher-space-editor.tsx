@@ -1,199 +1,197 @@
 'use client';
-import s from './publisher-workbench.module.css';
+
+import { useRef, useState } from 'react';
+import {
+  addEmptyPlace,
+  attachPlaceImage,
+  detachPlaceImage,
+  placeImageUrl,
+  type UploadedSceneImage,
+} from './publisher-place-image.ts';
+import s from './publisher-space-editor.module.css';
 
 type Row = Record<string, unknown>;
+
 export function PublisherSpaceEditor({
   content,
   disabled,
   onChange,
+  uploadSceneImage,
+  previewSceneImage,
+  workId,
 }: {
   content: Record<string, unknown>;
   disabled: boolean;
   onChange: (content: Record<string, unknown>) => void;
+  uploadSceneImage?: (file: File) => Promise<UploadedSceneImage>;
+  previewSceneImage?: (assetId: string) => string;
+  workId?: string;
 }) {
-  const places = Array.isArray(content.places) ? (content.places as Row[]) : [];
-  const routes = Array.isArray(content.routes) ? (content.routes as Row[]) : [];
-  if (
-    (content.places !== undefined && !Array.isArray(content.places)) ||
-    (content.routes !== undefined && !Array.isArray(content.routes))
-  )
-    return <p>原地点或路线格式需要整理，已保留原稿。</p>;
-  if ([...places, ...routes].some((row) => !row || typeof row !== 'object' || Array.isArray(row)))
-    return <p>原地点或路线格式需要整理，已保留原稿。</p>;
+  const [uploadingPlace, setUploadingPlace] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const targetPlace = useRef<string | null>(null);
+  const currentContent = useRef(content);
+  currentContent.current = content;
+  const currentWorkId = useRef(workId);
+  currentWorkId.current = workId;
+
+  if (content.places !== undefined && !Array.isArray(content.places))
+    return <p>原有地点需要核对，已保留原稿。</p>;
+  const places = (content.places ?? []) as Row[];
+  if (places.some((place) => !place || typeof place !== 'object' || Array.isArray(place)))
+    return <p>原有地点需要核对，已保留原稿。</p>;
+
   const updatePlace = (index: number, patch: Row) => {
-    if (!disabled)
-      onChange({
-        ...content,
-        places: places.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-      });
+    if (disabled || uploadingPlace) return;
+    onChange({
+      ...content,
+      places: places.map((place, position) =>
+        position === index ? { ...place, ...patch } : place,
+      ),
+    });
   };
-  const updateRoute = (index: number, patch: Row) => {
-    if (!disabled)
-      onChange({
-        ...content,
-        routes: routes.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-      });
+  const upload = async (file: File | undefined) => {
+    const placeKey = targetPlace.current;
+    targetPlace.current = null;
+    if (!file || !placeKey || disabled) return;
+    if (!uploadSceneImage) return setError('暂时无法上传图片，请刷新后重试。');
+    if (
+      !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+      file.size > 10_000_000 ||
+      !file.size
+    )
+      return setError('请选择不超过 10 MB 的 JPG、PNG 或 WebP 图片。');
+    setUploadingPlace(placeKey);
+    setError('');
+    const uploadWorkId = workId;
+    try {
+      const uploaded = await uploadSceneImage(file);
+      if (currentWorkId.current !== uploadWorkId) return;
+      onChange(attachPlaceImage(currentContent.current, placeKey, uploaded));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '图片未添加成功，请重试。');
+    } finally {
+      setUploadingPlace(null);
+    }
   };
+
   return (
-    <section className={s.card} aria-label="地点与路线编辑">
-      <div className={s.sectionHeader}>
-        <h3 className={s.sectionTitle}>地点与路线</h3>
-        <p className={s.sectionHint}>
-          先核对地点名称与一句说明，需要时展开修改；不用在这里重写故事背景。
-        </p>
+    <section className={s.card} aria-label="地点编辑">
+      <div className={s.header}>
+        <h3>地点</h3>
+        <p>写下故事会出现的地点；场景图可以之后再加。</p>
       </div>
-      {places.map((place, index) => (
-        <details className={s.placeDetails} key={String(place.key ?? index)} open={!place.name}>
-          <summary>
-            {(typeof place.name === 'string' && place.name) || `地点 ${index + 1}`}
-            <span className={s.placeSummary}>
-              {typeof place.description === 'string' && place.description
-                ? place.description
-                : '尚无地点说明，点击修改（选填）'}
-            </span>
-          </summary>
-          <fieldset
-            disabled={disabled}
-            style={{
-              border: '1px solid #dbe1e8',
-              borderRadius: 10,
-              padding: 14,
-              margin: '0 0 14px',
-              minWidth: 0,
-            }}
-          >
-            <legend>{(typeof place.name === 'string' && place.name) || `地点 ${index + 1}`}</legend>
-            <div className={s.formGrid}>
-              <label className={s.formField}>
-                地点名称
-                <input
-                  className={s.input}
-                  value={typeof place.name === 'string' ? place.name : ''}
-                  maxLength={100}
-                  onChange={(event) => updatePlace(index, { name: event.target.value })}
-                />
-              </label>
-              <label className={s.formFieldFull}>
-                地图地址与场所说明（选填）
-                <textarea
-                  className={s.textarea}
-                  value={typeof place.description === 'string' ? place.description : ''}
-                  maxLength={800}
-                  rows={3}
-                  onChange={(event) => updatePlace(index, { description: event.target.value })}
-                  placeholder="一句说明即可；原有长文可以保留，无需重写故事背景。"
-                />
-              </label>
-            </div>
-            <label>
-              <input
-                type="checkbox"
-                checked={place.knownAtStart === true}
-                onChange={(event) => updatePlace(index, { knownAtStart: event.target.checked })}
-              />
-              开场时玩家知道这个地点
-            </label>
-          </fieldset>
-        </details>
-      ))}
+      {error && (
+        <p className={s.error} role="alert">
+          {error}
+        </p>
+      )}
+      <input
+        ref={fileInput}
+        className={s.hiddenInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        aria-label="选择地点场景图"
+        disabled={disabled || !!uploadingPlace}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          void upload(file);
+          event.target.value = '';
+        }}
+      />
+      <div className={s.list}>
+        {places.map((place, index) => {
+          const key = String(place.key ?? index);
+          const imageUrl = placeImageUrl(content, place, previewSceneImage);
+          const sceneImage = place.sceneImage;
+          const hasImage =
+            (typeof place.sceneMediaKey === 'string' && !!place.sceneMediaKey) ||
+            (!!sceneImage &&
+              typeof sceneImage === 'object' &&
+              !Array.isArray(sceneImage) &&
+              typeof (sceneImage as Row).assetId === 'string');
+          return (
+            <article className={s.place} key={key}>
+              <div className={s.mainRow}>
+                <label className={s.nameField}>
+                  地点 {index + 1}
+                  <input
+                    value={typeof place.name === 'string' ? place.name : ''}
+                    maxLength={100}
+                    disabled={disabled || !!uploadingPlace}
+                    onChange={(event) => updatePlace(index, { name: event.target.value })}
+                    placeholder="例如：街角咖啡店"
+                  />
+                </label>
+                <div className={s.imageField}>
+                  {imageUrl ? (
+                    <img src={imageUrl} alt={`${String(place.name || '地点')}的场景图`} />
+                  ) : (
+                    <span>{hasImage ? '已添加场景图' : '场景图选填'}</span>
+                  )}
+                </div>
+                <div className={s.actions}>
+                  <button
+                    type="button"
+                    disabled={disabled || !!uploadingPlace || !uploadSceneImage}
+                    onClick={() => {
+                      targetPlace.current = key;
+                      fileInput.current?.click();
+                    }}
+                  >
+                    {uploadingPlace === key ? '上传中…' : hasImage ? '替换图片' : '添加图片'}
+                  </button>
+                  {hasImage && (
+                    <button
+                      type="button"
+                      disabled={disabled || !!uploadingPlace}
+                      onClick={() => {
+                        try {
+                          onChange(detachPlaceImage(content, key));
+                          setError('');
+                        } catch (cause) {
+                          setError(cause instanceof Error ? cause.message : '请刷新后重试。');
+                        }
+                      }}
+                    >
+                      取消图片
+                    </button>
+                  )}
+                </div>
+              </div>
+              <details className={s.details}>
+                <summary>场所说明（选填）</summary>
+                <label>
+                  <span className={s.visuallyHidden}>场所说明</span>
+                  <textarea
+                    value={typeof place.description === 'string' ? place.description : ''}
+                    maxLength={800}
+                    rows={3}
+                    disabled={disabled || !!uploadingPlace}
+                    onChange={(event) => updatePlace(index, { description: event.target.value })}
+                    placeholder="有需要再补充场景特点。"
+                  />
+                </label>
+              </details>
+            </article>
+          );
+        })}
+      </div>
       <button
         type="button"
-        className={s.btn}
-        disabled={disabled || places.length >= 24}
+        className={s.addButton}
+        disabled={disabled || !!uploadingPlace || places.length >= 24}
         onClick={() => {
-          if (disabled || places.length >= 24) return;
-          const keys = new Set(places.map((p) => p.key));
-          let index = 1;
-          while (keys.has(`place_new_${index}`)) index++;
-          onChange({
-            ...content,
-            places: [
-              ...places,
-              { key: `place_new_${index}`, name: '', description: '', knownAtStart: false },
-            ],
-          });
+          try {
+            onChange(addEmptyPlace(content));
+            setError('');
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : '请刷新后重试。');
+          }
         }}
       >
-        添加地点
-      </button>
-      <p className={s.sectionHint}>
-        路线按方向填写；返程需要另加一条。耗时由剧本设定，不是现实地图测距。
-      </p>
-      {routes.map((route, index) => (
-        <div className={s.formGrid} key={index}>
-          <label className={s.formField}>
-            出发地点
-            <select
-              className={s.input}
-              disabled={disabled}
-              value={typeof route.fromPlaceKey === 'string' ? route.fromPlaceKey : ''}
-              onChange={(event) => updateRoute(index, { fromPlaceKey: event.target.value })}
-            >
-              <option value="">选择出发地点</option>
-              {places.map((p) => (
-                <option key={String(p.key)} value={String(p.key)}>
-                  {String(p.name || '待命名地点')}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={s.formField}>
-            到达地点
-            <select
-              className={s.input}
-              disabled={disabled}
-              value={typeof route.toPlaceKey === 'string' ? route.toPlaceKey : ''}
-              onChange={(event) => updateRoute(index, { toPlaceKey: event.target.value })}
-            >
-              <option value="">选择到达地点</option>
-              {places.map((p) => (
-                <option key={String(p.key)} value={String(p.key)}>
-                  {String(p.name || '待命名地点')}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={s.formField}>
-            移动耗时（分钟，最多 120）
-            <input
-              type="number"
-              className={s.input}
-              disabled={disabled}
-              min={1}
-              max={120}
-              step={1}
-              value={typeof route.minutes === 'number' ? route.minutes : ''}
-              onChange={(event) => updateRoute(index, { minutes: Number(event.target.value) })}
-            />
-          </label>
-          <button
-            type="button"
-            className={s.btn}
-            disabled={disabled}
-            onClick={() => {
-              if (!disabled) onChange({ ...content, routes: routes.filter((_, i) => i !== index) });
-            }}
-          >
-            移除这条路线
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        className={s.btn}
-        disabled={disabled || places.length < 2 || routes.length >= 64}
-        onClick={() => {
-          if (!disabled && places.length > 1 && routes.length < 64)
-            onChange({
-              ...content,
-              routes: [
-                ...routes,
-                { fromPlaceKey: places[0]!.key, toPlaceKey: places[1]!.key, minutes: 0 },
-              ],
-            });
-        }}
-      >
-        添加单向路线
+        ＋ 添加地点
       </button>
     </section>
   );

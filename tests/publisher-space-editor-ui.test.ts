@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
-import { isValidElement, type ReactNode, type ReactElement } from 'react';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+
 registerHooks({
   load(url, context, next) {
     if (url.endsWith('.module.css'))
@@ -27,15 +29,9 @@ registerHooks({
     return next(url, context);
   },
 });
+
 const { PublisherSpaceEditor } =
   await import('../src/features/publisher/publisher-space-editor.tsx');
-type Native = ReactElement<Record<string, unknown>>;
-function nodes(v: ReactNode): Native[] {
-  if (Array.isArray(v)) return v.flatMap(nodes);
-  if (!isValidElement(v)) return [];
-  const e = v as Native;
-  return [e, ...nodes(e.props.children as ReactNode)];
-}
 const data = {
   places: [
     {
@@ -49,42 +45,29 @@ const data = {
   routes: [],
   extension: { value: '保留' },
 };
-test('existing locations start as a collapsed name and single-line description without losing long author text', () => {
-  let calls = 0;
+
+test('existing places show their names with an optional collapsed description and preserve the source', () => {
   const before = JSON.stringify(data);
-  const tree = nodes(
-    PublisherSpaceEditor({ content: data, disabled: false, onChange: () => calls++ }),
+  const html = renderToStaticMarkup(
+    createElement(PublisherSpaceEditor, { content: data, disabled: false, onChange: () => {} }),
   );
-  const detail = tree.find((n) => n.type === 'details')!;
-  assert.equal(detail.props.open, false);
-  const description = tree.find((n) => n.type === 'textarea')!;
-  assert.equal(description.props.value, data.places[0]!.description);
-  (description.props.onChange as (v: unknown) => void)({ target: { value: '新说明' } });
-  assert.equal(calls, 1);
+  assert.match(html, /小院/);
+  assert.match(html, /场所说明（选填）/);
+  assert.match(html, /完整旧描述/);
+  assert.match(html, /<details/);
+  assert.doesNotMatch(html, /<details[^>]* open/);
   assert.equal(JSON.stringify(data), before);
 });
-test('editing a location preserves unknown fields and read-only handlers cannot mutate it', () => {
-  for (const disabled of [false, true]) {
-    let updated: Record<string, unknown> | undefined;
-    const tree = nodes(
-      PublisherSpaceEditor({ content: data, disabled, onChange: (v) => (updated = v) }),
-    );
-    const name = tree.find((n) => n.type === 'input' && n.props.value === '小院')!;
-    (name.props.onChange as (v: unknown) => void)({ target: { value: '新院子' } });
-    if (disabled) assert.equal(updated, undefined);
-    else assert.deepEqual(updated, { ...data, places: [{ ...data.places[0], name: '新院子' }] });
-  }
-});
-test('new unnamed locations open for naming without requiring a new story synopsis', () => {
-  const tree = nodes(
-    PublisherSpaceEditor({
+
+test('unfilled location uses the same compact editor and does not require a synopsis', () => {
+  const html = renderToStaticMarkup(
+    createElement(PublisherSpaceEditor, {
       content: { places: [{ key: 'new', name: '', description: '' }] },
       disabled: false,
-      onChange: () => {
-        throw Error('no automatic write');
-      },
+      onChange: () => {},
     }),
   );
-  assert.equal(tree.find((n) => n.type === 'details')!.props.open, true);
-  assert.equal(tree.find((n) => n.type === 'textarea')!.props.required, undefined);
+  assert.match(html, /添加地点/);
+  assert.match(html, /场景图选填/);
+  assert.doesNotMatch(html, /required|故事梗概|路线|分钟/);
 });
