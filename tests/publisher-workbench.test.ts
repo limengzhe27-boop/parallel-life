@@ -924,3 +924,20 @@ test('one click fills this character’s Moments directly into the draft without
     h.close();
   }
 });
+
+test('publishing a changed draft submits one save-and-publish operation', () => {
+  const publishDrafts: unknown[] = [];
+  const h = overallHarness({ onPublish: (draft) => publishDrafts.push(draft) });
+  try {
+    h.change('新写的总体设定');
+    assert.equal(h.button('发布').props.disabled, false);
+    h.click('发布');
+    assert.equal(h.saved.length, 0);
+    assert.equal(publishDrafts.length, 1);
+    const submitted = publishDrafts[0] as { title: string; content: Record<string, unknown> };
+    assert.equal(submitted.title, mockWork.title);
+    assert.match(JSON.stringify(submitted.content), /新写的总体设定/);
+  } finally {
+    h.close();
+  }
+});

@@ -981,12 +981,10 @@ export function PublisherWorkbench(
                   className={`${s.btn} ${s.btnPublish}`}
                   onClick={
                     onPublish
-                      ? () => {
-                          if (isDirty) {
-                            handleSaveDraft();
-                          }
-                          onPublish(isDirty ? { title: draftTitle, content: draftContent } : undefined);
-                        }
+                      ? () =>
+                          onPublish(
+                            isDirty ? { title: draftTitle, content: draftContent } : undefined,
+                          )
                       : undefined
                   }
                   disabled={
@@ -994,7 +992,8 @@ export function PublisherWorkbench(
                     !onPublish ||
                     !session.canPublish ||
                     overallBlocked ||
-                    (check !== null &&
+                    (!isDirty &&
+                      check !== null &&
                       (check.status !== 'ready' ||
                         check.workId !== work.id ||
                         check.draftVersion !== work.draftVersion ||
