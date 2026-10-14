@@ -983,7 +983,9 @@ export function PublisherWorkbench(
                     !onPublish ||
                     !session.canPublish ||
                     overallBlocked ||
-                    (!isDirty &&
+                    (!work) ||
+                    (activeTab === 'review' &&
+                      !isDirty &&
                       check !== null &&
                       (check.status !== 'ready' ||
                         check.workId !== work.id ||
@@ -1040,12 +1042,12 @@ export function PublisherWorkbench(
               >
                 剧情发展
               </button>
-              {(activeTab === 'review' || (check && pendingChecks.length > 0)) && (
+              {activeTab === 'review' && (
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={activeTab === 'review'}
-                  className={`${s.tabButton} ${activeTab === 'review' ? s.activeTab : ''}`}
+                  aria-selected={true}
+                  className={`${s.tabButton} ${s.activeTab}`}
                   onClick={() => setActiveTab('review')}
                 >
                   待确认问题{check && pendingChecks.length > 0 ? `（${pendingChecks.length}）` : ''}
@@ -1120,7 +1122,7 @@ export function PublisherWorkbench(
           </div>
         )}
 
-        {work && (activeTab as string) === 'review' && (
+        {work && activeTab === 'review' && (
           <section className={s.reviewPanel} aria-label="待确认问题">
             <h3>先核对，再试演与发布</h3>
             <p>
@@ -1188,7 +1190,7 @@ export function PublisherWorkbench(
           </section>
         )}
 
-        {work && (activeTab as string) === 'review' && (
+        {work && activeTab === 'review' && (
           <details className={s.scheduling} aria-label="安排故事时间">
             <summary>故事时间（按需安排）</summary>
             <button
