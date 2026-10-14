@@ -85,7 +85,9 @@ export function PublisherScriptLibraryEditor({ content, disabled, onChange }: Pr
         return (
           <details className={s.card} key={key || i} open={!plotText(e.title)}>
             <summary>
-              {opening ? '开场 · ' : `${i + 1}. `}
+              {opening
+                ? '开场 · '
+                : `${events.slice(0, i + 1).filter((item) => plotRecord(item).key !== content.openingEventKey).length}. `}
               {plotText(e.title) || '新事件'}
             </summary>
             <label className={s.field}>

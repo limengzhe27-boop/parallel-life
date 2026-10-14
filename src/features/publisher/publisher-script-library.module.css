@@ -7,8 +7,16 @@
   border-radius: 16px;
   background: #fff;
   color: #202b40;
-  overflow-y: auto;
+  overflow: hidden;
   overflow-wrap: anywhere;
+}
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.body {
+  overflow-y: auto;
+  min-height: 0;
 }
 .dialog::backdrop {
   background: rgb(14 18 28 / 45%);
@@ -102,8 +110,7 @@
   max-width: 65%;
 }
 .footer {
-  position: sticky;
-  bottom: -24px;
+  flex-shrink: 0;
   padding: 16px 0;
   background: white;
 }
@@ -147,9 +154,6 @@
   .dialog {
     padding: 16px;
     width: calc(100vw - 20px);
-  }
-  .footer {
-    bottom: -16px;
   }
   .card {
     padding: 12px;

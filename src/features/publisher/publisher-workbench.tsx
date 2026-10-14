@@ -886,7 +886,7 @@ export function PublisherWorkbench(
                           : '将当前草稿发布上架'
                   }
                 >
-                  {busy ? '正在发布…' : onPublish ? '发布' : '发布 （暂不可用）'}
+                  {busy ? '处理中…' : onPublish ? '发布' : '发布 （暂不可用）'}
                 </button>
               </div>
             )}
