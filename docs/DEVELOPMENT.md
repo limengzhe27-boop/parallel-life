@@ -1489,7 +1489,7 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 
 |AUTHORING-15-AUTO-TIMEOUT|[ ] 待验收|author-events-director-14|独立codex/authoring15-auto；独占api/client.ts超时、新专项、本人报告；无模型/生产|普通读15s保留；消息/推进按实际85s单模型与双模型预算调整有限超时，保unknown/版本/幂等、不自动重试；root集成部署。 本人f4f4e49，16专项/type/build通过；root240s路线配套、集成部署后完成。|
 
-|SCENE-NATURAL-02|[ ] 待验收|codex-scene-natural-01a1334b-20261014；root唯一集成|独立map-travel-repair树；186fce0+084a1a7冻结供I审。保d7389b4最新arrival/progress；仅场景内部/既有条目/专属tests，无SQL迁移/HTTP契约。|用户允许将余4转本地，18/18 closed、local1存档已暂停、0图/0公网；gpt-4.1新开场+两问全部succeeded/v21，动作/环境/问句0事项信用；最终check2219、PG6通过。未知现场任务在leave后残留根因已修，新leave取消unknown，旧精确回执重放恢复。纯UI旧已离场恢复入口仍需I审，不冒充通用已修。正式模型及部署未改，下一SCENE-MODEL-01配置接线。|
+|SCENE-NATURAL-02|[ ] 待验收|codex-scene-natural-01a1334b-20261014；root唯一集成|独立map-travel-repair树；186fce0+084a1a7冻结供I审。保d7389b4最新arrival/progress；仅场景内部/既有条目/专属tests，无SQL迁移/HTTP契约。|用户允许将余4转本地，18/18 closed、local1存档已暂停、0图/0公网；gpt-4.1新开场+两问全部succeeded/v21，动作/环境/问句0事项信用；最终check2219、PG6通过。未知现场任务在leave后残留根因已修，新leave取消unknown，旧精确回执重放恢复。纯UI旧已离场恢复入口仍需I审，不冒充通用已修。正式模型及部署未改，SCENE-MODEL-01接线待I审；用户最新补充要求人物同时承接聊天与推进本人目标/事件，保可见事项状态和本人目标，避免纯陪聊/重复催任务；只读诊断已交I，不擅改冻结源码或用新4公网费。|
 
 ## AUTHORING-16 角色演示生成优先修复（用户2026-10-14最新优先）
 
@@ -1549,7 +1549,7 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 |CHARACTER-AUTHOR-20-O|[x] 已完成|author_arch20；root指派|独立author-arch20树；仅新 `src/features/publisher/publisher-social-direct.ts` 及其专属测试/报告；不改workbench、API、发布契约|纯函数核对项目Agent聚焦结果只增加选定人物的指定聊天/朋友圈，不改作者原文、其他人物或私密字段；失败不得自动采用。|
 |CHARACTER-AUTHOR-20-U|[x] 已完成|author_ui20；root指派|/Users/limengzhe/.codex/worktrees/character-author20-u/人生剧本；仅 `publisher-character-preview.tsx`/局部CSS/专属测试与报告；不改workbench或服务端|人物页保留分别“AI补历史聊天”“AI补朋友圈”两按钮，去掉“一起补齐”；直接操作进度和结果文案，不跳导入文档。|
 |CHARACTER-AUTHOR-20-M|[ ] 待开发|root待20-I文字链上线后分配|作品朋友圈图片端到端：独立staff素材上传/存储/授权、动态图片引用与发布校验、玩家按作品版本和可见动态读取、手机九宫格；不复用玩家私人资产，不用本地预览冒充发布|跨作品/玩家和下架旧存档隔离的真实PG、移动端与PC浏览器、READY公网验收；无图内容兼容。|
-|CHARACTER-AUTHOR-20-LIVE|[ ] 待验收|root后续领取|生产独立合成角色、少量文字模型；验证一次点击真正生成文字动态/历史聊天、自动保存、刷新后可见及跨人物隔离；需新一轮明确模型调用范围，不沿用已闭账批次|线上真实模型结果与回执、失败恢复、无二次导入；不使用用户个人资料或生成图片。|
+|CHARACTER-AUTHOR-20-LIVE|[ ] 进行中；朋友圈线上抽样通过，历史聊天及跨人物隔离待验|codex-main-character20-20261014；world-publish-intake-01|2026-10-14 正式站 1 份合成草稿，1 次点击 AI 补朋友圈（服务端至多 2 次文字调用，未复点）；生成 3 条，自动保存，刷新后资料页仍显示 3 条，已删除草稿；不使用个人资料/上传/生图。|剩余历史聊天真实模型、跨人物隔离及失败恢复按另批明确授权验；本批授权已结账，不沿用。|
 
 未交付仍在本表：朋友圈图片上传、图库绑定及玩家端图片投影；旧历史标签和冗余文案；长稿五维截断；导演持续多拍、现场模型及完成结果后机会，沿对应原任务继续。
 
@@ -1557,6 +1557,34 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 
 |PUBLISHER-TRIAL-NONBLOCK-20Q|[ ] 进行中（纯逻辑；UI窗口待I协调）|codex-trial-nonblock-20q-01a0c7c8-20261014；root唯一集成/部署|用户本聊天明确指派修复；原独立photo-compose-02，新codex/trial-nonblock20-q自9632b0c；当前仅新src/features/publisher/publisher-trial-background.ts、新tests/publisher-trial-background.test.ts、docs/task-reports/PUBLISHER-TRIAL-NONBLOCK-20Q.md及主目录本人行/报告镜像；controller/workbench仍由20-I占用，未领取未改|预演独立进度与编辑并行，保护生成后新输入/版本/跨作品/unknown不重复付费。先做不冲突纯逻辑并请I冻结实际UI接线窗口；不绕队列/回执/权限，不自动模型/生产；纯测试后root真实库/双端/READY公网上线才完成。 逻辑阶段32e59d6（仅3本人文件），6纯反例/type/diff过；另未交付hook实验真实复现controller generation时busy=true（预期false），线上修复尚未接线。root20-I当前workbench/preparation等确有在途diff，已请求窗口，未擅改。任务仍进行中，0模型DBbrowser生产，不称完成。|
 
+## OPENING-LIST-DEDUP-01（2026-10-14 用户移除下方重复开场事件）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|OPENING-LIST-DEDUP-01|[ ] 待验收|codex-opening-list-01a1334b-20261014；root唯一集成部署|独立/Users/limengzhe/.codex/worktrees/opening-event-list/人生剧本，基于673ca7f；仅src/features/publisher/publisher-plot-editor.tsx、本人docs/task-reports/OPENING-LIST-DEDUP-01.md；既有相关测试只读；不改workbench/contracts/SQL/人物组件。旧opening18已完成释放，root当前dirty不含plot-editor，已通知I避免同文件写。|ced2f83冻结，基于673ca7f仅plot-editor+本人报告；上方开场保留，下方同节点隐藏，数据/原索引/限额不动，取消后恢复，损坏指定不隐藏。check首次4旧DB认证失败，独立PG55502迁移后最终2294/2294、边界/type/build通过。现有本地development预览PC1440/390实际添加/修改/取消/再指定及无溢出通过；无模型/实际作品写/新世界/图，非真实发布冒充成功。HTTP3288/PG55502已停，Ego175回空白/既有NPC窗口仍保留。交唯一I合入/核迁移/READY正式公网复验，未上线不算完成。|
+
+## TOOLBAR-CHECK-REMOVE-01（2026-10-14 删除右上检查）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|TOOLBAR-CHECK-REMOVE-01|[ ] 待验收|codex-toolbar-check-01a1334b-20261014；root实际源码唯一写入及部署|opening-event-list独立树；仅本人docs/task-reports/TOOLBAR-CHECK-REMOVE-01.md与忽略.local内精确补丁；publisher-workbench.tsx与其test是root当前dirty/独占，仅只读，不并写。controller亦建议由root接线；已向I发送用户明确要求。|候选补丁.local/toolbar-check-remove.patch（三文件）已交I，root真实当前副本git apply --check通过，未实际apply；报告18f0c0b。不并写root当前dirty workbench/test。删除独立检查按钮同时发布前自动client.check currentWork，原client/server ready/version/hash/trial/media门不撤。只删按钮会使发布永久禁用，已给I诊断；待I等价接线/check/build/双端/READY正式，0模型/DB业务写，不能称线上已改。|
+
+## STORY-PLACE-01（2026-10-14：剧情地点提取、地图可用与导演地点承接）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|STORY-PLACE-01|[x] 已完成|codex-main-story-place-20261014；独立world-publish-intake-01工作树，唯一集成|src/contracts/published-world-content.ts；src/modules/settings/domain/{publication-content,publication-preparation,publication-story}.ts；src/modules/settings/infrastructure/{publication-manuscript-planner,publication-story-repository,publication-world-repository,publication-repository}.ts；src/server/{publication-story-service,publication-runtime}.ts；src/modules/settings/application/publication-story-ports.ts；src/modules/world/application/ports.ts；src/features/publisher/{publisher-workbench,publisher-plot-editor,publisher-space-editor,publisher-import-dialog}.tsx及publisher-art-model.ts（集成后同名素材冲突修复）；对应独立专项测试与本人报告；不碰NPC-GOALS已领取turn-planner/scene文件，不写SQL或正式业务数据|导入Agent从文稿提取明确地点/地址并核对，关联事件目的地不等同到场前提；地图可展示/导航编剧确认的地点与方向路程，导演提示精确地点且不称玩家已抵达；2307/2307 check、build、真实PG 55/55、桌面/手机本地与Production `78c849c` / `dpl_CYArUzRpkdS4AyWWHSbVYZa5HGfW` READY、公网四路径验收通过，57/57生产迁移一致；模型提取质量尚未线上抽样。未知或秘密地点发现能力单列后续，不冒称本批。|
+|STORY-PLACE-02|[x] 已完成|codex-story-place-reveal-20261014；独立/Users/limengzhe/.codex/worktrees/story-place-reveal/人生剧本，root唯一集成|publication内容/故事来源、世界space/event/reducer与提交、故事服务/仓储、地图投影、必要0058迁移及对应测试；不碰NPC-GOALS或别的Agent已领取文件|2026-10-14 领取：先审现有来源、回执和地图；实现编导隐藏地点仅在真实NPC情节消息提交后揭示，保留稳定路线、可重放/隔离；本人check/build/真实PG，交root集成部署。 2026-10-14 实现提交待集成：隐藏地点只在同人真实成功NPC消息明确说出作者地点/地址后作为世界事件揭示；玩家自述/寒暄不解锁，后续消息可补；现位置有向可达、稳定路线、多地点和旧计划兼容。独立PG故事31/31、check2305/2305、build、触及文件格式通过；全仓格式因6个未触及旧文件不符。详见 docs/task-reports/STORY-PLACE-02.md；root已完成0058生产58/58迁移校验、集成check2307/2307/build、真实PG60/60；业务f28c900及记录315934a的Production dpl_FYT8hjTDkagHRN1SYDWS2pqqhwUM READY并指向正式域名，公网健康/工作台/目录200、匿名作品/地图401。真实模型自然提及质量另列STORY-PLACE-03。|
+|STORY-PLACE-03|[ ] 待开发|待领取，STORY-PLACE-02 上线后|线上独立合成稿：原稿导入自动识别隐藏地点/作者地址与路线，试演和玩家新存档，真实导演/NPC 消息明确提及后地图解锁并可导航；核对模型不编造地址，跨账号隔离及资源清理|真实文字模型质量与公网写入闭环抽样；需单独登记新一批测试存档/调用范围，不沿用已关闭账本。|
+
+|IMAGE-ASSETS-19-B|[x] 已完成（本地26图首版/自审）|codex-images19b-01a11a84-20261014|主目录output/imagegen/2026-10-14-character-batch/与专属报告；无代码/生产/旧素材覆盖|用户新附件明确要求完整26图：6三视图+LZZ8+SYT4+欣欣8。内置imagegen，每图独立，人物参考一致，完整落盘/清单/提示词，不接入线上作品或调用项目模型预算。矛盾按具体设计：LZZ粉发/欣欣白毛衣/刘黑直发。 已26PNG落盘、26编号manifest含尺寸/hash、原稿与实际final提示词、HTML预览、ZIP52,258,447字节且testzip通过；LZZ01自然穿搭替代版、生活图文字设定身份未严格锁定明确记录。无生产接入/代码改动。 自审26原始输出/PNG签名尺寸方向/hash、HTML26链接及ZIP26PNG/testzip全过，报告IMAGE-ASSETS-19-B已存主目录；仅本地图片交付，无线上接入/业务代码/模型预算变更，不称全跨图脸型锁定。|
+
+## CHARACTER-SAVE-21（2026-10-14：长人物稿保存）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|CHARACTER-SAVE-21|[x] 已完成（a11ce28 / dpl_5kCUoZdQYkaE4EGALh2UroYDQXLF READY）|codex-main-character-save-20261014；唯一集成|独立world-publish-intake-01；publication-content、publication-repository（只保护明确非法字段不被默认值吞掉）、publisher-http、草稿/版本/回执0059迁移、前端容量反馈、聚焦测试与本人报告；独立本地PG，生产只由本任务迁移部署|修六人物五维填入后因整稿65KiB限制无法保存；保留原稿，适度提高有界容量，保存/读取/试演/发布及两端反馈验证；2308/2308 check、build、真实PG 25/25；生产59/59迁移一致；公网health/工作台/目录200、匿名作品401，1440/390登录页无横溢出。当前编剧稿只读加十项模拟125572字节可通过；未写原稿/未模型调用。长稿AI整理上下文单列后续。|
+|CHARACTER-LONG-AI-22|[ ] 待开发|待领取；依赖CHARACTER-SAVE-21|长稿经项目Agent整理/补历史/朋友圈时的输入与输出预算、按人物聚焦与原文不删改；不提高模型上限冒充能完整理解1MiB|合成六人长稿验证整理/试演中单独上下文限额的清晰提示与分段/聚焦策略，保存草稿不受影响。|
 
 ## CHARACTER-PASTE-23（2026-10-14：按角色粘贴识别和事件地址简化）
 
@@ -1564,13 +1592,20 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 |---|---|---|---|---|
 |CHARACTER-PASTE-23|[x] 已完成（已部署）|codex-character-paste23-01a0c7c8-20261014；root唯一集成/部署|独立/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本，新codex/character-paste23-q自a11ce28；仅新src/features/publisher/publisher-character-paste.ts、publisher-character-paste-dialog.tsx、publisher-character-paste-dialog.module.css；publisher-workbench.tsx、publisher-plot-editor.tsx；tests/publisher-character-paste.test.ts、publisher-character-paste-ui.test.ts、publisher-workbench.test.ts、publisher-plot-ui.test.ts，必要新tests/integration/character-paste23.test.ts；docs/task-reports/CHARACTER-PASTE-23.md与主目录本人行/报告镜像|已核原负责人释放，DIRECTOR-PROGRESS活跃范围不重叠；I当前dirty容量公共契约只读并已请求冻结SHA。确定性单角色分节识别、源文定位/逐项确认/阻断原子不写、聊天/动态追加幂等、待配图说明不伪造图；移除事件手动地点不删已存。>4000单维存储/试演/发布必须验证，AI长文理解22另保未完。0默认模型/正式世界写；check/build、真PG与PC手机后交I尽快READY/公网验收，未上线不完成。 本树PG55523/HTTP3323独占，启动前核空闲；Ego新taskspace本任务唯一，0付费模型/生产世界写；旧55458不启动。 已接容量4f273e5→e561bca，check2329/build/聚焦62/真实PG55523新增场景通过（59迁移）；UI PC1440/390实际文件与幂等确认无横溢；0模型，发布审查fixture明确。待独立23SHA交I串行部署READY/公网，22长文模型理解不完成。 冻结业务ee4aa83及仅DB测试端口可移植性e91a6ce已交I；own clean，HTTP3323/PG55523已停；Ego185本地验收已finish、截图保留，公网由唯一I执行；不续领。 `275da88`/`9902287`上线/Production READY；PC/390px、真实PG、2329check/build，未调用模型；见本人报告。|
 
-
 ## CHARACTER-CAPACITY-23-I（2026-10-14：长篇人物五维容量契约）
 
 |任务|状态|负责人|文件与资源|验收与接续|
 |---|---|---|---|---|
 |CHARACTER-CAPACITY-23-I|[x] 已完成（已部署）|codex-character-capacity23-i-20261014；root集成，先于DIRECTOR-PROGRESS公共契约窗口串行提交|managed /Users/limengzhe/.codex/worktrees/character-capacity23/人生剧本，自a11ce28；仅人物五维有界上限相关的 src/contracts/published-world-content.ts、src/contracts/authored-social.ts、src/modules/settings/domain/publication-content.ts、src/modules/settings/domain/publication-defaults.ts、src/features/publisher/publisher-importer.ts、src/modules/settings/domain/publication-character-previews.ts、src/modules/settings/infrastructure/publication-manuscript-planner.ts 与直接聚焦测试/本报告；不改导演0060、现有业务推进文件|单维提升至有界长文，保存、旧导入、默认值、朋友圈私有读取一致；整稿1MiB及紧凑运行预算不放宽、不截断原稿伪装成功。check/build后独立提交SHA交23执行者并尽快集成部署；真实长文试演/发布由23共同验收。 `4f273e5`随`9902287`上线/Production READY，单维16,384字符，真PG>4000存储与试演发布、check/build通过。|
 
+## DIRECTOR-PROGRESS-01（2026-10-14 持续人物目标、事件进展与节奏）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|DIRECTOR-PROGRESS-01|[ ] 进行中|codex-director-progress-01a1334b-20261014；root唯一集成/公共契约/迁移/部署|独立managed npc-director-progress/人生剧本，自a11ce28；root明确先仅新增src/modules/settings/domain/story-event-progress.ts、tests/story-event-progress.test.ts、本人docs/task-reports/DIRECTOR-PROGRESS-01.md。I已核 e5bada6 未集成的NPC范围：执行者可独占 `src/modules/settings/domain/publication-story.ts`、`src/modules/settings/application/publication-story-ports.ts`、`src/modules/settings/infrastructure/publication-story-repository.ts`、`src/server/publication-story-service.ts` 及新窄ledger适配器 `src/modules/settings/infrastructure/publication-event-progress-repository.ts` 与对应新增专项测试；新演员可选/多场景运行接线仍同负责人在原四文件内完成，root冻结公共形状后同步；须先同步准确 main 与纯helper，I已单独放行 turn-planner.ts 动态演员选择窄窗口，0b6d6d7已冻结交I；普通turn/scene goal仍只读。公共 `src/contracts/published-world-content.ts` 与候选 `db/migrations/0060_publication_story_progress.sql` 由I独占；0060已为本任务预留，schema冻结前不创建。NPC旧范围不改；独立本地PG55503用于已有check数据库fixtures，0模型/生产写。|进行中检查点0d5c924纯helper、511e9f6忘却源redaction、c12a19d私有phase/ports/service续拍接线；16helper+4stage+4service新fixture过，最终check2332/2332、type/boundary/build过，初4DB认证失败已存；独立PG55503已停，0paid/存档/图。0060由I35bc3bc库部分先应用生产61（I外部证据），不代表业务上线；公共loan未提交。窄ledger adapter证据层ffd52e3已冻结交I，新真实PG1/1（两节点/拒绝/非成功关闭/实际criteria提前完成/假complete拒绝）、check2365/2365与build过；业务hook仍未接，55503正常停止；普通NPC/scene ownGoal+quote公共接口待I冻结。新增动态演员/全文多场景最小闭环0b6d6d7待I联编，check2365/2365、build过，真实PG55503新1+既有31过，0062本地应用；PG仅合成fixtures，0真实模型/模型验收存档，现已停止。四story及turn动态已冻结交I，普通turn/scene仍只读，不猜关键词或GET偷付费。动态0b6d6d7及helper/c12已由I集成待导入联编；等I串行冻结ActorGoal/quote与独立续拍pending协议再放行hook接齐，实际local16/public8与2save已批账本0、旧不挪，未真实验证/未上线，不完成。2026-10-15人类明确继续完整现场/手机hook与原24调用，新增到达地点等实际世界输入给导演、APP联动与人格/历史短对白质量；已向I请求准确新SHA/公共槽与重新放行窗口，当前只读梳理与本人新ledger/report，不覆盖冻结四story/turn/scene。 新增窄f159aec(actual travel/source-scoped scene quote/recent8世界变化)已PG1/1及check2365/build验证并交I，当前独立55503运行；不触及冻结原四story/turn/scene、0/24 paid/模型验收save/图，await I新公共槽及窗口。 公共提案af95211(4获准接口/domain/parser+新6tests+本人report)从70d6768/merge117bf23冻结，check2383/type/boundaries/build过，await唯一I审定、串行e5及现有业务hook窗口；该接口暂未生成/存储接线，预算0/24。 I串行已集成186→084→593→e5为69ede4d/1722b3b/a081385/f71ef52，af952接口为fbe8a6e，ledger为f8659ca/84a1898/0e332f6；root2403check通过，正式下一业务窗口放行执行者原四story、world/infrastructure/turn-planner/scene-planner/scene-repository/postgres-world-repository/space-repository、world/application/resolve-turn/actor-context、server/publication-character-planner/services/composition/worker-composition及直接专项。仅持续goal/actualinput/scene切换/真实receipt事务；公共接口4文件仍冻结改动提案由I串行审定，0063与26两个server routes独占不碰，0/24预算。 精确新增helper放行settings/infrastructure/{publication-event-goal-context,publication-progress-beat-store}.ts与world/infrastructure/actor-goal-repository.ts，分别pub本人context/0060有界pending/general-matter真实锚；不伪pubnode、不新增表，直接专项同负责人。I串行scene-ports三个optional runMode/trigger/autonomousActorIds形状后提供SHA。 接续2026-10-15：已合8fd77310，实际手机prepareContext/meta/同事务进度和publication续拍claim/pool、scene本人goal/modules/quote绑定WIP，公共ports与SQL64精确冻结待I提交。新增3helper已I授权，advance-world仅forwardprepareContext（src/modules/world/application/advance-world.ts已明确同负责人窄窗口）。typecheck仍ports待合与小范围修复，未验收/未部署；本轮0/24真实模型、0/2模型save、0图。 2026-10-15接续：现source已接publication/general本人目标、scene/phone真实quote存储与实际arrival/calendar输入、独立续拍/leased自主scene、同源手机记忆，联合55503真实PG2过；check2419过/build过。最终live候选冻结后开始原local16/public8，账本0/24，已有唯一local合成试演世界已入账暂停，public第二世界未建；试演runner字段错已恢复同world，未另建save。公共4ce83e12/cbbbb1e已合，813b0ff窄出行配图已root READY，完整导演未部署。|
+|DIRECTOR-PROGRESS-01-I|[ ] 进行中|codex-main-director-progress-integrator-20261014；唯一公共契约/SQL/部署集成|公共最小增量冻结切换到已部署干净 managed `history-chat-media/人生剧本`（df702c2）；旧intake借用草案保持不覆盖，候选 `db/migrations/0060_publication_story_progress.sql`、对应独立PG测试、必要 `src/contracts/published-world-content.ts`、本人报告；不改执行者的story helper/现有story业务文件或NPC范围|冻结可信证据与可选作者节奏/完成条件契约；有界状态和不可变来源账本、真实命令成功与版本核验、owner隔离/回滚/幂等；执行者业务接线完成后I check/build/PG/READY/公网验收。0060已随35bc3bc进入生产61迁移，绝不重复SQL；当前只冻结方向progress契约/domain与直接专项测试，之后协调辅助确定性事件地点导入及导演业务窗口。 根现于dafdd9f干净树串行review/cherry-pick186fce0→084a1a7→5937687→e5bada6，再af95211公共ownGoal/quote接口与ffd52e3→f159aec→14c5330ledger；仅交接冻结范围，先接口/前置落盘后发SHA释放执行者hook，26路由及visibility字段独占不碰。 已冻结0e332f6，2403check通过，build/新增真实PG验收进行中；现只根窄审查/集成，不同时写已释放业务文件，公共schema/新SQL仍root唯一协调。 唯一预留0064_publication_scene_goal_worker.sql给root：仅实际leased worker可见本人life modules/激活progress和授权来源进度写，world-owner-scene-task-lease守卫与忘却过滤，不能读取未来计划；待执行者精确查询需求后实现。旧0060不改，0063仍26唯一。|
+
+|IMAGE-ASSETS-19-B-V2|[x] Complete (18 local assets, self-reviewed)|codex-images19b-v2-20261014|output/imagegen/2026-10-14-character-batch-v2/; own report only|User revised SYT age28/full healthy curvy and LBY waist-length loose black straight hair; 2 turnarounds, QQ5, LBY9, SYT2 =18 local images. Built-in image_gen, keep prior batch, no production/code/game model budget. All18 final PNG saved, repeated character references succeeded; QQ01 extra cat removed via image_gen, SYT sleepwear fit refined; decorative QQ05 Vision detected/decoded0, manifest/prompts/gallery/ZIP18 PNG testzip verified. No production or business code.  Own18 images/hash/HTML18 links/ZIP18 testzip/QR decoded0 verified, dedicated report saved; prior26 retained; no source/production changes. |
 
 ## CHARACTER-HISTORY-MEDIA-24（2026-10-14：编剧历史微信图片与视频）
 
@@ -1578,3 +1613,98 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 |---|---|---|---|---|
 |CHARACTER-HISTORY-MEDIA-24|[x] 已完成（已部署）|codex-main-history-media-20261014；root唯一公共契约/SQL/存储/集成与部署；协作Agent仅UI|独立managed `/Users/limengzhe/.codex/worktrees/history-chat-media/人生剧本` 从a11ce28；root独占db/migrations/0061、src/contracts/published-world-content.ts及后端/服务路由；UI Agent独立history-media-ui树仅publisher-character-social-editor/其model/CSS、publisher-character-model、phone UI及聚焦测试，待root冻结媒体引用契约后写；辅助线程workbench/client由root在其交付后串行接线；主表仅root短锁更新，专属报告`docs/task-reports/CHARACTER-HISTORY-MEDIA-24.md`|历史微信可添加图片或视频，纯媒体消息也可保存；文件独立私有存储、草稿只存引用，编辑/删除/试演/发布/玩家微信一致可见；跨作品/用户不可读，真视频Range播放；check/build、真实PG和双端、公网READY验收，未部署不完成。与0060导演迁移串行，生产新桶先建/验证。 `b631e1d`/Production `dpl_D3468fDmGT5u9CqML393ajCPc8fP` READY，61/61生产迁移+私有桶；check2335/build/真实PG，公网上传保存→试演→临时发布→玩家视频Range206/跨用户404，测试作品删除、2存档暂停；详见[报告](task-reports/CHARACTER-HISTORY-MEDIA-24.md)。|
 |CHARACTER-HISTORY-MEDIA-24R|[ ] 待做|未领取；接续本任务|视频大文件弱网续传与临界50MB实测、图片生产实物抽样；不影响已上线MP4首版|优先补TUS分片/断点续传与明确失败重试，再做50MB/图片真机抽样；原文件不丢失、私有权限不放松。|
+
+## IMAGE-ASSETS-19-ORGANIZE（2026-10-14 按人物归档）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|IMAGE-ASSETS-19-ORGANIZE|[x] 已完成（本地素材，自审通过）|codex-images19-organize-20261014|主目录；output/imagegen/按人物分类-2026-10-14/、同名ZIP及docs/task-reports/IMAGE-ASSETS-19-ORGANIZE.md；只更新本人登记|44张已按青青6/林白语11/刘胜男1/李之之8/舒雅婷8/欣欣9/男主1归档；原批次保留。44张来源hash一致、ZIP44PNG及testzip通过；清单注明版本及合照归属。报告IMAGE-ASSETS-19-ORGANIZE.md；本地素材交付完成，无业务接入/部署，释放本人素材范围。|
+
+
+## SCRIPT-LIBRARY-25（2026-10-14 用户指派：编剧剧情库与地点确定性导入）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|SCRIPT-LIBRARY-25-Q|[x] 已验收（纯解析交接）|codex-script-library25-q-01a0c7c8-20261014；辅助，root仍唯一公共契约/运行时协调/集成部署|复用独立 /Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本，新codex/script-library25-q自df702c2（正式业务b631e1d，后续仅文档）；先仅新src/features/publisher/publisher-script-library.ts、publisher-script-library-dialog.tsx、publisher-script-library-editor.tsx、publisher-script-library.module.css，新tests/publisher-script-library.test.ts、publisher-script-library-ui.test.ts，必要tests/integration/script-library25.test.ts；docs/task-reports/SCRIPT-LIBRARY-25-Q.md；主目录仅本人行/报告镜像。publisher-importer/workbench/plot旧文件及所有contracts/domain/server/SQL暂只读，待I协调后明确扩围|用户明确要求整链：地址汇总/场景多地点稳定去重，开场+编号正文原样，未归属原文可手动归入，手动合并、不造日期路线/不抽触发条件/无默认AI；导入须进入导演可选池且不强派首actor、不默认必推。DIRECTOR-PROGRESS-01活跃文件已核且已向I/执行者协调，不重复导演开发。先独立解析与UI模型；协议/运行时依I冻结后接线，源样例当前消息未附、已请路径/正文，不以合成18事件冒充用户原稿验收。check/build、真PG/双端，I生产核迁移/READY/公网后才完成；本轮不领取其他任务。 主对话最新人类要求改由root直接开发并补入现有稿，Q停止扩围；仅三新文件冻结8b8259ebc711eb48198c0ee381b16b2aa99d5520（parser/tests/report），旧文件和new UI均未写，预登记UI范围释放。6纯测试/type/边界/build/formatdiff过；check2341=2337pass/4既有DB用例连接已停55523拒绝，不称全绿。18仅合成夹具，真实原稿由I持有；无真实PG/模型/HTTP/浏览器/生产写。I接契约、UI、可选导演和原稿补入、READY公网；不标完整任务完成、不续领。 I已完成真实原稿保存与正式MD/ZIP验收；仅Q纯解析交接范围完成，整链限定交付见SCRIPT-LIBRARY-25-I。|
+
+## SCRIPT-LIBRARY-25-I（2026-10-14 确定性事件地点库与真实原稿补入）
+
+|任务|状态|负责人|范围与接续|
+|---|---|---|---|
+|SCRIPT-LIBRARY-25-I|[x] 已完成（本批限定交付）|codex-main-script-library25-i-20261014；人类明确改为root直接开发|managed history-chat-media/人生剧本，自df702c2；接辅助8b8259e新纯解析，独占publisher-script-library及新增apply/dialog/editor/CSS，旧publisher-importer/import-dialog/workbench/plot-editor必要挂载，public published-world-content/domain publication-content/ defaults/preparation/world application ports与新0062演员选择守卫，直接测试/报告及 `.github/workflows/verify.yml` 两个新专项端口环境；增加confirmed place.aliases与历史消息200容量兼容：publication-scheduling、publication-character-previews、publication-world-repository、publication-manuscript-planner、publisher-opening-editor/character-paste与对应专项；MOMENTS-26仍新helper只读旧public，director动态冻结四story已集成后允许根窄prompt；不覆盖未冻结turn/scene，按冻结契约交其适配。私有原稿.local/script-library25-user-original.md不入Git；真实渣男体验01824964-367c-4703-90e9-b0a11182c9ce原v114备份、重读v116后保存v117，比对保已有修改补缺，0默认AI。验收保存回读、PC手机、真实库、导演池/发布实例来源与READY，未验不完成。 已保存真实草稿117：1开场+17事件、16地点，保79历史/24朋友圈/原图片；62生产checksum，check2377/build/PG33，业务5484b4a READY，正式MD+ZIP重复导入0追加/PC1440手机390通过。实际作品仍draft未发布，0模型/新存档；最终归档dafdd9f READY，正式alias dpl_7bGfXKT7xbLXtCfkB8g92xuYz1aY精确一致；新地图揭示/导航与导演持续多拍按独立任务保留，不称17分支实玩通过。|
+
+## SCRIPT-MEDIA-INTAKE-01（2026-10-14 剧本配图录入，仅草稿）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|SCRIPT-MEDIA-INTAKE-01|[x] 已完成（草稿录入，未发布）|codex-script-media-intake-20261014|.local/script-media-intake/、docs/task-reports/SCRIPT-MEDIA-INTAKE-01.md及本人行；Ego188；生产后台既有draft 01824964-367c-4703-90e9-b0a11182c9ce，仅预设消息/朋友圈及必要图片引用，保留其他设定|2026-10-15线上既有渣男体验draft v116，status=draft/publicationVersion=null。77条原稿+保留2条原有聊天、24朋友圈、34私有PNG；16第二版/18第一版，三聊天附件发言人正确。刷新API语义一致、34图加载及尺寸一致、原生编辑页验证；最终check仅16原有剧情节点错误。多图首图显示/玩家朋友圈通路/解锁与三天可见尚需完善，完整图文核对页与报告已保存；未发布/试演/创建世界/AI/改业务代码。Ego188已finish并保留结果页，释放本人草稿资源。详见SCRIPT-MEDIA-INTAKE-01报告。|
+
+## MOMENTS-VISIBILITY-26（2026-10-15 多图朋友圈与可见性）
+
+|任务|状态|负责人|文件与资源|验收与接续|
+|---|---|---|---|---|
+|MOMENTS-VISIBILITY-26|[ ] 待验收|codex-moments26-01a11a84-20261015|复用干净managed publication-story-02/人生剧本，新codex/moments-visibility-26从origin/main；先仅新增src/modules/settings/domain/moment-visibility.ts、tests/moment-visibility.test.ts、src/features/media/moment-gallery.tsx与moment-gallery.module.css、本人报告；独立PG55566/HTTP3276已核无监听，待启；另独占无在途冲突的src/features/publisher/{publisher-character-social-editor.tsx,publisher-character-social-editor-model.ts,publisher-character-model.ts,publisher-character-social-editor.module.css}及tests/publisher-character-social-editor.test.ts、src/features/phone/apps/moments.tsx；不写root的workbench或导演；I已明确串行放行public published-world-content/domain publication-content/defaults仅momentsVisibility/after_statement/images与refs，0063_publication_moment_visibility.sql唯一预留26。增加authored-social契约、publication-social-repository及必要publication-media-repository、独立tests/integration/publication-moment-visibility.test.ts和本批合同/defaults专项，已将精准路径同步I；不自行push，冻结交I集成部署；主目录仅本人行和报告；必要窄src/server/{publisher-world-http,publisher-media-http}.ts仅trial社交图片URL映射及world媒体读同一visibility授权，新domain/moment-media-url.ts和本批专项，已报I；不改services/composition；新增发现真实genesis预置确认来源无world_events导致锁帖不解锁，I唯一放行0066_publication_moment_genesis_confirmation.sql及专属真实genesis test，不改已线上63，分支codex/moments-genesis-66从最新origin/main，PG仍55566|用户要求后台及玩家多图完整、事实解锁帖、按世界时间三天可见；现有渣男体验只更新草稿，严禁发布该世界。确定性本地/真实PG/双端测试，不调用AI；代码按常驻要求部署READY、公网关键验收，软件部署不等于世界发布。4纯规则/type/boundary已过；用户明确指定舒雅婷确认身份后解锁，已同步I；新独立PG55566运行，仅合成数据。公共契约/SQL已获I窄窗口；不动导演/剧情库在途范围。 冻结55a4c15、b713092、617a937，释放公共槽交I串行集成。全check2386、build及真实PG关联33测试通过；本地后台与实际私有trial多图/规则/受限图片和390/1440通过，trial暂停，无模型/生产写。0063权限与trial媒体完成；待I迁移生产63、READY后本Agent公网验收及expectedVersion仅写真实朋友圈规则，不发布世界。用户新授权16场景图，26完成后协同I保存地点草稿。 66真genesis补修33965bf已冻结，check2417/build过，新PG13+旧visibility过；联合46有64根story授权回归44pass/2fail，根67负责，不伪称全过。生产真人稿118仍未发布；第一trial权限过/第二genesis正例待66上线热验，2trial已pause、0文字。|
+
+## 剧情地点与试演接续（2026-10-15）
+
+|任务|状态|负责人|范围|验收与接续|
+|---|---|---|---|---|
+|SCRIPT-LIBRARY-25-MAP|[ ] 待领取|root集成协调，后续按文件独占登记|多场景scenePlaceKeys实际揭示/地图导航/现场演员到场，依SCRIPT-LIBRARY-25-I、DIRECTOR-PROGRESS-01|导入地点已存与导演可读不等于玩家可去；真实故事来源揭示地点和实际入场，不把标题场景当角色已经在场、不虚构路线。实际前往/多场景与跨玩家隔离验收后部署。|
+|PUBLISHER-TRIAL-OPTIONAL-NOTE-27|[x] Delivered through AUTHORING-INTEGRITY-30-Q|Auxiliary30-Q; root integration|检查/试演规范化后与不可变ticket原稿的来源一致性，先精确夹具真PG复现；不改26在途文件|前“可选experienceNote undefined”推断已撤销：字段实际必填，缺失原稿check会补默认，而SQL latest0056仍比对raw source note，疑因此409。私有最小raw在26树.local/moments26-trial409-source.json；不靠补夹具假说明称修复，不放宽来源断言。研究规范化保存/明确新修订后再试演的方案，保作者全文/expectedVersion，验收上线后才完成；真实渣男体验完整note不受该夹具特例影响。|
+
+
+## TECH-DEBT-RISK-02Q（2026-10-15：重大风险核对，只读）
+
+|任务|状态|负责人|范围与接续|
+|---|---|---|---|
+|TECH-DEBT-RISK-02Q|[ ] 待验收（只读审查）|codex-tech-debt-risk02-q-20261015；辅助，root仍唯一集成|独立photo-compose-02/人生剧本，codex/tech-debt-risk-review02-q自origin/main 90ec1279；仅新docs/task-reports/TECH-DEBT-RISK-02Q.md与主目录本人行/报告镜像；忽略.local内必要纯复现。对照小迪TECH-DEBT-INVENTORY-01并核最新源：优先数据丢失/隐私/错误推进/核心断链/费用和恢复；不据行数/TODO数直接删重构。只读，不改业务/契约/SQL/生产稿，不自动发布世界或调用模型，无产品端口/PG/browser。结论分已证实/风险待证/已过时，报告可交I后续按用户优先级分派；当前不是修复任务。 报告5b68292冻结：R1真实纯函数复现缺无关字段触发私有关系变world/截断/发送人错配；R2五个合法14k事件校验+编译过但71k导演输入在64k适配前拒绝，0上游调用。R3来源归一化409接已有27/R4verified硬置true分开记录。纠正旧地点/试演/长稿/事件零消费等结论，保RLS/证据/旧存档保护；只读本地快照117契约编译通过，不冒称线上或真实模型。0源码/DB/browser/model/生产写/部署，报告主镜像，不自动领取修复。|
+
+## WRITER-LIBRARY-28（2026-10-15 用户授权合并剧情与极简地点）
+
+|任务|状态|负责人|范围|验收与接续|
+|---|---|---|---|---|
+|WRITER-LIBRARY-28-I|[x] 已完成（本批已部署）|codex-main-writer-library28-20261015；root唯一集成/公共契约/部署|root history-chat-media自90ec127，workbench地点挂载、私有素材callback及数据完整性验收；不同时写两执行者UI、导演现已释放story/scene/space及26文件|只保上方事件库，前提与精细设置在每事件内默认收起，保已有所有数据；地点只有列表和选填场景图，说明选填隐藏，移除路线/分钟表单但保原路线。实际发布/试演/玩家素材与历史正确继承验收；原渣男体验不自动发布，测试作品依授权合成范围，未完成列清单，部署READY。 2026-10-15集成E/P/M、26与30源码，生产63–65迁移已应用并65/65 checksum一致；主候选b4752def已推部署，当前等待READY/公网。2415check/build、stage11、来源及worker/scene图片真实PG10（初worker端口守卫失败后专用55564重试1/1通过）、space/scene13过；旧正式版与原稿内容差异只读审计0/0，不改既有不可变版本。新增角色自主推进仍DIRECTOR-PROGRESS待验，不能把UI合并等同全部剧情跑完。 root公共串行新增places.sceneImage private asset引用/说明空允许、编译与试演一致，待26冻结3共享文件后再写；root独占world/domain/space.ts、新space-travel-policy.ts与contracts/world-space.ts default_travel_v1可信10分钟生成路线重放/既有明确路线优先/24地点有界对齐，不写执行者space_repo。0065_scene_image_refs唯一预留root场景图同work ready/不可变绑定/地图原生图片读取，0064仍leased worker目标。|
+|WRITER-LIBRARY-28-E|[x] 已完成（已部署）|/root/history_media_ui；任务Agent唯一UI负责人|复用干净history-media-ui树，先同步90ec127；仅publisher-plot-editor、publisher-script-library-editor及专属CSS、新条件组件与直接plot/scriptUI专项和本人报告|合并重复事件入口，默认导入正文可读，其他选填/默认折叠；不删除隐含旧prerequisites/timeline/intent/rules/人物引用；不碰rootworkbench/地点/26/导演公共文件。check/build/PC390，冻结SHA交root，不推生产。；执行者冻结cae826e，7专项/类型/构建通过，check 2383/2387（4本地PG认证失败），桌面与390检查；root集成0dfb1708 READY，正式PC1440/mobile390实际18事件卡且无重复详细事件，选填全部默认关闭。|
+|WRITER-LIBRARY-28-P|[x] 已完成（已部署）|/root/history_media_arch；极简地点负责人|复用干净character-capacity23树，先同步90ec127；仅publisher-space-editor与新place-image helper/CSS、直接UI专项/本人报告；root负责workbenchcallback|地点卡仅名字+场景图(选填)，可添加上传/替换/取消引用，旧说明可在选填默认折叠查看编辑；移除路线/耗时/开场知道表单，原routes/knownAtStart/description/media引用保留；不造说明或路线，不调用AI；private上传接口已有，sceneMediaKey已有共享形状，不改合同/存储/26server；73e2484已交集成；聚焦7项、build及PC/390通过；全量check仅4项因测试库55479未启动失败，详见WRITER-LIBRARY-28-P报告。 root集成0dfb1708 READY，实际118草稿14私有场景图全部加载、地点说明收起、路线/耗时表单移除；1440/390无横溢出。|
+
+|WRITER-LIBRARY-28-M|[x] 已完成（本批已部署）|/root/history_media_storage；root唯一schema/SQL64及部署集成|复用干净history-media-storage从138f3043，仅新publication-scene-images纯helper/新SceneImageRepository，publication-genesis窄unsupported_scene修复，publication-media-repository.playerAsset窄新scene读fallback，publisher-world-http仅space响应图片trial路径转换，新0065_publication_scene_image_refs.sql及专属专项/报告；26已freeze三提交集成，无同时写|shared places.sceneImage:{assetId}由root串行完成；新场景图严格同work ready image/不URL伪装registry，试演/发布不可变来源、知情地点与world-own媒体读取一致；0063moments可见集合不覆盖/不绕过。新触发器补scene验证，不改旧SQL，专门scene读函数fallback不重写63media_for_world；root另与导演space_repo接map挂载，0默认AI，冻结SHA真PG交root。|
+
+
+## SCENE-IMAGES-29（2026-10-15 地点场景图生成与草稿配图）
+
+|任务 ID|状态|负责人|目录与文件范围|验收与接续|
+|---|---|---|---|---|
+|SCENE-IMAGES-29|[ ] 进行中|codex-scenes29-01a11a84-20261015|主目录output/imagegen/2026-10-15-scenes及本人报告；只做16张生图、清单、草稿私有上传与地点引用，不写I的地点功能源码/迁移。与设计平行人生体验原型01a0c73b协调；26代码已合入I集成分支待READY验收|用户明确授权生成01–14+15昼夜两张，02手机UI仅素材；按最新草稿expectedVersion保存对应真实地点，不发布世界。先检查图后上传，保持医院/酒馆/办公室关联布景；昼夜单字段时夜图保留素材，办公室默认白天主图。16张builtin已生成、逐张可视核对、16私有上传ready且16/16staff实图加载通过；manifest/prompts/相册/ZIP已保存，未写人类草稿。待I地点功能READY与写窗口按latest expectedVersion挂14主图，PC/手机查看保存回读，完成留用户检验。|
+
+
+## AUTHORING-INTEGRITY-30（2026-10-15：重大自动补全与试演来源修复）
+
+|任务|状态|负责人|范围与接续|
+|---|---|---|---|
+|AUTHORING-INTEGRITY-30-Q|[x] 已完成（已部署）|codex-authoring-integrity30-q-20261015；辅助；root唯一协调/集成部署|复用独立photo-compose-02/人生剧本，新codex/authoring-integrity30-q自90ec1279，待I给共享冻结基线再接；先仅新tests/publication-authoring-integrity.test.ts、tests/integration/authoring-integrity30.test.ts、docs/task-reports/AUTHORING-INTEGRITY-30-Q.md；未来新安全补全helper及publication-defaults/repository/runtime/trial preparation与27源码先只读，等I确认26/28窗口后扩围。主目录仅本人行/报告镜像|用户明确优先修自动补全改可见性/截断/改发送人，以及check通过trial失败；不做小瑕疵，不发布真实渣男体验。保护原稿、精确来源/version、回执/RLS，安全补缺与明确错误不恢复满屏条件表。已请求唯一I协调，本轮0默认模型，完整check/build、真PG与PC手机、精确提交后由I生产迁移核对/READY/公网验收，没上线不完成。 I明确放行8fd77310依赖基线（最后正式90ec127）；追加独占src/modules/settings/domain/publication-defaults.ts、infrastructure/publication-repository.ts/publication-world-repository.ts、src/server/publication-runtime.ts与必要publisher-http.ts及直接既有专项tests；公共契约/SQL/26 server和root workbench不改。已提议前置安全补缺→显式save新version/hash→check→trial，不在check暗写；trial-preparation/controller精确前端窗口仍待I确认，未先写。 I已明确放行前端publisher-trial-preparation.ts、publisher-controller.tsx及直接tests；仅前置安全补缺显式save，不碰workbench/SQL/contract。自有真实PG55570、可选HTTP3330，避开I55564/储存55568/辅助55566与3276；启动前再查监听。新helper如有仅features/publisher/publisher-publication-draft.ts，登记后使用。 冻结交付dfc7266（11精确文件，基线8fd77310，own clean）：check2415/2415、build、format/diff，真实PG7+29+24=60/60；1440×1000/390×844实际登录/点击试演→save r1/check→锁屏/桌面及刷新通过，截图在自有.local/integrity30。0模型/图片/真实稿生产写入，渣男体验未发布；报告主镜像。由I合入/生产迁移核对/READY/公网后完成，原27依本任务收口。本人SQL/contract/workbench未改；55570/3330停止后释放。 I已合入dfc7266为b408956f并再次check2415/build过。后继仅测试/报告8b38111允许CI及I现有显式publication端口，专用优先及匹配断言不变，自有回退路径真PG7/7/type过；业务冻结，55570/3330均正常停且无监听。待I部署READY/公网，不称上线。 同27空串哨兵后继ead17c9（defaults/两原测试/报告4文件）：实际新建隐藏note空串不再落入付费准备，仅中性说明技术补缺、非空原文与非法类型不改。最终check2416/build、PG8/8（累计8+29+24=61）、format/diff过；55570再次正常停止/own clean，源码再冻结交I。0模型/生产稿发布，待READY/公网。|
+
+## AUTHORING-INTEGRITY-28-Q (2026-10-15)
+
+|Task|State|Owner|Scope|Acceptance|
+|---|---|---|---|---|
+|AUTHORING-INTEGRITY-28-Q|Registry alias merged into AUTHORING-INTEGRITY-30-Q; no separate task|codex-authoring-integrity28-q-01a0c7c8-20261015; auxiliary human authorized, root sole integrator|Independent photo-compose-02 branch from root8fd77310; publication-defaults, publication-repository, server/publication-runtime and publication-world-repository normalized ticket preparation; direct tests, necessary publisher-http error mapping, own report. No public contracts, SQL64/65, director or trial-space route.|Fix authored visibility expansion, truncation, unknown speaker reassignment. Preserve sceneImage and Moments63 fields. Task27 normalization must save an explicit version/hash before trial ticket, preserve source guards and expectedVersion; readonly checks never write. Real PG/PC390/frozen commits to root. No real screenplay publication or production write, no default AI.|
+
+## Authoring followup (2026-10-15)
+
+|Task|State|Scope|
+|---|---|---|
+|DIRECTOR-LONG-CONTENT-BUDGET-31|[ ] Pending|Legal combined event prose can exceed the 64k director input budget. Use bounded source-linked selection without silently truncating the manuscript or dropping complete persona modules.|
+|PUBLICATION-REVIEW-EVIDENCE-32|[ ] Pending|Distinguish structural validation from actual rehearsal evidence; avoid hard-coded verified=true while retaining publication without forced rehearsal.|
+|PLACE-SCENE-VARIANTS-33|[ ] Pending|Single primary scene image per place currently. Keep existing office night image and phone UI asset; day/night switching later, no duplicate place.|
+
+|MOMENTS-GENESIS-CONFIRMATION-34|[x] Delivered|Aux2 owns new 0066_publication_moment_genesis_confirmation.sql and exact real-genesis tests. Public second trial found preset NPC confirmation absent from runtime messages, despite preserved immutable initial snapshot; fix trusted snapshot rule matching without fabricating events or relaxing runtime actor/source/owner/date guards. Root sole integration/deployment, no original screenplay publication, zero model calls. Both trial saves paused; synthetic publication postponed until fix READY.|
+
+|CUSTOM-PUBLISHER-AVATAR-35|[ ] Pending|Confirmed legacy local avatar import stores data URLs with uploaded_image; existing world visuals filters generated_image and phone URL contract only accepts curated art, so custom uploads may vanish at player projection. Actual manuscript118 has six curated avatar references and zero custom URL avatars, unaffected. Replace legacy inline image path with same-work private upload references, preserve authored old image data and verify trial/publication/player; no claim arbitrary custom avatar uploads are delivered by28.|
+
+## DIRECTOR-PROGRESS-01-REVIEW（2026-10-15 导演候选只读审查）
+
+|任务|状态|负责人|范围与接续|
+|---|---|---|---|
+|DIRECTOR-PROGRESS-01-REVIEW|[ ] 待验收|/root/history_media_arch；root唯一集成|复用独立character-capacity23工作树，只读git show候选9cd3570及必要基线对照；重点lease自主scene、角色知情边界、进度证据事务、晚结果version fence、unknown/显式retry、idle/拒绝后强迫。只写本人报告和主表本人行；不改业务/契约/SQL、不运行模型/生产写；只读报告：`/Users/limengzhe/.codex/worktrees/character-capacity23/人生剧本/docs/task-reports/DIRECTOR-PROGRESS-01-REVIEW.md`；发现手动推进绕过节奏限制，以及现场空转阻断其他剧情，已交root。无模型、无生产写。|
+
+WRITER-LIBRARY-28 final scoped acceptance: 5cb35db25f1b35faa6e9685ba90d881133f47593 / dpl_9m2ak2jhEhAPojewbw3X8mztH1b1 Production READY, formal alias verified, 67/67 migration checksums. Complete check2417/build; combined real PostgreSQL46/46 after67 restores nullable cross-owner module reads. Actual manuscript draft118 remains unpublished: 18 event blocks/79 historical messages/24 Moments/16 places/14 scene pictures, exact original prose/other fields preserved. Synthetic publisher draft4 -> publication1 -> independent player with2actors/2 exact historical messages plus attachment/curated avatar200/3image Moments/identity unlock/2places/native scene image302->200/default travel10m/repeated start sameworld;0 model calls. Test publication downlisted, fixture soft-deleted200, player and two private trials paused. Full director sustained-goal model delivery remains DIRECTOR-PROGRESS-01, not completed by this acceptance.
