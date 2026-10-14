@@ -808,3 +808,47 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
     await admin.end();
   }
 });
+
+test('names-only places receive deterministic travel without author-entered route durations', async () => {
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const config = await localConfig();
+  const db = new PostgresDatabase(
+    'postgresql://pl_app:' +
+      config.appPassword +
+      '@127.0.0.1:' +
+      config.port +
+      '/parallel_life_test',
+  );
+  const owner = randomUUID();
+  const pack = structuredClone(OFFICIAL_LIFE_PACKS[0]);
+  pack.opening.space!.routes = [];
+  const catalog = { list: () => [pack], get: () => pack };
+  try {
+    await new IdentityRepository(db).ensureGuest(owner);
+    const result = await new OfficialLifeRepository(db, catalog).start(owner, pack.card.id, {
+      commandId: randomUUID(),
+      version: pack.card.version,
+    });
+    const repo = new PostgresWorldSpace(db, catalog);
+    const before = await repo.read(owner, result.worldId);
+    assert.equal(before.routes.length, before.places.length - 1);
+    const route = before.routes[0]!;
+    assert.equal(route.source.kind, 'system_policy');
+    const request = {
+      commandId: randomUUID(),
+      expectedVersion: before.worldVersion,
+      routeId: route.id,
+    };
+    const receipt = await repo.travel(owner, result.worldId, request);
+    assert.equal(Date.parse(receipt.arrivedAt) - Date.parse(receipt.departedAt), 10 * 60000);
+    assert.equal((await repo.read(owner, result.worldId)).currentPlaceId, route.toPlaceId);
+    assert.deepEqual(await repo.recover(owner, result.worldId, request), receipt);
+    const persisted = await new PostgresWorldRepository(db).get({ userId: owner }, result.worldId);
+    assert.deepEqual(persisted.space!.routes, []);
+  } finally {
+    await admin.query('DELETE FROM parallel_life.accounts WHERE id=$1', [owner]);
+    await db.close();
+    await admin.end();
+  }
+});
