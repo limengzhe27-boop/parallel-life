@@ -1,18 +1,10 @@
-import { useEffect } from 'react';
 import type { PhoneAppContext } from '../phone-shell.tsx';
 import { usePhoneApps } from './provider.tsx';
 import { Empty, Feedback, Links, Search } from './common.tsx';
 import { searchable, timeText } from './helpers.ts';
 import { playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
-import {
-  NotesRecords,
-  NotesAbout,
-  isNotesBackgroundRecord,
-  NotesRecordDetail,
-  NotesRecordsReadState,
-  isSystemRecordTarget,
-} from './notes-records.tsx';
+import { isSystemRecordTarget } from './notes-records.tsx';
 import r from './notes-records.module.css';
 /** Reserved navigation target, separate from opaque IDs via explicit prefix. */
 export const NEW_NOTE_TARGET = 'new-note';
@@ -27,88 +19,77 @@ export function NotesApp({ target, open }: PhoneAppContext) {
     run,
     setDraft,
     drafts,
-    records,
-    reloadRecords,
   } = usePhoneApps();
-  const systemTarget = isSystemRecordTarget(target);
-  const backgroundTarget =
-    records.status === 'ready' &&
-    records.data.about.some((record) => record.id === target && isNotesBackgroundRecord(record));
-  const detailSection = target ? (systemTarget && !backgroundTarget ? 'todo' : 'notes') : undefined;
-  const section = detailSection ?? (drafts['notes:section'] === 'todo' ? 'todo' : 'notes');
-  useEffect(() => {
-    if (detailSection && drafts['notes:section'] !== detailSection)
-      setDraft('notes:section', detailSection);
-  }, [detailSection, drafts, setDraft]);
-  const navigate: PhoneAppContext['open'] = (app, nextTarget) => {
-    if (app === 'notes') {
-      const background =
-        records.status === 'ready' &&
-        records.data.about.some(
-          (record) => record.id === nextTarget && isNotesBackgroundRecord(record),
-        );
-      setDraft(
-        'notes:section',
-        nextTarget ? (isSystemRecordTarget(nextTarget) && !background ? 'todo' : 'notes') : section,
-      );
-    }
-    open(app, nextTarget);
-  };
-  const query = drafts[`notes:search:${section}`] ?? '';
-  const setQuery = (value: string) => setDraft(`notes:search:${section}`, value);
-  const reload = reloadRecords
-    ? () => {
-        void reloadRecords();
-      }
-    : undefined;
 
-  const note = data.notes.find((n) => n.id === target),
-    isNew = target === NEW_NOTE_TARGET && !note;
-  const key = target ?? '',
-    draft = noteDrafts[key] ?? {
-      title: note?.title ?? '',
-      text: note?.text ?? '',
-      expectedVersion: note?.version,
-    };
+  const query = drafts['notes:search'] ?? '';
+  const setQuery = (value: string) => setDraft('notes:search', value);
+
+  const note = data.notes.find((n) => n.id === target);
+  const isNew = target === NEW_NOTE_TARGET && !note;
+  const isPrivateNote = (n: (typeof data.notes)[number]) => n.origin === undefined;
+
+  const key = target ?? '';
+  const draft = noteDrafts[key] ?? {
+    title: note?.title ?? '',
+    text: note?.text ?? '',
+    expectedVersion: note?.version,
+  };
   const operation = operations[`note:${key}`];
-  if (isSystemRecordTarget(target))
+
+  // 1. 如果带有系统记录的 target（如旧链接跳转过来），直接路由到 records App
+  if (isSystemRecordTarget(target)) {
     return (
       <div className={`${s.app} ${r.notesPage}`}>
         <nav className={r.recordNavigation} aria-label="备忘录导航">
           <button
             type="button"
             className={r.recordBack}
-            aria-label={section === 'todo' ? '返回待办' : '返回便签'}
-            onClick={() => navigate('notes')}
+            aria-label="查看人生记录"
+            onClick={() => open('records', target)}
           >
-            <span aria-hidden="true">‹</span> {section === 'todo' ? '待办' : '便签'}
+            <span aria-hidden="true">‹</span> 这条记录属于「人生记录」，点击前往查看 →
           </button>
         </nav>
-        {records.status === 'ready' ? (
-          <NotesRecordDetail data={records.data} target={target!} open={navigate} />
-        ) : (
-          <NotesRecordsReadState
-            status={records.status}
-            error={records.status === 'error' ? records.error : undefined}
-            reload={reload}
-          />
-        )}
       </div>
     );
-  if (target && !note && !isNew)
+  }
+
+  // 2. 找不到便签
+  if (target && !note && !isNew) {
     return <Empty title="找不到这条便签" text="便签可能已移除，请返回列表或刷新。" />;
-  if (note?.origin?.kind === 'publication_opening')
+  }
+
+  // 3. 开场设定便签（只读，提示去人生记录）
+  if (note && !isPrivateNote(note)) {
     return (
       <article className={s.app}>
-        <button type="button" onClick={() => navigate('notes')}>
-          ‹ 便签
+        <button type="button" onClick={() => open('notes')}>
+          ‹ 返回便签
         </button>
         <h2>{note.title}</h2>
         <p>这段人生的开场记录 · 来自已确认的设定</p>
         <p style={{ whiteSpace: 'pre-wrap' }}>{note.text}</p>
-        <p>内容由世界设定提供，你可以另建个人便签。</p>
+        <div style={{ marginTop: '16px' }}>
+          <button
+            type="button"
+            style={{
+              padding: '8px 14px',
+              borderRadius: '8px',
+              background: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+            onClick={() => open('records')}
+          >
+            前往「人生记录」查看完整设定与进展 →
+          </button>
+        </div>
       </article>
     );
+  }
+
+  // 4. 编辑便签（私人便签专属）
   if (target) {
     const changed = isNew
       ? !!(draft.title.trim() || draft.text.trim())
@@ -126,13 +107,14 @@ export function NotesApp({ target, open }: PhoneAppContext) {
       draft.expectedVersion !== undefined &&
       draft.expectedVersion !== note.version &&
       changed;
+
     return (
       <form
         className={`${s.app} ${s.noteEditor}`}
         onSubmit={async (e) => {
           e.preventDefault();
           if (!changed) {
-            navigate('notes');
+            open('notes');
             return;
           }
           if (!actions.saveNote || operation?.busy || awaiting || lengthError) return;
@@ -151,7 +133,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
           );
           if (receipt?.status === 'committed') {
             clearNoteDraft(key);
-            navigate('notes');
+            open('notes');
           }
         }}
       >
@@ -172,7 +154,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             type="button"
             onClick={() => {
               playTapSound();
-              navigate('notes');
+              open('notes');
             }}
             style={{
               display: 'flex',
@@ -209,7 +191,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
                   if (confirm('确定要删除这条便签吗？')) {
                     await actions.deleteNote!(note.id);
                     clearNoteDraft(key);
-                    navigate('notes');
+                    open('notes');
                   }
                 }}
               >
@@ -292,6 +274,7 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             🕒 插入时间
           </button>
         </div>
+
         {note && <time className={s.noteDate}>{timeText(note.updatedAt)}</time>}
         <label className={s.srOnly} htmlFor="note-title">
           便签标题
@@ -354,266 +337,116 @@ export function NotesApp({ target, open }: PhoneAppContext) {
             <small>便签同步尚未接入：内容只保存在当前浏览器，换设备或清除数据会丢失。</small>
           )}
           {isNew && operation?.status === 'committed' && (
-            <button type="button" onClick={() => navigate('notes')}>
+            <button type="button" onClick={() => open('notes')}>
               返回便签列表
             </button>
           )}
-          <Links links={note?.links} open={navigate} />
+          <Links links={note?.links} open={open} />
         </div>
       </form>
     );
   }
+
+  // 5. 备忘录主列表：只保留纯私密便签
   const notes = [...data.notes]
-    .filter((n) => n.origin?.kind !== 'publication_opening')
+    .filter(isPrivateNote)
     .filter((n) =>
       searchable(query, noteDrafts[n.id]?.title ?? n.title, noteDrafts[n.id]?.text ?? n.text),
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const choices = [...(data.choices ?? [])]
-    .filter((choice) =>
-      searchable(
-        query,
-        choice.intent,
-        choice.quote,
-        choice.nextStep?.quote ?? '',
-        choice.result?.quote ?? '',
-      ),
-    )
-    .sort((a, b) => b.at.localeCompare(a.at));
-  const openingNotes = data.notes.filter(
-    (n) => n.origin?.kind === 'publication_opening' && searchable(query, n.title, n.text),
-  );
-  const backgroundRecords =
-    records.status === 'ready' && records.data.about.some(isNotesBackgroundRecord);
+
   return (
     <div className={`${s.app} ${r.notesPage}`}>
       <header className={r.notesHeader}>
         <h2>备忘录</h2>
-        {section === 'notes' && (
+        <button
+          className={r.newNote}
+          type="button"
+          onClick={() => {
+            playTapSound();
+            open('notes', NEW_NOTE_TARGET);
+          }}
+        >
+          新建便签
+        </button>
+      </header>
+
+      {/* 顶部单张卡片：关于这段人生与系统记录（引导至人生记录 App） */}
+      <div
+        style={{
+          margin: '0 0 14px',
+          padding: '12px 14px',
+          borderRadius: '12px',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+          border: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+        }}
+        onClick={() => open('records')}
+      >
+        <div>
+          <strong style={{ fontSize: '14px', color: '#1e293b', display: 'block' }}>
+            关于这段人生
+          </strong>
+          <span style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', display: 'block' }}>
+            世界设定、你的身份与起点处境 · 只读
+          </span>
+        </div>
+        <span style={{ fontSize: '14px', color: '#3b82f6', fontWeight: 600 }}>查看 ›</span>
+      </div>
+
+      <Search value={query} onChange={setQuery} label="搜索便签" />
+
+      <h3 className={r.privateHeading}>我的便签</h3>
+      {noteDrafts[NEW_NOTE_TARGET] &&
+        (!query.trim() ||
+          searchable(
+            query,
+            noteDrafts[NEW_NOTE_TARGET].title,
+            noteDrafts[NEW_NOTE_TARGET].text,
+          )) && (
           <button
-            className={r.newNote}
             type="button"
-            onClick={() => {
-              playTapSound();
-              navigate('notes', NEW_NOTE_TARGET);
-            }}
+            className={s.draftRow}
+            onClick={() => open('notes', NEW_NOTE_TARGET)}
           >
-            新建便签
+            继续未保存的新便签
           </button>
         )}
-      </header>
-      <div className={r.sections} role="group" aria-label="备忘录分类">
-        <button
-          type="button"
-          aria-pressed={section === 'notes'}
-          onClick={() => setDraft('notes:section', 'notes')}
-        >
-          便签
-        </button>
-        <button
-          type="button"
-          aria-pressed={section === 'todo'}
-          onClick={() => setDraft('notes:section', 'todo')}
-        >
-          待办
-        </button>
-      </div>
-      <Search
-        value={query}
-        onChange={setQuery}
-        label={section === 'notes' ? '搜索便签与背景' : '搜索待办'}
-      />
-      {section === 'todo' ? (
-        <>
-          {records.status === 'ready' ? (
-            <NotesRecords
-              data={records.data}
-              query={query}
-              open={navigate}
-              historyOpen={drafts['notes:history-open'] === 'true'}
-              onHistoryToggle={(value) => setDraft('notes:history-open', String(value))}
-            />
-          ) : (
-            <>
-              <NotesRecordsReadState
-                status={records.status}
-                error={records.status === 'error' ? records.error : undefined}
-                reload={reload}
-              />
-              <div className={r.links}>
-                <button type="button" onClick={() => open('calendar')}>
-                  邀约与日程，去日历查看
-                </button>
-              </div>
-            </>
-          )}
-          {records.status !== 'ready' && choices.length > 0 && (
-            <section className={s.choiceSection} aria-label="这段人生的选择">
-              <h3>已有选择记录</h3>
-              {choices.map((choice) => (
-                <details key={choice.id} className={s.choiceCard}>
-                  <summary>
-                    <span className={s.choiceMarker} aria-hidden="true" />
-                    <span className={s.choiceSummary}>
-                      <strong>{choice.intent}</strong>
-                      <small>
-                        {choice.actorName} · {timeText(choice.at)}
-                      </small>
-                    </span>
-                    <span className={s.choiceState}>
-                      {choice.result?.kind === 'reported_done'
-                        ? '你说已完成'
-                        : choice.result?.kind === 'blocked'
-                          ? choice.recoveryStep
-                            ? '有新建议'
-                            : '遇到阻碍'
-                          : choice.result?.kind === 'abandoned'
-                            ? '你说已放下'
-                            : choice.nextStep
-                              ? '有下一步'
-                              : choice.status === 'followed_up'
-                                ? '有人问起'
-                                : '待续'}
-                    </span>
-                  </summary>
-                  <div className={s.choiceDetail}>
-                    <p>
-                      <span>你当时说</span>
-                      {choice.quote}
-                    </p>
-                    {choice.nextStep && (
-                      <>
-                        <p>
-                          <span>
-                            {choice.actorName}后来提出 · {timeText(choice.nextStep.at)}
-                          </span>
-                          {choice.nextStep.quote}
-                        </p>
-                        {choice.nextStep.calendar && (
-                          <button
-                            type="button"
-                            className={s.choiceCalendarLink}
-                            onClick={() =>
-                              choice.nextStep?.calendar &&
-                              open('calendar', choice.nextStep.calendar.id)
-                            }
-                          >
-                            <span>
-                              日历 · {choice.nextStep.calendar.title}
-                              <small>
-                                {
-                                  {
-                                    proposed: '待你确认',
-                                    confirmed: '已确认',
-                                    cancelled: '已取消',
-                                    attended: '你标记已赴约',
-                                    missed: '你标记未赴约',
-                                  }[choice.nextStep.calendar.status]
-                                }
-                              </small>
-                            </span>
-                            <span aria-hidden="true">›</span>
-                          </button>
-                        )}
-                      </>
-                    )}
-                    {choice.result && (
-                      <p>
-                        <span>你后来补充 · {timeText(choice.result.at)}</span>
-                        {choice.result.quote}
-                      </p>
-                    )}
-                    {choice.result?.kind === 'blocked' && choice.recoveryStep && (
-                      <p>
-                        <span>
-                          {choice.actorName}后来建议 · {timeText(choice.recoveryStep.at)}
-                        </span>
-                        {choice.recoveryStep.quote}
-                      </p>
-                    )}
-                    {choice.result && <small>结果来自你的讲述，尚无独立佐证。</small>}
-                  </div>
-                </details>
-              ))}
-            </section>
-          )}
-        </>
-      ) : (
-        <>
-          <h3 className={r.privateHeading}>我的便签</h3>
-          {noteDrafts[NEW_NOTE_TARGET] &&
-            (!query.trim() ||
-              searchable(
-                query,
-                noteDrafts[NEW_NOTE_TARGET].title,
-                noteDrafts[NEW_NOTE_TARGET].text,
-              )) && (
+
+      <div className={`${s.noteList} ${r.privateList}`}>
+        {notes.map((n) => (
+          <div key={n.id} className={r.privateRow}>
+            <button className={s.noteRow} onClick={() => open('notes', n.id)}>
+              <strong>{noteDrafts[n.id]?.title ?? n.title}</strong>
+              <p>{noteDrafts[n.id] ? '未保存的草稿' : n.text}</p>
+              <time>{timeText(n.updatedAt)}</time>
+            </button>
+            {actions.deleteNote && (
               <button
                 type="button"
-                className={s.draftRow}
-                onClick={() => navigate('notes', NEW_NOTE_TARGET)}
+                className={r.deleteNote}
+                aria-label={`删除便签 ${n.title}`}
+                onClick={async () => {
+                  if (confirm(`确定要删除便签“${n.title}”吗？`)) {
+                    await actions.deleteNote!(n.id);
+                  }
+                }}
               >
-                继续未保存的新便签
+                ×
               </button>
             )}
-          <div className={`${s.noteList} ${r.privateList}`}>
-            {notes.map((n) => (
-              <div key={n.id} className={r.privateRow}>
-                <button className={s.noteRow} onClick={() => navigate('notes', n.id)}>
-                  <strong>{noteDrafts[n.id]?.title ?? n.title}</strong>
-                  <p>{noteDrafts[n.id] ? '未保存的草稿' : n.text}</p>
-                  <time>{timeText(n.updatedAt)}</time>
-                </button>
-                {actions.deleteNote && (
-                  <button
-                    type="button"
-                    className={r.deleteNote}
-                    aria-label={`删除便签 ${n.title}`}
-                    onClick={async () => {
-                      if (confirm(`确定要删除便签“${n.title}”吗？`)) {
-                        await actions.deleteNote!(n.id);
-                      }
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
           </div>
-          {!notes.length && (
-            <Empty
-              title={query ? '没有找到便签' : '记下这段人生的第一件小事'}
-              text={query ? '试试其他关键词。' : '点击“新建便签”开始记录。'}
-            />
-          )}
-          {(backgroundRecords || openingNotes.length > 0) && (
-            <details
-              className={r.background}
-              open={!!query.trim() || drafts['notes:about-open'] === 'true'}
-              onToggle={(event) => {
-                if (!query.trim()) setDraft('notes:about-open', String(event.currentTarget.open));
-              }}
-            >
-              <summary>关于这段人生</summary>
-              {records.status === 'ready' && (
-                <NotesAbout data={records.data} query={query} open={navigate} />
-              )}
-              {openingNotes.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  className={r.openingNote}
-                  onClick={() => navigate('notes', n.id)}
-                >
-                  <strong>{n.title}</strong>
-                  <span>开场记录 · 只读</span>
-                  <p>{n.text}</p>
-                </button>
-              ))}
-            </details>
-          )}
-        </>
+        ))}
+      </div>
+
+      {!notes.length && (
+        <Empty
+          title={query ? '没有找到便签' : '记下这段人生的第一件小事'}
+          text={query ? '试试其他关键词。' : '点击“新建便签”开始记录。'}
+        />
       )}
     </div>
   );

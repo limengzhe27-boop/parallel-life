@@ -23,7 +23,7 @@ registerHooks({
         format: 'module',
         shortCircuit: true,
         source: ts.transpileModule(
-          url.endsWith('/notes.tsx')
+          url.endsWith('/notes.tsx') || url.endsWith('/notes-records.tsx')
             ? readFileSync(new URL(url), 'utf8')
                 .replace(
                   "import { usePhoneApps } from './provider.tsx';",
@@ -56,6 +56,7 @@ const {
   searchRecords,
   recordText,
   recordAttribution,
+  RecordsApp,
 } = await import('../src/features/phone/apps/notes-records.tsx');
 const { NotesApp } = await import('../src/features/phone/apps/notes.tsx');
 const { PhoneAppsProvider } = await import('../src/features/phone/apps/provider.tsx');
@@ -321,9 +322,9 @@ function renderNotes(
     }),
   );
 }
-test('notes entry uses real ready records and keeps private notes during independent read failure', () => {
+test('notes entry defaults to private notes and keeps private notes during independent read failure', () => {
   const ready = renderNotes(undefined, { status: 'ready', data: fixture });
-  assert.match(ready, /眼下要做的事|关于这段人生|我的便签|PRIVATE_NOTE_TEXT/);
+  assert.match(ready, /关于这段人生|我的便签|PRIVATE_NOTE_TEXT/);
   assert.doesNotMatch(ready, /LEGACY_CHOICE_MARKER/);
   const failure = renderNotes(undefined, { status: 'error', error: '人生记录暂时无法读取' });
   assert.match(failure, /PRIVATE_NOTE_TEXT/);
@@ -333,17 +334,16 @@ test('notes entry uses real ready records and keeps private notes during indepen
   assert.match(unavailable, /PRIVATE_NOTE_TEXT/);
   assert.doesNotMatch(unavailable, /这部分暂时无法读取/);
 });
-test('system routes cannot reach private forms even with a colliding note ID or absent data', () => {
+test('system routes in notes redirect or prompt to records, never reaching private forms', () => {
   const ready = renderNotes(fixture.current[0]!.id, { status: 'ready', data: fixture }, true);
   assert.doesNotMatch(ready, /<(?:form|input|textarea)\b|PRIVATE_NOTE_TEXT/);
-  assert.match(ready, /data-system-record|查看对话/);
-  assert.match(ready, /aria-label="返回待办"/);
+  assert.match(ready, /查看人生记录|人生记录/);
   for (const state of [
     { status: 'loading' } as const,
     { status: 'error', error: '正在恢复读取' } as const,
   ]) {
     const html = renderNotes('sys/unknown', state, true);
-    assert.match(html, /aria-label="返回待办"/);
+    assert.match(html, /查看人生记录|人生记录/);
     assert.doesNotMatch(html, /<(?:form|input|textarea)\b|PRIVATE_NOTE_TEXT/);
   }
   const personal = renderNotes('note-private', { status: 'error', error: '人生记录读取失败' });
@@ -637,49 +637,36 @@ function press(node: ReactNode, label: string) {
   assert.ok(found, label);
   found.onClick!();
 }
-test('two entries default to personal notes, remember the selection, and keep searches independent', () => {
+test('NotesApp renders pure private notes and top entrance to records', () => {
   try {
     const h = setupNotes();
-    let tree = h.render();
-    let html = renderToStaticMarkup(tree);
-    assert.match(html, /aria-pressed="true">便签/);
-    assert.match(html, /新建便签|自己的便签/);
+    const tree = h.render();
+    const html = renderToStaticMarkup(tree);
+    assert.match(html, /新建便签/);
+    assert.match(html, /自己的便签/);
+    assert.match(html, /关于这段人生/);
     assert.doesNotMatch(html, /眼下要做的事/);
-    press(tree, '待办');
-    tree = h.render();
-    html = renderToStaticMarkup(tree);
-    assert.equal(h.drafts['notes:section'], 'todo');
-    assert.match(html, /眼下要做的事/);
-    assert.doesNotMatch(html, /自己的便签|新建便签|一起喝咖啡/);
-    h.drafts['notes:search:todo'] = '小芳';
-    h.drafts['notes:search:notes'] = '私人的正文';
-    press(tree, '便签');
-    html = renderToStaticMarkup(h.render());
-    assert.match(html, /value="私人的正文"/);
-    assert.doesNotMatch(html, /你的计划/);
-    press(h.render(), '待办');
-    html = renderToStaticMarkup(h.render());
-    assert.match(html, /value="小芳"/);
+    assert.doesNotMatch(html, /aria-pressed="true">便签/);
+
+    h.drafts['notes:search'] = '私人的正文';
+    const searchedHtml = renderToStaticMarkup(h.render());
+    assert.match(searchedHtml, /value="私人的正文"/);
+    assert.match(searchedHtml, /自己的便签/);
   } finally {
     uiContext = undefined;
   }
 });
-test('system deep links override remembered entry and return to tasks; background returns to notes', () => {
+test('system deep links in NotesApp prompt to records and preserve target', () => {
   try {
     const h = setupNotes();
-    h.drafts['notes:section'] = 'notes';
-    let tree = h.render(fixture.current[0]!.id);
-    assert.equal(h.drafts['notes:section'], 'todo');
-    assert.match(renderToStaticMarkup(tree), /返回待办/);
+    const tree = h.render(fixture.current[0]!.id);
+    const html = renderToStaticMarkup(tree);
+    assert.match(html, /这条记录属于「人生记录」/);
     buttons(tree)[0]!.onClick!();
-    assert.deepEqual(h.opened.at(-1), ['notes', undefined]);
-    tree = h.render(fixture.about[0]!.id);
-    assert.equal(h.drafts['notes:section'], 'notes');
-    assert.match(renderToStaticMarkup(tree), /返回便签/);
-    h.drafts['notes:section'] = 'todo';
-    tree = h.render('private');
-    assert.equal(h.drafts['notes:section'], 'notes');
-    assert.match(renderToStaticMarkup(tree), /<form/);
+    assert.deepEqual(h.opened.at(-1), ['records', fixture.current[0]!.id]);
+
+    const privateTree = h.render('private');
+    assert.match(renderToStaticMarkup(privateTree), /<form/);
   } finally {
     uiContext = undefined;
   }
@@ -688,18 +675,16 @@ test('opening records have no delete controls in list or detail; personal delete
   try {
     const h = setupNotes();
     let html = renderToStaticMarkup(h.render());
-    assert.equal((html.match(/<summary>关于这段人生<\/summary>/g) ?? []).length, 1);
-    assert.match(html, /开场记录 · 只读/);
     assert.match(html, /删除便签 自己的便签/);
-    assert.doesNotMatch(html, /删除便签 开场记录/);
     html = renderToStaticMarkup(h.render('opening'));
     assert.match(html, /只读的世界开场/);
+    assert.match(html, /前往「人生记录」查看完整设定与进展/);
     assert.doesNotMatch(html, /<form|textarea|删除/);
   } finally {
     uiContext = undefined;
   }
 });
-test('records failure is visible only in tasks and cannot block private draft search or creation', () => {
+test('records failure cannot block private draft search or creation in NotesApp', () => {
   try {
     const h = setupNotes();
     uiContext!.records = { status: 'error', error: '系统记录失败' };
@@ -708,16 +693,12 @@ test('records failure is visible only in tasks and cannot block private draft se
       text: '尚未保存关键字',
       expectedVersion: 1,
     };
-    h.drafts['notes:search:notes'] = '关键字';
+    h.drafts['notes:search'] = '关键字';
     let html = renderToStaticMarkup(h.render());
     assert.match(html, /本地草稿标题/);
     assert.doesNotMatch(html, /系统记录失败/);
     press(h.render(), '新建便签');
     assert.deepEqual(h.opened.at(-1), ['notes', 'new-note']);
-    press(h.render(), '待办');
-    html = renderToStaticMarkup(h.render());
-    assert.match(html, /系统记录失败/);
-    assert.doesNotMatch(html, /暂时没有已记录的事项/);
   } finally {
     uiContext = undefined;
   }
@@ -739,15 +720,15 @@ test('ordinary invitation mirrors are removed from tasks/history while meaningfu
   press(tree, '邀约与日程，去日历查看');
   assert.deepEqual(opened, [['calendar']]);
 });
-test('list navigation never edits the records projection or marks system steps completed', () => {
+test('RecordsApp renders full records projection and preserves search and details', () => {
   try {
-    const before = JSON.stringify(fixture),
-      h = setupNotes();
-    press(h.render(), '待办');
-    renderToStaticMarkup(h.render());
-    renderToStaticMarkup(h.render(fixture.current[0]!.id));
-    assert.equal(JSON.stringify(fixture), before);
-    assert.doesNotMatch(renderToStaticMarkup(h.render()), /type="checkbox"|标记完成/);
+    const h = setupNotes();
+    const tree = RecordsApp({ app: 'records', open: (...args) => h.opened.push(args) });
+    const html = renderToStaticMarkup(tree);
+    assert.match(html, /人生记录/);
+    assert.match(html, /关于这段人生（起点与设定）/);
+    assert.match(html, /眼下要做的事/);
+    assert.doesNotMatch(html, /我的便签/);
   } finally {
     uiContext = undefined;
   }

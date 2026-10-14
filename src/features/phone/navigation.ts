@@ -5,10 +5,18 @@ export const phoneApps = [
   'photos',
   'calendar',
   'notes',
+  'records',
   'scenes',
   'map',
 ] as const;
-export const desktopApps = ['messages', 'calendar', 'photos', 'notes', 'scenes', 'map'] as const;
+export const desktopApps = [
+  'messages',
+  'calendar',
+  'photos',
+  'notes',
+  'scenes',
+  'map',
+] as const;
 export type PhoneApp = (typeof phoneApps)[number];
 export const phonePanels = ['schedule', 'timeline', 'time', 'scene', 'management'] as const;
 export type PhonePanel = (typeof phonePanels)[number];
@@ -45,11 +53,12 @@ export function readRoute(hash: string, worldId: string): PhoneRoute {
 export function activePhoneRoute(route: PhoneRoute): PhoneRoute {
   if (route.panel === 'time') return homeRoute;
   if (route.panel === 'schedule') return { app: 'calendar' };
+  if (route.app === 'scenes' && !route.target) return homeRoute;
   return route;
 }
 
 export function parentRoute(route: PhoneRoute): PhoneRoute {
-  if (route.panel === 'scene') return { app: 'scenes' };
+  if (route.panel === 'scene' || route.app === 'scenes') return homeRoute;
   if (route.panel) return { app: route.app, ...(route.target ? { target: route.target } : {}) };
   if (route.target) return { app: route.app };
   return homeRoute;

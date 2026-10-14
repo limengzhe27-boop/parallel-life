@@ -1,5 +1,6 @@
 import type { PlayerRecords } from '../../../contracts/world-records.ts';
 import type { PhoneAppContext } from '../phone-shell.tsx';
+import { usePhoneApps } from './provider.tsx';
 import { searchable, timeText } from './helpers.ts';
 import s from './notes-records.module.css';
 
@@ -481,5 +482,184 @@ export function NotesRecordsReadState({
         </>
       )}
     </section>
+  );
+}
+
+/** Standalone RecordsApp: dedicated read-only viewer for world background and player records */
+export function RecordsApp({
+  target,
+  open,
+}: PhoneAppContext) {
+  const { data, records, reloadRecords, drafts, setDraft } = usePhoneApps();
+  const query = drafts['records:search'] ?? '';
+  const setQuery = (value: string) => setDraft('records:search', value);
+  const reload = reloadRecords
+    ? () => {
+        void reloadRecords();
+      }
+    : undefined;
+
+  if (target) {
+    return (
+      <div className={`${s.records} ${s.notesPage}`}>
+        <nav className={s.recordNavigation} aria-label="人生记录导航">
+          <button
+            type="button"
+            className={s.recordBack}
+            aria-label="返回人生记录"
+            onClick={() => open('records')}
+          >
+            <span aria-hidden="true">‹</span> 人生记录
+          </button>
+        </nav>
+        {records.status === 'ready' ? (
+          <NotesRecordDetail data={records.data} target={target} open={open} />
+        ) : (
+          <NotesRecordsReadState
+            status={records.status}
+            error={records.status === 'error' ? records.error : undefined}
+            reload={reload}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${s.records} ${s.notesPage}`} style={{ padding: '0 12px 24px' }}>
+      <header style={{ padding: '16px 4px 8px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0 }}>人生记录</h2>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+          记录这段人生已知的事实、进展与起点设定（只读）
+        </p>
+      </header>
+
+      {/* 搜索框 */}
+      <div style={{ margin: '8px 0 16px' }}>
+        <input
+          type="search"
+          value={query}
+          placeholder="搜索人生记录…"
+          onChange={(e) => setQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: '10px',
+            border: '1px solid #e2e8f0',
+            background: '#ffffff',
+            fontSize: '14px',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+
+      {/* ① 关于这段人生 */}
+      <section
+        className={s.section}
+        aria-label="关于这段人生"
+        style={{ margin: '0 0 16px', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}
+      >
+        <details className={s.background} open={true}>
+          <summary style={{ fontWeight: 650, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>① 关于这段人生（起点与设定）</span>
+            <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>起点与世界设定 · 只读</small>
+          </summary>
+          <p className={s.hint} style={{ margin: '6px 0 10px' }}>
+            世界设定、我的身份与起点处境由剧本确立，你只需了解，不必修改（只读）。
+          </p>
+          {records.status === 'ready' ? (
+            <NotesAbout data={records.data} query={query} open={open} />
+          ) : null}
+        </details>
+      </section>
+
+      {/* ② 现在、③ 过去 与 读取状态 */}
+      {records.status === 'ready' ? (
+        <NotesRecords
+          data={records.data}
+          query={query}
+          open={open}
+          historyOpen={drafts['records:history-open'] === 'true'}
+          onHistoryToggle={(value) => setDraft('records:history-open', String(value))}
+        />
+      ) : (
+        <NotesRecordsReadState
+          status={records.status}
+          error={records.status === 'error' ? records.error : undefined}
+          reload={reload}
+        />
+      )}
+
+      {/* ④ 处境：面临的选择与时间线 */}
+      {data.choices && data.choices.length > 0 && (
+        <section
+          className={s.section}
+          aria-label="面临的处境与选择"
+          style={{ margin: '16px 0 0', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}
+        >
+          <details className={s.background} open={!query.trim() || !!data.choices.some(c => searchable(query, c.actorName, c.quote, c.intent))}>
+            <summary style={{ fontWeight: 650, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>④ 处境与选择</span>
+              <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>{data.choices.length} 条处境与选择（只读）</small>
+            </summary>
+            <p className={s.hint} style={{ margin: '6px 0 10px' }}>
+              人物来信或对话中带来的关键处境与分歧。选择已发生或待续，不在此处就地编辑。
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {data.choices
+                .filter(choice => !query.trim() || searchable(query, choice.actorName, choice.quote, choice.intent))
+                .map((choice) => (
+                  <div
+                    key={choice.id}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <strong style={{ color: '#0f172a' }}>{choice.actorName} · 处境</strong>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          background: choice.status === 'pending' ? '#fef3c7' : '#f1f5f9',
+                          color: choice.status === 'pending' ? '#92400e' : '#475569',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {choice.status === 'pending' ? '待续 / 待决定' : '已跟进'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '2px 0 4px', color: '#334155' }}>
+                      <span style={{ color: '#64748b' }}>你说：</span>“{choice.quote}”
+                    </p>
+                    {choice.nextStep && (
+                      <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #cbd5e1' }}>
+                        <p style={{ margin: '0 0 4px', color: '#475569', fontSize: '12px' }}>
+                          <span>{choice.actorName}提出：</span>{choice.nextStep.quote}
+                        </p>
+                        {choice.nextStep.calendar && (
+                          <button
+                            type="button"
+                            className={s.actionShortcut}
+                            onClick={() => choice.nextStep?.calendar && open('calendar', choice.nextStep.calendar.id)}
+                            style={{ marginTop: '4px' }}
+                          >
+                            📅 查看日历日程 · {choice.nextStep.calendar.title} ›
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </details>
+        </section>
+      )}
+    </div>
   );
 }

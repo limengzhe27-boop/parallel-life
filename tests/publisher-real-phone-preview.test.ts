@@ -145,14 +145,13 @@ test('author pane embeds only the actual trial route and keeps draft messages/mo
   );
   assert.equal((html.match(/<iframe/g) ?? []).length, 1);
   assert.match(html, new RegExp(`/workbench/trials/${id(5)}`));
-  assert.match(html, /公开介绍/);
   assert.ok(!html.includes('SHOULD_ONLY_APPEAR_IN_REAL_APP'));
   assert.ok(!html.includes('PRIVATE_VOICE'));
   const phonePane = html.slice(html.indexOf('<section'), html.indexOf('</section>'));
   assert.ok(!phonePane.includes('PRIVATE_TRAITS'));
   assert.ok(!html.includes('bubble'));
 });
-test('unsaved content hides an existing trial and requires an explicit save; initial rendering never creates a trial', () => {
+test('unsaved content keeps existing trial visible with stale badge and requires explicit save; initial rendering never creates a trial', () => {
   let saves = 0,
     starts = 0;
   const dirty = {
@@ -168,8 +167,9 @@ test('unsaved content hides an existing trial and requires an explicit save; ini
   };
   const tree = PublisherCharacterPreview(dirty);
   const html = renderToStaticMarkup(tree);
-  assert.ok(!html.includes('<iframe'));
-  assert.match(html, /有未保存的修改/);
+  assert.ok(html.includes('<iframe'));
+  assert.match(html, /已编辑（试演为旧版）/);
+  assert.match(html, /当前有未保存的修改/);
   assert.equal(starts, 0);
   const save = walk(tree).find((e) => e.type === 'button' && e.props.onClick === dirty.onSave)!;
   assert.ok(save);

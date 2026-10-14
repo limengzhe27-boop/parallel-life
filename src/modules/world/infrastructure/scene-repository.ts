@@ -851,7 +851,7 @@ export async function commitSceneProposal(
   if (!initial) throw new DomainError('INVALID_PROPOSAL');
   const invitedAppointment = c.world.appointments.find(
     (a) =>
-      a.status === 'confirmed' &&
+      Boolean(a.status && ['confirmed', 'proposed'].includes(a.status)) &&
       (c.scene.appointmentId
         ? a.id === c.scene.appointmentId
         : c.world.space?.places
@@ -862,27 +862,35 @@ export async function commitSceneProposal(
   const actualBefore = scenePresent(c.scene, c.world.version).flatMap((p) =>
     p.kind === 'actor' ? [p.actorId] : [],
   );
-  const allowedActors = c.action ? actualBefore : (invitedAppointment?.participantIds ?? []);
+  const proposalPlace = c.world.space?.places.find((place) => place.id === c.scene.placeId);
+  const proposalEligible = invitedAppointment
+    ? invitedAppointment.participantIds
+    : (c.scene.appointmentId ? [] : (proposalPlace?.contactActorIds ?? []));
+  const allowedActors = c.action
+    ? Array.from(new Set([...actualBefore, ...proposalEligible]))
+    : proposalEligible;
   if (
     new Set(p.presentActorIds).size !== p.presentActorIds.length ||
     p.presentActorIds.some((id) => !allowedActors.includes(id)) ||
-    (c.action && p.presentActorIds.length !== actualBefore.length)
+    (c.action && actualBefore.length > 0 && p.presentActorIds.length !== actualBefore.length)
   )
     throw new DomainError('INVALID_PROPOSAL');
-  const resultScene = c.action
-    ? c.scene
-    : {
-        ...c.scene,
-        presence: [
-          ...c.scene.presence,
-          ...p.presentActorIds.map((actorId) => ({
-            participant: { kind: 'actor' as const, actorId },
-            joinedVersion: resultVersion,
-            sourceEventId: resultEventId,
-            sourceVersion: resultVersion,
-          })),
-        ],
-      };
+  const proposalNewlyArrived = p.presentActorIds.filter((id) => !actualBefore.includes(id));
+  const resultScene =
+    proposalNewlyArrived.length === 0 && c.action
+      ? c.scene
+      : {
+          ...c.scene,
+          presence: [
+            ...c.scene.presence,
+            ...(c.action ? proposalNewlyArrived : p.presentActorIds).map((actorId) => ({
+              participant: { kind: 'actor' as const, actorId },
+              joinedVersion: resultVersion,
+              sourceEventId: resultEventId,
+              sourceVersion: resultVersion,
+            })),
+          ],
+        };
   const resultAction =
     c.action?.intent === 'attempt' && p.outcome && p.observation
       ? {
@@ -1046,7 +1054,7 @@ export async function commitSceneProposal(
   const placeAppointment = c.scene.placeId
     ? c.world.appointments.find(
         (a) =>
-          a.status === 'confirmed' &&
+          Boolean(a.status && ['confirmed', 'proposed'].includes(a.status)) &&
           c.world.space?.places
             .find((p) => p.id === c.scene.placeId)
             ?.appointmentIds.includes(a.id) &&
@@ -1055,31 +1063,40 @@ export async function commitSceneProposal(
     : undefined;
   const directAppointment = c.world.appointments.find((a) => a.id === c.scene.appointmentId);
   const effectiveDirect =
-    directAppointment?.status === 'confirmed' &&
-    Date.parse(directAppointment.at) <= Date.parse(c.storyAt) &&
+    Boolean(
+      directAppointment?.status && ['confirmed', 'proposed'].includes(directAppointment.status),
+    ) &&
+    Date.parse(directAppointment!.at) <= Date.parse(c.storyAt) &&
     (!c.world.space ||
       (c.world.space.currentPlaceId === c.scene.placeId &&
         c.world.space.places
           .find((place) => place.id === c.scene.placeId)
-          ?.appointmentIds.includes(directAppointment.id)))
+          ?.appointmentIds.includes(directAppointment!.id)))
       ? directAppointment
       : undefined;
   const activeAppointment = c.scene.appointmentId ? effectiveDirect : placeAppointment;
-  const invited = activeAppointment?.participantIds ?? [];
+  const executionPlace = c.world.space?.places.find((place) => place.id === c.scene.placeId);
+  const executionEligible = activeAppointment
+    ? activeAppointment.participantIds
+    : (c.scene.appointmentId ? [] : (executionPlace?.contactActorIds ?? []));
+  const allowed = c.action
+    ? Array.from(new Set([...actualIds, ...executionEligible]))
+    : executionEligible;
   if (
     new Set(p.presentActorIds).size !== p.presentActorIds.length ||
-    p.presentActorIds.some((id) => !(c.action ? actualIds : invited).includes(id)) ||
-    (c.action && p.presentActorIds.length !== actualIds.length) ||
+    p.presentActorIds.some((id) => !allowed.includes(id)) ||
+    (c.action && actualIds.length > 0 && p.presentActorIds.length !== actualIds.length) ||
     new Set(p.matterUpdates.map((u) => u.id)).size !== p.matterUpdates.length
   )
     throw new DomainError('INVALID_PROPOSAL', 'Invalid presence or duplicated matter update');
+  const executionNewlyArrived = p.presentActorIds.filter((id) => !actualIds.includes(id));
   let scene = c.scene;
-  if (!c.action) {
+  if (!c.action || executionNewlyArrived.length > 0) {
     scene = {
       ...scene,
       presence: [
         ...scene.presence,
-        ...p.presentActorIds.map((actorId) => ({
+        ...(c.action ? executionNewlyArrived : p.presentActorIds).map((actorId) => ({
           participant: { kind: 'actor', actorId } as const,
           joinedVersion: source.sourceVersion,
           ...source,
@@ -1103,8 +1120,19 @@ export async function commitSceneProposal(
       storyAt: locked.storyAt,
       location: p.location,
     },
-    { ...base, id: randomUUID(), kind: 'narration', perspective: 'observable', text: p.narration },
   ];
+  const isDuplicateNarration = c.entries.some(
+    (e) => e.kind === 'narration' && e.text.trim() === p.narration.trim(),
+  );
+  if (!isDuplicateNarration && (!c.action || p.narration.trim() !== '')) {
+    entries.push({
+      ...base,
+      id: randomUUID(),
+      kind: 'narration',
+      perspective: 'observable',
+      text: p.narration,
+    });
+  }
   let actions = (await loadScene(sql, worldId, scene.id)).actions;
   if (c.action?.intent === 'attempt') {
     if (!p.outcome || !p.observation) throw new DomainError('INVALID_PROPOSAL');

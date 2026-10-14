@@ -1,7 +1,4 @@
-/**
- * Pure editor state and content mapping for the publisher workbench.
- * Independent of network, database, and React runtime.
- */
+import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
 
 export type ActorEditorForm = {
   key: string;
@@ -78,6 +75,23 @@ export function deepClone<T>(value: T): T {
     });
   }
   return copy as T;
+}
+
+/** Recursively removes undefined values from objects so storage schema treats them as valid JSON. */
+export function pruneUndefinedDeep(obj: unknown): void {
+  if (obj === null || typeof obj !== 'object') return;
+  if (Array.isArray(obj)) {
+    obj.forEach(pruneUndefinedDeep);
+    return;
+  }
+  const record = obj as Record<string, unknown>;
+  for (const [key, value] of Object.entries(record)) {
+    if (value === undefined) {
+      delete record[key];
+    } else if (value && typeof value === 'object') {
+      pruneUndefinedDeep(value);
+    }
+  }
 }
 
 /** Generates a unique, valid actor key matching /^[a-z][a-z0-9_]{0,31}$/. */
@@ -164,8 +178,12 @@ export function parseActorEditor(
   const traits = Array.isArray(publicCard.traits)
     ? publicCard.traits.filter((t): t is string => typeof t === 'string')
     : [];
+  const defaultAvatarKey =
+    PUBLICATION_ART.find((a) => a.uses.includes('avatar'))?.key ?? 'qingqing';
   const avatarMediaKey =
-    typeof publicCard.avatarMediaKey === 'string' ? publicCard.avatarMediaKey : undefined;
+    typeof publicCard.avatarMediaKey === 'string' && publicCard.avatarMediaKey
+      ? publicCard.avatarMediaKey
+      : defaultAvatarKey;
 
   // Section 2: 与主角初始关系
   let relationshipToPlayer = '';
@@ -240,27 +258,94 @@ export function updateActorInContent(
 
   const motivationText = joinMotivation(form.caresAbout, form.immediateGoal, form.rawMotivation);
 
+  if (form.avatarMediaKey && changed('avatarMediaKey')) {
+    const art = PUBLICATION_ART.find(
+      (a) => a.key === form.avatarMediaKey && a.uses.includes('avatar'),
+    );
+    if (art) {
+      const list = Array.isArray(next.media) ? (next.media as Record<string, unknown>[]) : [];
+      if (!list.some((m) => m?.key === art.key)) {
+        list.push({
+          key: art.key,
+          asset: { namespace: 'publication', key: art.key, revision: art.revision },
+          use: 'avatar',
+          depiction: 'generated_image',
+          label: art.label,
+          visibility: { kind: 'world' },
+        });
+        next.media = list;
+      }
+    }
+  }
+
+  const existingPublicCard =
+    (actorIdx >= 0 ? (actors[actorIdx]?.publicCard as Record<string, unknown>) : null) ?? {};
+  const existingPrivatePersona =
+    (actorIdx >= 0 ? (actors[actorIdx]?.privatePersona as Record<string, unknown>) : null) ?? {};
+
+  const publicCard: Record<string, unknown> = {
+    ...existingPublicCard,
+    ...(changed('traits') ? { traits: form.traits.filter((t) => t.trim().length > 0) } : {}),
+    ...(changed('identity')
+      ? form.identity.trim()
+        ? { identity: form.identity.trim() }
+        : {}
+      : {}),
+    ...(changed('appearance')
+      ? form.appearance.trim()
+        ? { appearance: form.appearance.trim() }
+        : {}
+      : {}),
+    ...(changed('avatarMediaKey')
+      ? form.avatarMediaKey
+        ? { avatarMediaKey: form.avatarMediaKey }
+        : {}
+      : {}),
+  };
+  if (changed('identity') && !form.identity.trim()) delete publicCard.identity;
+  if (changed('appearance') && !form.appearance.trim()) delete publicCard.appearance;
+  if (changed('avatarMediaKey') && !form.avatarMediaKey) delete publicCard.avatarMediaKey;
+
+  const privatePersona: Record<string, unknown> = {
+    ...existingPrivatePersona,
+    ...(changed('background') ? { background: form.background.trim() || '暂无详细背景' } : {}),
+    ...(changed('voice') ? { voice: form.voice.trim() || '自然生活化语气' } : {}),
+    ...(changed('caresAbout') || changed('immediateGoal')
+      ? { motivation: motivationText || '按既定处境与玩家互动' }
+      : {}),
+    ...(changed('boundaries')
+      ? { boundaries: form.boundaries.trim() || '不脱离当前世界与人物底色' }
+      : {}),
+  };
+
+  if (actorIdx < 0) {
+    if (!publicCard.avatarMediaKey && form.avatarMediaKey)
+      publicCard.avatarMediaKey = form.avatarMediaKey;
+    if (!privatePersona.background)
+      privatePersona.background = form.background.trim() || '暂无详细背景';
+    if (!privatePersona.voice) privatePersona.voice = form.voice.trim() || '自然生活化语气';
+    if (!privatePersona.motivation)
+      privatePersona.motivation = motivationText || '按既定处境与玩家互动';
+    if (!privatePersona.boundaries)
+      privatePersona.boundaries = form.boundaries.trim() || '不脱离当前世界与人物底色';
+    if (!Array.isArray(publicCard.traits)) publicCard.traits = ['日常', '随和'];
+  }
+
   const updatedActor: Record<string, unknown> = {
     ...(actorIdx >= 0 ? actors[actorIdx] : {}),
     key: form.key,
-    ...(changed('name') ? { name: form.name.trim() } : {}),
-    ...(changed('knownAtStart') ? { knownAtStart: form.knownAtStart } : {}),
-    publicCard: {
-      ...((actorIdx >= 0 ? (actors[actorIdx]?.publicCard as Record<string, unknown>) : null) ?? {}),
-      ...(changed('identity') ? { identity: form.identity.trim() || undefined } : {}),
-      ...(changed('appearance') ? { appearance: form.appearance.trim() || undefined } : {}),
-      ...(changed('traits') ? { traits: form.traits.filter((t) => t.trim().length > 0) } : {}),
-      ...(changed('avatarMediaKey') ? { avatarMediaKey: form.avatarMediaKey || undefined } : {}),
-    },
-    privatePersona: {
-      ...((actorIdx >= 0 ? (actors[actorIdx]?.privatePersona as Record<string, unknown>) : null) ??
-        {}),
-      ...(changed('background') ? { background: form.background.trim() } : {}),
-      ...(changed('voice') ? { voice: form.voice.trim() } : {}),
-      ...(changed('caresAbout') || changed('immediateGoal') ? { motivation: motivationText } : {}),
-      ...(changed('boundaries') ? { boundaries: form.boundaries.trim() } : {}),
-    },
+    ...(changed('name') ? { name: form.name.trim() || `人物_${form.key}` } : {}),
+    ...(changed('knownAtStart')
+      ? typeof form.knownAtStart === 'boolean'
+        ? { knownAtStart: form.knownAtStart }
+        : {}
+      : {}),
+    publicCard,
+    privatePersona,
   };
+  if (changed('knownAtStart') && typeof form.knownAtStart !== 'boolean') {
+    delete updatedActor.knownAtStart;
+  }
 
   if (actorIdx >= 0) {
     actors[actorIdx] = updatedActor;
@@ -268,6 +353,7 @@ export function updateActorInContent(
     actors.push(updatedActor);
   }
   next.actors = actors;
+  pruneUndefinedDeep(next);
 
   // Update initial relationship with player in content.relationships
   if (changed('relationshipToPlayer') && Array.isArray(next.relationships)) {
@@ -353,7 +439,8 @@ export function createEmptyActor(existingKeys: string[]): ActorEditorForm {
     identity: '',
     appearance: '',
     traits: [],
-    avatarMediaKey: undefined,
+    avatarMediaKey:
+      PUBLICATION_ART.find((a) => a.uses.includes('avatar'))?.key ?? 'qingqing',
     knownAtStart: true,
     relationshipToPlayer: '',
     voice: '',

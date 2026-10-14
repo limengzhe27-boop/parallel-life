@@ -483,7 +483,7 @@ export class ScenePlanner implements ScenePlannerPort {
     const placeAppointment = c.scene.placeId
       ? c.world.appointments.find(
           (a) =>
-            a.status === 'confirmed' &&
+            Boolean(a.status && ['confirmed', 'proposed'].includes(a.status)) &&
             c.world.space?.places
               .find((p) => p.id === c.scene.placeId)
               ?.appointmentIds.includes(a.id) &&
@@ -492,19 +492,23 @@ export class ScenePlanner implements ScenePlannerPort {
       : undefined;
     const directAppointment = c.world.appointments.find((x) => x.id === c.scene.appointmentId);
     const effectiveDirect =
-      directAppointment?.status === 'confirmed' &&
-      Date.parse(directAppointment.at) <= Date.parse(c.storyAt) &&
-      (!c.scene.placeId || Boolean(scenePlace?.appointmentIds.includes(directAppointment.id)))
+      Boolean(directAppointment?.status && ['confirmed', 'proposed'].includes(directAppointment.status)) &&
+      Date.parse(directAppointment!.at) <= Date.parse(c.storyAt) &&
+      (!c.scene.placeId || Boolean(scenePlace?.appointmentIds.includes(directAppointment!.id)))
         ? directAppointment
         : undefined;
     const activeAppointment = c.scene.appointmentId ? effectiveDirect : placeAppointment;
+    const defaultActorIds = activeAppointment
+      ? activeAppointment.participantIds
+      : (c.scene.appointmentId ? [] : (scenePlace?.contactActorIds ?? []));
+    const actualPresent = scenePresent(c.scene, c.world.version).flatMap((p) =>
+      p.kind === 'actor' ? [p.actorId] : [],
+    );
     const candidates = opening
-      ? c.world.actors.filter((a) => activeAppointment?.participantIds.includes(a.id))
-      : c.world.actors.filter((a) =>
-          scenePresent(c.scene, c.world.version).some(
-            (p) => p.kind === 'actor' && p.actorId === a.id,
-          ),
-        );
+      ? c.world.actors.filter((a) => defaultActorIds.includes(a.id))
+      : actualPresent.length > 0
+        ? c.world.actors.filter((a) => actualPresent.includes(a.id))
+        : c.world.actors.filter((a) => defaultActorIds.includes(a.id));
     // Director receives public scene information only: no owner facts, interviews or private conversations.
     const currentPlace = c.entries.filter((e) => e.kind === 'time_place').at(-1);
     const stepExecution =
@@ -728,7 +732,7 @@ location必须是非空中文字符串且最多200字，narration非空且最多
       throw new DomainError('INVALID_PROPOSAL', 'Unknown presence or director-authored dialogue');
     if (
       !opening &&
-      (p.presentActorIds.length !== ids.size ||
+      ((actualPresent.length > 0 ? p.presentActorIds.length !== actualPresent.length : false) ||
         p.presentActorIds.some((id) => !ids.has(id)) ||
         p.matterTitle ||
         p.initialMatters?.length)

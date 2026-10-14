@@ -54,13 +54,22 @@ export function PublisherController() {
       setBusy(false);
     }
   }
-  function openTrial(placement: 'inline' | 'drawer') {
+  function openTrial(
+    placement: 'inline' | 'drawer',
+    draftToSaveFirst?: { title: string; content: Record<string, unknown> },
+  ) {
     if (!work) return;
     void run(async () => {
-      if (!phoneTrialMatches(work, phoneTrial)) {
-        const result = await client.startTrial(work);
+      let currentWork = work;
+      if (draftToSaveFirst) {
+        currentWork = await client.save(work, draftToSaveFirst);
+        setWork(currentWork);
+        await loadWorks();
+      }
+      if (!phoneTrialMatches(currentWork, phoneTrial)) {
+        const result = await client.startTrial(currentWork);
         try {
-          setPhoneTrial(phoneTrialFromResult(work, result));
+          setPhoneTrial(phoneTrialFromResult(currentWork, result));
         } catch {
           throw new PublisherClientError('INVALID_STATE');
         }
@@ -157,9 +166,9 @@ export function PublisherController() {
         check={check}
         busy={busy}
         error={error}
-        onTrial={() => openTrial('drawer')}
+        onTrial={(draft) => openTrial('drawer', draft)}
         characterTrial={trialMount.inline}
-        onCharacterTrial={() => openTrial('inline')}
+        onCharacterTrial={(draft) => openTrial('inline', draft)}
         onCloseCharacterTrial={() => setTrialPlacement(null)}
         onPublish={() => {
           if (work && check)
@@ -191,7 +200,6 @@ export function PublisherController() {
           if (work)
             void run(async () => {
               const next = await client.save(work, draft);
-              setTrialPlacement(null);
               setWork(next);
               setCheck(null);
               await loadWorks();

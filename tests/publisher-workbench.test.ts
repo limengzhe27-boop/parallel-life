@@ -224,29 +224,28 @@ test('workbench defaults to overall setting without the removed explanation or s
     '总体设定',
     '人物',
     '剧情发展',
-    '待确认问题',
   ])
     assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /整理只作补充|查看已整理的故事|当前草稿故事概览/);
-  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
+  assert.doesNotMatch(html, /settingsDisclosure|writer-story-editor/);
   assert.doesNotMatch(html, /尚未检查草稿|查看全部问题|安排故事时间/);
   assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
 });
-test('character form preserves all five existing authoring sections and real values after navigation', () => {
+test('character form renders horizontal navigation bar, clean dimensions, and direct preview trial', () => {
   const html = renderTab(defaultProps, 'actors');
   for (const text of [
-    '人物 · 2',
-    '1. 名字与身份',
-    '2. 与主角的初始关系',
-    '3. 性格与说话方式',
-    '4. 在乎什么、眼前想法',
-    '5. 关系、知情范围与底线',
-    '诊所助手',
-    '青梅竹马 / 邻居',
+    '+ 新建角色',
+    '青青',
+    '人物姓名',
+    '公开角色介绍（玩家可见）',
+    '性格特征与说话方式',
+    '成长背景与经历',
+    '动机与在乎的事',
     '说话简洁轻柔',
-    '讨厌别人翻动内室诊柜',
+    '试演这份草稿',
   ])
     assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, /1\. 名字与身份|2\. 与主角的初始关系|5\. 关系、知情范围与底线/);
 });
 
 test('PublisherWorkbench honestly indicates unhooked callbacks when onTrial or onPublish omitted', () => {
@@ -306,34 +305,14 @@ test('PublisherWorkbench displays check failure issues accurately', () => {
   assert.doesNotMatch(html, /限制详情|model_budget_unapproved/);
 });
 
-test('character knowledge includes an editable shared fact with a separate knowledge checkbox', () => {
+test('character form removes redundant legacy buttons and focuses on name, avatar, identity and core 5 dimensions', () => {
   const html = renderTab(defaultProps, 'actors');
-  assert.ok(html.includes('不是固定示例'));
-  assert.ok(html.includes('修改这条事实'));
-  assert.ok(html.includes('到剧情页管理或新增事实'));
-  assert.match(
-    html,
-    /<textarea[^>]*id="actor-fact-0-fact_clinic_01"[^>]*>周记诊所是小镇唯一的全科诊所。<\/textarea>/,
-  );
-  assert.ok(html.includes('勾选保持不变'));
-});
-
-test('shared fact editor remains disabled while busy or without edit permission', () => {
-  for (const extra of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
-    const html = renderTab({ ...defaultProps, ...extra }, 'actors');
-    assert.match(html, /<textarea[^>]*id="actor-fact-0-fact_clinic_01"[^>]*disabled=""/);
-  }
-});
-
-test('ambiguous duplicate fact keys do not expose an unsafe inline editor', () => {
-  const content = structuredClone(mockContent);
-  content.history = [...(content.history as unknown[]), ...(content.history as unknown[])];
-  const html = renderTab(
-    { ...defaultProps, work: { ...mockWork, draft: { ...mockWork.draft, content } } },
-    'actors',
-  );
-  assert.ok(html.includes('这条事实尚不能安全修改'));
-  assert.ok(!html.includes('id="actor-fact-'));
+  assert.doesNotMatch(html, /不是固定示例|修改这条事实|这条事实在各人物的知情列表中同步更新/);
+  assert.doesNotMatch(html, /✨ 生成角色（保存并启动试演对话）/);
+  assert.ok(html.includes('微信头像（默认使用预设图片）'));
+  assert.ok(html.includes('角色核心 5 个维度设定'));
+  assert.ok(html.includes('试演这份草稿'));
+  assert.doesNotMatch(html, /整理本角色的历史与朋友圈/);
 });
 
 const readyCheck: PublisherCheckResult = {
@@ -428,10 +407,9 @@ test('an empty new story shows only the overall author input by default without 
       work: { ...mockWork, draft: { ...mockWork.draft, content } },
     }),
   );
-  assert.match(html, /<details class="settingsDisclosure" id="writer-story-editor">/);
+  assert.doesNotMatch(html, /settingsDisclosure|writer-story-editor/);
   assert.match(html, /id="writer-overall-text"/);
   assert.doesNotMatch(html, /id="writer-overall-text"[^>]*maxLength/);
-  assert.match(html, /玩家进入后看到的内容 \/ 发布展示/);
   assert.match(html, /id="work-title-input"/);
   assert.equal(saved, 0);
 });
@@ -513,9 +491,9 @@ test('applying import from character or plot returns to overview, closes import 
         nodes(tree).find((e) => e.props.id === 'work-title-input')!.props.value,
         '整理后的标题',
       );
-      assert.equal(
-        nodes(tree).find((e) => e.props.id === 'world-public-setting')!.props.value,
-        '新的舞台',
+      assert.match(
+        String(nodes(tree).find((e) => e.props.id === 'writer-overall-text')!.props.value),
+        /新的舞台|整理/,
       );
     } finally {
       Reflect.deleteProperty(globalThis, '__writerHooks');
@@ -608,7 +586,7 @@ test('manual scheduling uses work creation time, adopts only successful plans, a
       assert.equal(trials, 0);
       states[0] = 'settings';
       tree = render();
-      const field = nodes(tree).find((e) => e.props.id === 'world-tone-input');
+      const field = nodes(tree).find((e) => e.props.id === 'writer-overall-text');
       assert.ok(field);
       (field.props.onChange as (e: unknown) => void)({ target: { value: '新的氛围' } });
       states[0] = 'review';
@@ -665,14 +643,14 @@ test('manual scheduling cannot execute with edit permission missing or while bus
   assert.equal(calls, 0);
 });
 
-test('author settings retain optional old descriptions but remove raw-data editing and technical disclosures', () => {
+test('author settings retain title and overall setting text while removing technical disclosures and redundant settings form', () => {
   const html = renderTab(defaultProps, 'settings');
   assert.doesNotMatch(
     html,
-    /完整内容（JSON）|导入完整结构化草稿|publication-import|技术详情|高级：版本/,
+    /完整内容（JSON）|导入完整结构化草稿|publication-import|技术详情|高级：版本|另写作品展示简介|故事介绍（玩家可知）/,
   );
-  assert.match(html, /另写作品展示简介（选填）/);
-  assert.match(html, /故事介绍（玩家可知）/);
+  assert.ok(html.includes('总体设定'));
+  assert.ok(html.includes('作品标题'));
   const actor = renderTab(defaultProps, 'actors');
   assert.doesNotMatch(actor, /稳定标识|内部标识/);
 });
@@ -853,103 +831,37 @@ test('actor editing is not preceded by global checks or scheduling, while failur
   assert.match(renderTab(defaultProps, 'review'), /尚未检查，请先保存草稿/);
 });
 
-test('the character form hands authored modules to existing character preparation and retains actor navigation until explicit save', async () => {
-  const { PublisherImportDialog } =
-    await import('../src/features/publisher/publisher-import-dialog.tsx');
-  const { characterManuscriptSource } =
-    await import('../src/features/publisher/publisher-character-manuscript.ts');
-  const a = {
-    key: 'form_actor',
-    name: '顾夏',
-    knownAtStart: true,
-    lifeModules: {
-      lifeContext: '作者写的人生背景',
-      traits: '作者写的人格',
-      drives: '作者写的价值观',
-      behavior: '作者写的行为',
-      relationships: '认识主角多年',
-    },
-    publicCard: { introduction: '作者公开介绍' },
-    privatePersona: {
-      background: '旧背景',
-      motivation: '旧动机',
-      voice: '旧表达',
-      boundaries: '旧边界',
-    },
-  };
-  const content = {
-    actors: [a],
-    world: { hiddenContext: '世界秘密' },
-    opaque: { preserved: true },
-  };
-  let calls = 0;
+test('the character form correctly renders 5 core dimensions and triggers trial from preview', async () => {
+  let trialDraft: unknown = null;
   const h = overallHarness({
-    work: { ...mockWork, draft: { ...mockWork.draft, content } },
-    preparationClient: {
-      latestPreparation: async () => ({ preparation: null }),
-      getPreparation: async () => {
-        throw Error('not invoked');
-      },
-      prepareManuscript: async () => {
-        calls++;
-        throw Error('not invoked');
-      },
-    } as unknown as NonNullable<Parameters<typeof PublisherWorkbench>[0]['preparationClient']>,
+    work: mockWork,
+    onCharacterTrial: (draft) => {
+      trialDraft = draft;
+    },
   });
   try {
     h.click('人物');
     const name = h.render().find((n) => n.props.id === 'character-author-name')!;
-    assert.equal(name.props.value, a.name);
-    h.click('整理本角色的历史与朋友圈');
-    const dialog = h.render().find((n) => n.type === PublisherImportDialog)!;
-    assert.equal(dialog.props.initialScope, 'characters');
-    assert.equal(dialog.props.initialOverallText, undefined);
-    assert.deepEqual(dialog.props.initialSources, [characterManuscriptSource(content, a.key)]);
-    assert.deepEqual(dialog.props.content, content);
-    assert.equal(calls, 0);
-    assert.equal(h.saved.length, 0);
-    const next = { ...content, phone: { messages: [{ key: 'new', text: '待核对' }] } };
-    (dialog.props.onApply as (v: unknown, s: unknown) => void)(next, {
-      actors: [],
-      initialMessagesCount: 1,
-      candidatesCount: 0,
-      warnings: [],
-      diagnostics: [],
-      unmapped: [],
-    });
+    assert.ok(name);
+    // Verify 5 dimensions textareas exist
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-1'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-2'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-3'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-4'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-5'));
+
+    // Redundant left bottom button is removed
     assert.equal(
-      h.render().find((n) => n.type === 'button' && n.props.children === '人物')!.props[
-        'aria-selected'
-      ],
-      true,
+      h.render().some((n) => n.props.children === '✨ 生成角色（保存并启动试演对话）'),
+      false,
     );
-    assert.equal(h.saved.length, 0);
-    h.click('保存草稿');
-    assert.deepEqual((h.saved[0] as { content: unknown }).content, next);
-    assert.deepEqual(
-      (h.saved[0] as { content: typeof content }).content.actors[0]!.privatePersona,
-      a.privatePersona,
-    );
+
+    // Trigger trial from character preview
+    const preview = h.render().find((n) => typeof n.type === 'function' && Boolean(n.props.onStartTrial));
+    assert.ok(preview);
+    (preview.props.onStartTrial as () => void)();
+    assert.ok(trialDraft);
   } finally {
     h.close();
-  }
-});
-test('character preparation handlers cannot call or open import while read-only, busy, unnamed or missing the project preparation service', () => {
-  for (const overrides of [
-    { busy: true },
-    { session: { ...defaultProps.session, canEdit: false } },
-    { preparationClient: undefined },
-  ]) {
-    const h = overallHarness({ ...overrides, work: mockWork });
-    try {
-      h.click('人物');
-      const b = h.button('整理本角色的历史与朋友圈');
-      assert.equal(b.props.disabled, true);
-      (b.props.onClick as () => void)();
-      assert.equal(h.saved.length, 0);
-      assert.ok(!h.render().some((n) => n.props.initialScope === 'characters'));
-    } finally {
-      h.close();
-    }
   }
 });

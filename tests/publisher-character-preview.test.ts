@@ -174,7 +174,7 @@ test('editing one module preserves authored extensions, legacy persona, other pe
   assert.equal(characterPreview(legacyEdit, 'guide')!.introduction, '新的公开介绍');
   assert.equal(characterModuleText(legacyEdit, 'guide', 'traits'), '谨慎但好奇');
 });
-test('character pane uses saved-trial guidance and universal author fields without manufacturing a phone conversation', () => {
+test('character pane uses saved-trial guidance and honest phone trial without squeezed editor columns', () => {
   const html = renderToStaticMarkup(
     createElement(PublisherCharacterPreview, {
       content: fixture(),
@@ -188,23 +188,14 @@ test('character pane uses saved-trial guidance and universal author fields witho
   assert.ok(!html.includes('我带上地图'));
   assert.ok(!html.includes('按昨天的路线走'));
   assert.ok(!html.includes('playerMessage'));
-  assert.match(html, /向导 · 角色介绍/);
-  assert.match(html, /朋友圈/);
-  for (const field of [
-    '人生背景',
-    '人格特质',
-    '动机与价值观',
-    '行为模式',
-    '关系模型',
-    '给玩家看的角色介绍',
-  ])
-    assert.ok(html.includes(field), field);
-  const phone = html.slice(html.indexOf('<section'), html.indexOf('</section>'));
-  assert.ok(!phone.includes('MODULE_PRIVATE'));
-  assert.ok(!phone.includes('PRIVATE_VOICE'));
-  assert.ok(!phone.includes('PRIVATE_DRIVE'));
+  // The duplicated squeezed editing column has been removed from preview
+  assert.doesNotMatch(html, /向导 · 角色介绍/);
+  assert.doesNotMatch(html, /details class="editing"/);
+  assert.ok(html.includes('手机试演'));
+  assert.ok(html.includes('试演使用独立存档'));
 });
-test('empty chat is honest, does not synthesize conversation, and read-only drafts cannot edit author fields', () => {
+
+test('empty chat is honest, does not synthesize conversation, and reports honest preview state', () => {
   const content = fixture();
   const html = renderToStaticMarkup(
     createElement(PublisherCharacterPreview, {
@@ -217,53 +208,5 @@ test('empty chat is honest, does not synthesize conversation, and read-only draf
   );
   assert.match(html, /保存后试演/);
   assert.ok(!html.includes('OTHER_PERSON'));
-  assert.equal((html.match(/<textarea[^>]*disabled=""/g) ?? []).length, 6);
   assert.equal(characterPreviewTime('2026-10-12T20:30:00Z'), '10月13日 04:30');
-});
-
-test('author field edits use the real onChange draft callback with full modules and original private persona retained', () => {
-  const content = fixture();
-  let saved: Record<string, unknown> = content;
-  let result: ReactNode;
-  function Capture() {
-    result = PublisherCharacterPreview({
-      content,
-      actorKey: 'guide',
-      canEdit: true,
-      busy: false,
-      onChange(next) {
-        saved = next;
-      },
-    });
-    return null;
-  }
-  renderToStaticMarkup(createElement(Capture));
-  function walk(node: ReactNode): ReactElement<Record<string, unknown>>[] {
-    if (Array.isArray(node)) return node.flatMap(walk);
-    if (!isValidElement(node)) return [];
-    const element = node as ReactElement<Record<string, unknown>>;
-    return [element, ...walk(element.props.children as ReactNode)];
-  }
-  const field = walk(result).find(
-    (node) => node.type === 'textarea' && node.props.value === '遇到风暴会先保护队伍',
-  );
-  assert.ok(field);
-  (field.props.onChange as (e: { target: { value: string } }) => void)({
-    target: { value: '遇到压力会先确认队伍安全，再尝试新路线' },
-  });
-  assert.equal(
-    characterModuleText(saved, 'guide', 'behavior'),
-    '遇到压力会先确认队伍安全，再尝试新路线',
-  );
-  assert.equal(characterModuleText(saved, 'guide', 'lifeContext'), '长期带队勘探，熟悉天气变化');
-  assert.equal(characterModuleText(saved, 'guide', 'drives'), '想让队伍平安返回');
-  assert.equal(
-    characterModuleText(saved, 'guide', 'relationships'),
-    '与主角合作过多次，习惯提前确认路线',
-  );
-  assert.equal(characterPreview(saved, 'guide')!.introduction, '会认真记录路线。');
-  assert.deepEqual(
-    (saved.actors as Record<string, unknown>[])[0]!.privatePersona,
-    (content.actors as Record<string, unknown>[])[0]!.privatePersona,
-  );
 });

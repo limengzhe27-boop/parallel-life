@@ -27,7 +27,10 @@ import {
   plotRows,
   plotRowEditable,
 } from './publisher-plot-model.ts';
-import type { PublisherWorkbenchProps } from '../../contracts/publisher-workbench.ts';
+import type {
+  PublisherWorkbenchProps,
+  PublisherWorkbenchDraft,
+} from '../../contracts/publisher-workbench.ts';
 import {
   parseActorEditor,
   updateActorInContent,
@@ -112,11 +115,48 @@ function issueLabel(path: readonly (string | number)[], code: string) {
   return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
 }
 
+function syncWorldSettingsFromOverall(
+  content: Record<string, unknown>,
+  overallText: string,
+  title: string,
+): Record<string, unknown> {
+  const text = overallText.trim();
+  if (!text) return content;
+  const current = parseWorldSettings(content, title);
+  const firstLine = text.split('\n').find((l) => l.trim().length > 0)?.trim() || title;
+  const hook = current.hook || (firstLine.slice(0, 60) || '一段关于抉择与羁绊的平行人生');
+  const description = current.description || (text.slice(0, 500) || hook);
+  const experienceNote = current.experienceNote || '沉浸式平行人生体验，请根据内心直觉做出抉择。';
+  const publicSetting = current.publicSetting || (text.slice(0, 800) || description);
+  const hiddenContext = current.hiddenContext || text;
+  const tone = current.tone || '现实质感 · 情感波澜';
+  const startAt = current.startAt || '2026-10-14T09:00:00Z';
+  const places = Array.isArray(content.places) ? content.places : [];
+  const firstPlaceKey =
+    places.length > 0 && typeof (places[0] as Record<string, unknown>)?.key === 'string'
+      ? ((places[0] as Record<string, unknown>).key as string)
+      : '';
+  const startPlaceKey = current.startPlaceKey || firstPlaceKey;
+
+  return updateWorldSettingsInContent(content, {
+    ...current,
+    title: current.title || title,
+    hook,
+    description,
+    experienceNote,
+    publicSetting,
+    hiddenContext,
+    tone,
+    startAt,
+    startPlaceKey,
+  });
+}
+
 export function PublisherWorkbench(
   props: PublisherWorkbenchProps & {
     preparationClient?: PublisherClient;
     characterTrial?: PublisherPhoneTrial | null;
-    onCharacterTrial?: () => void;
+    onCharacterTrial?: (draft?: PublisherWorkbenchDraft) => void;
     onCloseCharacterTrial?: () => void;
   },
 ) {
@@ -213,6 +253,7 @@ export function PublisherWorkbench(
           : undefined;
   function changeOverall(text: string) {
     if (busy || !session.canEdit) return;
+    setScheduleReview(undefined);
     setOverallInput(text);
     const result = updateOverallSetting(draftContent, text);
     if (result.ok) setDraftContent(result.content);
@@ -453,6 +494,29 @@ export function PublisherWorkbench(
       content: draftContent,
     });
   }, [work, session.canEdit, draftTitle, draftContent, onSaveDraft, overallBlocked, busy]);
+
+  // Handle character trial: atomically pass latest draft
+  const handleCharacterTrial = useCallback(() => {
+    if (busy || overallBlocked) return;
+    props.onCharacterTrial?.({
+      title: draftTitle,
+      content: draftContent,
+    });
+  }, [busy, overallBlocked, props.onCharacterTrial, draftTitle, draftContent]);
+
+  // Auto-save: 填写即自动保存（防抖 800ms）
+  useEffect(() => {
+    if (!work || !session.canEdit || busy || overallBlocked) return;
+    if (!isDraftDirty(savedState, { title: draftTitle, content: draftContent })) return;
+
+    const timer = setTimeout(() => {
+      onSaveDraft({
+        title: draftTitle,
+        content: draftContent,
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [draftTitle, draftContent, savedState, work, session.canEdit, busy, overallBlocked, onSaveDraft]);
 
   // Create work
   const handleCreateWorkSubmit = useCallback(
@@ -845,21 +909,23 @@ export function PublisherWorkbench(
               >
                 剧情发展
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'review'}
-                className={`${s.tabButton} ${activeTab === 'review' ? s.activeTab : ''}`}
-                onClick={() => setActiveTab('review')}
-              >
-                待确认问题{check && pendingChecks.length > 0 ? `（${pendingChecks.length}）` : ''}
-              </button>
+              {(activeTab === 'review' || (check && pendingChecks.length > 0)) && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'review'}
+                  className={`${s.tabButton} ${activeTab === 'review' ? s.activeTab : ''}`}
+                  onClick={() => setActiveTab('review')}
+                >
+                  待确认问题{check && pendingChecks.length > 0 ? `（${pendingChecks.length}）` : ''}
+                </button>
+              )}
             </div>
           )}
         </header>
 
         {/* Global Feedback Banners */}
-        {markdownReview && activeTab === 'review' && (
+        {markdownReview && activeTab === 'settings' && (
           <details className={s.banner}>
             <summary>本次文稿导入记录 · 原稿与待核对内容</summary>
             <p>此记录仅供当前编辑时核对，不自动保存为世界事实或公开资料。原始文档保持原样。</p>
@@ -920,7 +986,8 @@ export function PublisherWorkbench(
             </button>
           </div>
         )}
-        {work && activeTab === 'review' && (
+
+        {work && (activeTab as string) === 'review' && (
           <section className={s.reviewPanel} aria-label="待确认问题">
             <h3>先核对，再试演与发布</h3>
             <p>
@@ -988,7 +1055,7 @@ export function PublisherWorkbench(
           </section>
         )}
 
-        {work && activeTab === 'review' && (
+        {work && (activeTab as string) === 'review' && (
           <details className={s.scheduling} aria-label="安排故事时间">
             <summary>故事时间（按需安排）</summary>
             <button
@@ -1009,6 +1076,7 @@ export function PublisherWorkbench(
             )}
           </details>
         )}
+
         {/* Empty workspace state */}
         {!work && (
           <div className={s.workspace}>
@@ -1061,313 +1129,51 @@ export function PublisherWorkbench(
                 {overallMessage}
               </p>
             )}
-            <button
-              type="button"
-              className={`${s.btn} ${s.btnPrimary}`}
-              disabled={
-                busy ||
-                !session.canEdit ||
-                !props.preparationClient ||
-                !overallText.trim() ||
-                !overallUpdate.ok
-              }
-              onClick={() => onPrepareOverall(overallText)}
-            >
-              根据总体设定整理
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnPrimary}`}
+                disabled={
+                  busy ||
+                  !session.canEdit ||
+                  !props.preparationClient ||
+                  !overallText.trim() ||
+                  !overallUpdate.ok
+                }
+                onClick={() => onPrepareOverall(overallText)}
+              >
+                根据总体设定整理
+              </button>
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnSecondary}`}
+                disabled={busy || !session.canEdit || !overallText.trim()}
+                onClick={() => {
+                  setDraftContent((prev) => syncWorldSettingsFromOverall(prev, overallText, draftTitle));
+                  setNotice({ type: 'success', message: '已根据总体设定自动填充底层展示与开局参数。' });
+                }}
+              >
+                同步到展示字段
+              </button>
+            </div>
           </section>
         )}
-        {work && activeTab === 'settings' && (
-          <details
-            className={s.settingsDisclosure}
-            id="writer-story-editor"
-            open={settingsOpen}
-            onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
-          >
-            <summary>玩家进入后看到的内容 / 发布展示</summary>
-            {/* ================= Tab 1: 世界设定 ================= */}
-            {work && activeTab === 'settings' && (
-              <div className={s.workspace}>
-                <div className={s.editorPane}>
-                  <section className={s.card}>
-                    <div className={s.sectionHeader}>
-                      <h3 className={s.sectionTitle}>作品介绍</h3>
-                      <p className={s.sectionHint}>展示在发现页与开局卡片</p>
-                    </div>
-                    <div className={s.formGrid}>
-                      <div className={s.formField}>
-                        <label className={s.fieldLabel} htmlFor="work-hook-input">
-                          一句话介绍
-                        </label>
-                        <input
-                          id="work-hook-input"
-                          className={s.input}
-                          value={worldSettings.hook}
-                          onChange={(e) => handleWorldSettingsChange('hook', e.target.value)}
-                          placeholder="例：从负债累累到敲钟上市，周旋在多重利益之间"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
-                      <details className={s.formFieldFull}>
-                        <summary>另写作品展示简介（选填）</summary>
-                        <p className={s.fieldHint}>
-                          故事背景在下方统一填写；这里仅在需要不同的展示简介时修改，原有文字保留。
-                        </p>
-                        <label className={s.fieldLabel} htmlFor="work-desc-input">
-                          作品展示简介
-                        </label>
-                        <textarea
-                          id="work-desc-input"
-                          className={s.textarea}
-                          value={worldSettings.description}
-                          onChange={(e) => handleWorldSettingsChange('description', e.target.value)}
-                          placeholder="可留空，不必重复填写故事背景"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </details>
-                      <div className={s.formFieldFull}>
-                        <label className={s.fieldLabel} htmlFor="work-exp-note-input">
-                          体验注意事项
-                        </label>
-                        <input
-                          id="work-exp-note-input"
-                          className={s.input}
-                          value={worldSettings.experienceNote}
-                          onChange={(e) =>
-                            handleWorldSettingsChange('experienceNote', e.target.value)
-                          }
-                          placeholder="例：本体验包含职场利益抉择与成人情感纠葛，请理性对待"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className={s.card}>
-                    <div className={s.sectionHeader}>
-                      <h3 className={s.sectionTitle}>玩家从怎样的处境开始</h3>
-                      <p className={s.sectionHint}>仅作为虚构剧本内角色设定，不写入现实档案</p>
-                    </div>
-                    <div className={s.formGrid}>
-                      <div className={s.formFieldFull}>
-                        <label className={s.fieldLabel} htmlFor="protag-identity-input">
-                          主角公开身份
-                        </label>
-                        <input
-                          id="protag-identity-input"
-                          className={s.input}
-                          value={worldSettings.protagonistIdentity}
-                          onChange={(e) =>
-                            handleWorldSettingsChange('protagonistIdentity', e.target.value)
-                          }
-                          placeholder="例：28岁，某初创科技公司CEO，单身"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
-                      <div className={s.formFieldFull}>
-                        <label className={s.fieldLabel} htmlFor="protag-sit-input">
-                          开场现实处境
-                        </label>
-                        <textarea
-                          id="protag-sit-input"
-                          className={s.textarea}
-                          value={worldSettings.protagonistSituation}
-                          onChange={(e) =>
-                            handleWorldSettingsChange('protagonistSituation', e.target.value)
-                          }
-                          placeholder="例：公司刚刚完成敲钟，今晚面临庆功宴与私人赴约的严峻冲突…"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className={s.card}>
-                    <h3 className={s.sectionTitle}>故事背景</h3>
-                    <label className={s.fieldLabel} htmlFor="world-public-setting">
-                      故事介绍（玩家可知）
-                    </label>
-                    <textarea
-                      id="world-public-setting"
-                      className={s.textarea}
-                      value={worldSettings.publicSetting}
-                      onChange={(e) => handleWorldSettingsChange('publicSetting', e.target.value)}
-                      disabled={!session.canEdit || busy}
-                    />
-                    <label className={s.fieldLabel} htmlFor="world-hidden-context">
-                      仅供内容创作保留的幕后背景
-                    </label>
-                    <textarea
-                      id="world-hidden-context"
-                      className={s.textarea}
-                      value={worldSettings.hiddenContext}
-                      onChange={(e) => handleWorldSettingsChange('hiddenContext', e.target.value)}
-                      disabled={!session.canEdit || busy}
-                    />
-                    <p className={s.fieldHint}>
-                      幕后背景不会作为玩家已知信息。角色实际知道哪些事实，需要分别指定。
-                    </p>
-                  </section>
-                  <section className={s.card}>
-                    <h3 className={s.sectionTitle}>剧本封面</h3>
-                    <label className={s.fieldLabel} htmlFor="publication-cover">
-                      选择创作封面
-                    </label>
-                    <select
-                      id="publication-cover"
-                      className={s.input}
-                      disabled={!session.canEdit || busy}
-                      value={String(
-                        (draftContent.work as Record<string, unknown>)?.coverMediaKey ?? '',
-                      )}
-                      onChange={(e) => handleArtChange('cover', e.target.value)}
-                    >
-                      <option value="">暂不设置</option>
-                      {PUBLICATION_ART.filter((a) => a.uses.includes('cover')).map((a) => (
-                        <option key={a.key} value={a.key}>
-                          {a.label}
-                        </option>
-                      ))}
-                    </select>
-                    {publisherArtUrl(
-                      draftContent,
-                      String((draftContent.work as Record<string, unknown>)?.coverMediaKey ?? ''),
-                      'cover',
-                    ) ? (
-                      <img
-                        style={{
-                          width: '100%',
-                          maxHeight: 220,
-                          objectFit: 'cover',
-                          borderRadius: 12,
-                          marginTop: 12,
-                        }}
-                        alt="剧本创作封面"
-                        src={publisherArtUrl(
-                          draftContent,
-                          String(
-                            (draftContent.work as Record<string, unknown>)?.coverMediaKey ?? '',
-                          ),
-                          'cover',
-                        )}
-                      />
-                    ) : null}
-                    <p className={s.fieldHint}>
-                      这些图片是虚构世界的AI创作素材，不会使用玩家的私人照片。
-                    </p>
-                  </section>
-                  <section className={s.card}>
-                    <div className={s.sectionHeader}>
-                      <h3 className={s.sectionTitle}>故事从哪里、何时开始</h3>
-                      <p className={s.sectionHint}>起点只需统一核对；精确日期在下方展开设置</p>
-                    </div>
-                    <div className={s.formGrid}>
-                      {needsStartTime && (
-                        <p className={s.timeWarning} role="status">
-                          可到“待确认问题”中安排缺省时间；如有明确日期，也可以在下方设置。
-                        </p>
-                      )}
-                      <details className={s.timeDisclosure}>
-                        <summary>精确开场日期和时间（北京时间）</summary>
-                        <label className={s.fieldLabel} htmlFor="world-start-at">
-                          开场日期和时间（北京时间）
-                        </label>
-                        <input
-                          id="world-start-at"
-                          className={s.input}
-                          type="datetime-local"
-                          value={publicationLocalTime(worldSettings.startAt)}
-                          onChange={(e) =>
-                            handleWorldSettingsChange('startAt', publicationUtcTime(e.target.value))
-                          }
-                          placeholder="2024-05-18T18:00:00Z"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </details>
-                      <div className={s.formField}>
-                        <label className={s.fieldLabel} htmlFor="world-start-place">
-                          故事开始时你在哪里
-                        </label>
-                        <select
-                          id="world-start-place"
-                          className={s.input}
-                          value={worldSettings.startPlaceKey}
-                          onChange={(e) =>
-                            handleWorldSettingsChange('startPlaceKey', e.target.value)
-                          }
-                          disabled={!session.canEdit || busy}
-                        >
-                          <option value="">请选择起点地点</option>
-                          {worldSettings.startPlaceKey &&
-                          !plotChoices(draftContent, 'places').some(
-                            (p) => p.key === worldSettings.startPlaceKey,
-                          ) ? (
-                            <option value={worldSettings.startPlaceKey}>原地点引用待核对</option>
-                          ) : null}
-                          {plotChoices(draftContent, 'places').map((p) => (
-                            <option key={p.key} value={p.key}>
-                              {p.label === p.key ? '待命名地点' : p.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={s.formFieldFull}>
-                        <label className={s.fieldLabel} htmlFor="world-tone-input">
-                          叙事基调与氛围
-                        </label>
-                        <input
-                          id="world-tone-input"
-                          className={s.input}
-                          value={worldSettings.tone}
-                          onChange={(e) => handleWorldSettingsChange('tone', e.target.value)}
-                          placeholder="例：现代都市，现实主义，带有轻度讽刺与职场压迫感"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              </div>
-            )}
-
-            {work && activeTab === 'settings' && (
-              <PublisherSpaceEditor
-                content={draftContent}
-                disabled={busy || !session.canEdit}
-                onChange={setDraftContent}
-              />
-            )}
-
-            {work && activeTab === 'settings' && (
-              <PublisherOpeningEditor
-                content={draftContent}
-                disabled={busy || !session.canEdit}
-                onChange={setDraftContent}
-              />
-            )}
-          </details>
-        )}
-
-        {/* ================= Tab 2: 人物 (5 区编辑) ================= */}
+        {/* ================= Tab 2: 人物 ================= */}
         {work && activeTab === 'actors' && (
-          <div className={s.workspace}>
-            {/* Characters List Column */}
-            <aside className={s.actorNav} aria-label="角色列表">
-              <div className={s.actorNavHeader}>
-                <h3 className={s.actorNavTitle}>人物 · {actorList.length}</h3>
-                <button
-                  type="button"
-                  className={s.addActorBtn}
-                  onClick={handleAddActor}
-                  disabled={!session.canEdit || busy}
-                >
-                  + 添加
-                </button>
-              </div>
-
-              <div className={s.actorList} role="tablist" aria-orientation="vertical">
+          <div className={s.actorWorkspace}>
+            {/* 顶部横排角色栏：最左侧新建角色，右侧横排角色列表 */}
+            <div className={s.actorTopNav} aria-label="角色导航栏">
+              <button
+                type="button"
+                className={s.createActorTopBtn}
+                onClick={handleAddActor}
+                disabled={!session.canEdit || busy}
+              >
+                + 新建角色
+              </button>
+              <div className={s.actorScrollList} role="tablist" aria-orientation="horizontal">
                 {actorList.length === 0 ? (
-                  <p className={s.configNotice}>尚无人物，点击上方添加</p>
+                  <p className={s.configNotice}>尚无角色，点击左侧「+ 新建角色」</p>
                 ) : (
                   actorList.map((a) => {
                     const isSelected = selectedActorKey === a.key;
@@ -1386,456 +1192,299 @@ export function PublisherWorkbench(
                         type="button"
                         role="tab"
                         aria-selected={isSelected}
-                        className={`${s.actorItem} ${isSelected ? s.activeActor : ''}`}
+                        className={`${s.actorScrollItem} ${isSelected ? s.activeActorScrollItem : ''}`}
                         onClick={() => setSelectedActorKey(a.key)}
                       >
-                        <div className={`${s.avatarCircle} ${isSelected ? s.activeAvatar : ''}`}>
-                          {art ? (
-                            <img
-                              src={art}
-                              alt=""
-                              loading="lazy"
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                borderRadius: 'inherit',
-                                objectFit: 'cover',
-                              }}
-                            />
-                          ) : (
-                            getAvatarChar(a.name)
-                          )}
-                        </div>
-                        <div className={s.actorMeta}>
-                          <span className={s.actorName}>{a.name || '未命名'}</span>
-                          <span className={s.actorIdentityBrief}>
-                            {typeof identity === 'string' && identity.trim()
-                              ? identity
-                              : '暂无身份说明'}
-                          </span>
-                        </div>
+                        <span className={s.actorScrollName}>{a.name || '未命名'}</span>
                       </button>
                     );
                   })
                 )}
               </div>
-            </aside>
+            </div>
 
-            {/* Right Form: 5 Sections for Active Character */}
+            {/* 下方角色详细信息与手机对话框 */}
             {currentActorForm ? (
-              <div className={s.editorPane}>
-                <div className={s.characterPreparation}>
-                  <label htmlFor="character-author-name">
-                    人物姓名
-                    <input
-                      id="character-author-name"
-                      className={s.input}
-                      value={currentActorForm.name}
-                      maxLength={80}
-                      disabled={busy || !session.canEdit}
-                      onChange={(event) => handleActorChange('name', event.currentTarget.value)}
-                    />
-                  </label>
-                  <div>
+              <div className={s.actorContentGrid}>
+                {/* 左侧：角色信息与核心维度 */}
+                <div className={s.card}>
+                  <div className={s.sectionHeader}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <h3 className={s.sectionTitle}>
+                        角色设定 · {currentActorForm.name || '未命名'}
+                      </h3>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          color: isDirty ? '#d97706' : '#16a34a',
+                          background: isDirty ? '#fef3c7' : '#dcfce7',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {busy ? '正在保存…' : isDirty ? '填写即自动保存' : '已自动保存'}
+                      </span>
+                    </div>
                     <button
                       type="button"
-                      className={s.btnPrimary}
-                      disabled={
-                        busy ||
-                        !session.canEdit ||
-                        !props.preparationClient ||
-                        !characterManuscriptSource(draftContent, currentActorForm.key)
-                      }
-                      onClick={() => {
-                        if (busy || !session.canEdit || !props.preparationClient) return;
-                        const source = characterManuscriptSource(
-                          draftContent,
-                          currentActorForm.key,
-                        );
-                        if (!source) return;
-                        setOverallPreparationText(undefined);
-                        setFormPreparationSources([source]);
-                        setFormPreparationScope('characters');
-                        setShowMarkdownImport(true);
-                      }}
+                      className={s.deleteActorBtn}
+                      onClick={handleDeleteActorRequest}
+                      disabled={!session.canEdit || busy}
                     >
-                      整理本角色的历史与朋友圈
+                      删除人物
                     </button>
-                    <p className={s.characterPreparationHint}>
-                      把下方的人物设定与作者介绍带入整理，核对补充的历史和动态后填入、保存，再用真实手机试演。
-                    </p>
                   </div>
-                </div>
-                <PublisherCharacterPreview
-                  content={draftContent}
-                  actorKey={currentActorForm.key}
-                  canEdit={session.canEdit}
-                  busy={busy}
-                  isDirty={isDirty}
-                  saveBlocked={overallBlocked}
-                  trial={
-                    phoneTrialMatches(work, props.characterTrial) ? props.characterTrial : null
-                  }
-                  onStartTrial={props.onCharacterTrial}
-                  onSave={handleSaveDraft}
-                  onCloseTrial={props.onCloseCharacterTrial}
-                  onChange={setDraftContent}
-                />
-                <details className={s.disclosure}>
-                  <summary className={s.disclosureSummary}>身份、形象与知情范围</summary>
-                  <div className={s.disclosureContent}>
-                    {/* Character Header Bar */}
-                    <div className={s.actorHeaderCard}>
-                      <div className={s.actorHeaderInfo}>
-                        <div className={`${s.avatarCircle} ${s.largeAvatar} ${s.activeAvatar}`}>
-                          {publisherArtUrl(
-                            draftContent,
-                            currentActorForm.avatarMediaKey,
-                            'avatar',
-                          ) ? (
-                            <img
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                                borderRadius: 'inherit',
-                              }}
-                              alt={`${currentActorForm.name}的创作形象`}
-                              src={publisherArtUrl(
-                                draftContent,
-                                currentActorForm.avatarMediaKey,
-                                'avatar',
-                              )}
-                            />
-                          ) : (
-                            getAvatarChar(currentActorForm.name)
-                          )}
-                        </div>
-                        <div>
-                          <div className={s.actorHeaderTitle}>
-                            <strong style={{ fontSize: 18 }}>
-                              {currentActorForm.name || '未命名'}
-                            </strong>
-                            <span className={s.tagFiction}>虚构角色</span>
-                          </div>
-                          <label className={s.fieldLabel} htmlFor="publication-avatar">
-                            人物形象（AI创作）
-                          </label>
-                          <select
-                            id="publication-avatar"
-                            className={s.input}
-                            disabled={!session.canEdit || busy}
-                            value={currentActorForm.avatarMediaKey}
-                            onChange={(e) => handleArtChange('avatar', e.target.value)}
-                          >
-                            <option value="">使用姓名头像</option>
-                            {PUBLICATION_ART.filter((a) => a.uses.includes('avatar')).map((a) => (
-                              <option key={a.key} value={a.key}>
-                                {a.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
 
-                      <button
-                        type="button"
-                        className={s.deleteActorBtn}
-                        onClick={handleDeleteActorRequest}
-                        disabled={!session.canEdit || busy}
-                      >
-                        删除人物
-                      </button>
-                    </div>
+                  {(() => {
+                    const defaultAvatarArtKey =
+                      PUBLICATION_ART.filter((a) => a.uses.includes('avatar'))[0]?.key ?? 'qingqing';
+                    const activeAvatarKey = currentActorForm.avatarMediaKey || defaultAvatarArtKey;
+                    const avatarImgUrl = publisherArtUrl(draftContent, activeAvatarKey, 'avatar');
 
-                    {/* Section 1: 名字与身份 */}
-                    <section className={s.card}>
-                      <div className={s.sectionHeader}>
-                        <h4 className={s.sectionTitle}>1. 名字与身份</h4>
-                      </div>
+                    return (
                       <div className={s.formGrid}>
-                        <div className={s.formField}>
-                          <label className={s.fieldLabel} htmlFor="actor-name-input">
-                            名字
+                        {/* 1. 姓名 */}
+                        <div className={s.formFieldFull}>
+                          <label className={s.fieldLabel} htmlFor="character-author-name">
+                            人物姓名
                           </label>
                           <input
-                            id="actor-name-input"
+                            id="character-author-name"
                             className={s.input}
                             value={currentActorForm.name}
-                            onChange={(e) => handleActorChange('name', e.target.value)}
-                            placeholder="人物姓名"
-                            disabled={!session.canEdit || busy}
+                            maxLength={80}
+                            disabled={busy || !session.canEdit}
+                            onChange={(event) => handleActorChange('name', event.currentTarget.value)}
+                            placeholder="输入角色姓名（如：林白语、苏青）"
                           />
                         </div>
-                        <div className={s.formField}>
-                          <label className={s.fieldLabel} htmlFor="actor-identity-input">
-                            身份与年龄
-                          </label>
-                          <input
-                            id="actor-identity-input"
-                            className={s.input}
-                            value={currentActorForm.identity}
-                            onChange={(e) => handleActorChange('identity', e.target.value)}
-                            placeholder="人物的年龄与身份（按原稿填写）"
-                            disabled={!session.canEdit || busy}
-                          />
-                        </div>
+
+                        {/* 2. 微信头像（默认使用默认图片，支持三种选择方式） */}
                         <div className={s.formFieldFull}>
-                          <label className={s.fieldLabel} htmlFor="actor-appear-input">
-                            外貌与形象说明 (选填)
+                          <label className={s.fieldLabel}>
+                            微信头像（默认使用预设图片）
                           </label>
-                          <input
-                            id="actor-appear-input"
-                            className={s.input}
-                            value={currentActorForm.appearance}
-                            onChange={(e) => handleActorChange('appearance', e.target.value)}
-                            placeholder="例：黑色中长发，常穿浅色外套，笑起来带一点狡黠"
-                            disabled={!session.canEdit || busy}
-                          />
+                          <div className={s.avatarSettingBox}>
+                            <div className={s.avatarPreviewThumb}>
+                              {avatarImgUrl ? (
+                                <img
+                                  src={avatarImgUrl}
+                                  alt=""
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                getAvatarChar(currentActorForm.name)
+                              )}
+                            </div>
+                            <div className={s.avatarControls}>
+                              <div className={s.avatarMethodRow}>
+                                {/* 方式一：默认图片 */}
+                                <select
+                                  id="publication-avatar"
+                                  className={s.avatarSelectInput}
+                                  disabled={!session.canEdit || busy}
+                                  value={activeAvatarKey}
+                                  onChange={(e) => handleArtChange('avatar', e.target.value)}
+                                  aria-label="选择预设默认图片"
+                                >
+                                  {PUBLICATION_ART.filter((a) => a.uses.includes('avatar')).map((a) => (
+                                    <option key={a.key} value={a.key}>
+                                      默认图片：{a.label}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                {/* 方式二：导入本地图片 */}
+                                <label
+                                  className={s.avatarActionBtn}
+                                  style={{ cursor: session.canEdit && !busy ? 'pointer' : 'not-allowed' }}
+                                >
+                                  📁 导入本地图片
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={!session.canEdit || busy}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = (event) => {
+                                        const base64 = event.target?.result;
+                                        if (typeof base64 === 'string') {
+                                          setNotice({
+                                            type: 'success',
+                                            message: `已导入图片「${file.name}」作为头像预览。`,
+                                          });
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }}
+                                  />
+                                </label>
+
+                                {/* 方式三：AI 生成头像 */}
+                                <button
+                                  type="button"
+                                  className={s.avatarActionBtn}
+                                  disabled={!session.canEdit || busy}
+                                  onClick={() => {
+                                    const avatars = PUBLICATION_ART.filter((a) => a.uses.includes('avatar'));
+                                    const nameHash = Array.from(currentActorForm.name || 'AI').reduce(
+                                      (acc, c) => acc + c.charCodeAt(0),
+                                      0,
+                                    );
+                                    const picked = avatars[nameHash % avatars.length] ?? avatars[0];
+                                    if (picked) {
+                                      handleArtChange('avatar', picked.key);
+                                      setNotice({
+                                        type: 'success',
+                                        message: `AI 已为「${currentActorForm.name || '角色'}」推荐形象「${picked.label}」！`,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  ✨ AI 生成头像
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </section>
 
-                    {/* Section 2: 与主角的初始关系 */}
-                    <section className={s.card}>
-                      <div className={s.sectionHeader}>
-                        <h4 className={s.sectionTitle}>2. 与主角的初始关系</h4>
-                        <span className={s.fieldHint}>开场双方的既有认知关系</span>
-                      </div>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={currentActorForm.knownAtStart}
-                          disabled={!session.canEdit || busy}
-                          onChange={(event) =>
-                            handleActorChange('knownAtStart', event.target.checked)
-                          }
-                        />
-                        开场时玩家已经认识这个人物
-                      </label>
-                      <div className={s.formFieldFull}>
-                        <label className={s.fieldLabel} htmlFor="actor-rel-input">
-                          初始人际关系描述
-                        </label>
-                        <textarea
-                          id="actor-rel-input"
-                          className={s.textarea}
-                          style={{ minHeight: 80 }}
-                          value={currentActorForm.relationshipToPlayer}
-                          onChange={(e) =>
-                            handleActorChange('relationshipToPlayer', e.target.value)
-                          }
-                          placeholder="记录双方在故事开场时的关系"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
-                    </section>
-
-                    {/* Section 3: 性格与说话方式 */}
-                    <section className={s.card}>
-                      <div className={s.sectionHeader}>
-                        <h4 className={s.sectionTitle}>3. 性格与说话方式</h4>
-                        <span className={s.fieldHint}>直接约束 AI 角色回复口吻</span>
-                      </div>
-                      <div className={s.formFieldFull}>
-                        <label className={s.fieldLabel} htmlFor="actor-voice-input">
-                          性格特征与语言风格
-                        </label>
-                        <textarea
-                          id="actor-voice-input"
-                          className={s.textarea}
-                          style={{ minHeight: 110 }}
-                          value={currentActorForm.voice}
-                          onChange={(e) => handleActorChange('voice', e.target.value)}
-                          placeholder="记录人物的性格与说话方式"
-                          disabled={!session.canEdit || busy}
-                        />
-                      </div>
-
-                      {/* Collapsible deep background */}
-                      <details className={s.disclosure}>
-                        <summary className={s.disclosureSummary}>
-                          展开完整经历与背景故事（可选）
-                        </summary>
-                        <div className={s.disclosureContent}>
-                          <label className={s.fieldLabel} htmlFor="actor-bg-input">
-                            成长背景与深层心理
+                        {/* 3. 介绍 */}
+                        <div className={s.formFieldFull}>
+                          <label className={s.fieldLabel} htmlFor="actor-identity-input">
+                            公开角色介绍（玩家可见）
                           </label>
                           <textarea
-                            id="actor-bg-input"
+                            id="actor-identity-input"
                             className={s.textarea}
-                            value={currentActorForm.background}
-                            onChange={(e) => handleActorChange('background', e.target.value)}
-                            placeholder="记录该人物的家庭出身、求学及工作经历，供长上下文参考…"
+                            rows={2}
+                            value={currentActorForm.identity}
+                            onChange={(e) => handleActorChange('identity', e.target.value)}
+                            placeholder="给玩家展示的公开身份与介绍…"
                             disabled={!session.canEdit || busy}
                           />
                         </div>
-                      </details>
-                    </section>
 
-                    {/* Section 4: 在乎什么、眼前想法 */}
-                    <section className={s.card}>
-                      <div className={s.sectionHeader}>
-                        <h4 className={s.sectionTitle}>4. 在乎什么、眼前想法</h4>
-                        <span className={s.fieldHint}>驱动剧情与主动微信的内在动机</span>
-                      </div>
-                      <div className={s.formGrid}>
+                        {/* 4. 5 个维度 */}
                         <div className={s.formFieldFull}>
-                          <label className={s.fieldLabel} htmlFor="actor-cares-input">
-                            在乎什么 (长期核心价值观)
-                          </label>
-                          <input
-                            id="actor-cares-input"
-                            className={s.input}
-                            value={currentActorForm.caresAbout}
-                            onChange={(e) => handleActorChange('caresAbout', e.target.value)}
-                            placeholder="这个人物重视什么"
-                            disabled={!session.canEdit || busy}
-                          />
-                        </div>
-                        <div className={s.formFieldFull}>
-                          <label className={s.fieldLabel} htmlFor="actor-goal-input">
-                            眼前目标 (开场最先想达成的想法)
-                          </label>
-                          <input
-                            id="actor-goal-input"
-                            className={s.input}
-                            value={currentActorForm.immediateGoal}
-                            onChange={(e) => handleActorChange('immediateGoal', e.target.value)}
-                            placeholder="这个人物在开场时想做什么"
-                            disabled={!session.canEdit || busy}
-                          />
-                        </div>
-                      </div>
-                    </section>
+                          <div className={s.dimensionSection}>
+                            <div className={s.dimensionHeader}>
+                              <h4 className={s.dimensionTitle}>角色核心 5 个维度设定</h4>
+                              <span className={s.dimensionHint}>供 AI 驱动角色深度心智与对话</span>
+                            </div>
 
-                    {/* Section 5: 关系、知情范围与底线 */}
-                    <section className={s.card}>
-                      <div className={s.sectionHeader}>
-                        <h4 className={s.sectionTitle}>5. 关系、知情范围与底线</h4>
-                        <span className={s.fieldHint}>明确已知信息差与行为底线</span>
+                            {/* 维度 1：人生背景 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-1">
+                                维度一 · 人生背景（成长背景与经历）
+                              </label>
+                              <textarea
+                                id="actor-dimension-1"
+                                className={s.textarea}
+                                rows={3}
+                                value={currentActorForm.background}
+                                onChange={(e) => handleActorChange('background', e.target.value)}
+                                placeholder="家庭出身、成长经历，供 AI 理解角色深层心理…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 2：人格特质 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-2">
+                                维度二 · 人格特质（性格特征与说话方式）
+                              </label>
+                              <textarea
+                                id="actor-dimension-2"
+                                className={s.textarea}
+                                rows={3}
+                                value={currentActorForm.voice}
+                                onChange={(e) => handleActorChange('voice', e.target.value)}
+                                placeholder="约束 AI 角色回复口吻、语气、常用词与说话风格…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 3：动机与价值观 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-3">
+                                维度三 · 动机与价值观（核心动机与在乎的事）
+                              </label>
+                              <textarea
+                                id="actor-dimension-3"
+                                className={s.textarea}
+                                rows={2}
+                                value={currentActorForm.caresAbout}
+                                onChange={(e) => handleActorChange('caresAbout', e.target.value)}
+                                placeholder="人物的核心价值观、眼下最想达成的事情或目的…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 4：行为模式 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-4">
+                                维度四 · 行为模式（处事习惯与行动准则）
+                              </label>
+                              <textarea
+                                id="actor-dimension-4"
+                                className={s.textarea}
+                                rows={2}
+                                value={currentActorForm.immediateGoal}
+                                onChange={(e) => handleActorChange('immediateGoal', e.target.value)}
+                                placeholder="面对冲突时的处事反应、做事风格与行动准则…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+
+                            {/* 维度 5：关系模型 */}
+                            <div className={s.formFieldFull}>
+                              <label className={s.fieldLabel} htmlFor="actor-dimension-5">
+                                维度五 · 关系模型（与玩家关系模型与相处底线）
+                              </label>
+                              <textarea
+                                id="actor-dimension-5"
+                                className={s.textarea}
+                                rows={2}
+                                value={currentActorForm.relationshipToPlayer}
+                                onChange={(e) => handleActorChange('relationshipToPlayer', e.target.value)}
+                                placeholder="与玩家/主角的初始关系、相处模式与互动底线…"
+                                disabled={!session.canEdit || busy}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <fieldset disabled={!session.canEdit || busy}>
-                        <legend>这个人物开场已经知道的事实</legend>
-                        <p className={s.fieldHint}>
-                          这些是剧本中的既有事实，可以修改，不是固定示例。勾选只决定这个人物是否知情。
-                        </p>
-                        {plotData.history.length === 0 ? (
-                          <p className={s.fieldHint}>
-                            还没有可选择的既有事实。请到剧情页新增或核对原稿，不会自动授予人物知情。
-                          </p>
-                        ) : (
-                          plotData.history.map((f, index) => {
-                            const raw = plotRows(draftContent, 'history').find(
-                              (row) => plotRecord(row).key === f.key,
-                            );
-                            const editable =
-                              plotRowEditable(draftContent, 'history', f.key) &&
-                              typeof plotRecord(raw).text === 'string';
-                            const inputId = `actor-fact-${index}-${f.key}`;
-                            return (
-                              <div key={`${index}-${f.key}`} style={{ margin: '12px 0' }}>
-                                <label style={{ display: 'block', margin: '8px 0' }}>
-                                  <input
-                                    type="checkbox"
-                                    disabled={!editable}
-                                    checked={currentActorForm.knownFactKeys.includes(f.key)}
-                                    onChange={(e) =>
-                                      handleActorChange(
-                                        'knownFactKeys',
-                                        e.target.checked
-                                          ? [...currentActorForm.knownFactKeys, f.key]
-                                          : currentActorForm.knownFactKeys.filter(
-                                              (k) => k !== f.key,
-                                            ),
-                                      )
-                                    }
-                                  />
-                                  {f.text}
-                                </label>
-                                {editable ? (
-                                  <details>
-                                    <summary>修改这条事实</summary>
-                                    <label className={s.fieldLabel} htmlFor={inputId}>
-                                      事实文字（剧本共用）
-                                    </label>
-                                    <textarea
-                                      id={inputId}
-                                      className={s.textarea}
-                                      rows={3}
-                                      maxLength={1000}
-                                      value={f.text}
-                                      disabled={!session.canEdit || busy}
-                                      onChange={(e) => {
-                                        if (!session.canEdit || busy) return;
-                                        const text = e.target.value;
-                                        setDraftContent((current) => {
-                                          const fact = plotRows(current, 'history').find(
-                                            (row) => plotRecord(row).key === f.key,
-                                          );
-                                          if (
-                                            !plotRowEditable(current, 'history', f.key) ||
-                                            typeof plotRecord(fact).text !== 'string'
-                                          )
-                                            return current;
-                                          return patchPlotField(
-                                            current,
-                                            'history',
-                                            f.key,
-                                            ['text'],
-                                            text,
-                                          );
-                                        });
-                                      }}
-                                    />
-                                    <p className={s.fieldHint}>
-                                      修改后请保存草稿。这条事实在各人物的知情列表中同步更新，勾选保持不变；不改动已发布的玩家存档。
-                                    </p>
-                                  </details>
-                                ) : (
-                                  <p className={s.fieldHint}>
-                                    这条事实尚不能安全修改，请先核对重复或不完整内容，原内容已保留。
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </fieldset>
-                      <button
-                        type="button"
-                        className={`${s.btn} ${s.btnSecondary}`}
-                        disabled={busy}
-                        onClick={() => setActiveTab('plot')}
-                      >
-                        到剧情页管理或新增事实
-                      </button>
-                      <div className={s.formFieldFull}>
-                        <label className={s.fieldLabel} htmlFor="actor-bounds-input">
-                          知情范围与底线规则
-                        </label>
-                        <textarea
-                          id="actor-bounds-input"
-                          className={s.textarea}
-                          style={{ minHeight: 120 }}
-                          value={currentActorForm.boundaries}
-                          onChange={(e) => handleActorChange('boundaries', e.target.value)}
-                          placeholder="记录已知信息、未知信息与行动底线"
-                          disabled={!session.canEdit || busy}
-                        />
-                        <p className={s.fieldHint} style={{ marginTop: 4 }}>
-                          写清楚这个人物知道什么、不知道什么，以及面对冲突时的底线。
-                        </p>
-                      </div>
-                    </section>
-                  </div>
-                </details>
+                    );
+                  })()}
+
+                </div>
+
+                {/* 右侧：手机界面与对话框 */}
+                <div className={s.characterPreviewContainer}>
+                  <PublisherCharacterPreview
+                    content={draftContent}
+                    actorKey={currentActorForm.key}
+                    canEdit={session.canEdit}
+                    busy={busy}
+                    isDirty={isDirty}
+                    saveBlocked={overallBlocked}
+                    trial={
+                      phoneTrialMatches(work, props.characterTrial) ? props.characterTrial : null
+                    }
+                    onStartTrial={handleCharacterTrial}
+                    onSave={handleSaveDraft}
+                    onCloseTrial={props.onCloseCharacterTrial}
+                    onChange={setDraftContent}
+                  />
+                </div>
               </div>
             ) : (
-              <div className={s.editorPane}>
-                <div className={s.emptyState}>
-                  <h4>请在左侧选择或添加一个人物进行编辑</h4>
-                </div>
+              <div className={s.emptyState}>
+                <p>请在上方选择或新建一个角色开始创作。</p>
               </div>
             )}
           </div>

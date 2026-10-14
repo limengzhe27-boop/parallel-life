@@ -162,19 +162,19 @@ test('simple event view exposes one speaker and preserves source on render; extr
     '主要人物（由谁开启）',
     '无前提',
     '设置前提',
-    '更多安排',
   ])
     assert.ok(visible.includes(label), label);
   for (const label of [
+    '更多安排',
     '预期影响',
     '希望玩家感受到什么',
     '改为角色来信',
     '触发时玩家必须所在',
     '其他参与人物',
+    '玩家在某地点',
     '指定日期后才出现',
   ])
     assert.ok(!visible.includes(label), label);
-  assert.equal(details(tree(t.props), '更多安排').props.open, false);
   assert.equal(details(tree(t.props), '设置前提').props.open, false);
   assert.deepEqual(c, before);
   const speaker = input(tree(t.props), 'plot_candidates_node_a_0_intent_actorKey');
@@ -237,7 +237,6 @@ test('folded controls leave all authored prerequisites visible, including named 
     '上周讨论过',
     '已经可以见面',
     '任一满足',
-    '玩家必须在',
     '店铺',
     '准备',
     '限定时段',
@@ -247,26 +246,22 @@ test('folded controls leave all authored prerequisites visible, including named 
   ])
     assert.ok(visible.includes(label), label);
   assert.equal(details(tree(t.props), '设置前提').props.open, false);
-  assert.equal(details(tree(t.props), '更多安排').props.open, false);
+  assert.ok(!visible.includes('更多安排'));
   assert.deepEqual(c, before);
 });
-test('SSR offers three editable sections and honest Chinese setup guidance without exposing private raw data', () => {
+test('SSR offers core events section and honest Chinese setup guidance without exposing private raw data', () => {
   const t = setup();
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
   for (const value of [
-    '已发生事实',
-    '剧情阶段',
-    '事件概述列表',
-    '新增事实',
-    '新增阶段',
-    '新增事件',
+    '事件列表（核心事件库）',
+    '+ 增加事件',
     '先填写并保存，能否运行以检查结果为准',
-    '北京时间',
-    '仅备注',
   ])
     assert.ok(html.includes(value), value);
   assert.ok(!html.includes('PRIVATE_NEVER_RENDER'));
   assert.ok(!html.includes('UNKNOWN_NEVER_RENDER'));
+  assert.ok(!html.includes('剧情阶段'));
+  assert.ok(!html.includes('已经发生的事'));
   assert.equal(t.calls, 0);
 });
 test('incomplete event feedback is a collapsed count while each problem remains available without edits', () => {
@@ -300,76 +295,26 @@ test('incomplete event feedback is a collapsed count while each problem remains 
   assert.deepEqual(c, before);
   assert.equal(t.calls, 0);
 });
-test('add buttons call the controlled change callback with incomplete drafts and no auto save', () => {
-  for (const [label, section] of [
-    ['新增事实', 'history'],
-    ['新增阶段', 'stages'],
-    ['新增事件', 'candidates'],
-  ] as const) {
-    const t = setup();
-    click(button(tree(t.props), label));
-    assert.equal(t.calls, 1);
-    assert.equal(plotRows(t.next!, section).length, plotRows(t.props.content, section).length + 1);
-    assert.equal(plotRows(t.props.content, section).length, 1);
-  }
-});
-test('native fact text input patches only its own field without truncating other draft regions', () => {
+test('add button calls the controlled change callback with candidates and no auto save', () => {
   const t = setup();
-  change(input(tree(t.props), 'plot_history_fact_a_0_text'), '新的原话');
-  assert.equal(plotRecord(plotRows(t.next!, 'history')[0]).text, '新的原话');
-  assert.deepEqual(t.next!.extensions, t.props.content.extensions);
-  assert.deepEqual(t.next!.candidates, t.props.content.candidates);
+  click(button(tree(t.props), '+ 增加事件'));
+  assert.equal(t.calls, 1);
+  assert.equal(plotRows(t.next!, 'candidates').length, plotRows(t.props.content, 'candidates').length + 1);
+  assert.equal(plotRows(t.props.content, 'candidates').length, 1);
 });
 test('candidate title edits do not rename the stable node identifier', () => {
   const t = setup();
   change(input(tree(t.props), 'plot_candidates_node_a_0_title'), '和其他节点同名');
   assert.equal(plotRecord(plotRows(t.next!, 'candidates')[0]).key, 'node_a');
 });
-test('visibility type selection produces strict world/player shape without stale actorKeys', () => {
+test('events editor focuses on core director events with clean layout and removes legacy intent switching buttons', () => {
   const t = setup();
-  change(input(tree(t.props), 'plot_history_fact_a_0_visibility_kind'), 'world');
-  assert.deepEqual(plotRecord(plotRows(t.next!, 'history')[0]).visibility, { kind: 'world' });
-  assert.deepEqual(plotRecord(plotRows(t.props.content, 'history')[0]).visibility, {
-    kind: 'actors',
-    actorKeys: ['alice'],
-  });
+  const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
+  assert.ok(!html.includes('改为角色来信'));
+  assert.ok(!html.includes('改为发出邀约'));
+  assert.ok(!html.includes('更多安排'));
 });
-test('unknown raw visibility fields are retained and cannot silently disappear on type switch', () => {
-  const c = content();
-  plotRecord(plotRows(c, 'history')[0]).visibility = {
-    kind: 'actors',
-    actorKeys: ['alice'],
-    future: '原稿',
-  };
-  const t = setup(false, c);
-  const el = input(tree(t.props), 'plot_history_fact_a_0_visibility_kind');
-  assert.equal(el.props.disabled, true);
-  change(el, 'world');
-  assert.equal(t.calls, 0);
-});
-test('explicit intent buttons set exact message/invitation/editorial structure and name unsupported multi-actor invitation', () => {
-  let t = setup();
-  click(button(tree(t.props), '改为角色来信'));
-  assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).intent, {
-    kind: 'offer_message',
-    actorKey: '',
-    text: '',
-  });
-  t = setup();
-  click(button(tree(t.props), '改为发出邀约'));
-  assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).intent, {
-    kind: 'offer_invitation',
-    actorKeys: [],
-    placeKey: '',
-    title: '',
-    earliestAt: '',
-  });
-  const html = renderToStaticMarkup(
-    createElement(PublisherPlotEditor, { ...t.props, content: t.next! }),
-  );
-  assert.ok(html.includes('多人物邀约尚未开放'));
-});
-test('unknown intent extensions disable destructive switching rather than silently stripping original data', () => {
+test('unknown intent extensions preserve original raw data without crashing editor', () => {
   const c = content();
   plotRecord(plotRows(c, 'candidates')[0]).intent = {
     kind: 'offer_message',
@@ -379,7 +324,7 @@ test('unknown intent extensions disable destructive switching rather than silent
   };
   const t = setup(false, c);
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
-  assert.ok(html.includes('原剧情方式有暂不支持的内容'));
+  assert.ok(html.includes('事件概述'));
   assert.equal(
     tree(t.props).some((n) => n.type === 'button' && text(n.props.children) === '改为发出邀约'),
     false,
@@ -390,7 +335,6 @@ test('native prerequisite controls add each real kind with stable-key selectors'
     ['某事实已成立', 'history_fact'],
     ['之前的来信已发出或邀约已接受', 'after_committed_node'],
     ['之前的剧情出现指定结果', 'after_resolved_node'],
-    ['玩家在某地点', 'at_place'],
     ['世界时间已到达', 'not_before'],
   ]) {
     const t = setup();
@@ -405,39 +349,36 @@ test('native prerequisite controls add each real kind with stable-key selectors'
       kind,
     );
   }
-});
-test('deleting referenced fact or initial stage is disabled even when handler is directly called', () => {
-  for (const label of ['删除事实', '删除阶段']) {
-    const t = setup();
-    if (label === '删除事实') t.props.content.protagonist = { knownFactKeys: ['fact_a'] };
-    const el = button(tree(t.props), label);
-    assert.equal(el.props.disabled, true);
-    click(el);
-    assert.equal(t.calls, 0);
-  }
+  const t = setup();
+  assert.ok(
+    !tree(t.props).some(
+      (n) => n.type === 'button' && text(n.props.children).includes('玩家在某地点'),
+    ),
+  );
 });
 test('all controlled write callbacks remain blocked when disabled, including manual native event invocation', () => {
   const t = setup(true);
-  click(button(tree(t.props), '新增事件'));
-  click(button(tree(t.props), '改为角色来信'));
+  click(button(tree(t.props), '+ 增加事件'));
   change(input(tree(t.props), 'plot_candidates_node_a_0_title'), '不能写');
-  change(input(tree(t.props), 'plot_initial_stage'), '');
   assert.equal(t.calls, 0);
 });
 test('missing original reference remains visible as an explicit option instead of blank or guessed replacement', () => {
   const c = content();
-  plotRecord(plotRows(c, 'candidates')[0]).placeKey = 'missing_place';
+  plotRecord(plotRows(c, 'candidates')[0]).intent = {
+    kind: 'director_event',
+    actorKey: 'missing_actor',
+  };
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, setup(false, c).props));
   assert.ok(html.includes('未找到对应内容，请核对'));
 });
 test('long business text and hostile HTML remain escaped readable text with no generated story inserts', () => {
   const c = content();
-  plotRecord(plotRows(c, 'history')[0]).text =
-    '<script>alert(1)</script>' + '很长的事实'.repeat(150);
+  plotRecord(plotRows(c, 'candidates')[0]).editorialIntent =
+    '<script>alert(1)</script>' + '很长的事件说明'.repeat(150);
   const html = renderToStaticMarkup(createElement(PublisherPlotEditor, setup(false, c).props));
   assert.ok(html.includes('&lt;script&gt;'));
   assert.ok(!html.includes('<script>'));
-  assert.ok(html.includes('很长的事实'.repeat(150)));
+  assert.ok(html.includes('很长的事件说明'.repeat(150)));
 });
 test('malformed collection renders a preservation warning and blocks adding instead of destroying raw source', () => {
   const c = content();
@@ -446,7 +387,7 @@ test('malformed collection renders a preservation warning and blocks adding inst
   assert.ok(
     renderToStaticMarkup(createElement(PublisherPlotEditor, t.props)).includes('原列表格式待核对'),
   );
-  const el = button(tree(t.props), '新增事件');
+  const el = button(tree(t.props), '+ 增加事件');
   assert.equal(el.props.disabled, true);
   click(el);
   assert.equal(t.calls, 0);
@@ -480,64 +421,20 @@ function details(nodes: Native[], prefix: string) {
   assert.ok(node, prefix);
   return node;
 }
-test('writer first view hides internal keys and optional date controls without mutating the draft', () => {
+test('writer first view displays core events library and add event button, and removes history and stages', () => {
   const t = setup();
   const before = structuredClone(t.props.content);
   const value = visibleText(renderPlot(t.props));
-  for (const label of ['已经发生的事', '剧情阶段', '事件概述列表', '不必逐条填写日期', '更多安排'])
-    assert.ok(value.includes(label), label);
+  assert.ok(value.includes('事件列表（核心事件库）'), '核心事件库标题');
+  assert.ok(value.includes('+ 增加事件'), '增加事件按钮');
+  assert.ok(value.includes('事件概述：主角将面临什么'), '事件概述');
+  // Removed sections are not rendered
+  assert.ok(!value.includes('已经发生的事'), '已经发生的事已被删除');
+  assert.ok(!value.includes('剧情阶段'), '剧情阶段已被删除');
   for (const key of ['fact_a', 'stage_a', 'node_a', 'alice', 'bob', 'history.0'])
     assert.ok(!value.includes(key), key);
-  const nodes = tree(t.props);
-  const windows = nodes.filter(
-    (n) =>
-      n.type === 'details' && text((n.props.children as ReactNode[])[0]).startsWith('限定日期'),
-  );
-  assert.equal(windows.length, 2);
-  assert.ok(windows.every((n) => !n.props.open));
   assert.deepEqual(t.props.content, before);
   assert.equal(t.calls, 0);
-});
-test('missing required history and invitation dates open even non-first rows and do not invent times', () => {
-  const c = content();
-  const histories = plotRows(c, 'history');
-  histories.push({ ...plotRecord(histories[0]), key: 'fact_b', occurredAt: '' });
-  const node = plotRecord(plotRows(c, 'candidates')[0]);
-  node.intent = {
-    kind: 'offer_invitation',
-    actorKeys: ['alice'],
-    placeKey: 'home',
-    title: '谈谈',
-    earliestAt: '',
-  };
-  const t = setup(false, c);
-  const nodes = tree(t.props);
-  const blankHistory = nodes.find(
-    (n) =>
-      n.type === 'details' &&
-      n.props.className === 'item' &&
-      walk(n.props.children as ReactNode).some(
-        (e) => e.props.id === 'plot_history_fact_b_1_occurredAt',
-      ),
-  )!;
-  assert.equal(blankHistory.props.open, true);
-  assert.ok(visibleText(renderPlot(t.props)).includes('试演'));
-  assert.equal(details(nodes, '邀约最早时间').props.open, true);
-  assert.equal(input(nodes, 'plot_history_fact_b_1_occurredAt').props.value, '');
-  assert.equal(t.calls, 0);
-});
-test('existing date windows remain discoverable, collapsed and unchanged by unrelated edits', () => {
-  const c = content();
-  const stage = plotRecord(plotRows(c, 'stages')[0]);
-  stage.window = { notBefore: '2026-10-12T08:00:00Z', expiresAt: '2026-10-15T08:00:00Z' };
-  const t = setup(false, c);
-  const nodes = tree(t.props);
-  assert.ok(text(renderPlot(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'));
-  assert.ok(!visibleText(renderPlot(t.props)).includes('2026-10-12 16:00 至 2026-10-15 16:00'));
-  assert.equal(details(nodes, '限定日期（选填） · 2026').props.open, false);
-  change(input(nodes, 'plot_candidates_node_a_0_title'), '新的故事标题');
-  assert.deepEqual(plotRecord(plotRows(t.next!, 'stages')[0]).window, stage.window);
-  assert.deepEqual(t.next!.extensions, c.extensions);
 });
 test('date prerequisites use actual local datetime controls, with incomplete dates expanded', () => {
   const c = content();
@@ -553,14 +450,12 @@ test('date prerequisites use actual local datetime controls, with incomplete dat
   }[];
   assert.equal(prerequisites[0]!.at, '2026-10-13T10:00:00.000Z');
 });
-test('time notes stay honest and runtime conditions retain their original keys and outcomes', () => {
+test('time notes stay preserved without data loss when candidate title is edited', () => {
   const c = content();
   const node = plotRecord(plotRows(c, 'candidates')[0]);
   node.prerequisites = [{ kind: 'after_resolved_node', nodeKey: 'prior', outcomes: ['declined'] }];
   plotRecord(node.timeline).timeNote = '拒绝后隔一天再问';
   const t = setup(false, c);
-  const html = renderToStaticMarkup(createElement(PublisherPlotEditor, t.props));
-  assert.ok(html.includes('这里只是作者说明，不替代实际时间条件'));
   change(input(tree(t.props), 'plot_candidates_node_a_0_title'), '新标题');
   assert.deepEqual(
     plotRecord(plotRows(t.next!, 'candidates')[0]).prerequisites,
@@ -569,7 +464,7 @@ test('time notes stay honest and runtime conditions retain their original keys a
   assert.deepEqual(plotRecord(plotRows(t.next!, 'candidates')[0]).timeline, node.timeline);
 });
 
-test('empty optional objects stay unset and story alternatives begin as a read-only summary', () => {
+test('candidate card layout omits 更多安排 and preserves optional timeline objects without crashing', () => {
   const c = content();
   const row = plotRecord(plotRows(c, 'candidates')[0]);
   row.timeline = { window: {}, alternatives: {}, timeNote: '' };
@@ -577,18 +472,11 @@ test('empty optional objects stay unset and story alternatives begin as a read-o
     t = setup(false, c);
   const nodes = tree(t.props);
   const summaries = nodes.filter((n) => n.type === 'summary').map((n) => text(n.props.children));
-  assert.ok(summaries.includes('限定日期（选填） · 未设置'));
-  assert.ok(summaries.some((v) => v.includes('故事的其他走向') && v.includes('未设置')));
-  const edit = nodes.find(
-    (n) =>
-      n.type === 'details' && text((n.props.children as ReactNode[])[0]).includes('修改这些走向'),
-  );
-  assert.ok(edit);
-  assert.ok(!edit.props.open);
+  assert.ok(!summaries.includes('更多安排'));
   assert.equal(t.calls, 0);
   assert.equal(JSON.stringify(c), before);
 });
-test('existing alternatives resolve to story names, preserve conditions and expose no raw IDs or technical panel', () => {
+test('existing alternatives and conditions resolve honestly in prerequisite summaries without exposing raw IDs or technical panel', () => {
   const c = content();
   const row = plotRecord(plotRows(c, 'candidates')[0]);
   c.candidates = [
@@ -612,21 +500,10 @@ test('existing alternatives resolve to story names, preserve conditions and expo
     .filter((n) => !['input', 'select', 'textarea', 'option'].includes(String(n.type)))
     .map((n) => text(n.props.children))
     .join(' ');
-  assert.match(visible, /被拒绝或取消后，可以考虑「稍后再来信」/);
-  assert.match(visible, /「稍后再来信」来信已发出后，这段剧情不再出现/);
   assert.doesNotMatch(visible, /技术详情|内部标识|node_other|excludeIfResolved/);
   assert.equal(t.calls, 0);
   assert.equal(JSON.stringify(c), before);
 });
-test('author stage numbering is one-based while stored order and unrelated data remain intact', () => {
-  const t = setup();
-  const order = input(tree(t.props), 'plot_stages_stage_a_0_order');
-  assert.equal(order.props.value, 1);
-  change(order, '3');
-  assert.equal(plotRecord(plotRows(t.next!, 'stages')[0]).order, 2);
-  assert.deepEqual(t.next!.extensions, t.props.content.extensions);
-});
-
 test('condition controls explain AND, per-event outcome semantics and director suggestions in writer language', () => {
   const c = content();
   const node = plotRecord(plotRows(c, 'candidates')[0]);
@@ -647,51 +524,4 @@ test('condition controls explain AND, per-event outcome semantics and director s
   assert.ok(html.includes('事件概述：主角将面临什么'));
   assert.ok(html.includes('不用预写台词'));
   assert.ok(!html.includes('>已提交<'));
-});
-test('graph selection opens and focuses the exact editable event without changing the draft', () => {
-  const t = setup();
-  const node = tree(t.props).find((e) => e.type === PublisherStoryGraph)!;
-  let requested = '',
-    scrolled = 0,
-    focused = 0;
-  const element = {
-    tagName: 'DETAILS',
-    open: false,
-    scrollIntoView() {
-      scrolled++;
-    },
-    querySelector() {
-      return {
-        focus() {
-          focused++;
-        },
-      };
-    },
-  };
-  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      getElementById(id: string) {
-        requested = id;
-        return element;
-      },
-    },
-  });
-  try {
-    (node.props.onSelect as (key: string) => void)('node_a');
-    assert.equal(requested, 'plot_event_0_node_a');
-    assert.equal(element.open, true);
-    assert.equal(scrolled, 1);
-    assert.equal(focused, 1);
-    assert.equal(t.calls, 0);
-    (node.props.onSelect as (key: string) => void)('not_found');
-    assert.equal(scrolled, 1);
-    const readOnly = tree(setup(true).props).find((e) => e.type === PublisherStoryGraph)!;
-    (readOnly.props.onSelect as (key: string) => void)('node_a');
-    assert.equal(scrolled, 1);
-  } finally {
-    if (previous) Object.defineProperty(globalThis, 'document', previous);
-    else Reflect.deleteProperty(globalThis, 'document');
-  }
 });

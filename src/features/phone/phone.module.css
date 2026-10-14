@@ -339,7 +339,8 @@
 }
 .photos,
 .calendar,
-.notes {
+.notes,
+.records {
   background: var(--phone-white);
   color: var(--phone-ink);
 }
