@@ -977,6 +977,27 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 </div>
               </div>
 
+              <button
+                type="button"
+                aria-label={`查看${selectedProfile.name}的朋友圈`}
+                style={{
+                  minHeight: '44px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  background: '#fff',
+                  color: '#526782',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  const id = selectedProfile.id;
+                  setSelectedProfileId(null);
+                  open('moments', id);
+                }}
+              >
+                TA的朋友圈 ›
+              </button>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <button
                   style={{
@@ -1153,7 +1174,8 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           <span>微信{totalUnread > 0 ? ` (${totalUnread})` : ''}</span>
         </button>
 
-        <div
+        <button
+          type="button"
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -1162,11 +1184,16 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             cursor: 'pointer',
             minWidth: 0,
             flex: 1,
+            border: 'none',
+            background: 'none',
+            padding: '4px',
+            minHeight: '44px',
           }}
           onClick={() => setShowPerson((v) => !v)}
           title="点击查看人物名片"
+          aria-label={`查看${actor.name}的人物资料`}
         >
-          <div
+          <span
             style={{
               fontSize: '16px',
               fontWeight: 600,
@@ -1174,11 +1201,21 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
+              maxWidth: '100%',
             }}
           >
-            <span>{actor.name}</span>
-          </div>
-          <div
+            <span
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {actor.name}
+            </span>
+          </span>
+          <span
             style={{
               fontSize: '11px',
               color: '#64748b',
@@ -1189,10 +1226,29 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             }}
           >
             <span>查看人物资料</span>
-          </div>
-        </div>
+          </span>
+        </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            aria-label={`查看${actor.name}的朋友圈`}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#526782',
+              fontSize: '12px',
+              cursor: 'pointer',
+              minHeight: '44px',
+              padding: '4px',
+            }}
+            onClick={() => {
+              setShowPerson(false);
+              open('moments', actor.id);
+            }}
+          >
+            TA的朋友圈
+          </button>
           <button
             type="button"
             title={`拨打电话给 ${actor.name}`}
@@ -1298,6 +1354,27 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               {actor.summary ??
                 `在当前人生世界中与你紧密相连的${actor.relationship || '重要人物'}。`}
             </p>
+            <button
+              type="button"
+              aria-label={`查看${actor.name}的朋友圈`}
+              style={{
+                width: '100%',
+                minHeight: '44px',
+                marginBottom: '12px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                background: '#fff',
+                color: '#526782',
+                fontSize: '14px',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setShowPerson(false);
+                open('moments', actor.id);
+              }}
+            >
+              TA的朋友圈 ›
+            </button>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"

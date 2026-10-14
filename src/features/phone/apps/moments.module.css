@@ -48,7 +48,34 @@
   margin-left: 12px;
 }
 .avatar:focus-visible,
+.heading button:focus-visible,
 .feedback button:focus-visible {
   outline: 2px solid #347bfa;
   outline-offset: 2px;
+}
+.heading {
+  gap: 12px;
+}
+.heading button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.heading h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 17px;
+}
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  background: #fff;
+  border-bottom: 1px solid #e6e6e6;
+}
+.profile strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  color: #181818;
 }
