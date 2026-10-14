@@ -16,8 +16,11 @@ export type PublicationStoryClaim = {
   placeDescription?: string | null;
   placeNeedsReveal?: boolean;
   editorialIntent: string;
+  script?: string;
+  sceneText?: string;
+  places?: { key: string; name: string; description?: string }[];
   intent:
-    | { kind: 'director_event'; actorKey: string }
+    | { kind: 'director_event'; actorKey?: string }
     | { kind: 'offer_message'; actorKey: string; text: string }
     | {
         kind: 'offer_invitation';
@@ -82,7 +85,9 @@ export type PublicationStoryOpportunities = {
     nodeKey: string;
     title: string;
     editorialIntent: string;
-    actorId: string;
+    actorId?: string;
+    actorOptions?: { id: string; key: string; name: string }[];
+    places?: { key: string; name: string; description?: string }[];
     placeName: string | null;
     placeDescription?: string | null;
     direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
@@ -136,7 +141,7 @@ export interface PublicationStoryPort {
   prepare(
     ownerId: string,
     worldId: string,
-    options?: { automatic?: boolean; nodeKey?: string; expectedVersion?: number },
+    options?: { automatic?: boolean; nodeKey?: string; expectedVersion?: number; actorId?: string },
   ): Promise<PublicationStoryPrepare>;
   finish(ownerId: string, worldId: string, claimId: string): Promise<PublicationStoryProgress>;
   progress(ownerId: string, worldId: string): Promise<PublicationStoryProgress>;

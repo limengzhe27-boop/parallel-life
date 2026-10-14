@@ -43,3 +43,13 @@ I已通知0060由其作为35bc3bc数据库部分应用生产并随后应用媒�
 尚待I协调两项接线边界：新独立ledger adapter文件（避免旧repository继续膨胀）范围；普通NPC及scene持续ownGoal上下文与同次生成的有quote幕后判断槽。现有turn/scene仍冻结只读，不并写。缺槽时不能用关键词猜无关输入，也不能在GET中偷加付费分类。实际ledger读写、真实PG和本地16/公网8尚未执行，账本0/24、0新存档、0图。任务继续进行中，不能标交付完成。
 
 检查点最终验证：npm run check首次4个已有数据库用例因默认端口凭据不符失败；为本树独立PG55503初始化并应用本地迁移后，最终2332/2332通过、0失败/跳过，type/boundaries通过。npm run build成功。PG55503正常停止，无HTTP启动/浏览器更改/模型调用/新真实存档；借用公共草案仍不在本人提交。上述是中间接线的技术检查，不是三场景真实验收，也不是功能已上线。
+
+## 新事件库动态演员最小闭环（待I联编/上线）
+
+依赖正式公共冻结52592e0/972b06b（本树3ad6d61/9fc8f0b），原四story文件+I已明确单独授予turn-planner.ts的动态选择窄窗口。普通NPC/scene持续goal仍未获接线窗口；独立ledger adapter不包含这次交接。
+
+无actor的director_event暴露逐演员核验历史知情后的actorOptions，不默认首人；导演必须返回合法actorId，server二次核验、prepare重读资格并固定实际actor_id，retry再次核该同一演员而不换人。全文采用script ?? editorialIntent，多地点scenePlaceKeys/sceneText原样供director/人物context，未触发地图到达或自主揭示全部地点。普通未指定direction默认为optional，显式opening/required保持。
+
+发现完整稿件直接作为world command会撞4000字符限制；现在命令仅稳定事件/claim引用，完整原稿和cue只放服务端角色propose输入，未截正文，不产生玩家消息。超过模型网关实际输入预算会诚实失败，不静默截尾。实际本批原稿最大387字，由I核验，本人未读/修改作者作品。
+
+专项4纯用例通过（第二演员选择、无默认演员/外国演员拒绝、演员真实知情、超4000完整稿通过角色环节），真实PG55503新专项1/1、原story集成31/31通过；首次新PG测试误期待自动恢复claimed，实际unknown隔离正确，修正测试为明确retry后通过。0付费调用、0实际玩家/临时模型测试存档、0图，纯与PG合成测试不冒充模型验收。最终npm run check：2365/2365、0fail/skip，type/boundaries通过；npm run build成功。root要求本轮优先冻结动态演员接线供导入联编，完整goal/ledger留进行中，未部署也不标业务完成。

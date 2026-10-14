@@ -166,7 +166,14 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
         : node.intent.actorKeys[0];
     if (node.intent.kind === 'offer_invitation' && node.intent.actorKeys.length !== 1)
       throw new PublicationStoryError('UNSUPPORTED_INVITATION');
-    if (!actorKey || !node.actorKeys.includes(actorKey) || !actors.some((a) => a.key === actorKey))
+    if (node.intent.kind === 'director_event' && !actorKey) {
+      if (!actors.some((a) => !node.actorKeys.length || node.actorKeys.includes(a.key)))
+        throw new PublicationStoryError();
+    } else if (
+      !actorKey ||
+      !node.actorKeys.includes(actorKey) ||
+      !actors.some((a) => a.key === actorKey)
+    )
       throw new PublicationStoryError();
     const places = [
       node.placeKey,
@@ -207,6 +214,42 @@ export function nodeActor(plan: StoryPlan, node: StoryNode) {
       ? node.intent.actorKey
       : node.intent.actorKeys[0];
   return plan.actors.find((a) => a.key === key) ?? null;
+}
+/** Undesignated events expose a legal cast pool, never silently choose the first actor. */
+export function storyActorOptions(plan: StoryPlan, node: StoryNode) {
+  if (node.intent.kind !== 'director_event' || node.intent.actorKey) {
+    const actor = nodeActor(plan, node);
+    return actor ? [actor] : [];
+  }
+  return plan.actors.filter(
+    (actor) => !node.actorKeys.length || node.actorKeys.includes(actor.key),
+  );
+}
+export function eligibleStoryActors(
+  plan: StoryPlan,
+  node: StoryNode,
+  states: StoryState[],
+  context: {
+    storyNow: string;
+    currentPlaceId: string | null;
+    availableFactIds: string[];
+    automatic?: boolean;
+  },
+) {
+  return storyActorOptions(plan, node).filter((actor) => {
+    if (node.intent.kind !== 'director_event')
+      return evaluateStory(plan, states, context).eligible.some((n) => n.key === node.key);
+    const pinned = {
+      ...node,
+      actorKeys: node.actorKeys.length ? node.actorKeys : [actor.key],
+      intent: { kind: 'director_event' as const, actorKey: actor.key },
+    };
+    return evaluateStory(
+      { ...plan, nodes: plan.nodes.map((n) => (n.key === node.key ? pinned : n)) },
+      states,
+      context,
+    ).eligible.some((n) => n.key === node.key);
+  });
 }
 export function storyNodeWindow(
   plan: StoryPlan,
@@ -338,8 +381,8 @@ export function evaluateStory(
         return false;
       if (n.timeline && !currentStages.includes(n.timeline.stageKey)) return false;
       if (!legalPresentation(plan, n, context.storyNow)) return false;
-      const actor = nodeActor(plan, n);
-      if (!actor) return false;
+      const actors = storyActorOptions(plan, n);
+      if (!actors.length) return false;
       if (n.placeKey && n.placeKey !== context.currentPlaceId) return false;
       const inbound = plan.nodes.flatMap((prior) =>
         Object.entries(prior.timeline?.alternatives ?? {}).flatMap(([kind, keys]) =>
@@ -356,7 +399,7 @@ export function evaluateStory(
         ),
       );
       if (inbound.length && !inbound.some((p) => virtual.get(p.key) === p.outcome)) return false;
-      const matches = (p: StoryNode['prerequisites'][number]): boolean => {
+      const matches = (p: StoryNode['prerequisites'][number], actorId: string): boolean => {
         if (p.kind === 'not_before') return Date.parse(context.storyNow) >= Date.parse(p.at);
         if (p.kind === 'at_place') return p.placeKey === context.currentPlaceId;
         if (p.kind === 'after_presented_node') {
@@ -374,21 +417,23 @@ export function evaluateStory(
         const h = plan.history.find((h) => h.key === p.factKey);
         return (
           !!h &&
-          h.allowedActorIds.includes(actor.id) &&
+          h.allowedActorIds.includes(actorId) &&
           h.factIds.length > 0 &&
           h.factIds.every((id) => context.availableFactIds.includes(id))
         );
       };
-      return (
-        n.prerequisites.every(matches) &&
-        (n.conditionKeys ?? []).every((key) => {
-          const groups = (plan.conditions ?? []).filter((group) => group.key === key);
-          const group = groups.length === 1 ? groups[0] : undefined;
-          if (!group || !group.prerequisites.length) return false;
-          if (group.match === 'all') return group.prerequisites.every(matches);
-          if (group.match === 'any') return group.prerequisites.some(matches);
-          return false;
-        })
+      return actors.some(
+        (actor) =>
+          n.prerequisites.every((p) => matches(p, actor.id)) &&
+          (n.conditionKeys ?? []).every((key) => {
+            const groups = (plan.conditions ?? []).filter((group) => group.key === key);
+            const group = groups.length === 1 ? groups[0] : undefined;
+            if (!group || !group.prerequisites.length) return false;
+            if (group.match === 'all')
+              return group.prerequisites.every((p) => matches(p, actor.id));
+            if (group.match === 'any') return group.prerequisites.some((p) => matches(p, actor.id));
+            return false;
+          }),
       );
     })
     .sort((a, b) => {

@@ -9,6 +9,7 @@ import {
   openingEventPending,
   legalPresentation,
   nodeActor,
+  eligibleStoryActors,
   PublicationStoryError,
   type StoryPlan,
   type StoryState,
@@ -219,7 +220,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
   }
   private claim(c: Context, s: StoryState): PublicationStoryClaim {
     const node = c.plan.nodes.find((n) => n.key === s.nodeKey)!,
-      actor = nodeActor(c.plan, node);
+      actor = c.plan.actors.find((actor) => actor.id === s.actorId);
     if (!actor || node.intent.kind === 'editorial_only') throw new TaskError('INVALID_STATE');
     const placeKey =
       node.intent.kind === 'offer_invitation'
@@ -237,7 +238,20 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       placeName: place?.name ?? null,
       placeDescription: place ? (c.placeDescriptions.get(place.key) ?? null) : null,
       placeNeedsReveal: !!place && !c.world.space?.places.some((known) => known.id === place.key),
-      editorialIntent: node.editorialIntent,
+      editorialIntent: node.script ?? node.editorialIntent,
+      ...(node.script ? { script: node.script } : {}),
+      ...(node.sceneText ? { sceneText: node.sceneText } : {}),
+      ...(node.scenePlaceKeys?.length
+        ? {
+            places: c.authoredPlaces
+              .filter((p) => node.scenePlaceKeys!.includes(p.key))
+              .map((p) => ({
+                key: p.key,
+                name: p.name,
+                ...(p.description ? { description: p.description } : {}),
+              })),
+          }
+        : {}),
       intent: structuredClone(node.intent),
       origin: { ...c.plan.origin },
     };
@@ -344,12 +358,13 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     n: StoryNode,
     status: StoryState['status'],
     automatic = false,
+    chosenActorId?: string,
   ): StoryState {
     return {
       nodeKey: n.key,
       claimId: randomUUID(),
       commandId: randomUUID(),
-      actorId: nodeActor(c.plan, n)?.id ?? null,
+      actorId: chosenActorId ?? nodeActor(c.plan, n)?.id ?? null,
       expectedVersion: c.version,
       status,
       outcome: null,
@@ -863,20 +878,20 @@ export class PublicationStoryRepository implements PublicationStoryPort {
                 .filter((node) => this.canIntroducePlace(c, node))
                 .sort(
                   (a, b) =>
-                    Number(
-                      (b.direction?.mode ??
-                        (b.intent.kind === 'director_event' ? 'required' : 'optional')) ===
-                        'required',
-                    ) -
-                    Number(
-                      (a.direction?.mode ??
-                        (a.intent.kind === 'director_event' ? 'required' : 'optional')) ===
-                        'required',
-                    ),
+                    Number((b.direction?.mode ?? 'optional') === 'required') -
+                    Number((a.direction?.mode ?? 'optional') === 'required'),
                 )
                 .slice(0, 24)
                 .map((node) => {
-                  const actor = nodeActor(c.plan, node)!;
+                  const fixedActor = nodeActor(c.plan, node);
+                  const actorOptions = eligibleStoryActors(c.plan, node, c.states, {
+                    ...c,
+                    automatic,
+                  }).map((a) => ({
+                    id: a.id,
+                    key: a.key,
+                    name: c.world.actors.find((person) => person.id === a.id)?.name ?? a.key,
+                  }));
                   const placeKey =
                     node.intent.kind === 'offer_invitation'
                       ? node.intent.placeKey
@@ -884,17 +899,28 @@ export class PublicationStoryRepository implements PublicationStoryPort {
                   return {
                     nodeKey: node.key,
                     title: node.title,
-                    editorialIntent: node.editorialIntent,
+                    editorialIntent: node.script ?? node.editorialIntent,
+                    actorOptions,
+                    ...(node.scenePlaceKeys?.length
+                      ? {
+                          places: c.authoredPlaces
+                            .filter((p) => node.scenePlaceKeys!.includes(p.key))
+                            .map((p) => ({
+                              key: p.key,
+                              name: p.name,
+                              ...(p.description ? { description: p.description } : {}),
+                            })),
+                        }
+                      : {}),
                     direction: {
                       ...node.direction,
                       mode:
                         (openingEventPending(c.plan, c.states) &&
                         node.key === c.plan.openingEventKey
                           ? 'required'
-                          : node.direction?.mode) ??
-                        (node.intent.kind === 'director_event' ? 'required' : 'optional'),
+                          : node.direction?.mode) ?? 'optional',
                     },
-                    actorId: actor.id,
+                    ...(fixedActor ? { actorId: fixedActor.id } : {}),
                     placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
                     placeDescription: placeKey ? (c.placeDescriptions.get(placeKey) ?? null) : null,
                   };
@@ -954,7 +980,8 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       automatic = true,
       nodeKey,
       expectedVersion,
-    }: { automatic?: boolean; nodeKey?: string; expectedVersion?: number } = {},
+      actorId,
+    }: { automatic?: boolean; nodeKey?: string; expectedVersion?: number; actorId?: string } = {},
   ): Promise<PublicationStoryPrepare> {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c) return { status: 'none', managed: false };
@@ -975,7 +1002,12 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       const eligible = e.eligible.filter((n) => this.canIntroducePlace(c, n));
       const node = nodeKey ? eligible.find((n) => n.key === nodeKey) : eligible[0];
       if (!node) return { status: 'none', managed: true };
-      const s = this.fresh(c, node, 'claimed', automatic);
+      const actors = eligibleStoryActors(c.plan, node, c.states, { ...c, automatic });
+      const fixed = nodeActor(c.plan, node);
+      const chosenActorId = actorId ?? fixed?.id;
+      if (!chosenActorId || !actors.some((actor) => actor.id === chosenActorId))
+        throw new TaskError('INVALID_INPUT');
+      const s = this.fresh(c, node, 'claimed', automatic, chosenActorId);
       await this.save(sql, ownerId, worldId, c, s, 'claim', null, { automatic });
       return { status: 'claimed', claim: this.claim(c, s) };
     });
@@ -1054,11 +1086,12 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       if (!legalPresentation(c.plan, node, c.storyNow)) throw new TaskError('INVALID_STATE');
       if (
         node.intent.kind === 'director_event' &&
-        !evaluateStory(
+        !eligibleStoryActors(
           c.plan,
+          node,
           c.states.filter((state) => state.nodeKey !== node.key),
           { ...c, automatic: false },
-        ).eligible.some((candidate) => candidate.key === node.key)
+        ).some((actor) => actor.id === s.actorId)
       )
         throw new TaskError('INVALID_STATE');
       await this.save(sql, ownerId, worldId, c, { ...s, status: 'claimed' }, 'retry', null, {

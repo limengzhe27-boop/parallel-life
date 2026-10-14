@@ -61,7 +61,7 @@ export async function advancePublicationStory(
         handled: true,
         result: { storyNow, played: 0, folded: 0, summary: null, actors: [] },
       };
-    let selection: { nodeKey: string; expectedVersion: number } | undefined;
+    let selection: { nodeKey: string; expectedVersion: number; actorId?: string } | undefined;
     let continuing = false;
     if (!retryClaimId && deps.story.opportunities) {
       const pool = await deps.story.opportunities(ownerId, worldId, automatic);
@@ -99,11 +99,12 @@ export async function advancePublicationStory(
           )
             return quiet();
           let selected: string | null;
+          let actorId: string | undefined;
           try {
             const world = await deps.worlds.get({ userId: ownerId }, worldId);
             if (world.version !== pool.version)
               throw new DomainError('VERSION_CONFLICT', '世界已有新的进展，请稍后继续。');
-            selected = await deps.planner.chooseStoryOpportunity({
+            const decision = await deps.planner.chooseStoryOpportunity({
               storyNow: pool.storyNow,
               worldTitle: world.title,
               worldSetting:
@@ -131,6 +132,21 @@ export async function advancePublicationStory(
                 .map(({ role, actorId, text }) => ({ role, actorId, text: text.slice(0, 500) })),
               candidates: pool.candidates,
             });
+            selected =
+              typeof decision === 'object' && decision !== null ? decision.nodeKey : decision;
+            actorId =
+              typeof decision === 'object' && decision !== null ? decision.actorId : undefined;
+            const candidate = pool.candidates.find((candidate) => candidate.nodeKey === selected);
+            if (selected !== null && candidate) {
+              actorId ??= candidate.actorId;
+              if (
+                !actorId ||
+                (candidate.actorId
+                  ? actorId !== candidate.actorId
+                  : !candidate.actorOptions?.some((option) => option.id === actorId))
+              )
+                throw new DomainError('INVALID_PROPOSAL', '导演尚未选择合法的事件人物。');
+            }
             const required = pool.candidates.filter(
               (candidate) => candidate.direction?.mode === 'required',
             );
@@ -157,7 +173,14 @@ export async function advancePublicationStory(
           if (selected === null) return quiet();
           continuing = !!pool.candidates.find((candidate) => candidate.nodeKey === selected)
             ?.eventProgress;
-          selection = { nodeKey: selected, expectedVersion: pool.version };
+          selection = {
+            nodeKey: selected,
+            expectedVersion: pool.version,
+            ...(!pool.candidates.find((candidate) => candidate.nodeKey === selected)?.actorId &&
+            actorId
+              ? { actorId }
+              : {}),
+          };
         }
       }
     }
@@ -198,7 +221,13 @@ export async function advancePublicationStory(
       claim.eventProgress
         ? `这是同一件事的后续，不是重新开场。本人已保存的目标与立场：${JSON.stringify(claim.eventProgress.ownGoal)}。已有${claim.eventProgress.productiveBeats}个有效进展，目前第${claim.eventProgress.segmentIndex + 1}段；当前安排建议${claim.eventProgress.nextMove}。先承接玩家真实答复与已发生变化，再提出本人一个具体小下一步；不要求主角聊满轮数，不重演旧邀请，不复述整段前情。玩家拒绝或不回应时允许自己改方案、暂缓或结束这次请求，不能逼主角答应、制造危机处罚或宣称玩家已行动。每次自然一至三句，最多一个需要玩家决定的入口。seek_closure表示应整理实际结果或明确暂缓，绝不表示条件已经完成；advance_without_player只允许本人合法的发言/计划，不编物理成果、其他人物行动或主角决定。`
         : null,
-      `本次导演意图：${claim.editorialIntent}`,
+      claim.sceneText
+        ? `编剧给出的场景原文：${claim.sceneText}。这是允许考虑的场景信息，不代表主角已到达或谁已行动。`
+        : null,
+      claim.places?.length
+        ? `事件可涉及地点：${JSON.stringify(claim.places)}。不默认取第一个，不把地点列表当已到场证明；只自然告诉主角本人实际知道、当前确需提及的地点。`
+        : null,
+      `本次导演意图：${claim.script ?? claim.editorialIntent}`,
       claim.intent.kind === 'director_event'
         ? '请根据本人的性格、动机和已知关系，自然开启这件事。事件是可演绎的机会，不是固定台词；可以询问、提出具体请求或透露本人知道的情况。只输出本人真实手机消息，不替主角选择，不编他人已行动，不生成日历或图片。'
         : claim.intent.kind === 'offer_message'
@@ -221,6 +250,9 @@ export async function advancePublicationStory(
               const proposal = parseProposal(
                 await deps.planner.propose({
                   ...input,
+                  // Author manuscripts are private model context, not a player command.
+                  // Keep the command bounded without truncating any authored paragraph.
+                  userText: cue,
                   context: {
                     ...input.context,
                     ...(claim.intent.kind === 'director_event'
@@ -264,7 +296,7 @@ export async function advancePublicationStory(
           worldId,
           expectedVersion: claim.expectedVersion,
           actorId: claim.actorId,
-          text: cue,
+          text: `演绎已授权事件 ${claim.nodeKey}（${claim.claimId}）。`,
           origin: 'director',
         },
       );
