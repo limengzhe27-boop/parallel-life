@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { isValidElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PhoneAppContext } from '../src/features/phone/phone-shell.tsx';
+import type { PhoneContact, PhoneMessage } from '../src/features/phone/apps/types.ts';
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -39,7 +40,7 @@ registerHooks({
       if (url.endsWith('/messages.tsx'))
         source = source.replace(
           "import { useEffect, useLayoutEffect, useRef, useState } from 'react';",
-          'const useState=v=>globalThis.__wechat19Hooks.state(v); const useRef=v=>({current:v}); const useEffect=()=>{}; const useLayoutEffect=()=>{};',
+          'const useState=v=>globalThis.__wechat19Hooks.state(v); const useRef=v=>({current:v}); const useEffect=(fn,deps)=>globalThis.__wechat19Hooks.messageEffect(fn,deps); const useLayoutEffect=()=>{};',
         );
       if (url.endsWith('/moments.tsx'))
         source = source.replace(
@@ -81,7 +82,8 @@ function harness(
     opened: unknown[][] = [];
   let deps: readonly unknown[] | undefined,
     cleanup: (() => void) | undefined,
-    pending: (() => void | (() => void)) | undefined;
+    pending: (() => void | (() => void)) | undefined,
+    profileEffect: (() => void | (() => void)) | undefined;
   const context = {
     worldId: 'private-world',
     transport,
@@ -89,8 +91,8 @@ function harness(
       contacts: [
         { id: one, name: '同名朋友', relationship: '搭档', unread: 0 },
         { id: two, name: '同名朋友', relationship: '熟人', unread: 0 },
-      ],
-      messages: [],
+      ] as PhoneContact[],
+      messages: [] as PhoneMessage[],
       invitations: [],
       photos: [],
       notes: [],
@@ -119,6 +121,9 @@ function harness(
           deps = next;
           pending = fn;
         }
+      },
+      messageEffect(fn: typeof profileEffect, next: readonly unknown[]) {
+        if (next.length === 4 && (next[1] === one || next[1] === two)) profileEffect = fn;
       },
     },
   });
@@ -149,6 +154,10 @@ function harness(
       }
       await new Promise<void>((resolve) => setImmediate(resolve));
     },
+    flushProfile: async () => {
+      profileEffect?.();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    },
     close() {
       cleanup?.();
       Reflect.deleteProperty(globalThis, '__wechat19Context');
@@ -175,7 +184,7 @@ const posts = {
   ],
 };
 
-test('real chat header and namecard expose native moments buttons bound to actual id, without substituting the album', () => {
+test('chat opens a full friend profile with one moments entry bound to the actual actor id', () => {
   const h = harness(MessagesApp, one);
   try {
     let buttons = h
@@ -192,13 +201,74 @@ test('real chat header and namecard expose native moments buttons bound to actua
     buttons = h
       .render()
       .filter((n) => n.type === 'button' && n.props['aria-label'] === '查看同名朋友的朋友圈');
-    assert.equal(buttons.length, 2);
-    buttons[1]!.props.onClick();
+    assert.equal(buttons.length, 1);
+    assert.match(h.html(), /朋友资料/);
+    buttons[0]!.props.onClick();
     assert.deepEqual(h.opened.at(-1), ['moments', one]);
     assert.equal(
       h.render().filter((n) => n.props['aria-label'] === '查看同名朋友的朋友圈').length,
       1,
     );
+  } finally {
+    h.close();
+  }
+});
+
+test('friend profile shows only the selected contact public introduction, and back restores that chat', () => {
+  const h = harness(MessagesApp, one);
+  try {
+    h.context.data.contacts[0]!.summary = '公开介绍：她在海边经营一间小店。';
+    h.context.data.contacts[1]!.summary = '另一个同名人物的介绍';
+    h.context.data.messages.push({
+      id: 'actual-history',
+      actorId: one,
+      role: 'assistant',
+      text: '你想喝点什么？',
+      at: '2026-10-13T01:00:00.000Z',
+      status: 'sent',
+    });
+    const avatar = h
+      .render()
+      .find((n) => n.type === 'button' && n.props['aria-label'] === '查看同名朋友的好友资料');
+    assert.ok(avatar);
+    avatar.props.onClick();
+    const html = h.html();
+    assert.match(html, /朋友资料|公开介绍：她在海边经营一间小店/);
+    assert.doesNotMatch(html, /另一个同名人物的介绍|● 在线|人物生平与性格/);
+    const back = h
+      .render()
+      .find((n) => n.type === 'button' && n.props['aria-label'] === '返回上一页');
+    assert.ok(back);
+    back.props.onClick();
+    assert.match(h.html(), /你想喝点什么/);
+    assert.deepEqual(h.opened, []);
+  } finally {
+    h.close();
+  }
+});
+
+test('friend profile previews saved social posts for the exact actor without showing a same-name contact post', async () => {
+  const requested: string[] = [];
+  const h = harness(MessagesApp, one, (async (url: string) => {
+    requested.push(url);
+    return new Response(JSON.stringify(posts));
+  }) as typeof fetch);
+  try {
+    h.render()
+      .find((n) => n.props['aria-label'] === '查看同名朋友的人物资料')!
+      .props.onClick();
+    assert.equal(h.states[3], true);
+    h.render();
+    assert.match(h.html(), /朋友资料/);
+    await h.flushProfile();
+    const html = h.html();
+    assert.equal(requested[0], '/api/v1/worlds/private-world/social');
+    assert.match(html, /这是实际保存的正文/);
+    assert.doesNotMatch(html, /另一位同名人物的动态|<script>/);
+    h.render()
+      .find((n) => n.props['aria-label'] === '查看同名朋友的朋友圈')!
+      .props.onClick();
+    assert.deepEqual(h.opened, [['moments', one]]);
   } finally {
     h.close();
   }

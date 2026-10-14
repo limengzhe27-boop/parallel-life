@@ -13,6 +13,8 @@ import { GroupCreate } from '../groups/group-create.tsx';
 import { GroupListRows } from '../groups/group-list.tsx';
 import { GroupChat } from '../groups/group-chat.tsx';
 import { groupTarget, parseGroupTarget } from '../groups/state.ts';
+import { AuthoredSocialSchema, type AuthoredSocial } from '../../../contracts/authored-social.ts';
+import profile from './friend-profile.module.css';
 
 const EMOJI_LIST = [
   '😊',
@@ -52,6 +54,7 @@ const EMOJI_LIST = [
 export function MessagesApp({ target, open }: PhoneAppContext) {
   const {
     worldId,
+    transport,
     data,
     actions,
     drafts,
@@ -81,6 +84,13 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
   const [confirmResend, setConfirmResend] = useState<string>();
   const [previewModalPhoto, setPreviewModalPhoto] = useState<PhonePhoto | null>(null);
+  const [socialPreview, setSocialPreview] = useState<{
+    worldId: string;
+    actorId: string;
+    status: 'ready' | 'error';
+    moments: AuthoredSocial['moments'];
+  } | null>(null);
+  const [previewRetry, setPreviewRetry] = useState(0);
 
   const messageScroll = useRef<HTMLDivElement>(null);
   const wasNearBottom = useRef(true);
@@ -88,6 +98,40 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const readAttempt = useRef<string | undefined>(undefined);
 
   const actor = data.contacts.find((c) => c.id === target);
+  const profileId = selectedProfileId ?? (showPerson ? actor?.id : undefined);
+  const profileContact = data.contacts.find((c) => c.id === profileId);
+  const profileSocial =
+    socialPreview?.worldId === worldId && socialPreview.actorId === profileId
+      ? socialPreview
+      : null;
+  useEffect(() => {
+    if (!profileId) return;
+    const controller = new AbortController();
+    const load = async () => {
+      try {
+        const response = await (transport ?? fetch)(
+          `/api/v1/worlds/${encodeURIComponent(worldId)}/social`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw Error('social unavailable');
+        const parsed = AuthoredSocialSchema.parse(await response.json());
+        if (!controller.signal.aborted)
+          setSocialPreview({
+            worldId,
+            actorId: profileId,
+            status: 'ready',
+            moments: parsed.moments
+              .filter((moment) => moment.actorId === profileId)
+              .sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+          });
+      } catch {
+        if (!controller.signal.aborted)
+          setSocialPreview({ worldId, actorId: profileId, status: 'error', moments: [] });
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [worldId, profileId, transport, previewRetry]);
   const messages = data.messages
     .filter((m) => m.actorId === target)
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
@@ -131,7 +175,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
       lastScroll.current = el.scrollTop;
       wasNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
     }
-  }, [target]);
+  }, [target, profileId]);
 
   useLayoutEffect(() => {
     const el = messageScroll.current;
@@ -195,6 +239,100 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         back={() => open('messages')}
       />
     );
+  if (profileContact) {
+    const closeProfile = () => {
+      setShowPerson(false);
+      setSelectedProfileId(null);
+    };
+    return (
+      <div className={profile.page} data-phone-fixed-dock data-phone-friend-profile>
+        <header className={profile.header}>
+          <button type="button" onClick={closeProfile} aria-label="返回上一页">
+            ‹ <span>返回</span>
+          </button>
+          <h2>朋友资料</h2>
+          <span aria-hidden="true" />
+        </header>
+        <div className={profile.scroll}>
+          <section className={profile.identity} aria-label={`${profileContact.name}的资料`}>
+            <Avatar url={profileContact.avatarUrl} name={profileContact.name} />
+            <div>
+              <h3>{profileContact.name}</h3>
+              {profileContact.relationship && <p>{profileContact.relationship}</p>}
+            </div>
+          </section>
+          <section className={profile.introduction} aria-label="公开介绍">
+            <h3>关于 TA</h3>
+            <p>{profileContact.summary?.trim() || 'TA 还没有公开介绍。'}</p>
+          </section>
+          <button
+            type="button"
+            className={profile.moments}
+            aria-label={`查看${profileContact.name}的朋友圈`}
+            onClick={() => {
+              closeProfile();
+              open('moments', profileContact.id);
+            }}
+          >
+            <span className={profile.momentsTitle}>朋友圈</span>
+            <span className={profile.momentsPreview}>
+              {!profileSocial ? (
+                '正在读取动态…'
+              ) : profileSocial.status === 'error' ? (
+                '动态暂时无法读取，点此查看'
+              ) : profileSocial.moments.length ? (
+                <span className={profile.previewLines}>
+                  {profileSocial.moments.slice(0, 2).map((moment) => (
+                    <span key={moment.key}>{moment.text}</span>
+                  ))}
+                </span>
+              ) : (
+                'TA 还没有动态'
+              )}
+            </span>
+            <span className={profile.chevron} aria-hidden="true">
+              ›
+            </span>
+          </button>
+          {profileSocial?.status === 'error' && (
+            <button
+              type="button"
+              className={profile.retry}
+              onClick={() => setPreviewRetry((value) => value + 1)}
+            >
+              重新读取动态
+            </button>
+          )}
+        </div>
+        <footer className={profile.footer}>
+          <button
+            type="button"
+            onClick={() => {
+              const id = profileContact.id;
+              closeProfile();
+              open('messages', id);
+            }}
+          >
+            发消息
+          </button>
+          <button type="button" onClick={() => setCallingContact(profileContact)}>
+            拨打电话
+          </button>
+        </footer>
+        {callingContact && (
+          <CallModal
+            contact={callingContact}
+            onClose={() => setCallingContact(null)}
+            onOpenChat={(id) => {
+              setCallingContact(null);
+              closeProfile();
+              open('messages', id);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
   if (target && !actor) return <Empty title="找不到这个联系人" text="请返回通讯录或刷新后再试。" />;
 
   // -------------------------------------------------------------------------
@@ -215,8 +353,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
       const timeB = latestB?.at ?? '';
       return (Date.parse(timeB) || 0) - (Date.parse(timeA) || 0);
     });
-    const selectedProfile = data.contacts.find((c) => c.id === selectedProfileId);
-
     const getTitle = () => {
       switch (tab) {
         case 'chats':
@@ -868,233 +1004,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           })}
         </nav>
 
-        {/* 联系人名片 Sheet 弹层 */}
-        {selectedProfile && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(15, 23, 42, 0.5)',
-              backdropFilter: 'blur(4px)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-end',
-              zIndex: 100,
-            }}
-            onClick={() => setSelectedProfileId(null)}
-          >
-            <div
-              style={{
-                background: '#ffffff',
-                borderTopLeftRadius: '20px',
-                borderTopRightRadius: '20px',
-                padding: '24px 20px',
-                boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '16px',
-                maxHeight: '82%',
-                overflowY: 'auto',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                }}
-              >
-                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                  <Avatar url={selectedProfile.avatarUrl} name={selectedProfile.name} />
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>
-                      {selectedProfile.name}
-                    </h3>
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: '6px',
-                        alignItems: 'center',
-                        marginTop: '4px',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '12px',
-                          background: '#f1f5f9',
-                          color: '#334155',
-                          padding: '2px 8px',
-                          borderRadius: '8px',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {selectedProfile.relationship}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#16a34a' }}>● 在线</span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedProfileId(null)}
-                  style={{
-                    background: '#f1f5f9',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '28px',
-                    height: '28px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: '#64748b',
-                  }}
-                  aria-label="关闭名片"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div
-                style={{
-                  background: '#f8fafc',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '12px',
-                    color: '#64748b',
-                    marginBottom: '4px',
-                    fontWeight: 600,
-                  }}
-                >
-                  人物生平与性格
-                </div>
-                <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
-                  {selectedProfile.summary ||
-                    `在当前人生中与你相识，是你的${selectedProfile.relationship}。`}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                aria-label={`查看${selectedProfile.name}的朋友圈`}
-                style={{
-                  minHeight: '44px',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '10px',
-                  background: '#fff',
-                  color: '#526782',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  const id = selectedProfile.id;
-                  setSelectedProfileId(null);
-                  open('moments', id);
-                }}
-              >
-                TA的朋友圈 ›
-              </button>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <button
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    padding: '11px',
-                    borderRadius: '12px',
-                    background: '#07c160',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    const id = selectedProfile.id;
-                    setSelectedProfileId(null);
-                    open('messages', id);
-                  }}
-                >
-                  💬 发送微信
-                </button>
-                <button
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    padding: '11px',
-                    borderRadius: '12px',
-                    background: '#f1f5f9',
-                    color: '#1e293b',
-                    border: '1px solid #cbd5e1',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    setCallingContact(selectedProfile);
-                  }}
-                >
-                  📞 拨打电话
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '9px',
-                    borderRadius: '10px',
-                    background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    fontSize: '12px',
-                    color: '#475569',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    setSelectedProfileId(null);
-                    open('calendar');
-                  }}
-                >
-                  🗓️ 查看日程
-                </button>
-                <button
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '9px',
-                    borderRadius: '10px',
-                    background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    fontSize: '12px',
-                    color: '#475569',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    setSelectedProfileId(null);
-                    open('photos');
-                  }}
-                >
-                  🖼️ 共同回忆
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {callingContact && (
           <CallModal
             contact={callingContact}
@@ -1189,8 +1098,8 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             padding: '4px',
             minHeight: '44px',
           }}
-          onClick={() => setShowPerson((v) => !v)}
-          title="点击查看人物名片"
+          onClick={() => setShowPerson(true)}
+          title="查看好友资料"
           aria-label={`查看${actor.name}的人物资料`}
         >
           <span
@@ -1283,143 +1192,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               padding: '2px 4px',
               lineHeight: 1,
             }}
-            onClick={() => setShowPerson((v) => !v)}
-            title="更多与名片"
+            onClick={() => setShowPerson(true)}
+            title="更多与好友资料"
+            aria-label={`更多：查看${actor.name}的好友资料`}
           >
             ···
           </button>
         </div>
       </div>
-
-      {/* 人物名片遮罩 Sheet */}
-      {showPerson && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.4)',
-            zIndex: 40,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-          }}
-          onClick={() => setShowPerson(false)}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderTopLeftRadius: '16px',
-              borderTopRightRadius: '16px',
-              padding: '20px',
-              boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Avatar url={actor.avatarUrl} name={actor.name} />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
-                    {actor.name}
-                  </h3>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>
-                    {actor.relationship || '朋友'}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPerson(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '18px',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <p
-              style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#475569', lineHeight: 1.6 }}
-            >
-              {actor.summary ??
-                `在当前人生世界中与你紧密相连的${actor.relationship || '重要人物'}。`}
-            </p>
-            <button
-              type="button"
-              aria-label={`查看${actor.name}的朋友圈`}
-              style={{
-                width: '100%',
-                minHeight: '44px',
-                marginBottom: '12px',
-                border: '1px solid #e2e8f0',
-                borderRadius: '10px',
-                background: '#fff',
-                color: '#526782',
-                fontSize: '14px',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setShowPerson(false);
-                open('moments', actor.id);
-              }}
-            >
-              TA的朋友圈 ›
-            </button>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPerson(false);
-                  setCallingContact(actor);
-                }}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '10px',
-                  background: '#f1f5f9',
-                  color: '#1e293b',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  border: '1px solid #e2e8f0',
-                  cursor: 'pointer',
-                }}
-              >
-                📞 拨打电话
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPerson(false);
-                  open('photos');
-                }}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '10px',
-                  background: '#f1f5f9',
-                  color: '#1e293b',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  border: '1px solid #e2e8f0',
-                  cursor: 'pointer',
-                }}
-              >
-                🖼️ 查看共同回忆
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 消息滚动流 */}
       <div
@@ -1534,9 +1314,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   我
                 </div>
               ) : (
-                <div style={{ flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPerson(true)}
+                  aria-label={`查看${actor.name}的好友资料`}
+                  className={profile.messageAvatar}
+                >
                   <Avatar url={actor.avatarUrl} name={actor.name} />
-                </div>
+                </button>
               )}
               <div
                 style={{
