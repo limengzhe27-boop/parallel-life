@@ -309,7 +309,9 @@ test('character form removes redundant legacy buttons and focuses on name, avata
   const html = renderTab(defaultProps, 'actors');
   assert.doesNotMatch(html, /不是固定示例|修改这条事实|这条事实在各人物的知情列表中同步更新/);
   assert.doesNotMatch(html, /✨ 生成角色（保存并启动试演对话）/);
-  assert.ok(html.includes('微信头像（默认使用预设图片）'));
+  assert.ok(html.includes('微信头像（可发布的预设图片）'));
+  assert.ok(!html.includes('AI 生成头像'));
+  assert.ok(!html.includes('导入本地图片'));
   assert.ok(html.includes('角色核心 5 个维度设定'));
   assert.ok(html.includes('与TA试聊'));
   assert.doesNotMatch(html, /整理本角色的历史与朋友圈/);

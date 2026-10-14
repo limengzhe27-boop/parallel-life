@@ -51,9 +51,13 @@ export function preparationMatches(
   sources?: Source[],
   commandId?: string,
   scope?: PreparationScope,
+  socialFocus?: 'history' | 'moments' | 'both',
+  socialActorKey?: string,
 ) {
   return (
     (!scope || record.material.scope === scope) &&
+    (!socialFocus || record.material.socialFocus === socialFocus) &&
+    (!socialActorKey || record.material.socialActorKey === socialActorKey) &&
     record.workId === workId &&
     record.draftVersion === version &&
     (!commandId || record.commandId === commandId) &&
@@ -314,6 +318,8 @@ export function PublisherImportDialog({
   initialOverallText,
   initialSources,
   initialScope,
+  initialSocialFocus,
+  initialSocialActorKey,
   content,
   disabled,
   preparationClient,
@@ -327,6 +333,8 @@ export function PublisherImportDialog({
   initialOverallText?: string;
   initialSources?: Source[];
   initialScope?: PreparationScope;
+  initialSocialFocus?: 'history' | 'moments' | 'both';
+  initialSocialActorKey?: string;
   content: Record<string, unknown>;
   disabled: boolean;
   preparationClient?: PreparationClient;
@@ -373,6 +381,8 @@ export function PublisherImportDialog({
     initialOverallText,
     initialSources,
     initialScope,
+    initialSocialFocus,
+    initialSocialActorKey,
   ]);
   const seededSources = [
     ...(initialOverallText?.trim()
@@ -415,6 +425,8 @@ export function PublisherImportDialog({
         expectedSources,
         expectedId,
         expectedScope,
+        initialSocialFocus,
+        initialSocialActorKey,
       )
     ) {
       setError('整理结果属于不同的作品、原稿或编辑版本，未填入当前草稿。请核对后重新整理。');
@@ -501,6 +513,8 @@ export function PublisherImportDialog({
               expected,
               undefined,
               seededScope,
+              initialSocialFocus,
+              initialSocialActorKey,
             )
           )
             accept(preparation, expected, undefined, seededScope);
@@ -597,6 +611,9 @@ export function PublisherImportDialog({
     const scope = replay ? operationScope.current : chosenScope;
     const input = PublisherPreparationInputSchema.safeParse({
       ...(scope ? { scope } : {}),
+      ...(initialSocialFocus && scope === 'characters'
+        ? { socialFocus: initialSocialFocus, socialActorKey: initialSocialActorKey }
+        : {}),
       commandId: replay ? operationId : crypto.randomUUID(),
       expectedDraftVersion: version,
       currentContent: content,
@@ -692,6 +709,7 @@ export function PublisherImportDialog({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function parseOnly() {
+    if (initialSocialFocus) return;
     if (current.current.disabled || inFlight.current || !sources.length) return;
     sequence.current++;
     clearResult();
@@ -708,6 +726,26 @@ export function PublisherImportDialog({
   const updatedContent = aiResult?.updatedContent ?? proposal?.updatedContent;
   const schedule = aiResult?.schedule ?? proposal?.schedule;
   const changed = updatedContent ? preparationChanges(content, updatedContent) : [];
+  const focusedAdditions =
+    initialSocialFocus && updatedContent && initialSocialActorKey
+      ? (['messages', 'moments'] as const).flatMap((kind) => {
+          if (initialSocialFocus === 'history' && kind === 'moments') return [];
+          if (initialSocialFocus === 'moments' && kind === 'messages') return [];
+          const before = (content.phone as Record<string, unknown> | undefined)?.[kind];
+          const after = (updatedContent.phone as Record<string, unknown> | undefined)?.[kind];
+          const oldKeys = new Set(
+            Array.isArray(before) ? before.map((row) => (row as { key?: unknown }).key) : [],
+          );
+          return Array.isArray(after)
+            ? after
+                .filter((row) => {
+                  const item = row as Record<string, unknown>;
+                  return item.actorKey === initialSocialActorKey && !oldKeys.has(item.key);
+                })
+                .map((row) => ({ kind, row: row as Record<string, unknown> }))
+            : [];
+        })
+      : [];
   const canApply =
     !!updatedContent &&
     changed.length > 0 &&
@@ -786,7 +824,17 @@ export function PublisherImportDialog({
       <header className={s.header}>
         <div>
           <h2 id="publisher-import-title">
-            {initialOverallText ? '整理总体设定' : seeded ? '整理人物文稿' : '导入与整理文稿'}
+            {initialSocialFocus
+              ? initialSocialFocus === 'history'
+                ? '补齐历史聊天'
+                : initialSocialFocus === 'moments'
+                  ? '补齐朋友圈'
+                  : '补齐聊天与朋友圈'
+              : initialOverallText
+                ? '整理总体设定'
+                : seeded
+                  ? '整理人物文稿'
+                  : '导入与整理文稿'}
           </h2>
           <p>
             {initialOverallText
@@ -972,11 +1020,17 @@ export function PublisherImportDialog({
                   disabled={unavailable || !preparationClient || record?.status === 'running'}
                   onClick={() => void startAI()}
                 >
-                  {operationId ? '重新整理（新请求）' : '让 AI 整理本批文稿'}
+                  {operationId
+                    ? '重新整理（新请求）'
+                    : initialSocialFocus
+                      ? '生成待核对内容'
+                      : '让 AI 整理本批文稿'}
                 </button>
-                <button type="button" disabled={unavailable} onClick={parseOnly}>
-                  仅解析，不调用 AI
-                </button>
+                {!initialSocialFocus && (
+                  <button type="button" disabled={unavailable} onClick={parseOnly}>
+                    仅解析，不调用 AI
+                  </button>
+                )}
               </div>
               {operationId && (
                 <p className={s.help}>
@@ -1051,7 +1105,29 @@ export function PublisherImportDialog({
             整理稿已准备好。先看故事与人物，再核对下方提示。填入后仍可编辑，保存、试演和发布由你决定。
           </p>
         )}
-        {updatedContent && <PublisherReviewView content={updatedContent} />}
+        {updatedContent && initialSocialFocus ? (
+          <section className={s.preview} aria-label="待核对的微信内容">
+            <h3>本次准备填入 {focusedAdditions.length} 条</h3>
+            {focusedAdditions.length ? (
+              <ol>
+                {focusedAdditions.map(({ kind, row }, index) => (
+                  <li key={`${kind}-${String(row.key)}-${index}`}>
+                    <strong>
+                      {kind === 'messages'
+                        ? `历史聊天 · ${row.speaker === 'player' ? '主角' : '人物'}`
+                        : '朋友圈'}
+                    </strong>
+                    <p>{String(row.text ?? '')}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p>本次没有新增内容；已有原稿保持不变。</p>
+            )}
+          </section>
+        ) : (
+          updatedContent && <PublisherReviewView content={updatedContent} />
+        )}
         {updatedContent && schedule && (
           <PublisherScheduleReview schedule={schedule} content={updatedContent} />
         )}
@@ -1065,7 +1141,7 @@ export function PublisherImportDialog({
             {!aiResult.issues.length && <p>未发现结构问题；故事是否准确仍请对照原稿确认。</p>}
           </section>
         )}
-        {updatedContent && (
+        {updatedContent && !initialSocialFocus && (
           <PublisherSourceReview
             sources={sources}
             content={updatedContent}
@@ -1114,7 +1190,9 @@ export function PublisherImportDialog({
                 disabled={unavailable}
                 onChange={(event) => setReviewedOriginal(event.target.checked)}
               />
-              我已对照原稿，确认作者设定与人物知情范围
+              {initialSocialFocus
+                ? '我已核对这位人物的设定与已有聊天、动态'
+                : '我已对照原稿，确认作者设定与人物知情范围'}
             </label>
             <label className={s.reviewCheck}>
               <input
@@ -1123,11 +1201,13 @@ export function PublisherImportDialog({
                 disabled={unavailable}
                 onChange={(event) => setReviewedAdditions(event.target.checked)}
               />
-              我已核对 AI 补充、待检查项及下方变化
+              {initialSocialFocus
+                ? '我已逐条核对新对话或动态，可以填入当前草稿'
+                : '我已核对 AI 补充、待检查项及下方变化'}
             </label>
           </section>
         )}
-        {updatedContent && (
+        {updatedContent && !initialSocialFocus && (
           <section className={s.preview} aria-label="草稿变化">
             <h3>将填入的变化</h3>
             <ul>

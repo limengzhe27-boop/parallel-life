@@ -60,8 +60,6 @@ function setup() {
   const calls: string[] = [];
   let mode:
     | 'success'
-    | 'socialsuccess'
-    | 'socialmissing'
     | 'unknown'
     | 'invalid'
     | 'overwrite'
@@ -83,15 +81,6 @@ function setup() {
     const proposed = structuredClone(preparedInput.currentContent);
     if (!(proposed.world as Record<string, unknown>).publicSetting)
       (proposed.world as Record<string, unknown>).publicSetting = '项目 Agent 的试演补充';
-    if (mode === 'socialsuccess')
-      (proposed.phone as Record<string, unknown>).moments = [
-        {
-          key: 'new_post',
-          actorKey: 'person',
-          text: '整理完今天的材料，终于能歇一会儿。',
-          at: '2026-10-13T01:00:00Z',
-        },
-      ];
     if (mode === 'overwrite')
       (
         (proposed.actors as Record<string, unknown>[])[0]!.privatePersona as Record<string, unknown>
@@ -453,38 +442,23 @@ function familiarWithMissingMoments(s: ReturnType<typeof setup>) {
     },
   ];
 }
-test('a world passing ordinary checks still prepares missing NPC moments and preserves existing messages', async () => {
+test('character trial with authored history and no moments does not silently generate posts', async () => {
   const s = setup();
   familiarWithMissingMoments(s);
-  s.mode = 'socialsuccess';
   const original = structuredClone(s.current.draft.content);
   const result = await new PublisherTrialPreparation(s.client, () => command).open(
     s.current,
     { title: s.current.title, content: s.current.draft.content },
     options,
   );
-  assert.deepEqual(s.calls, ['check', 'prepare', 'save', 'start']);
-  assert.equal(result.supplemented, true);
+  assert.deepEqual(s.calls, ['check', 'start']);
+  assert.equal(result.supplemented, false);
   assert.deepEqual(
     (result.work.draft.content.phone as Record<string, unknown>).messages,
     (original.phone as Record<string, unknown>).messages,
   );
-  assert.equal(
-    ((result.work.draft.content.phone as Record<string, unknown>).moments as unknown[]).length,
-    1,
+  assert.deepEqual(
+    (result.work.draft.content.phone as Record<string, unknown>).moments,
+    (original.phone as Record<string, unknown>).moments,
   );
-});
-test('a succeeded preparation without required moments never creates an empty character demo', async () => {
-  const s = setup();
-  familiarWithMissingMoments(s);
-  s.mode = 'socialmissing';
-  await assert.rejects(
-    new PublisherTrialPreparation(s.client, () => command).open(
-      s.current,
-      { title: s.current.title, content: s.current.draft.content },
-      options,
-    ),
-    { code: 'TRIAL_SOCIAL_MISSING' },
-  );
-  assert.deepEqual(s.calls, ['check', 'prepare']);
 });

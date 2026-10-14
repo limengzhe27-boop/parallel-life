@@ -370,6 +370,23 @@ test('publisher manuscript preparation: durable admission, isolation, no repeate
       assert.equal(replay.material.scope, undefined);
       assert.equal(calls, 1);
 
+      const focused = {
+        ...input,
+        commandId: randomUUID(),
+        socialFocus: 'moments' as const,
+        socialActorKey: 'lin',
+      };
+      const selected = await preparePublisherManuscript(repo, planner, principal, w.id, focused);
+      const recoveredFocus = await repo.read(principal, w.id, focused.commandId);
+      assert.equal(selected.material.socialFocus, 'moments');
+      assert.equal(recoveredFocus?.material.socialActorKey, 'lin');
+      await preparePublisherManuscript(repo, planner, principal, w.id, focused);
+      assert.equal(calls, 2);
+      await assert.rejects(
+        repo.begin(principal, w.id, { ...focused, socialFocus: 'history' }),
+        (e: any) => e.code === 'IDEMPOTENCY_CONFLICT',
+      );
+
       const after = (
         await admin.query(
           'SELECT request_hash,material,result FROM parallel_life.publisher_preparations WHERE principal_id=$1 AND command_id=$2',

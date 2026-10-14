@@ -198,8 +198,9 @@ export class PublisherTrialPreparation {
         '草稿已有变化，请核对最新保存内容后再试演。',
       );
     const issues = check.issues.filter((issue) => issue.code !== 'trial_unverified');
-    const previewIssues =
-      options.mode === 'world' ? [] : trialCharacterPreviewIssues(work.draft.content);
+    // Social history is an optional author choice. Starting a private trial must not
+    // silently ask the model to author a character's past or public posts.
+    const previewIssues: ReturnType<typeof trialCharacterPreviewIssues> = [];
     let supplemented = false;
     if (
       issues.length ||
@@ -280,13 +281,6 @@ export class PublisherTrialPreparation {
         terminalFailure(
           'TRIAL_SOURCE_CHANGED',
           '准备结果改动了你已有的设定，未自动采用。原稿仍保留，请先核对。',
-        );
-      const incompletePreview =
-        options.mode === 'world' ? [] : trialCharacterPreviewIssues(proposed);
-      if (incompletePreview.length)
-        terminalFailure(
-          'TRIAL_SOCIAL_MISSING',
-          '人物的历史聊天或朋友圈还没有补齐，未启动试聊。已有内容仍保留。',
         );
       const preparedDraft = { title: work.title, content: proposed };
       if (trialDraftChanged(work, preparedDraft)) {

@@ -7,7 +7,10 @@ export const PublisherPreparationMaterialSchema = z
   .strictObject({
     scope: z.enum(['world', 'characters']).optional(),
     socialFocus: z.enum(['history', 'moments', 'both']).optional(),
-    socialActorKey: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
+    socialActorKey: z
+      .string()
+      .regex(/^[a-z][a-z0-9_]{0,31}$/)
+      .optional(),
     currentContent: PublisherDraftContentSchema,
     sources: z
       .array(
@@ -24,6 +27,8 @@ export const PublisherPreparationMaterialSchema = z
       ctx.addIssue({ code: 'custom', message: 'SOCIAL_FOCUS_REQUIRES_CHARACTERS' });
     if (value.socialActorKey && !value.socialFocus)
       ctx.addIssue({ code: 'custom', message: 'SOCIAL_ACTOR_REQUIRES_FOCUS' });
+    if (value.socialFocus && !value.socialActorKey)
+      ctx.addIssue({ code: 'custom', message: 'SOCIAL_FOCUS_REQUIRES_ACTOR' });
     // Invalid/non-JSON private drafts are already rejected; never serialize them a second time.
     if (publicationStorageIssues(value.currentContent).length) return;
     if (
@@ -38,7 +43,10 @@ export const PublisherPreparationInputSchema = z
     expectedDraftVersion: Version,
     scope: z.enum(['world', 'characters']).optional(),
     socialFocus: z.enum(['history', 'moments', 'both']).optional(),
-    socialActorKey: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
+    socialActorKey: z
+      .string()
+      .regex(/^[a-z][a-z0-9_]{0,31}$/)
+      .optional(),
     currentContent: PublisherDraftContentSchema,
     sources: PublisherPreparationMaterialSchema.shape.sources,
   })
@@ -47,6 +55,8 @@ export const PublisherPreparationInputSchema = z
       ctx.addIssue({ code: 'custom', message: 'SOCIAL_FOCUS_REQUIRES_CHARACTERS' });
     if (value.socialActorKey && !value.socialFocus)
       ctx.addIssue({ code: 'custom', message: 'SOCIAL_ACTOR_REQUIRES_FOCUS' });
+    if (value.socialFocus && !value.socialActorKey)
+      ctx.addIssue({ code: 'custom', message: 'SOCIAL_FOCUS_REQUIRES_ACTOR' });
     if (publicationStorageIssues(value.currentContent).length) return;
     if (
       !PublisherPreparationMaterialSchema.safeParse({

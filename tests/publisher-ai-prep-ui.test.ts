@@ -241,6 +241,9 @@ test('semantic baseline survives JSONB property order but rejects version/work/c
   assert.ok(!preparationMatches(r, workId, 0, { ...base, actors: [{}] }));
   assert.ok(!preparationMatches(r, workId, 0, base, [{ ...source[0]!, content: '新稿' }]));
   assert.ok(!preparationMatches(r, workId, 0, base, source, 'other'));
+  assert.ok(
+    !preparationMatches(r, workId, 0, base, source, commandId, undefined, 'history', 'lin'),
+  );
 });
 test('diff explains added people, established facts and timeline, retains complete changed sections', () => {
   const after = record().result!.updatedContent;

@@ -23,6 +23,7 @@ type Props = {
   trialError?: string;
   onSave?: () => void;
   onCloseTrial?: () => void;
+  onGenerate?: (focus: 'history' | 'moments' | 'both') => void;
   onChange: (content: Record<string, unknown>) => void;
 };
 export function PublisherCharacterPreview({
@@ -39,6 +40,7 @@ export function PublisherCharacterPreview({
   trialError,
   onSave,
   onCloseTrial,
+  onGenerate,
   onChange,
 }: Props) {
   const person = characterPreview(content, actorKey);
@@ -56,6 +58,19 @@ export function PublisherCharacterPreview({
           )}
         </div>
         <p className={s.hint}>直接与{name}聊天，查看人物资料与朋友圈。试聊使用独立存档。</p>
+        {canEdit && onGenerate && (
+          <div className={s.generateActions} aria-label="按需补齐人物内容">
+            <button type="button" disabled={busy} onClick={() => onGenerate('history')}>
+              AI 补历史聊天
+            </button>
+            <button type="button" disabled={busy} onClick={() => onGenerate('moments')}>
+              AI 补朋友圈
+            </button>
+            <button type="button" disabled={busy} onClick={() => onGenerate('both')}>
+              一起补齐
+            </button>
+          </div>
+        )}
         {trialMessage && (
           <p role="status" className={s.hint}>
             {trialMessage}
@@ -149,7 +164,7 @@ export function PublisherCharacterPreview({
             <p>
               {isDirty
                 ? '点击试聊会先保存修改，再打开这位人物的微信。'
-                : '点击试聊，项目 Agent 会补齐缺少的历史聊天与朋友圈，再打开这位人物的微信。'}
+                : '保存后可以打开真实微信试聊；上方可按需让 AI 补充聊天或朋友圈。'}
             </p>
             <button
               type="button"

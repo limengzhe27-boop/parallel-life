@@ -12,6 +12,7 @@ import {
   currentCharacterManuscripts,
 } from './publisher-character-manuscript.ts';
 import { PublisherCharacterPreview } from './publisher-character-preview.tsx';
+import { PublisherCharacterSocialEditor } from './publisher-character-social-editor.tsx';
 import {
   CHARACTER_MODULES,
   characterModuleText,
@@ -249,6 +250,10 @@ export function PublisherWorkbench(
   const [formPreparationScope, setFormPreparationScope] = useState<
     'world' | 'characters' | undefined
   >();
+  const [formSocialFocus, setFormSocialFocus] = useState<
+    'history' | 'moments' | 'both' | undefined
+  >();
+  const [formSocialActorKey, setFormSocialActorKey] = useState<string | undefined>();
   const overall = useMemo(() => readOverallSetting(draftContent), [draftContent]);
   const overallText = overallInput ?? overall.text;
   const overallUpdate = useMemo(
@@ -287,6 +292,22 @@ export function PublisherWorkbench(
     setOverallPreparationText(text);
     setFormPreparationSources(currentCharacterManuscripts(draftContent));
     setFormPreparationScope('world');
+    setFormSocialFocus(undefined);
+    setFormSocialActorKey(undefined);
+    setShowMarkdownImport(true);
+  }
+  function onGenerateCharacterSocial(actorKey: string, focus: 'history' | 'moments' | 'both') {
+    if (!work || busy || !session.canEdit || !props.preparationClient) return;
+    const source = characterManuscriptSource(draftContent, actorKey);
+    if (!source) {
+      setNotice({ type: 'warning', message: '请先填写并核对这位人物的姓名与设定，再让 AI 补齐。' });
+      return;
+    }
+    setOverallPreparationText(undefined);
+    setFormPreparationSources([source]);
+    setFormPreparationScope('characters');
+    setFormSocialFocus(focus);
+    setFormSocialActorKey(actorKey);
     setShowMarkdownImport(true);
   }
 
@@ -327,6 +348,8 @@ export function PublisherWorkbench(
       setOverallPreparationText(undefined);
       setFormPreparationSources(undefined);
       setFormPreparationScope(undefined);
+      setFormSocialFocus(undefined);
+      setFormSocialActorKey(undefined);
       setDraftTitle('');
       setDraftContent({});
       setSelectedActorKey(null);
@@ -343,6 +366,8 @@ export function PublisherWorkbench(
       setOverallPreparationText(undefined);
       setFormPreparationSources(undefined);
       setFormPreparationScope(undefined);
+      setFormSocialFocus(undefined);
+      setFormSocialActorKey(undefined);
       setShowMarkdownImport(false);
       if (isNewWork) setMarkdownReview(undefined);
       setDraftTitle(work.title);
@@ -862,6 +887,8 @@ export function PublisherWorkbench(
                     setOverallPreparationText(undefined);
                     setFormPreparationSources(undefined);
                     setFormPreparationScope(undefined);
+                    setFormSocialFocus(undefined);
+                    setFormSocialActorKey(undefined);
                     setShowMarkdownImport(true);
                   }}
                 >
@@ -1308,9 +1335,9 @@ export function PublisherWorkbench(
                           />
                         </div>
 
-                        {/* 2. 微信头像（默认使用默认图片，支持三种选择方式） */}
+                        {/* 2. 微信头像：当前只提供可真正发布的预设素材。 */}
                         <div className={s.formFieldFull}>
-                          <label className={s.fieldLabel}>微信头像（默认使用预设图片）</label>
+                          <label className={s.fieldLabel}>微信头像（可发布的预设图片）</label>
                           <div className={s.avatarSettingBox}>
                             <div className={s.avatarPreviewThumb}>
                               {avatarImgUrl ? (
@@ -1325,7 +1352,6 @@ export function PublisherWorkbench(
                             </div>
                             <div className={s.avatarControls}>
                               <div className={s.avatarMethodRow}>
-                                {/* 方式一：默认图片 */}
                                 <select
                                   id="publication-avatar"
                                   className={s.avatarSelectInput}
@@ -1342,62 +1368,6 @@ export function PublisherWorkbench(
                                     ),
                                   )}
                                 </select>
-
-                                {/* 方式二：导入本地图片 */}
-                                <label
-                                  className={s.avatarActionBtn}
-                                  style={{
-                                    cursor: session.canEdit && !busy ? 'pointer' : 'not-allowed',
-                                  }}
-                                >
-                                  📁 导入本地图片
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    style={{ display: 'none' }}
-                                    disabled={!session.canEdit || busy}
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (!file) return;
-                                      const reader = new FileReader();
-                                      reader.onload = (event) => {
-                                        const base64 = event.target?.result;
-                                        if (typeof base64 === 'string') {
-                                          setNotice({
-                                            type: 'success',
-                                            message: `已导入图片「${file.name}」作为头像预览。`,
-                                          });
-                                        }
-                                      };
-                                      reader.readAsDataURL(file);
-                                    }}
-                                  />
-                                </label>
-
-                                {/* 方式三：AI 生成头像 */}
-                                <button
-                                  type="button"
-                                  className={s.avatarActionBtn}
-                                  disabled={!session.canEdit || busy}
-                                  onClick={() => {
-                                    const avatars = PUBLICATION_ART.filter((a) =>
-                                      a.uses.includes('avatar'),
-                                    );
-                                    const nameHash = Array.from(
-                                      currentActorForm.name || 'AI',
-                                    ).reduce((acc, c) => acc + c.charCodeAt(0), 0);
-                                    const picked = avatars[nameHash % avatars.length] ?? avatars[0];
-                                    if (picked) {
-                                      handleArtChange('avatar', picked.key);
-                                      setNotice({
-                                        type: 'success',
-                                        message: `AI 已为「${currentActorForm.name || '角色'}」推荐形象「${picked.label}」！`,
-                                      });
-                                    }
-                                  }}
-                                >
-                                  ✨ AI 生成头像
-                                </button>
                               </div>
                             </div>
                           </div>
@@ -1503,6 +1473,14 @@ export function PublisherWorkbench(
 
                 {/* 右侧：手机界面与对话框 */}
                 <div className={s.characterPreviewContainer}>
+                  <PublisherCharacterSocialEditor
+                    content={draftContent}
+                    actorKey={currentActorForm.key}
+                    referenceAt={work.createdAt}
+                    canEdit={session.canEdit}
+                    busy={busy}
+                    onChange={setDraftContent}
+                  />
                   <PublisherCharacterPreview
                     content={draftContent}
                     actorKey={currentActorForm.key}
@@ -1519,6 +1497,11 @@ export function PublisherWorkbench(
                     onStartTrial={handleCharacterTrial}
                     onSave={handleSaveDraft}
                     onCloseTrial={props.onCloseCharacterTrial}
+                    onGenerate={
+                      props.preparationClient
+                        ? (focus) => onGenerateCharacterSocial(currentActorForm.key, focus)
+                        : undefined
+                    }
                     onChange={setDraftContent}
                   />
                 </div>
@@ -1630,11 +1613,15 @@ export function PublisherWorkbench(
           initialOverallText={overallPreparationText}
           initialSources={formPreparationSources}
           initialScope={formPreparationScope}
+          initialSocialFocus={formSocialFocus}
+          initialSocialActorKey={formSocialActorKey}
           onClose={() => {
             setShowMarkdownImport(false);
             setOverallPreparationText(undefined);
             setFormPreparationSources(undefined);
             setFormPreparationScope(undefined);
+            setFormSocialFocus(undefined);
+            setFormSocialActorKey(undefined);
           }}
           onApply={(next, summary, options?: { keepOpen?: boolean }) => {
             if (overallBlocked) return;
@@ -1642,6 +1629,8 @@ export function PublisherWorkbench(
             setOverallPreparationText(undefined);
             setFormPreparationSources(undefined);
             setFormPreparationScope(undefined);
+            setFormSocialFocus(undefined);
+            setFormSocialActorKey(undefined);
             setDraftContent(next);
             setActiveTab(formPreparationScope === 'characters' ? 'actors' : 'settings');
             setSettingsOpen(false);

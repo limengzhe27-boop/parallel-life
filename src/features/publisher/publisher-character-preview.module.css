@@ -47,6 +47,16 @@
   margin: 0;
   padding: 0 16px 12px;
 }
+.generateActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 16px 12px;
+}
+.generateActions button {
+  min-height: 40px;
+  font-size: 13px;
+}
 .trialWrap {
   position: relative;
   width: 100%;
