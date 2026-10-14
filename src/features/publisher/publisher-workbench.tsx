@@ -22,13 +22,19 @@ import {
   updateCharacterField,
   type CharacterModuleKey,
 } from './publisher-character-model.ts';
-import { PublisherImportDialog, manuscriptFingerprint } from './publisher-import-dialog.tsx';
+import {
+  PublisherImportDialog,
+  manuscriptFingerprint,
+  preparationMatches,
+} from './publisher-import-dialog.tsx';
+import { PublisherPreparationInputSchema } from '../../contracts/publisher-preparation.ts';
+import { applyDirectSocialProposal } from './publisher-social-direct.ts';
 import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
 import { planPublicationTimes } from '../../modules/settings/domain/publication-scheduling.ts';
 import type { PublisherSchedule } from '../../contracts/publisher-preparation.ts';
 import { PublisherSpaceEditor } from './publisher-space-editor.tsx';
 import { PublisherOpeningEditor } from './publisher-opening-editor.tsx';
-import type { PublisherClient } from './publisher-client.ts';
+import { PublisherClientError, type PublisherClient } from './publisher-client.ts';
 import type { ImportSummary } from './publisher-importer.ts';
 import {
   patchPlotField,
@@ -125,47 +131,6 @@ function issueLabel(path: readonly (string | number)[], code: string) {
   return `${group}${row}${group ? ' · ' : ''}${field}：${reason}`;
 }
 
-function syncWorldSettingsFromOverall(
-  content: Record<string, unknown>,
-  overallText: string,
-  title: string,
-): Record<string, unknown> {
-  const text = overallText.trim();
-  if (!text) return content;
-  const current = parseWorldSettings(content, title);
-  const firstLine =
-    text
-      .split('\n')
-      .find((l) => l.trim().length > 0)
-      ?.trim() || title;
-  const hook = current.hook || firstLine.slice(0, 60) || '一段关于抉择与羁绊的平行人生';
-  const description = current.description || text.slice(0, 500) || hook;
-  const experienceNote = current.experienceNote || '沉浸式平行人生体验，请根据内心直觉做出抉择。';
-  const publicSetting = current.publicSetting || text.slice(0, 800) || description;
-  const hiddenContext = current.hiddenContext || text;
-  const tone = current.tone || '现实质感 · 情感波澜';
-  const startAt = current.startAt || '2026-10-14T09:00:00Z';
-  const places = Array.isArray(content.places) ? content.places : [];
-  const firstPlaceKey =
-    places.length > 0 && typeof (places[0] as Record<string, unknown>)?.key === 'string'
-      ? ((places[0] as Record<string, unknown>).key as string)
-      : '';
-  const startPlaceKey = current.startPlaceKey || firstPlaceKey;
-
-  return updateWorldSettingsInContent(content, {
-    ...current,
-    title: current.title || title,
-    hook,
-    description,
-    experienceNote,
-    publicSetting,
-    hiddenContext,
-    tone,
-    startAt,
-    startPlaceKey,
-  });
-}
-
 export function PublisherWorkbench(
   props: PublisherWorkbenchProps & {
     preparationClient?: PublisherClient;
@@ -254,6 +219,14 @@ export function PublisherWorkbench(
     'history' | 'moments' | 'both' | undefined
   >();
   const [formSocialActorKey, setFormSocialActorKey] = useState<string | undefined>();
+  const [socialGenerating, setSocialGenerating] = useState<'history' | 'moments' | null>(null);
+  const [socialGenerationMessage, setSocialGenerationMessage] = useState<string | null>(null);
+  const [socialGenerationError, setSocialGenerationError] = useState<string | null>(null);
+  const [socialInFlight] = useState(() => ({ current: false }));
+  const [liveSocialDraft] = useState(() => ({
+    current: { workId: work?.id, content: draftContent },
+  }));
+  liveSocialDraft.current = { workId: work?.id, content: draftContent };
   const overall = useMemo(() => readOverallSetting(draftContent), [draftContent]);
   const overallText = overallInput ?? overall.text;
   const overallUpdate = useMemo(
@@ -296,19 +269,106 @@ export function PublisherWorkbench(
     setFormSocialActorKey(undefined);
     setShowMarkdownImport(true);
   }
-  function onGenerateCharacterSocial(actorKey: string, focus: 'history' | 'moments' | 'both') {
-    if (!work || busy || !session.canEdit || !props.preparationClient) return;
+  async function onGenerateCharacterSocial(actorKey: string, focus: 'history' | 'moments') {
+    if (!work || busy || !session.canEdit || !props.preparationClient || socialInFlight.current)
+      return;
     const source = characterManuscriptSource(draftContent, actorKey);
     if (!source) {
-      setNotice({ type: 'warning', message: '请先填写并核对这位人物的姓名与设定，再让 AI 补齐。' });
+      setSocialGenerationError('请先填写这位人物的姓名与设定，再让 AI 帮忙补充。');
       return;
     }
-    setOverallPreparationText(undefined);
-    setFormPreparationSources([source]);
-    setFormPreparationScope('characters');
-    setFormSocialFocus(focus);
-    setFormSocialActorKey(actorKey);
-    setShowMarkdownImport(true);
+    const client = props.preparationClient;
+    const workId = work.id;
+    const version = work.draft.version;
+    const baseline = draftContent;
+    const sources = [source];
+    const input = PublisherPreparationInputSchema.safeParse({
+      commandId: crypto.randomUUID(),
+      expectedDraftVersion: version,
+      scope: 'characters',
+      socialFocus: focus,
+      socialActorKey: actorKey,
+      currentContent: baseline,
+      sources,
+    });
+    if (!input.success) {
+      setSocialGenerationError('当前人物资料还不完整或太长，请保存并核对后再试。');
+      return;
+    }
+    socialInFlight.current = true;
+    setSocialGenerating(focus);
+    setSocialGenerationMessage(`正在为这位人物补${focus === 'moments' ? '朋友圈' : '历史聊天'}…`);
+    setSocialGenerationError(null);
+    try {
+      // Recover an identical persisted operation before admitting another paid request.
+      const latest = (await client.latestPreparation(workId)).preparation;
+      let record =
+        latest &&
+        latest.status !== 'failed' &&
+        preparationMatches(
+          latest,
+          workId,
+          version,
+          baseline,
+          sources,
+          undefined,
+          'characters',
+          focus,
+          actorKey,
+        )
+          ? latest
+          : await client.prepareManuscript(workId, input.data);
+      for (let attempt = 0; record.status === 'running' && attempt < 40; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        record = await client.getPreparation(workId, record.commandId);
+      }
+      if (record.status === 'running' || record.status === 'unknown') {
+        setSocialGenerationError(
+          '这次生成结果尚未确认。再次点击会先查询原操作，不会重复发起生成。',
+        );
+        return;
+      }
+      if (record.status !== 'succeeded' || !record.result) {
+        setSocialGenerationError('这次没能生成可用内容，请稍后重试。');
+        return;
+      }
+      if (record.result.issues.length) {
+        setSocialGenerationError('生成的内容有待核对的问题，本次没有填入草稿。请稍后重试。');
+        return;
+      }
+      if (
+        liveSocialDraft.current.workId !== workId ||
+        manuscriptFingerprint(liveSocialDraft.current.content) !== manuscriptFingerprint(baseline)
+      ) {
+        setSocialGenerationError('生成期间草稿有了新修改，本次没有覆盖你的内容。请保存后重试。');
+        return;
+      }
+      const adopted = applyDirectSocialProposal(
+        baseline,
+        record.result.updatedContent,
+        actorKey,
+        focus,
+      );
+      if (adopted.error) {
+        if (adopted.error === 'NO_NEW_CONTENT')
+          setSocialGenerationMessage('这次没有新的内容可补，已有内容保持原样。');
+        else setSocialGenerationError('生成结果与当前人物内容不一致，本次没有改动草稿。');
+        return;
+      }
+      setDraftContent(adopted.content);
+      setSocialGenerationMessage(
+        `已补入 ${adopted.added} 条${focus === 'moments' ? '朋友圈' : '历史聊天'}，正在保存草稿。`,
+      );
+    } catch (error) {
+      setSocialGenerationError(
+        error instanceof PublisherClientError && error.code === 'VERSION_CONFLICT'
+          ? '草稿已有新版本，请刷新核对后再试。'
+          : '暂时没有收到完整结果；再次点击会先查询原操作。',
+      );
+    } finally {
+      socialInFlight.current = false;
+      setSocialGenerating(null);
+    }
   }
 
   // Modals for renaming and deleting works
@@ -561,7 +621,7 @@ export function PublisherWorkbench(
 
   // Auto-save: 填写即自动保存（防抖 800ms）
   useEffect(() => {
-    if (!work || !session.canEdit || busy || overallBlocked) return;
+    if (!work || !session.canEdit || busy || overallBlocked || socialGenerating) return;
     if (!isDraftDirty(savedState, { title: draftTitle, content: draftContent })) return;
 
     const timer = setTimeout(() => {
@@ -580,6 +640,7 @@ export function PublisherWorkbench(
     session.canEdit,
     busy,
     overallBlocked,
+    socialGenerating,
     onSaveDraft,
   ]);
 
@@ -1209,23 +1270,7 @@ export function PublisherWorkbench(
                 }
                 onClick={() => onPrepareOverall(overallText)}
               >
-                根据总体设定整理
-              </button>
-              <button
-                type="button"
-                className={`${s.btn} ${s.btnSecondary}`}
-                disabled={busy || !session.canEdit || !overallText.trim()}
-                onClick={() => {
-                  setDraftContent((prev) =>
-                    syncWorldSettingsFromOverall(prev, overallText, draftTitle),
-                  );
-                  setNotice({
-                    type: 'success',
-                    message: '已根据总体设定自动填充底层展示与开局参数。',
-                  });
-                }}
-              >
-                同步到展示字段
+                AI 帮写
               </button>
             </div>
           </section>
@@ -1502,6 +1547,9 @@ export function PublisherWorkbench(
                         ? (focus) => onGenerateCharacterSocial(currentActorForm.key, focus)
                         : undefined
                     }
+                    generatingFocus={socialGenerating}
+                    generationMessage={socialGenerationMessage}
+                    generationError={socialGenerationError}
                     onChange={setDraftContent}
                   />
                 </div>

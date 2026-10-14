@@ -181,6 +181,38 @@ test('authored opening time takes priority over work creation time; missing both
   assert.match(missing.error ?? '', /保存草稿/);
 });
 
+test('chat can continue when imported history ends immediately before opening', () => {
+  const original = fixture();
+  phone(original).messages[0]!.at = '2026-10-14T11:59:30.000Z';
+  let current = original;
+  for (let index = 0; index < 12; index++) {
+    const result = addHistoryMessage(
+      current,
+      'lin',
+      index % 2 ? 'player' : 'actor',
+      `第${index + 1}句`,
+      index % 3 === 0,
+    );
+    assert.equal(result.error, undefined);
+    if (index === 0) assert.match(result.notice ?? '', /无法再隔一天/);
+    current = result.content;
+  }
+  assert.equal(phone(current).messages[0]!.at, phone(original).messages[0]!.at);
+  const added = phone(current).messages.slice(2);
+  assert.equal(added.length, 12);
+  assert.ok(
+    added.every(
+      (message) => Date.parse(String(message.at)) < Date.parse('2026-10-14T12:00:00.000Z'),
+    ),
+  );
+  assert.deepEqual(
+    historySegments(current, 'lin')
+      .slice(-12)
+      .map((item) => item.text),
+    Array.from({ length: 12 }, (_, index) => `第${index + 1}句`),
+  );
+});
+
 test('friend profile edits only public card and leaves private identity, life modules, and other actor intact', () => {
   const original = fixture();
   const updated = editPublicProfile(original, 'lin', 'introduction', '玩家能读到的新介绍');

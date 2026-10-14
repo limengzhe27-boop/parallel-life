@@ -53,7 +53,13 @@ function chooseHistoryTime(
     .filter(Number.isFinite);
   const last = times.length ? Math.max(...times) : start - 7 * 86400000;
   const next = last + (interval ? 86400000 : 60000);
-  return next < start ? new Date(next).toISOString() : undefined;
+  if (next < start) return new Date(next).toISOString();
+  // An imported conversation may already end immediately before the opening. There is
+  // no room to invent another minute (or day) without changing its authored date.
+  // Keep subsequent messages in that last pre-opening instant and their saved order.
+  // Requiring the writer to move the opening merely to add a line is worse than a
+  // same-time chat bubble; the publication validator still requires history < start.
+  return last < start ? new Date(Math.max(last, start - 1)).toISOString() : undefined;
 }
 
 /** The saved schema has timestamps rather than editor-only separators. An interval becomes a stable day gap. */
@@ -64,7 +70,7 @@ export function addHistoryMessage(
   text: string,
   interval = false,
   referenceAt?: string,
-): { content: Draft; error?: string } {
+): { content: Draft; error?: string; notice?: string } {
   const subject = actor(content, actorKey);
   if (!subject || subject.knownAtStart !== true)
     return { content, error: '请先确认这位人物与主角开场已经认识。' };
@@ -77,7 +83,7 @@ export function addHistoryMessage(
     return {
       content,
       error: Number.isFinite(startTime(content, referenceAt))
-        ? '现有聊天已接近开场，请核对原稿时间后再添加。'
+        ? '原有历史消息已晚于故事开场，请先核对原稿时间。'
         : '尚未取得作品的创建时间，请先保存草稿后重试。',
     };
   const added = {
@@ -88,7 +94,17 @@ export function addHistoryMessage(
     text: text.trim(),
     at,
   };
-  return { content: withPhoneEntries(content, 'messages', [...all, added]) };
+  const prior = all
+    .filter((item) => item.actorKey === actorKey && item.origin === 'history')
+    .map((item) => Date.parse(str(item.at)))
+    .filter(Number.isFinite);
+  const last = prior.length ? Math.max(...prior) : undefined;
+  return {
+    content: withPhoneEntries(content, 'messages', [...all, added]),
+    ...(interval && last !== undefined && Date.parse(at) - last < 12 * 3600000
+      ? { notice: '已加入消息；原稿聊天已贴近开场，无法再隔一天，仍留在开场前最后一段。' }
+      : {}),
+  };
 }
 
 export function editHistoryMessage(

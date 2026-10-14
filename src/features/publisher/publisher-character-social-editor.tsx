@@ -44,6 +44,7 @@ export function PublisherCharacterSocialEditor({
   const [postDay, setPostDay] = useState('');
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   useEffect(() => {
     setPage('chat');
     setSpeaker('actor');
@@ -55,6 +56,7 @@ export function PublisherCharacterSocialEditor({
     setPostDay('');
     setEditingPost(null);
     setError('');
+    setNotice('');
   }, [actorKey]);
   const person = characterPreview(content, actorKey);
   if (!person) return <p className={s.empty}>请先核对人物资料，重复的人物暂不能编辑微信。</p>;
@@ -71,11 +73,12 @@ export function PublisherCharacterSocialEditor({
   );
 
   const apply = (
-    result: { content: Record<string, unknown>; error?: string },
+    result: { content: Record<string, unknown>; error?: string; notice?: string },
     done: () => void,
   ) => {
     if (result.error) return setError(result.error);
     setError('');
+    setNotice(result.notice ?? '');
     onChange(result.content);
     done();
   };
@@ -264,7 +267,9 @@ export function PublisherCharacterSocialEditor({
                 </button>
               </div>
               {nextInterval && !editingMessage && (
-                <p className={s.smallHint}>下一条消息会进入新的聊天时间段，保存后时间固定。</p>
+                <p className={s.smallHint}>
+                  会尝试隔开一天；如果原稿聊天已接近开场，消息仍可加入最后一段。
+                </p>
               )}
             </div>
           )}
@@ -428,6 +433,11 @@ export function PublisherCharacterSocialEditor({
       {error && (
         <p role="alert" className={s.error}>
           {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className={s.smallHint}>
+          {notice}
         </p>
       )}
       {!person.knownAtStart && (

@@ -753,7 +753,7 @@ test('over-budget input stays intact, blocks stale partial save and can be corre
     assert.equal(h.button('保存草稿').props.disabled, true);
     h.click('保存草稿');
     assert.equal(h.saved.length, 0);
-    assert.equal(h.button('根据总体设定整理').props.disabled, true);
+    assert.equal(h.button('AI 帮写').props.disabled, true);
     assert.ok(h.render().some((n) => n.props.role === 'alert'));
     h.change('改短后的完整原文');
     h.click('保存草稿');
@@ -780,7 +780,7 @@ test('overall preparation only opens the real dialog with explicit text and ordi
   const h = overallHarness({ preparationClient: client });
   try {
     h.change('只送这段总体原稿');
-    h.click('根据总体设定整理');
+    h.click('AI 帮写');
     const dialog = h.render().find((n) => n.type === PublisherImportDialog)!;
     assert.ok(dialog);
     assert.equal(dialog.props.initialOverallText, '只送这段总体原稿');
@@ -803,7 +803,7 @@ test('overall change and preparation handlers cannot bypass read-only or busy st
       const before = h.input().props.value;
       h.change('不能写入');
       assert.equal(h.input().props.value, before);
-      h.click('根据总体设定整理');
+      h.click('AI 帮写');
       assert.equal(h.saved.length, 0);
     } finally {
       h.close();
@@ -865,6 +865,61 @@ test('the character form correctly renders 5 core dimensions and triggers trial 
     assert.ok(preview);
     (preview.props.onStartTrial as () => void)();
     assert.ok(trialDraft);
+  } finally {
+    h.close();
+  }
+});
+
+test('one click fills this character’s Moments directly into the draft without opening an import review', async () => {
+  const { PublisherImportDialog } =
+    await import('../src/features/publisher/publisher-import-dialog.tsx');
+  const calls: string[] = [];
+  const authored = {
+    ...mockContent,
+    world: { ...(mockContent.world as Record<string, unknown>), startAt: '2026-10-10T08:00:00Z' },
+    phone: { moments: [] },
+  };
+  const newPost = {
+    key: 'moment_weather',
+    actorKey: 'qingqing',
+    text: '诊所窗边的海风，今天格外温柔。',
+    at: '2026-10-09T08:00:00Z',
+  };
+  const client = {
+    latestPreparation: async () => {
+      calls.push('latest');
+      return { preparation: null };
+    },
+    prepareManuscript: async (_workId: string, input: Record<string, unknown>) => {
+      calls.push('prepare');
+      assert.equal(input.scope, 'characters');
+      assert.equal(input.socialFocus, 'moments');
+      assert.equal(input.socialActorKey, 'qingqing');
+      assert.deepEqual(input.currentContent, authored);
+      return {
+        status: 'succeeded',
+        result: { updatedContent: { ...authored, phone: { moments: [newPost] } }, issues: [] },
+      };
+    },
+  } as unknown as NonNullable<Parameters<typeof PublisherWorkbench>[0]['preparationClient']>;
+  const h = overallHarness({
+    work: { ...mockWork, draft: { ...mockWork.draft, content: authored } },
+    preparationClient: client,
+  });
+  try {
+    h.click('人物');
+    const preview = h.render().find((n) => typeof n.props.onGenerate === 'function');
+    assert.ok(preview);
+    await (preview.props.onGenerate as (focus: 'moments') => Promise<void>)('moments');
+    assert.deepEqual(calls, ['latest', 'prepare']);
+    assert.equal(
+      h.render().some((n) => n.type === PublisherImportDialog),
+      false,
+    );
+    const after = h.render().find((n) => typeof n.props.onGenerate === 'function')!;
+    assert.deepEqual((after.props.content as Record<string, unknown>).phone, {
+      moments: [newPost],
+    });
   } finally {
     h.close();
   }

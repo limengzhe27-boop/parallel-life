@@ -123,6 +123,29 @@ test('history-only proposal accepts only this actor’s new dialogue and preserv
   assert.ok(!result.notes.some((n) => n.text === '朋友圈和聊天全部生成'));
 });
 
+test('focused social writing sees bounded world and possible events without other characters private cards', async () => {
+  const original = content();
+  (original.world as Record<string, unknown>).publicSetting = '沿海小镇的秋天';
+  (original.world as Record<string, unknown>).tone = '温柔但有矛盾';
+  (original.candidates[0] as Record<string, unknown>).title = '突如其来的邀约';
+  (original.candidates[0] as Record<string, unknown>).editorialIntent = '这只是可能发生的事';
+  const h = harness([{ phone: { moments: [post('new_post')] } }]);
+  await h.planner.propose(focused(original, 'moments'));
+  const sent = JSON.parse(h.calls[0]![1]!.content) as Record<string, unknown>;
+  const context = sent.storyContext as Record<string, unknown>;
+  assert.equal((context.world as Record<string, unknown>).publicSetting, '沿海小镇的秋天');
+  assert.equal((context.possibleEvents as Record<string, unknown>[])[0]?.title, '突如其来的邀约');
+  assert.equal(JSON.stringify(sent).includes('PRIVATE_FUTURE'), false);
+  assert.equal(JSON.stringify(sent).includes('PRIVATE_BOUNDARY'), true);
+  assert.equal((sent.currentContent as Record<string, unknown>).world, undefined);
+  const scopedActors = (sent.currentContent as Record<string, unknown>).actors as Record<
+    string,
+    unknown
+  >[];
+  assert.equal(scopedActors.length, 1);
+  assert.equal(scopedActors[0]?.key, 'guide');
+});
+
 test('moments-only proposal leaves histories and five dimensions intact; no history completeness requirement', async () => {
   const original = content();
   original.phone.messages = [];
