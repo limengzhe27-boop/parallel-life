@@ -654,10 +654,6 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                 1600,
                 '【起因】突发了什么打破主角现状…\n【博弈】主角面临什么两难抉择…\n【结局】最终导演把冲突引向什么收敛局面与主角感受…',
               )}
-              {selectField('这件事涉及的地点（选填）', ['settingPlaceKey'], places)}
-              <p className={s.hint}>
-                选中后，导演会记住并引导主角前往；选地点本身不会要求主角已经到场。
-              </p>
               <div
                 className={`${s.preconditions} ${s.wide}`}
                 aria-label="事件前提"

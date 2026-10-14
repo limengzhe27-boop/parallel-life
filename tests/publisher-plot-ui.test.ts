@@ -555,3 +555,21 @@ test('opening card honors disabled and clears the designation without deleting t
   assert.equal(Object.hasOwn(edit.next!, 'openingEventKey'), false);
   assert.deepEqual(edit.next!.candidates, c.candidates);
 });
+
+test('event location picker is gone while saved mentioned-place and arrival conditions survive edits', () => {
+  const c = content();
+  const event = (c.candidates as PlotRecord[])[0]!;
+  event.settingPlaceKey = 'home';
+  event.prerequisites = [{ kind: 'at_place', placeKey: 'home' }];
+  const before = JSON.stringify(c);
+  const html = renderToStaticMarkup(
+    createElement(PublisherPlotEditor, {
+      content: c,
+      disabled: false,
+      onChange: () => assert.fail('render must not edit'),
+    }),
+  );
+  assert.doesNotMatch(html, /这件事涉及的地点|选中后，导演会记住并引导/);
+  assert.match(html, /店铺/);
+  assert.equal(JSON.stringify(c), before);
+});

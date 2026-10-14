@@ -16,6 +16,9 @@ import {
   currentCharacterManuscripts,
 } from './publisher-character-manuscript.ts';
 import { PublisherCharacterPreview } from './publisher-character-preview.tsx';
+import pasteStyles from './publisher-character-paste-dialog.module.css';
+import { PublisherCharacterPasteDialog } from './publisher-character-paste-dialog.tsx';
+import { characterPasteImageNotes, characterPasteFieldLimit } from './publisher-character-paste.ts';
 import { PublisherCharacterSocialEditor } from './publisher-character-social-editor.tsx';
 import {
   CHARACTER_MODULES,
@@ -136,6 +139,7 @@ export function PublisherWorkbench(
   } | null>(null);
 
   // Modal for creating new work
+  const [showCharacterPaste, setShowCharacterPaste] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newWorkTitle, setNewWorkTitle] = useState('');
   const [showMarkdownImport, setShowMarkdownImport] = useState(false);
@@ -1100,8 +1104,15 @@ export function PublisherWorkbench(
               <div className={s.actorContentGrid}>
                 {/* 左侧：角色信息与核心维度 */}
                 <div className={s.card}>
-                  <div className={s.sectionHeader}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className={`${s.sectionHeader} ${pasteStyles.toolbar}`}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
                       <h3 className={s.sectionTitle}>
                         角色设定 · {currentActorForm.name || '未命名'}
                       </h3>
@@ -1118,6 +1129,14 @@ export function PublisherWorkbench(
                         {busy ? '正在处理…' : isDirty ? '有未保存修改' : '已保存'}
                       </span>
                     </div>
+                    <button
+                      type="button"
+                      className={`${s.workHeaderActionBtn} ${pasteStyles.pasteButton}`}
+                      disabled={!session.canEdit || busy}
+                      onClick={() => setShowCharacterPaste(true)}
+                    >
+                      粘贴导入角色资料
+                    </button>
                     <button
                       type="button"
                       className={s.deleteActorBtn}
@@ -1319,6 +1338,22 @@ export function PublisherWorkbench(
                                       )
                                     }
                                   />
+                                  <p className={s.dimensionHint}>
+                                    {(() => {
+                                      const length = characterModuleText(
+                                        draftContent,
+                                        currentActorForm.key,
+                                        module.key,
+                                      ).length;
+                                      const limit = characterPasteFieldLimit(
+                                        'lifeModules',
+                                        module.key,
+                                      );
+                                      return length <= limit
+                                        ? `已填写 ${length} / ${limit} 字符，还可保存 ${limit - length} 字符`
+                                        : `超出可保存容量 ${length - limit} 字符；全文保留在输入框，请调整后保存。`;
+                                    })()}
+                                  </p>
                                   {legacy && (
                                     <details>
                                       <summary>查看保留的旧版设定</summary>
@@ -1338,6 +1373,16 @@ export function PublisherWorkbench(
 
                 {/* 右侧：手机界面与对话框 */}
                 <div className={s.characterPreviewContainer}>
+                  {characterPasteImageNotes(draftContent, currentActorForm.key).length > 0 && (
+                    <details className={s.card}>
+                      <summary>导入时的配图说明（请在朋友圈编辑区补图）</summary>
+                      {characterPasteImageNotes(draftContent, currentActorForm.key).map((n, i) => (
+                        <pre key={i} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                          {n.text}
+                        </pre>
+                      ))}
+                    </details>
+                  )}
                   <PublisherCharacterSocialEditor
                     content={draftContent}
                     actorKey={currentActorForm.key}
@@ -1477,6 +1522,24 @@ export function PublisherWorkbench(
         </div>
       )}
 
+      {showCharacterPaste && work && currentActorForm && (
+        <PublisherCharacterPasteDialog
+          key={`${work.id}:${currentActorForm.key}:${work.draft.version}`}
+          workId={work.id}
+          version={work.draft.version}
+          content={draftContent}
+          actorKey={currentActorForm.key}
+          referenceAt={work.createdAt}
+          disabled={busy || !session.canEdit}
+          onClose={() => setShowCharacterPaste(false)}
+          onApply={(next, message) => {
+            if (busy || !session.canEdit) return;
+            setDraftContent(next);
+            setShowCharacterPaste(false);
+            setNotice({ type: 'warning', message });
+          }}
+        />
+      )}
       {/* ================= Create Work Modal ================= */}
       {showMarkdownImport && work && (
         <PublisherImportDialog
