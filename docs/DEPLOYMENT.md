@@ -1,3 +1,8 @@
+## 2026-10-14 · PUBLISHER-STOP-TAB-HIJACK-03
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 452, typecheck and build passed; 516 publisher tests passed. No SQL migration changes.
+- 彻底移除后台保存草稿时强行跳切“待确认问题”的侵入式行为：删除监听 check 状态自动执行 setActiveTab('review') 的副作用，创作者编辑角色、总体设定或剧情时，保持专注停留在当前标签页，绝不发生意外跳切或打断。
+
 ## 2026-10-14 · CHARACTER-AUTHOR-20 一键补朋友圈与历史聊天
 
 业务 `91e0052` 已推送，Production `dpl_CNVci6zVRCJDKP9ei3inyneg3QyL` READY，正式 `https://parallel-life-nu.vercel.app` 别名指向同一部署。编剧在人物页点击「AI 补朋友圈」或「AI 补历史聊天」直接调用项目整理 Agent，并只追加当前人物的对应内容到草稿，不再打开导入文档核对页；原记录和其他人物保持原样。历史聊天贴近开场仍可继续追加而不改原稿时间；总体设定下方收为一个「AI 帮写」按钮。
