@@ -31,6 +31,8 @@ export type ActorContext = {
   actor: WorldState['actors'][number];
   /** Only this actor's sourced goals after visibility, forgetting and budget checks. */
   eventGoals?: ActorEventGoal[];
+  /** Trusted current claimed opportunity, not an already happened goal or a future source. */
+  introducingEventGoalKey?: string;
   /** Bounded cast sketches for a director beat; never another NPC's private memory. */
   possibleRecipients?: (Pick<
     WorldState['actors'][number],

@@ -2,7 +2,13 @@ import type { WorldState } from './types.ts';
 import { DomainError } from './errors.ts';
 import { projectStoryTime, type WorldClock } from './clock.ts';
 import { isoInstant, validateEventId } from './validation.ts';
+import {
+  defaultTravelRoute,
+  resolveTravelRoute,
+  sameDefaultTravelRoute,
+} from './space-travel-policy.ts';
 export type SpaceSource =
+  | { kind: 'system_policy'; policy: 'default_travel_v1'; snapshotVersion: 0 }
   | { kind: 'official_genesis'; presetId: string; contentVersion: number; snapshotVersion: 0 }
   | { kind: 'seed_genesis'; seedId: string; snapshotVersion: 0 }
   | {
@@ -120,17 +126,19 @@ export function validateSpace(space: WorldSpaceState): void {
   if (
     !keys.has(space.currentPlaceId) ||
     keys.size !== space.places.length ||
-    space.places.length > 16 ||
-    space.routes.length > 64
+    space.places.length > 24 ||
+    space.routes.length > 64 ||
+    space.positionSource.kind === 'system_policy'
   )
     throw new DomainError('INVALID_PROPOSAL');
   for (const p of space.places) {
     if (
       !key(p.id) ||
       !p.name.trim() ||
-      p.name.length > 80 ||
-      !p.description.trim() ||
-      p.description.length > 1000
+      p.name.length > 100 ||
+      typeof p.description !== 'string' ||
+      p.description.length > 1000 ||
+      p.source?.kind === 'system_policy'
     )
       throw new DomainError('INVALID_PROPOSAL');
     for (const id of p.contactActorIds) validateEventId(id);
@@ -182,6 +190,8 @@ export type TravelEvent = {
     arrivedAt: string;
     leftSceneId: string | null;
     departureObservation?: WorldState['facts'][number];
+    /** Server-generated default route, validated on replay; never a public request field. */
+    generatedRoute?: SpaceRoute;
   };
 };
 export type SpaceEstablishedEvent = {
@@ -222,7 +232,7 @@ export function travelTimes(
   if (clock.paused) throw new DomainError('INVALID_COMMAND', '人生已暂停，恢复后再前往');
   if (!world.space) throw new DomainError('INVALID_COMMAND', '这段人生还没有可靠的地点资料');
   validateSpace(world.space);
-  const route = world.space.routes.find((r) => r.id === routeId);
+  const route = resolveTravelRoute(world.space, routeId);
   if (!route || route.fromPlaceId !== world.space.currentPlaceId)
     throw new DomainError('INVALID_COMMAND', '路线已变化，请刷新地点');
   const departedAt = new Date(
@@ -286,9 +296,16 @@ export function applySpaceEvent(
     if (!reachableSpacePlaces(space).has(place.id)) throw new DomainError('INVALID_PROPOSAL');
     return { ...world, version: e.version, time: e.storyAt, space };
   }
-  const route = world.space.routes.find((r) => r.id === e.data.routeId);
+  let route = world.space.routes.find((r) => r.id === e.data.routeId);
+  if (e.data.generatedRoute) {
+    const expected = defaultTravelRoute(world.space, e.data.fromPlaceId, e.data.toPlaceId);
+    if (route || !expected || !sameDefaultTravelRoute(expected, e.data.generatedRoute))
+      throw new DomainError('INVALID_PROPOSAL');
+    route = expected;
+  }
   if (
     !route ||
+    route.id !== e.data.routeId ||
     route.fromPlaceId !== world.space.currentPlaceId ||
     route.fromPlaceId !== e.data.fromPlaceId ||
     route.toPlaceId !== e.data.toPlaceId ||

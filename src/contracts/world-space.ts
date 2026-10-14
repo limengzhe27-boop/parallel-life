@@ -8,6 +8,11 @@ export const TravelRequestSchema = z.strictObject({
 });
 export const SpaceSourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
+    kind: z.literal('system_policy'),
+    policy: z.literal('default_travel_v1'),
+    snapshotVersion: z.literal(0),
+  }),
+  z.strictObject({
     kind: z.literal('official_genesis'),
     presetId: z.string(),
     contentVersion: z.number().int().positive(),
@@ -41,6 +46,12 @@ export const SpacePlaceSchema = z.strictObject({
   id: Key,
   name: z.string(),
   description: z.string(),
+  sceneImageUrl: z
+    .string()
+    .regex(
+      /^\/api\/v1\/(?:worlds|publisher\/trials)\/[0-9a-f-]{36}\/(?:world\/)?media\/[0-9a-f-]{36}$/,
+    )
+    .optional(),
   source: SpaceSourceSchema,
   contactActorIds: z.array(Id),
   appointmentIds: z.array(z.string()),

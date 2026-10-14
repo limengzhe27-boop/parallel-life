@@ -101,14 +101,14 @@ const worldSchema = z.strictObject({
         z.strictObject({
           id: key,
           name: text(100),
-          description: text(800),
+          description: z.string().max(800),
           source,
           contactActorIds: z.array(ref).max(12),
           appointmentIds: z.array(ref).max(12),
         }),
       )
       .min(1)
-      .max(16),
+      .max(24),
     routes: z
       .array(
         z.strictObject({

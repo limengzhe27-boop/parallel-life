@@ -69,8 +69,8 @@ export function applyScriptLibraryPreview(
         key: place.key,
         name: place.name,
         ...(place.aliases?.length ? { aliases: [...place.aliases] } : {}),
-        description: place.name,
-        knownAtStart: false,
+        description: '',
+        knownAtStart: true,
       });
       references.set(place.key, place.key);
       addedPlaces++;

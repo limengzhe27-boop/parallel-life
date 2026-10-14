@@ -48,8 +48,8 @@ export const MessageHistorySchema = z.strictObject({
 });
 export const SpaceOpeningPlaceDraftSchema = z.strictObject({
   key: z.string().regex(/^[a-z0-9_]{1,64}$/),
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().min(1).max(1000),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().max(1000),
   actorKeys: z.array(z.string().regex(/^[a-z0-9_]{1,64}$/)),
   invitationKeys: z.array(z.string().regex(/^[a-z0-9_]{1,64}$/)),
 });
@@ -62,7 +62,7 @@ export const SpaceOpeningRouteDraftSchema = z.strictObject({
 });
 export const SpaceOpeningDraftSchema = z.strictObject({
   initialPlaceId: z.string().regex(/^[a-z0-9_]{1,64}$/),
-  places: z.array(SpaceOpeningPlaceDraftSchema).min(1).max(16),
+  places: z.array(SpaceOpeningPlaceDraftSchema).min(1).max(24),
   routes: z.array(SpaceOpeningRouteDraftSchema).max(64),
 });
 export const WorldOpeningSchema = z.object({
@@ -219,11 +219,13 @@ export const WorldPhoneSchema = z.strictObject({
       role: z.enum(['user', 'assistant']).optional(),
       initialRead: z.boolean().optional(),
       origin: z.literal('fictional_history').optional(),
-      attachment: z.strictObject({
-        kind: z.enum(['image', 'video']),
-        assetId: Id,
-        label: z.string().max(120).optional(),
-      }).optional(),
+      attachment: z
+        .strictObject({
+          kind: z.enum(['image', 'video']),
+          assetId: Id,
+          label: z.string().max(120).optional(),
+        })
+        .optional(),
     }),
   ),
   notes: z.array(

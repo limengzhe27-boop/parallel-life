@@ -134,9 +134,10 @@ const shape = z
           key,
           name: text(100),
           aliases: z.array(text(100)).max(16).optional(),
-          description: text(800),
+          description: z.string().max(800),
           knownAtStart: z.boolean(),
           sceneMediaKey: key.optional(),
+          sceneImage: z.strictObject({ assetId: Id }).optional(),
         }),
       )
       .min(1)

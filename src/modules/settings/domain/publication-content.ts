@@ -101,6 +101,8 @@ export type PublicationContent = {
     description: string;
     knownAtStart: boolean;
     sceneMediaKey?: string;
+    /** A ready private work upload, distinct from the curated art registry. */
+    sceneImage?: { assetId: string };
   }[];
   routes: { fromPlaceKey: string; toPlaceKey: string; minutes: number }[];
   history: {
@@ -355,6 +357,10 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     ]),
   );
   c.places.forEach((p, i) => playerMedia(p.sceneMediaKey, 'scene', ['places', i, 'sceneMediaKey']));
+  c.places.forEach((p, i) => {
+    if (p.sceneImage && p.sceneMediaKey)
+      issue(['places', i, 'sceneImage'], 'ambiguous_scene_image');
+  });
   c.relationships.forEach((r, i) => {
     const identity = (p: PublicationParticipant) =>
       p.kind === 'player' ? 'player' : 'actor:' + p.actorKey;

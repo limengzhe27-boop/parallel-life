@@ -95,8 +95,10 @@ export function ensurePublishableDefaults(
       key: k,
       name: safeText(p.name, 100, `地点 ${idx + 1}`),
       ...(Array.isArray(p.aliases) ? { aliases: structuredClone(p.aliases) } : {}),
-      description: safeText(p.description, 800, '故事发生的场所之一'),
+      description: typeof p.description === 'string' ? p.description : '',
       knownAtStart: typeof p.knownAtStart === 'boolean' ? p.knownAtStart : true,
+      ...(p.sceneMediaKey !== undefined ? { sceneMediaKey: p.sceneMediaKey } : {}),
+      ...(p.sceneImage !== undefined ? { sceneImage: structuredClone(p.sceneImage) } : {}),
     });
   });
 
