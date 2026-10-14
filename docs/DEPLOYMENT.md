@@ -13,6 +13,12 @@ Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, ty
 - 确立“编导输入设定 -> 点击发布”的极简闭环：发布按钮保持常态可用，编导点击发布后由服务端自动清洗并填补运行时默认值，其他交由导演 Agent 和角色 Agent 后续演绎；
 - 消除任何历史残留字段卡点与弹窗提示，实现无阻碍一键发布。
 
+## 2026-10-14 · STORY-PLACE-02 剧情发生后揭示地点
+
+业务合并提交 `f28c900` 已部署到 Production `dpl_G86SirZ8NaRt5XZMhD1JYzBzjdJ2`，READY；正式域名 `https://parallel-life-nu.vercel.app` 指向同一部署。编导文稿中的隐藏地点与作者路线由导演私有读取；只有同一角色已提交的 NPC 消息明确说出地点名或地址后，该玩家地图才追加可重放地点事件和可导航路线。玩家自述、寒暄、失败或跳过不会提前解锁。
+
+生产迁移先核对原有 57/57，再应用 `0058` 并验证 58/58 校验和一致。集成后 `npm run check` 2307/2307、构建和真实 PostgreSQL 剧情及发布 60/60 通过。公网 `/api/health`、`/workbench`、`/published` 为 200，匿名作品与地图接口为 401。没有调用线上文字模型或创建测试存档；真实模型自然说出地点的质量仍需合成稿抽样。见 [STORY-PLACE-02 报告](task-reports/STORY-PLACE-02.md)。
+
 ## 2026-10-14 · STORY-PLACE-01 剧情地点与导演承接
 
 业务提交 `5a43e5a` 已部署到 Production `dpl_2oG2U2q4FVd1dVKyFEZDMWwnsxSo`，状态 READY，正式域名 `https://parallel-life-nu.vercel.app` 已列为该部署别名。原稿整理会提取明确地点和地址，编导可在剧情事件中选涉及地点并核对地图与路线；导演在推进事件和时间时取得地点名称、地址说明，且不会把「涉及地点」误当作玩家已经到场。开场已知且可达地点可供玩家地图导航；剧情中才揭示的新地点列为 `STORY-PLACE-02`。
