@@ -104,9 +104,9 @@ test('extension count, combined budget and whole draft budget obey actual storag
     ok: false,
     reason: 'extensions_budget',
   });
-  const roomy = { large: 'x'.repeat(65100) };
+  const roomy = { large: 'x'.repeat(1_048_000) };
   assert.ok(updateOverallSetting(roomy, 'a').ok);
-  assert.deepEqual(updateOverallSetting(roomy, 'a'.repeat(500)), {
+  assert.deepEqual(updateOverallSetting(roomy, 'a'.repeat(1000)), {
     ok: false,
     reason: 'content_budget',
   });

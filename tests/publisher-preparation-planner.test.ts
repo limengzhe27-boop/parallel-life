@@ -426,8 +426,8 @@ test('merging two legal size drafts cannot silently exceed content storage budge
   assert.throws(
     () =>
       mergePublicationPreparation(
-        { work: { description: '甲'.repeat(14000) } },
-        { world: { hiddenContext: '乙'.repeat(14000) } },
+        { work: { description: '甲'.repeat(180000) } },
+        { world: { hiddenContext: '乙'.repeat(180000) } },
       ),
     { code: 'INVALID_RESPONSE' },
   );

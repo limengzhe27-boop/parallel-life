@@ -48,7 +48,7 @@ test('private draft JSON rejects executable array prototypes before budget seria
   assert.equal(calls, 0);
 });
 test('draft content is an object and stays within pure JSON and byte budget', () => {
-  for (const raw of [null, [], undefined, { x: () => {} }, { x: '字'.repeat(23000) }])
+  for (const raw of [null, [], undefined, { x: () => {} }, { x: '字'.repeat(350000) }])
     assert.equal(PublisherDraftContentSchema.safeParse(raw).success, false);
 });
 test('public commands require distinct exact draft/meta and a server-issued check reference', () => {

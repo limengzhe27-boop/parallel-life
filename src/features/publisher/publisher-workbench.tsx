@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PUBLICATION_ART } from '../../contracts/publication-assets.ts';
-import { publisherArtUrl, selectPublisherArt, importCustomPublisherArt } from './publisher-art-model.ts';
+import {
+  publisherArtUrl,
+  selectPublisherArt,
+  importCustomPublisherArt,
+} from './publisher-art-model.ts';
 import { publicationLocalTime, publicationUtcTime } from './publisher-story-time.ts';
 import { readOverallSetting, updateOverallSetting } from './publisher-overall-setting.ts';
 import { PublisherPlotEditor } from './publisher-plot-editor.tsx';
@@ -572,8 +576,6 @@ export function PublisherWorkbench(
     });
   }, [busy, props.draftSaving, overallBlocked, props.onCharacterTrial, draftTitle, draftContent]);
 
-
-
   // Create work
   const handleCreateWorkSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -639,8 +641,6 @@ export function PublisherWorkbench(
     const trimmed = name.trim();
     return trimmed ? trimmed[0] : '人';
   };
-
-
 
   return (
     <div className={s.workbench}>
@@ -980,8 +980,6 @@ export function PublisherWorkbench(
           </div>
         )}
 
-
-
         {/* Empty workspace state */}
         {!work && (
           <div className={s.workspace}>
@@ -1117,7 +1115,7 @@ export function PublisherWorkbench(
                           fontWeight: 500,
                         }}
                       >
-                        {busy ? '正在保存…' : isDirty ? '填写即自动保存' : '已自动保存'}
+                        {busy ? '正在处理…' : isDirty ? '有未保存修改' : '已保存'}
                       </span>
                     </div>
                     <button
@@ -1173,7 +1171,15 @@ export function PublisherWorkbench(
                               )}
                             </div>
                             <div className={s.avatarControls}>
-                              <div className={s.avatarMethodRow} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <div
+                                className={s.avatarMethodRow}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  flexWrap: 'wrap',
+                                }}
+                              >
                                 <select
                                   id="publication-avatar"
                                   className={s.avatarSelectInput}

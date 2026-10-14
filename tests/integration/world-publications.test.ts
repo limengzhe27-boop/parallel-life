@@ -191,6 +191,52 @@ test('real PostgreSQL isolated staff publication workspace, role boundaries and 
   };
   try {
     await t.test(
+      'six authored characters retain all five long modules through save, receipt and publication',
+      async () => {
+        const expanded = structuredClone(valid);
+        for (let i = expanded.actors.length; i < 6; i++) {
+          expanded.actors.push({
+            ...structuredClone(valid.actors[0]!),
+            key: `writer_person_${i}`,
+            name: `编剧人物${i}`,
+          });
+        }
+        for (const actor of expanded.actors) {
+          actor.lifeModules = {
+            lifeContext: '背景'.repeat(1000),
+            traits: '性格'.repeat(1000),
+            drives: '愿望'.repeat(1000),
+            behavior: '行为'.repeat(1000),
+            relationships: '关系'.repeat(1000),
+          };
+        }
+        assert.ok(Buffer.byteLength(JSON.stringify(expanded)) > 65536);
+        assert.equal(PublishedWorldContentSchema.safeParse(expanded).success, true);
+        const initial = await make(expanded);
+        const edited = structuredClone(expanded);
+        edited.actors[5]!.lifeModules!.relationships = '关系更新'.repeat(1000);
+        const saved = await repo.save(editor, initial.id, {
+          commandId: randomUUID(),
+          expectedDraftVersion: initial.draftVersion,
+          content: edited,
+        });
+        assert.deepEqual((await repo.get(editor, initial.id)).draft.content, edited);
+        assert.equal(
+          PublishedWorldContentSchema.parse(saved.draft.content).actors[5]!.lifeModules!
+            .relationships,
+          '关系更新'.repeat(1000),
+        );
+        assert.equal((await publish(initial.id)).status, 'published');
+        const version = (
+          await admin.query(
+            'SELECT content FROM parallel_life.publication_versions WHERE work_id=$1 AND version=1',
+            [initial.id],
+          )
+        ).rows[0];
+        assert.deepEqual(version.content, edited);
+      },
+    );
+    await t.test(
       'current principal is self-scoped, inactive or absent is null and pooled contexts do not leak',
       async () => {
         assert.deepEqual(await repo.getPrincipal(editor), {

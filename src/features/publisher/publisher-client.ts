@@ -32,6 +32,7 @@ const messages: Record<string, string> = {
   VERSION_CONFLICT: '草稿已被其他人更新。你的修改还在，请先核对，不能直接覆盖。',
   IDEMPOTENCY_CONFLICT: '这次提交已发生变化，请核对后重新操作。',
   INVALID_INPUT: '请检查填写的内容。',
+  CONTENT_TOO_LARGE: '这份作品内容已达到容量上限。请精简后再保存，当前输入仍保留在页面中。',
   INVALID_STATE: '当前草稿尚不满足这项操作的条件。',
   RATE_LIMITED: '操作较频繁，请稍后再试。',
   UNAVAILABLE: '暂时没有收到完整结果。内容已保留，再次提交相同内容会核对原来的操作。',

@@ -752,7 +752,7 @@ test('UTF-8 extension budget rejects rather than truncates a Chinese document', 
   mustReject(raw);
 });
 test('total byte and JSON value limits reject before unbounded recursive shape parsing', () => {
-  const raw = withData('界'.repeat(23000));
+  const raw = withData('界'.repeat(350000));
   assert.ok(publicationStorageIssues(raw).some((i) => i.code === 'content_budget'));
   mustReject(raw);
   const many = withData(Array.from({ length: 12001 }, () => null));

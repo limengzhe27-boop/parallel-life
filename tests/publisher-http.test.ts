@@ -265,6 +265,26 @@ test('save forwards exact version and optional title without accepting authority
   assert.equal((await run(f, 'save', req({ ...input, principalId }, c.token, c.csrf))).status, 422);
   assert.equal(f.calls.length, 1);
 });
+test('large authored character drafts reach save; over-budget drafts get a precise recoverable error', async () => {
+  const f = fixture();
+  const c = await credentials(f);
+  const within = { commandId, expectedDraftVersion: 0, content: { notes: '人'.repeat(50000) } };
+  const saved = await run(f, 'save', req(within, c.token, c.csrf));
+  assert.equal(saved.status, 200);
+  assert.equal(
+    (f.calls.find((x) => x.method === 'save')?.args[2] as typeof within | undefined)?.content.notes,
+    within.content.notes,
+  );
+  const tooLarge = {
+    ...within,
+    commandId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    content: { notes: '人'.repeat(360000) },
+  };
+  const rejected = await run(f, 'save', req(tooLarge, c.token, c.csrf));
+  assert.equal(rejected.status, 422);
+  assert.equal((await rejected.json()).error.code, 'CONTENT_TOO_LARGE');
+  assert.equal(f.calls.filter((x) => x.method === 'save').length, 1);
+});
 test('version conflicts and provider failures stay truthful without exposing exception text or drafts', async () => {
   const f = fixture(),
     c = await credentials(f);

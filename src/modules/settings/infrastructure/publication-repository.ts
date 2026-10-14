@@ -88,6 +88,18 @@ const digest = (value: unknown) =>
   createHash('sha256')
     .update(JSON.stringify(canonical(value)))
     .digest('hex');
+function canFillMissingPublishableFields(raw: Record<string, unknown>): boolean {
+  if (raw.schemaVersion !== undefined && raw.schemaVersion !== 1) return false;
+  if (raw.actors !== undefined && !Array.isArray(raw.actors)) return false;
+  return !(raw.actors as unknown[] | undefined)?.some(
+    (actor) =>
+      !actor ||
+      typeof actor !== 'object' ||
+      Array.isArray(actor) ||
+      ('key' in actor && typeof actor.key !== 'string') ||
+      ('name' in actor && typeof actor.name !== 'string'),
+  );
+}
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const r = schema.safeParse(raw);
   if (!r.success) throw new TaskError('INVALID_INPUT');
@@ -379,7 +391,10 @@ export class PublicationRepository {
   private async assess(id: string, version: number, hash: string, raw: unknown) {
     const enriched = PublishedWorldContentSchema.safeParse(raw).success
       ? raw
-      : raw && typeof raw === 'object'
+      : raw &&
+          typeof raw === 'object' &&
+          !Array.isArray(raw) &&
+          canFillMissingPublishableFields(raw as Record<string, unknown>)
         ? ensurePublishableDefaults(raw as Record<string, unknown>)
         : raw;
     const parsed = PublishedWorldContentSchema.safeParse(enriched);

@@ -16,6 +16,7 @@ import {
   publisherOriginAllowed,
 } from '../modules/identity/infrastructure/publisher-session.ts';
 import type { PublicationRepository } from '../modules/settings/infrastructure/publication-repository.ts';
+import { PUBLICATION_CONTENT_MAX_BYTES } from '../modules/settings/domain/publication-content.ts';
 
 export type PublisherOperation =
   | 'session'
@@ -62,6 +63,7 @@ const messages: Record<string, string> = {
   VERSION_CONFLICT: '内容刚刚有了更新。写好的内容还在，请先核对最新草稿。',
   IDEMPOTENCY_CONFLICT: '这次操作的内容发生了变化，请重新提交。',
   INVALID_INPUT: '请检查填写的内容。',
+  CONTENT_TOO_LARGE: '这份作品的内容已达到容量上限。请精简后再保存，当前输入仍保留在页面中。',
   INVALID_STATE: '当前内容尚不满足这项操作的条件。',
   RATE_LIMITED: '操作较频繁，请稍后再试。',
   UNAVAILABLE: '内容后台暂时不可用，请稍后重试。',
@@ -73,6 +75,7 @@ const status: Record<string, number> = {
   VERSION_CONFLICT: 409,
   IDEMPOTENCY_CONFLICT: 409,
   INVALID_INPUT: 422,
+  CONTENT_TOO_LARGE: 422,
   INVALID_STATE: 409,
   RATE_LIMITED: 429,
   UNAVAILABLE: 503,
@@ -129,13 +132,18 @@ function cookie(request: Request, name: string) {
 }
 function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   const result = schema.safeParse(raw);
-  if (!result.success) throw new PublisherHttpError('INVALID_INPUT');
+  if (!result.success) {
+    if (result.error.issues.some((issue) => issue.message === 'content_budget'))
+      throw new PublisherHttpError('CONTENT_TOO_LARGE');
+    throw new PublisherHttpError('INVALID_INPUT');
+  }
   return result.data;
 }
 export async function publisherBody<T>(
   request: Request,
   schema: z.ZodType<T>,
   limit = 73728,
+  limitCode = 'INVALID_INPUT',
 ): Promise<T> {
   if (
     request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !==
@@ -153,7 +161,7 @@ export async function publisherBody<T>(
       length += chunk.value.length;
       if (length > limit) {
         await reader.cancel();
-        throw new PublisherHttpError('INVALID_INPUT');
+        throw new PublisherHttpError(limitCode);
       }
       chunks.push(chunk.value);
     }
@@ -357,7 +365,12 @@ export class PublisherHttp {
       return publisherJson(
         await this.repo.create(
           publisher.id,
-          await publisherBody(request, PublisherCreateWorkSchema),
+          await publisherBody(
+            request,
+            PublisherCreateWorkSchema,
+            PUBLICATION_CONTENT_MAX_BYTES + 262144,
+            'CONTENT_TOO_LARGE',
+          ),
         ),
         201,
       );
@@ -367,7 +380,12 @@ export class PublisherHttp {
         await this.repo.save(
           publisher.id,
           id,
-          await publisherBody(request, PublisherSaveDraftSchema),
+          await publisherBody(
+            request,
+            PublisherSaveDraftSchema,
+            PUBLICATION_CONTENT_MAX_BYTES + 262144,
+            'CONTENT_TOO_LARGE',
+          ),
         ),
       );
     if (operation === 'rename')

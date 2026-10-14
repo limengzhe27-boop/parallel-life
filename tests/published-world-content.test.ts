@@ -697,19 +697,27 @@ test('storage budget measures UTF-8 bytes; extension and total budgets reject', 
     }));
   }, 'extensions_budget');
   const c = content();
-  c.world.hiddenContext = '界'.repeat(4000);
-  c.actors = Array.from({ length: 12 }, (_, i) => ({
+  c.actors = Array.from({ length: 6 }, (_, i) => ({
     ...structuredClone(c.actors[0]!),
-    key: `person_${i}`,
-    privatePersona: {
-      background: '界'.repeat(1200),
-      motivation: '界'.repeat(600),
-      voice: '界'.repeat(600),
-      boundaries: '界'.repeat(600),
+    key: i === 0 ? 'ning_one' : i === 1 ? 'ning_two' : `person_${i}`,
+    name: `人物${i}`,
+    lifeModules: {
+      lifeContext: '界'.repeat(4000),
+      traits: '界'.repeat(4000),
+      drives: '界'.repeat(4000),
+      behavior: '界'.repeat(4000),
+      relationships: '界'.repeat(4000),
     },
   }));
-  assert.equal(PublishedWorldContentSchema.safeParse(c).success, false);
-  assert.ok(publicationStorageIssues(c).some((e) => e.code === 'content_budget'));
+  assert.ok(new TextEncoder().encode(JSON.stringify(c)).length > 65536);
+  assert.equal(publicationStorageIssues(c).length, 0);
+  const parsed = PublishedWorldContentSchema.safeParse(c);
+  assert.equal(parsed.success, true, parsed.success ? '' : JSON.stringify(parsed.error.issues));
+  assert.ok(
+    publicationStorageIssues({ text: '界'.repeat(350000) }).some(
+      (e) => e.code === 'content_budget',
+    ),
+  );
 });
 test('plain JSON extensions reject prototype keys, cycles, infinite values, functions and excessive depth before parsing', () => {
   const cyclic: Record<string, unknown> = {};

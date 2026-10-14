@@ -573,7 +573,7 @@ test('unsafe content getters never execute and input budget is enforced', () => 
   assert.equal(r.issues[0]!.code, 'scheduling_unsafe_content');
   assert.equal(r.updatedContent, unsafe);
   const c = fixture();
-  c.world.hiddenContext = 'x'.repeat(70000);
+  c.world.hiddenContext = 'x'.repeat(1_050_000);
   assert.equal(plan(c).issues[0]!.code, 'scheduling_unsafe_content');
 });
 test('sources with getters or too much text do not run or silently skip source checks', () => {
