@@ -1,3 +1,11 @@
+## 2026-10-14 · PUBLISHER-AUTO-DEFAULTS-04
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
+- 响应创作者需求，彻底免除时间、地点、主角处境等内部架构字段的手动配置要求（“时间由导演Agent编排”）：
+- 在 `publication-defaults.ts` 提供 `ensurePublishableDefaults`，当创作者仅填写人物与故事时，系统自动为时间戳（`world.startAt`、消息 `at`）、开场地点（`places`、`startPlaceKey`）、主角处境与叙事基调注入完备的运行时默认值；
+- 消除阻碍发布的 8 项架构字段待确认问题阻断，评估（assess）、审查（review）、发布（publish）与创作者提交全链路自动补齐默认值；
+- 发布按钮恢复为安全常态可用，创作者点击“发布”即可直接成功校验并上架作品。
+
 ## 2026-10-14 · PUBLISHER-STOP-TAB-HIJACK-03
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 452, typecheck and build passed; 516 publisher tests passed. No SQL migration changes.

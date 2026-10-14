@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { compilePublicationGenesis } from '../modules/settings/infrastructure/publication-genesis.ts';
+import { ensurePublishableDefaults } from '../modules/settings/domain/publication-defaults.ts';
 import type { PublicationWorldCompilerPort } from '../modules/settings/application/publication-world-ports.ts';
 import type { PublicationReviewPort } from '../modules/settings/infrastructure/publication-repository.ts';
 import { TaskError } from '../modules/tasks/infrastructure/task-repository.ts';
@@ -8,8 +9,10 @@ function worldCompiler(characterTrial = false): PublicationWorldCompilerPort {
   return {
     prepare(input) {
       if (characterTrial && input.originKind !== 'trial') throw new TaskError('INVALID_STATE');
+      const enriched = ensurePublishableDefaults(input.content as Record<string, unknown>) as typeof input.content;
       const compiled = compilePublicationGenesis({
         ...input,
+        content: enriched,
         originKind: input.originKind === 'trial' ? 'trial' : 'published',
         newId: randomUUID,
         ...(characterTrial ? { privateCharacterDemo: true as const } : {}),
@@ -44,8 +47,9 @@ export function publicationReview(
 ): PublicationReviewPort {
   return {
     async review(input) {
+      const enriched = ensurePublishableDefaults(input.content as Record<string, unknown>) as typeof input.content;
       const compiled = compilePublicationGenesis({
-        content: input.content,
+        content: enriched,
         originKind: 'trial',
         origin: {
           workId: input.workId,
@@ -59,11 +63,11 @@ export function publicationReview(
         newId: randomUUID,
       });
       const mediaVerified =
-        input.content.media.every(
+        enriched.media.every(
           (m) => (m.use === 'avatar' || m.use === 'cover') && Boolean(publicationArt(m, m.use)),
         ) &&
-        input.content.phone.album.length === 0 &&
-        input.content.places.every((p) => !p.sceneMediaKey);
+        enriched.phone.album.length === 0 &&
+        enriched.places.every((p) => !p.sceneMediaKey);
       const trial = await evidence(input.workId, input.draftVersion, input.contentHash);
       return {
         reviewerVersion: 'publication_story_media_v2',

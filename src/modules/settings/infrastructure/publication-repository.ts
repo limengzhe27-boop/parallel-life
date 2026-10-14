@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { ensurePublishableDefaults } from '../domain/publication-defaults.ts';
 import { Id } from '../../../contracts/api.ts';
 import {
   PublishedWorldContentSchema,
@@ -376,7 +377,8 @@ export class PublicationRepository {
     });
   }
   private async assess(id: string, version: number, hash: string, raw: unknown) {
-    const parsed = PublishedWorldContentSchema.safeParse(raw);
+    const enriched = raw && typeof raw === 'object' ? ensurePublishableDefaults(raw as Record<string, unknown>) : raw;
+    const parsed = PublishedWorldContentSchema.safeParse(enriched);
     if (!parsed.success) {
       const all = parsed.error.issues;
       return {
@@ -532,7 +534,9 @@ export class PublicationRepository {
         ).rows[0].next,
       );
       if (!Number.isSafeInteger(version)) throw new TaskError('INVALID_STATE');
-      const content = PublishedWorldContentSchema.parse(d.content),
+      const content = PublishedWorldContentSchema.parse(
+        ensurePublishableDefaults(d.content as Record<string, unknown>, w.title),
+      ),
         card = {
           title: content.work.title,
           hook: content.work.hook,
