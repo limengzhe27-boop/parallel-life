@@ -74,12 +74,10 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       path[1] === 'media' &&
       Id.safeParse(path[2]).success
     ) {
-      const origin = process.env.APP_ORIGIN;
-      if (!origin) throw new PublisherHttpError('UNAVAILABLE');
       return Response.redirect(
         new URL(
           `/api/v1/publisher/works/${encodeURIComponent(trial.origin.workId)}/media/${encodeURIComponent(path[2]!)}`,
-          origin,
+          request.url,
         ),
         302,
       );
