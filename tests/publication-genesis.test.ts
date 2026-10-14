@@ -45,6 +45,19 @@ test('an unreferenced legacy scene row does not block runtime compilation', () =
   assert.equal(result.status, 'compiled');
 });
 
+test('a private place scene reference compiles without embedding a public URL in genesis', () => {
+  const c = content();
+  c.places[0]!.sceneImage = { assetId: '8e4d751f-a0a3-4964-b218-181597e52015' };
+  const result = compilePublicationGenesis(input(c));
+  assert.equal(result.status, 'compiled');
+  if (result.status !== 'compiled') return;
+  assert.equal('sceneImageUrl' in (result.world.space?.places[0] ?? {}), false);
+  assert.equal(
+    JSON.stringify(result.world.space).includes('8e4d751f-a0a3-4964-b218-181597e52015'),
+    false,
+  );
+});
+
 function content(): PublicationContent {
   return {
     schemaVersion: 1,

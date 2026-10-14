@@ -18,7 +18,7 @@
 
 - 隔离 PostgreSQL 实际应用迁移 0065：通过。
 - `tests/integration/publication-scene-images.test.ts`：通过，覆盖 READY/待确认、跨作品、跨玩家、未关联图片、地图尚未显示的地点和绑定阻断。
-- `tests/publication-genesis.test.ts` 与 `tests/publication-scene-images.test.ts`：38 项通过；未引用的旧场景媒体行不再阻断编译，实际引用旧 `sceneMediaKey` 仍诚实阻断。
+- `tests/publication-genesis.test.ts` 与 `tests/publication-scene-images.test.ts`：39 项通过；未引用的旧场景媒体行不再阻断编译，实际引用旧 `sceneMediaKey` 仍诚实阻断；新私有引用可编译而不会把素材 ID 或外链塞入世界初始地图。
 - `npm run typecheck`、`npm run check:boundaries`、`npm run build`：本独立工作树均通过；集成人仍需在完整共享契约合并后复核。
 
 ## 集成注意
@@ -27,3 +27,7 @@
 2. 玩家素材读取先沿用 0063 的聊天及朋友圈授权，只有未命中时再由独立场景图函数判断；隐藏朋友圈图片不会因该 fallback 获得权限。
 3. 地点照片只在实际世界地图已有的 place key 上投影；仅原稿提及、不在玩家地图中的地点不会提前显示图片。
 4. 首个公开发布及私有试演应在公网完成图片显示和他人世界不可读验收，随后由集成人更新主任务表。
+
+## 过程记录
+
+- 接入集成人冻结的场景图契约后，初次构建发现专项测试直接访问了可选地图属性且误把投影 URL 当成持久字段；修正断言为检查私有素材不进入创世世界快照，再次构建通过。

@@ -24,12 +24,7 @@ import { readTrialPublicationMedia } from './publisher-media-http.ts';
 import { AuthoredSocialSchema } from '../contracts/authored-social.ts';
 import { trialMomentImageUrl } from '../modules/settings/domain/moment-media-url.ts';
 import { trialSceneImageUrl } from '../modules/settings/domain/publication-scene-images.ts';
-
-const trialSpaceImageResponse = z
-  .object({
-    places: z.array(z.object({ sceneImageUrl: z.string().optional() }).passthrough()),
-  })
-  .passthrough();
+import { WorldSpaceSchema } from '../contracts/world-space.ts';
 
 export function publishedCatalogRoute(request: Request) {
   return endpoint(async () => {
@@ -182,7 +177,7 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       };
     }
     if (response.ok && path.length === 2 && path[0] === 'world' && path[1] === 'space') {
-      const space = trialSpaceImageResponse.parse(result);
+      const space = WorldSpaceSchema.parse(result);
       result = {
         ...space,
         places: space.places.map((place) => ({
