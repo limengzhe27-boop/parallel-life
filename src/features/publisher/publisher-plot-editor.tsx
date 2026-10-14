@@ -30,6 +30,15 @@ import {
   type PlotChoice,
 } from './publisher-plot-model.ts';
 import { PublisherStoryGraph } from './publisher-story-graph.tsx';
+import { buildStoryGraph } from './publisher-story-graph-model.ts';
+import {
+  addOpeningEvent,
+  chooseOpeningEvent,
+  clearOpeningEvent,
+  openingEventChoices,
+  selectedOpeningEvent,
+  patchOpeningEvent,
+} from './publisher-opening-event.ts';
 import s from './publisher-plot-editor.module.css';
 export type PublisherPlotEditorProps = {
   content: Record<string, unknown>;
@@ -185,6 +194,14 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
     facts = plotChoices(content, 'history'),
     stages = plotChoices(content, 'stages'),
     nodes = plotChoices(content, 'candidates');
+  const opening = selectedOpeningEvent(content);
+  const openingKey = plotText(content.openingEventKey);
+  const openingConditions = opening
+    ? (buildStoryGraph(content).nodes.find((node) => node.key === openingKey)?.conditions ?? [])
+    : [];
+  const malformedOpening =
+    content.openingEventKey !== undefined && typeof content.openingEventKey !== 'string';
+  const openingBlocked = disabled || malformedOpening;
   const issues = plotIssues(content),
     start = plotText(plotRecord(content.world).startAt);
   function emit(next: () => PlotRecord) {
@@ -760,6 +777,144 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
       <p className={s.hint}>
         先写事件概述，按需添加前提，不必逐条填写日期。先填写并保存，能否运行以检查结果为准；事件展开不代表玩家已完成。
       </p>
+      <section className={s.card} aria-label="开场事件">
+        <h3>开场事件</h3>
+        <p className={s.hint}>
+          写下玩家第一次进入时遇到的事情，导演和人物会围绕它开启互动。返回已有存档会接着上次进展，不会重新演一遍。
+        </p>
+        {selectControl(
+          '选择开场事件',
+          openingKey,
+          openingEventChoices(content),
+          openingBlocked,
+          (key) =>
+            emit(() => (key ? chooseOpeningEvent(content, key) : clearOpeningEvent(content))),
+          'plot_opening_event',
+        )}
+        {!opening && content.openingEventKey === undefined && (
+          <button
+            type="button"
+            className={s.button}
+            disabled={
+              disabled ||
+              !plotCollectionEditable(content, 'candidates') ||
+              plotRows(content, 'candidates').length >= 32
+            }
+            onClick={() => {
+              if (
+                !disabled &&
+                plotCollectionEditable(content, 'candidates') &&
+                plotRows(content, 'candidates').length < 32
+              )
+                emit(() => addOpeningEvent(content));
+            }}
+          >
+            + 添加开场事件
+          </button>
+        )}
+        {content.openingEventKey !== undefined && !opening && (
+          <p className={s.error}>开场事件关联待核对，请选择一个已有的导演事件；原剧情仍保留。</p>
+        )}
+        {opening && (
+          <>
+            <label className={s.field} htmlFor="plot_opening_title">
+              开场标题
+              <input
+                id="plot_opening_title"
+                className={s.input}
+                value={plotText(opening.title)}
+                maxLength={120}
+                disabled={
+                  openingBlocked ||
+                  (opening.title !== undefined && typeof opening.title !== 'string')
+                }
+                onChange={(e) => {
+                  if (
+                    !openingBlocked &&
+                    (opening.title === undefined || typeof opening.title === 'string')
+                  )
+                    emit(() => patchOpeningEvent(content, 'title', e.target.value));
+                }}
+              />
+            </label>
+            <label className={s.field} htmlFor="plot_opening_content">
+              开场事件内容
+              <textarea
+                id="plot_opening_content"
+                className={s.input}
+                rows={6}
+                maxLength={1600}
+                value={plotText(opening.editorialIntent)}
+                disabled={
+                  openingBlocked ||
+                  (opening.editorialIntent !== undefined &&
+                    typeof opening.editorialIntent !== 'string')
+                }
+                placeholder="玩家此刻在哪里，发生了什么，人物会怎样把玩家带入互动…"
+                onChange={(e) => {
+                  if (
+                    !openingBlocked &&
+                    (opening.editorialIntent === undefined ||
+                      typeof opening.editorialIntent === 'string')
+                  )
+                    emit(() => patchOpeningEvent(content, 'editorialIntent', e.target.value));
+                }}
+              />
+            </label>
+            {selectControl(
+              '由谁开启互动',
+              plotText(plotRecord(opening.intent).actorKey),
+              actors,
+              openingBlocked ||
+                Object.keys(plotRecord(opening.intent)).some(
+                  (key) => !['kind', 'actorKey'].includes(key),
+                ) ||
+                !Array.isArray(opening.actorKeys),
+              (actorKey) => {
+                if (
+                  !openingBlocked &&
+                  Array.isArray(opening.actorKeys) &&
+                  Object.keys(plotRecord(opening.intent)).every((key) =>
+                    ['kind', 'actorKey'].includes(key),
+                  )
+                )
+                  emit(() => setPlotEventLead(content, openingKey, actorKey));
+              },
+              'plot_opening_actor',
+            )}
+            <div aria-label="开场前提" className={s.hint}>
+              {openingConditions.length ? (
+                <ul>
+                  {openingConditions.map((condition, index) => (
+                    <li key={index}>{condition}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>无额外前提，玩家首次进入时开启互动。</p>
+              )}
+            </div>
+            {refsControl('涉及人物', opening.actorKeys, actors, openingBlocked, (values) => {
+              if (!openingBlocked)
+                emit(() =>
+                  patchPlotField(content, 'candidates', openingKey, ['actorKeys'], values),
+                );
+            })}
+            <p className={s.hint}>
+              这是下方事件列表中的同一个事件。原有前提和时间限制仍有效；前提未满足时会等待，不会强行触发或改演其他事件。编辑后保存并检查，新设定用于新存档。
+            </p>
+            <button
+              type="button"
+              className={s.button}
+              disabled={openingBlocked}
+              onClick={() => {
+                if (!openingBlocked) emit(() => clearOpeningEvent(content));
+              }}
+            >
+              取消开场指定（保留事件）
+            </button>
+          </>
+        )}
+      </section>
       {disabled && <p className={s.hint}>当前只读或正在处理操作，修改入口暂不可用。</p>}
       {issues.length > 0 && (
         <details className={s.compactIssues}>

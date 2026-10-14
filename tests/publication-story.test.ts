@@ -312,3 +312,76 @@ test('single-NPC invitation rejects absent mappings and promises for multiple ac
   };
   assert.throws(() => buildStoryPlan(s), /UNSUPPORTED_INVITATION/);
 });
+
+test('explicit opening is the only initially eligible event even when its key sorts after unrelated events', () => {
+  const p = plan();
+  p.nodes = [
+    node('a_other'),
+    { ...node('z_opening'), intent: { kind: 'director_event', actorKey: 'a' } },
+  ];
+  p.openingEventKey = 'z_opening';
+  assert.deepEqual(
+    evaluateStory(p, [], context).eligible.map((n) => n.key),
+    ['z_opening'],
+  );
+});
+test('blocked opening never falls back to another event and requires real presentation evidence to release later events', () => {
+  const p = plan();
+  p.nodes = [
+    node('a_other'),
+    {
+      ...node('z_opening'),
+      prerequisites: [{ kind: 'at_place', placeKey: 'elsewhere' }],
+      intent: { kind: 'director_event', actorKey: 'a' },
+    },
+  ];
+  p.openingEventKey = 'z_opening';
+  assert.deepEqual(evaluateStory(p, [], context).eligible, []);
+  for (const status of ['claimed', 'unknown', 'failed'] as const) {
+    const s = { ...state('z_opening', null), status, sourceEventId: null, sourceMessageId: null };
+    assert.deepEqual(evaluateStory(p, [s], context).eligible, []);
+  }
+  const started = state('z_opening', null);
+  assert.deepEqual(
+    evaluateStory(p, [started], context).eligible.map((n) => n.key),
+    ['a_other'],
+  );
+  assert.equal(started.outcome, null);
+  assert.ok(!evaluateStory(p, [started], context).eligible.some((n) => n.key === 'z_opening'));
+});
+test('a story without opening binding retains legacy selection behavior', () => {
+  const p = plan();
+  p.nodes = [node('first'), node('second')];
+  assert.deepEqual(
+    evaluateStory(p, [], context).eligible.map((n) => n.key),
+    ['first', 'second'],
+  );
+});
+
+test('real presentation evidence remains a consumed opening after a later skip', () => {
+  const p = plan();
+  p.nodes = [
+    { ...node('first'), intent: { kind: 'director_event', actorKey: 'a' } },
+    node('second'),
+  ];
+  p.openingEventKey = 'first';
+  const presented = { ...state('first', 'skipped'), status: 'skipped' as const };
+  assert.deepEqual(
+    evaluateStory(p, [presented], context).eligible.map((node) => node.key),
+    ['second'],
+  );
+});
+test('opening source binding is copied only when present and rejects invalid/non-director references', () => {
+  const s = source();
+  s.nodes = [{ ...node('first'), intent: { kind: 'director_event', actorKey: 'a' } }];
+  s.openingEventKey = 'first';
+  const built = buildStoryPlan(s);
+  assert.equal(built.openingEventKey, 'first');
+  s.openingEventKey = 'missing';
+  assert.throws(() => buildStoryPlan(s), { code: 'INVALID_OPENING_EVENT' });
+  s.openingEventKey = 'first';
+  s.nodes[0]!.intent = { kind: 'editorial_only' };
+  assert.throws(() => buildStoryPlan(s), { code: 'INVALID_OPENING_EVENT' });
+  const old = buildStoryPlan(source());
+  assert.equal(Object.hasOwn(old, 'openingEventKey'), false);
+});

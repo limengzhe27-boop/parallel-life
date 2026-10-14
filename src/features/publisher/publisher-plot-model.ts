@@ -236,7 +236,14 @@ export function plotDeletionReferences(
       ? ['factKey', 'factKeys', 'knownFactKeys', 'historyFactKey']
       : section === 'stages'
         ? ['stageKey', 'initialStageKey', 'afterStageKeys']
-        : ['nodeKey', 'mutuallyExclusiveNodeKeys', 'onDeclined', 'onSkipped', 'onExpired'];
+        : [
+            'nodeKey',
+            'openingEventKey',
+            'mutuallyExclusiveNodeKeys',
+            'onDeclined',
+            'onSkipped',
+            'onExpired',
+          ];
   const ancestors = new Set<object>();
   function walk(v: unknown, path: (string | number)[]) {
     if (!v || typeof v !== 'object' || path.join('.') === skip || ancestors.has(v)) return;

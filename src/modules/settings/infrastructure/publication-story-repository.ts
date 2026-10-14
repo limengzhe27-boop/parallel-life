@@ -6,6 +6,7 @@ import { validateCharacterEffects } from '../../world/domain/character-policy.ts
 import {
   buildStoryPlan,
   evaluateStory,
+  openingEventPending,
   legalPresentation,
   nodeActor,
   PublicationStoryError,
@@ -709,7 +710,10 @@ export class PublicationStoryRepository implements PublicationStoryPort {
                     direction: {
                       ...node.direction,
                       mode:
-                        node.direction?.mode ??
+                        (openingEventPending(c.plan, c.states) &&
+                        node.key === c.plan.openingEventKey
+                          ? 'required'
+                          : node.direction?.mode) ??
                         (node.intent.kind === 'director_event' ? 'required' : 'optional'),
                     },
                     actorId: actor.id,

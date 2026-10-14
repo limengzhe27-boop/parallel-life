@@ -213,6 +213,7 @@ const shape = z
         }),
       )
       .max(64),
+    openingEventKey: key.optional(),
     timeline: z
       .strictObject({
         initialStageKey: key,

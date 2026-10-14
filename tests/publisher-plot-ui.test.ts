@@ -522,3 +522,36 @@ test('condition controls explain AND, per-event outcome semantics and director s
   assert.ok(html.includes('不用预写台词'));
   assert.ok(!html.includes('>已提交<'));
 });
+
+test('opening card creates and edits the real candidate without saving or choosing the first person', () => {
+  const t = setup();
+  click(button(tree(t.props), '+ 添加开场事件'));
+  assert.ok(t.next);
+  const c = t.next!;
+  const key = String(c.openingEventKey);
+  const row = plotRecord(plotRows(c, 'candidates').find((raw) => plotRecord(raw).key === key));
+  assert.equal(plotRecord(row.intent).actorKey, '');
+  assert.equal(row.editorialIntent, '');
+  const h = setup(false, c);
+  change(input(tree(h.props), 'plot_opening_content'), '开门时，一位朋友正在门外等你。');
+  assert.equal(
+    plotRecord(plotRows(h.next!, 'candidates').find((raw) => plotRecord(raw).key === key))
+      .editorialIntent,
+    '开门时，一位朋友正在门外等你。',
+  );
+  assert.equal(h.next!.openingEventKey, key);
+});
+test('opening card honors disabled and clears the designation without deleting the event', () => {
+  const c = content();
+  const row = plotRecord(plotRows(c, 'candidates')[0]);
+  row.intent = { kind: 'director_event', actorKey: 'alice' };
+  c.openingEventKey = row.key;
+  const h = setup(true, c);
+  change(input(tree(h.props), 'plot_opening_content'), '不应写入');
+  click(button(tree(h.props), '取消开场指定（保留事件）'));
+  assert.equal(h.calls, 0);
+  const edit = setup(false, c);
+  click(button(tree(edit.props), '取消开场指定（保留事件）'));
+  assert.equal(Object.hasOwn(edit.next!, 'openingEventKey'), false);
+  assert.deepEqual(edit.next!.candidates, c.candidates);
+});

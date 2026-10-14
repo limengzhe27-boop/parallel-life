@@ -40,6 +40,7 @@ export type StoryState = {
 export type StoryPlan = {
   schemaVersion: 1;
   origin: StoryOrigin;
+  openingEventKey?: string;
   timeline: PublicationContent['timeline'] | null;
   nodes: StoryNode[];
   conditions?: PublicationContent['conditions'];
@@ -49,6 +50,7 @@ export type StoryPlan = {
 };
 export type StorySource = {
   origin: StoryOrigin;
+  openingEventKey?: string;
   timeline: PublicationContent['timeline'] | null;
   nodes: StoryNode[];
   conditions?: PublicationContent['conditions'];
@@ -90,6 +92,15 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
     !unique(s.nodes.map((n) => n.key))
   )
     throw new PublicationStoryError();
+  if (
+    s.openingEventKey !== undefined &&
+    (typeof s.openingEventKey !== 'string' ||
+      !/^[a-z][a-z0-9_]{0,31}$/.test(s.openingEventKey) ||
+      s.nodes.filter(
+        (node) => node.key === s.openingEventKey && node.intent.kind === 'director_event',
+      ).length !== 1)
+  )
+    throw new PublicationStoryError('INVALID_OPENING_EVENT');
   const actors = ordered(s.contacts.map((a) => ({ key: a.actorKey, id: a.actorId })));
   if (
     s.actorKeys.length !== s.contacts.length ||
@@ -153,6 +164,7 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
   return {
     schemaVersion: 1,
     origin: { ...s.origin },
+    ...(s.openingEventKey !== undefined ? { openingEventKey: s.openingEventKey } : {}),
     timeline: s.timeline ? structuredClone(s.timeline) : null,
     nodes: structuredClone(s.nodes),
     ...(s.conditions?.length ? { conditions: structuredClone(s.conditions) } : {}),
@@ -204,6 +216,20 @@ export type StoryEvaluation = {
   rateLimited: boolean;
 };
 /** All evidence is supplied from verified persistence. This function owns no clock, random IDs or model. */
+export function openingEventPending(plan: StoryPlan, states: readonly StoryState[]): boolean {
+  return (
+    !!plan.openingEventKey &&
+    !states.some(
+      (state) =>
+        state.nodeKey === plan.openingEventKey &&
+        !!state.sourceEventId &&
+        !!state.sourceMessageId &&
+        ['presented', 'offered', 'committed', 'declined', 'skipped', 'expired', 'failed'].includes(
+          state.status,
+        ),
+    )
+  );
+}
 export function evaluateStory(
   plan: StoryPlan,
   states: StoryState[],
@@ -267,8 +293,10 @@ export function evaluateStory(
     )
       currentStages.push(stage.key);
   }
+  const openingPending = openingEventPending(plan, states);
   const eligible = plan.nodes
     .filter((n) => {
+      if (openingPending && n.key !== plan.openingEventKey) return false;
       if (n.intent.kind === 'editorial_only' || byKey.has(n.key) || virtual.has(n.key))
         return false;
       if (n.timeline && !currentStages.includes(n.timeline.stageKey)) return false;

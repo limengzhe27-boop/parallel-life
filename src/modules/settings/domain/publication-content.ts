@@ -127,6 +127,7 @@ export type PublicationContent = {
     label: string;
     visibility: PublicationVisibility;
   }[];
+  openingEventKey?: string;
   timeline?: {
     initialStageKey: string;
     stages: {
@@ -562,6 +563,12 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     hasCycle(new Map((c.timeline?.stages ?? []).map((stage) => [stage.key, stage.afterStageKeys])))
   )
     issue(['timeline', 'stages'], 'stage_dependency_cycle');
+  if (c.openingEventKey !== undefined) {
+    const matches = c.candidates.filter((node) => node.key === c.openingEventKey);
+    if (matches.length !== 1) issue(['openingEventKey'], 'opening_event_reference_invalid');
+    else if (matches[0]!.intent.kind !== 'director_event')
+      issue(['openingEventKey'], 'opening_event_must_be_director');
+  }
   const nodeMap = new Map(c.candidates.map((node) => [node.key, node]));
   const progress = new Map(c.candidates.map((node) => [node.key, [] as string[]]));
   const nodeWindow = (node: PublicationContent['candidates'][number]) =>
