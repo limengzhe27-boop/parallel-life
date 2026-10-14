@@ -205,3 +205,24 @@ test('invalid authored sender and over-limit prose never trigger paid preparatio
     assert.deepEqual(publicationDraft({ title: work.title, content: c }).content, c);
   }
 });
+
+test('empty workbench experience-note sentinel uses deterministic technical preparation without changing authored prose', () => {
+  for (const note of ['', '  \n  ']) {
+    const c = content();
+    c.work.experienceNote = note;
+    c.world.publicSetting = '  第一段\n\n末段  ';
+    const before = JSON.stringify(c);
+    const draft = publicationDraft({ title: c.work.title, content: c });
+    assert.equal((draft.content.work as any).experienceNote, '沉浸式平行人生体验');
+    assert.equal((draft.content.world as any).publicSetting, c.world.publicSetting);
+    assert.deepEqual(draft.content.actors, c.actors);
+    assert.ok(PublishedWorldContentSchema.safeParse(draft.content).success);
+    assert.equal(JSON.stringify(c), before);
+  }
+  const c = content();
+  c.work.experienceNote = '  作者自写体验说明\n\n原样保留  ';
+  assert.equal(
+    (publicationDraft({ title: c.work.title, content: c }).content.work as any).experienceNote,
+    c.work.experienceNote,
+  );
+});

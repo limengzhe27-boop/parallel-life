@@ -21,7 +21,16 @@ export function ensurePublishableDefaults(
     'extensions',
   ])
     missing(content, key, []);
-  if (record(content.work)) missing(content.work, 'experienceNote', '沉浸式平行人生体验');
+  if (record(content.work)) {
+    // The workbench initializes this hidden, neutral metadata to an empty string.
+    // Treat that empty sentinel like absence; never replace nonempty authored prose.
+    const note = content.work.experienceNote;
+    if (
+      !Object.hasOwn(content.work, 'experienceNote') ||
+      (typeof note === 'string' && !note.trim())
+    )
+      content.work.experienceNote = '沉浸式平行人生体验';
+  }
   if (record(content.protagonist)) missing(content.protagonist, 'knownFactKeys', []);
   missing(content, 'phone', {});
   if (record(content.phone))

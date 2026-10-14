@@ -259,6 +259,70 @@ test('real PostgreSQL: saved author content is the sole check/trial/publication 
     assert.equal(version.content_hash, work.draft.contentHash);
   });
   await t.test(
+    'blank workbench note also saves an explicit revision before trial without a model',
+    async () => {
+      const c = structuredClone(original);
+      c.work.experienceNote = '';
+      let blank = await works.create(staff, {
+        commandId: randomUUID(),
+        title: c.work.title,
+        content: c,
+      });
+      const calls: string[] = [];
+      const client = {
+        async save(w: PublisherWork, draft: { title: string; content: Record<string, unknown> }) {
+          calls.push('save');
+          return works.save(staff, w.id, {
+            commandId: randomUUID(),
+            expectedDraftVersion: w.draftVersion,
+            ...draft,
+          });
+        },
+        async check(w: PublisherWork) {
+          calls.push('check');
+          return works.check(staff, w.id, {
+            commandId: randomUUID(),
+            expectedDraftVersion: w.draftVersion,
+          });
+        },
+        async startTrial(w: PublisherWork) {
+          calls.push('start');
+          return trials.startTrial(staff, w.id, {
+            commandId: randomUUID(),
+            draftVersion: w.draftVersion,
+            contentHash: w.draft.contentHash,
+          });
+        },
+        async prepareTrial() {
+          throw Error('Unexpected paid preparation');
+        },
+      };
+      const opened = await new PublisherTrialPreparation(
+        client as unknown as PublisherClient,
+        randomUUID,
+      ).open(
+        blank,
+        { title: blank.title, content: blank.draft.content },
+        {
+          onWork(w) {
+            blank = w;
+          },
+          onProgress() {},
+          mode: 'world',
+        },
+      );
+      assert.deepEqual(calls, ['save', 'check', 'start']);
+      assert.equal(blank.draftVersion, 1);
+      assert.deepEqual(opened.result.origin, {
+        workId: blank.id,
+        publicationVersion: 0,
+        draftVersion: 1,
+        contentHash: blank.draft.contentHash,
+      });
+      assert.deepEqual((blank.draft.content as any).actors, c.actors);
+    },
+  );
+  await t.test(
     'conflicting edit cannot overwrite the saved source; invalid sender is stored intact and rejected by check',
     async () => {
       const bad = structuredClone(work.draft.content) as any;
