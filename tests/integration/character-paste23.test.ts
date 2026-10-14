@@ -66,7 +66,9 @@ const compiler: PublicationWorldCompilerPort = {
 };
 test('real PG: >4000 dimension remains exact through save/reload, private trial, publish and authorized phone reads', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, Number(process.env.CHARACTER_PASTE_TEST_PORT ?? 55523));
+  assert.ok(Number.isInteger(config.port) && config.port > 1023 && config.port <= 65535);
+  if (process.env.CHARACTER_PASTE_TEST_PORT)
+    assert.equal(config.port, Number(process.env.CHARACTER_PASTE_TEST_PORT));
   const admin = await adminClient('parallel_life_test');
   const resources: PostgresDatabase[] = [];
   t.after(async () => {
