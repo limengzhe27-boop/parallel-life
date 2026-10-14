@@ -9,14 +9,7 @@ export const phoneApps = [
   'scenes',
   'map',
 ] as const;
-export const desktopApps = [
-  'messages',
-  'calendar',
-  'photos',
-  'notes',
-  'scenes',
-  'map',
-] as const;
+export const desktopApps = ['messages', 'calendar', 'photos', 'notes', 'scenes', 'map'] as const;
 export type PhoneApp = (typeof phoneApps)[number];
 export const phonePanels = ['schedule', 'timeline', 'time', 'scene', 'management'] as const;
 export type PhonePanel = (typeof phonePanels)[number];

@@ -183,7 +183,12 @@ const appFaces: Partial<Record<keyof typeof shapes, ReactNode>> = {
     <g stroke="none">
       <rect width="32" height="32" rx="7" fill="#b45309" />
       <rect x="6" y="5" width="20" height="22" rx="3" fill="#fffbeb" />
-      <path d="M10 10h12M10 15h12M10 20h8" stroke="#d97706" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M10 10h12M10 15h12M10 20h8"
+        stroke="#d97706"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </g>
   ),
   timeline: (

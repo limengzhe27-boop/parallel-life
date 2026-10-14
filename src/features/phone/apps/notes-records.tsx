@@ -486,10 +486,7 @@ export function NotesRecordsReadState({
 }
 
 /** Standalone RecordsApp: dedicated read-only viewer for world background and player records */
-export function RecordsApp({
-  target,
-  open,
-}: PhoneAppContext) {
+export function RecordsApp({ target, open }: PhoneAppContext) {
   const { data, records, reloadRecords, drafts, setDraft } = usePhoneApps();
   const query = drafts['records:search'] ?? '';
   const setQuery = (value: string) => setDraft('records:search', value);
@@ -557,12 +554,29 @@ export function RecordsApp({
       <section
         className={s.section}
         aria-label="关于这段人生"
-        style={{ margin: '0 0 16px', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}
+        style={{
+          margin: '0 0 16px',
+          background: '#ffffff',
+          padding: '14px',
+          borderRadius: '12px',
+          border: '1px solid #f1f5f9',
+        }}
       >
         <details className={s.background} open={true}>
-          <summary style={{ fontWeight: 650, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <summary
+            style={{
+              fontWeight: 650,
+              fontSize: '16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
             <span>① 关于这段人生（起点与设定）</span>
-            <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>起点与世界设定 · 只读</small>
+            <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>
+              起点与世界设定 · 只读
+            </small>
           </summary>
           <p className={s.hint} style={{ margin: '6px 0 10px' }}>
             世界设定、我的身份与起点处境由剧本确立，你只需了解，不必修改（只读）。
@@ -595,19 +609,46 @@ export function RecordsApp({
         <section
           className={s.section}
           aria-label="面临的处境与选择"
-          style={{ margin: '16px 0 0', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}
+          style={{
+            margin: '16px 0 0',
+            background: '#ffffff',
+            padding: '14px',
+            borderRadius: '12px',
+            border: '1px solid #f1f5f9',
+          }}
         >
-          <details className={s.background} open={!query.trim() || !!data.choices.some(c => searchable(query, c.actorName, c.quote, c.intent))}>
-            <summary style={{ fontWeight: 650, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <details
+            className={s.background}
+            open={
+              !query.trim() ||
+              !!data.choices.some((c) => searchable(query, c.actorName, c.quote, c.intent))
+            }
+          >
+            <summary
+              style={{
+                fontWeight: 650,
+                fontSize: '16px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
               <span>④ 处境与选择</span>
-              <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>{data.choices.length} 条处境与选择（只读）</small>
+              <small style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>
+                {data.choices.length} 条处境与选择（只读）
+              </small>
             </summary>
             <p className={s.hint} style={{ margin: '6px 0 10px' }}>
               人物来信或对话中带来的关键处境与分歧。选择已发生或待续，不在此处就地编辑。
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {data.choices
-                .filter(choice => !query.trim() || searchable(query, choice.actorName, choice.quote, choice.intent))
+                .filter(
+                  (choice) =>
+                    !query.trim() ||
+                    searchable(query, choice.actorName, choice.quote, choice.intent),
+                )
                 .map((choice) => (
                   <div
                     key={choice.id}
@@ -619,7 +660,14 @@ export function RecordsApp({
                       fontSize: '13px',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '4px',
+                      }}
+                    >
                       <strong style={{ color: '#0f172a' }}>{choice.actorName} · 处境</strong>
                       <span
                         style={{
@@ -638,15 +686,25 @@ export function RecordsApp({
                       <span style={{ color: '#64748b' }}>你说：</span>“{choice.quote}”
                     </p>
                     {choice.nextStep && (
-                      <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #cbd5e1' }}>
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          paddingTop: '6px',
+                          borderTop: '1px dashed #cbd5e1',
+                        }}
+                      >
                         <p style={{ margin: '0 0 4px', color: '#475569', fontSize: '12px' }}>
-                          <span>{choice.actorName}提出：</span>{choice.nextStep.quote}
+                          <span>{choice.actorName}提出：</span>
+                          {choice.nextStep.quote}
                         </p>
                         {choice.nextStep.calendar && (
                           <button
                             type="button"
                             className={s.actionShortcut}
-                            onClick={() => choice.nextStep?.calendar && open('calendar', choice.nextStep.calendar.id)}
+                            onClick={() =>
+                              choice.nextStep?.calendar &&
+                              open('calendar', choice.nextStep.calendar.id)
+                            }
                             style={{ marginTop: '4px' }}
                           >
                             📅 查看日历日程 · {choice.nextStep.calendar.title} ›

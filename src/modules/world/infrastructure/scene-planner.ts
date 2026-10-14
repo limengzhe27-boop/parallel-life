@@ -492,7 +492,9 @@ export class ScenePlanner implements ScenePlannerPort {
       : undefined;
     const directAppointment = c.world.appointments.find((x) => x.id === c.scene.appointmentId);
     const effectiveDirect =
-      Boolean(directAppointment?.status && ['confirmed', 'proposed'].includes(directAppointment.status)) &&
+      Boolean(
+        directAppointment?.status && ['confirmed', 'proposed'].includes(directAppointment.status),
+      ) &&
       Date.parse(directAppointment!.at) <= Date.parse(c.storyAt) &&
       (!c.scene.placeId || Boolean(scenePlace?.appointmentIds.includes(directAppointment!.id)))
         ? directAppointment
@@ -500,7 +502,9 @@ export class ScenePlanner implements ScenePlannerPort {
     const activeAppointment = c.scene.appointmentId ? effectiveDirect : placeAppointment;
     const defaultActorIds = activeAppointment
       ? activeAppointment.participantIds
-      : (c.scene.appointmentId ? [] : (scenePlace?.contactActorIds ?? []));
+      : c.scene.appointmentId
+        ? []
+        : (scenePlace?.contactActorIds ?? []);
     const actualPresent = scenePresent(c.scene, c.world.version).flatMap((p) =>
       p.kind === 'actor' ? [p.actorId] : [],
     );

@@ -1489,7 +1489,7 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 
 |AUTHORING-15-AUTO-TIMEOUT|[ ] 待验收|author-events-director-14|独立codex/authoring15-auto；独占api/client.ts超时、新专项、本人报告；无模型/生产|普通读15s保留；消息/推进按实际85s单模型与双模型预算调整有限超时，保unknown/版本/幂等、不自动重试；root集成部署。 本人f4f4e49，16专项/type/build通过；root240s路线配套、集成部署后完成。|
 
-|SCENE-NATURAL-02|[ ] 进行中|codex-scene-natural-01a1334b-20261014；root唯一集成|独立map-travel-repair树自d7389b4接续；I已明确独占scene-planner.ts、scene-repository.ts、application/scene-ports.ts、domain/scene-delivery.ts、scene-panel.tsx/scenes.module.css、专属tests与本人design/report；无HTTP契约/SQL/publisher改动；PG55487|解决场景无动作/环境、先无回应后NPC答话；内部delivery以既有narration存储，不冒充任务成果。先纯桩/真实DB/check/build/双端；本聊天人类现明确授权新12文字/2临时存档（0图），本地6+公网6上限，独立scene-natural-live-ledger.json；当前0调用，不沿用closed4/4/root24/2，root统一部署。|
+|SCENE-NATURAL-02|[ ] 进行中|codex-scene-natural-01a1334b-20261014；root唯一集成|独立map-travel-repair树自d7389b4接续；I独占scene-planner.ts、scene-repository.ts、application/scene-ports.ts、domain/scene-delivery.ts、scene-panel.tsx/scenes.module.css、scene-timeline.ts、专属tests与本人design/report；无HTTP契约/SQL/publisher改动；PG55487|内部delivery以既有narration存储，普通问句无任务信用、旧输入关联兼容；check 2219通过，PG5通过（含来源/RLS/rollback）；真实本地12/12旧额度仍未质量通过，用户追加6，累计18上限，本地最多14/公网4，2临时存档/0图。当前14/18、本地1存档已暂停；真实对话仍质量失败，最后微动作含期待被拒绝。最终check2219/build/PG5通过，WIP冻结待模型策略及用户预算用途调整，未部署；root唯一集成。|
 
 ## AUTHORING-16 角色演示生成优先修复（用户2026-10-14最新优先）
 
@@ -1497,6 +1497,13 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 |---|---|---|---|---|
 |AUTHORING-16-TRIAL-I|[ ] 进行中（前端bd974aa/政策已集成，准备最后部署）|codex-main-author15-20261013 唯一集成|8fd4799保小安d738等全部新版；publisher prepare-trial与character-trial路由/HTTP目的绑定/lazy factory/专项、0056单角色事务下限、集成真数据库/真实手机/部署；不scene不覆盖另外两位源码|单角色仅人设→项目Agent补运行信息（不手填）→保存→真手机开场/真实NPC；原文不改、不增假人/事件/图片、不自动发布；24/2范围仍同本轮账本，当前11/24、1/2，剩余一个存档优先此修复，原公开链未完成。|
 
-|AUTHORING-16-TRIAL-M|[ ] 待验收|author-import-modules-14；root指派|独立author-import-modules-14自8fd4799/codex/authoring16-character-trial；publisher-controller/client、必要workbench/character-preview props/CSS、纯试演orchestration与专项/报告；0模型DBbrowser生产|角色稿dirty先保存、真实check预检、项目prepare-trial补运行字段、仅成功无issues提案保存再真手机；原command恢复不重付、自动保存竞态不吞点击、紧凑中文进度与错误；42专项/type/boundary/build通过；全check2217/2221，4旧PG连接28P01待root隔离PG复跑；准备/角色专用trial真实API、原command恢复、保存排队、false保留；详见本人报告；root24额度/backend/部署独占。|
+|AUTHORING-16-TRIAL-M|[ ] 待验收|author-import-modules-14；root指派|独立author-import-modules-14自8fd4799/codex/authoring16-character-trial；publisher-controller/client、必要workbench/character-preview props/CSS、纯试演orchestration与专项/报告；0模型DBbrowser生产|角色稿dirty先保存、真实check预检、项目prepare-trial补运行字段、仅成功无issues提案保存再真手机；原command恢复不重付、自动保存竞态不吞点击、紧凑中文进度与错误；42专项/type/boundary/build通过；全check2217/2221，4旧PG连接28P01待root隔离PG复跑；准备/角色专用trial真实API、原command恢复、保存排队、false保留；详见本人报告；root24额度/backend/部署独占。补只读审查：五模块/公开介绍UI错位及L5公开泄露风险；后续最小修复见AUTHORING-16-CHARACTER-MAPPING-Q，未改业务源码/付费样本。追加已确认终态允许下次显式点击新command重做；未知仍同ID只GET；49专项通过，待root集成，0模型/生产。|
 
-|PUBLISHER-LIVE-17-B|[ ] 进行中（只读核对交接资源）|codex-publish-qa-01a11a84-20261014；主集成root协调生产资源|本线程用户明确请求实际测试后台发布；仅本人ignored测试脚本/报告/主镜像，不改业务源码；拟Ego独立空间/已有AI整理测试稿，尚未创建或发布|先与root交接AUTHORING15正式测试稿与唯一账本，避免重复调用/存档；实测保存检查私有试演发布新玩家与cleanup，不能把代码检查当真实发布成功；资源冲突/旧24/2上限未解前不新建付费/存档。|
+|PUBLISHER-LIVE-17-B|[ ] 待根验收（正式链已通过/清理完成）|codex-publish-qa-01a11a84-20261014；root最终登记|仅本人ignored集成树.local/publisher-live17与报告/主镜像；Ego176已finish/cookie恢复；不改业务源码/SQL/root账本/部署|用户独立额外1存档/3文字授权：正式check ready→UI publish v1→新guest可见→新玩家v0/2人物4历史2动态→真手机自动NPC来信1、v1/presented1且不算完成；390/1440过。ledger closed保守3/3、1/1；作品已下架、新玩家暂停、freshguest目录隐藏，原稿不变。缺可见下架入口已报root；非从零新稿整理质量或完整事件演绎。收尾formal dpl_DC19xZN1dBS7WQQrE9CTZTaFtLjC READY，见17-B报告。|
+
+## 角色演示后接续（2026-10-14实际审查）
+
+|任务ID|状态|负责人|范围与依赖|验收|
+|---|---|---|---|---|
+|AUTHORING-16-CANONICAL-FORM|[ ] 高优先待开发|待root分配|先收口16真手机；改公开介绍绑定introduction、五维lifeModules、旧摘要兼容；L5私人关系不得转player可见关系|实际输入保存精确回读、项目Agent/真手机读取新维度；幕后信息不公开。仅render无覆写已审查，主动编辑错位仍未修，见16-CHARACTER-MAPPING-Q。|
+|PUBLISHER-UNPUBLISH-UI-17|[ ] 待开发|待root分配|补已上架作品下架入口；17B实际发布与玩家开场已验，当前缺按钮|权限/metadata并发保留；真实下架新访客不可发现、旧玩家保原存档。|

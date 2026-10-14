@@ -865,7 +865,9 @@ export async function commitSceneProposal(
   const proposalPlace = c.world.space?.places.find((place) => place.id === c.scene.placeId);
   const proposalEligible = invitedAppointment
     ? invitedAppointment.participantIds
-    : (c.scene.appointmentId ? [] : (proposalPlace?.contactActorIds ?? []));
+    : c.scene.appointmentId
+      ? []
+      : (proposalPlace?.contactActorIds ?? []);
   const allowedActors = c.action
     ? Array.from(new Set([...actualBefore, ...proposalEligible]))
     : proposalEligible;
@@ -1078,7 +1080,9 @@ export async function commitSceneProposal(
   const executionPlace = c.world.space?.places.find((place) => place.id === c.scene.placeId);
   const executionEligible = activeAppointment
     ? activeAppointment.participantIds
-    : (c.scene.appointmentId ? [] : (executionPlace?.contactActorIds ?? []));
+    : c.scene.appointmentId
+      ? []
+      : (executionPlace?.contactActorIds ?? []);
   const allowed = c.action
     ? Array.from(new Set([...actualIds, ...executionEligible]))
     : executionEligible;

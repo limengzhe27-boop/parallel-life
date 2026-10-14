@@ -156,13 +156,7 @@ test('simple event view exposes one speaker and preserves source on render; extr
   const t = setup(false, c);
   const before = structuredClone(c);
   const visible = visibleText(renderPlot(t.props));
-  for (const label of [
-    '事件标题',
-    '事件概述',
-    '主要人物（由谁开启）',
-    '无前提',
-    '设置前提',
-  ])
+  for (const label of ['事件标题', '事件概述', '主要人物（由谁开启）', '无前提', '设置前提'])
     assert.ok(visible.includes(label), label);
   for (const label of [
     '更多安排',
@@ -299,7 +293,10 @@ test('add button calls the controlled change callback with candidates and no aut
   const t = setup();
   click(button(tree(t.props), '+ 增加事件'));
   assert.equal(t.calls, 1);
-  assert.equal(plotRows(t.next!, 'candidates').length, plotRows(t.props.content, 'candidates').length + 1);
+  assert.equal(
+    plotRows(t.next!, 'candidates').length,
+    plotRows(t.props.content, 'candidates').length + 1,
+  );
   assert.equal(plotRows(t.props.content, 'candidates').length, 1);
 });
 test('candidate title edits do not rename the stable node identifier', () => {

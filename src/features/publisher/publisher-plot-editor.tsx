@@ -633,7 +633,11 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                 1600,
                 '【起因】突发了什么打破主角现状…\n【博弈】主角面临什么两难抉择…\n【结局】最终导演把冲突引向什么收敛局面与主角感受…',
               )}
-              <div className={`${s.preconditions} ${s.wide}`} aria-label="事件前提" style={{ margin: '4px 0 8px' }}>
+              <div
+                className={`${s.preconditions} ${s.wide}`}
+                aria-label="事件前提"
+                style={{ margin: '4px 0 8px' }}
+              >
                 {preconditionSummaries.length ? (
                   <ul className={s.references}>
                     {preconditionSummaries.map((summary, i) => (
@@ -666,7 +670,8 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                       return (
                         <div className={s.group} key={i}>
                           <strong>
-                            {conditionNames[kind as keyof typeof conditionNames] || (kind === 'at_place' ? '玩家在某地点' : '原条件待核对')}
+                            {conditionNames[kind as keyof typeof conditionNames] ||
+                              (kind === 'at_place' ? '玩家在某地点' : '原条件待核对')}
                           </strong>
                           {kind === 'history_fact' &&
                             selectField('前置事实', [...path, 'factKey'], facts)}
@@ -782,7 +787,8 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
               <div>
                 <h3>事件列表（核心事件库）</h3>
                 <p className={s.hint}>
-                  由编导按需自由增删。每件事写清主角面临的起因、博弈与必须达成的结局（约150~200字）。导演 Agent 会结合世界与人物推进事件。
+                  由编导按需自由增删。每件事写清主角面临的起因、博弈与必须达成的结局（约150~200字）。导演
+                  Agent 会结合世界与人物推进事件。
                 </p>
               </div>
               <button

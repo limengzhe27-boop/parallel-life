@@ -439,8 +439,7 @@ export function createEmptyActor(existingKeys: string[]): ActorEditorForm {
     identity: '',
     appearance: '',
     traits: [],
-    avatarMediaKey:
-      PUBLICATION_ART.find((a) => a.uses.includes('avatar'))?.key ?? 'qingqing',
+    avatarMediaKey: PUBLICATION_ART.find((a) => a.uses.includes('avatar'))?.key ?? 'qingqing',
     knownAtStart: true,
     relationshipToPlayer: '',
     voice: '',

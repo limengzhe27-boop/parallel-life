@@ -857,7 +857,9 @@ test('the character form correctly renders 5 core dimensions and triggers trial 
     );
 
     // Trigger trial from character preview
-    const preview = h.render().find((n) => typeof n.type === 'function' && Boolean(n.props.onStartTrial));
+    const preview = h
+      .render()
+      .find((n) => typeof n.type === 'function' && Boolean(n.props.onStartTrial));
     assert.ok(preview);
     (preview.props.onStartTrial as () => void)();
     assert.ok(trialDraft);

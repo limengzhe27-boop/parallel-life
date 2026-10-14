@@ -562,7 +562,9 @@
   white-space: nowrap;
   flex-shrink: 0;
   min-height: 40px;
-  transition: background-color 120ms ease, transform 100ms ease;
+  transition:
+    background-color 120ms ease,
+    transform 100ms ease;
 }
 
 .createActorTopBtn:hover:not(:disabled) {
