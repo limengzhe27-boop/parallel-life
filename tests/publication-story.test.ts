@@ -385,3 +385,70 @@ test('opening source binding is copied only when present and rejects invalid/non
   const old = buildStoryPlan(source());
   assert.equal(Object.hasOwn(old, 'openingEventKey'), false);
 });
+
+test('verified terminal opening without presentation releases the gate; mismatched and unfinished states do not', () => {
+  const p = plan();
+  p.nodes = [node('first'), node('second')];
+  p.openingEventKey = 'first';
+  for (const outcome of ['skipped', 'expired', 'declined'] as const) {
+    const terminal = {
+      ...state('first', outcome),
+      status: outcome,
+      sourceEventId: null,
+      sourceMessageId: null,
+    };
+    assert.deepEqual(
+      evaluateStory(p, [terminal], context).eligible.map((n) => n.key),
+      ['second'],
+    );
+    assert.deepEqual(evaluateStory(p, [{ ...terminal, outcome: null }], context).eligible, []);
+  }
+  for (const status of ['claimed', 'unknown'] as const) {
+    assert.deepEqual(evaluateStory(p, [{ ...state('first', null), status }], context).eligible, []);
+  }
+});
+test('same evaluation expiry or exclusion of an unpresented opening releases other events without completion', () => {
+  const p = plan();
+  p.openingEventKey = 'first';
+  p.timeline = {
+    initialStageKey: 'opening',
+    stages: [{ key: 'opening', title: '起步', order: 0, afterStageKeys: [] }],
+  };
+  p.nodes = [
+    {
+      ...node('first'),
+      timeline: {
+        stageKey: 'opening',
+        window: { notBefore: '2026-10-12T08:00:00.000Z', expiresAt: start },
+        excludeIfResolved: [],
+        alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+      },
+    },
+    node('second'),
+  ];
+  const expired = evaluateStory(p, [], { ...context, storyNow: '2026-10-12T09:01:00.000Z' });
+  assert.deepEqual(expired.expired, ['first']);
+  assert.deepEqual(
+    expired.eligible.map((n) => n.key),
+    ['second'],
+  );
+  p.nodes[0]!.timeline!.window = undefined;
+  p.nodes[0]!.timeline!.excludeIfResolved = [{ nodeKey: 'previous', outcomes: ['expired'] }];
+  const excluded = evaluateStory(
+    p,
+    [
+      {
+        ...state('previous', 'expired'),
+        status: 'expired',
+        sourceEventId: null,
+        sourceMessageId: null,
+      },
+    ],
+    context,
+  );
+  assert.deepEqual(excluded.excluded, [{ nodeKey: 'first', sourceNodeKey: 'previous' }]);
+  assert.deepEqual(
+    excluded.eligible.map((n) => n.key),
+    ['second'],
+  );
+});

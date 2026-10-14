@@ -354,6 +354,10 @@ export function plotIssues(content: PlotRecord): string[] {
       local.push(`history.${i}.occurredAt：事实时间晚于世界起点`);
   });
   const messages: Record<string, string> = {
+    opening_event_requires_prior_event:
+      '开场事件不能等待其他剧情先发生；请改为已有事实、地点或时间前提，或调整开场指定',
+    opening_event_requires_prior_stage:
+      '开场所在阶段必须等其他剧情结束，无法先开场；请调整所属阶段或开场指定',
     future_in_history: '事实时间晚于世界起点',
     unknown_stage: '阶段引用不存在',
     reverse_stage_dependency: '前置阶段应排在当前阶段之前',

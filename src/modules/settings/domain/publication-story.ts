@@ -222,11 +222,11 @@ export function openingEventPending(plan: StoryPlan, states: readonly StoryState
     !states.some(
       (state) =>
         state.nodeKey === plan.openingEventKey &&
-        !!state.sourceEventId &&
-        !!state.sourceMessageId &&
-        ['presented', 'offered', 'committed', 'declined', 'skipped', 'expired', 'failed'].includes(
-          state.status,
-        ),
+        ((!!state.sourceEventId &&
+          !!state.sourceMessageId &&
+          !['claimed', 'unknown'].includes(state.status)) ||
+          (['skipped', 'expired', 'declined'].includes(state.status) &&
+            state.outcome === state.status)),
     )
   );
 }
@@ -293,7 +293,10 @@ export function evaluateStory(
     )
       currentStages.push(stage.key);
   }
-  const openingPending = openingEventPending(plan, states);
+  const openingPending =
+    openingEventPending(plan, states) &&
+    !expired.includes(plan.openingEventKey!) &&
+    !excluded.some((item) => item.nodeKey === plan.openingEventKey);
   const eligible = plan.nodes
     .filter((n) => {
       if (openingPending && n.key !== plan.openingEventKey) return false;

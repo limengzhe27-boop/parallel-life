@@ -900,7 +900,7 @@ export function PublisherPlotEditor({ content, disabled, onChange }: PublisherPl
                 );
             })}
             <p className={s.hint}>
-              这是下方事件列表中的同一个事件。原有前提和时间限制仍有效；前提未满足时会等待，不会强行触发或改演其他事件。编辑后保存并检查，新设定用于新存档。
+              这是下方事件列表中的同一个事件。原有前提和时间限制仍有效；前提未满足时会等待；若开场被跳过或已过期，继续其他剧情。编辑后保存并检查，新设定用于新存档。
             </p>
             <button
               type="button"

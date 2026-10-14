@@ -316,6 +316,150 @@ test('real PostgreSQL optional opening source/plan binding and first-event eligi
       assert.deepEqual((await story.opportunities(owner, world.worldId, false)).candidates, []);
     },
   );
+  const stagedFixture = () => {
+    const c = fixture();
+    c.openingEventKey = 'z_opening';
+    c.timeline = {
+      initialStageKey: 'start',
+      stages: [{ key: 'start', title: '起步', order: 0, afterStageKeys: [] }],
+    };
+    for (const n of c.candidates)
+      n.timeline = {
+        stageKey: 'start',
+        excludeIfResolved: [],
+        alternatives: { onDeclined: [], onSkipped: [], onExpired: [] },
+      };
+    return c;
+  };
+  await t.test(
+    'owner skip before presentation persists a real terminal outcome and releases the opening gate',
+    async () => {
+      const c = fixture();
+      c.openingEventKey = 'z_opening';
+      const { world } = await make(c);
+      await story.opportunities(owner, world.worldId, false);
+      await story.skip(owner, world.worldId, 'z_opening', randomUUID());
+      const row = (
+        await admin.query(
+          'SELECT status,outcome,source_event_id,source_message_id FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND node_key=$2',
+          [world.worldId, 'z_opening'],
+        )
+      ).rows[0];
+      assert.equal(row.status, 'skipped');
+      assert.equal(row.outcome, 'skipped');
+      assert.equal(row.source_event_id, null);
+      assert.equal(row.source_message_id, null);
+      assert.deepEqual(
+        (await story.opportunities(owner, world.worldId, false)).candidates.map((n) => n.nodeKey),
+        ['a_other'],
+      );
+    },
+  );
+  await t.test(
+    'clock expiry before presentation persists without source evidence and releases other events',
+    async () => {
+      const c = stagedFixture();
+      const start = Date.parse(c.world.startAt);
+      c.candidates[1].timeline.window = {
+        notBefore: new Date(start).toISOString(),
+        expiresAt: new Date(start + 60000).toISOString(),
+      };
+      const { world } = await make(c);
+      await story.opportunities(owner, world.worldId, false);
+      await admin.query('UPDATE parallel_life.world_clock SET story_now=$2 WHERE world_id=$1', [
+        world.worldId,
+        new Date(start + 120000).toISOString(),
+      ]);
+      assert.deepEqual(
+        (await story.opportunities(owner, world.worldId, false)).candidates.map((n) => n.nodeKey),
+        ['a_other'],
+      );
+      const row = (
+        await admin.query(
+          'SELECT status,outcome,source_event_id,source_message_id FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND node_key=$2',
+          [world.worldId, 'z_opening'],
+        )
+      ).rows[0];
+      assert.equal(row.status, 'expired');
+      assert.equal(row.outcome, 'expired');
+      assert.equal(row.source_event_id, null);
+      assert.equal(row.source_message_id, null);
+    },
+  );
+  await t.test(
+    'causal prerequisites and dependent stage block publication while ANY retains a reachable place branch',
+    async () => {
+      const c = fixture();
+      c.openingEventKey = 'z_opening';
+      c.candidates[1].prerequisites = [{ kind: 'after_presented_node', nodeKey: 'a_other' }];
+      const original = structuredClone(c);
+      const invalid = PublishedWorldContentSchema.safeParse(c);
+      assert.equal(invalid.success, false);
+      if (!invalid.success)
+        assert.ok(
+          invalid.error.issues.some((i) => i.message === 'opening_event_requires_prior_event'),
+        );
+      assert.deepEqual(c, original);
+      c.candidates[1].prerequisites = [];
+      c.conditions = [
+        {
+          key: 'opening_choice',
+          title: '开场可达',
+          match: 'any',
+          prerequisites: [
+            { kind: 'after_presented_node', nodeKey: 'a_other' },
+            { kind: 'at_place', placeKey: c.world.startPlaceKey },
+          ],
+        },
+      ];
+      c.candidates[1].conditionKeys = ['opening_choice'];
+      const { world } = await make(c);
+      assert.deepEqual(
+        (await story.opportunities(owner, world.worldId, false)).candidates.map((n) => n.nodeKey),
+        ['z_opening'],
+      );
+      c.conditions[0].match = 'all';
+      assert.equal(PublishedWorldContentSchema.safeParse(c).success, false);
+      const staged = stagedFixture();
+      staged.timeline.stages.push({
+        key: 'later',
+        title: '后续',
+        order: 1,
+        afterStageKeys: ['start'],
+      });
+      staged.candidates[1].timeline.stageKey = 'later';
+      const invalidStage = PublishedWorldContentSchema.safeParse(staged);
+      assert.equal(invalidStage.success, false);
+      if (!invalidStage.success)
+        assert.ok(
+          invalidStage.error.issues.some((i) => i.message === 'opening_event_requires_prior_stage'),
+        );
+    },
+  );
+  await t.test(
+    'real clock expiration remains a reachable causal prerequisite without presenting the earlier event',
+    async () => {
+      const c = stagedFixture();
+      const start = Date.parse(c.world.startAt);
+      c.candidates[0].timeline.window = {
+        notBefore: new Date(start).toISOString(),
+        expiresAt: new Date(start + 60000).toISOString(),
+      };
+      c.candidates[1].prerequisites = [
+        { kind: 'after_resolved_node', nodeKey: 'a_other', outcomes: ['expired'] },
+      ];
+      const { world } = await make(c);
+      assert.deepEqual((await story.opportunities(owner, world.worldId, false)).candidates, []);
+      await admin.query('UPDATE parallel_life.world_clock SET story_now=$2 WHERE world_id=$1', [
+        world.worldId,
+        new Date(start + 120000).toISOString(),
+      ]);
+      assert.deepEqual(
+        (await story.opportunities(owner, world.worldId, false)).candidates.map((n) => n.nodeKey),
+        ['z_opening'],
+      );
+    },
+  );
   await t.test(
     'invalid and non-director binding reject author content instead of making a random opening',
     () => {

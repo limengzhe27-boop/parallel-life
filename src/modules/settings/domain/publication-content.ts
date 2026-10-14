@@ -568,6 +568,92 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     if (matches.length !== 1) issue(['openingEventKey'], 'opening_event_reference_invalid');
     else if (matches[0]!.intent.kind !== 'director_event')
       issue(['openingEventKey'], 'opening_event_must_be_director');
+    if (matches.length === 1 && matches[0]!.intent.kind === 'director_event') {
+      const opening = matches[0]!,
+        index = c.candidates.findIndex((node) => node === opening);
+      const timestamp = (value: string | undefined) => {
+        const at = Date.parse(value ?? '');
+        return Number.isFinite(at) ? at : Infinity;
+      };
+      const deadline = (node: PublicationContent['candidates'][number]) =>
+        Math.min(
+          timestamp(node.timeline?.window?.expiresAt),
+          timestamp(stages.get(node.timeline?.stageKey ?? '')?.window?.expiresAt),
+        );
+      const openingDeadline = deadline(opening);
+      // Before the opening, other events cannot be presented. Clock expiration (including
+      // its saved exclusion chains) can still produce a terminal outcome without a scene.
+      const terminalByClock = (
+        key: string,
+        outcome: PublicationNodeOutcome,
+        visiting = new Set<string>(),
+      ): boolean => {
+        if (key === opening.key) return false;
+        const marker = key + ':' + outcome;
+        if (visiting.has(marker)) return false;
+        const prior = c.candidates.find((node) => node.key === key);
+        if (!prior) return false;
+        if (outcome === 'expired')
+          return Number.isFinite(deadline(prior)) && deadline(prior) < openingDeadline;
+        if (outcome !== 'skipped') return false;
+        const next = new Set(visiting);
+        next.add(marker);
+        return (prior.timeline?.excludeIfResolved ?? []).some((rule) =>
+          rule.outcomes.some((result) => terminalByClock(rule.nodeKey, result, next)),
+        );
+      };
+      const reachable = (term: PublicationPrerequisite): boolean =>
+        term.kind === 'history_fact' ||
+        term.kind === 'at_place' ||
+        term.kind === 'not_before' ||
+        (term.kind === 'after_resolved_node' &&
+          term.outcomes.some((outcome) => terminalByClock(term.nodeKey, outcome)));
+      opening.prerequisites.forEach((term, j) => {
+        if (!reachable(term))
+          issue(['candidates', index, 'prerequisites', j], 'opening_event_requires_prior_event');
+      });
+      (opening.conditionKeys ?? []).forEach((key, j) => {
+        const groups = (c.conditions ?? []).filter((group) => group.key === key);
+        const group = groups.length === 1 ? groups[0] : undefined;
+        if (
+          group?.prerequisites.length &&
+          !(group.match === 'any'
+            ? group.prerequisites.some(reachable)
+            : group.prerequisites.every(reachable))
+        )
+          issue(['candidates', index, 'conditionKeys', j], 'opening_event_requires_prior_event');
+      });
+      const stage = stages.get(opening.timeline?.stageKey ?? '');
+      if (
+        stage?.afterStageKeys.some((key) => {
+          const prior = stages.get(key);
+          return (
+            prior &&
+            (!prior.window ||
+              !Number.isFinite(Date.parse(prior.window.expiresAt)) ||
+              Date.parse(prior.window.expiresAt) >= openingDeadline)
+          );
+        })
+      )
+        issue(['candidates', index, 'timeline', 'stageKey'], 'opening_event_requires_prior_stage');
+      // Multiple inbound alternatives are OR; keep a branch which can open by a real deadline.
+      const inbound = c.candidates.flatMap((prior) =>
+        Object.entries(prior.timeline?.alternatives ?? {}).flatMap(([kind, keys]) =>
+          keys.includes(opening.key)
+            ? [
+                {
+                  key: prior.key,
+                  outcome: (
+                    { onDeclined: 'declined', onSkipped: 'skipped', onExpired: 'expired' } as const
+                  )[kind as 'onDeclined'],
+                },
+              ]
+            : [],
+        ),
+      );
+      if (inbound.length && !inbound.some((rule) => terminalByClock(rule.key, rule.outcome)))
+        issue(['candidates', index, 'timeline'], 'opening_event_requires_prior_event');
+    }
   }
   const nodeMap = new Map(c.candidates.map((node) => [node.key, node]));
   const progress = new Map(c.candidates.map((node) => [node.key, [] as string[]]));
