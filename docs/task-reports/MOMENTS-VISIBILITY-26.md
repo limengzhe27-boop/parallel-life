@@ -24,3 +24,15 @@ Owner `codex-moments26-01a11a84-20261015`；复用managed publication-story-02�
 接续：I串行cherry-pick提交链并应用生产0063、部署READY；本Agent再做公网多图/受限媒体验收，协同expectedVersion仅更新真实草稿actor_3三天及syt_m01确认规则，保留全部事件地点/79消息/24动态/34图，不发布世界。之后按照用户新授权生成16张场景图并配合I上传到地点草稿（02手机UI仅素材）。
 
 Test-only后继：CI既有55476配置没有PUBLICATION_MOMENTS_TEST_PORT，测试现在专用变量优先、回退既有PUBLICATION_STORY_TEST_PORT/PUBLICATION_MEDIA_TEST_PORT/PUBLISHER_TEST_PORT，保留localConfig实际端口断言与55566默认。不改workflow或运行时。仅设置PUBLICATION_STORY_TEST_PORT=55566重跑本批真实PG1/1通过，验证CI同类回退路径。
+
+## 0066 真初始化历史确认补修
+
+首批软件b4752def READY（正式parallel-life-nu.vercel.app，生产65/65）后，真实渣男体验在唯一写窗口由117保存118：14sceneImage+这14knownAtStart=true、actor_3三天、syt_m01本人完整确认句及编辑说明。保存content与planned完全一致；其他79历史/24帖正文及旧34图/18事件全文/2旧地点所有字段deepEqual。仍draft/publicationVersion null。16新场景图由SCENE-IMAGES-29另报；I独立PC1440/390核14私有图全complete。
+
+生产独立fixture77ea5d96-8553-48ce-b57a-9f0da556a0ff已v3 ready，两个trial ef33fc31-adbc-4c57-943b-e337b1e97298/854bbb26-6fd6-4543-9da5-4dc7341b4ebf都暂停。第一正验证3私有图片200、锁图404、正文锁/过期隐藏、恰72h仍显示、确认规则不泄漏。未来朋友圈源在check正确future_in_history拒绝后移除测试输入。第二真实编剧历史确认来源未解锁，发现初始化历史只存immutable world_initial_snapshots，world_messages/world_events为0；先前runtime事件专项不覆盖此路径。0文字模型，不把编剧台词冒称AI输出。
+
+I独占放行新0066和专属test。分支codex/moments-genesis-66从最新origin/main；未改线上0063。新内部private helper必须同时有真实publication binding/receipt、seed/snapshot同owner/world及精确origin/hash、schema1/version0初始快照、原稿history同actor/actor speaker、快照历史key/sourceEventId/全文/日期一一匹配、完整配置确认句及非未来时间。只有明确同句规则解锁，不把任意历史台词当事实。未读incoming不算既知历史。原有runtime事件成功cmd、现场observableTo及群成员区间分支逐字保留，新增OR真genesis分支；内部helpers对PUBLIC/pl_app/pl_publisher/pl_worker均closed。
+
+新test真实编译/真实genesis事务/原始immutable snapshot与receipt，无伪造world_messages/事件/成功command。正例断言runtime messages/events皆0、initial_messages1；覆盖本人/trim、玩家/错人/引用/否认/incoming拒绝、其他同角色不同句仍锁、跨owner/私有执行权限、未来原稿check拒绝、实际本地published初始化、后改草稿不改旧trial。仅object storage为明确1像素测试夹具；published reviewer实际编译并核真实trialSession origin/hash。
+
+验证：npm run check 2417/2417；npm run build通过。联合story/history-media/26 visibility/新genesis共46真PG=44pass/2fail，唯一失败为既有publication-story optional director子case经线上0064 scene_goal_owner line7抛FORBIDDEN（原nullable跨owner行为），已交I处理64契约；新66整套13及原26 visibility通过。日志.local/moments66-{check,build,pg}.log。I review后应用生产66、同一个已暂停trial2验证解锁与trial1不变，不再新建trial。fixture源暂不改/删，交I统一额外0模型临时发布玩家初始化及最终下架暂停清理；真实人类世界不发布。待66 READY/公网及后台多图/控件验收后收口。
