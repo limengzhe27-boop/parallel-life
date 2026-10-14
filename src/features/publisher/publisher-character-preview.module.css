@@ -56,6 +56,21 @@
 .generateActions button {
   min-height: 40px;
   font-size: 13px;
+  flex: 1 1 150px;
+}
+.generationStatus,
+.generationError {
+  margin: 0;
+  padding: 0 16px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.generationStatus {
+  color: var(--pub-secondary);
+}
+.generationError {
+  color: #a32632;
 }
 .trialWrap {
   position: relative;

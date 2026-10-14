@@ -23,7 +23,10 @@ type Props = {
   trialError?: string;
   onSave?: () => void;
   onCloseTrial?: () => void;
-  onGenerate?: (focus: 'history' | 'moments' | 'both') => void;
+  onGenerate?: (focus: 'history' | 'moments') => void;
+  generatingFocus?: 'history' | 'moments' | null;
+  generationMessage?: string | null;
+  generationError?: string | null;
   onChange: (content: Record<string, unknown>) => void;
 };
 export function PublisherCharacterPreview({
@@ -41,6 +44,9 @@ export function PublisherCharacterPreview({
   onSave,
   onCloseTrial,
   onGenerate,
+  generatingFocus = null,
+  generationMessage,
+  generationError,
   onChange,
 }: Props) {
   const person = characterPreview(content, actorKey);
@@ -59,17 +65,36 @@ export function PublisherCharacterPreview({
         </div>
         <p className={s.hint}>直接与{name}聊天，查看人物资料与朋友圈。试聊使用独立存档。</p>
         {canEdit && onGenerate && (
-          <div className={s.generateActions} aria-label="按需补齐人物内容">
-            <button type="button" disabled={busy} onClick={() => onGenerate('history')}>
-              AI 补历史聊天
+          <div
+            className={s.generateActions}
+            aria-label="补充人物的微信内容"
+            aria-busy={Boolean(generatingFocus)}
+          >
+            <button
+              type="button"
+              disabled={busy || Boolean(generatingFocus)}
+              onClick={() => onGenerate('history')}
+            >
+              {generatingFocus === 'history' ? '正在补历史聊天…' : 'AI 补历史聊天'}
             </button>
-            <button type="button" disabled={busy} onClick={() => onGenerate('moments')}>
-              AI 补朋友圈
-            </button>
-            <button type="button" disabled={busy} onClick={() => onGenerate('both')}>
-              一起补齐
+            <button
+              type="button"
+              disabled={busy || Boolean(generatingFocus)}
+              onClick={() => onGenerate('moments')}
+            >
+              {generatingFocus === 'moments' ? '正在补朋友圈…' : 'AI 补朋友圈'}
             </button>
           </div>
+        )}
+        {generationMessage && (
+          <p role="status" className={s.generationStatus}>
+            {generationMessage}
+          </p>
+        )}
+        {generationError && (
+          <p role="alert" className={s.generationError}>
+            {generationError}
+          </p>
         )}
         {trialMessage && (
           <p role="status" className={s.hint}>
@@ -164,7 +189,7 @@ export function PublisherCharacterPreview({
             <p>
               {isDirty
                 ? '点击试聊会先保存修改，再打开这位人物的微信。'
-                : '保存后可以打开真实微信试聊；上方可按需让 AI 补充聊天或朋友圈。'}
+                : '上方可分别补充历史聊天和朋友圈，已有内容会保留；试聊将打开这位人物的真实微信。'}
             </p>
             <button
               type="button"
