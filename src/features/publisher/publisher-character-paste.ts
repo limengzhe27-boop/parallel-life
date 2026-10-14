@@ -590,7 +590,7 @@ export function applyCharacterPaste(
   }
   append(p.messages, messages, 'chat');
   append(p.moments, moments, 'moment');
-  if (messages.length > 40) fail('填入后聊天会超过 40 条上限；请分批核对或先整理已有消息。');
+  if (messages.length > 200) fail('填入后聊天会超过 200 条上限；请分批核对或先整理已有消息。');
   if (moments.length > 48) fail('填入后朋友圈会超过 48 条上限；请先整理已有动态。');
   if (p.messages.length || p.moments.length)
     next = {

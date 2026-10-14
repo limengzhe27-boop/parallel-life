@@ -148,9 +148,9 @@ export function PublisherOpeningEditor({
       <button
         type="button"
         className={s.btn}
-        disabled={disabled || messages.length >= 40}
+        disabled={disabled || messages.length >= 200}
         onClick={() => {
-          if (disabled || messages.length >= 40) return;
+          if (disabled || messages.length >= 200) return;
           const keys = new Set(messages.map((m) => m.key));
           let i = 1;
           while (keys.has(`message_new_${i}`)) i++;

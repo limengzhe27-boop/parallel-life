@@ -165,7 +165,7 @@ export function mergeCharacterPreviewProposal(
     }
     const prior = rows(priorPhone[kind]);
     const accepted: RecordValue[] = [];
-    const max = kind === 'messages' ? 40 : 48;
+    const max = kind === 'messages' ? 200 : 48;
     const keys = new Map<unknown, number>();
     for (const entry of values)
       if (record(entry)) keys.set(entry.key, (keys.get(entry.key) ?? 0) + 1);

@@ -132,6 +132,7 @@ const shape = z
         z.strictObject({
           key,
           name: text(100),
+          aliases: z.array(text(100)).max(16).optional(),
           description: text(800),
           knownAtStart: z.boolean(),
           sceneMediaKey: key.optional(),
@@ -190,7 +191,7 @@ const shape = z
                 });
             }),
         )
-        .max(40),
+        .max(200),
       moments: z
         .array(
           z.strictObject({

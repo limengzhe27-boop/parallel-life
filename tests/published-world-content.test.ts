@@ -269,6 +269,25 @@ test('library event preserves long manuscript and several scenes without preassi
   assert.ok(publicationContentIssues(c).some((issue) => issue.code === 'unknown_place'));
 });
 
+test('a complete authored history longer than forty messages remains intact through default preparation', () => {
+  const c = content(),
+    base = c.phone.messages[0]!;
+  c.phone.messages = Array.from({ length: 79 }, (_, i) => ({
+    ...base,
+    key: `message_${i}`,
+    origin: 'history' as const,
+    speaker: i % 2 ? ('player' as const) : ('actor' as const),
+    at: '2026-10-11T09:00:00.000Z',
+    text: `历史原文 ${i}`,
+  }));
+  c.phone.invitations = [];
+  c.places[0]!.aliases = ['作者确认的地点别名'];
+  assert.equal(PublishedWorldContentSchema.safeParse(c).success, true);
+  const prepared = PublishedWorldContentSchema.parse(ensurePublishableDefaults(c));
+  assert.deepEqual(prepared.phone.messages, c.phone.messages);
+  assert.deepEqual(prepared.places[0]!.aliases, c.places[0]!.aliases);
+});
+
 test('author-confirmed event pacing and observable conversation outcomes stay private', () => {
   const c = content();
   c.candidates[0]!.direction = {

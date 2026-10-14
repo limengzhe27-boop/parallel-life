@@ -785,8 +785,8 @@ export function parseFeishuMarkdownBundle(
         }
         const phone = object('phone');
         if (!Array.isArray(phone.messages)) phone.messages = [];
-        if (phone.messages.length >= 40) {
-          note('message_count_budget', filename, '开场消息总数超过40，已阻止整批导入。', 'error');
+        if (phone.messages.length >= 200) {
+          note('message_count_budget', filename, '开场消息总数超过200，已阻止整批导入。', 'error');
           continue;
         }
         phone.messages.push({

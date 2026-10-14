@@ -4,6 +4,7 @@ export type ScriptIssue = { reason: string; source: ScriptSource };
 export type ScriptPlace = {
   key: string;
   name: string;
+  aliases?: string[];
   sources: ScriptSource[];
   eventKeys: string[];
   existing: boolean;
@@ -109,7 +110,7 @@ function similar(a: string, b: string) {
 }
 export function parseScriptLibraryMarkdown(
   text: string,
-  existingPlaces: { key: string; name: string }[] = [],
+  existingPlaces: { key: string; name: string; aliases?: string[] }[] = [],
 ): ScriptLibraryPreview {
   const p: ScriptLibraryPreview = {
     original: text,
@@ -195,13 +196,24 @@ export function parseScriptLibraryMarkdown(
       p.issues.push({ reason: '地点名称超过 100 字符，请核对；没有截断或替换。', source: s });
       return;
     }
+    const originalName = name;
+    const matches = existingPlaces.filter(
+      (v) => cleanName(v.name) === name || v.aliases?.includes(name),
+    );
+    if (matches.length === 1) name = cleanName(matches[0]!.name);
+    const aliases = [
+      ...new Set([
+        ...(matches.length === 1 ? (matches[0]!.aliases ?? []) : []),
+        ...(originalName !== name ? [originalName] : []),
+      ]),
+    ];
     const old = p.places.find((v) => v.name === name);
     if (old) {
       if (!old.sources.some((v) => v.start === s.start && v.end === s.end)) old.sources.push(s);
       if (eventKey && !old.eventKeys.includes(eventKey)) old.eventKeys.push(eventKey);
+      if (aliases.length) old.aliases = [...new Set([...(old.aliases ?? []), ...aliases])];
       return;
     }
-    const matches = existingPlaces.filter((v) => cleanName(v.name) === name);
     if (matches.length > 1)
       p.issues.push({
         reason: `地点“${name}”在当前草稿中有多个同名条目，请先核对合并。`,
@@ -213,6 +225,7 @@ export function parseScriptLibraryMarkdown(
     p.places.push({
       key,
       name,
+      ...(aliases.length ? { aliases } : {}),
       sources: [s],
       eventKeys: eventKey ? [eventKey] : [],
       existing: matches.length === 1,
@@ -360,7 +373,26 @@ export function reviseScriptLibraryPreview(
     if (old) {
       old.sources.push(...place.sources);
       old.eventKeys = [...new Set([...old.eventKeys, ...place.eventKeys])];
-    } else places.push({ ...target, sources: [...place.sources], eventKeys: [...place.eventKeys] });
+      old.aliases = [
+        ...new Set([
+          ...(old.aliases ?? []),
+          ...(place.aliases ?? []),
+          ...(place.name !== target.name ? [place.name] : []),
+        ]),
+      ];
+    } else
+      places.push({
+        ...target,
+        sources: [...place.sources],
+        eventKeys: [...place.eventKeys],
+        aliases: [
+          ...new Set([
+            ...(target.aliases ?? []),
+            ...(place.aliases ?? []),
+            ...(place.name !== target.name ? [place.name] : []),
+          ]),
+        ],
+      });
   }
   next.places = places;
   return next;

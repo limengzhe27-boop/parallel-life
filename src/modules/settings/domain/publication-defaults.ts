@@ -12,7 +12,11 @@ export function ensurePublishableDefaults(
 
   function safeKey(k: unknown, fallback: string): string {
     if (typeof k !== 'string' || !k.trim()) return fallback;
-    const cleaned = k.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32);
+    const cleaned = k
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_')
+      .slice(0, 32);
     if (!/^[a-z]/.test(cleaned)) return 'k_' + cleaned.slice(0, 30);
     return cleaned;
   }
@@ -25,9 +29,19 @@ export function ensurePublishableDefaults(
   }
 
   // 1. Work
-  const srcWork = (content.work && typeof content.work === 'object' ? content.work : {}) as Record<string, any>;
+  const srcWork = (content.work && typeof content.work === 'object' ? content.work : {}) as Record<
+    string,
+    any
+  >;
   const rawTitle = safeText(fallbackTitle, 80) || safeText(srcWork.title, 80, '未命名故事');
-  const workKey = safeKey(srcWork.key, 'work_' + rawTitle.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 10));
+  const workKey = safeKey(
+    srcWork.key,
+    'work_' +
+      rawTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .slice(0, 10),
+  );
 
   content.work = {
     key: /^[a-z][a-z0-9_]{0,31}$/.test(workKey) ? workKey : 'work_story',
@@ -41,18 +55,33 @@ export function ensurePublishableDefaults(
   }
 
   // 2. World
-  const srcWorld = (content.world && typeof content.world === 'object' ? content.world : {}) as Record<string, any>;
-  let startAt = typeof srcWorld.startAt === 'string' && srcWorld.startAt.includes('T') ? srcWorld.startAt : '';
+  const srcWorld = (
+    content.world && typeof content.world === 'object' ? content.world : {}
+  ) as Record<string, any>;
+  let startAt =
+    typeof srcWorld.startAt === 'string' && srcWorld.startAt.includes('T') ? srcWorld.startAt : '';
   if (!startAt || isNaN(Date.parse(startAt))) {
     startAt = new Date().toISOString();
   }
 
   content.world = {
-    publicSetting: safeText(srcWorld.publicSetting, 1600, `${content.work.title}：一段充满未知与抉择的平行人生。`),
+    publicSetting: safeText(
+      srcWorld.publicSetting,
+      1600,
+      `${content.work.title}：一段充满未知与抉择的平行人生。`,
+    ),
     tone: safeText(srcWorld.tone, 200, '现实质感 · 沉浸探索'),
     startAt,
     startPlaceKey: safeKey(srcWorld.startPlaceKey, 'place_main'),
-    hiddenContext: safeText(srcWorld.hiddenContext, 4000, safeText(srcWorld.publicSetting, 1600, `${content.work.title}：一段充满未知与抉择的平行人生。`)),
+    hiddenContext: safeText(
+      srcWorld.hiddenContext,
+      4000,
+      safeText(
+        srcWorld.publicSetting,
+        1600,
+        `${content.work.title}：一段充满未知与抉择的平行人生。`,
+      ),
+    ),
   };
 
   // 3. Places
@@ -65,6 +94,7 @@ export function ensurePublishableDefaults(
     placesMap.set(k, {
       key: k,
       name: safeText(p.name, 100, `地点 ${idx + 1}`),
+      ...(Array.isArray(p.aliases) ? { aliases: structuredClone(p.aliases) } : {}),
       description: safeText(p.description, 800, '故事发生的场所之一'),
       knownAtStart: typeof p.knownAtStart === 'boolean' ? p.knownAtStart : true,
     });
@@ -89,12 +119,16 @@ export function ensurePublishableDefaults(
   if (startPlaceObj) startPlaceObj.knownAtStart = true;
 
   // 4. Protagonist
-  const srcProt = (content.protagonist && typeof content.protagonist === 'object' ? content.protagonist : {}) as Record<string, any>;
+  const srcProt = (
+    content.protagonist && typeof content.protagonist === 'object' ? content.protagonist : {}
+  ) as Record<string, any>;
   content.protagonist = {
     identity: safeText(srcProt.identity, 300, '体验者'),
     situation: safeText(srcProt.situation, 1000, '你来到了这里，故事由此展开。'),
     knownFactKeys: Array.isArray(srcProt.knownFactKeys)
-      ? Array.from(new Set(srcProt.knownFactKeys.map((k: any) => safeKey(k, 'fact')).filter(Boolean))).slice(0, 64)
+      ? Array.from(
+          new Set(srcProt.knownFactKeys.map((k: any) => safeKey(k, 'fact')).filter(Boolean)),
+        ).slice(0, 64)
       : [],
   };
 
@@ -106,12 +140,17 @@ export function ensurePublishableDefaults(
     const k = safeKey(a.key, `actor_${idx + 1}`);
     if (actorsMap.has(k)) return;
     const name = safeText(a.name, 80, `角色 ${idx + 1}`);
-    const pubCard = (a.publicCard && typeof a.publicCard === 'object' ? a.publicCard : {}) as Record<string, any>;
-    const privPersona = (a.privatePersona && typeof a.privatePersona === 'object' ? a.privatePersona : {}) as Record<string, any>;
+    const pubCard = (
+      a.publicCard && typeof a.publicCard === 'object' ? a.publicCard : {}
+    ) as Record<string, any>;
+    const privPersona = (
+      a.privatePersona && typeof a.privatePersona === 'object' ? a.privatePersona : {}
+    ) as Record<string, any>;
 
-    const traits = Array.isArray(pubCard.traits) && pubCard.traits.length > 0
-      ? pubCard.traits.map((t: any) => safeText(t, 60, '沉稳')).slice(0, 3)
-      : ['沉稳'];
+    const traits =
+      Array.isArray(pubCard.traits) && pubCard.traits.length > 0
+        ? pubCard.traits.map((t: any) => safeText(t, 60, '沉稳')).slice(0, 3)
+        : ['沉稳'];
 
     const actorObj: Record<string, any> = {
       key: k,
@@ -123,7 +162,11 @@ export function ensurePublishableDefaults(
         traits,
       },
       privatePersona: {
-        background: safeText(privPersona.background, 1200, safeText(pubCard.introduction, 1200, `${name}的背景与经历。`)),
+        background: safeText(
+          privPersona.background,
+          1200,
+          safeText(pubCard.introduction, 1200, `${name}的背景与经历。`),
+        ),
         motivation: safeText(privPersona.motivation, 600, '体验生活并探寻内心所想。'),
         voice: safeText(privPersona.voice, 600, '自然生动，日常口吻。'),
         boundaries: safeText(privPersona.boundaries, 600, '遵循道德常理。'),
@@ -183,12 +226,25 @@ export function ensurePublishableDefaults(
     const k = safeKey(r.key, `rel_${idx + 1}`);
     if (relMap.has(k)) return;
     const fromKind = r.from?.kind === 'actor' ? 'actor' : 'player';
-    const fromKey = fromKind === 'actor' ? (validActorKeys.has(r.from?.actorKey) ? r.from.actorKey : defaultActorKey) : undefined;
+    const fromKey =
+      fromKind === 'actor'
+        ? validActorKeys.has(r.from?.actorKey)
+          ? r.from.actorKey
+          : defaultActorKey
+        : undefined;
     const toKind = r.to?.kind === 'player' ? 'player' : 'actor';
-    const toKey = toKind === 'actor' ? (validActorKeys.has(r.to?.actorKey) ? r.to.actorKey : defaultActorKey) : undefined;
+    const toKey =
+      toKind === 'actor'
+        ? validActorKeys.has(r.to?.actorKey)
+          ? r.to.actorKey
+          : defaultActorKey
+        : undefined;
 
     // Avoid self relationship
-    if ((fromKind === 'player' && toKind === 'player') || (fromKind === 'actor' && toKind === 'actor' && fromKey === toKey)) {
+    if (
+      (fromKind === 'player' && toKind === 'player') ||
+      (fromKind === 'actor' && toKind === 'actor' && fromKey === toKey)
+    ) {
       return;
     }
 
@@ -207,7 +263,9 @@ export function ensurePublishableDefaults(
   const rawRoutes = Array.isArray(content.routes) ? content.routes : [];
   rawRoutes.forEach((rt: any) => {
     if (!rt || typeof rt !== 'object') return;
-    const from = validPlaceKeys.has(rt.fromPlaceKey) ? rt.fromPlaceKey : content.world.startPlaceKey;
+    const from = validPlaceKeys.has(rt.fromPlaceKey)
+      ? rt.fromPlaceKey
+      : content.world.startPlaceKey;
     const to = validPlaceKeys.has(rt.toPlaceKey) ? rt.toPlaceKey : content.world.startPlaceKey;
     if (from === to) return;
     const pair = `${from}:${to}`;
@@ -215,7 +273,10 @@ export function ensurePublishableDefaults(
     routeMap.set(pair, {
       fromPlaceKey: from,
       toPlaceKey: to,
-      minutes: typeof rt.minutes === 'number' && rt.minutes >= 1 && rt.minutes <= 1440 ? Math.floor(rt.minutes) : 10,
+      minutes:
+        typeof rt.minutes === 'number' && rt.minutes >= 1 && rt.minutes <= 1440
+          ? Math.floor(rt.minutes)
+          : 10,
     });
   });
   content.routes = Array.from(routeMap.values()).slice(0, 64);
@@ -230,7 +291,10 @@ export function ensurePublishableDefaults(
     const hActors = Array.isArray(h.actorKeys)
       ? Array.from(new Set(h.actorKeys.filter((ak: any) => validActorKeys.has(ak)))).slice(0, 12)
       : [];
-    let occurredAt = typeof h.occurredAt === 'string' && !isNaN(Date.parse(h.occurredAt)) ? h.occurredAt : content.world.startAt;
+    let occurredAt =
+      typeof h.occurredAt === 'string' && !isNaN(Date.parse(h.occurredAt))
+        ? h.occurredAt
+        : content.world.startAt;
     if (Date.parse(occurredAt) > Date.parse(content.world.startAt)) {
       occurredAt = content.world.startAt;
     }
@@ -251,7 +315,9 @@ export function ensurePublishableDefaults(
   const validFactKeys = new Set(content.history.map((f: any) => f.key));
 
   // Filter protagonist known facts to valid facts
-  content.protagonist.knownFactKeys = content.protagonist.knownFactKeys.filter((fk: string) => validFactKeys.has(fk));
+  content.protagonist.knownFactKeys = content.protagonist.knownFactKeys.filter((fk: string) =>
+    validFactKeys.has(fk),
+  );
 
   // 9. Initial Knowledge
   const rawIK = Array.isArray(content.initialKnowledge) ? content.initialKnowledge : [];
@@ -268,7 +334,9 @@ export function ensurePublishableDefaults(
   content.initialKnowledge = Array.from(ikMap.values()).slice(0, 12);
 
   // 10. Phone
-  const rawPhone = (content.phone && typeof content.phone === 'object' ? content.phone : {}) as Record<string, any>;
+  const rawPhone = (
+    content.phone && typeof content.phone === 'object' ? content.phone : {}
+  ) as Record<string, any>;
   const rawMsgs = Array.isArray(rawPhone.messages) ? rawPhone.messages : [];
   const msgMap = new Map<string, any>();
   const startTime = Date.parse(content.world.startAt);
@@ -284,7 +352,8 @@ export function ensurePublishableDefaults(
 
     const speaker = m.speaker === 'player' ? 'player' : 'actor';
     // If player speaks, origin must be history
-    const origin = speaker === 'player' ? 'history' : (m.origin === 'incoming' ? 'incoming' : 'history');
+    const origin =
+      speaker === 'player' ? 'history' : m.origin === 'incoming' ? 'incoming' : 'history';
 
     let atTime = typeof m.at === 'string' && !isNaN(Date.parse(m.at)) ? Date.parse(m.at) : 0;
     if (origin === 'history') {
@@ -304,7 +373,11 @@ export function ensurePublishableDefaults(
       actorKey,
       origin,
       speaker,
-      text: m.attachment ? (typeof m.text === 'string' ? m.text : '') : safeText(m.text, 500, '你好'),
+      text: m.attachment
+        ? typeof m.text === 'string'
+          ? m.text
+          : ''
+        : safeText(m.text, 500, '你好'),
       at: new Date(atTime).toISOString(),
       ...(Object.hasOwn(m, 'attachment') ? { attachment: m.attachment } : {}),
     });
@@ -338,7 +411,7 @@ export function ensurePublishableDefaults(
   });
 
   content.phone = {
-    messages: Array.from(msgMap.values()).slice(0, 40),
+    messages: Array.from(msgMap.values()).slice(0, 200),
     moments: Array.from(momMap.values()).slice(0, 48),
     notes: [],
     invitations: [],

@@ -111,3 +111,27 @@ test('capacity failure is atomic and leaves every original character available',
   assert.ok(p.events[0]!.body.endsWith('很长的原文'));
   assert.equal(c.candidates.length, 0);
 });
+
+test('confirmed place aliases survive the draft and repeated source import without duplicate map places', () => {
+  const c = content();
+  const source = '地址汇总：医院病房\n\n1. 看望\n场景：母亲病房\n先收到消息再看望。';
+  const p = parseScriptLibraryMarkdown(source, c.places);
+  const target = p.places.find((place) => place.name === '医院病房')!;
+  const alias = p.places.find((place) => place.name === '母亲病房')!;
+  const revised = reviseScriptLibraryPreview(p, { [alias.key]: target.key }, {});
+  const result = applyScriptLibraryPreview(c, revised);
+  assert.ok(result.ok);
+  if (!result.ok) return;
+  const places = result.content.places as { key: string; name: string; aliases?: string[] }[];
+  assert.deepEqual(places.find((p) => p.name === '医院病房')!.aliases, ['母亲病房']);
+  const again = applyScriptLibraryPreview(
+    result.content,
+    parseScriptLibraryMarkdown(source, places),
+  );
+  assert.ok(again.ok);
+  if (again.ok) {
+    assert.equal(again.addedPlaces, 0);
+    assert.equal(again.addedEvents, 0);
+    assert.equal(again.unchanged, true);
+  }
+});

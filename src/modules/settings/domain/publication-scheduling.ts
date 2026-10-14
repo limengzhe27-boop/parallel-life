@@ -143,7 +143,7 @@ export function planPublicationTimes(
   if (next.phone !== undefined && !data(next.phone))
     issue(['phone'], 'scheduling_invalid_container');
   const phone = data(next.phone) ? next.phone : {};
-  const messages = rows(phone.messages, ['phone', 'messages'], 40);
+  const messages = rows(phone.messages, ['phone', 'messages'], 200);
   const moments = rows(phone.moments, ['phone', 'moments'], 48);
   const invitations = rows(phone.invitations, ['phone', 'invitations'], 12);
   const candidates = rows(next.candidates, ['candidates'], 32);

@@ -36,24 +36,28 @@ const actor = z.strictObject({
   persona: text(6000),
   relationship: text(600).optional(),
 });
-const message = z.strictObject({
-  id: ref,
-  actorId: ref,
-  role: z.enum(['assistant', 'user']),
-  text: z.string().max(8000),
-  at: Timestamp,
-  sourceEventId: ref,
-  attachment: z.strictObject({
-    kind: z.enum(['image', 'video']),
-    assetId: Id,
-    label: z.string().trim().min(1).max(120).optional(),
-  }).optional(),
-  initialRead: z.boolean(),
-  history: z.strictObject({ version: z.literal(1), key: ref }).optional(),
-}).superRefine((item, ctx) => {
-  if (!item.text.trim() && !item.attachment)
-    ctx.addIssue({ code: 'custom', path: ['text'], message: 'message_content_required' });
-});
+const message = z
+  .strictObject({
+    id: ref,
+    actorId: ref,
+    role: z.enum(['assistant', 'user']),
+    text: z.string().max(8000),
+    at: Timestamp,
+    sourceEventId: ref,
+    attachment: z
+      .strictObject({
+        kind: z.enum(['image', 'video']),
+        assetId: Id,
+        label: z.string().trim().min(1).max(120).optional(),
+      })
+      .optional(),
+    initialRead: z.boolean(),
+    history: z.strictObject({ version: z.literal(1), key: ref }).optional(),
+  })
+  .superRefine((item, ctx) => {
+    if (!item.text.trim() && !item.attachment)
+      ctx.addIssue({ code: 'custom', path: ['text'], message: 'message_content_required' });
+  });
 const fact = z.strictObject({
   id: ref,
   text: text(1600),
@@ -88,7 +92,7 @@ const worldSchema = z.strictObject({
   actors: z.array(actor).min(1).max(12),
   actorTies: z.array(z.never()).max(0),
   facts: z.array(fact).max(128),
-  messages: z.array(message).max(40),
+  messages: z.array(message).max(200),
   appointments: z.array(invitation).max(12),
   mediaRequests: z.array(z.never()).max(0),
   space: z.strictObject({

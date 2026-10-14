@@ -96,6 +96,7 @@ export type PublicationContent = {
   places: {
     key: string;
     name: string;
+    aliases?: string[];
     description: string;
     knownAtStart: boolean;
     sceneMediaKey?: string;

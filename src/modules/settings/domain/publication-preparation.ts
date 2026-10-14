@@ -33,7 +33,7 @@ const fields: Record<string, string[]> = {
   'relationships.fr\u006fm': ['kind', 'actorKey'],
   'relationships.to': ['kind', 'actorKey'],
   'relationships.visibility': ['kind', 'actorKeys'],
-  places: ['key', 'name', 'description', 'knownAtStart', 'sceneMediaKey'],
+  places: ['key', 'name', 'aliases', 'description', 'knownAtStart', 'sceneMediaKey'],
   routes: ['fromPlaceKey', 'toPlaceKey', 'minutes'],
   history: ['key', 'kind', 'text', 'occurredAt', 'actorKeys', 'placeKey', 'visibility'],
   'history.visibility': ['kind', 'actorKeys'],

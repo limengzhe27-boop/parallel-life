@@ -54,11 +54,21 @@ export function applyScriptLibraryPreview(
         ok: false as const,
         message: `地点“${place.name}”与当前草稿有重名或标识冲突，请先核对。`,
       };
-    if (exact[0] || byKey) references.set(place.key, String((exact[0] ?? byKey)!.key));
-    else {
+    if (exact[0] || byKey) {
+      const existing = (exact[0] ?? byKey)!;
+      if (place.aliases?.length)
+        existing.aliases = [
+          ...new Set([
+            ...(Array.isArray(existing.aliases) ? existing.aliases : []),
+            ...place.aliases,
+          ]),
+        ];
+      references.set(place.key, String(existing.key));
+    } else {
       places.push({
         key: place.key,
         name: place.name,
+        ...(place.aliases?.length ? { aliases: [...place.aliases] } : {}),
         description: place.name,
         knownAtStart: false,
       });
