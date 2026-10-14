@@ -1541,12 +1541,15 @@ WORLD-PUBLISH-01 子切片（均未领取）：01A 内容/权限/版本协议；
 
 |任务|状态|负责人|文件与资源|验收与接续|
 |---|---|---|---|---|
-|CHARACTER-AUTHOR-20-I|[ ] 进行中|codex-main-character20-20261014，唯一集成|world-publish-intake-01；公共内容契约、人物草稿编辑模型、AI按需生成入口、发布/试演联调、主表、部署；独占公共文件与生产资源|历史按发送者和时间段编辑、既有明确日期保留；好友公开资料/朋友圈草稿同玩家投影，AI只按明确点击生成并供核对；check/build/真实PG/PC手机/READY公网。|
-|CHARACTER-AUTHOR-20-H|[ ] 待验收|author_ui20；root指派|/Users/limengzhe/.codex/worktrees/character-author20-h/人生剧本；新作者微信编辑组件/CSS/专属纯UI测试与本人报告；不写公共contract/server/workbench|一输入框切换发言人、消息编辑删除、间隔段、朋友圈发帖及公开名片预览；草稿onChange且不伪造生成。|
-|CHARACTER-AUTHOR-20-P|[ ] 待验收|player_profile20；root指派|/Users/limengzhe/.codex/worktrees/character-author20-p/人生剧本；仅真实手机messages.tsx和其局部样式、tests/character-wechat-moments-ui.test.ts的整页按钮回归断言及专属新测试与本人报告，不写作者组件/公共契约|聊天头像/右上入口打开完整好友资料、只展示公开信息和朋友圈预览，跳TA动态返回同NPC；独立605c836待验收：专项8/8、type/build通过；本树全检因本地PG密码28P01未过，待root独立DB/双端/READY验收。|
-|CHARACTER-AUTHOR-20-G|[ ] 待验收|author_arch20；root指派|独立Q树；仅 src/modules/settings/infrastructure/publication-manuscript-planner.ts、src/modules/settings/domain/publication-character-previews.ts 的聚焦结果白名单和专属纯测试/本人报告；root负责公共contract/repository/UI|显式history/moments/both传入后模型只补所选人物与所选项，服务端拒另一类/隐私越界并保留作者原记录；不自动运行。|
+|CHARACTER-AUTHOR-20-I|[x] 已完成|codex-main-character20-20261014，唯一集成|world-publish-intake-01；公共内容契约、人物草稿编辑模型、AI按需生成入口、发布/试演联调、主表、部署；独占公共文件与生产资源|历史按发送者和时间段编辑、既有明确日期保留；好友公开资料/朋友圈草稿同玩家投影，AI只按明确点击补入目标人物/类别，真实模型抽样另列20-LIVE；check/build/真实PG/PC手机/READY公网。|
+|CHARACTER-AUTHOR-20-H|[x] 已完成|author_ui20；root指派|/Users/limengzhe/.codex/worktrees/character-author20-h/人生剧本；新作者微信编辑组件/CSS/专属纯UI测试与本人报告；不写公共contract/server/workbench|一输入框切换发言人、消息编辑删除、间隔段、朋友圈发帖及公开名片预览；草稿onChange且不伪造生成。|
+|CHARACTER-AUTHOR-20-P|[x] 已完成|player_profile20；root指派|/Users/limengzhe/.codex/worktrees/character-author20-p/人生剧本；仅真实手机messages.tsx和其局部样式、tests/character-wechat-moments-ui.test.ts的整页按钮回归断言及专属新测试与本人报告，不写作者组件/公共契约|聊天头像/右上入口打开完整好友资料、只展示公开信息和朋友圈预览，跳TA动态返回同NPC；独立605c836待验收：专项8/8、type/build通过；本树全检因本地PG密码28P01未过，待root独立DB/双端/READY验收。|
+|CHARACTER-AUTHOR-20-G|[x] 已完成|author_arch20；root指派|独立Q树；仅 src/modules/settings/infrastructure/publication-manuscript-planner.ts、src/modules/settings/domain/publication-character-previews.ts 的聚焦结果白名单和专属纯测试/本人报告；root负责公共contract/repository/UI|显式history/moments/both传入后模型只补所选人物与所选项，服务端拒另一类/隐私越界并保留作者原记录；不自动运行。|
 |CHARACTER-AUTHOR-20-Q|[ ] 待开发|root待I集成后分配|只读或隔离测试/报告|核发言人/间隔/日期/公开私密边界/旧世界兼容/草稿与发布独立，不冒称无图动态已配图。|
+|CHARACTER-AUTHOR-20-O|[x] 已完成|author_arch20；root指派|独立author-arch20树；仅新 `src/features/publisher/publisher-social-direct.ts` 及其专属测试/报告；不改workbench、API、发布契约|纯函数核对项目Agent聚焦结果只增加选定人物的指定聊天/朋友圈，不改作者原文、其他人物或私密字段；失败不得自动采用。|
+|CHARACTER-AUTHOR-20-U|[x] 已完成|author_ui20；root指派|/Users/limengzhe/.codex/worktrees/character-author20-u/人生剧本；仅 `publisher-character-preview.tsx`/局部CSS/专属测试与报告；不改workbench或服务端|人物页保留分别“AI补历史聊天”“AI补朋友圈”两按钮，去掉“一起补齐”；直接操作进度和结果文案，不跳导入文档。|
 |CHARACTER-AUTHOR-20-M|[ ] 待开发|root待20-I文字链上线后分配|作品朋友圈图片端到端：独立staff素材上传/存储/授权、动态图片引用与发布校验、玩家按作品版本和可见动态读取、手机九宫格；不复用玩家私人资产，不用本地预览冒充发布|跨作品/玩家和下架旧存档隔离的真实PG、移动端与PC浏览器、READY公网验收；无图内容兼容。|
+|CHARACTER-AUTHOR-20-LIVE|[ ] 待验收|root后续领取|生产独立合成角色、少量文字模型；验证一次点击真正生成文字动态/历史聊天、自动保存、刷新后可见及跨人物隔离；需新一轮明确模型调用范围，不沿用已闭账批次|线上真实模型结果与回执、失败恢复、无二次导入；不使用用户个人资料或生成图片。|
 
 未交付仍在本表：朋友圈图片上传、图库绑定及玩家端图片投影；旧历史标签和冗余文案；长稿五维截断；导演持续多拍、现场模型及完成结果后机会，沿对应原任务继续。
 

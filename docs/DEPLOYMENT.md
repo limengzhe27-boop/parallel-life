@@ -1,3 +1,9 @@
+## 2026-10-14 · CHARACTER-AUTHOR-20 一键补朋友圈与历史聊天
+
+业务 `91e0052` 已推送，Production `dpl_CNVci6zVRCJDKP9ei3inyneg3QyL` READY，正式 `https://parallel-life-nu.vercel.app` 别名指向同一部署。编剧在人物页点击「AI 补朋友圈」或「AI 补历史聊天」直接调用项目整理 Agent，并只追加当前人物的对应内容到草稿，不再打开导入文档核对页；原记录和其他人物保持原样。历史聊天贴近开场仍可继续追加而不改原稿时间；总体设定下方收为一个「AI 帮写」按钮。
+
+`npm run check` 2304/2304、build、format通过；本地 PostgreSQL 发布整链通过，全量 270 pass / 5 显式模型跳过 / 9 固定端口环境守卫拒绝（未冒充全绿）。本地开发预览 390/1440 无横向溢出；公网 `/api/health`、`/workbench`、`/published` 200，匿名后台作品 401。本批无 SQL 迁移；此前生产 57/57 校验和已确认。0 新模型调用、0 生产测试存档、0 图。真实模型生成质量/线上保存刷新验收和朋友圈图片继续留 `CHARACTER-AUTHOR-20-LIVE/M`，见任务报告。
+
 ## 2026-10-14 · PUBLISHER-UNBLOCK-PUBLISH-01
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Check 2241, boundaries 440, typecheck and build passed; 555 publisher tests all passed. No SQL migration changes.
