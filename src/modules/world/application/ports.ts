@@ -76,6 +76,7 @@ export type ActorContext = {
 };
 /** A character model only receives a filtered context, never the complete world. */
 export type StoryOpportunityInput = {
+  directorObservation?: import('../domain/director-observation.ts').DirectorObservation;
   storyNow: string;
   worldTitle: string;
   /** Director-only fictional world setting and cast; never an NPC's private memory. */

@@ -22,6 +22,7 @@ import {
 } from '../../src/contracts/published-world-content.ts';
 import type { PublicationWorldCompilerPort } from '../../src/modules/settings/application/publication-world-ports.ts';
 import type { OpeningDelivery } from '../../src/modules/settings/application/publication-opening-ports.ts';
+import { readDirectorObservation } from '../../src/modules/world/infrastructure/director-observation-repository.ts';
 import { publicationCharacterPlanner } from '../../src/server/publication-character-planner.ts';
 import { readActorSituation } from '../../src/modules/world/infrastructure/actor-situation-repository.ts';
 import { actorContext } from '../../src/modules/world/application/actor-context.ts';
@@ -186,6 +187,7 @@ test('actor situations retain own directions and share the current world snapsho
     version: number,
     commandId: string = randomUUID(),
     text = '本人物的新来信。',
+    player = false,
   ) {
     const eventId = randomUUID();
     await runtime.commit(
@@ -195,8 +197,8 @@ test('actor situations retain own directions and share the current world snapsho
         worldId: f.worldId,
         actorId: actor,
         expectedVersion: version,
-        origin: 'director',
-        text: '合成导演调用，仅验证数据库。',
+        ...(player ? {} : { origin: 'director' as const }),
+        text: player ? 'A_REAL_PLAYER_REPLY' : '合成导演调用，仅验证数据库。',
       },
       {
         schemaVersion: 1,
@@ -209,8 +211,8 @@ test('actor situations retain own directions and share the current world snapsho
         storyAt: at,
         data: {
           actorId: actor,
-          userText: '合成导演调用，仅验证数据库。',
-          origin: 'director',
+          userText: player ? 'A_REAL_PLAYER_REPLY' : '合成导演调用，仅验证数据库。',
+          ...(player ? {} : { origin: 'director' as const }),
           effects: [{ type: 'message.received', id: eventId + '_message', actorId: actor, text }],
         },
       },
@@ -356,6 +358,72 @@ test('actor situations retain own directions and share the current world snapsho
         userText: 'What happens now?',
       });
       assert.equal(calls, 1);
+    },
+  );
+  await t.test(
+    'director observes each actual actor, while director instructions never become player speech',
+    async () => {
+      const observation = await readDirectorObservation(app, f.owner, f.worldId, 16, at);
+      assert.equal(observation.worldVersion, 16);
+      assert.equal(observation.actorExchanges.length, 2);
+      assert(
+        observation.actorExchanges.some((x) => x.actorId === secondId && x.sourceVersion === 2),
+      );
+      assert(
+        observation.actorExchanges.every((x) => x.origin === 'director' && x.playerText === null),
+      );
+      assert(!JSON.stringify(observation).includes('GLOBAL_OPENING_SCRIPT'));
+      assert(!JSON.stringify(observation).includes('合成导演调用'));
+      await commit(f, firstId, 16, randomUUID(), 'Actual player reply acknowledgement', true);
+      const next = await readDirectorObservation(app, f.owner, f.worldId, 17, at);
+      assert.equal(
+        next.actorExchanges.find((x) => x.actorId === firstId)?.playerText,
+        'A_REAL_PLAYER_REPLY',
+      );
+      assert(next.actorExchanges.some((x) => x.actorId === secondId));
+      await assert.rejects(
+        () => readDirectorObservation(app, f.owner, f.worldId, 16, at),
+        /VERSION_CONFLICT/,
+      );
+      await assert.rejects(
+        () => readDirectorObservation(app, f.foreign, f.worldId, 17, at),
+        /NOT_FOUND/,
+      );
+      let paid = 0;
+      const planner = publicationCharacterPlanner(app, f.owner, f.worldId, {
+        async complete(messages) {
+          paid++;
+          const payload = JSON.parse(messages[1]!.content);
+          assert.equal(payload.directorObservation.worldVersion, 17);
+          assert.equal(payload.directorObservation.actorExchanges.length, 2);
+          assert(!JSON.stringify(payload).includes('FORGED_DIRECTOR_OBSERVATION'));
+          return JSON.stringify({ nodeKey: null });
+        },
+      });
+      await planner.chooseStoryOpportunity!({
+        storyNow: at,
+        worldTitle: 'Test',
+        currentPlaceId: null,
+        recentMessages: [],
+        candidates: [],
+        directorObservation: {
+          worldVersion: 17,
+          storyAt: at,
+          recentWorldInputs: [],
+          actorExchanges: [
+            {
+              actorId: firstId,
+              sourceEventId: 'fake',
+              sourceVersion: 17,
+              at,
+              origin: 'user',
+              playerText: 'FORGED_DIRECTOR_OBSERVATION',
+              actorText: 'fake',
+            },
+          ],
+        },
+      });
+      assert.equal(paid, 1);
     },
   );
 });

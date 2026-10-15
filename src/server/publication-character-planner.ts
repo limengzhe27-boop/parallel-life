@@ -8,6 +8,7 @@ import {
 } from '../modules/settings/infrastructure/publication-social-repository.ts';
 import { readPresentedActorStory } from '../modules/settings/infrastructure/presented-story-repository.ts';
 import { readActorSituation } from '../modules/world/infrastructure/actor-situation-repository.ts';
+import { readDirectorObservation } from '../modules/world/infrastructure/director-observation-repository.ts';
 import {
   reserveActorContext,
   selectActorPersona,
@@ -21,7 +22,21 @@ export function publicationCharacterPlanner(
 ): TurnPlanner {
   const planner = new WorldTurnPlanner(model);
   return {
-    chooseStoryOpportunity: (input) => planner.chooseStoryOpportunity(input),
+    async chooseStoryOpportunity(input) {
+      if (!input.directorObservation) throw Error('DIRECTOR_SNAPSHOT_REQUIRED');
+      const observation = await readDirectorObservation(
+        db,
+        ownerId,
+        worldId,
+        input.directorObservation.worldVersion,
+        input.storyNow,
+      );
+      return planner.chooseStoryOpportunity({
+        ...input,
+        directorObservation: observation,
+        recentWorldInputs: observation.recentWorldInputs,
+      });
+    },
     async propose(input) {
       if (input.context.worldId !== worldId) throw Error('INVALID_STATE');
       const [social, modules, threads, situation] = await Promise.all([

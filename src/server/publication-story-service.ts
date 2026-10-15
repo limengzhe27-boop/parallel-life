@@ -106,6 +106,12 @@ export async function advancePublicationStory(
               throw new DomainError('VERSION_CONFLICT', '世界已有新的进展，请稍后继续。');
             const decision = await deps.planner.chooseStoryOpportunity({
               storyNow: pool.storyNow,
+              directorObservation: {
+                worldVersion: world.version,
+                storyAt: pool.storyNow,
+                actorExchanges: [],
+                recentWorldInputs: [],
+              },
               worldTitle: world.title,
               worldSetting:
                 pool.worldSetting ??
