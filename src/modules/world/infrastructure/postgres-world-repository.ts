@@ -1,3 +1,4 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
 import { readPublicationInvitationLinks } from '../../settings/infrastructure/publication-story-repository.ts';
@@ -263,6 +264,12 @@ export class PostgresWorldRepository implements WorldRepository {
         if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
         return this.hydrate(sql, previous.result_state);
       }
+      await authorizeWorldCommandInTransaction(sql, session.userId, {
+        worldId: command.worldId,
+        commandId: command.commandId,
+        expectedWorldVersion: command.expectedVersion,
+        kind: 'invitation_respond',
+      });
       const clockRow = (
         await sql.query(
           'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
@@ -379,6 +386,13 @@ export class PostgresWorldRepository implements WorldRepository {
         if (!foundReceipt || !note) throw new DomainError('NOT_FOUND');
         return { worldId: command.worldId, version: previous.result_state.version, note };
       }
+      // Note versions are separate; the world row is already locked above.
+      await authorizeWorldCommandInTransaction(sql, session.userId, {
+        worldId: command.worldId,
+        commandId: command.commandId,
+        expectedWorldVersion: current.version,
+        kind: 'note_save',
+      });
       const id = command.id;
       const event: NoteEvent = {
         schemaVersion: 1,

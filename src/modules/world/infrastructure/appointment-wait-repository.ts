@@ -1,3 +1,4 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
 import { randomUUID } from 'node:crypto';
@@ -90,6 +91,12 @@ export class PostgresAppointmentWaitRepository implements AppointmentWaitPort {
       if (replay) return replay;
       if (Number(row.version) !== input.expectedVersion || snapshot.version !== Number(row.version))
         throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'story_wait',
+      });
       await assertSpaceIdle(sql, worldId);
       const active = (
         await sql.query(

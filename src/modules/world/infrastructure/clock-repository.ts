@@ -1,3 +1,4 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ClockStore } from '../application/ports.ts';
 import type { WorldClock } from '../domain/clock.ts';
@@ -5,7 +6,7 @@ import { clampSpeed, DEFAULT_SPEED, projectStoryTime } from '../domain/clock.ts'
 import { DomainError } from '../domain/errors.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
 import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 export class PostgresClockStore implements ClockStore {
   private db: PostgresDatabase;
@@ -148,10 +149,16 @@ export class PostgresClockStore implements ClockStore {
         throw new DomainError('VERSION_CONFLICT');
       const world = (
         await sql.query(
-          'SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+          'SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
           [worldId, ownerId],
         )
       ).rows[0];
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: randomUUID(),
+        expectedWorldVersion: Number(world.version),
+        kind: 'clock_control',
+      });
       const r = (
         await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 FOR UPDATE', [
           worldId,

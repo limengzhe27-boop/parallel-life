@@ -1,3 +1,4 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
 import { sceneConversationMemory } from '../domain/scene-conversation-memory.ts';
@@ -484,6 +485,12 @@ export class SceneRepository {
       const replay = await previous(sql, worldId, input.commandId, hash);
       if (replay) return replay;
       if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      const { engineEpoch } = await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'scene_enter',
+      });
       if (paused) throw new DomainError('INVALID_COMMAND');
       const x = await experience(sql, ownerId, worldId);
       if (x.currentSceneId)
@@ -522,7 +529,9 @@ export class SceneRepository {
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
         [sceneId, worldId, ownerId, source.sourceEventId, scene],
       );
-      await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
+      // New Agent runtime owns progression; do not seed an old progress projection.
+      if (engineEpoch === 1)
+        await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
       const ctx = await context(sql, { ...world, version: source.sourceVersion });
       await saveExperience(sql, enterCurrentScene(ctx, x, scene));
       const task = await enqueue(
@@ -558,6 +567,12 @@ export class SceneRepository {
       const replay = await previous(sql, worldId, input.commandId, hash);
       if (replay) return replay;
       if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      const { engineEpoch } = await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'scene_enter',
+      });
       if (paused) throw new DomainError('INVALID_COMMAND');
       await assertSpaceIdle(sql, worldId);
       const place = world.space?.places.find((p) => p.id === input.placeId),
@@ -599,7 +614,9 @@ export class SceneRepository {
         'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
         [sceneId, worldId, ownerId, source.sourceEventId, scene],
       );
-      await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
+      // New Agent runtime owns progression; do not seed an old progress projection.
+      if (engineEpoch === 1)
+        await seedSceneMatters(sql, ownerId, worldId, scene, world.matters, source);
       await saveExperience(
         sql,
         enterCurrentScene(
@@ -638,6 +655,12 @@ export class SceneRepository {
       const replay = await previous(sql, worldId, input.commandId, hash);
       if (replay) return replay;
       if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'scene_input',
+      });
       const x = await experience(sql, ownerId, worldId),
         s = await loadScene(sql, worldId, sceneId);
       const privateThought = scenePrivateThought(input.text);
@@ -740,6 +763,12 @@ export class SceneRepository {
         return replay;
       }
       if (world.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'scene_enter',
+      });
       const x = await experience(sql, ownerId, worldId),
         s = await loadScene(sql, worldId, sceneId);
       if (x.currentSceneId !== sceneId) throw new DomainError('INVALID_COMMAND');

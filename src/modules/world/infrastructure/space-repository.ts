@@ -1,3 +1,4 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
@@ -377,6 +378,12 @@ export class PostgresWorldSpace implements WorldSpacePort {
         old = await replay(sql, id, input, hash);
       if (old) return TravelReceiptSchema.parse(old);
       if (w.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, owner, {
+        worldId: id,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'space_travel',
+      });
       await assertSpaceIdle(sql, id);
       const c = await clock(sql, w),
         realNow = new Date().toISOString(),
@@ -406,10 +413,24 @@ export class PostgresWorldSpace implements WorldSpacePort {
           ))
       )
         throw new DomainError('INVALID_COMMAND');
+      // A social/contact link is not physical presence. Legacy scenes without a
+      // sourced matching place cannot prove who saw this departure.
       const observerIds =
-        currentScene?.presence
-          .filter((p) => p.participant.kind === 'actor' && p.leftVersion === undefined)
-          .flatMap((p) => (p.participant.kind === 'actor' ? [p.participant.actorId] : [])) ?? [];
+        currentScene?.placeId === t.route.fromPlaceId
+          ? currentScene.presence
+              .filter(
+                (p) =>
+                  p.participant.kind === 'actor' &&
+                  p.leftVersion === undefined &&
+                  p.joinedVersion <= w.version,
+              )
+              .flatMap(({ participant }) => {
+                if (participant.kind !== 'actor') return [];
+                return w.actors.some((actor) => actor.id === participant.actorId)
+                  ? [participant.actorId]
+                  : [];
+              })
+          : [];
       const fromPlaceName = w.space!.places.find((p) => p.id === t.route.fromPlaceId)!.name;
       const departureObservation = observerIds.length
         ? {
@@ -515,6 +536,12 @@ export class PostgresWorldSpace implements WorldSpacePort {
         old = await replay(sql, id, input, hash);
       if (old) return old;
       if (w.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, owner, {
+        worldId: id,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'space_travel',
+      });
       await assertSpaceIdle(sql, id);
       const c = await clock(sql, w),
         realNow = new Date().toISOString();

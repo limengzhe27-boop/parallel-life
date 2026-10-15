@@ -1,3 +1,4 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { StoryWaitPort } from '../application/story-wait.ts';
@@ -194,6 +195,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
     world: WorldState,
     base: StoryWaitContext,
     targetAt: string,
+    engineEpoch: number,
   ) {
     const raw = (
       await sql.query('SELECT parallel_life.publication_story_source($1) AS source', [world.id])
@@ -236,7 +238,9 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
     if (batch?.status === 'planning' || batch?.status === 'unknown' || deliveryBusy)
       throw new StoryWaitError('INFLIGHT');
     const from = storyWaitFrom(world, base);
-    if (raw) await this.resolvedProgress(sql, ownerId, world, states, from);
+    // The legacy goal interpreter can reconcile/write its own progress. Never run
+    // it for an Agent world; its immutable authored time boundaries remain read-only.
+    if (raw && engineEpoch === 1) await this.resolvedProgress(sql, ownerId, world, states, from);
     // A genuine, dated decision request is important. Client-only unread markers are not evidence.
     const pendingIds = world.appointments
       .filter((a) => a.status === 'proposed' && Date.parse(a.at) >= Date.parse(from))
@@ -363,6 +367,12 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
       if (replay) return replay;
       if (Number(row.version) !== input.expectedVersion || snapshot.version !== Number(row.version))
         throw new DomainError('VERSION_CONFLICT');
+      const { engineEpoch } = await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'story_wait',
+      });
       await assertSpaceIdle(sql, worldId);
       const active = (
         await sql.query(
@@ -410,7 +420,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
         boundaries: [],
       };
       const target = planStoryWait(world, input, base).targetAt;
-      const context = await this.context(sql, ownerId, world, base, target);
+      const context = await this.context(sql, ownerId, world, base, target, engineEpoch);
       const plan = planStoryWait(world, input, context);
       const event: StoryWaitEvent = {
         schemaVersion: 1,

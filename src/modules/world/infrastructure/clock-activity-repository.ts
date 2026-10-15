@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { DomainError } from '../domain/errors.ts';
 import { DEFAULT_SPEED, projectStoryTime, type WorldClock } from '../domain/clock.ts';
@@ -184,6 +186,12 @@ export async function updateClockActivity(
   }));
   const previous = leases.find((l) => l.clientId.toLowerCase() === input.clientId.toLowerCase());
   if (previous && previous.sequence >= input.sequence) return readableActivityClock(clock, realNow);
+  await authorizeWorldCommandInTransaction(sql, ownerId, {
+    worldId,
+    commandId: randomUUID(),
+    expectedWorldVersion: Number(world.version),
+    kind: 'clock_control',
+  });
   if (!exclusive) {
     if (
       !clock.managed ||

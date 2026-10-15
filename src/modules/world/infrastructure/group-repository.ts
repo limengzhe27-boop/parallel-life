@@ -1,3 +1,4 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
 import { applyWorldHistoryEvent } from '../domain/world-history.ts';
@@ -376,6 +377,12 @@ export class PostgresGroupRepository {
         } as GroupReceipt;
       }
       if (world.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId: command.worldId,
+        commandId: command.commandId,
+        expectedWorldVersion: command.expectedVersion,
+        kind: 'group_membership',
+      });
       await writable(sql, world.id);
       const event = build(world);
       return persistGroupEvent(sql, world, event, hash);
@@ -450,6 +457,12 @@ export class PostgresGroupRepository {
         return { task, groupId: command.groupId, version: accepted.version };
       }
       if (world.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId: command.worldId,
+        commandId: command.commandId,
+        expectedWorldVersion: command.expectedVersion,
+        kind: 'group_input',
+      });
       await writable(sql, world.id);
       const event: GroupEvent = {
         schemaVersion: 1,
