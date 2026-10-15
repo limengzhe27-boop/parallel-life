@@ -1,4 +1,10 @@
-## 2026-10-16 · 44-67 限定作者建议交接待部署
+## 2026-10-16 · 44-75 普通人物暂停保护与原身份续接待部署
+
+原NPC request_sent、kernel末尾核活动；确认零发送取消以SQL82不可变凭据续接原attempt/command/input，原native task恢复不新建task。paid/unknown保持保护。check2964/build/类型/格式通过，最终实际PG33及独立专项12分别通过，未作累加。2026-10-15T19:24:09.430Z生产82/82 checksum、RLS/FORCE和guard权限核验，保护数据不变、epoch2=0。0真实模型/生产测试世界/图片。READY及公网证据待追加，详见[75报告](task-reports/44-75-NPC-ACTIVITY-ZERO-SEND-I.md)。完整架构仍未启用。
+
+## 2026-10-16 · 44-67 限定作者建议交接已上线
+
+限定业务528505f9f9f2113dbf561a901e8374bd50004171 / dpl_3tvfzc2Mi5mjr8HGN9zVJqz6jJag READY，精确SHA及Nu正式别名核实。2026-10-15T19:10:56.364Z公网health/workbench/published200，匿名publications/publisherworks401；下面“待追加”是发布过程记录。本项总体仍未完成。
 
 同一人物入口接作者明确指向本人的消息/单人邀请建议；独立来源、发送前及提交再校验、持久策略/遗忘和预算保护。实际不可变请求控制发送，已消费/付费请求不能换命令重买。普通自由文本事件、实际事件结果、完整观察和旧档迁移仍未完成，生产不启用epoch2。
 
