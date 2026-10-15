@@ -9,7 +9,8 @@ import { sceneContextEntries, scenePresent, scenePrivateThought } from '../domai
 import { DomainError } from '../domain/errors.ts';
 import { loadGroupRead } from './group-repository.ts';
 import { loadScene } from './scene-repository.ts';
-import { agentDefinitionRef } from './agent-snapshot-repository.ts';
+import { agentDefinitionRef, attachAgentWorldContext } from './agent-snapshot-repository.ts';
+import { readActorStrategyBasis } from './agent-source-resolver.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { readPublicationActorModules } from '../../settings/infrastructure/publication-social-repository.ts';
 import { selectActorPersona } from '../domain/actor-situation.ts';
@@ -129,7 +130,7 @@ export async function readNativeAgentSnapshot(
   const actor = world.actors.find((a) => a.id === actorId);
   if (!actor) forbidden();
   const modules = await readPublicationActorModules(db, ownerId, world.id, actorId);
-  return db.transaction(ownerId, async (sql) => {
+  const snapshot = await db.transaction(ownerId, async (sql): Promise<AgentSnapshot> => {
     const current = (
       await sql.query('SELECT version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
         world.id,
@@ -189,7 +190,7 @@ export async function readNativeAgentSnapshot(
         blocked.has(source.recordId)
       )
         return;
-      sources.set(source.id, source);
+      sources.set(source.id, { ...source, usage: 'channel_context' });
       if (text !== undefined) observations.push({ sourceId: source.id, text, kind });
     };
     const nativeEvents = (
@@ -400,6 +401,12 @@ export async function readNativeAgentSnapshot(
       worldVersion: input.expectedWorldVersion,
       at: input.storyAt,
     });
+    // Own structured strategy can cross channels without importing private speech.
+    // Existing channel sources retain their channel_context usage.
+    for (const basis of await readActorStrategyBasis(sql, ownerId, state, world.version, storyAt)) {
+      if (!sources.has(basis.id) && !blocked.has(basis.id) && !blocked.has(basis.recordId))
+        sources.set(basis.id, basis);
+    }
     return {
       state,
       ...authorizedAgentState(state, new Set(sources.keys())),
@@ -436,4 +443,9 @@ export async function readNativeAgentSnapshot(
       input: { sourceId: input.id, text: input.text, origin: input.origin },
     };
   });
+  const contextual = await attachAgentWorldContext(db, ownerId, snapshot);
+  return {
+    ...contextual,
+    ...authorizedAgentState(state, new Set(contextual.sources.map((s) => s.id))),
+  };
 }

@@ -33,6 +33,7 @@ import type { AgentRuntimeTransition } from '../../src/modules/world/domain/agen
 import { agentDefinitionRef } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
 import { projectNativeAgentChannelInTransaction } from '../../src/modules/world/infrastructure/agent-channel-projector.ts';
 import { readNativeAgentSnapshot } from '../../src/modules/world/infrastructure/agent-channel-snapshot.ts';
+import { NpcAgentModel } from '../../src/modules/world/infrastructure/npc-agent-model.ts';
 import {
   applyWorldHistoryEvent,
   type WorldHistoryEvent,
@@ -67,7 +68,7 @@ test('native channels use actual PostgreSQL projections and one actor/world UoW 
   const store = new PostgresAgentRuntimeRepository(db),
     tasks = new TaskRepository(db);
 
-  async function fixture(channel: 'group' | 'scene') {
+  async function fixture(channel: 'group' | 'scene', privateStrategy = false) {
     const owner = randomUUID(),
       actor = randomUUID(),
       other = randomUUID(),
@@ -117,6 +118,24 @@ test('native channels use actual PostgreSQL projections and one actor/world UoW 
         );
       });
     } else await worlds.initialize({ userId: owner }, initial);
+    let privateBasis: AgentInputReceipt | undefined;
+    if (privateStrategy) {
+      privateBasis = {
+        id: randomUUID(),
+        worldId,
+        commandId: randomUUID(),
+        inputHash: createHash('sha256').update('private strategy input').digest('hex'),
+        channel: 'private',
+        threadId: actor,
+        recipientActorId: actor,
+        expectedWorldVersion: 0,
+        origin: 'player',
+        text: 'ORIGINAL_PRIVATE_QUOTE_DO_NOT_SERIALIZE',
+        receivedAt: now,
+        storyAt: now,
+      };
+      await store.accept(owner, privateBasis);
+    }
     let thread: string, version: number;
     if (channel === 'group') {
       const created = await groups.create(owner, {
@@ -194,6 +213,39 @@ test('native channels use actual PostgreSQL projections and one actor/world UoW 
       sourceIds: ['private-source'],
       resultIds: [],
     });
+    if (privateBasis) {
+      state.goals[0]!.sourceIds = [privateBasis.id];
+      state.goals[0]!.summary = 'Own continuing goal';
+      state.plans.push({
+        id: 'own-plan',
+        goalId: state.goals[0]!.id,
+        summary: 'Find an alternative without pressure',
+        status: 'waiting',
+        sourceIds: [privateBasis.id],
+        actionIds: [],
+        nextActionId: null,
+        triggers: [],
+        missingConditions: [],
+      });
+      state.responsibilities.push({
+        id: 'private-request',
+        revision: 0,
+        subject: { kind: 'request', id: 'own-request' },
+        summary: 'Respect the previous refusal',
+        status: 'deferred',
+        waitingOn: null,
+        sourceIds: [privateBasis.id],
+        nextCheck: [],
+      });
+      state.decisions.push({
+        id: 'private-decision',
+        responsibilityId: 'private-request',
+        responsibilityRevision: 0,
+        kind: 'declined',
+        sourceId: privateBasis.id,
+        quote: privateBasis.text,
+      });
+    }
     await db.transaction(owner, async (sql) => {
       await initializeActorAgentStateInTransaction(sql, owner, state);
       await initializeActorAgentStateInTransaction(
@@ -505,6 +557,46 @@ test('native channels use actual PostgreSQL projections and one actor/world UoW 
           .rowCount,
         0,
       );
+    },
+  );
+
+  await t.test(
+    'own private strategy and refusal survive a group snapshot without the DM quote or another actor seeing them',
+    async () => {
+      const f = await fixture('group', true);
+      assert.equal(f.snapshot.viewState.goals[0]!.summary, 'Own continuing goal');
+      assert.equal(f.snapshot.viewState.plans[0]!.id, 'own-plan');
+      assert.equal(f.snapshot.viewState.decisions[0]!.kind, 'declined');
+      assert(f.snapshot.sources.some((s) => s.usage === 'private_strategy'));
+      assert(!JSON.stringify(f.snapshot.observations).includes('ORIGINAL_PRIVATE_QUOTE'));
+      let captured = '';
+      const model = new NpcAgentModel({
+        async complete(messages) {
+          captured = messages[1]!.content;
+          return '{"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}';
+        },
+      });
+      await model.decide(f.snapshot);
+      assert(!captured.includes('ORIGINAL_PRIVATE_QUOTE'));
+      const payload = JSON.parse(captured);
+      assert.equal(payload.state.decisions[0].kind, 'declined');
+      assert.equal(payload.state.decisions[0].quote, '');
+      assert.equal(payload.state.goals[0].summary, 'Own continuing goal');
+      assert(f.snapshot.worldContext);
+      const otherState = (await store.read(f.owner, { worldId: f.world.id, actorId: f.other }))!;
+      const otherSnapshot = await readNativeAgentSnapshot(
+        db,
+        f.owner,
+        f.world,
+        f.other,
+        f.input,
+        f.world.time,
+        otherState,
+      );
+      assert.equal(otherSnapshot.viewState.goals.length, 0);
+      assert.equal(otherSnapshot.viewState.decisions.length, 0);
+      assert(!otherSnapshot.sources.some((s) => s.usage === 'private_strategy'));
+      assert.equal(f.snapshot.state.decisions[0]!.quote, 'ORIGINAL_PRIVATE_QUOTE_DO_NOT_SERIALIZE');
     },
   );
 });
