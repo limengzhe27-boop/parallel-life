@@ -12,6 +12,7 @@ import type {
   DirectorSnapshot,
   SharedEpisode,
 } from '../domain/director-runtime.ts';
+import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import type { AgentAttemptStatus, ActorAgentState } from '../domain/agent-runtime.ts';
 import { transitionAgentAttempt } from '../domain/agent-runtime.ts';
 import { worldBoundary } from '../domain/world-awareness.ts';
@@ -21,6 +22,14 @@ import { projectStoryTime } from '../domain/clock.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
 import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
+import {
+  readAuthoredEligibilityInTransaction,
+  authoredEligibilitySummary,
+} from './authored-event-eligibility-repository.ts';
+import {
+  readDirectorBootstrapCauseInTransaction,
+  createEpisodeRequestsInTransaction,
+} from './agent-narrative-repository.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
 export class DirectorRuntimePersistenceError extends Error {
@@ -135,6 +144,19 @@ const State = z
     actions: z.array(z.unknown()),
     responsibilities: z.array(z.unknown()),
     decisions: z.array(z.unknown()),
+    episodeParticipations: z
+      .array(
+        z
+          .object({
+            id: Key,
+            choice: z.enum(['engage', 'decline', 'defer', 'need_information', 'quiet']),
+            reason: z.string().min(1).max(2000),
+            sourceIds: keys.min(1),
+            recordedAtVersion: Int,
+          })
+          .strict(),
+      )
+      .optional(),
     questions: z
       .array(
         z.strictObject({
@@ -222,6 +244,21 @@ const Snapshot = z
         }
       })
       .optional(),
+    authoredEligibility: z
+      .array(
+        z
+          .object({
+            nodeKey: Key,
+            nodeHash: Hash,
+            status: z.enum(['eligible', 'blocked', 'expired', 'already_presented']),
+            reasons: keys,
+            basisSourceIds: keys,
+            qualificationKey: Hash,
+          })
+          .strict(),
+      )
+      .optional(),
+    occupiedAuthoredEventKeys: keys.optional(),
     conversationWithoutTarget: z.boolean().optional(),
     cast: z
       .array(
@@ -504,6 +541,26 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       : Date.parse(world.time);
     if (Date.parse(s.storyAt) < Date.parse(world.time) || Date.parse(s.storyAt) > latest)
       fail('DIRECTOR_CLOCK_CONFLICT');
+    const cause = await readDirectorBootstrapCauseInTransaction(sql, owner, {
+      worldId: world.id,
+      engineEpoch: s.engineEpoch,
+      worldVersion: world.version,
+    });
+    if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
+    if (actualMaterials) {
+      const qualification = await readAuthoredEligibilityInTransaction(sql, owner, {
+        worldId: world.id,
+        engineEpoch: s.engineEpoch,
+        worldVersion: world.version,
+        storyAt: new Date(latest).toISOString(),
+      });
+      if (
+        !equal(authoredEligibilitySummary(qualification), s.authoredEligibility) ||
+        !equal(qualification.occupiedEventKeys, s.occupiedAuthoredEventKeys)
+      )
+        fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
+    } else if (s.authoredEligibility !== undefined || s.occupiedAuthoredEventKeys !== undefined)
+      fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
     if (
       s.worldId !== world.id ||
       s.evaluatedThroughVersion > s.observedThroughVersion ||
@@ -958,6 +1015,11 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         [expected.id, decision.id, expected.token],
       );
       if (!finalized.rowCount) fail('DIRECTOR_ATTEMPT_STALE');
+      await createEpisodeRequestsInTransaction(sql, owner, {
+        worldId: world.id,
+        engineEpoch: expected.engineEpoch,
+        decision,
+      });
       return decision;
     });
   }
@@ -1026,10 +1088,19 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         new Set(o.participantActorIds).size !== o.participantActorIds.length ||
         new Set(o.placeIds).size !== o.placeIds.length ||
         new Set(o.basisSourceIds).size !== o.basisSourceIds.length ||
+        o.basisSourceIds.some(
+          (id) =>
+            id.startsWith('authored:') &&
+            (o.authoredEventKey === undefined ||
+              !authored?.materials.some(
+                (m) => m.sourceId === id && canConsiderAuthoredEvent(s, m.ref.nodeKey),
+              )),
+        ) ||
         (o.authoredEventKey !== undefined &&
-          !authored?.materials.some(
-            (m) => m.ref.nodeKey === o.authoredEventKey && o.basisSourceIds.includes(m.sourceId),
-          ))
+          (!canConsiderAuthoredEvent(s, o.authoredEventKey) ||
+            !authored?.materials.some(
+              (m) => m.ref.nodeKey === o.authoredEventKey && o.basisSourceIds.includes(m.sourceId),
+            )))
       )
         fail('DIRECTOR_OPPORTUNITY_BOUNDARY');
   }

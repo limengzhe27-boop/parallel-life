@@ -40,6 +40,8 @@ import { PostgresWorldAwarenessRepository } from '../modules/world/infrastructur
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
+import { readDirectorBootstrapCauseInTransaction } from '../modules/world/infrastructure/agent-narrative-repository.ts';
+import { dispatchPendingAgentEpisode } from './npc-agent-episode-dispatch.ts';
 import type { PublicOpeningStatus } from '../contracts/publication-opening.ts';
 import type { PublicWorldStory } from '../contracts/world-story.ts';
 
@@ -251,6 +253,15 @@ export function npcAgentAdvanceServices(
         return { ...quiet(arrival.storyAt), changed: true, worldVersion: arrival.worldVersion };
       const afterContinuation = await new PostgresClockStore(db).read(ownerId, worldId);
       if (afterContinuation.paused) return quiet(afterContinuation.storyNow);
+      const delivery = await dispatchPendingAgentEpisode(
+        db,
+        npcModel,
+        ownerId,
+        world,
+        engineEpoch,
+        storyAt,
+      );
+      if (delivery) return delivery;
       const actors = await Promise.all(
         read.states.map(async (state) => ({
           snapshot: (
@@ -328,7 +339,10 @@ export function npcAgentAdvanceServices(
             code: 'VERSION_CONFLICT',
             directorCoordinationPending: true,
           });
-        const commandId = agentWakeCommandId(worldId, directorCoordinationFrameHash(snapshot));
+        const commandId = agentWakeCommandId(
+          worldId,
+          snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot),
+        );
         const previous = await directors.lookup(ownerId, worldId, commandId);
         if (previous?.status === 'committed' && previous.decisionId) {
           const saved = await directors.readDecision(ownerId, worldId, previous.decisionId);
@@ -358,6 +372,13 @@ export function npcAgentAdvanceServices(
         );
       };
       const observed = await awareness.readDirectorObservedState(ownerId, worldId);
+      const bootstrap = await db.transaction(ownerId, (sql) =>
+        readDirectorBootstrapCauseInTransaction(sql, ownerId, {
+          worldId,
+          engineEpoch,
+          worldVersion: world.version,
+        }),
+      );
       let coordinated = false;
       const scheduled = await scheduleAgents(
         {
@@ -387,7 +408,7 @@ export function npcAgentAdvanceServices(
       );
       // A material global change can warrant coordination even without competing candidates.
       // It does not require another director call after every ordinary chat, nor force a message.
-      if (!coordinated && observed.needsEvaluation) {
+      if (!coordinated && (observed.needsEvaluation || bootstrap)) {
         let decision: DirectorDecision;
         try {
           decision = await coordinate(
@@ -410,7 +431,17 @@ export function npcAgentAdvanceServices(
             return execute(independent.candidate, independent.guidance);
           throw error;
         }
-        if (!decision.selectedCandidateIds.length) return quiet(storyAt);
+        if (!decision.selectedCandidateIds.length)
+          return (
+            (await dispatchPendingAgentEpisode(
+              db,
+              npcModel,
+              ownerId,
+              world,
+              engineEpoch,
+              storyAt,
+            )) ?? quiet(storyAt)
+          );
         const chosen = decision.selectedCandidateIds[0];
         const selected = scheduled.snapshot.candidates.find((c) => c.id === chosen);
         if (!selected || scheduled.blocked.some((b) => b.candidate.id === chosen))
@@ -423,7 +454,16 @@ export function npcAgentAdvanceServices(
         );
       }
       const selected = scheduled.selected[0];
-      return selected ? execute(selected.candidate, selected.guidance) : quiet(storyAt);
+      return selected
+        ? execute(selected.candidate, selected.guidance)
+        : ((await dispatchPendingAgentEpisode(
+            db,
+            npcModel,
+            ownerId,
+            world,
+            engineEpoch,
+            storyAt,
+          )) ?? quiet(storyAt));
 
       async function execute(
         candidate: AgentCandidate,

@@ -17,6 +17,7 @@ import { applyAgentStateEvent } from '../domain/agent-state-event.ts';
 import { reduceActorAgentState, AgentValidationError } from '../domain/agent-kernel.ts';
 import { evaluateAgentActionEligibility } from '../domain/agent-eligibility.ts';
 import { parseAgentProposal } from './agent-proposal-parser.ts';
+import { projectEpisodeRequestInTransaction } from './agent-narrative-repository.ts';
 import {
   beginAgentCommitInTransaction,
   finishAgentCommitInTransaction,
@@ -81,6 +82,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         const accepted = replay.data?.agentRuntime as AgentRuntimeTransition | undefined;
         if (!accepted || accepted.inputReceiptId !== attempt.inputReceiptId)
           throw Error('INVALID_AGENT_RECEIPT');
+        await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId: replay.id });
         await this.afterCommit?.(sql, { attempt, eventId: replay.id });
         return {
           eventId: replay.id as string,
@@ -616,6 +618,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       for (const journey of departures)
         await recordAgentDepartureInTransaction(sql, ownerId, { attempt, journey });
       await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
+      await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId });
       await this.afterCommit?.(sql, { attempt, eventId });
       return { eventId, state: accepted.state, results };
     });

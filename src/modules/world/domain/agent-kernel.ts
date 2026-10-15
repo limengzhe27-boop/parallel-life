@@ -76,7 +76,7 @@ export function authorizedAgentState(
     permittedSources.has(id),
   );
   if (state.episodeParticipations !== undefined)
-    viewState.episodeParticipations = state.episodeParticipations.filter(based);
+    viewState.episodeParticipations = viewState.episodeParticipations!.filter(based);
   if (state.questions !== undefined)
     viewState.questions = state.questions
       .filter(

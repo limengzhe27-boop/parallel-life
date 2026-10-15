@@ -104,31 +104,15 @@ const ordered = <T extends { key: string }>(a: T[]) =>
 const unique = (a: string[]) => new Set(a).size === a.length;
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 /** Verify namespace allocation against the immutable initial snapshot, never match people by name. */
-export function buildStoryPlan(s: StorySource): StoryPlan {
-  if (
-    !unique(s.actorKeys) ||
-    !unique(s.contacts.map((a) => a.actorKey)) ||
-    !unique(s.contacts.map((a) => a.actorId)) ||
-    !unique(s.initialActorIds) ||
-    !unique(s.nodes.map((n) => n.key))
-  )
-    throw new PublicationStoryError();
-  if (
-    s.openingEventKey !== undefined &&
-    (typeof s.openingEventKey !== 'string' ||
-      !/^[a-z][a-z0-9_]{0,31}$/.test(s.openingEventKey) ||
-      s.nodes.filter(
-        (node) => node.key === s.openingEventKey && node.intent.kind === 'director_event',
-      ).length !== 1)
-  )
-    throw new PublicationStoryError('INVALID_OPENING_EVENT');
+/** Validate authored history keys against their exact immutable genesis allocation; no text matching. */
+export function bindAuthoredHistoryFacts(
+  s: Pick<
+    StorySource,
+    'history' | 'knownFactKeys' | 'initialKnowledge' | 'initialFacts' | 'contacts' | 'genesisSource'
+  >,
+): StoryPlan['history'] {
   const actors = ordered(s.contacts.map((a) => ({ key: a.actorKey, id: a.actorId })));
-  if (
-    s.actorKeys.length !== s.contacts.length ||
-    s.initialActorIds.length !== s.contacts.length ||
-    s.actorKeys.some((key) => !actors.some((a) => a.key === key)) ||
-    actors.some((a) => !s.initialActorIds.includes(a.id))
-  )
+  if (!unique(actors.map((a) => a.key)) || !unique(actors.map((a) => a.id)))
     throw new PublicationStoryError();
   const histories: StoryPlan['history'] = [];
   let index = 0;
@@ -164,6 +148,36 @@ export function buildStoryPlan(s: StorySource): StoryPlan {
   }
   if (index !== s.initialFacts.length || !unique(s.initialFacts.map((f) => f.id)))
     throw new PublicationStoryError();
+  return histories;
+}
+
+export function buildStoryPlan(s: StorySource): StoryPlan {
+  if (
+    !unique(s.actorKeys) ||
+    !unique(s.contacts.map((a) => a.actorKey)) ||
+    !unique(s.contacts.map((a) => a.actorId)) ||
+    !unique(s.initialActorIds) ||
+    !unique(s.nodes.map((n) => n.key))
+  )
+    throw new PublicationStoryError();
+  if (
+    s.openingEventKey !== undefined &&
+    (typeof s.openingEventKey !== 'string' ||
+      !/^[a-z][a-z0-9_]{0,31}$/.test(s.openingEventKey) ||
+      s.nodes.filter(
+        (node) => node.key === s.openingEventKey && node.intent.kind === 'director_event',
+      ).length !== 1)
+  )
+    throw new PublicationStoryError('INVALID_OPENING_EVENT');
+  const actors = ordered(s.contacts.map((a) => ({ key: a.actorKey, id: a.actorId })));
+  if (
+    s.actorKeys.length !== s.contacts.length ||
+    s.initialActorIds.length !== s.contacts.length ||
+    s.actorKeys.some((key) => !actors.some((a) => a.key === key)) ||
+    actors.some((a) => !s.initialActorIds.includes(a.id))
+  )
+    throw new PublicationStoryError();
+  const histories = bindAuthoredHistoryFacts(s);
   for (const node of s.nodes) {
     if (node.kind !== 'candidate') throw new PublicationStoryError();
     if (node.intent.kind === 'editorial_only') continue;

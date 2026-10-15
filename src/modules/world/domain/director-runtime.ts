@@ -22,6 +22,15 @@ export type DirectorSnapshot = {
   worldSetting?: string;
   /** Full immutable director-only author material; participant references never grant NPC knowledge. */
   authoredMaterials?: AuthoredAgentMaterialCatalog;
+  authoredEligibility?: {
+    nodeKey: string;
+    nodeHash: string;
+    status: 'eligible' | 'blocked' | 'expired' | 'already_presented';
+    reasons: import('./authored-event-eligibility.ts').AuthoredEligibilityReason[];
+    basisSourceIds: string[];
+    qualificationKey: string;
+  }[];
+  occupiedAuthoredEventKeys?: string[];
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
   actorStates: ActorAgentState[];
   episodes: SharedEpisode[];
@@ -107,3 +116,17 @@ export type DirectorAttempt = {
   status: AgentAttemptStatus;
   decisionId?: string;
 };
+
+/** Author intent can be considered only with actual qualified, unoccupied source evidence. */
+export function canConsiderAuthoredEvent(snapshot: DirectorSnapshot, nodeKey: string): boolean {
+  const materials =
+    snapshot.authoredMaterials?.materials.filter((m) => m.ref.nodeKey === nodeKey) ?? [];
+  const matches = snapshot.authoredEligibility?.filter((item) => item.nodeKey === nodeKey) ?? [];
+  return (
+    materials.length === 1 &&
+    matches.length === 1 &&
+    matches[0]!.nodeHash === materials[0]!.ref.nodeHash &&
+    matches[0]!.status === 'eligible' &&
+    !snapshot.occupiedAuthoredEventKeys?.includes(nodeKey)
+  );
+}

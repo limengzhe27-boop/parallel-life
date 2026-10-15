@@ -7,6 +7,7 @@ import type {
   DirectorDecision,
   DirectorSnapshot,
 } from '../domain/director-runtime.ts';
+import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
@@ -138,10 +139,19 @@ export function parseDirectorDecision(
         new Set(o.participantActorIds).size !== o.participantActorIds.length ||
         new Set(o.placeIds).size !== o.placeIds.length ||
         new Set(o.basisSourceIds).size !== o.basisSourceIds.length ||
+        o.basisSourceIds.some(
+          (id) =>
+            id.startsWith('authored:') &&
+            (o.authoredEventKey === undefined ||
+              !authored?.materials.some(
+                (m) => m.sourceId === id && canConsiderAuthoredEvent(snapshot, m.ref.nodeKey),
+              )),
+        ) ||
         (o.authoredEventKey !== undefined &&
-          !authored?.materials.some(
-            (m) => m.ref.nodeKey === o.authoredEventKey && o.basisSourceIds.includes(m.sourceId),
-          )),
+          (!canConsiderAuthoredEvent(snapshot, o.authoredEventKey) ||
+            !authored?.materials.some(
+              (m) => m.ref.nodeKey === o.authoredEventKey && o.basisSourceIds.includes(m.sourceId),
+            ))),
     )
   )
     invalid();
@@ -199,7 +209,11 @@ function request(snapshot: DirectorSnapshot) {
       : {}),
     ...(snapshot.authoredMaterials === undefined
       ? {}
-      : { authoredMaterials: authoredView(snapshot) }),
+      : {
+          authoredMaterials: authoredView(snapshot),
+          authoredEligibility: snapshot.authoredEligibility,
+          occupiedAuthoredEventKeys: snapshot.occupiedAuthoredEventKeys,
+        }),
     storyAt: snapshot.storyAt,
     boundary: snapshot.boundary,
     observedThroughVersion: snapshot.observedThroughVersion,

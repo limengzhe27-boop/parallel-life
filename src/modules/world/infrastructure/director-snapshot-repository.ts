@@ -8,7 +8,11 @@ import { projectStoryTime } from '../domain/clock.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { DIRECTOR_SNAPSHOT_MAX_BYTES } from './director-runtime-repository.ts';
 import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
-import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
+import {
+  readAuthoredEligibilityInTransaction,
+  authoredEligibilitySummary,
+} from './authored-event-eligibility-repository.ts';
+import { readDirectorBootstrapCauseInTransaction } from './agent-narrative-repository.ts';
 
 export class DirectorSnapshotReadError extends Error {
   readonly code: string;
@@ -369,6 +373,8 @@ async function evidence(
     genesis: {
       title: initial!.title,
       startAt: initial!.time,
+      initialPlayerPosition: initial!.space?.currentPlaceId ?? null,
+      initialPositionMeaning: '作者明确的开局实际位置；不能当作此后仍未移动的证明',
       mapConfiguration: {
         meaning: '已有地点设定，不代表任何人物实际在场或玩家已经到达',
         places: (initial!.space?.places ?? []).map((p) => ({
@@ -854,12 +860,17 @@ export class PostgresDirectorSnapshotRepository {
           if (resolved && !resolved.knownByActorIds.includes(candidate.actorId))
             fail('DIRECTOR_CANDIDATE_SOURCE_FORBIDDEN');
         }
-      const authored = await readAuthoredAgentMaterialCatalog(sql, owner, {
+      const authored = await readAuthoredEligibilityInTransaction(sql, owner, {
         worldId: h.world.id,
-        expectedEngineEpoch: h.epoch,
-        expectedWorldVersion: h.world.version,
+        engineEpoch: h.epoch,
+        worldVersion: h.world.version,
+        storyAt: h.storyAt,
       });
-      if (authored.status !== 'complete') fail('DIRECTOR_AUTHORED_MATERIAL_BUDGET');
+      const evaluationCause = await readDirectorBootstrapCauseInTransaction(sql, owner, {
+        worldId: h.world.id,
+        engineEpoch: h.epoch,
+        worldVersion: h.world.version,
+      });
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         worldId: h.world.id,
@@ -869,8 +880,15 @@ export class PostgresDirectorSnapshotRepository {
         observedThroughVersion: h.observed,
         evaluatedThroughVersion: h.evaluated,
         boundary: h.boundary,
+        ...(evaluationCause ? { evaluationCause } : {}),
         worldSetting: sources.worldSetting,
-        ...(authored.catalog.source ? { authoredMaterials: authored.catalog } : {}),
+        ...(authored.catalog.source
+          ? {
+              authoredMaterials: authored.catalog,
+              authoredEligibility: authoredEligibilitySummary(authored),
+              occupiedAuthoredEventKeys: authored.occupiedEventKeys,
+            }
+          : {}),
         cast: normalizedCast(h.world),
         actorStates: states,
         episodes,

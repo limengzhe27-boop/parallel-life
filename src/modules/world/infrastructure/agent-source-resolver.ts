@@ -18,6 +18,7 @@ export async function readActorStrategyBasis(
         (x) => x.sourceIds,
       ),
       ...state.decisions.map((x) => x.sourceId),
+      ...(state.episodeParticipations ?? []).flatMap((x) => x.sourceIds),
       ...state.responsibilities.flatMap((r) => (r.deadline ? [r.deadline.sourceId] : [])),
       ...(state.focus?.questionSourceId ? [state.focus.questionSourceId] : []),
       ...(state.questions ?? []).flatMap((q) => [

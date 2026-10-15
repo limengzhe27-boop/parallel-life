@@ -422,6 +422,21 @@ export function committedAwarenessDelta(
       if (JSON.stringify(old) !== JSON.stringify(next))
         reason('plan_changed', { kind: 'plan', id: next.id, actorId });
     }
+    if (runtime.episodeDecision !== undefined) {
+      const decision = object(runtime.episodeDecision);
+      if (
+        !decision ||
+        !same(decision, proposal.episodeDecision) ||
+        !text(decision.requestId) ||
+        !['engage', 'decline', 'defer', 'need_information', 'quiet'].includes(
+          String(decision.choice),
+        )
+      )
+        throw Error('INVALID_AWARENESS_EPISODE_DECISION');
+      // A sourced participant response warrants later global coordination; it
+      // is not a canonical incident, a player decision or a completed event.
+      reason('cross_impact', { kind: 'event', id: event.id });
+    }
     const proposedDecisionIds = new Set(
       Array.isArray(proposal.decisions) ? proposal.decisions.map((d) => object(d)?.id) : [],
     );
