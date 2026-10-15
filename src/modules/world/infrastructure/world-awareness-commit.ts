@@ -7,6 +7,17 @@ export async function projectAgentWorldChange(
   worldId: string,
   eventId: string,
 ) {
+  // Epoch1's legacy queue worker has no grants on Agent tables. Its world write
+  // has already passed the DB epoch fence; do not query new owner-only tables
+  // merely to discover that this is an old-engine commit. Epoch2 task execution
+  // uses the trusted application facade and reaches the projection below.
+  const role = (
+    await sql.query(
+      `SELECT pg_has_role(current_user,'pl_worker','MEMBER') AS worker,
+            pg_has_role(current_user,'pl_app','MEMBER') AS app`,
+    )
+  ).rows[0];
+  if (role?.worker && !role.app) return;
   const control = (
     await sql.query(
       'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
