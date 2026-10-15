@@ -1,3 +1,4 @@
+import { authoredSourceExcerpt } from '../../world/domain/authored-source-excerpt.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { createHash } from 'node:crypto';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
@@ -47,41 +48,13 @@ export type PublicationGoalContext = {
   value: ProgressLedgerDefinition;
   progress: PersistedStoryEventProgress;
 };
-/** Pick intact authored units for context; the full source remains stored unchanged. */
+/** Budgeted source excerpts only; full authored modules remain unchanged in storage. */
 export function selectCharacterSource(
   value: string | undefined,
   query: string,
   limit = 1200,
 ): string {
-  if (!value?.trim()) return '';
-  if (value.length <= limit) return value;
-  const units = value
-    .split(/\n\s*\n|\n/u)
-    .flatMap((unit) => (unit.length > limit ? unit.split(/(?<=[。！？；])/u) : [unit]))
-    .map((unit) => unit.trim())
-    .filter(Boolean);
-  const words = query.match(/[\p{Script=Han}]{2,}|[a-zA-Z]{3,}/gu) ?? [];
-  const ranked = units
-    .map((unit, index) => ({
-      unit,
-      index,
-      score: words.reduce((n, word) => n + (unit.includes(word) ? 1 : 0), 0),
-    }))
-    .sort((a, b) => b.score - a.score || a.index - b.index);
-  const picked: typeof ranked = [];
-  let size = 0;
-  for (const item of ranked) {
-    if (size + item.unit.length > limit) continue;
-    picked.push(item);
-    size += item.unit.length;
-    if (picked.length === 4) break;
-  }
-  // Never show a cut sentence as a complete authored statement.
-  if (!picked.length) return units[0] ?? '';
-  return picked
-    .sort((a, b) => a.index - b.index)
-    .map((x) => x.unit)
-    .join('\n');
+  return value ? authoredSourceExcerpt(value, query, limit, 4) : '';
 }
 export function publicationGoalDefinition(
   ownerId: string,

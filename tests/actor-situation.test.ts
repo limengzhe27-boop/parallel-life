@@ -46,11 +46,13 @@ test('oversize personality preserves every supplied dimension as intact source u
   }
   assert(JSON.stringify(selected).length < 9000);
 });
-test('an indivisible pathological persona fails explicitly rather than quietly disappearing', () => {
-  assert.throws(
-    () => selectActorPersona({ traits: 'x'.repeat(20000) }, ''),
-    /ACTOR_PERSONA_UNIT_EXCEEDS_BUDGET/,
-  );
+test('an indivisible long persona remains usable as a bounded source excerpt', () => {
+  const source = 'x'.repeat(20000);
+  const selected = selectActorPersona({ traits: source }, '')!;
+  assert(selected.traits!.length > 0);
+  assert(selected.traits!.length <= 1600);
+  for (const part of selected.traits!.split('\n')) assert(source.includes(part));
+  assert.equal(source.length, 20000);
 });
 test('personality and present situation survive optional recall pressure without mutating sources', () => {
   const input = {
