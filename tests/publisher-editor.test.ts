@@ -380,4 +380,3 @@ test('updateActorInContent allows clearing background, voice, motivation and bou
   assert.equal(persona.boundaries, '');
   assert.equal(persona.motivation, '');
 });
-

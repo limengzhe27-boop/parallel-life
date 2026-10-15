@@ -310,12 +310,8 @@ export function updateActorInContent(
     ...existingPrivatePersona,
     ...(changed('background') ? { background: form.background } : {}),
     ...(changed('voice') ? { voice: form.voice } : {}),
-    ...(changed('caresAbout') || changed('immediateGoal')
-      ? { motivation: motivationText }
-      : {}),
-    ...(changed('boundaries')
-      ? { boundaries: form.boundaries }
-      : {}),
+    ...(changed('caresAbout') || changed('immediateGoal') ? { motivation: motivationText } : {}),
+    ...(changed('boundaries') ? { boundaries: form.boundaries } : {}),
   };
 
   if (actorIdx < 0) {

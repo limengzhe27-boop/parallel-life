@@ -149,18 +149,15 @@ export class PublisherClient {
               ? 'image/jpeg'
               : '');
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'];
-    if (!allowed.includes(mimeType))
-      throw new Error('请选择 JPG、PNG、WebP 图片或 MP4 视频。');
+    if (!allowed.includes(mimeType)) throw new Error('请选择 JPG、PNG、WebP 图片或 MP4 视频。');
     const limit = mimeType === 'video/mp4' ? 50_000_000 : 10_000_000;
     if (!file.size || file.size > limit)
       throw new Error(mimeType === 'video/mp4' ? '视频不能超过 50 MB。' : '图片不能超过 10 MB。');
     const path = '/works/' + encodeURIComponent(workId) + '/media';
-    const start = await this.request(
-      path,
-      MediaUploadStartSchema,
-      'POST',
-      { mimeType, byteLength: file.size },
-    );
+    const start = await this.request(path, MediaUploadStartSchema, 'POST', {
+      mimeType,
+      byteLength: file.size,
+    });
     if (
       start.mimeType !== mimeType ||
       start.byteLength !== file.size ||
