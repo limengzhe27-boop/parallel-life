@@ -346,6 +346,38 @@ export async function validateEpisodeConsiderationInputInTransaction(
   checkedInput(body, r, definitionRef);
   return r;
 }
+/** Send-only fence. Reading a consumed source remains valid for the actor's own history. */
+export async function requireUnpaidEpisodeRequestInTransaction(
+  sql: SqlClient,
+  owner: string,
+  body: AgentInputReceipt,
+  definitionRef: string,
+  attemptId: string,
+) {
+  const r = await validateEpisodeConsiderationInputInTransaction(sql, owner, body, definitionRef);
+  const forbidden = () => {
+    throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
+  };
+  if (r.status !== 'pending' || r.inputReceiptId !== null || r.receiptId !== null) forbidden();
+  const paid = await sql.query(
+    `SELECT i.document FROM parallel_life.agent_attempts a
+     JOIN parallel_life.agent_input_receipts i
+       ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
+     WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$4
+       AND a.id<>$5 AND (a.sent_at IS NOT NULL OR a.response_hash IS NOT NULL)`,
+    [r.worldId, owner, r.actorId, r.engineEpoch, attemptId],
+  );
+  for (const previous of paid.rows) {
+    if (previous.document?.origin !== 'coordination') continue;
+    let intent: any;
+    try {
+      intent = JSON.parse(previous.document.text);
+    } catch {
+      continue;
+    }
+    if (intent?.type === 'npc_episode_consideration' && intent.requestId === r.id) forbidden();
+  }
+}
 /** Final internal step only: receipt and consumed request must commit together (deferred SQL FK). */
 async function consumeEpisodeRequestInTransaction(
   sql: SqlClient,

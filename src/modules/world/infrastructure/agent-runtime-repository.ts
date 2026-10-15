@@ -22,7 +22,7 @@ import { transitionAgentAttempt } from '../domain/agent-runtime.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { validateActorEpisodeIntentSnapshotInTransaction } from './actor-episode-intent-repository.ts';
 import { readActorStrategyBasis } from './agent-source-resolver.ts';
-import { validateEpisodeConsiderationInputInTransaction } from './agent-narrative-repository.ts';
+import { requireUnpaidEpisodeRequestInTransaction } from './agent-narrative-repository.ts';
 
 export class AgentRuntimePersistenceError extends Error {
   readonly code: string;
@@ -571,11 +571,12 @@ export class PostgresAgentRuntimeRepository
             fail('INPUT_SCOPE_FORBIDDEN');
           if (isEpisodeConsiderationInput(receipt)) {
             try {
-              await validateEpisodeConsiderationInputInTransaction(
+              await requireUnpaidEpisodeRequestInTransaction(
                 sql,
                 ownerId,
                 receipt,
                 snapshot.state.definitionRef,
+                expected.id,
               );
             } catch {
               fail('INPUT_SCOPE_FORBIDDEN');
