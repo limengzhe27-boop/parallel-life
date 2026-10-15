@@ -151,7 +151,11 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
               status: context.selfPosition.status,
               placeId: context.selfPosition.placeId,
               ...(context.selfPosition.occurredAt
-                ? { occurredAt: context.selfPosition.occurredAt }
+                ? {
+                    occurredAt: context.selfPosition.occurredAt,
+                    occurredAtLocal: awarenessLocalTime(context.selfPosition.occurredAt)
+                      .localDateTime,
+                  }
                 : {}),
               ...(context.selfPosition.sourceId ? { sourceId: context.selfPosition.sourceId } : {}),
             },
@@ -164,7 +168,14 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
               placeId: k.placeId,
               sourceKind: k.sourceKind,
               occurredAt: k.occurredAt,
+              occurredAtLocal: k.occurredAt ? awarenessLocalTime(k.occurredAt).localDateTime : null,
               learnedAt: k.learnedAt,
+              learnedAtLocal: awarenessLocalTime(k.learnedAt).localDateTime,
+              // Preserve what was actually claimed (e.g. "last week"), not the
+              // internal receipt pointer or an invented verified location.
+              ...(k.sourceKind === 'player_report' && k.evidence?.quote
+                ? { reportedQuote: k.evidence.quote }
+                : {}),
               possiblyStale: true,
               sourceId: k.sourceId,
             })),
@@ -177,7 +188,13 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       usage: s.usage ?? 'channel_context',
       worldVersion: s.worldVersion,
       at: s.at,
-      ...(s.deadlineAt === undefined ? {} : { deadlineAt: s.deadlineAt }),
+      localDateTime: awarenessLocalTime(s.at).localDateTime,
+      ...(s.deadlineAt === undefined
+        ? {}
+        : {
+            deadlineAt: s.deadlineAt,
+            deadlineLocalDateTime: awarenessLocalTime(s.deadlineAt).localDateTime,
+          }),
     })),
     observations: snapshot.observations.map((o) => ({
       sourceId: o.sourceId,

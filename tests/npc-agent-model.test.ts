@@ -322,6 +322,51 @@ test('only explicit server deadline is carried as source data, without exposing 
   assert(!('recordId' in payload.sources[0]));
 });
 
+test('code provides separate local occurrence and learning time plus the exact unverified position claim', async () => {
+  const input = snapshot();
+  input.worldContext = {
+    time: {
+      storyAt: '2026-10-15T08:00:00.000Z',
+      timeZone: 'UTC+08:00',
+      localDateTime: '2026-10-15T16:00:00',
+    },
+    boundary: {
+      actorIds: ['actor-a'],
+      placeIds: ['cafe'],
+      capabilityIds: [],
+      extensionPermission: 'none',
+    },
+    selfPosition: { status: 'unknown', placeId: null },
+    knowledge: [
+      {
+        subject: { kind: 'player' },
+        kind: 'report',
+        placeId: 'cafe',
+        sourceKind: 'player_report',
+        occurredAt: null,
+        learnedAt: '2026-10-15T07:40:00Z',
+        possiblyStale: true,
+        sourceId: 'source-1',
+        evidence: {
+          inputReceiptId: 'INTERNAL_RECEIPT_DO_NOT_SEND',
+          quote: '我上周在咖啡馆见过他。',
+        },
+      },
+    ],
+  };
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content),
+    knowledge = payload.worldContext.knowledge[0];
+  assert.equal(knowledge.occurredAt, null);
+  assert.equal(knowledge.occurredAtLocal, null);
+  assert.equal(knowledge.learnedAtLocal, '2026-10-15T15:40:00');
+  assert.equal(knowledge.sourceKind, 'player_report');
+  assert.equal(knowledge.reportedQuote, '我上周在咖啡馆见过他。');
+  assert.equal(payload.sources[0].localDateTime, '2026-10-15T16:00:00');
+  assert(!calls[0]!.messages[1]!.content.includes('INTERNAL_RECEIPT_DO_NOT_SEND'));
+});
+
 test('accepted input receipt is an opaque source, not relabelled as a committed message', async () => {
   const input = snapshot();
   Object.assign(input.sources[0]!, { kind: 'accepted_input', id: 'input-receipt-1' });
