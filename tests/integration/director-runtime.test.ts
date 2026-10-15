@@ -830,6 +830,34 @@ test('director persistence: protected finite attempts, complete observation rang
     },
   );
   await t.test(
+    'direct SQL commit boundary rejects selected blocked work even without the model parser',
+    async () => {
+      const f = await fixture();
+      f.snapshot.blockers = [
+        {
+          scope: { kind: 'actor', actorId: f.a },
+          reason: 'unknown_attempt',
+          sourceId: 'pending-a',
+          reconsiderOn: [],
+        },
+      ];
+      const a = await received(f),
+        d = decision(f.snapshot, a);
+      d.mode = 'coordinate';
+      d.selectedCandidateIds = ['candidate-a'];
+      d.deferred = [];
+      await assert.rejects(repository.commit(f.owner, a, f.snapshot, d), {
+        code: 'DIRECTOR_CANDIDATE_CONFLICT',
+      });
+      assert.equal(await total('director_decisions', f.id), 0);
+      assert.equal(await total('world_events', f.id), 0);
+      assert.equal(
+        (await repository.lookup(f.owner, f.id, a.commandId))?.status,
+        'response_received',
+      );
+    },
+  );
+  await t.test(
     'owner RLS and actual app role isolate protected snapshots/raw/audit; worker has no new grants',
     async () => {
       const f = await fixture(),

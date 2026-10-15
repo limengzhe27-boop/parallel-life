@@ -189,6 +189,28 @@ test('typed nudge uses the selected candidate actor and only that candidate alre
   ])
     rejected(f, { ...f.coordinate, nudges: [n] });
 });
+test('director selection cannot override a scoped deterministic blocker', () => {
+  const f = fixture();
+  f.snapshot.blockers = [
+    {
+      scope: { kind: 'actor', actorId: 'a' },
+      reason: 'unknown_attempt',
+      sourceId: 'pending-a',
+      reconsiderOn: [],
+    },
+  ];
+  rejected(f, f.coordinate);
+  assert.equal(f.parse(f.quiet).mode, 'quiet');
+  assert.deepEqual(
+    f.parse({
+      ...f.coordinate,
+      selectedCandidateIds: ['candidate-b'],
+      deferred: [{ candidateId: 'candidate-a', reason: '原结果尚不明确' }],
+      nudges: [],
+    }).selectedCandidateIds,
+    ['candidate-b'],
+  );
+});
 test('global private audit and opportunity prose are never converted into free-text NPC instructions', () => {
   const f = fixture(),
     d = f.parse({

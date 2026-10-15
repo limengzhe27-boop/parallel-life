@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { DirectorAttemptStore } from '../application/director-runtime-ports.ts';
 import type {
@@ -810,6 +811,12 @@ export class PostgresDirectorRuntimeRepository implements DirectorAttemptStore {
       partition.some((id) => !candidates.has(id))
     )
       fail('DIRECTOR_CANDIDATE_PARTITION');
+    if (
+      d.selectedCandidateIds.some((id) =>
+        s.blockers.some((b) => agentScopeBlocks(b.scope, candidates.get(id)!)),
+      )
+    )
+      fail('DIRECTOR_CANDIDATE_CONFLICT');
     if (
       d.mode === 'quiet' &&
       (d.selectedCandidateIds.length || d.nudges.length || d.opportunities.length)

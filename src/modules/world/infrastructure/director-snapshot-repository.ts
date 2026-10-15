@@ -363,7 +363,23 @@ async function evidence(
         h.world.id,
       ])
     ).rows[0]?.setting ?? null;
-  const worldSetting = JSON.stringify({ genesis: { title: initial!.title }, authored: setting });
+  const worldSetting = JSON.stringify({
+    genesis: {
+      title: initial!.title,
+      startAt: initial!.time,
+      mapConfiguration: {
+        meaning: '已有地点设定，不代表任何人物实际在场或玩家已经到达',
+        places: (initial!.space?.places ?? []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+        })),
+      },
+      playerNotes: (initial!.notes ?? []).map((n) => ({ id: n.id, title: n.title, text: n.text })),
+      notesMeaning: '玩家开场便签的原文；便签中的说法不是已核实结果，也不代表所有人物知情',
+    },
+    authored: setting,
+  });
   if (worldSetting.length > 100000) fail('DIRECTOR_SNAPSHOT_BUDGET_EXCEEDED');
   add(
     `setting:${h.world.id}`,

@@ -7,6 +7,7 @@ import type {
   DirectorSnapshot,
 } from '../domain/director-runtime.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
+import { agentScopeBlocks } from '../application/schedule-agents.ts';
 export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v1-bounded';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
@@ -82,6 +83,12 @@ export function parseDirectorDecision(
   ]);
   const accounted = new Set(selected);
   if ([...selected].some((id) => !candidates.has(id))) invalid();
+  if (
+    [...selected].some((id) =>
+      snapshot.blockers.some((b) => agentScopeBlocks(b.scope, candidates.get(id)!)),
+    )
+  )
+    invalid();
   for (const d of value.deferred) {
     if (!candidates.has(d.candidateId) || accounted.has(d.candidateId)) invalid();
     accounted.add(d.candidateId);

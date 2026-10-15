@@ -231,6 +231,10 @@ test('real director snapshot is one coherent readonly fictional-world view with 
       assert.equal(JSON.stringify(s).includes('REAL_PRIVATE_SENTINEL'), false);
       assert.equal(JSON.stringify(s).includes('REAL_PERSON_IDENTIFIER'), false);
       assert.equal(JSON.stringify(s).includes('UNRELATED_AUTHORED_HISTORY'), false);
+      const setting = JSON.parse(s.worldSetting!);
+      assert.equal(setting.genesis.mapConfiguration.places[0].description, '虚构地点');
+      assert.equal(setting.genesis.mapConfiguration.places[0].contactActorIds, undefined);
+      assert.match(setting.genesis.mapConfiguration.meaning, /不代表/);
       assert.deepEqual(await count(f), before);
       const raw = await repo.readEvidence(f.owner, {
         ...input(f),
