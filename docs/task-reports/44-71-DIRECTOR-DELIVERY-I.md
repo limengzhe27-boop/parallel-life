@@ -31,3 +31,5 @@ check2936/2936；最终边界补充后build通过。D72独立验收新的真实�
 发布前只读审查发现P2：普通无evaluationCause的全局协调也可能被发送前取消，其固定frame command导致恢复时INVALID_STATE。root9c51f896/3367a574已补同帧零发送前驱读取与稳定后继；scope/current/source/epoch/版本重验，sent_at和response_hash都必须NULL，完整语义帧匹配，排序不依赖数据库collation。paid/unknown绝不进入后继集合。没有取消记录时保留原命令身份。
 
 D72增量实际PG **21/21**，包含已完成bootstrap后真实travel产生普通全局变化、claim内暂停、同V恢复一次，以及普通paid unknown仍无后继。root最终源联合 **36/36，无fail/skip**；前批受影响联合63/63保留，不能把两次相加冒充独立测试数。最终check2936/build/类型/格式通过。中间c104f98e已READY但含上述已定位恢复缺口，不作为最终71交付，最新修复部署接续中。
+
+最终71限定交付已上线：b02692550140893d2c1d996a2981c774b7f53a95 / dpl_6MjBdaUAXLwpBTYbEdJmYo13TCUt READY，精确SHA与Nu正式别名核实。2026-10-15T18:41:47.535Z公网health/workbench/published200，匿名publications/publisherworks401。0真实模型/生产测试世界/epoch2切换，完整重构仍未完成。

@@ -1,4 +1,12 @@
-## 2026-10-16 · 44-71 导演活跃边界待部署
+## 2026-10-16 · 44-67 限定作者建议交接待部署
+
+同一人物入口接作者明确指向本人的消息/单人邀请建议；独立来源、发送前及提交再校验、持久策略/遗忘和预算保护。实际不可变请求控制发送，已消费/付费请求不能换命令重买。普通自由文本事件、实际事件结果、完整观察和旧档迁移仍未完成，生产不启用epoch2。
+
+check2964、build、格式通过；根关联真实PG53与最终增量组28分别通过，不相加作独立数。2026-10-15T19:07:56.913Z生产只读81/81 checksum及保护数据核验一致，epoch2=0。0模型/0生产测试世界/0图片，无新SQL。READY和公网证据待实际追加，见[67报告](task-reports/44-67-ACTOR-SCOPED-EPISODE-I.md)。
+
+## 2026-10-16 · 44-71 导演活跃边界已上线
+
+最终限定业务 b02692550140893d2c1d996a2981c774b7f53a95 / dpl_6MjBdaUAXLwpBTYbEdJmYo13TCUt READY，Nu正式别名与精确SHA核实。2026-10-15T18:41:47.535Z公网health/workbench/published200、匿名publications/publisherworks401；生产epoch2仍0。下列“待部署”为当时过程记录，最终结果以此段及71报告为准。
 
 同一持久导演claim/send/commit/recovery加活动与新机会焦点边界，最终SQL再次检查，暂缓由实际advance安静呈现。仅确认零发送才允许稳定bootstrap后继；paid raw/unknown保留。check2936、最终相关真实PG63、build/format通过；无新迁移，生产81 checksum及保护数据只读核验，epoch2仍0。普通NPC/player/wake发送竞态、具体事件逐人物交接、实际事件结果和旧档接管仍未完成。见[71报告](task-reports/44-71-DIRECTOR-DELIVERY-I.md)。READY及公网证据待实际追加。
 
