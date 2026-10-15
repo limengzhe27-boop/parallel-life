@@ -1,3 +1,9 @@
+## 2026-10-16 · MA-ARCH-44 阶段七受控执行与真实证据
+
+阶段七正式上线：360fd19859b660e6bf126d7d2bfe20f954701be4 / dpl_8HuieomDunPp2eDvLBEEyBFCTgCM READY，Nu正式别名与精确SHA核实；公网2026-10-15T16:00:35.875Z health/workbench/published200、匿名publications及publisherworks401。生产80核验，未启用epoch2、未创建真实模型测试world。本次没有新增浏览器会话或冒充匿名login检查为完整phone旅程。51可选试演证据和52删除假目击属于已上线限定范围，完整44继续进行；55正在处理实际旧引擎地点回复回滚。
+
+最终check2875/2875、build、format过；实际PG发布/回执/notes/arrival45/45、perception/space/awareness/kernel43/43，kernel出发与到达等已有单项证据见[阶段七报告](task-reports/MA-ARCH-44-PHASE7-I.md)。完整库仍有已逐项归因的遗留失败，不称全绿。12倍浏览/1倍交谈/离开暂停保留；人物真实位置不广播他人。0本轮真实模型、0生产测试世界，不沿用已闭账模型额度。
+
 ## 2026-10-15 · NPC40/41/42 integration — partial product acceptance
 
 Business `0aa90f6c` deployed READY as `dpl_7VzXo2TTbU2enRKzQJTw6p8NNN2D`, formal `https://parallel-life-nu.vercel.app`. Production71 migrations unchanged and checksums verified. Actor-specific source excerpts, shared director observation, receipt-backed event goals and bounded stale-request recovery integrated. Invalid optional model annotation groups are rejected without losing otherwise valid real NPC dialogue; effects and persistence remain strictly checked.

@@ -17,3 +17,7 @@
 仍未完成：作者开场/事件库世界级资格、导演机会到各NPC的交接及共享生命周期；完整观察范围/事后发现与实际消费回执；旧调用排空、存档迁移和旧引擎删除；真实模型连续旅程。44-52正删除“同地点/现场成员自动亲眼看见离开”的无依据推断，44-53只读设计复用现 kernel/73认知/候选，不建新知识队列。0本轮真实模型、0生产测试世界、不切换人类存档。
 
 最终集成：da90b78a接44-52源码，root旧world-space断言同步为无伪造目击，实际数据库43/43通过。source已删除无依据departureObservation，旧带观察包的历史重放保留，玩家主动告知仍为report而非亲眼。最终check2875/2875、build、format通过（首次最终check发现root新增测试对unknown data缺类型收窄，补真实对象/事件类型断言后串行复验通过）。只读54将余下12叶项逐一与1028基线对照，其中地图新发现导致同事务版本错配是仍影响旧线上引擎的真实缺陷；44-55正在独立修复，不能称以后删除旧引擎即可忽略。53记录真实rendered manifest才可消费新观察；无完整room覆盖不推断无人/去向。0真实模型，受保护生产数据无改动；部署READY待核。
+
+阶段七正式上线：360fd19859b660e6bf126d7d2bfe20f954701be4 / dpl_8HuieomDunPp2eDvLBEEyBFCTgCM READY，Nu正式别名与精确SHA核实；公网2026-10-15T16:00:35.875Z health/workbench/published200、匿名publications及publisherworks401。生产80核验，未启用epoch2、未创建真实模型测试world。本次没有新增浏览器会话或冒充匿名login检查为完整phone旅程。51可选试演证据和52删除假目击属于已上线限定范围，完整44继续进行；55正在处理实际旧引擎地点回复回滚。
+
+44-55 root integration1ba05a5f+7b210e24: actual PG45/45 (story31 including wrongactor rollback/recovery, publication flow, native questions/travel), check2875/2875/build/format pass. NPC message vN plus real place discovery vN+1 now returns one frozen final causal receipt; context and replay agree, sourceevent identity stays original. No new migration or native legacyProgress:false change; production80 checksum/protected data reverified before push. No real models. READY/public pending.
