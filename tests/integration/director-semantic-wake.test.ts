@@ -211,10 +211,13 @@ test('actual publication semantic wake advances use one protected Director bound
         return undefined;
       },
     });
-  async function fixture(options: { admit?: boolean; proof?: boolean } = {}) {
+  async function fixture(options: { admit?: boolean; proof?: boolean; multi?: boolean } = {}) {
     const content = structuredClone(base);
     if (options.proof)
       content.candidates.push(node('fallback', [], { conditionKeys: ['alternative_evidence'] }));
+    if (options.multi)
+      for (const key of ['aa', 'a_b'])
+        content.candidates.push(node(key, [{ kind: 'not_before', at: time(10) }]));
     const parsed = PublishedWorldContentSchema.parse(content),
       work = await stableWorks.create(staff, {
         commandId: randomUUID(),
@@ -493,6 +496,25 @@ test('actual publication semantic wake advances use one protected Director bound
         ).rows[0].n,
         0,
       );
+    },
+  );
+  await t.test(
+    'multiple newly eligible qualifications use stable byte ordering through actual snapshot and one model call',
+    async () => {
+      const f = await fixture({ multi: true }),
+        h = await bootstrap(f);
+      await at(f, time(10));
+      const s = await snap(f);
+      assert.deepEqual(causeKeys(s), ['a', 'a_b', 'aa']);
+      const id = s.evaluationCause!.id;
+      await at(f, time(10, 0, 3));
+      assert.equal((await snap(f)).evaluationCause!.id, id);
+      await h.advance();
+      assert.equal(h.director().length, 2);
+      assert.deepEqual(causeKeys(h.director()[1]!.payload), ['a', 'a_b', 'aa']);
+      await h.advance();
+      assert.equal(h.director().length, 2);
+      assert.equal((await wake(f)).cause, null);
     },
   );
   await t.test(
