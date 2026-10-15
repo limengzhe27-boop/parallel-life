@@ -54,9 +54,8 @@ export async function commitDueAgentArrival(
     input.expectedWorldVersion < 0
   )
     throw new DomainError('INVALID_COMMAND');
-  const scope = { ...input },
-    realNow = input.realNow ?? new Date().toISOString();
-  isoInstant(realNow);
+  const scope = { ...input };
+  if (scope.realNow !== undefined) isoInstant(scope.realNow);
   return db.transaction(ownerId, async (sql) => {
     const auth = (
       await sql.query(`SELECT current_setting('app.user_id',true) owner_id,
@@ -91,6 +90,9 @@ export async function commitDueAgentArrival(
         [world.id, ownerId],
       )
     ).rows[0];
+    // A different tab may advance the clock anchor while this operation waits for the world lock.
+    // Production time is sampled after those locks; explicit test instants retain strict regression checks.
+    const realNow = scope.realNow ?? new Date().toISOString();
     if (!clockRow || readableActivityClock(storedActivityClock(clockRow), realNow).paused)
       return { status: 'quiet' };
     if (Date.parse(realNow) < Date.parse(storedActivityClock(clockRow).lastTickAt))
