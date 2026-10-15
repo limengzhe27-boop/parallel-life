@@ -19,3 +19,5 @@
 D78独立真实PG11/11/type/格式通过，已集成两新文件；真实publisher/compiler/binding的隐藏地点不进本人context，不能仅凭boundary伪造授权。实际私聊、quiet advance、原生群聊及真实world history均保留地点；真实接受、玩家出发和等待验证不提前出席；晚期SQL失败原raw零新增模型恢复。根最终同专项重跑/类型结果待追加。2026-10-15T19:37:28.502Z生产只读82/82校验和一致，保护原稿/副本/玩家world未变，epoch2=0。
 
 根最终专项11/11、集成类型/格式/diff通过，所有用例0skip。与check2964/build及关联真实PG61分别记录，不能将多次执行相加当独立覆盖数。无新SQL。READY、公网证据待实际追加。
+
+限定业务0dc2279e7802f64d4b2db91a03b44c1bd2281ab3 / dpl_5vjYnk361pyyb2xvnw62MsBwGXnc 已READY，Vercel精确SHA及Nu正式别名核实。2026-10-15T19:48:52.670Z公网health/workbench/published200、匿名publications/publisherworks401。仅本批邀请地点链路完成，不将匿名页面检查当成真实模型旅程；生产epoch2仍0，44/68未完成。
