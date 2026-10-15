@@ -92,6 +92,7 @@ export function parseDirectorDecision(
       (n) =>
         !selected.has(n.candidateId) ||
         candidates.get(n.candidateId)!.actorId !== n.actorId ||
+        new Set(n.basisSourceIds).size !== n.basisSourceIds.length ||
         n.basisSourceIds.some((s) => !candidates.get(n.candidateId)!.sourceIds.includes(s)),
     )
   )
@@ -99,6 +100,7 @@ export function parseDirectorDecision(
   if (new Set(value.nudges.map((n) => n.candidateId)).size !== value.nudges.length) invalid();
   if (new Set(value.opportunities.map((o) => o.id)).size !== value.opportunities.length) invalid();
   if (value.audit.basisSourceIds.some((id) => !sources.has(id))) invalid();
+  if (new Set(value.audit.basisSourceIds).size !== value.audit.basisSourceIds.length) invalid();
   if (
     value.opportunities.some(
       (o) =>
@@ -145,6 +147,8 @@ function request(snapshot: DirectorSnapshot) {
     snapshot.boundary.worldId !== snapshot.worldId ||
     snapshot.observedThroughVersion !== snapshot.worldVersion ||
     snapshot.boundary.extensionPermission !== 'none' ||
+    snapshot.candidates.length > 128 ||
+    new Set(snapshot.candidates.map((c) => c.id)).size !== snapshot.candidates.length ||
     !Number.isFinite(Date.parse(snapshot.storyAt))
   )
     invalid();
