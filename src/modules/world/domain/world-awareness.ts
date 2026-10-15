@@ -1,6 +1,8 @@
 import type { WorldState } from './types.ts';
 import type { ActorAgentState } from './agent-runtime.ts';
 import type { SceneSession, Participant } from './experience-rules.ts';
+import type { AgentJourney } from './agent-travel.ts';
+import { worldDateTimeInput } from './display-time.ts';
 
 export type AwarenessSubject = Participant;
 export type WorldBoundary = {
@@ -107,7 +109,12 @@ const instant = (value: unknown): value is string =>
 export function committedAwarenessDelta(
   world: WorldState,
   event: CommittedAwarenessEvent,
-  context: { previousAgentState?: ActorAgentState; scene?: SceneSession } = {},
+  context: {
+    previousAgentState?: ActorAgentState;
+    scene?: SceneSession;
+    /** Same-UoW authenticated original ledger row, never an NPC assertion. */
+    journey?: AgentJourney;
+  } = {},
 ): AwarenessDelta {
   const delta: AwarenessDelta = { positions: [], knowledge: [], reasons: [] };
   if (
@@ -119,9 +126,101 @@ export function committedAwarenessDelta(
   )
     throw Error('INVALID_AWARENESS_EVENT');
   const data = object(event.data);
-  if (!data) return delta;
+  if (!data) {
+    if (event.type === 'agent.arrival_committed') throw Error('INVALID_AWARENESS_ARRIVAL');
+    return delta;
+  }
   const actorIds = new Set(world.actors.map((actor) => actor.id));
   const placeIds = new Set(world.space?.places.map((place) => place.id) ?? []);
+  const text = (value: unknown): value is string => typeof value === 'string' && !!value.trim();
+  const positive = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+  const time = (value: unknown): number =>
+    typeof value === 'string' && worldDateTimeInput(value) ? Date.parse(value) : NaN;
+  // Compare JSON structure rather than property insertion order; no input object is mutated.
+  const same = (a: unknown, b: unknown): boolean => {
+    if (a === b) return true;
+    if (Array.isArray(a) || Array.isArray(b))
+      return (
+        Array.isArray(a) &&
+        Array.isArray(b) &&
+        a.length === b.length &&
+        a.every((v, i) => same(v, b[i]))
+      );
+    const left = object(a),
+      right = object(b);
+    return (
+      !!left &&
+      !!right &&
+      Object.keys(left).length === Object.keys(right).length &&
+      Object.keys(left).every((key) => Object.hasOwn(right, key) && same(left[key], right[key]))
+    );
+  };
+  const checkedJourney = (value: unknown): AgentJourney => {
+    const j = object(value),
+      origin = object(j?.origin),
+      subject = object(origin?.subject),
+      route = object(j?.route),
+      source = object(route?.source),
+      departure = object(j?.departure);
+    if (!j || !origin || !subject || !route || !source || !departure)
+      throw Error('INVALID_AWARENESS_JOURNEY');
+    const validSource =
+      source.snapshotVersion === 0 &&
+      ((source.kind === 'system_policy' && source.policy === 'default_travel_v1') ||
+        (source.kind === 'seed_genesis' && text(source.seedId)) ||
+        (source.kind === 'official_genesis' &&
+          text(source.presetId) &&
+          positive(source.contentVersion)) ||
+        (source.kind === 'world_event' &&
+          text(source.eventId) &&
+          positive(source.eventVersion) &&
+          positive(j.preparedAtVersion) &&
+          source.eventVersion <= j.preparedAtVersion));
+    if (
+      !text(j.id) ||
+      !/^[a-zA-Z0-9_-]{1,56}$/.test(j.id) ||
+      j.worldId !== world.id ||
+      !text(j.actorId) ||
+      !actorIds.has(j.actorId) ||
+      !text(j.beginActionId) ||
+      !positive(j.preparedAtVersion) ||
+      origin.worldId !== world.id ||
+      subject.kind !== 'actor' ||
+      subject.actorId !== j.actorId ||
+      origin.status !== 'at' ||
+      !text(origin.sourceEventId) ||
+      !positive(origin.worldVersion) ||
+      origin.worldVersion > j.preparedAtVersion ||
+      !Number.isFinite(time(origin.occurredAt)) ||
+      !Number.isFinite(time(j.departedAt)) ||
+      time(origin.occurredAt) > time(j.departedAt) ||
+      !text(route.id) ||
+      !text(route.modeLabel) ||
+      !text(route.fromPlaceId) ||
+      !text(route.toPlaceId) ||
+      route.fromPlaceId === route.toPlaceId ||
+      !placeIds.has(route.fromPlaceId) ||
+      !placeIds.has(route.toPlaceId) ||
+      origin.placeId !== route.fromPlaceId ||
+      !positive(route.durationMinutes) ||
+      route.durationMinutes > 120 ||
+      !validSource ||
+      !Number.isFinite(time(j.plannedArrivalAt)) ||
+      time(j.plannedArrivalAt) !== time(j.departedAt) + route.durationMinutes * 60_000 ||
+      departure.worldId !== world.id ||
+      departure.actorId !== j.actorId ||
+      departure.actionId !== j.beginActionId ||
+      !text(departure.id) ||
+      !text(departure.eventId) ||
+      departure.eventId === origin.sourceEventId ||
+      departure.outcome !== 'succeeded' ||
+      departure.worldVersion !== j.preparedAtVersion + 1 ||
+      time(departure.at) !== time(j.departedAt)
+    )
+      throw Error('INVALID_AWARENESS_JOURNEY');
+    return value as AgentJourney;
+  };
   const reason = (kind: DirectorPendingReason['kind'], ref: DirectorPendingReason['ref']) => {
     delta.reasons.push({
       id: `${event.id}:${kind}:${ref.id}`,
@@ -186,6 +285,55 @@ export function committedAwarenessDelta(
     }
     reason('new_condition', { kind: 'event', id: event.id });
   }
+  if (event.type === 'agent.arrival_committed') {
+    // Arrival is a server physical continuation, not another goal-bound NPC action.
+    const journey = checkedJourney(context.journey),
+      arrival = object(data.arrival);
+    const expectedKeys = ['actorId', 'journeyId', 'departureEventId', 'route', 'arrival'];
+    if (
+      !arrival ||
+      !text(event.id) ||
+      Object.keys(data).length !== expectedKeys.length ||
+      expectedKeys.some((key) => !Object.hasOwn(data, key)) ||
+      data.actorId !== journey.actorId ||
+      data.journeyId !== journey.id ||
+      data.departureEventId !== journey.departure.eventId ||
+      !same(data.route, journey.route) ||
+      event.id === journey.departure.eventId ||
+      event.id === journey.origin.sourceEventId ||
+      journey.departure.worldVersion >= event.version ||
+      !Number.isFinite(time(event.storyAt)) ||
+      time(event.storyAt) < time(journey.plannedArrivalAt) ||
+      !same(arrival, {
+        worldId: world.id,
+        actorId: journey.actorId,
+        id: arrival.id,
+        commandId: event.commandId,
+        eventId: event.id,
+        worldVersion: event.version,
+        at: arrival.at,
+        journeyId: journey.id,
+      }) ||
+      !text(arrival.id) ||
+      arrival.id === journey.departure.id ||
+      event.commandId !== `arrival_${journey.id}` ||
+      time(arrival.at) !== time(event.storyAt) ||
+      !(
+        (journey.status === 'in_transit' &&
+          journey.revision === 0 &&
+          !Object.hasOwn(journey, 'arrival')) ||
+        (journey.status === 'arrived' && journey.revision === 1 && same(journey.arrival, arrival))
+      )
+    )
+      throw Error('INVALID_AWARENESS_ARRIVAL');
+    position(
+      { kind: 'actor', actorId: journey.actorId },
+      journey.route.toPlaceId,
+      String(arrival.at),
+    );
+    // No observer packet exists in this protocol. Co-location alone grants no knowledge.
+    reason('new_condition', { kind: 'event', id: event.id });
+  }
   // Presence comes from the matching actual scene and its versioned intervals, never a contact roster.
   if (
     ['scene.opened', 'scene.entered', 'scene.action_resolved'].includes(event.type) &&
@@ -244,15 +392,15 @@ export function committedAwarenessDelta(
     }
   }
   const runtime = object(data.agentRuntime);
-  if (
-    runtime &&
-    [
-      'turn.resolved',
-      'agent.state_committed',
-      'group.turn_resolved',
-      'scene.reaction_recorded',
-    ].includes(event.type)
-  ) {
+  const runtimeEvent = [
+    'turn.resolved',
+    'agent.state_committed',
+    'group.turn_resolved',
+    'scene.reaction_recorded',
+  ].includes(event.type);
+  if (runtime?.departures !== undefined && !runtimeEvent)
+    throw Error('INVALID_AWARENESS_DEPARTURE');
+  if (runtime && runtimeEvent) {
     const state = runtime.stateAfter as ActorAgentState | undefined;
     const proposal = object(runtime.proposal);
     const actorId = data.actorId;
@@ -314,6 +462,54 @@ export function committedAwarenessDelta(
         throw Error('INVALID_AWARENESS_RESULTS');
       reason('action_result', { kind: 'action_result', id: result.id, actorId });
     }
+    if (runtime.departures !== undefined) {
+      if (!Array.isArray(runtime.departures) || runtime.departures.length > 1)
+        throw Error('INVALID_AWARENESS_DEPARTURE');
+      for (const value of runtime.departures) {
+        const journey = checkedJourney(value),
+          receipt = journey.departure;
+        const action = state.actions.filter((action) => action.id === journey.beginActionId);
+        const proposed = Array.isArray(proposal.actions)
+          ? proposal.actions.map(object).filter((action) => action?.id === journey.beginActionId)
+          : [];
+        const matching = runtime.results.map(object).filter((result) => result?.id === receipt.id);
+        if (
+          journey.status !== 'in_transit' ||
+          journey.revision !== 0 ||
+          Object.hasOwn(journey, 'arrival') ||
+          journey.actorId !== actorId ||
+          journey.preparedAtVersion !== event.version - 1 ||
+          receipt.eventId !== event.id ||
+          receipt.worldVersion !== event.version ||
+          !Number.isFinite(time(event.storyAt)) ||
+          time(journey.departedAt) !== time(event.storyAt) ||
+          !world.space?.routes.some((route) => same(route, journey.route)) ||
+          action.length !== 1 ||
+          action[0]!.capability !== 'travel.begin' ||
+          action[0]!.status !== 'succeeded' ||
+          action[0]!.resultId !== receipt.id ||
+          !same(action[0]!.parameters, { routeId: journey.route.id }) ||
+          proposed.length !== 1 ||
+          proposed[0]?.capability !== 'travel.begin' ||
+          !same(proposed[0]?.parameters, { routeId: journey.route.id }) ||
+          matching.length !== 1 ||
+          !Object.entries(receipt).every(([key, value]) =>
+            key === 'at' ? time(matching[0]?.at) === time(value) : matching[0]?.[key] === value,
+          )
+        )
+          throw Error('INVALID_AWARENESS_DEPARTURE');
+        delta.positions.push({
+          worldId: world.id,
+          subject: { kind: 'actor', actorId },
+          status: 'in_transit',
+          placeId: null,
+          sourceEventId: event.id,
+          worldVersion: event.version,
+          occurredAt: new Date(journey.departedAt).toISOString(),
+        });
+        reason('new_condition', { kind: 'event', id: event.id });
+      }
+    }
   }
   return delta;
 }
@@ -322,6 +518,15 @@ export function committedAwarenessDelta(
 export type AgentWorldContext = {
   time: { storyAt: string; timeZone: 'UTC+08:00'; localDateTime: string };
   boundary: Pick<WorldBoundary, 'actorIds' | 'placeIds' | 'capabilityIds' | 'extensionPermission'>;
+  /** Existing map choices from this NPC's sourced actual origin; not other actors' locations. */
+  travelRoutes?: {
+    id: string;
+    fromPlaceId: string;
+    toPlaceId: string;
+    toPlaceName: string;
+    durationMinutes: number;
+    modeLabel: string;
+  }[];
   selfPosition: {
     status: AuthoritativePosition['status'];
     placeId: string | null;
