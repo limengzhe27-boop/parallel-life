@@ -803,7 +803,8 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       ).rows;
       return rows
         .filter((row) => directorCoordinationFrameHash(snapshotShape(row.snapshot)) === frameHash)
-        .map((row) => String(row.id));
+        .map((row) => String(row.id))
+        .sort();
     });
   }
   async claim(
