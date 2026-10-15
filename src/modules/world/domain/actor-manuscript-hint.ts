@@ -25,10 +25,7 @@ export function projectActorManuscriptHint(
   currentActors: readonly ManuscriptHintIdentity[],
 ): ActorManuscriptHint | null {
   if (!['editorial_only', 'director_event'].includes(material.node.intent.kind)) return null;
-  const field =
-    typeof material.node.script === 'string' && material.node.script.trim()
-      ? 'script'
-      : 'editorialIntent';
+  const field = material.node.script == null ? 'editorialIntent' : 'script';
   const body = material.node[field];
   if (
     typeof body !== 'string' ||
