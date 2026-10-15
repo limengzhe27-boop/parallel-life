@@ -1,3 +1,11 @@
+## 2026-10-16 · MA-ARCH-44 阶段八（部署中）
+
+同一advance接显式新世界bootstrap、导演提交后的逐人物独立考察与默认kernel原子回执；本人安静/拒绝有持久来源，发送及提交检查暂停/业务焦点，已付费结果恢复不重买。作者目录资格与真实事实分离，不把机会或聊天当事件完成。整体重构仍未完成，**生产不切换epoch2**。
+
+check2936、实际相关PG108、build/format通过。生产81逐项checksum已核，0081 `fa16eb858ec5c5b18833fd57f18dc019e0e8c41f68a6652988967754b4c43dfb`；3新表RLS/FORCE与4受限invoker guard只读核验通过，保护原稿/副本/玩家数据未变。本轮0真实模型/0生产测试存档。READY和公网证据实际完成后追加，详见[阶段八报告](task-reports/MA-ARCH-44-PHASE8-I.md)。当前Nu仍为上一限定热修ef083ca0/生产81（新增表未激活）。
+
+44-55上一热修已READY：ef083ca0ae9b9f97f138c6a7f5badf83e4ae60e0 / dpl_GZh5YVTNifPzrhUo1KMwZVM8HrT8，公网health/workbench/published200、匿名publication/author401；不是完整新架构启用。
+
 ## 2026-10-16 · MA-ARCH-44 阶段七受控执行与真实证据
 
 阶段七正式上线：360fd19859b660e6bf126d7d2bfe20f954701be4 / dpl_8HuieomDunPp2eDvLBEEyBFCTgCM READY，Nu正式别名与精确SHA核实；公网2026-10-15T16:00:35.875Z health/workbench/published200、匿名publications及publisherworks401。生产80核验，未启用epoch2、未创建真实模型测试world。本次没有新增浏览器会话或冒充匿名login检查为完整phone旅程。51可选试演证据和52删除假目击属于已上线限定范围，完整44继续进行；55正在处理实际旧引擎地点回复回滚。

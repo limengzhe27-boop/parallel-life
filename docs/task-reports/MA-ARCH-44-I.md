@@ -98,3 +98,6 @@ services.advance在旧流程之前按DB epoch路由；epoch2仅收集统一人�
 
 
 阶段七已上线，见[阶段七集成](MA-ARCH-44-PHASE7-I.md)：360fd198 / dpl_8HuieomDunPp2eDvLBEEyBFCTgCM READY，生产80及Nu别名/公网核验。实际人物出发/到达与无假目击、发布可选试演真实证据已交付；全套重构仍未完成，导演bootstrap/episode交接、完整感知/实际投喂manifest、旧存档迁移与执行入口退役继续进行。44-55正在修合法NPC回复引入新地点时同事务最终版本与原回执不一致，不以旧缺陷为由忽略。
+
+
+阶段八接续见[阶段八集成](MA-ARCH-44-PHASE8-I.md)：实际advance的显式bootstrap→导演实际提交→逐NPC同一执行入口→原子回执与本人持续立场已接；新机会还未等价于原稿事件发生。人物裁剪后的具体情节语义、实际发生/结果、观察消费、旧档切换/旧入口退役与真实模型连续旅程未完成。当前生产仍ef083ca0/80，阶段八build/81迁移/READY待核；0新增真实模型，不启用epoch2。

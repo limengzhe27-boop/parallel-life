@@ -21,3 +21,5 @@
 阶段七正式上线：360fd19859b660e6bf126d7d2bfe20f954701be4 / dpl_8HuieomDunPp2eDvLBEEyBFCTgCM READY，Nu正式别名与精确SHA核实；公网2026-10-15T16:00:35.875Z health/workbench/published200、匿名publications及publisherworks401。生产80核验，未启用epoch2、未创建真实模型测试world。本次没有新增浏览器会话或冒充匿名login检查为完整phone旅程。51可选试演证据和52删除假目击属于已上线限定范围，完整44继续进行；55正在处理实际旧引擎地点回复回滚。
 
 44-55 root integration1ba05a5f+7b210e24: actual PG45/45 (story31 including wrongactor rollback/recovery, publication flow, native questions/travel), check2875/2875/build/format pass. NPC message vN plus real place discovery vN+1 now returns one frozen final causal receipt; context and replay agree, sourceevent identity stays original. No new migration or native legacyProgress:false change; production80 checksum/protected data reverified before push. No real models. READY/public pending.
+
+44-55限定热修已上线：ef083ca0ae9b9f97f138c6a7f5badf83e4ae60e0 / dpl_GZh5YVTNifPzrhUo1KMwZVM8HrT8 READY，Nu精确SHA/别名核验。公网2026-10-15T16:24:31.925Z health/workbench/published200，匿名两个author/publication接口401；生产80/保护数据未变。不是整套重构完成。
