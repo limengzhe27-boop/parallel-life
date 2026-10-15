@@ -651,12 +651,15 @@ export class PostgresWorldRepository implements WorldRepository {
         session.userId,
         state.id,
       );
+      // Reconciliation may append a sourced place-discovery event on this connection.
+      // Its newer world version must also govern the following progress assessment.
+      const reconciled = await this.hydrate(sql, await this.owned(sql, state.id));
       const recalled = await loadActorMemories(sql, session.userId, {
         actorId: command.actorId,
         worldId: state.id,
       });
       const scoped = actorContext(
-        state,
+        reconciled,
         command.actorId,
         command.text,
         recalled.records,
@@ -673,6 +676,18 @@ export class PostgresWorldRepository implements WorldRepository {
         command.origin === 'director',
         recalled.blockedSources,
       );
+      const finalState = await this.hydrate(sql, await this.owned(sql, state.id));
+      const finalSnapshot = compactWorldState(finalState);
+      if (JSON.stringify(finalSnapshot).length >= 262144)
+        throw new DomainError('INVALID_COMMAND', 'World snapshot exceeded capacity budget');
+      // Freeze the complete causal result while retaining the original NPC event identity.
+      // Later commands must never change the state returned by this command's replay.
+      const finalized = await sql.query(
+        "UPDATE parallel_life.commands SET result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2 AND owner_id=$3 AND status='succeeded' AND result_event_id=$5",
+        [state.id, command.id, session.userId, finalSnapshot, event.id],
+      );
+      if (finalized.rowCount !== 1) throw new DomainError('VERSION_CONFLICT');
+      return { state: finalState, event };
     }
     return { state, event };
   }

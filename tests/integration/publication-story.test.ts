@@ -30,7 +30,7 @@ import {
 } from '../../src/contracts/published-world-content.ts';
 import type { PublicationWorldCompilerPort } from '../../src/modules/settings/application/publication-world-ports.ts';
 import type { PublicationStoryClaim } from '../../src/modules/settings/application/publication-story-ports.ts';
-import type { WorldEffect } from '../../src/modules/world/domain/types.ts';
+import type { WorldEffect, WorldEvent } from '../../src/modules/world/domain/types.ts';
 
 const start = '2026-10-12T09:00:00.000Z';
 const receiptId = randomUUID();
@@ -1388,20 +1388,74 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
         (await runtime.get({ userId: owner }, wid)).space!.places.length,
         before.space!.places.length,
       );
-      const turn = await commit(wid, chosen, [
-        {
-          type: 'message.received',
-          id: randomUUID(),
+      const sourceCommand = {
+        id: chosen.commandId,
+        worldId: wid,
+        actorId: chosen.actorId,
+        expectedVersion: chosen.expectedVersion,
+        text: '明确内部本地测试指示',
+        origin: 'director' as const,
+      };
+      const sourceEvent: WorldEvent = {
+        schemaVersion: 1,
+        id: randomUUID(),
+        worldId: wid,
+        version: chosen.expectedVersion + 1,
+        commandId: chosen.commandId,
+        type: 'turn.resolved',
+        occurredAt: new Date().toISOString(),
+        storyAt: before.time,
+        data: {
           actorId: chosen.actorId,
-          text: '请到医院，虚构城市中心路 8 号见。',
+          userText: sourceCommand.text,
+          origin: 'director',
+          effects: [
+            {
+              type: 'message.received',
+              id: randomUUID(),
+              actorId: chosen.actorId,
+              text: '请到医院，虚构城市中心路 8 号见。',
+            },
+          ],
         },
-      ]);
-      assert.equal(
-        (await runtime.get({ userId: owner }, wid)).space!.places.some(
-          (p) => p.id === 'hidden_hospital',
-        ),
-        false,
-      );
+      };
+      const execute = () =>
+        app.transaction(owner, async (sql) => {
+          const result = await runtime.commitInTransaction(
+            sql,
+            { userId: owner },
+            sourceCommand,
+            sourceEvent,
+          );
+          // Check the real deferred command→original NPC event identity before this UoW commits.
+          await sql.query('SET CONSTRAINTS parallel_life.command_same_event IMMEDIATE');
+          return result;
+        });
+      const countCausalRows = async () => {
+        const counts: Record<string, number> = {};
+        for (const table of [
+          'commands',
+          'world_events',
+          'world_messages',
+          'world_appointments',
+          'outbox_jobs',
+          'publication_story_nodes',
+          'publication_story_receipts',
+          'publication_story_progress',
+          'publication_story_progress_evidence',
+        ])
+          counts[table] = Number(
+            (
+              await admin.query(
+                `SELECT count(*) AS n FROM parallel_life.${table} WHERE world_id=$1`,
+                [wid],
+              )
+            ).rows[0].n,
+          );
+        return counts;
+      };
+      const beforeProducer = await runtime.get({ userId: owner }, wid),
+        beforeCounts = await countCausalRows();
       await admin.query(
         "CREATE FUNCTION parallel_life.story_place_local_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.payload->>'type'='space.place_revealed' THEN RAISE EXCEPTION 'LOCAL_REVEAL_FAILURE'; END IF; RETURN NEW; END $$",
       );
@@ -1409,16 +1463,95 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
         'CREATE TRIGGER story_place_local_failure BEFORE INSERT ON parallel_life.world_events FOR EACH ROW EXECUTE FUNCTION parallel_life.story_place_local_failure()',
       );
       try {
-        await assert.rejects(story.finish(owner, wid, chosen.claimId));
+        await assert.rejects(execute(), { code: 'P0001', message: 'LOCAL_REVEAL_FAILURE' });
       } finally {
         await admin.query('DROP TRIGGER story_place_local_failure ON parallel_life.world_events');
         await admin.query('DROP FUNCTION parallel_life.story_place_local_failure()');
       }
+      assert.deepEqual(await runtime.get({ userId: owner }, wid), beforeProducer);
+      assert.deepEqual(await countCausalRows(), beforeCounts);
+      assert.equal(
+        (
+          await admin.query('SELECT 1 FROM parallel_life.commands WHERE world_id=$1 AND id=$2', [
+            wid,
+            sourceCommand.id,
+          ])
+        ).rowCount,
+        0,
+      );
+      // A suppressed final UPDATE must fail via the actual rowCount guard and roll back both events.
+      await admin.query(
+        `CREATE FUNCTION parallel_life.story_place_receipt_noop() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id='${sourceCommand.id}' AND (NEW.result_state->>'version')::integer>${sourceEvent.version} THEN RETURN NULL; END IF; RETURN NEW; END $$`,
+      );
+      await admin.query(
+        'CREATE TRIGGER story_place_receipt_noop BEFORE UPDATE ON parallel_life.commands FOR EACH ROW EXECUTE FUNCTION parallel_life.story_place_receipt_noop()',
+      );
+      try {
+        await assert.rejects(execute(), code('VERSION_CONFLICT'));
+      } finally {
+        await admin.query('DROP TRIGGER story_place_receipt_noop ON parallel_life.commands');
+        await admin.query('DROP FUNCTION parallel_life.story_place_receipt_noop()');
+      }
+      assert.deepEqual(await runtime.get({ userId: owner }, wid), beforeProducer);
+      assert.deepEqual(await countCausalRows(), beforeCounts);
+      const turn = await execute();
+      assert.equal(turn.event.id, sourceEvent.id);
+      assert.equal(turn.event.version, sourceCommand.expectedVersion + 1);
+      assert.equal(turn.state.version, turn.event.version + 1);
       assert.equal(
         (await runtime.get({ userId: owner }, wid)).space!.places.some(
           (p) => p.id === 'hidden_hospital',
         ),
-        false,
+        true,
+      );
+      assert.deepEqual(turn.state, await runtime.get({ userId: owner }, wid));
+      const receiptCounts = await countCausalRows();
+      assert.deepEqual(await execute(), turn);
+      assert.deepEqual(await runtime.receipt({ userId: owner }, sourceCommand), turn);
+      assert.deepEqual(await countCausalRows(), receiptCounts);
+      const persisted = (
+        await admin.query(
+          'SELECT expected_version,result_event_id,result_state FROM parallel_life.commands WHERE world_id=$1 AND id=$2',
+          [wid, sourceCommand.id],
+        )
+      ).rows[0];
+      assert.equal(persisted.expected_version, sourceCommand.expectedVersion);
+      assert.equal(persisted.result_event_id, sourceEvent.id);
+      assert.equal(persisted.result_state.version, turn.state.version);
+      const subsequentCommand = {
+        id: randomUUID(),
+        worldId: wid,
+        actorId: chosen.actorId,
+        expectedVersion: turn.state.version,
+        text: '我先看看安排，再决定是否过去。',
+      };
+      const subsequent = await runtime.commit({ userId: owner }, subsequentCommand, {
+        schemaVersion: 1,
+        id: randomUUID(),
+        worldId: wid,
+        version: turn.state.version + 1,
+        commandId: subsequentCommand.id,
+        type: 'turn.resolved',
+        occurredAt: new Date().toISOString(),
+        storyAt: turn.state.time,
+        data: {
+          actorId: chosen.actorId,
+          userText: subsequentCommand.text,
+          effects: [
+            {
+              type: 'message.received',
+              id: randomUUID(),
+              actorId: chosen.actorId,
+              text: '好，你看过再说。',
+            },
+          ],
+        },
+      });
+      assert.equal(subsequent.state.version, turn.state.version + 1);
+      assert.deepEqual(
+        await execute(),
+        turn,
+        'a different later input must not change the old causal receipt',
       );
       const progress = await story.finish(owner, wid, chosen.claimId);
       assert.equal(progress.presented[0]?.sourceEventId, turn.event.id);
@@ -1463,6 +1596,11 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
           (p) => p.id === 'hidden_hospital',
         ),
         false,
+      );
+      assert.deepEqual(
+        await runtime.receipt({ userId: owner }, sourceCommand),
+        turn,
+        'later player travel must not change an old receipt or claim earlier arrival',
       );
     },
   );
