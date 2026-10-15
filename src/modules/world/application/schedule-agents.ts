@@ -292,13 +292,24 @@ function validCoordination(
   for (const item of raw.guidance) {
     if (
       !record(item) ||
-      !keys(item, ['actorId', 'candidateId', 'intent']) ||
+      !keys(item, ['actorId', 'candidateId', 'kind', 'basisSourceIds']) ||
       !id(item.candidateId) ||
       !selected.has(item.candidateId) ||
       allowed.get(item.candidateId)!.actorId !== item.actorId ||
       guided.has(item.candidateId) ||
-      typeof item.intent !== 'string' ||
-      !item.intent.trim()
+      ![
+        'continue_own_plan',
+        'reassess_own_responsibility',
+        'respond_to_player',
+        'consider_opportunity',
+      ].includes(String(item.kind)) ||
+      !Array.isArray(item.basisSourceIds) ||
+      !item.basisSourceIds.length ||
+      item.basisSourceIds.some(
+        (sourceId) =>
+          typeof sourceId !== 'string' ||
+          !allowed.get(item.candidateId as string)!.sourceIds.includes(sourceId),
+      )
     )
       return false;
     guided.add(item.candidateId);

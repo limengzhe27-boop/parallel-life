@@ -84,11 +84,22 @@ export interface AgentCandidateSource {
     worldId: string,
   ): Promise<{ candidates: AgentCandidate[]; blockers: AgentBlocker[] }>;
 }
+export type ActorNudge = {
+  actorId: string;
+  candidateId: string;
+  kind:
+    | 'continue_own_plan'
+    | 'reassess_own_responsibility'
+    | 'respond_to_player'
+    | 'consider_opportunity';
+  /** Must be a subset of this candidate's already authorized NPC sources. */
+  basisSourceIds: string[];
+};
 export type DirectorCoordination = {
   candidateIds: string[];
   deferred: { candidateId: string; reason: string }[];
-  /** Guidance is intent, never final NPC dialogue or private state mutation. */
-  guidance: { actorId: string; candidateId: string; intent: string }[];
+  /** Finite nudges only. Global rationale/free prose never enters an NPC input. */
+  guidance: ActorNudge[];
   reason: string;
 };
 export interface DirectorAgent {

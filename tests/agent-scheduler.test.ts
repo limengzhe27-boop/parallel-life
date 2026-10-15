@@ -299,7 +299,12 @@ test('single uncoordinated work invokes director exactly once and passes the can
     candidateIds: [candidates[0]!.id],
     deferred: [],
     guidance: [
-      { actorId: 'a', candidateId: 'a', intent: 'Consider your own current responsibility' },
+      {
+        actorId: 'a',
+        candidateId: 'a',
+        kind: 'reassess_own_responsibility',
+        basisSourceIds: ['visible-event'],
+      },
     ],
     reason: 'Needs coordination',
   }));
@@ -350,7 +355,14 @@ test('director ordered plans yield only the first claim; all later claims need a
   const d = director(async () => ({
     candidateIds: ['b', 'a'],
     deferred: [],
-    guidance: [{ actorId: 'b', candidateId: 'b', intent: 'Resolve the shared resource first' }],
+    guidance: [
+      {
+        actorId: 'b',
+        candidateId: 'b',
+        kind: 'continue_own_plan',
+        basisSourceIds: ['visible-event'],
+      },
+    ],
     reason: 'Causal order',
   }));
   const sources = [
@@ -606,4 +618,52 @@ test('even a single preapproved handoff cannot silently ignore a stale coordinat
   assert.equal(result.reason, 'stale_coordination');
   assert.equal(result.selected.length, 0);
   assert.equal(d.calls(), 0);
+});
+
+test('director cannot launder private/global prose or foreign evidence into an actor nudge', async () => {
+  for (const guidance of [
+    {
+      actorId: 'a',
+      candidateId: 'a',
+      kind: 'reassess_own_responsibility',
+      basisSourceIds: ['A-private-location'],
+    },
+    {
+      actorId: 'a',
+      candidateId: 'a',
+      kind: 'reassess_own_responsibility',
+      basisSourceIds: ['visible-event'],
+      intent: 'player is with someone else',
+    },
+  ]) {
+    const d = director(
+      async () =>
+        ({
+          candidateIds: ['a'],
+          deferred: [],
+          guidance,
+          reason: 'global audit only',
+        }) as unknown as DirectorCoordination,
+    );
+    // Preserve an array at the raw adapter boundary; malformed free prose still fails closed.
+    const port: DirectorAgent = {
+      coordinate: async () =>
+        ({
+          candidateIds: ['a'],
+          deferred: [],
+          guidance: [guidance],
+          reason: 'global audit only',
+        }) as unknown as DirectorCoordination,
+    };
+    const result = await scheduleAgents(
+      {
+        sources: [source('a', [candidate('a', 'a', { requiresCoordination: true })])],
+        director: port,
+      },
+      input(),
+    );
+    assert.equal(result.reason, 'invalid_coordination');
+    assert.equal(result.selected.length, 0);
+    assert.equal(d.calls(), 0);
+  }
 });
