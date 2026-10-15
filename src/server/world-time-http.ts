@@ -4,6 +4,7 @@ import { StoryWaitRequestSchema, StoryWaitReceiptSchema } from '../contracts/sto
 import { authenticated, endpoint, HttpError, json, parseBody } from './http.ts';
 import { requestLimit } from './limits.ts';
 import { StoryWaitError } from '../modules/world/domain/story-wait.ts';
+import { randomUUID } from 'node:crypto';
 export function worldTimeActivityRoute(request: Request, worldId: string) {
   return endpoint(async () => {
     const s = await authenticated(request);
@@ -24,7 +25,14 @@ export function worldTimeWaitRoute(request: Request, worldId: string) {
     } catch (error) {
       if (error instanceof StoryWaitError)
         return json(
-          { error: { code: 'INVALID_COMMAND', message: error.message, retryable: false } },
+          {
+            error: {
+              code: 'INVALID_COMMAND',
+              message: error.message,
+              retryable: false,
+              requestId: randomUUID(),
+            },
+          },
           422,
         );
       throw error;

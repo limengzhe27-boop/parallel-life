@@ -54,7 +54,6 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
           if (session.current === s && s.active && mode !== 'away' && !s.returning) {
             s.mode = mode;
             setView({ worldId, clock });
-            setNotice('');
           }
           return clock;
         });
@@ -192,6 +191,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     const s = session.current;
     if (!s) return;
     setWorking(true);
+    setNotice('');
     s.returning = false;
     try {
       await sync('browsing', true);
@@ -244,6 +244,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     pageLeases.set(worldId, { clientId: s.clientId, sequence: s.sequence });
     waiting.current = true;
     setWorking(true);
+    setNotice('');
     setPendingWait(input);
     try {
       sessionStorage.setItem('pl-story-wait:' + worldId, JSON.stringify(input));
