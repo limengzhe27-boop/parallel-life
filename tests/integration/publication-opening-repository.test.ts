@@ -396,4 +396,41 @@ test('opening batches retain real actor receipts, owner boundaries and explicit 
       await repository.savePlan(g.owner, g.worldId, replacement, briefs(g));
     },
   );
+
+  await t.test(
+    'an exact legacy opening arriving after plan storage is adopted before another actor call',
+    async () => {
+      const f = await fixture(),
+        plan = randomUUID();
+      await repository.beginPlan(f.owner, f.worldId, plan);
+      await repository.savePlan(f.owner, f.worldId, plan, briefs(f));
+      const actor = f.actors[0]!.id;
+      const old = await story.prepare(f.owner, f.worldId, {
+        automatic: false,
+        nodeKey: 'start',
+        actorId: actor,
+        expectedVersion: 0,
+      });
+      assert.equal(old.status, 'claimed');
+      if (old.status !== 'claimed') throw Error('NO_CLAIM');
+      await commit(f, actor, 0, old.claim.commandId);
+      await story.finish(f.owner, f.worldId, old.claim.claimId);
+      const next = (await repository.claimNext(f.owner, f.worldId))!;
+      assert.notEqual(next.actorId, actor);
+      assert.equal(next.expectedVersion, 1);
+      const adopted = (await repository.read(f.owner, f.worldId)).deliveries.find(
+        (d) => d.actorId === actor,
+      )!;
+      assert.equal(adopted.status, 'delivered');
+      assert.equal(adopted.commandId, old.claim.commandId);
+      const history = (
+        await admin.query(
+          'SELECT command_history FROM parallel_life.publication_opening_deliveries WHERE world_id=$1 AND actor_id=$2',
+          [f.worldId, actor],
+        )
+      ).rows[0].command_history;
+      assert.equal(history.length, 1);
+      assert.equal(history[0].expectedVersion, null);
+    },
+  );
 });

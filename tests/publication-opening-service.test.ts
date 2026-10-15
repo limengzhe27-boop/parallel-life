@@ -90,7 +90,17 @@ function setup() {
     },
     finishDelivery: async (_o, _w, actor) => {
       const d = s.deliveries.find((d) => d.actorId === actor)!;
-      if (fail) return false;
+      const state = await worlds.get({ userId: 'o' }, 'w');
+      if (
+        fail ||
+        !state.messages.some(
+          (m) =>
+            m.role === 'assistant' &&
+            m.actorId === actor &&
+            m.sourceVersion === (d.expectedVersion ?? -1) + 1,
+        )
+      )
+        return false;
       d.status = 'delivered';
       if (s.deliveries.every((d) => d.status === 'delivered')) s.phase = 'complete';
       if (finishLost) {
@@ -243,3 +253,23 @@ test('a lost finish response reconciles an already committed actor without anoth
   assert.equal((await f.deps.worlds.get({ userId: 'o' }, 'w')).version, 1);
   assert.deepEqual(f.counts(), { director: 1, npc: 1, prepared: 1 });
 });
+
+for (const variant of ['belief', 'other_actor'] as const)
+  test(`opening cannot save ${variant} instead of its own live message`, async () => {
+    const f = setup();
+    await advancePublicationOpening(f.deps, 'o', 'w');
+    f.deps.planner.propose = async () => ({
+      schemaVersion: 1,
+      effects: [
+        {
+          id: 'bad',
+          type: variant === 'belief' ? 'belief.recorded' : 'message.received',
+          actorId: variant === 'belief' ? 'a' : 'b',
+          text: '不应保存。',
+        },
+      ],
+    });
+    await assert.rejects(advancePublicationOpening(f.deps, 'o', 'w'));
+    assert.equal((await f.deps.worlds.get({ userId: 'o' }, 'w')).version, 0);
+    assert.equal(f.s.phase, 'unknown');
+  });
