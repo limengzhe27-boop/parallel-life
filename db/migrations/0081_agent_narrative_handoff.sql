@@ -188,9 +188,9 @@ DECLARE source_id text; BEGIN
   IS DISTINCT FROM (OLD.world_id,OLD.owner_id,OLD.id,OLD.origin_decision_id,OLD.created_at)
   OR (NEW.document-ARRAY['revision','status','sourceEventIds']) IS DISTINCT FROM (OLD.document-ARRAY['revision','status','sourceEventIds'])
   OR (NEW.document->>'revision')::integer<>(OLD.document->>'revision')::integer+1
-  OR NEW.document->>'status'<>'active'
+  OR (NEW.document->>'status')<>'active'
   OR jsonb_array_length(NEW.document->'sourceEventIds')<>jsonb_array_length(OLD.document->'sourceEventIds')+1
-  OR NOT(NEW.document->'sourceEventIds' @> OLD.document->'sourceEventIds')
+  OR NOT((NEW.document->'sourceEventIds') @> (OLD.document->'sourceEventIds'))
  THEN RAISE EXCEPTION 'INVALID_EPISODE_PROGRESS' USING ERRCODE='23514'; END IF;
  SELECT v INTO source_id FROM jsonb_array_elements_text(NEW.document->'sourceEventIds') v
   WHERE NOT(OLD.document->'sourceEventIds' ? v);
