@@ -114,10 +114,39 @@ test('ready result from another work or revision cannot initiate publish', () =>
     { workId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
     { draftVersion: 1 },
     { contentHash: 'b'.repeat(64) },
-    { trialVerified: false },
+    { status: 'blocked' as const },
+    { mediaVerified: false },
   ])
     assert.throws(() => client.publish(work, { ...ready, ...changed }), { code: 'INVALID_STATE' });
   assert.equal(calls, 0);
+});
+test('server-ready revision without a trial publishes without inventing evidence or starting one', async () => {
+  const calls: string[] = [];
+  const client = new PublisherClient((async (url) => {
+    calls.push(String(url));
+    return Response.json({
+      workId: work.id,
+      publicationVersion: 1,
+      metadataVersion: 1,
+      status: 'published',
+    });
+  }) as typeof fetch);
+  const check = {
+    id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    workId: work.id,
+    draftVersion: 0,
+    contentHash: work.draft.contentHash,
+    status: 'ready' as const,
+    issues: [],
+    issuesTruncated: false,
+    missingCapabilities: [],
+    mediaVerified: true,
+    trialVerified: false,
+    checkedAt: work.createdAt,
+  };
+  assert.equal((await client.publish(work, check)).status, 'published');
+  assert.equal(check.trialVerified, false);
+  assert.deepEqual(calls, ['/api/v1/publisher/works/' + work.id + '/publish']);
 });
 test('client supports rename and delete operations with proper method and payload', async () => {
   const requests: Array<{ path: string; method: string; body?: unknown }> = [];

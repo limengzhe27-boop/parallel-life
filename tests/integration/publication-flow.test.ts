@@ -96,8 +96,48 @@ test('local integrated save → private trial → explicit synthetic NPC turn �
     commandId: randomUUID(),
     expectedDraftVersion: 1,
   });
-  assert.equal(before.status, 'blocked');
+  // The production policy permits publishing without a trial, while preserving
+  // the absence of evidence rather than replacing its receipt with the work ID.
+  assert.equal(before.status, 'ready');
   assert.equal(before.trialVerified, false);
+  const basisBefore = (
+    await admin.query('SELECT basis FROM parallel_life.publication_checks WHERE id=$1', [before.id])
+  ).rows[0]!.basis;
+  assert.equal(basisBefore.trialReceiptId, null);
+  assert.equal(basisBefore.trialRequired, false);
+  const untried = await works.create(staff, {
+    commandId: randomUUID(),
+    title: '明确未试演的合成发布',
+    content,
+  });
+  const untriedCheck = await works.check(staff, untried.id, {
+    commandId: randomUUID(),
+    expectedDraftVersion: 0,
+  });
+  assert.equal(untriedCheck.status, 'ready');
+  assert.equal(untriedCheck.trialVerified, false);
+  const untriedRelease = await works.publish(staff, untried.id, {
+    commandId: randomUUID(),
+    expectedDraftVersion: 0,
+    expectedMetadataVersion: untried.metadataVersion,
+    checkId: untriedCheck.id,
+  });
+  const untriedVersion = (
+    await admin.query(
+      'SELECT basis FROM parallel_life.publication_versions WHERE work_id=$1 AND version=1',
+      [untried.id],
+    )
+  ).rows[0]!.basis;
+  assert.equal(untriedVersion.trialReceiptId, null);
+  assert.equal(untriedVersion.trialRequired, false);
+  assert.equal(
+    (await worlds.trialEvidence(staff, untried.id, 0, untried.draft.contentHash)).verified,
+    false,
+  );
+  await works.unpublish(staff, untried.id, {
+    commandId: randomUUID(),
+    expectedMetadataVersion: untriedRelease.metadataVersion,
+  });
   const trial = await worlds.startTrial(staff, work.id, {
     commandId: randomUUID(),
     draftVersion: 1,
@@ -147,6 +187,12 @@ test('local integrated save → private trial → explicit synthetic NPC turn �
     expectedDraftVersion: 1,
   });
   assert.equal(check.status, 'ready');
+  assert.equal(check.trialVerified, true);
+  const basisAfter = (
+    await admin.query('SELECT basis FROM parallel_life.publication_checks WHERE id=$1', [check.id])
+  ).rows[0]!.basis;
+  assert.equal(basisAfter.trialReceiptId, trial.trialId);
+  assert.notEqual(basisAfter.trialReceiptId, work.id);
   const published = await works.publish(staff, work.id, {
     commandId: randomUUID(),
     expectedDraftVersion: 1,

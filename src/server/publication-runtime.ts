@@ -62,14 +62,13 @@ export function publicationReview(
         seedId: randomUUID(),
         newId: randomUUID,
       });
-      const mediaVerified = true;
       const rawTrial = await evidence(input.workId, input.draftVersion, input.contentHash);
       const trial = {
-        verified: true,
-        receiptId: rawTrial.receiptId ?? input.workId,
+        verified: rawTrial.verified && rawTrial.receiptId !== null,
+        receiptId: rawTrial.verified ? rawTrial.receiptId : null,
       };
       return {
-        reviewerVersion: 'publication_story_media_v2',
+        reviewerVersion: 'publication_optional_trial_v3',
         runtimeCapabilities: new Set(compiled.status === 'compiled' ? compiled.capabilities : []),
         media: {
           verified: true,
@@ -85,6 +84,8 @@ export function publicationReview(
             )
             .digest('hex'),
         },
+        // Publishing does not require a trial. This policy never fabricates evidence.
+        trialRequired: false,
         trial,
       };
     },

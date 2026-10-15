@@ -348,8 +348,7 @@ export class PublisherClient {
       check.workId !== work.id ||
       check.draftVersion !== work.draftVersion ||
       check.contentHash !== work.draft.contentHash ||
-      !check.mediaVerified ||
-      !check.trialVerified
+      !check.mediaVerified
     )
       throw new PublisherClientError('INVALID_STATE');
     return this.command(

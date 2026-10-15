@@ -44,6 +44,8 @@ export interface PublicationReviewPort {
     runtimeCapabilities: ReadonlySet<string>;
     media: { verified: boolean; manifestHash: string | null };
     trial: { verified: boolean; receiptId: string | null };
+    /** Trusted server policy, never accepted from a draft or client check request. */
+    trialRequired?: boolean;
   }>;
 }
 const unavailable: PublicationReviewPort = {
@@ -67,6 +69,7 @@ const reviewSchema = z.strictObject({
       .nullable(),
   }),
   trial: z.strictObject({ verified: z.boolean(), receiptId: Id.nullable() }),
+  trialRequired: z.boolean().default(true),
 });
 const pageSchema = z.strictObject({
   limit: z.number().int().min(1).max(100).default(100),
@@ -433,7 +436,7 @@ export class PublicationRepository {
     const media = r.media.verified && r.media.manifestHash !== null,
       trial = r.trial.verified && r.trial.receiptId !== null;
     if (!media) issues.push({ path: [], code: 'media_unverified' });
-    if (!trial) issues.push({ path: [], code: 'trial_unverified' });
+    if (r.trialRequired && !trial) issues.push({ path: [], code: 'trial_unverified' });
     return {
       status: issues.length ? ('blocked' as const) : ('ready' as const),
       issues,
@@ -445,6 +448,7 @@ export class PublicationRepository {
         reviewerVersion: r.reviewerVersion,
         mediaManifestHash: r.media.manifestHash,
         trialReceiptId: r.trial.receiptId,
+        trialRequired: r.trialRequired,
       },
     };
   }
