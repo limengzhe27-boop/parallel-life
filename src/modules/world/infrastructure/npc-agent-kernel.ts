@@ -284,8 +284,9 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           actorId: attempt.actorId,
           text: statement.text,
         });
-      const questionIndex = accepted.statements.findLastIndex(
-        (statement) => statement.requestsPlayerReply === true,
+      const questionIndex = accepted.statements.reduce(
+        (last, statement, index) => (statement.requestsPlayerReply === true ? index : last),
+        -1,
       );
       if (
         snapshot.input.origin === 'player' &&
