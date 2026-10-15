@@ -875,6 +875,10 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
           [expected.id, status],
         )
       ).rows[0];
+      // A lease can expire while SQL runs even though another tab cannot update
+      // the locked clock. Roll back request_sent before the network is touched.
+      if (status === 'request_sent')
+        await requireActiveAgentDeliveryInTransaction(sql, owner, expected.worldId);
       if (!updated) fail('DIRECTOR_ATTEMPT_STALE');
       return attempt(updated);
     });
@@ -1042,6 +1046,9 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         engineEpoch: expected.engineEpoch,
         decision,
       });
+      // All private decisions, opportunities and actor requests roll back together
+      // if activity elapsed during this short transaction; saved raw stays intact.
+      await requireActiveAgentDeliveryInTransaction(sql, owner, world.id);
       return decision;
     });
   }
