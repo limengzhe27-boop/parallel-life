@@ -41,8 +41,9 @@ export async function runNpcAgent(
       throw new AgentRunError('ATTEMPT_STALE');
     if (attempt.status !== 'response_received' && attempt.status !== 'committed')
       throw new AgentRunError('ATTEMPT_PENDING');
-    response = await deps.attempts.readResponse(ownerId, attempt);
-    if (response === null) throw new AgentRunError('ATTEMPT_UNKNOWN');
+    const stored = await deps.attempts.readResponse(ownerId, attempt);
+    if (!stored.found) throw new AgentRunError('ATTEMPT_UNKNOWN');
+    response = stored.response;
   } else {
     if (signal?.aborted) {
       await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send');
@@ -60,6 +61,7 @@ export async function runNpcAgent(
     }
   }
   if (attempt.status === 'stale_discarded') throw new AgentRunError('ATTEMPT_STALE');
+  if (attempt.status === 'invalid_output') throw new AgentRunError('ATTEMPT_INVALID');
   let proposal;
   try {
     proposal = deps.kernel.parse(snapshot, response);

@@ -72,7 +72,7 @@ function fixture(replayStatus?: AgentAttemptStatus) {
     },
     async readResponse() {
       calls.push('readResponse');
-      return raw;
+      return { found: true, response: raw };
     },
   };
   const model: NpcAgentModel = {

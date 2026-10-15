@@ -57,7 +57,10 @@ export interface AgentAttemptStore {
   mark(ownerId: string, attempt: AgentAttempt, status: AgentAttemptStatus): Promise<AgentAttempt>;
   /** Store protected response, never logs. Replay after receipt cannot call the model again. */
   saveResponse(ownerId: string, attempt: AgentAttempt, response: unknown): Promise<AgentAttempt>;
-  readResponse(ownerId: string, attempt: AgentAttempt): Promise<unknown | null>;
+  readResponse(
+    ownerId: string,
+    attempt: AgentAttempt,
+  ): Promise<{ found: true; response: unknown } | { found: false }>;
 }
 export interface AgentInputStore {
   /** Acceptance is durable before the model; same command with another body must conflict. */

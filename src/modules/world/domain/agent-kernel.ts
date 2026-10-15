@@ -98,6 +98,8 @@ export function validateAgentProposal(
         'INVALID_PREVIOUS_PLAN',
       );
     conditions(plan.triggers);
+    if (plan.status === 'active')
+      requireValid(goals.get(plan.goalId)?.status === 'active', 'PLAN_GOAL_NOT_ACTIVE');
   }
   for (const action of proposal.actions) {
     requireValid(goals.has(action.goalId), 'UNKNOWN_GOAL');
@@ -120,6 +122,12 @@ export function validateAgentProposal(
     for (const id of action.dependsOnActionIds)
       requireValid(id !== action.id && actions.has(id), 'INVALID_ACTION_DEPENDENCY');
     conditions(action.preconditions);
+    if (['proposed', 'ready'].includes(action.status))
+      requireValid(
+        goals.get(action.goalId)?.status === 'active' ||
+          goals.get(action.goalId)?.status === 'fulfilled',
+        'ACTION_GOAL_NOT_ACTIVE',
+      );
   }
   // Reject cyclic action prerequisites rather than leaving an unexecutable plan forever.
   const visiting = new Set<string>(),
@@ -238,17 +246,15 @@ export function reduceActorAgentState(
       action.resultId = result.id;
     }
   }
-  const priorResultIds = new Set(
-    context.state.actions.flatMap((action) =>
-      action.status === 'succeeded' && action.resultId ? [action.resultId] : [],
-    ),
-  );
   const goals = merge(context.state.goals, proposal.goals);
   for (const goal of goals)
     if (goal.status === 'fulfilled')
       requireValid(
-        goal.resultIds.every(
-          (id) => priorResultIds.has(id) || resultsById.get(id)?.outcome === 'succeeded',
+        goal.resultIds.every((id) =>
+          actions.some(
+            (action) =>
+              action.goalId === goal.id && action.resultId === id && action.status === 'succeeded',
+          ),
         ),
         'UNCONFIRMED_GOAL_RESULT',
       );
