@@ -25,7 +25,11 @@ import {
 
 test('real PG authored genesis times support actual note saves in trial and published worlds; zero models', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55565, 'Only the assigned local database is allowed');
+  assert.equal(
+    cfg.port,
+    Number(process.env.PUBLICATION_GENESIS_TIME_TEST_PORT ?? 55565),
+    'Only the assigned local database is allowed',
+  );
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const app = new PostgresDatabase(
