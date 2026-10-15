@@ -886,7 +886,7 @@ test('narrative admission, actor requests and actual participation receipts', as
     },
   );
   await t.test(
-    'all terminal bootstrap results suppress a new initial evaluation; an unknown send keeps recovery cause',
+    'paid terminal bootstrap results suppress re-purchase; zero-send cancellation gets a stable successor and unknown keeps its cause',
     async () => {
       for (const status of [
         'invalid_output',
@@ -918,7 +918,22 @@ test('narrative admission, actor requests and actual participation receipts', as
         if (status === 'invalid_output')
           a = await director.saveResponse(f.owner, a, { explicitInvalidMock: true });
         await director.mark(f.owner, a, status);
-        assert.deepEqual(await getCause(f), status === 'unknown_after_send' ? original : null);
+        const next = await getCause(f);
+        if (status === 'unknown_after_send') assert.deepEqual(next, original);
+        else if (status === 'invalid_output') assert.equal(next, null);
+        else {
+          assert.equal(next?.kind, 'bootstrap');
+          assert.notEqual(next?.id, original?.id);
+          assert.deepEqual(await getCause(f), next);
+          const actual = (
+            await admin.query(
+              'SELECT sent_at,response_hash FROM parallel_life.director_runtime_attempts WHERE id=$1',
+              [a.id],
+            )
+          ).rows[0];
+          assert.equal(actual.sent_at, null);
+          assert.equal(actual.response_hash, null);
+        }
       }
     },
   );

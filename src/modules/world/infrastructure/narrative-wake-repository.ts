@@ -41,7 +41,6 @@ export async function readDirectorNarrativeWakeInTransaction(
   const hasPendingDirector = attempts.some((a) =>
     ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(a.status),
   );
-  if (bootstrap) return { cause: bootstrap, hasPendingDirector, deferred: false };
   const admission = (
     await sql.query(
       `SELECT a.genesis_hash FROM parallel_life.agent_narrative_admissions a
@@ -70,6 +69,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   });
   if (attention.conversationWithoutTarget || attention.focus.length)
     return { cause: null, hasPendingDirector, deferred: true };
+  if (bootstrap) return { cause: bootstrap, hasPendingDirector, deferred: false };
   const view = prepared ?? (await readAuthoredEligibilityInTransaction(sql, ownerId, input));
   if (
     view.catalog.world.worldId !== input.worldId ||

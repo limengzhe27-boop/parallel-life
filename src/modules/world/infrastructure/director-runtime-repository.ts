@@ -29,6 +29,7 @@ import {
 import { createEpisodeRequestsInTransaction } from './agent-narrative-repository.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
+import { requireActiveAgentDeliveryInTransaction } from './agent-delivery-activity.ts';
 
 export class DirectorRuntimePersistenceError extends Error {
   readonly code: string;
@@ -506,6 +507,18 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     s: DirectorSnapshot,
     initialize = false,
   ) {
+    const { clock, realNow } = await requireActiveAgentDeliveryInTransaction(sql, owner, world.id);
+    // Only a new narrative opportunity is deferred by deep conversation. Existing
+    // responsibilities and actual global changes keep their ordinary coordination.
+    if (s.evaluationCause) {
+      const attention = await readWorldAttentionInTransaction(sql, owner, {
+        worldId: world.id,
+        worldVersion: world.version,
+        realNow,
+      });
+      if (attention.conversationWithoutTarget || attention.focus.length)
+        fail('DIRECTOR_DELIVERY_DEFERRED');
+    }
     const control = (
       await sql.query(
         'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
@@ -535,16 +548,10 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       )
         fail('DIRECTOR_ATTENTION_CONFLICT');
     }
-    const clock = (
-      await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
-        world.id,
-        owner,
-      ])
-    ).rows[0];
     const latest = clock
       ? Math.max(
           Date.parse(world.time),
-          Date.parse(projectStoryTime(storedActivityClock(clock), new Date().toISOString())),
+          Date.parse(projectStoryTime(storedActivityClock(clock), realNow)),
         )
       : Date.parse(world.time);
     if (Date.parse(s.storyAt) < Date.parse(world.time) || Date.parse(s.storyAt) > latest)

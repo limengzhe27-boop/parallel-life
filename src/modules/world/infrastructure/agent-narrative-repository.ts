@@ -168,7 +168,7 @@ export async function readDirectorBootstrapCauseInTransaction(
     await sql.query(
       `SELECT w.version,c.engine_epoch,a.genesis_hash,
     a.engine_epoch admission_epoch,md5(i.state::text) initial_hash,
-    COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('causeId',d.snapshot#>>'{evaluationCause,id}','status',d.status))
+    COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('id',d.id,'causeId',d.snapshot#>>'{evaluationCause,id}','status',d.status,'paid',d.sent_at IS NOT NULL OR d.response_hash IS NOT NULL))
       FROM parallel_life.director_runtime_attempts d WHERE d.world_id=w.id AND d.owner_id=w.owner_id
         AND d.engine_epoch=c.engine_epoch AND d.snapshot#>>'{evaluationCause,kind}'='bootstrap'
         AND d.snapshot#>>'{evaluationCause,genesisHash}'=a.genesis_hash),'[]'::jsonb) attempts
@@ -185,14 +185,28 @@ export async function readDirectorBootstrapCauseInTransaction(
   if (r.version !== input.worldVersion) throw new DomainError('VERSION_CONFLICT');
   if (!r.genesis_hash) return null;
   if (r.admission_epoch !== input.engineEpoch || r.genesis_hash !== r.initial_hash) invalid();
-  const id = stable('bootstrap', input.worldId, String(input.engineEpoch), r.genesis_hash);
-  const terminal = new Set([
-    'committed',
-    'invalid_output',
-    'stale_discarded',
-    'cancelled_before_send',
-  ]);
-  if (r.attempts.some((a: any) => a.causeId === id && terminal.has(a.status))) return null;
+  // Actual completion or any paid terminal consumes this genesis evaluation. A
+  // confirmed zero-send cancellation does not: resume gets one stable successor.
+  if (
+    r.attempts.some(
+      (a: any) =>
+        a.status === 'committed' ||
+        (a.paid &&
+          ['invalid_output', 'stale_discarded', 'cancelled_before_send'].includes(a.status)),
+    )
+  )
+    return null;
+  const cancellations = r.attempts
+    .filter((a: any) => !a.paid && ['stale_discarded', 'cancelled_before_send'].includes(a.status))
+    .map((a: any) => String(a.id))
+    .sort();
+  const id = stable(
+    'bootstrap',
+    input.worldId,
+    String(input.engineEpoch),
+    r.genesis_hash,
+    ...(cancellations.length ? [JSON.stringify(cancellations)] : []),
+  );
   return { id, kind: 'bootstrap', genesisHash: r.genesis_hash, admittedAtVersion: 0 };
 }
 /** The committed director document grants delivery eligibility, never knowledge of its audit prose. */

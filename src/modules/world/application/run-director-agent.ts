@@ -83,7 +83,9 @@ export async function runDirectorAgent(
     try {
       attempt = await deps.attempts.mark(ownerId, attempt, 'request_sent');
     } catch (error) {
-      if (isKnownConflict(error))
+      if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED')
+        await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send').catch(() => {});
+      else if (isKnownConflict(error))
         await deps.attempts.mark(ownerId, attempt, 'stale_discarded').catch(() => {});
       throw error;
     }
