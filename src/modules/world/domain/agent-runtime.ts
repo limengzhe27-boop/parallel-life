@@ -3,6 +3,7 @@ export type AgentIdentity = { worldId: string; actorId: string };
 export type AgentSource = {
   id: string;
   kind:
+    | 'accepted_input'
     | 'world_event'
     | 'private_message'
     | 'group_message'

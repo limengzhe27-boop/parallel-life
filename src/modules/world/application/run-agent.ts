@@ -7,10 +7,10 @@ import type {
 } from './agent-runtime-ports.ts';
 
 export class AgentRunError extends Error {
-  constructor(
-    readonly code: 'ATTEMPT_PENDING' | 'ATTEMPT_UNKNOWN' | 'ATTEMPT_INVALID' | 'ATTEMPT_STALE',
-  ) {
+  readonly code: 'ATTEMPT_PENDING' | 'ATTEMPT_UNKNOWN' | 'ATTEMPT_INVALID' | 'ATTEMPT_STALE';
+  constructor(code: 'ATTEMPT_PENDING' | 'ATTEMPT_UNKNOWN' | 'ATTEMPT_INVALID' | 'ATTEMPT_STALE') {
     super(code);
+    this.code = code;
   }
 }
 
@@ -25,6 +25,7 @@ export async function runNpcAgent(
   if (
     snapshot.state.worldId !== claim.worldId ||
     snapshot.state.actorId !== claim.actorId ||
+    snapshot.input.sourceId !== claim.inputReceiptId ||
     snapshot.worldVersion !== claim.expectedWorldVersion ||
     snapshot.state.revision !== claim.expectedActorRevision
   )

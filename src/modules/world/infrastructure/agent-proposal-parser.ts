@@ -1,0 +1,159 @@
+import { z } from 'zod';
+import type { AgentProposal } from '../domain/agent-runtime.ts';
+import {
+  AgentValidationError,
+  validateAgentProposal,
+  type AgentValidationContext,
+} from '../domain/agent-kernel.ts';
+const reject = (reason: string): never => {
+  throw new AgentValidationError(reason);
+};
+const Id = z.string().min(1).max(240);
+const Text = z.string().trim().min(1).max(12000);
+const Basis = { sourceIds: z.array(Id).min(1).max(64) };
+const DecisionKind = z.enum(['accepted', 'declined', 'negotiating', 'deferred', 'undecided']);
+const Condition = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('at_or_after'),
+    at: z.iso.datetime({ offset: true }),
+    sourceId: Id,
+  }),
+  z.strictObject({
+    kind: z.literal('result'),
+    actionId: Id,
+    outcome: z.enum(['succeeded', 'failed']),
+  }),
+  z.strictObject({
+    kind: z.literal('player_decision'),
+    responsibilityId: Id,
+    decision: DecisionKind,
+  }),
+  z.strictObject({ kind: z.literal('at_place'), placeId: Id }),
+  z.strictObject({ kind: z.literal('observation'), sourceId: Id }),
+]);
+const Proposal = z.strictObject({
+  statements: z
+    .array(z.strictObject({ text: Text, dependsOnActionIds: z.array(Id).max(16) }))
+    .max(8),
+  goals: z
+    .array(
+      z.strictObject({
+        ...Basis,
+        id: Id,
+        summary: Text,
+        status: z.enum(['active', 'deferred', 'fulfilled', 'withdrawn']),
+        resultIds: z.array(Id).max(32),
+        endReason: Text.optional(),
+      }),
+    )
+    .max(24),
+  plans: z
+    .array(
+      z.strictObject({
+        ...Basis,
+        id: Id,
+        goalId: Id,
+        summary: Text,
+        status: z.enum(['active', 'waiting', 'blocked', 'finished', 'withdrawn']),
+        actionIds: z.array(Id).max(32),
+        nextActionId: Id.nullable(),
+        triggers: z.array(Condition).max(16),
+        missingConditions: z.array(Text).max(16),
+        supersedesPlanId: Id.optional(),
+      }),
+    )
+    .max(24),
+  actions: z
+    .array(
+      z.strictObject({
+        ...Basis,
+        id: Id,
+        goalId: Id,
+        capability: Id,
+        targetIds: z.array(Id).max(32),
+        parameters: z.record(
+          z.string().max(80),
+          z.union([
+            z.string().max(12000),
+            z.number().finite(),
+            z.boolean(),
+            z.null(),
+            z.array(Id).max(32),
+          ]),
+        ),
+        preconditions: z.array(Condition).max(16),
+        dependsOnActionIds: z.array(Id).max(16),
+        handlesResponsibilityIds: z.array(Id).max(32),
+        status: z.enum([
+          'proposed',
+          'ready',
+          'waiting',
+          'blocked',
+          'executing',
+          'succeeded',
+          'failed',
+          'withdrawn',
+        ]),
+        resultId: Id.optional(),
+      }),
+    )
+    .max(16),
+  responsibilities: z
+    .array(
+      z.strictObject({
+        ...Basis,
+        id: Id,
+        subject: z.strictObject({
+          kind: z.enum(['appointment', 'matter', 'episode', 'request']),
+          id: Id,
+        }),
+        summary: Text,
+        status: z.enum(['open', 'waiting', 'deferred', 'fulfilled', 'withdrawn', 'expired']),
+        waitingOn: z.enum(['player', 'self', 'world']).nullable(),
+        deadline: z.strictObject({ at: z.iso.datetime({ offset: true }), sourceId: Id }).optional(),
+        nextCheck: z.array(Condition).max(16),
+        resolutionResultId: Id.optional(),
+        endReason: Text.optional(),
+      }),
+    )
+    .max(32),
+  decisions: z
+    .array(
+      z.strictObject({
+        id: Id,
+        responsibilityId: Id,
+        kind: DecisionKind,
+        sourceId: Id,
+        quote: Text,
+      }),
+    )
+    .max(16),
+  focus: z
+    .strictObject({
+      channel: z.enum(['private', 'group', 'scene']),
+      threadId: Id,
+      subjectId: Id.nullable(),
+      questionSourceId: Id.nullable(),
+      replyToActorId: Id.nullable(),
+    })
+    .nullable()
+    .optional(),
+});
+
+/** Strict public model protocol; no regex-based dialogue-to-physical-execution inference. */
+export function parseAgentProposal(context: AgentValidationContext, raw: unknown): AgentProposal {
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    if (raw.length > 180000) reject('RESPONSE_LIMIT');
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      reject('RESPONSE_JSON');
+    }
+  }
+  const result = Proposal.safeParse(parsed);
+  if (!result.success) reject('RESPONSE_SHAPE');
+  const proposal = result.data!;
+  validateAgentProposal(context, proposal);
+  return proposal;
+}
