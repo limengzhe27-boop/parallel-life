@@ -18,6 +18,7 @@ import { reduceActorAgentState, AgentValidationError } from '../domain/agent-ker
 import { evaluateAgentActionEligibility } from '../domain/agent-eligibility.ts';
 import { parseAgentProposal } from './agent-proposal-parser.ts';
 import { projectEpisodeRequestInTransaction } from './agent-narrative-repository.ts';
+import { requireActiveAgentDeliveryInTransaction } from './agent-delivery-activity.ts';
 import { validateActorEpisodeIntentSnapshotInTransaction } from './actor-episode-intent-repository.ts';
 import {
   beginAgentCommitInTransaction,
@@ -121,18 +122,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           worldVersion: attempt.expectedWorldVersion,
           actorId: attempt.actorId,
         });
-      const clock = (
-        await sql.query(
-          `SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2`,
-          [attempt.worldId, ownerId],
-        )
-      ).rows[0];
-      if (
-        clock &&
-        (clock.paused ||
-          (clock.managed && (!clock.active_until || Date.parse(clock.active_until) <= Date.now())))
-      )
-        throw Object.assign(Error('WORLD_PAUSED'), { code: 'WORLD_PAUSED' });
+      const { clock } = await requireActiveAgentDeliveryInTransaction(
+        sql,
+        ownerId,
+        attempt.worldId,
+        'NPC_DELIVERY_DEFERRED',
+      );
       const strategy = snapshot.sources.filter((source) => source.usage === 'private_strategy');
       if (strategy.length) {
         const currentBasis = await readActorStrategyBasis(
@@ -632,6 +627,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId });
       await this.afterCommit?.(sql, { attempt, eventId });
+      await requireActiveAgentDeliveryInTransaction(
+        sql,
+        ownerId,
+        attempt.worldId,
+        'NPC_DELIVERY_DEFERRED',
+      );
       return { eventId, state: accepted.state, results };
     });
   }

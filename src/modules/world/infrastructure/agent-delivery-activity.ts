@@ -5,6 +5,7 @@ export async function requireActiveAgentDeliveryInTransaction(
   sql: SqlClient,
   ownerId: string,
   worldId: string,
+  errorCode: 'DIRECTOR_DELIVERY_DEFERRED' | 'NPC_DELIVERY_DEFERRED' = 'DIRECTOR_DELIVERY_DEFERRED',
 ) {
   const world = (
     await sql.query(
@@ -26,8 +27,8 @@ export async function requireActiveAgentDeliveryInTransaction(
       (clock.managed &&
         (!clock.active_until || new Date(clock.active_until).getTime() <= Date.parse(realNow))))
   )
-    throw Object.assign(Error('DIRECTOR_DELIVERY_DEFERRED'), {
-      code: 'DIRECTOR_DELIVERY_DEFERRED',
+    throw Object.assign(Error(errorCode), {
+      code: errorCode,
     });
   return { clock, realNow };
 }

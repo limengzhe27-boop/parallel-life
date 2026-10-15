@@ -92,7 +92,7 @@ export async function runNpcAgent(
         typeof error === 'object' &&
         error !== null &&
         'code' in error &&
-        error.code === 'EPISODE_DELIVERY_DEFERRED'
+        ['EPISODE_DELIVERY_DEFERRED', 'NPC_DELIVERY_DEFERRED'].includes(String(error.code))
       )
         await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send').catch(() => {});
       else if (isKnownConflict(error))

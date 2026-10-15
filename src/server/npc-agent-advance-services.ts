@@ -193,7 +193,7 @@ export function npcAgentAdvanceServices(
         ).rows.map((r) => r.document as AgentActionResult);
         const prior = (
           await sql.query(
-            `SELECT a.id,a.actor_id,a.command_id,a.status,r.document->>'channel' AS channel
+            `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,r.document->>'channel' AS channel
                FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
                ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
                WHERE a.world_id=$1 AND a.owner_id=$2 ORDER BY a.created_at,a.id`,
@@ -205,6 +205,7 @@ export function npcAgentAdvanceServices(
           commandId: String(r.command_id),
           status: r.status as AgentAttempt['status'],
           channel: String(r.channel),
+          paid: r.sent_at !== null || r.response_hash !== null,
         }));
         return { states, results, prior };
       });
@@ -252,7 +253,7 @@ export function npcAgentAdvanceServices(
             typeof error === 'object' &&
             error !== null &&
             'code' in error &&
-            error.code === 'EPISODE_DELIVERY_DEFERRED'
+            ['EPISODE_DELIVERY_DEFERRED', 'NPC_DELIVERY_DEFERRED'].includes(String(error.code))
           )
             continue;
           throw error;
@@ -316,9 +317,8 @@ export function npcAgentAdvanceServices(
               });
               if (
                 prior &&
-                ['invalid_output', 'stale_discarded', 'cancelled_before_send'].includes(
-                  prior.status,
-                )
+                (['invalid_output', 'stale_discarded'].includes(prior.status) ||
+                  (prior.status === 'cancelled_before_send' && prior.paid))
               )
                 blockers.push({
                   scope: { kind: 'resource', resourceId },
@@ -574,28 +574,35 @@ export function npcAgentAdvanceServices(
                   actor,
                 )
               ).snapshot;
-        const result = await runNpcAgent(
-          {
-            attempts,
-            model: npcModel,
-            kernel: new PostgresNpcAgentKernel(db, worlds),
-          },
-          ownerId,
-          prior ?? {
-            id: randomUUID(),
-            worldId,
-            actorId: candidate.actorId,
-            commandId,
-            inputReceiptId: receipt.id,
-            engineEpoch,
-            expectedWorldVersion: world.version,
-            expectedActorRevision: actor.revision,
-            inputHash: receipt.inputHash,
-            token: randomUUID(),
-            leaseUntil: new Date(Date.now() + 240_000).toISOString(),
-          },
-          snapshot,
-        );
+        let result;
+        try {
+          result = await runNpcAgent(
+            {
+              attempts,
+              model: npcModel,
+              kernel: new PostgresNpcAgentKernel(db, worlds),
+            },
+            ownerId,
+            prior ?? {
+              id: randomUUID(),
+              worldId,
+              actorId: candidate.actorId,
+              commandId,
+              inputReceiptId: receipt.id,
+              engineEpoch,
+              expectedWorldVersion: world.version,
+              expectedActorRevision: actor.revision,
+              inputHash: receipt.inputHash,
+              token: randomUUID(),
+              leaseUntil: new Date(Date.now() + 240_000).toISOString(),
+            },
+            snapshot,
+          );
+        } catch (error) {
+          if ((error as { code?: unknown })?.code === 'NPC_DELIVERY_DEFERRED')
+            return quiet(storyAt);
+          throw error;
+        }
         // Real quiet/plan outcomes still execute and persist, but never pretend a new message exists.
         return presentedResult(
           result.eventId,

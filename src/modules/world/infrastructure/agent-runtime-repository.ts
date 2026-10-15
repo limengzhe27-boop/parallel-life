@@ -23,6 +23,8 @@ import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/p
 import { validateActorEpisodeIntentSnapshotInTransaction } from './actor-episode-intent-repository.ts';
 import { readActorStrategyBasis } from './agent-source-resolver.ts';
 import { requireUnpaidEpisodeRequestInTransaction } from './agent-narrative-repository.ts';
+import { requireActiveAgentDeliveryInTransaction } from './agent-delivery-activity.ts';
+import { resumeCancelledAgentAttemptInTransaction } from './agent-zero-send-recovery.ts';
 
 export class AgentRuntimePersistenceError extends Error {
   readonly code: string;
@@ -473,6 +475,15 @@ export class PostgresAgentRuntimeRepository
           'expectedActorRevision',
         ] as const)
           if (a[k] !== input[k]) fail('COMMAND_CONFLICT');
+        if (old.status === 'cancelled_before_send') {
+          const resumed = await resumeCancelledAgentAttemptInTransaction(
+            sql,
+            ownerId,
+            old,
+            requireInputAuthority,
+          );
+          return { attempt: attempt(resumed), replay: false };
+        }
         return { attempt: a, replay: true };
       }
       if ((await epoch(sql, ownerId, input.worldId)) !== input.engineEpoch || input.engineEpoch < 2)
@@ -547,6 +558,7 @@ export class PostgresAgentRuntimeRepository
         row = await loadAttempt(sql, ownerId, expected);
       if (status === 'committed' || status === 'response_received') fail('ATOMIC_COMMIT_REQUIRED');
       transitionAgentAttempt(row.status, status);
+      let episodeDelivery = false;
       if (status === 'request_sent') {
         const receipt = (
           await sql.query(
@@ -555,6 +567,7 @@ export class PostgresAgentRuntimeRepository
           )
         ).rows[0]?.document as AgentInputReceipt | undefined;
         if (!receipt) fail('INPUT_SCOPE_FORBIDDEN');
+        episodeDelivery = isEpisodeConsiderationInput(receipt);
         // The immutable accepted body, not a mutable prepared snapshot, decides
         // whether author-source validation is mandatory before any paid send.
         if (isEpisodeConsiderationInput(receipt) && !snapshot) fail('INPUT_SCOPE_FORBIDDEN');
@@ -597,6 +610,13 @@ export class PostgresAgentRuntimeRepository
             worldVersion: expected.expectedWorldVersion,
             actorId: expected.actorId,
           });
+        else
+          await requireActiveAgentDeliveryInTransaction(
+            sql,
+            ownerId,
+            expected.worldId,
+            'NPC_DELIVERY_DEFERRED',
+          );
         if (!row.live) fail('ATTEMPT_STALE');
         if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
           fail('ENGINE_EPOCH_CONFLICT');
@@ -625,14 +645,28 @@ export class PostgresAgentRuntimeRepository
         }
       }
       if (row.status === status) return attempt(row);
-      return attempt(
-        (
-          await sql.query(
-            "UPDATE parallel_life.agent_attempts SET status=$2,sent_at=CASE WHEN $2='request_sent' THEN COALESCE(sent_at,clock_timestamp()) ELSE sent_at END,updated_at=now() WHERE id=$1 RETURNING *",
-            [expected.id, status],
-          )
-        ).rows[0],
-      );
+      const saved = (
+        await sql.query(
+          "UPDATE parallel_life.agent_attempts SET status=$2,sent_at=CASE WHEN $2='request_sent' THEN COALESCE(sent_at,clock_timestamp()) ELSE sent_at END,updated_at=now() WHERE id=$1 RETURNING *",
+          [expected.id, status],
+        )
+      ).rows[0];
+      if (status === 'request_sent') {
+        if (episodeDelivery)
+          await requireEpisodeDeliveryInTransaction(sql, ownerId, {
+            worldId: expected.worldId,
+            worldVersion: expected.expectedWorldVersion,
+            actorId: expected.actorId,
+          });
+        else
+          await requireActiveAgentDeliveryInTransaction(
+            sql,
+            ownerId,
+            expected.worldId,
+            'NPC_DELIVERY_DEFERRED',
+          );
+      }
+      return attempt(saved);
     });
   }
   saveResponse(ownerId: string, expected: AgentAttempt, response: unknown): Promise<AgentAttempt> {

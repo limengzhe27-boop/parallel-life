@@ -172,10 +172,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
               : '人物正在处理这条消息，请稍等。',
             409,
           );
-        if (
-          previous &&
-          ['invalid_output', 'stale_discarded', 'cancelled_before_send'].includes(previous.status)
-        )
+        if (previous && ['invalid_output', 'stale_discarded'].includes(previous.status))
           throw new NpcMessageError(
             'INVALID_AI_OUTPUT',
             '这次回复未能保存，你的消息仍保留，请核对后重新发送。',
@@ -261,7 +258,7 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
           throw new DomainError('IDEMPOTENCY_CONFLICT');
         if (code === 'INPUT_SCOPE_FORBIDDEN')
           throw new NpcMessageError('INVALID_STATE', '这次交谈的参与范围已变化，请重新进入。', 409);
-        if (code === 'WORLD_PAUSED')
+        if (['WORLD_PAUSED', 'NPC_DELIVERY_DEFERRED'].includes(code))
           throw new NpcMessageError('INVALID_STATE', '这段人生已暂停，继续后可恢复原回复。', 409);
         if (['NPC_AGENT_INVALID_SNAPSHOT', 'NPC_AGENT_SNAPSHOT_LIMIT'].includes(code))
           throw new NpcMessageError(

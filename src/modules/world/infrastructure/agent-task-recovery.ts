@@ -3,6 +3,7 @@ import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentInputReceipt } from '../domain/agent-runtime.ts';
 import { nativeAgentCommandId } from './agent-native-ids.ts';
 import { requireInputAuthority } from './agent-runtime-repository.ts';
+import { requireActiveAgentDeliveryInTransaction } from './agent-delivery-activity.ts';
 
 function fail(code: string): never {
   throw Object.assign(Error(code), { code });
@@ -39,7 +40,7 @@ export async function recoverAgentTaskInTransaction(
   if (Number(control?.engine_epoch ?? 1) < 2) return null;
   const replay = (
     await sql.query(
-      'SELECT task_id FROM parallel_life.agent_task_recoveries WHERE owner_id=$1 AND command_id=$2',
+      'SELECT task_id FROM parallel_life.agent_task_recoveries WHERE owner_id=$1 AND command_id=$2 UNION ALL SELECT task_id FROM parallel_life.agent_zero_send_task_requeues WHERE owner_id=$1 AND command_id=$2',
       [ownerId, commandId],
     )
   ).rows[0];
@@ -73,8 +74,17 @@ export async function recoverAgentTaskInTransaction(
   // and failures before claim need their own deterministic re-preparation, not an NPC retry.
   if (attempts.length !== 1) fail('INVALID_COMMAND');
   const attempt = attempts[0];
+  const zeroSend =
+    attempt.status === 'cancelled_before_send' &&
+    attempt.sent_at === null &&
+    attempt.response_hash === null &&
+    attempt.response === null &&
+    attempt.event_id === null;
   if (['reserved', 'request_sent', 'unknown_after_send'].includes(attempt.status)) fail('UNKNOWN');
-  if (attempt.status !== 'response_received' || !attempt.response_hash || !attempt.response)
+  if (
+    !zeroSend &&
+    (attempt.status !== 'response_received' || !attempt.response_hash || !attempt.response)
+  )
     fail('INVALID_COMMAND');
   const receipt = (
     await sql.query(
@@ -86,13 +96,14 @@ export async function recoverAgentTaskInTransaction(
   if (
     !receipt ||
     receipt.inputHash !== attempt.input_hash ||
-    envelope.kind !== 'npc_agent_completion' ||
-    envelope.schemaVersion !== 1 ||
-    envelope.snapshot?.worldVersion !== attempt.expected_world_version ||
-    envelope.snapshot?.state?.worldId !== task.scope_id ||
-    envelope.snapshot?.state?.actorId !== attempt.actor_id ||
-    envelope.snapshot?.state?.revision !== attempt.expected_actor_revision ||
-    envelope.snapshot?.input?.sourceId !== receipt.id
+    (!zeroSend &&
+      (envelope.kind !== 'npc_agent_completion' ||
+        envelope.schemaVersion !== 1 ||
+        envelope.snapshot?.worldVersion !== attempt.expected_world_version ||
+        envelope.snapshot?.state?.worldId !== task.scope_id ||
+        envelope.snapshot?.state?.actorId !== attempt.actor_id ||
+        envelope.snapshot?.state?.revision !== attempt.expected_actor_revision ||
+        envelope.snapshot?.input?.sourceId !== receipt.id))
   )
     fail('INVALID_COMMAND');
   const source = (
@@ -181,6 +192,24 @@ export async function recoverAgentTaskInTransaction(
   )
     fail('BUSY');
   const nextToken = randomUUID();
+  if (zeroSend) {
+    await requireActiveAgentDeliveryInTransaction(
+      sql,
+      ownerId,
+      task.scope_id,
+      'NPC_DELIVERY_DEFERRED',
+    );
+    await sql.query(
+      `INSERT INTO parallel_life.agent_zero_send_task_requeues(owner_id,command_id,world_id,task_id,attempt_id,input_hash,prior_token) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+      [ownerId, commandId, task.scope_id, taskId, attempt.id, attempt.input_hash, attempt.token],
+    );
+    return (
+      await sql.query(
+        "UPDATE parallel_life.tasks SET status='queued',error_code=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=$1 RETURNING *",
+        [taskId],
+      )
+    ).rows[0];
+  }
   const renewed = (
     await sql.query(
       "SELECT GREATEST(clock_timestamp()+interval '4 minutes',$1::timestamptz+interval '1 millisecond') AS until",
