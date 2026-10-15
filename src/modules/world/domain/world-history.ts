@@ -1,5 +1,6 @@
 import { resultAckText } from './matter-progression.ts';
 import { applyAppointmentWaitEvent, type AppointmentWaitEvent } from './appointment-wait.ts';
+import { applyStoryWaitEvent, type StoryWaitEvent } from './story-wait.ts';
 import { applySceneWorldResults, type SceneWorldResults } from './scene-world-results.ts';
 import {
   applySpaceEvent,
@@ -47,6 +48,7 @@ export type WorldHistoryEvent =
   | SceneWorldEvent
   | TravelEvent
   | AppointmentWaitEvent
+  | StoryWaitEvent
   | SpaceEstablishedEvent
   | SpacePlaceRevealedEvent;
 export function applyWorldHistoryEvent(
@@ -63,6 +65,8 @@ export function applyWorldHistoryEvent(
   if (isGroupEvent(event)) return { state: applyGroupWorldEvent(current, event), jobs: [] };
   if (event.type === 'appointment.waited')
     return { state: applyAppointmentWaitEvent(current, event), jobs: [] };
+  if (event.type === 'story.waited')
+    return { state: applyStoryWaitEvent(current, event), jobs: [] };
   if (
     event.type === 'travel.completed' ||
     event.type === 'space.established' ||
