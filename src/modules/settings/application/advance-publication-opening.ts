@@ -121,7 +121,10 @@ export async function advancePublicationOpening(
                 }),
               );
               if (proposal.effects.some((e) => e.type !== 'message.received'))
-                throw new DomainError('INVALID_PROPOSAL', 'OPENING_UNSUPPORTED_EFFECT');
+                throw new DomainError(
+                  'INVALID_PROPOSAL',
+                  'INVALID_PROPOSAL:OPENING_UNSUPPORTED_EFFECT',
+                );
               return proposal;
             },
           },
