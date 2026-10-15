@@ -1,3 +1,4 @@
+import { OpeningStatusSchema, OpeningAdvanceSchema } from '../../contracts/publication-opening.ts';
 import { PublicWorldStorySchema } from '../../contracts/world-story.ts';
 import { PlayerRecordsSchema } from '../../contracts/world-records.ts';
 import {
@@ -205,6 +206,18 @@ export class LifeClient {
   async readWorldStory(worldId: string) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/story`, PublicWorldStorySchema);
+  }
+  async readWorldOpening(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/opening`, OpeningStatusSchema);
+  }
+  async advanceWorldOpening(worldId: string, confirmRetry = false) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/opening`, OpeningAdvanceSchema, {
+      method: 'POST',
+      body: JSON.stringify({ confirmRetry }),
+      signal: AbortSignal.timeout(WORLD_ADVANCE_TIMEOUT_MS),
+    });
   }
   /** Pause/resume or change the speed of one life. */
   async setWorldClock(worldId: string, input: { paused?: boolean; speed?: number }) {

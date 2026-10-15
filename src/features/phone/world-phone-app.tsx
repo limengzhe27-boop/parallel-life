@@ -1,4 +1,5 @@
 'use client';
+import type { PublicOpeningStatus } from '../../contracts/publication-opening.ts';
 import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
 import {
   AppointmentWaitRequestSchema,
@@ -102,6 +103,10 @@ export function WorldPhoneApp({
     retryCommand = useRef<{ taskId: string; id: string } | null>(null);
   const directorCheck = useRef<() => void>(() => {});
   const directorInFlight = useRef(false);
+  const openingFinished = useRef<string | null>(null);
+  const lastBackgroundCheck = useRef(0);
+  const [opening, setOpening] = useState<PublicOpeningStatus | null>(null);
+  const [openingWorking, setOpeningWorking] = useState(false);
   const directorAttemptedKeys = useRef(new Set<string>());
   const storyBootstrap = useRef(new PhoneStoryBootstrap());
   const experienceBusy = useRef(false);
@@ -402,6 +407,12 @@ export function WorldPhoneApp({
         directorInFlight.current
       )
         return;
+      if (
+        openingFinished.current === worldId &&
+        Date.now() - lastBackgroundCheck.current < ACTIVE_PHONE_CHECK_MS
+      )
+        return;
+      lastBackgroundCheck.current = Date.now();
       directorInFlight.current = true;
       let advancing = false;
       try {
@@ -413,6 +424,29 @@ export function WorldPhoneApp({
           phoneReady.current.sending
         )
           return;
+        if (openingFinished.current !== worldId) {
+          const current = await client.readWorldOpening(worldId);
+          if (!active) return;
+          setOpening(current);
+          if (['none', 'complete'].includes(current.phase)) {
+            openingFinished.current = worldId;
+          } else {
+            if (
+              clock.paused ||
+              !['unplanned', 'ready'].includes(current.phase) ||
+              current.retryable
+            )
+              return;
+            setOpeningWorking(true);
+            const next = await client.advanceWorldOpening(worldId);
+            if (active) {
+              setOpening(next.opening);
+              if (next.played > 0) await load();
+              if (next.opening.phase === 'complete') openingFinished.current = worldId;
+            }
+            return;
+          }
+        }
         const realNowMs = Date.now();
         const attemptKey = autoAdvanceAttemptKey(worldId, clock, realNowMs);
         if (!attemptKey || directorAttemptedKeys.current.has(attemptKey)) return;
@@ -455,11 +489,12 @@ export function WorldPhoneApp({
           setError('这次世界后续没有完成。已保存的记录仍在，可以继续查看手机中的来信和日程。');
       } finally {
         directorInFlight.current = false;
+        if (active) setOpeningWorking(false);
       }
     }
     directorCheck.current = () => void checkForWorldNews();
     directorCheck.current();
-    const interval = window.setInterval(directorCheck.current, ACTIVE_PHONE_CHECK_MS);
+    const interval = window.setInterval(directorCheck.current, 5_000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -470,134 +505,188 @@ export function WorldPhoneApp({
     if (data?.id === worldId && !refreshing) directorCheck.current();
   }, [data?.id, refreshing, worldId]);
   return (
-    <div className="world-viewport">
+    <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />
-      {!data ? (
-        <div className="world-loading">
-          <a href="/possibilities">← 返回分支</a>
-          {isBuilding ? (
-            <ProgressState
-              label={statusMessage}
-              detail="设定和任务已经保存。可以返回分支，稍后查看当前进度。"
-            />
-          ) : error ? (
-            <>
-              <Notice>{error}</Notice>
-              <Button variant="secondary" disabled={refreshing} onClick={() => void load()}>
-                重新打开
-              </Button>
-              <Button disabled={refreshing} onClick={() => void retryBuild()}>
-                重新生成这段人生
-              </Button>
-            </>
-          ) : (
-            <ProgressState
-              label={statusMessage}
-              detail="正在读取已有记录，打开后从手机锁屏开始。"
-            />
+      {data && opening && !['none', 'complete'].includes(opening.phase) && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '6px 14px',
+            fontSize: 12,
+            background: 'var(--surface, #f5f3ed)',
+            color: 'var(--muted, #676b65)',
+          }}
+        >
+          <span>
+            {opening.retryable && !openingWorking ? '有条新消息未能收到' : '正在接收新消息'} ·{' '}
+            {opening.delivered}/{opening.total}
+          </span>
+          {opening.retryable && (
+            <button
+              type="button"
+              disabled={openingWorking}
+              style={{ border: 0, background: 'none', color: 'inherit', font: 'inherit' }}
+              onClick={async () => {
+                if (directorInFlight.current || phoneReady.current.sending) return;
+                directorInFlight.current = true;
+                setOpeningWorking(true);
+                try {
+                  const next = await client.advanceWorldOpening(worldId, true);
+                  setOpening(next.opening);
+                  if (next.played > 0) await load();
+                } catch {
+                  setOpening((current) =>
+                    current ? { ...current, phase: 'unknown', retryable: true } : current,
+                  );
+                } finally {
+                  directorInFlight.current = false;
+                  setOpeningWorking(false);
+                }
+              }}
+            >
+              继续接收
+            </button>
           )}
         </div>
-      ) : (
-        <WorldPhoneSurface
-          key={data.id}
-          wechatActorKey={wechatActorKey}
-          transport={transport}
-          data={data}
-          onUploadPhoto={async (file, commandId) => {
-            const photo = await client.uploadPhoto(worldId, file, commandId);
-            request.current++;
-            setRefreshing(false);
-            setData((current) =>
-              !current || current.id !== photo.worldId
-                ? current
-                : {
-                    ...current,
-                    photos: [photo, ...(current.photos ?? []).filter((p) => p.id !== photo.id)],
-                  },
-            );
-            void load();
-            return { status: 'committed' };
-          }}
-          onChangeInvitation={async (input) => {
-            const receipt = await client.changeInvitation(worldId, input);
-            // Invalidate older reads; a committed receipt must survive a failed refresh.
-            request.current++;
-            setRefreshing(false);
-            setData((current) =>
-              !current || current.id !== receipt.worldId || (current.version ?? 0) > receipt.version
-                ? current
-                : {
-                    ...current,
-                    version: receipt.version,
-                    invitations: (current.invitations ?? []).map((a) =>
-                      a.id === receipt.invitation.id ? receipt.invitation : a,
-                    ),
-                  },
-            );
-            void load();
-            return { status: 'committed' };
-          }}
-          onSendMessage={async (actorId, text, commandId) => {
-            await deliverMessage(actorId, text, commandId);
-            return { status: 'committed' };
-          }}
-          onRetryMessage={async (messageId, commandId) => {
-            const failed = localMessages.find((message) => message.id === messageId);
-            if (!failed) throw new ApiFailure('NOT_FOUND', '原消息已不可访问，请刷新核对。');
-            const original = sendCommands.current[messageId];
-            if (!original)
-              throw new ApiFailure(
-                'UNKNOWN',
-                '原发送资料不完整，暂时无法核对。内容仍保留，可返回其他页面。',
-              );
-            let result;
-            try {
-              const { worldId: originalWorldId, ...input } = original;
-              result = await receiptClient.lookup(originalWorldId, input);
-            } catch {
-              throw new ApiFailure('UNKNOWN', '暂时无法核对，原消息仍待确认。请稍后再核对。');
-            }
-            if (result.status === 'committed') {
-              setLocalMessages((current) => current.filter((message) => message.id !== messageId));
-              delete sendCommands.current[messageId];
-              await load();
-              return { status: 'committed' };
-            }
-            if (failed.status === 'unknown' && commandId === messageId)
-              throw new ApiFailure(
-                'UNKNOWN',
-                '尚未查到已提交结果，原消息仍待确认。可继续核对，或明确选择再次尝试。',
-              );
-            // A different command is permitted only by the explicit retry/confirmation button.
-            await deliverMessage(failed.actorId, failed.text, commandId, messageId);
-            return { status: 'committed' };
-          }}
-          onSaveNote={async (input) => {
-            const receipt = await client.saveWorldNote(worldId, {
-              commandId: input.commandId,
-              /* 开场便签用它自己的作用域 id，其余由服务端分配 */
-              ...(input.id ? { id: input.id } : {}),
-              title: input.title,
-              text: input.text,
-              expectedVersion: input.expectedVersion ?? 0,
-            });
-            request.current++;
-            setRefreshing(false);
-            setData((current) => mergeNoteReceipt(current, receipt));
-            void load();
-            return { status: receipt.status };
-          }}
-          onExperienceBusy={setExperienceBusy}
-          localMessages={localMessages}
-          records={records}
-          reloadRecords={reloadRecords}
-          onReload={load}
-          onSceneWorldChanged={reloadSceneWorld}
-          mediaUrlFor={mediaUrlFor}
-          loading={refreshing}
-          loadError={error}
-        />
       )}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {!data ? (
+          <div className="world-loading">
+            <a href="/possibilities">← 返回分支</a>
+            {isBuilding ? (
+              <ProgressState
+                label={statusMessage}
+                detail="设定和任务已经保存。可以返回分支，稍后查看当前进度。"
+              />
+            ) : error ? (
+              <>
+                <Notice>{error}</Notice>
+                <Button variant="secondary" disabled={refreshing} onClick={() => void load()}>
+                  重新打开
+                </Button>
+                <Button disabled={refreshing} onClick={() => void retryBuild()}>
+                  重新生成这段人生
+                </Button>
+              </>
+            ) : (
+              <ProgressState
+                label={statusMessage}
+                detail="正在读取已有记录，打开后从手机锁屏开始。"
+              />
+            )}
+          </div>
+        ) : (
+          <WorldPhoneSurface
+            key={data.id}
+            wechatActorKey={wechatActorKey}
+            transport={transport}
+            data={data}
+            onUploadPhoto={async (file, commandId) => {
+              const photo = await client.uploadPhoto(worldId, file, commandId);
+              request.current++;
+              setRefreshing(false);
+              setData((current) =>
+                !current || current.id !== photo.worldId
+                  ? current
+                  : {
+                      ...current,
+                      photos: [photo, ...(current.photos ?? []).filter((p) => p.id !== photo.id)],
+                    },
+              );
+              void load();
+              return { status: 'committed' };
+            }}
+            onChangeInvitation={async (input) => {
+              const receipt = await client.changeInvitation(worldId, input);
+              // Invalidate older reads; a committed receipt must survive a failed refresh.
+              request.current++;
+              setRefreshing(false);
+              setData((current) =>
+                !current ||
+                current.id !== receipt.worldId ||
+                (current.version ?? 0) > receipt.version
+                  ? current
+                  : {
+                      ...current,
+                      version: receipt.version,
+                      invitations: (current.invitations ?? []).map((a) =>
+                        a.id === receipt.invitation.id ? receipt.invitation : a,
+                      ),
+                    },
+              );
+              void load();
+              return { status: 'committed' };
+            }}
+            onSendMessage={async (actorId, text, commandId) => {
+              await deliverMessage(actorId, text, commandId);
+              return { status: 'committed' };
+            }}
+            onRetryMessage={async (messageId, commandId) => {
+              const failed = localMessages.find((message) => message.id === messageId);
+              if (!failed) throw new ApiFailure('NOT_FOUND', '原消息已不可访问，请刷新核对。');
+              const original = sendCommands.current[messageId];
+              if (!original)
+                throw new ApiFailure(
+                  'UNKNOWN',
+                  '原发送资料不完整，暂时无法核对。内容仍保留，可返回其他页面。',
+                );
+              let result;
+              try {
+                const { worldId: originalWorldId, ...input } = original;
+                result = await receiptClient.lookup(originalWorldId, input);
+              } catch {
+                throw new ApiFailure('UNKNOWN', '暂时无法核对，原消息仍待确认。请稍后再核对。');
+              }
+              if (result.status === 'committed') {
+                setLocalMessages((current) =>
+                  current.filter((message) => message.id !== messageId),
+                );
+                delete sendCommands.current[messageId];
+                await load();
+                return { status: 'committed' };
+              }
+              if (failed.status === 'unknown' && commandId === messageId)
+                throw new ApiFailure(
+                  'UNKNOWN',
+                  '尚未查到已提交结果，原消息仍待确认。可继续核对，或明确选择再次尝试。',
+                );
+              // A different command is permitted only by the explicit retry/confirmation button.
+              await deliverMessage(failed.actorId, failed.text, commandId, messageId);
+              return { status: 'committed' };
+            }}
+            onSaveNote={async (input) => {
+              const receipt = await client.saveWorldNote(worldId, {
+                commandId: input.commandId,
+                /* 开场便签用它自己的作用域 id，其余由服务端分配 */
+                ...(input.id ? { id: input.id } : {}),
+                title: input.title,
+                text: input.text,
+                expectedVersion: input.expectedVersion ?? 0,
+              });
+              request.current++;
+              setRefreshing(false);
+              setData((current) => mergeNoteReceipt(current, receipt));
+              void load();
+              return { status: receipt.status };
+            }}
+            onExperienceBusy={setExperienceBusy}
+            localMessages={localMessages}
+            records={records}
+            reloadRecords={reloadRecords}
+            onReload={load}
+            onSceneWorldChanged={reloadSceneWorld}
+            mediaUrlFor={mediaUrlFor}
+            loading={refreshing}
+            loadError={error}
+          />
+        )}
+      </div>
     </div>
   );
 }

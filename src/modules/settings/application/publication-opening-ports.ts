@@ -26,10 +26,20 @@ export type OpeningSnapshot = {
 export interface PublicationOpeningPort {
   read(ownerId: string, worldId: string): Promise<OpeningSnapshot>;
   beginPlan(ownerId: string, worldId: string, commandId: string): Promise<boolean>;
-  savePlan(ownerId: string, worldId: string, commandId: string, briefs: OpeningBrief[]): Promise<void>;
+  savePlan(
+    ownerId: string,
+    worldId: string,
+    commandId: string,
+    briefs: OpeningBrief[],
+  ): Promise<void>;
   failPlan(ownerId: string, worldId: string, commandId: string): Promise<void>;
   claimNext(ownerId: string, worldId: string): Promise<OpeningDelivery | null>;
-  finishDelivery(ownerId: string, worldId: string, actorId: string, commandId: string): Promise<boolean>;
+  finishDelivery(
+    ownerId: string,
+    worldId: string,
+    actorId: string,
+    commandId: string,
+  ): Promise<boolean>;
   failDelivery(ownerId: string, worldId: string, actorId: string, commandId: string): Promise<void>;
   /** Explicit owner recovery only; reconcile durable receipts before making a new command. */
   retry(ownerId: string, worldId: string): Promise<void>;
@@ -45,6 +55,9 @@ export function openingStatus(value: OpeningSnapshot): OpeningStatus {
     phase: value.phase,
     total: value.source?.actors.length ?? 0,
     delivered: value.deliveries.filter((d) => d.status === 'delivered').length,
-    retryable: value.phase === 'unknown' || value.phase === 'planning' || value.deliveries.some(d => d.status === 'unknown' || d.status === 'sending'),
+    retryable:
+      value.phase === 'unknown' ||
+      value.phase === 'planning' ||
+      value.deliveries.some((d) => d.status === 'unknown' || d.status === 'sending'),
   };
 }

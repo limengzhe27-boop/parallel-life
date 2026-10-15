@@ -1,3 +1,6 @@
+import { PublicationOpeningRepository } from '../modules/settings/infrastructure/publication-opening-repository.ts';
+import { advancePublicationOpening } from '../modules/settings/application/advance-publication-opening.ts';
+import { planPublicationOpening } from './publication-opening-planner.ts';
 import { PostgresWorldSpace } from '../modules/world/infrastructure/space-repository.ts';
 import { PostgresAppointmentWaitRepository } from '../modules/world/infrastructure/appointment-wait-repository.ts';
 import type { AppointmentWaitRequest } from '../contracts/appointment-wait.ts';
@@ -183,12 +186,52 @@ function createServices() {
       const clock = await new PostgresClockStore(db).read(ownerId, worldId);
       return { storyNow: clock.storyNow, played: 0, folded: 0, summary: null, actors: [] };
     },
+    advanceOpening: async (
+      ownerId: string,
+      worldId: string,
+      automatic = true,
+      explicitRetry = false,
+    ) =>
+      advancePublicationOpening(
+        {
+          opening: new PublicationOpeningRepository(db),
+          worlds: new PostgresWorldRepository(db),
+          planner: publicationCharacterPlanner(db, ownerId, worldId, createTextModel()),
+          planOpening: (source, world) => planPublicationOpening(createTextModel(), source, world),
+          clock: new PostgresClockStore(db),
+          now: () => new Date().toISOString(),
+          newId: randomUUID,
+          memories: (actorId) =>
+            db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),
+        },
+        ownerId,
+        worldId,
+        automatic,
+        explicitRetry,
+      ),
     advanceWorld: async (
       ownerId: string,
       worldId: string,
       maxBeats?: number,
       automatic = false,
     ) => {
+      const liveOpening = await advancePublicationOpening(
+        {
+          opening: new PublicationOpeningRepository(db),
+          worlds: new PostgresWorldRepository(db),
+          planner: publicationCharacterPlanner(db, ownerId, worldId, createTextModel()),
+          planOpening: (source, world) => planPublicationOpening(createTextModel(), source, world),
+          clock: new PostgresClockStore(db),
+          now: () => new Date().toISOString(),
+          newId: randomUUID,
+          memories: (actorId) =>
+            db.transaction(ownerId, (sql) => loadActorMemories(sql, ownerId, { actorId, worldId })),
+        },
+        ownerId,
+        worldId,
+        automatic,
+      );
+      if (liveOpening.handled && liveOpening.result) return liveOpening.result;
       const scripted = await advancePublicationStory(
         {
           story: new PublicationStoryRepository(db),
