@@ -246,7 +246,7 @@ test('narrative admission, actor requests and actual participation receipts', as
     );
     if (bypassReaderWith) {
       // Deliberate internal bypass: product loading must reject this input earlier.
-      // Retain an independent actual-kernel test against a forged caller snapshot.
+      // The actual send gate must also reject a forged caller snapshot before payment.
       snapshot.input = { sourceId: input.id, text: input.text, origin: input.origin };
       snapshot.sources = snapshot.sources.map((source) =>
         source.id === bypassReaderWith.id
@@ -740,6 +740,7 @@ test('narrative admission, actor requests and actual participation receipts', as
       const typed = await accept(f, r, {}, { requestId: randomUUID() });
       await assert.rejects(execution(f, typed), { code: 'INPUT_SCOPE_FORBIDDEN' });
       const ex = await execution(f, typed, await accept(f, r));
+      let calls = 0;
       await assert.rejects(
         runNpcAgent(
           {
@@ -747,6 +748,7 @@ test('narrative admission, actor requests and actual participation receipts', as
             kernel: kernel(f.owner),
             model: {
               async decide() {
+                calls++;
                 return JSON.stringify(ex.proposal('engage'));
               },
             },
@@ -755,8 +757,9 @@ test('narrative admission, actor requests and actual participation receipts', as
           ex.claim,
           ex.snapshot,
         ),
-        /INVALID_NARRATIVE_BASIS/,
+        { code: 'INPUT_SCOPE_FORBIDDEN' },
       );
+      assert.equal(calls, 0);
       assert.deepEqual(await counts(f), [0, 0, 0, 0]);
       const other = await accept(f, o.requests[1]!, {
         text: JSON.stringify({ type: 'continue_own_plan' }),
@@ -959,7 +962,7 @@ test('narrative admission, actor requests and actual participation receipts', as
     },
   );
   await t.test(
-    'automatic projection rejects strict malformed typed bodies before any extension callback can write SQL',
+    'strict malformed typed bodies are rejected by preparation and the atomic send gate before any paid call or extension',
     async () => {
       for (const changed of [
         { extra: 'author prose' },
@@ -975,7 +978,8 @@ test('narrative admission, actor requests and actual participation receipts', as
         const input = await accept(f, r, {}, changed);
         await assert.rejects(execution(f, input), /INVALID_NARRATIVE_BASIS/);
         const ex = await execution(f, input, await accept(f, r));
-        let callbacks = 0;
+        let callbacks = 0,
+          calls = 0;
         const tested = new PostgresNpcAgentKernel(db, worlds, async () => {
           callbacks++;
           throw Error('MALFORMED_INPUT_REACHED_EXTENSION');
@@ -987,6 +991,7 @@ test('narrative admission, actor requests and actual participation receipts', as
               kernel: tested,
               model: {
                 async decide() {
+                  calls++;
                   return JSON.stringify(ex.proposal());
                 },
               },
@@ -995,8 +1000,9 @@ test('narrative admission, actor requests and actual participation receipts', as
             ex.claim,
             ex.snapshot,
           ),
-          /INVALID_NARRATIVE_BASIS/,
+          { code: 'INPUT_SCOPE_FORBIDDEN' },
         );
+        assert.equal(calls, 0);
         assert.equal(callbacks, 0);
         assert.deepEqual(await counts(f), [0, 0, 0, 0]);
         assert.equal(
@@ -1005,8 +1011,16 @@ test('narrative admission, actor requests and actual participation receipts', as
         );
         assert.equal(
           (await actors.lookup(f.owner, f.worldId, input.commandId))?.status,
-          'invalid_output',
+          'stale_discarded',
         );
+        const failed = (
+          await admin.query(
+            'SELECT sent_at,response_hash FROM parallel_life.agent_attempts WHERE id=$1',
+            [ex.claim.id],
+          )
+        ).rows[0];
+        assert.equal(failed.sent_at, null);
+        assert.equal(failed.response_hash, null);
         assert.ok(
           (await listPending(f)).every((v) => v.inputReceiptId === null && v.receiptId === null),
         );
