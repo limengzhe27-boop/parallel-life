@@ -630,6 +630,36 @@ test('actor situations retain own directions and share the current world snapsho
         'engaged',
       );
       assert.equal(sharedObservation?.actors.find((a) => a.actorId === secondId)?.status, 'active');
+      const earlier = await readDirectorObservation(
+        app,
+        f.owner,
+        f.worldId,
+        20,
+        '2026-10-14T07:00:00.000Z',
+      );
+      assert.equal(earlier.eventProgress?.length, 0);
+      assert.equal(earlier.actorExchanges.length, 0);
+      const futureRecord = (
+        await admin.query(
+          "SELECT id,document->>'at' AS at FROM parallel_life.world_messages WHERE world_id=$1 AND actor_id=$2 AND document->>'role'='user' AND document->>'text'='暂时不去，我先忙工作。'",
+          [f.worldId, firstId],
+        )
+      ).rows[0];
+      await admin.query(
+        "UPDATE parallel_life.world_messages SET document=jsonb_set(document,'{at}',to_jsonb($3::text)) WHERE world_id=$1 AND id=$2",
+        [f.worldId, futureRecord.id, '2026-10-16T07:00:00.000Z'],
+      );
+      try {
+        const guarded = await readDirectorObservation(app, f.owner, f.worldId, 20, at);
+        const view = guarded.eventProgress?.find((e) => e.nodeKey === initial.opening.nodeKey);
+        assert.equal(view?.actors.find((a) => a.actorId === firstId)?.participation, 'unknown');
+        assert.equal(view?.actors.find((a) => a.actorId === secondId)?.participation, 'engaged');
+      } finally {
+        await admin.query(
+          "UPDATE parallel_life.world_messages SET document=jsonb_set(document,'{at}',to_jsonb($3::text)) WHERE world_id=$1 AND id=$2",
+          [f.worldId, futureRecord.id, futureRecord.at],
+        );
+      }
 
       const latest = await runtime.get({ userId: f.owner }, f.worldId);
       assert.equal(latest.time, at);

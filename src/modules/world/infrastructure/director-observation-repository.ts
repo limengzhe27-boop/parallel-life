@@ -78,8 +78,9 @@ export function readDirectorObservation(
       JOIN parallel_life.world_events e ON e.world_id=p.world_id AND e.owner_id=p.owner_id AND e.id=p.state->>'lastSourceEventId'
       JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
       WHERE p.world_id=$1 AND p.owner_id=$2 AND p.world_version<=$3 AND e.version<=$3
+        AND COALESCE(e.payload->>'storyAt',e.payload->>'storyTime',e.payload->>'occurredAt')::timestamptz <= $4::timestamptz
         AND (p.state->>'cursorVersion')::int=e.version ORDER BY p.world_version DESC,p.node_key LIMIT 12`,
-        [worldId, ownerId, worldVersion],
+        [worldId, ownerId, worldVersion, storyAt],
       )
     ).rows;
     const eventProgress: NonNullable<DirectorObservation['eventProgress']> = [];
@@ -104,13 +105,15 @@ export function readDirectorObservation(
             JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
             JOIN parallel_life.world_messages m ON m.world_id=e.world_id AND m.owner_id=e.owner_id AND m.id=$5 AND m.actor_id=$4 AND m.document->>'sourceEventId'=e.id
             WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id=$3 AND e.version<=$6 AND m.document->'sourceVersion'=to_jsonb(e.version)
+              AND COALESCE(e.payload->>'storyAt',e.payload->>'storyTime',e.payload->>'occurredAt')::timestamptz <= $7::timestamptz
+              AND (m.document->>'at')::timestamptz <= $7::timestamptz
               AND e.payload->>'type'='turn.resolved' AND e.payload->'data'->>'actorId'=$4
               AND ((m.document->>'role'='user' AND coalesce(e.payload->'data'->>'origin','user')<>'director' AND m.document->>'text'=e.payload->'data'->>'userText')
                 OR (m.document->>'role'='assistant' AND EXISTS(SELECT 1 FROM jsonb_array_elements(e.payload->'data'->'effects') x WHERE x->>'type'='message.received' AND x->>'id'=m.id AND x->>'actorId'=$4 AND x->>'text'=m.document->>'text')))
               AND NOT EXISTS(SELECT 1 FROM parallel_life.memory_records r WHERE r.owner_id=e.owner_id AND r.status='forgotten'
                 AND ((r.scope_type='character' AND r.character_id=$4) OR (r.scope_type='branch' AND r.scope_id=$1))
                 AND (r.source_ids ? e.id OR r.source_ids ? m.id))`,
-                [worldId, ownerId, sources[0], actorId, sources[1], worldVersion],
+                [worldId, ownerId, sources[0], actorId, sources[1], worldVersion, storyAt],
               )
             ).rowCount === 1
           );
