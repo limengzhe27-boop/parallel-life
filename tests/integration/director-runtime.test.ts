@@ -423,8 +423,10 @@ test('director persistence: protected finite attempts, complete observation rang
             [f.id],
           ),
         ),
-        { code: '42501' },
+        { code: '23514', message: 'INVALID_EPISODE_PROGRESS' },
       );
+      assert.deepEqual(await repository.readEpisodes(f.owner, f.id), [episode]);
+      assert.equal(await total('world_events', f.id), 0);
       await assert.rejects(
         admin.query(
           'INSERT INTO parallel_life.shared_episodes(world_id,owner_id,id,origin_decision_id,document) VALUES($1,$2,$3,$4,$5)',
