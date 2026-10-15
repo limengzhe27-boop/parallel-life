@@ -445,14 +445,29 @@ export async function attachAgentWorldContext(
     snapshot.state.worldId,
     snapshot.state.actorId,
   );
-  const sources = [...snapshot.sources],
-    observations = [...snapshot.observations];
+  // Late awareness must honor the same source revocation as the earlier private/native loader.
+  const blocked = await db.transaction(ownerId, (sql) =>
+    forgottenAgentSourceIds(sql, ownerId, snapshot.state.worldId, snapshot.state.actorId),
+  );
+  const sources = snapshot.sources.filter(
+    (source) => !blocked.has(source.id) && !blocked.has(source.recordId),
+  );
+  const permitted = new Set(sources.map((source) => source.id));
+  const observations = snapshot.observations.filter((observation) =>
+    permitted.has(observation.sourceId),
+  );
   const allowed = new Set(awareness.boundary.placeIds);
   const knowledge = awareness.knowledge
     .filter(
       (k) =>
         k.worldVersion <= snapshot.worldVersion &&
-        Date.parse(k.learnedAt) <= Date.parse(snapshot.storyAt),
+        Date.parse(k.learnedAt) <= Date.parse(snapshot.storyAt) &&
+        (k.placeId === null || allowed.has(k.placeId)) &&
+        !blocked.has(k.sourceEventId) &&
+        !blocked.has(
+          `knowledge:${k.sourceEventId}:${k.subject.kind === 'player' ? 'player' : k.subject.actorId}:${k.kind}`,
+        ) &&
+        (!k.evidence?.inputReceiptId || !blocked.has(k.evidence.inputReceiptId)),
     )
     .map((k) => {
       const subjectKey = k.subject.kind === 'player' ? 'player' : k.subject.actorId;
@@ -497,7 +512,11 @@ export async function attachAgentWorldContext(
     'worldVersion' in own &&
     own.worldVersion <= snapshot.worldVersion &&
     'sourceEventId' in own &&
+    !blocked.has(own.sourceEventId) &&
+    !blocked.has(`self-position:${own.sourceEventId}`) &&
     'occurredAt' in own &&
+    Number.isFinite(Date.parse(own.occurredAt)) &&
+    Date.parse(own.occurredAt) <= Date.parse(snapshot.storyAt) &&
     (!own.placeId || allowed.has(own.placeId))
   ) {
     const sourceId = `self-position:${own.sourceEventId}`;
