@@ -51,3 +51,13 @@
 首轮root5b09基线13/13通过；root94a1加入deferred/zero-send语义后补2项，15/15；随后加强paidstale保持eligible和普通global捕获，16/16最终通过。没有改弱任何已失败产品断言，也没有产品修复提交。
 
 主表保持待验收；root集成后执行统一检查与部署，并记录最终线上版本。SQL81既有生产迁移状态由root维护，本测试不构成生产能力激活、旧档切换或完整叙事体验验收。
+
+## 最终排序依赖及增量复验
+
+root最新 `579ad25a` 排序修复已 cherry-pick 为本地 `316868aa`（仅root依赖，不属本人交付）。先在该依赖上把原冻结16项实际重新跑过，全绿；再仅追加1个实际多资格回归，没有改原15个专项断言。
+
+新增真实发布内容同时让 a、aa、a_b 于10点合格，实际 snapshot / actual advance 的模型payload必须采用与locale无关的字节顺序 `a,a_b,aa`；跨秒causeID不变，bootstrap后只有1次新模型调用，再tick不购买。该排序用例的精确增量测试提交为 `a49313eeab056efcb7f98b0a81798d221a20d363`，只改本人新测试文件；须在基础 `486b08f8e0df5ffae17e1d147297a9b13dc7b0db` 之后集成。
+
+最终真实PG **17/17 pass，0 fail/skip**（父+16专项），type退出0、边界563/format/diff继续通过；日志 `.local/semantic70-final-{pg,type,boundaries}.log`。所有zero-send、paidstale时资格仍成立、unknown原pending身份、全历史Y→X→Y、普通global实际捕获、focus延期和无新因恢复断言保持通过。测试源码已冻结，0公共source/SQL/config新改动。
+
+最终catalog临时semantic70函数=0；PG55505再次正常SIGTERM、session退出0、无监听。报告与主表已同步，仍待root集成/统一检查/READY和公网验收。
