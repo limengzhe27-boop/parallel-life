@@ -199,13 +199,13 @@ test('actual NPC kernel and private service commit actor state with world receip
       p.plans.push({
         id: 'p',
         goalId: 'g',
-        summary: '先保存自己的计划，等待材料',
+        summary: '先保存自己的核对计划',
         sourceIds: [f.input.id],
         status: 'waiting',
         actionIds: ['a'],
-        nextActionId: null,
+        nextActionId: 'a',
         triggers: [],
-        missingConditions: ['材料'],
+        missingConditions: [],
       });
       p.actions.push({
         id: 'a',

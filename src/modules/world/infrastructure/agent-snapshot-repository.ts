@@ -193,7 +193,7 @@ export async function readPrivateAgentSnapshot(
       async (sql) =>
         (
           await sql.query(
-            "SELECT * FROM parallel_life.memory_records WHERE owner_id=$1 AND scope_type='character' AND character_id=$2 AND (branch_id=$3 OR branch_id IS NULL) AND status='active' AND id=ANY($4::uuid[])",
+            "SELECT * FROM parallel_life.memory_records WHERE owner_id=$1 AND scope_type='character' AND character_id=$2 AND (branch_id=$3 OR branch_id IS NULL) AND status='active' AND id=ANY($4::text[])",
             [ownerId, actorId, world.id, missingMemoryIds],
           )
         ).rows,

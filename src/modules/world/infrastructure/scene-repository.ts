@@ -1,3 +1,4 @@
+import { acceptNativeAgentInput } from './accept-native-agent-input.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
@@ -718,6 +719,18 @@ export class SceneRepository {
       };
       assertSceneEntry(ctx, s.scene, entry, [...s.actions, action]);
       await item(sql, 'entry', entry);
+      if (!privateThought)
+        await acceptNativeAgentInput(sql, ownerId, {
+          worldId,
+          commandId: input.commandId,
+          channel: 'scene',
+          threadId: sceneId,
+          sourceEventId: source.sourceEventId,
+          sourceVersion: source.sourceVersion,
+          text: input.text,
+          storyAt,
+          receivedAt: new Date().toISOString(),
+        });
       const task = privateThought
         ? null
         : await enqueue(

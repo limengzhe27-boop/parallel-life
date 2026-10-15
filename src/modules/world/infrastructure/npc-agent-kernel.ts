@@ -1,3 +1,5 @@
+import { projectNativeAgentChannelInTransaction } from './agent-channel-projector.ts';
+import { readActorStrategyBasis } from './agent-source-resolver.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -36,8 +38,6 @@ export class PostgresNpcAgentKernel implements AgentKernel {
   }
   async commit(ownerId: string, input: Parameters<AgentKernel['commit']>[1]) {
     const { attempt, snapshot } = input;
-    if (snapshot.channel.kind !== 'private')
-      throw new AgentValidationError('CHANNEL_PROJECTOR_NOT_REGISTERED');
     const proposal = parseAgentProposal(snapshot, input.proposal);
     return this.db.transaction(ownerId, async (sql) => {
       const replay = (
@@ -88,6 +88,20 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           (clock.managed && (!clock.active_until || Date.parse(clock.active_until) <= Date.now())))
       )
         throw Object.assign(Error('WORLD_PAUSED'), { code: 'WORLD_PAUSED' });
+      const strategy = snapshot.sources.filter((source) => source.usage === 'private_strategy');
+      if (strategy.length) {
+        const currentBasis = await readActorStrategyBasis(
+          sql,
+          ownerId,
+          current,
+          attempt.expectedWorldVersion,
+          snapshot.storyAt,
+        );
+        if (strategy.some((source) => !currentBasis.some((now) => isDeepStrictEqual(source, now))))
+          throw Object.assign(Error('AGENT_REVISION_CONFLICT'), {
+            code: 'AGENT_REVISION_CONFLICT',
+          });
+      }
       const sourceIds = snapshot.sources.flatMap((source) => [
         source.id,
         source.recordId,
@@ -105,7 +119,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       if (memorySources.length) {
         const rows = (
           await sql.query(
-            'SELECT id,text,status FROM parallel_life.memory_records WHERE owner_id=$1 AND character_id=$2 AND (branch_id=$3 OR branch_id IS NULL) AND id=ANY($4::uuid[])',
+            'SELECT id,text,status FROM parallel_life.memory_records WHERE owner_id=$1 AND character_id=$2 AND (branch_id=$3 OR branch_id IS NULL) AND id=ANY($4::text[])',
             [
               ownerId,
               attempt.actorId,
@@ -160,6 +174,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           [attempt.worldId, ownerId, attempt.actorId, attempt.expectedWorldVersion],
         )
       ).rows.map((row) => row.document as AgentActionResult);
+      const ownActual = (
+        await sql.query(
+          'SELECT document FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND owner_id=$2 AND subject_key=$3 AND source_version<=$4',
+          [attempt.worldId, ownerId, `actor:${attempt.actorId}`, attempt.expectedWorldVersion],
+        )
+      ).rows[0]?.document;
       const results: AgentActionResult[] = [],
         effects: WorldEffect[] = [];
       for (const action of proposal.actions) {
@@ -167,6 +187,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         const eligibility = evaluateAgentActionEligibility(snapshot, proposal, action, {
           storyAt: at,
           trustedResults: [...historicalResults, ...results],
+          ...(ownActual?.status === 'at' ? { actorPlaceId: ownActual.placeId } : {}),
         });
         if (eligibility.status !== 'ready') {
           action.status = eligibility.status;
@@ -197,7 +218,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             throw new AgentValidationError('APPOINTMENT_PROPOSAL');
           effects.push({
             type: 'appointment.proposed',
-            id: `${eventId}_effect_${effects.length}`,
+            id: randomUUID(),
             title,
             at: new Date(proposedAt).toISOString(),
             participantIds: [attempt.actorId],
@@ -260,7 +281,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       for (const statement of accepted.statements)
         effects.push({
           type: 'message.received',
-          id: `${eventId}_effect_${effects.length}`,
+          id: randomUUID(),
           actorId: attempt.actorId,
           text: statement.text,
         });
@@ -272,7 +293,18 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         text: snapshot.input.text,
         ...(snapshot.input.origin !== 'player' ? { origin: 'director' as const } : {}),
       };
-      if (accepted.statements.length) {
+      if (snapshot.channel.kind !== 'private') {
+        await projectNativeAgentChannelInTransaction(sql, ownerId, {
+          attempt,
+          snapshot,
+          transition,
+          eventId,
+          occurredAt,
+          storyAt: at,
+          effects,
+          statements: accepted.statements,
+        });
+      } else if (accepted.statements.length) {
         const event: WorldEvent = {
           schemaVersion: 1,
           id: eventId,

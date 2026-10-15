@@ -1,3 +1,4 @@
+import { acceptNativeAgentInput } from './accept-native-agent-input.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
@@ -479,6 +480,17 @@ export class PostgresGroupRepository {
         data: { groupId: command.groupId, text: command.text, messageId: randomUUID() },
       };
       const receipt = await persistGroupEvent(sql, world, event, hash);
+      await acceptNativeAgentInput(sql, ownerId, {
+        worldId: world.id,
+        commandId: command.commandId,
+        channel: 'group',
+        threadId: command.groupId,
+        sourceEventId: event.id,
+        sourceVersion: event.version,
+        text: command.text,
+        storyAt: event.storyAt,
+        receivedAt: event.occurredAt,
+      });
       const input: GroupTaskInput = {
         channel: 'group',
         worldId: world.id,
