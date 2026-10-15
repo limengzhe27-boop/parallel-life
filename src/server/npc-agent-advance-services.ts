@@ -258,7 +258,10 @@ export function npcAgentAdvanceServices(
       // It does not require another director call after every ordinary chat, nor force a message.
       if (!coordinated && observed.needsEvaluation) {
         const decision = await coordinate(
-          scheduled.snapshot.candidates,
+          scheduled.snapshot.candidates.filter(
+            (candidate) =>
+              !scheduled.blocked.some((blocked) => blocked.candidate.id === candidate.id),
+          ),
           scheduled.snapshot.blockers,
         );
         if (!decision.selectedCandidateIds.length) return quiet(storyAt);
