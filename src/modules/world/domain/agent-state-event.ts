@@ -20,6 +20,7 @@ export type AgentRuntimeTransition = {
   sceneDepartures?: import('./agent-scene-departure.ts').AgentSceneDeparture[];
   /** Kernel-certified report provenance, not a position change. */
   positionKnowledge?: import('./world-awareness.ts').ActorPositionKnowledge[];
+  episodeDecision?: import('./agent-narrative.ts').EpisodeParticipationDecision;
   /** Immutable accepted revision for exact receipt replay and explicit state migration. */
   stateAfter: ActorAgentState;
 };

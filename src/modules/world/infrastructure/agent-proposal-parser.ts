@@ -32,6 +32,14 @@ const Condition = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('observation'), sourceId: Id }),
 ]);
 const Proposal = z.strictObject({
+  episodeDecision: z
+    .strictObject({
+      requestId: Id,
+      choice: z.enum(['engage', 'decline', 'defer', 'need_information', 'quiet']),
+      reason: z.string().trim().min(1).max(2000),
+      ...Basis,
+    })
+    .optional(),
   replyAssessments: z
     .array(
       z.strictObject({

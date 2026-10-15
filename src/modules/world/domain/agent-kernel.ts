@@ -219,6 +219,35 @@ export function validateAgentProposal(
   proposal: AgentProposal,
 ): void {
   const state = context.viewState ?? context.state;
+  if (proposal.episodeDecision !== undefined) {
+    let intent: unknown;
+    try {
+      intent = JSON.parse(context.input.text);
+    } catch {
+      intent = null;
+    }
+    const request = intent as { type?: unknown; requestId?: unknown; revision?: unknown } | null;
+    const decision = proposal.episodeDecision;
+    requireValid(
+      context.input.origin === 'coordination' &&
+        context.channel.kind === 'private' &&
+        request?.type === 'npc_episode_consideration' &&
+        request.revision === 0 &&
+        typeof request.requestId === 'string' &&
+        decision.requestId === request.requestId &&
+        ['engage', 'decline', 'defer', 'need_information', 'quiet'].includes(decision.choice) &&
+        typeof decision.reason === 'string' &&
+        decision.reason.trim().length > 0 &&
+        decision.reason.length <= 2000 &&
+        Array.isArray(decision.sourceIds) &&
+        decision.sourceIds.length > 0 &&
+        decision.sourceIds.length <= 64 &&
+        new Set(decision.sourceIds).size === decision.sourceIds.length &&
+        decision.sourceIds.includes(context.input.sourceId) &&
+        decision.sourceIds.every((id) => context.sources.some((source) => source.id === id)),
+      'EPISODE_DECISION_SCOPE',
+    );
+  }
   applyAgentQuestionChanges(context, proposal);
   if (context.viewState) {
     requireValid(

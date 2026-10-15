@@ -60,13 +60,17 @@ BEGIN
    AND c.engine_epoch=NEW.engine_epoch AND md5(i.state::text)=NEW.genesis_hash)
  OR EXISTS(SELECT 1 FROM parallel_life.agent_attempts WHERE world_id=NEW.world_id)
  OR EXISTS(SELECT 1 FROM parallel_life.director_runtime_attempts WHERE world_id=NEW.world_id)
+ OR EXISTS(SELECT 1 FROM parallel_life.worlds w,LATERAL jsonb_array_elements(w.state->'actors') a
+   WHERE w.id=NEW.world_id AND NOT EXISTS(SELECT 1 FROM parallel_life.actor_agent_states s
+    WHERE s.world_id=w.id AND s.owner_id=w.owner_id AND s.actor_id=a->>'id'
+     AND s.revision=0 AND s.projected_world_version=0))
  THEN RAISE EXCEPTION 'INVALID_NEW_NARRATIVE_ADMISSION' USING ERRCODE='23514'; END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER agent_narrative_admission_guard BEFORE INSERT ON parallel_life.agent_narrative_admissions
  FOR EACH ROW EXECUTE FUNCTION parallel_life.guard_agent_narrative_admission();
 CREATE FUNCTION parallel_life.guard_agent_episode_request() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $$
-DECLARE opportunity jsonb; body jsonb; BEGIN
+DECLARE opportunity jsonb; body jsonb; intent jsonb; definition_ref text; BEGIN
  IF TG_OP='INSERT' THEN
   SELECT o INTO opportunity FROM parallel_life.director_decisions d
    JOIN parallel_life.director_runtime_attempts a ON a.id=d.attempt_id AND a.world_id=d.world_id AND a.owner_id=d.owner_id
@@ -86,12 +90,22 @@ DECLARE opportunity jsonb; body jsonb; BEGIN
   THEN RAISE EXCEPTION 'IMMUTABLE_EPISODE_REQUEST_BASIS' USING ERRCODE='23514'; END IF;
   IF NEW.input_receipt_id IS NOT NULL THEN
    SELECT r.document INTO body FROM parallel_life.agent_input_receipts r WHERE r.world_id=NEW.world_id AND r.owner_id=NEW.owner_id AND r.id=NEW.input_receipt_id;
+   intent := (body->>'text')::jsonb;
+   SELECT document->>'definitionRef' INTO definition_ref FROM parallel_life.actor_agent_states
+    WHERE world_id=NEW.world_id AND owner_id=NEW.owner_id AND actor_id=NEW.actor_id;
    IF body IS NULL OR body->>'origin' IS DISTINCT FROM 'coordination' OR body->>'channel' IS DISTINCT FROM 'private'
     OR body->>'recipientActorId' IS DISTINCT FROM NEW.actor_id OR body->>'threadId' IS DISTINCT FROM NEW.actor_id
-    OR (body->>'text')::jsonb->>'type' IS DISTINCT FROM 'npc_episode_consideration'
-    OR (body->>'text')::jsonb->>'requestId' IS DISTINCT FROM NEW.id
-    OR (body->>'text')::jsonb->>'activity' IS DISTINCT FROM NEW.activity
-    OR (body->>'text')::jsonb->'revision' IS DISTINCT FROM '0'::jsonb
+    OR jsonb_typeof(intent) IS DISTINCT FROM 'object'
+    OR NOT(intent ?& ARRAY['type','requestId','revision','activity','placeOptionIds','basisSourceIds'])
+    OR intent-ARRAY['type','requestId','revision','activity','placeOptionIds','basisSourceIds'] IS DISTINCT FROM '{}'::jsonb
+    OR intent->>'type' IS DISTINCT FROM 'npc_episode_consideration'
+    OR intent->>'requestId' IS DISTINCT FROM NEW.id
+    OR intent->>'activity' IS DISTINCT FROM NEW.activity
+    OR intent->'revision' IS DISTINCT FROM '0'::jsonb
+    -- Initial consideration grants no global venue or director-only source.
+    -- Existing memories and known places are assembled independently by the NPC snapshot.
+    OR intent->'placeOptionIds' IS DISTINCT FROM '[]'::jsonb
+    OR definition_ref IS NULL OR intent->'basisSourceIds' IS DISTINCT FROM jsonb_build_array('definition:'||definition_ref)
    THEN RAISE EXCEPTION 'INVALID_EPISODE_REQUEST_INPUT' USING ERRCODE='23514'; END IF;
   END IF;
   IF NEW.status='consumed' AND NOT EXISTS(SELECT 1 FROM parallel_life.agent_episode_receipts r
@@ -150,6 +164,12 @@ ALTER TABLE parallel_life.shared_episodes ADD CONSTRAINT shared_episodes_check C
 DROP TRIGGER director_episode_immutable ON parallel_life.shared_episodes;
 CREATE FUNCTION parallel_life.guard_agent_episode_progress() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $$
 DECLARE source_id text; BEGIN
+ IF TG_OP='INSERT' THEN
+  IF NEW.document->>'status' IS DISTINCT FROM 'proposed' OR NEW.document->'revision' IS DISTINCT FROM '0'::jsonb
+   OR NEW.document->'sourceEventIds' IS DISTINCT FROM '[]'::jsonb
+  THEN RAISE EXCEPTION 'EPISODE_INSERT_MUST_BE_PROPOSED' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+ END IF;
  IF (NEW.world_id,NEW.owner_id,NEW.id,NEW.origin_decision_id,NEW.created_at)
   IS DISTINCT FROM (OLD.world_id,OLD.owner_id,OLD.id,OLD.origin_decision_id,OLD.created_at)
   OR (NEW.document-ARRAY['revision','status','sourceEventIds']) IS DISTINCT FROM (OLD.document-ARRAY['revision','status','sourceEventIds'])
@@ -167,7 +187,7 @@ DECLARE source_id text; BEGIN
  THEN RAISE EXCEPTION 'EPISODE_NOT_ACTUALLY_PRESENTED' USING ERRCODE='23514'; END IF;
  RETURN NEW;
 END $$;
-CREATE TRIGGER agent_episode_progress_guard BEFORE UPDATE ON parallel_life.shared_episodes
+CREATE TRIGGER agent_episode_progress_guard BEFORE INSERT OR UPDATE ON parallel_life.shared_episodes
  FOR EACH ROW EXECUTE FUNCTION parallel_life.guard_agent_episode_progress();
 REVOKE ALL ON FUNCTION parallel_life.guard_agent_narrative_admission(),parallel_life.guard_agent_episode_request(),
  parallel_life.guard_agent_episode_receipt(),parallel_life.guard_agent_episode_progress()

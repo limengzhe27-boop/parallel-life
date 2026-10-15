@@ -498,6 +498,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         results,
         ...(departures.length ? { departures, sceneDepartures } : {}),
         ...(positionKnowledge.length ? { positionKnowledge } : {}),
+        ...(proposal.episodeDecision ? { episodeDecision: proposal.episodeDecision } : {}),
         stateAfter: accepted.state,
       };
       const command = {

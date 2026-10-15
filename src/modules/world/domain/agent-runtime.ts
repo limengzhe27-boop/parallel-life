@@ -142,6 +142,8 @@ export type AgentStatement = {
 };
 /** Proposed deltas, not trusted state. Existing decisions/history are appended, not overwritten. */
 export type AgentProposal = {
+  /** This NPC's own response to a real consideration request, never the director's verdict. */
+  episodeDecision?: import('./agent-narrative.ts').EpisodeParticipationDecision;
   statements: AgentStatement[];
   goals: AgentGoal[];
   plans: AgentPlan[];
