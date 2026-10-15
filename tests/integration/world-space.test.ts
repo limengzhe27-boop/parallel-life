@@ -349,6 +349,8 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
         assert.deepEqual(departureFacts, []);
         assert.deepEqual(replayed.facts, world.facts);
         const travel = events.find((e) => e.id === arrived.sourceEventId)!;
+        assert.equal(travel.type, 'travel.completed');
+        assert.ok(travel.data && typeof travel.data === 'object');
         assert.equal('departureObservation' in travel.data, false);
         const agenda = buildAgenda(world);
         const observerThread = agenda.find(
