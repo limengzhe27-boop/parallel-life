@@ -130,6 +130,8 @@ export type AgentStatement = {
   text: string;
   /** A statement implying execution success cannot survive that execution failing. */
   dependsOnActionIds: string[];
+  /** This speaker is asking the player to answer; the kernel binds the actual projected question ID. */
+  requestsPlayerReply?: boolean;
 };
 /** Proposed deltas, not trusted state. Existing decisions/history are appended, not overwritten. */
 export type AgentProposal = {

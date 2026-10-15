@@ -1,3 +1,6 @@
+import { nativeNpcTaskHandler } from './npc-agent-channel-services.ts';
+import { getServices } from './services.ts';
+import { createTextModel } from './composition.ts';
 import { createPrivateAssetStore } from './private-asset-store.ts';
 import type { AssetStore } from '../modules/media/application/asset-store.ts';
 import {
@@ -38,6 +41,8 @@ export function createWorker() {
     queue,
     handlers: {
       world: worldTaskDispatcher({
+        agent: (lease, signal) =>
+          nativeNpcTaskHandler(getServices().db, createTextModel)(lease, signal),
         scene: (lease, signal) => {
           if (!sceneHandler) {
             const sceneConfig = sceneGatewayConfig();

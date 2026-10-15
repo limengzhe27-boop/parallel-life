@@ -331,7 +331,6 @@ async function event(
     "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
     [world.id, commandId, id, state],
   );
-  await projectAgentWorldChange(sql, world.ownerId, world.id, id);
   return { sourceEventId: id, sourceVersion: version };
 }
 async function previous(
@@ -546,6 +545,7 @@ export class SceneRepository {
         { type: 'scene', sceneId, actionId: null, expectedVersion: source.sourceVersion },
         hash,
       );
+      await projectAgentWorldChange(sql, ownerId, worldId, source.sourceEventId);
       return receipt(sql, ownerId, {
         commandId: input.commandId,
         worldId,
@@ -637,6 +637,7 @@ export class SceneRepository {
         { type: 'scene', sceneId, actionId: null, expectedVersion: source.sourceVersion },
         hash,
       );
+      await projectAgentWorldChange(sql, ownerId, worldId, source.sourceEventId);
       return receipt(sql, ownerId, {
         commandId: input.commandId,
         worldId,
@@ -742,6 +743,7 @@ export class SceneRepository {
             { type: 'scene', sceneId, actionId: action.id, expectedVersion: source.sourceVersion },
             hash,
           );
+      await projectAgentWorldChange(sql, ownerId, worldId, source.sourceEventId);
       return receipt(sql, ownerId, {
         commandId: input.commandId,
         worldId,
@@ -820,6 +822,7 @@ export class SceneRepository {
           [worldId, sceneId],
         );
       }
+      await projectAgentWorldChange(sql, ownerId, worldId, source.sourceEventId);
       return receipt(sql, ownerId, {
         commandId: input.commandId,
         worldId,
@@ -1426,5 +1429,6 @@ export async function commitSceneProposal(
     sceneId: scene.id,
     task: null,
   });
+  await projectAgentWorldChange(sql, ownerId, worldId, source.sourceEventId);
   return source.sourceVersion;
 }

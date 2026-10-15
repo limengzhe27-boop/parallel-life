@@ -1,9 +1,12 @@
-import { projectNativeAgentChannelInTransaction } from './agent-channel-projector.ts';
+import {
+  nativeAgentProjectionId,
+  projectNativeAgentChannelInTransaction,
+} from './agent-channel-projector.ts';
 import { readActorStrategyBasis } from './agent-source-resolver.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
+import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentKernel, AgentSnapshot } from '../application/agent-runtime-ports.ts';
 import type { AgentActionResult, AgentProposal } from '../domain/agent-runtime.ts';
 import type {
@@ -29,7 +32,14 @@ import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 export class PostgresNpcAgentKernel implements AgentKernel {
   private readonly db: PostgresDatabase;
   private readonly worlds: PostgresWorldRepository;
-  constructor(db: PostgresDatabase, worlds: PostgresWorldRepository) {
+  constructor(
+    db: PostgresDatabase,
+    worlds: PostgresWorldRepository,
+    private readonly afterCommit?: (
+      sql: SqlClient,
+      receipt: { attempt: import('../domain/agent-runtime.ts').AgentAttempt; eventId: string },
+    ) => Promise<void>,
+  ) {
     this.db = db;
     this.worlds = worlds;
   }
@@ -51,6 +61,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         const accepted = replay.data?.agentRuntime as AgentRuntimeTransition | undefined;
         if (!accepted || accepted.inputReceiptId !== attempt.inputReceiptId)
           throw Error('INVALID_AGENT_RECEIPT');
+        await this.afterCommit?.(sql, { attempt, eventId: replay.id });
         return {
           eventId: replay.id as string,
           state: accepted.stateAfter,
@@ -266,6 +277,40 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             nextCheck: [],
           });
         }
+      for (const statement of accepted.statements)
+        effects.push({
+          type: 'message.received',
+          id: randomUUID(),
+          actorId: attempt.actorId,
+          text: statement.text,
+        });
+      const questionIndex = accepted.statements.findLastIndex(
+        (statement) => statement.requestsPlayerReply === true,
+      );
+      if (
+        snapshot.input.origin === 'player' &&
+        accepted.state.focus?.channel === snapshot.channel.kind &&
+        accepted.state.focus.threadId === snapshot.channel.threadId
+      )
+        accepted.state.focus = {
+          ...accepted.state.focus,
+          questionSourceId: null,
+          replyToActorId: null,
+        };
+      if (questionIndex >= 0) {
+        const messageEffects = effects.filter((effect) => effect.type === 'message.received');
+        const questionSourceId =
+          snapshot.channel.kind === 'private'
+            ? `message:${messageEffects[questionIndex]!.id}`
+            : `${snapshot.channel.kind === 'group' ? 'group' : 'scene'}:${nativeAgentProjectionId(eventId, snapshot.channel.kind, snapshot.channel.kind === 'group' ? 0 : questionIndex)}`;
+        accepted.state.focus = {
+          channel: snapshot.channel.kind,
+          threadId: snapshot.channel.threadId,
+          subjectId: accepted.state.focus?.subjectId ?? null,
+          questionSourceId,
+          replyToActorId: attempt.actorId,
+        };
+      }
       const transition: AgentRuntimeTransition = {
         schemaVersion: 1,
         engineEpoch: attempt.engineEpoch,
@@ -278,13 +323,6 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         results,
         stateAfter: accepted.state,
       };
-      for (const statement of accepted.statements)
-        effects.push({
-          type: 'message.received',
-          id: randomUUID(),
-          actorId: attempt.actorId,
-          text: statement.text,
-        });
       const command = {
         id: attempt.commandId,
         worldId: attempt.worldId,
@@ -393,6 +431,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         results,
       });
       await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
+      await this.afterCommit?.(sql, { attempt, eventId });
       return { eventId, state: accepted.state, results };
     });
   }

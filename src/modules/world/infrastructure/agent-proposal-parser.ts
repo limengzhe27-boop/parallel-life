@@ -33,7 +33,13 @@ const Condition = z.discriminatedUnion('kind', [
 ]);
 const Proposal = z.strictObject({
   statements: z
-    .array(z.strictObject({ text: Text, dependsOnActionIds: z.array(Id).max(16) }))
+    .array(
+      z.strictObject({
+        text: Text,
+        dependsOnActionIds: z.array(Id).max(16),
+        requestsPlayerReply: z.boolean().optional(),
+      }),
+    )
     .max(8),
   goals: z
     .array(

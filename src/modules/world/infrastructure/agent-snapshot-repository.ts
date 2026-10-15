@@ -480,6 +480,7 @@ export async function attachAgentWorldContext(
   }
   return {
     ...snapshot,
+    ...authorizedAgentState(snapshot.state, new Set(sources.map((s) => s.id))),
     sources: [...new Map(sources.map((s) => [s.id, s])).values()],
     observations,
     worldContext: {
