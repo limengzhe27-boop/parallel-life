@@ -1,0 +1,874 @@
+import { createHash } from 'node:crypto';
+import { z } from 'zod';
+import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
+import type { DirectorAttemptStore } from '../application/director-runtime-ports.ts';
+import type {
+  DirectorAttempt,
+  DirectorDecision,
+  DirectorSnapshot,
+  SharedEpisode,
+} from '../domain/director-runtime.ts';
+import type { AgentAttemptStatus, ActorAgentState } from '../domain/agent-runtime.ts';
+import { transitionAgentAttempt } from '../domain/agent-runtime.ts';
+import { worldBoundary } from '../domain/world-awareness.ts';
+import type { WorldState } from '../domain/types.ts';
+import { markDirectorEvaluated } from './world-awareness-repository.ts';
+import { projectStoryTime } from '../domain/clock.ts';
+import { storedActivityClock } from './clock-activity-repository.ts';
+
+export class DirectorRuntimePersistenceError extends Error {
+  readonly code: string;
+  constructor(code: string) {
+    super(code);
+    this.code = code;
+  }
+}
+function fail(code: string): never {
+  throw new DirectorRuntimePersistenceError(code);
+}
+const Key = z
+  .string()
+  .min(1)
+  .max(240)
+  .refine((v) => v.trim() === v);
+const Int = z.number().int().nonnegative();
+const Hash = z.string().regex(/^[a-f0-9]{64}$/);
+const keys = z
+  .array(Key)
+  .max(10000)
+  .refine((v) => new Set(v).size === v.length);
+const instant = (v: string) =>
+  typeof v === 'string' &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(v) &&
+  Number.isFinite(Date.parse(v)) &&
+  new Date(v.slice(0, 19) + 'Z').toISOString().slice(0, 19) === v.slice(0, 19);
+const Time = z.string().refine(instant);
+const Channel = z.enum(['private', 'group', 'scene']);
+const Condition = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('at_or_after'), at: Time, sourceId: Key }).strict(),
+  z
+    .object({ kind: z.literal('result'), actionId: Key, outcome: z.enum(['succeeded', 'failed']) })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('player_decision'),
+      responsibilityId: Key,
+      decision: z.enum(['accepted', 'declined', 'negotiating', 'deferred', 'undecided']),
+    })
+    .strict(),
+  z.object({ kind: z.literal('at_place'), placeId: Key }).strict(),
+  z.object({ kind: z.literal('observation'), sourceId: Key }).strict(),
+]);
+const Scope = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('world') }).strict(),
+  z.object({ kind: z.literal('actor'), actorId: Key }).strict(),
+  z.object({ kind: z.literal('action'), actionId: Key }).strict(),
+  z.object({ kind: z.literal('resource'), resourceId: Key }).strict(),
+  z.object({ kind: z.literal('episode'), episodeId: Key }).strict(),
+  z.object({ kind: z.literal('channel'), channel: Channel, threadId: Key }).strict(),
+]);
+const Candidate = z
+  .object({
+    id: Key,
+    worldId: Key,
+    actorId: Key,
+    source: z.enum([
+      'opening',
+      'authored_event',
+      'actor_plan',
+      'responsibility',
+      'conversation',
+      'action_result',
+    ]),
+    episodeId: Key.nullable(),
+    actionId: Key.nullable(),
+    resourceIds: keys,
+    channel: Channel,
+    threadId: Key,
+    sourceIds: keys.min(1),
+    expectedWorldVersion: Int,
+    expectedActorRevision: Int,
+    priority: z.number().finite(),
+    reason: z.string().min(1).max(10000),
+    requiresCoordination: z.boolean(),
+  })
+  .strict();
+const Episode = z
+  .object({
+    schemaVersion: z.literal(1),
+    worldId: Key,
+    id: Key,
+    revision: Int,
+    origin: z.object({ kind: z.enum(['authored', 'director']), sourceId: Key }).strict(),
+    status: z.enum(['proposed', 'active', 'resolved', 'withdrawn']),
+    title: z.string().min(1).max(1000),
+    description: z.string().max(20000),
+    participantActorIds: keys.min(1),
+    placeIds: keys,
+    sourceEventIds: keys,
+    resultIds: keys,
+    unresolvedResponsibilityIds: keys,
+    endReason: z.string().max(10000).optional(),
+  })
+  .strict();
+const State = z
+  .object({
+    schemaVersion: z.literal(1),
+    worldId: Key,
+    actorId: Key,
+    revision: Int,
+    projectedWorldVersion: Int,
+    definitionRef: Key,
+    knowledgeSourceIds: keys,
+    memoryIds: keys,
+    relationshipIds: keys,
+    goals: z.array(z.unknown()),
+    plans: z.array(z.unknown()),
+    actions: z.array(z.unknown()),
+    responsibilities: z.array(z.unknown()),
+    decisions: z.array(z.unknown()),
+    focus: z.unknown().nullable(),
+  })
+  .strict();
+const Boundary = z
+  .object({
+    worldId: Key,
+    actorIds: keys,
+    placeIds: keys,
+    capabilityIds: keys,
+    extensionPermission: z.literal('none'),
+    createdFromVersion: Int,
+    sourceEventId: Key.nullable(),
+  })
+  .strict();
+const Change = z
+  .object({
+    id: Key,
+    eventId: Key,
+    worldVersion: Int.positive(),
+    kind: z.enum([
+      'player_decision',
+      'plan_changed',
+      'action_result',
+      'new_condition',
+      'cross_impact',
+    ]),
+    ref: z.union([
+      z.object({ kind: z.literal('event'), id: Key }).strict(),
+      z
+        .object({ kind: z.enum(['decision', 'plan', 'action_result']), id: Key, actorId: Key })
+        .strict(),
+    ]),
+  })
+  .strict();
+const Snapshot = z
+  .object({
+    schemaVersion: z.literal(1),
+    worldId: Key,
+    engineEpoch: Int.min(2),
+    worldVersion: Int,
+    storyAt: Time,
+    observedThroughVersion: Int,
+    evaluatedThroughVersion: Int,
+    boundary: Boundary,
+    worldSetting: z.string().max(100000).optional(),
+    cast: z
+      .array(
+        z
+          .object({
+            id: Key,
+            name: z.string().min(1).max(200),
+            persona: z.string().max(100000),
+            relationship: z.string().max(10000).optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+    actorStates: z.array(State),
+    episodes: z.array(Episode),
+    candidates: z.array(Candidate),
+    blockers: z.array(
+      z
+        .object({
+          scope: Scope,
+          reason: z.enum([
+            'unknown_attempt',
+            'paused',
+            'waiting_condition',
+            'cooldown',
+            'permission',
+            'stale_projection',
+          ]),
+          sourceId: Key,
+          reconsiderOn: z.array(Condition),
+        })
+        .strict(),
+    ),
+    changes: z.array(Change),
+    observations: z.array(
+      z
+        .object({
+          sourceId: Key,
+          text: z.string().max(100000),
+          kind: z.enum(['fact', 'speech', 'belief', 'plan', 'result']),
+          knownByActorIds: keys,
+        })
+        .strict(),
+    ),
+    focus: z.array(z.object({ channel: Channel, threadId: Key, actorIds: keys }).strict()),
+  })
+  .strict();
+const Opportunity = z
+  .object({
+    id: Key,
+    title: z.string().min(1).max(1000),
+    description: z.string().min(1).max(20000),
+    playerImpact: z.string().min(1).max(10000),
+    participantActorIds: keys.min(1),
+    placeIds: keys,
+    activity: z.enum(['conversation', 'meeting', 'follow_up']),
+    basisSourceIds: keys.min(1),
+    authoredEventKey: Key.optional(),
+  })
+  .strict();
+const Decision = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: Key,
+    worldId: Key,
+    engineEpoch: Int.min(2),
+    worldVersion: Int,
+    inputHash: Hash,
+    evaluatedThroughVersion: Int,
+    mode: z.enum(['quiet', 'coordinate', 'bounded_opportunity']),
+    selectedCandidateIds: keys,
+    deferred: z.array(
+      z.object({ candidateId: Key, reason: z.string().min(1).max(10000) }).strict(),
+    ),
+    nudges: z.array(
+      z
+        .object({
+          actorId: Key,
+          candidateId: Key,
+          kind: z.enum([
+            'continue_own_plan',
+            'reassess_own_responsibility',
+            'respond_to_player',
+            'consider_opportunity',
+          ]),
+          basisSourceIds: keys.min(1),
+        })
+        .strict(),
+    ),
+    opportunities: z.array(Opportunity),
+    audit: z.object({ reason: z.string().min(1).max(20000), basisSourceIds: keys }).strict(),
+  })
+  .strict();
+
+export const DIRECTOR_SNAPSHOT_MAX_BYTES = 1_000_000;
+export const DIRECTOR_RESPONSE_MAX_BYTES = 1_000_000;
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
+  if (v && typeof v === 'object')
+    return (
+      '{' +
+      Object.entries(v)
+        .filter(([, x]) => x !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, x]) => JSON.stringify(k) + ':' + canonical(x))
+        .join(',') +
+      '}'
+    );
+  const out = JSON.stringify(v);
+  if (out === undefined) fail('INVALID_DIRECTOR_INPUT');
+  return out;
+}
+const digest = (text: string) => createHash('sha256').update(text).digest('hex');
+function body(v: unknown, max: number) {
+  let out: string;
+  try {
+    out = canonical(v);
+  } catch {
+    return fail('INVALID_DIRECTOR_INPUT');
+  }
+  if (Buffer.byteLength(out, 'utf8') > max) fail('DIRECTOR_INPUT_TOO_LARGE');
+  return out;
+}
+/** Server injects this canonical hash into its application runner; never hash a truncated snapshot. */
+export function directorSnapshotInputHash(snapshot: DirectorSnapshot) {
+  return digest(body(snapshot, DIRECTOR_SNAPSHOT_MAX_BYTES));
+}
+function snapshotShape(value: DirectorSnapshot): DirectorSnapshot {
+  const result = Snapshot.safeParse(value);
+  if (!result.success) fail('INVALID_DIRECTOR_SNAPSHOT');
+  body(result.data, DIRECTOR_SNAPSHOT_MAX_BYTES);
+  // Unknown-typed persisted state children still need a detached capture before
+  // asynchronous SQL; caller mutation cannot change the protected hashed input.
+  return JSON.parse(body(result.data, DIRECTOR_SNAPSHOT_MAX_BYTES)) as DirectorSnapshot;
+}
+const equal = (a: unknown, b: unknown) => canonical(a) === canonical(b);
+const ordered = <T>(a: T[], key: (v: T) => string) =>
+  [...a].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+function attempt(row: any): DirectorAttempt {
+  return {
+    id: row.id,
+    worldId: row.world_id,
+    commandId: row.command_id,
+    engineEpoch: row.engine_epoch,
+    expectedWorldVersion: row.expected_world_version,
+    inputHash: row.input_hash,
+    token: row.token,
+    leaseUntil: new Date(row.lease_until).toISOString(),
+    status: row.status,
+    ...(row.decision_id ? { decisionId: row.decision_id } : {}),
+  };
+}
+
+export class PostgresDirectorRuntimeRepository implements DirectorAttemptStore {
+  private readonly db: PostgresDatabase;
+  constructor(db: PostgresDatabase) {
+    this.db = db;
+  }
+  private async owned(sql: SqlClient, owner: string, id: string) {
+    const role = (
+      await sql.query(`SELECT pg_has_role(current_user,'pl_app','MEMBER') app,pg_has_role(current_user,'pl_worker','MEMBER') worker,
+      current_setting('app.user_id',true) owner_id`)
+    ).rows[0];
+    if (!role?.app || role.worker || role.owner_id !== owner) fail('NOT_FOUND');
+    const row = (
+      await sql.query(
+        'SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+        [id, owner],
+      )
+    ).rows[0];
+    if (!row) fail('NOT_FOUND');
+    return { ...row.state, version: row.version } as WorldState;
+  }
+  private async load(sql: SqlClient, owner: string, expected: DirectorAttempt, lock = true) {
+    const row = (
+      await sql.query(
+        `SELECT *,lease_until>clock_timestamp() live FROM parallel_life.director_runtime_attempts WHERE id=$1 AND world_id=$2 AND owner_id=$3${lock ? ' FOR UPDATE' : ''}`,
+        [expected.id, expected.worldId, owner],
+      )
+    ).rows[0];
+    if (!row) fail('NOT_FOUND');
+    const actual = attempt(row);
+    for (const key of [
+      'id',
+      'worldId',
+      'commandId',
+      'engineEpoch',
+      'expectedWorldVersion',
+      'inputHash',
+      'token',
+      'leaseUntil',
+    ] as const)
+      if (actual[key] !== expected[key]) fail('DIRECTOR_ATTEMPT_STALE');
+    return row;
+  }
+  private async current(
+    sql: SqlClient,
+    owner: string,
+    world: WorldState,
+    s: DirectorSnapshot,
+    initialize = false,
+  ) {
+    const control = (
+      await sql.query(
+        'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
+        [world.id, owner],
+      )
+    ).rows[0];
+    if (control?.engine_epoch !== s.engineEpoch || s.engineEpoch < 2) fail('ENGINE_EPOCH_CONFLICT');
+    if (world.version !== s.worldVersion) fail('VERSION_CONFLICT');
+    const clock = (
+      await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
+        world.id,
+        owner,
+      ])
+    ).rows[0];
+    const latest = clock
+      ? Math.max(
+          Date.parse(world.time),
+          Date.parse(projectStoryTime(storedActivityClock(clock), new Date().toISOString())),
+        )
+      : Date.parse(world.time);
+    if (Date.parse(s.storyAt) < Date.parse(world.time) || Date.parse(s.storyAt) > latest)
+      fail('DIRECTOR_CLOCK_CONFLICT');
+    if (
+      s.worldId !== world.id ||
+      s.evaluatedThroughVersion > s.observedThroughVersion ||
+      s.observedThroughVersion > s.worldVersion
+    )
+      fail('INVALID_DIRECTOR_RANGE');
+    if (initialize && world.version === 0)
+      await sql.query(
+        'INSERT INTO parallel_life.director_observed_states(world_id,owner_id) VALUES($1,$2) ON CONFLICT(world_id) DO NOTHING',
+        [world.id, owner],
+      );
+    const observed = (
+      await sql.query(
+        'SELECT * FROM parallel_life.director_observed_states WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
+        [world.id, owner],
+      )
+    ).rows[0];
+    if (
+      !observed ||
+      observed.observed_through_version !== s.observedThroughVersion ||
+      observed.evaluated_through_version !== s.evaluatedThroughVersion
+    )
+      fail('DIRECTOR_CURSOR_CONFLICT');
+    const boundary = (
+      await sql.query(
+        'SELECT source_version,document FROM parallel_life.world_awareness_boundaries WHERE world_id=$1 AND owner_id=$2',
+        [world.id, owner],
+      )
+    ).rows[0];
+    const actualBoundary =
+      world.version === 0 && !boundary
+        ? worldBoundary(world, null)
+        : boundary?.source_version === world.version
+          ? boundary.document
+          : null;
+    if (!actualBoundary || !equal(s.boundary, actualBoundary)) fail('DIRECTOR_BOUNDARY_CONFLICT');
+    const states = (
+      await sql.query(
+        'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 ORDER BY actor_id FOR SHARE',
+        [world.id, owner],
+      )
+    ).rows.map((r) => r.document as ActorAgentState);
+    if (
+      !equal(
+        ordered(states, (v) => v.actorId),
+        ordered(s.actorStates, (v) => v.actorId),
+      ) ||
+      new Set(s.actorStates.map((a) => a.actorId)).size !== s.actorStates.length ||
+      !equal([...states.map((a) => a.actorId)].sort(), [...s.boundary.actorIds].sort())
+    )
+      fail('DIRECTOR_ACTOR_STATE_CONFLICT');
+    if (
+      s.cast &&
+      !equal(
+        ordered(s.cast, (v) => v.id),
+        ordered(
+          world.actors.map((a) => ({
+            id: a.id,
+            name: a.name,
+            persona: a.persona,
+            ...(a.relationship === undefined ? {} : { relationship: a.relationship }),
+          })),
+          (v) => v.id,
+        ),
+      )
+    )
+      fail('DIRECTOR_CAST_CONFLICT');
+    const episodes = (
+      await sql.query(
+        'SELECT document FROM parallel_life.shared_episodes WHERE world_id=$1 AND owner_id=$2 ORDER BY id',
+        [world.id, owner],
+      )
+    ).rows.map((r) => r.document as SharedEpisode);
+    if (
+      !equal(
+        ordered(episodes, (e) => e.id),
+        ordered(s.episodes, (e) => e.id),
+      )
+    )
+      fail('DIRECTOR_EPISODE_CONFLICT');
+    const revisions = new Map(states.map((a) => [a.actorId, a.revision]));
+    if (
+      new Set(s.candidates.map((c) => c.id)).size !== s.candidates.length ||
+      s.candidates.some(
+        (c) =>
+          c.worldId !== world.id ||
+          c.expectedWorldVersion !== world.version ||
+          revisions.get(c.actorId) !== c.expectedActorRevision,
+      )
+    )
+      fail('DIRECTOR_CANDIDATE_CONFLICT');
+    if (
+      s.observations.some((o) => o.knownByActorIds.some((a) => !revisions.has(a))) ||
+      s.focus.some((f) => f.actorIds.some((a) => !revisions.has(a)))
+    )
+      fail('DIRECTOR_SOURCE_FORBIDDEN');
+    const count = (
+      await sql.query(
+        'SELECT count(*)::int n FROM parallel_life.director_pending_reasons WHERE world_id=$1 AND owner_id=$2 AND source_version>$3 AND source_version<=$4',
+        [world.id, owner, s.evaluatedThroughVersion, s.observedThroughVersion],
+      )
+    ).rows[0].n;
+    if (count !== s.changes.length || new Set(s.changes.map((c) => c.id)).size !== s.changes.length)
+      fail('DIRECTOR_PENDING_RANGE_INCOMPLETE');
+    const changes = (
+      await sql.query(
+        `SELECT p.document,c.status,c.result_event_id,p.source_event_id,e.payload FROM parallel_life.director_pending_reasons p
+      LEFT JOIN parallel_life.world_events e ON e.world_id=p.world_id AND e.owner_id=p.owner_id AND e.id=p.source_event_id AND e.version=p.source_version
+      LEFT JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+      WHERE p.world_id=$1 AND p.owner_id=$2 AND p.source_version>$3 AND p.source_version<=$4 ORDER BY p.source_version,p.id`,
+        [world.id, owner, s.evaluatedThroughVersion, s.observedThroughVersion],
+      )
+    ).rows;
+    if (
+      changes.some(
+        (r) =>
+          r.status !== 'succeeded' ||
+          r.result_event_id !== r.source_event_id ||
+          !r.payload ||
+          !instant(r.payload.storyAt ?? r.payload.storyTime) ||
+          Date.parse(r.payload.storyAt ?? r.payload.storyTime) > Date.parse(s.storyAt),
+      ) ||
+      !equal(
+        changes.map((r) => r.document).sort((a, b) => (a.id < b.id ? -1 : 1)),
+        ordered(s.changes, (c) => c.id),
+      )
+    )
+      fail('DIRECTOR_PENDING_RANGE_INCOMPLETE');
+  }
+  lookup(owner: string, worldId: string, commandId: string) {
+    return this.db.transaction(owner, async (sql) => {
+      await this.owned(sql, owner, worldId);
+      const row = (
+        await sql.query(
+          'SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
+          [worldId, owner, commandId],
+        )
+      ).rows[0];
+      return row ? attempt(row) : null;
+    });
+  }
+  async claim(
+    owner: string,
+    input: Omit<DirectorAttempt, 'status' | 'decisionId'>,
+    rawSnapshot: DirectorSnapshot,
+  ) {
+    input = { ...input };
+    const snapshot = snapshotShape(rawSnapshot);
+    for (const v of [input.id, input.worldId, input.commandId, input.token])
+      if (!Key.safeParse(v).success) fail('INVALID_DIRECTOR_INPUT');
+    if (
+      !Time.safeParse(input.leaseUntil).success ||
+      input.worldId !== snapshot.worldId ||
+      input.engineEpoch !== snapshot.engineEpoch ||
+      input.expectedWorldVersion !== snapshot.worldVersion ||
+      input.inputHash !== directorSnapshotInputHash(snapshot)
+    )
+      fail('INVALID_DIRECTOR_INPUT');
+    return this.db.transaction(owner, async (sql) => {
+      const world = await this.owned(sql, owner, input.worldId);
+      const old = (
+        await sql.query(
+          'SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND command_id=$3 FOR UPDATE',
+          [input.worldId, owner, input.commandId],
+        )
+      ).rows[0];
+      if (old) {
+        if (
+          old.input_hash !== input.inputHash ||
+          old.engine_epoch !== input.engineEpoch ||
+          old.expected_world_version !== input.expectedWorldVersion ||
+          !equal(old.snapshot, snapshot)
+        )
+          fail('DIRECTOR_COMMAND_CONFLICT');
+        return { attempt: attempt(old), replay: true };
+      }
+      await this.current(sql, owner, world, snapshot, true);
+      if (
+        !(await sql.query('SELECT $1::timestamptz>clock_timestamp() live', [input.leaseUntil]))
+          .rows[0].live
+      )
+        fail('DIRECTOR_ATTEMPT_STALE');
+      if (
+        (
+          await sql.query(
+            "SELECT 1 FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND status IN ('reserved','request_sent','response_received','unknown_after_send')",
+            [world.id],
+          )
+        ).rowCount
+      )
+        fail('DIRECTOR_ATTEMPT_PENDING');
+      const row = (
+        await sql.query(
+          `INSERT INTO parallel_life.director_runtime_attempts(id,world_id,owner_id,command_id,engine_epoch,expected_world_version,input_hash,token,lease_until,status,snapshot)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'reserved',$10) RETURNING *`,
+          [
+            input.id,
+            input.worldId,
+            owner,
+            input.commandId,
+            input.engineEpoch,
+            input.expectedWorldVersion,
+            input.inputHash,
+            input.token,
+            input.leaseUntil,
+            snapshot,
+          ],
+        )
+      ).rows[0];
+      return { attempt: attempt(row), replay: false };
+    });
+  }
+  mark(owner: string, expected: DirectorAttempt, status: AgentAttemptStatus) {
+    expected = { ...expected };
+    return this.db.transaction(owner, async (sql) => {
+      const world = await this.owned(sql, owner, expected.worldId),
+        row = await this.load(sql, owner, expected);
+      if (status === 'committed' || status === 'response_received')
+        fail('ATOMIC_DIRECTOR_COMMIT_REQUIRED');
+      transitionAgentAttempt(row.status, status);
+      if (status === 'request_sent') {
+        if (!row.live) fail('DIRECTOR_ATTEMPT_STALE');
+        await this.current(sql, owner, world, row.snapshot);
+      }
+      if (row.status === status) return attempt(row);
+      const updated = (
+        await sql.query(
+          `UPDATE parallel_life.director_runtime_attempts SET status=$2,sent_at=CASE WHEN $2='request_sent' THEN COALESCE(sent_at,clock_timestamp()) ELSE sent_at END,updated_at=now()
+        WHERE id=$1 AND ($2<>'request_sent' OR lease_until>clock_timestamp()) RETURNING *`,
+          [expected.id, status],
+        )
+      ).rows[0];
+      if (!updated) fail('DIRECTOR_ATTEMPT_STALE');
+      return attempt(updated);
+    });
+  }
+  saveResponse(owner: string, expected: DirectorAttempt, response: unknown) {
+    expected = { ...expected };
+    let raw: string,
+      rejected = false;
+    try {
+      raw = body(response, DIRECTOR_RESPONSE_MAX_BYTES);
+    } catch {
+      rejected = true;
+      let original: string | undefined;
+      try {
+        original = JSON.stringify(response);
+      } catch {}
+      raw = JSON.stringify({
+        storageError: 'INVALID_OR_OVERSIZE_RESPONSE',
+        ...(original ? { sha256: digest(original), bytes: Buffer.byteLength(original) } : {}),
+      });
+    }
+    const hash = digest(raw);
+    return this.db.transaction(owner, async (sql) => {
+      const world = await this.owned(sql, owner, expected.worldId),
+        row = await this.load(sql, owner, expected);
+      if (row.response_hash) {
+        if (row.response_hash !== hash) fail('DIRECTOR_RESPONSE_CONFLICT');
+        return attempt(row);
+      }
+      if (
+        !row.sent_at ||
+        !['request_sent', 'unknown_after_send', 'stale_discarded'].includes(row.status)
+      )
+        fail('INVALID_DIRECTOR_TRANSITION');
+      const epoch = (
+        await sql.query(
+          'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
+          [world.id, owner],
+        )
+      ).rows[0]?.engine_epoch;
+      const stale =
+        !row.live ||
+        epoch !== expected.engineEpoch ||
+        world.version !== expected.expectedWorldVersion ||
+        row.status === 'stale_discarded';
+      return attempt(
+        (
+          await sql.query(
+            "UPDATE parallel_life.director_runtime_attempts SET response=$2,response_hash=$3,status=CASE WHEN lease_until<=clock_timestamp() THEN 'stale_discarded' ELSE $4 END,updated_at=now() WHERE id=$1 RETURNING *",
+            [
+              expected.id,
+              raw,
+              hash,
+              stale ? 'stale_discarded' : rejected ? 'invalid_output' : 'response_received',
+            ],
+          )
+        ).rows[0],
+      );
+    });
+  }
+  readCompletion(
+    owner: string,
+    expected: DirectorAttempt,
+  ): Promise<{ found: true; snapshot: DirectorSnapshot; response: unknown } | { found: false }> {
+    expected = { ...expected };
+    return this.db.transaction(owner, async (sql) => {
+      await this.owned(sql, owner, expected.worldId);
+      const row = await this.load(sql, owner, expected, false);
+      return row.response_hash
+        ? { found: true, snapshot: row.snapshot, response: row.response }
+        : { found: false };
+    });
+  }
+  async commit(
+    owner: string,
+    expected: DirectorAttempt,
+    rawSnapshot: DirectorSnapshot,
+    rawDecision: DirectorDecision,
+  ) {
+    expected = { ...expected };
+    const snapshot = snapshotShape(rawSnapshot),
+      parsed = Decision.safeParse(rawDecision);
+    if (!parsed.success) fail('INVALID_DIRECTOR_DECISION');
+    const decision = parsed.data as DirectorDecision;
+    body(decision, DIRECTOR_SNAPSHOT_MAX_BYTES);
+    return this.db.transaction(owner, async (sql) => {
+      const world = await this.owned(sql, owner, expected.worldId),
+        row = await this.load(sql, owner, expected);
+      if (
+        !equal(row.snapshot, snapshot) ||
+        expected.inputHash !== directorSnapshotInputHash(snapshot)
+      )
+        fail('DIRECTOR_INPUT_CONFLICT');
+      if (row.status === 'committed') {
+        const saved = (
+          await sql.query(
+            'SELECT document FROM parallel_life.director_decisions WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+            [world.id, owner, row.decision_id],
+          )
+        ).rows[0]?.document;
+        if (!saved || !equal(saved, decision)) fail('DIRECTOR_DECISION_CONFLICT');
+        return saved as DirectorDecision;
+      }
+      if (row.status !== 'response_received' || !row.response_hash || !row.live)
+        fail('DIRECTOR_ATTEMPT_STALE');
+      await this.current(sql, owner, world, snapshot);
+      this.validateDecision(snapshot, expected, decision);
+      await sql.query(
+        `INSERT INTO parallel_life.director_decisions(id,world_id,owner_id,attempt_id,engine_epoch,world_version,input_hash,evaluated_through_version,document)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          decision.id,
+          world.id,
+          owner,
+          expected.id,
+          expected.engineEpoch,
+          expected.expectedWorldVersion,
+          expected.inputHash,
+          decision.evaluatedThroughVersion,
+          decision,
+        ],
+      );
+      for (const opportunity of decision.opportunities) {
+        if (
+          (
+            await sql.query(
+              'SELECT 1 FROM parallel_life.shared_episodes WHERE world_id=$1 AND id=$2',
+              [world.id, opportunity.id],
+            )
+          ).rowCount
+        )
+          fail('DIRECTOR_EPISODE_ID_CONFLICT');
+        const episode: SharedEpisode = {
+          schemaVersion: 1,
+          worldId: world.id,
+          id: opportunity.id,
+          revision: 0,
+          origin: { kind: 'director', sourceId: decision.id },
+          status: 'proposed',
+          title: opportunity.title,
+          description: opportunity.description,
+          participantActorIds: opportunity.participantActorIds,
+          placeIds: opportunity.placeIds,
+          sourceEventIds: [],
+          resultIds: [],
+          unresolvedResponsibilityIds: [],
+        };
+        await sql.query(
+          'INSERT INTO parallel_life.shared_episodes(world_id,owner_id,id,origin_decision_id,document) VALUES($1,$2,$3,$4,$5)',
+          [world.id, owner, episode.id, decision.id, episode],
+        );
+      }
+      await markDirectorEvaluated(sql, owner, world.id, {
+        expectedObservedThroughVersion: snapshot.observedThroughVersion,
+        throughVersion: decision.evaluatedThroughVersion,
+        result: decision.mode === 'quiet' ? 'quiet' : 'acted',
+      });
+      const finalized = await sql.query(
+        "UPDATE parallel_life.director_runtime_attempts SET status='committed',decision_id=$2,updated_at=now() WHERE id=$1 AND token=$3 AND status='response_received' AND lease_until>clock_timestamp() RETURNING id",
+        [expected.id, decision.id, expected.token],
+      );
+      if (!finalized.rowCount) fail('DIRECTOR_ATTEMPT_STALE');
+      return decision;
+    });
+  }
+  private validateDecision(s: DirectorSnapshot, a: DirectorAttempt, d: DirectorDecision) {
+    if (
+      d.worldId !== a.worldId ||
+      d.engineEpoch !== a.engineEpoch ||
+      d.worldVersion !== a.expectedWorldVersion ||
+      d.inputHash !== a.inputHash ||
+      d.evaluatedThroughVersion !== s.observedThroughVersion
+    )
+      fail('INVALID_DIRECTOR_DECISION');
+    const candidates = new Map(s.candidates.map((c) => [c.id, c])),
+      selected = new Set(d.selectedCandidateIds),
+      partition = [...d.selectedCandidateIds, ...d.deferred.map((v) => v.candidateId)];
+    if (
+      partition.length !== candidates.size ||
+      new Set(partition).size !== partition.length ||
+      partition.some((id) => !candidates.has(id))
+    )
+      fail('DIRECTOR_CANDIDATE_PARTITION');
+    if (
+      d.mode === 'quiet' &&
+      (d.selectedCandidateIds.length || d.nudges.length || d.opportunities.length)
+    )
+      fail('INVALID_DIRECTOR_QUIET');
+    if (d.mode !== 'bounded_opportunity' && d.opportunities.length)
+      fail('INVALID_DIRECTOR_OPPORTUNITY');
+    if (d.mode === 'bounded_opportunity' && !d.opportunities.length)
+      fail('INVALID_DIRECTOR_OPPORTUNITY');
+    const sources = new Set([
+      ...s.observations.map((o) => o.sourceId),
+      ...s.candidates.flatMap((c) => c.sourceIds),
+      ...s.episodes.map((e) => e.origin.sourceId),
+    ]);
+    if (d.audit.basisSourceIds.some((id) => !sources.has(id))) fail('DIRECTOR_SOURCE_FORBIDDEN');
+    if (new Set(d.nudges.map((n) => n.candidateId)).size !== d.nudges.length)
+      fail('INVALID_DIRECTOR_NUDGE');
+    for (const n of d.nudges) {
+      const c = candidates.get(n.candidateId);
+      if (
+        !c ||
+        !selected.has(c.id) ||
+        n.actorId !== c.actorId ||
+        n.basisSourceIds.some((id) => !c.sourceIds.includes(id))
+      )
+        fail('DIRECTOR_NUDGE_SOURCE_FORBIDDEN');
+    }
+    if (new Set(d.opportunities.map((o) => o.id)).size !== d.opportunities.length)
+      fail('DIRECTOR_EPISODE_ID_CONFLICT');
+    for (const o of d.opportunities)
+      if (
+        o.participantActorIds.some((id) => !s.boundary.actorIds.includes(id)) ||
+        o.placeIds.some((id) => !s.boundary.placeIds.includes(id)) ||
+        o.basisSourceIds.some((id) => !sources.has(id))
+      )
+        fail('DIRECTOR_OPPORTUNITY_BOUNDARY');
+  }
+  readEpisodes(owner: string, worldId: string): Promise<SharedEpisode[]> {
+    return this.db.transaction(owner, async (sql) => {
+      await this.owned(sql, owner, worldId);
+      return (
+        await sql.query(
+          'SELECT document FROM parallel_life.shared_episodes WHERE world_id=$1 AND owner_id=$2 ORDER BY id',
+          [worldId, owner],
+        )
+      ).rows.map((r) => r.document);
+    });
+  }
+  readDecision(owner: string, worldId: string, id: string): Promise<DirectorDecision | null> {
+    return this.db.transaction(owner, async (sql) => {
+      await this.owned(sql, owner, worldId);
+      return (
+        (
+          await sql.query(
+            'SELECT document FROM parallel_life.director_decisions WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+            [worldId, owner, id],
+          )
+        ).rows[0]?.document ?? null
+      );
+    });
+  }
+}
