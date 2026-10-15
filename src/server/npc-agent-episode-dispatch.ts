@@ -13,10 +13,11 @@ import { PostgresWorldRepository } from '../modules/world/infrastructure/postgre
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { readWorldAttentionInTransaction } from '../modules/world/infrastructure/world-attention-repository.ts';
+import { requireEpisodeDeliveryInTransaction } from '../modules/world/infrastructure/agent-episode-attention.ts';
 import {
-  episodeAttentionAllows,
-  requireEpisodeDeliveryInTransaction,
-} from '../modules/world/infrastructure/agent-episode-attention.ts';
+  eligibleEpisodeDispatches,
+  episodeDispatchAttempt,
+} from '../modules/world/infrastructure/agent-episode-dispatch-eligibility.ts';
 
 /** One actual consideration through the same actor runner/kernel; no separate planner or paid queue. */
 export async function dispatchPendingAgentEpisode(
@@ -46,63 +47,24 @@ export async function dispatchPendingAgentEpisode(
     });
     const attempts = (
       await sql.query(
-        `SELECT a.actor_id,a.command_id,a.status,a.sent_at,r.document
+        `SELECT a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,r.document
          FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
          ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
          WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3 ORDER BY a.created_at,a.id`,
         [world.id, ownerId, engineEpoch],
       )
-    ).rows.map((row) => {
-      let requestId: string | null = null;
-      if (row.document.origin === 'coordination') {
-        try {
-          const intent = JSON.parse(row.document.text);
-          if (intent.type === 'npc_episode_consideration' && typeof intent.requestId === 'string')
-            requestId = intent.requestId;
-        } catch {
-          /* A different coordination input grants no episode authority. */
-        }
-      }
-      return { ...row, requestId };
-    });
+    ).rows.map(episodeDispatchAttempt);
     return { requests, attention, attempts };
   });
   if (!pending) return null;
   const store = new PostgresAgentRuntimeRepository(db);
-  for (const request of pending.requests) {
-    // New opportunities do not continually interrupt an unrelated deep conversation.
-    const { attention } = pending;
-    if (!episodeAttentionAllows(attention, request.actorId)) continue;
-    const prior = pending.attempts.filter((a) => a.requestId === request.id);
-    if (prior.some((a) => a.status === 'committed'))
-      throw new DomainError('INVALID_PROPOSAL', 'EPISODE_CONSUMPTION_RECEIPT_MISSING');
-    // Actual paid/unknown/known-invalid results keep their original identity. Never
-    // rename their command to buy another response, even after a world change.
-    // Only a proven zero-send cancellation may reserve again in this same frame.
-    if (prior.some((a) => a.sent_at !== null)) continue;
-    if (
-      pending.attempts.some(
-        (a) =>
-          a.actor_id === request.actorId &&
-          ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
-            a.status,
-          ),
-      )
-    )
-      continue;
-    const hash = createHash('sha256')
-      .update(
-        JSON.stringify([
-          'npc-episode-evaluation-v2',
-          world.id,
-          request.id,
-          world.version,
-          prior.filter((a) => a.status === 'cancelled_before_send' && a.sent_at === null).length,
-        ]),
-      )
-      .digest('hex');
-    const commandId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-    if (prior.some((a) => a.command_id === commandId)) continue;
+  for (const { request, commandId } of eligibleEpisodeDispatches(
+    world.id,
+    world.version,
+    pending.requests,
+    pending.attention,
+    pending.attempts,
+  )) {
     try {
       await db.transaction(ownerId, (sql) =>
         requireEpisodeDeliveryInTransaction(sql, ownerId, {

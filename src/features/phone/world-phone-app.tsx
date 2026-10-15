@@ -106,6 +106,7 @@ export function WorldPhoneApp({
   }
   const observedOpening = useRef<{ worldId: string; delivered: number } | null>(null);
   const openingFinished = useRef<string | null>(null);
+  const nativeOpening = useRef<string | null>(null);
   const lastBackgroundCheck = useRef(0);
   const [opening, setOpening] = useState<PublicOpeningStatus | null>(null);
   const [openingWorking, setOpeningWorking] = useState(false);
@@ -442,7 +443,7 @@ export function WorldPhoneApp({
           phoneReady.current.sending
         )
           return;
-        if (openingFinished.current !== worldId) {
+        if (openingFinished.current !== worldId || nativeOpening.current === worldId) {
           const current = await client.readWorldOpening(worldId);
           if (!isCurrent()) return;
           setOpening(current);
@@ -458,6 +459,29 @@ export function WorldPhoneApp({
           if (!canAdvance()) return;
           if (current.runtime === 'agents' || ['none', 'complete'].includes(current.phase)) {
             openingFinished.current = worldId;
+            if (current.runtime === 'agents') {
+              nativeOpening.current = worldId;
+              const key =
+                current.continuation?.status === 'ready'
+                  ? `native-entry:${worldId}:${current.continuation.key}`
+                  : null;
+              if (
+                key &&
+                !clock.paused &&
+                !directorAttemptedKeys.current.has(key) &&
+                canAdvance() &&
+                !liveTimeRef.current.blocked
+              ) {
+                // Transport suppression only. The existing server rechecks original authority,
+                // paid/unknown identities, focus and activity before any model or execution.
+                directorAttemptedKeys.current.add(key);
+                liveTimeRef.current.markChecked();
+                advancing = true;
+                const result = await client.advanceWorld(worldId, true);
+                if (isCurrent() && (result.changed || result.played > 0)) await load();
+                return;
+              }
+            }
           } else {
             if (
               clock.paused ||

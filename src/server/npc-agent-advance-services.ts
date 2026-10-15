@@ -44,6 +44,7 @@ import { readDirectorNarrativeWakeInTransaction } from '../modules/world/infrast
 import { dispatchPendingAgentEpisode } from './npc-agent-episode-dispatch.ts';
 import type { PublicOpeningStatus } from '../contracts/publication-opening.ts';
 import type { PublicWorldStory } from '../contracts/world-story.ts';
+import { readAgentPhoneEntryProbe } from '../modules/world/infrastructure/agent-phone-entry-probe.ts';
 
 /** New-engine public reads never reconcile the legacy author-progress store. */
 export async function readNpcAgentStoryProgressIfEnabled(
@@ -86,9 +87,9 @@ export async function readNpcAgentOpeningStatusIfEnabled(
   return db.transaction(ownerId, async (sql) => {
     const row = (
       await sql.query(
-        `SELECT COALESCE(c.engine_epoch,1) epoch FROM parallel_life.worlds w
+        `SELECT w.state,w.version,COALESCE(c.engine_epoch,1) epoch FROM parallel_life.worlds w
       LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
-      WHERE w.id=$1 AND w.owner_id=$2`,
+      WHERE w.id=$1 AND w.owner_id=$2 FOR SHARE OF w`,
         [worldId, ownerId],
       )
     ).rows[0];
@@ -105,6 +106,12 @@ export async function readNpcAgentOpeningStatusIfEnabled(
       total: 0,
       delivered: 0,
       retryable: false,
+      continuation: await readAgentPhoneEntryProbe(sql, ownerId, {
+        worldId,
+        engineEpoch: Number(row.epoch),
+        worldVersion: row.version,
+        storyAt: row.state.time,
+      }),
     };
   });
 }
