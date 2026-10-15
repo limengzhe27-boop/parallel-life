@@ -146,11 +146,14 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
       assert.equal(result.version, 1);
       const after = await worlds.get({ userId: f.owner }, f.id);
       assert.deepEqual(after, { ...before, time: result.storyNow, version: 1 });
-      const c = await clock.read(f.owner, f.id);
+      // Wait writes and observations must share the same synthetic real-time clock.
+      const c = await clock.read(f.owner, f.id, real);
       assert.equal(c.paused, false);
       assert.equal(c.speed, 12);
       assert.equal(c.storyNow, result.storyNow);
       assert.equal(c.activeUntil, '2026-10-15T12:00:45.000Z');
+      assert.equal((await clock.read(f.owner, f.id, '2026-10-15T12:00:44.999Z')).paused, false);
+      assert.equal((await clock.read(f.owner, f.id, '2026-10-15T12:00:45.000Z')).paused, true);
       const event = (
         await admin.query('SELECT payload FROM parallel_life.world_events WHERE world_id=$1', [
           f.id,
@@ -167,7 +170,7 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
       assert.equal(Number(n), 0);
       await clock.setClock(f.owner, f.id, { paused: true }, real);
       assert.deepEqual(await waits.wait(f.owner, f.id, f.input), result);
-      assert.equal((await clock.read(f.owner, f.id)).paused, true); // receipt replay must not resume again
+      assert.equal((await clock.read(f.owner, f.id, real)).paused, true); // receipt replay must not resume again
       await assert.rejects(
         waits.wait(f.owner, f.id, { ...f.input, target: 'morning' }),
         (e) => (e as { code: string }).code === 'IDEMPOTENCY_CONFLICT',
@@ -216,7 +219,7 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
         (e) => (e as { code: string }).code === 'VERSION_CONFLICT',
       );
       assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, 0);
-      assert.equal((await clock.read(f.owner, f.id)).paused, true);
+      assert.equal((await clock.read(f.owner, f.id, real)).paused, true);
       await assert.rejects(
         waits.wait(f.owner, f.id, { ...f.input, sequence: 3, expectedVersion: 99 }),
       );
@@ -740,7 +743,7 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
       ),
     );
     await assert.rejects(waits.wait(f.owner, f.id, f.input));
-    assert.equal((await clock.read(f.owner, f.id)).paused, true);
+    assert.equal((await clock.read(f.owner, f.id, real)).paused, true);
     assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, 0);
     assert.equal(
       Number(
