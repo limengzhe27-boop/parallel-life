@@ -7,7 +7,10 @@ import { migrate } from '../../scripts/migrate.mjs';
 import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
-import { PostgresClockActivityRepository } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
+import {
+  PostgresClockActivityRepository,
+  updateClockActivity,
+} from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
 import { projectStoryTime } from '../../src/modules/world/domain/clock.ts';
 
 test('real owner-scoped activity leases preserve anchors, pause offline and fence stale tabs', async (t) => {
@@ -186,6 +189,53 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           ]),
         );
         assert.equal(denied.rowCount, 0);
+      },
+    );
+    await t.test(
+      'caller rollback and old clock writes preserve the authoritative presence deadline',
+      async () => {
+        await assert.rejects(
+          db.transaction(owner, async (sql) => {
+            await updateClockActivity(
+              sql,
+              owner,
+              worldId,
+              { clientId: b, sequence: 6, mode: 'browsing' },
+              at(310),
+            );
+            throw new Error('ROLLBACK_FIXTURE');
+          }),
+          /ROLLBACK_FIXTURE/,
+        );
+        const before = await clock.read(owner, worldId, at(310));
+        assert.equal(before.speed, 1);
+        assert.equal(before.activeUntil, at(345));
+        await clock.ensureAnchor(owner, worldId, {
+          storyNow: at(0),
+          lastTickAt: at(0),
+          paused: false,
+          speed: 12,
+          missedBeats: 0,
+          summary: null,
+        });
+        await clock.write(owner, worldId, {
+          storyNow: before.storyNow,
+          lastTickAt: before.lastTickAt,
+          paused: false,
+          speed: 1,
+          missedBeats: 0,
+          summary: null,
+        });
+        const after = await clock.read(owner, worldId, at(310));
+        assert.equal(after.managed, true);
+        assert.equal(after.activeUntil, at(345));
+        const seq = (
+          await admin.query(
+            'SELECT sequence FROM parallel_life.world_clock_activity WHERE world_id=$1 AND client_id=$2',
+            [worldId, b],
+          )
+        ).rows[0].sequence;
+        assert.equal(Number(seq), 5);
       },
     );
   } finally {

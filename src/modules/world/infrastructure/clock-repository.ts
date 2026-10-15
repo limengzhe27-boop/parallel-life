@@ -85,8 +85,8 @@ export class PostgresClockStore implements ClockStore {
     await this.db.transaction(ownerId, (sql) =>
       sql.query(
         `INSERT INTO parallel_life.world_clock
-           (world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+           (world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary,managed,active_until)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT(world_id) DO NOTHING`,
         [
           worldId,
@@ -97,6 +97,8 @@ export class PostgresClockStore implements ClockStore {
           clock.lastTickAt,
           clock.missedBeats,
           clock.summary,
+          clock.managed ?? false,
+          clock.activeUntil ?? null,
         ],
       ),
     );
@@ -104,8 +106,8 @@ export class PostgresClockStore implements ClockStore {
   async write(ownerId: string, worldId: string, clock: WorldClock): Promise<void> {
     await this.db.transaction(ownerId, (sql) =>
       sql.query(
-        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary,updated_at)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())
+        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary,updated_at,managed,active_until)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),$9,$10)
          ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,speed=EXCLUDED.speed,
            paused=EXCLUDED.paused,last_tick_at=EXCLUDED.last_tick_at,missed_beats=EXCLUDED.missed_beats,
            summary=EXCLUDED.summary,updated_at=now()`,
@@ -118,6 +120,8 @@ export class PostgresClockStore implements ClockStore {
           clock.lastTickAt,
           clock.missedBeats,
           clock.summary,
+          clock.managed ?? false,
+          clock.activeUntil ?? null,
         ],
       ),
     );
