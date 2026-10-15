@@ -608,3 +608,39 @@ test('unrecognized proof metadata cannot enter the qualification key', () => {
   });
   assert.deepEqual(result(input), before);
 });
+
+test('valid authored submillisecond precision follows the runtime millisecond clock without changing author hashes', () => {
+  const input = fixture(
+    [
+      node('event', {
+        prerequisites: [
+          { kind: 'history_fact', factKey: 'history' },
+          { kind: 'not_before', at: '2026-10-09T12:00:00.123456789012Z' },
+        ],
+        timeline: {
+          ...nodeTimeline('first'),
+          window: {
+            notBefore: '2026-10-09T12:00:00.123456789012Z',
+            expiresAt: '2026-10-09T12:01:00.999999999999Z',
+          },
+        },
+      }),
+    ],
+    { timeline: timeline() },
+  );
+  input.historyFacts.push({
+    ...proof(input),
+    factKey: 'history',
+    at: '2026-10-09T11:59:00.123456789012Z',
+  });
+  const before = structuredClone(input.catalog);
+  input.storyAt = '2026-10-09T12:00:00.122Z';
+  assert.equal(result(input).status, 'blocked');
+  input.storyAt = '2026-10-09T12:00:00.123Z';
+  assert.equal(result(input).status, 'eligible');
+  input.storyAt = '2026-10-09T12:01:00.999Z';
+  assert.equal(result(input).status, 'expired');
+  assert.deepEqual(input.catalog, before);
+  input.historyFacts[0]!.at = '2026-02-30T12:00:00.123456789012Z';
+  assert.throws(() => result(input), { code: 'INVALID_AUTHORED_ELIGIBILITY_INPUT' });
+});

@@ -222,7 +222,7 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
   }
   type Fixture = Awaited<ReturnType<typeof fixture>>;
   await t.test(
-    'actual player travel updates only the present observer; a quiet NPC evaluation is consumed without inventing a message or destination knowledge',
+    'actual travel does not invent a departure witness from a coarse-place scene roster; global evaluation never wakes an uninformed NPC',
     async () => {
       const f = await fixture({ epoch1: true, homeContact: true });
       const scenes = new SceneRepository(db),
@@ -288,40 +288,32 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
         const awareness = new PostgresWorldAwarenessRepository(db);
         const mother = await awareness.readActorAwareness(f.owner, f.id, f.a),
           absent = await awareness.readActorAwareness(f.owner, f.id, f.b);
-        assert.equal(mother.knowledge.find((k) => k.subject.kind === 'player')?.kind, 'left');
-        assert.equal(mother.knowledge.find((k) => k.subject.kind === 'player')?.placeId, 'home');
+        assert.deepEqual(
+          mother.knowledge,
+          [],
+          'scene membership is not proof of witnessing departure',
+        );
         assert.deepEqual(absent.knowledge, []);
         const h = harness(f, {
           realReader: true,
           director: (p) => ({
-            mode: 'coordinate',
-            selectedCandidateIds: p.candidates.slice(0, 1).map((c) => c.id),
-            deferred: p.candidates
-              .slice(1)
-              .map((c) => ({ candidateId: c.id, reason: '保持当前节奏' })),
+            mode: 'quiet',
+            selectedCandidateIds: [],
+            deferred: p.candidates.map((c) => ({ candidateId: c.id, reason: '没有新的可见依据' })),
             nudges: [],
             opportunities: [],
-            audit: {
-              reason: '由实际观察者自行判断',
-              basisSourceIds: p.candidates[0]?.sourceIds ?? [],
-            },
+            audit: { reason: '实际位置不自动下发给旁人', basisSourceIds: [] },
           }),
-          npc: (p) => {
-            assert.equal(p.state.actorId, f.a);
-            const ctx = p.worldContext as NonNullable<AgentSnapshot['worldContext']>;
-            assert.equal(ctx.knowledge.find((k) => k.subject.kind === 'player')?.placeId, 'home');
-            assert.equal(ctx.knowledge.find((k) => k.subject.kind === 'player')?.kind, 'left');
-            assert(!JSON.stringify(ctx.knowledge).includes('shop'));
-            return empty();
+          npc: () => {
+            throw Error('uninformed actors must not be woken as witnesses');
           },
         });
         const result = await h.service.advanceIfEnabled(f.owner, f.id);
         assert.equal(result?.played, 0);
-        assert.equal(result?.changed, true);
-        assert.equal(h.npcCalls().length, 1);
-        assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.a }))!.revision, 1);
+        assert.equal(h.npcCalls().length, 0);
+        assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.a }))!.revision, 0);
         assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.b }))!.revision, 0);
-        assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, moved.version + 1);
+        assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, moved.version);
         const before = h.calls.length;
         await h.service.advanceIfEnabled(f.owner, f.id);
         assert.equal(

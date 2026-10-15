@@ -69,7 +69,13 @@ const fail = (): never => {
 const text = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
 const hashPattern = /^[a-f0-9]{64}$/;
 const outcomes: AuthoredNodeOutcome[] = ['committed', 'declined', 'skipped', 'expired'];
-const instant = (s: string): number | null => (worldDateTimeInput(s) ? Date.parse(s) : null);
+// Immutable author ISO strings may carry more precision than the runtime's
+// millisecond clock. Normalize the comparison only; do not rewrite manuscript hashes.
+const instant = (s: string): number | null => {
+  if (typeof s !== 'string') return null;
+  const normalized = s.replace(/(\.\d{3})\d+(?=Z$|[+-]\d{2}:\d{2}$)/, '$1');
+  return worldDateTimeInput(normalized) ? Date.parse(normalized) : null;
+};
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
 type Check = {
   ok: boolean;

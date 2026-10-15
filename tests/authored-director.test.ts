@@ -7,6 +7,7 @@ import {
   authoredDirectorSourceHandle,
   type AuthoredMaterialSourceDocument,
 } from '../src/modules/world/domain/authored-agent-material.ts';
+import { evaluateAuthoredEventEligibility } from '../src/modules/world/domain/authored-event-eligibility.ts';
 import type {
   DirectorSnapshot,
   DirectorAttempt,
@@ -83,6 +84,26 @@ function fixture() {
     observations: [],
     focus: [],
     authoredMaterials: catalog,
+    authoredEligibility: evaluateAuthoredEventEligibility(
+      {
+        catalog,
+        storyAt: '2026-10-15T08:00:00.000Z',
+        playerPlaceId: null,
+        playerPositionProof: null,
+        historyFacts: [],
+        nodeProgress: [],
+        stageProgress: [],
+      },
+      (text) => createHash('sha256').update(text).digest('hex'),
+    ).map((e) => ({
+      nodeKey: e.ref.nodeKey,
+      nodeHash: e.ref.nodeHash,
+      status: e.status,
+      reasons: e.reasons,
+      basisSourceIds: e.basisSourceIds,
+      qualificationKey: e.qualificationKey,
+    })),
+    occupiedAuthoredEventKeys: [],
   };
   const attempt: DirectorAttempt = {
     id: 'attempt',
@@ -359,4 +380,44 @@ test('wrong material frame and full original manuscript exceeding the model budg
   assert.throws(() => model.validateInput(big.snapshot), { code: 'DIRECTOR_CONTEXT_LIMIT' });
   assert.equal(big.snapshot.authoredMaterials!.materials[0]!.node.script.length, 65000);
   assert.equal(calls, 0);
+});
+
+test('director cannot bypass blocked or occupied authored qualification by omitting its reference', () => {
+  for (const state of ['blocked', 'expired', 'already_presented', 'occupied'] as const) {
+    const f = fixture();
+    if (state === 'occupied') f.snapshot.occupiedAuthoredEventKeys = ['opening'];
+    else f.snapshot.authoredEligibility![0]!.status = state;
+    for (const omit of [false, true]) {
+      const raw = structuredClone(f.output);
+      if (omit) delete (raw.opportunities[0] as { authoredEventKey?: string }).authoredEventKey;
+      assert.throws(() => parseDirectorDecision(f.snapshot, raw, f.attempt), {
+        code: 'INVALID_DIRECTOR_PROPOSAL',
+      });
+    }
+  }
+});
+test('incomplete or stale authored qualification fails input preflight before a paid request', () => {
+  const model = new WorldDirectorAgentModel({
+    async complete() {
+      throw Error('must not spend');
+    },
+  });
+  for (const edit of [
+    (s: DirectorSnapshot) => {
+      delete s.authoredEligibility;
+    },
+    (s: DirectorSnapshot) => {
+      s.authoredEligibility = [];
+    },
+    (s: DirectorSnapshot) => {
+      s.authoredEligibility![0]!.nodeHash = 'f'.repeat(64);
+    },
+    (s: DirectorSnapshot) => {
+      s.occupiedAuthoredEventKeys = ['unknown'];
+    },
+  ]) {
+    const f = fixture();
+    edit(f.snapshot);
+    assert.throws(() => model.validateInput(f.snapshot), { code: 'INVALID_DIRECTOR_PROPOSAL' });
+  }
 });
