@@ -202,6 +202,15 @@ const Snapshot = z
     observedThroughVersion: Int,
     evaluatedThroughVersion: Int,
     boundary: Boundary,
+    evaluationCause: z
+      .object({
+        id: Key,
+        kind: z.literal('bootstrap'),
+        genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
+        admittedAtVersion: z.literal(0),
+      })
+      .strict()
+      .optional(),
     worldSetting: z.string().max(100000).optional(),
     authoredMaterials: z
       .custom<NonNullable<DirectorSnapshot['authoredMaterials']>>((v) => {

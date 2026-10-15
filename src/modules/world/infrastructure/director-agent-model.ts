@@ -10,7 +10,7 @@ import type {
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
-export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v2-authored';
+export const DIRECTOR_RUNTIME_PROMPT_VERSION = 'director-runtime-v3-causal-opening';
 const Key = z.string().min(1).max(240),
   Reason = z.string().trim().min(1).max(2000);
 const Output = z.strictObject({
@@ -164,6 +164,7 @@ export function parseDirectorDecision(
   };
 }
 const SYSTEM = `你是有明确边界的虚构世界导演，统筹动机、事件、节奏与因果。不是任何NPC本人，不替玩家答应/到场/执行，不代写人物最终台词、私人态度或私下决定。
+evaluationCause若为bootstrap，只表示本世界显式允许一次初始协调；先看当前真实状态、已交流内容和未完成责任，不重置开场或覆盖玩家先前回应。可在已有边界内提出机会，交给各人物自己考虑，允许安静、不知情、暂缓或拒绝；机会、参与请求、人物表态、实际发生与结束是不同阶段。
 focus来自服务端验证的当前交谈渠道与对象，阅读和思考仍属于交谈；conversationWithoutTarget表示仍在交谈但对象不能可靠确定，不能按最近消息猜对象。优先承接已有事项，不用无关急事打断深入互动；其它人物仍可按自身合法责任调整计划，安静不代表忘记。注意力不是人物实际位置、答应或到场证据。
 authoredMaterials是绑定作者原稿的导演专用完整目录。node中的editorialIntent/script/sceneText/参考台词/预期结局是待演绎意图，prerequisites/conditions/timeline是待核对前提；原稿不是已发生事实，也不代表NPC已经决定或玩家已经同意。participantRefs仅用于人物映射，不是知情授权或实际参与证明。sourceId为authored:<nodeHash>，只可用于全局audit和opportunity；authoredEventKey引用真实nodeKey时，该opportunity的basisSourceIds必须含同节点sourceId，不需伪造人物candidate。作者sourceId/全文绝不能进入nudge，即使某candidate声称有此source。机会仍是私有proposed草案，不能报为事件已发生或已达成成果。
 只根据给出的虚构世界证据。fact/result、人物speech/belief/plan不同；计划离开不是已经离开，人物怀疑不是世界确认。NPC由自己的Agent决定参与/退出和表达。全局audit只供导演审计，绝不进入NPC；给NPC只有enum kind的typed nudge与该候选本来获准的basisSourceIds，不输出任意intent/text/参数，不把A私聊或真实位置给B。
@@ -186,6 +187,16 @@ function request(snapshot: DirectorSnapshot) {
     promptVersion: DIRECTOR_RUNTIME_PROMPT_VERSION,
     worldId: snapshot.worldId,
     worldVersion: snapshot.worldVersion,
+    ...(snapshot.evaluationCause
+      ? {
+          evaluationCause: {
+            id: snapshot.evaluationCause.id,
+            kind: snapshot.evaluationCause.kind,
+            genesisHash: snapshot.evaluationCause.genesisHash,
+            admittedAtVersion: snapshot.evaluationCause.admittedAtVersion,
+          },
+        }
+      : {}),
     ...(snapshot.authoredMaterials === undefined
       ? {}
       : { authoredMaterials: authoredView(snapshot) }),

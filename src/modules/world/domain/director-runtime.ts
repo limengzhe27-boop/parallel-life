@@ -16,6 +16,8 @@ export type DirectorSnapshot = {
   observedThroughVersion: number;
   evaluatedThroughVersion: number;
   boundary: WorldBoundary;
+  /** Explicitly admitted causal wake, separate from an actor candidate or elapsed polling time. */
+  evaluationCause?: import('./agent-narrative.ts').DirectorEvaluationCause;
   /** Authorized fictional setting and cast; never the owner's real interview/profile. */
   worldSetting?: string;
   /** Full immutable director-only author material; participant references never grant NPC knowledge. */
