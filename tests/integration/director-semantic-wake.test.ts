@@ -839,7 +839,7 @@ test('actual publication semantic wake advances use one protected Director bound
     },
   );
   await t.test(
-    'a real pre-send pause produces zero-send stale authority, then resumes one new stable semantic cause without treating paid calls as cancellable',
+    'a real pre-send pause produces explicit zero-send deferral, then resumes one stable semantic cause without treating paid calls as cancellable',
     async () => {
       const f = await fixture();
       await bootstrap(f);
@@ -855,14 +855,14 @@ test('actual publication semantic wake advances use one protected Director bound
         `CREATE TRIGGER ${name} BEFORE INSERT ON parallel_life.director_runtime_attempts FOR EACH ROW EXECUTE FUNCTION parallel_life.${name}()`,
       );
       try {
-        await assert.rejects(h.advance(), { code: 'DIRECTOR_EVALUATION_CAUSE_CONFLICT' });
+        await assert.rejects(h.advance(), { code: 'DIRECTOR_DELIVERY_DEFERRED' });
       } finally {
         await admin.query(`DROP TRIGGER ${name} ON parallel_life.director_runtime_attempts`);
         await admin.query(`DROP FUNCTION parallel_life.${name}()`);
       }
       assert.equal(h.calls.length, 0);
       const stale = (await attempts(f)).at(-1)!;
-      assert.equal(stale.status, 'stale_discarded');
+      assert.equal(stale.status, 'cancelled_before_send');
       assert.equal(stale.sent_at, null);
       assert.equal(stale.response_hash, null);
       assert.equal((await wake(f)).deferred, true);
