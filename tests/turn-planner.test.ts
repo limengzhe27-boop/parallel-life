@@ -81,3 +81,47 @@ test('return planning requests an evidence-anchored step without changing ordina
     assert.equal(calls, 1);
   }
 });
+
+test('invalid optional goal evidence cannot replace a valid reply or partially advance a goal', async () => {
+  const reply = {
+    type: 'message.received',
+    id: 'reply',
+    actorId: 'actor',
+    text: '知道了，我自己安排。',
+  };
+  const goalKey = 'publication:test_event';
+  const scoped = { ...context, turnOrigin: 'director' as const, introducingEventGoalKey: goalKey };
+  const valid = {
+    goalKey,
+    target: 'npc',
+    kind: 'closure',
+    quote: reply.text,
+    closure: 'alternative',
+  };
+  for (const annotations of [
+    [{ ...valid, quote: '改写的、并不存在的原话' }],
+    [{ ...valid, goalKey: 'publication:other_event' }],
+    [{ ...valid, target: 'user', kind: 'declined' }],
+    [{ ...valid, complete: true }],
+    [valid, { ...valid, quote: '另一条不在消息中的原话' }],
+    [valid, valid],
+    { kind: 'closure' },
+  ]) {
+    const result = await new WorldTurnPlanner({
+      async complete() {
+        return JSON.stringify({
+          schemaVersion: 1,
+          effects: [reply],
+          eventGoalAssessments: annotations,
+        });
+      },
+    }).propose({ context: scoped, userText: '导演安排' });
+    assert.deepEqual(result, { schemaVersion: 1, effects: [reply], eventGoalAssessments: [] });
+  }
+  const result = await new WorldTurnPlanner({
+    async complete() {
+      return JSON.stringify({ schemaVersion: 1, effects: [reply], eventGoalAssessments: [valid] });
+    },
+  }).propose({ context: scoped, userText: '导演安排' });
+  assert.deepEqual(result, { schemaVersion: 1, effects: [reply], eventGoalAssessments: [valid] });
+});

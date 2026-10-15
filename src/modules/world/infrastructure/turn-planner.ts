@@ -652,18 +652,25 @@ export class WorldTurnPlanner implements TurnPlanner {
         );
       }
       if (parsed.eventGoalAssessments !== undefined) {
-        const assessments = parseEventGoalAssessments(parsed.eventGoalAssessments);
-        validateEventGoalAssessmentQuotes(assessments, {
-          goalKeys: eventGoalKeys,
-          userText,
-          npcTexts: parsed.effects.flatMap((effect) =>
-            effect.type === 'message.received' && typeof effect.text === 'string'
-              ? [effect.text]
-              : [],
-          ),
-          director: context.turnOrigin === 'director',
-        });
-        parsed.eventGoalAssessments = assessments;
+        // The optional annotation group is independent of the real dialogue. Reject
+        // the whole group if any evidence is bad; never rewrite a quote or reply.
+        try {
+          const assessments = parseEventGoalAssessments(parsed.eventGoalAssessments);
+          validateEventGoalAssessmentQuotes(assessments, {
+            goalKeys: eventGoalKeys,
+            userText,
+            npcTexts: parsed.effects.flatMap((effect) =>
+              effect.type === 'message.received' && typeof effect.text === 'string'
+                ? [effect.text]
+                : [],
+            ),
+            director: context.turnOrigin === 'director',
+          });
+          parsed.eventGoalAssessments = assessments;
+        } catch {
+          parsed.eventGoalAssessments = [];
+          console.warn(JSON.stringify({ planner: 'goal_assessment_rejected', rejected: true }));
+        }
       }
       return parsed;
     }
