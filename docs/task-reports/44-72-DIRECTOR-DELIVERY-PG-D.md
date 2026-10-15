@@ -53,3 +53,11 @@ root补fbe83a26后新增2个真实反例，不把activity lease与attempt执行l
 ## 过程及集成
 
 dd22+662依赖首轮18/18实际通过；接fbe最终边界依赖后新增2项，最终20/20。没有弱化失败产品断言或自主修改公共代码。root负责最终合并/全检/发布状态，主表保持待验收。
+
+## 实际advance安静延期契约修正复验
+
+root联合64原验收发现，实际advance在导演期间发生暂停时应返回安静结果；底层repository仍用DIRECTOR_DELIVERY_DEFERRED保护发送/提交。root修复 `93e8ce1c` 已作为依赖接入，本地 `c51179b4`；本人未改公共源或旧测试。
+
+本次精确测试增量 `f5812ff65750192f6bff7af666f97a8120bdc591` 只改新72文件四处actual h.advance预期：由DEFERRED rejects改为played0/folded0/summarynull/actors[]，每处仍只有一次advance调用。其余zero-send/raw/status/完整rows/模型次数、发送和提交末尾实际SQL自然到期探针断言全部逐字保留；invalid/stale/unknown/晚故障等错误断言不变。底层错误没有被当作成功决策，实际wrapper不伪造DirectorDecision。
+
+依赖后focused真实PG再次 **20/20 pass，0fail/skip**，type退出0、focused format/diff通过，日志 `.local/delivery72-quiet-{pg,type}.log`；此前边界564结果仍有效（本次imports/文件范围不变）。最终catalog临时delivery72函数0/序列0，专属PG55505正常停止/session0/无监听。测试源和报告冻结，状态待root统一集成/全检/READY/公网验收。
