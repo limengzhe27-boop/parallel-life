@@ -1875,8 +1875,49 @@ test('real PG story sidecar: deterministic eligibility, actor provenance, source
       s = await runtime.get({ userId: owner }, x.worldId);
     const wrongActor = s.actors.find((a) => a.id !== c.actorId)!.id;
     const otherClaim = { ...c, actorId: wrongActor };
-    await commit(x.worldId, otherClaim, [reply(otherClaim)]);
-    await assert.rejects(story.finish(owner, x.worldId, c.claimId), code('INVALID_STATE'));
+    const persisted = async () =>
+      app.transaction(owner, async (sql) => {
+        const rows: Record<string, unknown[]> = {};
+        for (const table of [
+          'commands',
+          'world_events',
+          'world_messages',
+          'world_appointments',
+          'world_facts',
+          'outbox_jobs',
+          'publication_story_nodes',
+          'publication_story_receipts',
+          'publication_story_progress',
+          'publication_story_progress_evidence',
+        ])
+          rows[table] = (
+            await sql.query(
+              `SELECT to_jsonb(t) AS document FROM parallel_life.${table} t WHERE world_id=$1 ORDER BY to_jsonb(t)::text`,
+              [x.worldId],
+            )
+          ).rows.map((row) => row.document);
+        return rows;
+      });
+    const before = await persisted();
+    await assert.rejects(commit(x.worldId, otherClaim, [reply(otherClaim)]), code('INVALID_STATE'));
+    assert.deepEqual(await runtime.get({ userId: owner }, x.worldId), s);
+    assert.deepEqual(
+      await persisted(),
+      before,
+      'wrong actor/source command cannot leave a message, node transition or partial receipt',
+    );
+    const restored = await commit(x.worldId, c, [reply(c)]);
+    assert.equal(restored.event.commandId, c.commandId);
+    assert.equal(restored.event.data.actorId, c.actorId);
+    const progress = await story.finish(owner, x.worldId, c.claimId);
+    assert.equal(progress.presented[0]!.sourceEventId, restored.event.id);
+    const committed = await persisted();
+    assert.deepEqual(await commit(x.worldId, c, [reply(c)]), restored);
+    assert.deepEqual(
+      await persisted(),
+      committed,
+      'legitimate command replay cannot duplicate source or progress',
+    );
   });
   await t.test('late audit failure rolls back claim and all receipt state atomically', async () => {
     const { world: x } = await make();

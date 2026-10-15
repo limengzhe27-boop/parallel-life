@@ -5,7 +5,7 @@
 独立树 `/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本`，分支 `codex/ma-arch44-55-place-receipt-q`，基线为root冻结 `e7ee694e`。先按确认A-E方案在主表短锁登记，未取root WIP。仅改：
 
 - `src/modules/world/infrastructure/postgres-world-repository.ts`。
-- 现有 `tests/integration/publication-story.test.ts` 的隐藏地点相关验收与类型导入。
+- 现有 `tests/integration/publication-story.test.ts` 的隐藏地点相关验收与类型导入；后经root明确扩大登记，修正同文件wrongactor叶项的拒绝时机断言。
 - 本报告/主目录镜像/本人状态行。
 
 settings/domain/public/SQL迁移/CI/其它源码与测试未修改。测试中的临时故障trigger仅在自有本地库创建并finally删除，没有修改产品迁移或授权。
@@ -38,12 +38,16 @@ settings/domain/public/SQL迁移/CI/其它源码与测试未修改。测试中�
 - 首次返回、同command再次执行、显式receipt读取三者深度相等，事件/回执数不增加。不同的后续玩家输入写入后仍返回旧final快照；后续玩家实际旅行到医院后再读旧回执，也不会虚构此前已经到达医院。
 - 原地图验收继续保留：作者未知地点仅经真实NPC消息来源发现；多地点分别发现且独立稳定route ID；地图可读取；发现时player.currentPlace仍原地点；另一owner世界不被同步揭示。
 
-**保留失败**：原“actual reply from wrong actor/command cannot fulfill a claimed node”叶项仍在实际错误commit时被reconcile提前INVALID_STATE拒绝，测试却在下一步finish才包assert.rejects。该原断言未改，安全守卫未移除，所以剩余2fail是这个叶项及其父套件，不称该文件/全库绿。root可按54另行修正该测试边界，不能为了它允许错误人物写入。
+**第一轮保留失败**：原“actual reply from wrong actor/command cannot fulfill a claimed node”叶项在实际错误commit时被reconcile提前INVALID_STATE拒绝，测试却在下一步finish才包assert.rejects。第一轮未改该断言，安全守卫未移除，剩余2fail为该叶项及父套件，曾如实报告为未绿。
+
+root接收源码修复后明确授权扩大该叶项测试范围，已在主表短锁登记后追加**仅测试/报告**修改，业务源码保持 `de0ee5a3` 冻结不动：actual wrongActor commit精确assert INVALID_STATE；原world全文及commands/events/messages/appointments/facts/Outbox/node/receipts/progress/evidence整行快照均未改变。随后合法原claim成功，source event绑定正确人物和原command，finish可读取，重复同command返回原结果且上述真实表无重复。其它独立wrongcommand断言不动，未允许错误人物先落库、未吞异常或删安全项。
+
+此追加后同文件最终真实PG **31/31通过，0skip**，日志 `/tmp/44-55-final.log`；这是正确前置拒绝的验收时机修正，不是业务兼容旧错误行为。不因此声称全库通过。
 
 为验证原生路径没有受影响，聚焦运行现有实际入口：`node --conditions=react-server --experimental-strip-types --test --test-concurrency=1 tests/integration/agent-travel-kernel.test.ts tests/integration/agent-question-entry.test.ts`，**13/13通过，0skip**。覆盖原生问题承接与隐私、一次NPC调用、出发/连续抵达、afterCommit原子回滚及protected raw恢复、unknown不重复调用。
 
-typecheck、两个修改文件Prettier、边界检查（556文件）、git diff检查通过。日志 `/tmp/44-55-before.log`、`/tmp/44-55-after.log`、`/tmp/44-55-native.log`。0真实模型、0生产、0浏览器/公网、0fullcheck/build；所有模型输出是明确合成fixture，真实证据来自实际PostgreSQL和实际Repository/kernel/HTTP链路，不是内存仓储。
+typecheck、两个修改文件Prettier、边界检查（556文件）、git diff检查通过；最后测试扩围再次typecheck/format/diff通过，未重复整套native或全库。日志 `/tmp/44-55-before.log`、`/tmp/44-55-after.log`、`/tmp/44-55-native.log`、`/tmp/44-55-final.log`。0真实模型、0生产、0浏览器/公网、0fullcheck/build；所有模型输出是明确合成fixture，真实证据来自实际PostgreSQL和实际Repository/kernel/HTTP链路，不是内存仓储。
 
-root接续：接独立提交后统一最终check/build/部署READY/公网验收；本修复没有新迁移。当前不能称已上线，原“渣男体验”草稿未修改/发布。旧epoch1安全测试失败原样报告，新架构边界不做旧行为兼容。
+root接续：先接源码独立提交 `de0ee5a3`，再接测试/报告扩围的后继提交，统一最终check/build/部署READY/公网验收；本修复没有新迁移。当前不能称已上线，原“渣男体验”草稿未修改/发布。其余旧epoch1失败仍需按54处理，新架构边界不做旧行为兼容。
 
 资源收尾：自有PostgreSQL正常停止，55565核无监听；没有停止其它Agent服务，临时测试trigger/function均已删除。
