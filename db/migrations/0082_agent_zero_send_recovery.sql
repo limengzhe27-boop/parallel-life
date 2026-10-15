@@ -21,11 +21,12 @@ CREATE TRIGGER agent_zero_send_immutable BEFORE UPDATE ON parallel_life.agent_ze
 -- Queue recovery is not a protected model completion.
 CREATE TABLE parallel_life.agent_zero_send_task_requeues (
  owner_id text NOT NULL, command_id uuid NOT NULL, world_id text NOT NULL,
- task_id uuid NOT NULL, attempt_id text NOT NULL, input_hash text NOT NULL,
- prior_token text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+ task_id uuid NOT NULL, attempt_id text, input_hash text NOT NULL CHECK(input_hash ~ '^[0-9a-f]{64}$'),
+ prior_token text, created_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(owner_id,command_id),
  FOREIGN KEY(task_id,owner_id) REFERENCES parallel_life.tasks(id,owner_id) ON DELETE CASCADE,
- FOREIGN KEY(world_id,attempt_id,owner_id) REFERENCES parallel_life.agent_attempts(world_id,id,owner_id) ON DELETE CASCADE
+ FOREIGN KEY(world_id,attempt_id,owner_id) REFERENCES parallel_life.agent_attempts(world_id,id,owner_id) ON DELETE CASCADE,
+ CHECK((attempt_id IS NULL)=(prior_token IS NULL))
 );
 ALTER TABLE parallel_life.agent_zero_send_task_requeues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parallel_life.agent_zero_send_task_requeues FORCE ROW LEVEL SECURITY;

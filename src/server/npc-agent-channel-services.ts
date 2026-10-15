@@ -367,6 +367,8 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         signal,
       );
     } catch (error) {
+      if ((error as { code?: unknown })?.code === 'NPC_DELIVERY_DEFERRED')
+        throw Object.assign(Error('WORLD_PAUSED'), { code: 'INVALID_STATE' });
       const status = await store
         .lookup(lease.ownerId, world.id, commandId)
         .then((a) => a?.status)

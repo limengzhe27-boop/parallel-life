@@ -59,17 +59,68 @@ export async function recoverAgentTaskInTransaction(
     fail('IDEMPOTENCY_CONFLICT');
   if (!['failed', 'unknown', 'cancelled', 'conflict'].includes(task.status))
     fail('VERSION_CONFLICT');
-  const actors = Array.isArray(world.state.actors) ? world.state.actors : [];
   const attempts = (
     await sql.query(
-      'SELECT * FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND command_id=ANY($3::text[]) FOR UPDATE',
-      [
-        task.scope_id,
-        ownerId,
-        actors.map((a: { id: string }) => nativeAgentCommandId(taskId, a.id)),
-      ],
+      'SELECT * FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
+      [task.scope_id, ownerId],
     )
-  ).rows;
+  ).rows.filter((a) => a.command_id === nativeAgentCommandId(taskId, a.actor_id));
+  if (attempts.length === 0) {
+    // The task may have stopped on pause before an actor was selected or claimed.
+    // Only the original, actually committed native input can be prepared again.
+    const i = task.input;
+    const group =
+      i?.channel === 'group' && typeof i.groupId === 'string' && typeof i.inputEventId === 'string';
+    const scene =
+      i?.type === 'scene' && typeof i.sceneId === 'string' && typeof i.actionId === 'string';
+    if ((!group && !scene) || !Number.isSafeInteger(i.expectedVersion)) fail('INVALID_COMMAND');
+    if (world.version !== i.expectedVersion) fail('VERSION_CONFLICT');
+    const original = (
+      await sql.query(
+        `SELECT e.id FROM parallel_life.world_events e JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+      WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version=$3 AND
+      (($4 AND e.id=$5 AND e.payload->>'type'='group.message_sent' AND e.payload->'data'->>'groupId'=$6)
+       OR ($7 AND EXISTS(SELECT 1 FROM parallel_life.scene_items s WHERE s.world_id=e.world_id AND s.owner_id=e.owner_id AND s.source_event_id=e.id AND s.id=$8 AND s.scene_id=$9)))`,
+        [
+          task.scope_id,
+          ownerId,
+          i.expectedVersion,
+          group,
+          i.inputEventId ?? null,
+          i.groupId ?? null,
+          scene,
+          i.actionId ?? null,
+          i.sceneId ?? null,
+        ],
+      )
+    ).rows[0];
+    if (!original) fail('INVALID_COMMAND');
+    if (
+      (
+        await sql.query(
+          "SELECT 1 FROM parallel_life.tasks WHERE owner_id=$1 AND scope_kind='world' AND scope_id=$2 AND status IN ('queued','running') AND id<>$3",
+          [ownerId, task.scope_id, taskId],
+        )
+      ).rowCount
+    )
+      fail('BUSY');
+    await requireActiveAgentDeliveryInTransaction(
+      sql,
+      ownerId,
+      task.scope_id,
+      'NPC_DELIVERY_DEFERRED',
+    );
+    await sql.query(
+      `INSERT INTO parallel_life.agent_zero_send_task_requeues(owner_id,command_id,world_id,task_id,attempt_id,input_hash,prior_token) VALUES($1,$2,$3,$4,NULL,$5,NULL)`,
+      [ownerId, commandId, task.scope_id, taskId, task.request_hash],
+    );
+    return (
+      await sql.query(
+        "UPDATE parallel_life.tasks SET status='queued',error_code=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=$1 RETURNING *",
+        [taskId],
+      )
+    ).rows[0];
+  }
   // No completion is not permission to launch a replacement request. Environment tasks
   // and failures before claim need their own deterministic re-preparation, not an NPC retry.
   if (attempts.length !== 1) fail('INVALID_COMMAND');
