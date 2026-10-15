@@ -20,6 +20,10 @@ export async function readActorStrategyBasis(
       ...state.decisions.map((x) => x.sourceId),
       ...state.responsibilities.flatMap((r) => (r.deadline ? [r.deadline.sourceId] : [])),
       ...(state.focus?.questionSourceId ? [state.focus.questionSourceId] : []),
+      ...(state.questions ?? []).flatMap((q) => [
+        q.sourceId,
+        ...(q.resolution ? [q.resolution.sourceId] : []),
+      ]),
       ...[
         ...state.plans.flatMap((x) => x.triggers),
         ...state.actions.flatMap((x) => x.preconditions),
@@ -41,6 +45,11 @@ export async function readActorStrategyBasis(
   ) => {
     if (
       !handles.includes(id) ||
+      !Number.isSafeInteger(worldVersion) ||
+      worldVersion < 0 ||
+      !Number.isSafeInteger(version) ||
+      version < 0 ||
+      !Number.isFinite(Date.parse(storyAt)) ||
       [id, recordId, ...aliases].some((x) => blocked.has(x)) ||
       version > worldVersion ||
       Date.parse(at) > Date.parse(storyAt) ||
@@ -168,5 +177,234 @@ export async function readActorStrategyBasis(
   ).rows;
   for (const row of calendar)
     add('calendar-response:' + row.id, 'world_event', row.id, row.version, row.payload.storyTime);
+  await readNativeStrategyBasis(sql, ownerId, state, handles, worldVersion, storyAt, add);
   return [...sources.values()];
+}
+
+type StrategyAdder = (
+  id: string,
+  kind: AgentSource['kind'],
+  recordId: string,
+  version: number,
+  at: string,
+  aliases?: string[],
+) => void;
+/** Historical direct perception/own speech, never current membership or a transcript disclosure grant. */
+async function readNativeStrategyBasis(
+  sql: SqlClient,
+  owner: string,
+  state: ActorAgentState,
+  handles: string[],
+  worldVersion: number,
+  storyAt: string,
+  add: StrategyAdder,
+) {
+  if (
+    !Number.isSafeInteger(worldVersion) ||
+    worldVersion < 0 ||
+    !Number.isFinite(Date.parse(storyAt))
+  )
+    return;
+  const permissions = (
+    await sql.query(`SELECT
+    has_table_privilege(current_user,'parallel_life.agent_attempts','SELECT') AS attempts,
+    has_table_privilege(current_user,'parallel_life.world_group_messages','SELECT') AS groups,
+    has_table_privilege(current_user,'parallel_life.scene_items','SELECT') AS scenes`)
+  ).rows[0];
+  if (!permissions?.attempts) return;
+  // Only protected metadata is projected out of saved requests. No observations, input text or raw response.
+  const history = (
+    await sql.query(
+      `SELECT a.input_receipt_id AS input_id,r.command_id AS input_command,
+    r.document->>'channel' AS channel,r.document->>'threadId' AS thread_id,
+    r.document->>'storyAt' AS input_at,(r.document->>'expectedWorldVersion')::integer AS input_version,
+    e.id AS output_event,e.version AS output_version,e.payload->>'storyAt' AS output_at,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',source->>'id','kind',source->>'kind',
+      'recordId',source->>'recordId','worldVersion',source->'worldVersion','at',source->>'at'))
+      FROM jsonb_array_elements(CASE WHEN jsonb_typeof(a.response->'snapshot'->'sources')='array'
+        THEN a.response->'snapshot'->'sources' ELSE '[]'::jsonb END) source
+      WHERE source->>'id'=ANY($4::text[]) AND source->>'kind' IN ('group_message','scene_entry')
+        AND COALESCE(source->>'usage','channel_context')='channel_context'
+        AND (source->>'worldVersion')::integer<=a.expected_world_version
+        AND (source->>'at')::timestamptz<=(a.response->'snapshot'->>'storyAt')::timestamptz), '[]'::jsonb) AS seen
+    FROM parallel_life.agent_attempts a
+    JOIN parallel_life.agent_input_receipts r ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
+    JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id AND e.command_id=a.command_id
+    JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+    WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.status='committed'
+      AND e.version<=$5 AND e.version=a.expected_world_version+1 AND c.expected_version=a.expected_world_version
+      AND a.engine_epoch>=2 AND (e.payload->'data'->'agentRuntime'->>'engineEpoch')::integer=a.engine_epoch
+      AND a.response_hash IS NOT NULL AND a.response->>'kind'='npc_agent_completion' AND a.response->'schemaVersion'='1'::jsonb
+      AND a.response->'snapshot'->'state'->>'worldId'=a.world_id AND a.response->'snapshot'->'state'->>'actorId'=a.actor_id
+      AND (a.response->'snapshot'->'state'->>'revision')::integer=a.expected_actor_revision
+      AND (a.response->'snapshot'->>'worldVersion')::integer=a.expected_world_version
+      AND (a.response->'snapshot'->>'storyAt')::timestamptz<=$6::timestamptz AND (e.payload->>'storyAt')::timestamptz<=$6::timestamptz
+      AND a.response->'snapshot'->'input'->>'sourceId'=r.id
+      AND a.response->'snapshot'->'input'->>'text'=r.document->>'text'
+      AND a.response->'snapshot'->'input'->>'origin'=r.document->>'origin'
+      AND a.response->'snapshot'->'channel'->>'kind'=r.document->>'channel'
+      AND a.response->'snapshot'->'channel'->>'threadId'=r.document->>'threadId'
+      AND (r.document->>'recipientActorId' IS NULL OR r.document->>'recipientActorId'=a.actor_id)
+      AND (r.document->>'expectedWorldVersion')::integer<=a.expected_world_version
+      AND e.payload->'data'->>'actorId'=a.actor_id
+      AND e.payload->'data'->'agentRuntime'->>'inputReceiptId'=r.id
+      AND e.payload->'data'->'agentRuntime'->'stateAfter'->>'worldId'=a.world_id
+      AND e.payload->'data'->'agentRuntime'->'stateAfter'->>'actorId'=a.actor_id
+      AND (e.payload->'data'->'agentRuntime'->'stateAfter'->>'revision')::integer=a.expected_actor_revision+1
+      AND (e.payload->'data'->'agentRuntime'->'stateAfter'->>'projectedWorldVersion')::integer=e.version`,
+      [state.worldId, owner, state.actorId, handles, worldVersion, storyAt],
+    )
+  ).rows;
+  if (!history.length) return;
+  const observed = new Map<string, { channel: string; thread: string; source: AgentSource }[]>();
+  for (const row of history)
+    for (const source of row.seen as AgentSource[]) {
+      const list = observed.get(source.id) ?? [];
+      list.push({ channel: row.channel, thread: row.thread_id, source });
+      observed.set(source.id, list);
+    }
+  const ownEvents = new Map(history.map((row) => [row.output_event, row]));
+  const ownSpeech = (event: string, channel: string, thread: string) => {
+    const proof = ownEvents.get(event);
+    return proof?.channel === channel && proof.thread_id === thread;
+  };
+  const inputCommands = history
+    .filter((row) => handles.includes(row.input_id))
+    .map((row) => row.input_command);
+  const ownObserved = (
+    id: string,
+    channel: string,
+    thread: string,
+    record: string,
+    version: number,
+    at: string,
+  ) =>
+    observed
+      .get(id)
+      ?.some(
+        (proof) =>
+          proof.channel === channel &&
+          proof.thread === thread &&
+          proof.source.kind === (channel === 'group' ? 'group_message' : 'scene_entry') &&
+          proof.source.recordId === record &&
+          proof.source.worldVersion === version &&
+          Date.parse(proof.source.at) === Date.parse(at),
+      );
+  const processed = (
+    row: {
+      command_id: string;
+      thread_id: string;
+      version: number;
+      at: string;
+      input_ids: string[];
+    },
+    channel: string,
+  ) => {
+    for (const h of history)
+      if (
+        h.channel === channel &&
+        h.thread_id === row.thread_id &&
+        h.input_command === row.command_id &&
+        h.input_version === row.version &&
+        Date.parse(h.input_at) === Date.parse(row.at) &&
+        row.input_ids.includes(h.input_id)
+      )
+        add(h.input_id, 'accepted_input', h.input_id, row.version, row.at, [
+          row.command_id,
+          ...row.input_ids,
+        ]);
+  };
+  if (permissions.groups) {
+    const rows = (
+      await sql.query(
+        `SELECT m.id,m.group_id AS thread_id,e.id AS event_id,e.command_id,e.version,
+      e.payload->>'storyAt' AS at,m.document->'sender'->>'actorId' AS speaker,
+      ARRAY(SELECT r.id FROM parallel_life.agent_input_receipts r WHERE r.world_id=m.world_id AND r.owner_id=m.owner_id
+        AND r.command_id=e.command_id AND r.document->>'channel'='group' AND r.document->>'threadId'=m.group_id
+        AND (r.document->>'expectedWorldVersion')::integer=e.version AND r.document->>'text'=m.document->>'text') AS input_ids
+      FROM parallel_life.world_group_messages m
+      JOIN parallel_life.world_events e ON e.world_id=m.world_id AND e.owner_id=m.owner_id AND e.id=m.source_event_id AND e.version=m.source_version
+      JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+      WHERE m.world_id=$1 AND m.owner_id=$2 AND e.version<=$5 AND (e.payload->>'storyAt')::timestamptz<=$6::timestamptz
+        AND (('group:'||m.id)=ANY($4::text[]) OR e.command_id=ANY($7::text[]))
+        AND m.document->>'worldId'=m.world_id AND m.document->>'ownerId'=m.owner_id AND m.document->>'id'=m.id
+        AND m.document->>'conversationId'=m.group_id AND m.document->>'sourceEventId'=e.id AND (m.document->>'sourceVersion')::integer=e.version
+        AND e.payload->'data'->>'groupId'=m.group_id
+        AND EXISTS(SELECT 1 FROM parallel_life.world_group_memberships member WHERE member.world_id=m.world_id AND member.owner_id=m.owner_id
+          AND member.group_id=m.group_id AND member.member_key=$3 AND member.joined_version<=e.version
+          AND (member.left_version IS NULL OR e.version<member.left_version)
+          AND EXISTS(SELECT 1 FROM parallel_life.world_events joined JOIN parallel_life.commands jc
+            ON jc.world_id=joined.world_id AND jc.owner_id=joined.owner_id AND jc.id=joined.command_id AND jc.status='succeeded' AND jc.result_event_id=joined.id
+            WHERE joined.world_id=member.world_id AND joined.owner_id=member.owner_id AND joined.id=member.source_event_id AND joined.version=member.joined_version
+              AND joined.payload->'data'->>'groupId'=member.group_id
+              AND ((joined.payload->>'type'='group.created' AND joined.payload->'data'->'actorIds' ? $3)
+                OR (joined.payload->>'type'='group.membership_changed' AND joined.payload->'data'->>'action'='join'
+                  AND joined.payload->'data'->'participant'=jsonb_build_object('kind','actor','actorId',$3::text)))))
+        AND ((m.document->'sender'->>'kind'='player' AND e.payload->>'type'='group.message_sent' AND e.payload->'data'->>'text'=m.document->>'text'
+          AND COALESCE(e.payload->'data'->>'messageId',e.id)=m.id)
+          OR (m.document->'sender'->>'kind'='actor' AND e.payload->>'type'='group.turn_resolved'
+            AND EXISTS(SELECT 1 FROM jsonb_array_elements(e.payload->'data'->'replies') reply WHERE reply->>'actorId'=m.document->'sender'->>'actorId'
+              AND reply->>'text'=m.document->>'text' AND COALESCE(reply->>'messageId',e.id)=m.id)))`,
+        [state.worldId, owner, state.actorId, handles, worldVersion, storyAt, inputCommands],
+      )
+    ).rows;
+    for (const row of rows) {
+      const aliases = [row.event_id, row.command_id, ...row.input_ids];
+      if (
+        ownObserved('group:' + row.id, 'group', row.thread_id, row.id, row.version, row.at) ||
+        (row.speaker === state.actorId && ownSpeech(row.event_id, 'group', row.thread_id))
+      )
+        add('group:' + row.id, 'group_message', row.id, row.version, row.at, aliases);
+      processed(row, 'group');
+    }
+  }
+  if (permissions.scenes) {
+    const rows = (
+      await sql.query(
+        `SELECT item.id,item.scene_id AS thread_id,e.id AS event_id,e.command_id,e.version,
+      e.payload->>'storyAt' AS at,item.document->'speaker'->>'actorId' AS speaker,
+      ARRAY(SELECT r.id FROM parallel_life.agent_input_receipts r WHERE r.world_id=item.world_id AND r.owner_id=item.owner_id
+        AND r.command_id=e.command_id AND r.document->>'channel'='scene' AND r.document->>'threadId'=item.scene_id
+        AND (r.document->>'expectedWorldVersion')::integer=e.version AND r.document->>'text'=item.document->>'text') AS input_ids
+      FROM parallel_life.scene_items item
+      JOIN parallel_life.scene_sessions scene ON scene.world_id=item.world_id AND scene.owner_id=item.owner_id AND scene.id=item.scene_id
+      JOIN parallel_life.world_events e ON e.world_id=item.world_id AND e.owner_id=item.owner_id AND e.id=item.source_event_id
+      JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+      WHERE item.world_id=$1 AND item.owner_id=$2 AND item.kind='entry' AND e.version<=$5
+        AND (e.payload->>'storyAt')::timestamptz<=$6::timestamptz AND (('scene:'||item.id)=ANY($4::text[]) OR e.command_id=ANY($7::text[]))
+        AND item.document->>'worldId'=item.world_id AND item.document->>'ownerId'=item.owner_id AND item.document->>'id'=item.id
+        AND item.document->>'sceneId'=item.scene_id AND item.document->>'sourceEventId'=e.id AND (item.document->>'sourceVersion')::integer=e.version
+        AND e.payload->'data'->>'sceneId'=item.scene_id
+        AND item.document->'observableTo' @> jsonb_build_array(jsonb_build_object('kind','actor','actorId',$3::text))
+        AND EXISTS(SELECT 1 FROM jsonb_array_elements(scene.document->'presence') presence
+          WHERE presence->'participant'=jsonb_build_object('kind','actor','actorId',$3::text)
+            AND (presence->>'joinedVersion')::integer<=e.version AND (NOT(presence?'leftVersion') OR e.version<(presence->>'leftVersion')::integer)
+            AND EXISTS(SELECT 1 FROM parallel_life.world_events joined JOIN parallel_life.commands jc
+              ON jc.world_id=joined.world_id AND jc.owner_id=joined.owner_id AND jc.id=joined.command_id AND jc.status='succeeded' AND jc.result_event_id=joined.id
+              WHERE joined.world_id=scene.world_id AND joined.owner_id=scene.owner_id AND joined.id=presence->>'sourceEventId'
+                AND joined.version=(presence->>'sourceVersion')::integer AND joined.version=(presence->>'joinedVersion')::integer
+                AND joined.payload->'data'->>'sceneId'=scene.id
+                AND joined.payload->>'type' IN ('scene.entered','scene.opened','scene.action_resolved','scene.reaction_recorded')))
+        AND ((item.document->>'kind'='user_action' AND e.payload->>'type'='scene.input_recorded' AND COALESCE(e.payload->'data'->>'privateThought','false')='false'
+          AND e.payload->'playerInput'->>'text'=item.document->>'text'
+          AND EXISTS(SELECT 1 FROM parallel_life.scene_items action WHERE action.world_id=item.world_id AND action.owner_id=item.owner_id
+            AND action.scene_id=item.scene_id AND action.source_event_id=e.id AND action.kind='action' AND action.id=item.document->>'actionId' AND action.document->>'text'=item.document->>'text'))
+          OR (item.document->>'kind'='dialogue' AND item.document->'speaker'->>'kind'='actor' AND e.payload->>'type' IN ('scene.opened','scene.action_resolved','scene.reaction_recorded')
+            AND EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(e.payload->'data'->'proposal'->'dialogues',e.payload->'data'->'dialogues','[]'::jsonb)) dialogue
+              WHERE dialogue->>'text'=item.document->>'text' AND COALESCE(dialogue->>'actorId',dialogue->'speaker'->>'actorId')=item.document->'speaker'->>'actorId'))
+          OR (item.document->>'kind'='narration' AND e.payload->>'type' IN ('scene.opened','scene.action_resolved','scene.reaction_recorded') AND e.payload->'data'->'proposal'->>'narration'=item.document->>'text')
+          OR (item.document->>'kind'='adjudicated_result' AND e.payload->>'type'='scene.action_resolved' AND e.payload->'data'->'proposal'->>'observation'=item.document->>'text'))`,
+        [state.worldId, owner, state.actorId, handles, worldVersion, storyAt, inputCommands],
+      )
+    ).rows;
+    for (const row of rows) {
+      const aliases = [row.event_id, row.command_id, ...row.input_ids];
+      if (
+        ownObserved('scene:' + row.id, 'scene', row.thread_id, row.id, row.version, row.at) ||
+        (row.speaker === state.actorId && ownSpeech(row.event_id, 'scene', row.thread_id))
+      )
+        add('scene:' + row.id, 'scene_entry', row.id, row.version, row.at, aliases);
+      processed(row, 'scene');
+    }
+  }
 }
