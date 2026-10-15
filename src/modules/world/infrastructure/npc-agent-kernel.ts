@@ -32,16 +32,21 @@ import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 export class PostgresNpcAgentKernel implements AgentKernel {
   private readonly db: PostgresDatabase;
   private readonly worlds: PostgresWorldRepository;
+  private readonly afterCommit?: (
+    sql: SqlClient,
+    receipt: { attempt: import('../domain/agent-runtime.ts').AgentAttempt; eventId: string },
+  ) => Promise<void>;
   constructor(
     db: PostgresDatabase,
     worlds: PostgresWorldRepository,
-    private readonly afterCommit?: (
+    afterCommit?: (
       sql: SqlClient,
       receipt: { attempt: import('../domain/agent-runtime.ts').AgentAttempt; eventId: string },
     ) => Promise<void>,
   ) {
     this.db = db;
     this.worlds = worlds;
+    this.afterCommit = afterCommit;
   }
   parse(snapshot: AgentSnapshot, raw: unknown) {
     return parseAgentProposal(snapshot, raw);
