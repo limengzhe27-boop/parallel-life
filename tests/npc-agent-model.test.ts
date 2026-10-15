@@ -122,7 +122,10 @@ test('all three channels use one protocol and preserve the same actor identity/r
     const call = calls.at(-1)!,
       payload = JSON.parse(call.messages[1]!.content);
     assert.deepEqual(payload.state, input.state);
-    assert.deepEqual(payload.channel, input.channel);
+    assert.deepEqual(payload.channel, {
+      ...input.channel,
+      maxCombinedStatementChars: channel === 'group' ? 500 : channel === 'scene' ? 4000 : 12000,
+    });
     assert.deepEqual(payload.input, input.input);
     assert.equal(payload.actor.definitionRef, payload.state.definitionRef);
     assert.equal(payload.worldVersion, 9);
@@ -453,4 +456,77 @@ test('cancellation and transport failure propagate once without parsing, retries
   const liveSignal = new AbortController().signal;
   await assert.rejects(failing.decide(snapshot(), liveSignal), (e) => e === failure);
   assert.equal(count, 1);
+});
+
+test('group keeps this NPC structured private decision without serializing the private quote or transcript', async () => {
+  const { adapter, calls } = capture();
+  const s = snapshot('group');
+  s.sources[0]!.usage = 'private_strategy';
+  s.observations = [];
+  s.state.decisions = [
+    {
+      id: 'd',
+      responsibilityId: 'r1',
+      kind: 'declined',
+      sourceId: 'source-1',
+      quote: 'PRIVATE-QUOTE-DO-NOT-REPEAT',
+    },
+  ];
+  s.viewState = structuredClone(s.state);
+  await adapter.decide(s);
+  const text = JSON.stringify(calls[0]!.messages);
+  assert(!text.includes('PRIVATE-QUOTE-DO-NOT-REPEAT'));
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(payload.state.decisions[0].kind, 'declined');
+  assert.equal(payload.state.goals[0].id, 'g1');
+  assert.equal(payload.sources[0].usage, 'private_strategy');
+  assert.equal(s.viewState.decisions[0]!.quote, 'PRIVATE-QUOTE-DO-NOT-REPEAT');
+  const bad = structuredClone(s);
+  bad.observations = [{ sourceId: 'source-1', text: 'PRIVATE-TRANSCRIPT', kind: 'speech' }];
+  assert.throws(() => adapter.validateInput(bad));
+  assert.equal(calls.length, 1);
+});
+
+test('sourced position knowledge stays distinct from truth and raw global locations never enter model context', async () => {
+  const { adapter, calls } = capture();
+  const s = snapshot();
+  s.worldContext = {
+    time: {
+      storyAt: '2026-10-15T08:00:00.000Z',
+      timeZone: 'UTC+08:00',
+      localDateTime: '2026-10-15T16:00:00',
+    },
+    boundary: {
+      actorIds: ['actor-a'],
+      placeIds: ['home'],
+      capabilityIds: [],
+      extensionPermission: 'none',
+    },
+    selfPosition: { status: 'unknown', placeId: null },
+    knowledge: [
+      {
+        subject: { kind: 'player' },
+        kind: 'left',
+        placeId: 'home',
+        sourceKind: 'direct',
+        occurredAt: '2026-10-15T07:30:00.000Z',
+        learnedAt: '2026-10-15T07:30:00.000Z',
+        possiblyStale: true,
+        sourceId: 'source-1',
+      },
+    ],
+  };
+  Object.assign(s.worldContext, { playerActualPosition: 'SECRET-COFFEE-SHOP' });
+  Object.assign(s.worldContext.knowledge[0]!, { destination: 'SECRET-COFFEE-SHOP' });
+  await adapter.decide(s);
+  const text = JSON.stringify(calls[0]!.messages);
+  assert(!text.includes('SECRET-COFFEE-SHOP'));
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(payload.worldContext.knowledge[0].kind, 'left');
+  assert.equal(payload.worldContext.time.localDateTime, '2026-10-15T16:00:00');
+  assert.equal(payload.worldContext.selfPosition.status, 'unknown');
+  const bad = structuredClone(s);
+  bad.worldContext!.time.localDateTime = '2035-01-01T00:00:00';
+  assert.throws(() => adapter.validateInput(bad));
+  assert.equal(calls.length, 1);
 });

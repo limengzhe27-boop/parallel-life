@@ -13,6 +13,8 @@ import { readActorSituation } from './actor-situation-repository.ts';
 import { DomainError } from '../domain/errors.ts';
 import { authorizedAgentState } from '../domain/agent-kernel.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
+import { PostgresWorldAwarenessRepository } from './world-awareness-repository.ts';
+import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
 
 export function agentDefinitionRef(
@@ -363,7 +365,7 @@ export async function readPrivateAgentSnapshot(
   )
     throw new DomainError('VERSION_CONFLICT', '人物定义需要先同步。');
   const selectedModules = selectActorPersona(modules, input.text);
-  return {
+  const result: { seed: ActorAgentState | null; snapshot: AgentSnapshot } = {
     seed: state ? null : seeded,
     snapshot: {
       state: seeded,
@@ -383,12 +385,113 @@ export async function readPrivateAgentSnapshot(
         definitionRef: seeded.definitionRef,
       },
       channel: {
-        kind: 'private',
+        kind: 'private' as const,
         threadId: actorId,
         audienceActorIds: [actorId],
         allowedCapabilities: ['appointment.propose', 'plan.record'],
       },
       input: { sourceId: input.id, text: input.text, origin: input.origin },
+    },
+  };
+  result.snapshot = await attachAgentWorldContext(db, ownerId, result.snapshot);
+  return result;
+}
+
+/** Only this actor's authorized awareness can enter any channel. Reads never project world changes. */
+export async function attachAgentWorldContext(
+  db: PostgresDatabase,
+  ownerId: string,
+  snapshot: AgentSnapshot,
+): Promise<AgentSnapshot> {
+  const awareness = await new PostgresWorldAwarenessRepository(db).readActorAwareness(
+    ownerId,
+    snapshot.state.worldId,
+    snapshot.state.actorId,
+  );
+  const sources = [...snapshot.sources],
+    observations = [...snapshot.observations];
+  const allowed = new Set(awareness.boundary.placeIds);
+  const knowledge = awareness.knowledge
+    .filter(
+      (k) =>
+        k.worldVersion <= snapshot.worldVersion &&
+        Date.parse(k.learnedAt) <= Date.parse(snapshot.storyAt),
+    )
+    .map((k) => {
+      const subjectKey = k.subject.kind === 'player' ? 'player' : k.subject.actorId;
+      const sourceId = `knowledge:${k.sourceEventId}:${subjectKey}:${k.kind}`;
+      sources.push({
+        id: sourceId,
+        kind: 'world_event',
+        recordId: k.sourceEventId,
+        worldVersion: k.worldVersion,
+        at: k.learnedAt,
+      });
+      observations.push({
+        sourceId,
+        kind: k.sourceKind === 'direct' ? 'fact' : 'belief',
+        text: JSON.stringify({
+          subject: k.subject,
+          kind: k.kind,
+          placeId: k.placeId,
+          sourceKind: k.sourceKind,
+          occurredAt: k.occurredAt,
+          learnedAt: k.learnedAt,
+          possiblyStale: true,
+        }),
+      });
+      return {
+        subject: k.subject,
+        kind: k.kind,
+        placeId: k.placeId,
+        sourceKind: k.sourceKind,
+        occurredAt: k.occurredAt,
+        learnedAt: k.learnedAt,
+        possiblyStale: true as const,
+        sourceId,
+      };
+    });
+  const own = awareness.ownPosition;
+  let selfPosition: NonNullable<AgentSnapshot['worldContext']>['selfPosition'] = {
+    status: 'unknown',
+    placeId: null,
+  };
+  if (
+    'worldVersion' in own &&
+    own.worldVersion <= snapshot.worldVersion &&
+    'sourceEventId' in own &&
+    'occurredAt' in own &&
+    (!own.placeId || allowed.has(own.placeId))
+  ) {
+    const sourceId = `self-position:${own.sourceEventId}`;
+    sources.push({
+      id: sourceId,
+      kind: 'world_event',
+      recordId: own.sourceEventId,
+      worldVersion: own.worldVersion,
+      at: own.occurredAt,
+    });
+    selfPosition = {
+      status: own.status,
+      placeId: own.placeId,
+      occurredAt: own.occurredAt,
+      sourceId,
+    };
+  }
+  return {
+    ...snapshot,
+    sources: [...new Map(sources.map((s) => [s.id, s])).values()],
+    observations,
+    worldContext: {
+      time: awarenessLocalTime(snapshot.storyAt),
+      boundary: {
+        actorIds: awareness.boundary.actorIds,
+        placeIds: awareness.boundary.placeIds,
+        capabilityIds: awareness.boundary.capabilityIds,
+        extensionPermission: 'none',
+      },
+      selfPosition,
+      knowledge,
     },
   };
 }

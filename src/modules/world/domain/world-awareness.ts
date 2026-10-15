@@ -214,7 +214,15 @@ export function committedAwarenessDelta(
     }
   }
   const runtime = object(data.agentRuntime);
-  if (runtime && (event.type === 'turn.resolved' || event.type === 'agent.state_committed')) {
+  if (
+    runtime &&
+    [
+      'turn.resolved',
+      'agent.state_committed',
+      'group.turn_resolved',
+      'scene.reaction_recorded',
+    ].includes(event.type)
+  ) {
     const state = runtime.stateAfter as ActorAgentState | undefined;
     const proposal = object(runtime.proposal);
     const actorId = data.actorId;
@@ -255,3 +263,19 @@ export function committedAwarenessDelta(
   }
   return delta;
 }
+
+/** Model-facing view: no player ground truth or database record pointers. */
+export type AgentWorldContext = {
+  time: { storyAt: string; timeZone: 'UTC+08:00'; localDateTime: string };
+  boundary: Pick<WorldBoundary, 'actorIds' | 'placeIds' | 'capabilityIds' | 'extensionPermission'>;
+  selfPosition: {
+    status: AuthoritativePosition['status'];
+    placeId: string | null;
+    occurredAt?: string;
+    sourceId?: string;
+  };
+  knowledge: (Omit<
+    ActorPositionKnowledge,
+    'worldId' | 'observerActorId' | 'sourceEventId' | 'worldVersion'
+  > & { sourceId: string })[];
+};

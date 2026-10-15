@@ -1,3 +1,4 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
@@ -324,6 +325,7 @@ export class PostgresWorldRepository implements WorldRepository {
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
         [state.id, command.commandId, event.id, compactWorldState(state)],
       );
+      await projectAgentWorldChange(sql, session.userId, state.id, event.id);
       await capClockAtNextAppointment(sql, session.userId, state.id, realNow);
       return state;
     });
@@ -452,6 +454,7 @@ export class PostgresWorldRepository implements WorldRepository {
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
         [state.id, command.commandId, event.id, compactWorldState(state)],
       );
+      await projectAgentWorldChange(sql, session.userId, state.id, event.id);
       return { worldId: state.id, version: state.version, note };
     });
   }

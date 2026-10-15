@@ -1,3 +1,4 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
@@ -156,6 +157,7 @@ async function commit(
     'INSERT INTO parallel_life.world_space_receipts(world_id,owner_id,command_id,request_hash,source_event_id,document) VALUES($1,$2,$3,$4,$5,$6)',
     [w.id, w.ownerId, e.commandId, hash, e.id, result],
   );
+  await projectAgentWorldChange(sql, w.ownerId, w.id, e.id);
   return next;
 }
 /** The v3 release added matters and one R17 invitation; its existing v2 places,

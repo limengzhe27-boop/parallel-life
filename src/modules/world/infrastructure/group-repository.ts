@@ -1,3 +1,4 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
@@ -265,6 +266,7 @@ export async function persistGroupEvent(
     "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
     [world.id, event.commandId, event.id, compact(next)],
   );
+  await projectAgentWorldChange(sql, world.ownerId, world.id, event.id);
   return {
     groupId: projection.group.id,
     version: event.version,

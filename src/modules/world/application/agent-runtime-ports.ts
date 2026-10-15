@@ -20,6 +20,8 @@ export type AgentSnapshot = {
   redactedStateIds: string[];
   worldVersion: number;
   storyAt: string;
+  /** Code-built local time and this NPC's sourced location knowledge, never global player position. */
+  worldContext?: import('../domain/world-awareness.ts').AgentWorldContext;
   sources: AgentSource[];
   observations: {
     sourceId: string;

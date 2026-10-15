@@ -1,3 +1,4 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
@@ -160,6 +161,7 @@ export class PostgresAppointmentWaitRepository implements AppointmentWaitPort {
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$4,result_state=$5,updated_at=now() WHERE world_id=$1 AND owner_id=$2 AND id=$3",
         [worldId, ownerId, input.commandId, event.id, stored],
       );
+      await projectAgentWorldChange(sql, ownerId, worldId, event.id);
       await sql.query(
         'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,updated_at=now()',
         [

@@ -11,6 +11,8 @@ export type AgentSource = {
     | 'action_result'
     | 'authored';
   recordId: string;
+  /** Private strategy belongs to this NPC; it is not a channel disclosure grant. */
+  usage?: 'private_strategy' | 'channel_context';
   worldVersion: number;
   at: string;
   /** Server-resolved explicit response deadline, never inferred merely from model text. */

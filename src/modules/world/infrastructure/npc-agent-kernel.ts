@@ -1,3 +1,4 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
@@ -359,6 +360,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         state: accepted.state,
         results,
       });
+      await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       return { eventId, state: accepted.state, results };
     });
   }

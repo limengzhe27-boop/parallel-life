@@ -1,3 +1,4 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
@@ -329,6 +330,7 @@ async function event(
     "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
     [world.id, commandId, id, state],
   );
+  await projectAgentWorldChange(sql, world.ownerId, world.id, id);
   return { sourceEventId: id, sourceVersion: version };
 }
 async function previous(

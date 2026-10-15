@@ -1,3 +1,4 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -468,6 +469,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$4,result_state=$5,updated_at=now() WHERE world_id=$1 AND owner_id=$2 AND id=$3",
         [worldId, ownerId, input.commandId, event.id, stored],
       );
+      await projectAgentWorldChange(sql, ownerId, worldId, event.id);
       await sql.query(
         'INSERT INTO parallel_life.story_wait_receipts(world_id,owner_id,command_id,request_hash,source_event_id,version,document) VALUES($1,$2,$3,$4,$5,$6,$7)',
         [worldId, ownerId, input.commandId, hash, event.id, event.version, receipt],
