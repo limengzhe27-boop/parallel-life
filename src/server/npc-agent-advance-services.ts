@@ -411,7 +411,22 @@ export function npcAgentAdvanceServices(
           director: {
             async coordinate(input) {
               coordinated = true;
-              const decision = await coordinate(input.candidates, input.blockers);
+              let decision: DirectorDecision | null;
+              try {
+                decision = await coordinate(input.candidates, input.blockers);
+              } catch (error) {
+                if ((error as { code?: unknown })?.code !== 'DIRECTOR_DELIVERY_DEFERRED')
+                  throw error;
+                return {
+                  candidateIds: [],
+                  deferred: input.candidates.map((candidate) => ({
+                    candidateId: candidate.id,
+                    reason: '当前互动已暂缓，等待恢复后重新核对。',
+                  })),
+                  guidance: [],
+                  reason: '当前世界或互动已暂缓。',
+                };
+              }
               if (!decision) throw Error('DIRECTOR_COORDINATION_MISSING');
               return {
                 candidateIds: decision.selectedCandidateIds,
@@ -449,6 +464,8 @@ export function npcAgentAdvanceServices(
             observed.needsEvaluation ? 'normal' : wake.cause ? 'wake' : 'recovery',
           );
         } catch (error) {
+          if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED')
+            return quiet(storyAt);
           // A director has only proposed, never executed, changes. Its pending
           // paid result fences further coordination, not a separately qualified
           // actor-only action with no competing actor or shared-resource choice.
