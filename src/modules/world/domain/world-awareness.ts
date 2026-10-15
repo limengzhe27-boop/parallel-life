@@ -2,6 +2,7 @@ import type { WorldState } from './types.ts';
 import type { ActorAgentState } from './agent-runtime.ts';
 import type { SceneSession, Participant } from './experience-rules.ts';
 import type { AgentJourney } from './agent-travel.ts';
+import { NPC_AGENT_CAPABILITIES } from './agent-capabilities.ts';
 import { worldDateTimeInput } from './display-time.ts';
 
 export type AwarenessSubject = Participant;
@@ -76,7 +77,7 @@ export function awarenessSubjectKey(subject: AwarenessSubject): string {
 export function worldBoundary(
   world: WorldState,
   sourceEventId: string | null,
-  capabilityIds: readonly string[] = ['plan.record', 'appointment.propose'],
+  capabilityIds: readonly string[] = NPC_AGENT_CAPABILITIES,
 ): WorldBoundary {
   return {
     worldId: world.id,

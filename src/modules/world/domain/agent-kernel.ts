@@ -533,6 +533,9 @@ export function reduceActorAgentState(
     if (action) {
       action.status = result.outcome;
       action.resultId = result.id;
+      if (result.outcome === 'failed' && result.failureCode)
+        action.failureCode = result.failureCode;
+      else delete action.failureCode;
     }
   }
   const goals = merge(context.state.goals, proposal.goals);

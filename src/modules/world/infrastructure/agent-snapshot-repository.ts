@@ -17,6 +17,7 @@ import { readActorStrategyBasis } from './agent-source-resolver.ts';
 import { PostgresWorldAwarenessRepository } from './world-awareness-repository.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
+import { NPC_AGENT_CAPABILITIES } from '../domain/agent-capabilities.ts';
 
 export function agentDefinitionRef(
   world: Pick<WorldState, 'id' | 'actors'>,
@@ -551,8 +552,54 @@ export async function attachAgentWorldContext(
       sourceId,
     };
   }
+  let travelRoutes: NonNullable<AgentSnapshot['worldContext']>['travelRoutes'] = [];
+  if (
+    selfPosition.status === 'at' &&
+    selfPosition.sourceId &&
+    awareness.boundary.capabilityIds.includes('travel.begin')
+  ) {
+    const map = await db.transaction(
+      ownerId,
+      async (sql) =>
+        (
+          await sql.query(
+            `SELECT version,state->'space'->'routes' AS routes,
+       EXISTS(SELECT 1 FROM parallel_life.world_clock c WHERE c.world_id=worlds.id AND c.owner_id=$2) AS clock_ready,
+       (SELECT jsonb_agg(jsonb_build_object('id',p->>'id','name',p->>'name'))
+        FROM jsonb_array_elements(COALESCE(state->'space'->'places','[]'::jsonb)) p) AS places
+       FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2`,
+            [snapshot.state.worldId, ownerId],
+          )
+        ).rows[0],
+    );
+    if (map?.version !== snapshot.worldVersion) throw new DomainError('VERSION_CONFLICT');
+    const places = new Map<string, string>(
+      (map.places ?? []).map((p: { id: string; name: string }) => [p.id, p.name]),
+    );
+    travelRoutes = (map.clock_ready ? (map.routes ?? []) : [])
+      .filter(
+        (r: import('../domain/space.ts').SpaceRoute) =>
+          r.fromPlaceId === selfPosition.placeId && allowed.has(r.toPlaceId),
+      )
+      .map((r: import('../domain/space.ts').SpaceRoute) => ({
+        id: r.id,
+        fromPlaceId: r.fromPlaceId,
+        toPlaceId: r.toPlaceId,
+        toPlaceName: places.get(r.toPlaceId) ?? r.toPlaceId,
+        durationMinutes: r.durationMinutes,
+        modeLabel: r.modeLabel,
+      }));
+  }
   return {
     ...snapshot,
+    channel: {
+      ...snapshot.channel,
+      allowedCapabilities: NPC_AGENT_CAPABILITIES.filter(
+        (cap) =>
+          awareness.boundary.capabilityIds.includes(cap) &&
+          (cap !== 'travel.begin' || !!travelRoutes?.length),
+      ),
+    },
     ...authorizedAgentState(snapshot.state, new Set(sources.map((s) => s.id))),
     sources: [...new Map(sources.map((s) => [s.id, s])).values()],
     observations,
@@ -565,6 +612,7 @@ export async function attachAgentWorldContext(
         extensionPermission: 'none',
       },
       selfPosition,
+      travelRoutes,
       knowledge,
     },
   };

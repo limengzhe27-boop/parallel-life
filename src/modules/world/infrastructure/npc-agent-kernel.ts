@@ -27,6 +27,21 @@ import { storedActivityClock } from './clock-activity-repository.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
+import {
+  prepareAgentTravel,
+  commitAgentDeparture,
+  type AgentJourney,
+} from '../domain/agent-travel.ts';
+import { worldBoundary } from '../domain/world-awareness.ts';
+import {
+  readAgentJourneysInTransaction,
+  recordAgentDepartureInTransaction,
+} from './agent-journey-repository.ts';
+import {
+  applyAgentSceneDeparture,
+  type AgentSceneDeparture,
+} from '../domain/agent-scene-departure.ts';
+import { SceneRuntimeSessionSchema } from '../../../contracts/scenes.ts';
 
 /** Deterministic capability execution + one UoW; models never hold a SQL connection. */
 export class PostgresNpcAgentKernel implements AgentKernel {
@@ -161,14 +176,13 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       }
       const eventId = randomUUID(),
         occurredAt = new Date().toISOString();
-      const worldTime = String(
-        (
-          await sql.query(
-            'SELECT state->>$$time$$ AS time FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2',
-            [attempt.worldId, ownerId],
-          )
-        ).rows[0].time,
-      );
+      const executionWorld = (
+        await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
+          attempt.worldId,
+          ownerId,
+        ])
+      ).rows[0].state as import('../domain/types.ts').WorldState;
+      const worldTime = executionWorld.time;
       const at = new Date(
         Math.max(
           Date.parse(worldTime),
@@ -197,7 +211,10 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         )
       ).rows[0]?.document;
       const results: AgentActionResult[] = [],
-        effects: WorldEffect[] = [];
+        effects: WorldEffect[] = [],
+        departures: AgentJourney[] = [],
+        sceneDepartures: AgentSceneDeparture[] = [];
+      const changedScenes: import('../domain/experience-rules.ts').SceneSession[] = [];
       for (const action of proposal.actions) {
         if (!['ready', 'proposed', 'waiting'].includes(action.status)) continue;
         const eligibility = evaluateAgentActionEligibility(snapshot, proposal, action, {
@@ -212,6 +229,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         if (action.handlesResponsibilityIds.length)
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
+        let failureCode: string | undefined;
         if (action.capability === 'plan.record') {
           const planId = action.parameters.planId;
           if (
@@ -240,6 +258,97 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             participantIds: [attempt.actorId],
           });
           outputRefs = [{ kind: 'appointment', id: effects.at(-1)!.id }];
+        } else if (action.capability === 'travel.begin') {
+          if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
+          if (
+            Object.keys(action.parameters).length !== 1 ||
+            typeof action.parameters.routeId !== 'string'
+          )
+            throw new AgentValidationError('INVALID_TRAVEL_PARAMETERS');
+          const positionSource = ownActual && `self-position:${ownActual.sourceEventId}`;
+          if (
+            !positionSource ||
+            !action.sourceIds.includes(positionSource) ||
+            !snapshot.sources.some((s) => s.id === positionSource)
+          )
+            throw new AgentValidationError('TRAVEL_ORIGIN_NOT_AUTHORIZED');
+          const prepared = prepareAgentTravel({
+            frame: {
+              worldId: attempt.worldId,
+              actorId: attempt.actorId,
+              worldVersion: attempt.expectedWorldVersion,
+              storyAt: at,
+            },
+            boundary: worldBoundary(
+              executionWorld,
+              ownActual.sourceEventId,
+              snapshot.channel.allowedCapabilities,
+            ),
+            ownPosition: ownActual,
+            routes: executionWorld.space?.routes ?? [],
+            intent: {
+              journeyId: randomUUID(),
+              actionId: action.id,
+              routeId: action.parameters.routeId,
+            },
+            existingJourneys: [
+              ...(await readAgentJourneysInTransaction(sql, ownerId, {
+                worldId: attempt.worldId,
+                actorId: attempt.actorId,
+              })),
+              ...departures,
+            ],
+          });
+          if (prepared.status !== 'ready') failureCode = `travel_${prepared.reason}`;
+          else {
+            const committed = commitAgentDeparture(prepared.plan, {
+              id: `${eventId}_result_${results.length}`,
+              actionId: action.id,
+              worldId: attempt.worldId,
+              actorId: attempt.actorId,
+              eventId,
+              worldVersion: attempt.expectedWorldVersion + 1,
+              at,
+              outcome: 'succeeded',
+              handledResponsibilityIds: [],
+              evidenceSourceIds: action.sourceIds,
+            });
+            if (committed.status !== 'in_transit')
+              throw new AgentValidationError('INVALID_TRAVEL_DEPARTURE');
+            const scenes = (
+              await sql.query(
+                `SELECT document FROM parallel_life.scene_sessions WHERE world_id=$1 AND owner_id=$2 AND document->>'status'='active' FOR UPDATE`,
+                [attempt.worldId, ownerId],
+              )
+            ).rows.map((row) => SceneRuntimeSessionSchema.parse(row.document));
+            for (const scene of scenes)
+              for (const presence of scene.presence.filter(
+                (p) =>
+                  p.participant.kind === 'actor' &&
+                  p.participant.actorId === attempt.actorId &&
+                  p.leftVersion === undefined,
+              )) {
+                const departure = {
+                  sceneId: scene.id,
+                  actorId: attempt.actorId,
+                  joinedVersion: presence.joinedVersion,
+                  joinedSourceEventId: presence.sourceEventId,
+                };
+                changedScenes.push(
+                  applyAgentSceneDeparture(scene, {
+                    worldId: attempt.worldId,
+                    actorId: attempt.actorId,
+                    eventId,
+                    worldVersion: attempt.expectedWorldVersion + 1,
+                    fromPlaceId: prepared.plan.route.fromPlaceId,
+                    departure,
+                  }),
+                );
+                sceneDepartures.push(departure);
+              }
+            departures.push(committed.journey);
+            outputRefs = [{ kind: 'journey', id: committed.journey.id }];
+          }
         } else throw new AgentValidationError('UNREGISTERED_CAPABILITY');
         results.push({
           id: `${eventId}_result_${results.length}`,
@@ -249,7 +358,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           eventId,
           worldVersion: attempt.expectedWorldVersion + 1,
           at,
-          outcome: 'succeeded',
+          outcome: failureCode ? 'failed' : 'succeeded',
+          ...(failureCode ? { failureCode } : {}),
           handledResponsibilityIds: [],
           evidenceSourceIds: action.sourceIds,
           completedGoalIds: [],
@@ -386,6 +496,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         proposal: { ...proposal, statements: accepted.statements },
         ...(accepted.questionChanges.length ? { questionChanges: accepted.questionChanges } : {}),
         results,
+        ...(departures.length ? { departures, sceneDepartures } : {}),
         ...(positionKnowledge.length ? { positionKnowledge } : {}),
         stateAfter: accepted.state,
       };
@@ -496,6 +607,13 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         state: accepted.state,
         results,
       });
+      for (const scene of changedScenes)
+        await sql.query(
+          'UPDATE parallel_life.scene_sessions SET document=$3 WHERE world_id=$1 AND owner_id=$2 AND id=$4',
+          [attempt.worldId, ownerId, SceneRuntimeSessionSchema.parse(scene), scene.id],
+        );
+      for (const journey of departures)
+        await recordAgentDepartureInTransaction(sql, ownerId, { attempt, journey });
       await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       await this.afterCommit?.(sql, { attempt, eventId });
       return { eventId, state: accepted.state, results };

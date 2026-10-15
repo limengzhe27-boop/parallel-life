@@ -150,6 +150,7 @@ export function actorStateContextPayload(
       sourceIds: strings(a.sourceIds),
       status: text(a.status) as typeof a.status,
       ...(a.resultId === undefined ? {} : { resultId: text(a.resultId) }),
+      ...(a.failureCode === undefined ? {} : { failureCode: text(a.failureCode) }),
     })),
     responsibilities: objects(state.responsibilities).map((r) => ({
       id: text(r.id),

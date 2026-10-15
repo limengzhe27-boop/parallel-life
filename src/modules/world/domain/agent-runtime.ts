@@ -89,6 +89,8 @@ export type AgentAction = AgentBasis & {
     | 'failed'
     | 'withdrawn';
   resultId?: string;
+  /** Trusted execution diagnostic, never a model-supplied action result. */
+  failureCode?: string;
 };
 export type AgentActionResult = AgentIdentity & {
   id: string;
@@ -97,6 +99,7 @@ export type AgentActionResult = AgentIdentity & {
   worldVersion: number;
   at: string;
   outcome: 'succeeded' | 'failed';
+  failureCode?: string;
   handledResponsibilityIds: string[];
   evidenceSourceIds: string[];
   /** Only the executing capability can certify completion; recording a plan never does. */
