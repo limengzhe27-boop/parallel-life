@@ -1,5 +1,10 @@
 import { resultAckText } from './matter-progression.ts';
-import { applyAgentStateEvent, type AgentStateCommittedEvent } from './agent-state-event.ts';
+import {
+  applyAgentStateEvent,
+  applyNativeAgentCalendarEffects,
+  type AgentStateCommittedEvent,
+  type AgentRuntimeTransition,
+} from './agent-state-event.ts';
 import { applyAppointmentWaitEvent, type AppointmentWaitEvent } from './appointment-wait.ts';
 import { applyStoryWaitEvent, type StoryWaitEvent } from './story-wait.ts';
 import { applySceneWorldResults, type SceneWorldResults } from './scene-world-results.ts';
@@ -66,7 +71,13 @@ export function applyWorldHistoryEvent(
   isoInstant(event.occurredAt);
   if (event.type === 'agent.state_committed')
     return { state: applyAgentStateEvent(current, event), jobs: [] };
-  if (isGroupEvent(event)) return { state: applyGroupWorldEvent(current, event), jobs: [] };
+  if (isGroupEvent(event)) {
+    const native = applyGroupWorldEvent(current, event);
+    if (event.type !== 'group.turn_resolved') return { state: native, jobs: [] };
+    if (event.data.agentRuntime && event.data.replies.some((reply) => reply.invitation))
+      throw new DomainError('INVALID_PROPOSAL');
+    return { state: applyNativeAgentCalendarEffects(current, native, event), jobs: [] };
+  }
   if (event.type === 'appointment.waited')
     return { state: applyAppointmentWaitEvent(current, event), jobs: [] };
   if (event.type === 'story.waited')
@@ -165,13 +176,24 @@ export function applyWorldHistoryEvent(
       throw new DomainError('INVALID_COMMAND');
     // Runtime-validated world deltas share the scene event and replay without jobs.
     return {
-      state: applySceneWorldResults(
+      state: applyNativeAgentCalendarEffects(
         current,
+        applySceneWorldResults(
+          current,
+          {
+            ...scene,
+            data: scene.data as { worldResults?: SceneWorldResults },
+          },
+          initial,
+        ),
         {
           ...scene,
-          data: scene.data as { worldResults?: SceneWorldResults },
+          data: scene.data as {
+            actorId?: string;
+            agentRuntime?: AgentRuntimeTransition;
+            effects?: import('./types.ts').WorldEffect[];
+          },
         },
-        initial,
       ),
       jobs: [],
     };

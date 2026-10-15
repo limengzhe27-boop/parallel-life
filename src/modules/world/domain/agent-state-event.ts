@@ -94,3 +94,55 @@ export function applyAgentStateEvent(
   }
   return state;
 }
+
+/** Native channels share the same accepted transition; only their projection differs. */
+export function applyNativeAgentCalendarEffects(
+  before: WorldState,
+  native: WorldState,
+  event: {
+    id: string;
+    worldId: string;
+    commandId: string;
+    version: number;
+    occurredAt: string;
+    storyAt: string;
+    data: { actorId?: string; agentRuntime?: AgentRuntimeTransition; effects?: WorldEffect[] };
+  },
+): WorldState {
+  if (!event.data.agentRuntime) {
+    if (event.data.effects?.length) throw new DomainError('INVALID_PROPOSAL');
+    return native;
+  }
+  if (!event.data.actorId || native.version !== event.version || native.id !== before.id)
+    throw new DomainError('INVALID_PROPOSAL');
+  const effects = event.data.effects ?? [];
+  if (effects.some((e) => e.type !== 'appointment.proposed' && e.type !== 'message.received'))
+    throw new DomainError('INVALID_PROPOSAL');
+  const calendar = effects.filter(
+    (e): e is Extract<WorldEffect, { type: 'appointment.proposed' }> =>
+      e.type === 'appointment.proposed',
+  );
+  // Reuse the exact transition/source/result invariants, without pretending the native speech was a DM.
+  const projected = applyAgentStateEvent(before, {
+    ...event,
+    schemaVersion: 1,
+    type: 'agent.state_committed',
+    data: {
+      actorId: event.data.actorId,
+      agentRuntime: {
+        ...event.data.agentRuntime,
+        proposal: { ...event.data.agentRuntime.proposal, statements: [] },
+      },
+      effects: calendar,
+    },
+  });
+  if (calendar.some((e) => native.appointments.some((a) => a.id === e.id)))
+    throw new DomainError('INVALID_PROPOSAL');
+  return {
+    ...native,
+    appointments: [
+      ...native.appointments,
+      ...projected.appointments.filter((a) => a.sourceEventId === event.id),
+    ],
+  };
+}

@@ -8,11 +8,8 @@ import type {
   AgentStateCommittedEvent,
 } from '../domain/agent-state-event.ts';
 import { applyAgentStateEvent } from '../domain/agent-state-event.ts';
-import {
-  reduceActorAgentState,
-  AgentValidationError,
-  currentPlayerDecision,
-} from '../domain/agent-kernel.ts';
+import { reduceActorAgentState, AgentValidationError } from '../domain/agent-kernel.ts';
+import { evaluateAgentActionEligibility } from '../domain/agent-eligibility.ts';
 import { parseAgentProposal } from './agent-proposal-parser.ts';
 import {
   beginAgentCommitInTransaction,
@@ -156,39 +153,22 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       ).toISOString();
       if (Date.parse(snapshot.storyAt) > Date.parse(at))
         throw Object.assign(Error('VERSION_CONFLICT'), { code: 'VERSION_CONFLICT' });
+      const historicalResults = (
+        await sql.query(
+          'SELECT document FROM parallel_life.agent_action_results WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND world_version<=$4',
+          [attempt.worldId, ownerId, attempt.actorId, attempt.expectedWorldVersion],
+        )
+      ).rows.map((row) => row.document as AgentActionResult);
       const results: AgentActionResult[] = [],
         effects: WorldEffect[] = [];
       for (const action of proposal.actions) {
-        if (!['ready', 'proposed'].includes(action.status)) continue;
-        // A proposed action is not ready unless all deterministic conditions hold now.
-        const dependencySucceeded = (id: string) =>
-          results.some((result) => result.actionId === id && result.outcome === 'succeeded') ||
-          current.actions.some((a) => a.id === id && a.status === 'succeeded');
-        if (action.dependsOnActionIds.some((id) => !dependencySucceeded(id))) {
-          action.status = 'waiting';
-          continue;
-        }
-        const ready = action.preconditions.every((condition) => {
-          if (condition.kind === 'at_or_after') return Date.parse(condition.at) <= Date.parse(at);
-          if (condition.kind === 'observation')
-            return snapshot.sources.some((source) => source.id === condition.sourceId);
-          if (condition.kind === 'result')
-            return [
-              ...results,
-              ...current.actions.map((a) => ({ actionId: a.id, outcome: a.status })),
-            ].some(
-              (result) =>
-                result.actionId === condition.actionId && result.outcome === condition.outcome,
-            );
-          if (condition.kind === 'player_decision')
-            return (
-              currentPlayerDecision(snapshot, proposal, condition.responsibilityId)?.kind ===
-              condition.decision
-            );
-          return false; // Place conditions require a spatial capability adapter, never a text claim.
+        if (!['ready', 'proposed', 'waiting'].includes(action.status)) continue;
+        const eligibility = evaluateAgentActionEligibility(snapshot, proposal, action, {
+          storyAt: at,
+          trustedResults: [...historicalResults, ...results],
         });
-        if (!ready) {
-          action.status = 'waiting';
+        if (eligibility.status !== 'ready') {
+          action.status = eligibility.status;
           continue;
         }
         if (action.handlesResponsibilityIds.length)
@@ -238,21 +218,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           outputRefs,
         });
       }
-      const referencedResults = proposal.goals.flatMap((goal) => goal.resultIds);
-      const knownActionResults = (
-        await sql.query(
-          'SELECT document FROM parallel_life.agent_action_results WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND id=ANY($4::text[]) AND world_version<=$5',
-          [
-            attempt.worldId,
-            ownerId,
-            attempt.actorId,
-            referencedResults,
-            attempt.expectedWorldVersion,
-          ],
-        )
-      ).rows.map((row) => row.document as AgentActionResult);
       const accepted = reduceActorAgentState(
-        { ...snapshot, knownActionResults },
+        { ...snapshot, knownActionResults: historicalResults },
         proposal,
         results,
         attempt.expectedWorldVersion + 1,
