@@ -434,7 +434,10 @@ export function npcAgentAdvanceServices(
       );
       // A material global change can warrant coordination even without competing candidates.
       // It does not require another director call after every ordinary chat, nor force a message.
-      if (!coordinated && (observed.needsEvaluation || wake.cause || wake.hasPendingDirector)) {
+      if (
+        !coordinated &&
+        (observed.needsEvaluation || wake.cause || (wake.hasPendingDirector && !wake.deferred))
+      ) {
         let decision: DirectorDecision | null;
         try {
           decision = await coordinate(
