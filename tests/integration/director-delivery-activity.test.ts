@@ -548,7 +548,11 @@ test('actual Director delivery rechecks activity and preserves protected paid re
         `CREATE TRIGGER ${name} BEFORE INSERT ON parallel_life.director_runtime_attempts FOR EACH ROW EXECUTE FUNCTION parallel_life.${name}()`,
       );
       try {
-        await assert.rejects(h.advance(), { code: 'DIRECTOR_DELIVERY_DEFERRED' });
+        const deferredResult = await h.advance();
+        assert.equal(deferredResult?.played, 0);
+        assert.equal(deferredResult?.folded, 0);
+        assert.equal(deferredResult?.summary, null);
+        assert.deepEqual(deferredResult?.actors, []);
       } finally {
         await admin.query(`DROP TRIGGER ${name} ON parallel_life.director_runtime_attempts`);
         await admin.query(`DROP FUNCTION parallel_life.${name}()`);
@@ -591,7 +595,11 @@ test('actual Director delivery rechecks activity and preserves protected paid re
             return JSON.stringify(quiet());
           },
         });
-        await assert.rejects(h.advance(), { code: 'DIRECTOR_DELIVERY_DEFERRED' });
+        const deferredResult = await h.advance();
+        assert.equal(deferredResult?.played, 0);
+        assert.equal(deferredResult?.folded, 0);
+        assert.equal(deferredResult?.summary, null);
+        assert.deepEqual(deferredResult?.actors, []);
         assert.equal(h.director().length, 1);
         assert.equal(h.calls.length, 1);
         const row = (await attempts(f))[0]!;
@@ -658,7 +666,11 @@ test('actual Director delivery rechecks activity and preserves protected paid re
         `CREATE TRIGGER ${name}_send BEFORE UPDATE ON parallel_life.director_runtime_attempts FOR EACH ROW EXECUTE FUNCTION parallel_life.${name}_send()`,
       );
       try {
-        await assert.rejects(h.advance(), { code: 'DIRECTOR_DELIVERY_DEFERRED' });
+        const deferredResult = await h.advance();
+        assert.equal(deferredResult?.played, 0);
+        assert.equal(deferredResult?.folded, 0);
+        assert.equal(deferredResult?.summary, null);
+        assert.deepEqual(deferredResult?.actors, []);
         assert.equal(
           (await admin.query(`SELECT is_called FROM parallel_life.${name}`)).rows[0].is_called,
           true,
@@ -742,7 +754,11 @@ test('actual Director delivery rechecks activity and preserves protected paid re
         `CREATE TRIGGER ${name} BEFORE INSERT ON parallel_life.agent_episode_requests FOR EACH ROW EXECUTE FUNCTION parallel_life.${name}()`,
       );
       try {
-        await assert.rejects(h.advance(), { code: 'DIRECTOR_DELIVERY_DEFERRED' });
+        const deferredResult = await h.advance();
+        assert.equal(deferredResult?.played, 0);
+        assert.equal(deferredResult?.folded, 0);
+        assert.equal(deferredResult?.summary, null);
+        assert.deepEqual(deferredResult?.actors, []);
         assert.equal(
           (await admin.query(`SELECT is_called FROM parallel_life.${name}`)).rows[0].is_called,
           true,
