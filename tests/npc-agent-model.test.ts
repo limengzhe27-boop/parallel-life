@@ -63,6 +63,8 @@ function snapshot(channel: AgentSnapshot['channel']['kind'] = 'private'): AgentS
   };
   return {
     state,
+    viewState: structuredClone(state),
+    redactedStateIds: [],
     worldVersion: 9,
     storyAt: '2026-10-15T08:00:00Z',
     actor: {
@@ -140,6 +142,7 @@ test('unknown server/director properties and source record pointers are not seri
   Object.assign(input.actor, { privateInterview: 'TOP_SECRET' });
   Object.assign(input.state, { globalPlans: ['TOP_SECRET'] });
   Object.assign(input.state.goals[0]!, { hiddenDirectorNotes: 'TOP_SECRET' });
+  Object.assign(input.viewState.goals[0]!, { hiddenDirectorNotes: 'TOP_SECRET' });
   Object.assign(input.channel, { hiddenWorld: 'TOP_SECRET' });
   Object.assign(input.observations[0]!, { ownerPrivateFact: 'TOP_SECRET' });
   const { adapter, calls } = capture();
@@ -150,6 +153,90 @@ test('unknown server/director properties and source record pointers are not seri
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal(payload.sources[0].id, input.sources[0]!.id);
   assert(!('recordId' in payload.sources[0]));
+});
+
+test('forgotten canonical summary and decision quote never enter prompt or budget through full state', async () => {
+  const input = snapshot('group');
+  const secret = 'FORGOTTEN_PRIVATE_TEXT';
+  input.state.goals[0]!.summary = secret.repeat(3000);
+  input.state.plans[0]!.summary = secret;
+  input.state.responsibilities[0]!.summary = secret;
+  input.state.decisions = [
+    {
+      id: 'old-decision',
+      responsibilityId: 'r1',
+      sourceId: 'forgotten-source',
+      kind: 'declined',
+      quote: secret,
+    },
+  ];
+  input.state.actions = [
+    {
+      id: 'old-action',
+      goalId: 'g1',
+      capability: 'plan.record',
+      targetIds: [],
+      parameters: { note: secret },
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+      sourceIds: ['forgotten-source'],
+      status: 'waiting',
+    },
+  ];
+  input.state.focus!.questionSourceId = secret;
+  input.viewState.goals = [];
+  input.viewState.plans = [];
+  input.viewState.responsibilities = [];
+  input.viewState.decisions = [];
+  input.viewState.actions = [];
+  input.viewState.focus = null;
+  input.redactedStateIds = ['g1', 'p1', 'r1', 'old-decision', 'old-action'];
+  const original = structuredClone(input),
+    { adapter, calls } = capture();
+  adapter.validateInput(input);
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.state, input.viewState);
+  assert(!JSON.stringify(calls[0]!.messages).includes(secret));
+  assert(payload.contextSelection.stateDetailsWithheld);
+  assert.equal(payload.state.actorId, input.state.actorId);
+  assert.equal(payload.state.revision, input.state.revision);
+  assert.deepEqual(input, original);
+});
+
+test('missing or mismatched model view is rejected before transport without full-state fallback', async () => {
+  const changes: ((input: AgentSnapshot) => void)[] = [
+    (i) => {
+      Reflect.deleteProperty(i, 'viewState');
+    },
+    (i) => {
+      i.viewState.actorId = 'another-actor';
+    },
+    (i) => {
+      i.viewState.worldId = 'another-world';
+    },
+    (i) => {
+      i.viewState.revision++;
+    },
+    (i) => {
+      i.viewState.definitionRef = 'other-definition';
+    },
+    (i) => {
+      i.viewState.projectedWorldVersion--;
+    },
+    (i) => {
+      Reflect.deleteProperty(i, 'redactedStateIds');
+    },
+  ];
+  for (const change of changes) {
+    const input = snapshot();
+    change(input);
+    const { adapter, calls } = capture();
+    assert.throws(() => adapter.validateInput(input), /NPC_AGENT_INVALID_SNAPSHOT/);
+    await assert.rejects(adapter.decide(input), /NPC_AGENT_INVALID_SNAPSHOT/);
+    assert.equal(calls.length, 0);
+  }
 });
 
 test('raw malformed, empty or dependency-bearing output survives verbatim for durable runner parsing', async () => {
@@ -274,7 +361,7 @@ test('protected state or current input over budget fails in deterministic prefli
   for (const oversize of ['input', 'state', 'boundary'] as const) {
     const input = snapshot();
     if (oversize === 'input') input.input.text = '玩家原文'.repeat(10000);
-    if (oversize === 'state') input.state.goals[0]!.summary = '旧目标'.repeat(10000);
+    if (oversize === 'state') input.viewState.goals[0]!.summary = '旧目标'.repeat(10000);
     if (oversize === 'boundary') input.actor.boundaries = '边界'.repeat(15000);
     const { adapter, calls } = capture();
     assert.throws(() => adapter.validateInput(input), /NPC_AGENT_SNAPSHOT_LIMIT/);
