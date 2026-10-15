@@ -117,7 +117,10 @@ function responsibility(a: ActorRead, change: Partial<AgentResponsibility> = {})
   sync(a);
   return a.snapshot.state.responsibilities.at(-1)!;
 }
-async function collect(v: SchedulingView, source?: 'actor_plan' | 'responsibility') {
+async function collect(
+  v: SchedulingView,
+  source?: 'actor_plan' | 'responsibility' | 'observation',
+) {
   const outputs = await Promise.all(
     createAgentScheduleSources(v)
       .filter((s) => !source || s.id.startsWith(source + ':'))
@@ -128,6 +131,77 @@ async function collect(v: SchedulingView, source?: 'actor_plan' | 'responsibilit
     blockers: outputs.flatMap((o) => o.blockers),
   };
 }
+function newlyObservedActor() {
+  const a = actor();
+  a.snapshot.state.projectedWorldVersion = 4;
+  a.snapshot.state.goals = [];
+  a.snapshot.state.plans = [];
+  a.snapshot.state.actions = [];
+  a.snapshot.sources.push({
+    id: 'knowledge:event:player:left',
+    kind: 'world_event',
+    recordId: 'event',
+    worldVersion: 5,
+    at,
+  });
+  a.snapshot.observations.push({
+    sourceId: 'knowledge:event:player:left',
+    text: '你刚看见玩家离家，去向未知。',
+    kind: 'fact',
+  });
+  a.snapshot.worldContext!.knowledge.push({
+    sourceId: 'knowledge:event:player:left',
+    subject: { kind: 'player' },
+    kind: 'left',
+    placeId: 'home',
+    sourceKind: 'direct',
+    occurredAt: before,
+    learnedAt: at,
+    possiblyStale: true,
+  });
+  return sync(a);
+}
+test('a newly visible observation wakes its actual observer without requiring a fabricated goal or contact relationship', async () => {
+  const a = newlyObservedActor(),
+    b = actor('b');
+  b.snapshot.state.goals = [];
+  b.snapshot.state.plans = [];
+  b.snapshot.state.actions = [];
+  sync(b);
+  const outputs = await collect(view([a, b]), 'observation');
+  assert.equal(outputs.candidates.length, 1);
+  assert.equal(outputs.candidates[0]!.actorId, 'a');
+  assert.equal(outputs.candidates[0]!.source, 'observation');
+  assert.deepEqual(outputs.candidates[0]!.sourceIds, ['knowledge:event:player:left']);
+  assert.equal(outputs.candidates[0]!.actionId, null);
+  assert.match(outputs.candidates[0]!.reason, /允许保持安静/);
+  assert.equal(
+    JSON.stringify(outputs).includes('shop'),
+    false,
+    'observed departure does not grant a destination',
+  );
+});
+test('observations already evaluated in an actual actor turn or consumed by a quiet wake do not repeat', async () => {
+  const a = newlyObservedActor(),
+    first = (await collect(view([a]), 'observation')).candidates[0]!;
+  const consumed = view([a]);
+  consumed.consumedCandidateIds = [first.id];
+  assert.equal((await collect(consumed, 'observation')).candidates.length, 0);
+  a.snapshot.state.projectedWorldVersion = 5;
+  sync(a);
+  assert.equal((await collect(view([a]), 'observation')).candidates.length, 0);
+});
+test('unknown, forgotten, future or private-strategy-only evidence cannot create an observation wake', async () => {
+  for (const change of ['missing', 'future', 'private', 'not_visible'] as const) {
+    const a = newlyObservedActor(),
+      s = a.snapshot.sources.at(-1)!;
+    if (change === 'missing') a.snapshot.sources.pop();
+    if (change === 'future') s.worldVersion = 6;
+    if (change === 'private') s.usage = 'private_strategy';
+    if (change === 'not_visible') a.snapshot.observations.pop();
+    assert.equal((await collect(view([a]), 'observation')).candidates.length, 0, change);
+  }
+});
 function dependency(a: ActorRead, outcome: AgentActionResult['outcome'] = 'succeeded') {
   a.snapshot.state.actions.push({
     ...structuredClone(a.snapshot.state.actions[0]!),

@@ -82,6 +82,7 @@ const Candidate = z
       'actor_plan',
       'responsibility',
       'conversation',
+      'observation',
       'action_result',
     ]),
     episodeId: Key.nullable(),

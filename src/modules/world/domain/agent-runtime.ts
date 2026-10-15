@@ -215,6 +215,7 @@ export type AgentCandidate = AgentIdentity & {
     | 'actor_plan'
     | 'responsibility'
     | 'conversation'
+    | 'observation'
     | 'action_result';
   episodeId: string | null;
   actionId: string | null;

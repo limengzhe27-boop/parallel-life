@@ -8,6 +8,13 @@ import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postg
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
+import { PostgresWorldSpace } from '../../src/modules/world/infrastructure/space-repository.ts';
+import {
+  SceneRepository,
+  commitSceneProposal,
+} from '../../src/modules/world/infrastructure/scene-repository.ts';
+import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
+import { officialLifeCatalog } from '../../src/modules/settings/infrastructure/official-presets/index.ts';
 import {
   PostgresAgentRuntimeRepository,
   initializeActorAgentStateInTransaction,
@@ -32,6 +39,7 @@ import type {
 } from '../../src/modules/world/domain/agent-runtime.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 import type { TextModel, ModelMessage } from '../../src/modules/ai/application/ports.ts';
+import type { AgentSnapshot } from '../../src/modules/world/application/agent-runtime-ports.ts';
 
 const empty = (): AgentProposal => ({
   statements: [],
@@ -46,7 +54,7 @@ type NpcPayload = {
   state: ActorAgentState;
   actor: { persona: string };
   input: { sourceId: string; origin: string; text: string };
-  worldContext?: { selfPosition: { status: string } };
+  worldContext?: AgentSnapshot['worldContext'];
 };
 test('actual epoch2 advance: real PG sources/receipts/kernel/director with explicit mock model outputs only', async (t) => {
   const cfg = await localConfig();
@@ -76,7 +84,13 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
   });
   const at = '2026-10-15T07:00:00.000Z';
   async function fixture(
-    options: { epoch1?: boolean; plansA?: number; plansB?: number; refusal?: boolean } = {},
+    options: {
+      epoch1?: boolean;
+      plansA?: number;
+      plansB?: number;
+      refusal?: boolean;
+      homeContact?: boolean;
+    } = {},
   ) {
     const owner = randomUUID(),
       id = randomUUID(),
@@ -127,7 +141,7 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
           name: p,
           description: '明确合成地点',
           source,
-          contactActorIds: [],
+          contactActorIds: options.homeContact && p === 'home' ? [a] : [],
           appointmentIds: [],
         })),
         routes: [],
@@ -204,6 +218,119 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
     return { owner, id, a, b, world, states };
   }
   type Fixture = Awaited<ReturnType<typeof fixture>>;
+  await t.test(
+    'actual player travel updates only the present observer; a quiet NPC evaluation is consumed without inventing a message or destination knowledge',
+    async () => {
+      const f = await fixture({ epoch1: true, homeContact: true });
+      const scenes = new SceneRepository(db),
+        space = new PostgresWorldSpace(db, officialLifeCatalog);
+      const queue = new PostgresTaskQueue(
+        `postgresql://pl_worker:${cfg.workerPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+      );
+      try {
+        const entered = await scenes.enterPlace(f.owner, f.id, {
+          commandId: randomUUID(),
+          expectedVersion: 0,
+          placeId: 'home',
+        });
+        const lease = (await queue.claimForOwner(entered.task!.id, f.owner, ['world']))!;
+        const version = await db.transaction(f.owner, (sql) =>
+          commitSceneProposal(
+            sql,
+            f.owner,
+            f.id,
+            lease.input as Parameters<typeof commitSceneProposal>[3],
+            {
+              location: 'home',
+              narration: '合成历史：甲在家，乙不在场。',
+              presentActorIds: [f.a],
+              outcome: null,
+              observation: null,
+              matterTitle: null,
+              initialMatters: [],
+              matterUpdates: [],
+              dialogues: [],
+              stepProposals: [],
+              npcActions: [],
+            },
+            randomUUID(),
+          ),
+        );
+        await queue.finish(lease, { status: 'succeeded', resultVersion: version });
+        await db.transaction(f.owner, async (sql) => {
+          for (const actorId of [f.a, f.b])
+            await initializeActorAgentStateInTransaction(
+              sql,
+              f.owner,
+              emptyActorAgentState(
+                { worldId: f.id, actorId },
+                agentDefinitionRef(f.world, actorId),
+                version,
+              ),
+            );
+          await switchAgentEngineEpochInTransaction(sql, f.owner, {
+            worldId: f.id,
+            expectedEpoch: 1,
+            nextEpoch: 2,
+            expectedWorldVersion: version,
+          });
+        });
+        const route = (await space.read(f.owner, f.id)).routes.find((r) => r.toPlaceId === 'shop')!;
+        assert.ok(route, 'existing configured map offers a real reachable route');
+        const moved = await space.travel(f.owner, f.id, {
+          commandId: randomUUID(),
+          expectedVersion: version,
+          routeId: route.id,
+        });
+        const awareness = new PostgresWorldAwarenessRepository(db);
+        const mother = await awareness.readActorAwareness(f.owner, f.id, f.a),
+          absent = await awareness.readActorAwareness(f.owner, f.id, f.b);
+        assert.equal(mother.knowledge.find((k) => k.subject.kind === 'player')?.kind, 'left');
+        assert.equal(mother.knowledge.find((k) => k.subject.kind === 'player')?.placeId, 'home');
+        assert.deepEqual(absent.knowledge, []);
+        const h = harness(f, {
+          realReader: true,
+          director: (p) => ({
+            mode: 'coordinate',
+            selectedCandidateIds: p.candidates.slice(0, 1).map((c) => c.id),
+            deferred: p.candidates
+              .slice(1)
+              .map((c) => ({ candidateId: c.id, reason: '保持当前节奏' })),
+            nudges: [],
+            opportunities: [],
+            audit: {
+              reason: '由实际观察者自行判断',
+              basisSourceIds: p.candidates[0]?.sourceIds ?? [],
+            },
+          }),
+          npc: (p) => {
+            assert.equal(p.state.actorId, f.a);
+            const ctx = p.worldContext as NonNullable<AgentSnapshot['worldContext']>;
+            assert.equal(ctx.knowledge.find((k) => k.subject.kind === 'player')?.placeId, 'home');
+            assert.equal(ctx.knowledge.find((k) => k.subject.kind === 'player')?.kind, 'left');
+            assert(!JSON.stringify(ctx.knowledge).includes('shop'));
+            return empty();
+          },
+        });
+        const result = await h.service.advanceIfEnabled(f.owner, f.id);
+        assert.equal(result?.played, 0);
+        assert.equal(result?.changed, true);
+        assert.equal(h.npcCalls().length, 1);
+        assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.a }))!.revision, 1);
+        assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.b }))!.revision, 0);
+        assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, moved.version + 1);
+        const before = h.calls.length;
+        await h.service.advanceIfEnabled(f.owner, f.id);
+        assert.equal(
+          h.calls.length,
+          before,
+          'quiet evaluated observation is not an invitation to poll models',
+        );
+      } finally {
+        await queue.close();
+      }
+    },
+  );
   async function count(table: string, f: Fixture) {
     assert.ok(
       [

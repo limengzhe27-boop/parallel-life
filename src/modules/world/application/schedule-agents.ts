@@ -189,6 +189,7 @@ function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandi
       'actor_plan',
       'responsibility',
       'conversation',
+      'observation',
       'action_result',
     ].includes(String(v.source)) &&
     (v.episodeId === null || id(v.episodeId)) &&

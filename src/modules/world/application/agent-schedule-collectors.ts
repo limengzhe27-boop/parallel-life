@@ -277,7 +277,7 @@ async function candidate(
   view: SchedulingView,
   context: ActorContext,
   input: {
-    source: 'actor_plan' | 'responsibility';
+    source: 'actor_plan' | 'responsibility' | 'observation';
     actionId: string | null;
     sourceIds: string[];
     responsibilities: readonly AgentResponsibility[];
@@ -315,7 +315,7 @@ async function candidate(
     sourceIds: sorted(input.sourceIds),
     expectedWorldVersion: view.worldVersion,
     expectedActorRevision: snapshot.state.revision,
-    priority: input.source === 'actor_plan' ? 60 : 50,
+    priority: input.source === 'actor_plan' ? 60 : input.source === 'responsibility' ? 50 : 40,
     reason: input.reason,
     requiresCoordination: episodes.length > 1,
   };
@@ -488,6 +488,55 @@ async function responsibilities(view: SchedulingView, actor: ActorRead, context:
 }
 
 /** Two pure sources per actor, all from the same detached view; no legacy-agenda fallback. */
+/** Newly observable information is a reason to think, never a compulsory message or deduction. */
+async function observations(view: SchedulingView, context: ActorContext) {
+  const snapshot = context.snapshot,
+    out: AgentCandidate[] = [];
+  for (const knowledge of snapshot.worldContext?.knowledge ?? []) {
+    const source = context.sources.get(knowledge.sourceId);
+    // projectedWorldVersion is the actor's last actual evaluated/committed view,
+    // not a message count. A report handled in that turn is not a new idle wake.
+    if (
+      !source ||
+      source.kind !== 'world_event' ||
+      source.usage === 'private_strategy' ||
+      source.worldVersion <= snapshot.state.projectedWorldVersion ||
+      !instant(knowledge.learnedAt) ||
+      Date.parse(knowledge.learnedAt) > Date.parse(view.storyAt)
+    )
+      continue;
+    if (
+      !['at', 'left', 'absent', 'report'].includes(knowledge.kind) ||
+      !['direct', 'player_report', 'relayed', 'inference'].includes(knowledge.sourceKind) ||
+      (knowledge.placeId !== null &&
+        !snapshot.worldContext!.boundary.placeIds.includes(knowledge.placeId)) ||
+      (knowledge.subject.kind === 'actor' &&
+        !snapshot.worldContext!.boundary.actorIds.includes(knowledge.subject.actorId))
+    )
+      continue;
+    if (!snapshot.observations.some((o) => o.sourceId === knowledge.sourceId)) continue;
+    out.push(
+      await candidate(view, context, {
+        source: 'observation',
+        actionId: null,
+        sourceIds: [knowledge.sourceId],
+        responsibilities: [],
+        semantic: {
+          kind: knowledge.kind,
+          subject: knowledge.subject,
+          placeId: knowledge.placeId,
+          sourceKind: knowledge.sourceKind,
+          occurredAt: knowledge.occurredAt,
+          learnedAt: knowledge.learnedAt,
+        },
+        reason:
+          '本人获得了新的有来源观察；评估是否调整安排或联系。允许保持安静，不推定玩家去向、失约或关系变化。',
+      }),
+    );
+  }
+  return out;
+}
+
 export function createAgentScheduleSources(
   input: SchedulingView,
 ): readonly RegisteredAgentCandidateSource[] {
@@ -529,7 +578,13 @@ export function createAgentScheduleSources(
   const consumed = new Set(view.consumedCandidateIds);
   return freeze(
     view.actors.flatMap((actor) =>
-      (['actor_plan', 'responsibility'] as const).map((source) => ({
+      (
+        [
+          'actor_plan',
+          'responsibility',
+          ...(actor.snapshot.worldContext?.knowledge.length ? ['observation' as const] : []),
+        ] as const
+      ).map((source) => ({
         id: `${source}:${actor.snapshot.state.actorId}`,
         failureScope: { kind: 'actor' as const, actorId: actor.snapshot.state.actorId },
         source: {
@@ -562,7 +617,9 @@ export function createAgentScheduleSources(
             const candidates = (
               await (source === 'actor_plan'
                 ? plans(view, context)
-                : responsibilities(view, actor, context))
+                : source === 'responsibility'
+                  ? responsibilities(view, actor, context)
+                  : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };
           },
