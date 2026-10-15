@@ -61,3 +61,18 @@ root联合64原验收发现，实际advance在导演期间发生暂停时应返�
 本次精确测试增量 `f5812ff65750192f6bff7af666f97a8120bdc591` 只改新72文件四处actual h.advance预期：由DEFERRED rejects改为played0/folded0/summarynull/actors[]，每处仍只有一次advance调用。其余zero-send/raw/status/完整rows/模型次数、发送和提交末尾实际SQL自然到期探针断言全部逐字保留；invalid/stale/unknown/晚故障等错误断言不变。底层错误没有被当作成功决策，实际wrapper不伪造DirectorDecision。
 
 依赖后focused真实PG再次 **20/20 pass，0fail/skip**，type退出0、focused format/diff通过，日志 `.local/delivery72-quiet-{pg,type}.log`；此前边界564结果仍有效（本次imports/文件范围不变）。最终catalog临时delivery72函数0/序列0，专属PG55505正常停止/session0/无监听。测试源和报告冻结，状态待root统一集成/全检/READY/公网验收。
+
+## 普通无cause Director零发送后继增量
+
+发布前root/C发现普通global frame没有evaluationCause，零发送取消后原frame command固定，恢复会卡INVALID_STATE。root修复 `9c51f896` 已作为依赖接入（本地 `6592a723`），并接入ID字节排序后继 `3367a574`（本地 `29cae64d`）。本人不修改这两个公共源。
+
+本次测试增量 `8525303d2e7c23a6daf943fdecb7db3d7ac13587` 仅在本人NEW72文件新增1项真实测试，原20项逐字不变：
+
+- actual bootstrap quiet使原always资格已被考虑；实际travel/new_condition产生worldV1普通global snapshot，evaluationCause明确不存在，初始readUnsentFrameAttempts为空。
+- 仅匹配本world且snapshot无cause的claim-local trigger暂停clock。实际advance返回quiet/played0，Director模型累计仍只有bootstrap的1次；新ordinary attempt保存cancelled_before_send，sent_at/response_hash均NULL，只有原bootstrap decision，0伪造新决策。
+- 暂停重试完整相关行相等。resume仍worldV1/no cause，实际readUnsentFrameAttempts精确返回原零发送attempt ID；跨故事秒数仍相同数组。实际advance产生恰1个新普通global committed，物理command与取消记录不同，原记录完整保留；重复tick不新增调用/attempt，worldV仍1。
+- 同项另建真实publication世界的普通global frame，模型transport明确throw后得到paid unknown；readUnsentFrameAttempts实际返回空，重复advance精确UNKNOWN，原attempt/command与调用数保持，不把paid/unknown伪装为零发送前驱。
+
+最终root两依赖上实际PG **21/21 pass，0fail/skip**，type0/边界564/focused format/diff通过；日志 `.local/delivery72-frame-final-pg.log`、`.local/delivery72-frame-type.log`、`.local/delivery72-frame-boundaries.log`。原invalid/stale/unknown、quiet deferral、raw recovery、两最终SQL到期边界断言全部保持通过。
+
+专属PG55505再次正常SIGTERM，session0/无监听；最终catalog临时delivery72函数0/序列0。主表和报告镜像同步，仍待root联合check/build、最新部署READY及公网验收。0本人公共source/SQLmigration/旧测试/CI/真实模型/生产操作。
