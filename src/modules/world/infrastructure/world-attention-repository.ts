@@ -5,6 +5,7 @@ import {
   type ClockConversationFocus,
 } from '../domain/clock-activity.ts';
 import type { DirectorSnapshot } from '../domain/director-runtime.ts';
+import { projectPlayerContactActorIds } from '../domain/player-projection.ts';
 export type WorldAttention = {
   focus: DirectorSnapshot['focus'];
   conversationWithoutTarget: boolean;
@@ -40,6 +41,53 @@ async function frame(
  )
  SELECT w.id,w.version,current_setting('app.user_id',true) AS identity,
   COALESCE((SELECT jsonb_agg(a->>'id') FROM jsonb_array_elements(w.state->'actors') a),'[]'::jsonb) actor_ids,
+  jsonb_build_object(
+   'actors',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',a->>'id','name',a->>'name','sourcePersonId',a->>'sourcePersonId')) FROM jsonb_array_elements(w.state->'actors') a),'[]'::jsonb),
+   'messages',COALESCE((SELECT jsonb_agg(jsonb_build_object('actorId',m->>'actorId','sourceEventId',m->>'sourceEventId')) FROM (
+     SELECT m FROM parallel_life.world_initial_snapshots i CROSS JOIN LATERAL jsonb_array_elements(i.state->'messages') m WHERE i.world_id=w.id AND i.owner_id=w.owner_id
+     UNION ALL SELECT p.document FROM parallel_life.world_messages p JOIN parallel_life.world_events e ON e.world_id=p.world_id AND e.owner_id=p.owner_id AND e.id=p.document->>'sourceEventId'
+     WHERE p.world_id=w.id AND p.owner_id=w.owner_id AND e.version<=w.version
+    ) messages(m)),'[]'::jsonb),
+   'appointments',COALESCE((SELECT jsonb_agg(jsonb_build_object('participantIds',a->'participantIds','sourceEventId',a->>'sourceEventId','status',a->>'status')) FROM (
+     SELECT a FROM parallel_life.world_initial_snapshots i CROSS JOIN LATERAL jsonb_array_elements(i.state->'appointments') a WHERE i.world_id=w.id AND i.owner_id=w.owner_id
+     UNION ALL SELECT p.document FROM parallel_life.world_appointments p JOIN parallel_life.world_events e ON e.world_id=p.world_id AND e.owner_id=p.owner_id AND e.id=p.document->>'sourceEventId'
+     WHERE p.world_id=w.id AND p.owner_id=w.owner_id AND e.version<=w.version
+    ) appointments(a)),'[]'::jsonb)
+  ) contact_state,
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('actorId',b.actor_id,'personId',b.person_id))
+    FROM parallel_life.world_person_bindings b
+    JOIN parallel_life.world_builds wb ON wb.world_id=b.world_id AND wb.owner_id=b.owner_id
+    JOIN parallel_life.approved_seeds s ON s.id=wb.seed_id AND s.owner_id=wb.owner_id
+    WHERE b.world_id=w.id AND b.owner_id=w.owner_id AND wb.opening IS NOT NULL
+    AND s.document ? 'personRoles' AND COALESCE(s.document->'source'->>'kind','') NOT IN ('published_work','publication_trial')
+    AND EXISTS(SELECT 1 FROM jsonb_array_elements(s.document->'people') p WHERE p->>'id'=b.person_id::text)
+   ),'[]'::jsonb) selected_contacts,
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('actorId',contact->>'actorId','name',contact->>'name'))
+    FROM parallel_life.world_builds wb JOIN parallel_life.approved_seeds s ON s.id=wb.seed_id AND s.owner_id=wb.owner_id
+    CROSS JOIN LATERAL jsonb_array_elements(wb.opening->'contacts') contact
+    WHERE wb.world_id=w.id AND wb.owner_id=w.owner_id AND s.document->>'id'=wb.seed_id::text
+    AND s.document->'source'->>'kind' IN ('published_work','publication_trial')
+    AND (s.document->'source')-'kind'=wb.opening->'origin'
+    AND (s.document->'source'->>'kind'='publication_trial')=(wb.opening->>'originKind'='trial')
+    AND parallel_life.player_publication_origin(w.id,wb.seed_id)=jsonb_build_object(
+      'workId',wb.opening->'origin'->>'workId','publicationVersion',wb.opening->'origin'->'publicationVersion',
+      'draftVersion',wb.opening->'origin'->'draftVersion','contentHash',wb.opening->'origin'->>'contentHash',
+      'kind',CASE WHEN s.document->'source'->>'kind'='publication_trial' THEN 'trial' ELSE 'published_work' END)
+    AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(wb.opening->'notes') n WHERE n->>'sourceEventId' IS DISTINCT FROM 'publication-genesis:'||w.id)
+    AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(wb.opening->'contacts') c WHERE NOT EXISTS(
+      SELECT 1 FROM jsonb_array_elements(w.state->'actors') a WHERE a->>'id'=c->>'actorId' AND a->>'name'=c->>'name'))
+   ),'[]'::jsonb) published_contacts,
+  COALESCE((SELECT jsonb_agg(actor_id) FROM (
+    SELECT DISTINCT i.document->'speaker'->>'actorId' actor_id FROM parallel_life.scene_items i JOIN parallel_life.world_events e
+      ON e.world_id=i.world_id AND e.owner_id=i.owner_id AND e.id=i.source_event_id
+    WHERE i.world_id=w.id AND i.owner_id=w.owner_id AND i.kind='entry' AND e.version<=w.version
+      AND i.document->>'kind'='dialogue' AND i.document->'observableTo' @> '[{"kind":"player"}]'::jsonb
+    UNION SELECT DISTINCT m.participant->>'actorId' FROM parallel_life.world_group_memberships m
+      JOIN parallel_life.world_group_memberships p ON p.world_id=m.world_id AND p.owner_id=m.owner_id AND p.group_id=m.group_id
+    WHERE m.world_id=w.id AND m.owner_id=w.owner_id AND m.participant->>'kind'='actor' AND p.participant->>'kind'='player'
+      AND m.joined_version<=w.version AND p.joined_version<=w.version
+      AND GREATEST(m.joined_version,p.joined_version)<LEAST(COALESCE(m.left_version,w.version+1),COALESCE(p.left_version,w.version+1))
+   ) observable),'[]'::jsonb) observable_contacts,
   c.paused,c.managed,c.active_until,
   COALESCE((SELECT jsonb_agg(focus) FROM leases),'[]'::jsonb) leases,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('target',t.focus,
@@ -68,6 +116,13 @@ async function frame(
   if (!row) throw new DomainError('NOT_FOUND');
   if (row.identity !== ownerId) throw new DomainError('NOT_FOUND');
   if (Number(row.version) !== input.worldVersion) throw new DomainError('VERSION_CONFLICT');
+  // Reuse the Phone predicate on verified IDs only, without loading personas or message text.
+  row.visible_actor_ids = projectPlayerContactActorIds(
+    row.contact_state,
+    row.selected_contacts,
+    row.observable_contacts,
+    row.published_contacts,
+  );
   return { row, realNow };
 }
 function resolve(
@@ -76,7 +131,9 @@ function resolve(
 ): DirectorSnapshot['focus'][number] | null {
   const actors = new Set<string>(row.actor_ids);
   if (target.channel === 'private')
-    return actors.has(target.threadId) ? { ...target, actorIds: [target.threadId] } : null;
+    return row.visible_actor_ids.includes(target.threadId)
+      ? { ...target, actorIds: [target.threadId] }
+      : null;
   const evidence = row.targets.find(
     (v: any) => v.target?.channel === target.channel && v.target?.threadId === target.threadId,
   );

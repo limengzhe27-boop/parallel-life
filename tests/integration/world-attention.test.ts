@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
+import { ProfileRepository } from '../../src/modules/profile/infrastructure/profile-repository.ts';
+import { ApprovedSeedSchema } from '../../src/contracts/seeds.ts';
+import { PublicationRepository } from '../../src/modules/settings/infrastructure/publication-repository.ts';
+import { PublicationWorldRepository } from '../../src/modules/settings/infrastructure/publication-world-repository.ts';
+import { publicationWorldCompiler } from '../../src/server/publication-runtime.ts';
+import { PublishedWorldContentSchema } from '../../src/contracts/published-world-content.ts';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
@@ -59,7 +67,7 @@ test('actual owner-scoped conversation attention shares existing clock leases an
       await admin.end();
     }
   });
-  async function fixture(epoch2 = true) {
+  async function fixture(epoch2 = true, visibleContacts = true, personId?: string) {
     const owner = randomUUID(),
       id = randomUUID(),
       a = randomUUID(),
@@ -75,7 +83,12 @@ test('actual owner-scoped conversation attention shares existing clock leases an
       title: 'Only synthetic attention fixture',
       time: at(0),
       actors: [
-        { id: a, name: '同名', persona: '虚构A' },
+        {
+          id: a,
+          name: '同名',
+          persona: '虚构A',
+          ...(personId ? { sourcePersonId: personId } : {}),
+        },
         { id: b, name: '同名', persona: '虚构B' },
       ],
       facts: [],
@@ -98,7 +111,35 @@ test('actual owner-scoped conversation attention shares existing clock leases an
         routes: [],
       },
     };
-    await worlds.initialize({ userId: owner }, world);
+    // Persist synthetic genesis history exactly where the actual Phone hydrates it.
+    // The public initializer deliberately rejects nonempty history; do not mutate its immutable baseline.
+    await app.transaction(owner, async (sql) => {
+      await sql.query(
+        'INSERT INTO parallel_life.worlds(id,owner_id,title,state) VALUES($1,$2,$3,$4)',
+        [id, owner, world.title, world],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',
+        [
+          id,
+          owner,
+          {
+            ...world,
+            messages: visibleContacts
+              ? [a, b].map((actorId) => ({
+                  id: randomUUID(),
+                  actorId,
+                  role: 'assistant',
+                  text: 'Explicit synthetic saved history',
+                  at: at(0),
+                  sourceEventId: `genesis:${id}`,
+                }))
+              : [],
+          },
+          {},
+        ],
+      );
+    });
     if (epoch2)
       await app.transaction(owner, async (sql) => {
         for (const actor of world.actors)
@@ -158,6 +199,220 @@ test('actual owner-scoped conversation attention shares existing clock leases an
       )
     ).rows[0];
   }
+  await t.test(
+    'cast and map contact hints alone never authorize a hidden private target',
+    async () => {
+      const f = await fixture(true, false),
+        client = randomUUID();
+      assert.equal((await worlds.get({ userId: f.owner }, f.id)).messages.length, 0);
+      await assert.rejects(
+        activity.update(
+          f.owner,
+          f.id,
+          { clientId: client, sequence: 0, mode: 'conversation', focus: target(f.a) },
+          at(0),
+        ),
+        { code: 'INVALID_COMMAND' },
+      );
+      assert.equal(await stored(f, client), undefined);
+      // Simulate a shape-valid lease saved by the earlier cast-only implementation.
+      await activity.update(
+        f.owner,
+        f.id,
+        { clientId: client, sequence: 0, mode: 'conversation' },
+        at(0),
+      );
+      await app.transaction(f.owner, (sql) =>
+        sql.query(
+          'UPDATE parallel_life.world_clock_activity SET focus=$3 WHERE world_id=$1 AND client_id=$2',
+          [f.id, client, target(f.a)],
+        ),
+      );
+      assert.deepEqual(await read(f, 1), { focus: [], conversationWithoutTarget: true });
+    },
+  );
+  await t.test(
+    'actual historical player group overlap introduces an otherwise hidden contact',
+    async () => {
+      const f = await fixture(true, false);
+      const g = await groups.create(f.owner, {
+        worldId: f.id,
+        expectedVersion: 0,
+        commandId: randomUUID(),
+        title: '合成初识群',
+        actorIds: [f.a],
+      });
+      const client = randomUUID();
+      await activity.update(
+        f.owner,
+        f.id,
+        { clientId: client, sequence: 0, mode: 'conversation', focus: target(f.a) },
+        new Date().toISOString(),
+      );
+      await assert.rejects(
+        activity.update(
+          f.owner,
+          f.id,
+          { clientId: randomUUID(), sequence: 0, mode: 'conversation', focus: target(f.b) },
+          new Date().toISOString(),
+        ),
+        { code: 'INVALID_COMMAND' },
+      );
+      await groups.membership(f.owner, {
+        worldId: f.id,
+        expectedVersion: g.version,
+        commandId: randomUUID(),
+        groupId: g.groupId,
+        participant: { kind: 'player' },
+        action: 'leave',
+      });
+      // Leaving removes current group attention, but does not erase having met its members.
+      assert.deepEqual((await readNow(f)).focus, [{ ...target(f.a), actorIds: [f.a] }]);
+    },
+  );
+  await t.test(
+    'selected person contacts require the actual saved seed person and matching immutable actor binding',
+    async () => {
+      for (const mode of ['exact', 'no_roles', 'different_person', 'no_binding'] as const) {
+        const personId = randomUUID(),
+          f = await fixture(true, false, personId);
+        const profile = await new ProfileRepository(app).get(f.owner),
+          seedId = randomUUID();
+        const seed = ApprovedSeedSchema.parse({
+          id: seedId,
+          createdAt: at(0),
+          profileVersion: 0,
+          discoveryVersion: 0,
+          directionId: randomUUID(),
+          story: {
+            title: 'Synthetic selection',
+            premise: 'Fixture only',
+            opening: 'Fixture only',
+            tradeoff: 'Fixture only',
+          },
+          facts: [],
+          people: [
+            {
+              id: mode === 'different_person' ? randomUUID() : personId,
+              name: '合成人物',
+              relationship: '朋友',
+              assetId: null,
+            },
+          ],
+          ...(mode === 'no_roles' ? {} : { personRoles: [] }),
+          portraitAssetId: null,
+          assets: [],
+        });
+        await app.transaction(f.owner, async (sql) => {
+          await sql.query(
+            'INSERT INTO parallel_life.approved_seeds(id,owner_id,profile_id,command_id,request_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
+            [seedId, f.owner, profile.id, randomUUID(), 'explicit-fixture', seed],
+          );
+          await sql.query(
+            'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id,opening) VALUES($1,$2,$3,$4)',
+            [
+              seedId,
+              f.owner,
+              f.id,
+              { identity: 'Explicit synthetic protagonist', setting: 'Explicit synthetic setting' },
+            ],
+          );
+        });
+        if (mode !== 'no_binding')
+          await admin.query(
+            'INSERT INTO parallel_life.world_person_bindings(world_id,owner_id,person_id,actor_id,person_snapshot) VALUES($1,$2,$3,$4,$5)',
+            [f.id, f.owner, personId, f.a, { id: personId }],
+          );
+        const phone = await new BuildRepository(app).phone(f.owner, f.id);
+        assert.deepEqual(
+          phone.actors.map((a) => a.id),
+          mode === 'exact' ? [f.a] : [],
+          mode,
+        );
+        const promise = activity.update(
+          f.owner,
+          f.id,
+          { clientId: randomUUID(), sequence: 0, mode: 'conversation', focus: target(f.a) },
+          at(0),
+        );
+        if (mode === 'exact') {
+          await promise;
+          assert.deepEqual((await read(f, 1)).focus, [{ ...target(f.a), actorIds: [f.a] }]);
+        } else await assert.rejects(promise, { code: 'INVALID_COMMAND' }, mode);
+      }
+    },
+  );
+  await t.test(
+    'a real compiled and bound trial exposes authored contacts even without any historical message',
+    async () => {
+      // The synthetic work stays an unpublished local draft, with no model/review or production calls.
+      const pub = new PostgresDatabase(
+        `postgresql://pl_admin:${cfg.adminPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+      );
+      try {
+        const staff = randomUUID();
+        await admin.query(
+          'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
+          [staff, 'Local attention fixture'],
+        );
+        const raw = await readFile(
+          new URL('../../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+          'utf8',
+        );
+        const c = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(raw)![1]!);
+        c.world.startAt = at(0);
+        c.history = [];
+        c.initialKnowledge = [];
+        c.protagonist.knownFactKeys = [];
+        c.phone = { messages: [], moments: [], notes: [], invitations: [], album: [] };
+        c.candidates = [];
+        delete c.timeline;
+        delete c.conditions;
+        delete c.openingEventKey;
+        const works = new PublicationRepository(pub, {
+          async review() {
+            throw Error('NO_REVIEW_AUTHORIZED_OR_NEEDED');
+          },
+        });
+        const work = await works.create(staff, {
+          commandId: randomUUID(),
+          title: 'Synthetic contact trial',
+          content: PublishedWorldContentSchema.parse(c),
+        });
+        const draft = (await works.get(staff, work.id)).draft;
+        const trials = new PublicationWorldRepository(pub, publicationWorldCompiler);
+        const trial = await trials.startTrial(staff, work.id, {
+          commandId: randomUUID(),
+          draftVersion: 0,
+          contentHash: draft.contentHash,
+        });
+        const session = await trials.trialSession(staff, trial.trialId!);
+        owned.push({ owner: session.ownerId, id: trial.worldId });
+        const state = await worlds.get({ userId: session.ownerId }, trial.worldId);
+        assert.equal(state.messages.length, 0);
+        const phone = await new BuildRepository(app).phone(session.ownerId, trial.worldId);
+        assert.equal(phone.actors.length, state.actors.length);
+        assert(phone.actors.length > 0);
+        await clock.write(session.ownerId, trial.worldId, {
+          storyNow: at(0),
+          lastTickAt: at(0),
+          speed: 0,
+          paused: false,
+          missedBeats: 0,
+          summary: null,
+        });
+        for (const actor of phone.actors)
+          await activity.update(
+            session.ownerId,
+            trial.worldId,
+            { clientId: randomUUID(), sequence: 0, mode: 'conversation', focus: target(actor.id) },
+            at(0),
+          );
+      } finally {
+        await pub.close();
+      }
+    },
+  );
   await t.test(
     'exact private target survives reading/thinking heartbeats; explicit null and leaving clear it',
     async () => {
@@ -410,69 +665,97 @@ test('actual owner-scoped conversation attention shares existing clock leases an
       );
     },
   );
-  await t.test(
-    'real active scene source and presence derive actors; leaving current experience revokes attention',
-    async () => {
-      const f = await fixture(false),
-        entered = await scenes.enterPlace(f.owner, f.id, {
-          commandId: randomUUID(),
-          expectedVersion: 0,
-          placeId: 'home',
-        });
-      await runOne(
-        {
-          claim: (k) => queue.claimForOwner(entered.task!.id, f.owner, k),
-          renew: (l) => queue.renew(l),
-          finish: (l, o) => queue.finish(l, o),
-        },
-        {
-          world: sceneTaskHandler(
-            queue,
-            {
-              async propose() {
-                return {
-                  location: '虚构客厅',
-                  narration: '明确合成现场',
-                  presentActorIds: [f.a],
-                  outcome: null,
-                  observation: null,
-                  matterTitle: null,
-                  matterUpdates: [],
-                  dialogues: [],
-                };
+  for (const hasDialogue of [false, true])
+    await t.test(
+      `real scene ${hasDialogue ? 'observed dialogue introduces a contact' : 'presence alone stays hidden'}; leaving revokes scene attention`,
+      async () => {
+        const f = await fixture(false, false),
+          entered = await scenes.enterPlace(f.owner, f.id, {
+            commandId: randomUUID(),
+            expectedVersion: 0,
+            placeId: 'home',
+          });
+        await runOne(
+          {
+            claim: (k) => queue.claimForOwner(entered.task!.id, f.owner, k),
+            renew: (l) => queue.renew(l),
+            finish: (l, o) => queue.finish(l, o),
+          },
+          {
+            world: sceneTaskHandler(
+              queue,
+              {
+                async propose() {
+                  return {
+                    location: '虚构客厅',
+                    narration: '明确合成现场',
+                    presentActorIds: [f.a],
+                    outcome: null,
+                    observation: null,
+                    matterTitle: null,
+                    matterUpdates: [],
+                    dialogues: hasDialogue
+                      ? [{ actorId: f.a, text: 'Explicit observed synthetic dialogue' }]
+                      : [],
+                  };
+                },
               },
-            },
-            'EXPLICIT_MOCK_NO_MODEL',
+              'EXPLICIT_MOCK_NO_MODEL',
+            ),
+          },
+        );
+        const ready = await scenes.read(f.owner, f.id, entered.sceneId);
+        assert.equal(ready.task?.status, 'succeeded');
+        const privateClient = randomUUID();
+        const privateFocus = activity.update(
+          f.owner,
+          f.id,
+          { clientId: privateClient, sequence: 0, mode: 'conversation', focus: target(f.a) },
+          at(0),
+        );
+        if (hasDialogue) {
+          await privateFocus;
+          await activity.update(
+            f.owner,
+            f.id,
+            { clientId: privateClient, sequence: 1, mode: 'browsing' },
+            at(0),
+          );
+        } else await assert.rejects(privateFocus, { code: 'INVALID_COMMAND' });
+        await assert.rejects(
+          activity.update(
+            f.owner,
+            f.id,
+            { clientId: randomUUID(), sequence: 0, mode: 'conversation', focus: target(f.b) },
+            at(0),
           ),
-        },
-      );
-      const ready = await scenes.read(f.owner, f.id, entered.sceneId);
-      assert.equal(ready.task?.status, 'succeeded');
-      const client = randomUUID();
-      await activity.update(
-        f.owner,
-        f.id,
-        {
-          clientId: client,
-          sequence: 0,
-          mode: 'conversation',
-          focus: { channel: 'scene', threadId: entered.sceneId },
-        },
-        at(0),
-      );
-      assert.deepEqual((await read(f, 1)).focus, [
-        { channel: 'scene', threadId: entered.sceneId, actorIds: [f.a] },
-      ]);
-      await scenes.navigate(
-        f.owner,
-        f.id,
-        entered.sceneId,
-        { commandId: randomUUID(), expectedVersion: ready.worldVersion },
-        true,
-      );
-      assert.deepEqual(await read(f, 2), { focus: [], conversationWithoutTarget: true });
-    },
-  );
+          { code: 'INVALID_COMMAND' },
+        );
+        const client = randomUUID();
+        await activity.update(
+          f.owner,
+          f.id,
+          {
+            clientId: client,
+            sequence: 0,
+            mode: 'conversation',
+            focus: { channel: 'scene', threadId: entered.sceneId },
+          },
+          at(0),
+        );
+        assert.deepEqual((await read(f, 1)).focus, [
+          { channel: 'scene', threadId: entered.sceneId, actorIds: [f.a] },
+        ]);
+        await scenes.navigate(
+          f.owner,
+          f.id,
+          entered.sceneId,
+          { commandId: randomUUID(), expectedVersion: ready.worldVersion },
+          true,
+        );
+        assert.deepEqual(await read(f, 2), { focus: [], conversationWithoutTarget: true });
+      },
+    );
   await t.test(
     'same-target heartbeat can renew during advisory work, a target switch cannot bypass that guard',
     async () => {
