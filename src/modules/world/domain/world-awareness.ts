@@ -209,7 +209,11 @@ export function committedAwarenessDelta(
           continue;
         if (presence.participant.kind === 'actor' && !actorIds.has(presence.participant.actorId))
           continue;
-        position(presence.participant, scene.placeId, event.storyAt);
+        // A deterministic environment can introduce a view of independently
+        // verified presence; viewing that scene is not a new physical move.
+        const environment = object(data.environment);
+        if (event.type !== 'scene.opened' || environment?.producer !== 'deterministic')
+          position(presence.participant, scene.placeId, event.storyAt);
       }
       reason('new_condition', { kind: 'event', id: event.id });
     }

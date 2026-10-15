@@ -153,6 +153,33 @@ test('scene actual location uses validated interval at event version, not contac
   assert.deepEqual(delta.positions[0]?.subject, { kind: 'actor', actorId: 'watcher' });
   assert.deepEqual(delta.knowledge, []);
 });
+test('deterministic scene presentation cannot replace independent movement evidence', () => {
+  const { world, event } = awarenessFixture();
+  event.type = 'scene.opened';
+  event.data = { sceneId: 'scene', environment: { producer: 'deterministic' } };
+  const scene: SceneSession = {
+    id: 'scene',
+    worldId: world.id,
+    ownerId: world.ownerId,
+    sourceEventId: 'entered',
+    sourceVersion: 0,
+    status: 'active',
+    placeId: 'from',
+    title: '现场',
+    presence: [
+      {
+        participant: { kind: 'actor', actorId: 'watcher' },
+        joinedVersion: 1,
+        sourceVersion: 1,
+        sourceEventId: event.id,
+      },
+    ],
+  };
+  const delta = committedAwarenessDelta(world, event, { scene });
+  assert.deepEqual(delta.positions, []);
+  assert.deepEqual(delta.knowledge, []);
+  assert.equal(delta.reasons[0]?.kind, 'new_condition');
+});
 test('unchanged plans and previous decisions do not force re-evaluation for every speech', () => {
   const { world, event } = awarenessFixture();
   const state = emptyActorAgentState({ worldId: 'w', actorId: 'watcher' }, 'def', 1);
