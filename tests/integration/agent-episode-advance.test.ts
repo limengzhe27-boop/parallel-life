@@ -197,7 +197,7 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
     db.transaction(f.owner, (sql) =>
       readWorldAttentionInTransaction(sql, f.owner, { worldId: f.worldId, worldVersion: 0 }),
     );
-  async function noNpcCommit(f: Fixture) {
+  async function noNpcCommit(f: Fixture, requestsCreated = true) {
     assert.equal((await worlds.get({ userId: f.owner }, f.worldId)).version, 0);
     for (const table of [
       'world_events',
@@ -210,6 +210,11 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
     for (const actor of f.world.actors) {
       assert.equal((await state(f, actor.id))?.revision, 0);
       assert.equal((await state(f, actor.id))?.episodeParticipations, undefined);
+    }
+    if (!requestsCreated) {
+      assert.deepEqual(await pending(f), []);
+      assert.deepEqual(await directors.readEpisodes(f.owner, f.worldId), []);
+      return;
     }
     assert.equal((await pending(f)).length, 2);
     assert.ok((await pending(f)).every((r) => r.inputReceiptId === null && r.receiptId === null));
@@ -534,7 +539,7 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
         assert.equal(result?.played, 0);
         assert.equal(h.directorCalls().length, 1);
         assert.equal(h.npcCalls().length, 0);
-        await noNpcCommit(f);
+        await noNpcCommit(f, false);
         assert.equal(await count(f, 'agent_attempts'), 0);
         assert.equal(await count(f, 'agent_input_receipts'), 0);
         const original = await directors.readEpisodes(f.owner, f.worldId);
