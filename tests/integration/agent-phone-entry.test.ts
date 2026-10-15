@@ -24,6 +24,7 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 import { OpeningAdvanceSchema } from '../../src/contracts/publication-opening.ts';
 import { AdvanceReceiptSchema, type AdvanceReceipt } from '../../src/contracts/world-clock.ts';
 import { PublicWorldStorySchema } from '../../src/contracts/world-story.ts';
+import { TaskSchema } from '../../src/contracts/api.ts';
 
 const serverCondition = process.execArgv.includes('--conditions=react-server');
 if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
@@ -64,7 +65,7 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
     );
     const count = /# tests (\d+)/.exec(output);
     assert(
-      count && Number(count[1]) >= 8,
+      count && Number(count[1]) >= 10,
       'the child must actually execute its database assertions',
     );
     assert.match(output, /# fail 0\b/);
@@ -83,6 +84,12 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
       await import('../../src/modules/settings/infrastructure/publication-genesis.ts');
     const { PublicationOpeningRepository } =
       await import('../../src/modules/settings/infrastructure/publication-opening-repository.ts');
+    const { PostgresGroupRepository } =
+      await import('../../src/modules/world/infrastructure/group-repository.ts');
+    const { PostgresAgentRuntimeRepository } =
+      await import('../../src/modules/world/infrastructure/agent-runtime-repository.ts');
+    const { nativeAgentCommandId } =
+      await import('../../src/modules/world/infrastructure/agent-native-ids.ts');
     const cfg = await localConfig();
     assert.equal(cfg.port, Number(process.env.AGENT_PHONE_ENTRY_TEST_PORT ?? 55565));
     const admin = await adminClient('parallel_life_test');
@@ -123,6 +130,7 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
     for (const key of [
       'APP_DATABASE_URL',
       'DATABASE_URL',
+      'WORKER_DATABASE_URL',
       'SESSION_SECRET',
       'APP_ORIGIN',
       'PRIVATE_ASSET_DIR',
@@ -143,6 +151,7 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
     assert.throws(() => getServices(), /SERVER_NOT_CONFIGURED/);
     Object.assign(process.env, {
       APP_DATABASE_URL: `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+      WORKER_DATABASE_URL: `postgresql://pl_worker:${cfg.workerPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
       SESSION_SECRET: 's'.repeat(64),
       APP_ORIGIN: 'http://127.0.0.1:34441',
     });
@@ -154,16 +163,40 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
       YIBU_TEXT_MODEL: 'synthetic-phone-entry',
     });
     let gatewayCalls = 0,
-      mode: 'forbid' | 'quiet_action' = 'forbid';
+      mode: 'forbid' | 'quiet_action' | 'native_reply' | 'unknown_reply' = 'forbid';
     globalThis.fetch = async (input, init) => {
       gatewayCalls++;
       assert.equal(String(input), 'https://yibuapi.com/v1/chat/completions');
-      assert.equal(mode, 'quiet_action', 'unexpected gateway call; no request is ever forwarded');
+      assert.notEqual(mode, 'forbid', 'unexpected gateway call; no request is ever forwarded');
+      if (mode === 'unknown_reply') throw Error('SYNTHETIC_UNCERTAIN_TRANSPORT');
       const body = JSON.parse(String(init?.body)),
         payload = JSON.parse(
           body.messages.find((m: { role: string }) => m.role === 'user').content,
         );
       assert.match(payload.promptVersion, /^npc-agent-/);
+      if (mode === 'native_reply')
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    statements: [
+                      { text: '这条群回复来自已保存的原始响应。', dependsOnActionIds: [] },
+                    ],
+                    goals: [],
+                    plans: [],
+                    actions: [],
+                    responsibilities: [],
+                    decisions: [],
+                  }),
+                },
+                finish_reason: 'stop',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
       const action = {
         ...payload.state.actions.find((a: { status: string }) => a.status === 'ready'),
         status: 'proposed',
@@ -196,14 +229,21 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
     const { publicationStoryProgressRoute } =
       await import('../../src/server/publication-story-http.ts');
     const { POST: advancePost } = await import('../../src/app/api/v1/worlds/[id]/advance/route.ts');
+    const { POST: retryTaskPost } = await import('../../src/app/api/v1/tasks/[id]/retry/route.ts');
+    const { POST: runTaskPost } = await import('../../src/app/api/v1/tasks/[id]/run/route.ts');
     const origin = 'http://127.0.0.1:34441';
-    function request(owner: string, method: string, body?: unknown) {
+    function request(
+      owner: string,
+      method: string,
+      body?: unknown,
+      pathname = '/api/v1/worlds/opening',
+    ) {
       const payload = `${owner}.${Math.floor(Date.now() / 1000) + 3600}`;
       const token = `${payload}.${createHmac('sha256', 's'.repeat(64))
         .update('session:' + payload)
         .digest('base64url')}`;
       assert.equal(svc.sessions.verify(token), owner);
-      return new Request(origin + '/api/v1/worlds/opening', {
+      return new Request(origin + pathname, {
         method,
         headers: {
           Origin: origin,
@@ -659,5 +699,225 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
           }
         },
       );
+
+    async function nativeGroupFixture() {
+      const f = await fixture();
+      const groups = new PostgresGroupRepository(svc.db);
+      const group = await groups.create(f.owner, {
+        worldId: f.id,
+        commandId: randomUUID(),
+        expectedVersion: 0,
+        title: 'Synthetic HTTP recovery group',
+        actorIds: [f.actor],
+      });
+      const input = await groups.send(f.owner, {
+        worldId: f.id,
+        groupId: group.groupId,
+        commandId: randomUUID(),
+        expectedVersion: group.version,
+        text: '@甲 聊聊你的近况。',
+      });
+      return { ...f, groups, groupId: group.groupId, input };
+    }
+    const taskContext = (id: string) => ({ params: Promise.resolve({ id }) });
+    const taskRequest = (
+      owner: string,
+      id: string,
+      operation: 'run' | 'retry',
+      body: unknown = {},
+    ) => request(owner, 'POST', body, `/api/v1/tasks/${id}/${operation}`);
+    await t.test(
+      'actual HTTP retry and real composed worker resume the saved native raw completion on the original task with no extra gateway call',
+      async () => {
+        const f = await nativeGroupFixture(),
+          taskId = f.input.task.id,
+          initialCalls = gatewayCalls;
+        const store = new PostgresAgentRuntimeRepository(svc.db);
+        const name = `native_http_${randomUUID().replaceAll('-', '')}`;
+        await admin.query(
+          `CREATE FUNCTION parallel_life.${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id='${taskId}' AND NEW.status='succeeded' THEN NEW.lease_until=clock_timestamp()-interval '1 second'; END IF; RETURN NEW; END $$`,
+        );
+        mode = 'native_reply';
+        try {
+          await admin.query(
+            `CREATE TRIGGER ${name} BEFORE UPDATE ON parallel_life.tasks FOR EACH ROW EXECUTE FUNCTION parallel_life.${name}()`,
+          );
+          const response = await runTaskPost(
+            taskRequest(f.owner, taskId, 'run'),
+            taskContext(taskId),
+          );
+          assert.equal(response.status, 200);
+          assert.equal(TaskSchema.parse(await response.json()).status, 'failed');
+        } finally {
+          mode = 'forbid';
+          await admin.query(`DROP TRIGGER IF EXISTS ${name} ON parallel_life.tasks`);
+          await admin.query(`DROP FUNCTION parallel_life.${name}()`);
+        }
+        assert.equal(gatewayCalls, initialCalls + 1);
+        const before = await store.lookup(f.owner, f.id, nativeAgentCommandId(taskId, f.actor));
+        assert.equal(before!.status, 'response_received');
+        assert.equal((await svc.worlds.get({ userId: f.owner }, f.id)).version, f.input.version);
+        assert.equal((await f.groups.read(f.owner, f.id, f.groupId)).messages.length, 1);
+        const totalTasks = Number(
+          (
+            await admin.query('SELECT count(*) n FROM parallel_life.tasks WHERE scope_id=$1', [
+              f.id,
+            ])
+          ).rows[0].n,
+        );
+        const other = await fixture(1);
+        assert.equal(
+          (
+            await retryTaskPost(
+              taskRequest(other.owner, taskId, 'retry', { commandId: randomUUID() }),
+              taskContext(taskId),
+            )
+          ).status,
+          404,
+        );
+        assert.equal(
+          (await runTaskPost(taskRequest(other.owner, taskId, 'run'), taskContext(taskId))).status,
+          404,
+        );
+        for (const operation of ['retry', 'run'] as const) {
+          const denied = taskRequest(f.owner, taskId, operation, { commandId: randomUUID() });
+          denied.headers.delete('x-csrf-token');
+          assert.equal(
+            (
+              await (operation === 'retry' ? retryTaskPost : runTaskPost)(
+                denied,
+                taskContext(taskId),
+              )
+            ).status,
+            401,
+          );
+        }
+        const commandId = randomUUID();
+        const retried = await retryTaskPost(
+          taskRequest(f.owner, taskId, 'retry', { commandId }),
+          taskContext(taskId),
+        );
+        assert.equal(retried.status, 202);
+        const queued = TaskSchema.parse(await retried.json());
+        assert.equal(queued.id, taskId);
+        assert.equal(queued.status, 'queued');
+        const afterRetry = await store.lookup(f.owner, f.id, nativeAgentCommandId(taskId, f.actor));
+        assert.notEqual(afterRetry!.token, before!.token);
+        const response = await runTaskPost(
+          taskRequest(f.owner, taskId, 'run'),
+          taskContext(taskId),
+        );
+        assert.equal(response.status, 200);
+        const completed = TaskSchema.parse(await response.json());
+        assert.equal(completed.id, taskId);
+        assert.equal(completed.status, 'succeeded');
+        assert.equal(completed.resultVersion, f.input.version + 1);
+        assert.equal(
+          gatewayCalls,
+          initialCalls + 1,
+          'retry/run must never call complete for the protected original response',
+        );
+        const attempt = await store.lookup(f.owner, f.id, nativeAgentCommandId(taskId, f.actor));
+        assert.equal(attempt!.id, before!.id);
+        assert.equal(attempt!.status, 'committed');
+        assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.actor }))!.revision, 1);
+        const messages = (await f.groups.read(f.owner, f.id, f.groupId)).messages;
+        assert.equal(messages.filter((m) => m.sender.kind === 'actor').length, 1);
+        assert.equal(messages.at(-1)!.text, '这条群回复来自已保存的原始响应。');
+        assert.equal(
+          Number(
+            (
+              await admin.query('SELECT count(*) n FROM parallel_life.tasks WHERE scope_id=$1', [
+                f.id,
+              ])
+            ).rows[0].n,
+          ),
+          totalTasks,
+        );
+        assert.equal(
+          (
+            await admin.query(
+              'SELECT 1 FROM parallel_life.agent_task_recoveries WHERE world_id=$1 AND outcome=$2',
+              [f.id, 'requeued'],
+            )
+          ).rowCount,
+          1,
+        );
+        const replay = await retryTaskPost(
+          taskRequest(f.owner, taskId, 'retry', { commandId }),
+          taskContext(taskId),
+        );
+        assert.equal(TaskSchema.parse(await replay.json()).id, taskId);
+        assert.equal(
+          (await runTaskPost(taskRequest(f.owner, taskId, 'run'), taskContext(taskId))).status,
+          200,
+        );
+        assert.equal(gatewayCalls, initialCalls + 1);
+      },
+    );
+    await t.test(
+      'unknown native child cannot create a replacement task or invoke the gateway through HTTP retry/run',
+      async () => {
+        const f = await nativeGroupFixture(),
+          taskId = f.input.task.id,
+          initialCalls = gatewayCalls;
+        mode = 'unknown_reply';
+        try {
+          const response = await runTaskPost(
+            taskRequest(f.owner, taskId, 'run'),
+            taskContext(taskId),
+          );
+          assert.equal(response.status, 200);
+          assert.equal(TaskSchema.parse(await response.json()).status, 'unknown');
+        } finally {
+          mode = 'forbid';
+        }
+        assert.equal(gatewayCalls, initialCalls + 1);
+        assert.equal(
+          (await new PostgresAgentRuntimeRepository(svc.db).lookup(
+            f.owner,
+            f.id,
+            nativeAgentCommandId(taskId, f.actor),
+          ))!.status,
+          'unknown_after_send',
+        );
+        for (let i = 0; i < 2; i++) {
+          const retry = await retryTaskPost(
+            taskRequest(f.owner, taskId, 'retry', { commandId: randomUUID() }),
+            taskContext(taskId),
+          );
+          assert.equal(retry.status, 503);
+          assert.equal((await retry.json()).error.code, 'UNAVAILABLE');
+          const run = await runTaskPost(taskRequest(f.owner, taskId, 'run'), taskContext(taskId));
+          assert.equal(TaskSchema.parse(await run.json()).status, 'unknown');
+        }
+        assert.equal(gatewayCalls, initialCalls + 1);
+        assert.equal(
+          Number(
+            (
+              await admin.query('SELECT count(*) n FROM parallel_life.tasks WHERE scope_id=$1', [
+                f.id,
+              ])
+            ).rows[0].n,
+          ),
+          1,
+        );
+        assert.equal(
+          (
+            await admin.query(
+              'SELECT 1 FROM parallel_life.agent_task_recoveries WHERE world_id=$1',
+              [f.id],
+            )
+          ).rowCount,
+          0,
+        );
+        assert.equal(
+          (await f.groups.read(f.owner, f.id, f.groupId)).messages.filter(
+            (m) => m.sender.kind === 'actor',
+          ).length,
+          0,
+        );
+      },
+    );
   });
 }
