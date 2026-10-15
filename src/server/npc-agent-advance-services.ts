@@ -33,6 +33,39 @@ import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
 import type { PublicOpeningStatus } from '../contracts/publication-opening.ts';
+import type { PublicWorldStory } from '../contracts/world-story.ts';
+
+/** New-engine public reads never reconcile the legacy author-progress store. */
+export async function readNpcAgentStoryProgressIfEnabled(
+  db: PostgresDatabase,
+  ownerId: string,
+  worldId: string,
+): Promise<PublicWorldStory | null> {
+  return db.transaction(ownerId, async (sql) => {
+    const row = (
+      await sql.query(
+        `SELECT COALESCE(c.engine_epoch,1) epoch FROM parallel_life.worlds w
+      LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
+      WHERE w.id=$1 AND w.owner_id=$2`,
+        [worldId, ownerId],
+      )
+    ).rows[0];
+    if (!row) throw new DomainError('NOT_FOUND');
+    if (Number(row.epoch) < 2) return null;
+    const source = (
+      await sql.query('SELECT parallel_life.publication_story_source($1) source', [worldId])
+    ).rows[0]?.source;
+    // The shared-episode store currently admits proposed drafts only. Those
+    // are never projected as presented events or completed player choices.
+    return {
+      runtime: 'agents',
+      currentStageKeys: [],
+      totalNodes: source?.nodes?.length ?? 0,
+      presented: [],
+      pending: null,
+    };
+  });
+}
 
 /** Read-only legacy-envelope status; no old plan/batch initialization in an Agent world. */
 export async function readNpcAgentOpeningStatusIfEnabled(

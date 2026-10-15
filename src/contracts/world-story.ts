@@ -3,6 +3,7 @@ import { Id } from './api.ts';
 
 /** Public progress contains only references to already presented events, never future scripts. */
 export const PublicWorldStorySchema = z.strictObject({
+  runtime: z.literal('agents').optional(),
   currentStageKeys: z.array(z.string()).max(128),
   totalNodes: z.number().int().nonnegative().max(256),
   presented: z

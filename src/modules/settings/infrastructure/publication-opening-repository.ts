@@ -17,7 +17,10 @@ import type {
   OpeningSource,
   PublicationOpeningPort,
 } from '../application/publication-opening-ports.ts';
-import { PublicationStoryRepository } from './publication-story-repository.ts';
+import {
+  PublicationStoryRepository,
+  assertLegacyPublicationRuntime,
+} from './publication-story-repository.ts';
 
 type Attempt = { commandId: string; expectedVersion: number | null };
 type DeliveryRow = {
@@ -126,6 +129,7 @@ export class PublicationOpeningRepository implements PublicationOpeningPort {
         )
       ).rows[0];
       if (!row) throw new TaskError('NOT_FOUND');
+      await assertLegacyPublicationRuntime(sql, ownerId, worldId);
       const world = { ...row.state, version: row.version } as WorldState;
       const plan = (
         await sql.query(

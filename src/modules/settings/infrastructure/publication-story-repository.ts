@@ -80,6 +80,28 @@ function state(row: Record<string, any>): StoryState {
 function id(value: string) {
   if (!Id.safeParse(value).success) throw new TaskError('INVALID_INPUT');
 }
+/** Legacy execution/context must not mutate a world owned by the Agent runtime. */
+export async function assertLegacyPublicationRuntime(
+  sql: SqlClient,
+  ownerId: string,
+  worldId: string,
+) {
+  const role = (
+    await sql.query(`SELECT pg_has_role(current_user,'pl_app','MEMBER') app,
+    pg_has_role(current_user,'pl_worker','MEMBER') worker`)
+  ).rows[0];
+  if (!role?.app || role.worker) throw new TaskError('FORBIDDEN');
+  const row = (
+    await sql.query(
+      `SELECT COALESCE(c.engine_epoch,1) epoch FROM parallel_life.worlds w
+    LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
+    WHERE w.id=$1 AND w.owner_id=$2`,
+      [worldId, ownerId],
+    )
+  ).rows[0];
+  if (!row) throw new TaskError('NOT_FOUND');
+  if (Number(row.epoch) >= 2) throw new TaskError('INVALID_STATE');
+}
 function fail(e: unknown): never {
   if (e instanceof TaskError) throw e;
   if (e instanceof PublicationStoryError) throw new TaskError('INVALID_STATE');
@@ -174,6 +196,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       )
     ).rows[0];
     if (!w) throw new TaskError('NOT_FOUND');
+    await assertLegacyPublicationRuntime(sql, ownerId, worldId);
     let plan = (
       await sql.query(
         'SELECT document FROM parallel_life.publication_story_plans WHERE world_id=$1 AND owner_id=$2',
