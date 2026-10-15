@@ -194,3 +194,44 @@ group原输入可通过receipt.commandId定位成功group.message_sent，再核g
 - 缺view、world/actor/revision/定义/cursor错配、缺redactedStateIds均零模型调用拒绝；原12项适配测试继续通过。
 - `npm run typecheck` exit 0。按根本轮明确要求不重跑fullcheck/build；此前完整检查/构建证据不冒称覆盖本次冻结提交。
 - 无真实模型、PG、生产、渠道实际入口变更。root可挑`6e4f43e`接续集成；任务仍待验收，非已上线声明。
+
+## 根private WIP快审（只读，修复前观察）
+
+根要求快审其未提交agent-snapshot-repository.ts、npc-agent-services.ts及authorizedAgentState/reduce；另只读核对npc-agent-kernel.ts和P已接入的scope helper，以免误报已有校验。下述是当时WIP，并非不可变提交结论；已立即回报根，不改源码。
+
+### 必修1：可见状态依赖过滤未收敛
+
+authorizedAgentState先按dependsOnActionIds剪枝，再因preconditions删除动作，第二步后没有重算actions集合或再次剪依赖；plans条件用的集合也可能包含已删动作。responsibilities只核sourceIds/deadline，nextCheck的来源条件没有核。
+
+调用实际纯函数复现：a1以public来源建立但有hidden observation前提，a2依赖a1，plan p引用a2并等待a1结果；责任r的nextCheck引用hidden。只允许public时实际输出仍为actions=[a2]、plans=[p]、r.nextCheck=[hidden]，redacted只有a1。无PG/模型调用。
+
+建议对source条件、动作依赖、计划条件与责任nextCheck联合迭代至不动点，核nextActionId及focus.subject引用；不能把已失效对象保留为仍能推理的状态。此结果证明投影闭包缺口，不等于已证明真实模型泄密。
+
+### 必修2：旧accepted_input恢复缺少真实消息／事件别名忘却闭包
+
+快审时agent-snapshot-repository.ts:193–214为持久state保留旧receipt句柄，过滤仅blockedSources.has(receipt.id)，source.recordId也只设receipt.id。现有loadActorMemories里的blockedSources来自forgotten.source_ids，常为消息/世界事件ID。若state summary/decision引用原receipt句柄，忘却该轮message/event不会命中receipt UUID，该句柄仍被恢复，authorizedAgentState仍保留相关文本。kernel提交前的sources检查同样只展开现有句柄/recordId/去前缀ID，没有receipt→原消息/事件映射，不能替代这个闭包。
+
+应从实际已提交事件的agentRuntime.inputReceiptId与消息投影建立只读别名，再按忘却记录核验。模型view必须在调用前遮蔽，不能只在提交时拒绝已泄露到模型的内容。这是源码路径推导，尚未跑真实PG重现；根需补“先真实一轮、按消息/事件忘却、下一轮payload无旧summary/quote”的数据库测试。
+
+### 输入接收时刻／版本需保留原语义
+
+- 快审时当前input对应AgentSource.worldVersion使用world.version，而不是receipt.expectedWorldVersion；parent receipt晚执行时会把接收锚点改标为执行版本，与已冻结原则不同。
+- source.at已使用input.storyAt，receipt保存receivedAt与storyAt是正向修复；但npc-agent-services仍把新计算storyAt传snapshot，恢复response_received时并未恢复原推理时刻。执行时刻可重新核验，但必须与原输入时刻及原模型响应依据显式区分，不宣称回放恢复了全部原快照。
+- npc-agent-kernel.ts:219的turn.resolved.data.userAt使用回复提交at，而不是原receipt.storyAt；这会把玩家发送时刻改成稍后的回复时刻。应保留原输入故事时间，回复/执行at独立记录。
+
+### 正向核实与验收边界
+
+reduce基于context.state合并增量，没有用viewState覆盖canonical；validate对隐藏对象ID修改有REDACTED_STATE_MUTATION拒绝。private服务由真实command构造recipient/thread/inputHash，明确拒绝外部director origin；scope helper校验private thread==actor，未发现该HTTP入口自行伪造群/现场玩家输入。只读来源查询没有初始化状态或调用模型。上述正向观察不抵消三项修复需要。
+
+未写业务源码、未跑PG或真实模型、未部署；不重跑fullcheck/build。根报告的联合真实PG5项使用mock模型，不能作为真实模型效果证据。phase1若只部署受epoch门禁的代码且不将生产世界切2，须明确完整群/现场运行仍未完成；本报告不批准未经修复的epoch2激活。
+
+## 能力成功与目标完成的窄prompt补丁
+
+根新增可信能力结果的completedGoalIds，并维护责任/决定版本元数据后，指派本人只改原适配器与mock测试。
+
+- 冻结业务：`607f2f9`，仅npc-agent-model.ts及对应测试；提示版本为npc-agent-v2-goal-completion。
+- 提示明确plan.record只记录计划、appointment.propose只建立邀请，两者成功都不授权完成外部目标；普通resultId或succeeded不足以将goal设fulfilled。没有可信的目标完成资格则保持active/deferred，或有真实原因withdrawn，不以消息数、记计划、发邀请结清外部目标。
+- completedGoalIds只有可信能力执行器维护；responsibility.revision与decision.responsibilityRevision由服务器维护，model proposal不输出这些内部字段。现有显式白名单未扩大，不给模型透传两个对象的内部revision；根state.revision身份绑定照常保留。
+- 15/15mock专项通过。新测试核system规则及最终payload省略内部revision，并不声称真实模型一定遵守；实际完成资格由根kernel强制验证。本适配仍raw透传不解析模型响应。
+- 按根明确要求未跑fullcheck/build；本轮没有真实模型、PG、生产、公共类型或其它源码改动。
+- 交由根集成与实际验收，保持待验收；先前private快审必修项待根修后另行只读复核，不因本prompt补丁而宣称已解决。
