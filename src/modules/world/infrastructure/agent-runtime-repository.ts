@@ -343,7 +343,33 @@ async function requireInputAuthority(
       AND (a->>'joinedVersion')::int=ae.version AND ae.version<=$5 AND (NOT(a?'leftVersion') OR (a->>'leftVersion')::int>$6)
       AND (p->>'joinedVersion')::int=pe.version AND pe.version<=$5 AND (NOT(p?'leftVersion') OR (p->>'leftVersion')::int>$6)
       AND ae.payload->>'type' IN ('scene.opened','scene.action_resolved') AND ae.payload->'data'->>'sceneId'=s.id
-      AND ae.payload->'data'->'worldResults'->'scene'->'presence' @> jsonb_build_array(a-'leftVersion')
+      AND (ae.payload->'data'->'worldResults'->'scene'->'presence' @> jsonb_build_array(a-'leftVersion')
+        OR (ae.payload->>'type'='scene.opened'
+          AND ae.payload->'data'->'environment'->>'producer'='deterministic'
+          AND ae.payload->'data'->'environment'->'schemaVersion'='1'::jsonb
+          AND ae.payload->'data'->'environment'->>'enteredEventId'=se.id
+          AND ae.payload->'data'->'environment'->>'placeId'=s.document->>'placeId'
+          AND ae.version=se.version+1
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements(ae.payload->'data'->'environment'->'presenceProofs') proof
+            JOIN parallel_life.world_events prior ON prior.world_id=s.world_id AND prior.owner_id=s.owner_id
+              AND prior.id=proof->>'sourceEventId' AND prior.version=(proof->>'worldVersion')::int
+            JOIN parallel_life.commands prior_command ON prior_command.world_id=prior.world_id
+              AND prior_command.owner_id=prior.owner_id AND prior_command.id=prior.command_id
+              AND prior_command.status='succeeded' AND prior_command.result_event_id=prior.id
+            JOIN parallel_life.world_authoritative_positions actual ON actual.world_id=s.world_id
+              AND actual.owner_id=s.owner_id AND actual.subject_key='actor:'||$4
+            JOIN parallel_life.tasks task ON task.id::text=ae.payload->'data'->'environment'->>'taskId'
+              AND task.owner_id=s.owner_id AND task.scope_kind='world' AND task.scope_id=s.world_id
+            WHERE proof->'subject'=jsonb_build_object('kind','actor','actorId',$4::text)
+              AND proof->>'worldId'=s.world_id AND proof->>'status'='at'
+              AND proof->>'placeId'=s.document->>'placeId' AND prior.version<se.version
+              AND (proof->>'occurredAt')::timestamptz<=(ae.payload->>'storyAt')::timestamptz
+              AND actual.document->>'status'='at' AND actual.document->>'placeId'=s.document->>'placeId'
+              AND task.status='succeeded' AND task.result_version=ae.version
+              AND task.input->>'type'='scene' AND task.input->'actionId'='null'::jsonb
+              AND task.input->>'sceneId'=s.id AND (task.input->>'expectedVersion')::int=se.version
+          )))
       AND pe.payload->>'type'='scene.entered' AND pe.payload->'data'->>'sceneId'=s.id LIMIT 1`,
         [
           receipt.worldId,
