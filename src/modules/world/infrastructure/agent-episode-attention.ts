@@ -49,7 +49,7 @@ export async function requireEpisodeDeliveryInTransaction(
     clock &&
     (clock.paused ||
       (clock.managed &&
-        (!clock.active_until || Date.parse(clock.active_until) <= Date.parse(realNow))))
+        (!clock.active_until || new Date(clock.active_until).getTime() <= Date.parse(realNow))))
   )
     deferred();
   const attention = await readWorldAttentionInTransaction(sql, ownerId, {
