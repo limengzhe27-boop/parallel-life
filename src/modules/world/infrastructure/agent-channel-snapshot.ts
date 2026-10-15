@@ -226,7 +226,13 @@ export async function readNativeAgentSnapshot(
     const events = new Map(nativeEvents.map((e) => [String(e.id), e]));
     const stateHandles = [
       ...new Set(
-        [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities]
+        [
+          ...state.goals,
+          ...state.plans,
+          ...state.actions,
+          ...state.responsibilities,
+          ...(state.episodeParticipations ?? []),
+        ]
           .flatMap((item) => item.sourceIds)
           .concat(state.decisions.map((d) => d.sourceId))
           .concat(

@@ -49,6 +49,7 @@ import {
 import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
 import { runNpcAgent } from '../../src/modules/world/application/run-agent.ts';
 import { PostgresNpcAgentKernel } from '../../src/modules/world/infrastructure/npc-agent-kernel.ts';
+import { NpcAgentModel } from '../../src/modules/world/infrastructure/npc-agent-model.ts';
 
 // Synthetic fictional worlds, actual owner-RLS repositories/kernel and explicit mock models only.
 // No handmade epoch-2 event histories, participant annotations or live model requests.
@@ -610,6 +611,106 @@ test('narrative admission, actor requests and actual participation receipts', as
         assert.equal((await ep(f, r.episodeId)).status, 'proposed');
         assert.equal((await ep(f, r.episodeId)).revision, 0);
         assert.equal(run.calls, 1);
+      }
+    },
+  );
+  await t.test(
+    'own silent decline survives the next private model context; forgotten input or actual event clips only its view',
+    async () => {
+      for (const forgottenAlias of ['input', 'event'] as const) {
+        const f = await fixture(),
+          o = await opportunity(f),
+          r = o.requests[0]!,
+          run = await perform(f, r, 'decline', false);
+        const stored = (await actors.read(f.owner, { worldId: f.worldId, actorId: r.actorId }))!;
+        const participation = {
+          id: r.id,
+          choice: 'decline',
+          reason: '依据当前自己的安排作出选择。',
+          sourceIds: [run.input.id, `definition:${stored.definitionRef}`],
+          recordedAtVersion: 1,
+        };
+        assert.equal(run.calls, 1);
+        assert.deepEqual(stored.episodeParticipations, [participation]);
+        assert.equal((await storedReceipt(f, r.id)).choice, 'decline');
+        assert.deepEqual(await counts(f), [1, 0, 1, 1]);
+        assert.equal((await ep(f, r.episodeId)).status, 'proposed');
+        const next = await accept(f, r, {
+          origin: 'player',
+          text: '接下来你有什么安排？',
+        });
+        const snapshot = (await execution(f, next)).snapshot;
+        assert.deepEqual(snapshot.viewState?.episodeParticipations, [participation]);
+        assert.ok(snapshot.sources.some((source) => source.id === run.input.id));
+        assert.equal(snapshot.input.sourceId, next.id);
+        const payload = async (value: typeof snapshot) => {
+          let captured = '';
+          await new NpcAgentModel({
+            async complete(messages) {
+              captured = messages.find((message) => message.role === 'user')!.content;
+              return '{}';
+            },
+          }).decide(value);
+          return { raw: captured, document: JSON.parse(captured) };
+        };
+        const before = await payload(snapshot);
+        assert.deepEqual(before.document.state.episodeParticipations, [participation]);
+        assert.ok(
+          before.document.sources.some((source: { id: string }) => source.id === run.input.id),
+        );
+        assert.equal(before.raw.includes('DIRECTOR_ONLY_PRIVATE_SENTINEL'), false);
+        assert.equal(before.raw.includes('GLOBAL_AUDIT_SENTINEL'), false);
+        assert.deepEqual(before.document.state.decisions, []);
+        const otherActor = o.requests[1]!.actorId;
+        const world = await worlds.get({ userId: f.owner }, f.worldId);
+        const otherState = (await actors.read(f.owner, {
+          worldId: f.worldId,
+          actorId: otherActor,
+        }))!;
+        const other = (
+          await readPrivateAgentSnapshot(
+            db,
+            f.owner,
+            world,
+            otherActor,
+            null,
+            world.time,
+            otherState,
+          )
+        ).snapshot;
+        const otherPayload = await payload(other);
+        assert.equal(otherPayload.raw.includes(participation.reason), false);
+        assert.equal(otherPayload.raw.includes(run.input.id), false);
+        assert.equal(otherPayload.document.state.episodeParticipations, undefined);
+        // Existing forgotten-source metadata fixture, not a production forget API assertion.
+        await admin.query(
+          "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Synthetic forgotten participation provenance',$5,'agent_inference',$6,'forgotten')",
+          [
+            randomUUID(),
+            f.owner,
+            r.actorId,
+            f.worldId,
+            randomUUID(),
+            JSON.stringify([forgottenAlias === 'input' ? run.input.id : run.output.eventId]),
+          ],
+        );
+        const afterSnapshot = (await execution(f, next)).snapshot;
+        const after = await payload(afterSnapshot);
+        assert.deepEqual(afterSnapshot.viewState?.episodeParticipations, []);
+        assert.ok(afterSnapshot.redactedStateIds?.includes(r.id));
+        assert.equal(
+          afterSnapshot.sources.some((source) => source.id === run.input.id),
+          false,
+        );
+        assert.deepEqual(after.document.state.episodeParticipations, []);
+        assert.equal(after.raw.includes(participation.reason), false);
+        assert.deepEqual(
+          (await actors.read(f.owner, { worldId: f.worldId, actorId: r.actorId }))!
+            .episodeParticipations,
+          [participation],
+        );
+        assert.equal((await storedReceipt(f, r.id)).choice, 'decline');
+        assert.deepEqual(await counts(f), [1, 0, 1, 1]);
       }
     },
   );

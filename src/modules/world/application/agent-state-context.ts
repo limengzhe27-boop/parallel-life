@@ -108,6 +108,40 @@ export function actorStateContextPayload(
       }),
     );
   };
+  // This optional history is NPC-owned stance, not shared progress or a player decision.
+  // Known fields must be data properties; unknown fields (including getters) are never read.
+  const data = (value: object, key: string): unknown => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && 'value' in descriptor ? descriptor.value : invalid();
+  };
+  const participationDescriptor = Object.getOwnPropertyDescriptor(state, 'episodeParticipations');
+  const participations = participationDescriptor
+    ? 'value' in participationDescriptor
+      ? participationDescriptor.value
+      : invalid()
+    : undefined;
+  const episodeParticipations = (): NonNullable<ActorAgentState['episodeParticipations']> => {
+    if (!Array.isArray(participations)) return invalid();
+    return Array.from({ length: participations.length }, (_, index) => {
+      const item = data(participations, String(index));
+      object(item);
+      const record = item as object;
+      const choice = data(record, 'choice');
+      if (!['engage', 'decline', 'defer', 'need_information', 'quiet'].includes(choice as string))
+        return invalid();
+      const sourceIds = data(record, 'sourceIds');
+      if (!Array.isArray(sourceIds)) return invalid();
+      return {
+        id: text(data(record, 'id') as string),
+        choice: choice as NonNullable<ActorAgentState['episodeParticipations']>[number]['choice'],
+        reason: text(data(record, 'reason') as string),
+        sourceIds: Array.from({ length: sourceIds.length }, (_, index) =>
+          text(data(sourceIds, String(index)) as string),
+        ),
+        recordedAtVersion: revision(data(record, 'recordedAtVersion') as number),
+      };
+    });
+  };
   return {
     schemaVersion: state.schemaVersion,
     worldId: text(state.worldId),
@@ -180,6 +214,7 @@ export function actorStateContextPayload(
         : {}),
     })),
     focus: focus(state.focus),
+    ...(participations === undefined ? {} : { episodeParticipations: episodeParticipations() }),
     ...(state.questions === undefined
       ? {}
       : {

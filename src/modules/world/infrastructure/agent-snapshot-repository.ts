@@ -182,7 +182,13 @@ export async function readPrivateAgentSnapshot(
       'fact',
     );
   const durableMemoryIds = state
-    ? [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities]
+    ? [
+        ...state.goals,
+        ...state.plans,
+        ...state.actions,
+        ...state.responsibilities,
+        ...(state.episodeParticipations ?? []),
+      ]
         .flatMap((item) => item.sourceIds)
         .filter((id) => /^memory:[0-9a-f-]{36}$/i.test(id))
         .map((id) => id.slice(7))
@@ -230,7 +236,13 @@ export async function readPrivateAgentSnapshot(
       record.sourceIds.every((id) => !memories.blockedSources.has(id)),
   );
   const stateHandles = state
-    ? [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities]
+    ? [
+        ...state.goals,
+        ...state.plans,
+        ...state.actions,
+        ...state.responsibilities,
+        ...(state.episodeParticipations ?? []),
+      ]
         .flatMap((item) => item.sourceIds)
         .concat(
           (state.questions ?? []).flatMap((q) => [
@@ -327,7 +339,13 @@ export async function readPrivateAgentSnapshot(
   if (state) {
     const handles = [
       ...new Set(
-        [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities]
+        [
+          ...state.goals,
+          ...state.plans,
+          ...state.actions,
+          ...state.responsibilities,
+          ...(state.episodeParticipations ?? []),
+        ]
           .flatMap((item) => item.sourceIds)
           .concat(state.decisions.map((item) => item.sourceId))
           .concat(
