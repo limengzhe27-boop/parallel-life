@@ -93,3 +93,5 @@ services.advance在旧流程之前按DB epoch路由；epoch2仅收集统一人�
 热修0d6b4f36134aa5d21fdcd3c6b812b31e0d7c70b9 / dpl_eqFND27aWoRwxbE8T6sqLWZbk6Ro READY，Nu别名和精确SHA已核，公网health/workbench/published200、匿名works401。CI38722287488 check成功，DB641pass/18fail；相较1028失败名称无新增、移除11，不能称全绿。阶段三已补内部trigger权限清单，逐项断言无直接EXECUTE，不扩大权限。
 
 阶段三READY证据待实际追加。通用移动/撤回/观察与初始位置授权、共享事件生命周期、作者内容候选、注意力业务身份、等待保护、旧档迁移与旧执行路径删除继续登记；未通过全部连续旅程不标整体完成。
+
+阶段三已核实956a3a33 / dpl_2PSVNrvdf4ST8sEWJi8ybw3rAVwS READY、生产75/75、正式Nu别名，公网关键公开入口200/匿名作品401。阶段四接续见 [MA-ARCH-44-PHASE4-I](MA-ARCH-44-PHASE4-I.md)：真实手机入口围栏、只读查询、原任务保护结果恢复、导演slot恢复及最后人物认知来源过滤，仍属于同一统一架构，不标整体完成。

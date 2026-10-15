@@ -173,8 +173,8 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
               learnedAtLocal: awarenessLocalTime(k.learnedAt).localDateTime,
               // Preserve what was actually claimed (e.g. "last week"), not the
               // internal receipt pointer or an invented verified location.
-              ...(k.sourceKind === 'player_report' && k.evidence?.quote
-                ? { reportedQuote: k.evidence.quote }
+              ...(k.sourceKind === 'player_report' && k.reportedQuote
+                ? { reportedQuote: k.reportedQuote }
                 : {}),
               possiblyStale: true,
               sourceId: k.sourceId,

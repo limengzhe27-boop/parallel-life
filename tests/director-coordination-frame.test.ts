@@ -19,9 +19,9 @@ function snapshot(): DirectorSnapshot {
     schemaVersion: 1,
     worldId: 'w',
     engineEpoch: 2,
-    worldVersion: 0,
+    worldVersion: 2,
     storyAt: '2026-10-15T09:00:00Z',
-    observedThroughVersion: 0,
+    observedThroughVersion: 2,
     evaluatedThroughVersion: 0,
     boundary: {
       worldId: 'w',
@@ -45,7 +45,7 @@ test('idle ticks and evaluated bookkeeping do not purchase another director call
   const original = snapshot(),
     later = structuredClone(original);
   later.storyAt = '2026-10-15T09:59:59Z';
-  later.evaluatedThroughVersion = 0;
+  later.evaluatedThroughVersion = 2;
   assert.equal(directorCoordinationFrameHash(later), directorCoordinationFrameHash(original));
   later.storyAt = '2026-10-15T10:00:00Z';
   assert.notEqual(

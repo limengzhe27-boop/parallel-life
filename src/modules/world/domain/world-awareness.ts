@@ -330,6 +330,6 @@ export type AgentWorldContext = {
   };
   knowledge: (Omit<
     ActorPositionKnowledge,
-    'worldId' | 'observerActorId' | 'sourceEventId' | 'worldVersion'
-  > & { sourceId: string })[];
+    'worldId' | 'observerActorId' | 'sourceEventId' | 'worldVersion' | 'evidence'
+  > & { sourceId: string; reportedQuote?: string })[];
 };

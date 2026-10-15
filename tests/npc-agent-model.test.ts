@@ -347,10 +347,7 @@ test('code provides separate local occurrence and learning time plus the exact u
         learnedAt: '2026-10-15T07:40:00Z',
         possiblyStale: true,
         sourceId: 'source-1',
-        evidence: {
-          inputReceiptId: 'INTERNAL_RECEIPT_DO_NOT_SEND',
-          quote: '我上周在咖啡馆见过他。',
-        },
+        reportedQuote: '我上周在咖啡馆见过他。',
       },
     ],
   };

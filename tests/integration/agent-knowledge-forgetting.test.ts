@@ -48,7 +48,7 @@ const reply = () => ({
 });
 test('forgotten lineage cannot return through late knowledge or self-position attachment', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55503);
+  assert.equal(config.port, Number(process.env.AGENT_KNOWLEDGE_TEST_PORT ?? 55503));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(
@@ -210,6 +210,14 @@ test('forgotten lineage cannot return through late knowledge or self-position at
       const f = await fixture();
       const s = await privateSnapshot(f);
       assert.equal(s.worldContext?.knowledge[0]?.placeId, 'cafe');
+      assert.equal(s.worldContext?.knowledge[0]?.reportedQuote, '我在咖啡馆');
+      const visible = await modelPayload(s);
+      assert.equal(visible.worldContext.knowledge[0].reportedQuote, '我在咖啡馆');
+      assert.equal(
+        'evidence' in visible.worldContext.knowledge[0],
+        false,
+        'internal receipt pointers never enter the prompt',
+      );
       assert.equal(s.worldContext?.knowledge[0]?.sourceKind, 'player_report');
       assert.deepEqual(
         (await awareness.readActorAwareness(f.owner, f.world.id, f.b)).knowledge,

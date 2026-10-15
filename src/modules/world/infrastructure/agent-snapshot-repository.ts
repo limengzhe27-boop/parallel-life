@@ -490,6 +490,9 @@ export async function attachAgentWorldContext(
           occurredAt: k.occurredAt,
           learnedAt: k.learnedAt,
           possiblyStale: true,
+          ...(k.sourceKind === 'player_report' && k.evidence?.quote
+            ? { reportedQuote: k.evidence.quote }
+            : {}),
         }),
       });
       return {
@@ -501,6 +504,9 @@ export async function attachAgentWorldContext(
         learnedAt: k.learnedAt,
         possiblyStale: true as const,
         sourceId,
+        ...(k.sourceKind === 'player_report' && k.evidence?.quote
+          ? { reportedQuote: k.evidence.quote }
+          : {}),
       };
     });
   const own = awareness.ownPosition;

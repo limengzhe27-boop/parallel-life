@@ -237,3 +237,15 @@ flowchart TD
 - 现有clock mode支持阅读时1倍，但不是channel/thread/参与者绑定的业务attention身份。完整导演节奏启用前须补齐。
 
 阶段三的模拟返回和真实SQL验证接口、权限、原子性与恢复，不证明自然人物表现。完整连续旅程及新明确模型范围验收后才启用生产epoch2；不复用历史消费尚未核清的他线程16次/1存档授权。
+
+## 13. 同一运行时的实际入口与保护结果恢复
+
+阶段四沿用本方案的状态归属，不增加独立引擎。实际手机的开场 GET/POST、story GET、advance 和直接服务入口均先读取数据库 epoch；epoch2 不再初始化旧剧情或开场 ledger，没有候选也不伪称完成。非消息动作确实改变世界时，返回 changed/worldVersion 供真实手机刷新。
+
+群聊、现场已生成结果的恢复沿用原 taskId、child command、accepted input、actor/world 版本与保护 snapshot/raw。明确重试在原事务检查来源和执行权限，追加不可变恢复回执，轮换人物执行 token/租约并重排原任务；实际 worker 不再创建模型。SQL 0076 保护不可变身份、已保存响应及恢复回执；旧 task lease 与旧 actor token 均被围栏拒绝。unknown 不自动重发；事实或权限已经变化则保留结果并标 stale，任务返回 conflict。
+
+导演实际 advance 入口在新 claim 前处理原 world slot。同语义 frame 恢复原结果，实际 frame 变化才标 stale；未知调用仍阻断。新 command 的身份由真实语义 frame 和有来源的时间条件跨界确定，普通时间滴答与 evaluated 记账不能触发新付费。已知过期结果即使变更 command 命名也不能靠重复空闲检查再购买。
+
+最后附加人物知识之前重新过滤 forgotten 原消息、event、input 及渠道别名。别名图只用于保守抑制，不增加读取权限；自身位置证据撤销则为未知，不能从地图目录重建。代码转换发生/获知/期限的当地时间；未核实告知保留原话，不带数据库输入回执指针，也不冒充世界实际位置。
+
+阶段四证据与余项见 [实施报告](../task-reports/MA-ARCH-44-PHASE4-I.md)。作者开场/事件首次候选、情节实际进展、通用行动、业务 attention、旧同步调用切换屏障及旧档迁移仍须完成；未通过连续旅程前不启用生产新引擎。
