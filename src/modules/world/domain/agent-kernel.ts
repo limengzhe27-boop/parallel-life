@@ -14,6 +14,68 @@ export type AgentValidationContext = {
   input: { sourceId: string; text: string; origin: 'player' | 'wake' | 'coordination' };
   channel: { kind: 'private' | 'group' | 'scene'; threadId: string; allowedCapabilities: string[] };
 };
+/** Produce a model view without deleting or rewriting the authoritative execution state. */
+export function authorizedAgentState(
+  state: ActorAgentState,
+  permittedSources: ReadonlySet<string>,
+): { viewState: ActorAgentState; redactedStateIds: string[] } {
+  const viewState = structuredClone(state);
+  const based = (item: { sourceIds: string[] }) =>
+    item.sourceIds.every((id) => permittedSources.has(id));
+  viewState.goals = viewState.goals.filter(based);
+  const goals = new Set(viewState.goals.map((item) => item.id));
+  viewState.responsibilities = viewState.responsibilities.filter(
+    (item) => based(item) && (!item.deadline || permittedSources.has(item.deadline.sourceId)),
+  );
+  const responsibilities = new Set(viewState.responsibilities.map((item) => item.id));
+  viewState.actions = viewState.actions.filter(
+    (item) =>
+      based(item) &&
+      goals.has(item.goalId) &&
+      item.handlesResponsibilityIds.every((id) => responsibilities.has(id)),
+  );
+  let count = -1;
+  while (count !== viewState.actions.length) {
+    count = viewState.actions.length;
+    const actions = new Set(viewState.actions.map((item) => item.id));
+    viewState.actions = viewState.actions.filter((item) =>
+      item.dependsOnActionIds.every((id) => actions.has(id)),
+    );
+  }
+  const actions = new Set(viewState.actions.map((item) => item.id));
+  const conditions = (items: import('./agent-runtime.ts').AgentCondition[]) =>
+    items.every((item) =>
+      item.kind === 'result'
+        ? actions.has(item.actionId)
+        : item.kind === 'player_decision'
+          ? responsibilities.has(item.responsibilityId)
+          : item.kind === 'at_place' || permittedSources.has(item.sourceId),
+    );
+  viewState.actions = viewState.actions.filter((item) => conditions(item.preconditions));
+  viewState.plans = viewState.plans.filter(
+    (item) =>
+      based(item) &&
+      goals.has(item.goalId) &&
+      item.actionIds.every((id) => viewState.actions.some((action) => action.id === id)) &&
+      conditions(item.triggers),
+  );
+  viewState.decisions = viewState.decisions.filter(
+    (item) => permittedSources.has(item.sourceId) && responsibilities.has(item.responsibilityId),
+  );
+  viewState.knowledgeSourceIds = viewState.knowledgeSourceIds.filter((id) =>
+    permittedSources.has(id),
+  );
+  if (viewState.focus?.questionSourceId && !permittedSources.has(viewState.focus.questionSourceId))
+    viewState.focus = null;
+  const redactedStateIds: string[] = [];
+  for (const key of ['goals', 'plans', 'actions', 'responsibilities', 'decisions'] as const) {
+    const visible = new Set(viewState[key].map((item) => item.id));
+    redactedStateIds.push(
+      ...state[key].filter((item) => !visible.has(item.id)).map((item) => item.id),
+    );
+  }
+  return { viewState, redactedStateIds };
+}
 export class AgentValidationError extends Error {
   readonly code = 'INVALID_AGENT_PROPOSAL';
   readonly reason: string;
@@ -28,12 +90,52 @@ const reject = (reason: string): never => {
 const requireValid = (ok: unknown, reason: string): void => {
   if (!ok) reject(reason);
 };
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) || Array.isArray(b))
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((value, index) => sameValue(value, b[index]))
+    );
+  const ak = Object.keys(a).sort(),
+    bk = Object.keys(b).sort();
+  return (
+    ak.length === bk.length &&
+    ak.every(
+      (key, index) =>
+        key === bk[index] &&
+        sameValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+    )
+  );
+}
 
 export function validateAgentProposal(
   context: AgentValidationContext,
   proposal: AgentProposal,
 ): void {
   const state = context.viewState ?? context.state;
+  if (context.viewState) {
+    requireValid(
+      state.worldId === context.state.worldId &&
+        state.actorId === context.state.actorId &&
+        state.revision === context.state.revision &&
+        state.definitionRef === context.state.definitionRef,
+      'INVALID_AUTHORIZED_VIEW',
+    );
+    for (const key of ['goals', 'plans', 'actions', 'responsibilities', 'decisions'] as const) {
+      const allowed = new Set(state[key].map((item) => item.id));
+      const redacted = new Set(
+        context.state[key].filter((item) => !allowed.has(item.id)).map((item) => item.id),
+      );
+      requireValid(
+        proposal[key].every((item) => !redacted.has(item.id)),
+        'REDACTED_STATE_MUTATION',
+      );
+    }
+  }
   requireValid(state.projectedWorldVersion <= context.worldVersion, 'FUTURE_STATE');
   const sources = new Map(context.sources.map((source) => [source.id, source]));
   requireValid(sources.size === context.sources.length, 'DUPLICATE_SOURCE');
@@ -57,6 +159,15 @@ export function validateAgentProposal(
       requireValid(entry.sourceIds.length > 0, 'MISSING_BASIS');
       entry.sourceIds.forEach(hasSource);
     }
+  for (const key of ['goals', 'plans', 'actions', 'responsibilities'] as const)
+    for (const entry of proposal[key]) {
+      const old = state[key].find((item) => item.id === entry.id);
+      if (old)
+        requireValid(
+          old.sourceIds.every((id) => entry.sourceIds.includes(id)),
+          'SOURCE_HISTORY_IMMUTABLE',
+        );
+    }
   const goals = new Map([...state.goals, ...proposal.goals].map((goal) => [goal.id, goal]));
   const plans = new Map([...state.plans, ...proposal.plans].map((plan) => [plan.id, plan]));
   const actions = new Map(
@@ -78,7 +189,7 @@ export function validateAgentProposal(
   for (const goal of proposal.goals) {
     const old = state.goals.find((item) => item.id === goal.id);
     if (old && ['fulfilled', 'withdrawn'].includes(old.status))
-      requireValid(JSON.stringify(old) === JSON.stringify(goal), 'TERMINAL_GOAL');
+      requireValid(sameValue(old, goal), 'TERMINAL_GOAL');
     if (goal.status === 'fulfilled')
       requireValid(goal.resultIds.length > 0, 'GOAL_RESULT_REQUIRED');
     if (['withdrawn', 'fulfilled'].includes(goal.status))
@@ -151,10 +262,7 @@ export function validateAgentProposal(
         'RESPONSIBILITY_IDENTITY',
       );
     if (old && ['fulfilled', 'withdrawn', 'expired'].includes(old.status))
-      requireValid(
-        JSON.stringify(old) === JSON.stringify(responsibility),
-        'TERMINAL_RESPONSIBILITY',
-      );
+      requireValid(sameValue(old, responsibility), 'TERMINAL_RESPONSIBILITY');
     if (responsibility.deadline) {
       hasSource(responsibility.deadline.sourceId);
       requireValid(
@@ -183,10 +291,7 @@ export function validateAgentProposal(
     requireValid(context.input.text.includes(decision.quote), 'DECISION_QUOTE');
     requireValid(responsibilities.has(decision.responsibilityId), 'UNKNOWN_RESPONSIBILITY');
     const old = state.decisions.find((item) => item.id === decision.id);
-    requireValid(
-      !old || JSON.stringify(old) === JSON.stringify(decision),
-      'DECISION_HISTORY_IMMUTABLE',
-    );
+    requireValid(!old || sameValue(old, decision), 'DECISION_HISTORY_IMMUTABLE');
   }
   if (proposal.focus) {
     requireValid(

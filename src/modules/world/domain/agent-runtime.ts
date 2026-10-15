@@ -162,6 +162,8 @@ export type AgentInputReceipt = {
   recipientActorId: string | null;
   expectedWorldVersion: number;
   receivedAt: string;
+  /** Authoritative story instant when this input was accepted, independent of wall-clock receipt time. */
+  storyAt: string;
   origin: 'player' | 'wake' | 'coordination';
   text: string;
 };
