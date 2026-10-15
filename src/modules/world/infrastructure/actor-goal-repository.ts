@@ -130,7 +130,9 @@ async function generalGoals(
   for (const matter of context.matters ?? []) {
     const row = (
       await sql.query(
-        'SELECT document FROM parallel_life.world_matters WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+        `SELECT m AS document FROM parallel_life.worlds w
+         CROSS JOIN LATERAL jsonb_array_elements(coalesce(w.state->'matters','[]'::jsonb)) m
+         WHERE w.id=$1 AND w.owner_id=$2 AND m->>'id'=$3`,
         [context.worldId, ownerId, matter.id],
       )
     ).rows[0]?.document;
