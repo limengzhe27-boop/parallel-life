@@ -2,6 +2,15 @@ import type { AuthoredAgentMaterial } from './authored-agent-material.ts';
 
 export const ACTOR_EPISODE_INTENT_PREFIX = 'episode-intent:';
 
+export function isActorEpisodeConsiderationInput(input: { origin: string; text: string }) {
+  if (input.origin !== 'coordination') return false;
+  try {
+    return JSON.parse(input.text)?.type === 'npc_episode_consideration';
+  } catch {
+    return false;
+  }
+}
+
 /** An author's explicit instruction to this actor, never evidence that it happened. */
 export type ActorEpisodeDirective =
   | { kind: 'message_suggestion'; text: string }

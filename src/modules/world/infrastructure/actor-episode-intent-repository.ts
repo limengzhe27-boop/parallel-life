@@ -8,6 +8,7 @@ import type { WorldState } from '../domain/types.ts';
 import { authoredMaterialCanonicalJson } from '../domain/authored-agent-material.ts';
 import {
   ACTOR_EPISODE_INTENT_PREFIX,
+  isActorEpisodeConsiderationInput,
   projectActorEpisodeDirective,
 } from '../domain/actor-episode-intent.ts';
 import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
@@ -161,19 +162,31 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
   const sources = snapshot.sources.filter((source) =>
     source.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX),
   );
-  if (!sources.length) return;
+  const incoming = isActorEpisodeConsiderationInput(snapshot.input)
+    ? parseEpisodeConsiderationIntent(snapshot.input.text)
+    : null;
+  if (!sources.length && !incoming) return;
   const frame = {
     worldId: snapshot.state.worldId,
     actorId: snapshot.state.actorId,
     worldVersion: snapshot.worldVersion,
     storyAt: snapshot.storyAt,
   };
-  const views = await readActorEpisodeIntentsInTransaction(
-    sql,
-    ownerId,
-    frame,
-    sources.map((source) => source.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length)),
-  );
+  const views = await readActorEpisodeIntentsInTransaction(sql, ownerId, frame, [
+    ...sources.map((source) => source.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length)),
+    ...(incoming ? [incoming.requestId] : []),
+  ]);
+  if (incoming) {
+    if (snapshot.channel.kind !== 'private' || !views.has(incoming.requestId)) return conflict();
+    const expected = views.get(incoming.requestId);
+    if (
+      expected &&
+      !sources.some(
+        (source) => source.id === expected.source.id && source.usage !== 'private_strategy',
+      )
+    )
+      return conflict();
+  }
   for (const source of sources) {
     const id = source.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length);
     const view = views.get(id);

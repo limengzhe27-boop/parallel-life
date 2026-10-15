@@ -1,18 +1,10 @@
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
-import type { AgentInputReceipt } from '../domain/agent-runtime.ts';
 import {
   readWorldAttentionInTransaction,
   type WorldAttention,
 } from './world-attention-repository.ts';
 
-export function isEpisodeConsiderationInput(input: Pick<AgentInputReceipt, 'origin' | 'text'>) {
-  if (input.origin !== 'coordination') return false;
-  try {
-    return JSON.parse(input.text)?.type === 'npc_episode_consideration';
-  } catch {
-    return false;
-  }
-}
+export { isActorEpisodeConsiderationInput as isEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
 export function episodeAttentionAllows(attention: WorldAttention, actorId: string) {
   return (
     !attention.conversationWithoutTarget &&

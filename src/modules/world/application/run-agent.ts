@@ -1,5 +1,8 @@
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
-import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
+import {
+  ACTOR_EPISODE_INTENT_PREFIX,
+  isActorEpisodeConsiderationInput,
+} from '../domain/actor-episode-intent.ts';
 import type {
   AgentAttemptStore,
   AgentKernel,
@@ -70,6 +73,7 @@ export async function runNpcAgent(
     }
     try {
       if (
+        isActorEpisodeConsiderationInput(executionSnapshot.input) ||
         executionSnapshot.sources.some((source) =>
           source.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX),
         )
