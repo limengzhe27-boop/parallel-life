@@ -1,4 +1,10 @@
-## 2026-10-16 · 44-75 普通人物暂停保护与原身份续接待部署
+## 2026-10-16 · 44-77 邀约地点承接待部署
+
+原NPC邀请可选已有地点；同事件保存日历与地图关联、可重放，不当作已接受、移动、出席或目标完成。未知/隐藏地点失败不创建，依赖台词过滤。check2964/build/类型/格式、关联实际PG61、D78及根集成专项11分别通过。2026-10-15T19:37:28.502Z生产只读82/82 checksum和保护数据一致，epoch2=0；0真实模型/生产测试存档/图片，无新SQL。READY及公网证据待实际追加，见[77报告](task-reports/44-77-APPOINTMENT-VENUE-I.md)。
+
+## 2026-10-16 · 44-75 普通人物暂停保护与原身份续接已上线
+
+限定业务f73858b00e7fdcc247031e7d4802ed4110a2c4bf / dpl_HyJ5PRNRBXJ8Cv9jeR3pyhDVBfPa READY，精确SHA与Nu正式别名核实。2026-10-15T19:28:11.700Z公网health/workbench/published200，匿名publications/publisherworks401。下面“待追加”为发布过程记录，完整新架构仍未启用。
 
 原NPC request_sent、kernel末尾核活动；确认零发送取消以SQL82不可变凭据续接原attempt/command/input，原native task恢复不新建task。paid/unknown保持保护。check2964/build/类型/格式通过，最终实际PG33及独立专项12分别通过，未作累加。2026-10-15T19:24:09.430Z生产82/82 checksum、RLS/FORCE和guard权限核验，保护数据不变、epoch2=0。0真实模型/生产测试世界/图片。READY及公网证据待追加，详见[75报告](task-reports/44-75-NPC-ACTIVITY-ZERO-SEND-I.md)。完整架构仍未启用。
 

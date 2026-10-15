@@ -25,3 +25,5 @@ codex-root-ma-arch44-i 为唯一源码、SQL82、集成与发布负责人。沿�
 最终根check2964/2964、build、类型、格式/diff通过；D76实际12/12，根集成后再次12/12过；最终源原任务恢复/advance/kernel33/33通过，首批101另记，不累加当作独立测试数。C对97的零attempt、历史角色、权限与unknown边界只读复核无新增问题。
 
 2026-10-15T19:24:09.430Z生产82/82逐项checksum核验，0082为5897a38865261c6415a813523c6507f9ac42197bae23b5af59b6c0d682231769。两表RLS+FORCE、app只读插入不可UPDATE、worker不可读，guard为invoker且app/worker无直接EXECUTE。保护原稿/副本/玩家world未变、生产epoch2=0。READY及公网证据待实际追加。
+
+限定交付已上线：f73858b00e7fdcc247031e7d4802ed4110a2c4bf / dpl_HyJ5PRNRBXJ8Cv9jeR3pyhDVBfPa READY，精确SHA与Nu正式别名核实。2026-10-15T19:28:11.700Z公网health/workbench/published200，匿名publications/publisherworks401。本批没有新浏览器会话，不将匿名状态检查称作真实手机完整旅程。
