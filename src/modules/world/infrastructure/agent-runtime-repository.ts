@@ -269,7 +269,7 @@ export async function acceptAgentInputInTransaction(
   return { receipt: input, replay: false };
 }
 /** Receipt scope is authoritative; membership must cover both acceptance and execution. */
-async function requireInputAuthority(
+export async function requireInputAuthority(
   sql: SqlClient,
   ownerId: string,
   receipt: AgentInputReceipt,

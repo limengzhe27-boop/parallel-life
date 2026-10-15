@@ -1,4 +1,6 @@
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { nativeAgentCommandId } from '../modules/world/infrastructure/agent-native-ids.ts';
+export { nativeAgentCommandId } from '../modules/world/infrastructure/agent-native-ids.ts';
 import type { TextModel } from '../modules/ai/application/ports.ts';
 import type { PostgresDatabase, SqlClient } from '../modules/storage/infrastructure/postgres.ts';
 import type { TaskLease } from '../modules/tasks/domain/types.ts';
@@ -24,14 +26,6 @@ import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { runNpcAgent } from '../modules/world/application/run-agent.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
-
-/** A deterministic UUID child command obeys the real world-event wire contract. */
-export function nativeAgentCommandId(taskId: string, actorId: string): string {
-  const hex = createHash('sha256')
-    .update(JSON.stringify(['npc-task', taskId, actorId]))
-    .digest('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-}
 
 /** No persona keywords or array-order fallback. Ambiguity goes to global coordination. */
 export function nativeResponder(input: {
@@ -315,7 +309,11 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       await runNpcAgent(
         {
           attempts: store,
-          model: new NpcAgentModel(modelFactory()),
+          // A protected completion needs no gateway credentials or model construction.
+          model: {
+            validateInput: (s) => new NpcAgentModel(modelFactory()).validateInput(s),
+            decide: (s, abort) => new NpcAgentModel(modelFactory()).decide(s, abort),
+          },
           kernel: new PostgresNpcAgentKernel(scoped, worlds, (sql, result) =>
             finishNativeAgentTask(sql, lease.ownerId, lease, result.attempt, result.eventId),
           ),

@@ -73,6 +73,7 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
       'agent_epoch_monotonic',
       'agent_native_group_finish_guard',
       'agent_runtime_immutable',
+      'agent_attempt_identity_fence',
       'guard_agent_world_epoch',
       'guard_director_attempt',
       'guard_director_episode_origin',

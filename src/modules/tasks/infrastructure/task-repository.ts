@@ -75,8 +75,25 @@ export async function enqueue(
 }
 export class TaskRepository {
   private db: PostgresDatabase;
-  constructor(db: PostgresDatabase) {
+  private recoverWorldTask?: (
+    sql: SqlClient,
+    ownerId: string,
+    taskId: string,
+    commandId: string,
+  ) => Promise<Record<string, unknown> | null>;
+  constructor(
+    db: PostgresDatabase,
+    options: {
+      recoverWorldTask?: (
+        sql: SqlClient,
+        ownerId: string,
+        taskId: string,
+        commandId: string,
+      ) => Promise<Record<string, unknown> | null>;
+    } = {},
+  ) {
     this.db = db;
+    this.recoverWorldTask = options.recoverWorldTask;
   }
   async get(ownerId: string, id: string) {
     return this.db.transaction(ownerId, async (sql) => {
@@ -106,6 +123,12 @@ export class TaskRepository {
       const old = (await sql.query('SELECT * FROM parallel_life.tasks WHERE id=$1', [id])).rows[0];
       if (!old) throw new TaskError('NOT_FOUND');
       const hash = requestHash(['retry', id]);
+      // The world runtime owns recovery policy. Known NPC completions resume their
+      // original task; unknown paid calls must never fall through to enqueue().
+      if (this.recoverWorldTask) {
+        const restored = await this.recoverWorldTask(sql, ownerId, id, commandId);
+        if (restored) return publicTask(restored);
+      }
       const existing = (
         await sql.query('SELECT * FROM parallel_life.tasks WHERE owner_id=$1 AND command_id=$2', [
           ownerId,

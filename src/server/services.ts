@@ -54,6 +54,7 @@ import {
   callerBucket,
 } from '../modules/identity/infrastructure/guest-bucket.ts';
 import { TaskRepository } from '../modules/tasks/infrastructure/task-repository.ts';
+import { recoverAgentTaskInTransaction } from '../modules/world/infrastructure/agent-task-recovery.ts';
 import { InterviewRepository } from '../modules/profile/infrastructure/interview-repository.ts';
 import { ProfileRepository } from '../modules/profile/infrastructure/profile-repository.ts';
 import { AssetRepository } from '../modules/media/infrastructure/asset-repository.ts';
@@ -329,7 +330,7 @@ function createServices() {
     builds: new BuildRepository(db),
     scenes: new SceneRepository(db),
     worlds: new PostgresWorldRepository(db),
-    tasks: new TaskRepository(db),
+    tasks: new TaskRepository(db, { recoverWorldTask: recoverAgentTaskInTransaction }),
     interview: new InterviewRepository(
       db,
       new InterviewPhotoReader(
