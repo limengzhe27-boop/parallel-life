@@ -7,6 +7,7 @@ import { worldBoundary } from '../domain/world-awareness.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { DIRECTOR_SNAPSHOT_MAX_BYTES } from './director-runtime-repository.ts';
+import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
 
 export class DirectorSnapshotReadError extends Error {
   readonly code: string;
@@ -24,7 +25,7 @@ export type DirectorSnapshotReadInput = {
   worldVersion: number;
   candidates: DirectorSnapshot['candidates'];
   blockers: DirectorSnapshot['blockers'];
-  /** Only server-authorized business attention; never client DOM/last-message guesses. */
+  /** Optional expected-value assertion; persisted authorized leases remain the sole authority. */
   focus?: DirectorSnapshot['focus'];
   /** Trusted server/test wall clock. A future instant is rejected. */
   now?: string;
@@ -828,50 +829,14 @@ export class PostgresDirectorSnapshotRepository {
         )
           fail('DIRECTOR_BLOCKER_SCOPE');
       }
-      const focus = structuredClone(input.focus ?? []);
-      for (const f of focus) {
-        if (!f.threadId || !Array.isArray(f.actorIds) || f.actorIds.some((a) => !revisions.has(a)))
-          fail('DIRECTOR_ATTENTION_SCOPE');
-        if (f.channel === 'private') {
-          if (f.actorIds.length !== 1 || f.threadId !== f.actorIds[0])
-            fail('DIRECTOR_ATTENTION_SCOPE');
-        } else if (f.channel === 'group') {
-          const members = (
-            await sql.query(
-              `SELECT participant FROM parallel_life.world_group_memberships WHERE world_id=$1 AND owner_id=$2 AND group_id=$3 AND joined_version<=$4 AND (left_version IS NULL OR left_version>$4)`,
-              [h.world.id, owner, f.threadId, h.world.version],
-            )
-          ).rows.map((r) => r.participant);
-          if (
-            !members.some((p) => p.kind === 'player') ||
-            f.actorIds.some((a) => !members.some((p) => p.kind === 'actor' && p.actorId === a))
-          )
-            fail('DIRECTOR_ATTENTION_SCOPE');
-        } else if (f.channel === 'scene') {
-          const scene = (
-            await sql.query(
-              'SELECT document FROM parallel_life.scene_sessions WHERE world_id=$1 AND owner_id=$2 AND id=$3',
-              [h.world.id, owner, f.threadId],
-            )
-          ).rows[0]?.document;
-          const present = (p: any) =>
-            p.joinedVersion <= h.world.version &&
-            (p.leftVersion === undefined || p.leftVersion > h.world.version);
-          if (
-            !scene ||
-            scene.status !== 'active' ||
-            !scene.presence.some((p: any) => p.participant.kind === 'player' && present(p)) ||
-            f.actorIds.some(
-              (a) =>
-                !scene.presence.some(
-                  (p: any) =>
-                    p.participant.kind === 'actor' && p.participant.actorId === a && present(p),
-                ),
-            )
-          )
-            fail('DIRECTOR_ATTENTION_SCOPE');
-        } else fail('DIRECTOR_ATTENTION_SCOPE');
-      }
+      const attention = await readWorldAttentionInTransaction(sql, owner, {
+        worldId: h.world.id,
+        worldVersion: h.world.version,
+        ...(input.now ? { realNow: input.now } : {}),
+      });
+      const focus = attention.focus;
+      if (input.focus !== undefined && !isDeepStrictEqual(input.focus, focus))
+        fail('DIRECTOR_ATTENTION_SCOPE');
       const related = [
         ...new Set([
           ...input.candidates.flatMap((c) => c.sourceIds),
@@ -906,6 +871,7 @@ export class PostgresDirectorSnapshotRepository {
         changes,
         observations: sources.observations,
         focus,
+        conversationWithoutTarget: attention.conversationWithoutTarget,
       };
       if (
         Buffer.byteLength(JSON.stringify(snapshot), 'utf8') > DIRECTOR_SNAPSHOT_MAX_BYTES ||

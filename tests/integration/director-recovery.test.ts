@@ -8,6 +8,8 @@ import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postg
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
+import { PostgresClockActivityRepository } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
+import { PostgresGroupRepository } from '../../src/modules/world/infrastructure/group-repository.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import {
   PostgresDirectorRuntimeRepository,
@@ -366,10 +368,20 @@ test('director protected response recovery: actual world slot and native world c
     await t.test(
       `changed ${field} invalidates received raw without changing worldVersion`,
       async () => {
-        const f = await fixture(),
-          s = await snapshot(f);
+        const f = await fixture();
+        const group =
+          field === 'focus'
+            ? await new PostgresGroupRepository(db).create(f.owner, {
+                worldId: f.id,
+                expectedVersion: 0,
+                commandId: randomUUID(),
+                title: '真实注意力测试群',
+                actorIds: [f.a, f.b],
+              })
+            : null;
+        const s = await snapshot(f);
         await received(f, s);
-        const current = structuredClone(s);
+        let current = structuredClone(s);
         if (field === 'candidates')
           current.candidates.push({
             id: 'new-current-candidate',
@@ -395,9 +407,17 @@ test('director protected response recovery: actual world slot and native world c
             sourceId: 'current-blocker',
             reconsiderOn: [],
           });
-        else if (field === 'focus')
-          current.focus.push({ channel: 'private', threadId: f.a, actorIds: [f.a] });
-        else if (field === 'observations')
+        else if (field === 'focus') {
+          await new PostgresClockActivityRepository(db).update(f.owner, f.id, {
+            clientId: randomUUID(),
+            sequence: 1,
+            mode: 'conversation',
+            focus: { channel: 'group', threadId: group!.groupId },
+            resume: true,
+          });
+          current = await snapshot(f);
+          assert.equal(current.worldVersion, s.worldVersion);
+        } else if (field === 'observations')
           current.observations.push({
             sourceId: 'current-observation',
             text: 'A new trusted fictional observation',

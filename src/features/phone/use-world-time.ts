@@ -6,7 +6,7 @@ import { StoryWaitRequestSchema, type StoryWaitRequest } from '../../contracts/s
 import { projectStoryTime } from '../../modules/world/domain/clock.ts';
 import { readableActivityClock } from '../../modules/world/domain/clock-activity.ts';
 import { readRoute } from './navigation.ts';
-import { idleCheckDue, phoneTimeMode } from './time-experience-policy.ts';
+import { idleCheckDue, phoneTimeMode, phoneConversationFocus } from './time-experience-policy.ts';
 type Mode = ClockActivityRequest['mode'];
 const pageLeases = new Map<string, { clientId: string; sequence: number }>();
 type Session = {
@@ -40,6 +40,10 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
         clientId: s.clientId,
         sequence: ++s.sequence,
         mode,
+        focus:
+          mode === 'conversation'
+            ? phoneConversationFocus(readRoute(location.hash, worldId))
+            : null,
         ...(resume ? { resume: true } : {}),
       };
       pageLeases.set(worldId, { clientId: s.clientId, sequence: s.sequence });

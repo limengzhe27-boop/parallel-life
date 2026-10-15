@@ -30,6 +30,10 @@ export const ClockActivityRequestSchema = z.strictObject({
   clientId: Id,
   sequence: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   mode: z.enum(['browsing', 'conversation', 'away']),
+  focus: z
+    .strictObject({ channel: z.enum(['private', 'group', 'scene']), threadId: Id })
+    .nullable()
+    .optional(),
   resume: z.boolean().optional(),
 });
 export type ClockActivityRequest = z.infer<typeof ClockActivityRequestSchema>;

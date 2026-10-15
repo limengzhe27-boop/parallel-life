@@ -21,7 +21,10 @@ import {
   switchAgentEngineEpochInTransaction,
 } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
-import { PostgresDirectorRuntimeRepository } from '../../src/modules/world/infrastructure/director-runtime-repository.ts';
+import {
+  PostgresDirectorRuntimeRepository,
+  directorSnapshotInputHash,
+} from '../../src/modules/world/infrastructure/director-runtime-repository.ts';
 import { PostgresWorldAwarenessRepository } from '../../src/modules/world/infrastructure/world-awareness-repository.ts';
 import { agentDefinitionRef } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
 import { emptyActorAgentState } from '../../src/modules/world/domain/agent-runtime.ts';
@@ -586,6 +589,52 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
       statements: [{ text: '我先按自己的安排继续。', dependsOnActionIds: [action.id] }],
     };
   }
+  await t.test(
+    'an unknown director proposal blocks new coordination but cannot consume or freeze an independent actor plan',
+    async () => {
+      const f = await fixture({ plansA: 1 });
+      await materialChange(f);
+      const current = await worlds.get({ userId: f.owner }, f.id);
+      const snapshot = await new PostgresDirectorSnapshotRepository(db).read(f.owner, {
+        worldId: f.id,
+        engineEpoch: 2,
+        worldVersion: current.version,
+        candidates: [],
+        blockers: [],
+      });
+      const original = (
+        await directors.claim(
+          f.owner,
+          {
+            id: randomUUID(),
+            commandId: randomUUID(),
+            worldId: f.id,
+            engineEpoch: 2,
+            expectedWorldVersion: current.version,
+            inputHash: directorSnapshotInputHash(snapshot),
+            token: randomUUID(),
+            leaseUntil: new Date(Date.now() + 60000).toISOString(),
+          },
+          snapshot,
+        )
+      ).attempt;
+      await directors.mark(f.owner, original, 'request_sent');
+      await directors.mark(f.owner, { ...original, status: 'request_sent' }, 'unknown_after_send');
+      const h = harness(f, { realReader: true, npc: executeOwn });
+      const result = await h.service.advanceIfEnabled(f.owner, f.id);
+      assert.equal(result?.played, 1);
+      assert.equal(h.directorCalls().length, 0);
+      assert.equal(h.npcCalls().length, 1);
+      assert.equal(
+        (await directors.lookup(f.owner, f.id, original.commandId))!.status,
+        'unknown_after_send',
+      );
+      assert.equal(
+        (await store.read(f.owner, { worldId: f.id, actorId: f.a }))!.actions[0]!.status,
+        'succeeded',
+      );
+    },
+  );
   await t.test(
     'epoch1 returns null before any new model/reader/state execution; another owner stays isolated',
     async () => {

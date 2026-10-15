@@ -31,6 +31,8 @@ export type DirectorSnapshot = {
   }[];
   /** An open conversation is attention context, not proof of player decisions or location. */
   focus: { channel: 'private' | 'group' | 'scene'; threadId: string; actorIds: string[] }[];
+  /** A legacy/unscoped active conversation is still attention, not permission to guess its NPC. */
+  conversationWithoutTarget?: boolean;
 };
 export type DirectorOpportunity = {
   id: string;

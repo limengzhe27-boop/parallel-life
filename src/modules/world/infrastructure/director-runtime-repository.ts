@@ -19,6 +19,7 @@ import type { WorldState } from '../domain/types.ts';
 import { markDirectorEvaluated } from './world-awareness-repository.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
+import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
 
 export class DirectorRuntimePersistenceError extends Error {
   readonly code: string;
@@ -177,6 +178,7 @@ const Snapshot = z
     evaluatedThroughVersion: Int,
     boundary: Boundary,
     worldSetting: z.string().max(100000).optional(),
+    conversationWithoutTarget: z.boolean().optional(),
     cast: z
       .array(
         z
@@ -423,6 +425,17 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     ).rows[0];
     if (control?.engine_epoch !== s.engineEpoch || s.engineEpoch < 2) fail('ENGINE_EPOCH_CONFLICT');
     if (world.version !== s.worldVersion) fail('VERSION_CONFLICT');
+    if (s.conversationWithoutTarget !== undefined) {
+      const attention = await readWorldAttentionInTransaction(sql, owner, {
+        worldId: world.id,
+        worldVersion: world.version,
+      });
+      if (
+        !equal(attention.focus, s.focus) ||
+        attention.conversationWithoutTarget !== s.conversationWithoutTarget
+      )
+        fail('DIRECTOR_ATTENTION_CONFLICT');
+    }
     const clock = (
       await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
         world.id,

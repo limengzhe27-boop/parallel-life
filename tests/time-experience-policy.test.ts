@@ -1,9 +1,50 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { phoneTimeMode, idleCheckDue } from '../src/features/phone/time-experience-policy.ts';
+import {
+  phoneTimeMode,
+  idleCheckDue,
+  phoneConversationFocus,
+} from '../src/features/phone/time-experience-policy.ts';
 import { ClockActivityRequestSchema, WorldClockSchema } from '../src/contracts/world-clock.ts';
 import { StoryWaitRequestSchema, StoryWaitReceiptSchema } from '../src/contracts/story-wait.ts';
 const id = '12345678-1234-4234-8234-123456789012';
+test('business focus follows the actual opened thread and never guesses a person for unscoped activity', () => {
+  assert.deepEqual(phoneConversationFocus({ app: 'messages', target: id }), {
+    channel: 'private',
+    threadId: id,
+  });
+  assert.deepEqual(phoneConversationFocus({ app: 'messages', target: 'group:' + id }), {
+    channel: 'group',
+    threadId: id,
+  });
+  assert.deepEqual(phoneConversationFocus({ app: null, panel: 'scene', target: id }), {
+    channel: 'scene',
+    threadId: id,
+  });
+  for (const route of [
+    { app: 'messages' as const },
+    { app: 'moments' as const, target: id },
+    { app: null },
+    { app: 'messages' as const, target: 'not-a-thread' },
+  ])
+    assert.equal(phoneConversationFocus(route), null);
+  assert(
+    ClockActivityRequestSchema.safeParse({
+      clientId: id,
+      sequence: 1,
+      mode: 'conversation',
+      focus: { channel: 'private', threadId: id },
+    }).success,
+  );
+  assert(
+    !ClockActivityRequestSchema.safeParse({
+      clientId: id,
+      sequence: 1,
+      mode: 'conversation',
+      focus: { channel: 'private', threadId: id, actorIds: [id] },
+    }).success,
+  );
+});
 test('open private/group dialogue and scenes stay slow while reading, and leaving restores browsing', () => {
   assert.equal(phoneTimeMode(false, { app: 'messages', target: 'actor-a' }), 'conversation');
   assert.equal(phoneTimeMode(false, { app: 'messages', target: 'group:group-a' }), 'conversation');

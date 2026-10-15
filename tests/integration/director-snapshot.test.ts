@@ -14,6 +14,8 @@ import {
 import { authorizeWorldCommandInTransaction } from '../../src/modules/world/infrastructure/world-command-uow.ts';
 import { projectCommittedWorldAwareness } from '../../src/modules/world/infrastructure/world-awareness-repository.ts';
 import { PostgresGroupRepository } from '../../src/modules/world/infrastructure/group-repository.ts';
+import { PostgresClockActivityRepository } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
+import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import {
   PostgresDirectorRuntimeRepository,
@@ -562,10 +564,25 @@ test('real director snapshot is one coherent readonly fictional-world view with 
     async () => {
       const f = await fixture();
       assert.deepEqual((await repo.read(f.owner, input(f))).focus, []);
+      const now = new Date().toISOString(),
+        clientId = randomUUID();
+      await new PostgresClockActivityRepository(app).update(
+        f.owner,
+        f.worldId,
+        {
+          clientId,
+          sequence: 1,
+          mode: 'conversation',
+          focus: { channel: 'private', threadId: f.a },
+          resume: true,
+        },
+        now,
+      );
       assert.deepEqual(
         (
           await repo.read(f.owner, {
             ...input(f),
+            now,
             focus: [{ channel: 'private', threadId: f.a, actorIds: [f.a] }],
           })
         ).focus,
@@ -585,6 +602,81 @@ test('real director snapshot is one coherent readonly fictional-world view with 
         }),
         /ATTENTION_SCOPE/,
       );
+    },
+  );
+  await t.test(
+    'real attention changes while a director response is pending fence its late result without losing raw or paying again',
+    async () => {
+      const f = await fixture(),
+        activity = new PostgresClockActivityRepository(app),
+        clientId = randomUUID();
+      await activity.update(f.owner, f.worldId, {
+        clientId,
+        sequence: 1,
+        mode: 'conversation',
+        focus: { channel: 'private', threadId: f.a },
+        resume: true,
+      });
+      const s = await repo.read(f.owner, input(f)),
+        store = new PostgresDirectorRuntimeRepository(app);
+      let a = (
+        await store.claim(
+          f.owner,
+          {
+            id: randomUUID(),
+            commandId: randomUUID(),
+            worldId: f.worldId,
+            engineEpoch: 2,
+            expectedWorldVersion: 0,
+            inputHash: directorSnapshotInputHash(s),
+            token: randomUUID(),
+            leaseUntil: new Date(Date.now() + 60000).toISOString(),
+          },
+          s,
+        )
+      ).attempt;
+      a = await store.mark(f.owner, a, 'request_sent');
+      const raw = {
+        mode: 'quiet',
+        selectedCandidateIds: [],
+        deferred: [],
+        nudges: [],
+        opportunities: [],
+        audit: { reason: '合成安静决定', basisSourceIds: [] },
+      };
+      a = await store.saveResponse(f.owner, a, raw);
+      await activity.update(f.owner, f.worldId, { clientId, sequence: 2, mode: 'browsing' });
+      await assert.rejects(
+        runDirectorAgent(
+          {
+            attempts: store,
+            model: {
+              async decide() {
+                throw Error('MUST_NOT_REPAY');
+              },
+            },
+            parse: (snapshot, _raw, attempt) => ({
+              ...raw,
+              schemaVersion: 1,
+              id: randomUUID(),
+              worldId: f.worldId,
+              engineEpoch: 2,
+              worldVersion: snapshot.worldVersion,
+              inputHash: attempt.inputHash,
+              evaluatedThroughVersion: snapshot.observedThroughVersion,
+              mode: 'quiet' as const,
+            }),
+          },
+          f.owner,
+          a,
+          s,
+        ),
+        /DIRECTOR_ATTENTION_CONFLICT/,
+      );
+      const stale = (await store.lookup(f.owner, f.worldId, a.commandId))!;
+      assert.equal(stale.status, 'stale_discarded');
+      assert.equal((await store.readCompletion(f.owner, stale)).found, true);
+      assert.equal((await repo.read(f.owner, input(f))).focus.length, 0);
     },
   );
   await t.test(

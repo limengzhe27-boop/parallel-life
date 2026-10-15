@@ -9,7 +9,10 @@ import type {
   ActorAgentState,
 } from '../modules/world/domain/agent-runtime.ts';
 import type { ActorNudge } from '../modules/world/application/agent-runtime-ports.ts';
-import type { DirectorSnapshot } from '../modules/world/domain/director-runtime.ts';
+import type {
+  DirectorSnapshot,
+  DirectorDecision,
+} from '../modules/world/domain/director-runtime.ts';
 import type { AdvanceResult } from '../modules/world/application/advance-world.ts';
 import { DomainError } from '../modules/world/domain/errors.ts';
 import { projectStoryTime } from '../modules/world/domain/clock.ts';
@@ -306,9 +309,13 @@ export function npcAgentAdvanceServices(
         if (recovery.status === 'blocked')
           throw Object.assign(Error('DIRECTOR_ATTEMPT_PENDING'), {
             code: recovery.attempt.status === 'unknown_after_send' ? 'UNKNOWN' : 'BUSY',
+            directorCoordinationPending: true,
           });
         if (recovery.status === 'stale' && recovery.reason === 'lease_expired')
-          throw Object.assign(Error('DIRECTOR_KNOWN_RESULT_EXPIRED'), { code: 'VERSION_CONFLICT' });
+          throw Object.assign(Error('DIRECTOR_KNOWN_RESULT_EXPIRED'), {
+            code: 'VERSION_CONFLICT',
+            directorCoordinationPending: true,
+          });
         const commandId = agentWakeCommandId(worldId, directorCoordinationFrameHash(snapshot));
         const previous = await directors.lookup(ownerId, worldId, commandId);
         if (previous?.status === 'committed' && previous.decisionId) {
@@ -369,13 +376,28 @@ export function npcAgentAdvanceServices(
       // A material global change can warrant coordination even without competing candidates.
       // It does not require another director call after every ordinary chat, nor force a message.
       if (!coordinated && observed.needsEvaluation) {
-        const decision = await coordinate(
-          scheduled.snapshot.candidates.filter(
-            (candidate) =>
-              !scheduled.blocked.some((blocked) => blocked.candidate.id === candidate.id),
-          ),
-          scheduled.snapshot.blockers,
-        );
+        let decision: DirectorDecision;
+        try {
+          decision = await coordinate(
+            scheduled.snapshot.candidates.filter(
+              (candidate) =>
+                !scheduled.blocked.some((blocked) => blocked.candidate.id === candidate.id),
+            ),
+            scheduled.snapshot.blockers,
+          );
+        } catch (error) {
+          // A director has only proposed, never executed, changes. Its pending
+          // paid result fences further coordination, not a separately qualified
+          // actor-only action with no competing actor or shared-resource choice.
+          const independent = scheduled.selected[0];
+          if (
+            (error as { directorCoordinationPending?: boolean }).directorCoordinationPending &&
+            independent &&
+            !independent.candidate.requiresCoordination
+          )
+            return execute(independent.candidate, independent.guidance);
+          throw error;
+        }
         if (!decision.selectedCandidateIds.length) return quiet(storyAt);
         const chosen = decision.selectedCandidateIds[0];
         const selected = scheduled.snapshot.candidates.find((c) => c.id === chosen);
