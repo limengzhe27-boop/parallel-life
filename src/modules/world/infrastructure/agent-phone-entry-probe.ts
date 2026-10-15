@@ -83,7 +83,7 @@ export async function readAgentPhoneEntryProbe(
   if (next) return ready('episode', next.commandId);
   const pendingDirectors = (
     await sql.query(
-      `SELECT id,status,expected_world_version FROM parallel_life.director_runtime_attempts
+      `SELECT id,status,expected_world_version,lease_until FROM parallel_life.director_runtime_attempts
     WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3
       AND status IN ('reserved','request_sent','response_received','unknown_after_send') ORDER BY created_at,id`,
       [frame.worldId, ownerId, frame.engineEpoch],
@@ -91,7 +91,10 @@ export async function readAgentPhoneEntryProbe(
   ).rows;
   if (pendingDirectors.length) {
     const received = pendingDirectors.find(
-      (a) => a.status === 'response_received' && a.expected_world_version === frame.worldVersion,
+      (a) =>
+        a.status === 'response_received' &&
+        a.expected_world_version === frame.worldVersion &&
+        new Date(a.lease_until).getTime() > now,
     );
     return received ? ready('director_raw', received.id) : { status: 'pending' };
   }
