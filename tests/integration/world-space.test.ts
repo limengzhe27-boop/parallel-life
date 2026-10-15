@@ -344,23 +344,17 @@ test('atomic sourced spatial commands against real owner-RLS PostgreSQL', async 
         const replayed = replayWorldHistory(initial, events).world,
           world = await worlds.get({ userId: owner }, worldId);
         assert.deepEqual(replayed.space, world.space);
-        const departure = world.facts.find((f) => f.sourceEventId === arrived.sourceEventId)!;
-        assert.ok(departure);
-        assert.deepEqual(
-          replayed.facts.find((f) => f.id === departure.id),
-          departure,
-        );
-        assert.ok(!departure.text.includes(arrived.destinationLabel));
-        assert.deepEqual(departure.visibility, { kind: 'actors', actorIds: [actor.id] });
-        assert.ok(departure.departure);
-        assert.equal(departure.departure.fromPlaceName, arrived.fromLabel);
-        assert.equal(departure.departure.eventVersion, arrived.version);
+        // Coarse location and scene membership do not prove sight of departure.
+        const departureFacts = world.facts.filter((f) => f.sourceEventId === arrived.sourceEventId);
+        assert.deepEqual(departureFacts, []);
+        assert.deepEqual(replayed.facts, world.facts);
+        const travel = events.find((e) => e.id === arrived.sourceEventId)!;
+        assert.equal('departureObservation' in travel.data, false);
         const agenda = buildAgenda(world);
         const observerThread = agenda.find(
           (t) => t.kind === 'departure_inquiry' && t.actorId === actor.id,
         );
-        assert.ok(observerThread, 'Observer receives departure_inquiry');
-        assert.match(observerThread.detail, /绝不能假装知道目的地/);
+        assert.equal(observerThread, undefined, 'Membership must not create a witnessed inquiry');
         for (const otherActor of world.actors.filter((a) => a.id !== actor.id)) {
           assert.ok(
             !agenda.some((t) => t.kind === 'departure_inquiry' && t.actorId === otherActor.id),
