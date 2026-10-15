@@ -962,6 +962,56 @@ test('actual bound author intents reach only their actor through protected NPC d
       assert.equal(paid, 1);
     },
   );
+  for (const prior of ['consumed', 'paid_invalid'] as const)
+    await t.test(
+      `${prior} request cannot be renamed to buy another author-intent response`,
+      async () => {
+        const f = await fixture(),
+          es = await Promise.all([execution(f, 0), execution(f, 1)]),
+          first = es.find((e) => e.snapshot.sources.some((s) => s.id === e.source))!,
+          index = f.requests.findIndex((r) => r.id === first.r.id);
+        let paid = 0;
+        if (prior === 'consumed')
+          await run(f, first, async () => {
+            paid++;
+            return JSON.stringify(first.proposal);
+          });
+        else
+          await assert.rejects(
+            run(f, first, async () => {
+              paid++;
+              return 'EXPLICIT_LOCAL_INVALID_JSON';
+            }),
+            code('INVALID_AGENT_PROPOSAL'),
+          );
+        const original = await attempt(f, first);
+        assert.ok(original.sent_at);
+        assert.ok(original.response_hash);
+        assert.equal(original.status, prior === 'consumed' ? 'committed' : 'invalid_output');
+        const row = (
+          await admin.query(
+            'SELECT status,input_receipt_id FROM parallel_life.agent_episode_requests WHERE world_id=$1 AND id=$2',
+            [f.id, first.r.id],
+          )
+        ).rows[0];
+        assert.equal(row.status, prior === 'consumed' ? 'consumed' : 'pending');
+        const renamed = await execution(f, index),
+          before = await counts(f);
+        await assert.rejects(
+          run(f, renamed, async () => {
+            paid++;
+            return JSON.stringify(renamed.proposal);
+          }),
+          code('INPUT_SCOPE_FORBIDDEN'),
+        );
+        assert.equal(paid, 1);
+        const denied = await attempt(f, renamed);
+        assert.equal(denied.sent_at, null);
+        assert.equal(denied.response_hash, null);
+        assert.deepEqual(await counts(f), before);
+        assert.equal((await attempt(f, first)).response_hash, original.response_hash);
+      },
+    );
   await t.test(
     'late actual SQL receipt failure rolls back everything and recovers saved raw without second model request',
     async () => {
