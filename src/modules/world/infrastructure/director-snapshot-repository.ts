@@ -8,6 +8,7 @@ import { projectStoryTime } from '../domain/clock.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { DIRECTOR_SNAPSHOT_MAX_BYTES } from './director-runtime-repository.ts';
 import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
+import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
 
 export class DirectorSnapshotReadError extends Error {
   readonly code: string;
@@ -853,6 +854,12 @@ export class PostgresDirectorSnapshotRepository {
           if (resolved && !resolved.knownByActorIds.includes(candidate.actorId))
             fail('DIRECTOR_CANDIDATE_SOURCE_FORBIDDEN');
         }
+      const authored = await readAuthoredAgentMaterialCatalog(sql, owner, {
+        worldId: h.world.id,
+        expectedEngineEpoch: h.epoch,
+        expectedWorldVersion: h.world.version,
+      });
+      if (authored.status !== 'complete') fail('DIRECTOR_AUTHORED_MATERIAL_BUDGET');
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         worldId: h.world.id,
@@ -863,6 +870,7 @@ export class PostgresDirectorSnapshotRepository {
         evaluatedThroughVersion: h.evaluated,
         boundary: h.boundary,
         worldSetting: sources.worldSetting,
+        ...(authored.catalog.source ? { authoredMaterials: authored.catalog } : {}),
         cast: normalizedCast(h.world),
         actorStates: states,
         episodes,

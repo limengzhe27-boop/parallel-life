@@ -308,7 +308,7 @@ test('at most two finite opportunities; quiet/coordinate cannot quietly introduc
   });
   rejected(f, { ...f.quiet, nudges: f.coordinate.nudges });
 });
-test('unconnected authoredEventKey is refused; only an actually offered authored candidate can reference its key', () => {
+test('an actor authored candidate cannot substitute for a verified global authored catalogue', () => {
   const f = fixture(),
     raw = { ...f.bounded, opportunities: [{ ...f.opportunity, authoredEventKey: 'authored-key' }] };
   rejected(f, raw);
@@ -318,14 +318,10 @@ test('unconnected authoredEventKey is refused; only an actually offered authored
     source: 'authored_event',
     episodeId: 'authored-key',
   });
-  const linked = {
+  rejected(f, {
     ...raw,
     deferred: [...f.quiet.deferred, { candidateId: 'authored-candidate', reason: '待编排' }],
-  };
-  assert.equal(f.parse(linked).opportunities[0]!.authoredEventKey, 'authored-key');
-  f.snapshot.candidates.at(-1)!.source = 'conversation';
-  rejected(f, linked);
-  // This synthetic parser test proves linkage only, not an integrated authored-event collector.
+  });
 });
 test('decision metadata comes from the protected attempt/snapshot and cannot be injected in model JSON', () => {
   const f = fixture();

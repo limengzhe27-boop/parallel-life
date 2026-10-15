@@ -20,6 +20,8 @@ import { markDirectorEvaluated } from './world-awareness-repository.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 import { storedActivityClock } from './clock-activity-repository.ts';
 import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
+import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
+import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
 export class DirectorRuntimePersistenceError extends Error {
   readonly code: string;
@@ -178,6 +180,16 @@ const Snapshot = z
     evaluatedThroughVersion: Int,
     boundary: Boundary,
     worldSetting: z.string().max(100000).optional(),
+    authoredMaterials: z
+      .custom<NonNullable<DirectorSnapshot['authoredMaterials']>>((v) => {
+        try {
+          projectAuthoredDirectorModelView(v as NonNullable<DirectorSnapshot['authoredMaterials']>);
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .optional(),
     conversationWithoutTarget: z.boolean().optional(),
     cast: z
       .array(
@@ -425,6 +437,16 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     ).rows[0];
     if (control?.engine_epoch !== s.engineEpoch || s.engineEpoch < 2) fail('ENGINE_EPOCH_CONFLICT');
     if (world.version !== s.worldVersion) fail('VERSION_CONFLICT');
+    const authored = await readAuthoredAgentMaterialCatalog(sql, owner, {
+      worldId: world.id,
+      expectedEngineEpoch: s.engineEpoch,
+      expectedWorldVersion: s.worldVersion,
+    });
+    if (authored.status !== 'complete')
+      fail(initialize ? 'DIRECTOR_AUTHORED_MATERIAL_BUDGET' : 'DIRECTOR_AUTHORED_SOURCE_CONFLICT');
+    const actualMaterials = authored.catalog.source ? authored.catalog : undefined;
+    if (!equal(actualMaterials ?? null, s.authoredMaterials ?? null))
+      fail('DIRECTOR_AUTHORED_SOURCE_CONFLICT');
     if (s.conversationWithoutTarget !== undefined) {
       const attention = await readWorldAttentionInTransaction(sql, owner, {
         worldId: world.id,
@@ -940,10 +962,14 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       fail('INVALID_DIRECTOR_OPPORTUNITY');
     if (d.mode === 'bounded_opportunity' && !d.opportunities.length)
       fail('INVALID_DIRECTOR_OPPORTUNITY');
+    const authored = s.authoredMaterials
+      ? projectAuthoredDirectorModelView(s.authoredMaterials)
+      : undefined;
     const sources = new Set([
-      ...s.observations.map((o) => o.sourceId),
-      ...s.candidates.flatMap((c) => c.sourceIds),
-      ...s.episodes.map((e) => e.origin.sourceId),
+      ...s.observations.map((o) => o.sourceId).filter((id) => !id.startsWith('authored:')),
+      ...s.candidates.flatMap((c) => c.sourceIds).filter((id) => !id.startsWith('authored:')),
+      ...s.episodes.map((e) => e.origin.sourceId).filter((id) => !id.startsWith('authored:')),
+      ...(authored?.materials.map((m) => m.sourceId) ?? []),
     ]);
     if (d.audit.basisSourceIds.some((id) => !sources.has(id))) fail('DIRECTOR_SOURCE_FORBIDDEN');
     if (new Set(d.nudges.map((n) => n.candidateId)).size !== d.nudges.length)
@@ -954,7 +980,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         !c ||
         !selected.has(c.id) ||
         n.actorId !== c.actorId ||
-        n.basisSourceIds.some((id) => !c.sourceIds.includes(id))
+        n.basisSourceIds.some((id) => id.startsWith('authored:') || !c.sourceIds.includes(id))
       )
         fail('DIRECTOR_NUDGE_SOURCE_FORBIDDEN');
     }
@@ -969,8 +995,8 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         new Set(o.placeIds).size !== o.placeIds.length ||
         new Set(o.basisSourceIds).size !== o.basisSourceIds.length ||
         (o.authoredEventKey !== undefined &&
-          !s.candidates.some(
-            (c) => c.source === 'authored_event' && c.episodeId === o.authoredEventKey,
+          !authored?.materials.some(
+            (m) => m.ref.nodeKey === o.authoredEventKey && o.basisSourceIds.includes(m.sourceId),
           ))
       )
         fail('DIRECTOR_OPPORTUNITY_BOUNDARY');

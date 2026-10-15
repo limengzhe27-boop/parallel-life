@@ -5,6 +5,7 @@ import type {
   AgentCandidate,
 } from './agent-runtime.ts';
 import type { WorldBoundary, DirectorPendingReason } from './world-awareness.ts';
+import type { AuthoredAgentMaterialCatalog } from './authored-agent-material.ts';
 /** Director-only state; never serialize this object into an NPC prompt. */
 export type DirectorSnapshot = {
   schemaVersion: 1;
@@ -17,6 +18,8 @@ export type DirectorSnapshot = {
   boundary: WorldBoundary;
   /** Authorized fictional setting and cast; never the owner's real interview/profile. */
   worldSetting?: string;
+  /** Full immutable director-only author material; participant references never grant NPC knowledge. */
+  authoredMaterials?: AuthoredAgentMaterialCatalog;
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
   actorStates: ActorAgentState[];
   episodes: SharedEpisode[];

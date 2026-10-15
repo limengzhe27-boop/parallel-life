@@ -547,3 +547,120 @@ export function compileAuthoredAgentMaterials(
     unresolvedRefs: issues,
   };
 }
+
+export type AuthoredDirectorModelView = Omit<AuthoredAgentMaterialCatalog, 'materials'> & {
+  materials: (AuthoredAgentMaterial & { sourceId: string })[];
+};
+/** A global director evidence handle, never a private NPC source or an actor action candidate. */
+export function authoredDirectorSourceHandle(material: AuthoredAgentMaterial): string {
+  if (!/^[a-f0-9]{64}$/.test(material.ref.nodeHash)) return fail();
+  return `authored:${material.ref.nodeHash}`;
+}
+/** Explicit full-catalogue whitelist. It preserves manuscripts, not arbitrary private extensions. */
+export function projectAuthoredDirectorModelView(
+  input: AuthoredAgentMaterialCatalog,
+): AuthoredDirectorModelView {
+  const origin: Shape = {
+    workId: true,
+    publicationVersion: true,
+    draftVersion: true,
+    contentHash: true,
+  };
+  const source: Shape = { worldId: true, sourceScope: true, origin, sourceHash: true };
+  const issue: Shape = { kind: true, key: true, path: true, reason: true };
+  const view = project(input, {
+    scope: true,
+    world: { worldId: true, engineEpoch: true, worldVersion: true },
+    openingEventKey: true,
+    conditions: [conditionShape],
+    materials: [
+      {
+        scope: true,
+        ref: { source, nodeKey: true, nodeHash: true },
+        role: true,
+        node: nodeShape,
+        participantRefs: [{ actorKey: true, actorId: true, status: true }],
+        placeRefs: [{ placeKey: true, placeId: true, status: true, availableInWorld: true }],
+        unresolvedRefs: [issue],
+      },
+    ],
+    unresolvedRefs: [issue],
+  }) as AuthoredAgentMaterialCatalog;
+  view.source =
+    input.source === null ? null : (project(input.source, source) as AuthoredMaterialSourceRef);
+  view.timeline =
+    input.timeline === null
+      ? null
+      : (project(input.timeline, {
+          initialStageKey: true,
+          stages: [
+            { key: true, title: true, order: true, afterStageKeys: [true], window: windowShape },
+          ],
+        }) as AuthoredMaterialTimeline);
+  if (
+    view.scope !== 'director_only' ||
+    !view.world ||
+    !text(view.world.worldId) ||
+    !Number.isSafeInteger(view.world.engineEpoch) ||
+    view.world.engineEpoch < 2 ||
+    !Number.isSafeInteger(view.world.worldVersion) ||
+    view.world.worldVersion < 0 ||
+    !Array.isArray(view.materials) ||
+    !Array.isArray(view.conditions) ||
+    !Array.isArray(view.unresolvedRefs) ||
+    !(view.openingEventKey === null || text(view.openingEventKey))
+  )
+    return fail();
+  if (
+    view.source &&
+    (view.source.sourceScope !== 'bound_publication_story_source' ||
+      view.source.worldId !== view.world.worldId ||
+      !view.source.origin ||
+      !text(view.source.origin.workId) ||
+      !Number.isSafeInteger(view.source.origin.publicationVersion) ||
+      view.source.origin.publicationVersion < 0 ||
+      !Number.isSafeInteger(view.source.origin.draftVersion) ||
+      view.source.origin.draftVersion < 0 ||
+      !/^[a-f0-9]{64}$/.test(view.source.origin.contentHash) ||
+      !/^[a-f0-9]{64}$/.test(view.source.sourceHash))
+  )
+    return fail();
+  if (
+    !view.source &&
+    (view.materials.length ||
+      view.openingEventKey !== null ||
+      view.timeline !== null ||
+      view.conditions.length ||
+      view.unresolvedRefs.length)
+  )
+    return fail();
+  const nodeKeys = new Set<string>();
+  const materials = view.materials.map((material) => {
+    if (
+      material.scope !== 'director_only' ||
+      !material.ref ||
+      !view.source ||
+      authoredMaterialCanonicalJson(material.ref.source) !==
+        authoredMaterialCanonicalJson(view.source) ||
+      material.ref.nodeKey !== material.node?.key ||
+      !text(material.ref.nodeKey) ||
+      nodeKeys.has(material.ref.nodeKey) ||
+      !['opening', 'event'].includes(material.role) ||
+      material.node.kind !== 'candidate' ||
+      !text(material.node.title) ||
+      !text(material.node.editorialIntent) ||
+      !strings(material.node.actorKeys) ||
+      !Array.isArray(material.node.prerequisites) ||
+      !strings(material.node.mutuallyExclusiveNodeKeys) ||
+      !Array.isArray(material.participantRefs) ||
+      !Array.isArray(material.placeRefs) ||
+      !Array.isArray(material.unresolvedRefs)
+    )
+      return fail();
+    nodeKeys.add(material.ref.nodeKey);
+    return { ...material, sourceId: authoredDirectorSourceHandle(material) };
+  });
+  // Canonical JSON also rejects nonfinite numbers/cycles and yields a detached safe projection.
+  authoredMaterialCanonicalJson({ ...view, materials });
+  return { ...view, materials };
+}
