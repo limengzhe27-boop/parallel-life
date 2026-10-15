@@ -14,6 +14,7 @@ export function isActorEpisodeConsiderationInput(input: { origin: string; text: 
 /** An author's explicit instruction to this actor, never evidence that it happened. */
 export type ActorEpisodeDirective =
   | { kind: 'message_suggestion'; text: string }
+  | { kind: 'task_suggestion'; text: string }
   | {
       kind: 'invitation_suggestion';
       title: string;

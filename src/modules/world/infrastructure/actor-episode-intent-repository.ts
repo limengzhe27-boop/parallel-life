@@ -14,6 +14,10 @@ import {
 import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { parseEpisodeConsiderationIntent } from './agent-narrative-repository.ts';
+import {
+  projectActorManuscriptHint,
+  type ManuscriptHintIdentity,
+} from '../domain/actor-manuscript-hint.ts';
 
 export type ActorEpisodeIntentView = {
   source: AgentSource;
@@ -87,6 +91,12 @@ export async function readActorEpisodeIntentsInTransaction(
   });
   if (current.status !== 'complete') return conflict();
   const blocked = await forgottenAgentSourceIds(sql, ownerId, frame.worldId, frame.actorId);
+  const initialActors = ((
+    await sql.query(
+      "SELECT (SELECT jsonb_agg(jsonb_build_object('id',a->>'id','name',a->>'name')) FROM jsonb_array_elements(state->'actors') a) AS actors FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2",
+      [frame.worldId, ownerId],
+    )
+  ).rows[0]?.actors ?? []) as ManuscriptHintIdentity[];
   for (const { request, opportunity, saved } of addressed) {
     if (!opportunity.authoredEventKey) continue;
     const original = saved.authoredMaterials?.materials.filter(
@@ -102,11 +112,15 @@ export async function readActorEpisodeIntentsInTransaction(
     )
       return conflict();
     const material = actual[0]!;
-    const directive = projectActorEpisodeDirective(
+    const manuscriptHint = projectActorManuscriptHint(
       material,
       frame.actorId,
-      world.space?.places ?? [],
+      initialActors,
+      world.actors,
     );
+    const directive =
+      manuscriptHint?.directive ??
+      projectActorEpisodeDirective(material, frame.actorId, world.space?.places ?? []);
     if (!directive) continue;
     if (
       !Number.isFinite(Date.parse(saved.storyAt)) ||
@@ -127,7 +141,7 @@ export async function readActorEpisodeIntentsInTransaction(
           actorId: frame.actorId,
           requestId: request.id,
           ref: material.ref,
-          path: 'intent',
+          path: manuscriptHint?.provenance ?? 'intent',
           directive,
         }),
       )
