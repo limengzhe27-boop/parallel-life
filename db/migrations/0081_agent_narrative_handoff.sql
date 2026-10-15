@@ -14,12 +14,13 @@ CREATE TABLE parallel_life.agent_episode_requests (
  status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','consumed')),
  input_receipt_id text, receipt_id text, created_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(world_id,id), UNIQUE(world_id,episode_id,actor_id), UNIQUE(world_id,input_receipt_id),
+ UNIQUE(world_id,id,input_receipt_id),
  FOREIGN KEY(world_id,owner_id) REFERENCES parallel_life.worlds(id,owner_id) ON DELETE CASCADE,
  FOREIGN KEY(world_id,actor_id) REFERENCES parallel_life.actor_agent_states(world_id,actor_id),
  FOREIGN KEY(world_id,episode_id) REFERENCES parallel_life.shared_episodes(world_id,id),
  FOREIGN KEY(world_id,origin_decision_id,owner_id) REFERENCES parallel_life.director_decisions(world_id,id,owner_id),
  FOREIGN KEY(world_id,input_receipt_id,owner_id) REFERENCES parallel_life.agent_input_receipts(world_id,id,owner_id),
- CHECK((status='consumed')=(receipt_id IS NOT NULL)), CHECK(receipt_id IS NULL OR input_receipt_id IS NOT NULL)
+ CHECK((status='consumed')=(receipt_id IS NOT NULL)), CHECK((status='consumed')=(input_receipt_id IS NOT NULL))
 );
 CREATE TABLE parallel_life.agent_episode_receipts (
  world_id text NOT NULL, owner_id text NOT NULL, id text NOT NULL, actor_id text NOT NULL,
@@ -30,6 +31,7 @@ CREATE TABLE parallel_life.agent_episode_receipts (
  PRIMARY KEY(world_id,id), UNIQUE(world_id,request_id),
  FOREIGN KEY(world_id,owner_id) REFERENCES parallel_life.worlds(id,owner_id) ON DELETE CASCADE,
  FOREIGN KEY(world_id,request_id) REFERENCES parallel_life.agent_episode_requests(world_id,id),
+ FOREIGN KEY(world_id,request_id,input_receipt_id) REFERENCES parallel_life.agent_episode_requests(world_id,id,input_receipt_id) DEFERRABLE INITIALLY DEFERRED,
  FOREIGN KEY(world_id,episode_id) REFERENCES parallel_life.shared_episodes(world_id,id),
  FOREIGN KEY(world_id,attempt_id,owner_id) REFERENCES parallel_life.agent_attempts(world_id,id,owner_id),
  FOREIGN KEY(world_id,input_receipt_id,owner_id) REFERENCES parallel_life.agent_input_receipts(world_id,id,owner_id),
@@ -89,6 +91,14 @@ DECLARE opportunity jsonb; body jsonb; intent jsonb; definition_ref text; BEGIN
    OR OLD.status='consumed' OR (OLD.input_receipt_id IS NOT NULL AND NEW.input_receipt_id IS DISTINCT FROM OLD.input_receipt_id)
   THEN RAISE EXCEPTION 'IMMUTABLE_EPISODE_REQUEST_BASIS' USING ERRCODE='23514'; END IF;
   IF NEW.input_receipt_id IS NOT NULL THEN
+   IF NOT EXISTS(SELECT 1 FROM parallel_life.agent_attempts a
+     JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id
+     JOIN parallel_life.worlds w ON w.id=e.world_id AND w.owner_id=e.owner_id AND w.version=e.version
+     WHERE a.world_id=NEW.world_id AND a.owner_id=NEW.owner_id AND a.actor_id=NEW.actor_id
+      AND a.id=current_setting('app.agent_commit_attempt_id',true) AND a.status='committed'
+      AND a.engine_epoch=NEW.engine_epoch AND a.input_receipt_id=NEW.input_receipt_id
+      AND e.version=a.expected_world_version+1)
+   THEN RAISE EXCEPTION 'EPISODE_INPUT_REQUIRES_ACTUAL_COMMIT' USING ERRCODE='23514'; END IF;
    SELECT r.document INTO body FROM parallel_life.agent_input_receipts r WHERE r.world_id=NEW.world_id AND r.owner_id=NEW.owner_id AND r.id=NEW.input_receipt_id;
    intent := (body->>'text')::jsonb;
    SELECT document->>'definitionRef' INTO definition_ref FROM parallel_life.actor_agent_states
@@ -125,12 +135,16 @@ DECLARE decision jsonb; messages jsonb; BEGIN
   JOIN parallel_life.world_events e ON e.world_id=a.world_id AND e.owner_id=a.owner_id AND e.id=a.event_id
   WHERE a.world_id=NEW.world_id AND a.owner_id=NEW.owner_id AND a.id=NEW.attempt_id AND a.status='committed'
    AND a.actor_id=NEW.actor_id AND r.actor_id=a.actor_id AND r.episode_id=NEW.episode_id AND r.status='pending'
-   AND r.engine_epoch=a.engine_epoch AND r.input_receipt_id=a.input_receipt_id AND a.input_receipt_id=NEW.input_receipt_id
+   AND r.engine_epoch=a.engine_epoch AND (r.input_receipt_id IS NULL OR r.input_receipt_id=a.input_receipt_id)
+   AND a.input_receipt_id=NEW.input_receipt_id
    AND e.id=NEW.source_event_id AND e.version=NEW.world_version AND e.version=a.expected_world_version+1
    AND e.payload#>>'{data,agentRuntime,inputReceiptId}'=NEW.input_receipt_id)
  THEN RAISE EXCEPTION 'INVALID_EPISODE_ACTOR_RECEIPT' USING ERRCODE='23514'; END IF;
  SELECT payload#>'{data,agentRuntime,episodeDecision}' INTO decision FROM parallel_life.world_events
   WHERE world_id=NEW.world_id AND owner_id=NEW.owner_id AND id=NEW.source_event_id;
+ IF decision IS DISTINCT FROM (SELECT payload#>'{data,agentRuntime,proposal,episodeDecision}'
+   FROM parallel_life.world_events WHERE world_id=NEW.world_id AND owner_id=NEW.owner_id AND id=NEW.source_event_id)
+ THEN RAISE EXCEPTION 'INCONSISTENT_EPISODE_PRIVATE_DECISION' USING ERRCODE='23514'; END IF;
  IF (NEW.choice='unassessed' AND decision IS NOT NULL) OR
   (NEW.choice<>'unassessed' AND decision IS DISTINCT FROM jsonb_build_object(
    'requestId',NEW.request_id,'choice',NEW.choice,'reason',NEW.reason,'sourceIds',NEW.source_ids))
