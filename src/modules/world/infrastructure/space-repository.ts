@@ -415,35 +415,9 @@ export class PostgresWorldSpace implements WorldSpacePort {
           ))
       )
         throw new DomainError('INVALID_COMMAND');
-      // A social/contact link is not physical presence. Legacy scenes without a
-      // sourced matching place cannot prove who saw this departure.
-      const observerIds =
-        currentScene?.placeId === t.route.fromPlaceId
-          ? currentScene.presence
-              .filter(
-                (p) =>
-                  p.participant.kind === 'actor' &&
-                  p.leftVersion === undefined &&
-                  p.joinedVersion <= w.version,
-              )
-              .flatMap(({ participant }) => {
-                if (participant.kind !== 'actor') return [];
-                return w.actors.some((actor) => actor.id === participant.actorId)
-                  ? [participant.actorId]
-                  : [];
-              })
-          : [];
-      const fromPlaceName = w.space!.places.find((p) => p.id === t.route.fromPlaceId)!.name;
-      const departureObservation = observerIds.length
-        ? {
-            id: randomUUID(),
-            text: '你亲眼看到主角离开了' + fromPlaceName + '，没有获知目的地。',
-            kind: 'canonical' as const,
-            visibility: { kind: 'actors' as const, actorIds: observerIds },
-            sourceEventId: eventId,
-            departure: { fromPlaceName, eventVersion: w.version + 1 },
-          }
-        : undefined;
+      // Scene membership proves participation, not that someone saw this exit.
+      // Until a real perception capability supplies a scoped witness receipt,
+      // travel must not manufacture departure knowledge from a place/roster.
 
       const e: TravelEvent = {
         schemaVersion: 1,
@@ -463,7 +437,6 @@ export class PostgresWorldSpace implements WorldSpacePort {
           arrivedAt: t.arrivedAt,
           leftSceneId: sceneId,
           ...(t.route.source.kind === 'system_policy' ? { generatedRoute: t.route } : {}),
-          ...(departureObservation ? { departureObservation } : {}),
         },
       };
       const result = TravelReceiptSchema.parse({
@@ -501,7 +474,7 @@ export class PostgresWorldSpace implements WorldSpacePort {
             p === member ? { ...p, leftVersion: e.version } : p,
           ),
         };
-        // Other participants stay; an NPC can know the observed departure, never its destination.
+        // Other participants keep their intervals; leaving grants them no observation.
         if (!nextScene.presence.some((p) => p.leftVersion === undefined))
           nextScene.status = 'ended';
         await sql.query('UPDATE parallel_life.scene_sessions SET document=$2 WHERE id=$1', [
@@ -513,11 +486,6 @@ export class PostgresWorldSpace implements WorldSpacePort {
           'UPDATE parallel_life.player_experiences SET current_scene_id=NULL,document=$2 WHERE world_id=$1',
           [id, { ...experience, view: { kind: 'phone' } }],
         );
-        if (departureObservation)
-          await sql.query(
-            'INSERT INTO parallel_life.world_facts(id,world_id,owner_id,ordinal,document) VALUES($1,$2,$3,$4,$5)',
-            [departureObservation.id, id, owner, e.version * 1000, departureObservation],
-          );
       }
       await sql.query(
         'UPDATE parallel_life.world_clock SET story_now=$2,last_tick_at=$3,updated_at=now() WHERE world_id=$1',
