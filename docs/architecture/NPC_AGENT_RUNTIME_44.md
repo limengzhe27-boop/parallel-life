@@ -1,0 +1,148 @@
+# 持续人物 Agent 与导演总控：运行架构和迁移方案
+
+2026-10-15；集成人 codex-root-ma-arch44-i。审查基线 `1028b06b`，主目录 `96e51d15` 不作为源码基线。本文是实施契约和验收计划，**不是已实现声明**。唯一任务状态在主登记目录 `docs/DEVELOPMENT.md`。
+
+## 1. 当前实际运行图
+
+以下来自实际路由/服务/Worker，而非早期 ARCHITECTURE.md 的理想队列图。
+
+```mermaid
+flowchart TD
+  Phone[玩家真实手机] --> DM[POST worlds/id/messages]
+  DM --> Lock[withWorldActivityLock 长事务锁]
+  Lock --> Turn[resolveTurn]
+  Turn --> Private[publicationCharacterPlanner]
+  Private --> Read[readActorEventGoals]
+  Read --> Legacy[普通目标记忆 + 发布事件专表]
+  Private --> Model[NPC 模型]
+  Model --> Commit[WorldRepository.commit]
+  Commit --> Recon[仓储内发布协调 + 人物进度解释]
+  Recon --> DB[事件 / 状态 / 回执 / Outbox]
+  Phone --> Advance[POST advance]
+  Advance --> Opening[开场推进 handled]
+  Opening --> Story[发布剧情 handled]
+  Story --> Generic[通用 agenda 推进]
+  Phone --> Tasks[群聊 / 现场 enqueue]
+  Tasks --> Worker[worldTaskDispatcher]
+  Worker --> Group[GroupPlanner 独立输入与选人]
+  Worker --> Scene[ScenePlanner 独立人物输入 / 故事动作槽]
+```
+
+实际细节：
+
+- 私聊并未先进入 world Worker；路由直接运行 `resolveTurn`。`services.characterPlannerFor` 和 `publication-character-planner.ts` 提供本人设定、目标、开场记录。不能说现在完全没有人物隔离和持久目标。
+- `services.ts:239–289` 顺序调用 opening、publication、generic；前两者 handled 时提前返回。发布池存在但无候选也 handled，因此普通约定没有参与这次调度。
+- `readActorEventGoals → publicationGoalContexts` 在上下文读取时初始化/补写进度。`PostgresWorldRepository.commit` 又调用发布仓储协调和人物进度应用，保存层承担业务解释。
+- 群聊由 `planGroupTurn → GroupPlanner`；现场由 scene task handler/ScenePlanner。不是统一人物决策入口。群消息和私聊来源表不同，普通目标读取只认可私聊来源。
+- `ClockStore.withAdvanceLock` 在 BEGIN/事务 advisory lock 内等待模型；外层事务并不能回滚内层别的连接已经提交的结果。
+- 43 已修来源绑定、部分开场可记进度、个人/共享阶段分离和多人开场计数膨胀；这些不重复修。剩余计数驱动收尾、候选/领取口径以及双轨状态仍须替换。
+- 原稿、历史消息/朋友圈/图片、地图、日历投影及玩家独立世界已存在；重构不能重生这些内容或重置存档。
+
+## 2. 目标边界和真实入口
+
+所有渠道调用同一 `NpcAgentRuntime.decide`，身份为 `(worldId, actorId)`。共用模型/代码，按条件唤醒，不要求每 NPC 常驻进程。导演和人物使用不同权限的快照。
+
+```mermaid
+flowchart LR
+  Input[私聊 / 群 / 现场 / 时间 / 结果] --> Ingress[应用入口：来源与会话焦点]
+  Ingress --> Scheduler[统一调度：候选与有范围的阻断]
+  Scheduler --> Director[必要时导演全局协调]
+  Scheduler --> Actor[同一 NPC Agent 决策入口]
+  Director --> Actor
+  Actor --> Proposal[对白 + 判断 + 本人计划 + 行动提案]
+  Proposal --> Kernel[内核：权限 / 前提 / 依赖 / 版本 / 执行]
+  Kernel --> Atomic[短事务：事件 + 人物状态 + 结果 + 回执 + Outbox]
+  Atomic --> Views[微信 / 群聊 / 现场 / 日历 / 地图]
+  Atomic --> Wake[有来源的下次唤醒]
+```
+
+|组件|唯一职责|不能做|
+|---|---|---|
+|NpcAgentRuntime|读取本人持续状态与获准观察；一次调用提出表达、判断、计划调整及行动|直接写事实/数据库，替玩家答应，看到他人私聊/幕后全部内容|
+|DirectorRuntime|全局虚构观察、人物计划摘要、冲突与因果；引入/延后事件、调度节拍与人物机会|替人物决定私人态度、最终台词，忽略玩家选择，凭空宣布动作完成|
+|WorldKernel|验证身份/来源/知情/时间/地点/归属/前提，执行合法动作，产生真实结果|以对白、摘要、模型自称成功当执行证明|
+|ChannelAdapter|授权本次观察、受众、回复对象、允许动作；投影同一执行结果|自建另一套人物目标、复制私人原话到群里、单凭消息数结账|
+|Application coordinator|领取、模型调用、校验、短事务提交、故障恢复和唤醒|把业务选人/协调藏在仓储读取中|
+|Repository / UoW|持久存取、CAS、锁和事务原子性|决定人物动机、选谁说话、吞掉另一来源候选|
+
+导演介入：引入新大事件、跨人物计划冲突、共享事件发生实质变化、长期合法静默后需要重新编排。确定性单人承接可沿已批准协调方案执行，不给每条消息串行增加一次导演模型。导演输出协调意图/资源限制/优先候选及理由，人物自己决定回应和私人计划。
+
+## 3. 持久对象与所有权
+
+公共契约归集成人；领域类型位于 `world/domain/agent-runtime.ts`，应用端口位于 `world/application/agent-runtime-ports.ts`。新增持久对象必须带 schemaVersion、来源、版本和归属，禁止只加 prompt actorId 宣称完成。
+
+|对象|身份和核心字段|维护方式|
+|---|---|---|
+|ActorAgentState|worldId/actorId/revision、人物定义版本、可见事实/记忆/关系引用、goalIds、planIds、waitingIds、responsibilityIds、投影游标|人物提出变化；内核验证并与事件同事务提交|
+|Goal|ownerActorId、来源、目标结果、active/deferred/fulfilled/withdrawn及终止原因|该人物提出；fulfilled 必须指向实际结果，不以消息数结束|
+|Plan|goalId、下一步 actionId、触发条件、缺失条件/重查依据、原计划版本与修改历史|人物自行调整；导演仅提供协调约束|
+|Action|ownerActorId、类型/对象/前提、执行状态、输入版本、依赖与结果引用|内核执行器；proposed/ready/waiting/blocked/executing/succeeded/failed/withdrawn 分开|
+|Responsibility|谁对哪个 request/事项负责、等待谁、答复窗口来源、何时视为已处理|只由具体行动/结果回执处理；天气聊天不能消费赴约责任|
+|PlayerDecision|实际输入 source、目标 request/事项版本、accepted/declined/negotiating/deferred/undecided|同一次 NPC 模型提出判断；来源和对象验证；不确定保持待定|
+|SharedEpisode|参与人、实际事实、事件状态、未完责任、因果和终止原因|世界内核维护；导演提议引入、协调，不混为某人退出或当前话题结束|
+|ConversationFocus|渠道/thread、提问者、回复对象、当前事项和开放问题|由实际交互更新；换话题不会关闭旧事件|
+|ActionResult|实际执行能力/对象、发生时间、因果前置、成功或失败、已处理责任|内核唯一权威，和人物信念/语言/计划分别保存|
+|AgentAttempt|幂等 key、world/actor/episode 版本、输入指纹、token、调用/响应/校验/提交状态|应用协调和任务基础设施，不与行动成功混用|
+
+来源 `SourceRef` 统一支持私聊、群消息、现场条目、世界事件、动作结果、作者定义。内核解析真实对象及成功回执，核对世界/人物/受众/时点/版本/忘记规则；模型只引用服务器给的有限来源。人物可以在私聊中改变自己的计划，群里据此行动，但不自动获得披露私人原话/秘密的权限。
+
+事件与焦点严格分离：推进有新选择/事实/执行结果；修改保留目标和历史；新事件有独立来源；换话题只换焦点；暂缓记录缺失条件；结束保存完成/拒绝/撤回/合法到期等原因。沉默不是拒绝，没有合法来源的截止时间不生成。
+
+## 4. 调度、交谈和时间
+
+各来源只读提供 `Candidate[] + Blocker[]`，而非 handled 提前返回。来源为开场、编剧事件、人物计划、日历责任、现场/群消息、已提交行动结果。阻断必须带 world/actor/episode/channel/action/resource 范围、原因、来源及解除依据。开场B的交付unknown只挡B该次行动及依赖它的候选，不能挡同事件已交付A的早回复。开场导演计划unknown只挡依赖该计划的候选；只有会影响全局原子性的阻断才冻结世界。冲突检查使用共享资源/读集，不能用同episode一刀切。
+
+先由代码核权限、前提、时间、地点、频率、是否已有执行或未决请求，再按实际回复对象/责任/优先级选择。群聊优先明确 @/reply-to，再开放问题提问者与事项负责人；歧义保留，不用数组第一人或全员回复。导演介入语义冲突时观察同一份候选快照；领取和实际执行消费相同版本，版本变化重验，不能换口径。
+
+事件进度只看实际事实/选择/结果；人物目标进度看本人的目标变化；消息数仅用于联系频率。安静必须可说明为未到触发/缺少条件/已等待/没有值得呈现的变化，不能用来掩盖无法执行的计划。
+
+时钟继续采用浏览12倍、交谈/现场1倍、60–90秒便宜检查、离开暂停与明确返回。交谈为带tab/成员授权、会话focus token、opened/left/ended和presence的业务会话，从打开真实对话/现场到离开或明确结束，不以30秒没打字恢复12倍。阅读和思考仍属于交谈。多tab取有效前台会话最慢速度（有chat则1倍），失联租约到期后退出会话/暂停，不推算离线进度。定时检查与 DOM 滚动/点击解耦；检查不保证模型调用或新事件。多标签租约和暂停权益继续生效。
+
+等待跳到下一有意义边界：约定前、明早等；遇到直接影响选择的变化先停下。未回应邀请按具体责任/合法窗口处理，不把所有 proposed 邀约变成全局永久阻断。玩家明确暂缓可绕过已展示的选择，但保留后果和责任。旧存档从当前锚点继续，不折算过去离线时间。
+
+## 5. 执行、依赖与恢复
+
+1. 短事务领取：权限/预算/时间/版本/幂等检查，保存输入快照摘要、attempt、token、engineEpoch和租约；提交释放连接。epoch是数据库控制面fence，claim、响应保存、commit均核对；所有旧writer最终事务同样受fence约束，不能只有路由feature flag。
+2. 事务外调用模型。普通人物一轮完成对白、必要判断和有限行动提议。记忆摘要异步，不能替代事实/执行状态。
+3. 收到结果先保存受保护的可恢复响应；不写原始内容到日志。严格解析、来源与依赖校验。
+4. 短事务提交：核 token、world/actor/episode 版本和前提；事件、人物状态、执行结果、回执、Outbox 一次提交。晚到响应不能覆盖较新状态。
+5. 投影手机各渠道和安排来源明确的后续唤醒；查询不隐式推进。
+
+attempt 分 reserved/request_sent/response_received/invalid_output/stale_discarded/committed/cancelled_before_send/unknown_after_send。已知坏输出与已知版本冲突不标 unknown；发出后结果未知不自动重付。HTTP 重放先查原回执，重新推理必须是明确的新尝试。移除长事务必须在持久领取和CAS已就位后进行。
+
+对白带所依赖的行动提案 ID。独立有效对白可保留；依赖无效/未执行动作成功的对白不能显示。人物“我会去处理”可作为计划表达，不能生成“已经处理”结果；世界到场由空间/参与能力执行，而不是接受邀约或一句“会来”。
+
+## 6. 保留、合并、替换、删除
+
+|处置|范围|
+|---|---|
+|保留|世界事件/reducer、RLS/所有权、命令回执、Outbox、来源/forget/时点保护、开场实际收据、真实历史/素材、地图/日历执行能力、时间锚点与多标签租约、多人授权边界|
+|合并|普通目标与发布人物进度→统一人物/事件状态；私/群/现场来源→SourceRef；开场/编剧候选/普通责任→统一调度集合|
+|替换|三个渠道的独立人物输入/模型决策入口；仓储选人和协调；context read隐写；任意后续消息消费责任；计数驱动收尾；模型期长事务锁|
+|删除|完成切换后的串行 handled 调度、goal-memory执行JSON读写、重复进度解释器、核心Planner中的R17动作槽及固定句式；过期兼容入口不得继续执行|
+|内容迁移|R17专属对象/规则放入对应世界的显式能力实例/规则包。通用 handover/inspect 能力由内核验证授权对象、存在和证据，不从自然对白正则推断执行|
+
+保留旧事件重放读取器不等于保留旧运行引擎。每个世界同一时刻只能一个引擎写执行结果，不能双写同步两份目标。
+
+## 7. 存档迁移与回滚
+
+- 新增 schema/engineVersion/迁移游标；先不改原历史和时钟。授权虚构人物生成独立 state；作者版本为不可变引用，不覆盖导入全文、预制消息/朋友圈/图片。
+- 只从真实事件/成功回执/有效结构化选择重建目标、责任和结果。旧内部进度JSON只在来源/hash有效时映射；没有标注的历史保持 unknown，不另调模型猜过去的答应或拒绝。
+- 只读 shadow 比较状态，不调用模型、不发消息、不执行动作。迁移有 provenance、游标及幂等，逐世界原子切换。
+- 旧存档保留 worldId、版本、历史、素材、地点、时间锚点、约定和已发生结果。多人共享实例和成员授权不能合并到某个玩家私有身份里；人生间不共享人物私有状态。
+- 切换前可撤回新增投影；切换后如果已产生新动作，不允许直接回到不认识新结果的旧调度器。暂停执行、修复/重放新投影；只有旧内核能完整读取新事件并核对责任时才允许回切。不得回滚用户已作决定或恢复重复收费机会。
+
+## 8. 分期与最终验收
+
+|任务|依赖|实现和退出标准|
+|---|---|---|
+|44-0 架构|最新三方只读审查|本调用图、协议、状态所有权、替换/迁移/恢复经交叉审查；只完成文档不称业务完成|
+|44-1 状态与执行内核|44-0|typed agent/goal/plan/action/responsibility/decision/source；显式投影；持久attempt和短事务CAS；真实PG权限/并发/晚结果/回放/回滚通过|
+|44-2 人物统一入口|44-1|私聊/开场/群/现场实际流量使用同一人物状态和决策；渠道裁剪；群短答责任；一次人物调用；替换旧状态解释|
+|44-3 统一导演与自主调度|44-1/2|候选来源统一、范围阻断、导演全局语义协调、结构化本人行动/等待结果、沉默/拒绝不同路径，删除串行调度和计数结局|
+|44-4 时间与内容解耦|44-2/3|业务交谈生命周期/闲时检查/重要等待；R17实例移出核心；新题材不用改Planner|
+|44-5 迁移清理与产品验收|44-1至4|旧存档迁移、全部执行入口切换、重复写路径删除；真实连续旅程、生产迁移、READY、公网验证|
+
+最终连续旅程（每项记录实际状态/来源/玩家可见后果）：进入自然开场；未全部开场时记住早回复；同一人物私聊→群→现场目标连续/不泄密；甲提问玩家短答由甲承接；天气聊天不消掉约定；答应/拒绝/协商/暂缓/沉默各有区别；空闲有合法变化且不硬造；等待重要变化停下；同事项不反复催、不按消息数收尾；换题材不改通用动作；多标签/并发/晚到/unknown不重执行；旧历史/时间/约定/素材不丢。
+
+代码执行 check/build；SQL、权限和队列真实PG；手机/PC界面验证；真实模型只用新的明确范围，不复用已闭账43。每批业务交付先核生产迁移再提交推送、READY和公网流程验证。未走完上述旅程，状态保持阶段完成/整体未完成，不以类、目录、API200或测试数量替代验收。
