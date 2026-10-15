@@ -22,6 +22,8 @@ export type ScheduleAgentsInput = {
   /** Already authorized by the caller; this scheduler never expands visibility. */
   observations: { sourceId: string; text: string }[];
   blockers?: AgentBlocker[];
+  /** Caller must reauthorize plan dependencies for this exact current read version. */
+  approvedCoordination?: { engineEpoch: number; worldVersion: number; plan: DirectorCoordination };
 };
 export type AgentSchedule = {
   status: 'selected' | 'quiet';
@@ -34,7 +36,8 @@ export type AgentSchedule = {
     | 'source_unavailable'
     | 'director_deferred'
     | 'coordination_failed'
-    | 'invalid_coordination';
+    | 'invalid_coordination'
+    | 'stale_coordination';
   snapshot: {
     worldId: string;
     engineEpoch: number;
@@ -106,6 +109,38 @@ export function agentScopeBlocks(scope: AgentScope, candidate: AgentCandidate): 
       return scope.channel === candidate.channel && scope.threadId === candidate.threadId;
   }
 }
+function conditionValid(v: unknown): boolean {
+  if (!record(v)) return false;
+  switch (v.kind) {
+    case 'at_or_after':
+      return (
+        keys(v, ['kind', 'at', 'sourceId']) &&
+        typeof v.at === 'string' &&
+        Number.isFinite(Date.parse(v.at)) &&
+        id(v.sourceId)
+      );
+    case 'result':
+      return (
+        keys(v, ['kind', 'actionId', 'outcome']) &&
+        id(v.actionId) &&
+        ['succeeded', 'failed'].includes(String(v.outcome))
+      );
+    case 'player_decision':
+      return (
+        keys(v, ['kind', 'responsibilityId', 'decision']) &&
+        id(v.responsibilityId) &&
+        ['accepted', 'declined', 'negotiating', 'deferred', 'undecided'].includes(
+          String(v.decision),
+        )
+      );
+    case 'at_place':
+      return keys(v, ['kind', 'placeId']) && id(v.placeId);
+    case 'observation':
+      return keys(v, ['kind', 'sourceId']) && id(v.sourceId);
+    default:
+      return false;
+  }
+}
 function blockerValid(v: unknown): v is AgentBlocker {
   return (
     record(v) &&
@@ -120,7 +155,8 @@ function blockerValid(v: unknown): v is AgentBlocker {
       'stale_projection',
     ].includes(String(v.reason)) &&
     id(v.sourceId) &&
-    Array.isArray(v.reconsiderOn)
+    Array.isArray(v.reconsiderOn) &&
+    v.reconsiderOn.every(conditionValid)
   );
 }
 function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandidate {
@@ -408,7 +444,7 @@ export async function scheduleAgents(
   };
   if (!eligible.length)
     return result(
-      blocked.length
+      blocked.length || snapshot.blockers.some((b) => b.scope.kind === 'world')
         ? 'blocked'
         : failures.length
           ? 'source_unavailable'
@@ -418,27 +454,42 @@ export async function scheduleAgents(
               ? 'stale_candidates'
               : 'no_candidates',
     );
-  if (!eligible.some((c) => c.requiresCoordination) && !competingActors(eligible)) {
+  if (
+    !eligible.some((c) => c.requiresCoordination) &&
+    !competingActors(eligible) &&
+    !current.approvedCoordination
+  ) {
     deferred.push(
       ...eligible.slice(1).map((c) => ({ candidateId: c.id, reason: 'lower_priority' })),
     );
     return result('selected', [eligible[0]!.id]);
   }
   let coordination: DirectorCoordination;
-  try {
-    coordination = await deps.director.coordinate(
-      Object.freeze({
-        worldId: current.worldId,
-        worldVersion: current.worldVersion,
-        storyAt: current.storyAt,
-        candidates: eligible,
-        blockers: snapshot.blockers,
-        observations: current.observations,
-      }),
-    );
-  } catch {
-    deferred.push(...eligible.map((c) => ({ candidateId: c.id, reason: 'coordination_failed' })));
-    return result('coordination_failed');
+  if (current.approvedCoordination) {
+    if (
+      current.approvedCoordination.engineEpoch !== current.engineEpoch ||
+      current.approvedCoordination.worldVersion !== current.worldVersion
+    ) {
+      deferred.push(...eligible.map((c) => ({ candidateId: c.id, reason: 'stale_coordination' })));
+      return result('stale_coordination');
+    }
+    coordination = current.approvedCoordination.plan;
+  } else {
+    try {
+      coordination = await deps.director.coordinate(
+        Object.freeze({
+          worldId: current.worldId,
+          worldVersion: current.worldVersion,
+          storyAt: current.storyAt,
+          candidates: eligible,
+          blockers: snapshot.blockers,
+          observations: current.observations,
+        }),
+      );
+    } catch {
+      deferred.push(...eligible.map((c) => ({ candidateId: c.id, reason: 'coordination_failed' })));
+      return result('coordination_failed');
+    }
   }
   if (!validCoordination(coordination, eligible)) {
     deferred.push(...eligible.map((c) => ({ candidateId: c.id, reason: 'invalid_coordination' })));

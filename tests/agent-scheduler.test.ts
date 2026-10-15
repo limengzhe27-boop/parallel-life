@@ -520,3 +520,90 @@ test('invalid pass configuration fails before any port call and empty pass expla
     'no_candidates',
   );
 });
+
+test('world pause explains an empty quiet pass and malformed reconsider conditions stay scope-contained', async () => {
+  const d = director();
+  const paused = await scheduleAgents(
+    { sources: [], director: d.port },
+    { ...input(), blockers: [{ ...blocker({ kind: 'world' }), reason: 'paused' }] },
+  );
+  assert.equal(paused.reason, 'blocked');
+  const malformed = source('bad-condition', [], [], { kind: 'actor', actorId: 'b' });
+  malformed.source.collect = async () => ({
+    candidates: [],
+    blockers: [
+      {
+        ...blocker({ kind: 'world' }),
+        reconsiderOn: [{ kind: 'at_or_after', at: 'not-a-time', sourceId: 'clock-source' }],
+      },
+    ],
+  });
+  const result = await scheduleAgents(
+    { sources: [malformed, source('good', [candidate('a')])], director: d.port },
+    input(),
+  );
+  assert.equal(result.selected[0]!.candidate.id, 'a');
+  assert.equal(result.sourceFailures[0]!.reason, 'invalid_collection');
+  assert.equal(d.calls(), 0);
+});
+
+test('only explicitly reauthorized current-version coordination can be reused without another director call', async () => {
+  const d = director();
+  const sources = [
+    source('both', [
+      candidate('a', 'a', { episodeId: 'shared' }),
+      candidate('b', 'b', { episodeId: 'shared' }),
+    ]),
+  ];
+  const plan: DirectorCoordination = {
+    candidateIds: ['b', 'a'],
+    deferred: [],
+    guidance: [],
+    reason: 'Existing coordination reauthorized for this snapshot',
+  };
+  const result = await scheduleAgents(
+    { sources, director: d.port },
+    { ...input(), approvedCoordination: { engineEpoch: 2, worldVersion: 7, plan } },
+  );
+  assert.equal(d.calls(), 0);
+  assert.equal(result.selected[0]!.candidate.id, 'b');
+  assert.equal(result.selected.length, 1);
+  const stale = await scheduleAgents(
+    { sources, director: d.port },
+    { ...input(), approvedCoordination: { engineEpoch: 1, worldVersion: 7, plan } },
+  );
+  assert.equal(stale.reason, 'stale_coordination');
+  assert.equal(stale.selected.length, 0);
+  assert.equal(d.calls(), 0);
+  const foreign = await scheduleAgents(
+    { sources, director: d.port },
+    {
+      ...input(),
+      approvedCoordination: {
+        engineEpoch: 2,
+        worldVersion: 7,
+        plan: { ...plan, candidateIds: ['foreign'] },
+      },
+    },
+  );
+  assert.equal(foreign.reason, 'invalid_coordination');
+  assert.equal(d.calls(), 0);
+});
+
+test('even a single preapproved handoff cannot silently ignore a stale coordination epoch', async () => {
+  const d = director();
+  const result = await scheduleAgents(
+    { sources: [source('one', [candidate('a')])], director: d.port },
+    {
+      ...input(),
+      approvedCoordination: {
+        engineEpoch: 1,
+        worldVersion: 7,
+        plan: { candidateIds: ['a'], deferred: [], guidance: [], reason: 'Old engine plan' },
+      },
+    },
+  );
+  assert.equal(result.reason, 'stale_coordination');
+  assert.equal(result.selected.length, 0);
+  assert.equal(d.calls(), 0);
+});
