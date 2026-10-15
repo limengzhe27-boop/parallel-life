@@ -61,6 +61,7 @@ export class PublicationProgressBeatStore {
     p: PendingPublicationBeat,
     kind: 'claim' | 'retry' | 'unknown' | 'failure' | 'message_presented',
     sourceEventId: string | null = null,
+    reason?: 'goal_closed' | 'world_version_changed',
   ) {
     const d = value.definition;
     await sql.query(
@@ -80,6 +81,7 @@ export class PublicationProgressBeatStore {
           actorId: p.actorId,
           expectedVersion: p.expectedVersion,
           move: p.move,
+          ...(reason ? { reason } : {}),
         },
       ],
     );
@@ -370,9 +372,60 @@ export class PublicationProgressBeatStore {
     worldVersion: number,
     allowSceneNavigation = false,
   ) {
+    const before = (await new PublicationEventProgressRepository().load(
+      sql,
+      value,
+    )) as State | null;
+    if (!before?.pendingBeat || before.pendingBeat.claimId !== claimId)
+      throw new TaskError('NOT_FOUND');
     const old = (await this.reconcile(sql, value, worldVersion)) as State | null;
-    if (!old?.pendingBeat || old.pendingBeat.claimId !== claimId) throw new TaskError('NOT_FOUND');
+    // A real successful receipt may have reconciled the pending delivery already.
+    if (!old?.pendingBeat) return null;
+    if (old.pendingBeat.claimId !== claimId) throw new TaskError('NOT_FOUND');
+    const previous = old.pendingBeat;
+    const phone = previous.channel !== 'scene';
+    if (
+      phone &&
+      (old.phase === 'resolved' ||
+        ['fulfilled', 'withdrawn'].includes(old.actorGoalStatus[previous.actorId] ?? ''))
+    ) {
+      await this.audit(sql, value, previous, 'failure', null, 'goal_closed');
+      const { pendingBeat: _, ...done } = old;
+      await this.save(sql, value, old, done as State, worldVersion);
+      return null;
+    }
     if (old.pendingBeat.expectedVersion !== worldVersion) {
+      if (phone && old.pendingBeat.expectedVersion < worldVersion) {
+        if (previous.status === 'claimed') throw new TaskError('BUSY');
+        if (!value.definition.goals.some((goal) => goal.actorId === previous.actorId))
+          throw new TaskError('INVALID_STATE');
+        const clock = (
+          await sql.query(
+            `SELECT paused,managed,active_until,clock_timestamp() AS real_now,
+          parallel_life.publication_story_clock(world_id) AS story_at FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2`,
+            [value.definition.worldId, value.definition.ownerId],
+          )
+        ).rows[0];
+        if (
+          !clock ||
+          clock.paused ||
+          (clock.managed &&
+            (!clock.active_until ||
+              new Date(clock.active_until).getTime() <= new Date(clock.real_now).getTime()))
+        )
+          throw new TaskError('BUSY');
+        await this.audit(sql, value, previous, 'failure', null, 'world_version_changed');
+        const { pendingBeat: _, ...done } = old;
+        await this.save(sql, value, old, done as State, worldVersion);
+        const prepared = await this.prepare(sql, value, {
+          worldVersion,
+          storyAt: new Date(clock.story_at).toISOString(),
+          autonomousActionAvailable: true,
+          actorId: previous.actorId,
+          trigger: 'idle',
+        });
+        return prepared.status === 'claimed' ? prepared.pending : null;
+      }
       if (
         !allowSceneNavigation ||
         old.pendingBeat.channel !== 'scene' ||

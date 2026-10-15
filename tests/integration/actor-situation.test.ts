@@ -830,4 +830,128 @@ test('actor situations retain own directions and share the current world snapsho
       assert.equal(shared.productiveBeats, 1);
     },
   );
+  await t.test(
+    'explicit retry supersedes a stale unknown command safely and clears ended own goals',
+    async () => {
+      const fresh = await fixture(),
+        planId = randomUUID();
+      await repository.beginPlan(fresh.owner, fresh.worldId, planId);
+      await repository.savePlan(
+        fresh.owner,
+        fresh.worldId,
+        planId,
+        fresh.actors.map((a, i) => ({ actorId: a.id, brief: 'Retry goal ' + i })),
+      );
+      for (let version = 0; version < 2; version++) {
+        const claim = (await repository.claimNext(fresh.owner, fresh.worldId))!;
+        await commit(fresh, claim.actorId, version, claim.commandId, 'Initial retry contact');
+        await repository.finishDelivery(fresh.owner, fresh.worldId, claim.actorId, claim.commandId);
+      }
+      const later = new Date(Date.parse(at) + 35 * 60000).toISOString();
+      await admin.query('UPDATE parallel_life.world_clock SET story_now=$2 WHERE world_id=$1', [
+        fresh.worldId,
+        later,
+      ]);
+      const pending = await story.prepareProgressBeat(fresh.owner, fresh.worldId, 'start', {
+        expectedVersion: 2,
+        automatic: false,
+      });
+      assert.equal(pending.status, 'claimed');
+      if (pending.status !== 'claimed') throw Error('PENDING_REQUIRED');
+      const otherActor = fresh.actors.find((a) => a.id !== pending.claim.actorId)!.id;
+      assert.equal((await story.progress(fresh.owner, fresh.worldId)).pending?.status, 'unknown');
+      await commit(
+        fresh,
+        otherActor,
+        2,
+        randomUUID(),
+        'An ordinary reply advances the shared version',
+        true,
+      );
+      await assert.rejects(
+        () => story.retry(fresh.owner, fresh.worldId, pending.claim.claimId),
+        (error) => (error as { code: string }).code === 'BUSY',
+      );
+      assert.equal(
+        (await story.progress(fresh.owner, fresh.worldId)).pending?.commandId,
+        pending.claim.commandId,
+      );
+      await admin.query(
+        'UPDATE parallel_life.world_clock SET paused=false,last_tick_at=clock_timestamp() WHERE world_id=$1',
+        [fresh.worldId],
+      );
+      const recovered = await story.retry(fresh.owner, fresh.worldId, pending.claim.claimId);
+      assert.equal(recovered.status, 'claimed');
+      if (recovered.status !== 'claimed') throw Error('CURRENT_RETRY_REQUIRED');
+      assert.equal(recovered.claim.expectedVersion, 3);
+      assert.equal(recovered.claim.actorId, pending.claim.actorId);
+      assert.notEqual(recovered.claim.commandId, pending.claim.commandId);
+      await assert.rejects(
+        () =>
+          commit(
+            fresh,
+            pending.claim.actorId,
+            2,
+            pending.claim.commandId,
+            'A late result at the superseded version',
+          ),
+        /VERSION_CONFLICT/,
+      );
+      assert.equal((await runtime.get({ userId: fresh.owner }, fresh.worldId)).version, 3);
+      const superseded = (
+        await admin.query(
+          "SELECT count(*)::int AS n FROM parallel_life.publication_story_receipts WHERE world_id=$1 AND command_id::text=$2 AND data->>'reason'='world_version_changed'",
+          [fresh.worldId, pending.claim.commandId],
+        )
+      ).rows[0].n;
+      assert.equal(superseded, 1);
+      await story.progress(fresh.owner, fresh.worldId);
+      const closing = publicationCharacterPlanner(app, fresh.owner, fresh.worldId, {
+        async complete(messages) {
+          const payload = JSON.parse(messages[1]!.content);
+          return JSON.stringify({
+            schemaVersion: 1,
+            effects: [
+              {
+                type: 'message.received',
+                id: 'r',
+                actorId: recovered.claim.actorId,
+                text: '这次请求就到这里，我不再继续。',
+              },
+            ],
+            eventGoalAssessments: [
+              {
+                goalKey: payload.eventGoals[0].goalKey,
+                target: 'npc',
+                kind: 'closure',
+                quote: '这次请求就到这里，我不再继续',
+                closure: 'withdrawn',
+              },
+            ],
+          });
+        },
+      });
+      await resolveTurn(
+        { worlds: runtime, planner: closing, now: () => at, newId: randomUUID },
+        { userId: fresh.owner },
+        {
+          id: randomUUID(),
+          worldId: fresh.worldId,
+          actorId: recovered.claim.actorId,
+          expectedVersion: 3,
+          text: '请取消这次安排。',
+        },
+      );
+      const noMore = await story.retry(fresh.owner, fresh.worldId, recovered.claim.claimId);
+      assert.equal(noMore.status, 'none');
+      assert.equal((await story.progress(fresh.owner, fresh.worldId)).pending, null);
+      const closureAudit = (
+        await admin.query(
+          "SELECT count(*)::int AS n FROM parallel_life.publication_story_receipts WHERE world_id=$1 AND command_id::text=$2 AND data->>'reason'='goal_closed'",
+          [fresh.worldId, recovered.claim.commandId],
+        )
+      ).rows[0].n;
+      assert.equal(closureAudit, 1);
+    },
+  );
 });

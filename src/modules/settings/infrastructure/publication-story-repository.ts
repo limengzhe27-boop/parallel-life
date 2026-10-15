@@ -1304,6 +1304,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
           claimId,
           c.version,
         );
+        if (!pending) return { status: 'none', managed: true };
         const brief = await this.progressBrief(sql, row, c, pending.actorId);
         if (!brief) throw new TaskError('INVALID_STATE');
         const original = c.states.find((s) => s.nodeKey === row.record.node.key)!;

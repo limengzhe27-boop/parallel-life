@@ -24,3 +24,8 @@ The separate autonomous scene worker candidate remains unaccepted and excluded. 
 
 ## Reviewed source-time follow-up
 Root explicitly assigned two director-observation time fences after freeze. Both global last-source progress and per-actor participation/status evidence now require event story time <= observed storyAt; actor message at must also be <= storyAt. Existing13-node real PG suite verifies an older clock view hides all future progress and a future-dated participant message becomes unknown without changing the other participant. Typecheck and diff clean; root performs final integrated check/build. No model or production operations.
+
+## Reviewed stale-pending explicit recovery follow-up
+Root assigned the phone continuation retry branch and its nullable caller adaptation. A successful old source reconciles without another send. An ended own/shared goal clears pending with old-command audit and returns no work. A stale unknown phone attempt first validates same actor/current goal and world pause/presence; explicit retry then audits supersession and uses current pacing/eligibility to create a new command at the current version. The old command/version is never relaxed. Same-version retry retains its existing command. Scene-navigation recovery stays unchanged.
+
+Narrow real PostgreSQL14/14 and typecheck passed. Added actual ordinary-chat version change, paused retry rejection, original-command audit, same-actor new-command/version recovery, late old-version commit rejection, and own-goal closure clearing pending without a new call. No full build repeated by implementer; root owns final integrated checks. Paid ledger still0/12, saves0/2; no production operations.
