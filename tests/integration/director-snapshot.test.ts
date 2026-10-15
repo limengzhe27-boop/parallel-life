@@ -27,7 +27,7 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 const at = '2026-10-15T08:00:00.000Z';
 test('real director snapshot is one coherent readonly fictional-world view with exact evidence', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55503);
+  assert.equal(config.port, Number(process.env.DIRECTOR_SNAPSHOT_TEST_PORT ?? 55503));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const app = new PostgresDatabase(
