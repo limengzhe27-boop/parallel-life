@@ -3,7 +3,7 @@ import { unsupportedReturnClaim } from '../domain/return-message-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 import { actorContext } from './actor-context.ts';
 import { DomainError } from '../domain/errors.ts';
-import { advanceClock, beatCue, selectSpeaker } from '../domain/clock.ts';
+import { advanceClock, beatCue, selectSpeaker, projectStoryTime } from '../domain/clock.ts';
 import { buildAgenda, eligibleAgenda, type CommitmentMemory } from '../domain/agenda.ts';
 import { beatsForPacing, EMPTY_DIRECTION, type WorldDirection } from '../domain/direction.ts';
 import type { Session } from '../domain/types.ts';
@@ -45,13 +45,32 @@ export async function advanceWorld(
   return deps.clock.withAdvanceLock(worldId, async () => {
     const clock = await deps.clock.read(session.userId, worldId);
     await deps.clock.ensureAnchor(session.userId, worldId, clock);
+    // Offline/explicitly paused managed worlds never reopen an old paid attempt automatically.
+    if (deps.automatic && clock.paused)
+      return {
+        storyNow: projectStoryTime(clock, deps.now()),
+        played: 0,
+        folded: 0,
+        summary: null,
+        actors: [],
+      };
     if (deps.automatic && (await deps.clock.hasUnresolvedAttempt(session.userId, worldId)))
       throw new DomainError('VERSION_CONFLICT', '上次导演来信结果不确定，请在导演面板手动继续');
     const direction = (await deps.direction?.()) ?? EMPTY_DIRECTION;
     const advance = advanceClock(clock, deps.now(), {
       maxBeats: deps.maxBeats ?? beatsForPacing(direction.pacing),
+      ...(clock.managed ? { beatMinutes: 15 } : {}),
     });
     const pending = (await deps.clock.pendingAttempt?.(session.userId, worldId)) ?? null;
+    // A free frequent check must not consume a partial beat by resetting its anchor.
+    if (!advance.beats.length && !pending)
+      return {
+        storyNow: projectStoryTime(clock, deps.now()),
+        played: 0,
+        folded: 0,
+        summary: null,
+        actors: [],
+      };
     const plans = pending
       ? [
           { at: pending.plannedFor, commandId: pending.commandId, actorId: pending.actorId },
