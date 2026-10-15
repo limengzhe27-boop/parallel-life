@@ -205,8 +205,8 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare, characte
     p.world.ownerId !== input.ownerId ||
     p.seed.id !== input.seedId ||
     p.world.title !== c.work.title ||
-    p.world.time !== c.world.startAt ||
-    p.world.messageHistory.startAt !== c.world.startAt ||
+    p.world.time !== new Date(c.world.startAt).toISOString() ||
+    p.world.messageHistory.startAt !== new Date(c.world.startAt).toISOString() ||
     ids.size !== p.world.actors.length ||
     p.world.actors.length !== c.actors.length ||
     !equal(p.opening.origin, input.origin) ||
@@ -248,7 +248,7 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare, characte
           (source.speaker === 'player' ? 'user' : 'assistant') === m.role &&
           (source.origin === 'history' ? source.key === m.history?.key : !m.history) &&
           source.text === m.text &&
-          source.at === m.at &&
+          new Date(source.at).toISOString() === m.at &&
           equal(source.attachment ?? null, m.attachment ?? null),
       )
     )

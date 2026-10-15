@@ -305,7 +305,7 @@ test('authored historical instants are preserved, chronologically ordered and in
   const r = compiled(input());
   assert.deepEqual(
     r.world.messages.map((m) => m.at),
-    ['2026-10-10T08:00:00Z', '2026-10-11T09:00:00Z', '2026-10-12T08:58:00Z'],
+    ['2026-10-10T08:00:00.000Z', '2026-10-11T09:00:00.000Z', '2026-10-12T08:58:00.000Z'],
   );
   assert.deepEqual(
     r.world.messages.map((m) => m.initialRead),
@@ -336,14 +336,14 @@ test('same-instant authored incoming messages do not enter legacy notification r
     openingMessagesForDisplay(r.world.messages, r.world.id, r.world.time),
     r.world.messages,
   );
-  assert.ok(r.world.messages.every((m) => m.at === c.world.startAt));
+  assert.ok(r.world.messages.every((m) => m.at === new Date(c.world.startAt).toISOString()));
 });
 test('calendar remains proposed and references actual allocated source message, without player actions', () => {
   const r = compiled(input()),
     a = r.world.appointments[0]!;
   assert.equal(a.status, 'proposed');
   assert.equal(a.sourceMessageId, r.keys.messages.find((m) => m.key === 'incoming_a')?.id);
-  assert.equal(a.at, '2026-10-12T11:00:00Z');
+  assert.equal(a.at, '2026-10-12T11:00:00.000Z');
   assert.ok(!('responseAt' in a));
   assert.ok(!('choices' in r.world));
   assert.ok(!('matters' in r.world));
@@ -830,3 +830,34 @@ test('unsupported full-event completion prerequisites are blocked without changi
   };
   noCompile(input(c), 'unsupported', 'unsupported_director_completion_stage');
 });
+
+for (const startAt of [
+  '2026-10-12T09:00:00Z',
+  '2026-10-12T09:00:00.123Z',
+  '2026-10-12T09:00:00.123456Z',
+]) {
+  test(`runtime genesis uses UTC milliseconds without rewriting authored source: ${startAt}`, () => {
+    const c = content();
+    c.world.startAt = startAt;
+    const before = structuredClone(c),
+      request = input(c),
+      result = compiled(request);
+    assert.equal(result.world.time, new Date(startAt).toISOString());
+    assert.equal(result.world.messageHistory?.startAt, result.world.time);
+    assert.equal(Date.parse(result.world.time), Date.parse(startAt));
+    assert.deepEqual(c, before);
+    assert.equal(request.origin.contentHash, input(c).origin.contentHash);
+    assert.ok(result.world.messages.every((m) => m.at === new Date(m.at).toISOString()));
+    assert.ok(result.world.appointments.every((a) => a.at === new Date(a.at).toISOString()));
+  });
+}
+for (const startAt of ['2026-02-30T09:00:00Z', 'not-a-date', '2026-10-12T17:00:00+08:00']) {
+  test(`invalid or unsupported authored timestamp remains rejected: ${startAt}`, () => {
+    const c = content();
+    const request = input(c);
+    c.world.startAt = startAt;
+    const before = structuredClone(c);
+    noCompile(request, 'invalid', 'invalid_content');
+    assert.deepEqual(c, before);
+  });
+}

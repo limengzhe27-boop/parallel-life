@@ -299,8 +299,13 @@ export function compilePublicationGenesis(
       ownerId,
       version: 0,
       title: c.work.title,
-      time: c.world.startAt,
-      messageHistory: { version: 1, startAt: c.world.startAt, timeZone: 'UTC+08:00' },
+      // Authored ISO spelling stays in the publication; runtime events use UTC milliseconds.
+      time: new Date(c.world.startAt).toISOString(),
+      messageHistory: {
+        version: 1,
+        startAt: new Date(c.world.startAt).toISOString(),
+        timeZone: 'UTC+08:00',
+      },
       actors: sorted(c.actors).map((a) => ({
         id: actorIds.get(a.key)!,
         name: a.name,
@@ -363,7 +368,7 @@ export function compilePublicationGenesis(
           actorId: actorIds.get(m.actorKey)!,
           role: m.speaker === 'player' ? 'user' : 'assistant',
           text: m.text,
-          at: m.at,
+          at: new Date(m.at).toISOString(),
           sourceEventId,
           ...(m.attachment ? { attachment: { ...m.attachment } } : {}),
           initialRead: m.origin === 'history',
@@ -378,7 +383,7 @@ export function compilePublicationGenesis(
       return {
         id: invitationId,
         title: inv.title,
-        at: inv.at,
+        at: new Date(inv.at).toISOString(),
         participantIds: inv.actorKeys.map((key) => actorIds.get(key)!),
         sourceEventId,
         sourceMessageId: messageIds.get(inv.messageKey)!,
