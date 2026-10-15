@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import {
   isEpisodeConsiderationInput,
   requireEpisodeDeliveryInTransaction,
@@ -20,6 +21,7 @@ import type {
 import { transitionAgentAttempt } from '../domain/agent-runtime.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { validateActorEpisodeIntentSnapshotInTransaction } from './actor-episode-intent-repository.ts';
+import { readActorStrategyBasis } from './agent-source-resolver.ts';
 
 export class AgentRuntimePersistenceError extends Error {
   readonly code: string;
@@ -584,11 +586,26 @@ export class PostgresAgentRuntimeRepository
         if (w.version !== expected.expectedWorldVersion) fail('VERSION_CONFLICT');
         const state = (
           await sql.query(
-            'SELECT revision FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3',
+            'SELECT revision,document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3',
             [expected.worldId, ownerId, expected.actorId],
           )
         ).rows[0];
         if (state?.revision !== expected.expectedActorRevision) fail('AGENT_REVISION_CONFLICT');
+        if (snapshot) {
+          if (!isDeepStrictEqual(state.document, snapshot.state)) fail('AGENT_REVISION_CONFLICT');
+          const strategy = snapshot.sources.filter((source) => source.usage === 'private_strategy');
+          if (strategy.length) {
+            const actual = await readActorStrategyBasis(
+              sql,
+              ownerId,
+              state.document,
+              snapshot.worldVersion,
+              snapshot.storyAt,
+            );
+            if (strategy.some((source) => !actual.some((item) => isDeepStrictEqual(source, item))))
+              fail('AGENT_REVISION_CONFLICT');
+          }
+        }
       }
       if (row.status === status) return attempt(row);
       return attempt(
