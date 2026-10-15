@@ -229,9 +229,14 @@ export async function readPrivateAgentSnapshot(
       record.sourceIds.every((id) => !memories.blockedSources.has(id)),
   );
   const stateHandles = state
-    ? [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities].flatMap(
-        (item) => item.sourceIds,
-      )
+    ? [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities]
+        .flatMap((item) => item.sourceIds)
+        .concat(
+          (state.questions ?? []).flatMap((q) => [
+            q.sourceId,
+            ...(q.resolution ? [q.resolution.sourceId] : []),
+          ]),
+        )
     : [];
   const privateProofIds = [
     ...new Set([
@@ -323,7 +328,13 @@ export async function readPrivateAgentSnapshot(
       ...new Set(
         [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities]
           .flatMap((item) => item.sourceIds)
-          .concat(state.decisions.map((item) => item.sourceId)),
+          .concat(state.decisions.map((item) => item.sourceId))
+          .concat(
+            (state.questions ?? []).flatMap((q) => [
+              q.sourceId,
+              ...(q.resolution ? [q.resolution.sourceId] : []),
+            ]),
+          ),
       ),
     ];
     const rows = await db.transaction(

@@ -231,12 +231,26 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
             payload.state.decisions.find((d: { id: string }) => d.id === 'private-decline').quote,
             '',
           );
-          return JSON.stringify(
-            reply(
-              nativeCalls === 1 ? '我有自己的安排。要改天再聊吗？' : '好，那就先随意聊聊。',
-              nativeCalls === 1,
-            ),
+          const proposal = reply(
+            nativeCalls === 1 ? '我有自己的安排。要改天再聊吗？' : '好，那就先随意聊聊。',
+            nativeCalls === 1,
           );
+          if (nativeCalls === 2) {
+            const question = payload.state.questions.find(
+              (q: { status: string; channel: string }) =>
+                q.status === 'open' && q.channel === 'group',
+            );
+            assert.ok(question, 'the actual pending question reaches its same-channel speaker');
+            proposal.replyAssessments = [
+              {
+                questionId: question.id,
+                sourceId: payload.input.sourceId,
+                quote: '好',
+                relation: 'answer',
+              },
+            ];
+          }
+          return JSON.stringify(proposal);
         },
       }));
       const dispatcher = worldTaskDispatcher({
@@ -353,6 +367,10 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
         finalState.focus?.questionSourceId,
         null,
         'the actual answer closes the question',
+      );
+      assert.equal(
+        finalState.questions?.find((q) => q.sourceId === `group:${question.id}`)?.status,
+        'answered',
       );
     },
   );

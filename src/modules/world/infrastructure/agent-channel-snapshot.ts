@@ -228,7 +228,13 @@ export async function readNativeAgentSnapshot(
       ...new Set(
         [...state.goals, ...state.plans, ...state.actions, ...state.responsibilities]
           .flatMap((item) => item.sourceIds)
-          .concat(state.decisions.map((d) => d.sourceId)),
+          .concat(state.decisions.map((d) => d.sourceId))
+          .concat(
+            (state.questions ?? []).flatMap((q) => [
+              q.sourceId,
+              ...(q.resolution ? [q.resolution.sourceId] : []),
+            ]),
+          ),
       ),
     ];
     if (input.channel === 'group') {

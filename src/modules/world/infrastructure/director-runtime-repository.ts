@@ -135,6 +135,29 @@ const State = z
     actions: z.array(z.unknown()),
     responsibilities: z.array(z.unknown()),
     decisions: z.array(z.unknown()),
+    questions: z
+      .array(
+        z.strictObject({
+          id: Key,
+          channel: Channel,
+          threadId: Key,
+          sourceId: Key,
+          text: z.string().min(1),
+          askedAt: Time,
+          status: z.enum(['open', 'answered', 'withdrawn']),
+          responsibilityId: Key.optional(),
+          resolution: z
+            .strictObject({
+              sourceId: Key,
+              quote: z.string().optional(),
+              at: Time,
+              kind: z.enum(['answer', 'decline_to_answer', 'withdrawal']),
+              reason: z.string().optional(),
+            })
+            .optional(),
+        }),
+      )
+      .optional(),
     focus: z.unknown().nullable(),
   })
   .strict();

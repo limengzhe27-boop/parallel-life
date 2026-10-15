@@ -66,3 +66,29 @@ test('actual focus, candidate or state changes alter the command frame without a
     'JSONB object ordering does not change identity',
   );
 });
+
+test('persistent questions are part of the real Director frame, independent of topic focus', () => {
+  const original = snapshot();
+  original.actorStates[0]!.questions = [
+    {
+      id: 'q',
+      sourceId: 's',
+      channel: 'private',
+      threadId: 'a',
+      text: '要一起吃饭吗？',
+      askedAt: original.storyAt,
+      status: 'open',
+    },
+  ];
+  const pending = directorCoordinationFrameHash(original);
+  const changed = structuredClone(original);
+  changed.actorStates[0]!.questions![0]!.status = 'answered';
+  changed.actorStates[0]!.questions![0]!.resolution = {
+    kind: 'answer',
+    sourceId: 'input',
+    quote: '先不去',
+    at: original.storyAt,
+  };
+  assert.notEqual(directorCoordinationFrameHash(changed), pending);
+  assert.equal(original.focus.length, 0);
+});
