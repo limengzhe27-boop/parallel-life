@@ -270,7 +270,9 @@ export async function projectNativeAgentChannelInTransaction(
         agentRuntime: transition,
         effects: effects.filter((e) => e.type !== 'message.received'),
         dialogues: sceneEntries,
-        presenceUnchanged: true,
+        presenceUnchanged: !transition.sceneDepartures?.some(
+          (departure) => departure.sceneId === current.scene.id,
+        ),
       },
     };
   }

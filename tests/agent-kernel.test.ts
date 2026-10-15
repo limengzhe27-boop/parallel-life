@@ -19,6 +19,49 @@ import {
 } from '../src/modules/world/domain/agent-kernel.ts';
 
 const at = '2026-10-15T10:00:00.000Z';
+
+test('a failed capability preserves independent speech and records its real diagnostic without success claims', () => {
+  const { context, proposal } = fixture();
+  proposal.actions = [
+    {
+      id: 'travel-action',
+      goalId: 'goal-a',
+      capability: 'own.schedule',
+      targetIds: [],
+      parameters: {},
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+      sourceIds: ['opening'],
+      status: 'proposed',
+    },
+  ];
+  proposal.statements = [
+    { text: '我已经出发了。', dependsOnActionIds: ['travel-action'] },
+    { text: '我愿意去，先看看现在能走哪条路线。', dependsOnActionIds: [] },
+  ];
+  const result: AgentActionResult = {
+    id: 'failed-result',
+    actionId: 'travel-action',
+    worldId: context.state.worldId,
+    actorId: context.state.actorId,
+    eventId: 'execution-event',
+    worldVersion: 5,
+    at,
+    outcome: 'failed',
+    failureCode: 'travel_missing_route',
+    handledResponsibilityIds: [],
+    evidenceSourceIds: ['opening'],
+    completedGoalIds: [],
+    outputRefs: [],
+  };
+  const accepted = reduceActorAgentState(context, proposal, [result], 5);
+  assert.deepEqual(accepted.statements, [proposal.statements[1]]);
+  assert.equal(accepted.state.actions[0]!.status, 'failed');
+  assert.equal(accepted.state.actions[0]!.failureCode, 'travel_missing_route');
+  assert.equal(accepted.state.goals[0]!.status, 'active');
+  assert.equal(accepted.state.responsibilities[0]!.status, 'waiting');
+});
 function fixture(): { context: AgentValidationContext; proposal: AgentProposal } {
   const state = emptyActorAgentState({ worldId: 'world-a', actorId: 'actor-a' }, 'author-v1', 4);
   state.goals.push({
