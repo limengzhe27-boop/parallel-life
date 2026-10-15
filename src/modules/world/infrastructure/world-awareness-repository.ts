@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import { readAgentJourneysInTransaction } from './agent-journey-repository.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { WorldState } from '../domain/types.ts';
 import type { ActorAgentState } from '../domain/agent-runtime.ts';
@@ -111,7 +112,16 @@ export async function projectCommittedWorldAwareness(
           )
         ).rows[0]?.document;
       }
-      const delta = committedAwarenessDelta(world, event, { previousAgentState, scene });
+      const journey =
+        event.type === 'agent.arrival_committed' && data?.actorId
+          ? (
+              await readAgentJourneysInTransaction(sql, owner, {
+                worldId: world.id,
+                actorId: data.actorId,
+              })
+            ).find((j) => j.id === (event.data as { journeyId?: string }).journeyId)
+          : undefined;
+      const delta = committedAwarenessDelta(world, event, { previousAgentState, scene, journey });
       for (const position of delta.positions) {
         await sql.query(
           `INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document)
