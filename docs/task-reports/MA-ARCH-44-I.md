@@ -70,3 +70,12 @@ epoch1仍进入旧resolveTurn及其长锁；群/现场仍走原Worker；开场/�
 验证：整合代码check2621/2621、build、format通过；实际受影响PG47/47与75导演PG18/18通过（模型均mock）。后加确定性环境认知回归专项通过。曾同时check/build造成.next类型文件生成竞争，已等待build后串行重跑check通过，不计代码失败、不掩盖记录。当前未做真实模型验收，44新付费调用0、生产测试存档0。
 
 生产迁移75/75已应用并由migrate逐项校验checksum。部署本批只安装持久与受控入口，生产存档epoch仍不切换；当前线上SHA及READY证据由本节后续实际记录。整体重构仍未完成，不以测试数量或模型适配器存在宣称完整旅程可用。
+
+
+阶段二正式上线：b8d892749ab079fbddbe69f999b1b9fc3dded7d0 / dpl_2GHurtMGBBWSpsWppn3KNyjJPnmM READY，Vercel API精确SHA、关联身份与Nu别名核验；75/75生产迁移checksum一致。health/workbench/published200、匿名/api/v1/publisher/works401。本次Ego201已结束不存在，未新建浏览器任务绕过，不将HTTP称为本批手机/PC视觉或完整旅程验收。
+
+线上后CI发现旧worker被新增观察hook触及owner-only表而42501：阶段二数据库573pass/54fail，相较1028新增26失败、移除1，未将其冒称基线相同。已修36c6d96，纯worker在已通过epoch围栏的旧提交中不访问Agent表；epoch2旧worker仍被SQL围栏拒绝，未扩大权限。Q实际旧group/scenes及新增worker边界17节点16pass/1明确模型skip，app native5/5；源与权限未放宽。另旧generalGoals读取不存在world_matters表的42P01已改为实际worlds.state.matters来源，既有scene-natural-delivery6/6恢复。热修READY待记录，完整库复验仍在进行。
+
+后续代码接续：导演应用/模型严格恢复与边界新72mock通过；新确定性环境actual entry→lease→scene.opened/receipt/observation/task13PG通过，但实际dispatcher、env在场人物后续input授权及仅导航版本跨越恢复尚未接，不将环境模块视为完整新现场。新advance组合26013774及blocked过滤beeb8906已有代码，尚未接services，P实际入口PG/B真实global snapshot在集成。导演新机会仍proposed；通用移动/撤回/主动观察、作者事件和开场候选、业务attention身份、关系实际结果、全存档迁移与旧路径删除仍待完成。44真实模型0，生产测试world0，epoch2生产启用0。
+
+热修本地门槛：check2694/2694、build成功；root真实worker边界6/6、旧scene自然对话6/6、新环境13/13通过。完整PG634pass/19fail/5明确opt-in skip，含2处旧测试硬编码55476环境守卫；其余旧邀请时效/发布证据/旧时间调度和内部trigger权限清单失败继续待核，不报全库绿色。新worker42501回归已修，新增trigger仅由触发器调用、不应给app/worker直接EXECUTE；对应旧测试清单待补严格无权限断言。
