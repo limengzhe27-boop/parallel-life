@@ -332,7 +332,7 @@ export function isoInstant(value: unknown): string {
 /** No source IDs, actor reassignment, completion flags or physical selectors in model judgments. */
 export function parseEventGoalAssessments(value: unknown): EventGoalAssessment[] {
   if (!Array.isArray(value) || value.length > 8)
-    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SCHEMA_INVALID');
+    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_ARRAY');
   const assessments = value.map((raw): EventGoalAssessment => {
     const item = record(raw);
     if (
@@ -340,10 +340,10 @@ export function parseEventGoalAssessments(value: unknown): EventGoalAssessment[]
         (key) => !['goalKey', 'target', 'kind', 'quote', 'closure'].includes(key),
       )
     )
-      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SCHEMA_INVALID');
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_EXTRA_FIELD');
     const goalKey = text(item.goalKey, 160);
     if (!/^[a-zA-Z0-9_:-]+$/.test(goalKey))
-      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SCHEMA_INVALID');
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_KEY');
     const userKinds = ['engaged', 'declined', 'reopened', 'unrelated'];
     const npcKinds = ['npc_progress', 'nudge', 'closure'];
     if (
@@ -351,15 +351,15 @@ export function parseEventGoalAssessments(value: unknown): EventGoalAssessment[]
       typeof item.kind !== 'string' ||
       !(item.target === 'user' ? userKinds : npcKinds).includes(item.kind)
     )
-      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SCHEMA_INVALID');
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_TARGET_KIND');
     if (item.kind === 'closure') {
       if (!['withdrawn', 'alternative', 'unresolved'].includes(item.closure as string))
-        throw new DomainError(
-          'INVALID_PROPOSAL',
-          'INVALID_PROPOSAL:GOAL_ASSESSMENT_SCHEMA_INVALID',
-        );
+        throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_CLOSURE_VALUE');
     } else if (Object.hasOwn(item, 'closure'))
-      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SCHEMA_INVALID');
+      throw new DomainError(
+        'INVALID_PROPOSAL',
+        'INVALID_PROPOSAL:GOAL_ASSESSMENT_UNEXPECTED_CLOSURE',
+      );
     return {
       goalKey,
       target: item.target,
@@ -372,7 +372,7 @@ export function parseEventGoalAssessments(value: unknown): EventGoalAssessment[]
   });
   const keys = assessments.map((a) => JSON.stringify([a.goalKey, a.target]));
   if (new Set(keys).size !== keys.length)
-    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SCHEMA_INVALID');
+    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_DUPLICATE');
   // A reply follows its player input, even if the model emits judgments out of order.
   return assessments.sort((a, b) => Number(a.target === 'npc') - Number(b.target === 'npc'));
 }
