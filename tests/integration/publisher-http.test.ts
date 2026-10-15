@@ -13,7 +13,10 @@ import {
 import { PublisherHttp, publisherEndpoint } from '../../src/server/publisher-http.ts';
 test('actual staff HTTP commands persist in owned local PostgreSQL, replay once and reject revocation', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55476, 'Root owned local test database only');
+  const expectedPort = process.env.PUBLISHER_HTTP_TEST_PORT ?? '55476';
+  assert.match(expectedPort, /^[1-9][0-9]{0,4}$/);
+  assert.ok(Number(expectedPort) <= 65535);
+  assert.equal(config.port, Number(expectedPort), 'Explicit owned local test database only');
   const admin = await adminClient('parallel_life_test');
   t.after(() => admin.end());
   await migrate(admin);

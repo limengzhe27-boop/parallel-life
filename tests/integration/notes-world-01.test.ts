@@ -48,7 +48,7 @@ test('player records: real committed sources, calendar replay, isolation and rea
         worldId,
         version: state.version + 1,
         commandId,
-        occurredAt: time,
+        occurredAt: new Date().toISOString(),
         storyAt: time,
         type: 'turn.resolved',
         data: {

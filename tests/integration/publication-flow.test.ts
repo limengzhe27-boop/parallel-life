@@ -20,7 +20,10 @@ import { resolveTurn } from '../../src/modules/world/application/resolve-turn.ts
 import { SeedRepository } from '../../src/modules/discovery/infrastructure/seed-repository.ts';
 test('local integrated save → private trial → explicit synthetic NPC turn → publish → isolated player phone and authored notes', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55476);
+  const expectedPort = process.env.PUBLICATION_FLOW_TEST_PORT ?? '55476';
+  assert.match(expectedPort, /^[1-9][0-9]{0,4}$/);
+  assert.ok(Number(expectedPort) <= 65535);
+  assert.equal(cfg.port, Number(expectedPort), 'Explicit owned local test database only');
   const admin = await adminClient('parallel_life_test');
   t.after(() => admin.end());
   await migrate(admin);
@@ -31,10 +34,10 @@ test('local integrated save → private trial → explicit synthetic NPC turn �
     );
   await admin.query(`GRANT pl_publisher TO ${role}`);
   const pub = new PostgresDatabase(
-      `postgresql://${role}:${cfg.appPassword}@127.0.0.1:55476/parallel_life_test`,
+      `postgresql://${role}:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
     ),
     app = new PostgresDatabase(
-      `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:55476/parallel_life_test`,
+      `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
     );
   t.after(async () => {
     await pub.close();
