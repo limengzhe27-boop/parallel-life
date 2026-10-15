@@ -13,6 +13,7 @@ import { validateCharacterEffects } from './character-policy.ts';
 import { canShareWith } from './relationships.ts';
 import { createWorldMatter, transitionWorldMatter } from './matters.ts';
 import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
+import { linkAppointmentVenue } from './space.ts';
 
 /** Pure reducer. All effects validate before the caller commits anything. */
 export function applyEvent(
@@ -247,6 +248,8 @@ export function applyEvent(
       case 'appointment.created':
         if (effect.participantIds.some((id) => !actorIds.has(id)) || effect.at < replyAt)
           throw new DomainError('INVALID_PROPOSAL', 'Invalid appointment');
+        if (effect.type === 'appointment.proposed' && effect.placeId !== undefined)
+          state.space = linkAppointmentVenue(state.space, effect.id, effect.placeId);
         state.appointments.push({
           ...(effect.type === 'appointment.proposed' ? { status: 'proposed' as const } : {}),
           id: effect.id,

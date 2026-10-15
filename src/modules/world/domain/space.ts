@@ -7,6 +7,25 @@ import {
   resolveTravelRoute,
   sameDefaultTravelRoute,
 } from './space-travel-policy.ts';
+
+/** A venue association is an invitation output, never anybody's position or attendance. */
+export function linkAppointmentVenue(
+  space: WorldSpaceState | undefined,
+  appointmentId: string,
+  placeId?: string,
+) {
+  if (placeId === undefined) return space;
+  if (!space || space.places.filter((p) => p.id === placeId).length !== 1)
+    throw new DomainError('INVALID_PROPOSAL', 'APPOINTMENT_PLACE_NOT_AVAILABLE');
+  return {
+    ...space,
+    places: space.places.map((p) =>
+      p.id === placeId
+        ? { ...p, appointmentIds: [...new Set([...p.appointmentIds, appointmentId])] }
+        : p,
+    ),
+  };
+}
 export type SpaceSource =
   | { kind: 'system_policy'; policy: 'default_travel_v1'; snapshotVersion: 0 }
   | { kind: 'official_genesis'; presetId: string; contentVersion: number; snapshotVersion: 0 }

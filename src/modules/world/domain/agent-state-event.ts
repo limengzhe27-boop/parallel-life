@@ -2,6 +2,7 @@ import type { AgentProposal, AgentActionResult, ActorAgentState } from './agent-
 import type { WorldState, WorldEffect } from './types.ts';
 import { DomainError } from './errors.ts';
 import { isoInstant, validateEventId } from './validation.ts';
+import { linkAppointmentVenue } from './space.ts';
 
 export type AgentRuntimeTransition = {
   schemaVersion: 1;
@@ -91,6 +92,8 @@ export function applyAgentStateEvent(
       throw new DomainError('INVALID_PROPOSAL');
     isoInstant(effect.at);
     validateEventId(effect.id);
+    if (effect.placeId !== undefined)
+      state.space = linkAppointmentVenue(state.space, effect.id, effect.placeId);
     state.appointments.push({
       id: effect.id,
       title: effect.title,
@@ -148,6 +151,7 @@ export function applyNativeAgentCalendarEffects(
     throw new DomainError('INVALID_PROPOSAL');
   return {
     ...native,
+    ...(calendar.some((e) => e.placeId !== undefined) ? { space: projected.space } : {}),
     appointments: [
       ...native.appointments,
       ...projected.appointments.filter((a) => a.sourceEventId === event.id),

@@ -249,24 +249,44 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           outputRefs = [{ kind: 'plan', id: planId }];
         } else if (action.capability === 'appointment.propose') {
           const title = action.parameters.title,
-            proposedAt = action.parameters.at;
+            proposedAt = action.parameters.at,
+            placeId = action.parameters.placeId;
           if (
             typeof title !== 'string' ||
             !title.trim() ||
             title.length > 120 ||
             typeof proposedAt !== 'string' ||
             !validOffsetInstant(proposedAt) ||
-            Date.parse(proposedAt) <= Date.parse(at)
+            Date.parse(proposedAt) <= Date.parse(at) ||
+            (placeId !== undefined && (typeof placeId !== 'string' || !placeId.trim())) ||
+            Object.keys(action.parameters).some((key) => !['title', 'at', 'placeId'].includes(key))
           )
             throw new AgentValidationError('APPOINTMENT_PROPOSAL');
-          effects.push({
-            type: 'appointment.proposed',
-            id: randomUUID(),
-            title,
-            at: new Date(proposedAt).toISOString(),
-            participantIds: [attempt.actorId],
-          });
-          outputRefs = [{ kind: 'appointment', id: effects.at(-1)!.id }];
+          if (placeId !== undefined) {
+            const places =
+              (
+                await sql.query(
+                  "SELECT state->'space'->'places' AS places FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2",
+                  [attempt.worldId, ownerId],
+                )
+              ).rows[0]?.places ?? [];
+            if (
+              !snapshot.worldContext?.boundary.placeIds.includes(placeId as string) ||
+              places.filter((p: { id: string }) => p.id === placeId).length !== 1
+            )
+              failureCode = 'APPOINTMENT_PLACE_NOT_AVAILABLE';
+          }
+          if (!failureCode) {
+            effects.push({
+              type: 'appointment.proposed',
+              id: randomUUID(),
+              title,
+              at: new Date(proposedAt).toISOString(),
+              participantIds: [attempt.actorId],
+              ...(placeId === undefined ? {} : { placeId: placeId as string }),
+            });
+            outputRefs = [{ kind: 'appointment', id: effects.at(-1)!.id }];
+          }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
           if (

@@ -478,6 +478,9 @@ export function parseProposal(value: unknown): TurnProposal {
           title: text(item.title, 200),
           at: isoInstant(item.at),
           participantIds: ids(item.participantIds),
+          ...(item.type === 'appointment.proposed' && item.placeId !== undefined
+            ? { placeId: id(item.placeId) }
+            : {}),
         };
       case 'fact.established':
         return {

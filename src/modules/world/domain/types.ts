@@ -158,7 +158,14 @@ export type WorldState = {
 export type WorldEffect =
   | { type: 'belief.recorded'; id: Id; actorId: Id; text: string }
   | { type: 'information.shared'; id: Id; recipientActorId: Id; sourceMessageId: Id; quote: string }
-  | { type: 'appointment.proposed'; id: Id; title: string; at: string; participantIds: Id[] }
+  | {
+      type: 'appointment.proposed';
+      id: Id;
+      title: string;
+      at: string;
+      participantIds: Id[];
+      placeId?: string;
+    }
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
