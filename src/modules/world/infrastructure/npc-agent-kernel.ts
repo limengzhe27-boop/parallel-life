@@ -289,21 +289,21 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           actorId: attempt.actorId,
           text: statement.text,
         });
-      const questionIndex = accepted.statements.reduce(
-        (last, statement, index) => (statement.requestsPlayerReply === true ? index : last),
-        -1,
-      );
+      const resolvedFocus = accepted.state.focus?.questionSourceId;
       if (
-        snapshot.input.origin === 'player' &&
-        accepted.state.focus?.channel === snapshot.channel.kind &&
-        accepted.state.focus.threadId === snapshot.channel.threadId
+        resolvedFocus &&
+        accepted.state.questions?.some(
+          (q) => q.sourceId === resolvedFocus && q.status !== 'open',
+        ) &&
+        !accepted.state.questions.some((q) => q.sourceId === resolvedFocus && q.status === 'open')
       )
         accepted.state.focus = {
-          ...accepted.state.focus,
+          ...accepted.state.focus!,
           questionSourceId: null,
           replyToActorId: null,
         };
-      if (questionIndex >= 0) {
+      for (const [questionIndex, statement] of accepted.statements.entries()) {
+        if (statement.requestsPlayerReply !== true) continue;
         const messageEffects = effects.filter((effect) => effect.type === 'message.received');
         const questionSourceId =
           snapshot.channel.kind === 'private'
@@ -316,6 +316,20 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           questionSourceId,
           replyToActorId: attempt.actorId,
         };
+        (accepted.state.questions ??= []).push({
+          id: `${eventId}_question_${questionIndex}`,
+          channel: snapshot.channel.kind,
+          threadId: snapshot.channel.threadId,
+          sourceId: questionSourceId,
+          text: statement.text,
+          askedAt: at,
+          status: 'open',
+          ...(statement.questionForResponsibilityId === undefined
+            ? {}
+            : {
+                responsibilityId: statement.questionForResponsibilityId,
+              }),
+        });
       }
       const positionKnowledge: import('../domain/world-awareness.ts').ActorPositionKnowledge[] = [];
       const bounded = (
@@ -370,6 +384,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         actorRevisionBefore: current.revision,
         actorRevisionAfter: accepted.state.revision,
         proposal: { ...proposal, statements: accepted.statements },
+        ...(accepted.questionChanges.length ? { questionChanges: accepted.questionChanges } : {}),
         results,
         ...(positionKnowledge.length ? { positionKnowledge } : {}),
         stateAfter: accepted.state,

@@ -4,6 +4,7 @@ import type {
   AgentActionResult,
   AgentSource,
 } from './agent-runtime.ts';
+import { applyQuestionChanges, AgentQuestionError } from './agent-questions.ts';
 
 export type AgentValidationContext = {
   state: ActorAgentState;
@@ -74,6 +75,16 @@ export function authorizedAgentState(
   viewState.knowledgeSourceIds = viewState.knowledgeSourceIds.filter((id) =>
     permittedSources.has(id),
   );
+  if (state.questions !== undefined)
+    viewState.questions = state.questions
+      .filter(
+        (question) =>
+          permittedSources.has(question.sourceId) &&
+          (!question.resolution || permittedSources.has(question.resolution.sourceId)) &&
+          (!question.responsibilityId ||
+            viewState.responsibilities.some((r) => r.id === question.responsibilityId)),
+      )
+      .map((question) => structuredClone(question));
   const allIds = new Set(
     [
       ...state.goals,
@@ -102,6 +113,11 @@ export function authorizedAgentState(
   )
     viewState.focus = null;
   const redactedStateIds: string[] = [];
+  redactedStateIds.push(
+    ...(state.questions ?? [])
+      .filter((q) => !viewState.questions?.some((visible) => visible.id === q.id))
+      .map((q) => q.id),
+  );
   for (const key of ['goals', 'plans', 'actions', 'responsibilities', 'decisions'] as const) {
     const visible = new Set(viewState[key].map((item) => item.id));
     redactedStateIds.push(
@@ -203,6 +219,7 @@ export function validateAgentProposal(
   proposal: AgentProposal,
 ): void {
   const state = context.viewState ?? context.state;
+  applyAgentQuestionChanges(context, proposal);
   if (context.viewState) {
     requireValid(
       state.worldId === context.state.worldId &&
@@ -412,13 +429,64 @@ export function validateAgentProposal(
         context.input.text.includes(report.quote),
       'UNSOURCED_LOCATION_REPORT',
     );
-  for (const statement of proposal.statements)
+  for (const statement of proposal.statements) {
+    if (statement.questionForResponsibilityId !== undefined)
+      requireValid(
+        statement.requestsPlayerReply === true &&
+          responsibilities.has(statement.questionForResponsibilityId),
+        'UNKNOWN_QUESTION_RESPONSIBILITY',
+      );
     for (const id of statement.dependsOnActionIds)
       requireValid(actions.has(id), 'UNKNOWN_STATEMENT_DEPENDENCY');
+  }
   requireValid(
     context.input.origin !== 'player' || proposal.statements.length > 0,
     'MISSING_REPLY',
   );
+}
+
+/** Only currently authorized questions may be changed; topic focus has no closing authority. */
+function applyAgentQuestionChanges(context: AgentValidationContext, proposal: AgentProposal) {
+  const visible = context.viewState ?? context.state;
+  const permitted = new Set(context.sources.map((source) => source.id));
+  try {
+    return applyQuestionChanges(
+      {
+        worldId: context.state.worldId,
+        actorId: context.state.actorId,
+        questions: context.state.questions ?? [],
+      },
+      {
+        worldId: context.state.worldId,
+        actorId: context.state.actorId,
+        storyAt: context.storyAt,
+        ...(context.input.origin === 'player'
+          ? {
+              input: {
+                origin: 'player' as const,
+                sourceId: context.input.sourceId,
+                text: context.input.text,
+                channel: context.channel.kind,
+                threadId: context.channel.threadId,
+              },
+            }
+          : {}),
+        questionSources: (visible.questions ?? [])
+          .filter((q) => permitted.has(q.sourceId))
+          .map((q) => ({
+            questionId: q.id,
+            sourceId: q.sourceId,
+            channel: q.channel,
+            threadId: q.threadId,
+          })),
+        withdrawalSourceIds: [...permitted],
+      },
+      { replyAssessments: proposal.replyAssessments, withdrawals: proposal.questionWithdrawals },
+    );
+  } catch (error) {
+    if (error instanceof AgentQuestionError) throw new AgentValidationError(error.reason);
+    throw error;
+  }
 }
 
 /** Trusted action results are emitted by kernel capabilities, never parsed from NPC claims. */
@@ -427,7 +495,11 @@ export function reduceActorAgentState(
   proposal: AgentProposal,
   results: AgentActionResult[],
   worldVersion: number,
-): { state: ActorAgentState; statements: AgentProposal['statements'] } {
+): {
+  state: ActorAgentState;
+  statements: AgentProposal['statements'];
+  questionChanges: import('./agent-questions.ts').QuestionApplicationReceipt[];
+} {
   validateAgentProposal(context, proposal);
   requireValid(worldVersion === context.worldVersion + 1, 'RESULT_WORLD_VERSION');
   const merge = <T extends { id: string }>(old: T[], changes: T[]) => [
@@ -519,8 +591,16 @@ export function reduceActorAgentState(
     'REPLY_DEPENDS_ON_UNEXECUTED_ACTION',
   );
   return {
+    questionChanges: applyAgentQuestionChanges(context, proposal).applied,
     state: {
       ...context.state,
+      ...(context.state.questions !== undefined ||
+      proposal.replyAssessments?.length ||
+      proposal.questionWithdrawals?.length
+        ? {
+            questions: applyAgentQuestionChanges(context, proposal).state.questions,
+          }
+        : {}),
       revision: context.state.revision + 1,
       projectedWorldVersion: worldVersion,
       goals,

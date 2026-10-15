@@ -32,6 +32,27 @@ const Condition = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('observation'), sourceId: Id }),
 ]);
 const Proposal = z.strictObject({
+  replyAssessments: z
+    .array(
+      z.strictObject({
+        questionId: Id,
+        sourceId: Id,
+        quote: Text,
+        relation: z.enum(['answer', 'decline_to_answer', 'defer_answer', 'unrelated', 'uncertain']),
+      }),
+    )
+    .max(32)
+    .optional(),
+  questionWithdrawals: z
+    .array(
+      z.strictObject({
+        questionId: Id,
+        ...Basis,
+        reason: Text,
+      }),
+    )
+    .max(32)
+    .optional(),
   locationReports: z
     .array(
       z.strictObject({
@@ -53,6 +74,7 @@ const Proposal = z.strictObject({
         text: Text,
         dependsOnActionIds: z.array(Id).max(16),
         requestsPlayerReply: z.boolean().optional(),
+        questionForResponsibilityId: Id.optional(),
       }),
     )
     .max(8),

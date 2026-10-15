@@ -179,5 +179,44 @@ export function actorStateContextPayload(
         : {}),
     })),
     focus: focus(state.focus),
+    ...(state.questions === undefined
+      ? {}
+      : {
+          questions: objects(state.questions).map((q) => ({
+            id: text(q.id),
+            channel: text(q.channel) as typeof q.channel,
+            threadId: text(q.threadId),
+            sourceId: text(q.sourceId),
+            text: options.privateStrategySourceIds?.has(q.sourceId) ? '' : text(q.text),
+            askedAt: text(q.askedAt),
+            status: text(q.status) as typeof q.status,
+            ...(q.responsibilityId === undefined
+              ? {}
+              : { responsibilityId: text(q.responsibilityId) }),
+            ...(q.resolution === undefined
+              ? {}
+              : {
+                  resolution: (() => {
+                    object(q.resolution);
+                    return {
+                      sourceId: text(q.resolution.sourceId),
+                      at: text(q.resolution.at),
+                      kind: text(q.resolution.kind) as typeof q.resolution.kind,
+                      ...(q.resolution.quote === undefined
+                        ? {}
+                        : {
+                            quote: options.privateStrategySourceIds?.has(q.resolution.sourceId)
+                              ? ''
+                              : text(q.resolution.quote),
+                          }),
+                      ...(q.resolution.reason === undefined ||
+                      options.privateStrategySourceIds?.has(q.resolution.sourceId)
+                        ? {}
+                        : { reason: text(q.resolution.reason) }),
+                    };
+                  })(),
+                }),
+          })),
+        }),
   };
 }

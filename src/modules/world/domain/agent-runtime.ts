@@ -134,6 +134,8 @@ export type AgentStatement = {
   dependsOnActionIds: string[];
   /** This speaker is asking the player to answer; the kernel binds the actual projected question ID. */
   requestsPlayerReply?: boolean;
+  /** Optional explicit link; a question is not itself an executed responsibility. */
+  questionForResponsibilityId?: string;
 };
 /** Proposed deltas, not trusted state. Existing decisions/history are appended, not overwritten. */
 export type AgentProposal = {
@@ -144,6 +146,8 @@ export type AgentProposal = {
   responsibilities: AgentResponsibility[];
   decisions: AgentPlayerDecision[];
   focus?: AgentConversationFocus | null;
+  replyAssessments?: import('./agent-questions.ts').QuestionReplyAssessment[];
+  questionWithdrawals?: import('./agent-questions.ts').QuestionWithdrawal[];
   /** A semantic report from the current player's actual words, never actual world movement. */
   locationReports?: {
     subject: { kind: 'player' } | { kind: 'actor'; actorId: string };
