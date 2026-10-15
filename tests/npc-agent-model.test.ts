@@ -267,6 +267,37 @@ test('capability list and current input are sent exactly; policy separates claim
   assert.match(system, /只有origin=wake/);
 });
 
+test('recording plans or proposing invitations cannot declare external goals complete or expose server revisions', async () => {
+  const input = snapshot();
+  input.channel.allowedCapabilities = ['plan.record', 'appointment.propose'];
+  Object.assign(input.viewState.responsibilities[0]!, { revision: 7 });
+  input.viewState.decisions = [
+    {
+      id: 'decision-1',
+      responsibilityId: 'r1',
+      kind: 'undecided',
+      sourceId: 'source-1',
+      quote: '我还没决定',
+    },
+  ];
+  Object.assign(input.viewState.decisions[0]!, { responsibilityRevision: 7 });
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content),
+    system = calls[0]!.messages[0]!.content;
+  assert.deepEqual(payload.channel.allowedCapabilities, ['plan.record', 'appointment.propose']);
+  assert.equal(payload.state.revision, input.state.revision);
+  assert(!('revision' in payload.state.responsibilities[0]));
+  assert(!('responsibilityRevision' in payload.state.decisions[0]));
+  assert.match(system, /能力结果成功不等于目标完成/);
+  assert.match(system, /plan\.record仅保存计划/);
+  assert.match(system, /appointment\.propose仅建立尚待回应的邀请/);
+  assert.match(system, /普通resultId或succeeded标签不足以完成goal/);
+  assert.match(system, /completedGoalIds只由可信内核能力执行器维护/);
+  assert.match(system, /提案对象不要输出revision或responsibilityRevision/);
+  assert.equal(calls.length, 1);
+});
+
 test('wake can return quiet raw proposal without a synthetic reply or another call', async () => {
   const input = snapshot();
   input.input.origin = 'wake';
