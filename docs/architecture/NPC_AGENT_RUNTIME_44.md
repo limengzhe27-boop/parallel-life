@@ -193,3 +193,33 @@ WorldBoundary保存已有actorIds、placeIds、活动与已注册能力、可变
 - 12/1倍、75秒便宜检查、重要节点等待保护、离开暂停及旧锚点保持；重试/晚到/跨tab不重复执行和不重付。
 
 实施：B独占0073及world-awareness域/存储，root负责共用snapshot/model/Kernel实际hook和公共契约，P只接旧玩家UoW，Q原生渠道投影/只读授权输入。状态归属与接口冻结后才接线，未接所有实际writer/模型旅程前不标完成。
+
+
+## 11. 第二批真实入口与尚未切换的入口
+
+以下是代码已接入的epoch2路径，生产尚无epoch2世界，不能将其写成全量切换完成：
+
+```mermaid
+flowchart TD
+  DM[真实私聊请求] --> Input[持久输入与幂等查回]
+  Native[真实群聊或已有现场任务] --> Lease[真实任务租约与参与权限]
+  Lease --> Route[明确对象或提问责任路由]
+  Route --> Input
+  Input --> View[同一人物持久状态与按渠道裁剪的知情输入]
+  View --> Model[一次人物模型调用]
+  Model --> Protected[原授权快照与原返回保护保存]
+  Protected --> Kernel[同一内核检查与确定性能力执行]
+  Kernel --> Commit[短事务：事实、人物状态、实际结果、回执、Outbox]
+  Commit --> Channels[私聊、群聊、现场或日历原生投影]
+  Commit --> Awareness[同事务更新观察游标与有来源认知]
+  Calendar[玩家真实接受或拒绝邀约] --> Decision[已有事项责任的明确决定投影]
+  Decision --> Commit
+```
+
+实际调用：群聊任务与现场已有人物回合由worldTaskDispatcher的epoch2 handler进入nativeNpcTaskHandler，保留实际TaskLease/token；成功内核提交与父任务完成同SQL。群内短答先承接该群实际上一提问者，不按数组首人；路由确有歧义时显式等待导演协调，不伪造全员回复。人物私聊计划可作为本人跨渠道策略依据，私人原话不会作为群内公开观察。
+
+原私聊成功回执、明确邀约按钮、地图旅行与场景实际presence是不同来源。locationReports仅建立有原消息逐字证据的player_report，不改变玩家实际位置；非收信人物保持未知。确定性环境展示不会把已有在场证明重写成新的移动事实。
+
+导演保护调用、不可变决策、完整observed/evaluated游标比较和proposed-only共享情节已实现。quiet不创建假世界事件，也不写NPC状态。机会仅是草案；尚未有合法执行证据，不能成为active事件或人物已行动。导演意见只通过有限类型及该NPC原有授权来源进入人物；全局审计、私聊和真实位置不直接下发。
+
+未完成：真实advance入口仍有旧开场/作者剧情/通用推进串行关系；统一候选算法和持久导演尚未接到此入口。新现场确定性环境建立、共享事件真实激活/阶段/收尾、人物通用移动与撤回能力、主动观察、旧存档显式迁移仍在实施。新世界不能仅初始化ActorAgentState就开放切换。上述完成后才删除重复调度与旧状态解释路径；旧历史重放格式保留。
