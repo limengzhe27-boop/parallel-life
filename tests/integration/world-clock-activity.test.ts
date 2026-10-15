@@ -485,6 +485,26 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           assert.equal(directContinue.storyNow, at(300));
           assert.equal(directContinue.lastTickAt, at(30));
           assert.equal(directContinue.activeUntil, at(75));
+          await clock.write(owner, testWorld, {
+            storyNow: at(0),
+            lastTickAt: at(0),
+            speed: 1,
+            paused: false,
+            missedBeats: 0,
+            summary: null,
+          });
+          await clock.setClock(owner, testWorld, { speed: 12 }, at(10));
+          const spedUp = await clock.read(owner, testWorld, at(10));
+          assert.equal(spedUp.activeUntil, at(34.167));
+          const stopped = await clock.read(owner, testWorld, at(35));
+          assert.equal(stopped.paused, true);
+          assert.ok(
+            Date.parse(stopped.storyNow) >= Date.parse(at(300)) &&
+              Date.parse(stopped.storyNow) - Date.parse(at(300)) < 12,
+          );
+          await clock.setClock(owner, testWorld, { paused: false }, at(100));
+          assert.equal((await clock.read(owner, testWorld, at(200))).storyNow, stopped.storyNow);
+          assert.equal((await clock.read(owner, testWorld, at(200))).paused, true);
         } finally {
           await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [
             testWorld,

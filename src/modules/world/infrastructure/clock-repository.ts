@@ -4,7 +4,7 @@ import type { WorldClock } from '../domain/clock.ts';
 import { clampSpeed, DEFAULT_SPEED, projectStoryTime } from '../domain/clock.ts';
 import { DomainError } from '../domain/errors.ts';
 import { readableActivityClock } from '../domain/clock-activity.ts';
-import { storedActivityClock } from './clock-activity-repository.ts';
+import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
 import { createHash } from 'node:crypto';
 
 export class PostgresClockStore implements ClockStore {
@@ -191,6 +191,7 @@ export class PostgresClockStore implements ClockStore {
           clock.summary,
         ],
       );
+      await capClockAtNextAppointment(sql, ownerId, worldId, realNow);
     });
   }
 

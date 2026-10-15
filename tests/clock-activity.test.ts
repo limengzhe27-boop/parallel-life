@@ -72,3 +72,15 @@ test('a five-minute confirmed appointment caps twelve-speed browsing at twenty-f
     null,
   );
 });
+
+test('fractional real deadlines round forward so explicit continue cannot stick before the same appointment', () => {
+  const shifted = {
+    ...base,
+    storyNow: '2026-10-15T00:00:10.000Z',
+    lastTickAt: '2026-10-15T00:00:10.000Z',
+  };
+  assert.equal(
+    appointmentDeadline(shifted, [{ at: '2026-10-15T00:05:00Z', status: 'confirmed' }]),
+    '2026-10-15T00:00:34.167Z',
+  );
+});

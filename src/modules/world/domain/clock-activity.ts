@@ -74,6 +74,6 @@ export function appointmentDeadline(
   );
   if (!Number.isFinite(boundary)) return null;
   return new Date(
-    Date.parse(clock.lastTickAt) + (boundary - Date.parse(clock.storyNow)) / clock.speed,
+    Math.ceil(Date.parse(clock.lastTickAt) + (boundary - Date.parse(clock.storyNow)) / clock.speed),
   ).toISOString();
 }
