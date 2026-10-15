@@ -44,6 +44,25 @@ export async function runDirectorAgent(
     raw = saved.response;
   }
   let { attempt, replay } = await deps.attempts.claim(ownerId, previous ?? claim, execution);
+  // Another caller may have claimed or finished after lookup. Treat the claim's
+  // durable status as authoritative; never parse undefined or resend its request.
+  if (replay) {
+    if (attempt.status === 'committed') {
+      const decision = attempt.decisionId
+        ? await deps.attempts.readDecision(ownerId, attempt.worldId, attempt.decisionId)
+        : null;
+      if (!decision) throw Object.assign(Error('DIRECTOR_RESULT_NOT_FOUND'), { code: 'UNKNOWN' });
+      return decision;
+    }
+    if (attempt.status !== 'response_received')
+      throw Object.assign(Error('DIRECTOR_ATTEMPT_NOT_RETRYABLE'), {
+        code: attempt.status === 'unknown_after_send' ? 'UNKNOWN' : 'INVALID_STATE',
+      });
+    const saved = await deps.attempts.readCompletion(ownerId, attempt);
+    if (!saved.found) throw Object.assign(Error('DIRECTOR_RESULT_NOT_FOUND'), { code: 'UNKNOWN' });
+    execution = saved.snapshot;
+    raw = saved.response;
+  }
   if (!replay) {
     if (signal?.aborted) {
       await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send');
