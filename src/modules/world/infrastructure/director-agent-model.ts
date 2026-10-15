@@ -97,6 +97,7 @@ export function parseDirectorDecision(
   )
     invalid();
   if (new Set(value.nudges.map((n) => n.candidateId)).size !== value.nudges.length) invalid();
+  if (new Set(value.opportunities.map((o) => o.id)).size !== value.opportunities.length) invalid();
   if (value.audit.basisSourceIds.some((id) => !sources.has(id))) invalid();
   if (
     value.opportunities.some(
@@ -104,7 +105,13 @@ export function parseDirectorDecision(
         o.participantActorIds.some((id) => !snapshot.boundary.actorIds.includes(id)) ||
         o.placeIds.some((id) => !snapshot.boundary.placeIds.includes(id)) ||
         o.basisSourceIds.some((id) => !sources.has(id)) ||
-        new Set(o.participantActorIds).size !== o.participantActorIds.length,
+        new Set(o.participantActorIds).size !== o.participantActorIds.length ||
+        new Set(o.placeIds).size !== o.placeIds.length ||
+        new Set(o.basisSourceIds).size !== o.basisSourceIds.length ||
+        (o.authoredEventKey !== undefined &&
+          !snapshot.candidates.some(
+            (c) => c.source === 'authored_event' && c.episodeId === o.authoredEventKey,
+          )),
     )
   )
     invalid();

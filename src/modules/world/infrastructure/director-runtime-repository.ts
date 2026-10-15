@@ -843,7 +843,14 @@ export class PostgresDirectorRuntimeRepository implements DirectorAttemptStore {
       if (
         o.participantActorIds.some((id) => !s.boundary.actorIds.includes(id)) ||
         o.placeIds.some((id) => !s.boundary.placeIds.includes(id)) ||
-        o.basisSourceIds.some((id) => !sources.has(id))
+        o.basisSourceIds.some((id) => !sources.has(id)) ||
+        new Set(o.participantActorIds).size !== o.participantActorIds.length ||
+        new Set(o.placeIds).size !== o.placeIds.length ||
+        new Set(o.basisSourceIds).size !== o.basisSourceIds.length ||
+        (o.authoredEventKey !== undefined &&
+          !s.candidates.some(
+            (c) => c.source === 'authored_event' && c.episodeId === o.authoredEventKey,
+          ))
       )
         fail('DIRECTOR_OPPORTUNITY_BOUNDARY');
   }

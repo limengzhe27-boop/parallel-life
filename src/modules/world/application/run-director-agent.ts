@@ -15,6 +15,13 @@ export async function runDirectorAgent(
   let execution = structuredClone(snapshot),
     raw: unknown;
   const previous = await deps.attempts.lookup(ownerId, claim.worldId, claim.commandId);
+  if (
+    previous &&
+    (previous.inputHash !== claim.inputHash ||
+      previous.engineEpoch !== claim.engineEpoch ||
+      previous.expectedWorldVersion !== claim.expectedWorldVersion)
+  )
+    throw Object.assign(Error('DIRECTOR_COMMAND_CONFLICT'), { code: 'DIRECTOR_COMMAND_CONFLICT' });
   if (previous?.status === 'committed') {
     const decision = previous.decisionId
       ? await deps.attempts.readDecision(ownerId, previous.worldId, previous.decisionId)
@@ -121,5 +128,6 @@ function isKnownConflict(error: unknown) {
     'DIRECTOR_CLOCK_CONFLICT',
     'DIRECTOR_CAST_CONFLICT',
     'DIRECTOR_ATTEMPT_STALE',
+    'DIRECTOR_EPISODE_ID_CONFLICT',
   ].includes(code);
 }
