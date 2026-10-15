@@ -97,11 +97,15 @@ test('bounded facts cannot crowd out a relevant old memory and returned records 
   result.messages[0]!.text = 'changed';
   assert.equal(state.messages[0]!.text, '极光计划还没有完成');
 });
-test('unknown actor, oversize input and oversize mandatory identity fail closed', () => {
+test('unknown actor and oversize input fail closed; long authored prose remains usable', () => {
   const state = world();
   assert.throws(() => actorContext(state, 'missing'));
   assert.throws(() => actorContext(state, 'a', '字'.repeat(4001)));
   state.actors[0]!.persona = '字'.repeat(25000);
+  const context = actorContext(state, 'a');
+  assert.ok(context.actor.persona.length <= 2000);
+  assert.equal(state.actors[0]!.persona.length, 25000);
+  state.actors[0]!.persona = JSON.stringify({ name: '甲', identity: '字'.repeat(25000) });
   assert.throws(() => actorContext(state, 'a'));
 });
 

@@ -89,11 +89,11 @@ export async function advancePublicationOpening(
           storyNow: (real) => projectStoryTime(clock, real),
           memories: async () => recalled,
           planner: {
+            prepareContext: deps.planner.prepareContext
+              ? (context, blockedSources) => deps.planner.prepareContext!(context, blockedSources)
+              : undefined,
             async propose(input) {
-              const blocked = recalled.blockedSources;
-              let context = deps.planner.prepareContext
-                ? await deps.planner.prepareContext(input.context, blocked)
-                : input.context;
+              let context = input.context;
               if (
                 context.actor.id !== next.actorId ||
                 context.worldId !== worldId ||

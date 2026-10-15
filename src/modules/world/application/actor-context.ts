@@ -1,4 +1,5 @@
 import { resultAckPrefix } from '../domain/matter-progression.ts';
+import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { witnessedMatterResult } from '../domain/scene-matter-policy.ts';
 import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
@@ -60,6 +61,7 @@ export function actorContext(
   const fits = () =>
     JSON.stringify(context).length <= ACTOR_CONTEXT_LIMIT &&
     JSON.stringify({ context, userText }).length <= ACTOR_INPUT_LIMIT;
+  if (!fits()) context.actor.persona = legacyPersonaExcerpt(actor.persona, userText, 2000);
   if (!fits())
     throw new DomainError('INVALID_COMMAND', 'Character identity exceeds context budget');
   const words = terms(userText);

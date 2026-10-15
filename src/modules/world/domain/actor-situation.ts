@@ -43,7 +43,7 @@ export function selectActorPersona(
 }
 
 /** Legacy JSON personas retain valid structure, identity and authored boundaries. */
-function legacyPersonaExcerpt(source: string, topic: string, budget: number): string {
+export function legacyPersonaExcerpt(source: string, topic: string, budget: number): string {
   if (source.length <= budget) return source;
   let parsed: unknown;
   try {

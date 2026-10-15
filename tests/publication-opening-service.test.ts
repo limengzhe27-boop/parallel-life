@@ -254,6 +254,56 @@ test('a lost finish response reconciles an already committed actor without anoth
   assert.deepEqual(f.counts(), { director: 1, npc: 1, prepared: 1 });
 });
 
+test('opening prepares existing actor goals before scope validation and commits their quoted assessment', async () => {
+  const f = setup();
+  await advancePublicationOpening(f.deps, 'o', 'w');
+  const original = f.deps.planner.prepareContext;
+  f.deps.planner.prepareContext = async (context) => ({
+    ...(await original(context)),
+    eventGoals: [
+      {
+        goalKey: 'initial_invitation_goal',
+        actorId: context.actor.id,
+        source: {
+          kind: 'director_event',
+          sourceEventId: 'initial_source',
+          sourceRecordId: 'initial_record',
+        },
+        want: '确认下一步',
+        stance: '尊重玩家选择',
+        boundaries: [],
+        phase: 'introduced',
+        status: 'active',
+        participation: 'unknown',
+        refusalScope: 'current_player_request',
+        mayPursueOwnGoalWithoutPlayer: true,
+        actualMovesRequireRuntimeAuthorization: true,
+        pace: 'standard',
+        productiveBeats: 0,
+        segmentIndex: 0,
+        nextMove: 'continue_in_current_turn',
+      },
+    ],
+  });
+  const propose = f.deps.planner.propose;
+  f.deps.planner.propose = async (input) => ({
+    ...(await propose(input)),
+    eventGoalAssessments: [
+      {
+        goalKey: 'initial_invitation_goal',
+        target: 'npc',
+        kind: 'npc_progress',
+        quote: '本人独立发言',
+      },
+    ],
+  });
+  const result = await advancePublicationOpening(f.deps, 'o', 'w');
+  assert.equal(result.result?.played, 1);
+  assert.deepEqual(f.counts(), { director: 1, npc: 1, prepared: 1 });
+  assert.equal((await f.deps.worlds.get({ userId: 'o' }, 'w')).version, 1);
+  assert.equal(f.s.deliveries[0]!.status, 'delivered');
+});
+
 for (const variant of ['belief', 'other_actor'] as const)
   test(`opening cannot save ${variant} instead of its own live message`, async () => {
     const f = setup();
