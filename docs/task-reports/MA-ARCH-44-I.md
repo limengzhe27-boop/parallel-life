@@ -4,7 +4,7 @@
 
 ## 当前结论
 
-整体仍在实施，**没有完成全渠道切换，也没有完成真实模型连续旅程**。本批先交付架构方案、持久状态/执行基础、统一候选算法与统一人物模型协议，并把受数据库围栏控制的真实私聊入口接到新内核。生产世界暂不切换到epoch2，避免群聊、现场等尚未迁移的入口被误当作可用。
+整体仍在实施，**没有完成全能力迁移与真实模型连续旅程，生产世界尚未切换epoch2**。截至阶段三，实际入口已接统一人物私聊/群聊/现场、确定性环境和持久导演推进。作者开场/事件候选、通用行动、业务attention和旧档迁移等仍未完成，不能把入口存在称为完整产品可用。
 
 ## 审查与方案
 
@@ -79,3 +79,17 @@ epoch1仍进入旧resolveTurn及其长锁；群/现场仍走原Worker；开场/�
 后续代码接续：导演应用/模型严格恢复与边界新72mock通过；新确定性环境actual entry→lease→scene.opened/receipt/observation/task13PG通过，但实际dispatcher、env在场人物后续input授权及仅导航版本跨越恢复尚未接，不将环境模块视为完整新现场。新advance组合26013774及blocked过滤beeb8906已有代码，尚未接services，P实际入口PG/B真实global snapshot在集成。导演新机会仍proposed；通用移动/撤回/主动观察、作者事件和开场候选、业务attention身份、关系实际结果、全存档迁移与旧路径删除仍待完成。44真实模型0，生产测试world0，epoch2生产启用0。
 
 热修本地门槛：check2694/2694、build成功；root真实worker边界6/6、旧scene自然对话6/6、新环境13/13通过。完整PG634pass/19fail/5明确opt-in skip，含2处旧测试硬编码55476环境守卫；其余旧邀请时效/发布证据/旧时间调度和内部trigger权限清单失败继续待核，不报全库绿色。新worker42501回归已修，新增trigger仅由触发器调用、不应给app/worker直接EXECUTE；对应旧测试清单待补严格无权限断言。
+
+## 阶段三真实入口接通
+
+services.advance在旧流程之前按DB epoch路由；epoch2仅收集统一人物计划和责任，需要时使用真实全局快照及持久导演。不再回退旧Planner，但作者开场/事件库候选未完成，生产不启用新引擎。
+
+实际worker先建立零模型现场环境；NPC后续输入须独立原位置、真实成功环境任务和当前同地证明，再走同一人物Agent及原生现场投影，父任务同SQL完成。已收到raw的private回合先零付费恢复，再收候选；unknown只阻本人，已知失败仅阻自身候选资源。blocked候选同时受调度、模型parser与SQL提交边界检查。
+
+导演可读取已有地图配置和开场便签，明确不代表人物在场、行动完成或所有人知情。人物真实位置与认知保持分开。
+
+阶段三check2695/2695、build和format通过；真实PG首组42通过/1端口guard（误用NPC_AGENT_ADVANCE，实际测试变量NPC_ADVANCE），改显式变量后advance13/13通过，综合55节点通过；不报首轮一次全绿。含真实snapshot→advance→导演SQL/游标→人物kernel、现场8和权限2；导演阻断SQL防线/模型协议37/37通过。0真实模型、0生产测试world、生产epoch2仍0。
+
+热修0d6b4f36134aa5d21fdcd3c6b812b31e0d7c70b9 / dpl_eqFND27aWoRwxbE8T6sqLWZbk6Ro READY，Nu别名和精确SHA已核，公网health/workbench/published200、匿名works401。CI38722287488 check成功，DB641pass/18fail；相较1028失败名称无新增、移除11，不能称全绿。阶段三已补内部trigger权限清单，逐项断言无直接EXECUTE，不扩大权限。
+
+阶段三READY证据待实际追加。通用移动/撤回/观察与初始位置授权、共享事件生命周期、作者内容候选、注意力业务身份、等待保护、旧档迁移与旧执行路径删除继续登记；未通过全部连续旅程不标整体完成。
