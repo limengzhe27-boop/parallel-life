@@ -16,7 +16,14 @@ import { projectStoryTime } from '../../src/modules/world/domain/clock.ts';
 
 test('real owner-scoped activity leases preserve anchors, pause offline and fence stale tabs', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55503, 'activity tests run only on the isolated assigned test cluster');
+  const port = process.env.CLOCK_ACTIVITY_TEST_PORT ?? '55503';
+  assert.match(port, /^[1-9][0-9]{0,4}$/);
+  assert.ok(Number(port) <= 65535);
+  assert.equal(
+    cfg.port,
+    Number(port),
+    'activity test requires its explicitly assigned local test port',
+  );
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(
@@ -304,6 +311,65 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         assert.equal(
           (await clock.read(owner, worldId, realNow)).storyNow,
           new Date(Date.parse(resume.storyNow) + 15 * 60000).toISOString(),
+        );
+      },
+    );
+    await t.test(
+      'expired tab tombstones do not block new windows or erase stale-sequence fences',
+      async () => {
+        await admin.query(
+          `INSERT INTO parallel_life.world_clock_activity(world_id,owner_id,client_id,sequence,mode,expires_at)
+        SELECT $1,$2,md5('clock-fixture-'||g::text)::uuid,42,'away',$3 FROM generate_series(1,150) g`,
+          [worldId, owner, at(0)],
+        );
+        const fresh = randomUUID();
+        const admitted = await activity.update(
+          owner,
+          worldId,
+          { clientId: fresh, sequence: 0, mode: 'browsing' },
+          at(480),
+        );
+        assert.equal(admitted.paused, false);
+        const old = (
+          await admin.query(
+            'SELECT sequence FROM parallel_life.world_clock_activity WHERE world_id=$1 AND client_id=$2',
+            [worldId, a],
+          )
+        ).rows[0];
+        assert.equal(Number(old.sequence), 2);
+        await activity.update(
+          owner,
+          worldId,
+          { clientId: a, sequence: 1, mode: 'conversation', resume: true },
+          at(481),
+        );
+        const saved = (
+          await admin.query(
+            'SELECT sequence,mode FROM parallel_life.world_clock_activity WHERE world_id=$1 AND client_id=$2',
+            [worldId, a],
+          )
+        ).rows[0];
+        assert.equal(Number(saved.sequence), 2);
+        assert.equal(saved.mode, 'away');
+        await admin.query(
+          `INSERT INTO parallel_life.world_clock_activity(world_id,owner_id,client_id,sequence,mode,expires_at)
+        SELECT $1,$2,md5('clock-live-fixture-'||g::text)::uuid,1,'browsing',$3 FROM generate_series(1,30) g`,
+          [worldId, owner, at(520)],
+        );
+        await assert.rejects(
+          activity.update(
+            owner,
+            worldId,
+            { clientId: randomUUID(), sequence: 0, mode: 'browsing' },
+            at(482),
+          ),
+          { code: 'INVALID_COMMAND' },
+        );
+        await activity.update(
+          owner,
+          worldId,
+          { clientId: fresh, sequence: 1, mode: 'browsing' },
+          at(483),
         );
       },
     );

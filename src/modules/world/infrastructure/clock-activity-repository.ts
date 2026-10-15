@@ -137,7 +137,12 @@ export async function updateClockActivity(
     );
     return { ...clock, activeUntil };
   }
-  if (!previous && leases.length >= 128)
+  const previousLive =
+    previous && previous.mode !== 'away' && Date.parse(previous.expiresAt) > Date.parse(realNow);
+  const liveCount = leases.filter(
+    (l) => l.mode !== 'away' && Date.parse(l.expiresAt) > Date.parse(realNow),
+  ).length;
+  if (!previousLive && input.mode !== 'away' && liveCount >= 32)
     throw new DomainError('INVALID_COMMAND', '活动窗口过多，请继续使用已有窗口');
   // A retired tab cannot resurrect a managed, inactive world without an explicit choice.
   const liveBefore = activityMode(leases, realNow).activeUntil !== null;
