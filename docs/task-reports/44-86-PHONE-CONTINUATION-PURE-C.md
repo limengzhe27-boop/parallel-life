@@ -39,3 +39,19 @@
 ## 集成验收
 
 root待集成完整检查/真实PG/UI生命周期与部署。此纯交付不证明并发SQL锁/持久化/调用次数或真实手机hook行为。
+
+
+## 追加只读安全复核（root84 actual probe / actual UI）
+
+2026-10-16，root要求本任务追加静态核查，读取root实际 `ff45513e98748e3e61271cf7fc518df972872f1c`（9ea probe+ff UI）；未改产品、未运行DB/UI/模型。结论：未发现本批新增的实质安全回归。以下是源码证据与结论的边界：
+
+- **读取不消费资格或付费记录。** `agent-phone-entry-probe.ts:28–100` 全部SELECT及pure helper；`readPendingEpisodeRequestsInTransaction:282–295` 仅验证owner/epoch并读取pending；`readDirectorBootstrapCauseInTransaction:161–210` 只读取实际admission/初始hash/历史attempt。没有写admission、observed/evaluated cursor、request receipt、attempt status/token、paid/raw。末尾bootstrap仍沿原genesis历史抑制，不按GET次数、local entryKey或当前秒增加机会。API requestLimit的操作限额记录与叙事消费分开。
+- **预读不是许可。** native opening服务 `npc-agent-advance-services.ts:87–114` 先world FOR SHARE，probe `:28–34` 后clock FOR SHARE，短事务结束才发HTTP回包；没有把锁跨过网络/模型。与现activity/send/kernel的world→clock次序一致，probe不再反向锁attempt行。source、epoch、actor revision或focus在GET后改变，实际advance仍重新读取，不接收probe key作授权。
+- **实际send/commit仍双重守门。** `agent-runtime-repository.ts:556–667` 原world锁里按immutable acceptedbody决定canonical episode，核unpaid request/prior paid、snapshot/author source、actual revision、focus/clock，然后更新request_sent，再次活动检查；`npc-agent-kernel.ts:99–129,647–654` 在真实事务校验snapshot/source/episode focus，原子投影receipt并最终检查活动。Director `current/claim/mark` 同样复核实际cause和clock/attention；暂停或深聊后的paid raw保留原结果/恢复边界，不以GET ready改名重买。
+- **跨tab深聊没有被空focus误当browse。** probe `:44–51` 读取服务端聚合的live leases，任一授权focus或conversationWithoutTarget使本快速入口deferred。当前tab在桌面并不覆盖另一个tab的conversation。预读ready后另一个tab才开无关会话，actual episode delivery会再核；actor-specific原private责任可以在自己的目标会话继续，这是旧政策，未被probe改成全局锁。已发送网络无法被后来的UI暂停撤回，本文不作该承诺。
+- **多个请求先后派发保留原身份。** 两调用处都使用同一eligible helper与v2 command；排序来自实际request createdAtVersion/id。一次dispatcher执行第一个可行request后返回，commit时81receipt与request消费同TX；下一次probe按新worldV/当前pending列表挑下一个。多tab同request同时预读ready仍由同command claim/replay和send前prior-paid核验阻止重发。其他actor pending不全局阻断；不同actor可有原有并发和world CAS/paid-stale边界，本文不宣称整个world付费网络串行，也不把不同合法request等同重复请求。
+- **原raw和unknown语义未升级。** probe npc_raw要求实际response_received、private、当前worldV/actorRev及live lease；它只是hint，source permission等仍在原runner/kernel。director_raw只先核当前V，完整frame/lease在prepareRecovery/commit核；可能最终stale，不是hint保证成功。reserved/request_sent/unknown仍pending；无隐式新模型，原raw不在GET被消费或丢弃。paid terminal bootstrap依旧抑制，response_hash-only历史通过新helper计为paid。
+- **晚包保护精确范围。** `world-phone-app.tsx:102–106` world切换立刻换opening token；native opening GET回包 `:448`、native advance成功回包 `:481` 用isCurrent，防旧world数据触发load；`:543–546` finally须token一致才释放当前inFlight。`use-world-time.ts:56–69` 旧session活动ack也须session identity/active/nonreturning才更新view/entryKey。entryKey改变不会重启整个advance effect，仅触发检查；只拼本地transport键，不送server。旧ordinary idle成功分支和共享catch仍沿原active guard（`:538–541`），不能把本次核对夸大为所有旧异步分支均改成token校验；未发现该旧边界在本批产生新的付费或权限绕过。
+- **节流并不伪装成持久状态。** native ready的local Set key含world、ack generation和server opaque key。相同模式heartbeat不制造generation；明确resume/首次ack/退出conversation可便宜重查。quiet/deferred/pending没有本地标成世界事件completed，也未消费bootstrap。若这三种状态后满足普通idle，代码 `:508–535` 仍可调用原75秒advance；所以“不重复买”指后端业务身份，不等于pending状态永不发另一个HTTP。该路径可继续合法独立责任，不能简单全局禁用。
+
+本追加没有新产品修复要求。原68+3测试证据不变；只追加报告，不因静态核对再跑模型/DB/UI或全局检查。root负责actualPG、真实手机生命周期和最终集成发布。
