@@ -19,6 +19,8 @@ function fixture(replayStatus?: AgentAttemptStatus) {
   const state = emptyActorAgentState({ worldId: 'world', actorId: 'actor' }, 'definition', 2);
   const snapshot: AgentSnapshot = {
     state,
+    viewState: structuredClone(state),
+    redactedStateIds: [],
     worldVersion: 2,
     storyAt: '2026-10-15T00:00:00.000Z',
     sources: [],
@@ -56,6 +58,9 @@ function fixture(replayStatus?: AgentAttemptStatus) {
     decisions: [],
   };
   const attempts: AgentAttemptStore = {
+    async lookup() {
+      return replayStatus ? attempt : null;
+    },
     async claim() {
       calls.push('claim');
       return { attempt, replay: !!replayStatus };

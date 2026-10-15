@@ -7,6 +7,7 @@ import type {
 
 export type AgentValidationContext = {
   state: ActorAgentState;
+  viewState?: ActorAgentState;
   sources: AgentSource[];
   worldVersion: number;
   storyAt: string;
@@ -32,7 +33,7 @@ export function validateAgentProposal(
   context: AgentValidationContext,
   proposal: AgentProposal,
 ): void {
-  const { state } = context;
+  const state = context.viewState ?? context.state;
   requireValid(state.projectedWorldVersion <= context.worldVersion, 'FUTURE_STATE');
   const sources = new Map(context.sources.map((source) => [source.id, source]));
   requireValid(sources.size === context.sources.length, 'DUPLICATE_SOURCE');

@@ -15,6 +15,9 @@ import type {
 /** Snapshot reads have no projection writes or model calls. Channel input is already visibility-filtered. */
 export type AgentSnapshot = {
   state: ActorAgentState;
+  /** Only this authorized view may enter the model. Full state remains server-side for CAS/reduce. */
+  viewState: ActorAgentState;
+  redactedStateIds: string[];
   worldVersion: number;
   storyAt: string;
   sources: AgentSource[];
@@ -40,6 +43,7 @@ export interface NpcAgentModel {
 }
 /** Persistent claim is committed before any model request. Implementations release the DB connection. */
 export interface AgentAttemptStore {
+  lookup(ownerId: string, worldId: string, commandId: string): Promise<AgentAttempt | null>;
   claim(
     ownerId: string,
     input: AgentIdentity & {

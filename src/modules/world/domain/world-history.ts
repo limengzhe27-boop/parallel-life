@@ -1,4 +1,5 @@
 import { resultAckText } from './matter-progression.ts';
+import { applyAgentStateEvent, type AgentStateCommittedEvent } from './agent-state-event.ts';
 import { applyAppointmentWaitEvent, type AppointmentWaitEvent } from './appointment-wait.ts';
 import { applyStoryWaitEvent, type StoryWaitEvent } from './story-wait.ts';
 import { applySceneWorldResults, type SceneWorldResults } from './scene-world-results.ts';
@@ -41,6 +42,7 @@ type SceneWorldEvent = {
 };
 /** Stored event union is separate from the existing private-turn command contract. */
 export type WorldHistoryEvent =
+  | AgentStateCommittedEvent
   | WorldEvent
   | InvitationEvent
   | NoteEvent
@@ -62,6 +64,8 @@ export function applyWorldHistoryEvent(
   validateEventId(event.id);
   validateEventId(event.commandId);
   isoInstant(event.occurredAt);
+  if (event.type === 'agent.state_committed')
+    return { state: applyAgentStateEvent(current, event), jobs: [] };
   if (isGroupEvent(event)) return { state: applyGroupWorldEvent(current, event), jobs: [] };
   if (event.type === 'appointment.waited')
     return { state: applyAppointmentWaitEvent(current, event), jobs: [] };
