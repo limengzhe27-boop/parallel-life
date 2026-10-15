@@ -4,10 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
-import {
-  PostgresDatabase,
-  type SqlClient,
-} from '../../src/modules/storage/infrastructure/postgres.ts';
+import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
@@ -816,7 +813,7 @@ test('narrative admission, actor requests and actual participation receipts', as
     },
   );
   await t.test(
-    'first projection requires inherited commit authority; receipt replay is readonly and checks actual attempt lineage',
+    'default kernel projects an atomic receipt; readonly replay checks actual attempt lineage',
     async () => {
       const f = await fixture(),
         o = await opportunity(f),
@@ -838,32 +835,35 @@ test('narrative admission, actor requests and actual participation receipts', as
         ex.snapshot,
       );
       const attempt = (await actors.lookup(f.owner, f.worldId, input.commandId))!;
-      await assert.rejects(
-        db.transaction(f.owner, (sql) =>
-          project(sql, f.owner, { attempt, eventId: output.eventId }),
-        ),
-        /INVALID_EPISODE_ACTOR_RECEIPT/,
+      const receipt = await storedReceipt(f, r.id);
+      assert.equal(receipt.choice, 'engage');
+      assert.equal(receipt.source_event_id, output.eventId);
+      const before = await counts(f);
+      assert.equal(
+        (
+          await db.transaction(f.owner, (sql) =>
+            project(sql, f.owner, { attempt, eventId: output.eventId }),
+          )
+        )?.id,
+        receipt.id,
       );
-      assert.equal(await storedReceipt(f, r.id), undefined);
-      // An existing committed attempt without a projection is not silently repaired during replay.
-      await assert.rejects(
-        runNpcAgent(
-          {
-            attempts: actors,
-            kernel: kernel(f.owner),
-            model: {
-              async decide() {
-                throw Error('must not pay');
-              },
+      await runNpcAgent(
+        {
+          attempts: actors,
+          kernel: new PostgresNpcAgentKernel(db, worlds),
+          model: {
+            async decide() {
+              throw Error('must not pay');
             },
           },
-          f.owner,
-          ex.claim,
-          null,
-        ),
-        /INVALID_EPISODE_ACTOR_RECEIPT/,
+        },
+        f.owner,
+        ex.claim,
+        null,
       );
-      assert.equal((await ep(f, r.episodeId)).status, 'proposed');
+      assert.deepEqual(await counts(f), before);
+      assert.equal((await ep(f, r.episodeId)).status, 'active');
+      assert.deepEqual(await storedReceipt(f, r.id), receipt);
       const g = await fixture(),
         og = await opportunity(g),
         done = await perform(g, og.requests[0]!, 'engage');
@@ -922,47 +922,8 @@ test('narrative admission, actor requests and actual participation receipts', as
       }
     },
   );
-  async function insertActualUnassessed(
-    sql: SqlClient,
-    f: Fixture,
-    r: AgentEpisodeRequest,
-    value: {
-      attempt: import('../../src/modules/world/domain/agent-runtime.ts').AgentAttempt;
-      eventId: string;
-    },
-  ) {
-    const id = randomUUID(),
-      a = value.attempt;
-    const messages = (
-      await sql.query(
-        `SELECT id FROM parallel_life.world_messages WHERE world_id=$1 AND owner_id=$2
-      AND actor_id=$3 AND document->>'role'='assistant' AND document->>'sourceEventId'=$4 ORDER BY id`,
-        [f.worldId, f.owner, r.actorId, value.eventId],
-      )
-    ).rows.map((m) => m.id);
-    // Negative SQL tests use only the actual kernel event and no participation annotation.
-    await sql.query(
-      `INSERT INTO parallel_life.agent_episode_receipts
-      (world_id,owner_id,id,actor_id,request_id,episode_id,attempt_id,input_receipt_id,source_event_id,world_version,choice,reason,source_ids,presented_message_ids)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'unassessed',NULL,'[]',$11)`,
-      [
-        f.worldId,
-        f.owner,
-        id,
-        r.actorId,
-        r.id,
-        r.episodeId,
-        a.id,
-        a.inputReceiptId,
-        value.eventId,
-        a.expectedWorldVersion + 1,
-        JSON.stringify(messages),
-      ],
-    );
-    return id;
-  }
   await t.test(
-    'strict typed body is enforced by repository and direct SQL even inside a genuine kernel commit',
+    'automatic projection rejects strict malformed typed bodies before any extension callback can write SQL',
     async () => {
       for (const changed of [
         { extra: 'author prose' },
@@ -972,44 +933,49 @@ test('narrative admission, actor requests and actual participation receipts', as
         { revision: '0' },
         { placeOptionIds: null },
       ]) {
-        for (const direct of [false, true]) {
-          const f = await fixture(),
-            o = await opportunity(f),
-            r = o.requests[0]!;
-          const input = await accept(f, r, {}, changed),
-            ex = await execution(f, input);
-          const tested = direct
-            ? new PostgresNpcAgentKernel(db, worlds, async (sql, value) => {
-                const receiptId = await insertActualUnassessed(sql, f, r, value);
-                await sql.query(
-                  `UPDATE parallel_life.agent_episode_requests SET status='consumed',input_receipt_id=$3,receipt_id=$4 WHERE world_id=$1 AND id=$2`,
-                  [f.worldId, r.id, input.id, receiptId],
-                );
-              })
-            : kernel(f.owner);
-          await assert.rejects(
-            runNpcAgent(
-              {
-                attempts: actors,
-                kernel: tested,
-                model: {
-                  async decide() {
-                    return JSON.stringify(ex.proposal());
-                  },
+        const f = await fixture(),
+          o = await opportunity(f),
+          r = o.requests[0]!;
+        const input = await accept(f, r, {}, changed),
+          ex = await execution(f, input);
+        let callbacks = 0;
+        const tested = new PostgresNpcAgentKernel(db, worlds, async () => {
+          callbacks++;
+          throw Error('MALFORMED_INPUT_REACHED_EXTENSION');
+        });
+        await assert.rejects(
+          runNpcAgent(
+            {
+              attempts: actors,
+              kernel: tested,
+              model: {
+                async decide() {
+                  return JSON.stringify(ex.proposal());
                 },
               },
-              f.owner,
-              ex.claim,
-              ex.snapshot,
-            ),
-            direct ? /INVALID_EPISODE_REQUEST_INPUT/ : /INVALID_NARRATIVE_BASIS/,
-          );
-          assert.deepEqual(await counts(f), [0, 0, 0, 0]);
-          assert.ok(
-            (await listPending(f)).every((v) => v.inputReceiptId === null && v.receiptId === null),
-          );
-        }
+            },
+            f.owner,
+            ex.claim,
+            ex.snapshot,
+          ),
+          /INVALID_NARRATIVE_BASIS/,
+        );
+        assert.equal(callbacks, 0);
+        assert.deepEqual(await counts(f), [0, 0, 0, 0]);
+        assert.equal(
+          (await actors.read(f.owner, { worldId: f.worldId, actorId: r.actorId }))?.revision,
+          0,
+        );
+        assert.equal(
+          (await actors.lookup(f.owner, f.worldId, input.commandId))?.status,
+          'invalid_output',
+        );
+        assert.ok(
+          (await listPending(f)).every((v) => v.inputReceiptId === null && v.receiptId === null),
+        );
       }
+      // The old direct-SQL extension was after product projection. It is now unreachable for
+      // malformed input; this test deliberately claims the earlier real rejection boundary only.
     },
   );
   await t.test(
@@ -1020,27 +986,65 @@ test('narrative admission, actor requests and actual participation receipts', as
         r = o.requests[0]!,
         input = await accept(f, r),
         ex = await execution(f, input);
-      const half = new PostgresNpcAgentKernel(db, worlds, async (sql, value) => {
-        await insertActualUnassessed(sql, f, r, value);
-      });
-      await assert.rejects(
-        runNpcAgent(
-          {
-            attempts: actors,
-            kernel: half,
-            model: {
-              async decide() {
-                return JSON.stringify(ex.proposal());
+      const trigger = `zzz_half_request_${randomUUID().replaceAll('-', '')}`;
+      await admin.query(
+        `CREATE FUNCTION parallel_life.${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN OLD; END $$`,
+      );
+      await admin.query(`CREATE TRIGGER ${trigger} BEFORE UPDATE ON parallel_life.agent_episode_requests
+        FOR EACH ROW WHEN (NEW.world_id='${f.worldId}') EXECUTE FUNCTION parallel_life.${trigger}()`);
+      const deferred = (
+        await admin.query(
+          "SELECT conname FROM pg_constraint WHERE conrelid='parallel_life.agent_episode_receipts'::regclass AND condeferrable AND condeferred AND pg_get_constraintdef(oid) LIKE 'FOREIGN KEY (world_id, request_id, input_receipt_id)%'",
+        )
+      ).rows;
+      assert.equal(deferred.length, 1);
+      let projectionReturned = false;
+      try {
+        // The normal helper sees rowCount=1, but a last BEFORE trigger retains OLD pending.
+        // Only the real deferred (request,input) FK can catch that half receipt at COMMIT.
+        const half = new PostgresNpcAgentKernel(db, worlds, async () => {
+          projectionReturned = true;
+        });
+        await assert.rejects(
+          runNpcAgent(
+            {
+              attempts: actors,
+              kernel: half,
+              model: {
+                async decide() {
+                  return JSON.stringify(ex.proposal());
+                },
               },
             },
-          },
-          f.owner,
-          ex.claim,
-          ex.snapshot,
-        ),
-        (error: any) => error.code === '23503',
-      );
+            f.owner,
+            ex.claim,
+            ex.snapshot,
+          ),
+          (error: unknown) =>
+            !!error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === '23503' &&
+            'constraint' in error &&
+            error.constraint === deferred[0]!.conname,
+        );
+        assert.equal(projectionReturned, true);
+      } finally {
+        await admin.query(`DROP TRIGGER ${trigger} ON parallel_life.agent_episode_requests`);
+        await admin.query(`DROP FUNCTION parallel_life.${trigger}()`);
+      }
       assert.deepEqual(await counts(f), [0, 0, 0, 0]);
+      assert.equal((await worlds.get({ userId: f.owner }, f.worldId)).version, 0);
+      assert.equal(
+        (await actors.read(f.owner, { worldId: f.worldId, actorId: r.actorId }))?.revision,
+        0,
+      );
+      assert.ok(
+        (await listPending(f)).every(
+          (value) => value.inputReceiptId === null && value.receiptId === null,
+        ),
+      );
+
       assert.equal(
         (await actors.lookup(f.owner, f.worldId, input.commandId))?.status,
         'response_received',
