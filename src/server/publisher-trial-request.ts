@@ -31,7 +31,7 @@ export function trialProxyTarget(
       /^(?:opening|notes|messages|messages\/receipt|invitations|space\/establish|space\/travel|space\/receipt|space\/enter|scenes|groups)$/,
       ['POST'],
     ],
-    [/^(?:story\/advance|invitations\/wait)$/, ['POST']],
+    [/^(?:story\/advance|invitations\/wait|clock\/activity|clock\/wait)$/, ['POST']],
     [/^scenes\/history$/, ['GET']],
     [new RegExp('^scenes/' + uuid + '$'), ['GET']],
     [new RegExp('^scenes/' + uuid + '/(?:actions|view|leave)$'), ['POST']],

@@ -1,0 +1,33 @@
+import { Id } from '../contracts/api.ts';
+import { ClockActivityRequestSchema, WorldClockSchema } from '../contracts/world-clock.ts';
+import { StoryWaitRequestSchema, StoryWaitReceiptSchema } from '../contracts/story-wait.ts';
+import { authenticated, endpoint, HttpError, json, parseBody } from './http.ts';
+import { requestLimit } from './limits.ts';
+import { StoryWaitError } from '../modules/world/domain/story-wait.ts';
+export function worldTimeActivityRoute(request: Request, worldId: string) {
+  return endpoint(async () => {
+    const s = await authenticated(request);
+    if (!Id.safeParse(worldId).success) throw new HttpError('NOT_FOUND', 404);
+    await requestLimit(s.db, s.ownerId);
+    const input = await parseBody(request, ClockActivityRequestSchema);
+    return json(WorldClockSchema.parse(await s.updateClockActivity(s.ownerId, worldId, input)));
+  });
+}
+export function worldTimeWaitRoute(request: Request, worldId: string) {
+  return endpoint(async () => {
+    const s = await authenticated(request);
+    if (!Id.safeParse(worldId).success) throw new HttpError('NOT_FOUND', 404);
+    await requestLimit(s.db, s.ownerId);
+    const input = await parseBody(request, StoryWaitRequestSchema);
+    try {
+      return json(StoryWaitReceiptSchema.parse(await s.waitStoryTime(s.ownerId, worldId, input)));
+    } catch (error) {
+      if (error instanceof StoryWaitError)
+        return json(
+          { error: { code: 'INVALID_COMMAND', message: error.message, retryable: false } },
+          422,
+        );
+      throw error;
+    }
+  });
+}

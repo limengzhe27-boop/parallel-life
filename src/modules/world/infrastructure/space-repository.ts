@@ -1,3 +1,5 @@
+import { storedActivityClock } from './clock-activity-repository.ts';
+import { readableActivityClock } from '../domain/clock-activity.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
 import { readPublicationSceneImages } from '../../settings/infrastructure/publication-scene-image-repository.ts';
 import { defaultTravelRoutes } from '../domain/space-travel-policy.ts';
@@ -97,14 +99,7 @@ async function clock(sql: SqlClient, w: WorldState): Promise<WorldClock> {
       missedBeats: 0,
       summary: null,
     };
-  return {
-    storyNow: new Date(r.story_now).toISOString(),
-    lastTickAt: new Date(r.last_tick_at).toISOString(),
-    speed: Number(r.speed),
-    paused: Boolean(r.paused),
-    missedBeats: Number(r.missed_beats),
-    summary: r.summary ?? null,
-  };
+  return readableActivityClock(storedActivityClock(r), new Date().toISOString());
 }
 async function replay(sql: SqlClient, worldId: string, input: { commandId: string }, hash: string) {
   const command = (

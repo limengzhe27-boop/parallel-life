@@ -1,3 +1,5 @@
+import { storedActivityClock } from './clock-activity-repository.ts';
+import { readableActivityClock } from '../domain/clock-activity.ts';
 import { applyWorldHistoryEvent } from '../domain/world-history.ts';
 import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
@@ -53,17 +55,7 @@ async function loadWorld(
     await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1', [worldId])
   ).rows[0];
   if (clock) {
-    const projected = projectStoryTime(
-      {
-        storyNow: new Date(clock.story_now).toISOString(),
-        lastTickAt: new Date(clock.last_tick_at).toISOString(),
-        speed: Number(clock.speed),
-        paused: clock.paused,
-        missedBeats: clock.missed_beats,
-        summary: clock.summary,
-      },
-      now,
-    );
+    const projected = projectStoryTime(storedActivityClock(clock), now);
     state.time = projected > state.time ? projected : state.time;
   }
   const initial = (
@@ -280,10 +272,10 @@ export async function persistGroupEvent(
   };
 }
 async function writable(sql: SqlClient, worldId: string) {
-  if (
-    (await sql.query('SELECT paused FROM parallel_life.world_clock WHERE world_id=$1', [worldId]))
-      .rows[0]?.paused
-  )
+  const clock = (
+    await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1', [worldId])
+  ).rows[0];
+  if (clock && readableActivityClock(storedActivityClock(clock), new Date().toISOString()).paused)
     throw new DomainError('INVALID_COMMAND', 'WORLD_PAUSED');
 }
 export class PostgresGroupRepository {

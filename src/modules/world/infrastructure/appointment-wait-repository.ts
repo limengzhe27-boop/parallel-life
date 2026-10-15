@@ -1,3 +1,5 @@
+import { storedActivityClock } from './clock-activity-repository.ts';
+import { readableActivityClock } from '../domain/clock-activity.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { PostgresWorldRepository } from './postgres-world-repository.ts';
@@ -105,14 +107,7 @@ export class PostgresAppointmentWaitRepository implements AppointmentWaitPort {
           )
         ).rows[0];
       const clock: WorldClock = storedClock
-        ? {
-            storyNow: new Date(storedClock.story_now).toISOString(),
-            lastTickAt: new Date(storedClock.last_tick_at).toISOString(),
-            speed: Number(storedClock.speed),
-            paused: Boolean(storedClock.paused),
-            missedBeats: Number(storedClock.missed_beats),
-            summary: storedClock.summary ?? null,
-          }
+        ? readableActivityClock(storedActivityClock(storedClock), now)
         : {
             storyNow: lockedSnapshot.time,
             lastTickAt: now,

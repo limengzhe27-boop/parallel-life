@@ -1,4 +1,13 @@
 import { OpeningStatusSchema, OpeningAdvanceSchema } from '../../contracts/publication-opening.ts';
+import {
+  ClockActivityRequestSchema,
+  type ClockActivityRequest,
+} from '../../contracts/world-clock.ts';
+import {
+  StoryWaitRequestSchema,
+  StoryWaitReceiptSchema,
+  type StoryWaitRequest,
+} from '../../contracts/story-wait.ts';
 import { PublicWorldStorySchema } from '../../contracts/world-story.ts';
 import { PlayerRecordsSchema } from '../../contracts/world-records.ts';
 import {
@@ -201,6 +210,25 @@ export class LifeClient {
   async readWorldClock(worldId: string) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema);
+  }
+  async updateClockActivity(worldId: string, input: ClockActivityRequest) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/clock/activity`, WorldClockSchema, {
+      method: 'POST',
+      body: JSON.stringify(ClockActivityRequestSchema.parse(input)),
+      keepalive: input.mode === 'away',
+    });
+  }
+  async waitStoryTime(worldId: string, input: StoryWaitRequest) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/clock/wait`,
+      StoryWaitReceiptSchema,
+      {
+        method: 'POST',
+        body: JSON.stringify(StoryWaitRequestSchema.parse(input)),
+      },
+    );
   }
   /** Already presented story progress; no hidden author candidates or director instructions. */
   async readWorldStory(worldId: string) {

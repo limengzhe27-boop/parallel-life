@@ -150,7 +150,7 @@ export class OfficialLifeRepository {
           ],
         );
         await sql.query(
-          'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,1,false,$4,0,NULL)',
+          'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,12,false,$4,0,NULL)',
           [worldId, owner, state.time, realNow],
         );
         await sql.query(

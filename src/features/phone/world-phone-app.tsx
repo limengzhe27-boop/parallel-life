@@ -1,4 +1,6 @@
 'use client';
+import { useWorldTime } from './use-world-time.ts';
+import { TimeExperienceControls } from './world-time-controls.tsx';
 import type { PublicOpeningStatus } from '../../contracts/publication-opening.ts';
 import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
 import {
@@ -48,12 +50,6 @@ import type { PhoneMessage } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { playTapSound } from './audio-feedback.ts';
 import { routeHash } from './navigation.ts';
-import {
-  ACTIVE_PHONE_CHECK_MS,
-  autoAdvanceDue,
-  autoAdvanceAttemptKey,
-  PhoneStoryBootstrap,
-} from './auto-advance.ts';
 import { resolveDefaultWallpaper } from './wallpaper.ts';
 import styles from './phone.module.css';
 import {
@@ -114,7 +110,6 @@ export function WorldPhoneApp({
   const [opening, setOpening] = useState<PublicOpeningStatus | null>(null);
   const [openingWorking, setOpeningWorking] = useState(false);
   const directorAttemptedKeys = useRef(new Set<string>());
-  const storyBootstrap = useRef(new PhoneStoryBootstrap());
   const experienceBusy = useRef(false);
   const setExperienceBusy = useCallback(
     (busy: boolean) => {
@@ -132,6 +127,14 @@ export function WorldPhoneApp({
       experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
   };
 
+  const liveTime = useWorldTime(
+    client,
+    worldId,
+    automatic && data?.id === worldId,
+    experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
+  );
+  const liveTimeRef = useRef(liveTime);
+  liveTimeRef.current = liveTime;
   const sendCommands = useRef<Record<string, SendCommand>>({});
   const [recoveryWorld, setRecoveryWorld] = useState<string>();
   useEffect(() => {
@@ -203,6 +206,7 @@ export function WorldPhoneApp({
     commandId: string,
     replacing?: string,
   ) {
+    if (automatic) await liveTimeRef.current.startConversation();
     const unresolved = localMessages.find(
       (message) =>
         message.actorId === actorId && message.status === 'unknown' && message.id !== replacing,
@@ -415,6 +419,7 @@ export function WorldPhoneApp({
     async function checkForWorldNews() {
       if (
         !automatic ||
+        liveTimeRef.current.blocked ||
         !active ||
         document.visibilityState !== 'visible' ||
         !phoneReady.current.hasData ||
@@ -423,10 +428,7 @@ export function WorldPhoneApp({
         directorInFlight.current
       )
         return;
-      if (
-        openingFinished.current === worldId &&
-        Date.now() - lastBackgroundCheck.current < ACTIVE_PHONE_CHECK_MS
-      )
+      if (openingFinished.current === worldId && Date.now() - lastBackgroundCheck.current < 5_000)
         return;
       lastBackgroundCheck.current = Date.now();
       directorInFlight.current = true;
@@ -479,30 +481,24 @@ export function WorldPhoneApp({
             return;
           }
         }
+        if (!liveTimeRef.current.idleDue() || liveTimeRef.current.blocked) return;
         const realNowMs = Date.now();
-        const attemptKey = autoAdvanceAttemptKey(worldId, clock, realNowMs);
+        const attemptKey = clock.paused
+          ? null
+          : `pl_idle_${worldId}_${Math.floor(realNowMs / 75_000)}`;
         if (!attemptKey || directorAttemptedKeys.current.has(attemptKey)) return;
         try {
           if (sessionStorage.getItem(attemptKey)) return;
         } catch {
           // In-memory protection remains active when browser storage is unavailable.
         }
-        const due = autoAdvanceDue(clock, realNowMs);
-        if (!due) {
-          const checkedVersion = phoneReady.current.version;
-          const canStart = await storyBootstrap.current.check(worldId, checkedVersion, () =>
-            client.readWorldStory(worldId),
-          );
-          if (
-            !canStart ||
-            phoneReady.current.version !== checkedVersion ||
-            !active ||
-            document.visibilityState !== 'visible' ||
-            phoneReady.current.refreshing ||
-            phoneReady.current.sending
-          )
-            return;
-        }
+        if (
+          !active ||
+          document.visibilityState !== 'visible' ||
+          phoneReady.current.sending ||
+          liveTimeRef.current.blocked
+        )
+          return;
         try {
           sessionStorage.setItem(attemptKey, '1');
         } catch {
@@ -510,7 +506,7 @@ export function WorldPhoneApp({
           // prevents a repeated paid attempt for this phone instance.
         }
         directorAttemptedKeys.current.add(attemptKey);
-        if (!due) storyBootstrap.current.consume(worldId);
+        liveTimeRef.current.markChecked();
         advancing = true;
         const result = await client.advanceWorld(worldId, true);
         // Reading the committed world lets the phone's existing message notification
@@ -608,6 +604,9 @@ export function WorldPhoneApp({
           )}
         </div>
       )}
+      {data?.id === worldId && automatic && (
+        <TimeExperienceControls time={liveTime} worldVersion={data.version ?? 0} reload={load} />
+      )}
       <div style={{ flex: 1, minHeight: 0 }}>
         {!data ? (
           <div className="world-loading">
@@ -639,7 +638,9 @@ export function WorldPhoneApp({
             key={data.id}
             wechatActorKey={wechatActorKey}
             transport={transport}
-            data={data}
+            data={
+              liveTime.displayTime && automatic ? { ...data, time: liveTime.displayTime } : data
+            }
             onUploadPhoto={async (file, commandId) => {
               const photo = await client.uploadPhoto(worldId, file, commandId);
               request.current++;
@@ -656,6 +657,7 @@ export function WorldPhoneApp({
               return { status: 'committed' };
             }}
             onChangeInvitation={async (input) => {
+              if (automatic) await liveTimeRef.current.startConversation();
               const receipt = await client.changeInvitation(worldId, input);
               // Invalidate older reads; a committed receipt must survive a failed refresh.
               request.current++;

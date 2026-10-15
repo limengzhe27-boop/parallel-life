@@ -1,3 +1,4 @@
+import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
 import { readPublicationInvitationLinks } from '../../settings/infrastructure/publication-story-repository.ts';
 import { resultAckPrefix } from '../domain/matter-progression.ts';
@@ -259,23 +260,13 @@ export class PostgresWorldRepository implements WorldRepository {
       }
       const clockRow = (
         await sql.query(
-          'SELECT story_now,speed,paused,last_tick_at FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
+          'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
           [command.worldId, session.userId],
         )
       ).rows[0];
       const realNow = new Date().toISOString();
       const projected = clockRow
-        ? projectStoryTime(
-            {
-              storyNow: new Date(clockRow.story_now).toISOString(),
-              speed: Number(clockRow.speed),
-              paused: Boolean(clockRow.paused),
-              lastTickAt: new Date(clockRow.last_tick_at).toISOString(),
-              missedBeats: 0,
-              summary: null,
-            },
-            realNow,
-          )
+        ? projectStoryTime(storedActivityClock(clockRow), realNow)
         : current.time;
       const storyTime = new Date(
         Math.max(Date.parse(current.time), Date.parse(projected)),
@@ -321,6 +312,7 @@ export class PostgresWorldRepository implements WorldRepository {
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
         [state.id, command.commandId, event.id, compact(state)],
       );
+      await capClockAtNextAppointment(sql, session.userId, state.id, realNow);
       return state;
     });
   }

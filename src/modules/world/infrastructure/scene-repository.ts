@@ -1,3 +1,5 @@
+import { storedActivityClock } from './clock-activity-repository.ts';
+import { readableActivityClock } from '../domain/clock-activity.ts';
 import { sceneConversationMemory } from '../domain/scene-conversation-memory.ts';
 import { assertSceneDialogueConsistency, sceneDeliveryText } from '../domain/scene-delivery.ts';
 import { publicationPlaceLinks } from './publication-context.ts';
@@ -141,23 +143,16 @@ export async function sceneWorld(
       worldId,
     ])
   ).rows[0];
-  const storyAt = clock
-    ? projectStoryTime(
-        {
-          storyNow: new Date(clock.story_now).toISOString(),
-          lastTickAt: new Date(clock.last_tick_at).toISOString(),
-          speed: Number(clock.speed),
-          paused: clock.paused,
-          missedBeats: 0,
-          summary: null,
-        },
-        new Date().toISOString(),
-      )
+  const effectiveClock = clock
+    ? readableActivityClock(storedActivityClock(clock), new Date().toISOString())
+    : null;
+  const storyAt = effectiveClock
+    ? projectStoryTime(effectiveClock, new Date().toISOString())
     : world.time;
   return {
     world,
     storyAt: new Date(Math.max(Date.parse(storyAt), Date.parse(world.time))).toISOString(),
-    paused: Boolean(clock?.paused),
+    paused: Boolean(effectiveClock?.paused),
   };
 }
 async function experience(

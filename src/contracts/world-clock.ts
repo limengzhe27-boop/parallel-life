@@ -14,6 +14,8 @@ const ClockValuesSchema = z.strictObject({
   lastTickAt: Timestamp,
   missedBeats: z.number().int().nonnegative(),
   summary: z.string().nullable(),
+  managed: z.boolean().optional(),
+  activeUntil: Timestamp.nullable().optional(),
 });
 /** Reads contain clock values; successful controls also carry a committed receipt. */
 export const WorldClockSchema = z.union([
@@ -23,6 +25,14 @@ export const WorldClockSchema = z.union([
   ),
 ]);
 export type WorldClock = z.infer<typeof WorldClockSchema>;
+
+export const ClockActivityRequestSchema = z.strictObject({
+  clientId: Id,
+  sequence: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  mode: z.enum(['browsing', 'conversation', 'away']),
+  resume: z.boolean().optional(),
+});
+export type ClockActivityRequest = z.infer<typeof ClockActivityRequestSchema>;
 
 export const WorldClockControlSchema = z
   .strictObject({
