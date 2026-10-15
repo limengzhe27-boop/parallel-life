@@ -77,6 +77,7 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
       'guard_agent_world_epoch',
       'guard_director_attempt',
       'guard_director_episode_origin',
+      'guard_npc_journey',
     ]);
     assert.equal(rows.filter((row) => triggerOnly.has(row.proname)).length, triggerOnly.size);
     for (const row of rows.filter((row) => triggerOnly.has(row.proname))) {
