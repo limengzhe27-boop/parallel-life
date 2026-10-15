@@ -15,6 +15,9 @@ export type DirectorSnapshot = {
   observedThroughVersion: number;
   evaluatedThroughVersion: number;
   boundary: WorldBoundary;
+  /** Authorized fictional setting and cast; never the owner's real interview/profile. */
+  worldSetting?: string;
+  cast?: { id: string; name: string; persona: string; relationship?: string }[];
   actorStates: ActorAgentState[];
   episodes: SharedEpisode[];
   candidates: AgentCandidate[];
