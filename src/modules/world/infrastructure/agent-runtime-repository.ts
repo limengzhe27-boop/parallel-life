@@ -555,6 +555,9 @@ export class PostgresAgentRuntimeRepository
           )
         ).rows[0]?.document as AgentInputReceipt | undefined;
         if (!receipt) fail('INPUT_SCOPE_FORBIDDEN');
+        // The immutable accepted body, not a mutable prepared snapshot, decides
+        // whether author-source validation is mandatory before any paid send.
+        if (isEpisodeConsiderationInput(receipt) && !snapshot) fail('INPUT_SCOPE_FORBIDDEN');
         if (snapshot) {
           if (
             snapshot.state.worldId !== expected.worldId ||
