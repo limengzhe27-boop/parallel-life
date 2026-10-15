@@ -163,7 +163,12 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
           AND (p.state->>'cursorVersion')::int=$6 AND v.world_version=$9 AND v.command_id=$10
           AND NOT EXISTS(SELECT 1 FROM parallel_life.memory_records r WHERE r.owner_id=p.owner_id AND r.status='forgotten'
             AND ((r.scope_type='branch' AND r.scope_id=p.world_id) OR (r.scope_type='character' AND r.character_id=ANY($7::text[])))
-            AND r.source_ids ?| $8::text[]) LIMIT 1`,
+            AND (r.source_ids ?| $8::text[] OR EXISTS(
+              SELECT 1 FROM parallel_life.publication_story_progress_evidence forgotten_source
+              WHERE forgotten_source.world_id=p.world_id AND forgotten_source.owner_id=p.owner_id
+                AND forgotten_source.node_key=p.node_key AND forgotten_source.source_event_id=ANY($11::text[])
+                AND (forgotten_source.source_event_id=$5 OR forgotten_source.criterion_ids ?| $12::text[])
+                AND r.source_ids ? forgotten_source.source_record_id))) LIMIT 1`,
         [
           world.id,
           ownerId,
@@ -175,6 +180,8 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
           proofIds,
           last.version,
           last.command_id,
+          eventIds,
+          Object.keys(p.criterionSources).filter((key) => p.criterionSources[key]!.length > 0),
         ],
       );
       if (proof.rowCount)

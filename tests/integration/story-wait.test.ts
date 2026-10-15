@@ -13,6 +13,7 @@ import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postg
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
+import { deriveAndStoreMemories } from '../../src/modules/memory/infrastructure/memory-store.ts';
 import { PublicationStoryRepository } from '../../src/modules/settings/infrastructure/publication-story-repository.ts';
 import { PostgresStoryWaitRepository } from '../../src/modules/world/infrastructure/story-wait-repository.ts';
 import { PostgresClockActivityRepository } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
@@ -432,6 +433,7 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
         'cursor_ahead',
         'future',
         'forgotten',
+        'forgotten_criterion_record',
         'foreign_source',
       ]) {
         await checks.test(kind, async () => {
@@ -476,6 +478,26 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
               },
             },
           ];
+          if (kind === 'forgotten_criterion_record')
+            c.candidates[0].direction.progress = {
+              completion: {
+                mode: 'any',
+                criteria: [
+                  {
+                    key: 'first',
+                    kind: 'npc_exact_message',
+                    actorKey: c.actors[0].key,
+                    phrase: 'CRITERION_ONE',
+                  },
+                  {
+                    key: 'second',
+                    kind: 'npc_exact_message',
+                    actorKey: c.actors[0].key,
+                    phrase: 'MISSING_CRITERION_TWO',
+                  },
+                ],
+              },
+            };
           const content = PublishedWorldContentSchema.parse(c);
           const work = await works.create(staff, {
             commandId: randomUUID(),
@@ -561,7 +583,16 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
                         closure: 'alternative',
                       },
                     ]
-                  : [],
+                  : reply === 'CRITERION_ONE'
+                    ? [
+                        {
+                          goalKey: 'publication:required_event',
+                          target: 'npc',
+                          kind: 'npc_progress',
+                          quote: reply,
+                        },
+                      ]
+                    : [],
               },
             );
             return eventId;
@@ -571,7 +602,14 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
           const closed =
             kind === 'unresolved'
               ? null
-              : await commit(1, randomUUID(), 'I have ended my own request.', true);
+              : await commit(
+                  1,
+                  randomUUID(),
+                  kind === 'forgotten_criterion_record'
+                    ? 'CRITERION_ONE'
+                    : 'I have ended my own request.',
+                  kind !== 'forgotten_criterion_record',
+                );
           if (closed) version = 2;
           const original = (
             await admin.query(
@@ -614,6 +652,39 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
               [owner, closed],
             );
             assert.ok(changed.rowCount! > 0, 'successful NPC source created a real episode memory');
+          }
+          if (kind === 'forgotten_criterion_record') {
+            assert.equal(before.resolution, 'fulfilled');
+            assert.equal(
+              before.actorGoalStatus[actor],
+              'active',
+              'one of two own criteria is not own fulfillment',
+            );
+            const recordId = closed + '_message';
+            await db.transaction(owner, (sql) =>
+              deriveAndStoreMemories(sql, [
+                {
+                  ownerId: owner,
+                  scopeType: 'character',
+                  scopeId: actor,
+                  branchId: trial.worldId,
+                  characterId: actor,
+                  text: 'CRITERION_ONE',
+                  kind: 'belief',
+                  sourceType: 'agent_inference',
+                  sourceIds: [recordId],
+                  importance: 3,
+                  evidence: {
+                    [recordId]: { id: recordId, role: 'assistant', text: 'CRITERION_ONE' },
+                  },
+                },
+              ]),
+            );
+            const changed = await admin.query(
+              "UPDATE parallel_life.memory_records SET status='forgotten' WHERE owner_id=$1 AND source_ids ? $2",
+              [owner, recordId],
+            );
+            assert.ok(changed.rowCount! > 0);
           }
           if (kind === 'foreign_source') {
             const foreign = await fixture('proposed');
