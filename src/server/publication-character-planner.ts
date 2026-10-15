@@ -9,6 +9,7 @@ import {
 import { readPresentedActorStory } from '../modules/settings/infrastructure/presented-story-repository.ts';
 import { readActorSituation } from '../modules/world/infrastructure/actor-situation-repository.ts';
 import { readDirectorObservation } from '../modules/world/infrastructure/director-observation-repository.ts';
+import { readActorEventGoals } from '../modules/world/infrastructure/actor-goal-repository.ts';
 import {
   reserveActorContext,
   selectActorPersona,
@@ -22,6 +23,20 @@ export function publicationCharacterPlanner(
 ): TurnPlanner {
   const planner = new WorldTurnPlanner(model);
   return {
+    async prepareContext(context, blockedSources) {
+      if (context.worldId !== worldId) throw Error('INVALID_STATE');
+      const goals = await db.transaction(ownerId, async (sql) => {
+        const world = (
+          await sql.query(
+            'SELECT version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+            [worldId, ownerId],
+          )
+        ).rows[0];
+        if (!world || world.version !== context.worldVersion) throw Error('VERSION_CONFLICT');
+        return readActorEventGoals(sql, context, ownerId, blockedSources);
+      });
+      return reserveActorContext({ ...context, eventGoals: goals }, '');
+    },
     async chooseStoryOpportunity(input) {
       if (!input.directorObservation) throw Error('DIRECTOR_SNAPSHOT_REQUIRED');
       const observation = await readDirectorObservation(

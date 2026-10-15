@@ -44,7 +44,14 @@ export type StoryState = {
 export function storyStateOutcome(s: StoryState): PublicationNodeOutcome | null {
   if (s.outcome) return s.outcome;
   const progress = s.progressResolution;
-  if (!progress?.sourceEventId || ['claimed', 'unknown', 'failed'].includes(s.status)) return null;
+  if (!progress?.sourceEventId || ['claimed', 'unknown'].includes(s.status)) return null;
+  if (
+    s.status === 'failed' &&
+    (['fulfilled', 'missed'].includes(progress.resolution) ||
+      !s.sourceEventId ||
+      !s.sourceMessageId)
+  )
+    return null;
   if (progress.resolution === 'fulfilled') return 'committed';
   if (progress.resolution === 'withdrawn') return 'declined';
   if (progress.resolution === 'missed') return 'expired';

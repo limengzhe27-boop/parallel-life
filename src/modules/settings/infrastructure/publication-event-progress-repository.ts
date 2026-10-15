@@ -3,6 +3,7 @@ import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
 import {
   applyStoryProgressSignal,
+  storyPacePolicy,
   createStoryEventProgress,
   type CommittedProgressObservation,
   type ProgressSignal,
@@ -22,6 +23,17 @@ export type ProgressLedgerDefinition = {
   definition: StoryProgressDefinition;
   spec: PublicationEventProgressSpec;
   actorIdsByKey: ReadonlyMap<string, string>;
+  /** Verified live opening deliveries, not ordinary follow-up progress beats. */
+  openingPresentationEventIds?: string[];
+  /** Trusted current-node fragment from the scoped SQL reader; never a model field. */
+  boundNode?: {
+    actorId: string;
+    sourceEventId: string;
+    sourceMessageId: string;
+    invitationId: string | null;
+    expectedVersion: number;
+    placeIds: string[];
+  };
 };
 export type RecentStoryWorldInput = {
   sourceEventId: string;
@@ -39,7 +51,9 @@ function hashDefinition(value: ProgressLedgerDefinition) {
 }
 /** A private projection of successful world records. No model call and no raw client write port. */
 export class PublicationEventProgressRepository {
-  private async authoredPlaces(sql: SqlClient, d: StoryProgressDefinition) {
+  private async authoredPlaces(sql: SqlClient, value: ProgressLedgerDefinition) {
+    if (value.boundNode) return value.boundNode.placeIds;
+    const d = value.definition;
     const plan = (
       await sql.query(
         'SELECT document FROM parallel_life.publication_story_plans WHERE world_id=$1 AND owner_id=$2',
@@ -194,12 +208,20 @@ export class PublicationEventProgressRepository {
         )
       ).rows.length > 0;
     if (duplicate) return old;
-    const node = (
-      await sql.query(
-        'SELECT actor_id,source_event_id,source_message_id,invitation_id,expected_version FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 AND node_key=$3',
-        [d.worldId, d.ownerId, d.nodeKey],
-      )
-    ).rows[0];
+    const node = value.boundNode
+      ? {
+          actor_id: value.boundNode.actorId,
+          source_event_id: value.boundNode.sourceEventId,
+          source_message_id: value.boundNode.sourceMessageId,
+          invitation_id: value.boundNode.invitationId,
+          expected_version: value.boundNode.expectedVersion,
+        }
+      : (
+          await sql.query(
+            'SELECT actor_id,source_event_id,source_message_id,invitation_id,expected_version FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 AND node_key=$3',
+            [d.worldId, d.ownerId, d.nodeKey],
+          )
+        ).rows[0];
     if (!node?.source_event_id || !node.source_message_id) throw new TaskError('INVALID_STATE');
     if (
       signal.kind === 'introduced' &&
@@ -292,7 +314,7 @@ export class PublicationEventProgressRepository {
       )
         throw new TaskError('INVALID_STATE');
     } else if (payload.type === 'travel.completed') {
-      const places = await this.authoredPlaces(sql, d);
+      const places = await this.authoredPlaces(sql, value);
       const destination = payload.data?.toPlaceId;
       if (
         signal.kind !== 'npc_progress' ||
@@ -325,7 +347,7 @@ export class PublicationEventProgressRepository {
         )
       ).rows[0];
       const entry = item?.document;
-      const places = await this.authoredPlaces(sql, d);
+      const places = await this.authoredPlaces(sql, value);
       if (
         !entry ||
         entry.sourceEventId !== source.id ||
@@ -334,7 +356,10 @@ export class PublicationEventProgressRepository {
         !proposal.quote ||
         !entry.text.includes(proposal.quote) ||
         (node.invitation_id
-          ? item.scene.appointmentId !== node.invitation_id
+          ? item.scene.appointmentId !== node.invitation_id &&
+            // A player can walk into the authored place before a proposed invitation.
+            // An explicitly different appointment never gains access from location alone.
+            !(item.scene.appointmentId == null && places.includes(item.scene.placeId))
           : places.length > 0 && !places.includes(item.scene.placeId))
       )
         throw new TaskError('INVALID_STATE');
@@ -424,14 +449,32 @@ export class PublicationEventProgressRepository {
         },
       ],
       currentWorldVersion: currentWorldVersion,
+      actualIntroduction:
+        observation.kind === 'npc_message' &&
+        source.id === node.source_event_id &&
+        signal.sourceRecordId === node.source_message_id,
     });
+    // A long event can change segment only after an actual bounded follow-up.
+    // This is pacing bookkeeping, never a completion criterion or physical outcome.
+    const nextSegment =
+      d.pace === 'extended' &&
+      old.phase !== 'resolved' &&
+      next.phase !== 'resolved' &&
+      signal.kind === 'npc_progress' &&
+      old.productiveBeats - old.segmentStartBeat >= storyPacePolicy(d.pace).targetBeats[1];
     // The immutable SQL ledger, not an ever-growing JSON array, owns replay deduplication.
     const persisted: PersistedStoryEventProgress = {
       ...old,
       ...next,
+      productiveBeats:
+        signal.kind === 'npc_progress' && value.openingPresentationEventIds?.includes(source.id)
+          ? old.productiveBeats
+          : next.productiveBeats,
       sourceEventIds: [],
       sourceRecordKeys: [],
       revision: old.revision + 1,
+      segmentIndex: nextSegment ? old.segmentIndex + 1 : old.segmentIndex,
+      segmentStartBeat: nextSegment ? next.productiveBeats : old.segmentStartBeat,
       cursorVersion: Math.max(old.cursorVersion, observation.version),
       lastSourceEventId: observation.id,
       criterionSources: Object.fromEntries(

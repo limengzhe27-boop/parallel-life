@@ -1,3 +1,14 @@
+import { ownGoalBrief } from '../domain/story-event-progress.ts';
+import {
+  PublicationProgressBeatStore,
+  type PendingPublicationBeat,
+} from './publication-progress-beat-store.ts';
+import {
+  publicationGoalContexts,
+  publicationOwnGoalFrame,
+  publicationProgressTrigger,
+  type PublicationGoalContext,
+} from './publication-event-goal-context.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { Id } from '../../../contracts/api.ts';
 import { PostgresDatabase, type SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -15,6 +26,7 @@ import {
   type StoryState,
   type StorySource,
   type StoryNode,
+  storyStateOutcome,
 } from '../domain/publication-story.ts';
 import type {
   PublicationStoryPort,
@@ -23,6 +35,7 @@ import type {
   PublicationStoryClaim,
   PublicationSceneBrief,
   PublicationStoryOpportunities,
+  PublicationEventProgressContext,
 } from '../application/publication-story-ports.ts';
 import { discoveredRouteIds } from '../domain/publication-route-ids.ts';
 import {
@@ -44,6 +57,7 @@ type Context = {
   availableFactIds: string[];
   version: number;
   followupNodeKeys: Set<string>;
+  goalContexts?: PublicationGoalContext[];
 };
 const iso = (v: unknown) => new Date(v as string).toISOString();
 function state(row: Record<string, any>): StoryState {
@@ -140,83 +154,223 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     id(ownerId);
     id(worldId);
     try {
-      return await this.db.transaction(ownerId, async (sql) => {
-        const w = (
-          await sql.query(
-            'SELECT version,state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
-            [worldId, ownerId],
-          )
-        ).rows[0];
-        if (!w) throw new TaskError('NOT_FOUND');
-        let plan = (
-          await sql.query(
-            'SELECT document FROM parallel_life.publication_story_plans WHERE world_id=$1 AND owner_id=$2',
-            [worldId, ownerId],
-          )
-        ).rows[0]?.document as StoryPlan | undefined;
-        if (!plan) {
-          const source = (
-            await sql.query('SELECT parallel_life.publication_story_source($1) AS source', [
-              worldId,
-            ])
-          ).rows[0].source as StorySource | null;
-          if (!source || (!source.timeline && !source.nodes.length)) return run(sql, null);
-          plan = buildStoryPlan(source);
-          await sql.query('SELECT parallel_life.publication_story_store_plan($1,$2)', [
-            worldId,
-            plan,
-          ]);
-        }
-        const initial = (
-          await sql.query(
-            'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
-            [worldId, ownerId],
-          )
-        ).rows[0].state;
-        const source = (
-          await sql.query('SELECT parallel_life.publication_story_source($1) AS source', [worldId])
-        ).rows[0].source as StorySource | null;
-        if (!source || JSON.stringify(source.origin) !== JSON.stringify(plan.origin))
-          throw new TaskError('INVALID_STATE');
-        const facts = (
-          await sql.query(
-            "SELECT f.id FROM parallel_life.world_facts f JOIN parallel_life.world_events e ON e.world_id=f.world_id AND e.owner_id=f.owner_id AND e.id=f.document->>'sourceEventId' WHERE f.world_id=$1 AND f.owner_id=$2 AND e.version<=$3",
-            [worldId, ownerId, w.version],
-          )
-        ).rows.map((r) => r.id);
-        const rows = (
-          await sql.query(
-            'SELECT * FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 ORDER BY node_key',
-            [worldId, ownerId],
-          )
-        ).rows;
-        const clockValue = (
-          await sql.query('SELECT parallel_life.publication_story_clock($1) AS story_now', [
-            worldId,
-          ])
-        ).rows[0].story_now;
-        if (!clockValue) throw new TaskError('INVALID_STATE');
-        const storyNow = iso(clockValue);
-        const c: Context = {
-          plan,
-          states: rows.map(state),
-          version: w.version,
-          world: { ...w.state, version: w.version } as WorldState,
-          storyNow,
-          currentPlaceId: w.state.space?.currentPlaceId ?? null,
-          placeDescriptions: new Map(
-            source.places.map((place) => [place.key, place.description ?? '']),
-          ),
-          authoredPlaces: source.places,
-          authoredRoutes: source.routes ?? [],
-          availableFactIds: [...initial.facts.map((f: { id: string }) => f.id), ...facts],
-          followupNodeKeys: new Set(),
-        };
-        return run(sql, c);
-      });
+      return await this.db.transaction(ownerId, (sql) =>
+        this.withContext(sql, ownerId, worldId, run),
+      );
     } catch (e) {
       return fail(e);
     }
+  }
+  private async withContext<T>(
+    sql: SqlClient,
+    ownerId: string,
+    worldId: string,
+    run: (sql: SqlClient, c: Context | null) => Promise<T>,
+  ): Promise<T> {
+    const w = (
+      await sql.query(
+        'SELECT version,state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+        [worldId, ownerId],
+      )
+    ).rows[0];
+    if (!w) throw new TaskError('NOT_FOUND');
+    let plan = (
+      await sql.query(
+        'SELECT document FROM parallel_life.publication_story_plans WHERE world_id=$1 AND owner_id=$2',
+        [worldId, ownerId],
+      )
+    ).rows[0]?.document as StoryPlan | undefined;
+    if (!plan) {
+      const source = (
+        await sql.query('SELECT parallel_life.publication_story_source($1) AS source', [worldId])
+      ).rows[0].source as StorySource | null;
+      if (!source || (!source.timeline && !source.nodes.length)) return run(sql, null);
+      plan = buildStoryPlan(source);
+      await sql.query('SELECT parallel_life.publication_story_store_plan($1,$2)', [worldId, plan]);
+    }
+    const initial = (
+      await sql.query(
+        'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
+        [worldId, ownerId],
+      )
+    ).rows[0].state;
+    const source = (
+      await sql.query('SELECT parallel_life.publication_story_source($1) AS source', [worldId])
+    ).rows[0].source as StorySource | null;
+    if (!source || JSON.stringify(source.origin) !== JSON.stringify(plan.origin))
+      throw new TaskError('INVALID_STATE');
+    const facts = (
+      await sql.query(
+        "SELECT f.id FROM parallel_life.world_facts f JOIN parallel_life.world_events e ON e.world_id=f.world_id AND e.owner_id=f.owner_id AND e.id=f.document->>'sourceEventId' WHERE f.world_id=$1 AND f.owner_id=$2 AND e.version<=$3",
+        [worldId, ownerId, w.version],
+      )
+    ).rows.map((r) => r.id);
+    const rows = (
+      await sql.query(
+        'SELECT * FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 ORDER BY node_key',
+        [worldId, ownerId],
+      )
+    ).rows;
+    const clockValue = (
+      await sql.query('SELECT parallel_life.publication_story_clock($1) AS story_now', [worldId])
+    ).rows[0].story_now;
+    if (!clockValue) throw new TaskError('INVALID_STATE');
+    const storyNow = iso(clockValue);
+    const c: Context = {
+      plan,
+      states: rows.map(state),
+      version: w.version,
+      world: { ...w.state, version: w.version } as WorldState,
+      storyNow,
+      currentPlaceId: w.state.space?.currentPlaceId ?? null,
+      placeDescriptions: new Map(
+        source.places.map((place) => [place.key, place.description ?? '']),
+      ),
+      authoredPlaces: source.places,
+      authoredRoutes: source.routes ?? [],
+      availableFactIds: [...initial.facts.map((f: { id: string }) => f.id), ...facts],
+      followupNodeKeys: new Set(),
+    };
+    return run(sql, c);
+  }
+  /** Existing successful world commit calls this on its own connection, never nested transactions. */
+  async reconcileInTransaction(sql: SqlClient, ownerId: string, worldId: string) {
+    return this.withContext(sql, ownerId, worldId, async (sql, c) => {
+      if (c) await this.reconcile(sql, ownerId, worldId, c);
+    });
+  }
+  private async progressContexts(sql: SqlClient, ownerId: string, worldId: string, c: Context) {
+    const rows = await publicationGoalContexts(sql, ownerId, worldId, c.version);
+    const store = new PublicationProgressBeatStore();
+    for (const row of rows) {
+      row.progress = (await store.reconcile(sql, row.value, c.version)) ?? row.progress;
+      const s = c.states.find((s) => s.nodeKey === row.record.node.key);
+      const sourceEventId = row.progress.lastSourceEventId;
+      if (s && row.progress.phase === 'resolved' && row.progress.resolution && sourceEventId)
+        s.progressResolution = { resolution: row.progress.resolution, sourceEventId };
+    }
+    c.goalContexts = rows;
+    return rows;
+  }
+  private async progressBrief(
+    sql: SqlClient,
+    row: PublicationGoalContext,
+    c: Context,
+    actorId = row.record.state.actorId,
+  ): Promise<PublicationEventProgressContext | null> {
+    const frame = await publicationOwnGoalFrame(sql, row, actorId, c.storyNow);
+    if (!frame) return null;
+    const ownGoal = ownGoalBrief(row.value.definition, row.progress, actorId);
+    if (!ownGoal) return null;
+    return {
+      nodeKey: row.record.node.key,
+      actorId: frame.actorId,
+      phase: frame.phase,
+      resolution: frame.phase === 'resolved' ? row.progress.resolution : null,
+      ownGoal,
+      productiveBeats: frame.productiveBeats,
+      segmentIndex: frame.segmentIndex,
+      nextMove:
+        frame.nextMove === 'wait' && (await publicationProgressTrigger(sql, row)) === 'world_change'
+          ? 'continue_in_current_turn'
+          : frame.nextMove,
+    };
+  }
+  private async progressSpeaker(sql: SqlClient, row: PublicationGoalContext, c: Context) {
+    const ids = Object.keys(row.record.openingActors ?? {});
+    const candidates = await Promise.all(
+      (ids.length ? ids : [row.record.state.actorId]).map((id) =>
+        this.progressBrief(sql, row, c, id),
+      ),
+    );
+    const allowed = await Promise.all(
+      candidates.map(async (brief) =>
+        brief &&
+        (await new PublicationProgressBeatStore().mayFollowUp(
+          sql,
+          row.value,
+          c.version,
+          brief.actorId,
+        ))
+          ? brief
+          : null,
+      ),
+    );
+    return (
+      allowed
+        .filter(
+          (brief): brief is PublicationEventProgressContext =>
+            brief !== null && !['wait', 'finished'].includes(brief.nextMove),
+        )
+        .sort(
+          (a, b) => a.productiveBeats - b.productiveBeats || a.actorId.localeCompare(b.actorId),
+        )[0] ?? null
+    );
+  }
+  eventProgressContext(ownerId: string, worldId: string, actorId: string) {
+    return this.tx(ownerId, worldId, async (sql, c) => {
+      if (!c) return [];
+      await this.reconcile(sql, ownerId, worldId, c);
+      const rows = await this.progressContexts(sql, ownerId, worldId, c);
+      const briefs = await Promise.all(
+        rows
+          .filter((r) => r.record.state.actorId === actorId || r.record.openingActors?.[actorId])
+          .map((r) => this.progressBrief(sql, r, c, actorId)),
+      );
+      return briefs.filter((b): b is PublicationEventProgressContext => b !== null);
+    });
+  }
+  prepareProgressBeat(
+    ownerId: string,
+    worldId: string,
+    nodeKey: string,
+    options: { expectedVersion: number; automatic: boolean },
+  ): Promise<PublicationStoryPrepare> {
+    return this.tx(ownerId, worldId, async (sql, c) => {
+      if (!c) return { status: 'none', managed: false };
+      await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
+      if (c.version !== options.expectedVersion) throw new TaskError('VERSION_CONFLICT');
+      const rows = await this.progressContexts(sql, ownerId, worldId, c);
+      const row = rows.find((r) => r.record.node.key === nodeKey);
+      if (!row) return { status: 'none', managed: true };
+      const brief = await this.progressSpeaker(sql, row, c);
+      if (!brief) return { status: 'none', managed: true };
+      const result = await new PublicationProgressBeatStore().prepare(sql, row.value, {
+        worldVersion: c.version,
+        storyAt: c.storyNow,
+        autonomousActionAvailable: true,
+        trigger: 'idle',
+        actorId: brief.actorId,
+      });
+      if (result.status !== 'claimed')
+        return {
+          status: result.status,
+          managed: true,
+          ...('pending' in result && result.pending
+            ? { pendingClaimId: result.pending.claimId }
+            : {}),
+        };
+      const original = c.states.find((s) => s.nodeKey === nodeKey)!;
+      return {
+        status: 'claimed',
+        claim: {
+          ...this.claim(c, original),
+          ...result.pending,
+          actorKey: c.plan.actors.find((a) => a.id === result.pending.actorId)!.key,
+          eventProgress: { ...brief, nextMove: result.pending.move },
+        },
+      };
+    });
+  }
+  finishProgressBeat(ownerId: string, worldId: string, claimId: string) {
+    return this.tx(ownerId, worldId, async (sql, c) => {
+      if (!c) throw new TaskError('NOT_FOUND');
+      await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
+      return this.read(c);
+    });
   }
   private claim(c: Context, s: StoryState): PublicationStoryClaim {
     const node = c.plan.nodes.find((n) => n.key === s.nodeKey)!,
@@ -260,6 +414,12 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     if (!c) return empty();
     const e = evaluateStory(c.plan, c.states, { ...c, automatic: false });
     const pending = c.states.find((s) => s.status === 'claimed' || s.status === 'unknown');
+    const beat = c.goalContexts
+      ?.map(
+        (r) =>
+          (r.progress as typeof r.progress & { pendingBeat?: PendingPublicationBeat }).pendingBeat,
+      )
+      .find((p) => p !== undefined && p.channel !== 'scene');
     return {
       currentStageKeys: e.currentStages,
       totalNodes: c.plan.nodes.length,
@@ -268,7 +428,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
         .map((s) => ({
           nodeKey: s.nodeKey,
           status: s.status,
-          outcome: s.outcome,
+          outcome: storyStateOutcome(s),
           sourceEventId: s.sourceEventId!,
           sourceMessageId: s.sourceMessageId,
           invitationId: s.invitationId,
@@ -280,7 +440,13 @@ export class PublicationStoryRepository implements PublicationStoryPort {
             commandId: pending.commandId,
             status: pending.status as 'claimed' | 'unknown',
           }
-        : null,
+        : beat
+          ? {
+              claimId: beat.claimId,
+              commandId: beat.commandId,
+              status: beat.status === 'claimed' ? 'claimed' : 'unknown',
+            }
+          : null,
     };
   }
   private async save(
@@ -855,7 +1021,10 @@ export class PublicationStoryRepository implements PublicationStoryPort {
       if (!c)
         return { managed: false, directorPool: false, version: 0, storyNow: '', candidates: [] };
       await this.reconcile(sql, ownerId, worldId, c);
-      const directorPool = c.plan.nodes.some((node) => node.intent.kind === 'director_event');
+      await this.progressContexts(sql, ownerId, worldId, c);
+      const directorPool =
+        c.plan.nodes.some((node) => node.intent.kind === 'director_event') ||
+        (c.goalContexts ?? []).some((r) => r.progress.phase !== 'resolved');
       const pending = c.states.some((s) => ['claimed', 'unknown'].includes(s.status));
       const evaluation = evaluateStory(c.plan, c.states, { ...c, automatic });
       const setting = directorPool
@@ -865,6 +1034,23 @@ export class PublicationStoryRepository implements PublicationStoryPort {
             ])
           ).rows[0].setting
         : null;
+      const continuing: PublicationStoryOpportunities['candidates'] = [];
+      for (const row of c.goalContexts ?? []) {
+        if (row.progress.phase === 'resolved') continue;
+        const brief = await this.progressSpeaker(sql, row, c);
+        if (!brief || ['wait', 'finished'].includes(brief.nextMove)) continue;
+        const node = row.record.node;
+        const placeKey = node.settingPlaceKey ?? node.placeKey;
+        continuing.push({
+          nodeKey: node.key,
+          title: node.title,
+          editorialIntent: node.script ?? node.editorialIntent,
+          actorId: brief.actorId,
+          placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
+          placeDescription: placeKey ? (c.placeDescriptions.get(placeKey) ?? null) : null,
+          eventProgress: brief,
+        });
+      }
       return {
         managed: true,
         directorPool,
@@ -874,57 +1060,62 @@ export class PublicationStoryRepository implements PublicationStoryPort {
         candidates:
           !directorPool || pending
             ? []
-            : [...evaluation.eligible]
-                .filter((node) => this.canIntroducePlace(c, node))
-                .sort(
-                  (a, b) =>
-                    Number((b.direction?.mode ?? 'optional') === 'required') -
-                    Number((a.direction?.mode ?? 'optional') === 'required'),
-                )
-                .slice(0, 24)
-                .map((node) => {
-                  const fixedActor = nodeActor(c.plan, node);
-                  const actorOptions = eligibleStoryActors(c.plan, node, c.states, {
-                    ...c,
-                    automatic,
-                  }).map((a) => ({
-                    id: a.id,
-                    key: a.key,
-                    name: c.world.actors.find((person) => person.id === a.id)?.name ?? a.key,
-                  }));
-                  const placeKey =
-                    node.intent.kind === 'offer_invitation'
-                      ? node.intent.placeKey
-                      : (node.settingPlaceKey ?? node.placeKey);
-                  return {
-                    nodeKey: node.key,
-                    title: node.title,
-                    editorialIntent: node.script ?? node.editorialIntent,
-                    actorOptions,
-                    ...(node.scenePlaceKeys?.length
-                      ? {
-                          places: c.authoredPlaces
-                            .filter((p) => node.scenePlaceKeys!.includes(p.key))
-                            .map((p) => ({
-                              key: p.key,
-                              name: p.name,
-                              ...(p.description ? { description: p.description } : {}),
-                            })),
-                        }
-                      : {}),
-                    direction: {
-                      ...node.direction,
-                      mode:
-                        (openingEventPending(c.plan, c.states) &&
-                        node.key === c.plan.openingEventKey
-                          ? 'required'
-                          : node.direction?.mode) ?? 'optional',
-                    },
-                    ...(fixedActor ? { actorId: fixedActor.id } : {}),
-                    placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
-                    placeDescription: placeKey ? (c.placeDescriptions.get(placeKey) ?? null) : null,
-                  };
-                }),
+            : [
+                ...continuing,
+                ...[...evaluation.eligible]
+                  .filter((node) => this.canIntroducePlace(c, node))
+                  .sort(
+                    (a, b) =>
+                      Number((b.direction?.mode ?? 'optional') === 'required') -
+                      Number((a.direction?.mode ?? 'optional') === 'required'),
+                  )
+                  .slice(0, 24)
+                  .map((node) => {
+                    const fixedActor = nodeActor(c.plan, node);
+                    const actorOptions = eligibleStoryActors(c.plan, node, c.states, {
+                      ...c,
+                      automatic,
+                    }).map((a) => ({
+                      id: a.id,
+                      key: a.key,
+                      name: c.world.actors.find((person) => person.id === a.id)?.name ?? a.key,
+                    }));
+                    const placeKey =
+                      node.intent.kind === 'offer_invitation'
+                        ? node.intent.placeKey
+                        : (node.settingPlaceKey ?? node.placeKey);
+                    return {
+                      nodeKey: node.key,
+                      title: node.title,
+                      editorialIntent: node.script ?? node.editorialIntent,
+                      actorOptions,
+                      ...(node.scenePlaceKeys?.length
+                        ? {
+                            places: c.authoredPlaces
+                              .filter((p) => node.scenePlaceKeys!.includes(p.key))
+                              .map((p) => ({
+                                key: p.key,
+                                name: p.name,
+                                ...(p.description ? { description: p.description } : {}),
+                              })),
+                          }
+                        : {}),
+                      direction: {
+                        ...node.direction,
+                        mode:
+                          (openingEventPending(c.plan, c.states) &&
+                          node.key === c.plan.openingEventKey
+                            ? 'required'
+                            : node.direction?.mode) ?? 'optional',
+                      },
+                      ...(fixedActor ? { actorId: fixedActor.id } : {}),
+                      placeName: c.plan.places.find((p) => p.key === placeKey)?.name ?? null,
+                      placeDescription: placeKey
+                        ? (c.placeDescriptions.get(placeKey) ?? null)
+                        : null,
+                    };
+                  }),
+              ],
       };
     });
   }
@@ -939,12 +1130,22 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c || c.version !== version || !candidateKeys.length) return false;
       await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
       if (c.version !== version) return false;
       if (c.states.some((s) => ['claimed', 'unknown'].includes(s.status))) return false;
       const legal = evaluateStory(c.plan, c.states, { ...c, automatic: false }).eligible.filter(
         (node) => this.canIntroducePlace(c, node),
       );
-      if (candidateKeys.some((key) => !legal.some((n) => n.key === key))) return false;
+      if (
+        candidateKeys.some(
+          (key) =>
+            !legal.some((n) => n.key === key) &&
+            !c.goalContexts?.some(
+              (r) => r.record.node.key === key && r.progress.phase !== 'resolved',
+            ),
+        )
+      )
+        return false;
       return (
         (
           await sql.query(
@@ -986,6 +1187,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c) return { status: 'none', managed: false };
       await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
       const pending = c.states.find((s) => s.status === 'claimed' || s.status === 'unknown');
       if (pending)
         return {
@@ -1017,12 +1219,16 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c || !c.states.some((s) => s.claimId === claimId)) throw new TaskError('NOT_FOUND');
       await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
       return this.read(c);
     });
   }
   progress(ownerId: string, worldId: string) {
     return this.tx(ownerId, worldId, async (sql, c) => {
-      if (c) await this.reconcile(sql, ownerId, worldId, c);
+      if (c) {
+        await this.reconcile(sql, ownerId, worldId, c);
+        await this.progressContexts(sql, ownerId, worldId, c);
+      }
       return this.read(c);
     });
   }
@@ -1041,6 +1247,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
         return this.read(c);
       }
       await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
       const node = c.plan.nodes.find((n) => n.key === nodeKey);
       if (!node) throw new TaskError('NOT_FOUND');
       const existing = c.states.find((s) => s.nodeKey === nodeKey);
@@ -1077,8 +1284,39 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c) throw new TaskError('NOT_FOUND');
       await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
       const s = c.states.find((s) => s.claimId === claimId);
-      if (!s) throw new TaskError('NOT_FOUND');
+      if (!s) {
+        const row = c.goalContexts?.find(
+          (r) =>
+            (r.progress as typeof r.progress & { pendingBeat?: PendingPublicationBeat }).pendingBeat
+              ?.claimId === claimId,
+        );
+        if (
+          !row ||
+          (row.progress as typeof row.progress & { pendingBeat?: PendingPublicationBeat })
+            .pendingBeat?.channel === 'scene'
+        )
+          throw new TaskError('NOT_FOUND');
+        const pending = await new PublicationProgressBeatStore().retry(
+          sql,
+          row.value,
+          claimId,
+          c.version,
+        );
+        const brief = await this.progressBrief(sql, row, c, pending.actorId);
+        if (!brief) throw new TaskError('INVALID_STATE');
+        const original = c.states.find((s) => s.nodeKey === row.record.node.key)!;
+        return {
+          status: 'claimed',
+          claim: {
+            ...this.claim(c, original),
+            ...pending,
+            actorKey: c.plan.actors.find((a) => a.id === pending.actorId)!.key,
+            eventProgress: { ...brief, nextMove: pending.move },
+          },
+        };
+      }
       if (s.sourceEventId || s.outcome) return { status: 'none', managed: true };
       if (!['unknown', 'failed'].includes(s.status)) throw new TaskError('BUSY');
       if (s.expectedVersion !== c.version) throw new TaskError('VERSION_CONFLICT');
@@ -1104,6 +1342,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c) return [];
       await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
       return readPublicationInvitationLinks(sql, ownerId, worldId);
     });
   }
@@ -1183,6 +1422,7 @@ export class PublicationStoryRepository implements PublicationStoryPort {
     return this.tx(ownerId, worldId, async (sql, c) => {
       if (!c) return null;
       await this.reconcile(sql, ownerId, worldId, c);
+      await this.progressContexts(sql, ownerId, worldId, c);
       return readPublicationSceneBrief(sql, ownerId, worldId, invitationId);
     });
   }

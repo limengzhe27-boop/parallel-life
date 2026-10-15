@@ -199,6 +199,7 @@ export async function advanceWorld(
           {
             worlds: deps.worlds,
             planner: {
+              prepareContext: deps.planner.prepareContext?.bind(deps.planner),
               async propose(input) {
                 const proposal = parseProposal(await deps.planner.propose(input));
                 if (

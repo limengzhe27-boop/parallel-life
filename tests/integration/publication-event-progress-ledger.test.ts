@@ -1,3 +1,4 @@
+import { publicationGoalContexts } from '../../src/modules/settings/infrastructure/publication-event-goal-context.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -242,7 +243,7 @@ test('real PG progress ledger binds actual node introduction and records unrelat
   assert.equal(prepared.claim.editorialIntent, script);
 
   const ledger = new PublicationEventProgressRepository();
-  const value: ProgressLedgerDefinition = {
+  let value: ProgressLedgerDefinition = {
     definition: {
       ownerId: owner,
       worldId: world.worldId,
@@ -319,6 +320,13 @@ test('real PG progress ledger binds actual node introduction and records unrelat
   }
   const intro = await turn(0, 'director', '今晚我想邀你吃饭。', prepared.claim.commandId);
   await story.finish(owner, world.worldId, prepared.claim.claimId);
+  value = await app.transaction(
+    owner,
+    async (sql) =>
+      (await publicationGoalContexts(sql, owner, world.worldId, intro.version, chosen)).find(
+        (r) => r.record.node.key === 'dynamic',
+      )!.value,
+  );
   for (const signal of [
     { sourceEventId: intro.eventId, sourceRecordId: intro.recordId, kind: 'invented' },
     {
@@ -414,7 +422,7 @@ test('real PG progress ledger binds actual node introduction and records unrelat
   if (next.status !== 'claimed') throw Error('NO_NEXT_CLAIM');
   assert.equal(next.claim.actorId, chosen);
   const completionSpec = doc.candidates.find((n) => n.key === 'complete')!.direction!.progress!;
-  const completeValue: ProgressLedgerDefinition = {
+  let completeValue: ProgressLedgerDefinition = {
     ...value,
     spec: completionSpec,
     definition: {
@@ -436,6 +444,13 @@ test('real PG progress ledger binds actual node introduction and records unrelat
   };
   const secondIntro = await turn(4, 'director', '我有一件想商量的事。', next.claim.commandId);
   await story.finish(owner, world.worldId, next.claim.claimId);
+  completeValue = await app.transaction(
+    owner,
+    async (sql) =>
+      (await publicationGoalContexts(sql, owner, world.worldId, secondIntro.version, chosen)).find(
+        (r) => r.record.node.key === 'complete',
+      )!.value,
+  );
   await app.transaction(owner, (sql) =>
     ledger.apply(
       sql,
@@ -495,7 +510,10 @@ test('real PG progress ledger binds actual node introduction and records unrelat
   });
   assert.equal(arrivalClaim.status, 'claimed');
   if (arrivalClaim.status !== 'claimed') throw Error('NO_ARRIVAL_CLAIM');
-  const arrivalValue = { ...value, definition: { ...value.definition, nodeKey: 'arrival' } };
+  let arrivalValue: ProgressLedgerDefinition = {
+    ...value,
+    definition: { ...value.definition, nodeKey: 'arrival' },
+  };
   const arrivalIntro = await turn(
     6,
     'director',
@@ -503,6 +521,13 @@ test('real PG progress ledger binds actual node introduction and records unrelat
     arrivalClaim.claim.commandId,
   );
   await story.finish(owner, world.worldId, arrivalClaim.claim.claimId);
+  arrivalValue = await app.transaction(
+    owner,
+    async (sql) =>
+      (await publicationGoalContexts(sql, owner, world.worldId, arrivalIntro.version, chosen)).find(
+        (r) => r.record.node.key === 'arrival',
+      )!.value,
+  );
   await app.transaction(owner, (sql) =>
     ledger.apply(
       sql,

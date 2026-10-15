@@ -123,7 +123,20 @@ function createServices() {
         scopeId?: string;
         includeInactive?: boolean;
       },
-    ) => db.transaction(ownerId, (sql) => listMemories(sql, ownerId, filter)),
+    ) =>
+      db.transaction(ownerId, async (sql) => {
+        const hidden = new Set(
+          (
+            await sql.query(
+              "SELECT id FROM parallel_life.memory_records WHERE owner_id=$1 AND scope_type='character' AND left(key,24)='actor_event_progress_v1:'",
+              [ownerId],
+            )
+          ).rows.map((row) => row.id),
+        );
+        return (await listMemories(sql, ownerId, filter)).filter(
+          (memory) => !hidden.has(memory.id),
+        );
+      }),
     /**
      * Move this life's clock and let a bounded number of beats happen on their own.
      * Costs at most MAX_BEATS_PER_ADVANCE model calls; the rest is folded into a summary.
@@ -304,39 +317,38 @@ function createServices() {
     ),
     interviewPlanner: new InterviewPlanner(createTextModel()),
     worldPlanner: new WorldTurnPlanner(createTextModel()),
-    characterPlannerFor: (ownerId: string, worldId: string) => ({
-      async propose(
-        input: Parameters<
-          import('../modules/world/application/ports.ts').TurnPlanner['propose']
-        >[0],
-      ) {
-        if (input.context.worldId !== worldId) throw Error('INVALID_STATE');
-        const store: import('../modules/settings/application/publication-story-ports.ts').PublicationStoryPort =
-          new PublicationStoryRepository(db);
-        const invitation = await store.invitationContext?.(
-          ownerId,
-          worldId,
-          input.context.actor.id,
-        );
-        const proposal = await publicationCharacterPlanner(
-          db,
-          ownerId,
-          worldId,
-          createTextModel(),
-        ).propose({
-          ...input,
-          context: {
-            ...input.context,
-            ...(invitation
-              ? { storyInvitation: { ...invitation, source: 'presented' as const } }
-              : {}),
-          },
-        });
-        if (invitation)
-          validateStoryInvitation(parseProposal(proposal), input.context.actor.id, invitation);
-        return proposal;
-      },
-    }),
+    characterPlannerFor: (ownerId: string, worldId: string) => {
+      const planner = publicationCharacterPlanner(db, ownerId, worldId, createTextModel());
+      return {
+        prepareContext: planner.prepareContext?.bind(planner),
+        async propose(
+          input: Parameters<
+            import('../modules/world/application/ports.ts').TurnPlanner['propose']
+          >[0],
+        ) {
+          if (input.context.worldId !== worldId) throw Error('INVALID_STATE');
+          const store: import('../modules/settings/application/publication-story-ports.ts').PublicationStoryPort =
+            new PublicationStoryRepository(db);
+          const invitation = await store.invitationContext?.(
+            ownerId,
+            worldId,
+            input.context.actor.id,
+          );
+          const proposal = await planner.propose({
+            ...input,
+            context: {
+              ...input.context,
+              ...(invitation
+                ? { storyInvitation: { ...invitation, source: 'presented' as const } }
+                : {}),
+            },
+          });
+          if (invitation)
+            validateStoryInvitation(parseProposal(proposal), input.context.actor.id, invitation);
+          return proposal;
+        },
+      };
+    },
     memoryQuestions: new InterviewQuestionRepository(db),
     memoryCandidates: new MemoryCandidateRepository(db),
     profile: new ProfileRepository(db),

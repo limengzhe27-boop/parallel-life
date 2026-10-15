@@ -25,6 +25,11 @@ import { applyNoteEvent, type NoteCommand, type NoteEvent } from '../domain/note
 import { retainFacts } from '../domain/retention.ts';
 import { openingMessagesForDisplay } from '../domain/opening-time.ts';
 import { deriveAndStoreMemories } from '../../memory/infrastructure/memory-store.ts';
+import { loadActorMemories } from '../../memory/infrastructure/memory-store.ts';
+import { PublicationStoryRepository } from '../../settings/infrastructure/publication-story-repository.ts';
+import { applyActorEventAssessments } from './actor-goal-repository.ts';
+import { actorContext } from '../application/actor-context.ts';
+import type { EventGoalAssessment } from '../domain/types.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 import { projectStoryTime } from '../domain/clock.ts';
@@ -459,12 +464,27 @@ export class PostgresWorldRepository implements WorldRepository {
       return this.saved(sql, command);
     });
   }
-  async commit(session: Session, command: TurnCommand, event: WorldEvent) {
+  async commit(
+    session: Session,
+    command: TurnCommand,
+    event: WorldEvent,
+    progress?: { goalKeys: string[]; assessments: EventGoalAssessment[] },
+  ) {
     return this.db.transaction(session.userId, async (sql) => {
       const current = await this.owned(sql, command.worldId, true),
         saved = await this.saved(sql, command);
       if (saved) return saved;
       if (current.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      if (command.origin === 'director') {
+        const cancelled = (
+          await sql.query(
+            "SELECT 1 FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 AND command_id=$3 AND status IN ('skipped','expired')",
+            [command.worldId, session.userId, command.id],
+          )
+        ).rowCount;
+        if (cancelled)
+          throw new DomainError('INVALID_COMMAND', '这段发送已被结束，不能再保存晚到的结果。');
+      }
       if (
         event.commandId !== command.id ||
         event.worldId !== command.worldId ||
@@ -557,6 +577,35 @@ export class PostgresWorldRepository implements WorldRepository {
       await sql.query(
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
         [state.id, command.id, event.id, snapshot],
+      );
+      // Introduction and private progress reconcile on the same successful source
+      // transaction. No nested connection can observe half an NPC reply.
+      await new PublicationStoryRepository(this.db).reconcileInTransaction(
+        sql,
+        session.userId,
+        state.id,
+      );
+      const recalled = await loadActorMemories(sql, session.userId, {
+        actorId: command.actorId,
+        worldId: state.id,
+      });
+      const scoped = actorContext(
+        state,
+        command.actorId,
+        command.text,
+        recalled.records,
+        recalled.blockedSources,
+      );
+      await applyActorEventAssessments(
+        sql,
+        session.userId,
+        scoped,
+        event.id,
+        progress?.assessments ?? [],
+        progress?.goalKeys ?? [],
+        command.origin === 'director' ? undefined : command.text,
+        command.origin === 'director',
+        recalled.blockedSources,
       );
       return { state, event };
     });

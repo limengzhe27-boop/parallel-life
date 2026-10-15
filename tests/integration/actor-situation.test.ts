@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { stripTypeScriptTypes } from 'node:module';
+import { listMemories } from '../../src/modules/memory/infrastructure/memory-store.ts';
+import { parseProposal } from '../../src/modules/world/domain/validation.ts';
+import { validateStoryInvitation } from '../../src/server/publication-story-service.ts';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { localConfig } from '../../scripts/local-config.mjs';
@@ -23,6 +27,8 @@ import {
 import type { PublicationWorldCompilerPort } from '../../src/modules/settings/application/publication-world-ports.ts';
 import type { OpeningDelivery } from '../../src/modules/settings/application/publication-opening-ports.ts';
 import { readDirectorObservation } from '../../src/modules/world/infrastructure/director-observation-repository.ts';
+import { resolveTurn } from '../../src/modules/world/application/resolve-turn.ts';
+import { readActorEventGoals } from '../../src/modules/world/infrastructure/actor-goal-repository.ts';
 import { publicationCharacterPlanner } from '../../src/server/publication-character-planner.ts';
 import { readActorSituation } from '../../src/modules/world/infrastructure/actor-situation-repository.ts';
 import { actorContext } from '../../src/modules/world/application/actor-context.ts';
@@ -98,7 +104,7 @@ test('actor situations retain own directions and share the current world snapsho
   const repository = new PublicationOpeningRepository(app),
     runtime = new PostgresWorldRepository(app),
     story = new PublicationStoryRepository(app);
-  async function fixture() {
+  async function fixture(completion = false) {
     const staff = randomUUID(),
       owner = randomUUID(),
       foreign = randomUUID();
@@ -147,6 +153,23 @@ test('actor situations retain own directions and share the current world snapsho
         intent: { kind: 'director_event' },
       },
     ];
+    if (completion)
+      c.candidates[0].direction = {
+        mode: 'optional',
+        progress: {
+          completion: {
+            mode: 'all',
+            criteria: [
+              {
+                key: 'confirm',
+                kind: 'npc_exact_message',
+                actorKey: c.actors[1].key,
+                phrase: 'CRITERION_CONFIRM',
+              },
+            ],
+          },
+        },
+      };
     c.openingEventKey = 'start';
     delete c.timeline;
     delete c.conditions;
@@ -424,6 +447,357 @@ test('actor situations retain own directions and share the current world snapsho
         },
       });
       assert.equal(paid, 1);
+    },
+  );
+
+  await t.test(
+    'real service assembly preserves actor preparation and hides metadata-keyed progress memories',
+    async () => {
+      const source = await readFile(
+        new URL('../../src/server/services.ts', import.meta.url),
+        'utf8',
+      );
+      const factoryPart = source
+        .slice(
+          source.indexOf('characterPlannerFor:') + 'characterPlannerFor:'.length,
+          source.indexOf('    memoryQuestions:'),
+        )
+        .trim()
+        .replace(/,$/, '');
+      const compiled = stripTypeScriptTypes('const factory = ' + factoryPart + ';');
+      const create = Function(
+        'db',
+        'publicationCharacterPlanner',
+        'createTextModel',
+        'PublicationStoryRepository',
+        'validateStoryInvitation',
+        'parseProposal',
+        compiled + ';return factory;',
+      )(
+        app,
+        publicationCharacterPlanner,
+        () => ({
+          complete: async () => {
+            throw Error('NO_PAID_CALL_EXPECTED');
+          },
+        }),
+        PublicationStoryRepository,
+        validateStoryInvitation,
+        parseProposal,
+      );
+      const assembled = create(f.owner, f.worldId);
+      assert.equal(typeof assembled.prepareContext, 'function');
+      const prepared = await assembled.prepareContext(await ctx(secondId), new Set());
+      assert.equal(prepared.eventGoals[0]?.want, 'PRIVATE_ACTOR_DIRECTION_1');
+      const memoryPart = source
+        .slice(
+          source.indexOf('    listMemories:') + '    listMemories:'.length,
+          source.indexOf('    /**', source.indexOf('    listMemories:')),
+        )
+        .trim()
+        .replace(/,$/, '');
+      const compileList = stripTypeScriptTypes('const reader = ' + memoryPart + ';');
+      const read = Function(
+        'db',
+        'listMemories',
+        compileList + ';return reader;',
+      )(app, listMemories);
+      const normal = randomUUID(),
+        hidden = randomUUID();
+      await admin.query(
+        "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids) VALUES($1,$3,'branch',$4,$4,NULL,'correction','ordinary content mentioning actor_event_progress_v1: must remain','ordinary','user_correction','[]'),($2,$3,'character',$5,$4,$5,'summary','PRIVATE_GOAL_STATE','actor_event_progress_v1:test','agent_inference','[]')",
+        [normal, hidden, f.owner, f.worldId, secondId],
+      );
+      const memories = await read(f.owner, {});
+      assert(memories.some((m: { id: string }) => m.id === normal));
+      assert(!memories.some((m: { id: string }) => m.id === hidden));
+    },
+  );
+  await t.test(
+    'live multi-actor opening has independent goals and one receipt-bound common progress ledger',
+    async () => {
+      const readGoals = async (actor: string) =>
+        app.transaction(f.owner, (sql) =>
+          readActorEventGoals(sql, awaitContext[actor]!, f.owner, new Set()),
+        );
+      const awaitContext: Record<string, ReturnType<typeof actorContext>> = {};
+      for (const id of [firstId, secondId]) awaitContext[id] = await ctx(id);
+      const a = await readGoals(firstId),
+        b = await readGoals(secondId);
+      assert.equal(a[0]?.want, 'PRIVATE_ACTOR_DIRECTION_0');
+      assert.equal(b[0]?.want, 'PRIVATE_ACTOR_DIRECTION_1');
+      assert.equal(a[0]?.goalKey, b[0]?.goalKey);
+      const openingProgress = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows[0].state;
+      assert.equal(openingProgress.productiveBeats, 1);
+
+      assert(!JSON.stringify(a).includes('PRIVATE_ACTOR_DIRECTION_1'));
+      const turn = async (
+        actor: string,
+        text: string,
+        kind: 'declined' | 'engaged' | 'closure',
+        quote: string,
+      ) => {
+        const planner = publicationCharacterPlanner(app, f.owner, f.worldId, {
+          async complete(messages) {
+            const payload = JSON.parse(messages[1]!.content);
+            assert.equal(payload.eventGoals[0].actorId, actor);
+            return JSON.stringify({
+              schemaVersion: 1,
+              effects: [
+                {
+                  type: 'message.received',
+                  id: 'reply',
+                  actorId: actor,
+                  text:
+                    kind === 'closure' ? '我先结束这次请求。' : '我听明白了，会按这个安排处理。',
+                },
+              ],
+              eventGoalAssessments: [
+                {
+                  goalKey: payload.eventGoals[0].goalKey,
+                  target: kind === 'closure' ? 'npc' : 'user',
+                  kind,
+                  quote,
+                  ...(kind === 'closure' ? { closure: 'withdrawn' } : {}),
+                },
+              ],
+            });
+          },
+        });
+        const current = await runtime.get({ userId: f.owner }, f.worldId);
+        return resolveTurn(
+          { worlds: runtime, planner, now: () => at, newId: randomUUID },
+          { userId: f.owner },
+          {
+            id: randomUUID(),
+            worldId: f.worldId,
+            actorId: actor,
+            expectedVersion: current.version,
+            text,
+          },
+        );
+      };
+      const declined = await turn(firstId, '暂时不去，我先忙工作。', 'declined', '暂时不去');
+      assert.equal(declined.state.version, 18);
+      await turn(secondId, '我可以先听听你的安排。', 'engaged', '先听听你的安排');
+      for (const id of [firstId, secondId]) awaitContext[id] = await ctx(id);
+      const afterA = await readGoals(firstId),
+        afterB = await readGoals(secondId);
+      assert.equal(afterA[0]?.participation, 'declined');
+      assert.equal(afterB[0]?.participation, 'engaged');
+      assert.equal(afterA[0]?.phase, afterB[0]?.phase);
+      assert.equal(afterA[0]?.status, 'deferred');
+      const rows = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows;
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].state.phase, 'engaged');
+      assert.equal(rows[0].state.resolution, null);
+      await turn(firstId, '你先按自己的安排来吧。', 'closure', '我先结束这次请求');
+      const closed = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows[0].state;
+      assert.notEqual(closed.phase, 'resolved');
+      assert.equal(closed.actorGoalStatus[firstId], 'withdrawn');
+      assert.equal(closed.actorGoalStatus[secondId], 'active');
+      assert.equal(closed.resolution, null);
+      const observed = await readDirectorObservation(app, f.owner, f.worldId, 20, at);
+      const sharedObservation = observed.eventProgress?.find(
+        (e) => e.nodeKey === initial.opening.nodeKey,
+      );
+      assert.equal(sharedObservation?.phase, 'engaged');
+      assert.equal(
+        sharedObservation?.actors.find((a) => a.actorId === firstId)?.participation,
+        'declined',
+      );
+      assert.equal(
+        sharedObservation?.actors.find((a) => a.actorId === firstId)?.status,
+        'withdrawn',
+      );
+      assert.equal(
+        sharedObservation?.actors.find((a) => a.actorId === secondId)?.participation,
+        'engaged',
+      );
+      assert.equal(sharedObservation?.actors.find((a) => a.actorId === secondId)?.status, 'active');
+
+      const latest = await runtime.get({ userId: f.owner }, f.worldId);
+      assert.equal(latest.time, at);
+      const beforeRevision = (
+        await admin.query(
+          'SELECT revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows[0].revision;
+      const invalid = publicationCharacterPlanner(app, f.owner, f.worldId, {
+        async complete() {
+          return JSON.stringify({
+            schemaVersion: 1,
+            effects: [
+              {
+                type: 'message.received',
+                id: 'r',
+                actorId: secondId,
+                text: 'This cannot be committed.',
+              },
+            ],
+            eventGoalAssessments: [
+              {
+                goalKey: 'publication:foreign_node',
+                target: 'user',
+                kind: 'engaged',
+                quote: 'Go ahead',
+              },
+            ],
+          });
+        },
+      });
+      await assert.rejects(() =>
+        resolveTurn(
+          { worlds: runtime, planner: invalid, now: () => at, newId: randomUUID },
+          { userId: f.owner },
+          {
+            id: randomUUID(),
+            worldId: f.worldId,
+            actorId: secondId,
+            expectedVersion: latest.version,
+            text: 'Go ahead',
+          },
+        ),
+      );
+      assert.equal((await runtime.get({ userId: f.owner }, f.worldId)).version, latest.version);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].revision,
+        beforeRevision,
+      );
+      const later = new Date(Date.parse(at) + 35 * 60000).toISOString();
+      await admin.query('UPDATE parallel_life.world_clock SET story_now=$2 WHERE world_id=$1', [
+        f.worldId,
+        later,
+      ]);
+      const pool = await story.opportunities(f.owner, f.worldId, false);
+      const next = pool.candidates.find((c) => c.nodeKey === initial.opening.nodeKey);
+      assert.equal(next?.actorId, secondId);
+      assert.equal(next?.eventProgress?.ownGoal.want, 'PRIVATE_ACTOR_DIRECTION_1');
+      const pending = await story.prepareProgressBeat(f.owner, f.worldId, initial.opening.nodeKey, {
+        expectedVersion: latest.version,
+        automatic: false,
+      });
+      assert.equal(pending.status, 'claimed');
+      if (pending.status === 'claimed') {
+        assert.equal(pending.claim.actorId, secondId);
+        const competing = await story.prepareProgressBeat(
+          f.owner,
+          f.worldId,
+          initial.opening.nodeKey,
+          { expectedVersion: latest.version, automatic: false },
+        );
+        assert.notEqual(competing.status, 'claimed');
+        const recovered = await story.retry(f.owner, f.worldId, pending.claim.claimId);
+        assert.equal(recovered.status, 'claimed');
+        if (recovered.status !== 'claimed') throw Error('EXPLICIT_RECOVERY_MISSING');
+        assert.equal(recovered.claim.commandId, pending.claim.commandId);
+        assert.equal(recovered.claim.actorId, secondId);
+        await commit(
+          f,
+          secondId,
+          latest.version,
+          recovered.claim.commandId,
+          'First autonomous follow-up',
+        );
+        await story.finishProgressBeat(f.owner, f.worldId, recovered.claim.claimId);
+        const secondBeat = await story.prepareProgressBeat(
+          f.owner,
+          f.worldId,
+          initial.opening.nodeKey,
+          { expectedVersion: latest.version + 1, automatic: false },
+        );
+        assert.equal(secondBeat.status, 'claimed');
+        if (secondBeat.status !== 'claimed') throw Error('SECOND_FOLLOWUP_MISSING');
+        await commit(
+          f,
+          secondId,
+          latest.version + 1,
+          secondBeat.claim.commandId,
+          'Second autonomous follow-up without closure',
+        );
+        await story.finishProgressBeat(f.owner, f.worldId, secondBeat.claim.claimId);
+        const bounded = await story.opportunities(f.owner, f.worldId, false);
+        assert(!bounded.candidates.some((c) => c.nodeKey === initial.opening.nodeKey));
+        const quiet = await story.prepareProgressBeat(f.owner, f.worldId, initial.opening.nodeKey, {
+          expectedVersion: latest.version + 2,
+          automatic: false,
+        });
+        assert.equal(quiet.status, 'none');
+        const notFinished = (
+          await admin.query(
+            'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].state;
+        assert.equal(notFinished.resolution, null);
+      }
+    },
+  );
+  await t.test(
+    'another opening participant can satisfy an authored criterion without inventing success for everyone',
+    async () => {
+      const other = await fixture(true),
+        planId = randomUUID();
+      await repository.beginPlan(other.owner, other.worldId, planId);
+      await repository.savePlan(
+        other.owner,
+        other.worldId,
+        planId,
+        other.actors.map((a, i) => ({ actorId: a.id, brief: 'Independent goal ' + i })),
+      );
+      for (let version = 0; version < 2; version++) {
+        const claim = (await repository.claimNext(other.owner, other.worldId))!;
+        await commit(
+          other,
+          claim.actorId,
+          version,
+          claim.commandId,
+          version === 1 ? 'CRITERION_CONFIRM' : 'Initial request',
+        );
+        await repository.finishDelivery(other.owner, other.worldId, claim.actorId, claim.commandId);
+      }
+      const current = await runtime.get({ userId: other.owner }, other.worldId);
+      const goals = [];
+      for (const actor of other.actors)
+        goals.push(
+          await app.transaction(other.owner, (sql) =>
+            readActorEventGoals(sql, actorContext(current, actor.id), other.owner, new Set()),
+          ),
+        );
+      assert.equal(goals[0]![0]?.phase, 'resolved');
+      assert.equal(goals[1]![0]?.phase, 'resolved');
+      assert.equal(goals[0]![0]?.nextMove, 'finished');
+      assert.equal(goals[1]![0]?.status, 'fulfilled');
+      assert.notEqual(goals[0]![0]?.status, 'fulfilled');
+      const shared = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [other.worldId],
+        )
+      ).rows[0].state;
+      assert.equal(shared.resolution, 'fulfilled');
+      assert.equal(shared.productiveBeats, 1);
     },
   );
 });

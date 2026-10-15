@@ -234,6 +234,8 @@ export function actorContext(
 
   if (memoryRecords.length > 0) {
     const scoped = memoryRecords.filter((record) => {
+      // Runtime progress is parsed into a scoped frame, never exposed as raw memory prose.
+      if (record.key?.startsWith('actor_event_progress_v1:')) return false;
       if (record.text.startsWith(resultAckPrefix)) return false;
       if (record.ownerId !== state.ownerId) return false;
       if (record.branchId && record.branchId !== state.id) return false;

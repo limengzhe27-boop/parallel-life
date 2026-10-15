@@ -1,5 +1,10 @@
 import { DomainError } from '../domain/errors.ts';
-import { parseProposal, validateCommand, validateEventId } from '../domain/validation.ts';
+import {
+  parseProposal,
+  validateCommand,
+  validateEventId,
+  validateEventGoalAssessmentQuotes,
+} from '../domain/validation.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import type { Session, TurnCommand, CommitResult } from '../domain/types.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
@@ -42,7 +47,7 @@ export async function resolveTurn(
   const recalled = deps.memories
     ? await deps.memories(command.actorId)
     : { records: [] as MemoryRecord[], blockedSources: new Set<string>() };
-  const context = actorContext(
+  let context = actorContext(
     { ...world, time: userAt },
     command.actorId,
     command.text,
@@ -56,7 +61,6 @@ export async function resolveTurn(
         id: actor.id,
         name: actor.name,
         relationship: actor.relationship,
-        persona: actor.persona.slice(0, 240),
         socialTie: relationship,
       }),
     );
@@ -71,7 +75,32 @@ export async function resolveTurn(
           ]
         : [],
     );
+  if (deps.planner.prepareContext) {
+    context = await deps.planner.prepareContext(context, recalled.blockedSources);
+    if (
+      context.actor.id !== command.actorId ||
+      context.worldId !== command.worldId ||
+      context.worldVersion !== command.expectedVersion
+    )
+      throw new DomainError('INVALID_COMMAND', '角色上下文来源不一致。');
+  }
+  const goalKeys = [
+    ...(context.eventGoals ?? [])
+      .filter((goal) => goal.actorId === command.actorId)
+      .map((goal) => goal.goalKey),
+    ...(command.origin === 'director' && context.introducingEventGoalKey
+      ? [context.introducingEventGoalKey]
+      : []),
+  ];
   const proposal = parseProposal(await deps.planner.propose({ context, userText: command.text }));
+  validateEventGoalAssessmentQuotes(proposal.eventGoalAssessments ?? [], {
+    goalKeys,
+    userText: command.text,
+    npcTexts: proposal.effects.flatMap((effect) =>
+      effect.type === 'message.received' ? [effect.text] : [],
+    ),
+    director: command.origin === 'director',
+  });
   /*
    * 意图接线：角色回复之外，用户明确索图时必须产生一条 media.requested，
    * 否则 outbox 永远没有可执行的任务，"发张照片"会静默什么都不发生。
@@ -101,24 +130,29 @@ export async function resolveTurn(
       : new Date(
           Math.max(Date.parse(userAt), Date.parse(deps.storyNow?.(occurredAt) ?? world.time)),
         ).toISOString();
-  return deps.worlds.commit(session, command, {
-    schemaVersion: 1,
-    id: eventId,
-    worldId: world.id,
-    version: world.version + 1,
-    commandId: command.id,
-    occurredAt,
-    ...(replyAt ? { storyAt: replyAt } : {}),
-    type: 'turn.resolved',
-    data: {
-      actorId: command.actorId,
-      userText: command.text,
-      effects,
-      ...(replyAt ? { userAt } : {}),
-      ...(command.origin ? { origin: command.origin } : {}),
-      ...(effects.some((effect) => effect.type === 'information.shared')
-        ? { disclosurePolicyVersion: 2 as const }
-        : {}),
+  return deps.worlds.commit(
+    session,
+    command,
+    {
+      schemaVersion: 1,
+      id: eventId,
+      worldId: world.id,
+      version: world.version + 1,
+      commandId: command.id,
+      occurredAt,
+      ...(replyAt ? { storyAt: replyAt } : {}),
+      type: 'turn.resolved',
+      data: {
+        actorId: command.actorId,
+        userText: command.text,
+        effects,
+        ...(replyAt ? { userAt } : {}),
+        ...(command.origin ? { origin: command.origin } : {}),
+        ...(effects.some((effect) => effect.type === 'information.shared')
+          ? { disclosurePolicyVersion: 2 as const }
+          : {}),
+      },
     },
-  });
+    { goalKeys, assessments: proposal.eventGoalAssessments ?? [] },
+  );
 }

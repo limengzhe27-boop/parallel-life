@@ -5,6 +5,18 @@ export type DirectorObservation = {
   worldVersion: number;
   storyAt: string;
   recentWorldInputs: StoryWorldInput[];
+  eventProgress?: {
+    nodeKey: string;
+    phase: 'introduced' | 'engaged' | 'resolved';
+    resolution: string | null;
+    sourceEventId: string;
+    sourceVersion: number;
+    actors: {
+      actorId: string;
+      participation: 'unknown' | 'engaged' | 'declined';
+      status: 'active' | 'deferred' | 'fulfilled' | 'withdrawn';
+    }[];
+  }[];
   actorExchanges: {
     actorId: string;
     sourceEventId: string;

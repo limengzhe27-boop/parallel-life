@@ -238,3 +238,48 @@ test('an invalid cross-character response is reconciled, never marked as a compl
   assert.equal(s.counts().finishes, 1);
   assert.equal((await s.deps.worlds.get({ userId: 'o' }, 'w')).version, 0);
 });
+
+test('an ongoing actor receives own current goal instead of the multi-role source script', async () => {
+  const continuation: PublicationStoryClaim = {
+    ...claim,
+    intent: { kind: 'director_event' },
+    script: 'OTHER_ACTOR_PRIVATE_SCRIPT',
+    editorialIntent: 'OTHER_ACTOR_PRIVATE_SCRIPT',
+    sceneText: 'OTHER_ACTOR_PRIVATE_SCENE',
+    eventProgress: {
+      nodeKey: claim.nodeKey,
+      actorId: 'a',
+      phase: 'engaged',
+      resolution: null,
+      productiveBeats: 2,
+      segmentIndex: 0,
+      nextMove: 'continue_in_current_turn',
+      ownGoal: {
+        want: 'OWN_CURRENT_REQUEST',
+        stance: 'Keep my own stance',
+        boundaries: [],
+        status: 'active',
+        participation: 'engaged',
+        shouldRespectRefusal: false,
+        mayChangeApproach: true,
+        refusalScope: 'current_player_request',
+        mayPursueOwnGoalWithoutPlayer: true,
+        actualMovesRequireRuntimeAuthorization: true,
+        mayRewriteGoalWithoutNewAuthorizedSource: false,
+        speechDoesNotProveWorldOutcome: true,
+      },
+    },
+  };
+  const s = setup({ status: 'claimed', claim: continuation });
+  s.deps.planner.propose = async (input) => {
+    assert(JSON.stringify(input).includes('OWN_CURRENT_REQUEST'));
+    assert(!JSON.stringify(input).includes('OTHER_ACTOR_PRIVATE'));
+    return {
+      schemaVersion: 1,
+      effects: [
+        { type: 'message.received', id: 'r', actorId: 'a', text: '我先把自己能做的部分整理出来。' },
+      ],
+    };
+  };
+  await advancePublicationStory(s.deps, 'o', 'w', false);
+});

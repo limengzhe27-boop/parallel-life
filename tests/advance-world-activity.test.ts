@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { advanceWorld } from '../src/modules/world/application/advance-world.ts';
-import type { ClockStore } from '../src/modules/world/application/ports.ts';
+import type { ClockStore, TurnPlanner } from '../src/modules/world/application/ports.ts';
 import type { WorldClock } from '../src/modules/world/domain/clock.ts';
 import type { WorldState } from '../src/modules/world/domain/types.ts';
 import { MemoryWorldRepository } from '../src/modules/world/infrastructure/memory-world-repository.ts';
@@ -76,27 +76,36 @@ function fixture(managed = true, needsReply = true) {
       saved = c;
     },
   };
+  let prepared = 0;
+  const characterPlanner: TurnPlanner & { marker: string } = {
+    marker: 'own planner receiver',
+    async prepareContext(context) {
+      assert.equal(this.marker, 'own planner receiver');
+      prepared++;
+      return { ...context, worldTitle: 'prepared character context' };
+    },
+    propose: async ({ context }) => {
+      assert.equal(context.worldTitle, 'prepared character context');
+      calls++;
+      return {
+        schemaVersion: 1,
+        effects: [
+          {
+            type: 'message.received',
+            id: randomUUID(),
+            actorId: actor,
+            text: '我先收拾一下，待会儿再说。',
+          },
+        ],
+      };
+    },
+  };
   const run = () =>
     advanceWorld(
       {
         clock,
         worlds,
-        planner: {
-          propose: async () => {
-            calls++;
-            return {
-              schemaVersion: 1,
-              effects: [
-                {
-                  type: 'message.received',
-                  id: randomUUID(),
-                  actorId: actor,
-                  text: '我先收拾一下，待会儿再说。',
-                },
-              ],
-            };
-          },
-        },
+        planner: characterPlanner,
         now: () => now,
         newId: randomUUID,
         automatic: true,
@@ -110,7 +119,7 @@ function fixture(managed = true, needsReply = true) {
     setNow: (s: number) => {
       now = at(s);
     },
-    stats: () => ({ finishes, calls, begun, saved }),
+    stats: () => ({ finishes, calls, begun, saved, prepared }),
     pausePending: () => {
       saved = { ...saved, paused: true };
       unresolved = true;
@@ -130,6 +139,7 @@ test('frequent managed checks preserve partial beats and call one eligible actor
   f.setNow(75);
   assert.equal((await f.run()).played, 1);
   assert.equal(f.stats().calls, 1);
+  assert.equal(f.stats().prepared, 1);
   assert.equal(f.stats().finishes, 1);
   f.setNow(90);
   assert.equal((await f.run()).played, 0);

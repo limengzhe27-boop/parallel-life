@@ -160,6 +160,8 @@ export function applyStoryProgressSignal(input: {
   observations: readonly CommittedProgressObservation[];
   receipts: readonly ProgressReceipt[];
   currentWorldVersion: number;
+  /** Trusted proof that this exact NPC record is the actual initial presentation. */
+  actualIntroduction?: boolean;
 }): StoryEventProgress {
   const { definition: d, progress: old, signal: s } = input;
   if (old.nodeKey !== d.nodeKey) throw new StoryProgressError();
@@ -201,11 +203,16 @@ export function applyStoryProgressSignal(input: {
     throw new StoryProgressError('NPC_OR_WORLD_PROGRESS_REQUIRED');
   if (
     s.kind === 'nudge' &&
-    (old.participation === 'declined' || old.nudges >= storyPacePolicy(d.pace).maxNudges)
+    ((o.actorId ? old.actorParticipation[o.actorId] : old.participation) === 'declined' ||
+      old.nudges >= storyPacePolicy(d.pace).maxNudges)
   )
     throw new StoryProgressError('PARTICIPATION_PRESSURE_BLOCKED');
   if (s.kind === 'closure' && !s.closure) throw new StoryProgressError('CLOSURE_RESULT_REQUIRED');
-  if (old.phase === 'pending' && s.kind !== 'introduced')
+  if (
+    old.phase === 'pending' &&
+    s.kind !== 'introduced' &&
+    !(input.actualIntroduction && s.kind === 'closure' && o.kind === 'npc_message')
+  )
     throw new StoryProgressError('EVENT_NOT_INTRODUCED');
   const next = structuredClone(old);
   next.sourceRecordKeys.push(recordKey);
@@ -229,7 +236,10 @@ export function applyStoryProgressSignal(input: {
       next.actorGoalStatus[id] = d.refusal === 'withdraw' ? 'withdrawn' : 'deferred';
     }
   } else if (s.kind === 'reopened' || s.kind === 'engaged') {
-    if (s.kind === 'engaged' && old.participation === 'declined')
+    if (
+      s.kind === 'engaged' &&
+      (o.actorId ? old.actorParticipation[o.actorId] : old.participation) === 'declined'
+    )
       throw new StoryProgressError('EXPLICIT_REOPEN_REQUIRED');
     next.participation = 'engaged';
     next.phase = 'engaged';
@@ -242,11 +252,18 @@ export function applyStoryProgressSignal(input: {
   } else if (s.kind === 'nudge') {
     next.nudges++;
   } else if (s.kind === 'closure') {
-    next.phase = 'resolved';
-    next.resolution = s.closure!;
     for (const id of o.observableActorIds) {
       next.actorGoalStatus[id] = 'withdrawn';
       next.actorGoalStatusSources[id] = [o.id, o.recordId];
+    }
+    // One speaker closing their request cannot erase other participants' active goals.
+    if (
+      d.goals.every((goal) =>
+        ['fulfilled', 'withdrawn'].includes(next.actorGoalStatus[goal.actorId]!),
+      )
+    ) {
+      next.phase = 'resolved';
+      next.resolution = s.closure!;
     }
   } else if (next.phase === 'pending') {
     throw new StoryProgressError('EVENT_NOT_INTRODUCED');
@@ -309,13 +326,13 @@ export function nextStoryMove(input: {
   const idle =
     !!p.lastRelevantAt &&
     Date.parse(storyNow) - Date.parse(p.lastRelevantAt) >= rule.idleMinutes * 60000;
+  if (p.productiveBeats >= rule.targetBeats[1]) return 'seek_closure';
   if (p.participation === 'declined')
     return d.refusal === 'withdraw'
       ? 'seek_closure'
       : input.autonomousActionAvailable
         ? 'advance_without_player'
         : 'wait';
-  if (p.productiveBeats >= rule.targetBeats[1]) return 'seek_closure';
   if (input.trigger === 'player_reply' || input.trigger === 'world_change')
     return 'continue_in_current_turn';
   if (idle || p.unrelatedInputs >= 2) {
