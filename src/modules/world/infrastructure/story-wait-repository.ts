@@ -12,6 +12,7 @@ import {
   eligibleStoryActors,
   legalPresentation,
   storyNodeWindow,
+  storyStateOutcome,
   type StorySource,
   type StoryState,
 } from '../../settings/domain/publication-story.ts';
@@ -28,6 +29,7 @@ import {
   type StoryWaitEvent,
   type StoryWaitContext,
 } from '../domain/story-wait.ts';
+import { publicationGoalContexts } from '../../settings/infrastructure/publication-event-goal-context.ts';
 import type { WorldState } from '../domain/types.ts';
 
 /** No model, lazy story initialization, invented message or scene entry. */
@@ -65,6 +67,119 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
     )
       throw new DomainError('IDEMPOTENCY_CONFLICT');
     return null;
+  }
+  /** Reuse the event ledger's shared terminal state; an individual withdrawal is insufficient. */
+  private async resolvedProgress(
+    sql: SqlClient,
+    ownerId: string,
+    world: WorldState,
+    states: StoryState[],
+    observedStoryAt: string,
+  ) {
+    if (
+      !(
+        await sql.query(
+          `SELECT 1 FROM parallel_life.publication_story_progress
+      WHERE world_id=$1 AND owner_id=$2 AND world_version<=$3 AND state->>'phase'='resolved' LIMIT 1`,
+          [world.id, ownerId, world.version],
+        )
+      ).rowCount
+    )
+      return;
+    const contexts = await publicationGoalContexts(sql, ownerId, world.id, world.version);
+    for (const context of contexts) {
+      const p = context.progress;
+      const state = states.find((s) => s.nodeKey === context.record.node.key);
+      if (
+        !state ||
+        p.phase !== 'resolved' ||
+        !p.resolution ||
+        !p.lastSourceEventId ||
+        state.sourceEventId !== context.record.state.sourceEventId ||
+        state.sourceMessageId !== context.record.state.sourceMessageId
+      )
+        continue;
+      const eventIds = [
+        ...new Set(
+          [
+            p.lastSourceEventId,
+            state.sourceEventId,
+            ...Object.values(p.actorGoalStatusSources).flatMap((ids) =>
+              ids.length ? [ids[0]!] : [],
+            ),
+            ...Object.values(p.criterionSources).flat(),
+            ...context.value.definition.goals.flatMap((g) =>
+              g.anchorSourceIds?.[0] ? [g.anchorSourceIds[0]] : [],
+            ),
+          ].filter((id): id is string => typeof id === 'string'),
+        ),
+      ];
+      const proofIds = [
+        ...new Set(
+          [
+            ...eventIds,
+            state.sourceMessageId,
+            ...Object.values(p.actorGoalStatusSources).flat(),
+            ...context.value.definition.goals.flatMap((g) => g.anchorSourceIds ?? []),
+          ].filter((id): id is string => typeof id === 'string'),
+        ),
+      ];
+      const sources = (
+        await sql.query(
+          `SELECT e.id,e.version,e.command_id,e.payload FROM parallel_life.world_events e
+        JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+          AND c.status='succeeded' AND c.result_event_id=e.id
+        WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version<=$3 AND e.id=ANY($4::text[])`,
+          [world.id, ownerId, world.version, eventIds],
+        )
+      ).rows;
+      if (
+        sources.length !== eventIds.length ||
+        sources.some((e) => {
+          const at = e.payload.storyAt ?? e.payload.storyTime;
+          return (
+            typeof at !== 'string' ||
+            !Number.isFinite(Date.parse(at)) ||
+            Date.parse(at) > Date.parse(observedStoryAt)
+          );
+        })
+      )
+        continue;
+      const last = sources.find((e) => e.id === p.lastSourceEventId);
+      if (
+        !last ||
+        !Number.isSafeInteger(p.cursorVersion) ||
+        last.version > p.cursorVersion ||
+        p.cursorVersion > world.version ||
+        sources.some((e) => e.version > p.cursorVersion)
+      )
+        continue;
+      const proof = await sql.query(
+        `SELECT 1 FROM parallel_life.publication_story_progress p
+        JOIN parallel_life.publication_story_progress_evidence v ON v.world_id=p.world_id AND v.owner_id=p.owner_id
+          AND v.node_key=p.node_key AND v.source_event_id=p.state->>'lastSourceEventId'
+        WHERE p.world_id=$1 AND p.owner_id=$2 AND p.node_key=$3 AND p.world_version<=$4
+          AND p.state->>'phase'='resolved' AND p.state->>'lastSourceEventId'=$5
+          AND (p.state->>'cursorVersion')::int=$6 AND v.world_version=$9 AND v.command_id=$10
+          AND NOT EXISTS(SELECT 1 FROM parallel_life.memory_records r WHERE r.owner_id=p.owner_id AND r.status='forgotten'
+            AND ((r.scope_type='branch' AND r.scope_id=p.world_id) OR (r.scope_type='character' AND r.character_id=ANY($7::text[])))
+            AND r.source_ids ?| $8::text[]) LIMIT 1`,
+        [
+          world.id,
+          ownerId,
+          state.nodeKey,
+          world.version,
+          p.lastSourceEventId,
+          p.cursorVersion,
+          context.value.definition.goals.map((g) => g.actorId),
+          proofIds,
+          last.version,
+          last.command_id,
+        ],
+      );
+      if (proof.rowCount)
+        state.progressResolution = { resolution: p.resolution, sourceEventId: p.lastSourceEventId };
+    }
   }
   private async context(
     sql: SqlClient,
@@ -114,6 +229,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
     if (batch?.status === 'planning' || batch?.status === 'unknown' || deliveryBusy)
       throw new StoryWaitError('INFLIGHT');
     const from = storyWaitFrom(world, base);
+    if (raw) await this.resolvedProgress(sql, ownerId, world, states, from);
     // A genuine, dated decision request is important. Client-only unread markers are not evidence.
     const pendingIds = world.appointments
       .filter((a) => a.status === 'proposed' && Date.parse(a.at) >= Date.parse(from))
@@ -172,7 +288,7 @@ export class PostgresStoryWaitRepository implements StoryWaitPort {
           node.key === plan.openingEventKey ||
           node.direction?.mode !== 'required' ||
           !['presented', 'offered'].includes(s.status) ||
-          s.outcome ||
+          storyStateOutcome(s) ||
           !s.sourceEventId ||
           !s.sourceMessageId
         )

@@ -13,6 +13,7 @@ import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postg
 import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
+import { PublicationStoryRepository } from '../../src/modules/settings/infrastructure/publication-story-repository.ts';
 import { PostgresStoryWaitRepository } from '../../src/modules/world/infrastructure/story-wait-repository.ts';
 import { PostgresClockActivityRepository } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
 import { applyWorldHistoryEvent } from '../../src/modules/world/domain/world-history.ts';
@@ -392,6 +393,269 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
           ),
           0,
         );
+      }
+    },
+  );
+  await t.test(
+    'required waits consume only receipt-bound shared resolved progress, not individual or untrusted closure',
+    async (checks) => {
+      const role = 'pl_story_wait43_fixture';
+      if (!(await admin.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [role])).rowCount)
+        await admin.query(
+          `CREATE ROLE ${role} LOGIN PASSWORD '${cfg.appPassword}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
+        );
+      await admin.query(`GRANT pl_publisher TO ${role}`);
+      const pub = new PostgresDatabase(
+        `postgresql://${role}:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+      );
+      t.after(() => pub.close());
+      const staff = randomUUID();
+      await admin.query(
+        'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
+        [staff, 'Explicit local shared-resolution fixture'],
+      );
+      const works = new PublicationRepository(pub, {
+        async review() {
+          throw Error('No model in this SQL fixture');
+        },
+      });
+      const trials = new PublicationWorldRepository(pub, publicationWorldCompiler),
+        nodes = new PublicationStoryRepository(db);
+      const text = await readFile(
+        new URL('../../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+        'utf8',
+      );
+      for (const kind of [
+        'unresolved',
+        'one_actor',
+        'resolved',
+        'cursor_ahead',
+        'future',
+        'forgotten',
+        'foreign_source',
+      ]) {
+        await checks.test(kind, async () => {
+          const c = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(text)![1]!);
+          delete c.timeline;
+          delete c.conditions;
+          delete c.openingEventKey;
+          c.world.startAt = story;
+          c.history = [];
+          c.initialKnowledge = [];
+          c.protagonist.knownFactKeys = [];
+          c.phone = { messages: [], moments: [], invitations: [], notes: [], album: [] };
+          c.candidates = [
+            {
+              key: 'required_event',
+              kind: 'candidate',
+              title: 'PRIVATE required event',
+              editorialIntent: 'PRIVATE bounded phone request',
+              actorKeys: c.actors.map((a: { key: string }) => a.key),
+              prerequisites: [],
+              mutuallyExclusiveNodeKeys: [],
+              intent: { kind: 'director_event', actorKey: c.actors[0].key },
+              direction: {
+                mode: 'required',
+                ...(kind === 'one_actor'
+                  ? {
+                      progress: {
+                        completion: {
+                          mode: 'all',
+                          criteria: [
+                            {
+                              key: 'other',
+                              kind: 'npc_exact_message',
+                              actorKey: c.actors[1].key,
+                              phrase: 'OTHER_ACTOR_ACTUAL_CRITERION',
+                            },
+                          ],
+                        },
+                      },
+                    }
+                  : {}),
+              },
+            },
+          ];
+          const content = PublishedWorldContentSchema.parse(c);
+          const work = await works.create(staff, {
+            commandId: randomUUID(),
+            title: 'Local shared-resolution SQL fixture',
+            content,
+          });
+          const trial = await trials.startTrial(staff, work.id, {
+            commandId: randomUUID(),
+            draftVersion: 0,
+            contentHash: work.draft.contentHash,
+          });
+          const owner = (
+            await admin.query('SELECT owner_id FROM parallel_life.worlds WHERE id=$1', [
+              trial.worldId,
+            ])
+          ).rows[0].owner_id;
+          await clock.write(owner, trial.worldId, {
+            storyNow: story,
+            lastTickAt: real,
+            speed: 12,
+            paused: true,
+            missedBeats: 0,
+            summary: null,
+          });
+          const prepared = await nodes.prepare(owner, trial.worldId, {
+            automatic: false,
+            nodeKey: 'required_event',
+            expectedVersion: 0,
+          });
+          assert.equal(prepared.status, 'claimed');
+          if (prepared.status !== 'claimed') throw Error('Fixture claim missing');
+          const actor = prepared.claim.actorId;
+          async function commit(
+            version: number,
+            commandId: string,
+            reply: string,
+            closure = false,
+          ) {
+            const eventId = randomUUID(),
+              commandText = 'Explicit local transaction fixture';
+            await worlds.commit(
+              { userId: owner },
+              {
+                id: commandId,
+                worldId: trial.worldId,
+                actorId: actor,
+                expectedVersion: version,
+                origin: 'director',
+                text: commandText,
+              },
+              {
+                schemaVersion: 1,
+                id: eventId,
+                worldId: trial.worldId,
+                version: version + 1,
+                commandId,
+                occurredAt: real,
+                storyAt: story,
+                type: 'turn.resolved',
+                data: {
+                  actorId: actor,
+                  userText: commandText,
+                  origin: 'director',
+                  effects: [
+                    {
+                      type: 'message.received',
+                      id: eventId + '_message',
+                      actorId: actor,
+                      text: reply,
+                    },
+                  ],
+                },
+              },
+              {
+                goalKeys: ['publication:required_event'],
+                assessments: closure
+                  ? [
+                      {
+                        goalKey: 'publication:required_event',
+                        target: 'npc',
+                        kind: 'closure',
+                        quote: reply,
+                        closure: 'alternative',
+                      },
+                    ]
+                  : [],
+              },
+            );
+            return eventId;
+          }
+          await commit(0, prepared.claim.commandId, 'This request is still open.');
+          let version = 1;
+          const closed =
+            kind === 'unresolved'
+              ? null
+              : await commit(1, randomUUID(), 'I have ended my own request.', true);
+          if (closed) version = 2;
+          const original = (
+            await admin.query(
+              'SELECT status,outcome,source_event_id,source_message_id FROM parallel_life.publication_story_nodes WHERE world_id=$1',
+              [trial.worldId],
+            )
+          ).rows[0];
+          assert.equal(original.outcome, null);
+          const before = (
+            await admin.query(
+              'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+              [trial.worldId],
+            )
+          ).rows[0].state;
+          assert.equal(before.phase === 'resolved', !['unresolved', 'one_actor'].includes(kind));
+          if (kind === 'one_actor') {
+            assert.equal(before.actorGoalStatus[actor], 'withdrawn');
+            assert.ok(Object.values(before.actorGoalStatus).some((status) => status === 'active'));
+            assert.equal(before.resolution, null);
+          }
+          if (kind === 'cursor_ahead') {
+            await commit(2, randomUUID(), 'An unrelated factual acknowledgement.');
+            version = 3;
+            // A later observed world cursor is not the old closing source's event version.
+            await admin.query(
+              "UPDATE parallel_life.publication_story_progress SET state=jsonb_set(state,'{cursorVersion}',to_jsonb($2::int)),world_version=$2 WHERE world_id=$1",
+              [trial.worldId, version],
+            );
+          }
+          if (kind === 'future') {
+            // Deliberately inconsistent persisted source metadata: it must not waive an important stop.
+            await admin.query(
+              "UPDATE parallel_life.world_events SET payload=jsonb_set(payload,'{storyAt}',to_jsonb($2::text)) WHERE id=$1",
+              [closed, new Date(Date.parse(story) + 60 * 60000).toISOString()],
+            );
+          }
+          if (kind === 'forgotten') {
+            const changed = await admin.query(
+              "UPDATE parallel_life.memory_records SET status='forgotten' WHERE owner_id=$1 AND source_ids ? $2",
+              [owner, closed],
+            );
+            assert.ok(changed.rowCount! > 0, 'successful NPC source created a real episode memory');
+          }
+          if (kind === 'foreign_source') {
+            const foreign = await fixture('proposed');
+            const source = (
+              await admin.query(
+                'SELECT id FROM parallel_life.world_events WHERE world_id=$1 LIMIT 1',
+                [foreign.id],
+              )
+            ).rows[0].id;
+            await admin.query(
+              "UPDATE parallel_life.publication_story_progress SET state=jsonb_set(state,'{lastSourceEventId}',to_jsonb($2::text)) WHERE world_id=$1",
+              [trial.worldId, source],
+            );
+          }
+          const input = {
+            commandId: randomUUID(),
+            expectedVersion: version,
+            clientId: randomUUID(),
+            sequence: 1,
+            target: 'short' as const,
+          };
+          const outsider = randomUUID();
+          await new IdentityRepository(db).ensureGuest(outsider);
+          await assert.rejects(waits.wait(outsider, trial.worldId, input), { code: 'NOT_FOUND' });
+          const result = await waits.wait(owner, trial.worldId, input);
+          const permitted = kind === 'resolved' || kind === 'cursor_ahead';
+          assert.equal(result.stoppedBy.reason, permitted ? 'target' : 'message');
+          assert.equal(
+            result.storyNow,
+            permitted ? new Date(Date.parse(story) + 30 * 60000).toISOString() : story,
+          );
+          assert.deepEqual(
+            (
+              await admin.query(
+                'SELECT status,outcome,source_event_id,source_message_id FROM parallel_life.publication_story_nodes WHERE world_id=$1',
+                [trial.worldId],
+              )
+            ).rows[0],
+            original,
+          );
+          assert.doesNotMatch(JSON.stringify(result), /PRIVATE|editorialIntent|required_event/);
+        });
       }
     },
   );
