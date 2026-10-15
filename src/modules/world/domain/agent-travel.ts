@@ -92,6 +92,8 @@ const reject = (
   status: AgentTravelRejection['status'] = 'blocked',
 ): AgentTravelRejection => ({ status, reason });
 const id = (value: string) => typeof value === 'string' && !!value.trim();
+const journeyIdValid = (value: string) =>
+  typeof value === 'string' && /^[a-zA-Z0-9_-]{1,56}$/.test(value);
 const version = (value: number) => Number.isSafeInteger(value) && value > 0;
 /** Reuse the existing explicit-offset/calendar validation; normalize to UTC milliseconds. */
 function instant(value: string): number {
@@ -223,7 +225,7 @@ function basisValid(basis: JourneyBasis): boolean {
   const arrival = instant(basis.plannedArrivalAt);
   return (
     frameValid(frame) &&
-    id(basis.id) &&
+    journeyIdValid(basis.id) &&
     id(basis.beginActionId) &&
     basis.origin.status === 'at' &&
     ownPositionValid(basis.origin, frame) &&
@@ -263,7 +265,10 @@ function departureCopy(receipt: AgentActionResult | AgentDepartureReceipt): Agen
   };
 }
 /** Stable across fresh world versions, never a model-generated action ID. */
-export const agentArrivalCommandId = (journeyId: string): string => `journey:${journeyId}:arrival`;
+export function agentArrivalCommandId(journeyId: string): string {
+  if (!journeyIdValid(journeyId)) throw Error('INVALID_JOURNEY_ID');
+  return `arrival_${journeyId}`;
+}
 function arrivalValid(journey: AgentJourney, receipt: AgentArrivalReceipt): boolean {
   return (
     receipt.worldId === journey.worldId &&
@@ -324,7 +329,7 @@ export function prepareAgentTravel(input: {
 }): { status: 'ready'; plan: AgentTravelPlan } | AgentTravelRejection {
   const { frame, boundary, ownPosition, routes, intent, existingJourneys } = input;
   if (!frameValid(frame)) return reject('invalid_frame');
-  if (![intent.journeyId, intent.actionId, intent.routeId].every(id))
+  if (!journeyIdValid(intent.journeyId) || ![intent.actionId, intent.routeId].every(id))
     return reject('invalid_intent');
   if (
     boundary.worldId !== frame.worldId ||

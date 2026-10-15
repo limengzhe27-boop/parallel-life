@@ -21,6 +21,7 @@ import {
   evaluateAgentActionEligibility,
   type AgentEligibilitySnapshot,
 } from '../src/modules/world/domain/agent-eligibility.ts';
+import { validateEventId } from '../src/modules/world/domain/validation.ts';
 
 const departureAt = '2026-10-15T09:50:00.000Z';
 const dueAt = '2026-10-15T10:05:00.000Z';
@@ -465,6 +466,20 @@ test('fresh world frames keep stable continuation identity; elapsed wall time is
     commitAgentArrival(b, { ...arrivalReceipt(), at: f.frame.storyAt, worldVersion: 20 }).status,
     'arrived',
   );
+});
+
+test('arrival command identity is stable and accepted by actual world-history ID validation', () => {
+  for (const journeyId of ['j', '12345678-1234-1234-1234-123456789abc', 'a'.repeat(56)]) {
+    const command = agentArrivalCommandId(journeyId);
+    assert.equal(validateEventId(command), command);
+    assert.equal(command, agentArrivalCommandId(journeyId));
+  }
+  for (const journeyId of ['', 'journey:unsafe', 'a'.repeat(57), '中文', 'a b']) {
+    assert.throws(() => agentArrivalCommandId(journeyId), /INVALID_JOURNEY_ID/);
+    const f = fixture();
+    f.intent = { ...f.intent, journeyId };
+    assert.deepEqual(prepareAgentTravel(f), { status: 'blocked', reason: 'invalid_intent' });
+  }
 });
 
 test('outputs are detached, recursively frozen and exclude extra runtime/player fields', () => {
