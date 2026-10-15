@@ -1,0 +1,37 @@
+# 44-56-AUTHOR-ELIGIBILITY-B
+
+Owner codex-ma44-author-eligibility-b; root sole existing author schema/source, snapshot/director, SQL81 and release owner. Independent npc-director-progress tree, codex/ma-arch44-author-eligibility-b, exact base360fd198. Exclusive NEW world/domain/authored-event-eligibility.ts, tests/authored-event-eligibility.test.ts, this report/canonical own row/main mirror. All existing source/SQL/public/config/tests read-only, except exact root dependency cherry-pick26f929ac as7515dd6b. Zero PostgreSQL/model/production/fullcheck/fullbuild.
+
+## Frozen delivery
+
+Source **cee36d6c377071e43e0005e3f3d9632b8e186531**, only two new pure files, frozen. Root26f929ac supplies named-condition place bindings and material-local history/reference issues using the existing schema. Do not cherry7515dd6b again into root. No new author schema, source/public/SQL changes or implicit legacy rules.
+
+Actual validation: new pure47/47, old authored-agent-material17/17 and root authored-named-condition-references1/1 = **65/65**, zero skip; final npm run typecheck exit0, check:boundaries557 files passed, focused Prettier and diff checks passed. First typecheck caught callback narrowing of the existing combined discriminator type; changed only equivalent accepted-outcomes selection, then final type and all65 rechecked successfully. No application/DB/browser/paid-model/fullcheck/build/release acceptance is claimed.
+
+## API and trusted input contract
+
+`evaluateAuthoredEventEligibility(input: AuthoredEventEligibilityInput, digest: (canonical: string) => string): AuthoredEventEligibility[]`.
+
+Input is existing AuthoredAgentMaterialCatalog, explicit-offset ISO storyAt, actual playerPlaceId and separate playerPositionProof, historyFacts, nodeProgress and stageProgress. Exported AuthoredEligibilityEvidence extends AuthoredMaterialScope with sourceId/sourceHash/at. History adds factKey; AuthoredNodeProgress is explicit presented(nodeKey,nodeHash) or resolved(nodeKey,nodeHash,outcome committed/declined/skipped/expired); stage adds stageKey/status resolved. Actual player position and proof must be authenticated as one pair by root loader; this pure layer cannot query the database or verify event provenance.
+
+All supplied proofs strictly match world/epoch/current bound authored sourceHash, have safe nonnegative source worldVersion no greater than catalog version, nonempty sourceId and valid calendar instant not after storyAt. Node proof must bind a unique catalog node and exact nodeHash; stage proof must bind a unique stage. Proposed/unknown node statuses fail. Bad trusted context or digest fails with exported AuthoredEligibilityError.code INVALID_AUTHORED_ELIGIBILITY_INPUT. No unpublished candidate is invented for source:null/empty catalog. Domain imports only existing pure material canonicalization/types and explicit-offset time validation, no Node/framework/IO.
+
+Per material result returns original AuthoredMaterialRef, eligible/blocked/expired/already_presented, finite AuthoredEligibilityReason codes, sorted unique actual basisSourceIds, stable64hex qualificationKey. Eligible means director may consider it, never perform it or mark it delivered/resolved. Reasons carry no private prose; witness fingerprint projects only supported proof fields, ignoring extra runtime metadata.
+
+## Confirmed semantics implemented
+
+- Direct prerequisites are AND; referenced named conditionKeys are AND, with each explicit all/any group. Empty all=true/any=false. Any selects one successful branch witness; nonselected later branches do not alter its key. Material unresolved refs, ambiguous/missing named/node/stage/place/actor bindings stay blocked; irrelevant unused catalog issues do not block unrelated nodes. Root patched named-place binding is consumed; no guessing key==actual placeId.
+- history_fact requires supplied scoped actual fact. at_place alone requires actual sourced player position and a resolved available material.placeRefs binding. node.placeKey, settingPlaceKey, scenePlaceKeys and offer venue are metadata, not presence gates. Missing/unavailable explicit binding blocks. Unavailable metadata venue alone does not block. Literal prose is not parsed.
+- after_presented_node requires explicit presented, never any terminal resolution. after_committed_node requires actual resolved committed. after_resolved_node matches only explicit allowed outcomes. Distinct conflicting actual terminal outcomes block instead of picking latest. Pure consistency does not authorize dishonest loader facts.
+- Own actual presented has priority already_presented even if now expired or separately resolved; own terminal without presented stays blocked/already_resolved, except actual expired yields expired. Neither offers, message counts, silence nor pending proposals count as actual progress.
+- Mutual exclusions trigger only another node actual committed, not mere presented/declined/skipped/expired. Explicit excludeIfResolved matches listed actual outcomes. Window expiry creates no virtual skipped/expired/resolved proof that could unlock another node.
+- Explicit node/stage windows intersect, each [notBefore,expiresAt). not_before uses exact author threshold. Invalid/relative/calendar-rollover times and reversed/empty windows block; missing windows invent no dates. Time eligibility is not event occurrence, deadline, attendance, stage completion or player presence.
+- Node timeline stage uses only explicit afterStageKeys actual resolved-stage proofs plus configured windows. Stage ordering, openingEventKey, initialStageKey, all node outcomes and elapsed time infer no extra progression. Root confirmed semantic venue/offer earliestAt are not not_before. Alternatives remain routing material, without invented reverse inbound gating; explicit after_resolved_node expresses any required condition.
+
+## Stable identity and integration handoff
+
+Qualification key includes world+epoch+material source/node identity, evaluated relevant predicate/window phases and normalized actual selected proof identities. It excludes current catalog worldVersion, arbitrary current seconds, unrelated history/node/stage facts and position when no at_place. Same-phase time changes and unrelated world commits leave key unchanged. New real relevant fact/visit source changes cause; duplicate proofs/order/equivalent ISO offsets do not. Root must persist/compare actual qualification/evaluation causes and authenticate proof load, not treat key as evidence of presentation.
+
+Covered pure tests include all four actual outcomes vs presented; own priority; false/missing/ambiguous refs and namespace facts; direct/named all-any and empty groups; real place-ID binding; unavailable metadata; all window boundaries, stage intersection and no synthetic expiry; explicit stage dependencies; mutual/outcome exclusions; optional prose/required/opening/offer timing/alternatives without implicit gates; all scope/hash/version/time guards and unknown proposed status; stable relevant/unrelated witnesses; immutable source/input and injected digest; metadata projection.
+
+Root retains actual Director snapshot/validator/cause/episode integration, source authenticity and proof attribution, SQL81, true PostgreSQL/rollback/replay checks, complete check/build and production READY/public acceptance. This branch creates no narration, NPC message, deadline, model call, public release, scene or phone-app behavior by itself. Parent44 remains incomplete until root integrated acceptance. Author drafts and existing worlds unchanged.
