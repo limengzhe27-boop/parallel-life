@@ -456,7 +456,7 @@ export function WorldPhoneApp({
             await load();
           }
           if (!canAdvance()) return;
-          if (['none', 'complete'].includes(current.phase)) {
+          if (current.runtime === 'agents' || ['none', 'complete'].includes(current.phase)) {
             openingFinished.current = worldId;
           } else {
             if (
@@ -511,7 +511,7 @@ export function WorldPhoneApp({
         const result = await client.advanceWorld(worldId, true);
         // Reading the committed world lets the phone's existing message notification
         // and banner show the real incoming reply while this screen stays open.
-        if (active && result.played > 0) await load();
+        if (active && (result.changed || result.played > 0)) await load();
       } catch {
         if (active && advancing)
           setError('这次世界后续没有完成。已保存的记录仍在，可以继续查看手机中的来信和日程。');
@@ -537,73 +537,77 @@ export function WorldPhoneApp({
   return (
     <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />
-      {data?.id === worldId && opening && !['none', 'complete'].includes(opening.phase) && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-            padding: '6px 14px',
-            fontSize: 12,
-            background: 'var(--surface, #f5f3ed)',
-            color: 'var(--muted, #676b65)',
-          }}
-        >
-          <span>
-            {opening.phase === 'unknown' && !openingWorking
-              ? '有条新消息未能收到'
-              : '正在接收新消息'}{' '}
-            · {opening.delivered}/{opening.total}
-          </span>
-          {opening.retryable && (
-            <button
-              type="button"
-              disabled={openingWorking}
-              style={{ border: 0, background: 'none', color: 'inherit', font: 'inherit' }}
-              onClick={async () => {
-                if (
-                  directorInFlight.current ||
-                  phoneReady.current.sending ||
-                  phoneReady.current.refreshing ||
-                  !phoneReady.current.hasData
-                )
-                  return;
-                const epoch = openingEpoch.current.token;
-                directorInFlight.current = true;
-                setOpeningWorking(true);
-                try {
-                  const next = await client.advanceWorldOpening(worldId, true);
-                  if (openingEpoch.current.token !== epoch) return;
-                  setOpening(next.opening);
-                  const previous = observedOpening.current;
-                  const hasNewMessages =
-                    next.opening.delivered > 0 &&
-                    (previous?.worldId !== worldId || next.opening.delivered > previous.delivered);
-                  observedOpening.current = { worldId, delivered: next.opening.delivered };
-                  if (next.opening.phase === 'complete') openingFinished.current = worldId;
-                  if (next.played > 0 || hasNewMessages) await load();
-                } catch {
-                  if (openingEpoch.current.token !== epoch) return;
-                  setOpening((current) =>
-                    current ? { ...current, phase: 'unknown', retryable: true } : current,
-                  );
-                } finally {
-                  if (openingEpoch.current.token === epoch) {
-                    directorInFlight.current = false;
-                    setOpeningWorking(false);
+      {data?.id === worldId &&
+        opening &&
+        opening.runtime !== 'agents' &&
+        !['none', 'complete'].includes(opening.phase) && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              background: 'var(--surface, #f5f3ed)',
+              color: 'var(--muted, #676b65)',
+            }}
+          >
+            <span>
+              {opening.phase === 'unknown' && !openingWorking
+                ? '有条新消息未能收到'
+                : '正在接收新消息'}{' '}
+              · {opening.delivered}/{opening.total}
+            </span>
+            {opening.retryable && (
+              <button
+                type="button"
+                disabled={openingWorking}
+                style={{ border: 0, background: 'none', color: 'inherit', font: 'inherit' }}
+                onClick={async () => {
+                  if (
+                    directorInFlight.current ||
+                    phoneReady.current.sending ||
+                    phoneReady.current.refreshing ||
+                    !phoneReady.current.hasData
+                  )
+                    return;
+                  const epoch = openingEpoch.current.token;
+                  directorInFlight.current = true;
+                  setOpeningWorking(true);
+                  try {
+                    const next = await client.advanceWorldOpening(worldId, true);
+                    if (openingEpoch.current.token !== epoch) return;
+                    setOpening(next.opening);
+                    const previous = observedOpening.current;
+                    const hasNewMessages =
+                      next.opening.delivered > 0 &&
+                      (previous?.worldId !== worldId ||
+                        next.opening.delivered > previous.delivered);
+                    observedOpening.current = { worldId, delivered: next.opening.delivered };
+                    if (next.opening.phase === 'complete') openingFinished.current = worldId;
+                    if (next.played > 0 || hasNewMessages) await load();
+                  } catch {
+                    if (openingEpoch.current.token !== epoch) return;
+                    setOpening((current) =>
+                      current ? { ...current, phase: 'unknown', retryable: true } : current,
+                    );
+                  } finally {
+                    if (openingEpoch.current.token === epoch) {
+                      directorInFlight.current = false;
+                      setOpeningWorking(false);
+                    }
                   }
-                }
-              }}
-            >
-              继续接收
-            </button>
-          )}
-        </div>
-      )}
+                }}
+              >
+                继续接收
+              </button>
+            )}
+          </div>
+        )}
       {data?.id === worldId && automatic && (
         <TimeExperienceControls time={liveTime} worldVersion={data.version ?? 0} reload={load} />
       )}

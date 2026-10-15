@@ -32,6 +32,39 @@ import { PostgresWorldAwarenessRepository } from '../modules/world/infrastructur
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
+import type { PublicOpeningStatus } from '../contracts/publication-opening.ts';
+
+/** Read-only legacy-envelope status; no old plan/batch initialization in an Agent world. */
+export async function readNpcAgentOpeningStatusIfEnabled(
+  db: PostgresDatabase,
+  ownerId: string,
+  worldId: string,
+): Promise<PublicOpeningStatus | null> {
+  return db.transaction(ownerId, async (sql) => {
+    const row = (
+      await sql.query(
+        `SELECT COALESCE(c.engine_epoch,1) epoch FROM parallel_life.worlds w
+      LEFT JOIN parallel_life.agent_runtime_worlds c ON c.world_id=w.id AND c.owner_id=w.owner_id
+      WHERE w.id=$1 AND w.owner_id=$2`,
+        [worldId, ownerId],
+      )
+    ).rows[0];
+    if (!row) throw new DomainError('NOT_FOUND');
+    if (Number(row.epoch) < 2) return null;
+    const source = (
+      await sql.query('SELECT parallel_life.publication_story_source($1) source', [worldId])
+    ).rows[0]?.source;
+    // Until authored opening candidates are connected, keep their pending state
+    // honest. Runtime metadata bypasses only the old delivery engine, not the story.
+    return {
+      runtime: 'agents',
+      phase: source?.openingEventKey ? 'unplanned' : 'none',
+      total: 0,
+      delivered: 0,
+      retryable: false,
+    };
+  });
+}
 
 export interface DirectorSnapshotReader {
   read(
@@ -164,7 +197,7 @@ export function npcAgentAdvanceServices(
           attempt,
           null,
         );
-        return presentedResult(result.eventId, attempt.actorId);
+        return presentedResult(result.eventId, attempt.actorId, result.state.projectedWorldVersion);
       }
       const actors = await Promise.all(
         read.states.map(async (state) => ({
@@ -395,9 +428,17 @@ export function npcAgentAdvanceServices(
           snapshot,
         );
         // Real quiet/plan outcomes still execute and persist, but never pretend a new message exists.
-        return presentedResult(result.eventId, candidate.actorId);
+        return presentedResult(
+          result.eventId,
+          candidate.actorId,
+          result.state.projectedWorldVersion,
+        );
       }
-      async function presentedResult(eventId: string, actorId: string): Promise<AdvanceResult> {
+      async function presentedResult(
+        eventId: string,
+        actorId: string,
+        worldVersion: number,
+      ): Promise<AdvanceResult> {
         const presented = await db.transaction(ownerId, async (sql) =>
           Number(
             (
@@ -410,6 +451,8 @@ export function npcAgentAdvanceServices(
         );
         return {
           ...quiet(storyAt),
+          changed: true,
+          worldVersion,
           played: presented ? 1 : 0,
           actors: presented ? [actorId] : [],
         };

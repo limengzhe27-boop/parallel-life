@@ -51,6 +51,9 @@ export const AdvanceReceiptSchema = z.strictObject({
   folded: z.number().int().nonnegative(),
   summary: z.string().nullable(),
   actors: z.array(Id),
+  /** A real non-message action can change the phone without a new chat bubble. */
+  changed: z.boolean().optional(),
+  worldVersion: z.number().int().nonnegative().optional(),
 });
 export type AdvanceReceipt = z.infer<typeof AdvanceReceiptSchema>;
 

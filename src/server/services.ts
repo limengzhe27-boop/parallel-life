@@ -64,7 +64,10 @@ import { WorldTurnPlanner } from '../modules/world/infrastructure/turn-planner.t
 import { createTextModel } from './composition.ts';
 import { publicationCharacterPlanner } from './publication-character-planner.ts';
 import { npcAgentServices } from './npc-agent-services.ts';
-import { npcAgentAdvanceServices } from './npc-agent-advance-services.ts';
+import {
+  npcAgentAdvanceServices,
+  readNpcAgentOpeningStatusIfEnabled,
+} from './npc-agent-advance-services.ts';
 import { PostgresDirectorSnapshotRepository } from '../modules/world/infrastructure/director-snapshot-repository.ts';
 let services: ReturnType<typeof createServices> | undefined;
 function createServices() {
@@ -83,6 +86,11 @@ function createServices() {
   const assetStore = createPrivateAssetStore();
   const db = new PostgresDatabase(url);
   const identity = new IdentityRepository(db);
+  const agentAdvance = npcAgentAdvanceServices(
+    db,
+    createTextModel,
+    new PostgresDirectorSnapshotRepository(db),
+  );
   return {
     db,
     records: new PostgresPlayerRecords(db),
@@ -190,6 +198,10 @@ function createServices() {
       automatic = false,
       retryClaimId?: string,
     ) => {
+      if (retryClaimId && (await readNpcAgentOpeningStatusIfEnabled(db, ownerId, worldId)))
+        throw new DomainError('INVALID_COMMAND', '请恢复原人物请求，不能重试旧剧情引擎。');
+      const agentResult = await agentAdvance.advanceIfEnabled(ownerId, worldId);
+      if (agentResult !== null) return agentResult;
       const result = await advancePublicationStory(
         {
           story: new PublicationStoryRepository(db),
@@ -215,8 +227,12 @@ function createServices() {
       worldId: string,
       automatic = true,
       explicitRetry = false,
-    ) =>
-      advancePublicationOpening(
+    ) => {
+      if (explicitRetry && (await readNpcAgentOpeningStatusIfEnabled(db, ownerId, worldId)))
+        throw new DomainError('INVALID_COMMAND', '请恢复原人物请求，不能重试旧开场引擎。');
+      const agentResult = await agentAdvance.advanceIfEnabled(ownerId, worldId);
+      if (agentResult !== null) return { handled: true, result: agentResult };
+      return advancePublicationOpening(
         {
           opening: new PublicationOpeningRepository(db),
           worlds: new PostgresWorldRepository(db),
@@ -232,19 +248,16 @@ function createServices() {
         worldId,
         automatic,
         explicitRetry,
-      ),
+      );
+    },
     advanceWorld: async (
       ownerId: string,
       worldId: string,
       maxBeats?: number,
       automatic = false,
     ) => {
-      const agentAdvance = await npcAgentAdvanceServices(
-        db,
-        createTextModel,
-        new PostgresDirectorSnapshotRepository(db),
-      ).advanceIfEnabled(ownerId, worldId);
-      if (agentAdvance !== null) return agentAdvance;
+      const agentResult = await agentAdvance.advanceIfEnabled(ownerId, worldId);
+      if (agentResult !== null) return agentResult;
       const liveOpening = await advancePublicationOpening(
         {
           opening: new PublicationOpeningRepository(db),

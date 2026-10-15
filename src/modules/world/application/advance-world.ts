@@ -17,6 +17,8 @@ export type AdvanceResult = {
   folded: number;
   summary: string | null;
   actors: string[];
+  changed?: boolean;
+  worldVersion?: number;
 };
 
 /**
