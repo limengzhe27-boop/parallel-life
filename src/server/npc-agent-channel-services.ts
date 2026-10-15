@@ -232,7 +232,12 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       const prior = (
         await sql.query(
           'SELECT actor_id,command_id FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND input_receipt_id=$3 AND command_id=ANY($4::text[])',
-          [world.id, lease.ownerId, `agent:${lease.id}:%`],
+          [
+            world.id,
+            lease.ownerId,
+            receipt.id,
+            world.actors.map((actor) => nativeAgentCommandId(lease.id, actor.id)),
+          ],
         )
       ).rows;
       if (prior.length > 1) throw new DomainError('INVALID_COMMAND');
