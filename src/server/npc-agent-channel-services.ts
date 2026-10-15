@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import type { TextModel } from '../modules/ai/application/ports.ts';
 import type { PostgresDatabase, SqlClient } from '../modules/storage/infrastructure/postgres.ts';
 import type { TaskLease } from '../modules/tasks/domain/types.ts';
@@ -24,6 +24,14 @@ import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { runNpcAgent } from '../modules/world/application/run-agent.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
+
+/** A deterministic UUID child command obeys the real world-event wire contract. */
+export function nativeAgentCommandId(taskId: string, actorId: string): string {
+  const hex = createHash('sha256')
+    .update(JSON.stringify(['npc-task', taskId, actorId]))
+    .digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
 
 /** No persona keywords or array-order fallback. Ambiguity goes to global coordination. */
 export function nativeResponder(input: {
@@ -92,7 +100,7 @@ export async function finishNativeAgentTask(
 ) {
   if (
     attempt.worldId !== lease.scopeId ||
-    attempt.commandId !== `agent:${lease.id}:${attempt.actorId}`
+    attempt.commandId !== nativeAgentCommandId(lease.id, attempt.actorId)
   )
     throw new DomainError('INVALID_COMMAND');
   const saved = await sql.query(
@@ -223,7 +231,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       ).rows.map((r) => r.document as ActorAgentState);
       const prior = (
         await sql.query(
-          'SELECT actor_id,command_id FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND command_id LIKE $3',
+          'SELECT actor_id,command_id FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND input_receipt_id=$3 AND command_id=ANY($4::text[])',
           [world.id, lease.ownerId, `agent:${lease.id}:%`],
         )
       ).rows;
@@ -243,7 +251,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       if (!actorIds.includes(actorId)) throw new DomainError('INVALID_COMMAND');
       return { receipt, actorId: String(actorId) };
     });
-    const commandId = `agent:${lease.id}:${native.actorId}`,
+    const commandId = nativeAgentCommandId(lease.id, native.actorId),
       previous = await store.lookup(lease.ownerId, world.id, commandId);
     const state = await store.read(lease.ownerId, { worldId: world.id, actorId: native.actorId });
     if (!state) throw new DomainError('INVALID_COMMAND', 'AGENT_NOT_MIGRATED');
