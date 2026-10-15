@@ -27,3 +27,7 @@ check2936/2936；最终边界补充后build通过。D72独立验收新的真实�
 最初相关98项96pass/2fail含父；旧helper默认要求2request，首次调整仍26pass/2fail。已明确未创建与已提交两阶段，旧组最终11/11；最终联合真实PG **63/63，0fail/skip**。D72独立20/20包含两种实际SQL期间activity到期探针，不以初始guard拒绝冒充末尾检查。
 
 最终check **2936/2936**，最终build与format通过。2026-10-15T18:26:55.493Z生产81/81 checksum只读核验一致，保护原稿/副本/玩家world未变、epoch2=0。无新SQL，0真实模型或生产测试存档。READY与公网证据待实际追加。
+
+发布前只读审查发现P2：普通无evaluationCause的全局协调也可能被发送前取消，其固定frame command导致恢复时INVALID_STATE。root9c51f896/3367a574已补同帧零发送前驱读取与稳定后继；scope/current/source/epoch/版本重验，sent_at和response_hash都必须NULL，完整语义帧匹配，排序不依赖数据库collation。paid/unknown绝不进入后继集合。没有取消记录时保留原命令身份。
+
+D72增量实际PG **21/21**，包含已完成bootstrap后真实travel产生普通全局变化、claim内暂停、同V恢复一次，以及普通paid unknown仍无后继。root最终源联合 **36/36，无fail/skip**；前批受影响联合63/63保留，不能把两次相加冒充独立测试数。最终check2936/build/类型/格式通过。中间c104f98e已READY但含上述已定位恢复缺口，不作为最终71交付，最新修复部署接续中。
