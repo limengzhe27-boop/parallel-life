@@ -374,3 +374,30 @@ test('the latest refusal supersedes an old acceptance and a revised request requ
   ];
   assert.equal(currentPlayerDecision(context, proposal, 'invitation-a'), undefined);
 });
+
+test('processing a reply or changing a recheck condition does not turn the same request into a new consent revision', () => {
+  const { context, proposal } = fixture();
+  context.state.responsibilities[0]!.revision = 2;
+  context.state.decisions = [
+    {
+      id: 'previous-refusal',
+      responsibilityId: 'invitation-a',
+      kind: 'declined',
+      sourceId: 'opening',
+      quote: '这次不去',
+      responsibilityRevision: 2,
+    },
+  ];
+  proposal.responsibilities = [
+    {
+      ...context.state.responsibilities[0]!,
+      status: 'deferred',
+      waitingOn: 'self',
+      nextCheck: [{ kind: 'observation', sourceId: 'player-now' }],
+    },
+  ];
+  assert.equal(currentPlayerDecision(context, proposal, 'invitation-a')?.kind, 'declined');
+  const next = reduceActorAgentState(context, proposal, [], 5);
+  assert.equal(next.state.responsibilities[0]!.revision, 2);
+  assert.equal(next.state.decisions[0]!.kind, 'declined');
+});

@@ -18,6 +18,8 @@ export async function readActorStrategyBasis(
         (x) => x.sourceIds,
       ),
       ...state.decisions.map((x) => x.sourceId),
+      ...state.responsibilities.flatMap((r) => (r.deadline ? [r.deadline.sourceId] : [])),
+      ...(state.focus?.questionSourceId ? [state.focus.questionSourceId] : []),
       ...[
         ...state.plans.flatMap((x) => x.triggers),
         ...state.actions.flatMap((x) => x.preconditions),
@@ -62,6 +64,7 @@ export async function readActorStrategyBasis(
     )
   ).rows[0]?.state;
   if (initial) {
+    add(`definition:${state.definitionRef}`, 'authored', state.definitionRef, 0, initial.time);
     for (const m of initial.messages ?? [])
       if (m.actorId === state.actorId && String(m.sourceEventId).startsWith('genesis:'))
         for (const prefix of ['message:', 'opening:'])
@@ -154,5 +157,16 @@ export async function readActorStrategyBasis(
   ).rows;
   for (const row of appointments)
     add('appointment:' + row.id, 'world_event', row.event_id, row.version, row.at);
+  const calendar = (
+    await sql.query(
+      `SELECT e.id,e.version,e.payload FROM parallel_life.world_events e
+    JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+    WHERE e.world_id=$1 AND e.owner_id=$2 AND e.version<=$4 AND ('calendar-response:'||e.id)=ANY($3::text[])
+      AND e.payload->>'type'='invitation.responded' AND EXISTS(SELECT 1 FROM jsonb_array_elements(e.payload->'data'->'agentProjections') p WHERE p->>'actorId'=$5)`,
+      [state.worldId, ownerId, handles, worldVersion, state.actorId],
+    )
+  ).rows;
+  for (const row of calendar)
+    add('calendar-response:' + row.id, 'world_event', row.id, row.version, row.payload.storyTime);
   return [...sources.values()];
 }

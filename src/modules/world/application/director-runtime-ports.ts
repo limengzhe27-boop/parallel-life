@@ -25,6 +25,12 @@ export interface DirectorAttemptStore {
     ownerId: string,
     attempt: DirectorAttempt,
   ): Promise<{ found: true; snapshot: DirectorSnapshot; response: unknown } | { found: false }>;
+  /** Immutable receipt replay never reinterprets an already committed decision. */
+  readDecision(
+    ownerId: string,
+    worldId: string,
+    decisionId: string,
+  ): Promise<DirectorDecision | null>;
   /** Same SQL UoW: immutable decision, evaluated cursor, authored opportunities and attempt commit. No NPC state mutation. */
   commit(
     ownerId: string,

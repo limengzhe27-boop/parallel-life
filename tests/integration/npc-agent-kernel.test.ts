@@ -25,6 +25,8 @@ import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
 import { actorContext } from '../../src/modules/world/application/actor-context.ts';
 import { agentDefinitionRef } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
+import { PostgresWorldAwarenessRepository } from '../../src/modules/world/infrastructure/world-awareness-repository.ts';
+import { readActorStrategyBasis } from '../../src/modules/world/infrastructure/agent-source-resolver.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 const at = '2026-10-15T07:00:00.000Z';
@@ -45,6 +47,7 @@ test('actual NPC kernel and private service commit actor state with world receip
   async function fixture(
     origin: AgentInputReceipt['origin'] = 'player',
     persona = '认真，有自己的安排。',
+    withSpace = false,
   ) {
     const ownerId = randomUUID(),
       actorId = randomUUID(),
@@ -66,6 +69,26 @@ test('actual NPC kernel and private service commit actor state with world receip
       appointments: [],
       mediaRequests: [],
     };
+    if (withSpace) {
+      const source = {
+        kind: 'seed_genesis' as const,
+        seedId: randomUUID(),
+        snapshotVersion: 0 as const,
+      };
+      world.space = {
+        places: ['home', 'cafe'].map((id) => ({
+          id,
+          name: id,
+          description: '',
+          source,
+          contactActorIds: [],
+          appointmentIds: [],
+        })),
+        routes: [],
+        currentPlaceId: 'home',
+        positionSource: source,
+      };
+    }
     await worlds.initialize({ userId: ownerId }, world);
     const actor = emptyActorAgentState(
       { worldId: world.id, actorId },
@@ -691,6 +714,94 @@ test('actual NPC kernel and private service commit actor state with world receip
       );
       assert.equal(count, 1);
       assert.equal((await worlds.get({ userId: f.ownerId }, f.world.id)).messages.length, 2);
+    },
+  );
+  await t.test(
+    'player location report creates sourced knowledge, never actual travel or knowledge for another NPC',
+    async () => {
+      const f = await fixture('player', undefined, true);
+      let calls = 0;
+      const text = '我在咖啡馆，但先说说别的。';
+      const command = {
+        id: randomUUID(),
+        worldId: f.world.id,
+        expectedVersion: 0,
+        actorId: f.actorId,
+        text,
+      };
+      // Let the mock refer to the actual accepted source handle, as a real model must.
+      const actual = npcAgentServices(db, () => ({
+        async complete(messages) {
+          calls++;
+          const payload = JSON.parse(messages[1]!.content);
+          return JSON.stringify({
+            ...proposal(),
+            locationReports: [
+              {
+                subject: { kind: 'player' },
+                placeId: 'cafe',
+                sourceId: payload.input.sourceId,
+                quote: '我在咖啡馆',
+                assertion: 'reported',
+              },
+            ],
+          });
+        },
+      }));
+      const done = await actual.sendMessageIfEnabled(f.ownerId, command);
+      assert.equal(done?.version, 1);
+      assert.equal(calls, 1);
+      const current = await worlds.get({ userId: f.ownerId }, f.world.id);
+      assert.equal(current.space?.currentPlaceId, 'home');
+      const awareness = new PostgresWorldAwarenessRepository(db);
+      const own = await awareness.readActorAwareness(f.ownerId, f.world.id, f.actorId);
+      assert.equal(own.knowledge[0]?.kind, 'report');
+      assert.equal(own.knowledge[0]?.sourceKind, 'player_report');
+      assert.equal(own.knowledge[0]?.placeId, 'cafe');
+      assert.equal(own.knowledge[0]?.occurredAt, null);
+      const other = current.actors.find((a) => a.id !== f.actorId)!;
+      assert.deepEqual(
+        (await awareness.readActorAwareness(f.ownerId, f.world.id, other.id)).knowledge,
+        [],
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT 1 FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND subject_key=$2',
+            [f.world.id, 'player'],
+          )
+        ).rowCount,
+        0,
+      );
+    },
+  );
+  await t.test(
+    'own strategy provenance resolves actual private input without leaking transcripts or another actor source',
+    async () => {
+      const f = await fixture();
+      const state = structuredClone(f.snapshot.state);
+      state.goals = [
+        {
+          id: 'goal',
+          summary: '保留自己的安排',
+          sourceIds: [f.input.id],
+          status: 'active',
+          resultIds: [],
+        },
+      ];
+      const basis = await db.transaction(f.ownerId, (sql) =>
+        readActorStrategyBasis(sql, f.ownerId, state, 0, at),
+      );
+      assert.equal(basis.find((s) => s.id === f.input.id)?.usage, 'private_strategy');
+      assert(!JSON.stringify(basis).includes(f.input.text));
+      const other = f.world.actors.find((a) => a.id !== f.actorId)!;
+      const foreign = { ...state, actorId: other.id };
+      assert.deepEqual(
+        await db.transaction(f.ownerId, (sql) =>
+          readActorStrategyBasis(sql, f.ownerId, foreign, 0, at),
+        ),
+        [],
+      );
     },
   );
 });

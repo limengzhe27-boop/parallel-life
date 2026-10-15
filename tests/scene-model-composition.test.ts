@@ -83,7 +83,9 @@ test('scene selection cannot bypass the worker database-role guard or start mode
     const worker=createWorker();
     assert.equal(typeof worker.handlers.world,'function');
     assert.equal(requests,0);
-    await assert.rejects(worker.handlers.world({kind:'world',input:{type:'scene'}},new AbortController().signal),/SCENE_MODEL_NOT_CONFIGURED/);
+    // Epoch/owner authorization now precedes any legacy scene model selection.
+    delete process.env.DATABASE_URL;
+    await assert.rejects(worker.handlers.world({kind:'world',input:{type:'scene'}},new AbortController().signal),/SERVER_NOT_CONFIGURED/);
     assert.equal(requests,0);
     await worker.queue.close();
   `);

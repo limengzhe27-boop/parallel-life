@@ -34,7 +34,7 @@ const at = '2026-10-15T08:00:00.000Z';
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 test('external calendar decisions: actual event deltas and actor CAS commit in one player transaction', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55503);
+  assert.equal(config.port, Number(process.env.AGENT_EXTERNAL_PROJECTION_TEST_PORT ?? 55503));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const app = new PostgresDatabase(

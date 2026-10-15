@@ -164,7 +164,13 @@ export function responsibilityRevision(
   return !old
     ? 0
     : (old.revision ?? 0) +
-        (next && !sameValue(withoutInternalRevision(old), withoutInternalRevision(next)) ? 1 : 0);
+        (next &&
+        !sameValue(
+          { subject: old.subject, summary: old.summary, deadline: old.deadline },
+          { subject: next.subject, summary: next.summary, deadline: next.deadline },
+        )
+          ? 1
+          : 0);
 }
 /** Current decision per request revision; an earlier acceptance cannot survive a later refusal. */
 export function currentPlayerDecision(
@@ -392,6 +398,20 @@ export function validateAgentProposal(
     );
     if (proposal.focus.questionSourceId) hasSource(proposal.focus.questionSourceId);
   }
+  const reports = proposal.locationReports ?? [];
+  requireValid(
+    new Set(reports.map((r) => (r.subject.kind === 'player' ? 'player' : r.subject.actorId)))
+      .size === reports.length,
+    'AMBIGUOUS_LOCATION_REPORT',
+  );
+  for (const report of reports)
+    requireValid(
+      context.input.origin === 'player' &&
+        report.sourceId === context.input.sourceId &&
+        !!report.quote.trim() &&
+        context.input.text.includes(report.quote),
+      'UNSOURCED_LOCATION_REPORT',
+    );
   for (const statement of proposal.statements)
     for (const id of statement.dependsOnActionIds)
       requireValid(actions.has(id), 'UNKNOWN_STATEMENT_DEPENDENCY');

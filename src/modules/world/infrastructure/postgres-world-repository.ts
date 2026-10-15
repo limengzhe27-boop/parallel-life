@@ -1,3 +1,7 @@
+import {
+  prepareExplicitInvitationProjections,
+  projectExplicitInvitationDecision,
+} from './agent-external-event-projector.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
@@ -297,10 +301,17 @@ export class PostgresWorldRepository implements WorldRepository {
       };
       if (JSON.stringify(event).length >= 65536)
         throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
-      const state = applyInvitationEvent(
-        { ...(await this.hydrate(sql, current)), time: storyTime },
+      const before = { ...(await this.hydrate(sql, current)), time: storyTime };
+      const state = applyInvitationEvent(before, event);
+      const beforeAppointment = before.appointments.find((a) => a.id === command.id)!;
+      const projections = await prepareExplicitInvitationProjections(sql, session.userId, {
         event,
-      );
+        beforeAppointment,
+      });
+      if (projections.length)
+        event.data = { ...command, agentProjections: projections.map((p) => p.projection) };
+      if (JSON.stringify(event).length >= 65536)
+        throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
       await sql.query(
         "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
         [command.commandId, state.id, session.userId, command.expectedVersion, hash, command],
@@ -325,6 +336,8 @@ export class PostgresWorldRepository implements WorldRepository {
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
         [state.id, command.commandId, event.id, compactWorldState(state)],
       );
+      if (projections.length)
+        await projectExplicitInvitationDecision(sql, session.userId, { event, beforeAppointment });
       await projectAgentWorldChange(sql, session.userId, state.id, event.id);
       await capClockAtNextAppointment(sql, session.userId, state.id, realNow);
       return state;

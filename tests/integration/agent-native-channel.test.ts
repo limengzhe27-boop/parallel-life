@@ -42,11 +42,15 @@ import type { WorldState, WorldEffect } from '../../src/modules/world/domain/typ
 
 test('native channels use actual PostgreSQL projections and one actor/world UoW without models', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55565, 'isolated assigned PostgreSQL only');
+  assert.equal(
+    config.port,
+    Number(process.env.AGENT_NATIVE_CHANNEL_TEST_PORT ?? 55565),
+    'isolated assigned PostgreSQL only',
+  );
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(
-    `postgresql://pl_app:${config.appPassword}@127.0.0.1:55565/parallel_life_test`,
+    `postgresql://pl_app:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_test`,
   );
   const owners: string[] = [];
   t.after(async () => {

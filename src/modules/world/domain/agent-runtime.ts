@@ -142,6 +142,14 @@ export type AgentProposal = {
   responsibilities: AgentResponsibility[];
   decisions: AgentPlayerDecision[];
   focus?: AgentConversationFocus | null;
+  /** A semantic report from the current player's actual words, never actual world movement. */
+  locationReports?: {
+    subject: { kind: 'player' } | { kind: 'actor'; actorId: string };
+    placeId: string | null;
+    sourceId: string;
+    quote: string;
+    assertion: 'reported' | 'hypothetical' | 'uncertain';
+  }[];
 };
 export type AgentAttemptStatus =
   | 'reserved'

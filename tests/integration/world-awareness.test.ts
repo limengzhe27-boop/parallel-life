@@ -19,7 +19,7 @@ const arrivedAt = '2026-10-15T07:10:00.000Z';
 
 test('world awareness: real event transactions, provenance, observer isolation and independent director cursors', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55503);
+  assert.equal(config.port, Number(process.env.WORLD_AWARENESS_TEST_PORT ?? 55503));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const app = new PostgresDatabase(
@@ -300,7 +300,7 @@ test('world awareness: real event transactions, provenance, observer isolation a
       ];
       await save(f, 'agent.state_committed', {
         actorId: 'watcher',
-        agentRuntime: { stateAfter: state, proposal: {}, results: [] },
+        agentRuntime: { stateAfter: state, proposal: { decisions: state.decisions }, results: [] },
       });
       const first = await repo.readDirectorObservedState(f.owner, f.worldId, { limit: 100 });
       assert.equal(first.observedThroughVersion, 2);

@@ -42,6 +42,7 @@ export function nativeResponder(input: {
   channel: 'group' | 'scene';
   threadId: string;
   questionMessageIds: Set<string>;
+  questionActorIds?: string[];
   relatedMatterIds: string[];
 }) {
   const unique = (ids: string[]) => [...new Set(ids)].filter((id) => input.actorIds.includes(id));
@@ -61,15 +62,16 @@ export function nativeResponder(input: {
   if (mentions.length > 1)
     throw new DomainError('INVALID_COMMAND', 'DIRECTOR_COORDINATION_REQUIRED');
   const questioners = unique(
-    input.states
-      .filter(
-        (state) =>
-          state.focus?.channel === input.channel &&
-          state.focus.threadId === input.threadId &&
-          state.focus.questionSourceId &&
-          input.questionMessageIds.has(state.focus.questionSourceId),
-      )
-      .map((state) => state.actorId),
+    input.questionActorIds ??
+      input.states
+        .filter(
+          (state) =>
+            state.focus?.channel === input.channel &&
+            state.focus.threadId === input.threadId &&
+            state.focus.questionSourceId &&
+            input.questionMessageIds.has(state.focus.questionSourceId),
+        )
+        .map((state) => state.actorId),
   );
   if (questioners.length === 1) return questioners[0]!;
   const responsible = unique(
@@ -158,6 +160,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
     ).toISOString();
     const native = await scoped.transaction(lease.ownerId, async (sql) => {
       const input = lease.input as Record<string, unknown>;
+      let questionActorIds: string[] = [];
       let channel: 'group' | 'scene',
         threadId: string,
         version: number,
@@ -183,7 +186,24 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
           (m) => m.sourceVersion < version && m.sender.kind === 'actor',
         );
         const latest = messages.sort((a, b) => b.sourceVersion - a.sourceVersion)[0];
-        if (latest) questionIds.add('group:' + latest.id);
+        if (latest) {
+          questionIds.add('group:' + latest.id);
+          const source = (
+            await sql.query(
+              'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3 AND version=$4',
+              [world.id, lease.ownerId, latest.sourceEventId, latest.sourceVersion],
+            )
+          ).rows[0]?.payload;
+          const focus = source?.data?.agentRuntime?.stateAfter?.focus;
+          if (
+            focus?.channel === 'group' &&
+            focus.threadId === threadId &&
+            focus.questionSourceId === 'group:' + latest.id &&
+            latest.sender.kind === 'actor' &&
+            source?.data.actorId === latest.sender.actorId
+          )
+            questionActorIds = [latest.sender.actorId];
+        }
       } else {
         const parsed = SceneTaskInputSchema.parse(input);
         channel = 'scene';
@@ -202,7 +222,25 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         const latest = scene.entries
           .filter((e) => e.kind === 'dialogue' && e.sourceVersion < version)
           .sort((a, b) => b.sourceVersion - a.sourceVersion)[0];
-        if (latest) questionIds.add('scene:' + latest.id);
+        if (latest) {
+          questionIds.add('scene:' + latest.id);
+          const source = (
+            await sql.query(
+              'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND id=$3 AND version=$4',
+              [world.id, lease.ownerId, latest.sourceEventId, latest.sourceVersion],
+            )
+          ).rows[0]?.payload;
+          const focus = source?.data?.agentRuntime?.stateAfter?.focus;
+          if (
+            focus?.channel === 'scene' &&
+            focus.threadId === threadId &&
+            focus.questionSourceId === 'scene:' + latest.id &&
+            'speaker' in latest &&
+            latest.speaker.kind === 'actor' &&
+            source?.data.actorId === latest.speaker.actorId
+          )
+            questionActorIds = [latest.speaker.actorId];
+        }
       }
       const source = (
         await sql.query(
@@ -251,6 +289,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
           channel,
           threadId,
           questionMessageIds: questionIds,
+          questionActorIds,
           relatedMatterIds,
         });
       if (!actorIds.includes(actorId)) throw new DomainError('INVALID_COMMAND');

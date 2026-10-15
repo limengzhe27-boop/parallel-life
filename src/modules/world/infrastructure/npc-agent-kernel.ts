@@ -317,6 +317,50 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           replyToActorId: attempt.actorId,
         };
       }
+      const positionKnowledge: import('../domain/world-awareness.ts').ActorPositionKnowledge[] = [];
+      const bounded = (
+        await sql.query('SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
+          attempt.worldId,
+          ownerId,
+        ])
+      ).rows[0].state;
+      for (const report of proposal.locationReports ?? []) {
+        if (
+          (report.subject.kind === 'actor' &&
+            !bounded.actors.some(
+              (actor: { id: string }) =>
+                report.subject.kind === 'actor' && actor.id === report.subject.actorId,
+            )) ||
+          (report.placeId !== null &&
+            !bounded.space?.places.some((place: { id: string }) => place.id === report.placeId))
+        )
+          throw new AgentValidationError('LOCATION_REPORT_OUT_OF_BOUNDARY');
+        if (report.assertion !== 'reported') continue;
+        positionKnowledge.push({
+          worldId: attempt.worldId,
+          observerActorId: attempt.actorId,
+          subject: report.subject,
+          kind: 'report',
+          placeId: report.placeId,
+          sourceKind: 'player_report',
+          occurredAt: null,
+          learnedAt: receivedInput.storyAt,
+          sourceEventId: eventId,
+          worldVersion: attempt.expectedWorldVersion + 1,
+          possiblyStale: true,
+          evidence: { inputReceiptId: receivedInput.id, quote: report.quote },
+        });
+      }
+      accepted.state.knowledgeSourceIds = [
+        ...new Set([
+          ...accepted.state.knowledgeSourceIds,
+          ...(snapshot.worldContext?.knowledge.map((k) => k.sourceId) ?? []),
+          ...positionKnowledge.map(
+            (k) =>
+              `knowledge:${eventId}:${k.subject.kind === 'player' ? 'player' : k.subject.actorId}:report`,
+          ),
+        ]),
+      ];
       const transition: AgentRuntimeTransition = {
         schemaVersion: 1,
         engineEpoch: attempt.engineEpoch,
@@ -327,6 +371,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         actorRevisionAfter: accepted.state.revision,
         proposal: { ...proposal, statements: accepted.statements },
         results,
+        ...(positionKnowledge.length ? { positionKnowledge } : {}),
         stateAfter: accepted.state,
       };
       const command = {

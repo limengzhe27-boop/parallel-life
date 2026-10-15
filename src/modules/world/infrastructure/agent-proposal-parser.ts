@@ -32,6 +32,21 @@ const Condition = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('observation'), sourceId: Id }),
 ]);
 const Proposal = z.strictObject({
+  locationReports: z
+    .array(
+      z.strictObject({
+        subject: z.discriminatedUnion('kind', [
+          z.strictObject({ kind: z.literal('player') }),
+          z.strictObject({ kind: z.literal('actor'), actorId: Id }),
+        ]),
+        placeId: Id.nullable(),
+        sourceId: Id,
+        quote: z.string().trim().min(1).max(500),
+        assertion: z.enum(['reported', 'hypothetical', 'uncertain']),
+      }),
+    )
+    .max(8)
+    .optional(),
   statements: z
     .array(
       z.strictObject({

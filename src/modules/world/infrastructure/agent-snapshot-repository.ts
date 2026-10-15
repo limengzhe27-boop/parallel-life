@@ -13,6 +13,7 @@ import { readActorSituation } from './actor-situation-repository.ts';
 import { DomainError } from '../domain/errors.ts';
 import { authorizedAgentState } from '../domain/agent-kernel.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
+import { readActorStrategyBasis } from './agent-source-resolver.ts';
 import { PostgresWorldAwarenessRepository } from './world-awareness-repository.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
@@ -79,16 +80,17 @@ export async function readPrivateAgentSnapshot(
   ownerId: string,
   world: WorldState,
   actorId: string,
-  input: AgentInputReceipt,
+  input: AgentInputReceipt | null,
   storyAt: string,
   state: ActorAgentState | null,
 ): Promise<{ snapshot: AgentSnapshot; seed: ActorAgentState | null }> {
   if (
     world.ownerId !== ownerId ||
-    input.worldId !== world.id ||
-    input.channel !== 'private' ||
-    input.recipientActorId !== actorId ||
-    input.expectedWorldVersion > world.version
+    (input &&
+      (input.worldId !== world.id ||
+        input.channel !== 'private' ||
+        input.recipientActorId !== actorId ||
+        input.expectedWorldVersion > world.version))
   )
     throw new DomainError('INVALID_COMMAND');
   const memories = await db.transaction(ownerId, (sql) =>
@@ -101,7 +103,7 @@ export async function readPrivateAgentSnapshot(
   const context = actorContext(
     { ...world, time: storyAt },
     actorId,
-    input.text,
+    input?.text ?? '',
     memories.records,
     memories.blockedSources,
   );
@@ -306,13 +308,14 @@ export async function readPrivateAgentSnapshot(
       situation.opening.direction,
       'plan',
     );
-  sources.set(input.id, {
-    id: input.id,
-    kind: 'accepted_input',
-    recordId: input.id,
-    worldVersion: input.expectedWorldVersion,
-    at: input.storyAt,
-  });
+  if (input)
+    sources.set(input.id, {
+      id: input.id,
+      kind: 'accepted_input',
+      recordId: input.id,
+      worldVersion: input.expectedWorldVersion,
+      at: input.storyAt,
+    });
   // Retain source handles used by durable state even when their messages aged out of recent context.
   // Reading a source never restores its forgotten text or crosses another NPC's private inbox.
   if (state) {
@@ -364,7 +367,39 @@ export async function readPrivateAgentSnapshot(
     seeded.definitionRef !== definitionRef
   )
     throw new DomainError('VERSION_CONFLICT', '人物定义需要先同步。');
-  const selectedModules = selectActorPersona(modules, input.text);
+  if (state) {
+    const strategy = await db.transaction(ownerId, (sql) =>
+      readActorStrategyBasis(sql, ownerId, state, world.version, storyAt),
+    );
+    for (const source of strategy)
+      if (!sources.has(source.id)) {
+        sources.set(source.id, source);
+        observations.push({
+          sourceId: source.id,
+          kind: 'plan',
+          text: '此来源支持本人已保存的目标、计划或决定；原私聊不在本次上下文中。',
+        });
+      }
+  }
+  const initialAt = await db.transaction(
+    ownerId,
+    async (sql) =>
+      (
+        await sql.query(
+          "SELECT state->>'time' AS time FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2",
+          [world.id, ownerId],
+        )
+      ).rows[0]?.time,
+  );
+  const definitionSourceId = `definition:${definitionRef}`;
+  sources.set(definitionSourceId, {
+    id: definitionSourceId,
+    kind: 'authored',
+    recordId: definitionRef,
+    worldVersion: 0,
+    at: initialAt ?? world.time,
+  });
+  const selectedModules = selectActorPersona(modules, input?.text ?? '');
   const result: { seed: ActorAgentState | null; snapshot: AgentSnapshot } = {
     seed: state ? null : seeded,
     snapshot: {
@@ -390,7 +425,9 @@ export async function readPrivateAgentSnapshot(
         audienceActorIds: [actorId],
         allowedCapabilities: ['appointment.propose', 'plan.record'],
       },
-      input: { sourceId: input.id, text: input.text, origin: input.origin },
+      input: input
+        ? { sourceId: input.id, text: input.text, origin: input.origin }
+        : { sourceId: definitionSourceId, text: '', origin: 'wake' },
     },
   };
   result.snapshot = await attachAgentWorldContext(db, ownerId, result.snapshot);

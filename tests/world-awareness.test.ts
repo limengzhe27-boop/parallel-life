@@ -175,7 +175,7 @@ test('unchanged plans and previous decisions do not force re-evaluation for ever
   event.type = 'turn.resolved';
   event.data = {
     actorId: 'watcher',
-    agentRuntime: { stateAfter: state, proposal: {}, results: [] },
+    agentRuntime: { stateAfter: state, proposal: { decisions: state.decisions }, results: [] },
   };
   const first = committedAwarenessDelta(world, event);
   assert.deepEqual(

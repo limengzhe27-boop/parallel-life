@@ -85,12 +85,20 @@ export async function projectCommittedWorldAwareness(
       if (data?.agentRuntime && data.actorId) {
         previousAgentState = (
           await sql.query(
-            `SELECT payload->'data'->'agentRuntime'->'stateAfter' AS state FROM parallel_life.world_events
-           WHERE world_id=$1 AND owner_id=$2 AND version<$3 AND payload->'data'->>'actorId'=$4
-           AND payload->'data'->'agentRuntime'->'stateAfter' IS NOT NULL ORDER BY version DESC LIMIT 1`,
-            [world.id, owner, event.version, data.actorId],
+            "SELECT response->'snapshot'->'state' AS state FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND event_id=$3 AND status='committed'",
+            [world.id, owner, event.id],
           )
         ).rows[0]?.state;
+        if (!previousAgentState) {
+          previousAgentState = (
+            await sql.query(
+              `SELECT payload->'data'->'agentRuntime'->'stateAfter' AS state FROM parallel_life.world_events
+           WHERE world_id=$1 AND owner_id=$2 AND version<$3 AND payload->'data'->>'actorId'=$4
+           AND payload->'data'->'agentRuntime'->'stateAfter' IS NOT NULL ORDER BY version DESC LIMIT 1`,
+              [world.id, owner, event.version, data.actorId],
+            )
+          ).rows[0]?.state;
+        }
       }
       let scene: SceneSession | undefined;
       if (['scene.opened', 'scene.entered', 'scene.action_resolved'].includes(event.type)) {

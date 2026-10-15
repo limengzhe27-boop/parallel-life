@@ -36,6 +36,7 @@ export type ActorPositionKnowledge = {
   worldVersion: number;
   /** Knowledge is a sourced observation, not a live location feed. */
   possiblyStale: true;
+  evidence?: { inputReceiptId: string; quote: string };
 };
 export type DirectorPendingReason = {
   id: string;
@@ -213,6 +214,31 @@ export function committedAwarenessDelta(
       reason('new_condition', { kind: 'event', id: event.id });
     }
   }
+  if (event.type === 'invitation.responded' && Array.isArray(data.agentProjections)) {
+    for (const value of data.agentProjections) {
+      const projection = object(value);
+      const source = object(projection?.source);
+      if (
+        projection?.worldId !== world.id ||
+        typeof projection.actorId !== 'string' ||
+        !actorIds.has(projection.actorId) ||
+        source?.worldVersion !== event.version ||
+        source.recordId !== event.id ||
+        !Array.isArray(projection.decisions)
+      )
+        throw Error('INVALID_AWARENESS_CALENDAR');
+      for (const value of projection.decisions) {
+        const decision = object(value);
+        if (typeof decision?.id !== 'string' || decision.sourceId !== source.id)
+          throw Error('INVALID_AWARENESS_CALENDAR');
+        reason('player_decision', {
+          kind: 'decision',
+          id: decision.id,
+          actorId: projection.actorId,
+        });
+      }
+    }
+  }
   const runtime = object(data.agentRuntime);
   if (
     runtime &&
@@ -243,9 +269,33 @@ export function committedAwarenessDelta(
       if (JSON.stringify(old) !== JSON.stringify(next))
         reason('plan_changed', { kind: 'plan', id: next.id, actorId });
     }
-    for (const decision of state.decisions) {
+    const proposedDecisionIds = new Set(
+      Array.isArray(proposal.decisions) ? proposal.decisions.map((d) => object(d)?.id) : [],
+    );
+    for (const decision of state.decisions.filter((d) => proposedDecisionIds.has(d.id))) {
       if (!previous?.decisions.some((old) => old.id === decision.id))
         reason('player_decision', { kind: 'decision', id: decision.id, actorId });
+    }
+    if (runtime.positionKnowledge !== undefined) {
+      if (!Array.isArray(runtime.positionKnowledge)) throw Error('INVALID_AWARENESS_REPORT');
+      for (const value of runtime.positionKnowledge) {
+        const k = value as ActorPositionKnowledge;
+        if (
+          k.worldId !== world.id ||
+          k.observerActorId !== actorId ||
+          k.sourceEventId !== event.id ||
+          k.worldVersion !== event.version ||
+          k.kind !== 'report' ||
+          k.sourceKind !== 'player_report' ||
+          k.occurredAt !== null ||
+          !instant(k.learnedAt) ||
+          (k.placeId !== null && !placeIds.has(k.placeId)) ||
+          !k.evidence?.inputReceiptId ||
+          !k.evidence.quote
+        )
+          throw Error('INVALID_AWARENESS_REPORT');
+        delta.knowledge.push(k);
+      }
     }
     if (!Array.isArray(runtime.results)) throw Error('INVALID_AWARENESS_RESULTS');
     for (const value of runtime.results) {

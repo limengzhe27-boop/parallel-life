@@ -44,14 +44,14 @@ const reply = (text: string, requestsPlayerReply = false): AgentProposal => ({
 
 test('actual leased native service and phone DTO use one persistent NPC runtime (real PG, mock models)', async (t) => {
   const config = await localConfig();
-  assert.equal(config.port, 55565);
+  assert.equal(config.port, Number(process.env.NPC_NATIVE_SERVICE_TEST_PORT ?? 55565));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(
-    `postgresql://pl_app:${config.appPassword}@127.0.0.1:55565/parallel_life_test`,
+    `postgresql://pl_app:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_test`,
   );
   const queue = new PostgresTaskQueue(
-    `postgresql://pl_worker:${config.workerPassword}@127.0.0.1:55565/parallel_life_test`,
+    `postgresql://pl_worker:${config.workerPassword}@127.0.0.1:${config.port}/parallel_life_test`,
   );
   const owners: string[] = [];
   t.after(async () => {

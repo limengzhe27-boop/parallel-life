@@ -13,6 +13,8 @@ export type AgentRuntimeTransition = {
   actorRevisionAfter: number;
   proposal: AgentProposal;
   results: AgentActionResult[];
+  /** Kernel-certified report provenance, not a position change. */
+  positionKnowledge?: import('./world-awareness.ts').ActorPositionKnowledge[];
   /** Immutable accepted revision for exact receipt replay and explicit state migration. */
   stateAfter: ActorAgentState;
 };

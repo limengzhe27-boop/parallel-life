@@ -19,7 +19,9 @@ export type InvitationEvent = {
   commandId: string;
   occurredAt: string;
   storyTime: string;
-  data: InvitationCommand;
+  data: InvitationCommand & {
+    agentProjections?: import('./agent-external-projection.ts').AgentExternalProjection[];
+  };
 };
 
 /** Explicit owner action only. A proposal never confirms itself. */
