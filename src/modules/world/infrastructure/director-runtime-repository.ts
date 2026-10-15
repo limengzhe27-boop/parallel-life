@@ -784,6 +784,28 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       return row ? attempt(row) : null;
     });
   }
+  /** Confirmed zero-send attempts only. This grants no authority to retry a paid frame. */
+  readUnsentFrameAttempts(owner: string, rawSnapshot: DirectorSnapshot): Promise<string[]> {
+    const snapshot = snapshotShape(rawSnapshot);
+    if (snapshot.evaluationCause) fail('INVALID_DIRECTOR_INPUT');
+    const frameHash = directorCoordinationFrameHash(snapshot);
+    return this.db.transaction(owner, async (sql) => {
+      const world = await this.owned(sql, owner, snapshot.worldId);
+      await this.current(sql, owner, world, snapshot);
+      const rows = (
+        await sql.query(
+          `SELECT id,snapshot FROM parallel_life.director_runtime_attempts
+           WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3 AND expected_world_version=$4
+             AND sent_at IS NULL AND response_hash IS NULL
+             AND status IN ('cancelled_before_send','stale_discarded') ORDER BY id`,
+          [snapshot.worldId, owner, snapshot.engineEpoch, snapshot.worldVersion],
+        )
+      ).rows;
+      return rows
+        .filter((row) => directorCoordinationFrameHash(snapshotShape(row.snapshot)) === frameHash)
+        .map((row) => String(row.id));
+    });
+  }
   async claim(
     owner: string,
     input: Omit<DirectorAttempt, 'status' | 'decisionId'>,

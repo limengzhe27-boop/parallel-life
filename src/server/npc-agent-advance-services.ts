@@ -363,10 +363,12 @@ export function npcAgentAdvanceServices(
         // vanished semantic wake into a fresh paid global decision.
         if (admission === 'recovery' || (admission === 'wake' && !snapshot.evaluationCause))
           return null;
-        const commandId = agentWakeCommandId(
-          worldId,
-          snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot),
-        );
+        let identity = snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot);
+        if (!snapshot.evaluationCause) {
+          const unsent = await directors.readUnsentFrameAttempts(ownerId, snapshot);
+          if (unsent.length) identity = hash(['director-unsent-frame-v1', identity, unsent]);
+        }
+        const commandId = agentWakeCommandId(worldId, identity);
         const previous = await directors.lookup(ownerId, worldId, commandId);
         if (previous?.status === 'committed' && previous.decisionId) {
           const saved = await directors.readDecision(ownerId, worldId, previous.decisionId);
