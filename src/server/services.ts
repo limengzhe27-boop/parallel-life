@@ -64,6 +64,8 @@ import { WorldTurnPlanner } from '../modules/world/infrastructure/turn-planner.t
 import { createTextModel } from './composition.ts';
 import { publicationCharacterPlanner } from './publication-character-planner.ts';
 import { npcAgentServices } from './npc-agent-services.ts';
+import { npcAgentAdvanceServices } from './npc-agent-advance-services.ts';
+import { PostgresDirectorSnapshotRepository } from '../modules/world/infrastructure/director-snapshot-repository.ts';
 let services: ReturnType<typeof createServices> | undefined;
 function createServices() {
   // Marketplace integrations expose an administrative DATABASE_URL for
@@ -237,6 +239,12 @@ function createServices() {
       maxBeats?: number,
       automatic = false,
     ) => {
+      const agentAdvance = await npcAgentAdvanceServices(
+        db,
+        createTextModel,
+        new PostgresDirectorSnapshotRepository(db),
+      ).advanceIfEnabled(ownerId, worldId);
+      if (agentAdvance !== null) return agentAdvance;
       const liveOpening = await advancePublicationOpening(
         {
           opening: new PublicationOpeningRepository(db),

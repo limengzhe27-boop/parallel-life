@@ -117,7 +117,10 @@ export function npcAgentAdvanceServices(
         ).rows.map((r) => r.document as AgentActionResult);
         const prior = (
           await sql.query(
-            'SELECT id,actor_id,command_id,status FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2',
+            `SELECT a.id,a.actor_id,a.command_id,a.status,r.document->>'channel' AS channel
+               FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
+               ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
+               WHERE a.world_id=$1 AND a.owner_id=$2 ORDER BY a.created_at,a.id`,
             [worldId, ownerId],
           )
         ).rows.map((r) => ({
@@ -125,6 +128,7 @@ export function npcAgentAdvanceServices(
           actorId: String(r.actor_id),
           commandId: String(r.command_id),
           status: r.status as AgentAttempt['status'],
+          channel: String(r.channel),
         }));
         return { states, results, prior };
       });
@@ -135,6 +139,33 @@ export function npcAgentAdvanceServices(
         throw Object.assign(Error('AGENT_PROJECTION_INCOMPLETE'), {
           code: 'AGENT_PROJECTION_INCOMPLETE',
         });
+      // A received, protected result is not an unknown paid call. Resume it
+      // before active-attempt blockers, otherwise its owner could never wake.
+      const npcModel = new NpcAgentModel({
+        complete: (...args) => modelFactory().complete(...args),
+      });
+      for (const pending of read.prior.filter(
+        (a) => a.status === 'response_received' && a.channel === 'private',
+      )) {
+        const attempt = await attempts.lookup(ownerId, worldId, pending.commandId);
+        if (!attempt || attempt.status !== 'response_received') continue;
+        const state = read.states.find((a) => a.actorId === attempt.actorId);
+        if (
+          attempt.expectedWorldVersion !== world.version ||
+          state?.revision !== attempt.expectedActorRevision
+        ) {
+          await attempts.mark(ownerId, attempt, 'stale_discarded');
+          pending.status = 'stale_discarded';
+          continue;
+        }
+        const result = await runNpcAgent(
+          { attempts, model: npcModel, kernel: new PostgresNpcAgentKernel(db, worlds) },
+          ownerId,
+          attempt,
+          null,
+        );
+        return presentedResult(result.eventId, attempt.actorId);
+      }
       const actors = await Promise.all(
         read.states.map(async (state) => ({
           snapshot: (
@@ -209,7 +240,9 @@ export function npcAgentAdvanceServices(
         return runDirectorAgent(
           {
             attempts: directors,
-            model: new WorldDirectorAgentModel(modelFactory()),
+            model: new WorldDirectorAgentModel({
+              complete: (...args) => modelFactory().complete(...args),
+            }),
             parse: parseDirectorDecision,
           },
           ownerId,
@@ -342,7 +375,7 @@ export function npcAgentAdvanceServices(
         const result = await runNpcAgent(
           {
             attempts,
-            model: new NpcAgentModel(modelFactory()),
+            model: npcModel,
             kernel: new PostgresNpcAgentKernel(db, worlds),
           },
           ownerId,
@@ -362,12 +395,15 @@ export function npcAgentAdvanceServices(
           snapshot,
         );
         // Real quiet/plan outcomes still execute and persist, but never pretend a new message exists.
+        return presentedResult(result.eventId, candidate.actorId);
+      }
+      async function presentedResult(eventId: string, actorId: string): Promise<AdvanceResult> {
         const presented = await db.transaction(ownerId, async (sql) =>
           Number(
             (
               await sql.query(
                 "SELECT count(*)::int n FROM parallel_life.world_messages WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3 AND document->>'sourceEventId'=$4",
-                [worldId, ownerId, candidate.actorId, result.eventId],
+                [worldId, ownerId, actorId, eventId],
               )
             ).rows[0].n,
           ),
@@ -375,7 +411,7 @@ export function npcAgentAdvanceServices(
         return {
           ...quiet(storyAt),
           played: presented ? 1 : 0,
-          actors: presented ? [candidate.actorId] : [],
+          actors: presented ? [actorId] : [],
         };
       }
     },

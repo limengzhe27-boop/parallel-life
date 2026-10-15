@@ -12,6 +12,7 @@ import { groupTaskHandler } from '../modules/world/infrastructure/group-task-han
 import { WorldGroupPlanner } from '../modules/world/infrastructure/group-planner.ts';
 import { ScenePlanner } from '../modules/world/infrastructure/scene-planner.ts';
 import { sceneTaskHandler } from '../modules/world/infrastructure/scene-task-handler.ts';
+import { sceneEnvironmentTaskHandler } from '../modules/world/infrastructure/agent-scene-environment.ts';
 import { WorldPlanner } from '../modules/world/infrastructure/world-planner.ts';
 import { buildHandler } from '../modules/world/infrastructure/build-handler.ts';
 import { DiscoveryPlanner } from '../modules/discovery/infrastructure/discovery-planner.ts';
@@ -41,8 +42,11 @@ export function createWorker() {
     queue,
     handlers: {
       world: worldTaskDispatcher({
-        agent: (lease, signal) =>
-          nativeNpcTaskHandler(getServices().db, createTextModel)(lease, signal),
+        agent: async (lease, signal) => {
+          const db = getServices().db;
+          if (await sceneEnvironmentTaskHandler(db)(lease, signal)) return true;
+          return nativeNpcTaskHandler(db, createTextModel)(lease, signal);
+        },
         scene: (lease, signal) => {
           if (!sceneHandler) {
             const sceneConfig = sceneGatewayConfig();
