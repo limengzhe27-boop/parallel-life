@@ -23,6 +23,7 @@ import {
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 import { OpeningAdvanceSchema } from '../../src/contracts/publication-opening.ts';
 import { AdvanceReceiptSchema, type AdvanceReceipt } from '../../src/contracts/world-clock.ts';
+import { PublicWorldStorySchema } from '../../src/contracts/world-story.ts';
 
 const serverCondition = process.execArgv.includes('--conditions=react-server');
 if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
@@ -63,7 +64,7 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
     );
     const count = /# tests (\d+)/.exec(output);
     assert(
-      count && Number(count[1]) >= 6,
+      count && Number(count[1]) >= 8,
       'the child must actually execute its database assertions',
     );
     assert.match(output, /# fail 0\b/);
@@ -72,7 +73,7 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
 } else {
   test('real phone opening and advance entrypoints use one runtime, with isolated local configuration and no network forwarding', async (t) => {
     assert(serverCondition, 'the child must have the real react-server condition');
-    const { readNpcAgentOpeningStatusIfEnabled } =
+    const { readNpcAgentOpeningStatusIfEnabled, readNpcAgentStoryProgressIfEnabled } =
       await import('../../src/server/npc-agent-advance-services.ts');
     const { PublicationRepository } =
       await import('../../src/modules/settings/infrastructure/publication-repository.ts');
@@ -80,6 +81,8 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
       await import('../../src/modules/settings/infrastructure/publication-world-repository.ts');
     const { compilePublicationGenesis } =
       await import('../../src/modules/settings/infrastructure/publication-genesis.ts');
+    const { PublicationOpeningRepository } =
+      await import('../../src/modules/settings/infrastructure/publication-opening-repository.ts');
     const cfg = await localConfig();
     assert.equal(cfg.port, Number(process.env.AGENT_PHONE_ENTRY_TEST_PORT ?? 55565));
     const admin = await adminClient('parallel_life_test');
@@ -190,6 +193,8 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
     const svc = services;
     const { publicationOpeningRoute } =
       await import('../../src/server/publication-opening-http.ts');
+    const { publicationStoryProgressRoute } =
+      await import('../../src/server/publication-story-http.ts');
     const { POST: advancePost } = await import('../../src/app/api/v1/worlds/[id]/advance/route.ts');
     const origin = 'http://127.0.0.1:34441';
     function request(owner: string, method: string, body?: unknown) {
@@ -316,10 +321,17 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
       'world_messages',
       'publication_story_plans',
       'publication_story_nodes',
+      'publication_story_receipts',
+      'publication_story_progress',
+      'publication_story_progress_evidence',
       'publication_opening_batches',
       'publication_opening_deliveries',
       'agent_attempts',
+      'agent_action_results',
+      'agent_input_receipts',
       'director_runtime_attempts',
+      'director_decisions',
+      'shared_episodes',
     ];
     async function counts(id: string) {
       const result: Record<string, number> = {};
@@ -393,89 +405,93 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
       },
     );
 
+    async function authoredFixture(epoch: 1 | 2 = 2) {
+      // All creation is a synthetic local trial, using the existing publisher role; no grants added.
+      class LocalPublisher extends PostgresDatabase {
+        override transaction<T>(owner: string, run: (sql: SqlClient) => Promise<T>) {
+          return super.transaction(owner, async (sql) => {
+            await sql.query('SET LOCAL ROLE pl_publisher');
+            return run(sql);
+          });
+        }
+      }
+      publisherDb ??= new LocalPublisher(
+        `postgresql://pl_admin:${cfg.adminPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+      );
+      const staff = randomUUID();
+      await admin.query(
+        'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
+        [staff, 'Synthetic phone trial writer'],
+      );
+      const raw = await readFile(
+        new URL('../../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+        'utf8',
+      );
+      const content = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(raw)![1]!);
+      content.candidates = [
+        {
+          key: 'start',
+          kind: 'candidate',
+          title: '尚未发生的开场',
+          editorialIntent: '由导演审定后再安排。',
+          script: '仅合成原稿，不是已发生事实。',
+          actorKeys: content.actors.map((a: { key: string }) => a.key),
+          prerequisites: [],
+          mutuallyExclusiveNodeKeys: [],
+          intent: { kind: 'director_event' },
+        },
+      ];
+      content.openingEventKey = 'start';
+      delete content.timeline;
+      delete content.conditions;
+      const works = new PublicationRepository(publisherDb),
+        work = await works.create(staff, {
+          commandId: randomUUID(),
+          title: 'Synthetic phone pending opening',
+          content,
+        });
+      const repository = new PublicationWorldRepository(publisherDb, {
+        prepare(input) {
+          const result = compilePublicationGenesis({
+            ...input,
+            originKind: 'trial',
+            newId: randomUUID,
+          });
+          assert.equal(result.status, 'compiled');
+          if (result.status !== 'compiled') throw Error('SYNTHETIC_TRIAL_COMPILE_FAILED');
+          return {
+            world: result.world,
+            opening: result.opening,
+            seed: {
+              id: input.seedId,
+              createdAt: new Date().toISOString(),
+              source: { kind: 'publication_trial', ...input.origin },
+              identity: result.opening.identity,
+              situation: result.opening.situation,
+              setting: result.opening.setting,
+              experienceNote: result.opening.experienceNote,
+            },
+          };
+        },
+      });
+      const created = await repository.startTrial(staff, work.id, {
+        commandId: randomUUID(),
+        draftVersion: 0,
+        contentHash: (await works.get(staff, work.id)).draft.contentHash,
+      });
+      const session = await repository.trialSession(staff, created.trialId!),
+        world = await svc.worlds.get({ userId: session.ownerId }, session.worldId);
+      worldsOwned.push({ owner: session.ownerId, id: session.worldId });
+      if (epoch === 2) await switchRuntime(session.ownerId, session.worldId, world);
+      await admin.query('UPDATE parallel_life.world_clock SET paused=true WHERE world_id=$1', [
+        session.worldId,
+      ]);
+      return session;
+    }
     await t.test(
       'an actually bound authored opening remains unplanned without creating the old story plan or delivery batch',
       async () => {
-        // All creation is a synthetic local trial, using the existing publisher role; no grants added.
-        class LocalPublisher extends PostgresDatabase {
-          override transaction<T>(owner: string, run: (sql: SqlClient) => Promise<T>) {
-            return super.transaction(owner, async (sql) => {
-              await sql.query('SET LOCAL ROLE pl_publisher');
-              return run(sql);
-            });
-          }
-        }
-        publisherDb = new LocalPublisher(
-          `postgresql://pl_admin:${cfg.adminPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
-        );
-        const staff = randomUUID();
-        await admin.query(
-          'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
-          [staff, 'Synthetic phone trial writer'],
-        );
-        const raw = await readFile(
-          new URL('../../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
-          'utf8',
-        );
-        const content = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(raw)![1]!);
-        content.candidates = [
-          {
-            key: 'start',
-            kind: 'candidate',
-            title: '尚未发生的开场',
-            editorialIntent: '由导演审定后再安排。',
-            script: '仅合成原稿，不是已发生事实。',
-            actorKeys: content.actors.map((a: { key: string }) => a.key),
-            prerequisites: [],
-            mutuallyExclusiveNodeKeys: [],
-            intent: { kind: 'director_event' },
-          },
-        ];
-        content.openingEventKey = 'start';
-        delete content.timeline;
-        delete content.conditions;
-        const works = new PublicationRepository(publisherDb),
-          work = await works.create(staff, {
-            commandId: randomUUID(),
-            title: 'Synthetic phone pending opening',
-            content,
-          });
-        const repository = new PublicationWorldRepository(publisherDb, {
-          prepare(input) {
-            const result = compilePublicationGenesis({
-              ...input,
-              originKind: 'trial',
-              newId: randomUUID,
-            });
-            assert.equal(result.status, 'compiled');
-            if (result.status !== 'compiled') throw Error('SYNTHETIC_TRIAL_COMPILE_FAILED');
-            return {
-              world: result.world,
-              opening: result.opening,
-              seed: {
-                id: input.seedId,
-                createdAt: new Date().toISOString(),
-                source: { kind: 'publication_trial', ...input.origin },
-                identity: result.opening.identity,
-                situation: result.opening.situation,
-                setting: result.opening.setting,
-                experienceNote: result.opening.experienceNote,
-              },
-            };
-          },
-        });
-        const created = await repository.startTrial(staff, work.id, {
-          commandId: randomUUID(),
-          draftVersion: 0,
-          contentHash: (await works.get(staff, work.id)).draft.contentHash,
-        });
-        const session = await repository.trialSession(staff, created.trialId!),
-          world = await svc.worlds.get({ userId: session.ownerId }, session.worldId);
-        worldsOwned.push({ owner: session.ownerId, id: session.worldId });
-        await switchRuntime(session.ownerId, session.worldId, world);
-        await admin.query('UPDATE parallel_life.world_clock SET paused=true WHERE world_id=$1', [
-          session.worldId,
-        ]);
+        const session = await authoredFixture();
         const before = await counts(session.worldId);
         assert.equal(before.publication_story_plans, 0);
         assert.equal(before.publication_opening_batches, 0);
@@ -499,7 +515,110 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
         );
         assert.equal(post.status, 200);
         assert.equal((await post.json()).opening.phase, 'unplanned');
+        const storyResponse = await publicationStoryProgressRoute(
+          request(session.ownerId, 'GET'),
+          session.worldId,
+        );
+        assert.equal(storyResponse.status, 200);
+        const story = PublicWorldStorySchema.parse(await storyResponse.json());
+        assert.deepEqual(story, {
+          runtime: 'agents',
+          currentStageKeys: [],
+          totalNodes: 1,
+          presented: [],
+          pending: null,
+        });
+        assert.deepEqual(
+          await readNpcAgentStoryProgressIfEnabled(svc.db, session.ownerId, session.worldId),
+          story,
+        );
+        await assert.rejects(svc.story.progress(session.ownerId, session.worldId), {
+          code: 'INVALID_STATE',
+        });
+        await assert.rejects(svc.story.opportunities(session.ownerId, session.worldId, false), {
+          code: 'INVALID_STATE',
+        });
+        await assert.rejects(
+          new PublicationOpeningRepository(svc.db).read(session.ownerId, session.worldId),
+          { code: 'INVALID_STATE' },
+        );
         assert.deepEqual(await counts(session.worldId), before);
+        assert.equal(gatewayCalls, 0);
+      },
+    );
+    await t.test(
+      'actual epoch-2 story GET without authored source is read-only and rejects a foreign owner',
+      async () => {
+        const f = await fixture(),
+          other = await fixture(1),
+          before = await counts(f.id);
+        const expected = {
+          runtime: 'agents',
+          currentStageKeys: [],
+          totalNodes: 0,
+          presented: [],
+          pending: null,
+        };
+        assert.deepEqual(await readNpcAgentStoryProgressIfEnabled(svc.db, f.owner, f.id), expected);
+        for (let i = 0; i < 2; i++) {
+          const response = await publicationStoryProgressRoute(request(f.owner, 'GET'), f.id);
+          assert.equal(response.status, 200);
+          assert.deepEqual(PublicWorldStorySchema.parse(await response.json()), expected);
+        }
+        assert.equal(
+          (await publicationStoryProgressRoute(request(other.owner, 'GET'), f.id)).status,
+          404,
+        );
+        await assert.rejects(readNpcAgentStoryProgressIfEnabled(svc.db, other.owner, f.id), {
+          code: 'NOT_FOUND',
+        });
+        assert.deepEqual(await counts(f.id), before);
+        assert.equal((await svc.worlds.get({ userId: f.owner }, f.id)).version, f.world.version);
+        assert.equal(gatewayCalls, 0);
+      },
+    );
+    await t.test(
+      'epoch-1 authored story HTTP and direct legacy contexts remain available without auto-presenting events',
+      async () => {
+        const session = await authoredFixture(1),
+          before = await counts(session.worldId);
+        assert.equal(
+          await readNpcAgentStoryProgressIfEnabled(svc.db, session.ownerId, session.worldId),
+          null,
+        );
+        const response = await publicationStoryProgressRoute(
+          request(session.ownerId, 'GET'),
+          session.worldId,
+        );
+        assert.equal(response.status, 200);
+        const story = PublicWorldStorySchema.parse(await response.json());
+        assert.equal(story.runtime, undefined);
+        assert.equal(story.totalNodes, 1);
+        assert.deepEqual(story.presented, []);
+        assert.equal(story.pending, null);
+        assert.deepEqual(await svc.story.progress(session.ownerId, session.worldId), story);
+        assert.equal(
+          (await new PublicationOpeningRepository(svc.db).read(session.ownerId, session.worldId))
+            .phase,
+          'unplanned',
+        );
+        const after = await counts(session.worldId);
+        assert.equal(before.publication_story_plans, 0);
+        assert.equal(
+          after.publication_story_plans,
+          1,
+          'legacy source initialization remains allowed for epoch-1 only',
+        );
+        for (const table of [
+          'world_events',
+          'commands',
+          'world_messages',
+          'publication_opening_batches',
+          'publication_opening_deliveries',
+          'agent_attempts',
+          'director_runtime_attempts',
+        ])
+          assert.equal(after[table], before[table]);
         assert.equal(gatewayCalls, 0);
       },
     );
