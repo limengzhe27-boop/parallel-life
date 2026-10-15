@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resolveWorldConversationFocusInTransaction } from './world-attention-repository.ts';
 import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { DomainError } from '../domain/errors.ts';
@@ -8,6 +9,7 @@ import {
   activityMode,
   appointmentDeadline,
   readableActivityClock,
+  nextClockConversationFocus,
   validateClockActivity,
   type ClockActivityInput,
   type ClockActivityLease,
@@ -183,9 +185,22 @@ export async function updateClockActivity(
     sequence: Number(r.sequence),
     mode: r.mode,
     expiresAt: new Date(r.expires_at).toISOString(),
+    focus: r.focus ?? null,
   }));
   const previous = leases.find((l) => l.clientId.toLowerCase() === input.clientId.toLowerCase());
   if (previous && previous.sequence >= input.sequence) return readableActivityClock(clock, realNow);
+  const focus = nextClockConversationFocus(input, previous);
+  if (
+    focus &&
+    !(await resolveWorldConversationFocusInTransaction(sql, ownerId, {
+      worldId,
+      worldVersion: Number(world.version),
+      realNow,
+      focus,
+    }))
+  )
+    throw new DomainError('INVALID_COMMAND', '交谈对象暂不可用，请重新进入会话。');
+
   await authorizeWorldCommandInTransaction(sql, ownerId, {
     worldId,
     commandId: randomUUID(),
@@ -200,6 +215,8 @@ export async function updateClockActivity(
       Date.parse(clock.activeUntil) <= Date.parse(realNow) ||
       !previous ||
       previous.mode !== input.mode ||
+      (previous.focus?.channel ?? null) !== (focus?.channel ?? null) ||
+      (previous.focus?.threadId ?? null) !== (focus?.threadId ?? null) ||
       input.mode === 'away' ||
       input.resume ||
       Date.parse(previous.expiresAt) <= Date.parse(realNow)
@@ -242,15 +259,24 @@ export async function updateClockActivity(
     clientId: input.clientId,
     sequence: input.sequence,
     mode: permitted ? input.mode : 'away',
+    focus: permitted && input.mode === 'conversation' ? focus : null,
     expiresAt:
       permitted && input.mode !== 'away'
         ? new Date(Date.parse(realNow) + CLOCK_ACTIVITY_LEASE_MS).toISOString()
         : realNow,
   };
   await sql.query(
-    `INSERT INTO parallel_life.world_clock_activity(world_id,owner_id,client_id,sequence,mode,expires_at)
-        VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(world_id,client_id) DO UPDATE SET sequence=EXCLUDED.sequence,mode=EXCLUDED.mode,expires_at=EXCLUDED.expires_at,updated_at=now()`,
-    [worldId, ownerId, input.clientId, input.sequence, lease.mode, lease.expiresAt],
+    `INSERT INTO parallel_life.world_clock_activity(world_id,owner_id,client_id,sequence,mode,expires_at,focus)
+        VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(world_id,client_id) DO UPDATE SET sequence=EXCLUDED.sequence,mode=EXCLUDED.mode,expires_at=EXCLUDED.expires_at,focus=EXCLUDED.focus,updated_at=now()`,
+    [
+      worldId,
+      ownerId,
+      input.clientId,
+      input.sequence,
+      lease.mode,
+      lease.expiresAt,
+      lease.focus ? JSON.stringify(lease.focus) : null,
+    ],
   );
   const mode = activityMode([...leases.filter((l) => l !== previous), lease], realNow);
   const paused = !permitted || !mode.activeUntil;

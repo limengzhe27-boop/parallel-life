@@ -4,17 +4,21 @@ import { projectStoryTime, type WorldClock } from './clock.ts';
 export const CLOCK_ACTIVITY_LEASE_MS = 45_000;
 export const BROWSING_SPEED = 12;
 export const CONVERSATION_SPEED = 1;
+export type ClockConversationFocus = { channel: 'private' | 'group' | 'scene'; threadId: string };
 export type ClockActivityInput = {
   clientId: string;
   sequence: number;
   mode: 'browsing' | 'conversation' | 'away';
   resume?: boolean;
+  /** Omitted heartbeats retain the current conversation target; null ends that target explicitly. */
+  focus?: ClockConversationFocus | null;
 };
 export type ClockActivityLease = {
   clientId: string;
   sequence: number;
   mode: ClockActivityInput['mode'];
   expiresAt: string;
+  focus?: ClockConversationFocus | null;
 };
 export function validateClockActivity(input: ClockActivityInput): void {
   if (
@@ -25,9 +29,32 @@ export function validateClockActivity(input: ClockActivityInput): void {
     !Number.isSafeInteger(input.sequence) ||
     input.sequence < 0 ||
     !['browsing', 'conversation', 'away'].includes(input.mode) ||
-    (input.resume !== undefined && typeof input.resume !== 'boolean')
+    (input.resume !== undefined && typeof input.resume !== 'boolean') ||
+    (input.focus !== undefined && input.focus !== null && !validClockConversationFocus(input.focus))
   )
     throw new DomainError('INVALID_COMMAND');
+}
+/** Only a business identity is accepted; audience and actor IDs are server-derived. */
+export function validClockConversationFocus(value: unknown): value is ClockConversationFocus {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    Object.keys(v).length === 2 &&
+    Object.keys(v).every((k) => k === 'channel' || k === 'threadId') &&
+    ['private', 'group', 'scene'].includes(String(v.channel)) &&
+    typeof v.threadId === 'string' &&
+    v.threadId.length <= 240 &&
+    v.threadId.trim().length > 0
+  );
+}
+export function nextClockConversationFocus(
+  input: ClockActivityInput,
+  previous?: ClockActivityLease,
+): ClockConversationFocus | null {
+  if (input.mode !== 'conversation') return null;
+  const focus =
+    input.focus === undefined && previous?.mode === 'conversation' ? previous.focus : input.focus;
+  return focus ? { channel: focus.channel, threadId: focus.threadId } : null;
 }
 /** Expiration is a clock boundary, not permission to replay the offline interval. */
 export function readableActivityClock(clock: WorldClock, realNow: string): WorldClock {
