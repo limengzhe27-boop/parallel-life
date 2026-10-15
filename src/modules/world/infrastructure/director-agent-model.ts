@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { actorStateContextPayload } from '../application/agent-state-context.ts';
 import type { TextModel } from '../../ai/application/ports.ts';
 import type { DirectorDecisionModel } from '../application/director-runtime-ports.ts';
 import type {
@@ -176,7 +177,9 @@ function request(snapshot: DirectorSnapshot) {
       persona: legacyPersonaExcerpt(a.persona, '', 1500),
       relationship: a.relationship,
     })),
-    actorStates: snapshot.actorStates,
+    actorStates: snapshot.actorStates.map((state) =>
+      actorStateContextPayload(state, { includeRequestRevisions: true }, invalid),
+    ),
     episodes: snapshot.episodes,
     candidates: snapshot.candidates,
     blockers: snapshot.blockers,

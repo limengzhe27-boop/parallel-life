@@ -3,11 +3,7 @@ import type {
   AgentSnapshot,
   NpcAgentModel as NpcAgentModelPort,
 } from '../application/agent-runtime-ports.ts';
-import type {
-  ActorAgentState,
-  AgentCondition,
-  AgentConversationFocus,
-} from '../domain/agent-runtime.ts';
+import { actorStateContextPayload } from '../application/agent-state-context.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 
@@ -42,123 +38,6 @@ focus可省略、null或{channel:"private|group|scene",threadId,subjectId:字符
 function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
   // Never put source text, identities or raw model output in errors/logs.
   throw Object.assign(Error(code), { code });
-}
-
-function condition(value: AgentCondition): AgentCondition {
-  switch (value.kind) {
-    case 'at_or_after':
-      return { kind: value.kind, at: value.at, sourceId: value.sourceId };
-    case 'result':
-      return { kind: value.kind, actionId: value.actionId, outcome: value.outcome };
-    case 'player_decision':
-      return {
-        kind: value.kind,
-        responsibilityId: value.responsibilityId,
-        decision: value.decision,
-      };
-    case 'at_place':
-      return { kind: value.kind, placeId: value.placeId };
-    case 'observation':
-      return { kind: value.kind, sourceId: value.sourceId };
-    default:
-      return invalid('NPC_AGENT_INVALID_SNAPSHOT');
-  }
-}
-
-function focus(value: AgentConversationFocus | null) {
-  return value === null
-    ? null
-    : {
-        channel: value.channel,
-        threadId: value.threadId,
-        subjectId: value.subjectId,
-        questionSourceId: value.questionSourceId,
-        replyToActorId: value.replyToActorId,
-      };
-}
-
-/** Do not spread server objects into prompts: extra properties are not authorized model input. */
-function statePayload(
-  state: ActorAgentState,
-  privateStrategy: ReadonlySet<string>,
-): ActorAgentState {
-  return {
-    schemaVersion: state.schemaVersion,
-    worldId: state.worldId,
-    actorId: state.actorId,
-    revision: state.revision,
-    projectedWorldVersion: state.projectedWorldVersion,
-    definitionRef: state.definitionRef,
-    knowledgeSourceIds: [...state.knowledgeSourceIds],
-    memoryIds: [...state.memoryIds],
-    relationshipIds: [...state.relationshipIds],
-    goals: state.goals.map((g) => ({
-      id: g.id,
-      summary: g.summary,
-      status: g.status,
-      sourceIds: [...g.sourceIds],
-      resultIds: [...g.resultIds],
-      ...(g.endReason === undefined ? {} : { endReason: g.endReason }),
-    })),
-    plans: state.plans.map((p) => ({
-      id: p.id,
-      goalId: p.goalId,
-      summary: p.summary,
-      status: p.status,
-      sourceIds: [...p.sourceIds],
-      actionIds: [...p.actionIds],
-      nextActionId: p.nextActionId,
-      triggers: p.triggers.map(condition),
-      missingConditions: [...p.missingConditions],
-      ...(p.supersedesPlanId === undefined ? {} : { supersedesPlanId: p.supersedesPlanId }),
-    })),
-    actions: state.actions.map((a) => ({
-      id: a.id,
-      goalId: a.goalId,
-      capability: a.capability,
-      targetIds: [...a.targetIds],
-      parameters: Object.fromEntries(
-        Object.entries(a.parameters).map(([key, value]) => {
-          if (Array.isArray(value) && value.every((item) => typeof item === 'string'))
-            return [key, [...value]];
-          if (
-            value === null ||
-            typeof value === 'string' ||
-            typeof value === 'boolean' ||
-            (typeof value === 'number' && Number.isFinite(value))
-          )
-            return [key, value];
-          return invalid('NPC_AGENT_INVALID_SNAPSHOT');
-        }),
-      ),
-      preconditions: a.preconditions.map(condition),
-      dependsOnActionIds: [...a.dependsOnActionIds],
-      handlesResponsibilityIds: [...a.handlesResponsibilityIds],
-      sourceIds: [...a.sourceIds],
-      status: a.status,
-      ...(a.resultId === undefined ? {} : { resultId: a.resultId }),
-    })),
-    responsibilities: state.responsibilities.map((r) => ({
-      id: r.id,
-      subject: { kind: r.subject.kind, id: r.subject.id },
-      summary: r.summary,
-      status: r.status,
-      waitingOn: r.waitingOn,
-      sourceIds: [...r.sourceIds],
-      nextCheck: r.nextCheck.map(condition),
-      ...(r.deadline ? { deadline: { at: r.deadline.at, sourceId: r.deadline.sourceId } } : {}),
-      ...(r.resolutionResultId === undefined ? {} : { resolutionResultId: r.resolutionResultId }),
-      ...(r.endReason === undefined ? {} : { endReason: r.endReason }),
-    })),
-    decisions: state.decisions.map((d) => ({
-      id: d.id,
-      responsibilityId: d.responsibilityId,
-      kind: d.kind,
-      sourceId: d.sourceId,
-      quote: privateStrategy.has(d.sourceId) ? '' : d.quote,
-    })),
-    focus: focus(state.focus),
-  };
 }
 
 function prepare(snapshot: AgentSnapshot): ModelMessage[] {
@@ -247,9 +126,14 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     invalid('NPC_AGENT_INVALID_SNAPSHOT');
   const payload = {
     promptVersion: NPC_AGENT_PROMPT_VERSION,
-    state: statePayload(
+    state: actorStateContextPayload(
       viewState,
-      new Set(snapshot.sources.filter((s) => s.usage === 'private_strategy').map((s) => s.id)),
+      {
+        privateStrategySourceIds: new Set(
+          snapshot.sources.filter((s) => s.usage === 'private_strategy').map((s) => s.id),
+        ),
+      },
+      () => invalid('NPC_AGENT_INVALID_SNAPSHOT'),
     ),
     worldVersion: snapshot.worldVersion,
     storyAt: snapshot.storyAt,

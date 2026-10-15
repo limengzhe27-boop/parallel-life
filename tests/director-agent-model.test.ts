@@ -388,7 +388,7 @@ test('model adapter performs input preflight without spending, uses JSON output 
   assert.match(calls[0]!.messages[0]!.content, /quiet是正常决定/);
   assert.match(calls[0]!.messages[0]!.content, /全局audit只供导演审计/);
 });
-test('director request contains only authorized fictional fields; unexpected real profile/interview top-level data is omitted', async () => {
+test('director request whitelists fictional fields at the root and inside persistent actor state', async () => {
   const f = fixture(),
     sent: ModelMessage[][] = [];
   const model: TextModel = {
@@ -402,14 +402,45 @@ test('director request contains only authorized fictional fields; unexpected rea
     profile: { full: 'REAL_PROFILE_SENTINEL' },
     interviewTranscript: 'REAL_PRIVATE_INTERVIEW_SENTINEL',
   };
+  const state = snapshot.actorStates[0]!;
+  Object.assign(state, { privateProfile: 'NESTED_REAL_PROFILE_SENTINEL' });
+  state.goals.push({
+    id: 'g',
+    summary: '已授权目标',
+    status: 'active',
+    sourceIds: ['a-source'],
+    resultIds: [],
+  });
+  Object.assign(state.goals[0]!, { interview: 'NESTED_PRIVATE_INTERVIEW_SENTINEL' });
+  state.responsibilities.push({
+    id: 'r',
+    revision: 0,
+    subject: { kind: 'request', id: 'request' },
+    summary: '原请求',
+    status: 'open',
+    waitingOn: 'player',
+    sourceIds: ['a-source'],
+    nextCheck: [],
+  });
+  state.decisions.push({
+    id: 'd',
+    responsibilityId: 'r',
+    responsibilityRevision: 0,
+    kind: 'deferred',
+    sourceId: 'a-source',
+    quote: '稍后决定',
+  });
   await new WorldDirectorAgentModel(model).decide(snapshot);
   assert.doesNotMatch(
     JSON.stringify(sent),
-    /REAL_PROFILE_SENTINEL|REAL_PRIVATE_INTERVIEW_SENTINEL/,
+    /REAL_PROFILE_SENTINEL|REAL_PRIVATE_INTERVIEW_SENTINEL|NESTED_PRIVATE_INTERVIEW_SENTINEL/,
   );
   const payload = JSON.parse(sent[0]![1]!.content);
   assert.deepEqual(payload.cast, f.snapshot.cast);
   assert.equal(payload.worldSetting, f.snapshot.worldSetting);
+  assert.equal(payload.actorStates[0].responsibilities[0].revision, 0);
+  assert.equal(payload.actorStates[0].decisions[0].responsibilityRevision, 0);
+  assert.equal(payload.actorStates[0].decisions[0].quote, '稍后决定');
   // Fictional director-only knowledge is expected here; it is not an NPC payload.
   assert.match(sent[0]![1]!.content, /DIRECTOR_PRIVATE_B/);
 });
