@@ -258,7 +258,7 @@ export class WorldTurnPlanner implements TurnPlanner {
               ? '\n【本轮邀约输出】storyOpportunity是此刻唯一合法候选，不是已赴约事实。根据本人性格决定邀请或拒绝。若邀请：一次提出明确日期和时间，effects同时包含本人message.received及{type:"appointment.proposed",id:"invite_1",title:storyOpportunity.title,at:"实际提议时间的UTC带毫秒时刻",participantIds:[storyOpportunity.actorId]}。title逐字一致。正文按UTC+08说同一时刻；at晚于nowUtc且不早于earliestAtUtc。proposed只是未答应的邀请，不是强制用户确认，不是已见面。不要只问有空吗却省略日程，也不要仅输出说明文字。若拒绝/暂不能约：只给本人真实回复，不生成日程。'
               : '') +
             (eventGoalKeys.length
-              ? '\n【本人当前目标】eventGoals仅含本人目标。phase/status/participation属于自己；sharedEventPhase仅是同一事件的调度阶段，不说明其他人做了什么。本人withdrawn/fulfilled或nextMove=finished时，旧want只作历史，不重提请求；本人deferred或participation=declined时不再催问这次请求。先回答当前话；玩家问接下来怎么安排时，结合已知条件提出一个此前尚未说过、本人可做的小安排，用计划口吻，不编造已完成成果或新危机；已结束请求只确认一次，后续不再复述上一句拒绝确认，不用空泛的“知道了、我自己安排、有需要联系我”循环。可以自然谈眼前话题；没有新消息不编造进展。nextMove=wait仅限制主动催问，玩家当前说话仍要回应。已resolved不评reopened；新约定由运行时建立新goal。通常一两句，保留本人语气、具体对象和能力边界，不暴露幕后字段。\n【可选进度标注】JSON另加eventGoalAssessments数组，无依据时[]。每项只用goalKey、target、kind、source；仅kind=closure再加closure。source明确选择当前来源，不填写quote或来源ID：玩家本轮真实说话用source=current_user、target=user，kind可engaged/declined/reopened/unrelated；导演轮没有玩家发言，禁止current_user。本人本轮唯一一条message.received用source=current_reply、target=npc，kind可npc_progress/nudge/closure；多条回复不标注。服务端绑定该原文，不让你抄写或改写引用。closure只在本人本轮真实结束请求时填withdrawn/alternative/unresolved，其他kind省略closure，不能为null。kind是对此次原话的判断，不是用户已经行动或完成。拒绝应标declined，明确加入/协作应标engaged，换话题可unrelated；不把提问/假设当同意。npc_progress必须有具体新提议或变化，重复确认/泛泛问候不是进展。每goal/target最多1条，共最多8条，仅当前goalKey，不输出complete/fulfilled/missed/status/reason/actorId。示例{"goalKey":"当前实际goalKey","target":"user","kind":"declined","source":"current_user"}；不要求编造判断或每轮关闭目标。保留完整JSON：' +
+              ? '\n【本人当前目标】eventGoals仅含本人目标。phase/status/participation属于自己；sharedEventPhase仅是同一事件的调度阶段，不说明其他人做了什么。本人withdrawn/fulfilled或nextMove=finished时，旧want只作历史，不重提请求；本人deferred或participation=declined时不再催问这次请求。先回答当前话；玩家问接下来怎么安排时，结合已知条件提出一个此前尚未说过、本人可做的小安排，用计划口吻，不编造已完成成果或新危机；已结束请求只确认一次，后续不再复述上一句拒绝确认，不用空泛的“知道了、我自己安排、有需要联系我”循环。可以自然谈眼前话题；没有新消息不编造进展。nextMove=wait仅限制主动催问，玩家当前说话仍要回应。已resolved不评reopened；新约定由运行时建立新goal。通常一两句，保留本人语气、具体对象和能力边界，不暴露幕后字段。\n【本轮立场判断】有未结束的本人goal且本轮是玩家真实输入时，必须交回eventGoalAssessments数组，至少对每个当前goal给出一次target=user的立场判断：明确加入用engaged，明确拒绝用declined，确实重启原请求才用reopened，其余提问/假设/不确定用unrelated，不猜同意。导演轮没有玩家输入，不做user判断；本人没有具体新动作时不填npc项。每项只用goalKey、target、kind、source；仅kind=closure再加closure。source明确选择当前来源，不填写quote或来源ID：玩家本轮真实说话用source=current_user、target=user，kind可engaged/declined/reopened/unrelated；导演轮没有玩家发言，禁止current_user。本人本轮唯一一条message.received用source=current_reply、target=npc，kind可npc_progress/nudge/closure；多条回复不标注。服务端绑定该原文，不让你抄写或改写引用。closure只在本人本轮真实结束请求时填withdrawn/alternative/unresolved，其他kind省略closure，不能为null。kind是对此次原话的判断，不是用户已经行动或完成。拒绝应标declined，明确加入/协作应标engaged，换话题可unrelated；不把提问/假设当同意。npc_progress必须有具体新提议或变化，重复确认/泛泛问候不是进展。每goal/target最多1条，共最多8条，仅当前goalKey，不输出complete/fulfilled/missed/status/reason/actorId。示例{"goalKey":"当前实际goalKey","target":"user","kind":"declined","source":"current_user"}；不要求编造判断或每轮关闭目标。保留完整JSON：' +
                 JSON.stringify({
                   schemaVersion: 1,
                   effects: [
@@ -269,7 +269,18 @@ export class WorldTurnPlanner implements TurnPlanner {
                       text: '本人当前自然回复',
                     },
                   ],
-                  eventGoalAssessments: [],
+                  eventGoalAssessments:
+                    context.turnOrigin !== 'director' &&
+                    eventGoals.some((g) => g.phase !== 'resolved')
+                      ? eventGoals
+                          .filter((g) => g.phase !== 'resolved')
+                          .map((g) => ({
+                            goalKey: g.goalKey,
+                            target: 'user',
+                            kind: 'unrelated',
+                            source: 'current_user',
+                          }))
+                      : [],
                 })
               : ''),
         },
@@ -285,7 +296,9 @@ export class WorldTurnPlanner implements TurnPlanner {
             },
             actor: context.actor,
             ...(context.actorSituation ? { currentSituation: context.actorSituation } : {}),
-            ...(eventGoals.length ? { eventGoals } : {}),
+            ...(eventGoals.length
+              ? { eventGoals: eventGoals.map(({ source: _source, ...own }) => own) }
+              : {}),
             ...(introducingEventGoalKey ? { introducingEventGoalKey } : {}),
             engagement: actorEngagementBrief(context),
             ...(context.authoredLifeModules
@@ -375,6 +388,18 @@ export class WorldTurnPlanner implements TurnPlanner {
       }>;
     } | null;
 
+    console.info(
+      JSON.stringify({
+        planner: 'actor_goal_shape',
+        goalCount: eventGoals.length,
+        introducing: Boolean(introducingEventGoalKey),
+        structured: Boolean(parsed && Array.isArray(parsed.effects)),
+        hasAssessments: Boolean(parsed && Object.hasOwn(parsed, 'eventGoalAssessments')),
+        assessmentCount: Array.isArray(parsed?.eventGoalAssessments)
+          ? parsed.eventGoalAssessments.length
+          : null,
+      }),
+    );
     if (parsed && Array.isArray(parsed.effects) && parsed.effects.length > 0) {
       const sourceReplyTexts = parsed.effects
         .filter(
