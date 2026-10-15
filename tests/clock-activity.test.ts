@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   activityMode,
+  appointmentDeadline,
   readableActivityClock,
   validateClockActivity,
 } from '../src/modules/world/domain/clock-activity.ts';
@@ -59,5 +60,15 @@ test('activity sequence and client IDs reject malformed inputs before storage', 
     );
   assert.throws(() =>
     validateClockActivity({ clientId: 'not-a-client', sequence: 0, mode: 'browsing' }),
+  );
+});
+
+test('a five-minute confirmed appointment caps twelve-speed browsing at twenty-five real seconds', () => {
+  const appointments = [{ at: '2026-10-15T00:05:00Z', status: 'confirmed' }];
+  assert.equal(appointmentDeadline(base, appointments), '2026-10-15T00:00:25.000Z');
+  assert.equal(appointmentDeadline(base, [{ ...appointments[0]!, status: 'cancelled' }]), null);
+  assert.equal(
+    appointmentDeadline({ ...base, storyNow: '2026-10-15T00:05:00Z' }, appointments),
+    null,
   );
 });

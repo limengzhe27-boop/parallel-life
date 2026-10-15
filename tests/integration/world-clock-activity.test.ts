@@ -10,6 +10,7 @@ import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock
 import {
   PostgresClockActivityRepository,
   updateClockActivity,
+  capClockAtNextAppointment,
 } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
 import { advanceWorld } from '../../src/modules/world/application/advance-world.ts';
 import { projectStoryTime } from '../../src/modules/world/domain/clock.ts';
@@ -37,6 +38,16 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
     worldId = randomUUID(),
     a = randomUUID(),
     b = randomUUID();
+  // Explicit authored-genesis fixture: insert its immutable snapshot once with appointments.
+  async function initializeCalendarFixture(
+    session: { userId: string },
+    state: Record<string, unknown>,
+  ) {
+    await admin.query(
+      'INSERT INTO parallel_life.worlds(id,owner_id,title,state) VALUES($1,$2,$3,$4)',
+      [state.id, session.userId, state.title, state],
+    );
+  }
   const at = (seconds: number) =>
     new Date(Date.parse('2026-10-15T00:00:00Z') + seconds * 1000).toISOString();
   try {
@@ -371,6 +382,183 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           { clientId: fresh, sequence: 1, mode: 'browsing' },
           at(483),
         );
+      },
+    );
+    await t.test(
+      'normal browsing freezes at confirmed appointments and only explicit continue crosses the unchanged instant',
+      async () => {
+        const testWorld = randomUUID(),
+          tab = randomUUID(),
+          actor = randomUUID(),
+          appointmentId = 'fixed_appointment';
+        const appointment = {
+          id: appointmentId,
+          title: '合成约定',
+          at: at(300),
+          status: 'confirmed',
+          participantIds: [actor],
+          sourceEventId: randomUUID(),
+        };
+        await initializeCalendarFixture(
+          { userId: owner },
+          {
+            schemaVersion: 1,
+            id: testWorld,
+            ownerId: owner,
+            version: 0,
+            title: '边界合成',
+            time: at(0),
+            actors: [{ id: actor, name: '合成人物', persona: '合成' }],
+            facts: [],
+            messages: [],
+            appointments: [],
+            mediaRequests: [],
+          },
+        );
+        try {
+          await admin.query(
+            "INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) SELECT id,owner_id,jsonb_set(state,'{appointments}',$2::jsonb),'{}'::jsonb FROM parallel_life.worlds WHERE id=$1",
+            [testWorld, JSON.stringify([appointment])],
+          );
+          const first = await activity.update(
+            owner,
+            testWorld,
+            { clientId: tab, sequence: 0, mode: 'browsing' },
+            at(0),
+          );
+          assert.equal(first.activeUntil, at(25));
+          const renewal = await activity.update(
+            owner,
+            testWorld,
+            { clientId: tab, sequence: 1, mode: 'browsing' },
+            at(15),
+          );
+          assert.equal(renewal.activeUntil, at(25));
+          const due = await clock.read(owner, testWorld, at(26));
+          assert.equal(due.paused, true);
+          assert.equal(due.storyNow, at(300));
+          const still = await activity.update(
+            owner,
+            testWorld,
+            { clientId: tab, sequence: 2, mode: 'browsing' },
+            at(30),
+          );
+          assert.equal(still.paused, true);
+          assert.equal(still.storyNow, at(300));
+          const resumed = await activity.update(
+            owner,
+            testWorld,
+            { clientId: tab, sequence: 3, mode: 'browsing', resume: true },
+            at(40),
+          );
+          assert.equal(resumed.paused, false);
+          assert.equal(projectStoryTime(resumed, at(45)), at(360));
+          const initial = (
+            await admin.query(
+              'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+              [testWorld],
+            )
+          ).rows[0].state;
+          assert.deepEqual(initial.appointments, [appointment]);
+          // Root calls this helper inside a committed invitation transaction. It only shrinks deadlines.
+          await clock.write(owner, testWorld, {
+            storyNow: at(0),
+            lastTickAt: at(0),
+            speed: 12,
+            paused: false,
+            missedBeats: 0,
+            summary: null,
+          });
+          await db.transaction(owner, (sql) =>
+            capClockAtNextAppointment(sql, owner, testWorld, at(10)),
+          );
+          assert.equal((await clock.read(owner, testWorld, at(10))).activeUntil, at(25));
+          // The tab lease is still live: explicit continue must also rebase a raw expired boundary,
+          // without needing a preceding heartbeat to persist paused=true.
+          const directContinue = await activity.update(
+            owner,
+            testWorld,
+            { clientId: tab, sequence: 4, mode: 'browsing', resume: true },
+            at(30),
+          );
+          assert.equal(directContinue.paused, false);
+          assert.equal(directContinue.storyNow, at(300));
+          assert.equal(directContinue.lastTickAt, at(30));
+          assert.equal(directContinue.activeUntil, at(75));
+        } finally {
+          await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [
+            testWorld,
+          ]);
+          await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=$1', [testWorld]);
+          await admin.query('DELETE FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
+            testWorld,
+          ]);
+          await admin.query('DELETE FROM parallel_life.worlds WHERE id=$1', [testWorld]);
+        }
+      },
+    );
+    await t.test(
+      'a saved invitation cancellation overrides an initial confirmed appointment',
+      async () => {
+        const testWorld = randomUUID(),
+          actor = randomUUID();
+        await initializeCalendarFixture(
+          { userId: owner },
+          {
+            schemaVersion: 1,
+            id: testWorld,
+            ownerId: owner,
+            version: 0,
+            title: '取消边界合成',
+            time: at(0),
+            actors: [{ id: actor, name: '合成人物', persona: '合成' }],
+            facts: [],
+            messages: [],
+            appointments: [],
+            mediaRequests: [],
+          },
+        );
+        try {
+          await admin.query(
+            "INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) SELECT id,owner_id,jsonb_set(state,'{appointments}',$2::jsonb),'{}'::jsonb FROM parallel_life.worlds WHERE id=$1",
+            [
+              testWorld,
+              JSON.stringify([
+                {
+                  id: 'cancelled_appointment',
+                  title: '合成约定',
+                  at: at(300),
+                  status: 'confirmed',
+                  participantIds: [actor],
+                  sourceEventId: randomUUID(),
+                },
+              ]),
+            ],
+          );
+          await worlds.respondToInvitation(
+            { userId: owner },
+            {
+              commandId: randomUUID(),
+              worldId: testWorld,
+              id: 'cancelled_appointment',
+              expectedVersion: 0,
+              operation: 'cancel',
+            },
+          );
+          const next = await activity.update(
+            owner,
+            testWorld,
+            { clientId: randomUUID(), sequence: 0, mode: 'browsing' },
+            at(0),
+          );
+          assert.equal(next.activeUntil, at(45));
+        } finally {
+          await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [
+            testWorld,
+          ]);
+          await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=$1', [testWorld]);
+          await admin.query('DELETE FROM parallel_life.worlds WHERE id=$1', [testWorld]);
+        }
       },
     );
   } finally {

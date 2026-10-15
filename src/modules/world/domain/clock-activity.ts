@@ -54,3 +54,26 @@ export function activityMode(leases: readonly ClockActivityLease[], realNow: str
       : null,
   };
 }
+
+/** A confirmed calendar instant is a stopping boundary, never evidence of attendance. */
+export function appointmentDeadline(
+  clock: WorldClock,
+  appointments: readonly { at: string; status?: string }[],
+  afterStoryAt = clock.storyNow,
+): string | null {
+  if (!clock.managed || clock.paused || clock.speed <= 0) return null;
+  const boundary = Math.min(
+    ...appointments
+      .filter(
+        (a) =>
+          a.status === 'confirmed' &&
+          Number.isFinite(Date.parse(a.at)) &&
+          Date.parse(a.at) > Date.parse(afterStoryAt),
+      )
+      .map((a) => Date.parse(a.at)),
+  );
+  if (!Number.isFinite(boundary)) return null;
+  return new Date(
+    Date.parse(clock.lastTickAt) + (boundary - Date.parse(clock.storyNow)) / clock.speed,
+  ).toISOString();
+}
