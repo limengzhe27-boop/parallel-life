@@ -225,7 +225,11 @@ test('narrative admission, actor requests and actual participation receipts', as
     await actors.accept(f.owner, input);
     return input;
   }
-  async function execution(f: Fixture, input: AgentInputReceipt) {
+  async function execution(
+    f: Fixture,
+    input: AgentInputReceipt,
+    bypassReaderWith?: AgentInputReceipt,
+  ) {
     const world = await worlds.get({ userId: f.owner }, f.worldId);
     const state = (await actors.read(f.owner, {
       worldId: f.worldId,
@@ -236,10 +240,26 @@ test('narrative admission, actor requests and actual participation receipts', as
       f.owner,
       world,
       state.actorId,
-      input,
+      bypassReaderWith ?? input,
       world.time,
       state,
     );
+    if (bypassReaderWith) {
+      // Deliberate internal bypass: product loading must reject this input earlier.
+      // Retain an independent actual-kernel test against a forged caller snapshot.
+      snapshot.input = { sourceId: input.id, text: input.text, origin: input.origin };
+      snapshot.sources = snapshot.sources.map((source) =>
+        source.id === bypassReaderWith.id
+          ? {
+              ...source,
+              id: input.id,
+              recordId: input.id,
+              at: input.storyAt,
+              worldVersion: input.expectedWorldVersion,
+            }
+          : source,
+      );
+    }
     const claim = {
       id: randomUUID(),
       worldId: f.worldId,
@@ -717,8 +737,9 @@ test('narrative admission, actor requests and actual participation receipts', as
       const f = await fixture(),
         o = await opportunity(f),
         r = o.requests[0]!;
-      const typed = await accept(f, r, {}, { requestId: randomUUID() }),
-        ex = await execution(f, typed);
+      const typed = await accept(f, r, {}, { requestId: randomUUID() });
+      await assert.rejects(execution(f, typed), { code: 'INPUT_SCOPE_FORBIDDEN' });
+      const ex = await execution(f, typed, await accept(f, r));
       await assert.rejects(
         runNpcAgent(
           {
@@ -951,8 +972,9 @@ test('narrative admission, actor requests and actual participation receipts', as
         const f = await fixture(),
           o = await opportunity(f),
           r = o.requests[0]!;
-        const input = await accept(f, r, {}, changed),
-          ex = await execution(f, input);
+        const input = await accept(f, r, {}, changed);
+        await assert.rejects(execution(f, input), /INVALID_NARRATIVE_BASIS/);
+        const ex = await execution(f, input, await accept(f, r));
         let callbacks = 0;
         const tested = new PostgresNpcAgentKernel(db, worlds, async () => {
           callbacks++;

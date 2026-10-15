@@ -19,7 +19,10 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
 import { NPC_AGENT_CAPABILITIES } from '../domain/agent-capabilities.ts';
 import { isEpisodeConsiderationInput } from './agent-episode-attention.ts';
-import { parseEpisodeConsiderationIntent } from './agent-narrative-repository.ts';
+import {
+  parseEpisodeConsiderationIntent,
+  validateEpisodeConsiderationInputInTransaction,
+} from './agent-narrative-repository.ts';
 import { readActorEpisodeIntentsInTransaction } from './actor-episode-intent-repository.ts';
 
 export function agentDefinitionRef(
@@ -434,8 +437,9 @@ export async function readPrivateAgentSnapshot(
   });
   if (input && isEpisodeConsiderationInput(input)) {
     const intent = parseEpisodeConsiderationIntent(input.text);
-    const views = await db.transaction(ownerId, (sql) =>
-      readActorEpisodeIntentsInTransaction(
+    const views = await db.transaction(ownerId, async (sql) => {
+      await validateEpisodeConsiderationInputInTransaction(sql, ownerId, input, definitionRef);
+      return readActorEpisodeIntentsInTransaction(
         sql,
         ownerId,
         {
@@ -445,8 +449,8 @@ export async function readPrivateAgentSnapshot(
           storyAt,
         },
         [intent.requestId],
-      ),
-    );
+      );
+    });
     if (!views.has(intent.requestId))
       throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
     const view = views.get(intent.requestId);

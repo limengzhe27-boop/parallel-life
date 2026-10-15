@@ -316,6 +316,36 @@ function checkedInput(body: AgentInputReceipt, r: AgentEpisodeRequest, definitio
     invalid();
   return intent;
 }
+/** Same request/body authority used before source delivery and by final projection. Read only. */
+export async function validateEpisodeConsiderationInputInTransaction(
+  sql: SqlClient,
+  owner: string,
+  body: AgentInputReceipt,
+  definitionRef: string,
+) {
+  const w = await frame(sql, owner, body.worldId);
+  const intent = parseEpisodeConsiderationIntent(body.text);
+  const row = (
+    await sql.query(
+      'SELECT * FROM parallel_life.agent_episode_requests WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+      [body.worldId, owner, intent.requestId],
+    )
+  ).rows[0];
+  if (!row) throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
+  const r = request(row);
+  epoch(w.epoch, r.engineEpoch);
+  if (r.createdAtVersion > body.expectedWorldVersion || body.expectedWorldVersion > w.version)
+    invalid();
+  const saved = (
+    await sql.query(
+      'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+      [body.worldId, owner, body.id],
+    )
+  ).rows[0]?.document;
+  if (!isDeepStrictEqual(saved, body)) invalid();
+  checkedInput(body, r, definitionRef);
+  return r;
+}
 /** Final internal step only: receipt and consumed request must commit together (deferred SQL FK). */
 async function consumeEpisodeRequestInTransaction(
   sql: SqlClient,
