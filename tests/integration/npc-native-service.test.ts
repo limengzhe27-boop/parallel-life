@@ -22,7 +22,10 @@ import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgr
 import { TaskRepository } from '../../src/modules/tasks/infrastructure/task-repository.ts';
 import { runOne } from '../../src/modules/tasks/application/run-worker.ts';
 import { worldTaskDispatcher } from '../../src/server/world-task-dispatcher.ts';
-import { nativeNpcTaskHandler } from '../../src/server/npc-agent-channel-services.ts';
+import {
+  nativeNpcTaskHandler,
+  nativeAgentCommandId,
+} from '../../src/server/npc-agent-channel-services.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import { GroupClient } from '../../src/features/phone/groups/client.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
@@ -290,7 +293,11 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
       assert.equal(nativeCalls, 1);
       assert.equal(legacyCalls, 0);
       assert.equal(failureFinalizers, 0);
-      const attempt = await store.lookup(f.owner, f.worldId, `agent:${first.task.id}:${f.a}`);
+      const attempt = await store.lookup(
+        f.owner,
+        f.worldId,
+        nativeAgentCommandId(first.task.id, f.a),
+      );
       assert.equal(attempt?.status, 'committed');
       assert.equal(attempt?.inputReceiptId, inputReceipt.id);
       const state = (await store.read(f.owner, { worldId: f.worldId, actorId: f.a }))!;
@@ -332,11 +339,20 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
           (m) => m.sender.kind === 'actor' && m.text === '好，那就先随意聊聊。',
         ),
       );
+      const finalState = (await store.read(f.owner, { worldId: f.worldId, actorId: f.a }))!;
+      const originalDecision = finalState.decisions.find((d) => d.id === 'private-decline')!;
+      assert.equal(originalDecision.kind, 'declined');
       assert.equal(
-        (await store.read(f.owner, { worldId: f.worldId, actorId: f.a }))!.decisions.find(
-          (d) => d.id === 'private-decline',
-        )!.kind,
-        'declined',
+        originalDecision.quote,
+        privateQuote,
+        'canonical private evidence is not erased',
+      );
+      assert.equal(finalState.goals.find((g) => g.id === 'private-goal')!.status, 'active');
+      assert.equal(finalState.plans.find((p) => p.id === 'private-plan')!.status, 'waiting');
+      assert.equal(
+        finalState.focus?.questionSourceId,
+        null,
+        'the actual answer closes the question',
       );
     },
   );
@@ -378,7 +394,8 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
       assert.equal(calls, 1);
       assert.equal((await tasks.get(f.owner, accepted.task.id)).status, 'unknown');
       assert.equal(
-        (await store.lookup(f.owner, f.worldId, `agent:${accepted.task.id}:${f.a}`))!.status,
+        (await store.lookup(f.owner, f.worldId, nativeAgentCommandId(accepted.task.id, f.a)))!
+          .status,
         'unknown_after_send',
       );
       assert.equal((await groups.send(f.owner, command)).task.id, accepted.task.id);
@@ -423,7 +440,8 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
     async () => {
       const f = await fixture();
       let calls = 0,
-        legacyCalls = 0;
+        legacyCalls = 0,
+        failureMessage = '';
       const current = await worlds.get({ userId: f.owner }, f.worldId);
       const accepted = await groups.send(f.owner, {
         worldId: f.worldId,
@@ -453,17 +471,28 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
           renew: (lease) => queue.renew(lease),
           finish: (lease, outcome) => queue.finish(lease, outcome),
         },
-        { world: dispatcher },
+        {
+          world: async (lease, signal) => {
+            try {
+              await dispatcher(lease, signal);
+            } catch (error) {
+              failureMessage = error instanceof Error ? error.message : '';
+              throw error;
+            }
+          },
+        },
       );
       assert.equal((await tasks.get(f.owner, accepted.task.id)).status, 'failed');
+      assert.equal((await tasks.get(f.owner, accepted.task.id)).errorCode, 'INVALID_COMMAND');
+      assert.equal(failureMessage, 'DIRECTOR_COORDINATION_REQUIRED');
       assert.equal(calls, 0);
       assert.equal(legacyCalls, 0);
       assert.equal(
-        await store.lookup(f.owner, f.worldId, `agent:${accepted.task.id}:${f.a}`),
+        await store.lookup(f.owner, f.worldId, nativeAgentCommandId(accepted.task.id, f.a)),
         null,
       );
       assert.equal(
-        await store.lookup(f.owner, f.worldId, `agent:${accepted.task.id}:${f.b}`),
+        await store.lookup(f.owner, f.worldId, nativeAgentCommandId(accepted.task.id, f.b)),
         null,
       );
     },
