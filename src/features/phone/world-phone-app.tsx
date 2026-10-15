@@ -103,6 +103,12 @@ export function WorldPhoneApp({
     retryCommand = useRef<{ taskId: string; id: string } | null>(null);
   const directorCheck = useRef<() => void>(() => {});
   const directorInFlight = useRef(false);
+  const openingEpoch = useRef({ worldId, token: {} });
+  if (openingEpoch.current.worldId !== worldId) {
+    openingEpoch.current = { worldId, token: {} };
+    directorInFlight.current = false;
+  }
+  const observedOpening = useRef<{ worldId: string; delivered: number } | null>(null);
   const openingFinished = useRef<string | null>(null);
   const lastBackgroundCheck = useRef(0);
   const [opening, setOpening] = useState<PublicOpeningStatus | null>(null);
@@ -396,6 +402,16 @@ export function WorldPhoneApp({
   }, [load]);
   useEffect(() => {
     let active = true;
+    const epoch = openingEpoch.current.token;
+    const isCurrent = () => active && openingEpoch.current.token === epoch;
+    const canAdvance = () =>
+      isCurrent() &&
+      document.visibilityState === 'visible' &&
+      phoneReady.current.hasData &&
+      !phoneReady.current.refreshing &&
+      !phoneReady.current.sending;
+    setOpening(null);
+    setOpeningWorking(false);
     async function checkForWorldNews() {
       if (
         !automatic ||
@@ -426,8 +442,18 @@ export function WorldPhoneApp({
           return;
         if (openingFinished.current !== worldId) {
           const current = await client.readWorldOpening(worldId);
-          if (!active) return;
+          if (!isCurrent()) return;
           setOpening(current);
+          const previouslyObserved = observedOpening.current;
+          observedOpening.current = { worldId, delivered: current.delivered };
+          if (
+            current.delivered > 0 &&
+            (previouslyObserved?.worldId !== worldId ||
+              current.delivered > previouslyObserved.delivered)
+          ) {
+            await load();
+          }
+          if (!canAdvance()) return;
           if (['none', 'complete'].includes(current.phase)) {
             openingFinished.current = worldId;
           } else {
@@ -439,10 +465,16 @@ export function WorldPhoneApp({
               return;
             setOpeningWorking(true);
             const next = await client.advanceWorldOpening(worldId);
-            if (active) {
+            if (isCurrent()) {
               setOpening(next.opening);
-              if (next.played > 0) await load();
-              if (next.opening.phase === 'complete') openingFinished.current = worldId;
+              const previous = observedOpening.current;
+              const hasNewMessages =
+                next.opening.delivered > 0 &&
+                (previous?.worldId !== worldId || next.opening.delivered > previous.delivered);
+              observedOpening.current = { worldId, delivered: next.opening.delivered };
+              if (next.played > 0 || hasNewMessages) await load();
+              if (isCurrent() && next.opening.phase === 'complete')
+                openingFinished.current = worldId;
             }
             return;
           }
@@ -488,8 +520,10 @@ export function WorldPhoneApp({
         if (active && advancing)
           setError('这次世界后续没有完成。已保存的记录仍在，可以继续查看手机中的来信和日程。');
       } finally {
-        directorInFlight.current = false;
-        if (active) setOpeningWorking(false);
+        if (openingEpoch.current.token === epoch) {
+          directorInFlight.current = false;
+          if (active) setOpeningWorking(false);
+        }
       }
     }
     directorCheck.current = () => void checkForWorldNews();
@@ -507,7 +541,7 @@ export function WorldPhoneApp({
   return (
     <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />
-      {data && opening && !['none', 'complete'].includes(opening.phase) && (
+      {data?.id === worldId && opening && !['none', 'complete'].includes(opening.phase) && (
         <div
           role="status"
           aria-live="polite"
@@ -524,8 +558,10 @@ export function WorldPhoneApp({
           }}
         >
           <span>
-            {opening.retryable && !openingWorking ? '有条新消息未能收到' : '正在接收新消息'} ·{' '}
-            {opening.delivered}/{opening.total}
+            {opening.phase === 'unknown' && !openingWorking
+              ? '有条新消息未能收到'
+              : '正在接收新消息'}{' '}
+            · {opening.delivered}/{opening.total}
           </span>
           {opening.retryable && (
             <button
@@ -533,20 +569,37 @@ export function WorldPhoneApp({
               disabled={openingWorking}
               style={{ border: 0, background: 'none', color: 'inherit', font: 'inherit' }}
               onClick={async () => {
-                if (directorInFlight.current || phoneReady.current.sending) return;
+                if (
+                  directorInFlight.current ||
+                  phoneReady.current.sending ||
+                  phoneReady.current.refreshing ||
+                  !phoneReady.current.hasData
+                )
+                  return;
+                const epoch = openingEpoch.current.token;
                 directorInFlight.current = true;
                 setOpeningWorking(true);
                 try {
                   const next = await client.advanceWorldOpening(worldId, true);
+                  if (openingEpoch.current.token !== epoch) return;
                   setOpening(next.opening);
-                  if (next.played > 0) await load();
+                  const previous = observedOpening.current;
+                  const hasNewMessages =
+                    next.opening.delivered > 0 &&
+                    (previous?.worldId !== worldId || next.opening.delivered > previous.delivered);
+                  observedOpening.current = { worldId, delivered: next.opening.delivered };
+                  if (next.opening.phase === 'complete') openingFinished.current = worldId;
+                  if (next.played > 0 || hasNewMessages) await load();
                 } catch {
+                  if (openingEpoch.current.token !== epoch) return;
                   setOpening((current) =>
                     current ? { ...current, phase: 'unknown', retryable: true } : current,
                   );
                 } finally {
-                  directorInFlight.current = false;
-                  setOpeningWorking(false);
+                  if (openingEpoch.current.token === epoch) {
+                    directorInFlight.current = false;
+                    setOpeningWorking(false);
+                  }
                 }
               }}
             >
