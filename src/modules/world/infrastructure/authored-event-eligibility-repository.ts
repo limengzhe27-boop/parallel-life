@@ -7,7 +7,10 @@ import {
 } from '../../settings/domain/publication-story.ts';
 import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
-import type { AuthoredAgentMaterialCatalog } from '../domain/authored-agent-material.ts';
+import {
+  AuthoredMaterialError,
+  type AuthoredAgentMaterialCatalog,
+} from '../domain/authored-agent-material.ts';
 import {
   evaluateAuthoredEventEligibility,
   type AuthoredEligibilityEvidence,
@@ -43,7 +46,7 @@ export async function readAuthoredEligibilityInTransaction(
     expectedWorldVersion: input.worldVersion,
   });
   if (material.status !== 'complete')
-    throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_AUTHORED_MATERIAL_BUDGET');
+    throw new AuthoredMaterialError('DIRECTOR_AUTHORED_MATERIAL_BUDGET');
   const catalog = material.catalog;
   if (!catalog.source) return { catalog, eligibility: [], occupiedEventKeys: [] };
   const row = (

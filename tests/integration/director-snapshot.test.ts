@@ -742,8 +742,10 @@ test('real director snapshot is one coherent readonly fictional-world view with 
             [f.worldId],
           ),
         ),
-        /permission denied/,
+        /INVALID_EPISODE_PROGRESS/,
       );
+      assert.deepEqual((await repo.read(f.owner, input(f))).episodes, after.episodes);
+      assert.equal((await count(f)).events, '0');
     },
   );
   await t.test(
