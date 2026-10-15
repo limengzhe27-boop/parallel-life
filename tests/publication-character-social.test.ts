@@ -20,6 +20,10 @@ test('NPC sees only its own bounded saved public posts, not another character or
         assert.equal(ownerId, 'owner');
         return run({
           async query(sql: string, args: string[]) {
+            if (sql.startsWith('SELECT version FROM parallel_life.worlds'))
+              return { rows: [{ version: 0 }] };
+            if (sql.includes('FROM parallel_life.publication_opening_deliveries d'))
+              return { rows: [] };
             if (sql.includes('SELECT m.document AS opening')) {
               assert.deepEqual(args, ['world', 'owner', actorId, 0]);
               return { rows: [] };
@@ -92,6 +96,10 @@ test('inherited story scripts are stripped before NPC input even when no actor s
     async transaction(_owner: string, run: (sql: any) => unknown) {
       return run({
         async query(sql: string) {
+          if (sql.startsWith('SELECT version FROM parallel_life.worlds'))
+            return { rows: [{ version: 0 }] };
+          if (sql.includes('FROM parallel_life.publication_opening_deliveries d'))
+            return { rows: [] };
           if (sql.includes('SELECT m.document AS opening')) return { rows: [] };
           return {
             rows: [

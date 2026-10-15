@@ -226,6 +226,9 @@ export class WorldTurnPlanner implements TurnPlanner {
           content:
             (invitationSystem ?? SYSTEM) +
             ACTOR_ENGAGEMENT_RULES +
+            (context.actorSituation
+              ? '\n【本人当前处境】currentSituation是导演曾给你本人的开场安排，来源为本人成功发出的消息；opening.direction是联系缘由和演绎方向，不是全部已发生事实，也不是玩家承诺。worldVersion/storyAt与本轮世界一致，所有角色共用此世界时间，不能按聊天轮数自行推进日期、到场或事件阶段。以当前可见事实、最新对话、约定的实际状态为准，旧开场安排与新记录冲突时承接新记录。被问现在发生什么时，用本人知道的具体情况解释联系缘由、已确认进展和仍待确认的事；不知道的伤情、地点或其他人物行动不要编。先回应用户，再根据本人性格和动机提出一个此刻可行的小行动或明确问题；对方已提供的信息、已完成步骤、已拒绝请求不重复索要或催促。用户拒绝、延后或换话题时调整自己的安排，不强迫回到原轨道。eventOutcome非空代表该段已有系统记录的收束，不能继续当作未完成任务催促；为空只表示没有已确认收束，不能据此否认最新对话的进展。保持人格、态度与边界，不复述简报、阶段编号或系统词，不用泛泛的“有需要告诉我”“你有什么想法”代替具体回应。'
+              : '') +
             '\nresultFocus只含当前人物已经获准知道的已保存现场结果。若本轮涉及它，先用具体对象与实际成果自然回应，再商量其中已开放但尚未执行的一步；不照抄来源ID或幕后说明，不给虚构收入、好感、合作、发行或完成整个人生追求。后续阶段事实只说留下了实际成果，不再发明新任务。不要把用户现在自述或候选观察替代已保存结果。仅正文确实承接相应结果时才在私有acknowledgedResultFactIds中填resultFocus的精确factId，不相关回复不ack；漏ack不得用假台词弥补。' +
             (context.turnOrigin === 'director' && !storyOpportunity && !context.storyEvent
               ? '\n【本轮JSON来源要求】当returnFocus.pendingChoiceStep非空，本轮必须在message.received之外输出一条choice.next_step：{"type":"choice.next_step","id":"step_1","choiceId":"pendingChoiceStep中实际choiceId","quote":"逐字截取本轮回复中提出的具体步骤"}。不虚构ID，不把缺少该来源的普通回复当下一步记录。主角尚未执行时，先提出待做条件或方法，不要求已经剪好/做好的成果。\n【本轮交付要求】正文用事实或上次原话中的具体对象/数量/限制来提出一个可实行的步骤，不能只写泛泛的“我准备好了，有需要告诉我”。读者需要能看出是哪件事情、你能具体做什么、下一句怎样接。尚未收到执行结果的决定只能当计划；不能把“我决定做”写成“你做好的”。没有期间发生的记录时，以现在可做的提议推进，不能假称期间已完成。具体步骤必须有做法，不能只是“看看/检查进展/准备材料”；例如核对一个已知限制、先试小批再比较、列出待确认的一项条件，取材于当前人生而非照抄例句。不要凭空加明天截止/已经交付等时间压力，不能说他人已经执行。只输出一两句自然手机来信的JSON，不重复上次已有的帮助原话。'
@@ -251,6 +254,7 @@ export class WorldTurnPlanner implements TurnPlanner {
               facts: context.facts,
             },
             actor: context.actor,
+            ...(context.actorSituation ? { currentSituation: context.actorSituation } : {}),
             engagement: actorEngagementBrief(context),
             ...(context.authoredLifeModules
               ? { ownCharacterSettings: context.authoredLifeModules }

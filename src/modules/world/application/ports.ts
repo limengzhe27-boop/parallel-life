@@ -28,6 +28,7 @@ export type ActorContext = {
   worldVersion: number;
   time: string;
   worldTitle?: string;
+  actorSituation?: import('../domain/actor-situation.ts').ActorSituation;
   actor: WorldState['actors'][number];
   /** Only this actor's sourced goals after visibility, forgetting and budget checks. */
   eventGoals?: ActorEventGoal[];

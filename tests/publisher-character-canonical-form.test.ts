@@ -304,6 +304,10 @@ test('real character planner wrapper supplies only the saved speaker canonical d
       assert.equal(owner, 'owner');
       return run({
         async query(sql: string, args: unknown[]) {
+          if (sql.startsWith('SELECT version FROM parallel_life.worlds'))
+            return { rows: [{ version: 0 }] };
+          if (sql.includes('FROM parallel_life.publication_opening_deliveries d'))
+            return { rows: [] };
           if (sql.includes('publication_actor_life_modules')) {
             assert.deepEqual(args, ['world', 'speaker-id']);
             return { rows: [{ document: own }] };
