@@ -1,3 +1,9 @@
+## 2026-10-15 · NPC40/41/42 integration — partial product acceptance
+
+Business `0aa90f6c` deployed READY as `dpl_7VzXo2TTbU2enRKzQJTw6p8NNN2D`, formal `https://parallel-life-nu.vercel.app`. Production71 migrations unchanged and checksums verified. Actor-specific source excerpts, shared director observation, receipt-backed event goals and bounded stale-request recovery integrated. Invalid optional model annotation groups are rejected without losing otherwise valid real NPC dialogue; effects and persistence remain strictly checked.
+
+Initial fullcheck2453/build, final context/opening focused29/type/build, realPG39 and final affectedPG14, annotation focused17/type/boundaries508, fresh production build passed. One synthetic save,12 conservative text reservations closed; two generated opening messages/replay and3 final chats passed. Actual closure withdrew one actor while preserving the other. Player participation annotations remained unknown and proactive advance returned played0: overall autonomous story quality is **not fully accepted**. Test publication unlisted/save paused, original119 and publishedcopy4/pub1 preserved; native phone1440/390 checked, session restored and Ego198 finished. Followups in canonical DEVELOPMENT.md and [integration report](task-reports/NPC-EVENT-INTEGRATE-42-I.md).
+
 ## 2026-10-14 · PUBLISHER-ACTOR-NAME-CLEAN-EDIT-08
 
 Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 515 publisher tests passed. No SQL migration changes.
