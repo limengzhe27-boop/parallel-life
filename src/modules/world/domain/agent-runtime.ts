@@ -124,6 +124,8 @@ export type ActorAgentState = AgentIdentity & {
   actions: AgentAction[];
   responsibilities: AgentResponsibility[];
   decisions: AgentPlayerDecision[];
+  /** Persistent pending questions are separate from the current channel/topic focus. */
+  questions?: import('./agent-questions.ts').AgentQuestion[];
   focus: AgentConversationFocus | null;
 };
 export type AgentStatement = {
