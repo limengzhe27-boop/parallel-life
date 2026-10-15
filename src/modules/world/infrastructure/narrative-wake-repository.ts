@@ -107,7 +107,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   }
   const unseen = qualifications
     .filter((q) => !alreadyAttempted.has(token(q)))
-    .sort((a, b) => token(a).localeCompare(token(b)));
+    .sort((a, b) => (token(a) < token(b) ? -1 : token(a) > token(b) ? 1 : 0));
   if (!unseen.length) return { cause: null, hasPendingDirector, deferred: false };
   // Only confirmed zero-send cancellations can change retry identity. No paid/unknown retry.
   const unseenTokens = new Set(unseen.map(token));
