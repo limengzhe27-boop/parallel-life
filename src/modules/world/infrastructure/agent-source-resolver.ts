@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ActorAgentState, AgentSource } from '../domain/agent-runtime.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
+import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
+import { readActorEpisodeIntentsInTransaction } from './actor-episode-intent-repository.ts';
 
 /** Own persistent strategy provenance, not permission to disclose private transcripts to a channel. */
 export async function readActorStrategyBasis(
@@ -179,6 +181,33 @@ export async function readActorStrategyBasis(
   for (const row of calendar)
     add('calendar-response:' + row.id, 'world_event', row.id, row.version, row.payload.storyTime);
   await readNativeStrategyBasis(sql, ownerId, state, handles, worldVersion, storyAt, add);
+  const intentRequests = handles
+    .filter((handle) => handle.startsWith(ACTOR_EPISODE_INTENT_PREFIX))
+    .map((handle) => handle.slice(ACTOR_EPISODE_INTENT_PREFIX.length));
+  if (intentRequests.length) {
+    const views = await readActorEpisodeIntentsInTransaction(
+      sql,
+      ownerId,
+      {
+        worldId: state.worldId,
+        actorId: state.actorId,
+        worldVersion,
+        storyAt,
+      },
+      intentRequests,
+    );
+    for (const view of views.values())
+      if (view)
+        add(
+          view.source.id,
+          view.source.kind,
+          view.source.recordId,
+          view.source.worldVersion,
+          view.source.at,
+          [],
+          view.source.contentHash,
+        );
+  }
   return [...sources.values()];
 }
 

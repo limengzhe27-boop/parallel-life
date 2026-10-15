@@ -18,6 +18,7 @@ import { reduceActorAgentState, AgentValidationError } from '../domain/agent-ker
 import { evaluateAgentActionEligibility } from '../domain/agent-eligibility.ts';
 import { parseAgentProposal } from './agent-proposal-parser.ts';
 import { projectEpisodeRequestInTransaction } from './agent-narrative-repository.ts';
+import { validateActorEpisodeIntentSnapshotInTransaction } from './actor-episode-intent-repository.ts';
 import {
   beginAgentCommitInTransaction,
   finishAgentCommitInTransaction,
@@ -113,6 +114,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         throw new AgentValidationError('INPUT_SOURCE_MISMATCH');
       if (!isDeepStrictEqual(current, snapshot.state))
         throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
+      await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
       if (isEpisodeConsiderationInput(receivedInput))
         await requireEpisodeDeliveryInTransaction(sql, ownerId, {
           worldId: attempt.worldId,

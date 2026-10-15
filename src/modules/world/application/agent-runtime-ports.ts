@@ -67,6 +67,12 @@ export interface AgentAttemptStore {
     ownerId: string,
     attempt: AgentAttempt,
   ): Promise<{ found: true; response: unknown } | { found: false }>;
+  /** Source authorization and request_sent must use one transaction for author directives. */
+  markRequestSentWithSources?(
+    ownerId: string,
+    attempt: AgentAttempt,
+    snapshot: AgentSnapshot,
+  ): Promise<AgentAttempt>;
 }
 export interface AgentInputStore {
   /** Acceptance is durable before the model; same command with another body must conflict. */

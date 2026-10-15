@@ -1,5 +1,7 @@
 import type { AuthoredAgentMaterial } from './authored-agent-material.ts';
 
+export const ACTOR_EPISODE_INTENT_PREFIX = 'episode-intent:';
+
 /** An author's explicit instruction to this actor, never evidence that it happened. */
 export type ActorEpisodeDirective =
   | { kind: 'message_suggestion'; text: string }

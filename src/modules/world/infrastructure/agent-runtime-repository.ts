@@ -6,6 +6,7 @@ import {
 import type {
   AgentAttemptStore,
   AgentInputStore,
+  AgentSnapshot,
   AgentStateReader,
 } from '../application/agent-runtime-ports.ts';
 import type {
@@ -18,6 +19,7 @@ import type {
 } from '../domain/agent-runtime.ts';
 import { transitionAgentAttempt } from '../domain/agent-runtime.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
+import { validateActorEpisodeIntentSnapshotInTransaction } from './actor-episode-intent-repository.ts';
 
 export class AgentRuntimePersistenceError extends Error {
   readonly code: string;
@@ -528,7 +530,15 @@ export class PostgresAgentRuntimeRepository
       return { attempt: attempt(row), replay: false };
     });
   }
-  mark(ownerId: string, expected: AgentAttempt, status: AgentAttemptStatus): Promise<AgentAttempt> {
+  markRequestSentWithSources(ownerId: string, expected: AgentAttempt, snapshot: AgentSnapshot) {
+    return this.mark(ownerId, expected, 'request_sent', snapshot);
+  }
+  mark(
+    ownerId: string,
+    expected: AgentAttempt,
+    status: AgentAttemptStatus,
+    snapshot?: AgentSnapshot,
+  ): Promise<AgentAttempt> {
     return this.db.transaction(ownerId, async (sql) => {
       const w = await world(sql, ownerId, expected.worldId),
         row = await loadAttempt(sql, ownerId, expected);
@@ -542,6 +552,19 @@ export class PostgresAgentRuntimeRepository
           )
         ).rows[0]?.document as AgentInputReceipt | undefined;
         if (!receipt) fail('INPUT_SCOPE_FORBIDDEN');
+        if (snapshot) {
+          if (
+            snapshot.state.worldId !== expected.worldId ||
+            snapshot.state.actorId !== expected.actorId ||
+            snapshot.worldVersion !== expected.expectedWorldVersion ||
+            snapshot.state.revision !== expected.expectedActorRevision ||
+            snapshot.input.sourceId !== receipt.id ||
+            snapshot.input.text !== receipt.text ||
+            snapshot.input.origin !== receipt.origin
+          )
+            fail('INPUT_SCOPE_FORBIDDEN');
+          await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
+        }
         await requireInputAuthority(
           sql,
           ownerId,

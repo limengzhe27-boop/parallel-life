@@ -1,4 +1,5 @@
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
+import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 import type {
   AgentAttemptStore,
   AgentKernel,
@@ -68,7 +69,19 @@ export async function runNpcAgent(
       throw signal.reason ?? Error('CANCELLED');
     }
     try {
-      attempt = await deps.attempts.mark(ownerId, attempt, 'request_sent');
+      if (
+        executionSnapshot.sources.some((source) =>
+          source.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX),
+        )
+      ) {
+        if (!deps.attempts.markRequestSentWithSources)
+          throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
+        attempt = await deps.attempts.markRequestSentWithSources(
+          ownerId,
+          attempt,
+          executionSnapshot,
+        );
+      } else attempt = await deps.attempts.mark(ownerId, attempt, 'request_sent');
     } catch (error) {
       // A known pre-send fence rejection must not leave a reserved actor permanently busy.
       if (

@@ -18,6 +18,9 @@ import { PostgresWorldAwarenessRepository } from './world-awareness-repository.t
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
 import { NPC_AGENT_CAPABILITIES } from '../domain/agent-capabilities.ts';
+import { isEpisodeConsiderationInput } from './agent-episode-attention.ts';
+import { parseEpisodeConsiderationIntent } from './agent-narrative-repository.ts';
+import { readActorEpisodeIntentsInTransaction } from './actor-episode-intent-repository.ts';
 
 export function agentDefinitionRef(
   world: Pick<WorldState, 'id' | 'actors'>,
@@ -429,6 +432,29 @@ export async function readPrivateAgentSnapshot(
     worldVersion: 0,
     at: initialAt ?? world.time,
   });
+  if (input && isEpisodeConsiderationInput(input)) {
+    const intent = parseEpisodeConsiderationIntent(input.text);
+    const views = await db.transaction(ownerId, (sql) =>
+      readActorEpisodeIntentsInTransaction(
+        sql,
+        ownerId,
+        {
+          worldId: world.id,
+          actorId,
+          worldVersion: world.version,
+          storyAt,
+        },
+        [intent.requestId],
+      ),
+    );
+    if (!views.has(intent.requestId))
+      throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
+    const view = views.get(intent.requestId);
+    if (view) {
+      sources.set(view.source.id, view.source);
+      observations.push(view.observation);
+    }
+  }
   const selectedModules = selectActorPersona(modules, input?.text ?? '');
   const result: { seed: ActorAgentState | null; snapshot: AgentSnapshot } = {
     seed: state ? null : seeded,

@@ -294,7 +294,7 @@ export async function readPendingEpisodeRequestsInTransaction(
     )
   ).rows.map(request);
 }
-function parseIntent(text: string) {
+export function parseEpisodeConsiderationIntent(text: string) {
   try {
     return intentSchema.parse(JSON.parse(text));
   } catch {
@@ -302,7 +302,7 @@ function parseIntent(text: string) {
   }
 }
 function checkedInput(body: AgentInputReceipt, r: AgentEpisodeRequest, definitionRef: string) {
-  const intent = parseIntent(body.text);
+  const intent = parseEpisodeConsiderationIntent(body.text);
   if (
     body.origin !== 'coordination' ||
     body.channel !== 'private' ||
@@ -356,7 +356,7 @@ export async function projectEpisodeRequestInTransaction(
     return null;
   }
   if (raw?.type !== 'npc_episode_consideration') return null;
-  const intent = parseIntent(body.text);
+  const intent = parseEpisodeConsiderationIntent(body.text);
   const row = (
     await sql.query(
       `SELECT * FROM parallel_life.agent_episode_requests
