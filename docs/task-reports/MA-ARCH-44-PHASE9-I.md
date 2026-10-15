@@ -25,3 +25,5 @@ D70独立真实PG17/17（原17专项含父项），root集成后相关真实PG *
 44-66实际手机首次进入仍待接入，不把后端资格闭环称为手机旅程完成。44-67具体事件的逐人物语义裁剪、44-68真实发生/结果/暂缓退出、44-53观察范围与消费回执、44-69普通wake/player/bootstrap暂停竞态与旧档接管/旧路径退役，仍是生产启用新引擎门槛。当前生产仍使用旧world epoch；完整真实模型连续旅程未验收，不宣称全架构完成。
 
 部署READY与公网证据在实际发生后追加。
+
+限定后端交付已上线：c52cf851c991242e81390b57eb75401230e1a6b8 / dpl_FiSqJVp9yjQ2Lq58JNEWVovpZJGi READY，精确SHA及Nu别名核实；公网health/workbench/published200、匿名publications/publisherworks401。0生产epoch2切换，完整手机旅程仍未验收。

@@ -300,3 +300,36 @@ flowchart TD
 业务暂停/离开/深聊延后新增时间机会；已有pending先恢复，不因原因消失顺手新购买。只有确认sent_at为空的取消/过期才参与零发送重试身份；unknown与任何付费结果保留原身份。资格只表示可考虑，不是作者事件发生或人物已知。完整实际证据见[阶段九报告](../task-reports/MA-ARCH-44-PHASE9-I.md)。
 
 手机初次enter接线、具体事件逐人物意图交接、真实事件生命周期、普通wake/player/bootstrap暂停竞态、完整观察与旧档接管等门槛仍未完成。生产继续不切换epoch2。
+
+## 18. 最新实际调用图与未闭合边界（阶段九后）
+
+```mermaid
+flowchart TD
+  Phone[实际手机请求] --> Entry[服务读取持久 engineEpoch]
+  Entry -->|epoch 1 生产既有世界| Legacy[原流程，等待有证据的接管与退役]
+  Entry -->|epoch 2 已接入口，生产未启用| Native[同一 NPC 运行时]
+  Native --> DM[私聊 accepted input 与本人授权 snapshot]
+  Native --> Channels[群聊与现场的原任务及受众适配]
+  DM --> Actor[runNpcAgent 与同一人物持久状态]
+  Channels --> Actor
+  Entry --> Advance[统一 advance 与时钟、业务焦点]
+  Advance --> Recovery[原结果恢复、合法移动到达续接]
+  Recovery --> Pending[已提交机会的逐人物独立考察]
+  Pending --> Actor
+  Recovery --> Sources[只读收取本人计划、责任及实际变化]
+  Sources --> Qualified[作者资格、历史评估与稳定原因]
+  Qualified --> Director[必要时持久 Director 调用]
+  Director --> Decision[私有决策、proposed 机会与逐人物请求]
+  Decision --> Pending
+  Actor --> Kernel[权限、来源、状态、时间与动作检查]
+  Kernel --> Tx[同事务事件、状态、结果、回执与 Outbox]
+  Tx --> Projection[微信、群聊、现场、日历、地图]
+```
+
+epoch 边界是尚未结束的迁移状态，不是长期双引擎目标。具体情节语义目前还不能从导演全局原文直接交给人物；proposed/active 也没有证明作者事件实际发生，不能用这张图冒充连续旅程通过。
+
+人物输入保留同一 actor 状态、授权来源、受众和允许动作。导演评估读全局虚构观察，人物不接完整世界真实位置或他人私聊。世界事实与结果只由内核确认；说法、计划和导演机会分别保存。事实已被观察不代表模型已评估，observed/evaluated 分别维护。
+
+67 的具体交接权限：原稿参与者不是知情授权。作者明确指定本人发送的 offer_message.text 或本人考虑的单人 offer_invitation，可以作为未来建议，但须另绑定 origin、nodeHash、字段路径和内容哈希，不能冒充旧 definition hash 已覆盖这些字段。全局 editorial_only/script、他人条款及导演 audit 不进入本人。缺少明确条款时不转发全文或用关键词猜隐私。进一步支持导演在世界边界内即兴编排，需要沿同一协议表达可验证的本人意图与合法依据，仍不是导演替本人决定态度。
+
+接续顺序：导演暂停竞态与零发送恢复；有来源的逐人物具体交接；内核认证的事件发生/结果与暂缓退出；实际观察范围及消费回执；新世界启用、旧调用排空/旧档保留迁移与回滚、旧路径删除及真实模型多渠道连续旅程。所有阶段保留多人、多人生、12/1倍时间和离开暂停。

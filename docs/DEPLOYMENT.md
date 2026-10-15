@@ -1,6 +1,10 @@
-## 2026-10-16 · MA-ARCH-44 阶段九限定交付待部署
+## 2026-10-16 · 44-71 导演活跃边界待部署
 
-同一advance/持久导演调用接时间资格稳定唤醒、逐资格全历史去重、深聊/暂停延后和仅零发送的原依据重试。check2936、相关真实PG103、build/format通过；生产只读81迁移checksum一致、保护数据未变，0模型/0生产测试存档/0epoch2启用。手机初入与事件语义交接/实际生命周期/旧档切换仍未完成；READY与公网待实际追加，当前线上仍为3adbb70c。见[阶段九报告](task-reports/MA-ARCH-44-PHASE9-I.md)。
+同一持久导演claim/send/commit/recovery加活动与新机会焦点边界，最终SQL再次检查，暂缓由实际advance安静呈现。仅确认零发送才允许稳定bootstrap后继；paid raw/unknown保留。check2936、最终相关真实PG63、build/format通过；无新迁移，生产81 checksum及保护数据只读核验，epoch2仍0。普通NPC/player/wake发送竞态、具体事件逐人物交接、实际事件结果和旧档接管仍未完成。见[71报告](task-reports/44-71-DIRECTOR-DELIVERY-I.md)。READY及公网证据待实际追加。
+
+## 2026-10-16 · MA-ARCH-44 阶段九限定交付已上线
+
+同一advance/持久导演调用接时间资格稳定唤醒、逐资格全历史去重、深聊/暂停延后和仅零发送的原依据重试。check2936、相关真实PG103、build/format通过；生产只读81迁移checksum一致、保护数据未变，0模型/0生产测试存档/0epoch2启用。手机初入与事件语义交接/实际生命周期/旧档切换仍未完成。限定业务c52cf851c991242e81390b57eb75401230e1a6b8 / dpl_FiSqJVp9yjQ2Lq58JNEWVovpZJGi READY，Nu别名核实，2026-10-15T18:17:20.209Z公网health/workbench/published200、匿名publications/publisherworks401。见[阶段九报告](task-reports/MA-ARCH-44-PHASE9-I.md)。
 
 ## 2026-10-16 · MA-ARCH-44 阶段八限定交付已上线
 
