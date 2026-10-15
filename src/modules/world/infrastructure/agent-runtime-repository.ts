@@ -1,4 +1,8 @@
 import { createHash } from 'node:crypto';
+import {
+  isEpisodeConsiderationInput,
+  requireEpisodeDeliveryInTransaction,
+} from './agent-episode-attention.ts';
 import type {
   AgentAttemptStore,
   AgentInputStore,
@@ -545,6 +549,12 @@ export class PostgresAgentRuntimeRepository
           expected.actorId,
           expected.expectedWorldVersion,
         );
+        if (isEpisodeConsiderationInput(receipt))
+          await requireEpisodeDeliveryInTransaction(sql, ownerId, {
+            worldId: expected.worldId,
+            worldVersion: expected.expectedWorldVersion,
+            actorId: expected.actorId,
+          });
         if (!row.live) fail('ATTEMPT_STALE');
         if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
           fail('ENGINE_EPOCH_CONFLICT');

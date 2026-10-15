@@ -13,6 +13,10 @@ import { PostgresWorldRepository } from '../modules/world/infrastructure/postgre
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { readWorldAttentionInTransaction } from '../modules/world/infrastructure/world-attention-repository.ts';
+import {
+  episodeAttentionAllows,
+  requireEpisodeDeliveryInTransaction,
+} from '../modules/world/infrastructure/agent-episode-attention.ts';
 
 /** One actual consideration through the same actor runner/kernel; no separate planner or paid queue. */
 export async function dispatchPendingAgentEpisode(
@@ -68,17 +72,13 @@ export async function dispatchPendingAgentEpisode(
   for (const request of pending.requests) {
     // New opportunities do not continually interrupt an unrelated deep conversation.
     const { attention } = pending;
-    if (
-      attention.conversationWithoutTarget ||
-      (attention.focus.length &&
-        !attention.focus.some((f) => f.channel === 'private' && f.threadId === request.actorId))
-    )
-      continue;
+    if (!episodeAttentionAllows(attention, request.actorId)) continue;
     const prior = pending.attempts.filter((a) => a.requestId === request.id);
     if (prior.some((a) => a.status === 'committed'))
       throw new DomainError('INVALID_PROPOSAL', 'EPISODE_CONSUMPTION_RECEIPT_MISSING');
     // Actual paid/unknown/known-invalid results keep their original identity. Never
     // rename their command to buy another response, even after a world change.
+    // Only a proven zero-send cancellation may reserve again in this same frame.
     if (prior.some((a) => a.sent_at !== null)) continue;
     if (
       pending.attempts.some(
@@ -91,10 +91,36 @@ export async function dispatchPendingAgentEpisode(
     )
       continue;
     const hash = createHash('sha256')
-      .update(JSON.stringify(['npc-episode-evaluation-v1', world.id, request.id, world.version]))
+      .update(
+        JSON.stringify([
+          'npc-episode-evaluation-v2',
+          world.id,
+          request.id,
+          world.version,
+          prior.filter((a) => a.status === 'cancelled_before_send' && a.sent_at === null).length,
+        ]),
+      )
       .digest('hex');
     const commandId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
     if (prior.some((a) => a.command_id === commandId)) continue;
+    try {
+      await db.transaction(ownerId, (sql) =>
+        requireEpisodeDeliveryInTransaction(sql, ownerId, {
+          worldId: world.id,
+          worldVersion: world.version,
+          actorId: request.actorId,
+        }),
+      );
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'EPISODE_DELIVERY_DEFERRED'
+      )
+        continue;
+      throw error;
+    }
     const actor: ActorAgentState | null = await store.read(ownerId, {
       worldId: world.id,
       actorId: request.actorId,
@@ -128,28 +154,40 @@ export async function dispatchPendingAgentEpisode(
     const snapshot = (
       await readPrivateAgentSnapshot(db, ownerId, world, request.actorId, receipt, storyAt, actor)
     ).snapshot;
-    const result = await runNpcAgent(
-      {
-        attempts: store,
-        model,
-        kernel: new PostgresNpcAgentKernel(db, new PostgresWorldRepository(db)),
-      },
-      ownerId,
-      {
-        id: randomUUID(),
-        worldId: world.id,
-        actorId: request.actorId,
-        commandId,
-        inputReceiptId: receipt.id,
-        engineEpoch,
-        expectedWorldVersion: world.version,
-        expectedActorRevision: actor.revision,
-        inputHash: receipt.inputHash,
-        token: randomUUID(),
-        leaseUntil: new Date(Date.now() + 240_000).toISOString(),
-      },
-      snapshot,
-    );
+    let result;
+    try {
+      result = await runNpcAgent(
+        {
+          attempts: store,
+          model,
+          kernel: new PostgresNpcAgentKernel(db, new PostgresWorldRepository(db)),
+        },
+        ownerId,
+        {
+          id: randomUUID(),
+          worldId: world.id,
+          actorId: request.actorId,
+          commandId,
+          inputReceiptId: receipt.id,
+          engineEpoch,
+          expectedWorldVersion: world.version,
+          expectedActorRevision: actor.revision,
+          inputHash: receipt.inputHash,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 240_000).toISOString(),
+        },
+        snapshot,
+      );
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'EPISODE_DELIVERY_DEFERRED'
+      )
+        continue;
+      throw error;
+    }
     const presented = await db.transaction(ownerId, async (sql) =>
       Number(
         (

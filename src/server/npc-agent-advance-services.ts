@@ -234,13 +234,29 @@ export function npcAgentAdvanceServices(
           pending.status = 'stale_discarded';
           continue;
         }
-        const result = await runNpcAgent(
-          { attempts, model: npcModel, kernel: new PostgresNpcAgentKernel(db, worlds) },
-          ownerId,
-          attempt,
-          null,
-        );
-        return presentedResult(result.eventId, attempt.actorId, result.state.projectedWorldVersion);
+        try {
+          const result = await runNpcAgent(
+            { attempts, model: npcModel, kernel: new PostgresNpcAgentKernel(db, worlds) },
+            ownerId,
+            attempt,
+            null,
+          );
+          return presentedResult(
+            result.eventId,
+            attempt.actorId,
+            result.state.projectedWorldVersion,
+          );
+        } catch (error) {
+          // Retain a received paid result until the business focus permits presentation.
+          if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'EPISODE_DELIVERY_DEFERRED'
+          )
+            continue;
+          throw error;
+        }
       }
       // Physical continuation belongs to the same execution boundary, never to a new paid NPC turn.
       // Protected received replies are recovered first; a completed arrival refreshes the real phone.

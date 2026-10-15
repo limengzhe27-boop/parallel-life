@@ -71,7 +71,14 @@ export async function runNpcAgent(
       attempt = await deps.attempts.mark(ownerId, attempt, 'request_sent');
     } catch (error) {
       // A known pre-send fence rejection must not leave a reserved actor permanently busy.
-      if (isKnownConflict(error))
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'EPISODE_DELIVERY_DEFERRED'
+      )
+        await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send').catch(() => {});
+      else if (isKnownConflict(error))
         await deps.attempts.mark(ownerId, attempt, 'stale_discarded').catch(() => {});
       throw error;
     }

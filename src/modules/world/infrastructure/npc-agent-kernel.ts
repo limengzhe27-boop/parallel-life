@@ -43,6 +43,10 @@ import {
   type AgentSceneDeparture,
 } from '../domain/agent-scene-departure.ts';
 import { SceneRuntimeSessionSchema } from '../../../contracts/scenes.ts';
+import {
+  isEpisodeConsiderationInput,
+  requireEpisodeDeliveryInTransaction,
+} from './agent-episode-attention.ts';
 
 /** Deterministic capability execution + one UoW; models never hold a SQL connection. */
 export class PostgresNpcAgentKernel implements AgentKernel {
@@ -109,6 +113,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         throw new AgentValidationError('INPUT_SOURCE_MISMATCH');
       if (!isDeepStrictEqual(current, snapshot.state))
         throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
+      if (isEpisodeConsiderationInput(receivedInput))
+        await requireEpisodeDeliveryInTransaction(sql, ownerId, {
+          worldId: attempt.worldId,
+          worldVersion: attempt.expectedWorldVersion,
+          actorId: attempt.actorId,
+        });
       const clock = (
         await sql.query(
           `SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2`,
