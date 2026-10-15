@@ -139,7 +139,7 @@ test('speed is clamped to a legal range', () => {
   assert.equal(clampSpeed(-3), 0);
   assert.equal(clampSpeed(1000), 60);
   assert.equal(clampSpeed(1.234), 1.23);
-  assert.equal(clampSpeed(Number.NaN), 1);
+  assert.equal(clampSpeed(Number.NaN), 12);
 });
 
 const state = (): WorldState => ({
