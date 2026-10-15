@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { PublicationRepository } from '../../src/modules/settings/infrastructure/publication-repository.ts';
+import { PublicationWorldRepository } from '../../src/modules/settings/infrastructure/publication-world-repository.ts';
+import { publicationWorldCompiler } from '../../src/server/publication-runtime.ts';
+import { PublishedWorldContentSchema } from '../../src/contracts/published-world-content.ts';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
 import { migrate } from '../../scripts/migrate.mjs';
@@ -40,7 +45,7 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
   const real = '2026-10-15T12:00:00.000Z',
     story = '2026-10-15T10:00:00.000Z';
   const waits = new PostgresStoryWaitRepository(db, { now: () => real });
-  async function fixture(appointment = false) {
+  async function fixture(appointment: boolean | 'proposed' = false) {
     const owner = randomUUID(),
       other = randomUUID(),
       id = randomUUID();
@@ -99,16 +104,17 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
           ],
         },
       });
-      await worlds.respondToInvitation(
-        { userId: owner },
-        {
-          commandId: randomUUID(),
-          worldId: id,
-          id: appointmentId,
-          operation: 'accept',
-          expectedVersion: 1,
-        },
-      );
+      if (appointment !== 'proposed')
+        await worlds.respondToInvitation(
+          { userId: owner },
+          {
+            commandId: randomUUID(),
+            worldId: id,
+            id: appointmentId,
+            operation: 'accept',
+            expectedVersion: 1,
+          },
+        );
     }
 
     await clock.write(owner, id, {
@@ -121,7 +127,7 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
     });
     const input: StoryWaitInput = {
       commandId: randomUUID(),
-      expectedVersion: appointment ? 2 : 0,
+      expectedVersion: appointment === 'proposed' ? 1 : appointment ? 2 : 0,
       clientId: randomUUID(),
       sequence: 1,
       target: 'short',
@@ -268,6 +274,167 @@ test('real PG explicit story waits: resume, receipts, interruption, owner and re
           )
         ).rowCount,
         0,
+      );
+    },
+  );
+  await t.test(
+    'verified manuscript boundary, failed prerequisite and unsent opening use immutable real sources',
+    async () => {
+      const role = 'pl_story_wait39_fixture';
+      if (!(await admin.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [role])).rowCount)
+        await admin.query(
+          `CREATE ROLE ${role} LOGIN PASSWORD '${cfg.appPassword}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
+        );
+      await admin.query(`GRANT pl_publisher TO ${role}`);
+      const pub = new PostgresDatabase(
+        `postgresql://${role}:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
+      );
+      t.after(() => pub.close());
+      const staff = randomUUID();
+      await admin.query(
+        'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
+        [staff, 'Explicit local source fixture'],
+      );
+      const works = new PublicationRepository(pub, {
+        async review() {
+          throw Error('No review/model in this fixture');
+        },
+      });
+      const trials = new PublicationWorldRepository(pub, publicationWorldCompiler);
+      const text = await readFile(
+        new URL('../../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+        'utf8',
+      );
+      for (const kind of ['boundary', 'blocked_condition', 'opening']) {
+        const c = PublishedWorldContentSchema.parse(
+          JSON.parse(/```json\n([\s\S]*?)\n```/.exec(text)![1]!),
+        );
+        delete c.timeline;
+        delete c.conditions;
+        delete c.openingEventKey;
+        c.world.startAt = new Date(c.world.startAt).toISOString();
+        const start = c.world.startAt,
+          boundary = new Date(Date.parse(start) + 10 * 60000).toISOString();
+        c.candidates = [
+          {
+            key: 'future_event',
+            kind: 'candidate',
+            title: 'PRIVATE unrevealed title',
+            editorialIntent: 'PRIVATE original prose',
+            actorKeys: [c.actors[0]!.key],
+            prerequisites: kind === 'opening' ? [] : [{ kind: 'not_before', at: boundary }],
+            mutuallyExclusiveNodeKeys: [],
+            intent: { kind: 'director_event', actorKey: c.actors[0]!.key },
+          },
+        ];
+        if (kind === 'blocked_condition') {
+          c.places.push({
+            key: 'wait_other',
+            name: 'Other existing place',
+            description: '',
+            knownAtStart: true,
+          });
+          c.candidates[0]!.prerequisites.push({ kind: 'at_place', placeKey: 'wait_other' });
+        }
+        if (kind === 'opening') c.openingEventKey = 'future_event';
+        const valid = PublishedWorldContentSchema.parse(c),
+          w = await works.create(staff, {
+            commandId: randomUUID(),
+            title: c.work.title,
+            content: valid,
+          });
+        const trial = await trials.startTrial(staff, w.id, {
+          commandId: randomUUID(),
+          draftVersion: 0,
+          contentHash: w.draft.contentHash,
+        });
+        const owner = (
+          await admin.query('SELECT owner_id FROM parallel_life.worlds WHERE id=$1', [
+            trial.worldId,
+          ])
+        ).rows[0].owner_id;
+        await clock.write(owner, trial.worldId, {
+          storyNow: start,
+          lastTickAt: real,
+          speed: 12,
+          paused: true,
+          missedBeats: 0,
+          summary: null,
+        });
+        const result = await waits.wait(owner, trial.worldId, {
+          commandId: randomUUID(),
+          expectedVersion: 0,
+          clientId: randomUUID(),
+          sequence: 1,
+          target: 'short',
+        });
+        assert.equal(
+          result.stoppedBy.reason,
+          kind === 'boundary' ? 'story_boundary' : kind === 'opening' ? 'opening' : 'target',
+        );
+        assert.equal(
+          result.storyNow,
+          kind === 'boundary'
+            ? boundary
+            : kind === 'opening'
+              ? start
+              : new Date(Date.parse(start) + 30 * 60000).toISOString(),
+        );
+        assert.doesNotMatch(JSON.stringify(result), /PRIVATE|future_event|editorialIntent|brief/);
+        assert.equal(
+          Number(
+            (
+              await admin.query(
+                'SELECT count(*) n FROM parallel_life.publication_story_nodes WHERE world_id=$1',
+                [trial.worldId],
+              )
+            ).rows[0].n,
+          ),
+          0,
+        );
+      }
+    },
+  );
+  await t.test('inflight operation prevents time, resume and receipt writes', async () => {
+    const f = await fixture(),
+      commandId = randomUUID();
+    await db.transaction(f.owner, (sql) =>
+      sql.query(
+        "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,0,$4,$5,'queued')",
+        [commandId, f.id, f.owner, 'a'.repeat(64), {}],
+      ),
+    );
+    await assert.rejects(waits.wait(f.owner, f.id, f.input));
+    assert.equal((await clock.read(f.owner, f.id)).paused, true);
+    assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, 0);
+    assert.equal(
+      Number(
+        (
+          await admin.query(
+            'SELECT count(*) n FROM parallel_life.story_wait_receipts WHERE world_id=$1',
+            [f.id],
+          )
+        ).rows[0].n,
+      ),
+      0,
+    );
+    await db.transaction(f.owner, (sql) =>
+      sql.query(
+        "UPDATE parallel_life.commands SET status='cancelled' WHERE world_id=$1 AND id=$2",
+        [f.id, commandId],
+      ),
+    );
+  });
+  await t.test(
+    'source-backed unresolved proposal stops at current time without changing its status',
+    async () => {
+      const f = await fixture('proposed');
+      const r = await waits.wait(f.owner, f.id, f.input);
+      assert.equal(r.stoppedBy.reason, 'message');
+      assert.equal(r.storyNow, story);
+      assert.equal(
+        (await worlds.get({ userId: f.owner }, f.id)).appointments[0]!.status,
+        'proposed',
       );
     },
   );
