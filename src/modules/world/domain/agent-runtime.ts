@@ -12,6 +12,8 @@ export type AgentSource = {
   recordId: string;
   worldVersion: number;
   at: string;
+  /** Server-resolved explicit response deadline, never inferred merely from model text. */
+  deadlineAt?: string;
 };
 export type AgentBasis = { sourceIds: string[] };
 export type AgentCondition =
@@ -139,6 +141,7 @@ export type AgentAttemptStatus =
 export type AgentAttempt = AgentIdentity & {
   id: string;
   commandId: string;
+  inputReceiptId: string;
   engineEpoch: number;
   expectedWorldVersion: number;
   expectedActorRevision: number;
@@ -147,6 +150,19 @@ export type AgentAttempt = AgentIdentity & {
   leaseUntil: string;
   status: AgentAttemptStatus;
   eventId?: string;
+};
+export type AgentInputReceipt = {
+  id: string;
+  worldId: string;
+  commandId: string;
+  inputHash: string;
+  channel: AgentConversationFocus['channel'];
+  threadId: string;
+  recipientActorId: string | null;
+  expectedWorldVersion: number;
+  receivedAt: string;
+  origin: 'player' | 'wake' | 'coordination';
+  text: string;
 };
 export type AgentScope =
   | { kind: 'world' }

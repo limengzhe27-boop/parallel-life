@@ -7,6 +7,7 @@ import type {
   AgentBlocker,
   AgentCandidate,
   AgentIdentity,
+  AgentInputReceipt,
   AgentProposal,
   AgentSource,
 } from '../domain/agent-runtime.ts';
@@ -32,6 +33,8 @@ export type AgentSnapshot = {
   input: { sourceId: string; text: string; origin: 'player' | 'wake' | 'coordination' };
 };
 export interface NpcAgentModel {
+  /** Deterministic input/budget preflight runs before request_sent is recorded. */
+  validateInput?(snapshot: AgentSnapshot): void;
   /** Raw result is durably recorded before parsing. Invalid output is a known result, not unknown. */
   decide(snapshot: AgentSnapshot, signal?: AbortSignal): Promise<unknown>;
 }
@@ -42,6 +45,7 @@ export interface AgentAttemptStore {
     input: AgentIdentity & {
       id: string;
       commandId: string;
+      inputReceiptId: string;
       engineEpoch: number;
       expectedWorldVersion: number;
       expectedActorRevision: number;
@@ -54,6 +58,13 @@ export interface AgentAttemptStore {
   /** Store protected response, never logs. Replay after receipt cannot call the model again. */
   saveResponse(ownerId: string, attempt: AgentAttempt, response: unknown): Promise<AgentAttempt>;
   readResponse(ownerId: string, attempt: AgentAttempt): Promise<unknown | null>;
+}
+export interface AgentInputStore {
+  /** Acceptance is durable before the model; same command with another body must conflict. */
+  accept(
+    ownerId: string,
+    input: AgentInputReceipt,
+  ): Promise<{ receipt: AgentInputReceipt; replay: boolean }>;
 }
 export interface AgentStateReader {
   read(ownerId: string, identity: AgentIdentity): Promise<ActorAgentState | null>;
@@ -83,6 +94,8 @@ export interface DirectorAgent {
   }): Promise<DirectorCoordination>;
 }
 export interface AgentKernel {
+  /** Strict parsing and deterministic validation, without executing anything. */
+  parse(snapshot: AgentSnapshot, response: unknown): AgentProposal;
   /** No model calls; validates proposals/dependencies and executes only registered capabilities. */
   commit(
     ownerId: string,
