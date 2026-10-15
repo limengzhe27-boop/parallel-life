@@ -37,3 +37,17 @@ finish不限定event.type，允许turn.resolved和agent.state_committed；它不
 ## 接续
 
 root在同SQL world commit关闭legacyProgress，连接begin/finish；构建显式bootstrap/迁移并按epoch路由全部真实入口，补clock/授权新鲜度、共同episode和能力语义。epoch围栏会诚实拒绝尚未适配的旧写，不得用全局set_config掩盖双引擎。worker lease安全函数仍待专门接入和权限验证。新调用必须新预算，43闭账额度不复用。
+
+## 接收锚点及多渠道权限窄续修
+
+root合入初版后，明确receipt.expectedWorldVersion是不可变接收锚点，不要求与每个人物之后的执行版本相等。已接公共只读更新9317ecdb及28b1f05b。0072文件完全不变，校验和不变；仅repository、本PG及报告续修。
+
+- claim允许receipt.expectedWorldVersion≤当前执行CAS版本；receipt原正文、hash、时点及接收版本均不变。private指定recipient和thread必须是本人；null不能当任意private角色授权。
+- 增加AgentAttemptStore.lookup(ownerId,worldId,commandId)，仅查已持久attempt，owner边界不变，不初始化/推进任何状态。HTTP重放应先找实际旧attempt及committed事件，不能混用旧WorldRepository的另一种请求指纹。
+- group依据真实创建事件、成功命令、接受时成员区间及执行时成员区间授权人物和player，检查来源被忘记的情况。成员需要在两个时点均有权，但不要求同一连续区间：确实见过输入、退群后再加入不丢失历史知情；真正之后才加入者不可消费旧输入。thread不存在或其他世界source均拒绝。
+- scene依据真实entered source、成功opening/action receipt、实际presence原文与当前player experience授权；伪造session.presence但无对应已提交worldResults证据仍拒绝。离开当前现场后不能继续领取旧现场输入。本层未冒称支持尚无合法来源的新presence协议。
+- paid send前及beginCommit再次核对不可变receipt的渠道权限/forget，避免claim后撤权继续发送或执行。saveResponse仍允许保存已付费返回结果，不因撤权毁掉证据。root协调层负责将已知pre-send失败收束reserved，以及将INPUT_SCOPE_FORBIDDEN按known stale处理。
+- AgentInputReceipt新增storyAt后，accept校验真实ISO和日历合法性；receivedAt为墙钟、storyAt为接收世界时刻。两个初次时点均排除幂等body比较；重放返回原receipt，不倒填执行时刻。
+- 公共claim没有另一个origin/channel参数，所以授权只读取已接受receipt自身；origin替换在相同command接受时冲突。root snapshot builder必须使用store实际返回receipt，不从调用者重造player origin/channel。
+
+实际PG30/30、typecheck、boundaries515以及公共kernel/runner20/20通过；包括同群receipt A在v1提交到v2后B在v2独立领取、私聊跨actor拒绝、原输入/接收时间不改、fake group/private null、原成员退出重入与真正后加入者区别、scene无实证presence/当前现场拒绝、忘记来源、claim后和收到响应后撤权阻断，以及只读lookup。没有再次运行fullcheck/build，无新增SQL/模型/生产操作；root正在集成真实service/kernel入口并承担联合check/build和后续权限桥。

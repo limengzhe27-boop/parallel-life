@@ -22,12 +22,22 @@ export class AgentRuntimePersistenceError extends Error {
     this.code = code;
   }
 }
-const fail = (code: string): never => {
+function fail(code: string): never {
   throw new AgentRuntimePersistenceError(code);
-};
+}
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 function key(value: string) {
   if (typeof value !== 'string' || !/^[a-zA-Z0-9_:-]{1,160}$/.test(value)) fail('INVALID_INPUT');
+}
+function validInstant(value: string) {
+  if (
+    typeof value !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ||
+    !Number.isFinite(Date.parse(value))
+  )
+    return false;
+  const wall = new Date(value.slice(0, 19) + 'Z');
+  return Number.isFinite(wall.getTime()) && wall.toISOString().slice(0, 19) === value.slice(0, 19);
 }
 function integer(value: number) {
   if (!Number.isSafeInteger(value) || value < 0) fail('INVALID_INPUT');
@@ -235,7 +245,8 @@ export async function acceptAgentInputInTransaction(
     typeof input.text !== 'string' ||
     !input.text.trim() ||
     input.text.length > 16000 ||
-    !Number.isFinite(Date.parse(input.receivedAt))
+    !validInstant(input.receivedAt) ||
+    !validInstant(input.storyAt)
   )
     fail('INVALID_INPUT');
   const w = await world(sql, ownerId, input.worldId);
@@ -257,12 +268,125 @@ export async function acceptAgentInputInTransaction(
   );
   return { receipt: input, replay: false };
 }
+/** Receipt scope is authoritative; membership must cover both acceptance and execution. */
+async function requireInputAuthority(
+  sql: SqlClient,
+  ownerId: string,
+  receipt: AgentInputReceipt,
+  actorId: string,
+  executionVersion: number,
+) {
+  if (
+    !['player', 'wake', 'coordination'].includes(receipt.origin) ||
+    !validInstant(receipt.storyAt)
+  )
+    fail('INPUT_SCOPE_FORBIDDEN');
+  let sources: string[] = [receipt.id];
+  if (receipt.channel === 'private') {
+    if (receipt.recipientActorId !== actorId || receipt.threadId !== actorId)
+      fail('INPUT_SCOPE_FORBIDDEN');
+  } else if (receipt.channel === 'group') {
+    const row = (
+      await sql.query(
+        `SELECT ARRAY[g.source_event_id,am.source_event_id,cm.source_event_id,pm.source_event_id,cp.source_event_id] AS sources
+      FROM parallel_life.world_groups g
+      JOIN parallel_life.world_events ge ON ge.world_id=g.world_id AND ge.owner_id=g.owner_id AND ge.id=g.source_event_id AND ge.version=g.source_version
+      JOIN parallel_life.commands gc ON gc.world_id=ge.world_id AND gc.owner_id=ge.owner_id AND gc.id=ge.command_id AND gc.status='succeeded' AND gc.result_event_id=ge.id
+      JOIN parallel_life.world_group_memberships am ON am.world_id=g.world_id AND am.owner_id=g.owner_id AND am.group_id=g.id AND am.member_key=$4
+      JOIN parallel_life.world_events ae ON ae.world_id=am.world_id AND ae.owner_id=am.owner_id AND ae.id=am.source_event_id AND ae.version=am.joined_version
+      JOIN parallel_life.commands ac ON ac.world_id=ae.world_id AND ac.owner_id=ae.owner_id AND ac.id=ae.command_id AND ac.status='succeeded' AND ac.result_event_id=ae.id
+      JOIN parallel_life.world_group_memberships pm ON pm.world_id=g.world_id AND pm.owner_id=g.owner_id AND pm.group_id=g.id AND pm.member_key='player'
+      JOIN parallel_life.world_events pe ON pe.world_id=pm.world_id AND pe.owner_id=pm.owner_id AND pe.id=pm.source_event_id AND pe.version=pm.joined_version
+      JOIN parallel_life.commands pc ON pc.world_id=pe.world_id AND pc.owner_id=pe.owner_id AND pc.id=pe.command_id AND pc.status='succeeded' AND pc.result_event_id=pe.id
+      JOIN parallel_life.world_group_memberships cm ON cm.world_id=g.world_id AND cm.owner_id=g.owner_id AND cm.group_id=g.id AND cm.member_key=$4
+      JOIN parallel_life.world_events ce ON ce.world_id=cm.world_id AND ce.owner_id=cm.owner_id AND ce.id=cm.source_event_id AND ce.version=cm.joined_version
+      JOIN parallel_life.commands cc ON cc.world_id=ce.world_id AND cc.owner_id=ce.owner_id AND cc.id=ce.command_id AND cc.status='succeeded' AND cc.result_event_id=ce.id
+      JOIN parallel_life.world_group_memberships cp ON cp.world_id=g.world_id AND cp.owner_id=g.owner_id AND cp.group_id=g.id AND cp.member_key='player'
+      JOIN parallel_life.world_events cpe ON cpe.world_id=cp.world_id AND cpe.owner_id=cp.owner_id AND cpe.id=cp.source_event_id AND cpe.version=cp.joined_version
+      JOIN parallel_life.commands cpc ON cpc.world_id=cpe.world_id AND cpc.owner_id=cpe.owner_id AND cpc.id=cpe.command_id AND cpc.status='succeeded' AND cpc.result_event_id=cpe.id
+      WHERE g.world_id=$1 AND g.owner_id=$2 AND g.id=$3 AND g.source_version<=$5
+      AND ge.payload->>'type'='group.created' AND ge.payload->'data'->>'groupId'=g.id
+      AND am.joined_version<=$5 AND (am.left_version IS NULL OR am.left_version>$5)
+      AND pm.joined_version<=$5 AND (pm.left_version IS NULL OR pm.left_version>$5)
+      AND cm.joined_version<=$6 AND (cm.left_version IS NULL OR cm.left_version>$6)
+      AND cp.joined_version<=$6 AND (cp.left_version IS NULL OR cp.left_version>$6) LIMIT 1`,
+        [
+          receipt.worldId,
+          ownerId,
+          receipt.threadId,
+          actorId,
+          receipt.expectedWorldVersion,
+          executionVersion,
+        ],
+      )
+    ).rows[0];
+    if (!row) fail('INPUT_SCOPE_FORBIDDEN');
+    sources.push(...row.sources);
+  } else if (receipt.channel === 'scene') {
+    const row = (
+      await sql.query(
+        `SELECT ARRAY[s.source_event_id,ae.id,pe.id] AS sources
+      FROM parallel_life.scene_sessions s
+      JOIN parallel_life.player_experiences x ON x.world_id=s.world_id AND x.owner_id=s.owner_id AND x.current_scene_id=s.id
+      JOIN parallel_life.world_events se ON se.world_id=s.world_id AND se.owner_id=s.owner_id AND se.id=s.source_event_id
+      JOIN parallel_life.commands sc ON sc.world_id=se.world_id AND sc.owner_id=se.owner_id AND sc.id=se.command_id AND sc.status='succeeded' AND sc.result_event_id=se.id
+      CROSS JOIN LATERAL jsonb_array_elements(s.document->'presence') a
+      CROSS JOIN LATERAL jsonb_array_elements(s.document->'presence') p
+      JOIN parallel_life.world_events ae ON ae.world_id=s.world_id AND ae.owner_id=s.owner_id AND ae.id=a->>'sourceEventId' AND ae.version=(a->>'sourceVersion')::int
+      JOIN parallel_life.commands ac ON ac.world_id=ae.world_id AND ac.owner_id=ae.owner_id AND ac.id=ae.command_id AND ac.status='succeeded' AND ac.result_event_id=ae.id
+      JOIN parallel_life.world_events pe ON pe.world_id=s.world_id AND pe.owner_id=s.owner_id AND pe.id=p->>'sourceEventId' AND pe.version=(p->>'sourceVersion')::int
+      JOIN parallel_life.commands pc ON pc.world_id=pe.world_id AND pc.owner_id=pe.owner_id AND pc.id=pe.command_id AND pc.status='succeeded' AND pc.result_event_id=pe.id
+      WHERE s.world_id=$1 AND s.owner_id=$2 AND s.id=$3 AND s.document->>'status'='active'
+      AND se.payload->>'type'='scene.entered' AND se.payload->'data'->>'sceneId'=s.id AND se.version<=$5
+      AND a->'participant'=jsonb_build_object('kind','actor','actorId',$4::text)
+      AND p->'participant'=jsonb_build_object('kind','player')
+      AND (a->>'joinedVersion')::int=ae.version AND ae.version<=$5 AND (NOT(a?'leftVersion') OR (a->>'leftVersion')::int>$6)
+      AND (p->>'joinedVersion')::int=pe.version AND pe.version<=$5 AND (NOT(p?'leftVersion') OR (p->>'leftVersion')::int>$6)
+      AND ae.payload->>'type' IN ('scene.opened','scene.action_resolved') AND ae.payload->'data'->>'sceneId'=s.id
+      AND ae.payload->'data'->'worldResults'->'scene'->'presence' @> jsonb_build_array(a-'leftVersion')
+      AND pe.payload->>'type'='scene.entered' AND pe.payload->'data'->>'sceneId'=s.id LIMIT 1`,
+        [
+          receipt.worldId,
+          ownerId,
+          receipt.threadId,
+          actorId,
+          receipt.expectedWorldVersion,
+          executionVersion,
+        ],
+      )
+    ).rows[0];
+    if (!row) fail('INPUT_SCOPE_FORBIDDEN');
+    sources.push(...row.sources);
+  } else fail('INPUT_SCOPE_FORBIDDEN');
+  if (receipt.recipientActorId !== null && receipt.recipientActorId !== actorId)
+    fail('INPUT_SCOPE_FORBIDDEN');
+  const forgotten = (
+    await sql.query(
+      `SELECT 1 FROM parallel_life.memory_records WHERE owner_id=$1 AND status='forgotten'
+    AND ((scope_type='character' AND character_id=$2 AND branch_id=$3) OR (scope_type='branch' AND scope_id=$3 AND kind<>'episode')) AND source_ids ?| $4::text[] LIMIT 1`,
+      [ownerId, actorId, receipt.worldId, sources],
+    )
+  ).rows[0];
+  if (forgotten) fail('INPUT_SCOPE_FORBIDDEN');
+}
 export class PostgresAgentRuntimeRepository
   implements AgentAttemptStore, AgentInputStore, AgentStateReader
 {
   private readonly db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
     this.db = db;
+  }
+  lookup(ownerId: string, worldId: string, commandId: string): Promise<AgentAttempt | null> {
+    return this.db.transaction(ownerId, async (sql) => {
+      await world(sql, ownerId, worldId, false);
+      const row = (
+        await sql.query(
+          'SELECT * FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
+          [worldId, ownerId, commandId],
+        )
+      ).rows[0];
+      return row ? attempt(row) : null;
+    });
   }
   accept(ownerId: string, input: AgentInputReceipt) {
     return this.db.transaction(ownerId, (sql) =>
@@ -335,10 +459,11 @@ export class PostgresAgentRuntimeRepository
       if (
         !r ||
         r.inputHash !== input.inputHash ||
-        r.expectedWorldVersion !== input.expectedWorldVersion ||
+        r.expectedWorldVersion > input.expectedWorldVersion ||
         (r.recipientActorId !== null && r.recipientActorId !== input.actorId)
       )
         fail('INVALID_INPUT');
+      await requireInputAuthority(sql, ownerId, r, input.actorId, input.expectedWorldVersion);
       if (
         !(await sql.query('SELECT $1::timestamptz>clock_timestamp() AS live', [input.leaseUntil]))
           .rows[0].live
@@ -380,6 +505,20 @@ export class PostgresAgentRuntimeRepository
       if (status === 'committed' || status === 'response_received') fail('ATOMIC_COMMIT_REQUIRED');
       transitionAgentAttempt(row.status, status);
       if (status === 'request_sent') {
+        const receipt = (
+          await sql.query(
+            'SELECT document FROM parallel_life.agent_input_receipts WHERE id=$1 AND world_id=$2 AND owner_id=$3',
+            [expected.inputReceiptId, expected.worldId, ownerId],
+          )
+        ).rows[0]?.document as AgentInputReceipt | undefined;
+        if (!receipt) fail('INPUT_SCOPE_FORBIDDEN');
+        await requireInputAuthority(
+          sql,
+          ownerId,
+          receipt,
+          expected.actorId,
+          expected.expectedWorldVersion,
+        );
         if (!row.live) fail('ATTEMPT_STALE');
         if ((await epoch(sql, ownerId, expected.worldId)) !== expected.engineEpoch)
           fail('ENGINE_EPOCH_CONFLICT');
@@ -485,6 +624,20 @@ export async function beginAgentCommitInTransaction(
     )
   ).rows[0];
   if (current?.revision !== expected.expectedActorRevision) fail('AGENT_REVISION_CONFLICT');
+  const receipt = (
+    await sql.query(
+      'SELECT document FROM parallel_life.agent_input_receipts WHERE id=$1 AND world_id=$2 AND owner_id=$3',
+      [expected.inputReceiptId, expected.worldId, ownerId],
+    )
+  ).rows[0]?.document as AgentInputReceipt | undefined;
+  if (!receipt) fail('INPUT_SCOPE_FORBIDDEN');
+  await requireInputAuthority(
+    sql,
+    ownerId,
+    receipt,
+    expected.actorId,
+    expected.expectedWorldVersion,
+  );
   await sql.query(
     "SELECT set_config('app.agent_engine_epoch',$1,true),set_config('app.agent_world_id',$2,true),set_config('app.agent_commit_attempt_id',$3,true)",
     [String(expected.engineEpoch), expected.worldId, expected.id],

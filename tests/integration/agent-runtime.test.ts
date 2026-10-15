@@ -91,6 +91,7 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
       recipientActorId: a,
       expectedWorldVersion: 0,
       receivedAt: at,
+      storyAt: at,
       origin: 'player',
       text: '我暂不参加，请按自己的计划继续。',
     };
@@ -134,13 +135,14 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
     eventType = 'turn.resolved',
     eventActor = f.a,
   ) {
-    const next = { ...f.world, version: 1 };
+    const version = a.expectedWorldVersion + 1;
+    const next = { ...f.world, version };
     await sql.query(
-      "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,0,$4,'{}','running')",
-      [a.commandId, f.worldId, f.owner, a.inputHash],
+      "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$5,$4,'{}','running')",
+      [a.commandId, f.worldId, f.owner, a.inputHash, a.expectedWorldVersion],
     );
     await sql.query(
-      'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,1,$4,$5,$6)',
+      'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$7,$4,$5,$6)',
       [
         eventId,
         f.worldId,
@@ -148,15 +150,17 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
         a.commandId,
         { type: eventType, storyAt: at, data: { actorId: eventActor } },
         at,
+        version,
       ],
     );
     await sql.query(
       "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4 WHERE world_id=$1 AND id=$2",
       [f.worldId, a.commandId, eventId, next],
     );
-    await sql.query('UPDATE parallel_life.worlds SET version=1,state=$2 WHERE id=$1', [
+    await sql.query('UPDATE parallel_life.worlds SET version=$3,state=$2 WHERE id=$1', [
       f.worldId,
       next,
+      version,
     ]);
     await sql.query(
       'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
@@ -790,6 +794,396 @@ test('persistent agent runtime uses short claims, scoped state and atomic world 
         /check constraint/,
       );
       assert.equal((await store.read(f.owner, { worldId: f.worldId, actorId: f.a }))?.actorId, f.a);
+    },
+  );
+  async function seedChannelEvent(
+    f: Awaited<ReturnType<typeof fixture>>,
+    version: number,
+    type: string,
+    data: unknown,
+  ) {
+    const commandId = randomUUID(),
+      eventId = randomUUID(),
+      next = { ...f.world, version };
+    await app.transaction(f.owner, async (sql) => {
+      await sql.query(
+        "SELECT set_config('app.agent_world_id',$1,true),set_config('app.agent_engine_epoch','2',true)",
+        [f.worldId],
+      );
+      await sql.query(
+        "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,'{}','running')",
+        [commandId, f.worldId, f.owner, version - 1, hash(commandId)],
+      );
+      await sql.query(
+        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        [eventId, f.worldId, f.owner, version, commandId, { type, storyAt: at, data }, at],
+      );
+      await sql.query(
+        "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4 WHERE world_id=$1 AND id=$2",
+        [f.worldId, commandId, eventId, next],
+      );
+      await sql.query('UPDATE parallel_life.worlds SET version=$2,state=$3 WHERE id=$1', [
+        f.worldId,
+        version,
+        next,
+      ]);
+    });
+    return eventId;
+  }
+  async function groupFixture(includeB = true) {
+    const f = await fixture(false),
+      groupId = randomUUID(),
+      eventId = await seedChannelEvent(f, 1, 'group.created', {
+        groupId,
+        title: 'Actual group',
+        actorIds: includeB ? [f.a, f.b] : [f.a],
+      });
+    await app.transaction(f.owner, async (sql) => {
+      await sql.query(
+        'INSERT INTO parallel_life.world_groups(id,world_id,owner_id,title,source_event_id,source_version) VALUES($1,$2,$3,$4,$5,1)',
+        [groupId, f.worldId, f.owner, 'Actual group', eventId],
+      );
+      for (const member of includeB ? ['player', f.a, f.b] : ['player', f.a])
+        await sql.query(
+          'INSERT INTO parallel_life.world_group_memberships(world_id,owner_id,group_id,member_key,participant,joined_version,source_event_id) VALUES($1,$2,$3,$4,$5,1,$6)',
+          [
+            f.worldId,
+            f.owner,
+            groupId,
+            member,
+            member === 'player' ? { kind: 'player' } : { kind: 'actor', actorId: member },
+            eventId,
+          ],
+        );
+      await switchAgentEngineEpochInTransaction(sql, f.owner, {
+        worldId: f.worldId,
+        expectedEpoch: 1,
+        nextEpoch: 2,
+        expectedWorldVersion: 1,
+      });
+    });
+    const receipt = {
+      ...f.receipt,
+      channel: 'group' as const,
+      threadId: groupId,
+      recipientActorId: null,
+      expectedWorldVersion: 1,
+    };
+    await store.accept(f.owner, receipt);
+    return { ...f, groupId, receipt };
+  }
+  function channelClaim(f: Awaited<ReturnType<typeof fixture>>, actorId: string, version: number) {
+    return store.claim(f.owner, {
+      id: randomUUID(),
+      commandId: randomUUID(),
+      worldId: f.worldId,
+      actorId,
+      inputReceiptId: f.receipt.id,
+      inputHash: f.receipt.inputHash,
+      expectedWorldVersion: version,
+      expectedActorRevision: 0,
+      engineEpoch: 2,
+      token: randomUUID(),
+      leaseUntil: new Date(Date.now() + 60000).toISOString(),
+    });
+  }
+  await t.test(
+    'one actual group input can drive separate actor attempts at successive world versions',
+    async () => {
+      const f = await groupFixture();
+      let a = (await channelClaim(f, f.a, 1)).attempt;
+      a = await store.mark(f.owner, a, 'request_sent');
+      a = await store.saveResponse(f.owner, a, { actual: 'A response' });
+      const eventId = randomUUID();
+      await app.transaction(f.owner, async (sql) => {
+        await beginAgentCommitInTransaction(sql, f.owner, a);
+        await writeWorld(sql, f, a, eventId, 'agent.state_committed');
+        await finishAgentCommitInTransaction(sql, f.owner, {
+          attempt: a,
+          eventId,
+          state: { ...f.state, revision: 1, projectedWorldVersion: 2 },
+          results: [],
+        });
+      });
+      const b = (await channelClaim(f, f.b, 2)).attempt;
+      assert.equal(b.inputReceiptId, a.inputReceiptId);
+      assert.notEqual(b.commandId, a.commandId);
+      assert.equal((await store.lookup(f.owner, f.worldId, a.commandId))?.status, 'committed');
+      assert.equal((await store.lookup(f.owner, f.worldId, b.commandId))?.status, 'reserved');
+      assert.equal(await store.lookup(f.owner, f.worldId, randomUUID()), null);
+      await assert.rejects(() => store.lookup(f.foreign, f.worldId, a.commandId), /NOT_FOUND/);
+      const saved = (
+        await admin.query('SELECT document FROM parallel_life.agent_input_receipts WHERE id=$1', [
+          f.receipt.id,
+        ])
+      ).rows[0].document;
+      assert.equal(saved.expectedWorldVersion, 1);
+      assert.equal(saved.storyAt, at);
+      assert.equal(saved.text, f.receipt.text);
+    },
+  );
+  await t.test(
+    'a member who saw the input may remember it after leaving and legitimately rejoining',
+    async () => {
+      const f = await groupFixture();
+      // Remove and rejoin B using real membership sources; the interval at acceptance no longer extends through execution.
+      const participant = { kind: 'actor', actorId: f.b };
+      const left = await seedChannelEvent(f, 2, 'group.membership_changed', {
+        groupId: f.groupId,
+        action: 'leave',
+        participant,
+      });
+      await app.transaction(f.owner, (sql) =>
+        sql.query(
+          'UPDATE parallel_life.world_group_memberships SET left_version=2,left_event_id=$3 WHERE group_id=$1 AND member_key=$2',
+          [f.groupId, f.b, left],
+        ),
+      );
+      const joined = await seedChannelEvent(f, 3, 'group.membership_changed', {
+        groupId: f.groupId,
+        action: 'join',
+        participant,
+      });
+      await app.transaction(f.owner, (sql) =>
+        sql.query(
+          'INSERT INTO parallel_life.world_group_memberships(world_id,owner_id,group_id,member_key,participant,joined_version,source_event_id) VALUES($1,$2,$3,$4,$5,3,$6)',
+          [f.worldId, f.owner, f.groupId, f.b, participant, joined],
+        ),
+      );
+      assert.equal((await channelClaim(f, f.b, 3)).attempt.status, 'reserved');
+      assert.equal((await channelClaim(f, f.a, 3)).attempt.status, 'reserved');
+    },
+  );
+  await t.test(
+    'fake group scope, a private null recipient, and altered receipt origins fail closed',
+    async () => {
+      const f = await fixture();
+      await store.accept(f.owner, f.receipt);
+      await assert.rejects(
+        () => store.accept(f.owner, { ...f.receipt, origin: 'coordination' }),
+        /COMMAND_CONFLICT/,
+      );
+      const fake = {
+        ...f.receipt,
+        id: randomUUID(),
+        commandId: randomUUID(),
+        channel: 'group' as const,
+        threadId: randomUUID(),
+        recipientActorId: null,
+      };
+      await store.accept(f.owner, fake);
+      await assert.rejects(
+        () => channelClaim({ ...f, receipt: fake }, f.a, 0),
+        /INPUT_SCOPE_FORBIDDEN/,
+      );
+      const notPrivate = {
+        ...fake,
+        id: randomUUID(),
+        commandId: randomUUID(),
+        channel: 'private' as const,
+        threadId: f.a,
+      };
+      await store.accept(f.owner, notPrivate);
+      await assert.rejects(
+        () => channelClaim({ ...f, receipt: notPrivate }, f.b, 0),
+        /INPUT_SCOPE_FORBIDDEN/,
+      );
+      await assert.rejects(() => channelClaim(f, f.b, 0), /INVALID_INPUT/);
+      const replay = await store.accept(f.owner, {
+        ...f.receipt,
+        receivedAt: '2026-10-16T07:00:00.000Z',
+        storyAt: '2026-10-17T07:00:00.000Z',
+      });
+      assert.equal(replay.receipt.storyAt, at);
+      assert.equal(replay.receipt.receivedAt, at);
+      await assert.rejects(
+        () =>
+          store.accept(f.owner, {
+            ...f.receipt,
+            id: randomUUID(),
+            commandId: randomUUID(),
+            storyAt: '2026-02-31T07:00:00.000Z',
+          }),
+        /INVALID_INPUT/,
+      );
+    },
+  );
+  await t.test(
+    'forgotten input or membership provenance cannot be resurrected by a new claim',
+    async () => {
+      const f = await groupFixture();
+      await admin.query(
+        "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Forgotten input','forgotten_runtime_input','agent_inference',$5,'forgotten')",
+        [randomUUID(), f.owner, f.a, f.worldId, JSON.stringify([f.receipt.id])],
+      );
+      await assert.rejects(() => channelClaim(f, f.a, 1), /INPUT_SCOPE_FORBIDDEN/);
+      assert.equal((await channelClaim(f, f.b, 1)).attempt.status, 'reserved');
+    },
+  );
+  await t.test(
+    'scene claims require actual accepted-time presence and the current active player scene',
+    async () => {
+      const f = await fixture(false),
+        sceneId = randomUUID();
+      const entered = await seedChannelEvent(f, 1, 'scene.entered', { sceneId });
+      const player = {
+        participant: { kind: 'player' },
+        joinedVersion: 1,
+        sourceVersion: 1,
+        sourceEventId: entered,
+      };
+      const openingCommand = randomUUID(),
+        openingEvent = randomUUID();
+      const aPresence = {
+        participant: { kind: 'actor', actorId: f.a },
+        joinedVersion: 2,
+        sourceVersion: 2,
+        sourceEventId: openingEvent,
+      };
+      const document = {
+        id: sceneId,
+        worldId: f.worldId,
+        ownerId: f.owner,
+        sourceEventId: entered,
+        sourceVersion: 1,
+        title: 'Actual scene',
+        status: 'active',
+        presence: [player, aPresence],
+      };
+      await app.transaction(f.owner, async (sql) => {
+        const next = { ...f.world, version: 2 };
+        await sql.query(
+          "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,1,$4,'{}','running')",
+          [openingCommand, f.worldId, f.owner, hash(openingCommand)],
+        );
+        await sql.query(
+          'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,2,$4,$5,$6)',
+          [
+            openingEvent,
+            f.worldId,
+            f.owner,
+            openingCommand,
+            {
+              type: 'scene.opened',
+              storyAt: at,
+              data: { sceneId, worldResults: { scene: document } },
+            },
+            at,
+          ],
+        );
+        await sql.query(
+          "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4 WHERE world_id=$1 AND id=$2",
+          [f.worldId, openingCommand, openingEvent, next],
+        );
+        await sql.query('UPDATE parallel_life.worlds SET version=2,state=$2 WHERE id=$1', [
+          f.worldId,
+          next,
+        ]);
+        await sql.query(
+          'INSERT INTO parallel_life.scene_sessions(id,world_id,owner_id,source_event_id,document) VALUES($1,$2,$3,$4,$5)',
+          [sceneId, f.worldId, f.owner, entered, document],
+        );
+        await sql.query(
+          'INSERT INTO parallel_life.player_experiences(world_id,owner_id,current_scene_id,document) VALUES($1,$2,$3,$4)',
+          [f.worldId, f.owner, sceneId, {}],
+        );
+        await switchAgentEngineEpochInTransaction(sql, f.owner, {
+          worldId: f.worldId,
+          expectedEpoch: 1,
+          nextEpoch: 2,
+          expectedWorldVersion: 2,
+        });
+      });
+      const receipt = {
+        ...f.receipt,
+        channel: 'scene' as const,
+        threadId: sceneId,
+        recipientActorId: null,
+        expectedWorldVersion: 2,
+      };
+      await store.accept(f.owner, receipt);
+      const current = { ...f, receipt };
+      await assert.rejects(() => channelClaim(current, f.b, 2), /INPUT_SCOPE_FORBIDDEN/);
+      await app.transaction(f.owner, (sql) =>
+        sql.query(
+          "UPDATE parallel_life.scene_sessions SET document=jsonb_set(document,'{presence}',document->'presence' || $2::jsonb) WHERE id=$1",
+          [
+            sceneId,
+            JSON.stringify([{ ...aPresence, participant: { kind: 'actor', actorId: f.b } }]),
+          ],
+        ),
+      );
+      await assert.rejects(() => channelClaim(current, f.b, 2), /INPUT_SCOPE_FORBIDDEN/);
+      await app.transaction(f.owner, (sql) =>
+        sql.query('UPDATE parallel_life.scene_sessions SET document=$2 WHERE id=$1', [
+          sceneId,
+          document,
+        ]),
+      );
+      const a = (await channelClaim(current, f.a, 2)).attempt;
+      assert.equal(a.status, 'reserved');
+      await store.mark(f.owner, a, 'cancelled_before_send');
+      await app.transaction(f.owner, (sql) =>
+        sql.query(
+          'UPDATE parallel_life.player_experiences SET current_scene_id=NULL WHERE world_id=$1',
+          [f.worldId],
+        ),
+      );
+      await assert.rejects(() => channelClaim(current, f.a, 2), /INPUT_SCOPE_FORBIDDEN/);
+    },
+  );
+  await t.test(
+    'a genuinely later group join cannot consume an earlier accepted input',
+    async () => {
+      const f = await groupFixture(false),
+        participant = { kind: 'actor', actorId: f.b };
+      const joined = await seedChannelEvent(f, 2, 'group.membership_changed', {
+        groupId: f.groupId,
+        action: 'join',
+        participant,
+      });
+      await app.transaction(f.owner, (sql) =>
+        sql.query(
+          'INSERT INTO parallel_life.world_group_memberships(world_id,owner_id,group_id,member_key,participant,joined_version,source_event_id) VALUES($1,$2,$3,$4,$5,2,$6)',
+          [f.worldId, f.owner, f.groupId, f.b, participant, joined],
+        ),
+      );
+      await assert.rejects(() => channelClaim(f, f.b, 2), /INPUT_SCOPE_FORBIDDEN/);
+      assert.equal((await channelClaim(f, f.a, 2)).attempt.status, 'reserved');
+    },
+  );
+  await t.test('authority revoked after claim blocks the actual paid send', async () => {
+    const f = await groupFixture(),
+      a = (await channelClaim(f, f.a, 1)).attempt;
+    await admin.query(
+      "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Revoked source','revoked_runtime_input','agent_inference',$5,'forgotten')",
+      [randomUUID(), f.owner, f.a, f.worldId, JSON.stringify([f.receipt.id])],
+    );
+    await assert.rejects(() => store.mark(f.owner, a, 'request_sent'), /INPUT_SCOPE_FORBIDDEN/);
+    assert.equal((await store.lookup(f.owner, f.worldId, a.commandId))?.status, 'reserved');
+  });
+  await t.test(
+    'authority revoked after a received response prevents execution but preserves paid evidence',
+    async () => {
+      const f = await fixture(),
+        a = await response(f);
+      await admin.query(
+        "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Revoked source','revoked_received_input','agent_inference',$5,'forgotten')",
+        [randomUUID(), f.owner, f.a, f.worldId, JSON.stringify([f.receipt.id])],
+      );
+      await assert.rejects(
+        () => app.transaction(f.owner, (sql) => beginAgentCommitInTransaction(sql, f.owner, a)),
+        /INPUT_SCOPE_FORBIDDEN/,
+      );
+      assert.deepEqual(await store.readResponse(f.owner, a), {
+        found: true,
+        response: { text: '我打算先列一份清单。' },
+      });
+      assert.equal(
+        (await admin.query('SELECT version FROM parallel_life.worlds WHERE id=$1', [f.worldId]))
+          .rows[0].version,
+        0,
+      );
     },
   );
 });
