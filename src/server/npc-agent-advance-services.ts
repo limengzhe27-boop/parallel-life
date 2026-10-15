@@ -19,6 +19,7 @@ import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { createAgentScheduleSources } from '../modules/world/application/agent-schedule-collectors.ts';
 import { scheduleAgents } from '../modules/world/application/schedule-agents.ts';
 import { runNpcAgent } from '../modules/world/application/run-agent.ts';
+import { commitDueAgentArrival } from '../modules/world/infrastructure/agent-arrival-continuation.ts';
 import {
   runDirectorAgent,
   recoverDirectorAgent,
@@ -239,6 +240,17 @@ export function npcAgentAdvanceServices(
         );
         return presentedResult(result.eventId, attempt.actorId, result.state.projectedWorldVersion);
       }
+      // Physical continuation belongs to the same execution boundary, never to a new paid NPC turn.
+      // Protected received replies are recovered first; a completed arrival refreshes the real phone.
+      const arrival = await commitDueAgentArrival(db, ownerId, {
+        worldId,
+        engineEpoch,
+        expectedWorldVersion: world.version,
+      });
+      if (arrival.status === 'arrived')
+        return { ...quiet(arrival.storyAt), changed: true, worldVersion: arrival.worldVersion };
+      const afterContinuation = await new PostgresClockStore(db).read(ownerId, worldId);
+      if (afterContinuation.paused) return quiet(afterContinuation.storyNow);
       const actors = await Promise.all(
         read.states.map(async (state) => ({
           snapshot: (
