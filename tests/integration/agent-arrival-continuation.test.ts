@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { projectAgentWorldChange } from '../../src/modules/world/infrastructure/world-awareness-commit.ts';
+import { updateClockActivity } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
 import { commitDueAgentArrival } from '../../src/modules/world/infrastructure/agent-arrival-continuation.ts';
 import { localConfig } from '../../scripts/local-config.mjs';
 import { adminClient } from '../../scripts/db-admin.mjs';
@@ -835,6 +836,140 @@ test('actual server arrival continuation authenticates clock, due journey and at
         await mixed.close();
       }
       assert.deepEqual(await rows(f), before);
+    },
+  );
+  await t.test(
+    'default now waits for a real world lock and later legitimate heartbeat; explicit old ISO remains rejected',
+    async () => {
+      const f = await ready(),
+        holder = await app.pool.connect();
+      let enteredAt = 0,
+        reportPid!: (pid: number) => void;
+      const backend = new Promise<number>((resolve) => {
+        reportPid = resolve;
+      });
+      class ObservedArrival extends PostgresDatabase {
+        override transaction<T>(owner: string, run: (sql: SqlClient) => Promise<T>) {
+          // The former default-now sampler ran before this synchronous entry.
+          enteredAt = Date.now();
+          return super.transaction(owner, async (sql) => {
+            reportPid(Number((await sql.query('SELECT pg_backend_pid() AS pid')).rows[0].pid));
+            return run(sql);
+          });
+        }
+      }
+      const arriving = new ObservedArrival(
+        `postgresql://pl_app:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_test`,
+      );
+      let locked = true;
+      let pending:
+        | Promise<
+            | { ok: true; value: Awaited<ReturnType<typeof commitDueAgentArrival>> }
+            | { ok: false; error: unknown }
+          >
+        | undefined;
+      try {
+        await holder.query('BEGIN');
+        await holder.query("SELECT set_config('app.user_id',$1,true)", [f.owner]);
+        const holderPid = Number(
+          (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid,
+        );
+        await holder.query(
+          'SELECT id FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+          [f.worldId, f.owner],
+        );
+        pending = commitDueAgentArrival(arriving, f.owner, {
+          worldId: f.worldId,
+          engineEpoch: 2,
+          expectedWorldVersion: 2,
+        }).then(
+          (value) => ({ ok: true as const, value }),
+          (error) => ({ ok: false as const, error }),
+        );
+        const arrivalPid = await Promise.race([
+          backend,
+          pending.then((result) => {
+            if (!result.ok) throw result.error;
+            throw Error('Arrival unexpectedly completed without waiting for the locked world');
+          }),
+        ]);
+        let observedWait = false;
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+          const row = (
+            await admin.query(
+              'SELECT wait_event_type,pg_blocking_pids(pid) AS blockers FROM pg_stat_activity WHERE pid=$1',
+              [arrivalPid],
+            )
+          ).rows[0];
+          if (row?.wait_event_type === 'Lock' && row.blockers.includes(holderPid)) {
+            observedWait = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        assert.equal(
+          observedWait,
+          true,
+          'The actual arrival backend must be blocked by this exact world-lock holder',
+        );
+        while (Date.now() <= enteredAt && Date.now() < deadline)
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        assert(
+          Date.now() > enteredAt,
+          'The new anchor must be strictly after the former pre-lock sample',
+        );
+        const heartbeatAt = new Date().toISOString();
+        await updateClockActivity(
+          holder,
+          f.owner,
+          f.worldId,
+          { clientId: randomUUID(), sequence: 0, mode: 'browsing' },
+          heartbeatAt,
+        );
+        const anchor = (
+          await holder.query(
+            'SELECT last_tick_at FROM parallel_life.world_clock WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].last_tick_at;
+        assert(new Date(anchor).getTime() > enteredAt);
+        assert.equal(
+          (await holder.query('SELECT version FROM parallel_life.worlds WHERE id=$1', [f.worldId]))
+            .rows[0].version,
+          2,
+        );
+        await holder.query('COMMIT');
+        locked = false;
+        const result = await pending;
+        if (!result.ok) throw result.error;
+        assert.equal(result.value.status, 'arrived');
+        if (result.value.status !== 'arrived')
+          throw Error('Expected arrival after the legitimate clock update');
+        assert.equal(result.value.worldVersion, 3);
+        const before = await rows(f),
+          currentClock = await clock(f);
+        // The production path resamples; an explicit server/test instant is never silently rewritten.
+        await assert.rejects(
+          commitDueAgentArrival(app, f.owner, {
+            worldId: f.worldId,
+            engineEpoch: 2,
+            expectedWorldVersion: 3,
+            realNow: new Date(enteredAt).toISOString(),
+          }),
+          { code: 'INVALID_COMMAND', message: 'AGENT_ARRIVAL_CLOCK_REGRESSION' },
+        );
+        assert.deepEqual(await rows(f), before);
+        assert.deepEqual(await clock(f), currentClock);
+        assert.equal(before.events, 3);
+        assert.equal(before.results, 1);
+        assert.equal(before.attempts, 1);
+      } finally {
+        if (locked) await holder.query('ROLLBACK').catch(() => {});
+        holder.release();
+        if (pending) await pending;
+        await arriving.close();
+      }
     },
   );
 });

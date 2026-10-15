@@ -60,3 +60,22 @@ fresh replay无due即quiet且不增event；旧expectedVersion重放报CAS冲突�
 root将此function接原advance，放在保护NPCraw恢复后/fresh候选前；arrived即返回changed/worldVersion，quiet继续原流程。无新HTTP入口、不以arrival造玩家对话。root随后用其实际 travel.begin kernel + scene departure reconciliation做真实联合验证，确认没有旧scene presence复活位置、无NPC间真实位置泄露。
 
 本批没有改root实际入口，不能声称角色真实出发→自动到达产品链路已上线。root仍负责公共契约、SQL80生产核对、全check/build/真实kernel及公网门槛、部署READY与最终验收；本人只待验收。用户世界保持未发布。
+
+## 集成后锁等待取时并发回归（2026-10-15）
+
+首轮source已由root集成46f845c5，实际advance接线9b3e8e8d；只读复核提示默认realNow在等待world锁之前采样，可能被另一标签页后到的合法clock锚超越。root在 **ab2d7747** 仅修改service取时点：默认now移到取得clock锁后，显式server/testISO仍严格检查倒退。
+
+root另授权本次**仅原integration/agent-arrival-continuation.test.ts+本报告/主镜像/本人行**。独立分支codex/arrival-clock-regression44从原1a8c6307，仅cherry root单文件ab2d7747作为依赖（本地9e854aa1），没有拉入全部root/Q的其他source。本次交付不重复带root source修复。root先确认确定性屏障方案后才写测试。
+
+新增**一个t.test**，复用原真实80合成出发fixture；未改service/SQL/其他测试：
+
+1. 独立app连接BEGIN、set owner、锁实际world行；启动实际commitDueAgentArrival，不传realNow。测试db包装只报告backend pid与同步进入时刻，不替换query或返回数据。
+2. 独立admin观察pg_stat_activity实际wait_event_type=Lock，并用pg_blocking_pids确认阻塞者就是该持锁连接；有界短轮询只等真实屏障，不靠固定sleep猜并发。进入时刻发生在旧版默认now取样之后，随后证明较晚anchor严格大于此时刻。
+3. 持锁连接在**同SqlClient**调用原updateClockActivity真实browsing心跳，验证worldVersion仍2且last_tick_at更晚；没有直接改clock或复制业务计算。COMMIT后默认到达成功到v3，仍仅一到达event、原一个action result/attempt。
+4. 同fixture用fresh v3、显式旧进入ISO再调用，准确拒INVALID_COMMAND/AGENT_ARRIVAL_CLOCK_REGRESSION；world/clock与全部回执计数保持原样。默认路径修复不掩盖显式测试时刻倒退。
+
+service promise启动即挂settled handler，backend握手与早退结果竞速避免错误时悬挂；finally释放world锁/连接、等待已捕获结果并关池。没有mock时间、关闭trigger、虚构新fact或模型调用。
+
+本次focused实际PG文件 **13/13（12子项+父），0skip**，包括新增并发回归；typecheck0、单测试文件Prettier、git diff --check通过。仅跑该受影响文件，没有重跑全项目/完整journey联合/pure/全check/build。忽略证据 `.local/ma44-arrival-clock-regression-{pg,type}.log`。
+
+PG55566最初空闲，独立启动验证后干净停止，所有本批fixture clocks在after暂停。0真实模型/生产/其他source或SQL变更；root source修复与后续集成部署仍归root。本测试证明真实锁等待、合法后到心跳与默认/显式取时区别，不冒充外在剧情/人物真实生成验收。用户世界仍未发布。
