@@ -44,7 +44,7 @@ export type RecentStoryWorldInput = {
   | { kind: 'invitation_response'; invitationId: string; operation: string }
   | { kind: 'scene_result'; sceneId: string; outcome: string | null }
 );
-function hashDefinition(value: ProgressLedgerDefinition) {
+export function hashDefinition(value: ProgressLedgerDefinition) {
   return createHash('sha256')
     .update(JSON.stringify([value.definition, value.spec, [...value.actorIdsByKey].sort()]))
     .digest('hex');

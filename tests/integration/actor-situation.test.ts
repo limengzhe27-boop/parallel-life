@@ -32,6 +32,11 @@ import { readActorEventGoals } from '../../src/modules/world/infrastructure/acto
 import { publicationCharacterPlanner } from '../../src/server/publication-character-planner.ts';
 import { readActorSituation } from '../../src/modules/world/infrastructure/actor-situation-repository.ts';
 import { actorContext } from '../../src/modules/world/application/actor-context.ts';
+import {
+  publicationGoalContexts,
+  publicationGoalDefinition,
+} from '../../src/modules/settings/infrastructure/publication-event-goal-context.ts';
+import { hashDefinition } from '../../src/modules/settings/infrastructure/publication-event-progress-repository.ts';
 const at = '2026-10-15T07:00:00.000Z';
 const fixtureReceipt = randomUUID();
 const review: PublicationReviewPort = {
@@ -104,7 +109,10 @@ test('actor situations retain own directions and share the current world snapsho
   const repository = new PublicationOpeningRepository(app),
     runtime = new PostgresWorldRepository(app),
     story = new PublicationStoryRepository(app);
-  async function fixture(completion = false) {
+  async function fixture(
+    completion = false,
+    options: { third?: boolean; hiddenThird?: boolean; emptyKeys?: boolean } = {},
+  ) {
     const staff = randomUUID(),
       owner = randomUUID(),
       foreign = randomUUID();
@@ -119,6 +127,13 @@ test('actor situations retain own directions and share the current world snapsho
       'utf8',
     );
     const c = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(report)![1]!);
+    if (options.third)
+      c.actors.push({
+        ...structuredClone(c.actors[0]),
+        key: 'third_actor',
+        name: '第三人',
+        knownAtStart: true,
+      });
     c.world.startAt = at;
     c.world.hiddenContext = 'GLOBAL_OPENING_DIRECTOR_ONLY';
     c.history = [];
@@ -147,7 +162,7 @@ test('actor situations retain own directions and share the current world snapsho
         title: '开场',
         editorialIntent: '各自说自己的新安排。',
         script: 'GLOBAL_OPENING_SCRIPT',
-        actorKeys: c.actors.map((a: any) => a.key),
+        actorKeys: options.emptyKeys ? [] : c.actors.map((a: any) => a.key),
         prerequisites: [],
         mutuallyExclusiveNodeKeys: [],
         intent: { kind: 'director_event' },
@@ -199,9 +214,17 @@ test('actor situations retain own directions and share the current world snapsho
     await admin.query('UPDATE parallel_life.world_clock SET paused=true WHERE world_id=$1', [
       w.worldId,
     ]);
+    if (options.hiddenThird) {
+      // Synthetic admission fixture: the immutable author plan still has three actors,
+      // but only two are projected as current contacts, matching opening admission's gate.
+      await admin.query(
+        "UPDATE parallel_life.worlds SET state=jsonb_set(state,'{actors}',(SELECT jsonb_agg(a) FROM jsonb_array_elements(state->'actors') a WHERE a->>'name'<>'第三人')) WHERE id=$1",
+        [w.worldId],
+      );
+    }
     const snap = await repository.read(owner, w.worldId);
     assert.equal(snap.phase, 'unplanned');
-    assert.equal(snap.source?.actors.length, 2);
+    assert.equal(snap.source?.actors.length, options.third && !options.hiddenThird ? 3 : 2);
     return { owner, foreign, worldId: w.worldId, actors: snap.source!.actors };
   }
   async function commit(
@@ -793,6 +816,233 @@ test('actor situations retain own directions and share the current world snapsho
         ).rows[0].state;
         assert.equal(notFinished.resolution, null);
       }
+    },
+  );
+  await t.test(
+    'partial opening remembers a real early refusal without introducing an unsent participant',
+    async () => {
+      const early = await fixture(true),
+        planId = randomUUID();
+      const [a, b] = early.actors.map((x) => x.id);
+      await repository.beginPlan(early.owner, early.worldId, planId);
+      await repository.savePlan(
+        early.owner,
+        early.worldId,
+        planId,
+        early.actors.map((x, i) => ({ actorId: x.id, brief: 'EARLY_PRIVATE_' + i })),
+      );
+      const first = (await repository.claimNext(early.owner, early.worldId))!;
+      await commit(early, a!, 0, first.commandId, '先确认海报日期，你能参加吗？');
+      await repository.finishDelivery(early.owner, early.worldId, a!, first.commandId);
+      const goals = async (actor: string, blocked = new Set<string>()) => {
+        const state = await runtime.get({ userId: early.owner }, early.worldId);
+        return app.transaction(early.owner, (sql) =>
+          readActorEventGoals(sql, actorContext(state, actor), early.owner, blocked),
+        );
+      };
+      assert.equal((await goals(a!))[0]?.want, 'EARLY_PRIVATE_0');
+      assert.deepEqual(await goals(b!), []);
+      const hashBefore = (
+        await admin.query(
+          'SELECT definition_hash FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [early.worldId],
+        )
+      ).rows[0].definition_hash;
+      const planner = publicationCharacterPlanner(app, early.owner, early.worldId, {
+        async complete(messages) {
+          const input = JSON.parse(messages[1]!.content);
+          assert.equal(input.eventGoals[0].actorId, a);
+          assert(!JSON.stringify(input.eventGoals).includes('EARLY_PRIVATE_1'));
+          return JSON.stringify({
+            schemaVersion: 1,
+            effects: [
+              {
+                type: 'message.received',
+                id: 'reply',
+                actorId: a,
+                text: '这次请求就到这里。我打算先自己核对海报上的日期。',
+              },
+            ],
+            eventGoalAssessments: [
+              {
+                goalKey: input.eventGoals[0].goalKey,
+                target: 'user',
+                kind: 'declined',
+                source: 'current_user',
+              },
+              {
+                goalKey: input.eventGoals[0].goalKey,
+                target: 'npc',
+                kind: 'closure',
+                source: 'current_reply',
+                closure: 'withdrawn',
+              },
+            ],
+          });
+        },
+      });
+      await resolveTurn(
+        { worlds: runtime, planner, now: () => at, newId: randomUUID },
+        { userId: early.owner },
+        {
+          id: randomUUID(),
+          worldId: early.worldId,
+          actorId: a!,
+          expectedVersion: 1,
+          text: '这次我不参与海报校对，请你自己安排。',
+        },
+      );
+      const ownEarly = (await goals(a!))[0]!;
+      assert.equal(ownEarly.participation, 'declined');
+      assert.equal(ownEarly.status, 'withdrawn');
+      assert.equal(ownEarly.phase, 'resolved');
+      assert.equal(ownEarly.nextMove, 'finished');
+      assert.deepEqual(await goals(b!), []);
+      assert.deepEqual(await goals(a!, new Set([ownEarly.source.sourceEventId])), []);
+      const second = (await repository.claimNext(early.owner, early.worldId))!;
+      assert.equal(second.actorId, b);
+      await commit(early, b!, 2, second.commandId, '我来确认桌椅数量，先列一份清单。');
+      await repository.finishDelivery(early.owner, early.worldId, b!, second.commandId);
+      const aAfter = (await goals(a!))[0]!,
+        bAfter = (await goals(b!))[0]!;
+      assert.equal(aAfter.participation, 'declined');
+      assert.equal(aAfter.status, 'withdrawn');
+      assert.equal(bAfter.participation, 'unknown');
+      assert.equal(bAfter.status, 'active');
+      assert.equal(bAfter.want, 'EARLY_PRIVATE_1');
+      assert(!JSON.stringify(bAfter).includes('EARLY_PRIVATE_0'));
+      const row = (
+        await admin.query(
+          'SELECT definition_hash,state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [early.worldId],
+        )
+      ).rows[0];
+      assert.equal(row.definition_hash, hashBefore);
+      assert.equal(row.state.resolution, null);
+      assert(row.state.actorParticipationSources[a!].length > 0);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [early.worldId],
+          )
+        ).rows[0].n,
+        1,
+      );
+      // The new delivered-only source is required even though the immutable plan existed before it.
+      const bSource = bAfter.source.sourceRecordId;
+      await admin.query(
+        "UPDATE parallel_life.publication_opening_deliveries SET source_message_id='not_a_real_message' WHERE world_id=$1 AND actor_id=$2",
+        [early.worldId, b],
+      );
+      await assert.rejects(() => goals(b!), /INVALID_STATE/);
+      await admin.query(
+        'UPDATE parallel_life.publication_opening_deliveries SET source_message_id=$3 WHERE world_id=$1 AND actor_id=$2',
+        [early.worldId, b, bSource],
+      );
+      assert.equal((await goals(a!))[0]?.participation, 'declined');
+    },
+  );
+  await t.test('an empty actor-key list does not activate an unknown future actor', async () => {
+    const limited = await fixture(false, { third: true, hiddenThird: true, emptyKeys: true }),
+      planId = randomUUID();
+    assert.equal(limited.actors.length, 2);
+    await repository.beginPlan(limited.owner, limited.worldId, planId);
+    await repository.savePlan(
+      limited.owner,
+      limited.worldId,
+      planId,
+      limited.actors.map((a, i) => ({ actorId: a.id, brief: 'KNOWN_ONLY_' + i })),
+    );
+    const claim = (await repository.claimNext(limited.owner, limited.worldId))!;
+    await commit(
+      limited,
+      claim.actorId,
+      0,
+      claim.commandId,
+      'Only an authorized known contact speaks',
+    );
+    await repository.finishDelivery(limited.owner, limited.worldId, claim.actorId, claim.commandId);
+    const contexts = await app.transaction(limited.owner, (sql) =>
+      publicationGoalContexts(sql, limited.owner, limited.worldId, 1),
+    );
+    assert.equal(contexts[0]!.value.definition.goals.length, 2);
+    assert.equal(Object.keys(contexts[0]!.record.openingActors!).length, 1);
+    assert.equal(Object.keys(contexts[0]!.record.openingPlan!).length, 2);
+  });
+  await t.test(
+    'a complete pre-EARLY definition keeps its exact legacy hash and state',
+    async () => {
+      const legacy = await fixture(true, { third: true }),
+        planId = randomUUID();
+      await repository.beginPlan(legacy.owner, legacy.worldId, planId);
+      await repository.savePlan(
+        legacy.owner,
+        legacy.worldId,
+        planId,
+        legacy.actors.map((a, i) => ({ actorId: a.id, brief: 'LEGACY_' + i })),
+      );
+      for (let i = 0; i < 3; i++) {
+        const claim = (await repository.claimNext(legacy.owner, legacy.worldId))!;
+        await commit(legacy, claim.actorId, i, claim.commandId, 'LEGACY actual opening ' + i);
+        await repository.finishDelivery(
+          legacy.owner,
+          legacy.worldId,
+          claim.actorId,
+          claim.commandId,
+        );
+      }
+      const contexts = await app.transaction(legacy.owner, (sql) =>
+        publicationGoalContexts(sql, legacy.owner, legacy.worldId, 3),
+      );
+      const oldValue = publicationGoalDefinition(legacy.owner, legacy.worldId, {
+        ...contexts[0]!.record,
+        openingPlan: undefined,
+      });
+      const legacyHash = hashDefinition(oldValue);
+      await admin.query(
+        'UPDATE parallel_life.publication_story_progress SET definition_hash=$2 WHERE world_id=$1',
+        [legacy.worldId, legacyHash],
+      );
+      const before = (
+        await admin.query(
+          'SELECT state,revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [legacy.worldId],
+        )
+      ).rows[0];
+      const again = await app.transaction(legacy.owner, (sql) =>
+        publicationGoalContexts(sql, legacy.owner, legacy.worldId, 3),
+      );
+      assert.equal(hashDefinition(again[0]!.value), legacyHash);
+      const after = (
+        await admin.query(
+          'SELECT definition_hash,state,revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [legacy.worldId],
+        )
+      ).rows[0];
+      assert.equal(after.definition_hash, legacyHash);
+      assert.deepEqual(after.state, before.state);
+      assert.equal(after.revision, before.revision);
+      await admin.query(
+        "UPDATE parallel_life.publication_story_progress SET definition_hash=repeat('0',64) WHERE world_id=$1",
+        [legacy.worldId],
+      );
+      await assert.rejects(
+        () =>
+          app.transaction(legacy.owner, (sql) =>
+            publicationGoalContexts(sql, legacy.owner, legacy.worldId, 3),
+          ),
+        /INVALID_STATE/,
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT definition_hash FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [legacy.worldId],
+          )
+        ).rows[0].definition_hash,
+        '0'.repeat(64),
+      );
     },
   );
   await t.test(

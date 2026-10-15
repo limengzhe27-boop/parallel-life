@@ -7,6 +7,7 @@ import type { StoryNode, StoryOrigin } from '../domain/publication-story.ts';
 import { nextStoryMove, ownGoalBrief } from '../domain/story-event-progress.ts';
 import {
   PublicationEventProgressRepository,
+  hashDefinition,
   type ProgressLedgerDefinition,
   type PersistedStoryEventProgress,
 } from './publication-event-progress-repository.ts';
@@ -33,6 +34,8 @@ export type PublicationGoalRecord = {
     expectedVersion: number;
     storyAt: string;
   };
+  /** Authorized immutable intent only; never proof that a speaker has delivered. */
+  openingPlan?: Record<string, { direction: string; persona: PublicationGoalRecord['persona'] }>;
   /** Validated live opening participants; private per-speaker direction, one shared definition. */
   openingActors?: Record<
     string,
@@ -62,6 +65,7 @@ export function publicationGoalDefinition(
   row: PublicationGoalRecord,
 ): ProgressLedgerDefinition {
   const ids = new Map(Object.entries(row.actorIdsByKey));
+  const planned = row.openingPlan ?? row.openingActors;
   const spec = row.node.direction?.progress ?? {};
   const owner = row.state.actorId;
   const goalTopic = `${row.node.title}\n${row.node.editorialIntent}`;
@@ -95,7 +99,7 @@ export function publicationGoalDefinition(
   const involved = new Set([
     owner,
     ...criteria.map((c) => c.actorId!),
-    ...Object.keys(row.openingActors ?? {}),
+    ...Object.keys(planned ?? {}),
   ]);
   return {
     spec,
@@ -124,37 +128,38 @@ export function publicationGoalDefinition(
         // Secondary criterion participants stay private/unactivated. Only the actual
         // node speaker receives a frame, with that speaker's own authored motivation.
         want:
-          row.openingActors?.[actorId]?.direction ??
+          planned?.[actorId]?.direction ??
           (actorId === owner ? `${motivation}；当前事情：${row.node.title}` : row.node.title),
-        stance: row.openingActors?.[actorId]
+        stance: planned?.[actorId]
           ? selectCharacterSource(
-              row.openingActors[actorId].persona.modules?.traits ??
-                row.openingActors[actorId].persona.boundaries,
+              planned[actorId].persona.modules?.traits ?? planned[actorId].persona.boundaries,
               '',
               1000,
             )
           : actorId === owner
             ? stance
             : '参与由本人实际回应确定',
-        boundaries: row.openingActors?.[actorId]
-          ? [row.openingActors[actorId].persona.boundaries]
+        boundaries: planned?.[actorId]
+          ? [planned[actorId].persona.boundaries]
           : actorId === owner
             ? [row.persona.boundaries]
             : [],
         authoredSourceId: `publication:${row.origin.workId}:${row.origin.contentHash}:${row.node.key}`,
-        anchorSourceIds: row.openingActors?.[actorId]
-          ? [
-              row.openingActors[actorId].state.sourceEventId,
-              row.openingActors[actorId].state.sourceMessageId,
-            ]
-          : [row.state.sourceEventId, row.state.sourceMessageId],
+        anchorSourceIds: row.openingPlan
+          ? []
+          : row.openingActors?.[actorId]
+            ? [
+                row.openingActors[actorId].state.sourceEventId,
+                row.openingActors[actorId].state.sourceMessageId,
+              ]
+            : [row.state.sourceEventId, row.state.sourceMessageId],
         completionCriterionIds: criteria.filter((c) => c.actorId === actorId).map((c) => c.id),
       })),
     },
   };
 }
 
-/** Enrich only a completed live batch, preserving a stable common goal-definition hash. */
+/** Immutable authorized intents define identity; only verified deliveries activate an own frame. */
 async function openingParticipants(
   sql: SqlClient,
   ownerId: string,
@@ -169,7 +174,6 @@ async function openingParticipants(
     )
   ).rows[0];
   if (!batch) return true;
-  if (batch.status !== 'complete') return false;
   const rows = (
     await sql.query(
       `SELECT d.actor_id,d.brief,d.expected_version,e.id AS event_id,m.id AS message_id,m.document->>'at' AS at
@@ -197,34 +201,64 @@ async function openingParticipants(
         plan.actors.filter((a: { key: string }) => a.key === key),
       )
     : plan.actors;
-  const actorIds = ordered
-    .filter((a: { id: string }) => rows.some((r) => r.actor_id === a.id))
-    .map((a: { id: string }) => a.id);
-  const count = (
+  const deliveries = (
     await sql.query(
-      'SELECT count(*)::int AS count FROM parallel_life.publication_opening_deliveries WHERE world_id=$1 AND owner_id=$2',
+      'SELECT actor_id,brief,status FROM parallel_life.publication_opening_deliveries WHERE world_id=$1 AND owner_id=$2',
       [worldId, ownerId],
     )
-  ).rows[0].count;
+  ).rows;
+  const actorIds = ordered
+    .filter((a: { id: string }) => deliveries.some((d) => d.actor_id === a.id))
+    .map((a: { id: string }) => a.id);
   if (
-    rows.length !== count ||
+    deliveries.length !== actorIds.length ||
+    new Set(actorIds).size !== actorIds.length ||
+    deliveries.some((d) => !actorIds.includes(d.actor_id)) ||
+    rows.length !== deliveries.filter((d) => d.status === 'delivered').length ||
+    (batch.status === 'complete' && rows.length !== deliveries.length) ||
     createHash('sha256')
       .update(JSON.stringify([record.origin, record.node.key, actorIds]))
       .digest('hex') !== batch.source_hash
   )
     throw new TaskError('INVALID_STATE');
+  // The shared event is anchored by the first actual delivery, never by an unsent plan.
+  if (
+    !rows.some(
+      (r) =>
+        r.actor_id === record.state.actorId &&
+        r.event_id === record.state.sourceEventId &&
+        r.message_id === record.state.sourceMessageId,
+    )
+  )
+    return false;
   const result: NonNullable<PublicationGoalRecord['openingActors']> = {};
-  for (const r of rows) {
+  const intents: NonNullable<PublicationGoalRecord['openingPlan']> = {};
+  for (const actorId of actorIds) {
+    const delivery = deliveries.find((d) => d.actor_id === actorId)!;
     const modules = (
       await sql.query('SELECT parallel_life.publication_actor_life_modules($1,$2) AS document', [
         worldId,
-        r.actor_id,
+        actorId,
       ])
     ).rows[0]?.document;
-    result[r.actor_id] = {
-      direction: r.brief,
+    const persona = {
+      motivation: delivery.brief,
+      voice: '',
+      boundaries:
+        selectCharacterSource(modules?.behavior, '', 1000) ||
+        'Respect established character boundaries',
+      modules,
+    };
+    intents[actorId] = { direction: delivery.brief, persona };
+  }
+  // Preserve the original verified SQL row insertion order for legacy hash compatibility.
+  // New immutable intent order lives separately in openingPlan.
+  for (const r of rows) {
+    const actorId = r.actor_id;
+    result[actorId] = {
+      ...intents[actorId]!,
       state: {
-        actorId: r.actor_id,
+        actorId,
         sourceEventId: r.event_id,
         sourceMessageId: r.message_id,
         expectedVersion: r.expected_version,
@@ -232,16 +266,9 @@ async function openingParticipants(
         invitationId: null,
         status: 'presented',
       },
-      persona: {
-        motivation: r.brief,
-        voice: '',
-        boundaries:
-          selectCharacterSource(modules?.behavior, '', 1000) ||
-          'Respect established character boundaries',
-        modules,
-      },
     };
   }
+  record.openingPlan = intents;
   record.openingActors = result;
   return true;
 }
@@ -278,7 +305,29 @@ export async function publicationGoalContexts(
       ).rows[0]?.document;
       if (own) record.persona.modules = own;
     }
-    const value = publicationGoalDefinition(ownerId, worldId, record);
+    let value = publicationGoalDefinition(ownerId, worldId, record);
+    const existing = (
+      await sql.query(
+        'SELECT definition_hash FROM parallel_life.publication_story_progress WHERE world_id=$1 AND owner_id=$2 AND node_key=$3',
+        [worldId, ownerId, record.node.key],
+      )
+    ).rows[0];
+    if (existing && existing.definition_hash !== hashDefinition(value)) {
+      // Older complete-only ledgers keep their exact definition and all recorded state.
+      const batch = (
+        await sql.query(
+          'SELECT status FROM parallel_life.publication_opening_batches WHERE world_id=$1 AND owner_id=$2 AND node_key=$3',
+          [worldId, ownerId, record.node.key],
+        )
+      ).rows[0];
+      if (batch?.status !== 'complete') throw new TaskError('INVALID_STATE');
+      const legacy = publicationGoalDefinition(ownerId, worldId, {
+        ...record,
+        openingPlan: undefined,
+      });
+      if (existing.definition_hash !== hashDefinition(legacy)) throw new TaskError('INVALID_STATE');
+      value = legacy;
+    }
     let progress = await ledger.load(sql, value);
     if (!progress) {
       const closure =
