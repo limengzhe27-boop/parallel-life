@@ -399,6 +399,7 @@ if (!serverCondition && process.env.PL_AGENT_PHONE_ENTRY_CHILD !== '1') {
           total: 0,
           delivered: 0,
           retryable: false,
+          continuation: { status: 'deferred' },
         });
         assert.deepEqual(await counts(f.id), before);
         assert.equal(gatewayCalls, 0);

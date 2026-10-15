@@ -462,8 +462,8 @@ export function WorldPhoneApp({
             if (current.runtime === 'agents') {
               nativeOpening.current = worldId;
               const key =
-                current.continuation?.status === 'ready'
-                  ? `native-entry:${worldId}:${current.continuation.key}`
+                current.continuation?.status === 'ready' && liveTimeRef.current.entryKey
+                  ? `native-entry:${worldId}:${liveTimeRef.current.entryKey}:${current.continuation.key}`
                   : null;
               if (
                 key &&
@@ -557,7 +557,7 @@ export function WorldPhoneApp({
   }, [client, load, worldId, automatic]);
   useEffect(() => {
     if (data?.id === worldId && !refreshing) directorCheck.current();
-  }, [data?.id, refreshing, worldId]);
+  }, [data?.id, refreshing, worldId, liveTime.entryKey]);
   return (
     <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />

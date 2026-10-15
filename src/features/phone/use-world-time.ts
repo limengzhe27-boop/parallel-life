@@ -15,6 +15,7 @@ type Session = {
   active: boolean;
   returning: boolean;
   mode?: Mode;
+  acknowledgedMode?: Mode;
   tail: Promise<unknown>;
 };
 export function useWorldTime(client: LifeClient, worldId: string, enabled: boolean, busy: boolean) {
@@ -22,6 +23,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
   const [now, setNow] = useState(Date.now());
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState('');
+  const [entryKey, setEntryKey] = useState<string | null>(null);
   const [pendingWait, setPendingWait] = useState<StoryWaitRequest | null>(null);
   const pendingWaitRef = useRef(pendingWait);
   pendingWaitRef.current = pendingWait;
@@ -54,6 +56,15 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
           if (mode !== 'away' && (!s.active || document.visibilityState !== 'visible')) return null;
           const clock = await client.updateClockActivity(worldId, input);
           if (session.current === s && s.active && mode !== 'away' && !s.returning) {
+            if (!clock.paused) {
+              if (
+                resume ||
+                s.acknowledgedMode === undefined ||
+                (mode === 'browsing' && s.acknowledgedMode === 'conversation')
+              )
+                setEntryKey(crypto.randomUUID());
+              s.acknowledgedMode = mode;
+            }
             s.mode = mode;
             setView({ worldId, clock });
           }
@@ -77,6 +88,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     session.current = s;
     setView(null);
     setNotice('');
+    setEntryKey(null);
     setWorking(false);
     lastMeaningfulActivity.current = Date.now();
     lastCheck.current = Date.now();
@@ -292,6 +304,8 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
       : null;
   return {
     clock,
+    // Local foreground generation only. Never sent as a model command or source authorization.
+    entryKey,
     working,
     notice,
     pendingWait,
