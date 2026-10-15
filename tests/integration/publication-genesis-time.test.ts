@@ -16,6 +16,7 @@ import {
 } from '../../src/modules/settings/infrastructure/publication-repository.ts';
 import { PublicationWorldRepository } from '../../src/modules/settings/infrastructure/publication-world-repository.ts';
 import { publicationWorldCompiler } from '../../src/server/publication-runtime.ts';
+import type { PublicationWorldPrepare } from '../../src/modules/settings/application/publication-world-ports.ts';
 import type { WorldState } from '../../src/modules/world/domain/types.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import {
@@ -73,6 +74,141 @@ test('real PG authored genesis times support actual note saves in trial and publ
   };
   const works = new PublicationRepository(pub, review);
   const runtime = new PostgresWorldRepository(app);
+  await t.test(
+    'normalization helper has no direct EXECUTE grant for runtime or publisher roles',
+    async () => {
+      const helper = 'parallel_life.publication_runtime_instant(text)';
+      for (const role of ['pl_app', 'pl_worker', 'pl_publisher', 'pl_publisher_login']) {
+        assert.equal(
+          (
+            await admin.query("SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed", [
+              role,
+              helper,
+            ])
+          ).rows[0].allowed,
+          false,
+          role,
+        );
+        await admin.query('BEGIN');
+        try {
+          // Fixed allowlist above; test real permission denial, not a fake query result.
+          await admin.query(`SET LOCAL ROLE ${role}`);
+          await assert.rejects(
+            admin.query("SELECT parallel_life.publication_runtime_instant('2026-10-12T09:00:00Z')"),
+            { code: '42501' },
+          );
+        } finally {
+          await admin.query('ROLLBACK');
+        }
+      }
+      assert.equal(
+        (
+          await admin.query(
+            `SELECT EXISTS(SELECT 1 FROM pg_proc p,
+       LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+       WHERE p.oid=$1::regprocedure AND a.grantee=0 AND a.privilege_type='EXECUTE') AS allowed`,
+            [helper],
+          )
+        ).rows[0].allowed,
+        false,
+        'PUBLIC must not execute the helper',
+      );
+    },
+  );
+
+  async function legacyAdmission(
+    kind: 'published_work' | 'trial',
+    staff: string,
+    workId: string,
+    contentHash: string,
+    shiftSeconds = 0,
+  ) {
+    const owner = kind === 'trial' ? staff : randomUUID();
+    if (kind === 'published_work') await new IdentityRepository(app).ensureGuest(owner);
+    const database = kind === 'trial' ? pub : app;
+    const result = await database
+      .transaction(owner, async (sql) => {
+        if (kind === 'trial')
+          await sql.query("SELECT set_config('publisher.principal_id',$1,true)", [staff]);
+        const commandId = randomUUID();
+        const admission = (
+          kind === 'trial'
+            ? await sql.query(
+                'SELECT parallel_life.publication_admit_trial($1,$2,$3,$4) AS admission',
+                [workId, 0, contentHash, commandId],
+              )
+            : await sql.query(
+                'SELECT parallel_life.publication_admit_published($1,$2,$3) AS admission',
+                [workId, 1, commandId],
+              )
+        ).rows[0].admission as PublicationWorldPrepare & { ticket: string };
+        assert.ok(
+          admission.ticket,
+          'The real admission must be fresh, not an existing binding replay',
+        );
+        const { ticket, ...input } = admission;
+        const prepared = (await publicationWorldCompiler.prepare(input)) as { world: WorldState };
+        const source = PublishedWorldContentSchema.parse(input.content);
+        // Reconstruct only the old compiler's four raw timestamp assignments. Identity, source,
+        // opening, seed, message IDs and admission all come from actual production functions.
+        prepared.world.time = source.world.startAt;
+        prepared.world.messageHistory!.startAt = source.world.startAt;
+        for (const message of prepared.world.messages) {
+          const authored = source.phone.messages.find((m) => m.key === message.history?.key);
+          assert.ok(authored);
+          message.at = authored.at;
+        }
+        prepared.world.appointments[0]!.at = source.phone.invitations[0]!.at;
+        if (shiftSeconds)
+          prepared.world.time = new Date(
+            Date.parse(source.world.startAt) + shiftSeconds * 1000,
+          ).toISOString();
+        const rawBefore = structuredClone(prepared);
+        const fn = kind === 'trial' ? 'publication_commit_trial' : 'publication_commit_published';
+        const committed = (
+          await sql.query(`SELECT parallel_life.${fn}($1,$2) AS result`, [ticket, prepared])
+        ).rows[0].result;
+        assert.equal(committed.worldId, admission.worldId);
+        assert.deepEqual(
+          prepared,
+          rawBefore,
+          'Only the authoritative SQL boundary normalizes the stored JSON',
+        );
+        return { ownerId: admission.ownerId, worldId: admission.worldId };
+      })
+      .catch(async (error) => {
+        if (shiftSeconds) {
+          for (const table of ['worlds', 'approved_seeds', 'publication_world_bindings'])
+            assert.equal(
+              Number(
+                (
+                  await admin.query(
+                    `SELECT count(*) AS n FROM parallel_life.${table} WHERE owner_id=$1`,
+                    [owner],
+                  )
+                ).rows[0].n,
+              ),
+              0,
+              `${table} must roll back with the rejected instant`,
+            );
+          assert.equal(
+            Number(
+              (
+                await admin.query(
+                  'SELECT count(*) AS n FROM parallel_life.publication_world_admissions WHERE requester=$1',
+                  [owner],
+                )
+              ).rows[0].n,
+            ),
+            0,
+            'Rejected admission must roll back',
+          );
+        }
+        throw error;
+      });
+    generated.push(result.worldId);
+    return result;
+  }
   for (const startAt of [
     '2026-10-12T09:00:00Z',
     '2026-10-12T09:00:00.123Z',
@@ -154,7 +290,40 @@ test('real PG authored genesis times support actual note saves in trial and publ
         app,
         publicationWorldCompiler,
       ).startPublished(owner, work.id, { commandId: randomUUID(), publicationVersion: 1 });
-      for (const session of [trialSession, { ownerId: owner, worldId: published.worldId }]) {
+      const versionBefore = (
+        await admin.query(
+          'SELECT content,content_hash FROM parallel_life.publication_versions WHERE work_id=$1 AND version=1',
+          [work.id],
+        )
+      ).rows[0];
+      const legacyWork = await works.create(staff, {
+        commandId: randomUUID(),
+        title: 'Local old compiler trial',
+        content,
+      });
+      const legacyBefore = (await works.get(staff, legacyWork.id)).draft;
+      const oldTrial = await legacyAdmission(
+        'trial',
+        staff,
+        legacyWork.id,
+        legacyBefore.contentHash,
+      );
+      const oldPublished = await legacyAdmission(
+        'published_work',
+        staff,
+        work.id,
+        before.contentHash,
+      );
+      await assert.rejects(
+        legacyAdmission('published_work', staff, work.id, before.contentHash, 1),
+        { code: '22023' },
+      );
+      for (const session of [
+        trialSession,
+        { ownerId: owner, worldId: published.worldId },
+        oldTrial,
+        oldPublished,
+      ]) {
         generated.push(session.worldId);
         const state = await runtime.get({ userId: session.ownerId }, session.worldId);
         // Save before asserting shape: the pre-fix failure must exercise the actual write path.
@@ -181,11 +350,42 @@ test('real PG authored genesis times support actual note saves in trial and publ
           'Persisted after authored genesis',
         );
         assert.equal(refreshed.time, state.time);
+        const actualStored = (
+          await admin.query('SELECT state FROM parallel_life.worlds WHERE id=$1', [session.worldId])
+        ).rows[0].state;
+        assert.equal(actualStored.time, state.time);
+        assert.equal(actualStored.messageHistory.startAt, state.time);
+        // The ordinary note writer compacts world JSON; immutable genesis, rather
+        // than the compacted empty arrays, retains this initial history.
+        const initialStored = (
+          await admin.query(
+            'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            [session.worldId],
+          )
+        ).rows[0].state;
+        assert.deepEqual(
+          initialStored.messages.map((m: { at: string }) => m.at),
+          state.messages.map((m) => m.at),
+        );
+        assert.deepEqual(
+          initialStored.appointments.map((a: { at: string }) => a.at),
+          state.appointments.map((a) => a.at),
+        );
       }
       const after = (await works.get(staff, work.id)).draft;
       assert.equal(after.contentHash, before.contentHash);
       assert.deepEqual(after.content, before.content);
       assert.deepEqual(after.content, content);
+      assert.deepEqual((await works.get(staff, legacyWork.id)).draft, legacyBefore);
+      assert.deepEqual(
+        (
+          await admin.query(
+            'SELECT content,content_hash FROM parallel_life.publication_versions WHERE work_id=$1 AND version=1',
+            [work.id],
+          )
+        ).rows[0],
+        versionBefore,
+      );
       for (const field of ['time', 'messageHistory', 'message'] as const) {
         const tamperedOwner = randomUUID();
         await new IdentityRepository(app).ensureGuest(tamperedOwner);
