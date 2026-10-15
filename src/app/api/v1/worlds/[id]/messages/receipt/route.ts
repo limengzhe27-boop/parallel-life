@@ -16,6 +16,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const worldId = Id.safeParse((await context.params).id);
     if (!worldId.success) throw new HttpError('NOT_FOUND', 404);
     const input = await parseBody(request, WorldMessageRequestSchema);
+    const current = await s.npcAgents.lookupMessage(s.ownerId, {
+      id: input.commandId,
+      worldId: worldId.data,
+      actorId: input.actorId,
+      text: input.text,
+      expectedVersion: input.expectedVersion,
+    });
+    if (current) return json(MessageReceiptLookupSchema.parse(current));
     const saved = await checkMessageReceipt(
       { worlds: s.worlds },
       { userId: s.ownerId },

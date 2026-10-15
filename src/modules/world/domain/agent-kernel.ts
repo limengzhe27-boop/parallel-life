@@ -13,6 +13,7 @@ export type AgentValidationContext = {
   storyAt: string;
   input: { sourceId: string; text: string; origin: 'player' | 'wake' | 'coordination' };
   channel: { kind: 'private' | 'group' | 'scene'; threadId: string; allowedCapabilities: string[] };
+  knownActionResults?: AgentActionResult[];
 };
 /** Produce a model view without deleting or rewriting the authoritative execution state. */
 export function authorizedAgentState(
@@ -22,50 +23,83 @@ export function authorizedAgentState(
   const viewState = structuredClone(state);
   const based = (item: { sourceIds: string[] }) =>
     item.sourceIds.every((id) => permittedSources.has(id));
-  viewState.goals = viewState.goals.filter(based);
-  const goals = new Set(viewState.goals.map((item) => item.id));
-  viewState.responsibilities = viewState.responsibilities.filter(
-    (item) => based(item) && (!item.deadline || permittedSources.has(item.deadline.sourceId)),
-  );
-  const responsibilities = new Set(viewState.responsibilities.map((item) => item.id));
-  viewState.actions = viewState.actions.filter(
-    (item) =>
-      based(item) &&
-      goals.has(item.goalId) &&
-      item.handlesResponsibilityIds.every((id) => responsibilities.has(id)),
-  );
-  let count = -1;
-  while (count !== viewState.actions.length) {
-    count = viewState.actions.length;
+  const count = () =>
+    viewState.goals.length +
+    viewState.plans.length +
+    viewState.actions.length +
+    viewState.responsibilities.length +
+    viewState.decisions.length;
+  let previous = -1;
+  while (previous !== count()) {
+    previous = count();
+    const goals = new Set(viewState.goals.filter(based).map((item) => item.id));
     const actions = new Set(viewState.actions.map((item) => item.id));
-    viewState.actions = viewState.actions.filter((item) =>
-      item.dependsOnActionIds.every((id) => actions.has(id)),
+    const responsibilities = new Set(viewState.responsibilities.map((item) => item.id));
+    const conditions = (items: import('./agent-runtime.ts').AgentCondition[]) =>
+      items.every((item) =>
+        item.kind === 'result'
+          ? actions.has(item.actionId)
+          : item.kind === 'player_decision'
+            ? responsibilities.has(item.responsibilityId)
+            : item.kind === 'at_place' || permittedSources.has(item.sourceId),
+      );
+    viewState.goals = viewState.goals.filter(based);
+    viewState.responsibilities = viewState.responsibilities.filter(
+      (item) =>
+        based(item) &&
+        (!item.deadline || permittedSources.has(item.deadline.sourceId)) &&
+        conditions(item.nextCheck),
+    );
+    viewState.actions = viewState.actions.filter(
+      (item) =>
+        based(item) &&
+        goals.has(item.goalId) &&
+        item.handlesResponsibilityIds.every((id) => responsibilities.has(id)) &&
+        item.dependsOnActionIds.every((id) => actions.has(id)) &&
+        conditions(item.preconditions),
+    );
+    viewState.plans = viewState.plans.filter(
+      (item) =>
+        based(item) &&
+        goals.has(item.goalId) &&
+        item.actionIds.every((id) => actions.has(id)) &&
+        (item.nextActionId === null ||
+          (item.actionIds.includes(item.nextActionId) && actions.has(item.nextActionId))) &&
+        conditions(item.triggers),
+    );
+    viewState.decisions = viewState.decisions.filter(
+      (item) => permittedSources.has(item.sourceId) && responsibilities.has(item.responsibilityId),
     );
   }
-  const actions = new Set(viewState.actions.map((item) => item.id));
-  const conditions = (items: import('./agent-runtime.ts').AgentCondition[]) =>
-    items.every((item) =>
-      item.kind === 'result'
-        ? actions.has(item.actionId)
-        : item.kind === 'player_decision'
-          ? responsibilities.has(item.responsibilityId)
-          : item.kind === 'at_place' || permittedSources.has(item.sourceId),
-    );
-  viewState.actions = viewState.actions.filter((item) => conditions(item.preconditions));
-  viewState.plans = viewState.plans.filter(
-    (item) =>
-      based(item) &&
-      goals.has(item.goalId) &&
-      item.actionIds.every((id) => viewState.actions.some((action) => action.id === id)) &&
-      conditions(item.triggers),
-  );
-  viewState.decisions = viewState.decisions.filter(
-    (item) => permittedSources.has(item.sourceId) && responsibilities.has(item.responsibilityId),
-  );
   viewState.knowledgeSourceIds = viewState.knowledgeSourceIds.filter((id) =>
     permittedSources.has(id),
   );
-  if (viewState.focus?.questionSourceId && !permittedSources.has(viewState.focus.questionSourceId))
+  const allIds = new Set(
+    [
+      ...state.goals,
+      ...state.plans,
+      ...state.actions,
+      ...state.responsibilities,
+      ...state.decisions,
+    ].map((item) => item.id),
+  );
+  const visibleIds = new Set(
+    [
+      ...viewState.goals,
+      ...viewState.plans,
+      ...viewState.actions,
+      ...viewState.responsibilities,
+      ...viewState.decisions,
+    ].map((item) => item.id),
+  );
+  if (
+    viewState.focus &&
+    ((viewState.focus.questionSourceId &&
+      !permittedSources.has(viewState.focus.questionSourceId)) ||
+      (viewState.focus.subjectId &&
+        allIds.has(viewState.focus.subjectId) &&
+        !visibleIds.has(viewState.focus.subjectId)))
+  )
     viewState.focus = null;
   const redactedStateIds: string[] = [];
   for (const key of ['goals', 'plans', 'actions', 'responsibilities', 'decisions'] as const) {
@@ -110,6 +144,52 @@ function sameValue(a: unknown, b: unknown): boolean {
         sameValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
     )
   );
+}
+
+function withoutInternalRevision(value: object) {
+  const {
+    revision: _revision,
+    responsibilityRevision: _decisionRevision,
+    ...rest
+  } = value as Record<string, unknown>;
+  return rest;
+}
+export function responsibilityRevision(
+  context: AgentValidationContext,
+  proposal: AgentProposal,
+  id: string,
+): number {
+  const old = context.state.responsibilities.find((item) => item.id === id);
+  const next = proposal.responsibilities.find((item) => item.id === id);
+  return !old
+    ? 0
+    : (old.revision ?? 0) +
+        (next && !sameValue(withoutInternalRevision(old), withoutInternalRevision(next)) ? 1 : 0);
+}
+/** Current decision per request revision; an earlier acceptance cannot survive a later refusal. */
+export function currentPlayerDecision(
+  context: AgentValidationContext,
+  proposal: AgentProposal,
+  responsibilityId: string,
+) {
+  const revision = responsibilityRevision(context, proposal, responsibilityId);
+  const sources = new Map(context.sources.map((source) => [source.id, source]));
+  const old = (context.viewState ?? context.state).decisions.filter(
+    (decision) => (decision.responsibilityRevision ?? 0) === revision,
+  );
+  return [...old, ...proposal.decisions]
+    .filter(
+      (decision) =>
+        decision.responsibilityId === responsibilityId && sources.has(decision.sourceId),
+    )
+    .map((decision, index) => ({ decision, source: sources.get(decision.sourceId)!, index }))
+    .sort(
+      (a, b) =>
+        Date.parse(a.source.at) - Date.parse(b.source.at) ||
+        a.source.worldVersion - b.source.worldVersion ||
+        a.index - b.index,
+    )
+    .at(-1)?.decision;
 }
 
 export function validateAgentProposal(
@@ -262,7 +342,10 @@ export function validateAgentProposal(
         'RESPONSIBILITY_IDENTITY',
       );
     if (old && ['fulfilled', 'withdrawn', 'expired'].includes(old.status))
-      requireValid(sameValue(old, responsibility), 'TERMINAL_RESPONSIBILITY');
+      requireValid(
+        sameValue(withoutInternalRevision(old), withoutInternalRevision(responsibility)),
+        'TERMINAL_RESPONSIBILITY',
+      );
     if (responsibility.deadline) {
       hasSource(responsibility.deadline.sourceId);
       requireValid(
@@ -291,8 +374,16 @@ export function validateAgentProposal(
     requireValid(context.input.text.includes(decision.quote), 'DECISION_QUOTE');
     requireValid(responsibilities.has(decision.responsibilityId), 'UNKNOWN_RESPONSIBILITY');
     const old = state.decisions.find((item) => item.id === decision.id);
-    requireValid(!old || sameValue(old, decision), 'DECISION_HISTORY_IMMUTABLE');
+    requireValid(
+      !old || sameValue(withoutInternalRevision(old), withoutInternalRevision(decision)),
+      'DECISION_HISTORY_IMMUTABLE',
+    );
   }
+  requireValid(
+    new Set(proposal.decisions.map((item) => item.responsibilityId)).size ===
+      proposal.decisions.length,
+    'AMBIGUOUS_CURRENT_DECISION',
+  );
   if (proposal.focus) {
     requireValid(
       proposal.focus.channel === context.channel.kind &&
@@ -354,17 +445,37 @@ export function reduceActorAgentState(
   }
   const goals = merge(context.state.goals, proposal.goals);
   for (const goal of goals)
-    if (goal.status === 'fulfilled')
+    if (
+      goal.status === 'fulfilled' &&
+      !context.state.goals.some((old) => old.id === goal.id && old.status === 'fulfilled')
+    )
       requireValid(
-        goal.resultIds.every((id) =>
-          actions.some(
-            (action) =>
-              action.goalId === goal.id && action.resultId === id && action.status === 'succeeded',
-          ),
+        goal.resultIds.every(
+          (id) =>
+            actions.some(
+              (action) =>
+                action.goalId === goal.id &&
+                action.resultId === id &&
+                action.status === 'succeeded',
+            ) &&
+            [...results, ...(context.knownActionResults ?? [])].some(
+              (result) =>
+                result.id === id &&
+                result.worldId === context.state.worldId &&
+                result.actorId === context.state.actorId &&
+                result.outcome === 'succeeded' &&
+                result.completedGoalIds?.includes(goal.id),
+            ),
         ),
         'UNCONFIRMED_GOAL_RESULT',
       );
-  const responsibilities = merge(context.state.responsibilities, proposal.responsibilities);
+  const responsibilities = merge(
+    context.state.responsibilities,
+    proposal.responsibilities.map((item) => ({
+      ...item,
+      revision: responsibilityRevision(context, proposal, item.id),
+    })),
+  );
   for (const item of responsibilities)
     if (
       item.status === 'fulfilled' &&
@@ -396,7 +507,13 @@ export function reduceActorAgentState(
       plans: merge(context.state.plans, proposal.plans),
       actions,
       responsibilities,
-      decisions: merge(context.state.decisions, proposal.decisions),
+      decisions: merge(
+        context.state.decisions,
+        proposal.decisions.map((item) => ({
+          ...item,
+          responsibilityRevision: responsibilityRevision(context, proposal, item.responsibilityId),
+        })),
+      ),
       focus: proposal.focus === undefined ? context.state.focus : proposal.focus,
     },
     statements,

@@ -63,6 +63,7 @@ import { InterviewPlanner } from '../modules/profile/infrastructure/interview-pl
 import { WorldTurnPlanner } from '../modules/world/infrastructure/turn-planner.ts';
 import { createTextModel } from './composition.ts';
 import { publicationCharacterPlanner } from './publication-character-planner.ts';
+import { npcAgentServices } from './npc-agent-services.ts';
 let services: ReturnType<typeof createServices> | undefined;
 function createServices() {
   // Marketplace integrations expose an administrative DATABASE_URL for
@@ -317,6 +318,7 @@ function createServices() {
     ),
     interviewPlanner: new InterviewPlanner(createTextModel()),
     worldPlanner: new WorldTurnPlanner(createTextModel()),
+    npcAgents: npcAgentServices(db, createTextModel),
     characterPlannerFor: (ownerId: string, worldId: string) => {
       const planner = publicationCharacterPlanner(db, ownerId, worldId, createTextModel());
       return {

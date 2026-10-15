@@ -1,5 +1,5 @@
 import type { AgentProposal, AgentActionResult, ActorAgentState } from './agent-runtime.ts';
-import type { WorldState } from './types.ts';
+import type { WorldState, WorldEffect } from './types.ts';
 import { DomainError } from './errors.ts';
 import { isoInstant, validateEventId } from './validation.ts';
 
@@ -7,6 +7,8 @@ export type AgentRuntimeTransition = {
   schemaVersion: 1;
   engineEpoch: number;
   inputReceiptId: string;
+  inputStoryAt: string;
+  inputWorldVersion: number;
   actorRevisionBefore: number;
   actorRevisionAfter: number;
   proposal: AgentProposal;
@@ -24,7 +26,11 @@ export type AgentStateCommittedEvent = {
   occurredAt: string;
   storyAt: string;
   type: 'agent.state_committed';
-  data: { actorId: string; agentRuntime: AgentRuntimeTransition };
+  data: {
+    actorId: string;
+    agentRuntime: AgentRuntimeTransition;
+    effects?: Extract<WorldEffect, { type: 'appointment.proposed' }>[];
+  };
 };
 export function applyAgentStateEvent(
   current: WorldState,
@@ -47,6 +53,44 @@ export function applyAgentStateEvent(
     event.data.agentRuntime.proposal.statements.length > 0
   )
     throw new DomainError('INVALID_PROPOSAL');
-  // This event changes durable NPC execution state; it cannot invent phone messages, arrivals or external results.
-  return { ...structuredClone(current), version: event.version, time: event.storyAt };
+  const runtime = event.data.agentRuntime;
+  if (
+    runtime.stateAfter.worldId !== event.worldId ||
+    runtime.stateAfter.actorId !== event.data.actorId ||
+    runtime.stateAfter.revision !== runtime.actorRevisionAfter ||
+    runtime.stateAfter.projectedWorldVersion !== event.version ||
+    runtime.results.some(
+      (result) =>
+        result.worldId !== event.worldId ||
+        result.actorId !== event.data.actorId ||
+        result.eventId !== event.id ||
+        result.worldVersion !== event.version,
+    )
+  )
+    throw new DomainError('INVALID_PROPOSAL');
+  const state = { ...structuredClone(current), version: event.version, time: event.storyAt };
+  // Capabilities may produce a calendar proposal without a chat. This never confirms attendance.
+  for (const effect of event.data.effects ?? []) {
+    if (
+      effect.type !== 'appointment.proposed' ||
+      effect.participantIds.length !== 1 ||
+      effect.participantIds[0] !== event.data.actorId ||
+      Date.parse(effect.at) <= Date.parse(event.storyAt) ||
+      !effect.title.trim() ||
+      effect.title.length > 120 ||
+      state.appointments.some((item) => item.id === effect.id)
+    )
+      throw new DomainError('INVALID_PROPOSAL');
+    isoInstant(effect.at);
+    validateEventId(effect.id);
+    state.appointments.push({
+      id: effect.id,
+      title: effect.title,
+      at: effect.at,
+      participantIds: effect.participantIds,
+      status: 'proposed',
+      sourceEventId: event.id,
+    });
+  }
+  return state;
 }

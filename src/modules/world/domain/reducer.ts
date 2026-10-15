@@ -41,9 +41,17 @@ export function applyEvent(
   validateCharacterEffects(event.data.actorId, effects, true, event.data.origin);
   const replyAt = event.storyAt ?? current.time;
   const userAt = event.data.userAt ?? current.time;
+  const acceptedInput = event.data.agentRuntime;
+  const acceptedEarlier =
+    acceptedInput?.schemaVersion === 1 &&
+    acceptedInput.engineEpoch >= 2 &&
+    acceptedInput.inputStoryAt === userAt &&
+    Number.isInteger(acceptedInput.inputWorldVersion) &&
+    acceptedInput.inputWorldVersion <= current.version &&
+    acceptedInput.inputWorldVersion >= 0;
   if (
     Date.parse(replyAt) < Date.parse(current.time) ||
-    Date.parse(userAt) < Date.parse(current.time) ||
+    (!acceptedEarlier && Date.parse(userAt) < Date.parse(current.time)) ||
     Date.parse(userAt) > Date.parse(replyAt)
   )
     throw new DomainError('INVALID_COMMAND', 'World time cannot run backwards');

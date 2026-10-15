@@ -111,7 +111,7 @@ function dedupeFacts(facts: WorldState['facts']): WorldState['facts'] {
     return true;
   });
 }
-function compact(state: WorldState) {
+export function compactWorldState(state: WorldState) {
   /* messages/appointments/notes/facts live in projections; the snapshot stays compact. */
   return { ...state, messages: [], appointments: [], mediaRequests: [], notes: [], facts: [] };
 }
@@ -133,7 +133,7 @@ export class PostgresWorldRepository implements WorldRepository {
     await this.db.transaction(session.userId, async (sql) => {
       await sql.query(
         'INSERT INTO parallel_life.worlds(id,owner_id,title,state) VALUES($1,$2,$3,$4)',
-        [state.id, session.userId, state.title, compact(state)],
+        [state.id, session.userId, state.title, compactWorldState(state)],
       );
       await sql.query(
         'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',
@@ -311,11 +311,11 @@ export class PostgresWorldRepository implements WorldRepository {
       );
       await sql.query(
         'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
-        [state.id, state.version, compact(state)],
+        [state.id, state.version, compactWorldState(state)],
       );
       await sql.query(
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
-        [state.id, command.commandId, event.id, compact(state)],
+        [state.id, command.commandId, event.id, compactWorldState(state)],
       );
       await capClockAtNextAppointment(sql, session.userId, state.id, realNow);
       return state;
@@ -432,11 +432,11 @@ export class PostgresWorldRepository implements WorldRepository {
       }
       await sql.query(
         'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
-        [state.id, state.version, compact(state)],
+        [state.id, state.version, compactWorldState(state)],
       );
       await sql.query(
         "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
-        [state.id, command.commandId, event.id, compact(state)],
+        [state.id, command.commandId, event.id, compactWorldState(state)],
       );
       return { worldId: state.id, version: state.version, note };
     });
@@ -470,114 +470,150 @@ export class PostgresWorldRepository implements WorldRepository {
     event: WorldEvent,
     progress?: { goalKeys: string[]; assessments: EventGoalAssessment[] },
   ) {
-    return this.db.transaction(session.userId, async (sql) => {
-      const current = await this.owned(sql, command.worldId, true),
-        saved = await this.saved(sql, command);
-      if (saved) return saved;
-      if (current.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
-      if (command.origin === 'director') {
-        const cancelled = (
-          await sql.query(
-            "SELECT 1 FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 AND command_id=$3 AND status IN ('skipped','expired')",
-            [command.worldId, session.userId, command.id],
-          )
-        ).rowCount;
-        if (cancelled)
-          throw new DomainError('INVALID_COMMAND', '这段发送已被结束，不能再保存晚到的结果。');
-      }
+    return this.db.transaction(session.userId, (sql) =>
+      this.commitInTransaction(sql, session, command, event, progress),
+    );
+  }
+  /** Application UoW may combine the world event with persistent NPC state on this same connection. */
+  async commitInTransaction(
+    sql: SqlClient,
+    session: Session,
+    command: TurnCommand,
+    event: WorldEvent,
+    progress?: { goalKeys: string[]; assessments: EventGoalAssessment[] },
+    options: { legacyProgress?: boolean } = {},
+  ) {
+    const current = await this.owned(sql, command.worldId, true),
+      saved = await this.saved(sql, command);
+    if (saved) return saved;
+    if (current.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+    if (command.origin === 'director') {
+      const cancelled = (
+        await sql.query(
+          "SELECT 1 FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 AND command_id=$3 AND status IN ('skipped','expired')",
+          [command.worldId, session.userId, command.id],
+        )
+      ).rowCount;
+      if (cancelled)
+        throw new DomainError('INVALID_COMMAND', '这段发送已被结束，不能再保存晚到的结果。');
+    }
+    if (
+      event.commandId !== command.id ||
+      event.worldId !== command.worldId ||
+      event.data.actorId !== command.actorId ||
+      event.data.userText !== command.text ||
+      event.data.origin !== command.origin
+    )
+      throw new DomainError('INVALID_COMMAND');
+    if (JSON.stringify(event).length >= 65536)
+      throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
+    if (event.data.agentRuntime) {
+      const runtime = event.data.agentRuntime;
+      const input = (
+        await sql.query(
+          'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+          [command.worldId, session.userId, runtime.inputReceiptId],
+        )
+      ).rows[0]?.document;
+      const fence = (
+        await sql.query("SELECT current_setting('app.agent_commit_attempt_id',true) AS attempt")
+      ).rows[0]?.attempt;
       if (
-        event.commandId !== command.id ||
-        event.worldId !== command.worldId ||
-        event.data.actorId !== command.actorId ||
-        event.data.userText !== command.text ||
-        event.data.origin !== command.origin
+        options.legacyProgress !== false ||
+        !fence ||
+        !input ||
+        input.text !== command.text ||
+        input.storyAt !== runtime.inputStoryAt ||
+        input.expectedWorldVersion !== runtime.inputWorldVersion ||
+        (input.origin === 'player') !== (command.origin === undefined) ||
+        event.data.userAt !== input.storyAt
       )
-        throw new DomainError('INVALID_COMMAND');
-      if (JSON.stringify(event).length >= 65536)
-        throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
-      const hydrated = await this.hydrate(sql, current);
-      validateCharacterEffects(
-        command.actorId,
-        parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
-        false,
-        command.origin,
-      );
-      if (
-        event.data.effects.some((effect) => effect.type === 'information.shared') &&
-        event.data.disclosurePolicyVersion !== 2
-      )
-        throw new DomainError('INVALID_PROPOSAL', 'Disclosure policy version required');
-      const { state, jobs } = applyEvent(hydrated, event);
+        throw new DomainError('INVALID_COMMAND', 'Invalid accepted input basis');
+    }
+    const hydrated = await this.hydrate(sql, current);
+    validateCharacterEffects(
+      command.actorId,
+      parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
+      false,
+      command.origin,
+    );
+    if (
+      event.data.effects.some((effect) => effect.type === 'information.shared') &&
+      event.data.disclosurePolicyVersion !== 2
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'Disclosure policy version required');
+    const { state, jobs } = applyEvent(hydrated, event);
+    await sql.query(
+      "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
+      [
+        command.id,
+        command.worldId,
+        session.userId,
+        command.expectedVersion,
+        fingerprint(command),
+        command,
+      ],
+    );
+    await sql.query(
+      'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
+      [event.id, state.id, session.userId, event.version, command.id, event, event.occurredAt],
+    );
+    for (const message of state.messages.filter((x) => x.sourceEventId === event.id))
       await sql.query(
-        "INSERT INTO parallel_life.commands(id,world_id,owner_id,expected_version,request_hash,request_payload,status) VALUES($1,$2,$3,$4,$5,$6,'queued')",
-        [
-          command.id,
-          command.worldId,
-          session.userId,
-          command.expectedVersion,
-          fingerprint(command),
-          command,
-        ],
+        'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
+        [message.id, state.id, session.userId, message.actorId, message],
       );
+    for (const appointment of state.appointments.filter((x) => x.sourceEventId === event.id))
       await sql.query(
-        'INSERT INTO parallel_life.world_events(id,world_id,owner_id,version,command_id,payload,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7)',
-        [event.id, state.id, session.userId, event.version, command.id, event, event.occurredAt],
+        'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+        [appointment.id, state.id, session.userId, appointment],
       );
-      for (const message of state.messages.filter((x) => x.sourceEventId === event.id))
-        await sql.query(
-          'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
-          [message.id, state.id, session.userId, message.actorId, message],
-        );
-      for (const appointment of state.appointments.filter((x) => x.sourceEventId === event.id))
-        await sql.query(
-          'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
-          [appointment.id, state.id, session.userId, appointment],
-        );
-      for (const media of state.mediaRequests.filter((x) => x.sourceEventId === event.id))
-        await sql.query(
-          'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
-          [media.id, state.id, session.userId, media],
-        );
-      for (const [ordinal, fact] of state.facts
-        .filter((item) => item.sourceEventId === event.id)
-        .entries())
-        await sql.query(
-          'INSERT INTO parallel_life.world_facts(id,world_id,owner_id,ordinal,document) VALUES($1,$2,$3,$4,$5)',
-          [fact.id, state.id, session.userId, ordinal, fact],
-        );
-      for (const job of jobs)
-        await sql.query(
-          'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
-          [job.id, state.id, session.userId, event.id, job],
-        );
-      /*
-      记忆接线：角色这一轮自己的印象进入 character 作用域，这一轮发生的事进入
-      branch 作用域（来源=真实消息/事件 id）。抽取不额外调用模型；同一句话重复
-      出现时由写入层合并来源。
-      */
-      await storeTurnMemories(sql, session.userId, state, event);
-      const snapshot = compact(state);
-      /* A clear failure beats an opaque CHECK violation that rolls back everything. */
-      if (JSON.stringify(snapshot).length >= 262144)
-        throw new DomainError('INVALID_COMMAND', 'World snapshot exceeded its capacity budget');
+    for (const media of state.mediaRequests.filter((x) => x.sourceEventId === event.id))
       await sql.query(
-        'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
-        [state.id, state.version, snapshot],
+        'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+        [media.id, state.id, session.userId, media],
       );
-      if (event.storyAt && event.data.origin !== 'director')
-        await sql.query(
-          `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at)
-           VALUES($1,$2,$3,$4)
-           ON CONFLICT(world_id) DO UPDATE SET
-             story_now=GREATEST(parallel_life.world_clock.story_now,EXCLUDED.story_now),
-             last_tick_at=GREATEST(parallel_life.world_clock.last_tick_at,EXCLUDED.last_tick_at),
-             updated_at=now()`,
-          [state.id, session.userId, event.storyAt, event.occurredAt],
-        );
+    for (const [ordinal, fact] of state.facts
+      .filter((item) => item.sourceEventId === event.id)
+      .entries())
       await sql.query(
-        "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
-        [state.id, command.id, event.id, snapshot],
+        'INSERT INTO parallel_life.world_facts(id,world_id,owner_id,ordinal,document) VALUES($1,$2,$3,$4,$5)',
+        [fact.id, state.id, session.userId, ordinal, fact],
       );
+    for (const job of jobs)
+      await sql.query(
+        'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
+        [job.id, state.id, session.userId, event.id, job],
+      );
+    /*
+  记忆接线：角色这一轮自己的印象进入 character 作用域，这一轮发生的事进入
+  branch 作用域（来源=真实消息/事件 id）。抽取不额外调用模型；同一句话重复
+  出现时由写入层合并来源。
+  */
+    await storeTurnMemories(sql, session.userId, state, event);
+    const snapshot = compactWorldState(state);
+    /* A clear failure beats an opaque CHECK violation that rolls back everything. */
+    if (JSON.stringify(snapshot).length >= 262144)
+      throw new DomainError('INVALID_COMMAND', 'World snapshot exceeded its capacity budget');
+    await sql.query(
+      'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
+      [state.id, state.version, snapshot],
+    );
+    if (event.storyAt && event.data.origin !== 'director')
+      await sql.query(
+        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at)
+       VALUES($1,$2,$3,$4)
+       ON CONFLICT(world_id) DO UPDATE SET
+         story_now=GREATEST(parallel_life.world_clock.story_now,EXCLUDED.story_now),
+         last_tick_at=GREATEST(parallel_life.world_clock.last_tick_at,EXCLUDED.last_tick_at),
+         updated_at=now()`,
+        [state.id, session.userId, event.storyAt, event.occurredAt],
+      );
+    await sql.query(
+      "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
+      [state.id, command.id, event.id, snapshot],
+    );
+    if (options.legacyProgress !== false) {
       // Introduction and private progress reconcile on the same successful source
       // transaction. No nested connection can observe half an NPC reply.
       await new PublicationStoryRepository(this.db).reconcileInTransaction(
@@ -607,7 +643,7 @@ export class PostgresWorldRepository implements WorldRepository {
         command.origin === 'director',
         recalled.blockedSources,
       );
-      return { state, event };
-    });
+    }
+    return { state, event };
   }
 }

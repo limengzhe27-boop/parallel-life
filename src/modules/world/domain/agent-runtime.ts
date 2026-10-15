@@ -15,6 +15,8 @@ export type AgentSource = {
   at: string;
   /** Server-resolved explicit response deadline, never inferred merely from model text. */
   deadlineAt?: string;
+  /** Server-only integrity of a mutable source projection, not a model-authored claim. */
+  contentHash?: string;
 };
 export type AgentBasis = { sourceIds: string[] };
 export type AgentCondition =
@@ -48,9 +50,13 @@ export type AgentPlayerDecision = {
   kind: PlayerDecisionKind;
   sourceId: string;
   quote: string;
+  /** Kernel-assigned request revision. A past acceptance cannot authorize a changed request. */
+  responsibilityRevision?: number;
 };
 export type AgentResponsibility = AgentBasis & {
   id: string;
+  /** Kernel-maintained revision, not a model-authored number. */
+  revision?: number;
   subject: { kind: 'appointment' | 'matter' | 'episode' | 'request'; id: string };
   summary: string;
   status: 'open' | 'waiting' | 'deferred' | 'fulfilled' | 'withdrawn' | 'expired';
@@ -91,6 +97,9 @@ export type AgentActionResult = AgentIdentity & {
   outcome: 'succeeded' | 'failed';
   handledResponsibilityIds: string[];
   evidenceSourceIds: string[];
+  /** Only the executing capability can certify completion; recording a plan never does. */
+  completedGoalIds?: string[];
+  outputRefs?: { kind: 'appointment' | 'plan' | 'matter' | 'place'; id: string }[];
 };
 export type AgentConversationFocus = {
   channel: 'private' | 'group' | 'scene';

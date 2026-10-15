@@ -77,7 +77,10 @@ function fixture(replayStatus?: AgentAttemptStatus) {
     },
     async readResponse() {
       calls.push('readResponse');
-      return { found: true, response: raw };
+      return {
+        found: true,
+        response: { kind: 'npc_agent_completion', schemaVersion: 1, snapshot, response: raw },
+      };
     },
   };
   const model: NpcAgentModel = {
@@ -187,4 +190,62 @@ test('input preflight failure and wrong actor/source never reserve or call a mod
   };
   await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /context too large/);
   assert.deepEqual(f.calls, []);
+});
+test('received completion resumes its protected original snapshot without rebuilding or paying again', async () => {
+  const f = fixture('response_received'),
+    original = structuredClone(f.snapshot);
+  f.snapshot.input.text = '之后的新上下文，不应解释旧回复';
+  f.attempts.readResponse = async () => ({
+    found: true,
+    response: {
+      kind: 'npc_agent_completion',
+      schemaVersion: 1,
+      snapshot: original,
+      response: 'raw',
+    },
+  });
+  f.kernel.parse = (snapshot) => {
+    assert.equal(snapshot.input.text, '你好');
+    return {
+      statements: [],
+      goals: [],
+      plans: [],
+      actions: [],
+      responsibilities: [],
+      decisions: [],
+    };
+  };
+  await runNpcAgent(f, 'owner', f.claim, null);
+  assert.ok(!f.calls.includes('model') && !f.calls.includes('preflight'));
+});
+test('persisted null model output is known invalid, never missing or unknown', async () => {
+  const f = fixture('response_received');
+  f.attempts.readResponse = async () => ({
+    found: true,
+    response: {
+      kind: 'npc_agent_completion',
+      schemaVersion: 1,
+      snapshot: f.snapshot,
+      response: null,
+    },
+  });
+  f.kernel.parse = (_snapshot, response) => {
+    assert.equal(response, null);
+    throw Error('invalid null result');
+  };
+  await assert.rejects(runNpcAgent(f, 'owner', f.claim, null), /invalid null result/);
+  assert.equal(f.readAttempt().status, 'invalid_output');
+  assert.ok(!f.calls.includes('model'));
+});
+test('a known pre-send fence rejection releases its reservation and makes zero model requests', async () => {
+  const f = fixture();
+  const mark = f.attempts.mark;
+  f.attempts.mark = async (owner, attempt, status) => {
+    if (status === 'request_sent')
+      throw Object.assign(Error('scope revoked'), { code: 'INPUT_SCOPE_FORBIDDEN' });
+    return mark(owner, attempt, status);
+  };
+  await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /scope revoked/);
+  assert.equal(f.readAttempt().status, 'stale_discarded');
+  assert.ok(!f.calls.includes('model'));
 });

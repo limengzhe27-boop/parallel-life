@@ -13,6 +13,10 @@ import {
   reduceActorAgentState,
   type AgentValidationContext,
 } from '../src/modules/world/domain/agent-kernel.ts';
+import {
+  authorizedAgentState,
+  currentPlayerDecision,
+} from '../src/modules/world/domain/agent-kernel.ts';
 
 const at = '2026-10-15T10:00:00.000Z';
 function fixture(): { context: AgentValidationContext; proposal: AgentProposal } {
@@ -260,4 +264,113 @@ test('unknown attempts may receive the original result, never become a new reque
     () => transitionAgentAttempt('invalid_output', 'request_sent'),
     /INVALID_ATTEMPT_TRANSITION/,
   );
+});
+test('forgotten goal and decision text is absent from model view but survives canonical state unchanged', () => {
+  const { context, proposal } = fixture();
+  context.state.goals[0]!.summary = '被忘却的私密计划';
+  context.state.decisions.push({
+    id: 'old-decision',
+    responsibilityId: 'invitation-a',
+    kind: 'accepted',
+    sourceId: 'opening',
+    quote: '被忘却的原话',
+  });
+  const before = JSON.stringify(context.state);
+  const view = authorizedAgentState(context.state, new Set(['player-now']));
+  assert.equal(view.viewState.goals.length, 0);
+  assert.equal(view.viewState.decisions.length, 0);
+  assert.ok(!JSON.stringify(view.viewState).includes('被忘却'));
+  assert.equal(JSON.stringify(context.state), before);
+  context.viewState = view.viewState;
+  const next = reduceActorAgentState(context, proposal, [], 5).state;
+  assert.equal(next.goals[0]!.summary, '被忘却的私密计划');
+  proposal.goals.push({
+    ...context.state.goals[0]!,
+    sourceIds: ['player-now'],
+    summary: '用新文字覆盖旧记录',
+  });
+  assert.throws(() => parseAgentProposal(context, proposal), /REDACTED_STATE_MUTATION/);
+});
+test('authorization closure prunes dependent actions, plan conditions, waiting conditions and focus to a fixed point', () => {
+  const { context, proposal } = fixture();
+  action(proposal);
+  const first = {
+    ...proposal.actions[0]!,
+    preconditions: [{ kind: 'observation' as const, sourceId: 'forgotten' }],
+  };
+  context.state.actions = [
+    first,
+    { ...first, id: 'a2', preconditions: [], dependsOnActionIds: ['a1'] },
+  ];
+  context.state.plans = [
+    {
+      id: 'p',
+      goalId: 'goal-a',
+      summary: 'dependant plan',
+      sourceIds: ['opening'],
+      status: 'active',
+      actionIds: ['a2'],
+      nextActionId: 'a2',
+      triggers: [{ kind: 'result', actionId: 'a1', outcome: 'succeeded' }],
+      missingConditions: [],
+    },
+  ];
+  context.state.responsibilities[0]!.nextCheck = [{ kind: 'observation', sourceId: 'forgotten' }];
+  context.state.focus = {
+    channel: 'private',
+    threadId: 'actor-a',
+    subjectId: 'p',
+    questionSourceId: null,
+    replyToActorId: null,
+  };
+  const { viewState } = authorizedAgentState(context.state, new Set(['opening', 'player-now']));
+  assert.equal(viewState.actions.length, 0);
+  assert.equal(viewState.plans.length, 0);
+  assert.equal(viewState.responsibilities.length, 0);
+  assert.equal(viewState.focus, null);
+});
+test('recording a plan cannot fulfill an external objective merely because the action succeeded', () => {
+  const { context, proposal } = fixture();
+  action(proposal);
+  context.state.actions = [{ ...proposal.actions[0]!, status: 'succeeded', resultId: 'r1' }];
+  proposal.actions = [];
+  context.knownActionResults = [{ ...result(), completedGoalIds: [] }];
+  proposal.goals = [
+    {
+      ...context.state.goals[0]!,
+      summary: '修好轮胎',
+      status: 'fulfilled',
+      resultIds: ['r1'],
+      endReason: '记下计划',
+    },
+  ];
+  assert.throws(() => reduceActorAgentState(context, proposal, [], 5), /UNCONFIRMED_GOAL_RESULT/);
+});
+test('the latest refusal supersedes an old acceptance and a revised request requires its own decision', () => {
+  const { context, proposal } = fixture();
+  context.state.decisions = [
+    {
+      id: 'old-yes',
+      responsibilityId: 'invitation-a',
+      kind: 'accepted',
+      sourceId: 'opening',
+      quote: '以前答应',
+      responsibilityRevision: 0,
+    },
+  ];
+  proposal.decisions = [
+    {
+      id: 'now-no',
+      responsibilityId: 'invitation-a',
+      kind: 'declined',
+      sourceId: 'player-now',
+      quote: '我不去了',
+    },
+  ];
+  assert.equal(currentPlayerDecision(context, proposal, 'invitation-a')?.kind, 'declined');
+  proposal.decisions = [];
+  proposal.responsibilities = [
+    { ...context.state.responsibilities[0]!, summary: '改为另一时间和安排' },
+  ];
+  assert.equal(currentPlayerDecision(context, proposal, 'invitation-a'), undefined);
 });

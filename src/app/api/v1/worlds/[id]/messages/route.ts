@@ -1,4 +1,5 @@
 import { resolveTurn } from '../../../../../../modules/world/application/resolve-turn.ts';
+import { NpcMessageError } from '../../../../../../server/npc-agent-services.ts';
 import {
   WorldMessageRequestSchema,
   WorldMessageReceiptSchema,
@@ -22,6 +23,30 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!parsedWorldId.success) throw new HttpError('NOT_FOUND', 404);
     const input = await parseBody(request, WorldMessageRequestSchema);
     await s.worlds.get({ userId: s.ownerId }, parsedWorldId.data);
+    try {
+      const receipt = await s.npcAgents.sendMessageIfEnabled(s.ownerId, {
+        id: input.commandId,
+        worldId: parsedWorldId.data,
+        expectedVersion: input.expectedVersion,
+        actorId: input.actorId,
+        text: input.text,
+      });
+      if (receipt) return json(WorldMessageReceiptSchema.parse(receipt));
+    } catch (error) {
+      if (error instanceof NpcMessageError)
+        return json(
+          {
+            error: {
+              code: error.apiCode,
+              message: error.message,
+              retryable: error.retryable,
+              requestId: crypto.randomUUID(),
+            },
+          },
+          error.status,
+        );
+      throw error;
+    }
     return s.withWorldActivityLock(parsedWorldId.data, async () => {
       const clock = await s.readWorldClock(s.ownerId, parsedWorldId.data);
       const result = await resolveTurn(
