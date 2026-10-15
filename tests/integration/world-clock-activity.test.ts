@@ -11,6 +11,7 @@ import {
   PostgresClockActivityRepository,
   updateClockActivity,
 } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
+import { advanceWorld } from '../../src/modules/world/application/advance-world.ts';
 import { projectStoryTime } from '../../src/modules/world/domain/clock.ts';
 
 test('real owner-scoped activity leases preserve anchors, pause offline and fence stale tabs', async (t) => {
@@ -236,6 +237,74 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           )
         ).rows[0].sequence;
         assert.equal(Number(seq), 5);
+      },
+    );
+    await t.test(
+      'application checks retain partial managed beats in PostgreSQL and quiet due beats never call a model',
+      async () => {
+        const resume = await activity.update(
+          owner,
+          worldId,
+          { clientId: b, sequence: 6, mode: 'browsing', resume: true },
+          at(400),
+        );
+        let realNow = at(415),
+          calls = 0;
+        const timedClock = Object.create(clock) as PostgresClockStore;
+        timedClock.read = (o, w) => clock.read(o, w, realNow);
+        const run = () =>
+          advanceWorld(
+            {
+              clock: timedClock,
+              worlds,
+              planner: {
+                propose: async () => {
+                  calls++;
+                  throw new Error('EMPTY_WORLD_MUST_NOT_CALL_MODEL');
+                },
+              },
+              now: () => realNow,
+              newId: randomUUID,
+              automatic: true,
+              maxBeats: 1,
+            },
+            { userId: owner },
+            worldId,
+          );
+        assert.equal((await run()).played, 0);
+        let stored = (
+          await admin.query(
+            'SELECT last_tick_at FROM parallel_life.world_clock WHERE world_id=$1',
+            [worldId],
+          )
+        ).rows[0];
+        assert.equal(new Date(stored.last_tick_at).toISOString(), resume.lastTickAt);
+        await activity.update(
+          owner,
+          worldId,
+          { clientId: b, sequence: 7, mode: 'browsing' },
+          at(430),
+        );
+        await activity.update(
+          owner,
+          worldId,
+          { clientId: b, sequence: 8, mode: 'browsing' },
+          at(460),
+        );
+        realNow = at(475);
+        assert.equal((await run()).played, 0);
+        assert.equal(calls, 0);
+        stored = (
+          await admin.query(
+            'SELECT last_tick_at FROM parallel_life.world_clock WHERE world_id=$1',
+            [worldId],
+          )
+        ).rows[0];
+        assert.equal(new Date(stored.last_tick_at).toISOString(), at(475));
+        assert.equal(
+          (await clock.read(owner, worldId, realNow)).storyNow,
+          new Date(Date.parse(resume.storyNow) + 15 * 60000).toISOString(),
+        );
       },
     );
   } finally {
