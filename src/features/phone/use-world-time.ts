@@ -27,11 +27,9 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
   pendingWaitRef.current = pendingWait;
   const session = useRef<Session | null>(null);
   const waiting = useRef(false);
-  const wasBusy = useRef(false);
   const busyRef = useRef(busy);
   busyRef.current = busy;
-  const lastActivity = useRef(Date.now());
-  const lastConversation = useRef(0);
+  const lastMeaningfulActivity = useRef(Date.now());
   const lastCheck = useRef(Date.now());
   const sync = useCallback(
     (mode: Mode, resume = false): Promise<WorldClock | null> => {
@@ -76,9 +74,8 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     setView(null);
     setNotice('');
     setWorking(false);
-    lastActivity.current = Date.now();
+    lastMeaningfulActivity.current = Date.now();
     lastCheck.current = Date.now();
-    lastConversation.current = 0;
     try {
       const raw = sessionStorage.getItem('pl-story-wait:' + worldId);
       const parsed = raw ? StoryWaitRequestSchema.safeParse(JSON.parse(raw)) : null;
@@ -86,30 +83,12 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     } catch {
       setPendingWait(null);
     }
-    const mode = () =>
-      phoneTimeMode(
-        Date.now(),
-        lastConversation.current,
-        busyRef.current,
-        readRoute(location.hash, worldId).panel === 'scene' ||
-          readRoute(location.hash, worldId).app === 'scenes',
-      );
+    const mode = () => phoneTimeMode(busyRef.current, readRoute(location.hash, worldId));
     const update = () => {
       if (document.visibilityState !== 'visible' || s.returning || waiting.current) return;
       void sync(mode()).catch(() => {
         if (s.active) setNotice('时间暂时未同步，稍后重试。');
       });
-    };
-    const interact = (event: Event) => {
-      lastActivity.current = Date.now();
-      const target = event.target;
-      if (
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
-        lastConversation.current = Date.now();
-      }
-      if (!s.returning && mode() !== s.mode) update();
     };
     const leave = () => {
       s.returning = true;
@@ -155,8 +134,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
       setNow(Date.now());
       if (!s.returning && mode() !== s.mode) update();
     }, 5_000);
-    for (const type of ['pointerdown', 'input', 'focusin', 'keydown', 'wheel'])
-      document.addEventListener(type, interact, { passive: true });
+    window.addEventListener('hashchange', update);
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('pagehide', leave);
     return () => {
@@ -165,23 +143,18 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
       if (session.current === s) session.current = null;
       clearInterval(heartbeat);
       clearInterval(display);
-      for (const type of ['pointerdown', 'input', 'focusin', 'keydown', 'wheel'])
-        document.removeEventListener(type, interact);
+      window.removeEventListener('hashchange', update);
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('pagehide', leave);
     };
   }, [client, worldId, enabled, sync]);
   useEffect(() => {
-    if (enabled && (busy || wasBusy.current) && !session.current?.returning) {
-      lastConversation.current = Date.now();
-      void sync('conversation').catch(() => {});
-    }
-    wasBusy.current = busy;
-  }, [enabled, busy, sync]);
+    if (enabled && !session.current?.returning)
+      void sync(phoneTimeMode(busy, readRoute(location.hash, worldId))).catch(() => {});
+  }, [enabled, busy, sync, worldId]);
   const startConversation = useCallback(async () => {
     if (waiting.current || pendingWaitRef.current) throw Error('请先核对这次等待，再继续交谈。');
-    lastActivity.current = Date.now();
-    lastConversation.current = Date.now();
+    lastMeaningfulActivity.current = Date.now();
     const s = session.current;
     const clock = await sync('conversation');
     if (!s?.active || session.current !== s || !clock || clock.paused || session.current?.returning)
@@ -194,8 +167,8 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     setNotice('');
     s.returning = false;
     try {
-      await sync('browsing', true);
-      lastActivity.current = Date.now();
+      await sync(phoneTimeMode(busyRef.current, readRoute(location.hash, worldId)), true);
+      lastMeaningfulActivity.current = Date.now();
       lastCheck.current = Date.now();
     } catch {
       if (session.current !== s || !s.active) return;
@@ -264,7 +237,10 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
       if (document.visibilityState === 'visible') s.returning = false;
       // The wait receipt already committed time and resumed its lease atomically.
       // A later refresh failure cannot turn that success into an uncertain wait.
-      await Promise.allSettled([sync('browsing'), reload()]);
+      await Promise.allSettled([
+        sync(phoneTimeMode(busyRef.current, readRoute(location.hash, worldId))),
+        reload(),
+      ]);
       if (session.current !== s) return;
       setNotice(
         result.stoppedBy.reason === 'target'
@@ -282,7 +258,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
                 : '有新的剧情可以展开，先停在这里。',
       );
       lastCheck.current = 0;
-      lastActivity.current = 0;
+      lastMeaningfulActivity.current = 0;
     } catch (e) {
       if (
         session.current === s &&
@@ -323,7 +299,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
       enabled &&
       (!clock || clock.paused || !!session.current?.returning || working || !!pendingWait),
     displayTime: clock ? projectStoryTime(clock, new Date(now).toISOString()) : null,
-    idleDue: () => idleCheckDue(Date.now(), lastActivity.current, lastCheck.current),
+    idleDue: () => idleCheckDue(Date.now(), lastMeaningfulActivity.current, lastCheck.current),
     markChecked: () => {
       lastCheck.current = Date.now();
     },

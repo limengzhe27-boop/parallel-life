@@ -4,11 +4,19 @@ import { phoneTimeMode, idleCheckDue } from '../src/features/phone/time-experien
 import { ClockActivityRequestSchema, WorldClockSchema } from '../src/contracts/world-clock.ts';
 import { StoryWaitRequestSchema, StoryWaitReceiptSchema } from '../src/contracts/story-wait.ts';
 const id = '12345678-1234-4234-8234-123456789012';
-test('reading returns to fast time after dialogue grace, while pending replies and scenes remain slow', () => {
-  assert.equal(phoneTimeMode(100000, 80000, false, false), 'conversation');
-  assert.equal(phoneTimeMode(110001, 80000, false, false), 'browsing');
-  assert.equal(phoneTimeMode(110001, 0, true, false), 'conversation');
-  assert.equal(phoneTimeMode(110001, 0, false, true), 'conversation');
+test('open private/group dialogue and scenes stay slow while reading, and leaving restores browsing', () => {
+  assert.equal(phoneTimeMode(false, { app: 'messages', target: 'actor-a' }), 'conversation');
+  assert.equal(phoneTimeMode(false, { app: 'messages', target: 'group:group-a' }), 'conversation');
+  assert.equal(
+    phoneTimeMode(false, { app: null, panel: 'scene', target: 'scene-a' }),
+    'conversation',
+  );
+  assert.equal(phoneTimeMode(false, { app: 'scenes', target: 'scene-a' }), 'conversation');
+  assert.equal(phoneTimeMode(false, { app: 'messages' }), 'browsing');
+  assert.equal(phoneTimeMode(false, { app: 'moments' }), 'browsing');
+  assert.equal(phoneTimeMode(true, { app: null }), 'conversation');
+  // No timestamp or DOM activity controls a conversation lifetime.
+  assert.equal(phoneTimeMode(false, { app: 'messages', target: 'actor-a' }), 'conversation');
   assert.equal(idleCheckDue(75000, 0, 0), true);
   assert.equal(idleCheckDue(75000, 10000, 0), false);
   assert.equal(idleCheckDue(150000, 0, 100000), false);

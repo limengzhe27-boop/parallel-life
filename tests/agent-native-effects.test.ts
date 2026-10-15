@@ -73,13 +73,13 @@ test('native group calendar replays as proposed without DM, attendance or duplic
   const { world, event } = fixture();
   const next = applyWorldHistoryEvent(world, event).state;
   assert.equal(next.appointments.length, 1);
-  assert.equal(next.appointments[0].status, 'proposed');
+  assert.equal(next.appointments[0]!.status, 'proposed');
   assert.deepEqual(next.messages, []);
-  assert.equal(next.appointments[0].sourceEventId, event.id);
+  assert.equal(next.appointments[0]!.sourceEventId, event.id);
   assert.equal(world.appointments.length, 0);
   const duplicate = structuredClone(event);
   if (duplicate.type === 'group.turn_resolved')
-    duplicate.data.replies[0].invitation = {
+    duplicate.data.replies[0]!.invitation = {
       title: '重复',
       at: '2026-10-15T12:00:00.000Z',
       id: 'invitation',
@@ -95,7 +95,7 @@ test('native scene calendar uses same transition, no fake opening or presence', 
   };
   const next = applyWorldHistoryEvent(world, sceneEvent).state;
   assert.equal(next.version, 4);
-  assert.equal(next.appointments[0].status, 'proposed');
+  assert.equal(next.appointments[0]!.status, 'proposed');
   assert.deepEqual(next.messages, []);
   assert.equal(next.space, undefined);
 });
