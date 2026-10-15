@@ -15,6 +15,9 @@ export type AgentRuntimeTransition = {
   results: AgentActionResult[];
   /** Proven answer relevance or withdrawal; never an attendance/action completion receipt. */
   questionChanges?: import('./agent-questions.ts').QuestionApplicationReceipt[];
+  /** Actual departures certified against route, own origin, result and journey ledger. */
+  departures?: import('./agent-travel.ts').AgentJourney[];
+  sceneDepartures?: import('./agent-scene-departure.ts').AgentSceneDeparture[];
   /** Kernel-certified report provenance, not a position change. */
   positionKnowledge?: import('./world-awareness.ts').ActorPositionKnowledge[];
   /** Immutable accepted revision for exact receipt replay and explicit state migration. */

@@ -1,4 +1,5 @@
 import { resultAckText } from './matter-progression.ts';
+import { applyAgentArrivalEvent, type AgentArrivalCommittedEvent } from './agent-arrival-event.ts';
 import {
   applyAgentStateEvent,
   applyNativeAgentCalendarEffects,
@@ -47,6 +48,7 @@ type SceneWorldEvent = {
 };
 /** Stored event union is separate from the existing private-turn command contract. */
 export type WorldHistoryEvent =
+  | AgentArrivalCommittedEvent
   | AgentStateCommittedEvent
   | WorldEvent
   | InvitationEvent
@@ -69,6 +71,8 @@ export function applyWorldHistoryEvent(
   validateEventId(event.id);
   validateEventId(event.commandId);
   isoInstant(event.occurredAt);
+  if (event.type === 'agent.arrival_committed')
+    return { state: applyAgentArrivalEvent(current, event), jobs: [] };
   if (event.type === 'agent.state_committed')
     return { state: applyAgentStateEvent(current, event), jobs: [] };
   if (isGroupEvent(event)) {
