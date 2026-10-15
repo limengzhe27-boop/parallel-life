@@ -1070,6 +1070,109 @@ test('actual Director delivery rechecks activity and preserves protected paid re
     },
   );
   await t.test(
+    'ordinary no-cause frame resumes one stable successor only after a proven zero-send cancellation',
+    async () => {
+      const f = await fixture(),
+        h = await bootstrap(f);
+      assert.equal((await wake(f)).cause, null);
+      const map = await space.read(f.owner, f.id);
+      await space.travel(f.owner, f.id, {
+        commandId: randomUUID(),
+        expectedVersion: 0,
+        routeId: map.routes[0]!.id,
+      });
+      const original = await snap(f);
+      assert.equal(original.worldVersion, 1);
+      assert.equal(original.evaluationCause, undefined);
+      assert.ok(original.changes.length > 0);
+      assert.deepEqual(await directors.readUnsentFrameAttempts(f.owner, original), []);
+      const name = 'delivery72_ordinary_' + randomUUID().replaceAll('-', '');
+      await admin.query(`CREATE FUNCTION parallel_life.${name}() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $$ BEGIN
+      IF NEW.world_id='${f.id}' AND NOT(NEW.snapshot ? 'evaluationCause') THEN
+      UPDATE parallel_life.world_clock SET paused=true,active_until=NULL WHERE world_id=NEW.world_id AND owner_id=NEW.owner_id;
+      END IF;RETURN NEW;END $$`);
+      await admin.query(
+        `CREATE TRIGGER ${name} BEFORE INSERT ON parallel_life.director_runtime_attempts FOR EACH ROW EXECUTE FUNCTION parallel_life.${name}()`,
+      );
+      try {
+        const deferred = await h.advance();
+        assert.equal(deferred?.played, 0);
+        assert.equal(deferred?.folded, 0);
+        assert.deepEqual(deferred?.actors, []);
+      } finally {
+        await admin.query(`DROP TRIGGER ${name} ON parallel_life.director_runtime_attempts`);
+        await admin.query(`DROP FUNCTION parallel_life.${name}()`);
+      }
+      assert.equal(h.director().length, 1);
+      const all = await attempts(f);
+      assert.equal(all.length, 2);
+      const zero = all[1]!;
+      assert.equal(zero.status, 'cancelled_before_send');
+      assert.equal(zero.sent_at, null);
+      assert.equal(zero.response_hash, null);
+      assert.equal(zero.snapshot.evaluationCause, undefined);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.director_decisions WHERE world_id=$1',
+            [f.id],
+          )
+        ).rows[0].n,
+        1,
+      );
+      const paused = await frozen(f);
+      await h.advance();
+      assert.deepEqual(await frozen(f), paused);
+      assert.equal(h.director().length, 1);
+      await clocks.setClock(f.owner, f.id, { paused: false, speed: 0 });
+      const resumed = await snap(f);
+      assert.equal(resumed.worldVersion, 1);
+      assert.equal(resumed.evaluationCause, undefined);
+      assert.deepEqual(await directors.readUnsentFrameAttempts(f.owner, resumed), [zero.id]);
+      await at(f, time(9, 5, 3));
+      assert.deepEqual(await directors.readUnsentFrameAttempts(f.owner, await snap(f)), [zero.id]);
+      await h.advance();
+      assert.equal(h.director().length, 2);
+      const completed = await attempts(f);
+      assert.equal(completed.length, 3);
+      assert.equal(completed[2]!.status, 'committed');
+      assert.notEqual(completed[2]!.command_id, zero.command_id);
+      assert.equal(completed[2]!.snapshot.evaluationCause, undefined);
+      assert.equal(completed[2]!.expected_world_version, 1);
+      assert.equal(completed[0]!.status, 'committed');
+      assert.equal(completed[1]!.status, 'cancelled_before_send');
+      await h.advance();
+      await at(f, time(9, 6));
+      await h.advance();
+      assert.equal(h.director().length, 2);
+      assert.equal((await attempts(f)).length, 3);
+      assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, 1);
+      // A real paid ordinary-frame unknown is never classified as a zero-send predecessor.
+      const g = await fixture();
+      await bootstrap(g);
+      const gm = await space.read(g.owner, g.id);
+      await space.travel(g.owner, g.id, {
+        commandId: randomUUID(),
+        expectedVersion: 0,
+        routeId: gm.routes[0]!.id,
+      });
+      const unknown = harness(g, {
+        response() {
+          throw Error('EXPLICIT_ORDINARY_FRAME_UNKNOWN');
+        },
+      });
+      await assert.rejects(unknown.advance(), /EXPLICIT_ORDINARY_FRAME_UNKNOWN/);
+      const paid = (await attempts(g)).at(-1)!;
+      assert.equal(paid.status, 'unknown_after_send');
+      assert.ok(paid.sent_at);
+      assert.equal(paid.snapshot.evaluationCause, undefined);
+      assert.deepEqual(await directors.readUnsentFrameAttempts(g.owner, await snap(g)), []);
+      await assert.rejects(unknown.advance(), { code: 'UNKNOWN' });
+      assert.equal(unknown.director().length, 1);
+      assert.equal((await attempts(g)).at(-1)!.id, paid.id);
+    },
+  );
+  await t.test(
     'all delivery tests retain honest legacy ledgers and leave no temporary trigger functions',
     async () => {
       for (const table of [
