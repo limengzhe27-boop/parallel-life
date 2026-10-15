@@ -1,8 +1,8 @@
-## 2026-10-16 · MA-ARCH-44 阶段八（部署中）
+## 2026-10-16 · MA-ARCH-44 阶段八限定交付已上线
 
 同一advance接显式新世界bootstrap、导演提交后的逐人物独立考察与默认kernel原子回执；本人安静/拒绝有持久来源，发送及提交检查暂停/业务焦点，已付费结果恢复不重买。作者目录资格与真实事实分离，不把机会或聊天当事件完成。整体重构仍未完成，**生产不切换epoch2**。
 
-check2936、实际相关PG108、build/format通过。生产81逐项checksum已核，0081 `fa16eb858ec5c5b18833fd57f18dc019e0e8c41f68a6652988967754b4c43dfb`；3新表RLS/FORCE与4受限invoker guard只读核验通过，保护原稿/副本/玩家数据未变。本轮0真实模型/0生产测试存档。READY和公网证据实际完成后追加，详见[阶段八报告](task-reports/MA-ARCH-44-PHASE8-I.md)。当前Nu仍为上一限定热修ef083ca0/生产81（新增表未激活）。
+check2936、实际相关PG108、build/format通过。生产81逐项checksum已核，0081 `fa16eb858ec5c5b18833fd57f18dc019e0e8c41f68a6652988967754b4c43dfb`；3新表RLS/FORCE与4受限invoker guard只读核验通过，保护原稿/副本/玩家数据未变。本轮0真实模型/0生产测试存档。READY和公网证据实际完成后追加，详见[阶段八报告](task-reports/MA-ARCH-44-PHASE8-I.md)。阶段八限定交付正式上线：业务 f6b14ee85679fd99f1a386cb093ab52dcba79b36 / dpl_B3HvNxKkP1i7Z9uRS5s12S431P3w READY，Vercel精确SHA和Nu正式别名已核实；2026-10-15T17:54:06.627Z公网health/workbench/published200、匿名publications和publisherworks401。生产81与权限核验通过，保护数据未变；0付费调用、0生产测试世界、0生产epoch2切换。此为上述限定组件交付，不代表新引擎全体验通过。
 
 44-55上一热修已READY：ef083ca0ae9b9f97f138c6a7f5badf83e4ae60e0 / dpl_GZh5YVTNifPzrhUo1KMwZVM8HrT8，公网health/workbench/published200、匿名publication/author401；不是完整新架构启用。
 

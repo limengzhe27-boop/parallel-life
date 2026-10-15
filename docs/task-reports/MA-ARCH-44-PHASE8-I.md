@@ -38,3 +38,5 @@ D63已集成22038c49/69a2e4a0：真实发布/试演绑定、原稿高精度时�
 C65已集成e6837092/1d7dab6e：实际导演期间暂停/离开/paused=false但租约过期、真实claim期间暂停、付费后业务焦点切换和三种时钟状态、恢复与遗忘来源等PG27/27。Root随后以包括8fd4400c的最终产品源码联合实际PG108/108全过，无skip；build、format通过。check首次因旧测试仍要求“只有wake可安静”2935pass/1fail，已将该政策断言明确到普通player需自然回复、合法coordination本人可安静，单项18/18；全量复验结果实际完成后追加。
 
 最终check2936/2936通过（产品源码与最终build一致，仅旧政策测试修正后复验）；最终actualPG108/108，build、format通过。2026-10-15T17:49:03.324Z生产81/81逐项checksum核验，0081=`fa16eb858ec5c5b18833fd57f18dc019e0e8c41f68a6652988967754b4c43dfb`；受保护原稿、副本及玩家world版本/状态hash未变，生产epoch2世界0。17:49:30Z只读生产权限核验：3新表RLS/FORCE RLS/worker无read、4 invoker guards无app/worker/publisher直接EXECUTE全过。业务提交推送、READY及公网验收接续中，不以数据库已迁移宣称已部署。
+
+阶段八限定交付正式上线：业务 f6b14ee85679fd99f1a386cb093ab52dcba79b36 / dpl_B3HvNxKkP1i7Z9uRS5s12S431P3w READY，Vercel精确SHA和Nu正式别名已核实；2026-10-15T17:54:06.627Z公网health/workbench/published200、匿名publications和publisherworks401。生产81与权限核验通过，保护数据未变；0付费调用、0生产测试世界、0生产epoch2切换。此为上述限定组件交付，不代表新引擎全体验通过。

@@ -101,3 +101,5 @@ services.advance在旧流程之前按DB epoch路由；epoch2仅收集统一人�
 
 
 阶段八接续见[阶段八集成](MA-ARCH-44-PHASE8-I.md)：实际advance的显式bootstrap→导演实际提交→逐NPC同一执行入口→原子回执与本人持续立场已接；新机会还未等价于原稿事件发生。人物裁剪后的具体情节语义、实际发生/结果、观察消费、旧档切换/旧入口退役与真实模型连续旅程未完成。当前生产仍ef083ca0/80，阶段八build/81迁移/READY待核；0新增真实模型，不启用epoch2。
+
+阶段八限定交付正式上线：业务 f6b14ee85679fd99f1a386cb093ab52dcba79b36 / dpl_B3HvNxKkP1i7Z9uRS5s12S431P3w READY，Vercel精确SHA和Nu正式别名已核实；2026-10-15T17:54:06.627Z公网health/workbench/published200、匿名publications和publisherworks401。生产81与权限核验通过，保护数据未变；0付费调用、0生产测试世界、0生产epoch2切换。此为上述限定组件交付，不代表新引擎全体验通过。
