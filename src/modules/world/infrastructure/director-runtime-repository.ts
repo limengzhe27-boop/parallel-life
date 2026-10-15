@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
-import type { DirectorAttemptStore } from '../application/director-runtime-ports.ts';
+import type {
+  DirectorRecoveryStore,
+  DirectorRecoveryPreparation,
+} from '../application/director-runtime-ports.ts';
 import type {
   DirectorAttempt,
   DirectorDecision,
@@ -325,7 +328,31 @@ function attempt(row: any): DirectorAttempt {
   };
 }
 
-export class PostgresDirectorRuntimeRepository implements DirectorAttemptStore {
+/** Object key order is immaterial (JSONB canonicalizes it); array order remains intentional. */
+function sameRecoveryFrame(saved: DirectorSnapshot, current: DirectorSnapshot): boolean {
+  const { storyAt: before, ...originalFrame } = saved,
+    { storyAt: now, ...currentFrame } = current;
+  if (!equal(originalFrame, currentFrame) || Date.parse(now) < Date.parse(before)) return false;
+  // Wall-time progress alone is not a new frame until a real condition/deadline crosses.
+  const times: string[] = [];
+  const conditions = (items: { kind: string; at?: string }[]) => {
+    for (const item of items) if (item.kind === 'at_or_after' && item.at) times.push(item.at);
+  };
+  for (const state of saved.actorStates) {
+    for (const plan of state.plans) conditions(plan.triggers);
+    for (const action of state.actions) conditions(action.preconditions);
+    for (const responsibility of state.responsibilities) {
+      conditions(responsibility.nextCheck);
+      if (responsibility.deadline) times.push(responsibility.deadline.at);
+    }
+  }
+  for (const blocker of saved.blockers) conditions(blocker.reconsiderOn);
+  return times.every(
+    (at) => Date.parse(before) >= Date.parse(at) === Date.parse(now) >= Date.parse(at),
+  );
+}
+
+export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore {
   private readonly db: PostgresDatabase;
   constructor(db: PostgresDatabase) {
     this.db = db;
@@ -524,6 +551,47 @@ export class PostgresDirectorRuntimeRepository implements DirectorAttemptStore {
       )
     )
       fail('DIRECTOR_PENDING_RANGE_INCOMPLETE');
+  }
+  async prepareRecovery(
+    owner: string,
+    rawCurrent: DirectorSnapshot,
+  ): Promise<DirectorRecoveryPreparation> {
+    const current = snapshotShape(rawCurrent);
+    return this.db.transaction(owner, async (sql) => {
+      const world = await this.owned(sql, owner, current.worldId);
+      const row = (
+        await sql.query(
+          `SELECT *,lease_until>clock_timestamp() live FROM parallel_life.director_runtime_attempts
+         WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send') FOR UPDATE`,
+          [world.id, owner],
+        )
+      ).rows[0];
+      if (!row) return { status: 'none' };
+      const pending = attempt(row);
+      // An expired lease cannot prove an unknown paid request did not succeed.
+      if (pending.status !== 'response_received') return { status: 'blocked', attempt: pending };
+      // A caller's outdated/invalid read must never discard a legitimate completion.
+      await this.current(sql, owner, world, current);
+      if (!row.response_hash) fail('DIRECTOR_RESULT_NOT_FOUND');
+      const saved = snapshotShape(row.snapshot);
+      if (pending.inputHash !== directorSnapshotInputHash(saved)) fail('DIRECTOR_INPUT_CONFLICT');
+      const reason = !sameRecoveryFrame(saved, current)
+        ? 'frame_changed'
+        : !row.live
+          ? 'lease_expired'
+          : null;
+      if (reason) {
+        const changed = (
+          await sql.query(
+            "UPDATE parallel_life.director_runtime_attempts SET status='stale_discarded',updated_at=now() WHERE id=$1 AND owner_id=$2 AND status='response_received' RETURNING *",
+            [pending.id, owner],
+          )
+        ).rows[0];
+        if (!changed) fail('DIRECTOR_ATTEMPT_STALE');
+        return { status: 'stale', attempt: attempt(changed), reason };
+      }
+      return { status: 'ready', attempt: pending, snapshot: saved, response: row.response };
+    });
   }
   lookup(owner: string, worldId: string, commandId: string) {
     return this.db.transaction(owner, async (sql) => {

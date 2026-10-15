@@ -1,5 +1,10 @@
 import type { DirectorAttempt, DirectorSnapshot } from '../domain/director-runtime.ts';
-import type { DirectorAttemptStore, DirectorDecisionModel } from './director-runtime-ports.ts';
+import type {
+  DirectorAttemptStore,
+  DirectorDecisionModel,
+  DirectorRecoveryStore,
+  DirectorRecoveryResult,
+} from './director-runtime-ports.ts';
 import type { DirectorDecision } from '../domain/director-runtime.ts';
 export async function runDirectorAgent(
   deps: {
@@ -130,4 +135,42 @@ function isKnownConflict(error: unknown) {
     'DIRECTOR_ATTEMPT_STALE',
     'DIRECTOR_EPISODE_ID_CONFLICT',
   ].includes(code);
+}
+
+/** Resolve the existing world slot before choosing a new command. This helper has no model port. */
+export async function recoverDirectorAgent(
+  deps: {
+    attempts: DirectorRecoveryStore;
+    parse: (snapshot: DirectorSnapshot, raw: unknown, attempt: DirectorAttempt) => DirectorDecision;
+  },
+  ownerId: string,
+  current: DirectorSnapshot,
+): Promise<DirectorRecoveryResult> {
+  const pending = await deps.attempts.prepareRecovery(ownerId, current);
+  if (pending.status !== 'ready') return pending;
+  const { attempt, snapshot, response } = pending;
+  let decision: DirectorDecision;
+  try {
+    decision = deps.parse(snapshot, response, attempt);
+  } catch (error) {
+    await deps.attempts.mark(ownerId, attempt, 'invalid_output');
+    throw error;
+  }
+  try {
+    const saved = await deps.attempts.commit(ownerId, attempt, snapshot, decision);
+    return {
+      status: 'recovered',
+      attempt: { ...attempt, status: 'committed', decisionId: saved.id },
+      decision: saved,
+    };
+  } catch (error) {
+    if (isKnownConflict(error)) {
+      const stale = await deps.attempts.mark(ownerId, attempt, 'stale_discarded');
+      return { status: 'stale', attempt: stale, reason: 'frame_changed' };
+    }
+    const code = String((error as { code?: unknown })?.code ?? (error as Error)?.message);
+    if (code.startsWith('INVALID_DIRECTOR_'))
+      await deps.attempts.mark(ownerId, attempt, 'invalid_output');
+    throw error;
+  }
 }

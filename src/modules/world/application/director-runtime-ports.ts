@@ -43,3 +43,17 @@ export interface DirectorDecisionModel {
   validateInput?(snapshot: DirectorSnapshot): void;
   decide(snapshot: DirectorSnapshot, signal?: AbortSignal): Promise<unknown>;
 }
+
+/** Protected completion recovery never grants permission for a second model request. */
+export type DirectorRecoveryPreparation =
+  | { status: 'none' }
+  | { status: 'blocked'; attempt: DirectorAttempt }
+  | { status: 'stale'; attempt: DirectorAttempt; reason: 'frame_changed' | 'lease_expired' }
+  | { status: 'ready'; attempt: DirectorAttempt; snapshot: DirectorSnapshot; response: unknown };
+export interface DirectorRecoveryStore extends DirectorAttemptStore {
+  /** Lock the world's pending slot and validate both stored and current frames before changing it. */
+  prepareRecovery(ownerId: string, current: DirectorSnapshot): Promise<DirectorRecoveryPreparation>;
+}
+export type DirectorRecoveryResult =
+  | Exclude<DirectorRecoveryPreparation, { status: 'ready' }>
+  | { status: 'recovered'; attempt: DirectorAttempt; decision: DirectorDecision };
