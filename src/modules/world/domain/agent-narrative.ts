@@ -6,12 +6,20 @@ export type NarrativeAdmission = {
   genesisHash: string;
   admittedAtVersion: 0;
 };
-export type DirectorEvaluationCause = {
-  id: string;
-  kind: 'bootstrap';
-  genesisHash: string;
-  admittedAtVersion: 0;
+export type AuthoredWakeQualification = {
+  nodeKey: string;
+  nodeHash: string;
+  qualificationKey: string;
 };
+export type DirectorEvaluationCause =
+  | { id: string; kind: 'bootstrap'; genesisHash: string; admittedAtVersion: 0 }
+  | {
+      id: string;
+      kind: 'authored_eligibility';
+      genesisHash: string;
+      admittedAtVersion: 0;
+      qualifications: AuthoredWakeQualification[];
+    };
 /** Private to this NPC. A consideration request is neither a world fact nor a goal. */
 export type EpisodeConsiderationIntent = {
   type: 'npc_episode_consideration';

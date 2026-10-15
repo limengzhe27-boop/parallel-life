@@ -40,7 +40,7 @@ import { PostgresWorldAwarenessRepository } from '../modules/world/infrastructur
 import { readPrivateAgentSnapshot } from '../modules/world/infrastructure/agent-snapshot-repository.ts';
 import { NpcAgentModel } from '../modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresNpcAgentKernel } from '../modules/world/infrastructure/npc-agent-kernel.ts';
-import { readDirectorBootstrapCauseInTransaction } from '../modules/world/infrastructure/agent-narrative-repository.ts';
+import { readDirectorNarrativeWakeInTransaction } from '../modules/world/infrastructure/narrative-wake-repository.ts';
 import { dispatchPendingAgentEpisode } from './npc-agent-episode-dispatch.ts';
 import type { PublicOpeningStatus } from '../contracts/publication-opening.ts';
 import type { PublicWorldStory } from '../contracts/world-story.ts';
@@ -331,7 +331,11 @@ export function npcAgentAdvanceServices(
           },
         },
       }));
-      const coordinate = async (candidates: AgentCandidate[], blockers: AgentBlocker[]) => {
+      const coordinate = async (
+        candidates: AgentCandidate[],
+        blockers: AgentBlocker[],
+        admission: 'normal' | 'wake' | 'recovery' = 'normal',
+      ): Promise<DirectorDecision | null> => {
         const snapshot = await directorSnapshots.read(ownerId, {
           worldId,
           engineEpoch,
@@ -355,6 +359,10 @@ export function npcAgentAdvanceServices(
             code: 'VERSION_CONFLICT',
             directorCoordinationPending: true,
           });
+        // Recovery may consume the only reason to enter. Never turn an expired or
+        // vanished semantic wake into a fresh paid global decision.
+        if (admission === 'recovery' || (admission === 'wake' && !snapshot.evaluationCause))
+          return null;
         const commandId = agentWakeCommandId(
           worldId,
           snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot),
@@ -388,11 +396,12 @@ export function npcAgentAdvanceServices(
         );
       };
       const observed = await awareness.readDirectorObservedState(ownerId, worldId);
-      const bootstrap = await db.transaction(ownerId, (sql) =>
-        readDirectorBootstrapCauseInTransaction(sql, ownerId, {
+      const wake = await db.transaction(ownerId, (sql) =>
+        readDirectorNarrativeWakeInTransaction(sql, ownerId, {
           worldId,
           engineEpoch,
           worldVersion: world.version,
+          storyAt,
         }),
       );
       let coordinated = false;
@@ -403,6 +412,7 @@ export function npcAgentAdvanceServices(
             async coordinate(input) {
               coordinated = true;
               const decision = await coordinate(input.candidates, input.blockers);
+              if (!decision) throw Error('DIRECTOR_COORDINATION_MISSING');
               return {
                 candidateIds: decision.selectedCandidateIds,
                 deferred: decision.deferred,
@@ -424,8 +434,8 @@ export function npcAgentAdvanceServices(
       );
       // A material global change can warrant coordination even without competing candidates.
       // It does not require another director call after every ordinary chat, nor force a message.
-      if (!coordinated && (observed.needsEvaluation || bootstrap)) {
-        let decision: DirectorDecision;
+      if (!coordinated && (observed.needsEvaluation || wake.cause || wake.hasPendingDirector)) {
+        let decision: DirectorDecision | null;
         try {
           decision = await coordinate(
             scheduled.snapshot.candidates.filter(
@@ -433,6 +443,7 @@ export function npcAgentAdvanceServices(
                 !scheduled.blocked.some((blocked) => blocked.candidate.id === candidate.id),
             ),
             scheduled.snapshot.blockers,
+            observed.needsEvaluation ? 'normal' : wake.cause ? 'wake' : 'recovery',
           );
         } catch (error) {
           // A director has only proposed, never executed, changes. Its pending
@@ -447,7 +458,7 @@ export function npcAgentAdvanceServices(
             return execute(independent.candidate, independent.guidance);
           throw error;
         }
-        if (!decision.selectedCandidateIds.length)
+        if (!decision || !decision.selectedCandidateIds.length)
           return (
             (await dispatchPendingAgentEpisode(
               db,

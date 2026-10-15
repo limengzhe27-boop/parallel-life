@@ -12,7 +12,7 @@ import {
   readAuthoredEligibilityInTransaction,
   authoredEligibilitySummary,
 } from './authored-event-eligibility-repository.ts';
-import { readDirectorBootstrapCauseInTransaction } from './agent-narrative-repository.ts';
+import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
 
 export class DirectorSnapshotReadError extends Error {
   readonly code: string;
@@ -866,11 +866,17 @@ export class PostgresDirectorSnapshotRepository {
         worldVersion: h.world.version,
         storyAt: h.storyAt,
       });
-      const evaluationCause = await readDirectorBootstrapCauseInTransaction(sql, owner, {
-        worldId: h.world.id,
-        engineEpoch: h.epoch,
-        worldVersion: h.world.version,
-      });
+      const { cause: evaluationCause } = await readDirectorNarrativeWakeInTransaction(
+        sql,
+        owner,
+        {
+          worldId: h.world.id,
+          engineEpoch: h.epoch,
+          worldVersion: h.world.version,
+          storyAt: h.storyAt,
+        },
+        authored,
+      );
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         worldId: h.world.id,

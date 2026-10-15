@@ -26,11 +26,9 @@ import {
   readAuthoredEligibilityInTransaction,
   authoredEligibilitySummary,
 } from './authored-event-eligibility-repository.ts';
-import {
-  readDirectorBootstrapCauseInTransaction,
-  createEpisodeRequestsInTransaction,
-} from './agent-narrative-repository.ts';
+import { createEpisodeRequestsInTransaction } from './agent-narrative-repository.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
+import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
 
 export class DirectorRuntimePersistenceError extends Error {
   readonly code: string;
@@ -225,13 +223,23 @@ const Snapshot = z
     evaluatedThroughVersion: Int,
     boundary: Boundary,
     evaluationCause: z
-      .object({
-        id: Key,
-        kind: z.literal('bootstrap'),
-        genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
-        admittedAtVersion: z.literal(0),
-      })
-      .strict()
+      .discriminatedUnion('kind', [
+        z.strictObject({
+          id: Key,
+          kind: z.literal('bootstrap'),
+          genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
+          admittedAtVersion: z.literal(0),
+        }),
+        z.strictObject({
+          id: Key,
+          kind: z.literal('authored_eligibility'),
+          genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
+          admittedAtVersion: z.literal(0),
+          qualifications: z
+            .array(z.strictObject({ nodeKey: Key, nodeHash: Hash, qualificationKey: Hash }))
+            .min(1),
+        }),
+      ])
       .optional(),
     worldSetting: z.string().max(100000).optional(),
     authoredMaterials: z
@@ -541,19 +549,14 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       : Date.parse(world.time);
     if (Date.parse(s.storyAt) < Date.parse(world.time) || Date.parse(s.storyAt) > latest)
       fail('DIRECTOR_CLOCK_CONFLICT');
-    const cause = await readDirectorBootstrapCauseInTransaction(sql, owner, {
-      worldId: world.id,
-      engineEpoch: s.engineEpoch,
-      worldVersion: world.version,
-    });
-    if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
+    let qualified: Awaited<ReturnType<typeof readAuthoredEligibilityInTransaction>> | undefined;
     if (actualMaterials) {
-      const qualification = await readAuthoredEligibilityInTransaction(sql, owner, {
+      const qualification = (qualified = await readAuthoredEligibilityInTransaction(sql, owner, {
         worldId: world.id,
         engineEpoch: s.engineEpoch,
         worldVersion: world.version,
         storyAt: new Date(latest).toISOString(),
-      });
+      }));
       if (
         !equal(authoredEligibilitySummary(qualification), s.authoredEligibility) ||
         !equal(qualification.occupiedEventKeys, s.occupiedAuthoredEventKeys)
@@ -561,6 +564,18 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
     } else if (s.authoredEligibility !== undefined || s.occupiedAuthoredEventKeys !== undefined)
       fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
+    const { cause } = await readDirectorNarrativeWakeInTransaction(
+      sql,
+      owner,
+      {
+        worldId: world.id,
+        engineEpoch: s.engineEpoch,
+        worldVersion: world.version,
+        storyAt: new Date(latest).toISOString(),
+      },
+      qualified,
+    );
+    if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
     if (
       s.worldId !== world.id ||
       s.evaluatedThroughVersion > s.observedThroughVersion ||
