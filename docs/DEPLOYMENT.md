@@ -1,4 +1,6 @@
-## 2026-10-16 · 44-84 实际手机首次进入接线待上线验收
+## 2026-10-16 · 44-84 初入代码已上线，界面待验收
+
+代码35ac28540b9355e930bdc8796bebf85b08e0fea6 / dpl_4fJ7HthK3Tr9gMDH4mWZjVTve9mN READY，精确Nu正式别名与SHA核实；2026-10-15T20:17:56.296Z公网health/workbench/published200，匿名publications/publisherworks401。仅代码与限定纯/数据库部分上线；手机/PC行为新会话待用户许可，84整体仍待验收。下面接续中为发布过程记录。
 
 原opening GET只读核显式genesis、现有逐人请求及原raw，实际Phone复用原advance，省去新运行时首入和逐人承接的75秒等待；同一派发资格与付费身份、跨tab深聊、暂停和原租约保护保留。无第二个模型入口，未将代码发布当成生产新引擎已启用。
 

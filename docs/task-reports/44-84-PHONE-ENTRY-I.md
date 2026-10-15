@@ -24,6 +24,12 @@ D85实际短租约原返回、暂停、自然到期再继续，复现导演raw�
 
 root最终check **3100/3100**、build、集成类型、聚焦格式/diff通过；D85实际18/18（含租约红→绿与真实出版trial绑定），root集成后同专项18/18。前述作者35、episode11与实际HTTP子例10分别记录，不将重复执行相加。2026-10-15T20:14:12.922Z生产只读82/82校验和及保护数据一致，epoch2=0。代码发布READY和公网核验接续中，84完整UI验收仍待；85/86只认可各自数据库/纯函数范围。
 
+代码限定业务35ac28540b9355e930bdc8796bebf85b08e0fea6 / dpl_4fJ7HthK3Tr9gMDH4mWZjVTve9mN 已READY，精确SHA与Nu正式别名核实。2026-10-15T20:17:56.296Z公网health/workbench/published200、匿名publications/publisherworks401。代码部署不代表84手机/PC验收结束，也不代表生产启用epoch2。
+
+根另以真正Next生产构建服务、本地实际trial/seed/build/epoch2/admission、独立签名owner会话执行HTTP串联：paused开场deferred → 实际activity.resume浏览12倍 → opening ready → 原advance两次、worldV1/V2各呈现1条 → 真实phone历史2+新消息2 → 再读quiet → away暂停。只有忽略目录中的明确本地模型替身，网关调用在进程内拦截且所有外网被拒；日志精确1次Director+2次NPC，0真实模型。此为本地合成技术验收，不冒充自然演绎或浏览器实际操作；根没有手工追加运行时消息/回执。证明存忽略phone84-ui-http-proof.json，UI新会话许可仍待。
+
+本地合成world已实际paused且active_until=NULL。34484服务parent56274 TERM后session51868 exit143、child56276退出且无监听；55564数据库parent91734 TERM、原session56430 exit0，数据库目录保留，未清除存档。没有停止其他Agent的服务。新会话获准后可重新启动同本地环境，浏览器初入需要另建全新未消费合成fixture，不能用这份已演绎历史冒充首入效果。
+
 ## 剩余边界
 
 首入协调可能包含一次导演及分别的NPC调用，不承诺只花一次模型。原raw只有原版本/人物revision/租约等仍有效才可恢复；本项不扩大旧付费结果恢复权。普通未标记事件的逐人语义交接、实际事件发生与结束、观察和消费、旧档接管与旧路径退役及真实模型完整旅程继续在44主表。生产未启用新引擎，本批不代表玩家已经得到整套多Agent效果。
