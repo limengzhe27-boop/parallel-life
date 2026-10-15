@@ -111,7 +111,7 @@ export async function readActorStrategyBasis(
     JOIN parallel_life.world_events e ON e.world_id=m.world_id AND e.id=m.document->>'sourceEventId' AND e.version<=$5
     JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
     WHERE r.owner_id=$2 AND r.character_id=$3 AND r.scope_type='character' AND (r.branch_id=$1 OR r.branch_id IS NULL)
-      AND r.status='active' AND r.id=ANY($4::uuid[])
+      AND r.status='active' AND r.id=ANY($4::text[])
       AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(r.source_ids) q(id) WHERE NOT EXISTS(
         SELECT 1 FROM parallel_life.world_messages p JOIN parallel_life.world_events pe ON pe.world_id=p.world_id AND pe.id=p.document->>'sourceEventId'
           JOIN parallel_life.commands pc ON pc.world_id=pe.world_id AND pc.id=pe.command_id AND pc.status='succeeded' AND pc.result_event_id=pe.id
