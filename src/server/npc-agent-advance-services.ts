@@ -16,11 +16,15 @@ import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { createAgentScheduleSources } from '../modules/world/application/agent-schedule-collectors.ts';
 import { scheduleAgents } from '../modules/world/application/schedule-agents.ts';
 import { runNpcAgent } from '../modules/world/application/run-agent.ts';
-import { runDirectorAgent } from '../modules/world/application/run-director-agent.ts';
+import {
+  runDirectorAgent,
+  recoverDirectorAgent,
+} from '../modules/world/application/run-director-agent.ts';
 import { PostgresAgentRuntimeRepository } from '../modules/world/infrastructure/agent-runtime-repository.ts';
 import {
   PostgresDirectorRuntimeRepository,
   directorSnapshotInputHash,
+  directorCoordinationFrameHash,
 } from '../modules/world/infrastructure/director-runtime-repository.ts';
 import {
   WorldDirectorAgentModel,
@@ -293,10 +297,19 @@ export function npcAgentAdvanceServices(
           candidates,
           blockers,
         });
-        const commandId = agentWakeCommandId(
-          worldId,
-          hash(['director-v1', engineEpoch, world.version, candidates.map((c) => c.id).sort()]),
+        const recovery = await recoverDirectorAgent(
+          { attempts: directors, parse: parseDirectorDecision },
+          ownerId,
+          snapshot,
         );
+        if (recovery.status === 'recovered') return recovery.decision;
+        if (recovery.status === 'blocked')
+          throw Object.assign(Error('DIRECTOR_ATTEMPT_PENDING'), {
+            code: recovery.attempt.status === 'unknown_after_send' ? 'UNKNOWN' : 'BUSY',
+          });
+        if (recovery.status === 'stale' && recovery.reason === 'lease_expired')
+          throw Object.assign(Error('DIRECTOR_KNOWN_RESULT_EXPIRED'), { code: 'VERSION_CONFLICT' });
+        const commandId = agentWakeCommandId(worldId, directorCoordinationFrameHash(snapshot));
         const previous = await directors.lookup(ownerId, worldId, commandId);
         if (previous?.status === 'committed' && previous.decisionId) {
           const saved = await directors.readDecision(ownerId, worldId, previous.decisionId);

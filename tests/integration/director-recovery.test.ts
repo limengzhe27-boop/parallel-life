@@ -463,6 +463,13 @@ test('director protected response recovery: actual world slot and native world c
       assert.equal(result.status, 'stale');
       if (result.status !== 'stale') throw Error('Expected stale');
       assert.equal(result.reason, 'lease_expired');
+      const again = await recover(f, s);
+      assert.equal(
+        again.status,
+        'stale',
+        'a second idle check cannot free known paid work by choosing a new command',
+      );
+      if (again.status === 'stale') assert.equal(again.reason, 'lease_expired');
       assert.ok((await row(f)).response_hash);
       await assert.rejects(
         runDirectorAgent(

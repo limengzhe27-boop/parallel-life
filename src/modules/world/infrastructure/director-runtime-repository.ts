@@ -329,16 +329,12 @@ function attempt(row: any): DirectorAttempt {
 }
 
 /** Object key order is immaterial (JSONB canonicalizes it); array order remains intentional. */
-function sameRecoveryFrame(saved: DirectorSnapshot, current: DirectorSnapshot): boolean {
-  const { storyAt: before, ...originalFrame } = saved,
-    { storyAt: now, ...currentFrame } = current;
-  if (!equal(originalFrame, currentFrame) || Date.parse(now) < Date.parse(before)) return false;
-  // Wall-time progress alone is not a new frame until a real condition/deadline crosses.
+function temporalFrame(snapshot: DirectorSnapshot) {
   const times: string[] = [];
   const conditions = (items: { kind: string; at?: string }[]) => {
     for (const item of items) if (item.kind === 'at_or_after' && item.at) times.push(item.at);
   };
-  for (const state of saved.actorStates) {
+  for (const state of snapshot.actorStates) {
     for (const plan of state.plans) conditions(plan.triggers);
     for (const action of state.actions) conditions(action.preconditions);
     for (const responsibility of state.responsibilities) {
@@ -346,9 +342,26 @@ function sameRecoveryFrame(saved: DirectorSnapshot, current: DirectorSnapshot): 
       if (responsibility.deadline) times.push(responsibility.deadline.at);
     }
   }
-  for (const blocker of saved.blockers) conditions(blocker.reconsiderOn);
-  return times.every(
-    (at) => Date.parse(before) >= Date.parse(at) === Date.parse(now) >= Date.parse(at),
+  for (const blocker of snapshot.blockers) conditions(blocker.reconsiderOn);
+  return [...new Set(times)]
+    .sort()
+    .map((at) => ({ at, reached: Date.parse(snapshot.storyAt) >= Date.parse(at) }));
+}
+function sameRecoveryFrame(saved: DirectorSnapshot, current: DirectorSnapshot): boolean {
+  const { storyAt: before, ...originalFrame } = saved,
+    { storyAt: now, ...currentFrame } = current;
+  return (
+    Date.parse(now) >= Date.parse(before) &&
+    equal(originalFrame, currentFrame) &&
+    equal(temporalFrame(saved), temporalFrame(current))
+  );
+}
+/** Stable semantic frame, not a timer-driven permission to purchase another decision. */
+export function directorCoordinationFrameHash(snapshot: DirectorSnapshot) {
+  const validated = snapshotShape(snapshot);
+  const { storyAt: _storyAt, evaluatedThroughVersion: _evaluated, ...frame } = validated;
+  return digest(
+    body({ ...frame, temporal: temporalFrame(validated) }, DIRECTOR_SNAPSHOT_MAX_BYTES),
   );
 }
 
@@ -566,7 +579,26 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
           [world.id, owner],
         )
       ).rows[0];
-      if (!row) return { status: 'none' };
+      if (!row) {
+        // A discarded known completion is still evidence of a paid decision for
+        // this frame. Renaming the coordination command (including after an
+        // upgrade) must not turn repeated idle checks into a fresh purchase.
+        const discarded = (
+          await sql.query(
+            `SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2
+           AND engine_epoch=$3 AND expected_world_version=$4 AND status='stale_discarded' AND response_hash IS NOT NULL
+           AND snapshot-'storyAt'-'evaluatedThroughVersion'=$5::jsonb-'storyAt'-'evaluatedThroughVersion'
+           ORDER BY created_at DESC`,
+            [world.id, owner, current.engineEpoch, current.worldVersion, JSON.stringify(current)],
+          )
+        ).rows;
+        for (const prior of discarded) {
+          const saved = snapshotShape(prior.snapshot);
+          if (directorCoordinationFrameHash(saved) === directorCoordinationFrameHash(current))
+            return { status: 'stale', attempt: attempt(prior), reason: 'lease_expired' };
+        }
+        return { status: 'none' };
+      }
       const pending = attempt(row);
       // An expired lease cannot prove an unknown paid request did not succeed.
       if (pending.status !== 'response_received') return { status: 'blocked', attempt: pending };
