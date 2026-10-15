@@ -201,17 +201,24 @@ test('script is the sole selected visible body even when editorialIntent has a v
   assertDenied(input);
 });
 
-for (const script of [undefined, '', ' \t\r\n'])
-  test(`an absent or blank script ${JSON.stringify(script)} selects editorialIntent`, () => {
+test('only an undefined script selects the visible editorialIntent fallback', () => {
+  const input = material();
+  input.node.script = undefined;
+  input.node.editorialIntent = `\n${block()}`;
+  const result = project(input)!;
+  assert.equal(result.provenance.field, 'editorialIntent');
+  assert.equal(
+    input.node.editorialIntent.slice(result.provenance.start, result.provenance.end),
+    result.directive.text,
+  );
+});
+
+for (const script of ['', ' \t\r\n'])
+  test(`a present blank script ${JSON.stringify(script)} never searches editorialIntent`, () => {
     const input = material();
     input.node.script = script;
     input.node.editorialIntent = `\n${block()}`;
-    const result = project(input)!;
-    assert.equal(result.provenance.field, 'editorialIntent');
-    assert.equal(
-      input.node.editorialIntent.slice(result.provenance.start, result.provenance.end),
-      result.directive.text,
-    );
+    assertDenied(input);
   });
 
 for (const intent of [
