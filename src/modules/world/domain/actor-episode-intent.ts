@@ -28,7 +28,7 @@ export function projectActorEpisodeDirective(
   material: AuthoredAgentMaterial,
   actorId: string,
   availablePlaces: readonly { id: string; name: string }[],
-): ActorEpisodeDirective | null {
+): Exclude<ActorEpisodeDirective, { kind: 'task_suggestion' }> | null {
   const intent = material.node.intent;
   const actorKey =
     intent.kind === 'offer_message'
