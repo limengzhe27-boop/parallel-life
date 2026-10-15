@@ -305,7 +305,13 @@ async function generalGoals(
     }
     const own = ownGoalBrief(definition, progress, frame.actorId, blocked);
     if (!own) continue;
-    frame.phase = progress.phase === 'pending' ? 'introduced' : progress.phase;
+    frame.sharedEventPhase = progress.phase === 'pending' ? 'introduced' : progress.phase;
+    frame.phase =
+      own.status === 'fulfilled' || own.status === 'withdrawn'
+        ? 'resolved'
+        : own.participation === 'engaged'
+          ? 'engaged'
+          : 'introduced';
     frame.status = own.status ?? 'active';
     frame.participation = own.participation ?? 'unknown';
     frame.productiveBeats = progress.productiveBeats;
@@ -315,7 +321,14 @@ async function generalGoals(
       storyNow: context.time,
       autonomousActionAvailable: true,
     });
-    frame.nextMove = move === 'introduce' ? 'wait' : move;
+    frame.nextMove =
+      frame.phase === 'resolved' || progress.phase === 'resolved'
+        ? 'finished'
+        : own.status === 'deferred'
+          ? 'wait'
+          : move === 'introduce'
+            ? 'wait'
+            : move;
     const { startedAt: _startedAt, ...visibleFrame } = frame;
     results.push({ frame: visibleFrame, definition, progress });
   }

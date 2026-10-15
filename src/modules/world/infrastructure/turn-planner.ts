@@ -11,8 +11,7 @@ import {
   isExplicitChoice,
   isExplicitChoiceResult,
   isExplicitlyConfidential,
-  parseEventGoalAssessments,
-  validateEventGoalAssessmentQuotes,
+  bindEventGoalAssessmentSources,
 } from '../domain/validation.ts';
 
 const SYSTEM = `你是“如果”平行人生手机中的一个虚构人物，正在和主角私聊。世界日期与明天/今晚等相对时间以world.localTime（UTC+08:00）为准；world.time仍是同一时刻的UTC表示，输出邀约时间必须含明确时区偏移。只代表当前 actor，不是替所有人发言的全知旁白。
@@ -259,7 +258,7 @@ export class WorldTurnPlanner implements TurnPlanner {
               ? '\n【本轮邀约输出】storyOpportunity是此刻唯一合法候选，不是已赴约事实。根据本人性格决定邀请或拒绝。若邀请：一次提出明确日期和时间，effects同时包含本人message.received及{type:"appointment.proposed",id:"invite_1",title:storyOpportunity.title,at:"实际提议时间的UTC带毫秒时刻",participantIds:[storyOpportunity.actorId]}。title逐字一致。正文按UTC+08说同一时刻；at晚于nowUtc且不早于earliestAtUtc。proposed只是未答应的邀请，不是强制用户确认，不是已见面。不要只问有空吗却省略日程，也不要仅输出说明文字。若拒绝/暂不能约：只给本人真实回复，不生成日程。'
               : '') +
             (eventGoalKeys.length
-              ? '\n【本人正在进行的事】eventGoals是你自己的已保存目标与立场。phase是同一事件共享的调度阶段，不代表你知道其他人的私聊或具体结果；nextMove=finished表示本段已收束，不再重复提出旧请求，但不知道的结果不能编造或宣称自己完成。先接当前话，再判断是否适合推进；闲聊可以闲聊，不必每次提目标或问问题。拒绝只针对这次请求，尊重它，同时保留自己的打算；可以自己改安排、暂停或结束请求，不制造危机、责备或惩罚。nextMove=wait只约束无输入时的主动催问，当前玩家说话要即时回应。已resolved的旧goal当过去记录，不对它评reopened；新的真实约定由运行时建立新goal。不把目标/幕后字段写进对白。跟随本人说话习惯和行为示例，用具体对象和小动作表达，通常一两句，避免客服口吻、概括总结与长篇建议。JSON另加eventGoalAssessments数组：玩家实际说话可对当前goalKey评engaged/declined/reopened/unrelated，target=user、quote逐字取本轮userText；director轮没有玩家发言，只能target=npc。本人发言可评npc_progress/nudge/closure，quote逐字取本人message.received正文。closure只在本次真实取消或收尾时给withdrawn/alternative/unresolved；完成与时钟过期由运行时核验，不能输出complete、fulfilled、missed、actorId、记录ID或条件ID。每goal/target最多一个，最多8条，可[]；未发生的执行或其他人的私聊不作依据。每项必须完整包含goalKey、target、kind、quote，target是单个字符串user或npc，不能遗漏。只允许goalKey、target、kind、quote四个字段；仅kind=closure时额外带closure。其他kind必须省略closure，不要填null、空字符串或undefined；不要附status、reason、actorId等字段。结构示例为{"goalKey":"提供的实际goalKey","target":"npc","kind":"closure","quote":"本人本轮发言的准确片段","closure":"alternative"}，只是字段结构，不要求编造或一律关闭；goalKey、quote和分类必须依据本轮真实内容。本轮完整JSON形状以此为准，必须保留eventGoalAssessments数组（无依据时[]），不要只复制前面的无目标例形：' +
+              ? '\n【本人当前目标】eventGoals仅含本人目标。phase/status/participation属于自己；sharedEventPhase仅是同一事件的调度阶段，不说明其他人做了什么。本人withdrawn/fulfilled或nextMove=finished时，旧want只作历史，不重提请求；本人deferred或participation=declined时不再催问这次请求。先回答当前话；玩家问接下来怎么安排时，结合已知条件提出一个此前尚未说过、本人可做的小安排，用计划口吻，不编造已完成成果或新危机；已结束请求只确认一次，后续不再复述上一句拒绝确认，不用空泛的“知道了、我自己安排、有需要联系我”循环。可以自然谈眼前话题；没有新消息不编造进展。nextMove=wait仅限制主动催问，玩家当前说话仍要回应。已resolved不评reopened；新约定由运行时建立新goal。通常一两句，保留本人语气、具体对象和能力边界，不暴露幕后字段。\n【可选进度标注】JSON另加eventGoalAssessments数组，无依据时[]。每项只用goalKey、target、kind、source；仅kind=closure再加closure。source明确选择当前来源，不填写quote或来源ID：玩家本轮真实说话用source=current_user、target=user，kind可engaged/declined/reopened/unrelated；导演轮没有玩家发言，禁止current_user。本人本轮唯一一条message.received用source=current_reply、target=npc，kind可npc_progress/nudge/closure；多条回复不标注。服务端绑定该原文，不让你抄写或改写引用。closure只在本人本轮真实结束请求时填withdrawn/alternative/unresolved，其他kind省略closure，不能为null。kind是对此次原话的判断，不是用户已经行动或完成。拒绝应标declined，明确加入/协作应标engaged，换话题可unrelated；不把提问/假设当同意。npc_progress必须有具体新提议或变化，重复确认/泛泛问候不是进展。每goal/target最多1条，共最多8条，仅当前goalKey，不输出complete/fulfilled/missed/status/reason/actorId。示例{"goalKey":"当前实际goalKey","target":"user","kind":"declined","source":"current_user"}；不要求编造判断或每轮关闭目标。保留完整JSON：' +
                 JSON.stringify({
                   schemaVersion: 1,
                   effects: [
@@ -377,6 +376,14 @@ export class WorldTurnPlanner implements TurnPlanner {
     } | null;
 
     if (parsed && Array.isArray(parsed.effects) && parsed.effects.length > 0) {
+      const sourceReplyTexts = parsed.effects
+        .filter(
+          (e) =>
+            e.type === 'message.received' &&
+            e.actorId === targetActorId &&
+            typeof e.text === 'string',
+        )
+        .map((e) => e.text!);
       const ackReply = parsed.effects.some(
         (e) =>
           e.type === 'message.received' &&
@@ -655,15 +662,10 @@ export class WorldTurnPlanner implements TurnPlanner {
         // The optional annotation group is independent of the real dialogue. Reject
         // the whole group if any evidence is bad; never rewrite a quote or reply.
         try {
-          const assessments = parseEventGoalAssessments(parsed.eventGoalAssessments);
-          validateEventGoalAssessmentQuotes(assessments, {
+          const assessments = bindEventGoalAssessmentSources(parsed.eventGoalAssessments, {
             goalKeys: eventGoalKeys,
             userText,
-            npcTexts: parsed.effects.flatMap((effect) =>
-              effect.type === 'message.received' && typeof effect.text === 'string'
-                ? [effect.text]
-                : [],
-            ),
+            npcTexts: sourceReplyTexts,
             director: context.turnOrigin === 'director',
           });
           parsed.eventGoalAssessments = assessments;

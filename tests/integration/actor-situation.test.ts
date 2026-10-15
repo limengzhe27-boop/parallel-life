@@ -540,7 +540,7 @@ test('actor situations retain own directions and share the current world snapsho
         actor: string,
         text: string,
         kind: 'declined' | 'engaged' | 'closure',
-        quote: string,
+        _quote: string,
       ) => {
         const planner = publicationCharacterPlanner(app, f.owner, f.worldId, {
           async complete(messages) {
@@ -562,7 +562,7 @@ test('actor situations retain own directions and share the current world snapsho
                   goalKey: payload.eventGoals[0].goalKey,
                   target: kind === 'closure' ? 'npc' : 'user',
                   kind,
-                  quote,
+                  source: kind === 'closure' ? 'current_reply' : 'current_user',
                   ...(kind === 'closure' ? { closure: 'withdrawn' } : {}),
                 },
               ],
@@ -590,7 +590,10 @@ test('actor situations retain own directions and share the current world snapsho
         afterB = await readGoals(secondId);
       assert.equal(afterA[0]?.participation, 'declined');
       assert.equal(afterB[0]?.participation, 'engaged');
-      assert.equal(afterA[0]?.phase, afterB[0]?.phase);
+      assert.equal(afterA[0]?.sharedEventPhase, afterB[0]?.sharedEventPhase);
+      assert.equal(afterA[0]?.phase, 'introduced');
+      assert.equal(afterB[0]?.phase, 'engaged');
+      assert.equal(afterA[0]?.nextMove, 'wait');
       assert.equal(afterA[0]?.status, 'deferred');
       const rows = (
         await admin.query(
@@ -612,6 +615,14 @@ test('actor situations retain own directions and share the current world snapsho
       assert.equal(closed.actorGoalStatus[firstId], 'withdrawn');
       assert.equal(closed.actorGoalStatus[secondId], 'active');
       assert.equal(closed.resolution, null);
+      const ownClosed = await readGoals(firstId),
+        otherActive = await readGoals(secondId);
+      assert.equal(ownClosed[0]?.phase, 'resolved');
+      assert.equal(ownClosed[0]?.nextMove, 'finished');
+      assert.equal(ownClosed[0]?.sharedEventPhase, 'engaged');
+      assert.equal(otherActive[0]?.phase, 'engaged');
+      assert.equal(otherActive[0]?.status, 'active');
+      assert(!JSON.stringify(otherActive).includes('PRIVATE_ACTOR_DIRECTION_0'));
       const observed = await readDirectorObservation(app, f.owner, f.worldId, 20, at);
       const sharedObservation = observed.eventProgress?.find(
         (e) => e.nodeKey === initial.opening.nodeKey,
@@ -692,20 +703,19 @@ test('actor situations retain own directions and share the current world snapsho
           });
         },
       });
-      await assert.rejects(() =>
-        resolveTurn(
-          { worlds: runtime, planner: invalid, now: () => at, newId: randomUUID },
-          { userId: f.owner },
-          {
-            id: randomUUID(),
-            worldId: f.worldId,
-            actorId: secondId,
-            expectedVersion: latest.version,
-            text: 'Go ahead',
-          },
-        ),
+      const validDialogue = await resolveTurn(
+        { worlds: runtime, planner: invalid, now: () => at, newId: randomUUID },
+        { userId: f.owner },
+        {
+          id: randomUUID(),
+          worldId: f.worldId,
+          actorId: secondId,
+          expectedVersion: latest.version,
+          text: 'Go ahead',
+        },
       );
-      assert.equal((await runtime.get({ userId: f.owner }, f.worldId)).version, latest.version);
+      assert.equal((await runtime.get({ userId: f.owner }, f.worldId)).version, latest.version + 1);
+      assert.equal(validDialogue.state.messages.at(-1)?.text, 'This cannot be committed.');
       assert.equal(
         (
           await admin.query(
@@ -715,6 +725,7 @@ test('actor situations retain own directions and share the current world snapsho
         ).rows[0].revision,
         beforeRevision,
       );
+      const afterInvalidVersion = latest.version + 1;
       const later = new Date(Date.parse(at) + 35 * 60000).toISOString();
       await admin.query('UPDATE parallel_life.world_clock SET story_now=$2 WHERE world_id=$1', [
         f.worldId,
@@ -725,7 +736,7 @@ test('actor situations retain own directions and share the current world snapsho
       assert.equal(next?.actorId, secondId);
       assert.equal(next?.eventProgress?.ownGoal.want, 'PRIVATE_ACTOR_DIRECTION_1');
       const pending = await story.prepareProgressBeat(f.owner, f.worldId, initial.opening.nodeKey, {
-        expectedVersion: latest.version,
+        expectedVersion: afterInvalidVersion,
         automatic: false,
       });
       assert.equal(pending.status, 'claimed');
@@ -735,7 +746,7 @@ test('actor situations retain own directions and share the current world snapsho
           f.owner,
           f.worldId,
           initial.opening.nodeKey,
-          { expectedVersion: latest.version, automatic: false },
+          { expectedVersion: afterInvalidVersion, automatic: false },
         );
         assert.notEqual(competing.status, 'claimed');
         const recovered = await story.retry(f.owner, f.worldId, pending.claim.claimId);
@@ -746,7 +757,7 @@ test('actor situations retain own directions and share the current world snapsho
         await commit(
           f,
           secondId,
-          latest.version,
+          afterInvalidVersion,
           recovered.claim.commandId,
           'First autonomous follow-up',
         );
@@ -755,14 +766,14 @@ test('actor situations retain own directions and share the current world snapsho
           f.owner,
           f.worldId,
           initial.opening.nodeKey,
-          { expectedVersion: latest.version + 1, automatic: false },
+          { expectedVersion: afterInvalidVersion + 1, automatic: false },
         );
         assert.equal(secondBeat.status, 'claimed');
         if (secondBeat.status !== 'claimed') throw Error('SECOND_FOLLOWUP_MISSING');
         await commit(
           f,
           secondId,
-          latest.version + 1,
+          afterInvalidVersion + 1,
           secondBeat.claim.commandId,
           'Second autonomous follow-up without closure',
         );
@@ -770,7 +781,7 @@ test('actor situations retain own directions and share the current world snapsho
         const bounded = await story.opportunities(f.owner, f.worldId, false);
         assert(!bounded.candidates.some((c) => c.nodeKey === initial.opening.nodeKey));
         const quiet = await story.prepareProgressBeat(f.owner, f.worldId, initial.opening.nodeKey, {
-          expectedVersion: latest.version + 2,
+          expectedVersion: afterInvalidVersion + 2,
           automatic: false,
         });
         assert.equal(quiet.status, 'none');
@@ -815,7 +826,8 @@ test('actor situations retain own directions and share the current world snapsho
             readActorEventGoals(sql, actorContext(current, actor.id), other.owner, new Set()),
           ),
         );
-      assert.equal(goals[0]![0]?.phase, 'resolved');
+      assert.equal(goals[0]![0]?.sharedEventPhase, 'resolved');
+      assert.equal(goals[0]![0]?.phase, 'introduced');
       assert.equal(goals[1]![0]?.phase, 'resolved');
       assert.equal(goals[0]![0]?.nextMove, 'finished');
       assert.equal(goals[1]![0]?.status, 'fulfilled');

@@ -465,12 +465,8 @@ export async function publicationOwnGoalFrame(
     want: own.want,
     stance: own.stance,
     boundaries: own.boundaries,
-    phase:
-      progress.phase === 'resolved'
-        ? 'resolved'
-        : progress.phase === 'engaged'
-          ? 'engaged'
-          : visible.phase,
+    phase: visible.phase,
+    sharedEventPhase: progress.phase === 'pending' ? 'introduced' : progress.phase,
     status: own.status ?? 'active',
     participation: own.participation ?? 'unknown',
     refusalScope: 'current_player_request',
@@ -479,7 +475,14 @@ export async function publicationOwnGoalFrame(
     pace: value.definition.pace,
     productiveBeats,
     segmentIndex: visibleSegment,
-    nextMove: progress.phase === 'resolved' ? 'finished' : move === 'introduce' ? 'wait' : move,
+    nextMove:
+      visible.phase === 'resolved' || progress.phase === 'resolved'
+        ? 'finished'
+        : own.status === 'deferred'
+          ? 'wait'
+          : move === 'introduce'
+            ? 'wait'
+            : move,
   };
 }
 

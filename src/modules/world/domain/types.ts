@@ -209,6 +209,8 @@ export type ActorEventGoal = {
   stance: string;
   boundaries: string[];
   phase: 'introduced' | 'engaged' | 'resolved';
+  /** Shared scheduling phase only; no remote actor decisions or private results. */
+  sharedEventPhase?: 'introduced' | 'engaged' | 'resolved';
   status: 'active' | 'deferred' | 'fulfilled' | 'withdrawn';
   participation: 'unknown' | 'engaged' | 'declined';
   refusalScope: 'current_player_request';

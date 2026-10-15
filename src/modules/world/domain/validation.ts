@@ -376,6 +376,52 @@ export function parseEventGoalAssessments(value: unknown): EventGoalAssessment[]
   // A reply follows its player input, even if the model emits judgments out of order.
   return assessments.sort((a, b) => Number(a.target === 'npc') - Number(b.target === 'npc'));
 }
+/** Explicit adapter protocol; canonical proposals still require literal quotes. */
+export function bindEventGoalAssessmentSources(
+  value: unknown,
+  scope: {
+    goalKeys: readonly string[];
+    userText?: string;
+    npcTexts: readonly string[];
+    director?: boolean;
+  },
+): EventGoalAssessment[] {
+  if (!Array.isArray(value) || value.length > 8)
+    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_ARRAY');
+  const bound = value.map((raw) => {
+    const item = record(raw);
+    // Never repair or rebind legacy evidence, including an invalid quote.
+    if (!Object.hasOwn(item, 'source')) return item;
+    if (
+      Object.hasOwn(item, 'quote') ||
+      Object.keys(item).some(
+        (key) => !['goalKey', 'target', 'kind', 'source', 'closure'].includes(key),
+      )
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SOURCE_FIELDS');
+    let original: string | undefined;
+    if (item.source === 'current_user' && item.target === 'user' && !scope.director)
+      original = scope.userText;
+    else if (
+      item.source === 'current_reply' &&
+      item.target === 'npc' &&
+      scope.npcTexts.length === 1
+    )
+      original = scope.npcTexts[0];
+    if (!original?.trim())
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SOURCE_SCOPE');
+    let quote = '';
+    for (const point of original.trim()) {
+      if (quote.length + point.length > 240) break;
+      quote += point;
+    }
+    const { source: _source, ...candidate } = item;
+    return { ...candidate, quote };
+  });
+  const assessments = parseEventGoalAssessments(bound);
+  validateEventGoalAssessmentQuotes(assessments, scope);
+  return assessments;
+}
 /** Pre-commit scope/quote check only; it does not claim a saved source or completion. */
 export function validateEventGoalAssessmentQuotes(
   assessments: readonly EventGoalAssessment[],

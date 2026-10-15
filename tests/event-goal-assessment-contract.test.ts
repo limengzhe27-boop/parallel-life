@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  bindEventGoalAssessmentSources,
   parseEventGoalAssessments,
   parseProposal,
   validateEventGoalAssessmentQuotes,
@@ -115,4 +116,78 @@ test('only active scoped goals and literal current-speaker text can provide a pr
     npcTexts: [effect.text],
     director: true,
   });
+});
+
+const boundScope = {
+  goalKeys: [goalKey],
+  userText: '我今天不去，你自己安排吧。',
+  npcTexts: [effect.text],
+};
+const boundUser = { goalKey, target: 'user', kind: 'declined', source: 'current_user' };
+const boundNpc = {
+  goalKey,
+  target: 'npc',
+  kind: 'closure',
+  closure: 'withdrawn',
+  source: 'current_reply',
+};
+test('explicit binding produces exact canonical evidence, ordered player first, without inventing IDs', () => {
+  assert.deepEqual(bindEventGoalAssessmentSources([boundNpc, boundUser], boundScope), [
+    { goalKey, target: 'user', kind: 'declined', quote: boundScope.userText },
+    { goalKey, target: 'npc', kind: 'closure', closure: 'withdrawn', quote: effect.text },
+  ]);
+  assert.throws(
+    () => parseProposal({ schemaVersion: 1, effects: [effect], eventGoalAssessments: [boundUser] }),
+    /INVALID_PROPOSAL/,
+  );
+  assert.throws(
+    () => bindEventGoalAssessmentSources([{ ...user, quote: '改写的拒绝' }], boundScope),
+    /QUOTE_MISMATCH/,
+  );
+});
+test('binding rejects ambiguous replies, wrong speaker, director player evidence and mixed legacy fields', () => {
+  for (const candidate of [
+    { ...boundUser, quote: user.quote },
+    { ...boundUser, quote: undefined },
+    { ...boundUser, source: 'current_reply' },
+    { ...boundNpc, source: 'current_user' },
+    { ...boundUser, source: 'previous_user' },
+    { ...boundUser, actorId: 'other' },
+    { ...boundUser, sourceEventId: 'invented' },
+    { ...boundUser, closure: null },
+    { ...boundNpc, closure: 'fulfilled' },
+    { ...boundUser, goalKey: 'other' },
+  ])
+    assert.throws(
+      () => bindEventGoalAssessmentSources([candidate], boundScope),
+      /INVALID_PROPOSAL/,
+    );
+  for (const scope of [
+    { ...boundScope, director: true },
+    { ...boundScope, userText: '' },
+    { ...boundScope, userText: undefined },
+  ])
+    assert.throws(() => bindEventGoalAssessmentSources([boundUser], scope), /INVALID_PROPOSAL/);
+  for (const npcTexts of [[], [effect.text, '第二条本人消息']])
+    assert.throws(
+      () => bindEventGoalAssessmentSources([boundNpc], { ...boundScope, npcTexts }),
+      /INVALID_PROPOSAL/,
+    );
+  assert.throws(
+    () => bindEventGoalAssessmentSources([boundUser, { ...npc, quote: '坏引用' }], boundScope),
+    /QUOTE_MISMATCH/,
+  );
+});
+test('bound excerpts stay contiguous, Unicode safe and within 240 UTF16 units', () => {
+  for (const userText of [
+    '字'.repeat(239) + '😀结尾',
+    '😀'.repeat(130),
+    '  ' + '字'.repeat(242) + '  ',
+  ]) {
+    const quote = bindEventGoalAssessmentSources([boundUser], { ...boundScope, userText })[0]!
+      .quote;
+    assert(quote.length <= 240);
+    assert(userText.includes(quote));
+    assert(!/[\uD800-\uDBFF]$/.test(quote));
+  }
 });
