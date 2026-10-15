@@ -669,9 +669,15 @@ export class WorldTurnPlanner implements TurnPlanner {
             director: context.turnOrigin === 'director',
           });
           parsed.eventGoalAssessments = assessments;
-        } catch {
+        } catch (error) {
           parsed.eventGoalAssessments = [];
-          console.warn(JSON.stringify({ planner: 'goal_assessment_rejected', rejected: true }));
+          const message = error instanceof Error ? error.message : '';
+          const reason = /^INVALID_PROPOSAL(?::GOAL_ASSESSMENT_[A-Z_]+)?$/.test(message)
+            ? message
+            : 'INVALID_PROPOSAL';
+          console.warn(
+            JSON.stringify({ planner: 'goal_assessment_rejected', rejected: true, reason }),
+          );
         }
       }
       return parsed;
