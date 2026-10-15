@@ -37,3 +37,11 @@
 **场景频道未覆盖**：当前真实 publication compiler 不生成角色 actual position，new-genesis admission 仍在 V0；联系名单、作者人物地点、同事件 participant 都不能当 actual presence。本测试没有手补 scene.opened/presence 或假 incident 通过。根确认该场景旅程随后沿显式 genesis setup/原生入场验收；此处仅对私聊和群的真实来源连续性负责。
 
 普通 editorial_only/即兴机会只证明不交全局 prose，不宣称这些机会已有 typed intent 演绎，也不宣称 67 全部完成、69 普通 NPC/player/wake 活跃边界完成或已上线。本任务冻结待根验收，停止 PG；后续根统一 check/build/迁移确认/部署和公网验证。
+
+## C 追加审计：新命令不得重买同一请求
+
+根新增 `e28498ae`（本树等价 `5295e9ab`）仅加强实际发送事务的请求消费/既往付费保护，不阻止历史或 private_strategy 只读解析，也不干扰 response_received 原 raw 恢复。本人仅追加两个真实 DB 用例，测试增量冻结 **`2dd1fea2b9a246323190962cd02c031772b81d20`**，原 26 项保持通过。
+
+在 `d56e2a98` 基线上真实复现：已有 invalid_output 付费 raw 的 pending request，用新 accepted receipt、新 command/new attempt、实际新 snapshot 再执行会成功 committed，确实发生第二次模型购买；已 consumed request 当时由原稿 exact observation 门槛提前 AGENT_REVISION_CONFLICT 拒绝，未声称该分支也已实际重买。修复后两条路径都精确 INPUT_SCOPE_FORBIDDEN：模型总计仍仅原来 1 次，新的 attempt sent_at/response_hash 均 NULL，九类实际业务对象完全不变，原 paid response_hash 不变。没有用伪造 attempt/status/request 输入来制造这两种状态。
+
+最终追加验收 **PG28/28、0 fail/skip**；type exit0、边界 566、focused Prettier/diff 通过。前后证据为 ignored `.local/actor74-rebuy-{before,after,type,boundary}.log`。为增量重新启动前先核实 55505 空闲；结束后正常关闭专属 local-db 父进程，原执行会话 exit0，55505 再次无监听。没有 fullcheck/build/生产/真实模型/UI 写入。任务再次冻结待根统一集成、发布与公网验证。
