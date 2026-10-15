@@ -855,7 +855,8 @@ test('actual publication semantic wake advances use one protected Director bound
         `CREATE TRIGGER ${name} BEFORE INSERT ON parallel_life.director_runtime_attempts FOR EACH ROW EXECUTE FUNCTION parallel_life.${name}()`,
       );
       try {
-        await assert.rejects(h.advance(), { code: 'DIRECTOR_DELIVERY_DEFERRED' });
+        const deferred = await h.advance();
+        assert.equal(deferred?.played, 0);
       } finally {
         await admin.query(`DROP TRIGGER ${name} ON parallel_life.director_runtime_attempts`);
         await admin.query(`DROP FUNCTION parallel_life.${name}()`);

@@ -539,6 +539,23 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
         assert.equal(await count(f, 'agent_input_receipts'), 0);
         const original = await directors.readEpisodes(f.owner, f.worldId);
         const requests = await pending(f);
+        assert.deepEqual(original, []);
+        assert.deepEqual(requests, []);
+        const savedDirector = (
+          await admin.query(
+            'SELECT id,status,sent_at,response_hash,response FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows;
+        assert.equal(savedDirector.length, 1);
+        assert.equal(savedDirector[0].status, 'response_received');
+        assert.ok(savedDirector[0].sent_at);
+        assert.ok(savedDirector[0].response_hash);
+        const savedRaw =
+          typeof savedDirector[0].response === 'string'
+            ? JSON.parse(savedDirector[0].response)
+            : savedDirector[0].response;
+        const savedOpportunityId = savedRaw.opportunities[0].id;
         const clock = await clocks.read(f.owner, f.worldId);
         assert.equal(clock.paused, true);
         if (boundary === 'managed_inactive') {
@@ -561,10 +578,30 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
         assert.equal(recovered?.worldVersion, 1);
         assert.equal(h.directorCalls().length, 1);
         assert.equal(h.npcCalls().length, 1);
-        assert.deepEqual(await directors.readEpisodes(f.owner, f.worldId), original);
-        assert.equal((await receipts(f))[0]!.episode_id, original[0]!.id);
+        const resumedEpisodes = await directors.readEpisodes(f.owner, f.worldId);
+        assert.equal(resumedEpisodes.length, 1);
+        assert.equal(resumedEpisodes[0]!.id, savedOpportunityId);
+        assert.equal(resumedEpisodes[0]!.status, 'proposed');
+        assert.equal((await receipts(f))[0]!.episode_id, savedOpportunityId);
         const deliveredRequest = (await receipts(f))[0]!.request_id;
-        assert.ok(requests.some((request) => request.id === deliveredRequest));
+        const resumedRequests = (
+          await admin.query(
+            'SELECT id FROM parallel_life.agent_episode_requests WHERE world_id=$1 AND episode_id=$2',
+            [f.worldId, savedOpportunityId],
+          )
+        ).rows;
+        assert.equal(resumedRequests.length, 2);
+        assert.ok(resumedRequests.some((request) => request.id === deliveredRequest));
+        const sameDirector = (
+          await admin.query(
+            'SELECT id,response_hash,status FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows;
+        assert.equal(sameDirector.length, 1);
+        assert.equal(sameDirector[0].id, savedDirector[0].id);
+        assert.equal(sameDirector[0].response_hash, savedDirector[0].response_hash);
+        assert.equal(sameDirector[0].status, 'committed');
       }
     },
   );
