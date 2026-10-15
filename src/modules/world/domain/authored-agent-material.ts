@@ -485,6 +485,11 @@ export function compileAuthoredAgentMaterials(
       ...(node.scenePlaceKeys ?? []),
       ...('placeKey' in node.intent ? [node.intent.placeKey] : []),
       ...node.prerequisites.flatMap((p) => (p.kind === 'at_place' ? [p.placeKey] : [])),
+      ...(source.conditions ?? [])
+        .filter((condition) => node.conditionKeys?.includes(condition.key))
+        .flatMap((condition) =>
+          condition.prerequisites.flatMap((p) => (p.kind === 'at_place' ? [p.placeKey] : [])),
+        ),
     ]);
     const placeRefs = [...placeKeys].map((placeKey): AuthoredMaterialPlaceRef => {
       const n = count(
@@ -503,6 +508,12 @@ export function compileAuthoredAgentMaterials(
     node.prerequisites.forEach((p, i) => checkPrereq(p, `${base}.prerequisites[${i}]`, out));
     for (const key of node.conditionKeys ?? [])
       known(out, 'condition', key, base + '.conditionKeys', conditionKeys);
+    for (const condition of (source.conditions ?? []).filter((c) =>
+      node.conditionKeys?.includes(c.key),
+    ))
+      condition.prerequisites.forEach((p, i) =>
+        checkPrereq(p, `${base}.conditions.${condition.key}.prerequisites[${i}]`, out),
+      );
     for (const key of node.mutuallyExclusiveNodeKeys)
       known(out, 'node', key, base + '.mutuallyExclusiveNodeKeys', nodeKeys);
     if (node.timeline) {
