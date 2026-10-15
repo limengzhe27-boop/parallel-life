@@ -27,6 +27,15 @@ export type EpisodeParticipationDecision = {
   reason: string;
   sourceIds: string[];
 };
+/** NPC-owned durable stance; source-backed and separate from player decisions. */
+export type ActorEpisodeParticipation = {
+  /** The stable consideration request ID, not another actor's identity. */
+  id: string;
+  choice: EpisodeParticipationDecision['choice'];
+  reason: string;
+  sourceIds: string[];
+  recordedAtVersion: number;
+};
 /** Durable delivery state, distinct from the shared event's actual progress. */
 export type AgentEpisodeRequest = {
   schemaVersion: 1;

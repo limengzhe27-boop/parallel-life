@@ -127,6 +127,7 @@ export type ActorAgentState = AgentIdentity & {
   actions: AgentAction[];
   responsibilities: AgentResponsibility[];
   decisions: AgentPlayerDecision[];
+  episodeParticipations?: import('./agent-narrative.ts').ActorEpisodeParticipation[];
   /** Persistent pending questions are separate from the current channel/topic focus. */
   questions?: import('./agent-questions.ts').AgentQuestion[];
   focus: AgentConversationFocus | null;

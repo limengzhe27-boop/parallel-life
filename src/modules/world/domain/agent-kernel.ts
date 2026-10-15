@@ -75,6 +75,8 @@ export function authorizedAgentState(
   viewState.knowledgeSourceIds = viewState.knowledgeSourceIds.filter((id) =>
     permittedSources.has(id),
   );
+  if (state.episodeParticipations !== undefined)
+    viewState.episodeParticipations = state.episodeParticipations.filter(based);
   if (state.questions !== undefined)
     viewState.questions = state.questions
       .filter(
@@ -92,6 +94,7 @@ export function authorizedAgentState(
       ...state.actions,
       ...state.responsibilities,
       ...state.decisions,
+      ...(state.episodeParticipations ?? []),
     ].map((item) => item.id),
   );
   const visibleIds = new Set(
@@ -101,6 +104,7 @@ export function authorizedAgentState(
       ...viewState.actions,
       ...viewState.responsibilities,
       ...viewState.decisions,
+      ...(viewState.episodeParticipations ?? []),
     ].map((item) => item.id),
   );
   if (
@@ -113,6 +117,11 @@ export function authorizedAgentState(
   )
     viewState.focus = null;
   const redactedStateIds: string[] = [];
+  redactedStateIds.push(
+    ...(state.episodeParticipations ?? [])
+      .filter((p) => !viewState.episodeParticipations?.some((v) => v.id === p.id))
+      .map((p) => p.id),
+  );
   redactedStateIds.push(
     ...(state.questions ?? [])
       .filter((q) => !viewState.questions?.some((visible) => visible.id === q.id))
@@ -235,6 +244,7 @@ export function validateAgentProposal(
         request.revision === 0 &&
         typeof request.requestId === 'string' &&
         decision.requestId === request.requestId &&
+        !context.state.episodeParticipations?.some((p) => p.id === decision.requestId) &&
         ['engage', 'decline', 'defer', 'need_information', 'quiet'].includes(decision.choice) &&
         typeof decision.reason === 'string' &&
         decision.reason.trim().length > 0 &&
@@ -626,6 +636,20 @@ export function reduceActorAgentState(
     questionChanges: applyAgentQuestionChanges(context, proposal).applied,
     state: {
       ...context.state,
+      ...(proposal.episodeDecision
+        ? {
+            episodeParticipations: [
+              ...(context.state.episodeParticipations ?? []),
+              {
+                id: proposal.episodeDecision.requestId,
+                choice: proposal.episodeDecision.choice,
+                reason: proposal.episodeDecision.reason,
+                sourceIds: [...proposal.episodeDecision.sourceIds],
+                recordedAtVersion: worldVersion,
+              },
+            ],
+          }
+        : {}),
       ...(context.state.questions !== undefined ||
       proposal.replyAssessments?.length ||
       proposal.questionWithdrawals?.length
