@@ -81,3 +81,142 @@ test('return planning requests an evidence-anchored step without changing ordina
     assert.equal(calls, 1);
   }
 });
+
+test('invalid optional goal evidence cannot replace a valid reply or partially advance a goal', async () => {
+  const reply = {
+    type: 'message.received',
+    id: 'reply',
+    actorId: 'actor',
+    text: '知道了，我自己安排。',
+  };
+  const goalKey = 'publication:test_event';
+  const scoped = { ...context, turnOrigin: 'director' as const, introducingEventGoalKey: goalKey };
+  const valid = {
+    goalKey,
+    target: 'npc',
+    kind: 'closure',
+    quote: reply.text,
+    closure: 'alternative',
+  };
+  for (const annotations of [
+    [{ ...valid, quote: '改写的、并不存在的原话' }],
+    [{ ...valid, goalKey: 'publication:other_event' }],
+    [{ ...valid, target: 'user', kind: 'declined' }],
+    [{ ...valid, complete: true }],
+    [valid, { ...valid, quote: '另一条不在消息中的原话' }],
+    [valid, valid],
+    { kind: 'closure' },
+  ]) {
+    const result = await new WorldTurnPlanner({
+      async complete() {
+        return JSON.stringify({
+          schemaVersion: 1,
+          effects: [reply],
+          eventGoalAssessments: annotations,
+        });
+      },
+    }).propose({ context: scoped, userText: '导演安排' });
+    assert.deepEqual(result, { schemaVersion: 1, effects: [reply], eventGoalAssessments: [] });
+  }
+  const result = await new WorldTurnPlanner({
+    async complete() {
+      return JSON.stringify({ schemaVersion: 1, effects: [reply], eventGoalAssessments: [valid] });
+    },
+  }).propose({ context: scoped, userText: '导演安排' });
+  assert.deepEqual(result, { schemaVersion: 1, effects: [reply], eventGoalAssessments: [valid] });
+});
+
+test('source binding retains refusal and real reply; ambiguous or foreign reply cannot supply evidence', async () => {
+  const goalKey = 'publication:test_event';
+  const goal = {
+    goalKey,
+    actorId: 'actor',
+    source: {
+      kind: 'director_event' as const,
+      sourceEventId: 'opening',
+      sourceRecordId: 'message',
+    },
+    want: '核对海报日期',
+    stance: '平等协作',
+    boundaries: [],
+    phase: 'introduced' as const,
+    status: 'active' as const,
+    participation: 'unknown' as const,
+    refusalScope: 'current_player_request' as const,
+    mayPursueOwnGoalWithoutPlayer: true as const,
+    actualMovesRequireRuntimeAuthorization: true as const,
+    pace: 'extended' as const,
+    productiveBeats: 1,
+    segmentIndex: 0,
+    nextMove: 'wait' as const,
+  };
+  const ownReply = {
+    type: 'message.received',
+    id: 'reply',
+    actorId: 'actor',
+    text: '这次先不找你帮忙了。',
+  };
+  const userText = '我这次不参加了，别再问我。';
+  for (const director of [false, true]) {
+    const result = await new WorldTurnPlanner({
+      async complete(messages) {
+        assert.match(messages[0]!.content, /source=current_user/);
+        assert.match(messages[0]!.content, /不再复述上一句/);
+        return JSON.stringify({
+          schemaVersion: 1,
+          effects: [ownReply],
+          eventGoalAssessments: [
+            { goalKey, target: 'user', kind: 'declined', source: 'current_user' },
+            {
+              goalKey,
+              target: 'npc',
+              kind: 'closure',
+              source: 'current_reply',
+              closure: 'withdrawn',
+            },
+          ],
+        });
+      },
+    }).propose({
+      context: {
+        ...context,
+        eventGoals: [goal],
+        ...(director ? { turnOrigin: 'director' as const } : {}),
+      },
+      userText,
+    });
+    assert.deepEqual(
+      (result as any).eventGoalAssessments,
+      director
+        ? []
+        : [
+            { goalKey, target: 'user', kind: 'declined', quote: userText },
+            { goalKey, target: 'npc', kind: 'closure', quote: ownReply.text, closure: 'withdrawn' },
+          ],
+    );
+    assert.deepEqual((result as any).effects, [ownReply]);
+  }
+  for (const effects of [
+    [{ ...ownReply, actorId: 'other' }],
+    [ownReply, { ...ownReply, id: 'reply2' }],
+  ]) {
+    const result = await new WorldTurnPlanner({
+      async complete() {
+        return JSON.stringify({
+          schemaVersion: 1,
+          effects,
+          eventGoalAssessments: [
+            {
+              goalKey,
+              target: 'npc',
+              kind: 'closure',
+              source: 'current_reply',
+              closure: 'withdrawn',
+            },
+          ],
+        });
+      },
+    }).propose({ context: { ...context, eventGoals: [goal] }, userText });
+    assert.deepEqual((result as any).eventGoalAssessments, []);
+  }
+});

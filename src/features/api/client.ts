@@ -1,3 +1,14 @@
+import { OpeningStatusSchema, OpeningAdvanceSchema } from '../../contracts/publication-opening.ts';
+import {
+  ClockActivityRequestSchema,
+  type ClockActivityRequest,
+} from '../../contracts/world-clock.ts';
+import {
+  StoryWaitRequestSchema,
+  StoryWaitReceiptSchema,
+  type StoryWaitRequest,
+} from '../../contracts/story-wait.ts';
+import { PublicWorldStorySchema } from '../../contracts/world-story.ts';
 import { PlayerRecordsSchema } from '../../contracts/world-records.ts';
 import {
   LifeDraftSchema,
@@ -31,6 +42,10 @@ import {
 import { DiscoverySchema, type DiscoverRequest } from '../../contracts/discovery.ts';
 import { z } from 'zod';
 import {
+  AppointmentWaitRequestSchema,
+  AppointmentWaitReceiptSchema,
+} from '../../contracts/appointment-wait.ts';
+import {
   ApiErrorSchema,
   SessionSchema,
   InterviewWorkspaceSchema,
@@ -58,6 +73,10 @@ import {
   WorldMessageReceiptSchema,
   type WorldMessageRequest,
 } from '../../contracts/world-interaction.ts';
+// Chat allows the server's 85s model deadline plus persistence; director advance
+// may call the model twice. Both remain bounded below the route's 240s limit.
+const WORLD_MESSAGE_TIMEOUT_MS = 125_000;
+const WORLD_ADVANCE_TIMEOUT_MS = 185_000;
 export class ApiFailure extends Error {
   readonly code: ApiErrorBody['error']['code'];
   readonly requestId?: string;
@@ -152,6 +171,14 @@ export class LifeClient {
       },
     );
   }
+  async waitToAppointment(worldId: string, input: unknown) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/invitations/wait`,
+      AppointmentWaitReceiptSchema,
+      { method: 'POST', body: JSON.stringify(AppointmentWaitRequestSchema.parse(input)) },
+    );
+  }
   async world(id: string) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(id)}`, WorldPhoneSchema);
@@ -164,6 +191,7 @@ export class LifeClient {
       {
         method: 'POST',
         body: JSON.stringify(input),
+        signal: AbortSignal.timeout(WORLD_MESSAGE_TIMEOUT_MS),
       },
     );
   }
@@ -183,6 +211,42 @@ export class LifeClient {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema);
   }
+  async updateClockActivity(worldId: string, input: ClockActivityRequest) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/clock/activity`, WorldClockSchema, {
+      method: 'POST',
+      body: JSON.stringify(ClockActivityRequestSchema.parse(input)),
+      keepalive: input.mode === 'away',
+    });
+  }
+  async waitStoryTime(worldId: string, input: StoryWaitRequest) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/clock/wait`,
+      StoryWaitReceiptSchema,
+      {
+        method: 'POST',
+        body: JSON.stringify(StoryWaitRequestSchema.parse(input)),
+      },
+    );
+  }
+  /** Already presented story progress; no hidden author candidates or director instructions. */
+  async readWorldStory(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/story`, PublicWorldStorySchema);
+  }
+  async readWorldOpening(worldId: string) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/opening`, OpeningStatusSchema);
+  }
+  async advanceWorldOpening(worldId: string, confirmRetry = false) {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/opening`, OpeningAdvanceSchema, {
+      method: 'POST',
+      body: JSON.stringify({ confirmRetry }),
+      signal: AbortSignal.timeout(WORLD_ADVANCE_TIMEOUT_MS),
+    });
+  }
   /** Pause/resume or change the speed of one life. */
   async setWorldClock(worldId: string, input: { paused?: boolean; speed?: number }) {
     await this.connect();
@@ -196,6 +260,7 @@ export class LifeClient {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/advance`, AdvanceReceiptSchema, {
       method: 'POST',
+      signal: AbortSignal.timeout(WORLD_ADVANCE_TIMEOUT_MS),
       ...(automatic ? { body: JSON.stringify({ automatic: true }) } : {}),
     });
   }

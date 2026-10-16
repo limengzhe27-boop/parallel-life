@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ScenePlanner } from '../src/modules/world/infrastructure/scene-planner.ts';
 import type { ScenePlanningContext } from '../src/modules/world/application/scene-ports.ts';
+import { sceneOfferIntent } from '../src/modules/world/application/scene-offer-context.ts';
 function context(): ScenePlanningContext {
   const actorId = randomUUID(),
     worldId = randomUUID(),
@@ -67,6 +68,185 @@ function context(): ScenePlanningContext {
     appointmentTitle: '拍摄',
   };
 }
+test('an ordinary scene action uses the string observation wire without indexed step instructions', async () => {
+  const c = context();
+  c.action = {
+    id: randomUUID(),
+    commandId: randomUUID(),
+    sceneId: c.scene.id,
+    ownerId: c.scene.ownerId,
+    worldId: c.world.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+    intent: 'attempt',
+    kind: 'move',
+    text: '我在桌边坐下。',
+    relatedMatterIds: [],
+    status: 'pending',
+  };
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      assert.ok(messages[0]!.content.includes('observation只用一个中文字符串'));
+      assert.ok(!messages[0]!.content.includes('evidenceFormat必须精确'));
+      return JSON.stringify({
+        location: '工作室',
+        narration: '桌边的灯亮着。',
+        presentActorIds: [],
+        outcome: 'succeeded',
+        observation: '你在桌边坐下。',
+        matterTitle: null,
+        initialMatters: [],
+        matterUpdates: [],
+        dialogues: [],
+        stepProposals: [],
+        npcActions: [],
+      });
+    },
+  });
+  const p = await planner.propose(c);
+  assert.equal(p.observation, '你在桌边坐下。');
+  assert.equal(p.outcome, 'succeeded');
+  assert.deepEqual(p.stepProposals, []);
+});
+test('a present ordinary NPC answers with dialogue instead of indexed novel paragraphs', async () => {
+  const c = context(),
+    actor = c.world.actors[0]!;
+  c.scene.presence.push({
+    participant: { kind: 'actor', actorId: actor.id },
+    joinedVersion: 1,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+  });
+  c.action = {
+    id: randomUUID(),
+    commandId: randomUUID(),
+    sceneId: c.scene.id,
+    ownerId: c.scene.ownerId,
+    worldId: c.world.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+    intent: 'attempt',
+    kind: 'speak',
+    text: '我说：你可以自己决定，我在旁边。',
+    relatedMatterIds: [],
+    status: 'pending',
+  };
+  let calls = 0;
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      calls++;
+      if (calls === 1)
+        return JSON.stringify({
+          location: '工作室',
+          narration: '灯光照着桌面。',
+          presentActorIds: [actor.id],
+          outcome: 'partial',
+          observation: '你表达了愿意陪伴的立场。',
+          matterTitle: null,
+          initialMatters: [],
+          matterUpdates: [],
+          dialogues: [],
+          stepProposals: [],
+          npcActions: [],
+        });
+      assert.ok(messages[0]!.content.includes('本轮是普通现场即时回应'));
+      assert.ok(!messages[1]!.content.includes('PRIVATE_OWNER_SENTINEL'));
+      return JSON.stringify({ text: '好，我自己说清楚。你坐在旁边就行。', actions: [] });
+    },
+  });
+  const result = await planner.propose(c);
+  assert.equal(calls, 2);
+  assert.equal(result.dialogues[0]!.actorId, actor.id);
+  assert.equal(result.dialogues[0]!.text, '好，我自己说清楚。你坐在旁边就行。');
+  assert.deepEqual(result.npcActions, []);
+});
+test('ordinary matter updates keep a strict two-field wire and never discard unsupported fields', async () => {
+  const c = context(),
+    matterId = randomUUID();
+  c.matters = [
+    {
+      ownerId: c.scene.ownerId,
+      worldId: c.world.id,
+      sceneId: c.scene.id,
+      sourceEventId: randomUUID(),
+      sourceVersion: 1,
+      id: matterId,
+      title: '把想法说清楚',
+      status: 'not_started',
+    },
+  ];
+  c.action = {
+    id: randomUUID(),
+    commandId: randomUUID(),
+    sceneId: c.scene.id,
+    ownerId: c.scene.ownerId,
+    worldId: c.world.id,
+    sourceEventId: randomUUID(),
+    sourceVersion: 1,
+    intent: 'attempt',
+    kind: 'speak',
+    text: '我说出了自己的安排。',
+    relatedMatterIds: [matterId],
+    status: 'pending',
+  };
+  let extra = true;
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      assert.ok(messages[0]!.content.includes('每个更新只能包含两个字段'));
+      return JSON.stringify({
+        location: '工作室',
+        narration: '灯光照着桌面。',
+        presentActorIds: [],
+        outcome: 'partial',
+        observation: '你说出了自己的安排。',
+        matterTitle: null,
+        initialMatters: [],
+        matterUpdates: [
+          { id: matterId, status: 'in_progress', ...(extra ? { title: '把想法说清楚' } : {}) },
+        ],
+        dialogues: [],
+        stepProposals: [],
+        npcActions: [],
+      });
+    },
+  });
+  await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
+  extra = false;
+  const result = await planner.propose(c);
+  assert.deepEqual(result.matterUpdates, [{ id: matterId, status: 'in_progress' }]);
+});
+test('current publication direction is limited to the actual invitation, place and own participant', () => {
+  const c = context(),
+    a = c.world.appointments[0]!;
+  c.scene.placeId = 'studio';
+  c.world.space = {
+    currentPlaceId: 'studio',
+    places: [],
+    routes: [],
+    positionSource: { kind: 'seed_genesis', seedId: 'seed', snapshotVersion: 0 },
+  };
+  c.currentOfferBrief = {
+    editorialIntent: 'A_CURRENT_STAGE_DIRECTION',
+    actorIds: [c.world.actors[0]!.id],
+    placeId: 'studio',
+    placeName: '棚内',
+    invitationId: a.id,
+    sourceEventId: a.sourceEventId,
+  };
+  assert.equal(
+    sceneOfferIntent(c, c.world.actors[0]!.id)?.editorialIntent,
+    'A_CURRENT_STAGE_DIRECTION',
+  );
+  assert.equal(sceneOfferIntent(c, 'another_actor'), null);
+  const altered = structuredClone(c);
+  altered.currentOfferBrief!.sourceEventId = 'foreign';
+  assert.equal(sceneOfferIntent(altered), null);
+  altered.currentOfferBrief!.sourceEventId = a.sourceEventId;
+  altered.world.space!.currentPlaceId = 'home';
+  assert.equal(sceneOfferIntent(altered), null);
+  c.world.appointments[0]!.status = 'cancelled';
+  assert.equal(sceneOfferIntent(c), null);
+});
 test('scene director and NPC contexts crop private facts before the model call', async () => {
   const c = context(),
     actor = c.world.actors[0]!.id;
@@ -90,7 +270,7 @@ test('scene director and NPC contexts crop private facts before the model call',
         });
       }
       assert.ok(content.includes('角色私有观察'));
-      return JSON.stringify({ text: '先测试这盏灯。' });
+      return JSON.stringify({ present: true, text: '先测试这盏灯。' });
     },
   });
   const p = await planner.propose(c);
@@ -230,6 +410,8 @@ test('scene proposal receives the established local evening across UTC date boun
       const payload = JSON.parse(messages.at(-1)!.content.split('\nCURRENT TASK:')[0]!);
       assert.equal(payload.localStoryTime.zone, 'UTC+08:00');
       assert.match(payload.localStoryTime.label, /21:12/);
+      if (!messages.at(-1)!.content.includes('\nCURRENT TASK:'))
+        return JSON.stringify({ present: false, text: null });
       return JSON.stringify({
         location: '工作室',
         narration: '室内的灯照着白墙。',
@@ -243,4 +425,37 @@ test('scene proposal receives the established local evening across UTC date boun
     },
   });
   await p.propose(c);
+});
+
+test('arrival uses opening-only instructions and still rejects invented execution', async () => {
+  const c = context();
+  c.world.appointments = [];
+  delete c.scene.appointmentId;
+  let inventResult = false;
+  const planner = new ScenePlanner({
+    async complete(messages) {
+      assert.ok(messages[0]!.content.includes('这次没有玩家行动'));
+      assert.ok(!messages[0]!.content.includes('交接类示例'));
+      assert.ok(!messages[1]!.content.includes('Non-null outcome and observation REQUIRED'));
+      return JSON.stringify({
+        location: '旧车间',
+        narration: '窗边有一张空工作台。',
+        presentActorIds: [],
+        outcome: inventResult ? 'succeeded' : null,
+        observation: inventResult ? '你完成了车间的租赁。' : null,
+        matterTitle: null,
+        initialMatters: [],
+        matterUpdates: [],
+        dialogues: [],
+        stepProposals: [],
+        npcActions: [],
+      });
+    },
+  });
+  const opening = await planner.propose(c);
+  assert.equal(opening.outcome, null);
+  assert.equal(opening.observation, null);
+  assert.deepEqual(opening.matterUpdates, []);
+  inventResult = true;
+  await assert.rejects(planner.propose(c), { code: 'INVALID_PROPOSAL' });
 });

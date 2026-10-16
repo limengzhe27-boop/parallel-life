@@ -1,3 +1,6 @@
+import { nativeNpcTaskHandler } from './npc-agent-channel-services.ts';
+import { getServices } from './services.ts';
+import { createTextModel } from './composition.ts';
 import { createPrivateAssetStore } from './private-asset-store.ts';
 import type { AssetStore } from '../modules/media/application/asset-store.ts';
 import {
@@ -9,11 +12,14 @@ import { groupTaskHandler } from '../modules/world/infrastructure/group-task-han
 import { WorldGroupPlanner } from '../modules/world/infrastructure/group-planner.ts';
 import { ScenePlanner } from '../modules/world/infrastructure/scene-planner.ts';
 import { sceneTaskHandler } from '../modules/world/infrastructure/scene-task-handler.ts';
+import { sceneEnvironmentTaskHandler } from '../modules/world/infrastructure/agent-scene-environment.ts';
 import { WorldPlanner } from '../modules/world/infrastructure/world-planner.ts';
 import { buildHandler } from '../modules/world/infrastructure/build-handler.ts';
 import { DiscoveryPlanner } from '../modules/discovery/infrastructure/discovery-planner.ts';
 import { discoveryHandler } from '../modules/discovery/infrastructure/discovery-handler.ts';
 import 'server-only';
+import { sceneGatewayConfig } from './scene-model-config.ts';
+import { createSceneTextModel } from './composition.ts';
 import { gatewayConfig } from './config.ts';
 import { YibuTextModel } from '../modules/ai/infrastructure/yibu-text-model.ts';
 import { PostgresTaskQueue } from '../modules/tasks/infrastructure/postgres-task-queue.ts';
@@ -29,13 +35,29 @@ export function createWorker() {
   const config = gatewayConfig(),
     queue = new PostgresTaskQueue(url);
 
+  let sceneHandler: ReturnType<typeof sceneTaskHandler> | undefined;
   let assetStore: AssetStore | undefined;
   const readStore = () => (assetStore ??= createPrivateAssetStore());
   return {
     queue,
     handlers: {
       world: worldTaskDispatcher({
-        scene: sceneTaskHandler(queue, new ScenePlanner(new YibuTextModel(config)), config.model),
+        agent: async (lease, signal) => {
+          const db = getServices().db;
+          if (await sceneEnvironmentTaskHandler(db)(lease, signal)) return true;
+          return nativeNpcTaskHandler(db, createTextModel)(lease, signal);
+        },
+        scene: (lease, signal) => {
+          if (!sceneHandler) {
+            const sceneConfig = sceneGatewayConfig();
+            sceneHandler = sceneTaskHandler(
+              queue,
+              new ScenePlanner(createSceneTextModel(sceneConfig)),
+              sceneConfig.model,
+            );
+          }
+          return sceneHandler(lease, signal);
+        },
         group: groupTaskHandler(
           queue,
           new WorldGroupPlanner(new YibuTextModel(config)),

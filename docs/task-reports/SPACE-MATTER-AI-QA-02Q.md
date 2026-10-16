@@ -1,0 +1,303 @@
+# SPACE-MATTER-AI-QA-02Q · 累计步骤与NPC实际行动独立验收
+
+## 身份与范围
+
+- 状态：待验收（含独立NPC到场设计审查；结构化专项通过不代表完整真实模型体验通过）。
+- Agent：codex-f-matter-aiqa02q-01a0c7c8-20261011；辅助会话01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b。
+- 独立目录：/Users/limengzhe/.codex/worktrees/photo-compose-02/人生剧本；codex/matter-ai-qa-02q；基线6e39217。旧codex/matter-ai-qa-q/f31bafb完整保留，不reset。
+- 根明确分配02Q；主表短锁登记并读回后开始。依赖01真实失败与6e39217既有规则/仓储，第一阶段已满足；新规则专项实施依赖根冻结接口，尚未满足。
+- 唯一写范围：本报告、主登记表本人行；预留新tests/scene-step-progress.test.ts，契约未冻结前不写。全部业务/contracts/其他测试/配置/SQL只读，不开发地图。
+- 本阶段无端口、数据库、迁移号、模型额度、HTTP或浏览器；Q不付费、不生产写、不部署。真实调用/预算和唯一集成发布由根负责，不继承01余额。
+- 已读AGENTS、PROJECT_BRIEF、主DEVELOPMENT、ARCHITECTURE_REVIEW、ARCHITECTURE；旧架构时态说明不取代当前源码。
+
+## 现有代码可确认的边界
+
+基线为6e39217，不把以下读到的旧能力称为02已经完成：
+
+- domain/matters.ts：WorldMatter只有末次evidence和pursuitProgress，未有累计完成步骤；completed/abandoned/superseded禁止再转移。
+- domain/scene-matter-policy.ts：validateWorldMatterSceneUpdate核world/scene/action/result源版本、官方v3或trustedOpportunity、地点/邀约/见证等；completed依赖单action succeeded和action/observation文字条件。deliver_r17条件含验收/签收文字，但没有记录执行接收/检验的人和累计步骤，所以不应把含关键字等同真实检验来源。
+- domain/scene-world-results.ts：applySceneWorldResults校验当前事件顺序、action绑定、事项版本、可见observer facts，之后同次导出progressSceneMatters；world-history.ts重放经过同入口。新step逻辑必须在同运行时边界，而不是Repository专有旁路。
+- infrastructure/scene-repository.ts：commitSceneProposal建立同event来源的action resolution、scene entries、worldResults/事项/阶段/机会/observer facts；NPC只作为dialogue文本保存。不得让文本“我会检查”直接算已经检查。
+- infrastructure/scene-task-handler.ts：planner外部执行后queue.commit提交；tasks/infrastructure/postgres-task-queue.ts在同db事务执行业务callback与finish_task。这里是事务入口的静态证据，尚非本轮真实rollback/幂等证据。
+- 已有tests/fixtures/matter-progression.ts固定action+observation成功文本仅供领域规则测试。本轮新专项不能把这种构造成功称为模型自然度或真实接收检查。
+
+01失败是重复未给缺项及手机INVALID_PROPOSAL未提交。串行NPC文本缺执行结构与自由历史缺累计ledger是已确认结构差距；它们是否为模型循环唯一原因没有ablation，不能宣称已证。
+
+## 验收矩阵（冻结契约之前提出，不虚构导出函数）
+
+新schema/type/function由根唯一冻结。Q测试调用实际纯规则和实际reducer，不先自定义一套假引擎；不使用固定台词、字数或标题出现次数打自然性分数。
+
+|编号|情形/负例|预期与必要证据|验证归属|
+|---|---|---|---|
+|S01|作者固定ruleVersion/必要步骤/允许接收人；proposal改规则、增加签名或等未到客户|拒绝改trusted定义；原R17向老周或车主交付不被临时加条件|Q纯规则；根真实样本|
+|S02|分三次核对接头、说明交付、写记录，前两次partial|实际有效子步累计保留，最后只需剩余条件；整项结果与单次outcome分开|Q纯规则/reducer；根PG与AI|
+|S03|已执行子步与一个不成立子步混合|不凭整体partial抹掉有效步骤；非法提案须整事务拒绝，不能偷偷存前半段|Q纯规则；根PG|
+|S04|我会/准备/等客户来/请求老周检查/假设/引用检查通过|承诺、请求、自述和假设不是已执行证据，不credit NPC动作或玩家后续|Q纯规则；根实际模型|
+|S05|NPC实际检查/接收提案，由其他NPC代执行或替玩家签字|仅本人可执行授权动作，执行者来自当前调用与presence；玩家请求不替代执行|Q纯规则；根PG/AI|
+|S06|真实接收人已在场，通讯录联系人/离场角色/未来日程参与者冒领|接收人身份与本场景同事件实际presence/地点/物件/前置核验；关联不等在场|Q纯规则/reducer|
+|S07|step引用别owner/world/matter/scene、同名角色或另场景event|拒绝；标识、原始source与definition版本共同绑定，标题相同不能通用|Q纯规则；根RLS/PG|
+|S08|伪造eventId/version、未来来源、丢source、action未resolve、结果源不一致|拒绝，不靠自由文字补proof；scene之间是否允许合法累计由根明确规则，不能默认共享|Q纯规则/reducer；根PG|
+|S09|新current delta给已完成step换执行人/换来源、删除旧step、再次要求补做|保留既有已提交证据，拒绝篡改/回退；新合法动作不清空ledger|Q纯规则/reducer|
+|S10|同一step/同一source重复、同command回执重放，不同command重交同完成条件|幂等或明确拒绝，不能重复累计、阶段、机会、observer facts；原receipt不变|Q纯幂等；根真实PG/HTTP|
+|S11|事项completed后partial/failed/重新打开现场要求in_progress或欠项|终态不可复活；已完成步骤与来源不消失，新事项要独立定义/来源|Q纯规则/reducer|
+|S12|旧event不含steps，新代码读/重放/恢复已发展旧世界|不从旧台词/regex补历史step，不迁移初始快照；未知规则不自动套最新版本|Q纯兼容/reducer；根PG|
+|S13|step齐全但整item缺允许receiver或NPC行为；反之先提completed|有完整受控来源与必要条件才完成；未满足明确missing，不强置success|Q纯规则；根真实链|
+|S14|已完成触发阶段、新机会生成，回放/刷新/重试再次触发|单一确定性机会ID/来源，阶段一次；机会仍未接受，不能代玩家参与|Q纯reducer；根PG/AI|
+|S15|NPC未目击完成、未收到披露却得到所有step/私人档案|先权限过滤再预算；执行者/目击者只接相关可见事实，不能全量私聊泄漏|Q纯权限负例；根真实对照|
+|S16|world state更新后scene projection/records/receipt/memory写入失败|事件/状态/steps/NPC action/阶段/机会/投影/回执整事务rollback，不留半成果|根真实PG故障注入；Q不以内存mock证明|
+|S17|冲突旧版本、租约丢失、unknown、取消或响应丢失|拒绝过时提交、只读核原回执；未知不自动重付，不重复NPC行为|根Queue/PG/HTTP；Q可审纯来源|
+|S18|输入与裁定已把记录写好，下一轮仍泛称记录没写|runtime保存累计事实供NPC/导演；真实模型必须能解释真正剩余步骤，不用模板测试替代|根实际模型；Q独立语义审查|
+
+最小有限规则需由根明确R17实际终点与允许接收人，不把“另一人签名”或必须等刘航当隐含要求。required、done、missing必须分开；未提交候选steps/角色动作不能混入已保存ledger或宣布机会已解锁。规则能约束来源与权限，不足以独立证明模型提出的每个观察在语义上真实，仍需原输入/角色可见context/实际输出与保存结果的联合审核。
+
+## 地图A/E/F只读复核（以6e39217源码为准）
+
+|世界/行为|当前实际支持与限制|
+|---|---|
+|新官方人生|official-genesis.ts使用作者opening.space，新v2/v3预设有地图；来源是作者设定，不是定位服务/现实IP。默认继续旧存档不会变新版|
+|新普通自建世界|build-handler.ts用deriveInitialSpace；仅opening.space显式草案经authoredSpace/validateSpace核actor/invitation引用和路线才保存。无草案保持空态；城市名不自动生成街区/固定路程|
+|已有space的世界|沿已存来源移动；选择地点只预览，travel事务成功才改变位置/故事分钟，命令回执幂等。不能把动画当提交成功|
+|旧官方v1、world v0且无space|space-repository.ts核不可变snapshot/人物/邀请原消息与pack兼容，显式establish才建立；legacySpacePack限定当前v3向原v2地图兼容，不自动升级任务或回填历史|
+|旧普通v0无space|必须有initial snapshot/approved seed/world_builds.opening显式space，并核演员/世界绑定，才能显式establish；没有可验证草案则空态|
+|已发展旧世界且无space|version>0拒绝补建立，保护已保存历史；不能默认重开或覆盖玩家旧世界|
+|地图到达/进入现场|到达仅位置，不等已见面、赴约或事项完成；enterPlace显式进现场，生效确认日程参与者只是候选，通讯录联系人不自动在场|
+|离开后NPC/日程|旅行离开目击事实只给当时目击者，知道原地点而非目的地；未目击者不自动知情。proposed过期不责备，confirmed到点仅可询问/提碰面，不擅判失约|
+
+E旧报告的“从城市地点推导通用街区与15/20/25分钟”已被后续真实性修复取消，现domain/space.ts:deriveInitialSpace明确无opening.space就undefined。F旧报告“已在地点自然见面”也必须按agenda.ts当前措辞降为地图到达而非见面证据；不能引用早期报告扩大能力。A19/A21/A22的限定技术上线与测试归各原报告，不算Q本轮重验。
+
+尚欠：没有证据证明所有普通新世界都能生成合格地图；旧已发展无图仍不能补；真实模型旅行→完整事项→NPC行为→长期阶段/机会、动态通用空间/长线玩法/实际奖励仍未完整验收。01真实链未通过，这轮不能因地图存在就说补齐。
+
+## 当前验证与接续
+
+- 本阶段实际修改只有本报告和主表本人领取行；源码、测试、公共配置、数据库均未改。
+- 已完成：clean旧独立树确认、基线存在/新branch、短锁登记读回、规则/事务接点/地图实现只读审查、S01–S18矩阵回根。
+- 未执行：新专项（新接口尚未冻结）、npm check/build、真实PG、真实模型、HTTP、浏览器、部署；不得借01或地图旧计数冒称通过。
+- 接续：根冻结step rule/evidence/action/delta及实际纯函数、reducer接口和兼容约定后，Q只在独占新tests/scene-step-progress.test.ts写必要正负例，先新纯测试再适当check/build；若需要隔离DB或其他文件，先由根明确登记资源/范围。本Q不先占公共迁移或业务实现。
+- 集成验收：待根填写；完整产品与模型自然度没有通过结论。
+
+## 冻结类型与首次纯规则专项（保持失败证据）
+
+接收根8c6214f公共候选类型和708616e纯domain，独立树对应a48336e/1e35c11；不修改根文件。根已明确必要order_reviewed/repair_explained/handed_over/received；connector_checked/record_written/receiver_inspected可选。真实接收人来自允许且实际在场relatedActorIds，整项scene_steps完成与单action partial分开。
+
+已写专属tests/scene-step-progress.test.ts，实际首跑26项：19通过、7失败、0跳过。已复现：未来/假设源截肯定substring；引用去引号；NPC未来承诺、否定截substring、别角色动作、玩家动作被转成自己的canonical动作；同delta重复receive_r17产生两条actionTexts（steps仅一条）。7项已回根，根在原源码范围修复，Q不改业务或删负例。
+
+正例覆盖三partial逐次累计并保留第一source、四必要步骤聚合完成且不强制记录/复检、可选NPC实际检查；scope/source/plan/hypothesis/failed/不在场/终态负例与旧无扫描覆盖。纯函数测试没有声称事务/回执/AI自然度通过；原始world不被拒绝delta修改也不等于数据库rollback。
+
+首typecheck发现新测试未声明数组索引存在，已仅修测试索引声明；后续类型检查结果另记。新接口先同步时权限自动审核超时未执行，依工具允许重试一次成功，无用户确认阻塞或范围扩大。
+
+当前接续：根新domain修复提交后同步并复验同26项，补必要对象/请求/终态/实际source负例；root Repository/reducer尚在接线，PG/模型/公网未完成。不能先标产品通过。
+
+## 复验记录：1f900dd → f14e3e2
+
+- a24a911仅本人新测试和报告；7d751c6仅补本人测试，现32项冻结。先前typecheck索引问题已修并通过，不放宽负例。
+- 接根1f900dd（本树dbdef7e）后26项21pass/5fail：5原正例因actual拆句去尾标点误拒，完整substring带句号也属合法引用；已回根，未用删正例标点假装通过。补对象/日期/执行主体/旧完成绕过等6负例及不带标点NPC负例，32项实际21pass/11fail。
+- 接根f14e3e2（本树0df8dd9）后32项实际30pass/2fail/0skip：最初7问题、标点及R18/未来日期均已复验通过；剩余两处是真实纯规则绕过，不能称源已全绿。
+- 剩余1：saved input为“老周核对R17维修单”，截inputQuote“核对R17维修单”，observationQuote“你核对R17维修单”，能错误给player credit，输入执行主体不一致。
+- 剩余2：已存在stepProgress且只完成order_reviewed、缺真实received，validateWorldMatterSceneUpdate仍可凭旧succeeded+交付/签收文字条件完成。新已启用ledger应强制聚合条件；旧不含ledger历史仅沿明确兼容路径，不取消旧事件。
+- 两处已回根，业务源未改；待根新稳定修复后同32项再验，通过才运行适当check/build。根真实PG在途，不作为本人已通过证据。本人0模型/图/生产写/PG/HTTP/browser。
+
+## 第一轮独立交付（基于根3d5c36a冻结源码；最终增量见后节）
+
+实际最终结果：本人34项新scene-step-progress专项全部通过；同时执行B的14项scene-step-planner专项通过，总48/48、0失败、0skip/0todo。模块边界323文件通过、typecheck通过；本工作树npm run build成功退出0，23静态页生成完成。git diff --check通过。没有把供应商捕获mock提案或固定成功文本当真实NPC自然性。
+
+最后多句主体负例8e185dd和无“我”自然交付正例2526c00均保留，通过根3d5c36a来源所在句执行者规则；stepProgress不完整后不能用旧succeeded文字条件绕过，根1123c03已复验。optional写记录/复检仍不成为必要门槛，当前partial和累计终点区分保留；本报告历次失败计数/精确源版本保留，不以最终绿覆盖。
+
+独立同步过程：先漏B前置就接6ce561f产生非本人报告/planner测试modify-delete冲突，已完整abort未完成cherry-pick恢复干净树，再接冻结前置2c941d8→6ce561f→1123c03→3d5c36a，未手工覆盖/解决他人文件。同步后的本地提交只用于独立验收，不能由根合整枝重复公共源码。根当前WIP与其他主目录修改未纳。
+
+### 实际修改、验证与归属
+
+- Q只改新tests/scene-step-progress.test.ts、docs/task-reports/SPACE-MATTER-AI-QA-02Q.md；主表仅本人行按短锁更新。没有业务/接口/迁移/地图实现改动。
+- 本人交付测试链：a24a911（首26+报告）→7d751c6（32项）→8e185dd（33多句主体）→2526c00（34省略我正例）；根已陆续接收，最终完整报告另纯报告提交。根应接专属提交，不合独立整枝。
+- Q实际验证为上述34+14纯规则/planner专项、模块边界、typecheck、独立build、diff检查。本次完整npm run check未运行：其入口包括tests/rls-tenant-isolation.test.ts和character-image-flow.test.ts真实DB连接与fixture写，超出Q明确0DB范围；已告根，不通过配置隐藏或跳过冒称完整check通过。
+- Q真实PostgreSQL验证0、模型/生图0、生产写/API/HTTP/browser0。不是拿内存数组当生产Repository；领域纯fixture仅验证规则/来源，不证明持久事务或模型效果。
+- 根报告本轮真实PG纵切5/5（含partial累计、NPC接收、阶段/机会、下一步、迟失败rollback与history replay），完整PG242pass/5显式opt-in模型跳过；其完整check此前797、最终增加用例后待根重跑，根build0。以上归根，Q未执行/查询DB，不能外推RLS全量或真实自然度。
+- 本轮地图仅按源码核对支持矩阵，没有实测公网地图或新增世界；旧A/E/F验证归原发布者，旧E报告的通用街区逻辑/F到达即见面措辞已说明过时。
+
+### 下一位Agent的接续点与未完成项
+
+根/I接本报告与专属测试做集成验收，跑最终完整check/真实PG/build；按生产41项迁移/当前独立项目部署与READY/public流程完成发布。Q不部署、不改他人任务最终状态、不另领任务，构建进程已结束，无数据库/服务器/浏览器资源待关闭。
+
+真实模型新预算仍待人类授权，本Q累计0调用，不继承01保守11/12余额。获得授权后，由根维护单一账本/合成世界/回执来源，从实际核单→说明→交给允许在场者→NPC实际接收→近期完成→阶段/有来源机会→用户真实下一行动继续；Q可对新公开合成证据按01冻结语义矩阵审查。未授权时不自动调用或把本轮纯fixture说成改善证明。
+
+本轮规则纵切仅county官方v3 R17/r17-delivery-v1，不是普通世界通用长期任务引擎，不自动回填旧历史，不代表四人生全部完成、奖励兑现或长期好玩。**独立规则专项通过；完整真实模型“完成→NPC→后续机会→第二行动”仍未验，01真实未通过结论没有被本轮测试抹掉。** 部署/公网最终结论由根统一记录，本报告先待验收。
+
+## 最终增量：当前NPC执行不能漏存，历史不回填（根1d3ae2d）
+
+根追加当前NPC已执行声明必须有typed动作或同actor已有合法累计来源。原测试把“旧对白”放在input.dialogues（该字段是本次NPC结果），字段归属不正确；根没有改Q文件。Q同02Q范围接续并拆为真正历史world.messages不扫描/不变、当前receive和inspect已执行但npcActions空必须拒且不留ledger、同actor可引用已有自身received但不得新增第二条效果。不是删除历史保真或降低执行证据门槛。
+
+新专属测试提交b57b3b5；本人专项现37项。接根1d3ae2d（本树3107284）后实际37+B14共51/51通过，0失败/0skip/0todo；模块边界323文件和typecheck再次通过；该源码版本npm run build再次成功退出0、23静态页生成完成。没有修改根源码，新的B后续adapter需根最终集成检查，Q不以此次数量代替真实模型验收。
+
+此前0777422第一轮报告与48项结果保留为对应3d5c36a时态；本节是最新交付。测试完整链a24a911→7d751c6→8e185dd→2526c00→b57b3b5，根已接的不要重复合。最终报告单独提交，并只同步本报告主镜像。构建进程已退出，树干净，无PG/HTTP/browser资源。
+
+根转达新的人类授权：最多2个官方合成测试世界、总18次文字供应商调用含导演/NPC/纠错，0图片上传生成/个人资料，结束暂停；根唯一调用与账本，不继承01额度。上节“待授权”是当时状态，此刻授权已批准，尚无本Q新真实模型输出证据或通过结论。Q继续0供应商/DB/生产写，不读取私有账本；只在根交允许的公开合成输出/回执/前后保存证据后做独立语义审查，不常驻等待、不自动调用。
+
+最终任务待验收、同范围冻结释放；下一根验收专属test/report、完整check/真实PG/build与READY/public，然后按新授权验证真实第一阶段→NPC已保存行动→stage/机会→真实第二行动。任何领域/合成捕获proposal通过均不能冒充线上真实模型承接自然，01未通过结论仍保留。真实PG本轮均由根执行，本Q真实PG仍0；地图仅只读结论，未扩大开发范围。
+
+## 真实模型开场摘要独立复核：空presence不能靠旁白补人物
+
+根在新2世界/18文字授权内交本Q以下合成实际摘要：开场旁白含“此时……整个店里只有老周师傅在一旁忙碌”，但presentActorIds=[]、scene.presence只有player，没有NPC对白；下一轮核对行动因schema invalid failed，实际无新进展，保守预算已占5/18。本Q本次只读根转述及主02报告，不读取私有账本、会话、原始数据库或生产API，也未获得这一轮完整taskId/resultVersion/来源event/安全模型元数据；本节不虚构这些标识，不把保守额度写成精确供应商账单。
+
+结论：此开场存在人物在场一致性缺陷。旁白把老周写成正忙碌的实际在场人物，而真正presence只有玩家，因此不能当成老周确已在场，更不能说知情NPC已承接、接收/检查或事项已完成。没有NPC对白时该角色自然性未覆盖，不能用“在一旁忙碌”替角色行为来源。下一轮failed是被拒提案，没有可验的新完成步骤/阶段/机会；本轮完整体验尚未通过。合法空presence本身不是错误，矛盾来自旁白越出实际在场记录，不能为通过R17强制补一个NPC。
+
+主02报告已有候选32df2e0/racc3qapp READY、首开场TypeError/resultVersion null及根开场无action解引用修复/专项6过的记录。这是此前失败历史，不与此处空presence开场/下一轮schema失败混成一个原因。本Q没有本轮原始非法提案，不能判断是哪个schema字段、不完整输出或何种模型原因；已报告schema invalid而不是无证据说网络不稳。
+
+### 有限改进建议（只建议，业务由根/B实现）
+
+1. 开场导演只写合法可见环境；NPC在场/动作不由旁白断言。若真实presence为空，不能写某NPC此刻忙碌或已经见到他；当前有合法参与候选也不意味着必须选择在场者，不强制赴约。只读投影、NPC调用与动作权限共同沿实际presence。
+2. 给真实模型明确当前阶段所需JSON结构、enum、nullable和空数组边界；开场没有saved action时没有执行结果/step或NPC动作。实际attempt只提出绑定现有world/matter与当前源的候选步骤，非法schema整轮拒绝，保留安全错误分类；不放宽校验或自动从自由文本补类型。
+3. 候选修复后，经正常API显式离场再进入同owned world，生成新的开场/在场事件；旧开场、failed任务与原receipt保留，不重写过去、清空累计已确认步骤或从旧旁白回填老周presence。新进场仍允许空，后续交付必须有真实可接收人的合法来源，不制造假过去。
+4. 每次新的开场/动作/纠错沿唯一根账本计入18上限，成功/失败/unknown分别留证；unknown不自动重付。只有新实际保存的presence、NPC typed动作、steps、事项状态/阶段/机会与跨App结果一致，才评价修复有效。不因为READY、纯测试51过或schema现在合法就宣布体验通过。
+
+已将以上边界回传根。同02Q仅本报告和本人主表行更新，0业务/新测试/模型/生图/DB/HTTP/browser/生产写；本次纯文档只执行diff检查，不重复测试/build。结构化规则专项与根数据库证据保持其原版本和归属，不转为本样本真实NPC证据。下一根修复真实输出、发布候选、按预算显式重新进入，并给安全公开的前后状态/输入/回执/角色实际输出供Q再审；没有证据的完成→NPC→后续机会→第二步仍未覆盖。范围冻结，报告待验收，不常驻等待或自动另领。
+
+## 手机完成后承接路径：静态漏项与实际质量分开
+
+根指定同范围只读turn-planner、character-policy、actor-context及pursuit ack。检查根工作树当前HEAD f7d3c48e1d712cfd0b7f47205c108548a12edb83；当时只有eval工具WIP，以下业务源码未由Q改动。此节是代码路径证据，没有新真实模型/数据库/生产API调用。
+
+### 确定漏项：自主结果回访未适配scene_steps
+
+- domain/agenda.ts:229的matter_result入口直接跳过evidence.kind不是scene_action的事项。新R17整体完成使用scene_steps，所以即便canonical matter/pursuit结果确已保存，此入口不会产生该事项的matter_result议题。不能以现场完成后已存事实，推断人物主动回访已经接通。
+- domain/return-followups.ts:50亦仅认scene_action，过滤结果议题时不接受scene_steps。application/advance-world.ts重新buildAgenda并核议题可见，不能绕过前述缺失入口救回新kind。
+- witnessedMatterResult本身已支持两kind，actor-context和matter-progression也已适配。因此这是下游agenda/回访旧kind判定的确定漏项，不是新整体完成必然不产生canonical事实，也不是用户手动私聊必然失败。
+
+已立即报根；根确认在自身业务范围扩两入口并补纯回归，保留可信同源/实际目击/未确认不升格等限制。Q未修改业务/新测试，也尚未取得该修复版本实测证据；后续不能只放宽kind而跳过结果event、关联世界、已获准目击和消费来源检查。用户手动发消息与自主回访须分别验收。
+
+### 主动私聊路径：具备新结果上下文，不代表已实际成功
+
+actor-context.ts过滤blocked source、可见世界/角色事实，核matter_result与scene_action或scene_steps事件绑定，核pursuit milestones和真实触发事项；completed/blocked事项还要求witnessedMatterResult。之后先权限过滤再预算；不会把整个步骤ledger、现实访谈或其他人的完整私聊塞给NPC。预算不足时资料可被合法裁剪，不能承诺每次一定含全部结果。
+
+turn-planner.ts的resultFocus来自此已裁剪context.facts中的当前actor可见canonical matter_result/pursuit_result，取至多6；指示只承接已保存成果与尚未执行机会。用户消息本身不产生世界验证完成。resolveTurn调用parseProposal和validateCharacterEffects，再交现有Repository事务；普通私聊不能提出matter.proposed或建立全知事实、替其他角色发言/排日程。手机私聊协议没有scene receive_r17/inspect_r17执行效果，承接已保存结果与执行新的现场物理动作需区分；不能把私聊中的未来承诺当新typed动作证据。
+
+旧01手机503/INVALID_PROPOSAL仍未得到原始非法提案/精确字段，不能根据静态路径直接定位那次失败，也不能说本轮phone已成功。parseProposal要求schemaVersion1、1..20合法effects与唯一id；character-policy再限制角色归属与来源类型。有合法对白不意味着附带非法effect也能提交，边界拒绝仍应如实记录，不能放宽护栏使旧错误变绿。
+
+### ACK接续风险（有条件，不等同必然断点）
+
+turn-planner.ts先算ackReply是否存在正确actorId的message.received，再将回复actorId归一化为当前人物。若模型漏/错actorId而其余JSON合法，归一化后reply可通过，但此前ackReply=false会忽略acknowledgedResultFactIds。这是同一提案的确定处理顺序与条件风险，不是所有回复都会漏ack，也没有证据表明它就是旧503原因。根暂挂待办，Q不改源。
+
+通过时，ack只从当前可见canonical精确ID生成当前actor的私有belief marker；不会生成世界结果。resultWasAcknowledged要求同actor marker与同source的实际assistant消息。此消费标记证明内部已标回应，并不足以证明台词自然、具体承接了成果；仍须人工读本轮真实正文及结果源，不能拿ack字段当模型质量评分。无关/未目击人物应没有结果上下文与ACK权限。
+
+### 只读源码指纹（发现漏项时版本，后续修复需新版本）
+
+- domain/agenda.ts：d86dd8ee2b74b245e9eae85d4507bd9debe17b8e3cfcc6a7321bc83f73c57b2e
+- domain/return-followups.ts：a2ef96e5695cad3082a3370e94f8bb64055cd772e01466bb5a48b78ee99906d1
+- infrastructure/turn-planner.ts：24ba7bcac05c35567924b1087805b623dc7aee60b3396065b2cbf9c579560f87
+- application/actor-context.ts：53c4dd62fb82849b6ec6c1ed14325951cf828472c19c42386fd1c2b49f1d4ef1
+- domain/character-policy.ts：e3633d24ca5922e5277c8443a83cc40a82e79af9b317fb434d5c8d78ae33bf34
+
+本增量只报告与主表本人行、diff检查；0新test/业务/模型/图/DB/HTTP/browser/生产写，不重复build。不再并写或补构造成功样本。下一根合B的明确开场JSON与真实presence输出，修agenda/回访kind漏项并独立验证；在保守5/18已占的根账本内继续有界显式验收，不自动unknown重付。此时开场有presence矛盾、下一行动schema失败、近期事项完成/NPC承接/机会/第二步仍没有本轮真实成功证据，保持未通过。Q报告待验收、范围冻结，等安全公开实际证据再审。
+
+## 2026-10-12 · 独立NPC到场候选设计只读复核
+
+根提供v6新真实摘要：schema成功、安静环境不编NPC、没有重复独立小事项，R17父目标保留；但实际presence仍仅player，当前scene后续没有加NPC入口，完整链未过。保守占7/18。相比旧矛盾开场，旁白/在场一致性有改善；合法无人现场不是NPC自然承接或R17完成的证明。本Q未独立读原任务/回执/调用日志，不将摘要补成完整成功证据。
+
+根拟让合法有效邀约候选在原有独立角色调用中返回present:boolean，max2人、自身Persona与获准约定/对话决定true或false；true在同开场事务正式到场，false无对白无动作。Q只审设计及当前根HEAD897d67d源码，不改业务/新测试，不调用模型、数据库、HTTP或生产端点。既有scenePlanning在付费前核world/current scene/paused/action freshness/非导航intervening events，commitSceneProposal再核有效邀约与实际候选，这是可复用的边界，不另建到场引擎。
+
+### 结论与必须保留的条件
+
+设计可以解决导演present=[]导致根本不询问独立NPC的有限接线缺口，并保持人物可以不到场。它是独立人物提出本人参与、运行时校验后保存的虚构世界事件，不是预约自动等于到场，也不是NPC自己有权绕开runtime。
+
+- 开场独立调用的候选先由有效邀约/当前地点/时间/owner-world和屏蔽来源核定，不由通讯录或导演旁白挑人。当前ScenePlanner directAppointment分支仅按scene.appointmentId找，没有与placeAppointment相同的confirmed/到时前过滤；Repository opening却只允许confirmed且已到时的参与者。新调用前应统一这套候选条件、提交时重查，避免付费问非法候选后整体拒绝。不擅自把proposed/cancelled/未到时或其他场景人物放进来；attended兼容是否允许须由根明确规则，不能默默扩状态。
+- opening时不能继续candidates.filter(director.presentActorIds)后才询问，否则导演[]时仍无人被问。导演只负责可见环境；当前开场最终presentIDs由本次独立本人判断及runtime校验产生，action阶段仍只允许既有实际presence，不增加人物。不从旁白名字补人。
+- present必须是真boolean，缺失/null/字符串“false”或数值不能靠强转变成true。独立调用绑定actor身份，不允许模型带其他actorId或替他人/玩家决定。false不会保存现场对白/动作/到场事实；协议需允许false无text或null/空，不为满足min1强迫不存在的人发现场对白。
+- true是本次正式加入的候选，不是接收/检查/事项完成。开场没有saved player handover/request时actions必须空，不能仅凭到场给received或可选检查credit，也不能自动完成R17。正式joinedVersion/sourceEvent和对白/可见性须在同事务统一，不先写presence再失败留半个人物。
+- 到场前只给该actor经actorContext过滤的本人资料/合法公开邀请、本人对白及记忆，不能给其他人的私聊/完整私人访谈。尚未join的人不能收到过去scene私密entries或已存步骤的未获准观测；当前未提交环境可标候选，不变成已保存事实。来源被屏蔽的邀请/消息/步骤不应经新候选支路复活。
+- 提交时重查地点、邀请status和到时、current scene、expected version/租约与人物授权；调用期间取消、离场、版本冲突要整轮拒绝，不静默重新调用付费补偿。保持scene旧事件及failed receipts，不删除过去的空presence，不回填人物已在场或已赴约。
+- NPC可以false，不能为走通目标强制true。若仍无人，保持真实无人现场和未完成事项，给明确可行接续方式并保留未覆盖，不能宣称NPC完成链通过。不得新增未知客户必到/签名/重复记录门槛。
+
+### 确切调用上界与当前R17候选
+
+897d67d官方county-yellow-hair作者资料：repair_shop关联联系人是laozhou和liuhang，但r17_handover邀请actorKeys只有laozhou，deliver_r17相关actorKeys也只有laozhou。店关联联系人不等于有效邀请参与者；当前有据候选只老周，不应因两个联系人把刘航额外询问或加入。
+
+根计划7已占+新opening2+steps6+后续2+phone1=18，仅在当前开场确实1导演+1合法NPC、三步也各最多2次时成立。通用max2独立候选的开场上界是1+2=3，总额则19；不能把“总1+2不增”当这次开场只花2。应在调用前以实际有据候选冻结此R17单NPC上界，或者缩减后续验证范围重新分配，不能多付第19次。角色false、schema失败/超时/unknown也占调用/保守额度，不退未知预算；“开场task数”不能替代供应商调用数量。
+
+不会建议扩授权或放宽guard来凑本轮通过；当前只有11保守余量，任何纠错都会减少后续覆盖。独立self判定与对白应合在同一现有角色complete请求，不先判断present再额外调用一次说话；对候选max2硬限和重试策略要在发送前生效，不依赖模型自己遵守次数。
+
+建议根/B在其已授权测试范围覆盖：合法单人true/false、无有效候选0角色调用、非法/未来/取消邀请不付费、缺或错boolean拒绝、false无对白/actions、true不可代他人或偷做目标、late commit失败整事务回滚、导演[]仍能询问合法本人、同命令重放不重复到场，以及当前单人2调用/双人最多3调用的明确计数。这是验收建议，本Q本次未执行这些新测试，旧51项不能代替新设计证据。
+
+已将候选过滤差异、权限/时序条件、父目标约束及预算单人前提回根。只追加本报告/本人主表行、执行diff检查；0源码/新test/模型/图/DB/生产写/浏览器/部署。完整真实“事项完成→NPC承接→机会→第二行动”仍未通过；下一根/B冻结实现、集成发布并按唯一18账本有界实测，给允许的公开合成输出再独立审，Q不常驻或自行调用。
+
+## 2026-10-12 · v7真实开场及剩余7次调用的收口评审
+
+本次由根发来的最新安全摘要及主02报告提供证据，Q只读核对现有scene-step-progress规则和原专项测试，不读取私有调用账本、环境、会话或原始数据库。线上候选c67e214 / 7ujmwpif6 Production READY、8项公网只读及41迁移一致均是根的验证记录，非Q本轮独立公网/数据库测试。Q仍0供应商、数据库、生产写、浏览器和部署。
+
+### 新开场与原失败必须分别记录
+
+v7开场据根摘要已成功保存老周独立presence，joinedVersion/sourceVersion=10，预约到场保存，R17唯一父目标in_progress，没有重复小任务。它解决了本次开场人物正式在场问题；此前v6及更早player-only或旁白矛盾结果保留，不能把新到场回填到旧事件。
+
+NPC“这车修好了，刘航快来取吧”没有明确增加新完成条件。“修好了”可承接原作者维修/复检背景，不是本轮已交付、接收或事项完成；“刘航快来”是对未来的期待，既不证明刘航到场，也不能变成必须等刘航/签名才能交接。17:54的“午后阳光”记为措辞观察，缺少地点/天气证据不宣布绝对矛盾。“轮胎和引擎盖都被打开”物理表达含混，与已修好背景可能不一致，不能据此添加重新维修、装轮胎或重复检查门槛。正式到场本身不credit received。
+
+随后“我核对R17维修单。”真实首步failed，根安全诊断明确为scene_actor_schema:actions.[0].kind:invalid_value，NPC独立输出不符合枚举，整事务没有保存新步骤。这比此前笼统schema错误定位更具体，但未提供原始非法值，不能认定模型一定照抄了混合占位。B修改精确JSON enum示例仍是待真实验证的修复，不允许放宽enum、归一化非法值或自由文本补动作。失败回执和0步骤结果保留，不自动重试或回退费用。
+
+### 两次成功动作能够覆盖有限累计链，不能声称原三步实测通过
+
+根保守占11/18，余7；这是根维护的上界摘要，不是Q独立核算的精确账单。计划核对显式重试2 + 说明交付合并2 + 完成后下一行动2 + phone1 = 7，可以作为收口上界，前提每个场景任务最多1导演+1实际在场NPC、phone最多1，且所有失败/unknown/纠错同计额度、任何额外调用均不能自动发生。候选代码先经根/B本地验证和发布READY再付费；现有失败不消失。
+
+只读现有规则允许同一action携带多个合法stepProposals，先处理玩家步骤再验证NPC接收；所以第二次动作明确向当前在场老周说明接头检修并交出R17钥匙及维修单，可在同一事务保存repair_explained、handed_over和本人receive_r17。这在架构上可行，不表示模型一定会合法输出或角色一定接收；NPC可拒绝/不接收，此时必须保持未完成。
+
+必须逐项得到以下安全保存证据后才给有限通过：
+
+1. 核对重试是明确用户重试，旧failed回执不覆盖；新输入/裁定真实保存order_reviewed及来源事件/版本，R17仍未整体完成。
+2. 合并动作明确包含本次实际说明和交出对象，模型候选分别有来自当前输入/裁定的引文与合法receiverId；老周本次独立对白及typed receive_r17对应真实接收。四个required步骤均有合法来源，核对首次来源保持不变，R17整体scene_steps完成并生成其canonical结果。不能把玩家自述、未来承诺、对白“修好了”或action succeeded标签充当累计完成证据。
+3. 完成后所存阶段/机会有同一事项结果的合法来源，NPC只知其可见结果；下一行动实际选择新机会并产生保存结果，不能把普通无关动作、凭空奖励或一个未来计划称第二阶段已体验。仅给一次下一行动预算时，未触发机会或没有合法下一步即如实记未覆盖。
+4. phone在上述结果确已保存后真实返回并保存角色回复/receipt，承接本人可知成果、不把承诺当物理动作。手动phone通过也不能覆盖自主回访、ACK重复消费和旧503原因；这些须保持各自未验证状态。
+
+可对外写“本轮以两次成功行动验证分步累计→实际NPC接收→事项完成→有来源的后续机会及一次下一行动→手机承接”，但仅当相应真实证据齐全。不应写“核对、说明、交付三次分离动作均真实通过”，原三次独立交互的中间恢复/NPC记忆仍未覆盖。若任何环节失败/unknown或额度不足，停止相关付费、保留失败和未覆盖项，不能为了收口硬置成功/补演员/增加第19次。结束按根授权正常API暂停测试世界。
+
+### 本Q交付与接续
+
+本次仅追加本报告及登记主表本人行，源代码和37项专项测试冻结；运行文档diff检查，没有新check/build或数据库测试。此前本人37+B14共51项纯测试、模块边界/typecheck/build通过仍仅对应1d3ae2d源版本，不能用于声称v7实际模型通过。根820check、243真实PG pass+5 opt-in skip/build是根报告证据，PG中独立NPC为mock，不替代上述真实模型链。
+
+结论已交根：有限收口可诚实验证主要纵切，但当前仅新开场正式到场已获根真实摘要，首核对失败，后续累计完成、机会、下一行动及手机承接全部仍待实际证据。Q任务待验收，由既有集成人合并和上线报告；Q不接管部署、不改B提示或公共契约、不自动另领任务。
+
+## 2026-10-12 · v8首步再失败，undefined空默认与单次合并收口
+
+根最新安全摘要：v8 READY后人工首步复测仍failed，director校验诊断matterTitle/matterUpdates/dialogues invalid_type，0steps保存；保守13/18，余5。Q只读根摘要、根主报告及scene-planner.ts/scene-repository.ts现有路径，没有原始非法received值、任务回执或独立DB读取；不能认定实际就是字段缺失，也不能认定补default必能修复这次真实输出。先前NPC kind非法与此次director类型错误是不同轮次，不合并原因或抹去失败。
+
+### 仅undefined的空效果兼容可接受，但语法边界确有有限变化
+
+本次读取的SceneProposalSchema尚有matterTitle nullable但必填、matterUpdates与dialogues数组必填；initialMatters、stepProposals及导演npcActions已有空数组default。B拟为前述三个辅助字段只加undefined缺省兼容，尚不能把拟议写成Q已验证新代码/新测试。
+
+缺失matterTitle→null只表示不提新事项，缺失matterUpdates→[]只表示无显式事项更新，缺失director dialogues→[]只表示导演不提角色对白。这一方案扩大了合法语法接受集合，应如实记录；在其他护栏保持时，空值本身不增加事实、角色行动或成果授权。已有合法stepProposals及独立NPC输出仍可能经过原运行时产生保存效果，“三个默认是空效果”不等于整个提案一定无效果。
+
+必要边界：只undefined触发default，不使用catch或宽泛preprocess吞掉非法值；两个数组显式null/字符串/对象/错误元素仍拒，matterTitle显式null原本合法保持，空字符串/错类型仍拒；strictObject未知字段仍拒。非空director dialogues仍在adapter拒绝，独立NPC本次对白与actions照原独立身份绑定和校验，不从default或旁白补NPC。不得顺势给location、narration、presentActorIds、outcome或observation空默认，attempt仍必须有实际裁定和观察；计划/开场不产生执行候选。
+
+scene-planner现有本次执行引文、人物在场、receiver、相关事项、结构化完成runtime专属等检查，及scene-repository最终来源/版本/事务/回执护栏必须保留。数组缺失不能删除已有ledger、代表事项完成、掩盖非法非空更新或使已拒提案自动重试。建议B/根自有测试明确：三个字段分别缺失/同时缺失得到空值；显式错误类型包括数组null仍失败；未知字段/非空导演对白/非法NPC kind/缺实际outcome与observation仍失败；合法step/NPC来源路径保持。Q本次未写或运行这些新测试。
+
+### 13+2+2+1=18仅能尝试单次动作内的有限主链
+
+根计划新实际输入“核对R17维修单。向老周说明R17电源接头检修。将R17钥匙与维修单交给老周”，单合法当前NPC下最多2次；有来源后续及下一行动最多2次；phone最多1次。总5是供应商调用上界，失败/unknown同计，不能增加自动重试、第二角色或第19次。候选READY/本地纯测不是成功事实，真实任一步失败或额度不足就保留未覆盖并收口。
+
+当前没有任何成功保存的order_reviewed，故不存在已成功第一步跨轮来源可保持的真实模型样本；不得把前两次failed当第一来源。若新合并动作被合法裁定且NPC真实typed接收，四required步骤可以来自同一新action/event，记录需如实标注。可有限证明单次实际动作内玩家核对/说明/交出与NPC本人接收、整体scene_steps完成，再在证据齐时评估有来源机会/一次下一行动/phone保存承接。
+
+这一收口不能证明成功的跨轮分步累计、第一来源跨轮保持、说明与交付分离时的角色记忆、三次分离动作交互质量；此前纯测试/真实PG模拟仍各归其版本和性质，不替代本轮真实模型缺失样本。机会须由已存同源结果形成，下一行动须真实选择并保存其结果，phone须真实存回复及receipt；没有这些证据不提前宣布通过。NPC可不接收，不强加客户到场/签字，也不硬置成果或兑现奖励。
+
+已将上述结论回根。只追加本人报告/主表行，源/tests保持冻结，本次仅文档diff检查，0模型/图/DB/生产写/部署。任务待验收，母任务仍进行中；后续新代码验证、发布、独立模型实测与最终暂停由既有集成人执行，Q待安全实际证据再独立复核。
+
+## 2026-10-12 · 最终独立结论：v9合并动作unknown，完整真实链未通过
+
+根最终安全摘要：v9候选6b629ba / po54gy1kk READY，826check、最终真实PG现场专项6/6、build exit0、8组公网只读通过。此前全PG243pass+5明确opt-in skip属于前版本完整回归，不改写为Q本轮亲自执行或v9重新全量PG。无新迁移；本Q没有数据库、模型、生产API或浏览器调用，仅根安全摘要/主报告和既有代码审查。实际版本与部署结论均归根提供证据，Q未独立访问公网。
+
+最终合并输入是新的实际动作“我核对R17维修单。我向老周说明R17电源接头检修细节，并将R17钥匙与维修单交给老周。”，不是宣称旧failed核对已做。该任务结果unknown，安全日志TIMEOUT、stage=response、HTTP200、duration85125ms。这里有响应阶段超时诊断，但不能凭HTTP200宣布模型任务成功、已获得合法JSON、NPC已接收或事项已完成；也不能将unknown改写为已确认failed、未付费或数据库事务回滚已证。未给原始响应/具体上游内部状态，不猜是哪一角色调用完成或最终格式是否合法。
+
+根随后只读world version12：仍0steps、R17 in_progress。这证明该只读时点没有新步骤或整体成果提交，不能评价本次对白/核对说明交付自然性，也不承诺unknown未来绝不变状态。恢复必须围绕原command/task/receipt只读核验最终状态，不能因当前0steps另造命令重发、补历史或退回已保守预留预算。
+
+### 已实际覆盖与未覆盖
+
+- 本轮真实覆盖：v7新开场老周独立判断到场并保存sourceVersion10，正式R17父目标未重复；保留旧无人/旁白矛盾开场历史。到场不等于接收，开场对白不能给完成credit。
+- 真实失败已记录：较早开场TypeError/无结果、后续输出格式拒绝；v7 NPC actions[0].kind invalid_value；v8 director matterTitle/matterUpdates/dialogues invalid_type。具体非法值没有公开证据，精确示例或缺失default是有限修复，不能反推已确认根因。
+- 最终合并动作unknown，当前0steps：玩家核对、向合法接收人说明、交出钥匙及维修单、NPC本人typed接收、整体scene_steps完成均无本次成功保存证据。不能称通过单次合并完成，更不能称跨轮累计/首次来源跨轮保持或三次分离动作模型质量通过。
+- stage、后续机会、选择机会后的真实下一行动、phone回复/receipt均未触达。不能评价本次是否重复催办、假接收、新门槛或机会假兑现，因为没有成功返回及保存的这段实际内容；静态护栏、纯测试和PG中的独立NPC mock不能代替真实输出评价。自主回访/ACK风险亦未本轮真实验证。
+
+### 暂停和预算收口
+
+根保守预留15/18文字调用、1个官方合成世界，0上传/生图/个人资料；正常clock API已确认pause=true，停止本轮模型调用。15是根唯一账本的保守上界摘要，不是Q核算的精确供应商账单。还有3次保守余量，不能说额度耗尽；本轮依根停止指令收口，不自动retry、不退unknown预留、不为凑通过消耗余量或新增测试世界。Q始终0paid/DB/生产写/部署。
+
+世界暂停是调度状态，不保证上游unknown请求自动撤销/退款或既有在途任务不会以后返回；保持原回执与不确定性，根后续先只读核对再决定恢复。Q没有资源需停止，没有启动PG/HTTP/browser常驻进程。
+
+### 最终交付及接续
+
+本Q独占新tests/scene-step-progress.test.ts的37项与B14共51项纯专项、边界/typecheck/build已在对应1d3ae2d源版本实际通过，历史失败与修复序列保留。这些是领域/规划器原型和护栏测试，不是真实模型自然性/生产Repository验收。真实PostgreSQL证据仅根执行的历史全量及最终现场6，现场独立NPC使用mock；本Q真实PG为0。最近三个评审提交ca9b879、671d601及本次最终报告只改本人报告，登记只改主表本人行，本次仅文档diff检查，未重复check/build或写新测试/业务。
+
+母任务应保持待验收且完整真实体验未通过，不凭826check、243PG或READY勾完成。下一位根/B优先在原任务范围解决稳定结构输出及响应超时/unknown恢复，维持独立人物、来源、runtime/事务/回执护栏；新的真实分轮验收须另行由集成人协调明确预算与证据，先核对旧unknown最终状态，再验证核对→说明→交付及NPC接收的跨轮保存、完成→机会→真实下一行动→phone。不能仅延长timeout就宣布问题解决，也不能自动付费重试、放宽校验或把领域模拟当真实成功；Q不自行领取续任务或接管部署。
+
+报告和本人主表待验收、本Q源/tests范围冻结释放，由既有集成人合并并统一发布最终文档。最终独立结论：本轮代码与数据护栏有验证，实际新开场到场有证据；分步执行和完整用户链仍未通过真实验收，合成测试世界据根证据已暂停。

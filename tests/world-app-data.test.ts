@@ -28,6 +28,37 @@ test('opening adapter does not turn an invitation in chat into an accepted event
   assert.equal(data.contacts[0]?.unread, 1);
   assert.equal('identity' in data.contacts[0]!, false);
 });
+test('authored historical media is projected as private per-world URLs without turning it into an album photo', () => {
+  const authoredWorld = {
+    ...world,
+    messages: [
+      {
+        ...world.messages[0]!,
+        text: '',
+        attachment: { kind: 'video', assetId: 'asset-v', label: '片段.mp4' },
+      },
+      { ...world.messages[0]!, id: 'm2', attachment: { kind: 'image', assetId: 'asset-i' } },
+    ],
+  };
+  const data = worldAppData(authoredWorld as Parameters<typeof worldAppData>[0]);
+  assert.deepEqual(data.messages[0]?.attachment, {
+    kind: 'video',
+    assetId: 'asset-v',
+    label: '片段.mp4',
+    url: '/api/v1/worlds/world-a/media/asset-v',
+  });
+  assert.equal(data.messages[1]?.attachment?.url, '/api/v1/worlds/world-a/media/asset-i');
+  assert.deepEqual(data.photos, []);
+  assert.equal(
+    worldAppData(
+      authoredWorld as Parameters<typeof worldAppData>[0],
+      new Set(),
+      [],
+      (worldId, id) => `/api/v1/publisher/trials/trial-1/world/media/${id}?worldId=${worldId}`,
+    ).messages[0]?.attachment?.url,
+    '/api/v1/publisher/trials/trial-1/world/media/asset-v?worldId=world-a',
+  );
+});
 test('viewed messages do not suppress later notifications and opening note ids are world scoped', () => {
   const viewed = new Set(['m1']);
   assert.equal(worldAppData(world, viewed).contacts[0]?.unread, 0);

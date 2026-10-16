@@ -16,6 +16,9 @@ export const OfficialLifeCardSchema = z.strictObject({
   identityLabel: z.string().trim().min(1).max(80),
   experienceNote: z.string().trim().min(1).max(240),
   worldId: Id.nullable(),
+  hasNewVersion: z.boolean().default(false),
+  legacyWorldId: Id.nullable().default(null),
+  currentVersionWorldId: Id.nullable().default(null),
 });
 export type OfficialLifeCard = z.infer<typeof OfficialLifeCardSchema>;
 export const OfficialLifeListSchema = z.strictObject({

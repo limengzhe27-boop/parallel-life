@@ -1,0 +1,320 @@
+.editor {
+  --plot-bg: #f5f7fb;
+  --plot-surface: #ffffff;
+  --plot-text: #172033;
+  --plot-secondary: #566276;
+  --plot-border: #d8dee9;
+  --plot-accent: #245fe5;
+  --plot-hover: #194fc8;
+  --plot-soft: #e8efff;
+  --plot-error: #a32632;
+  --plot-warning: #8a5418;
+  --plot-warning-bg: #fff2d8;
+  --plot-clear: transparent;
+  color: var(--plot-text);
+  background: var(--plot-bg);
+  color-scheme: light;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  width: 100%;
+  max-width: 960px;
+  min-width: 0;
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 20px;
+  animation: enter 160ms ease-out;
+}
+.editor *,
+.editor *::before,
+.editor *::after {
+  box-sizing: border-box;
+}
+.editor h3,
+.editor h4,
+.editor p {
+  margin: 0;
+}
+.editor h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.editor h4 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.card {
+  background: var(--plot-surface);
+  border: 1px solid var(--plot-border);
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.hint {
+  color: var(--plot-secondary);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.notice {
+  padding: 12px;
+  border-radius: 8px;
+  color: var(--plot-warning);
+  background: var(--plot-warning-bg);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.error {
+  color: var(--plot-error);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.item {
+  border: 1px solid var(--plot-border);
+  border-radius: 8px;
+  min-width: 0;
+}
+.summary {
+  padding: 10px 14px;
+  min-height: 44px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.summary:hover {
+  background: var(--plot-soft);
+}
+.form {
+  border: 0;
+  margin: 0;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+.eventForm {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.preconditions {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 0;
+}
+.compactIssues {
+  border: 1px solid var(--plot-border);
+  border-radius: 8px;
+  min-width: 0;
+  color: var(--plot-secondary);
+  font-size: 15px;
+}
+.eventOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  min-width: 0;
+  padding: 0 14px 14px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  align-content: start;
+}
+.wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--plot-border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--plot-text);
+  background: var(--plot-surface);
+  font: inherit;
+  transition: border-color 120ms;
+}
+textarea.input {
+  min-height: 96px;
+  resize: vertical;
+}
+.input:hover:not(:disabled) {
+  border-color: var(--plot-accent);
+}
+.button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--plot-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: var(--plot-accent);
+  background: var(--plot-surface);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.button:hover:not(:disabled) {
+  color: var(--plot-hover);
+  background: var(--plot-soft);
+}
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.button:disabled,
+.input:disabled {
+  color: var(--plot-secondary);
+  background: var(--plot-bg);
+  cursor: not-allowed;
+}
+.input:focus-visible,
+.button:focus-visible,
+.summary:focus-visible,
+.check input:focus-visible {
+  outline: 2px solid var(--plot-accent);
+  outline-offset: 2px;
+}
+.choices {
+  border: 1px solid var(--plot-border);
+  border-radius: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.choices legend {
+  font-size: 15px;
+  padding: 0 4px;
+}
+.check {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.check input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--plot-accent);
+  flex-shrink: 0;
+}
+.group {
+  grid-column: 1/-1;
+  border: 1px solid var(--plot-border);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.references {
+  font-size: 15px;
+  margin: 0;
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+  color: var(--plot-secondary);
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 760px) {
+  .eventOptions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px;
+  }
+  .card {
+    padding: 16px;
+  }
+  .header .button {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor {
+    animation: none;
+  }
+  .button,
+  .input {
+    transition: none;
+  }
+  .button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.advanced {
+  min-width: 0;
+  border: 1px solid var(--plot-border, #d8dee9);
+  border-radius: 8px;
+  background: var(--plot-surface, #ffffff);
+}
+.advanced > summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+.advanced > summary:focus-visible {
+  outline: 2px solid var(--plot-accent, #245fe5);
+  outline-offset: 2px;
+}
+.advancedBody {
+  min-width: 0;
+  padding: 0 14px 14px;
+  display: grid;
+  gap: 12px;
+}
+.message {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 1px solid #d8dee9;
+  border-radius: 10px;
+}
+
+.conditionSummary {
+  padding: 10px 12px;
+  border-left: 3px solid var(--plot-accent);
+  background: var(--plot-soft);
+  border-radius: 0 8px 8px 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.item {
+  scroll-margin-block: 24px;
+}

@@ -196,6 +196,7 @@ export const MatterStatusSchema = z.enum([
 ]);
 export const MatterEvidenceSchema = z.discriminatedUnion('kind', [
   z.strictObject({ ...source, kind: z.literal('progression'), reason: Text }),
+  z.strictObject({ ...source, kind: z.literal('world_matter_result'), worldMatterId: Id }),
   z.strictObject({
     ...source,
     kind: z.literal('user_report'),
@@ -224,7 +225,8 @@ export const CurrentMatterSchema = z
     if (m.status === 'completed')
       return m.evidence?.kind === 'user_report'
         ? m.evidence.outcome === 'reported_done'
-        : m.evidence?.kind === 'adjudicated_result' && m.evidence.outcome === 'succeeded';
+        : m.evidence?.kind === 'world_matter_result' ||
+            (m.evidence?.kind === 'adjudicated_result' && m.evidence.outcome === 'succeeded');
     if (m.status === 'blocked')
       return m.evidence?.kind === 'user_report'
         ? m.evidence.outcome === 'blocked'

@@ -6,11 +6,17 @@ import { OFFICIAL_LIFE_PACKS } from '../src/modules/settings/infrastructure/offi
 import {
   travelTimes,
   applySpaceEvent,
+  deriveInitialSpace,
+  validateSpace,
+  authoredSpace,
   type TravelEvent,
+  type SpacePlaceRevealedEvent,
 } from '../src/modules/world/domain/space.ts';
+import { SpaceSourceSchema } from '../src/contracts/world-space.ts';
 import { replayWorldHistory } from '../src/modules/world/domain/world-history.ts';
 import { actorContext } from '../src/modules/world/application/actor-context.ts';
 import { restoreTravel, storeTravel } from '../src/features/phone/map/operation.ts';
+import { buildAgenda, threadFor, eligibleAgenda } from '../src/modules/world/domain/agenda.ts';
 function fixture() {
   const pack = OFFICIAL_LIFE_PACKS[0];
   return officialGenesis({
@@ -40,7 +46,7 @@ test('all authored spatial openings are sourced, bounded and invitation/actor-bo
       w.space!.places.every(
         (place) =>
           place.source.kind === 'official_genesis' &&
-          place.source.contentVersion === 2 &&
+          place.source.contentVersion === p.card.version &&
           place.contactActorIds.every((id) => w.actors.some((a) => a.id === id)) &&
           place.appointmentIds.every((id) => w.appointments.some((a) => a.id === id)),
       ),
@@ -117,6 +123,64 @@ test('travel replay retains exactly sourced departure knowledge, private destina
   assert.throws(() => applySpaceEvent(w, { ...e, data: { ...e.data, durationMinutes: 30 } }));
   assert.equal(replayWorldHistory(w, [e], 0).world.space!.currentPlaceId, w.space!.currentPlaceId);
 });
+test('authored place revelation is a replayable map change with no player movement', () => {
+  const w = fixture();
+  const eid = randomUUID();
+  const source = {
+    kind: 'world_event' as const,
+    snapshotVersion: 0 as const,
+    eventId: eid,
+    eventVersion: 1,
+  };
+  const e: SpacePlaceRevealedEvent = {
+    schemaVersion: 1,
+    id: eid,
+    worldId: w.id,
+    commandId: randomUUID(),
+    version: 1,
+    occurredAt: w.time,
+    storyAt: w.time,
+    type: 'space.place_revealed',
+    data: {
+      nodeKey: 'meeting',
+      sourceEventId: randomUUID(),
+      sourceMessageId: randomUUID(),
+      place: {
+        id: 'hidden_hospital',
+        name: '医院',
+        description: '虚构路 8 号',
+        source,
+        contactActorIds: [],
+        appointmentIds: [],
+      },
+      routes: [
+        {
+          id: 'publication_discovery_route_0',
+          fromPlaceId: w.space!.currentPlaceId,
+          toPlaceId: 'hidden_hospital',
+          durationMinutes: 15,
+          modeLabel: '移动',
+          source,
+        },
+      ],
+    },
+  };
+  assert.equal(
+    w.space!.places.some((p) => p.id === 'hidden_hospital'),
+    false,
+  );
+  const next = applySpaceEvent(w, e);
+  assert.equal(next.space!.currentPlaceId, w.space!.currentPlaceId);
+  assert.deepEqual(replayWorldHistory(w, [e]).world.space, next.space);
+  assert.equal(
+    replayWorldHistory(w, [e], 0).world.space!.places.some((p) => p.id === 'hidden_hospital'),
+    false,
+  );
+  assert.throws(() => applySpaceEvent(next, { ...e, version: 2 }), { code: 'INVALID_PROPOSAL' });
+  assert.throws(() => applySpaceEvent(w, { ...e, data: { ...e.data, routes: [] } }), {
+    code: 'INVALID_PROPOSAL',
+  });
+});
 test('persisted pending becomes unknown without losing original fingerprint; forged committed receipt rejected', () => {
   const worldId = randomUUID(),
     op = {
@@ -133,4 +197,284 @@ test('persisted pending becomes unknown without losing original fingerprint; for
     restoreTravel(JSON.stringify({ worldId, ...op, status: 'committed', receipt: {} }), worldId),
     null,
   );
+});
+test('deriveInitialSpace accepts explicit opening routes without inventing locations from a city', () => {
+  const seedId = randomUUID(),
+    actorId = randomUUID();
+  const source = { kind: 'seed_genesis' as const, seedId, snapshotVersion: 0 as const };
+  const base = {
+    seed: { setup: { place: '上海' } },
+    actorIds: new Map([['a', actorId]]),
+    source,
+    opening: { setting: '工作室', actors: [{ key: 'a', name: '阿杰' }] },
+  };
+  assert.equal(deriveInitialSpace(base), undefined);
+  const drafted = {
+    initialPlaceId: 'studio',
+    places: [
+      {
+        key: 'studio',
+        name: '青石街修车铺',
+        description: '工具台',
+        actorKeys: ['a'],
+        invitationKeys: [],
+      },
+      { key: 'shop', name: '零件店', description: '可以买零件', actorKeys: [], invitationKeys: [] },
+    ],
+    routes: [{ key: 'walk', from: 'studio', to: 'shop', minutes: 7, modeLabel: '步行' }],
+  };
+  const space = deriveInitialSpace({ ...base, opening: { ...base.opening, space: drafted } })!;
+  assert.equal(space.currentPlaceId, 'studio');
+  assert.equal(space.places.length, 2);
+  assert.deepEqual(space.places[0]!.contactActorIds, [actorId]);
+  assert.deepEqual(space.places[1]!.contactActorIds, []);
+  assert.equal(space.routes[0]!.durationMinutes, 7);
+  assert.doesNotThrow(() => validateSpace(space));
+  assert.ok(SpaceSourceSchema.safeParse(space.places[0]!.source).success);
+});
+test('deriveInitialSpace returns undefined when seed has no reliable place, preserving honest empty state', () => {
+  const seedId = randomUUID();
+  const actorIds = new Map([['actor_a', randomUUID()]]);
+  const emptySeed = {
+    setup: { place: '   ' },
+    story: { premise: '一段没有设定地点的人生。', title: '无题' },
+  };
+  const opening = {
+    setting: '未指明任何地点。',
+    actors: [{ key: 'actor_a', name: '张三' }],
+  };
+  const space = deriveInitialSpace({
+    seed: emptySeed,
+    opening,
+    actorIds,
+    source: { kind: 'seed_genesis', seedId, snapshotVersion: 0 },
+  });
+  assert.equal(space, undefined);
+});
+test('validateSpace strictly rejects invalid spatial proposals', () => {
+  const seedId = randomUUID();
+  const baseSource = { kind: 'seed_genesis' as const, seedId, snapshotVersion: 0 as const };
+  const validSpace = {
+    places: [
+      {
+        id: 'place_a',
+        name: '地点A',
+        description: '描述A',
+        source: baseSource,
+        contactActorIds: [],
+        appointmentIds: [],
+      },
+      {
+        id: 'place_b',
+        name: '地点B',
+        description: '描述B',
+        source: baseSource,
+        contactActorIds: [],
+        appointmentIds: [],
+      },
+    ],
+    routes: [
+      {
+        id: 'a_to_b',
+        fromPlaceId: 'place_a',
+        toPlaceId: 'place_b',
+        durationMinutes: 10,
+        modeLabel: '步行',
+        source: baseSource,
+      },
+    ],
+    currentPlaceId: 'place_a',
+    positionSource: baseSource,
+  };
+  assert.doesNotThrow(() => validateSpace(validSpace));
+  // Reject missing current place
+  assert.throws(() => validateSpace({ ...validSpace, currentPlaceId: 'place_unknown' }));
+  // Reject route to unknown place
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [
+        {
+          ...validSpace.routes[0]!,
+          toPlaceId: 'place_unknown',
+        },
+      ],
+    }),
+  );
+  // Reject self route
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [
+        {
+          ...validSpace.routes[0]!,
+          toPlaceId: 'place_a',
+        },
+      ],
+    }),
+  );
+  // Reject route duration out of bounds (0 or >120)
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [{ ...validSpace.routes[0]!, durationMinutes: 0 }],
+    }),
+  );
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      routes: [{ ...validSpace.routes[0]!, durationMinutes: 121 }],
+    }),
+  );
+  // Reject invalid key pattern
+  assert.throws(() =>
+    validateSpace({
+      ...validSpace,
+      places: [{ ...validSpace.places[0]!, id: 'INVALID-UPPER' }, validSpace.places[1]!],
+    }),
+  );
+});
+
+test('departure inquiry only cues actual observers, clears after reply, uninformed NPCs remain silent', () => {
+  const w = fixture();
+  const observer = w.actors[0]!;
+  const uninformed = w.actors[1]!;
+  const fromPlace = w.space!.places[0]!;
+
+  // 1. Initially no departure inquiry
+  const agenda0 = buildAgenda(w);
+  assert.ok(!agenda0.some((t) => t.kind === 'departure_inquiry'));
+
+  // 2. Add departure observation fact visible ONLY to observer
+  const departureFact = {
+    id: randomUUID(),
+    text: `你亲眼看到主角离开了${fromPlace.name}，没有获知目的地。`,
+    kind: 'canonical' as const,
+    visibility: { kind: 'actors' as const, actorIds: [observer.id] },
+    sourceEventId: randomUUID(),
+    departure: { fromPlaceName: fromPlace.name, eventVersion: w.version + 1 },
+  };
+  const wWithFact = {
+    ...w,
+    version: w.version + 1,
+    facts: [...w.facts, departureFact],
+  };
+
+  const agenda1 = buildAgenda(wWithFact);
+  const observerThread = agenda1.find(
+    (t) => t.kind === 'departure_inquiry' && t.actorId === observer.id,
+  );
+  assert.ok(observerThread, 'Observer actor must receive departure_inquiry thread');
+  assert.match(observerThread.detail, new RegExp(fromPlace.name));
+  assert.match(observerThread.detail, /绝不能假装知道目的地/);
+
+  // Uninformed NPC must NOT receive departure_inquiry
+  const uninformedThread = agenda1.find(
+    (t) => t.kind === 'departure_inquiry' && t.actorId === uninformed.id,
+  );
+  assert.ok(!uninformedThread, 'Uninformed actor must NOT receive departure_inquiry');
+
+  // Eligible agenda owed now includes departure_inquiry even with recent actor filter
+  const eligible = eligibleAgenda(agenda1, new Set([observer.id]));
+  assert.ok(eligible.some((t) => t.kind === 'departure_inquiry' && t.actorId === observer.id));
+
+  // 3. Once observer replies, departure inquiry clears
+  const wAfterReply = {
+    ...wWithFact,
+    version: wWithFact.version + 1,
+    messages: [
+      ...wWithFact.messages,
+      {
+        id: randomUUID(),
+        actorId: observer.id,
+        role: 'assistant' as const,
+        text: '刚才看你急匆匆走了，是有什么急事吗？',
+        at: wWithFact.time,
+        sourceEventId: randomUUID(),
+        sourceVersion: wWithFact.version + 1,
+      },
+    ],
+  };
+  const agenda2 = buildAgenda(wAfterReply);
+  assert.ok(
+    !agenda2.some((t) => t.kind === 'departure_inquiry' && t.actorId === observer.id),
+    'Cleared after observer spoke',
+  );
+});
+
+test('appointment_due distinguishes player present at venue vs absent elsewhere; unconfirmed proposed stays quiet', () => {
+  const w = fixture();
+  const actor = w.actors[0]!;
+  const venue = w.space!.places[0]!;
+  const appointmentId = randomUUID();
+  const appointmentTime = w.time;
+
+  // Link appointment to venue
+  const placesWithAppt = w.space!.places.map((p) =>
+    p.id === venue.id ? { ...p, appointmentIds: [...p.appointmentIds, appointmentId] } : p,
+  );
+
+  // 1. Confirmed appointment when player IS at venue
+  const wAtVenue = {
+    ...w,
+    space: {
+      ...w.space!,
+      places: placesWithAppt,
+      currentPlaceId: venue.id,
+    },
+    appointments: [
+      ...w.appointments,
+      {
+        id: appointmentId,
+        title: '维修店工作交接',
+        at: appointmentTime,
+        status: 'confirmed' as const,
+        participantIds: [actor.id],
+        sourceEventId: randomUUID(),
+      },
+    ],
+  };
+  const agendaAtVenue = buildAgenda(wAtVenue);
+  const dueAtVenue = agendaAtVenue.find(
+    (t) => t.kind === 'appointment_due' && t.actorId === actor.id,
+  );
+  assert.ok(dueAtVenue);
+  assert.match(dueAtVenue.detail, /地图位置已到/);
+  assert.match(dueAtVenue.detail, /尚无实际参与或见面证据/);
+  assert.match(dueAtVenue.detail, /绝不能声称主角迟到或失约/);
+
+  // 2. Confirmed appointment when player travelled to a different place
+  const otherPlace = w.space!.places[1]!;
+  const wAtOther = {
+    ...wAtVenue,
+    space: {
+      ...wAtVenue.space!,
+      currentPlaceId: otherPlace.id,
+    },
+  };
+  const agendaAtOther = buildAgenda(wAtOther);
+  const dueAtOther = agendaAtOther.find(
+    (t) => t.kind === 'appointment_due' && t.actorId === actor.id,
+  );
+  assert.ok(dueAtOther);
+  assert.match(dueAtOther.detail, /主角尚未到达约定现场/);
+  assert.match(dueAtOther.detail, /绝不能无端指责主角故意失约/);
+
+  // 3. Proposed (unconfirmed) appointment past due stays quiet, does not become missed or due
+  const wProposedPastDue = {
+    ...w,
+    appointments: [
+      ...w.appointments,
+      {
+        id: randomUUID(),
+        title: '未确认的聚餐邀请',
+        at: new Date(Date.parse(w.time) - 3600000).toISOString(),
+        status: 'proposed' as const,
+        participantIds: [actor.id],
+        sourceEventId: randomUUID(),
+      },
+    ],
+  };
+  const agendaProposed = buildAgenda(wProposedPastDue);
+  assert.ok(!agendaProposed.some((t) => t.detail.includes('未确认的聚餐邀请')));
 });

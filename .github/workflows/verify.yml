@@ -11,6 +11,25 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pl_admin
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: postgres
+        ports:
+          - 55476:5432
+        options: >-
+          --health-cmd "pg_isready -U pl_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '55476'
+      PGUSER: pl_admin
+      PGPASSWORD: ci-postgres-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,6 +37,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Provision runtime roles and databases
+        run: node scripts/ci-db.mjs
+      - name: Apply dev database migrations
+        run: npm run db:migrate
       - name: Module boundaries, types and unit tests
         run: npm run check
       - name: Formatting
@@ -35,7 +58,7 @@ jobs:
           POSTGRES_PASSWORD: ci-postgres-password
           POSTGRES_DB: postgres
         ports:
-          - 55432:5432
+          - 55476:5432
         options: >-
           --health-cmd "pg_isready -U pl_admin"
           --health-interval 5s
@@ -43,9 +66,68 @@ jobs:
           --health-retries 20
     env:
       PGHOST: 127.0.0.1
-      PGPORT: '55432'
+      PGPORT: '55476'
       PGUSER: pl_admin
       PGPASSWORD: ci-postgres-password
+      APPOINTMENT_WAIT_TEST_PORT: '55476'
+      CLOCK_ACTIVITY_TEST_PORT: '55476'
+      ACTOR_SITUATION_TEST_PORT: '55476'
+      AGENT_RUNTIME_TEST_PORT: '55476'
+      NPC_KERNEL_TEST_PORT: '55476'
+      WORLD_AWARENESS_TEST_PORT: '55476'
+      NPC_NATIVE_SERVICE_TEST_PORT: '55476'
+      AGENT_NATIVE_CHANNEL_TEST_PORT: '55476'
+      AGENT_EXTERNAL_PROJECTION_TEST_PORT: '55476'
+      DIRECTOR_RUNTIME_TEST_PORT: '55476'
+      DIRECTOR_RECOVERY_TEST_PORT: '55476'
+      AGENT_SCENE_ENV_TEST_PORT: '55476'
+      AGENT_SCENE_NPC_TEST_PORT: '55476'
+      AGENT_PHONE_ENTRY_TEST_PORT: '55476'
+      AGENT_PHONE_CONTINUATION_TEST_PORT: '55476'
+      AGENT_TASK_RECOVERY_TEST_PORT: '55476'
+      AGENT_KNOWLEDGE_TEST_PORT: '55476'
+      AUTHORED_MATERIAL_TEST_PORT: '55476'
+      AUTHORED_DIRECTOR_TEST_PORT: '55476'
+      AGENT_NATIVE_STRATEGY_TEST_PORT: '55476'
+      AGENT_QUESTION_ENTRY_TEST_PORT: '55476'
+      AGENT_JOURNEY_TEST_PORT: '55476'
+      AGENT_ARRIVAL_TEST_PORT: '55476'
+      AGENT_TRAVEL_KERNEL_TEST_PORT: '55476'
+      PLAYER_DEPARTURE_TEST_PORT: '55476'
+      PUBLICATION_FLOW_TEST_PORT: '55476'
+      PUBLISHER_HTTP_TEST_PORT: '55476'
+      PUBLICATION_GENESIS_TIME_TEST_PORT: '55476'
+      WORLD_ATTENTION_TEST_PORT: '55476'
+      NPC_ADVANCE_TEST_PORT: '55476'
+      AGENT_NARRATIVE_TEST_PORT: '55476'
+      AGENT_EPISODE_ADVANCE_TEST_PORT: '55476'
+      ACTOR_EPISODE_INTENT_TEST_PORT: '55476'
+      LOCATION_REPORT_AUDIENCE_TEST_PORT: '55476'
+      EPISODE_JOURNEY_TEST_PORT: '55476'
+      NATIVE_PUBLISHED_ROUTING_TEST_PORT: '55476'
+      PLAYER_EPISODE_MANIFEST_TEST_PORT: '55476'
+      ACTOR_MANUSCRIPT_HINT_TEST_PORT: '55476'
+      NPC_AGENT_DELIVERY_TEST_PORT: '55476'
+      AGENT_INVITATION_VENUE_TEST_PORT: '55476'
+      AUTHORED_ELIGIBILITY_TEST_PORT: '55476'
+      DIRECTOR_SEMANTIC_WAKE_TEST_PORT: '55476'
+      DIRECTOR_DELIVERY_TEST_PORT: '55476'
+      AGENT_WORKER_PROJECTION_TEST_PORT: '55476'
+      DIRECTOR_SNAPSHOT_TEST_PORT: '55476'
+      PLAYER_WORLD_COMMAND_TEST_PORT: '55476'
+      WORLD_COMMAND_UOW_TEST_PORT: '55476'
+      LEASED_AGENT_DATABASE_TEST_PORT: '55476'
+      STORY_WAIT_TEST_PORT: '55476'
+      OPENING_TEST_PORT: '55476'
+      PUBLICATION_PLAY_TEST_PORT: '55476'
+      SAVED_CATALOG_TEST_PORT: '55476'
+      PUBLICATION_STORY_TEST_PORT: '55476'
+      DIRECTOR_DYNAMIC_ACTOR_TEST_PORT: '55476'
+      PUBLICATION_MEDIA_TEST_PORT: '55476'
+      OPENING_EVENT_TEST_PORT: '55476'
+      PUBLICATION_STORY_WORKER_TEST_PORT: '55476'
+      PUBLICATION_WORLD_TEST_PORT: '55476'
+      PUBLISHER_TEST_PORT: '55476'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

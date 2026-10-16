@@ -8,15 +8,26 @@ export const TravelRequestSchema = z.strictObject({
 });
 export const SpaceSourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
+    kind: z.literal('system_policy'),
+    policy: z.literal('default_travel_v1'),
+    snapshotVersion: z.literal(0),
+  }),
+  z.strictObject({
     kind: z.literal('official_genesis'),
     presetId: z.string(),
     contentVersion: z.number().int().positive(),
     snapshotVersion: z.literal(0),
   }),
   z.strictObject({
+    kind: z.literal('seed_genesis'),
+    seedId: Id,
+    snapshotVersion: z.literal(0),
+  }),
+  z.strictObject({
     kind: z.literal('world_event'),
-    presetId: z.string(),
-    contentVersion: z.number().int().positive(),
+    presetId: z.string().optional(),
+    seedId: Id.optional(),
+    contentVersion: z.number().int().positive().optional(),
     snapshotVersion: z.literal(0),
     eventId: Id,
     eventVersion: Version,
@@ -31,10 +42,16 @@ export const EnterPlaceRequestSchema = z.strictObject({
   expectedVersion: Version,
   placeId: Key,
 });
+export const SceneImageUrlSchema = z
+  .string()
+  .regex(
+    /^\/api\/v1\/(?:worlds|publisher\/trials)\/[0-9a-f-]{36}\/(?:world\/)?media\/[0-9a-f-]{36}$/,
+  );
 export const SpacePlaceSchema = z.strictObject({
   id: Key,
   name: z.string(),
   description: z.string(),
+  sceneImageUrl: SceneImageUrlSchema.optional(),
   source: SpaceSourceSchema,
   contactActorIds: z.array(Id),
   appointmentIds: z.array(z.string()),

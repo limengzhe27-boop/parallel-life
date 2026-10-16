@@ -32,7 +32,7 @@ registerHooks({
     return nextLoad(url, context);
   },
 });
-const { NotesRecordDetail, NotesRecords, recordAttribution, searchRecords } =
+const { NotesRecordDetail, NotesRecords, NotesAbout, recordAttribution, searchRecords } =
   await import('../src/features/phone/apps/notes-records.tsx');
 const { NotesApp } = await import('../src/features/phone/apps/notes.tsx');
 const { MessagesApp } = await import('../src/features/phone/apps/messages.tsx');
@@ -195,9 +195,15 @@ test('history records stay sourced and readonly; related targets use IDs and a c
   ]);
   assert.equal(searchRecords(fixture.current, '虚构起点').length, 1);
   assert.equal(recordAttribution(fixture.current[0]!), '虚构起点来信');
-  const notes = renderApp(NotesApp, 'notes', recordId);
-  assert(notes.includes('虚构起点来信'));
-  assert.doesNotMatch(notes, /textarea|PRIVATE_NOTE_NOT_IN_SYS_DETAIL/);
+  const recordMarkup = renderToStaticMarkup(
+    createElement(NotesRecordDetail, {
+      data: fixture,
+      target: recordId,
+      open: noop,
+    }),
+  );
+  assert(recordMarkup.includes('虚构起点来信'));
+  assert.doesNotMatch(recordMarkup, /textarea|PRIVATE_NOTE_NOT_IN_SYS_DETAIL/);
 });
 test('invitation source time, activity time and later owner response retain distinct provenance', () => {
   const invitation = PlayerRecordsSchema.parse({
@@ -305,5 +311,7 @@ test('legacy record without genesis origin keeps its old text and source navigat
   assert(!html.includes('虚构起点来信</p>'));
   const list = renderToStaticMarkup(createElement(NotesRecords, { data: legacy, open: noop }));
   assert(list.includes('眼下要做的事'));
-  assert(list.includes('人生起点的身份与处境'));
+  assert(!list.includes('人生起点的身份与处境'));
+  const about = renderToStaticMarkup(createElement(NotesAbout, { data: legacy, open: noop }));
+  assert(about.includes('人生起点的身份与处境'));
 });

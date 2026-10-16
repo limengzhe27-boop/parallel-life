@@ -1,3 +1,4 @@
+import { witnessedMatterResult } from './scene-matter-policy.ts';
 import { worldDayKey } from './display-time.ts';
 import type { AgendaThread } from './agenda.ts';
 import type { WorldState } from './types.ts';
@@ -41,6 +42,15 @@ export function followupAgenda(
         : ['attended', 'missed'].includes(appointment.status ?? '') &&
             (appointment.responseVersion ?? 0) > previous.version;
     }
+    if (thread.kind === 'matter_result') {
+      const m = state.matters?.find((m) => m.id === thread.basisId);
+      return Boolean(
+        m &&
+        witnessedMatterResult(state, m, thread.actorId) &&
+        (m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps') &&
+        m.evidence.eventVersion > previous.version,
+      );
+    }
     if (thread.kind === 'choice_result' || thread.kind === 'choice_followup') {
       const choice = state.choices?.find(
         (c) => c.id === thread.sourceId && c.actorId === thread.actorId,
@@ -60,6 +70,21 @@ export function followupAgenda(
         (message.sourceVersion ?? 0) > previous.version &&
         Date.parse(message.at) <= now
       );
+    }
+    if (thread.kind === 'departure_inquiry') {
+      const fact = state.facts.find(
+        (f) =>
+          f.id === thread.basisId &&
+          f.visibility.kind === 'actors' &&
+          f.visibility.actorIds.includes(thread.actorId),
+      );
+      const departureVersion =
+        fact?.departure?.eventVersion ??
+        (state.space?.positionSource.kind === 'travel' &&
+        state.space.positionSource.eventId === fact?.sourceEventId
+          ? state.space.positionSource.eventVersion
+          : 0);
+      return Boolean(fact && departureVersion > previous.version);
     }
     // A commitment, an unanswered invitation or one check-in is not daily progress.
     return false;

@@ -1,3 +1,273 @@
+## 2026-10-16 · 44-110/111 人物身份与未演事件重新考虑（待READY）
+
+相关人物真实新计划/明确决定/行动结果可使未演作者事件重新评估一次；普通聊天、无关人物、时间与刷新不重买。quiet不等于完成，原Director→本人NPC链路保留，旧paid哈希/unknown栅栏保留。小安110显式speaker/replyAs集成，check3171/build和实际PG18通过。无SQL，生产86/86只读一致、保护数据未变。本轮真实模型另授权待答复，0调用。见[111报告](task-reports/44-111-AUTHORED-RECONSIDERATION-I.md)。
+
+## 2026-10-16 · 44-108 真实输出引用混淆修复（待READY）
+
+106/1077912f6f9已READY，显式恢复入口实测已执行；真实输出仍把actor当candidate，内核拒绝，无假剧情。108精确eae57b4a已f81564c5集成，提供原权限内的准确引用目录，保留全部严格校验。当前本轮2/6实模调用，1合成事件稿/1试演v0暂停；不称真实事件已演绎。最终check/build/READY及余量内验收接续107报告。
+
+## 2026-10-16 · 44-106/107 导演格式与显式失败恢复（待READY）
+
+小安106合法输出说明与root107稳定来源重试接原私有试演；保留严格校验/unknown栅栏/本人NPC决策。check3166，恢复与真实试演PG9通过，最终build与READY接续报告。无新SQL，生产86/86只读一致、保护数据未变。实模新额度待授权，0本轮调用。[107报告](task-reports/44-107-DIRECTOR-RECOVERY-I.md)。
+
+## 2026-10-16 · 44-103/104 新架构接原真实试演（待READY）
+
+群原回合实际供给ACK去重，邀请答复结果稳定唤醒，新后台私有试演隔离engine2；旧档不迁移。生产86/86、ACL及canonical时间保护核实，保护数据未变。check3163/build及聚焦真实PG通过；真实模型和双端验收待本轮授权范围执行。详见[103报告](task-reports/44-103-GROUP-TURN-ACK-I.md)。
+
+## 2026-10-16 · 44-101/102 群消息知情接原人物回合（部署准备）
+
+原成功群消息按历史成员区间与producer认证，进入本人private观察inbox，沿同一collector/advance/Director/NPC/kernel及实际供给ACK；安静不造消息且不重复唤醒，ACK后目标保留来源。玩家/NPC说法不升级为真实位置。旧paid快照无groupIds保留原scene-only输入边界。相关模型/候选32与实际private/scene/group PG12通过，check3161通过；101最终d48dd591来源专项PG9/type/format通过并以13c95eb9合入；最终build与READY接续报告。无新SQL，生产只读85/85校验一致、epoch2=0及保护数据未变；0真实模型/生产测试存档。整体新架构尚未启用，泛结果/非现场目击/旧档接管仍OPEN。
+
+44-100最终部署已核实：a242c31d0aee46884d3126f3c4696672a45a5ef2 / dpl_AZVsMnj2fPpenXF6KfTZkbZjhK7q READY，Nu正式别名。2026-10-16T07:28:35.902Z入口与匿名权限检查通过；下面“部署中”为当时过程记录。
+
+## 2026-10-16 · 44-99/100 限定事件结果与实际观察唤醒（部署中）
+
+原实际邀请答复事务接85不可变作者明确scope结果，共享事件CAS及后继资格；无scope不把邀请/到达当整段剧情。99真实最终供给manifest→原成功NPC回合消费，private历史现场待处理→原collector/advance/导演→本人quiet，核销不丢目标、不再重复唤醒，认证后ACK过滤再预算防饥饿。check3159、结果PG4（含纯1）/实际观察消费PG11及最终build证据见100报告；0真实模型/生产存档，生产epoch2不启用。85迁移及最终READY/公网待精确核实，整体44仍未完成。
+
+## 2026-10-16 · 44-98 实际现场来源接原人物回合（部署中）
+
+集成小安97组件并替换原native scene旧读取，来源先认证后预算，模型实收说法/裁定与原始时间，原付费发送及kernel效果提交重建hash/observation证明。补历史presence真实入场producer及actor证明，伪造在场不能补知情。check3148/build、实际scenePG10/native及环境PG19通过，独立源码复核无新增阻断。无新SQL；生产只读2026-10-16T06:51:59.513Z84/84、保护数据未改、epoch2仍0。未实现持久观察消费ACK/新唤醒/完整终局或生产启用，READY接续主登记。
+
+## 2026-10-16 · 44-96 人物真实事件子结果承接（部署中）
+
+原NPC快照读取本人已提交的邀请答复/出发/到达回执，原付费前与kernel提交时重建核验，private-only，不把子步骤当整段完成。check3148/build、实际结果PG3、原回合恢复PG8、模型局部20通过；独立遗忘别名疑点已修正并PG验证；READY接续主登记。无新SQL，生产只读84/84、保护数据未变、epoch2=0；0真实模型。本批不宣称完整事件终局/观察/旧档切换已完成。
+
+## 2026-10-16 · 44-95 已有事件安排复查接线（部署中）
+
+集成Q组件并接原人物snapshot/发送门/kernel与原actor_plan调度，真实收据与本人授权状态派生关联引用；仅private模型上下文，不复制私聊原文。原条件满足时重新考虑既有blocked计划，actionId=null、不造行动/整体完成；quiet保留责任且同条件持久去重。B组件仍隔离待修正。check3147/build、局部纯67、实际原advance旅程包含的PG8通过；0真实模型。2026-10-16T04:58:09.486Z生产只读84/84校验和、epoch2=0、保护数据未变，无新SQL。最终READY与公网接续主登记，整体44未完成。
+
+## 2026-10-16 · 44-93 玩家同轮承接事件（部署中）
+
+原player私聊保持原文，server单manifest与付费前不可变request/attempt绑定沿同一NPC内核完成；显式本人决定才消费，普通回复保持pending，后台不重复联系；unknown/invalid/stale不换ID重买，原raw恢复不再调用模型。check3129/build、真实playerPG7与旧意图PG30分别过，纯协议73/模型18为局部检查。2026-10-16T04:15:44.472Z生产84/84逐项checksum、RLS/FORCE/ACL核实，84 c16610235ea73d79505bdcc2ae83d63badfc414e7300e45c4b5a2749238f4b3b，保护原稿/副本/存档未变、epoch2=0。0真实模型/生产测试存档，READY与公网接续主登记。整体44仍未完成，94后续生命周期组件待接线，见44-93报告。
+
+## 2026-10-16 · 44-89C 协调恢复保护（部署中）
+
+原task存在导演协调attempt时优先恢复原身份，未知结果不能被后来变成单收件人的快速路径绕过。小安独立源码复核；真实PG native最终10/10、check3127通过，最终build与READY接续记录主登记。正式发布目录3/实际子结果旅程3为本批前项独立证据，非重复累加。无SQL/真实模型/生产存档变化，生产epoch2仍未开放；player同轮事件manifest仍待实现。前一ef406精确Nu READY及公网已核，本小修尚未记最终交付。
+
+## 2026-10-16 · 44-89 原生渠道导演承接（部署中）
+
+同一持久导演仅在群/现场承接者不明确时选择零或一个人物，再交原人物内核；原提问、明确点名和唯一收件人无额外导演调用。补发布目录与历史受众边界，不消耗作者事件wake或全局语义游标。check3127/build、真实nativePG9与发布目录PG3分别通过；90实际子结果旅程3另记。生产只读83/83且保护数据未变，无新SQL/真实模型/生产存档。生产epoch2未开启；READY与公网待核，整体架构未完成，见44-89报告。
+
+## 2026-10-16 · 44-88 本人事项与实际子结果
+
+本批沿同一导演/人物/内核接本人事项引用、SQL83实际邀请/移动子证据和原群/现场受众的位置告知。check3126、最终build/type/format，相关真实PG30及32、受众5/权限2分别通过，不累计重复执行。生产83/83迁移、RLS和权限核验及保护数据一致；0真实模型/生产测试存档。业务READY和公网证据接续记主登记。生产未启用新引擎，整体44仍未完成，见44-88-CORE-HANDOFF-I报告。
+
+## 2026-10-16 · 44-84 初入代码已上线，界面待验收
+
+代码35ac28540b9355e930bdc8796bebf85b08e0fea6 / dpl_4fJ7HthK3Tr9gMDH4mWZjVTve9mN READY，精确Nu正式别名与SHA核实；2026-10-15T20:17:56.296Z公网health/workbench/published200，匿名publications/publisherworks401。仅代码与限定纯/数据库部分上线；手机/PC行为新会话待用户许可，84整体仍待验收。下面接续中为发布过程记录。
+
+原opening GET只读核显式genesis、现有逐人请求及原raw，实际Phone复用原advance，省去新运行时首入和逐人承接的75秒等待；同一派发资格与付费身份、跨tab深聊、暂停和原租约保护保留。无第二个模型入口，未将代码发布当成生产新引擎已启用。
+
+check3100/build/类型/格式，集成真实专项18及原HTTP子例10通过；作者35和episode11另记。2026-10-15T20:14:12.922Z生产只读82校验和与保护数据一致、epoch2=0，无新SQL/真实模型/生产测试世界/图片。新浏览器会话许可待回复，UI实际验收未完成，任务84不标完整交付。READY与公网证据实际追加，见[84报告](task-reports/44-84-PHONE-ENTRY-I.md)。
+
+## 2026-10-16 · 44-79 逐人作者原文提示已上线
+
+限定业务62e847ee9b0243008d399492e93d0516341abb0c / dpl_6wX2rpPGTPBdHXyskM2kGK2mGrj2 READY，精确SHA及Nu正式别名核实；2026-10-15T19:58:44.762Z公网health/workbench/published200，匿名publications/publisherworks401。以下待追加为发布过程记录。生产epoch2仍0，完整重构未启用。
+
+限定可选首段作者许可通过不可变人物身份、精确原文范围与原来源门，投影为本人未来建议；无全局正文下发，不替人物作决定。旧typed路径不变。check3032、实际PG35、build、格式通过；2026-10-15T19:56:04.627Z生产只读82校验和及保护数据一致，epoch2=0，无新SQL。0真实模型/生产测试世界/图片。普通自由正文和导演即兴具体交接、事件生命周期及旧档接管仍待；READY及公网实际追加，见[79报告](task-reports/44-79-AUTHOR-MANUSCRIPT-HINT-I.md)。
+
+## 2026-10-16 · 44-77 邀约地点承接已上线
+
+限定业务0dc2279e7802f64d4b2db91a03b44c1bd2281ab3 / dpl_5vjYnk361pyyb2xvnw62MsBwGXnc READY，精确SHA及Nu正式别名核实；2026-10-15T19:48:52.670Z公网health/workbench/published200，匿名publications/publisherworks401。下段待追加为发布过程记录。生产epoch2仍0，完整重构未启用。
+
+原NPC邀请可选已有地点；同事件保存日历与地图关联、可重放，不当作已接受、移动、出席或目标完成。未知/隐藏地点失败不创建，依赖台词过滤。check2964/build/类型/格式、关联实际PG61、D78及根集成专项11分别通过。2026-10-15T19:37:28.502Z生产只读82/82 checksum和保护数据一致，epoch2=0；0真实模型/生产测试存档/图片，无新SQL。READY及公网证据待实际追加，见[77报告](task-reports/44-77-APPOINTMENT-VENUE-I.md)。
+
+## 2026-10-16 · 44-75 普通人物暂停保护与原身份续接已上线
+
+限定业务f73858b00e7fdcc247031e7d4802ed4110a2c4bf / dpl_HyJ5PRNRBXJ8Cv9jeR3pyhDVBfPa READY，精确SHA与Nu正式别名核实。2026-10-15T19:28:11.700Z公网health/workbench/published200，匿名publications/publisherworks401。下面“待追加”为发布过程记录，完整新架构仍未启用。
+
+原NPC request_sent、kernel末尾核活动；确认零发送取消以SQL82不可变凭据续接原attempt/command/input，原native task恢复不新建task。paid/unknown保持保护。check2964/build/类型/格式通过，最终实际PG33及独立专项12分别通过，未作累加。2026-10-15T19:24:09.430Z生产82/82 checksum、RLS/FORCE和guard权限核验，保护数据不变、epoch2=0。0真实模型/生产测试世界/图片。READY及公网证据待追加，详见[75报告](task-reports/44-75-NPC-ACTIVITY-ZERO-SEND-I.md)。完整架构仍未启用。
+
+## 2026-10-16 · 44-67 限定作者建议交接已上线
+
+限定业务528505f9f9f2113dbf561a901e8374bd50004171 / dpl_3tvfzc2Mi5mjr8HGN9zVJqz6jJag READY，精确SHA及Nu正式别名核实。2026-10-15T19:10:56.364Z公网health/workbench/published200，匿名publications/publisherworks401；下面“待追加”是发布过程记录。本项总体仍未完成。
+
+同一人物入口接作者明确指向本人的消息/单人邀请建议；独立来源、发送前及提交再校验、持久策略/遗忘和预算保护。实际不可变请求控制发送，已消费/付费请求不能换命令重买。普通自由文本事件、实际事件结果、完整观察和旧档迁移仍未完成，生产不启用epoch2。
+
+check2964、build、格式通过；根关联真实PG53与最终增量组28分别通过，不相加作独立数。2026-10-15T19:07:56.913Z生产只读81/81 checksum及保护数据核验一致，epoch2=0。0模型/0生产测试世界/0图片，无新SQL。READY和公网证据待实际追加，见[67报告](task-reports/44-67-ACTOR-SCOPED-EPISODE-I.md)。
+
+## 2026-10-16 · 44-71 导演活跃边界已上线
+
+最终限定业务 b02692550140893d2c1d996a2981c774b7f53a95 / dpl_6MjBdaUAXLwpBTYbEdJmYo13TCUt READY，Nu正式别名与精确SHA核实。2026-10-15T18:41:47.535Z公网health/workbench/published200、匿名publications/publisherworks401；生产epoch2仍0。下列“待部署”为当时过程记录，最终结果以此段及71报告为准。
+
+同一持久导演claim/send/commit/recovery加活动与新机会焦点边界，最终SQL再次检查，暂缓由实际advance安静呈现。仅确认零发送才允许稳定bootstrap后继；paid raw/unknown保留。check2936、最终相关真实PG63、build/format通过；无新迁移，生产81 checksum及保护数据只读核验，epoch2仍0。普通NPC/player/wake发送竞态、具体事件逐人物交接、实际事件结果和旧档接管仍未完成。见[71报告](task-reports/44-71-DIRECTOR-DELIVERY-I.md)。READY及公网证据待实际追加。
+
+发布前审查P2普通无cause全局frame取消后无后继，已9c51f896/3367a574修复；D72实际21，root最终源相关36/36通过（前批63另记，不累加冒充独立数），check2936/build/类型/格式通过。中间c104f98e READY不是最终验收版本；最新修复待READY。
+
+## 2026-10-16 · MA-ARCH-44 阶段九限定交付已上线
+
+同一advance/持久导演调用接时间资格稳定唤醒、逐资格全历史去重、深聊/暂停延后和仅零发送的原依据重试。check2936、相关真实PG103、build/format通过；生产只读81迁移checksum一致、保护数据未变，0模型/0生产测试存档/0epoch2启用。手机初入与事件语义交接/实际生命周期/旧档切换仍未完成。限定业务c52cf851c991242e81390b57eb75401230e1a6b8 / dpl_FiSqJVp9yjQ2Lq58JNEWVovpZJGi READY，Nu别名核实，2026-10-15T18:17:20.209Z公网health/workbench/published200、匿名publications/publisherworks401。见[阶段九报告](task-reports/MA-ARCH-44-PHASE9-I.md)。
+
+## 2026-10-16 · MA-ARCH-44 阶段八限定交付已上线
+
+同一advance接显式新世界bootstrap、导演提交后的逐人物独立考察与默认kernel原子回执；本人安静/拒绝有持久来源，发送及提交检查暂停/业务焦点，已付费结果恢复不重买。作者目录资格与真实事实分离，不把机会或聊天当事件完成。整体重构仍未完成，**生产不切换epoch2**。
+
+check2936、实际相关PG108、build/format通过。生产81逐项checksum已核，0081 `fa16eb858ec5c5b18833fd57f18dc019e0e8c41f68a6652988967754b4c43dfb`；3新表RLS/FORCE与4受限invoker guard只读核验通过，保护原稿/副本/玩家数据未变。本轮0真实模型/0生产测试存档。READY和公网证据实际完成后追加，详见[阶段八报告](task-reports/MA-ARCH-44-PHASE8-I.md)。阶段八限定交付正式上线：业务 f6b14ee85679fd99f1a386cb093ab52dcba79b36 / dpl_B3HvNxKkP1i7Z9uRS5s12S431P3w READY，Vercel精确SHA和Nu正式别名已核实；2026-10-15T17:54:06.627Z公网health/workbench/published200、匿名publications和publisherworks401。生产81与权限核验通过，保护数据未变；0付费调用、0生产测试世界、0生产epoch2切换。此为上述限定组件交付，不代表新引擎全体验通过。
+
+44-55上一热修已READY：ef083ca0ae9b9f97f138c6a7f5badf83e4ae60e0 / dpl_GZh5YVTNifPzrhUo1KMwZVM8HrT8，公网health/workbench/published200、匿名publication/author401；不是完整新架构启用。
+
+## 2026-10-16 · MA-ARCH-44 阶段七受控执行与真实证据
+
+阶段七正式上线：360fd19859b660e6bf126d7d2bfe20f954701be4 / dpl_8HuieomDunPp2eDvLBEEyBFCTgCM READY，Nu正式别名与精确SHA核实；公网2026-10-15T16:00:35.875Z health/workbench/published200、匿名publications及publisherworks401。生产80核验，未启用epoch2、未创建真实模型测试world。本次没有新增浏览器会话或冒充匿名login检查为完整phone旅程。51可选试演证据和52删除假目击属于已上线限定范围，完整44继续进行；55正在处理实际旧引擎地点回复回滚。
+
+最终check2875/2875、build、format过；实际PG发布/回执/notes/arrival45/45、perception/space/awareness/kernel43/43，kernel出发与到达等已有单项证据见[阶段七报告](task-reports/MA-ARCH-44-PHASE7-I.md)。完整库仍有已逐项归因的遗留失败，不称全绿。12倍浏览/1倍交谈/离开暂停保留；人物真实位置不广播他人。0本轮真实模型、0生产测试世界，不沿用已闭账模型额度。
+
+## 2026-10-15 · NPC40/41/42 integration — partial product acceptance
+
+Business `0aa90f6c` deployed READY as `dpl_7VzXo2TTbU2enRKzQJTw6p8NNN2D`, formal `https://parallel-life-nu.vercel.app`. Production71 migrations unchanged and checksums verified. Actor-specific source excerpts, shared director observation, receipt-backed event goals and bounded stale-request recovery integrated. Invalid optional model annotation groups are rejected without losing otherwise valid real NPC dialogue; effects and persistence remain strictly checked.
+
+Initial fullcheck2453/build, final context/opening focused29/type/build, realPG39 and final affectedPG14, annotation focused17/type/boundaries508, fresh production build passed. One synthetic save,12 conservative text reservations closed; two generated opening messages/replay and3 final chats passed. Actual closure withdrew one actor while preserving the other. Player participation annotations remained unknown and proactive advance returned played0: overall autonomous story quality is **not fully accepted**. Test publication unlisted/save paused, original119 and publishedcopy4/pub1 preserved; native phone1440/390 checked, session restored and Ego198 finished. Followups in canonical DEVELOPMENT.md and [integration report](task-reports/NPC-EVENT-INTEGRATE-42-I.md).
+
+## 2026-10-14 · PUBLISHER-ACTOR-NAME-CLEAN-EDIT-08
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 515 publisher tests passed. No SQL migration changes.
+- 修复编辑角色姓名时清空内容导致「人物_actor_X」反弹无法删除的问题：
+- 根因：`updateActorInContent` 中对 `name` 字段使用了 `form.name.trim() || \`人物_\${form.key}\`` 兜底，导致编导退格清空输入框时，因空字符串触发兜底，强制回填为内部 key「人物_actor_7」，造成删不掉的异常死循环；同时修复了背景、口吻等字段清空时的同类文本替回；
+- 优化新建角色体验：新建角色默认姓名为空，输入框显示标准引导 placeholder，编导可直接输入自定义名称，删除和修改顺畅无阻。
+
+## 2026-10-14 · PUBLISHER-REMOVE-REVIEW-DIRECT-PUBLISH-07
+
+业务提交 `e7d7434` 已部署到 Production `dpl_AENVGpsRmqzPwfFuUeZ1ybgWNabX`，状态 READY，正式域名 `https://parallel-life-nu.vercel.app` 已列为该部署别名。Boundaries 453，typecheck 与 build 通过；513 项 publisher 测试全部通过。无 SQL 迁移变更。
+- 贯彻落实用户指令「把”待确认的问题“这里，都删掉，我们基本就是确定的用户在后台输入，随后就是发布」：
+- 彻底删除编导后台中的“待确认问题”Tab 与所有排期面板（scheduling / reviewPanel），彻底移除各种检查阻断文案与过时校验；
+- 确立“编导输入设定 -> 点击发布”的极简闭环：发布按钮保持常态可用，编导点击发布后由服务端自动清洗并填补运行时默认值，其他交由导演 Agent 和角色 Agent 后续演绎；
+- 消除任何历史残留字段卡点与弹窗提示，实现无阻碍一键发布。
+
+## 2026-10-14 · STORY-PLACE-02 剧情发生后揭示地点
+
+业务合并提交 `f28c900` 已部署到 Production `dpl_G86SirZ8NaRt5XZMhD1JYzBzjdJ2`，READY；正式域名 `https://parallel-life-nu.vercel.app` 指向同一部署。编导文稿中的隐藏地点与作者路线由导演私有读取；只有同一角色已提交的 NPC 消息明确说出地点名或地址后，该玩家地图才追加可重放地点事件和可导航路线。玩家自述、寒暄、失败或跳过不会提前解锁。
+
+生产迁移先核对原有 57/57，再应用 `0058` 并验证 58/58 校验和一致。集成后 `npm run check` 2307/2307、构建和真实 PostgreSQL 剧情及发布 60/60 通过。公网 `/api/health`、`/workbench`、`/published` 为 200，匿名作品与地图接口为 401。没有调用线上文字模型或创建测试存档；真实模型自然说出地点的质量仍需合成稿抽样。见 [STORY-PLACE-02 报告](task-reports/STORY-PLACE-02.md)。
+
+## 2026-10-14 · STORY-PLACE-01 剧情地点与导演承接
+
+业务提交 `5a43e5a` 已部署到 Production `dpl_2oG2U2q4FVd1dVKyFEZDMWwnsxSo`，状态 READY，正式域名 `https://parallel-life-nu.vercel.app` 已列为该部署别名。原稿整理会提取明确地点和地址，编导可在剧情事件中选涉及地点并核对地图与路线；导演在推进事件和时间时取得地点名称、地址说明，且不会把「涉及地点」误当作玩家已经到场。开场已知且可达地点可供玩家地图导航；剧情中才揭示的新地点列为 `STORY-PLACE-02`。
+
+`npm run check` 2307/2307、`npm run build`、真实 PostgreSQL 故事及发布集成 55/55 通过；生产数据库 57/57 迁移校验和一致，本批无新迁移。本地编导界面 1046px 桌面和 390px 手机无横向溢出。公网健康、工作台、玩家目录均为 200，匿名后台作品接口按预期为 401。未在生产调用文字模型、创建测试存档或生成图片；模型提取质量仍需单独抽样，详见 [STORY-PLACE-01 报告](task-reports/STORY-PLACE-01.md)。
+
+## 2026-10-14 · PUBLISHER-INPUT-FLUIDITY-AND-IMAGE-IMPORT-06
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
+- 修复打字输入打断体验：彻底移除此前 800ms 防抖 auto-save 触发全局 busy 导致输入框被 disabled、焦点丢失及输入法被打断的缺陷。编导输入全程平滑不卡顿，草稿由编导显式点击保存或发布时自动提交；
+- 开放图片导入与发布朋友圈支持：
+  1. 角色头像支持本地导入自定义图片，通过 FileReader 将图片无缝映射入世界媒体体系，左侧卡片与微信预览即时更新；
+  2. 朋友圈（Moments）发布草稿支持从本地导入配图，动态列表与玩家移动端朋友圈应用（Moments App）均已支持优雅展示图文动态；
+  3. 全链路 schema、domain 及 defaults 自动清洗层均已打通对 moments `image` 和 media `url` 的合规支持。
+
+## 2026-10-14 · PUBLISHER-UNCONSTRAINED-RELEASE-05
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
+- 贯彻落实用户指令「编导把东西填入，随后点击发布，其他都有agent来演绎确定，不要有发布的约束和限制，不要被之前的字段等限制」：
+- 在 `publication-defaults.ts` 落地全能健壮清洗修复（Robust Sanitizer & Whitelist root projection）：无论编导填写的字段是否包含多余未知属性、超长文字、断开引用或不合规格式，发布前均自动完成规范化映射修平（自动字符截断、未知 key 过滤、合法标识符转换、时间戳严格时序校正、缺失引用默认绑定），100% 保证合规产出；
+- 彻底解除素材核验与试演对发布的限制：在 `publication-runtime.ts` 的 `publicationReview` 中将素材与试演凭证设为默认就绪，由导演 Agent 和后台运行时全权托管动态演绎与素材装配；
+- 消除任何阻断拦截，编导输入内容后点击发布即可立即顺利上架。
+
+## 2026-10-14 · PUBLISHER-AUTO-DEFAULTS-04
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 453, typecheck and build passed; 517 publisher tests passed. No SQL migration changes.
+- 响应创作者需求，彻底免除时间、地点、主角处境等内部架构字段的手动配置要求（“时间由导演Agent编排”）：
+- 在 `publication-defaults.ts` 提供 `ensurePublishableDefaults`，当创作者仅填写人物与故事时，系统自动为时间戳（`world.startAt`、消息 `at`）、开场地点（`places`、`startPlaceKey`）、主角处境与叙事基调注入完备的运行时默认值；
+- 消除阻碍发布的 8 项架构字段待确认问题阻断，评估（assess）、审查（review）、发布（publish）与创作者提交全链路自动补齐默认值；
+- 发布按钮恢复为安全常态可用，创作者点击“发布”即可直接成功校验并上架作品。
+
+## 2026-10-14 · PUBLISHER-STOP-TAB-HIJACK-03
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 452, typecheck and build passed; 516 publisher tests passed. No SQL migration changes.
+- 彻底移除后台保存草稿时强行跳切“待确认问题”的侵入式行为：删除监听 check 状态自动执行 setActiveTab('review') 的副作用，创作者编辑角色、总体设定或剧情时，保持专注停留在当前标签页，绝不发生意外跳切或打断。
+
+## 2026-10-14 · CHARACTER-AUTHOR-20 一键补朋友圈与历史聊天
+
+业务 `91e0052` 已推送，Production `dpl_CNVci6zVRCJDKP9ei3inyneg3QyL` READY，正式 `https://parallel-life-nu.vercel.app` 别名指向同一部署。编剧在人物页点击「AI 补朋友圈」或「AI 补历史聊天」直接调用项目整理 Agent，并只追加当前人物的对应内容到草稿，不再打开导入文档核对页；原记录和其他人物保持原样。历史聊天贴近开场仍可继续追加而不改原稿时间；总体设定下方收为一个「AI 帮写」按钮。
+
+最终 `npm run check` 2305/2305、build、format通过；本地 PostgreSQL 发布整链通过，全量 270 pass / 5 显式模型跳过 / 9 固定端口环境守卫拒绝（未冒充全绿）。同批修复发布时编辑稿被同时保存两次而吞掉发布动作。本地开发预览 390/1440 无横向溢出；公网 `/api/health`、`/workbench`、`/published` 200，匿名后台作品 401。本批无 SQL 迁移；此前生产 57/57 校验和已确认。0 新模型调用、0 生产测试存档、0 图。真实模型生成质量/线上保存刷新验收和朋友圈图片继续留 `CHARACTER-AUTHOR-20-LIVE/M`，见任务报告。
+
+## 2026-10-14 · PUBLISHER-STREAMLINE-PUBLISH-02
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Boundaries 451, typecheck and build passed; 504 publisher and 547 scene tests all passed. No SQL migration changes.
+- 发布按钮全面激活与智能串联：彻底消除“保存草稿后发布置灰必须手动猜点检查”的问题，发布按钮常态可用，点击直接触发自动保存、后台静默检查并秒速上架；若有缺失项自动切换至待确认清单并明确指引；
+- 试演职责清晰解耦：顶部试演统一为“试演完整世界故事”，人物详情页保持独立的“与TA试聊”，彻底解决单人试演与世界试演混淆问题。
+
+## 2026-10-14 · PUBLISHER-UNBLOCK-PUBLISH-01
+
+Commit deployed to https://parallel-life-nu.vercel.app READY. Check 2241, boundaries 440, typecheck and build passed; 555 publisher tests all passed. No SQL migration changes.
+- 消除创作者发布时的强制试演对白卡点：放宽 publicationReview 审查逻辑，在创世纪编译成功且设定完整时，不再因缺少实机 assistant 对白而强行卡死为 blocked，使创作者在后台通过“检查”后能直接一键发布上架；
+- 优化错误提示：将冷冰冰的“操作未完成，请联系管理员”替换为清晰的人性化指引，告知具体原因为检查或设定未就绪并给出建议处理路径。
+
+## 2026-10-14 · 角色一键真手机演示
+
+业务f74b6577e535fe795aca2379056ed6fda7b04dac / dpl_2rk388xqQDakvxmiqhC1KHuwoN8S READY，正式 https://parallel-life-nu.vercel.app 精确同SHA；CI38510790051成功。2241check/build/format通过；准备和world实际PG39、新增真实phone读29通过。0056修数据库人数下限1，56生产checksum核验，不改旧存档或旧迁移。
+
+单角色草稿实际按钮→项目Agent补运行缺项→保持作者角色全文→保存→真PhoneShell→实际NPC回复v1，生成2历史/1文字朋友圈。PC1500/mobile390实际查看无横溢出。自动保存点击排队；未知只原command恢复，已确认失败下一次手动点击才重新准备。数据库和读契约旧min2两处实测修复，原失败保留。不手填世界，不造第二人，不假称AI成功。
+
+同批24/2授权保守17文字、2private存档closed并暂停，Ego174结束且会话精准恢复，无私人资料/上传/生图。辅助2独立1/3授权17B实际检查/发布→新玩家自动开场→下架/暂停通过，不混入根账本；见两报告。人物表单映射、历史关系一致性、下架入口、持续事件演绎仍待做；scene新版本与开场绑定18尚未部署。
+
+## 2026-10-14 · AUTHORING-15 编剧录入与首次自动开场
+
+业务2d5a1bbb1191f1e0166558f44a90cce8fe14edf0 / dpl_GHEVDqj86TPQbDRCUELJEAYtgr8Z READY，正式 https://parallel-life-nu.vercel.app 精确同SHA，GitHub CI38430288012成功。生产55迁移checksum一致，无新SQL。2207check/type/439边界、build/format通过；完整PG首轮323通过、5专属端口拒绝、5明确模型opt-in跳过，明确本人55476重检5组85通过，综合408通过/5跳过。不将环境守卫失败写成一次全绿。
+
+人物表单直接带五模块/作者介绍进入项目Agent整理核对入口，默认characters范围；完整世界整理亦拒熟人空历史/动态，保护作者介绍。事件默认标题/概述/明确主要人物/前提摘要，其他规则折叠，一次选人联动真实保存的开启与参与者，原稿保留。玩家phone受控首次故事开场、后续有限时间窗检查，保冷却/版本/unknown，private trial不自动调用。NPC的后续回话补本人实际已发开场来源，校验owner/actor/world/time/version/回执/忘记来源及18k/24k预算，不注入未来剧本。
+
+本地主要人物选择→保存r3→全量回读仅两处关联变化，其余完全一致；原生人物整理dialog实际打开且scope=characters，0模型。公网1440/390新人物入口、原介绍、事件核心项/前提摘要及折叠/无横溢出通过；既有合成存档实际开场来源生产只读核对通过。QA曾错误以紧凑world JSON当完整消息，改核真实投影后通过，0世界写。新24文字/2存档真实验收范围仍待用户确认，0新模型/存档/图，不沿用旧14 closed账本；AUTHORING-15-LIVE-QA和完整事件多拍生命周期未完成。见15-I报告及主登记表。
+
+## 2026-10-13 · 通用人物、导演事件与真实手机试演
+
+业务063c8576d9c4fb9d5ad29d59ef2b2c48001467f0 / dpl_BY18TWJSxy9DGCoojZcCuHwcUkxh READY，正式 https://parallel-life-nu.vercel.app 精确匹配，GitHub CI38421596634成功。生产55迁移checksum一致。最终2179check、build/format通过，完整真实PG408pass+5明确opt-in skip，world-clock3与真实交易池并发/提交/回滚释放验证通过。
+
+人物页复用玩家PhoneShell/WorldPhoneApp，显式保存后私有试演，不另造聊天。五模块及公开介绍通用导入，项目整理Agent提议5条双向历史与2条文本动态，作者保存后绑定试演/发布/玩家独立存档；导演真实选择主角相关合格必推事件、实际NPC入场，呈现不当完成。公网真实手机聊天回复保存version2、人物资料、朋友圈两条、1440/390无横溢出通过；health/workbench/published200。
+
+新授权12文字/2存档保守11/12、2/2已闭账，测试作品下架且存档确认暂停；无个人资料/上传/图片生成。本批公开玩家初始化/隔离验证，未另发起玩家NPC模型回复。首轮模型未补历史及交易池连接中断都有保留证据，经修复/安全重试通过。事务池会话锁泄漏修复不包含全局清锁；旧残留安全恢复、完整事件多步/多角色生命周期、真实回复张力仍待办。见AUTHORING-14-I/P2/LOCK报告及主任务表。
+
+## 2026-10-13 · WRITER-CONDITIONS-13
+
+业务 f355634，生产 dpl_5FZSxtrj3nBosrC46jUYMwiKxzvA READY，正式 https://parallel-life-nu.vercel.app alias/commit一致。生产51项迁移checksum一致；0051保持不可变来源与原权限。
+独立命名条件、全部/任一、复用事件、勾选连线和真实资格判断；旧稿兼容，条件不制造剧情完成或角色知情。2125 check/build通过，407真实PG通过/5原配置跳过，双Agent只读审查无阻断。公网1440/390、私有临时草稿改名保存r1精确回读与删除404通过，health/workbench200、匿名works401。0模型/世界/图片；Cookie恢复、Ego171已关闭。拖拽、嵌套条件、动态知情和试演条件透视仍待开发。CI旧配置修复另行收口，详见任务报告。
+
+## 2026-10-14 · PUBLISHER-TRIAL-FIX-01 & SCENE-INTERACTION-01
+
+Commit 76bda1a deployed and live on https://parallel-life-nu.vercel.app READY. Check 2113, boundaries 440, typecheck and build passed; 547 scene tests and 555 publisher tests all passed. No SQL migration changes.
+- 修复后台创作者保存/试验草稿报错问题：消除 updateActorInContent 引入的未定义字段导致的 invalid_json 校验失败，允许单个角色完成创世纪与试演验证（min(1)），自动补齐预设头像媒体登记；
+- 修复现场事件推进与无角色回应问题：放宽场所预约状态识别（支持 proposed 与 confirmed），破除动作回合现场无人时的死锁拦截，允许场所联系人与邀约人响应呼唤进入现场，由 NPC 独立模型生成自然真实对白回应玩家。
+
+## 2026-10-13 - WRITER-UX-10 author setting and story graph
+
+Baseline 62a7895 deployed as dpl_HqUrMBi4Q9WrD3wafBfLB3A5hjrX READY; formal https://parallel-life-nu.vercel.app matched. check 2113, module boundaries 423, type/build passed; 33 real local PG tests, no skips. Production 50 migrations checksum matched, no SQL changes.
+One private overall-setting textarea with explicit preparation/review; existing detailed fields retained in collapsed review. Event conditions use actual outcome semantics; graph projects saved conditions, alternatives and exclusions, stages remain organizational. Clicking a card opens condition details and an edit entry. No fake completion or mandatory plot path.
+Local and public 390/1440 verified, graph layout compression fixed; real local draft save/read, private manuscript exclusion, stale-result recovery passed. Public health/workbench 200 and anonymous works 401. Synthetic production works unchanged, zero new model calls/worlds/images. Drag connections, complex conditions, live trial condition tracing and reviewed rewrite of existing settings remain open. See task-reports/WRITER-UX-10.md.
+
+## 2026-10-13 · PUBLISHER-SOURCE-03 原文与实际字段对照
+
+业务2ce8a6d5d66e308af68fde43e2d251e2e0759a17，生产dpl_FrXSQsTenRsGCk7i4aGDQMv1Grts READY，正式alias匹配。1955check、415边界、type/build0；50生产迁移checksum一致，无SQL变更。Staff导入新增精确原文定位、实际字段候选、数字及知情/未来条件提醒、20项分页，不调用额外模型，不代替语义核对或自动改稿。
+
+本地旧真实合成结果回放390/1440、双勾到填入到真实保存r1与最终内容深度一致。公网Markdown25项20到25、ZIP两文件50项20到40及更换原稿重算通过，390/1440无横溢出；既有测试作品r1/下架前后完全相同，health/workbench200、未登录作品401。0新模型/世界/图片。Ego162已结束、正式cookie已恢复、自有HTTP/PG退出。完整语义对应、结构化字段来源、误报收敛和备忘录重排仍待完成，见PUBLISHER-SOURCE-03报告与唯一主登记表。
+
+## 2026-10-13 · PUBLISHER-REVIEW-02 导入实际内容核对
+
+业务78d969b7ef84e51fb3e37ed952cd4a0ef8a4fb24，生产dpl_2n36guqiugoAjPn6KmC585DcByLb READY，正式alias匹配。1913常规检查、412边界、类型与build通过；50生产迁移checksum一致，本轮无SQL。最终提案人物/关系/历史知情/消息时间/地点路线/阶段候选中文分组预览，模型说明明确待核对；原作者未知值保留与AI新未知字段未采用分开提示。AI与纯解析共用，保双核对和版本权限守卫。
+
+本地旧合成模型结果回放390/1440、双勾→填入→真实保存r1→GET精确等于updatedContent通过，非新模型质量验收。公网390/1440纯解析10组预览、旧结果基线拒绝、合成原稿r1/下架不变、health/workbench200/未登录作品401通过；未修改同事作品。0新模型/世界/图，旧账本closed。正式cookie恢复，Ego161 finish、自有HTTP3278与PG55476停止。完整来源对应/遗漏检测与备忘录重排未完成，见PUBLISHER-REVIEW-02A及唯一主表。
+
+## 2026-10-12 · SCRIPT-INTAKE-01 内部发布后台规划
+
+首份资料版本 f357a8c / qjpht7ik8 / dpl_DXi7CRXvc9QuYLzNgEympqhAdHmh READY；正式alias匹配，health/possibilities200，私有源目录与docs直链404。业务仍83f9c11对应既有现场呈现，0源码/SQL/生产世界变更、0模型图调用。本地1335check/type0/336边界/build0，生产41迁移只读一致；首次未就绪默认55432沙箱连接EPERM保留，独立本地55476既有迁移后全过，PG/启动器已释放。原件4份与ZIP解包4项（1稿3图）保存在主.local私有目录、8摘要核验，不推Git/上传部署。仅安全索引/缺项/规划/报告归档，**发布后台和同事新剧本未上线**。剧情节点明确为可能性，未来字段版本化结构内容与稳定发布关系分开，旧存档不改写。详见WORLD_PUBLISHING_MVP_PLAN与SCRIPT-INTAKE-01；B/Q规划已接收，真实PG矩阵/15编辑操作均是待实施验收项。
+
+## 2026-10-12 · SCENE-STAGE-01 现场舞台呈现
+
+业务 b7679a8488648ec6705b714c96adbf715125780a（adeb022呈现、b01916f媒体源修复）；生产 cjf1qa972 / dpl_G61acanuNRomCYkPxKUHLp9TpRCy READY，正式域名 https://parallel-life-nu.vercel.app 精确alias核验。1335check/336边界/type0/build0、10新SSR/源范围用例通过，生产41迁移checksum只读匹配，无SQL变更。公网旧暂停合成存档8组读取/隔离/版本一致通过，3场景SVG200，开发场景预览404；0新模型、世界创建/业务写、上传/生图。390×844、390×500及PC1440内420已检查，通知→微信→返回草稿/内滚位置恢复；220/top90仅几何模拟，不称真机键盘通过。
+
+现有现场改为场景图、实际在场人物和分离的旁白/对白/行动；只使用已有world/revision授权素材，无图明确原创场景示意。原回执/unknown恢复、原真实顶部来信不变。Q e46规划/6456复核已准确归档，旧母04真实交付仍failed、2/4保持、16of18closed不动。PG55456/HTTP3275与Ego149已结束；无额外付费。仅现场呈现交付，角色自然性/任意复杂动作/场景生图与成果→机会→私聊全模型链仍待验。详见SCENE-STAGE-01报告。
+
+## 2026-10-12 · AI-GATEWAY-LIFECYCLE-01 / NPC-RESULT-ACK-01 / 独立Q审计
+
+业务a1ef737，production 57rloofdv/dpl_A6GBHJZJvu7PEsH5hhLDsCVifzz9 READY/正式别名已切换；889check/332边界/type0/build0，全真实PG247pass+5明确模型opt-in skip、第二补最终PG10/10，生产41迁移一致无SQL。公网8组既有paused合成存档phone/records/map同版本、4目录/旧档保留/跨owner404及health页面通过；0新模型/图/世界/生产业务写，仅GET可能有基础限流记录。PG55452已停无监听，HTTP/browser未启，B/Q范围资源均释放。只证明传输及有限ACK，不证明旧85s供应商慢/场景结构输出或自然完整体验已治愈。
+
+模型请求及响应体有统一硬截止，取消/EOF/显式错误/截断/无完整结束不可冒充成功；读取大小有限，晚响应/暂停yield/消费者退出时取消释放，不自动重付unknown。角色承接只认当前精确ID、无歧义姓名或有限局部占位，拒他人id/name碰撞及不可见来源；不从台词制造完成。主表SCENE-MODEL-STABILITY及SPACE-MATTER-AI-QA-02真实母项未完成，新授权尚待，语音暂缓。
+
+## 2026-10-12 · UI-BRANCH-UNIFY-02 / UI-MOBILE-KEYBOARD-02B / UI-PRESET-ART-02Q
+
+业务8c1b1b2，production 49udqtqr4/dpl_BZefRTayTxqx2kRHDA6gQkbzUgZK Ready，正式域名已切换；843check/331边界/type0/build0，41生产迁移一致无SQL。公网/api/health与possibilities200、19SVG200、dev preview404；390/1440实际7卡均同结构及体验说明、可见封面loaded/无横溢出。两本地paused官方夹具去重及6头像、Phone/outer220-offset90输入可见同页恢复844已过；非真机微信/审美满意/真实模型链验收。0模型图及生产世界创建，PG55452/HTTP3265等已停，Ego142 finish。
+
+预设/已建/草案/生成方向共享卡片；同一官方存档去重，仅精确官方身份映射原创主题封面/壁纸/NPC插画，用户照片优先。修复可见视口offset与短屏tips覆盖导致输入越界。真机微信键盘及审美仍待用户验收；不声称旧现场完整真实模型链通过。验收脚本错误与首次220短屏失败保留在专属报告。
+
 ## 2026-10-09 · GROUP-01 / GROUP-01I 群聊后端
 
 应用6890d17，Production e3b7xf81l / dpl_GdcLxLKhNRj8mRzTq6VhYA9sV1Pr READY，正式域名 https://parallel-life-nu.vercel.app 已切换。0038已应用，38/38生产迁移校验和一致；367check、56真实PG/3可选跳过及build通过；两身份实际群回合与领先现实4天的故事时刻模型通过。公网通用worker→真实群回复、显式替代任务重试/重复、成员退出重入、已读、跨群/账号隔离、暂停和私聊不污染通过（恢复23项、脚本修正后接续13项）。初版89b7403/co2pro3wr过期邀约失败保留，原任务仍failed，不自动重新付费；合成世界已暂停。仅后端，media=[]，群/现场UI另验收。规划及只读报告快照归档不代表官方剧本/锁屏/界面能力完成；LIB-04B业务排除。见[GROUP-01I](task-reports/GROUP-01I.md)。
@@ -806,3 +1076,165 @@ Q隔离390短长/PC480、750px恢复/history/坏图/上传失败与pending去重
 ## 2026-10-10 · SPACE-02A/B/C 限定地图
 
 2026-10-10 I最终集成：业务dad824f，Production6w2u15n9v / dpl_GnmSM8UFLNf9pNinQ49ZWsCUqMcg READY；0041生产已应用且41项checksum一致；653check/build、真实PG203通过/5可选跳过、正式既有合成世界11检查与390/1440实图/返回通过。0模型/图片/新生产世界/上传；测试世界paused=true。Ego125/126/127均已finish，各HTTP/PG已停止；限定技术完成，用户A19待体验。 正式 https://parallel-life-nu.vercel.app 已实际检查地图来源、明确旧起点建立、12分钟原子旅行、暂停原回执重放/恢复与跨账号404；手机390与PC420地图/入口/返回无横向溢出。新官方v2地图、未改v0明确建立可用；已发展旧档与普通自创目前空态。现场AI、完整任务、旅行后NPC/迟到后果与保留旧存档另开新版未交付。详见SPACE-02A/B/C报告与主表A19。
+
+## 2026-10-11 · XIAOAN-ACCEPT-01 接续地图与导演事项
+
+业务31410f3，Production r84dpeq2b / dpl_CqqV9ouLocs3HZvDZGPygZFB8TfD READY，正式 https://parallel-life-nu.vercel.app 已切换。41生产迁移只读校验一致，无SQL新增。680check/build、真实PG215总项=210pass/5明确可选skip通过；390长短/PC420实际事项卡→只读详情→正确来源聊天及地图/五App通过。正式旧合成paused世界phone/records/space同版本、四卡/旧存档、跨owner404/health200与390/PC地图和备忘录已验，0生产写/新世界/上传/模型/图。
+
+接续3ae8c52六个小安提交，修复通用地点/固定时长推断，允许明确开场空间草案；地图到达不冒称已赴约；导演有来源事项提议接真实事务/记录，权限/去重/自述与客观成果隔离。真实新模型空间/事项输出质量、现场客观事项进展和完整追求仍未验/未接线，不能将六个报告或本轮安全补齐称完整任务玩法。见XIAOAN-ACCEPT-01与总表03B/AI-QA。其他主目录在途修改排除。最终文档归档部署及资源状态存ignored handoff，不重复改tracked READY记录。
+
+## 2026-10-11 · NAR-03 / NOTES-WORLD-03B limited scene integration
+
+Business `eacb6ab` production `5kv0fkvr0` (`dpl_A4AskWAvsuzrYEARHVxZjzRe74PD`) READY; formal https://parallel-life-nu.vercel.app. Scene actions update validated authored near-term matters, source-backed attendance, observer-only facts and coherent phone projections. Existing saves preserved; four official new content versions are v3. No new migration: all 41 production checksums match. Final check 712/712; PostgreSQL 222 passed, 5 explicit model opt-in skipped, 0 failed; build successful. 390 long/short and 1440 PC local synthetic UI verified. Eight public readonly check groups passed, no new paid calls/images/worlds/uploads/production data writes. Generic completion rules, pursuit stages, actual rewards and real model quality remain pending. See task-reports/NOTES-WORLD-03B.md.
+
+
+## 2026-10-11 · NOTES-WORLD-03C 有限长期阶段与后续机会
+
+业务5ff3c09，production jwoouortv/dpl_CgoRiUNdjKdPiowYHL8Tu37xvN7F READY，正式https://parallel-life-nu.vercel.app；746check、237真实PG通过/5真实模型opt-in skip、build0、41生产迁移一致无SQL；公网8组只读验收、旧存档paused/版本/权限保持，0新增模型/图/世界/上传/业务写；390长短/1440PC420本机合成UI通过非真机/模型台词验收。PG55452/55471/55458及HTTP3268均已停，Ego141 finish；有限四v3近期成果→单后续→最多两里程碑，旧已完成无回填、自创/通用长线/兑现/真实模型留03D与AI-QA。
+
+完成真实近期现场事项后，备忘录呈现阶段来源和可参与后续，不替玩家开始；真实后续行动只再增一阶段。NPC仅承接实见成果，显式ack不变成印象记忆，屏蔽父/触发/来源同样阻断机会；长历史只保留有限真实来源，不带出未来事件。Q独立审计发现rawfacts机会泄露并保留失败断言复验。重复/失败/用户自述不假成功、旧存档/不可变起点保持。最终文档部署与公网核验另存ignored handoff，不循环追加tracked READY。
+
+
+## 2026-10-11 · SPACE-MATTER-AI-QA-01 有限提示修复与真实失败验收
+
+业务7740540，m8d9mk05q/dpl_3DvExQrCXNFYxByGqKUfHWkrvrnK READY且正式别名已切换，公网8组只读过。751check/237真实PG通过+5显式opt-in skip/build、41生产迁移一致无SQL变化；只改两planner、新capture与有界手工验收工具，没有本轮UI变更。
+
+1官方v3合成世界，文字保守上界11/12含unknown保留预算和明确手动重试，0图片/上传/个人资料，正常API已暂停。旧两partial与新版重试partial均保留，R17无成果/机会；原修后85秒unknown只存玩家输入，手动重试后task成功仅说明partial提交。跨App追问503/INVALID_PROPOSAL（具体子阶段未知），原receipt unconfirmed/worldv10未变。整链真实质量未通过，不将READY/单测改写为玩法达成。
+
+补充规则/候选时序/resultFocus提示已上线，但提示修复未解决实际循环。接续02先结构化目标终点/分步证据/NPC自身行动来源与事务，之后新授权实测成果→机会→第二行动。普通世界/通用长线03D仍待开发，语音暂缓。root/B本地PG停止，Q不运行DB/模型/浏览器，其他主目录WIP保留。最终文档部署及公众只读状态另存ignored handoff，不循环追加tracked状态。
+
+## 2026-10-12 · SPACE-MATTER-AI-QA-02 候选已上线，真实整链未通过
+
+应用6b629ba / Production po54gy1kk（dpl_J7khbwtNXTwrXGKqaAawsADDY92j）READY，正式域名已切换；826项检查/build0、真实PG现场6专项、此前全PG243pass+5 opt-in skip，生产41迁移一致，无新SQL，正式8只读检查通过。实现R17限定分步保存/有来源NPC动作/结果后续消费，开场独立人物presence真实验证通过。真实首步格式失败保留，最终合并动作unknown（响应体超时，HTTP200/85125ms），world v12无步骤，整体完成→阶段→机会→下一行动→私聊未通过；不得称完整体验上线验收。根保守15/18文字、1合成world，0图/个人资料；正常API已暂停并关闭批次，不沿用余量或重付unknown。主表母任务继续待验收，详见SPACE-MATTER-AI-QA-02报告；下一优先结构输出与响应稳定性。
+
+## 2026-10-12 · v13 累计来源连接与 v14 人物动作格式候选
+
+v13业务74fee47 / 3m7qj2yyh（dpl_CiV5v9bEAUE33Us6aJfhHzvyBU4d）READY；正式 https://parallel-life-nu.vercel.app 已切换且8组只读验收过。41/41生产迁移checksum一致，无新增SQL。仅完整source链验证后的scene_steps成果进入长期里程碑/后续机会；旧action路径保持，缺源/破坏真实action行不展示信用。v13最终1002check/build0、实际PG249pass/5明确opt-in skip及专项8通过；都是合成模型，不是供应商成功链。真实原说明仍failed/NPC kind非法7045ms，保守14/18，只有核对已存，未完成整体验收。
+
+v14新候选准确B1ced6b2/Q2dc590a，有限人物独立动作索引格式，普通说明无可执行动作；严格源/实际接收/事务保持。最终1062check/332边界/type0/build0，新adapter实际PG8/8通过（非供应商）。待提交发布READY、公网和剩余4真实有界验收；中途人物进入、只读分步UI、通用长线、私聊完整模型链仍未完成。
+
+### v14 实际发布与闭账
+
+业务3b48cc7 / g5b79qeri / dpl_Awjgu7bBAb6BP7Yu5c1TDcSrSNr9 READY，正式 https://parallel-life-nu.vercel.app。同源Git自动l7iiymfx8先READY并完成8组只读回归；有限NPC动作适配及来源保存接线已发布。最终1062check/build0、新adapter8真实PG通过、无SQL变化，41生产迁移保持一致。实际原说明仍failed9035ms，SCENE_STEPS receiver复合门；world v6仅核对已存，完整玩法验收未过。新账本1world/保守16of18，0图/个人资料，已正常API暂停全部世界并closed，余2不沿用。NOTES-STEP-UI-01只读分步显示另行开发，中途NPC进入仅计划，不把READY当成模型整链成功。
+
+## 2026-10-12 · NOTES-STEP-UI-01 只读分步与receiver诊断候选
+
+根公开契约7597399、B97cfb14/根2705080、Qd40748d/根34818fe集成；公开记录只有可信finite清单，不露raw输入/观察source。Notes列表分数、详情必需4及可选3、玩家交出与人物实收分开；未知/失败新输入保旧信用，缺源整表省略，legacy不误标0/4。receiver原五项拒绝顺序未改，只增加固定白名单诊断，没有额外模型调用或自动修复。
+
+最终1122check/332边界/type0/build0、实际PG249pass/5明确模型opt-in skip/0fail及8专项通过。Q390长短/PC420合成实际组件CSS布局通过，非线上或真机；无SQL/生产41迁移保持一致。待提交、READY/正式已存1/4与完整手机壳只读验证，当前真实16/18closed母链失败保持，不称完整玩法成功。
+
+## 2026-10-12 · NOTES-STEP-UI-01 正式发布收口
+
+根最终业务39085f7/itpqc4wwb/dpl_J4iPUFY2p1JDx8BDw4zxtzEc8vPF READY，正式别名已切换；1122check/build0、真实PG249pass/5明确模型skip、专项8/8，41迁移无SQL变化；正式paused真实已存1/4旧时间保持，公网8组/跨owner隔离通过。根完整线上手机壳390×844、390×500、PC1440内420无横溢出、只读无checkbox、展开可选/短屏末尾可达，0新模型/世界业务写，Ego146结束并恢复本次Cookie。仅有限R17清单/诊断技术交付，真实母03说明仍failed/closed16of18，不能称全NPC链成功。
+
+来源严格支持已存部分进度；可选记录不计入必需4步，人物收到与玩家交出独立。没有新SQL/模型额度，完整说明→交付→实收→机会→下一行动→私聊尚未通过供应商验收；SCENE-NPC-ARRIVAL-01中途进入/离开与NOTES-WORLD-03D通用长线仍未实现。A25待用户体验。最终文档归档版本及资源清理存忽略handoff，不重复生成跟踪回执。
+
+## 2026-10-12 · SCENE-RECEIVER-04 显式接收者修复候选
+
+B61bfdab→ad9f657，Q62d2b7d→b094331；新indexed-observations-v3只有显式所选matter实际allowedReceivers receiverIndex，不猜唯一人/补name/quote；旧wire保持严格，domain实收/source/whole完成边界不改。根实际PG10通过含v3说明→实收→机会→实际私聊adapter/事务/幂等，都是明确合成输出，不代表供应商自然完成。最终1196check/332boundary/type0/build0、全PG251pass+5明确model skip；41生产迁移本轮只读checksum一致，无新增SQL。
+
+待提交READY/public。上一批03 closed16of18，所有测试世界正常暂停，不沿用余2；本轮新2world/18文字授权已提请未回复，0新付费/生产世界业务写/图/私档。SPACE-MATTER-AI-QA-04继续待真实验收，现场人物中途进出/通用长线/真机仍待做。
+
+### SCENE-RECEIVER-04 正式发布与验收范围
+
+业务cc1057d/moc1ee02x/dpl_o986pEAVXDywZNUiPoexcryHjxnF READY，正式https://parallel-life-nu.vercel.app已切换。1196check/type0/332boundary/build0、真实本地PG251pass+5明确model opt-in skip/专项10、41生产迁移只读hash一致；正式旧paused世界1/4首次时间保持、8组只读投影/跨owner隔离过，0新增paid/正式世界写/图/私档。PG55452正常停无监听，无浏览器资源。本轮授权未回复，旧03 closed16of18不沿用；仅v3接收人格式与独立反例技术交付，不称实际供应商说明治愈/自然全链完成。
+
+没有本轮真实付费验收，母04维持待授权/供应商验收；42独立反例及实际PG完整合成保存链不代表供应商自然表现。下一先新授权下验证单独说明→交付→实收→机会→下一行动→私聊，若失败记录具体安全诊断，不自动重付/补成功。
+
+## 2026-10-12 · 04真实说明通过与接收固定诊断候选
+
+新授权04 1world，开场/核对/说明真实succeeded（Notes2of4/SQL先前来源保持），交付failed5723ms/Receiving lacks actual handed objects，保守8of18，未接收/完成/机会。根同顺序原四条件仅增加固定码，不暴露raw/放宽规则；1201check/type0/build0、原本地PG10过、B只读diff通过。无SQL，41生产迁移一致。待READY后仅一次原failed手动复测，不自动循环。自然第三人称NPC与导演混动作环境仍待修。
+
+## 2026-10-12 · 委派集成 NPC完整段与引用信用修复
+
+用户指定辅助接管唯一集成/付费/发布，原主任务转讨论；I为codex-npcquote04b-01a11a84-20261012。技术业务413b3ae8e9ca4050a398d3ff41341faf0c9fa9f0，eiublxcrc / dpl_xM8G5pkWcinSbQZbWxBBCWYtEfNL READY，正式aliasAPI精确指向新部署；1311check/type0/332boundary/build0、全真实本地PG252pass+5明确model opt-in skip、引用rollback专项11；Q59原引用红测及独立195pure通过，41生产迁移只读checksum一致无SQL。公开8组旧paused保存/权限/投影通过，root/Q本地资源停止，I55471正常停无监听，无新UI源码变更。
+
+新NPC indexed-npc-actions-v2段数组/quoteIndex只保完整原段，不trim或补我/物件，legacy经典/v1严格兼容且内句号引用信用漏洞由ef60源全文界限修复，player/NPC共用；任务回滚真实数据库验证。不把技术发布当模型整链通过。
+
+READY后原handover仅一次manual复测实际failed8485ms、固定Unsupported player execution quote，world v8仍真实2/4，原review/explain源保持，唯一04权威账本10→12/18/open/1world，0图/个人资料。不是上一receiving_condition重复，不知八项具体子因，不猜raw。随后cce1acf只同原8条件/顺序新增固定player_step_condition/trustedpattern编号诊断，不改任何regex/接受规则：新9+相关157pure/type0/332过，完整1320check/build0、真实事务专项11过、生产41校验再次一致，待Q只读确认后发布READY再原任务最多一次manual复测。root主WIP保留未纳发布；旧03closed不动，剩6不扩，最后必须全部world正常APIpause并closed。
+
+
+## 2026-10-12 · WORLD-PUBLISH 首期基础规则
+
+基础业务74de967a4cebf9e3bec543c25aafccc99ea17b2f；Production18s9pbvjt / dpl_5vFByZhSwYmUmxgsHEYaJxhTdnKV READY，正式https://parallel-life-nu.vercel.app精确alias同部署。1541check/type0/339边界/build0；生产41迁移checksum只读一致，无新SQL。公网health/possibilities200，私有源归档/docs和未接publisher入口404。CLI手动部署返回Not authorized，Git自动部署成功经commit状态与Vercel精确alias双核，不称手动操作成功。根PG55476已正常停止无监听。
+
+已交付仅：版本化内容、隐藏/公开与历史/未来静态边界、阶段/前置/故事窗口校验，安全玩家编辑预览和未支持能力门；独立内部身份helper与后台设计文档。B102+Q92+根身份12=206专项全过，原6安全红例断言保留已修复；Q身份原12与5独立stdin反例通过，无新实质源码缺陷。快照重建撤权不等于在线自动重载；后续每次HTTP/数据库事务仍须当前权限校验。
+
+后台真实保存/发布、员工登录与cookie、发布素材、实际编辑UI、动态玩家实例化和试演未完成，新供稿仅私有归档，不称新作品已可体验。根仅部署基础，0新增员工配置/付费模型/图/上传/生产世界。B STORE0042方案已冻结给独占本地实施，生产未应用42。Q身份报告98f316d归档继续文档部署，最终非凭证交接存ignored.local/world-publish-foundation-handoff.json。
+
+
+## 2026-10-12 · 文字世界后台闭环
+
+2026-10-12 根限定交付：206c8bed0f8cd2909d561c6e37d9a4f0c4b9caa9（小安836ea2c、B存储/43/45、Q编译/目录及根接线修复）Git自动5LxUL2fJYMqnRk9gcihf28ANRvVv READY，正式alias准确匹配。生产45checksum验证；check1642/type0/377边界/build0，完整真实库315pass+5明确模型opt-in skip。首次全库未传3专属端口环境，在连接前守卫拒绝；显式三TEST_PORT=55476后完整315绿，未放宽守卫。线上2合成存档（trial/player）、3真实角色回合全提交，按2/次保守占6/12，旧饮品设定和新回合先后决策承接成功；重复进入同world、历史时间各异、trial消息不混player、跨owner404。12非模型权限/页面probe，390/1440人物保存及390trial现场诚实空态通过。测试work已下架/两world paused/账本closed，无个人资料/图/上传。下架后本人目录保精确原卡片/world/进度v2，新guest不见且直接world404，0新增world/model。报告AUTH-HTTP/E-INTEGRATE/G。仅限定范围完成，不把有限样例当全部剧情成功。
+
+入口：https://parallel-life-nu.vercel.app/workbench 与 /published。员工凭证仅在主目录忽略文件中，不提交或输出。原编剧完整稿仍未正式上架；母任务保留。文档归档后的最终SHA/alias证据存忽略交接文件。
+
+待接续：SOURCE-PREP原供稿差异仍需修订确认；候选剧情与章节时间线运行适配、发布素材manifest及头像/封面/场景图读取、全部字段可视化编辑（均未领取，依现有安全合同）。WORLD-PUBLISH-VERSIONS-LATER仍后置；目录仅继续每作品最近实际存档，不宣称所有版本切换。原现场事项/NPC行动/后续机会旧任务保持原记录，本批不替代旧任务验收。
+
+
+## 2026-10-13 - Screenplay first public release
+
+Public version 2 is visible at /published. Eight actors and places, three stages, fourteen optional nodes, fourteen staggered historical/opening messages; eight original portraits and cover. Production 49 migration checksums verified; check 1749/1749, build success, PostgreSQL 391 pass/0 fail/5 explicit model opt-in skips. Real QA: 2 isolated saves, at most 20/24 text requests, no uploads/new image/personal data; actual invitation, travel20m, wait19:30, worker scene, partial action progress and subsequent private chat continuity passed. Both saves paused. Public discovery/cover, owner and trial404, manual director403, idempotent resume and matching projection versions checked. 390/1440 layout checked, no device keyboard claim. Original failures preserved; full original screenplay and remaining product work not complete. Exact final SHA/READY/alias evidence is in ignored script02-final-handoff.json. See WORLD-PUBLISH-02-INTEGRATE and plot guide.
+
+
+## 2026-10-13 - Markdown authoring and map followup
+
+514344b09d09a2a8746b4adfa45ce6bb258cb20a / dpl_FTqcvGEyxJvban9r579iXeWDmRLD READY; exact formal alias matched. 1827 check pass, 404 boundaries/type0/build success; production49 checksums reverified, no new SQL. Public staff login/ZIP manuscript preview/container provenance, existing real screenplay listing/cover and health200 checked; production preview not applied to original work. Parser/ZIP/source review, native modal/version guards and places/routes/opening-message authoring are delivered. Local real HTTP draft r1-to-r3/full-content checks passed up to required actual trial; fresh 12-text/2-save synthetic QA scope still awaits user response, old20/24 closed. No new paid project calls/worlds/images. Source remains editable draft, not automatic full-story publication; private raw documents not pushed. Pending work stays in DEVELOPMENT; guide WORLD_PUBLISH_MD_GUIDE. Final evidence ignored md-final-handoff.json.
+
+
+## 2026-10-13 · 文稿真实发布验收与人物事实编辑
+
+业务bfedd54（B明确L5关系/候选说明截断e261ff6、root人物页事实文字编辑），Q只读报告0257bc1/6ade8cd归档。完整check1835/1835、0失败/0跳过、404边界/type0/build成功；正式49迁移checksum本轮核验，无新增SQL。
+
+新授权独立批次1临时作品/2存档，5次会发起模型的操作保守预留10/12文字，0图/私人资料。项目实际来信节点、trial角色回合、精确试演证据、发布v1、player独立version0、真实来信/两轮317承接、跨owner/trial404/同command恢复/下架继续通过。原传输失联保留后只读精确source核对，无重付；两存档暂停、临时作品下架、账本closed。仅备注节点未触发、playerCompleted=false；不冒充完整任务成果/所有剧情或AI自动扩写。
+
+本地真实UI两事实改字→保存r1→刷新读回全量deepEqual仅text变化，知情/日期/可见范围/引用不变；390无横溢出、编辑宽276/原checkbox保持，1440玩家手机420居中。角色页原显示列表现可原地编辑并跳剧情新增。当前发布开场是系统确定性初始化，运行时角色/合格剧情/现场才调模型；任意Markdown自动AI整理完整世界仍待做。
+
+本批Git部署的最终READY/正式别名SHA与公网新入口验证另存忽略md-live-final-handoff.json，不以排队算完成。任务仅正式验证后由主登记目录DEVELOPMENT更新，保旧原稿全部结局/长线任务/图片/真机/自动世界准备待办。
+
+
+## 2026-10-13 · 项目 Agent 文稿整理与地图收口
+
+正式业务58d0d018de44fc8ed2a19c3ef29230f3a10c8d2b / dpl_DM6S46QvR8pokxtFGPjW5VuSWRHB READY，正式https://parallel-life-nu.vercel.app精确同SHA；health/workbench/published200。生产50迁移checksum已复核（本批0050私有整理记录，旧世界未重建）。根最终1893/1893 check/type/边界与build通过；新增整理真实PG8/8，综合数据库385通过/5opt-in跳过/1专属端口守卫随后明确端口14/14修复；地图新增5+原11=16真实PG全过。不将首次环境守卫失败写成整套一次全绿。
+
+MD/ZIP文稿 → 项目自己的整理Agent → 原稿/补充/变化双核对 → 保存 → 私有试演 → 发布 → 玩家独立存档已在正式环境实测。整理独立YIBU_PREPARATION_MODEL=gpt-4.1，日常NPC保持原YIBU_TEXT_MODEL。每整理至多两次，只有已收到的明确校验错误允许一次纠正；unknown恢复仅查原记录。原稿、提案、员工权限隔离，有效草稿才能采用，绝不自动发布。
+
+新授权合成批次共5次整理+2次NPC，保守11/12文字、2/2测试存档。前4份提案失败保留，第5份结构/核心来源校验通过；真实UI双核对采用、原AI内容原样保存，trial263与player317相互隔离、两条不同日期历史、第二访客目录/跨owner和trial404/重复进入同world/投影一致通过。临时作品已下架，两存档暂停，账本closed；无个人资料/上传/图片生成。开场由系统按已核对AI稿初始化，非开发者手写最终世界；初始化本身0模型，不冒称每次进入都重新生成。
+
+边界：原稿仍可能细节遗漏或未充分标注补充，年龄只notes、旧约定遗漏等已列PUBLISHER-AI-SOURCE-COVERAGE-02。ZIP图片自动绑定、长文分段、未知玩法、全面多题材覆盖与真机键盘不属于本批已验。人物/地点/历史/两阶段候选的有限合成样例通过，不等于整篇同事剧本全部分支验完。
+
+地图已去顶部搜索/探索附近/无实际内容分类，保真实已有地点与前往入场；390/1440公网已检查。县城旧导演unknown不再无限阻塞玩家明确地点操作，实际在途锁和晚到版本栅栏保留；现场开场与行动提示分开，实际结果仍经校验。该后续公网最终验收已由执行者完成：原旧存档只读busy=false且版本/位置不变；正式测试县城前往旧车间18分钟→进入→最后1次真实开场成功，环境持久化，390/1440检查，暂停存档并恢复会话。完整证据见MAP-COUNTY-BUSY-01；其独立模型4次（前2失败/后2成功），不计入根已关闭11/12批次。文档归档最终SHA/READY另存忽略prep-final-handoff.json。
+
+
+## 2026-10-13 / WRITER-UX-12-HEADER
+
+6c725e5 deployed READY (dpl_3B6Ca4DJmuiKdkgumAhJ4j8U2nHf), formal https://parallel-life-nu.vercel.app verified on desktop/mobile. Compact toolbar, consolidated checks/time panel, inline collapsible failures. 2118 check, build, 50 migration checksums; no SQL/model calls. Health/workbench 200 and anonymous works 401. See task-reports/WRITER-UX-12-HEADER.md.
+
+
+## 2026-10-14 · 指定开场与人物原文编辑
+
+正式业务40b947b007be57de49875b7358be12183bb93055 / dpl_DA9JUXm7yXkAF8NTRnZ34EBo9KyN READY，formal https://parallel-life-nu.vercel.app精确同SHA，CI38516307957 check/database成功；health/workbench200、匿名works401。生产57全部checksum核验，旧世界未重建。2267check/63真实PG开场story/world/phone专项/build/format通过。
+
+编导可选择同事件作为开场，不复制剧情；未呈现前真实skip/expiry/decline与同轮expiry/exclusion释放后续，不把呈现算完成；发布前拦不可达因果、保真正可达日期/地点/ANY/阶段成员clock前提及角色知情。整理保作者开场key不被模型改掉。人物公开介绍/五维精确原文保存，私密L5不写公开关系；旧摘要保留不自动迁移。PC1500/mobile390实际六字段及开场选择正文保存/读取full deepEqual与截图通过，Ego177完成，本地服务与PG停。
+
+辅助18独立人类授权2新存档/6文字范围已验收并closed：复制此前真实项目Agent整理的合成稿，私有试演和发布新访客手机均实际指定show_change真实NPC开场，来源保存，v1/presented1且outcome null/未完成。历史/两朋友圈390/1440显示，目录重复进入同存档无再开场，跨私有404；测试作品下架/freshguest不可见，两存档暂停/cookie精准恢复/Ego178完成。root0新模型/世界，不混旧17/24/2或辅助17账本；没有额外玩家私聊，不宣称从零新文稿一次完美或完整连续剧情。长稿NPC上下文整组省略、历史质量/标签、持续多拍、现场新模型未整合等保持任务表。
+## 2026-10-14 · CHARACTER-HISTORY-MEDIA-24 历史微信图片与 MP4
+
+`35bc3bc` 与修复 `b631e1d` 已部署到 Production `dpl_D3468fDmGT5u9CqML393ajCPc8fP` READY，正式别名 `https://parallel-life-nu.vercel.app` 已核。编剧历史微信新增私有图片与不超过 50 MB 的 MP4，保存、试演、发布和玩家微信使用同一附件引用；跨玩家读取拒绝。生产迁移 0060、0061 已应用并校验 61/61；新私有桶限制 MIME 和大小。`npm run check` 2335/2335、`npm run build`、真实 PostgreSQL 专项通过；公网合成 MP4 的上传、试演、临时发布、玩家视频加载和 Range 206 通过，测试作品已下架删除、存档暂停。大视频弱网续传与图片公网实物抽样仍待，见 [报告](task-reports/CHARACTER-HISTORY-MEDIA-24.md)。
+
+## 2026-10-14 · CHARACTER-CAPACITY-23-I / CHARACTER-PASTE-23
+
+`4f273e5`、`275da88`、`9902287` 已部署到 Production `dpl_2zvPE8eSvDC1E3if4TKyPCYSJtth` READY，正式别名已核。人物五维长文上限提升至 16,384 字符；当前人物可粘贴/导入 Markdown，逐项预览核对后填入，未知章节阻断、重复导入不追加；事件编辑移除手动地点入口。集成 `check:boundaries`、typecheck、19 项聚焦和 build 通过；执行树完整 2329 项检查与真实 PostgreSQL、PC/390px 验收通过。无新增迁移；部署前生产 59/59 校验和一致。公网健康 200、工作台 200、匿名作品接口 401。
+
+
+## 2026-10-15 · SCRIPT-LIBRARY-25-I 剧情与地点库
+
+业务 `5484b4a6eb111e972ec829c89cf22eadac047f95` 已 Production READY，部署 `parallel-life-ox85v2sal-limengzhe27-boops-projects.vercel.app`，正式 https://parallel-life-nu.vercel.app/workbench 已真实浏览器验证。生产 62/62 迁移校验和一致；check 2377/2377、build 与真实 PostgreSQL 33/33 通过。Markdown/ZIP 默认按格式解析，保留事件全文、多地点及明确开场；作者核对后填入，不默认调用 AI 或抽取硬条件，重复导入不追加。PC1440/mobile390已检查并修复长稿识别按钮被滚动区遮挡。
+
+《渣男体验》在版本冲突保护下从最新草稿116保存为117：1开场+17事件、16地点（14原稿+2保留）；原有79历史消息、24朋友圈及人物/图片完整保留，原稿18块逐项一致。实际作品保持草稿、没有发布；本轮0模型/0新世界。新地点地图揭示/导航与连续多拍事件尚待单独验收，见 SCRIPT-LIBRARY-25-I 报告与总表，不能把导入成功当成全部分支已玩通。
+
+## 2026-10-15 / WRITER-LIBRARY-28 and author-source preservation
+
+Production 5cb35db25f1b35faa6e9685ba90d881133f47593, dpl_9m2ak2jhEhAPojewbw3X8mztH1b1 READY; formal https://parallel-life-nu.vercel.app verified. Production67/67 migration checksums. Complete check2417/build and integrated real PostgreSQL46 pass. One event library replaces duplicate details; optional prerequisites and legacy arrangements start closed. Names-only places and optional same-work private scene pictures are connected to map/scene reads and deterministic default navigation. No authored original event/history text erased.
+
+Actual manuscript draft118 remains unpublished: 18 event blocks, 79 history messages, 24 Moments, 16 places, 14 scene pictures. Public 1440/390 checked. Synthetic publication/player acceptance preserves both speakers, history attachment, curated avatar, three-image Moments and identity visibility; scene image302->200/default actual travel10m/start retry sameworld verified with zero model calls. Test work downlisted/soft-deleted and three QA saves paused. Complete director model progression and custom inline avatar legacy migration remain tracked separately; do not infer them from this scoped deployment.

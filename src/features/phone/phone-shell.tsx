@@ -31,6 +31,7 @@ const apps: Record<PhoneApp, string> = {
   photos: '相册',
   calendar: '日历',
   notes: '备忘录',
+  records: '人生记录',
   scenes: '现场',
   map: '地图',
 };
@@ -198,6 +199,12 @@ function LifePhone({
     setRoute(activePhoneRoute(readRoute(hash, worldId)));
   }
   function back() {
+    if (route.panel === 'scene' || route.app === 'scenes') {
+      const next = homeRoute;
+      history.replaceState({ ...history.state, plPhone: null }, '', routeHash(worldId, next));
+      setRoute(next);
+      return;
+    }
     const entry = history.state?.plPhone;
     if (entry?.worldId === worldId && entry.to === location.hash) history.back();
     else {
@@ -461,6 +468,7 @@ function LifePhone({
             ref={panelScroll}
             className={styles.panelPage}
             data-phone-panel
+            data-scene-view={route.panel === 'scene' ? 'true' : undefined}
             onScroll={(event) => {
               if (!locked)
                 positions.current.set(`panel:${route.panel}`, event.currentTarget.scrollTop);

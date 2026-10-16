@@ -19,7 +19,11 @@ export function validateConsistencySpec(input: unknown): FaceConsistencySpec {
     });
   }
   const spec = input as Partial<FaceConsistencySpec>;
-  if (!spec.referenceAssetId || typeof spec.referenceAssetId !== 'string' || spec.referenceAssetId.trim().length === 0) {
+  if (
+    !spec.referenceAssetId ||
+    typeof spec.referenceAssetId !== 'string' ||
+    spec.referenceAssetId.trim().length === 0
+  ) {
     throw Object.assign(new Error('INVALID_CONSISTENCY_SPEC: referenceAssetId is required'), {
       code: 'INVALID_COMMAND',
     });
@@ -27,16 +31,20 @@ export function validateConsistencySpec(input: unknown): FaceConsistencySpec {
 
   const threshold = typeof spec.fidelityThreshold === 'number' ? spec.fidelityThreshold : 0.8;
   if (threshold < 0.5 || threshold > 1.0) {
-    throw Object.assign(new Error('INVALID_CONSISTENCY_SPEC: fidelityThreshold must be between 0.5 and 1.0'), {
-      code: 'INVALID_COMMAND',
-    });
+    throw Object.assign(
+      new Error('INVALID_CONSISTENCY_SPEC: fidelityThreshold must be between 0.5 and 1.0'),
+      {
+        code: 'INVALID_COMMAND',
+      },
+    );
   }
 
   return {
     referenceAssetId: spec.referenceAssetId.trim(),
     fidelityThreshold: threshold,
     preserveFacialFeatures: spec.preserveFacialFeatures !== false,
-    ageDeviationMaxYears: typeof spec.ageDeviationMaxYears === 'number' ? spec.ageDeviationMaxYears : 5,
+    ageDeviationMaxYears:
+      typeof spec.ageDeviationMaxYears === 'number' ? spec.ageDeviationMaxYears : 5,
   };
 }
 
@@ -69,13 +77,17 @@ export function assertGenuineCharacterMedia(asset: {
 }): void {
   if (asset.isMockPlaceholder) {
     throw Object.assign(
-      new Error('FORBIDDEN_GENERIC_SUBSTITUTION: Cannot masquerade generic stock photo as character generation'),
+      new Error(
+        'FORBIDDEN_GENERIC_SUBSTITUTION: Cannot masquerade generic stock photo as character generation',
+      ),
       { code: 'INVALID_COMMAND' },
     );
   }
   if (asset.origin === 'generated' && asset.referenceAssetIds.length === 0) {
     throw Object.assign(
-      new Error('UNTRACKED_REFERENCE: Generated character portrait must track source reference asset ID'),
+      new Error(
+        'UNTRACKED_REFERENCE: Generated character portrait must track source reference asset ID',
+      ),
       { code: 'INVALID_COMMAND' },
     );
   }

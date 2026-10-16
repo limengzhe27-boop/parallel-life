@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { AppointmentWaitPhoneActions } from '../../../contracts/appointment-wait.ts';
 import type { GenesisSourceSchema } from '../../../contracts/world-records.ts';
 import type { PlayerRecords } from '../../../contracts/world-records.ts';
 import type { PhoneApp } from '../navigation.ts';
@@ -25,6 +26,13 @@ export type PhoneMessage = {
   links?: PhoneLink[];
   photo?: PhonePhoto;
   mediaType?: 'image' | 'video';
+  /** An authored historical chat attachment, read through this world's media authorization. */
+  attachment?: {
+    kind: 'image' | 'video';
+    assetId: string;
+    label?: string;
+    url: string;
+  };
 };
 export type PhonePhoto = {
   sourcePersonId?: string;
@@ -52,6 +60,13 @@ export type PhoneInvitation = {
   links?: PhoneLink[];
 };
 export type PhoneNote = {
+  origin?: {
+    kind: 'publication_opening';
+    workId: string;
+    publicationVersion: number;
+    draftVersion: number;
+    contentHash: string;
+  };
   id: string;
   title: string;
   text: string;
@@ -96,7 +111,7 @@ export type PhoneAppsData = {
   referenceTime?: string;
 };
 export type PhoneActionReceipt = { status: 'accepted' | 'committed'; taskId?: string };
-export type PhoneActions = {
+export type PhoneActions = AppointmentWaitPhoneActions & {
   enterScene?: (appointmentId: string) => Promise<PhoneActionReceipt>;
   setWallpaper?: (url: string) => void;
   uploadPhoto?: (file: File, commandId: string) => Promise<PhoneActionReceipt>;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 test('AUD-06: 基础资料六字段合并长度超过 500 字限制必须准确拦截', () => {
   const fields = ['姓名', '生日', '出生时间', '所在城市', '职业', '家乡'];
-  
+
   // 模拟输入超长内容（例如职业和家乡填入较长描述）
   const normalValues: Record<string, string> = {
     姓名: '张三',
@@ -52,7 +52,10 @@ test('AUD-07: 资料带入授权严格由可见事实过滤，彻底消除不可
   const finalAuthorizedIds = selectedFactCandidates.filter((id) => visibleFactIds.has(id));
 
   assert.deepEqual(finalAuthorizedIds, ['fact-1', 'fact-49', 'fact-50']);
-  assert.ok(!finalAuthorizedIds.includes('fact-999-orphan'), '未在界面呈现给用户的事实绝对不能被默认授权带入');
+  assert.ok(
+    !finalAuthorizedIds.includes('fact-999-orphan'),
+    '未在界面呈现给用户的事实绝对不能被默认授权带入',
+  );
 });
 
 test('AUD-02: 排队超时状态机能准确判定排队延迟与超时，不无限计时误导', () => {
@@ -135,4 +138,3 @@ test('AUD-10: 世界事件 Payload 超过 64KB 限制必须拦截', () => {
   };
   assert.throws(() => validateEventSize(hugeEvent), /EVENT_TOO_LARGE/);
 });
-

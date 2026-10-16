@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const retiredStar: OfficialLifePack = {
   card: {
     id: 'retired-star',
-    version: 2,
+    version: 3,
     title: '退圈后的顶流',
     hook: '你说不回来了。今晚所有人，又在等你出现。',
     identityLabel: '28岁 · 搬到海边的退圈歌手',
@@ -275,6 +275,34 @@ export const retiredStar: OfficialLifePack = {
         key: 'life',
         title: '海边的小事',
         text: '钥匙、咖啡、总忘洗的杯子。程晓的小店在同一街区，母亲上周寄了家里东西。这段生活不必每次都回到聚光灯里。',
+      },
+    ],
+    matters: [
+      {
+        key: 'meet_lusheng',
+        span: 'near_term',
+        title: '回应陆声的演出邀请',
+        description: '陆声在旧城演出场地等你，需要当面厘清海报署名与是否合唱的安排。',
+        relatedPlaceKey: 'old_venue',
+        relatedActorKeys: ['lusheng'],
+        relatedInvitationKey: 'show',
+      },
+      {
+        key: 'dinner_chengxiao',
+        span: 'near_term',
+        title: '去程晓的小店吃饭',
+        description: '程晓发来晚餐邀请，去小店吃顿便饭，感受海边街坊平静真实的烟火气。',
+        relatedPlaceKey: 'cheng_shop',
+        relatedActorKeys: ['chengxiao'],
+        relatedInvitationKey: 'meal',
+      },
+      {
+        key: 'quiet_music_life',
+        span: 'pursuit',
+        title: '建立不被聚光灯绑架的创作生活',
+        description: '退圈不是放弃表达，在海边住处以自己的节奏写歌弹琴，过真实平静的生活。',
+        relatedPlaceKey: 'seaside_home',
+        relatedActorKeys: ['songqing'],
       },
     ],
   },

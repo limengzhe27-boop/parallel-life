@@ -1,3 +1,6 @@
+import { resultAckPrefix } from '../domain/matter-progression.ts';
+import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
+import { witnessedMatterResult } from '../domain/scene-matter-policy.ts';
 import { DomainError } from '../domain/errors.ts';
 import type { WorldState } from '../domain/types.ts';
 import type { ActorContext } from './ports.ts';
@@ -58,6 +61,7 @@ export function actorContext(
   const fits = () =>
     JSON.stringify(context).length <= ACTOR_CONTEXT_LIMIT &&
     JSON.stringify({ context, userText }).length <= ACTOR_INPUT_LIMIT;
+  if (!fits()) context.actor.persona = legacyPersonaExcerpt(actor.persona, userText, 2000);
   if (!fits())
     throw new DomainError('INVALID_COMMAND', 'Character identity exceeds context budget');
   const words = terms(userText);
@@ -87,6 +91,47 @@ export function actorContext(
   };
   const facts = state.facts.filter(
     (fact) =>
+      !fact.text.startsWith(resultAckPrefix) &&
+      (!(fact.id.startsWith('matter_result:') || fact.id.startsWith('pursuit_result:')) ||
+        (state.matters ?? []).some((m) => {
+          if (
+            m.visibility !== 'player_visible' ||
+            m.worldId !== state.id ||
+            blockedSources.has(m.id)
+          )
+            return false;
+          if (fact.id === `matter_result:${fact.sourceEventId}:${m.id}`)
+            return (
+              (m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps') &&
+              m.evidence.eventId === fact.sourceEventId
+            );
+          if (fact.id !== `pursuit_result:${fact.sourceEventId}:${m.id}`) return false;
+          const stages =
+            m.pursuitProgress?.milestones.filter((s) => s.eventId === fact.sourceEventId) ?? [];
+          return (
+            stages.length > 0 &&
+            stages.every(
+              (s) =>
+                !blockedSources.has(s.matterId) &&
+                state.matters?.some(
+                  (t) =>
+                    t.id === s.matterId &&
+                    t.worldId === state.id &&
+                    t.visibility === 'player_visible' &&
+                    (t.evidence?.kind === 'scene_action' || t.evidence?.kind === 'scene_steps') &&
+                    t.evidence.eventId === s.eventId &&
+                    t.evidence.eventVersion === s.eventVersion,
+                ),
+            ) &&
+            !state.matters?.some(
+              (o) =>
+                o.opportunity &&
+                o.source.kind === 'director_proposal' &&
+                o.source.eventId === fact.sourceEventId &&
+                blockedSources.has(o.id),
+            )
+          );
+        })) &&
       !blockedSources.has(fact.id) &&
       !blockedSources.has(fact.sourceEventId) &&
       (fact.visibility.kind === 'world' ||
@@ -111,6 +156,52 @@ export function actorContext(
   );
   for (const { item } of rank(appointments, (item) => item.title))
     append(context.appointments, item, 1500);
+  context.matters = [];
+  for (const matter of (state.matters ?? [])
+    .filter(
+      (m) =>
+        m.worldId === state.id &&
+        m.visibility === 'player_visible' &&
+        m.relatedActorIds?.includes(actorId) &&
+        !blockedSources.has(m.id) &&
+        (!m.opportunity ||
+          context.facts.some(
+            (f) =>
+              f.kind === 'canonical' &&
+              !blockedSources.has(m.opportunity!.pursuitId) &&
+              !blockedSources.has(m.opportunity!.triggerMatterId) &&
+              [m.opportunity!.pursuitId, m.opportunity!.triggerMatterId].every((id) =>
+                state.matters?.some(
+                  (parent) =>
+                    parent.id === id &&
+                    parent.worldId === state.id &&
+                    parent.visibility === 'player_visible',
+                ),
+              ) &&
+              m.source.kind === 'director_proposal' &&
+              f.id === `pursuit_result:${m.source.eventId}:${m.opportunity!.pursuitId}` &&
+              m.source.kind === 'director_proposal' &&
+              f.sourceEventId === m.source.eventId &&
+              !blockedSources.has(f.id) &&
+              !blockedSources.has(f.sourceEventId) &&
+              f.visibility.kind === 'actors' &&
+              f.visibility.actorIds.includes(actorId),
+          )) &&
+        !('eventId' in m.source && blockedSources.has(m.source.eventId)) &&
+        !(m.evidence && 'eventId' in m.evidence && blockedSources.has(m.evidence.eventId)) &&
+        ((m.evidence?.kind !== 'scene_action' && m.evidence?.kind !== 'scene_steps') ||
+          !['completed', 'blocked'].includes(m.status) ||
+          Boolean(
+            (() => {
+              const f = witnessedMatterResult(state, m, actorId);
+              return f && !blockedSources.has(f.id) && !blockedSources.has(f.sourceEventId);
+            })(),
+          )),
+    )
+    .slice(-6)) {
+    const { id, title, description, span, status, assertion } = matter;
+    append(context.matters, { id, title, description, span, status, assertion }, 2000);
+  }
   for (const choice of (state.choices ?? []).filter((item) => item.actorId === actorId).slice(-3)) {
     if (blockedSources.has(choice.id) || blockedSources.has(choice.sourceEventId)) continue;
     const visible = structuredClone(choice);
@@ -145,6 +236,9 @@ export function actorContext(
 
   if (memoryRecords.length > 0) {
     const scoped = memoryRecords.filter((record) => {
+      // Runtime progress is parsed into a scoped frame, never exposed as raw memory prose.
+      if (record.key?.startsWith('actor_event_progress_v1:')) return false;
+      if (record.text.startsWith(resultAckPrefix)) return false;
       if (record.ownerId !== state.ownerId) return false;
       if (record.branchId && record.branchId !== state.id) return false;
       if (record.scopeType === 'branch')

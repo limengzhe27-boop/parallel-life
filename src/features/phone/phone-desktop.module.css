@@ -46,24 +46,40 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 3px;
   min-height: 44px;
   min-width: 0;
-  padding: 0 3px;
-  border: 0;
-  background: transparent;
+  padding: 8px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: inherit;
   text-align: left;
-  text-shadow: 0 2px 12px #0009;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease;
+}
+.identity:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.identity:active {
+  transform: scale(0.98);
 }
 .identity > span {
   font-size: 11px;
-  color: #ffffffc7;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.02em;
 }
 .identity strong {
-  font-size: 21px;
+  font-size: 19px;
+  font-weight: 600;
   line-height: 1.35;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.3px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -72,15 +88,20 @@
 }
 .storyTime {
   align-self: flex-start;
-  margin-top: -10px;
-  padding: 3px 8px;
-  border-radius: 8px;
-  background: #17232a;
+  margin-top: -6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  line-height: 1.5;
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .widgets {
   display: grid;
@@ -92,11 +113,21 @@
   min-width: 0;
   height: 170px;
   padding: 17px;
-  border: 1px solid #ffffff30;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 25px;
   overflow: hidden;
   text-align: left;
-  box-shadow: 0 5px 20px #0002;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.widgets > button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+}
+.widgets > button:active {
+  transform: scale(0.98);
 }
 .calendar {
   display: flex;
@@ -188,8 +219,8 @@
 }
 .utilities {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 .utilities button {
   min-width: 0;
@@ -204,6 +235,13 @@
   background: transparent;
   font-size: 12px;
   text-shadow: 0 1px 6px #0009;
+  transition: transform 0.14s ease;
+}
+.utilities button:hover {
+  transform: translateY(-2px);
+}
+.utilities button:active {
+  transform: scale(0.95);
 }
 .utilityIcon {
   width: 57px;
@@ -211,7 +249,9 @@
   display: grid;
   place-items: center;
   border-radius: 15px;
-  box-shadow: 0 3px 9px #0003;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   overflow: hidden;
 }
 .utilityIcon svg {
@@ -220,6 +260,14 @@
 }
 .timeline {
   background: linear-gradient(145deg, #dfae81, #a67147);
+  color: #fff;
+}
+.records {
+  background: linear-gradient(145deg, #818cf8, #4f46e5);
+  color: #fff;
+}
+.scenes {
+  background: linear-gradient(145deg, #2e5b47, #5c8369);
   color: #fff;
 }
 .time {
@@ -307,12 +355,23 @@
   gap: 12px;
   min-height: 76px;
   padding: 13px 15px;
-  border: 1px solid #ffffff24;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 23px;
   color: #fff;
   text-align: left;
-  background: #17232acf;
-  backdrop-filter: blur(18px);
+  background: rgba(23, 35, 42, 0.76);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease;
+}
+.record:hover {
+  background: rgba(23, 35, 42, 0.86);
+}
+.record:active {
+  transform: scale(0.98);
 }
 .recordIcon {
   display: grid;
@@ -342,6 +401,14 @@
   font-size: 13px;
   font-weight: 500;
   line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recordMeta {
+  font-size: 11px;
+  color: #c8d4df;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -383,6 +450,9 @@
   }
   .recordBody strong {
     font-size: 12px;
+  }
+  .recordMeta {
+    display: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {

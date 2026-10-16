@@ -33,7 +33,14 @@ const event = (data: NoteEvent['data'], version = 3): NoteEvent => ({
 test('saving a new note appends it and advances the world version', () => {
   const next = applyNoteEvent(
     world(),
-    event({ commandId: 'c1', worldId: 'w1', id: 'n1', title: '清单', text: '买菜', expectedVersion: 0 }),
+    event({
+      commandId: 'c1',
+      worldId: 'w1',
+      id: 'n1',
+      title: '清单',
+      text: '买菜',
+      expectedVersion: 0,
+    }),
   );
   assert.equal(next.version, 3);
   assert.deepEqual(
@@ -46,12 +53,26 @@ test('saving a new note appends it and advances the world version', () => {
 test('editing requires the note version and bumps only that note', () => {
   const before = world({
     notes: [
-      { id: 'n1', title: '清单', text: '买菜', version: 1, updatedAt: before1(), sourceEventId: 'e0' },
+      {
+        id: 'n1',
+        title: '清单',
+        text: '买菜',
+        version: 1,
+        updatedAt: before1(),
+        sourceEventId: 'e0',
+      },
     ],
   });
   const next = applyNoteEvent(
     before,
-    event({ commandId: 'c1', worldId: 'w1', id: 'n1', title: '清单', text: '买菜和米', expectedVersion: 1 }),
+    event({
+      commandId: 'c1',
+      worldId: 'w1',
+      id: 'n1',
+      title: '清单',
+      text: '买菜和米',
+      expectedVersion: 1,
+    }),
   );
   assert.equal(next.notes![0]!.text, '买菜和米');
   assert.equal(next.notes![0]!.version, 2);
@@ -59,7 +80,14 @@ test('editing requires the note version and bumps only that note', () => {
     () =>
       applyNoteEvent(
         before,
-        event({ commandId: 'c1', worldId: 'w1', id: 'n1', title: '清单', text: 'x', expectedVersion: 2 }),
+        event({
+          commandId: 'c1',
+          worldId: 'w1',
+          id: 'n1',
+          title: '清单',
+          text: 'x',
+          expectedVersion: 2,
+        }),
       ),
     { code: 'VERSION_CONFLICT' },
   );
@@ -84,7 +112,14 @@ test('bad notes are rejected instead of stored', () => {
 });
 
 test('the world version must advance by exactly one', () => {
-  const data = { commandId: 'c1', worldId: 'w1', id: 'n1', title: 'ok', text: '', expectedVersion: 0 };
+  const data = {
+    commandId: 'c1',
+    worldId: 'w1',
+    id: 'n1',
+    title: 'ok',
+    text: '',
+    expectedVersion: 0,
+  };
   assert.throws(() => applyNoteEvent(world(), event(data, 5)), { code: 'VERSION_CONFLICT' });
   assert.throws(() => applyNoteEvent(world({ id: 'other' }), event(data)), {
     code: 'VERSION_CONFLICT',

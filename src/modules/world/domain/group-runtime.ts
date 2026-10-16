@@ -1,3 +1,5 @@
+import type { AgentRuntimeTransition } from './agent-state-event.ts';
+import type { WorldEffect } from './types.ts';
 import { DomainError } from './errors.ts';
 import type { WorldState } from './types.ts';
 import {
@@ -34,7 +36,16 @@ export type GroupEvent = {
       data: { groupId: string; participant: Participant; action: 'join' | 'leave' };
     }
   | { type: 'group.message_sent'; data: { groupId: string; text: string; messageId?: string } }
-  | { type: 'group.turn_resolved'; data: { groupId: string; replies: GroupReply[] } }
+  | {
+      type: 'group.turn_resolved';
+      data: {
+        groupId: string;
+        replies: GroupReply[];
+        actorId?: string;
+        agentRuntime?: AgentRuntimeTransition;
+        effects?: WorldEffect[];
+      };
+    }
 );
 function invalid(): never {
   throw new DomainError('INVALID_COMMAND');

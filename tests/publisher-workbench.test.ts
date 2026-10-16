@@ -1,0 +1,729 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
+import { createElement, isValidElement, type ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { PublisherWork, PublisherCheckResult } from '../src/contracts/world-publisher.ts';
+import type { PublisherWorkbenchProps } from '../src/contracts/publisher-workbench.ts';
+
+let scheduleForTest: (
+  content: Record<string, unknown>,
+  options: { referenceAt: string },
+) => unknown = () => {
+  throw Error('test planner not configured');
+};
+Object.assign(globalThis, {
+  __writerSchedule: (content: Record<string, unknown>, options: { referenceAt: string }) =>
+    scheduleForTest(content, options),
+});
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.endsWith('/publication-scheduling.ts'))
+      return { url: 'writer-test:scheduling', shortCircuit: true };
+    return nextResolve(specifier, context);
+  },
+  load(url, context, nextLoad) {
+    if (url === 'writer-test:scheduling')
+      return {
+        format: 'module',
+        shortCircuit: true,
+        source: 'export const planPublicationTimes=(c,o)=>globalThis.__writerSchedule(c,o)',
+      };
+    if (url.endsWith('.module.css'))
+      return {
+        format: 'module',
+        shortCircuit: true,
+        source: 'export default new Proxy({}, {get:(_t,k)=>String(k)})',
+      };
+    if (url.endsWith('.tsx') && !url.includes('/node_modules/'))
+      return {
+        format: 'module',
+        shortCircuit: true,
+        source: ts.transpileModule(
+          url.endsWith('publisher-workbench.tsx')
+            ? readFileSync(new URL(url), 'utf8').replace(
+                "import React, { useState, useEffect, useMemo, useCallback } from 'react';",
+                "import React, { useState as actualUseState, useEffect as actualUseEffect, useMemo as actualUseMemo, useCallback as actualUseCallback } from 'react'; const useState = initial => globalThis.__writerHooks ? globalThis.__writerHooks.useState(initial) : actualUseState(initial === 'settings' && globalThis.__writerTestTab ? globalThis.__writerTestTab : initial); const useMemo = (f,d) => globalThis.__writerHooks ? f() : actualUseMemo(f,d); const useCallback = (f,d) => globalThis.__writerHooks ? f : actualUseCallback(f,d); const useEffect = (f,d) => globalThis.__writerHooks ? undefined : actualUseEffect(f,d);",
+              )
+            : readFileSync(new URL(url), 'utf8'),
+          {
+            compilerOptions: {
+              target: ts.ScriptTarget.ES2022,
+              module: ts.ModuleKind.ESNext,
+              jsx: ts.JsxEmit.ReactJSX,
+            },
+          },
+        ).outputText,
+      };
+    return nextLoad(url, context);
+  },
+});
+
+const { PublisherWorkbench } = await import('../src/features/publisher/publisher-workbench.tsx');
+
+const mockContent: Record<string, unknown> = {
+  world: {
+    title: '海边诊所的午后',
+    hook: '海风拂过旧街角，秘密与温柔在诊所悄然展开',
+    description: '主角来到偏远海滨小镇，在周记诊所遇到熟人与新朋友。',
+    experienceNote: '重点体验日常互动与隐藏真相。',
+    publicSetting: '偏远海边小镇，医疗条件有限但人情味浓厚。',
+    tone: '日常、微悬疑、温情',
+    startAt: '初夏六月 午后两点',
+    startPlaceKey: 'clinic_front',
+    protagonistIdentity: '返乡青年',
+    protagonistSituation: '刚回到老家准备拜访诊所。',
+  },
+  actors: [
+    {
+      key: 'qingqing',
+      name: '青青',
+      knownAtStart: true,
+      publicCard: {
+        identity: '诊所助手',
+        appearance: '身穿浅白大褂，眼神清澈而冷静。',
+        traits: ['细心', '清冷'],
+      },
+      privatePersona: {
+        voice: '说话简洁轻柔，习惯用陈述句。',
+        background: '本地人，祖父曾是老周的合伙医生。',
+        motivation: '在乎：诊所的平静与祖父留下的医案\n眼前：查清昨晚私自取药的人是谁',
+        boundaries: '讨厌别人翻动内室诊柜。',
+      },
+    },
+    {
+      key: 'laozhou',
+      name: '老周',
+      knownAtStart: true,
+      publicCard: {
+        identity: '诊所执业医生',
+        appearance: '五十来岁，戴老花镜。',
+        traits: ['随和', '幽默'],
+      },
+      privatePersona: {
+        voice: '温和带点幽默，爱用反问句。',
+        background: '行医三十余年，看似随和糊涂。',
+        motivation: '在乎：小镇病患的健康与诊所名声\n眼前：说服主角留下来接班',
+        boundaries: '不愿提及十年前的医疗意外。',
+      },
+    },
+  ],
+  relationships: [
+    {
+      key: 'rel_player_qingqing',
+      from: { kind: 'player' },
+      to: { kind: 'actor', actorKey: 'qingqing' },
+      description: '青梅竹马 / 邻居',
+    },
+  ],
+  initialKnowledge: [
+    {
+      actorKey: 'qingqing',
+      factKeys: ['fact_clinic_01'],
+    },
+  ],
+  history: [
+    {
+      key: 'fact_clinic_01',
+      text: '周记诊所是小镇唯一的全科诊所。',
+      occurredAt: '五年前',
+      actorKeys: ['laozhou'],
+    },
+  ],
+  candidates: [
+    {
+      key: 'cand_investigate',
+      title: '调查药品失窃',
+      editorialIntent: '测试主角对青青的信任度',
+      actorKeys: ['qingqing'],
+    },
+  ],
+};
+
+const mockWorks = [
+  {
+    id: 'w-101',
+    title: '海边诊所的午后',
+    draftVersion: 1,
+    status: 'draft' as const,
+    metadataVersion: 1,
+    publicationVersion: null,
+    createdAt: '2026-10-10T10:00:00.000Z',
+    updatedAt: '2026-10-12T09:00:00.000Z',
+  },
+  {
+    id: 'w-102',
+    title: '旧城咖啡馆之夜',
+    draftVersion: 3,
+    status: 'published' as const,
+    metadataVersion: 2,
+    publicationVersion: 1,
+    createdAt: '2026-10-08T08:00:00.000Z',
+    updatedAt: '2026-10-11T12:00:00.000Z',
+  },
+];
+
+const mockWork: PublisherWork = {
+  id: 'w-101',
+  title: '海边诊所的午后',
+  draftVersion: 1,
+  status: 'draft',
+  metadataVersion: 1,
+  publicationVersion: null,
+  createdAt: '2026-10-10T10:00:00.000Z',
+  updatedAt: '2026-10-12T09:00:00.000Z',
+  draft: {
+    version: 1,
+    contentHash: 'content-hash-001',
+    content: mockContent,
+    createdAt: '2026-10-10T10:00:00.000Z',
+    createdBy: 'u-101',
+  },
+};
+
+const defaultProps: PublisherWorkbenchProps = {
+  session: {
+    displayName: '编剧小林',
+    canEdit: true,
+    canPublish: true,
+  },
+  works: mockWorks,
+  work: mockWork,
+  check: null,
+  busy: false,
+  error: null,
+  onSelectWork: () => {},
+  onCreateWork: () => {},
+  onSaveDraft: () => {},
+  onCheck: () => {},
+  onTrial: () => {},
+  onPublish: () => {},
+  onLogout: () => {},
+};
+
+function renderTab(props: PublisherWorkbenchProps, tab: 'settings' | 'actors' | 'plot') {
+  Object.assign(globalThis, { __writerTestTab: tab });
+  try {
+    return renderToStaticMarkup(createElement(PublisherWorkbench, props));
+  } finally {
+    Reflect.deleteProperty(globalThis, '__writerTestTab');
+  }
+}
+test('workbench defaults to overall setting without the removed explanation or story preview', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  for (const text of [
+    '海边诊所的午后',
+    '旧城咖啡馆之夜',
+    '+ 新建世界',
+    '保存草稿',
+    '检查',
+    '试演',
+    '发布',
+    '总体设定',
+    '人物',
+    '剧情发展',
+  ])
+    assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, /整理只作补充|查看已整理的故事|当前草稿故事概览/);
+  assert.doesNotMatch(html, /settingsDisclosure|writer-story-editor/);
+  assert.doesNotMatch(html, /尚未检查草稿|查看全部问题|安排故事时间/);
+  assert.doesNotMatch(html, /人物 · 2|将填入的实际内容/);
+});
+test('character form renders horizontal navigation bar, clean dimensions, and direct preview trial', () => {
+  const html = renderTab(defaultProps, 'actors');
+  for (const text of [
+    '+ 新建角色',
+    '青青',
+    '人物姓名',
+    '公开角色介绍（玩家可见）',
+    '性格特征与说话方式',
+    '成长背景与经历',
+    '动机与在乎的事',
+    '说话简洁轻柔',
+    '与TA试聊',
+  ])
+    assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, /1\. 名字与身份|2\. 与主角的初始关系|5\. 关系、知情范围与底线/);
+});
+
+test('PublisherWorkbench honestly indicates unhooked callbacks when onTrial or onPublish omitted', () => {
+  const unhookedProps: PublisherWorkbenchProps = {
+    ...defaultProps,
+    onTrial: undefined,
+    onPublish: undefined,
+  };
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, unhookedProps));
+
+  assert.ok(html.includes('title="试演功能暂不可用"'));
+  assert.ok(html.includes('title="发布功能暂不可用"'));
+});
+
+test('PublisherWorkbench disables edit controls when session.canEdit is false', () => {
+  const readOnlyProps: PublisherWorkbenchProps = {
+    ...defaultProps,
+    session: {
+      displayName: '只读访客',
+      canEdit: false,
+      canPublish: false,
+    },
+  };
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, readOnlyProps));
+
+  assert.ok(html.includes('您没有编辑权限'));
+  assert.ok(html.includes('disabled=""'));
+});
+
+test('PublisherWorkbench completely removes review tab and issues panel, keeping workflow focused on authoring and publishing', () => {
+  const checkResult: PublisherCheckResult = {
+    id: 'chk-01',
+    workId: 'w-101',
+    draftVersion: 1,
+    contentHash: 'hash-001',
+    status: 'invalid',
+    issuesTruncated: false,
+    issues: [
+      {
+        path: ['actors', 0, 'name'],
+        code: 'name_required',
+      },
+    ],
+    missingCapabilities: ['model_budget_unapproved'],
+    mediaVerified: false,
+    trialVerified: false,
+    checkedAt: '2026-10-12T10:00:00.000Z',
+  };
+
+  const html = renderToStaticMarkup(
+    createElement(PublisherWorkbench, { ...defaultProps, check: checkResult }),
+  );
+
+  assert.ok(!html.includes('待确认问题'));
+  assert.ok(!html.includes('开场时间待安排或核对'));
+  assert.ok(!html.includes('安排缺省时间'));
+  assert.ok(!html.includes('reviewPanel'));
+});
+
+test('character form removes redundant legacy buttons and focuses on name, avatar, identity and core 5 dimensions', () => {
+  const html = renderTab(defaultProps, 'actors');
+  assert.doesNotMatch(html, /不是固定示例|修改这条事实|这条事实在各人物的知情列表中同步更新/);
+  assert.doesNotMatch(html, /✨ 生成角色（保存并启动试演对话）/);
+  assert.ok(html.includes('微信头像（可发布的预设图片）'));
+  assert.ok(!html.includes('AI 生成头像'));
+  assert.ok(html.includes('导入头像图片'));
+  assert.ok(html.includes('角色核心 5 个维度设定'));
+  assert.ok(html.includes('与TA试聊'));
+  assert.doesNotMatch(html, /整理本角色的历史与朋友圈/);
+});
+
+test('publish button is actionable for authors and never blocked by review tab or unverified states', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  assert.match(html, /<button(?![^>]*disabled)[^>]*>发布<\/button>/);
+});
+
+test('an empty new story shows only the overall author input by default without automatically saving', () => {
+  let saved = 0;
+  const content = { work: { title: '新故事' }, world: { startAt: '' } };
+  const html = renderToStaticMarkup(
+    createElement(PublisherWorkbench, {
+      ...defaultProps,
+      onSaveDraft: () => {
+        saved++;
+      },
+      work: { ...mockWork, draft: { ...mockWork.draft, content } },
+    }),
+  );
+  assert.doesNotMatch(html, /settingsDisclosure|writer-story-editor/);
+  assert.match(html, /id="writer-overall-text"/);
+  assert.doesNotMatch(html, /id="writer-overall-text"[^>]*maxLength/);
+  assert.match(html, /id="work-title-input"/);
+  assert.equal(saved, 0);
+});
+test('applying the existing character import returns to overview, closes import and never auto-saves', async () => {
+  const { PublisherImportDialog } =
+    await import('../src/features/publisher/publisher-import-dialog.tsx');
+  function nodes(value: unknown): ReactElement<Record<string, unknown>>[] {
+    if (Array.isArray(value)) return value.flatMap(nodes);
+    if (!isValidElement(value)) return [];
+    const e = value as ReactElement<Record<string, unknown>>;
+    return [e, ...nodes(e.props.children)];
+  }
+  for (const [initial, keepOpen] of [
+    ['actors', false],
+    ['actors', true],
+  ] as const) {
+    let cursor = 0,
+      saved = 0;
+    const states: unknown[] = [initial];
+    Object.assign(globalThis, {
+      __writerHooks: {
+        useState: (v: unknown) => {
+          const i = cursor++;
+          if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
+          return [
+            states[i],
+            (next: unknown) => {
+              states[i] = typeof next === 'function' ? next(states[i]) : next;
+            },
+          ];
+        },
+      },
+    });
+    try {
+      const render = () => {
+        cursor = 0;
+        return PublisherWorkbench({
+          ...defaultProps,
+          onSaveDraft: () => {
+            saved++;
+          },
+        });
+      };
+      let tree = render();
+      const button = nodes(tree).find(
+        (e) => e.type === 'button' && e.props.children === '导入 Markdown',
+      );
+      assert.ok(button);
+      (button.props.onClick as () => void)();
+      tree = render();
+      const dialog = nodes(tree).find((e) => e.type === PublisherImportDialog);
+      assert.ok(dialog);
+      const next = {
+        work: { title: '整理后的标题', description: '完整故事介绍' },
+        world: { publicSetting: '新的舞台' },
+        extensions: [{ unchanged: '作者扩展' }],
+      };
+      (dialog.props.onApply as (v: unknown, s: unknown, options?: { keepOpen?: boolean }) => void)(
+        next,
+        {
+          actors: [],
+          initialMessagesCount: 0,
+          candidatesCount: 0,
+          warnings: [],
+          diagnostics: [],
+          unmapped: [],
+        },
+        { keepOpen },
+      );
+      tree = render();
+      assert.equal(states[0], 'settings');
+      assert.equal(saved, 0);
+      assert.equal(
+        nodes(tree).some((e) => e.type === PublisherImportDialog),
+        keepOpen,
+      );
+      assert.equal(
+        nodes(tree).find((e) => e.props.id === 'work-title-input')!.props.value,
+        '整理后的标题',
+      );
+      assert.match(
+        String(nodes(tree).find((e) => e.props.id === 'writer-overall-text')!.props.value),
+        /新的舞台|整理/,
+      );
+    } finally {
+      Reflect.deleteProperty(globalThis, '__writerHooks');
+    }
+  }
+});
+
+test('workbench workflow eliminates scheduling panels and keeps authoring direct to publish', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  assert.doesNotMatch(html, /安排缺省时间|安排故事时间|待确认问题/);
+});
+
+test('author settings retain title and overall setting text while removing technical disclosures and redundant settings form', () => {
+  const html = renderTab(defaultProps, 'settings');
+  assert.doesNotMatch(
+    html,
+    /完整内容（JSON）|导入完整结构化草稿|publication-import|技术详情|高级：版本|另写作品展示简介|故事介绍（玩家可知）/,
+  );
+  assert.ok(html.includes('总体设定'));
+  assert.ok(html.includes('作品标题'));
+  const actor = renderTab(defaultProps, 'actors');
+  assert.doesNotMatch(actor, /稳定标识|内部标识/);
+});
+
+function overallNodes(value: unknown): ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(value)) return value.flatMap(overallNodes);
+  if (!isValidElement(value)) return [];
+  const e = value as ReactElement<Record<string, unknown>>;
+  return [e, ...overallNodes(e.props.children)];
+}
+function overallHarness(overrides: Partial<Parameters<typeof PublisherWorkbench>[0]> = {}) {
+  let cursor = 0;
+  const states: unknown[] = [];
+  Object.assign(globalThis, {
+    __writerHooks: {
+      useState: (v: unknown) => {
+        const i = cursor++;
+        if (!(i in states)) states[i] = typeof v === 'function' ? v() : v;
+        return [
+          states[i],
+          (next: unknown) => {
+            states[i] = typeof next === 'function' ? next(states[i]) : next;
+          },
+        ];
+      },
+    },
+  });
+  const content = {
+    work: { title: '旧标题', description: '原简介' },
+    world: { publicSetting: '公开故事', hiddenContext: '不公开的秘密' },
+    actors: [],
+    extensions: [],
+  };
+  const saved: unknown[] = [];
+  const props = {
+    ...defaultProps,
+    work: { ...mockWork, draft: { ...mockWork.draft, content } },
+    onSaveDraft: (value: unknown) => saved.push(value),
+    ...overrides,
+  };
+  const render = () => {
+    cursor = 0;
+    return overallNodes(PublisherWorkbench(props));
+  };
+  const input = () => render().find((n) => n.props.id === 'writer-overall-text')!;
+  const button = (label: string) => {
+    const b = render().find((n) => n.type === 'button' && n.props.children === label);
+    assert.ok(b, label);
+    return b;
+  };
+  const change = (value: string) =>
+    (input().props.onChange as (v: unknown) => void)({ target: { value } });
+  const click = (label: string) => (button(label).props.onClick as () => void)();
+  return {
+    props,
+    render,
+    input,
+    button,
+    change,
+    click,
+    saved,
+    content,
+    close: () => Reflect.deleteProperty(globalThis, '__writerHooks'),
+  };
+}
+test('overall editing preserves author text, secret/public separation and existing fields while only explicit save persists', () => {
+  const h = overallHarness();
+  try {
+    assert.match(String(h.input().props.value), /公开故事/);
+    assert.equal(h.saved.length, 0);
+    h.change('新总体稿\n含幕后秘密，不能公开。');
+    assert.equal(h.input().props.value, '新总体稿\n含幕后秘密，不能公开。');
+    assert.equal(h.saved.length, 0);
+    h.click('保存草稿');
+    const saved = h.saved[0] as { content: Record<string, unknown> };
+    assert.deepEqual(saved.content.world, h.content.world);
+    assert.deepEqual(saved.content.work, h.content.work);
+    const extensions = saved.content.extensions as {
+      namespace: string;
+      purpose: string;
+      data: { text: string };
+    }[];
+    assert.equal(extensions[0]!.purpose, 'editorial');
+    assert.equal(extensions[0]!.namespace, 'parallel_life.authoring_overall');
+    assert.equal(extensions[0]!.data.text, h.input().props.value);
+  } finally {
+    h.close();
+  }
+});
+test('over-budget input stays intact, blocks stale partial save and can be corrected without lost typing', () => {
+  const h = overallHarness();
+  try {
+    h.change('正常草稿');
+    const long = '中'.repeat(3000) + '保留末尾';
+    h.change(long);
+    assert.equal(h.input().props.value, long);
+    assert.equal(h.input().props.maxLength, undefined);
+    assert.equal(h.button('保存草稿').props.disabled, true);
+    h.click('保存草稿');
+    assert.equal(h.saved.length, 0);
+    assert.equal(h.button('AI 帮写').props.disabled, true);
+    assert.ok(h.render().some((n) => n.props.role === 'alert'));
+    h.change('改短后的完整原文');
+    h.click('保存草稿');
+    assert.equal(h.saved.length, 1);
+    const saved = h.saved[0] as { content: { extensions: { data: { text: string } }[] } };
+    assert.equal(saved.content.extensions[0]!.data.text, '改短后的完整原文');
+  } finally {
+    h.close();
+  }
+});
+test('overall preparation only opens the real dialog with explicit text and ordinary import clears that seed', async () => {
+  const { PublisherImportDialog } =
+    await import('../src/features/publisher/publisher-import-dialog.tsx');
+  let calls = 0;
+  const client = new Proxy(
+    {},
+    {
+      get() {
+        calls++;
+        throw Error('no model or network call expected');
+      },
+    },
+  ) as NonNullable<Parameters<typeof PublisherWorkbench>[0]['preparationClient']>;
+  const h = overallHarness({ preparationClient: client });
+  try {
+    h.change('只送这段总体原稿');
+    h.click('AI 帮写');
+    const dialog = h.render().find((n) => n.type === PublisherImportDialog)!;
+    assert.ok(dialog);
+    assert.equal(dialog.props.initialOverallText, '只送这段总体原稿');
+    assert.equal(calls, 0);
+    assert.equal(h.saved.length, 0);
+    (dialog.props.onClose as () => void)();
+    h.click('导入 Markdown');
+    assert.equal(
+      h.render().find((n) => n.type === PublisherImportDialog)!.props.initialOverallText,
+      undefined,
+    );
+  } finally {
+    h.close();
+  }
+});
+test('overall change and preparation handlers cannot bypass read-only or busy states', () => {
+  for (const patch of [{ busy: true }, { session: { ...defaultProps.session, canEdit: false } }]) {
+    const h = overallHarness(patch);
+    try {
+      const before = h.input().props.value;
+      h.change('不能写入');
+      assert.equal(h.input().props.value, before);
+      h.click('AI 帮写');
+      assert.equal(h.saved.length, 0);
+    } finally {
+      h.close();
+    }
+  }
+});
+
+test('PublisherWorkbench renders draft rename and delete controls in sidebar and header', () => {
+  const html = renderToStaticMarkup(createElement(PublisherWorkbench, defaultProps));
+  assert.ok(html.includes('重命名草稿「海边诊所的午后」'));
+  assert.ok(html.includes('删除草稿「海边诊所的午后」'));
+  assert.ok(html.includes('✏️ 重命名'));
+  assert.ok(html.includes('🗑️ 删除'));
+});
+
+test('actor editing is not preceded by global checks or scheduling, while failures stay accessible inline', () => {
+  const html = renderTab(
+    { ...defaultProps, error: { code: 'network_error', message: 'private details' } },
+    'actors',
+  );
+  assert.doesNotMatch(html, /安排故事时间|查看全部问题|尚未检查草稿|private details/);
+  assert.match(html, /<details class="feedback"><summary role="alert"/);
+  assert.doesNotMatch(html, /<details[^>]*class="feedback"[^>]*open/);
+  assert.match(html, /当前编辑内容仍保留/);
+  assert.match(html, /查看处理方式/);
+  assert.match(html, /姓名/);
+});
+
+test('the character form correctly renders 5 core dimensions and triggers trial from preview', async () => {
+  let trialDraft: unknown = null;
+  const h = overallHarness({
+    work: mockWork,
+    onCharacterTrial: (draft) => {
+      trialDraft = draft;
+    },
+  });
+  try {
+    h.click('人物');
+    const name = h.render().find((n) => n.props.id === 'character-author-name')!;
+    assert.ok(name);
+    // Verify 5 dimensions textareas exist
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-1'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-2'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-3'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-4'));
+    assert.ok(h.render().find((n) => n.props.id === 'actor-dimension-5'));
+
+    // Redundant left bottom button is removed
+    assert.equal(
+      h.render().some((n) => n.props.children === '✨ 生成角色（保存并启动试演对话）'),
+      false,
+    );
+
+    // Trigger trial from character preview
+    const preview = h
+      .render()
+      .find((n) => typeof n.type === 'function' && Boolean(n.props.onStartTrial));
+    assert.ok(preview);
+    (preview.props.onStartTrial as () => void)();
+    assert.ok(trialDraft);
+  } finally {
+    h.close();
+  }
+});
+
+test('one click fills this character’s Moments directly into the draft without opening an import review', async () => {
+  const { PublisherImportDialog } =
+    await import('../src/features/publisher/publisher-import-dialog.tsx');
+  const calls: string[] = [];
+  const authored = {
+    ...mockContent,
+    world: { ...(mockContent.world as Record<string, unknown>), startAt: '2026-10-10T08:00:00Z' },
+    phone: { moments: [] },
+  };
+  const newPost = {
+    key: 'moment_weather',
+    actorKey: 'qingqing',
+    text: '诊所窗边的海风，今天格外温柔。',
+    at: '2026-10-09T08:00:00Z',
+  };
+  const client = {
+    latestPreparation: async () => {
+      calls.push('latest');
+      return { preparation: null };
+    },
+    prepareManuscript: async (_workId: string, input: Record<string, unknown>) => {
+      calls.push('prepare');
+      assert.equal(input.scope, 'characters');
+      assert.equal(input.socialFocus, 'moments');
+      assert.equal(input.socialActorKey, 'qingqing');
+      assert.deepEqual(input.currentContent, authored);
+      return {
+        status: 'succeeded',
+        result: { updatedContent: { ...authored, phone: { moments: [newPost] } }, issues: [] },
+      };
+    },
+  } as unknown as NonNullable<Parameters<typeof PublisherWorkbench>[0]['preparationClient']>;
+  const h = overallHarness({
+    work: { ...mockWork, draft: { ...mockWork.draft, content: authored } },
+    preparationClient: client,
+  });
+  try {
+    h.click('人物');
+    const preview = h.render().find((n) => typeof n.props.onGenerate === 'function');
+    assert.ok(preview);
+    await (preview.props.onGenerate as (focus: 'moments') => Promise<void>)('moments');
+    assert.deepEqual(calls, ['latest', 'prepare']);
+    assert.equal(
+      h.render().some((n) => n.type === PublisherImportDialog),
+      false,
+    );
+    const after = h.render().find((n) => typeof n.props.onGenerate === 'function')!;
+    assert.deepEqual((after.props.content as Record<string, unknown>).phone, {
+      moments: [newPost],
+    });
+  } finally {
+    h.close();
+  }
+});
+
+test('publishing a changed draft submits one save-and-publish operation', () => {
+  const publishDrafts: unknown[] = [];
+  const h = overallHarness({ onPublish: (draft) => publishDrafts.push(draft) });
+  try {
+    h.change('新写的总体设定');
+    assert.equal(h.button('发布').props.disabled, false);
+    h.click('发布');
+    assert.equal(h.saved.length, 0);
+    assert.equal(publishDrafts.length, 1);
+    const submitted = publishDrafts[0] as { title: string; content: Record<string, unknown> };
+    assert.equal(submitted.title, mockWork.title);
+    assert.match(JSON.stringify(submitted.content), /新写的总体设定/);
+  } finally {
+    h.close();
+  }
+});

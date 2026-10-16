@@ -6,13 +6,13 @@ import type { WorldState } from './types.ts';
 /**
  * The director's deterministic half.
  *
- * A world moves in real time (1:1 by default, adjustable, pausable). Time itself is
+ * A world uses a projected clock (12x browsing, 1x conversation, pausable). Time itself is
  * computed, never simulated minute by minute: when the user comes back, the clock
  * jumps to the real elapsed time and only a bounded number of beats are actually
  * played — the rest are folded into a summary, exactly as PRODUCT.md §10 requires.
  * Everything here is a pure function so it can be reasoned about and tested.
  */
-export const DEFAULT_SPEED = 1;
+export const DEFAULT_SPEED = 12;
 export const MAX_SPEED = 60;
 /** Beats actually played on one resume or advance. */
 export const MAX_BEATS_PER_ADVANCE = 3;
@@ -28,6 +28,9 @@ export type WorldClock = {
   lastTickAt: string;
   missedBeats: number;
   summary: string | null;
+  /** Managed clocks accrue only while a server activity lease remains valid. */
+  managed?: boolean;
+  activeUntil?: string | null;
 };
 export type ClockAdvance = {
   clock: WorldClock;
@@ -39,9 +42,18 @@ export type ClockAdvance = {
 
 const MINUTE = 60_000;
 
+/** The persisted anchor remains unchanged by a same-speed heartbeat. */
+export function clockElapsedReal(clock: WorldClock, realNow: string): number {
+  if (clock.managed && !clock.activeUntil) return 0;
+  const until = clock.managed
+    ? Math.min(Date.parse(realNow), Date.parse(clock.activeUntil!))
+    : Date.parse(realNow);
+  return Math.max(0, until - Date.parse(clock.lastTickAt));
+}
+
 /** Read-only projection: opening the phone moves the clock, not the cast. */
 export function projectStoryTime(clock: WorldClock, realNow: string): string {
-  const elapsed = Date.parse(realNow) - Date.parse(clock.lastTickAt);
+  const elapsed = clockElapsedReal(clock, realNow);
   if (clock.paused || !Number.isFinite(elapsed) || elapsed <= 0) return clock.storyNow;
   const projected = Date.parse(clock.storyNow) + elapsed * clock.speed;
   return Number.isFinite(projected) ? new Date(projected).toISOString() : clock.storyNow;
@@ -57,7 +69,7 @@ export function advanceClock(
     Math.min(options.maxBeats ?? MAX_BEATS_PER_ADVANCE, MAX_BEATS_PER_ADVANCE),
   );
   const beatMs = (options.beatMinutes ?? BEAT_MINUTES) * MINUTE;
-  const elapsedReal = Date.parse(realNow) - Date.parse(clock.lastTickAt);
+  const elapsedReal = clockElapsedReal(clock, realNow);
   const nextTick = { ...clock, lastTickAt: realNow };
   /* A paused world does not move; a backwards clock is treated as no time passing. */
   if (clock.paused || !Number.isFinite(elapsedReal) || elapsedReal <= 0)
@@ -113,6 +125,10 @@ export function selectSpeaker(
     (thread) => thread.kind === 'choice_result' && available(thread.actorId),
   );
   if (choiceResult) return choiceResult.actorId;
+  const departureInquiry = agenda.find(
+    (thread) => thread.kind === 'departure_inquiry' && available(thread.actorId),
+  );
+  if (departureInquiry) return departureInquiry.actorId;
   const choice = agenda.find(
     (thread) => thread.kind === 'choice_followup' && available(thread.actorId),
   );
@@ -134,6 +150,10 @@ export function selectSpeaker(
     (thread) => thread.kind === 'appointment_result' && available(thread.actorId),
   );
   if (result) return result.actorId;
+  const matterResult = agenda.find(
+    (thread) => thread.kind === 'matter_result' && available(thread.actorId),
+  );
+  if (matterResult) return matterResult.actorId;
   const commitment =
     agenda.find(
       (thread) =>

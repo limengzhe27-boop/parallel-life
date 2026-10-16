@@ -39,6 +39,12 @@ for (const [name, password] of [
       `CREATE ROLE ${name} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
     );
 }
+// Publishing migrations revoke this operational role explicitly. Provision a closed
+// placeholder on fresh databases; enabling staff login remains a separate setup.
+if (!(await client.query("SELECT 1 FROM pg_roles WHERE rolname='pl_publisher_login'")).rowCount)
+  await client.query(
+    'CREATE ROLE pl_publisher_login NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE',
+  );
 const version = (await client.query('SHOW server_version')).rows[0].server_version;
 await client.end();
 await writeLocalEnv(config);

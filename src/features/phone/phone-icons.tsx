@@ -82,6 +82,12 @@ const shapes: Record<PhoneApp | PhonePanel | 'home' | 'back' | 'next', ReactNode
       <path d="M0 19h32M0 25h32M0 31h32" stroke="var(--phone-rule)" strokeWidth=".4" />
     </g>
   ),
+  records: (
+    <>
+      <rect x="6" y="5" width="20" height="22" rx="3" />
+      <path d="M10 10h12M10 15h12M10 20h8" />
+    </>
+  ),
   schedule: (
     <>
       <circle cx="16" cy="16" r="11" />
@@ -171,6 +177,18 @@ const appFaces: Partial<Record<keyof typeof shapes, ReactNode>> = {
       <path d="m5.6 9.5 19.7-4.7 1.1 4.6-19.7 4.7Z" fill="#ecf7f4" />
       <path d="m9.5 8.6 3.6 4M17.1 6.8l3.6 4" stroke="#447f77" strokeWidth="2.4" />
       <path d="m13 15 7 4-7 4Z" fill="#447f77" />
+    </g>
+  ),
+  records: (
+    <g stroke="none">
+      <rect width="32" height="32" rx="7" fill="#b45309" />
+      <rect x="6" y="5" width="20" height="22" rx="3" fill="#fffbeb" />
+      <path
+        d="M10 10h12M10 15h12M10 20h8"
+        stroke="#d97706"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </g>
   ),
   timeline: (

@@ -1,3 +1,4 @@
+import { resolveAvatarArt } from './avatar-art.ts';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import type { PhoneAppsData, PhoneMessage, PhonePhoto } from './apps/types.ts';
 /**
@@ -11,6 +12,8 @@ export function worldAppData(
   world: WorldPhone,
   viewed: ReadonlySet<string> = new Set(),
   local: readonly PhoneMessage[] = [],
+  mediaUrlFor: (worldId: string, assetId: string) => string = (worldId, assetId) =>
+    `/api/v1/worlds/${encodeURIComponent(worldId)}/media/${encodeURIComponent(assetId)}`,
 ): PhoneAppsData {
   const history = world.historyLinks ?? [];
   const historyLinks = (entry: (typeof history)[number]) => [
@@ -70,17 +73,7 @@ export function worldAppData(
       name: actor.name,
       relationship: actor.relationship,
       summary: actor.summary,
-      ...(actor.photo
-        ? {
-            avatarUrl:
-              '/api/v1/assets/' +
-              actor.photo.assetId +
-              '?worldId=' +
-              world.id +
-              '&revision=' +
-              actor.photo.revision,
-          }
-        : {}),
+      avatarUrl: resolveAvatarArt(world, actor).url,
       unread: world.messages.filter(
         (message) =>
           message.actorId === actor.id &&
@@ -134,6 +127,15 @@ export function worldAppData(
             mediaType: isVideo ? 'video' : 'image',
           };
         }
+        const media = (
+          message as typeof message & {
+            attachment?: {
+              kind: 'image' | 'video';
+              assetId: string;
+              label?: string;
+            };
+          }
+        ).attachment;
         return {
           ...(history.find((e) => e.messageId === message.id)
             ? { links: historyLinks(history.find((e) => e.messageId === message.id)!) }
@@ -148,6 +150,16 @@ export function worldAppData(
           ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
           ...(message.mediaType ? { mediaType: message.mediaType } : {}),
           ...(photo ? { photo } : {}),
+          ...(media && (media.kind === 'image' || media.kind === 'video') && media.assetId
+            ? {
+                attachment: {
+                  kind: media.kind,
+                  assetId: media.assetId,
+                  ...(media.label ? { label: media.label } : {}),
+                  url: mediaUrlFor(world.id, media.assetId),
+                },
+              }
+            : {}),
         };
       }),
       ...local.map((message) => ({ ...message })),

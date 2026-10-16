@@ -1,0 +1,65 @@
+.review {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #d8dee9;
+  border-radius: 12px;
+  background: #fff;
+  color: #172033;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.review h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.review h4 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.help {
+  color: #566276;
+  font-size: 13px;
+}
+.warning {
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff2d8;
+  color: #805600;
+}
+.review ul,
+.review ol {
+  padding-left: 22px;
+}
+.review li {
+  margin: 12px 0;
+}
+.review p {
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+.review summary {
+  min-height: 44px;
+  padding: 10px 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-size: 14px;
+}
+.review summary:focus-visible {
+  outline: 2px solid #245fe5;
+  outline-offset: 2px;
+}
+.review blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid #d8dee9;
+  white-space: pre-wrap;
+}
+.changes {
+  margin-top: 10px;
+}
+@media (max-width: 480px) {
+  .review {
+    padding: 12px;
+  }
+}

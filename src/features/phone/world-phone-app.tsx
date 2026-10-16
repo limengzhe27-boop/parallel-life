@@ -1,4 +1,12 @@
 'use client';
+import { useWorldTime } from './use-world-time.ts';
+import { TimeExperienceControls } from './world-time-controls.tsx';
+import type { PublicOpeningStatus } from '../../contracts/publication-opening.ts';
+import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
+import {
+  AppointmentWaitRequestSchema,
+  type AppointmentWaitRequest,
+} from '../../contracts/appointment-wait.ts';
 import { useWorldMap } from './map/use-map.ts';
 import { useWorldRecords } from './use-world-records.ts';
 import { ProgressState } from '../../components/progress-state.tsx';
@@ -13,6 +21,7 @@ import {
 import { ScenePanel } from './scenes/scene-panel.tsx';
 import { appointmentScene } from './scenes/index-state.ts';
 import { SceneClient } from './scenes/client.ts';
+import { SceneWorldSync } from './scenes/world-sync.ts';
 import { useGroups } from './groups/use-groups.ts';
 import { isJoined, groupTarget } from './groups/state.ts';
 import { projectMessageNotifications } from './notification-projection.ts';
@@ -21,9 +30,11 @@ import { MessageReceiptClient } from '../api/message-receipt-client.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
 import { Button, Notice } from '../../components/ui.tsx';
 import type { WorldPhone } from '../../contracts/world-build.ts';
-import { PhoneShell } from './phone-shell.tsx';
+import { CharacterPhoneShell as PhoneShell } from './character-phone-shell.tsx';
+import { wechatCharacterTarget } from './wechat-character-target.ts';
 import { PhoneDesktop } from './phone-desktop.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
+import { recordAttribution } from './apps/notes-records.tsx';
 import { Avatar } from './apps/common.tsx';
 import type {
   PhoneActions,
@@ -39,7 +50,7 @@ import type { PhoneMessage } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { playTapSound } from './audio-feedback.ts';
 import { routeHash } from './navigation.ts';
-import { ACTIVE_PHONE_CHECK_MS, autoAdvanceDue } from './auto-advance.ts';
+import { resolveDefaultWallpaper } from './wallpaper.ts';
 import styles from './phone.module.css';
 import {
   sendFailureStatus,
@@ -48,9 +59,21 @@ import {
   restoreSendCommands,
   type SendCommand,
 } from './chat-send-state.ts';
-export function WorldPhoneApp({ worldId }: { worldId: string }) {
-  const [receiptClient] = useState(() => new MessageReceiptClient());
-  const [client] = useState(() => new LifeClient()),
+export function WorldPhoneApp({
+  worldId,
+  transport,
+  automatic = true,
+  wechatActorKey,
+  mediaUrlFor,
+}: {
+  worldId: string;
+  transport?: typeof fetch;
+  automatic?: boolean;
+  wechatActorKey?: string;
+  mediaUrlFor?: (worldId: string, assetId: string) => string;
+}) {
+  const [receiptClient] = useState(() => new MessageReceiptClient(transport));
+  const [client] = useState(() => new LifeClient(transport)),
     [data, setData] = useState<WorldPhone | null>(null),
     [error, setError] = useState(''),
     [isBuilding, setIsBuilding] = useState(false),
@@ -76,6 +99,17 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     retryCommand = useRef<{ taskId: string; id: string } | null>(null);
   const directorCheck = useRef<() => void>(() => {});
   const directorInFlight = useRef(false);
+  const openingEpoch = useRef({ worldId, token: {} });
+  if (openingEpoch.current.worldId !== worldId) {
+    openingEpoch.current = { worldId, token: {} };
+    directorInFlight.current = false;
+  }
+  const observedOpening = useRef<{ worldId: string; delivered: number } | null>(null);
+  const openingFinished = useRef<string | null>(null);
+  const nativeOpening = useRef<string | null>(null);
+  const lastBackgroundCheck = useRef(0);
+  const [opening, setOpening] = useState<PublicOpeningStatus | null>(null);
+  const [openingWorking, setOpeningWorking] = useState(false);
   const directorAttemptedKeys = useRef(new Set<string>());
   const experienceBusy = useRef(false);
   const setExperienceBusy = useCallback(
@@ -85,14 +119,23 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     },
     [localMessages],
   );
-  const phoneReady = useRef({ hasData: false, refreshing: true, sending: false });
+  const phoneReady = useRef({ hasData: false, refreshing: true, sending: false, version: 0 });
   phoneReady.current = {
     hasData: data?.id === worldId,
+    version: data?.id === worldId ? (data.version ?? 0) : 0,
     refreshing,
     sending:
       experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
   };
 
+  const liveTime = useWorldTime(
+    client,
+    worldId,
+    automatic && data?.id === worldId,
+    experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
+  );
+  const liveTimeRef = useRef(liveTime);
+  liveTimeRef.current = liveTime;
   const sendCommands = useRef<Record<string, SendCommand>>({});
   const [recoveryWorld, setRecoveryWorld] = useState<string>();
   useEffect(() => {
@@ -123,10 +166,26 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
 
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(`pl_wallpaper_${worldId}`) || '/art/first-window.webp';
+      const custom = localStorage.getItem(`pl_wallpaper_${worldId}`);
+      if (custom) return custom;
     }
-    return '/art/first-window.webp';
+    return data?.publicationWallpaperUrl ?? resolveDefaultWallpaper(data?.title, data?.identity);
   });
+
+  useEffect(() => {
+    if (data?.title) {
+      try {
+        const custom = localStorage.getItem(`pl_wallpaper_${worldId}`);
+        if (!custom) {
+          setWallpaperUrl(
+            data.publicationWallpaperUrl ?? resolveDefaultWallpaper(data.title, data.identity),
+          );
+        }
+      } catch {
+        /* Storage may be unavailable. */
+      }
+    }
+  }, [worldId, data?.title, data?.identity, data?.publicationWallpaperUrl]);
 
   const changeWallpaper = (url: string) => {
     setWallpaperUrl(url);
@@ -148,6 +207,7 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     commandId: string,
     replacing?: string,
   ) {
+    if (automatic) await liveTimeRef.current.startConversation();
     const unresolved = localMessages.find(
       (message) =>
         message.actorId === actorId && message.status === 'unknown' && message.id !== replacing,
@@ -296,6 +356,19 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, worldId]);
 
+  // Scene polling must refresh the saved phone, without retrying a build or action.
+  const reloadSceneWorld = useCallback(
+    async (minimumVersion: number) => {
+      const next = await client.world(worldId);
+      if (next.id !== worldId || (next.version ?? 0) < minimumVersion)
+        throw new Error('手机记录还在同步，可以重新读取。');
+      setData((current) =>
+        current?.id === worldId && (current.version ?? 0) <= (next.version ?? 0) ? next : current,
+      );
+    },
+    [client, worldId],
+  );
+
   /** Explicit, user-initiated new attempt: same commandId is reused for one task. */
   async function retryBuild() {
     setError('');
@@ -334,8 +407,20 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
   }, [load]);
   useEffect(() => {
     let active = true;
+    const epoch = openingEpoch.current.token;
+    const isCurrent = () => active && openingEpoch.current.token === epoch;
+    const canAdvance = () =>
+      isCurrent() &&
+      document.visibilityState === 'visible' &&
+      phoneReady.current.hasData &&
+      !phoneReady.current.refreshing &&
+      !phoneReady.current.sending;
+    setOpening(null);
+    setOpeningWorking(false);
     async function checkForWorldNews() {
       if (
+        !automatic ||
+        liveTimeRef.current.blocked ||
         !active ||
         document.visibilityState !== 'visible' ||
         !phoneReady.current.hasData ||
@@ -344,6 +429,9 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
         directorInFlight.current
       )
         return;
+      if (openingFinished.current === worldId && Date.now() - lastBackgroundCheck.current < 5_000)
+        return;
+      lastBackgroundCheck.current = Date.now();
       directorInFlight.current = true;
       let advancing = false;
       try {
@@ -352,169 +440,336 @@ export function WorldPhoneApp({ worldId }: { worldId: string }) {
           !active ||
           document.visibilityState !== 'visible' ||
           phoneReady.current.refreshing ||
-          phoneReady.current.sending ||
-          !autoAdvanceDue(clock, Date.now())
+          phoneReady.current.sending
         )
           return;
-        const attemptKey = `pl_director_resume_${worldId}_${clock.lastTickAt}`;
-        if (directorAttemptedKeys.current.has(attemptKey)) return;
+        if (openingFinished.current !== worldId || nativeOpening.current === worldId) {
+          const current = await client.readWorldOpening(worldId);
+          if (!isCurrent()) return;
+          setOpening(current);
+          const previouslyObserved = observedOpening.current;
+          observedOpening.current = { worldId, delivered: current.delivered };
+          if (
+            current.delivered > 0 &&
+            (previouslyObserved?.worldId !== worldId ||
+              current.delivered > previouslyObserved.delivered)
+          ) {
+            await load();
+          }
+          if (!canAdvance()) return;
+          if (current.runtime === 'agents' || ['none', 'complete'].includes(current.phase)) {
+            openingFinished.current = worldId;
+            if (current.runtime === 'agents') {
+              nativeOpening.current = worldId;
+              const key =
+                current.continuation?.status === 'ready' && liveTimeRef.current.entryKey
+                  ? `native-entry:${worldId}:${liveTimeRef.current.entryKey}:${current.continuation.key}`
+                  : null;
+              if (
+                key &&
+                !clock.paused &&
+                !directorAttemptedKeys.current.has(key) &&
+                canAdvance() &&
+                !liveTimeRef.current.blocked
+              ) {
+                // Transport suppression only. The existing server rechecks original authority,
+                // paid/unknown identities, focus and activity before any model or execution.
+                directorAttemptedKeys.current.add(key);
+                liveTimeRef.current.markChecked();
+                advancing = true;
+                const result = await client.advanceWorld(worldId, true);
+                if (isCurrent() && (result.changed || result.played > 0)) await load();
+                return;
+              }
+            }
+          } else {
+            if (
+              clock.paused ||
+              !['unplanned', 'ready'].includes(current.phase) ||
+              current.retryable
+            )
+              return;
+            setOpeningWorking(true);
+            const next = await client.advanceWorldOpening(worldId);
+            if (isCurrent()) {
+              setOpening(next.opening);
+              const previous = observedOpening.current;
+              const hasNewMessages =
+                next.opening.delivered > 0 &&
+                (previous?.worldId !== worldId || next.opening.delivered > previous.delivered);
+              observedOpening.current = { worldId, delivered: next.opening.delivered };
+              if (next.played > 0 || hasNewMessages) await load();
+              if (isCurrent() && next.opening.phase === 'complete')
+                openingFinished.current = worldId;
+            }
+            return;
+          }
+        }
+        if (!liveTimeRef.current.idleDue() || liveTimeRef.current.blocked) return;
+        const realNowMs = Date.now();
+        const attemptKey = clock.paused
+          ? null
+          : `pl_idle_${worldId}_${Math.floor(realNowMs / 75_000)}`;
+        if (!attemptKey || directorAttemptedKeys.current.has(attemptKey)) return;
         try {
           if (sessionStorage.getItem(attemptKey)) return;
+        } catch {
+          // In-memory protection remains active when browser storage is unavailable.
+        }
+        if (
+          !active ||
+          document.visibilityState !== 'visible' ||
+          phoneReady.current.sending ||
+          liveTimeRef.current.blocked
+        )
+          return;
+        try {
           sessionStorage.setItem(attemptKey, '1');
         } catch {
           // Private browsing can disable storage; the in-memory guard still
           // prevents a repeated paid attempt for this phone instance.
         }
         directorAttemptedKeys.current.add(attemptKey);
+        liveTimeRef.current.markChecked();
         advancing = true;
         const result = await client.advanceWorld(worldId, true);
         // Reading the committed world lets the phone's existing message notification
         // and banner show the real incoming reply while this screen stays open.
-        if (active && result.played > 0) await load();
+        if (active && (result.changed || result.played > 0)) await load();
       } catch {
         if (active && advancing)
           setError('这次世界后续没有完成。已保存的记录仍在，可以继续查看手机中的来信和日程。');
       } finally {
-        directorInFlight.current = false;
+        if (openingEpoch.current.token === epoch) {
+          directorInFlight.current = false;
+          if (active) setOpeningWorking(false);
+        }
       }
     }
     directorCheck.current = () => void checkForWorldNews();
     directorCheck.current();
-    const interval = window.setInterval(directorCheck.current, ACTIVE_PHONE_CHECK_MS);
+    const interval = window.setInterval(directorCheck.current, 5_000);
     return () => {
       active = false;
       window.clearInterval(interval);
       directorCheck.current = () => {};
     };
-  }, [client, load, worldId]);
+  }, [client, load, worldId, automatic]);
   useEffect(() => {
     if (data?.id === worldId && !refreshing) directorCheck.current();
-  }, [data?.id, refreshing, worldId]);
+  }, [data?.id, refreshing, worldId, liveTime.entryKey]);
   return (
-    <div className="world-viewport">
+    <div className="world-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
       <AppViewport />
-      {!data ? (
-        <div className="world-loading">
-          <a href="/possibilities">← 返回分支</a>
-          {isBuilding ? (
-            <ProgressState
-              label={statusMessage}
-              detail="设定和任务已经保存。可以返回分支，稍后查看当前进度。"
-            />
-          ) : error ? (
-            <>
-              <Notice>{error}</Notice>
-              <Button variant="secondary" disabled={refreshing} onClick={() => void load()}>
-                重新打开
-              </Button>
-              <Button disabled={refreshing} onClick={() => void retryBuild()}>
-                重新生成这段人生
-              </Button>
-            </>
-          ) : (
-            <ProgressState
-              label={statusMessage}
-              detail="正在读取已有记录，打开后从手机锁屏开始。"
-            />
-          )}
-        </div>
-      ) : (
-        <WorldPhoneSurface
-          key={data.id}
-          data={data}
-          onUploadPhoto={async (file, commandId) => {
-            const photo = await client.uploadPhoto(worldId, file, commandId);
-            request.current++;
-            setRefreshing(false);
-            setData((current) =>
-              !current || current.id !== photo.worldId
-                ? current
-                : {
-                    ...current,
-                    photos: [photo, ...(current.photos ?? []).filter((p) => p.id !== photo.id)],
-                  },
-            );
-            void load();
-            return { status: 'committed' };
-          }}
-          onChangeInvitation={async (input) => {
-            const receipt = await client.changeInvitation(worldId, input);
-            // Invalidate older reads; a committed receipt must survive a failed refresh.
-            request.current++;
-            setRefreshing(false);
-            setData((current) =>
-              !current || current.id !== receipt.worldId || (current.version ?? 0) > receipt.version
-                ? current
-                : {
-                    ...current,
-                    version: receipt.version,
-                    invitations: (current.invitations ?? []).map((a) =>
-                      a.id === receipt.invitation.id ? receipt.invitation : a,
-                    ),
-                  },
-            );
-            void load();
-            return { status: 'committed' };
-          }}
-          onSendMessage={async (actorId, text, commandId) => {
-            await deliverMessage(actorId, text, commandId);
-            return { status: 'committed' };
-          }}
-          onRetryMessage={async (messageId, commandId) => {
-            const failed = localMessages.find((message) => message.id === messageId);
-            if (!failed) throw new ApiFailure('NOT_FOUND', '原消息已不可访问，请刷新核对。');
-            const original = sendCommands.current[messageId];
-            if (!original)
-              throw new ApiFailure(
-                'UNKNOWN',
-                '原发送资料不完整，暂时无法核对。内容仍保留，可返回其他页面。',
-              );
-            let result;
-            try {
-              const { worldId: originalWorldId, ...input } = original;
-              result = await receiptClient.lookup(originalWorldId, input);
-            } catch {
-              throw new ApiFailure('UNKNOWN', '暂时无法核对，原消息仍待确认。请稍后再核对。');
-            }
-            if (result.status === 'committed') {
-              setLocalMessages((current) => current.filter((message) => message.id !== messageId));
-              delete sendCommands.current[messageId];
-              await load();
-              return { status: 'committed' };
-            }
-            if (failed.status === 'unknown' && commandId === messageId)
-              throw new ApiFailure(
-                'UNKNOWN',
-                '尚未查到已提交结果，原消息仍待确认。可继续核对，或明确选择再次尝试。',
-              );
-            // A different command is permitted only by the explicit retry/confirmation button.
-            await deliverMessage(failed.actorId, failed.text, commandId, messageId);
-            return { status: 'committed' };
-          }}
-          onSaveNote={async (input) => {
-            const receipt = await client.saveWorldNote(worldId, {
-              commandId: input.commandId,
-              /* 开场便签用它自己的作用域 id，其余由服务端分配 */
-              ...(input.id ? { id: input.id } : {}),
-              title: input.title,
-              text: input.text,
-              expectedVersion: input.expectedVersion ?? 0,
-            });
-            request.current++;
-            setRefreshing(false);
-            setData((current) => mergeNoteReceipt(current, receipt));
-            void load();
-            return { status: receipt.status };
-          }}
-          onExperienceBusy={setExperienceBusy}
-          localMessages={localMessages}
-          records={records}
-          reloadRecords={reloadRecords}
-          onReload={load}
-          loading={refreshing}
-          loadError={error}
-        />
+      {data?.id === worldId &&
+        opening &&
+        opening.runtime !== 'agents' &&
+        !['none', 'complete'].includes(opening.phase) && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              background: 'var(--surface, #f5f3ed)',
+              color: 'var(--muted, #676b65)',
+            }}
+          >
+            <span>
+              {opening.phase === 'unknown' && !openingWorking
+                ? '有条新消息未能收到'
+                : '正在接收新消息'}{' '}
+              · {opening.delivered}/{opening.total}
+            </span>
+            {opening.retryable && (
+              <button
+                type="button"
+                disabled={openingWorking}
+                style={{ border: 0, background: 'none', color: 'inherit', font: 'inherit' }}
+                onClick={async () => {
+                  if (
+                    directorInFlight.current ||
+                    phoneReady.current.sending ||
+                    phoneReady.current.refreshing ||
+                    !phoneReady.current.hasData
+                  )
+                    return;
+                  const epoch = openingEpoch.current.token;
+                  directorInFlight.current = true;
+                  setOpeningWorking(true);
+                  try {
+                    const next = await client.advanceWorldOpening(worldId, true);
+                    if (openingEpoch.current.token !== epoch) return;
+                    setOpening(next.opening);
+                    const previous = observedOpening.current;
+                    const hasNewMessages =
+                      next.opening.delivered > 0 &&
+                      (previous?.worldId !== worldId ||
+                        next.opening.delivered > previous.delivered);
+                    observedOpening.current = { worldId, delivered: next.opening.delivered };
+                    if (next.opening.phase === 'complete') openingFinished.current = worldId;
+                    if (next.played > 0 || hasNewMessages) await load();
+                  } catch {
+                    if (openingEpoch.current.token !== epoch) return;
+                    setOpening((current) =>
+                      current ? { ...current, phase: 'unknown', retryable: true } : current,
+                    );
+                  } finally {
+                    if (openingEpoch.current.token === epoch) {
+                      directorInFlight.current = false;
+                      setOpeningWorking(false);
+                    }
+                  }
+                }}
+              >
+                继续接收
+              </button>
+            )}
+          </div>
+        )}
+      {data?.id === worldId && automatic && (
+        <TimeExperienceControls time={liveTime} worldVersion={data.version ?? 0} reload={load} />
       )}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {!data ? (
+          <div className="world-loading">
+            <a href="/possibilities">← 返回分支</a>
+            {isBuilding ? (
+              <ProgressState
+                label={statusMessage}
+                detail="设定和任务已经保存。可以返回分支，稍后查看当前进度。"
+              />
+            ) : error ? (
+              <>
+                <Notice>{error}</Notice>
+                <Button variant="secondary" disabled={refreshing} onClick={() => void load()}>
+                  重新打开
+                </Button>
+                <Button disabled={refreshing} onClick={() => void retryBuild()}>
+                  重新生成这段人生
+                </Button>
+              </>
+            ) : (
+              <ProgressState
+                label={statusMessage}
+                detail="正在读取已有记录，打开后从手机锁屏开始。"
+              />
+            )}
+          </div>
+        ) : (
+          <WorldPhoneSurface
+            key={data.id}
+            wechatActorKey={wechatActorKey}
+            transport={transport}
+            data={
+              liveTime.displayTime && automatic ? { ...data, time: liveTime.displayTime } : data
+            }
+            onUploadPhoto={async (file, commandId) => {
+              const photo = await client.uploadPhoto(worldId, file, commandId);
+              request.current++;
+              setRefreshing(false);
+              setData((current) =>
+                !current || current.id !== photo.worldId
+                  ? current
+                  : {
+                      ...current,
+                      photos: [photo, ...(current.photos ?? []).filter((p) => p.id !== photo.id)],
+                    },
+              );
+              void load();
+              return { status: 'committed' };
+            }}
+            onChangeInvitation={async (input) => {
+              if (automatic) await liveTimeRef.current.startConversation();
+              const receipt = await client.changeInvitation(worldId, input);
+              // Invalidate older reads; a committed receipt must survive a failed refresh.
+              request.current++;
+              setRefreshing(false);
+              setData((current) =>
+                !current ||
+                current.id !== receipt.worldId ||
+                (current.version ?? 0) > receipt.version
+                  ? current
+                  : {
+                      ...current,
+                      version: receipt.version,
+                      invitations: (current.invitations ?? []).map((a) =>
+                        a.id === receipt.invitation.id ? receipt.invitation : a,
+                      ),
+                    },
+              );
+              void load();
+              return { status: 'committed' };
+            }}
+            onSendMessage={async (actorId, text, commandId) => {
+              await deliverMessage(actorId, text, commandId);
+              return { status: 'committed' };
+            }}
+            onRetryMessage={async (messageId, commandId) => {
+              const failed = localMessages.find((message) => message.id === messageId);
+              if (!failed) throw new ApiFailure('NOT_FOUND', '原消息已不可访问，请刷新核对。');
+              const original = sendCommands.current[messageId];
+              if (!original)
+                throw new ApiFailure(
+                  'UNKNOWN',
+                  '原发送资料不完整，暂时无法核对。内容仍保留，可返回其他页面。',
+                );
+              let result;
+              try {
+                const { worldId: originalWorldId, ...input } = original;
+                result = await receiptClient.lookup(originalWorldId, input);
+              } catch {
+                throw new ApiFailure('UNKNOWN', '暂时无法核对，原消息仍待确认。请稍后再核对。');
+              }
+              if (result.status === 'committed') {
+                setLocalMessages((current) =>
+                  current.filter((message) => message.id !== messageId),
+                );
+                delete sendCommands.current[messageId];
+                await load();
+                return { status: 'committed' };
+              }
+              if (failed.status === 'unknown' && commandId === messageId)
+                throw new ApiFailure(
+                  'UNKNOWN',
+                  '尚未查到已提交结果，原消息仍待确认。可继续核对，或明确选择再次尝试。',
+                );
+              // A different command is permitted only by the explicit retry/confirmation button.
+              await deliverMessage(failed.actorId, failed.text, commandId, messageId);
+              return { status: 'committed' };
+            }}
+            onSaveNote={async (input) => {
+              const receipt = await client.saveWorldNote(worldId, {
+                commandId: input.commandId,
+                /* 开场便签用它自己的作用域 id，其余由服务端分配 */
+                ...(input.id ? { id: input.id } : {}),
+                title: input.title,
+                text: input.text,
+                expectedVersion: input.expectedVersion ?? 0,
+              });
+              request.current++;
+              setRefreshing(false);
+              setData((current) => mergeNoteReceipt(current, receipt));
+              void load();
+              return { status: receipt.status };
+            }}
+            onExperienceBusy={setExperienceBusy}
+            localMessages={localMessages}
+            records={records}
+            reloadRecords={reloadRecords}
+            onReload={load}
+            onSceneWorldChanged={reloadSceneWorld}
+            mediaUrlFor={mediaUrlFor}
+            loading={refreshing}
+            loadError={error}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -523,7 +778,9 @@ export function WorldPhoneSurface({
   data,
   onExperienceBusy,
   preview = false,
+  transport,
   onReload,
+  onSceneWorldChanged,
   records,
   reloadRecords,
   onChangeInvitation,
@@ -534,11 +791,15 @@ export function WorldPhoneSurface({
   localMessages = [],
   loading = false,
   loadError,
+  wechatActorKey,
+  mediaUrlFor,
 }: {
   data: WorldPhone;
   onExperienceBusy?: (busy: boolean) => void;
   preview?: boolean;
+  transport?: typeof fetch;
   onReload?: () => Promise<void>;
+  onSceneWorldChanged?: (minimumVersion: number) => Promise<void>;
   records?: PhoneRecordsState;
   reloadRecords?: () => Promise<void>;
   onChangeInvitation?: PhoneActions['changeInvitation'];
@@ -550,6 +811,8 @@ export function WorldPhoneSurface({
   onSaveNote?: PhoneActions['saveNote'];
   loading?: boolean;
   loadError?: string;
+  wechatActorKey?: string;
+  mediaUrlFor?: (worldId: string, assetId: string) => string;
 }) {
   const [viewed, setViewed] = useState<ReadonlySet<string>>(() => {
     try {
@@ -570,13 +833,27 @@ export function WorldPhoneSurface({
       /* Read receipts remain usable in this session. */
     }
   }, [data.id, viewed]);
-  const client = useMemo(() => new LifeClient(), []);
+  const client = useMemo(() => new LifeClient(transport), [transport]);
   const [wallpaperUrl, setWallpaperUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(`pl_wallpaper_${data.id}`) || '/art/first-window.webp';
+      const custom = localStorage.getItem(`pl_wallpaper_${data.id}`);
+      if (custom) return custom;
     }
-    return '/art/first-window.webp';
+    return data.publicationWallpaperUrl ?? resolveDefaultWallpaper(data.title, data.identity);
   });
+
+  useEffect(() => {
+    try {
+      const custom = localStorage.getItem(`pl_wallpaper_${data.id}`);
+      if (!custom) {
+        setWallpaperUrl(
+          data.publicationWallpaperUrl ?? resolveDefaultWallpaper(data.title, data.identity),
+        );
+      }
+    } catch {
+      /* Storage may be unavailable. */
+    }
+  }, [data.id, data.title, data.identity, data.publicationWallpaperUrl]);
 
   const changeWallpaper = (url: string) => {
     setWallpaperUrl(url);
@@ -706,24 +983,55 @@ export function WorldPhoneSurface({
   }, [data.id]);
 
   const [sceneWaiting, setSceneWaiting] = useState(false);
-  const sceneClient = useMemo(() => new SceneClient(), [data.id]);
-  const groups = useGroups(data.id, !preview, onReload);
-  const map = useWorldMap(data.id, data.version ?? 0, !preview, onReload);
+  const [waitWorking, setWaitWorking] = useState(false);
+  const [pendingWait, setPendingWait] = useState<AppointmentWaitRequest | null>(null);
+  const [waitRecoveryMessage, setWaitRecoveryMessage] = useState('');
+  const waitRequest = useRef<AppointmentWaitRequest | null>(null);
+  const waitGuard = useRef(false);
+  useEffect(() => {
+    waitRequest.current = null;
+    setPendingWait(null);
+    setWaitRecoveryMessage('');
+    try {
+      const raw = localStorage.getItem('pl-appointment-wait:' + data.id);
+      const parsed = raw ? AppointmentWaitRequestSchema.safeParse(JSON.parse(raw)) : null;
+      if (parsed?.success) {
+        waitRequest.current = parsed.data;
+        setPendingWait(parsed.data);
+      }
+    } catch {}
+  }, [data.id]);
+  const sceneClient = useMemo(() => new SceneClient(transport), [data.id, transport]);
+  const sceneSync = useMemo(() => new SceneWorldSync(data.id), [data.id]);
+  const scenePhoneVersion = useRef(data.version ?? 0);
+  scenePhoneVersion.current = data.version ?? 0;
+  const groups = useGroups(data.id, !preview, onReload, transport);
+  const map = useWorldMap(data.id, data.version ?? 0, !preview, onReload, transport);
   useEffect(() => {
     if (!sceneWaiting || preview) return;
     const timer = setInterval(() => {
       void sceneClient
         .read(data.id)
         .then((d) => {
-          setSceneWaiting(Boolean(d.task && ['queued', 'running'].includes(d.task.status)));
+          const waiting = Boolean(d.task && ['queued', 'running'].includes(d.task.status));
+          if (waiting) return;
+          if (!onSceneWorldChanged) {
+            setSceneWaiting(false);
+            return;
+          }
+          return sceneSync
+            .sync(d, scenePhoneVersion.current, onSceneWorldChanged)
+            .then(() => setSceneWaiting(false));
         })
         .catch(() => {});
     }, 3000);
     return () => clearInterval(timer);
-  }, [sceneWaiting, sceneClient, data.id, preview]);
+  }, [sceneWaiting, sceneClient, sceneSync, data.id, preview, onSceneWorldChanged]);
   useEffect(() => {
-    onExperienceBusy?.(sceneWaiting || groups.pending || map.working);
-  }, [sceneWaiting, groups.pending, map.working, onExperienceBusy]);
+    onExperienceBusy?.(
+      sceneWaiting || groups.pending || map.working || waitWorking || Boolean(pendingWait),
+    );
+  }, [sceneWaiting, groups.pending, map.working, waitWorking, pendingWait, onExperienceBusy]);
   useEffect(() => {
     void groups.refresh();
   }, [data.version, groups.refresh]);
@@ -743,7 +1051,7 @@ export function WorldPhoneSurface({
     [data],
   );
 
-  const basePhoneData = worldAppData(mergedData, viewed, localMessages);
+  const basePhoneData = worldAppData(mergedData, viewed, localMessages, mediaUrlFor);
   const phoneData: PhoneAppsData = useMemo(
     () => ({
       ...basePhoneData,
@@ -753,8 +1061,61 @@ export function WorldPhoneSurface({
     [basePhoneData, notes, currentReferenceTime, onSaveNote],
   );
 
+  async function performWait(input: AppointmentWaitRequest) {
+    if (waitGuard.current) throw new ApiFailure('BUSY', '正在核对这个等待，请稍等。');
+    // Persist before the request, so a lost response or refresh can only replay this exact command.
+    try {
+      localStorage.setItem('pl-appointment-wait:' + data.id, JSON.stringify(input));
+    } catch {
+      throw new ApiFailure('UNAVAILABLE', '请允许浏览器保存等待记录后再试。');
+    }
+    waitRequest.current = input;
+    setPendingWait(input);
+    setWaitRecoveryMessage('');
+    waitGuard.current = true;
+    setWaitWorking(true);
+    try {
+      const receipt = await client.waitToAppointment(data.id, input);
+      waitRequest.current = null;
+      setPendingWait(null);
+      try {
+        localStorage.removeItem('pl-appointment-wait:' + data.id);
+      } catch {}
+      await Promise.allSettled([
+        onSceneWorldChanged?.(receipt.version),
+        onReload?.(),
+        map.refresh(),
+        reloadRecords?.(),
+      ]);
+      return receipt;
+    } catch (e) {
+      if (
+        e instanceof ApiFailure &&
+        [
+          'VERSION_CONFLICT',
+          'INVALID_COMMAND',
+          'NOT_FOUND',
+          'FORBIDDEN',
+          'INVALID_INPUT',
+          'IDEMPOTENCY_CONFLICT',
+        ].includes(e.code)
+      ) {
+        waitRequest.current = null;
+        setPendingWait(null);
+        try {
+          localStorage.removeItem('pl-appointment-wait:' + data.id);
+        } catch {}
+        await Promise.allSettled([onReload?.(), map.refresh()]);
+      }
+      throw e;
+    } finally {
+      waitGuard.current = false;
+      setWaitWorking(false);
+    }
+  }
   return (
     <PhoneAppsProvider
+      transport={transport}
       worldId={data.id}
       groups={groups}
       data={phoneData}
@@ -764,6 +1125,50 @@ export function WorldPhoneSurface({
       loadError={loadError}
       onReload={onReload}
       actions={{
+        canWaitToAppointment: (id) => {
+          const a = phoneData.invitations.find((a) => a.id === id),
+            m = map.data;
+          if (
+            preview ||
+            pendingWait ||
+            waitWorking ||
+            sceneWaiting ||
+            !a ||
+            a.status !== 'confirmed' ||
+            !m ||
+            m.paused ||
+            m.busy ||
+            m.currentSceneId ||
+            map.working ||
+            (map.operation && map.operation.status !== 'committed')
+          )
+            return false;
+          const places = m.places.filter((p) => p.appointmentIds.includes(id));
+          return (
+            places.length === 1 &&
+            places[0]!.id === m.currentPlaceId &&
+            Date.parse(a.at) > Date.parse(m.storyNow)
+          );
+        },
+        waitToAppointment: preview
+          ? undefined
+          : async (invitationId, commandId) => {
+              if (waitGuard.current) throw new ApiFailure('BUSY', '正在核对这个等待，请稍等。');
+              if (
+                waitRequest.current &&
+                (waitRequest.current.invitationId !== invitationId ||
+                  waitRequest.current.commandId !== commandId)
+              )
+                throw new ApiFailure('BUSY', '上次等待的结果还需要核对，请点击“核对原等待”。');
+              const input =
+                waitRequest.current ??
+                AppointmentWaitRequestSchema.parse({
+                  invitationId,
+                  commandId,
+                  expectedVersion: data.version ?? 0,
+                });
+              return performWait(input);
+            },
         enterScene: preview
           ? undefined
           : async (appointmentId) => {
@@ -847,12 +1252,39 @@ export function WorldPhoneSurface({
       }}
     >
       <PhoneShell
+        wechatActorKey={wechatActorKey}
+        wechatActorId={
+          wechatActorKey ? wechatCharacterTarget(data.actors, wechatActorKey) : undefined
+        }
         worldId={data.id}
         lifeName={data.title}
         dateLabel={dateLabel}
         timeLabel={timeLabel}
         wallpaperUrl={wallpaperUrl}
-        notice={preview ? <span>开发样板 · 合成数据 · 未调用模型</span> : undefined}
+        notice={
+          preview ? (
+            <span>开发样板 · 合成数据 · 未调用模型</span>
+          ) : (
+            <AppointmentWaitRecovery
+              pending={Boolean(pendingWait)}
+              working={waitWorking}
+              message={waitRecoveryMessage}
+              onRecover={() => {
+                const input = waitRequest.current;
+                if (!input || waitWorking) return;
+                void performWait(input)
+                  .then(() =>
+                    setWaitRecoveryMessage('已核对原等待。是否进入现场，请在日程里决定。'),
+                  )
+                  .catch((e) =>
+                    setWaitRecoveryMessage(
+                      e instanceof Error ? e.message : '这次结果还没能确认，请稍后再核对。',
+                    ),
+                  );
+              }}
+            />
+          )
+        }
         referenceTime={currentReferenceTime}
         onOpenNotification={(notification) => {
           window.location.hash = routeHash(data.id, {
@@ -897,6 +1329,26 @@ export function WorldPhoneSurface({
               actionableUntil: inv.at,
               timeLabel: '待回复',
             })),
+          ...(records?.status === 'ready'
+            ? records.data.current
+                .filter(
+                  (item) =>
+                    item.kind === 'world_matter' &&
+                    (item.state === 'in_progress' || item.state === 'blocked'),
+                )
+                .map((item) => ({
+                  id: `notif-matter-${item.id}`,
+                  title: item.title,
+                  summary: `${item.stateLabel} · ${recordAttribution(item)} · ${item.text}`,
+                  app: 'notes' as const,
+                  target: item.id,
+                  at:
+                    item.source.kind === 'world_matter' || item.source.kind === 'world_event'
+                      ? item.source.at
+                      : undefined,
+                  timeLabel: item.stateLabel,
+                }))
+            : []),
         ]}
         renderHome={({ open, openPanel }) => (
           <PhoneDesktop
@@ -904,6 +1356,7 @@ export function WorldPhoneSurface({
             dateLabel={dateLabel}
             timeLabel={timeLabel}
             data={phoneData}
+            records={records}
             open={open}
             openPanel={openPanel}
           />
@@ -1376,10 +1829,14 @@ export function WorldPhoneSurface({
           if (panel === 'scene')
             return (
               <ScenePanel
+                transport={transport}
                 key={data.id}
                 worldId={data.id}
                 contacts={phoneData.contacts}
-                onWorldChanged={onReload}
+                photos={phoneData.photos}
+                phoneVersion={data.version ?? 0}
+                onWorldChanged={onSceneWorldChanged}
+                worldSync={sceneSync}
                 onBusy={setSceneWaiting}
               />
             );

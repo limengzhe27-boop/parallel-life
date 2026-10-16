@@ -1,5 +1,20 @@
 import { DomainError } from './errors.ts';
-import type { StoryChoice, TurnCommand, TurnProposal, WorldEffect, Visibility } from './types.ts';
+import type {
+  StoryChoice,
+  TurnCommand,
+  TurnProposal,
+  WorldEffect,
+  Visibility,
+  EventGoalAssessment,
+} from './types.ts';
+import type {
+  WorldMatter,
+  MatterSpan,
+  MatterStatus,
+  MatterAssertion,
+  MatterSource,
+  MatterEvidence,
+} from './matters.ts';
 
 function fail(): never {
   throw new DomainError('INVALID_PROPOSAL');
@@ -38,6 +53,192 @@ function visibility(value: unknown): Visibility {
     return { kind: 'actors', actorIds };
   }
   return fail();
+}
+
+function validateMatterSpan(value: unknown): MatterSpan {
+  if (value === 'near_term' || value === 'pursuit') return value;
+  return fail();
+}
+
+function validateMatterStatus(value: unknown): MatterStatus {
+  if (
+    ['not_started', 'in_progress', 'blocked', 'completed', 'abandoned', 'superseded'].includes(
+      value as string,
+    )
+  )
+    return value as MatterStatus;
+  return fail();
+}
+
+function validateMatterAssertion(value: unknown): MatterAssertion {
+  if (['player_statement', 'world_verified', 'actor_statement'].includes(value as string))
+    return value as MatterAssertion;
+  return fail();
+}
+
+function validateMatterSource(value: unknown): MatterSource {
+  const rec = record(value);
+  const kind = text(rec.kind, 40);
+  switch (kind) {
+    case 'genesis':
+      return {
+        kind: 'genesis',
+        seedId: id(rec.seedId),
+        ...(rec.openingKey ? { openingKey: text(rec.openingKey, 80) } : {}),
+      };
+    case 'preset':
+      return {
+        kind: 'preset',
+        presetId: text(rec.presetId, 80),
+        version:
+          typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version > 0
+            ? rec.version
+            : fail(),
+        matterKey: text(rec.matterKey, 80),
+      };
+    case 'director_proposal':
+      return {
+        kind: 'director_proposal',
+        eventId: id(rec.eventId),
+        eventVersion:
+          typeof rec.eventVersion === 'number' &&
+          Number.isInteger(rec.eventVersion) &&
+          rec.eventVersion > 0
+            ? rec.eventVersion
+            : fail(),
+        at: isoInstant(rec.at),
+      };
+    case 'actor_proposal':
+      return {
+        kind: 'actor_proposal',
+        actorId: id(rec.actorId),
+        eventId: id(rec.eventId),
+        eventVersion:
+          typeof rec.eventVersion === 'number' &&
+          Number.isInteger(rec.eventVersion) &&
+          rec.eventVersion > 0
+            ? rec.eventVersion
+            : fail(),
+        at: isoInstant(rec.at),
+      };
+    case 'scene_action':
+      return {
+        kind: 'scene_action',
+        sceneId: id(rec.sceneId),
+        actionId: id(rec.actionId),
+        at: isoInstant(rec.at),
+      };
+    default:
+      return fail();
+  }
+}
+
+function validateMatterEvidence(value: unknown): MatterEvidence {
+  const rec = record(value);
+  const kind = text(rec.kind, 40);
+  const eventVersion =
+    typeof rec.eventVersion === 'number' &&
+    Number.isInteger(rec.eventVersion) &&
+    rec.eventVersion > 0
+      ? rec.eventVersion
+      : fail();
+  const eventId = id(rec.eventId);
+  const at = isoInstant(rec.at);
+  switch (kind) {
+    case 'director_progression':
+      return {
+        kind: 'director_progression',
+        reason: text(rec.reason, 300),
+        eventId,
+        eventVersion,
+        at,
+      };
+    case 'user_report':
+      if (!['reported_done', 'blocked', 'abandoned'].includes(String(rec.outcome))) return fail();
+      return {
+        kind: 'user_report',
+        quote: text(rec.quote, 200),
+        outcome: rec.outcome as 'reported_done' | 'blocked' | 'abandoned',
+        eventId,
+        eventVersion,
+        at,
+      };
+    case 'scene_action':
+      if (!['succeeded', 'failed', 'partial'].includes(String(rec.outcome))) return fail();
+      return {
+        kind: 'scene_action',
+        sceneId: id(rec.sceneId),
+        actionId: id(rec.actionId),
+        outcome: rec.outcome as 'succeeded' | 'failed' | 'partial',
+        eventId,
+        eventVersion,
+        at,
+      };
+    case 'world_event':
+      return {
+        kind: 'world_event',
+        reason: text(rec.reason, 300),
+        eventId,
+        eventVersion,
+        at,
+      };
+    default:
+      return fail();
+  }
+}
+
+function validateWorldMatter(value: unknown): WorldMatter {
+  const rec = record(value);
+  const matterId = id(rec.id);
+  const worldId = id(rec.worldId);
+  const span = validateMatterSpan(rec.span);
+  const title = text(rec.title, 100).trim();
+  const description = text(rec.description, 500).trim();
+  const status = validateMatterStatus(rec.status);
+  const assertion = validateMatterAssertion(rec.assertion);
+  if (rec.visibility !== 'player_visible' && rec.visibility !== 'hidden') return fail();
+  const visibility = rec.visibility;
+  const prerequisites = Array.isArray(rec.prerequisites) ? ids(rec.prerequisites) : undefined;
+  const relatedActorIds = Array.isArray(rec.relatedActorIds) ? ids(rec.relatedActorIds) : undefined;
+  const relatedPlaceId = rec.relatedPlaceId ? id(rec.relatedPlaceId) : undefined;
+  const relatedInvitationId = rec.relatedInvitationId ? id(rec.relatedInvitationId) : undefined;
+  const source = validateMatterSource(rec.source);
+  const evidence = rec.evidence ? validateMatterEvidence(rec.evidence) : undefined;
+  const version =
+    typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version > 0
+      ? rec.version
+      : fail();
+  const createdAt = isoInstant(rec.createdAt);
+  const updatedAt = isoInstant(rec.updatedAt);
+  const rewardClaimed = typeof rec.rewardClaimed === 'boolean' ? rec.rewardClaimed : undefined;
+
+  if (assertion === 'world_verified' && (!evidence || evidence.kind === 'user_report')) {
+    return fail();
+  }
+  if (evidence?.kind === 'user_report' && assertion !== 'player_statement') {
+    return fail();
+  }
+
+  return {
+    id: matterId,
+    worldId,
+    span,
+    title,
+    description,
+    status,
+    assertion,
+    visibility,
+    ...(prerequisites ? { prerequisites } : {}),
+    ...(relatedActorIds ? { relatedActorIds } : {}),
+    ...(relatedPlaceId ? { relatedPlaceId } : {}),
+    ...(relatedInvitationId ? { relatedInvitationId } : {}),
+    source,
+    ...(evidence ? { evidence } : {}),
+    version,
+    createdAt,
+    updatedAt,
+    ...(rewardClaimed !== undefined ? { rewardClaimed } : {}),
+  };
 }
 /** A narrow gate: proposals may only cite a decision the player actually typed. */
 export function isExplicitChoice(quote: string, userText: string): boolean {
@@ -128,6 +329,121 @@ export function isoInstant(value: unknown): string {
     return fail();
   return result;
 }
+/** No source IDs, actor reassignment, completion flags or physical selectors in model judgments. */
+export function parseEventGoalAssessments(value: unknown): EventGoalAssessment[] {
+  if (!Array.isArray(value) || value.length > 8)
+    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_ARRAY');
+  const assessments = value.map((raw): EventGoalAssessment => {
+    const item = record(raw);
+    if (
+      Object.keys(item).some(
+        (key) => !['goalKey', 'target', 'kind', 'quote', 'closure'].includes(key),
+      )
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_EXTRA_FIELD');
+    const goalKey = text(item.goalKey, 160);
+    if (!/^[a-zA-Z0-9_:-]+$/.test(goalKey))
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_KEY');
+    const userKinds = ['engaged', 'declined', 'reopened', 'unrelated'];
+    const npcKinds = ['npc_progress', 'nudge', 'closure'];
+    if (
+      (item.target !== 'user' && item.target !== 'npc') ||
+      typeof item.kind !== 'string' ||
+      !(item.target === 'user' ? userKinds : npcKinds).includes(item.kind)
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_TARGET_KIND');
+    if (item.kind === 'closure') {
+      if (!['withdrawn', 'alternative', 'unresolved'].includes(item.closure as string))
+        throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_CLOSURE_VALUE');
+    } else if (Object.hasOwn(item, 'closure'))
+      throw new DomainError(
+        'INVALID_PROPOSAL',
+        'INVALID_PROPOSAL:GOAL_ASSESSMENT_UNEXPECTED_CLOSURE',
+      );
+    return {
+      goalKey,
+      target: item.target,
+      kind: item.kind as EventGoalAssessment['kind'],
+      quote: text(item.quote, 240),
+      ...(item.kind === 'closure'
+        ? { closure: item.closure as EventGoalAssessment['closure'] }
+        : {}),
+    };
+  });
+  const keys = assessments.map((a) => JSON.stringify([a.goalKey, a.target]));
+  if (new Set(keys).size !== keys.length)
+    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_DUPLICATE');
+  // A reply follows its player input, even if the model emits judgments out of order.
+  return assessments.sort((a, b) => Number(a.target === 'npc') - Number(b.target === 'npc'));
+}
+/** Explicit adapter protocol; canonical proposals still require literal quotes. */
+export function bindEventGoalAssessmentSources(
+  value: unknown,
+  scope: {
+    goalKeys: readonly string[];
+    userText?: string;
+    npcTexts: readonly string[];
+    director?: boolean;
+  },
+): EventGoalAssessment[] {
+  if (!Array.isArray(value) || value.length > 8)
+    throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_ARRAY');
+  const bound = value.map((raw) => {
+    const item = record(raw);
+    // Never repair or rebind legacy evidence, including an invalid quote.
+    if (!Object.hasOwn(item, 'source')) return item;
+    if (
+      Object.hasOwn(item, 'quote') ||
+      Object.keys(item).some(
+        (key) => !['goalKey', 'target', 'kind', 'source', 'closure'].includes(key),
+      )
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SOURCE_FIELDS');
+    let original: string | undefined;
+    if (item.source === 'current_user' && item.target === 'user' && !scope.director)
+      original = scope.userText;
+    else if (
+      item.source === 'current_reply' &&
+      item.target === 'npc' &&
+      scope.npcTexts.length === 1
+    )
+      original = scope.npcTexts[0];
+    if (!original?.trim())
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_SOURCE_SCOPE');
+    let quote = '';
+    for (const point of original.trim()) {
+      if (quote.length + point.length > 240) break;
+      quote += point;
+    }
+    const { source: _source, ...candidate } = item;
+    return { ...candidate, quote };
+  });
+  const assessments = parseEventGoalAssessments(bound);
+  validateEventGoalAssessmentQuotes(assessments, scope);
+  return assessments;
+}
+/** Pre-commit scope/quote check only; it does not claim a saved source or completion. */
+export function validateEventGoalAssessmentQuotes(
+  assessments: readonly EventGoalAssessment[],
+  scope: {
+    goalKeys: readonly string[];
+    userText?: string;
+    npcTexts: readonly string[];
+    director?: boolean;
+  },
+): void {
+  parseEventGoalAssessments(assessments);
+  for (const a of assessments) {
+    if (!scope.goalKeys.includes(a.goalKey))
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_UNKNOWN_GOAL');
+    if (
+      a.target === 'user'
+        ? scope.director || !scope.userText?.includes(a.quote)
+        : !scope.npcTexts.some((text) => text.includes(a.quote))
+    )
+      throw new DomainError('INVALID_PROPOSAL', 'INVALID_PROPOSAL:GOAL_ASSESSMENT_QUOTE_MISMATCH');
+  }
+}
 /** Construct allowlisted objects: model output cannot supply owner/version/SQL/etc. */
 export function parseProposal(value: unknown): TurnProposal {
   const proposal = record(value);
@@ -162,6 +478,9 @@ export function parseProposal(value: unknown): TurnProposal {
           title: text(item.title, 200),
           at: isoInstant(item.at),
           participantIds: ids(item.participantIds),
+          ...(item.type === 'appointment.proposed' && item.placeId !== undefined
+            ? { placeId: id(item.placeId) }
+            : {}),
         };
       case 'fact.established':
         return {
@@ -205,12 +524,49 @@ export function parseProposal(value: unknown): TurnProposal {
           quote: text(item.quote, 160).trim(),
           outcome: item.outcome as 'reported_done' | 'blocked' | 'abandoned',
         };
+      case 'matter.proposed':
+        return {
+          type: item.type,
+          id: effectId,
+          title: text(item.title, 100).trim(),
+          description: text(item.description, 500).trim(),
+          span: validateMatterSpan(item.span),
+          quote: text(item.quote, 160).trim(),
+        };
+      case 'matter.created': {
+        const matter = validateWorldMatter(item.matter);
+        return {
+          type: item.type,
+          id: effectId,
+          matter,
+        };
+      }
+      case 'matter.updated': {
+        const matterId = id(item.matterId);
+        const status = validateMatterStatus(item.status);
+        const evidence = validateMatterEvidence(item.evidence);
+        const assertion = item.assertion ? validateMatterAssertion(item.assertion) : undefined;
+        return {
+          type: item.type,
+          id: effectId,
+          matterId,
+          status,
+          evidence,
+          ...(assertion ? { assertion } : {}),
+        };
+      }
       default:
         return fail();
     }
   });
   if (new Set(effects.map((effect) => effect.id)).size !== effects.length) return fail();
-  return { schemaVersion: 1, effects };
+  return {
+    schemaVersion: 1,
+    effects,
+    ...(Object.hasOwn(proposal, 'eventGoalAssessments')
+      ? { eventGoalAssessments: parseEventGoalAssessments(proposal.eventGoalAssessments) }
+      : {}),
+  };
 }
 export function validateCommand(command: TurnCommand): void {
   try {

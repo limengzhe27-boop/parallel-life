@@ -1,0 +1,165 @@
+import type {
+  ActorAgentState,
+  AgentAttemptStatus,
+  AgentBlocker,
+  AgentCandidate,
+} from './agent-runtime.ts';
+import type { WorldBoundary, DirectorPendingReason } from './world-awareness.ts';
+import type { AuthoredAgentMaterialCatalog } from './authored-agent-material.ts';
+/** Director-only state; never serialize this object into an NPC prompt. */
+export type DirectorSnapshot = {
+  schemaVersion: 1;
+  worldId: string;
+  engineEpoch: number;
+  worldVersion: number;
+  storyAt: string;
+  observedThroughVersion: number;
+  evaluatedThroughVersion: number;
+  boundary: WorldBoundary;
+  /** Explicitly admitted causal wake, separate from an actor candidate or elapsed polling time. */
+  evaluationCause?: import('./agent-narrative.ts').DirectorEvaluationCause;
+  /** Authorized fictional setting and cast; never the owner's real interview/profile. */
+  worldSetting?: string;
+  /** Full immutable director-only author material; participant references never grant NPC knowledge. */
+  authoredMaterials?: AuthoredAgentMaterialCatalog;
+  authoredEligibility?: {
+    nodeKey: string;
+    nodeHash: string;
+    status: 'eligible' | 'blocked' | 'expired' | 'already_presented';
+    reasons: import('./authored-event-eligibility.ts').AuthoredEligibilityReason[];
+    basisSourceIds: string[];
+    qualificationKey: string;
+  }[];
+  occupiedAuthoredEventKeys?: string[];
+  cast?: { id: string; name: string; persona: string; relationship?: string }[];
+  actorStates: ActorAgentState[];
+  actorKnownTopics?: import('./actor-known-topic.ts').ActorKnownTopic[];
+  /** One accepted native player turn needing semantic speaker coordination. */
+  nativeTurn?: {
+    taskId: string;
+    inputReceiptId: string;
+    channel: 'group' | 'scene';
+    threadId: string;
+  };
+  episodes: SharedEpisode[];
+  candidates: AgentCandidate[];
+  blockers: AgentBlocker[];
+  changes: DirectorPendingReason[];
+  observations: {
+    sourceId: string;
+    text: string;
+    kind: 'fact' | 'speech' | 'belief' | 'plan' | 'result';
+    knownByActorIds: string[];
+  }[];
+  /** An open conversation is attention context, not proof of player decisions or location. */
+  focus: { channel: 'private' | 'group' | 'scene'; threadId: string; actorIds: string[] }[];
+  /** A legacy/unscoped active conversation is still attention, not permission to guess its NPC. */
+  conversationWithoutTarget?: boolean;
+};
+export type DirectorOpportunity = {
+  id: string;
+  title: string;
+  description: string;
+  playerImpact: string;
+  participantActorIds: string[];
+  placeIds: string[];
+  /** Activity is a product-supported opportunity, never an already executed action. */
+  activity: 'conversation' | 'meeting' | 'follow_up';
+  basisSourceIds: string[];
+  /** Optional authored material reference; not a deterministic plot outcome. */
+  authoredEventKey?: string;
+  actorTopics?: import('./actor-known-topic.ts').ActorTopicSelection[];
+};
+export type SharedEpisode = {
+  schemaVersion: 1;
+  worldId: string;
+  id: string;
+  revision: number;
+  origin: { kind: 'authored' | 'director'; sourceId: string };
+  status: 'proposed' | 'active' | 'resolved' | 'withdrawn';
+  title: string;
+  description: string;
+  participantActorIds: string[];
+  placeIds: string[];
+  sourceEventIds: string[];
+  resultIds: string[];
+  /** Individual NPC goals/withdrawals do not directly close a shared episode. */
+  unresolvedResponsibilityIds: string[];
+  endReason?: string;
+};
+export type DirectorNudge = {
+  actorId: string;
+  candidateId: string;
+  kind:
+    | 'continue_own_plan'
+    | 'reassess_own_responsibility'
+    | 'respond_to_player'
+    | 'consider_opportunity';
+  basisSourceIds: string[];
+};
+export type DirectorDecision = {
+  schemaVersion: 1;
+  id: string;
+  worldId: string;
+  engineEpoch: number;
+  worldVersion: number;
+  inputHash: string;
+  evaluatedThroughVersion: number;
+  mode: 'quiet' | 'coordinate' | 'bounded_opportunity';
+  selectedCandidateIds: string[];
+  deferred: { candidateId: string; reason: string }[];
+  nudges: DirectorNudge[];
+  opportunities: DirectorOpportunity[];
+  /** Private global audit; never forwarded as free prose to NPCs. */
+  audit: { reason: string; basisSourceIds: string[] };
+};
+export type DirectorAttempt = {
+  id: string;
+  worldId: string;
+  commandId: string;
+  engineEpoch: number;
+  expectedWorldVersion: number;
+  inputHash: string;
+  token: string;
+  leaseUntil: string;
+  status: AgentAttemptStatus;
+  decisionId?: string;
+};
+
+/** Author intent can be considered only with actual qualified, unoccupied source evidence. */
+export function canConsiderAuthoredEvent(snapshot: DirectorSnapshot, nodeKey: string): boolean {
+  const materials =
+    snapshot.authoredMaterials?.materials.filter((m) => m.ref.nodeKey === nodeKey) ?? [];
+  const matches = snapshot.authoredEligibility?.filter((item) => item.nodeKey === nodeKey) ?? [];
+  return (
+    materials.length === 1 &&
+    matches.length === 1 &&
+    matches[0]!.nodeHash === materials[0]!.ref.nodeHash &&
+    matches[0]!.status === 'eligible' &&
+    !snapshot.occupiedAuthoredEventKeys?.includes(nodeKey)
+  );
+}
+
+/** Speaker selection is coordination, not permission to add a new event or write NPC dialogue. */
+export function validNativeTurnDecision(
+  snapshot: DirectorSnapshot,
+  decision: Pick<DirectorDecision, 'mode' | 'selectedCandidateIds' | 'nudges' | 'opportunities'>,
+): boolean {
+  if (!snapshot.nativeTurn) return true;
+  return (
+    decision.mode !== 'bounded_opportunity' &&
+    decision.opportunities.length === 0 &&
+    decision.nudges.length === 0 &&
+    decision.selectedCandidateIds.length <= 1 &&
+    decision.selectedCandidateIds.every((id) =>
+      snapshot.candidates.some(
+        (c) =>
+          c.id === id &&
+          c.channel === snapshot.nativeTurn!.channel &&
+          c.threadId === snapshot.nativeTurn!.threadId &&
+          c.source === 'conversation' &&
+          c.sourceIds.includes(snapshot.nativeTurn!.inputReceiptId),
+      ),
+    )
+  );
+}

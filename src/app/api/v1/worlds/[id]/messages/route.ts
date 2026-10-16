@@ -1,4 +1,5 @@
 import { resolveTurn } from '../../../../../../modules/world/application/resolve-turn.ts';
+import { NpcMessageError } from '../../../../../../server/npc-agent-services.ts';
 import {
   WorldMessageRequestSchema,
   WorldMessageReceiptSchema,
@@ -13,6 +14,8 @@ import {
   parseBody,
 } from '../../../../../../server/http.ts';
 
+export const runtime = 'nodejs';
+export const maxDuration = 240;
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   return endpoint(async () => {
     const s = await authenticated(request);
@@ -20,12 +23,36 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!parsedWorldId.success) throw new HttpError('NOT_FOUND', 404);
     const input = await parseBody(request, WorldMessageRequestSchema);
     await s.worlds.get({ userId: s.ownerId }, parsedWorldId.data);
+    try {
+      const receipt = await s.npcAgents.sendMessageIfEnabled(s.ownerId, {
+        id: input.commandId,
+        worldId: parsedWorldId.data,
+        expectedVersion: input.expectedVersion,
+        actorId: input.actorId,
+        text: input.text,
+      });
+      if (receipt) return json(WorldMessageReceiptSchema.parse(receipt));
+    } catch (error) {
+      if (error instanceof NpcMessageError)
+        return json(
+          {
+            error: {
+              code: error.apiCode,
+              message: error.message,
+              retryable: error.retryable,
+              requestId: crypto.randomUUID(),
+            },
+          },
+          error.status,
+        );
+      throw error;
+    }
     return s.withWorldActivityLock(parsedWorldId.data, async () => {
       const clock = await s.readWorldClock(s.ownerId, parsedWorldId.data);
       const result = await resolveTurn(
         {
           worlds: s.worlds,
-          planner: s.worldPlanner,
+          planner: s.characterPlannerFor(s.ownerId, parsedWorldId.data),
           now: () => new Date().toISOString(),
           storyNow: (realNow) => projectStoryTime(clock, realNow),
           newId: () => crypto.randomUUID(),
@@ -40,6 +67,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           text: input.text,
         },
       );
+      try {
+        // Reconcile only already committed character output: an invitation or a later
+        // explicit mention of an authored place may complete a pending story disclosure.
+        // The saved message remains valid if this retryable projection fails.
+        await s.story.progress(s.ownerId, parsedWorldId.data);
+      } catch {
+        console.warn(JSON.stringify({ scope: 'story-message-reconcile', code: 'FAILED' }));
+      }
       /*
       回合已提交，立刻把该人生待执行的 outbox 任务派发出去（例如索图产生的
       媒体请求）。派发失败不影响已提交的结果：outbox 是持久的，稍后可再派发。

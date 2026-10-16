@@ -1,4 +1,7 @@
 'use client';
+import { isSimpleSceneQuestion } from '../../../modules/world/domain/scene-delivery.ts';
+import { classifySceneInput } from '../../../modules/world/domain/scene-runtime.ts';
+import { sceneTimelineEntries } from './scene-timeline.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ProgressState } from '../../../components/progress-state.tsx';
 import { sceneOverview } from './index-state.ts';
@@ -11,10 +14,13 @@ import {
   type SceneTask,
 } from './state.ts';
 import type { SceneRead } from '../../../contracts/scenes.ts';
-import type { PhoneContact } from '../apps/types.ts';
+import type { PhoneContact, PhonePhoto } from '../apps/types.ts';
 import { worldDateTimeLabel } from '../../../modules/world/domain/display-time.ts';
 import { readRoute, routeHash } from '../navigation.ts';
 import s from './scenes.module.css';
+import { SceneStage, SceneFace, SceneMedia } from './scene-stage.tsx';
+import { visibleSceneEntries, scenePhotoUrl } from './stage-presentation.ts';
+import { SceneWorldSync } from './world-sync.ts';
 const states = {
   not_started: '还未开始',
   in_progress: '正在进行',
@@ -22,25 +28,69 @@ const states = {
   completed: '已完成',
   abandoned: '已放下',
 };
+function renderStoryContent(text: string) {
+  const parts = text.split(/(（[^）\n]+）|\([^)\n]+\))/g);
+  if (parts.length <= 1) return text;
+  return parts.map((part, index) => {
+    if (
+      (part.startsWith('（') && part.endsWith('）')) ||
+      (part.startsWith('(') && part.endsWith(')'))
+    ) {
+      return (
+        <span key={index} className={s.stageDirection}>
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
 export function ScenePanel({
   worldId,
   contacts,
+  photos = [],
+  transport,
+  phoneVersion = 0,
+  worldSync,
   onWorldChanged,
   onBusy,
 }: {
   worldId: string;
   contacts: readonly PhoneContact[];
-  onWorldChanged?: () => Promise<void>;
+  photos?: readonly PhonePhoto[];
+  /** Explicit transport seam for development-only UI fixtures. */
+  transport?: typeof fetch;
+  phoneVersion?: number;
+  worldSync?: SceneWorldSync;
+  onWorldChanged?: (minimumVersion: number) => Promise<void>;
   onBusy?: (busy: boolean) => void;
 }) {
-  const client = useMemo(() => new SceneClient(), [worldId]);
+  const client = useMemo(() => new SceneClient(transport), [worldId, transport]);
+  const ownSync = useMemo(() => new SceneWorldSync(worldId), [worldId]);
+  const sync = worldSync ?? ownSync;
+  const [syncError, setSyncError] = useState('');
   const [data, setData] = useState<SceneRead>(),
     [task, setTask] = useState<SceneTask | null>(),
     [text, setText] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [retryConfirm, setRetryConfirm] = useState(false),
-    [leaveConfirm, setLeaveConfirm] = useState(false);
+    [leaveConfirm, setLeaveConfirm] = useState(false),
+    [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const reading = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const restoredScene = useRef<string | undefined>(undefined);
+  const followEnd = useRef(false);
+  const scrollToBottom = useCallback(() => {
+    if (reading.current) {
+      reading.current.scrollTo({
+        top: reading.current.scrollHeight,
+        behavior: 'smooth',
+      });
+      followEnd.current = true;
+      setShowScrollToBottom(false);
+    }
+  }, []);
   const live = useRef(true),
     running = useRef(false),
     retryId = useRef<{ taskId: string; id: string } | undefined>(undefined),
@@ -82,8 +132,37 @@ export function ScenePanel({
     }, 3000);
     return () => clearInterval(timer);
   }, [task?.id, task?.status, refresh]);
+  useEffect(() => {
+    if (!data || !onWorldChanged) return;
+    let current = true;
+    void sync
+      .sync(data, phoneVersion, onWorldChanged)
+      .then(() => {
+        if (current) setSyncError('');
+      })
+      .catch(() => {
+        if (current)
+          setSyncError('现场记录已保存，手机记录暂未同步。重新读取即可，不必再做一次行动。');
+      });
+    return () => {
+      current = false;
+    };
+  }, [data, phoneVersion, sync, onWorldChanged]);
+  useEffect(() => {
+    const element = reading.current;
+    const id = data?.scene?.id;
+    if (!element || !id) return;
+    if (restoredScene.current !== id) {
+      restoredScene.current = id;
+      try {
+        const saved = Number(sessionStorage.getItem('pl-scene-scroll:' + worldId + ':' + id));
+        if (Number.isFinite(saved) && saved >= 0) element.scrollTop = saved;
+      } catch {}
+    } else if (followEnd.current) element.scrollTop = element.scrollHeight;
+  }, [data?.scene?.id, data?.worldVersion, worldId]);
   const overview = data ? sceneOverview(data) : undefined;
   const latestAction = data?.actions.at(-1);
+  const entries = data ? sceneTimelineEntries(visibleSceneEntries(data), data.actions) : [];
   const name = (id: string) => contacts.find((c) => c.id === id)?.name ?? '在场的人';
   async function run(action: () => Promise<void>) {
     if (running.current) return;
@@ -102,8 +181,12 @@ export function ScenePanel({
       if (live.current)
         setError(e instanceof Error ? e.message : '结果还不能确认，请重新读取核对。');
     } finally {
-      await refresh().catch(() => {});
-      await Promise.allSettled([onWorldChanged?.()]);
+      const next = await refresh().catch(() => undefined);
+      if (next && onWorldChanged)
+        await sync.sync(next, phoneVersion, onWorldChanged).catch(() => {
+          if (live.current)
+            setSyncError('现场记录已保存，手机记录暂未同步。重新读取即可，不必再做一次行动。');
+        });
       running.current = false;
       if (live.current) setBusy(false);
     }
@@ -142,51 +225,70 @@ export function ScenePanel({
       ) : !data.scene ? (
         <div className={s.card}>
           <h3>还没有进入现场</h3>
-          <p>在日历中打开已确认的约定，到了时间即可进入。</p>
-          <button
-            onClick={() => {
-              window.location.hash = routeHash(worldId, { app: 'calendar' });
-            }}
-          >
-            打开日历
-          </button>
+          <p>可以在日历中打开已确认的约定赴约，或者在地图中选择当前所在地点直接进入现场。</p>
+          <div className={s.buttons}>
+            <button
+              onClick={() => {
+                window.location.hash = routeHash(worldId, { app: 'map' });
+              }}
+            >
+              🗺️ 打开地图前往地点现场
+            </button>
+            <button
+              onClick={() => {
+                window.location.hash = routeHash(worldId, { app: 'calendar' });
+              }}
+            >
+              📅 打开日历查看约定
+            </button>
+          </div>
         </div>
       ) : (
         <>
-          <div className={s.reading} data-scene-records>
-            <section className={s.card}>
-              <h3>{data.scene.title}</h3>
-              <time>
-                {worldDateTimeLabel(
-                  overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
-                )}
-              </time>
-              {overview?.place?.kind === 'time_place' ? <p>{overview.place.location}</p> : null}
-              {overview?.environment?.kind === 'narration' ? (
-                <details>
-                  <summary>可见环境</summary>
-                  <p>{overview.environment.text}</p>
-                </details>
-              ) : null}
-              <p className={s.notice}>
-                在场的人：
-                {overview?.people.length
-                  ? overview.people
-                      .map((p) => (p.kind === 'actor' ? name(p.actorId) : ''))
-                      .join('、')
-                  : '尚无已记录的在场人物'}
-              </p>
-              <p>
-                {data.scene.status === 'ended'
-                  ? '已离场 · 可以回看'
-                  : data.paused
-                    ? '世界已暂停'
-                    : data.scene.status === 'paused'
-                      ? '现场已暂停'
-                      : '正在现场'}
-              </p>
-              <div className={s.buttons}>
+          {syncError ? (
+            <p className={s.notice} role="status">
+              {syncError}
+            </p>
+          ) : null}
+          <div className={s.readingArea}>
+            <div
+              className={s.reading}
+              data-scene-records
+              ref={reading}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+                followEnd.current = distance < 90;
+                setShowScrollToBottom(distance > 160);
+                if (data.scene)
+                  try {
+                    sessionStorage.setItem(
+                      'pl-scene-scroll:' + worldId + ':' + data.scene.id,
+                      String(element.scrollTop),
+                    );
+                  } catch {}
+              }}
+            >
+              <SceneStage
+                read={data}
+                contacts={contacts}
+                photos={photos}
+                onSelectPerson={(person) => {
+                  const prefix = `对${person.name}说：`;
+                  setText(prefix);
+                  try {
+                    sessionStorage.setItem(draftKey, prefix);
+                  } catch {}
+                  if (inputRef.current) {
+                    inputRef.current.focus();
+                    inputRef.current.setSelectionRange(prefix.length, prefix.length);
+                  }
+                }}
+              />
+              <section className={s.sceneControls}>
                 <button
+                  type="button"
+                  className={s.quickPhoneBtn}
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
@@ -199,197 +301,251 @@ export function ScenePanel({
                       window.location.hash = routeHash(worldId, { app: null });
                     })
                   }
+                  title="返回手机主界面"
                 >
-                  回到手机
+                  <span>📱</span> 回到手机
                 </button>
-                {data.scene.status === 'paused' ? (
-                  <button
-                    disabled={busy || data.paused}
-                    onClick={() =>
-                      void run(async () => {
-                        await client.navigate(worldId, data.scene!.id, {
-                          commandId: crypto.randomUUID(),
-                          expectedVersion: data.worldVersion,
-                          view: 'scene',
-                        });
-                      })
-                    }
-                  >
-                    返回现场
-                  </button>
-                ) : null}
-                {data.scene.status !== 'ended' ? (
-                  <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
-                    离开现场
-                  </button>
-                ) : null}
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await refresh();
-                    })
-                  }
-                >
-                  重新读取现场
-                </button>
-              </div>
-              {leaveConfirm ? (
-                <div>
-                  <p>离场会停止尚未完成的现场回应，记录仍可回看。</p>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await client.navigate(
-                          worldId,
-                          data.scene!.id,
-                          {
-                            commandId: crypto.randomUUID(),
-                            expectedVersion: data.worldVersion,
-                            view: 'phone',
-                          },
-                          true,
-                        );
-                        window.location.hash = routeHash(worldId, {
-                          app: null,
-                          panel: 'scene',
-                          target: data.scene!.id,
-                        });
-                        setLeaveConfirm(false);
-                      })
-                    }
-                  >
-                    确认离场
-                  </button>
-                  <button onClick={() => setLeaveConfirm(false)}>留下</button>
-                </div>
-              ) : null}
-            </section>
-            {latestAction ? (
-              <section className={s.card} data-scene-latest-action>
-                <h3>最近一次行动</h3>
-                <p className={s.savedInput}>{latestAction.text}</p>
-                {latestAction.resolution ? (
-                  <p>
-                    <strong>这次动作的反馈：</strong>
-                    {latestAction.resolution.observation}
-                  </p>
-                ) : (
-                  <p className={s.notice}>
-                    {latestAction.intent === 'attempt'
-                      ? '原文已保存，结果尚未确认。'
-                      : '只记录想法，尚未执行。'}
-                  </p>
-                )}
-              </section>
-            ) : null}
-            {data.matters.length ? (
-              <details className={s.card}>
-                <summary>眼下的事 · {data.matters.length}</summary>
-                <ul>
-                  {data.matters.map((m) => (
-                    <li key={m.id}>
-                      {m.title} · {states[m.status]}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-            <div className={s.stream}>
-              {[
-                ...data.entries,
-                ...data.actions
-                  .filter(
-                    (a) =>
-                      !data.entries.some((e) => e.kind === 'user_action' && e.actionId === a.id),
-                  )
-                  .map((a) => ({
-                    kind: 'private_input' as const,
-                    id: 'input-' + a.id,
-                    text: a.text,
-                    sourceVersion: a.sourceVersion,
-                  })),
-              ]
-                .sort((a, b) => a.sourceVersion - b.sourceVersion)
-                .map((e) =>
-                  e.kind === 'time_place' ? (
-                    <div key={e.id} className={s.place}>
-                      {e.location} · {worldDateTimeLabel(e.storyAt)}
-                    </div>
-                  ) : e.kind === 'media_reference' ? null : (
-                    <article
-                      key={e.id}
-                      className={`${s.entry} ${e.kind === 'dialogue' ? s.dialogue : e.kind === 'user_action' || e.kind === 'private_input' ? s.user : e.kind === 'adjudicated_result' ? s.result : ''}`}
-                    >
-                      <small>
-                        {e.kind === 'dialogue'
-                          ? e.speaker.kind === 'player'
-                            ? '我'
-                            : name(e.speaker.actorId)
-                          : e.kind === 'private_input'
-                            ? '我的想法 · 仅自己可见'
-                            : e.kind === 'user_action'
-                              ? '我的输入'
-                              : e.kind === 'adjudicated_result'
-                                ? '行动结果'
-                                : '眼前的情景'}
-                      </small>
-                      {e.text}
-                    </article>
-                  ),
-                )}
-            </div>
-            {task && task.status !== 'succeeded' ? (
-              <div className={s.card} role="status">
-                <ProgressState
-                  label={sceneStatus(task)}
-                  busy={sceneBusy(task)}
-                  detail={
-                    sceneBusy(task)
-                      ? data.actions.some((a) => a.status === 'pending')
-                        ? '你的行动原文已保存，正在等待现场裁定。'
-                        : '正在准备现场环境和在场人物。'
-                      : undefined
-                  }
-                />
-                {task.status === 'queued' ? (
-                  <button
-                    disabled={busy || data.paused}
-                    onClick={() => void run(() => execute(task))}
-                  >
-                    继续等待现场回应
-                  </button>
-                ) : null}
-                {['failed', 'unknown', 'cancelled'].includes(task.status) &&
-                data.scene.status === 'active' ? (
-                  <button disabled={busy || data.paused} onClick={() => setRetryConfirm(true)}>
-                    重试这次回应
-                  </button>
-                ) : null}
-                {retryConfirm ? (
-                  <div>
-                    <p>先核对已保存记录。确认后将发起一次新的回应，可能再次产生费用。</p>
+                <time>
+                  {worldDateTimeLabel(
+                    overview?.place?.kind === 'time_place' ? overview.place.storyAt : data.storyNow,
+                  )}
+                </time>
+                <p>
+                  {data.scene.status === 'ended'
+                    ? '已离场 · 可以回看'
+                    : data.paused
+                      ? '世界已暂停'
+                      : data.scene.status === 'paused'
+                        ? '现场已暂停'
+                        : '正在现场'}
+                </p>
+                <details className={s.sceneMenu}>
+                  <summary>更多</summary>
+                  <div className={s.buttons}>
                     <button
-                      disabled={busy || data.paused}
+                      disabled={busy}
                       onClick={() =>
                         void run(async () => {
-                          if (retryId.current?.taskId !== task.id)
-                            retryId.current = { taskId: task.id, id: crypto.randomUUID() };
-                          const t = await client.retry(task.id, retryId.current.id);
-                          setTask(t);
-                          setRetryConfirm(false);
-                          await execute(t);
+                          if (data.scene!.status !== 'ended')
+                            await client.navigate(worldId, data.scene!.id, {
+                              commandId: crypto.randomUUID(),
+                              expectedVersion: data.worldVersion,
+                              view: 'phone',
+                            });
+                          window.location.hash = routeHash(worldId, { app: null });
                         })
                       }
                     >
-                      确认重试
+                      回到手机
                     </button>
-                    <button onClick={() => setRetryConfirm(false)}>取消</button>
+                    {data.scene.status === 'paused' ? (
+                      <button
+                        disabled={busy || data.paused}
+                        onClick={() =>
+                          void run(async () => {
+                            await client.navigate(worldId, data.scene!.id, {
+                              commandId: crypto.randomUUID(),
+                              expectedVersion: data.worldVersion,
+                              view: 'scene',
+                            });
+                          })
+                        }
+                      >
+                        返回现场
+                      </button>
+                    ) : null}
+                    {data.scene.status !== 'ended' ? (
+                      <button disabled={busy} onClick={() => setLeaveConfirm(true)}>
+                        离开现场
+                      </button>
+                    ) : null}
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await refresh();
+                        })
+                      }
+                    >
+                      重新读取现场
+                    </button>
+                  </div>
+                </details>
+                {leaveConfirm ? (
+                  <div>
+                    <p>离场会停止尚未完成的现场回应，记录仍可回看。</p>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await client.navigate(
+                            worldId,
+                            data.scene!.id,
+                            {
+                              commandId: crypto.randomUUID(),
+                              expectedVersion: data.worldVersion,
+                              view: 'phone',
+                            },
+                            true,
+                          );
+                          window.location.hash = routeHash(worldId, {
+                            app: null,
+                            panel: 'scene',
+                            target: data.scene!.id,
+                          });
+                          setLeaveConfirm(false);
+                        })
+                      }
+                    >
+                      确认离场
+                    </button>
+                    <button onClick={() => setLeaveConfirm(false)}>留下</button>
                   </div>
                 ) : null}
+              </section>
+              {latestAction ? (
+                <details className={s.card} data-scene-latest-action>
+                  <summary>刚才的一幕</summary>
+                  <p className={s.savedInput}>{latestAction.text}</p>
+                  {latestAction.resolution ? (
+                    isSimpleSceneQuestion(latestAction, true) &&
+                    latestAction.resolution.observation === latestAction.text.trim() ? null : (
+                      <p>
+                        <strong>随后发生的事：</strong>
+                        {latestAction.resolution.observation}
+                      </p>
+                    )
+                  ) : (
+                    <p className={s.notice}>
+                      {latestAction.intent === 'attempt'
+                        ? '打算要做的事已记下，正等待展开。'
+                        : '心里的想法已记下。'}
+                    </p>
+                  )}
+                </details>
+              ) : null}
+
+              <div className={s.stream}>
+                {[
+                  ...entries,
+                  ...data.actions
+                    .filter(
+                      (a) => !entries.some((e) => e.kind === 'user_action' && e.actionId === a.id),
+                    )
+                    .map((a) => ({
+                      kind: 'private_input' as const,
+                      id: 'input-' + a.id,
+                      text: a.text,
+                      sourceVersion: a.sourceVersion,
+                    })),
+                ]
+                  .sort((a, b) => a.sourceVersion - b.sourceVersion)
+                  .map((e) =>
+                    e.kind === 'time_place' ? (
+                      e.id === entries.find((item) => item.kind === 'time_place')?.id ? null : (
+                        <div key={e.id} className={s.place}>
+                          {e.location} · {worldDateTimeLabel(e.storyAt)}
+                        </div>
+                      )
+                    ) : e.kind === 'media_reference' ? (
+                      <SceneMedia
+                        key={e.id}
+                        url={scenePhotoUrl(data, e.media.assetId, photos)}
+                        reference={e.media.purpose !== 'scene_illustration'}
+                      />
+                    ) : (
+                      <article
+                        key={e.id}
+                        className={`${s.entry} ${e.kind === 'dialogue' ? s.dialogue : e.kind === 'user_action' || e.kind === 'private_input' ? s.user : e.kind === 'adjudicated_result' ? s.result : ''}`}
+                      >
+                        {e.kind === 'dialogue' && e.speaker.kind === 'actor' ? (
+                          <SceneFace
+                            person={contacts.find(
+                              (c) => e.speaker.kind === 'actor' && c.id === e.speaker.actorId,
+                            )}
+                          />
+                        ) : null}
+                        <div className={s.entryCopy}>
+                          <small>
+                            {e.kind === 'dialogue'
+                              ? e.speaker.kind === 'player'
+                                ? '我'
+                                : name(e.speaker.actorId)
+                              : e.kind === 'private_input'
+                                ? '心想 · 仅自己可见'
+                                : e.kind === 'user_action'
+                                  ? '我的举动'
+                                  : e.kind === 'adjudicated_result'
+                                    ? '眼前'
+                                    : '现场'}
+                          </small>
+                          <p>{renderStoryContent(e.text)}</p>
+                        </div>
+                      </article>
+                    ),
+                  )}
               </div>
-            ) : null}
+              {task && task.status !== 'succeeded' ? (
+                <div className={s.card} role="status">
+                  <ProgressState
+                    label={sceneStatus(task)}
+                    busy={sceneBusy(task)}
+                    detail={
+                      sceneBusy(task)
+                        ? data.actions.some((a) => a.status === 'pending')
+                          ? '大家正看着你，听你把话说完……'
+                          : '故事正在继续展开……'
+                        : undefined
+                    }
+                  />
+                  {task.status === 'queued' ? (
+                    <button
+                      disabled={busy || data.paused}
+                      onClick={() => void run(() => execute(task))}
+                    >
+                      推动故事继续展开
+                    </button>
+                  ) : null}
+                  {['failed', 'unknown', 'cancelled'].includes(task.status) &&
+                  data.scene.status === 'active' ? (
+                    <button disabled={busy || data.paused} onClick={() => setRetryConfirm(true)}>
+                      重试这次回应
+                    </button>
+                  ) : null}
+                  {retryConfirm ? (
+                    <div>
+                      <p>先核对已保存记录。确认后将发起一次新的回应，可能再次产生费用。</p>
+                      <button
+                        disabled={busy || data.paused}
+                        onClick={() =>
+                          void run(async () => {
+                            if (retryId.current?.taskId !== task.id)
+                              retryId.current = { taskId: task.id, id: crypto.randomUUID() };
+                            const t = await client.retry(task.id, retryId.current.id);
+                            setTask(t);
+                            setRetryConfirm(false);
+                            await execute(t);
+                          })
+                        }
+                      >
+                        确认重试
+                      </button>
+                      <button onClick={() => setRetryConfirm(false)}>取消</button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {showScrollToBottom && (
+              <button
+                type="button"
+                className={s.scrollToBottomBtn}
+                onClick={scrollToBottom}
+                aria-label="回到底部最新剧情"
+              >
+                <span>↓</span> 回到最新
+              </button>
+            )}
           </div>
           {data.scene.status !== 'ended' ? (
             <form
@@ -403,10 +559,16 @@ export function ScenePanel({
                       text,
                       id: crypto.randomUUID(),
                       version: data.worldVersion,
-                      relatedMatterIds: data.matters
-                        .filter((m) => !['completed', 'abandoned'].includes(m.status))
-                        .map((m) => m.id)
-                        .slice(0, 8),
+                      relatedMatterIds: isSimpleSceneQuestion({
+                        ...classifySceneInput(text),
+                        text,
+                        relatedMatterIds: [],
+                      })
+                        ? []
+                        : data.matters
+                            .filter((m) => !['completed', 'abandoned'].includes(m.status))
+                            .map((m) => m.id)
+                            .slice(0, 8),
                     };
                   const cmd = inputId.current;
                   try {
@@ -423,28 +585,122 @@ export function ScenePanel({
                     sessionStorage.removeItem(draftKey);
                     sessionStorage.removeItem(draftKey + ':command');
                   } catch {}
+                  if (inputRef.current) {
+                    inputRef.current.style.height = '46px';
+                  }
                   inputId.current = undefined;
                   setTask(receipt.task);
                   if (receipt.task) await execute(receipt.task);
                 });
               }}
             >
-              <label htmlFor="scene-input">你想说什么，或做些什么？</label>
-              <textarea
-                id="scene-input"
-                value={text}
-                maxLength={4000}
-                disabled={disabled}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  try {
-                    sessionStorage.setItem(draftKey, e.target.value);
-                  } catch {}
-                }}
-                placeholder="直接写下想法、计划或行动"
-              />
-              <button disabled={disabled || !text.trim()}>发送</button>
-              <small className={s.notice}>结果以现场的实际回应为准。</small>
+              {/* Dynamic Action Suggestions */}
+              {(() => {
+                const activeMatter = data.matters.find(
+                  (m) => !['completed', 'abandoned'].includes(m.status),
+                );
+                const title = activeMatter?.title || '';
+                const presentActors = overview?.people.filter((p) => p.kind === 'actor') ?? [];
+                const firstActor = presentActors[0];
+                const firstActorName = firstActor
+                  ? (contacts.find((c) => c.id === firstActor.actorId)?.name ?? '在场的人')
+                  : null;
+
+                const suggestions: string[] = [];
+                if (firstActorName) {
+                  suggestions.push(`跟${firstActorName}打声招呼，问问近况`);
+                  if (title) {
+                    suggestions.push(`提一下「${title}」，听听对方怎么看`);
+                  } else {
+                    suggestions.push('问问眼下的情况，看接下来怎么安排');
+                  }
+                  if (presentActors.length > 1) {
+                    const secondId = presentActors[1]?.actorId;
+                    const second = secondId ? contacts.find((c) => c.id === secondId)?.name : null;
+                    if (second) {
+                      suggestions.push(`看向${second}，问问对方的意思`);
+                    }
+                  }
+                  suggestions.push('四处瞅瞅，观察周围环境');
+                  suggestions.push('先不吭声，看看大家怎么说');
+                } else {
+                  if (title) {
+                    suggestions.push(`琢磨一下「${title}」，理理头绪`);
+                  } else {
+                    suggestions.push('在周围转转，打量一下这里的环境');
+                  }
+                  suggestions.push('仔细看看四周，观察有什么动静');
+                  suggestions.push('找个地方坐下，稍作歇息');
+                  suggestions.push('静下心来，想想接下来该做点什么');
+                }
+                return (
+                  <div className={s.suggestionRow} aria-label="行动灵感">
+                    <span className={s.suggestionLabel}>试试：</span>
+                    {suggestions.map((sug, idx) => (
+                      <button
+                        type="button"
+                        key={idx}
+                        className={s.suggestionPill}
+                        disabled={disabled}
+                        onClick={() => {
+                          setText(sug);
+                          try {
+                            sessionStorage.setItem(draftKey, sug);
+                          } catch {}
+                          if (inputRef.current) {
+                            inputRef.current.focus();
+                            inputRef.current.style.height = '46px';
+                            inputRef.current.style.height =
+                              Math.min(inputRef.current.scrollHeight, 100) + 'px';
+                          }
+                        }}
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className={s.composerInputRow}>
+                <label className={s.srOnly} htmlFor="scene-input">
+                  说点什么，或做点什么
+                </label>
+                <textarea
+                  id="scene-input"
+                  ref={inputRef}
+                  value={text}
+                  maxLength={4000}
+                  disabled={disabled}
+                  enterKeyHint="send"
+                  onFocus={(e) => {
+                    setTimeout(() => {
+                      e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }, 250);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!disabled && text.trim()) {
+                        e.currentTarget.form?.requestSubmit();
+                      }
+                    }
+                  }}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    try {
+                      sessionStorage.setItem(draftKey, e.target.value);
+                    } catch {}
+                  }}
+                  onInput={(event) => {
+                    event.currentTarget.style.height = '46px';
+                    event.currentTarget.style.height =
+                      Math.min(event.currentTarget.scrollHeight, 100) + 'px';
+                  }}
+                  placeholder="想说点什么，或者做个动作……"
+                />
+                <button disabled={disabled || !text.trim()}>发送</button>
+              </div>
             </form>
           ) : null}
         </>

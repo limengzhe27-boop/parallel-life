@@ -36,9 +36,10 @@ export function groupTaskHandler(
           throw new DomainError('VERSION_CONFLICT');
         if (
           (
-            await sql.query('SELECT paused FROM parallel_life.world_clock WHERE world_id=$1', [
-              input.worldId,
-            ])
+            await sql.query(
+              'SELECT (paused OR (managed AND (active_until IS NULL OR active_until<=now()))) AS paused FROM parallel_life.world_clock WHERE world_id=$1',
+              [input.worldId],
+            )
           ).rows[0]?.paused
         )
           throw new DomainError('INVALID_COMMAND', 'WORLD_PAUSED');

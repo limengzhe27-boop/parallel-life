@@ -1,6 +1,17 @@
 import { authoredSpace, type SpaceOpening } from './space.ts';
+import { createWorldMatter } from './matters.ts';
 import type { WorldState } from './types.ts';
 import { isoInstant, validateEventId } from './validation.ts';
+
+export type OfficialMatterDraft = {
+  key: string;
+  span: 'near_term' | 'pursuit';
+  title: string;
+  description: string;
+  relatedPlaceKey?: string;
+  relatedActorKeys?: string[];
+  relatedInvitationKey?: string;
+};
 
 /** Trusted editorial inputs still require reference, time and visibility validation. */
 export type OfficialOpeningDraft = {
@@ -31,6 +42,7 @@ export type OfficialOpeningDraft = {
   }[];
   /** Read-only player-known material excerpts. No hidden plot or fabricated file links. */
   notes: { key: string; title: string; text: string }[];
+  matters?: OfficialMatterDraft[];
 };
 
 const keyPattern = /^[a-z0-9_]{1,32}$/;
@@ -69,7 +81,7 @@ export function officialGenesis(input: {
     o.actors.length !== 6 ||
     o.facts.length > 32 ||
     o.messages.length > 48 ||
-    o.invitations.length > 2 ||
+    o.invitations.length > (input.contentVersion >= 3 ? 3 : 2) ||
     o.notes.length > 8 ||
     o.actorTies.length > 28
   )
@@ -201,6 +213,9 @@ export function officialGenesis(input: {
     },
     mediaRequests: [],
   };
+  const invitationMap = new Map(
+    o.invitations.map((inv, i) => [inv.key, state.appointments[i]!.id]),
+  );
   if (o.space) {
     state.space = authoredSpace(
       o.space,
@@ -211,8 +226,52 @@ export function officialGenesis(input: {
         snapshotVersion: 0,
       },
       ids,
-      new Map(o.invitations.map((inv, i) => [inv.key, state.appointments[i]!.id])),
+      invitationMap,
     );
+  }
+  if (o.matters && o.matters.length > 0) {
+    const matterKeys = new Set<string>();
+    state.matters = o.matters.map((m) => {
+      if (!keyPattern.test(m.key) || matterKeys.has(m.key)) invalid();
+      matterKeys.add(m.key);
+      text(m.title, 100);
+      text(m.description, 500);
+      let relatedPlaceId: string | undefined;
+      if (m.relatedPlaceKey) {
+        if (!o.space?.places.some((p) => p.key === m.relatedPlaceKey)) invalid();
+        relatedPlaceId = m.relatedPlaceKey;
+      }
+      let relatedActorIds: string[] | undefined;
+      if (m.relatedActorKeys) {
+        relatedActorIds = visibleActorIds(m.relatedActorKeys);
+      }
+      let relatedInvitationId: string | undefined;
+      if (m.relatedInvitationKey) {
+        const invId = invitationMap.get(m.relatedInvitationKey);
+        if (!invId) invalid();
+        relatedInvitationId = invId;
+      }
+      return createWorldMatter({
+        id: input.newId(),
+        worldId: state.id,
+        span: m.span,
+        title: m.title,
+        description: m.description,
+        status: 'in_progress',
+        assertion: 'actor_statement',
+        visibility: 'player_visible',
+        relatedPlaceId,
+        relatedActorIds,
+        relatedInvitationId,
+        source: {
+          kind: 'preset',
+          presetId: input.presetId,
+          version: input.contentVersion,
+          matterKey: m.key,
+        },
+        now: state.time,
+      });
+    });
   }
   const allIds = [
     state.id,
@@ -220,6 +279,7 @@ export function officialGenesis(input: {
     ...state.messages.map((m) => m.id),
     ...state.facts.map((f) => f.id),
     ...state.appointments.map((a) => a.id),
+    ...(state.matters ? state.matters.map((m) => m.id) : []),
   ];
   if (new Set(allIds).size !== allIds.length) invalid();
   for (const id of allIds) validateEventId(id);

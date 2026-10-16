@@ -61,7 +61,7 @@ test('old director links open time management and scene links retain their saved
   assert.deepEqual(readRoute('#life=life&panel=director', 'life'), { app: null, panel: 'time' });
   const route = { app: null, panel: 'scene' as const, target: 'scene-id' };
   assert.deepEqual(readRoute(routeHash('life', route), 'life'), route);
-  assert.deepEqual(parentRoute(route), { app: 'scenes' });
+  assert.deepEqual(parentRoute(route), { app: null });
 });
 
 test('retired settings links open notes without retaining a private chat target', () => {

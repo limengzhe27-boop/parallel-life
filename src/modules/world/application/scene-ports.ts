@@ -1,5 +1,12 @@
+import type { SceneStepProposal, SceneNpcActionProposal } from '../domain/matters.ts';
 import type { MemoryRecord } from '../../memory/domain/types.ts';
-import type { WorldState } from '../domain/types.ts';
+import type {
+  WorldState,
+  ActorEventGoal,
+  EventGoalAssessment,
+  EventGoalSource,
+} from '../domain/types.ts';
+import type { ActorContext } from './ports.ts';
 import type {
   SceneSession,
   SceneAction,
@@ -7,15 +14,40 @@ import type {
   CurrentMatter,
 } from '../domain/experience-rules.ts';
 export type ScenePlanningContext = {
+  /** Trusted orchestration mode; autonomous runs contain no fabricated player input. */
+  runMode?: 'opening' | 'player_input' | 'autonomous';
+  /** Sourced wake-up reason, independent of a player's UI action. */
+  trigger?: 'idle' | 'world_change';
+  /** Candidates admitted by the runtime; each independent NPC must confirm actual presence. */
+  autonomousActorIds?: string[];
   world: WorldState;
   memoriesByActor?: Record<string, MemoryRecord[]>;
   blockedSourcesByActor?: Record<string, string[]>;
+  /** Split before each independent NPC call; never pass another actor's private frame. */
+  eventGoalsByActor?: Record<string, ActorEventGoal[]>;
+  authoredLifeModulesByActor?: Record<string, NonNullable<ActorContext['authoredLifeModules']>>;
+  /** Sourced eligibility only. Independent NPC decisions still establish actual presence. */
+  eventActorCandidates?: {
+    actorId: string;
+    goalKey: string;
+    placeId: string;
+    source: EventGoalSource;
+  }[];
   scene: SceneSession;
   entries: SceneEntry[];
   matters: CurrentMatter[];
   action?: SceneAction;
   storyAt: string;
   appointmentTitle: string;
+  /** Only this sourced invitation; no future nodes or private character profiles. */
+  currentOfferBrief?: {
+    editorialIntent: string;
+    actorIds: string[];
+    placeId: string;
+    placeName: string;
+    invitationId: string;
+    sourceEventId: string;
+  } | null;
 };
 export type SceneProposal = {
   location: string;
@@ -27,7 +59,12 @@ export type SceneProposal = {
   matterTitle: string | null;
   initialMatters?: { title: string }[];
   matterUpdates: { id: string; status: 'in_progress' | 'blocked' | 'completed' }[];
-  dialogues: { actorId: string; text: string }[];
+  dialogues: { actorId: string; text: string; delivery?: string }[];
+  /** Candidates only. The runtime validates and owns saved step/action evidence. */
+  stepProposals?: SceneStepProposal[];
+  npcActions?: SceneNpcActionProposal[];
+  /** Quote-bound candidates from independent actor calls, not director-authored dialogue. */
+  eventGoalAssessments?: EventGoalAssessment[];
 };
 export interface ScenePlannerPort {
   propose(context: ScenePlanningContext, signal?: AbortSignal): Promise<SceneProposal>;

@@ -1,3 +1,8 @@
+import { acceptNativeAgentInput } from './accept-native-agent-input.ts';
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
+import { storedActivityClock } from './clock-activity-repository.ts';
+import { readableActivityClock } from '../domain/clock-activity.ts';
 import { applyWorldHistoryEvent } from '../domain/world-history.ts';
 import { applyInvitationEvent, type InvitationEvent } from '../domain/invitations.ts';
 import { randomUUID } from 'node:crypto';
@@ -40,10 +45,11 @@ async function loadWorld(
   worldId: string,
   now: string,
   lock = false,
+  readonlySnapshot = false,
 ): Promise<WorldState> {
   const row = (
     await sql.query(
-      `SELECT state,version,owner_id FROM parallel_life.worlds WHERE id=$1${lock ? ' FOR UPDATE' : ' FOR SHARE'}`,
+      `SELECT state,version,owner_id FROM parallel_life.worlds WHERE id=$1${lock ? ' FOR UPDATE' : readonlySnapshot ? '' : ' FOR SHARE'}`,
       [worldId],
     )
   ).rows[0];
@@ -53,17 +59,7 @@ async function loadWorld(
     await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1', [worldId])
   ).rows[0];
   if (clock) {
-    const projected = projectStoryTime(
-      {
-        storyNow: new Date(clock.story_now).toISOString(),
-        lastTickAt: new Date(clock.last_tick_at).toISOString(),
-        speed: Number(clock.speed),
-        paused: clock.paused,
-        missedBeats: clock.missed_beats,
-        summary: clock.summary,
-      },
-      now,
-    );
+    const projected = projectStoryTime(storedActivityClock(clock), now);
     state.time = projected > state.time ? projected : state.time;
   }
   const initial = (
@@ -161,8 +157,10 @@ export async function loadGroupRead(
   groupId: string,
   now: string,
   lock = false,
+  readonlySnapshot = false,
 ): Promise<GroupRead> {
-  const world = await loadWorld(sql, worldId, now, lock);
+  if (lock && readonlySnapshot) throw new DomainError('INVALID_COMMAND');
+  const world = await loadWorld(sql, worldId, now, lock, readonlySnapshot);
   const group = await loadGroup(sql, worldId, groupId);
   const context = await experienceContext(sql, world);
   const rows = (
@@ -272,6 +270,7 @@ export async function persistGroupEvent(
     "UPDATE parallel_life.commands SET status='succeeded',result_event_id=$3,result_state=$4,updated_at=now() WHERE world_id=$1 AND id=$2",
     [world.id, event.commandId, event.id, compact(next)],
   );
+  await projectAgentWorldChange(sql, world.ownerId, world.id, event.id);
   return {
     groupId: projection.group.id,
     version: event.version,
@@ -280,10 +279,10 @@ export async function persistGroupEvent(
   };
 }
 async function writable(sql: SqlClient, worldId: string) {
-  if (
-    (await sql.query('SELECT paused FROM parallel_life.world_clock WHERE world_id=$1', [worldId]))
-      .rows[0]?.paused
-  )
+  const clock = (
+    await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1', [worldId])
+  ).rows[0];
+  if (clock && readableActivityClock(storedActivityClock(clock), new Date().toISOString()).paused)
     throw new DomainError('INVALID_COMMAND', 'WORLD_PAUSED');
 }
 export class PostgresGroupRepository {
@@ -384,6 +383,12 @@ export class PostgresGroupRepository {
         } as GroupReceipt;
       }
       if (world.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId: command.worldId,
+        commandId: command.commandId,
+        expectedWorldVersion: command.expectedVersion,
+        kind: 'group_membership',
+      });
       await writable(sql, world.id);
       const event = build(world);
       return persistGroupEvent(sql, world, event, hash);
@@ -458,6 +463,12 @@ export class PostgresGroupRepository {
         return { task, groupId: command.groupId, version: accepted.version };
       }
       if (world.version !== command.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId: command.worldId,
+        commandId: command.commandId,
+        expectedWorldVersion: command.expectedVersion,
+        kind: 'group_input',
+      });
       await writable(sql, world.id);
       const event: GroupEvent = {
         schemaVersion: 1,
@@ -472,6 +483,17 @@ export class PostgresGroupRepository {
         data: { groupId: command.groupId, text: command.text, messageId: randomUUID() },
       };
       const receipt = await persistGroupEvent(sql, world, event, hash);
+      await acceptNativeAgentInput(sql, ownerId, {
+        worldId: world.id,
+        commandId: command.commandId,
+        channel: 'group',
+        threadId: command.groupId,
+        sourceEventId: event.id,
+        sourceVersion: event.version,
+        text: command.text,
+        storyAt: event.storyAt,
+        receivedAt: event.occurredAt,
+      });
       const input: GroupTaskInput = {
         channel: 'group',
         worldId: world.id,

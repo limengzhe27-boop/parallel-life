@@ -101,3 +101,96 @@ test('unavailable directory has honest read retry, no fabricated cards, and note
   assert.ok(!note.includes('<details open'));
   assert.ok(!note.includes('<script>'));
 });
+test('card with new version shows retained save notice, continue old save, and start new version', () => {
+  const html = render({
+    cards: [
+      {
+        ...cards[0],
+        hasSave: true,
+        hasNewVersion: true,
+        legacyWorldId: '10000000-0000-4000-8000-000000000001',
+        currentVersionWorldId: null,
+      },
+    ],
+  });
+  assert.ok(html.includes('有新版地图 · 原存档已保留'));
+  assert.ok(html.includes('县城黄毛，继续原存档'));
+  assert.ok(html.includes('县城黄毛，开启新版（原存档保留）'));
+  assert.ok(html.includes('继续原存档'));
+  assert.ok(html.includes('开启新版'));
+});
+test('card with both current and legacy instances allows continuing new version and returning to old save', () => {
+  const html = render({
+    cards: [
+      {
+        ...cards[0],
+        hasSave: true,
+        hasNewVersion: false,
+        legacyWorldId: '10000000-0000-4000-8000-000000000001',
+        currentVersionWorldId: '20000000-0000-4000-8000-000000000002',
+      },
+    ],
+  });
+  assert.ok(html.includes('新版体验中 · 原存档保留'));
+  assert.ok(html.includes('县城黄毛，继续新版'));
+  assert.ok(html.includes('县城黄毛，返回原存档'));
+  assert.ok(html.includes('继续新版'));
+  assert.ok(html.includes('返回原存档'));
+});
+
+const { BranchList } = await import('../src/features/discovery/branch-list.tsx');
+const { DirectionCard } = await import('../src/features/discovery/direction-card.tsx');
+test('personal saved lives and unbuilt proposals use the same card and disclosure without pretending ready', () => {
+  const personal = renderToStaticMarkup(
+    createElement(BranchList, {
+      items: [
+        {
+          id: 'personal',
+          title: '我的咖啡馆',
+          description: '开场全文 <script>test</script>',
+          premise: '生活起点',
+          tradeoff: '经营成本',
+          status: '待创建',
+          imageUrl: '/api/v1/assets/authorized',
+        },
+      ],
+      onOpen() {},
+    }),
+  );
+  const proposal = renderToStaticMarkup(
+    createElement(DirectionCard, {
+      direction: {
+        id: 'direction',
+        title: '试拍第一部电影',
+        premise: '先做试拍',
+        opening: '摄影棚来了一位老同学',
+        tradeoff: '需要控制成本',
+        reason: '来自你的愿望',
+        sources: [],
+      },
+      index: 0,
+      disabled: false,
+      busy: false,
+      onReview() {},
+      onRefine() {},
+    }),
+  );
+  for (const html of [
+    render({ cards: cards.map((card) => ({ ...card, experienceNote: '原创副本说明' })) }),
+    personal,
+    proposal,
+  ]) {
+    assert.ok(html.includes('<article'));
+    assert.ok(html.includes('class="card"'));
+    assert.ok(html.includes('class="cover"'));
+    assert.ok(html.includes('<summary>体验说明</summary>'));
+  }
+  assert.ok(personal.includes('你的照片'));
+  assert.ok(personal.includes('开场全文 &lt;script&gt;test&lt;/script&gt;'));
+  assert.ok(!personal.includes('<script>'));
+  assert.ok(personal.includes('经营成本'));
+  assert.ok(proposal.includes('查看人生起点'));
+  assert.ok(proposal.includes('创建后才能进入手机'));
+  assert.ok(!proposal.includes('打开这部手机'));
+  assert.ok(!proposal.includes('进入体验'));
+});

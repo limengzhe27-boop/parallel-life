@@ -38,8 +38,18 @@ test('a world keeps committing after its facts exceed the snapshot limit, and ev
       time,
       actors: [{ id: actorId, name: '合成人物', persona: '合成' }],
       facts: [
-        { id: randomUUID(), text: '身份锚点', visibility: { kind: 'world' }, sourceEventId: 'genesis' },
-        { id: randomUUID(), text: '情境锚点', visibility: { kind: 'world' }, sourceEventId: 'genesis' },
+        {
+          id: randomUUID(),
+          text: '身份锚点',
+          visibility: { kind: 'world' },
+          sourceEventId: 'genesis',
+        },
+        {
+          id: randomUUID(),
+          text: '情境锚点',
+          visibility: { kind: 'world' },
+          sourceEventId: 'genesis',
+        },
       ],
       messages: [],
       appointments: [],
@@ -67,7 +77,12 @@ test('a world keeps committing after its facts exceed the snapshot limit, and ev
           userText: command.text,
           effects: [
             /* 角色回合必须包含回复，事实随之累积 */
-            { type: 'message.received' as const, id: randomUUID(), actorId, text: `第 ${turn} 轮回复` },
+            {
+              type: 'message.received' as const,
+              id: randomUUID(),
+              actorId,
+              text: `第 ${turn} 轮回复`,
+            },
             ...Array.from({ length: 8 }, (_, index) => ({
               type: 'belief.recorded' as const,
               id: randomUUID(),
@@ -87,15 +102,19 @@ test('a world keeps committing after its facts exceed the snapshot limit, and ev
     assert.deepEqual(snapshot.facts, [], 'facts are projected, not stored in the snapshot');
 
     const stored = (
-      await admin.query('SELECT count(*)::int AS n FROM parallel_life.world_facts WHERE world_id=$1', [
-        worldId,
-      ])
+      await admin.query(
+        'SELECT count(*)::int AS n FROM parallel_life.world_facts WHERE world_id=$1',
+        [worldId],
+      )
     ).rows[0].n;
     assert.equal(stored, TURNS * 8, 'every fact is kept in the projection');
 
     const world = await repo.get(session, worldId);
     assert.equal(world.version, TURNS);
-    assert.ok(world.facts.length < stored, `state window is bounded (${world.facts.length} < ${stored})`);
+    assert.ok(
+      world.facts.length < stored,
+      `state window is bounded (${world.facts.length} < ${stored})`,
+    );
     assert.ok(JSON.stringify(world.facts).length <= FACTS_BUDGET_CHARS);
     /* the newest fact survives; the oldest window entry is gone from the state */
     assert.match(world.facts.at(-1)!.text, /^t16-7-/);

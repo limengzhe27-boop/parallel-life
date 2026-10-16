@@ -1,0 +1,292 @@
+.dialog {
+  border: 1px solid #dbe1e8;
+  border-radius: 18px;
+  padding: 0;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(var(--dialog-viewport-height, 100dvh) - 24px);
+  color: #172033;
+  background: #fff;
+  overflow: hidden;
+}
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.dialog::backdrop {
+  background: rgb(8 20 38 / 50%);
+}
+.header {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid #e5e9ef;
+}
+.header h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.header > button {
+  flex-shrink: 0;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+.header p,
+.help {
+  color: #596579;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 4px 0;
+}
+.body {
+  padding: 20px;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.field {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+.field input,
+.field textarea,
+.field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccd4df;
+  border-radius: 9px;
+  padding: 12px;
+  color: #172033;
+  background: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+.field textarea {
+  resize: vertical;
+  max-height: 280px;
+}
+.help {
+  margin-bottom: 18px;
+}
+.dialog button {
+  border: 1px solid #ccd4df;
+  padding: 10px 14px;
+  border-radius: 9px;
+  color: #172033;
+  background: #fff;
+  min-height: 44px;
+  font: inherit;
+  cursor: pointer;
+}
+.dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dialog button:focus-visible,
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.preview {
+  margin-top: 20px;
+  border-top: 1px solid #e5e9ef;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  background: #f4f6f9;
+  padding: 12px;
+}
+.preview details {
+  border-bottom: 1px solid #e5e9ef;
+  padding: 10px 0;
+}
+.warnings {
+  color: #735219;
+  background: #fff7e5;
+  border-radius: 9px;
+  padding: 14px 14px 14px 30px;
+}
+.error {
+  color: #9c3028;
+  line-height: 1.6;
+}
+.footer {
+  flex-shrink: 0;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #e5e9ef;
+}
+.footer button:last-child {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+@media (max-width: 480px) {
+  .header,
+  .body {
+    padding: 14px;
+  }
+  .header h2 {
+    font-size: 20px;
+  }
+  .footer {
+    padding: 12px;
+    justify-content: stretch;
+  }
+  .footer button {
+    flex: 1;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+.dialog .primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.recover {
+  margin-top: 16px;
+}
+.reviewCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  min-height: 44px;
+}
+.reviewCheck input {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+}
+.preview summary {
+  cursor: pointer;
+  min-height: 44px;
+}
+.preview summary:focus-visible,
+.reviewCheck input:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.body {
+  overflow-wrap: anywhere;
+}
+
+.reviewContent {
+  margin-top: 24px;
+  border-top: 1px solid #dbe1e8;
+  line-height: 1.7;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.reviewNotice {
+  padding: 12px;
+  background: #fff7e5;
+  color: #735219;
+  border-radius: 9px;
+}
+.reviewGroup {
+  min-width: 0;
+  border-bottom: 1px solid #dbe1e8;
+  padding: 8px 0;
+}
+.reviewGroup > summary {
+  min-height: 44px;
+  padding: 10px 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-weight: 600;
+}
+.reviewGroup > summary:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.reviewCards {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.reviewCard {
+  border: 1px solid #e5e9ef;
+  border-radius: 9px;
+  padding: 14px;
+  background: #f8fafc;
+  min-width: 0;
+}
+.reviewCard h4 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.reviewCard dl {
+  margin: 0;
+}
+.reviewField {
+  display: grid;
+  grid-template-columns: minmax(90px, 128px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 7px 0;
+}
+.reviewField dt {
+  color: #596579;
+}
+.reviewField dd {
+  margin: 0;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reviewGroup pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  background: #f4f6f9;
+  padding: 12px;
+}
+@media (max-width: 480px) {
+  .reviewField {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+  .reviewCard {
+    padding: 12px;
+  }
+}
+
+.sourceInput {
+  border: 1px solid #e5e9ef;
+  border-radius: 12px;
+  padding: 12px;
+}
+.sourceInput > summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 44px;
+  align-content: center;
+}
+.sourceInput[open] > summary {
+  margin-bottom: 16px;
+}
+.reviewIntro {
+  color: #334155;
+  background: #eff6ff;
+  border-radius: 12px;
+  padding: 16px;
+  line-height: 1.7;
+}

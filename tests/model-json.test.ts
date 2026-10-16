@@ -7,9 +7,24 @@ const opening = (overrides: Record<string, unknown> = {}) => ({
   identity: '杭州老城区的自由摄影师',
   setting: '九月，河坊街的雨刚停。',
   actors: [
-    { key: 'chen', name: '老陈', relationship: '隔壁面馆老板', persona: '嘴上不认，心里盼你撑住。' },
-    { key: 'shen', name: '沈沁', relationship: '合作编辑', persona: '催稿很紧，但真心喜欢你的照片。' },
-    { key: 'zhou', name: '周屿', relationship: '接活的朋友', persona: '总能带来小活，也带来别的可能。' },
+    {
+      key: 'chen',
+      name: '老陈',
+      relationship: '隔壁面馆老板',
+      persona: '嘴上不认，心里盼你撑住。',
+    },
+    {
+      key: 'shen',
+      name: '沈沁',
+      relationship: '合作编辑',
+      persona: '催稿很紧，但真心喜欢你的照片。',
+    },
+    {
+      key: 'zhou',
+      name: '周屿',
+      relationship: '接活的朋友',
+      persona: '总能带来小活，也带来别的可能。',
+    },
   ],
   messages: [{ actorKey: 'chen', text: '中午过来吃面。' }],
   notes: [{ title: '这周要做的事', text: '把河坊街的伞导出来。' }],

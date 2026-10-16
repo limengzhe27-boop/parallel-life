@@ -368,7 +368,7 @@ test('logical map lines use only actual published routes with known stable endpo
   assert.match(html, /data-known-route="studio_hospital"/);
   assert.match(html, /非地理距离/);
 });
-test('read failure hides previously cached place, environment, route and committed arrival even in the same world', () => {
+test('read failure hides unverified current space but retains the matching committed receipt', () => {
   const html = render(
     space,
     {
@@ -385,5 +385,51 @@ test('read failure hides previously cached place, environment, route and committ
   );
   assert.match(html, /无法核实当前读取/);
   assert.match(html, /暂时读不到地点/);
-  assert.doesNotMatch(html, /同名地点|可观察大厅|data-known-route|已到达|目标地点|前往这里/);
+  assert.doesNotMatch(html, /同名地点|可观察大厅|data-known-route|前往这里|查看这个地点/);
+  assert.match(html, /已到达目标地点/);
+  assert.match(html, /正在核对当前位置/);
+});
+
+test('map keeps real place selection and removes search and unsupported nearby categories', () => {
+  const html = render(space, {}, 'hospital');
+  assert.match(html, /选择目的地/);
+  assert.match(html, /已知地点/);
+  assert.match(html, /回到当前地点/);
+  assert.doesNotMatch(html, /type="search"|搜索已知地点|探索附近|美食|药店|公厕|收藏地点/);
+  assert.ok(html.indexOf('同名地点详情') < html.indexOf('选择目的地'));
+});
+
+test('unknown recovery remains accessible when current map reads fail', () => {
+  const html = render(null, {
+    error: '本次读取失败',
+    operation: { request, fromLabel: '原点', destinationLabel: '终点', status: 'unknown' },
+  });
+  assert.match(html, /查看行程结果/);
+  assert.match(html, /本次读取失败/);
+  assert.doesNotMatch(html, /前往这里|看看这里|重新提交这次行程/);
+});
+
+test('a historic committed receipt cannot strand the user after another device moved further', () => {
+  const html = render(
+    { ...space, worldVersion: 10, currentPlaceId: 'studio' },
+    {
+      operation: {
+        request,
+        fromLabel: '原点',
+        destinationLabel: '终点',
+        status: 'committed',
+        receipt,
+      },
+    },
+  );
+  assert.match(html, /返回当前地点/);
+  assert.doesNotMatch(html, /查看这个地点/);
+});
+
+test('saved scene can be opened while world is paused or a scene task is busy without starting another scene', () => {
+  for (const state of [{ paused: true }, { busy: true }]) {
+    const html = render({ ...space, ...state, currentSceneId: actorId });
+    assert.match(html, /class="primary">看看这里（回到现场）/);
+    assert.doesNotMatch(html, /disabled=""[^>]*>看看这里（回到现场）/);
+  }
 });

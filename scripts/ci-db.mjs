@@ -29,6 +29,7 @@ if (adminPassword) config.adminPassword = adminPassword;
 const statements = [
   `CREATE ROLE pl_app LOGIN PASSWORD '${config.appPassword}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
   `CREATE ROLE pl_worker LOGIN PASSWORD '${config.workerPassword}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`,
+  'CREATE ROLE pl_publisher_login NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE',
   'CREATE DATABASE parallel_life_dev',
   'CREATE DATABASE parallel_life_test',
 ];
@@ -63,6 +64,12 @@ for (const name of ['pl_app', 'pl_worker']) {
   );
   console.log(`created role ${name}`);
 }
+// Publishing migrations revoke this operational role explicitly. Provision a closed
+// placeholder on fresh databases; enabling staff login remains a separate setup.
+if (!(await client.query("SELECT 1 FROM pg_roles WHERE rolname='pl_publisher_login'")).rowCount)
+  await client.query(
+    'CREATE ROLE pl_publisher_login NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE',
+  );
 for (const name of ['parallel_life_dev', 'parallel_life_test']) {
   const exists = (await client.query('SELECT 1 FROM pg_database WHERE datname=$1', [name]))
     .rowCount;

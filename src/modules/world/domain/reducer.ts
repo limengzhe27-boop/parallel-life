@@ -11,7 +11,9 @@ import {
 } from './validation.ts';
 import { validateCharacterEffects } from './character-policy.ts';
 import { canShareWith } from './relationships.ts';
+import { createWorldMatter, transitionWorldMatter } from './matters.ts';
 import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
+import { linkAppointmentVenue } from './space.ts';
 
 /** Pure reducer. All effects validate before the caller commits anything. */
 export function applyEvent(
@@ -40,9 +42,17 @@ export function applyEvent(
   validateCharacterEffects(event.data.actorId, effects, true, event.data.origin);
   const replyAt = event.storyAt ?? current.time;
   const userAt = event.data.userAt ?? current.time;
+  const acceptedInput = event.data.agentRuntime;
+  const acceptedEarlier =
+    acceptedInput?.schemaVersion === 1 &&
+    acceptedInput.engineEpoch >= 2 &&
+    acceptedInput.inputStoryAt === userAt &&
+    Number.isInteger(acceptedInput.inputWorldVersion) &&
+    acceptedInput.inputWorldVersion <= current.version &&
+    acceptedInput.inputWorldVersion >= 0;
   if (
     Date.parse(replyAt) < Date.parse(current.time) ||
-    Date.parse(userAt) < Date.parse(current.time) ||
+    (!acceptedEarlier && Date.parse(userAt) < Date.parse(current.time)) ||
     Date.parse(userAt) > Date.parse(replyAt)
   )
     throw new DomainError('INVALID_COMMAND', 'World time cannot run backwards');
@@ -54,6 +64,7 @@ export function applyEvent(
       ...state.appointments,
       ...state.mediaRequests,
       ...(state.choices ?? []),
+      ...(state.matters ?? []),
     ].map((item) => item.id),
   );
   const jobs: OutboxJob[] = [];
@@ -237,6 +248,8 @@ export function applyEvent(
       case 'appointment.created':
         if (effect.participantIds.some((id) => !actorIds.has(id)) || effect.at < replyAt)
           throw new DomainError('INVALID_PROPOSAL', 'Invalid appointment');
+        if (effect.type === 'appointment.proposed' && effect.placeId !== undefined)
+          state.space = linkAppointmentVenue(state.space, effect.id, effect.placeId);
         state.appointments.push({
           ...(effect.type === 'appointment.proposed' ? { status: 'proposed' as const } : {}),
           id: effect.id,
@@ -338,6 +351,132 @@ export function applyEvent(
           title,
           mediaType,
         });
+        break;
+      }
+      case 'matter.proposed': {
+        const replies = effects.filter(
+          (e) => e.type === 'message.received' && e.actorId === event.data.actorId,
+        );
+        if (
+          effect.quote.length < 5 ||
+          !replies.some((r) => r.type === 'message.received' && r.text.includes(effect.quote))
+        )
+          throw new DomainError(
+            'INVALID_PROPOSAL',
+            'Matter proposal needs this character actual reply',
+          );
+        const prior = state.matters ?? [];
+        if (
+          prior.some(
+            (m) =>
+              m.visibility === 'player_visible' &&
+              m.span === effect.span &&
+              m.title.replace(/\s/g, '') === effect.title.replace(/\s/g, ''),
+          )
+        )
+          break;
+        if (prior.length >= 50)
+          throw new DomainError('INVALID_PROPOSAL', 'Matter capacity reached');
+        const matter = createWorldMatter({
+          id: effect.id,
+          worldId: state.id,
+          span: effect.span,
+          title: effect.title,
+          description: effect.description,
+          status: 'not_started',
+          relatedActorIds: [event.data.actorId],
+          assertion: 'actor_statement',
+          source: {
+            kind: 'actor_proposal',
+            actorId: event.data.actorId,
+            eventId: event.id,
+            eventVersion: event.version,
+            at: replyAt,
+          },
+          now: replyAt,
+        });
+        state.matters = [...prior, matter];
+        break;
+      }
+      case 'matter.created': {
+        const m = effect.matter,
+          source = m.source;
+        if (
+          m.worldId !== state.id ||
+          m.version !== 1 ||
+          m.rewardClaimed ||
+          !['not_started', 'in_progress'].includes(m.status) ||
+          m.assertion !== 'actor_statement' ||
+          m.evidence ||
+          m.createdAt !== replyAt ||
+          m.updatedAt !== replyAt ||
+          !['director_proposal', 'actor_proposal'].includes(source.kind) ||
+          !('eventId' in source) ||
+          source.eventId !== event.id ||
+          source.eventVersion !== event.version ||
+          source.at !== replyAt ||
+          (source.kind === 'actor_proposal' && source.actorId !== event.data.actorId) ||
+          m.relatedActorIds?.some((id) => !actorIds.has(id)) ||
+          (m.relatedPlaceId && !state.space?.places.some((p) => p.id === m.relatedPlaceId)) ||
+          (m.relatedInvitationId &&
+            !state.appointments.some((a) => a.id === m.relatedInvitationId)) ||
+          m.prerequisites?.some(
+            (id) =>
+              id === m.id ||
+              !state.matters?.some(
+                (p) => p.id === id && (m.status === 'not_started' || p.status === 'completed'),
+              ),
+          )
+        )
+          throw new DomainError(
+            'INVALID_PROPOSAL',
+            'Matter provenance or references do not match this world event',
+          );
+        if ((state.matters?.length ?? 0) >= 50)
+          throw new DomainError('INVALID_PROPOSAL', 'Matter capacity reached');
+        if (!state.matters) state.matters = [];
+        if (state.matters.some((m) => m.id === effect.matter.id)) {
+          throw new DomainError('INVALID_PROPOSAL', 'Duplicate matter ID');
+        }
+        state.matters.push(effect.matter);
+        break;
+      }
+      case 'matter.updated': {
+        if (!state.matters) state.matters = [];
+        const matter = state.matters.find((m) => m.id === effect.matterId);
+        if (!matter) {
+          throw new DomainError('INVALID_PROPOSAL', 'Matter not found');
+        }
+        const evidence = effect.evidence;
+        if (
+          evidence.kind !== 'user_report' ||
+          evidence.eventId !== event.id ||
+          evidence.eventVersion !== event.version ||
+          evidence.at !== replyAt ||
+          !matter.relatedActorIds?.includes(event.data.actorId) ||
+          matter.visibility !== 'player_visible' ||
+          !isExplicitChoiceResult(evidence.quote, event.data.userText, evidence.outcome, {
+            quote: matter.title,
+            intent: matter.description,
+          } as import('./types.ts').StoryChoice) ||
+          effect.status !==
+            ({ reported_done: 'completed', blocked: 'blocked', abandoned: 'abandoned' } as const)[
+              evidence.outcome
+            ]
+        )
+          throw new DomainError(
+            'INVALID_PROPOSAL',
+            'Matter report requires matching user text and actual event provenance',
+          );
+        const updated = transitionWorldMatter(matter, {
+          status: effect.status,
+          evidence: effect.evidence,
+          assertion: effect.assertion,
+          now: replyAt,
+          allMatters: state.matters,
+        });
+        const index = state.matters.indexOf(matter);
+        state.matters[index] = updated;
         break;
       }
     }

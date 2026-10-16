@@ -1,0 +1,1219 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { stripTypeScriptTypes } from 'node:module';
+import { listMemories } from '../../src/modules/memory/infrastructure/memory-store.ts';
+import { parseProposal } from '../../src/modules/world/domain/validation.ts';
+import { validateStoryInvitation } from '../../src/server/publication-story-service.ts';
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { localConfig } from '../../scripts/local-config.mjs';
+import { adminClient } from '../../scripts/db-admin.mjs';
+import { migrate } from '../../scripts/migrate.mjs';
+import { PostgresDatabase } from '../../src/modules/storage/infrastructure/postgres.ts';
+import { IdentityRepository } from '../../src/modules/identity/infrastructure/identity-repository.ts';
+import {
+  PublicationRepository,
+  type PublicationReviewPort,
+} from '../../src/modules/settings/infrastructure/publication-repository.ts';
+import { PublicationWorldRepository } from '../../src/modules/settings/infrastructure/publication-world-repository.ts';
+import { PublicationStoryRepository } from '../../src/modules/settings/infrastructure/publication-story-repository.ts';
+import { PublicationOpeningRepository } from '../../src/modules/settings/infrastructure/publication-opening-repository.ts';
+import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { compilePublicationGenesis } from '../../src/modules/settings/infrastructure/publication-genesis.ts';
+import {
+  PublishedWorldContentSchema,
+  inspectPublishedWorldSupport,
+} from '../../src/contracts/published-world-content.ts';
+import type { PublicationWorldCompilerPort } from '../../src/modules/settings/application/publication-world-ports.ts';
+import type { OpeningDelivery } from '../../src/modules/settings/application/publication-opening-ports.ts';
+import { readDirectorObservation } from '../../src/modules/world/infrastructure/director-observation-repository.ts';
+import { resolveTurn } from '../../src/modules/world/application/resolve-turn.ts';
+import { readActorEventGoals } from '../../src/modules/world/infrastructure/actor-goal-repository.ts';
+import { publicationCharacterPlanner } from '../../src/server/publication-character-planner.ts';
+import { readActorSituation } from '../../src/modules/world/infrastructure/actor-situation-repository.ts';
+import { actorContext } from '../../src/modules/world/application/actor-context.ts';
+import {
+  publicationGoalContexts,
+  publicationGoalDefinition,
+} from '../../src/modules/settings/infrastructure/publication-event-goal-context.ts';
+import { hashDefinition } from '../../src/modules/settings/infrastructure/publication-event-progress-repository.ts';
+const at = '2026-10-15T07:00:00.000Z';
+const fixtureReceipt = randomUUID();
+const review: PublicationReviewPort = {
+  async review({ content }) {
+    return {
+      reviewerVersion: 'explicit_opening_database_fixture',
+      runtimeCapabilities: new Set(inspectPublishedWorldSupport(content).requiredCapabilities),
+      media: { verified: true, manifestHash: 'a'.repeat(64) },
+      trial: { verified: true, receiptId: fixtureReceipt },
+    };
+  },
+};
+const compiler: PublicationWorldCompilerPort = {
+  prepare(i) {
+    const c = structuredClone(i.content) as any;
+    delete c.timeline;
+    delete c.conditions;
+    delete c.openingEventKey;
+    c.candidates = [];
+    const r = compilePublicationGenesis({
+      ...i,
+      content: c,
+      originKind: i.originKind === 'trial' ? 'trial' : 'published',
+      newId: randomUUID,
+    });
+    assert.equal(r.status, 'compiled');
+    if (r.status !== 'compiled') throw Error('FIXTURE_COMPILE');
+    return {
+      world: r.world,
+      opening: r.opening,
+      seed: {
+        id: i.seedId,
+        createdAt: at,
+        source: {
+          kind: i.originKind === 'trial' ? 'publication_trial' : 'published_work',
+          ...i.origin,
+        },
+        identity: r.opening.identity,
+        situation: r.opening.situation,
+        setting: r.opening.setting,
+        experienceNote: r.opening.experienceNote,
+      },
+    };
+  },
+};
+
+test('actor situations retain own directions and share the current world snapshot', async (t) => {
+  const config = await localConfig();
+  const port = process.env.ACTOR_SITUATION_TEST_PORT ?? '55566';
+  assert.equal(config.port, Number(port));
+  const admin = await adminClient('parallel_life_test');
+  await migrate(admin);
+  const app = new PostgresDatabase(
+    `postgresql://pl_app:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_test`,
+  );
+  const role = 'pl_opening37_fixture';
+  if (!(await admin.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [role])).rowCount)
+    await admin.query(
+      `CREATE ROLE ${role} LOGIN PASSWORD '${config.appPassword}' NOSUPERUSER NOBYPASSRLS`,
+    );
+  await admin.query(`GRANT pl_publisher TO ${role}`);
+  const pub = new PostgresDatabase(
+    `postgresql://${role}:${config.appPassword}@127.0.0.1:${config.port}/parallel_life_test`,
+  );
+  t.after(async () => {
+    await app.close();
+    await pub.close();
+    await admin.end();
+  });
+  const repository = new PublicationOpeningRepository(app),
+    runtime = new PostgresWorldRepository(app),
+    story = new PublicationStoryRepository(app);
+  async function fixture(
+    completion = false,
+    options: { third?: boolean; hiddenThird?: boolean; emptyKeys?: boolean } = {},
+  ) {
+    const staff = randomUUID(),
+      owner = randomUUID(),
+      foreign = randomUUID();
+    await new IdentityRepository(app).ensureGuest(owner);
+    await new IdentityRepository(app).ensureGuest(foreign);
+    await admin.query(
+      'INSERT INTO parallel_life.publisher_principals(id,display_name,can_edit,can_publish,active) VALUES($1,$2,true,true,true)',
+      [staff, '独立开场SQL测试'],
+    );
+    const report = await readFile(
+      new URL('../../docs/task-reports/WORLD-PUBLISH-01A-CONTENT.md', import.meta.url),
+      'utf8',
+    );
+    const c = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(report)![1]!);
+    if (options.third)
+      c.actors.push({
+        ...structuredClone(c.actors[0]),
+        key: 'third_actor',
+        name: '第三人',
+        knownAtStart: true,
+      });
+    c.world.startAt = at;
+    c.world.hiddenContext = 'GLOBAL_OPENING_DIRECTOR_ONLY';
+    c.history = [];
+    c.initialKnowledge = [];
+    c.protagonist.knownFactKeys = [];
+    c.phone = {
+      messages: [
+        {
+          key: 'old',
+          actorKey: c.actors[0].key,
+          origin: 'history',
+          speaker: 'actor',
+          text: '这是作者过去的旧消息。',
+          at: '2026-10-14T07:00:00.000Z',
+        },
+      ],
+      moments: [],
+      notes: [],
+      invitations: [],
+      album: [],
+    };
+    c.candidates = [
+      {
+        key: 'start',
+        kind: 'candidate',
+        title: '开场',
+        editorialIntent: '各自说自己的新安排。',
+        script: 'GLOBAL_OPENING_SCRIPT',
+        actorKeys: options.emptyKeys ? [] : c.actors.map((a: any) => a.key),
+        prerequisites: [],
+        mutuallyExclusiveNodeKeys: [],
+        intent: { kind: 'director_event' },
+      },
+    ];
+    if (completion)
+      c.candidates[0].direction = {
+        mode: 'optional',
+        progress: {
+          completion: {
+            mode: 'all',
+            criteria: [
+              {
+                key: 'confirm',
+                kind: 'npc_exact_message',
+                actorKey: c.actors[1].key,
+                phrase: 'CRITERION_CONFIRM',
+              },
+            ],
+          },
+        },
+      };
+    c.openingEventKey = 'start';
+    delete c.timeline;
+    delete c.conditions;
+    const content = PublishedWorldContentSchema.parse(c),
+      works = new PublicationRepository(pub, review),
+      worlds = new PublicationWorldRepository(app, compiler);
+    const work = await works.create(staff, {
+      commandId: randomUUID(),
+      title: content.work.title,
+      content,
+    });
+    const check = await works.check(staff, work.id, {
+      commandId: randomUUID(),
+      expectedDraftVersion: 0,
+    });
+    assert.equal(check.status, 'ready');
+    await works.publish(staff, work.id, {
+      commandId: randomUUID(),
+      expectedDraftVersion: 0,
+      expectedMetadataVersion: 0,
+      checkId: check.id,
+    });
+    const w = await worlds.startPublished(owner, work.id, {
+      commandId: randomUUID(),
+      publicationVersion: 1,
+    });
+    await admin.query('UPDATE parallel_life.world_clock SET paused=true WHERE world_id=$1', [
+      w.worldId,
+    ]);
+    if (options.hiddenThird) {
+      // Synthetic admission fixture: the immutable author plan still has three actors,
+      // but only two are projected as current contacts, matching opening admission's gate.
+      await admin.query(
+        "UPDATE parallel_life.worlds SET state=jsonb_set(state,'{actors}',(SELECT jsonb_agg(a) FROM jsonb_array_elements(state->'actors') a WHERE a->>'name'<>'第三人')) WHERE id=$1",
+        [w.worldId],
+      );
+    }
+    const snap = await repository.read(owner, w.worldId);
+    assert.equal(snap.phase, 'unplanned');
+    assert.equal(snap.source?.actors.length, options.third && !options.hiddenThird ? 3 : 2);
+    return { owner, foreign, worldId: w.worldId, actors: snap.source!.actors };
+  }
+  async function commit(
+    f: { owner: string; worldId: string },
+    actor: string,
+    version: number,
+    commandId: string = randomUUID(),
+    text = '本人物的新来信。',
+    player = false,
+  ) {
+    const eventId = randomUUID();
+    await runtime.commit(
+      { userId: f.owner },
+      {
+        id: commandId,
+        worldId: f.worldId,
+        actorId: actor,
+        expectedVersion: version,
+        ...(player ? {} : { origin: 'director' as const }),
+        text: player ? 'A_REAL_PLAYER_REPLY' : '合成导演调用，仅验证数据库。',
+      },
+      {
+        schemaVersion: 1,
+        id: eventId,
+        worldId: f.worldId,
+        version: version + 1,
+        commandId,
+        type: 'turn.resolved',
+        occurredAt: at,
+        storyAt: at,
+        data: {
+          actorId: actor,
+          userText: player ? 'A_REAL_PLAYER_REPLY' : '合成导演调用，仅验证数据库。',
+          ...(player ? {} : { origin: 'director' as const }),
+          effects: [{ type: 'message.received', id: eventId + '_message', actorId: actor, text }],
+        },
+      },
+    );
+    return eventId;
+  }
+  const f = await fixture();
+  const ctx = async (actor: string) =>
+    actorContext(await runtime.get({ userId: f.owner }, f.worldId), actor);
+  const firstId = f.actors[0]!.id,
+    secondId = f.actors[1]!.id;
+  const planId = randomUUID();
+  await repository.beginPlan(f.owner, f.worldId, planId);
+  await repository.savePlan(
+    f.owner,
+    f.worldId,
+    planId,
+    f.actors.map((a, i) => ({ actorId: a.id, brief: 'PRIVATE_ACTOR_DIRECTION_' + i })),
+  );
+  assert.equal(await readActorSituation(app, f.owner, await ctx(firstId)), undefined);
+  const first = (await repository.claimNext(f.owner, f.worldId))!;
+  await commit(f, first.actorId, first.expectedVersion!, first.commandId, 'OWN_OPENING_ONE');
+  await repository.finishDelivery(f.owner, f.worldId, first.actorId, first.commandId);
+  const initial = (await readActorSituation(app, f.owner, await ctx(first.actorId)))!;
+  assert.equal(initial.opening.direction, 'PRIVATE_ACTOR_DIRECTION_0');
+  assert.equal(initial.eventOutcome, null);
+  assert(!JSON.stringify(initial).includes('GLOBAL_OPENING'));
+  assert(!JSON.stringify(initial).includes('PRIVATE_ACTOR_DIRECTION_1'));
+  assert.equal(await readActorSituation(app, f.owner, await ctx(secondId)), undefined);
+  const stale = await ctx(firstId);
+  const second = (await repository.claimNext(f.owner, f.worldId))!;
+  await commit(f, second.actorId, second.expectedVersion!, second.commandId, 'OWN_OPENING_TWO');
+  await repository.finishDelivery(f.owner, f.worldId, second.actorId, second.commandId);
+  await t.test(
+    'all actors read the same current version and time with independent directions',
+    async () => {
+      const one = (await readActorSituation(app, f.owner, await ctx(firstId)))!;
+      const two = (await readActorSituation(app, f.owner, await ctx(secondId)))!;
+      assert.equal(one.worldVersion, 2);
+      assert.equal(two.worldVersion, 2);
+      assert.equal(one.storyAt, two.storyAt);
+      assert.notEqual(one.opening.direction, two.opening.direction);
+      assert.equal(one.opening.sourceVersion, 1);
+      assert.equal(two.opening.sourceVersion, 2);
+      assert.equal(one.opening.nodeKey, two.opening.nodeKey);
+    },
+  );
+  await t.test('stale version and foreign owner cannot load directions', async () => {
+    await assert.rejects(() => readActorSituation(app, f.owner, stale), /VERSION_CONFLICT/);
+    await assert.rejects(
+      () => readActorSituation(app, f.foreign, { ...stale, worldVersion: 2 }),
+      /NOT_FOUND/,
+    );
+  });
+  await t.test('future-time context cannot expose an opening before delivery', async () => {
+    const context = await ctx(firstId);
+    assert.equal(
+      await readActorSituation(app, f.owner, { ...context, time: '2026-10-14T00:00:00.000Z' }),
+      undefined,
+    );
+  });
+  await t.test('tampered source hash prevents private brief read', async () => {
+    const hash = (
+      await admin.query(
+        'SELECT source_hash FROM parallel_life.publication_opening_batches WHERE world_id=$1',
+        [f.worldId],
+      )
+    ).rows[0].source_hash;
+    await admin.query(
+      'UPDATE parallel_life.publication_opening_batches SET source_hash=$2 WHERE world_id=$1',
+      [f.worldId, '0'.repeat(64)],
+    );
+    assert.equal(await readActorSituation(app, f.owner, await ctx(firstId)), undefined);
+    await admin.query(
+      'UPDATE parallel_life.publication_opening_batches SET source_hash=$2 WHERE world_id=$1',
+      [f.worldId, hash],
+    );
+  });
+  await t.test(
+    'a projection mismatching the actual committed message is not evidence',
+    async () => {
+      await admin.query(
+        "UPDATE parallel_life.world_messages SET document=jsonb_set(document,'{text}',to_jsonb('FORGED'::text)) WHERE world_id=$1 AND id=$2",
+        [f.worldId, initial.opening.sourceMessageId],
+      );
+      assert.equal(await readActorSituation(app, f.owner, await ctx(firstId)), undefined);
+      await admin.query(
+        "UPDATE parallel_life.world_messages SET document=jsonb_set(document,'{text}',to_jsonb('OWN_OPENING_ONE'::text)) WHERE world_id=$1 AND id=$2",
+        [f.worldId, initial.opening.sourceMessageId],
+      );
+    },
+  );
+  await t.test(
+    'forgotten source cannot be resurrected through the private opening brief',
+    async () => {
+      const id = randomUUID();
+      await admin.query(
+        "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'summary','Forgotten opening','conversation_summary',$5,'forgotten')",
+        [id, f.owner, firstId, f.worldId, JSON.stringify([initial.opening.sourceMessageId])],
+      );
+      assert.equal(await readActorSituation(app, f.owner, await ctx(firstId)), undefined);
+      assert((await readActorSituation(app, f.owner, await ctx(secondId)))?.opening.direction);
+      await admin.query('DELETE FROM parallel_life.memory_records WHERE id=$1', [id]);
+    },
+  );
+  await t.test(
+    'direction survives recent conversation window without replacing new messages',
+    async () => {
+      for (let v = 2; v < 16; v++)
+        await commit(f, firstId, v, randomUUID(), 'ACTUAL_LATER_MESSAGE_' + v);
+      const context = await ctx(firstId);
+      assert(!context.messages.some((m) => m.text === 'OWN_OPENING_ONE'));
+      const current = (await readActorSituation(app, f.owner, context))!;
+      assert.equal(current.opening.direction, initial.opening.direction);
+      assert.equal(current.worldVersion, 16);
+      assert(context.messages.some((m) => m.text === 'ACTUAL_LATER_MESSAGE_15'));
+    },
+  );
+  await t.test(
+    'actual character adapter strips injected private supplements and supplies only own saved direction',
+    async () => {
+      const context = await ctx(firstId);
+      let calls = 0;
+      await publicationCharacterPlanner(app, f.owner, f.worldId, {
+        async complete(messages) {
+          calls++;
+          const payload = JSON.parse(messages[1]!.content);
+          assert.equal(payload.currentSituation.opening.direction, initial.opening.direction);
+          assert.equal(payload.currentSituation.worldVersion, 16);
+          assert(!JSON.stringify(payload).includes('INJECTED_OTHER_ACTOR_SECRET'));
+          assert(!JSON.stringify(payload).includes('PRIVATE_ACTOR_DIRECTION_1'));
+          return 'Here is my own next step.';
+        },
+      }).propose({
+        context: {
+          ...context,
+          authoredLifeModules: { traits: 'INJECTED_OTHER_ACTOR_SECRET' },
+          actorSituation: {
+            ...initial,
+            opening: { ...initial.opening, direction: 'INJECTED_OTHER_ACTOR_SECRET' },
+          },
+        },
+        userText: 'What happens now?',
+      });
+      assert.equal(calls, 1);
+    },
+  );
+  await t.test(
+    'director observes each actual actor, while director instructions never become player speech',
+    async () => {
+      const observation = await readDirectorObservation(app, f.owner, f.worldId, 16, at);
+      assert.equal(observation.worldVersion, 16);
+      assert.equal(observation.actorExchanges.length, 2);
+      assert(
+        observation.actorExchanges.some((x) => x.actorId === secondId && x.sourceVersion === 2),
+      );
+      assert(
+        observation.actorExchanges.every((x) => x.origin === 'director' && x.playerText === null),
+      );
+      assert(!JSON.stringify(observation).includes('GLOBAL_OPENING_SCRIPT'));
+      assert(!JSON.stringify(observation).includes('合成导演调用'));
+      await commit(f, firstId, 16, randomUUID(), 'Actual player reply acknowledgement', true);
+      const next = await readDirectorObservation(app, f.owner, f.worldId, 17, at);
+      assert.equal(
+        next.actorExchanges.find((x) => x.actorId === firstId)?.playerText,
+        'A_REAL_PLAYER_REPLY',
+      );
+      assert(next.actorExchanges.some((x) => x.actorId === secondId));
+      await assert.rejects(
+        () => readDirectorObservation(app, f.owner, f.worldId, 16, at),
+        /VERSION_CONFLICT/,
+      );
+      await assert.rejects(
+        () => readDirectorObservation(app, f.foreign, f.worldId, 17, at),
+        /NOT_FOUND/,
+      );
+      let paid = 0;
+      const planner = publicationCharacterPlanner(app, f.owner, f.worldId, {
+        async complete(messages) {
+          paid++;
+          const payload = JSON.parse(messages[1]!.content);
+          assert.equal(payload.directorObservation.worldVersion, 17);
+          assert.equal(payload.directorObservation.actorExchanges.length, 2);
+          assert(!JSON.stringify(payload).includes('FORGED_DIRECTOR_OBSERVATION'));
+          return JSON.stringify({ nodeKey: null });
+        },
+      });
+      await planner.chooseStoryOpportunity!({
+        storyNow: at,
+        worldTitle: 'Test',
+        currentPlaceId: null,
+        recentMessages: [],
+        candidates: [],
+        directorObservation: {
+          worldVersion: 17,
+          storyAt: at,
+          recentWorldInputs: [],
+          actorExchanges: [
+            {
+              actorId: firstId,
+              sourceEventId: 'fake',
+              sourceVersion: 17,
+              at,
+              origin: 'user',
+              playerText: 'FORGED_DIRECTOR_OBSERVATION',
+              actorText: 'fake',
+            },
+          ],
+        },
+      });
+      assert.equal(paid, 1);
+    },
+  );
+
+  await t.test(
+    'real service assembly preserves actor preparation and hides metadata-keyed progress memories',
+    async () => {
+      const source = await readFile(
+        new URL('../../src/server/services.ts', import.meta.url),
+        'utf8',
+      );
+      const factoryPart = source
+        .slice(
+          source.indexOf('characterPlannerFor:') + 'characterPlannerFor:'.length,
+          source.indexOf('    memoryQuestions:'),
+        )
+        .trim()
+        .replace(/,$/, '');
+      const compiled = stripTypeScriptTypes('const factory = ' + factoryPart + ';');
+      const create = Function(
+        'db',
+        'publicationCharacterPlanner',
+        'createTextModel',
+        'PublicationStoryRepository',
+        'validateStoryInvitation',
+        'parseProposal',
+        compiled + ';return factory;',
+      )(
+        app,
+        publicationCharacterPlanner,
+        () => ({
+          complete: async () => {
+            throw Error('NO_PAID_CALL_EXPECTED');
+          },
+        }),
+        PublicationStoryRepository,
+        validateStoryInvitation,
+        parseProposal,
+      );
+      const assembled = create(f.owner, f.worldId);
+      assert.equal(typeof assembled.prepareContext, 'function');
+      const prepared = await assembled.prepareContext(await ctx(secondId), new Set());
+      assert.equal(prepared.eventGoals[0]?.want, 'PRIVATE_ACTOR_DIRECTION_1');
+      const memoryPart = source
+        .slice(
+          source.indexOf('    listMemories:') + '    listMemories:'.length,
+          source.indexOf('    /**', source.indexOf('    listMemories:')),
+        )
+        .trim()
+        .replace(/,$/, '');
+      const compileList = stripTypeScriptTypes('const reader = ' + memoryPart + ';');
+      const read = Function(
+        'db',
+        'listMemories',
+        compileList + ';return reader;',
+      )(app, listMemories);
+      const normal = randomUUID(),
+        hidden = randomUUID();
+      await admin.query(
+        "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids) VALUES($1,$3,'branch',$4,$4,NULL,'correction','ordinary content mentioning actor_event_progress_v1: must remain','ordinary','user_correction','[]'),($2,$3,'character',$5,$4,$5,'summary','PRIVATE_GOAL_STATE','actor_event_progress_v1:test','agent_inference','[]')",
+        [normal, hidden, f.owner, f.worldId, secondId],
+      );
+      const memories = await read(f.owner, {});
+      assert(memories.some((m: { id: string }) => m.id === normal));
+      assert(!memories.some((m: { id: string }) => m.id === hidden));
+    },
+  );
+  await t.test(
+    'live multi-actor opening has independent goals and one receipt-bound common progress ledger',
+    async () => {
+      const readGoals = async (actor: string) =>
+        app.transaction(f.owner, (sql) =>
+          readActorEventGoals(sql, awaitContext[actor]!, f.owner, new Set()),
+        );
+      const awaitContext: Record<string, ReturnType<typeof actorContext>> = {};
+      for (const id of [firstId, secondId]) awaitContext[id] = await ctx(id);
+      const a = await readGoals(firstId),
+        b = await readGoals(secondId);
+      assert.equal(a[0]?.want, 'PRIVATE_ACTOR_DIRECTION_0');
+      assert.equal(b[0]?.want, 'PRIVATE_ACTOR_DIRECTION_1');
+      assert.equal(a[0]?.goalKey, b[0]?.goalKey);
+      const openingProgress = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows[0].state;
+      assert.equal(openingProgress.productiveBeats, 1);
+
+      assert(!JSON.stringify(a).includes('PRIVATE_ACTOR_DIRECTION_1'));
+      const turn = async (
+        actor: string,
+        text: string,
+        kind: 'declined' | 'engaged' | 'closure',
+        _quote: string,
+      ) => {
+        const planner = publicationCharacterPlanner(app, f.owner, f.worldId, {
+          async complete(messages) {
+            const payload = JSON.parse(messages[1]!.content);
+            assert.equal(payload.eventGoals[0].actorId, actor);
+            return JSON.stringify({
+              schemaVersion: 1,
+              effects: [
+                {
+                  type: 'message.received',
+                  id: 'reply',
+                  actorId: actor,
+                  text:
+                    kind === 'closure' ? '我先结束这次请求。' : '我听明白了，会按这个安排处理。',
+                },
+              ],
+              eventGoalAssessments: [
+                {
+                  goalKey: payload.eventGoals[0].goalKey,
+                  target: kind === 'closure' ? 'npc' : 'user',
+                  kind,
+                  source: kind === 'closure' ? 'current_reply' : 'current_user',
+                  ...(kind === 'closure' ? { closure: 'withdrawn' } : {}),
+                },
+              ],
+            });
+          },
+        });
+        const current = await runtime.get({ userId: f.owner }, f.worldId);
+        return resolveTurn(
+          { worlds: runtime, planner, now: () => at, newId: randomUUID },
+          { userId: f.owner },
+          {
+            id: randomUUID(),
+            worldId: f.worldId,
+            actorId: actor,
+            expectedVersion: current.version,
+            text,
+          },
+        );
+      };
+      const declined = await turn(firstId, '暂时不去，我先忙工作。', 'declined', '暂时不去');
+      assert.equal(declined.state.version, 18);
+      await turn(secondId, '我可以先听听你的安排。', 'engaged', '先听听你的安排');
+      for (const id of [firstId, secondId]) awaitContext[id] = await ctx(id);
+      const afterA = await readGoals(firstId),
+        afterB = await readGoals(secondId);
+      assert.equal(afterA[0]?.participation, 'declined');
+      assert.equal(afterB[0]?.participation, 'engaged');
+      assert.equal(afterA[0]?.sharedEventPhase, afterB[0]?.sharedEventPhase);
+      assert.equal(afterA[0]?.phase, 'introduced');
+      assert.equal(afterB[0]?.phase, 'engaged');
+      assert.equal(afterA[0]?.nextMove, 'wait');
+      assert.equal(afterA[0]?.status, 'deferred');
+      const rows = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows;
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].state.phase, 'engaged');
+      assert.equal(rows[0].state.resolution, null);
+      await turn(firstId, '你先按自己的安排来吧。', 'closure', '我先结束这次请求');
+      const closed = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows[0].state;
+      assert.notEqual(closed.phase, 'resolved');
+      assert.equal(closed.actorGoalStatus[firstId], 'withdrawn');
+      assert.equal(closed.actorGoalStatus[secondId], 'active');
+      assert.equal(closed.resolution, null);
+      const ownClosed = await readGoals(firstId),
+        otherActive = await readGoals(secondId);
+      assert.equal(ownClosed[0]?.phase, 'resolved');
+      assert.equal(ownClosed[0]?.nextMove, 'finished');
+      assert.equal(ownClosed[0]?.sharedEventPhase, 'engaged');
+      assert.equal(otherActive[0]?.phase, 'engaged');
+      assert.equal(otherActive[0]?.status, 'active');
+      assert(!JSON.stringify(otherActive).includes('PRIVATE_ACTOR_DIRECTION_0'));
+      const observed = await readDirectorObservation(app, f.owner, f.worldId, 20, at);
+      const sharedObservation = observed.eventProgress?.find(
+        (e) => e.nodeKey === initial.opening.nodeKey,
+      );
+      assert.equal(sharedObservation?.phase, 'engaged');
+      assert.equal(
+        sharedObservation?.actors.find((a) => a.actorId === firstId)?.participation,
+        'declined',
+      );
+      assert.equal(
+        sharedObservation?.actors.find((a) => a.actorId === firstId)?.status,
+        'withdrawn',
+      );
+      assert.equal(
+        sharedObservation?.actors.find((a) => a.actorId === secondId)?.participation,
+        'engaged',
+      );
+      assert.equal(sharedObservation?.actors.find((a) => a.actorId === secondId)?.status, 'active');
+      const earlier = await readDirectorObservation(
+        app,
+        f.owner,
+        f.worldId,
+        20,
+        '2026-10-14T07:00:00.000Z',
+      );
+      assert.equal(earlier.eventProgress?.length, 0);
+      assert.equal(earlier.actorExchanges.length, 0);
+      const futureRecord = (
+        await admin.query(
+          "SELECT id,document->>'at' AS at FROM parallel_life.world_messages WHERE world_id=$1 AND actor_id=$2 AND document->>'role'='user' AND document->>'text'='暂时不去，我先忙工作。'",
+          [f.worldId, firstId],
+        )
+      ).rows[0];
+      await admin.query(
+        "UPDATE parallel_life.world_messages SET document=jsonb_set(document,'{at}',to_jsonb($3::text)) WHERE world_id=$1 AND id=$2",
+        [f.worldId, futureRecord.id, '2026-10-16T07:00:00.000Z'],
+      );
+      try {
+        const guarded = await readDirectorObservation(app, f.owner, f.worldId, 20, at);
+        const view = guarded.eventProgress?.find((e) => e.nodeKey === initial.opening.nodeKey);
+        assert.equal(view?.actors.find((a) => a.actorId === firstId)?.participation, 'unknown');
+        assert.equal(view?.actors.find((a) => a.actorId === secondId)?.participation, 'engaged');
+      } finally {
+        await admin.query(
+          "UPDATE parallel_life.world_messages SET document=jsonb_set(document,'{at}',to_jsonb($3::text)) WHERE world_id=$1 AND id=$2",
+          [f.worldId, futureRecord.id, futureRecord.at],
+        );
+      }
+
+      const latest = await runtime.get({ userId: f.owner }, f.worldId);
+      assert.equal(latest.time, at);
+      const beforeRevision = (
+        await admin.query(
+          'SELECT revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows[0].revision;
+      const invalid = publicationCharacterPlanner(app, f.owner, f.worldId, {
+        async complete() {
+          return JSON.stringify({
+            schemaVersion: 1,
+            effects: [
+              {
+                type: 'message.received',
+                id: 'r',
+                actorId: secondId,
+                text: 'This cannot be committed.',
+              },
+            ],
+            eventGoalAssessments: [
+              {
+                goalKey: 'publication:foreign_node',
+                target: 'user',
+                kind: 'engaged',
+                quote: 'Go ahead',
+              },
+            ],
+          });
+        },
+      });
+      const validDialogue = await resolveTurn(
+        { worlds: runtime, planner: invalid, now: () => at, newId: randomUUID },
+        { userId: f.owner },
+        {
+          id: randomUUID(),
+          worldId: f.worldId,
+          actorId: secondId,
+          expectedVersion: latest.version,
+          text: 'Go ahead',
+        },
+      );
+      assert.equal((await runtime.get({ userId: f.owner }, f.worldId)).version, latest.version + 1);
+      assert.equal(validDialogue.state.messages.at(-1)?.text, 'This cannot be committed.');
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].revision,
+        beforeRevision,
+      );
+      const afterInvalidVersion = latest.version + 1;
+      const later = new Date(Date.parse(at) + 35 * 60000).toISOString();
+      await admin.query('UPDATE parallel_life.world_clock SET story_now=$2 WHERE world_id=$1', [
+        f.worldId,
+        later,
+      ]);
+      const pool = await story.opportunities(f.owner, f.worldId, false);
+      const next = pool.candidates.find((c) => c.nodeKey === initial.opening.nodeKey);
+      assert.equal(next?.actorId, secondId);
+      assert.equal(next?.eventProgress?.ownGoal.want, 'PRIVATE_ACTOR_DIRECTION_1');
+      const pending = await story.prepareProgressBeat(f.owner, f.worldId, initial.opening.nodeKey, {
+        expectedVersion: afterInvalidVersion,
+        automatic: false,
+      });
+      assert.equal(pending.status, 'claimed');
+      if (pending.status === 'claimed') {
+        assert.equal(pending.claim.actorId, secondId);
+        const competing = await story.prepareProgressBeat(
+          f.owner,
+          f.worldId,
+          initial.opening.nodeKey,
+          { expectedVersion: afterInvalidVersion, automatic: false },
+        );
+        assert.notEqual(competing.status, 'claimed');
+        const recovered = await story.retry(f.owner, f.worldId, pending.claim.claimId);
+        assert.equal(recovered.status, 'claimed');
+        if (recovered.status !== 'claimed') throw Error('EXPLICIT_RECOVERY_MISSING');
+        assert.equal(recovered.claim.commandId, pending.claim.commandId);
+        assert.equal(recovered.claim.actorId, secondId);
+        await commit(
+          f,
+          secondId,
+          afterInvalidVersion,
+          recovered.claim.commandId,
+          'First autonomous follow-up',
+        );
+        await story.finishProgressBeat(f.owner, f.worldId, recovered.claim.claimId);
+        const secondBeat = await story.prepareProgressBeat(
+          f.owner,
+          f.worldId,
+          initial.opening.nodeKey,
+          { expectedVersion: afterInvalidVersion + 1, automatic: false },
+        );
+        assert.equal(secondBeat.status, 'claimed');
+        if (secondBeat.status !== 'claimed') throw Error('SECOND_FOLLOWUP_MISSING');
+        await commit(
+          f,
+          secondId,
+          afterInvalidVersion + 1,
+          secondBeat.claim.commandId,
+          'Second autonomous follow-up without closure',
+        );
+        await story.finishProgressBeat(f.owner, f.worldId, secondBeat.claim.claimId);
+        const bounded = await story.opportunities(f.owner, f.worldId, false);
+        assert(!bounded.candidates.some((c) => c.nodeKey === initial.opening.nodeKey));
+        const quiet = await story.prepareProgressBeat(f.owner, f.worldId, initial.opening.nodeKey, {
+          expectedVersion: afterInvalidVersion + 2,
+          automatic: false,
+        });
+        assert.equal(quiet.status, 'none');
+        const notFinished = (
+          await admin.query(
+            'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].state;
+        assert.equal(notFinished.resolution, null);
+      }
+    },
+  );
+  await t.test(
+    'partial opening remembers a real early refusal without introducing an unsent participant',
+    async () => {
+      const early = await fixture(true),
+        planId = randomUUID();
+      const [a, b] = early.actors.map((x) => x.id);
+      await repository.beginPlan(early.owner, early.worldId, planId);
+      await repository.savePlan(
+        early.owner,
+        early.worldId,
+        planId,
+        early.actors.map((x, i) => ({ actorId: x.id, brief: 'EARLY_PRIVATE_' + i })),
+      );
+      const first = (await repository.claimNext(early.owner, early.worldId))!;
+      await commit(early, a!, 0, first.commandId, '先确认海报日期，你能参加吗？');
+      await repository.finishDelivery(early.owner, early.worldId, a!, first.commandId);
+      const goals = async (actor: string, blocked = new Set<string>()) => {
+        const state = await runtime.get({ userId: early.owner }, early.worldId);
+        return app.transaction(early.owner, (sql) =>
+          readActorEventGoals(sql, actorContext(state, actor), early.owner, blocked),
+        );
+      };
+      assert.equal((await goals(a!))[0]?.want, 'EARLY_PRIVATE_0');
+      assert.deepEqual(await goals(b!), []);
+      const hashBefore = (
+        await admin.query(
+          'SELECT definition_hash FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [early.worldId],
+        )
+      ).rows[0].definition_hash;
+      const planner = publicationCharacterPlanner(app, early.owner, early.worldId, {
+        async complete(messages) {
+          const input = JSON.parse(messages[1]!.content);
+          assert.equal(input.eventGoals[0].actorId, a);
+          assert(!JSON.stringify(input.eventGoals).includes('EARLY_PRIVATE_1'));
+          return JSON.stringify({
+            schemaVersion: 1,
+            effects: [
+              {
+                type: 'message.received',
+                id: 'reply',
+                actorId: a,
+                text: '这次请求就到这里。我打算先自己核对海报上的日期。',
+              },
+            ],
+            eventGoalAssessments: [
+              {
+                goalKey: input.eventGoals[0].goalKey,
+                target: 'user',
+                kind: 'declined',
+                source: 'current_user',
+              },
+              {
+                goalKey: input.eventGoals[0].goalKey,
+                target: 'npc',
+                kind: 'closure',
+                source: 'current_reply',
+                closure: 'withdrawn',
+              },
+            ],
+          });
+        },
+      });
+      await resolveTurn(
+        { worlds: runtime, planner, now: () => at, newId: randomUUID },
+        { userId: early.owner },
+        {
+          id: randomUUID(),
+          worldId: early.worldId,
+          actorId: a!,
+          expectedVersion: 1,
+          text: '这次我不参与海报校对，请你自己安排。',
+        },
+      );
+      const ownEarly = (await goals(a!))[0]!;
+      assert.equal(ownEarly.participation, 'declined');
+      assert.equal(ownEarly.status, 'withdrawn');
+      assert.equal(ownEarly.phase, 'resolved');
+      assert.equal(ownEarly.nextMove, 'finished');
+      assert.deepEqual(await goals(b!), []);
+      assert.deepEqual(await goals(a!, new Set([ownEarly.source.sourceEventId])), []);
+      const second = (await repository.claimNext(early.owner, early.worldId))!;
+      assert.equal(second.actorId, b);
+      await commit(early, b!, 2, second.commandId, '我来确认桌椅数量，先列一份清单。');
+      await repository.finishDelivery(early.owner, early.worldId, b!, second.commandId);
+      const aAfter = (await goals(a!))[0]!,
+        bAfter = (await goals(b!))[0]!;
+      assert.equal(aAfter.participation, 'declined');
+      assert.equal(aAfter.status, 'withdrawn');
+      assert.equal(bAfter.participation, 'unknown');
+      assert.equal(bAfter.status, 'active');
+      assert.equal(bAfter.want, 'EARLY_PRIVATE_1');
+      assert(!JSON.stringify(bAfter).includes('EARLY_PRIVATE_0'));
+      const row = (
+        await admin.query(
+          'SELECT definition_hash,state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [early.worldId],
+        )
+      ).rows[0];
+      assert.equal(row.definition_hash, hashBefore);
+      assert.equal(row.state.resolution, null);
+      assert(row.state.actorParticipationSources[a!].length > 0);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [early.worldId],
+          )
+        ).rows[0].n,
+        1,
+      );
+      // The new delivered-only source is required even though the immutable plan existed before it.
+      const bSource = bAfter.source.sourceRecordId;
+      await admin.query(
+        "UPDATE parallel_life.publication_opening_deliveries SET source_message_id='not_a_real_message' WHERE world_id=$1 AND actor_id=$2",
+        [early.worldId, b],
+      );
+      await assert.rejects(() => goals(b!), /INVALID_STATE/);
+      await admin.query(
+        'UPDATE parallel_life.publication_opening_deliveries SET source_message_id=$3 WHERE world_id=$1 AND actor_id=$2',
+        [early.worldId, b, bSource],
+      );
+      assert.equal((await goals(a!))[0]?.participation, 'declined');
+    },
+  );
+  await t.test('an empty actor-key list does not activate an unknown future actor', async () => {
+    const limited = await fixture(false, { third: true, hiddenThird: true, emptyKeys: true }),
+      planId = randomUUID();
+    assert.equal(limited.actors.length, 2);
+    await repository.beginPlan(limited.owner, limited.worldId, planId);
+    await repository.savePlan(
+      limited.owner,
+      limited.worldId,
+      planId,
+      limited.actors.map((a, i) => ({ actorId: a.id, brief: 'KNOWN_ONLY_' + i })),
+    );
+    const claim = (await repository.claimNext(limited.owner, limited.worldId))!;
+    await commit(
+      limited,
+      claim.actorId,
+      0,
+      claim.commandId,
+      'Only an authorized known contact speaks',
+    );
+    await repository.finishDelivery(limited.owner, limited.worldId, claim.actorId, claim.commandId);
+    const contexts = await app.transaction(limited.owner, (sql) =>
+      publicationGoalContexts(sql, limited.owner, limited.worldId, 1),
+    );
+    assert.equal(contexts[0]!.value.definition.goals.length, 2);
+    assert.equal(Object.keys(contexts[0]!.record.openingActors!).length, 1);
+    assert.equal(Object.keys(contexts[0]!.record.openingPlan!).length, 2);
+  });
+  await t.test(
+    'a complete pre-EARLY definition keeps its exact legacy hash and state',
+    async () => {
+      const legacy = await fixture(true, { third: true }),
+        planId = randomUUID();
+      await repository.beginPlan(legacy.owner, legacy.worldId, planId);
+      await repository.savePlan(
+        legacy.owner,
+        legacy.worldId,
+        planId,
+        legacy.actors.map((a, i) => ({ actorId: a.id, brief: 'LEGACY_' + i })),
+      );
+      for (let i = 0; i < 3; i++) {
+        const claim = (await repository.claimNext(legacy.owner, legacy.worldId))!;
+        await commit(legacy, claim.actorId, i, claim.commandId, 'LEGACY actual opening ' + i);
+        await repository.finishDelivery(
+          legacy.owner,
+          legacy.worldId,
+          claim.actorId,
+          claim.commandId,
+        );
+      }
+      const contexts = await app.transaction(legacy.owner, (sql) =>
+        publicationGoalContexts(sql, legacy.owner, legacy.worldId, 3),
+      );
+      const oldValue = publicationGoalDefinition(legacy.owner, legacy.worldId, {
+        ...contexts[0]!.record,
+        openingPlan: undefined,
+      });
+      const legacyHash = hashDefinition(oldValue);
+      await admin.query(
+        'UPDATE parallel_life.publication_story_progress SET definition_hash=$2 WHERE world_id=$1',
+        [legacy.worldId, legacyHash],
+      );
+      const before = (
+        await admin.query(
+          'SELECT state,revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [legacy.worldId],
+        )
+      ).rows[0];
+      const again = await app.transaction(legacy.owner, (sql) =>
+        publicationGoalContexts(sql, legacy.owner, legacy.worldId, 3),
+      );
+      assert.equal(hashDefinition(again[0]!.value), legacyHash);
+      const after = (
+        await admin.query(
+          'SELECT definition_hash,state,revision FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [legacy.worldId],
+        )
+      ).rows[0];
+      assert.equal(after.definition_hash, legacyHash);
+      assert.deepEqual(after.state, before.state);
+      assert.equal(after.revision, before.revision);
+      await admin.query(
+        "UPDATE parallel_life.publication_story_progress SET definition_hash=repeat('0',64) WHERE world_id=$1",
+        [legacy.worldId],
+      );
+      await assert.rejects(
+        () =>
+          app.transaction(legacy.owner, (sql) =>
+            publicationGoalContexts(sql, legacy.owner, legacy.worldId, 3),
+          ),
+        /INVALID_STATE/,
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT definition_hash FROM parallel_life.publication_story_progress WHERE world_id=$1',
+            [legacy.worldId],
+          )
+        ).rows[0].definition_hash,
+        '0'.repeat(64),
+      );
+    },
+  );
+  await t.test(
+    'another opening participant can satisfy an authored criterion without inventing success for everyone',
+    async () => {
+      const other = await fixture(true),
+        planId = randomUUID();
+      await repository.beginPlan(other.owner, other.worldId, planId);
+      await repository.savePlan(
+        other.owner,
+        other.worldId,
+        planId,
+        other.actors.map((a, i) => ({ actorId: a.id, brief: 'Independent goal ' + i })),
+      );
+      for (let version = 0; version < 2; version++) {
+        const claim = (await repository.claimNext(other.owner, other.worldId))!;
+        await commit(
+          other,
+          claim.actorId,
+          version,
+          claim.commandId,
+          version === 1 ? 'CRITERION_CONFIRM' : 'Initial request',
+        );
+        await repository.finishDelivery(other.owner, other.worldId, claim.actorId, claim.commandId);
+      }
+      const current = await runtime.get({ userId: other.owner }, other.worldId);
+      const goals = [];
+      for (const actor of other.actors)
+        goals.push(
+          await app.transaction(other.owner, (sql) =>
+            readActorEventGoals(sql, actorContext(current, actor.id), other.owner, new Set()),
+          ),
+        );
+      assert.equal(goals[0]![0]?.sharedEventPhase, 'resolved');
+      assert.equal(goals[0]![0]?.phase, 'introduced');
+      assert.equal(goals[1]![0]?.phase, 'resolved');
+      assert.equal(goals[0]![0]?.nextMove, 'finished');
+      assert.equal(goals[1]![0]?.status, 'fulfilled');
+      assert.notEqual(goals[0]![0]?.status, 'fulfilled');
+      const shared = (
+        await admin.query(
+          'SELECT state FROM parallel_life.publication_story_progress WHERE world_id=$1',
+          [other.worldId],
+        )
+      ).rows[0].state;
+      assert.equal(shared.resolution, 'fulfilled');
+      assert.equal(shared.productiveBeats, 1);
+    },
+  );
+  await t.test(
+    'explicit retry supersedes a stale unknown command safely and clears ended own goals',
+    async () => {
+      const fresh = await fixture(),
+        planId = randomUUID();
+      await repository.beginPlan(fresh.owner, fresh.worldId, planId);
+      await repository.savePlan(
+        fresh.owner,
+        fresh.worldId,
+        planId,
+        fresh.actors.map((a, i) => ({ actorId: a.id, brief: 'Retry goal ' + i })),
+      );
+      for (let version = 0; version < 2; version++) {
+        const claim = (await repository.claimNext(fresh.owner, fresh.worldId))!;
+        await commit(fresh, claim.actorId, version, claim.commandId, 'Initial retry contact');
+        await repository.finishDelivery(fresh.owner, fresh.worldId, claim.actorId, claim.commandId);
+      }
+      const later = new Date(Date.parse(at) + 35 * 60000).toISOString();
+      await admin.query('UPDATE parallel_life.world_clock SET story_now=$2 WHERE world_id=$1', [
+        fresh.worldId,
+        later,
+      ]);
+      const pending = await story.prepareProgressBeat(fresh.owner, fresh.worldId, 'start', {
+        expectedVersion: 2,
+        automatic: false,
+      });
+      assert.equal(pending.status, 'claimed');
+      if (pending.status !== 'claimed') throw Error('PENDING_REQUIRED');
+      const otherActor = fresh.actors.find((a) => a.id !== pending.claim.actorId)!.id;
+      assert.equal((await story.progress(fresh.owner, fresh.worldId)).pending?.status, 'unknown');
+      await commit(
+        fresh,
+        otherActor,
+        2,
+        randomUUID(),
+        'An ordinary reply advances the shared version',
+        true,
+      );
+      await assert.rejects(
+        () => story.retry(fresh.owner, fresh.worldId, pending.claim.claimId),
+        (error) => (error as { code: string }).code === 'BUSY',
+      );
+      assert.equal(
+        (await story.progress(fresh.owner, fresh.worldId)).pending?.commandId,
+        pending.claim.commandId,
+      );
+      await admin.query(
+        'UPDATE parallel_life.world_clock SET paused=false,last_tick_at=clock_timestamp() WHERE world_id=$1',
+        [fresh.worldId],
+      );
+      const recovered = await story.retry(fresh.owner, fresh.worldId, pending.claim.claimId);
+      assert.equal(recovered.status, 'claimed');
+      if (recovered.status !== 'claimed') throw Error('CURRENT_RETRY_REQUIRED');
+      assert.equal(recovered.claim.expectedVersion, 3);
+      assert.equal(recovered.claim.actorId, pending.claim.actorId);
+      assert.notEqual(recovered.claim.commandId, pending.claim.commandId);
+      await assert.rejects(
+        () =>
+          commit(
+            fresh,
+            pending.claim.actorId,
+            2,
+            pending.claim.commandId,
+            'A late result at the superseded version',
+          ),
+        /VERSION_CONFLICT/,
+      );
+      assert.equal((await runtime.get({ userId: fresh.owner }, fresh.worldId)).version, 3);
+      const superseded = (
+        await admin.query(
+          "SELECT count(*)::int AS n FROM parallel_life.publication_story_receipts WHERE world_id=$1 AND command_id::text=$2 AND data->>'reason'='world_version_changed'",
+          [fresh.worldId, pending.claim.commandId],
+        )
+      ).rows[0].n;
+      assert.equal(superseded, 1);
+      await story.progress(fresh.owner, fresh.worldId);
+      const closing = publicationCharacterPlanner(app, fresh.owner, fresh.worldId, {
+        async complete(messages) {
+          const payload = JSON.parse(messages[1]!.content);
+          return JSON.stringify({
+            schemaVersion: 1,
+            effects: [
+              {
+                type: 'message.received',
+                id: 'r',
+                actorId: recovered.claim.actorId,
+                text: '这次请求就到这里，我不再继续。',
+              },
+            ],
+            eventGoalAssessments: [
+              {
+                goalKey: payload.eventGoals[0].goalKey,
+                target: 'npc',
+                kind: 'closure',
+                quote: '这次请求就到这里，我不再继续',
+                closure: 'withdrawn',
+              },
+            ],
+          });
+        },
+      });
+      await resolveTurn(
+        { worlds: runtime, planner: closing, now: () => at, newId: randomUUID },
+        { userId: fresh.owner },
+        {
+          id: randomUUID(),
+          worldId: fresh.worldId,
+          actorId: recovered.claim.actorId,
+          expectedVersion: 3,
+          text: '请取消这次安排。',
+        },
+      );
+      const noMore = await story.retry(fresh.owner, fresh.worldId, recovered.claim.claimId);
+      assert.equal(noMore.status, 'none');
+      assert.equal((await story.progress(fresh.owner, fresh.worldId)).pending, null);
+      const closureAudit = (
+        await admin.query(
+          "SELECT count(*)::int AS n FROM parallel_life.publication_story_receipts WHERE world_id=$1 AND command_id::text=$2 AND data->>'reason'='goal_closed'",
+          [fresh.worldId, recovered.claim.commandId],
+        )
+      ).rows[0].n;
+      assert.equal(closureAudit, 1);
+    },
+  );
+});

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import type { PhoneAppsData } from './apps/types.ts';
+import type { PhoneAppsData, PhoneRecordsState } from './apps/types.ts';
 import type { PhoneApp, PhonePanel } from './navigation.ts';
 import { PhoneIcon } from './phone-icons.tsx';
+import { recordAttribution } from './apps/notes-records.tsx';
 import {
   worldDayKey,
   worldTimeLabel,
@@ -17,6 +18,7 @@ export function PhoneDesktop({
   dateLabel,
   timeLabel,
   data,
+  records,
   open,
   openPanel,
 }: {
@@ -24,6 +26,7 @@ export function PhoneDesktop({
   dateLabel: string;
   timeLabel: string;
   data: PhoneAppsData;
+  records?: PhoneRecordsState;
   open: (app: PhoneApp, target?: string) => void;
   openPanel: (panel: PhonePanel) => void;
 }) {
@@ -50,6 +53,52 @@ export function PhoneDesktop({
     )
     .sort((a, b) => b.at.localeCompare(a.at))[0];
   const record = choice?.intent || note?.title;
+
+  // Key matter card: priority to active near-term matter or pursuit
+  const currentItems = records?.status === 'ready' ? records.data.current : [];
+  const aboutItems = records?.status === 'ready' ? records.data.about : [];
+  const activeMatter =
+    currentItems.find(
+      (item) =>
+        item.kind === 'world_matter' && (item.state === 'in_progress' || item.state === 'blocked'),
+    ) ??
+    currentItems.find(
+      (item) =>
+        item.kind === 'world_matter' && item.state !== 'completed' && item.state !== 'abandoned',
+    );
+  const currentItem = currentItems.find(
+    (item) => item.kind === 'invitation' || item.kind === 'actor_suggestion',
+  );
+  const pursuitItem = aboutItems.find(
+    (item) => item.span === 'pursuit' && item.state !== 'completed' && item.state !== 'abandoned',
+  );
+  const keyRecord = activeMatter ?? currentItem ?? pursuitItem;
+
+  let cardLabel = '备忘录';
+  let cardTitle = '';
+  let cardMeta: string | undefined;
+  let cardTarget: string | undefined;
+
+  if (keyRecord) {
+    if (keyRecord.kind === 'world_matter' && keyRecord.span === 'pursuit') {
+      cardLabel = '长期追求';
+    } else if (keyRecord.kind === 'world_matter') {
+      cardLabel = '眼下要做的事';
+    } else if (keyRecord.kind === 'actor_suggestion') {
+      cardLabel = '人物建议';
+    } else if (keyRecord.kind === 'invitation') {
+      cardLabel = '待办邀约';
+    } else {
+      cardLabel = '备忘事项';
+    }
+    cardTitle = keyRecord.title;
+    cardMeta = [keyRecord.stateLabel, recordAttribution(keyRecord)].filter(Boolean).join(' · ');
+    cardTarget = keyRecord.id;
+  } else {
+    cardLabel = '备忘录';
+    cardTitle = record || '还没有记录';
+    cardTarget = undefined;
+  }
   const day = worldDayKey(reference);
   const weekday = worldWeekday(reference);
   const nextDay = next ? worldDayKey(next.at) : '';
@@ -130,32 +179,39 @@ export function PhoneDesktop({
 
       <button
         className={styles.record}
-        onClick={() => open('notes')}
-        aria-label={record ? `打开备忘录：${record}` : '打开备忘录'}
+        onClick={() => (keyRecord ? open('records', cardTarget) : open('notes', cardTarget))}
+        aria-label={
+          keyRecord
+            ? `打开人生记录事项：${cardTitle}，${cardMeta ?? ''}`
+            : record
+              ? `打开备忘录：${record}`
+              : '打开备忘录'
+        }
       >
         <span className={styles.recordIcon}>
-          <PhoneIcon name="notes" variant="app" />
+          <PhoneIcon name={keyRecord ? 'records' : 'notes'} variant="app" />
         </span>
         <span className={styles.recordBody}>
-          <span className={styles.recordLabel}>备忘录</span>
-          <strong>{record || '还没有记录'}</strong>
+          <span className={styles.recordLabel}>{cardLabel}</span>
+          <strong>{cardTitle}</strong>
+          {cardMeta && <span className={styles.recordMeta}>{cardMeta}</span>}
         </span>
         <PhoneIcon name="next" />
       </button>
 
       <div className={styles.utilities} aria-label="手机工具">
-        {(['scenes', 'timeline'] as const).map((item) => (
-          <button
-            key={item}
-            data-panel={item}
-            onClick={() => (item === 'scenes' ? open('scenes') : openPanel(item))}
-          >
-            <span className={styles.utilityIcon}>
-              <PhoneIcon name={item} variant="app" />
-            </span>
-            <span>{item === 'scenes' ? '现场' : '身份'}</span>
-          </button>
-        ))}
+        <button data-panel="records" onClick={() => open('records')}>
+          <span className={`${styles.utilityIcon} ${styles.records || ''}`}>
+            <PhoneIcon name="records" variant="app" />
+          </span>
+          <span>记录</span>
+        </button>
+        <button data-panel="timeline" onClick={() => openPanel('timeline')}>
+          <span className={`${styles.utilityIcon} ${styles.timeline || ''}`}>
+            <PhoneIcon name="timeline" variant="app" />
+          </span>
+          <span>身份</span>
+        </button>
       </div>
     </div>
   );

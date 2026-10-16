@@ -7,6 +7,7 @@ import type { WorldState } from '../domain/types.ts';
 import { openingMessageAt } from '../domain/opening-time.ts';
 import { createGenesisLinks } from '../domain/genesis-links.ts';
 import { genesisMessages } from '../domain/genesis-messages.ts';
+import { deriveInitialSpace, validateSpace } from '../domain/space.ts';
 import { WorldPlanner } from './world-planner.ts';
 
 export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, model: string) {
@@ -126,6 +127,21 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
       });
       state.genesisLinks = initial.genesisLinks;
       state.appointments = initial.appointments;
+    }
+    const initialSpace = deriveInitialSpace({
+      seed,
+      opening,
+      actorIds: ids,
+      appointments: state.appointments,
+      source: {
+        kind: 'seed_genesis',
+        seedId: input.seedId,
+        snapshotVersion: 0,
+      },
+    });
+    if (initialSpace) {
+      validateSpace(initialSpace);
+      state.space = initialSpace;
     }
     // Derived from the approved source selection, never from model-generated public claims.
     opening.playerActors = state.actors.flatMap((actor) => {

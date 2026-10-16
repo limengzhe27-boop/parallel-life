@@ -1,0 +1,1234 @@
+'use client';
+
+import { authorNotice } from './publisher-author-notice.ts';
+import { useEffect, useRef, useState } from 'react';
+import { extractZipEntries, parseFeishuMarkdownBundle } from './publisher-importer.ts';
+import {
+  PublisherPreparationInputSchema,
+  type PublisherPreparationRecord,
+} from '../../contracts/publisher-preparation.ts';
+import { PublisherClientError, type PublisherClient } from './publisher-client.ts';
+import s from './publisher-import-dialog.module.css';
+import { PublisherReviewView } from './publisher-review-view.ts';
+import { PublisherSourceReview } from './publisher-source-review.tsx';
+import {
+  detectPublisherPreparationScope,
+  type PreparationScope,
+} from '../../modules/settings/domain/publication-preparation-scope.ts';
+import { manuscriptBatches } from './publisher-manuscript-batches.ts';
+import { PublisherScheduleReview } from './publisher-schedule-review.tsx';
+
+type Proposal = ReturnType<typeof parseFeishuMarkdownBundle>;
+type Source = { filename: string; content: string };
+export type PreparationClient = Pick<
+  PublisherClient,
+  'prepareManuscript' | 'getPreparation' | 'latestPreparation'
+>;
+// PostgreSQL JSON objects need not preserve the author's original property order.
+export function manuscriptFingerprint(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(manuscriptFingerprint).join(',') + ']';
+  if (value && typeof value === 'object')
+    return (
+      '{' +
+      Object.keys(value)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) +
+            ':' +
+            manuscriptFingerprint((value as Record<string, unknown>)[key]),
+        )
+        .join(',') +
+      '}'
+    );
+  return JSON.stringify(value) ?? 'undefined';
+}
+export function preparationMatches(
+  record: PublisherPreparationRecord,
+  workId: string,
+  version: number,
+  content: Record<string, unknown>,
+  sources?: Source[],
+  commandId?: string,
+  scope?: PreparationScope,
+  socialFocus?: 'history' | 'moments' | 'both',
+  socialActorKey?: string,
+) {
+  return (
+    (!scope || record.material.scope === scope) &&
+    (!socialFocus || record.material.socialFocus === socialFocus) &&
+    (!socialActorKey || record.material.socialActorKey === socialActorKey) &&
+    record.workId === workId &&
+    record.draftVersion === version &&
+    (!commandId || record.commandId === commandId) &&
+    manuscriptFingerprint(record.material.currentContent) === manuscriptFingerprint(content) &&
+    (!sources || manuscriptFingerprint(record.material.sources) === manuscriptFingerprint(sources))
+  );
+}
+export function preparationChanges(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+) {
+  return [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+    (key) => manuscriptFingerprint(before[key]) !== manuscriptFingerprint(after[key]),
+  );
+}
+/** Human-readable row changes complement the full before/after details. */
+export function preparationChangeSummary(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+) {
+  const changes: string[] = [];
+  function rows(label: string, a: unknown, b: unknown) {
+    if (!Array.isArray(b)) return;
+    const previous = Array.isArray(a) ? a : [];
+    const keyOf = (row: unknown, index: number) =>
+      row && typeof row === 'object' && 'key' in row ? String(row.key) : String(index);
+    const labelOf = (row: unknown, index: number) => {
+      if (!row || typeof row !== 'object') return `第 ${index + 1} 项`;
+      const r = row as Record<string, unknown>;
+      return String(r.name ?? r.title ?? r.text ?? `第 ${index + 1} 项`).slice(0, 100);
+    };
+    b.forEach((row, index) => {
+      const old = previous.find((value, i) => keyOf(value, i) === keyOf(row, index));
+      if (!old) changes.push(`${label} · 新增：${labelOf(row, index)}`);
+      else if (manuscriptFingerprint(old) !== manuscriptFingerprint(row))
+        changes.push(`${label} · 修改：${labelOf(row, index)}`);
+    });
+    previous.forEach((row, index) => {
+      if (!b.some((value, i) => keyOf(value, i) === keyOf(row, index)))
+        changes.push(`${label} · 移除：${labelOf(row, index)}`);
+    });
+  }
+  for (const [key, label] of Object.entries({
+    actors: '人物',
+    history: '已发生事实',
+    candidates: '剧情候选',
+    places: '地点',
+    relationships: '人物关系',
+    initialKnowledge: '人物知情范围',
+    routes: '路线',
+  }))
+    rows(label, before[key], after[key]);
+  const fields = (value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  rows('时间线阶段', fields(before.timeline).stages, fields(after.timeline).stages);
+  rows('开场消息', fields(before.phone).messages, fields(after.phone).messages);
+  return changes;
+}
+const groupNames: Record<string, string> = {
+  work: '作品介绍',
+  world: '世界设定',
+  protagonist: '主角',
+  actors: '人物',
+  relationships: '人物关系',
+  initialKnowledge: '人物知情范围',
+  history: '已发生事实',
+  timeline: '时间线',
+  candidates: '剧情候选',
+  places: '地点',
+  routes: '路线',
+  phone: '开场手机内容',
+  extensions: '作者原稿',
+};
+
+function groupLabel(key: string) {
+  return Object.hasOwn(groupNames, key) ? groupNames[key] : '其他保留内容';
+}
+
+type PreparationIssue = NonNullable<PublisherPreparationRecord['result']>['issues'][number];
+const issueFields: Record<string, string> = {
+  ...groupNames,
+  key: '条目对应关系',
+  title: '名称',
+  hook: '一句话简介',
+  description: '作品简介',
+  experienceNote: '体验说明',
+  publicSetting: '公开世界设定',
+  hiddenContext: '幕后世界设定',
+  tone: '叙事氛围',
+  startAt: '开场日期与时间',
+  startPlaceKey: '开场地点',
+  identity: '身份',
+  situation: '当前处境',
+  name: '姓名',
+  publicCard: '公开资料',
+  privatePersona: '人物内心设定',
+  background: '人物背景',
+  lifeModules: '人物设定',
+  lifeContext: '人生背景',
+  drives: '动机与价值观',
+  behavior: '行为模式',
+  introduction: '玩家看到的介绍',
+  moments: '朋友圈',
+  speaker: '发送方',
+  motivation: '人物动机',
+  voice: '说话方式',
+  boundaries: '人物边界',
+  traits: '性格特点',
+  appearance: '外貌',
+  knownAtStart: '开场是否已认识',
+  knownFactKeys: '已知事实',
+  factKeys: '知情事实',
+  actorKey: '关联人物',
+  actorKeys: '参与人物',
+  text: '正文',
+  occurredAt: '发生时间',
+  at: '时间',
+  earliestAt: '最早发生时间',
+  origin: '消息来源',
+  visibility: '可见范围',
+  stages: '阶段',
+  initialStageKey: '开场阶段',
+  stageKey: '所属阶段',
+  afterStageKeys: '前置阶段',
+  order: '阶段顺序',
+  prerequisites: '发生条件',
+  mutuallyExclusiveNodeKeys: '互斥剧情',
+  intent: '事件运行方式',
+  editorialIntent: '剧情说明',
+  messages: '消息',
+  invitations: '邀约',
+  notes: '便签',
+  album: '相册',
+  placeKey: '关联地点',
+  fromPlaceKey: '出发地点',
+  toPlaceKey: '到达地点',
+  minutes: '移动耗时',
+  messageKey: '关联消息',
+  historyFactKey: '照片来源事实',
+  media: '素材',
+  mediaKey: '关联素材',
+  coverMediaKey: '封面素材',
+  avatarMediaKey: '头像素材',
+  sceneMediaKey: '场景素材',
+};
+const issueReasons: Record<string, string> = {
+  character_preview_history_missing: '这位熟人的日常聊天还没有补齐，请重新整理；无需先编写台词。',
+  character_preview_moments_missing: '这位人物的日常朋友圈还没有补齐，请重新整理；无需先编写动态。',
+  too_big: '内容过多或过长，请精简后再检查。',
+  invalid_format: '格式不正确，请核对后修改。',
+  invalid_type: '内容格式不正确或尚未填写，请补充后再检查。',
+  invalid_value: '请选择支持的内容或填写方式。',
+  invalid_union: '内容结构不完整，请补齐后再检查。',
+  unrecognized_keys: '部分内容暂不能用于体验，请核对后调整。',
+  duplicate_key: '有条目无法正确区分，请核对重复内容，或重新整理这些条目。',
+  unknown_actor: '关联人物不存在，请重新选择人物。',
+  unknown_place: '关联地点不存在，请补充地点或重新选择。',
+  story_place_not_player_known: '剧情地点尚未在地图中开放，请核对地点。',
+  story_place_unreachable: '从开场地点暂时无法到达剧情地点，请补充路线。',
+  unknown_fact: '关联事实不存在，请补充事实或重新选择。',
+  unknown_message: '关联消息不存在，请补充消息或重新选择。',
+  unknown_media: '关联素材不存在，请重新选择素材。',
+  future_in_history: '已发生事实的时间不能晚于世界开场。',
+  future_opening_message: '开场消息不能晚于世界开场时间。',
+  history_message_not_past: '过去的对话必须早于世界开场。',
+  invitation_before_start: '邀约时间不能早于世界开场。',
+  candidate_time_before_start: '剧情候选的发生时间不能早于世界开场。',
+  sender_not_player_known: '发送者须为开场时玩家已认识的人物，请核对人物关系。',
+  participant_not_player_known: '邀约参与者须为开场时玩家已认识的人物。',
+  fact_not_actor_visible: '这项事实对该人物不可见，请核对事实的可见范围与人物知情设置。',
+  fact_not_player_visible: '这项事实对玩家不可见，请核对事实的可见范围。',
+  fact_not_player_known: '玩家尚不知道这项事实，请核对开场知情设置。',
+  start_place_not_known: '开场地点须为玩家已知地点，请核对地点设置。',
+  place_not_player_known: '该地点对玩家尚不可见，请核对地点设置。',
+  invalid_node_reference: '关联剧情不存在或引用了自身，请核对剧情编号。',
+  self_relationship: '关系的双方不能是同一人物。',
+  self_route: '路线的起点和终点不能相同。',
+  invitation_sender_mismatch: '邀约关联消息的发送者须为参与人物。',
+  intent_actor_outside_node: '事件涉及的人物应包含在本条剧情参与人物中。',
+  intent_place_outside_node: '事件地点应与本条剧情地点一致。',
+  space_route_budget: '单段路线最多支持 120 分钟，请调整或拆分路线。',
+  content_budget: '内容总量超出限制，请精简后再整理。',
+};
+function ownValue(content: unknown, path: (string | number)[]) {
+  let value = content;
+  for (const key of path) {
+    if (!value || typeof value !== 'object' || !Object.hasOwn(value, key)) return undefined;
+    value = (value as Record<string | number, unknown>)[key];
+  }
+  return value;
+}
+export function preparationIssueMessages(
+  issues: PreparationIssue[],
+  content?: Record<string, unknown>,
+) {
+  const grouped = new Map<
+    string,
+    { path: PreparationIssue['path']; field: string; reason: string; details: PreparationIssue[] }
+  >();
+  for (const issue of issues) {
+    const field =
+      issue.path
+        .map((part) =>
+          typeof part === 'number'
+            ? `第 ${part + 1} 项`
+            : Object.hasOwn(issueFields, part)
+              ? issueFields[part]
+              : '其它内容',
+        )
+        .join(' · ') || '世界内容';
+    const value = ownValue(content, issue.path);
+    const emptyText = typeof value === 'string' && !value.trim();
+    const reason =
+      issue.code === 'too_small'
+        ? issue.path.length === 1 && issue.path[0] === 'actors'
+          ? '请补充至少 2 位人物。'
+          : '内容尚不完整，请补充后再检查。'
+        : issue.code === 'custom' && emptyText
+          ? '内容尚不完整，请补充后再检查。'
+          : Object.hasOwn(issueReasons, issue.code)
+            ? issueReasons[issue.code]!
+            : '这项设定仍需核对，请对照原稿与相关设定检查；可展开详细定位。';
+    const key = JSON.stringify([issue.path, reason]);
+    const entry = grouped.get(key);
+    if (entry) entry.details.push(issue);
+    else grouped.set(key, { path: issue.path, field, reason, details: [issue] });
+  }
+  return [...grouped.values()];
+}
+export function PublisherPreparationIssues({
+  issues,
+  content,
+}: {
+  issues: PreparationIssue[];
+  content?: Record<string, unknown>;
+}) {
+  const messages = preparationIssueMessages(issues, content);
+  if (!messages.length) return null;
+  return (
+    <div className={s.warnings}>
+      <h4>仍需补齐或检查</h4>
+      <ul>
+        {messages.map((item, index) => (
+          <li key={index}>
+            {item.field}：{item.reason}
+          </li>
+        ))}
+      </ul>
+      <p>填入后仍需保存并通过完整检查，再试演和发布。</p>
+    </div>
+  );
+}
+
+export function PublisherImportDialog({
+  workId,
+  version,
+  referenceAt,
+  initialOverallText,
+  initialSources,
+  initialScope,
+  initialSocialFocus,
+  initialSocialActorKey,
+  content,
+  disabled,
+  preparationClient,
+  onApply,
+  onClose,
+}: {
+  workId: string;
+  version: number;
+  referenceAt?: string;
+  /** Explicit author action opens a private source; never automatically calls the model. */
+  initialOverallText?: string;
+  initialSources?: Source[];
+  initialScope?: PreparationScope;
+  initialSocialFocus?: 'history' | 'moments' | 'both';
+  initialSocialActorKey?: string;
+  content: Record<string, unknown>;
+  disabled: boolean;
+  preparationClient?: PreparationClient;
+  onApply: (
+    content: Record<string, unknown>,
+    summary: Proposal['summary'],
+    options?: { keepOpen?: boolean },
+  ) => void;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const sequence = useRef(0);
+  const inFlight = useRef(false);
+  const [proposal, setProposal] = useState<Proposal>();
+  const [record, setRecord] = useState<PublisherPreparationRecord>();
+  const [operationId, setOperationId] = useState<string>();
+  const [notFound, setNotFound] = useState(false);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [scopeChoice, setScopeChoice] = useState<'auto' | PreparationScope>('auto');
+  const operationScope = useRef<PreparationScope | undefined>(undefined);
+  const detectedScope = detectPublisherPreparationScope(sources);
+  const chosenScope =
+    scopeChoice === 'auto'
+      ? detectedScope.confidence === 'recognized'
+        ? detectedScope.scope
+        : 'characters'
+      : scopeChoice;
+  const [library, setLibrary] = useState<Source[]>([]);
+  const [remainingSources, setRemainingSources] = useState<Source[]>([]);
+  const continuation = useRef<{ workId: string; remaining: Source[] } | undefined>(undefined);
+  const queue = manuscriptBatches(remainingSources, content);
+
+  const [reading, setReading] = useState(false);
+  const [activity, setActivity] = useState('');
+  const [error, setError] = useState('');
+  const [text, setText] = useState('');
+  const [reviewedOriginal, setReviewedOriginal] = useState(false);
+  const [reviewedAdditions, setReviewedAdditions] = useState(false);
+  const baseline = manuscriptFingerprint([
+    workId,
+    version,
+    referenceAt,
+    content,
+    initialOverallText,
+    initialSources,
+    initialScope,
+    initialSocialFocus,
+    initialSocialActorKey,
+  ]);
+  const seededSources = [
+    ...(initialOverallText?.trim()
+      ? [{ filename: '总体设定.md', content: initialOverallText }]
+      : []),
+    ...(initialSources ?? []),
+  ];
+  const seeded = seededSources.length > 0;
+  const seededScope = initialScope ?? (initialOverallText ? 'world' : undefined);
+  const current = useRef({ baseline, disabled, onApply });
+  current.current = { baseline, disabled, onApply };
+  const stagedBaseline = useRef<string | undefined>(undefined);
+  function clearResult() {
+    setProposal(undefined);
+    setRecord(undefined);
+    setOperationId(undefined);
+    setNotFound(false);
+    setReviewedOriginal(false);
+    setReviewedAdditions(false);
+    stagedBaseline.current = undefined;
+    setError('');
+  }
+  function stillCurrent(id: number, start: string) {
+    return (
+      id === sequence.current && start === current.current.baseline && !current.current.disabled
+    );
+  }
+  function accept(
+    result: PublisherPreparationRecord,
+    expectedSources?: Source[],
+    expectedId?: string,
+    expectedScope?: PreparationScope,
+  ) {
+    if (
+      !preparationMatches(
+        result,
+        workId,
+        version,
+        content,
+        expectedSources,
+        expectedId,
+        expectedScope,
+        initialSocialFocus,
+        initialSocialActorKey,
+      )
+    ) {
+      setError('整理结果属于不同的作品、原稿或编辑版本，未填入当前草稿。请核对后重新整理。');
+      return;
+    }
+    setNotFound(false);
+    setRecord(result);
+    setOperationId(result.commandId);
+    setSources(result.material.sources);
+    setScopeChoice(result.material.scope ?? 'world');
+    setReviewedOriginal(false);
+    setReviewedAdditions(false);
+    setProposal(undefined);
+    stagedBaseline.current = baseline;
+  }
+  useEffect(() => {
+    dialog.current?.showModal();
+    const viewport = window.visualViewport;
+    const fit = () => {
+      const node = dialog.current;
+      if (!node) return;
+      node.style.setProperty(
+        '--dialog-viewport-height',
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
+      const keyboard = !!viewport && viewport.height < window.innerHeight - 80;
+      node.style.top = keyboard ? `${viewport.offsetTop + 12}px` : '';
+      node.style.bottom = keyboard ? 'auto' : '';
+      node.style.margin = keyboard ? '0 auto' : '';
+    };
+    fit();
+    viewport?.addEventListener('resize', fit);
+    viewport?.addEventListener('scroll', fit);
+    return () => {
+      sequence.current++;
+      viewport?.removeEventListener('resize', fit);
+      viewport?.removeEventListener('scroll', fit);
+    };
+  }, []);
+  useEffect(() => {
+    const id = ++sequence.current;
+    const start = baseline;
+    clearResult();
+    setSources([]);
+    setScopeChoice('auto');
+    operationScope.current = undefined;
+    setText('');
+    setReading(false);
+    inFlight.current = false;
+    setActivity('');
+    if (continuation.current?.workId === workId) {
+      const remaining = continuation.current.remaining;
+      continuation.current = undefined;
+      setRemainingSources(remaining);
+      setSources(manuscriptBatches(remaining, content).batches[0] ?? []);
+      return;
+    }
+    setLibrary([]);
+    setRemainingSources([]);
+    if (seeded) {
+      const files = seededSources;
+      setText(initialOverallText ?? '');
+      setLibrary(files);
+      setRemainingSources(files);
+      setSources(manuscriptBatches(files, content).batches[0] ?? []);
+      setScopeChoice(seededScope ?? 'auto');
+    }
+    if (!preparationClient || disabled) return;
+    // Server scopes latest to this signed-in staff member. No manuscript enters browser storage.
+    inFlight.current = true;
+    setActivity('正在查询上次整理记录…');
+    void preparationClient
+      .latestPreparation(workId)
+      .then(({ preparation }) => {
+        if (!stillCurrent(id, start) || !preparation) return;
+        if (seeded) {
+          const expected = manuscriptBatches(seededSources, content).batches[0] ?? [];
+          if (
+            preparationMatches(
+              preparation,
+              workId,
+              version,
+              content,
+              expected,
+              undefined,
+              seededScope,
+              initialSocialFocus,
+              initialSocialActorKey,
+            )
+          )
+            accept(preparation, expected, undefined, seededScope);
+        } else accept(preparation);
+      })
+      .catch(() => {
+        if (stillCurrent(id, start))
+          setError('暂时无法查询上次整理记录。若刚才已经提交，请先查询结果，避免重复整理。');
+      })
+      .finally(() => {
+        if (id === sequence.current) {
+          inFlight.current = false;
+          setActivity('');
+        }
+      });
+    return () => {
+      sequence.current++;
+    };
+    // Only these changes invalidate ownership of an in-flight result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseline, disabled, preparationClient]);
+
+  async function readSources(read: () => Promise<Source[]>) {
+    if (current.current.disabled || inFlight.current) return;
+    const id = ++sequence.current,
+      start = current.current.baseline;
+    inFlight.current = true;
+    setReading(true);
+    clearResult();
+    try {
+      const files = await read();
+      if (!files.length || !files.some((file) => file.content.trim()))
+        throw Error('没有可读取的文稿，请选择 Markdown 或粘贴正文。');
+      if (stillCurrent(id, start)) {
+        if (
+          files.length > 64 ||
+          files.reduce((n, f) => n + new TextEncoder().encode(f.content).length, 0) >
+            4 * 1024 * 1024
+        )
+          throw Error('正文最多64份、合计4 MB，请分两次选择。原有文稿仍保留。');
+        setScopeChoice('auto');
+        setLibrary(files);
+        setRemainingSources(files);
+        setSources(manuscriptBatches(files, content).batches[0] ?? []);
+      }
+    } catch (e) {
+      if (stillCurrent(id, start))
+        setError(e instanceof Error ? e.message : '没能读取文稿，请检查格式。');
+    } finally {
+      if (id === sequence.current) {
+        inFlight.current = false;
+        setReading(false);
+      }
+    }
+  }
+  async function readFiles(list: File[]) {
+    if (!list.length || list.length > 64) throw Error('一次请选择 1—64 份文稿或压缩包。');
+    const result: Source[] = [];
+    for (const file of list) {
+      if (/\.zip$/i.test(file.name)) {
+        if (file.size > 50 * 1024 * 1024) throw Error('压缩包不能超过 50 MB。');
+        result.push(
+          ...(await extractZipEntries(await file.arrayBuffer())).map((entry) => ({
+            ...entry,
+            filename: `${file.name} > ${entry.filename}`,
+          })),
+        );
+      } else {
+        if (!/\.(md|markdown|txt)$/i.test(file.name))
+          throw Error('请选择 Markdown、文本或 ZIP 文件。');
+        if (file.size > 2 * 1024 * 1024) throw Error('单份正文最多 2 MB，请按人物或剧情章节拆分。');
+        result.push({
+          filename: file.name,
+          content: new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()),
+        });
+      }
+      if (
+        result.length > 64 ||
+        result.reduce((sum, item) => sum + new TextEncoder().encode(item.content).length, 0) >
+          4 * 1024 * 1024
+      )
+        throw Error('一次最多读取 64 份、合计 4 MB 的正文，原有文稿仍保留。');
+    }
+    return result;
+  }
+  async function startAI(replay = false) {
+    if (
+      replay &&
+      (!operationId || !notFound || stagedBaseline.current !== current.current.baseline)
+    )
+      return;
+    if (!preparationClient || current.current.disabled || inFlight.current || !sources.length)
+      return;
+    const scope = replay ? operationScope.current : chosenScope;
+    const input = PublisherPreparationInputSchema.safeParse({
+      ...(scope ? { scope } : {}),
+      ...(initialSocialFocus && scope === 'characters'
+        ? { socialFocus: initialSocialFocus, socialActorKey: initialSocialActorKey }
+        : {}),
+      commandId: replay ? operationId : crypto.randomUUID(),
+      expectedDraftVersion: version,
+      currentContent: content,
+      sources,
+    });
+    if (!input.success) {
+      setError('文稿与当前草稿超出整理范围或格式不完整。请精简文稿、分批整理，或使用仅解析入口。');
+      return;
+    }
+    const id = ++sequence.current,
+      start = current.current.baseline;
+    inFlight.current = true;
+    clearResult();
+    setOperationId(input.data.commandId);
+    operationScope.current = input.data.scope;
+    setSources(input.data.sources);
+    setActivity('正在整理文稿，可能需要约两分钟。可以关闭，稍后重新打开查看结果。');
+    stagedBaseline.current = start;
+    try {
+      const result = await preparationClient.prepareManuscript(workId, input.data);
+      if (stillCurrent(id, start))
+        accept(result, input.data.sources, input.data.commandId, input.data.scope);
+    } catch (error) {
+      if (stillCurrent(id, start)) {
+        const definite = error instanceof PublisherClientError && error.code !== 'UNAVAILABLE';
+        if (definite) {
+          setOperationId(undefined);
+          setNotFound(false);
+          stagedBaseline.current = undefined;
+        }
+        setError(
+          error instanceof PublisherClientError && error.code === 'RATE_LIMITED'
+            ? '本小时整理次数已达上限（最多 10 次新请求），请稍后再试。当前草稿未修改。'
+            : error instanceof PublisherClientError && error.code === 'INVALID_STATE'
+              ? '已有整理任务在进行。请先查询已有结果，稍后再整理。'
+              : definite
+                ? error.message
+                : '尚未确认整理结果，草稿未修改。请查询本次结果；不会自动再次调用模型。',
+        );
+      }
+    } finally {
+      if (id === sequence.current) {
+        inFlight.current = false;
+        setActivity('');
+      }
+    }
+  }
+  async function recover() {
+    if (!preparationClient || current.current.disabled || inFlight.current) return;
+    const id = ++sequence.current,
+      start = current.current.baseline;
+    inFlight.current = true;
+    setError('');
+    setActivity('正在查询已有整理结果，不会调用模型…');
+    try {
+      if (operationId) {
+        const result = await preparationClient.getPreparation(workId, operationId);
+        if (stillCurrent(id, start)) accept(result, sources, operationId, operationScope.current);
+      } else {
+        const { preparation } = await preparationClient.latestPreparation(workId);
+        if (stillCurrent(id, start)) {
+          if (preparation) accept(preparation, sources.length ? sources : undefined);
+          else setError('没有查到整理记录。若刚提交过，请稍后再查询；不会自动重新整理。');
+        }
+      }
+    } catch (error) {
+      if (stillCurrent(id, start)) {
+        const missing =
+          !!operationId && error instanceof PublisherClientError && error.code === 'NOT_FOUND';
+        setNotFound(missing);
+        setError(
+          missing
+            ? '服务端尚无本次操作记录。可稍后查询，或核对原稿后重发同一次请求；不会创建新的操作编号。'
+            : '暂时未查到完整结果。保留当前原稿，稍后再查询；查询不会重新调用模型。',
+        );
+      }
+    } finally {
+      if (id === sequence.current) {
+        inFlight.current = false;
+        setActivity('');
+      }
+    }
+  }
+  function downloadSources() {
+    const raw = (library.length ? library : sources)
+      .map((source) => `# ${source.filename}\n\n${source.content}`)
+      .join('\n\n---\n\n');
+    const url = URL.createObjectURL(new Blob([raw], { type: 'text/markdown;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '导入原稿.md';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function parseOnly() {
+    if (initialSocialFocus) return;
+    if (current.current.disabled || inFlight.current || !sources.length) return;
+    sequence.current++;
+    clearResult();
+    try {
+      setProposal(
+        parseFeishuMarkdownBundle(sources, content, referenceAt ? { referenceAt } : undefined),
+      );
+      stagedBaseline.current = baseline;
+    } catch {
+      setError('未能解析文稿，原稿和当前草稿均已保留。');
+    }
+  }
+  const aiResult = record?.status === 'succeeded' ? record.result : null;
+  const updatedContent = aiResult?.updatedContent ?? proposal?.updatedContent;
+  const schedule = aiResult?.schedule ?? proposal?.schedule;
+  const changed = updatedContent ? preparationChanges(content, updatedContent) : [];
+  const focusedAdditions =
+    initialSocialFocus && updatedContent && initialSocialActorKey
+      ? (['messages', 'moments'] as const).flatMap((kind) => {
+          if (initialSocialFocus === 'history' && kind === 'moments') return [];
+          if (initialSocialFocus === 'moments' && kind === 'messages') return [];
+          const before = (content.phone as Record<string, unknown> | undefined)?.[kind];
+          const after = (updatedContent.phone as Record<string, unknown> | undefined)?.[kind];
+          const oldKeys = new Set(
+            Array.isArray(before) ? before.map((row) => (row as { key?: unknown }).key) : [],
+          );
+          return Array.isArray(after)
+            ? after
+                .filter((row) => {
+                  const item = row as Record<string, unknown>;
+                  return item.actorKey === initialSocialActorKey && !oldKeys.has(item.key);
+                })
+                .map((row) => ({ kind, row: row as Record<string, unknown> }))
+            : [];
+        })
+      : [];
+  const canApply =
+    !!updatedContent &&
+    changed.length > 0 &&
+    !proposal?.summary.blocked &&
+    (!aiResult || (reviewedOriginal && reviewedAdditions)) &&
+    !reading &&
+    !activity &&
+    !disabled &&
+    stagedBaseline.current === baseline;
+  function apply() {
+    if (
+      !canApply ||
+      !updatedContent ||
+      current.current.disabled ||
+      inFlight.current ||
+      stagedBaseline.current !== current.current.baseline
+    ) {
+      setError('请核对结果；作品、权限或编辑稿变化后需要重新整理。');
+      return;
+    }
+    const summary: Proposal['summary'] = proposal?.summary ?? {
+      actors: [],
+      initialMessagesCount: 0,
+      candidatesCount: 0,
+      warnings: [],
+      diagnostics: aiResult
+        ? [
+            {
+              code: 'ai_summary',
+              severity: 'warning',
+              filename: '模型整理摘要（待核对）',
+              message: aiResult.summary,
+            },
+            ...aiResult.notes.map((note) => ({
+              code: note.kind,
+              severity: 'warning' as const,
+              filename: { extracted: '模型认为已提取', supplemented: 'AI 补充', review: '待核对' }[
+                note.kind
+              ],
+              message: note.text,
+            })),
+            ...preparationIssueMessages(aiResult.issues, aiResult.updatedContent).map((issue) => ({
+              code: issue.details[0]!.code,
+              severity: 'warning' as const,
+              filename: '待检查',
+              path: issue.path.join('.'),
+              message: `${issue.field}：${issue.reason}`,
+            })),
+          ]
+        : [],
+      blocked: false,
+      unmapped: sources.map((source) => ({
+        ...source,
+        reason: 'AI 整理来源原稿（仅供编剧核对，不代表世界内事实）',
+      })),
+    };
+    const remaining = remainingSources.filter(
+      (file) => !sources.some((s) => s.filename === file.filename && s.content === file.content),
+    );
+    const keepOpen = remaining.length > 0;
+    if (keepOpen) continuation.current = { workId, remaining };
+    current.current.onApply(updatedContent, summary, { keepOpen });
+    if (!keepOpen) onClose();
+  }
+  const unavailable = disabled || reading || !!activity;
+  return (
+    <dialog
+      ref={dialog}
+      className={s.dialog}
+      aria-labelledby="publisher-import-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <header className={s.header}>
+        <div>
+          <h2 id="publisher-import-title">
+            {initialSocialFocus
+              ? initialSocialFocus === 'history'
+                ? '补齐历史聊天'
+                : initialSocialFocus === 'moments'
+                  ? '补齐朋友圈'
+                  : '补齐聊天与朋友圈'
+              : initialOverallText
+                ? '整理总体设定'
+                : seeded
+                  ? '整理人物文稿'
+                  : '导入与整理文稿'}
+          </h2>
+          <p>
+            {initialOverallText
+              ? '总体设定已带入 → 查看整理稿 → 核对后填入'
+              : seeded
+                ? '人物设定已带入 → 核对历史与动态 → 填入并保存草稿'
+                : '导入故事 → 查看整理稿 → 核对问题 → 填入草稿'}
+          </p>
+        </div>
+        <button type="button" onClick={onClose} aria-label="关闭文稿导入">
+          关闭
+        </button>
+      </header>
+      <div className={s.body}>
+        <details className={s.sourceInput} open={!updatedContent}>
+          <summary>
+            {updatedContent
+              ? `原稿与重新整理 · ${sources.length} 份文稿`
+              : initialOverallText
+                ? '核对这份总体设定'
+                : seeded
+                  ? '核对这位人物的设定'
+                  : '第一步：导入你的故事'}
+          </summary>
+          {seeded ? null : (
+            <>
+              <label className={s.field}>
+                选择文稿或 ZIP 压缩包
+                <input
+                  type="file"
+                  multiple
+                  accept=".md,.markdown,.txt,.zip"
+                  disabled={unavailable}
+                  onChange={(event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    event.currentTarget.value = '';
+                    if (files.length) void readSources(() => readFiles(files));
+                  }}
+                />
+              </label>
+              <p className={s.help}>
+                支持自由叙述、人物设定、世界观和剧情。压缩包最多50 MB，正文合计4
+                MB；多份文稿会分批整理，不会截掉正文。ZIP中的照片附件不在此导入。
+              </p>
+              <p>
+                <a href="/templates/world-script.md" download>
+                  下载编剧填写示例
+                </a>
+              </p>
+              <label className={s.field}>
+                或粘贴文稿
+                <textarea
+                  value={text}
+                  disabled={unavailable}
+                  rows={5}
+                  placeholder="粘贴你想讲述的世界与人物…"
+                  onChange={(event) => {
+                    sequence.current++;
+                    setText(event.target.value);
+                    setSources([]);
+                    setLibrary([]);
+                    setRemainingSources([]);
+                    clearResult();
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={unavailable || !text.trim()}
+                onClick={() =>
+                  void readSources(async () => [{ filename: '粘贴文稿.md', content: text }])
+                }
+              >
+                读取粘贴内容
+              </button>
+            </>
+          )}
+          {reading && <p role="status">正在读取文稿…</p>}
+          {remainingSources.length > 0 &&
+            (!seeded || queue.batches.length > 1 || queue.oversized.length > 0) && (
+              <section className={s.preview} aria-label="文稿处理范围">
+                <h3>已读取 {library.length || remainingSources.length} 份文稿</h3>
+                <p>
+                  尚有 {remainingSources.length} 份待填入。本次整理 {sources.length}{' '}
+                  份，核对填入后可继续下一批；不会自动连续调用 AI。
+                </p>
+                {queue.batches.length > 1 && (
+                  <label className={s.field}>
+                    本次整理哪一批
+                    <select
+                      aria-label="选择文稿批次"
+                      disabled={unavailable}
+                      value={Math.max(
+                        0,
+                        queue.batches.findIndex(
+                          (batch) =>
+                            manuscriptFingerprint(batch) === manuscriptFingerprint(sources),
+                        ),
+                      )}
+                      onChange={(event) => {
+                        sequence.current++;
+                        clearResult();
+                        setSources(queue.batches[Number(event.target.value)] ?? []);
+                        setScopeChoice('auto');
+                      }}
+                    >
+                      {queue.batches.map((batch, index) => (
+                        <option value={index} key={index}>
+                          第 {index + 1} 批 · {batch.length} 份文稿
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {queue.oversized.length > 0 && (
+                  <div role="status">
+                    <p>
+                      以下文稿与当前故事合计仍超过一次整理容量，尚未处理，也没有截取或丢弃。请按人物、剧情章节拆分后再读入。
+                    </p>
+                    <ul>
+                      {queue.oversized.map((file, index) => (
+                        <li key={index}>{file.filename}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <button type="button" onClick={downloadSources}>
+                  下载全部原稿备份
+                </button>
+                <p className={s.help}>本次未处理的文稿保留在此窗口，关闭或刷新前请保留原文件。</p>
+              </section>
+            )}
+          {!!sources.length && (
+            <section className={s.preview} aria-label="原稿">
+              <h3>本次使用 {sources.length} 份原稿</h3>
+              <button type="button" onClick={downloadSources}>
+                下载原稿备份
+              </button>
+              {sources.map((source, index) => (
+                <details key={index}>
+                  <summary>{source.filename}</summary>
+                  <pre>{source.content}</pre>
+                </details>
+              ))}
+              <p className={s.help}>
+                点击 AI
+                整理，会把以上文稿和当前编辑稿发送给项目文字模型。每次最多调用两次，包含一次已知格式问题的纠正。AI
+                补充内容需要你核对；作者设定与人物知情范围也请逐项检查。
+              </p>
+              <label>
+                本批整理范围
+                <select
+                  aria-label="本批整理范围"
+                  value={scopeChoice}
+                  disabled={
+                    unavailable ||
+                    record?.status === 'running' ||
+                    (seeded && seededScope === 'characters')
+                  }
+                  onChange={(event) => {
+                    sequence.current++;
+                    clearResult();
+                    setScopeChoice(event.target.value as 'auto' | PreparationScope);
+                  }}
+                >
+                  <option value="auto">自动判断</option>
+                  <option value="characters">只整理人物</option>
+                  <option value="world">整理整个故事</option>
+                </select>
+              </label>
+              <p className={s.help}>
+                {chosenScope === 'characters'
+                  ? '本批只补充文稿明确写到的人物，保留已有世界、剧情和开场内容，不会凭人物稿编造整部故事。'
+                  : '本批整理世界、人物和剧情；原稿未说明而由 AI 补充的内容仍需核对。'}
+                {scopeChoice === 'auto' &&
+                  detectedScope.confidence === 'uncertain' &&
+                  ' 暂不能确定文稿类型，先按只整理人物处理；若是整部剧本，可切换为整理整个故事。'}
+              </p>
+              <div className={s.actions}>
+                <button
+                  type="button"
+                  className={s.primary}
+                  disabled={unavailable || !preparationClient || record?.status === 'running'}
+                  onClick={() => void startAI()}
+                >
+                  {operationId
+                    ? '重新整理（新请求）'
+                    : initialSocialFocus
+                      ? '生成待核对内容'
+                      : '让 AI 整理本批文稿'}
+                </button>
+                {!initialSocialFocus && (
+                  <button type="button" disabled={unavailable} onClick={parseOnly}>
+                    仅解析，不调用 AI
+                  </button>
+                )}
+              </div>
+              {operationId && (
+                <p className={s.help}>
+                  重新整理会开始新的整理，最多包含两次文字模型调用。结果尚未确认时，请先查询原操作。
+                </p>
+              )}
+            </section>
+          )}
+        </details>
+        {preparationClient && (
+          <button
+            type="button"
+            className={s.recover}
+            disabled={unavailable}
+            onClick={() => void recover()}
+          >
+            查询已有整理结果
+          </button>
+        )}
+        {notFound && operationId && (
+          <button type="button" disabled={unavailable} onClick={() => void startAI(true)}>
+            核对后重发本次请求
+          </button>
+        )}
+        {activity && <p role="status">{activity}</p>}
+        {record?.status === 'running' && !activity && (
+          <p role="status">文稿仍在整理中。请稍后查询结果，不会自动重试。</p>
+        )}
+        {record?.status === 'unknown' && (
+          <p role="status">
+            本次结果尚未确认，当前草稿未修改。请查询已有结果，或明确选择重新整理。
+          </p>
+        )}
+        {record?.status === 'failed' && (
+          <p role="alert">本次整理未成功，当前草稿未修改。可以保留原稿、仅解析，或重新整理。</p>
+        )}
+        {error && (
+          <p className={s.error} role="alert">
+            {error}
+          </p>
+        )}
+        {proposal && (
+          <section className={s.preview} aria-label="文稿识别结果">
+            <h3>纯解析结果</h3>
+            <p>
+              {proposal.summary.actors.length} 位人物 · {proposal.summary.initialMessagesCount}{' '}
+              条开场消息 · {proposal.summary.candidatesCount} 个剧情候选
+            </p>
+            <p>
+              同名人物和已有内容不会自动覆盖。缺少日期或运行条件的内容仍需补齐，候选剧情不是已发生的事情。
+            </p>
+            <ul>
+              {proposal.summary.diagnostics.map((item, index) => (
+                <li key={index}>
+                  {item.filename}：{authorNotice(item.message)}
+                </li>
+              ))}
+            </ul>
+            {proposal.summary.unmapped.map((item, index) => (
+              <details key={index}>
+                <summary>{item.filename} · 尚未填入的原文</summary>
+                <pre>{item.content}</pre>
+              </details>
+            ))}
+            {proposal.summary.blocked && (
+              <p className={s.error}>存在阻断问题，请修正文稿后再解析。</p>
+            )}
+          </section>
+        )}
+        {updatedContent && (
+          <p className={s.reviewIntro} role="status">
+            整理稿已准备好。先看故事与人物，再核对下方提示。填入后仍可编辑，保存、试演和发布由你决定。
+          </p>
+        )}
+        {updatedContent && initialSocialFocus ? (
+          <section className={s.preview} aria-label="待核对的微信内容">
+            <h3>本次准备填入 {focusedAdditions.length} 条</h3>
+            {focusedAdditions.length ? (
+              <ol>
+                {focusedAdditions.map(({ kind, row }, index) => (
+                  <li key={`${kind}-${String(row.key)}-${index}`}>
+                    <strong>
+                      {kind === 'messages'
+                        ? `历史聊天 · ${row.speaker === 'player' ? '主角' : '人物'}`
+                        : '朋友圈'}
+                    </strong>
+                    <p>{String(row.text ?? '')}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p>本次没有新增内容；已有原稿保持不变。</p>
+            )}
+          </section>
+        ) : (
+          updatedContent && <PublisherReviewView content={updatedContent} />
+        )}
+        {updatedContent && schedule && (
+          <PublisherScheduleReview schedule={schedule} content={updatedContent} />
+        )}
+        {aiResult && (
+          <section className={s.preview} aria-label="需要处理的问题">
+            <h3>需要处理的问题</h3>
+            <PublisherPreparationIssues
+              issues={aiResult.issues}
+              content={aiResult.updatedContent}
+            />
+            {!aiResult.issues.length && <p>未发现结构问题；故事是否准确仍请对照原稿确认。</p>}
+          </section>
+        )}
+        {updatedContent && !initialSocialFocus && (
+          <PublisherSourceReview
+            sources={sources}
+            content={updatedContent}
+            baselineContent={content}
+          />
+        )}
+        {aiResult && (
+          <section className={s.preview} aria-label="AI 整理结果">
+            <details>
+              <summary>
+                查看 AI 的整理说明与补充内容
+                {aiResult.notes.some((note) => note.kind === 'review') &&
+                  `（含 ${aiResult.notes.filter((note) => note.kind === 'review').length} 条待核对提醒）`}
+              </summary>
+              <h3>模型整理说明（待核对）</h3>
+              <p className={s.help}>
+                以下是模型对本次整理的说明，不是来源核验结果。请以上方实际内容与原稿对照，核对整理结果。
+              </p>
+              <p>{authorNotice(aiResult.summary)}</p>
+              {(['extracted', 'supplemented', 'review'] as const).map((kind) => (
+                <div key={kind}>
+                  <h4>
+                    {
+                      {
+                        extracted: '模型认为已提取',
+                        supplemented: 'AI 补充的内容',
+                        review: '需要编剧核对',
+                      }[kind]
+                    }
+                  </h4>
+                  <ul>
+                    {aiResult.notes
+                      .filter((note) => note.kind === kind)
+                      .map((note, index) => (
+                        <li key={index}>{authorNotice(note.text)}</li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+            </details>
+            <h3>核对后填入</h3>
+            <label className={s.reviewCheck}>
+              <input
+                type="checkbox"
+                checked={reviewedOriginal}
+                disabled={unavailable}
+                onChange={(event) => setReviewedOriginal(event.target.checked)}
+              />
+              {initialSocialFocus
+                ? '我已核对这位人物的设定与已有聊天、动态'
+                : '我已对照原稿，确认作者设定与人物知情范围'}
+            </label>
+            <label className={s.reviewCheck}>
+              <input
+                type="checkbox"
+                checked={reviewedAdditions}
+                disabled={unavailable}
+                onChange={(event) => setReviewedAdditions(event.target.checked)}
+              />
+              {initialSocialFocus
+                ? '我已逐条核对新对话或动态，可以填入当前草稿'
+                : '我已核对 AI 补充、待检查项及下方变化'}
+            </label>
+          </section>
+        )}
+        {updatedContent && !initialSocialFocus && (
+          <section className={s.preview} aria-label="草稿变化">
+            <h3>将填入的变化</h3>
+            <ul>
+              {preparationChangeSummary(content, updatedContent).map((change, index) => (
+                <li key={index}>{change}</li>
+              ))}
+            </ul>
+            {!changed.length && <p>整理结果与当前草稿相同，无需填入。</p>}
+          </section>
+        )}
+      </div>
+      <footer className={s.footer}>
+        <button type="button" onClick={onClose}>
+          关闭
+        </button>
+        <button type="button" disabled={!canApply} onClick={apply}>
+          填入当前编辑稿
+        </button>
+      </footer>
+    </dialog>
+  );
+}

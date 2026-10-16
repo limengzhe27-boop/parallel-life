@@ -117,7 +117,13 @@ export function StatusBar({
             />
             {/* 绿色充沛电量填充 */}
             <rect x="2.5" y="2.5" width="18" height="8" rx="1.5" fill="#22c55e" />
-            <path d="M24 4.5v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity=".6" />
+            <path
+              d="M24 4.5v4"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              opacity=".6"
+            />
           </svg>
         </span>
       </span>

@@ -1,11 +1,21 @@
 import { historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
+import { isDeepStrictEqual } from 'node:util';
 import { mergeAppointments } from '../domain/genesis-links.ts';
 import { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { PlayerRecordsReader } from '../application/player-records.ts';
 import { projectPlayerRecords, type PlayerRecordsInput } from '../domain/player-records.ts';
+import { replayWorldHistory, type WorldHistoryEvent } from '../domain/world-history.ts';
+import { readPublicationInvitationLinks } from '../../settings/infrastructure/publication-story-repository.ts';
 import { applyInvitationEvent } from '../domain/invitations.ts';
 import { DomainError } from '../domain/errors.ts';
 import { PlayerRecordsSchema } from '../../../contracts/world-records.ts';
+import { SceneRuntimeActionSchema } from '../../../contracts/scenes.ts';
+import { matterSceneObservation } from '../domain/matter-scene-observation.ts';
+import type { WorldMatter } from '../domain/matters.ts';
+import {
+  sceneAttendanceSource,
+  type SceneAttendanceEvent,
+} from '../domain/scene-attendance-source.ts';
 
 /** Reads all sources at one locked, committed version. Never writes projections/tasks. */
 export class PostgresPlayerRecords implements PlayerRecordsReader {
@@ -42,6 +52,35 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         )
       ).rows.map((r) => r.document);
       appointments = mergeAppointments(initial?.appointments ?? [], appointments);
+      // Genesis invitations keep their original source; a scene attendance result is
+      // recovered from committed events rather than an unverified projection overwrite.
+      if (initial) {
+        const attendance = await sql.query(
+          "SELECT 1 FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 AND payload->'data'->'worldResults'->'attendance' IS NOT NULL LIMIT 1",
+          [worldId, ownerId, world.version],
+        );
+        if (attendance.rowCount) {
+          const history = (
+            await sql.query(
+              'SELECT id,world_id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 ORDER BY version',
+              [worldId, ownerId, world.version],
+            )
+          ).rows
+            .filter(
+              (r) =>
+                r.payload.id === r.id &&
+                r.payload.worldId === r.world_id &&
+                r.payload.version === r.version,
+            )
+            .map((r) => r.payload) as WorldHistoryEvent[];
+          appointments = replayWorldHistory(
+            initial,
+            history,
+            world.version,
+            await readPublicationInvitationLinks(sql, ownerId, worldId),
+          ).world.appointments;
+        }
+      }
       const ids = [
         ...new Set([
           ...choices.flatMap(
@@ -59,12 +98,30 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
               ].filter(Boolean),
           ),
           ...appointments.map((a) => a.sourceEventId),
+          ...(world.state.matters ?? []).flatMap((m: WorldMatter) => [
+            ...(m.source.kind === 'director_proposal' ? [m.source.eventId] : []),
+            ...(m.pursuitProgress?.milestones.map((step) => step.eventId) ?? []),
+            ...(m.evidence?.kind === 'scene_steps' ? [m.evidence.eventId] : []),
+            ...(m.visibility === 'player_visible'
+              ? (m.stepProgress?.steps ?? [])
+                  .slice(0, 7)
+                  .flatMap((step) => [step.inputEventId, step.eventId])
+              : []),
+          ]),
         ]),
       ];
       const events = (
         await sql.query(
-          "SELECT id,world_id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 AND (id=ANY($4::text[]) OR payload->>'type'='invitation.responded') ORDER BY version",
-          [worldId, ownerId, world.version, ids],
+          "SELECT id,world_id,version,payload FROM parallel_life.world_events WHERE world_id=$1 AND owner_id=$2 AND version<=$3 AND (id=ANY($4::text[]) OR payload->>'type'='invitation.responded' OR (version=ANY($5::int[]) AND payload->>'type' IN ('scene.opened','scene.action_resolved'))) ORDER BY version",
+          [
+            worldId,
+            ownerId,
+            world.version,
+            ids,
+            appointments.flatMap((a) =>
+              a.responseVersion === undefined ? [] : [a.responseVersion],
+            ),
+          ],
         )
       ).rows
         .filter(
@@ -76,6 +133,8 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         .map((r) => r.payload);
       for (const e of events) {
         if (e.type === 'invitation.responded') {
+          const projected = appointments.find((a) => a.id === e.data.id);
+          if ((projected?.responseVersion ?? -1) >= e.version) continue;
           appointments = applyInvitationEvent(
             {
               ...world.state,
@@ -89,16 +148,115 @@ export class PostgresPlayerRecords implements PlayerRecordsReader {
         }
       }
       const eventIds = events.map((e) => e.id);
+      const sceneAttendanceSources = new Map();
+      for (const event of events) {
+        if (
+          !['scene.opened', 'scene.action_resolved'].includes(event.type) ||
+          !event.data?.worldResults?.scene
+        )
+          continue;
+        for (const appointment of appointments) {
+          const proof = sceneAttendanceSource(
+            world.state,
+            appointment,
+            event as SceneAttendanceEvent,
+          );
+          if (proof) sceneAttendanceSources.set(appointment.id, proof);
+        }
+      }
       const messages = (
         await sql.query(
           "SELECT p.document FROM parallel_life.world_messages p JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id AND e.owner_id=p.owner_id WHERE p.world_id=$1 AND p.owner_id=$2 AND e.version<=$3 AND e.id=ANY($4::text[])",
           [worldId, ownerId, world.version, eventIds],
         )
       ).rows.map((r) => r.document);
+      const matters: WorldMatter[] = world.state.matters ?? [];
+      const stepRefs = matters.flatMap((m) =>
+        m.visibility === 'player_visible' ? (m.stepProgress?.steps ?? []).slice(0, 7) : [],
+      );
+      const actionIds = [
+        ...new Set([
+          ...matters.flatMap((m) =>
+            m.evidence?.kind === 'scene_action' || m.evidence?.kind === 'scene_steps'
+              ? [m.evidence.actionId]
+              : [],
+          ),
+          ...stepRefs.map((step) => step.actionId),
+        ]),
+      ];
+      const actionRows = actionIds.length
+        ? (
+            await sql.query(
+              `SELECT i.document,e.id AS event_id,e.version AS event_version,e.payload
+         FROM parallel_life.scene_items i JOIN parallel_life.world_events e
+           ON e.id=i.document#>>'{resolution,sourceEventId}' AND e.world_id=i.world_id AND e.owner_id=i.owner_id
+         WHERE i.world_id=$1 AND i.owner_id=$2 AND i.kind='action' AND i.id=ANY($4::text[]) AND e.version<=$3`,
+              [worldId, ownerId, world.version, actionIds],
+            )
+          ).rows
+        : [];
+      const matterObservations = new Map<string, string>();
+      const sceneStepSources: NonNullable<PlayerRecordsInput['sceneStepSources']>[number][] = [];
+      const savedSources = new Set<string>();
+      for (const row of actionRows) {
+        const parsed = SceneRuntimeActionSchema.safeParse(row.document);
+        if (
+          !parsed.success ||
+          row.payload.type !== 'scene.action_resolved' ||
+          row.payload.id !== row.event_id ||
+          row.payload.worldId !== worldId ||
+          row.payload.version !== row.event_version ||
+          row.payload.data?.sceneId !== parsed.data.sceneId
+        )
+          continue;
+        const action = parsed.data;
+        const original = events.find((event) => event.id === action.sourceEventId);
+        if (
+          stepRefs.some((step) => step.actionId === action.id && step.eventId === row.event_id) &&
+          action.worldId === worldId &&
+          action.ownerId === ownerId &&
+          action.status === 'resolved' &&
+          original?.type === 'scene.input_recorded' &&
+          original.version === action.sourceVersion &&
+          original.data?.sceneId === action.sceneId &&
+          original.data?.privateThought === false &&
+          isDeepStrictEqual(row.payload.data?.worldResults?.action, action) &&
+          !savedSources.has(action.id + ':' + row.event_id)
+        ) {
+          savedSources.add(action.id + ':' + row.event_id);
+          sceneStepSources.push({
+            inputEvent: {
+              id: original.id,
+              worldId: original.worldId,
+              version: original.version,
+              type: 'scene.input_recorded',
+              sceneId: original.data.sceneId,
+              privateThought: false,
+            },
+            resultEvent: row.payload,
+            action,
+          });
+        }
+        for (const matter of matters) {
+          const observation = matterSceneObservation(matter, parsed.data, {
+            ownerId,
+            worldId,
+            worldVersion: world.version,
+            eventId: row.event_id,
+            eventVersion: row.event_version,
+          });
+          if (observation) matterObservations.set(matter.id, observation);
+        }
+      }
       const input: PlayerRecordsInput = {
         worldId,
         worldVersion: world.version,
         choices,
+        matters,
+        matterObservations,
+        sceneAttendanceSources,
+        progressionEvents: events.filter((e) => e.type === 'scene.action_resolved'),
+        sceneStepSources,
         appointments,
         messages,
         events,

@@ -14,6 +14,8 @@ const ClockValuesSchema = z.strictObject({
   lastTickAt: Timestamp,
   missedBeats: z.number().int().nonnegative(),
   summary: z.string().nullable(),
+  managed: z.boolean().optional(),
+  activeUntil: Timestamp.nullable().optional(),
 });
 /** Reads contain clock values; successful controls also carry a committed receipt. */
 export const WorldClockSchema = z.union([
@@ -23,6 +25,18 @@ export const WorldClockSchema = z.union([
   ),
 ]);
 export type WorldClock = z.infer<typeof WorldClockSchema>;
+
+export const ClockActivityRequestSchema = z.strictObject({
+  clientId: Id,
+  sequence: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  mode: z.enum(['browsing', 'conversation', 'away']),
+  focus: z
+    .strictObject({ channel: z.enum(['private', 'group', 'scene']), threadId: Id })
+    .nullable()
+    .optional(),
+  resume: z.boolean().optional(),
+});
+export type ClockActivityRequest = z.infer<typeof ClockActivityRequestSchema>;
 
 export const WorldClockControlSchema = z
   .strictObject({
@@ -41,6 +55,9 @@ export const AdvanceReceiptSchema = z.strictObject({
   folded: z.number().int().nonnegative(),
   summary: z.string().nullable(),
   actors: z.array(Id),
+  /** A real non-message action can change the phone without a new chat bubble. */
+  changed: z.boolean().optional(),
+  worldVersion: z.number().int().nonnegative().optional(),
 });
 export type AdvanceReceipt = z.infer<typeof AdvanceReceiptSchema>;
 

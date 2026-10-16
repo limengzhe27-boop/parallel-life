@@ -1,7 +1,9 @@
+import { PublicationOriginSchema } from './publication-worlds.ts';
 import { GenesisSourceSchema } from './world-records.ts';
 import { AlbumPhotoSchema } from './album.ts';
 import { InvitationSchema } from './invitations.ts';
 import { z } from 'zod';
+import { PublicationAssetUrlSchema } from './publication-assets.ts';
 import { Id, Timestamp, TaskSchema } from './api.ts';
 export const WorldBuildRequestSchema = z.strictObject({ commandId: Id, seedId: Id });
 export type WorldBuildRequest = z.infer<typeof WorldBuildRequestSchema>;
@@ -44,9 +46,29 @@ export const MessageHistorySchema = z.strictObject({
     .min(2)
     .max(48),
 });
+export const SpaceOpeningPlaceDraftSchema = z.strictObject({
+  key: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().max(1000),
+  actorKeys: z.array(z.string().regex(/^[a-z0-9_]{1,64}$/)),
+  invitationKeys: z.array(z.string().regex(/^[a-z0-9_]{1,64}$/)),
+});
+export const SpaceOpeningRouteDraftSchema = z.strictObject({
+  key: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  from: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  to: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  minutes: z.number().int().min(1).max(120),
+  modeLabel: z.string().trim().min(1).max(80),
+});
+export const SpaceOpeningDraftSchema = z.strictObject({
+  initialPlaceId: z.string().regex(/^[a-z0-9_]{1,64}$/),
+  places: z.array(SpaceOpeningPlaceDraftSchema).min(1).max(24),
+  routes: z.array(SpaceOpeningRouteDraftSchema).max(64),
+});
 export const WorldOpeningSchema = z.object({
   // Optional only for reading already persisted legacy openings; new writes require it.
   messageHistory: MessageHistorySchema.optional(),
+  space: SpaceOpeningDraftSchema.optional(),
   playerActors: z.array(PlayerOpeningActorSchema).max(8).optional(),
   identity: z.string().min(1).max(400),
   setting: z.string().min(1).max(500),
@@ -105,6 +127,7 @@ const WorldItemId = z.union([
     }, 'Invalid world item ID'),
 ]);
 export const WorldPhoneSchema = z.strictObject({
+  publicationWallpaperUrl: PublicationAssetUrlSchema.optional(),
   photos: z.array(AlbumPhotoSchema).optional(),
   historyLinks: z
     .array(
@@ -178,8 +201,13 @@ export const WorldPhoneSchema = z.strictObject({
       name: z.string(),
       relationship: z.string(),
       summary: z.string().optional(),
+      publicationActorKey: z
+        .string()
+        .regex(/^[a-z][a-z0-9_]{0,31}$/)
+        .optional(),
       sourcePersonId: Id.optional(),
       photo: z.strictObject({ assetId: Id, revision: z.number().int().positive() }).optional(),
+      publicationAvatarUrl: PublicationAssetUrlSchema.optional(),
     }),
   ),
   messages: z.array(
@@ -195,6 +223,13 @@ export const WorldPhoneSchema = z.strictObject({
       mediaStatus: z.enum(['pending', 'ready', 'failed']).optional(),
       mediaTitle: z.string().optional(),
       mediaType: z.enum(['image', 'video']).optional(),
+      attachment: z
+        .strictObject({
+          kind: z.enum(['image', 'video']),
+          assetId: Id,
+          label: z.string().max(120).optional(),
+        })
+        .optional(),
     }),
   ),
   notes: z.array(
@@ -204,6 +239,7 @@ export const WorldPhoneSchema = z.strictObject({
       text: z.string(),
       version: z.number().int().nonnegative(),
       updatedAt: Timestamp,
+      origin: PublicationOriginSchema.extend({ kind: z.literal('publication_opening') }).optional(),
     }),
   ),
 });

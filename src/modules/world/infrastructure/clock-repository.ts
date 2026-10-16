@@ -1,9 +1,12 @@
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ClockStore } from '../application/ports.ts';
 import type { WorldClock } from '../domain/clock.ts';
 import { clampSpeed, DEFAULT_SPEED, projectStoryTime } from '../domain/clock.ts';
 import { DomainError } from '../domain/errors.ts';
-import { createHash } from 'node:crypto';
+import { readableActivityClock } from '../domain/clock-activity.ts';
+import { storedActivityClock, capClockAtNextAppointment } from './clock-activity-repository.ts';
+import { createHash, randomUUID } from 'node:crypto';
 
 export class PostgresClockStore implements ClockStore {
   private db: PostgresDatabase;
@@ -19,29 +22,41 @@ export class PostgresClockStore implements ClockStore {
   }
   async withAdvanceLock<T>(worldId: string, run: () => Promise<T>): Promise<T> {
     const client = await this.db.pool.connect();
-    let locked = false;
+    let discard = false;
     try {
-      locked = Boolean(
+      // A transaction pool may switch backends after each autocommit statement.
+      // Keep the lock and callback inside one transaction so release is automatic.
+      await client.query('BEGIN');
+      const locked = Boolean(
         (
-          await client.query('SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked', [
-            worldId,
-          ])
+          await client.query(
+            'SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS locked',
+            [worldId],
+          )
         ).rows[0]?.locked,
       );
       if (!locked) throw new DomainError('VERSION_CONFLICT', '导演正在处理这段人生');
-      return await run();
+      const result = await run();
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Do not put an uncertain/open transaction back into the pool.
+        discard = true;
+      }
+      throw error;
     } finally {
-      if (locked) {
-        try {
-          await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [worldId]);
-          client.release();
-        } catch {
-          client.release(true);
-        }
-      } else client.release();
+      client.release(discard);
     }
   }
-  async read(ownerId: string, worldId: string): Promise<WorldClock> {
+
+  async read(
+    ownerId: string,
+    worldId: string,
+    realNow = new Date().toISOString(),
+  ): Promise<WorldClock> {
     return this.db.transaction(ownerId, async (sql) => {
       const row = (
         await sql.query(
@@ -49,15 +64,7 @@ export class PostgresClockStore implements ClockStore {
           [worldId, ownerId],
         )
       ).rows[0];
-      if (row)
-        return {
-          storyNow: new Date(row.story_now).toISOString(),
-          speed: Number(row.speed),
-          paused: Boolean(row.paused),
-          lastTickAt: new Date(row.last_tick_at).toISOString(),
-          missedBeats: Number(row.missed_beats),
-          summary: row.summary ? String(row.summary) : null,
-        };
+      if (row) return readableActivityClock(storedActivityClock(row), realNow);
       /* A world created before the clock existed starts from its own story time. */
       const world = (
         await sql.query('SELECT state->>$$time$$ AS time FROM parallel_life.worlds WHERE id=$1', [
@@ -69,7 +76,7 @@ export class PostgresClockStore implements ClockStore {
         storyNow: new Date(String(world.time)).toISOString(),
         speed: DEFAULT_SPEED,
         paused: false,
-        lastTickAt: new Date(String(world.time)).toISOString(),
+        lastTickAt: realNow,
         missedBeats: 0,
         summary: null,
       };
@@ -79,8 +86,8 @@ export class PostgresClockStore implements ClockStore {
     await this.db.transaction(ownerId, (sql) =>
       sql.query(
         `INSERT INTO parallel_life.world_clock
-           (world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+           (world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary,managed,active_until)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT(world_id) DO NOTHING`,
         [
           worldId,
@@ -91,6 +98,8 @@ export class PostgresClockStore implements ClockStore {
           clock.lastTickAt,
           clock.missedBeats,
           clock.summary,
+          clock.managed ?? false,
+          clock.activeUntil ?? null,
         ],
       ),
     );
@@ -98,8 +107,8 @@ export class PostgresClockStore implements ClockStore {
   async write(ownerId: string, worldId: string, clock: WorldClock): Promise<void> {
     await this.db.transaction(ownerId, (sql) =>
       sql.query(
-        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary,updated_at)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())
+        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary,updated_at,managed,active_until)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),$9,$10)
          ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,speed=EXCLUDED.speed,
            paused=EXCLUDED.paused,last_tick_at=EXCLUDED.last_tick_at,missed_beats=EXCLUDED.missed_beats,
            summary=EXCLUDED.summary,updated_at=now()`,
@@ -112,6 +121,8 @@ export class PostgresClockStore implements ClockStore {
           clock.lastTickAt,
           clock.missedBeats,
           clock.summary,
+          clock.managed ?? false,
+          clock.activeUntil ?? null,
         ],
       ),
     );
@@ -138,24 +149,23 @@ export class PostgresClockStore implements ClockStore {
         throw new DomainError('VERSION_CONFLICT');
       const world = (
         await sql.query(
-          'SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
+          'SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE',
           [worldId, ownerId],
         )
       ).rows[0];
+      await authorizeWorldCommandInTransaction(sql, ownerId, {
+        worldId,
+        commandId: randomUUID(),
+        expectedWorldVersion: Number(world.version),
+        kind: 'clock_control',
+      });
       const r = (
         await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 FOR UPDATE', [
           worldId,
         ])
       ).rows[0];
       const clock: WorldClock = r
-        ? {
-            storyNow: new Date(r.story_now).toISOString(),
-            lastTickAt: new Date(r.last_tick_at).toISOString(),
-            speed: Number(r.speed),
-            paused: Boolean(r.paused),
-            missedBeats: Number(r.missed_beats),
-            summary: r.summary ?? null,
-          }
+        ? storedActivityClock(r)
         : {
             storyNow: world.state.time,
             lastTickAt: realNow,
@@ -164,12 +174,19 @@ export class PostgresClockStore implements ClockStore {
             missedBeats: 0,
             summary: null,
           };
+      if (input.paused === true && clock.managed) {
+        await sql.query(
+          "UPDATE parallel_life.world_clock_activity SET mode='away',expires_at=$3,updated_at=now() WHERE world_id=$1 AND owner_id=$2",
+          [worldId, ownerId, realNow],
+        );
+      }
       const storyNow = new Date(
         Math.max(Date.parse(world.state.time), Date.parse(projectStoryTime(clock, realNow))),
       ).toISOString();
       await sql.query(
         `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-      ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,speed=EXCLUDED.speed,paused=EXCLUDED.paused,last_tick_at=EXCLUDED.last_tick_at,updated_at=now()`,
+      ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,speed=EXCLUDED.speed,paused=EXCLUDED.paused,last_tick_at=EXCLUDED.last_tick_at,
+        active_until=CASE WHEN EXCLUDED.paused THEN NULL ELSE parallel_life.world_clock.active_until END,updated_at=now()`,
         [
           worldId,
           ownerId,
@@ -181,6 +198,7 @@ export class PostgresClockStore implements ClockStore {
           clock.summary,
         ],
       );
+      await capClockAtNextAppointment(sql, ownerId, worldId, realNow);
     });
   }
 

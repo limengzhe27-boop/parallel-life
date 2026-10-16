@@ -20,6 +20,7 @@ export type Operation = {
 };
 export type NoteDraft = { title: string; text: string; expectedVersion?: number };
 type Context = {
+  transport?: typeof fetch;
   groups?: GroupsController;
   worldId: string;
   data: PhoneAppsData;
@@ -43,6 +44,7 @@ type Context = {
 };
 const AppsContext = createContext<Context | null>(null);
 export type PhoneAppsProviderProps = {
+  transport?: typeof fetch;
   groups?: GroupsController;
   worldId: string;
   data: PhoneAppsData;
@@ -59,6 +61,7 @@ export function PhoneAppsProvider(props: PhoneAppsProviderProps) {
   return <WorldApps key={props.worldId} {...props} />;
 }
 function WorldApps({
+  transport,
   worldId,
   data,
   records = { status: 'error', error: '这部分暂时无法读取。' },
@@ -156,6 +159,7 @@ function WorldApps({
   return (
     <AppsContext.Provider
       value={{
+        transport,
         groups,
         worldId,
         data,

@@ -1,3 +1,5 @@
+import type { WorldMatter, MatterStatus, MatterAssertion, MatterEvidence } from './matters.ts';
+
 /** Persisted contracts are versioned; timestamps are ISO 8601, all instants UTC. */
 export type Id = string;
 export type Session = { userId: Id };
@@ -22,6 +24,8 @@ export type Fact = {
   believedByActorId?: Id;
   /** A sourced, character-private account of how this person heard a player's line. */
   disclosure?: { fromActorId: Id; sourceMessageId: Id; quote: string };
+  /** Witnessed departure observation metadata. */
+  departure?: { fromPlaceName: string; eventVersion: number };
 };
 export type Message = {
   id: Id;
@@ -30,6 +34,7 @@ export type Message = {
   text: string;
   at: string;
   sourceEventId: Id;
+  attachment?: { kind: 'image' | 'video'; assetId: Id; label?: string };
   /** Immutable initial read state; later browser reads remain a separate projection. */
   initialRead?: boolean;
   history?: { version: 1; key: string; replyToMessageId?: Id };
@@ -152,12 +157,21 @@ export type WorldState = {
   notes?: Note[];
   /** Bounded active/recent decisions; absent for worlds created before this feature. */
   choices?: StoryChoice[];
+  /** Cross-scene near-term matters and life pursuits. */
+  matters?: WorldMatter[];
 };
 
 export type WorldEffect =
   | { type: 'belief.recorded'; id: Id; actorId: Id; text: string }
   | { type: 'information.shared'; id: Id; recipientActorId: Id; sourceMessageId: Id; quote: string }
-  | { type: 'appointment.proposed'; id: Id; title: string; at: string; participantIds: Id[] }
+  | {
+      type: 'appointment.proposed';
+      id: Id;
+      title: string;
+      at: string;
+      participantIds: Id[];
+      placeId?: string;
+    }
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
@@ -171,9 +185,89 @@ export type WorldEffect =
       choiceId: Id;
       quote: string;
       outcome: 'reported_done' | 'blocked' | 'abandoned';
+    }
+  | {
+      type: 'matter.proposed';
+      id: Id;
+      title: string;
+      description: string;
+      span: 'near_term' | 'pursuit';
+      quote: string;
+    }
+  | { type: 'matter.created'; id: Id; matter: WorldMatter }
+  | {
+      type: 'matter.updated';
+      id: Id;
+      matterId: Id;
+      status: MatterStatus;
+      evidence: MatterEvidence;
+      assertion?: MatterAssertion;
     };
 
-export type TurnProposal = { schemaVersion: 1; effects: WorldEffect[] };
+/** Trusted anchors of already presented events; never supplied by a model assessment. */
+export type EventGoalSource = {
+  sourceEventId: string;
+  sourceRecordId: string;
+} & (
+  | { kind: 'publication_node'; nodeKey: string }
+  | { kind: 'matter'; matterId: string }
+  | { kind: 'director_event' }
+);
+/** Private current-speaker direction. This is neither action permission nor a world fact. */
+export type ActorEventGoal = {
+  goalKey: string;
+  actorId: string;
+  source: EventGoalSource;
+  want: string;
+  stance: string;
+  boundaries: string[];
+  phase: 'introduced' | 'engaged' | 'resolved';
+  /** Shared scheduling phase only; no remote actor decisions or private results. */
+  sharedEventPhase?: 'introduced' | 'engaged' | 'resolved';
+  status: 'active' | 'deferred' | 'fulfilled' | 'withdrawn';
+  participation: 'unknown' | 'engaged' | 'declined';
+  refusalScope: 'current_player_request';
+  mayPursueOwnGoalWithoutPlayer: true;
+  actualMovesRequireRuntimeAuthorization: true;
+  pace: 'brief' | 'standard' | 'extended';
+  productiveBeats: number;
+  segmentIndex: number;
+  nextMove:
+    | 'wait'
+    | 'continue_in_current_turn'
+    | 'invite_once'
+    | 'advance_without_player'
+    | 'seek_closure'
+    | 'finished';
+};
+/** Semantic candidates only. The runtime assigns record/event/actor IDs and completion evidence. */
+export type EventGoalAssessment = {
+  goalKey: string;
+  target: 'user' | 'npc';
+  kind: 'engaged' | 'declined' | 'reopened' | 'unrelated' | 'npc_progress' | 'nudge' | 'closure';
+  quote: string;
+  /** Time expiry and fulfillment require separate verified runtime evidence. */
+  closure?: 'withdrawn' | 'alternative' | 'unresolved';
+};
+/** Director-only actual inputs. These never grant an NPC knowledge of remote activity. */
+export type StoryWorldInput = {
+  sourceEventId: string;
+  version: number;
+  storyAt: string;
+} & (
+  | { kind: 'arrival'; fromPlaceId: string; placeId: string }
+  | {
+      kind: 'invitation_response';
+      invitationId: string;
+      operation: 'accept' | 'cancel' | 'attend' | 'miss' | 'reschedule';
+    }
+  | { kind: 'scene_result'; sceneId: string; outcome: 'succeeded' | 'partial' | 'failed' | null }
+);
+export type TurnProposal = {
+  schemaVersion: 1;
+  effects: WorldEffect[];
+  eventGoalAssessments?: EventGoalAssessment[];
+};
 export type TurnCommand = {
   /** Internal orchestration only; public message input does not accept this field. */
   origin?: 'director';
@@ -201,6 +295,8 @@ export type WorldEvent = {
     userAt?: string;
     /** New disclosure commits carry v2; absent only on previously stored events. */
     disclosurePolicyVersion?: 2;
+    /** Kernel-only persistent NPC transition; never accepted as model-authored world facts. */
+    agentRuntime?: import('./agent-state-event.ts').AgentRuntimeTransition;
   };
 };
 export type OutboxJob = {

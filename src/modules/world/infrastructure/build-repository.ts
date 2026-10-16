@@ -1,3 +1,8 @@
+import {
+  PublicationSeedSchema,
+  PublicationOpeningSchema,
+} from '../../../contracts/publication-phone.ts';
+import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { verifiedGenesisLinks } from '../domain/genesis-links.ts';
 import { projectPlayerActors, type SelectedPlayerPerson } from '../domain/player-projection.ts';
 import { albumPhotos, historyPersonPhotos } from '../../media/infrastructure/album-projection.ts';
@@ -104,7 +109,7 @@ export class BuildRepository {
                 WHERE task.scope_kind='world-build' AND task.scope_id=b.seed_id::text
                 ORDER BY task.created_at DESC, task.id DESC LIMIT 1
              ) t ON true
-            WHERE s.setting_draft_id IS NULL AND s.document->'source'->>'kind' IS DISTINCT FROM 'official_life'
+            WHERE s.setting_draft_id IS NULL AND COALESCE(s.document->'source'->>'kind','') NOT IN ('official_life','published_work','publication_trial')
             ORDER BY b.created_at DESC
             LIMIT 100`,
         )
@@ -162,13 +167,67 @@ export class BuildRepository {
         [worldId, ownerId],
       ),
     );
-    const seed = ApprovedSeedSchema.parse(metadata.approved_seed);
+    const published = ['published_work', 'publication_trial'].includes(
+      metadata.approved_seed?.source?.kind,
+    );
+    const publication = published ? PublicationSeedSchema.parse(metadata.approved_seed) : null;
+    const opening = published ? PublicationOpeningSchema.parse(metadata.opening) : null;
+    const visual = published
+      ? await this.db.transaction(
+          ownerId,
+          async (sql) =>
+            (
+              await sql.query('SELECT parallel_life.publication_world_visuals($1) AS visual', [
+                worldId,
+              ])
+            ).rows[0]?.visual,
+        )
+      : null;
+    const avatarFor = (actorId: string): string | undefined => {
+      const contact = opening?.contacts.find((c) => c.actorId === actorId);
+      const link = visual?.actors?.find(
+        (a: { actorKey: string }) => a.actorKey === contact?.actorKey,
+      );
+      const media = visual?.media?.find((m: { key: string }) => m.key === link?.mediaKey);
+      return publicationArt(media, 'avatar')?.url;
+    };
+    const seed = publication ? null : ApprovedSeedSchema.parse(metadata.approved_seed);
+    if (publication && opening) {
+      const { kind, ...origin } = publication.source;
+      if (
+        publication.id !== metadata.seed_id ||
+        JSON.stringify(origin) !== JSON.stringify(opening.origin) ||
+        (kind === 'publication_trial') !== (opening.originKind === 'trial') ||
+        opening.contacts.some(
+          (c) => !state.actors.some((a) => a.id === c.actorId && a.name === c.name),
+        ) ||
+        opening.notes.some((n) => n.sourceEventId !== 'publication-genesis:' + worldId)
+      )
+        throw new TaskError('INVALID_STATE');
+      // A compiled opening is usable only with the immutable source binding created with this exact world.
+      const binding = await this.db.transaction(ownerId, (sql) =>
+        sql.query('SELECT parallel_life.player_publication_origin($1,$2) AS origin', [
+          worldId,
+          metadata.seed_id,
+        ]),
+      );
+      const b = binding.rows[0]?.origin;
+      if (
+        !b ||
+        b.workId !== origin.workId ||
+        Number(b.publicationVersion ?? 0) !== origin.publicationVersion ||
+        Number(b.draftVersion) !== origin.draftVersion ||
+        b.contentHash !== origin.contentHash ||
+        (b.kind === 'trial') !== (kind === 'publication_trial')
+      )
+        throw new TaskError('INVALID_STATE');
+    }
     const selected: SelectedPlayerPerson[] = bindings.rows.flatMap((binding) => {
       const actor = state.actors.find(
         (actor) => actor.id === binding.actor_id && actor.sourcePersonId === binding.person_id,
       );
-      const person = seed.people.find((person) => person.id === binding.person_id);
-      if (!actor || !person || !('personRoles' in seed)) return [];
+      const person = seed?.people.find((person) => person.id === binding.person_id);
+      if (!actor || !person || !seed || !('personRoles' in seed)) return [];
       const role = seed.personRoles?.find((role) => role.personId === person.id)?.role;
       const photo = binding.has_current_avatar
         ? binding.current_asset_id
@@ -326,11 +385,29 @@ export class BuildRepository {
       time: storyTime,
       identity: metadata.opening.identity,
       setting: metadata.opening.setting,
+      ...(publicationArt(
+        visual?.media?.find((m: { key: string }) => m.key === visual?.coverMediaKey),
+        'cover',
+      )
+        ? {
+            publicationWallpaperUrl: publicationArt(
+              visual.media.find((m: { key: string }) => m.key === visual.coverMediaKey),
+              'cover',
+            )!.url,
+          }
+        : {}),
       actors: projectPlayerActors(
         state,
         selected,
         sceneContacts.rows.map((row) => row.actor_id),
-      ),
+        opening?.contacts ?? [],
+      ).map((actor) => ({
+        ...actor,
+        ...(opening?.contacts.some((c) => c.actorId === actor.id)
+          ? { publicationActorKey: opening.contacts.find((c) => c.actorId === actor.id)!.actorKey }
+          : {}),
+        ...(avatarFor(actor.id) ? { publicationAvatarUrl: avatarFor(actor.id) } : {}),
+      })),
       messages: state.messages.map((m) => {
         const media =
           m.role === 'assistant'
@@ -349,6 +426,7 @@ export class BuildRepository {
           role: m.role,
           text: m.text,
           at: m.at,
+          ...(m.attachment ? { attachment: { ...m.attachment } } : {}),
           ...(m.initialRead !== undefined ? { initialRead: m.initialRead } : {}),
           ...(m.history ? { origin: 'fictional_history' as const } : {}),
           ...(isReady && media?.assetId
@@ -376,7 +454,15 @@ export class BuildRepository {
         };
       }),
       notes: [
-        // Generated opening notes have no player-knowledge provenance. Keep them internal.
+        ...(opening?.notes ?? []).map((note) => ({
+          id: note.id,
+          title: note.title,
+          text: note.text,
+          version: 0,
+          updatedAt: state.messageHistory!.startAt,
+          origin: { kind: 'publication_opening' as const, ...opening!.origin },
+        })),
+        // Legacy generated notes have no player-knowledge provenance. Keep them internal.
         /* Saved notes come from their own projection. */
         ...(state.notes ?? []).map((note) => ({
           id: note.id,

@@ -29,21 +29,25 @@ export class OfficialLifeRepository {
         )
       ).rows;
       return {
-        lives: this.catalog.list().map((pack) =>
-          OfficialLifeCardSchema.parse({
+        lives: this.catalog.list().map((pack) => {
+          const rows = saved.filter((row) => row.preset_id === pack.card.id);
+          const currentInstance = rows.find((row) => row.content_version === pack.card.version);
+          const legacyRows = rows
+            .filter((row) => row.content_version < pack.card.version)
+            .sort((a, b) => Number(b.content_version) - Number(a.content_version));
+          const legacyInstance = legacyRows[0];
+          const currentVersionWorldId = currentInstance?.world_id ?? null;
+          const legacyWorldId = legacyInstance?.world_id ?? null;
+          const worldId = currentVersionWorldId ?? legacyWorldId ?? null;
+          const hasNewVersion = Boolean(!currentInstance && legacyInstance);
+          return OfficialLifeCardSchema.parse({
             ...pack.card,
-            worldId:
-              saved.find(
-                (row) =>
-                  row.preset_id === pack.card.id && row.content_version === pack.card.version,
-              )?.world_id ??
-              saved
-                .filter((row) => row.preset_id === pack.card.id)
-                .sort((a, b) => Number(b.content_version) - Number(a.content_version))[0]
-                ?.world_id ??
-              null,
-          }),
-        ),
+            worldId,
+            hasNewVersion,
+            legacyWorldId,
+            currentVersionWorldId,
+          });
+        }),
       };
     });
   }
@@ -146,7 +150,7 @@ export class OfficialLifeRepository {
           ],
         );
         await sql.query(
-          'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,1,false,$4,0,NULL)',
+          'INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,12,false,$4,0,NULL)',
           [worldId, owner, state.time, realNow],
         );
         await sql.query(

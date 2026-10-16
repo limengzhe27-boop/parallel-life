@@ -1,6 +1,12 @@
 import { verifiedGenesisLinks } from './genesis-links.ts';
 import type { Appointment, Message, StoryChoice, WorldEvent, WorldState } from './types.ts';
 import type { InvitationEvent } from './invitations.ts';
+import { applySceneWorldResults, type SceneResultEvent } from './scene-world-results.ts';
+import type { SceneAction } from './experience-rules.ts';
+import { sceneMatterId } from './scene-matter-policy.ts';
+import type { WorldMatter } from './matters.ts';
+import { trustedOpportunity } from './matter-progression.ts';
+import { sceneStepRule } from './scene-step-progress.ts';
 
 export type RecordSource =
   | {
@@ -25,10 +31,38 @@ export type RecordSource =
       messageId?: string;
       at: string;
       timeBasis: 'story' | 'recorded';
+    }
+  | {
+      kind: 'world_matter';
+      matterId: string;
+      span: 'near_term' | 'pursuit';
+      at: string;
+      timeBasis: 'story' | 'recorded';
     };
+export type SceneStepChecklist = {
+  ruleVersion: 'r17-delivery-v1';
+  requiredTotal: 4;
+  completedRequired: number;
+  steps: {
+    id: NonNullable<ReturnType<typeof sceneStepRule>>['steps'][number]['id'];
+    title: string;
+    required: boolean;
+    performer: 'player' | 'actor';
+    state: 'pending' | 'completed';
+    actorName?: string;
+    at?: string;
+  }[];
+};
 export type PlayerRecord = {
   id: string;
-  kind: 'player_choice' | 'actor_suggestion' | 'invitation' | 'opening_context' | 'history_message';
+  kind:
+    | 'player_choice'
+    | 'actor_suggestion'
+    | 'invitation'
+    | 'opening_context'
+    | 'history_message'
+    | 'world_matter';
+  span?: 'near_term' | 'pursuit';
   title: string;
   text: string;
   state:
@@ -43,9 +77,17 @@ export type PlayerRecord = {
     | 'cancelled'
     | 'attended'
     | 'missed'
-    | 'starting_point';
+    | 'starting_point'
+    | 'in_progress'
+    | 'completed'
+    | 'not_started';
   stateLabel: string;
-  assertion: 'player_statement' | 'actor_statement' | 'invitation_status' | 'starting_context';
+  assertion:
+    | 'player_statement'
+    | 'actor_statement'
+    | 'invitation_status'
+    | 'starting_context'
+    | 'world_verified';
   source: RecordSource;
   origin?: Extract<RecordSource, { kind: 'world_genesis' }>;
   relatedLinks?: {
@@ -53,7 +95,16 @@ export type PlayerRecord = {
     target: string;
     label: string;
   }[];
-  navigation?: { app: 'wechat'; actorId: string } | { app: 'calendar'; invitationId: string };
+  stepChecklist?: SceneStepChecklist;
+  progress?: {
+    milestones: { title: string; at: string; recordId: string }[];
+    opportunities: { title: string; recordId: string }[];
+  };
+  opportunity?: { pursuitRecordId: string; triggerRecordId: string };
+  navigation?:
+    | { app: 'wechat'; actorId: string }
+    | { app: 'calendar'; invitationId: string }
+    | { app: 'map'; placeId: string };
 };
 export type PlayerRecords = {
   schemaVersion: 1;
@@ -80,6 +131,25 @@ export type PlayerRecordsInput = {
   messages: Message[];
   actors: { id: string; name: string }[];
   events: (WorldEvent | InvitationEvent)[];
+  matters?: import('./matters.ts').WorldMatter[];
+  /** Only storage-validated, player-visible resolutions, keyed to the matching matter. */
+  matterObservations?: ReadonlyMap<string, string>;
+  sceneAttendanceSources?: ReadonlyMap<string, Extract<RecordSource, { kind: 'world_event' }>>;
+  /** Actual committed scene sources; never model descriptions or unverified snapshot flags. */
+  progressionEvents?: readonly SceneResultEvent[];
+  /** Storage loads bounded event/action sources; the domain still validates their full evidence. */
+  sceneStepSources?: readonly {
+    inputEvent: {
+      id: string;
+      worldId: string;
+      version: number;
+      type: 'scene.input_recorded';
+      sceneId: string;
+      privateThought: boolean;
+    };
+    resultEvent: SceneResultEvent;
+    action: SceneAction;
+  }[];
 };
 const labels: Record<PlayerRecord['state'], string> = {
   planned: '你记录的计划',
@@ -94,6 +164,9 @@ const labels: Record<PlayerRecord['state'], string> = {
   attended: '已记录赴约',
   missed: '已记录错过',
   starting_point: '人生起点',
+  in_progress: '眼下事项',
+  completed: '已达成',
+  not_started: '待开始',
 };
 
 /** Whitelisted, sourced records only. No private facts, memories or model calls. */
@@ -134,6 +207,14 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
   });
   const add = (row: Omit<PlayerRecord, 'stateLabel'>, historical = false) =>
     (historical ? output.history : output.current).push({ ...row, stateLabel: labels[row.state] });
+  const attendanceSourceFor = (appointment: Appointment) => {
+    const proof = input.sceneAttendanceSources?.get(appointment.id);
+    return appointment.status === 'attended' &&
+      proof?.eventVersion === appointment.responseVersion &&
+      proof?.at === appointment.responseAt
+      ? proof
+      : undefined;
+  };
   for (const field of ['identity', 'setting'] as const) {
     const text = input.opening?.[field]?.trim();
     if (text && input.opening)
@@ -190,22 +271,29 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
                 e.version === current.responseVersion &&
                 e.data.id === current.id,
             );
-      if (current.responseVersion !== undefined && !response) continue;
-      const recordSource: RecordSource = response
-        ? {
-            kind: 'world_event',
-            eventId: response.id,
-            eventVersion: response.version,
-            at: response.type === 'invitation.responded' ? response.storyTime : response.occurredAt,
-            timeBasis: 'story',
-          }
-        : {
-            kind: 'opening_field',
-            seedId: input.opening.seedId,
-            field: 'official_invitation',
-            key: current.id,
-          };
-      output.current.push({
+      const attendanceSource = attendanceSourceFor(current);
+      if (current.responseVersion !== undefined && !response && !attendanceSource) continue;
+      const recordSource: RecordSource =
+        attendanceSource ??
+        (response
+          ? {
+              kind: 'world_event',
+              eventId: response.id,
+              eventVersion: response.version,
+              at:
+                response.type === 'invitation.responded' ? response.storyTime : response.occurredAt,
+              timeBasis: 'story',
+            }
+          : {
+              kind: 'opening_field',
+              seedId: input.opening.seedId,
+              field: 'official_invitation',
+              key: current.id,
+            });
+      (['cancelled', 'attended', 'missed'].includes(current.status)
+        ? output.history
+        : output.current
+      ).push({
         id: 'sys/official/' + input.worldId + '/invitation/' + current.id,
         kind: 'invitation',
         title: current.title,
@@ -271,6 +359,7 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         throw Error('INVALID_GENESIS_LINKS');
       let currentSource: RecordSource = entry.source;
       if (current.responseVersion !== undefined) {
+        const attendanceSource = attendanceSourceFor(current);
         const response = [...events.values()].find(
           (e) =>
             e.type === 'invitation.responded' &&
@@ -285,14 +374,15 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
           miss: 'missed',
         } as const;
         if (
-          !response ||
-          response.type !== 'invitation.responded' ||
-          states[response.data.operation] !== current.status ||
-          current.responseAt !== response.storyTime ||
-          (response.data.operation === 'reschedule' && response.data.at !== current.at)
+          !attendanceSource &&
+          (!response ||
+            response.type !== 'invitation.responded' ||
+            states[response.data.operation] !== current.status ||
+            current.responseAt !== response.storyTime ||
+            (response.data.operation === 'reschedule' && response.data.at !== current.at))
         )
           throw Error('INVALID_GENESIS_LINKS');
-        currentSource = source(response);
+        currentSource = attendanceSource ?? source(response!);
       } else if (
         current.status !== 'proposed' ||
         current.at !== entry.appointment.at ||
@@ -492,13 +582,14 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
 
     let currentSource: WorldEvent | InvitationEvent = e;
     if (appointment.responseVersion !== undefined) {
+      const attendanceSource = attendanceSourceFor(appointment);
       const response = [...events.values()].find(
         (r) =>
           r.type === 'invitation.responded' &&
           r.version === appointment.responseVersion &&
           r.data.id === appointment.id,
       );
-      if (!response || response.type !== 'invitation.responded') continue;
+      if ((!response || response.type !== 'invitation.responded') && !attendanceSource) continue;
       const states = {
         accept: 'confirmed',
         cancel: 'cancelled',
@@ -507,11 +598,14 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         miss: 'missed',
       } as const;
       if (
-        states[response.data.operation] !== appointment.status ||
-        (response.data.operation === 'reschedule' && response.data.at !== appointment.at)
+        !attendanceSource &&
+        response &&
+        response.type === 'invitation.responded' &&
+        (states[response.data.operation] !== appointment.status ||
+          (response.data.operation === 'reschedule' && response.data.at !== appointment.at))
       )
         continue;
-      currentSource = response;
+      if (response) currentSource = response;
     } else if (appointment.status !== 'proposed' || proposed.at !== appointment.at) continue;
     add(
       {
@@ -521,11 +615,411 @@ export function projectPlayerRecords(input: PlayerRecordsInput): PlayerRecords {
         text: appointment.at,
         state: appointment.status,
         assertion: 'invitation_status',
-        source: source(currentSource, currentSource.id === e.id ? visibleReply : undefined),
+        source:
+          attendanceSourceFor(appointment) ??
+          source(currentSource, currentSource.id === e.id ? visibleReply : undefined),
         navigation: { app: 'calendar', invitationId: appointment.id },
       },
       ['cancelled', 'attended', 'missed'].includes(appointment.status),
     );
   }
+  for (const matter of input.matters ?? []) {
+    if (matter.worldId !== input.worldId || matter.visibility !== 'player_visible') continue;
+    const isHistorical = ['completed', 'abandoned', 'superseded'].includes(matter.status);
+    const matterRecordSource: RecordSource = {
+      kind: 'world_matter',
+      matterId: matter.id,
+      span: matter.span,
+      at: matter.updatedAt,
+      timeBasis: 'story',
+    };
+    const relatedActor = input.actors.find((actor) => matter.relatedActorIds?.includes(actor.id));
+    const relatedInvitation = input.appointments.find((a) => a.id === matter.relatedInvitationId);
+    let nav: PlayerRecord['navigation'] = undefined;
+    if (matter.relatedPlaceId) {
+      nav = { app: 'map', placeId: matter.relatedPlaceId };
+    } else if (relatedActor) {
+      nav = { app: 'wechat', actorId: relatedActor.id };
+    } else if (relatedInvitation) {
+      nav = { app: 'calendar', invitationId: relatedInvitation.id };
+    }
+    const state =
+      matter.assertion === 'player_statement' && matter.status === 'completed'
+        ? ('reported_done' as const)
+        : matter.status;
+    const stepChecklist = projectStepChecklist(input, matter);
+    const record: Omit<PlayerRecord, 'stateLabel'> = {
+      id: `sys/matter/${input.worldId}/${matter.id}`,
+      kind: 'world_matter',
+      span: matter.span,
+      title: matter.title,
+      text: input.matterObservations?.has(matter.id)
+        ? `${matter.description}\n\n这次行动的反馈：${input.matterObservations.get(matter.id)}`
+        : matter.description,
+      state,
+      assertion: matter.assertion,
+      source: matterRecordSource,
+      relatedLinks: [
+        ...(relatedActor
+          ? [{ app: 'messages' as const, target: relatedActor.id, label: '联系相关人物' }]
+          : []),
+        ...(relatedInvitation
+          ? [{ app: 'calendar' as const, target: relatedInvitation.id, label: '查看关联日程' }]
+          : []),
+      ],
+      ...(nav ? { navigation: nav } : {}),
+      ...(stepChecklist ? { stepChecklist } : {}),
+    };
+
+    if (matter.span === 'near_term') {
+      (isHistorical ? output.history : output.current).push({
+        ...record,
+        stateLabel:
+          matter.assertion === 'world_verified' && state === 'blocked' ? '遇到阻碍' : labels[state],
+      });
+    } else {
+      if (isHistorical) {
+        add(record, true);
+      } else {
+        output.about.push({
+          ...record,
+          stateLabel:
+            matter.status === 'in_progress'
+              ? '长期追求'
+              : matter.assertion === 'world_verified' && state === 'blocked'
+                ? '遇到阻碍'
+                : labels[state],
+        });
+      }
+    }
+  }
+  projectPursuitConnections(input, output);
   return output;
+}
+
+function canonicalRecordEvidence(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(canonicalRecordEvidence).join(',') + ']';
+  if (value && typeof value === 'object')
+    return (
+      '{' +
+      Object.keys(value)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) +
+            ':' +
+            canonicalRecordEvidence((value as Record<string, unknown>)[key]),
+        )
+        .join(',') +
+      '}'
+    );
+  return JSON.stringify(value);
+}
+function verifiedStepMatter(input: PlayerRecordsInput, matter: WorldMatter) {
+  const initial = input.initial;
+  if (
+    !initial ||
+    initial.id !== input.worldId ||
+    matter.stepProgress?.ruleVersion !== 'r17-delivery-v1' ||
+    !matter.stepProgress.steps.length ||
+    matter.stepProgress.steps.length > 7 ||
+    initial.matters?.find((m) => m.id === matter.id)?.stepProgress
+  )
+    return;
+  const requiredEvents = new Set(matter.stepProgress.steps.map((step) => step.eventId));
+  const sources = new Map<string, NonNullable<PlayerRecordsInput['sceneStepSources']>[number]>();
+  for (const source of input.sceneStepSources ?? []) {
+    if (!source?.resultEvent || !source.inputEvent || !source.action) return;
+    if (!requiredEvents.has(source.resultEvent.id)) continue;
+    const previous = sources.get(source.resultEvent.id);
+    if (previous && canonicalRecordEvidence(previous) !== canonicalRecordEvidence(source)) return;
+    sources.set(source.resultEvent.id, source);
+  }
+  if (sources.size !== requiredEvents.size) return;
+  const finalSource = [...sources.values()].sort(
+    (a, b) => b.resultEvent.version - a.resultEvent.version,
+  )[0]?.resultEvent;
+  const finalProjection = input.progressionEvents?.find((event) => event.id === finalSource?.id);
+  if (
+    !finalSource ||
+    !finalProjection ||
+    canonicalRecordEvidence(finalSource) !== canonicalRecordEvidence(finalProjection)
+  )
+    return;
+  let working = structuredClone(initial);
+  // Current invitation projections are source-validated by storage; do not backdate later responses.
+  working.appointments = structuredClone(input.appointments);
+  let previousVersion = initial.version;
+  try {
+    for (const source of [...sources.values()].sort(
+      (a, b) => a.resultEvent.version - b.resultEvent.version,
+    )) {
+      const { resultEvent: event, inputEvent, action } = source;
+      const results = event.data.worldResults;
+      if (
+        !results?.execution ||
+        event.type !== 'scene.action_resolved' ||
+        event.worldId !== input.worldId ||
+        !Number.isSafeInteger(event.version) ||
+        event.version <= previousVersion ||
+        event.version > input.worldVersion ||
+        inputEvent.type !== 'scene.input_recorded' ||
+        inputEvent.privateThought !== false ||
+        inputEvent.worldId !== input.worldId ||
+        inputEvent.sceneId !== action.sceneId ||
+        inputEvent.id !== action.sourceEventId ||
+        inputEvent.version !== action.sourceVersion ||
+        inputEvent.version < previousVersion ||
+        !Number.isSafeInteger(inputEvent.version) ||
+        inputEvent.version >= event.version ||
+        action.ownerId !== initial.ownerId ||
+        canonicalRecordEvidence(action) !== canonicalRecordEvidence(results.action)
+      )
+        return;
+      const invitation = working.appointments.find((a) => a.id === matter.relatedInvitationId);
+      if (
+        invitation?.responseVersion !== undefined &&
+        invitation.responseVersion > inputEvent.version
+      )
+        return;
+      // Only unrelated event-version gaps are skipped; all step deltas are replayed from empty progress.
+      working = applySceneWorldResults({ ...working, version: event.version - 1 }, event, initial);
+      previousVersion = event.version;
+    }
+    const reconstructed = working.matters?.find((m) => m.id === matter.id);
+    if (
+      !reconstructed ||
+      canonicalRecordEvidence(reconstructed) !== canonicalRecordEvidence(matter)
+    )
+      return;
+    return reconstructed;
+  } catch {
+    // A missing or inconsistent source hides the connection, never fabricates a checked step or completed milestone.
+    return;
+  }
+}
+const stepDefinitionFields = [
+  'id',
+  'worldId',
+  'title',
+  'description',
+  'span',
+  'visibility',
+  'source',
+  'prerequisites',
+  'relatedPlaceId',
+  'relatedInvitationId',
+  'relatedActorIds',
+  'createdAt',
+] as const;
+function sameStepDefinition(a: WorldMatter, b: WorldMatter) {
+  return stepDefinitionFields.every(
+    (key) => canonicalRecordEvidence(a[key]) === canonicalRecordEvidence(b[key]),
+  );
+}
+function projectStepChecklist(
+  input: PlayerRecordsInput,
+  matter: WorldMatter,
+): SceneStepChecklist | undefined {
+  const initial = input.initial,
+    original = initial?.matters?.find((m) => m.id === matter.id);
+  if (
+    !initial ||
+    initial.id !== input.worldId ||
+    matter.worldId !== input.worldId ||
+    !original ||
+    original.stepProgress ||
+    !Number.isSafeInteger(input.worldVersion) ||
+    input.worldVersion < initial.version ||
+    !sameStepDefinition(original, matter)
+  )
+    return;
+  const rule = sceneStepRule(initial, original);
+  if (!rule || !sceneStepRule(initial, matter)) return;
+  let saved: WorldMatter['stepProgress'];
+  if (matter.stepProgress?.steps.length) {
+    const verified = verifiedStepMatter(input, matter);
+    if (!verified) return;
+    saved = verified.stepProgress;
+  } else if (
+    ['completed', 'abandoned', 'superseded'].includes(matter.status) ||
+    canonicalRecordEvidence(matter) !== canonicalRecordEvidence(original)
+  )
+    return;
+  const steps: SceneStepChecklist['steps'] = rule.steps.map((spec) => {
+    const evidence = saved?.steps.find((step) => step.stepId === spec.id);
+    const performer = ['received', 'receiver_inspected'].includes(spec.id)
+      ? ('actor' as const)
+      : ('player' as const);
+    const actorName =
+      evidence?.performer === 'actor'
+        ? initial.actors.find((actor) => actor.id === evidence.actorId)?.name
+        : undefined;
+    return {
+      id: spec.id,
+      title: spec.title,
+      required: spec.required,
+      performer,
+      state: evidence ? 'completed' : 'pending',
+      ...(evidence ? { at: evidence.at, ...(actorName ? { actorName } : {}) } : {}),
+    };
+  });
+  return {
+    ruleVersion: rule.version,
+    requiredTotal: 4,
+    completedRequired: steps.filter((step) => step.required && step.state === 'completed').length,
+    steps,
+  };
+}
+function verifiedStepCompletion(input: PlayerRecordsInput, matter: WorldMatter) {
+  const proof = matter.evidence;
+  if (proof?.kind !== 'scene_steps' || proof.ruleVersion !== 'r17-delivery-v1') return;
+  const verified = verifiedStepMatter(input, matter);
+  if (!verified || verified.status !== 'completed' || verified.assertion !== 'world_verified')
+    return;
+  return proof;
+}
+function projectPursuitConnections(input: PlayerRecordsInput, output: PlayerRecords) {
+  const rows = [...output.current, ...output.about, ...output.history];
+  const rowFor = (id: string) => rows.find((r) => r.id === `sys/matter/${input.worldId}/${id}`);
+  const matters = input.matters ?? [];
+  const verifiedCompletion = (matter: WorldMatter) => {
+    const proof = matter.evidence;
+    if (
+      matter.worldId !== input.worldId ||
+      matter.visibility !== 'player_visible' ||
+      matter.span !== 'near_term' ||
+      matter.status !== 'completed' ||
+      matter.assertion !== 'world_verified'
+    )
+      return undefined;
+    if (proof?.kind === 'scene_steps') return verifiedStepCompletion(input, matter);
+    if (proof?.kind !== 'scene_action' || proof.outcome !== 'succeeded') return undefined;
+    const event = input.progressionEvents?.find(
+      (e) =>
+        e.id === proof.eventId &&
+        e.worldId === input.worldId &&
+        e.version === proof.eventVersion &&
+        e.version <= input.worldVersion &&
+        e.type === 'scene.action_resolved' &&
+        e.storyAt === proof.at,
+    );
+    const results = event?.data.worldResults,
+      action = results?.action;
+    if (
+      !event ||
+      !results ||
+      !action ||
+      results.scene.id !== proof.sceneId ||
+      results.scene.worldId !== input.worldId ||
+      action.worldId !== input.worldId ||
+      action.sceneId !== proof.sceneId ||
+      action.id !== proof.actionId ||
+      (input.initial &&
+        (input.initial.id !== input.worldId ||
+          action.ownerId !== input.initial.ownerId ||
+          results.scene.ownerId !== input.initial.ownerId)) ||
+      action.intent !== 'attempt' ||
+      action.sourceVersion >= event.version ||
+      action.status !== 'resolved' ||
+      action.resolution?.outcome !== 'succeeded' ||
+      action.resolution.sourceEventId !== event.id ||
+      action.resolution.sourceVersion !== event.version ||
+      !action.relatedMatterIds.includes(sceneMatterId(proof.sceneId, matter.id)) ||
+      !results.updates.some(
+        (u) =>
+          u.matterId === matter.id &&
+          u.status === 'completed' &&
+          u.expectedMatterVersion < matter.version,
+      )
+    )
+      return undefined;
+    return proof;
+  };
+  for (const pursuit of matters) {
+    const row = rowFor(pursuit.id);
+    if (!row || pursuit.span !== 'pursuit' || !pursuit.pursuitProgress) continue;
+    const original = input.initial?.matters?.find((m) => m.id === pursuit.id);
+    if (
+      !original ||
+      original.worldId !== input.worldId ||
+      original.span !== 'pursuit' ||
+      original.title !== pursuit.title ||
+      original.description !== pursuit.description ||
+      JSON.stringify(original.source) !== JSON.stringify(pursuit.source)
+    )
+      continue;
+    const milestoneIds = new Set<string>();
+    const milestones = pursuit.pursuitProgress.milestones.flatMap((step) => {
+      const trigger = matters.find((m) => m.id === step.matterId),
+        triggerRow = rowFor(step.matterId);
+      const proof = trigger && verifiedCompletion(trigger);
+      if (
+        !proof ||
+        !triggerRow ||
+        step.title !== trigger!.title ||
+        step.eventId !== proof.eventId ||
+        step.eventVersion !== proof.eventVersion ||
+        step.at !== proof.at ||
+        milestoneIds.has(step.matterId)
+      )
+        return [];
+      milestoneIds.add(step.matterId);
+      return [{ title: step.title, at: step.at, recordId: triggerRow.id }];
+    });
+    if (!milestones.length) continue;
+    const opportunities: NonNullable<PlayerRecord['progress']>['opportunities'] = [];
+    for (const id of new Set(pursuit.pursuitProgress.nextOpportunityIds)) {
+      const opportunity = matters.find((m) => m.id === id),
+        next = rowFor(id);
+      const trigger = matters.find((m) => m.id === opportunity?.opportunity?.triggerMatterId);
+      const proof = trigger && verifiedCompletion(trigger);
+      const authoredOpportunity =
+        opportunity &&
+        input.initial &&
+        trustedOpportunity(
+          {
+            ...input.initial,
+            version: input.worldVersion,
+            matters,
+            facts: (input.progressionEvents ?? []).flatMap(
+              (e) => e.data.worldResults?.observerFacts ?? [],
+            ),
+          },
+          input.initial,
+          opportunity,
+        );
+      if (
+        !next ||
+        !opportunity ||
+        !proof ||
+        !authoredOpportunity ||
+        opportunity.opportunity?.pursuitId !== pursuit.id ||
+        !milestoneIds.has(trigger!.id) ||
+        opportunity.worldId !== input.worldId ||
+        opportunity.visibility !== 'player_visible' ||
+        opportunity.source.kind !== 'director_proposal' ||
+        opportunity.source.eventId !== proof.eventId ||
+        opportunity.source.eventVersion !== proof.eventVersion ||
+        opportunity.source.at !== proof.at ||
+        opportunity.prerequisites?.length !== 1 ||
+        opportunity.prerequisites[0] !== trigger!.id
+      )
+        continue;
+      next.opportunity = { pursuitRecordId: row.id, triggerRecordId: rowFor(trigger!.id)!.id };
+      if (output.current.includes(next))
+        opportunities.push({ title: next.title, recordId: next.id });
+    }
+    row.progress = { milestones, opportunities };
+    for (const step of milestones) {
+      const previous = rows.find((r) => r.id === step.recordId)!;
+      previous.relatedLinks = [
+        ...(previous.relatedLinks ?? []),
+        { app: 'notes' as const, target: row.id, label: '看看这一步通向哪里' },
+        ...(opportunities[0]
+          ? [{ app: 'notes' as const, target: opportunities[0].recordId, label: '看看后续机会' }]
+          : []),
+      ].slice(0, 4);
+    }
+  }
 }

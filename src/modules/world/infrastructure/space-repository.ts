@@ -1,3 +1,10 @@
+import { projectAgentWorldChange } from './world-awareness-commit.ts';
+import { authorizeWorldCommandInTransaction } from './world-command-uow.ts';
+import { storedActivityClock } from './clock-activity-repository.ts';
+import { readableActivityClock } from '../domain/clock-activity.ts';
+import { publicationPlaceLinks } from './publication-context.ts';
+import { readPublicationSceneImages } from '../../settings/infrastructure/publication-scene-image-repository.ts';
+import { defaultTravelRoutes } from '../domain/space-travel-policy.ts';
 import { randomUUID } from 'node:crypto';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { WorldSpacePort } from '../application/space.ts';
@@ -9,12 +16,17 @@ import {
   EstablishSpaceRequestSchema,
   type TravelRequest,
 } from '../../../contracts/world-space.ts';
+import { ApprovedSeedSchema } from '../../../contracts/seeds.ts';
+import { WorldOpeningSchema } from '../../../contracts/world-build.ts';
 import {
   authoredSpace,
+  deriveInitialSpace,
   applySpaceEvent,
   travelTimes,
   type TravelEvent,
   type SpaceEstablishedEvent,
+  type SpaceSource,
+  type WorldSpaceState,
 } from '../domain/space.ts';
 import type { WorldState } from '../domain/types.ts';
 import type { WorldClock } from '../domain/clock.ts';
@@ -24,8 +36,22 @@ import { requestHash, TaskError } from '../../tasks/infrastructure/task-reposito
 import type { OfficialLifePack } from '../../settings/application/official-life-pack.ts';
 import type { OfficialLifeCatalog } from '../../settings/application/official-life-pack.ts';
 import type { PlayerExperience, SceneSession } from '../domain/experience-rules.ts';
+/**
+ * An unresolved director attempt is an audit of an uncertain model result, not
+ * evidence of work still running. The shared world advisory lock protects every
+ * active director call; location writes acquire it before checking this queue.
+ * Keep old attempts for receipt reconciliation and to prevent automatic repayment,
+ * but let explicit location actions proceed once no director owns the lock.
+ * A late result still has to pass the world's expected-version commit fence.
+ */
 export async function assertSpaceIdle(sql: SqlClient, worldId: string): Promise<void> {
   if (
+    (
+      await sql.query(
+        "SELECT 1 FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND status IN ('claimed','unknown') LIMIT 1",
+        [worldId],
+      )
+    ).rowCount ||
     (
       await sql.query(
         "SELECT 1 FROM parallel_life.tasks WHERE scope_kind='world' AND scope_id=$1 AND status IN ('queued','running','unknown') LIMIT 1",
@@ -35,12 +61,6 @@ export async function assertSpaceIdle(sql: SqlClient, worldId: string): Promise<
     (
       await sql.query(
         "SELECT 1 FROM parallel_life.commands WHERE world_id=$1 AND status IN ('queued','running','unknown') LIMIT 1",
-        [worldId],
-      )
-    ).rowCount ||
-    (
-      await sql.query(
-        "SELECT 1 FROM parallel_life.world_director_attempts a WHERE world_id=$1 AND status<>'committed' AND NOT EXISTS(SELECT 1 FROM parallel_life.world_events e WHERE e.world_id=a.world_id AND e.command_id=a.command_id::text) LIMIT 1",
         [worldId],
       )
     ).rowCount
@@ -66,7 +86,7 @@ async function owned(sql: SqlClient, owner: string, id: string, lock = false): P
     )
   ).rows[0];
   if (!row) throw new DomainError('NOT_FOUND');
-  return { ...row.state, version: Number(row.version) };
+  return publicationPlaceLinks(sql, { ...row.state, version: Number(row.version) });
 }
 async function clock(sql: SqlClient, w: WorldState): Promise<WorldClock> {
   const r = (
@@ -81,14 +101,7 @@ async function clock(sql: SqlClient, w: WorldState): Promise<WorldClock> {
       missedBeats: 0,
       summary: null,
     };
-  return {
-    storyNow: new Date(r.story_now).toISOString(),
-    lastTickAt: new Date(r.last_tick_at).toISOString(),
-    speed: Number(r.speed),
-    paused: Boolean(r.paused),
-    missedBeats: Number(r.missed_beats),
-    summary: r.summary ?? null,
-  };
+  return readableActivityClock(storedActivityClock(r), new Date().toISOString());
 }
 async function replay(sql: SqlClient, worldId: string, input: { commandId: string }, hash: string) {
   const command = (
@@ -144,7 +157,26 @@ async function commit(
     'INSERT INTO parallel_life.world_space_receipts(world_id,owner_id,command_id,request_hash,source_event_id,document) VALUES($1,$2,$3,$4,$5,$6)',
     [w.id, w.ownerId, e.commandId, hash, e.id, result],
   );
+  await projectAgentWorldChange(sql, w.ownerId, w.id, e.id);
   return next;
+}
+/** The v3 release added matters and one R17 invitation; its existing v2 places,
+ * routes and identities are unchanged. Retain the narrowly versioned explicit
+ * v1 -> v2 space option without importing new v3 tasks/invitations into old saves.
+ * Future content versions must provide their own compatibility proof. */
+function legacySpacePack(pack: OfficialLifePack | undefined): OfficialLifePack | undefined {
+  if (!pack || pack.card.version !== 3) return pack;
+  const compatible = structuredClone(pack);
+  compatible.card.version = 2;
+  delete compatible.opening.matters;
+  if (pack.card.id === 'county-yellow-hair') {
+    compatible.opening.invitations = compatible.opening.invitations.filter(
+      (a) => a.key !== 'r17_handover',
+    );
+    for (const place of compatible.opening.space?.places ?? [])
+      place.invitationKeys = place.invitationKeys?.filter((key) => key !== 'r17_handover');
+  }
+  return compatible;
 }
 function legacyBindings(
   w: WorldState,
@@ -228,25 +260,79 @@ export class PostgresWorldSpace implements WorldSpacePort {
       )
         busy = true;
       let canEstablish = false;
-      if (!w.space && w.version === 0 && w.officialLife && !x?.current_scene_id) {
-        const initial = (
+      if (!w.space && w.version === 0 && !x?.current_scene_id) {
+        const snap = (
           await sql.query(
-            'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            'SELECT state, approved_seed FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
             [id],
           )
-        ).rows[0]?.state;
-        try {
-          legacyBindings(
-            w,
-            initial,
-            this.catalog.get(w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0]),
-          );
-          canEstablish = true;
-        } catch {
-          /* Unsupported old source stays unknown. */
+        ).rows[0];
+        const initial = snap?.state as WorldState | undefined;
+        if (w.officialLife) {
+          try {
+            legacyBindings(
+              w,
+              initial,
+              legacySpacePack(
+                this.catalog.get(
+                  w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0],
+                ),
+              ),
+            );
+            canEstablish = true;
+          } catch {
+            /* Unsupported old source stays unknown. */
+          }
+        } else if (initial && snap?.approved_seed) {
+          try {
+            const seed = ApprovedSeedSchema.parse(snap.approved_seed);
+            const buildRow = (
+              await sql.query('SELECT opening FROM parallel_life.world_builds WHERE world_id=$1', [
+                id,
+              ])
+            ).rows[0];
+            if (buildRow?.opening) {
+              const opening = WorldOpeningSchema.parse(buildRow.opening);
+              if (
+                initial.actors.length === w.actors.length &&
+                initial.actors.every((a, idx) => w.actors[idx]?.id === a.id) &&
+                initial.title === w.title
+              ) {
+                const ids = new Map(
+                  opening.actors.map((a) => {
+                    const match = initial.actors.find((act) => act.name === a.name);
+                    if (!match) throw Error('ACTOR_MISMATCH');
+                    return [a.key, match.id];
+                  }),
+                );
+                const candidateSpace = deriveInitialSpace({
+                  seed,
+                  opening,
+                  actorIds: ids,
+                  appointments: initial.appointments,
+                  source: {
+                    kind: 'world_event',
+                    seedId: seed.id,
+                    snapshotVersion: 0,
+                    eventId: randomUUID(),
+                    eventVersion: 1,
+                  },
+                });
+                if (candidateSpace) canEstablish = true;
+              }
+            }
+          } catch {
+            /* Unsupported or diverged old source stays unknown. */
+          }
         }
       }
       // A read does not anchor, establish or mutate a legacy world.
+      const places = w.space?.places ?? [];
+      const images = await readPublicationSceneImages(
+        sql,
+        id,
+        places.map((place) => place.id),
+      );
       return WorldSpaceSchema.parse({
         worldId: id,
         worldVersion: w.version,
@@ -256,8 +342,16 @@ export class PostgresWorldSpace implements WorldSpacePort {
         paused: c.paused,
         busy,
         currentPlaceId: w.space?.currentPlaceId ?? null,
-        places: w.space?.places ?? [],
-        routes: w.space?.routes.filter((r) => r.fromPlaceId === w.space!.currentPlaceId) ?? [],
+        places: places.map((place) => ({
+          ...place,
+          ...(images.has(place.id) ? { sceneImageUrl: images.get(place.id) } : {}),
+        })),
+        routes: w.space
+          ? [
+              ...w.space.routes.filter((r) => r.fromPlaceId === w.space!.currentPlaceId),
+              ...defaultTravelRoutes(w.space),
+            ]
+          : [],
         currentSceneId: x?.current_scene_id ?? null,
         canEstablish,
       });
@@ -286,6 +380,12 @@ export class PostgresWorldSpace implements WorldSpacePort {
         old = await replay(sql, id, input, hash);
       if (old) return TravelReceiptSchema.parse(old);
       if (w.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, owner, {
+        worldId: id,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'space_travel',
+      });
       await assertSpaceIdle(sql, id);
       const c = await clock(sql, w),
         realNow = new Date().toISOString(),
@@ -315,22 +415,9 @@ export class PostgresWorldSpace implements WorldSpacePort {
           ))
       )
         throw new DomainError('INVALID_COMMAND');
-      const observerIds =
-        currentScene?.presence
-          .filter((p) => p.participant.kind === 'actor' && p.leftVersion === undefined)
-          .flatMap((p) => (p.participant.kind === 'actor' ? [p.participant.actorId] : [])) ?? [];
-      const departureObservation = observerIds.length
-        ? {
-            id: randomUUID(),
-            text:
-              '你亲眼看到主角离开了' +
-              w.space!.places.find((p) => p.id === t.route.fromPlaceId)!.name +
-              '，没有获知目的地。',
-            kind: 'canonical' as const,
-            visibility: { kind: 'actors' as const, actorIds: observerIds },
-            sourceEventId: eventId,
-          }
-        : undefined;
+      // Scene membership proves participation, not that someone saw this exit.
+      // Until a real perception capability supplies a scoped witness receipt,
+      // travel must not manufacture departure knowledge from a place/roster.
 
       const e: TravelEvent = {
         schemaVersion: 1,
@@ -349,7 +436,7 @@ export class PostgresWorldSpace implements WorldSpacePort {
           departedAt: t.departedAt,
           arrivedAt: t.arrivedAt,
           leftSceneId: sceneId,
-          ...(departureObservation ? { departureObservation } : {}),
+          ...(t.route.source.kind === 'system_policy' ? { generatedRoute: t.route } : {}),
         },
       };
       const result = TravelReceiptSchema.parse({
@@ -387,7 +474,7 @@ export class PostgresWorldSpace implements WorldSpacePort {
             p === member ? { ...p, leftVersion: e.version } : p,
           ),
         };
-        // Other participants stay; an NPC can know the observed departure, never its destination.
+        // Other participants keep their intervals; leaving grants them no observation.
         if (!nextScene.presence.some((p) => p.leftVersion === undefined))
           nextScene.status = 'ended';
         await sql.query('UPDATE parallel_life.scene_sessions SET document=$2 WHERE id=$1', [
@@ -399,11 +486,6 @@ export class PostgresWorldSpace implements WorldSpacePort {
           'UPDATE parallel_life.player_experiences SET current_scene_id=NULL,document=$2 WHERE world_id=$1',
           [id, { ...experience, view: { kind: 'phone' } }],
         );
-        if (departureObservation)
-          await sql.query(
-            'INSERT INTO parallel_life.world_facts(id,world_id,owner_id,ordinal,document) VALUES($1,$2,$3,$4,$5)',
-            [departureObservation.id, id, owner, e.version * 1000, departureObservation],
-          );
       }
       await sql.query(
         'UPDATE parallel_life.world_clock SET story_now=$2,last_tick_at=$3,updated_at=now() WHERE world_id=$1',
@@ -424,36 +506,89 @@ export class PostgresWorldSpace implements WorldSpacePort {
         old = await replay(sql, id, input, hash);
       if (old) return old;
       if (w.version !== input.expectedVersion) throw new DomainError('VERSION_CONFLICT');
+      await authorizeWorldCommandInTransaction(sql, owner, {
+        worldId: id,
+        commandId: input.commandId,
+        expectedWorldVersion: input.expectedVersion,
+        kind: 'space_travel',
+      });
       await assertSpaceIdle(sql, id);
       const c = await clock(sql, w),
         realNow = new Date().toISOString();
-      if (w.space || w.version !== 0 || !w.officialLife) throw new DomainError('INVALID_COMMAND');
-      const initial = (
-        await sql.query(
-          'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
-          [id],
-        )
-      ).rows[0]?.state as WorldState | undefined;
-      const pack = this.catalog.get(
-        w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0],
-      );
-      const bindings = legacyBindings(w, initial, pack);
-      if (!pack?.opening.space) throw new DomainError('INVALID_COMMAND');
-      const eid = randomUUID(),
-        source = {
-          kind: 'world_event' as const,
+      if (w.space || w.version !== 0) throw new DomainError('INVALID_COMMAND');
+      let space: WorldSpaceState;
+      const eid = randomUUID();
+      if (w.officialLife) {
+        const initial = (
+          await sql.query(
+            'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            [id],
+          )
+        ).rows[0]?.state as WorldState | undefined;
+        const pack = legacySpacePack(
+          this.catalog.get(w.officialLife.presetId as Parameters<OfficialLifeCatalog['get']>[0]),
+        );
+        const bindings = legacyBindings(w, initial, pack);
+        if (!pack?.opening.space) throw new DomainError('INVALID_COMMAND');
+        const source: SpaceSource = {
+          kind: 'world_event',
           presetId: pack.card.id,
           contentVersion: pack.card.version,
-          snapshotVersion: 0 as const,
+          snapshotVersion: 0,
           eventId: eid,
           eventVersion: 1,
         };
-      const actors = bindings.actors,
-        aps = bindings.appointments;
-      const space = authoredSpace(pack.opening.space, source, actors, aps),
-        storyAt = new Date(
-          Math.max(Date.parse(w.time), Date.parse(projectStoryTime(c, realNow))),
-        ).toISOString();
+        space = authoredSpace(pack.opening.space, source, bindings.actors, bindings.appointments);
+      } else {
+        const snap = (
+          await sql.query(
+            'SELECT state, approved_seed FROM parallel_life.world_initial_snapshots WHERE world_id=$1',
+            [id],
+          )
+        ).rows[0];
+        const initial = snap?.state as WorldState | undefined;
+        const buildRow = (
+          await sql.query('SELECT opening FROM parallel_life.world_builds WHERE world_id=$1', [id])
+        ).rows[0];
+        if (!initial || !snap?.approved_seed || !buildRow?.opening) {
+          throw new DomainError('INVALID_COMMAND');
+        }
+        const seed = ApprovedSeedSchema.parse(snap.approved_seed);
+        const opening = WorldOpeningSchema.parse(buildRow.opening);
+        if (
+          initial.actors.length !== w.actors.length ||
+          !initial.actors.every((a, idx) => w.actors[idx]?.id === a.id) ||
+          initial.title !== w.title
+        ) {
+          throw new DomainError('INVALID_COMMAND');
+        }
+        const ids = new Map(
+          opening.actors.map((a) => {
+            const match = initial.actors.find((act) => act.name === a.name);
+            if (!match) throw new DomainError('INVALID_COMMAND');
+            return [a.key, match.id];
+          }),
+        );
+        const source: SpaceSource = {
+          kind: 'world_event',
+          seedId: seed.id,
+          snapshotVersion: 0,
+          eventId: eid,
+          eventVersion: 1,
+        };
+        const candidate = deriveInitialSpace({
+          seed,
+          opening,
+          actorIds: ids,
+          appointments: initial.appointments,
+          source,
+        });
+        if (!candidate) throw new DomainError('INVALID_COMMAND');
+        space = candidate;
+      }
+      const storyAt = new Date(
+        Math.max(Date.parse(w.time), Date.parse(projectStoryTime(c, realNow))),
+      ).toISOString();
       const e: SpaceEstablishedEvent = {
         schemaVersion: 1,
         id: eid,

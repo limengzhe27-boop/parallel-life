@@ -4,6 +4,9 @@ import type {
   TurnCommand,
   WorldEvent,
   WorldState,
+  ActorEventGoal,
+  EventGoalAssessment,
+  StoryWorldInput,
 } from '../domain/types.ts';
 
 import type { MemoryRecord } from '../../memory/domain/types.ts';
@@ -12,29 +15,98 @@ import type { MemoryRecord } from '../../memory/domain/types.ts';
 export interface WorldRepository {
   get(session: Session, worldId: string): Promise<WorldState>;
   receipt(session: Session, command: TurnCommand): Promise<CommitResult | null>;
-  commit(session: Session, command: TurnCommand, event: WorldEvent): Promise<CommitResult>;
+  commit(
+    session: Session,
+    command: TurnCommand,
+    event: WorldEvent,
+    /** Trusted context keys; assessments must be validated again against actual committed records. */
+    progress?: { goalKeys: string[]; assessments: EventGoalAssessment[] },
+  ): Promise<CommitResult>;
 }
 export type ActorContext = {
   worldId: string;
   worldVersion: number;
   time: string;
   worldTitle?: string;
+  actorSituation?: import('../domain/actor-situation.ts').ActorSituation;
   actor: WorldState['actors'][number];
+  /** Only this actor's sourced goals after visibility, forgetting and budget checks. */
+  eventGoals?: ActorEventGoal[];
+  /** Trusted current claimed opportunity, not an already happened goal or a future source. */
+  introducingEventGoalKey?: string;
   /** Bounded cast sketches for a director beat; never another NPC's private memory. */
-  possibleRecipients?: (Pick<
-    WorldState['actors'][number],
-    'id' | 'name' | 'relationship' | 'persona'
-  > & { socialTie?: string })[];
+  possibleRecipients?: (Pick<WorldState['actors'][number], 'id' | 'name' | 'relationship'> & {
+    socialTie?: string;
+    persona?: string;
+  })[];
   previousDisclosures?: { sourceMessageId: string; recipientActorId: string }[];
+  authoredLifeModules?: Partial<
+    Record<'lifeContext' | 'traits' | 'drives' | 'behavior' | 'relationships', string>
+  >;
+  authoredPosts?: { text: string; at: string }[];
+  /** This speaker's actual event opening messages, retained after the recent-chat window. */
+  presentedStoryThreads?: {
+    sourceMessageId: string;
+    sourceEventId: string;
+    openingText: string;
+    at: string;
+    sourceVersion: number;
+  }[];
   facts: WorldState['facts'];
   messages: WorldState['messages'];
   appointments: WorldState['appointments'];
   choices?: WorldState['choices'];
+  /** Only player-visible matters this character is explicitly involved in; no hidden plot. */
+  matters?: Pick<
+    import('../domain/matters.ts').WorldMatter,
+    'id' | 'title' | 'description' | 'span' | 'status' | 'assertion'
+  >[];
   retrievedMemories?: MemoryRecord[];
   turnOrigin?: 'director';
+  /** A server-selected optional event; constrains this opening to a character message. */
+  storyEvent?: { title: string };
+  /** A single eligible author opportunity supplied by the server, never parsed from player text. */
+  storyInvitation?: {
+    title: string;
+    placeName: string | null;
+    placeDescription?: string | null;
+    earliestAt: string;
+    source?: 'eligible' | 'presented';
+  };
 };
 /** A character model only receives a filtered context, never the complete world. */
+export type StoryOpportunityInput = {
+  directorObservation?: import('../domain/director-observation.ts').DirectorObservation;
+  storyNow: string;
+  worldTitle: string;
+  /** Director-only fictional world setting and cast; never an NPC's private memory. */
+  worldSetting?: string;
+  cast?: Pick<WorldState['actors'][number], 'id' | 'name' | 'persona' | 'relationship'>[];
+  currentPlaceId: string | null;
+  /** Current snapshot's verified changes, supplied to the director only. */
+  recentWorldInputs?: StoryWorldInput[];
+  recentMessages: { role: 'user' | 'assistant'; actorId: string; text: string }[];
+  candidates: {
+    nodeKey: string;
+    title: string;
+    editorialIntent: string;
+    actorId?: string;
+    actorOptions?: { id: string; key: string; name: string }[];
+    places?: { key: string; name: string; description?: string }[];
+    placeName: string | null;
+    direction?: { mode: 'required' | 'optional'; expectedImpact?: string; experience?: string };
+  }[];
+};
 export interface TurnPlanner {
+  /** Load only the current actor's sourced private context before proposing a paid turn. */
+  prepareContext?(
+    context: ActorContext,
+    blockedSources: ReadonlySet<string>,
+  ): Promise<ActorContext>;
+  /** A null decision leaves every candidate unresolved. Failure cannot auto-pick a candidate. */
+  chooseStoryOpportunity?(
+    input: StoryOpportunityInput,
+  ): Promise<string | { nodeKey: string; actorId: string } | null>;
   propose(input: { context: ActorContext; userText: string }): Promise<unknown>;
 }
 

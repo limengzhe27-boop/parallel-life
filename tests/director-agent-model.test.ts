@@ -1,0 +1,658 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import type {
+  ModelMessage,
+  ModelOutputOptions,
+  TextModel,
+} from '../src/modules/ai/application/ports.ts';
+import {
+  WorldDirectorAgentModel,
+  parseDirectorDecision,
+  DIRECTOR_RUNTIME_PROMPT_VERSION,
+} from '../src/modules/world/infrastructure/director-agent-model.ts';
+import type {
+  DirectorAttempt,
+  DirectorSnapshot,
+} from '../src/modules/world/domain/director-runtime.ts';
+import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
+
+function fixture() {
+  const snapshot: DirectorSnapshot = {
+    schemaVersion: 1,
+    worldId: 'world',
+    engineEpoch: 2,
+    worldVersion: 5,
+    storyAt: '2026-10-15T08:00:00.000Z',
+    observedThroughVersion: 5,
+    evaluatedThroughVersion: 3,
+    boundary: {
+      worldId: 'world',
+      actorIds: ['a', 'b'],
+      placeIds: ['home', 'shop'],
+      capabilityIds: ['plan.record', 'appointment.propose'],
+      extensionPermission: 'none',
+      createdFromVersion: 5,
+      sourceEventId: 'e5',
+    },
+    worldSetting: '已经授权的虚构城市生活',
+    cast: [
+      { id: 'a', name: 'A', persona: '虚构且有边界的人物 A' },
+      { id: 'b', name: 'B', persona: '虚构人物 B' },
+    ],
+    actorStates: ['a', 'b'].map((actorId) =>
+      emptyActorAgentState({ worldId: 'world', actorId }, 'fictional-definition', 5),
+    ),
+    episodes: [],
+    candidates: ['a', 'b'].map((actorId) => ({
+      id: 'candidate-' + actorId,
+      worldId: 'world',
+      actorId,
+      source: actorId === 'a' ? 'actor_plan' : 'responsibility',
+      episodeId: null,
+      actionId: null,
+      resourceIds: [],
+      channel: 'private',
+      threadId: actorId,
+      sourceIds: [actorId + '-source'],
+      expectedWorldVersion: 5,
+      expectedActorRevision: 0,
+      priority: 1,
+      reason: '真实来源的合成候选',
+      requiresCoordination: false,
+    })),
+    blockers: [],
+    changes: [],
+    observations: [
+      { sourceId: 'a-source', text: 'A 可见的虚构事实', kind: 'fact', knownByActorIds: ['a'] },
+      { sourceId: 'b-source', text: 'DIRECTOR_PRIVATE_B', kind: 'belief', knownByActorIds: ['b'] },
+    ],
+    focus: [],
+  };
+  const attempt: DirectorAttempt = {
+    id: 'director-attempt',
+    worldId: 'world',
+    commandId: 'command',
+    engineEpoch: 2,
+    expectedWorldVersion: 5,
+    inputHash: 'protected-input-hash',
+    token: 'lease-token',
+    leaseUntil: '2026-10-15T08:02:00.000Z',
+    status: 'response_received',
+  };
+  const quiet = {
+    mode: 'quiet' as const,
+    selectedCandidateIds: [] as string[],
+    deferred: snapshot.candidates.map((c) => ({
+      candidateId: c.id,
+      reason: '没有新依据，安静观察',
+    })),
+    nudges: [] as {
+      actorId: string;
+      candidateId: string;
+      kind: 'continue_own_plan';
+      basisSourceIds: string[];
+    }[],
+    opportunities: [] as Opportunity[],
+    audit: { reason: 'DIRECTOR_PRIVATE_AUDIT', basisSourceIds: ['b-source'] },
+  };
+  const coordinate = {
+    ...structuredClone(quiet),
+    mode: 'coordinate' as const,
+    selectedCandidateIds: ['candidate-a'],
+    deferred: [{ candidateId: 'candidate-b', reason: '稍后重评' }],
+    nudges: [
+      {
+        actorId: 'a',
+        candidateId: 'candidate-a',
+        kind: 'continue_own_plan' as const,
+        basisSourceIds: ['a-source'],
+      },
+    ],
+  };
+  const opportunity = {
+    id: 'op1',
+    title: '待考虑的会面',
+    description: '尚未发生且参与由本人决定',
+    playerImpact: '可以选择是否参与',
+    participantActorIds: ['a'],
+    placeIds: ['shop'],
+    activity: 'meeting' as const,
+    basisSourceIds: ['a-source'],
+  };
+  const bounded = {
+    ...structuredClone(quiet),
+    mode: 'bounded_opportunity' as const,
+    opportunities: [opportunity],
+  };
+  return {
+    snapshot,
+    attempt,
+    quiet,
+    coordinate,
+    opportunity,
+    bounded,
+    parse: (raw: unknown) => parseDirectorDecision(snapshot, raw, attempt),
+  };
+}
+type Opportunity = {
+  id: string;
+  title: string;
+  description: string;
+  playerImpact: string;
+  participantActorIds: string[];
+  placeIds: string[];
+  activity: 'conversation' | 'meeting' | 'follow_up';
+  basisSourceIds: string[];
+  authoredEventKey?: string;
+};
+function rejected(f: ReturnType<typeof fixture>, raw: unknown) {
+  assert.throws(() => f.parse(raw), { code: 'INVALID_DIRECTOR_PROPOSAL' });
+}
+
+test('quiet is a valid immutable typed director decision and cannot add NPC execution or a world event', () => {
+  const f = fixture(),
+    before = structuredClone(f.snapshot),
+    d = f.parse(JSON.stringify(f.quiet));
+  assert.equal(d.mode, 'quiet');
+  assert.equal(d.id, 'director-attempt:decision');
+  assert.equal(d.inputHash, f.attempt.inputHash);
+  assert.equal(d.evaluatedThroughVersion, 5);
+  assert.deepEqual(d.selectedCandidateIds, []);
+  assert.deepEqual(d.opportunities, []);
+  assert.deepEqual(d.nudges, []);
+  assert.deepEqual(f.snapshot, before);
+  assert.equal(Object.hasOwn(d, 'worldEvents'), false);
+  assert.equal(Object.hasOwn(d, 'actorUpdates'), false);
+});
+test('every candidate must appear exactly once selected or deferred', () => {
+  const f = fixture();
+  for (const raw of [
+    { ...f.quiet, deferred: [] },
+    { ...f.quiet, deferred: [f.quiet.deferred[0]] },
+    { ...f.coordinate, selectedCandidateIds: ['candidate-a', 'candidate-a'] },
+    { ...f.coordinate, deferred: [{ candidateId: 'candidate-a', reason: 'double counted' }] },
+    { ...f.quiet, deferred: [...f.quiet.deferred, { candidateId: 'invented', reason: 'unknown' }] },
+    { ...f.quiet, deferred: [...f.quiet.deferred, f.quiet.deferred[0]] },
+  ])
+    rejected(f, raw);
+  assert.equal(f.parse(f.coordinate).selectedCandidateIds[0], 'candidate-a');
+});
+test('typed nudge uses the selected candidate actor and only that candidate already-authorized source subset', () => {
+  const f = fixture();
+  assert.deepEqual(f.parse(f.coordinate).nudges, f.coordinate.nudges);
+  for (const n of [
+    { ...f.coordinate.nudges[0], actorId: 'b' },
+    { ...f.coordinate.nudges[0], candidateId: 'candidate-b' },
+    { ...f.coordinate.nudges[0], basisSourceIds: ['b-source'] },
+    { ...f.coordinate.nudges[0], basisSourceIds: ['unseen-private-source'] },
+    { ...f.coordinate.nudges[0], basisSourceIds: [] },
+  ])
+    rejected(f, { ...f.coordinate, nudges: [n] });
+});
+test('director selection cannot override a scoped deterministic blocker', () => {
+  const f = fixture();
+  f.snapshot.blockers = [
+    {
+      scope: { kind: 'actor', actorId: 'a' },
+      reason: 'unknown_attempt',
+      sourceId: 'pending-a',
+      reconsiderOn: [],
+    },
+  ];
+  rejected(f, f.coordinate);
+  assert.equal(f.parse(f.quiet).mode, 'quiet');
+  assert.deepEqual(
+    f.parse({
+      ...f.coordinate,
+      selectedCandidateIds: ['candidate-b'],
+      deferred: [{ candidateId: 'candidate-a', reason: '原结果尚不明确' }],
+      nudges: [],
+    }).selectedCandidateIds,
+    ['candidate-b'],
+  );
+});
+test('global private audit and opportunity prose are never converted into free-text NPC instructions', () => {
+  const f = fixture(),
+    d = f.parse({
+      ...f.coordinate,
+      audit: { reason: 'PRIVATE_AUDIT_NOT_FOR_NPC', basisSourceIds: ['b-source'] },
+    });
+  assert.deepEqual(Object.keys(d.nudges[0]!).sort(), [
+    'actorId',
+    'basisSourceIds',
+    'candidateId',
+    'kind',
+  ]);
+  assert.doesNotMatch(JSON.stringify(d.nudges), /PRIVATE_AUDIT|DIRECTOR_PRIVATE_B/);
+  for (const extra of [
+    { intent: 'PRIVATE_AUDIT_NOT_FOR_NPC' },
+    { text: 'DIRECTOR_PRIVATE_B' },
+    { parameters: { secret: 'DIRECTOR_PRIVATE_B' } },
+    { title: '用标题夹带隐私' },
+    { description: '不允许把全局草案直接发给NPC' },
+  ])
+    rejected(f, { ...f.coordinate, nudges: [{ ...f.coordinate.nudges[0], ...extra }] });
+  rejected(f, { ...f.coordinate, intent: '自由导演命令' });
+});
+test('candidate cannot be nudged twice and duplicate source references are not accepted as a strict set', () => {
+  const f = fixture();
+  rejected(f, { ...f.coordinate, nudges: [...f.coordinate.nudges, ...f.coordinate.nudges] });
+  rejected(f, {
+    ...f.coordinate,
+    nudges: [{ ...f.coordinate.nudges[0], basisSourceIds: ['a-source', 'a-source'] }],
+  });
+});
+test('global audit source references also obey the same unique-set protocol as the durable decision', () => {
+  const f = fixture();
+  rejected(f, { ...f.quiet, audit: { reason: 'audit', basisSourceIds: ['a-source', 'a-source'] } });
+});
+test('bounded opportunity is planning only, limited to existing actor/place/activity and authorized basis', () => {
+  const f = fixture(),
+    d = f.parse(f.bounded);
+  assert.deepEqual(d.opportunities, [f.opportunity]);
+  for (const bad of [
+    { ...f.opportunity, participantActorIds: ['new-important-person'] },
+    { ...f.opportunity, placeIds: ['new-city'] },
+    { ...f.opportunity, activity: 'execute-world-change' },
+    { ...f.opportunity, basisSourceIds: ['real-profile-or-unseen-source'] },
+    { ...f.opportunity, participantActorIds: [] },
+    { ...f.opportunity, basisSourceIds: [] },
+  ])
+    rejected(f, { ...f.bounded, opportunities: [bad] });
+});
+test('opportunity cannot claim active status, real result, private attitude, player agreement or execution fields', () => {
+  const f = fixture();
+  for (const extra of [
+    { status: 'active' },
+    { sourceEventIds: ['fabricated-event'] },
+    { resultIds: ['fabricated-result'] },
+    { playerAgreed: true },
+    { actorAttitude: 'A已经同意' },
+    { worldFacts: ['已经到场'] },
+    { statements: [{ actorId: 'a', text: '伪NPC对白' }] },
+  ])
+    rejected(f, { ...f.bounded, opportunities: [{ ...f.opportunity, ...extra }] });
+  for (const extra of [{ worldEvents: [] }, { actorUpdates: [] }, { playerFacts: [] }])
+    rejected(f, { ...f.bounded, ...extra });
+});
+test('opportunity IDs, participants, places and basis source lists cannot contain ambiguous duplicates', () => {
+  const f = fixture();
+  rejected(f, {
+    ...f.bounded,
+    opportunities: [f.opportunity, { ...f.opportunity, title: 'same id different draft' }],
+  });
+  for (const bad of [
+    { ...f.opportunity, participantActorIds: ['a', 'a'] },
+    { ...f.opportunity, placeIds: ['shop', 'shop'] },
+    { ...f.opportunity, basisSourceIds: ['a-source', 'a-source'] },
+  ])
+    rejected(f, { ...f.bounded, opportunities: [bad] });
+});
+test('at most two finite opportunities; quiet/coordinate cannot quietly introduce a new episode', () => {
+  const f = fixture();
+  rejected(f, {
+    ...f.bounded,
+    opportunities: [
+      f.opportunity,
+      { ...f.opportunity, id: 'op2' },
+      { ...f.opportunity, id: 'op3' },
+    ],
+  });
+  rejected(f, { ...f.quiet, opportunities: [f.opportunity] });
+  rejected(f, { ...f.coordinate, opportunities: [f.opportunity] });
+  rejected(f, { ...f.bounded, opportunities: [] });
+  rejected(f, {
+    ...f.quiet,
+    selectedCandidateIds: ['candidate-a'],
+    deferred: [f.quiet.deferred[1]],
+  });
+  rejected(f, { ...f.quiet, nudges: f.coordinate.nudges });
+});
+test('an actor authored candidate cannot substitute for a verified global authored catalogue', () => {
+  const f = fixture(),
+    raw = { ...f.bounded, opportunities: [{ ...f.opportunity, authoredEventKey: 'authored-key' }] };
+  rejected(f, raw);
+  f.snapshot.candidates.push({
+    ...f.snapshot.candidates[0]!,
+    id: 'authored-candidate',
+    source: 'authored_event',
+    episodeId: 'authored-key',
+  });
+  rejected(f, {
+    ...raw,
+    deferred: [...f.quiet.deferred, { candidateId: 'authored-candidate', reason: '待编排' }],
+  });
+});
+test('decision metadata comes from the protected attempt/snapshot and cannot be injected in model JSON', () => {
+  const f = fixture();
+  for (const extra of [
+    { id: 'model-owned-id' },
+    { worldId: 'foreign' },
+    { engineEpoch: 999 },
+    { worldVersion: 999 },
+    { inputHash: 'forged' },
+    { evaluatedThroughVersion: 999 },
+  ])
+    rejected(f, { ...f.quiet, ...extra });
+  for (const changed of [{ worldId: 'foreign' }, { engineEpoch: 3 }, { expectedWorldVersion: 6 }])
+    assert.throws(() => parseDirectorDecision(f.snapshot, f.quiet, { ...f.attempt, ...changed }), {
+      code: 'INVALID_DIRECTOR_PROPOSAL',
+    });
+  rejected(f, {
+    ...f.quiet,
+    audit: { reason: 'unproved', basisSourceIds: ['outside-authorized-global-view'] },
+  });
+});
+test('malformed/nonobject/extra-unknown JSON is explicit invalid output, without extracting a fake successful object', () => {
+  const f = fixture();
+  for (const raw of [
+    'not JSON',
+    '```json\n' + JSON.stringify(f.quiet) + '\n```',
+    null,
+    [],
+    0,
+    { ...f.quiet, extra: 'not permitted' },
+  ])
+    rejected(f, raw);
+});
+test('model adapter performs input preflight without spending, uses JSON output budget, and returns the original raw response', async () => {
+  const f = fixture(),
+    calls: {
+      messages: ModelMessage[];
+      signal?: AbortSignal;
+      tokens?: number;
+      output?: ModelOutputOptions;
+    }[] = [];
+  const raw = JSON.stringify(f.quiet);
+  const model: TextModel = {
+    async complete(messages, signal, tokens, output) {
+      calls.push({ messages, signal, tokens, output });
+      return raw;
+    },
+  };
+  const adapter = new WorldDirectorAgentModel(model),
+    controller = new AbortController();
+  adapter.validateInput(f.snapshot);
+  assert.equal(calls.length, 0);
+  assert.equal(await adapter.decide(f.snapshot, controller.signal), raw);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.tokens, 4096);
+  assert.deepEqual(calls[0]!.output, { format: 'json_object' });
+  assert.equal(calls[0]!.signal, controller.signal);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(payload.promptVersion, DIRECTOR_RUNTIME_PROMPT_VERSION);
+  assert.match(calls[0]!.messages[0]!.content, /quiet是正常决定/);
+  assert.match(calls[0]!.messages[0]!.content, /全局audit只供导演审计/);
+});
+test('director request whitelists fictional fields at the root and inside persistent actor state', async () => {
+  const f = fixture(),
+    sent: ModelMessage[][] = [];
+  const model: TextModel = {
+    async complete(messages) {
+      sent.push(messages);
+      return JSON.stringify(f.quiet);
+    },
+  };
+  const snapshot = {
+    ...f.snapshot,
+    profile: { full: 'REAL_PROFILE_SENTINEL' },
+    interviewTranscript: 'REAL_PRIVATE_INTERVIEW_SENTINEL',
+  };
+  const state = snapshot.actorStates[0]!;
+  Object.assign(state, { privateProfile: 'NESTED_REAL_PROFILE_SENTINEL' });
+  state.goals.push({
+    id: 'g',
+    summary: '已授权目标',
+    status: 'active',
+    sourceIds: ['a-source'],
+    resultIds: [],
+  });
+  Object.assign(state.goals[0]!, { interview: 'NESTED_PRIVATE_INTERVIEW_SENTINEL' });
+  state.responsibilities.push({
+    id: 'r',
+    revision: 0,
+    subject: { kind: 'request', id: 'request' },
+    summary: '原请求',
+    status: 'open',
+    waitingOn: 'player',
+    sourceIds: ['a-source'],
+    nextCheck: [],
+  });
+  state.decisions.push({
+    id: 'd',
+    responsibilityId: 'r',
+    responsibilityRevision: 0,
+    kind: 'deferred',
+    sourceId: 'a-source',
+    quote: '稍后决定',
+  });
+  await new WorldDirectorAgentModel(model).decide(snapshot);
+  assert.doesNotMatch(
+    JSON.stringify(sent),
+    /REAL_PROFILE_SENTINEL|REAL_PRIVATE_INTERVIEW_SENTINEL|NESTED_PRIVATE_INTERVIEW_SENTINEL/,
+  );
+  const payload = JSON.parse(sent[0]![1]!.content);
+  assert.deepEqual(payload.cast, f.snapshot.cast);
+  assert.equal(payload.worldSetting, f.snapshot.worldSetting);
+  assert.equal(payload.actorStates[0].responsibilities[0].revision, 0);
+  assert.equal(payload.actorStates[0].decisions[0].responsibilityRevision, 0);
+  assert.equal(payload.actorStates[0].decisions[0].quote, '稍后决定');
+  // Fictional director-only knowledge is expected here; it is not an NPC payload.
+  assert.match(sent[0]![1]!.content, /DIRECTOR_PRIVATE_B/);
+});
+test('oversize context and incomplete observed snapshot fail before any model call or hidden changes truncation', async () => {
+  const f = fixture();
+  let calls = 0;
+  const adapter = new WorldDirectorAgentModel({
+    async complete() {
+      calls++;
+      return JSON.stringify(f.quiet);
+    },
+  });
+  const large = {
+    ...f.snapshot,
+    observations: [
+      { sourceId: 'long', text: 'x'.repeat(65000), kind: 'fact' as const, knownByActorIds: ['a'] },
+    ],
+  };
+  assert.throws(() => adapter.validateInput(large), { code: 'DIRECTOR_CONTEXT_LIMIT' });
+  await assert.rejects(async () => adapter.decide(large), { code: 'DIRECTOR_CONTEXT_LIMIT' });
+  assert.throws(() => adapter.validateInput({ ...f.snapshot, observedThroughVersion: 4 }), {
+    code: 'INVALID_DIRECTOR_PROPOSAL',
+  });
+  assert.equal(calls, 0);
+  assert.equal(large.observations[0]!.text.length, 65000);
+});
+test('structurally impossible complete candidate partition is rejected during preflight before spending', () => {
+  const f = fixture();
+  const crowded = {
+    ...f.snapshot,
+    candidates: Array.from({ length: 141 }, (_, i) => ({
+      ...f.snapshot.candidates[0]!,
+      id: 'c' + i,
+    })),
+  };
+  let calls = 0;
+  const adapter = new WorldDirectorAgentModel({
+    async complete() {
+      calls++;
+      return JSON.stringify(f.quiet);
+    },
+  });
+  assert.throws(() => adapter.validateInput(crowded));
+  assert.throws(() =>
+    adapter.validateInput({
+      ...f.snapshot,
+      candidates: [f.snapshot.candidates[0]!, f.snapshot.candidates[0]!],
+    }),
+  );
+  const quietCapacity = { ...f.snapshot, candidates: crowded.candidates.slice(0, 128) };
+  adapter.validateInput(quietCapacity);
+  assert.equal(
+    parseDirectorDecision(
+      quietCapacity,
+      {
+        ...f.quiet,
+        deferred: quietCapacity.candidates.map((c) => ({ candidateId: c.id, reason: 'quiet' })),
+      },
+      f.attempt,
+    ).deferred.length,
+    128,
+  );
+  assert.equal(calls, 0);
+});
+
+test('system protocol gives a parseable complete quiet example without repairing malformed audit', async () => {
+  const f = fixture();
+  const empty = { ...f.snapshot, candidates: [] };
+  let system = '';
+  const response = JSON.stringify({ ...f.quiet, deferred: [], audit: {} });
+  const adapter = new WorldDirectorAgentModel({
+    async complete(messages) {
+      system = messages[0]!.content;
+      return response;
+    },
+  });
+  assert.equal(await adapter.decide(empty), response, 'adapter preserves even invalid paid output');
+  assert.throws(() => parseDirectorDecision(empty, response, f.attempt), {
+    code: 'INVALID_DIRECTOR_PROPOSAL',
+  });
+  const example = JSON.parse(system.slice(system.lastIndexOf('\n') + 1));
+  assert.equal(example.mode, 'quiet');
+  assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
+  rejected(f, example); // An empty example cannot silently discard the real candidates.
+  assert.match(system, /没有候选且决定quiet/);
+  assert.match(system, /不是要求安静或制造机会/);
+  assert.match(system, /candidates为空也不等于没有合法作者机会/);
+  assert.match(system, /不能省略audit、输出audit:\{\}/);
+  assert.match(system, /reason必须非空/);
+  assert.match(system, /所有真实候选逐项deferred/);
+  assert.match(system, /nativeTurn存在时仍禁止opportunity和nudge/);
+});
+
+test('quiet audit remains mandatory and source-authorized regardless of candidate count', () => {
+  const f = fixture();
+  const empty = { ...f.snapshot, candidates: [] };
+  const base = { ...f.quiet, deferred: [] };
+  for (const audit of [
+    undefined,
+    {},
+    { reason: '', basisSourceIds: [] },
+    { reason: '  ', basisSourceIds: [] },
+    { reason: 'quiet', basisSourceIds: ['invented-source'] },
+    { reason: 'quiet', basisSourceIds: [], extra: 'not allowed' },
+  ])
+    assert.throws(() => parseDirectorDecision(empty, { ...base, audit }, f.attempt), {
+      code: 'INVALID_DIRECTOR_PROPOSAL',
+    });
+  assert.equal(
+    parseDirectorDecision(
+      empty,
+      { ...base, audit: { reason: 'No sufficient new basis', basisSourceIds: [] } },
+      f.attempt,
+    ).mode,
+    'quiet',
+  );
+});
+
+test('output reference catalogue keeps empty candidates separate from actors and eligible author events', async () => {
+  const { createHash } = await import('node:crypto');
+  const { compileAuthoredAgentMaterials } =
+    await import('../src/modules/world/domain/authored-agent-material.ts');
+  const f = fixture();
+  f.snapshot.candidates = [];
+  f.snapshot.authoredMaterials = compileAuthoredAgentMaterials(
+    {
+      scope: { worldId: 'world', engineEpoch: 2, worldVersion: 5 },
+      actualActorIds: ['a', 'b'],
+      actualPlaceIds: ['home', 'shop'],
+      source: {
+        origin: {
+          workId: 'work',
+          publicationVersion: 0,
+          draftVersion: 0,
+          contentHash: 'a'.repeat(64),
+        },
+        openingEventKey: 'opening_plan',
+        timeline: null,
+        conditions: [],
+        actorKeys: ['ak'],
+        contacts: [{ actorKey: 'ak', actorId: 'a' }],
+        initialActorIds: ['a', 'b'],
+        initialPlaceKeys: ['home'],
+        places: [{ key: 'home', name: 'Home' }],
+        history: [],
+        nodes: ['opening_plan', 'blocked', 'occupied'].map((key) => ({
+          key,
+          kind: 'candidate',
+          title: key,
+          script: 'Unperformed authored intention',
+          editorialIntent: 'Optional, not completed',
+          actorKeys: ['ak'],
+          prerequisites: [],
+          mutuallyExclusiveNodeKeys: [],
+          intent: { kind: 'director_event' },
+        })),
+      },
+    },
+    (text) => createHash('sha256').update(text).digest('hex'),
+  );
+  f.snapshot.authoredEligibility = f.snapshot.authoredMaterials.materials.map((m) => ({
+    nodeKey: m.ref.nodeKey,
+    nodeHash: m.ref.nodeHash,
+    status: m.ref.nodeKey === 'blocked' ? 'blocked' : 'eligible',
+    reasons: [],
+    basisSourceIds: [],
+    qualificationKey: 'b'.repeat(64),
+  }));
+  f.snapshot.occupiedAuthoredEventKeys = ['occupied'];
+  let payload: any,
+    system = '';
+  const adapter = new WorldDirectorAgentModel({
+    async complete(messages) {
+      system = messages[0]!.content;
+      payload = JSON.parse(messages[1]!.content);
+      return '{}';
+    },
+  });
+  await adapter.decide(f.snapshot);
+  const catalog = payload.outputReferenceCatalog;
+  assert.deepEqual(catalog.candidateIds, []);
+  assert.deepEqual(catalog.actorIds, ['a', 'b']);
+  assert.deepEqual(catalog.placeIds, ['home', 'shop']);
+  assert.equal(catalog.eligibleAuthoredEvents.length, 1);
+  const ref = catalog.eligibleAuthoredEvents[0];
+  assert.equal(ref.authoredEventKey, 'opening_plan');
+  assert.match(ref.sourceId, /^authored:[a-f0-9]{64}$/);
+  assert.match(system, /selectedCandidateIds, deferred, and nudges MUST ALL be \[\]/);
+  assert.match(system, /Never omit authoredEventKey for authored evidence/);
+  const decision = {
+    ...f.bounded,
+    deferred: [],
+    opportunities: [
+      { ...f.opportunity, authoredEventKey: ref.authoredEventKey, basisSourceIds: [ref.sourceId] },
+    ],
+  };
+  assert.equal(f.parse(decision).mode, 'bounded_opportunity');
+  rejected(f, { ...decision, selectedCandidateIds: ['a', 'b'] });
+  rejected(f, { ...decision, deferred: [{ candidateId: 'a', reason: 'Not a candidate' }] });
+  const { authoredEventKey: _key, ...missingKey } = decision.opportunities[0]!;
+  rejected(f, { ...decision, opportunities: [missingKey] });
+  rejected(f, {
+    ...decision,
+    opportunities: [{ ...decision.opportunities[0], authoredEventKey: 'a' }],
+  });
+});
+
+test('output candidate index is copied from candidate IDs rather than actor identities', async () => {
+  const f = fixture();
+  let payload: any;
+  await new WorldDirectorAgentModel({
+    async complete(messages) {
+      payload = JSON.parse(messages[1]!.content);
+      return '{}';
+    },
+  }).decide(f.snapshot);
+  assert.deepEqual(payload.outputReferenceCatalog.candidateIds, ['candidate-a', 'candidate-b']);
+  assert.deepEqual(payload.outputReferenceCatalog.eligibleAuthoredEvents, []);
+});

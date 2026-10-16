@@ -1,0 +1,166 @@
+.card {
+  background: var(--pub-surface, #fff);
+  border: 1px solid var(--pub-border, #d8dee9);
+  border-radius: 16px;
+  padding: 20px;
+  min-width: 0;
+}
+
+.header {
+  margin-bottom: 16px;
+}
+.header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.header p {
+  margin: 4px 0 0;
+  color: var(--pub-secondary, #566276);
+  font-size: 13px;
+}
+.list {
+  display: grid;
+  gap: 12px;
+}
+.place {
+  border: 1px solid var(--pub-border, #d8dee9);
+  border-radius: 12px;
+  padding: 14px;
+  min-width: 0;
+}
+.mainRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 14px;
+  align-items: center;
+}
+.nameField {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+.nameField input,
+.details textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--pub-border, #d8dee9);
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: #fff;
+  color: var(--pub-text, #172033);
+  font: inherit;
+}
+.nameField input {
+  height: 42px;
+  font-weight: 400;
+  font-size: 15px;
+}
+.nameField input:focus,
+.details textarea:focus {
+  outline: 2px solid var(--pub-ring, #245fe5);
+  outline-offset: 1px;
+}
+.imageField {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 76px;
+  border: 1px dashed var(--pub-border, #d8dee9);
+  border-radius: 9px;
+  overflow: hidden;
+  background: #f5f7fb;
+  color: var(--pub-secondary, #566276);
+  text-align: center;
+  font-size: 12px;
+}
+.imageField img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+.actions button,
+.addButton {
+  border: 1px solid var(--pub-border, #d8dee9);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--pub-text, #172033);
+  padding: 8px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 13px;
+}
+.actions button:hover:not(:disabled),
+.addButton:hover:not(:disabled) {
+  border-color: var(--pub-accent, #245fe5);
+  color: var(--pub-accent, #245fe5);
+}
+.actions button:disabled,
+.addButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.details {
+  margin-top: 9px;
+  color: var(--pub-secondary, #566276);
+  font-size: 12px;
+}
+.details summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.details label {
+  display: block;
+  margin-top: 8px;
+}
+.details textarea {
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.addButton {
+  margin-top: 14px;
+  color: var(--pub-accent, #245fe5);
+}
+.error {
+  margin: 0 0 12px;
+  color: var(--pub-error, #a32632);
+  font-size: 13px;
+}
+.hiddenInput,
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .card {
+    padding: 14px;
+  }
+  .mainRow {
+    grid-template-columns: minmax(0, 1fr) 92px;
+    gap: 10px;
+  }
+  .imageField {
+    width: 92px;
+    height: 66px;
+  }
+  .actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}

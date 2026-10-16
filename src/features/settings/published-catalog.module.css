@@ -1,0 +1,214 @@
+.cover {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+  margin-bottom: 16px;
+}
+.catalog {
+  --catalog-surface: #10233d;
+  --catalog-alt: #152b46;
+  --catalog-border: #294363;
+  --catalog-border-hover: #5b97ff;
+  --catalog-text: #f3f7ff;
+  --catalog-secondary: #b1c2d9;
+  --catalog-muted: #91a8c4;
+  --catalog-accent: #347bfa;
+  --catalog-accent-hover: #5b97ff;
+  --catalog-ink: #081426;
+  --catalog-focus: #9cc6ff;
+  --catalog-error: #ffb4ab;
+  width: 100%;
+  max-width: 430px;
+  min-width: 0;
+  margin-inline: auto;
+  color: var(--catalog-text);
+  font: inherit;
+}
+.catalog *,
+.catalog *::before,
+.catalog *::after {
+  box-sizing: border-box;
+}
+.header {
+  margin-bottom: 16px;
+}
+.header h2 {
+  margin: 0 0 6px;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.header p,
+.state {
+  color: var(--catalog-secondary);
+  font-size: 15px;
+  line-height: 1.75;
+}
+.header p {
+  margin: 0;
+}
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--catalog-border);
+  border-radius: 18px;
+  background: var(--catalog-surface);
+  overflow-wrap: anywhere;
+}
+.card h3 {
+  margin: 10px 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+.identity {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--catalog-secondary);
+}
+.identity span {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--catalog-muted);
+}
+.hook {
+  margin: 0 0 14px;
+  font-size: 16px;
+  line-height: 1.75;
+}
+.details {
+  margin: 0 0 16px;
+  border-top: 1px solid var(--catalog-border);
+  font-size: 15px;
+  line-height: 1.8;
+}
+.details summary {
+  min-height: 44px;
+  padding: 10px 0;
+  color: var(--catalog-secondary);
+  cursor: pointer;
+}
+.details summary:hover,
+.details summary:active {
+  color: var(--catalog-text);
+}
+.details div p {
+  margin: 6px 0 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.experience {
+  color: var(--catalog-secondary);
+}
+.start,
+.reload,
+.next {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 11px 14px;
+  border: 1px solid var(--catalog-accent);
+  border-radius: 11px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  color: var(--catalog-ink);
+  background: var(--catalog-accent);
+}
+.start:hover:not(:disabled) {
+  background: var(--catalog-accent-hover);
+  border-color: var(--catalog-accent-hover);
+}
+.start:active:not(:disabled) {
+  outline: 1px solid var(--catalog-ink);
+  outline-offset: -3px;
+}
+.reload,
+.next {
+  background: var(--catalog-alt);
+  color: var(--catalog-text);
+  border-color: var(--catalog-border);
+}
+.reload:hover:not(:disabled),
+.next:hover:not(:disabled) {
+  border-color: var(--catalog-border-hover);
+}
+.reload:active:not(:disabled),
+.next:active:not(:disabled) {
+  background: var(--catalog-surface);
+}
+.start:disabled,
+.reload:disabled,
+.next:disabled {
+  cursor: not-allowed;
+  color: var(--catalog-muted);
+  background: var(--catalog-alt);
+  border-color: var(--catalog-border);
+}
+.start:focus-visible,
+.reload:focus-visible,
+.next:focus-visible,
+.details summary:focus-visible {
+  outline: 2px solid var(--catalog-focus);
+  outline-offset: 3px;
+}
+.state {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.state p,
+.notice p {
+  margin: 0 0 12px;
+}
+.notice {
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--catalog-error);
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--catalog-error);
+  overflow-wrap: anywhere;
+}
+.refresh {
+  margin-top: 16px;
+}
+.next {
+  width: 100%;
+  margin-top: 16px;
+}
+@media (max-width: 420px) {
+  .card {
+    padding: 16px;
+  }
+  .card h3 {
+    font-size: 21px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .start,
+  .reload,
+  .next {
+    transition: none;
+  }
+}

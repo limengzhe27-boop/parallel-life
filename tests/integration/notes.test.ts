@@ -120,14 +120,17 @@ test('real note transactions: persistence, idempotent replay, per-note versions 
     // 6) 另一个用户既不能读也不能写
     await assert.rejects(repo.get({ userId: other }, worldId), { code: 'NOT_FOUND' });
     await assert.rejects(
-      repo.saveNote({ userId: other }, {
-        commandId: randomUUID(),
-        worldId,
-        id: randomUUID(),
-        title: '越权',
-        text: '',
-        expectedVersion: 0,
-      }),
+      repo.saveNote(
+        { userId: other },
+        {
+          commandId: randomUUID(),
+          worldId,
+          id: randomUUID(),
+          title: '越权',
+          text: '',
+          expectedVersion: 0,
+        },
+      ),
       { code: 'NOT_FOUND' },
     );
 

@@ -143,6 +143,31 @@
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
+.buttonGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.secondaryButton {
+  background: transparent !important;
+  border-color: #3b5a7e !important;
+  color: #bfd4ed !important;
+}
+.secondaryButton:hover:not(:disabled) {
+  background: #152b45 !important;
+  border-color: #5d87b8 !important;
+  color: #f2f5fb !important;
+}
+.versionNotice {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  background: #0d2038;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  color: #9abedb;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .loadError {
   margin-bottom: 16px;
   padding: 14px;

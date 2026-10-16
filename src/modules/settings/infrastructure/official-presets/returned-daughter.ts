@@ -3,7 +3,7 @@ import type { OfficialLifePack } from '../../application/official-life-pack.ts';
 export const returnedDaughter: OfficialLifePack = {
   card: {
     id: 'returned-daughter',
-    version: 2,
+    version: 3,
     title: '刚回家的真千金',
     hook: '你回到了亲生父母家。今晚，却还是她的生日宴。',
     identityLabel: '24岁 · 刚找回身世的女儿',
@@ -285,6 +285,33 @@ export const returnedDaughter: OfficialLifePack = {
         key: 'birthday',
         title: '两个生日',
         text: '今天是明珠生日。我的生日还在两个月以后。身世已经确认，不需要一遍遍重新证明。',
+      },
+    ],
+    matters: [
+      {
+        key: 'banquet_appearance',
+        span: 'near_term',
+        title: '明珠的生日宴席',
+        description: '周岚希望你出席生日宴并接受公开介绍，需要当面明确自己的边界与身份认知。',
+        relatedPlaceKey: 'hotel',
+        relatedActorKeys: ['zhoulan'],
+        relatedInvitationKey: 'birthday',
+      },
+      {
+        key: 'visit_chenyu',
+        span: 'near_term',
+        title: '看望养母陈玉',
+        description: '陈玉今晚20:00下班，回到旧居见她一面，把近况和心里话说开。',
+        relatedPlaceKey: 'chen_home',
+        relatedActorKeys: ['chenyu'],
+      },
+      {
+        key: 'handcraft_binding',
+        span: 'pursuit',
+        title: '守护手工装帧的记忆与手艺',
+        description: '将印刷店沉淀下的装帧手艺传承下去，不因身世变故而丢掉自己立足的技术与尊严。',
+        relatedPlaceKey: 'chen_home',
+        relatedActorKeys: ['chenyu'],
       },
     ],
   },

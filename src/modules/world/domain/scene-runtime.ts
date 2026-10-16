@@ -126,9 +126,7 @@ export function attributesPlayerStepToActor(
 }
 
 export function scenePrivateThought(text: string): boolean {
-  return /^\s*\u6211(?:\u5fc3\u91cc|\u5185\u5fc3|\u6697\u81ea|\u9ed8\u9ed8\u60f3|\u5077\u5077\u60f3)/u.test(
-    text,
-  );
+  return /^\s*我(?:(?:在)?(?:心里|内心|心中)|暗自|默默想|偷偷想)/u.test(text);
 }
 export function sceneWhisper(text: string): boolean {
   return /\u8033\u8bed|(?:\u6084\u6084|\u5c0f\u58f0|\u4f4e\u58f0|\u5077\u5077)(?:\u544a\u8bc9|\u8bf4)|\u538b\u4f4e\u58f0\u97f3/u.test(

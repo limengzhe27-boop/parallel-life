@@ -39,4 +39,3 @@ test('write origin must explicitly match configured application origin', () => {
     ),
   );
 });
-
