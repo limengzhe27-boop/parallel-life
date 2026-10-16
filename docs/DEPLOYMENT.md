@@ -1,3 +1,7 @@
+## 2026-10-16 · 44-95 已有事件安排复查接线（部署中）
+
+集成Q组件并接原人物snapshot/发送门/kernel与原actor_plan调度，真实收据与本人授权状态派生关联引用；仅private模型上下文，不复制私聊原文。原条件满足时重新考虑既有blocked计划，actionId=null、不造行动/整体完成；quiet保留责任且同条件持久去重。B组件仍隔离待修正。check3147/build、局部纯67、实际原advance旅程包含的PG8通过；0真实模型。2026-10-16T04:58:09.486Z生产只读84/84校验和、epoch2=0、保护数据未变，无新SQL。最终READY与公网接续主登记，整体44未完成。
+
 ## 2026-10-16 · 44-93 玩家同轮承接事件（部署中）
 
 原player私聊保持原文，server单manifest与付费前不可变request/attempt绑定沿同一NPC内核完成；显式本人决定才消费，普通回复保持pending，后台不重复联系；unknown/invalid/stale不换ID重买，原raw恢复不再调用模型。check3129/build、真实playerPG7与旧意图PG30分别过，纯协议73/模型18为局部检查。2026-10-16T04:15:44.472Z生产84/84逐项checksum、RLS/FORCE/ACL核实，84 c16610235ea73d79505bdcc2ae83d63badfc414e7300e45c4b5a2749238f4b3b，保护原稿/副本/存档未变、epoch2=0。0真实模型/生产测试存档，READY与公网接续主登记。整体44仍未完成，94后续生命周期组件待接线，见44-93报告。

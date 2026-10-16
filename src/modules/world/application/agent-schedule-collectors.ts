@@ -1,3 +1,4 @@
+import { agentConditionsReady } from './agent-condition-checks.ts';
 import type { AgentSnapshot } from './agent-runtime-ports.ts';
 import type { RegisteredAgentCandidateSource } from './schedule-agents.ts';
 import type {
@@ -189,41 +190,14 @@ function eligibility(context: ActorContext, action: AgentAction, proposal = empt
 function checksReady(context: ActorContext, responsibility: AgentResponsibility) {
   if (!responsibility.nextCheck.length || !conditionTimesValid(responsibility.nextCheck))
     return false;
-  const state = context.snapshot.state;
-  const used = new Set(
-    [
-      ...state.goals,
-      ...state.actions,
-      ...state.plans,
-      ...state.responsibilities,
-      ...state.decisions,
-    ]
-      .map((item) => item.id)
-      .concat(context.snapshot.redactedStateIds),
+  return agentConditionsReady(
+    context.snapshot,
+    responsibility.nextCheck,
+    responsibility.sourceIds,
+    context.results,
+    context.position?.placeId,
+    [responsibility.id],
   );
-  let probeId = '__schedule_condition_probe__';
-  while (used.has(probeId)) probeId += '_';
-  const proposal = empty();
-  proposal.goals.push({
-    id: probeId,
-    summary: '',
-    status: 'active',
-    resultIds: [],
-    sourceIds: responsibility.sourceIds,
-  });
-  const action: AgentAction = {
-    id: probeId,
-    goalId: probeId,
-    capability: '__condition_probe__',
-    targetIds: [],
-    parameters: {},
-    preconditions: responsibility.nextCheck,
-    dependsOnActionIds: [],
-    handlesResponsibilityIds: [responsibility.id],
-    status: 'ready',
-    sourceIds: responsibility.sourceIds,
-  };
-  return eligibility(context, action, proposal);
 }
 function evidence(
   context: ActorContext,
@@ -281,14 +255,16 @@ async function candidate(
     actionId: string | null;
     sourceIds: string[];
     responsibilities: readonly AgentResponsibility[];
+    episodeIds?: string[];
     semantic: unknown;
     reason: string;
   },
 ): Promise<AgentCandidate> {
   const snapshot = context.snapshot;
-  const episodes = sorted(
-    input.responsibilities.filter((r) => r.subject.kind === 'episode').map((r) => r.subject.id),
-  );
+  const episodes = sorted([
+    ...input.responsibilities.filter((r) => r.subject.kind === 'episode').map((r) => r.subject.id),
+    ...(input.episodeIds ?? []),
+  ]);
   const resourceIds = sorted(
     input.responsibilities
       .filter((r) => r.subject.kind === 'appointment' || r.subject.kind === 'matter')
@@ -412,6 +388,63 @@ async function plans(view: SchedulingView, context: ActorContext) {
   }
   return out;
 }
+async function episodePlanReconsiderations(
+  view: SchedulingView,
+  context: ActorContext,
+  existing: AgentCandidate[],
+) {
+  const out: AgentCandidate[] = [];
+  const state = context.snapshot.viewState;
+  for (const plan of state.plans) {
+    const refs = (context.snapshot.episodeFollowUps ?? []).filter((f) =>
+      f.planIds.includes(plan.id),
+    );
+    if (
+      !refs.length ||
+      !['active', 'waiting', 'blocked'].includes(plan.status) ||
+      !context.basis(plan) ||
+      !conditionTimesValid(plan.triggers) ||
+      !state.goals.some(
+        (g) =>
+          g.id === plan.goalId && ['active', 'deferred'].includes(g.status) && context.basis(g),
+      ) ||
+      (plan.nextActionId && existing.some((c) => c.actionId === plan.nextActionId)) ||
+      !agentConditionsReady(
+        context.snapshot,
+        plan.triggers,
+        plan.sourceIds,
+        context.results,
+        context.position?.placeId,
+      )
+    )
+      continue;
+    const proof = evidence(context, plan.triggers);
+    const sourceIds = sorted([...plan.sourceIds, ...proof.sourceIds]);
+    if (sourceIds.some((id) => !context.sources.has(id))) continue;
+    out.push(
+      await candidate(view, context, {
+        source: 'actor_plan',
+        actionId: null,
+        episodeIds: refs.map((f) => f.episodeId),
+        sourceIds,
+        responsibilities: [],
+        semantic: {
+          reconsiderPlan: plan,
+          episodeRefs: refs.map((f) => ({
+            requestId: f.requestId,
+            episodeId: f.episodeId,
+            choice: f.choice,
+          })),
+          evidence: proof.values,
+        },
+        reason:
+          '本人已考虑事件的既有计划出现明确复查依据；只重新考虑安排，不推定执行、同意或事件完成。',
+      }),
+    );
+  }
+  return out;
+}
+
 async function responsibilities(view: SchedulingView, actor: ActorRead, context: ActorContext) {
   const out: AgentCandidate[] = [];
   for (const responsibility of context.snapshot.viewState.responsibilities) {
@@ -616,7 +649,10 @@ export function createAgentScheduleSources(
                 : [];
             const candidates = (
               await (source === 'actor_plan'
-                ? plans(view, context)
+                ? plans(view, context).then(async (ready) => [
+                    ...ready,
+                    ...(await episodePlanReconsiderations(view, context, ready)),
+                  ])
                 : source === 'responsibility'
                   ? responsibilities(view, actor, context)
                   : observations(view, context))

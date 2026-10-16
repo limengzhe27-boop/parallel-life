@@ -1,3 +1,4 @@
+import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
 import { bindPlayerEpisodeAttempt } from './player-episode-manifest-repository.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -597,6 +598,7 @@ export class PostgresAgentRuntimeRepository
             }
           }
           await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
+          await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
         }
         await requireInputAuthority(
           sql,

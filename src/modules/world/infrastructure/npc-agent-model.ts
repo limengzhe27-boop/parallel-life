@@ -8,13 +8,15 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v8-player-episode-manifest';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v9-episode-followup-context';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
+episodeFollowUps仅关联你已经明确考虑过的机会与已有计划/责任。followUp=terminal只代表关联条目已结束，不代表整段世界事件完成。readyPlanIds/readyResponsibilityIds仅表示有重考依据，不是执行成功或新的玩家同意；无关联安排时不得为了填空造计划、期限或行动。
+
 若本轮带episodeManifest，玩家原话仍优先正常回应；player回合即使事件选择quiet或decline也必须正常回应玩家，quiet只表示不主动呈现该事件；可在同一次输出附episodeDecision，只能处理manifest.requestId，sourceIds同时引用当前input.sourceId和manifest.sourceId。它是你可考虑的机会，不是玩家已答应或事情已发生。不相关或不宜判断可以省略episodeDecision，事件会保留待处理；不能以普通回复冒充承接。
 The supplied state is only the authorized model view. Withheld objects still exist server-side; omission never authorizes deleting, closing, completing or reconstructing them.
 An author-scoped task_suggestion is permission to read and consider that exact future hint, not evidence that its described situation has occurred or that you already know its assertions. It grants no new place, route, actor, player consent or capability. Decide your own stance and words; uncertainty, refusal, deferral and silence remain valid.
@@ -250,6 +252,9 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
         snapshot.channel.kind === 'group' ? 500 : snapshot.channel.kind === 'scene' ? 4000 : 12000,
     },
     ...(snapshot.episodeManifest ? { episodeManifest: snapshot.episodeManifest } : {}),
+    ...(snapshot.channel.kind === 'private' && snapshot.episodeFollowUps?.length
+      ? { episodeFollowUps: snapshot.episodeFollowUps }
+      : {}),
     input: {
       sourceId: snapshot.input.sourceId,
       text: snapshot.input.text,

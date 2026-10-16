@@ -576,3 +576,30 @@ test('sourced position knowledge stays distinct from truth and raw global locati
   assert.throws(() => adapter.validateInput(bad));
   assert.equal(calls.length, 1);
 });
+
+test('episode follow-up references are private context and do not grant completion or leak across channels', async () => {
+  for (const channel of ['private', 'group', 'scene'] as const) {
+    const input = snapshot(channel);
+    input.episodeFollowUps = [
+      {
+        requestId: 'private-request',
+        episodeId: 'private-event',
+        choice: 'defer',
+        followUp: 'open',
+        goalIds: [],
+        planIds: [],
+        responsibilityIds: [],
+        readyPlanIds: [],
+        readyResponsibilityIds: [],
+      },
+    ];
+    const { adapter, calls } = capture();
+    await adapter.decide(input);
+    const payload = JSON.parse(calls[0]!.messages[1]!.content);
+    assert.deepEqual(
+      payload.episodeFollowUps,
+      channel === 'private' ? input.episodeFollowUps : undefined,
+    );
+    assert.match(calls[0]!.messages[0]!.content, /不代表整段世界事件完成/);
+  }
+});

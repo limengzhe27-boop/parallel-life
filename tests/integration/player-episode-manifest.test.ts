@@ -1,3 +1,4 @@
+import { createAgentScheduleSources } from '../../src/modules/world/application/agent-schedule-collectors.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -709,6 +710,211 @@ test('player chat considers a server-bound pending episode without extra NPC cal
       assert.equal(calls, 1);
       assert.equal((await requestState(f)).status, 'consumed');
       assert.equal((await requestState(f)).input_receipt_id, e.input.id);
+    },
+  );
+  await t.test(
+    'consumed deferral reads real own follow-up and reconsiders an existing blocked plan without inventing actions',
+    async () => {
+      const f = await fixture('invitation');
+      const service = npcAgentServices(app, () => ({
+        async complete(messages) {
+          const p = JSON.parse(messages[1]!.content),
+            m = verifyManifest(f, p);
+          const sourceIds = [p.input.sourceId, m.sourceId];
+          return JSON.stringify({
+            ...plain(),
+            goals: [
+              {
+                id: 'existing-goal',
+                summary: '核实本人下一步安排',
+                status: 'active',
+                sourceIds,
+                resultIds: [],
+              },
+            ],
+            plans: [
+              {
+                id: 'existing-plan',
+                goalId: 'existing-goal',
+                summary: '等情况明确后调整安排',
+                status: 'blocked',
+                sourceIds,
+                actionIds: [],
+                nextActionId: null,
+                triggers: [{ kind: 'at_or_after', at: p.storyAt, sourceId: p.input.sourceId }],
+                missingConditions: ['尚未形成可执行的具体安排'],
+              },
+            ],
+            responsibilities: [
+              {
+                id: 'existing-responsibility',
+                subject: { kind: 'episode', id: m.episodeId },
+                summary: '等待玩家明确选择',
+                status: 'waiting',
+                waitingOn: 'player',
+                sourceIds,
+                nextCheck: [
+                  {
+                    kind: 'player_decision',
+                    responsibilityId: 'existing-responsibility',
+                    decision: 'accepted',
+                  },
+                ],
+              },
+            ],
+            episodeDecision: {
+              requestId: m.requestId,
+              choice: 'defer',
+              reason: '目前只保留等待与核实安排',
+              sourceIds,
+            },
+          });
+        },
+      }));
+      await service.sendMessageIfEnabled(f.owner, await command(f, '我还要想想。'));
+      const world = await worlds.get({ userId: f.owner }, f.id);
+      const snapshot = (
+        await readPrivateAgentSnapshot(
+          app,
+          f.owner,
+          world,
+          f.requests[0]!.actorId,
+          null,
+          world.time,
+          await actors.read(f.owner, { worldId: f.id, actorId: f.requests[0]!.actorId }),
+        )
+      ).snapshot;
+      const follow = snapshot.episodeFollowUps!;
+      assert.equal(follow.length, 1);
+      assert.equal(follow[0]!.requestId, f.requests[0]!.id);
+      assert.equal(follow[0]!.choice, 'defer');
+      assert.equal(follow[0]!.followUp, 'open');
+      assert.deepEqual(follow[0]!.readyPlanIds, ['existing-plan']);
+      assert.deepEqual(follow[0]!.readyResponsibilityIds, []);
+      assert.equal(snapshot.state.actions.length, 0);
+      assert.equal(snapshot.state.plans[0]!.status, 'blocked');
+      assert.deepEqual(snapshot.state.plans[0]!.missingConditions, ['尚未形成可执行的具体安排']);
+      const sources = createAgentScheduleSources({
+        worldId: f.id,
+        engineEpoch: 2,
+        worldVersion: world.version,
+        storyAt: world.time,
+        actors: [{ snapshot, trustedResults: [], appointments: [] }],
+        activeAttempts: [],
+        consumedCandidateIds: [],
+      });
+      const candidates = (
+        await Promise.all(sources.map((s) => s.source.collect(f.owner, f.id)))
+      ).flatMap((c) => c.candidates);
+      assert.equal(candidates.length, 1);
+      assert.equal(candidates[0]!.source, 'actor_plan');
+      assert.equal(
+        candidates[0]!.actionId,
+        null,
+        'reconsideration does not execute a made-up action',
+      );
+      const episode = (
+        await app.transaction(f.owner, (sql) =>
+          sql.query(
+            'SELECT document FROM parallel_life.shared_episodes WHERE world_id=$1 AND id=$2',
+            [f.id, f.requests[0]!.episodeId],
+          ),
+        )
+      ).rows[0].document;
+      assert.equal(episode.status, 'proposed');
+      await app.transaction(f.owner, async (sql) => {
+        const { validateEpisodeLifecycleContext } =
+          await import('../../src/modules/world/infrastructure/episode-lifecycle-repository.ts');
+        const changed = structuredClone(snapshot);
+        changed.episodeFollowUps![0]!.choice = 'engage';
+        await assert.rejects(
+          validateEpisodeLifecycleContext(sql, f.owner, changed),
+          /EPISODE_LIFECYCLE_SOURCE_CONFLICT/,
+        );
+      });
+      let nextCalls = 0;
+      const later = npcAgentServices(app, () => ({
+        async complete(messages) {
+          nextCalls++;
+          const payload = JSON.parse(messages[1]!.content);
+          assert.equal(payload.episodeManifest, undefined);
+          assert.equal(payload.episodeFollowUps[0].choice, 'defer');
+          assert.equal(payload.episodeFollowUps[0].followUp, 'open');
+          return JSON.stringify(plain());
+        },
+      }));
+      await later.sendMessageIfEnabled(f.owner, await command(f, '先聊点别的吧。'));
+      assert.equal(nextCalls, 1);
+      const nextWorld = await worlds.get({ userId: f.owner }, f.id);
+      const nextSnapshot = (
+        await readPrivateAgentSnapshot(
+          app,
+          f.owner,
+          nextWorld,
+          f.requests[0]!.actorId,
+          null,
+          nextWorld.time,
+          await actors.read(f.owner, { worldId: f.id, actorId: f.requests[0]!.actorId }),
+        )
+      ).snapshot;
+      const nextSources = createAgentScheduleSources({
+        worldId: f.id,
+        engineEpoch: 2,
+        worldVersion: nextWorld.version,
+        storyAt: nextWorld.time,
+        actors: [{ snapshot: nextSnapshot, trustedResults: [], appointments: [] }],
+        activeAttempts: [],
+        consumedCandidateIds: [],
+      });
+      const again = (
+        await Promise.all(nextSources.map((s) => s.source.collect(f.owner, f.id)))
+      ).flatMap((r) => r.candidates);
+      assert.equal(again.length, 1);
+      assert.equal(
+        again[0]!.id,
+        candidates[0]!.id,
+        'unrelated chatter must not create a new paid reconsideration identity',
+      );
+      assert.equal(nextSnapshot.state.responsibilities[0]!.status, 'waiting');
+      let wakeCalls = 0;
+      const advance = npcAgentAdvanceServices(
+        app,
+        () => ({
+          async complete(messages) {
+            const payload = JSON.parse(messages[1]!.content);
+            if (Array.isArray(payload.candidates)) {
+              const chosen = payload.candidates.find(
+                (c: any) => c.source === 'actor_plan' && c.actionId === null,
+              );
+              return JSON.stringify({
+                mode: chosen ? 'coordinate' : 'quiet',
+                selectedCandidateIds: chosen ? [chosen.id] : [],
+                deferred: payload.candidates
+                  .filter((c: any) => c.id !== chosen?.id)
+                  .map((c: any) => ({ candidateId: c.id, reason: '仅协调已有计划的复查' })),
+                nudges: [],
+                opportunities: [],
+                audit: { reason: 'EXPLICIT_LOCAL_SUBSTITUTE', basisSourceIds: [] },
+              });
+            }
+            wakeCalls++;
+            assert.equal(payload.input.origin, 'wake');
+            assert.equal(payload.episodeFollowUps[0].choice, 'defer');
+            return JSON.stringify({ ...plain(), statements: [] });
+          },
+        }),
+        snapshots,
+      );
+      await advance.advanceIfEnabled(f.owner, f.id);
+      assert.equal(wakeCalls, 1, 'the original runtime must actually execute one reconsideration');
+      const afterWake = await actors.read(f.owner, {
+        worldId: f.id,
+        actorId: f.requests[0]!.actorId,
+      });
+      assert.equal(afterWake!.actions.length, 0);
+      assert.equal(afterWake!.responsibilities[0]!.status, 'waiting');
+      await advance.advanceIfEnabled(f.owner, f.id);
+      assert.equal(wakeCalls, 1, 'same unchanged condition must not buy another reconsideration');
     },
   );
 });

@@ -16,6 +16,7 @@ import type {
 export type AgentSnapshot = {
   state: ActorAgentState;
   episodeManifest?: import('../domain/player-episode-manifest.ts').PlayerEpisodeManifest;
+  episodeFollowUps?: import('../domain/episode-followup-context.ts').EpisodeFollowUpContext[];
   /** Only this authorized view may enter the model. Full state remains server-side for CAS/reduce. */
   viewState: ActorAgentState;
   redactedStateIds: string[];
