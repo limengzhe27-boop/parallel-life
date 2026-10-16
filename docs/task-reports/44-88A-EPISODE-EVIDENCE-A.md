@@ -12,4 +12,6 @@ Agent `codex-episode-evidence88-a`；root唯一公共协议/SQL/集成人。独�
 - arrival：实际AgentJourney beginActionId/departure.id/eventId回溯相同binding，原arrival内核先验路线/位置/时间。helper只分类已认证源，不验证数据库提交与owner。
 - root新SQL83需将evidence和原world event/command/attempt/result/request同事务约束，唯一键包含episode/actor/source/kind，支持同一个world event中不同action results。append-only记录本身不可自动向所有NPC传播。
 
-验证：专属6项通过、TypeScript通过、Prettier通过、diff check通过。未重复fullcheck/build；root集成后统一执行。0模型/数据库/浏览器/生产写入。尚未接线、尚未部署，不宣称事件结果整体完成。父事项44-68仍有结果政策、真正事件结束和再考虑生命周期缺口。
+验证：专属7项通过、TypeScript通过、Prettier通过、diff check通过。未重复fullcheck/build；root集成后统一执行。0模型/数据库/浏览器/生产写入。尚未接线、尚未部署，不宣称事件结果整体完成。父事项44-68仍有结果政策、真正事件结束和再考虑生命周期缺口。
+
+补充：仅engineEpoch>=2，新引擎证据不能以旧epoch来源填入。冻结a18b674c，7项专项通过。
