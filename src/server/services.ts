@@ -193,6 +193,8 @@ function createServices() {
     waitToAppointment: (ownerId: string, worldId: string, input: AppointmentWaitRequest) =>
       new PostgresAppointmentWaitRepository(db).wait(ownerId, worldId, input),
     story: new PublicationStoryRepository(db),
+    retryTrialDirector: (ownerId: string, worldId: string, attemptId: string) =>
+      agentAdvance.advanceIfEnabled(ownerId, worldId, attemptId),
     advanceStoryOnly: async (
       ownerId: string,
       worldId: string,

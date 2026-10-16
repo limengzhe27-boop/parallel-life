@@ -1,3 +1,4 @@
+import { requireDirectorTrialRetrySource } from '../modules/world/infrastructure/director-trial-recovery.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type { TextModel } from '../modules/ai/application/ports.ts';
 import type { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
@@ -153,7 +154,11 @@ export function npcAgentAdvanceServices(
     directors = new PostgresDirectorRuntimeRepository(db),
     awareness = new PostgresWorldAwarenessRepository(db);
   return {
-    async advanceIfEnabled(ownerId: string, worldId: string): Promise<AdvanceResult | null> {
+    async advanceIfEnabled(
+      ownerId: string,
+      worldId: string,
+      retryDirectorAttemptId?: string,
+    ): Promise<AdvanceResult | null> {
       const control = await db.transaction(
         ownerId,
         async (sql) =>
@@ -168,7 +173,34 @@ export function npcAgentAdvanceServices(
       );
       if (!control) throw new DomainError('NOT_FOUND');
       const engineEpoch = Number(control.engine_epoch);
-      if (engineEpoch < 2) return null;
+      if (engineEpoch < 2) {
+        if (retryDirectorAttemptId) throw new DomainError('INVALID_COMMAND');
+        return null;
+      }
+      const retryCommandId = retryDirectorAttemptId
+        ? await requireDirectorTrialRetrySource(
+            db,
+            ownerId,
+            worldId,
+            retryDirectorAttemptId,
+            engineEpoch,
+          )
+        : null;
+      if (retryCommandId) {
+        const previous = await directors.lookup(ownerId, worldId, retryCommandId);
+        if (previous?.status === 'committed')
+          return quiet((await worlds.get({ userId: ownerId }, worldId)).time);
+        if (
+          previous &&
+          ['invalid_output', 'stale_discarded', 'unknown_after_send', 'request_sent'].includes(
+            previous.status,
+          )
+        )
+          throw new DomainError(
+            'INVALID_COMMAND',
+            '请先核对这次重新生成的结果，不能再次发送同一请求。',
+          );
+      }
       const world = await worlds.get({ userId: ownerId }, worldId),
         now = new Date().toISOString();
       const clock = await new PostgresClockStore(db).read(ownerId, worldId, now);
@@ -176,7 +208,10 @@ export function npcAgentAdvanceServices(
         Math.max(Date.parse(world.time), Date.parse(projectStoryTime(clock, now))),
       ).toISOString();
       // A cheap check may be quiet. Do not invent folded events or spend a model call offline.
-      if (clock.paused) return quiet(storyAt);
+      if (clock.paused) {
+        if (retryCommandId) throw new DomainError('INVALID_COMMAND', '请先开始试演。');
+        return quiet(storyAt);
+      }
       const read = await db.transaction(ownerId, async (sql) => {
         const current = (
           await sql.query('SELECT version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2', [
@@ -228,7 +263,7 @@ export function npcAgentAdvanceServices(
       const npcModel = new NpcAgentModel({
         complete: (...args) => modelFactory().complete(...args),
       });
-      for (const pending of read.prior.filter(
+      for (const pending of (retryCommandId ? [] : read.prior).filter(
         (a) => a.status === 'response_received' && a.channel === 'private',
       )) {
         const attempt = await attempts.lookup(ownerId, worldId, pending.commandId);
@@ -268,23 +303,20 @@ export function npcAgentAdvanceServices(
       }
       // Physical continuation belongs to the same execution boundary, never to a new paid NPC turn.
       // Protected received replies are recovered first; a completed arrival refreshes the real phone.
-      const arrival = await commitDueAgentArrival(db, ownerId, {
-        worldId,
-        engineEpoch,
-        expectedWorldVersion: world.version,
-      });
+      const arrival = retryCommandId
+        ? { status: 'none' as const }
+        : await commitDueAgentArrival(db, ownerId, {
+            worldId,
+            engineEpoch,
+            expectedWorldVersion: world.version,
+          });
       if (arrival.status === 'arrived')
         return { ...quiet(arrival.storyAt), changed: true, worldVersion: arrival.worldVersion };
       const afterContinuation = await new PostgresClockStore(db).read(ownerId, worldId);
       if (afterContinuation.paused) return quiet(afterContinuation.storyNow);
-      const delivery = await dispatchPendingAgentEpisode(
-        db,
-        npcModel,
-        ownerId,
-        world,
-        engineEpoch,
-        storyAt,
-      );
+      const delivery = retryCommandId
+        ? null
+        : await dispatchPendingAgentEpisode(db, npcModel, ownerId, world, engineEpoch, storyAt);
       if (delivery) return delivery;
       const actors = await Promise.all(
         read.states.map(async (state) => ({
@@ -350,6 +382,8 @@ export function npcAgentAdvanceServices(
           candidates,
           blockers,
         });
+        if (retryCommandId && (snapshot.conversationWithoutTarget || snapshot.focus.length))
+          throw new DomainError('INVALID_COMMAND', '请先结束当前交谈，再重新编排。');
         const recovery = await recoverDirectorAgent(
           { attempts: directors, parse: parseDirectorDecision },
           ownerId,
@@ -368,14 +402,17 @@ export function npcAgentAdvanceServices(
           });
         // Recovery may consume the only reason to enter. Never turn an expired or
         // vanished semantic wake into a fresh paid global decision.
-        if (admission === 'recovery' || (admission === 'wake' && !snapshot.evaluationCause))
+        if (
+          !retryCommandId &&
+          (admission === 'recovery' || (admission === 'wake' && !snapshot.evaluationCause))
+        )
           return null;
         let identity = snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot);
         if (!snapshot.evaluationCause) {
           const unsent = await directors.readUnsentFrameAttempts(ownerId, snapshot);
           if (unsent.length) identity = hash(['director-unsent-frame-v1', identity, unsent]);
         }
-        const commandId = agentWakeCommandId(worldId, identity);
+        const commandId = retryCommandId ?? agentWakeCommandId(worldId, identity);
         const previous = await directors.lookup(ownerId, worldId, commandId);
         if (previous?.status === 'committed' && previous.decisionId) {
           const saved = await directors.readDecision(ownerId, worldId, previous.decisionId);
@@ -460,7 +497,10 @@ export function npcAgentAdvanceServices(
       // It does not require another director call after every ordinary chat, nor force a message.
       if (
         !coordinated &&
-        (observed.needsEvaluation || wake.cause || (wake.hasPendingDirector && !wake.deferred))
+        (retryCommandId ||
+          observed.needsEvaluation ||
+          wake.cause ||
+          (wake.hasPendingDirector && !wake.deferred))
       ) {
         let decision: DirectorDecision | null;
         try {

@@ -54,3 +54,10 @@ export type PublicationWorldResult = z.infer<typeof PublicationWorldResultSchema
 export type PublicationTrial = z.infer<typeof PublicationTrialSchema>;
 export type PublicationTrialEvidence = z.infer<typeof PublicationTrialEvidenceSchema>;
 export type PublicationPlayerCatalog = z.infer<typeof PublicationPlayerCatalogSchema>;
+
+/** Staff-private status only; no raw director reasoning or future event content. */
+export const TrialDirectorStatusSchema = z.strictObject({
+  status: z.enum(['legacy', 'ready', 'failed', 'pending', 'unknown', 'blocked']),
+  attemptId: Id.nullable(),
+});
+export type TrialDirectorStatus = z.infer<typeof TrialDirectorStatusSchema>;

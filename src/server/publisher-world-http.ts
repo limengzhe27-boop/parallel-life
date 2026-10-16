@@ -1,3 +1,4 @@
+import { readTrialDirectorStatus } from '../modules/world/infrastructure/director-trial-recovery.ts';
 import { bootstrapPublicationAgentTrial } from '../modules/world/infrastructure/publication-agent-trial-bootstrap.ts';
 import 'server-only';
 import { getServices } from './services.ts';
@@ -98,6 +99,26 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       await svc.setWorldClock(trial.ownerId, trial.worldId, input);
       const clock = await svc.readWorldClock(trial.ownerId, trial.worldId);
       return publisherJson({ trialId, worldId: trial.worldId, paused: clock.paused });
+    }
+    if (path.length === 1 && path[0] === 'director') {
+      const svc = getServices();
+      if (request.method === 'GET')
+        return publisherJson(await readTrialDirectorStatus(svc.db, trial.ownerId, trial.worldId));
+      if (request.method === 'POST') {
+        const input = await publisherBody(
+          request,
+          z.strictObject({ attemptId: Id, confirmRetry: z.literal(true) }),
+        );
+        try {
+          await svc.retryTrialDirector(trial.ownerId, trial.worldId, input.attemptId);
+        } catch (error) {
+          if ((error as { code?: string })?.code === 'INVALID_COMMAND')
+            throw new PublisherHttpError('INVALID_STATE');
+          throw error;
+        }
+        return publisherJson(await readTrialDirectorStatus(svc.db, trial.ownerId, trial.worldId));
+      }
+      throw new PublisherHttpError('NOT_FOUND');
     }
     const route = trialProxyTarget(
       path,

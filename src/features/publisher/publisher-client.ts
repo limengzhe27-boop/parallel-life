@@ -5,6 +5,7 @@ import {
   type PublisherPreparationInput,
 } from '../../contracts/publisher-preparation.ts';
 import {
+  TrialDirectorStatusSchema,
   PublicationWorldResultSchema,
   PublicationTrialSchema,
 } from '../../contracts/publication-worlds.ts';
@@ -297,6 +298,21 @@ export class PublisherClient {
   }
   trial(id: string) {
     return this.request('/trials/' + encodeURIComponent(id), PublicationTrialSchema);
+  }
+  trialDirector(id: string) {
+    return this.request(
+      '/trials/' + encodeURIComponent(id) + '/director',
+      TrialDirectorStatusSchema,
+    );
+  }
+  retryTrialDirector(id: string, attemptId: string) {
+    return this.request(
+      '/trials/' + encodeURIComponent(id) + '/director',
+      TrialDirectorStatusSchema,
+      'POST',
+      { attemptId, confirmRetry: true },
+      240000,
+    );
   }
   setTrialPaused(trialId: string, paused: boolean) {
     return this.request(

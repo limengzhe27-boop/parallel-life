@@ -244,3 +244,26 @@ test('private character trial does not change ordinary world trial request or co
     assert.equal(call.body.contentHash, work.draft.contentHash);
   }
 });
+
+test('private director status is a read; explicit retry retains source and staff CSRF without automatic resend', async () => {
+  const requests: { path: string; method: string; body: unknown; csrf: string | null }[] = [];
+  const client = new PublisherClient((async (path, options) => {
+    if (String(path).endsWith('/session'))
+      return Response.json({ publisher: identity, csrfToken: csrf });
+    requests.push({
+      path: String(path),
+      method: options?.method ?? 'GET',
+      body: options?.body ? JSON.parse(String(options.body)) : null,
+      csrf: new Headers(options?.headers).get('X-Publisher-CSRF'),
+    });
+    if (options?.method === 'POST') throw Error('response unknown');
+    return Response.json({ status: 'failed', attemptId: work.id });
+  }) as typeof fetch);
+  await client.session();
+  assert.equal((await client.trialDirector(work.id)).status, 'failed');
+  assert.equal(requests[0]!.method, 'GET');
+  await assert.rejects(client.retryTrialDirector(work.id, work.id));
+  assert.equal(requests.length, 2, 'unknown response never sends another request automatically');
+  assert.deepEqual(requests[1]!.body, { attemptId: work.id, confirmRetry: true });
+  assert.equal(requests[1]!.csrf, csrf);
+});

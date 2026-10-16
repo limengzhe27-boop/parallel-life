@@ -1,3 +1,8 @@
+import {
+  readTrialDirectorStatus,
+  requireDirectorTrialRetrySource,
+  directorExplicitRetryCommandId,
+} from '../../src/modules/world/infrastructure/director-trial-recovery.ts';
 import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
@@ -333,6 +338,174 @@ test('real publisher private trial initializes native runtime atomically without
             m.sourceEventId.startsWith('genesis:') === false,
         ),
       );
+    },
+  );
+  await t.test(
+    'known-invalid director retries once through original authored episode and NPC, without resetting history',
+    async () => {
+      const scripted = PublishedWorldContentSchema.parse({
+        ...content,
+        candidates: [
+          {
+            key: 'opening_plan',
+            kind: 'candidate',
+            title: '商量开业分工',
+            editorialIntent: '讨论开业分工，主角可以选择参与或拒绝。',
+            actorKeys: ['ning_one'],
+            prerequisites: [],
+            mutuallyExclusiveNodeKeys: [],
+            intent: { kind: 'director_event', actorKey: 'ning_one' },
+          },
+        ],
+      });
+      const authoredWork = await repo.create(staff, {
+        commandId: randomUUID(),
+        title: 'Local recovery authored event',
+        content: scripted,
+      });
+      const started = await trials.startTrial(
+        staff,
+        authoredWork.id,
+        { commandId: randomUUID(), draftVersion: 0, contentHash: authoredWork.draft.contentHash },
+        { agentRuntime: true },
+      );
+      const f = await trials.trialSession(staff, started.trialId!);
+      await bootstrapPublicationAgentTrial(app, f.ownerId, f.worldId);
+      await new PostgresClockStore(app).setClock(f.ownerId, f.worldId, { paused: false });
+      let calls = 0;
+      const gateway = {
+        async complete(messages: { role: string; content: string }[]) {
+          calls++;
+          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          if (p.promptVersion.startsWith('director-')) {
+            if (calls === 1)
+              return JSON.stringify({
+                mode: 'quiet',
+                selectedCandidateIds: [],
+                deferred: [],
+                nudges: [],
+                opportunities: [],
+                audit: {},
+              });
+            const material = p.authoredMaterials.materials.find(
+              (m: { ref: { nodeKey: string } }) => m.ref.nodeKey === 'opening_plan',
+            );
+            return JSON.stringify({
+              mode: 'bounded_opportunity',
+              selectedCandidateIds: [],
+              deferred: p.candidates.map((c: { id: string }) => ({
+                candidateId: c.id,
+                reason: '先由人物考虑作者事件',
+              })),
+              nudges: [],
+              opportunities: [
+                {
+                  id: 'recovery-opportunity',
+                  title: '商量开业分工',
+                  description: 'DIRECTOR_ONLY_REASON',
+                  playerImpact: '可以自由回应',
+                  participantActorIds: [p.cast[0].id],
+                  placeIds: [],
+                  activity: 'conversation',
+                  basisSourceIds: [material.sourceId],
+                  authoredEventKey: 'opening_plan',
+                },
+              ],
+              audit: { reason: '基于当前作者设定重新编排', basisSourceIds: [material.sourceId] },
+            });
+          }
+          const intent = JSON.parse(p.input.text);
+          assert.equal(intent.type, 'npc_episode_consideration');
+          assert.doesNotMatch(JSON.stringify(p), /DIRECTOR_ONLY_REASON/);
+          return JSON.stringify({
+            statements: [
+              { text: '我想先把开业分工商量清楚，你想先看哪一部分？', dependsOnActionIds: [] },
+            ],
+            goals: [],
+            plans: [],
+            actions: [],
+            responsibilities: [],
+            decisions: [],
+            episodeDecision: {
+              requestId: intent.requestId,
+              choice: 'engage',
+              reason: '符合我参与筹备的目标',
+              sourceIds: [p.input.sourceId, `definition:${p.state.definitionRef}`],
+            },
+          });
+        },
+      };
+      const advance = npcAgentAdvanceServices(
+        app,
+        () => gateway,
+        new PostgresDirectorSnapshotRepository(app),
+      );
+      await assert.rejects(advance.advanceIfEnabled(f.ownerId, f.worldId));
+      const failed = await readTrialDirectorStatus(app, f.ownerId, f.worldId);
+      assert.equal(failed.status, 'failed');
+      assert.ok(failed.attemptId);
+      assert.equal(calls, 1);
+      await advance.advanceIfEnabled(f.ownerId, f.worldId);
+      assert.equal(calls, 1, 'ordinary idle checks must not repurchase known-invalid output');
+      await assert.rejects(
+        requireDirectorTrialRetrySource(app, randomUUID(), f.worldId, failed.attemptId!, 2),
+      );
+      const result = await advance.advanceIfEnabled(f.ownerId, f.worldId, failed.attemptId!);
+      assert.equal(result?.played, 1);
+      assert.equal(calls, 3, 'one director retry and one independent NPC call');
+      assert.equal((await readTrialDirectorStatus(app, f.ownerId, f.worldId)).status, 'ready');
+      const retryId = directorExplicitRetryCommandId(f.worldId, failed.attemptId!);
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND command_id=$2',
+            [f.worldId, retryId],
+          )
+        ).rows[0].n,
+        1,
+      );
+      await advance.advanceIfEnabled(f.ownerId, f.worldId, failed.attemptId!);
+      assert.equal(calls, 3, 'same explicit retry replays even after NPC advanced version');
+      const world = await new PostgresWorldRepository(app).get({ userId: f.ownerId }, f.worldId);
+      assert.equal(world.messages.filter((m) => m.role === 'assistant').length, 1);
+      assert.equal(world.version, 1);
+      await new PostgresClockStore(app).setClock(f.ownerId, f.worldId, { paused: true });
+    },
+  );
+  await t.test(
+    'unknown paid director output cannot be replaced through the explicit retry entry',
+    async () => {
+      const unknownWork = await repo.create(staff, {
+        commandId: randomUUID(),
+        title: 'Local isolated unknown recovery',
+        content,
+      });
+      const unknownTrial = await trials.startTrial(
+        staff,
+        unknownWork.id,
+        { commandId: randomUUID(), draftVersion: 0, contentHash: unknownWork.draft.contentHash },
+        { agentRuntime: true },
+      );
+      const f = await trials.trialSession(staff, unknownTrial.trialId!);
+      await bootstrapPublicationAgentTrial(app, f.ownerId, f.worldId);
+      await new PostgresClockStore(app).setClock(f.ownerId, f.worldId, { paused: false });
+      let calls = 0;
+      const advance = npcAgentAdvanceServices(
+        app,
+        () => ({
+          async complete() {
+            calls++;
+            throw Error('LOCAL_UNKNOWN_AFTER_SEND');
+          },
+        }),
+        new PostgresDirectorSnapshotRepository(app),
+      );
+      await assert.rejects(advance.advanceIfEnabled(f.ownerId, f.worldId));
+      const status = await readTrialDirectorStatus(app, f.ownerId, f.worldId);
+      assert.equal(status.status, 'unknown');
+      await assert.rejects(advance.advanceIfEnabled(f.ownerId, f.worldId, status.attemptId!));
+      assert.equal(calls, 1);
+      await new PostgresClockStore(app).setClock(f.ownerId, f.worldId, { paused: true });
     },
   );
 });
