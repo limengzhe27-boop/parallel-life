@@ -1,3 +1,5 @@
+import { readConsumedSceneObservationSourcesInTransaction } from './actor-observation-consumption-repository.ts';
+import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
 import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ActorAgentState, AgentSource } from '../domain/agent-runtime.ts';
@@ -209,6 +211,53 @@ export async function readActorStrategyBasis(
           [],
           view.source.contentHash,
         );
+  }
+  const missingScenes = handles.filter((h) => h.startsWith('scene:') && !sources.has(h));
+  if (missingScenes.length) {
+    const control = (
+      await sql.query(
+        'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
+        [state.worldId, ownerId],
+      )
+    ).rows[0];
+    if (control?.engine_epoch >= 2) {
+      const consumed = await readConsumedSceneObservationSourcesInTransaction(sql, ownerId, {
+        worldId: state.worldId,
+        actorId: state.actorId,
+        engineEpoch: control.engine_epoch,
+        worldVersion,
+      });
+      const done = new Set(consumed.map((c) => c.sourceId + ':' + c.contentHash));
+      const sceneRows = (
+        await sql.query(
+          `SELECT DISTINCT scene_id FROM parallel_life.scene_items WHERE world_id=$1 AND owner_id=$2 AND ('scene:'||id)=ANY($3::text[])`,
+          [state.worldId, ownerId, missingScenes],
+        )
+      ).rows;
+      for (const scene of sceneRows) {
+        const packet = await readActorSceneObservationSourcesInTransaction(sql, ownerId, {
+          worldId: state.worldId,
+          actorId: state.actorId,
+          sceneId: scene.scene_id,
+          worldVersion,
+          storyAt,
+          sourceIds: missingScenes,
+          maxBytes: 1000000,
+          maxEntries: 500,
+        });
+        for (const source of packet.sources)
+          if (done.has(source.id + ':' + source.contentHash))
+            add(
+              source.id,
+              source.kind,
+              source.recordId,
+              source.worldVersion,
+              source.at,
+              [],
+              source.contentHash,
+            );
+      }
+    }
   }
   return [...sources.values()];
 }

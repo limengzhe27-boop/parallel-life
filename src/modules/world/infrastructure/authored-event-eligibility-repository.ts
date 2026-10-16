@@ -1,3 +1,4 @@
+import { readEpisodeOutcomeProgress } from './episode-outcome-repository.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -152,7 +153,7 @@ export async function readAuthoredEligibilityInTransaction(
         historyFacts,
         // A consideration receipt or any number of messages proves neither incident
         // presentation nor resolution. These require their own actual world evidence.
-        nodeProgress: [],
+        nodeProgress: await readEpisodeOutcomeProgress(sql, ownerId, catalog),
         stageProgress: [],
       },
       (value) => createHash('sha256').update(value).digest('hex'),

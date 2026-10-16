@@ -1,3 +1,4 @@
+import { validateActorObservationInbox } from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
 import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
@@ -603,6 +604,7 @@ export class PostgresAgentRuntimeRepository
           await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
           await validateActorEpisodeResults(sql, ownerId, snapshot);
           await validateSceneObservationContext(sql, ownerId, snapshot);
+          await validateActorObservationInbox(sql, ownerId, snapshot);
         }
         await requireInputAuthority(
           sql,
@@ -637,7 +639,11 @@ export class PostgresAgentRuntimeRepository
         if (state?.revision !== expected.expectedActorRevision) fail('AGENT_REVISION_CONFLICT');
         if (snapshot) {
           if (!isDeepStrictEqual(state.document, snapshot.state)) fail('AGENT_REVISION_CONFLICT');
-          const strategy = snapshot.sources.filter((source) => source.usage === 'private_strategy');
+          const strategy = snapshot.sources.filter(
+            (source) =>
+              source.usage === 'private_strategy' &&
+              !snapshot.actorObservationInbox?.sourceIds.includes(source.id),
+          );
           if (strategy.length) {
             const actual = await readActorStrategyBasis(
               sql,

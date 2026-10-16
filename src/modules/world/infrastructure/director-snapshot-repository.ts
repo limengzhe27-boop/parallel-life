@@ -771,6 +771,40 @@ async function evidence(
         ...milestone.document,
       }),
     );
+  const outcomes = (
+    await sql.query(
+      `SELECT r.* FROM parallel_life.agent_episode_outcomes r
+    JOIN parallel_life.shared_episodes ep ON ep.world_id=r.world_id AND ep.owner_id=r.owner_id AND ep.id=r.episode_id
+    JOIN parallel_life.agent_runtime_worlds rw ON rw.world_id=r.world_id AND rw.owner_id=r.owner_id AND rw.engine_epoch=r.engine_epoch
+    JOIN parallel_life.world_events e ON e.world_id=r.world_id AND e.owner_id=r.owner_id AND e.id=r.source_event_id AND e.version=r.world_version
+    JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
+    WHERE r.world_id=$1 AND r.owner_id=$2 AND r.world_version<=$3 AND ep.document->>'status'='resolved'
+      AND ep.document->'resultIds'=jsonb_build_array(r.id) ORDER BY r.world_version,r.id`,
+      [h.world.id, owner, h.world.version],
+    )
+  ).rows;
+  for (const result of outcomes)
+    add(
+      'episode-outcome:' + result.id,
+      'result',
+      [],
+      result.world_version,
+      result.source_event_id,
+      result.story_at,
+      {
+        scope: result.scope,
+        outcome: result.outcome,
+        nodeKey: result.node_key,
+        evidenceIds: result.evidence_ids,
+      },
+      JSON.stringify({
+        meaning:
+          'Only the explicit author-scoped invitation response objective is resolved; not physical attendance or other NPC goals.',
+        scope: result.scope,
+        outcome: result.outcome,
+        nodeKey: result.node_key,
+      }),
+    );
   return { items, observations, worldSetting };
 }
 

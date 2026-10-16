@@ -1,3 +1,4 @@
+import { readActorObservationInbox } from './actor-observation-inbox.ts';
 import { readActorEpisodeResults } from './episode-result-context-repository.ts';
 import { readEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
 import { selectPlayerEpisodeManifest } from './player-episode-manifest-repository.ts';
@@ -686,6 +687,22 @@ export async function attachAgentWorldContext(
       knowledge,
     },
   };
+  const inbox = await db.transaction(ownerId, (sql) =>
+    readActorObservationInbox(sql, ownerId, contextual),
+  );
+  if (inbox.context) {
+    const ids = new Set(inbox.sources.map((s) => s.id));
+    contextual.sources = [...contextual.sources.filter((s) => !ids.has(s.id)), ...inbox.sources];
+    contextual.observations = [
+      ...contextual.observations.filter((o) => !ids.has(o.sourceId)),
+      ...inbox.observations,
+    ];
+    contextual.actorObservationInbox = inbox.context;
+    Object.assign(
+      contextual,
+      authorizedAgentState(snapshot.state, new Set(contextual.sources.map((s) => s.id))),
+    );
+  }
   contextual.episodeFollowUps = await db.transaction(ownerId, (sql) =>
     readEpisodeLifecycleContext(sql, ownerId, contextual),
   );

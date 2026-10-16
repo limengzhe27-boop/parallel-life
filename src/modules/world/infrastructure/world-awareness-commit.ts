@@ -1,3 +1,4 @@
+import { projectEpisodeOutcomesInTransaction } from './episode-outcome-repository.ts';
 import { projectEpisodeEvidenceInTransaction } from './episode-evidence-repository.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { projectCommittedWorldAwareness } from './world-awareness-repository.ts';
@@ -35,4 +36,5 @@ export async function projectAgentWorldChange(
   if (!event) throw Error('AWARENESS_EVENT_NOT_FOUND');
   await projectCommittedWorldAwareness(sql, ownerId, event);
   await projectEpisodeEvidenceInTransaction(sql, ownerId, worldId, eventId);
+  await projectEpisodeOutcomesInTransaction(sql, ownerId, worldId, eventId);
 }

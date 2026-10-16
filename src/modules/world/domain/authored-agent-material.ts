@@ -43,6 +43,7 @@ export type AuthoredMaterialNode = {
       pace?: 'brief' | 'standard' | 'extended';
       refusal?: 'defer' | 'withdraw';
       completion?: {
+        scope?: 'invitation_response';
         mode: 'all' | 'any';
         criteria: (
           | { key: string; kind: 'invitation_response'; response: 'accepted' | 'declined' }
@@ -227,6 +228,7 @@ const nodeShape: Shape = {
       pace: true,
       refusal: true,
       completion: {
+        scope: true,
         mode: true,
         criteria: [{ key: true, kind: true, response: true, actorKey: true, phrase: true }],
       },

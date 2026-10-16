@@ -30,6 +30,7 @@ export type PublicationEventProgressSpec = {
   pace?: 'brief' | 'standard' | 'extended';
   refusal?: 'defer' | 'withdraw';
   completion?: {
+    scope?: 'invitation_response';
     mode: 'all' | 'any';
     criteria: (
       | { key: string; kind: 'invitation_response'; response: 'accepted' | 'declined' }

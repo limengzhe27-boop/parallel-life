@@ -1,3 +1,4 @@
+import { validateActorObservationInbox } from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
 import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
@@ -128,6 +129,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
       await validateActorEpisodeResults(sql, ownerId, snapshot);
       await validateSceneObservationContext(sql, ownerId, snapshot);
+      await validateActorObservationInbox(sql, ownerId, snapshot);
       await validatePlayerEpisodeManifest(sql, ownerId, snapshot);
       await requirePlayerEpisodeBinding(sql, ownerId, attempt, snapshot);
       if (isEpisodeConsiderationInput(receivedInput))
@@ -142,7 +144,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         attempt.worldId,
         'NPC_DELIVERY_DEFERRED',
       );
-      const strategy = snapshot.sources.filter((source) => source.usage === 'private_strategy');
+      const strategy = snapshot.sources.filter(
+        (source) =>
+          source.usage === 'private_strategy' &&
+          !snapshot.actorObservationInbox?.sourceIds.includes(source.id),
+      );
       if (strategy.length) {
         const currentBasis = await readActorStrategyBasis(
           sql,

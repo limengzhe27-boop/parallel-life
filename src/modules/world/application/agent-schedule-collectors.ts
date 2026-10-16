@@ -1,3 +1,4 @@
+import { collectPendingSceneObservationCandidates } from '../domain/actor-observation-candidate.ts';
 import { agentConditionsReady } from './agent-condition-checks.ts';
 import type { AgentSnapshot } from './agent-runtime-ports.ts';
 import type { RegisteredAgentCandidateSource } from './schedule-agents.ts';
@@ -567,6 +568,23 @@ async function observations(view: SchedulingView, context: ActorContext) {
       }),
     );
   }
+  if (snapshot.actorObservationInbox?.sourceIds.length && snapshot.channel.kind === 'private') {
+    out.push(
+      ...(await collectPendingSceneObservationCandidates({
+        worldId: view.worldId,
+        actorId: snapshot.state.actorId,
+        engineEpoch: view.engineEpoch,
+        worldVersion: view.worldVersion,
+        actorRevision: snapshot.state.revision,
+        storyAt: view.storyAt,
+        sources: snapshot.sources.filter((s) =>
+          snapshot.actorObservationInbox!.sourceIds.includes(s.id),
+        ),
+        observations: snapshot.observations,
+        consumed: [],
+      })),
+    );
+  }
   return out;
 }
 
@@ -615,7 +633,10 @@ export function createAgentScheduleSources(
         [
           'actor_plan',
           'responsibility',
-          ...(actor.snapshot.worldContext?.knowledge.length ? ['observation' as const] : []),
+          ...(actor.snapshot.worldContext?.knowledge.length ||
+          actor.snapshot.actorObservationInbox?.sourceIds.length
+            ? ['observation' as const]
+            : []),
         ] as const
       ).map((source) => ({
         id: `${source}:${actor.snapshot.state.actorId}`,

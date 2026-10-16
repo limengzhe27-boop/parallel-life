@@ -15,6 +15,7 @@ import type {
 /** Snapshot reads have no projection writes or model calls. Channel input is already visibility-filtered. */
 export type AgentSnapshot = {
   state: ActorAgentState;
+  actorObservationInbox?: { sourceIds: string[]; sceneIds: string[]; omittedSourceIds: string[] };
   sceneObservationContext?: {
     sceneId: string;
     status: 'complete' | 'budget_limited';

@@ -301,6 +301,7 @@ const shape = z
                   refusal: z.enum(['defer', 'withdraw']).optional(),
                   completion: z
                     .strictObject({
+                      scope: z.literal('invitation_response').optional(),
                       mode: z.enum(['all', 'any']),
                       criteria: z
                         .array(

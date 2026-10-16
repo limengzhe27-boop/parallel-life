@@ -1,3 +1,6 @@
+import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
+import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
+import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -483,6 +486,157 @@ test('only actual supplied scene context in a successful original NPC commit is 
       assert.equal((await e.row()).response_hash, saved.response_hash);
       assert.ok((await refs(f)).length > 0);
       assert.equal(e.calls(), 1);
+    },
+  );
+  await t.test(
+    'original private advance consumes an observed scene through a quiet NPC turn and preserves its goal basis',
+    async () => {
+      const f = await fixture();
+      const store = new PostgresAgentRuntimeRepository(db);
+      let calls = 0;
+      const advance = npcAgentAdvanceServices(
+        db,
+        () => ({
+          async complete(messages) {
+            const p = JSON.parse(messages[1]!.content);
+            if (Array.isArray(p.candidates)) {
+              const selected = p.candidates.find(
+                (c: { source: string }) => c.source === 'observation',
+              );
+              return JSON.stringify({
+                mode: selected ? 'coordinate' : 'quiet',
+                selectedCandidateIds: selected ? [selected.id] : [],
+                deferred: p.candidates
+                  .filter((c: { id: string }) => c.id !== selected?.id)
+                  .map((c: { id: string }) => ({
+                    candidateId: c.id,
+                    reason: 'Only consider the actual new observation',
+                  })),
+                nudges: [],
+                opportunities: [],
+                audit: { reason: 'Explicit local coordination substitute', basisSourceIds: [] },
+              });
+            }
+            calls++;
+            assert.equal(p.input.origin, 'wake');
+            const source = p.actorObservationInbox.sourceIds[0];
+            assert.ok(source);
+            assert.ok(
+              p.observations.some(
+                (o: { sourceId: string; evidenceKind?: string }) =>
+                  o.sourceId === source && o.evidenceKind,
+              ),
+            );
+            return JSON.stringify({
+              statements: [],
+              goals: [
+                {
+                  id: 'remember',
+                  summary: 'Keep this observation in mind',
+                  status: 'active',
+                  sourceIds: [source],
+                  resultIds: [],
+                },
+              ],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            });
+          },
+        }),
+        new PostgresDirectorSnapshotRepository(db),
+      );
+      const first = await advance.advanceIfEnabled(f.owner, f.worldId);
+      assert.equal(calls, 1, JSON.stringify(first));
+      assert.ok((await refs(f)).length > 0);
+      assert.deepEqual(await refs(f, f.b), []);
+      await advance.advanceIfEnabled(f.owner, f.worldId);
+      assert.equal(calls, 1, 'same supplied observation must not trigger another model call');
+      const world = await worlds.get({ userId: f.owner }, f.worldId);
+      const state = (await store.read(f.owner, { worldId: f.worldId, actorId: f.a }))!;
+      const snapshot = (
+        await readPrivateAgentSnapshot(db, f.owner, world, f.a, null, world.time, state)
+      ).snapshot;
+      assert.equal(snapshot.actorObservationInbox!.sourceIds.length, 0);
+      assert.equal(
+        snapshot.viewState.goals.length,
+        1,
+        'ACK does not erase the ongoing actor goal or its source authorization',
+      );
+      assert.equal(snapshot.redactedStateIds.length, 0);
+      assert.equal(
+        world.messages.filter((m) => m.actorId === f.a && m.role === 'assistant').length,
+        0,
+        'quiet is an actual state update without a fake message',
+      );
+    },
+  );
+  await t.test(
+    'private observation backlog drains beyond the scene packet budget without older records starving',
+    async () => {
+      const f = await fixture(true);
+      let calls = 0;
+      const advance = npcAgentAdvanceServices(
+        db,
+        () => ({
+          async complete(messages) {
+            const p = JSON.parse(messages[1]!.content);
+            if (Array.isArray(p.candidates)) {
+              const selected = p.candidates.find(
+                (c: { source: string }) => c.source === 'observation',
+              );
+              return JSON.stringify({
+                mode: selected ? 'coordinate' : 'quiet',
+                selectedCandidateIds: selected ? [selected.id] : [],
+                deferred: p.candidates
+                  .filter((c: { id: string }) => c.id !== selected?.id)
+                  .map((c: { id: string }) => ({
+                    candidateId: c.id,
+                    reason: 'One actor evaluation',
+                  })),
+                nudges: [],
+                opportunities: [],
+                audit: { reason: 'Local backlog substitute', basisSourceIds: [] },
+              });
+            }
+            calls++;
+            return JSON.stringify({
+              statements: [],
+              goals: [],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            });
+          },
+        }),
+        new PostgresDirectorSnapshotRepository(db),
+      );
+      const world = await worlds.get({ userId: f.owner }, f.worldId);
+      const all = await db.transaction(f.owner, (sql) =>
+        readActorSceneObservationSourcesInTransaction(sql, f.owner, {
+          worldId: f.worldId,
+          actorId: f.a,
+          sceneId: f.sceneId,
+          worldVersion: world.version,
+          storyAt: world.time,
+          maxBytes: 1000000,
+          maxEntries: 500,
+        }),
+      );
+      assert.ok(all.sources.length >= 10);
+      for (let i = 0; i < 12 && (await refs(f)).length < all.sources.length; i++)
+        await advance.advanceIfEnabled(f.owner, f.worldId);
+      assert.ok(calls > 1, 'fixture must exceed one private supply budget');
+      assert.equal(
+        (await refs(f)).length,
+        all.sources.length,
+        'older authorized sources must become pending after newer ones are ACKed',
+      );
+      const count = calls;
+      await advance.advanceIfEnabled(f.owner, f.worldId);
+      assert.equal(calls, count);
     },
   );
 });

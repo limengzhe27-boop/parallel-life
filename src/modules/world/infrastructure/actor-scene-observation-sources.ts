@@ -17,6 +17,10 @@ export type ActorSceneObservationFrame = {
   /** Full packets count towards the budget; text is never truncated. */
   maxBytes?: number;
   maxEntries?: number;
+  /** Optional exact previously supplied handles; filtering does not grant visibility. */
+  sourceIds?: readonly string[];
+  /** Private inbox only: filter exact acknowledged content after authentication, before capacity. */
+  consumedSources?: readonly { sourceId: string; contentHash: string }[];
 };
 export type ActorSceneObservation = {
   sourceId: string;
@@ -94,6 +98,7 @@ export async function readActorSceneObservationSourcesInTransaction(
   // Authenticate before budgeting. Presence alone is never sufficient: observableTo is mandatory.
   const visible = read.entries.filter(
     (entry) =>
+      (!frame.sourceIds || frame.sourceIds.includes('scene:' + entry.id)) &&
       entry.ownerId === ownerId &&
       entry.worldId === frame.worldId &&
       entry.sceneId === frame.sceneId &&
@@ -276,7 +281,11 @@ export async function readActorSceneObservationSourcesInTransaction(
   const omittedSourceIds: string[] = [];
   let bytes = 0;
   // Prefer recent authorized entries, but an oversized record must not hide earlier fitting records.
+  const consumed = new Set(
+    (frame.consumedSources ?? []).map((ref) => ref.sourceId + ':' + ref.contentHash),
+  );
   for (const item of [...authorized].reverse()) {
+    if (consumed.has(item.source.id + ':' + item.source.contentHash)) continue;
     const size = Buffer.byteLength(JSON.stringify(item), 'utf8');
     if (selected.length >= maxEntries || bytes + size > maxBytes) {
       omittedSourceIds.unshift(item.source.id);

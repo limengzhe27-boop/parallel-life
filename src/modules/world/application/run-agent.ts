@@ -74,6 +74,7 @@ export async function runNpcAgent(
     const suppliedContext = deps.model.describeSuppliedContext?.(executionSnapshot);
     try {
       if (
+        executionSnapshot.actorObservationInbox !== undefined ||
         executionSnapshot.sceneObservationContext !== undefined ||
         !!executionSnapshot.episodeResults?.length ||
         !!executionSnapshot.episodeFollowUps?.length ||
@@ -181,6 +182,9 @@ function isKnownConflict(error: unknown) {
       'EPISODE_LIFECYCLE_SOURCE_CONFLICT',
       'EPISODE_RESULT_SOURCE_CONFLICT',
       'SCENE_OBSERVATION_SOURCE_CONFLICT',
+      'ACTOR_OBSERVATION_INBOX_CONFLICT',
+      'SCENE_OBSERVATION_CONSUMPTION_SCOPE_CONFLICT',
+      'ACTOR_SCENE_OBSERVATION_VERSION_CONFLICT',
     ].includes(String((error as { code?: unknown }).code ?? (error as Error).message))
   );
 }

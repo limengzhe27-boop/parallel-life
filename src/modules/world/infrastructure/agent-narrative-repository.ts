@@ -612,10 +612,12 @@ export async function projectEpisodeRequestInTransaction(
     ).rows[0]?.document as SharedEpisode | undefined;
     if (
       !ep ||
-      !['proposed', 'active'].includes(ep.status) ||
+      !['proposed', 'active', 'resolved', 'withdrawn'].includes(ep.status) ||
       ep.sourceEventIds.includes(input.eventId)
     )
       invalid();
+    // A different actor's later independent consideration cannot reopen a resolved shared goal.
+    if (ep.status === 'resolved' || ep.status === 'withdrawn') return value;
     const next: SharedEpisode = {
       ...ep,
       revision: ep.revision + 1,
