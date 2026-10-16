@@ -889,9 +889,11 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
     async () => {
       const appOnly = [
         'publication_admit_published',
+        'publication_admit_agent_published',
         'publication_commit_published',
         'publication_player_catalog',
         'publication_agent_trial_source',
+        'publication_agent_world_source',
       ];
       const staffOnly = [
         'publication_admit_trial',

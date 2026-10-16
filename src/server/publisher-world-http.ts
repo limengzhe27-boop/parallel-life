@@ -46,11 +46,13 @@ export function publishedCatalogRoute(request: Request) {
 export function publishedStartRoute(request: Request, workId: string) {
   return endpoint(async () => {
     const s = await authenticated(request);
+    const agentRuntime = process.env.AGENT_RUNTIME_PUBLISHED_ENABLED === 'true';
     return publisherJson(
       await new PublicationWorldRepository(s.db, publicationWorldCompiler).startPublished(
         s.ownerId,
         Id.parse(workId),
         await publisherBody(request, PublishedWorldStartRequestSchema),
+        { agentRuntime },
       ),
     );
   });
