@@ -13,6 +13,11 @@ export type PlayerActor = {
   name: string;
   relationship: string;
   summary?: string;
+  publicProfile?: {
+    identity?: string;
+    traits?: string[];
+    appearance?: string;
+  };
   sourcePersonId?: string;
   photo?: { assetId: string; revision: number };
 };
@@ -96,6 +101,15 @@ export function projectPlayerActors(
               ]
                 .filter(Boolean)
                 .join(' · '),
+              ...(authored.identity || (authored.traits && authored.traits.length > 0) || authored.appearance
+                ? {
+                    publicProfile: {
+                      ...(authored.identity ? { identity: authored.identity } : {}),
+                      ...(authored.traits && authored.traits.length > 0 ? { traits: [...authored.traits] } : {}),
+                      ...(authored.appearance ? { appearance: authored.appearance } : {}),
+                    },
+                  }
+                : {}),
             }
           : {}),
         ...(person

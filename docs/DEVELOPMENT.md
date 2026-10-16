@@ -1176,7 +1176,7 @@ EXPERIENCE-09用户随后明确：预设内容由相关人员提供，本轮只�
 |任务|状态|负责人/目录|范围|验收与接续|
 |---|---|---|---|---|
 |PRODUCT-REFERENCE-01|[ ] 待核对（研究已交付，非业务实现）|codex-root-product-reference-20261012；主登记目录；root|仅新docs/task-reports/PRODUCT-REFERENCE-01.md及本组主表；公开浏览、现有UI源码只读；0业务写/模型/数据库/部署|查看Canphone小红书与相关产品，比较人物档案、虚拟手机、吸引机制和分支分类；区分网页观察、官方声明与本产品提案；不把研究当已实施。B源码/报告/发布范围不变。 2026-10-12：报告已保存；公开Canphone账号标题、Zeta首页/名片、官方CanPhone/Scenes/Duskwood/MeChat说明已读；XHS完整笔记登录受限未看、未安装验证。两后续项已发B/Q排队消息，等母04收口及安全契约再领取；无源码/模型/PG/部署。|
-|NPC-PROFILE-02|[ ] 待规划后实施|暂未领取；根研究后交B/Q排期|世界内人物名片、可见身份/性格/关系与形象完整展示；公共契约由B唯一集成人冻结后拆文件|不是从零新增：messages两套名片与world-phone人物列表已存在。统一入口与展示、检查预设图片/各处头像传递；性格仅展示已知/公开内容，不公开幕后秘密或完整Persona。不能以有summary认为形象与可见性已验收；实施需手机/PC/旧存档、新预设世界验证。|
+|NPC-PROFILE-02|[~] 待验收（待部署上线）|codex-root-npc-profile-02-20261017；主登记目录；根唯一集成|世界内人物名片、可见身份/性格/关系与形象完整展示；公共契约由B唯一集成人冻结后实施|已冻结PublicProfileSchema（identity/traits/appearance），严格隔离后台Persona与私密访谈；贯通player-projection、world-app-data与统一名片组件PersonCard结构化展示；全量3272项测试及Next.js生产构建均已通过，详见[报告](task-reports/NPC-PROFILE-02.md)。|
 |BRANCH-CATEGORY-01|[x] 已完成|codex-branch-category01q-01a0c7c8-20261012；辅助独立树；根唯一集成|仅src/features/discovery/discovery-app.tsx、branch-list.tsx、official-lives.tsx与本人专属css、新前端tests及docs/task-reports/BRANCH-CATEGORY-01.md；server/contract/SQL/media/scene/source/main WIP只读；共享outer-ui.css如需变更先报根|用户已要求顶部分类，现场b7679已READY后接续。实现全部/精选/我的与统一卡片动作/说明入口；精选是目录模板，我的是实际存档（含从精选进入）和草案，同一保存世界去重；不以模板当存档、不隐藏真实失败/恢复、不自动创建/修改世界、不假计数与按钮。已合入主干 2b0f2e28，3266项全量测试与Next.js生产构建均已通过。|
 
 

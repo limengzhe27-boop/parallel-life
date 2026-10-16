@@ -126,6 +126,13 @@ const WorldItemId = z.union([
       return Boolean(match && Id.safeParse(match[1]).success);
     }, 'Invalid world item ID'),
 ]);
+export const PublicProfileSchema = z.strictObject({
+  identity: z.string().max(160).optional(),
+  traits: z.array(z.string().max(60)).max(3).optional(),
+  appearance: z.string().max(240).optional(),
+});
+export type PublicProfile = z.infer<typeof PublicProfileSchema>;
+
 export const WorldPhoneSchema = z.strictObject({
   publicationWallpaperUrl: PublicationAssetUrlSchema.optional(),
   photos: z.array(AlbumPhotoSchema).optional(),
@@ -201,6 +208,7 @@ export const WorldPhoneSchema = z.strictObject({
       name: z.string(),
       relationship: z.string(),
       summary: z.string().optional(),
+      publicProfile: PublicProfileSchema.optional(),
       publicationActorKey: z
         .string()
         .regex(/^[a-z][a-z0-9_]{0,31}$/)

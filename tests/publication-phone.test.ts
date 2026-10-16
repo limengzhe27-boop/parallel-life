@@ -84,7 +84,16 @@ test('authored public contact projection never uses backstage Persona as visible
     [{ actorId: a, name: '阿宁', relationship: '开业伙伴', identity: '同学', traits: ['健谈'] }],
   );
   assert.deepEqual(visible, [
-    { id: a, name: '阿宁', relationship: '开业伙伴', summary: '同学 · 健谈' },
+    {
+      id: a,
+      name: '阿宁',
+      relationship: '开业伙伴',
+      summary: '同学 · 健谈',
+      publicProfile: {
+        identity: '同学',
+        traits: ['健谈'],
+      },
+    },
   ]);
   assert.equal(JSON.stringify(visible).includes('秘密'), false);
 });

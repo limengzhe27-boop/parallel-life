@@ -75,6 +75,7 @@ export function worldAppData(
         name: actor.name,
         relationship: actor.relationship,
         summary: actor.summary,
+        ...(actor.publicProfile ? { publicProfile: actor.publicProfile } : {}),
         avatarUrl: art.url,
         avatarKind: art.kind,
         avatarLabel: art.label,

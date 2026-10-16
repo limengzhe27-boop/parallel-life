@@ -11,6 +11,11 @@ export type PhoneContact = {
   name: string;
   relationship: string;
   summary?: string;
+  publicProfile?: {
+    identity?: string;
+    traits?: string[];
+    appearance?: string;
+  };
   avatarUrl?: string;
   avatarKind?:
     | 'authorized-photo'
