@@ -20,6 +20,7 @@ import type {
 } from '../application/publication-world-ports.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
+import { bootstrapPublicationAgentWorldInTransaction } from '../../world/infrastructure/publication-agent-trial-bootstrap.ts';
 
 const text = (max: number) => z.string().min(1).max(max);
 const ref = z.string().min(1).max(200);
@@ -393,22 +394,40 @@ export class PublicationWorldRepository {
       .rows[0];
     return PublicationWorldResultSchema.parse(row.result);
   }
-  startPublished(ownerId: string, workId: string, raw: PublishedWorldStartRequest) {
+  startPublished(
+    ownerId: string,
+    workId: string,
+    raw: PublishedWorldStartRequest,
+    options: { agentRuntime?: boolean } = {},
+  ) {
     if (this.characterTrial) throw new TaskError('INVALID_STATE');
     const input = parse(PublishedWorldStartRequestSchema, raw);
     parse(Id, workId);
-    return this.tx(ownerId, false, async (sql) =>
-      this.commit(
+    return this.tx(ownerId, false, async (sql) => {
+      const admissionFn = options.agentRuntime
+        ? 'publication_admit_agent_published'
+        : 'publication_admit_published';
+      const result = await this.commit(
         sql,
         (
-          await sql.query(
-            'SELECT parallel_life.publication_admit_published($1,$2,$3) AS admission',
-            [workId, input.publicationVersion, input.commandId],
-          )
+          await sql.query(`SELECT parallel_life.${admissionFn}($1,$2,$3) AS admission`, [
+            workId,
+            input.publicationVersion,
+            input.commandId,
+          ])
         ).rows[0].admission,
         'published_work',
-      ),
-    );
+      );
+      if (options.agentRuntime && !result.replayed && !result.resumed) {
+        await bootstrapPublicationAgentWorldInTransaction(
+          sql,
+          ownerId,
+          result.worldId,
+          result.seedId,
+        );
+      }
+      return result;
+    });
   }
   startTrial(
     principalId: string,
