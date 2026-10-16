@@ -139,8 +139,11 @@ export async function readConsumedSceneObservationSourcesInTransaction(
           input.threadId === frame.actorId &&
           Array.isArray(context.sourceIds) &&
           Array.isArray(context.sceneIds) &&
-          context.sceneIds.length > 0 &&
-          context.sceneIds.every(key))
+          context.sceneIds.every(key) &&
+          (context.sceneIds.length > 0 ||
+            (Array.isArray(context.groupIds) &&
+              context.groupIds.length > 0 &&
+              context.groupIds.every(key))))
       )
     )
       fail();
@@ -160,8 +163,13 @@ export async function readConsumedSceneObservationSourcesInTransaction(
       if (
         sources.length !== 1 ||
         observations.length !== 1 ||
-        sources[0].kind !== 'scene_entry' ||
-        sources[0].id !== 'scene:' + sources[0].recordId ||
+        !['scene_entry', 'group_message'].includes(sources[0].kind) ||
+        (sources[0].kind === 'group_message' &&
+          (input.channel !== 'private' ||
+            !Array.isArray(context.groupIds) ||
+            !context.groupIds.length)) ||
+        sources[0].id !==
+          (sources[0].kind === 'scene_entry' ? 'scene:' : 'group:') + sources[0].recordId ||
         sources[0].contentHash !== ref.contentHash ||
         !Number.isSafeInteger(sources[0].worldVersion) ||
         sources[0].worldVersion < 0 ||

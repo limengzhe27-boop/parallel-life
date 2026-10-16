@@ -138,3 +138,35 @@ test('ordering is deterministic and the function neither mutates input nor force
   assert.ok(candidates.every((c) => !('statements' in c) && !('result' in c)));
   assert.ok(candidates.every((c) => c.reason.includes('保持安静')));
 });
+
+test('authorized private group recall uses the original observation wake and exact ACK, not live group broadcasts', async () => {
+  const input = fixture();
+  input.sources = [
+    {
+      ...input.sources[0]!,
+      id: 'group:message',
+      recordId: 'message',
+      kind: 'group_message',
+      usage: 'private_strategy',
+    },
+  ];
+  input.observations = [
+    {
+      sourceId: 'group:message',
+      text: 'The player reports a location; it is not a verified arrival.',
+      evidenceKind: 'player_report',
+    },
+  ];
+  const first = (await collect(input))[0]!;
+  assert.equal(first.channel, 'private');
+  assert.equal(first.threadId, input.actorId);
+  assert.equal(first.actionId, null);
+  input.worldVersion++;
+  input.actorRevision++;
+  assert.equal((await collect(input))[0]!.id, first.id);
+  input.consumed = [{ sourceId: 'group:message', contentHash: 'a'.repeat(64) }];
+  assert.deepEqual(await collect(input), []);
+  input.consumed = [];
+  input.sources[0]!.usage = 'channel_context';
+  assert.deepEqual(await collect(input), []);
+});

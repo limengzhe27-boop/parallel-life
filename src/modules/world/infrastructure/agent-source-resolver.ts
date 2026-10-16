@@ -1,3 +1,4 @@
+import { readActorGroupObservationSourcesInTransaction } from './actor-group-observation-sources.ts';
 import { readConsumedSceneObservationSourcesInTransaction } from './actor-observation-consumption-repository.ts';
 import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
 import { createHash } from 'node:crypto';
@@ -242,6 +243,55 @@ export async function readActorStrategyBasis(
           worldVersion,
           storyAt,
           sourceIds: missingScenes,
+          maxBytes: 1000000,
+          maxEntries: 500,
+        });
+        for (const source of packet.sources)
+          if (done.has(source.id + ':' + source.contentHash))
+            add(
+              source.id,
+              source.kind,
+              source.recordId,
+              source.worldVersion,
+              source.at,
+              [],
+              source.contentHash,
+            );
+      }
+    }
+  }
+  const missingGroups = handles.filter((h) => h.startsWith('group:') && !sources.has(h));
+  if (missingGroups.length) {
+    const control = (
+      await sql.query(
+        'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
+        [state.worldId, ownerId],
+      )
+    ).rows[0];
+    if (control?.engine_epoch >= 2) {
+      const consumed = await readConsumedSceneObservationSourcesInTransaction(sql, ownerId, {
+        worldId: state.worldId,
+        actorId: state.actorId,
+        engineEpoch: control.engine_epoch,
+        worldVersion,
+      });
+      const done = new Set(consumed.map((c) => c.sourceId + ':' + c.contentHash));
+      const groups = (
+        await sql.query(
+          `SELECT DISTINCT group_id FROM parallel_life.world_group_messages
+         WHERE world_id=$1 AND owner_id=$2 AND ('group:'||id)=ANY($3::text[])`,
+          [state.worldId, ownerId, missingGroups],
+        )
+      ).rows;
+      for (const group of groups) {
+        const packet = await readActorGroupObservationSourcesInTransaction(sql, ownerId, {
+          worldId: state.worldId,
+          actorId: state.actorId,
+          engineEpoch: control.engine_epoch,
+          worldVersion,
+          storyAt,
+          groupId: group.group_id,
+          sourceIds: missingGroups,
           maxBytes: 1000000,
           maxEntries: 500,
         });

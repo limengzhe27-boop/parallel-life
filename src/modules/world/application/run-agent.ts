@@ -185,6 +185,7 @@ function isKnownConflict(error: unknown) {
       'ACTOR_OBSERVATION_INBOX_CONFLICT',
       'SCENE_OBSERVATION_CONSUMPTION_SCOPE_CONFLICT',
       'ACTOR_SCENE_OBSERVATION_VERSION_CONFLICT',
+      'ACTOR_GROUP_OBSERVATION_VERSION_CONFLICT',
     ].includes(String((error as { code?: unknown }).code ?? (error as Error).message))
   );
 }

@@ -10,14 +10,14 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v12-observation-inbox';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v13-group-observation-inbox';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
-actorObservationInbox是你本人在过去实际获准现场中尚未提供给成功回合的记录。它们属于本人私密回忆，不是此刻新发生的事，也不授予对群聊/其他现场披露的权利；按learnedAt与retrievedAt区分历史和当前。可以重考已有安排或保持安静，不要为每条记录发消息，不凭台词判断实际执行成功。
+actorObservationInbox是你本人在过去实际获准现场或群聊中尚未提供给成功回合的记录。它们属于本人私密回忆，不是此刻新发生的事，也不授予对群聊/其他现场披露的权利；按learnedAt与retrievedAt区分历史和当前。可以重考已有安排或保持安静，不要为每条记录发消息，不凭台词判断实际执行成功。
 sceneObservationContext只描述本现场实际授权的记录与容量省略，不代表新发生或已经阅读全部历史。observations的player_report/actor_report是人物说法，不证明真实位置或行动完成；adjudicated_result是对应现场行动的实际裁定，不证明整段事件完成。eventOccurredAt为事件记录的现实时间，storyAt/learnedAt为故事记录及当时获知时间，retrievedAt仅是本轮读取时间，不得把旧记录说成刚发生。未提供的记录不等于不存在，也不许推断被隐去的内容。
 episodeResults是服务器读取的本人真实子步骤回执。invitation_accepted只证明玩家接受该次邀请，invitation_declined只证明该次邀请被拒绝，不能关闭整段事件或其他人物的责任；travel_started只证明本人出发，arrived只证明本人到达。overallOutcome=not_certified始终不证明整段剧情成功或失败。结合本人目标、已有决定和本轮输入自然承接、调整安排，不反复询问已经答复的邀请，不凭结果编号编造完成资格。这些是本人私密策略上下文，不能向其他渠道转述私人邀约或推测他人去向。
 episodeFollowUps仅关联你已经明确考虑过的机会与已有计划/责任。followUp=terminal只代表关联条目已结束，不代表整段世界事件完成。readyPlanIds/readyResponsibilityIds仅表示有重考依据，不是执行成功或新的玩家同意；无关联安排时不得为了填空造计划、期限或行动。
@@ -124,7 +124,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
             snapshot.sources.some(
               (s) =>
                 s.id === o.sourceId &&
-                s.kind === 'scene_entry' &&
+                ['scene_entry', 'group_message'].includes(s.kind) &&
                 /^[a-f0-9]{64}$/.test(s.contentHash ?? ''),
             )
           )),
@@ -368,7 +368,12 @@ export class NpcAgentModel implements NpcAgentModelPort {
       observations: snapshot.sources
         .filter(
           (s) =>
-            s.kind === 'scene_entry' && ids.has(s.id) && /^[a-f0-9]{64}$/.test(s.contentHash ?? ''),
+            (s.kind === 'scene_entry' ||
+              (s.kind === 'group_message' &&
+                snapshot.channel.kind === 'private' &&
+                snapshot.actorObservationInbox?.sourceIds.includes(s.id))) &&
+            ids.has(s.id) &&
+            /^[a-f0-9]{64}$/.test(s.contentHash ?? ''),
         )
         .map((s) => ({ sourceId: s.id, contentHash: s.contentHash! })),
     };

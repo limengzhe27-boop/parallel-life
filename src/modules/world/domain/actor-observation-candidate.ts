@@ -50,7 +50,8 @@ export async function collectPendingSceneObservationCandidates(
   }
   const visible = new Map<string, AgentSource>();
   for (const source of input.sources) {
-    if (source.kind !== 'scene_entry') continue;
+    if (source.kind !== 'scene_entry' && source.kind !== 'group_message') continue;
+    if (source.kind === 'group_message' && source.usage !== 'private_strategy') continue;
     if (
       source.usage === 'private_strategy' &&
       !input.observations?.some(
@@ -65,7 +66,7 @@ export async function collectPendingSceneObservationCandidates(
       continue;
     if (
       !key(source.recordId) ||
-      source.id !== 'scene:' + source.recordId ||
+      source.id !== (source.kind === 'scene_entry' ? 'scene:' : 'group:') + source.recordId ||
       !source.contentHash ||
       !digest.test(source.contentHash) ||
       !integer(source.worldVersion) ||
@@ -82,7 +83,7 @@ export async function collectPendingSceneObservationCandidates(
   for (const source of [...visible.values()].sort((a, b) => a.id.localeCompare(b.id))) {
     if (consumed.has(JSON.stringify([source.id, source.contentHash]))) continue;
     const identity = JSON.stringify([
-      'scene-observation-v1',
+      source.kind === 'scene_entry' ? 'scene-observation-v1' : 'group-observation-v1',
       input.worldId,
       input.actorId,
       input.engineEpoch,
@@ -108,7 +109,7 @@ export async function collectPendingSceneObservationCandidates(
       expectedActorRevision: input.actorRevision,
       priority: 40,
       reason:
-        '本人有尚未实际评估的现场来源；可重考自己的安排或保持安静，不推定他人知情、位置或整段事件完成。',
+        '本人有尚未实际评估的获准观察来源；可重考自己的安排或保持安静，不推定他人知情、位置或整段事件完成。',
       requiresCoordination: false,
     });
   }

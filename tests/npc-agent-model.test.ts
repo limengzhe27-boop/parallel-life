@@ -663,3 +663,40 @@ test('supplied context manifest matches the final cached model messages and excl
     );
   }
 });
+
+test('group report is supplied only as authorized private recall and does not ACK current group text', async () => {
+  for (const channel of ['private', 'group'] as const) {
+    const input = snapshot(channel);
+    input.sources.push({
+      id: 'group:observed',
+      recordId: 'observed',
+      kind: 'group_message',
+      worldVersion: 8,
+      at: input.storyAt,
+      contentHash: 'a'.repeat(64),
+      ...(channel === 'private' ? { usage: 'private_strategy' as const } : {}),
+    });
+    input.observations.push({
+      sourceId: 'group:observed',
+      kind: 'speech',
+      evidenceKind: 'actor_report',
+      text: 'An actual group member report, not a verified world result.',
+    });
+    if (channel === 'private')
+      input.actorObservationInbox = {
+        sourceIds: ['group:observed'],
+        sceneIds: [],
+        groupIds: ['group-room'],
+        omittedSourceIds: [],
+      };
+    const { adapter, calls } = capture();
+    const manifest = adapter.describeSuppliedContext(input);
+    await adapter.decide(input);
+    assert.equal(manifest.observations.length, channel === 'private' ? 1 : 0);
+    assert.ok(
+      JSON.parse(calls[0]!.messages[1]!.content).observations.some(
+        (o: { sourceId: string }) => o.sourceId === 'group:observed',
+      ),
+    );
+  }
+});

@@ -1,3 +1,4 @@
+import { PostgresGroupRepository } from '../../src/modules/world/infrastructure/group-repository.ts';
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
@@ -637,6 +638,111 @@ test('only actual supplied scene context in a successful original NPC commit is 
       const count = calls;
       await advance.advanceIfEnabled(f.owner, f.worldId);
       assert.equal(calls, count);
+    },
+  );
+  await t.test(
+    'actual group report enters original private advance, ACKs quiet and preserves provenance without leaking to B',
+    async () => {
+      const f = await fixture();
+      const groups = new PostgresGroupRepository(db);
+      let world = await worlds.get({ userId: f.owner }, f.worldId);
+      const group = await groups.create(f.owner, {
+        worldId: f.worldId,
+        commandId: randomUUID(),
+        expectedVersion: world.version,
+        title: 'Known audience',
+        actorIds: [f.a],
+      });
+      world = await worlds.get({ userId: f.owner }, f.worldId);
+      await groups.send(f.owner, {
+        worldId: f.worldId,
+        groupId: group.groupId,
+        commandId: randomUUID(),
+        expectedVersion: world.version,
+        text: 'I say I am at a cafe. This is a report, not a verified arrival.',
+      });
+      let calls = 0,
+        groupSource: string | undefined;
+      const advance = npcAgentAdvanceServices(
+        db,
+        () => ({
+          async complete(messages) {
+            const p = JSON.parse(messages[1]!.content);
+            if (Array.isArray(p.candidates)) {
+              const selected = p.candidates.find(
+                (c: { source: string }) => c.source === 'observation',
+              );
+              return JSON.stringify({
+                mode: selected ? 'coordinate' : 'quiet',
+                selectedCandidateIds: selected ? [selected.id] : [],
+                deferred: p.candidates
+                  .filter((c: { id: string }) => c.id !== selected?.id)
+                  .map((c: { id: string }) => ({
+                    candidateId: c.id,
+                    reason: 'One actual observer',
+                  })),
+                nudges: [],
+                opportunities: [],
+                audit: { reason: 'Controlled gateway, not a real model', basisSourceIds: [] },
+              });
+            }
+            calls++;
+            groupSource = p.actorObservationInbox.sourceIds.find((id: string) =>
+              id.startsWith('group:'),
+            );
+            assert.ok(groupSource);
+            assert.ok(
+              p.observations.some(
+                (o: { sourceId: string; evidenceKind: string }) =>
+                  o.sourceId === groupSource && o.evidenceKind === 'player_report',
+              ),
+            );
+            return JSON.stringify({
+              statements: [],
+              goals: [
+                {
+                  id: 'group-recall',
+                  summary: 'Keep the report as a report',
+                  status: 'active',
+                  sourceIds: [groupSource],
+                  resultIds: [],
+                },
+              ],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            });
+          },
+        }),
+        new PostgresDirectorSnapshotRepository(db),
+      );
+      const first = await advance.advanceIfEnabled(f.owner, f.worldId);
+      assert.equal(calls, 1, JSON.stringify(first));
+      assert.ok((await refs(f)).some((r) => r.sourceId === groupSource));
+      assert.deepEqual(await refs(f, f.b), []);
+      await advance.advanceIfEnabled(f.owner, f.worldId);
+      assert.equal(calls, 1);
+      world = await worlds.get({ userId: f.owner }, f.worldId);
+      const store = new PostgresAgentRuntimeRepository(db);
+      const state = (await store.read(f.owner, { worldId: f.worldId, actorId: f.a }))!;
+      const read = await readPrivateAgentSnapshot(db, f.owner, world, f.a, null, world.time, state);
+      assert.equal(read.snapshot.actorObservationInbox!.sourceIds.length, 0);
+      assert.ok(read.snapshot.viewState.goals.some((g) => g.id === 'group-recall'));
+      assert.ok(
+        read.snapshot.sources.some((s) => s.id === groupSource && s.usage === 'private_strategy'),
+      );
+      const bstate = (await store.read(f.owner, { worldId: f.worldId, actorId: f.b }))!;
+      const bread = await readPrivateAgentSnapshot(
+        db,
+        f.owner,
+        world,
+        f.b,
+        null,
+        world.time,
+        bstate,
+      );
+      assert.ok(!bread.snapshot.sources.some((s) => s.id === groupSource));
     },
   );
 });
