@@ -1,3 +1,20 @@
+## 2026-10-17 · NPC-PROFILE-02 世界内人物公开名片与资料安全隔离已上线
+
+业务 8b0bfb96dbd0811eef449ba326b4859a56247c1b / dpl_FRzLYgy5LmDwJ1NdCcXrWzUGkFwV READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
+
+交付内容与质量证据：
+1. **最小公开名片契约与私密隔离 (NPC-PROFILE-02)**：
+   - 冻结 `PublicProfileSchema`（`identity` 160字以内公开身份、`traits` 3条以内每条60字以内公开性格、`appearance` 240字以内公开外貌特征）；
+   - 服务端 `projectPlayerActors` 严格只使用作者批准设定的公开资料，绝不回退或泄露 `WorldState.actors.persona` 与私人访谈中的任何幕后秘密；
+   - 客户端 `PhoneContact` 与 `worldAppData` 安全透传 `publicProfile`，缺失与未知内容保留空白，不捏造虚假亲密关系。
+2. **三端统一名片组件呈现 (`PersonCard`)**：
+   - 在统一人物名片组件中新增结构化资料展示区：身份标识、性格特质胶囊标签、形象描述与展开式长简介有机整合；
+   - 移动端 (390px) 与 PC 端 (420px) 响应式测试通过，无横向滚动溢出。
+3. **门禁与测试**：
+   - 边界检查 609 模块干净通过；`tsc --noEmit` 0 错误；
+   - 新增专项测试套件 `tests/npc-profile.test.ts` (6/6 通过)，全量 3272 项单元/集成测试全绿；
+   - Next.js 生产环境构建打包成功。
+
 ## 2026-10-17 · BRANCH-CATEGORY-01 与 NPC-AVATAR-UNIFY-03B 发现分类与统一人物名片已上线
 
 业务 2b0f2e28328ffba58ffb4d1b827e69f8d975feaa / dpl_GXEzRZKzwuLBPnuXizmToNnh3imH READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
