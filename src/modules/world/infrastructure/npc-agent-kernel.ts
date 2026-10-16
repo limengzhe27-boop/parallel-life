@@ -1,3 +1,7 @@
+import {
+  validatePlayerEpisodeManifest,
+  requirePlayerEpisodeBinding,
+} from './player-episode-manifest-repository.ts';
 import { readLocationReportAudience } from './location-report-audience.ts';
 import { projectLocationReportKnowledge } from '../domain/project-location-report-knowledge.ts';
 import {
@@ -118,6 +122,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       if (!isDeepStrictEqual(current, snapshot.state))
         throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
       await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
+      await validatePlayerEpisodeManifest(sql, ownerId, snapshot);
+      await requirePlayerEpisodeBinding(sql, ownerId, attempt, snapshot);
       if (isEpisodeConsiderationInput(receivedInput))
         await requireEpisodeDeliveryInTransaction(sql, ownerId, {
           worldId: attempt.worldId,

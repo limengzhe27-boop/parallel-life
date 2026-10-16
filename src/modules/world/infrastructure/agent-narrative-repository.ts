@@ -1,3 +1,7 @@
+import {
+  requireEpisodePaymentAvailable,
+  requirePlayerEpisodeBinding,
+} from './player-episode-manifest-repository.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
@@ -359,24 +363,13 @@ export async function requireUnpaidEpisodeRequestInTransaction(
     throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
   };
   if (r.status !== 'pending' || r.inputReceiptId !== null || r.receiptId !== null) forbidden();
-  const paid = await sql.query(
-    `SELECT i.document FROM parallel_life.agent_attempts a
-     JOIN parallel_life.agent_input_receipts i
-       ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
-     WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.engine_epoch=$4
-       AND a.id<>$5 AND (a.sent_at IS NOT NULL OR a.response_hash IS NOT NULL)`,
-    [r.worldId, owner, r.actorId, r.engineEpoch, attemptId],
+  await requireEpisodePaymentAvailable(
+    sql,
+    owner,
+    { world_id: r.worldId, actor_id: r.actorId, engine_epoch: r.engineEpoch, id: r.id },
+    false,
+    attemptId,
   );
-  for (const previous of paid.rows) {
-    if (previous.document?.origin !== 'coordination') continue;
-    let intent: any;
-    try {
-      intent = JSON.parse(previous.document.text);
-    } catch {
-      continue;
-    }
-    if (intent?.type === 'npc_episode_consideration' && intent.requestId === r.id) forbidden();
-  }
 }
 /** Final internal step only: receipt and consumed request must commit together (deferred SQL FK). */
 async function consumeEpisodeRequestInTransaction(
@@ -410,15 +403,29 @@ export async function projectEpisodeRequestInTransaction(
     )
   ).rows[0]?.document as AgentInputReceipt | undefined;
   if (!body) invalid();
-  if (body.origin !== 'coordination' || body.channel !== 'private') return null;
-  let raw: any;
-  try {
-    raw = JSON.parse(body.text);
-  } catch {
-    return null;
+  if (body.channel !== 'private') return null;
+  let intent: { requestId: string };
+  let playerBinding: any;
+  if (body.origin === 'player') {
+    playerBinding = (
+      await sql.query(
+        'SELECT document FROM parallel_life.agent_episode_attempt_bindings WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND input_receipt_id=$4',
+        [a.worldId, owner, a.id, body.id],
+      )
+    ).rows[0]?.document;
+    if (!playerBinding) return null;
+    intent = { requestId: playerBinding.requestId };
+  } else {
+    if (body.origin !== 'coordination') return null;
+    let raw: any;
+    try {
+      raw = JSON.parse(body.text);
+    } catch {
+      return null;
+    }
+    if (raw?.type !== 'npc_episode_consideration') return null;
+    intent = parseEpisodeConsiderationIntent(body.text);
   }
-  if (raw?.type !== 'npc_episode_consideration') return null;
-  const intent = parseEpisodeConsiderationIntent(body.text);
   const row = (
     await sql.query(
       `SELECT * FROM parallel_life.agent_episode_requests
@@ -485,7 +492,17 @@ export async function projectEpisodeRequestInTransaction(
     body.inputHash !== a.inputHash
   )
     invalid();
-  checkedInput(body, r, rt.stateAfter.definitionRef);
+  if (body.origin === 'player') {
+    if (
+      body.recipientActorId !== a.actorId ||
+      body.threadId !== a.actorId ||
+      playerBinding.actorId !== a.actorId ||
+      playerBinding.episodeId !== r.episodeId ||
+      playerBinding.engineEpoch !== a.engineEpoch
+    )
+      invalid();
+    await requirePlayerEpisodeBinding(sql, owner, a, committed.snapshot);
+  } else checkedInput(body, r, rt.stateAfter.definitionRef);
   if (!isDeepStrictEqual(rt.proposal?.episodeDecision, rt.episodeDecision)) invalid();
   const choice =
     rt.episodeDecision === undefined ? undefined : choiceSchema.safeParse(rt.episodeDecision);
@@ -510,6 +527,9 @@ export async function projectEpisodeRequestInTransaction(
       selected.sourceIds.some((id) => !captured.sources.some((source: any) => source.id === id)))
   )
     invalid();
+  // Successful unrelated dialogue is not a consideration receipt and never consumes the opportunity.
+  if (body.origin === 'player' && !selected) return null;
+  if (body.origin === 'player' && !selected?.sourceIds.includes(playerBinding.sourceId)) invalid();
   const messageIds = (
     await sql.query(
       `SELECT id FROM parallel_life.world_messages

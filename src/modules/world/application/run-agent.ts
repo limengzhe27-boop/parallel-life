@@ -73,6 +73,7 @@ export async function runNpcAgent(
     }
     try {
       if (
+        executionSnapshot.episodeManifest !== undefined ||
         isActorEpisodeConsiderationInput(executionSnapshot.input) ||
         executionSnapshot.sources.some((source) =>
           source.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX),

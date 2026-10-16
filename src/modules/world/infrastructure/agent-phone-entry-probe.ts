@@ -52,10 +52,11 @@ export async function readAgentPhoneEntryProbe(
   const actors = (
     await sql.query(
       `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,
-    a.expected_world_version,a.expected_actor_revision,a.lease_until,r.document,s.revision
+    a.expected_world_version,a.expected_actor_revision,a.lease_until,r.document,s.revision,b.request_id AS bound_request_id
     FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
       ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
     LEFT JOIN parallel_life.actor_agent_states s ON s.world_id=a.world_id AND s.owner_id=a.owner_id AND s.actor_id=a.actor_id
+    LEFT JOIN parallel_life.agent_episode_attempt_bindings b ON b.world_id=a.world_id AND b.owner_id=a.owner_id AND b.attempt_id=a.id
     WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3 ORDER BY a.created_at,a.id`,
       [frame.worldId, ownerId, frame.engineEpoch],
     )

@@ -47,10 +47,11 @@ export async function dispatchPendingAgentEpisode(
     });
     const attempts = (
       await sql.query(
-        `SELECT a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,r.document
+        `SELECT a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,b.request_id AS bound_request_id,r.document
          FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
          ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
-         WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3 ORDER BY a.created_at,a.id`,
+         LEFT JOIN parallel_life.agent_episode_attempt_bindings b ON b.world_id=a.world_id AND b.owner_id=a.owner_id AND b.attempt_id=a.id
+    WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3 ORDER BY a.created_at,a.id`,
         [world.id, ownerId, engineEpoch],
       )
     ).rows.map(episodeDispatchAttempt);

@@ -1,3 +1,4 @@
+import { bindPlayerEpisodeAttempt } from './player-episode-manifest-repository.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import {
@@ -644,6 +645,8 @@ export class PostgresAgentRuntimeRepository
           }
         }
       }
+      if (status === 'request_sent' && snapshot)
+        await bindPlayerEpisodeAttempt(sql, ownerId, expected, snapshot);
       if (row.status === status) return attempt(row);
       const saved = (
         await sql.query(

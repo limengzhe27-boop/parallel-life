@@ -9,9 +9,11 @@ export type EpisodeDispatchAttempt = {
   commandId: string;
   status: string;
   paid: boolean;
+  playerManifest?: boolean;
   requestId: string | null;
 };
 export function episodeDispatchAttempt(row: {
+  bound_request_id?: string | null;
   actor_id: string;
   command_id: string;
   status: string;
@@ -19,8 +21,8 @@ export function episodeDispatchAttempt(row: {
   response_hash: unknown;
   document: { origin: string; text: string };
 }): EpisodeDispatchAttempt {
-  let requestId: string | null = null;
-  if (row.document.origin === 'coordination') {
+  let requestId: string | null = row.bound_request_id ?? null;
+  if (!requestId && row.document.origin === 'coordination') {
     try {
       const intent = JSON.parse(row.document.text);
       if (intent.type === 'npc_episode_consideration' && typeof intent.requestId === 'string')
@@ -31,6 +33,7 @@ export function episodeDispatchAttempt(row: {
   }
   return {
     actorId: row.actor_id,
+    ...(row.bound_request_id ? { playerManifest: true } : {}),
     commandId: row.command_id,
     status: row.status,
     paid: row.sent_at != null || row.response_hash != null,
@@ -49,7 +52,7 @@ export function eligibleEpisodeDispatches(
   return requests.flatMap((request) => {
     if (!episodeAttentionAllows(attention, request.actorId)) return [];
     const prior = attempts.filter((a) => a.requestId === request.id);
-    if (prior.some((a) => a.status === 'committed'))
+    if (prior.some((a) => a.status === 'committed' && !a.playerManifest))
       throw new DomainError('INVALID_PROPOSAL', 'EPISODE_CONSUMPTION_RECEIPT_MISSING');
     if (prior.some((a) => a.paid)) return [];
     if (

@@ -15,6 +15,7 @@ import type {
 /** Snapshot reads have no projection writes or model calls. Channel input is already visibility-filtered. */
 export type AgentSnapshot = {
   state: ActorAgentState;
+  episodeManifest?: import('../domain/player-episode-manifest.ts').PlayerEpisodeManifest;
   /** Only this authorized view may enter the model. Full state remains server-side for CAS/reduce. */
   viewState: ActorAgentState;
   redactedStateIds: string[];

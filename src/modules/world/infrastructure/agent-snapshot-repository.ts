@@ -1,3 +1,4 @@
+import { selectPlayerEpisodeManifest } from './player-episode-manifest-repository.ts';
 import { createHash } from 'node:crypto';
 import type { PostgresDatabase } from '../../storage/infrastructure/postgres.ts';
 import type { AgentInputReceipt, ActorAgentState, AgentSource } from '../domain/agent-runtime.ts';
@@ -459,11 +460,27 @@ export async function readPrivateAgentSnapshot(
       observations.push(view.observation);
     }
   }
+  const playerEpisode =
+    input?.origin === 'player'
+      ? await db.transaction(ownerId, (sql) =>
+          selectPlayerEpisodeManifest(
+            sql,
+            ownerId,
+            { worldId: world.id, actorId, worldVersion: world.version, storyAt },
+            input,
+          ),
+        )
+      : null;
+  if (playerEpisode) {
+    sources.set(playerEpisode.view.source.id, playerEpisode.view.source);
+    observations.push(playerEpisode.view.observation);
+  }
   const selectedModules = selectActorPersona(modules, input?.text ?? '');
   const result: { seed: ActorAgentState | null; snapshot: AgentSnapshot } = {
     seed: state ? null : seeded,
     snapshot: {
       state: seeded,
+      ...(playerEpisode ? { episodeManifest: playerEpisode.manifest } : {}),
       ...authorizedAgentState(seeded, new Set(sources.keys())),
       worldVersion: world.version,
       storyAt,

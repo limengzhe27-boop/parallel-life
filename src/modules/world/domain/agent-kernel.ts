@@ -1,3 +1,7 @@
+import {
+  validPlayerEpisodeManifest,
+  type PlayerEpisodeManifest,
+} from './player-episode-manifest.ts';
 import type {
   AgentProposal,
   ActorAgentState,
@@ -7,6 +11,7 @@ import type {
 import { applyQuestionChanges, AgentQuestionError } from './agent-questions.ts';
 
 export type AgentValidationContext = {
+  episodeManifest?: PlayerEpisodeManifest;
   state: ActorAgentState;
   viewState?: ActorAgentState;
   sources: AgentSource[];
@@ -238,12 +243,18 @@ export function validateAgentProposal(
     const request = intent as { type?: unknown; requestId?: unknown; revision?: unknown } | null;
     const decision = proposal.episodeDecision;
     requireValid(
-      context.input.origin === 'coordination' &&
-        context.channel.kind === 'private' &&
-        request?.type === 'npc_episode_consideration' &&
-        request.revision === 0 &&
-        typeof request.requestId === 'string' &&
-        decision.requestId === request.requestId &&
+      context.channel.kind === 'private' &&
+        ((context.input.origin === 'coordination' &&
+          request?.type === 'npc_episode_consideration' &&
+          request.revision === 0 &&
+          typeof request.requestId === 'string' &&
+          decision.requestId === request.requestId) ||
+          (context.input.origin === 'player' &&
+            validPlayerEpisodeManifest(context.episodeManifest) &&
+            context.episodeManifest.actorId === context.state.actorId &&
+            context.channel.threadId === context.state.actorId &&
+            decision.requestId === context.episodeManifest.requestId &&
+            decision.sourceIds.includes(context.episodeManifest.sourceId))) &&
         !context.state.episodeParticipations?.some((p) => p.id === decision.requestId) &&
         ['engage', 'decline', 'defer', 'need_information', 'quiet'].includes(decision.choice) &&
         typeof decision.reason === 'string' &&

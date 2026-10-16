@@ -252,7 +252,9 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
   );
   const incoming = isActorEpisodeConsiderationInput(snapshot.input)
     ? parseEpisodeConsiderationIntent(snapshot.input.text)
-    : null;
+    : snapshot.episodeManifest
+      ? { requestId: snapshot.episodeManifest.requestId }
+      : null;
   if (!sources.length && !incoming) return;
   const frame = {
     worldId: snapshot.state.worldId,
@@ -305,9 +307,16 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
         return conflict();
       continue;
     }
-    if (snapshot.channel.kind !== 'private' || snapshot.input.origin !== 'coordination')
+    if (
+      snapshot.channel.kind !== 'private' ||
+      (snapshot.input.origin !== 'coordination' &&
+        !(snapshot.input.origin === 'player' && snapshot.episodeManifest))
+    )
       return conflict();
-    const intent = parseEpisodeConsiderationIntent(snapshot.input.text);
+    const intent =
+      snapshot.input.origin === 'player'
+        ? snapshot.episodeManifest!
+        : parseEpisodeConsiderationIntent(snapshot.input.text);
     if (
       intent.requestId !== id ||
       observations.length !== 1 ||
