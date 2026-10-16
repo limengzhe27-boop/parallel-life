@@ -11,6 +11,7 @@ export type Actor = {
   persona: string;
   relationship?: string;
   sourcePersonId?: Id;
+  initialPlaceId?: string;
 };
 /** A directed, bounded social link. mayShare means possible, never mandatory. */
 export type ActorTie = { fromActorId: Id; toActorId: Id; relationship: string; mayShare: boolean };

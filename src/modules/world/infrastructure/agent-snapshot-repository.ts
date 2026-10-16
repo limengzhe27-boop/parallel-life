@@ -601,18 +601,20 @@ export async function attachAgentWorldContext(
     'worldVersion' in own &&
     own.worldVersion <= snapshot.worldVersion &&
     'sourceEventId' in own &&
-    !blocked.has(own.sourceEventId) &&
-    !blocked.has(`self-position:${own.sourceEventId}`) &&
+    (!own.sourceEventId ||
+      (!blocked.has(own.sourceEventId) && !blocked.has(`self-position:${own.sourceEventId}`))) &&
     'occurredAt' in own &&
     Number.isFinite(Date.parse(own.occurredAt)) &&
     Date.parse(own.occurredAt) <= Date.parse(snapshot.storyAt) &&
     (!own.placeId || allowed.has(own.placeId))
   ) {
-    const sourceId = `self-position:${own.sourceEventId}`;
+    const sourceId = own.sourceEventId
+      ? `self-position:${own.sourceEventId}`
+      : `self-position:genesis:${snapshot.state.worldId}`;
     sources.push({
       id: sourceId,
-      kind: 'world_event',
-      recordId: own.sourceEventId,
+      kind: own.sourceEventId ? 'world_event' : 'authored',
+      recordId: own.sourceEventId ?? snapshot.state.worldId,
       worldVersion: own.worldVersion,
       at: own.occurredAt,
     });

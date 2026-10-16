@@ -21,7 +21,7 @@ export type AuthoritativePosition = {
   subject: AwarenessSubject;
   status: 'at' | 'in_transit' | 'unknown';
   placeId: string | null;
-  sourceEventId: string;
+  sourceEventId: string | null;
   worldVersion: number;
   /** World time of the actual move/presence; never the projection wall-clock timestamp. */
   occurredAt: string;
@@ -192,8 +192,9 @@ export function committedAwarenessDelta(
       subject.kind !== 'actor' ||
       subject.actorId !== j.actorId ||
       origin.status !== 'at' ||
-      !text(origin.sourceEventId) ||
-      !positive(origin.worldVersion) ||
+      !((origin.worldVersion === 0 && origin.sourceEventId === null) ||
+        (positive(origin.worldVersion) && text(origin.sourceEventId))) ||
+      origin.worldVersion < 0 ||
       origin.worldVersion > j.preparedAtVersion ||
       !Number.isFinite(time(origin.occurredAt)) ||
       !Number.isFinite(time(j.departedAt)) ||
@@ -216,7 +217,7 @@ export function committedAwarenessDelta(
       departure.actionId !== j.beginActionId ||
       !text(departure.id) ||
       !text(departure.eventId) ||
-      departure.eventId === origin.sourceEventId ||
+      (origin.sourceEventId !== null && departure.eventId === origin.sourceEventId) ||
       departure.outcome !== 'succeeded' ||
       departure.worldVersion !== j.preparedAtVersion + 1 ||
       time(departure.at) !== time(j.departedAt)
@@ -303,7 +304,7 @@ export function committedAwarenessDelta(
       data.departureEventId !== journey.departure.eventId ||
       !same(data.route, journey.route) ||
       event.id === journey.departure.eventId ||
-      event.id === journey.origin.sourceEventId ||
+      (journey.origin.sourceEventId !== null && event.id === journey.origin.sourceEventId) ||
       journey.departure.worldVersion >= event.version ||
       !Number.isFinite(time(event.storyAt)) ||
       time(event.storyAt) < time(journey.plannedArrivalAt) ||

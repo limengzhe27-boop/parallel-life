@@ -136,8 +136,10 @@ function ownPositionValid(position: AuthoritativePosition, frame: TravelFrame): 
     position.worldId === frame.worldId &&
     position.subject.kind === 'actor' &&
     position.subject.actorId === frame.actorId &&
-    id(position.sourceEventId) &&
-    version(position.worldVersion) &&
+    ((position.worldVersion === 0 && position.sourceEventId === null) ||
+      (version(position.worldVersion) && id(position.sourceEventId!))) &&
+    Number.isSafeInteger(position.worldVersion) &&
+    position.worldVersion >= 0 &&
     position.worldVersion <= frame.worldVersion &&
     Number.isFinite(instant(position.occurredAt)) &&
     instant(position.occurredAt) <= instant(frame.storyAt)

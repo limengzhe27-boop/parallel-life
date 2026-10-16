@@ -155,7 +155,7 @@ export async function forgottenAgentSourceIds(
         [worldId, ownerId, `actor:${actorId}`],
       )
     ).rows)
-      edge(`self-position:${row.source_event_id}`, row.source_event_id);
+      if (row.source_event_id) edge(`self-position:${row.source_event_id}`, row.source_event_id);
   const queue = [...blocked];
   for (let i = 0; i < queue.length; i++)
     for (const id of graph.get(queue[i]!) ?? [])

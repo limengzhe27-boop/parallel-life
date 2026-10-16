@@ -179,14 +179,14 @@ export async function readActorSceneObservationSourcesInTransaction(
                 sourceEventId: string;
               }) =>
                 proof.worldId === frame.worldId &&
-                proof.subject.kind === 'actor' &&
                 proof.subject.actorId === frame.actorId &&
                 proof.status === 'at' &&
                 proof.placeId === read.scene.placeId &&
                 Number.isSafeInteger(proof.worldVersion) &&
-                proof.worldVersion > 0 &&
+                proof.worldVersion >= 0 &&
                 proof.worldVersion < joined.version &&
-                typeof proof.sourceEventId === 'string',
+                ((proof.worldVersion === 0 && proof.sourceEventId === null) ||
+                  (proof.worldVersion > 0 && typeof proof.sourceEventId === 'string')),
             )))
       );
     });
