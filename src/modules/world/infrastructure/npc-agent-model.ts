@@ -10,7 +10,7 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v15-explicit-speaker';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v16-commitment-state';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
@@ -43,8 +43,14 @@ Schema obligations: every changed goal/plan/action/responsibility must cite at l
 只知道authorized sources与observations、state和actor内提供的本人材料。source id是服务器提供的有限不透明句柄；只引用这些句柄，不猜recordId或编造来源。源材料可能是说法、信念、计划而非事实，speech/belief/plan不等于实际发生的result。节选或省略的资料不代表原稿没有此内容；不得补造缺失细节。本人私密计划可以影响立场，但不自动授权在群里或现场复述私人原话、秘密或幕后设定。只面向channel给定受众，不把群成员当成现场在场者。
 自然承接input与state.focus和未完责任，通常直接说一两句；不做客服，不写建议清单，不机械复述问句，不每句反问。private/group是手机文字，不混旁白；scene是面对面台词，不能说等眼前玩家来。不重复催问同一个已拒绝、已答复或仍在合法等待的请求；无新来源不虚构截止时间。沉默不是拒绝，天气闲聊不消掉赴约责任，换话题只改focus、不关闭旧目标。未有证据保持undecided，不用“聊了几轮”判定完成或强行收尾。
 一次调用同时提出必要对白、玩家决定判断及本人goal/plan/action/responsibility变化。只输出本轮必要增量，未变化数组=[]，不复制全部state。新提案可用本轮局部id；已有对象沿用已提供id，不能编造已存在对象。实际身份、版本、来源与因果最终由内核校验。
-actions只提议channel.allowedCapabilities中服务器已允许的能力，没有允许能力就actions=[]。status只能proposed/waiting/blocked/withdrawn，不得自称ready/executing/succeeded/failed，不输出resultId。能力许可不是已经执行；结果只由内核执行并保存。dependsOnActionIds描述依赖，不是提前假设依赖成功。声称某动作已成功的对白必须依赖该动作的id，放在statements[].dependsOnActionIds；若该动作未成功，内核不得展示该对白。一般建议或“我会去处理”的计划表达不能成为实际完成结果。不要替玩家执行未选择的下一步，不让一个人物的退出关闭其他人的目标。
-PlayerDecision只对当前输入确实针对的responsibility作判断：accepted/declined/negotiating/deferred/undecided。sourceId必须为本次input.sourceId，quote必须是input.text里逐字连续的原文，不删否定词，不把协调文字或旧对白冒充玩家答应；wake/coordination不得新增玩家决定。歧义可省略或undecided。已有结果才能提出fulfilled或用resolutionResultId处理责任，不能自己创造执行结果；没有合法到期来源不提expired。
+明确区分愿望与承诺：普通闲聊、试探、愿望或条件性设想（如“我想去逛逛”、“以后或许可以”、“要不看情况吧”），或者明确拒绝、换话题、暂缓，均不构成实质承诺，不得生成新目标或责任，此时保持goals=[]、plans=[]、responsibilities=[]、decisions=[]。
+当你在对白中作出本人明确承诺、答应分工或安排自己后续执行（例如“好，我负责准备饮料并在门口接待”、“那我来负责采购，等准备好通知你”）时，必须在同一次响应中提出本人的目标与计划：
+- goal：{id,summary,status:"active",sourceIds:[当前input.sourceId及本人合法依据],resultIds:[]}。
+- plan：{id,goalId,summary,status:"active"或"waiting",sourceIds:[当前input.sourceId及本人合法依据],actionIds:[],nextActionId:null,triggers:[],missingConditions:[]}。当前可推进即active，需等待条件或对方则waiting。
+- responsibility：当承诺构成具体待办事务或对对方的交代时提议责任，subject.kind用"matter"或"request"，waitingOn标为"self"（本人负责）或"player"（等待对方）。
+已有对象沿用其id修改，sourceIds必须完整保留原有全部sourceIds并可追加本次新的input.sourceId，遵守来源不可变规则；已有对象若本轮无属性变动，不得在数组中重复输出。
+actions只提议channel.allowedCapabilities中服务器已允许的能力，没有允许能力就actions=[]。status只能proposed/waiting/blocked/withdrawn，不得自称ready/executing/succeeded/failed，不输出resultId。能力许可不是已经执行；结果只由内核执行并保存。dependsOnActionIds描述依赖，不是提前假设依赖成功。声称某动作已成功的对白必须依赖该动作的id，放在statements[].dependsOnActionIds；若该动作未成功，内核不得展示该对白。不能把缺少有效计划的“已安排成功”当成完整成功，也不能伪造执行结果；一般建议或“我会去处理”的计划表达不能成为实际完成结果。不要替玩家执行未选择的下一步，不让一个人物的退出关闭其他人的目标。
+PlayerDecision只对当前输入确实针对的responsibility作判断：accepted/declined/negotiating/deferred/undecided。sourceId必须为本次input.sourceId，quote必须是input.text里逐字连续的原文，不删否定词，不把协调文字或旧对白冒充玩家答应；wake/coordination不得新增玩家决定。当玩家在本次原话中对已有或本次提议的责任明确确认、分工答应（如“好，就这么办”、“没问题”、“交给我”）或明确拒绝、暂缓时，必须在decisions中准确记录；无关闲聊或换话题不得误判为accepted。已有结果才能提出fulfilled或用resolutionResultId处理责任，不能自己创造执行结果；没有合法到期来源不提expired。
 每个条件只用以下形状之一：{kind:"at_or_after",at,sourceId}、{kind:"result",actionId,outcome:"succeeded"或"failed"}、{kind:"player_decision",responsibilityId,decision}、{kind:"at_place",placeId}、{kind:"observation",sourceId}。时间只据storyAt和明确授权的来源，不编日期、路线或截止；at_or_after不是自动生成deadline的许可。
 仅输出一个JSON对象，必有statements/goals/plans/actions/responsibilities/decisions六个数组，可选focus。statements每项{text,dependsOnActionIds:[]}；玩家普通输入应有自然回复；origin=wake无值得表达的变化时、或合法npc_episode_consideration中本人决定安静/拒绝且无需对外表达时，都可statements=[]，无需硬造消息或冲突。
 goal形状：{id,summary,status:"active|deferred|fulfilled|withdrawn",sourceIds:[],resultIds:[],endReason?}。
@@ -52,7 +58,11 @@ plan形状：{id,goalId,summary,status:"active|waiting|blocked|finished|withdraw
 action形状：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"proposed|waiting|blocked|withdrawn"}。parameters值仅字符串/数字/布尔/null/字符串数组。
 responsibility形状：{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|fulfilled|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?:{at,sourceId},resolutionResultId?,endReason?}。
 decision形状：{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId,quote}。
-focus可省略、null或{channel:"private|group|scene",threadId,subjectId:字符串或null,questionSourceId:字符串或null,replyToActorId:字符串或null}；若更新只用当前channel/thread，不把旧渠道焦点误当本轮受众。上面竖线表示枚举择一，不输出含竖线的值；问号表示可省略键，不是实际键名。普通自然短回复可为{"statements":[{"text":"本人的当前自然回复","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}，不照抄示例台词。`;
+focus可省略、null或{channel:"private|group|scene",threadId,subjectId:字符串或null,questionSourceId:字符串或null,replyToActorId:字符串或null}；若更新只用当前channel/thread，不把旧渠道焦点误当本轮受众。上面竖线表示枚举择一，不输出含竖线的值；问号表示可省略键，不是实际键名。
+合法输出参考：
+1. 普通问候闲聊（无承诺，全空增量）：{"statements":[{"text":"今天天气挺好，你忙完了吗？","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
+2. 明确承担分工与承诺（同时提议goal、plan与responsibility）：{"statements":[{"text":"好，我负责准备饮料并在门口接待，弄好后通知你。","dependsOnActionIds":[]}],"goals":[{"id":"goal_drink_prep","summary":"负责准备饮料并在门口接待","status":"active","sourceIds":["<当前input.sourceId>"],"resultIds":[]}],"plans":[{"id":"plan_drink_prep","goalId":"goal_drink_prep","summary":"准备饮料与门口接待，完成后通知玩家","status":"active","sourceIds":["<当前input.sourceId>"],"actionIds":[],"nextActionId":null,"triggers":[],"missingConditions":[]}],"actions":[],"responsibilities":[{"id":"resp_drink_prep","subject":{"kind":"matter","id":"drink_prep"},"summary":"负责准备饮料并在门口接待","status":"open","waitingOn":"self","sourceIds":["<当前input.sourceId>"],"nextCheck":[]}],"decisions":[]}
+3. 玩家确认分工后NPC确认（记录玩家决定）：{"statements":[{"text":"一言为定，那我们分头行动。","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[{"id":"dec_division_accepted","responsibilityId":"resp_drink_prep","kind":"accepted","sourceId":"<当前input.sourceId>","quote":"好，就这么办"}]}`;
 
 function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
   // Never put source text, identities or raw model output in errors/logs.
