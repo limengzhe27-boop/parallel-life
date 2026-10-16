@@ -554,3 +554,105 @@ test('quiet audit remains mandatory and source-authorized regardless of candidat
     'quiet',
   );
 });
+
+test('output reference catalogue keeps empty candidates separate from actors and eligible author events', async () => {
+  const { createHash } = await import('node:crypto');
+  const { compileAuthoredAgentMaterials } =
+    await import('../src/modules/world/domain/authored-agent-material.ts');
+  const f = fixture();
+  f.snapshot.candidates = [];
+  f.snapshot.authoredMaterials = compileAuthoredAgentMaterials(
+    {
+      scope: { worldId: 'world', engineEpoch: 2, worldVersion: 5 },
+      actualActorIds: ['a', 'b'],
+      actualPlaceIds: ['home', 'shop'],
+      source: {
+        origin: {
+          workId: 'work',
+          publicationVersion: 0,
+          draftVersion: 0,
+          contentHash: 'a'.repeat(64),
+        },
+        openingEventKey: 'opening_plan',
+        timeline: null,
+        conditions: [],
+        actorKeys: ['ak'],
+        contacts: [{ actorKey: 'ak', actorId: 'a' }],
+        initialActorIds: ['a', 'b'],
+        initialPlaceKeys: ['home'],
+        places: [{ key: 'home', name: 'Home' }],
+        history: [],
+        nodes: ['opening_plan', 'blocked', 'occupied'].map((key) => ({
+          key,
+          kind: 'candidate',
+          title: key,
+          script: 'Unperformed authored intention',
+          editorialIntent: 'Optional, not completed',
+          actorKeys: ['ak'],
+          prerequisites: [],
+          mutuallyExclusiveNodeKeys: [],
+          intent: { kind: 'director_event' },
+        })),
+      },
+    },
+    (text) => createHash('sha256').update(text).digest('hex'),
+  );
+  f.snapshot.authoredEligibility = f.snapshot.authoredMaterials.materials.map((m) => ({
+    nodeKey: m.ref.nodeKey,
+    nodeHash: m.ref.nodeHash,
+    status: m.ref.nodeKey === 'blocked' ? 'blocked' : 'eligible',
+    reasons: [],
+    basisSourceIds: [],
+    qualificationKey: 'b'.repeat(64),
+  }));
+  f.snapshot.occupiedAuthoredEventKeys = ['occupied'];
+  let payload: any,
+    system = '';
+  const adapter = new WorldDirectorAgentModel({
+    async complete(messages) {
+      system = messages[0]!.content;
+      payload = JSON.parse(messages[1]!.content);
+      return '{}';
+    },
+  });
+  await adapter.decide(f.snapshot);
+  const catalog = payload.outputReferenceCatalog;
+  assert.deepEqual(catalog.candidateIds, []);
+  assert.deepEqual(catalog.actorIds, ['a', 'b']);
+  assert.deepEqual(catalog.placeIds, ['home', 'shop']);
+  assert.equal(catalog.eligibleAuthoredEvents.length, 1);
+  const ref = catalog.eligibleAuthoredEvents[0];
+  assert.equal(ref.authoredEventKey, 'opening_plan');
+  assert.match(ref.sourceId, /^authored:[a-f0-9]{64}$/);
+  assert.match(system, /selectedCandidateIds, deferred, and nudges MUST ALL be \[\]/);
+  assert.match(system, /Never omit authoredEventKey for authored evidence/);
+  const decision = {
+    ...f.bounded,
+    deferred: [],
+    opportunities: [
+      { ...f.opportunity, authoredEventKey: ref.authoredEventKey, basisSourceIds: [ref.sourceId] },
+    ],
+  };
+  assert.equal(f.parse(decision).mode, 'bounded_opportunity');
+  rejected(f, { ...decision, selectedCandidateIds: ['a', 'b'] });
+  rejected(f, { ...decision, deferred: [{ candidateId: 'a', reason: 'Not a candidate' }] });
+  const { authoredEventKey: _key, ...missingKey } = decision.opportunities[0]!;
+  rejected(f, { ...decision, opportunities: [missingKey] });
+  rejected(f, {
+    ...decision,
+    opportunities: [{ ...decision.opportunities[0], authoredEventKey: 'a' }],
+  });
+});
+
+test('output candidate index is copied from candidate IDs rather than actor identities', async () => {
+  const f = fixture();
+  let payload: any;
+  await new WorldDirectorAgentModel({
+    async complete(messages) {
+      payload = JSON.parse(messages[1]!.content);
+      return '{}';
+    },
+  }).decide(f.snapshot);
+  assert.deepEqual(payload.outputReferenceCatalog.candidateIds, ['candidate-a', 'candidate-b']);
+  assert.deepEqual(payload.outputReferenceCatalog.eligibleAuthoredEvents, []);
+});
