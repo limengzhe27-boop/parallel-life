@@ -31,6 +31,7 @@ export const PublicationOpeningSchema = z.strictObject({
         introduction: z.string().max(1600).optional(),
         traits: z.array(z.string().max(60)).max(3),
         appearance: z.string().max(240).optional(),
+        initialPlaceId: key.optional(),
       }),
     )
     .min(1)
