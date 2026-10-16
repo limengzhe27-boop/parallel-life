@@ -24,15 +24,19 @@ const Id = z.string().uuid();
 const Place = z.string().regex(/^[a-z0-9_]{1,64}$/);
 const Version = z.number().int().nonnegative();
 const Time = z.iso.datetime({ offset: true });
-const Position = z.strictObject({
-  worldId: Id,
-  subject: ParticipantSchema,
-  status: z.literal('at'),
-  placeId: Place,
-  sourceEventId: Id,
-  worldVersion: Version.positive(),
-  occurredAt: Time,
-});
+const Position = z
+  .strictObject({
+    worldId: Id,
+    subject: ParticipantSchema,
+    status: z.literal('at'),
+    placeId: Place,
+    sourceEventId: Id.nullable(),
+    worldVersion: Version,
+    occurredAt: Time,
+  })
+  .refine((p) => (p.worldVersion === 0) === (p.sourceEventId === null), {
+    message: 'invalid_source_event_id',
+  });
 const Environment = z.strictObject({
   schemaVersion: z.literal(1),
   producer: z.literal('deterministic'),
@@ -103,15 +107,17 @@ export function replaySceneEnvironment(
   const scene = structuredClone(before);
   for (const proof of environment.presenceProofs) {
     const key = proof.subject.kind === 'player' ? 'player' : `actor:${proof.subject.actorId}`;
-    const source = sources.find((s) => s.id === proof.sourceEventId);
+    const source = proof.sourceEventId ? sources.find((s) => s.id === proof.sourceEventId) : null;
     if (
       keys.has(key) ||
       proof.worldId !== world.id ||
       proof.placeId !== place.id ||
-      !source ||
-      source.worldId !== world.id ||
-      source.ownerId !== world.ownerId ||
-      source.version !== proof.worldVersion ||
+      (proof.worldVersion === 0
+        ? proof.sourceEventId !== null
+        : !source ||
+          source.worldId !== world.id ||
+          source.ownerId !== world.ownerId ||
+          source.version !== proof.worldVersion) ||
       proof.worldVersion > world.version ||
       Date.parse(proof.occurredAt) > Date.parse(event.storyAt)
     )
@@ -268,11 +274,13 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
         reject('SCENE_ENVIRONMENT_ENTRY_RECEIPT');
       const rows = (
         await sql.query(
-          `SELECT p.document FROM parallel_life.world_authoritative_positions p JOIN parallel_life.world_events e
+          `SELECT p.document FROM parallel_life.world_authoritative_positions p
+           LEFT JOIN parallel_life.world_events e
            ON e.world_id=p.world_id AND e.owner_id=p.owner_id AND e.id=p.source_event_id AND e.version=p.source_version
-           JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+           LEFT JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
            AND c.status='succeeded' AND c.result_event_id=e.id
            WHERE p.world_id=$1 AND p.owner_id=$2 AND p.source_version<=$3
+           AND (p.source_version=0 OR (c.status='succeeded' AND c.result_event_id=e.id))
            AND p.document->>'status'='at' AND p.document->>'placeId'=$4 ORDER BY p.subject_key FOR UPDATE OF p`,
           [world.id, lease.ownerId, world.version, current.scene.placeId ?? null],
         )
@@ -303,7 +311,14 @@ export function sceneEnvironmentTaskHandler(db: PostgresDatabase) {
             world.id,
             lease.ownerId,
             world.version,
-            [...new Set([original.id, ...proofs.map((p) => p.sourceEventId)])],
+            [
+              ...new Set([
+                original.id,
+                ...proofs
+                  .map((p) => p.sourceEventId)
+                  .filter((id): id is string => typeof id === 'string'),
+              ]),
+            ],
           ],
         )
       ).rows as ExperienceContext['events'];

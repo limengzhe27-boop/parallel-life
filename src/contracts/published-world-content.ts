@@ -90,6 +90,7 @@ const shape = z
           key,
           name: text(80),
           knownAtStart: z.boolean(),
+          initialPlaceKey: key.optional(),
           lifeModules: z
             .strictObject({
               lifeContext: text(PUBLICATION_LIFE_MODULE_MAX_CHARS).optional(),

@@ -25,6 +25,7 @@ export type PublicationOpeningMetadata = {
     identity?: string;
     traits: string[];
     appearance?: string;
+    initialPlaceId?: string;
   }[];
   /** Authored player-known notes, not a player's save command or persisted Note projection. */
   notes: {

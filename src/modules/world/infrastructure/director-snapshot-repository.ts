@@ -704,6 +704,27 @@ async function evidence(
       [h.world.id, owner, includeCurrent, suffixes('actual-position:')],
     )
   ).rows) {
+    if (row.source_version === 0) {
+      const doc = row.document;
+      if (
+        row.source_event_id !== null ||
+        doc.worldId !== h.world.id ||
+        doc.sourceEventId !== null ||
+        doc.worldVersion !== 0 ||
+        subjectKey(doc.subject) !== row.subject_key
+      )
+        fail('DIRECTOR_EVIDENCE_SCOPE');
+      add(
+        `actual-position:${row.subject_key}`,
+        'fact',
+        doc.subject.kind === 'actor' ? [doc.subject.actorId] : [],
+        0,
+        null,
+        doc.occurredAt,
+        doc,
+      );
+      continue;
+    }
     const e = requireEvent(row.source_event_id, row.source_version),
       doc = row.document;
     if (

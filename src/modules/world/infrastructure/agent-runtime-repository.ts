@@ -369,9 +369,9 @@ export async function requireInputAuthority(
           AND ae.version=se.version+1
           AND EXISTS (
             SELECT 1 FROM jsonb_array_elements(ae.payload->'data'->'environment'->'presenceProofs') proof
-            JOIN parallel_life.world_events prior ON prior.world_id=s.world_id AND prior.owner_id=s.owner_id
+            LEFT JOIN parallel_life.world_events prior ON prior.world_id=s.world_id AND prior.owner_id=s.owner_id
               AND prior.id=proof->>'sourceEventId' AND prior.version=(proof->>'worldVersion')::int
-            JOIN parallel_life.commands prior_command ON prior_command.world_id=prior.world_id
+            LEFT JOIN parallel_life.commands prior_command ON prior_command.world_id=prior.world_id
               AND prior_command.owner_id=prior.owner_id AND prior_command.id=prior.command_id
               AND prior_command.status='succeeded' AND prior_command.result_event_id=prior.id
             JOIN parallel_life.world_authoritative_positions actual ON actual.world_id=s.world_id
@@ -380,7 +380,11 @@ export async function requireInputAuthority(
               AND task.owner_id=s.owner_id AND task.scope_kind='world' AND task.scope_id=s.world_id
             WHERE proof->'subject'=jsonb_build_object('kind','actor','actorId',$4::text)
               AND proof->>'worldId'=s.world_id AND proof->>'status'='at'
-              AND proof->>'placeId'=s.document->>'placeId' AND prior.version<se.version
+              AND proof->>'placeId'=s.document->>'placeId'
+              AND (
+                ((proof->>'worldVersion')::int = 0 AND (proof->>'sourceEventId') IS NULL)
+                OR (prior.version<se.version AND prior_command.status='succeeded' AND prior_command.result_event_id=prior.id)
+              )
               AND (proof->>'occurredAt')::timestamptz<=(ae.payload->>'storyAt')::timestamptz
               AND actual.document->>'status'='at' AND actual.document->>'placeId'=s.document->>'placeId'
               AND task.status='succeeded' AND task.result_version=ae.version

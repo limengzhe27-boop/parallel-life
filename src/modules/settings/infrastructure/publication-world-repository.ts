@@ -34,6 +34,7 @@ const actor = z.strictObject({
   name: text(80),
   persona: text(6000),
   relationship: text(600).optional(),
+  initialPlaceId: key.optional(),
 });
 const message = z
   .strictObject({
@@ -144,6 +145,7 @@ const openingSchema = z.strictObject({
         identity: text(160).optional(),
         traits: z.array(text(60)).max(3),
         appearance: text(240).optional(),
+        initialPlaceId: key.optional(),
       }),
     )
     .max(12),
@@ -276,8 +278,16 @@ function validatePrepared(raw: unknown, input: PublicationWorldPrepare, characte
       contact.introduction !== a.publicCard.introduction ||
       contact.identity !== a.publicCard.identity ||
       contact.appearance !== a.publicCard.appearance ||
-      !equal(contact.traits, a.publicCard.traits)
+      !equal(contact.traits, a.publicCard.traits) ||
+      contact.initialPlaceId !== a.initialPlaceKey
     )
+      throw new TaskError('INVALID_STATE');
+  }
+  for (const actor of p.world.actors) {
+    const contact = p.opening.contacts.find((c) => c.actorId === actor.id);
+    if (!contact || actor.initialPlaceId !== contact.initialPlaceId)
+      throw new TaskError('INVALID_STATE');
+    if (actor.initialPlaceId && !placeIds.has(actor.initialPlaceId))
       throw new TaskError('INVALID_STATE');
   }
   for (const n of p.opening.notes)

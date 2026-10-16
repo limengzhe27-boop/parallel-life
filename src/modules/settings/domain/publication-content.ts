@@ -71,6 +71,7 @@ export type PublicationContent = {
     key: string;
     name: string;
     knownAtStart: boolean;
+    initialPlaceKey?: string;
     lifeModules?: {
       lifeContext?: string;
       traits?: string;
@@ -349,14 +350,20 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
   if (!startPlace) issue(['world', 'startPlaceKey'], 'unknown_place');
   else if (!startPlace.knownAtStart) issue(['world', 'startPlaceKey'], 'start_place_not_known');
   playerMedia(c.work.coverMediaKey, 'cover', ['work', 'coverMediaKey']);
-  c.actors.forEach((a, i) =>
+  c.actors.forEach((a, i) => {
     playerMedia(a.publicCard.avatarMediaKey, 'avatar', [
       'actors',
       i,
       'publicCard',
       'avatarMediaKey',
-    ]),
-  );
+    ]);
+    if (a.initialPlaceKey) {
+      const place = places.get(a.initialPlaceKey);
+      if (!place) issue(['actors', i, 'initialPlaceKey'], 'unknown_place');
+      else if (!place.knownAtStart)
+        issue(['actors', i, 'initialPlaceKey'], 'initial_place_not_known');
+    }
+  });
   c.places.forEach((p, i) => playerMedia(p.sceneMediaKey, 'scene', ['places', i, 'sceneMediaKey']));
   c.places.forEach((p, i) => {
     if (p.sceneImage && p.sceneMediaKey)

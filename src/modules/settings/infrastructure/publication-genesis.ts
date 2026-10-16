@@ -313,6 +313,7 @@ export function compilePublicationGenesis(
         ...(playerRelationship(c, a.key, 'actor')
           ? { relationship: playerRelationship(c, a.key, 'actor') }
           : {}),
+        ...(a.initialPlaceKey ? { initialPlaceId: a.initialPlaceKey } : {}),
       })),
       actorTies: [],
       facts: [],
@@ -443,6 +444,7 @@ export function compilePublicationGenesis(
         ...(a.publicCard.identity ? { identity: a.publicCard.identity } : {}),
         traits: [...a.publicCard.traits],
         ...(a.publicCard.appearance ? { appearance: a.publicCard.appearance } : {}),
+        ...(a.initialPlaceKey ? { initialPlaceId: a.initialPlaceKey } : {}),
       })),
       notes: sorted(c.phone.notes).map((n) => {
         const noteId = id();
