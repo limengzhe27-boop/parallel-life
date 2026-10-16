@@ -504,15 +504,28 @@ async function responsibilities(view: SchedulingView, actor: ActorRead, context:
       }
     }
     if (!triggers.length) continue;
+    const refs = (context.snapshot.episodeFollowUps ?? []).filter((f) =>
+      f.responsibilityIds.includes(responsibility.id),
+    );
     out.push(
       await candidate(view, context, {
         source: 'responsibility',
         actionId: null,
         sourceIds,
         responsibilities: [responsibility],
+        episodeIds: refs.map((f) => f.episodeId),
         semantic: {
           responsibility: responsibilitySemantic(responsibility),
           triggers: ordered(triggers),
+          ...(refs.length
+            ? {
+                episodeRefs: refs.map((f) => ({
+                  requestId: f.requestId,
+                  episodeId: f.episodeId,
+                  choice: f.choice,
+                })),
+              }
+            : {}),
         },
         reason: '当前责任有实际复查依据，重新评估本人的安排；不推定到场、同意或失约。',
       }),
