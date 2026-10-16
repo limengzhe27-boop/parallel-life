@@ -82,38 +82,37 @@ export function PublisherTrial({
   }
   return trial ? (
     <>
-      {!wechatActorKey && (
-        <details
-          style={{
-            position: 'fixed',
-            right: 12,
-            bottom: 12,
-            zIndex: 1000,
-            maxWidth: 250,
-            padding: 12,
-            borderRadius: 12,
-            background: '#fff',
-            color: '#172033',
-            boxShadow: '0 2px 12px #0002',
-          }}
+      <details
+        style={{
+          position: 'fixed',
+          right: 12,
+          bottom: 12,
+          zIndex: 1000,
+          maxWidth: 250,
+          padding: 12,
+          borderRadius: 12,
+          background: '#fff',
+          color: '#172033',
+          boxShadow: '0 2px 12px #0002',
+        }}
+      >
+        <summary>{paused ? '试演已暂停 · 开始' : '试演控制'}</summary>
+        <button
+          disabled={changingLifecycle || advancing || paused === null}
+          onClick={() => void changeLifecycle()}
         >
-          <summary>试演剧情</summary>
-          <button
-            disabled={changingLifecycle || advancing || paused === null}
-            onClick={() => void changeLifecycle()}
-          >
-            {changingLifecycle || paused === null ? '正在核对…' : paused ? '开始试演' : '暂停试演'}
-          </button>
-          <p style={{ fontSize: 13 }}>
-            开始后可使用地图与现场；不会自动调用导演，也不会影响玩家存档。
-          </p>
-          <p style={{ fontSize: 13 }}>每次只演绎一个已满足条件的机会，不改写玩家的选择。</p>
-          <button disabled={advancing} onClick={() => void advanceStory()}>
-            {advancing ? '正在试演…' : '推进一条剧情'}
-          </button>
-          {storyNotice ? <p role="status">{storyNotice}</p> : null}
-        </details>
-      )}
+          {changingLifecycle || paused === null ? '正在核对…' : paused ? '开始试演' : '暂停试演'}
+        </button>
+        <p style={{ fontSize: 13 }}>先开始试演，再发微信或手动推进；打开页面不会自动演绎。</p>
+        <p style={{ fontSize: 13 }}>每次只演绎一个已满足条件的机会，不改写玩家的选择。</p>
+        <button
+          disabled={advancing || paused !== false || changingLifecycle}
+          onClick={() => void advanceStory()}
+        >
+          {advancing ? '正在试演…' : '推进一条剧情'}
+        </button>
+        {storyNotice ? <p role="status">{storyNotice}</p> : null}
+      </details>
       <WorldPhoneApp
         key={trial.worldId + ':' + refresh}
         worldId={trial.worldId}
