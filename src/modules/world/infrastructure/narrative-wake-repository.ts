@@ -94,16 +94,18 @@ export async function readDirectorNarrativeWakeInTransaction(
     input.worldId,
     input.worldVersion,
   );
-  const evidenceFor = (q: AuthoredWakeQualification, through: number) =>
-    authoredReconsiderationEvidence(
-      view.catalog.materials
-        .find((m) => m.ref.nodeKey === q.nodeKey)
-        ?.participantRefs.flatMap((a) =>
-          a.status === 'resolved' && a.actorId ? [a.actorId] : [],
-        ) ?? [],
-      semanticReasons,
-      through,
-    );
+  const evidenceFor = (q: AuthoredWakeQualification, through: number) => {
+    const material = view.catalog.materials.find((m) => m.ref.nodeKey === q.nodeKey);
+    const actorIds =
+      material?.participantRefs.flatMap((a) =>
+        a.status === 'resolved' && a.actorId ? [a.actorId] : [],
+      ) ?? [];
+    const placeIds =
+      material?.placeRefs.flatMap((p) =>
+        p.status === 'resolved' && p.placeId && p.availableInWorld ? [p.placeId] : [],
+      ) ?? [];
+    return authoredReconsiderationEvidence(actorIds, semanticReasons, through, placeIds);
+  };
   const contextToken = (q: AuthoredWakeQualification, through: number) =>
     JSON.stringify([token(q), evidenceFor(q, through)]);
   // A paid assessment fences this evidence context, never completes the author event.
