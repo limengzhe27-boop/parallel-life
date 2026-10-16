@@ -501,3 +501,56 @@ test('structurally impossible complete candidate partition is rejected during pr
   );
   assert.equal(calls, 0);
 });
+
+test('system protocol gives a parseable complete quiet example without repairing malformed audit', async () => {
+  const f = fixture();
+  const empty = { ...f.snapshot, candidates: [] };
+  let system = '';
+  const response = JSON.stringify({ ...f.quiet, deferred: [], audit: {} });
+  const adapter = new WorldDirectorAgentModel({
+    async complete(messages) {
+      system = messages[0]!.content;
+      return response;
+    },
+  });
+  assert.equal(await adapter.decide(empty), response, 'adapter preserves even invalid paid output');
+  assert.throws(() => parseDirectorDecision(empty, response, f.attempt), {
+    code: 'INVALID_DIRECTOR_PROPOSAL',
+  });
+  const example = JSON.parse(system.slice(system.lastIndexOf('\n') + 1));
+  assert.equal(example.mode, 'quiet');
+  assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
+  rejected(f, example); // An empty example cannot silently discard the real candidates.
+  assert.match(system, /没有候选且决定quiet/);
+  assert.match(system, /不是要求安静或制造机会/);
+  assert.match(system, /candidates为空也不等于没有合法作者机会/);
+  assert.match(system, /不能省略audit、输出audit:\{\}/);
+  assert.match(system, /reason必须非空/);
+  assert.match(system, /所有真实候选逐项deferred/);
+  assert.match(system, /nativeTurn存在时仍禁止opportunity和nudge/);
+});
+
+test('quiet audit remains mandatory and source-authorized regardless of candidate count', () => {
+  const f = fixture();
+  const empty = { ...f.snapshot, candidates: [] };
+  const base = { ...f.quiet, deferred: [] };
+  for (const audit of [
+    undefined,
+    {},
+    { reason: '', basisSourceIds: [] },
+    { reason: '  ', basisSourceIds: [] },
+    { reason: 'quiet', basisSourceIds: ['invented-source'] },
+    { reason: 'quiet', basisSourceIds: [], extra: 'not allowed' },
+  ])
+    assert.throws(() => parseDirectorDecision(empty, { ...base, audit }, f.attempt), {
+      code: 'INVALID_DIRECTOR_PROPOSAL',
+    });
+  assert.equal(
+    parseDirectorDecision(
+      empty,
+      { ...base, audit: { reason: 'No sufficient new basis', basisSourceIds: [] } },
+      f.attempt,
+    ).mode,
+    'quiet',
+  );
+});
