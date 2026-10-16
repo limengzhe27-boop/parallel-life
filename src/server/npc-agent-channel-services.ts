@@ -1,3 +1,6 @@
+import { canReadGroupMessage } from '../modules/world/domain/experience-rules.ts';
+import { coordinateNativeResponder } from './npc-agent-native-coordination.ts';
+import { readLocationReportAudience } from '../modules/world/infrastructure/location-report-audience.ts';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { nativeAgentCommandId } from '../modules/world/infrastructure/agent-native-ids.ts';
@@ -179,8 +182,22 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         version = Number(input.expectedVersion);
         sourceId = input.inputEventId;
         const read = await loadGroupRead(sql, world.id, threadId, now);
+        const original = read.messages.find(
+          (m) =>
+            m.sourceEventId === sourceId &&
+            m.sourceVersion === version &&
+            m.sender.kind === 'player',
+        );
+        if (!original) throw new DomainError('INVALID_COMMAND', 'NATIVE_INPUT_NOT_ACCEPTED');
         actorIds = world.actors
-          .filter((a) => currentGroupMember(read.group, { kind: 'actor', actorId: a.id }))
+          .filter(
+            (a) =>
+              currentGroupMember(read.group, { kind: 'actor', actorId: a.id }) &&
+              canReadGroupMessage(read.context, read.group, original, {
+                kind: 'actor',
+                actorId: a.id,
+              }),
+          )
           .map((a) => a.id);
         for (const m of groupHistory({ ...read.context, world }, read.group, read.messages, {
           kind: 'player',
@@ -203,8 +220,21 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         if (!action || action.sourceVersion !== version) throw new DomainError('INVALID_COMMAND');
         sourceId = action.sourceEventId;
         relatedMatterIds = action.relatedMatterIds;
+        const original = scene.entries.find(
+          (e) =>
+            e.kind === 'user_action' &&
+            e.actionId === action.id &&
+            e.sourceEventId === sourceId &&
+            e.sourceVersion === version,
+        );
+        if (!original) throw new DomainError('INVALID_COMMAND', 'NATIVE_INPUT_NOT_ACCEPTED');
+        const present = scenePresent(scene.scene, version);
         actorIds = scenePresent(scene.scene, world.version).flatMap((p) =>
-          p.kind === 'actor' ? [p.actorId] : [],
+          p.kind === 'actor' &&
+          present.some((v) => v.kind === 'actor' && v.actorId === p.actorId) &&
+          original.observableTo.some((v) => v.kind === 'actor' && v.actorId === p.actorId)
+            ? [p.actorId]
+            : [],
         );
         for (const e of scene.entries)
           if (
@@ -305,21 +335,50 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         )
       ).rows;
       if (prior.length > 1) throw new DomainError('INVALID_COMMAND');
-      const actorId =
-        prior[0]?.actor_id ??
-        nativeResponder({
-          actorIds,
-          names: new Map(world.actors.map((a) => [a.id, a.name])),
-          text: receipt.text,
-          states,
-          channel,
-          threadId,
-          questions,
-          relatedMatterIds,
-        });
-      if (!actorIds.includes(actorId)) throw new DomainError('INVALID_COMMAND');
-      return { receipt, actorId: String(actorId) };
+      if (!actorIds.length) {
+        if (prior.length) throw new DomainError('INVALID_COMMAND');
+        return { receipt, actorId: null, actorIds, states };
+      }
+      const originalAudience = await readLocationReportAudience(
+        sql,
+        lease.ownerId,
+        world,
+        receipt,
+        actorIds[0]!,
+      );
+      actorIds = actorIds.filter((id) => originalAudience?.actorIds.includes(id));
+      let actorId: string | null = prior[0]?.actor_id ?? null;
+      if (!actorId)
+        try {
+          actorId = nativeResponder({
+            actorIds,
+            names: new Map(world.actors.map((a) => [a.id, a.name])),
+            text: receipt.text,
+            states,
+            channel,
+            threadId,
+            questions,
+            relatedMatterIds,
+          });
+        } catch (error) {
+          if (!(error instanceof DomainError) || error.message !== 'DIRECTOR_COORDINATION_REQUIRED')
+            throw error;
+        }
+      if (actorId !== null && !actorIds.includes(actorId)) throw new DomainError('INVALID_COMMAND');
+      return { receipt, actorId, actorIds, states };
     });
+    if (!native.actorIds.length) return true;
+    const selectedActorId =
+      native.actorId ??
+      (await coordinateNativeResponder(
+        scoped,
+        modelFactory,
+        lease,
+        { ...native, worldVersion: world.version, epoch: Number(control.epoch) },
+        signal,
+      ));
+    if (selectedActorId === null) return true;
+    native.actorId = selectedActorId;
     const commandId = nativeAgentCommandId(lease.id, native.actorId),
       previous = await store.lookup(lease.ownerId, world.id, commandId);
     const state = await store.read(lease.ownerId, { worldId: world.id, actorId: native.actorId });

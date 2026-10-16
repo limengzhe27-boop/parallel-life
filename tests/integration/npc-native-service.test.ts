@@ -522,66 +522,152 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
     await queue.finish(lease, { status: 'failed', errorCode: 'CANCELLED' });
   });
 
-  await t.test(
-    'an ambiguous group never silently picks the first NPC or invokes the legacy runner',
-    async () => {
-      const f = await fixture();
-      let calls = 0,
-        legacyCalls = 0,
-        failureMessage = '';
+  await t.test('late rejoining first actor cannot hear or steal the original input', async () => {
+    const f = await fixture();
+    async function membership(action: 'leave' | 'join') {
       const current = await worlds.get({ userId: f.owner }, f.worldId);
-      const accepted = await groups.send(f.owner, {
+      await groups.membership(f.owner, {
         worldId: f.worldId,
         groupId: f.groupId,
         commandId: randomUUID(),
         expectedVersion: current.version,
-        text: '大家聊聊吧',
+        participant: { kind: 'actor', actorId: f.a },
+        action,
+      });
+    }
+    await membership('leave');
+    const current = await worlds.get({ userId: f.owner }, f.worldId);
+    const sent = await groups.send(f.owner, {
+      worldId: f.worldId,
+      groupId: f.groupId,
+      commandId: randomUUID(),
+      expectedVersion: current.version,
+      text: '接下来怎么安排？',
+    });
+    await membership('join');
+    let calls = 0;
+    const handler = nativeNpcTaskHandler(db, () => ({
+      async complete(messages) {
+        calls++;
+        const payload = JSON.parse(messages[1]!.content);
+        assert.equal(payload.nativeTurn, undefined);
+        assert.equal(payload.state.actorId, f.b);
+        return JSON.stringify(reply('我听到了，来说说自己的安排。'));
+      },
+    }));
+    await runOne(
+      {
+        claim: (kinds) => queue.claimForOwner(sent.task.id, f.owner, kinds),
+        renew: (lease) => queue.renew(lease),
+        finish: (lease, outcome) => queue.finish(lease, outcome),
+      },
+      {
+        world: worldTaskDispatcher({
+          agent: handler,
+          group: async () => assert.fail('legacy route'),
+          scene: async () => assert.fail('legacy route'),
+        }),
+      },
+    );
+    assert.equal((await tasks.get(f.owner, sent.task.id)).status, 'succeeded');
+    assert.equal(calls, 1);
+    assert.equal(
+      await store.lookup(f.owner, f.worldId, nativeAgentCommandId(sent.task.id, f.a)),
+      null,
+    );
+  });
+
+  for (const mode of ['quiet', 'selected', 'unknown'] as const)
+    await t.test('ambiguous native group Director coordination: ' + mode, async () => {
+      const f = await fixture();
+      let directors = 0,
+        npcs = 0,
+        legacy = 0;
+      const current = await worlds.get({ userId: f.owner }, f.worldId);
+      const sent = await groups.send(f.owner, {
+        worldId: f.worldId,
+        groupId: f.groupId,
+        commandId: randomUUID(),
+        expectedVersion: current.version,
+        text: '我们接下来怎么安排？',
       });
       const handler = nativeNpcTaskHandler(db, () => ({
-        async complete() {
-          calls++;
-          return JSON.stringify(reply('不应随意指定第一位人物'));
+        async complete(messages) {
+          const p = JSON.parse(messages[1]!.content);
+          if (p.nativeTurn) {
+            directors++;
+            assert.equal(p.nativeTurn.taskId, sent.task.id);
+            assert.equal(p.authoredMaterials, undefined);
+            if (mode === 'unknown')
+              throw Object.assign(Error('SYNTHETIC_ROUTING_UNCERTAIN'), {
+                code: 'UPSTREAM_FAILED',
+              });
+            const choice =
+              mode === 'selected'
+                ? p.candidates.find((c: { actorId: string }) => c.actorId === f.b)
+                : null;
+            if (mode === 'selected') assert.ok(choice);
+            return JSON.stringify({
+              mode: choice ? 'coordinate' : 'quiet',
+              selectedCandidateIds: choice ? [choice.id] : [],
+              deferred: p.candidates
+                .filter((c: { id: string }) => c.id !== choice?.id)
+                .map((c: { id: string }) => ({ candidateId: c.id, reason: '承接协调未选择此人' })),
+              nudges: [],
+              opportunities: [],
+              audit: { reason: '按当前发言与本人责任协调', basisSourceIds: [] },
+            });
+          }
+          npcs++;
+          assert.equal(p.state.actorId, f.b);
+          assert.ok(!messages[1]!.content.includes(privateQuote));
+          return JSON.stringify(reply('我来说说自己的安排。'));
         },
       }));
       const dispatcher = worldTaskDispatcher({
         agent: handler,
         group: async () => {
-          legacyCalls++;
+          legacy++;
         },
         scene: async () => {
-          legacyCalls++;
+          legacy++;
         },
       });
-      await runOne(
-        {
-          claim: (kinds) => queue.claimForOwner(accepted.task.id, f.owner, kinds),
-          renew: (lease) => queue.renew(lease),
-          finish: (lease, outcome) => queue.finish(lease, outcome),
-        },
-        {
-          world: async (lease, signal) => {
-            try {
-              await dispatcher(lease, signal);
-            } catch (error) {
-              failureMessage = error instanceof Error ? error.message : '';
-              throw error;
-            }
+      const run = () =>
+        runOne(
+          {
+            claim: (kinds) => queue.claimForOwner(sent.task.id, f.owner, kinds),
+            renew: (lease) => queue.renew(lease),
+            finish: (lease, outcome) => queue.finish(lease, outcome),
           },
-        },
-      );
-      assert.equal((await tasks.get(f.owner, accepted.task.id)).status, 'failed');
-      assert.equal((await tasks.get(f.owner, accepted.task.id)).errorCode, 'INVALID_COMMAND');
-      assert.equal(failureMessage, 'DIRECTOR_COORDINATION_REQUIRED');
-      assert.equal(calls, 0);
-      assert.equal(legacyCalls, 0);
+          { world: dispatcher },
+        );
+      await run();
       assert.equal(
-        await store.lookup(f.owner, f.worldId, nativeAgentCommandId(accepted.task.id, f.a)),
+        (await tasks.get(f.owner, sent.task.id)).status,
+        mode === 'unknown' ? 'unknown' : 'succeeded',
+      );
+      assert.equal(directors, 1);
+      assert.equal(npcs, mode === 'selected' ? 1 : 0);
+      assert.equal(legacy, 0);
+      assert.equal(await run(), false);
+      assert.equal(directors, 1);
+      assert.equal(
+        await store.lookup(f.owner, f.worldId, nativeAgentCommandId(sent.task.id, f.a)),
         null,
       );
-      assert.equal(
-        await store.lookup(f.owner, f.worldId, nativeAgentCommandId(accepted.task.id, f.b)),
-        null,
+      const b = await store.lookup(f.owner, f.worldId, nativeAgentCommandId(sent.task.id, f.b));
+      if (mode === 'selected') assert.equal(b!.status, 'committed');
+      else assert.equal(b, null);
+      const cursor = (
+        await admin.query(
+          'SELECT observed_through_version,evaluated_through_version FROM parallel_life.director_observed_states WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows[0];
+      assert.ok(
+        cursor.evaluated_through_version < cursor.observed_through_version,
+        'speaker routing must not consume unrelated global narrative changes',
       );
-    },
-  );
+    });
 });

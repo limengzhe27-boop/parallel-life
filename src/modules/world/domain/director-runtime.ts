@@ -34,6 +34,13 @@ export type DirectorSnapshot = {
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
   actorStates: ActorAgentState[];
   actorKnownTopics?: import('./actor-known-topic.ts').ActorKnownTopic[];
+  /** One accepted native player turn needing semantic speaker coordination. */
+  nativeTurn?: {
+    taskId: string;
+    inputReceiptId: string;
+    channel: 'group' | 'scene';
+    threadId: string;
+  };
   episodes: SharedEpisode[];
   candidates: AgentCandidate[];
   blockers: AgentBlocker[];
@@ -130,5 +137,29 @@ export function canConsiderAuthoredEvent(snapshot: DirectorSnapshot, nodeKey: st
     matches[0]!.nodeHash === materials[0]!.ref.nodeHash &&
     matches[0]!.status === 'eligible' &&
     !snapshot.occupiedAuthoredEventKeys?.includes(nodeKey)
+  );
+}
+
+/** Speaker selection is coordination, not permission to add a new event or write NPC dialogue. */
+export function validNativeTurnDecision(
+  snapshot: DirectorSnapshot,
+  decision: Pick<DirectorDecision, 'mode' | 'selectedCandidateIds' | 'nudges' | 'opportunities'>,
+): boolean {
+  if (!snapshot.nativeTurn) return true;
+  return (
+    decision.mode !== 'bounded_opportunity' &&
+    decision.opportunities.length === 0 &&
+    decision.nudges.length === 0 &&
+    decision.selectedCandidateIds.length <= 1 &&
+    decision.selectedCandidateIds.every((id) =>
+      snapshot.candidates.some(
+        (c) =>
+          c.id === id &&
+          c.channel === snapshot.nativeTurn!.channel &&
+          c.threadId === snapshot.nativeTurn!.threadId &&
+          c.source === 'conversation' &&
+          c.sourceIds.includes(snapshot.nativeTurn!.inputReceiptId),
+      ),
+    )
   );
 }

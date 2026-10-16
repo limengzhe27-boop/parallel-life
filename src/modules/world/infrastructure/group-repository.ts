@@ -45,10 +45,11 @@ async function loadWorld(
   worldId: string,
   now: string,
   lock = false,
+  readonlySnapshot = false,
 ): Promise<WorldState> {
   const row = (
     await sql.query(
-      `SELECT state,version,owner_id FROM parallel_life.worlds WHERE id=$1${lock ? ' FOR UPDATE' : ' FOR SHARE'}`,
+      `SELECT state,version,owner_id FROM parallel_life.worlds WHERE id=$1${lock ? ' FOR UPDATE' : readonlySnapshot ? '' : ' FOR SHARE'}`,
       [worldId],
     )
   ).rows[0];
@@ -156,8 +157,10 @@ export async function loadGroupRead(
   groupId: string,
   now: string,
   lock = false,
+  readonlySnapshot = false,
 ): Promise<GroupRead> {
-  const world = await loadWorld(sql, worldId, now, lock);
+  if (lock && readonlySnapshot) throw new DomainError('INVALID_COMMAND');
+  const world = await loadWorld(sql, worldId, now, lock, readonlySnapshot);
   const group = await loadGroup(sql, worldId, groupId);
   const context = await experienceContext(sql, world);
   const rows = (

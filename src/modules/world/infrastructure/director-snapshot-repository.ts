@@ -1,3 +1,4 @@
+import { validateNativeDirectorTurn } from './native-director-turn.ts';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { DirectorSnapshot, SharedEpisode } from '../domain/director-runtime.ts';
@@ -30,6 +31,7 @@ export type DirectorSnapshotReadInput = {
   engineEpoch: number;
   worldVersion: number;
   candidates: DirectorSnapshot['candidates'];
+  nativeTurn?: DirectorSnapshot['nativeTurn'];
   blockers: DirectorSnapshot['blockers'];
   /** Optional expected-value assertion; persisted authorized leases remain the sole authority. */
   focus?: DirectorSnapshot['focus'];
@@ -799,6 +801,8 @@ export class PostgresDirectorSnapshotRepository {
         )
       )
         fail('DIRECTOR_ACTOR_STATE_INCOMPLETE');
+      if (input.nativeTurn)
+        await validateNativeDirectorTurn(sql, owner, h.world, input.nativeTurn, input.candidates);
       const revisions = new Map(states.map((s) => [s.actorId, s.revision]));
       const episodes = (
         await sql.query(
@@ -882,23 +886,27 @@ export class PostgresDirectorSnapshotRepository {
           if (resolved && !resolved.knownByActorIds.includes(candidate.actorId))
             fail('DIRECTOR_CANDIDATE_SOURCE_FORBIDDEN');
         }
-      const authored = await readAuthoredEligibilityInTransaction(sql, owner, {
-        worldId: h.world.id,
-        engineEpoch: h.epoch,
-        worldVersion: h.world.version,
-        storyAt: h.storyAt,
-      });
-      const { cause: evaluationCause } = await readDirectorNarrativeWakeInTransaction(
-        sql,
-        owner,
-        {
+      let authored: Awaited<ReturnType<typeof readAuthoredEligibilityInTransaction>> | undefined;
+      let evaluationCause: DirectorSnapshot['evaluationCause'] | null;
+      if (!input.nativeTurn) {
+        authored = await readAuthoredEligibilityInTransaction(sql, owner, {
           worldId: h.world.id,
           engineEpoch: h.epoch,
           worldVersion: h.world.version,
           storyAt: h.storyAt,
-        },
-        authored,
-      );
+        });
+        ({ cause: evaluationCause } = await readDirectorNarrativeWakeInTransaction(
+          sql,
+          owner,
+          {
+            worldId: h.world.id,
+            engineEpoch: h.epoch,
+            worldVersion: h.world.version,
+            storyAt: h.storyAt,
+          },
+          authored,
+        ));
+      }
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         worldId: h.world.id,
@@ -908,9 +916,9 @@ export class PostgresDirectorSnapshotRepository {
         observedThroughVersion: h.observed,
         evaluatedThroughVersion: h.evaluated,
         boundary: h.boundary,
-        ...(evaluationCause ? { evaluationCause } : {}),
+        ...(evaluationCause && !input.nativeTurn ? { evaluationCause } : {}),
         worldSetting: sources.worldSetting,
-        ...(authored.catalog.source
+        ...(authored?.catalog.source && !input.nativeTurn
           ? {
               authoredMaterials: authored.catalog,
               authoredEligibility: authoredEligibilitySummary(authored),
@@ -919,6 +927,7 @@ export class PostgresDirectorSnapshotRepository {
           : {}),
         cast: normalizedCast(h.world),
         actorStates: states,
+        ...(input.nativeTurn ? { nativeTurn: structuredClone(input.nativeTurn) } : {}),
         actorKnownTopics: (
           await Promise.all(
             states.map((state) =>

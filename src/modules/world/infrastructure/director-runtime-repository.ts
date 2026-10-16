@@ -1,3 +1,4 @@
+import { validateNativeDirectorTurn } from './native-director-turn.ts';
 import { validActorTopicSelection } from '../domain/actor-known-topic.ts';
 import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
 import { createHash } from 'node:crypto';
@@ -14,7 +15,7 @@ import type {
   DirectorSnapshot,
   SharedEpisode,
 } from '../domain/director-runtime.ts';
-import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
+import { canConsiderAuthoredEvent, validNativeTurnDecision } from '../domain/director-runtime.ts';
 import type { AgentAttemptStatus, ActorAgentState } from '../domain/agent-runtime.ts';
 import { transitionAgentAttempt } from '../domain/agent-runtime.ts';
 import { worldBoundary } from '../domain/world-awareness.ts';
@@ -298,6 +299,14 @@ const Snapshot = z
       )
       .max(1000)
       .optional(),
+    nativeTurn: z
+      .strictObject({
+        taskId: Key,
+        inputReceiptId: Key,
+        channel: z.enum(['group', 'scene']),
+        threadId: Key,
+      })
+      .optional(),
     actorStates: z.array(State),
     episodes: z.array(Episode),
     candidates: z.array(Candidate),
@@ -557,16 +566,22 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     ).rows[0];
     if (control?.engine_epoch !== s.engineEpoch || s.engineEpoch < 2) fail('ENGINE_EPOCH_CONFLICT');
     if (world.version !== s.worldVersion) fail('VERSION_CONFLICT');
-    const authored = await readAuthoredAgentMaterialCatalog(sql, owner, {
-      worldId: world.id,
-      expectedEngineEpoch: s.engineEpoch,
-      expectedWorldVersion: s.worldVersion,
-    });
-    if (authored.status !== 'complete')
-      fail(initialize ? 'DIRECTOR_AUTHORED_MATERIAL_BUDGET' : 'DIRECTOR_AUTHORED_SOURCE_CONFLICT');
-    const actualMaterials = authored.catalog.source ? authored.catalog : undefined;
-    if (!equal(actualMaterials ?? null, s.authoredMaterials ?? null))
-      fail('DIRECTOR_AUTHORED_SOURCE_CONFLICT');
+    // Native routing evaluates only this accepted turn, not the author-event wake queue.
+    let actualMaterials: DirectorSnapshot['authoredMaterials'];
+    if (!s.nativeTurn) {
+      const authored = await readAuthoredAgentMaterialCatalog(sql, owner, {
+        worldId: world.id,
+        expectedEngineEpoch: s.engineEpoch,
+        expectedWorldVersion: s.worldVersion,
+      });
+      if (authored.status !== 'complete')
+        fail(
+          initialize ? 'DIRECTOR_AUTHORED_MATERIAL_BUDGET' : 'DIRECTOR_AUTHORED_SOURCE_CONFLICT',
+        );
+      actualMaterials = authored.catalog.source ? authored.catalog : undefined;
+      if (!equal(actualMaterials ?? null, s.authoredMaterials ?? null))
+        fail('DIRECTOR_AUTHORED_SOURCE_CONFLICT');
+    } else if (s.authoredMaterials !== undefined) fail('DIRECTOR_NATIVE_TURN_CONFLICT');
     if (s.conversationWithoutTarget !== undefined) {
       const attention = await readWorldAttentionInTransaction(sql, owner, {
         worldId: world.id,
@@ -601,18 +616,21 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
     } else if (s.authoredEligibility !== undefined || s.occupiedAuthoredEventKeys !== undefined)
       fail('DIRECTOR_AUTHORED_ELIGIBILITY_CONFLICT');
-    const { cause } = await readDirectorNarrativeWakeInTransaction(
-      sql,
-      owner,
-      {
-        worldId: world.id,
-        engineEpoch: s.engineEpoch,
-        worldVersion: world.version,
-        storyAt: new Date(latest).toISOString(),
-      },
-      qualified,
-    );
-    if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
+    if (!s.nativeTurn) {
+      const { cause } = await readDirectorNarrativeWakeInTransaction(
+        sql,
+        owner,
+        {
+          worldId: world.id,
+          engineEpoch: s.engineEpoch,
+          worldVersion: world.version,
+          storyAt: new Date(latest).toISOString(),
+        },
+        qualified,
+      );
+      if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
+    }
+    if (s.nativeTurn && s.evaluationCause) fail('DIRECTOR_NATIVE_TURN_CONFLICT');
     if (
       s.worldId !== world.id ||
       s.evaluatedThroughVersion > s.observedThroughVersion ||
@@ -649,6 +667,8 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
           ? boundary.document
           : null;
     if (!actualBoundary || !equal(s.boundary, actualBoundary)) fail('DIRECTOR_BOUNDARY_CONFLICT');
+    if (s.nativeTurn)
+      await validateNativeDirectorTurn(sql, owner, world, s.nativeTurn, s.candidates);
     const states = (
       await sql.query(
         'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 ORDER BY actor_id FOR SHARE',
@@ -1094,11 +1114,12 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
           [world.id, owner, episode.id, decision.id, episode],
         );
       }
-      await markDirectorEvaluated(sql, owner, world.id, {
-        expectedObservedThroughVersion: snapshot.observedThroughVersion,
-        throughVersion: decision.evaluatedThroughVersion,
-        result: decision.mode === 'quiet' ? 'quiet' : 'acted',
-      });
+      if (!snapshot.nativeTurn)
+        await markDirectorEvaluated(sql, owner, world.id, {
+          expectedObservedThroughVersion: snapshot.observedThroughVersion,
+          throughVersion: decision.evaluatedThroughVersion,
+          result: decision.mode === 'quiet' ? 'quiet' : 'acted',
+        });
       const finalized = await sql.query(
         "UPDATE parallel_life.director_runtime_attempts SET status='committed',decision_id=$2,updated_at=now() WHERE id=$1 AND token=$3 AND status='response_received' AND lease_until>clock_timestamp() RETURNING id",
         [expected.id, decision.id, expected.token],
@@ -1116,12 +1137,14 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     });
   }
   private validateDecision(s: DirectorSnapshot, a: DirectorAttempt, d: DirectorDecision) {
+    if (!validNativeTurnDecision(s, d)) fail('INVALID_DIRECTOR_NATIVE_TURN');
     if (
       d.worldId !== a.worldId ||
       d.engineEpoch !== a.engineEpoch ||
       d.worldVersion !== a.expectedWorldVersion ||
       d.inputHash !== a.inputHash ||
-      d.evaluatedThroughVersion !== s.observedThroughVersion
+      d.evaluatedThroughVersion !==
+        (s.nativeTurn ? s.evaluatedThroughVersion : s.observedThroughVersion)
     )
       fail('INVALID_DIRECTOR_DECISION');
     const candidates = new Map(s.candidates.map((c) => [c.id, c])),

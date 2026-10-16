@@ -65,7 +65,8 @@ export async function readLocationReportAudience(
       row.payload.data?.text !== input.text
     )
       fail();
-    const read = await loadGroupRead(sql, world.id, input.threadId, input.receivedAt);
+    // The caller may be capturing a repeatable-read Director snapshot; no row locks or writes here.
+    const read = await loadGroupRead(sql, world.id, input.threadId, input.receivedAt, false, true);
     if (read.world.ownerId !== ownerId || read.group.ownerId !== ownerId) fail();
     const original = read.messages.filter(
       (message) =>
