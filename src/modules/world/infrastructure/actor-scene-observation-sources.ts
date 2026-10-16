@@ -112,7 +112,16 @@ export async function readActorSceneObservationSourcesInTransaction(
          JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id
            AND c.id=e.command_id AND c.status='succeeded' AND c.result_event_id=e.id
          WHERE e.world_id=$1 AND e.owner_id=$2 AND e.id=ANY($3::text[])`,
-        [frame.worldId, ownerId, [...new Set(visible.map((e) => e.sourceEventId))]],
+        [
+          frame.worldId,
+          ownerId,
+          [
+            ...new Set([
+              ...visible.map((e) => e.sourceEventId),
+              ...read.scene.presence.map((p) => p.sourceEventId),
+            ]),
+          ],
+        ],
       )
     ).rows.map((row) => [row.id as string, row]),
   );
@@ -133,6 +142,50 @@ export async function readActorSceneObservationSourcesInTransaction(
       Date.parse(event.storyAt) > Date.parse(frame.storyAt)
     )
       continue;
+    const witnessed = read.scene.presence.some((p) => {
+      if (
+        p.participant.kind !== 'actor' ||
+        p.participant.actorId !== frame.actorId ||
+        p.joinedVersion > entry.sourceVersion ||
+        (p.leftVersion !== undefined && p.leftVersion <= entry.sourceVersion)
+      )
+        return false;
+      const joined = events.get(p.sourceEventId);
+      return (
+        joined &&
+        joined.version === p.sourceVersion &&
+        joined.version === p.joinedVersion &&
+        joined.payload?.worldId === frame.worldId &&
+        joined.payload?.data?.sceneId === frame.sceneId &&
+        ['scene.opened', 'scene.action_resolved', 'scene.reaction_recorded'].includes(
+          joined.payload?.type,
+        ) &&
+        (joined.payload?.data?.proposal?.presentActorIds?.includes(frame.actorId) ||
+          (joined.payload?.type === 'scene.opened' &&
+            joined.payload?.data?.environment?.producer === 'deterministic' &&
+            joined.payload?.data?.environment?.engineEpoch >= 2 &&
+            joined.payload?.data?.environment?.presenceProofs?.some(
+              (proof: {
+                worldId: string;
+                subject: { kind: string; actorId?: string };
+                status: string;
+                placeId: string;
+                worldVersion: number;
+                sourceEventId: string;
+              }) =>
+                proof.worldId === frame.worldId &&
+                proof.subject.kind === 'actor' &&
+                proof.subject.actorId === frame.actorId &&
+                proof.status === 'at' &&
+                proof.placeId === read.scene.placeId &&
+                Number.isSafeInteger(proof.worldVersion) &&
+                proof.worldVersion > 0 &&
+                proof.worldVersion < joined.version &&
+                typeof proof.sourceEventId === 'string',
+            )))
+      );
+    });
+    if (!witnessed) continue;
     const original = event.data;
     const proposal = original.proposal;
     const sceneProducer = [

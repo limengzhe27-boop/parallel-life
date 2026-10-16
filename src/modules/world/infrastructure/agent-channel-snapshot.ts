@@ -1,3 +1,4 @@
+import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
@@ -5,7 +6,7 @@ import type { ActorAgentState, AgentInputReceipt, AgentSource } from '../domain/
 import type { WorldState } from '../domain/types.ts';
 import { authorizedAgentState } from '../domain/agent-kernel.ts';
 import { groupHistory, currentGroupMember } from '../domain/group-runtime.ts';
-import { sceneContextEntries, scenePresent, scenePrivateThought } from '../domain/scene-runtime.ts';
+import { scenePresent, scenePrivateThought } from '../domain/scene-runtime.ts';
 import { DomainError } from '../domain/errors.ts';
 import { loadGroupRead } from './group-repository.ts';
 import { loadScene } from './scene-repository.ts';
@@ -178,6 +179,7 @@ export async function readNativeAgentSnapshot(
     if ([input.id, original.eventId, original.recordId].some((id) => blocked.has(id))) forbidden();
     const sources = new Map<string, AgentSource>();
     const observations: AgentSnapshot['observations'] = [];
+    let sceneObservationContext: AgentSnapshot['sceneObservationContext'];
     const add = (
       source: AgentSource,
       text?: string,
@@ -280,66 +282,24 @@ export async function readNativeAgentSnapshot(
         );
       }
     } else {
-      const scene = await loadScene(sql, world.id, input.threadId);
-      const visible = sceneContextEntries(scene.entries, { kind: 'actor', actorId });
-      for (const entry of visible.filter(
-        (e, index) => index >= visible.length - 80 || stateHandles.includes(`scene:${e.id}`),
-      )) {
-        const event = events.get(entry.sourceEventId);
-        const heard = scenePresent(scene.scene, entry.sourceVersion).some(
-          (p) => p.kind === 'actor' && p.actorId === actorId,
-        );
-        if (
-          !event ||
-          event.version !== entry.sourceVersion ||
-          blocked.has(entry.sourceEventId) ||
-          !heard ||
-          (entry.kind === 'user_action' && scenePrivateThought(entry.text)) ||
-          !('text' in entry)
-        )
-          continue;
-        const raw = event.payload;
-        const matches =
-          entry.kind === 'user_action'
-            ? raw.type === 'scene.input_recorded' &&
-              !raw.data.privateThought &&
-              scene.actions.some(
-                (a) =>
-                  a.id === entry.actionId && a.text === entry.text && a.sourceEventId === raw.id,
-              )
-            : entry.kind === 'dialogue'
-              ? (raw.data.proposal?.dialogues ?? raw.data.dialogues ?? []).some(
-                  (d: {
-                    actorId?: string;
-                    speaker?: { kind: string; actorId?: string };
-                    text: string;
-                  }) =>
-                    entry.speaker.kind === 'actor' &&
-                    d.text === entry.text &&
-                    (d.actorId ?? d.speaker?.actorId) === entry.speaker.actorId,
-                )
-              : entry.kind === 'narration'
-                ? raw.data.proposal?.narration === entry.text
-                : entry.kind === 'adjudicated_result' &&
-                  raw.type === 'scene.action_resolved' &&
-                  raw.data.proposal?.observation === entry.text;
-        if (!matches || raw.data.sceneId !== input.threadId) continue;
-        add(
-          {
-            id: `scene:${entry.id}`,
-            kind: 'scene_entry',
-            recordId: entry.id,
-            worldVersion: entry.sourceVersion,
-            at: event.payload.storyAt,
-          },
-          entry.text,
-          entry.kind === 'adjudicated_result'
-            ? 'result'
-            : entry.kind === 'narration'
-              ? 'fact'
-              : 'speech',
-        );
+      const packet = await readActorSceneObservationSourcesInTransaction(sql, ownerId, {
+        worldId: world.id,
+        actorId,
+        sceneId: input.threadId,
+        worldVersion: world.version,
+        storyAt,
+      });
+      for (const source of packet.sources) {
+        const observation = packet.observations.find((o) => o.sourceId === source.id)!;
+        add(source);
+        if (sources.has(source.id)) observations.push({ ...observation });
       }
+      sceneObservationContext = {
+        sceneId: input.threadId,
+        status: packet.status,
+        selectedSourceIds: packet.sources.filter((s) => sources.has(s.id)).map((s) => s.id),
+        omittedSourceIds: packet.omittedSourceIds.filter((id) => !blocked.has(id)),
+      };
     }
     // Only actual public facts; a player's report of a location stays speech above.
     const initial = (
@@ -426,6 +386,7 @@ export async function readNativeAgentSnapshot(
       storyAt,
       sources: [...sources.values()],
       observations,
+      ...(sceneObservationContext ? { sceneObservationContext } : {}),
       actor: {
         name: actor.name,
         persona: JSON.stringify({

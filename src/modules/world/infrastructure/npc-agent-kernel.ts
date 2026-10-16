@@ -1,3 +1,4 @@
+import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
 import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
 import {
@@ -126,6 +127,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
       await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
       await validateActorEpisodeResults(sql, ownerId, snapshot);
+      await validateSceneObservationContext(sql, ownerId, snapshot);
       await validatePlayerEpisodeManifest(sql, ownerId, snapshot);
       await requirePlayerEpisodeBinding(sql, ownerId, attempt, snapshot);
       if (isEpisodeConsiderationInput(receivedInput))

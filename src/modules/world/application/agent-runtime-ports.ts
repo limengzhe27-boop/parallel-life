@@ -15,6 +15,12 @@ import type {
 /** Snapshot reads have no projection writes or model calls. Channel input is already visibility-filtered. */
 export type AgentSnapshot = {
   state: ActorAgentState;
+  sceneObservationContext?: {
+    sceneId: string;
+    status: 'complete' | 'budget_limited';
+    selectedSourceIds: string[];
+    omittedSourceIds: string[];
+  };
   episodeResults?: import('../domain/episode-result-context.ts').ActorEpisodeResultContext[];
   episodeManifest?: import('../domain/player-episode-manifest.ts').PlayerEpisodeManifest;
   episodeFollowUps?: import('../domain/episode-followup-context.ts').EpisodeFollowUpContext[];
@@ -30,6 +36,11 @@ export type AgentSnapshot = {
     sourceId: string;
     text: string;
     kind: 'fact' | 'belief' | 'speech' | 'plan' | 'result';
+    evidenceKind?: 'player_report' | 'actor_report' | 'scene_record' | 'adjudicated_result';
+    eventOccurredAt?: string;
+    storyAt?: string;
+    learnedAt?: string;
+    retrievedAt?: string;
   }[];
   actor: { name: string; persona: string; boundaries: string; definitionRef: string };
   channel: {

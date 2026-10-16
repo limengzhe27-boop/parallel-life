@@ -1,3 +1,5 @@
+import { readNativeAgentSnapshot } from '../../src/modules/world/infrastructure/agent-channel-snapshot.ts';
+import { validateSceneObservationContext } from '../../src/modules/world/infrastructure/scene-observation-context-validation.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -447,8 +449,56 @@ test('scene observation adapter authenticates actual producer and historical aud
       const accepted = await input(f, '@甲 你听到了吗？');
       let calls = 0;
       const handler = nativeNpcTaskHandler(db, () => ({
-        async complete() {
+        async complete(messages) {
           calls++;
+          const payload = JSON.parse(messages[1]!.content);
+          assert.equal(payload.sceneObservationContext.sceneId, f.sceneId);
+          assert.ok(
+            payload.observations.some(
+              (o: { evidenceKind?: string; learnedAt?: string; retrievedAt?: string }) =>
+                o.evidenceKind === 'player_report' && o.learnedAt && o.retrievedAt,
+            ),
+          );
+          const receipt = (
+            await db.transaction(f.owner, (sql) =>
+              sql.query(
+                'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND id=$2',
+                [f.worldId, payload.input.sourceId],
+              ),
+            )
+          ).rows[0].document;
+          const state = (
+            await db.transaction(f.owner, (sql) =>
+              sql.query(
+                'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND actor_id=$2',
+                [f.worldId, payload.state.actorId],
+              ),
+            )
+          ).rows[0].document;
+          const actual = await readNativeAgentSnapshot(
+            db,
+            f.owner,
+            await worlds.get({ userId: f.owner }, f.worldId),
+            payload.state.actorId,
+            receipt,
+            payload.storyAt,
+            state,
+          );
+          await db.transaction(f.owner, (sql) =>
+            validateSceneObservationContext(sql, f.owner, actual),
+          );
+          const tampered = structuredClone(actual);
+          const source = tampered.sources.find(
+            (s) => s.kind === 'scene_entry' && s.usage === 'channel_context',
+          )!;
+          source.contentHash = '0'.repeat(64);
+          await assert.rejects(
+            db.transaction(f.owner, (sql) =>
+              validateSceneObservationContext(sql, f.owner, tampered),
+            ),
+            { code: 'SCENE_OBSERVATION_SOURCE_CONFLICT' },
+          );
+
           return JSON.stringify({
             statements: [
               { text: '我听到了你的话，但还没有核实你的位置。', dependsOnActionIds: [] },
@@ -487,6 +537,45 @@ test('scene observation adapter authenticates actual producer and historical aud
         scene.entries.some(
           (e) => 'text' in e && e.text === spoken.text && `scene:${e.id}` === spoken.sourceId,
         ),
+      );
+    },
+  );
+  await t.test(
+    'forged historical presence cannot grant another actor an old observation',
+    async () => {
+      const f = await fixture();
+      const readScene = await db.transaction(f.owner, (sql) =>
+        loadScene(sql, f.worldId, f.sceneId),
+      );
+      const p = readScene.scene.presence.find(
+        (p) => p.participant.kind === 'actor' && p.participant.actorId === f.a,
+      )!;
+      const forged = {
+        ...readScene.scene,
+        presence: [
+          ...readScene.scene.presence,
+          { ...p, participant: { kind: 'actor', actorId: f.b } },
+        ],
+      };
+      await admin.query(
+        'UPDATE parallel_life.scene_sessions SET document=$2 WHERE world_id=$1 AND id=$3',
+        [f.worldId, forged, f.sceneId],
+      );
+      for (const e of readScene.entries) {
+        if (!('text' in e)) continue;
+        await admin.query(
+          'UPDATE parallel_life.scene_items SET document=$2 WHERE world_id=$1 AND id=$3',
+          [
+            f.worldId,
+            { ...e, observableTo: [...e.observableTo, { kind: 'actor', actorId: f.b }] },
+            e.id,
+          ],
+        );
+      }
+      assert.deepEqual(
+        (await read(f, f.b)).sources,
+        [],
+        'an actual join producer must name the observing actor',
       );
     },
   );

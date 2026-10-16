@@ -1,3 +1,4 @@
+import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
 import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
 import { bindPlayerEpisodeAttempt } from './player-episode-manifest-repository.ts';
@@ -601,6 +602,7 @@ export class PostgresAgentRuntimeRepository
           await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
           await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
           await validateActorEpisodeResults(sql, ownerId, snapshot);
+          await validateSceneObservationContext(sql, ownerId, snapshot);
         }
         await requireInputAuthority(
           sql,
