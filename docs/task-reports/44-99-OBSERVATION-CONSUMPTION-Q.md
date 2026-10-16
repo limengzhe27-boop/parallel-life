@@ -1,0 +1,60 @@
+# 44-99 实际供给观察的消费读取与稳定候选
+
+负责人codex-ma44-99-consumption-q，辅助线程01a0c7c8-604f-7dc1-8122-fc7f0af1fd6b。主表短锁先领取，独立core-handoff88-q/codex/observation-consumption99-q。基线c1a5cb996b34176c6a098d023da1290fe919bb1e。root独占SQL85、模型/runner/runtime/kernel和公共调度；本人97保持冻结。当前状态：组件待验收，公共inbox/唤醒接线尚未交付。
+
+## 精确修改范围
+
+仅新增以下五个文件：
+
+- src/modules/world/infrastructure/actor-observation-consumption-repository.ts
+- src/modules/world/domain/actor-observation-candidate.ts
+- tests/actor-observation-candidate.test.ts
+- tests/integration/actor-observation-consumption.test.ts
+- 本报告；主登记仅本人行及报告镜像。
+
+按root明确授权仅同步其依赖提交6a21c18a（本树5de31087，供给manifest协议/同一模型adapter/原runner envelope）和97f0289c（本树25cc91eb，原native handler同一lazy adapter）。没有编辑这六个公共依赖文件，也不把它们重复算作本人提交范围。未接root尚未冻结的SQL85。
+
+## 已实现
+
+readConsumedSceneObservationSourcesInTransaction(sql, owner, {worldId,actorId,engineEpoch,worldVersion})只读原持久agent_attempts及其不可变completion；join真正committed attempt、原input、同owner/world/actor/epoch和成功world event/command，严格核原输入内容/身份/版本、人物revision及最终state身份。只有合法suppliedContext中实际供应的sourceId+contentHash才能返回；必须同时属于captured snapshot的正确sceneObservationContext或private actorObservationInbox、原source身份/hash及带evidenceKind的真实观察正文。
+
+旧记录无suppliedContext、只有selectedSourceIds、只有snapshot source、角色projectedWorldVersion推进，均不能构成消费回执。旧无manifest记录保持兼容可重放，但不倒填ACK。reserved、request_sent、unknown、response_received、invalid、stale均因未成功commit不能消费。新manifest存在却损坏/错身份时明确抛SCENE_OBSERVATION_CONSUMPTION_PROOF_INVALID，不静默忽略后重复买模型。
+
+private分支按root新增冻结协议actorObservationInbox.sourceIds/sceneIds/omittedSourceIds匹配本人thread；scene分支按原sceneObservationContext.selectedSourceIds匹配当前scene。泛private_strategy占位没有原文metadata，不认ACK；具有真实来源hash与原文/evidenceKind并实际供应的本人private recall不因usage标签被一概排除。上述private读取兼容代码已实现，真实公共inbox流程仍待root接线及验证。
+
+collectPendingSceneObservationCandidates对已经授权的现场packet sources减去精确消费的source/hash。候选ID仅绑定world、actor、epoch、sourceId和内容hash，世界当前版本、人物revision、轮询时刻及无关闲聊不改变ID；CAS字段仍用当前值。相同来源同hash去重，不同内容产生不同身份，同ID冲突hash拒绝。没有用角色版本猜ACK，同commit刚产生的观察可以保留pending。
+
+候选仅用于本人private重考，priority沿原observation=40；允许quiet，不写对白、事实、deadline、责任、地图或整体事件结果，不执行模型，不新增调度器。传入private_strategy来源时须额外有原观察正文/evidenceKind，泛策略句不构成待处理观察。来源授权与实际付款/unknown fence仍归原运行时，不能拿纯候选作为再次付费许可。
+
+## 实际验证
+
+真实PostgreSQL18.4专属55565（启动前核无监听），本基线84迁移；原pl_app RLS、pl_worker lease、snapshot、同一NpcAgentModel adapter、runNpcAgent、kernel和任务最终回执全部实际执行，模型网关为明确本地返回，不向供应商发送。
+
+新integration专项8子测试+父节点=9/9，0skip：
+
+1. 原成功completion的modelInputHash等于测试网关实际收到的完整messages的SHA256；精确实际供给观察进入消费集合，另一个NPC不获ACK；重复读取不重复，原DB identity fence拒绝事后篡改completion（真实23514）。
+2. 原nativeNpcTaskHandler真实入口也保存同一manifest，非仅绕过组装直接调用类。
+3. 真实旧式模型port成功提交但无descriptor时，snapshot里selectedSourceIds再全也不算ACK。
+4. 用真实历史现场原文和显式genesis公共事实造成最终prepare容量裁剪。原snapshot仍保留来源，最终未供应的观察仍pending；原角色版本已越过其source version仍不误ACK。genesis压力数据是明确测试设定，不冒充AI生成。
+5. 真unknown_after_send：不消费，同一原identity恢复不增加网关调用。
+6. 真invalid_output：收到并保护无效JSON也不消费、不重买。
+7. 模型返回期间通过原MemoryRepository及forgetMemoryInStore实际遗忘来源，最终门拒绝并保stale_discarded，不消费、不重买。
+8. 原kernel提交末端测试hook抛错使真实SQL事务回滚；保response_received及原supplied manifest，不消费；原raw恢复成功后才消费，response_hash不变、0额外模型调用。
+
+现场准备沿原旧writer建立合成历史presence，再通过原switchAgentEngineEpoch切2。没有手造epoch2行为或消费表，没有新增表/数据库，没有手工补写成功manifest或ACK。管理员UPDATE反例只尝试修改本测试已提交completion，原数据库guard正确拒绝，没有禁用触发器。
+
+纯candidate专项9/9：同commit来源、版本/闲聊稳定ID、准确hash消费、actor/world/epoch隔离、真实私密回忆与泛策略区分、冲突去重、来源时点/哈希错误拒绝和输入不变。模块边界591文件通过；typecheck退出0；四新源码/测试Prettier及diff检查通过。最终private-inbox字段兼容调整后同一PG9再次通过，不累计重复覆盖。类型检查最终收尾结果以交付主表同步为准。
+
+首轮暴露测试误用：任务已成功后又用已结束lease尝试kernel重放，被正确LEASE_LOST阻止；改验证重复只读ACK，不放宽租约。预算fixture最初不足以触发24k/32k裁剪，补真实授权genesis压力资料后断言实际裁剪才通过。最初将completion篡改预期放在reader层，实际DB guard更早23514拒绝，改断言真实边界，未禁用保护。若新record payload本身不合法，reader仍有显式fail-closed校验。
+
+## 尚未完成与接续
+
+root将真实历史现场inbox接入原private snapshot/模型、pre-send/kernel来源重验、原collector/advance及成功quiet后消费。本人新repo已兼容冻结字段，但本基线尚无actorObservationInbox生产producer，**没有声称private quiet、持久知情自动唤醒或整条玩家旅程已PG跑通**。现PG证明实际scene/native供给和失败恢复，不取代后继公共接线验收。
+
+实际supplied manifest由root同一prepare/decide缓存产生；本reader检查它与原成功来源身份一致，不能从JSONB摘要数学重建完整历史请求。modelInputHash的实际对应关系由模型adapter专项与本测试捕获messages验证，旧prompt完整重演不是这里的能力。消费表示真实来源已供应且回合成功，不证明模型理解、同意、外部行动或整段事件完成。
+
+后继必须只对原真正供应的正文消费，不能把inbox.sourceIds/scene.selectedSourceIds直接当ACK；quiet成功亦按真实供应消费，未供应或失败保留；同一source/hash已有消费就不因无关消息复活。unknown仍由原attempt门阻断，不能把pending当作换ID重买许可。新群/现场不得自动带入私密历史，仅本人private recall；若将来跨渠道，须重新核实际受众。
+
+不得读取4f16a7d7中的scene/privateRecipient/claim字符串作为权威来源。没有使用actor_position_knowledge存泛观察，没有新增模型循环、SQL或第二套队列，原97/98位置说法与来源规则不重复开发。普通对象回执、旅行到达和单次邀约拒绝均不被本组件升级为整体终局。
+
+本人0真实模型、0生产写、0浏览器/公网、未动用户草稿或存档；“渣男体验”不发布，新引擎不启用。全check/build、SQL85、公共集成及READY/公网由唯一集成人串行执行，本批不重复大批量验证。当前仅组件和限定数据库证据，仍须待集成验收，未上线不能称交付完成。
