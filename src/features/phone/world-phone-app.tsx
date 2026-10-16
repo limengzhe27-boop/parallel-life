@@ -35,7 +35,7 @@ import { wechatCharacterTarget } from './wechat-character-target.ts';
 import { PhoneDesktop } from './phone-desktop.tsx';
 import { PhoneAppsProvider, PhoneAppView } from './apps/index.tsx';
 import { recordAttribution } from './apps/notes-records.tsx';
-import { Avatar } from './apps/common.tsx';
+import { PersonCard } from './apps/person-card.tsx';
 import type {
   PhoneActions,
   PhoneActionReceipt,
@@ -1691,96 +1691,19 @@ export function WorldPhoneSurface({
                     👥 核心人脉网络（共 {data.actors.length} 位）
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {data.actors.map((actor) => (
-                      <div
-                        key={actor.id}
-                        style={{
-                          background: '#ffffff',
-                          borderRadius: '12px',
-                          padding: '12px 14px',
-                          border: '1px solid #e2e8f0',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
+                    {phoneData.contacts.map((actor) => (
+                      <PersonCard key={actor.id} contact={actor}>
+                        <a href={`#life=${data.id}&app=messages&target=${actor.id}`}>💬 发微信</a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const saved = data.actors.find((a) => a.id === actor.id);
+                            if (saved) setCallingActor(saved);
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <Avatar name={actor.name} />
-                            <div>
-                              <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>
-                                {actor.name}
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: '11px',
-                                  background: '#f1f5f9',
-                                  color: '#475569',
-                                  padding: '2px 8px',
-                                  borderRadius: '6px',
-                                }}
-                              >
-                                {actor.relationship}
-                              </span>
-                            </div>
-                          </div>
-                          <span style={{ fontSize: '11px', color: '#16a34a' }}>人物资料</span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5 }}>
-                          {actor.summary ||
-                            `在当前世界中与你紧密相连，是你的${actor.relationship}。`}
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                          <a
-                            href={`#life=${data.id}&app=messages&target=${actor.id}`}
-                            style={{
-                              flex: 1,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                              padding: '8px',
-                              borderRadius: '8px',
-                              background: '#ecfdf5',
-                              color: '#059669',
-                              fontSize: '12px',
-                              fontWeight: 500,
-                              textDecoration: 'none',
-                              border: '1px solid #a7f3d0',
-                            }}
-                          >
-                            💬 发微信
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => setCallingActor(actor)}
-                            style={{
-                              flex: 1,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                              padding: '8px',
-                              borderRadius: '8px',
-                              background: '#eff6ff',
-                              color: '#2563eb',
-                              fontSize: '12px',
-                              fontWeight: 500,
-                              border: '1px solid #bfdbfe',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            📞 电话呼叫
-                          </button>
-                        </div>
-                      </div>
+                          📞 电话呼叫
+                        </button>
+                      </PersonCard>
                     ))}
                   </div>
                 </div>

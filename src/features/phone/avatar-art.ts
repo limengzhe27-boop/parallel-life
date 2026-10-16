@@ -192,3 +192,39 @@ export function resolveAvatarArt(
         label: '通用联系人插画 · 不表示实际外貌',
       };
 }
+
+/** Display fallback only: a failed image never retains an authorized-picture label. */
+export function avatarPresentation(
+  contact: { avatarUrl?: string; avatarKind?: AvatarArt['kind']; avatarLabel?: string },
+  failedUrls: ReadonlySet<string> = new Set(),
+): { url?: string; label: string; kind?: AvatarArt['kind'] } {
+  const generic = '/art/lives/avatar-contact.svg';
+  const requested = contact.avatarUrl;
+  if (requested && !failedUrls.has(requested))
+    return {
+      url: requested,
+      kind: contact.avatarKind,
+      label:
+        contact.avatarKind === 'authorized-photo'
+          ? '用户授权图片'
+          : contact.avatarKind
+            ? contact.avatarLabel ||
+              {
+                'authorized-photo': '用户授权图片',
+                'character-illustration': '原创人物插画 · 非真实肖像',
+                'generic-illustration': '通用联系人插画 · 不表示实际外貌',
+              }[contact.avatarKind]
+            : '形象图片 · 来源未标注',
+    };
+  return {
+    ...(!failedUrls.has(generic) ? { url: generic, kind: 'generic-illustration' as const } : {}),
+    label:
+      requested && failedUrls.has(requested)
+        ? !failedUrls.has(generic)
+          ? '图片未能显示 · 使用通用插画'
+          : '图片未能显示 · 使用姓名标记'
+        : !failedUrls.has(generic)
+          ? '通用联系人插画 · 不表示实际外貌'
+          : '使用姓名标记 · 不表示实际外貌',
+  };
+}

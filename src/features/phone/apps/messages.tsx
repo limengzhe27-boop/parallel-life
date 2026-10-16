@@ -3,6 +3,7 @@ import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
+import { PersonCard } from './person-card.tsx';
 import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
 import s from './apps.module.css';
@@ -534,7 +535,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       }}
                     >
                       <div style={{ position: 'relative' }}>
-                        <Avatar url={c.avatarUrl} name={c.name} />
+                        <Avatar
+                          url={c.avatarUrl}
+                          name={c.name}
+                          kind={c.avatarKind}
+                          label={c.avatarLabel}
+                        />
                         {c.unread > 0 && (
                           <span
                             style={{
@@ -640,7 +646,12 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       borderRadius: 0,
                     }}
                   >
-                    <Avatar url={c.avatarUrl} name={c.name} />
+                    <Avatar
+                      url={c.avatarUrl}
+                      name={c.name}
+                      kind={c.avatarKind}
+                      label={c.avatarLabel}
+                    />
                     <span className={s.contactText} style={{ flex: 1 }}>
                       <strong
                         style={{
@@ -669,7 +680,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                           ? c.summary.length > 26
                             ? c.summary.slice(0, 26) + '…'
                             : c.summary
-                          : '查看名片与生平'}
+                          : '查看人物名片'}
                       </small>
                     </span>
                     <span style={{ fontSize: '13px', color: '#9ca3af' }}>名片 ›</span>
@@ -1011,6 +1022,134 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           })}
         </nav>
 
+        {/* 联系人名片 Sheet 弹层 */}
+        {selectedProfile && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.5)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              zIndex: 100,
+            }}
+            onClick={() => setSelectedProfileId(null)}
+          >
+            <div
+              style={{
+                background: '#ffffff',
+                borderTopLeftRadius: '20px',
+                borderTopRightRadius: '20px',
+                padding: '24px 20px',
+                boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                maxHeight: '82%',
+                overflowY: 'auto',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <PersonCard contact={selectedProfile} onClose={() => setSelectedProfileId(null)} />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '11px',
+                    borderRadius: '12px',
+                    background: '#07c160',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    const id = selectedProfile.id;
+                    setSelectedProfileId(null);
+                    open('messages', id);
+                  }}
+                >
+                  💬 发送微信
+                </button>
+                <button
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '11px',
+                    borderRadius: '12px',
+                    background: '#f1f5f9',
+                    color: '#1e293b',
+                    border: '1px solid #cbd5e1',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setCallingContact(selectedProfile);
+                  }}
+                >
+                  📞 拨打电话
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    padding: '9px',
+                    borderRadius: '10px',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '12px',
+                    color: '#475569',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setSelectedProfileId(null);
+                    open('calendar');
+                  }}
+                >
+                  🗓️ 查看日程
+                </button>
+                <button
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    padding: '9px',
+                    borderRadius: '10px',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '12px',
+                    color: '#475569',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setSelectedProfileId(null);
+                    open('photos');
+                  }}
+                >
+                  🖼️ 查看相册
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {callingContact && (
           <CallModal
             contact={callingContact}
@@ -1208,6 +1347,76 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
         </div>
       </div>
 
+      {/* 人物名片遮罩 Sheet */}
+      {showPerson && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.4)',
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+          }}
+          onClick={() => setShowPerson(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderTopLeftRadius: '16px',
+              borderTopRightRadius: '16px',
+              padding: '20px',
+              boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <PersonCard contact={actor} onClose={() => setShowPerson(false)} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPerson(false);
+                  setCallingContact(actor);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '10px',
+                  background: '#f1f5f9',
+                  color: '#1e293b',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  border: '1px solid #e2e8f0',
+                  cursor: 'pointer',
+                }}
+              >
+                📞 拨打电话
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPerson(false);
+                  open('photos');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '10px',
+                  background: '#f1f5f9',
+                  color: '#1e293b',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  border: '1px solid #e2e8f0',
+                  cursor: 'pointer',
+                }}
+              >
+                🖼️ 查看相册
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 消息滚动流 */}
       <div
         ref={messageScroll}
@@ -1326,8 +1535,14 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   onClick={() => setShowPerson(true)}
                   aria-label={`查看${actor.name}的好友资料`}
                   className={profile.messageAvatar}
+                  style={{ flexShrink: 0 }}
                 >
-                  <Avatar url={actor.avatarUrl} name={actor.name} />
+                  <Avatar
+                    url={actor.avatarUrl}
+                    name={actor.name}
+                    kind={actor.avatarKind}
+                    label={actor.avatarLabel}
+                  />
                 </button>
               )}
               <div
