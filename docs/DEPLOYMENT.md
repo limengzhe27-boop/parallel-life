@@ -1,3 +1,20 @@
+## 2026-10-17 · BRANCH-CATEGORY-01 与 NPC-AVATAR-UNIFY-03B 发现分类与统一人物名片已上线
+
+业务 2b0f2e28328ffba58ffb4d1b827e69f8d975feaa / dpl_GXEzRZKzwuLBPnuXizmToNnh3imH READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
+
+交付内容与质量证据：
+1. **统一人物名片与肖像元数据一致性 (NPC-AVATAR-UNIFY-03B)**：
+   - 提取共用人物名片组件 `PersonCard` (`src/features/phone/apps/person-card.tsx`) 与专属样式，统一微信联系人、聊天详情及世界人物列表三大入口。
+   - 移除无事实依据的伪“在线”与假亲密套话，真实展示授权照片、作品设定插画或通用插画，失败回退统一使用姓名标牌。
+   - 完善头像元数据契约 (`avatarKind` 支持 `'photo' | 'original-art' | 'generic-art' | 'publication-art'`)，解决插画与出版作品标签匹配。
+2. **世界发现页精细化分类与存档去重 (BRANCH-CATEGORY-01)**：
+   - 发现页支持“全部 / 精选 / 我的”顶部分类导航（`branch-list.tsx`, `discovery-app.tsx`, `official-lives.tsx`）。
+   - 严格区分精选目录模板与用户实际存档，以精确 `worldId` 和 `seedId` 去重，不隐藏真实加载与恢复状态。
+3. **门禁与测试**：
+   - 边界检查 609 模块干净通过；`tsc --noEmit` 0 错误；
+   - 专项测试 `tests/npc-avatar-unify.test.ts` (16/16) 与 `tests/branch-category-ui.test.ts` (22/22) 全数通过，全量 3266 项测试保持全绿；
+   - Next.js 生产环境构建打包成功。
+
 ## 2026-10-17 · MA-ARCH-44-118 新建世界人物初始位置与位置未知状态隔离已上线
 
 业务 e29e977465f2a1b92003c20dbbf9c4e207b508f7 / dpl_4a8wEgq8H4nB3VDNwm4pjfnDze1t READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
