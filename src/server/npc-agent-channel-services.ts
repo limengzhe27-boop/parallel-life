@@ -407,15 +407,14 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
             storyAt,
             state,
           );
+    // One lazy adapter owns both final input preparation and the actual gateway request.
+    const npcModel = new NpcAgentModel({ complete: (...args) => modelFactory().complete(...args) });
     try {
       await runNpcAgent(
         {
           attempts: store,
           // A protected completion needs no gateway credentials or model construction.
-          model: {
-            validateInput: (s) => new NpcAgentModel(modelFactory()).validateInput(s),
-            decide: (s, abort) => new NpcAgentModel(modelFactory()).decide(s, abort),
-          },
+          model: npcModel,
           kernel: new PostgresNpcAgentKernel(scoped, worlds, (sql, result) =>
             finishNativeAgentTask(sql, lease.ownerId, lease, result.attempt, result.eventId),
           ),
