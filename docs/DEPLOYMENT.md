@@ -1,3 +1,18 @@
+## 2026-10-17 · MEDIA-01/NAR-03S 多模态媒体管线与手机同源回显已上线
+
+业务 29556066fce99b4fbb9db2d38b04284c597da359 / dpl_GHm1GZra5ogWobievnnb7a7gqhAh READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
+
+交付内容与质量证据：
+1. **媒体管线与多模态生成闭环 (NAR-03S / MEDIA-VIDEO-01 / IMG-CHAT-01 / M-02A)**：
+   - 包含静态图片生成 (`MediaPipelineService`, `PromptBuilder`, `ReplicateProviderAdapter`) 与图生视频管线 (`MediaTools`, `LumaDreamMachineAdapter`, `MinimaxVideoAdapter`, `KlingVideoAdapter`)。
+   - 实现角色肖像一致性守卫 (`consistency-guard`) 与肖像引用解析器 (`character-reference-resolver`)，确保配图严格遵循人物立绘与场景事实，绝不越权挪用玩家照片。
+   - 聊天与相册双向同源绑定 (`album-projection`, `build-repository`, `messages.tsx`, `world-app-data.ts`)：支持非阻塞生成态卡片、失败诚实展示、视频播放与大图查看，严格杜绝纯文本提及书名号幻觉造图。
+2. **全量质检与边界门禁**：
+   - `scripts/check-boundaries.mjs` 610 个模块边界检查全量通过。
+   - `npm run typecheck` 0 错误。
+   - `npm test` 3219 项单测与集成测试全量通过（含 4 项 nar-03s 媒体流端到端测试与真实 PG 回归）。
+   - `npm run build` Next.js 生产环境构建成功（24 个静态页面生成，路由无告警）。
+
 ## 2026-10-16 · 44-110/111 人物身份与未演事件重新考虑（待READY）
 
 相关人物真实新计划/明确决定/行动结果可使未演作者事件重新评估一次；普通聊天、无关人物、时间与刷新不重买。quiet不等于完成，原Director→本人NPC链路保留，旧paid哈希/unknown栅栏保留。小安110显式speaker/replyAs集成，check3171/build和实际PG18通过。无SQL，生产86/86只读一致、保护数据未变。本轮真实模型另授权待答复，0调用。见[111报告](task-reports/44-111-AUTHORED-RECONSIDERATION-I.md)。
