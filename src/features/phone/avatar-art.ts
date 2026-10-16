@@ -213,7 +213,9 @@ export function avatarPresentation(
                 'authorized-photo': '用户授权图片',
                 'character-illustration': '原创人物插画 · 非真实肖像',
                 'generic-illustration': '通用联系人插画 · 不表示实际外貌',
-              }[contact.avatarKind]
+                'publication-art': '作品设定插画 · 非真实肖像',
+              }[contact.avatarKind] ||
+              '形象图片 · 来源未标注'
             : '形象图片 · 来源未标注',
     };
   return {

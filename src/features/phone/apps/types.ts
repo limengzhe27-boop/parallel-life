@@ -12,7 +12,11 @@ export type PhoneContact = {
   relationship: string;
   summary?: string;
   avatarUrl?: string;
-  avatarKind?: 'authorized-photo' | 'character-illustration' | 'generic-illustration';
+  avatarKind?:
+    | 'authorized-photo'
+    | 'character-illustration'
+    | 'generic-illustration'
+    | 'publication-art';
   avatarLabel?: string;
   unread: number;
 };

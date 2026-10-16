@@ -1,0 +1,47 @@
+.categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 20px 12px;
+  flex-shrink: 0;
+}
+.categories button {
+  min-height: 44px;
+  border: 1px solid #29415e;
+  border-radius: 12px;
+  background: #10233d;
+  color: #b2bfd2;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.categories button[aria-pressed='true'] {
+  background: #347bfa;
+  border-color: #347bfa;
+  color: #fff;
+}
+.categories button:focus-visible,
+.worldLink:focus-visible {
+  outline: 2px solid #82b1ff;
+  outline-offset: 2px;
+}
+.worldLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 16px;
+  color: #f2f5fb;
+  text-decoration: none;
+  font-size: 14px;
+}
+.savedHeading {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.personal[hidden] {
+  display: none !important;
+}

@@ -366,6 +366,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           return '我';
       }
     };
+    const selectedProfile = data.contacts.find((c) => c.id === selectedProfileId);
 
     return (
       <div
