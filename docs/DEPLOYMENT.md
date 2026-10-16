@@ -1,3 +1,21 @@
+## 2026-10-17 · PHASE-4 全链路端到端走查与验收 (EXP-06, NAR-04, V-02~V-04) 已上线
+
+业务 23d3190104e76c12c41aa5bc4ca6ef7d34190e29 / dpl_DqvKyQNCnXrKtJUSCZfrXgQbmTSU READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
+
+交付内容与质量证据：
+1. **端到端全链路真实数据库走查 (tests/integration/walkthrough-end-to-end-journey.test.ts)**：
+   - `V-01 & V-02`：剧本编剧创作、严格预检、发布及编译创生开场，真实数据落盘并构建世界；
+   - `44-118 & NPC-PROFILE-02`：创世权威位置与公开名片隔离，`privatePersona` 绝密资料绝不泄露给客户端或公共投影；
+   - `V-03 & NPC-AVATAR-UNIFY-03B`：手机微信客户端投影 (`worldAppData`) 与 `AvatarArt` 视觉守卫，可追溯真实插画与生成图像，无虚假肖像标注；
+   - `44-113~117 & NAR-04`：计划承诺、位移感知更新（`travel.completed` 更新权威位置）与 PostgreSQL 触发器（`guard_agent_episode_outcome`）防伪凭证校验通过；
+   - `V-04 & EXP-06`：重开手机世界连续性、重放幂等性与多租户权限隔离验证通过。
+2. **契约健全性修复**：
+   - 补全 `src/contracts/publication-phone.ts` 中 `PublicationOpeningSchema.contacts` 的 `initialPlaceId: key.optional()` 字段支持，确保开场位置感知数据流严格通过 Zod 校验。
+3. **门禁与测试**：
+   - 边界检查 609 模块干净通过；`tsc --noEmit` 0 错误；
+   - 全量 3272 项测试全部通过（0 失败，0 告警）；
+   - Next.js 生产环境构建打包成功。
+
 ## 2026-10-17 · NPC-PROFILE-02 世界内人物公开名片与资料安全隔离已上线
 
 业务 8b0bfb96dbd0811eef449ba326b4859a56247c1b / dpl_FRzLYgy5LmDwJ1NdCcXrWzUGkFwV READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
