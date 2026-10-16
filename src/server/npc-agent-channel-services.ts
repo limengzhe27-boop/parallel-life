@@ -335,8 +335,20 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
         )
       ).rows;
       if (prior.length > 1) throw new DomainError('INVALID_COMMAND');
+      const routing = (
+        await sql.query(
+          'SELECT id,status FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
+          [world.id, lease.ownerId, 'native-routing:' + lease.id],
+        )
+      ).rows[0];
+      if (
+        !prior.length &&
+        routing &&
+        ['request_sent', 'unknown_after_send'].includes(routing.status)
+      )
+        throw Object.assign(Error('DIRECTOR_ROUTING_RESULT_UNKNOWN'), { code: 'UPSTREAM_FAILED' });
       if (!actorIds.length) {
-        if (prior.length) throw new DomainError('INVALID_COMMAND');
+        if (prior.length || routing) throw new DomainError('INVALID_COMMAND');
         return { receipt, actorId: null, actorIds, states };
       }
       const originalAudience = await readLocationReportAudience(
@@ -348,7 +360,7 @@ export function nativeNpcTaskHandler(db: PostgresDatabase, modelFactory: () => T
       );
       actorIds = actorIds.filter((id) => originalAudience?.actorIds.includes(id));
       let actorId: string | null = prior[0]?.actor_id ?? null;
-      if (!actorId)
+      if (!actorId && !routing)
         try {
           actorId = nativeResponder({
             actorIds,

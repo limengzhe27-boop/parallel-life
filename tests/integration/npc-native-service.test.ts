@@ -577,6 +577,54 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
     );
   });
 
+  await t.test(
+    'unknown Director routing cannot be bypassed when membership becomes unambiguous',
+    async () => {
+      const f = await fixture();
+      let current = await worlds.get({ userId: f.owner }, f.worldId);
+      const sent = await groups.send(f.owner, {
+        worldId: f.worldId,
+        groupId: f.groupId,
+        commandId: randomUUID(),
+        expectedVersion: current.version,
+        text: '大家接下来怎么安排？',
+      });
+      const lease = await queue.claimForOwner(sent.task.id, f.owner, ['world']);
+      assert.ok(lease);
+      let directors = 0,
+        npcs = 0;
+      const handler = nativeNpcTaskHandler(db, () => ({
+        async complete(messages) {
+          const payload = JSON.parse(messages[1]!.content);
+          if (payload.nativeTurn) {
+            directors++;
+            throw Object.assign(Error('SYNTHETIC_UNKNOWN'), { code: 'UPSTREAM_FAILED' });
+          }
+          npcs++;
+          return JSON.stringify(reply('不能绕过原未知协调来生成这句话。'));
+        },
+      }));
+      await assert.rejects(handler(lease, new AbortController().signal));
+      current = await worlds.get({ userId: f.owner }, f.worldId);
+      await groups.membership(f.owner, {
+        worldId: f.worldId,
+        groupId: f.groupId,
+        commandId: randomUUID(),
+        expectedVersion: current.version,
+        participant: { kind: 'actor', actorId: f.a },
+        action: 'leave',
+      });
+      await assert.rejects(handler(lease, new AbortController().signal));
+      assert.equal(directors, 1);
+      assert.equal(npcs, 0);
+      assert.equal(
+        await store.lookup(f.owner, f.worldId, nativeAgentCommandId(sent.task.id, f.b)),
+        null,
+      );
+      await queue.finish(lease, { status: 'unknown', errorCode: 'UNKNOWN' });
+    },
+  );
+
   for (const mode of ['quiet', 'selected', 'unknown'] as const)
     await t.test('ambiguous native group Director coordination: ' + mode, async () => {
       const f = await fixture();
