@@ -52,6 +52,9 @@ export type AgentSnapshot = {
   input: { sourceId: string; text: string; origin: 'player' | 'wake' | 'coordination' };
 };
 export interface NpcAgentModel {
+  describeSuppliedContext?(
+    snapshot: AgentSnapshot,
+  ): import('../domain/npc-supplied-context.ts').NpcSuppliedContext;
   /** Deterministic input/budget preflight runs before request_sent is recorded. */
   validateInput?(snapshot: AgentSnapshot): void;
   /** Raw result is durably recorded before parsing. Invalid output is a known result, not unknown. */

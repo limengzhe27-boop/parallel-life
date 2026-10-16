@@ -627,3 +627,39 @@ test('own episode milestones reach private NPC only, never group or scene input'
     else assert.ok(!('episodeResults' in payload));
   }
 });
+
+test('supplied context manifest matches the final cached model messages and excludes omitted text', async () => {
+  const { createHash } = await import('node:crypto');
+  for (const oversized of [false, true]) {
+    const input = snapshot('scene');
+    input.sources.push({
+      id: 'scene:observed',
+      kind: 'scene_entry',
+      recordId: 'observed',
+      worldVersion: 8,
+      at: input.storyAt,
+      contentHash: 'a'.repeat(64),
+    });
+    input.observations.push({
+      sourceId: 'scene:observed',
+      kind: 'speech',
+      text: oversized ? 'x'.repeat(60000) : 'A sourced observation.',
+    });
+    const { adapter, calls } = capture();
+    const manifest = adapter.describeSuppliedContext(input);
+    input.observations.at(-1)!.text = 'MUTATED_AFTER_PREPARATION';
+    await adapter.decide(input);
+    const messages = calls[0]!.messages,
+      payload = JSON.parse(messages[1]!.content);
+    assert.equal(
+      manifest.modelInputHash,
+      createHash('sha256').update(JSON.stringify(messages)).digest('hex'),
+    );
+    assert.ok(!JSON.stringify(messages).includes('MUTATED_AFTER_PREPARATION'));
+    assert.equal(manifest.observations.length, oversized ? 0 : 1);
+    assert.equal(
+      payload.observations.some((o: { sourceId: string }) => o.sourceId === 'scene:observed'),
+      !oversized,
+    );
+  }
+});

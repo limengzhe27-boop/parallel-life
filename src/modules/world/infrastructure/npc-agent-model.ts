@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import type { NpcSuppliedContext } from '../domain/npc-supplied-context.ts';
 import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
 import type {
   AgentSnapshot,
@@ -317,6 +319,29 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
 /** No DB, director, parsing, retries or output rewriting. The runner saves raw output first. */
 export class NpcAgentModel implements NpcAgentModelPort {
   private readonly model: TextModel;
+  private readonly prepared = new WeakMap<
+    AgentSnapshot,
+    { messages: ModelMessage[]; manifest: NpcSuppliedContext }
+  >();
+
+  describeSuppliedContext(snapshot: AgentSnapshot): NpcSuppliedContext {
+    const messages = prepare(snapshot);
+    const payload = JSON.parse(messages[1]!.content);
+    const ids = new Set((payload.observations as { sourceId: string }[]).map((o) => o.sourceId));
+    const manifest: NpcSuppliedContext = {
+      schemaVersion: 1,
+      promptVersion: NPC_AGENT_PROMPT_VERSION,
+      modelInputHash: createHash('sha256').update(JSON.stringify(messages)).digest('hex'),
+      observations: snapshot.sources
+        .filter(
+          (s) =>
+            s.kind === 'scene_entry' && ids.has(s.id) && /^[a-f0-9]{64}$/.test(s.contentHash ?? ''),
+        )
+        .map((s) => ({ sourceId: s.id, contentHash: s.contentHash! })),
+    };
+    this.prepared.set(snapshot, { messages, manifest });
+    return structuredClone(manifest);
+  }
 
   constructor(model: TextModel) {
     this.model = model;
@@ -327,7 +352,8 @@ export class NpcAgentModel implements NpcAgentModelPort {
   }
 
   async decide(snapshot: AgentSnapshot, signal?: AbortSignal): Promise<unknown> {
-    const messages = prepare(snapshot);
+    const messages = this.prepared.get(snapshot)?.messages ?? prepare(snapshot);
+    this.prepared.delete(snapshot);
     signal?.throwIfAborted();
     return this.model.complete(messages, signal, NPC_AGENT_OUTPUT_TOKENS, {
       format: 'json_object',

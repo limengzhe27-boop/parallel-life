@@ -71,6 +71,7 @@ export async function runNpcAgent(
       await deps.attempts.mark(ownerId, attempt, 'cancelled_before_send');
       throw signal.reason ?? Error('CANCELLED');
     }
+    const suppliedContext = deps.model.describeSuppliedContext?.(executionSnapshot);
     try {
       if (
         executionSnapshot.sceneObservationContext !== undefined ||
@@ -109,6 +110,7 @@ export async function runNpcAgent(
         kind: 'npc_agent_completion',
         schemaVersion: 1,
         snapshot: executionSnapshot,
+        ...(suppliedContext ? { suppliedContext } : {}),
         response,
       });
     } catch (error) {
