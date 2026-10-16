@@ -9,6 +9,7 @@ export type AgentSource = {
     | 'group_message'
     | 'scene_entry'
     | 'action_result'
+    | 'director_intent'
     | 'authored';
   recordId: string;
   /** Private strategy belongs to this NPC; it is not a channel disclosure grant. */

@@ -160,7 +160,8 @@ test('actual bound author intents reach only their actor through protected NPC d
       | 'hidden_invitation'
       | 'multi_invitation'
       | 'editorial'
-      | 'improvised' = 'message',
+      | 'improvised'
+      | 'known' = 'message',
   ) {
     const content = structuredClone(base);
     content.history = [];
@@ -237,12 +238,22 @@ test('actual bound author intents reach only their actor through protected NPC d
     owned.push({ owner, id });
     const world = await worlds.get({ userId: owner }, id);
     await app.transaction(owner, async (sql) => {
-      for (const a of world.actors)
-        await initializeActorAgentStateInTransaction(
-          sql,
-          owner,
-          emptyActorAgentState({ worldId: id, actorId: a.id }, agentDefinitionRef(world, a.id), 0),
+      for (const a of world.actors) {
+        const initial = emptyActorAgentState(
+          { worldId: id, actorId: a.id },
+          agentDefinitionRef(world, a.id),
+          0,
         );
+        if (kind === 'known')
+          initial.goals.push({
+            id: 'existing_goal',
+            summary: 'MY_EXISTING_GOAL_' + a.id,
+            status: 'active',
+            sourceIds: ['definition:' + initial.definitionRef],
+            resultIds: [],
+          });
+        await initializeActorAgentStateInTransaction(sql, owner, initial);
+      }
       await switchAgentEngineEpochInTransaction(sql, owner, {
         worldId: id,
         expectedWorldVersion: 0,
@@ -295,8 +306,25 @@ test('actual bound author intents reach only their actor through protected NPC d
                       : world.actors.map((a) => a.id),
                   placeIds: [],
                   activity: 'conversation',
-                  basisSourceIds: kind === 'improvised' ? [`genesis:${id}`] : [m.sourceId],
-                  ...(kind === 'improvised' ? {} : { authoredEventKey: 'typed_offer' }),
+                  basisSourceIds: ['improvised', 'known'].includes(kind)
+                    ? [`genesis:${id}`]
+                    : [m.sourceId],
+                  ...(['improvised', 'known'].includes(kind)
+                    ? {}
+                    : { authoredEventKey: 'typed_offer' }),
+                  ...(kind === 'known'
+                    ? {
+                        actorTopics: world.actors.map((a) => ({
+                          actorId: a.id,
+                          refs: p.actorKnownTopics
+                            .filter((topic: { actorId: string }) => topic.actorId === a.id)
+                            .map((topic: { id: string; contentHash: string }) => ({
+                              id: topic.id,
+                              contentHash: topic.contentHash,
+                            })),
+                        })),
+                      }
+                    : {}),
                 },
               ],
               audit: { reason: prohibited[4], basisSourceIds: [] },
@@ -546,6 +574,50 @@ test('actual bound author intents reach only their actor through protected NPC d
     },
   );
   await t.test(
+    'director delivers only selected own topics; another actor commit does not invalidate delivery',
+    async () => {
+      const f = await fixture('known');
+      const first = await execution(f, 0);
+      const firstView = first.snapshot.observations.find((o) => o.sourceId === first.source)!;
+      assert.ok(firstView.text.includes('MY_EXISTING_GOAL_' + first.r.actorId));
+      assert.ok(!firstView.text.includes('MY_EXISTING_GOAL_' + f.requests[1]!.actorId));
+      assert.equal(
+        first.snapshot.sources.find((s) => s.id === first.source)!.kind,
+        'director_intent',
+      );
+      for (const value of prohibited) assert.ok(!firstView.text.includes(value));
+      await run(f, first, async () => JSON.stringify(first.proposal));
+      const second = await execution(f, 1);
+      assert.ok(
+        second.snapshot.observations
+          .find((o) => o.sourceId === second.source)
+          ?.text.includes('MY_EXISTING_GOAL_' + second.r.actorId),
+      );
+      await run(f, second, async () => JSON.stringify(second.proposal));
+      const current = await worlds.get({ userId: f.owner }, f.id);
+      const state = (await actors.read(f.owner, { worldId: f.id, actorId: first.r.actorId }))!;
+      const later = await readPrivateAgentSnapshot(
+        app,
+        f.owner,
+        current,
+        first.r.actorId,
+        null,
+        current.time,
+        state,
+      );
+      assert.equal(
+        later.snapshot.sources.find((s) => s.id === first.source)?.usage,
+        'private_strategy',
+      );
+      assert.ok(
+        !later.snapshot.observations
+          .find((o) => o.sourceId === first.source)
+          ?.text.includes('MY_EXISTING_GOAL_'),
+      );
+    },
+  );
+
+  await t.test(
     'own committed intent strategy enters actual group snapshot without original suggestion or global prose',
     async () => {
       const f = await fixture(),
@@ -630,6 +702,95 @@ test('actual bound author intents reach only their actor through protected NPC d
       }
     },
   );
+  await t.test(
+    'episode execution records actual invitation and player response without completing authored incident',
+    async () => {
+      const f = await fixture('invitation');
+      const e = await execution(f);
+      const proposal = {
+        ...e.proposal,
+        actions: [
+          {
+            id: 'episode_invite',
+            goalId: e.proposal.goals[0]!.id,
+            capability: 'appointment.propose',
+            status: 'ready',
+            targetIds: [],
+            parameters: { title: 'Actual episode invitation', at: '2026-10-13T09:00:00.000Z' },
+            preconditions: [],
+            dependsOnActionIds: [],
+            handlesResponsibilityIds: [],
+            sourceIds: [e.source],
+          },
+        ],
+      };
+      await run(f, e, async () => JSON.stringify(proposal));
+      let world = await worlds.get({ userId: f.owner }, f.id);
+      const invitation = world.appointments.find((a) => a.title === 'Actual episode invitation')!;
+      assert.ok(invitation);
+      const evidence = async () =>
+        (
+          await admin.query(
+            'SELECT document FROM parallel_life.agent_episode_evidence WHERE world_id=$1 ORDER BY world_version',
+            [f.id],
+          )
+        ).rows.map((r) => r.document);
+      assert.deepEqual(
+        (await evidence()).map((r) => r.kind),
+        ['invitation_proposed'],
+      );
+      await worlds.respondToInvitation(
+        { userId: f.owner },
+        {
+          commandId: randomUUID(),
+          worldId: f.id,
+          id: invitation.id,
+          expectedVersion: world.version,
+          operation: 'accept',
+        },
+      );
+      assert.deepEqual(
+        (await evidence()).map((r) => r.kind),
+        ['invitation_proposed', 'invitation_accepted'],
+      );
+      world = await worlds.get({ userId: f.owner }, f.id);
+      const observed = await snapshots.read(f.owner, {
+        worldId: f.id,
+        engineEpoch: 2,
+        worldVersion: world.version,
+        candidates: [],
+        blockers: [],
+      });
+      assert.ok(
+        observed.observations.some(
+          (o) => o.sourceId.startsWith('episode-result:') && o.text.includes('invitation_accepted'),
+        ),
+      );
+      assert.ok(
+        observed.episodes.every((p) => p.status !== 'resolved' && p.resultIds.length === 0),
+      );
+      // Re-project the genuine source: no duplicate receipt or extra model purchase.
+      const { projectEpisodeEvidenceInTransaction } =
+        await import('../../src/modules/world/infrastructure/episode-evidence-repository.ts');
+      const actual = await evidence();
+      await app.transaction(f.owner, (sql) =>
+        projectEpisodeEvidenceInTransaction(sql, f.owner, f.id, actual[1]!.eventId),
+      );
+      assert.deepEqual(await evidence(), actual);
+      await assert.rejects(
+        app.transaction(f.owner, (sql) =>
+          sql.query(
+            `INSERT INTO parallel_life.agent_episode_evidence
+      (world_id,owner_id,id,episode_id,actor_id,engine_epoch,action_id,source_event_id,world_version,kind,subject_kind,subject_id,document)
+      SELECT world_id,owner_id,'forged',episode_id,actor_id,engine_epoch,action_id,source_event_id,world_version,kind,subject_kind,'forged',jsonb_set(document,'{subject,id}','"forged"'::jsonb)
+      FROM parallel_life.agent_episode_evidence WHERE world_id=$1 LIMIT 1`,
+            [f.id],
+          ),
+        ),
+      );
+    },
+  );
+
   await t.test(
     'single actor invitation uses actual known place and preserves earliestAt without inventing a deadline',
     async () => {

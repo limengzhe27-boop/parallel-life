@@ -203,6 +203,75 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
   }
 
   await t.test(
+    'a group location report reaches original hearers while actual position stays unknown',
+    async () => {
+      const f = await fixture();
+      const world = await worlds.get({ userId: f.owner }, f.worldId);
+      const sent = await groups.send(f.owner, {
+        worldId: f.worldId,
+        groupId: f.groupId,
+        commandId: randomUUID(),
+        expectedVersion: world.version,
+        text: '@甲 我在外面，稍后再聊。',
+      });
+      const handler = nativeNpcTaskHandler(db, () => ({
+        async complete(messages) {
+          const payload = JSON.parse(messages[1]!.content);
+          return JSON.stringify({
+            ...reply('知道了，你先忙。'),
+            locationReports: [
+              {
+                subject: { kind: 'player' },
+                placeId: null,
+                sourceId: payload.input.sourceId,
+                quote: '我在外面',
+                assertion: 'reported',
+              },
+            ],
+          });
+        },
+      }));
+      await runOne(
+        {
+          claim: (kinds) => queue.claimForOwner(sent.task.id, f.owner, kinds),
+          renew: (lease) => queue.renew(lease),
+          finish: (lease, outcome) => queue.finish(lease, outcome),
+        },
+        {
+          world: async (lease, signal) => {
+            assert(await handler(lease, signal));
+          },
+        },
+      );
+      assert.equal((await tasks.get(f.owner, sent.task.id)).status, 'succeeded');
+      const rows = (
+        await admin.query(
+          'SELECT observer_actor_id,document FROM parallel_life.actor_position_knowledge WHERE world_id=$1',
+          [f.worldId],
+        )
+      ).rows;
+      assert.deepEqual(rows.map((r) => r.observer_actor_id).sort(), [f.a, f.b].sort());
+      assert.ok(
+        rows.every(
+          (r) =>
+            r.document.sourceKind === 'player_report' &&
+            r.document.occurredAt === null &&
+            r.document.evidence.quote === '我在外面',
+        ),
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.world_authoritative_positions WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].n,
+        0,
+      );
+    },
+  );
+
+  await t.test(
     'group task completes atomically, preserves prior actual DM refusal, and the short reply returns to its actual questioner',
     async () => {
       const f = await fixture();

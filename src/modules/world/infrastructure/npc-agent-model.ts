@@ -93,6 +93,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
           'scene_entry',
           'action_result',
           'authored',
+          'director_intent',
         ].includes(s.kind) ||
         !Number.isFinite(Date.parse(s.at)) ||
         (s.deadlineAt !== undefined && !Number.isFinite(Date.parse(s.deadlineAt))) ||

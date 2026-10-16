@@ -33,6 +33,7 @@ export type DirectorSnapshot = {
   occupiedAuthoredEventKeys?: string[];
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
   actorStates: ActorAgentState[];
+  actorKnownTopics?: import('./actor-known-topic.ts').ActorKnownTopic[];
   episodes: SharedEpisode[];
   candidates: AgentCandidate[];
   blockers: AgentBlocker[];
@@ -60,6 +61,7 @@ export type DirectorOpportunity = {
   basisSourceIds: string[];
   /** Optional authored material reference; not a deterministic plot outcome. */
   authoredEventKey?: string;
+  actorTopics?: import('./actor-known-topic.ts').ActorTopicSelection[];
 };
 export type SharedEpisode = {
   schemaVersion: 1;

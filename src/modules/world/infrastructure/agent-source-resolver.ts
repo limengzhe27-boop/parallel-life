@@ -12,6 +12,7 @@ export async function readActorStrategyBasis(
   state: ActorAgentState,
   worldVersion: number,
   storyAt: string,
+  options: { omitEpisodeIntents?: boolean } = {},
 ): Promise<AgentSource[]> {
   const handles = [
     ...new Set([
@@ -184,7 +185,7 @@ export async function readActorStrategyBasis(
   const intentRequests = handles
     .filter((handle) => handle.startsWith(ACTOR_EPISODE_INTENT_PREFIX))
     .map((handle) => handle.slice(ACTOR_EPISODE_INTENT_PREFIX.length));
-  if (intentRequests.length) {
+  if (intentRequests.length && !options.omitEpisodeIntents) {
     const views = await readActorEpisodeIntentsInTransaction(
       sql,
       ownerId,
@@ -195,6 +196,7 @@ export async function readActorStrategyBasis(
         storyAt,
       },
       intentRequests,
+      { historical: true },
     );
     for (const view of views.values())
       if (view)

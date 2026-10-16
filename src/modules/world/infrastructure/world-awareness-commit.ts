@@ -1,3 +1,4 @@
+import { projectEpisodeEvidenceInTransaction } from './episode-evidence-repository.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import { projectCommittedWorldAwareness } from './world-awareness-repository.ts';
 /** Same kernel projection for all actual epoch-2 writers; reads do not call this. */
@@ -33,4 +34,5 @@ export async function projectAgentWorldChange(
   ).rows[0]?.payload;
   if (!event) throw Error('AWARENESS_EVENT_NOT_FOUND');
   await projectCommittedWorldAwareness(sql, ownerId, event);
+  await projectEpisodeEvidenceInTransaction(sql, ownerId, worldId, eventId);
 }

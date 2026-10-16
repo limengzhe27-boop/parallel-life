@@ -1,3 +1,5 @@
+import { validActorTopicSelection } from '../domain/actor-known-topic.ts';
+import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { agentScopeBlocks } from '../application/schedule-agents.ts';
@@ -281,6 +283,21 @@ const Snapshot = z
           .strict(),
       )
       .optional(),
+    actorKnownTopics: z
+      .array(
+        z.strictObject({
+          id: Key,
+          actorId: Key,
+          kind: z.enum(['goal', 'plan', 'responsibility']),
+          itemId: Key,
+          summary: z.string().min(1).max(2000),
+          status: Key,
+          contentHash: Hash,
+          proofSourceIds: keys,
+        }),
+      )
+      .max(1000)
+      .optional(),
     actorStates: z.array(State),
     episodes: z.array(Episode),
     candidates: z.array(Candidate),
@@ -326,6 +343,19 @@ const Opportunity = z
     activity: z.enum(['conversation', 'meeting', 'follow_up']),
     basisSourceIds: keys.min(1),
     authoredEventKey: Key.optional(),
+    actorTopics: z
+      .array(
+        z.strictObject({
+          actorId: Key,
+          refs: z
+            .array(z.strictObject({ id: Key, contentHash: Hash }))
+            .min(1)
+            .max(4),
+        }),
+      )
+      .min(1)
+      .max(12)
+      .optional(),
   })
   .strict();
 const Decision = z
@@ -634,6 +664,16 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       !equal([...states.map((a) => a.actorId)].sort(), [...s.boundary.actorIds].sort())
     )
       fail('DIRECTOR_ACTOR_STATE_CONFLICT');
+    if (s.actorKnownTopics !== undefined) {
+      const topics = (
+        await Promise.all(
+          states.map((state) =>
+            readActorKnownTopicsInTransaction(sql, owner, state, world.version, s.storyAt),
+          ),
+        )
+      ).flat();
+      if (!equal(topics, s.actorKnownTopics)) fail('DIRECTOR_ACTOR_TOPIC_CONFLICT');
+    }
     if (
       s.cast &&
       !equal(
@@ -1134,6 +1174,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       fail('DIRECTOR_EPISODE_ID_CONFLICT');
     for (const o of d.opportunities)
       if (
+        !validActorTopicSelection(o, s.actorKnownTopics ?? []) ||
         o.participantActorIds.some((id) => !s.boundary.actorIds.includes(id)) ||
         o.placeIds.some((id) => !s.boundary.placeIds.includes(id)) ||
         o.basisSourceIds.some((id) => !sources.has(id)) ||

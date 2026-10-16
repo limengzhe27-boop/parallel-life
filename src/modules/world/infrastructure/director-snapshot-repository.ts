@@ -13,6 +13,7 @@ import {
   authoredEligibilitySummary,
 } from './authored-event-eligibility-repository.ts';
 import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
+import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
 
 export class DirectorSnapshotReadError extends Error {
   readonly code: string;
@@ -747,6 +748,27 @@ async function evidence(
       doc,
     );
   }
+  const milestones = (
+    await sql.query(
+      `SELECT id,source_event_id,world_version,actor_id,document FROM parallel_life.agent_episode_evidence
+    WHERE world_id=$1 AND owner_id=$2 AND world_version<=$3 ORDER BY world_version,id`,
+      [h.world.id, owner, h.world.version],
+    )
+  ).rows;
+  for (const milestone of milestones)
+    add(
+      'episode-result:' + milestone.id,
+      'result',
+      [milestone.actor_id],
+      milestone.world_version,
+      milestone.source_event_id,
+      milestone.document.at,
+      milestone.document,
+      JSON.stringify({
+        meaning: '实际子步骤证据，不表示整个作者事件完成，也不授予其他人物知情',
+        ...milestone.document,
+      }),
+    );
   return { items, observations, worldSetting };
 }
 
@@ -897,6 +919,13 @@ export class PostgresDirectorSnapshotRepository {
           : {}),
         cast: normalizedCast(h.world),
         actorStates: states,
+        actorKnownTopics: (
+          await Promise.all(
+            states.map((state) =>
+              readActorKnownTopicsInTransaction(sql, owner, state, h.world.version, h.storyAt),
+            ),
+          )
+        ).flat(),
         episodes,
         candidates: structuredClone(input.candidates),
         blockers: structuredClone(input.blockers),

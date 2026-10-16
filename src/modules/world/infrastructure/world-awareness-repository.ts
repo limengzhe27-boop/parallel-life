@@ -1,3 +1,5 @@
+import { readLocationReportAudience } from './location-report-audience.ts';
+import type { AgentInputReceipt } from '../domain/agent-runtime.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { readAgentJourneysInTransaction } from './agent-journey-repository.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -121,7 +123,44 @@ export async function projectCommittedWorldAwareness(
               })
             ).find((j) => j.id === (event.data as { journeyId?: string }).journeyId)
           : undefined;
-      const delta = committedAwarenessDelta(world, event, { previousAgentState, scene, journey });
+      let reportObserverActorIds: readonly string[] | undefined;
+      const runtime = data?.agentRuntime as
+        { inputReceiptId?: string; positionKnowledge?: ActorPositionKnowledge[] } | undefined;
+      if (runtime?.positionKnowledge?.some((k) => k.observerActorId !== data.actorId)) {
+        const original = (
+          await sql.query(
+            'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+            [world.id, owner, runtime.inputReceiptId],
+          )
+        ).rows[0]?.document as AgentInputReceipt | undefined;
+        if (!original || !data.actorId) throw Error('INVALID_AWARENESS_REPORT_AUDIENCE');
+        const audience = await readLocationReportAudience(
+          sql,
+          owner,
+          world,
+          original,
+          data.actorId,
+        );
+        if (
+          !audience ||
+          runtime.positionKnowledge.some(
+            (k) =>
+              !audience.actorIds.includes(k.observerActorId) ||
+              k.evidence?.inputReceiptId !== original.id ||
+              !k.evidence?.quote ||
+              !original.text.includes(k.evidence.quote) ||
+              k.learnedAt !== original.storyAt,
+          )
+        )
+          throw Error('INVALID_AWARENESS_REPORT_AUDIENCE');
+        reportObserverActorIds = audience.actorIds;
+      }
+      const delta = committedAwarenessDelta(world, event, {
+        previousAgentState,
+        scene,
+        journey,
+        reportObserverActorIds,
+      });
       for (const position of delta.positions) {
         await sql.query(
           `INSERT INTO parallel_life.world_authoritative_positions(world_id,owner_id,subject_key,source_event_id,source_version,document)

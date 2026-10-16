@@ -13,6 +13,8 @@ import {
 } from '../domain/actor-episode-intent.ts';
 import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
+import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
+import type { ActorAgentState } from '../domain/agent-runtime.ts';
 import { parseEpisodeConsiderationIntent } from './agent-narrative-repository.ts';
 import {
   projectActorManuscriptHint,
@@ -33,6 +35,7 @@ export async function readActorEpisodeIntentsInTransaction(
   ownerId: string,
   frame: { worldId: string; actorId: string; worldVersion: number; storyAt: string },
   requestIds: string[],
+  options: { historical?: boolean } = {},
 ): Promise<Map<string, ActorEpisodeIntentView | null>> {
   const result = new Map<string, ActorEpisodeIntentView | null>();
   if (!requestIds.length) return result;
@@ -81,6 +84,77 @@ export async function readActorEpisodeIntentsInTransaction(
       saved: request.director_snapshot as DirectorSnapshot,
     };
   });
+  const blocked = await forgottenAgentSourceIds(sql, ownerId, frame.worldId, frame.actorId);
+  if (addressed.some(({ opportunity }) => opportunity.actorTopics)) {
+    const state = (
+      await sql.query(
+        'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3',
+        [frame.worldId, ownerId, frame.actorId],
+      )
+    ).rows[0]?.document as ActorAgentState | undefined;
+    if (!state) return conflict();
+    const topics = options.historical
+      ? []
+      : await readActorKnownTopicsInTransaction(
+          sql,
+          ownerId,
+          state,
+          frame.worldVersion,
+          frame.storyAt,
+        );
+    for (const { request, opportunity, saved } of addressed) {
+      const selection = opportunity.actorTopics?.filter((s) => s.actorId === frame.actorId);
+      if (!selection) continue;
+      if (selection.length !== 1) return conflict();
+      const captured = selection[0]!.refs.map((ref) => {
+        const entries = saved.actorKnownTopics?.filter(
+          (t) =>
+            t.actorId === frame.actorId && t.id === ref.id && t.contentHash === ref.contentHash,
+        );
+        if (entries?.length !== 1) return conflict();
+        return entries[0]!;
+      });
+      if (
+        !captured.length ||
+        captured.some(
+          (t) =>
+            t.proofSourceIds.some((id) => blocked.has(id)) ||
+            (!options.historical && !topics.some((now) => isDeepStrictEqual(now, t))),
+        )
+      )
+        continue;
+      const id = ACTOR_EPISODE_INTENT_PREFIX + request.id;
+      if ([id, request.id, request.origin_decision_id].some((key) => blocked.has(key))) continue;
+      const directive = captured.map(({ proofSourceIds: _proof, ...topic }) => topic);
+      result.set(request.id, {
+        source: {
+          id,
+          kind: 'director_intent',
+          recordId: request.id,
+          worldVersion: request.created_at_version,
+          at: saved.storyAt,
+          contentHash: createHash('sha256')
+            .update(
+              authoredMaterialCanonicalJson({
+                worldId: frame.worldId,
+                actorId: frame.actorId,
+                requestId: request.id,
+                decisionId: request.origin_decision_id,
+                directive,
+              }),
+            )
+            .digest('hex'),
+        },
+        observation: {
+          sourceId: id,
+          kind: 'plan',
+          text:
+            '导演建议你自行考虑跟进以下本人已知事项。它不是命令、已经发生的事实或玩家同意；你可以调整、暂缓或不参与：' +
+            JSON.stringify(directive),
+        },
+      });
+    }
+  }
   if (!addressed.some(({ opportunity }) => opportunity.authoredEventKey)) return result;
   // Full server-side retrieval is not NPC disclosure. Only the directive whitelist below leaves here.
   const current = await readAuthoredAgentMaterialCatalog(sql, ownerId, {
@@ -90,7 +164,6 @@ export async function readActorEpisodeIntentsInTransaction(
     maxBytes: 2_000_000,
   });
   if (current.status !== 'complete') return conflict();
-  const blocked = await forgottenAgentSourceIds(sql, ownerId, frame.worldId, frame.actorId);
   const initialActors = ((
     await sql.query(
       "SELECT (SELECT jsonb_agg(jsonb_build_object('id',a->>'id','name',a->>'name')) FROM jsonb_array_elements(state->'actors') a) AS actors FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2",
@@ -98,6 +171,7 @@ export async function readActorEpisodeIntentsInTransaction(
     )
   ).rows[0]?.actors ?? []) as ManuscriptHintIdentity[];
   for (const { request, opportunity, saved } of addressed) {
+    if (result.get(request.id)) continue;
     if (!opportunity.authoredEventKey) continue;
     const original = saved.authoredMaterials?.materials.filter(
       (material) => material.ref.nodeKey === opportunity.authoredEventKey,
@@ -187,9 +261,20 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
     storyAt: snapshot.storyAt,
   };
   const views = await readActorEpisodeIntentsInTransaction(sql, ownerId, frame, [
-    ...sources.map((source) => source.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length)),
+    ...sources
+      .filter((source) => source.usage !== 'private_strategy')
+      .map((source) => source.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length)),
     ...(incoming ? [incoming.requestId] : []),
   ]);
+  const history = await readActorEpisodeIntentsInTransaction(
+    sql,
+    ownerId,
+    frame,
+    sources
+      .filter((source) => source.usage === 'private_strategy')
+      .map((source) => source.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length)),
+    { historical: true },
+  );
   if (incoming) {
     if (snapshot.channel.kind !== 'private' || !views.has(incoming.requestId)) return conflict();
     const expected = views.get(incoming.requestId);
@@ -203,7 +288,7 @@ export async function validateActorEpisodeIntentSnapshotInTransaction(
   }
   for (const source of sources) {
     const id = source.id.slice(ACTOR_EPISODE_INTENT_PREFIX.length);
-    const view = views.get(id);
+    const view = (source.usage === 'private_strategy' ? history : views).get(id);
     const { usage, ...identity } = source;
     if (!view || !isDeepStrictEqual(identity, view.source)) return conflict();
     const observations = snapshot.observations.filter(

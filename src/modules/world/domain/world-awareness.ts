@@ -112,6 +112,8 @@ export function committedAwarenessDelta(
   event: CommittedAwarenessEvent,
   context: {
     previousAgentState?: ActorAgentState;
+    /** Server-authenticated hearers of the exact original player input. */
+    reportObserverActorIds?: readonly string[];
     scene?: SceneSession;
     /** Same-UoW authenticated original ledger row, never an NPC assertion. */
     journey?: AgentJourney;
@@ -450,7 +452,7 @@ export function committedAwarenessDelta(
         const k = value as ActorPositionKnowledge;
         if (
           k.worldId !== world.id ||
-          k.observerActorId !== actorId ||
+          !(context.reportObserverActorIds ?? [actorId]).includes(k.observerActorId) ||
           k.sourceEventId !== event.id ||
           k.worldVersion !== event.version ||
           k.kind !== 'report' ||

@@ -1,3 +1,5 @@
+import { readLocationReportAudience } from './location-report-audience.ts';
+import { projectLocationReportKnowledge } from '../domain/project-location-report-knowledge.ts';
 import {
   nativeAgentProjectionId,
   projectNativeAgentChannelInTransaction,
@@ -477,32 +479,28 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           ownerId,
         ])
       ).rows[0].state;
-      for (const report of proposal.locationReports ?? []) {
-        if (
-          (report.subject.kind === 'actor' &&
-            !bounded.actors.some(
-              (actor: { id: string }) =>
-                report.subject.kind === 'actor' && actor.id === report.subject.actorId,
-            )) ||
-          (report.placeId !== null &&
-            !bounded.space?.places.some((place: { id: string }) => place.id === report.placeId))
-        )
-          throw new AgentValidationError('LOCATION_REPORT_OUT_OF_BOUNDARY');
-        if (report.assertion !== 'reported') continue;
-        positionKnowledge.push({
-          worldId: attempt.worldId,
-          observerActorId: attempt.actorId,
-          subject: report.subject,
-          kind: 'report',
-          placeId: report.placeId,
-          sourceKind: 'player_report',
-          occurredAt: null,
-          learnedAt: receivedInput.storyAt,
-          sourceEventId: eventId,
-          worldVersion: attempt.expectedWorldVersion + 1,
-          possiblyStale: true,
-          evidence: { inputReceiptId: receivedInput.id, quote: report.quote },
-        });
+      if (proposal.locationReports?.length) {
+        const audience = await readLocationReportAudience(
+          sql,
+          ownerId,
+          bounded,
+          receivedInput,
+          attempt.actorId,
+        );
+        positionKnowledge.push(
+          ...projectLocationReportKnowledge({
+            worldId: attempt.worldId,
+            actorIds: bounded.actors.map((a: { id: string }) => a.id),
+            placeIds: (bounded.space?.places ?? []).map((p: { id: string }) => p.id),
+            responderActorId: attempt.actorId,
+            input: receivedInput,
+            inputSourceId: snapshot.input.sourceId,
+            eventId,
+            worldVersion: attempt.expectedWorldVersion + 1,
+            reports: proposal.locationReports,
+            audience,
+          }),
+        );
       }
       accepted.state.knowledgeSourceIds = [
         ...new Set([
@@ -644,8 +642,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         );
       for (const journey of departures)
         await recordAgentDepartureInTransaction(sql, ownerId, { attempt, journey });
-      await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       await projectEpisodeRequestInTransaction(sql, ownerId, { attempt, eventId });
+      await projectAgentWorldChange(sql, ownerId, attempt.worldId, eventId);
       await this.afterCommit?.(sql, { attempt, eventId });
       await requireActiveAgentDeliveryInTransaction(
         sql,

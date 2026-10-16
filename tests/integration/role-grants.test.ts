@@ -51,6 +51,7 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
     }
     // These restricted triggers are invoked by table writes, never directly by runtime roles.
     const triggerOnly = new Set([
+      'guard_agent_episode_evidence',
       'binding_current_avatar_sync',
       'profile_current_avatar_sync',
       'protect_current_avatar_asset',
