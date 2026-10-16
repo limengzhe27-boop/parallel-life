@@ -1,3 +1,17 @@
+## 2026-10-17 · MA-ARCH-44-118 新建世界人物初始位置与位置未知状态隔离已上线
+
+业务 e29e977465f2a1b92003c20dbbf9c4e207b508f7 / dpl_4a8wEgq8H4nB3VDNwm4pjfnDze1t READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
+
+交付内容与质量证据：
+1. **新建世界人物开场初始位置与未知状态隔离 (44-118)**：
+   - 严格区分三类空间信息：作者明确指定的开场实际位置（`initialPlaceKey`）、人物常去/关联背景地点（绝不自动充当在场依据）、当前实际位置未知（`status: 'unknown'`, `placeId: null`，未指定时缺省未知）。
+   - 创世版本 0 写入权威位置表（`source_version = 0`, `source_event_id = NULL`），后续移动（`source_version >= 1`）严格覆盖版本 0；创世重放保护杜绝回退。
+   - 位置未知人物支持合法私聊交互，但因缺少物理起点（`missing_origin`）禁止盲目移动与凭空进入现场目击，杜绝幽灵知情。
+2. **端到端集成测试与门禁验证**：
+   - 边界检查 608 模块干净通过，`tsc --noEmit` 0 错误；
+   - 真实 PostgreSQL 跑通 6/6 专属集成测试及 113-118 连续推演旅程（`tests/integration/actor-initial-position-awareness.test.ts`）；
+   - Next.js 生产环境构建打包成功。
+
 ## 2026-10-17 · MA-ARCH-44-113~117 引擎核心行为承诺与未演事件再评估已上线
 
 业务 4c430d28562d5930b6ae283925c5682057d29bc5 / dpl_C33UvMqHTaXWzH6cPSScb3GM4fYJ READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。无新 SQL，生产 86/86 只读校验一致，保护数据未变。
