@@ -1,3 +1,8 @@
+import { PostgresWorldRepository } from '../../src/modules/world/infrastructure/postgres-world-repository.ts';
+import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
+import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
+import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
+import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -18,7 +23,11 @@ import { bootstrapPublicationAgentTrial } from '../../src/modules/world/infrastr
 
 test('real publisher private trial initializes native runtime atomically without changing genesis', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55580, 'isolated registered PostgreSQL only');
+  assert.equal(
+    cfg.port,
+    Number(process.env.PUBLICATION_AGENT_TRIAL_TEST_PORT ?? 55580),
+    'isolated registered PostgreSQL only',
+  );
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const app = new PostgresDatabase(
@@ -235,4 +244,95 @@ test('real publisher private trial initializes native runtime atomically without
     );
     assert.deepEqual(await image(trial.worldId), before);
   });
+  await t.test(
+    'the real trial continues through original NPC and Director services without resetting author history',
+    async () => {
+      await new PostgresClockStore(app).setClock(trial.ownerId, trial.worldId, { paused: false });
+      const worlds = new PostgresWorldRepository(app);
+      let world = await worlds.get({ userId: trial.ownerId }, trial.worldId);
+      const actorId = world.actors[0]!.id;
+      let npcCalls = 0,
+        directorCalls = 0;
+      const service = npcAgentServices(app, () => ({
+        async complete(messages) {
+          npcCalls++;
+          const p = JSON.parse(messages[1]!.content);
+          assert.equal(p.actor.name, world.actors.find((a) => a.id === actorId)!.name);
+          return JSON.stringify({
+            statements: [
+              { text: '这是独立本地模型替身，验证真实人物服务接线。', dependsOnActionIds: [] },
+            ],
+            goals: [],
+            plans: [],
+            actions: [],
+            responsibilities: [],
+            decisions: [],
+          });
+        },
+      }));
+      const command = {
+        id: randomUUID(),
+        worldId: trial.worldId,
+        actorId,
+        expectedVersion: world.version,
+        text: '请回应这条新消息。',
+      };
+      assert.equal(
+        (await service.sendMessageIfEnabled(trial.ownerId, command))?.status,
+        'committed',
+      );
+      assert.equal(npcCalls, 1);
+      assert.equal(
+        (await service.sendMessageIfEnabled(trial.ownerId, command))?.status,
+        'committed',
+      );
+      assert.equal(
+        npcCalls,
+        1,
+        'original command replay must not buy a replacement model response',
+      );
+      const advance = npcAgentAdvanceServices(
+        app,
+        () => ({
+          async complete() {
+            directorCalls++;
+            return JSON.stringify({
+              mode: 'quiet',
+              selectedCandidateIds: [],
+              deferred: [],
+              nudges: [],
+              opportunities: [],
+              audit: { reason: 'Explicit local gateway fixture', basisSourceIds: [] },
+            });
+          },
+        }),
+        new PostgresDirectorSnapshotRepository(app),
+      );
+      assert.ok(await advance.advanceIfEnabled(trial.ownerId, trial.worldId));
+      assert.equal(directorCalls, 1);
+      assert.equal(
+        (
+          await admin.query(
+            "SELECT count(*)::int n FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND status='committed'",
+            [trial.worldId],
+          )
+        ).rows[0].n,
+        1,
+      );
+      assert.deepEqual((await image(trial.worldId)).initial, before.initial);
+      assert.equal(
+        (await bootstrapPublicationAgentTrial(app, trial.ownerId, trial.worldId)).resumed,
+        true,
+      );
+      world = await worlds.get({ userId: trial.ownerId }, trial.worldId);
+      assert.ok(
+        world.messages.some(
+          (m) =>
+            m.actorId === actorId &&
+            m.role === 'assistant' &&
+            m.sourceEventId.startsWith('genesis:') === false,
+        ),
+      );
+    },
+  );
 });

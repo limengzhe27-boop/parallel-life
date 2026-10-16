@@ -745,4 +745,75 @@ test('only actual supplied scene context in a successful original NPC commit is 
       assert.ok(!bread.snapshot.sources.some((s) => s.id === groupSource));
     },
   );
+  await t.test(
+    'successful original group turn ACKs actual supplied group text before any private reconsideration',
+    async () => {
+      const f = await fixture();
+      const groups = new PostgresGroupRepository(db);
+      let world = await worlds.get({ userId: f.owner }, f.worldId);
+      const group = await groups.create(f.owner, {
+        worldId: f.worldId,
+        commandId: randomUUID(),
+        expectedVersion: world.version,
+        title: 'Native group ACK',
+        actorIds: [f.a],
+      });
+      world = await worlds.get({ userId: f.owner }, f.worldId);
+      const accepted = await groups.send(f.owner, {
+        worldId: f.worldId,
+        groupId: group.groupId,
+        commandId: randomUUID(),
+        expectedVersion: world.version,
+        text: '@甲 请记住这次答复，不要再私下重考同一条群消息。',
+      });
+      const lease = await queue.claimForOwner(accepted.task.id, f.owner, ['world']);
+      assert.ok(lease);
+      let calls = 0,
+        suppliedGroupId = '';
+      assert.equal(
+        await nativeNpcTaskHandler(db, () => ({
+          async complete(messages) {
+            calls++;
+            const p = JSON.parse(messages[1]!.content);
+            assert.equal(p.channel.kind, 'group');
+            assert.equal(p.groupObservationContext.groupId, group.groupId);
+            suppliedGroupId = p.groupObservationContext.selectedSourceIds[0];
+            assert.ok(
+              p.observations.some((o: { sourceId: string }) => o.sourceId === suppliedGroupId),
+            );
+            return JSON.stringify({
+              statements: [{ text: '我记下这次答复了。', dependsOnActionIds: [] }],
+              goals: [
+                {
+                  id: 'native-group-memory',
+                  summary: 'Remember this actual group answer',
+                  status: 'active',
+                  sourceIds: [suppliedGroupId],
+                  resultIds: [],
+                },
+              ],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            });
+          },
+        }))(lease, new AbortController().signal),
+        true,
+      );
+      assert.equal(calls, 1);
+      assert.ok((await refs(f)).some((r) => r.sourceId === suppliedGroupId));
+      assert.deepEqual(await refs(f, f.b), []);
+      world = await worlds.get({ userId: f.owner }, f.worldId);
+      const state = (await new PostgresAgentRuntimeRepository(db).read(f.owner, {
+        worldId: f.worldId,
+        actorId: f.a,
+      }))!;
+      const next = (
+        await readPrivateAgentSnapshot(db, f.owner, world, f.a, null, world.time, state)
+      ).snapshot;
+      assert.ok(!next.actorObservationInbox!.sourceIds.some((id) => id.startsWith('group:')));
+      assert.ok(next.viewState.goals.some((g) => g.id === 'native-group-memory'));
+    },
+  );
 });

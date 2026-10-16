@@ -891,9 +891,11 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
         'publication_admit_published',
         'publication_commit_published',
         'publication_player_catalog',
+        'publication_agent_trial_source',
       ];
       const staffOnly = [
         'publication_admit_trial',
+        'publication_admit_agent_trial',
         'publication_commit_trial',
         'publication_get_trial',
         'publication_trial_evidence',
@@ -915,7 +917,7 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
           [names],
         )
       ).rows;
-      assert.equal(rows.length, names.length);
+      assert.equal(rows.length, names.length + 1); // Both internal admission arities remain private.
       for (const row of rows) {
         assert.equal(row.app, appOnly.includes(row.proname));
         assert.equal(row.staff, staffOnly.includes(row.proname));

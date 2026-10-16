@@ -558,6 +558,55 @@ test('author-scoped event outcome commits from the real invitation response', as
         );
         await worlds.respondToInvitation({ userId: f.owner }, reply);
         assert.equal((await getOutcome()).rows.length, scoped ? 1 : 0);
+        // The reply becomes an actor wake before the future appointment, through the original engine.
+        let answerCalls = 0;
+        const wakeIds: string[] = [];
+        const advance = npcAgentAdvanceServices(
+          app,
+          () => ({
+            async complete(messages) {
+              const p = JSON.parse(messages[1]!.content);
+              if (Array.isArray(p.candidates)) {
+                const selected = p.candidates.find((c: { id: string }) =>
+                  c.id.startsWith('episode-answer:'),
+                );
+                return JSON.stringify({
+                  mode: selected ? 'coordinate' : 'quiet',
+                  selectedCandidateIds: selected ? [selected.id] : [],
+                  deferred: p.candidates
+                    .filter((c: { id: string }) => c.id !== selected?.id)
+                    .map((c: { id: string }) => ({
+                      candidateId: c.id,
+                      reason: 'Only process actual invitation answer',
+                    })),
+                  nudges: [],
+                  opportunities: [],
+                  audit: { reason: 'Controlled result follow-up fixture', basisSourceIds: [] },
+                });
+              }
+              const wakeId = JSON.parse(p.input.text).candidateId ?? JSON.parse(p.input.text).type;
+              wakeIds.push(wakeId);
+              if (wakeId.startsWith('episode-answer:')) answerCalls++;
+              assert.ok(
+                p.episodeResults.some((r: { kind: string }) => r.kind === 'invitation_accepted'),
+              );
+              return JSON.stringify({
+                statements: [],
+                goals: [],
+                plans: [],
+                actions: [],
+                responsibilities: [],
+                decisions: [],
+              });
+            },
+          }),
+          snapshots,
+        );
+        await advance.advanceIfEnabled(f.owner, f.id);
+        assert.equal(answerCalls, 1, JSON.stringify(wakeIds));
+        await advance.advanceIfEnabled(f.owner, f.id);
+        assert.equal(answerCalls, 1, JSON.stringify(wakeIds));
+
         if (scoped) {
           const r = outcomes[0];
           await assert.rejects(

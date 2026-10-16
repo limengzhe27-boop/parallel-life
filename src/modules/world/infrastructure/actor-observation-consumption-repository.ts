@@ -123,7 +123,11 @@ export async function readConsumedSceneObservationSourcesInTransaction(
       fail();
     if (!supplied.observations.length) continue;
     const context =
-      input.channel === 'scene' ? snapshot.sceneObservationContext : snapshot.actorObservationInbox;
+      input.channel === 'scene'
+        ? snapshot.sceneObservationContext
+        : input.channel === 'group'
+          ? snapshot.groupObservationContext
+          : snapshot.actorObservationInbox;
     if (
       !object(context) ||
       !Array.isArray(context.omittedSourceIds) ||
@@ -134,6 +138,13 @@ export async function readConsumedSceneObservationSourcesInTransaction(
           input.threadId === context.sceneId &&
           key(context.sceneId) &&
           ['complete', 'budget_limited'].includes(context.status) &&
+          Array.isArray(context.selectedSourceIds)) ||
+        (input.channel === 'group' &&
+          input.threadId === context.groupId &&
+          key(context.groupId) &&
+          context.engineEpoch === frame.engineEpoch &&
+          ['complete', 'budget_limited'].includes(context.status) &&
+          Array.isArray(context.requestedSourceIds) &&
           Array.isArray(context.selectedSourceIds)) ||
         (input.channel === 'private' &&
           input.threadId === frame.actorId &&
@@ -148,7 +159,7 @@ export async function readConsumedSceneObservationSourcesInTransaction(
     )
       fail();
     const selectedSourceIds =
-      input.channel === 'scene' ? context.selectedSourceIds : context.sourceIds;
+      input.channel === 'private' ? context.sourceIds : context.selectedSourceIds;
     const seen = new Set<string>();
     for (const ref of supplied.observations) {
       if (!object(ref) || !key(ref.sourceId) || !digest(ref.contentHash) || seen.has(ref.sourceId))
@@ -165,9 +176,14 @@ export async function readConsumedSceneObservationSourcesInTransaction(
         observations.length !== 1 ||
         !['scene_entry', 'group_message'].includes(sources[0].kind) ||
         (sources[0].kind === 'group_message' &&
-          (input.channel !== 'private' ||
-            !Array.isArray(context.groupIds) ||
-            !context.groupIds.length)) ||
+          !(
+            (input.channel === 'private' &&
+              Array.isArray(context.groupIds) &&
+              context.groupIds.length) ||
+            (input.channel === 'group' &&
+              key(context.groupId) &&
+              sources[0].usage === 'channel_context')
+          )) ||
         sources[0].id !==
           (sources[0].kind === 'scene_entry' ? 'scene:' : 'group:') + sources[0].recordId ||
         sources[0].contentHash !== ref.contentHash ||

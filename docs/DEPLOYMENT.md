@@ -1,3 +1,7 @@
+## 2026-10-16 · 44-103/104 新架构接原真实试演（待READY）
+
+群原回合实际供给ACK去重，邀请答复结果稳定唤醒，新后台私有试演隔离engine2；旧档不迁移。生产86/86、ACL及canonical时间保护核实，保护数据未变。check3163/build及聚焦真实PG通过；真实模型和双端验收待本轮授权范围执行。详见[103报告](task-reports/44-103-GROUP-TURN-ACK-I.md)。
+
 ## 2026-10-16 · 44-101/102 群消息知情接原人物回合（部署准备）
 
 原成功群消息按历史成员区间与producer认证，进入本人private观察inbox，沿同一collector/advance/Director/NPC/kernel及实际供给ACK；安静不造消息且不重复唤醒，ACK后目标保留来源。玩家/NPC说法不升级为真实位置。旧paid快照无groupIds保留原scene-only输入边界。相关模型/候选32与实际private/scene/group PG12通过，check3161通过；101最终d48dd591来源专项PG9/type/format通过并以13c95eb9合入；最终build与READY接续报告。无新SQL，生产只读85/85校验一致、epoch2=0及保护数据未变；0真实模型/生产测试存档。整体新架构尚未启用，泛结果/非现场目击/旧档接管仍OPEN。

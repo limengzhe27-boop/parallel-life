@@ -1,3 +1,4 @@
+import { validateGroupObservationContext } from './group-observation-context-validation.ts';
 import { validateActorObservationInbox } from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
 import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
@@ -604,6 +605,7 @@ export class PostgresAgentRuntimeRepository
           await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
           await validateActorEpisodeResults(sql, ownerId, snapshot);
           await validateSceneObservationContext(sql, ownerId, snapshot);
+          await validateGroupObservationContext(sql, ownerId, snapshot);
           await validateActorObservationInbox(sql, ownerId, snapshot);
         }
         await requireInputAuthority(

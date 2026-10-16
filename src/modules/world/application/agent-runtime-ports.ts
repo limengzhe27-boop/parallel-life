@@ -21,6 +21,14 @@ export type AgentSnapshot = {
     groupIds?: string[];
     omittedSourceIds: string[];
   };
+  groupObservationContext?: {
+    groupId: string;
+    engineEpoch: number;
+    status: 'complete' | 'budget_limited';
+    requestedSourceIds: string[];
+    selectedSourceIds: string[];
+    omittedSourceIds: string[];
+  };
   sceneObservationContext?: {
     sceneId: string;
     status: 'complete' | 'budget_limited';

@@ -400,7 +400,12 @@ export class PublicationWorldRepository {
       ),
     );
   }
-  startTrial(principalId: string, workId: string, raw: PublicationTrialStartRequest) {
+  startTrial(
+    principalId: string,
+    workId: string,
+    raw: PublicationTrialStartRequest,
+    options: { agentRuntime?: boolean } = {},
+  ) {
     const input = parse(PublicationTrialStartRequestSchema, raw);
     parse(Id, workId);
     return this.tx(principalId, true, async (sql) =>
@@ -408,7 +413,7 @@ export class PublicationWorldRepository {
         sql,
         (
           await sql.query(
-            'SELECT parallel_life.publication_admit_trial($1,$2,$3,$4) AS admission',
+            `SELECT parallel_life.${options.agentRuntime ? 'publication_admit_agent_trial' : 'publication_admit_trial'}($1,$2,$3,$4) AS admission`,
             [workId, input.draftVersion, input.contentHash, input.commandId],
           )
         ).rows[0].admission,

@@ -10,7 +10,7 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v13-group-observation-inbox';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v14-group-turn-observations';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
@@ -279,6 +279,9 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     ...(snapshot.channel.kind === 'private' && snapshot.actorObservationInbox
       ? { actorObservationInbox: snapshot.actorObservationInbox }
       : {}),
+    ...(snapshot.channel.kind === 'group' && snapshot.groupObservationContext
+      ? { groupObservationContext: snapshot.groupObservationContext }
+      : {}),
     ...(snapshot.channel.kind === 'scene' && snapshot.sceneObservationContext
       ? { sceneObservationContext: snapshot.sceneObservationContext }
       : {}),
@@ -370,8 +373,10 @@ export class NpcAgentModel implements NpcAgentModelPort {
           (s) =>
             (s.kind === 'scene_entry' ||
               (s.kind === 'group_message' &&
-                snapshot.channel.kind === 'private' &&
-                snapshot.actorObservationInbox?.sourceIds.includes(s.id))) &&
+                ((snapshot.channel.kind === 'private' &&
+                  snapshot.actorObservationInbox?.sourceIds.includes(s.id)) ||
+                  (snapshot.channel.kind === 'group' &&
+                    snapshot.groupObservationContext?.selectedSourceIds.includes(s.id))))) &&
             ids.has(s.id) &&
             /^[a-f0-9]{64}$/.test(s.contentHash ?? ''),
         )

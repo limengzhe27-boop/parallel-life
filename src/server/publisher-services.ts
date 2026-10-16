@@ -56,8 +56,7 @@ export function publisherServices(request: Request, options?: { characterTrial?:
       const real = principal
         ? await worlds.trialEvidence(principal.id, workId, version, hash)
         : { verified: false, receiptId: null };
-      if (real.verified) return real;
-      return { verified: true, receiptId: real.receiptId ?? workId };
+      return real;
     }),
   );
   const http = new PublisherHttp({

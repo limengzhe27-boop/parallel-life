@@ -1,3 +1,4 @@
+import { bootstrapPublicationAgentTrial } from '../modules/world/infrastructure/publication-agent-trial-bootstrap.ts';
 import 'server-only';
 import { getServices } from './services.ts';
 import { publicationStoryAdvanceRoute } from './publication-story-http.ts';
@@ -57,14 +58,19 @@ export function publisherStartTrialRoute(request: Request, workId: string, chara
   return publisherEndpoint(async () => {
     const s = publisherServices(request, { characterTrial }),
       principal = await s.http.authorize(request, true);
-    return publisherJson(
-      await s.worlds.startTrial(
-        principal.id,
-        Id.parse(workId),
-        await publisherBody(request, PublicationTrialStartRequestSchema),
-      ),
-      201,
+    const result = await s.worlds.startTrial(
+      principal.id,
+      Id.parse(workId),
+      await publisherBody(request, PublicationTrialStartRequestSchema),
+      { agentRuntime: true },
     );
+    if (!result.trialId) throw new PublisherHttpError('UNAVAILABLE');
+    // Staff authorization owns this exact binding; the app helper independently verifies its source.
+    const trial = await s.worlds.trialSession(principal.id, result.trialId);
+    if (trial.worldId !== result.worldId || trial.seedId !== result.seedId)
+      throw new PublisherHttpError('UNAVAILABLE');
+    await bootstrapPublicationAgentTrial(getServices().db, trial.ownerId, trial.worldId);
+    return publisherJson(result, 201);
   });
 }
 export function publisherTrialRoute(request: Request, trialId: string, path: string[]) {

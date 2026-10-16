@@ -1,3 +1,4 @@
+import { readActorGroupObservationSourcesInTransaction } from './actor-group-observation-sources.ts';
 import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -180,6 +181,7 @@ export async function readNativeAgentSnapshot(
     const sources = new Map<string, AgentSource>();
     const observations: AgentSnapshot['observations'] = [];
     let sceneObservationContext: AgentSnapshot['sceneObservationContext'];
+    let groupObservationContext: AgentSnapshot['groupObservationContext'];
     const add = (
       source: AgentSource,
       text?: string,
@@ -251,36 +253,39 @@ export async function readNativeAgentSnapshot(
         kind: 'actor',
         actorId,
       });
-      for (const message of visible.filter(
-        (m, index) => index >= visible.length - 80 || stateHandles.includes(`group:${m.id}`),
-      )) {
-        const event = events.get(message.sourceEventId);
-        if (!event || event.version !== message.sourceVersion || blocked.has(message.sourceEventId))
-          continue;
-        const raw = event.payload;
-        const matches =
-          message.sender.kind === 'player'
-            ? raw.type === 'group.message_sent' && raw.data.text === message.text
-            : raw.type === 'group.turn_resolved' &&
-              raw.data.replies?.some(
-                (r: { actorId: string; text: string; messageId?: string }) =>
-                  message.sender.kind === 'actor' &&
-                  r.actorId === message.sender.actorId &&
-                  r.text === message.text &&
-                  (r.messageId ?? raw.id) === message.id,
-              );
-        if (!matches || raw.data.groupId !== input.threadId) continue;
-        add(
-          {
-            id: `group:${message.id}`,
-            kind: 'group_message',
-            recordId: message.id,
-            worldVersion: message.sourceVersion,
-            at: raw.storyAt,
-          },
-          message.text,
-        );
+      const requestedSourceIds = visible
+        .filter(
+          (m, index) => index >= visible.length - 80 || stateHandles.includes(`group:${m.id}`),
+        )
+        .map((m) => `group:${m.id}`);
+      const control = (
+        await sql.query(
+          'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
+          [world.id, ownerId],
+        )
+      ).rows[0];
+      const packet = await readActorGroupObservationSourcesInTransaction(sql, ownerId, {
+        worldId: world.id,
+        actorId,
+        engineEpoch: control.engine_epoch,
+        worldVersion: world.version,
+        storyAt,
+        groupId: input.threadId,
+        sourceIds: requestedSourceIds,
+      });
+      for (const source of packet.sources) {
+        const observation = packet.observations.find((o) => o.sourceId === source.id)!;
+        add(source);
+        if (sources.has(source.id)) observations.push({ ...observation });
       }
+      groupObservationContext = {
+        groupId: input.threadId,
+        engineEpoch: control.engine_epoch,
+        status: packet.status,
+        requestedSourceIds,
+        selectedSourceIds: packet.sources.filter((s) => sources.has(s.id)).map((s) => s.id),
+        omittedSourceIds: packet.omittedSourceIds.filter((id) => !blocked.has(id)),
+      };
     } else {
       const packet = await readActorSceneObservationSourcesInTransaction(sql, ownerId, {
         worldId: world.id,
@@ -387,6 +392,7 @@ export async function readNativeAgentSnapshot(
       sources: [...sources.values()],
       observations,
       ...(sceneObservationContext ? { sceneObservationContext } : {}),
+      ...(groupObservationContext ? { groupObservationContext } : {}),
       actor: {
         name: actor.name,
         persona: JSON.stringify({

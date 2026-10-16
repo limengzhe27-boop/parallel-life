@@ -786,3 +786,46 @@ test('world/source clock and actor view disagreement fails scoped collection rat
     await assert.rejects(collect(view([a])), { code: 'INVALID_COMMAND' });
   }
 });
+
+test('actual invitation answers wake only their actor with stable receipt identity, including refusal before appointment time', async () => {
+  for (const kind of ['invitation_accepted', 'invitation_declined'] as const) {
+    const a = actor();
+    a.snapshot.sources.push({
+      id: 'appointment:offer',
+      kind: 'world_event',
+      recordId: 'offer-event',
+      worldVersion: 3,
+      at,
+    });
+    a.snapshot.episodeResults = [
+      {
+        evidenceId: 'proof',
+        episodeId: 'episode',
+        actorId: 'a',
+        kind,
+        subject: { kind: 'appointment', id: 'offer' },
+        sourceEventId: 'response-event',
+        worldVersion: 4,
+        occurredAt: before,
+        overallOutcome: 'not_certified',
+      },
+    ];
+    const v = view([a]);
+    const first = (await collect(v, 'observation')).candidates[0]!;
+    assert.ok(first.id.startsWith('episode-answer:'));
+    assert.equal(first.actorId, 'a');
+    assert.equal(first.actionId, null);
+    v.worldVersion++;
+    v.storyAt = '2026-10-15T11:00:00.000Z';
+    a.snapshot.worldVersion = v.worldVersion;
+    a.snapshot.storyAt = v.storyAt;
+    a.snapshot.worldContext!.time.storyAt = v.storyAt;
+    a.snapshot.sources.at(-1)!.at = v.storyAt;
+    assert.equal((await collect(v, 'observation')).candidates[0]!.id, first.id);
+    v.consumedCandidateIds = [first.id];
+    assert.equal((await collect(v, 'observation')).candidates.length, 0);
+    v.consumedCandidateIds = [];
+    a.snapshot.episodeResults[0]!.actorId = 'other';
+    assert.equal((await collect(v, 'observation')).candidates.length, 0);
+  }
+});

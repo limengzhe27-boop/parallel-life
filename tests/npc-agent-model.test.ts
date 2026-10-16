@@ -700,3 +700,39 @@ test('group report is supplied only as authorized private recall and does not AC
     );
   }
 });
+
+test('native group manifest ACK eligibility follows final actual canonical context, not selected lists alone', async () => {
+  for (const oversized of [false, true]) {
+    const input = snapshot('group');
+    input.sources.push({
+      id: 'group:canonical',
+      recordId: 'canonical',
+      kind: 'group_message',
+      worldVersion: 8,
+      at: input.storyAt,
+      contentHash: 'b'.repeat(64),
+      usage: 'channel_context',
+    });
+    input.observations.push({
+      sourceId: 'group:canonical',
+      kind: 'speech',
+      evidenceKind: 'player_report',
+      text: oversized ? 'x'.repeat(60000) : 'A real group answer.',
+    });
+    input.groupObservationContext = {
+      groupId: input.channel.threadId,
+      engineEpoch: 2,
+      status: 'complete',
+      requestedSourceIds: ['group:canonical'],
+      selectedSourceIds: ['group:canonical'],
+      omittedSourceIds: [],
+    };
+    const { adapter } = capture();
+    assert.equal(
+      adapter
+        .describeSuppliedContext(input)
+        .observations.some((o) => o.sourceId === 'group:canonical'),
+      !oversized,
+    );
+  }
+});

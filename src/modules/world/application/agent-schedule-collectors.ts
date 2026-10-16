@@ -568,6 +568,49 @@ async function observations(view: SchedulingView, context: ActorContext) {
       }),
     );
   }
+  // A real answer to this actor's invitation is new causal information even before its meeting time.
+  // Identity is tied to the immutable evidence, not to current clock/actor/message counters.
+  if (snapshot.channel.kind === 'private')
+    for (const result of snapshot.episodeResults ?? []) {
+      const source = context.sources.get(`appointment:${result.subject.id}`);
+      if (
+        result.actorId !== snapshot.state.actorId ||
+        result.subject.kind !== 'appointment' ||
+        !['invitation_accepted', 'invitation_declined'].includes(result.kind) ||
+        !integer(result.worldVersion) ||
+        result.worldVersion > view.worldVersion ||
+        !instant(result.occurredAt) ||
+        Date.parse(result.occurredAt) > Date.parse(view.storyAt) ||
+        !source ||
+        !['world_event', 'authored'].includes(source.kind)
+      )
+        continue;
+      out.push({
+        id:
+          'episode-answer:' +
+          (await fingerprint({
+            worldId: view.worldId,
+            actorId: result.actorId,
+            engineEpoch: view.engineEpoch,
+            result,
+          })),
+        worldId: view.worldId,
+        actorId: result.actorId,
+        source: 'observation',
+        episodeId: result.episodeId,
+        actionId: null,
+        resourceIds: [`appointment:${result.subject.id}`],
+        channel: 'private',
+        threadId: result.actorId,
+        sourceIds: [source.id],
+        expectedWorldVersion: view.worldVersion,
+        expectedActorRevision: snapshot.state.revision,
+        priority: 45,
+        requiresCoordination: false,
+        reason:
+          '本人邀请已有真实答复；依据episodeResults调整自己的安排或保持安静，不重新询问同一答复，不推定赴约或整段事件完成。',
+      });
+    }
   if (snapshot.actorObservationInbox?.sourceIds.length && snapshot.channel.kind === 'private') {
     out.push(
       ...(await collectPendingSceneObservationCandidates({
@@ -634,7 +677,8 @@ export function createAgentScheduleSources(
           'actor_plan',
           'responsibility',
           ...(actor.snapshot.worldContext?.knowledge.length ||
-          actor.snapshot.actorObservationInbox?.sourceIds.length
+          actor.snapshot.actorObservationInbox?.sourceIds.length ||
+          actor.snapshot.episodeResults?.length
             ? ['observation' as const]
             : []),
         ] as const
