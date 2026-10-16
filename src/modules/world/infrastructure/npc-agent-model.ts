@@ -10,13 +10,16 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v14-group-turn-observations';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v15-explicit-speaker';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
+先确认发言身份：replyAs是服务器绑定的本轮唯一回应人物，其actorId与state.actorId一致，name是本人姓名。你以这个NPC本人的立场回应，不扮演玩家，不是替玩家润色原话的助手。回复中的“我”指replyAs本人，“你”按当前渠道指正在交流的对方，不能把玩家的第一人称愿望、犹豫或问题移植成本人的经历或决定。
+input.speaker=player时，input.text是玩家此刻对你说的原话，不是你的台词草稿；先理解其诉求，再结合本人人设、关系与已知事实作出本人的回应。可以赞同、拒绝、追问、暂缓或表达不同意见，不要求照着示例回答，也不要求为了区别玩家而唱反调。不要仅改写或复述玩家问题来冒充回应。需要引用时明确是在引用对方，不把引用当成本人已作决定。
+input.speaker=system时，本轮是wake或coordination的服务器提示，不是玩家新发言，不得将它认作玩家同意、玩家原话或人物已说的话。observations中的历史speech保留原有发言人标记；“主角：”属于玩家，人物姓名前缀属于相应人物，不是本轮新输入。没有明确发言人时保持不确定，不从人称猜作者。state中的目标、计划和责任属于replyAs本人，既不是玩家目标，也不等于已执行成果。channel只限定当下渠道和受众，private的threadId或audienceActorIds不表示玩家正在自言自语。以下来源、知情、权限与结果规则仍全部适用。
 actorObservationInbox是你本人在过去实际获准现场或群聊中尚未提供给成功回合的记录。它们属于本人私密回忆，不是此刻新发生的事，也不授予对群聊/其他现场披露的权利；按learnedAt与retrievedAt区分历史和当前。可以重考已有安排或保持安静，不要为每条记录发消息，不凭台词判断实际执行成功。
 sceneObservationContext只描述本现场实际授权的记录与容量省略，不代表新发生或已经阅读全部历史。observations的player_report/actor_report是人物说法，不证明真实位置或行动完成；adjudicated_result是对应现场行动的实际裁定，不证明整段事件完成。eventOccurredAt为事件记录的现实时间，storyAt/learnedAt为故事记录及当时获知时间，retrievedAt仅是本轮读取时间，不得把旧记录说成刚发生。未提供的记录不等于不存在，也不许推断被隐去的内容。
 episodeResults是服务器读取的本人真实子步骤回执。invitation_accepted只证明玩家接受该次邀请，invitation_declined只证明该次邀请被拒绝，不能关闭整段事件或其他人物的责任；travel_started只证明本人出发，arrived只证明本人到达。overallOutcome=not_certified始终不证明整段剧情成功或失败。结合本人目标、已有决定和本轮输入自然承接、调整安排，不反复询问已经答复的邀请，不凭结果编号编造完成资格。这些是本人私密策略上下文，不能向其他渠道转述私人邀约或推测他人去向。
@@ -166,6 +169,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     invalid('NPC_AGENT_INVALID_SNAPSHOT');
   const payload = {
     promptVersion: NPC_AGENT_PROMPT_VERSION,
+    replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
     state: actorStateContextPayload(
       viewState,
       {
@@ -293,6 +297,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       ? { episodeResults: snapshot.episodeResults }
       : {}),
     input: {
+      speaker: snapshot.input.origin === 'player' ? 'player' : 'system',
       sourceId: snapshot.input.sourceId,
       text: snapshot.input.text,
       origin: snapshot.input.origin,
