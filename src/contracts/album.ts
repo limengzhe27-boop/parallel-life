@@ -15,5 +15,6 @@ export const AlbumPhotoSchema = z.strictObject({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   revision: z.number().int().positive(),
+  mimeType: z.string().optional(),
 });
 export type AlbumPhoto = z.infer<typeof AlbumPhotoSchema>;

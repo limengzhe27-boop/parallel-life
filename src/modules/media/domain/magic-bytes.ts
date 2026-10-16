@@ -42,3 +42,31 @@ export function isValidImageMagicBytes(buffer: Buffer | Uint8Array): boolean {
 
   return false;
 }
+
+/**
+ * Checks magic bytes for image formats (JPEG, PNG, WebP) or video format (MP4 ftyp).
+ */
+export function isValidMediaMagicBytes(buffer: Buffer | Uint8Array): {
+  valid: boolean;
+  type?: 'image' | 'video';
+  mimeType?: string;
+} {
+  if (isValidImageMagicBytes(buffer)) {
+    if (buffer[0] === 0xff && buffer[1] === 0xd8) return { valid: true, type: 'image', mimeType: 'image/jpeg' };
+    if (buffer[0] === 0x89 && buffer[1] === 0x50) return { valid: true, type: 'image', mimeType: 'image/png' };
+    return { valid: true, type: 'image', mimeType: 'image/webp' };
+  }
+
+  // 4. MP4 Video: bytes 4-7 are 'ftyp' (0x66, 0x74, 0x79, 0x70)
+  if (
+    buffer.length >= 8 &&
+    buffer[4] === 0x66 &&
+    buffer[5] === 0x74 &&
+    buffer[6] === 0x79 &&
+    buffer[7] === 0x70
+  ) {
+    return { valid: true, type: 'video', mimeType: 'video/mp4' };
+  }
+
+  return { valid: false };
+}

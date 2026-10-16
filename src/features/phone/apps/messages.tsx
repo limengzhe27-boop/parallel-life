@@ -1471,14 +1471,62 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   <small className={s.genesisOrigin}>虚构起点来信</small>
                 )}
                 <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
-                {m.photo && (
+                {m.photo && m.photo.status === 'generating' && (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                      border: '1px solid rgba(2, 132, 199, 0.2)',
+                      background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '12px' }}>📸</span>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#0369a1' }}>
+                        {m.photo.title || '正在记录画面...'}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#0284c7' }}>
+                      {m.photo.description || 'AI 摄影记录中，生成后将在此展示并同步至相册'}
+                    </span>
+                  </div>
+                )}
+                {m.photo && m.photo.status === 'failed' && (
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      background: '#fef2f2',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '12px' }}>⚠️</span>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#b91c1c' }}>
+                        {m.photo.title || '画面记录未完成'}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#ef4444' }}>
+                      {m.photo.description || '生成未成功或已取消'}
+                    </span>
+                  </div>
+                )}
+                {m.photo && (m.photo.status === 'ready' || !m.photo.status) && m.photo.url && (
                   <div
                     style={{
                       marginTop: '8px',
                       borderRadius: '8px',
                       overflow: 'hidden',
                       border: '1px solid rgba(0,0,0,0.08)',
-                      background: '#f8fafc',
+                      background: '#0f172a',
                       cursor: 'pointer',
                     }}
                     onClick={() => {
@@ -1487,16 +1535,31 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                     }}
                   >
                     <div style={{ position: 'relative' }}>
-                      <img
-                        src={m.photo.url || '/art/first-window.webp'}
-                        alt={m.photo.title}
-                        style={{
-                          width: '100%',
-                          maxHeight: '180px',
-                          objectFit: 'cover',
-                          display: 'block',
-                        }}
-                      />
+                      {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? (
+                        <video
+                          src={m.photo.url}
+                          preload="metadata"
+                          playsInline
+                          controls
+                          style={{
+                            width: '100%',
+                            maxHeight: '220px',
+                            display: 'block',
+                            background: '#000000',
+                          }}
+                        />
+                      ) : (
+                        <img
+                          src={m.photo.url}
+                          alt={m.photo.title}
+                          style={{
+                            width: '100%',
+                            maxHeight: '180px',
+                            objectFit: 'cover',
+                            display: 'block',
+                          }}
+                        />
+                      )}
                       <div
                         style={{
                           position: 'absolute',
@@ -1510,7 +1573,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                           fontWeight: 600,
                         }}
                       >
-                        📸 剧情事件照片
+                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? '🎥 关键片段视频' : '📸 剧情事件照片'}
                       </div>
                     </div>
                     <div
@@ -1525,7 +1588,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
                         {m.photo.title}
                       </span>
-                      <span style={{ fontSize: '11px', color: '#0284c7' }}>查看大图 ›</span>
+                      <span style={{ fontSize: '11px', color: '#0284c7' }}>
+                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? '查看视频 ›' : '查看大图 ›'}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -2161,11 +2226,22 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 background: '#000000',
               }}
             >
-              <img
-                src={previewModalPhoto.url || '/art/first-window.webp'}
-                alt={previewModalPhoto.title}
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-              />
+              {previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4' ? (
+                <video
+                  src={previewModalPhoto.url}
+                  preload="auto"
+                  controls
+                  playsInline
+                  autoPlay
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              ) : (
+                <img
+                  src={previewModalPhoto.url}
+                  alt={previewModalPhoto.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              )}
               <button
                 type="button"
                 onClick={() => setPreviewModalPhoto(null)}
@@ -2195,17 +2271,27 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               >
                 <span
                   style={{
-                    background: previewModalPhoto.title.includes('【身份写真】')
-                      ? '#fef3c7'
-                      : '#e0e7ff',
-                    color: previewModalPhoto.title.includes('【身份写真】') ? '#b45309' : '#4338ca',
+                    background:
+                      previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4'
+                        ? '#fdf2f8'
+                        : previewModalPhoto.title.includes('【身份写真】')
+                        ? '#fef3c7'
+                        : '#e0e7ff',
+                    color:
+                      previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4'
+                        ? '#be185d'
+                        : previewModalPhoto.title.includes('【身份写真】')
+                        ? '#b45309'
+                        : '#4338ca',
                     padding: '2px 8px',
                     borderRadius: '4px',
                     fontSize: '11px',
                     fontWeight: 600,
                   }}
                 >
-                  {previewModalPhoto.title.includes('【身份写真】')
+                  {previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4'
+                    ? '🎥 关键片段'
+                    : previewModalPhoto.title.includes('【身份写真】')
                     ? '🌟 身份写真'
                     : '📸 剧情事件解锁'}
                 </span>
@@ -2242,11 +2328,8 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   }}
                   onClick={() => {
                     playTapSound();
-                    if (typeof window !== 'undefined') {
-                      localStorage.setItem(
-                        'phone_wallpaper',
-                        previewModalPhoto.url || '/art/first-window.webp',
-                      );
+                    if (typeof window !== 'undefined' && previewModalPhoto.url) {
+                      localStorage.setItem('phone_wallpaper', previewModalPhoto.url);
                     }
                     setPreviewModalPhoto(null);
                   }}

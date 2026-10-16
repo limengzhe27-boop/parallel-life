@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Id, Timestamp } from './api.ts';
 
-export const TurnModeSchema = z.enum(['chat', 'image', 'world']);
+export const TurnModeSchema = z.enum(['chat', 'image', 'video', 'world']);
 export type TurnMode = z.infer<typeof TurnModeSchema>;
 
 export const ReplyStatusSchema = z.enum(['ready', 'failed', 'not_requested']);
@@ -14,6 +14,7 @@ export const InteractRequestSchema = z.strictObject({
   worldVersion: z.number().int().nonnegative(),
   conversationVersion: z.number().int().nonnegative().default(0),
   imageRequest: z.string().max(1500).optional(),
+  videoRequest: z.string().max(1500).optional(),
   userAction: z.record(z.string(), z.unknown()).optional(),
 });
 export type InteractRequest = z.infer<typeof InteractRequestSchema>;

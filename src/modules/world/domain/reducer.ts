@@ -311,27 +311,32 @@ export function applyEvent(
         });
         break;
       case 'media.requested': {
+        const isVideo = 'mediaType' in effect && effect.mediaType === 'video';
+        const mediaType = isVideo ? 'video' : 'image';
+        const defaultTitle = isVideo ? '【事件记录】现场动态' : '【事件纪念】现场留影';
         const title =
           'title' in effect && typeof effect.title === 'string' && effect.title.trim()
             ? effect.title.trim().slice(0, 80)
             : event.data?.userText
-              ? `【事件纪念】${event.data.userText.slice(0, 20)}`
-              : '【事件纪念】现场留影';
+              ? `【事件${isVideo ? '记录' : '纪念'}】${event.data.userText.slice(0, 20)}`
+              : defaultTitle;
         state.mediaRequests.push({
           id: effect.id,
           prompt: effect.prompt,
           title,
           status: 'pending',
           sourceEventId,
+          mediaType,
         });
         jobs.push({
           id: `${event.id}_${effect.id}`,
           eventId: event.id,
           worldId: state.id,
-          type: 'image.generate',
+          type: isVideo ? 'video.generate' : 'image.generate',
           requestId: effect.id,
           prompt: effect.prompt,
           title,
+          mediaType,
         });
         break;
       }

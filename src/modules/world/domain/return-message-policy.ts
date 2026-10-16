@@ -105,15 +105,18 @@ export function unsupportedReturnClaim(state: WorldState, actorId: string, text:
     }
   }
   if (
-    /照片.{0,8}(?:拍好了|做好了|生成了)|(?:已经|刚).{0,5}(?:拍好|生成).{0,5}(?:照片|图片)/u.test(
+    /(?:照片|图片|合影).{0,8}(?:拍好了?|做好了?|生成了?|发你了?|发给你了?|给你看看?)|(?:已经|刚).{0,6}(?:拍|生成|发).{0,6}(?:照片|图片|合影)/u.test(
       text,
     )
   ) {
-    const ready = state.mediaRequests.some(
+    const ready = (state.mediaRequests ?? []).some(
       (m) =>
         m.status === 'ready' &&
-        m.assetId &&
-        state.messages.some((s) => s.actorId === actorId && s.sourceEventId === m.sourceEventId),
+        Boolean(m.assetId) &&
+        (state.messages.some((s) => s.actorId === actorId && s.sourceEventId === m.sourceEventId) ||
+          state.appointments?.some(
+            (a) => a.participantIds.includes(actorId) && a.sourceEventId === m.sourceEventId,
+          )),
     );
     if (!ready) return true;
   }

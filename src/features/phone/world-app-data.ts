@@ -1,5 +1,5 @@
 import type { WorldPhone } from '../../contracts/world-build.ts';
-import type { PhoneAppsData, PhoneMessage } from './apps/types.ts';
+import type { PhoneAppsData, PhoneMessage, PhonePhoto } from './apps/types.ts';
 /**
  * Map the authorized opening projection only; no private interview or inferred events.
  *
@@ -29,6 +29,40 @@ export function worldAppData(
         ]
       : []),
   ];
+  const photos = (world.photos ?? []).map((photo) => {
+    const uploaded = photo.kind === 'upload';
+    const identity = !uploaded && /写真|肖像/.test(photo.title);
+    const tag = uploaded
+      ? ('upload' as const)
+      : identity
+        ? ('identity' as const)
+        : ('event' as const);
+    const description = photo.sourcePersonId
+      ? '用户带入的原图 · 日期为上传时间，不代表拍摄或共同经历'
+      : uploaded
+        ? '你上传的照片'
+        : identity
+          ? '历史素材 · 生成来源待核验'
+          : '历史素材 · 生成来源待核验';
+    return {
+      links: history
+        .filter((e) => e.photoIds.includes(photo.id))
+        .map((e) => ({
+          app: 'notes' as const,
+          target: e.recordId,
+          label: '\u76f8\u5173\u65e7\u6765\u4fe1\u8bb0\u5f55',
+        })),
+      id: photo.id,
+      date: photo.date,
+      title: photo.title,
+      description,
+      status: 'ready' as const,
+      tag,
+      url: `/api/v1/assets/${encodeURIComponent(photo.id)}?worldId=${encodeURIComponent(world.id)}&revision=${photo.revision}`,
+      ...(photo.sourcePersonId ? { sourcePersonId: photo.sourcePersonId } : {}),
+      ...(photo.mimeType ? { mimeType: photo.mimeType } : {}),
+    };
+  });
   return {
     contacts: world.actors.map((actor) => ({
       id: actor.id,
@@ -55,41 +89,51 @@ export function worldAppData(
           !viewed.has(message.id),
       ).length,
     })),
-    photos: (world.photos ?? []).map((photo) => {
-      const uploaded = photo.kind === 'upload';
-      const identity = !uploaded && /写真|肖像/.test(photo.title);
-      const tag = uploaded
-        ? ('upload' as const)
-        : identity
-          ? ('identity' as const)
-          : ('event' as const);
-      const description = photo.sourcePersonId
-        ? '用户带入的原图 · 日期为上传时间，不代表拍摄或共同经历'
-        : uploaded
-          ? '你上传的照片'
-          : identity
-            ? '历史素材 · 生成来源待核验'
-            : '历史素材 · 生成来源待核验';
-      return {
-        links: history
-          .filter((e) => e.photoIds.includes(photo.id))
-          .map((e) => ({
-            app: 'notes' as const,
-            target: e.recordId,
-            label: '\u76f8\u5173\u65e7\u6765\u4fe1\u8bb0\u5f55',
-          })),
-        id: photo.id,
-        date: photo.date,
-        title: photo.title,
-        description,
-        status: 'ready' as const,
-        tag,
-        url: `/api/v1/assets/${encodeURIComponent(photo.id)}?worldId=${encodeURIComponent(world.id)}&revision=${photo.revision}`,
-        ...(photo.sourcePersonId ? { sourcePersonId: photo.sourcePersonId } : {}),
-      };
-    }),
+    photos,
     messages: [
       ...world.messages.map((message) => {
+        let photo: PhonePhoto | undefined = undefined;
+        const isVideo = message.mediaType === 'video';
+        if (message.photoId) {
+          const matchedPhoto = photos.find((p) => p.id === message.photoId);
+          if (matchedPhoto) {
+            photo = {
+              ...matchedPhoto,
+              mediaType: message.mediaType ?? (matchedPhoto.mimeType === 'video/mp4' ? 'video' : 'image'),
+            };
+          } else {
+            photo = {
+              id: message.photoId,
+              date: message.at,
+              title: message.mediaTitle || (isVideo ? '剧情视频' : '剧情照片'),
+              description: isVideo ? '剧情关键片段视频' : '剧情事件照片',
+              status: 'ready' as const,
+              tag: 'event' as const,
+              mediaType: isVideo ? 'video' : 'image',
+              url: `/api/v1/assets/${encodeURIComponent(message.photoId)}?worldId=${encodeURIComponent(world.id)}&revision=1`,
+            };
+          }
+        } else if (message.mediaStatus === 'pending') {
+          photo = {
+            id: `pending_${message.id}`,
+            date: message.at,
+            title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
+            description: isVideo ? 'AI 视频片段生成中，完成后将在此展示' : 'AI 摄影记录中，生成后将在此展示并同步至相册',
+            status: 'generating' as const,
+            tag: 'event' as const,
+            mediaType: isVideo ? 'video' : 'image',
+          };
+        } else if (message.mediaStatus === 'failed') {
+          photo = {
+            id: `failed_${message.id}`,
+            date: message.at,
+            title: message.mediaTitle || (isVideo ? '视频生成未完成' : '画面记录未完成'),
+            description: '生成未成功或已取消',
+            status: 'failed' as const,
+            tag: 'event' as const,
+            mediaType: isVideo ? 'video' : 'image',
+          };
+        }
         return {
           ...(history.find((e) => e.messageId === message.id)
             ? { links: historyLinks(history.find((e) => e.messageId === message.id)!) }
@@ -102,6 +146,8 @@ export function worldAppData(
           role: message.role ?? 'assistant',
           status: 'sent' as const,
           ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
+          ...(message.mediaType ? { mediaType: message.mediaType } : {}),
+          ...(photo ? { photo } : {}),
         };
       }),
       ...local.map((message) => ({ ...message })),

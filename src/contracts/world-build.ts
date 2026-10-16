@@ -191,6 +191,10 @@ export const WorldPhoneSchema = z.strictObject({
       role: z.enum(['user', 'assistant']).optional(),
       initialRead: z.boolean().optional(),
       origin: z.literal('fictional_history').optional(),
+      photoId: Id.optional(),
+      mediaStatus: z.enum(['pending', 'ready', 'failed']).optional(),
+      mediaTitle: z.string().optional(),
+      mediaType: z.enum(['image', 'video']).optional(),
     }),
   ),
   notes: z.array(

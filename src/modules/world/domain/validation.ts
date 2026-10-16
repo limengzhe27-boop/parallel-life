@@ -178,6 +178,7 @@ export function parseProposal(value: unknown): TurnProposal {
           ...(typeof item.title === 'string' && item.title.trim()
             ? { title: text(item.title.trim(), 80) }
             : {}),
+          ...(item.mediaType === 'video' ? { mediaType: 'video' as const } : { mediaType: 'image' as const }),
         };
       case 'choice.recorded':
         return {

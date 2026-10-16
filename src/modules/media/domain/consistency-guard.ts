@@ -4,6 +4,8 @@ export const DEFAULT_MEDIA_BUDGET: MediaCostBudget = {
   maxImagesPerWorld: 12,
   maxPendingRequests: 3,
   estimatedCostUsdPerImage: 0.04,
+  maxVideosPerWorld: 2,
+  estimatedCostUsdPerVideo: 0.20,
 };
 
 /**
@@ -39,16 +41,18 @@ export function validateConsistencySpec(input: unknown): FaceConsistencySpec {
 }
 
 /**
- * Enforces per-world hard image generation quotas to avoid runaway API costs.
+ * Enforces per-world hard media generation quotas to avoid runaway API costs.
  */
 export function checkMediaQuota(
-  currentImageCount: number,
+  currentCount: number,
   budget: MediaCostBudget = DEFAULT_MEDIA_BUDGET,
+  mediaType: 'image' | 'video' = 'image',
 ): { allowed: boolean; reason?: string } {
-  if (currentImageCount >= budget.maxImagesPerWorld) {
+  const limit = mediaType === 'video' ? (budget.maxVideosPerWorld ?? 2) : budget.maxImagesPerWorld;
+  if (currentCount >= limit) {
     return {
       allowed: false,
-      reason: `EXCEEDED_WORLD_MEDIA_QUOTA: World has reached the limit of ${budget.maxImagesPerWorld} images`,
+      reason: `EXCEEDED_WORLD_MEDIA_QUOTA: World has reached the limit of ${limit} ${mediaType}s`,
     };
   }
   return { allowed: true };

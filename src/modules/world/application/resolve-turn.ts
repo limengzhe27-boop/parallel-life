@@ -73,20 +73,34 @@ export async function resolveTurn(
     );
   const proposal = parseProposal(await deps.planner.propose({ context, userText: command.text }));
   /*
-   * 意图接线：角色回复之外，用户明确索图时必须产生一条 media.requested，
-   * 否则 outbox 永远没有可执行的任务，"发张照片"会静默什么都不发生。
+   * 意图接线：角色回复之外，用户明确索图/索视频时必须产生一条 media.requested，
+   * 否则 outbox 永远没有可执行的任务，用户索求会静默什么都不发生。
+   * 视频默认不自动生成，仅在用户明确表达索取意图时触发。
    */
   const intent = routeUserIntent({ text: command.text });
   if (
     command.origin !== 'director' &&
+    intent.turnMode === 'video' &&
+    !proposal.effects.some((e) => e.type === 'media.requested')
+  ) {
+    proposal.effects.push({
+      type: 'media.requested',
+      id: `${command.id}_media`,
+      prompt: (intent.videoPrompt ?? command.text).slice(0, 2000),
+      mediaType: 'video',
+    });
+  } else if (
+    command.origin !== 'director' &&
     intent.turnMode === 'image' &&
     !proposal.effects.some((e) => e.type === 'media.requested')
-  )
+  ) {
     proposal.effects.push({
       type: 'media.requested',
       id: `${command.id}_media`,
       prompt: (intent.imagePrompt ?? command.text).slice(0, 2000),
+      mediaType: 'image',
     });
+  }
   validateCharacterEffects(command.actorId, proposal.effects, false, command.origin);
   const eventId = validateEventId(deps.newId());
   // Model IDs are local labels, never trusted as globally unique storage IDs.

@@ -24,6 +24,7 @@ export type PhoneMessage = {
   initialRead?: boolean;
   links?: PhoneLink[];
   photo?: PhonePhoto;
+  mediaType?: 'image' | 'video';
 };
 export type PhonePhoto = {
   sourcePersonId?: string;
@@ -34,6 +35,8 @@ export type PhonePhoto = {
   url?: string;
   status: 'queued' | 'generating' | 'ready' | 'failed' | 'unknown';
   tag?: 'identity' | 'event' | 'upload' | 'memory';
+  mediaType?: 'image' | 'video';
+  mimeType?: string;
   links?: PhoneLink[];
 };
 export type PhoneInvitation = {

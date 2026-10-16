@@ -53,10 +53,16 @@ export type MediaRequest = {
   id: Id;
   prompt: string;
   title?: string;
-  status: 'pending' | 'ready' | 'failed';
+  status: 'pending' | 'ready' | 'failed' | 'unknown';
   assetId?: Id;
   errorCode?: string;
   sourceEventId: Id;
+  mediaType?: 'image' | 'video';
+  deliveryDecision?: {
+    deliverToChat: boolean;
+    deliverToAlbum: boolean;
+    reason?: string;
+  };
 };
 /**
  * A phone note the user saved. Notes live in their own projection table rather
@@ -155,7 +161,7 @@ export type WorldEffect =
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
-  | { type: 'media.requested'; id: Id; prompt: string; title?: string }
+  | { type: 'media.requested'; id: Id; prompt: string; title?: string; mediaType?: 'image' | 'video' }
   | { type: 'choice.recorded'; id: Id; quote: string; intent: string }
   | { type: 'choice.next_step'; id: Id; choiceId: Id; quote: string }
   | { type: 'choice.recovery_step'; id: Id; choiceId: Id; quote: string }
@@ -201,10 +207,11 @@ export type OutboxJob = {
   id: Id;
   worldId: Id;
   eventId: Id;
-  type: 'image.generate';
+  type: 'image.generate' | 'video.generate';
   requestId: Id;
   prompt: string;
   /** Optional human-facing label for reminder-style jobs. */
   title?: string;
+  mediaType?: 'image' | 'video';
 };
 export type CommitResult = { state: WorldState; event: WorldEvent };

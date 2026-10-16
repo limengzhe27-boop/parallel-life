@@ -331,15 +331,50 @@ export class BuildRepository {
         selected,
         sceneContacts.rows.map((row) => row.actor_id),
       ),
-      messages: state.messages.map((m) => ({
-        id: m.id,
-        actorId: m.actorId,
-        role: m.role,
-        text: m.text,
-        at: m.at,
-        ...(m.initialRead !== undefined ? { initialRead: m.initialRead } : {}),
-        ...(m.history ? { origin: 'fictional_history' as const } : {}),
-      })),
+      messages: state.messages.map((m) => {
+        const media =
+          m.role === 'assistant'
+            ? (state.mediaRequests ?? []).find((r) => r.sourceEventId === m.sourceEventId)
+            : undefined;
+        const deliverToChat = media?.deliveryDecision
+          ? (media.deliveryDecision.deliverToChat ?? (media.deliveryDecision as any).approved ?? true)
+          : true;
+        const isReady = media?.status === 'ready' && media.assetId && deliverToChat;
+        const isPending = (media?.status === 'pending' || media?.status === 'unknown') && deliverToChat;
+        const isFailed = media?.status === 'failed' || (media && !deliverToChat);
+
+        return {
+          id: m.id,
+          actorId: m.actorId,
+          role: m.role,
+          text: m.text,
+          at: m.at,
+          ...(m.initialRead !== undefined ? { initialRead: m.initialRead } : {}),
+          ...(m.history ? { origin: 'fictional_history' as const } : {}),
+          ...(isReady && media?.assetId
+            ? {
+                photoId: media.assetId,
+                mediaStatus: 'ready' as const,
+                ...(media.title ? { mediaTitle: media.title } : {}),
+                mediaType: media.mediaType ?? 'image',
+              }
+            : {}),
+          ...(isPending
+            ? {
+                mediaStatus: 'pending' as const,
+                ...(media?.title ? { mediaTitle: media.title } : {}),
+                mediaType: media?.mediaType ?? 'image',
+              }
+            : {}),
+          ...(isFailed
+            ? {
+                mediaStatus: 'failed' as const,
+                ...(media?.title ? { mediaTitle: media.title } : {}),
+                mediaType: media?.mediaType ?? 'image',
+              }
+            : {}),
+        };
+      }),
       notes: [
         // Generated opening notes have no player-knowledge provenance. Keep them internal.
         /* Saved notes come from their own projection. */

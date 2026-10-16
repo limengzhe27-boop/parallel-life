@@ -12,11 +12,36 @@ export function albumPhoto(row: Record<string, unknown>) {
     width: row.width,
     height: row.height,
     revision: row.revision,
+    ...(row.mime_type ? { mimeType: row.mime_type } : {}),
   });
 }
 export async function albumPhotos(sql: SqlClient, worldId: string) {
   const rows = await sql.query(
-    "SELECT p.*,a.origin,a.width,a.height,a.revision FROM parallel_life.world_album p JOIN parallel_life.assets a ON a.id=p.asset_id AND a.owner_id=p.owner_id AND a.world_id=p.world_id WHERE p.world_id=$1 AND a.status='ready' ORDER BY p.created_at DESC,p.asset_id LIMIT 100",
+    "SELECT p.*,a.origin,a.width,a.height,a.revision,a.mime_type FROM parallel_life.world_album p JOIN parallel_life.assets a ON a.id=p.asset_id AND a.owner_id=p.owner_id AND a.world_id=p.world_id WHERE p.world_id=$1 AND a.status='ready' ORDER BY p.created_at DESC,p.asset_id LIMIT 100",
+    [worldId],
+  );
+  const generated = await sql.query(
+    `SELECT (m.document->>'assetId')::uuid AS asset_id,
+            m.world_id,
+            COALESCE(m.document->>'title', CASE WHEN m.document->>'mediaType' = 'video' THEN '剧情视频' ELSE '剧情照片' END) AS title,
+            COALESCE(NULLIF(e.payload->>'storyAt', '')::timestamptz, e.occurred_at, a.created_at) AS story_at,
+            a.created_at,
+            a.origin,
+            a.width,
+            a.height,
+            a.revision,
+            a.mime_type
+     FROM parallel_life.world_media_requests m
+     JOIN parallel_life.assets a ON a.id = (m.document->>'assetId')::uuid AND a.owner_id = m.owner_id
+     LEFT JOIN parallel_life.world_events e ON e.id = m.document->>'sourceEventId' AND e.world_id = m.world_id
+     WHERE m.world_id = $1
+       AND m.document->>'status' = 'ready'
+       AND a.status = 'ready'
+       AND (
+         m.document->'deliveryDecision' IS NULL OR
+         (m.document->'deliveryDecision'->>'deliverToAlbum')::boolean IS NOT FALSE
+       )
+     ORDER BY a.created_at DESC, a.id LIMIT 100`,
     [worldId],
   );
   const imported = await sql.query(
@@ -30,10 +55,12 @@ export async function albumPhotos(sql: SqlClient, worldId: string) {
       sourcePersonId: row.person_id,
     }),
   );
-  return [
+  const allPhotos = [
     ...rows.rows.map(albumPhoto),
-    ...references.filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i),
+    ...generated.rows.map(albumPhoto),
+    ...references,
   ];
+  return allPhotos.filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i);
 }
 
 /** Only original immutable person bindings; a current avatar is not a history photo. */
