@@ -1,3 +1,5 @@
+import { authoredReconsiderationEvidence } from '../domain/authored-reconsideration.ts';
+import { readAuthoredReconsiderationEvidence } from './authored-reconsideration-evidence.ts';
 import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type {
@@ -86,7 +88,26 @@ export async function readDirectorNarrativeWakeInTransaction(
       nodeHash: e.ref.nodeHash,
       qualificationKey: e.qualificationKey,
     }));
-  const alreadyAttempted = new Set<string>();
+  const semanticReasons = await readAuthoredReconsiderationEvidence(
+    sql,
+    ownerId,
+    input.worldId,
+    input.worldVersion,
+  );
+  const evidenceFor = (q: AuthoredWakeQualification, through: number) =>
+    authoredReconsiderationEvidence(
+      view.catalog.materials
+        .find((m) => m.ref.nodeKey === q.nodeKey)
+        ?.participantRefs.flatMap((a) =>
+          a.status === 'resolved' && a.actorId ? [a.actorId] : [],
+        ) ?? [],
+      semanticReasons,
+      through,
+    );
+  const contextToken = (q: AuthoredWakeQualification, through: number) =>
+    JSON.stringify([token(q), evidenceFor(q, through)]);
+  // A paid assessment fences this evidence context, never completes the author event.
+  const paidReviewContexts = new Set<string>();
   for (const a of attempts) {
     if (a.status === 'committed' && !a.actual_decision_id)
       throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_DECISION_RECEIPT_MISSING');
@@ -103,10 +124,10 @@ export async function readDirectorNarrativeWakeInTransaction(
     const previousOccupied = new Set<string>(a.snapshot.occupiedAuthoredEventKeys ?? []);
     for (const q of entries)
       if (q.status === 'eligible' && !previousOccupied.has(q.nodeKey))
-        alreadyAttempted.add(token(q));
+        paidReviewContexts.add(contextToken(q, a.snapshot.worldVersion));
   }
   const unseen = qualifications
-    .filter((q) => !alreadyAttempted.has(token(q)))
+    .filter((q) => !paidReviewContexts.has(contextToken(q, input.worldVersion)))
     .sort((a, b) => (token(a) < token(b) ? -1 : token(a) > token(b) ? 1 : 0));
   if (!unseen.length) return { cause: null, hasPendingDirector, deferred: false };
   // Only confirmed zero-send cancellations can change retry identity. No paid/unknown retry.
@@ -134,6 +155,9 @@ export async function readDirectorNarrativeWakeInTransaction(
           admission.genesis_hash,
           view.catalog.source.sourceHash,
           unseen,
+          ...(unseen.some((q) => evidenceFor(q, input.worldVersion).length)
+            ? [{ semanticEvidence: unseen.map((q) => evidenceFor(q, input.worldVersion)) }]
+            : []),
           preSendCancellations,
         ]),
       )

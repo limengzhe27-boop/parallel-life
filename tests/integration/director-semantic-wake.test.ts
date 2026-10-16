@@ -1,3 +1,4 @@
+import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -952,6 +953,111 @@ test('actual publication semantic wake advances use one protected Director bound
         assert.equal(h.director().length, count);
         assert.equal((await directors.readEpisodes(f.owner, f.id)).length, 1);
       }
+    },
+  );
+
+  await t.test(
+    'a deferred unplayed event is reconsidered once after its own actor actually changes plan, then handed to that NPC',
+    async () => {
+      const f = await fixture();
+      await bootstrap(f);
+      const original = q(await snap(f), 'always').qualificationKey;
+      const actor = f.world.actors[0]!.id,
+        other = f.world.actors[1]!.id;
+      async function reply(actorId: string, plan: boolean) {
+        const w = await worlds.get({ userId: f.owner }, f.id);
+        const svc = npcAgentServices(app, () => ({
+          async complete(messages) {
+            const p = JSON.parse(messages[1]!.content),
+              source = `definition:${p.state.definitionRef}`;
+            return JSON.stringify({
+              statements: [
+                {
+                  text: plan ? '我想先讨论准备安排，但还没有执行。' : '普通问候，没有新的决定。',
+                  dependsOnActionIds: [],
+                },
+              ],
+              goals: plan
+                ? [
+                    {
+                      id: 'own-planning-goal',
+                      summary: '讨论自己的准备安排',
+                      status: 'active',
+                      sourceIds: [source],
+                      resultIds: [],
+                    },
+                  ]
+                : [],
+              plans: plan
+                ? [
+                    {
+                      id: 'own-planning-plan',
+                      goalId: 'own-planning-goal',
+                      summary: '先等商量具体分工',
+                      status: 'waiting',
+                      sourceIds: [source],
+                      actionIds: [],
+                      nextActionId: null,
+                      triggers: [],
+                      missingConditions: ['尚未商量'],
+                    },
+                  ]
+                : [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            });
+          },
+        }));
+        await svc.sendMessageIfEnabled(f.owner, {
+          id: randomUUID(),
+          worldId: f.id,
+          actorId,
+          expectedVersion: w.version,
+          text: plan ? '可以谈谈你自己的安排。' : '你好。',
+        });
+      }
+      await reply(actor, false);
+      assert.equal(
+        (await wake(f)).cause,
+        null,
+        'ordinary private chat does not re-buy author consideration',
+      );
+      await reply(other, true);
+      assert.equal(
+        (await wake(f)).cause,
+        null,
+        'unrelated cast plan is not a new reason for this author event',
+      );
+      await reply(actor, true);
+      const before = await snap(f);
+      assert.equal(
+        q(before, 'always').qualificationKey,
+        original,
+        'same author prerequisites, genuinely new related plan',
+      );
+      assert.deepEqual(causeKeys(before), ['always']);
+      const key = before.evaluationCause!.id;
+      await at(f, time(9, 1));
+      assert.equal((await wake(f)).cause!.id, key, 'elapsed time cannot change this paid identity');
+      const h = harness(f, { propose: 'always', npcChoice: 'engage' });
+      assert.equal((await h.advance())!.played, 1);
+      assert.equal(h.director().length, 1);
+      assert.equal(h.calls.filter((c) => c.kind === 'npc').length, 1);
+      const episodes = await directors.readEpisodes(f.owner, f.id);
+      assert.equal(episodes.length, 1);
+      assert.equal(episodes[0]!.status, 'active', 'participation is not incident completion');
+      assert.equal((await wake(f)).cause, null);
+      await h.advance(); // A real NPC participation can itself warrant one global evaluation.
+      const count = h.calls.length;
+      await h.advance();
+      await at(f, time(9, 2));
+      await h.advance();
+      assert.equal(
+        h.calls.length,
+        count,
+        'unchanged sources and idle ticks never re-buy consideration',
+      );
     },
   );
   await t.test('every real fixture keeps old publication ledgers uninitialized', async () => {
