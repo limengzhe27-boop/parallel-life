@@ -473,6 +473,9 @@ export async function readPrivateAgentSnapshot(
       : null;
   if (playerEpisode) {
     sources.set(playerEpisode.view.source.id, playerEpisode.view.source);
+    // Fresh authority replaces only the same source's redacted strategy placeholder.
+    for (let i = observations.length - 1; i >= 0; i--)
+      if (observations[i]!.sourceId === playerEpisode.view.source.id) observations.splice(i, 1);
     observations.push(playerEpisode.view.observation);
   }
   const selectedModules = selectActorPersona(modules, input?.text ?? '');

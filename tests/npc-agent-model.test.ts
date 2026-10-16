@@ -270,7 +270,8 @@ test('capability list and current input are sent exactly; policy separates claim
   assert.match(system, /玩家普通输入应有自然回复/);
   assert.match(system, /origin=wake无值得表达的变化时/);
   assert.match(system, /合法npc_episode_consideration中本人决定安静\/拒绝/);
-  assert.match(system, /仅当input.origin为coordination/);
+  assert.match(system, /普通私聊带服务器episodeManifest/);
+  assert.match(system, /不带episodeManifest的普通player\/wake输入不得输出episodeDecision/);
 });
 
 test('recording plans or proposing invitations cannot declare external goals complete or expose server revisions', async () => {

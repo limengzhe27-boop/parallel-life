@@ -220,6 +220,7 @@ export async function requirePlayerEpisodeBinding(
   attempt: AgentAttempt,
   snapshot: AgentSnapshot,
 ) {
+  if (!snapshot) forbidden();
   const saved = (
     await sql.query(
       'SELECT document FROM parallel_life.agent_episode_attempt_bindings WHERE world_id=$1 AND owner_id=$2 AND attempt_id=$3 AND actor_id=$4 AND input_receipt_id=$5',
