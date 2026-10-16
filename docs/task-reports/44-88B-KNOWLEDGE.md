@@ -25,3 +25,9 @@
 实际运行：专项18/18，TypeScript全类型检查0，聚焦Prettier和diff检查通过。按用户减少重复验证要求，没有完整check/build、数据库、端口、浏览器、真实模型或生产操作。root 接线后的真实PG与必要集成检查／部署单独记录。
 
 未实现：`observe.place/room`、明确视线／完整覆盖授权、实际看到与离开／缺席感知的内核回执及模型真实消费。现同地点不等于目击；本批只传播玩家确实说过的位置告知，不证明其陈述属实，也不产生凭空的观察或真实位置广播。
+
+## 后继真实 PostgreSQL 专项
+
+root追加授权后，新独占 `tests/integration/location-report-audience.test.ts`。本树专属配置55509，实际 PostgreSQL18.4、本地 `parallel_life_test` 82迁移；端口整数范围及与本树配置一致守卫在连接前执行。测试使用真实 `groups.create → groups.send → groups.membership(join/leave)` 与 `runtime.accept`；不手工插入消息、事件或命令成功状态。
+
+实际5/5（父测试+4子场景）通过：原受众甲乙；丙晚加入不得获旧消息位置告知；乙后续离群仍保留当时的合法获知；6类输入篡改拒绝；独立私聊无共享受众。数据按随机owner清理，未调用模型／网络服务，未接触生产或用户存档。日志仅忽略目录 `.local/audience-pg.log`。本次未扩增现场PG场景，现场原entry/presence重放与root真实kernel传播接线仍需集成人范围内验证。未重复完整check/build。
