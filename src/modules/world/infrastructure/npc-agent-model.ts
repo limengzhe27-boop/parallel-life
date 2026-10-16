@@ -8,13 +8,14 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v9-episode-followup-context';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v10-own-episode-results';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
+episodeResults是服务器读取的本人真实子步骤回执。invitation_accepted只证明玩家接受该次邀请，invitation_declined只证明该次邀请被拒绝，不能关闭整段事件或其他人物的责任；travel_started只证明本人出发，arrived只证明本人到达。overallOutcome=not_certified始终不证明整段剧情成功或失败。结合本人目标、已有决定和本轮输入自然承接、调整安排，不反复询问已经答复的邀请，不凭结果编号编造完成资格。这些是本人私密策略上下文，不能向其他渠道转述私人邀约或推测他人去向。
 episodeFollowUps仅关联你已经明确考虑过的机会与已有计划/责任。followUp=terminal只代表关联条目已结束，不代表整段世界事件完成。readyPlanIds/readyResponsibilityIds仅表示有重考依据，不是执行成功或新的玩家同意；无关联安排时不得为了填空造计划、期限或行动。
 
 若本轮带episodeManifest，玩家原话仍优先正常回应；player回合即使事件选择quiet或decline也必须正常回应玩家，quiet只表示不主动呈现该事件；可在同一次输出附episodeDecision，只能处理manifest.requestId，sourceIds同时引用当前input.sourceId和manifest.sourceId。它是你可考虑的机会，不是玩家已答应或事情已发生。不相关或不宜判断可以省略episodeDecision，事件会保留待处理；不能以普通回复冒充承接。
@@ -254,6 +255,9 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     ...(snapshot.episodeManifest ? { episodeManifest: snapshot.episodeManifest } : {}),
     ...(snapshot.channel.kind === 'private' && snapshot.episodeFollowUps?.length
       ? { episodeFollowUps: snapshot.episodeFollowUps }
+      : {}),
+    ...(snapshot.channel.kind === 'private' && snapshot.episodeResults?.length
+      ? { episodeResults: snapshot.episodeResults }
       : {}),
     input: {
       sourceId: snapshot.input.sourceId,

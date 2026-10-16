@@ -1,3 +1,7 @@
+import {
+  readActorEpisodeResults,
+  validateActorEpisodeResults,
+} from '../../src/modules/world/infrastructure/episode-result-context-repository.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import {
   PostgresDirectorRuntimeRepository,
@@ -463,6 +467,32 @@ test('episode travel and refusal milestones reach Director through actual writer
       blockers: [],
     });
   }
+  async function ownFollowup(f: Fixture, actorId = f.a) {
+    const world = await worlds.get({ userId: f.owner }, f.worldId);
+    const state = (await store.read(f.owner, { worldId: f.worldId, actorId }))!;
+    const text = 'What happened with our arrangement?';
+    const input = {
+      id: randomUUID(),
+      worldId: f.worldId,
+      commandId: randomUUID(),
+      inputHash: hash(text),
+      channel: 'private' as const,
+      threadId: actorId,
+      recipientActorId: actorId,
+      expectedWorldVersion: world.version,
+      origin: 'player' as const,
+      text,
+      receivedAt: new Date().toISOString(),
+      storyAt: world.time,
+    };
+    await store.accept(f.owner, input);
+    return {
+      input,
+      snapshot: (
+        await readPrivateAgentSnapshot(db, f.owner, world, actorId, input, world.time, state)
+      ).snapshot,
+    };
+  }
   await t.test(
     'migrated real presence → episode-caused departure → actual arrival → Director observations, no whole success',
     async () => {
@@ -503,6 +533,15 @@ test('episode travel and refusal milestones reach Director through actual writer
       );
       assert.equal(records[1].actionId, records[0].actionId);
       assert.equal(records[1].subject.id, journey.id);
+      const own = await ownFollowup(f);
+      assert.deepEqual(
+        own.snapshot.episodeResults?.map((x) => x.kind),
+        ['travel_started', 'arrived'],
+      );
+      assert.ok(own.snapshot.episodeResults?.every((x) => x.overallOutcome === 'not_certified'));
+      const other = await ownFollowup(f, f.b);
+      assert.deepEqual(other.snapshot.episodeResults, []);
+
       const s = await observed(f);
       for (const kind of ['travel_started', 'arrived'])
         assert.ok(
@@ -521,6 +560,26 @@ test('episode travel and refusal milestones reach Director through actual writer
         'park',
       );
       assert.equal(pos.find((p) => p.subject.kind === 'player')?.placeId, 'room');
+      await db.transaction(f.owner, (sql) =>
+        sql.query(
+          "INSERT INTO parallel_life.memory_records(id,owner_id,scope_type,scope_id,branch_id,character_id,kind,text,key,source_type,source_ids,status) VALUES($1,$2,'character',$3,$4,$3,'belief','Synthetic forgotten result provenance',$5,'agent_inference',$6,'forgotten')",
+          [
+            randomUUID(),
+            f.owner,
+            f.a,
+            f.worldId,
+            randomUUID(),
+            JSON.stringify(['action-result:' + records[0].sourceId]),
+          ],
+        ),
+      );
+      const afterForget = await db.transaction(f.owner, (sql) =>
+        readActorEpisodeResults(sql, f.owner, own.snapshot),
+      );
+      assert.ok(
+        !afterForget.some((x) => x.kind === 'travel_started'),
+        'forgotten action-result must not return under an episode alias',
+      );
     },
   );
   await t.test(
@@ -550,6 +609,55 @@ test('episode travel and refusal milestones reach Director through actual writer
         ['invitation_proposed', 'invitation_declined'],
       );
       assert.equal(records[1].episodeId, r.episodeId);
+      const own = await ownFollowup(f);
+      assert.deepEqual(
+        own.snapshot.episodeResults?.map((x) => x.kind),
+        ['invitation_proposed', 'invitation_declined'],
+      );
+      const tampered = structuredClone(own.snapshot);
+      tampered.episodeResults![1]!.kind = 'invitation_accepted';
+      await assert.rejects(
+        db.transaction(f.owner, (sql) => validateActorEpisodeResults(sql, f.owner, tampered)),
+        /EPISODE_RESULT_SOURCE_CONFLICT/,
+      );
+      let calls = 0;
+      await runNpcAgent(
+        {
+          attempts: store,
+          kernel: new PostgresNpcAgentKernel(db, worlds),
+          model: {
+            async decide(actual) {
+              calls++;
+              assert.deepEqual(actual.episodeResults, own.snapshot.episodeResults);
+              return JSON.stringify({
+                statements: [{ text: 'I understand your decision.', dependsOnActionIds: [] }],
+                goals: [],
+                plans: [],
+                actions: [],
+                responsibilities: [],
+                decisions: [],
+              });
+            },
+          },
+        },
+        f.owner,
+        {
+          id: randomUUID(),
+          worldId: f.worldId,
+          actorId: f.a,
+          commandId: own.input.commandId,
+          inputReceiptId: own.input.id,
+          inputHash: own.input.inputHash,
+          engineEpoch: 2,
+          expectedWorldVersion: own.snapshot.worldVersion,
+          expectedActorRevision: own.snapshot.state.revision,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 120000).toISOString(),
+        },
+        own.snapshot,
+      );
+      assert.equal(calls, 1);
+      assert.deepEqual(await evidence(f), records);
       const s = await observed(f);
       assert.ok(
         s.observations.some(

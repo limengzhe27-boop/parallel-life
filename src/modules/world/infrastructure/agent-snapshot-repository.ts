@@ -1,3 +1,4 @@
+import { readActorEpisodeResults } from './episode-result-context-repository.ts';
 import { readEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
 import { selectPlayerEpisodeManifest } from './player-episode-manifest-repository.ts';
 import { createHash } from 'node:crypto';
@@ -687,6 +688,9 @@ export async function attachAgentWorldContext(
   };
   contextual.episodeFollowUps = await db.transaction(ownerId, (sql) =>
     readEpisodeLifecycleContext(sql, ownerId, contextual),
+  );
+  contextual.episodeResults = await db.transaction(ownerId, (sql) =>
+    readActorEpisodeResults(sql, ownerId, contextual),
   );
   return contextual;
 }

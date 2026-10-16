@@ -1,3 +1,4 @@
+import { validateActorEpisodeResults } from './episode-result-context-repository.ts';
 import { validateEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
 import {
   validatePlayerEpisodeManifest,
@@ -124,6 +125,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         throw Object.assign(Error('AGENT_REVISION_CONFLICT'), { code: 'AGENT_REVISION_CONFLICT' });
       await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
       await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
+      await validateActorEpisodeResults(sql, ownerId, snapshot);
       await validatePlayerEpisodeManifest(sql, ownerId, snapshot);
       await requirePlayerEpisodeBinding(sql, ownerId, attempt, snapshot);
       if (isEpisodeConsiderationInput(receivedInput))

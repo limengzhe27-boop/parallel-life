@@ -73,6 +73,7 @@ export async function runNpcAgent(
     }
     try {
       if (
+        !!executionSnapshot.episodeResults?.length ||
         !!executionSnapshot.episodeFollowUps?.length ||
         executionSnapshot.episodeManifest !== undefined ||
         isActorEpisodeConsiderationInput(executionSnapshot.input) ||
@@ -175,6 +176,7 @@ function isKnownConflict(error: unknown) {
       'ATTEMPT_STALE',
       'INPUT_SCOPE_FORBIDDEN',
       'EPISODE_LIFECYCLE_SOURCE_CONFLICT',
+      'EPISODE_RESULT_SOURCE_CONFLICT',
     ].includes(String((error as { code?: unknown }).code ?? (error as Error).message))
   );
 }

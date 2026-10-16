@@ -603,3 +603,27 @@ test('episode follow-up references are private context and do not grant completi
     assert.match(calls[0]!.messages[0]!.content, /不代表整段世界事件完成/);
   }
 });
+
+test('own episode milestones reach private NPC only, never group or scene input', async () => {
+  for (const channel of ['private', 'group', 'scene'] as const) {
+    const input = snapshot(channel);
+    input.episodeResults = [
+      {
+        evidenceId: 'evidence-own',
+        episodeId: 'episode-own',
+        actorId: input.state.actorId,
+        kind: 'invitation_declined',
+        subject: { kind: 'appointment', id: 'appointment-own' },
+        sourceEventId: 'event-own',
+        worldVersion: 8,
+        occurredAt: input.storyAt,
+        overallOutcome: 'not_certified',
+      },
+    ];
+    const { adapter, calls } = capture();
+    await adapter.decide(input);
+    const payload = JSON.parse(calls[0]!.messages[1]!.content);
+    if (channel === 'private') assert.deepEqual(payload.episodeResults, input.episodeResults);
+    else assert.ok(!('episodeResults' in payload));
+  }
+});
