@@ -1,3 +1,18 @@
+## 2026-10-17 · MA-ARCH-44-119 正式玩家 Agent 运行环境受控准入与数据库隔离 (0088迁移) 已上线
+
+业务 9a3cfbf6637e76ac81d29e2070b0cdf51e7e14df / dpl_DqvKyQNCnXrKtJUSCZfrXgQbmTSU READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
+
+交付内容与质量证据：
+1. **0088 迁移与受控引擎准入 (44-119)**：
+   - 部署 `db/migrations/0088_published_agent_worlds.sql`，允许 `published_work` 受控进入 `runtime_epoch = 2`；
+   - 保持生产默认不自动开启新引擎（`AGENT_RUNTIME_PUBLISHED_ENABLED` 默认 false，0 生产写，0 模型消耗）；
+   - 新建世界支持受控原子初始化，旧存档严格隔离不被污染；
+   - 严格权限矩阵：`pl_app` 具备受控准入函数执行权限，`pl_worker` 禁入，内部函数私有保护。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 8/8 `tests/integration/published-player-runtime.test.ts` 通过；
+   - 真实 PostgreSQL 集成测试 29/29 `tests/integration/publication-worlds.test.ts` 与 9/9 `tests/integration/publication-agent-trial-bootstrap.test.ts` 通过；
+   - 边界检查 609 模块通过，`tsc --noEmit` 0 错误；全量测试 3280 项全部通过。
+
 ## 2026-10-17 · PHASE-4 全链路端到端走查与验收 (EXP-06, NAR-04, V-02~V-04) 已上线
 
 业务 23d3190104e76c12c41aa5bc4ca6ef7d34190e29 / dpl_DqvKyQNCnXrKtJUSCZfrXgQbmTSU READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
