@@ -29,3 +29,11 @@
 - server helper核owner/world、原持久input、原成功source event、渠道/thread/version、原受众。group的readOnly变体取消FOR SHARE以适配repeatable-read只读快照；前后实际付费/提交仍由scoped store事务核租约，未见因此绕过付费执行租约的直接路径。
 
 这些为静态检查结论，不证明自然语义质量、现场全旅程或并发未知恢复已实测。两项修复后应以root一项带作者目录的窄PG／已有相关用例确认，不需要因此重跑大批无关检查。
+
+## Root 修复后正式发布目录回归测试交付
+
+root已接收两项问题并在自身未提交公共源码修复；本人只新增 `tests/integration/native-published-routing.test.ts`，提交 `e7df53e9`。使用真实本地出版仓储创建／检查／正式发布／玩家实例化，先明确断言普通Director快照有非空不可变作者目录，避免退化成无作者材料的普通合成世界。随后通过真实group命令、任务claim和租约数据库调用同一native协调入口，包含quiet与选择第二候选两种本地模型替身输出。
+
+断言包括：native请求不包含作者目录／秘密原文，实际持久Director提交，原全局observed/evaluated cursor不被选人消费，不生成伪NPC event。测试端口默认独立55509，支持显式 `NATIVE_PUBLISHED_ROUTING_TEST_PORT` 且必须匹配本树配置，范围守卫在连接前；只连接127.0.0.1/parallel_life_test。
+
+按root指示先交测试，不复制未提交公共源码；本提交只做Prettier和diff检查，**尚未运行、尚未声称PG通过**。root集成其新helper和修复后实际运行；latejoin回归由root独占，未在此重复添加。0新数据库启动／真实模型／生产／部署。
