@@ -1,6 +1,6 @@
 ## 2026-10-16 · 44-101/102 群消息知情接原人物回合（部署准备）
 
-原成功群消息按历史成员区间与producer认证，进入本人private观察inbox，沿同一collector/advance/Director/NPC/kernel及实际供给ACK；安静不造消息且不重复唤醒，ACK后目标保留来源。玩家/NPC说法不升级为真实位置。旧paid快照无groupIds保留原scene-only输入边界。相关模型/候选32与实际private/scene/group PG12通过，check3161通过；101来源专项/build与最终READY接续报告。无新SQL，生产只读85/85校验一致、epoch2=0及保护数据未变；0真实模型/生产测试存档。整体新架构尚未启用，泛结果/非现场目击/旧档接管仍OPEN。
+原成功群消息按历史成员区间与producer认证，进入本人private观察inbox，沿同一collector/advance/Director/NPC/kernel及实际供给ACK；安静不造消息且不重复唤醒，ACK后目标保留来源。玩家/NPC说法不升级为真实位置。旧paid快照无groupIds保留原scene-only输入边界。相关模型/候选32与实际private/scene/group PG12通过，check3161通过；101最终d48dd591来源专项PG9/type/format通过并以13c95eb9合入；最终build与READY接续报告。无新SQL，生产只读85/85校验一致、epoch2=0及保护数据未变；0真实模型/生产测试存档。整体新架构尚未启用，泛结果/非现场目击/旧档接管仍OPEN。
 
 44-100最终部署已核实：a242c31d0aee46884d3126f3c4696672a45a5ef2 / dpl_AZVsMnj2fPpenXF6KfTZkbZjhK7q READY，Nu正式别名。2026-10-16T07:28:35.902Z入口与匿名权限检查通过；下面“部署中”为当时过程记录。
 
