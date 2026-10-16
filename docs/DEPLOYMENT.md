@@ -1,3 +1,20 @@
+## 2026-10-17 · MA-ARCH-44-113~117 引擎核心行为承诺与未演事件再评估已上线
+
+业务 4c430d28562d5930b6ae283925c5682057d29bc5 / dpl_C33UvMqHTaXWzH6cPSScb3GM4fYJ READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。无新 SQL，生产 86/86 只读校验一致，保护数据未变。
+
+交付内容与质量证据：
+1. **NPC 对话承诺持久化与玩家决定一致性 (44-113, 44-114)**：
+   - NPC 提示词区分闲聊愿望与明确承诺，将分工承诺持久化为活跃目标、计划与责任；玩家确认引用原文 PlayerDecision。
+   - 杜绝口头客套/愿望误建责任，支持真实 PG 连续旅程与 111 语义唤醒触发。
+2. **物理到达与现场进入重新考虑未演事件 (44-115)**：
+   - 将已认证的 travel.completed、agent.arrival_committed、scene.entered 接入未演作者事件重新考虑上下文。
+   - 严格地点与出场人物匹配，过滤普通口头聊天/无关地点，稳定上下文 Token 去重并保护位置隐私。
+3. **推演暂缓与事件行动结果知情广播 (44-116, 44-117)**：
+   - 连接 episodeFollowUps 到责任收集器，使暂缓任务携带事件引用；条件满足时唤醒等待角色推进。
+   - 严格区分言辞与内核执行，真实行动执行后原子写入 agent_episode_outcomes 并解锁后续事件；在场目击者获得真实 learnedAt 记录，缺席人物不凭空知情。
+4. **门禁与测试**：
+   - 边界检查 608 模块干净通过；`tsc --noEmit` 0 错误；全量测试 3219 项及 35 项专项/集成测试全绿通过；Next.js 生产环境打包成功。
+
 ## 2026-10-17 · MEDIA-01/NAR-03S 多模态媒体管线与手机同源回显已上线
 
 业务 29556066fce99b4fbb9db2d38b04284c597da359 / dpl_GHm1GZra5ogWobievnnb7a7gqhAh READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
