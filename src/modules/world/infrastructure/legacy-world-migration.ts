@@ -206,15 +206,17 @@ export async function migrateLegacyWorldInTransaction(
     );
 
     const responsibilities: AgentResponsibility[] = actorApts.map((ap) => {
+      const isOwnerActor = ap.actorId === actor.id;
+      const isProposed = ap.status === 'proposed';
       return {
         id: `resp_${ap.id}`,
         subject: { kind: 'appointment', id: ap.id },
         summary: ap.title && ap.title.trim().length > 0 ? ap.title.trim() : '已约定日程',
-        status: ap.status === 'proposed' ? 'waiting' : 'open',
-        waitingOn: ap.status === 'proposed' ? 'player' : 'self',
+        status: isProposed ? 'waiting' : 'open',
+        waitingOn: isOwnerActor ? 'player' : 'world',
         sourceIds: [`appointment:${ap.id}`],
         nextCheck:
-          ap.status !== 'proposed' && ap.at && typeof ap.at === 'string'
+          !isProposed && ap.at && typeof ap.at === 'string'
             ? [{ kind: 'at_or_after', at: ap.at, sourceId: `appointment:${ap.id}` }]
             : [],
       };

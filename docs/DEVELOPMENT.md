@@ -2484,4 +2484,4 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 
 
-|44-137-UNIFIED-ENGINE-MIGRATION-I|[ ] 进行中|codex-root-engine137 sole integrator|独立unified-engine137/codex/unified-engine137自47d4ec80；统一published/official/generated创建入口，legacy-world-migration与叙事准入来源/SQL迁移及聚焦测试/迁移脚本/报告；136小安公共领域及model/kernel源冻结不碰|用户2026-10-18明确授权现有与未来世界全部统一新引擎，优先渣男体验；先快照/盘点/修迁移来源与责任、核定生产再迁移，保留内容进度时钟、拒绝unknown自动重买，check/build/READY/公网验收。真实模型旧额度闭账不调用。|
+|44-137-UNIFIED-ENGINE-MIGRATION-I|[x] 已完成|codex-root-engine137 sole integrator|独立unified-engine137/codex/unified-engine137自47d4ec80；统一published/official/generated创建入口，legacy-world-migration与叙事准入来源/SQL迁移及聚焦测试/迁移脚本/报告；136小安公共领域及model/kernel源冻结不碰|用户2026-10-18明确授权现有与未来世界全部统一新引擎，优先渣男体验；先快照/盘点/修迁移来源与责任、核定生产再迁移，保留内容进度时钟、拒绝unknown自动重买，check/build/READY/公网验收。真实模型旧额度闭账不调用。|已交付；迁移 0090 已应用；真实 PG tests/integration/unified-engine-migration.test.ts、legacy-world-migration.test.ts、legacy-world-migration-http.test.ts 17/17 全部通过；能力回归 24/24 全部通过；npm run check:boundaries（621 files）、tsc、build 全量通过；详见 docs/task-reports/44-137-UNIFIED-ENGINE-MIGRATION-I.md。|
