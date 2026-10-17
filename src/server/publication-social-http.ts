@@ -11,6 +11,13 @@ export function publicationSocialRoute(request: Request, id: string) {
     if (!worldId.success) throw new HttpError('NOT_FOUND', 404);
     const world = await s.worlds.get({ userId: s.ownerId }, worldId.data);
     const authoredSocial = await readPublicationSocial(s.db, s.ownerId, worldId.data);
-    return json(mergeSocialMoments(authoredSocial, world.moments));
+    return json(
+      mergeSocialMoments(
+        authoredSocial,
+        world.moments,
+        world.momentInteractions,
+        world.actors,
+      ),
+    );
   });
 }

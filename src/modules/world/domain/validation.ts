@@ -633,6 +633,24 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { note: text(item.note.trim(), 200) }
             : {}),
         };
+      case 'moment.interacted': {
+        const kind = item.kind === 'like' || item.kind === 'comment' ? item.kind : null;
+        if (!kind) throw new Error('INVALID_MOMENT_INTERACTION_KIND');
+        return {
+          type: item.type,
+          id: effectId,
+          momentKey: text(item.momentKey, 64),
+          actorId: id(item.actorId),
+          kind,
+          ...(typeof item.comment === 'string' && item.comment.trim()
+            ? { comment: text(item.comment.trim(), 500) }
+            : {}),
+          at: isoInstant(item.at),
+          ...(typeof item.note === 'string' && item.note.trim()
+            ? { note: text(item.note.trim(), 200) }
+            : {}),
+        };
+      }
       case 'fact.established':
         return {
           type: item.type,

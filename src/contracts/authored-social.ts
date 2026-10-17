@@ -20,6 +20,25 @@ export const AuthoredSocialSchema = z.strictObject({
         at: z.iso.datetime(),
         image: z.string().optional(),
         images: z.array(z.string()).max(9).optional(),
+        likes: z
+          .array(
+            z.strictObject({
+              actorId: z.string().min(1).max(200),
+              name: z.string().min(1).max(80),
+            }),
+          )
+          .optional(),
+        comments: z
+          .array(
+            z.strictObject({
+              id: z.string().max(64),
+              actorId: z.string().min(1).max(200),
+              name: z.string().min(1).max(80),
+              text: z.string().min(1).max(500),
+              at: z.iso.datetime(),
+            }),
+          )
+          .optional(),
       }),
     )
     .max(48),
