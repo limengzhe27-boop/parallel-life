@@ -1,3 +1,27 @@
+## 2026-10-17 · Task 44-125 & 44-126 主动叙事推进、知情隔离与约定接受四元闭环已上线
+
+业务 a832387870a4a8ec9ec596e3868efcbdf5ca90db / dpl_AZoPiFWcge5ex2wK3YyrHYZbkbSd READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
+
+交付内容与质量证据：
+1. **任务 44-125 主动叙事推进与知情边界隔离 (R3 / R4 / R5)**：
+   - 旅程 A（首次进入）：复用创生机制零延迟立即可见开场对白，刷新幂等不产生重复消息或版本递增；
+   - 旅程 B（持续沉默）：约定截止时刻超时后 NPC 按照规则自主撤回约定并收敛挂起责任至 `withdrawn`，平稳过渡至 `quiescent` 安静态，杜绝死锁与循环轰炸；
+   - 认知与知情隔离（R4）：未在场角色严格接收 0 条私密事实或现场目击感知；私聊消息严格核验 `recipientActorId`，拦截越权串通；
+   - 受控新引擎准入与隔离（R5）：Epoch 2 准入受控生效，多玩家世界数据在数据库层面严格隔离。
+2. **任务 44-126 约定接受能力与履约四元全生命周期闭环 (R2)**：
+   - 注册 `appointment.accept` 能力并定义 `appointment.confirmed` 效果；
+   - 前置条件严格校验（非提议状态、过期、非参与人不可接受）；
+   - 原子事务推进约定状态为 `confirmed`，挂起责任推进为 `open`，赴约目标激活为 `active`；
+   - 履约四元全生命周期（`propose` -> `accept` -> `fulfill`）完整闭环验证；
+   - `parallel_life.world_appointments` 表 `status` 字段原子同步更新。
+3. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 4/4 `tests/integration/actor-narrative-advancement.test.ts` 全部通过；
+   - 真实 PostgreSQL 集成测试 4/4 `tests/integration/actor-appointment-acceptance.test.ts` 全部通过；
+   - 架构模块边界检查通过（616 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,277 项全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）；
+   - 生产环境部署 `dpl_AZoPiFWcge5ex2wK3YyrHYZbkbSd` (Ready) 在公网域名 `parallel-life-nu.vercel.app` 完成实测验证。
+
 ## 2026-10-17 · Task 44-124 / R6 / R7 媒体流水线注入与 NPC 媒体能力闭环已上线
 
 业务 06b2cc764b85c138f6b0f55cf525492fc0b40e24 / dpl_8jWWAc5W1g9MannUM1KLg5bDeDYp READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
