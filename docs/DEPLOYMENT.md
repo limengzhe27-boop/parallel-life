@@ -1,6 +1,6 @@
 ## 2026-10-18 · Task 44-132 实体道具与物品使用及消耗完整闭环已上线
 
-业务待推送 / Vercel 正式别名 `parallel-life-nu.vercel.app`。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200。
+业务 77394e8c / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。
 
 交付内容与质量证据：
 1. **任务 44-132 实体物品与道具使用及消耗闭环 (`item.use`)**：

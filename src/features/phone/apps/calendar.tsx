@@ -520,7 +520,7 @@ function InvitationDetail({
           约定时间已到或已过去。前往前可以先确认对方是否仍在；不会根据日期替你赴约或判定失约。
         </p>
       )}
-      <Links links={n.links} open={open} />
+      <Links links={n.links?.filter((link) => link.app !== 'map')} open={open} />
       {waitNote && (
         <p className={s.info} role="status">
           {waitNote}

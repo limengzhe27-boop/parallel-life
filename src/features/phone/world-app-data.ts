@@ -215,22 +215,23 @@ export function worldAppData(
     })),
     invitations: (world.invitations ?? []).map((invitation) => ({
       ...invitation,
-      ...(history.find((e) => e.invitationId === invitation.id)
-        ? {
-            links: [
+      links: [
+        ...(invitation.links ?? []),
+        ...(history.find((e) => e.invitationId === invitation.id)
+          ? [
               {
                 app: 'messages' as const,
                 target: history.find((e) => e.invitationId === invitation.id)!.actorId,
-                label: '\u67e5\u770b\u6765\u6e90\u5bf9\u8bdd',
+                label: '查看来源对话',
               },
               {
                 app: 'notes' as const,
                 target: history.find((e) => e.invitationId === invitation.id)!.recordId,
-                label: '\u67e5\u770b\u65e7\u6765\u4fe1\u8bb0\u5f55',
+                label: '查看旧来信记录',
               },
-            ],
-          }
-        : {}),
+            ]
+          : []),
+      ],
       version: world.version ?? 0,
     })),
   };

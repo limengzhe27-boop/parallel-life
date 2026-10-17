@@ -56,6 +56,12 @@ import {
   AppointmentWaitReceiptSchema,
 } from '../../contracts/appointment-wait.ts';
 import {
+  LegacyWorldInventorySchema,
+  LegacyMigrationResponseSchema,
+  type LegacyWorldInventory,
+  type LegacyMigrationResponse,
+} from '../../contracts/legacy-world-migration.ts';
+import {
   ApiErrorSchema,
   SessionSchema,
   InterviewWorkspaceSchema,
@@ -616,5 +622,20 @@ export class LifeClient {
     });
     this.csrf = res.csrfToken;
     return res;
+  }
+
+  async inspectLegacyWorld(worldId: string): Promise<LegacyWorldInventory> {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/migration`, LegacyWorldInventorySchema, {
+      method: 'GET',
+    });
+  }
+
+  async migrateLegacyWorld(worldId: string, expectedWorldVersion?: number): Promise<LegacyMigrationResponse> {
+    await this.connect();
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/migration`, LegacyMigrationResponseSchema, {
+      method: 'POST',
+      body: JSON.stringify({ expectedWorldVersion }),
+    });
   }
 }
