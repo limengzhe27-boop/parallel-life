@@ -35,12 +35,16 @@ export type MediaTaskDocument = {
  */
 export function createMediaPipelineHandler(
   queue: PostgresTaskQueue,
-  pipelineService?: MediaPipelineService,
+  pipelineServiceOrFactory?: MediaPipelineService | (() => MediaPipelineService),
 ) {
   return async (lease: TaskLease) => {
     if (lease.kind !== 'media') {
       throw Object.assign(new Error('INVALID_SCOPE'), { code: 'INVALID_COMMAND' });
     }
+    const pipelineService =
+      typeof pipelineServiceOrFactory === 'function'
+        ? pipelineServiceOrFactory()
+        : pipelineServiceOrFactory;
 
     // Phase 1: Read state in short query
     const readData = await queue.read(lease, async (sql) => {

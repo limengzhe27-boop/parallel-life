@@ -13,9 +13,15 @@ import { createMediaPipelineHandler } from './media-pipeline-handler.ts';
  */
 export function mediaHandler(
   queue: PostgresTaskQueue,
-  synthesizerOrService?: CharacterImageSynthesizer | MediaPipelineService,
+  synthesizerOrService?:
+    | CharacterImageSynthesizer
+    | MediaPipelineService
+    | (() => MediaPipelineService),
 ) {
-  if (synthesizerOrService && 'executeImagePipeline' in synthesizerOrService) {
+  if (
+    synthesizerOrService &&
+    (typeof synthesizerOrService === 'function' || 'executeImagePipeline' in synthesizerOrService)
+  ) {
     return createMediaPipelineHandler(queue, synthesizerOrService);
   }
   const synthesizer = synthesizerOrService as CharacterImageSynthesizer | undefined;

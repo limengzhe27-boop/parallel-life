@@ -27,6 +27,9 @@ import { InterviewPlanner } from '../modules/profile/infrastructure/interview-pl
 import { interviewHandler } from '../modules/profile/infrastructure/interview-handler.ts';
 import { memoryHandler } from '../modules/memory/infrastructure/memory-handler.ts';
 import { mediaHandler } from '../modules/media/infrastructure/media-handler.ts';
+import { PostgresCharacterVisualAnchorRepository } from '../modules/media/infrastructure/character-reference-resolver.ts';
+import { ReplicateMediaProviderAdapter } from '../modules/media/infrastructure/replicate-provider-adapter.ts';
+import { MediaPipelineService } from '../modules/media/infrastructure/media-pipeline-service.ts';
 
 export function createWorker() {
   const url = process.env.WORKER_DATABASE_URL;
@@ -38,6 +41,35 @@ export function createWorker() {
   let sceneHandler: ReturnType<typeof sceneTaskHandler> | undefined;
   let assetStore: AssetStore | undefined;
   const readStore = () => (assetStore ??= createPrivateAssetStore());
+  let mediaService: MediaPipelineService | undefined;
+  const readMediaService = () => {
+    if (!mediaService) {
+      const db = getServices().db;
+      const store = readStore();
+      const visualAnchorRepo = new PostgresCharacterVisualAnchorRepository(db.pool);
+      const providerAdapter = new ReplicateMediaProviderAdapter({
+        apiToken: process.env.REPLICATE_API_TOKEN,
+      });
+      const referenceAssetReader = async (assetId: string) => {
+        const row = (
+          await db.pool.query(
+            `SELECT storage_key, mime_type FROM parallel_life.assets WHERE id = $1`,
+            [assetId],
+          )
+        ).rows[0];
+        if (!row?.storage_key) return null;
+        const bytes = await store.get(row.storage_key);
+        return { bytes, mimeType: row.mime_type || 'image/jpeg' };
+      };
+      mediaService = new MediaPipelineService({
+        providerAdapter,
+        assetStore: store,
+        visualAnchorRepo,
+        referenceAssetReader,
+      });
+    }
+    return mediaService;
+  };
   return {
     queue,
     handlers: {
@@ -89,7 +121,7 @@ export function createWorker() {
           ),
       ),
       memory: memoryHandler(queue),
-      media: mediaHandler(queue),
+      media: mediaHandler(queue, readMediaService),
     },
   };
 }

@@ -11,7 +11,10 @@ export type SqlExecutor = {
  * parallel_life.world_person_bindings and parallel_life.world_initial_snapshots.
  */
 export class PostgresCharacterVisualAnchorRepository implements CharacterVisualAnchorRepository {
-  constructor(private readonly executor: SqlExecutor) {}
+  private readonly executor: SqlExecutor;
+  constructor(executor: SqlExecutor) {
+    this.executor = executor;
+  }
 
   public async findActorVisualAnchor(
     worldId: string,
