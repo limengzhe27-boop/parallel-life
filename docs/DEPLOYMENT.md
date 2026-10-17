@@ -1,3 +1,30 @@
+## 2026-10-18 · Task 44-128 / 44-129 / 44-130 约定改期协商、旧存档接管与时间流速规则已上线
+
+业务 722ac78ae2c324c4e7da7ba48c5a93946002f232 / dpl_uqrLXiB38cQz5jSzyAG2j3AHNYH3 READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
+
+交付内容与质量证据：
+1. **任务 44-128 约定改期与协商生命周期闭环 (R2)**：
+   - 角色与 NPC 原生动作能力 `appointment.reschedule` 注册与调度；
+   - 严密前置条件约束（预约存在、非终态、新时刻必须晚于故事时刻、提议人必须是参与者）；
+   - 原子事务推进：`parallel_life.world_appointments` 重置为 `proposed`、更新 `at` 与地点；
+   - 责任机制同步：对应 `AgentResponsibility` 进入 `waiting` 状态（`waitingOn: 'player'`）、`revision` 原子自增、`deadline` 延期、摘要更新；`AgentGoal` 保持 `active` 赴约状态；
+   - 支持反向重新确认（`appointment.accept`）与到场履行（`appointment.fulfill`）全生命周期闭环。
+2. **任务 44-129 旧存档安全接管与受控迁移 (R10)**：
+   - 契约接口 `LegacyWorldInventorySchema`、`LegacyMigrationRequestSchema` 与 `LegacyMigrationResponseSchema`；
+   - 只读就绪检查与原子单事务迁移接管（状态与资产盘点、进行中命令阻塞阻断、预约平滑映射、防双写推进至 Epoch 2）；
+   - HTTP 路由 `GET/POST /api/v1/worlds/[id]/migration` 提供完整接管体验。
+3. **任务 44-130 时间流速、跨天推进与自然终局规则收口 (R11)**：
+   - 严格落地 2026-10 时间规范：浏览模式 12x、交谈与现场 1x、离开暂停、跨天保留未决责任与预约、故事阶段完结与世界停止严格解耦；
+   - 专项规则审计测试 8/8 通过。
+4. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 4/4 `tests/integration/actor-appointment-reschedule.test.ts` 全部通过；
+   - 真实 PostgreSQL 集成测试 9/9 `tests/integration/legacy-world-migration-http.test.ts` 全部通过；
+   - 专项规则审计测试 9/9 `tests/time-pacing-rules-audit.test.ts` 全部通过；
+   - 架构模块边界检查通过（619 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,293 项全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）；
+   - 生产环境部署 `dpl_uqrLXiB38cQz5jSzyAG2j3AHNYH3` (Ready) 在公网域名 `parallel-life-nu.vercel.app` 完成实测验证。
+
 ## 2026-10-17 · Task 44-127 手机各 App 衔接与时间草稿一致性全闭环已上线
 
 业务 1f11767c9d0ee42db0253dc679eb3a7c64a377d6 / dpl_J1W1FSjXf9BXHYuDQ2bY92q2QZEU READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
