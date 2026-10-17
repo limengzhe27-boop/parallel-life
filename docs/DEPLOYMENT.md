@@ -1,3 +1,26 @@
+## 2026-10-17 · Task 44-127 手机各 App 衔接与时间草稿一致性全闭环已上线
+
+业务 1f11767c9d0ee42db0253dc679eb3a7c64a377d6，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
+
+交付内容与质量证据：
+1. **APP-LINK-AUDIT-45 审查缺陷全闭环 (B1-B6, O1-O2)**：
+   - **B1**: 聊天相册图片分享透传真实 `photo` 卡片实体（带封面、标题与元数据），`world-app-data` 增加分享文本正则匹配相册卡片；
+   - **B2**: 引入 `bringDraft` 与 `mergeIncomingDraft`，跨 App 带入草稿智能换行追加保留已有输入；聊天相册分享使用隔离操作 key，杜绝草稿误覆盖；
+   - **B3**: 聊天顶部约定实现 `findRelatedInvitation`，严格优先展示 `confirmed` / `proposed` 活跃约定，按故事时间就近排序，彻底解决持续指向旧 `cancelled` 约定的问题；
+   - **B4**: 聊天图片预览浮层严格校验相册归属，非相册附件隐藏“在相册中查看”按钮，防止相册缺失报错；
+   - **B5**: 约定地点自动关联地图导航链接，日历详情增加“📍 前往【约定地点】（打开地图）”操作引导，对齐现场准入资格；
+   - **B6**: 相册上传时间通过 `projectStoryTime` 取世界时钟实际投影时刻，消除跨日时间漂移与错位；
+   - **O1**: 人生记录列表项直达 `RecordsApp` 详情页，消除便签技术迁移中间页跳转；
+   - **O2**: 朋友圈在同世界内分钟推进时平滑保留已有内容并在后台更新，消除全屏闪烁空白。
+2. **测试与质量证据**：
+   - 专项一致性测试 7/7 `tests/phone-app-links-consistency.test.ts` 全部通过；
+   - 界面回归测试 17/17 `tests/notes-records-ui.test.ts` 全部通过；
+   - 架构模块边界检查通过（617 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,284 项全部通过；
+   - 40 项 PG 数据库集成测试全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）；
+   - 生产环境公网域名 `parallel-life-nu.vercel.app` 完成健康检查与会话冒烟验证。
+
 ## 2026-10-17 · Task 44-125 & 44-126 主动叙事推进、知情隔离与约定接受四元闭环已上线
 
 业务 a832387870a4a8ec9ec596e3868efcbdf5ca90db / dpl_AZoPiFWcge5ex2wK3YyrHYZbkbSd READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
