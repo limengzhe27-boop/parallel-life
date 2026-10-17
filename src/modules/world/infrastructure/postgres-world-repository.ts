@@ -605,13 +605,24 @@ export class PostgresWorldRepository implements WorldRepository {
         [appointment.id, state.id, session.userId, appointment],
       );
     for (const effect of event.data.effects ?? [])
-      if (effect.type === 'appointment.fulfilled' || effect.type === 'appointment.cancelled') {
+      if (
+        effect.type === 'appointment.fulfilled' ||
+        effect.type === 'appointment.cancelled' ||
+        effect.type === 'appointment.confirmed'
+      ) {
         const item = state.appointments.find((a) => a.id === effect.appointmentId);
-        if (item)
+        if (item) {
+          const status =
+            item.status === 'confirmed' || item.status === 'cancelled' ? item.status : undefined;
           await sql.query(
-            'UPDATE parallel_life.world_appointments SET document=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3',
-            [state.id, session.userId, item.id, item],
+            status
+              ? 'UPDATE parallel_life.world_appointments SET status=$4, document=$5 WHERE world_id=$1 AND owner_id=$2 AND id=$3'
+              : 'UPDATE parallel_life.world_appointments SET document=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+            status
+              ? [state.id, session.userId, item.id, status, item]
+              : [state.id, session.userId, item.id, item],
           );
+        }
       }
     for (const media of state.mediaRequests.filter((x) => x.sourceEventId === event.id))
       await sql.query(

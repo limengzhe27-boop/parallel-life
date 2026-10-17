@@ -189,6 +189,13 @@ export type WorldEffect =
       at: string;
       reason?: string;
     }
+  | {
+      type: 'appointment.confirmed';
+      id: Id;
+      appointmentId: Id;
+      actorId: Id;
+      at: string;
+    }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
   | {

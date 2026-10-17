@@ -265,7 +265,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         if (
           action.handlesResponsibilityIds.length &&
           action.capability !== 'appointment.fulfill' &&
-          action.capability !== 'appointment.cancel'
+          action.capability !== 'appointment.cancel' &&
+          action.capability !== 'appointment.accept'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -427,6 +428,60 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               actorId: attempt.actorId,
               at,
               ...(reason ? { reason } : {}),
+            });
+            outputRefs = [{ kind: 'appointment', id: appointmentId }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
+          }
+        } else if (action.capability === 'appointment.accept') {
+          const appointmentId = action.parameters.appointmentId;
+          if (
+            typeof appointmentId !== 'string' ||
+            !appointmentId.trim() ||
+            Object.keys(action.parameters).some((key) => key !== 'appointmentId')
+          )
+            throw new AgentValidationError('APPOINTMENT_ACCEPT_PARAMETERS');
+          if (action.handlesResponsibilityIds.length > 1)
+            throw new AgentValidationError('APPOINTMENT_ACCEPT_RESPONSIBILITY_LIMIT');
+
+          const appointmentRow = (
+            await sql.query(
+              'SELECT a.document FROM parallel_life.world_appointments a WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3',
+              [attempt.worldId, ownerId, appointmentId],
+            )
+          ).rows[0]?.document;
+
+          const ap =
+            appointmentRow ?? executionWorld.appointments?.find((a: any) => a.id === appointmentId);
+          if (!ap) {
+            failureCode = 'APPOINTMENT_NOT_FOUND';
+          } else if (ap.status !== 'proposed') {
+            failureCode = 'APPOINTMENT_NOT_PROPOSED';
+          } else if (Date.parse(at) > Date.parse(ap.at)) {
+            failureCode = 'APPOINTMENT_EXPIRED';
+          } else {
+            const isParticipant =
+              ap.participantIds?.includes(attempt.actorId) ||
+              ap.proposerId === attempt.actorId ||
+              executionWorld.appointments?.some(
+                (a: any) =>
+                  a.id === appointmentId &&
+                  (a.participantIds?.includes(attempt.actorId) || a.proposerId === attempt.actorId),
+              );
+            if (!isParticipant) {
+              failureCode = 'ACTOR_NOT_APPOINTMENT_PARTICIPANT';
+            }
+          }
+
+          if (!failureCode) {
+            effects.push({
+              type: 'appointment.confirmed',
+              id: randomUUID(),
+              appointmentId,
+              actorId: attempt.actorId,
+              at,
             });
             outputRefs = [{ kind: 'appointment', id: appointmentId }];
             handledResponsibilityIds = [...action.handlesResponsibilityIds];
@@ -627,20 +682,48 @@ export class PostgresNpcAgentKernel implements AgentKernel {
                 return r?.subject.kind === 'appointment' && r.subject.id === e.appointmentId;
               }),
           );
+          const isAccept = effects.some(
+            (e) =>
+              e.type === 'appointment.confirmed' &&
+              result.handledResponsibilityIds.some((rId) => {
+                const r = accepted.state.responsibilities.find((resp) => resp.id === rId);
+                return r?.subject.kind === 'appointment' && r.subject.id === e.appointmentId;
+              }),
+          );
           for (const respId of result.handledResponsibilityIds) {
             const resp = accepted.state.responsibilities.find((r) => r.id === respId);
             if (resp && resp.status !== 'fulfilled' && resp.status !== 'withdrawn') {
-              resp.status = isCancel ? 'withdrawn' : 'fulfilled';
-              resp.resolutionResultId = result.id;
-              resp.endReason = isCancel ? '约定已撤回或取消' : '已按约履行';
+              if (isCancel) {
+                resp.status = 'withdrawn';
+                resp.resolutionResultId = result.id;
+                resp.endReason = '约定已撤回或取消';
+              } else if (isAccept) {
+                resp.status = 'open';
+                resp.waitingOn = null;
+                resp.resolutionResultId = result.id;
+                resp.endReason = undefined;
+              } else {
+                resp.status = 'fulfilled';
+                resp.resolutionResultId = result.id;
+                resp.endReason = '已按约履行';
+              }
             }
           }
           for (const goalId of result.completedGoalIds ?? []) {
             const goal = accepted.state.goals.find((g) => g.id === goalId);
             if (goal && goal.status !== 'fulfilled' && goal.status !== 'withdrawn') {
-              goal.status = isCancel ? 'withdrawn' : 'fulfilled';
-              goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
-              goal.endReason = isCancel ? '约定目标已撤回' : '目标已达成';
+              if (isCancel) {
+                goal.status = 'withdrawn';
+                goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
+                goal.endReason = '约定目标已撤回';
+              } else if (isAccept) {
+                goal.status = 'active';
+                goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
+              } else {
+                goal.status = 'fulfilled';
+                goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
+                goal.endReason = '目标已达成';
+              }
             }
           }
         }
@@ -669,6 +752,49 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             goal.status = 'withdrawn';
             goal.endReason = '约定目标已撤回';
           }
+        }
+      }
+      for (const confirmEffect of effects.filter(
+        (e): e is Extract<WorldEffect, { type: 'appointment.confirmed' }> =>
+          e.type === 'appointment.confirmed',
+      )) {
+        const ap = executionWorld.appointments?.find((a: any) => a.id === confirmEffect.appointmentId);
+        const title = ap?.title ?? '约定事项';
+        const existingResp = accepted.state.responsibilities.find(
+          (r) => r.subject.kind === 'appointment' && r.subject.id === confirmEffect.appointmentId,
+        );
+        if (existingResp) {
+          if (existingResp.status !== 'fulfilled' && existingResp.status !== 'withdrawn') {
+            existingResp.status = 'open';
+            existingResp.waitingOn = null;
+          }
+        } else {
+          accepted.state.responsibilities.push({
+            id: `appointment:${confirmEffect.appointmentId}`,
+            subject: { kind: 'appointment', id: confirmEffect.appointmentId },
+            summary: `按约赴约：${title}`,
+            sourceIds: [`appointment:${confirmEffect.appointmentId}`],
+            revision: 0,
+            status: 'open',
+            waitingOn: null,
+            nextCheck: [],
+          });
+        }
+        const existingGoal = accepted.state.goals.find(
+          (g) => g.summary.includes(confirmEffect.appointmentId) || g.summary.includes(title),
+        );
+        if (existingGoal) {
+          if (existingGoal.status !== 'fulfilled' && existingGoal.status !== 'withdrawn') {
+            existingGoal.status = 'active';
+          }
+        } else {
+          accepted.state.goals.push({
+            id: `goal:appointment:${confirmEffect.appointmentId}`,
+            summary: `按时参加「${title}」`,
+            status: 'active',
+            sourceIds: [`appointment:${confirmEffect.appointmentId}`],
+            resultIds: [],
+          });
         }
       }
       for (const statement of accepted.statements)
@@ -835,6 +961,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'appointment.proposed' }>
               | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
               | Extract<WorldEffect, { type: 'appointment.cancelled' }>
+              | Extract<WorldEffect, { type: 'appointment.confirmed' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },
@@ -873,12 +1000,24 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
             [appointment.id, attempt.worldId, ownerId, appointment],
           );
-        for (const effect of effects)
+        for (const effect of effects) {
           if (effect.type === 'appointment.fulfilled')
             await sql.query(
               "UPDATE parallel_life.world_appointments SET document=jsonb_set(document, '{status}', '\"attended\"') WHERE world_id=$1 AND owner_id=$2 AND id=$3",
               [attempt.worldId, ownerId, effect.appointmentId],
             );
+          if (effect.type === 'appointment.cancelled')
+            await sql.query(
+              "UPDATE parallel_life.world_appointments SET status='cancelled', document=jsonb_set(document, '{status}', '\"cancelled\"') WHERE world_id=$1 AND owner_id=$2 AND id=$3",
+              [attempt.worldId, ownerId, effect.appointmentId],
+            );
+          if (effect.type === 'appointment.confirmed') {
+            await sql.query(
+              "UPDATE parallel_life.world_appointments SET status='confirmed', document=jsonb_set(document, '{status}', '\"confirmed\"') WHERE world_id=$1 AND owner_id=$2 AND id=$3",
+              [attempt.worldId, ownerId, effect.appointmentId],
+            );
+          }
+        }
         for (const media of next.mediaRequests.filter((item) => item.sourceEventId === event.id)) {
           await sql.query(
             'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',

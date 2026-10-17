@@ -277,6 +277,15 @@ export function applyEvent(
         }
         break;
       }
+      case 'appointment.confirmed': {
+        const target = state.appointments.find((a) => a.id === effect.appointmentId);
+        if (target) {
+          target.status = 'confirmed';
+          target.responseAt = event.storyAt;
+          target.responseVersion = event.version;
+        }
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,

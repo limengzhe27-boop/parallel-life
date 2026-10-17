@@ -42,6 +42,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'appointment.proposed' }>
       | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
       | Extract<WorldEffect, { type: 'appointment.cancelled' }>
+      | Extract<WorldEffect, { type: 'appointment.confirmed' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
@@ -97,6 +98,14 @@ export function applyAgentStateEvent(
       const item = state.appointments.find((a) => a.id === effect.appointmentId);
       if (!item) throw new DomainError('INVALID_PROPOSAL');
       item.status = 'cancelled';
+      item.responseAt = event.storyAt;
+      item.responseVersion = event.version;
+      continue;
+    }
+    if (effect.type === 'appointment.confirmed') {
+      const item = state.appointments.find((a) => a.id === effect.appointmentId);
+      if (!item) throw new DomainError('INVALID_PROPOSAL');
+      item.status = 'confirmed';
       item.responseAt = event.storyAt;
       item.responseVersion = event.version;
       continue;
@@ -173,6 +182,7 @@ export function applyNativeAgentCalendarEffects(
         e.type !== 'appointment.proposed' &&
         e.type !== 'appointment.fulfilled' &&
         e.type !== 'appointment.cancelled' &&
+        e.type !== 'appointment.confirmed' &&
         e.type !== 'media.requested' &&
         e.type !== 'message.received',
     )
@@ -185,10 +195,12 @@ export function applyNativeAgentCalendarEffects(
       | Extract<WorldEffect, { type: 'appointment.proposed' }>
       | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
       | Extract<WorldEffect, { type: 'appointment.cancelled' }>
+      | Extract<WorldEffect, { type: 'appointment.confirmed' }>
       | Extract<WorldEffect, { type: 'media.requested' }> =>
       e.type === 'appointment.proposed' ||
       e.type === 'appointment.fulfilled' ||
       e.type === 'appointment.cancelled' ||
+      e.type === 'appointment.confirmed' ||
       e.type === 'media.requested',
   );
   // Reuse the exact transition/source/result invariants, without pretending the native speech was a DM.

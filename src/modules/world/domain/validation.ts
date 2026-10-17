@@ -501,6 +501,14 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { reason: text(item.reason.trim(), 200) }
             : {}),
         };
+      case 'appointment.confirmed':
+        return {
+          type: item.type,
+          id: effectId,
+          appointmentId: id(item.appointmentId),
+          actorId: id(item.actorId),
+          at: isoInstant(item.at),
+        };
       case 'fact.established':
         return {
           type: item.type,

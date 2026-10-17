@@ -133,7 +133,11 @@ export async function projectNativeAgentChannelInTransaction(
     reject('NATIVE_SPEAKER_MISMATCH');
   for (const effect of effects) {
     if (effect.type === 'message.received') continue;
-    if (effect.type === 'appointment.fulfilled' || effect.type === 'appointment.cancelled') {
+    if (
+      effect.type === 'appointment.fulfilled' ||
+      effect.type === 'appointment.cancelled' ||
+      effect.type === 'appointment.confirmed'
+    ) {
       if (effect.actorId !== attempt.actorId) reject('NATIVE_EFFECT_ACTOR');
       continue;
     }
@@ -323,6 +327,27 @@ export async function projectNativeAgentChannelInTransaction(
       'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
       [appointment.id, world.id, ownerId, appointment],
     );
+  for (const effect of effects) {
+    if (
+      effect.type === 'appointment.fulfilled' ||
+      effect.type === 'appointment.cancelled' ||
+      effect.type === 'appointment.confirmed'
+    ) {
+      const item = next.appointments.find((a) => a.id === effect.appointmentId);
+      if (item) {
+        const status =
+          item.status === 'confirmed' || item.status === 'cancelled' ? item.status : undefined;
+        await sql.query(
+          status
+            ? 'UPDATE parallel_life.world_appointments SET status=$4, document=$5 WHERE world_id=$1 AND owner_id=$2 AND id=$3'
+            : 'UPDATE parallel_life.world_appointments SET document=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+          status
+            ? [world.id, ownerId, item.id, status, item]
+            : [world.id, ownerId, item.id, item],
+        );
+      }
+    }
+  }
   for (const media of next.mediaRequests?.filter((m) => m.sourceEventId === eventId) ?? [])
     await sql.query(
       'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
