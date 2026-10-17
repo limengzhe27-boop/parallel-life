@@ -18,14 +18,14 @@ export const RegisterRequestSchema = z.strictObject({
   password: PasswordSchema,
   mergeGuest: z.boolean().optional().default(false),
 });
-export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
+export type RegisterRequest = z.input<typeof RegisterRequestSchema>;
 
 export const LoginRequestSchema = z.strictObject({
   identifier: IdentifierSchema,
   password: PasswordSchema,
   mergeGuest: z.boolean().optional().default(false),
 });
-export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+export type LoginRequest = z.input<typeof LoginRequestSchema>;
 
 export const AuthResultSchema = z.strictObject({
   accountId: Id,
