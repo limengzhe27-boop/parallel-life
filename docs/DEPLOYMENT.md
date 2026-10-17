@@ -1,3 +1,26 @@
+## 2026-10-17 · Task L-02 历史分支：从基线与事件恢复指定版本，新建人生已上线
+
+业务 ead3e5668d2f627ba76a44bfec4a02ddca69dfec / dpl_DkygbzbChZXuJCffn3g1dYMt4eQV READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 worlds / worlds/:id/fork 401 权限校验通过。
+
+交付内容与质量证据：
+1. **历史分支、检查点检索与新建人生 (Task L-02)**：
+   - 建立纯领域契约 `src/contracts/life-management.ts`：`WorldForkRequestSchema`、`WorldForkResponseSchema`、`WorldForkCheckpointSchema`、`WorldForkCheckpointsResponseSchema`；扩展 `WorldListItemSchema` 携带 `parentWorldId` 与 `forkVersion`；
+   - 在 `PostgresWorldRepository` 中落地历史分支服务：
+     - `getForkCheckpoints(userId, worldId)`：从 `world_initial_snapshots`（版本 0 基线）及 `world_events`（版本 1..N 事件）中提取全部可分支历史节点、时间戳与剧情摘要；
+     - `forkWorld(userId, parentWorldId, forkVersion, options)`：
+       - 行锁 `FOR SHARE` 核验父人生归属与未删除状态，严格校验 `0 <= forkVersion <= parentWorld.version`；
+       - 基于纯函数重放器 `replayWorldHistory` 与投影表切片（消息、约定、媒体请求、事实），精确重构目标版本状态；
+       - 生成新 `worldId`，版本重置为 0，插入 `parallel_life.worlds(parent_world_id, fork_version)`；
+       - 写入新世界不可变初始快照 `parallel_life.world_initial_snapshots(version=0)`，建立新世界独立时钟 `world_clock`；
+       - **旧历史不改写**：父世界版本、事件、消息无任何突变；
+       - **资源引用受控**：校验角色立绘与设定素材在 `assets` 中的状态，失效/已删除资产安全脱钩置空，杜绝脏引用；
+   - 提供标准 HTTP 路由：`GET /api/v1/worlds/[id]/fork`（检查点检索）、`POST /api/v1/worlds/[id]/fork`（历史分支创建），保持多租户权限绝对隔离。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 8/8 `tests/integration/history-branching.test.ts` 全部通过（验证检查点提取、从历史版本重建新人生、旧历史未改写、分支独立推进演化、默认标题派生、多租户隔离与越权防御、失效素材引用受控安全脱钩、列表分叉元数据核验）；
+   - 全量回归 `life-management.test.ts` + `history-branching.test.ts` 17/17 测试全部通过；
+   - 架构模块边界检查通过（612 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产环境构建打包成功。
+
 ## 2026-10-17 · Task L-01 人生列表/切换/重命名/归档、删除和恢复策略已上线
 
 业务 0e29b13ccba9509df658c1448b17ee7be0a6bf9a / dpl_zvZq7pNMbKQ7QFd9LbhcCb6fZgW8 READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 worlds / publications 401 权限校验通过。
