@@ -1,3 +1,32 @@
+## 2026-10-18 · Task 44-131 实体物品交付闭环与产品全链路端到端在线验证已上线
+
+业务 b7e9fb68 / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步用户闭环实测 100% 通过。
+
+交付内容与质量证据：
+1. **任务 44-131 物品与资料交付闭环 (`item.deliver`)**：
+   - `NPC_AGENT_CAPABILITIES` 注册能力 `'item.deliver'`；
+   - `WorldItem` 与 `WorldEffect` (`item.delivered`) 领域模型定义、状态规约与不可篡改所有权转移（`holderActorId` 更新）；
+   - 六步前置条件与权威校验闭环：参数合法性校验、防止向自身交付（`CANNOT_DELIVER_TO_SELF`）、接收方存在性检查（`RECIPIENT_NOT_FOUND`）、`parallel_life.world_authoritative_positions` 权威同场验证（`RECIPIENT_NOT_CO_LOCATED`）、物品归属验证（`ITEM_NOT_OWNED_BY_ACTOR`）、责任履约与目标推进原子闭环（`fulfilled`）；
+   - 真实 PostgreSQL 55432 集成测试 `tests/integration/actor-item-delivery.test.ts` 2/2 子测试通过。
+2. **生产环境全链路端到端修复与实测（8 步完整闭环）**：
+   - 补齐 `/api/v1/life-seeds` POST 路由支持用户签署并直接批准平行人生种子（`SeedRequestSchema`）；
+   - 补齐 `InvitationSchema` 中的 `links` 字段校验，解决严格模式下地图导航及关联跳转反序列化拦截；
+   - 生产环境运行 `node scripts/verify-full-e2e.mjs`，在真实大模型调用下完成完整产品链路实测：
+     1. 会话建立成功，CSRF Token 已获取；
+     2. 获取用户初始档案（version=0）；
+     3. 访谈资料入库确认（version=2，facts=2）；
+     4. 发现状态就绪（version=0）；
+     5. 大模型提炼平行人生提案（成功生成 3 条平行人生选项）；
+     6. 用户签署批准平行人生种子（`seedId: 316698a4-3f85-4b0b-80cd-6b5d9e39278d`）；
+     7. 发起并执行平行世界构建（角色生成、破冰对白编排，status=succeeded）；
+     8. 平行手机 World Phone 载入成功（5 位联系人、8 条微信初始消息、2 条日历日程与邀约完全就绪）。
+3. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 `tests/integration/actor-item-delivery.test.ts` 全部通过；
+   - 架构模块边界检查通过（619 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,293 项全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）；
+   - 生产环境公网全链路 8 步自动化实测 100% 验证成功。
+
 ## 2026-10-18 · Task 44-128 / 44-129 / 44-130 约定改期协商、旧存档接管与时间流速规则已上线
 
 业务 722ac78ae2c324c4e7da7ba48c5a93946002f232 / dpl_uqrLXiB38cQz5jSzyAG2j3AHNYH3 READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
