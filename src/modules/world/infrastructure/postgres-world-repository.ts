@@ -40,7 +40,11 @@ import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 import { projectStoryTime } from '../domain/clock.ts';
 import { PostgresClockStore } from './clock-repository.ts';
-import type { WorldListItem } from '../../../contracts/life-management.ts';
+import type {
+  WorldListItem,
+  WorldForkCheckpoint,
+  WorldForkCheckpointsResponse,
+} from '../../../contracts/life-management.ts';
 const fingerprint = (command: TurnCommand) =>
   createHash('sha256')
     .update(
@@ -712,6 +716,7 @@ export class PostgresWorldRepository implements WorldRepository {
       const rows = (
         await sql.query(
           `SELECT w.id, w.title, w.version, w.created_at, w.updated_at, w.state,
+                  w.parent_world_id, w.fork_version,
                   s.document->'source'->>'kind' as seed_source_kind,
                   b.opening
            FROM parallel_life.worlds w
@@ -769,6 +774,11 @@ export class PostgresWorldRepository implements WorldRepository {
           actorCount,
           previewText,
           sourceKind,
+          parentWorldId: row.parent_world_id ?? null,
+          forkVersion:
+            row.fork_version !== null && row.fork_version !== undefined
+              ? Number(row.fork_version)
+              : null,
         });
       }
 
@@ -908,6 +918,319 @@ export class PostgresWorldRepository implements WorldRepository {
       return {
         id: worldId,
         status: 'deleted',
+      };
+    });
+  }
+
+  async getForkCheckpoints(
+    userId: string,
+    worldId: string,
+  ): Promise<WorldForkCheckpointsResponse> {
+    return this.db.transaction(userId, async (sql) => {
+      const parentRow = (
+        await sql.query(
+          'SELECT id, title, version, created_at, state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2',
+          [worldId, userId],
+        )
+      ).rows[0];
+      if (!parentRow || parentRow.state?.deletedAt) throw new DomainError('NOT_FOUND');
+
+      const initial = (
+        await sql.query(
+          'SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
+          [worldId, userId],
+        )
+      ).rows[0]?.state;
+
+      const eventRows = (
+        await sql.query(
+          'SELECT version, payload, occurred_at FROM parallel_life.world_events WHERE world_id=$1 ORDER BY version ASC',
+          [worldId],
+        )
+      ).rows;
+
+      const checkpoints: WorldForkCheckpoint[] = [];
+
+      checkpoints.push({
+        version: 0,
+        occurredAt: new Date(parentRow.created_at).toISOString(),
+        storyTime: initial?.time ?? undefined,
+        summary: '初始基线',
+      });
+
+      for (const row of eventRows) {
+        const payload = (row.payload ?? {}) as Record<string, any>;
+        const userText = payload.data?.userText;
+        const firstMessage = payload.data?.effects?.find((e: any) => e.type === 'message.received')?.text;
+        const summary = userText || firstMessage || payload.type || `版本 ${row.version}`;
+        checkpoints.push({
+          version: Number(row.version),
+          occurredAt: new Date(row.occurred_at).toISOString(),
+          storyTime: payload.storyAt ?? payload.occurredAt ?? undefined,
+          summary: String(summary).slice(0, 100),
+        });
+      }
+
+      return {
+        worldId,
+        currentVersion: Number(parentRow.version),
+        title: parentRow.title,
+        checkpoints,
+      };
+    });
+  }
+
+  async forkWorld(
+    userId: string,
+    parentWorldId: string,
+    forkVersion: number,
+    options?: { title?: string },
+  ): Promise<{
+    id: string;
+    parentWorldId: string;
+    forkVersion: number;
+    title: string;
+    version: number;
+    status: 'active';
+    storyTime?: string;
+    createdAt: string;
+  }> {
+    if (typeof forkVersion !== 'number' || !Number.isInteger(forkVersion) || forkVersion < 0) {
+      throw new DomainError('INVALID_COMMAND', 'Invalid fork version');
+    }
+
+    return this.db.transaction(userId, async (sql) => {
+      const parentRow = (
+        await sql.query(
+          'SELECT id, title, version, asset_revision, state, parent_world_id, fork_version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR SHARE',
+          [parentWorldId, userId],
+        )
+      ).rows[0];
+      if (!parentRow || parentRow.state?.deletedAt) throw new DomainError('NOT_FOUND');
+
+      if (forkVersion > Number(parentRow.version)) {
+        throw new DomainError(
+          'INVALID_COMMAND',
+          `Fork version ${forkVersion} exceeds current world version ${parentRow.version}`,
+        );
+      }
+
+      let targetTitle: string;
+      if (options?.title !== undefined) {
+        const trimmed = options.title.trim();
+        if (!trimmed || trimmed.length > 60) {
+          throw new DomainError('INVALID_COMMAND', 'World title must be between 1 and 60 characters');
+        }
+        targetTitle = trimmed;
+      } else {
+        targetTitle = `${parentRow.title} (分支)`.slice(0, 60);
+      }
+
+      const initialRow = (
+        await sql.query(
+          'SELECT state, approved_seed FROM parallel_life.world_initial_snapshots WHERE world_id=$1 AND owner_id=$2',
+          [parentWorldId, userId],
+        )
+      ).rows[0];
+      if (!initialRow) throw new DomainError('NOT_FOUND', 'Parent initial snapshot not found');
+
+      const parentInitialState = initialRow.state as WorldState;
+      let approvedSeed = structuredClone(initialRow.approved_seed ?? {});
+
+      // Controlled resource reference verification for approved_seed
+      if (approvedSeed && typeof approvedSeed === 'object') {
+        if (approvedSeed.portraitAssetId) {
+          const assetOk = (
+            await sql.query(
+              "SELECT 1 FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND status='ready'",
+              [approvedSeed.portraitAssetId, userId],
+            )
+          ).rowCount;
+          if (!assetOk) {
+            delete approvedSeed.portraitAssetId;
+          }
+        }
+        if (Array.isArray(approvedSeed.assets)) {
+          const validatedAssets = [];
+          for (const item of approvedSeed.assets) {
+            if (item?.assetId) {
+              const assetOk = (
+                await sql.query(
+                  "SELECT 1 FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND status='ready'",
+                  [item.assetId, userId],
+                )
+              ).rowCount;
+              if (assetOk) validatedAssets.push(item);
+            }
+          }
+          approvedSeed.assets = validatedAssets;
+        }
+      }
+
+      const newWorldId = randomUUID();
+      let rebuiltWorld: WorldState;
+      let projectedMessages: any[] = [];
+      let projectedAppointments: any[] = [];
+      let projectedMediaRequests: any[] = [];
+      let projectedFacts: any[] = [];
+
+      if (forkVersion === 0) {
+        rebuiltWorld = structuredClone(parentInitialState);
+      } else {
+        const events = (
+          await sql.query(
+            'SELECT payload FROM parallel_life.world_events WHERE world_id=$1 AND version<=$2 ORDER BY version',
+            [parentWorldId, forkVersion],
+          )
+        ).rows.map((r) => r.payload) as WorldHistoryEvent[];
+
+        rebuiltWorld = replayWorldHistory(
+          parentInitialState,
+          events,
+          forkVersion,
+          await readPublicationInvitationLinks(sql, userId, parentWorldId),
+        ).world;
+
+        const msgRows = (
+          await sql.query(
+            `SELECT p.document FROM parallel_life.world_messages p
+             JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id
+             WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version, p.ordinal`,
+            [parentWorldId, forkVersion],
+          )
+        ).rows;
+        projectedMessages = msgRows.map((r) => r.document);
+
+        const apptRows = (
+          await sql.query(
+            `SELECT p.document FROM parallel_life.world_appointments p
+             JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id
+             WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version, p.id`,
+            [parentWorldId, forkVersion],
+          )
+        ).rows;
+        projectedAppointments = apptRows.map((r) => r.document);
+
+        const mediaRows = (
+          await sql.query(
+            `SELECT p.document FROM parallel_life.world_media_requests p
+             JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id
+             WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version, p.id`,
+            [parentWorldId, forkVersion],
+          )
+        ).rows;
+        projectedMediaRequests = mediaRows.map((r) => r.document);
+
+        const factRows = (
+          await sql.query(
+            `SELECT p.document FROM parallel_life.world_facts p
+             JOIN parallel_life.world_events e ON e.id=p.document->>'sourceEventId' AND e.world_id=p.world_id
+             WHERE p.world_id=$1 AND e.version<=$2 ORDER BY e.version, p.ordinal`,
+            [parentWorldId, forkVersion],
+          )
+        ).rows;
+        projectedFacts = factRows.map((r) => r.document);
+      }
+
+      const newBaselineState: WorldState = {
+        ...rebuiltWorld,
+        id: newWorldId,
+        ownerId: userId,
+        title: targetTitle,
+        version: 0,
+        time: rebuiltWorld.time ?? parentInitialState.time ?? new Date().toISOString(),
+        messages: [
+          ...openingMessagesForDisplay(
+            parentInitialState.messages ?? [],
+            newWorldId,
+            parentInitialState.time ?? rebuiltWorld.time,
+          ),
+          ...projectedMessages,
+        ],
+        appointments: mergeAppointments(parentInitialState.appointments ?? [], projectedAppointments),
+        mediaRequests: [...(parentInitialState.mediaRequests ?? []), ...projectedMediaRequests],
+        facts: retainFacts(
+          dedupeFacts([
+            ...(parentInitialState.facts ?? []),
+            ...projectedFacts,
+          ]),
+        ),
+      };
+
+      const compacted = compactWorldState(newBaselineState);
+      await sql.query(
+        `INSERT INTO parallel_life.worlds(id, owner_id, title, version, asset_revision, state, parent_world_id, fork_version)
+         VALUES($1, $2, $3, 0, $4, $5, $6, $7)`,
+        [
+          newWorldId,
+          userId,
+          targetTitle,
+          parentRow.asset_revision ?? 0,
+          compacted,
+          parentWorldId,
+          forkVersion,
+        ],
+      );
+
+      await sql.query(
+        `INSERT INTO parallel_life.world_initial_snapshots(world_id, owner_id, version, state, approved_seed)
+         VALUES($1, $2, 0, $3, $4)`,
+        [newWorldId, userId, newBaselineState, approvedSeed],
+      );
+
+      await sql.query(
+        `INSERT INTO parallel_life.world_clock(world_id, owner_id, story_now, last_tick_at, speed, paused)
+         VALUES($1, $2, $3, now(), 1, false)
+         ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now, updated_at=now()`,
+        [newWorldId, userId, newBaselineState.time],
+      );
+
+      const parentBindings = (
+        await sql.query(
+          `SELECT person_id, actor_id, person_snapshot, asset_id, asset_revision
+           FROM parallel_life.world_person_bindings
+           WHERE world_id=$1 AND owner_id=$2`,
+          [parentWorldId, userId],
+        )
+      ).rows;
+      if (parentBindings.length > 0) {
+        for (const b of parentBindings) {
+          let validAssetId = b.asset_id;
+          let validRevision = b.asset_revision;
+          if (validAssetId) {
+            const ok = (
+              await sql.query(
+                "SELECT 1 FROM parallel_life.assets WHERE id=$1 AND owner_id=$2 AND status='ready'",
+                [validAssetId, userId],
+              )
+            ).rowCount;
+            if (!ok) {
+              validAssetId = null;
+              validRevision = null;
+            }
+          }
+          try {
+            await sql.query(
+              `INSERT INTO parallel_life.world_person_bindings(world_id, owner_id, person_id, actor_id, person_snapshot, asset_id, asset_revision)
+               VALUES($1, $2, $3, $4, $5, $6, $7)`,
+              [newWorldId, userId, b.person_id, b.actor_id, b.person_snapshot, validAssetId, validRevision],
+            );
+          } catch {
+            // graceful fallback if table lacks insert for current role
+          }
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      return {
+        id: newWorldId,
+        parentWorldId,
+        forkVersion,
+        title: targetTitle,
+        version: 0,
+        status: 'active' as const,
+        storyTime: newBaselineState.time,
+        createdAt: nowIso,
       };
     });
   }
