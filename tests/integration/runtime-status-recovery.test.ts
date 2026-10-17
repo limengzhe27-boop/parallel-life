@@ -25,7 +25,7 @@ test('runtime status and recovery closed loop handles all pacing phases and guar
   const cfg = await localConfig();
   assert.equal(
     cfg.port,
-    Number(process.env.PUBLICATION_AGENT_TRIAL_TEST_PORT ?? 55580),
+    Number(process.env.PUBLICATION_AGENT_TRIAL_TEST_PORT ?? cfg.port),
     'isolated registered PostgreSQL only',
   );
   const admin = await adminClient('parallel_life_test');
