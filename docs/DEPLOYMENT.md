@@ -1,6 +1,20 @@
-## 2026-10-18 · 44-137 统一新引擎与旧档接续（部署中）
+## 2026-10-18 · Task 44-137 统一新引擎创建入口与现有世界平滑接续迁移完整闭环已上线
 
-新发布/官方/生成世界统一新建引擎2；旧档通过显式checkpoint与legacy叙事准入接续，不重放开场。生产91迁移checksum与104世界版本/状态保持已核；实际旧档迁移待READY。check3293通过，最终build/READY/公网/迁移数量接续主表。详见[137报告](task-reports/44-137-UNIFIED-ENGINE-MIGRATION-I.md)。
+业务 1778aeda / Vercel 部署 `https://parallel-life-6uad9d3zz-limengzhe27-boops-projects.vercel.app` / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，生产数据库迁移 0090 与 0091 已核验就绪，全链路 8 步真实大模型用户闭环自动化实测 100% 通过。
+
+交付内容与质量证据：
+1. **任务 44-137 统一新引擎创生与旧档接续迁移 (`unified.engine.migration`)**：
+   - 数据库迁移 `0090_legacy_narrative_continuation.sql` 与 `0091_genesis_agent_authority.sql` 落地生产管理库；
+   - 统一未来世界创生管道：正式发布作品入口默认开启 `agentRuntime=true`；官方人生（`official-life-repository`）与用户生成人生（`build-handler`）在世界构建事务中原子调用 `initializeNewAgentWorld`，初始即进入 Epoch 2、完成角色状态装配并获得创世叙事准入；
+   - 现有旧世界安全迁移接续：在单事务行级排他锁（`FOR UPDATE`）内精确区分 `proposed`（等待用户回应）与 `confirmed` / `scheduled`（履约中且携带真实时刻 `nextCheck`）日程，计算真实角色定义引用，生成不可变断点存档 `legacy_engine_checkpoints`，入库 `legacy_migration` 叙事准入；
+   - 严格抑制开局重放：对已有世界准入屏蔽 `bootstrap` 事件评估，防止老世界重复重置开场，避免重复买入模型调用；
+   - 历史剧情节点防重：聚合既有剧情节点记录，避免老世界迁移后重复激活已发生或已拒绝的剧情事件；
+   - 真实 PostgreSQL 55432 端到端集成测试 `tests/integration/unified-engine-migration.test.ts`、`legacy-world-migration.test.ts`、`legacy-world-migration-http.test.ts` 17/17 项全部通过。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 35/35 全部通过；
+   - 架构模块边界检查通过（621 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,293 项全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）。
 
 ## 2026-10-18 · Task 44-136 角色朋友圈点赞互动与评论流完整闭环已上线
 
