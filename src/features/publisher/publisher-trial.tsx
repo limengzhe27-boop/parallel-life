@@ -148,7 +148,31 @@ export function PublisherTrial({
           boxShadow: '0 2px 12px #0002',
         }}
       >
-        <summary>{paused ? '试演已暂停 · 开始' : '试演控制'}</summary>
+        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+          {paused ? '试演已暂停 · 点击开始' : '试演控制 · 运行中'}
+        </summary>
+        {director?.summary ? (
+          <div
+            role="status"
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              padding: '6px 10px',
+              borderRadius: 8,
+              background: '#f1f5f9',
+              color: '#0f172a',
+              marginTop: 8,
+              marginBottom: 6,
+            }}
+          >
+            {director.summary}
+          </div>
+        ) : null}
+        {director?.lastEffectiveChange ? (
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+            最近有效变化：{director.lastEffectiveChange}
+          </div>
+        ) : null}
         <button
           disabled={changingLifecycle || advancing || paused === null}
           onClick={() => void changeLifecycle()}
@@ -167,7 +191,7 @@ export function PublisherTrial({
               ? '推进已有安排'
               : '推进一条剧情'}
         </button>
-        {director?.status === 'failed' ? (
+        {director?.status === 'failed' || director?.actionableRecovery === 'retry' ? (
           <div role="status">
             <p>上次编排未通过检查，没有当作剧情发生。聊天记录仍保留。</p>
             {confirmRetry ? (
@@ -193,11 +217,19 @@ export function PublisherTrial({
             )}
           </div>
         ) : director && ['unknown', 'pending', 'blocked'].includes(director.status) ? (
-          <p role="status">上次结果仍需核对，不会自动重新生成。</p>
+          <p role="status">
+            {director.status === 'unknown'
+              ? '上次调用正在核对结果，不会自动重新生成。'
+              : director.status === 'pending'
+                ? '上次请求正在处理中…'
+                : '世界状态已前进，旧提案已自然过期。'}
+          </p>
         ) : null}
-        <button disabled={advancing} onClick={() => void checkDirector()}>
-          核对结果
-        </button>
+        {director?.actionableRecovery === 'check_receipt' || director?.status === 'unknown' ? (
+          <button disabled={advancing} onClick={() => void checkDirector()}>
+            核对结果
+          </button>
+        ) : null}
         {storyNotice ? <p role="status">{storyNotice}</p> : null}
       </details>
       <WorldPhoneApp

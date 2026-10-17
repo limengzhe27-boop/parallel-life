@@ -55,9 +55,26 @@ export type PublicationTrial = z.infer<typeof PublicationTrialSchema>;
 export type PublicationTrialEvidence = z.infer<typeof PublicationTrialEvidenceSchema>;
 export type PublicationPlayerCatalog = z.infer<typeof PublicationPlayerCatalogSchema>;
 
+export const TrialPacingPhaseSchema = z.enum([
+  'quiescent',
+  'waiting_player',
+  'conditions_not_met',
+  'deferred_or_withdrawn',
+  'in_progress',
+  'known_failure',
+  'unknown_result',
+  'stale_proposal',
+  'legacy',
+]);
+export type TrialPacingPhase = z.infer<typeof TrialPacingPhaseSchema>;
+
 /** Staff-private status only; no raw director reasoning or future event content. */
 export const TrialDirectorStatusSchema = z.strictObject({
   status: z.enum(['legacy', 'ready', 'failed', 'pending', 'unknown', 'blocked']),
   attemptId: Id.nullable(),
+  phase: TrialPacingPhaseSchema.optional(),
+  summary: z.string().optional(),
+  lastEffectiveChange: z.string().nullable().optional(),
+  actionableRecovery: z.enum(['retry', 'check_receipt', 'none']).optional(),
 });
 export type TrialDirectorStatus = z.infer<typeof TrialDirectorStatusSchema>;
