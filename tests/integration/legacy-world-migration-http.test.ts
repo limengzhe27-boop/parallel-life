@@ -137,6 +137,11 @@ test('Task 44-128: Legacy world migration inventory, readiness check, atomic tak
       );
 
       await sql.query(
+        'INSERT INTO parallel_life.world_initial_snapshots(world_id, owner_id, state, approved_seed) VALUES($1, $2, $3, $4)',
+        [worldId, ownerId, worldState, {}],
+      );
+
+      await sql.query(
         'INSERT INTO parallel_life.agent_runtime_worlds(world_id, owner_id, engine_epoch) VALUES($1, $2, 1)',
         [worldId, ownerId],
       );
