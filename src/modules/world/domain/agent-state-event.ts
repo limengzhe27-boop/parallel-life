@@ -38,7 +38,10 @@ export type AgentStateCommittedEvent = {
   data: {
     actorId: string;
     agentRuntime: AgentRuntimeTransition;
-    effects?: Extract<WorldEffect, { type: 'appointment.proposed' }>[];
+    effects?: (
+      | Extract<WorldEffect, { type: 'appointment.proposed' }>
+      | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
+    )[];
   };
 };
 export function applyAgentStateEvent(
@@ -80,6 +83,14 @@ export function applyAgentStateEvent(
   const state = { ...structuredClone(current), version: event.version, time: event.storyAt };
   // Capabilities may produce a calendar proposal without a chat. This never confirms attendance.
   for (const effect of event.data.effects ?? []) {
+    if (effect.type === 'appointment.fulfilled') {
+      const item = state.appointments.find((a) => a.id === effect.appointmentId);
+      if (!item) throw new DomainError('INVALID_PROPOSAL');
+      item.status = 'attended';
+      item.responseAt = event.storyAt;
+      item.responseVersion = event.version;
+      continue;
+    }
     if (
       effect.type !== 'appointment.proposed' ||
       effect.participantIds.length !== 1 ||
@@ -127,7 +138,14 @@ export function applyNativeAgentCalendarEffects(
   if (!event.data.actorId || native.version !== event.version || native.id !== before.id)
     throw new DomainError('INVALID_PROPOSAL');
   const effects = event.data.effects ?? [];
-  if (effects.some((e) => e.type !== 'appointment.proposed' && e.type !== 'message.received'))
+  if (
+    effects.some(
+      (e) =>
+        e.type !== 'appointment.proposed' &&
+        e.type !== 'appointment.fulfilled' &&
+        e.type !== 'message.received',
+    )
+  )
     throw new DomainError('INVALID_PROPOSAL');
   const calendar = effects.filter(
     (e): e is Extract<WorldEffect, { type: 'appointment.proposed' }> =>

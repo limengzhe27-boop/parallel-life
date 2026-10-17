@@ -259,6 +259,15 @@ export function applyEvent(
           sourceEventId,
         });
         break;
+      case 'appointment.fulfilled': {
+        const target = state.appointments.find((a) => a.id === effect.appointmentId);
+        if (target) {
+          target.status = 'attended';
+          target.responseAt = event.storyAt;
+          target.responseVersion = event.version;
+        }
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,

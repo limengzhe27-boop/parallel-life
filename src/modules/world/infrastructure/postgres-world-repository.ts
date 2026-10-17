@@ -604,6 +604,15 @@ export class PostgresWorldRepository implements WorldRepository {
         'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
         [appointment.id, state.id, session.userId, appointment],
       );
+    for (const effect of event.data.effects ?? [])
+      if (effect.type === 'appointment.fulfilled') {
+        const item = state.appointments.find((a) => a.id === effect.appointmentId);
+        if (item)
+          await sql.query(
+            'UPDATE parallel_life.world_appointments SET document=$4 WHERE world_id=$1 AND owner_id=$2 AND id=$3',
+            [state.id, session.userId, item.id, item],
+          );
+      }
     for (const media of state.mediaRequests.filter((x) => x.sourceEventId === event.id))
       await sql.query(
         'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
@@ -740,7 +749,8 @@ export class PostgresWorldRepository implements WorldRepository {
         let sourceKind: 'custom' | 'official' | 'published' | 'unknown' = 'unknown';
         const rawKind = row.seed_source_kind;
         if (rawKind === 'official_life') sourceKind = 'official';
-        else if (rawKind === 'published_work' || rawKind === 'publication_trial') sourceKind = 'published';
+        else if (rawKind === 'published_work' || rawKind === 'publication_trial')
+          sourceKind = 'published';
         else if (rawKind) sourceKind = 'custom';
         else if (row.opening) sourceKind = 'published';
         else sourceKind = 'custom';
@@ -858,10 +868,7 @@ export class PostgresWorldRepository implements WorldRepository {
     });
   }
 
-  async restoreWorld(
-    userId: string,
-    worldId: string,
-  ): Promise<{ id: string; status: 'active' }> {
+  async restoreWorld(userId: string, worldId: string): Promise<{ id: string; status: 'active' }> {
     return this.db.transaction(userId, async (sql) => {
       const row = (
         await sql.query(
@@ -886,10 +893,7 @@ export class PostgresWorldRepository implements WorldRepository {
     });
   }
 
-  async deleteWorld(
-    userId: string,
-    worldId: string,
-  ): Promise<{ id: string; status: 'deleted' }> {
+  async deleteWorld(userId: string, worldId: string): Promise<{ id: string; status: 'deleted' }> {
     return this.db.transaction(userId, async (sql) => {
       const row = (
         await sql.query(
@@ -922,10 +926,7 @@ export class PostgresWorldRepository implements WorldRepository {
     });
   }
 
-  async getForkCheckpoints(
-    userId: string,
-    worldId: string,
-  ): Promise<WorldForkCheckpointsResponse> {
+  async getForkCheckpoints(userId: string, worldId: string): Promise<WorldForkCheckpointsResponse> {
     return this.db.transaction(userId, async (sql) => {
       const parentRow = (
         await sql.query(
@@ -961,7 +962,9 @@ export class PostgresWorldRepository implements WorldRepository {
       for (const row of eventRows) {
         const payload = (row.payload ?? {}) as Record<string, any>;
         const userText = payload.data?.userText;
-        const firstMessage = payload.data?.effects?.find((e: any) => e.type === 'message.received')?.text;
+        const firstMessage = payload.data?.effects?.find(
+          (e: any) => e.type === 'message.received',
+        )?.text;
         const summary = userText || firstMessage || payload.type || `版本 ${row.version}`;
         checkpoints.push({
           version: Number(row.version),
@@ -1019,7 +1022,10 @@ export class PostgresWorldRepository implements WorldRepository {
       if (options?.title !== undefined) {
         const trimmed = options.title.trim();
         if (!trimmed || trimmed.length > 60) {
-          throw new DomainError('INVALID_COMMAND', 'World title must be between 1 and 60 characters');
+          throw new DomainError(
+            'INVALID_COMMAND',
+            'World title must be between 1 and 60 characters',
+          );
         }
         targetTitle = trimmed;
       } else {
@@ -1147,14 +1153,12 @@ export class PostgresWorldRepository implements WorldRepository {
           ),
           ...projectedMessages,
         ],
-        appointments: mergeAppointments(parentInitialState.appointments ?? [], projectedAppointments),
-        mediaRequests: [...(parentInitialState.mediaRequests ?? []), ...projectedMediaRequests],
-        facts: retainFacts(
-          dedupeFacts([
-            ...(parentInitialState.facts ?? []),
-            ...projectedFacts,
-          ]),
+        appointments: mergeAppointments(
+          parentInitialState.appointments ?? [],
+          projectedAppointments,
         ),
+        mediaRequests: [...(parentInitialState.mediaRequests ?? []), ...projectedMediaRequests],
+        facts: retainFacts(dedupeFacts([...(parentInitialState.facts ?? []), ...projectedFacts])),
       };
 
       const compacted = compactWorldState(newBaselineState);
@@ -1213,7 +1217,15 @@ export class PostgresWorldRepository implements WorldRepository {
             await sql.query(
               `INSERT INTO parallel_life.world_person_bindings(world_id, owner_id, person_id, actor_id, person_snapshot, asset_id, asset_revision)
                VALUES($1, $2, $3, $4, $5, $6, $7)`,
-              [newWorldId, userId, b.person_id, b.actor_id, b.person_snapshot, validAssetId, validRevision],
+              [
+                newWorldId,
+                userId,
+                b.person_id,
+                b.actor_id,
+                b.person_snapshot,
+                validAssetId,
+                validRevision,
+              ],
             );
           } catch {
             // graceful fallback if table lacks insert for current role

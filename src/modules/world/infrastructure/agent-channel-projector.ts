@@ -133,6 +133,10 @@ export async function projectNativeAgentChannelInTransaction(
     reject('NATIVE_SPEAKER_MISMATCH');
   for (const effect of effects) {
     if (effect.type === 'message.received') continue;
+    if (effect.type === 'appointment.fulfilled') {
+      if (effect.actorId !== attempt.actorId) reject('NATIVE_EFFECT_ACTOR');
+      continue;
+    }
     if (effect.type !== 'appointment.proposed') reject('NATIVE_EFFECT_UNSUPPORTED');
     if (effect.participantIds.length !== 1 || effect.participantIds[0] !== attempt.actorId)
       reject('NATIVE_EFFECT_ACTOR');

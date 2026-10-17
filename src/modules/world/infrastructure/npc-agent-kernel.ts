@@ -257,9 +257,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.status = eligibility.status;
           continue;
         }
-        if (action.handlesResponsibilityIds.length)
+        if (action.handlesResponsibilityIds.length && action.capability !== 'appointment.fulfill')
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
+        let handledResponsibilityIds: string[] = [];
+        let completedGoalIds: string[] = [];
         let failureCode: string | undefined;
         if (action.capability === 'plan.record') {
           const planId = action.parameters.planId;
@@ -308,6 +310,63 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               ...(placeId === undefined ? {} : { placeId: placeId as string }),
             });
             outputRefs = [{ kind: 'appointment', id: effects.at(-1)!.id }];
+          }
+        } else if (action.capability === 'appointment.fulfill') {
+          const appointmentId = action.parameters.appointmentId;
+          if (
+            typeof appointmentId !== 'string' ||
+            !appointmentId.trim() ||
+            Object.keys(action.parameters).some((key) => key !== 'appointmentId')
+          )
+            throw new AgentValidationError('APPOINTMENT_FULFILL_PARAMETERS');
+          if (action.handlesResponsibilityIds.length !== 1)
+            throw new AgentValidationError('APPOINTMENT_FULFILL_RESPONSIBILITY_REQUIRED');
+          const respId = action.handlesResponsibilityIds[0]!;
+          const resp =
+            proposal.responsibilities.find((r) => r.id === respId) ??
+            snapshot.state.responsibilities.find((r) => r.id === respId);
+          if (!resp || resp.subject.kind !== 'appointment' || resp.subject.id !== appointmentId)
+            throw new AgentValidationError('APPOINTMENT_FULFILL_RESPONSIBILITY_MISMATCH');
+
+          const appointmentRow = (
+            await sql.query(
+              'SELECT a.document FROM parallel_life.world_appointments a WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3',
+              [attempt.worldId, ownerId, appointmentId],
+            )
+          ).rows[0]?.document;
+
+          const ap =
+            appointmentRow ?? executionWorld.appointments?.find((a: any) => a.id === appointmentId);
+          if (!ap) {
+            failureCode = 'APPOINTMENT_NOT_FOUND';
+          } else if (!['confirmed', 'scheduled'].includes(ap.status)) {
+            failureCode = 'APPOINTMENT_NOT_CONFIRMED';
+          } else if (Date.parse(at) < Date.parse(ap.at)) {
+            failureCode = 'APPOINTMENT_NOT_DUE';
+          } else {
+            const venuePlaceId =
+              ap.placeId ??
+              executionWorld.space?.places.find((p: any) =>
+                p.appointmentIds?.includes(appointmentId),
+              )?.id;
+            if (venuePlaceId && ownActual?.placeId !== venuePlaceId) {
+              failureCode = 'ACTOR_NOT_AT_VENUE';
+            }
+          }
+
+          if (!failureCode) {
+            effects.push({
+              type: 'appointment.fulfilled',
+              id: randomUUID(),
+              appointmentId,
+              actorId: attempt.actorId,
+              at,
+            });
+            outputRefs = [{ kind: 'appointment', id: appointmentId }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
           }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
@@ -411,9 +470,9 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           at,
           outcome: failureCode ? 'failed' : 'succeeded',
           ...(failureCode ? { failureCode } : {}),
-          handledResponsibilityIds: [],
+          handledResponsibilityIds,
           evidenceSourceIds: action.sourceIds,
-          completedGoalIds: [],
+          completedGoalIds,
           outputRefs,
         });
       }
@@ -425,24 +484,50 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       );
       // Project the actual created invitation into this NPC's responsibility inbox.
       // The model does not need to guess a future appointment ID or a response deadline.
-      for (const output of results.flatMap((result) => result.outputRefs ?? []))
-        if (output.kind === 'appointment') {
-          const invitation = effects.find(
-            (effect) => effect.type === 'appointment.proposed' && effect.id === output.id,
-          );
-          if (invitation?.type !== 'appointment.proposed')
-            throw new AgentValidationError('MISSING_CAPABILITY_OUTPUT');
-          accepted.state.responsibilities.push({
-            id: `appointment:${invitation.id}`,
-            subject: { kind: 'appointment', id: invitation.id },
-            summary: invitation.title,
-            sourceIds: [`appointment:${invitation.id}`],
-            revision: 0,
-            status: 'waiting',
-            waitingOn: 'player',
-            nextCheck: [],
-          });
+      for (const result of results) {
+        const action = proposal.actions.find((a) => a.id === result.actionId);
+        if (action?.capability === 'appointment.propose') {
+          for (const output of result.outputRefs ?? []) {
+            if (output.kind === 'appointment') {
+              const invitation = effects.find(
+                (effect) => effect.type === 'appointment.proposed' && effect.id === output.id,
+              );
+              if (invitation?.type !== 'appointment.proposed')
+                throw new AgentValidationError('MISSING_CAPABILITY_OUTPUT');
+              accepted.state.responsibilities.push({
+                id: `appointment:${invitation.id}`,
+                subject: { kind: 'appointment', id: invitation.id },
+                summary: invitation.title,
+                sourceIds: [`appointment:${invitation.id}`],
+                revision: 0,
+                status: 'waiting',
+                waitingOn: 'player',
+                nextCheck: [],
+              });
+            }
+          }
         }
+      }
+      for (const result of results) {
+        if (result.outcome === 'succeeded') {
+          for (const respId of result.handledResponsibilityIds) {
+            const resp = accepted.state.responsibilities.find((r) => r.id === respId);
+            if (resp && resp.status !== 'fulfilled') {
+              resp.status = 'fulfilled';
+              resp.resolutionResultId = result.id;
+              resp.endReason = '已按约履行';
+            }
+          }
+          for (const goalId of result.completedGoalIds ?? []) {
+            const goal = accepted.state.goals.find((g) => g.id === goalId);
+            if (goal && goal.status !== 'fulfilled') {
+              goal.status = 'fulfilled';
+              goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
+              goal.endReason = '目标已达成';
+            }
+          }
+        }
+      }
       for (const statement of accepted.statements)
         effects.push({
           type: 'message.received',
@@ -603,7 +688,10 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           data: {
             actorId: attempt.actorId,
             agentRuntime: transition,
-            effects: effects as Extract<WorldEffect, { type: 'appointment.proposed' }>[],
+            effects: effects as (
+              | Extract<WorldEffect, { type: 'appointment.proposed' }>
+              | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
+            )[],
           },
         };
         const world = (
@@ -640,6 +728,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
             [appointment.id, attempt.worldId, ownerId, appointment],
           );
+        for (const effect of effects)
+          if (effect.type === 'appointment.fulfilled')
+            await sql.query(
+              "UPDATE parallel_life.world_appointments SET document=jsonb_set(document, '{status}', '\"attended\"') WHERE world_id=$1 AND owner_id=$2 AND id=$3",
+              [attempt.worldId, ownerId, effect.appointmentId],
+            );
         await sql.query(
           'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
           [attempt.worldId, event.version, compact],

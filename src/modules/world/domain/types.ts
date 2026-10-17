@@ -174,9 +174,22 @@ export type WorldEffect =
       placeId?: string;
     }
   | { type: 'message.received'; id: Id; actorId: Id; text: string }
+  | {
+      type: 'appointment.fulfilled';
+      id: Id;
+      appointmentId: Id;
+      actorId: Id;
+      at: string;
+    }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
-  | { type: 'media.requested'; id: Id; prompt: string; title?: string; mediaType?: 'image' | 'video' }
+  | {
+      type: 'media.requested';
+      id: Id;
+      prompt: string;
+      title?: string;
+      mediaType?: 'image' | 'video';
+    }
   | { type: 'choice.recorded'; id: Id; quote: string; intent: string }
   | { type: 'choice.next_step'; id: Id; choiceId: Id; quote: string }
   | { type: 'choice.recovery_step'; id: Id; choiceId: Id; quote: string }

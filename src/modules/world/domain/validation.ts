@@ -482,6 +482,14 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { placeId: id(item.placeId) }
             : {}),
         };
+      case 'appointment.fulfilled':
+        return {
+          type: item.type,
+          id: effectId,
+          appointmentId: id(item.appointmentId),
+          actorId: id(item.actorId),
+          at: isoInstant(item.at),
+        };
       case 'fact.established':
         return {
           type: item.type,
@@ -497,7 +505,9 @@ export function parseProposal(value: unknown): TurnProposal {
           ...(typeof item.title === 'string' && item.title.trim()
             ? { title: text(item.title.trim(), 80) }
             : {}),
-          ...(item.mediaType === 'video' ? { mediaType: 'video' as const } : { mediaType: 'image' as const }),
+          ...(item.mediaType === 'video'
+            ? { mediaType: 'video' as const }
+            : { mediaType: 'image' as const }),
         };
       case 'choice.recorded':
         return {
