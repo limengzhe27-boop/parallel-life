@@ -162,7 +162,7 @@ async function main() {
       headers,
     });
     const buildRunResult = await runBuildRes.json();
-    console.log(`   构建任务执行结果: status=${buildRunResult.status}`);
+    console.log(`   构建任务执行结果: status=${buildRunResult.status}`, buildRunResult.error || JSON.stringify(buildRunResult));
   }
 
   // 8. 访问平行手机 World Phone 完整界面数据

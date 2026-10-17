@@ -1,6 +1,6 @@
 ## 2026-10-18 · Task 44-135 角色动态发布与朋友圈社交流投影完整闭环已上线
 
-业务待推送部署 / Vercel 正式别名 `parallel-life-nu.vercel.app`。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路自动化实测。
+业务 adc12815 / Vercel 部署 `https://parallel-life-jb7hf8jhp-limengzhe27-boops-projects.vercel.app` / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。
 
 交付内容与质量证据：
 1. **任务 44-135 角色动态发布能力闭环 (`moment.publish`)**：
