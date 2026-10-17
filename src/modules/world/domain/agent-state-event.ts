@@ -1,5 +1,5 @@
 import type { AgentProposal, AgentActionResult, ActorAgentState } from './agent-runtime.ts';
-import type { WorldState, WorldEffect } from './types.ts';
+import type { WorldState, WorldEffect, ActorTie } from './types.ts';
 import { DomainError } from './errors.ts';
 import { isoInstant, validateEventId } from './validation.ts';
 import { linkAppointmentVenue } from './space.ts';
@@ -47,6 +47,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'item.delivered' }>
       | Extract<WorldEffect, { type: 'item.used' }>
       | Extract<WorldEffect, { type: 'activity.participated' }>
+      | Extract<WorldEffect, { type: 'relationship.bonded' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
@@ -205,6 +206,34 @@ export function applyAgentStateEvent(
         ...(effect.outcome ? { outcome: effect.outcome } : {}),
         ...(effect.note ? { note: effect.note } : {}),
       });
+      continue;
+    }
+    if (effect.type === 'relationship.bonded') {
+      if (effect.fromActorId !== event.data.actorId) {
+        throw new DomainError('INVALID_PROPOSAL');
+      }
+      if (!current.actors.some((actor) => actor.id === effect.toActorId)) {
+        throw new DomainError('INVALID_PROPOSAL');
+      }
+      state.actorTies = state.actorTies ? [...state.actorTies] : [];
+      const existingTieIndex = state.actorTies.findIndex(
+        (t) => t.fromActorId === effect.fromActorId && t.toActorId === effect.toActorId,
+      );
+      const updatedTie: ActorTie = {
+        fromActorId: effect.fromActorId,
+        toActorId: effect.toActorId,
+        relationship: effect.relationship,
+        mayShare: effect.mayShare ?? true,
+      };
+      if (existingTieIndex >= 0) {
+        state.actorTies[existingTieIndex] = updatedTie;
+      } else {
+        state.actorTies.push(updatedTie);
+      }
+      const targetActor = state.actors.find((a) => a.id === effect.toActorId);
+      if (targetActor) {
+        targetActor.relationship = effect.relationship;
+      }
       continue;
     }
     if (effect.type === 'media.requested') {

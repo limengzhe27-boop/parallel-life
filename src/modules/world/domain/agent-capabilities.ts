@@ -10,6 +10,7 @@ export const NPC_AGENT_CAPABILITIES = [
   'item.deliver',
   'item.use',
   'activity.participate',
+  'relationship.bond',
   'media.generate_image',
   'media.generate_video',
   'media.share',

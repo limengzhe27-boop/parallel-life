@@ -270,7 +270,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.capability !== 'appointment.reschedule' &&
           action.capability !== 'item.deliver' &&
           action.capability !== 'item.use' &&
-          action.capability !== 'activity.participate'
+          action.capability !== 'activity.participate' &&
+          action.capability !== 'relationship.bond'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -807,6 +808,67 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               completedGoalIds = [action.goalId];
             }
           }
+        } else if (action.capability === 'relationship.bond') {
+          const targetActorId = action.parameters.targetActorId;
+          const relationship = action.parameters.relationship;
+          const mayShare =
+            typeof action.parameters.mayShare === 'boolean'
+              ? action.parameters.mayShare
+              : true;
+          const reason =
+            typeof action.parameters.reason === 'string' && action.parameters.reason.trim()
+              ? action.parameters.reason.trim()
+              : undefined;
+          const note =
+            typeof action.parameters.note === 'string' && action.parameters.note.trim()
+              ? action.parameters.note.trim()
+              : undefined;
+
+          if (
+            typeof targetActorId !== 'string' ||
+            !targetActorId.trim() ||
+            typeof relationship !== 'string' ||
+            !relationship.trim() ||
+            Object.keys(action.parameters).some(
+              (key) =>
+                ![
+                  'targetActorId',
+                  'relationship',
+                  'mayShare',
+                  'reason',
+                  'note',
+                ].includes(key),
+            )
+          ) {
+            throw new AgentValidationError('RELATIONSHIP_BOND_PARAMETERS');
+          }
+
+          if (targetActorId === attempt.actorId) {
+            failureCode = 'ACTOR_CANNOT_BOND_SELF';
+          } else if (!executionWorld.actors.some((a: any) => a.id === targetActorId)) {
+            failureCode = 'TARGET_ACTOR_NOT_FOUND';
+          }
+
+          if (!failureCode) {
+            const effectId = randomUUID();
+            effects.push({
+              type: 'relationship.bonded',
+              id: effectId,
+              fromActorId: attempt.actorId,
+              toActorId: targetActorId,
+              relationship,
+              mayShare,
+              at,
+              ...(reason ? { reason } : {}),
+              ...(note ? { note } : {}),
+            });
+            const tieKey = `${attempt.actorId}:${targetActorId}`;
+            outputRefs = [{ kind: 'relationship', id: tieKey }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
+          }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
           if (
@@ -991,6 +1053,16 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         }
       }
       for (const result of results) {
+        const action = proposal.actions.find((a) => a.id === result.actionId);
+        if (action?.capability === 'relationship.bond' && result.outcome === 'succeeded') {
+          for (const output of result.outputRefs ?? []) {
+            if (output.kind === 'relationship') {
+              if (!accepted.state.relationshipIds.includes(output.id)) {
+                accepted.state.relationshipIds.push(output.id);
+              }
+            }
+          }
+        }
         if (result.outcome === 'succeeded') {
           const isCancel = effects.some(
             (e) =>
@@ -1354,6 +1426,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'item.delivered' }>
               | Extract<WorldEffect, { type: 'item.used' }>
               | Extract<WorldEffect, { type: 'activity.participated' }>
+              | Extract<WorldEffect, { type: 'relationship.bonded' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },

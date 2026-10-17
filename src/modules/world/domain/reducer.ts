@@ -12,7 +12,7 @@ import {
 import { validateCharacterEffects } from './character-policy.ts';
 import { canShareWith } from './relationships.ts';
 import { createWorldMatter, transitionWorldMatter } from './matters.ts';
-import type { WorldState, WorldEvent, OutboxJob } from './types.ts';
+import type { WorldState, WorldEvent, OutboxJob, ActorTie } from './types.ts';
 import { linkAppointmentVenue } from './space.ts';
 
 /** Pure reducer. All effects validate before the caller commits anything. */
@@ -366,6 +366,28 @@ export function applyEvent(
           ...(effect.outcome ? { outcome: effect.outcome } : {}),
           ...(effect.note ? { note: effect.note } : {}),
         });
+        break;
+      }
+      case 'relationship.bonded': {
+        state.actorTies = state.actorTies ? [...state.actorTies] : [];
+        const existingTieIndex = state.actorTies.findIndex(
+          (t) => t.fromActorId === effect.fromActorId && t.toActorId === effect.toActorId,
+        );
+        const updatedTie: ActorTie = {
+          fromActorId: effect.fromActorId,
+          toActorId: effect.toActorId,
+          relationship: effect.relationship,
+          mayShare: effect.mayShare ?? true,
+        };
+        if (existingTieIndex >= 0) {
+          state.actorTies[existingTieIndex] = updatedTie;
+        } else {
+          state.actorTies.push(updatedTie);
+        }
+        const targetActor = state.actors.find((a) => a.id === effect.toActorId);
+        if (targetActor) {
+          targetActor.relationship = effect.relationship;
+        }
         break;
       }
       case 'belief.recorded':

@@ -1,3 +1,20 @@
+## 2026-10-18 · Task 44-134 人际关系羁绊深化与认知评价行动能力完整闭环已上线
+
+业务待推送 / Vercel 正式别名 `parallel-life-nu.vercel.app`。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200。
+
+交付内容与质量证据：
+1. **任务 44-134 人际关系羁绊深化能力闭环 (`relationship.bond`)**：
+   - `NPC_AGENT_CAPABILITIES` 注册能力 `'relationship.bond'`；
+   - 领域模型扩展：`WorldEffect` 新增 `'relationship.bonded'`（含 `fromActorId`, `toActorId`, `relationship`, `mayShare?`, `reason?`, `note?`）；`AgentActionResult.outputRefs` 新增 `'relationship'` 凭证类型；
+   - 严密前置条件与拦截闭环：自绑拦截校验（`ACTOR_CANNOT_BOND_SELF`）、目标角色存在性校验（`TARGET_ACTOR_NOT_FOUND`）、参数格式校验；
+   - 状态机原子跃迁：生成并持久化 `relationship.bonded` 事件、原子更新或新增 `world.actorTies` 并同步 `actor.relationship`、将羁绊条目记录至 `ActorAgentState.relationshipIds`、关联责任（`handlesResponsibilityIds`）与目标（`completedGoalIds`）原子履约标记（`status: 'fulfilled'`）；
+   - 真实 PostgreSQL 55432 端到端集成测试 `tests/integration/actor-relationship-bond.test.ts` 4/4 子测试全部通过。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 `tests/integration/actor-relationship-bond.test.ts` 全部通过；
+   - 历史能力 `actor-scene-activity.test.ts`、`actor-item-use.test.ts`、`actor-item-delivery.test.ts` 等 24/24 集成回归通过；
+   - 架构模块边界检查通过（620 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产优化构建成功（27/27 路由）。
+
 ## 2026-10-18 · Task 44-133 现场共同活动、互动与特定调查行动能力完整闭环已上线
 
 业务 0aef8738 / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。

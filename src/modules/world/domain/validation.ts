@@ -590,6 +590,22 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { note: text(item.note.trim(), 200) }
             : {}),
         };
+      case 'relationship.bonded':
+        return {
+          type: item.type,
+          id: effectId,
+          fromActorId: id(item.fromActorId),
+          toActorId: id(item.toActorId),
+          relationship: text(item.relationship, 100),
+          ...(typeof item.mayShare === 'boolean' ? { mayShare: item.mayShare } : {}),
+          at: isoInstant(item.at),
+          ...(typeof item.reason === 'string' && item.reason.trim()
+            ? { reason: text(item.reason.trim(), 200) }
+            : {}),
+          ...(typeof item.note === 'string' && item.note.trim()
+            ? { note: text(item.note.trim(), 200) }
+            : {}),
+        };
       case 'fact.established':
         return {
           type: item.type,
