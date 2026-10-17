@@ -1,3 +1,4 @@
+import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -158,7 +159,10 @@ test('L-02: History branching - reconstruct version, new life, unrewritten paren
     await t.test('4. Branched world progresses independently', async () => {
       // In forkedWorld (version 0), commit a new choice!
       const forkTurn = makeTurn(forkedWorldId, 0, '我不去北京了，我们去上海！', '好主意，去外滩看夜景！', '2026-10-17T11:30:00.000Z');
-      await repo.commit(sessionA, forkTurn.cmd, forkTurn.evt);
+      await assert.rejects(repo.commit(sessionA, forkTurn.cmd, forkTurn.evt), /ENGINE_EPOCH_CONFLICT/);
+      const runtime=npcAgentServices(db,()=>({async complete(){return JSON.stringify({statements:[{text:'好主意，去外滩看夜景！',dependsOnActionIds:[]}],goals:[],plans:[],actions:[],responsibilities:[],decisions:[]});}}));
+      const result=await runtime.sendMessageIfEnabled(userA,{...forkTurn.cmd,id:randomUUID()});
+      assert.equal(result?.status,'committed');
 
       const forkedNow = await repo.get(sessionA, forkedWorldId);
       assert.equal(forkedNow.version, 1);
