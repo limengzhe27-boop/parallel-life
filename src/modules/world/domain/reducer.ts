@@ -65,6 +65,7 @@ export function applyEvent(
       ...state.mediaRequests,
       ...(state.choices ?? []),
       ...(state.matters ?? []),
+      ...(state.items ?? []),
     ].map((item) => item.id),
   );
   const jobs: OutboxJob[] = [];
@@ -296,6 +297,31 @@ export function applyEvent(
           }
           target.responseAt = event.storyAt;
           target.responseVersion = event.version;
+        }
+        break;
+      }
+      case 'item.delivered': {
+        if (!actorIds.has(effect.toActorId)) {
+          throw new DomainError('INVALID_PROPOSAL', 'Unknown recipient');
+        }
+        state.items = state.items ? [...state.items] : [];
+        const existingIndex = state.items.findIndex((item) => item.id === effect.itemId);
+        if (existingIndex >= 0) {
+          state.items[existingIndex] = {
+            ...state.items[existingIndex]!,
+            holderActorId: effect.toActorId,
+            transferredAt: event.storyAt,
+            ...(effect.note ? { note: effect.note } : {}),
+          };
+        } else {
+          state.items.push({
+            id: effect.itemId,
+            title: effect.title ?? effect.itemId,
+            holderActorId: effect.toActorId,
+            sourceEventId,
+            transferredAt: event.storyAt,
+            ...(effect.note ? { note: effect.note } : {}),
+          });
         }
         break;
       }

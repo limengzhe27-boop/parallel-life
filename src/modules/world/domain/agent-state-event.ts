@@ -44,6 +44,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'appointment.cancelled' }>
       | Extract<WorldEffect, { type: 'appointment.confirmed' }>
       | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
+      | Extract<WorldEffect, { type: 'item.delivered' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
@@ -124,6 +125,34 @@ export function applyAgentStateEvent(
         }
         item.responseAt = event.storyAt;
         item.responseVersion = event.version;
+      }
+      continue;
+    }
+    if (effect.type === 'item.delivered') {
+      if (effect.fromActorId !== event.data.actorId) {
+        throw new DomainError('INVALID_PROPOSAL');
+      }
+      if (!current.actors.some((actor) => actor.id === effect.toActorId)) {
+        throw new DomainError('INVALID_PROPOSAL');
+      }
+      state.items = state.items ? [...state.items] : [];
+      const itemIndex = state.items.findIndex((item) => item.id === effect.itemId);
+      if (itemIndex >= 0) {
+        state.items[itemIndex] = {
+          ...state.items[itemIndex]!,
+          holderActorId: effect.toActorId,
+          transferredAt: event.storyAt,
+          ...(effect.note ? { note: effect.note } : {}),
+        };
+      } else {
+        state.items.push({
+          id: effect.itemId,
+          title: effect.title ?? effect.itemId,
+          holderActorId: effect.toActorId,
+          sourceEventId: event.id,
+          transferredAt: event.storyAt,
+          ...(effect.note ? { note: effect.note } : {}),
+        });
       }
       continue;
     }

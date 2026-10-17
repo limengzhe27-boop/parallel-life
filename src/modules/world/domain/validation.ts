@@ -527,6 +527,24 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { reason: text(item.reason.trim(), 200) }
             : {}),
         };
+      case 'item.delivered':
+        return {
+          type: item.type,
+          id: effectId,
+          itemId: id(item.itemId),
+          ...(typeof item.title === 'string' && item.title.trim()
+            ? { title: text(item.title.trim(), 100) }
+            : {}),
+          fromActorId: id(item.fromActorId),
+          toActorId: id(item.toActorId),
+          ...(typeof item.placeId === 'string' && item.placeId.trim()
+            ? { placeId: id(item.placeId.trim()) }
+            : {}),
+          at: isoInstant(item.at),
+          ...(typeof item.note === 'string' && item.note.trim()
+            ? { note: text(item.note.trim(), 200) }
+            : {}),
+        };
       case 'fact.established':
         return {
           type: item.type,

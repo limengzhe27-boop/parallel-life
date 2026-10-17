@@ -85,6 +85,17 @@ export type Note = {
   sourceEventId: Id;
 };
 
+/** An authoritative physical or informational item held by an actor or player. */
+export type WorldItem = {
+  id: Id;
+  title: string;
+  kind?: 'document' | 'prop' | 'gift' | 'token';
+  holderActorId: Id;
+  sourceEventId: Id;
+  transferredAt?: string;
+  note?: string;
+};
+
 /** A decision the protagonist actually stated, not a result inferred from an NPC reply. */
 export type StoryChoice = {
   id: Id;
@@ -161,6 +172,8 @@ export type WorldState = {
   choices?: StoryChoice[];
   /** Cross-scene near-term matters and life pursuits. */
   matters?: WorldMatter[];
+  /** Authoritative tracked items held by actors; absent in legacy snapshots. */
+  items?: WorldItem[];
 };
 
 export type WorldEffect =
@@ -207,6 +220,17 @@ export type WorldEffect =
       locationId?: string;
       placeId?: string;
       reason?: string;
+    }
+  | {
+      type: 'item.delivered';
+      id: Id;
+      itemId: Id;
+      title?: string;
+      fromActorId: Id;
+      toActorId: Id;
+      placeId?: string;
+      at: string;
+      note?: string;
     }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }

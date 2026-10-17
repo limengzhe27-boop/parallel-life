@@ -267,7 +267,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.capability !== 'appointment.fulfill' &&
           action.capability !== 'appointment.cancel' &&
           action.capability !== 'appointment.accept' &&
-          action.capability !== 'appointment.reschedule'
+          action.capability !== 'appointment.reschedule' &&
+          action.capability !== 'item.deliver'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -566,6 +567,80 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               ...(reason ? { reason } : {}),
             });
             outputRefs = [{ kind: 'appointment', id: appointmentId }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
+          }
+        } else if (action.capability === 'item.deliver') {
+          const itemId = action.parameters.itemId;
+          const recipientActorId = action.parameters.recipientActorId;
+          const title =
+            typeof action.parameters.title === 'string' && action.parameters.title.trim()
+              ? action.parameters.title.trim()
+              : undefined;
+          const note =
+            typeof action.parameters.note === 'string' && action.parameters.note.trim()
+              ? action.parameters.note.trim()
+              : undefined;
+
+          if (
+            typeof itemId !== 'string' ||
+            !itemId.trim() ||
+            typeof recipientActorId !== 'string' ||
+            !recipientActorId.trim() ||
+            Object.keys(action.parameters).some(
+              (key) => !['itemId', 'recipientActorId', 'title', 'note'].includes(key),
+            )
+          ) {
+            throw new AgentValidationError('ITEM_DELIVER_PARAMETERS');
+          }
+
+          if (recipientActorId === attempt.actorId) {
+            failureCode = 'CANNOT_DELIVER_TO_SELF';
+          }
+
+          if (!failureCode && !executionWorld.actors.some((a: any) => a.id === recipientActorId)) {
+            failureCode = 'RECIPIENT_NOT_FOUND';
+          }
+
+          if (!failureCode) {
+            const recipientActual = (
+              await sql.query(
+                'SELECT document FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND owner_id=$2 AND subject_key=$3 AND source_version<=$4',
+                [attempt.worldId, ownerId, `actor:${recipientActorId}`, attempt.expectedWorldVersion],
+              )
+            ).rows[0]?.document;
+
+            const ownPlaceId = ownActual?.status === 'at' ? ownActual.placeId : undefined;
+            const recipientPlaceId =
+              recipientActual?.status === 'at' ? recipientActual.placeId : undefined;
+
+            if (ownPlaceId && recipientPlaceId && ownPlaceId !== recipientPlaceId) {
+              failureCode = 'RECIPIENT_NOT_CO_LOCATED';
+            }
+          }
+
+          if (!failureCode && executionWorld.items && executionWorld.items.length > 0) {
+            const existingItem = executionWorld.items.find((i: any) => i.id === itemId);
+            if (existingItem && existingItem.holderActorId !== attempt.actorId) {
+              failureCode = 'ITEM_NOT_OWNED_BY_ACTOR';
+            }
+          }
+
+          if (!failureCode) {
+            effects.push({
+              type: 'item.delivered',
+              id: randomUUID(),
+              itemId,
+              ...(title ? { title } : {}),
+              fromActorId: attempt.actorId,
+              toActorId: recipientActorId,
+              ...(ownActual?.placeId ? { placeId: ownActual.placeId } : {}),
+              at,
+              ...(note ? { note } : {}),
+            });
+            outputRefs = [{ kind: 'item', id: itemId }];
             handledResponsibilityIds = [...action.handlesResponsibilityIds];
             if (action.goalId) {
               completedGoalIds = [action.goalId];
@@ -1115,6 +1190,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'appointment.cancelled' }>
               | Extract<WorldEffect, { type: 'appointment.confirmed' }>
               | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
+              | Extract<WorldEffect, { type: 'item.delivered' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },

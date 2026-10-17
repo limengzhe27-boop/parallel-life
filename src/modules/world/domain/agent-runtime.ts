@@ -105,7 +105,7 @@ export type AgentActionResult = AgentIdentity & {
   evidenceSourceIds: string[];
   /** Only the executing capability can certify completion; recording a plan never does. */
   completedGoalIds?: string[];
-  outputRefs?: { kind: 'appointment' | 'plan' | 'matter' | 'place' | 'journey' | 'media' | 'asset'; id: string }[];
+  outputRefs?: { kind: 'appointment' | 'plan' | 'matter' | 'place' | 'journey' | 'media' | 'asset' | 'item'; id: string }[];
 };
 export type AgentConversationFocus = {
   channel: 'private' | 'group' | 'scene';
