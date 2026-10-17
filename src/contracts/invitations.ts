@@ -14,7 +14,21 @@ export const InvitationRequestSchema = z.discriminatedUnion('operation', [
     at: z.iso.datetime({ offset: true }).transform((v) => new Date(v).toISOString()),
   }),
 ]);
-export type InvitationRequest = z.input<typeof InvitationRequestSchema>;
+export const InvitationAppSchema = z.enum([
+  'map',
+  'photos',
+  'calendar',
+  'messages',
+  'notes',
+  'scenes',
+  'moments',
+  'records',
+]);
+export const InvitationLinkSchema = z.strictObject({
+  app: InvitationAppSchema,
+  target: z.string().min(1).max(200),
+  label: z.string().min(1).max(100),
+});
 export const InvitationSchema = z.strictObject({
   origin: GenesisSourceSchema.optional(),
   id: AppointmentId,
@@ -24,6 +38,7 @@ export const InvitationSchema = z.strictObject({
   status: z.enum(['proposed', 'confirmed', 'cancelled', 'attended', 'missed']),
   responseAt: Timestamp.optional(),
   responseVersion: z.number().int().nonnegative().optional(),
+  links: z.array(InvitationLinkSchema).optional(),
 });
 export const InvitationReceiptSchema = z.strictObject({
   status: z.literal('committed'),

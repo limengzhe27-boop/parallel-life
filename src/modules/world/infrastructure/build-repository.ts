@@ -377,15 +377,16 @@ export class BuildRepository {
         .filter((a) => a.status)
         .map(({ sourceEventId: _source, sourceMessageId: _message, ...a }) => {
           const place = state.space?.places.find((p) => p.appointmentIds.includes(a.id));
+          const links = [
+            ...((a as { links?: Array<{ app: 'map'; target: string; label: string }> }).links ?? []),
+            ...(place ? [{ app: 'map' as const, target: place.id, label: place.name }] : []),
+          ];
           return {
             ...a,
             ...(history.find((e) => e.invitationId === a.id)
               ? { origin: history.find((e) => e.invitationId === a.id)!.source }
               : {}),
-            links: [
-              ...((a as { links?: Array<{ app: 'map'; target: string; label: string }> }).links ?? []),
-              ...(place ? [{ app: 'map' as const, target: place.id, label: place.name }] : []),
-            ],
+            ...(links.length ? { links } : {}),
           };
         }),
       title: state.title,
