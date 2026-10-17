@@ -1,3 +1,23 @@
+## 2026-10-17 · Task L-01 人生列表/切换/重命名/归档、删除和恢复策略已上线
+
+业务 0e29b13ccba9509df658c1448b17ee7be0a6bf9a / dpl_zvZq7pNMbKQ7QFd9LbhcCb6fZgW8 READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 worlds / publications 401 权限校验通过。
+
+交付内容与质量证据：
+1. **人生列表、切换、重命名、归档与安全删除策略 (Task L-01)**：
+   - 建立纯领域契约 `src/contracts/life-management.ts`：`WorldListItemSchema`（含 `status: 'active' | 'archived' | 'deleted'`、`previewText`、`actorCount`、`storyTime`、`sourceKind` 等）、`WorldListResponseSchema`、`WorldPatchRequestSchema`（重命名和归档/恢复动作校验）；
+   - 在 `PostgresWorldRepository` 中落地人生管理服务：
+     - `listUserWorlds(userId, options)`：仅检索用户自身人生，计算角色数、真实故事时钟及最新剧情摘要，软删除人生默认隐藏；
+     - `renameWorld(userId, worldId, newTitle)`：行锁 `FOR UPDATE` 更新人生标题，校验 1~60 字符边界；
+     - `archiveWorld(userId, worldId)`：记录 `archivedAt`，同事务直接暂停 `world_clock`；
+     - `restoreWorld(userId, worldId)`：从归档状态恢复；
+     - `deleteWorld(userId, worldId)`：软删除，标记 `deletedAt` 并同事务暂停 `world_clock`，避免物理删除造成外键悬空；
+     - `owned(sql, id)`：遇到已软删除的世界严格抛出 `NOT_FOUND`，保护历史数据安全。
+   - 提供标准 HTTP 路由：`GET /api/v1/worlds`（多状态过滤支持）、`PATCH /api/v1/worlds/[id]`（重命名与归档/恢复）、`DELETE /api/v1/worlds/[id]`（安全软删除），保持多租户权限绝对隔离。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 8/8 `tests/integration/life-management.test.ts` 全部通过（验证列表投影、输入长度校验、行锁并发、归档/删除时钟自动暂停、跨租户与已删除防越权保护）；
+   - 架构模块边界检查通过（611 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产环境构建打包成功。
+
 ## 2026-10-17 · MA-ARCH-44-120 试演运行状态与闭环恢复诊断已上线
 
 业务 406e6c5e533083cfc0ae0656a12ff35b8017c699 / dpl_3woAwLX9kwgBTseY76C4UCP1FooN READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
