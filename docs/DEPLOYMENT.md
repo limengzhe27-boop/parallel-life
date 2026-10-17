@@ -1,3 +1,9 @@
+## 2026-10-18 · 44-137 生产迁移实际收口（部分完成）
+
+产品代码08e94e37 / dpl_z341KtFDttQr3jys7cpeJZ3rn4Cb READY、正式Nu别名核实；91迁移checksum已核。原102旧档中96已迁移，连同原2新档与期间1新建，当前105世界为99新/6旧。渣男体验相关7档全部新引擎，46个人物上下文只读加载成功；保留原版本、内容及时钟。6旧档有历史unknown，未强迁、未清除回执、未自动重试。
+
+check3293/build通过；创建PG16、迁移PG17、历史分支PG9分别通过，公网关键200/匿名保护401。本轮0真实模型；真实连续演绎未验收，不能沿用此前“8步生成世界100%”表述为此项通过。详见[137实际报告](task-reports/44-137-UNIFIED-ENGINE-MIGRATION-I.md)。
+
 ## 2026-10-18 · Task 44-137 统一新引擎创建入口与现有世界平滑接续迁移完整闭环已上线
 
 业务 1778aeda / Vercel 部署 `https://parallel-life-6uad9d3zz-limengzhe27-boops-projects.vercel.app` / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，生产数据库迁移 0090 与 0091 已核验就绪，全链路 8 步真实大模型用户闭环自动化实测 100% 通过。

@@ -1,80 +1,29 @@
-# 交付报告：44-137-UNIFIED-ENGINE-MIGRATION-I 新引擎统一创建入口与现有世界平滑接续迁移完整闭环
+# 44-137 统一新引擎：生产迁移与剩余事项
 
-唯一集成人 codex-root-engine137 / 架构交付团队；独立 unified-engine137 工作树自 47d4ec80 推进，保留 Task 44-136 全部提交并完成双向集成闭环。
+负责人 codex-root-engine137。独立 unified-engine137；未覆盖小安136源码，已整合其已提交成果。不得将本任务整体标为完整自然体验通过。
 
-## 1. 任务概述与交付目标
-- **任务编号**：`44-137-UNIFIED-ENGINE-MIGRATION-I`
-- **任务名称**：新引擎统一创建入口与现有世界平滑接续迁移完整闭环
-- **核心契约**：
-  1. 遵循模块化单体架构与分层边界，领域层（domain）零框架依赖，严格由数据库事务与触发器保证原子状态迁移。
-  2. 统一未来世界创生：
-     - 正式发布世界入口默认 `agentRuntime=true`，不再依赖缺省关闭的环境开关。后台试演原新引擎入口保留。
-     - 用户生成世界（`buildHandler`）与官方人生世界（`OfficialLifeRepository.startOfficialLife`）均在事务内原子调用 `initializeNewAgentWorld`。
-     - 官方模板与生成世界在原创建事务中初始化全部 NPC 独立状态、引擎 2 与导演准入。生成任务使用仅限本人有效 build 租约与不可变 v0 创世的 SQL 能力，不赋 worker 任意 Agent 表写权限。
-     - 权威落库 `parallel_life.legacy_engine_checkpoints`、`agent_runtime_worlds`（`engine_epoch: 2`）、`actor_agent_states`（所有角色初始状态）与 `agent_narrative_admissions`（`kind: 'new_genesis', admitted_at_version: 0`）。
-  3. 现有旧世界（Epoch 1）平滑安全接续迁移：
-     - `migrateLegacyWorldInTransaction` 在单事务行级锁（`FOR UPDATE`）内完成版本核验与静默态（quiescent）检查，补齐导演 pending 检测；
-     - 准确映射已有约定日程：待确认提议（`proposed`）映射为 `waitingOn: 'player'`、`status: 'waiting'` 且无虚构 `nextCheck`；已确认约定（`confirmed` / `scheduled`）映射为 `status: 'open'` 并带真实时刻 `nextCheck` 与合法 appointment 句柄；
-     - 计算确定性真实角色定义引用 `agentDefinitionRef(state, actorId)`；
-     - 生成不可变断点存档 `legacy_engine_checkpoints`，记录当时世界的 `version`、`state_hash`（`md5(state)`）与创世哈希（`md5(initial_snapshot)`）；
-     - 入库叙事准入 `agent_narrative_admissions`（`kind: 'legacy_migration', admitted_at_version = world.version`）；
-     - 抑制开场重放：在 `readDirectorBootstrapCauseInTransaction` 中，对 `legacy_migration` 类型准入严格屏蔽 `bootstrap` 事件评估（返回 `null`），杜绝对已有老世界重复买入/重放开场剧情；
-     - 剧情节点防重：在 `readAuthoredEligibilityInTransaction` 中聚合历史节点记录，确保旧世界已发生或已拒绝的剧情节点不重复激活；
-     - 幂等性保证：再次调用时安全返回 `alreadyMigrated: true`，绝不擦除已有数据。
-  4. 0 付费模型调用，0 越权生产写，本地真实 PostgreSQL 55432 端到端集成测试通过。
+## 实际交付
 
----
+正式发布入口固定新引擎；官方模板、生成世界在原事务中经v0/作者身份/有效build租约约束初始化。历史再开分支经原创建事务进入新引擎接续。旧档使用标准agentDefinitionRef，读取与玩家界面相同的完整历史/约定投影，保留proposed与confirmed区别、合法来源和等待条件。原始消息、朋友圈、媒体、世界版本和时钟不重置。
 
-## 2. 核心架构变更与实现
+追加0090/0091迁移：不可变legacy_engine_checkpoints绑定当前世界版本/状态hash及初始快照；legacy_migration叙事准入禁止重放bootstrap。既有作者节点呈现/邀约/拒绝回执保留为占用依据，不伪造新事件结果。生成初始化SQL只授权当前owner或持有当前构建有效租约的worker，不授worker任意状态表权限。
 
-### 2.1 数据库迁移（Migrations 0090 & 0091）
-- **`db/migrations/0090_legacy_narrative_continuation.sql`**：
-  - 新建 `parallel_life.legacy_engine_checkpoints` 不可变断点表，配置 RLS 与权限；
-  - 增加触发器 `guard_legacy_checkpoint()` 强校验版本、状态 MD5、创世快照 MD5 及归属；
-  - 放宽 `agent_narrative_admissions` 检查约束，允许 `kind = 'legacy_migration'` 且 `admitted_at_version >= 0`；
-  - 增强 `guard_agent_narrative_admission()` 触发器逻辑，对接 legacy checkpoint；
-  - 创建安全定义函数 `parallel_life.initialize_built_agent_world(wid text, states jsonb)`，供应用和 Worker 在租约期内原子激活世界为 Epoch 2。
-- **`db/migrations/0091_genesis_agent_authority.sql`**：
-  - 收敛强化角色创世初始权限，确保角色初始状态在独立权限下受控写入。
+## 生产证据
 
-### 2.2 基础设施与领域层接线
-- **`src/modules/world/infrastructure/new-agent-world.ts`**：
-  封装 `initializeNewAgentWorld(sql, world)`，统一新世界创生激活管道。
-- **`src/modules/world/infrastructure/build-handler.ts` & `src/modules/settings/infrastructure/official-life-repository.ts`**：
-  在创世世界事务中引入 `initializeNewAgentWorld`，让未来创建的全部世界（用户生成或官方人生）直接步入新引擎 Epoch 2。
-- **`src/modules/world/infrastructure/legacy-world-migration.ts`**：
-  - 支持 `proposed` 与 `confirmed` 约定日程状态区分；
-  - 写入 `legacy_engine_checkpoints` 并调用 `admitLegacyAgentNarrativeInTransaction`；
-  - 强化静止态检测，覆盖 `director_runtime_attempts`。
-- **`src/modules/world/infrastructure/agent-narrative-repository.ts`**：
-  - 新增 `admitLegacyAgentNarrativeInTransaction`；
-  - 在 `readDirectorBootstrapCauseInTransaction` 中识别 `legacy_migration`，抑制开局重放。
-- **`src/modules/world/infrastructure/authored-event-eligibility-repository.ts`**：
-  载入已有 `publication_story_nodes` 记录，防止老世界迁移后重复触发旧事件。
-- **`src/server/publisher-world-http.ts`**：
-  默认开启 `agentRuntime = true`，使发布作品试演与游玩直接接入新引擎。
+业务08e94e371db7eb16bbfd96130ee875f6522a9670 / dpl_z341KtFDttQr3jys7cpeJZ3rn4Cb READY并绑定正式Nu域。之后仅文档/测试提交另记，不混淆产品代码。
 
----
+91迁移逐项checksum已核。盘点原104世界（102旧、2新），原旧档96个已迁移；期间另有1个新建世界，总105世界中99新、6旧。《渣男体验》原作/副本/分手之后的7个现有体验档全部引擎2，46个人物私聊上下文均通过原读取器只读加载。原有版本分别5、15、0、1、3、18、15，未归零。
 
-## 3. 测试与质量门禁证据
+每档迁移使用单事务，保存忽略目录私有备份，比较原state hash/version/world_clock前后完全相同再提交。已有消息、媒体、日程投影不删除不重生成。一个从未领取、attempts=0且lease=NULL的排队任务在保存原记录后标为cancelled，原因ENGINE_MIGRATION_UNSENT_RETIRED，不冒充完成。第一份迁移在最终READY核验前发生，验证内容/时钟无变化后暂停，之后将READY检查放入迁移脚本本身，后续在正式READY后执行。
 
-### 3.1 真实 PostgreSQL 55432 端到端集成测试
-- **测试文件**：
-  - `tests/integration/unified-engine-migration.test.ts` (1/1 pass)
-  - `tests/integration/legacy-world-migration.test.ts` (6/6 pass)
-  - `tests/integration/legacy-world-migration-http.test.ts` (8/8 pass)
-  - `tests/integration/official-lives.test.ts` (pass)
-  - `tests/integration/world-build.test.ts` (pass)
-  - `tests/integration/actor-moment-interact.test.ts` (5/5 pass)
-  - `tests/integration/actor-moment-publish.test.ts` (4/4 pass)
-  - `tests/integration/actor-relationship-bond.test.ts` (4/4 pass)
-  - `tests/integration/actor-scene-activity.test.ts` (3/3 pass)
-  - `tests/integration/actor-item-use.test.ts` (4/4 pass)
-  - `tests/integration/actor-item-delivery.test.ts` (3/3 pass)
-- **结果**：**合计 35/35 项真实数据库集成测试 100% 全部通过！**
+6个未迁移世界存在历史结果未知的task/director调用。保留原unknown记录，不清空、不重买、不强切；其ID与来源保存在私有迁移结果。必须核清或实施经验证的隔离接管后才能完成“所有旧档”目标，不能用99/105宣称全部完成。
 
-### 3.2 全量工程门禁与构建
-- `npm run check:boundaries`：**621 个文件零架构越界**
-- `npm run typecheck`：**零 TypeScript 类型错误**
-- `npm test`：**3,293 / 3,293 项测试 100% 全部通过**
-- `npm run build`：**27/27 条路由构建与静态优化 100% 成功**
+## 必要验证
+
+实际执行check3293通过、build通过；原创建入口PG16、迁移PG17、原历史分支PG9分别通过（有重叠，不累计成无意义总数）。历史分支验证旧writer被拒绝，原NPC服务可写新分支，父历史不变。验收使用受控模型，仅证明运行/持久化接线。
+
+公网health/workbench/published200，匿名publisher/works401。真实人物计划/导演演绎尚未验收；本轮提出最多12文字调用/2合成档范围，未收到答复不执行，旧额度不可沿用。本轮0模型。
+
+## 后续与恢复
+
+6个unknown待恢复，关系确认权限、行动成功与完整目标完成边界仍待修复；不因本次迁移宣称解决。已有新状态后只前向恢复，不降回epoch1、不删除旧资料。不能把scripts/verify-full-e2e.mjs生成世界并读取手机的8步检查称作作者事件自然演绎验收。
