@@ -8,9 +8,10 @@ export class SignedSession {
   private sign(value: string) {
     return createHmac('sha256', this.secret).update(value).digest('base64url');
   }
-  issue(now = Date.now()) {
-    const userId = randomUUID();
-    const payload = `${userId}.${Math.floor(now / 1000) + 30 * 86400}`;
+  issue(userIdOrNow?: string | number, now = Date.now()) {
+    const userId = typeof userIdOrNow === 'string' ? userIdOrNow : randomUUID();
+    const timestamp = typeof userIdOrNow === 'number' ? userIdOrNow : now;
+    const payload = `${userId}.${Math.floor(timestamp / 1000) + 30 * 86400}`;
     return { userId, token: `${payload}.${this.sign('session:' + payload)}` };
   }
   verify(token: string, now = Date.now()): string | null {

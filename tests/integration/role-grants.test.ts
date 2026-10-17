@@ -83,6 +83,8 @@ test('trigger helpers allow their writers; private authoring stays inaccessible 
       'guard_agent_episode_request',
       'guard_agent_episode_receipt',
       'guard_agent_episode_progress',
+      'guard_agent_episode_outcome',
+      'guard_player_episode_binding',
     ]);
     assert.equal(rows.filter((row) => triggerOnly.has(row.proname)).length, triggerOnly.size);
     for (const row of rows.filter((row) => triggerOnly.has(row.proname))) {

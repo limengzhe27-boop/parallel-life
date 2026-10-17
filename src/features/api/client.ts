@@ -1,5 +1,15 @@
 import { OpeningStatusSchema, OpeningAdvanceSchema } from '../../contracts/publication-opening.ts';
 import {
+  RegisterRequestSchema,
+  LoginRequestSchema,
+  AuthResultSchema,
+  SessionStatusSchema,
+  type RegisterRequest,
+  type LoginRequest,
+  type AuthResult,
+  type SessionStatus,
+} from '../../contracts/auth.ts';
+import {
   ClockActivityRequestSchema,
   type ClockActivityRequest,
 } from '../../contracts/world-clock.ts';
@@ -568,5 +578,43 @@ export class LifeClient {
       },
     });
     if (!res.ok) throw new ApiFailure('INTERNAL', '清理会话失败');
+    this.csrf = undefined;
+    this.sessionPromise = undefined;
+  }
+
+  async getSessionStatus(): Promise<SessionStatus> {
+    const res = await this.transport('/api/v1/session', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new ApiFailure('UNAVAILABLE', '无法获取会话状态');
+    const body = await res.json();
+    const parsed = SessionStatusSchema.parse(body);
+    if (parsed.csrfToken) {
+      this.csrf = parsed.csrfToken;
+    }
+    return parsed;
+  }
+
+  async registerAccount(input: RegisterRequest): Promise<AuthResult> {
+    await this.connect();
+    const res = await this.request('/auth/register', AuthResultSchema, {
+      method: 'POST',
+      body: JSON.stringify(RegisterRequestSchema.parse(input)),
+    });
+    this.csrf = res.csrfToken;
+    return res;
+  }
+
+  async loginAccount(input: LoginRequest): Promise<AuthResult> {
+    await this.connect();
+    const res = await this.request('/auth/login', AuthResultSchema, {
+      method: 'POST',
+      body: JSON.stringify(LoginRequestSchema.parse(input)),
+    });
+    this.csrf = res.csrfToken;
+    return res;
   }
 }

@@ -89,3 +89,79 @@ test('unused-upload disposal accepts no-content and preserves server conflicts',
   conflict = true;
   await assert.rejects(client.discardUnusedUpload(assetId), { code: 'CONFLICT' });
 });
+
+test('client handles account register, login, session status, and clearSession', async () => {
+  const accountId = randomUUID();
+  let currentCsrf = 'csrf-initial-' + 'b'.repeat(30);
+
+  const client = new LifeClient(async (url, options) => {
+    const u = String(url);
+    if (u === '/api/v1/session' && options?.method === 'GET') {
+      return Response.json({
+        authenticated: true,
+        kind: 'account',
+        userId: accountId,
+        identifier: 'tester@example.com',
+        csrfToken: currentCsrf,
+      });
+    }
+    if (u.endsWith('/session') && options?.method === 'POST') {
+      return Response.json({ kind: 'guest', csrfToken: currentCsrf });
+    }
+    if (u.endsWith('/session') && options?.method === 'DELETE') {
+      currentCsrf = '';
+      return Response.json({ status: 'cleared' });
+    }
+    if (u.endsWith('/auth/register') && options?.method === 'POST') {
+      const body = JSON.parse(String(options.body));
+      assert.equal(body.identifier, 'newuser@example.com');
+      currentCsrf = 'csrf-registered-' + 'c'.repeat(27);
+      return Response.json({
+        accountId,
+        identifier: body.identifier,
+        kind: 'account',
+        mergedGuest: false,
+        csrfToken: currentCsrf,
+      });
+    }
+    if (u.endsWith('/auth/login') && options?.method === 'POST') {
+      const body = JSON.parse(String(options.body));
+      assert.equal(body.identifier, 'tester@example.com');
+      currentCsrf = 'csrf-loggedin-' + 'd'.repeat(29);
+      return Response.json({
+        accountId,
+        identifier: body.identifier,
+        kind: 'account',
+        mergedGuest: true,
+        csrfToken: currentCsrf,
+      });
+    }
+    throw new Error(`Unexpected url: ${u}`);
+  });
+
+  // 1. Session status check
+  const status = await client.getSessionStatus();
+  assert.equal(status.authenticated, true);
+  assert.equal(status.kind, 'account');
+  assert.equal(status.identifier, 'tester@example.com');
+
+  // 2. Register account
+  const reg = await client.registerAccount({
+    identifier: 'newuser@example.com',
+    password: 'password123',
+  });
+  assert.equal(reg.accountId, accountId);
+  assert.equal(reg.identifier, 'newuser@example.com');
+
+  // 3. Login account with guest merge
+  const login = await client.loginAccount({
+    identifier: 'tester@example.com',
+    password: 'password123',
+    mergeGuest: true,
+  });
+  assert.equal(login.accountId, accountId);
+  assert.equal(login.mergedGuest, true);
+
+  // 4. Clear session
+  await client.clearSession();
+});
