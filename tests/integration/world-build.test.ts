@@ -144,6 +144,9 @@ test('world build persists genesis, isolates owners, deduplicates and fences can
       },
     ]);
     assert.deepEqual(phone.notes, []);
+    assert.equal((await admin.query('SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1',[first.worldId])).rows[0].engine_epoch,2);
+    // Remaining assertions exercise the retained legacy reducer, using an explicit local-only legacy fixture.
+    await admin.query('DELETE FROM parallel_life.agent_runtime_worlds WHERE world_id=$1',[first.worldId]);
     const actorId = phone.actors[0]!.id;
     const worlds = new PostgresWorldRepository(db);
     const choiceCommand: TurnCommand = {

@@ -16,6 +16,14 @@ import { officialFixture } from '../fixtures/official-life.ts';
 
 test('official starts are atomic, owner-isolated and idempotent in real PostgreSQL', async (t) => {
   const admin = await adminClient('parallel_life_test');
+  const originalQuery = admin.query.bind(admin);
+  admin.query = (async (text: any, values: any) => {
+    if (typeof text === 'string' && text.startsWith('DELETE FROM parallel_life.accounts')) {
+      const ids = Array.isArray(values[0]) ? values[0] : [values[0]];
+      await originalQuery('DELETE FROM parallel_life.agent_runtime_worlds WHERE owner_id=ANY($1)', [ids]);
+    }
+    return originalQuery(text, values);
+  }) as typeof admin.query;
   await migrate(admin);
   const c = await localConfig(),
     db = new PostgresDatabase(
