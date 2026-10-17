@@ -1,3 +1,4 @@
+import { initializeNewAgentWorld } from '../../world/infrastructure/new-agent-world.ts';
 import { randomUUID } from 'node:crypto';
 import {
   OfficialLifeCardSchema,
@@ -133,6 +134,7 @@ export class OfficialLifeRepository {
           'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) VALUES($1,$2,$3,$4)',
           [worldId, owner, state, seed],
         );
+        await initializeNewAgentWorld(sql, state);
         // Build.phone reads these same metadata; no succeeded fake AI task is inserted.
         await sql.query(
           'INSERT INTO parallel_life.world_builds(seed_id,owner_id,world_id,opening) VALUES($1,$2,$3,$4)',

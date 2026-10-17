@@ -45,7 +45,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   );
   const admission = (
     await sql.query(
-      `SELECT a.genesis_hash FROM parallel_life.agent_narrative_admissions a
+      `SELECT a.genesis_hash,a.admitted_at_version FROM parallel_life.agent_narrative_admissions a
      WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3`,
       [input.worldId, ownerId, input.engineEpoch],
     )
@@ -169,7 +169,7 @@ export async function readDirectorNarrativeWakeInTransaction(
       id,
       kind: 'authored_eligibility',
       genesisHash: admission.genesis_hash,
-      admittedAtVersion: 0,
+      admittedAtVersion: admission.admitted_at_version,
       qualifications: unseen,
     },
     hasPendingDirector,

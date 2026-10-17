@@ -161,6 +161,40 @@ export async function admitNewAgentNarrativeInTransaction(
   );
   return admission(row);
 }
+/** Explicit continuation enrollment: no opening bootstrap and no rewrite of history. */
+export async function admitLegacyAgentNarrativeInTransaction(
+  sql: SqlClient,
+  owner: string,
+  input: { worldId: string; engineEpoch: number },
+): Promise<NarrativeAdmission> {
+  const w = await frame(sql, owner, input.worldId, true);
+  epoch(w.epoch, input.engineEpoch);
+  const prior = (
+    await sql.query(
+      'SELECT * FROM parallel_life.agent_narrative_admissions WHERE world_id=$1 AND owner_id=$2',
+      [input.worldId, owner],
+    )
+  ).rows[0];
+  if (prior) return admission(prior);
+  const checkpoint = (
+    await sql.query(
+      'SELECT * FROM parallel_life.legacy_engine_checkpoints WHERE world_id=$1 AND owner_id=$2',
+      [input.worldId, owner],
+    )
+  ).rows[0];
+  if (!checkpoint || checkpoint.world_version !== w.version) invalid();
+  const row = (
+    await sql.query(
+      `INSERT INTO parallel_life.agent_narrative_admissions(world_id,owner_id,engine_epoch,kind,genesis_hash,admitted_at_version) VALUES($1,$2,$3,'legacy_migration',$4,$5) RETURNING *`,
+      [input.worldId, owner, input.engineEpoch, checkpoint.genesis_hash, w.version],
+    )
+  ).rows[0];
+  await sql.query(
+    'INSERT INTO parallel_life.director_observed_states(world_id,owner_id) VALUES($1,$2) ON CONFLICT(world_id) DO NOTHING',
+    [input.worldId, owner],
+  );
+  return admission(row);
+}
 /** One readonly statement pins admission, hash, current frame and prior attempt statuses together. */
 export async function readDirectorBootstrapCauseInTransaction(
   sql: SqlClient,
@@ -171,7 +205,7 @@ export async function readDirectorBootstrapCauseInTransaction(
   const r = (
     await sql.query(
       `SELECT w.version,c.engine_epoch,a.genesis_hash,
-    a.engine_epoch admission_epoch,md5(i.state::text) initial_hash,
+    a.kind admission_kind,a.engine_epoch admission_epoch,md5(i.state::text) initial_hash,
     COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('id',d.id,'causeId',d.snapshot#>>'{evaluationCause,id}','status',d.status,'paid',d.sent_at IS NOT NULL OR d.response_hash IS NOT NULL))
       FROM parallel_life.director_runtime_attempts d WHERE d.world_id=w.id AND d.owner_id=w.owner_id
         AND d.engine_epoch=c.engine_epoch AND d.snapshot#>>'{evaluationCause,kind}'='bootstrap'
@@ -189,6 +223,7 @@ export async function readDirectorBootstrapCauseInTransaction(
   if (r.version !== input.worldVersion) throw new DomainError('VERSION_CONFLICT');
   if (!r.genesis_hash) return null;
   if (r.admission_epoch !== input.engineEpoch || r.genesis_hash !== r.initial_hash) invalid();
+  if (r.admission_kind === 'legacy_migration') return null;
   // Actual completion or any paid terminal consumes this genesis evaluation. A
   // confirmed zero-send cancellation does not: resume gets one stable successor.
   if (

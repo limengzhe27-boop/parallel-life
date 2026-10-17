@@ -232,13 +232,13 @@ const Snapshot = z
           id: Key,
           kind: z.literal('bootstrap'),
           genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
-          admittedAtVersion: z.literal(0),
+          admittedAtVersion: z.number().int().nonnegative(),
         }),
         z.strictObject({
           id: Key,
           kind: z.literal('authored_eligibility'),
           genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
-          admittedAtVersion: z.literal(0),
+          admittedAtVersion: z.number().int().nonnegative(),
           qualifications: z
             .array(z.strictObject({ nodeKey: Key, nodeHash: Hash, qualificationKey: Hash }))
             .min(1),

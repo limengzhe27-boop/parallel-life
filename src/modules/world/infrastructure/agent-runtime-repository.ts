@@ -216,6 +216,7 @@ export async function switchAgentEngineEpochInTransaction(
     EXISTS(SELECT 1 FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send')) OR
     EXISTS(SELECT 1 FROM parallel_life.commands WHERE world_id=$1 AND owner_id=$2 AND status IN ('queued','running','unknown')) OR
     EXISTS(SELECT 1 FROM parallel_life.tasks WHERE owner_id=$2 AND (input->>'worldId'=$1 OR (scope_kind='world' AND scope_id=$1)) AND status IN ('queued','running','unknown')) OR
+    EXISTS(SELECT 1 FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send')) OR
     EXISTS(SELECT 1 FROM parallel_life.world_director_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('started','unknown')) OR
     EXISTS(SELECT 1 FROM parallel_life.publication_opening_deliveries WHERE world_id=$1 AND owner_id=$2 AND status IN ('sending','unknown')) OR
     EXISTS(SELECT 1 FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 AND status IN ('claimed','unknown')) AS busy`,

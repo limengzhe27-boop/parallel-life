@@ -1,3 +1,6 @@
+import { agentDefinitionRef } from './agent-snapshot-repository.ts';
+import type { WorldState } from '../domain/types.ts';
+import { admitLegacyAgentNarrativeInTransaction } from './agent-narrative-repository.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ActorAgentState, AgentResponsibility } from '../domain/agent-runtime.ts';
 import {
@@ -89,7 +92,8 @@ export async function inspectLegacyWorldReadiness(
 
   const appointments = state.appointments ?? [];
   const openAppointments = appointments.filter(
-    (ap) => !ap.status || ['scheduled', 'open', 'waiting'].includes(ap.status),
+    (ap) =>
+      !ap.status || ['proposed', 'confirmed', 'scheduled', 'open', 'waiting'].includes(ap.status),
   );
 
   const blockers: string[] = [];
@@ -104,7 +108,8 @@ export async function inspectLegacyWorldReadiness(
         EXISTS(SELECT 1 FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send')) OR
         EXISTS(SELECT 1 FROM parallel_life.commands WHERE world_id=$1 AND owner_id=$2 AND status IN ('queued','running','unknown')) OR
         EXISTS(SELECT 1 FROM parallel_life.tasks WHERE owner_id=$2 AND (input->>'worldId'=$1 OR (scope_kind='world' AND scope_id=$1)) AND status IN ('queued','running','unknown')) OR
-        EXISTS(SELECT 1 FROM parallel_life.world_director_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('started','unknown')) OR
+        EXISTS(SELECT 1 FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send')) OR
+    EXISTS(SELECT 1 FROM parallel_life.world_director_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('started','unknown')) OR
         EXISTS(SELECT 1 FROM parallel_life.publication_opening_deliveries WHERE world_id=$1 AND owner_id=$2 AND status IN ('sending','unknown')) OR
         EXISTS(SELECT 1 FROM parallel_life.publication_story_nodes WHERE world_id=$1 AND owner_id=$2 AND status IN ('claimed','unknown')) AS busy`,
       [worldId, ownerId],
@@ -196,28 +201,30 @@ export async function migrateLegacyWorldInTransaction(
       (ap) =>
         (ap.actorId === actor.id ||
           (Array.isArray(ap.participantIds) && ap.participantIds.includes(actor.id))) &&
-        (!ap.status || ['scheduled', 'open', 'waiting'].includes(ap.status)),
+        (!ap.status ||
+          ['proposed', 'confirmed', 'scheduled', 'open', 'waiting'].includes(ap.status)),
     );
 
     const responsibilities: AgentResponsibility[] = actorApts.map((ap) => {
-      const isOwnerActor = ap.actorId === actor.id;
       return {
         id: `resp_${ap.id}`,
         subject: { kind: 'appointment', id: ap.id },
         summary: ap.title && ap.title.trim().length > 0 ? ap.title.trim() : '已约定日程',
-        status: 'open',
-        waitingOn: isOwnerActor ? 'player' : 'world',
-        sourceIds: [],
+        status: ap.status === 'proposed' ? 'waiting' : 'open',
+        waitingOn: ap.status === 'proposed' ? 'player' : 'self',
+        sourceIds: [`appointment:${ap.id}`],
         nextCheck:
-          ap.at && typeof ap.at === 'string'
-            ? [{ kind: 'at_or_after', at: ap.at, sourceId: ap.id }]
+          ap.status !== 'proposed' && ap.at && typeof ap.at === 'string'
+            ? [{ kind: 'at_or_after', at: ap.at, sourceId: `appointment:${ap.id}` }]
             : [],
       };
     });
 
     totalMigratedResponsibilities += responsibilities.length;
 
-    const definitionRef = input.actorDefinitionRefs?.[actor.id] ?? `legacy:actor:${actor.id}`;
+    const definitionRef =
+      input.actorDefinitionRefs?.[actor.id] ??
+      agentDefinitionRef({ ...w.state, id: input.worldId } as WorldState, actor.id);
 
     const actorState: ActorAgentState = {
       worldId: input.worldId,
@@ -240,12 +247,22 @@ export async function migrateLegacyWorldInTransaction(
     await initializeActorAgentStateInTransaction(sql, ownerId, actorState);
   }
 
+  await sql.query(
+    `INSERT INTO parallel_life.legacy_engine_checkpoints(world_id,owner_id,world_version,state_hash,genesis_hash) SELECT w.id,w.owner_id,w.version,md5(w.state::text),md5(i.state::text) FROM parallel_life.worlds w JOIN parallel_life.world_initial_snapshots i ON i.world_id=w.id AND i.owner_id=w.owner_id WHERE w.id=$1 AND w.owner_id=$2 ON CONFLICT(world_id) DO NOTHING`,
+    [input.worldId, ownerId],
+  );
+
   // 4. Switch engine epoch to 2 atomically (validating quiescent state and actor completeness)
   await switchAgentEngineEpochInTransaction(sql, ownerId, {
     worldId: input.worldId,
     expectedEpoch: 1,
     nextEpoch: 2,
     expectedWorldVersion: w.version,
+  });
+
+  await admitLegacyAgentNarrativeInTransaction(sql, ownerId, {
+    worldId: input.worldId,
+    engineEpoch: 2,
   });
 
   return {

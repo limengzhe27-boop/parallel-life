@@ -234,7 +234,13 @@ ${JSON.stringify({ mode: 'quiet', selectedCandidateIds: [], deferred: [], nudges
 function evaluationCauseView(snapshot: DirectorSnapshot) {
   const c = snapshot.evaluationCause;
   if (!c) return undefined;
-  if (!c.id || !/^[a-f0-9]{32}$/.test(c.genesisHash) || c.admittedAtVersion !== 0) invalid();
+  if (
+    !c.id ||
+    !/^[a-f0-9]{32}$/.test(c.genesisHash) ||
+    !Number.isSafeInteger(c.admittedAtVersion) ||
+    c.admittedAtVersion < 0
+  )
+    invalid();
   if (c.kind === 'bootstrap')
     return {
       id: c.id,

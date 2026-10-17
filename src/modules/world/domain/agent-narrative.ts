@@ -2,9 +2,9 @@
 export type NarrativeAdmission = {
   worldId: string;
   engineEpoch: number;
-  kind: 'new_genesis';
+  kind: 'new_genesis' | 'legacy_migration';
   genesisHash: string;
-  admittedAtVersion: 0;
+  admittedAtVersion: number;
 };
 export type AuthoredWakeQualification = {
   nodeKey: string;
@@ -12,12 +12,12 @@ export type AuthoredWakeQualification = {
   qualificationKey: string;
 };
 export type DirectorEvaluationCause =
-  | { id: string; kind: 'bootstrap'; genesisHash: string; admittedAtVersion: 0 }
+  | { id: string; kind: 'bootstrap'; genesisHash: string; admittedAtVersion: number }
   | {
       id: string;
       kind: 'authored_eligibility';
       genesisHash: string;
-      admittedAtVersion: 0;
+      admittedAtVersion: number;
       qualifications: AuthoredWakeQualification[];
     };
 /** Private to this NPC. A consideration request is neither a world fact nor a goal. */

@@ -1,3 +1,4 @@
+import { initializeNewAgentWorld } from './new-agent-world.ts';
 import { randomUUID } from 'node:crypto';
 import { BuildInputSchema } from '../../../contracts/world-build.ts';
 import { ApprovedSeedSchema } from '../../../contracts/seeds.ts';
@@ -276,6 +277,7 @@ export function buildHandler(queue: PostgresTaskQueue, planner: WorldPlanner, mo
         input.seedId,
         opening,
       ]);
+      await initializeNewAgentWorld(sql, state);
       return {
         value: undefined,
         outcome: {

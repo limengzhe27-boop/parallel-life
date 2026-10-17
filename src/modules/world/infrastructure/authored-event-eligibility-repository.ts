@@ -142,6 +142,13 @@ export async function readAuthoredEligibilityInTransaction(
       [world.id, ownerId],
     )
   ).rows;
+  const priorNodes = (
+    await sql.query(
+      `SELECT n.node_key key FROM parallel_life.publication_story_nodes n JOIN parallel_life.publication_story_receipts r ON r.id=n.latest_receipt_id AND r.world_id=n.world_id AND r.owner_id=n.owner_id JOIN parallel_life.legacy_engine_checkpoints m ON m.world_id=n.world_id AND m.owner_id=n.owner_id WHERE n.world_id=$1 AND n.owner_id=$2 AND n.status IN ('presented','offered','committed','declined','skipped','expired')`,
+      [world.id, ownerId],
+    )
+  ).rows;
+  occupied.push(...priorNodes);
   return {
     catalog,
     eligibility: evaluateAuthoredEventEligibility(
