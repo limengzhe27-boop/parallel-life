@@ -168,7 +168,17 @@ async function main() {
   // 8. 访问平行手机 World Phone 完整界面数据
   console.log('⌛ 8. 载入平行手机 (World Phone)...');
   const phoneRes = await fetch(`${baseUrl}/api/v1/worlds/${build.worldId}`, { headers });
+  if (!phoneRes.ok) {
+    const errorText = await phoneRes.text();
+    const errMsg = phoneRes.headers.get('x-error-message');
+    console.error('❌ 平行手机载入失败 HTTP:', phoneRes.status, errMsg ? decodeURIComponent(errMsg) : errorText);
+    process.exit(1);
+  }
   const phone = await phoneRes.json();
+  if (!phone.actors) {
+    console.error('❌ 平行手机数据结构异常:', phone);
+    process.exit(1);
+  }
   console.log('🎉 8. 平行手机载入成功！');
   console.log(`   📱 标题: ${phone.title}`);
   console.log(`   👤 平行身份: ${phone.identity}`);

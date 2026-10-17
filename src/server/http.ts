@@ -109,6 +109,9 @@ export async function endpoint(run: () => Promise<Response>) {
       status,
     );
     response.headers.set('X-Request-Id', requestId);
+    if (error instanceof Error && error.message) {
+      response.headers.set('X-Error-Message', encodeURIComponent(error.message.slice(0, 500)));
+    }
     if (status === 429) response.headers.set('Retry-After', '60');
     return response;
   }
