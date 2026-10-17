@@ -41,6 +41,8 @@ export type AgentStateCommittedEvent = {
     effects?: (
       | Extract<WorldEffect, { type: 'appointment.proposed' }>
       | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
+      | Extract<WorldEffect, { type: 'appointment.cancelled' }>
+      | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
 };
@@ -89,6 +91,33 @@ export function applyAgentStateEvent(
       item.status = 'attended';
       item.responseAt = event.storyAt;
       item.responseVersion = event.version;
+      continue;
+    }
+    if (effect.type === 'appointment.cancelled') {
+      const item = state.appointments.find((a) => a.id === effect.appointmentId);
+      if (!item) throw new DomainError('INVALID_PROPOSAL');
+      item.status = 'cancelled';
+      item.responseAt = event.storyAt;
+      item.responseVersion = event.version;
+      continue;
+    }
+    if (effect.type === 'media.requested') {
+      const isVideo = 'mediaType' in effect && effect.mediaType === 'video';
+      const mediaType = isVideo ? 'video' : 'image';
+      const defaultTitle = isVideo ? '【事件记录】现场动态' : '【事件留影】现场留影';
+      const title =
+        'title' in effect && typeof effect.title === 'string' && effect.title.trim()
+          ? effect.title.trim().slice(0, 80)
+          : defaultTitle;
+      validateEventId(effect.id);
+      state.mediaRequests.push({
+        id: effect.id,
+        prompt: effect.prompt,
+        title,
+        status: 'pending',
+        sourceEventId: event.id,
+        mediaType,
+      });
       continue;
     }
     if (
@@ -143,13 +172,24 @@ export function applyNativeAgentCalendarEffects(
       (e) =>
         e.type !== 'appointment.proposed' &&
         e.type !== 'appointment.fulfilled' &&
+        e.type !== 'appointment.cancelled' &&
+        e.type !== 'media.requested' &&
         e.type !== 'message.received',
     )
   )
     throw new DomainError('INVALID_PROPOSAL');
   const calendar = effects.filter(
-    (e): e is Extract<WorldEffect, { type: 'appointment.proposed' }> =>
-      e.type === 'appointment.proposed',
+    (
+      e,
+    ): e is
+      | Extract<WorldEffect, { type: 'appointment.proposed' }>
+      | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
+      | Extract<WorldEffect, { type: 'appointment.cancelled' }>
+      | Extract<WorldEffect, { type: 'media.requested' }> =>
+      e.type === 'appointment.proposed' ||
+      e.type === 'appointment.fulfilled' ||
+      e.type === 'appointment.cancelled' ||
+      e.type === 'media.requested',
   );
   // Reuse the exact transition/source/result invariants, without pretending the native speech was a DM.
   const projected = applyAgentStateEvent(before, {
@@ -165,14 +205,27 @@ export function applyNativeAgentCalendarEffects(
       effects: calendar,
     },
   });
-  if (calendar.some((e) => native.appointments.some((a) => a.id === e.id)))
+  if (
+    calendar
+      .filter((e) => e.type === 'appointment.proposed')
+      .some((e) => native.appointments.some((a) => a.id === e.id))
+  )
     throw new DomainError('INVALID_PROPOSAL');
   return {
     ...native,
-    ...(calendar.some((e) => e.placeId !== undefined) ? { space: projected.space } : {}),
+    ...(calendar.some((e) => e.type === 'appointment.proposed' && e.placeId !== undefined)
+      ? { space: projected.space }
+      : {}),
     appointments: [
-      ...native.appointments,
+      ...native.appointments.map((a) => {
+        const updated = projected.appointments.find((p) => p.id === a.id);
+        return updated ?? a;
+      }),
       ...projected.appointments.filter((a) => a.sourceEventId === event.id),
+    ],
+    mediaRequests: [
+      ...native.mediaRequests,
+      ...projected.mediaRequests.filter((m) => m.sourceEventId === event.id),
     ],
   };
 }

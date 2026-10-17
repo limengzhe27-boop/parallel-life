@@ -605,7 +605,7 @@ export class PostgresWorldRepository implements WorldRepository {
         [appointment.id, state.id, session.userId, appointment],
       );
     for (const effect of event.data.effects ?? [])
-      if (effect.type === 'appointment.fulfilled') {
+      if (effect.type === 'appointment.fulfilled' || effect.type === 'appointment.cancelled') {
         const item = state.appointments.find((a) => a.id === effect.appointmentId);
         if (item)
           await sql.query(

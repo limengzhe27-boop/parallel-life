@@ -133,10 +133,11 @@ export async function projectNativeAgentChannelInTransaction(
     reject('NATIVE_SPEAKER_MISMATCH');
   for (const effect of effects) {
     if (effect.type === 'message.received') continue;
-    if (effect.type === 'appointment.fulfilled') {
+    if (effect.type === 'appointment.fulfilled' || effect.type === 'appointment.cancelled') {
       if (effect.actorId !== attempt.actorId) reject('NATIVE_EFFECT_ACTOR');
       continue;
     }
+    if (effect.type === 'media.requested') continue;
     if (effect.type !== 'appointment.proposed') reject('NATIVE_EFFECT_UNSUPPORTED');
     if (effect.participantIds.length !== 1 || effect.participantIds[0] !== attempt.actorId)
       reject('NATIVE_EFFECT_ACTOR');
@@ -321,6 +322,11 @@ export async function projectNativeAgentChannelInTransaction(
     await sql.query(
       'INSERT INTO parallel_life.world_appointments(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
       [appointment.id, world.id, ownerId, appointment],
+    );
+  for (const media of next.mediaRequests?.filter((m) => m.sourceEventId === eventId) ?? [])
+    await sql.query(
+      'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+      [media.id, world.id, ownerId, media],
     );
   for (const job of jobs)
     await sql.query(

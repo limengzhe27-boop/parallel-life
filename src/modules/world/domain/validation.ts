@@ -490,6 +490,17 @@ export function parseProposal(value: unknown): TurnProposal {
           actorId: id(item.actorId),
           at: isoInstant(item.at),
         };
+      case 'appointment.cancelled':
+        return {
+          type: item.type,
+          id: effectId,
+          appointmentId: id(item.appointmentId),
+          actorId: id(item.actorId),
+          at: isoInstant(item.at),
+          ...(typeof item.reason === 'string' && item.reason.trim()
+            ? { reason: text(item.reason.trim(), 200) }
+            : {}),
+        };
       case 'fact.established':
         return {
           type: item.type,

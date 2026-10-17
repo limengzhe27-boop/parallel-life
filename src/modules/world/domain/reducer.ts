@@ -268,6 +268,15 @@ export function applyEvent(
         }
         break;
       }
+      case 'appointment.cancelled': {
+        const target = state.appointments.find((a) => a.id === effect.appointmentId);
+        if (target) {
+          target.status = 'cancelled';
+          target.responseAt = event.storyAt;
+          target.responseVersion = event.version;
+        }
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,

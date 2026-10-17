@@ -4,4 +4,8 @@ export const NPC_AGENT_CAPABILITIES = [
   'appointment.propose',
   'travel.begin',
   'appointment.fulfill',
+  'appointment.cancel',
+  'media.generate_image',
+  'media.generate_video',
+  'media.share',
 ] as const;

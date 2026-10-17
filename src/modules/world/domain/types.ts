@@ -181,6 +181,14 @@ export type WorldEffect =
       actorId: Id;
       at: string;
     }
+  | {
+      type: 'appointment.cancelled';
+      id: Id;
+      appointmentId: Id;
+      actorId: Id;
+      at: string;
+      reason?: string;
+    }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }
   | {

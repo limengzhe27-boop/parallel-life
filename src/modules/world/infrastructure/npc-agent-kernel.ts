@@ -17,6 +17,11 @@ import { readActorStrategyBasis } from './agent-source-resolver.ts';
 import { projectAgentWorldChange } from './world-awareness-commit.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import {
+  validateGenerateImageToolInput,
+  validateGenerateVideoToolInput,
+  validateMediaShareToolInput,
+} from '../../media/domain/media-tools.ts';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentKernel, AgentSnapshot } from '../application/agent-runtime-ports.ts';
 import type { AgentActionResult, AgentProposal } from '../domain/agent-runtime.ts';
@@ -257,7 +262,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.status = eligibility.status;
           continue;
         }
-        if (action.handlesResponsibilityIds.length && action.capability !== 'appointment.fulfill')
+        if (
+          action.handlesResponsibilityIds.length &&
+          action.capability !== 'appointment.fulfill' &&
+          action.capability !== 'appointment.cancel'
+        )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
         let handledResponsibilityIds: string[] = [];
@@ -368,6 +377,63 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               completedGoalIds = [action.goalId];
             }
           }
+        } else if (action.capability === 'appointment.cancel') {
+          const appointmentId = action.parameters.appointmentId;
+          const reason =
+            typeof action.parameters.reason === 'string' && action.parameters.reason.trim()
+              ? action.parameters.reason.trim()
+              : undefined;
+          if (
+            typeof appointmentId !== 'string' ||
+            !appointmentId.trim() ||
+            Object.keys(action.parameters).some((key) => !['appointmentId', 'reason'].includes(key))
+          )
+            throw new AgentValidationError('APPOINTMENT_CANCEL_PARAMETERS');
+          if (action.handlesResponsibilityIds.length > 1)
+            throw new AgentValidationError('APPOINTMENT_CANCEL_RESPONSIBILITY_LIMIT');
+
+          const appointmentRow = (
+            await sql.query(
+              'SELECT a.document FROM parallel_life.world_appointments a WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3',
+              [attempt.worldId, ownerId, appointmentId],
+            )
+          ).rows[0]?.document;
+
+          const ap =
+            appointmentRow ?? executionWorld.appointments?.find((a: any) => a.id === appointmentId);
+          if (!ap) {
+            failureCode = 'APPOINTMENT_NOT_FOUND';
+          } else if (['cancelled', 'attended', 'missed'].includes(ap.status)) {
+            failureCode = 'APPOINTMENT_ALREADY_TERMINAL';
+          } else {
+            const isParticipant =
+              ap.participantIds?.includes(attempt.actorId) ||
+              ap.proposerId === attempt.actorId ||
+              executionWorld.appointments?.some(
+                (a: any) =>
+                  a.id === appointmentId &&
+                  (a.participantIds?.includes(attempt.actorId) || a.proposerId === attempt.actorId),
+              );
+            if (!isParticipant) {
+              failureCode = 'ACTOR_NOT_APPOINTMENT_PARTICIPANT';
+            }
+          }
+
+          if (!failureCode) {
+            effects.push({
+              type: 'appointment.cancelled',
+              id: randomUUID(),
+              appointmentId,
+              actorId: attempt.actorId,
+              at,
+              ...(reason ? { reason } : {}),
+            });
+            outputRefs = [{ kind: 'appointment', id: appointmentId }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
+          }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
           if (
@@ -459,6 +525,49 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             departures.push(committed.journey);
             outputRefs = [{ kind: 'journey', id: committed.journey.id }];
           }
+        } else if (action.capability === 'media.generate_image') {
+          const validation = validateGenerateImageToolInput(action.parameters);
+          if (!validation.success)
+            throw new AgentValidationError(`MEDIA_IMAGE_PARAMETERS:${validation.errorCode}`);
+          const reqId = randomUUID();
+          const desc = validation.data.sceneDescription;
+          effects.push({
+            type: 'media.requested',
+            id: reqId,
+            prompt: desc,
+            mediaType: 'image',
+            title: `【留影】${desc.slice(0, 30)}`,
+          });
+          outputRefs = [{ kind: 'media', id: reqId }];
+        } else if (action.capability === 'media.generate_video') {
+          const validation = validateGenerateVideoToolInput(action.parameters);
+          if (!validation.success)
+            throw new AgentValidationError(`MEDIA_VIDEO_PARAMETERS:${validation.errorCode}`);
+          const reqId = randomUUID();
+          const desc = validation.data.actionDescription;
+          effects.push({
+            type: 'media.requested',
+            id: reqId,
+            prompt: desc,
+            mediaType: 'video',
+            title: `【动态】${desc.slice(0, 30)}`,
+          });
+          outputRefs = [{ kind: 'media', id: reqId }];
+        } else if (action.capability === 'media.share') {
+          const validation = validateMediaShareToolInput(action.parameters);
+          if (!validation.success)
+            throw new AgentValidationError(`MEDIA_SHARE_PARAMETERS:${validation.errorCode}`);
+          const assetRow = (
+            await sql.query(
+              `SELECT id, status FROM parallel_life.assets WHERE world_id=$1 AND owner_id=$2 AND id=$3`,
+              [attempt.worldId, ownerId, validation.data.assetId],
+            )
+          ).rows[0];
+          if (!assetRow || assetRow.status !== 'ready') {
+            failureCode = 'ASSET_NOT_READY';
+          } else {
+            outputRefs = [{ kind: 'asset', id: validation.data.assetId }];
+          }
         } else throw new AgentValidationError('UNREGISTERED_CAPABILITY');
         results.push({
           id: `${eventId}_result_${results.length}`,
@@ -510,21 +619,55 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       }
       for (const result of results) {
         if (result.outcome === 'succeeded') {
+          const isCancel = effects.some(
+            (e) =>
+              e.type === 'appointment.cancelled' &&
+              result.handledResponsibilityIds.some((rId) => {
+                const r = accepted.state.responsibilities.find((resp) => resp.id === rId);
+                return r?.subject.kind === 'appointment' && r.subject.id === e.appointmentId;
+              }),
+          );
           for (const respId of result.handledResponsibilityIds) {
             const resp = accepted.state.responsibilities.find((r) => r.id === respId);
-            if (resp && resp.status !== 'fulfilled') {
-              resp.status = 'fulfilled';
+            if (resp && resp.status !== 'fulfilled' && resp.status !== 'withdrawn') {
+              resp.status = isCancel ? 'withdrawn' : 'fulfilled';
               resp.resolutionResultId = result.id;
-              resp.endReason = '已按约履行';
+              resp.endReason = isCancel ? '约定已撤回或取消' : '已按约履行';
             }
           }
           for (const goalId of result.completedGoalIds ?? []) {
             const goal = accepted.state.goals.find((g) => g.id === goalId);
-            if (goal && goal.status !== 'fulfilled') {
-              goal.status = 'fulfilled';
+            if (goal && goal.status !== 'fulfilled' && goal.status !== 'withdrawn') {
+              goal.status = isCancel ? 'withdrawn' : 'fulfilled';
               goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
-              goal.endReason = '目标已达成';
+              goal.endReason = isCancel ? '约定目标已撤回' : '目标已达成';
             }
+          }
+        }
+      }
+      for (const cancelEffect of effects.filter(
+        (e): e is Extract<WorldEffect, { type: 'appointment.cancelled' }> =>
+          e.type === 'appointment.cancelled',
+      )) {
+        for (const resp of accepted.state.responsibilities) {
+          if (
+            resp.subject.kind === 'appointment' &&
+            resp.subject.id === cancelEffect.appointmentId &&
+            resp.status !== 'fulfilled' &&
+            resp.status !== 'withdrawn'
+          ) {
+            resp.status = 'withdrawn';
+            resp.endReason = '约定已撤回或取消';
+          }
+        }
+        for (const goal of accepted.state.goals) {
+          if (
+            goal.summary.includes(cancelEffect.appointmentId) &&
+            goal.status !== 'fulfilled' &&
+            goal.status !== 'withdrawn'
+          ) {
+            goal.status = 'withdrawn';
+            goal.endReason = '约定目标已撤回';
           }
         }
       }
@@ -691,6 +834,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             effects: effects as (
               | Extract<WorldEffect, { type: 'appointment.proposed' }>
               | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
+              | Extract<WorldEffect, { type: 'appointment.cancelled' }>
+              | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },
         };
@@ -734,6 +879,32 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               "UPDATE parallel_life.world_appointments SET document=jsonb_set(document, '{status}', '\"attended\"') WHERE world_id=$1 AND owner_id=$2 AND id=$3",
               [attempt.worldId, ownerId, effect.appointmentId],
             );
+        for (const media of next.mediaRequests.filter((item) => item.sourceEventId === event.id)) {
+          await sql.query(
+            'INSERT INTO parallel_life.world_media_requests(id,world_id,owner_id,document) VALUES($1,$2,$3,$4)',
+            [media.id, attempt.worldId, ownerId, media],
+          );
+          await sql.query(
+            'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,job_type,payload) VALUES($1,$2,$3,$4,$5,$6)',
+            [
+              `${event.id}_${media.id}`,
+              attempt.worldId,
+              ownerId,
+              event.id,
+              media.mediaType === 'video' ? 'video.generate' : 'image.generate',
+              {
+                id: `${event.id}_${media.id}`,
+                eventId: event.id,
+                worldId: attempt.worldId,
+                type: media.mediaType === 'video' ? 'video.generate' : 'image.generate',
+                requestId: media.id,
+                prompt: media.prompt,
+                title: media.title,
+                mediaType: media.mediaType,
+              },
+            ],
+          );
+        }
         await sql.query(
           'UPDATE parallel_life.worlds SET version=$2,state=$3,updated_at=now() WHERE id=$1',
           [attempt.worldId, event.version, compact],
