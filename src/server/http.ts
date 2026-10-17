@@ -55,6 +55,7 @@ export async function endpoint(run: () => Promise<Response>) {
   } catch (error) {
     const supplied = error instanceof Error ? (error as Error & { code?: string }).code : undefined;
     const statusMap: Record<string, number> = {
+      UNAUTHORIZED: 401,
       NOT_FOUND: 404,
       VERSION_CONFLICT: 409,
       IDEMPOTENCY_CONFLICT: 409,
