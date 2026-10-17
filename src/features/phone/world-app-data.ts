@@ -132,6 +132,14 @@ export function worldAppData(
             tag: 'event' as const,
             mediaType: isVideo ? 'video' : 'image',
           };
+        } else if (message.text) {
+          const match = message.text.match(/^\[分享了相册照片：《(.+?)》\]$/);
+          if (match) {
+            const matchedPhoto = photos.find((p) => p.title === match[1]);
+            if (matchedPhoto) {
+              photo = matchedPhoto;
+            }
+          }
         }
         const media = (
           message as typeof message & {
@@ -170,7 +178,7 @@ export function worldAppData(
       }),
       ...local.map((message) => ({ ...message })),
     ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
-    notes: world.notes.map((note) => ({ ...note })),
+    notes: (world.notes ?? []).map((note) => ({ ...note })),
     choices: (world.choices ?? []).map((choice) => ({
       id: choice.id,
       actorName: world.actors.find((actor) => actor.id === choice.actorId)?.name ?? '这段对话',

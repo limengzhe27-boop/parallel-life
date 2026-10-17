@@ -611,6 +611,9 @@ function setupNotes() {
     setDraft: (key, value) => {
       drafts[key] = value;
     },
+    bringDraft: (key, value) => {
+      drafts[key] = (drafts[key] ? drafts[key] + '\n' : '') + value;
+    },
     setNoteDraft: (key, value) => {
       uiContext!.noteDrafts[key] = value;
     },

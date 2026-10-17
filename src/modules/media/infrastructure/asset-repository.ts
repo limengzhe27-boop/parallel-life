@@ -8,6 +8,7 @@ import { TaskError } from '../../tasks/infrastructure/task-repository.ts';
 import { AssetSchema, ProfileSchema } from '../../../contracts/api.ts';
 import type { AssetStore } from '../application/asset-store.ts';
 import { isValidImageMagicBytes } from '../domain/magic-bytes.ts';
+import { projectStoryTime } from '../../world/domain/clock.ts';
 function publicAsset(row: Record<string, unknown>) {
   return AssetSchema.parse({
     id: row.id,
@@ -94,6 +95,21 @@ export class AssetRepository {
           ).rows[0];
           if (!world) throw new TaskError('NOT_FOUND');
           storyAt = world.state.time;
+          const clockRow = (
+            await sql.query('SELECT clock FROM parallel_life.world_clock WHERE world_id=$1', [
+              album.worldId,
+            ])
+          ).rows[0];
+          if (clockRow?.clock) {
+            try {
+              const projected = projectStoryTime(clockRow.clock, new Date().toISOString());
+              if (storyAt && Date.parse(projected) > Date.parse(storyAt)) {
+                storyAt = projected;
+              }
+            } catch {
+              /* keep world.state.time */
+            }
+          }
           const previous = (
             await sql.query(
               'SELECT p.request_hash,a.* FROM parallel_life.world_album p JOIN parallel_life.assets a ON a.id=p.asset_id WHERE p.world_id=$1 AND p.command_id=$2',

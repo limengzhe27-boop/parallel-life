@@ -25,7 +25,7 @@ const statusLabel = {
   missed: '未赴约',
 };
 export function CalendarApp({ target, open }: PhoneAppContext) {
-  const { data, actions, drafts, setDraft } = usePhoneApps();
+  const { data, actions, drafts, setDraft, bringDraft } = usePhoneApps();
   const [tab, setTab] = useState<'today' | 'calendar' | 'invitations'>('calendar');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -333,7 +333,7 @@ export function CalendarApp({ target, open }: PhoneAppContext) {
           onCreate={(inv) => {
             const actorId = inv.participantIds[0];
             if (!actorId) return;
-            setDraft(
+            bringDraft(
               `message:${actorId}`,
               `想约你${timeText(inv.at)}一起${inv.title}，你有空吗？${inv.notes ? ` ${inv.notes}` : ''}`,
             );
@@ -538,15 +538,32 @@ function InvitationDetail({
         onWait={() => void waitForInvitation()}
       />
 
+      {operations[`scene-enter:${n.id}`]?.error && (
+        <p className={s.error} role="alert">
+          {operations[`scene-enter:${n.id}`]!.error}
+        </p>
+      )}
+
       {(n.status === 'proposed' || n.status === 'confirmed') && (
         <div className={s.invitationActions}>
           {n.status === 'confirmed' && isDue && actions.enterScene && (
             <button
               className={s.primary}
-              disabled={operation?.busy}
+              disabled={operation?.busy || operations[`scene-enter:${n.id}`]?.busy}
               onClick={() => void run(`scene-enter:${n.id}`, n.id, () => actions.enterScene!(n.id))}
             >
               进入现场
+            </button>
+          )}
+          {n.links?.find((link) => link.app === 'map') && (
+            <button
+              type="button"
+              className={s.secondary}
+              onClick={() =>
+                open('map', n.links!.find((link) => link.app === 'map')!.target)
+              }
+            >
+              📍 前往【{n.links.find((link) => link.app === 'map')!.label || '约定地点'}】（打开地图）
             </button>
           )}
           {n.status === 'confirmed' && leadActor && (

@@ -126,7 +126,12 @@ export type PhoneActions = AppointmentWaitPhoneActions & {
   enterScene?: (appointmentId: string) => Promise<PhoneActionReceipt>;
   setWallpaper?: (url: string) => void;
   uploadPhoto?: (file: File, commandId: string) => Promise<PhoneActionReceipt>;
-  sendMessage?: (actorId: string, text: string, commandId: string) => Promise<PhoneActionReceipt>;
+  sendMessage?: (
+    actorId: string,
+    text: string,
+    commandId: string,
+    photo?: PhonePhoto,
+  ) => Promise<PhoneActionReceipt>;
   retryMessage?: (messageId: string, commandId: string) => Promise<PhoneActionReceipt>;
   markRead?: (actorId: string) => Promise<void>;
   retryPhoto?: (photoId: string, commandId: string) => Promise<PhoneActionReceipt>;

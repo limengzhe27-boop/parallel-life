@@ -217,7 +217,9 @@ test('system record buttons only navigate: actual callbacks cannot mark a matter
   assert.ok(buttons > 0);
   assert.ok(opened.some(([app, target]) => app === 'map' && target === 'studio'));
   assert.ok(
-    opened.every(([app]) => ['map', 'messages', 'calendar', 'notes'].includes(String(app))),
+    opened.every(([app]) =>
+      ['map', 'messages', 'calendar', 'notes', 'records'].includes(String(app)),
+    ),
   );
   assert.deepEqual(data, original);
 });
@@ -238,8 +240,18 @@ test('active and completed list callbacks navigate by stable sys ID with no matt
       if (type === 'button' && typeof props.onClick === 'function') (props.onClick as () => void)();
     },
   );
-  assert.ok(opened.some(([app, target]) => app === 'notes' && target === data.current[0]!.id));
-  assert.ok(opened.some(([app, target]) => app === 'notes' && target === data.history[0]!.id));
+  assert.ok(
+    opened.some(
+      ([app, target]) =>
+        (app === 'notes' || app === 'records') && target === data.current[0]!.id,
+    ),
+  );
+  assert.ok(
+    opened.some(
+      ([app, target]) =>
+        (app === 'notes' || app === 'records') && target === data.history[0]!.id,
+    ),
+  );
   assert.deepEqual(data, original);
 });
 test('an uninvolved same-name actor receives no matter, private fact or foreign conversation', () => {

@@ -3,6 +3,7 @@ import type { PhoneAppContext } from '../phone-shell.tsx';
 import type { PhoneContact, PhonePhoto } from './types.ts';
 import { usePhoneApps } from './provider.tsx';
 import { Avatar, Empty, Feedback, Links, Search } from './common.tsx';
+import { findRelatedInvitation } from './appointment-link.ts';
 import { PersonCard } from './person-card.tsx';
 import { formatChatTime, searchable, timeText, dayKey } from './helpers.ts';
 import { playSendSound, playTapSound } from '../audio-feedback.ts';
@@ -1173,8 +1174,11 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     operation?.busy ||
     (operation?.status === 'accepted' && operation.signature === text) ||
     messages.some((m) => m.role === 'user' && (m.status === 'unknown' || m.status === 'pending'));
-  const relatedInvitation =
-    data.invitations.find((inv) => inv.participantIds.includes(actor.id)) ?? null;
+  const relatedInvitation = findRelatedInvitation(
+    data.invitations,
+    actor.id,
+    data.referenceTime,
+  );
 
   return (
     <div
@@ -1467,13 +1471,15 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
             >
               🗓️ 约定：{relatedInvitation.title} ·{' '}
               {
-                {
-                  proposed: '待回复',
-                  confirmed: '已约好',
-                  attended: '已赴约',
-                  cancelled: '已取消',
-                  missed: '未赴约',
-                }[relatedInvitation.status]
+                (
+                  {
+                    proposed: '待回复',
+                    confirmed: '已约好',
+                    attended: '已赴约',
+                    cancelled: '已取消',
+                    missed: '未赴约',
+                  } as Record<string, string>
+                )[relatedInvitation.status] || ''
               }{' '}
               ›
             </span>
@@ -2273,10 +2279,10 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                       playSendSound();
                       setShowPhotoPicker(false);
                       const shareText = `[分享了相册照片：《${photo.title}》]`;
-                      setDraft(key, shareText);
                       if (actions.sendMessage) {
-                        await run(key, shareText, (id) =>
-                          actions.sendMessage!(actor.id, shareText, id),
+                        // Use an isolated operation key so user's typed draft in message input box is preserved
+                        await run(`share-photo:${actor.id}`, shareText, (id) =>
+                          actions.sendMessage!(actor.id, shareText, id, photo),
                         );
                       }
                     }}
@@ -2499,26 +2505,43 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 >
                   设为手机壁纸
                 </button>
-                <button
-                  type="button"
-                  style={{
-                    flex: 1,
-                    padding: '9px',
-                    borderRadius: '8px',
-                    background: '#f1f5f9',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
-                    fontWeight: 500,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    setPreviewModalPhoto(null);
-                    open('photos', previewModalPhoto.id);
-                  }}
-                >
-                  在相册中查看
-                </button>
+                {data.photos.some((p) => p.id === previewModalPhoto.id) ? (
+                  <button
+                    type="button"
+                    style={{
+                      flex: 1,
+                      padding: '9px',
+                      borderRadius: '8px',
+                      background: '#f1f5f9',
+                      color: '#334155',
+                      border: '1px solid #cbd5e1',
+                      fontWeight: 500,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      setPreviewModalPhoto(null);
+                      open('photos', previewModalPhoto.id);
+                    }}
+                  >
+                    在相册中查看
+                  </button>
+                ) : (
+                  <span
+                    style={{
+                      flex: 1,
+                      padding: '9px',
+                      textAlign: 'center',
+                      fontSize: '11px',
+                      color: '#94a3b8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    💬 聊天专属附件
+                  </span>
+                )}
               </div>
             </div>
           </div>

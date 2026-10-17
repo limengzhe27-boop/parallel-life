@@ -375,12 +375,19 @@ export class BuildRepository {
       version: state.version,
       invitations: state.appointments
         .filter((a) => a.status)
-        .map(({ sourceEventId: _source, sourceMessageId: _message, ...a }) => ({
-          ...a,
-          ...(history.find((e) => e.invitationId === a.id)
-            ? { origin: history.find((e) => e.invitationId === a.id)!.source }
-            : {}),
-        })),
+        .map(({ sourceEventId: _source, sourceMessageId: _message, ...a }) => {
+          const place = state.space?.places.find((p) => p.appointmentIds.includes(a.id));
+          return {
+            ...a,
+            ...(history.find((e) => e.invitationId === a.id)
+              ? { origin: history.find((e) => e.invitationId === a.id)!.source }
+              : {}),
+            links: [
+              ...((a as { links?: Array<{ app: 'map'; target: string; label: string }> }).links ?? []),
+              ...(place ? [{ app: 'map' as const, target: place.id, label: place.name }] : []),
+            ],
+          };
+        }),
       title: state.title,
       time: storyTime,
       identity: metadata.opening.identity,

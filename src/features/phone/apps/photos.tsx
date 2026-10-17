@@ -206,7 +206,7 @@ function PhotoInfo({
   close: () => void;
   open: PhoneAppContext['open'];
 }) {
-  const { data, actions, operations, run, setDraft } = usePhoneApps();
+  const { data, actions, operations, run, setDraft, bringDraft } = usePhoneApps();
   const dialog = useRef<HTMLDivElement>(null);
   const [actorId, setActorId] = useState('');
   const [notice, setNotice] = useState('');
@@ -345,7 +345,7 @@ function PhotoInfo({
                 onClick={() => {
                   const contact = data.contacts.find((c) => c.id === actorId);
                   if (!contact) return;
-                  setDraft(`message:${contact.id}`, `想和你聊聊相册里的《${photo.title}》。`);
+                  bringDraft(`message:${contact.id}`, `想和你聊聊相册里的《${photo.title}》。`);
                   open('messages', contact.id);
                 }}
               >

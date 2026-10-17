@@ -57,6 +57,7 @@ const RecoveryMessage = z.strictObject({
   text: z.string().min(1).max(4000),
   at: z.iso.datetime(),
   status: z.enum(['pending', 'failed', 'unknown']),
+  photo: z.record(z.string(), z.unknown()).optional(),
 });
 export const SendCommandSchema = z.strictObject({
   worldId: Id,
@@ -76,7 +77,7 @@ export function restoreSendMessages(raw: string | null, worldId: string): PhoneM
   try {
     const result = Recovery.safeParse(raw ? JSON.parse(raw) : undefined);
     return result.success && result.data.worldId === worldId
-      ? result.data.messages.map((message) => ({
+      ? (result.data.messages as unknown as PhoneMessage[]).map((message) => ({
           ...message,
           status: message.status === 'pending' ? 'unknown' : message.status,
         }))

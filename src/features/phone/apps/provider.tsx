@@ -9,6 +9,7 @@ import type {
 } from './types.ts';
 import type { GroupsController } from '../groups/use-groups.ts';
 import { errorText } from './helpers.ts';
+import { mergeIncomingDraft } from './appointment-link.ts';
 export type Operation = {
   busy?: boolean;
   status?: 'accepted' | 'committed' | 'failed';
@@ -32,6 +33,7 @@ type Context = {
   onReload?: () => Promise<void>;
   drafts: Record<string, string>;
   setDraft: (key: string, text: string) => void;
+  bringDraft: (key: string, text: string) => void;
   noteDrafts: Record<string, NoteDraft>;
   setNoteDraft: (key: string, value: NoteDraft) => void;
   clearNoteDraft: (key: string) => void;
@@ -174,6 +176,11 @@ function WorldApps({
         onReload,
         drafts,
         setDraft: (key, text) => updateDrafts((d) => ({ ...d, [key]: text })),
+        bringDraft: (key, incomingText) =>
+          updateDrafts((d) => ({
+            ...d,
+            [key]: mergeIncomingDraft(d[key], incomingText),
+          })),
         noteDrafts,
         setNoteDraft: (key, value) => updateNotes((d) => ({ ...d, [key]: value })),
         clearNoteDraft: (key) =>

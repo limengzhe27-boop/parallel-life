@@ -46,7 +46,7 @@ import type {
 import { worldAppData } from './world-app-data.ts';
 import { mergeNoteReceipt } from './world-receipts.ts';
 import { dialogueText, formatChatTime } from './apps/helpers.ts';
-import type { PhoneMessage } from './apps/types.ts';
+import type { PhoneMessage, PhonePhoto } from './apps/types.ts';
 import { PhoneIcon } from './phone-icons.tsx';
 import { playTapSound } from './audio-feedback.ts';
 import { routeHash } from './navigation.ts';
@@ -206,6 +206,7 @@ export function WorldPhoneApp({
     text: string,
     commandId: string,
     replacing?: string,
+    photo?: PhonePhoto,
   ) {
     if (automatic) await liveTimeRef.current.startConversation();
     const unresolved = localMessages.find(
@@ -220,6 +221,7 @@ export function WorldPhoneApp({
       text,
       at: data?.time ?? new Date().toISOString(),
       status: 'pending',
+      ...(photo ? { photo } : {}),
     };
     function rememberCommand(expectedVersion: number) {
       sendCommands.current[commandId] = { worldId, commandId, actorId, text, expectedVersion };
@@ -706,8 +708,8 @@ export function WorldPhoneApp({
               void load();
               return { status: 'committed' };
             }}
-            onSendMessage={async (actorId, text, commandId) => {
-              await deliverMessage(actorId, text, commandId);
+            onSendMessage={async (actorId, text, commandId, photo) => {
+              await deliverMessage(actorId, text, commandId, undefined, photo);
               return { status: 'committed' };
             }}
             onRetryMessage={async (messageId, commandId) => {

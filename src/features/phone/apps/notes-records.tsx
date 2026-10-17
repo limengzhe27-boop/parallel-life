@@ -65,7 +65,7 @@ function RecordRows({ records, open }: { records: readonly RecordItem[]; open: O
             <button
               type="button"
               className={s.row}
-              onClick={() => open('notes', record.id)}
+              onClick={() => open('records', record.id)}
               aria-label={`${record.title}，${record.stateLabel}${record.stepChecklist ? `，已完成 ${record.stepChecklist.completedRequired}/${record.stepChecklist.requiredTotal}` : ''}`}
             >
               <span className={s.rowText}>

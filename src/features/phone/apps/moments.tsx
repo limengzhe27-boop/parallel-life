@@ -19,7 +19,9 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
   const latestMessage = data.messages.at(-1)?.id;
   useEffect(() => {
     const controller = new AbortController();
-    setResult(null);
+    if (loaded?.worldId !== worldId) {
+      setResult(null);
+    }
     setError(false);
     const run = async () => {
       try {
