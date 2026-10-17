@@ -115,7 +115,11 @@ export type ClockStore = {
   beatCommandId(worldId: string, plannedFor: string): string;
   /** One director may advance a world at a time, including the model call. */
   withAdvanceLock<T>(worldId: string, run: () => Promise<T>): Promise<T>;
-  read(ownerId: string, worldId: string): Promise<import('../domain/clock.ts').WorldClock>;
+  read(
+    ownerId: string,
+    worldId: string,
+    realNow?: string,
+  ): Promise<import('../domain/clock.ts').WorldClock>;
   ensureAnchor(
     ownerId: string,
     worldId: string,

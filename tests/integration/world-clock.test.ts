@@ -66,6 +66,14 @@ test('advancing a world plays bounded beats, moves story time, and stops when pa
       appointments: [],
       mediaRequests: [],
     });
+    await clock.write(owner, worldId, {
+      storyNow: start,
+      speed: 1,
+      paused: false,
+      lastTickAt: start,
+      missedBeats: 0,
+      summary: null,
+    });
 
     /* An open appointment pulls its participant into the very first beat. */
     const appointmentCommand = {
@@ -237,6 +245,14 @@ test('director retry reconciles an unknown call without automatic re-spend or du
       appointments: [],
       mediaRequests: [],
     });
+    await clock.write(owner, worldId, {
+      storyNow: start,
+      speed: 1,
+      paused: false,
+      lastTickAt: start,
+      missedBeats: 0,
+      summary: null,
+    });
     const setup = { id: randomUUID(), worldId, actorId, text: '周三看展？', expectedVersion: 0 };
     await worlds.commit(session, setup, {
       schemaVersion: 1,
@@ -330,6 +346,14 @@ test('director retry reconciles an unknown call without automatic re-spend or du
       appointments: [],
       mediaRequests: [],
     });
+    await clock.write(owner, silentId, {
+      storyNow: start,
+      speed: 1,
+      paused: false,
+      lastTickAt: start,
+      missedBeats: 0,
+      summary: null,
+    });
     const silent = await advanceWorld(deps(true), session, silentId);
     assert.equal(silent.played, 0);
     assert.equal((await worlds.get(session, silentId)).time, later);
@@ -393,6 +417,14 @@ test('a new player result reaches its character despite a recent director beat, 
       messages: [],
       appointments: [],
       mediaRequests: [],
+    });
+    await clock.write(owner, worldId, {
+      storyNow: start,
+      speed: 1,
+      paused: false,
+      lastTickAt: start,
+      missedBeats: 0,
+      summary: null,
     });
     const choiceCommand = {
       id: randomUUID(),

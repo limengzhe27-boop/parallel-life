@@ -23,7 +23,7 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 
 test('real PG explicit story waits: resume, receipts, interruption, owner and replay fences; zero models', async (t) => {
   const cfg = await localConfig();
-  const port = process.env.STORY_WAIT_TEST_PORT ?? '55570';
+  const port = process.env.STORY_WAIT_TEST_PORT ?? String(cfg.port);
   assert.match(port, /^[1-9][0-9]{0,4}$/);
   assert.ok(Number(port) <= 65535);
   assert.equal(cfg.port, Number(port));

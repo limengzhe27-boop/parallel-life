@@ -45,7 +45,7 @@ export async function advanceWorld(
   worldId: string,
 ): Promise<AdvanceResult> {
   return deps.clock.withAdvanceLock(worldId, async () => {
-    const clock = await deps.clock.read(session.userId, worldId);
+    const clock = await deps.clock.read(session.userId, worldId, deps.now());
     await deps.clock.ensureAnchor(session.userId, worldId, clock);
     // Offline/explicitly paused managed worlds never reopen an old paid attempt automatically.
     if (deps.automatic && clock.paused)
