@@ -26,6 +26,15 @@ export function mergeSocialMoments(
     image?: string;
     images?: string[];
   }[],
+  interactions?: {
+    id: string;
+    momentKey: string;
+    actorId: string;
+    kind: 'like' | 'comment';
+    comment?: string;
+    at: string;
+  }[],
+  actors?: { id: string; name: string }[],
 ) {
   const dynamicMoments = (worldMoments ?? []).map((m) => ({
     key: m.key,
@@ -46,9 +55,34 @@ export function mergeSocialMoments(
   });
   uniqueMoments.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
+  const momentsWithInteractions = uniqueMoments.slice(0, 48).map((m) => {
+    const matchingInteractions = (interactions ?? []).filter((i) => i.momentKey === m.key);
+    const likes = matchingInteractions
+      .filter((i) => i.kind === 'like')
+      .map((i) => ({
+        actorId: i.actorId,
+        name: actors?.find((a) => a.id === i.actorId)?.name || i.actorId,
+      }));
+    const comments = matchingInteractions
+      .filter((i) => i.kind === 'comment')
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+      .map((i) => ({
+        id: i.id,
+        actorId: i.actorId,
+        name: actors?.find((a) => a.id === i.actorId)?.name || i.actorId,
+        text: i.comment ?? '',
+        at: i.at,
+      }));
+    return {
+      ...m,
+      ...(likes.length ? { likes } : {}),
+      ...(comments.length ? { comments } : {}),
+    };
+  });
+
   return AuthoredSocialSchema.parse({
     ...authoredSocial,
-    moments: uniqueMoments.slice(0, 48),
+    moments: momentsWithInteractions,
   });
 }
 

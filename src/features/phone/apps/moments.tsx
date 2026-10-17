@@ -115,6 +115,27 @@ export function MomentsApp({ open, target }: PhoneAppContext) {
                       hour12: false,
                     })}
                   </time>
+                  {((m.likes && m.likes.length > 0) || (m.comments && m.comments.length > 0)) && (
+                    <div className={feed.interactions}>
+                      {m.likes && m.likes.length > 0 && (
+                        <div className={feed.likes} aria-label="点赞列表">
+                          <span className={feed.likeIcon} aria-hidden="true">♥</span>
+                          <span className={feed.likeNames}>
+                            {m.likes.map((like) => like.name).join('、')}
+                          </span>
+                        </div>
+                      )}
+                      {m.comments && m.comments.length > 0 && (
+                        <ul className={feed.comments} aria-label="评论列表">
+                          {m.comments.map((comment) => (
+                            <li key={comment.id} className={feed.commentItem}>
+                              <strong className={feed.commentAuthor}>{comment.name}</strong>: {comment.text}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
               </article>
             );

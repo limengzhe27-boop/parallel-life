@@ -12,6 +12,7 @@ export const NPC_AGENT_CAPABILITIES = [
   'activity.participate',
   'relationship.bond',
   'moment.publish',
+  'moment.interact',
   'media.generate_image',
   'media.generate_video',
   'media.share',

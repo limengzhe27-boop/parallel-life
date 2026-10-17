@@ -79,3 +79,42 @@
   font-size: 16px;
   color: #181818;
 }
+.interactions {
+  margin-top: 10px;
+  background: #f7f7f7;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.likes {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #526782;
+  font-weight: 500;
+  border-bottom: 1px solid #ededed;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.likeIcon {
+  color: #526782;
+  font-size: 12px;
+}
+.likeNames {
+  overflow-wrap: anywhere;
+}
+.comments {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.commentItem {
+  margin: 3px 0;
+  color: #222;
+  overflow-wrap: anywhere;
+}
+.commentAuthor {
+  color: #526782;
+  font-weight: 600;
+}

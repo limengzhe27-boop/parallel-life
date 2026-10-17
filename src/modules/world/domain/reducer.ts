@@ -407,6 +407,20 @@ export function applyEvent(
         });
         break;
       }
+      case 'moment.interacted': {
+        state.momentInteractions = state.momentInteractions ? [...state.momentInteractions] : [];
+        state.momentInteractions.push({
+          id: effect.id,
+          momentKey: effect.momentKey,
+          actorId: effect.actorId,
+          kind: effect.kind,
+          ...(effect.comment ? { comment: effect.comment } : {}),
+          at: effect.at,
+          ...(effect.note ? { note: effect.note } : {}),
+          sourceEventId,
+        });
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,

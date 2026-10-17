@@ -1,3 +1,21 @@
+## 2026-10-18 · Task 44-136 角色朋友圈点赞互动与评论流完整闭环已上线
+
+业务 4f907faa / Vercel 部署 `https://parallel-life-19jyfd6e5-limengzhe27-boops-projects.vercel.app` / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。
+
+交付内容与质量证据：
+1. **任务 44-136 朋友圈点赞互动与评论流闭环 (`moment.interact`)**：
+   - `NPC_AGENT_CAPABILITIES` 注册能力 `'moment.interact'`；
+   - 领域模型扩展：定义 `WorldMomentInteraction` 领域实体类型与 `WorldState.momentInteractions?: WorldMomentInteraction[]` 权威记录；`WorldEffect` 新增 `'moment.interacted'`（含 `id, momentKey, actorId, kind, comment?, at, note?`）；`AgentActionResult.outputRefs` 新增 `'moment_interaction'` 凭证类型；
+   - 严密前置条件与业务防重校验：动态存在性校验（`MOMENT_NOT_FOUND`，支持检索设定开场动态与运行时动态）、重复点赞拦截校验（`MOMENT_ALREADY_LIKED`）、评论非空与字数上限约束（`COMMENT_EMPTY` / 600字上限）；
+   - 状态机原子跃迁：生成并持久化 `moment.interacted` 事件、原子追加互动至 `world.momentInteractions`、关联互动责任（`handlesResponsibilityIds`）与目标（`completedGoalIds`）原子履约标记（`status: 'fulfilled'`）、产出凭证 `outputRefs: [{ kind: 'moment_interaction', id: interactionId }]`；
+   - 朋友圈社交流投影聚合与组件渲染：社交流仓储函数 `mergeSocialMoments` 扩展聚合 `interactions` 与 `actors` 关联姓名，手机端朋友圈组件 `MomentsApp` 渲染真实点赞人与评论流；
+   - 真实 PostgreSQL 55432 端到端集成测试 `tests/integration/actor-moment-interact.test.ts` 5/5 子测试全部通过。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 `tests/integration/actor-moment-interact.test.ts` 5/5 全部通过；
+   - 架构模块边界检查通过（620 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,293 项全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）。
+
 ## 2026-10-18 · Task 44-135 角色动态发布与朋友圈社交流投影完整闭环已上线
 
 业务 adc12815 / Vercel 部署 `https://parallel-life-jb7hf8jhp-limengzhe27-boops-projects.vercel.app` / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。

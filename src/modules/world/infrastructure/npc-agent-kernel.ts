@@ -272,7 +272,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.capability !== 'item.use' &&
           action.capability !== 'activity.participate' &&
           action.capability !== 'relationship.bond' &&
-          action.capability !== 'moment.publish'
+          action.capability !== 'moment.publish' &&
+          action.capability !== 'moment.interact'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -933,6 +934,84 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           if (action.goalId) {
             completedGoalIds = [action.goalId];
           }
+        } else if (action.capability === 'moment.interact') {
+          const momentKey = action.parameters.momentKey;
+          const kind = action.parameters.kind;
+          const comment = action.parameters.comment;
+          const note =
+            typeof action.parameters.note === 'string' && action.parameters.note.trim()
+              ? action.parameters.note.trim()
+              : undefined;
+
+          if (
+            typeof momentKey !== 'string' ||
+            !momentKey.trim() ||
+            momentKey.trim().length > 64 ||
+            (kind !== 'like' && kind !== 'comment')
+          ) {
+            throw new AgentValidationError('MOMENT_INTERACTION_PARAMETERS');
+          }
+
+          let momentFound = (executionWorld.moments ?? []).some(
+            (m: any) => m.key === momentKey.trim(),
+          );
+          if (!momentFound) {
+            try {
+              const pubRes = await sql.query(
+                'SELECT parallel_life.publication_social_opening($1) AS document',
+                [attempt.worldId],
+              );
+              const opening = pubRes.rows[0]?.document;
+              if (opening && Array.isArray(opening.moments)) {
+                momentFound = opening.moments.some((m: any) => m.key === momentKey.trim());
+              }
+            } catch {
+              // Not in a published world or query unavailable
+            }
+          }
+
+          if (!momentFound) {
+            throw new AgentValidationError('MOMENT_NOT_FOUND');
+          }
+
+          if (kind === 'like') {
+            const alreadyLiked = (executionWorld.momentInteractions ?? []).some(
+              (interaction: any) =>
+                interaction.momentKey === momentKey.trim() &&
+                interaction.actorId === attempt.actorId &&
+                interaction.kind === 'like',
+            );
+            if (alreadyLiked) {
+              throw new AgentValidationError('MOMENT_ALREADY_LIKED');
+            }
+          } else if (kind === 'comment') {
+            if (
+              typeof comment !== 'string' ||
+              !comment.trim() ||
+              comment.trim().length > 500
+            ) {
+              throw new AgentValidationError('COMMENT_EMPTY');
+            }
+          }
+
+          const interactionId = randomUUID();
+          effects.push({
+            type: 'moment.interacted',
+            id: interactionId,
+            momentKey: momentKey.trim(),
+            actorId: attempt.actorId,
+            kind,
+            ...(kind === 'comment' && typeof comment === 'string'
+              ? { comment: comment.trim() }
+              : {}),
+            at,
+            ...(note ? { note } : {}),
+          });
+          outputRefs = [{ kind: 'moment_interaction', id: interactionId }];
+          handledResponsibilityIds = [...action.handlesResponsibilityIds];
+          if (action.goalId) {
+            completedGoalIds = [action.goalId];
+          }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
           if (
@@ -1492,6 +1571,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'activity.participated' }>
               | Extract<WorldEffect, { type: 'relationship.bonded' }>
               | Extract<WorldEffect, { type: 'moment.published' }>
+              | Extract<WorldEffect, { type: 'moment.interacted' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },
