@@ -39,6 +39,8 @@ import type { EventGoalAssessment } from '../domain/types.ts';
 import { validateCharacterEffects } from '../domain/character-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 import { projectStoryTime } from '../domain/clock.ts';
+import { PostgresClockStore } from './clock-repository.ts';
+import type { WorldListItem } from '../../../contracts/life-management.ts';
 const fingerprint = (command: TurnCommand) =>
   createHash('sha256')
     .update(
@@ -154,7 +156,7 @@ export class PostgresWorldRepository implements WorldRepository {
         [id],
       )
     ).rows[0];
-    if (!row) throw new DomainError('NOT_FOUND');
+    if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
     return { ...row.state, version: row.version } as WorldState;
   }
   private async hydrate(sql: SqlClient, state: WorldState): Promise<WorldState> {
@@ -690,5 +692,223 @@ export class PostgresWorldRepository implements WorldRepository {
       return { state: finalState, event };
     }
     return { state, event };
+  }
+
+  async listUserWorlds(
+    userId: string,
+    options?: { status?: 'all' | 'active' | 'archived' },
+  ): Promise<WorldListItem[]> {
+    const filter = options?.status ?? 'active';
+    return this.db.transaction(userId, async (sql) => {
+      let whereExtra = '';
+      if (filter === 'active') {
+        whereExtra = "AND (w.state->>'deletedAt') IS NULL AND (w.state->>'archivedAt') IS NULL";
+      } else if (filter === 'archived') {
+        whereExtra = "AND (w.state->>'deletedAt') IS NULL AND (w.state->>'archivedAt') IS NOT NULL";
+      } else if (filter === 'all') {
+        whereExtra = "AND (w.state->>'deletedAt') IS NULL";
+      }
+
+      const rows = (
+        await sql.query(
+          `SELECT w.id, w.title, w.version, w.created_at, w.updated_at, w.state,
+                  s.document->'source'->>'kind' as seed_source_kind,
+                  b.opening
+           FROM parallel_life.worlds w
+           LEFT JOIN parallel_life.world_builds b ON b.world_id = w.id
+           LEFT JOIN parallel_life.approved_seeds s ON s.id = b.seed_id
+           WHERE w.owner_id = $1 ${whereExtra}
+           ORDER BY w.updated_at DESC`,
+          [userId],
+        )
+      ).rows;
+
+      const clockStore = new PostgresClockStore(this.db);
+
+      const items: WorldListItem[] = [];
+      for (const row of rows) {
+        const state = (row.state ?? {}) as Record<string, any>;
+        const archivedAt = state.archivedAt ?? null;
+        const status = state.deletedAt ? 'deleted' : archivedAt ? 'archived' : 'active';
+        const actorCount = Array.isArray(state.actors) ? state.actors.length : 0;
+
+        let sourceKind: 'custom' | 'official' | 'published' | 'unknown' = 'unknown';
+        const rawKind = row.seed_source_kind;
+        if (rawKind === 'official_life') sourceKind = 'official';
+        else if (rawKind === 'published_work' || rawKind === 'publication_trial') sourceKind = 'published';
+        else if (rawKind) sourceKind = 'custom';
+        else if (row.opening) sourceKind = 'published';
+        else sourceKind = 'custom';
+
+        let storyTime: string | undefined = state.time;
+        try {
+          const clock = await clockStore.read(userId, row.id);
+          storyTime = projectStoryTime(clock, new Date().toISOString());
+        } catch {
+          // fallback to state.time
+        }
+
+        let previewText: string | undefined = undefined;
+        if (Array.isArray(state.messages) && state.messages.length > 0) {
+          const lastMsg = state.messages[state.messages.length - 1];
+          if (lastMsg?.text) previewText = lastMsg.text;
+        }
+        if (!previewText && state.setting) {
+          previewText = typeof state.setting === 'string' ? state.setting : undefined;
+        }
+
+        items.push({
+          id: row.id,
+          title: row.title,
+          version: Number(row.version),
+          createdAt: new Date(row.created_at).toISOString(),
+          updatedAt: new Date(row.updated_at).toISOString(),
+          storyTime,
+          status,
+          archivedAt: archivedAt ? new Date(archivedAt).toISOString() : null,
+          actorCount,
+          previewText,
+          sourceKind,
+        });
+      }
+
+      return items;
+    });
+  }
+
+  async renameWorld(
+    userId: string,
+    worldId: string,
+    newTitle: string,
+  ): Promise<{ id: string; title: string; version: number }> {
+    const trimmed = newTitle.trim();
+    if (!trimmed || trimmed.length > 60) {
+      throw new DomainError('INVALID_COMMAND', 'INVALID_COMMAND: 标题长度必须在 1 到 60 字符之间');
+    }
+    return this.db.transaction(userId, async (sql) => {
+      const row = (
+        await sql.query(
+          `SELECT state, version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
+          [worldId, userId],
+        )
+      ).rows[0];
+      if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
+
+      await sql.query(
+        `UPDATE parallel_life.worlds
+         SET title = $3,
+             state = jsonb_set(state, '{title}', to_jsonb($3::text)),
+             updated_at = now()
+         WHERE id = $1 AND owner_id = $2`,
+        [worldId, userId, trimmed],
+      );
+
+      return {
+        id: worldId,
+        title: trimmed,
+        version: Number(row.version),
+      };
+    });
+  }
+
+  async archiveWorld(
+    userId: string,
+    worldId: string,
+  ): Promise<{ id: string; status: 'archived'; archivedAt: string }> {
+    return this.db.transaction(userId, async (sql) => {
+      const row = (
+        await sql.query(
+          `SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
+          [worldId, userId],
+        )
+      ).rows[0];
+      if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
+
+      const nowIso = new Date().toISOString();
+      await sql.query(
+        `UPDATE parallel_life.worlds
+         SET state = jsonb_set(state, '{archivedAt}', to_jsonb($3::text)),
+             updated_at = now()
+         WHERE id = $1 AND owner_id = $2`,
+        [worldId, userId, nowIso],
+      );
+
+      await sql.query(
+        `UPDATE parallel_life.world_clock
+         SET paused = true, updated_at = now()
+         WHERE world_id = $1 AND owner_id = $2`,
+        [worldId, userId],
+      );
+
+      return {
+        id: worldId,
+        status: 'archived',
+        archivedAt: nowIso,
+      };
+    });
+  }
+
+  async restoreWorld(
+    userId: string,
+    worldId: string,
+  ): Promise<{ id: string; status: 'active' }> {
+    return this.db.transaction(userId, async (sql) => {
+      const row = (
+        await sql.query(
+          `SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
+          [worldId, userId],
+        )
+      ).rows[0];
+      if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
+
+      await sql.query(
+        `UPDATE parallel_life.worlds
+         SET state = state - 'archivedAt',
+             updated_at = now()
+         WHERE id = $1 AND owner_id = $2`,
+        [worldId, userId],
+      );
+
+      return {
+        id: worldId,
+        status: 'active',
+      };
+    });
+  }
+
+  async deleteWorld(
+    userId: string,
+    worldId: string,
+  ): Promise<{ id: string; status: 'deleted' }> {
+    return this.db.transaction(userId, async (sql) => {
+      const row = (
+        await sql.query(
+          `SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
+          [worldId, userId],
+        )
+      ).rows[0];
+      if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
+
+      const nowIso = new Date().toISOString();
+      await sql.query(
+        `UPDATE parallel_life.worlds
+         SET state = jsonb_set(state, '{deletedAt}', to_jsonb($3::text)),
+             updated_at = now()
+         WHERE id = $1 AND owner_id = $2`,
+        [worldId, userId, nowIso],
+      );
+
+      await sql.query(
+        `UPDATE parallel_life.world_clock
+         SET paused = true, updated_at = now()
+         WHERE world_id = $1 AND owner_id = $2`,
+        [worldId, userId],
+      );
+
+      return {
+        id: worldId,
+        status: 'deleted',
+      };
+    });
   }
 }

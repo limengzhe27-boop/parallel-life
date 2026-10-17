@@ -265,7 +265,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |ID|状态|角色|硬依赖|任务与完成标准|交付证据|
 |---|---|---|---|---|---|
-|L-01|[ ] 待开发|B|V-03|人生列表/切换/重命名/归档、删除和恢复策略；人物、消息、时间和素材权限不串人生|—|
+|L-01|[x] 已完成|codex-main-life-management-l01|V-03|人生列表/切换/重命名/归档、删除和恢复策略；人物、消息、时间和素材权限不串人生；工作目录 /Users/limengzhe/Desktop/projects/demo/人生剧本；涉及 src/contracts/life-management.ts, src/modules/world/infrastructure/postgres-world-repository.ts, src/app/api/v1/worlds/route.ts, src/app/api/v1/worlds/[id]/route.ts, tests/integration/life-management.test.ts|[报告](task-reports/L-01.md)；纯领域契约 LifeManagement 建立，PostgresWorldRepository 落地 listUserWorlds / renameWorld / archiveWorld / restoreWorld / deleteWorld；HTTP 路由 GET/PATCH/DELETE 完成；8/8 真实 PG 集成测试通过；边界检查 611 模块与 tsc 0 错误；Next.js build 打包通过|
 |L-02|[ ] 待开发|B|L-01|历史分支：从基线与事件恢复指定版本，新建人生；旧历史不改写、资源引用受控|—|
 |L-03|[ ] 待开发|A|L-02|导演对话调角色/主题/冲突/节奏；区分后续安排与历史改写，重大改写展示影响并建分支|—|
 |L-04|[ ] 待开发|B|L-01|时间锚点、暂停/倍速/跳下一事件、离线分块摘要；关键选择停下，多端/重复恢复不重复推进|—|
