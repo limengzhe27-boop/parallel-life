@@ -1,3 +1,20 @@
+## 2026-10-17 · MA-ARCH-44-120 试演运行状态与闭环恢复诊断已上线
+
+业务 406e6c5e533083cfc0ae0656a12ff35b8017c699 / dpl_3woAwLX9kwgBTseY76C4UCP1FooN READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
+
+交付内容与质量证据：
+1. **真实运行状态只读诊断与闭环恢复 (44-120)**：
+   - 统一由服务端纯只读读取真实运行状态，精确区分 8 类真实节奏阶段（`quiescent` 合理安静 / `waiting_player` 等待玩家 / `conditions_not_met` 事件未满足 / `deferred_or_withdrawn` 暂缓拒绝 / `in_progress` 处理中 / `known_failure` 已知失败 / `unknown_result` 结果未知 / `stale_proposal` 版本过期 / `legacy` 传统模式）；
+   - 提供 `lastEffectiveChange` 紧凑描述最近发生的有效变更（用户动作、角色行动或地点建立）；
+   - 编导后台试演界面接入紧凑中文胶囊状态指示徽章，呈现自然阶段文案与原因；
+   - 针对 `known_failure` 暴露显式重新编排动作，采用 `directorExplicitRetryCommandId` 生成确定性幂等命令 ID，杜绝重复扣费与防刷；
+   - 针对 `unknown_result` 引导核对手机或回执，严格阻断重复生成；
+   - 保障正式玩家体验与隐私，只读查询不篡改任何世界状态与事件版本。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 13/13 `tests/integration/runtime-status-recovery.test.ts` 全部通过（验证 8 种运行节奏阶段、确定性幂等重试命令 ID、只读纯洁性不突变世界状态）；
+   - 模块边界检查通过（609 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产环境构建编译顺利通过。
+
 ## 2026-10-17 · MA-ARCH-44-119 正式玩家 Agent 运行环境受控准入与数据库隔离 (0088迁移) 已上线
 
 业务 9a3cfbf6637e76ac81d29e2070b0cdf51e7e14df / dpl_DqvKyQNCnXrKtJUSCZfrXgQbmTSU READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 publications / publisher/works 401 权限校验通过。
