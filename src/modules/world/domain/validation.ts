@@ -471,16 +471,21 @@ export function parseProposal(value: unknown): TurnProposal {
           quote: text(item.quote, 160).trim(),
         };
       case 'appointment.proposed':
-      case 'appointment.created':
         return {
-          type: item.type,
+          type: 'appointment.proposed',
           id: effectId,
           title: text(item.title, 200),
           at: isoInstant(item.at),
           participantIds: ids(item.participantIds),
-          ...(item.type === 'appointment.proposed' && item.placeId !== undefined
-            ? { placeId: id(item.placeId) }
-            : {}),
+          ...(item.placeId !== undefined ? { placeId: id(item.placeId) } : {}),
+        };
+      case 'appointment.created':
+        return {
+          type: 'appointment.created',
+          id: effectId,
+          title: text(item.title, 200),
+          at: isoInstant(item.at),
+          participantIds: ids(item.participantIds),
         };
       case 'appointment.fulfilled':
         return {
@@ -566,6 +571,25 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { note: text(item.note.trim(), 200) }
             : {}),
         };
+      case 'activity.participated':
+        return {
+          type: item.type,
+          id: effectId,
+          activityId: id(item.activityId),
+          title: text(item.title, 100),
+          actorId: id(item.actorId),
+          participantActorIds: Array.isArray(item.participantActorIds)
+            ? item.participantActorIds.map((p: unknown) => id(p))
+            : [id(item.actorId)],
+          placeId: id(item.placeId),
+          at: isoInstant(item.at),
+          ...(typeof item.outcome === 'string' && item.outcome.trim()
+            ? { outcome: text(item.outcome.trim(), 200) }
+            : {}),
+          ...(typeof item.note === 'string' && item.note.trim()
+            ? { note: text(item.note.trim(), 200) }
+            : {}),
+        };
       case 'fact.established':
         return {
           type: item.type,
@@ -593,9 +617,15 @@ export function parseProposal(value: unknown): TurnProposal {
           intent: text(item.intent, 120).trim(),
         };
       case 'choice.next_step':
+        return {
+          type: 'choice.next_step',
+          id: effectId,
+          choiceId: id(item.choiceId),
+          quote: text(item.quote, 160).trim(),
+        };
       case 'choice.recovery_step':
         return {
-          type: item.type,
+          type: 'choice.recovery_step',
           id: effectId,
           choiceId: id(item.choiceId),
           quote: text(item.quote, 160).trim(),

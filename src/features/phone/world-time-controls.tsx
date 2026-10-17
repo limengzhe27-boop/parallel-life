@@ -1,15 +1,26 @@
 'use client';
+import { useState } from 'react';
 import { worldDateTimeLabel } from '../../modules/world/domain/display-time.ts';
 import type { useWorldTime } from './use-world-time.ts';
+import type { LifeClient } from '../api/client.ts';
+import { WorldEngineMigrationModal } from './world-engine-migration-modal.tsx';
+
 export function TimeExperienceControls({
+  worldId,
+  client,
+  transport,
   time,
   worldVersion,
   reload,
 }: {
+  worldId?: string;
+  client?: LifeClient;
+  transport?: typeof fetch;
   time: ReturnType<typeof useWorldTime>;
   worldVersion: number;
   reload: () => Promise<void>;
 }) {
+  const [showEngineModal, setShowEngineModal] = useState(false);
   return (
     <details
       style={{
@@ -66,6 +77,15 @@ export function TimeExperienceControls({
             核对原等待
           </button>
         )}
+        {worldId && (
+          <button
+            type="button"
+            onClick={() => setShowEngineModal(true)}
+            style={{ fontWeight: 600, color: '#2563eb' }}
+          >
+            ⚡ 引擎与多A帧管理
+          </button>
+        )}
       </div>
       <p style={{ margin: '0 0 6px', lineHeight: 1.5 }}>
         浏览时加速，交谈时放缓；离开后暂停。等待途中有重要变化，会先停下来。
@@ -79,6 +99,15 @@ export function TimeExperienceControls({
         <p role="status" style={{ margin: '4px 0' }}>
           {time.clock.summary}
         </p>
+      )}
+      {showEngineModal && worldId && (
+        <WorldEngineMigrationModal
+          worldId={worldId}
+          client={client}
+          transport={transport}
+          onClose={() => setShowEngineModal(false)}
+          onMigrated={reload}
+        />
       )}
     </details>
   );

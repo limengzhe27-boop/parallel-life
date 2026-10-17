@@ -269,7 +269,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.capability !== 'appointment.accept' &&
           action.capability !== 'appointment.reschedule' &&
           action.capability !== 'item.deliver' &&
-          action.capability !== 'item.use'
+          action.capability !== 'item.use' &&
+          action.capability !== 'activity.participate'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -709,6 +710,98 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               ...(note ? { note } : {}),
             });
             outputRefs = [{ kind: 'item', id: itemId }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
+          }
+        } else if (action.capability === 'activity.participate') {
+          const activityId = action.parameters.activityId;
+          const title = action.parameters.title;
+          const specifiedPlaceId =
+            typeof action.parameters.placeId === 'string' && action.parameters.placeId.trim()
+              ? action.parameters.placeId.trim()
+              : undefined;
+          const participantActorIds = Array.isArray(action.parameters.participantActorIds)
+            ? action.parameters.participantActorIds
+            : undefined;
+          const outcome =
+            typeof action.parameters.outcome === 'string' && action.parameters.outcome.trim()
+              ? action.parameters.outcome.trim()
+              : undefined;
+          const note =
+            typeof action.parameters.note === 'string' && action.parameters.note.trim()
+              ? action.parameters.note.trim()
+              : undefined;
+
+          if (
+            typeof activityId !== 'string' ||
+            !activityId.trim() ||
+            typeof title !== 'string' ||
+            !title.trim() ||
+            (participantActorIds !== undefined &&
+              !participantActorIds.every((id: any) => typeof id === 'string' && id.trim())) ||
+            Object.keys(action.parameters).some(
+              (key) =>
+                ![
+                  'activityId',
+                  'title',
+                  'placeId',
+                  'participantActorIds',
+                  'outcome',
+                  'note',
+                ].includes(key),
+            )
+          ) {
+            throw new AgentValidationError('ACTIVITY_PARTICIPATE_PARAMETERS');
+          }
+
+          const ownPlaceId = ownActual?.status === 'at' ? ownActual.placeId : undefined;
+          if (!ownPlaceId) {
+            failureCode = 'ACTOR_NOT_AT_ANY_PLACE';
+          } else if (specifiedPlaceId && specifiedPlaceId !== ownPlaceId) {
+            failureCode = 'ACTOR_NOT_AT_SPECIFIED_PLACE';
+          }
+
+          const effectivePlaceId = (ownPlaceId ?? specifiedPlaceId)!;
+          const validParticipants = new Set<string>([attempt.actorId]);
+
+          if (!failureCode && participantActorIds && participantActorIds.length > 0) {
+            for (const pId of participantActorIds) {
+              if (pId === attempt.actorId) continue;
+              if (!executionWorld.actors.some((a: any) => a.id === pId)) {
+                failureCode = 'PARTICIPANT_NOT_FOUND';
+                break;
+              }
+              const pActual = (
+                await sql.query(
+                  'SELECT document FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND owner_id=$2 AND subject_key=$3 AND source_version<=$4',
+                  [attempt.worldId, ownerId, `actor:${pId}`, attempt.expectedWorldVersion],
+                )
+              ).rows[0]?.document;
+
+              if (pActual?.status !== 'at' || pActual.placeId !== effectivePlaceId) {
+                failureCode = 'PARTICIPANT_NOT_CO_LOCATED';
+                break;
+              }
+              validParticipants.add(pId);
+            }
+          }
+
+          if (!failureCode) {
+            effects.push({
+              type: 'activity.participated',
+              id: randomUUID(),
+              activityId,
+              title,
+              actorId: attempt.actorId,
+              participantActorIds: Array.from(validParticipants),
+              placeId: effectivePlaceId,
+              at,
+              ...(outcome ? { outcome } : {}),
+              ...(note ? { note } : {}),
+            });
+            outputRefs = [{ kind: 'activity', id: activityId }];
             handledResponsibilityIds = [...action.handlesResponsibilityIds];
             if (action.goalId) {
               completedGoalIds = [action.goalId];
@@ -1260,6 +1353,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
               | Extract<WorldEffect, { type: 'item.delivered' }>
               | Extract<WorldEffect, { type: 'item.used' }>
+              | Extract<WorldEffect, { type: 'activity.participated' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },

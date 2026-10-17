@@ -29,7 +29,7 @@ const labels = {
 function Icon({
   name,
 }: {
-  name: 'grid' | 'albums' | 'back' | 'next' | 'info' | 'plus' | 'image' | 'close';
+  name: 'grid' | 'albums' | 'back' | 'next' | 'info' | 'plus' | 'image' | 'close' | 'share';
 }) {
   const paths = {
     grid: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
@@ -40,6 +40,7 @@ function Icon({
     plus: 'M12 4v16 M4 12h16',
     image: 'M3 4h18v16H3z M3 17l6-6 4 4 3-3 5 5 M16 8h.01',
     close: 'M6 6l12 12 M6 18L18 6',
+    share: 'M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13',
   };
   return (
     <svg
@@ -359,12 +360,249 @@ function PhotoInfo({
     </div>
   );
 }
+function PhotoShareSheet({
+  photo,
+  close,
+  open,
+  visible,
+}: {
+  photo: PhonePhoto;
+  visible: boolean;
+  close: () => void;
+  open: PhoneAppContext['open'];
+}) {
+  const { data, actions, run, bringDraft } = usePhoneApps();
+  const dialog = useRef<HTMLDivElement>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const panel = dialog.current;
+    panel?.querySelector<HTMLElement>('button')?.focus();
+    function key(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      }
+    }
+    document.addEventListener('keydown', key, true);
+    return () => {
+      document.removeEventListener('keydown', key, true);
+      previous?.focus();
+    };
+  }, [close, visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className={s.overlay} onClick={close}>
+      <div
+        ref={dialog}
+        className={s.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label="分享照片到聊天"
+        onClick={(event) => event.stopPropagation()}
+        style={{ maxHeight: '82%' }}
+      >
+        <header className={s.sheetHeader}>
+          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 600 }}>分享照片到聊天</h3>
+          <button type="button" aria-label="关闭分享" onClick={close}>
+            <Icon name="close" />
+          </button>
+        </header>
+
+        <div className={s.sheetBody} style={{ padding: '12px 16px', overflowY: 'auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '10px 12px',
+              background: '#ffffff',
+              borderRadius: '12px',
+              marginBottom: '16px',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            {photo.url ? (
+              <img
+                src={photo.url}
+                alt={photo.title}
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '8px',
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '8px',
+                  background: '#f1f5f9',
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Icon name="image" />
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <strong
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  color: '#0f172a',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {photo.title}
+              </strong>
+              <small style={{ color: '#64748b', fontSize: '12px' }}>
+                {photoDateLabel(photo.date)}
+              </small>
+            </div>
+          </div>
+
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
+            选择要分享的联系人
+          </h4>
+
+          {data.contacts.length === 0 ? (
+            <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>
+              暂无可分享的联系人
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {data.contacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    background: '#ffffff',
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '18px',
+                        background: '#e0e7ff',
+                        color: '#4338ca',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {contact.name.slice(0, 1)}
+                    </div>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        color: '#1e293b',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {contact.name}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                    {actions.sendMessage && (
+                      <button
+                        type="button"
+                        disabled={sendingId === contact.id}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: '#2563eb',
+                          color: '#ffffff',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                        }}
+                        onClick={async () => {
+                          setSendingId(contact.id);
+                          playTapSound();
+                          const shareText = `[分享了相册照片：《${photo.title}》]`;
+                          try {
+                            await run(`share-photo:${contact.id}`, shareText, (id) =>
+                              actions.sendMessage!(contact.id, shareText, id, photo),
+                            );
+                            close();
+                            open('messages', contact.id);
+                          } finally {
+                            setSendingId(null);
+                          }
+                        }}
+                      >
+                        {sendingId === contact.id ? '发送中…' : '发送原图'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#334155',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        playTapSound();
+                        bringDraft(`message:${contact.id}`, `想和你聊聊相册里的《${photo.title}》。`);
+                        close();
+                        open('messages', contact.id);
+                      }}
+                    >
+                      带入草稿
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <small style={{ display: 'block', marginTop: '12px', color: '#94a3b8', fontSize: '11px', textAlign: 'center' }}>
+            发送或带入草稿均会完整保留你在聊天框中已输入的文字，不会被覆盖。
+          </small>
+        </div>
+      </div>
+    </div>
+  );
+}
 export function PhotosApp({ target, open }: PhoneAppContext) {
   const { data, worldId } = usePhoneApps();
   const [imageAvailable, setImageAvailable] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const [showInfo, setShowInfo] = useState(false);
   const closeInfo = useCallback(() => setShowInfo(false), []);
+  const [showShare, setShowShare] = useState(false);
+  const closeShare = useCallback(() => setShowShare(false), []);
   const ordered = useMemo(() => sortedPhotos(data.photos), [data.photos]);
   const albums = useMemo(
     () => photoAlbums(data.photos, data.contacts),
@@ -451,14 +689,24 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
             <strong>{photoDateLabel(photo.date)}</strong>
             <span>{photo.sourcePersonId ? '原图上传时间' : '世界记录时间'}</span>
           </div>
-          <button
-            type="button"
-            aria-label="查看照片信息"
-            aria-expanded={showInfo}
-            onClick={() => setShowInfo(true)}
-          >
-            <Icon name="info" />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              aria-label="分享照片到聊天"
+              title="分享照片到聊天"
+              onClick={() => setShowShare(true)}
+            >
+              <Icon name="share" />
+            </button>
+            <button
+              type="button"
+              aria-label="查看照片信息"
+              aria-expanded={showInfo}
+              onClick={() => setShowInfo(true)}
+            >
+              <Icon name="info" />
+            </button>
+          </div>
         </header>
         <div className={s.photoStage}>
           <PhotoImage
@@ -495,6 +743,12 @@ export function PhotosApp({ target, open }: PhoneAppContext) {
             <Icon name="next" />
           </button>
         </footer>
+        <PhotoShareSheet
+          photo={photo}
+          close={closeShare}
+          open={open}
+          visible={showShare}
+        />
         <PhotoInfo
           photo={photo}
           close={closeInfo}

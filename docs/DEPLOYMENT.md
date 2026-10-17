@@ -1,3 +1,20 @@
+## 2026-10-18 · Task 44-133 现场共同活动、互动与特定调查行动能力完整闭环已上线
+
+业务待推送 / Vercel 正式别名 `parallel-life-nu.vercel.app`。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200。
+
+交付内容与质量证据：
+1. **任务 44-133 现场共同活动与互动能力闭环 (`activity.participate`)**：
+   - `NPC_AGENT_CAPABILITIES` 注册能力 `'activity.participate'`；
+   - 领域模型扩展：定义 `WorldActivity` 实体结构与 `WorldState.activities?: WorldActivity[]` 权威记录；`WorldEffect` 新增 `'activity.participated'`；
+   - 严密前置条件与拦截闭环：自身权威物理在场校验（`ACTOR_NOT_AT_ANY_PLACE` / `ACTOR_NOT_AT_SPECIFIED_PLACE`）、共同参与人同场物理位置核验（`PARTICIPANT_NOT_CO_LOCATED`）、参与人存在性校验（`PARTICIPANT_NOT_FOUND`）；
+   - 状态机原子跃迁：生成并持久化 `activity.participated` 事件、关联现场互动责任（`handlesResponsibilityIds`）与互动目标（`completedGoalIds`）原子履约标记（`status: 'fulfilled'`）、产出凭证 `outputRefs: [{ kind: 'activity', id: activityId }]`；
+   - 真实 PostgreSQL 55432 端到端集成测试 `tests/integration/actor-scene-activity.test.ts` 3/3 子测试全部通过。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 `tests/integration/actor-scene-activity.test.ts` 全部通过；
+   - 历史能力 `tests/integration/actor-item-use.test.ts` 与 `actor-item-delivery.test.ts` 7/7 回归通过；
+   - 架构模块边界检查通过（620 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产优化构建成功（27/27 路由）。
+
 ## 2026-10-18 · Task 44-132 实体道具与物品使用及消耗完整闭环已上线
 
 业务 77394e8c / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。

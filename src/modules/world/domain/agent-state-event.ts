@@ -46,6 +46,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
       | Extract<WorldEffect, { type: 'item.delivered' }>
       | Extract<WorldEffect, { type: 'item.used' }>
+      | Extract<WorldEffect, { type: 'activity.participated' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
@@ -185,6 +186,25 @@ export function applyAgentStateEvent(
           ...(effect.note ? { note: effect.note } : {}),
         });
       }
+      continue;
+    }
+    if (effect.type === 'activity.participated') {
+      if (effect.actorId !== event.data.actorId) {
+        throw new DomainError('INVALID_PROPOSAL');
+      }
+      state.activities = state.activities ? [...state.activities] : [];
+      state.activities.push({
+        id: effect.id,
+        activityId: effect.activityId,
+        title: effect.title,
+        initiatorActorId: effect.actorId,
+        participantActorIds: effect.participantActorIds,
+        placeId: effect.placeId,
+        sourceEventId: event.id,
+        occurredAt: effect.at,
+        ...(effect.outcome ? { outcome: effect.outcome } : {}),
+        ...(effect.note ? { note: effect.note } : {}),
+      });
       continue;
     }
     if (effect.type === 'media.requested') {

@@ -100,6 +100,19 @@ export type WorldItem = {
   note?: string;
 };
 
+export type WorldActivity = {
+  id: Id;
+  activityId: string;
+  title: string;
+  initiatorActorId: Id;
+  participantActorIds: Id[];
+  placeId: string;
+  sourceEventId: Id;
+  occurredAt: string;
+  outcome?: string;
+  note?: string;
+};
+
 /** A decision the protagonist actually stated, not a result inferred from an NPC reply. */
 export type StoryChoice = {
   id: Id;
@@ -178,6 +191,8 @@ export type WorldState = {
   matters?: WorldMatter[];
   /** Authoritative tracked items held by actors; absent in legacy snapshots. */
   items?: WorldItem[];
+  /** Authoritative completed scene activities; absent in legacy snapshots. */
+  activities?: WorldActivity[];
 };
 
 export type WorldEffect =
@@ -246,6 +261,18 @@ export type WorldEffect =
       at: string;
       purpose?: string;
       consumed?: boolean;
+      note?: string;
+    }
+  | {
+      type: 'activity.participated';
+      id: Id;
+      activityId: string;
+      title: string;
+      actorId: Id;
+      participantActorIds: Id[];
+      placeId: string;
+      at: string;
+      outcome?: string;
       note?: string;
     }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }

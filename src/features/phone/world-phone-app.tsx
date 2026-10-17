@@ -635,7 +635,14 @@ export function WorldPhoneApp({
           </div>
         )}
       {data?.id === worldId && automatic && (
-        <TimeExperienceControls time={liveTime} worldVersion={data.version ?? 0} reload={load} />
+        <TimeExperienceControls
+          worldId={worldId}
+          client={client}
+          transport={transport}
+          time={liveTime}
+          worldVersion={data.version ?? 0}
+          reload={load}
+        />
       )}
       <div style={{ flex: 1, minHeight: 0 }}>
         {!data ? (

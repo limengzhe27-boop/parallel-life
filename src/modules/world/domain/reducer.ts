@@ -352,6 +352,22 @@ export function applyEvent(
         }
         break;
       }
+      case 'activity.participated': {
+        state.activities = state.activities ? [...state.activities] : [];
+        state.activities.push({
+          id: effect.id,
+          activityId: effect.activityId,
+          title: effect.title,
+          initiatorActorId: effect.actorId,
+          participantActorIds: effect.participantActorIds,
+          placeId: effect.placeId,
+          sourceEventId,
+          occurredAt: effect.at,
+          ...(effect.outcome ? { outcome: effect.outcome } : {}),
+          ...(effect.note ? { note: effect.note } : {}),
+        });
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,
