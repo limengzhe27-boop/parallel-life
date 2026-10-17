@@ -1,6 +1,6 @@
 ## 2026-10-18 · Task 44-136 角色朋友圈点赞互动与评论流完整闭环已上线
 
-待部署与线上全链路验证；Vercel 正式别名 `parallel-life-nu.vercel.app`。
+业务 4f907faa / Vercel 部署 `https://parallel-life-19jyfd6e5-limengzhe27-boops-projects.vercel.app` / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。
 
 交付内容与质量证据：
 1. **任务 44-136 朋友圈点赞互动与评论流闭环 (`moment.interact`)**：
