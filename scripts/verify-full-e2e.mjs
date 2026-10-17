@@ -124,9 +124,14 @@ async function main() {
       includePortrait: false,
     }),
   });
+  if (!seedRes.ok) {
+    const errorText = await seedRes.text();
+    console.error('❌ 种子批准失败 HTTP:', seedRes.status, errorText);
+    process.exit(1);
+  }
   const seed = await seedRes.json();
   if (!seed.id) {
-    console.error('❌ 种子批准失败:', seedRes.status, seed);
+    console.error('❌ 种子数据异常:', seedRes.status, seed);
     process.exit(1);
   }
   console.log(`✅ 6. 种子创建成功: seedId=${seed.id}`);
@@ -141,6 +146,11 @@ async function main() {
       seedId: seed.id,
     }),
   });
+  if (!buildRes.ok) {
+    const errorText = await buildRes.text();
+    console.error('❌ 平行世界构建发起失败 HTTP:', buildRes.status, errorText);
+    process.exit(1);
+  }
   const build = await buildRes.json();
   console.log(`   构建任务已创建: worldId=${build.worldId}, taskId=${build.task?.id}`);
 
