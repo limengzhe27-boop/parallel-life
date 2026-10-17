@@ -146,6 +146,10 @@ export async function projectNativeAgentChannelInTransaction(
       if (effect.fromActorId !== attempt.actorId) reject('NATIVE_EFFECT_ACTOR');
       continue;
     }
+    if (effect.type === 'item.used') {
+      if (effect.actorId !== attempt.actorId) reject('NATIVE_EFFECT_ACTOR');
+      continue;
+    }
     if (effect.type === 'media.requested') continue;
     if (effect.type !== 'appointment.proposed') reject('NATIVE_EFFECT_UNSUPPORTED');
     if (effect.participantIds.length !== 1 || effect.participantIds[0] !== attempt.actorId)

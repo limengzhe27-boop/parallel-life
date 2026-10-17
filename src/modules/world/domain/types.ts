@@ -93,6 +93,10 @@ export type WorldItem = {
   holderActorId: Id;
   sourceEventId: Id;
   transferredAt?: string;
+  status?: 'held' | 'used' | 'consumed';
+  usedAt?: string;
+  usedPlaceId?: string;
+  purpose?: string;
   note?: string;
 };
 
@@ -230,6 +234,18 @@ export type WorldEffect =
       toActorId: Id;
       placeId?: string;
       at: string;
+      note?: string;
+    }
+  | {
+      type: 'item.used';
+      id: Id;
+      itemId: Id;
+      title?: string;
+      actorId: Id;
+      placeId?: string;
+      at: string;
+      purpose?: string;
+      consumed?: boolean;
       note?: string;
     }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }

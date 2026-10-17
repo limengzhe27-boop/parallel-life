@@ -268,7 +268,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.capability !== 'appointment.cancel' &&
           action.capability !== 'appointment.accept' &&
           action.capability !== 'appointment.reschedule' &&
-          action.capability !== 'item.deliver'
+          action.capability !== 'item.deliver' &&
+          action.capability !== 'item.use'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -638,6 +639,73 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               toActorId: recipientActorId,
               ...(ownActual?.placeId ? { placeId: ownActual.placeId } : {}),
               at,
+              ...(note ? { note } : {}),
+            });
+            outputRefs = [{ kind: 'item', id: itemId }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
+          }
+        } else if (action.capability === 'item.use') {
+          const itemId = action.parameters.itemId;
+          const title =
+            typeof action.parameters.title === 'string' && action.parameters.title.trim()
+              ? action.parameters.title.trim()
+              : undefined;
+          const purpose =
+            typeof action.parameters.purpose === 'string' && action.parameters.purpose.trim()
+              ? action.parameters.purpose.trim()
+              : undefined;
+          const consumed =
+            typeof action.parameters.consumed === 'boolean' ? action.parameters.consumed : false;
+          const note =
+            typeof action.parameters.note === 'string' && action.parameters.note.trim()
+              ? action.parameters.note.trim()
+              : undefined;
+          const specifiedPlaceId =
+            typeof action.parameters.placeId === 'string' && action.parameters.placeId.trim()
+              ? action.parameters.placeId.trim()
+              : undefined;
+
+          if (
+            typeof itemId !== 'string' ||
+            !itemId.trim() ||
+            Object.keys(action.parameters).some(
+              (key) => !['itemId', 'title', 'purpose', 'consumed', 'note', 'placeId'].includes(key),
+            )
+          ) {
+            throw new AgentValidationError('ITEM_USE_PARAMETERS');
+          }
+
+          let existingItem: any = undefined;
+          if (executionWorld.items && executionWorld.items.length > 0) {
+            existingItem = executionWorld.items.find((i: any) => i.id === itemId);
+            if (!existingItem || existingItem.holderActorId !== attempt.actorId) {
+              failureCode = 'ITEM_NOT_OWNED_BY_ACTOR';
+            } else if (existingItem.status === 'consumed') {
+              failureCode = 'ITEM_ALREADY_CONSUMED';
+            }
+          }
+
+          const ownPlaceId = ownActual?.status === 'at' ? ownActual.placeId : undefined;
+          if (!failureCode && specifiedPlaceId && ownPlaceId && specifiedPlaceId !== ownPlaceId) {
+            failureCode = 'ACTOR_NOT_AT_SPECIFIED_PLACE';
+          }
+
+          if (!failureCode) {
+            const effectPlaceId = specifiedPlaceId ?? ownPlaceId;
+            const itemTitle = title ?? existingItem?.title;
+            effects.push({
+              type: 'item.used',
+              id: randomUUID(),
+              itemId,
+              ...(itemTitle ? { title: itemTitle } : {}),
+              actorId: attempt.actorId,
+              ...(effectPlaceId ? { placeId: effectPlaceId } : {}),
+              at,
+              ...(purpose ? { purpose } : {}),
+              ...(consumed ? { consumed: true } : {}),
               ...(note ? { note } : {}),
             });
             outputRefs = [{ kind: 'item', id: itemId }];
@@ -1191,6 +1259,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'appointment.confirmed' }>
               | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
               | Extract<WorldEffect, { type: 'item.delivered' }>
+              | Extract<WorldEffect, { type: 'item.used' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },

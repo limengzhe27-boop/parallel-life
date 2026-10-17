@@ -325,6 +325,33 @@ export function applyEvent(
         }
         break;
       }
+      case 'item.used': {
+        state.items = state.items ? [...state.items] : [];
+        const existingIndex = state.items.findIndex((item) => item.id === effect.itemId);
+        if (existingIndex >= 0) {
+          state.items[existingIndex] = {
+            ...state.items[existingIndex]!,
+            status: effect.consumed ? 'consumed' : 'used',
+            usedAt: event.storyAt,
+            ...(effect.placeId ? { usedPlaceId: effect.placeId } : {}),
+            ...(effect.purpose ? { purpose: effect.purpose } : {}),
+            ...(effect.note ? { note: effect.note } : {}),
+          };
+        } else {
+          state.items.push({
+            id: effect.itemId,
+            title: effect.title ?? effect.itemId,
+            holderActorId: effect.actorId,
+            sourceEventId,
+            status: effect.consumed ? 'consumed' : 'used',
+            usedAt: event.storyAt,
+            ...(effect.placeId ? { usedPlaceId: effect.placeId } : {}),
+            ...(effect.purpose ? { purpose: effect.purpose } : {}),
+            ...(effect.note ? { note: effect.note } : {}),
+          });
+        }
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,

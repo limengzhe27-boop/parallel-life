@@ -1,3 +1,20 @@
+## 2026-10-18 · Task 44-132 实体道具与物品使用及消耗完整闭环已上线
+
+业务待推送 / Vercel 正式别名 `parallel-life-nu.vercel.app`。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200。
+
+交付内容与质量证据：
+1. **任务 44-132 实体物品与道具使用及消耗闭环 (`item.use`)**：
+   - `NPC_AGENT_CAPABILITIES` 注册能力 `'item.use'`；
+   - 领域模型扩展：`WorldItem` 新增 `status: 'held' | 'used' | 'consumed'`, `usedAt`, `usedPlaceId`, `purpose`；`WorldEffect` 新增 `'item.used'`；
+   - 前置条件与拦截闭环：物品持有权校验（`ITEM_NOT_OWNED_BY_ACTOR`）、已消耗品防二次使用拦截（`ITEM_ALREADY_CONSUMED`）、物理环境在场校验（`ACTOR_NOT_AT_SPECIFIED_PLACE`）；
+   - 状态机原子跃迁：标记物品状态、原子记录使用时刻与物理现场、责任（`handlesResponsibilityIds`）与目标（`completedGoalIds`）原子履约标记（`status: 'fulfilled'`）、生成在场见证者认知事实；
+   - 真实 PostgreSQL 55432 端到端集成测试 `tests/integration/actor-item-use.test.ts` 4/4 子测试全部通过。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 `tests/integration/actor-item-use.test.ts` 全部通过；
+   - 交付物 `tests/integration/actor-item-delivery.test.ts` 回归通过；
+   - 架构模块边界检查通过（619 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产优化构建成功（27/27 路由）。
+
 ## 2026-10-18 · Task 44-131 实体物品交付闭环与产品全链路端到端在线验证已上线
 
 业务 b7e9fb68 / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步用户闭环实测 100% 通过。

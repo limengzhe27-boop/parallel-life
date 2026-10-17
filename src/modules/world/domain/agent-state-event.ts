@@ -45,6 +45,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'appointment.confirmed' }>
       | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
       | Extract<WorldEffect, { type: 'item.delivered' }>
+      | Extract<WorldEffect, { type: 'item.used' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
@@ -151,6 +152,36 @@ export function applyAgentStateEvent(
           holderActorId: effect.toActorId,
           sourceEventId: event.id,
           transferredAt: event.storyAt,
+          ...(effect.note ? { note: effect.note } : {}),
+        });
+      }
+      continue;
+    }
+    if (effect.type === 'item.used') {
+      if (effect.actorId !== event.data.actorId) {
+        throw new DomainError('INVALID_PROPOSAL');
+      }
+      state.items = state.items ? [...state.items] : [];
+      const itemIndex = state.items.findIndex((item) => item.id === effect.itemId);
+      if (itemIndex >= 0) {
+        state.items[itemIndex] = {
+          ...state.items[itemIndex]!,
+          status: effect.consumed ? 'consumed' : 'used',
+          usedAt: event.storyAt,
+          ...(effect.placeId ? { usedPlaceId: effect.placeId } : {}),
+          ...(effect.purpose ? { purpose: effect.purpose } : {}),
+          ...(effect.note ? { note: effect.note } : {}),
+        };
+      } else {
+        state.items.push({
+          id: effect.itemId,
+          title: effect.title ?? effect.itemId,
+          holderActorId: effect.actorId,
+          sourceEventId: event.id,
+          status: effect.consumed ? 'consumed' : 'used',
+          usedAt: event.storyAt,
+          ...(effect.placeId ? { usedPlaceId: effect.placeId } : {}),
+          ...(effect.purpose ? { purpose: effect.purpose } : {}),
           ...(effect.note ? { note: effect.note } : {}),
         });
       }

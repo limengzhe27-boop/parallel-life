@@ -545,6 +545,27 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { note: text(item.note.trim(), 200) }
             : {}),
         };
+      case 'item.used':
+        return {
+          type: item.type,
+          id: effectId,
+          itemId: id(item.itemId),
+          ...(typeof item.title === 'string' && item.title.trim()
+            ? { title: text(item.title.trim(), 100) }
+            : {}),
+          actorId: id(item.actorId),
+          ...(typeof item.placeId === 'string' && item.placeId.trim()
+            ? { placeId: id(item.placeId.trim()) }
+            : {}),
+          at: isoInstant(item.at),
+          ...(typeof item.purpose === 'string' && item.purpose.trim()
+            ? { purpose: text(item.purpose.trim(), 200) }
+            : {}),
+          ...(typeof item.consumed === 'boolean' ? { consumed: item.consumed } : {}),
+          ...(typeof item.note === 'string' && item.note.trim()
+            ? { note: text(item.note.trim(), 200) }
+            : {}),
+        };
       case 'fact.established':
         return {
           type: item.type,
