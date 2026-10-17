@@ -1,3 +1,4 @@
+import { migrateLegacyWorldInTransaction } from './legacy-world-migration.ts';
 import {
   prepareExplicitInvitationProjections,
   projectExplicitInvitationDecision,
@@ -163,7 +164,7 @@ export class PostgresWorldRepository implements WorldRepository {
     if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
     return { ...row.state, version: row.version } as WorldState;
   }
-  private async hydrate(sql: SqlClient, state: WorldState): Promise<WorldState> {
+  static async hydrateInTransaction(sql: SqlClient, state: WorldState): Promise<WorldState> {
     const initial = (
       await sql.query('SELECT state FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
         state.id,
@@ -273,7 +274,7 @@ export class PostgresWorldRepository implements WorldRepository {
       if (previous) {
         if (previous.request_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
         if (!previous.result_state) throw new DomainError('VERSION_CONFLICT');
-        return this.hydrate(sql, previous.result_state);
+        return PostgresWorldRepository.hydrateInTransaction(sql, previous.result_state);
       }
       await authorizeWorldCommandInTransaction(sql, session.userId, {
         worldId: command.worldId,
@@ -307,7 +308,10 @@ export class PostgresWorldRepository implements WorldRepository {
       };
       if (JSON.stringify(event).length >= 65536)
         throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
-      const before = { ...(await this.hydrate(sql, current)), time: storyTime };
+      const before = {
+        ...(await PostgresWorldRepository.hydrateInTransaction(sql, current)),
+        time: storyTime,
+      };
       const state = applyInvitationEvent(before, event);
       const beforeAppointment = before.appointments.find((a) => a.id === command.id)!;
       const projections = await prepareExplicitInvitationProjections(sql, session.userId, {
@@ -428,7 +432,10 @@ export class PostgresWorldRepository implements WorldRepository {
       };
       if (JSON.stringify(event).length >= 65536)
         throw new DomainError('INVALID_COMMAND', 'Event payload exceeded capacity budget');
-      const state = applyNoteEvent(await this.hydrate(sql, current), event);
+      const state = applyNoteEvent(
+        await PostgresWorldRepository.hydrateInTransaction(sql, current),
+        event,
+      );
       const note = (state.notes ?? []).find((item) => item.id === id);
       if (!note) throw new DomainError('INVALID_COMMAND');
       await sql.query(
@@ -479,7 +486,7 @@ export class PostgresWorldRepository implements WorldRepository {
   }
   async get(session: Session, id: string) {
     return this.db.transaction(session.userId, async (sql) =>
-      this.hydrate(sql, await this.owned(sql, id)),
+      PostgresWorldRepository.hydrateInTransaction(sql, await this.owned(sql, id)),
     );
   }
   private async saved(sql: SqlClient, command: TurnCommand): Promise<CommitResult | null> {
@@ -492,7 +499,10 @@ export class PostgresWorldRepository implements WorldRepository {
     if (!row) return null;
     if (row.request_hash !== fingerprint(command)) throw new DomainError('IDEMPOTENCY_CONFLICT');
     if (!row.payload) return null;
-    return { state: await this.hydrate(sql, row.result_state), event: row.payload };
+    return {
+      state: await PostgresWorldRepository.hydrateInTransaction(sql, row.result_state),
+      event: row.payload,
+    };
   }
   async receipt(session: Session, command: TurnCommand) {
     return this.db.transaction(session.userId, async (sql) => {
@@ -566,7 +576,7 @@ export class PostgresWorldRepository implements WorldRepository {
       )
         throw new DomainError('INVALID_COMMAND', 'Invalid accepted input basis');
     }
-    const hydrated = await this.hydrate(sql, current);
+    const hydrated = await PostgresWorldRepository.hydrateInTransaction(sql, current);
     validateCharacterEffects(
       command.actorId,
       parseProposal({ schemaVersion: 1, effects: event.data.effects }).effects,
@@ -682,7 +692,10 @@ export class PostgresWorldRepository implements WorldRepository {
       );
       // Reconciliation may append a sourced place-discovery event on this connection.
       // Its newer world version must also govern the following progress assessment.
-      const reconciled = await this.hydrate(sql, await this.owned(sql, state.id));
+      const reconciled = await PostgresWorldRepository.hydrateInTransaction(
+        sql,
+        await this.owned(sql, state.id),
+      );
       const recalled = await loadActorMemories(sql, session.userId, {
         actorId: command.actorId,
         worldId: state.id,
@@ -705,7 +718,10 @@ export class PostgresWorldRepository implements WorldRepository {
         command.origin === 'director',
         recalled.blockedSources,
       );
-      const finalState = await this.hydrate(sql, await this.owned(sql, state.id));
+      const finalState = await PostgresWorldRepository.hydrateInTransaction(
+        sql,
+        await this.owned(sql, state.id),
+      );
       const finalSnapshot = compactWorldState(finalState);
       if (JSON.stringify(finalSnapshot).length >= 262144)
         throw new DomainError('INVALID_COMMAND', 'World snapshot exceeded capacity budget');
@@ -1247,6 +1263,10 @@ export class PostgresWorldRepository implements WorldRepository {
         }
       }
 
+      await migrateLegacyWorldInTransaction(sql, userId, {
+        worldId: newWorldId,
+        expectedWorldVersion: 0,
+      });
       const nowIso = new Date().toISOString();
       return {
         id: newWorldId,

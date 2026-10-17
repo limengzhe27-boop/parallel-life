@@ -1,3 +1,4 @@
+import { PostgresWorldRepository } from './postgres-world-repository.ts';
 import { agentDefinitionRef } from './agent-snapshot-repository.ts';
 import type { WorldState } from '../domain/types.ts';
 import { admitLegacyAgentNarrativeInTransaction } from './agent-narrative-repository.ts';
@@ -184,8 +185,14 @@ export async function migrateLegacyWorldInTransaction(
     };
   }
 
-  const actors = (w.state?.actors ?? []) as Array<{ id: string; name?: string }>;
-  const appointments = (w.state?.appointments ?? []) as Array<{
+  const hydrated = await PostgresWorldRepository.hydrateInTransaction(sql, {
+    ...w.state,
+    id: input.worldId,
+    ownerId,
+    version: w.version,
+  } as WorldState);
+  const actors = hydrated.actors as Array<{ id: string; name?: string }>;
+  const appointments = hydrated.appointments as Array<{
     id: string;
     title?: string;
     actorId?: string;
