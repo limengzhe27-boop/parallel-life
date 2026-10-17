@@ -286,6 +286,19 @@ export function applyEvent(
         }
         break;
       }
+      case 'appointment.rescheduled': {
+        const target = state.appointments.find((a) => a.id === effect.appointmentId);
+        if (target) {
+          target.at = effect.newAt;
+          target.status = 'proposed';
+          if (effect.placeId || effect.locationId) {
+            target.placeId = effect.placeId ?? effect.locationId;
+          }
+          target.responseAt = event.storyAt;
+          target.responseVersion = event.version;
+        }
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,

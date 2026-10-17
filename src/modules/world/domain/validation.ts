@@ -509,6 +509,24 @@ export function parseProposal(value: unknown): TurnProposal {
           actorId: id(item.actorId),
           at: isoInstant(item.at),
         };
+      case 'appointment.rescheduled':
+        return {
+          type: item.type,
+          id: effectId,
+          appointmentId: id(item.appointmentId),
+          actorId: id(item.actorId),
+          at: isoInstant(item.at),
+          newAt: isoInstant(item.newAt),
+          ...(typeof item.placeId === 'string' && item.placeId.trim()
+            ? { placeId: id(item.placeId.trim()) }
+            : {}),
+          ...(typeof item.locationId === 'string' && item.locationId.trim()
+            ? { locationId: id(item.locationId.trim()) }
+            : {}),
+          ...(typeof item.reason === 'string' && item.reason.trim()
+            ? { reason: text(item.reason.trim(), 200) }
+            : {}),
+        };
       case 'fact.established':
         return {
           type: item.type,

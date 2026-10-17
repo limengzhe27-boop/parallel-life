@@ -54,6 +54,7 @@ export type Appointment = {
   participantIds: Id[];
   sourceEventId: Id;
   sourceMessageId?: Id;
+  placeId?: Id;
 };
 export type MediaRequest = {
   id: Id;
@@ -195,6 +196,17 @@ export type WorldEffect =
       appointmentId: Id;
       actorId: Id;
       at: string;
+    }
+  | {
+      type: 'appointment.rescheduled';
+      id: Id;
+      appointmentId: Id;
+      actorId: Id;
+      at: string;
+      newAt: string;
+      locationId?: string;
+      placeId?: string;
+      reason?: string;
     }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }
   | { type: 'fact.established'; id: Id; text: string; visibility: Visibility }

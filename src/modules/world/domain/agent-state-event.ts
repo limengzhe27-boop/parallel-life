@@ -43,6 +43,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
       | Extract<WorldEffect, { type: 'appointment.cancelled' }>
       | Extract<WorldEffect, { type: 'appointment.confirmed' }>
+      | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
@@ -108,6 +109,22 @@ export function applyAgentStateEvent(
       item.status = 'confirmed';
       item.responseAt = event.storyAt;
       item.responseVersion = event.version;
+      continue;
+    }
+    if (effect.type === 'appointment.rescheduled') {
+      const item = state.appointments.find((a) => a.id === effect.appointmentId);
+      if (item) {
+        if (Date.parse(effect.newAt) <= Date.parse(event.storyAt)) {
+          throw new DomainError('INVALID_PROPOSAL');
+        }
+        item.at = effect.newAt;
+        item.status = 'proposed';
+        if (effect.placeId || effect.locationId) {
+          item.placeId = effect.placeId ?? effect.locationId;
+        }
+        item.responseAt = event.storyAt;
+        item.responseVersion = event.version;
+      }
       continue;
     }
     if (effect.type === 'media.requested') {

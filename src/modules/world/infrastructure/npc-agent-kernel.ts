@@ -266,7 +266,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.handlesResponsibilityIds.length &&
           action.capability !== 'appointment.fulfill' &&
           action.capability !== 'appointment.cancel' &&
-          action.capability !== 'appointment.accept'
+          action.capability !== 'appointment.accept' &&
+          action.capability !== 'appointment.reschedule'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -489,6 +490,87 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               completedGoalIds = [action.goalId];
             }
           }
+        } else if (action.capability === 'appointment.reschedule') {
+          const appointmentId = action.parameters.appointmentId;
+          const newAt = action.parameters.at;
+          const placeId =
+            typeof action.parameters.placeId === 'string' && action.parameters.placeId.trim()
+              ? action.parameters.placeId.trim()
+              : typeof action.parameters.locationId === 'string' &&
+                  action.parameters.locationId.trim()
+                ? action.parameters.locationId.trim()
+                : undefined;
+          const reason =
+            typeof action.parameters.reason === 'string' && action.parameters.reason.trim()
+              ? action.parameters.reason.trim()
+              : undefined;
+
+          const allowedKeys = ['appointmentId', 'at', 'placeId', 'locationId', 'reason'];
+          if (
+            typeof appointmentId !== 'string' ||
+            !appointmentId.trim() ||
+            typeof newAt !== 'string' ||
+            !newAt.trim() ||
+            Object.keys(action.parameters).some((key) => !allowedKeys.includes(key))
+          )
+            throw new AgentValidationError('APPOINTMENT_RESCHEDULE_PARAMETERS');
+          if (action.handlesResponsibilityIds.length > 1)
+            throw new AgentValidationError('APPOINTMENT_RESCHEDULE_RESPONSIBILITY_LIMIT');
+
+          let parsedNewAt: number;
+          try {
+            parsedNewAt = Date.parse(newAt);
+            if (Number.isNaN(parsedNewAt)) throw new Error('Invalid ISO date');
+          } catch {
+            throw new AgentValidationError('INVALID_RESCHEDULE_TIME');
+          }
+
+          const appointmentRow = (
+            await sql.query(
+              'SELECT a.document FROM parallel_life.world_appointments a WHERE a.world_id=$1 AND a.owner_id=$2 AND a.id=$3',
+              [attempt.worldId, ownerId, appointmentId],
+            )
+          ).rows[0]?.document;
+
+          const ap =
+            appointmentRow ?? executionWorld.appointments?.find((a: any) => a.id === appointmentId);
+          if (!ap) {
+            failureCode = 'APPOINTMENT_NOT_FOUND';
+          } else if (['cancelled', 'attended', 'missed'].includes(ap.status)) {
+            failureCode = 'APPOINTMENT_TERMINAL';
+          } else if (parsedNewAt <= Date.parse(at)) {
+            failureCode = 'RESCHEDULE_TIME_PAST';
+          } else {
+            const isParticipant =
+              ap.participantIds?.includes(attempt.actorId) ||
+              ap.proposerId === attempt.actorId ||
+              executionWorld.appointments?.some(
+                (a: any) =>
+                  a.id === appointmentId &&
+                  (a.participantIds?.includes(attempt.actorId) || a.proposerId === attempt.actorId),
+              );
+            if (!isParticipant) {
+              failureCode = 'ACTOR_NOT_APPOINTMENT_PARTICIPANT';
+            }
+          }
+
+          if (!failureCode) {
+            effects.push({
+              type: 'appointment.rescheduled',
+              id: randomUUID(),
+              appointmentId,
+              actorId: attempt.actorId,
+              at,
+              newAt,
+              ...(placeId ? { placeId } : {}),
+              ...(reason ? { reason } : {}),
+            });
+            outputRefs = [{ kind: 'appointment', id: appointmentId }];
+            handledResponsibilityIds = [...action.handlesResponsibilityIds];
+            if (action.goalId) {
+              completedGoalIds = [action.goalId];
+            }
+          }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
           if (
@@ -690,6 +772,14 @@ export class PostgresNpcAgentKernel implements AgentKernel {
                 return r?.subject.kind === 'appointment' && r.subject.id === e.appointmentId;
               }),
           );
+          const isReschedule = effects.some(
+            (e) =>
+              e.type === 'appointment.rescheduled' &&
+              result.handledResponsibilityIds.some((rId) => {
+                const r = accepted.state.responsibilities.find((resp) => resp.id === rId);
+                return r?.subject.kind === 'appointment' && r.subject.id === e.appointmentId;
+              }),
+          );
           for (const respId of result.handledResponsibilityIds) {
             const resp = accepted.state.responsibilities.find((r) => r.id === respId);
             if (resp && resp.status !== 'fulfilled' && resp.status !== 'withdrawn') {
@@ -700,6 +790,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               } else if (isAccept) {
                 resp.status = 'open';
                 resp.waitingOn = null;
+                resp.resolutionResultId = result.id;
+                resp.endReason = undefined;
+              } else if (isReschedule) {
+                resp.status = 'waiting';
+                resp.waitingOn = 'player';
+                resp.revision = (resp.revision ?? 0) + 1;
                 resp.resolutionResultId = result.id;
                 resp.endReason = undefined;
               } else {
@@ -716,7 +812,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
                 goal.status = 'withdrawn';
                 goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
                 goal.endReason = '约定目标已撤回';
-              } else if (isAccept) {
+              } else if (isAccept || isReschedule) {
                 goal.status = 'active';
                 goal.resultIds = Array.from(new Set([...goal.resultIds, result.id]));
               } else {
@@ -793,6 +889,62 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             summary: `按时参加「${title}」`,
             status: 'active',
             sourceIds: [`appointment:${confirmEffect.appointmentId}`],
+            resultIds: [],
+          });
+        }
+      }
+      for (const rescheduleEffect of effects.filter(
+        (e): e is Extract<WorldEffect, { type: 'appointment.rescheduled' }> =>
+          e.type === 'appointment.rescheduled',
+      )) {
+        const ap = executionWorld.appointments?.find(
+          (a: any) => a.id === rescheduleEffect.appointmentId,
+        );
+        const title = ap?.title ?? '约定事项';
+        const existingResp = accepted.state.responsibilities.find(
+          (r) =>
+            r.subject.kind === 'appointment' && r.subject.id === rescheduleEffect.appointmentId,
+        );
+        if (existingResp) {
+          if (existingResp.status !== 'fulfilled' && existingResp.status !== 'withdrawn') {
+            existingResp.status = 'waiting';
+            existingResp.waitingOn = 'player';
+            existingResp.deadline = {
+              at: rescheduleEffect.newAt,
+              sourceId: `appointment:${rescheduleEffect.appointmentId}`,
+            };
+            existingResp.summary = `改期等待确认：${title}`;
+          }
+        } else {
+          accepted.state.responsibilities.push({
+            id: `appointment:${rescheduleEffect.appointmentId}`,
+            subject: { kind: 'appointment', id: rescheduleEffect.appointmentId },
+            summary: `改期等待确认：${title}`,
+            sourceIds: [`appointment:${rescheduleEffect.appointmentId}`],
+            revision: 1,
+            status: 'waiting',
+            waitingOn: 'player',
+            deadline: {
+              at: rescheduleEffect.newAt,
+              sourceId: `appointment:${rescheduleEffect.appointmentId}`,
+            },
+            nextCheck: [],
+          });
+        }
+        const existingGoal = accepted.state.goals.find(
+          (g) => g.summary.includes(rescheduleEffect.appointmentId) || g.summary.includes(title),
+        );
+        if (existingGoal) {
+          if (existingGoal.status !== 'fulfilled' && existingGoal.status !== 'withdrawn') {
+            existingGoal.status = 'active';
+            existingGoal.summary = `按新时间参加「${title}」`;
+          }
+        } else {
+          accepted.state.goals.push({
+            id: `goal:appointment:${rescheduleEffect.appointmentId}`,
+            summary: `按新时间参加「${title}」`,
+            status: 'active',
+            sourceIds: [`appointment:${rescheduleEffect.appointmentId}`],
             resultIds: [],
           });
         }
@@ -962,6 +1114,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'appointment.fulfilled' }>
               | Extract<WorldEffect, { type: 'appointment.cancelled' }>
               | Extract<WorldEffect, { type: 'appointment.confirmed' }>
+              | Extract<WorldEffect, { type: 'appointment.rescheduled' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },
@@ -1016,6 +1169,42 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               "UPDATE parallel_life.world_appointments SET status='confirmed', document=jsonb_set(document, '{status}', '\"confirmed\"') WHERE world_id=$1 AND owner_id=$2 AND id=$3",
               [attempt.worldId, ownerId, effect.appointmentId],
             );
+          }
+          if (effect.type === 'appointment.rescheduled') {
+            const loc = effect.placeId ?? effect.locationId;
+            if (loc) {
+              await sql.query(
+                `UPDATE parallel_life.world_appointments 
+                 SET status='proposed', 
+                     document=jsonb_set(
+                       jsonb_set(
+                         jsonb_set(document, '{status}', '"proposed"'),
+                         '{at}',
+                         to_jsonb($4::text)
+                       ),
+                       '{placeId}',
+                       to_jsonb($5::text)
+                     )
+                 WHERE world_id=$1 AND owner_id=$2 AND id=$3`,
+                [attempt.worldId, ownerId, effect.appointmentId, effect.newAt, loc],
+              );
+            } else {
+              await sql.query(
+                `UPDATE parallel_life.world_appointments 
+                 SET status='proposed', 
+                     document=jsonb_set(
+                       jsonb_set(
+                         document, 
+                         '{status}', 
+                         '"proposed"'
+                       ), 
+                       '{at}', 
+                       to_jsonb($4::text)
+                     )
+                 WHERE world_id=$1 AND owner_id=$2 AND id=$3`,
+                [attempt.worldId, ownerId, effect.appointmentId, effect.newAt],
+              );
+            }
           }
         }
         for (const media of next.mediaRequests.filter((item) => item.sourceEventId === event.id)) {

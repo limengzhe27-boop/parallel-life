@@ -70,6 +70,10 @@ import {
   readNpcAgentOpeningStatusIfEnabled,
 } from './npc-agent-advance-services.ts';
 import { PostgresDirectorSnapshotRepository } from '../modules/world/infrastructure/director-snapshot-repository.ts';
+import {
+  inspectLegacyWorldReadiness,
+  migrateLegacyWorldInTransaction,
+} from '../modules/world/infrastructure/legacy-world-migration.ts';
 let services: ReturnType<typeof createServices> | undefined;
 function createServices() {
   // Marketplace integrations expose an administrative DATABASE_URL for
@@ -379,6 +383,16 @@ function createServices() {
     memoryCandidates: new MemoryCandidateRepository(db),
     profile: new ProfileRepository(db),
     assets: new AssetRepository(db, assetStore),
+    inspectLegacyWorld: (ownerId: string, worldId: string) =>
+      db.transaction(ownerId, (sql) => inspectLegacyWorldReadiness(sql, ownerId, worldId)),
+    migrateLegacyWorld: (
+      ownerId: string,
+      input: {
+        worldId: string;
+        expectedWorldVersion?: number;
+        actorDefinitionRefs?: Record<string, string>;
+      },
+    ) => db.transaction(ownerId, (sql) => migrateLegacyWorldInTransaction(sql, ownerId, input)),
     origin,
   };
 }

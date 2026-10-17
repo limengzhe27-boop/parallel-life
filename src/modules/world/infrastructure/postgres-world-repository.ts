@@ -608,12 +608,15 @@ export class PostgresWorldRepository implements WorldRepository {
       if (
         effect.type === 'appointment.fulfilled' ||
         effect.type === 'appointment.cancelled' ||
-        effect.type === 'appointment.confirmed'
+        effect.type === 'appointment.confirmed' ||
+        effect.type === 'appointment.rescheduled'
       ) {
         const item = state.appointments.find((a) => a.id === effect.appointmentId);
         if (item) {
           const status =
-            item.status === 'confirmed' || item.status === 'cancelled' ? item.status : undefined;
+            item.status === 'confirmed' || item.status === 'cancelled' || item.status === 'proposed'
+              ? item.status
+              : undefined;
           await sql.query(
             status
               ? 'UPDATE parallel_life.world_appointments SET status=$4, document=$5 WHERE world_id=$1 AND owner_id=$2 AND id=$3'

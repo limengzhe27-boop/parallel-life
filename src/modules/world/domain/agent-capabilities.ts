@@ -6,6 +6,7 @@ export const NPC_AGENT_CAPABILITIES = [
   'appointment.fulfill',
   'appointment.cancel',
   'appointment.accept',
+  'appointment.reschedule',
   'media.generate_image',
   'media.generate_video',
   'media.share',
