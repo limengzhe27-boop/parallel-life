@@ -1,3 +1,21 @@
+## 2026-10-17 · Task L-05 多人生、现实/平行轨迹、导演面板、分支预览和时间界面已上线
+
+业务 dc781c9b68bc91866cfec8d2a6ae8c54117b1fc6 / dpl_AqZJQymX283C43MhrfLUu5juctfB READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 worlds 401、真实 guest 官方人生目录读取 (200, 4个预设)、创建县城黄毛人生 (201)、时钟查询 (200)、暂停与倍速切换 (200)、恢复流转 (200) 以及快进等待（POST /api/v1/worlds/:id/clock/wait -> 200 状态 committed, version 1）实测全流程通过。
+
+交付内容与质量证据：
+1. **多人生、现实/平行轨迹、导演面板、分支预览与时间界面 (Task L-05)**：
+   - 多人生管理与选择：提供多人生快速切换芯片（县城修车青年、江浙沪独生子、海边咖啡馆店主），集成官方精选目录 `OfficialLivesView`（全部/精选/我的）与个人平行分支列表 `BranchList`；
+   - 现实生活基线 vs. 平行轨迹对比：明确隔离现实生活不可变事实（真实身份、原籍、分叉点）与平行人生假设轨迹（平行身份、如果假设、分叉抉择、核心代价、当前进度），标注真实访谈与隐私资料绝密停留在现实档案层、不进入虚构 NPC 对话；
+   - 导演面板：提供导演期望演进引导（guidance）、核心主题标签（themes）、剧情节奏（pacing: slow/normal/fast）以及出场人物焦点（focusActors），支持“先看影响”预览计算、“让世界走一会儿”单拍仿真推进，严格警示“已经发生的事不会被改写；想换一种走法，请建立一个分支，原本的人生会保留”；
+   - 分支预览：支持弹窗展开查看如果假设、身份设定、核心代价与开场情境，支持直接“进入体验”；
+   - 时间界面与清晰日期：顶部常驻状态栏与时间卡片统一通过 `worldDateTimeLabel` 与 `worldWeekday` 展示规范化故事时刻（如 `2026-09-24 08:30 (星期四)`），清晰呈现当前人生标题与身份，实时反映暂停/1×/12×流逝状态，并提供快速等待操作（稍等一会、等到赴约前、休息到明早）。
+2. **测试与质量证据**：
+   - 单元与界面测试 4/4 `tests/lives-preview-ui.test.ts` 全部通过；
+   - 联合 UI 测试套件 47/47 全部通过；
+   - 模块边界检查通过（612 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产环境构建打包成功；
+   - 生产环境部署 `dpl_AqZJQymX283C43MhrfLUu5juctfB` (Ready) 在公网域名 `parallel-life-nu.vercel.app` 完成端到端实测验证。
+
 ## 2026-10-17 · Task L-04 时间锚点、暂停/倍速/跳下一事件、离线分块摘要与恢复幂等已上线
 
 业务 e85506a06642d99d3ba928a3130d223298640cf5 / dpl_JDEj1srLSYgZh9RLHkXmLfza6D8o READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 worlds 401、匿名 clock 401、匿名 wait 401、真实 guest 官方人生创建 (201)、时钟查询 (200)、暂停与倍速切换 (200)、恢复流转 (200) 以及快进等待（POST /api/v1/worlds/:id/clock/wait -> 200 状态 committed，stoppedBy: target）实测全流程通过。
