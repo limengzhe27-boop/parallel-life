@@ -1,4 +1,27 @@
+## 2026-10-17 · Task 44-124 / R6 / R7 媒体流水线注入与 NPC 媒体能力闭环已上线
+
+业务 06b2cc764b85c138f6b0f55cf525492fc0b40e24 / dpl_8jWWAc5W1g9MannUM1KLg5bDeDYp READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
+
+交付内容与质量证据：
+1. **Worker 注入与媒体服务装配**：
+   - `src/server/worker-composition.ts` 中通过 `readMediaService` 惰性工厂组装 `MediaPipelineService`，注入真实 `PostgresCharacterVisualAnchorRepository` 与 `ReplicateMediaProviderAdapter`；
+   - 适配 `mediaHandler` 与 `mediaPipelineHandler` 支持工厂模式延迟加载；
+   - 消除 Node.js `--experimental-strip-types` 对 TypeScript 参数属性语法的限制。
+2. **NPC 媒体能力与状态收敛**：
+   - 注册 `media.generate_image`、`media.generate_video` 和 `media.share` 至 `NPC_AGENT_CAPABILITIES`，并更新模型结构化提示词；
+   - 内核在同一事务内持久化 `world_media_requests` 并派发 `outbox_jobs`；
+   - 素材分享严格核查 `parallel_life.assets` 就绪状态（`status = 'ready'`），未就绪或越权时拒绝；
+   - 领域模型支持 `media` 与 `asset` 输出引用及 `media.requested` 日历规约。
+3. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 4/4 `tests/integration/actor-media-capability.test.ts` 全部通过；
+   - 约定履约与取消测试 5/5 全部通过；
+   - 架构模块边界检查通过（616 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,277 项全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）；
+   - 生产环境部署 `dpl_8jWWAc5W1g9MannUM1KLg5bDeDYp` (Ready) 在公网域名 `parallel-life-nu.vercel.app` 完成实测验证。
+
 ## 2026-10-17 · Task G-01 正式账号/登录、游客归并、退出/恢复已上线
+
 
 业务 b157411516eef350c3bc6f01449b2f69ce3818e6 / dpl_BvH2pqeAuq2YjuPQzQY31RGK3eW6 READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。生产数据库迁移 `0089_account_auth.sql` 已在 Supabase 生产库（89/89）完整应用。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名会话状态查询 (200 authenticated: false, kind: guest)、真实访客会话初始化 (200, kind: guest, pl_session Cookie 设置与 CSRF 生成)、带访客数据直接注册正式账号 (201, kind: account, mergedGuest: true)、正式账号登录态与标识符核对 (200 authenticated: true, kind: account)、正确密码重新登录 (200, kind: account)、错误密码安全拒绝 (401)、退出登录清空会话 Cookie (200 status: cleared) 以及退出后未登录态核实 (200 authenticated: false) 全流程端到端通过。
 
