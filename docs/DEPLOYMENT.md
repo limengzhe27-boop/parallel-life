@@ -1,6 +1,6 @@
 ## 2026-10-17 · Task 44-127 手机各 App 衔接与时间草稿一致性全闭环已上线
 
-业务 1f11767c9d0ee42db0253dc679eb3a7c64a377d6，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
+业务 1f11767c9d0ee42db0253dc679eb3a7c64a377d6 / dpl_J1W1FSjXf9BXHYuDQ2bY92q2QZEU READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200 全流程端到端通过。
 
 交付内容与质量证据：
 1. **APP-LINK-AUDIT-45 审查缺陷全闭环 (B1-B6, O1-O2)**：
