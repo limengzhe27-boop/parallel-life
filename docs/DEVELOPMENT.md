@@ -276,7 +276,7 @@ V-01 真实访谈与保存恢复 → V-02 个性化人生创建 → V-03 手机�
 
 |ID|状态|角色|硬依赖|任务与完成标准|交付证据|
 |---|---|---|---|---|---|
-|G-01|[ ] 待验收|codex-main-account-auth-g01|B-06|正式账号/登录、游客归并、退出/恢复；会话和归属可验证，不因归并读取他人资料；工作目录 /Users/limengzhe/Desktop/projects/demo/人生剧本；涉及 db/migrations/0089_account_auth.sql, src/contracts/auth.ts, src/modules/identity/infrastructure/identity-repository.ts, src/app/api/v1/auth/, src/app/api/v1/session/route.ts, tests/integration/account-auth.test.ts|详见 docs/task-reports/G-01.md|
+|G-01|[x] 已完成|codex-main-account-auth-g01|B-06|正式账号/登录、游客归并、退出/恢复；会话和归属可验证，不因归并读取他人资料；工作目录 /Users/limengzhe/Desktop/projects/demo/人生剧本；涉及 db/migrations/0089_account_auth.sql, src/contracts/auth.ts, src/modules/identity/infrastructure/identity-repository.ts, src/app/api/v1/auth/, src/app/api/v1/session/route.ts, tests/integration/account-auth.test.ts|详见 docs/task-reports/G-01.md 与 docs/DEPLOYMENT.md|
 |G-02|[ ] 待开发|B|G-01,L-01|跨设备同步与冲突处理；未发送草稿与服务端存档区分，旧设备不覆盖新版本|—|
 |G-03|[ ] 待开发|B|V-04,G-02|真人参与授权、共享虚构角色卡、成员与撤销；不共享私人访谈/照片|—|
 |G-04|[ ] 待开发|B|G-03|共同场景事件/版本、共享时钟/加速规则；幂等分发到各人生、断线接续|—|

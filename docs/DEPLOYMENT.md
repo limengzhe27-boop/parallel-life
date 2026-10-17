@@ -1,3 +1,24 @@
+## 2026-10-17 · Task G-01 正式账号/登录、游客归并、退出/恢复已上线
+
+业务 b157411516eef350c3bc6f01449b2f69ce3818e6 / dpl_BvH2pqeAuq2YjuPQzQY31RGK3eW6 READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。生产数据库迁移 `0089_account_auth.sql` 已在 Supabase 生产库（89/89）完整应用。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名会话状态查询 (200 authenticated: false, kind: guest)、真实访客会话初始化 (200, kind: guest, pl_session Cookie 设置与 CSRF 生成)、带访客数据直接注册正式账号 (201, kind: account, mergedGuest: true)、正式账号登录态与标识符核对 (200 authenticated: true, kind: account)、正确密码重新登录 (200, kind: account)、错误密码安全拒绝 (401)、退出登录清空会话 Cookie (200 status: cleared) 以及退出后未登录态核实 (200 authenticated: false) 全流程端到端通过。
+
+交付内容与质量证据：
+1. **正式账号、安全密码哈希与访客原子归并 (Task G-01)**：
+   - 数据库迁移 `db/migrations/0089_account_auth.sql`：建立 `parallel_life.account_credentials` 表（强制 RLS 隔离）、`register_account_credentials`、`lookup_account_credential`、`merge_guest_into_account` 存储过程；
+   - 密码使用强盐哈希存储（Node.js `crypto.scrypt` + 16 字节随机盐）并通过 `timingSafeEqual` 防时序侧信道攻击；
+   - 严格遵循“不因归并读取他人资料”：仅允许已认证当前游客会话与已验证凭据的目标账户归并，并在 `session_replication_role = 'replica'` 下原子转移包含复合外键的世界及其全部子级实体，同步更新 `worlds.state->'ownerId'`，彻底销毁旧游客与瞬态数据，杜绝越权与脏读；
+   - 支持游客直接提升（In-place Promotion）为正式账号，保持已有世界、档案与会话无缝延续；
+   - 登录态与会话恢复：`SignedSession` 扩展支持强绑定 `userId` 的会话颁发与 CSRF 双重防御，提供 `DELETE /api/v1/session` 实现退出清理。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 账号认证、游客归并与隔离集成测试 1/1 `tests/integration/account-auth.test.ts` 全部通过；
+   - 客户端接口单元测试 5/5 `tests/client.test.ts` 全部通过；
+   - 数据库角色权限门禁测试 2/2 `tests/integration/role-grants.test.ts` 全部通过；
+   - 架构模块边界检查通过（615 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,277 项全部通过；
+   - Next.js 生产优化构建成功；
+   - Supabase 生产库应用 `0089_account_auth.sql` 成功，89/89 项迁移校验一致；
+   - 生产环境部署 `dpl_BvH2pqeAuq2YjuPQzQY31RGK3eW6` (Ready) 在公网域名 `parallel-life-nu.vercel.app` 完成 9 步端到端黑盒实测闭环验证。
+
 ## 2026-10-17 · Task L-05 多人生、现实/平行轨迹、导演面板、分支预览和时间界面已上线
 
 业务 dc781c9b68bc91866cfec8d2a6ae8c54117b1fc6 / dpl_AqZJQymX283C43MhrfLUu5juctfB READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 worlds 401、真实 guest 官方人生目录读取 (200, 4个预设)、创建县城黄毛人生 (201)、时钟查询 (200)、暂停与倍速切换 (200)、恢复流转 (200) 以及快进等待（POST /api/v1/worlds/:id/clock/wait -> 200 状态 committed, version 1）实测全流程通过。
