@@ -14,6 +14,44 @@ export function readPublicationSocial(db: PostgresDatabase, ownerId: string, wor
   });
 }
 
+/** Merges dynamic in-world moments with static authored social moments, sorted by at DESC. */
+export function mergeSocialMoments(
+  authoredSocial: import('../../../contracts/authored-social.ts').AuthoredSocial,
+  worldMoments?: {
+    key: string;
+    actorId: string;
+    name: string;
+    text: string;
+    at: string;
+    image?: string;
+    images?: string[];
+  }[],
+) {
+  const dynamicMoments = (worldMoments ?? []).map((m) => ({
+    key: m.key,
+    actorId: m.actorId,
+    name: m.name,
+    text: m.text,
+    at: m.at,
+    ...(m.image ? { image: m.image } : {}),
+    ...(m.images && m.images.length ? { images: m.images } : {}),
+  }));
+
+  const combined = [...dynamicMoments, ...authoredSocial.moments];
+  const seen = new Set<string>();
+  const uniqueMoments = combined.filter((m) => {
+    if (seen.has(m.key)) return false;
+    seen.add(m.key);
+    return true;
+  });
+  uniqueMoments.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+
+  return AuthoredSocialSchema.parse({
+    ...authoredSocial,
+    moments: uniqueMoments.slice(0, 48),
+  });
+}
+
 /** Only the requested fictional speaker's own modules; no world manuscript or other actors. */
 export function readPublicationActorModules(
   db: PostgresDatabase,

@@ -606,6 +606,33 @@ export function parseProposal(value: unknown): TurnProposal {
             ? { note: text(item.note.trim(), 200) }
             : {}),
         };
+      case 'moment.published':
+        return {
+          type: item.type,
+          id: effectId,
+          key: text(item.key, 32),
+          actorId: id(item.actorId),
+          name: text(item.name, 80),
+          text: text(item.text, 1600),
+          ...(typeof item.placeId === 'string' && item.placeId.trim()
+            ? { placeId: text(item.placeId.trim(), 100) }
+            : {}),
+          ...(typeof item.image === 'string' && item.image.trim()
+            ? { image: text(item.image.trim(), 1000) }
+            : {}),
+          ...(Array.isArray(item.images)
+            ? {
+                images: item.images
+                  .filter((img: unknown) => typeof img === 'string' && Boolean((img as string).trim()))
+                  .map((img: string) => text(img.trim(), 1000))
+                  .slice(0, 9),
+              }
+            : {}),
+          at: isoInstant(item.at),
+          ...(typeof item.note === 'string' && item.note.trim()
+            ? { note: text(item.note.trim(), 200) }
+            : {}),
+        };
       case 'fact.established':
         return {
           type: item.type,

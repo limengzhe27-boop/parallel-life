@@ -271,7 +271,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           action.capability !== 'item.deliver' &&
           action.capability !== 'item.use' &&
           action.capability !== 'activity.participate' &&
-          action.capability !== 'relationship.bond'
+          action.capability !== 'relationship.bond' &&
+          action.capability !== 'moment.publish'
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
@@ -869,6 +870,69 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               completedGoalIds = [action.goalId];
             }
           }
+        } else if (action.capability === 'moment.publish') {
+          const text = action.parameters.text;
+          const keyParam = action.parameters.key;
+          const placeId =
+            typeof action.parameters.placeId === 'string' && action.parameters.placeId.trim()
+              ? action.parameters.placeId.trim()
+              : undefined;
+          const image =
+            typeof action.parameters.image === 'string' && action.parameters.image.trim()
+              ? action.parameters.image.trim()
+              : undefined;
+          const images = Array.isArray(action.parameters.images)
+            ? action.parameters.images
+                .filter(
+                  (img: unknown) => typeof img === 'string' && Boolean((img as string).trim()),
+                )
+                .map((img: string) => img.trim())
+                .slice(0, 9)
+            : undefined;
+          const note =
+            typeof action.parameters.note === 'string' && action.parameters.note.trim()
+              ? action.parameters.note.trim()
+              : undefined;
+
+          if (
+            typeof text !== 'string' ||
+            !text.trim() ||
+            text.trim().length > 1600 ||
+            (keyParam !== undefined &&
+              (typeof keyParam !== 'string' || !keyParam.trim() || keyParam.trim().length > 32)) ||
+            Object.keys(action.parameters).some(
+              (key) => !['text', 'key', 'placeId', 'image', 'images', 'note'].includes(key),
+            )
+          ) {
+            throw new AgentValidationError('MOMENT_PUBLISH_PARAMETERS');
+          }
+
+          const momentKey =
+            (typeof keyParam === 'string' && keyParam.trim()) ||
+            `m_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+
+          const actorName =
+            executionWorld.actors.find((a: any) => a.id === attempt.actorId)?.name || '未知';
+
+          const effectId = randomUUID();
+          effects.push({
+            type: 'moment.published',
+            id: effectId,
+            key: momentKey,
+            actorId: attempt.actorId,
+            name: actorName,
+            text: text.trim(),
+            at,
+            ...(placeId ? { placeId } : {}),
+            ...(image ? { image } : {}),
+            ...(images && images.length ? { images } : {}),
+            ...(note ? { note } : {}),
+          });
+          outputRefs = [{ kind: 'moment', id: momentKey }];
+          handledResponsibilityIds = [...action.handlesResponsibilityIds];
+          if (action.goalId) {
+            completedGoalIds = [action.goalId];
+          }
         } else if (action.capability === 'travel.begin') {
           if (!clock) throw new AgentValidationError('TRAVEL_CLOCK_UNAVAILABLE');
           if (
@@ -1427,6 +1491,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               | Extract<WorldEffect, { type: 'item.used' }>
               | Extract<WorldEffect, { type: 'activity.participated' }>
               | Extract<WorldEffect, { type: 'relationship.bonded' }>
+              | Extract<WorldEffect, { type: 'moment.published' }>
               | Extract<WorldEffect, { type: 'media.requested' }>
             )[],
           },

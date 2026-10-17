@@ -48,6 +48,7 @@ export type AgentStateCommittedEvent = {
       | Extract<WorldEffect, { type: 'item.used' }>
       | Extract<WorldEffect, { type: 'activity.participated' }>
       | Extract<WorldEffect, { type: 'relationship.bonded' }>
+      | Extract<WorldEffect, { type: 'moment.published' }>
       | Extract<WorldEffect, { type: 'media.requested' }>
     )[];
   };
@@ -234,6 +235,26 @@ export function applyAgentStateEvent(
       if (targetActor) {
         targetActor.relationship = effect.relationship;
       }
+      continue;
+    }
+    if (effect.type === 'moment.published') {
+      if (effect.actorId !== event.data.actorId) {
+        throw new DomainError('INVALID_PROPOSAL');
+      }
+      state.moments = state.moments ? [...state.moments] : [];
+      state.moments.push({
+        id: effect.id,
+        key: effect.key,
+        actorId: effect.actorId,
+        name: effect.name,
+        text: effect.text,
+        at: effect.at,
+        ...(effect.placeId ? { placeId: effect.placeId } : {}),
+        ...(effect.image ? { image: effect.image } : {}),
+        ...(effect.images && effect.images.length ? { images: effect.images } : {}),
+        ...(effect.note ? { note: effect.note } : {}),
+        sourceEventId: event.id,
+      });
       continue;
     }
     if (effect.type === 'media.requested') {

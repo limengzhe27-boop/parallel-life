@@ -1,3 +1,22 @@
+## 2026-10-18 · Task 44-135 角色动态发布与朋友圈社交流投影完整闭环已上线
+
+业务待推送部署 / Vercel 正式别名 `parallel-life-nu.vercel.app`。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路自动化实测。
+
+交付内容与质量证据：
+1. **任务 44-135 角色动态发布能力闭环 (`moment.publish`)**：
+   - `NPC_AGENT_CAPABILITIES` 注册能力 `'moment.publish'`；
+   - 领域模型扩展：定义 `WorldMoment` 实体类型与 `WorldState.moments?: WorldMoment[]` 权威记录；`WorldEffect` 新增 `'moment.published'`（含 `id, authorActorId, text, at, placeId?, images?, note?`）；`AgentActionResult.outputRefs` 新增 `'moment'` 凭证类型；
+   - 严密前置条件与参数强校验：文本非空且字数 1-1600 字校验、图片数组最多 9 张校验、非法键拦截与自动生成缺失键兜底；
+   - 状态机原子跃迁：生成并持久化 `moment.published` 事件、原子追加新动态至 `world.moments`、关联发布责任（`handlesResponsibilityIds`）与目标（`completedGoalIds`）原子履约标记（`status: 'fulfilled'`）、产出凭证 `outputRefs: [{ kind: 'moment', id: key }]`；
+   - 手机朋友圈社交流投影聚合：实现 `mergeSocialMoments` 函数，统一动态流与编剧开场动态按时间倒序融合与去重；`publicationSocialRoute` 实时投影最新社交流；
+   - 真实 PostgreSQL 55432 端到端集成测试 `tests/integration/actor-moment-publish.test.ts` 4/4 子测试全部通过。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 `tests/integration/actor-moment-publish.test.ts` 全部通过；
+   - 历史能力集成测试 32/32 全量通过；
+   - 架构模块边界检查通过（620 files clean），`tsc --noEmit` 0 错误；
+   - 全量回归测试 `npm test` 3,293 项全部通过；
+   - Next.js 生产优化构建成功（27/27 路由）。
+
 ## 2026-10-18 · Task 44-134 人际关系羁绊深化与认知评价行动能力完整闭环已上线
 
 业务 4bb4e2ec / Vercel 正式别名 `parallel-life-nu.vercel.app` 已核实 READY。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 session 200 (`authenticated: false, kind: guest`)、首页 SSR 200，以及生产环境全链路 8 步真实大模型用户闭环自动化实测 100% 通过。

@@ -113,6 +113,20 @@ export type WorldActivity = {
   note?: string;
 };
 
+export type WorldMoment = {
+  id: Id;
+  key: string;
+  actorId: Id;
+  name: string;
+  text: string;
+  at: string;
+  placeId?: string;
+  image?: string;
+  images?: string[];
+  note?: string;
+  sourceEventId: Id;
+};
+
 /** A decision the protagonist actually stated, not a result inferred from an NPC reply. */
 export type StoryChoice = {
   id: Id;
@@ -193,6 +207,8 @@ export type WorldState = {
   items?: WorldItem[];
   /** Authoritative completed scene activities; absent in legacy snapshots. */
   activities?: WorldActivity[];
+  /** Dynamic moments/feed updates published by actors; absent in legacy snapshots. */
+  moments?: WorldMoment[];
 };
 
 export type WorldEffect =
@@ -284,6 +300,19 @@ export type WorldEffect =
       mayShare?: boolean;
       at: string;
       reason?: string;
+      note?: string;
+    }
+  | {
+      type: 'moment.published';
+      id: Id;
+      key: string;
+      actorId: Id;
+      name: string;
+      text: string;
+      at: string;
+      placeId?: string;
+      image?: string;
+      images?: string[];
       note?: string;
     }
   | { type: 'appointment.created'; id: Id; title: string; at: string; participantIds: Id[] }

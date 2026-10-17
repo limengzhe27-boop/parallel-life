@@ -390,6 +390,23 @@ export function applyEvent(
         }
         break;
       }
+      case 'moment.published': {
+        state.moments = state.moments ? [...state.moments] : [];
+        state.moments.push({
+          id: effect.id,
+          key: effect.key,
+          actorId: effect.actorId,
+          name: effect.name,
+          text: effect.text,
+          at: effect.at,
+          ...(effect.placeId ? { placeId: effect.placeId } : {}),
+          ...(effect.image ? { image: effect.image } : {}),
+          ...(effect.images && effect.images.length ? { images: effect.images } : {}),
+          ...(effect.note ? { note: effect.note } : {}),
+          sourceEventId,
+        });
+        break;
+      }
       case 'belief.recorded':
         state.facts.push({
           id: effect.id,
