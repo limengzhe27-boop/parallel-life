@@ -1,3 +1,25 @@
+## 2026-10-17 · Task L-04 时间锚点、暂停/倍速/跳下一事件、离线分块摘要与恢复幂等已上线
+
+业务 e85506a06642d99d3ba928a3130d223298640cf5 / dpl_JDEj1srLSYgZh9RLHkXmLfza6D8o READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、匿名 worlds 401、匿名 clock 401、匿名 wait 401、真实 guest 官方人生创建 (201)、时钟查询 (200)、暂停与倍速切换 (200)、恢复流转 (200) 以及快进等待（POST /api/v1/worlds/:id/clock/wait -> 200 状态 committed，stoppedBy: target）实测全流程通过。
+
+交付内容与质量证据：
+1. **时间锚点、暂停/倍速控制与离线分块摘要 (Task L-04)**：
+   - `parallel_life.world_clock` 持久化故事时间锚点 `story_now` 与物理锚点 `last_tick_at`，只读手机界面通过纯函数 `projectStoryTime(clock, realNow)` 实时无突变投影；
+   - 玩家时钟控制 `POST /api/v1/worlds/:id/clock` 支持暂停、恢复与倍速（0～60 范围合法性受控），底层事务原子落库；
+   - 快进到下一个事件 `POST /api/v1/worlds/:id/clock/wait`（`PostgresStoryWaitRepository`）支持 `next_appointment`、`morning`、`short` 快进，自动识别约定边界与剧情栅栏并早 10 分钟边界前精确停下，基于 `story_wait_receipts` 保证多端与重放操作严格幂等；
+   - 离线分块摘要：长时间未打开后进入，时钟跳跃至现实流逝时间，`advanceWorld` 约束最多执行 `MAX_BEATS_PER_ADVANCE`（3 拍），其余流逝时间折叠为摘要元数据落库（`summary`）；
+   - 关键选择停下与多端/重复恢复不重复推进：未决玩家抉择优先保留焦点停下等待响应，基于世界粒度的排他性建议锁 `withAdvanceLock`、`world_clock_activity` 租约以及 `world_director_attempts` 记录，保障重试或重复恢复不重复扣费与不重发消息；
+   - 修复时钟步进 `deps.clock.read` 未透传虚拟时间基准导致的时间错位，适配测试端口回退。
+2. **测试与质量证据**：
+   - 真实 PostgreSQL 集成测试 3/3 `tests/integration/world-clock.test.ts` 全部通过（验证步进拍数与折叠摘要、失败与并发锁防重复扣费、玩家新结论在冷却期内优先投递）；
+   - 真实 PostgreSQL 等待与快进集成测试 19/19 `tests/integration/story-wait.test.ts` 全部通过；
+   - 时钟纯领域单元测试 20/20 `tests/world-clock.test.ts` 全部通过；
+   - 时钟租约与约定等待集成测试 24/24 `tests/integration/appointment-wait.test.ts` & `tests/integration/world-clock-activity.test.ts` 全部通过；
+   - 历史分支与人生管理测试 17/17 `tests/integration/life-management.test.ts` & `tests/integration/history-branching.test.ts` 全部通过；
+   - 架构模块边界检查通过（612 files clean），`tsc --noEmit` 0 错误；
+   - Next.js 生产环境构建打包成功；
+   - 线上实测官方人生创建、时钟查询、暂停、倍速、恢复与时钟快进 wait 接口，公网全部 200/201 闭环验证。
+
 ## 2026-10-17 · Task L-02 历史分支：从基线与事件恢复指定版本，新建人生已上线
 
 业务 ead3e5668d2f627ba76a44bfec4a02ddca69dfec / dpl_DkygbzbChZXuJCffn3g1dYMt4eQV READY，Vercel 精确 SHA 与 Nu 正式别名 `parallel-life-nu.vercel.app` 已核实。公网 health 200 (`{"service":"parallel-life","status":"ok","stage":"interview"}`)、workbench 200、published 200、匿名 worlds / worlds/:id/fork 401 权限校验通过。
