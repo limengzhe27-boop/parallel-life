@@ -1,42 +1,43 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { removePlace } from '../src/features/publisher/publisher-place-image.ts';
+import { placeReferences, removePlace } from '../src/features/publisher/publisher-place-image.ts';
 
-const content = () => ({
+const withPlace = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
   places: [
     { key: 'shop', name: '小店', description: '', knownAtStart: true },
     { key: 'office', name: '办公室', description: '', knownAtStart: false },
   ],
-  routes: [
-    { fromPlaceKey: 'shop', toPlaceKey: 'office', minutes: 10 },
-    { fromPlaceKey: 'office', toPlaceKey: 'shop', minutes: 10 },
-  ],
+  ...extra,
 });
 
-test('删除地点时同时清理引用它的路线', () => {
-  const next = removePlace(content(), 'shop') as {
-    places: { key: string }[];
-    routes: unknown[];
-  };
+test('没有任何引用时可以直接删除', () => {
+  const next = removePlace(withPlace(), 'shop') as { places: { key: string }[] };
   assert.deepEqual(
-    next.places.map((p) => p.key),
+    next.places.map((place) => place.key),
     ['office'],
   );
-  assert.equal(next.routes.length, 0);
 });
 
-test('拒绝删除最后一个地点（契约要求至少 1 个）', () => {
+test('路线引用地点时阻止删除，且不自动清空原稿', () => {
+  const content = withPlace({
+    routes: [{ fromPlaceKey: 'shop', toPlaceKey: 'office', minutes: 10 }],
+  });
+  assert.ok(placeReferences(content, 'shop').length > 0);
+  assert.throws(() => removePlace(content, 'shop'), /路线/);
+  assert.equal((content.routes as unknown[]).length, 1, '原稿路线未被自动清空');
+});
+
+test('世界起点引用地点时阻止删除', () => {
+  const content = withPlace({ world: { startPlaceKey: 'shop' } });
+  assert.throws(() => removePlace(content, 'shop'), /世界起点/);
+});
+
+test('事件引用地点时阻止删除', () => {
+  const content = withPlace({ candidates: [{ key: 'c1', placeKey: 'shop' }] });
+  assert.throws(() => removePlace(content, 'shop'), /事件/);
+});
+
+test('拒绝删除最后一个地点', () => {
   const single = { places: [{ key: 'shop', name: '小店', knownAtStart: true }] };
   assert.throws(() => removePlace(single, 'shop'), /至少要保留 1 个地点/);
-});
-
-test('地点不存在或重复时不静默丢弃，而是报错', () => {
-  assert.throws(() => removePlace(content(), 'missing'), /未找到这个地点/);
-  const duplicate = {
-    places: [
-      { key: 'shop', name: 'A', knownAtStart: true },
-      { key: 'shop', name: 'B', knownAtStart: true },
-    ],
-  };
-  assert.throws(() => removePlace(duplicate, 'shop'), /未找到这个地点/);
 });

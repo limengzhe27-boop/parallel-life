@@ -101,19 +101,62 @@ export function placeImageUrl(
   return entry && typeof entry.url === 'string' && entry.url ? entry.url : undefined;
 }
 
-/** Remove one place and any route pointing at it; never leave a world without places. */
+export type PlaceReference = { path: string; label: string };
+
+const PLACE_FIELDS = new Set(['placeKey', 'startPlaceKey', 'fromPlaceKey', 'toPlaceKey']);
+const PLACE_LABELS: Record<string, string> = {
+  startPlaceKey: '世界起点',
+  routes: '路线',
+  candidates: '事件',
+  history: '背景',
+  nodes: '触发条件',
+  extensions: '扩展',
+};
+
+function referenceLabel(path: readonly string[]): string {
+  const field = path[path.length - 1] ?? '';
+  const root = PLACE_LABELS[field] ?? (path[0] ? (PLACE_LABELS[path[0]] ?? path[0]) : '内容');
+  return `${root}（${path.join('.')}）`;
+}
+
+/** Every place the authored content still points at, so deleting never silently rewrites the manuscript. */
+export function placeReferences(content: Draft, key: string): PlaceReference[] {
+  const found: PlaceReference[] = [];
+  const walk = (value: unknown, path: string[]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => walk(item, [...path, String(index)]));
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    for (const [field, child] of Object.entries(value as Record<string, unknown>)) {
+      const next = [...path, field];
+      if (PLACE_FIELDS.has(field) && child === key) {
+        found.push({ path: next.join('.'), label: referenceLabel(next) });
+        continue;
+      }
+      walk(child, next);
+    }
+  };
+  walk(content, []);
+  return found;
+}
+
+/** Never delete silently: unresolved references must be adjusted or replaced by the author first. */
 export function removePlace(content: Draft, key: string): Draft {
   const places = rows(content.places ?? []);
   const index = placeIndex(places, key);
   if (places.length <= 1) throw new Error('至少要保留 1 个地点。');
-  const routes = Array.isArray(content.routes) ? (content.routes as Row[]) : [];
+  const references = placeReferences(content, key);
+  if (references.length) {
+    const head = references
+      .slice(0, 3)
+      .map((reference) => reference.label)
+      .join('；');
+    const rest = references.length > 3 ? ` 等 ${references.length} 处` : '';
+    throw new Error(`这个地点仍被引用：${head}${rest}。请先调整或替换相关内容，再删除。`);
+  }
   return {
     ...content,
     places: places.filter((_, position) => position !== index),
-    ...(Array.isArray(content.routes)
-      ? {
-          routes: routes.filter((route) => route.fromPlaceKey !== key && route.toPlaceKey !== key),
-        }
-      : {}),
   };
 }
