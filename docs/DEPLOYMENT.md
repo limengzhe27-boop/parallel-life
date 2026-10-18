@@ -1,3 +1,9 @@
+## 2026-10-18 · 44-148/150 旧档进入、锁屏活动与人物统一输出（真实承接未全通过）
+
+业务63152348 / dpl_Dhq2wZf3zoDejjD8YcxSbpz9LE9Q正式Nu精确READY。旧档进入复用原narrative wake；锁屏隐藏聊天路由不再误报conversation；不可变命令不自动改版本重发。canonical Proposal和原生strict schema共源，完全相同执行包幂等折叠、不同内容同ID仍拒绝。无新迁移，保留现有存档历史/时间/进度。
+
+check3318/build、PG原进入20/原执行8通过，公网关键读200。真实150目前5/6、0unknown、合成档暂停：原手机真实回复及手机/PC锁屏通知通过；正式邀约仍未通过，第5次人物错误引用不存在责任并忽略新协商时间，原内核拒绝，未冒充成功。完整开场演绎尚未验收通过，148/150继续进行中。详见[150报告](task-reports/44-150-PHONE-CHAT-LIVE-ACCEPTANCE-I.md)。
+
 ## 2026-10-18 · 44-147 人物完整执行提案（代码READY，真实模型待验收）
 
 同一原NPC协议增加executions{goal,plan,action}完整提案，代码绑定引用，不从对白补动作，不另建执行路径；v20仍每轮一次人物模型。业务31c87327 / dpl_DMX6nqxxH9QTzNzFemNT4BqtEURa正式Nu精确READY；check3309/build、原服务PG7通过，公网关键读200/匿名works401。0商业模型，145的6次已闭账，真实自然演绎不冒称通过。详见[147报告](task-reports/44-147-NPC-ATOMIC-EXECUTION-PROTOCOL-I.md)。
