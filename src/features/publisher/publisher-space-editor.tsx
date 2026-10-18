@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import {
   addEmptyPlace,
+  removePlace,
   attachPlaceImage,
   detachPlaceImage,
   placeImageUrl,
@@ -159,6 +160,25 @@ export function PublisherSpaceEditor({
                     </button>
                   )}
                 </div>
+              </div>
+              <div className={s.actions}>
+                <button
+                  type="button"
+                  disabled={disabled || !!uploadingPlace || places.length <= 1}
+                  title={places.length <= 1 ? '至少要保留 1 个地点。' : '删除这个地点'}
+                  onClick={() => {
+                    const label = String(place.name || `地点 ${index + 1}`);
+                    if (!window.confirm(`删除地点「${label}」？`)) return;
+                    try {
+                      onChange(removePlace(content, key));
+                      setError('');
+                    } catch (cause) {
+                      setError(cause instanceof Error ? cause.message : '请刷新后重试。');
+                    }
+                  }}
+                >
+                  删除地点
+                </button>
               </div>
               <details className={s.details}>
                 <summary>场所说明（选填）</summary>

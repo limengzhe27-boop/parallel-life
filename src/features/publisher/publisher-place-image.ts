@@ -100,3 +100,20 @@ export function placeImageUrl(
   );
   return entry && typeof entry.url === 'string' && entry.url ? entry.url : undefined;
 }
+
+/** Remove one place and any route pointing at it; never leave a world without places. */
+export function removePlace(content: Draft, key: string): Draft {
+  const places = rows(content.places ?? []);
+  const index = placeIndex(places, key);
+  if (places.length <= 1) throw new Error('至少要保留 1 个地点。');
+  const routes = Array.isArray(content.routes) ? (content.routes as Row[]) : [];
+  return {
+    ...content,
+    places: places.filter((_, position) => position !== index),
+    ...(Array.isArray(content.routes)
+      ? {
+          routes: routes.filter((route) => route.fromPlaceKey !== key && route.toPlaceKey !== key),
+        }
+      : {}),
+  };
+}
