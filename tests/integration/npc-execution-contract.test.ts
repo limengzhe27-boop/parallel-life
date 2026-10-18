@@ -274,7 +274,7 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
                 },
               ],
             });
-          return JSON.stringify({
+          const response = {
             ...base,
             statements: [
               {
@@ -310,7 +310,9 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
                 },
               },
             ],
-          });
+          };
+          response.executions.push(structuredClone(response.executions[0]!));
+          return JSON.stringify(response);
         },
       };
       await npcAgentAdvanceServices(

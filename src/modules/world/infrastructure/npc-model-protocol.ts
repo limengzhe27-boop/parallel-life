@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isDeepStrictEqual } from 'node:util';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
@@ -287,7 +288,15 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   const wire = Wire.parse(transport({ protocol: NPC_WIRE_PROTOCOL, consideration: null, ...raw }));
   const { protocol: _protocol, consideration, plans, executions = [], ...proposal } = wire;
   // A typed intent is mapped to the original proposal, never executed here or inferred from speech.
+  const seenExecutions = new Map<string, (typeof executions)[number]>();
   for (const execution of executions) {
+    const key = JSON.stringify([execution.goal.id, execution.plan.id, execution.action.id]);
+    const previous = seenExecutions.get(key);
+    if (previous) {
+      if (!isDeepStrictEqual(previous, execution)) throw Error('NPC_EXECUTION_CONFLICT');
+      continue;
+    }
+    seenExecutions.set(key, execution);
     const { goal, plan, action } = execution;
     if (goal.kind === 'new')
       proposal.goals.push({

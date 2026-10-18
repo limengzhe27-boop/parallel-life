@@ -384,3 +384,41 @@ test('native response schema represents server event permission, never a guessed
   assert.equal(object.type, 'object');
   assert.ok((object.required as string[]).includes('choice'));
 });
+
+test('byte-equivalent execution intents are idempotent while conflicting duplicate identifiers are rejected', () => {
+  const { c, wire } = fixture();
+  const e = {
+    goal: { kind: 'new', id: 'g', summary: '讨论分工', sourceIds: ['input'] },
+    plan: { id: 'p', summary: '提出邀请', sourceIds: ['input'] },
+    action: {
+      id: 'a',
+      capability: 'appointment.propose',
+      targetIds: [],
+      parameters: [
+        { name: 'title', value: '讨论分工' },
+        { name: 'at', value: '2026-10-18T19:00:00+08:00' },
+      ],
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+      sourceIds: ['input'],
+    },
+  };
+  const body = {
+    ...wire,
+    statements: [{ text: '我可以发出待你确认的邀请。', dependsOnActionIds: [] }],
+    executions: [e, structuredClone(e)],
+  };
+  const before = structuredClone(body);
+  const p = parseAgentProposal(c, body);
+  assert.equal(p.actions.length, 1);
+  assert.equal(p.plans.length, 1);
+  assert.equal(p.goals.length, 1);
+  assert.deepEqual(body, before);
+  const conflict = structuredClone(e);
+  conflict.action.parameters[0]!.value = 'another invitation';
+  assert.throws(
+    () => parseAgentProposal(c, { ...wire, executions: [e, conflict] }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+});

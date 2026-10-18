@@ -45,3 +45,7 @@ provider使用strict:false：该约束是明确schema请求，不能宣称上游
 锁屏根因另补齐：useWorldTime此前只读URL，保留的聊天hash会使锁屏误上报conversation/focus，合法导演被defer。PhoneShell明确向父层回报可见lock状态，原activity依据可见状态发送browsing/null focus；未完成发送仍按busy保护，解锁恢复真实渠道focus；不靠DOM输入活动计时、重写hash或重置世界。纯策略覆盖private/group/scene隐形路由。
 
 最终check3317、44项相关聚焦、原服务native parameters PG8、旧档entry PG20通过。模型传输/解析与内核是同一协议，不按渣男题材特判。待本次build/部署READY，使用150余3次复验，不更改旧invalid结果。
+
+## 严格响应的幂等执行提案
+
+150第4次真实调用结构完整，但同一完整executions包被重复两次，原内核正确拒绝重复ID。统一协议边界只折叠内容完全相同的完整包，保留原始响应；同ID不同内容仍拒绝，内核重复ID守卫不变，不补造行动、不修改历史失败。原服务真实PG8项证明重复包只生成一个邀约且重放零调用；聚焦11项、check3318、build通过。范围150仍open，4/6，0unknown，测试档暂停；待READY再真实复验。
