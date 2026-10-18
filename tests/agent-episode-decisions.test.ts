@@ -106,5 +106,5 @@ test('request and evidence must match the actual input, and optional decisions d
   );
   const { episodeDecision: omitted, ...ordinary } = proposal;
   assert.ok(omitted);
-  assert.equal(parseAgentProposal(context, ordinary).episodeDecision, undefined);
+  assert.throws(() => parseAgentProposal(context, ordinary), /EPISODE_DECISION_REQUIRED/);
 });

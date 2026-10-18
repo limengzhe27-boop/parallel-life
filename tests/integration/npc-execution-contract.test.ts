@@ -23,7 +23,7 @@ import type { TextModel } from '../../src/modules/ai/application/ports.ts';
 import { admitNewAgentNarrativeInTransaction } from '../../src/modules/world/infrastructure/agent-narrative-repository.ts';
 test('real original NPC/kernel rejects empty execution contracts atomically and preserves known failure receipts', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55602);
+  assert.equal(cfg.port, Number(process.env.NPC_EXECUTION_CONTRACT_TEST_PORT ?? 55602));
   const admin = await adminClient('parallel_life_test');
   await migrate(admin);
   const db = new PostgresDatabase(
@@ -222,6 +222,148 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
       assert.equal(state!.goals[0]!.status, 'active');
       assert.deepEqual(state!.actions, []);
       assert.deepEqual(state!.goals[0]!.resultIds, []);
+    },
+  );
+  await t.test(
+    'wire event choice reaches active episode and a real proposed appointment through original services',
+    async () => {
+      const f = await fixture();
+      let calls = 0;
+      const model: TextModel = {
+        async complete(messages) {
+          calls++;
+          const p = JSON.parse(messages[1]!.content);
+          if (p.promptVersion.startsWith('director-')) {
+            const ref = p.wireCatalog.sources.find(
+              (s: { sourceId: string }) => s.sourceId === 'fact:basis',
+            ).ref;
+            return JSON.stringify({
+              protocol: 'director-wire-v1',
+              mode: 'bounded_opportunity',
+              candidates: [],
+              opportunities: [
+                {
+                  id: 'wire-event',
+                  title: 'Discuss preparations',
+                  description: 'An optional discussion based on an existing fact',
+                  playerImpact: 'Player may decline',
+                  actors: [p.wireCatalog.actors[0].ref],
+                  places: [],
+                  activity: 'conversation',
+                  origin: { kind: 'emergent', sourceRefs: [ref] },
+                },
+              ],
+              audit: { reason: 'Existing available basis', sourceRefs: [ref] },
+            });
+          }
+          const base = { protocol: 'npc-wire-v1', consideration: null, ...empty() };
+          if (p.input.origin === 'coordination')
+            return JSON.stringify({
+              ...base,
+              consideration: {
+                choice: 'engage',
+                reason: 'This fits my own preparation goal; player still chooses.',
+                basisSourceIds: [],
+              },
+              statements: [
+                {
+                  text: 'Would you like to discuss the preparation with me?',
+                  dependsOnActionIds: [],
+                },
+              ],
+            });
+          return JSON.stringify({
+            ...base,
+            statements: [
+              {
+                text: 'I have sent an invitation, awaiting your confirmation.',
+                dependsOnActionIds: ['invite'],
+              },
+            ],
+            goals: [
+              {
+                id: 'discuss',
+                summary: 'Discuss preparation with the player',
+                status: 'active',
+                sourceIds: [p.input.sourceId],
+                resultIds: [],
+              },
+            ],
+            plans: [
+              {
+                id: 'invite-plan',
+                goalId: 'discuss',
+                summary: 'Propose a meeting then await a decision',
+                sourceIds: [p.input.sourceId],
+                nextStep: { kind: 'action', actionId: 'invite' },
+              },
+            ],
+            actions: [
+              {
+                id: 'invite',
+                goalId: 'discuss',
+                capability: 'appointment.propose',
+                targetIds: [],
+                parameters: {
+                  title: 'Preparation discussion',
+                  at: new Date(Date.parse(p.storyAt) + 3600000).toISOString(),
+                },
+                preconditions: [],
+                dependsOnActionIds: [],
+                handlesResponsibilityIds: [],
+                sourceIds: [p.input.sourceId],
+                status: 'proposed',
+              },
+            ],
+          });
+        },
+      };
+      await npcAgentAdvanceServices(
+        db,
+        () => model,
+        new PostgresDirectorSnapshotRepository(db),
+      ).advanceIfEnabled(f.owner, f.id);
+      const episode = (
+        await admin.query('SELECT document FROM parallel_life.shared_episodes WHERE world_id=$1', [
+          f.id,
+        ])
+      ).rows[0].document;
+      assert.equal(episode.status, 'active');
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT choice FROM parallel_life.agent_episode_receipts WHERE world_id=$1',
+            [f.id],
+          )
+        ).rows[0].choice,
+        'engage',
+      );
+      const w = await f.worlds.get({ userId: f.owner }, f.id);
+      const command = {
+        id: randomUUID(),
+        worldId: f.id,
+        actorId: f.actorId,
+        expectedVersion: w.version,
+        text: 'Please invite me to discuss preparations one hour from now; I will confirm after receiving it.',
+      };
+      const service = npcAgentServices(db, () => model);
+      const result = await service.sendMessageIfEnabled(f.owner, command);
+      assert.equal(result?.status, 'committed');
+      const after = await f.worlds.get({ userId: f.owner }, f.id);
+      assert.equal(after.appointments.length, 1);
+      assert.equal(after.appointments[0]!.status, 'proposed');
+      const state = await new PostgresAgentRuntimeRepository(db).read(f.owner, {
+        worldId: f.id,
+        actorId: f.actorId,
+      });
+      assert.equal(state!.actions[0]!.status, 'succeeded');
+      assert.equal(state!.plans[0]!.nextActionId, state!.actions[0]!.id);
+      assert.equal(state!.goals[0]!.status, 'active');
+      assert.deepEqual(state!.goals[0]!.resultIds, []);
+      const beforeReplay = calls;
+      await service.sendMessageIfEnabled(f.owner, command);
+      assert.equal(calls, beforeReplay);
+      assert.equal((await f.worlds.get({ userId: f.owner }, f.id)).appointments.length, 1);
     },
   );
   for (const mode of ['missing', 'quiet'] as const)

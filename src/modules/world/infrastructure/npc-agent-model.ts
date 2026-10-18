@@ -1,4 +1,5 @@
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
+import { NPC_WIRE_PROTOCOL } from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
 import type { NpcSuppliedContext } from '../domain/npc-supplied-context.ts';
 import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
@@ -11,7 +12,7 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v17-executable-next-step';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v18-typed-next-step';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
@@ -81,6 +82,20 @@ focus可省略、null或{channel:"private|group|scene",threadId,subjectId:字符
 1. 普通问候闲聊（无承诺，全空增量）：{"statements":[{"text":"今天天气挺好，你忙完了吗？","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
 2. 愿意承担但当前缺少真实盘点能力（保存有解释的blocked计划，不伪造执行）：{"statements":[{"text":"我愿意负责核对，但还需要实际物料清单才能确认缺什么。","dependsOnActionIds":[]}],"goals":[{"id":"goal_material_check","summary":"核对物料并告知缺项","status":"active","sourceIds":["<当前input.sourceId>"],"resultIds":[]}],"plans":[{"id":"plan_material_check","goalId":"goal_material_check","summary":"取得实际清单后核对物料","status":"blocked","sourceIds":["<当前input.sourceId>"],"actionIds":[],"nextActionId":null,"triggers":[],"missingConditions":["尚无实际物料清单或受支持的盘点执行能力"]}],"actions":[],"responsibilities":[{"id":"resp_material_check","subject":{"kind":"matter","id":"material_check"},"summary":"取得依据后核对并回报缺项","status":"waiting","waitingOn":"world","sourceIds":["<当前input.sourceId>"],"nextCheck":[]}],"decisions":[]}
 3. 玩家确认分工后NPC确认（记录玩家决定）：{"statements":[{"text":"一言为定，那我们分头行动。","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[{"id":"dec_division_accepted","responsibilityId":"resp_material_check","kind":"accepted","sourceId":"<当前input.sourceId>","quote":"好，就这么办"}]}`;
+
+const WIRE_SYSTEM = `
+最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v1"，必含consideration（对象或null）、statements/goals/plans/actions/responsibilities/decisions六数组，focus及其他原协议可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
+consideration非null时为{choice:"engage|decline|defer|need_information|quiet",reason:"本人实际依据",basisSourceIds:[]}；basisSourceIds只可引用已提供来源。coordination的npc_episode_consideration必须非null，即使不说话也明确quiet/defer/need_information与理由，不以statements=[]代替选择。不强迫参与；缺本人授权事件意图时明确need_information，不猜未授权全局剧本。普通player带manifest但无关时仍可null；无事件请求时必须null。
+plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/actionIds/nextActionId/triggers/missingConditions，代码由单个nextStep精确绑定：
+- action: {kind:"action",actionId:"本轮actions或已有本人action的真实id"}。同时给真实支持能力的action；仅记录计划不能冒充执行。
+- reconsider: {kind:"reconsider",conditions:[合法非空条件],missing:[]}。条件须有真实依据，不能为唤醒造时限。
+- wait: {kind:"wait",conditions:[],missing:["具体缺什么"]}。不能确定来源时诚实缺条件，不造未来sourceId。
+- blocked: {kind:"blocked",missing:["具体未支持的能力或缺少证据"]}。
+- closed: {kind:"closed",status:"finished|withdrawn",reason:"有证据的原因"}，原结束与结果规则仍适用。
+不要把空actions、空条件、空missing的旧active计划照抄到plans。无变化不输出，已有计划有相关新输入时沿原id与完整旧sourceIds调整；不能只在对白中宣布已改安排而忽略计划。普通拒绝、协商或暂缓不产生新承诺，但对已有责任须准确记录决定，不能因引用前面的空数组示例而丢掉变更。
+邀约真实下一步：appointment.propose的parameters为{title,at:根据明确时间换算的带时区ISO,placeId:已有地点id}，goalId关联本人目标，sourceIds引用本次输入；对应plan.nextStep.actionId为该action.id。邀请仍未获玩家确认，不能说玩家已答应或到场。缺明确时间可以先询问并记录wait，不能凭空补日期。即使本人愿意也不能用plan.record冒充已发邀约或物理工作。
+coordination安静的合法格式：{"protocol":"npc-wire-v1","consideration":{"choice":"quiet","reason":"当前安排不宜新增联系","basisSourceIds":[]},"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
+`;
 
 function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
   // Never put source text, identities or raw model output in errors/logs.
@@ -195,7 +210,21 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       ))
   )
     invalid('NPC_AGENT_INVALID_SNAPSHOT');
+  const considerationRequired =
+    snapshot.input.origin === 'coordination' &&
+    (() => {
+      try {
+        return JSON.parse(snapshot.input.text)?.type === 'npc_episode_consideration';
+      } catch {
+        return false;
+      }
+    })();
   const payload = {
+    responseContract: {
+      protocol: NPC_WIRE_PROTOCOL,
+      considerationRequired,
+      planNextStepKinds: ['action', 'reconsider', 'wait', 'blocked', 'closed'],
+    },
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
     state: actorStateContextPayload(
@@ -341,7 +370,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     },
   };
   const messages = (): ModelMessage[] => [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: SYSTEM + WIRE_SYSTEM },
     { role: 'user', content: JSON.stringify(payload) },
   ];
   const fits = () =>

@@ -818,7 +818,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v17-executable-next-step');
+  assert.equal(payload.promptVersion, 'npc-agent-v18-typed-next-step');
 });
 
 test('prompt instructions specify player decision tracking on responsibilities with exact verbatim quotes', async () => {

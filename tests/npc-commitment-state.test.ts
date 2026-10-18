@@ -23,11 +23,7 @@ function makeFixture() {
   const actorId = 'actor-comm-a';
   const definitionRef = 'def-comm-v1';
   const initialTime = '2026-10-16T10:00:00.000Z';
-  const state: ActorAgentState = emptyActorAgentState(
-    { worldId, actorId },
-    definitionRef,
-    1,
-  );
+  const state: ActorAgentState = emptyActorAgentState({ worldId, actorId }, definitionRef, 1);
   state.revision = 0;
 
   const world: WorldState = {
@@ -50,8 +46,22 @@ function makeFixture() {
       positionSource: { kind: 'seed_genesis', seedId: 'seed-comm-1', snapshotVersion: 0 },
       routes: [],
       places: [
-        { id: 'place-shop', name: '茶饮店', description: '茶饮店', source: { kind: 'seed_genesis', seedId: 'seed-comm-1', snapshotVersion: 0 }, contactActorIds: [], appointmentIds: [] },
-        { id: 'place-market', name: '集市', description: '集市', source: { kind: 'seed_genesis', seedId: 'seed-comm-1', snapshotVersion: 0 }, contactActorIds: [], appointmentIds: [] },
+        {
+          id: 'place-shop',
+          name: '茶饮店',
+          description: '茶饮店',
+          source: { kind: 'seed_genesis', seedId: 'seed-comm-1', snapshotVersion: 0 },
+          contactActorIds: [],
+          appointmentIds: [],
+        },
+        {
+          id: 'place-market',
+          name: '集市',
+          description: '集市',
+          source: { kind: 'seed_genesis', seedId: 'seed-comm-1', snapshotVersion: 0 },
+          contactActorIds: [],
+          appointmentIds: [],
+        },
       ],
     },
   };
@@ -89,7 +99,16 @@ function makeFixture() {
     },
   };
 
-  return { worldId, actorId, definitionRef, initialTime, state, world, input1SourceId, contextRound1 };
+  return {
+    worldId,
+    actorId,
+    definitionRef,
+    initialTime,
+    state,
+    world,
+    input1SourceId,
+    contextRound1,
+  };
 }
 
 test('1. 明确分工后，NPC 自己的计划与责任能持久保存', () => {
@@ -121,7 +140,7 @@ test('1. 明确分工后，NPC 自己的计划与责任能持久保存', () => {
         sourceIds: [input1SourceId],
         actionIds: [],
         nextActionId: null,
-        triggers: [],
+        triggers: [{ kind: 'observation', sourceId: input1SourceId }],
         missingConditions: [],
       },
     ],
@@ -217,8 +236,20 @@ test('3. 明确拒绝、暂缓和无关话题不会被当作接受', () => {
   const contextDecline: AgentValidationContext = {
     state: structuredClone(state),
     sources: [
-      { id: 'old-source-1', kind: 'authored', recordId: 'old-source-1', worldVersion: 1, at: initialTime },
-      { id: inputDecline, kind: 'accepted_input', recordId: inputDecline, worldVersion: 1, at: initialTime },
+      {
+        id: 'old-source-1',
+        kind: 'authored',
+        recordId: 'old-source-1',
+        worldVersion: 1,
+        at: initialTime,
+      },
+      {
+        id: inputDecline,
+        kind: 'accepted_input',
+        recordId: inputDecline,
+        worldVersion: 1,
+        at: initialTime,
+      },
     ],
     worldVersion: 1,
     storyAt: initialTime,
@@ -254,8 +285,20 @@ test('3. 明确拒绝、暂缓和无关话题不会被当作接受', () => {
   const contextDefer: AgentValidationContext = {
     state: structuredClone(state),
     sources: [
-      { id: 'old-source-1', kind: 'authored', recordId: 'old-source-1', worldVersion: 1, at: initialTime },
-      { id: inputDefer, kind: 'accepted_input', recordId: inputDefer, worldVersion: 1, at: initialTime },
+      {
+        id: 'old-source-1',
+        kind: 'authored',
+        recordId: 'old-source-1',
+        worldVersion: 1,
+        at: initialTime,
+      },
+      {
+        id: inputDefer,
+        kind: 'accepted_input',
+        recordId: inputDefer,
+        worldVersion: 1,
+        at: initialTime,
+      },
     ],
     worldVersion: 1,
     storyAt: initialTime,
@@ -290,8 +333,20 @@ test('3. 明确拒绝、暂缓和无关话题不会被当作接受', () => {
   const contextUnrelated: AgentValidationContext = {
     state: structuredClone(state),
     sources: [
-      { id: 'old-source-1', kind: 'authored', recordId: 'old-source-1', worldVersion: 1, at: initialTime },
-      { id: inputUnrelated, kind: 'accepted_input', recordId: inputUnrelated, worldVersion: 1, at: initialTime },
+      {
+        id: 'old-source-1',
+        kind: 'authored',
+        recordId: 'old-source-1',
+        worldVersion: 1,
+        at: initialTime,
+      },
+      {
+        id: inputUnrelated,
+        kind: 'accepted_input',
+        recordId: inputUnrelated,
+        worldVersion: 1,
+        at: initialTime,
+      },
     ],
     worldVersion: 1,
     storyAt: initialTime,
@@ -366,9 +421,27 @@ test('4. 同一承诺不会重复建对象或重复执行', () => {
   const contextRound2: AgentValidationContext = {
     state: structuredClone(state),
     sources: [
-      { id: `definition:${definitionRef}`, kind: 'authored', recordId: definitionRef, worldVersion: 1, at: initialTime },
-      { id: input1SourceId, kind: 'accepted_input', recordId: input1SourceId, worldVersion: 1, at: initialTime },
-      { id: input2SourceId, kind: 'accepted_input', recordId: input2SourceId, worldVersion: 2, at: initialTime },
+      {
+        id: `definition:${definitionRef}`,
+        kind: 'authored',
+        recordId: definitionRef,
+        worldVersion: 1,
+        at: initialTime,
+      },
+      {
+        id: input1SourceId,
+        kind: 'accepted_input',
+        recordId: input1SourceId,
+        worldVersion: 1,
+        at: initialTime,
+      },
+      {
+        id: input2SourceId,
+        kind: 'accepted_input',
+        recordId: input2SourceId,
+        worldVersion: 2,
+        at: initialTime,
+      },
     ],
     worldVersion: 2,
     storyAt: initialTime,
@@ -386,9 +459,7 @@ test('4. 同一承诺不会重复建对象或重复执行', () => {
 
   // Model records player decision, and keeps existing goals/plans without duplicate creation
   const proposalRound2: AgentProposal = {
-    statements: [
-      { text: '一言为定，那我这就开始准备。', dependsOnActionIds: [] },
-    ],
+    statements: [{ text: '一言为定，那我这就开始准备。', dependsOnActionIds: [] }],
     goals: [],
     plans: [],
     actions: [],
@@ -437,7 +508,8 @@ test('4. 同一承诺不会重复建对象或重复执行', () => {
 
   assert.throws(
     () => validateAgentProposal(contextRound2, illegalPlanUpdate),
-    (err: unknown) => err instanceof AgentValidationError && err.reason === 'SOURCE_HISTORY_IMMUTABLE',
+    (err: unknown) =>
+      err instanceof AgentValidationError && err.reason === 'SOURCE_HISTORY_IMMUTABLE',
   );
 });
 
@@ -601,7 +673,8 @@ test('6. 无效提案、重放、版本冲突和未知调用结果仍受保护',
 
   assert.throws(
     () => validateAgentProposal(contextRound1, fakeActionStatement),
-    (err: unknown) => err instanceof AgentValidationError && err.reason === 'UNKNOWN_STATEMENT_DEPENDENCY',
+    (err: unknown) =>
+      err instanceof AgentValidationError && err.reason === 'UNKNOWN_STATEMENT_DEPENDENCY',
   );
 
   // C. Unknown attempt recovery check

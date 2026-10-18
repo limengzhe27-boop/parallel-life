@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { decodeNpcWire } from './npc-model-protocol.ts';
 import type { AgentProposal } from '../domain/agent-runtime.ts';
 import {
   AgentValidationError,
@@ -201,6 +202,11 @@ export function parseAgentProposal(context: AgentValidationContext, raw: unknown
     } catch {
       reject('RESPONSE_JSON');
     }
+  }
+  try {
+    parsed = decodeNpcWire(context, parsed);
+  } catch {
+    reject('RESPONSE_WIRE_SHAPE');
   }
   const result = Proposal.safeParse(parsed);
   if (!result.success) reject('RESPONSE_SHAPE');
