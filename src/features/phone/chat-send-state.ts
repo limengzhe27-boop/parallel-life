@@ -10,6 +10,7 @@ export function sendFailureStatus(error: unknown): 'failed' | 'unknown' {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
   return [
     'INVALID_INPUT',
+    'INVALID_AI_OUTPUT',
     'INVALID_COMMAND',
     'NOT_FOUND',
     'FORBIDDEN',

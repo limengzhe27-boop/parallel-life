@@ -1,0 +1,15 @@
+# 44-151 原消息终态恢复
+
+截图原世界81bab37d-affc-4695-af11-6127611bb0c8只读检查：最新已存人物attempt为invalid_output，亦有早先committed。没有改玩家消息/状态/时间。原界面把INVALID_AI_OUTPUT归unknown，原新引擎lookup又将所有非committed（包括已知invalid）返回unconfirmed，形成永久核对与同人物阻塞。截图顶部暂停是独立业务状态，不能偷偷恢复玩家世界。
+
+## 同一回执协议修复
+
+MessageReceiptLookup新增带原身份的failed终态，仅由真实持久attempt invalid_output/stale_discarded/cancelled_before_send证明，分别映射INVALID_AI_OUTPUT/VERSION_CONFLICT/INVALID_STATE。原owner、inputHash、actor、text校验保留；committed必须有真实事件。missing/inflight/response_received/unknown仍unconfirmed，lookup只读且不调用模型。
+
+手机将明确INVALID_AI_OUTPUT识别为failed。旧浏览器unknown点击原核对后，已知failed恢复为failed并保留文本、解除同人物unknown阻塞；核对不会重新发送。之后用户显式重试才使用新命令，原参数不修改。真正unknown仍保留核对与显式再次尝试警示，不伪装提交。
+
+## 必要验证
+
+原执行服务PG8通过：持久拒绝回执可重复只读核对，0额外模型调用，异owner/异输入拒绝；真实unknown仍unconfirmed。纯14项/check3319/build通过。首次PG命令未设端口保护被fixture拒绝（无数据库操作），指定独占55587后通过。0商业模型，150仍5/6 open，0新迁移；生产既有91checksum上一批已核验，无schema改动。
+
+部署与手机/PC实际恢复操作待本批READY后补充。修复不意味着人物自然演绎及完整开场已通过。

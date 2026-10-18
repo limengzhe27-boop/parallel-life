@@ -96,3 +96,22 @@ test('application lookup has only a receipt port and rejects invalid commands be
   );
   assert.equal(calls, 1);
 });
+
+test('known terminal failure is a source-bound read, not a send or unknown result', async () => {
+  const paths: string[] = [];
+  const client = new MessageReceiptClient(async (u) => {
+    paths.push(String(u));
+    return response(
+      String(u).endsWith('/session')
+        ? { kind: 'guest', csrfToken: 's'.repeat(32) }
+        : { ...identity, status: 'failed', code: 'INVALID_AI_OUTPUT' },
+    );
+  });
+  assert.deepEqual(await client.lookup(worldId, command), {
+    ...identity,
+    status: 'failed',
+    code: 'INVALID_AI_OUTPUT',
+  });
+  assert.equal(paths.length, 2);
+  assert(paths[1]!.endsWith('/messages/receipt'));
+});

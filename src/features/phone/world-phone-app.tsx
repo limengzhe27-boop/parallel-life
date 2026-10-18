@@ -732,6 +732,20 @@ export function WorldPhoneApp({
                 await load();
                 return { status: 'committed' };
               }
+              if (
+                result.status === 'failed' &&
+                (failed.status === 'unknown' || commandId === messageId)
+              ) {
+                setLocalMessages((current) =>
+                  current.map((message) =>
+                    message.id === messageId ? { ...message, status: 'failed' } : message,
+                  ),
+                );
+                throw new ApiFailure(
+                  result.code,
+                  '上次回复未能保存，内容仍保留。可以继续聊天，或重新发送这条消息。',
+                );
+              }
               if (failed.status === 'unknown' && commandId === messageId)
                 throw new ApiFailure(
                   'UNKNOWN',

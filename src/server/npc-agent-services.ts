@@ -81,6 +81,22 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
         worldId: command.worldId,
         actorId: command.actorId,
       };
+      // Durable terminal attempts are evidence of non-commit, not an unknown paid result.
+      // Missing/in-flight/response-received/unknown attempts remain unconfirmed; reads never retry.
+      if (
+        attempt &&
+        ['invalid_output', 'stale_discarded', 'cancelled_before_send'].includes(attempt.status)
+      )
+        return {
+          ...identity,
+          status: 'failed',
+          code:
+            attempt.status === 'invalid_output'
+              ? 'INVALID_AI_OUTPUT'
+              : attempt.status === 'stale_discarded'
+                ? 'VERSION_CONFLICT'
+                : 'INVALID_STATE',
+        };
       if (attempt?.status !== 'committed') return { ...identity, status: 'unconfirmed' };
       const event = await db.transaction(
         ownerId,

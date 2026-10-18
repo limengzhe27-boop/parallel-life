@@ -6,6 +6,13 @@ import { WorldMessageReceiptSchema } from './world-interaction.ts';
 export const MessageReceiptLookupSchema = z.discriminatedUnion('status', [
   WorldMessageReceiptSchema,
   z.strictObject({
+    status: z.literal('failed'),
+    commandId: Id,
+    worldId: Id,
+    actorId: Id,
+    code: z.enum(['INVALID_AI_OUTPUT', 'VERSION_CONFLICT', 'INVALID_STATE']),
+  }),
+  z.strictObject({
     status: z.literal('unconfirmed'),
     commandId: Id,
     worldId: Id,

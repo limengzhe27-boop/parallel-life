@@ -405,6 +405,23 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
       ).rows;
       assert.equal(rows[0].status, 'invalid_output');
       assert.equal(rows[0].response.kind, 'model_request_rejection');
+      const failed = await service.lookupMessage(f.owner, command);
+      assert.equal(failed?.status, 'failed');
+      if (failed?.status === 'failed') assert.equal(failed.code, 'INVALID_AI_OUTPUT');
+      assert.deepEqual(await service.lookupMessage(f.owner, command), failed);
+      assert.equal(calls, 1); // Receipt recovery must never buy another model response.
+      await assert.rejects(service.lookupMessage(randomUUID(), command));
+      await assert.rejects(service.lookupMessage(f.owner, { ...command, text: 'different input' }));
+      await admin.query(
+        "update parallel_life.agent_attempts set status='unknown_after_send' where world_id=$1",
+        [f.id],
+      );
+      assert.equal((await service.lookupMessage(f.owner, command))?.status, 'unconfirmed');
+      await admin.query(
+        "update parallel_life.agent_attempts set status='invalid_output' where world_id=$1",
+        [f.id],
+      );
+
       await assert.rejects(service.sendMessageIfEnabled(f.owner, command));
       assert.equal(calls, 1);
       assert.equal((await f.worlds.get({ userId: f.owner }, f.id)).version, 0);

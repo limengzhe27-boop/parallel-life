@@ -42,7 +42,13 @@ test('lost response, timeout and ambiguous failures stay unknown, explicit rejec
     new Error('private upstream'),
   ])
     assert.equal(sendFailureStatus(error), 'unknown');
-  for (const code of ['INVALID_INPUT', 'VERSION_CONFLICT', 'FORBIDDEN', 'INVALID_COMMAND'])
+  for (const code of [
+    'INVALID_INPUT',
+    'VERSION_CONFLICT',
+    'FORBIDDEN',
+    'INVALID_COMMAND',
+    'INVALID_AI_OUTPUT',
+  ])
     assert.equal(sendFailureStatus({ code }), 'failed');
 });
 test('only the same visible player command handles composer error; other commands and NPCs never mask it', () => {
