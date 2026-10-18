@@ -15,7 +15,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v26-scoped-replies-semantic-media';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v27-provider-safe-current-judgments';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -84,7 +84,7 @@ PlayerDecision只对当前输入确实针对的responsibility作判断：accepte
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v2"，必含consideration（对象或null）、mediaDecision（必为对象）、statements/goals/plans/actions/responsibilities/decisions六数组，非媒体新增动作完整放executions；按原生schema返回所有属性，没有值的可选属性填null，代码只去掉可选null。mediaDecision只选一个：不请求{kind:"not_requested"}；本人不愿提供{kind:"decline"}；愿意现在生成{kind:"generate_image",goalSummary:"本人的目的",planSummary:"本人的拍摄或绘图计划",parameters:{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence"},basisSourceIds:[本次input.sourceId]}。视频使用kind:"generate_video"与parameters:{actionDescription,purpose:"scene_moment|character_action"}。不填goal/plan/action编号或execution，不在executions重复媒体动作；代码只绑定机械编号和引用，画面、意愿与依据必须你本人明确提出。涉及入队成功才可显示的对白可依赖media:current；普通准备台词不等于素材完成。暂不提供已有素材分享，因为本轮无获授权可分享的素材目录。动作parameters使用[{name,value}]，不使用动态对象；name只用对应能力的参数名，value给出明确值（如sceneDescription/purpose）。focus及replyAssessments/questionWithdrawals/locationReports可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
+最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v2"，必含consideration（对象或null）、mediaDecision（必为对象）、statements/goals/plans/actions/responsibilities/decisions六数组，非媒体新增动作完整放executions；按原生schema返回所有属性，没有值的可选属性填null；当前无合法判断项的集合由schema限定为null，服务端仅将其表示为空集合，代码只去掉可选null。mediaDecision只选一个：不请求{kind:"not_requested"}；本人不愿提供{kind:"decline"}；愿意现在生成{kind:"generate_image",goalSummary:"本人的目的",planSummary:"本人的拍摄或绘图计划",parameters:{sceneDescription:"本人决定的具体画面",purpose:"portrait|scene|memorial|evidence"},basisSourceIds:[本次input.sourceId]}。视频使用kind:"generate_video"与parameters:{actionDescription,purpose:"scene_moment|character_action"}。不填goal/plan/action编号或execution，不在executions重复媒体动作；代码只绑定机械编号和引用，画面、意愿与依据必须你本人明确提出。涉及入队成功才可显示的对白可依赖media:current；普通准备台词不等于素材完成。暂不提供已有素材分享，因为本轮无获授权可分享的素材目录。动作parameters使用[{name,value}]，不使用动态对象；name只用对应能力的参数名，value给出明确值（如sceneDescription/purpose）。focus及replyAssessments/questionWithdrawals/locationReports可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
 consideration非null时为{choice:"engage|decline|defer|need_information|quiet",reason:"本人实际依据",basisSourceIds:[]}；basisSourceIds只可引用已提供来源。coordination的npc_episode_consideration必须非null，即使不说话也明确quiet/defer/need_information与理由，不以statements=[]代替选择。不强迫参与；缺本人授权事件意图时明确need_information，不猜未授权全局剧本。普通player带manifest但无关时仍可null；responseContract.considerationAllowed=false时必须null，即使episodeFollowUps含旧请求、本人以前need_information、当前想继续参与，也不得重新输出旧consideration。旧机会已经考虑，后续用本人goal/plan/责任与当前对白继续，而不是重新消费请求。
 consideration选择need_information或defer时必须同时明确followUp:{waitingOn:"player|self|world"或null,missing:["本人确实需要的信息或条件"]}，代码绑定本人当前request的等待责任，不发明期限或自动催问。quiet若仍有待办也可给followUp，否则可省略。followUp不是玩家同意。若决定询问玩家，可以在statements自然提问；若选择安静，依然保存等待去向。不要另造同名followup责任。
 plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/actionIds/nextActionId/triggers/missingConditions，代码由单个nextStep精确绑定：

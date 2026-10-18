@@ -562,8 +562,8 @@ test('non-player or no visible question permits no assessments; long input keeps
     if (format.format !== 'json_schema') throw Error('schema');
     return (format.schema.properties as Record<string, Record<string, unknown>>).replyAssessments!;
   };
-  assert.deepEqual(field({ ...c.input, origin: 'wake' }).enum, [[]]);
-  assert.deepEqual(field(c.input, { ...c.state, questions: [] }).enum, [[]]);
+  assert.equal(field({ ...c.input, origin: 'wake' }).type, 'null');
+  assert.equal(field(c.input, { ...c.state, questions: [] }).type, 'null');
   const long = field({ ...c.input, text: '继续讨论临窗。'.repeat(150) });
   const item = long.items as { properties: Record<string, { enum?: unknown[] }> };
   assert.deepEqual(item.properties.questionId!.enum, ['open-question']);
@@ -687,4 +687,34 @@ test('v2 refusal does not generate an action or satisfy a media dependency', () 
       }),
     /RESPONSE_WIRE_SHAPE/,
   );
+});
+
+test('provider-safe null judgment collections decode only as explicit empty v2 sets', () => {
+  const { c, wire } = fixture(true);
+  const raw = {
+    ...wire,
+    protocol: 'npc-wire-v2',
+    consideration: { choice: 'quiet', reason: '没有需要新增联系的变化。', basisSourceIds: [] },
+    mediaDecision: { kind: 'not_requested' },
+    replyAssessments: null,
+    decisions: null,
+    locationReports: null,
+  };
+  const p = parseAgentProposal(c, raw);
+  assert.deepEqual(p.replyAssessments, []);
+  assert.deepEqual(p.decisions, []);
+  assert.deepEqual(p.locationReports, []);
+  const format = npcResponseFormat(c.state, 'required', { input: c.input, channel: c.channel });
+  if (format.format !== 'json_schema') throw Error('schema');
+  const fields = format.schema.properties as Record<string, { type: string }>;
+  for (const name of ['replyAssessments', 'decisions', 'locationReports'])
+    assert.equal(fields[name]!.type, 'null');
+  const visit = (node: unknown) => {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!node || typeof node !== 'object') return;
+    const object = node as Record<string, unknown>;
+    if (Array.isArray(object.enum)) assert(!object.enum.some(Array.isArray));
+    Object.values(object).forEach(visit);
+  };
+  visit(format.schema);
 });

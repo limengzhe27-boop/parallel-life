@@ -273,8 +273,10 @@ export function npcResponseFormat(
       const node = properties[name]!;
       const array = node.type === 'array' ? node : node.anyOf?.find((x) => x.type === 'array');
       if (!array?.items?.properties) throw Error('NPC_RESPONSE_SCHEMA');
-      if (current.input.origin !== 'player') array.enum = [[]];
-      else {
+      if (current.input.origin !== 'player') {
+        properties[name] = { type: 'null' };
+        continue;
+      } else {
         array.items.properties.sourceId!.enum = [current.input.sourceId];
         if (current.input.text.trim().length <= quoteLimit)
           array.items.properties.quote!.enum = [current.input.text.trim()];
@@ -299,7 +301,7 @@ export function npcResponseFormat(
       !current.input.text.trim() ||
       !choices.length
     ) {
-      array.enum = [[]];
+      properties.replyAssessments = { type: 'null' };
     } else {
       item.properties.questionId!.enum = choices;
       item.properties.sourceId!.enum = [current.input.sourceId];
@@ -308,7 +310,7 @@ export function npcResponseFormat(
       if (current.input.text.trim().length <= 1000)
         item.properties.quote!.enum = [current.input.text.trim()];
     }
-    properties.replyAssessments = array;
+    if (properties.replyAssessments?.type !== 'null') properties.replyAssessments = array;
   }
   return { ...NPC_RESPONSE_FORMAT, schema };
 }
@@ -391,6 +393,13 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
         };
       }),
     };
+    // Strict providers do not support enum values that are themselves arrays.
+    // Native null means the grammar offered no judgment items, not a missing
+    // semantic choice to infer or repair. Historical v1 responses are untouched.
+    for (const name of ['replyAssessments', 'decisions', 'locationReports']) {
+      if ((normalized as Record<string, unknown>)[name] === null)
+        (normalized as Record<string, unknown>)[name] = [];
+    }
   }
   const wire = Wire.parse(
     transport({
