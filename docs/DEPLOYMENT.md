@@ -1,3 +1,9 @@
+## 2026-10-18 · 44-139/140 导演引用协议与人物计划下一步
+
+业务a42484de / dpl_BhJrnRjsvwt8YKe4vyqngBzBP4PW正式Nu精确READY。导演wire分类引用由代码绑定事件key/来源，保留原内核校验与原始付费响应；人物v17不再要求空计划，普通明确条件计划接原调度重考并稳定去重；已知无效输出不再泛化连接错误，unknown不自动重试。
+
+check3299/build、root真实PG19与小安计划PG1+纯34通过；生产91checksum只读一致，无SQL/真实玩家数据变更。公网health/workbench/published200、匿名works401；原合成试演v3/2人物/6消息与paused保留，历史failed不自动救活。本轮0商业模型/0新档，真实模型新复验待独立授权，不能宣称自然演绎已通过。详见[139报告](task-reports/44-139-DIRECTOR-HANDOFF-PROTOCOL-I.md)、[140报告](task-reports/44-140-ACTOR-NEXT-STEP-Q.md)。
+
 ## 2026-10-18 · 44-137 生产迁移实际收口（部分完成）
 
 产品代码08e94e37 / dpl_z341KtFDttQr3jys7cpeJZ3rn4Cb READY、正式Nu别名核实；91迁移checksum已核。原102旧档中96已迁移，连同原2新档与期间1新建，当前105世界为99新/6旧。渣男体验相关7档全部新引擎，46个人物上下文只读加载成功；保留原版本、内容及时钟。6旧档有历史unknown，未强迁、未清除回执、未自动重试。

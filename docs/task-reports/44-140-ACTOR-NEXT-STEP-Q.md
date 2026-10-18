@@ -20,3 +20,5 @@
 ## 限制与接续
 
 0商业模型/生产数据/部署。当前旧空triggers计划仍未就绪；需要root在同次NPC协议中让明确承诺给出真实能力action或有来源的等待/重考条件，能力缺失写missingConditions，后续真实相关输入可补全，不能替旧计划补“马上”时钟。本纯分类没有新增持久化字段或UI解释面板，不宣称所有等待已可视化。root负责公共NPC协议、完整check/build、生产迁移状态核验/部署READY及另授权真实模型旅程。没有真实模型证据，不能把138缺口整体标通过；渣男体验是否发布与玩家存档迁移仅由用户与root授权处理，本任务未操作。
+
+root集成收口：ad547b04取为d9fd063f，配合139公共NPC协议v17与代码planNextSteps，check3299/build及Director PG19通过。业务a42484de / dpl_BhJrnRjsvwt8YKe4vyqngBzBP4PW正式Nu精确READY；生产91checksum只读一致，原合成试演读取保存内容与暂停正确。该限定代码交付完成，真实模型新复验待单独授权，旧空计划不会被自动补造。
