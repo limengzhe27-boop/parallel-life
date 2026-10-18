@@ -1,4 +1,4 @@
-import { modelRequestRejection } from '../../ai/application/ports.ts';
+import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
 import type { DirectorAttempt, DirectorSnapshot } from '../domain/director-runtime.ts';
 import type {
   DirectorAttemptStore,
@@ -95,12 +95,13 @@ export async function runDirectorAgent(
       attempt = await deps.attempts.saveResponse(ownerId, attempt, raw);
     } catch (error) {
       const rejection = modelRequestRejection(error);
-      if (rejection) {
+      const notSent = modelRequestNotSent(error);
+      if (rejection || notSent) {
         try {
           const saved = await deps.attempts.saveResponse(ownerId, attempt, {
-            kind: 'model_request_rejection',
+            kind: notSent ? 'model_preflight_rejection' : 'model_request_rejection',
             schemaVersion: 1,
-            ...rejection,
+            ...(rejection ?? {}),
           });
           await deps.attempts.mark(ownerId, saved, 'invalid_output');
         } catch {

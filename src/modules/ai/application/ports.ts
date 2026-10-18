@@ -41,3 +41,14 @@ export function modelRequestRejection(error: unknown): { httpStatus: number } | 
     return null;
   return { httpStatus: error.httpStatus };
 }
+
+/** Trusted adapter preflight failed before any HTTP request; never an unknown paid outcome. */
+export function modelRequestNotSent(error: unknown): boolean {
+  const value = error as { responseOutcome?: unknown; code?: unknown; stage?: unknown } | null;
+  return (
+    !!value &&
+    value.responseOutcome === 'not_sent' &&
+    value.code === 'INVALID_CONFIG' &&
+    value.stage === 'request'
+  );
+}

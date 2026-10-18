@@ -1,4 +1,5 @@
 'use client';
+import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
 import { useWorldTime } from './use-world-time.ts';
 import type { PublicOpeningStatus } from '../../contracts/publication-opening.ts';
 import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
@@ -147,6 +148,7 @@ export function WorldPhoneApp({
   liveTimeRef.current = liveTime;
   const sendCommands = useRef<Record<string, SendCommand>>({});
   const [recoveryWorld, setRecoveryWorld] = useState<string>();
+  const restoredSends = useRef<PhoneMessage[]>([]);
   useEffect(() => {
     let restored: PhoneMessage[] = [];
     try {
@@ -156,6 +158,7 @@ export function WorldPhoneApp({
     } catch {
       /* Storage may be disabled. */
     }
+    restoredSends.current = restored;
     setLocalMessages(restored);
     setRecoveryWorld(worldId);
   }, [worldId]);
@@ -344,6 +347,56 @@ export function WorldPhoneApp({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, worldId]);
+
+  useEffect(() => {
+    if (recoveryWorld !== worldId) return;
+    let active = true;
+    let reading = false;
+    const reconcile = async () => {
+      if (!active || reading || document.visibilityState !== 'visible') return;
+      reading = true;
+      try {
+        const saved = restoredSends.current;
+        const updates = await reconcileRestoredSendReceipts(
+          worldId,
+          saved,
+          sendCommands.current,
+          (id, input) => receiptClient.lookup(id, input),
+        );
+        if (!active) return;
+        const originals = new Map(saved.map((m) => [m.id, m]));
+        setLocalMessages((current) =>
+          current.flatMap((m) => {
+            const original = originals.get(m.id);
+            if (
+              !original ||
+              original.actorId !== m.actorId ||
+              original.text !== m.text ||
+              !['unknown', 'pending'].includes(m.status ?? '')
+            )
+              return [m];
+            if (updates[m.id] === 'committed') return [];
+            return [updates[m.id] === 'failed' ? { ...m, status: 'failed' as const } : m];
+          }),
+        );
+        restoredSends.current = saved.filter((m) => !updates[m.id]);
+        for (const [id, status] of Object.entries(updates))
+          if (status === 'committed') delete sendCommands.current[id];
+        if (Object.values(updates).includes('committed')) await load();
+      } finally {
+        reading = false;
+      }
+    };
+    void reconcile();
+    const onReturn = () => {
+      void reconcile();
+    };
+    document.addEventListener('visibilitychange', onReturn);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', onReturn);
+    };
+  }, [worldId, recoveryWorld, receiptClient, load]);
 
   // Scene polling must refresh the saved phone, without retrying a build or action.
   const reloadSceneWorld = useCallback(

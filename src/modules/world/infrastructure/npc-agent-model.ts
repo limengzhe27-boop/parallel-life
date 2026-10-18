@@ -19,8 +19,8 @@ export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v23-strict-canonical-schema';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
-export const NPC_AGENT_MESSAGE_LIMIT = 32_000;
-export const NPC_AGENT_REQUEST_LIMIT = NPC_AGENT_MESSAGE_LIMIT + 24_000;
+export const NPC_AGENT_MESSAGE_LIMIT = 48_000;
+export const NPC_AGENT_REQUEST_LIMIT = 56_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
@@ -455,7 +455,13 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   ]);
   while (!fits()) {
     const index = payload.observations.findIndex((o) => !protectedSources.has(o.sourceId));
-    if (index === -1) invalid('NPC_AGENT_SNAPSHOT_LIMIT');
+    if (index === -1)
+      throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), {
+        code: 'NPC_AGENT_SNAPSHOT_LIMIT',
+        contextSizes: Object.fromEntries(
+          Object.entries(payload).map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0]),
+        ),
+      });
     const [removed] = payload.observations.splice(index, 1);
     if (!payload.contextSelection.omittedObservationSourceIds.includes(removed!.sourceId))
       payload.contextSelection.omittedObservationSourceIds.push(removed!.sourceId);

@@ -1,4 +1,4 @@
-import { modelRequestRejection } from '../../ai/application/ports.ts';
+import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
 import {
   ACTOR_EPISODE_INTENT_PREFIX,
@@ -30,7 +30,19 @@ export async function runNpcAgent(
   let executionSnapshot = snapshot ? structuredClone(snapshot) : null;
   if (executionSnapshot) {
     assertSnapshotIdentity(executionSnapshot, claim);
-    deps.model.validateInput?.(executionSnapshot);
+    try {
+      deps.model.validateInput?.(executionSnapshot);
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      if (code === 'NPC_AGENT_SNAPSHOT_LIMIT' || code === 'NPC_AGENT_INVALID_SNAPSHOT') {
+        // Accepted input needs a durable terminal receipt even when no request was sent.
+        // Never replace an existing/in-flight attempt with a local preflight verdict.
+        const failed = await deps.attempts.claim(ownerId, claim);
+        if (!failed.replay)
+          await deps.attempts.mark(ownerId, failed.attempt, 'cancelled_before_send');
+      }
+      throw error;
+    }
   }
   let { attempt, replay } = await deps.attempts.claim(ownerId, claim);
   let response: unknown;
@@ -119,12 +131,13 @@ export async function runNpcAgent(
       // Conservatively retain uncertainty if response storage or transport failed after send.
       // A failing mark must not trigger another model invocation or hide the original failure.
       const rejection = modelRequestRejection(error);
-      if (rejection) {
+      const notSent = modelRequestNotSent(error);
+      if (rejection || notSent) {
         try {
           const saved = await deps.attempts.saveResponse(ownerId, attempt, {
-            kind: 'model_request_rejection',
+            kind: notSent ? 'model_preflight_rejection' : 'model_request_rejection',
             schemaVersion: 1,
-            ...rejection,
+            ...(rejection ?? {}),
           });
           await deps.attempts.mark(ownerId, saved, 'invalid_output');
         } catch {

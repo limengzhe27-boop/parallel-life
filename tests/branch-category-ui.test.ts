@@ -49,6 +49,8 @@ const {
 const { officialSavedWorlds, OfficialLivesView } =
   await import('../src/features/discovery/official-lives.tsx');
 const { DiscoveryApp } = await import('../src/features/discovery/discovery-app.tsx');
+const { PublicationController } =
+  await import('../src/features/settings/publication-controller.tsx');
 const at = '2026-10-12T00:00:00.000Z';
 const world = randomUUID(),
   oldWorld = randomUUID(),
@@ -404,6 +406,11 @@ test('actual DiscoveryApp initial render retains bottom navigation and loading w
   try {
     const html = renderToStaticMarkup(createElement(DiscoveryApp));
     assert.ok(html.includes('aria-label="分支分类"'));
+    assert.ok(html.includes('aria-label="已发布的世界"'));
+    assert.ok(html.includes('正在读取已发布的世界'));
+    assert.ok(html.includes('data-published-worlds=""'));
+    assert.ok(!html.includes('href="/published"'));
+    assert.ok(!html.includes('返回分支'));
     assert.ok(html.includes('正在打开人生目录') && html.includes('正在翻开你的故事'));
     assert.match(html, /aria-label="主导航"/);
     assert.ok(html.includes('href="/"') && html.includes('href="/#profile"'));
@@ -412,4 +419,16 @@ test('actual DiscoveryApp initial render retains bottom navigation and loading w
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('embedded publication catalogue shares primary navigation while standalone route preserves its return link', () => {
+  const embedded = renderToStaticMarkup(
+    createElement<{ embedded?: boolean }>(PublicationController, { embedded: true }),
+  );
+  const standalone = renderToStaticMarkup(createElement(PublicationController));
+  assert.match(embedded, /aria-label="已发布的世界"/);
+  assert(!embedded.includes('返回分支'));
+  assert(!embedded.includes('min-height:100dvh'));
+  assert(standalone.includes('返回分支'));
+  assert(standalone.includes('href="/possibilities"'));
 });

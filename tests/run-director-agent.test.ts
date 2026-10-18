@@ -152,6 +152,12 @@ function fixture(
           schemaVersion: 1,
           httpStatus: 400,
         });
+      else if (
+        options.modelError &&
+        'responseOutcome' in options.modelError &&
+        options.modelError.responseOutcome === 'not_sent'
+      )
+        assert.deepEqual(raw, { kind: 'model_preflight_rejection', schemaVersion: 1 });
       else assert.equal(raw, freshRaw);
       if (options.saveError) throw options.saveError;
       attempt = { ...attempt, status: options.savedStatus ?? 'response_received' };
@@ -447,5 +453,18 @@ test('Director stores explicit provider rejection as known invalid, not a lost r
   assert.equal(f.state().status, 'invalid_output');
   assert.equal(f.calls.filter((x) => x === 'model').length, 1);
   assert.equal(f.parses.length, 0);
+  assert.equal(f.commits.length, 0);
+});
+
+test('Director local gateway preflight failure does not fence as an unknown paid result', async () => {
+  const f = fixture({
+    modelError: Object.assign(Error('INVALID_CONFIG'), {
+      code: 'INVALID_CONFIG',
+      stage: 'request',
+      responseOutcome: 'not_sent',
+    }),
+  });
+  await assert.rejects(f.run(), /INVALID_CONFIG/);
+  assert.equal(f.state().status, 'invalid_output');
   assert.equal(f.commits.length, 0);
 });

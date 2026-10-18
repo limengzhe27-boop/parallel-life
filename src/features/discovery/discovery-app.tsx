@@ -1,4 +1,5 @@
 'use client';
+import { PublicationController } from '../settings/publication-controller.tsx';
 import { DraftEditor } from './draft-editor.tsx';
 import categoryStyles from './discovery-category.module.css';
 import { OfficialLives } from './official-lives.tsx';
@@ -298,13 +299,13 @@ export function DiscoveryApp() {
       </header>
       <BranchCategoryTabs selected={category} onSelect={setCategory} />
       <main className="discovery-main">
-        <a
-          href="/published"
-          className="button secondary"
-          style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}
+        <div
+          className={categoryStyles.personal}
+          hidden={category !== 'all'}
+          data-published-worlds=""
         >
-          探索已发布的剧本 <span aria-hidden>→</span>
-        </a>
+          <PublicationController embedded />
+        </div>
         <OfficialLives
           category={category}
           representedWorldIds={savedWorldIds(savedSeeds, builds)}

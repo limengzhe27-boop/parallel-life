@@ -863,3 +863,20 @@ test('invitation time catalog is local date conversion only and does not alter p
   await quiet.decide(snapshot());
   assert.deepEqual(JSON.parse(quietCalls[0]!.messages[1]!.content).responseContract.todayHours, []);
 });
+
+test('growing protocol does not crowd ordinary protected conversation out of the gateway budget', async () => {
+  const input = snapshot();
+  input.actor.persona = '性格与身份。'.repeat(600);
+  input.observations[0]!.text = '已接受的约定和相关上下文。'.repeat(500);
+  const { adapter, calls } = capture();
+  adapter.validateInput(input);
+  await adapter.decide(input);
+  const messages = calls[0]!.messages;
+  const payload = JSON.parse(messages[1]!.content);
+  assert.equal(payload.observations[0].text, input.observations[0]!.text);
+  assert.ok(messages.reduce((n, m) => n + m.content.length, 0) <= 64000);
+  assert.ok(
+    JSON.stringify(messages).length + JSON.stringify(calls[0]!.output).length <=
+      NPC_AGENT_REQUEST_LIMIT,
+  );
+});

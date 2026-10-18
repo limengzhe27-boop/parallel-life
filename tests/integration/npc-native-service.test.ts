@@ -149,7 +149,7 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
               actionIds: [],
               nextActionId: null,
               triggers: [],
-              missingConditions: [],
+              missingConditions: ['尚未决定自己的替代安排；不再邀请玩家参加已拒绝的这次会面'],
             },
           ],
           responsibilities: [
@@ -157,7 +157,8 @@ test('actual leased native service and phone DTO use one persistent NPC runtime 
               id: 'private-request',
               subject: { kind: 'request', id: 'own-request' },
               summary: '本次请求已被拒绝',
-              status: 'deferred',
+              status: 'withdrawn',
+              endReason: '玩家明确拒绝本次会面',
               waitingOn: null,
               sourceIds: [input.sourceId],
               nextCheck: [],

@@ -6,7 +6,7 @@ export type GatewayConfig = { apiKey: string; model: string; baseUrl: string; ti
 /** Chat-shaped calls keep the conservative default; structured builders ask for their own cap. */
 export const DEFAULT_MAX_TOKENS = 4096;
 export class GatewayError extends Error {
-  readonly responseOutcome?: 'rejected';
+  readonly responseOutcome?: 'rejected' | 'not_sent';
   readonly code:
     | 'INVALID_CONFIG'
     | 'UPSTREAM_FAILED'
@@ -28,7 +28,8 @@ export class GatewayError extends Error {
     super(code);
     this.name = 'GatewayError';
     this.code = code;
-    this.stage = details?.stage;
+    this.stage = details?.stage ?? (code === 'INVALID_CONFIG' ? 'request' : undefined);
+    if (code === 'INVALID_CONFIG') this.responseOutcome = 'not_sent';
     this.httpStatus = details?.httpStatus;
     this.durationMs = details?.durationMs;
     if (

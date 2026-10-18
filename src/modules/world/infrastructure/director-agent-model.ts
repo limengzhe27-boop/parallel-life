@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import {
   decodeDirectorWire,
   directorWireCatalog,
@@ -316,6 +317,33 @@ export function fitWithinBudget(payload: Payload): Payload {
 
   const steps: Array<() => void> = [
     () => {
+      if (next.authoredMaterials && typeof next.authoredMaterials === 'object') {
+        const catalog = next.authoredMaterials as {
+          source?: unknown;
+          materials?: Array<{ ref: Record<string, unknown>; node: Record<string, unknown> }>;
+        };
+        next.authoredMaterials = {
+          ...catalog,
+          materials: catalog.materials?.map((m) => {
+            const ref = isDeepStrictEqual(m.ref.source, catalog.source)
+              ? {
+                  nodeKey: m.ref.nodeKey,
+                  nodeHash: m.ref.nodeHash,
+                  sharedSource: 'authoredMaterials.source',
+                }
+              : m.ref;
+            const node = { ...m.node };
+            if (typeof node.script === 'string' && node.script === node.editorialIntent) {
+              delete node.script;
+              node.scriptSameAsEditorialIntent = true;
+            }
+            return { ...m, ref, node };
+          }),
+        };
+      }
+    },
+
+    () => {
       next.observations = trimObservations(6);
     },
     () => {
@@ -416,8 +444,13 @@ function request(snapshot: DirectorSnapshot) {
   };
   const fitted = fitWithinBudget(payload);
   const text = JSON.stringify(fitted);
-  if (text.length > CONTEXT_LIMIT)
-    throw Object.assign(Error('DIRECTOR_CONTEXT_LIMIT'), { code: 'DIRECTOR_CONTEXT_LIMIT' });
+  if (text.length + SYSTEM.length > CONTEXT_LIMIT)
+    throw Object.assign(Error('DIRECTOR_CONTEXT_LIMIT'), {
+      code: 'DIRECTOR_CONTEXT_LIMIT',
+      contextSizes: Object.fromEntries(
+        Object.entries(fitted).map(([k, v]) => [k, JSON.stringify(v)?.length ?? 0]),
+      ),
+    });
   return [
     { role: 'system' as const, content: SYSTEM },
     { role: 'user' as const, content: text },

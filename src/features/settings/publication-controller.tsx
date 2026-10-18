@@ -8,7 +8,7 @@ import {
   type PublicationPlayerCatalog,
 } from '../../contracts/publication-worlds.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
-export function PublicationController() {
+export function PublicationController({ embedded = false }: { embedded?: boolean } = {}) {
   const [client] = useState(() => new LifeClient());
   const [catalog, setCatalog] = useState<PublicationPlayerCatalog | null>(null),
     [loading, setLoading] = useState(true),
@@ -93,6 +93,19 @@ export function PublicationController() {
       setStarting(null);
     }
   }
+  const catalogView = (
+    <PublishedCatalog
+      catalog={catalog}
+      loading={loading}
+      error={error}
+      startingWorkId={starting}
+      onStart={(card) => void start(card)}
+      onReload={() => void read()}
+      onNext={catalog?.nextCursor ? () => void read(catalog.nextCursor!) : undefined}
+    />
+  );
+  // Discovery owns the viewport and navigation when this catalogue is a primary section.
+  if (embedded) return catalogView;
   return (
     <div
       style={{
@@ -112,15 +125,7 @@ export function PublicationController() {
       >
         ‹ 返回分支
       </a>
-      <PublishedCatalog
-        catalog={catalog}
-        loading={loading}
-        error={error}
-        startingWorkId={starting}
-        onStart={(card) => void start(card)}
-        onReload={() => void read()}
-        onNext={catalog?.nextCursor ? () => void read(catalog.nextCursor!) : undefined}
-      />
+      {catalogView}
     </div>
   );
 }

@@ -50,3 +50,30 @@ test('authored assessment retains linked speech under budget pressure instead of
   assert.ok((fitted.observations as (typeof speech)[]).some((o) => o.sourceId === speech.sourceId));
   assert.ok(JSON.stringify(fitted).length <= CONTEXT_BUDGET);
 });
+
+test('budget pressure shares identical provenance and manuscript without losing text', () => {
+  const source = { id: 'source', proof: 'p'.repeat(1800) };
+  const manuscript = 'm'.repeat(1000);
+  const fitted = fitWithinBudget({
+    authoredMaterials: {
+      source,
+      materials: Array.from({ length: 20 }, (_, i) => ({
+        ref: { source, nodeKey: `n${i}`, nodeHash: `h${i}` },
+        node: { script: manuscript, editorialIntent: manuscript },
+      })),
+    },
+  });
+  const catalog = fitted.authoredMaterials as {
+    source: typeof source;
+    materials: {
+      ref: { nodeKey: string; sharedSource: string };
+      node: { editorialIntent: string; script?: string; scriptSameAsEditorialIntent?: boolean };
+    }[];
+  };
+  assert.deepEqual(catalog.source, source);
+  assert.equal(catalog.materials.length, 20);
+  assert.equal(catalog.materials[0]!.ref.sharedSource, 'authoredMaterials.source');
+  assert.equal(catalog.materials[0]!.node.editorialIntent, manuscript);
+  assert.equal(catalog.materials[0]!.node.script, undefined);
+  assert.equal(catalog.materials[0]!.node.scriptSameAsEditorialIntent, true);
+});

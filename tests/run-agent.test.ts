@@ -266,3 +266,29 @@ test('explicit provider rejection is recorded as known failure; uncertain transp
     assert.ok(!f.calls.includes('commit'));
   }
 });
+
+test('local gateway preflight failure is durable known failure, not uncertain paid send', async () => {
+  const f = fixture();
+  f.model.decide = async () => {
+    throw Object.assign(Error('INVALID_CONFIG'), {
+      code: 'INVALID_CONFIG',
+      stage: 'request',
+      responseOutcome: 'not_sent',
+    });
+  };
+  await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /INVALID_CONFIG/);
+  assert.equal(f.readAttempt().status, 'invalid_output');
+  assert.ok(f.calls.includes('saveResponse'));
+  assert.ok(!f.calls.includes('commit'));
+});
+
+test('oversized accepted input leaves a durable unpaid terminal receipt', async () => {
+  const f = fixture();
+  f.model.validateInput = () => {
+    throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), { code: 'NPC_AGENT_SNAPSHOT_LIMIT' });
+  };
+  await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /NPC_AGENT_SNAPSHOT_LIMIT/);
+  assert.equal(f.readAttempt().status, 'cancelled_before_send');
+  assert.ok(!f.calls.includes('model'));
+  assert.ok(!f.calls.includes('request_sent'));
+});

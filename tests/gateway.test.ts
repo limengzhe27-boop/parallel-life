@@ -154,3 +154,19 @@ test('schema output crosses the same provider boundary exactly once without impl
   );
   assert.equal(calls, 2);
 });
+
+test('oversized local request reports not sent and never reaches transport', async () => {
+  let calls = 0;
+  const model = new YibuTextModel(config, async () => {
+    calls++;
+    return Response.json({});
+  });
+  await assert.rejects(
+    model.complete([
+      { role: 'system', content: 's'.repeat(4000) },
+      { role: 'user', content: 'u'.repeat(62000) },
+    ]),
+    { code: 'INVALID_CONFIG', stage: 'request', responseOutcome: 'not_sent' },
+  );
+  assert.equal(calls, 0);
+});
