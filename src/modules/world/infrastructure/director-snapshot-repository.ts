@@ -1,3 +1,4 @@
+import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
 import { validateNativeDirectorTurn } from './native-director-turn.ts';
 import { isDeepStrictEqual } from 'node:util';
 import type { PostgresDatabase, SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -185,6 +186,38 @@ async function header(
   )
     fail('DIRECTOR_BOUNDARY_STALE');
   return { world, epoch, storyAt, observed, evaluated, boundary };
+}
+
+/** Bounded speech references for an authorized authored review, not a new fact or NPC broadcast.
+ * Four latest messages per involved actor preserve two-sided exchanges. Initial authored history
+ * is excluded: at most two current opening messages per actor supply the pending opening context.
+ */
+export async function readDirectorAuthoredSpeechSources(
+  sql: SqlClient,
+  owner: string,
+  input: { worldId: string; worldVersion: number; actorIds: readonly string[] },
+): Promise<string[]> {
+  if (!input.actorIds.length) return [];
+  const rows = (
+    await sql.query(
+      `WITH ranked AS (
+      SELECT m.id,row_number() OVER (PARTITION BY m.actor_id ORDER BY e.version DESC,m.ordinal DESC,m.id DESC) rank
+      FROM parallel_life.world_messages m
+      JOIN parallel_life.world_events e ON e.world_id=m.world_id AND e.owner_id=m.owner_id AND e.id=m.document->>'sourceEventId'
+      JOIN parallel_life.commands c ON c.world_id=e.world_id AND c.owner_id=e.owner_id AND c.id=e.command_id
+        AND c.status='succeeded' AND c.result_event_id=e.id
+      WHERE m.world_id=$1 AND m.owner_id=$2 AND e.version<=$3 AND m.actor_id=ANY($4::text[])
+    ), opening AS (
+      SELECT m->>'id' id,row_number() OVER (PARTITION BY m->>'actorId' ORDER BY ord DESC) rank
+      FROM parallel_life.world_initial_snapshots i
+      CROSS JOIN LATERAL jsonb_array_elements(i.state->'messages') WITH ORDINALITY t(m,ord)
+      WHERE i.world_id=$1 AND i.owner_id=$2 AND m->>'actorId'=ANY($4::text[])
+        AND NOT (m ? 'history') AND COALESCE((m->>'initialRead')::boolean,false)=false
+    ) SELECT id FROM ranked WHERE rank<=4 UNION SELECT id FROM opening WHERE rank<=2 ORDER BY id`,
+      [input.worldId, owner, input.worldVersion, [...new Set(input.actorIds)]],
+    )
+  ).rows;
+  return rows.map((r) => `message:${r.id}`);
 }
 
 /** All virtual raw evidence comes from this same scoped catalogue; no reality/profile/approved_seed read. */
@@ -441,7 +474,13 @@ async function evidence(
       JSON.stringify({
         role: m.role,
         actorId: m.actorId,
-        origin: event?.data?.origin ?? (version === 0 ? 'authored_history' : 'player'),
+        origin:
+          event?.data?.origin ??
+          (version === 0
+            ? m.history || m.initialRead
+              ? 'authored_history'
+              : 'authored_opening'
+            : 'player'),
         text: m.text,
       }),
     );
@@ -934,13 +973,6 @@ export class PostgresDirectorSnapshotRepository {
           ]),
         ]),
       ];
-      const sources = await evidence(sql, owner, h, states, related);
-      for (const candidate of input.candidates)
-        for (const sourceId of candidate.sourceIds) {
-          const resolved = sources.items.get(sourceId);
-          if (resolved && !resolved.knownByActorIds.includes(candidate.actorId))
-            fail('DIRECTOR_CANDIDATE_SOURCE_FORBIDDEN');
-        }
       let authored: Awaited<ReturnType<typeof readAuthoredEligibilityInTransaction>> | undefined;
       let evaluationCause: DirectorSnapshot['evaluationCause'] | null;
       if (!input.nativeTurn) {
@@ -962,6 +994,56 @@ export class PostgresDirectorSnapshotRepository {
           authored,
         ));
       }
+      if (authored?.catalog.source && evaluationCause) {
+        const eligibleKeys = new Set(
+          authored.eligibility.filter((e) => e.status === 'eligible').map((e) => e.ref.nodeKey),
+        );
+        const actorIds = [
+          ...new Set(
+            authored.catalog.materials
+              .filter((m) => eligibleKeys.has(m.ref.nodeKey))
+              .flatMap((m) =>
+                m.participantRefs.flatMap((a) =>
+                  a.status === 'resolved' && a.actorId ? [a.actorId] : [],
+                ),
+              ),
+          ),
+        ];
+        const openingActors = authored.catalog.materials
+          .filter((m) => m.role === 'opening')
+          .flatMap((m) =>
+            m.participantRefs.flatMap((a) =>
+              a.status === 'resolved' && a.actorId ? [a.actorId] : [],
+            ),
+          );
+        const missingOpeningEvidence = await readOpeningReviewEvidence(
+          sql,
+          owner,
+          h.world.id,
+          h.epoch,
+          h.world.version,
+          openingActors,
+        );
+        related.push(
+          ...missingOpeningEvidence
+            .filter((e) => actorIds.includes(e.actorId))
+            .map((e) => e.sourceId),
+        );
+        related.push(
+          ...(await readDirectorAuthoredSpeechSources(sql, owner, {
+            worldId: h.world.id,
+            worldVersion: h.world.version,
+            actorIds,
+          })),
+        );
+      }
+      const sources = await evidence(sql, owner, h, states, related);
+      for (const candidate of input.candidates)
+        for (const sourceId of candidate.sourceIds) {
+          const resolved = sources.items.get(sourceId);
+          if (resolved && !resolved.knownByActorIds.includes(candidate.actorId))
+            fail('DIRECTOR_CANDIDATE_SOURCE_FORBIDDEN');
+        }
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         worldId: h.world.id,

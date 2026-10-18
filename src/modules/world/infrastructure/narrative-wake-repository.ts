@@ -1,3 +1,4 @@
+import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
 import { storedClockStopped } from './clock-activity-repository.ts';
 import { authoredReconsiderationEvidence } from '../domain/authored-reconsideration.ts';
 import { readAuthoredReconsiderationEvidence } from './authored-reconsideration-evidence.ts';
@@ -102,8 +103,40 @@ export async function readDirectorNarrativeWakeInTransaction(
       ) ?? [];
     return authoredReconsiderationEvidence(actorIds, semanticReasons, through, placeIds);
   };
-  const contextToken = (q: AuthoredWakeQualification, through: number) =>
-    JSON.stringify([token(q), evidenceFor(q, through)]);
+  const openingKey = view.catalog.openingEventKey;
+  const opening = view.catalog.materials.find((m) => m.ref.nodeKey === openingKey);
+  const openingEvidence = openingKey
+    ? await readOpeningReviewEvidence(
+        sql,
+        ownerId,
+        input.worldId,
+        input.engineEpoch,
+        input.worldVersion,
+        opening?.participantRefs.flatMap((r) =>
+          r.status === 'resolved' && r.actorId ? [r.actorId] : [],
+        ) ?? [],
+      )
+    : [];
+  const speechFor = (q: AuthoredWakeQualification, through: number) => {
+    const actors = new Set(
+      view.catalog.materials
+        .find((m) => m.ref.nodeKey === q.nodeKey)
+        ?.participantRefs.flatMap((r) =>
+          r.status === 'resolved' && r.actorId ? [r.actorId] : [],
+        ) ?? [],
+    );
+    return openingEvidence
+      .filter((e) => e.worldVersion <= through && actors.has(e.actorId))
+      .map((e) => e.sourceId);
+  };
+  const contextToken = (q: AuthoredWakeQualification, through: number, fenceSpeech = false) =>
+    JSON.stringify([
+      token(q),
+      evidenceFor(q, through),
+      ...(speechFor(q, input.worldVersion).length
+        ? [{ openingSpeech: speechFor(q, fenceSpeech ? input.worldVersion : through) }]
+        : []),
+    ]);
   // A paid assessment fences this evidence context, never completes the author event.
   const paidReviewContexts = new Set<string>();
   for (const a of attempts) {
@@ -122,7 +155,7 @@ export async function readDirectorNarrativeWakeInTransaction(
     const previousOccupied = new Set<string>(a.snapshot.occupiedAuthoredEventKeys ?? []);
     for (const q of entries)
       if (q.status === 'eligible' && !previousOccupied.has(q.nodeKey))
-        paidReviewContexts.add(contextToken(q, a.snapshot.worldVersion));
+        paidReviewContexts.add(contextToken(q, a.snapshot.worldVersion, a.status !== 'committed'));
   }
   const unseen = qualifications
     .filter((q) => !paidReviewContexts.has(contextToken(q, input.worldVersion)))
@@ -153,6 +186,9 @@ export async function readDirectorNarrativeWakeInTransaction(
           admission.genesis_hash,
           view.catalog.source.sourceHash,
           unseen,
+          ...(unseen.some((q) => speechFor(q, input.worldVersion).length)
+            ? [{ openingSpeech: unseen.map((q) => speechFor(q, input.worldVersion)) }]
+            : []),
           ...(unseen.some((q) => evidenceFor(q, input.worldVersion).length)
             ? [{ semanticEvidence: unseen.map((q) => evidenceFor(q, input.worldVersion)) }]
             : []),

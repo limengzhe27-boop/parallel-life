@@ -24,3 +24,29 @@ test('大世界不再直接报错，而是裁到预算内', () => {
   assert.deepEqual(fitted.blockers, ['keep-blocker']);
   assert.ok((fitted.observations as unknown[]).length >= 1, '保留最近观察');
 });
+
+test('authored assessment retains linked speech under budget pressure instead of reverting to an empty conversation', () => {
+  const speech = {
+    sourceId: 'message:real-player',
+    kind: 'speech',
+    knownByActorIds: ['actor'],
+    text: 'I want to discuss the arrangement',
+  };
+  const fitted = fitWithinBudget({
+    evaluationCause: { kind: 'authored_eligibility' },
+    observations: [
+      speech,
+      ...Array.from({ length: 40 }, (_, i) => ({
+        sourceId: `fact:${i}`,
+        kind: 'fact',
+        text: 'x'.repeat(2000),
+      })),
+    ],
+    episodes: big(20, 2000),
+    candidates: [],
+    changes: [],
+    worldSetting: 'context',
+  });
+  assert.ok((fitted.observations as (typeof speech)[]).some((o) => o.sourceId === speech.sourceId));
+  assert.ok(JSON.stringify(fitted).length <= CONTEXT_BUDGET);
+});

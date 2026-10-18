@@ -387,21 +387,43 @@ export function WorldPhoneApp({
       request.current++;
     };
   }, [load]);
-  // Media has its own revision: completing it need not advance narrative version.
-  // Read only while pending; never re-submit a task or a paid model request here.
+  // Other workers/tabs can commit messages even when this page's advance is quiet.
+  // Read projections independently from narrative/model scheduling, without blocking chat.
   const hasPendingMedia = data?.messages.some((message) => message.mediaStatus === 'pending');
+  const liveWorldReady = data?.id === worldId;
   useEffect(() => {
-    if (!hasPendingMedia) return;
-    const timer = window.setInterval(() => {
-      if (
-        document.visibilityState === 'visible' &&
-        !phoneReady.current.sending &&
-        !phoneReady.current.refreshing
-      )
-        void load();
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [hasPendingMedia, load]);
+    if (!liveWorldReady || (!automatic && !hasPendingMedia)) return;
+    let active = true;
+    let reading = false;
+    const timer = window.setInterval(
+      async () => {
+        if (
+          !active ||
+          reading ||
+          document.visibilityState !== 'visible' ||
+          phoneReady.current.sending
+        )
+          return;
+        reading = true;
+        try {
+          const next = await client.world(worldId);
+          if (active)
+            setData((current) =>
+              current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
+            );
+        } catch {
+          // A transient read failure never changes a committed message into a failed send.
+        } finally {
+          reading = false;
+        }
+      },
+      hasPendingMedia ? 3000 : 10000,
+    );
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [automatic, hasPendingMedia, liveWorldReady, client, worldId]);
   useEffect(() => {
     const onReturn = () => {
       if (document.visibilityState === 'visible') void load();

@@ -16,7 +16,10 @@ import { projectCommittedWorldAwareness } from '../../src/modules/world/infrastr
 import { PostgresGroupRepository } from '../../src/modules/world/infrastructure/group-repository.ts';
 import { PostgresClockActivityRepository } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
 import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
-import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
+import {
+  readDirectorAuthoredSpeechSources,
+  PostgresDirectorSnapshotRepository,
+} from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
 import {
   PostgresDirectorRuntimeRepository,
   directorSnapshotInputHash,
@@ -220,6 +223,54 @@ test('real director snapshot is one coherent readonly fictional-world view with 
       )
     ).rows[0];
   }
+  await t.test(
+    'authored speech references keep bounded original exchanges, exact sources and owner/actor isolation',
+    async () => {
+      const f = await fixture();
+      const ids: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        const id = randomUUID();
+        ids.push(id);
+        await write(f, undefined, undefined, async (sql, event) => {
+          const m = {
+            id,
+            actorId: f.a,
+            role: i % 2 ? 'assistant' : 'user',
+            text: `BOUNDED_EXCHANGE_${i}`,
+            at,
+            sourceEventId: event.id,
+          };
+          await sql.query(
+            'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
+            [id, f.worldId, f.owner, f.a, m],
+          );
+        });
+      }
+      const read = (owner: string, actorIds: string[], worldVersion = 7) =>
+        app.transaction(owner, (sql) =>
+          readDirectorAuthoredSpeechSources(sql, owner, {
+            worldId: f.worldId,
+            worldVersion,
+            actorIds,
+          }),
+        );
+      const sources = await read(f.owner, [f.a]);
+      assert.equal(sources.length, 5); // Four current messages plus the one current opening.
+      for (const id of ids.slice(-4)) assert(sources.includes(`message:${id}`));
+      for (const id of ids.slice(0, 3)) assert(!sources.includes(`message:${id}`));
+      assert(sources.includes(`message:${f.world.messages[0]!.id}`));
+      assert.deepEqual(await read(f.owner, [f.b]), []);
+      assert.deepEqual(await read(f.foreign, [f.a]), []);
+      const older = await read(f.owner, [f.a], 3);
+      assert(older.includes(`message:${ids[2]}`));
+      assert(!older.includes(`message:${ids[3]}`));
+      const raw = await repo.readEvidence(f.owner, { ...input(f, 7), sourceIds: sources });
+      assert.equal(raw.filter((r) => r.kind === 'speech').length, 5);
+      for (const record of raw) assert.deepEqual(record.knownByActorIds, [f.a]);
+      assert.equal(JSON.stringify(raw).includes('REAL_PRIVATE_SENTINEL'), false);
+      assert.equal(JSON.stringify(raw).includes('BOUNDED_EXCHANGE_0'), false);
+    },
+  );
   await t.test(
     'pure genesis read keeps full cast/state and fictional baseline without reading real profile/approved seed',
     async () => {

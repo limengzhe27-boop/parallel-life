@@ -108,7 +108,11 @@ function LifePhone({
   const [route, setRoute] = useState<PhoneRoute>(homeRoute);
   const [locked, setLocked] = useState(initiallyLocked);
   useEffect(() => onLockChange?.(locked), [locked, onLockChange]);
-  const [bannerId, setBannerId] = useState<string>();
+  // A returned-to phone may already have real unread messages in its first response.
+  // Present the latest one once; read/history filtering remains the caller's authority.
+  const [bannerId, setBannerId] = useState<string | undefined>(
+    () => latestNotification(notifications)?.id,
+  );
   const [openedIds, setOpenedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set());
   const [showAllGroups, setShowAllGroups] = useState(false);
