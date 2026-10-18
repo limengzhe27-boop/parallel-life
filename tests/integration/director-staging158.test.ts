@@ -273,7 +273,7 @@ test('Director catalog staging crosses actual authored opportunity and independe
       if (options.admit !== false)
         await admitNewAgentNarrativeInTransaction(sql, owner, { worldId: id, engineEpoch: 2 });
     });
-    await clocks.setClock(owner, id, { paused: false, speed: 0 });
+    await clocks.setClock(owner, id, { paused: false, speed: 1 });
     return { owner, id, world };
   }
   const f = await fixture();

@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { projectStoryTime } from '../modules/world/domain/clock.ts';
+import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
 import type { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
 import type { NpcAgentModel } from '../modules/world/application/agent-runtime-ports.ts';
 import type { AdvanceResult } from '../modules/world/application/advance-world.ts';
@@ -26,8 +28,19 @@ export async function dispatchPendingAgentEpisode(
   ownerId: string,
   world: WorldState,
   engineEpoch: number,
-  storyAt: string,
+  requestedStoryAt: string,
 ): Promise<AdvanceResult | null> {
+  // Coordination itself can take seconds while the clock continues. Assemble the
+  // actor against the current kernel clock, never the pre-Director timestamp.
+  const clock = await new PostgresClockStore(db).read(ownerId, world.id);
+  if (clock.paused) return null;
+  const storyAt = new Date(
+    Math.max(
+      Date.parse(requestedStoryAt),
+      Date.parse(world.time),
+      Date.parse(projectStoryTime(clock, new Date().toISOString())),
+    ),
+  ).toISOString();
   const pending = await db.transaction(ownerId, async (sql) => {
     const requests = await readPendingEpisodeRequestsInTransaction(sql, ownerId, {
       worldId: world.id,
