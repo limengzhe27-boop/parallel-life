@@ -17,6 +17,7 @@ export type DispatchSummary = {
   submitted: number;
   rejected: number;
   requeued: number;
+  taskIds: string[];
 };
 
 /**
@@ -33,7 +34,14 @@ export async function dispatchOutbox(
 ): Promise<DispatchSummary> {
   const maxAttempts = deps.maxAttempts ?? 5;
   const jobs = await deps.outbox.claim(deps.limit ?? 20);
-  const summary: DispatchSummary = { claimed: jobs.length, submitted: 0, rejected: 0, requeued: 0 };
+  const taskIds: string[] = [];
+  const summary: DispatchSummary = {
+    claimed: jobs.length,
+    submitted: 0,
+    rejected: 0,
+    requeued: 0,
+    taskIds,
+  };
   for (const job of jobs) {
     const executor = OUTBOX_EXECUTORS[job.payload.type];
     if (!executor) {
@@ -59,6 +67,7 @@ export async function dispatchOutbox(
       const task = await deps.tasks.submit(job);
       await deps.outbox.submitted(job, task.taskId);
       summary.submitted += 1;
+      taskIds.push(task.taskId);
     } catch (error) {
       const reason = String((error as { code?: string })?.code ?? (error as Error).message).slice(
         0,

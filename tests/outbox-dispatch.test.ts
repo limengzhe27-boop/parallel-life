@@ -49,14 +49,14 @@ function harness(
 test('an image request is dispatched into a media task exactly once', async () => {
   const h = harness([job()]);
   const summary = await dispatchOutbox(h.deps);
-  assert.deepEqual(summary, { claimed: 1, submitted: 1, rejected: 0, requeued: 0 });
+  assert.deepEqual(summary, { claimed: 1, submitted: 1, rejected: 0, requeued: 0, taskIds: ['task-1'] });
   assert.deepEqual(h.seen.submitted, ['job-1']);
 });
 
 test('a job type without an executor is rejected with a reason, never retried', async () => {
   const h = harness([job({ payload: { ...job().payload, type: 'video.generate' } })]);
   const summary = await dispatchOutbox(h.deps);
-  assert.deepEqual(summary, { claimed: 1, submitted: 0, rejected: 1, requeued: 0 });
+  assert.deepEqual(summary, { claimed: 1, submitted: 0, rejected: 1, requeued: 0, taskIds: [] });
   assert.deepEqual(h.seen.rejected, ['job-1:NO_EXECUTOR:video.generate']);
 });
 
@@ -74,7 +74,7 @@ test('an internal failure is requeued while the remaining jobs still run', async
     return { taskId: 'task-b', duplicate: false };
   });
   const summary = await dispatchOutbox(h.deps);
-  assert.deepEqual(summary, { claimed: 2, submitted: 1, rejected: 0, requeued: 1 });
+  assert.deepEqual(summary, { claimed: 2, submitted: 1, rejected: 0, requeued: 1, taskIds: ['task-b'] });
   assert.deepEqual(h.seen.requeued, ['job-a:BUSY']);
   assert.deepEqual(h.seen.submitted, ['job-b']);
 });
@@ -84,7 +84,7 @@ test('a job that keeps failing stops after the attempt cap instead of looping fo
     throw Object.assign(Error('boom'), { code: 'INTERNAL' });
   });
   const summary = await dispatchOutbox(h.deps);
-  assert.deepEqual(summary, { claimed: 1, submitted: 0, rejected: 1, requeued: 0 });
+  assert.deepEqual(summary, { claimed: 1, submitted: 0, rejected: 1, requeued: 0, taskIds: [] });
   assert.deepEqual(h.seen.rejected, ['job-c:ATTEMPTS_EXCEEDED:INTERNAL']);
 });
 
@@ -95,5 +95,6 @@ test('an empty outbox is a no-op', async () => {
     submitted: 0,
     rejected: 0,
     requeued: 0,
+    taskIds: [],
   });
 });

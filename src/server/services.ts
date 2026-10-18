@@ -111,9 +111,21 @@ function createServices() {
      * Turns durable outbox jobs of one life into queued tasks. Owner-scoped, and
      * safe to call repeatedly: the job id is the idempotency key.
      */
-    drainOutbox: (ownerId: string, limit = 20) => {
+    drainOutbox: async (ownerId: string, limit = 20) => {
       const ports = new PostgresOutbox(db).ports(ownerId);
-      return dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks, limit });
+      const summary = await dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks, limit });
+      const pendingTasks = await db.transaction(ownerId, async (sql) =>
+        (
+          await sql.query(
+            "SELECT id FROM parallel_life.tasks WHERE owner_id = $1 AND status IN ('queued', 'running')",
+            [ownerId],
+          )
+        ).rows.map((r) => String(r.id)),
+      );
+      return {
+        ...summary,
+        taskIds: [...new Set([...summary.taskIds, ...pendingTasks])],
+      };
     },
     /**
      * The user's own correction or forgetting of a memory. Synchronous and inside
