@@ -40,3 +40,5 @@
 同一传输增加人物明确followUp(waitingOn与missing)：need_information/defer必须填写，代码只绑定到本人当前request的waiting责任，保留旧source、无deadline/nextCheck/强制消息/玩家决定。quiet可无责任。旧已考虑choice不回写；后续沿原责任/普通消息更新。小安146只读确认原生命周期可直接读取这些request责任，不另建运行引擎。明确模型considerationAllowed，防止把episodeFollowUps当作可重复消费；要求动作goal存在。当地时间整点对照由代码换算，仅格式参考，不代表授权约定或推断日期。v19仍同次模型输出，无纠错调用。
 
 最终check3307/build成功，原服务真实本地PG7通过（新增wait责任落库、无虚假deadline、再推进无第二次人物调用）。PG初次负例为受控Director每轮返回同op id导致ID冲突，夹具第二次明确quiet后通过；不放宽生产冲突校验。生产91checksum只读一致、107世界保留。真实自然邀约仍待本批余2次验收，不能提前写通过。
+
+cd1f05fa / dpl_HjzmVpfQ41KbpfMPoCP731LPvv8r正式READY，公网200/旧合成paused保留。145第5次真实输出已具有目标、绑定计划/动作、正确18:00+08:00、consideration:null，但遗漏protocol；其余内容离线走原parser/kernel语义可通过。仅允许通过wire独占consideration字段识别“省略传输tag”的同一严格格式；显式错误protocol、额外字段、语义缺漏继续拒绝，raw付费响应不改，旧invalid不自动改判/重买，不补目标、不改时间、不造行动。新增完整原服务PG回归中人物两回合均省略tag，仍经相同内核保存真实参与/邀约。待本次门禁与READY，145本批5/6、0unknown，剩最后1次不超过范围。

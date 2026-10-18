@@ -66,8 +66,11 @@ const Wire = z.strictObject({
 
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
-  if (!raw || typeof raw !== 'object' || !('protocol' in raw)) return raw; // Persisted canonical completions.
-  const wire = Wire.parse(raw);
+  if (!raw || typeof raw !== 'object') return raw;
+  // consideration is exclusive to this wire format. Recognize an omitted transport tag only;
+  // the entire strict wire schema and original semantic/authority checks still apply.
+  if (!('protocol' in raw) && !('consideration' in raw)) return raw; // Persisted canonical completions.
+  const wire = Wire.parse('protocol' in raw ? raw : { ...raw, protocol: NPC_WIRE_PROTOCOL });
   const { protocol: _protocol, consideration, plans, ...proposal } = wire;
   let requestId: string | undefined;
   if (isActorEpisodeConsiderationInput(context.input)) {

@@ -165,3 +165,22 @@ test('information request requires explicit actor wait and persists it without a
   assert.deepEqual(p.statements, []);
   assert.deepEqual(p.decisions, []);
 });
+
+test('an unambiguous wire body may omit only its transport tag; no semantic content is repaired', () => {
+  const { c, wire } = fixture();
+  wire.statements = [{ text: '我还需要确认安排。', dependsOnActionIds: [] }];
+  const { protocol, ...untagged } = wire;
+  assert.deepEqual(parseAgentProposal(c, untagged), parseAgentProposal(c, wire));
+  assert.throws(
+    () => parseAgentProposal(c, { ...untagged, protocol: 'unknown' }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () => parseAgentProposal(c, { ...untagged, extra: 'unknown' }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () => parseAgentProposal(c, { ...untagged, goals: [{ id: 'missing-fields' }] }),
+    /RESPONSE_SHAPE/,
+  );
+});

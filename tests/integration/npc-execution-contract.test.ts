@@ -256,7 +256,8 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
               audit: { reason: 'Existing available basis', sourceRefs: [ref] },
             });
           }
-          const base = { protocol: 'npc-wire-v1', consideration: null, ...empty() };
+          // Real-model regression: exclusive consideration/nextStep body, omitted transport tag.
+          const base = { consideration: null, ...empty() };
           if (p.input.origin === 'coordination')
             return JSON.stringify({
               ...base,
