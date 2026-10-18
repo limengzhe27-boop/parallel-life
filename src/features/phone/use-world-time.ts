@@ -14,6 +14,7 @@ type Session = {
   sequence: number;
   active: boolean;
   returning: boolean;
+  resumeRequired: boolean;
   mode?: Mode;
   acknowledgedMode?: Mode;
   tail: Promise<unknown>;
@@ -65,6 +66,7 @@ export function useWorldTime(
           const clock = await client.updateClockActivity(worldId, input);
           if (session.current === s && s.active && mode !== 'away' && !s.returning) {
             if (!clock.paused) {
+              if (resume) s.resumeRequired = false;
               if (
                 resume ||
                 s.acknowledgedMode === undefined ||
@@ -91,6 +93,7 @@ export function useWorldTime(
       sequence: previous?.sequence ?? 0,
       active: true,
       returning: false,
+      resumeRequired: true,
       tail: Promise.resolve(),
     };
     session.current = s;
@@ -103,20 +106,30 @@ export function useWorldTime(
     try {
       const raw = sessionStorage.getItem('pl-story-wait:' + worldId);
       const parsed = raw ? StoryWaitRequestSchema.safeParse(JSON.parse(raw)) : null;
-      setPendingWait(parsed?.success ? parsed.data : null);
+      const restored = parsed?.success ? parsed.data : null;
+      pendingWaitRef.current = restored;
+      setPendingWait(restored);
     } catch {
+      pendingWaitRef.current = null;
       setPendingWait(null);
     }
     const mode = () =>
       phoneTimeMode(busyRef.current, readRoute(location.hash, worldId), lockedRef.current);
     const update = () => {
-      if (document.visibilityState !== 'visible' || s.returning || waiting.current) return;
-      void sync(mode()).catch(() => {
+      if (
+        document.visibilityState !== 'visible' ||
+        s.returning ||
+        waiting.current ||
+        pendingWaitRef.current
+      )
+        return;
+      void sync(mode(), s.resumeRequired).catch(() => {
         if (s.active) setNotice('时间暂时未同步，稍后重试。');
       });
     };
     const leave = () => {
       s.returning = true;
+      s.resumeRequired = true;
       setView((current) =>
         current?.worldId === worldId
           ? {
@@ -135,22 +148,13 @@ export function useWorldTime(
     const visibility = () => {
       if (document.visibilityState !== 'visible') leave();
       else {
-        s.returning = true;
-        void client
-          .readWorldClock(worldId)
-          .then((clock) => {
-            if (s.active)
-              setView({
-                worldId,
-                clock: {
-                  ...clock,
-                  storyNow: projectStoryTime(clock, new Date().toISOString()),
-                  lastTickAt: new Date().toISOString(),
-                  paused: true,
-                },
-              });
-          })
-          .catch(() => {});
+        // Returning is an explicit foreground business entry, not offline catch-up.
+        // Queue behind away using the same ordered lease and preserve the frozen anchor.
+        s.returning = false;
+        s.resumeRequired = true;
+        lastMeaningfulActivity.current = Date.now();
+        lastCheck.current = Date.now();
+        update();
       }
     };
     update();
@@ -174,62 +178,20 @@ export function useWorldTime(
     };
   }, [client, worldId, enabled, sync]);
   useEffect(() => {
-    if (enabled && !session.current?.returning)
-      void sync(phoneTimeMode(busy, readRoute(location.hash, worldId), lockedRef.current)).catch(
-        () => {},
-      );
+    if (enabled && !session.current?.returning && !pendingWaitRef.current)
+      void sync(
+        phoneTimeMode(busy, readRoute(location.hash, worldId), lockedRef.current),
+        session.current?.resumeRequired,
+      ).catch(() => {});
   }, [enabled, busy, locked, sync, worldId]);
   const startConversation = useCallback(async () => {
     if (waiting.current || pendingWaitRef.current) throw Error('请先核对这次等待，再继续交谈。');
     lastMeaningfulActivity.current = Date.now();
     const s = session.current;
-    const clock = await sync('conversation');
+    const clock = await sync('conversation', s?.resumeRequired);
     if (!s?.active || session.current !== s || !clock || clock.paused || session.current?.returning)
-      throw Error('请先继续这段人生，再发送消息。');
+      throw Error('正在恢复这段人生，请稍后发送。');
   }, [sync]);
-  const resume = async () => {
-    const s = session.current;
-    if (!s) return;
-    setWorking(true);
-    setNotice('');
-    s.returning = false;
-    try {
-      await sync(
-        phoneTimeMode(busyRef.current, readRoute(location.hash, worldId), lockedRef.current),
-        true,
-      );
-      lastMeaningfulActivity.current = Date.now();
-      lastCheck.current = Date.now();
-    } catch {
-      if (session.current !== s || !s.active) return;
-      s.returning = true;
-      setNotice('这次没能继续，可以再试一次。');
-    } finally {
-      if (session.current === s) setWorking(false);
-    }
-  };
-  const pause = async () => {
-    const s = session.current;
-    if (!s) return;
-    s.returning = true;
-    setView((current) =>
-      current?.worldId === worldId
-        ? {
-            ...current,
-            clock: {
-              ...current.clock,
-              storyNow: projectStoryTime(current.clock, new Date().toISOString()),
-              lastTickAt: new Date().toISOString(),
-              paused: true,
-            },
-          }
-        : current,
-    );
-    await sync('away').catch(() => {
-      if (session.current === s && s.active)
-        setNotice('暂停请求尚未确认，时间会在连接失效后冻结。');
-    });
-  };
   async function wait(
     target: StoryWaitRequest['target'],
     expectedVersion: number,
@@ -323,8 +285,6 @@ export function useWorldTime(
     working,
     notice,
     pendingWait,
-    resume,
-    pause,
     wait,
     startConversation,
     blocked:

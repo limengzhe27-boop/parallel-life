@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { worldDateTimeLabel } from '../../modules/world/domain/display-time.ts';
 import type { useWorldTime } from './use-world-time.ts';
 import type { LifeClient } from '../api/client.ts';
 import { WorldEngineMigrationModal } from './world-engine-migration-modal.tsx';
@@ -35,22 +34,8 @@ export function TimeExperienceControls({
         background: 'var(--surface, #f5f3ed)',
       }}
     >
-      <summary style={{ cursor: 'pointer' }}>
-        {time.displayTime ? worldDateTimeLabel(time.displayTime) : '正在同步时间…'}
-        {' · '}
-        {time.clock?.paused
-          ? '已暂停 · 点击继续'
-          : time.clock?.speed === 1
-            ? '交谈中，时间放缓'
-            : '日常时间 12 倍'}
-      </summary>
+      <summary style={{ cursor: 'pointer' }}>等待与休息</summary>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 0' }}>
-        <button
-          disabled={time.working || !time.clock || !!time.pendingWait}
-          onClick={() => void (time.clock?.paused ? time.resume() : time.pause())}
-        >
-          {time.clock?.paused ? '继续这段人生' : '暂停'}
-        </button>
         <button
           disabled={time.working || !time.clock || !!time.pendingWait}
           onClick={() => void time.wait('next_appointment', worldVersion, reload)}
@@ -88,7 +73,7 @@ export function TimeExperienceControls({
         )}
       </div>
       <p style={{ margin: '0 0 6px', lineHeight: 1.5 }}>
-        浏览时加速，交谈时放缓；离开后暂停。等待途中有重要变化，会先停下来。
+        进入后自动继续，离开时暂停；浏览时加速，交谈时放缓。等待途中有重要变化，会先停下来。
       </p>
       {time.notice && (
         <p role="status" style={{ margin: '4px 0' }}>
