@@ -37,7 +37,7 @@ export function groupTaskHandler(
         if (
           (
             await sql.query(
-              'SELECT (paused OR (managed AND (active_until IS NULL OR active_until<=now()))) AS paused FROM parallel_life.world_clock WHERE world_id=$1',
+              "SELECT (paused OR (continuity_mode='presence' AND managed AND (active_until IS NULL OR active_until<=now()))) AS paused FROM parallel_life.world_clock WHERE world_id=$1",
               [input.worldId],
             )
           ).rows[0]?.paused

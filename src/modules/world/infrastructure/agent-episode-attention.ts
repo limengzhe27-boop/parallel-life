@@ -1,3 +1,4 @@
+import { storedClockStopped } from './clock-activity-repository.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import {
   readWorldAttentionInTransaction,
@@ -28,7 +29,7 @@ export async function requireEpisodeDeliveryInTransaction(
     throw Object.assign(Error('VERSION_CONFLICT'), { code: 'VERSION_CONFLICT' });
   const clock = (
     await sql.query(
-      'SELECT paused,managed,active_until FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
+      'SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2 FOR UPDATE',
       [frame.worldId, ownerId],
     )
   ).rows[0];
@@ -37,13 +38,7 @@ export async function requireEpisodeDeliveryInTransaction(
   const deferred = () => {
     throw Object.assign(Error('EPISODE_DELIVERY_DEFERRED'), { code: 'EPISODE_DELIVERY_DEFERRED' });
   };
-  if (
-    clock &&
-    (clock.paused ||
-      (clock.managed &&
-        (!clock.active_until || new Date(clock.active_until).getTime() <= Date.parse(realNow))))
-  )
-    deferred();
+  if (clock && storedClockStopped(clock, realNow)) deferred();
   const attention = await readWorldAttentionInTransaction(sql, ownerId, {
     worldId: frame.worldId,
     worldVersion: frame.worldVersion,

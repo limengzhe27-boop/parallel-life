@@ -12,6 +12,7 @@ import {
   updateClockActivity,
   capClockAtNextAppointment,
 } from '../../src/modules/world/infrastructure/clock-activity-repository.ts';
+import { switchAgentEngineEpochInTransaction } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 import { advanceWorld } from '../../src/modules/world/application/advance-world.ts';
 import { projectStoryTime } from '../../src/modules/world/domain/clock.ts';
 
@@ -30,6 +31,10 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
   const db = new PostgresDatabase(
     `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
   );
+  t.after(async () => {
+    await db.close().catch(() => {});
+    await admin.end().catch(() => {});
+  });
   const worlds = new PostgresWorldRepository(db),
     clock = new PostgresClockStore(db),
     activity = new PostgresClockActivityRepository(db);
@@ -192,6 +197,14 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         assert.equal(frozen.paused, true);
         assert.equal(frozen.activeUntil, null);
         assert.equal(frozen.storyNow, at(535));
+        const notResumed = await activity.update(
+          owner,
+          worldId,
+          { clientId: randomUUID(), sequence: 1, mode: 'browsing', resume: true },
+          at(250),
+        );
+        assert.equal(notResumed.paused, true);
+        await clock.setClock(owner, worldId, { paused: false }, at(299));
         const resume = await activity.update(
           owner,
           worldId,
@@ -579,6 +592,105 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
           await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=$1', [testWorld]);
           await admin.query('DELETE FROM parallel_life.worlds WHERE id=$1', [testWorld]);
         }
+      },
+    );
+    await t.test(
+      'continuous normal entry and away preserve offline time, SQL parity and manual stop',
+      async () => {
+        const id = randomUUID();
+        await worlds.initialize(
+          { userId: owner },
+          {
+            schemaVersion: 1,
+            id,
+            ownerId: owner,
+            version: 0,
+            title: 'Continuous synthetic world',
+            time: at(0),
+            actors: [],
+            facts: [],
+            messages: [],
+            appointments: [],
+            mediaRequests: [],
+          },
+        );
+        await db.transaction(owner, (sql) =>
+          switchAgentEngineEpochInTransaction(sql, owner, {
+            worldId: id,
+            expectedEpoch: 1,
+            nextEpoch: 2,
+            expectedWorldVersion: 0,
+          }),
+        );
+        await clock.write(owner, id, {
+          storyNow: at(0),
+          lastTickAt: at(0),
+          speed: 1,
+          paused: false,
+          missedBeats: 0,
+          summary: null,
+        });
+        const clientId = randomUUID();
+        const entered = await activity.update(
+          owner,
+          id,
+          { clientId, sequence: 1, mode: 'browsing', resume: true },
+          at(0),
+        );
+        assert.equal(entered.continuityMode, 'continuous');
+        const away = await activity.update(
+          owner,
+          id,
+          { clientId, sequence: 2, mode: 'away' },
+          at(10),
+        );
+        assert.equal(away.paused, false);
+        assert.equal(away.speed, 1);
+        assert.equal(away.activeUntil, null);
+        assert.equal(projectStoryTime(away, at(3610)), at(3720));
+        const row = await db.transaction(
+          owner,
+          async (sql) =>
+            (
+              await sql.query(
+                'SELECT now() at, parallel_life.publication_story_clock($1) projected',
+                [id],
+              )
+            ).rows[0],
+        );
+        assert.equal(
+          new Date(row.projected).getTime(),
+          Date.parse(projectStoryTime(away, new Date(row.at).toISOString())),
+        );
+        const returned = await activity.update(
+          owner,
+          id,
+          { clientId, sequence: 3, mode: 'browsing', resume: true },
+          at(3610),
+        );
+        assert.equal(returned.storyNow, at(3720));
+        assert.equal(returned.speed, 12);
+        await clock.setClock(owner, id, { paused: true }, at(3620));
+        assert.equal(
+          (
+            await activity.update(
+              owner,
+              id,
+              { clientId, sequence: 4, mode: 'browsing', resume: true },
+              at(4000),
+            )
+          ).paused,
+          true,
+        );
+        assert.equal((await worlds.get({ userId: owner }, id)).version, 0);
+        // Owned fixture cleanup; no production or other task data involved.
+        await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [id]);
+        await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=$1', [id]);
+        await admin.query('DELETE FROM parallel_life.agent_runtime_worlds WHERE world_id=$1', [id]);
+        await admin.query('DELETE FROM parallel_life.world_initial_snapshots WHERE world_id=$1', [
+          id,
+        ]);
+        await admin.query('DELETE FROM parallel_life.worlds WHERE id=$1', [id]);
       },
     );
   } finally {

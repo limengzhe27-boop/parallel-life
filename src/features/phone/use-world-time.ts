@@ -138,7 +138,7 @@ export function useWorldTime(
                 ...current.clock,
                 storyNow: projectStoryTime(current.clock, new Date().toISOString()),
                 lastTickAt: new Date().toISOString(),
-                paused: true,
+                paused: current.clock.continuityMode === 'continuous' ? current.clock.paused : true,
               },
             }
           : current,

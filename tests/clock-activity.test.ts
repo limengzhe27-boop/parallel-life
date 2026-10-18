@@ -84,3 +84,26 @@ test('fractional real deadlines round forward so explicit continue cannot stick 
     '2026-10-15T00:00:34.167Z',
   );
 });
+
+test('continuous worlds separate foreground speed, offline 1x and explicit run-state', () => {
+  const continuous: WorldClock = { ...base, continuityMode: 'continuous' };
+  const later = '2026-10-15T01:00:45.000Z';
+  // 45s of browsing at 12x, then one real hour offline, never twelve offline hours.
+  assert.equal(projectStoryTime(continuous, later), '2026-10-15T01:09:00.000Z');
+  assert.equal(advanceClock(continuous, later).clock.storyNow, projectStoryTime(continuous, later));
+  assert.equal(readableActivityClock(continuous, later).paused, false);
+  assert.equal(projectStoryTime({ ...continuous, activeUntil: null }, later), later);
+  assert.equal(
+    projectStoryTime({ ...continuous, paused: true, pauseReason: 'manual' }, later),
+    start,
+  );
+  assert.equal(
+    appointmentDeadline(continuous, [{ at: '2026-10-15T00:03:00Z', status: 'confirmed' }]),
+    null,
+  );
+  // Offline time also remains monotonic when the old presence expired before the current anchor.
+  assert.equal(
+    projectStoryTime({ ...continuous, activeUntil: '2026-10-14T23:59:00Z' }, later),
+    later,
+  );
+});

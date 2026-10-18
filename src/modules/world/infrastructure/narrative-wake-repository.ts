@@ -1,3 +1,4 @@
+import { storedClockStopped } from './clock-activity-repository.ts';
 import { authoredReconsiderationEvidence } from '../domain/authored-reconsideration.ts';
 import { readAuthoredReconsiderationEvidence } from './authored-reconsideration-evidence.ts';
 import { createHash } from 'node:crypto';
@@ -53,17 +54,12 @@ export async function readDirectorNarrativeWakeInTransaction(
   // No read-side adoption, including epoch2 saves created before explicit admission.
   if (!admission) return { cause: null, hasPendingDirector, deferred: false };
   const clock = (
-    await sql.query(
-      'SELECT paused,managed,active_until FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2',
-      [input.worldId, ownerId],
-    )
+    await sql.query('SELECT * FROM parallel_life.world_clock WHERE world_id=$1 AND owner_id=$2', [
+      input.worldId,
+      ownerId,
+    ])
   ).rows[0];
-  if (
-    clock &&
-    (clock.paused ||
-      (clock.managed &&
-        (!clock.active_until || new Date(clock.active_until).getTime() <= Date.now())))
-  )
+  if (clock && storedClockStopped(clock, new Date().toISOString()))
     return { cause: null, hasPendingDirector, deferred: true };
   const attention = await readWorldAttentionInTransaction(sql, ownerId, {
     worldId: input.worldId,

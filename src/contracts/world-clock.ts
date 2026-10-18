@@ -15,6 +15,8 @@ const ClockValuesSchema = z.strictObject({
   missedBeats: z.number().int().nonnegative(),
   summary: z.string().nullable(),
   managed: z.boolean().optional(),
+  continuityMode: z.enum(['presence', 'continuous']).optional(),
+  pauseReason: z.enum(['legacy', 'manual']).nullable().optional(),
   activeUntil: Timestamp.nullable().optional(),
 });
 /** Reads contain clock values; successful controls also carry a committed receipt. */

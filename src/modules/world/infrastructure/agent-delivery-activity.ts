@@ -1,3 +1,4 @@
+import { storedClockStopped } from './clock-activity-repository.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 
 /** Short world -> clock lock; activity is sampled after locking, never across a model call. */
@@ -21,12 +22,7 @@ export async function requireActiveAgentDeliveryInTransaction(
     )
   ).rows[0];
   const realNow = new Date().toISOString();
-  if (
-    clock &&
-    (clock.paused ||
-      (clock.managed &&
-        (!clock.active_until || new Date(clock.active_until).getTime() <= Date.parse(realNow))))
-  )
+  if (clock && storedClockStopped(clock, realNow))
     throw Object.assign(Error(errorCode), {
       code: errorCode,
     });

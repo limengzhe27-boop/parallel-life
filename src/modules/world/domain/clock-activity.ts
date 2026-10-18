@@ -58,7 +58,11 @@ export function nextClockConversationFocus(
 }
 /** Expiration is a clock boundary, not permission to replay the offline interval. */
 export function readableActivityClock(clock: WorldClock, realNow: string): WorldClock {
-  if (!clock.managed || (clock.activeUntil && Date.parse(clock.activeUntil) > Date.parse(realNow)))
+  if (
+    clock.continuityMode === 'continuous' ||
+    !clock.managed ||
+    (clock.activeUntil && Date.parse(clock.activeUntil) > Date.parse(realNow))
+  )
     return clock;
   return {
     ...clock,
@@ -88,7 +92,9 @@ export function appointmentDeadline(
   appointments: readonly { at: string; status?: string }[],
   afterStoryAt = clock.storyNow,
 ): string | null {
-  if (!clock.managed || clock.paused || clock.speed <= 0) return null;
+  // A calendar instant limits a deliberate wait, not an entire continuously living world.
+  if (clock.continuityMode === 'continuous' || !clock.managed || clock.paused || clock.speed <= 0)
+    return null;
   const boundary = Math.min(
     ...appointments
       .filter(

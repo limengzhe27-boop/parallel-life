@@ -105,7 +105,11 @@ export async function readAgentPhoneEntryProbe(
   // Existing saves resume eligible, still-unreviewed author material through the same scheduler.
   // This is not genesis replay: original history, paid-context suppression and focus remain authoritative.
   const wake = await readDirectorNarrativeWakeInTransaction(sql, ownerId, frame);
-  return wake.cause && !wake.deferred && !wake.hasPendingDirector
-    ? ready('narrative', wake.cause.id)
+  if (wake.cause && !wake.deferred && !wake.hasPendingDirector)
+    return ready('narrative', wake.cause.id);
+  // Grants only a cheap original scheduler evaluation once per foreground entry, never a model cause.
+  // Due plans/arrivals and paid-context guards remain authoritative inside advanceIfEnabled.
+  return row.continuity_mode === 'continuous' && !wake.hasPendingDirector
+    ? ready('continuity', String(row.last_tick_at))
     : { status: 'quiet' };
 }

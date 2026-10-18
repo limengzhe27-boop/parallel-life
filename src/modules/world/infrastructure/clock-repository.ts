@@ -184,9 +184,10 @@ export class PostgresClockStore implements ClockStore {
         Math.max(Date.parse(world.state.time), Date.parse(projectStoryTime(clock, realNow))),
       ).toISOString();
       await sql.query(
-        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+        `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,speed,paused,last_tick_at,missed_beats,summary,pause_reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,CASE WHEN $9::boolean=true THEN 'manual' ELSE NULL END)
       ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,speed=EXCLUDED.speed,paused=EXCLUDED.paused,last_tick_at=EXCLUDED.last_tick_at,
-        active_until=CASE WHEN EXCLUDED.paused THEN NULL ELSE parallel_life.world_clock.active_until END,updated_at=now()`,
+        active_until=CASE WHEN EXCLUDED.paused THEN NULL ELSE parallel_life.world_clock.active_until END,
+        pause_reason=CASE WHEN $9::boolean=true THEN 'manual' WHEN $9::boolean=false THEN NULL ELSE parallel_life.world_clock.pause_reason END,updated_at=now()`,
         [
           worldId,
           ownerId,
@@ -196,6 +197,7 @@ export class PostgresClockStore implements ClockStore {
           realNow,
           clock.missedBeats,
           clock.summary,
+          input.paused ?? null,
         ],
       );
       await capClockAtNextAppointment(sql, ownerId, worldId, realNow);

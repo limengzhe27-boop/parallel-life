@@ -538,6 +538,28 @@ test('actual server arrival continuation authenticates clock, due journey and at
     },
   );
   await t.test(
+    'continuous offline absence commits an already departed NPC arrival once without models',
+    async () => {
+      const f = await ready();
+      await admin.query(
+        "UPDATE parallel_life.world_clock SET continuity_mode='continuous',managed=true,paused=false,active_until=$2 WHERE world_id=$1",
+        [f.worldId, '2026-10-15T09:00:45.000Z'],
+      );
+      const result = await call(f);
+      assert.equal(result.status, 'arrived');
+      assert.equal((await call(f, due, 3)).status, 'quiet');
+      assert.equal(
+        (
+          await admin.query(
+            "SELECT count(*)::int n FROM parallel_life.world_events WHERE world_id=$1 AND payload->>'type'='agent.arrival_committed'",
+            [f.worldId],
+          )
+        ).rows[0].n,
+        1,
+      );
+    },
+  );
+  await t.test(
     'paused and expired managed leases remain quiet even if wall time has passed ETA',
     async () => {
       for (const mode of ['paused', 'expired', 'away']) {

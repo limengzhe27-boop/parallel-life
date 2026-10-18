@@ -211,6 +211,30 @@ test('real publisher private trial initializes native runtime atomically without
       ]);
       assert.equal(results.filter((r) => !r.resumed).length, 1);
       assert.deepEqual(await image(trial.worldId), before);
+      assert.equal(
+        await app.transaction(
+          trial.ownerId,
+          async (sql) =>
+            (
+              await sql.query('SELECT parallel_life.world_continuity_admissible($1) allowed', [
+                trial.worldId,
+              ])
+            ).rows[0].allowed,
+        ),
+        false,
+      );
+      assert.equal(
+        await app.transaction(
+          randomUUID(),
+          async (sql) =>
+            (
+              await sql.query('SELECT parallel_life.world_continuity_admissible($1) allowed', [
+                trial.worldId,
+              ])
+            ).rows[0].allowed,
+        ),
+        false,
+      );
       const actors = await admin.query(
         'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1',
         [trial.worldId],

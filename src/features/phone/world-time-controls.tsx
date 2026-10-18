@@ -78,7 +78,7 @@ export function TimeExperienceControls({
         )}
       </div>
       <p style={{ margin: '0 0 6px', lineHeight: 1.5 }}>
-        进入后自动继续，离开时暂停；浏览时加速，交谈时放缓。等待途中有重要变化，会先停下来。
+        世界持续运行；浏览时加速，交谈时放缓，离线按现实时间流逝。等待途中有重要变化，会先停下来。
       </p>
       {time.notice && (
         <p role="status" style={{ margin: '4px 0' }}>

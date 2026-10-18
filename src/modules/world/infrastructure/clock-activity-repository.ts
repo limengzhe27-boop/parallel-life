@@ -22,6 +22,10 @@ export function storedActivityClock(row: Record<string, unknown>): WorldClock {
     lastTickAt: new Date(row.last_tick_at as string).toISOString(),
     speed: Number(row.speed),
     paused: Boolean(row.paused),
+    ...(row.continuity_mode === 'continuous' ? { continuityMode: 'continuous' as const } : {}),
+    ...(row.pause_reason === 'manual' || row.pause_reason === 'legacy'
+      ? { pauseReason: row.pause_reason }
+      : {}),
     missedBeats: Number(row.missed_beats),
     summary: row.summary ? String(row.summary) : null,
     ...(row.managed
@@ -32,6 +36,16 @@ export function storedActivityClock(row: Record<string, unknown>): WorldClock {
       : {}),
   };
 }
+/** Authority is explicit run-state; presence-only clocks retain their bounded legacy policy. */
+export function storedClockStopped(row: Record<string, unknown>, realNow: string): boolean {
+  return (
+    Boolean(row.paused) ||
+    (row.continuity_mode !== 'continuous' &&
+      Boolean(row.managed) &&
+      (!row.active_until || new Date(row.active_until as string).getTime() <= Date.parse(realNow)))
+  );
+}
+
 /** Only persisted owner-visible calendar state enters the clock; no script or private prose. */
 async function effectiveAppointments(
   sql: SqlClient,
@@ -159,6 +173,26 @@ export async function updateClockActivity(
         missedBeats: 0,
         summary: null,
       };
+  // Normal player entry adopts the new policy once, at the old legal anchor. Never retroactively
+  // simulate earlier absence, unlock a manual pause, or enroll a staff-controlled trial.
+  if (
+    clock.continuityMode !== 'continuous' &&
+    input.resume &&
+    input.mode !== 'away' &&
+    clock.pauseReason !== 'manual'
+  ) {
+    const normal = (
+      await sql.query('SELECT parallel_life.world_continuity_admissible($1) AS allowed', [worldId])
+    ).rows[0]?.allowed;
+    if (normal)
+      clock = {
+        ...clock,
+        storyNow: projectStoryTime(clock, realNow),
+        lastTickAt: realNow,
+        continuityMode: 'continuous',
+        pauseReason: null,
+      };
+  }
   // Another tab may have committed a newer anchor while this request waited for a row lock.
   realNow = new Date(Math.max(Date.parse(realNow), Date.parse(clock.lastTickAt))).toISOString();
   const appointments = await effectiveAppointments(sql, ownerId, worldId, Number(world.version));
@@ -248,13 +282,18 @@ export async function updateClockActivity(
     throw new DomainError('INVALID_COMMAND', '活动窗口过多，请继续使用已有窗口');
   // A retired tab cannot resurrect a managed, inactive world without an explicit choice.
   const liveBefore = activityMode(leases, realNow).activeUntil !== null;
-  const permitted = !clock.managed
-    ? !clock.paused || input.resume === true
-    : input.resume === true ||
-      (!clock.paused &&
-        liveBefore &&
-        !!clock.activeUntil &&
-        Date.parse(clock.activeUntil) > Date.parse(realNow));
+  const permitted =
+    clock.pauseReason === 'manual'
+      ? !clock.paused
+      : clock.continuityMode === 'continuous'
+        ? !clock.paused || input.resume === true
+        : !clock.managed
+          ? !clock.paused || input.resume === true
+          : input.resume === true ||
+            (!clock.paused &&
+              liveBefore &&
+              !!clock.activeUntil &&
+              Date.parse(clock.activeUntil) > Date.parse(realNow));
   const lease: ClockActivityLease = {
     clientId: input.clientId,
     sequence: input.sequence,
@@ -279,12 +318,17 @@ export async function updateClockActivity(
     ],
   );
   const mode = activityMode([...leases.filter((l) => l !== previous), lease], realNow);
-  const paused = !permitted || !mode.activeUntil;
+  const paused = !permitted || (clock.continuityMode !== 'continuous' && !mode.activeUntil);
+  const nextSpeed = mode.activeUntil
+    ? mode.speed
+    : clock.continuityMode === 'continuous'
+      ? 1
+      : mode.speed;
   const changed =
     !clock.managed ||
     clock.paused ||
     !liveBefore ||
-    clock.speed !== mode.speed ||
+    clock.speed !== nextSpeed ||
     (!!clock.activeUntil && Date.parse(clock.activeUntil) <= Date.parse(realNow)) ||
     paused;
   const storyNow = new Date(
@@ -296,7 +340,7 @@ export async function updateClockActivity(
     activeUntil: paused ? null : mode.activeUntil,
     paused,
     summary: input.resume ? null : clock.summary,
-    speed: mode.speed,
+    speed: nextSpeed,
     storyNow: changed ? storyNow : clock.storyNow,
     lastTickAt: changed ? realNow : clock.lastTickAt,
   };
@@ -308,8 +352,8 @@ export async function updateClockActivity(
   )
     next.summary = '约定时间到了，请查看日程。';
   await sql.query(
-    `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,speed=EXCLUDED.speed,paused=EXCLUDED.paused,managed=true,active_until=EXCLUDED.active_until,summary=EXCLUDED.summary,updated_at=now()`,
+    `INSERT INTO parallel_life.world_clock(world_id,owner_id,story_now,last_tick_at,speed,paused,missed_beats,summary,managed,active_until,continuity_mode,pause_reason)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,true,$9,$10,$11) ON CONFLICT(world_id) DO UPDATE SET story_now=EXCLUDED.story_now,last_tick_at=EXCLUDED.last_tick_at,speed=EXCLUDED.speed,paused=EXCLUDED.paused,managed=true,active_until=EXCLUDED.active_until,summary=EXCLUDED.summary,continuity_mode=EXCLUDED.continuity_mode,pause_reason=EXCLUDED.pause_reason,updated_at=now()`,
     [
       worldId,
       ownerId,
@@ -320,6 +364,8 @@ export async function updateClockActivity(
       next.missedBeats,
       next.summary,
       next.activeUntil,
+      next.continuityMode ?? 'presence',
+      next.pauseReason ?? null,
     ],
   );
   return readableActivityClock(next, realNow);
@@ -348,7 +394,8 @@ export async function capClockAtNextAppointment(
   ).rows[0];
   if (!row) return;
   const clock = storedActivityClock(row);
-  if (!clock.managed || clock.paused || !clock.activeUntil) return;
+  if (clock.continuityMode === 'continuous' || !clock.managed || clock.paused || !clock.activeUntil)
+    return;
   const appointments = await effectiveAppointments(sql, ownerId, worldId, Number(world.version));
   const deadline = appointmentDeadline(
     clock,

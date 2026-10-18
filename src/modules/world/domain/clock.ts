@@ -31,6 +31,9 @@ export type WorldClock = {
   /** Managed clocks accrue only while a server activity lease remains valid. */
   managed?: boolean;
   activeUntil?: string | null;
+  /** Presence controls attention/speed; continuous worlds continue offline at real-time speed. */
+  continuityMode?: 'presence' | 'continuous';
+  pauseReason?: 'legacy' | 'manual' | null;
 };
 export type ClockAdvance = {
   clock: WorldClock;
@@ -44,6 +47,8 @@ const MINUTE = 60_000;
 
 /** The persisted anchor remains unchanged by a same-speed heartbeat. */
 export function clockElapsedReal(clock: WorldClock, realNow: string): number {
+  if (clock.continuityMode === 'continuous')
+    return Math.max(0, Date.parse(realNow) - Date.parse(clock.lastTickAt));
   if (clock.managed && !clock.activeUntil) return 0;
   const until = clock.managed
     ? Math.min(Date.parse(realNow), Date.parse(clock.activeUntil!))
@@ -51,11 +56,23 @@ export function clockElapsedReal(clock: WorldClock, realNow: string): number {
   return Math.max(0, until - Date.parse(clock.lastTickAt));
 }
 
+/** One timeline policy shared by reads, execution and SQL; offline is 1x, not an expired 12x lease. */
+export function elapsedStoryMilliseconds(clock: WorldClock, realNow: string): number {
+  if (clock.paused) return 0;
+  if (clock.continuityMode !== 'continuous') return clockElapsedReal(clock, realNow) * clock.speed;
+  const start = Date.parse(clock.lastTickAt),
+    end = Date.parse(realNow);
+  const until = clock.activeUntil ? Date.parse(clock.activeUntil) : start;
+  const foreground = Math.max(0, Math.min(end, until) - start);
+  const offline = Math.max(0, end - Math.max(start, until));
+  return foreground * clock.speed + offline;
+}
+
 /** Read-only projection: opening the phone moves the clock, not the cast. */
 export function projectStoryTime(clock: WorldClock, realNow: string): string {
   const elapsed = clockElapsedReal(clock, realNow);
   if (clock.paused || !Number.isFinite(elapsed) || elapsed <= 0) return clock.storyNow;
-  const projected = Date.parse(clock.storyNow) + elapsed * clock.speed;
+  const projected = Date.parse(clock.storyNow) + elapsedStoryMilliseconds(clock, realNow);
   return Number.isFinite(projected) ? new Date(projected).toISOString() : clock.storyNow;
 }
 
@@ -74,7 +91,7 @@ export function advanceClock(
   /* A paused world does not move; a backwards clock is treated as no time passing. */
   if (clock.paused || !Number.isFinite(elapsedReal) || elapsedReal <= 0)
     return { clock: { ...nextTick, missedBeats: 0 }, beats: [], folded: 0 };
-  const elapsedStory = elapsedReal * clock.speed;
+  const elapsedStory = elapsedStoryMilliseconds(clock, realNow);
   const due = Math.floor(elapsedStory / beatMs);
   const played = Math.min(due, maxBeats);
   const storyStart = Date.parse(clock.storyNow);
