@@ -2554,10 +2554,21 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 153 final scope also includes publisher-world-http.ts / publisher-trial-request.ts: only the clock representation header is allowlisted, never caller Cookie/Authorization. Task154 capability read: Hobby, daily/global2, pg_cron/pg_net available but not installed. No service upgrade.
 
-## 待开发（2026-10-18 登记）：把编导线程物化为世界的活义务
+## 交付记录（2026-10-19 交付与公网验证完成）：编导意图活义务物化与 NPC 聊天实景生图闭环
 
-- 目标：新建世界时把编导 `threads[]` 物化为 `appointment`（status `proposed`，幂等 key `thread:<id>`）或开放问题（进入 `awaiting_reply`），使 `buildAgenda()` 一创建就有材料，NPC 才有理由主动开口。
-- 根因：`publication-genesis.ts:284` 写死 `invitations: []`；`threads` 仅在 `world-planner.ts:156-157` 用于开场叙述，未落成持久对象；因此 `facts/appointments/choices` 全为 0，agenda 永空。
-- 约束：只物化编导真正写过的内容；幂等；不新增第二套状态机；沿用既有 agenda 种类。
-- 验收：新建世界 `appointments/facts/choices` 至少各 1；进入 30 秒内可选中一人；一次 `advance` 产生 ≥1 条 `initialRead:false` 的 NPC 消息；首页出现未读数量。
-- 规格详见 `docs/task-reports/NEXT-PATCHES-01.md`「追加」一节。
+### 1. 编导线程物化与世界时钟推进（Track B · 已完成）
+- **目标与根因修复**：解决原发布者草稿中的剧本事件未转化为世界运行时待办约束的问题，纯函数 `authoredAppointments()` 物化编导意图，建立 `proposed` 状态的活日程；修补 `clock.ts` 时钟推移算法与未托管模式时间累加；打通 Staff 作用域快照观测。
+- **验证证据**：运行 `node scripts/verify-full-e2e.mjs` 线上端到端实测通过；全套 3,351 项单测 100% 通过；新世界构建后日程 `appointments (proposed)`、角色记忆与第一条破冰消息立即可见。
+
+### 2. NPC 聊天实景生图、多模态渲染与相册持久化（Track A · 已完成）
+- **目标与根因修复**：
+  1. 意图识别补齐：`intent-router.ts` 支持自拍与留影关键词；
+  2. 领域实体贯穿：`targetActorId` 在 `media.requested` 领域效果、Outbox Job、Task 与 Pipeline 间全程透传；
+  3. 资产鉴权降级：`character-reference-resolver.ts` 解决 NPC 无头像时的 `CHARACTER_NOT_AUTHORIZED_IN_WORLD` 阻断，提供优雅描述降级；
+  4. 数据流与存储标准对齐：`yibu-media-provider-adapter.ts` 与 `media-pipeline-service.ts` 原生消费网关 base64 data URI；纠正 `storageKey` 为标准 UUID 键名并在 `VercelBlobStore`/`SupabaseStorageStore`/`PrivateDiskStore` 支持扩展名校验；
+  5. 存储容灾体系：在 `src/server/private-asset-store.ts` 实现 `FallbackAssetStore`，主备存储（Supabase Storage + Vercel Blob）无缝兜底；
+  6. 资产动态传输：`GET /api/v1/assets/[id]` 依据二进制魔数动态设置 `Content-Type`，严守浏览器安全标准。
+- **线上实测证据**：
+  - 生产部署：`dpl_BdjADCVkEGaKe6G17aBdg9QpsmpZ` (READY, mapped to `https://parallel-life-nu.vercel.app`)。
+  - 实测脚本：`node scripts/verify-live-image-generation.mjs`。
+  - 实际结果：NPC「简」成功在微信聊天中响应自拍意图，Outbox 事务落盘并派发 Task，Worker 调用 Yibu 网关生成 1.73MB 真实图像，Asset 下载 HTTP 200，PNG Magic Bytes 校验 PASS，聊天气泡与相册中 `photoId: 1a3a9554-6744-491f-82b1-5f6f65bf2925` 与 `mediaStatus: ready` 完美呈现。
