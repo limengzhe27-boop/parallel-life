@@ -86,3 +86,12 @@ export const WorldDirectionReceiptSchema = z.strictObject({
   applied: z.boolean(),
 });
 export type WorldDirectionReceipt = z.infer<typeof WorldDirectionReceiptSchema>;
+
+/** Transport negotiation only: old strict clients must keep their exact clock shape. */
+export const WORLD_TIME_PROTOCOL_HEADER = 'X-World-Time-Protocol';
+export const WORLD_TIME_PROTOCOL = 'continuous-v1';
+export function clockResponse(clock: WorldClock, extended: boolean) {
+  if (extended) return clock;
+  const { continuityMode: _mode, pauseReason: _pause, ...legacy } = clock;
+  return legacy;
+}

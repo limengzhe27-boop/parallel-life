@@ -39,3 +39,7 @@ world_clock增加continuity_mode（presence/continuous）和pause_reason（legac
 ## 尚未完成，不标全系统连续演绎完成
 
 后台仍每天一次、全局最多2档处理，不能保证所有离线世界分钟级产生持久剧情；下一项154需世界条件唤醒持久任务/公平领取/短租约、确定性执行与模型预算分离，并核实生产触发频率能力。前台返回补原调度已接通，但不能冒称所有离线期间都即时推演。148/150人物引用/协商时间与完整事件演绎仍未通过真实模型，继续独立处理；本批不靠离线时长制造新事故、假消息或强制完成。
+
+## 新旧页面协议边界
+
+发现旧客户端WorldClockSchema是strictObject；新时钟内部字段不能无协商直接发给旧页面。追加同一clock接口的X-World-Time-Protocol:continuous-v1表示层协商：新LifeClient read/activity/control使用新形状；未协商的旧页面仅剥离新增continuityMode/pauseReason，原运行权限、真实时间和内核状态不改变。并非另起时钟或运行入口，wait回执本来不嵌clock，无需旁路。两项契约验证覆盖旧shape与新版三操作、0额外网络请求。生产团队实际plan读取为hobby，当前配置仍每天一次cron；未擅自升级订阅或扩大商业模型日上限。154作为后续调度能力工作保留。

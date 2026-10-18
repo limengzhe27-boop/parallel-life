@@ -1,4 +1,9 @@
 import {
+  clockResponse,
+  WORLD_TIME_PROTOCOL_HEADER,
+  WORLD_TIME_PROTOCOL,
+} from '../../../../../../contracts/world-clock.ts';
+import {
   authenticated,
   endpoint,
   HttpError,
@@ -24,7 +29,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const worldId = Id.safeParse((await context.params).id);
     if (!worldId.success) throw new HttpError('NOT_FOUND', 404);
     await requestLimit(s.db, s.ownerId);
-    return json(await s.readWorldClock(s.ownerId, worldId.data));
+    return json(
+      clockResponse(
+        await s.readWorldClock(s.ownerId, worldId.data),
+        request.headers.get(WORLD_TIME_PROTOCOL_HEADER) === WORLD_TIME_PROTOCOL,
+      ),
+    );
   });
 }
 /** Pause/resume or change the speed. A paused world costs nothing and never moves. */
@@ -38,7 +48,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await s.setWorldClock(s.ownerId, worldId.data, input);
     return json({
       status: 'committed' as const,
-      ...(await s.readWorldClock(s.ownerId, worldId.data)),
+      ...clockResponse(
+        await s.readWorldClock(s.ownerId, worldId.data),
+        request.headers.get(WORLD_TIME_PROTOCOL_HEADER) === WORLD_TIME_PROTOCOL,
+      ),
     });
   });
 }

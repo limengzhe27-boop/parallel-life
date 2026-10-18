@@ -2549,3 +2549,5 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 |44-153-CONTINUOUS-WORLD-RUNTIME-I|[ ] 进行中|codex-root-continuity153 sole integrator；小安只读审查已回传|unified-engine137；统一domain clock/activity、clock schema/仓储/SQL新迁移0092、原native delivery/episode/narrative/group门禁、原scheduler/phone entry与相关必要测试/报告；公共契约root独占。|用户最新明确世界离线持续：presence只管注意力，run-state管暂停；离线1倍、在线12/1；原计划/到达/导演同链，不假补历史。旧档有据接续与试演显式暂停隔离；必要PG/check/build/迁移/部署。|先落同一架构/迁移说明。0新增模型授权；150剩1不用于真实用户档。| 0092已生产应用，92checksum/107世界state hash保留；check3320/build、clockPG11/arrival14/native20/trial9/scheduler1，0商业调用。待本批READY，不宣称完整后台实时演绎。
 
 |44-154-DUE-WORLD-JOB-SCHEDULER-I|[ ] 待推进|root计划；依赖153，不并写公共源|待单独登记文件归属；复用原world/actor调度和队列，不另建离线剧情引擎。|世界due任务持久领取/公平短租约/分钟级触发能力核实；确定性动作与商业模型预算分离，unknown不重买，所有正常世界离线合理变化可及时落库。|153先交付连续时间与原运行门禁；现每日一次/全局2档限制未解除，不冒称离线实时已完成。|
+
+153追加同一clock接口版本协商归root独占：src/features/api/client.ts、src/server/world-time-http.ts、src/app/api/v1/worlds/[id]/clock/route.ts、tests/world-clock-protocol.test.ts。旧strict客户端收到原shape，新客户端声明continuous-v1；不改权限或内核运行，无新增模型。生产8ecbec77已READY，追加兼容协议待同批部署；154实际plan=hobby/当前daily cron，不自行升级。

@@ -40,6 +40,8 @@ import { NoteReceiptSchema, type NoteSaveRequest } from '../../contracts/notes.t
 import {
   AdvanceReceiptSchema,
   WorldClockSchema,
+  WORLD_TIME_PROTOCOL_HEADER,
+  WORLD_TIME_PROTOCOL,
   WorldDirectionReceiptSchema,
   WorldDirectionSchema,
   type WorldDirection,
@@ -225,11 +227,14 @@ export class LifeClient {
   /** The life's clock: story time, speed, pause state and the last offline summary. */
   async readWorldClock(worldId: string) {
     await this.connect();
-    return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema);
+    return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema, {
+      headers: { [WORLD_TIME_PROTOCOL_HEADER]: WORLD_TIME_PROTOCOL },
+    });
   }
   async updateClockActivity(worldId: string, input: ClockActivityRequest) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/clock/activity`, WorldClockSchema, {
+      headers: { [WORLD_TIME_PROTOCOL_HEADER]: WORLD_TIME_PROTOCOL },
       method: 'POST',
       body: JSON.stringify(ClockActivityRequestSchema.parse(input)),
       keepalive: input.mode === 'away',
@@ -267,6 +272,7 @@ export class LifeClient {
   async setWorldClock(worldId: string, input: { paused?: boolean; speed?: number }) {
     await this.connect();
     return this.request(`/worlds/${encodeURIComponent(worldId)}/clock`, WorldClockSchema, {
+      headers: { [WORLD_TIME_PROTOCOL_HEADER]: WORLD_TIME_PROTOCOL },
       method: 'POST',
       body: JSON.stringify(input),
     });
@@ -626,16 +632,27 @@ export class LifeClient {
 
   async inspectLegacyWorld(worldId: string): Promise<LegacyWorldInventory> {
     await this.connect();
-    return this.request(`/worlds/${encodeURIComponent(worldId)}/migration`, LegacyWorldInventorySchema, {
-      method: 'GET',
-    });
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/migration`,
+      LegacyWorldInventorySchema,
+      {
+        method: 'GET',
+      },
+    );
   }
 
-  async migrateLegacyWorld(worldId: string, expectedWorldVersion?: number): Promise<LegacyMigrationResponse> {
+  async migrateLegacyWorld(
+    worldId: string,
+    expectedWorldVersion?: number,
+  ): Promise<LegacyMigrationResponse> {
     await this.connect();
-    return this.request(`/worlds/${encodeURIComponent(worldId)}/migration`, LegacyMigrationResponseSchema, {
-      method: 'POST',
-      body: JSON.stringify({ expectedWorldVersion }),
-    });
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/migration`,
+      LegacyMigrationResponseSchema,
+      {
+        method: 'POST',
+        body: JSON.stringify({ expectedWorldVersion }),
+      },
+    );
   }
 }

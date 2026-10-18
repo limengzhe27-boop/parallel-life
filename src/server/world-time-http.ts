@@ -1,5 +1,11 @@
 import { Id } from '../contracts/api.ts';
-import { ClockActivityRequestSchema, WorldClockSchema } from '../contracts/world-clock.ts';
+import {
+  ClockActivityRequestSchema,
+  WorldClockSchema,
+  clockResponse,
+  WORLD_TIME_PROTOCOL_HEADER,
+  WORLD_TIME_PROTOCOL,
+} from '../contracts/world-clock.ts';
 import { StoryWaitRequestSchema, StoryWaitReceiptSchema } from '../contracts/story-wait.ts';
 import { authenticated, endpoint, HttpError, json, parseBody } from './http.ts';
 import { requestLimit } from './limits.ts';
@@ -11,7 +17,12 @@ export function worldTimeActivityRoute(request: Request, worldId: string) {
     if (!Id.safeParse(worldId).success) throw new HttpError('NOT_FOUND', 404);
     await requestLimit(s.db, s.ownerId);
     const input = await parseBody(request, ClockActivityRequestSchema);
-    return json(WorldClockSchema.parse(await s.updateClockActivity(s.ownerId, worldId, input)));
+    return json(
+      clockResponse(
+        WorldClockSchema.parse(await s.updateClockActivity(s.ownerId, worldId, input)),
+        request.headers.get(WORLD_TIME_PROTOCOL_HEADER) === WORLD_TIME_PROTOCOL,
+      ),
+    );
   });
 }
 export function worldTimeWaitRoute(request: Request, worldId: string) {
