@@ -281,32 +281,28 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
     async () => {
       const f = await fixture();
 
-      const proposal: AgentProposal = {
+      const proposal = {
+        protocol: 'npc-wire-v2',
+        consideration: null,
         goals: [],
         plans: [],
-        actions: [
-          {
-            id: 'action_image_1',
-            goalId: f.goalId,
-            capability: 'media.generate_image',
-            targetIds: [],
-            parameters: {
-              sceneDescription: '午后阳光照进的工作室窗台，放着复古胶片相机',
-              purpose: 'scene',
-            },
-            preconditions: [],
-            dependsOnActionIds: [],
-            handlesResponsibilityIds: [],
-            status: 'ready',
-            sourceIds: ['source_init'],
-          },
-        ],
+        actions: [],
         responsibilities: [],
         decisions: [],
+        mediaDecision: {
+          kind: 'generate_image',
+          goalSummary: '分享工作室的窗台',
+          planSummary: '为窗台拍一张场景图',
+          parameters: {
+            sceneDescription: '午后阳光照进的工作室窗台，放着复古胶片相机',
+            purpose: 'scene',
+          },
+          basisSourceIds: [f.inputReceipt.id],
+        },
         statements: [
           {
             text: '好呀，我这就给窗台的相机拍一张。',
-            dependsOnActionIds: ['action_image_1'],
+            dependsOnActionIds: ['media:current'],
           },
         ],
       };
@@ -342,6 +338,7 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
         assert.equal(mediaReqs.length, 1);
         assert.equal(mediaReqs[0].document.status, 'pending');
         assert.equal(mediaReqs[0].document.mediaType, 'image');
+        assert.equal(mediaReqs[0].document.purpose, 'scene');
         assert.match(mediaReqs[0].document.prompt, /午后阳光照进的工作室窗台/);
 
         const outboxJobs = (
@@ -351,6 +348,7 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
         ).rows;
         assert.equal(outboxJobs.length, 1);
         assert.equal(outboxJobs[0].payload.type, 'image.generate');
+        assert.equal(outboxJobs[0].payload.purpose, 'scene');
         assert.equal(outboxJobs[0].payload.requestId, mediaReqs[0].id);
       });
     },

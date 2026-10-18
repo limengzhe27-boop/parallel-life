@@ -5,8 +5,14 @@ import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
 import { validPlayerEpisodeManifest } from '../domain/player-episode-manifest.ts';
 import { isActorEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
+import {
+  NativeMediaIntentSchema,
+  compileNpcMediaIntent,
+  NPC_MEDIA_CURRENT_REF,
+} from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v1';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v2';
+const LEGACY_NPC_WIRE_PROTOCOL = 'npc-wire-v1';
 const Id = z.string().min(1).max(240);
 const Text = z.string().trim().min(1).max(12000);
 const Conditions = z.array(z.unknown()).max(16);
@@ -62,7 +68,7 @@ const MediaDecision = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('share_existing'), execution: Execution }),
 ]);
 const Wire = z.strictObject({
-  protocol: z.literal(NPC_WIRE_PROTOCOL),
+  protocol: z.enum([LEGACY_NPC_WIRE_PROTOCOL, NPC_WIRE_PROTOCOL]),
   consideration: z
     .strictObject({
       choice: z.enum(['engage', 'decline', 'defer', 'need_information', 'quiet']),
@@ -116,17 +122,11 @@ const ModelExecution = Execution.extend({
     preconditions: AgentProposalSchema.shape.actions.element.shape.preconditions,
   }),
 });
-const ModelMediaDecision = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.enum(['not_requested', 'decline']), execution: z.null() }),
-  z.strictObject({
-    kind: z.enum(['generate_image', 'generate_video', 'share_existing']),
-    execution: ModelExecution,
-  }),
-]);
 // The model and decoder reuse canonical proposal shapes; only transport references/parameters differ.
 const ModelWire = Wire.extend({
+  protocol: z.literal(NPC_WIRE_PROTOCOL),
   // New strict responses must make a decision, including an explicit not_requested choice.
-  mediaDecision: ModelMediaDecision,
+  mediaDecision: NativeMediaIntentSchema,
   statements: AgentProposalSchema.shape.statements,
   goals: AgentProposalSchema.shape.goals,
   actions: z
@@ -257,13 +257,30 @@ export function npcResponseFormat(
   const mediaOptions = properties.mediaDecision?.anyOf;
   if (!mediaOptions) throw Error('NPC_RESPONSE_SCHEMA');
   for (const option of mediaOptions) {
-    const execution = option.properties?.execution;
-    if (execution?.type === 'object') scopeGoal(execution);
+    const basis = option.properties?.basisSourceIds;
+    if (basis?.items && current) basis.items.enum = [current.input.sourceId];
   }
   // A reply assessment is about this player's current words, not an old NPC question.
   // Narrow the native grammar before the call; the kernel still validates exact source,
   // verbatim quote and thread authorization after the response is durably saved.
   if (current) {
+    // The kernel applies the same current-input rule to decisions and location
+    // reports. Bind all three judgments consistently before asking the model.
+    for (const [name, quoteLimit] of [
+      ['decisions', 1000],
+      ['locationReports', 500],
+    ] as const) {
+      const node = properties[name]!;
+      const array = node.type === 'array' ? node : node.anyOf?.find((x) => x.type === 'array');
+      if (!array?.items?.properties) throw Error('NPC_RESPONSE_SCHEMA');
+      if (current.input.origin !== 'player') array.enum = [[]];
+      else {
+        array.items.properties.sourceId!.enum = [current.input.sourceId];
+        if (current.input.text.trim().length <= quoteLimit)
+          array.items.properties.quote!.enum = [current.input.text.trim()];
+      }
+      properties[name] = array;
+    }
     const choices = (state.questions ?? [])
       .filter(
         (question) =>
@@ -348,7 +365,40 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     !wirePlans
   )
     return raw;
-  const wire = Wire.parse(transport({ protocol: NPC_WIRE_PROTOCOL, consideration: null, ...raw }));
+  let normalized: unknown = raw;
+  if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    const intent = NativeMediaIntentSchema.parse('mediaDecision' in raw ? raw.mediaDecision : null);
+    const execution = compileNpcMediaIntent(context, intent);
+    const statements = 'statements' in raw ? raw.statements : null;
+    if (!Array.isArray(statements)) throw Error('NPC_MEDIA_STATEMENTS');
+    normalized = {
+      ...raw,
+      mediaDecision: { kind: intent.kind, execution },
+      statements: statements.map((statement) => {
+        if (
+          !statement ||
+          typeof statement !== 'object' ||
+          !Array.isArray(statement.dependsOnActionIds)
+        )
+          return statement;
+        return {
+          ...statement,
+          dependsOnActionIds: statement.dependsOnActionIds.map((id: unknown) => {
+            if (id !== NPC_MEDIA_CURRENT_REF) return id;
+            if (!execution) throw Error('NPC_MEDIA_DEPENDENCY_WITHOUT_INTENT');
+            return execution.action.id;
+          }),
+        };
+      }),
+    };
+  }
+  const wire = Wire.parse(
+    transport({
+      protocol: LEGACY_NPC_WIRE_PROTOCOL,
+      consideration: null,
+      ...(normalized as object),
+    }),
+  );
   const {
     protocol: _protocol,
     consideration,

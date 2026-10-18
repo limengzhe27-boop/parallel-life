@@ -377,7 +377,12 @@ test('strict NPC media choice is required, bounded, and maps one complete image 
   const media = {
     kind: 'generate_image',
     execution: {
-      goal: { kind: 'new', id: 'photo-goal', summary: '分享本人此刻的生活留影', sourceIds: ['input'] },
+      goal: {
+        kind: 'new',
+        id: 'photo-goal',
+        summary: '分享本人此刻的生活留影',
+        sourceIds: ['input'],
+      },
       plan: { id: 'photo-plan', summary: '先制作真实留影，再向对方分享', sourceIds: ['input'] },
       action: {
         id: 'photo-action',
@@ -397,7 +402,9 @@ test('strict NPC media choice is required, bounded, and maps one complete image 
   const raw = {
     ...wire,
     mediaDecision: media,
-    statements: [{ text: '我先处理这张留影，做好再告诉你。', dependsOnActionIds: ['photo-action'] }],
+    statements: [
+      { text: '我先处理这张留影，做好再告诉你。', dependsOnActionIds: ['photo-action'] },
+    ],
   };
   const before = structuredClone(raw);
   const proposal = parseAgentProposal(c, raw);
@@ -416,7 +423,10 @@ test('strict NPC media choice is required, bounded, and maps one complete image 
         ...wire,
         mediaDecision: {
           ...media,
-          execution: { ...media.execution, action: { ...media.execution.action, capability: 'media.share' } },
+          execution: {
+            ...media.execution,
+            action: { ...media.execution.action, capability: 'media.share' },
+          },
         },
       }),
     /RESPONSE_WIRE_SHAPE/,
@@ -436,7 +446,10 @@ test('strict NPC media choice is required, bounded, and maps one complete image 
         ...wire,
         mediaDecision: {
           ...media,
-          execution: { ...media.execution, action: { ...media.execution.action, sourceIds: ['hidden'] } },
+          execution: {
+            ...media.execution,
+            action: { ...media.execution.action, sourceIds: ['hidden'] },
+          },
         },
       }),
     /SOURCE/,
@@ -449,7 +462,11 @@ test('strict NPC media choice is required, bounded, and maps one complete image 
   assert.equal(declined.actions.length, 0);
   assert.equal(declined.statements.length, 1);
   assert.throws(
-    () => parseAgentProposal(c, { ...wire, mediaDecision: { kind: 'generate_image', execution: null } }),
+    () =>
+      parseAgentProposal(c, {
+        ...wire,
+        mediaDecision: { kind: 'generate_image', execution: null },
+      }),
     /RESPONSE_WIRE_SHAPE/,
   );
 });
@@ -461,7 +478,9 @@ test('new strict model media choices keep existing goals scoped, while old prote
   assert.ok(root.required.includes('mediaDecision'));
   assert.ok(!JSON.stringify(root.properties.mediaDecision).includes('"existing"'));
   const own = npcResponseFormat({
-    goals: [{ id: 'my-goal', summary: '我的目标', status: 'active', sourceIds: ['input'], resultIds: [] }],
+    goals: [
+      { id: 'my-goal', summary: '我的目标', status: 'active', sourceIds: ['input'], resultIds: [] },
+    ],
   });
   assert.ok(JSON.stringify(own).includes('my-goal'));
   const { c, wire } = fixture();
@@ -515,6 +534,13 @@ test('native reply assessments can cite only a visible open question and this sh
   assert.deepEqual(item.properties.questionId!.enum, ['current-question']);
   assert.deepEqual(item.properties.sourceId!.enum, [c.input.sourceId]);
   assert.deepEqual(item.properties.quote!.enum, [c.input.text]);
+  type InputJudgmentSchema = { items: { properties: Record<string, { enum?: unknown[] }> } };
+  const judgmentFields = format.schema.properties as Record<string, InputJudgmentSchema>;
+  for (const fieldName of ['decisions', 'locationReports']) {
+    const judgment: InputJudgmentSchema = judgmentFields[fieldName]!;
+    assert.deepEqual(judgment.items.properties.sourceId!.enum, [c.input.sourceId]);
+    assert.deepEqual(judgment.items.properties.quote!.enum, [c.input.text]);
+  }
   assert.ok(JSON.stringify(format.schema).length < 24_000);
 });
 
@@ -534,8 +560,7 @@ test('non-player or no visible question permits no assessments; long input keeps
   const field = (input: typeof c.input, state = c.state) => {
     const format = npcResponseFormat(state, 'optional', { input, channel: c.channel });
     if (format.format !== 'json_schema') throw Error('schema');
-    return (format.schema.properties as Record<string, Record<string, unknown>>)
-      .replyAssessments!;
+    return (format.schema.properties as Record<string, Record<string, unknown>>).replyAssessments!;
   };
   assert.deepEqual(field({ ...c.input, origin: 'wake' }).enum, [[]]);
   assert.deepEqual(field(c.input, { ...c.state, questions: [] }).enum, [[]]);
@@ -594,6 +619,72 @@ test('byte-equivalent execution intents are idempotent while conflicting duplica
   conflict.action.parameters[0]!.value = 'another invitation';
   assert.throws(
     () => parseAgentProposal(c, { ...wire, executions: [e, conflict] }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+});
+
+test('v2 media choice reaches the original proposal with scoped source and statement dependency', () => {
+  const { c, wire } = fixture();
+  c.channel.allowedCapabilities.push('media.generate_image');
+  const raw = {
+    ...wire,
+    protocol: 'npc-wire-v2',
+    mediaDecision: {
+      kind: 'generate_image',
+      goalSummary: '分享我设想的小店角落',
+      planSummary: '画一张设计示意图供合伙人讨论',
+      parameters: { sceneDescription: '一张标注为设计设想的临窗阅读角草图', purpose: 'scene' },
+      basisSourceIds: ['input'],
+    },
+    statements: [{ text: '我画一张设想给你看。', dependsOnActionIds: ['media:current'] }],
+  };
+  const before = structuredClone(raw);
+  const p = parseAgentProposal(c, raw);
+  assert.equal(p.actions.length, 1);
+  assert.equal(p.actions[0]!.capability, 'media.generate_image');
+  assert.deepEqual(p.actions[0]!.parameters, raw.mediaDecision.parameters);
+  assert.deepEqual(p.actions[0]!.sourceIds, ['input']);
+  assert.deepEqual(p.statements[0]!.dependsOnActionIds, [p.actions[0]!.id]);
+  assert.equal(p.plans[0]!.nextActionId, p.actions[0]!.id);
+  assert.equal(p.goals[0]!.status, 'active');
+  assert.deepEqual(p.goals[0]!.resultIds, []);
+  assert.deepEqual(raw, before);
+  assert.deepEqual(parseAgentProposal(c, raw), p);
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        mediaDecision: { ...raw.mediaDecision, basisSourceIds: ['old-hidden-source'] },
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+});
+
+test('v2 refusal does not generate an action or satisfy a media dependency', () => {
+  const { c, wire } = fixture();
+  const raw = {
+    ...wire,
+    protocol: 'npc-wire-v2',
+    mediaDecision: { kind: 'decline' },
+    statements: [{ text: '这次不拍了。', dependsOnActionIds: [] }],
+  };
+  const p = parseAgentProposal(c, raw);
+  assert.deepEqual(p.actions, []);
+  assert.deepEqual(p.goals, []);
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        statements: [{ text: '发送成功了。', dependsOnActionIds: ['media:current'] }],
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        mediaDecision: { kind: 'generate_image', execution: null },
+      }),
     /RESPONSE_WIRE_SHAPE/,
   );
 });

@@ -3,6 +3,7 @@ import { bootstrapPublicationAgentTrial } from '../modules/world/infrastructure/
 import 'server-only';
 import { getServices } from './services.ts';
 import { publicationStoryAdvanceRoute } from './publication-story-http.ts';
+import { worldMessageRoute } from './world-message-http.ts';
 import { z } from 'zod';
 import {
   trialOwnerToken,
@@ -212,6 +213,23 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
         }),
         trial.worldId,
         true,
+      );
+    // Trial and player chat use the identical authenticated handler. The staff
+    // binding still determines the sole allowed owner/world; no self HTTP hop
+    // or alternate model/commit path is needed for a rehearsal.
+    if (path.join('/') === 'world/messages' && request.method === 'POST')
+      return worldMessageRoute(
+        new Request(origin + route.target, {
+          method: 'POST',
+          headers: {
+            Origin: origin,
+            Cookie: 'pl_session=' + token,
+            'X-CSRF-Token': guest.csrf(token),
+            'Content-Type': 'application/json',
+          },
+          body,
+        }),
+        trial.worldId,
       );
     const response = await fetch(origin + route.target, {
       method: request.method,
