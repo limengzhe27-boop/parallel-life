@@ -15,6 +15,7 @@ import {
   phoneTrialUrl,
   type PublisherPhoneTrial,
 } from './publisher-phone-trial.ts';
+import { DraftIssuesError, draftIssues } from './publisher-draft-issues.ts';
 import s from './publisher-controller.module.css';
 import { publicationDraft } from './publisher-publication-draft.ts';
 import {
@@ -97,7 +98,9 @@ export function PublisherController() {
     const f =
       e instanceof PublisherClientError || e instanceof PublisherTrialError
         ? e
-        : new PublisherClientError('UNAVAILABLE');
+        : e instanceof DraftIssuesError
+          ? e
+          : new PublisherClientError('UNAVAILABLE');
     setError({ code: f.code, message: f.message });
   }
   async function loadWorks() {
@@ -323,6 +326,8 @@ export function PublisherController() {
               try {
                 const current = workRef.current;
                 if (!current || current.id !== work.id) return;
+                const issues = draftIssues(draft.content);
+                if (issues.length) throw new DraftIssuesError(issues);
                 const next = await client.save(current, draft);
                 updateWork(next);
                 await loadWorks();
