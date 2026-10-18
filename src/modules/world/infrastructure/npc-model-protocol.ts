@@ -218,8 +218,9 @@ export const NPC_RESPONSE_FORMAT: ModelOutputOptions = {
 };
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
 export function npcResponseFormat(
-  state: Pick<AgentValidationContext['state'], 'goals'>,
+  state: Pick<AgentValidationContext['state'], 'goals' | 'questions'>,
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
+  current?: Pick<AgentValidationContext, 'input' | 'channel'>,
 ): ModelOutputOptions {
   if (NPC_RESPONSE_FORMAT.format !== 'json_schema') throw Error('NPC_RESPONSE_SCHEMA');
   type SchemaNode = {
@@ -258,6 +259,39 @@ export function npcResponseFormat(
   for (const option of mediaOptions) {
     const execution = option.properties?.execution;
     if (execution?.type === 'object') scopeGoal(execution);
+  }
+  // A reply assessment is about this player's current words, not an old NPC question.
+  // Narrow the native grammar before the call; the kernel still validates exact source,
+  // verbatim quote and thread authorization after the response is durably saved.
+  if (current) {
+    const choices = (state.questions ?? [])
+      .filter(
+        (question) =>
+          question.status === 'open' &&
+          question.channel === current.channel.kind &&
+          question.threadId === current.channel.threadId,
+      )
+      .slice(-16)
+      .map((question) => question.id);
+    const array = properties.replyAssessments?.anyOf?.find((option) => option.type === 'array');
+    const item = array?.items;
+    if (!array || !item?.properties) throw Error('NPC_RESPONSE_SCHEMA');
+    if (
+      current.input.origin !== 'player' ||
+      !current.input.sourceId.trim() ||
+      !current.input.text.trim() ||
+      !choices.length
+    ) {
+      array.enum = [[]];
+    } else {
+      item.properties.questionId!.enum = choices;
+      item.properties.sourceId!.enum = [current.input.sourceId];
+      // A short complete input is itself a valid verbatim quote. For long messages,
+      // avoid a large schema/output while retaining the kernel's substring check.
+      if (current.input.text.trim().length <= 1000)
+        item.properties.quote!.enum = [current.input.text.trim()];
+    }
+    properties.replyAssessments = array;
   }
   return { ...NPC_RESPONSE_FORMAT, schema };
 }

@@ -474,6 +474,78 @@ test('new strict model media choices keep existing goals scoped, while old prote
   );
 });
 
+test('native reply assessments can cite only a visible open question and this short player input', () => {
+  const { c } = fixture();
+  c.state.questions = [
+    {
+      id: 'current-question',
+      channel: 'private',
+      threadId: c.channel.threadId,
+      sourceId: 'old-npc-message',
+      text: '你怎么想？',
+      askedAt: c.storyAt,
+      status: 'open',
+    },
+    {
+      id: 'other-thread-question',
+      channel: 'private',
+      threadId: 'someone-else',
+      sourceId: 'other-message',
+      text: '另一个会话的问题',
+      askedAt: c.storyAt,
+      status: 'open',
+    },
+    {
+      id: 'answered-question',
+      channel: 'private',
+      threadId: c.channel.threadId,
+      sourceId: 'answered-message',
+      text: '已经答过的问题',
+      askedAt: c.storyAt,
+      status: 'answered',
+      resolution: { sourceId: 'answer', quote: '好', at: c.storyAt, kind: 'answer' },
+    },
+  ];
+  const format = npcResponseFormat(c.state, 'forbidden', { input: c.input, channel: c.channel });
+  if (format.format !== 'json_schema') throw Error('schema');
+  const field = (format.schema.properties as Record<string, Record<string, unknown>>)
+    .replyAssessments!;
+  assert.equal(field.type, 'array');
+  const item = field.items as { properties: Record<string, { enum?: unknown[] }> };
+  assert.deepEqual(item.properties.questionId!.enum, ['current-question']);
+  assert.deepEqual(item.properties.sourceId!.enum, [c.input.sourceId]);
+  assert.deepEqual(item.properties.quote!.enum, [c.input.text]);
+  assert.ok(JSON.stringify(format.schema).length < 24_000);
+});
+
+test('non-player or no visible question permits no assessments; long input keeps source and question binding', () => {
+  const { c } = fixture();
+  c.state.questions = [
+    {
+      id: 'open-question',
+      channel: 'private',
+      threadId: c.channel.threadId,
+      sourceId: 'old-npc-message',
+      text: '你怎么想？',
+      askedAt: c.storyAt,
+      status: 'open',
+    },
+  ];
+  const field = (input: typeof c.input, state = c.state) => {
+    const format = npcResponseFormat(state, 'optional', { input, channel: c.channel });
+    if (format.format !== 'json_schema') throw Error('schema');
+    return (format.schema.properties as Record<string, Record<string, unknown>>)
+      .replyAssessments!;
+  };
+  assert.deepEqual(field({ ...c.input, origin: 'wake' }).enum, [[]]);
+  assert.deepEqual(field(c.input, { ...c.state, questions: [] }).enum, [[]]);
+  const long = field({ ...c.input, text: '继续讨论临窗。'.repeat(150) });
+  const item = long.items as { properties: Record<string, { enum?: unknown[] }> };
+  assert.deepEqual(item.properties.questionId!.enum, ['open-question']);
+  assert.deepEqual(item.properties.sourceId!.enum, [c.input.sourceId]);
+  assert.equal(item.properties.quote!.enum, undefined);
+});
+
 test('native response schema represents server event permission, never a guessed NPC choice', () => {
   const required = npcResponseFormat({ goals: [] }, 'required');
   const forbidden = npcResponseFormat({ goals: [] }, 'forbidden');
