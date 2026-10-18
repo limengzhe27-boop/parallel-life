@@ -1,3 +1,7 @@
+## 2026-10-19 - 44-155 Chat media and NPC event continuation
+
+Business 04db62dd / dpl_4Lyn4ohNHdwXM74JZWJiNxfbjxnK exact READY on formal Nu. Normal chat schedules its committed queued media through Next after and the original Worker; pending media refresh is read-only. Removed arbitrary +2h authored-event appointments and keyword-only kernel media effects. Same focused NPC may continue its pending episode; other/global work stays deferred. check3354/build, PG entry10/media-task1/media-capability6 and focus5 pass. Production92 checksums verified; no world writes or new paid calls. Public health/workbench200 and anonymous publications/publisher works401, synthetic mobile/PC layout inspected. Full commercial auto-image and existing-save opening performance remain pending, not declared complete. See [155 report](task-reports/44-155-CHAT-MEDIA-OPENING-I.md).
+
 ## 2026-10-18 - 44-153 Continuous world runtime
 
 Business 8eae0fbe / dpl_4vyEpW1uwYAjVUmXfqGSahpLxAZG is exact READY on the formal Nu alias. Migration 0092 applied: 92 checksums match, 107 world state/version hashes preserved. Normal epoch2 player entry adopts continuous time from its existing anchor: browsing 12x, conversation 1x, offline 1x. Presence no longer stops world execution. Trials are excluded by immutable binding; explicit manual pauses remain protected. No historical events were fabricated or rewritten. Clock protocol negotiation preserves old strict clients.

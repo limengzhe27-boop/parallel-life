@@ -23,3 +23,9 @@ Owner: codex-root-chat155; sole integrator. Worktree unified-engine137, baseline
 ## Incomplete / acceptance boundary
 
 These changes remove identified transport/execution/focus bugs. They do not prove natural commercial generation and opening performance in the reported old save. Its prior quiet Director decision is retained; no context deletion or forced re-evaluation just to manufacture speech. The original full opening journey remains pending bounded real-model acceptance. No fresh image validation allowance is assumed, and prior closed allowances are not reused. Background all-world minute-level scheduling remains task154, unchanged. Existing potentially fabricated +2h appointment cleanup remains pending provenance reconciliation, not a blanket delete.
+
+## Deployment receipt
+
+Business 04db62dde3b505526a68070d70858108e90540c0, dpl_4Lyn4ohNHdwXM74JZWJiNxfbjxnK exact READY and formal alias parallel-life-nu.vercel.app verified. Final check3354/build passed. Public health/workbench200 and anonymous publications/publisher works401; original paused synthetic trial old/new clock protocol200, still paused. No new paid calls. Local browser TaskSpace210 synthetic UI mobile390x844 / PC1365x900 screenshots inspected, no model or generation run; finished/closed. This UI check is not live media performance evidence.
+
+Full old-save opening and commercial automatic image journey remain unaccepted, tracked in canonical DEVELOPMENT.md. Current old-save Director quiet is retained; no forced authored opportunity or hidden paid retry introduced. Prior artificial +2h records have not been bulk removed without source reconciliation.
