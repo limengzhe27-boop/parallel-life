@@ -84,7 +84,6 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
   const [showEmojiKeyboard, setShowEmojiKeyboard] = useState(false);
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
-  const [confirmResend, setConfirmResend] = useState<string>();
   const [previewModalPhoto, setPreviewModalPhoto] = useState<PhonePhoto | null>(null);
   const [socialPreview, setSocialPreview] = useState<{
     worldId: string;
@@ -1174,11 +1173,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
     operation?.busy ||
     (operation?.status === 'accepted' && operation.signature === text) ||
     messages.some((m) => m.role === 'user' && (m.status === 'unknown' || m.status === 'pending'));
-  const relatedInvitation = findRelatedInvitation(
-    data.invitations,
-    actor.id,
-    data.referenceTime,
-  );
+  const relatedInvitation = findRelatedInvitation(data.invitations, actor.id, data.referenceTime);
 
   return (
     <div
@@ -1470,17 +1465,15 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
               aria-label="查看相关日程"
             >
               🗓️ 约定：{relatedInvitation.title} ·{' '}
-              {
-                (
-                  {
-                    proposed: '待回复',
-                    confirmed: '已约好',
-                    attended: '已赴约',
-                    cancelled: '已取消',
-                    missed: '未赴约',
-                  } as Record<string, string>
-                )[relatedInvitation.status] || ''
-              }{' '}
+              {(
+                {
+                  proposed: '待回复',
+                  confirmed: '已约好',
+                  attended: '已赴约',
+                  cancelled: '已取消',
+                  missed: '未赴约',
+                } as Record<string, string>
+              )[relatedInvitation.status] || ''}{' '}
               ›
             </span>
           </div>
@@ -1742,7 +1735,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                           fontWeight: 600,
                         }}
                       >
-                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? '🎥 关键片段视频' : '📸 剧情事件照片'}
+                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4'
+                          ? '🎥 关键片段视频'
+                          : '📸 剧情事件照片'}
                       </div>
                     </div>
                     <div
@@ -1758,7 +1753,9 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                         {m.photo.title}
                       </span>
                       <span style={{ fontSize: '11px', color: '#0284c7' }}>
-                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4' ? '查看视频 ›' : '查看大图 ›'}
+                        {m.photo.mediaType === 'video' || m.photo.mimeType === 'video/mp4'
+                          ? '查看视频 ›'
+                          : '查看大图 ›'}
                       </span>
                     </div>
                   </div>
@@ -1776,81 +1773,53 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                   marginTop: '2px',
                 }}
               >
-                发送中…
+                ◌
               </small>
             )}
             {(m.status === 'failed' || m.status === 'unknown') && (
-              <div
+              <button
+                type="button"
                 className={s.messageFailure}
-                style={{ alignSelf: 'flex-end', marginRight: '48px', marginTop: '2px' }}
+                aria-label={
+                  m.status === 'unknown' ? '发送结果待确认，点按核对' : '发送失败，点按重试'
+                }
+                title={m.status === 'unknown' ? '发送结果待确认，点按核对' : '发送失败，点按重试'}
+                disabled={!actions.retryMessage || operations[`retry:${m.id}`]?.busy}
+                style={{
+                  alignSelf: 'flex-end',
+                  marginRight: '48px',
+                  marginTop: '2px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#ef4444',
+                  fontSize: '18px',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  if (
+                    m.status === 'unknown' &&
+                    !window.confirm(
+                      '上次可能已发送。再次尝试可能重复发送并再次生成回复，要继续吗？',
+                    )
+                  )
+                    return;
+                  void run(`retry:${m.id}`, m.id, async (id) => {
+                    const signature = hasLocalSendFailure(operation, [m], operations)
+                      ? operation?.signature
+                      : m.text;
+                    const receipt = await actions.retryMessage!(
+                      m.id,
+                      m.status === 'unknown' ? m.id : id,
+                    );
+                    if (receipt.status === 'committed' && draftsRef.current[key] === signature)
+                      setDraft(key, '');
+                    return receipt;
+                  });
+                }}
               >
-                <span role="alert">
-                  {operations[`retry:${m.id}`]?.error ??
-                    (m.status === 'unknown'
-                      ? '发送结果待确认，内容已保留。请先核对。'
-                      : '发送失败，内容已保留。')}
-                </span>
-                <button
-                  disabled={
-                    !actions.retryMessage ||
-                    operations[`retry:${m.id}`]?.busy ||
-                    operations[`retry:${m.id}`]?.status === 'accepted'
-                  }
-                  onClick={() =>
-                    void run(`retry:${m.id}`, m.id, async (id) => {
-                      const signature = hasLocalSendFailure(operation, [m], operations)
-                        ? operation?.signature
-                        : m.text;
-                      const receipt = await actions.retryMessage!(
-                        m.id,
-                        m.status === 'unknown' ? m.id : id,
-                      );
-                      if (receipt.status === 'committed' && draftsRef.current[key] === signature)
-                        setDraft(key, '');
-                      return receipt;
-                    })
-                  }
-                >
-                  {m.status === 'unknown' ? '核对结果' : '重试'}
-                </button>
-                {m.status === 'unknown' && (
-                  <button
-                    disabled={!actions.retryMessage || operations[`retry:${m.id}`]?.busy}
-                    onClick={() => setConfirmResend(m.id)}
-                  >
-                    再次尝试…
-                  </button>
-                )}
-                {confirmResend === m.id && m.status === 'unknown' && (
-                  <div role="alert">
-                    <p>上次可能已发送。再次尝试可能重复发送并再次生成回复，要继续吗？</p>
-                    <button
-                      disabled={operations[`retry:${m.id}`]?.busy}
-                      onClick={() => {
-                        setConfirmResend(undefined);
-                        const signature = hasLocalSendFailure(operation, [m], operations)
-                          ? operation?.signature
-                          : m.text;
-                        void run(`retry:${m.id}`, `${m.id}:explicit`, async (id) => {
-                          const receipt = await actions.retryMessage!(m.id, id);
-                          if (
-                            receipt.status === 'committed' &&
-                            draftsRef.current[key] === signature
-                          )
-                            setDraft(key, '');
-                          return receipt;
-                        });
-                      }}
-                    >
-                      确认再次尝试
-                    </button>
-                    <button onClick={() => setConfirmResend(undefined)}>取消</button>
-                  </div>
-                )}
-                {!operations[`retry:${m.id}`]?.error && (
-                  <Feedback operation={operations[`retry:${m.id}`]} success="重试已完成" />
-                )}
-              </div>
+                ❗
+              </button>
             )}
           </article>
         ))}
@@ -1870,6 +1839,7 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
           const value = text.trim();
           if (!value || !actions.sendMessage || disabled) return;
           playSendSound();
+          setDraft(key, '');
           await run(key, text, (id) => actions.sendMessage!(actor.id, value, id));
         }}
       >
@@ -2395,7 +2365,8 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 background: '#000000',
               }}
             >
-              {previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4' ? (
+              {previewModalPhoto.mediaType === 'video' ||
+              previewModalPhoto.mimeType === 'video/mp4' ? (
                 <video
                   src={previewModalPhoto.url}
                   preload="auto"
@@ -2441,28 +2412,31 @@ export function MessagesApp({ target, open }: PhoneAppContext) {
                 <span
                   style={{
                     background:
-                      previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4'
+                      previewModalPhoto.mediaType === 'video' ||
+                      previewModalPhoto.mimeType === 'video/mp4'
                         ? '#fdf2f8'
                         : previewModalPhoto.title.includes('【身份写真】')
-                        ? '#fef3c7'
-                        : '#e0e7ff',
+                          ? '#fef3c7'
+                          : '#e0e7ff',
                     color:
-                      previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4'
+                      previewModalPhoto.mediaType === 'video' ||
+                      previewModalPhoto.mimeType === 'video/mp4'
                         ? '#be185d'
                         : previewModalPhoto.title.includes('【身份写真】')
-                        ? '#b45309'
-                        : '#4338ca',
+                          ? '#b45309'
+                          : '#4338ca',
                     padding: '2px 8px',
                     borderRadius: '4px',
                     fontSize: '11px',
                     fontWeight: 600,
                   }}
                 >
-                  {previewModalPhoto.mediaType === 'video' || previewModalPhoto.mimeType === 'video/mp4'
+                  {previewModalPhoto.mediaType === 'video' ||
+                  previewModalPhoto.mimeType === 'video/mp4'
                     ? '🎥 关键片段'
                     : previewModalPhoto.title.includes('【身份写真】')
-                    ? '🌟 身份写真'
-                    : '📸 剧情事件解锁'}
+                      ? '🌟 身份写真'
+                      : '📸 剧情事件解锁'}
                 </span>
                 <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                   {dayKey(previewModalPhoto.date)}

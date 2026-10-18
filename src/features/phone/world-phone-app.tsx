@@ -1,6 +1,5 @@
 'use client';
 import { useWorldTime } from './use-world-time.ts';
-import { TimeExperienceControls } from './world-time-controls.tsx';
 import type { PublicOpeningStatus } from '../../contracts/publication-opening.ts';
 import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
 import {
@@ -622,16 +621,6 @@ export function WorldPhoneApp({
             )}
           </div>
         )}
-      {data?.id === worldId && automatic && (
-        <TimeExperienceControls
-          worldId={worldId}
-          client={client}
-          transport={transport}
-          time={liveTime}
-          worldVersion={data.version ?? 0}
-          reload={load}
-        />
-      )}
       <div style={{ flex: 1, minHeight: 0 }}>
         {!data ? (
           <div className="world-loading">
