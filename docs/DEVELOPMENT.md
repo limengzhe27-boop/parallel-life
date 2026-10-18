@@ -2527,3 +2527,11 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 147接续：同一wire新增完整executions(goal/plan/action)，代码只绑定引用而非从对白补参数；v20原模型入口，一次调用不加纠错。原入口PG7/纯包负例/check3309/build通过，0商业模型。现TextModel仅json_object无强约束schema，147自然效果未验证，不复用145已闭账6次。待本批READY/公网后记录代码交付，整体自然演绎保持未通过。
 
 147上线收口：31c873271d603641e7374922f604eb2249a1d0c7 / dpl_DMX6nqxxH9QTzNzFemNT4BqtEURa正式Nu精确READY；check3309/build/原服务PG7，公网health/workbench/published200与匿名works401。旧合成v7/2人物/9消息/paused保留。147本轮0模型，145真实6次已闭账且档paused/0unknown；147完整提案真实自然表现未验收，145整链仍未通过。未完成：受约束schema适配/真实稳定演绎、旧unassessed恢复、6旧unknown迁移、关系双方确认与整体目标完成资格。源代码交付不等于全部体验完成。
+
+|44-148-EXISTING-WORLD-CHAT-OPENING-I|[ ] 进行中|codex-root-runtime148 sole integrator|unified-engine137；先只读生产渣男档/失败快照与原进入/手机/开场调用链；root独占NPC协议/原应用server接线，UI范围查明后追加，新增专属报告与必要测试。0沿用145已闭账模型额度|修现有世界锁屏无消息、发送失败和开场不演；保留历史与进度，不伪造模型成功/不自动重买unknown；必要验证与部署。|先定位真实失败，不以合成接口200代替。|
+
+|44-149-PHONE-ENTRY-REVIEW-Q|[ ] 待验收|codex-ma44-149-phone-q; root assigned readonly|Independent phone-entry149-q fromorigin/main26057db7 (contains31c87327); ONLY NEW docs/task-reports/44-149-PHONE-ENTRY-REVIEW-Q.md plus ownrow/mirror. UI/server/kernel/SQL readonly,0model/production/fulltests.|2026-10-18: trace legacycontinued/nativeentry/lockscreen notifications/read state and chat failure hints; no fake notifications/history replay. Root148 owns implementation.| Exact3b18ba1839ee4ccded961c5020b6bfe9b217c1a3 ONLYreport frozen. No globallastSeen on entry; currentactor markRead only, historyinitialRead intentional; migration no bootstrap but normalwakepossible. Broad409 auto-retry samecmd/versionmutation flaggedroot148.0source/model/production/tests,actualsaveunverified.
+
+148文件范围：world-phone-app.tsx发送命令不可变；agent-phone-entry-probe.ts复用narrative-wake；NPC模型/解析统一输出契约；对应原模型/协议/semantic-wake测试。149报告3b18已取8824cfbe；渣男7档只读核实epoch2且无导演attempt。生产91checksum/107世界保留。check3310/build/原服务PG20通过，初次并行check/build的.next类型重建冲突已在build结束后复验。待部署与手机/PC实测。
+
+|44-150-PHONE-CHAT-LIVE-ACCEPTANCE-I|[ ] 进行中|codex-root-live150 sole integrator|unified-engine137；ONLY.local/ma150-*与报告，沿用已暂停合成档145，0新作品/新档/发布/图片|用户新授权最多6文字调用检查手机消息/人物回复/交接，未知不自动重试，结束暂停；145已关闭不复用额度。|仅READY后调用，先独立baseline。|

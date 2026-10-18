@@ -1,0 +1,25 @@
+# 44-148 现有世界进入、发送与开场调度修复
+
+2026-10-18 codex-root-runtime148，unified-engine137唯一集成人。小安149只读审查冻结3b18ba18已取8824cfbe，无共同源并写。用户要求从架构修复，禁止某剧本特判、伪通知与旁路开场。
+
+## 真实定位与同一职责边界
+
+只读生产7份渣男相关存档均epoch2，尚无Director attempt。81bab副本近期7个人物attempt中3个invalid：混合wire nextStep和省略metadata、或真实缺动作/无责任id的决策。只修确定格式边界，不为后一类造动作或假同意。离线新parser可解析其中完整等待包；其余仍拒绝，旧invalid记录不更改。
+
+1. 模型输入：删除旧canonical输出样例/形状与新wire相冲突的重复格式，只保留同一最终wire协议；行为/知识/来源/执行规则仍保留。v21不多加模型调用。
+2. 解析边界：nextStep/executions是无歧义wire语法，统一解码，即使省略非语义metadata。缺consideration仅归null，不制造人物choice；服务器coordination原规则仍拒绝缺选择；真缺动作/非法责任/源越权不放宽。
+3. 进入调度：原readAgentPhoneEntryProbe此前只检查new_genesis bootstrap与已有pending，legacy_migration只能等idle且可能已转深入聊天。现在复用原readDirectorNarrativeWake，在浏览/活跃/未暂停/无unknown条件下，为同一未审作者资格返回原cause.id稳定key。原资格/已占用/付费上下文/历史防重/CAS均不变；不新建开场、消息或运行器，不重置进度。模型可以quiet/人物可以拒绝，不强迫发生。
+4. 手机发送：删除ANY409自动取新version并修改同commandId重发。每条消息只提交原不可变命令；明确VERSION_CONFLICT只读刷新，保留失败消息供用户决定，unknown仍沿原核对路径。BUSY/IDEMPOTENCY不被错当CAS。
+5. 通知：不改原未读投影，只有真正落库的新人物消息才能出现在锁屏。原稿initialRead不伪装为新来信。
+
+## 必要验证
+
+原有semantic-wake真实本地PG追加完整legacy journey：正式旧世界迁移→浏览活跃→原probe返回稳定ready且0模型→原advance导演authored_eligibility（非bootstrap）→独立NPC明确参与→原消息落库→下一次probe quiet。20/20通过，保留deep focus、unknown、时窗、真实结果/付费上下文防重等原场景。
+
+check3310/build通过，36项模型/协议聚焦通过；第一次check与build并行引起.next types重建冲突，build结束后check通过，不是源类型失败。生产91迁移checksum只读一致、107世界hash保留，无新增SQL/生产世界写入。新增测试只用本地合成数据/受控适配器，不冒充自然模型质量。
+
+浏览器技能ego-browser单一space209，先确认沿用合成试演暂停/真实手机锁屏与空通知，没有为截图制造消息。手机/PC部署后结合150真实复验。150获新6次文字授权，沿用145合成档，0新增作品/存档/图片；旧145已闭账，不复用。READY前0模型。
+
+## 尚不能提前宣称
+
+模型自然演绎及真实锁屏新消息须150完成后按证据记录。无人物本人授权未来意图时不得广播全球剧情/秘密。旧unassessed、6旧unknown以及关系/整体目标完成资格不在本次擅自修写。真实失败会保留，而非兜底台词或假执行。

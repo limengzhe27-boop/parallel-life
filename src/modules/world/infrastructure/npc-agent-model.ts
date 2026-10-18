@@ -12,7 +12,7 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v20-atomic-execution';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v21-single-contract';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
@@ -71,20 +71,10 @@ Schema obligations: every changed goal/plan/action/responsibility must cite at l
 actions只提议channel.allowedCapabilities中服务器已允许的能力，没有允许能力就actions=[]。status只能proposed/waiting/blocked/withdrawn，不得自称ready/executing/succeeded/failed，不输出resultId。能力许可不是已经执行；结果只由内核执行并保存。dependsOnActionIds描述依赖，不是提前假设依赖成功。声称某动作已成功的对白必须依赖该动作的id，放在statements[].dependsOnActionIds；若该动作未成功，内核不得展示该对白。不能把缺少有效计划的“已安排成功”当成完整成功，也不能伪造执行结果；一般建议或“我会去处理”的计划表达不能成为实际完成结果。不要替玩家执行未选择的下一步，不让一个人物的退出关闭其他人的目标。
 PlayerDecision只对当前输入确实针对的responsibility作判断：accepted/declined/negotiating/deferred/undecided。sourceId必须为本次input.sourceId，quote必须是input.text里逐字连续的原文，不删否定词，不把协调文字或旧对白冒充玩家答应；wake/coordination不得新增玩家决定。当玩家在本次原话中对已有或本次提议的责任明确确认、分工答应（如“好，就这么办”、“没问题”、“交给我”）或明确拒绝、暂缓时，必须在decisions中准确记录；无关闲聊或换话题不得误判为accepted。已有结果才能提出fulfilled或用resolutionResultId处理责任，不能自己创造执行结果；没有合法到期来源不提expired。
 每个条件只用以下形状之一：{kind:"at_or_after",at,sourceId}、{kind:"result",actionId,outcome:"succeeded"或"failed"}、{kind:"player_decision",responsibilityId,decision}、{kind:"at_place",placeId}、{kind:"observation",sourceId}。时间只据storyAt和明确授权的来源，不编日期、路线或截止；at_or_after不是自动生成deadline的许可。
-仅输出一个JSON对象，必有statements/goals/plans/actions/responsibilities/decisions六个数组，可选focus。statements每项{text,dependsOnActionIds:[]}；玩家普通输入应有自然回复；origin=wake无值得表达的变化时、或合法npc_episode_consideration中本人决定安静/拒绝且无需对外表达时，都可statements=[]，无需硬造消息或冲突。
-goal形状：{id,summary,status:"active|deferred|fulfilled|withdrawn",sourceIds:[],resultIds:[],endReason?}。
-plan形状：{id,goalId,summary,status:"active|waiting|blocked|finished|withdrawn",sourceIds:[],actionIds:[],nextActionId:字符串或null,triggers:[],missingConditions:[],supersedesPlanId?}。
-action形状：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"proposed|waiting|blocked|withdrawn"}。parameters值仅字符串/数字/布尔/null/字符串数组。
-responsibility形状：{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|fulfilled|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?:{at,sourceId},resolutionResultId?,endReason?}。
-decision形状：{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId,quote}。
-focus可省略、null或{channel:"private|group|scene",threadId,subjectId:字符串或null,questionSourceId:字符串或null,replyToActorId:字符串或null}；若更新只用当前channel/thread，不把旧渠道焦点误当本轮受众。上面竖线表示枚举择一，不输出含竖线的值；问号表示可省略键，不是实际键名。
-合法输出参考：
-1. 普通问候闲聊（无承诺，全空增量）：{"statements":[{"text":"今天天气挺好，你忙完了吗？","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
-2. 愿意承担但当前缺少真实盘点能力（保存有解释的blocked计划，不伪造执行）：{"statements":[{"text":"我愿意负责核对，但还需要实际物料清单才能确认缺什么。","dependsOnActionIds":[]}],"goals":[{"id":"goal_material_check","summary":"核对物料并告知缺项","status":"active","sourceIds":["<当前input.sourceId>"],"resultIds":[]}],"plans":[{"id":"plan_material_check","goalId":"goal_material_check","summary":"取得实际清单后核对物料","status":"blocked","sourceIds":["<当前input.sourceId>"],"actionIds":[],"nextActionId":null,"triggers":[],"missingConditions":["尚无实际物料清单或受支持的盘点执行能力"]}],"actions":[],"responsibilities":[{"id":"resp_material_check","subject":{"kind":"matter","id":"material_check"},"summary":"取得依据后核对并回报缺项","status":"waiting","waitingOn":"world","sourceIds":["<当前input.sourceId>"],"nextCheck":[]}],"decisions":[]}
-3. 玩家确认分工后NPC确认（记录玩家决定）：{"statements":[{"text":"一言为定，那我们分头行动。","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[{"id":"dec_division_accepted","responsibilityId":"resp_material_check","kind":"accepted","sourceId":"<当前input.sourceId>","quote":"好，就这么办"}]}`;
+玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v1"，必含consideration（对象或null）、statements/goals/plans/actions/responsibilities/decisions六数组，focus及其他原协议可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
+最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v1"，必含consideration（对象或null）、statements/goals/plans/actions/responsibilities/decisions六数组，focus及replyAssessments/questionWithdrawals/locationReports可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
 consideration非null时为{choice:"engage|decline|defer|need_information|quiet",reason:"本人实际依据",basisSourceIds:[]}；basisSourceIds只可引用已提供来源。coordination的npc_episode_consideration必须非null，即使不说话也明确quiet/defer/need_information与理由，不以statements=[]代替选择。不强迫参与；缺本人授权事件意图时明确need_information，不猜未授权全局剧本。普通player带manifest但无关时仍可null；responseContract.considerationAllowed=false时必须null，即使episodeFollowUps含旧请求、本人以前need_information、当前想继续参与，也不得重新输出旧consideration。旧机会已经考虑，后续用本人goal/plan/责任与当前对白继续，而不是重新消费请求。
 consideration选择need_information或defer时必须同时明确followUp:{waitingOn:"player|self|world"或null,missing:["本人确实需要的信息或条件"]}，代码绑定本人当前request的等待责任，不发明期限或自动催问。quiet若仍有待办也可给followUp，否则可省略。followUp不是玩家同意。若决定询问玩家，可以在statements自然提问；若选择安静，依然保存等待去向。不要另造同名followup责任。
 plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/actionIds/nextActionId/triggers/missingConditions，代码由单个nextStep精确绑定：
@@ -99,6 +89,11 @@ plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/act
 本轮需要真正提出可执行动作时，优先用executions（可选数组）将目标、计划与动作收在一个对象，而不要分别在goals/plans/actions重复它们。每项：
 {goal:{kind:"new",id:"g",summary:"本人实际目标",sourceIds:[合法来源]}或{kind:"existing",id:"本人已有目标id"},plan:{id:"p",summary:"本人计划",sourceIds:[合法来源]},action:{id:"a",capability:"本轮允许能力",targetIds:[],parameters:{能力所需的实际参数},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[合法来源]}}。
 代码只绑定goalId/nextActionId/status等引用，不帮你补动作参数、地点或时间。executions中action整个对象不可缺少。普通goals/plans/actions仍用于无动作的等待、修订或撤回，勿重复execution内的同id对象。若要说“邀请已发送”，statements.dependsOnActionIds必须引用action.id，执行失败则不能显示成功台词。不能执行就明确blocked/wait，不得只写plan.nextStep.actionId却actions为空。executions=[]或省略均不意味已执行。
+goals只用于实际目标增量：{id,summary,status:"active|deferred|fulfilled|withdrawn",sourceIds:[],resultIds:[],endReason?}。
+actions仅用于已有动作的修改或不使用executions时的完整动作：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"proposed|waiting|blocked|withdrawn"}。
+responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|fulfilled|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?:{at,sourceId},resolutionResultId?,endReason?}。
+decisions:{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId,quote}。statements:{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}。
+focus可省略/null或{channel:"private|group|scene",threadId,subjectId:null或id,questionSourceId:null或id,replyToActorId:null或id}。所有问号表示可选键，竖线表示枚举择一。
 coordination安静的合法格式：{"protocol":"npc-wire-v1","consideration":{"choice":"quiet","reason":"当前安排不宜新增联系","basisSourceIds":[]},"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
 `;
 

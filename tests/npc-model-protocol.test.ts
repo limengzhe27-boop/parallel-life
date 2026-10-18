@@ -245,3 +245,39 @@ test('atomic execution binds explicit goal/plan/action once and never creates a 
     /SOURCE/,
   );
 });
+
+test('wire nextStep syntax has one decoding boundary even without optional transport metadata', () => {
+  const { c, wire } = fixture();
+  const untagged = {
+    statements: [{ text: '我还需要资料。', dependsOnActionIds: [] }],
+    goals: [
+      { id: 'g', summary: '核对资料', sourceIds: ['input'], status: 'active', resultIds: [] },
+    ],
+    plans: [
+      {
+        id: 'p',
+        goalId: 'g',
+        summary: '等待资料',
+        sourceIds: ['input'],
+        nextStep: { kind: 'wait', conditions: [], missing: ['需要实际资料'] },
+      },
+    ],
+    actions: [],
+    responsibilities: [],
+    decisions: [],
+  };
+  assert.deepEqual(
+    parseAgentProposal(c, untagged),
+    parseAgentProposal(c, { ...wire, ...untagged }),
+  );
+  const coordination = fixture(true).c;
+  assert.throws(() => parseAgentProposal(coordination, untagged), /RESPONSE_WIRE_SHAPE/);
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...untagged,
+        plans: [{ ...untagged.plans[0], nextStep: { kind: 'action', actionId: 'missing' } }],
+      }),
+    /INVALID_PLAN_ACTION/,
+  );
+});

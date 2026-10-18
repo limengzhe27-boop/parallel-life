@@ -1,3 +1,5 @@
+import { migrateLegacyWorldInTransaction } from '../../src/modules/world/infrastructure/legacy-world-migration.ts';
+import { readAgentPhoneEntryProbe } from '../../src/modules/world/infrastructure/agent-phone-entry-probe.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -212,7 +214,9 @@ test('actual publication semantic wake advances use one protected Director bound
         return undefined;
       },
     });
-  async function fixture(options: { admit?: boolean; proof?: boolean; multi?: boolean } = {}) {
+  async function fixture(
+    options: { admit?: boolean; proof?: boolean; multi?: boolean; legacy?: boolean } = {},
+  ) {
     const content = structuredClone(base);
     if (options.proof)
       content.candidates.push(node('fallback', [], { conditionKeys: ['alternative_evidence'] }));
@@ -246,6 +250,13 @@ test('actual publication semantic wake advances use one protected Director bound
     owned.push({ owner, id });
     const world = await worlds.get({ userId: owner }, id);
     await app.transaction(owner, async (sql) => {
+      if (options.legacy) {
+        await migrateLegacyWorldInTransaction(sql, owner, {
+          worldId: id,
+          expectedWorldVersion: world.version,
+        });
+        return;
+      }
       for (const a of world.actors)
         await initializeActorAgentStateInTransaction(
           sql,
@@ -477,6 +488,45 @@ test('actual publication semantic wake advances use one protected Director bound
     assert.equal(h.director()[0]!.payload.evaluationCause.kind, 'bootstrap');
     return h;
   }
+  await t.test(
+    'existing migrated phone entry resumes unreviewed author material without replaying genesis or charging on read',
+    async () => {
+      const f = await fixture({ legacy: true });
+      const client = randomUUID();
+      await activity.update(f.owner, f.id, { clientId: client, sequence: 0, mode: 'browsing' });
+      const probe = () =>
+        app.transaction(f.owner, (sql) =>
+          readAgentPhoneEntryProbe(sql, f.owner, {
+            worldId: f.id,
+            engineEpoch: 2,
+            worldVersion: 0,
+            storyAt: time(9),
+          }),
+        );
+      const first = await probe();
+      assert.equal(first.status, 'ready');
+      assert.deepEqual(await probe(), first);
+      assert.equal((await attempts(f)).length, 0);
+      const h = harness(f, { propose: 'always', npcChoice: 'engage', wire: true });
+      await h.advance();
+      assert.equal(h.director()[0]!.payload.evaluationCause.kind, 'authored_eligibility');
+      assert.deepEqual(
+        h.calls.map((c) => c.kind),
+        ['director', 'npc'],
+      );
+      const w = await worlds.get({ userId: f.owner }, f.id);
+      assert.ok(w.messages.some((m) => m.role === 'assistant'));
+      const after = await app.transaction(f.owner, (sql) =>
+        readAgentPhoneEntryProbe(sql, f.owner, {
+          worldId: f.id,
+          engineEpoch: 2,
+          worldVersion: w.version,
+          storyAt: time(9),
+        }),
+      );
+      assert.equal(after.status, 'quiet');
+    },
+  );
   await t.test(
     'typed model event reference uses the real advance, independent NPC and transactional episode path',
     async () => {

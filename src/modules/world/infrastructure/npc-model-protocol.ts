@@ -93,10 +93,15 @@ const Wire = z.strictObject({
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
-  // consideration is exclusive to this wire format. Recognize an omitted transport tag only;
-  // the entire strict wire schema and original semantic/authority checks still apply.
-  if (!('protocol' in raw) && !('consideration' in raw)) return raw; // Persisted canonical completions.
-  const wire = Wire.parse('protocol' in raw ? raw : { ...raw, protocol: NPC_WIRE_PROTOCOL });
+  // nextStep/executions are exclusive wire syntax, not canonical state fields.
+  // Missing transport metadata never means a missing NPC choice is manufactured.
+  const wirePlans =
+    'plans' in raw &&
+    Array.isArray(raw.plans) &&
+    raw.plans.some((p) => p && typeof p === 'object' && 'nextStep' in p);
+  if (!('protocol' in raw) && !('consideration' in raw) && !('executions' in raw) && !wirePlans)
+    return raw;
+  const wire = Wire.parse({ protocol: NPC_WIRE_PROTOCOL, consideration: null, ...raw });
   const { protocol: _protocol, consideration, plans, executions = [], ...proposal } = wire;
   // A typed intent is mapped to the original proposal, never executed here or inferred from speech.
   for (const execution of executions) {

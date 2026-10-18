@@ -273,8 +273,8 @@ test('capability list and current input are sent exactly; policy separates claim
   assert.match(system, /undecided/);
   assert.match(system, /沉默不是拒绝/);
   assert.match(system, /玩家普通输入应有自然回复/);
-  assert.match(system, /origin=wake无值得表达的变化时/);
-  assert.match(system, /合法npc_episode_consideration中本人决定安静\/拒绝/);
+  assert.match(system, /wake或coordination无值得表达的变化时/);
+  assert.match(system, /wake或coordination无值得表达的变化时可安静/);
   assert.match(system, /普通私聊带服务器episodeManifest/);
   assert.match(system, /不带episodeManifest的普通player\/wake输入不得输出episodeDecision/);
 });
@@ -818,7 +818,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v20-atomic-execution');
+  assert.equal(payload.promptVersion, 'npc-agent-v21-single-contract');
 });
 
 test('prompt instructions specify player decision tracking on responsibilities with exact verbatim quotes', async () => {
@@ -829,8 +829,8 @@ test('prompt instructions specify player decision tracking on responsibilities w
   assert.match(system, /PlayerDecision只对当前输入确实针对的responsibility作判断/);
   assert.match(system, /quote必须是input.text里逐字连续的原文/);
   assert.match(system, /无关闲聊或换话题不得误判为accepted/);
-  assert.match(system, /保存有解释的blocked计划/);
-  assert.match(system, /玩家确认分工后NPC确认（记录玩家决定）/);
+  assert.match(system, /计划置blocked/);
+  assert.match(system, /只遵从下方最终传输协议/);
 });
 
 test('commitment protocol does not prescribe empty runnable plans or fabricate an unsupported action', async () => {
@@ -840,12 +840,8 @@ test('commitment protocol does not prescribe empty runnable plans or fabricate a
   assert.match(system, /actionIds及nextActionId指向实际动作/);
   assert.match(system, /有来源的非空triggers/);
   assert.match(system, /不能拿plan.record冒充外部行为/);
-  const line = system.split('\n').find((line) => line.startsWith('2. 愿意承担'))!;
-  const example = JSON.parse(line.slice(line.indexOf('{')));
-  assert.equal(example.plans[0].status, 'blocked');
-  assert.ok(example.plans[0].missingConditions.length);
-  assert.deepEqual(example.actions, []);
-  assert.equal(example.responsibilities[0].status, 'waiting');
+  assert.match(system, /kind:"blocked",missing/);
+  assert.doesNotMatch(system, /合法输出参考/);
 });
 
 test('invitation time catalog is local date conversion only and does not alter player decisions', async () => {

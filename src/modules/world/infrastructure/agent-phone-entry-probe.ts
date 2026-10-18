@@ -1,3 +1,4 @@
+import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
 import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { PublicOpeningStatus } from '../../../contracts/publication-opening.ts';
@@ -100,6 +101,11 @@ export async function readAgentPhoneEntryProbe(
     return received ? ready('director_raw', received.id) : { status: 'pending' };
   }
   const bootstrap = await readDirectorBootstrapCauseInTransaction(sql, ownerId, frame);
-  // New time qualifications remain on the normal 75-second opportunity cadence.
-  return bootstrap ? ready('bootstrap', bootstrap.id) : { status: 'quiet' };
+  if (bootstrap) return ready('bootstrap', bootstrap.id);
+  // Existing saves resume eligible, still-unreviewed author material through the same scheduler.
+  // This is not genesis replay: original history, paid-context suppression and focus remain authoritative.
+  const wake = await readDirectorNarrativeWakeInTransaction(sql, ownerId, frame);
+  return wake.cause && !wake.deferred && !wake.hasPendingDirector
+    ? ready('narrative', wake.cause.id)
+    : { status: 'quiet' };
 }

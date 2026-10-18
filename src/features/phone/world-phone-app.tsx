@@ -243,41 +243,19 @@ export function WorldPhoneApp({
       entry,
     ]);
     try {
-      let currentVersion = data?.version ?? 0;
+      const currentVersion = data?.version ?? 0;
       rememberCommand(currentVersion);
-      try {
-        await client.sendWorldMessage(worldId, {
-          commandId,
-          actorId,
-          text,
-          expectedVersion: currentVersion,
-        });
-      } catch (err: unknown) {
-        const errorMsg = String((err as { message?: string })?.message || '');
-        const errorStatus = (err as { status?: number })?.status;
-        // 如果是版本不同步引起的冲突，立刻重新同步服务端最新世界版本并再次递交
-        if (
-          (err as { code?: string })?.code === 'VERSION_CONFLICT' ||
-          errorMsg.includes('VERSION_CONFLICT') ||
-          errorMsg.includes('409') ||
-          errorStatus === 409
-        ) {
-          const freshWorld = await client.world(worldId);
-          setData(freshWorld);
-          currentVersion = freshWorld.version ?? 0;
-          rememberCommand(currentVersion);
-          await client.sendWorldMessage(worldId, {
-            commandId,
-            actorId,
-            text,
-            expectedVersion: currentVersion,
-          });
-        } else {
-          throw err;
-        }
-      }
+      // One submission owns one immutable identity. A 409 may be BUSY, a prior receipt,
+      // or a late paid result, not permission to mutate and resubmit that command.
+      await client.sendWorldMessage(worldId, {
+        commandId,
+        actorId,
+        text,
+        expectedVersion: currentVersion,
+      });
       setLocalMessages((current) => current.filter((message) => message.id !== commandId));
     } catch (sendError) {
+      if ((sendError as { code?: string })?.code === 'VERSION_CONFLICT') await load();
       setLocalMessages((current) =>
         current.map((message) =>
           message.id === commandId ? { ...message, status: sendFailureStatus(sendError) } : message,
