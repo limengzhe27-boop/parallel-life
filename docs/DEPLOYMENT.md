@@ -1,3 +1,9 @@
+## 2026-10-18 · 44-143/144 人物选择、等待与执行契约；145实测未全通过
+
+业务d347763e / dpl_5H6GMBo8EMcCtrWLNLsgBdJc1ahC正式Nu精确READY。人物明确选择、空active计划拒绝、单nextStep、显式等待责任与限定漏tag识别接原内核；3308/check、build、原服务PG7，生产91checksum一致。公网关键读200、旧合成paused与内容保留，无生产玩家状态更改。
+
+真实145新授权6/6已闭账：导演机会committed、人物need_information真实保存，但自然邀约未通过，最终人物漏动作被拒绝，没有假成功。1合成草稿/1试演已暂停，0unknown/0发布/0个人资料或图像。事件尚proposed，不能宣称完整演绎可用。待147收拢原执行提案协议及后续独立授权验收。详见[145报告](task-reports/44-145-NPC-WIRE-LIVE-ACCEPTANCE-I.md)。
+
 ## 2026-10-18 · 44-139/140 导演引用协议与人物计划下一步
 
 业务a42484de / dpl_BhJrnRjsvwt8YKe4vyqngBzBP4PW正式Nu精确READY。导演wire分类引用由代码绑定事件key/来源，保留原内核校验与原始付费响应；人物v17不再要求空计划，普通明确条件计划接原调度重考并稳定去重；已知无效输出不再泛化连接错误，unknown不自动重试。
