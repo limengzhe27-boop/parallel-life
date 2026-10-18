@@ -2553,3 +2553,11 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 153追加同一clock接口版本协商归root独占：src/features/api/client.ts、src/server/world-time-http.ts、src/app/api/v1/worlds/[id]/clock/route.ts、tests/world-clock-protocol.test.ts。旧strict客户端收到原shape，新客户端声明continuous-v1；不改权限或内核运行，无新增模型。生产8ecbec77已READY，追加兼容协议待同批部署；154实际plan=hobby/当前daily cron，不自行升级。
 
 153 final scope also includes publisher-world-http.ts / publisher-trial-request.ts: only the clock representation header is allowlisted, never caller Cookie/Authorization. Task154 capability read: Hobby, daily/global2, pg_cron/pg_net available but not installed. No service upgrade.
+
+## 待开发（2026-10-18 登记）：把编导线程物化为世界的活义务
+
+- 目标：新建世界时把编导 `threads[]` 物化为 `appointment`（status `proposed`，幂等 key `thread:<id>`）或开放问题（进入 `awaiting_reply`），使 `buildAgenda()` 一创建就有材料，NPC 才有理由主动开口。
+- 根因：`publication-genesis.ts:284` 写死 `invitations: []`；`threads` 仅在 `world-planner.ts:156-157` 用于开场叙述，未落成持久对象；因此 `facts/appointments/choices` 全为 0，agenda 永空。
+- 约束：只物化编导真正写过的内容；幂等；不新增第二套状态机；沿用既有 agenda 种类。
+- 验收：新建世界 `appointments/facts/choices` 至少各 1；进入 30 秒内可选中一人；一次 `advance` 产生 ≥1 条 `initialRead:false` 的 NPC 消息；首页出现未读数量。
+- 规格详见 `docs/task-reports/NEXT-PATCHES-01.md`「追加」一节。
