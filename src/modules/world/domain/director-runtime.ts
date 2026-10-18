@@ -69,6 +69,8 @@ export type DirectorOpportunity = {
   /** Optional authored material reference; not a deterministic plot outcome. */
   authoredEventKey?: string;
   actorTopics?: import('./actor-known-topic.ts').ActorTopicSelection[];
+  /** Director-created future interaction proposal, not fact disclosure or an actor decision. */
+  stagingIntents?: { actorId: string; kind: 'future_task'; task: string }[];
 };
 export type SharedEpisode = {
   schemaVersion: 1;

@@ -15,6 +15,7 @@ import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repo
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
 import type { ActorAgentState } from '../domain/agent-runtime.ts';
+import { validActorStagingIntents } from '../domain/actor-known-topic.ts';
 import { parseEpisodeConsiderationIntent } from './agent-narrative-repository.ts';
 import {
   projectActorManuscriptHint,
@@ -85,6 +86,94 @@ export async function readActorEpisodeIntentsInTransaction(
     };
   });
   const blocked = await forgottenAgentSourceIds(sql, ownerId, frame.worldId, frame.actorId);
+  // A committed Director opportunity may carry a newly created future task for
+  // each participant. Only this actor's task leaves the repository: never the
+  // global opportunity prose, author manuscript or another actor's task.
+  const staged = addressed.filter(({ opportunity }) => opportunity.stagingIntents !== undefined);
+  const stagingCatalog = staged.some(({ opportunity }) => opportunity.authoredEventKey)
+    ? await readAuthoredAgentMaterialCatalog(sql, ownerId, {
+        worldId: frame.worldId,
+        expectedEngineEpoch: worldRow.engine_epoch,
+        expectedWorldVersion: frame.worldVersion,
+        maxBytes: 2_000_000,
+      })
+    : null;
+  if (stagingCatalog && stagingCatalog.status !== 'complete') return conflict();
+  for (const { request, opportunity, saved } of staged) {
+    if (!validActorStagingIntents(opportunity)) return conflict();
+    const intent = opportunity.stagingIntents!.filter((entry) => entry.actorId === frame.actorId);
+    if (intent.length !== 1) return conflict();
+    let authoredNodeHash: string | undefined;
+    if (opportunity.authoredEventKey) {
+      const original = saved.authoredMaterials?.materials.filter(
+        (entry) => entry.ref.nodeKey === opportunity.authoredEventKey,
+      );
+      const actual =
+        stagingCatalog?.status === 'complete'
+          ? stagingCatalog.catalog.materials.filter(
+              (entry) => entry.ref.nodeKey === opportunity.authoredEventKey,
+            )
+          : [];
+      if (
+        original?.length !== 1 ||
+        actual.length !== 1 ||
+        !isDeepStrictEqual(original[0]!.ref, actual[0]!.ref)
+      )
+        return conflict();
+      authoredNodeHash = actual[0]!.ref.nodeHash;
+    }
+    const id = ACTOR_EPISODE_INTENT_PREFIX + request.id;
+    if (
+      [
+        id,
+        request.id,
+        request.origin_decision_id,
+        ...(authoredNodeHash ? [authoredNodeHash] : []),
+        ...opportunity.basisSourceIds,
+      ].some((key) => blocked.has(key))
+    )
+      continue;
+    if (
+      !Number.isFinite(Date.parse(saved.storyAt)) ||
+      Date.parse(saved.storyAt) > Date.parse(frame.storyAt)
+    )
+      return conflict();
+    const directive = {
+      kind: 'director_future_task' as const,
+      authority: 'future_proposal_only' as const,
+      task: intent[0]!.task,
+    };
+    result.set(request.id, {
+      source: {
+        id,
+        kind: 'director_intent',
+        recordId: request.id,
+        worldVersion: request.created_at_version,
+        at: saved.storyAt,
+        contentHash: createHash('sha256')
+          .update(
+            authoredMaterialCanonicalJson({
+              protocol: 'director-staging-intent-v1',
+              worldId: frame.worldId,
+              actorId: frame.actorId,
+              requestId: request.id,
+              decisionId: request.origin_decision_id,
+              createdAtVersion: request.created_at_version,
+              basisSourceIds: opportunity.basisSourceIds,
+              directive,
+            }),
+          )
+          .digest('hex'),
+      },
+      observation: {
+        sourceId: id,
+        kind: 'plan',
+        text:
+          'Director-created future interaction proposal addressed only to you. This is NOT a report, known fact, completed action, private attitude, player decision or obligation. Use only your own authorized knowledge and persona to decide whether/how to participate; ask rather than assume unknown information. You may refuse, defer or stay quiet: ' +
+          JSON.stringify(directive),
+      },
+    });
+  }
   if (addressed.some(({ opportunity }) => opportunity.actorTopics)) {
     const state = (
       await sql.query(
@@ -103,6 +192,7 @@ export async function readActorEpisodeIntentsInTransaction(
           frame.storyAt,
         );
     for (const { request, opportunity, saved } of addressed) {
+      if (result.get(request.id)) continue;
       const selection = opportunity.actorTopics?.filter((s) => s.actorId === frame.actorId);
       if (!selection) continue;
       if (selection.length !== 1) return conflict();

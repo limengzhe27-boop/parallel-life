@@ -1,5 +1,5 @@
 import { validateNativeDirectorTurn } from './native-director-turn.ts';
-import { validActorTopicSelection } from '../domain/actor-known-topic.ts';
+import { validActorTopicSelection, validActorStagingIntents } from '../domain/actor-known-topic.ts';
 import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -352,6 +352,17 @@ const Opportunity = z
     activity: z.enum(['conversation', 'meeting', 'follow_up']),
     basisSourceIds: keys.min(1),
     authoredEventKey: Key.optional(),
+    stagingIntents: z
+      .array(
+        z.strictObject({
+          actorId: Key,
+          kind: z.literal('future_task'),
+          task: z.string().trim().min(1).max(600),
+        }),
+      )
+      .min(1)
+      .max(12)
+      .optional(),
     actorTopics: z
       .array(
         z.strictObject({
@@ -1198,6 +1209,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     for (const o of d.opportunities)
       if (
         !validActorTopicSelection(o, s.actorKnownTopics ?? []) ||
+        !validActorStagingIntents(o) ||
         o.participantActorIds.some((id) => !s.boundary.actorIds.includes(id)) ||
         o.placeIds.some((id) => !s.boundary.placeIds.includes(id)) ||
         o.basisSourceIds.some((id) => !sources.has(id)) ||

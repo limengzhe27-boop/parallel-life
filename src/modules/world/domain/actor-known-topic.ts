@@ -41,3 +41,21 @@ export function validActorTopicSelection(
     )
   );
 }
+
+/** Each staging task is addressed to exactly one actual participant. It grants no factual knowledge. */
+export function validActorStagingIntents(opportunity: DirectorOpportunity): boolean {
+  if (opportunity.stagingIntents === undefined) return true; // Saved pre-staging decisions.
+  const intents = opportunity.stagingIntents;
+  return (
+    intents.length === opportunity.participantActorIds.length &&
+    new Set(intents.map((intent) => intent.actorId)).size === intents.length &&
+    intents.every(
+      (intent) =>
+        opportunity.participantActorIds.includes(intent.actorId) &&
+        intent.kind === 'future_task' &&
+        typeof intent.task === 'string' &&
+        intent.task.trim().length > 0 &&
+        intent.task.length <= 600,
+    )
+  );
+}

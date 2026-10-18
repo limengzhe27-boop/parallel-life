@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v1';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v2';
 const Key = z.string().min(1).max(240);
 const Reason = z.string().trim().min(1).max(2000);
 const Ref = z.string().regex(/^(candidate|actor|place|source|event):[1-9][0-9]*$/);
@@ -14,7 +15,7 @@ const Nudge = z.enum([
   'consider_opportunity',
 ]);
 const Wire = z.strictObject({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+  protocol: z.enum(['director-wire-v1', DIRECTOR_WIRE_PROTOCOL]),
   mode: z.enum(['quiet', 'coordinate', 'bounded_opportunity']),
   candidates: z
     .array(
@@ -38,6 +39,17 @@ const Wire = z.strictObject({
           z.strictObject({ kind: z.literal('authored'), eventRef: Ref }),
           z.strictObject({ kind: z.literal('emergent'), sourceRefs: z.array(Ref).min(1).max(32) }),
         ]),
+        stagingIntents: z
+          .array(
+            z.strictObject({
+              actorRef: Ref,
+              kind: z.literal('future_task'),
+              task: z.string().trim().min(1).max(600),
+            }),
+          )
+          .min(1)
+          .max(12)
+          .optional(),
         actorTopics: z
           .array(
             z.strictObject({
@@ -92,7 +104,19 @@ export function directorWireCatalog(snapshot: DirectorSnapshot) {
 /** Decode transport only: no inferred selections, new authority or model retry. Canonical validation follows. */
 export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object' || !('protocol' in raw)) return raw; // Stored pre-wire completions.
-  const wire = Wire.parse(raw);
+  // Strict-provider nullable optionals are transport syntax, never a semantic default.
+  const normalized = structuredClone(raw) as Record<string, unknown>;
+  if (Array.isArray(normalized.candidates))
+    for (const choice of normalized.candidates) {
+      if (choice && choice.nudge === null) delete choice.nudge;
+    }
+  if (Array.isArray(normalized.opportunities))
+    for (const opportunity of normalized.opportunities) {
+      if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
+    }
+  const wire = Wire.parse(normalized);
+  if (wire.protocol === DIRECTOR_WIRE_PROTOCOL && wire.opportunities.some((o) => !o.stagingIntents))
+    throw Error('DIRECTOR_STAGING_REQUIRED');
   const catalog = directorWireCatalog(snapshot);
   const lookup = <T extends { ref: string }>(items: T[], ref: string): T => {
     const found = items.find((item) => item.ref === ref);
@@ -138,25 +162,35 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     selectedCandidateIds,
     deferred,
     nudges,
-    opportunities: wire.opportunities.map(({ actors, places, origin, actorTopics, ...o }) => ({
-      ...o,
-      participantActorIds: actors.map((ref) => lookup(catalog.actors, ref).actorId),
-      placeIds: places.map((ref) => lookup(catalog.places, ref).placeId),
-      ...(origin.kind === 'authored'
-        ? {
-            authoredEventKey: lookup(catalog.events, origin.eventRef).authoredEventKey,
-            basisSourceIds: [lookup(catalog.events, origin.eventRef).sourceId],
-          }
-        : { basisSourceIds: origin.sourceRefs.map(source) }),
-      ...(actorTopics
-        ? {
-            actorTopics: actorTopics.map(({ actorRef, refs }) => ({
-              actorId: lookup(catalog.actors, actorRef).actorId,
-              refs,
-            })),
-          }
-        : {}),
-    })),
+    opportunities: wire.opportunities.map(
+      ({ actors, places, origin, actorTopics, stagingIntents, ...o }) => ({
+        ...o,
+        participantActorIds: actors.map((ref) => lookup(catalog.actors, ref).actorId),
+        placeIds: places.map((ref) => lookup(catalog.places, ref).placeId),
+        ...(origin.kind === 'authored'
+          ? {
+              authoredEventKey: lookup(catalog.events, origin.eventRef).authoredEventKey,
+              basisSourceIds: [lookup(catalog.events, origin.eventRef).sourceId],
+            }
+          : { basisSourceIds: origin.sourceRefs.map(source) }),
+        ...(stagingIntents
+          ? {
+              stagingIntents: stagingIntents.map(({ actorRef, ...intent }) => ({
+                actorId: lookup(catalog.actors, actorRef).actorId,
+                ...intent,
+              })),
+            }
+          : {}),
+        ...(actorTopics
+          ? {
+              actorTopics: actorTopics.map(({ actorRef, refs }) => ({
+                actorId: lookup(catalog.actors, actorRef).actorId,
+                refs,
+              })),
+            }
+          : {}),
+      }),
+    ),
     audit: {
       reason: rejectedCandidateRefs.length
         ? `[未执行的候选选择：本轮没有可用候选；拒绝引用 ${rejectedCandidateRefs.join(',')}。] ${wire.audit.reason}`.slice(
@@ -167,4 +201,123 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
       basisSourceIds: wire.audit.sourceRefs.map(auditSource),
     },
   };
+}
+
+/** Provider grammar is derived from the same immutable catalog used by the decoder.
+ * It reduces invalid transport choices; canonical and commit-time checks remain authoritative.
+ */
+export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputOptions {
+  const catalog = directorWireCatalog(snapshot);
+  type Schema = Record<string, unknown>;
+  const text: Schema = { type: 'string' };
+  const refs = (values: string[]): Schema =>
+    values.length ? { type: 'string', enum: values } : text;
+  const object = (properties: Record<string, Schema>): Schema => ({
+    type: 'object',
+    properties,
+    required: Object.keys(properties),
+    additionalProperties: false,
+  });
+  const array = (items: Schema, empty = false): Schema => ({
+    type: 'array',
+    items,
+    ...(empty ? { maxItems: 0 } : {}),
+  });
+  const values = (items: { ref: string }[]) => items.map((item) => item.ref);
+  const actors = refs(values(catalog.actors));
+  const candidate = refs(values(catalog.candidates));
+  const nudge: Schema = snapshot.nativeTurn
+    ? { type: 'null' }
+    : { anyOf: [{ type: 'string', enum: Nudge.options }, { type: 'null' }] };
+  const origins: Schema[] = [];
+  if (catalog.events.length)
+    origins.push(
+      object({
+        kind: { type: 'string', enum: ['authored'] },
+        eventRef: refs(values(catalog.events)),
+      }),
+    );
+  if (catalog.sources.length)
+    origins.push(
+      object({
+        kind: { type: 'string', enum: ['emergent'] },
+        sourceRefs: array(refs(values(catalog.sources))),
+      }),
+    );
+  const topics = (snapshot.actorKnownTopics ?? []).filter((topic) =>
+    snapshot.boundary.actorIds.includes(topic.actorId),
+  );
+  const topicSelections: Schema[] = catalog.actors.flatMap(({ ref, actorId }) => {
+    const own = topics.filter((topic) => topic.actorId === actorId);
+    if (!own.length) return [];
+    return [
+      object({
+        actorRef: { type: 'string', enum: [ref] },
+        refs: array({
+          anyOf: own.map((topic) =>
+            object({
+              id: { type: 'string', enum: [topic.id] },
+              contentHash: { type: 'string', enum: [topic.contentHash] },
+            }),
+          ),
+        }),
+      }),
+    ];
+  });
+  const topicSchema: Schema = topicSelections.length
+    ? { anyOf: [array({ anyOf: topicSelections }), { type: 'null' }] }
+    : { type: 'null' };
+  const schema = object({
+    protocol: { type: 'string', enum: [DIRECTOR_WIRE_PROTOCOL] },
+    mode: {
+      type: 'string',
+      enum:
+        origins.length && !snapshot.nativeTurn
+          ? ['quiet', 'coordinate', 'bounded_opportunity']
+          : ['quiet', 'coordinate'],
+    },
+    candidates: array(
+      {
+        anyOf: [
+          object({ ref: candidate, decision: { type: 'string', enum: ['select'] }, nudge }),
+          object({ ref: candidate, decision: { type: 'string', enum: ['defer'] }, reason: text }),
+        ],
+      },
+      !catalog.candidates.length,
+    ),
+    opportunities: array(
+      object({
+        id: text,
+        title: text,
+        description: text,
+        playerImpact: text,
+        actors: array(actors, !catalog.actors.length),
+        places: array(refs(values(catalog.places)), !catalog.places.length),
+        activity: { type: 'string', enum: ['conversation', 'meeting', 'follow_up'] },
+        origin: origins.length ? { anyOf: origins } : { type: 'null' },
+        stagingIntents: array(
+          object({
+            actorRef: actors,
+            kind: { type: 'string', enum: ['future_task'] },
+            task: text,
+          }),
+          !catalog.actors.length,
+        ),
+        actorTopics: topicSchema,
+      }),
+      !origins.length || !!snapshot.nativeTurn,
+    ),
+    audit: object({
+      reason: text,
+      sourceRefs: array(
+        refs([...values(catalog.sources), ...values(catalog.events)]),
+        !catalog.sources.length && !catalog.events.length,
+      ),
+    }),
+  });
+  if (JSON.stringify(schema).length > 24_000)
+    throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
+      code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
+    });
+  return { format: 'json_schema', name: 'director_response_v2', strict: true, schema };
 }

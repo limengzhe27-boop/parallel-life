@@ -377,7 +377,7 @@ test('model adapter performs input preflight without spending, uses JSON output 
   assert.equal(await adapter.decide(f.snapshot, controller.signal), raw);
   assert.equal(calls.length, 1);
   assert.equal(calls[0]!.tokens, 4096);
-  assert.deepEqual(calls[0]!.output, { format: 'json_object' });
+  assert.equal(calls[0]!.output?.format, 'json_schema');
   assert.equal(calls[0]!.signal, controller.signal);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal(payload.promptVersion, DIRECTOR_RUNTIME_PROMPT_VERSION);
@@ -808,4 +808,64 @@ test('wire candidate decisions have one identity and cannot leak authored source
   assert.equal(f.parse(quiet).mode, 'quiet');
   f.snapshot.candidates[0]!.sourceIds = ['authored:forged'];
   rejected(f, wire); // Decoder does not grant authored material to NPCs.
+});
+
+test('Director strict response grammar binds each reference namespace to this immutable catalog', async () => {
+  const f = await wireFixture();
+  const { directorResponseFormat } =
+    await import('../src/modules/world/infrastructure/director-model-protocol.ts');
+  const format = directorResponseFormat(f.snapshot);
+  assert.equal(format.format, 'json_schema');
+  if (format.format !== 'json_schema') throw Error('wrong format');
+  const root: any = format.schema;
+  assert.equal(format.strict, true);
+  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v2']);
+  assert.equal(root.properties.candidates.maxItems, 0);
+  const opportunity = root.properties.opportunities.items.properties;
+  assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
+  assert.deepEqual(opportunity.actors.items.enum, ['actor:1', 'actor:2']);
+  assert.deepEqual(opportunity.origin.anyOf[0].properties.eventRef.enum, ['event:1']);
+  assert.equal(opportunity.actorTopics.type, 'null');
+  const walk = (schema: any) => {
+    if (!schema || typeof schema !== 'object') return;
+    if (schema.type === 'object') {
+      assert.equal(schema.additionalProperties, false);
+      assert.deepEqual(schema.required.sort(), Object.keys(schema.properties).sort());
+    }
+    for (const value of Object.values(schema))
+      if (Array.isArray(value)) value.forEach(walk);
+      else walk(value);
+  };
+  walk(root);
+  assert.ok(JSON.stringify(root).length < 24000);
+});
+
+test('v2 staging is explicit, participant-specific, bounded and still only a future proposal', async () => {
+  const f = await wireFixture();
+  const wire: any = structuredClone(f.wire);
+  wire.protocol = 'director-wire-v2';
+  rejected(f, wire);
+  wire.opportunities[0].stagingIntents = [
+    {
+      actorRef: 'actor:1',
+      kind: 'future_task',
+      task: 'Consider asking the player about your own arrangement; do not assume consent.',
+    },
+  ];
+  wire.opportunities[0].actorTopics = null;
+  const decision = f.parse(wire);
+  assert.deepEqual(decision.opportunities[0]!.stagingIntents, [
+    { actorId: 'a', kind: 'future_task', task: wire.opportunities[0].stagingIntents[0].task },
+  ]);
+  assert.deepEqual(decision.selectedCandidateIds, []);
+  const invalid = structuredClone(wire);
+  invalid.opportunities[0].stagingIntents[0].actorRef = 'actor:2';
+  rejected(f, invalid);
+  invalid.opportunities[0].stagingIntents[0].actorRef = 'actor:1';
+  invalid.opportunities[0].stagingIntents[0].kind = 'verified_fact';
+  rejected(f, invalid);
+  const malformedPlace = structuredClone(wire);
+  malformedPlace.opportunities[0].places = ['place:42a1c6d995f1f5c7'];
+  rejected(f, malformedPlace); // No hash alias salvage and no changed prior paid record.
+  assert.equal(f.parse(f.wire).opportunities[0]!.stagingIntents, undefined); // Stored v1 replay remains canonical.
 });
