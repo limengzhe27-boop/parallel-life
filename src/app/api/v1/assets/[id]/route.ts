@@ -1,5 +1,6 @@
 import { authenticated, endpoint, HttpError } from '../../../../../server/http.ts';
 import { Id } from '../../../../../contracts/api.ts';
+import { isValidMediaMagicBytes } from '../../../../../modules/media/domain/magic-bytes.ts';
 export const runtime = 'nodejs';
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   return endpoint(async () => {
@@ -14,9 +15,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const bytes = worldId
       ? await s.assets.readForWorld(s.ownerId, worldId, id, revision)
       : await s.assets.read(s.ownerId, id);
+    const magic = isValidMediaMagicBytes(bytes);
+    const contentType = magic.mimeType ?? 'image/webp';
     return new Response(new Uint8Array(bytes), {
       headers: {
-        'Content-Type': 'image/webp',
+        'Content-Type': contentType,
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
         'Cross-Origin-Resource-Policy': 'same-origin',

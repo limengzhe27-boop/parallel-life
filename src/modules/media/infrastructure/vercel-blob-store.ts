@@ -8,16 +8,27 @@ export class VercelBlobStore implements AssetStore {
     this.credentials = credentials;
   }
   private path(key: string) {
-    if (!/^[0-9a-f-]{36}\.webp$/.test(key)) throw Error('INVALID_STORAGE_KEY');
+    if (
+      !/^[0-9a-f-]{36}\.(webp|mp4|png|jpg|jpeg)$/.test(key) &&
+      !/^[a-zA-Z0-9_-]+(\/[a-zA-Z0-9_-]+)*\/[0-9a-f-]{36}\.(webp|mp4|png|jpg|jpeg)$/.test(key)
+    )
+      throw Error('INVALID_STORAGE_KEY');
     return `assets/${key}`;
   }
   async put(key: string, data: Buffer) {
+    const contentType = key.endsWith('.mp4')
+      ? 'video/mp4'
+      : key.endsWith('.png')
+        ? 'image/png'
+        : key.endsWith('.jpg') || key.endsWith('.jpeg')
+          ? 'image/jpeg'
+          : 'image/webp';
     await put(this.path(key), data, {
       ...this.credentials,
       access: 'private',
       addRandomSuffix: false,
       allowOverwrite: false,
-      contentType: 'image/webp',
+      contentType,
       abortSignal: AbortSignal.timeout(30000),
     });
   }

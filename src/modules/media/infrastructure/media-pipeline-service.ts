@@ -229,8 +229,15 @@ export class MediaPipelineService {
 
     // 8. Persist to private AssetStore
     const assetId = randomUUID();
-    const storageKey = `worlds/${worldId}/generated/${assetId}.webp`;
-    await this.assetStore.put(storageKey, mediaBuffer);
+    const storageKey = `${assetId}.webp`;
+    try {
+      await this.assetStore.put(storageKey, mediaBuffer);
+    } catch (putErr) {
+      throw Object.assign(
+        new Error(`Asset store persistence failed: ${(putErr as Error)?.message || putErr}`),
+        { code: 'STORAGE_FAILED', cause: putErr },
+      );
+    }
 
     // 9. Pre-delivery check
     let approved = true;
@@ -418,8 +425,15 @@ export class MediaPipelineService {
 
     // 8. Persist to private AssetStore
     const assetId = randomUUID();
-    const storageKey = `worlds/${worldId}/generated/${assetId}.mp4`;
-    await this.assetStore.put(storageKey, mediaBuffer);
+    const storageKey = `${assetId}.mp4`;
+    try {
+      await this.assetStore.put(storageKey, mediaBuffer);
+    } catch (putErr) {
+      throw Object.assign(
+        new Error(`Asset store persistence failed: ${(putErr as Error)?.message || putErr}`),
+        { code: 'STORAGE_FAILED', cause: putErr },
+      );
+    }
 
     // 9. Pre-delivery check
     let approved = true;

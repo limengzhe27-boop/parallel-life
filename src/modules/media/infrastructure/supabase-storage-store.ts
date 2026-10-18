@@ -25,7 +25,11 @@ export class SupabaseStorageStore implements AssetStore {
   }
 
   private path(key: string) {
-    if (!/^[0-9a-f-]{36}\.webp$/.test(key)) throw Error('INVALID_STORAGE_KEY');
+    if (
+      !/^[0-9a-f-]{36}\.(webp|mp4|png|jpg|jpeg)$/.test(key) &&
+      !/^[a-zA-Z0-9_-]+(\/[a-zA-Z0-9_-]+)*\/[0-9a-f-]{36}\.(webp|mp4|png|jpg|jpeg)$/.test(key)
+    )
+      throw Error('INVALID_STORAGE_KEY');
     return `${this.baseUrl}/${this.bucket}/assets/${key}`;
   }
 
@@ -38,9 +42,16 @@ export class SupabaseStorageStore implements AssetStore {
   }
 
   async put(key: string, data: Buffer) {
+    const contentType = key.endsWith('.mp4')
+      ? 'video/mp4'
+      : key.endsWith('.png')
+        ? 'image/png'
+        : key.endsWith('.jpg') || key.endsWith('.jpeg')
+          ? 'image/jpeg'
+          : 'image/webp';
     const response = await fetch(this.path(key), {
       method: 'POST',
-      headers: this.headers({ 'Content-Type': 'image/webp', 'x-upsert': 'false' }),
+      headers: this.headers({ 'Content-Type': contentType, 'x-upsert': 'false' }),
       body: new Uint8Array(data),
       signal: AbortSignal.timeout(30000),
     });

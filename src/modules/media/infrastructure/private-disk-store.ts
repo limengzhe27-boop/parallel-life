@@ -7,12 +7,17 @@ export class PrivateDiskStore {
     this.directory = path.resolve(directory);
   }
   private file(key: string) {
-    if (!/^[0-9a-f-]{36}\.webp$/.test(key)) throw Error('INVALID_STORAGE_KEY');
+    if (
+      !/^[0-9a-f-]{36}\.(webp|mp4|png|jpg|jpeg)$/.test(key) &&
+      !/^[a-zA-Z0-9_-]+(\/[a-zA-Z0-9_-]+)*\/[0-9a-f-]{36}\.(webp|mp4|png|jpg|jpeg)$/.test(key)
+    )
+      throw Error('INVALID_STORAGE_KEY');
     return path.join(this.directory, key);
   }
   async put(key: string, data: Buffer) {
-    await mkdir(this.directory, { recursive: true, mode: 0o700 });
-    await writeFile(this.file(key), data, { flag: 'wx', mode: 0o600 });
+    const filePath = this.file(key);
+    await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+    await writeFile(filePath, data, { flag: 'wx', mode: 0o600 });
   }
   async get(key: string) {
     return readFile(this.file(key));

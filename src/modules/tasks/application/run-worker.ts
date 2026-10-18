@@ -57,6 +57,7 @@ export async function runOne(
         ? String((error as Error).message).slice(0, 120)
         : ((error as { code?: string })?.code ??
           (error as { code?: string; constraint?: string })?.constraint ??
+          (error as Error)?.message?.slice(0, 120) ??
           (error as Error)?.name);
     /* Our own shutdown cancelled the call: the upstream may still have completed,
        so the outcome is unknown (never a silent failure and never auto-retried). */
