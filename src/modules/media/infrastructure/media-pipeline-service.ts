@@ -150,28 +150,36 @@ export class MediaPipelineService {
     // 6. Wait / Poll for completion
     let outputUrl: string | undefined =
       receipt.outputUrls && receipt.outputUrls.length > 0 ? receipt.outputUrls[0] : undefined;
+    let outputBase64: string | undefined = receipt.outputBase64;
     let status = receipt.status;
     let attempts = 0;
 
-    while (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled' && attempts < this.maxPollAttempts) {
-      attempts++;
-      if (this.pollIntervalMs > 0) {
-        await new Promise((r) => setTimeout(r, this.pollIntervalMs));
-      }
-      const pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId);
-      status = pollRes.status;
-      if (status === 'succeeded' && pollRes.outputUrls && pollRes.outputUrls.length > 0) {
-        outputUrl = pollRes.outputUrls[0];
-        break;
-      }
-      if (status === 'failed' || status === 'cancelled') {
-        throw Object.assign(new Error(`Provider generation failed: ${pollRes.error ?? status}`), {
-          code: 'PROVIDER_GENERATION_FAILED',
-        });
+    if (status !== 'succeeded' || (!outputUrl && !outputBase64)) {
+      while (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled' && attempts < this.maxPollAttempts) {
+        attempts++;
+        if (this.pollIntervalMs > 0) {
+          await new Promise((r) => setTimeout(r, this.pollIntervalMs));
+        }
+        const pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId);
+        status = pollRes.status;
+        if (status === 'succeeded') {
+          outputBase64 = pollRes.outputBase64 ?? outputBase64;
+          if (pollRes.outputUrls && pollRes.outputUrls.length > 0) {
+            outputUrl = pollRes.outputUrls[0];
+          }
+          if (outputUrl || outputBase64) {
+            break;
+          }
+        }
+        if (status === 'failed' || status === 'cancelled') {
+          throw Object.assign(new Error(`Provider generation failed: ${pollRes.error ?? status}`), {
+            code: 'PROVIDER_GENERATION_FAILED',
+          });
+        }
       }
     }
 
-    if (!outputUrl) {
+    if (!outputUrl && !outputBase64) {
       throw Object.assign(new Error('Generation incomplete or output URL missing'), {
         code: 'GENERATION_INCOMPLETE',
         providerTaskId: receipt.providerTaskId,
@@ -179,15 +187,33 @@ export class MediaPipelineService {
     }
 
     // 7. Download and validate media bytes
-    const mediaResponse = await this.fetchFn(outputUrl);
-    if (!mediaResponse.ok) {
-      throw Object.assign(new Error(`Failed to download output media: ${mediaResponse.status}`), {
-        code: 'DOWNLOAD_FAILED',
-      });
+    let mediaBuffer: Buffer;
+    if (outputBase64) {
+      mediaBuffer = Buffer.from(outputBase64, 'base64');
+    } else if (outputUrl?.startsWith('data:')) {
+      const match = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i.exec(outputUrl);
+      if (match) {
+        mediaBuffer = Buffer.from(match[1]!, 'base64');
+      } else {
+        const mediaResponse = await this.fetchFn(outputUrl);
+        if (!mediaResponse.ok) {
+          throw Object.assign(new Error(`Failed to download output media: ${mediaResponse.status}`), {
+            code: 'DOWNLOAD_FAILED',
+          });
+        }
+        const arrayBuffer = await mediaResponse.arrayBuffer();
+        mediaBuffer = Buffer.from(arrayBuffer);
+      }
+    } else {
+      const mediaResponse = await this.fetchFn(outputUrl!);
+      if (!mediaResponse.ok) {
+        throw Object.assign(new Error(`Failed to download output media: ${mediaResponse.status}`), {
+          code: 'DOWNLOAD_FAILED',
+        });
+      }
+      const arrayBuffer = await mediaResponse.arrayBuffer();
+      mediaBuffer = Buffer.from(arrayBuffer);
     }
-
-    const arrayBuffer = await mediaResponse.arrayBuffer();
-    const mediaBuffer = Buffer.from(arrayBuffer);
 
     const magicCheck = isValidMediaMagicBytes(mediaBuffer);
     if (!magicCheck.valid) {
@@ -318,28 +344,36 @@ export class MediaPipelineService {
     // 6. Poll for completion
     let outputUrl: string | undefined =
       receipt.outputUrls && receipt.outputUrls.length > 0 ? receipt.outputUrls[0] : undefined;
+    let outputBase64: string | undefined = receipt.outputBase64;
     let status = receipt.status;
     let attempts = 0;
 
-    while (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled' && attempts < this.maxPollAttempts) {
-      attempts++;
-      if (this.pollIntervalMs > 0) {
-        await new Promise((r) => setTimeout(r, this.pollIntervalMs));
-      }
-      const pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId);
-      status = pollRes.status;
-      if (status === 'succeeded' && pollRes.outputUrls && pollRes.outputUrls.length > 0) {
-        outputUrl = pollRes.outputUrls[0];
-        break;
-      }
-      if (status === 'failed' || status === 'cancelled') {
-        throw Object.assign(new Error(`Provider video generation failed: ${pollRes.error ?? status}`), {
-          code: 'PROVIDER_GENERATION_FAILED',
-        });
+    if (status !== 'succeeded' || (!outputUrl && !outputBase64)) {
+      while (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled' && attempts < this.maxPollAttempts) {
+        attempts++;
+        if (this.pollIntervalMs > 0) {
+          await new Promise((r) => setTimeout(r, this.pollIntervalMs));
+        }
+        const pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId);
+        status = pollRes.status;
+        if (status === 'succeeded') {
+          outputBase64 = pollRes.outputBase64 ?? outputBase64;
+          if (pollRes.outputUrls && pollRes.outputUrls.length > 0) {
+            outputUrl = pollRes.outputUrls[0];
+          }
+          if (outputUrl || outputBase64) {
+            break;
+          }
+        }
+        if (status === 'failed' || status === 'cancelled') {
+          throw Object.assign(new Error(`Provider video generation failed: ${pollRes.error ?? status}`), {
+            code: 'PROVIDER_GENERATION_FAILED',
+          });
+        }
       }
     }
 
-    if (!outputUrl) {
+    if (!outputUrl && !outputBase64) {
       throw Object.assign(new Error('Video generation incomplete or output URL missing'), {
         code: 'GENERATION_INCOMPLETE',
         providerTaskId: receipt.providerTaskId,
@@ -347,15 +381,33 @@ export class MediaPipelineService {
     }
 
     // 7. Download and validate video
-    const mediaResponse = await this.fetchFn(outputUrl);
-    if (!mediaResponse.ok) {
-      throw Object.assign(new Error(`Failed to download output video: ${mediaResponse.status}`), {
-        code: 'DOWNLOAD_FAILED',
-      });
+    let mediaBuffer: Buffer;
+    if (outputBase64) {
+      mediaBuffer = Buffer.from(outputBase64, 'base64');
+    } else if (outputUrl?.startsWith('data:')) {
+      const match = /^data:video\/[a-z0-9.+-]+;base64,(.+)$/i.exec(outputUrl);
+      if (match) {
+        mediaBuffer = Buffer.from(match[1]!, 'base64');
+      } else {
+        const mediaResponse = await this.fetchFn(outputUrl);
+        if (!mediaResponse.ok) {
+          throw Object.assign(new Error(`Failed to download output video: ${mediaResponse.status}`), {
+            code: 'DOWNLOAD_FAILED',
+          });
+        }
+        const arrayBuffer = await mediaResponse.arrayBuffer();
+        mediaBuffer = Buffer.from(arrayBuffer);
+      }
+    } else {
+      const mediaResponse = await this.fetchFn(outputUrl!);
+      if (!mediaResponse.ok) {
+        throw Object.assign(new Error(`Failed to download output video: ${mediaResponse.status}`), {
+          code: 'DOWNLOAD_FAILED',
+        });
+      }
+      const arrayBuffer = await mediaResponse.arrayBuffer();
+      mediaBuffer = Buffer.from(arrayBuffer);
     }
-
-    const arrayBuffer = await mediaResponse.arrayBuffer();
-    const mediaBuffer = Buffer.from(arrayBuffer);
 
     const magicCheck = isValidMediaMagicBytes(mediaBuffer);
     if (!magicCheck.valid || magicCheck.type !== 'video') {

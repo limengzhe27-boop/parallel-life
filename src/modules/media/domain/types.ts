@@ -134,6 +134,7 @@ export type ProviderTaskReceipt = {
   provider: string;
   model: string;
   outputUrls?: string[];
+  outputBase64?: string;
   estimatedWaitSeconds?: number;
   urls?: {
     get?: string;

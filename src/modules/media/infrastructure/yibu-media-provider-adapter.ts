@@ -87,13 +87,22 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
       throw Object.assign(new Error('gateway returned no image bytes'), { code: 'UNAVAILABLE' });
     }
     const providerTaskId = `yibu_${globalThis.crypto.randomUUID()}`;
+    const dataUri = `data:image/jpeg;base64,${base64}`;
     this.results.set(providerTaskId, {
       providerTaskId,
       status: 'succeeded',
       outputBase64: base64,
+      outputUrls: [dataUri],
       completedAt: new Date().toISOString(),
     });
-    return { providerTaskId, status: 'succeeded', provider: this.providerName, model: this.model };
+    return {
+      providerTaskId,
+      status: 'succeeded',
+      outputUrls: [dataUri],
+      outputBase64: base64,
+      provider: this.providerName,
+      model: this.model,
+    };
   }
 
   async submitVideo(_params: SubmitVideoProviderParams): Promise<ProviderTaskReceipt> {
