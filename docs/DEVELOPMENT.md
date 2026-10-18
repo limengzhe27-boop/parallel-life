@@ -2572,3 +2572,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
   - 生产部署：`dpl_BdjADCVkEGaKe6G17aBdg9QpsmpZ` (READY, mapped to `https://parallel-life-nu.vercel.app`)。
   - 实测脚本：`node scripts/verify-live-image-generation.mjs`。
   - 实际结果：NPC「简」成功在微信聊天中响应自拍意图，Outbox 事务落盘并派发 Task，Worker 调用 Yibu 网关生成 1.73MB 真实图像，Asset 下载 HTTP 200，PNG Magic Bytes 校验 PASS，聊天气泡与相册中 `photoId: 1a3a9554-6744-491f-82b1-5f6f65bf2925` 与 `mediaStatus: ready` 完美呈现。
+
+|44-155-CHAT-MEDIA-OPENING-I|[ ] 待验收|codex-root-chat155 sole integrator|unified-engine137 from e910b748; messages route/server media task orchestration, publication-genesis/authored-appointments, native entry/wake and focused tests/report. opening_fix subagent exclusive entry/wake; 小安 readonly.|Normal chat executes original durable image tasks without manual script; remove invented +2h invitations; existing migrated authored opening same engine, no forced success/model retry. Necessary check/build/DB and READY. No new paid validation authorized.|开始定位接线。|
+
+155接续：原聊天after→原Worker执行本人本world/event的queued媒体，pending只读刷新；删无依据+2h邀约生成器，保明确原稿邀约；删kernel关键词自动造媒体，人物拒绝不收费生图；同NPC深聊可承接自己待演事件，不唤其他人/全局导演；责任引用目录/最新协商优先。小安只读、opening_fix限定entry，root唯一集成。check3354、原entryPG10、媒体PG1/能力6/焦点5过，0新商业调用、0生产档写。旧档Director quiet保留，完整自然开场与已造2h记录来源核销未完，不冒称完成。

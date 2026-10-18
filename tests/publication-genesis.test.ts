@@ -861,3 +861,25 @@ for (const startAt of ['2026-02-30T09:00:00Z', 'not-a-date', '2026-10-12T17:00:0
     assert.deepEqual(c, before);
   });
 }
+
+test('required event material never manufactures a calendar deadline; explicit invitations retain original time', () => {
+  const c = content();
+  const baseline = compiled(input(c)).world.appointments;
+  c.candidates = [
+    {
+      key: 'required_event',
+      title: '一起商量',
+      kind: 'candidate',
+      editorialIntent: '讨论未来的安排',
+      prerequisites: [],
+      mutuallyExclusiveNodeKeys: [],
+      intent: { kind: 'director_event', actorKey: 'a_first' },
+      actorKeys: ['a_first'],
+      direction: { mode: 'required' },
+    },
+  ] as PublicationContent['candidates'];
+  const result = compiled(input(c));
+  assert.deepEqual(result.world.appointments, baseline);
+  assert.equal(result.world.appointments.length, 1);
+  assert.equal(result.world.appointments[0]?.at, '2026-10-12T11:00:00.000Z');
+});

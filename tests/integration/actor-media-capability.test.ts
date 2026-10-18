@@ -21,7 +21,10 @@ import type {
 } from '../../src/modules/world/domain/agent-runtime.ts';
 import { createMediaPipelineHandler } from '../../src/modules/media/infrastructure/media-pipeline-handler.ts';
 import { MediaPipelineService } from '../../src/modules/media/infrastructure/media-pipeline-service.ts';
-import type { MediaProviderAdapter, CharacterVisualAnchorRepository } from '../../src/modules/media/application/provider-ports.ts';
+import type {
+  MediaProviderAdapter,
+  CharacterVisualAnchorRepository,
+} from '../../src/modules/media/application/provider-ports.ts';
 import type { AssetStore } from '../../src/modules/media/application/asset-store.ts';
 import { PostgresTaskQueue } from '../../src/modules/tasks/infrastructure/postgres-task-queue.ts';
 
@@ -228,6 +231,52 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
   }
 
   await t.test(
+    'a photo request does not override an NPC refusal or create a paid media job',
+    async () => {
+      const f = await fixture();
+      await runNpcAgent(
+        {
+          attempts: store,
+          model: {
+            async decide() {
+              return JSON.stringify({
+                goals: [],
+                plans: [],
+                actions: [],
+                responsibilities: [],
+                decisions: [],
+                statements: [{ text: '现在不方便拍照。', dependsOnActionIds: [] }],
+              });
+            },
+          },
+          kernel: new PostgresNpcAgentKernel(app, worlds),
+        },
+        f.owner,
+        f.claim,
+        f.snapshot,
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.world_media_requests WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].n,
+        0,
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.outbox_jobs WHERE world_id=$1',
+            [f.worldId],
+          )
+        ).rows[0].n,
+        0,
+      );
+    },
+  );
+
+  await t.test(
     '1. media.generate_image proposal creates world_media_requests and outbox_jobs atomically',
     async () => {
       const f = await fixture();
@@ -296,10 +345,9 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
         assert.match(mediaReqs[0].document.prompt, /午后阳光照进的工作室窗台/);
 
         const outboxJobs = (
-          await sql.query(
-            'SELECT id, payload FROM parallel_life.outbox_jobs WHERE world_id=$1',
-            [f.worldId],
-          )
+          await sql.query('SELECT id, payload FROM parallel_life.outbox_jobs WHERE world_id=$1', [
+            f.worldId,
+          ])
         ).rows;
         assert.equal(outboxJobs.length, 1);
         assert.equal(outboxJobs[0].payload.type, 'image.generate');
@@ -375,10 +423,9 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
         assert.equal(mediaReqs[0].document.mediaType, 'video');
 
         const outboxJobs = (
-          await sql.query(
-            'SELECT id, payload FROM parallel_life.outbox_jobs WHERE world_id=$1',
-            [f.worldId],
-          )
+          await sql.query('SELECT id, payload FROM parallel_life.outbox_jobs WHERE world_id=$1', [
+            f.worldId,
+          ])
         ).rows;
         assert.equal(outboxJobs.length, 1);
         assert.equal(outboxJobs[0].payload.type, 'video.generate');
@@ -386,140 +433,134 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
     },
   );
 
-  await t.test(
-    '3. media.share reports ASSET_NOT_READY when asset is not ready',
-    async () => {
-      const f = await fixture();
+  await t.test('3. media.share reports ASSET_NOT_READY when asset is not ready', async () => {
+    const f = await fixture();
 
-      const unreadyAssetId = randomUUID();
-      await app.transaction(f.owner, async (sql) => {
-        await sql.query(
-          `INSERT INTO parallel_life.assets(id, owner_id, world_id, storage_key, mime_type, byte_length, width, height, origin, status)
+    const unreadyAssetId = randomUUID();
+    await app.transaction(f.owner, async (sql) => {
+      await sql.query(
+        `INSERT INTO parallel_life.assets(id, owner_id, world_id, storage_key, mime_type, byte_length, width, height, origin, status)
            VALUES($1, $2, $3, $4, 'image/jpeg', 100, 512, 512, 'upload', 'processing')`,
-          [unreadyAssetId, f.owner, f.worldId, `tmp/${unreadyAssetId}.jpg`],
-        );
-      });
-
-      const proposalUnready: AgentProposal = {
-        goals: [],
-        plans: [],
-        actions: [
-          {
-            id: 'action_share_fail',
-            goalId: f.goalId,
-            capability: 'media.share',
-            targetIds: [unreadyAssetId],
-            parameters: {
-              assetId: unreadyAssetId,
-              targetRecipientActorId: 'player',
-            },
-            preconditions: [],
-            dependsOnActionIds: [],
-            handlesResponsibilityIds: [],
-            status: 'ready',
-            sourceIds: ['source_init'],
-          },
-        ],
-        responsibilities: [],
-        decisions: [],
-        statements: [
-          {
-            text: '这张照片分享给你。',
-            dependsOnActionIds: ['action_share_fail'],
-          },
-        ],
-      };
-
-      await assert.rejects(
-        async () => {
-          await runNpcAgent(
-            {
-              attempts: store,
-              model: {
-                async decide() {
-                  return JSON.stringify(proposalUnready);
-                },
-              },
-              kernel: new PostgresNpcAgentKernel(app, worlds),
-            },
-            f.owner,
-            f.claim,
-            f.snapshot,
-          );
-        },
-        (err: any) =>
-          err.message.includes('REPLY_DEPENDS_ON_UNEXECUTED_ACTION') ||
-          err.message.includes('ASSET_NOT_READY') ||
-          err.message.includes('INVALID_PROPOSAL'),
+        [unreadyAssetId, f.owner, f.worldId, `tmp/${unreadyAssetId}.jpg`],
       );
-    },
-  );
+    });
 
-  await t.test(
-    '4. media.share succeeds when asset is ready and whitelisted',
-    async () => {
-      const f = await fixture();
-
-      const readyAssetId = randomUUID();
-      await app.transaction(f.owner, async (sql) => {
-        await sql.query(
-          `INSERT INTO parallel_life.assets(id, owner_id, world_id, storage_key, mime_type, byte_length, width, height, origin, status)
-           VALUES($1, $2, $3, $4, 'image/jpeg', 2048, 512, 512, 'upload', 'ready')`,
-          [readyAssetId, f.owner, f.worldId, `tmp/${readyAssetId}.jpg`],
-        );
-      });
-
-      const proposalReady: AgentProposal = {
-        goals: [],
-        plans: [],
-        actions: [
-          {
-            id: 'action_share_ok',
-            goalId: f.goalId,
-            capability: 'media.share',
-            targetIds: [readyAssetId],
-            parameters: {
-              assetId: readyAssetId,
-              targetRecipientActorId: 'player',
-              caption: '上次冲洗好的样片',
-            },
-            preconditions: [],
-            dependsOnActionIds: [],
-            handlesResponsibilityIds: [],
-            status: 'ready',
-            sourceIds: ['source_init'],
-          },
-        ],
-        responsibilities: [],
-        decisions: [],
-        statements: [
-          {
-            text: '这是上次冲洗好的样片，发你看看。',
-            dependsOnActionIds: ['action_share_ok'],
-          },
-        ],
-      };
-
-      const out = await runNpcAgent(
+    const proposalUnready: AgentProposal = {
+      goals: [],
+      plans: [],
+      actions: [
         {
-          attempts: store,
-          model: {
-            async decide() {
-              return JSON.stringify(proposalReady);
-            },
+          id: 'action_share_fail',
+          goalId: f.goalId,
+          capability: 'media.share',
+          targetIds: [unreadyAssetId],
+          parameters: {
+            assetId: unreadyAssetId,
+            targetRecipientActorId: 'player',
           },
-          kernel: new PostgresNpcAgentKernel(app, worlds),
+          preconditions: [],
+          dependsOnActionIds: [],
+          handlesResponsibilityIds: [],
+          status: 'ready',
+          sourceIds: ['source_init'],
         },
-        f.owner,
-        f.claim,
-        f.snapshot,
-      );
+      ],
+      responsibilities: [],
+      decisions: [],
+      statements: [
+        {
+          text: '这张照片分享给你。',
+          dependsOnActionIds: ['action_share_fail'],
+        },
+      ],
+    };
 
-      assert.ok(out.eventId);
-      assert.equal(out.results.length, 1);
-      assert.equal(out.results[0]?.outcome, 'succeeded');
-      assert.equal(out.results[0]?.outputRefs?.[0]?.kind, 'asset');
-      assert.equal(out.results[0]?.outputRefs?.[0]?.id, readyAssetId);
-    },
-  );
+    await assert.rejects(
+      async () => {
+        await runNpcAgent(
+          {
+            attempts: store,
+            model: {
+              async decide() {
+                return JSON.stringify(proposalUnready);
+              },
+            },
+            kernel: new PostgresNpcAgentKernel(app, worlds),
+          },
+          f.owner,
+          f.claim,
+          f.snapshot,
+        );
+      },
+      (err: any) =>
+        err.message.includes('REPLY_DEPENDS_ON_UNEXECUTED_ACTION') ||
+        err.message.includes('ASSET_NOT_READY') ||
+        err.message.includes('INVALID_PROPOSAL'),
+    );
+  });
+
+  await t.test('4. media.share succeeds when asset is ready and whitelisted', async () => {
+    const f = await fixture();
+
+    const readyAssetId = randomUUID();
+    await app.transaction(f.owner, async (sql) => {
+      await sql.query(
+        `INSERT INTO parallel_life.assets(id, owner_id, world_id, storage_key, mime_type, byte_length, width, height, origin, status)
+           VALUES($1, $2, $3, $4, 'image/jpeg', 2048, 512, 512, 'upload', 'ready')`,
+        [readyAssetId, f.owner, f.worldId, `tmp/${readyAssetId}.jpg`],
+      );
+    });
+
+    const proposalReady: AgentProposal = {
+      goals: [],
+      plans: [],
+      actions: [
+        {
+          id: 'action_share_ok',
+          goalId: f.goalId,
+          capability: 'media.share',
+          targetIds: [readyAssetId],
+          parameters: {
+            assetId: readyAssetId,
+            targetRecipientActorId: 'player',
+            caption: '上次冲洗好的样片',
+          },
+          preconditions: [],
+          dependsOnActionIds: [],
+          handlesResponsibilityIds: [],
+          status: 'ready',
+          sourceIds: ['source_init'],
+        },
+      ],
+      responsibilities: [],
+      decisions: [],
+      statements: [
+        {
+          text: '这是上次冲洗好的样片，发你看看。',
+          dependsOnActionIds: ['action_share_ok'],
+        },
+      ],
+    };
+
+    const out = await runNpcAgent(
+      {
+        attempts: store,
+        model: {
+          async decide() {
+            return JSON.stringify(proposalReady);
+          },
+        },
+        kernel: new PostgresNpcAgentKernel(app, worlds),
+      },
+      f.owner,
+      f.claim,
+      f.snapshot,
+    );
+
+    assert.ok(out.eventId);
+    assert.equal(out.results.length, 1);
+    assert.equal(out.results[0]?.outcome, 'succeeded');
+    assert.equal(out.results[0]?.outputRefs?.[0]?.kind, 'asset');
+    assert.equal(out.results[0]?.outputRefs?.[0]?.id, readyAssetId);
+  });
 });

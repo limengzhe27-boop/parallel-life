@@ -1,3 +1,5 @@
+import { after } from 'next/server';
+import { runCommittedChatMedia } from '../../../../../../server/chat-media-tasks.ts';
 import { resolveTurn } from '../../../../../../modules/world/application/resolve-turn.ts';
 import { NpcMessageError } from '../../../../../../server/npc-agent-services.ts';
 import {
@@ -34,6 +36,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (receipt) {
         try {
           await s.drainOutbox(s.ownerId);
+          after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId));
         } catch (error) {
           console.warn(
             JSON.stringify({
@@ -93,6 +96,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     */
       try {
         await s.drainOutbox(s.ownerId);
+        after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, result.event.id));
       } catch (error) {
         console.warn(
           JSON.stringify({

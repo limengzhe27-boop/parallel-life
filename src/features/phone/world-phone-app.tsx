@@ -387,6 +387,21 @@ export function WorldPhoneApp({
       request.current++;
     };
   }, [load]);
+  // Media has its own revision: completing it need not advance narrative version.
+  // Read only while pending; never re-submit a task or a paid model request here.
+  const hasPendingMedia = data?.messages.some((message) => message.mediaStatus === 'pending');
+  useEffect(() => {
+    if (!hasPendingMedia) return;
+    const timer = window.setInterval(() => {
+      if (
+        document.visibilityState === 'visible' &&
+        !phoneReady.current.sending &&
+        !phoneReady.current.refreshing
+      )
+        void load();
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [hasPendingMedia, load]);
   useEffect(() => {
     const onReturn = () => {
       if (document.visibilityState === 'visible') void load();

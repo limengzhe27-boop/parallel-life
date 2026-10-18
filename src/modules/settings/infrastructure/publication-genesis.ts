@@ -1,7 +1,6 @@
 import { Id } from '../../../contracts/api.ts';
 import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { PublishedWorldContentSchema } from '../../../contracts/published-world-content.ts';
-import { authoredAppointments } from '../domain/authored-appointments.ts';
 import { authoredSpace } from '../../world/domain/space.ts';
 import { actorContext } from '../../world/application/actor-context.ts';
 import type { WorldState } from '../../world/domain/types.ts';
@@ -392,17 +391,6 @@ export function compilePublicationGenesis(
         status: 'proposed',
       };
     });
-    world.appointments = [
-      ...world.appointments,
-      ...authoredAppointments({
-        candidates: c.candidates ?? [],
-        messages: c.phone.messages,
-        actorIds,
-        messageIds,
-        sourceEventId,
-        newId: id,
-      }),
-    ];
     const knownPlaces = sorted(c.places.filter((p) => p.knownAtStart)),
       knownKeys = new Set(knownPlaces.map((p) => p.key));
     const routes = [...c.routes]

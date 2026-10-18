@@ -7,6 +7,7 @@ import {
   readPendingEpisodeRequestsInTransaction,
 } from './agent-narrative-repository.ts';
 import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
+import { episodeAttentionAllows } from './agent-episode-attention.ts';
 import {
   eligibleEpisodeDispatches,
   episodeDispatchAttempt,
@@ -47,9 +48,9 @@ export async function readAgentPhoneEntryProbe(
     worldVersion: frame.worldVersion,
     realNow: new Date(now).toISOString(),
   });
-  // This fast path presents existing coordination only while browsing. Ordinary own responsibilities
-  // retain their original idle scheduling and actor-specific attention rules.
-  if (attention.conversationWithoutTarget || attention.focus.length) return { status: 'deferred' };
+  // Unresolved conversation focus grants no presentation permission. A verified private
+  // focus may resume only its own pending work; global coordination waits for browsing.
+  if (attention.conversationWithoutTarget) return { status: 'deferred' };
   const actors = (
     await sql.query(
       `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,
@@ -66,6 +67,7 @@ export async function readAgentPhoneEntryProbe(
     (a) =>
       a.status === 'response_received' &&
       a.document.channel === 'private' &&
+      episodeAttentionAllows(attention, a.actor_id) &&
       a.expected_world_version === frame.worldVersion &&
       a.expected_actor_revision === a.revision &&
       new Date(a.lease_until).getTime() > now,
@@ -83,6 +85,9 @@ export async function readAgentPhoneEntryProbe(
     actors.map(episodeDispatchAttempt),
   )[0];
   if (next) return ready('episode', next.commandId);
+  // A pending request for the private interlocutor is continuation of this conversation,
+  // not an interruption. Global Director work still waits until browsing resumes.
+  if (attention.focus.length) return { status: 'deferred' };
   const pendingDirectors = (
     await sql.query(
       `SELECT id,status,expected_world_version,lease_until FROM parallel_life.director_runtime_attempts

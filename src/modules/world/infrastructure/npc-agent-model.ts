@@ -239,6 +239,15 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   const payload = {
     responseContract: {
       protocol: NPC_WIRE_PROTOCOL,
+      referenceCatalog: {
+        responsibilities: viewState.responsibilities.map((r) => ({ id: r.id, status: r.status })),
+        questions: (viewState.questions ?? []).map((q) => ({ id: q.id })),
+      },
+      referenceRules: [
+        'decisions.responsibilityId and handlesResponsibilityIds reference only your existing responsibilities or complete new responsibilities in this proposal; a question or episode request ID is not a responsibility ID.',
+        'The current player input is the latest negotiation, not automatic acceptance. Older authored hints and plans do not override new proposed times, places, refusals or uncertainty.',
+        'If the player asks for an invitation, propose a supported complete execution using the current negotiated details, or ask for missing information; never claim an invitation has been sent without the action.',
+      ],
       outputSchemaHash: createHash('sha256').update(JSON.stringify(responseFormat)).digest('hex'),
       considerationRequired,
       considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,

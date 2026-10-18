@@ -52,7 +52,6 @@ import {
   type AgentJourney,
 } from '../domain/agent-travel.ts';
 import { worldBoundary } from '../domain/world-awareness.ts';
-import { routeUserIntent } from '../application/intent-router.ts';
 import {
   readAgentJourneysInTransaction,
   recordAgentDepartureInTransaction,
@@ -614,7 +613,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             const recipientActual = (
               await sql.query(
                 'SELECT document FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND owner_id=$2 AND subject_key=$3 AND source_version<=$4',
-                [attempt.worldId, ownerId, `actor:${recipientActorId}`, attempt.expectedWorldVersion],
+                [
+                  attempt.worldId,
+                  ownerId,
+                  `actor:${recipientActorId}`,
+                  attempt.expectedWorldVersion,
+                ],
               )
             ).rows[0]?.document;
 
@@ -815,9 +819,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           const targetActorId = action.parameters.targetActorId;
           const relationship = action.parameters.relationship;
           const mayShare =
-            typeof action.parameters.mayShare === 'boolean'
-              ? action.parameters.mayShare
-              : true;
+            typeof action.parameters.mayShare === 'boolean' ? action.parameters.mayShare : true;
           const reason =
             typeof action.parameters.reason === 'string' && action.parameters.reason.trim()
               ? action.parameters.reason.trim()
@@ -834,13 +836,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             !relationship.trim() ||
             Object.keys(action.parameters).some(
               (key) =>
-                ![
-                  'targetActorId',
-                  'relationship',
-                  'mayShare',
-                  'reason',
-                  'note',
-                ].includes(key),
+                !['targetActorId', 'relationship', 'mayShare', 'reason', 'note'].includes(key),
             )
           ) {
             throw new AgentValidationError('RELATIONSHIP_BOND_PARAMETERS');
@@ -986,11 +982,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
               throw new AgentValidationError('MOMENT_ALREADY_LIKED');
             }
           } else if (kind === 'comment') {
-            if (
-              typeof comment !== 'string' ||
-              !comment.trim() ||
-              comment.trim().length > 500
-            ) {
+            if (typeof comment !== 'string' || !comment.trim() || comment.trim().length > 500) {
               throw new AgentValidationError('COMMENT_EMPTY');
             }
           }
@@ -1308,7 +1300,9 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         (e): e is Extract<WorldEffect, { type: 'appointment.confirmed' }> =>
           e.type === 'appointment.confirmed',
       )) {
-        const ap = executionWorld.appointments?.find((a: any) => a.id === confirmEffect.appointmentId);
+        const ap = executionWorld.appointments?.find(
+          (a: any) => a.id === confirmEffect.appointmentId,
+        );
         const title = ap?.title ?? '约定事项';
         const existingResp = accepted.state.responsibilities.find(
           (r) => r.subject.kind === 'appointment' && r.subject.id === confirmEffect.appointmentId,
@@ -1410,34 +1404,8 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           actorId: attempt.actorId,
           text: statement.text,
         });
-      if (snapshot.input.origin === 'player') {
-        const intent = routeUserIntent({ text: snapshot.input.text });
-        if (
-          intent.turnMode === 'video' &&
-          !effects.some((e) => e.type === 'media.requested')
-        ) {
-          effects.push({
-            type: 'media.requested',
-            id: `${attempt.commandId}_media`,
-            prompt: (intent.videoPrompt ?? snapshot.input.text).slice(0, 2000),
-            mediaType: 'video',
-            title: `【动态】${(intent.videoPrompt ?? snapshot.input.text).slice(0, 30)}`,
-            targetActorId: attempt.actorId,
-          });
-        } else if (
-          intent.turnMode === 'image' &&
-          !effects.some((e) => e.type === 'media.requested')
-        ) {
-          effects.push({
-            type: 'media.requested',
-            id: `${attempt.commandId}_media`,
-            prompt: (intent.imagePrompt ?? snapshot.input.text).slice(0, 2000),
-            mediaType: 'image',
-            title: `【留影】${(intent.imagePrompt ?? snapshot.input.text).slice(0, 30)}`,
-            targetActorId: attempt.actorId,
-          });
-        }
-      }
+      // Media requests come from validated NPC actions above. A user's keyword
+      // alone must not override this character's refusal or invent an execution.
       const resolvedFocus = accepted.state.focus?.questionSourceId;
       if (
         resolvedFocus &&
