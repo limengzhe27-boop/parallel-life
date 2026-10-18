@@ -54,6 +54,13 @@ const Execution = z.strictObject({
     sourceIds: z.array(Id).min(1).max(64),
   }),
 });
+const MediaDecision = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('not_requested'), execution: z.null() }),
+  z.strictObject({ kind: z.literal('decline'), execution: z.null() }),
+  z.strictObject({ kind: z.literal('generate_image'), execution: Execution }),
+  z.strictObject({ kind: z.literal('generate_video'), execution: Execution }),
+  z.strictObject({ kind: z.literal('share_existing'), execution: Execution }),
+]);
 const Wire = z.strictObject({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
   consideration: z
@@ -69,6 +76,8 @@ const Wire = z.strictObject({
         .optional(),
     })
     .nullable(),
+  /** Absent only when replaying older protected model responses. */
+  mediaDecision: MediaDecision.optional(),
   executions: z.array(Execution).max(16).optional(),
   statements: z.array(z.unknown()).max(32),
   goals: z.array(z.unknown()).max(24),
@@ -101,8 +110,23 @@ const ParameterEntries = z
     }),
   )
   .max(32);
+const ModelExecution = Execution.extend({
+  action: Execution.shape.action.extend({
+    parameters: ParameterEntries,
+    preconditions: AgentProposalSchema.shape.actions.element.shape.preconditions,
+  }),
+});
+const ModelMediaDecision = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('not_requested'), execution: z.null() }),
+  z.strictObject({ kind: z.literal('decline'), execution: z.null() }),
+  z.strictObject({ kind: z.literal('generate_image'), execution: ModelExecution }),
+  z.strictObject({ kind: z.literal('generate_video'), execution: ModelExecution }),
+  z.strictObject({ kind: z.literal('share_existing'), execution: ModelExecution }),
+]);
 // The model and decoder reuse canonical proposal shapes; only transport references/parameters differ.
 const ModelWire = Wire.extend({
+  // New strict responses must make a decision, including an explicit not_requested choice.
+  mediaDecision: ModelMediaDecision,
   statements: AgentProposalSchema.shape.statements,
   goals: AgentProposalSchema.shape.goals,
   actions: z
@@ -135,17 +159,7 @@ const ModelWire = Wire.extend({
   replyAssessments: AgentProposalSchema.shape.replyAssessments,
   questionWithdrawals: AgentProposalSchema.shape.questionWithdrawals,
   locationReports: AgentProposalSchema.shape.locationReports,
-  executions: z
-    .array(
-      Execution.extend({
-        action: Execution.shape.action.extend({
-          parameters: ParameterEntries,
-          preconditions: AgentProposalSchema.shape.actions.element.shape.preconditions,
-        }),
-      }),
-    )
-    .max(16)
-    .optional(),
+  executions: z.array(ModelExecution).max(16).optional(),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
@@ -223,19 +237,28 @@ export function npcResponseFormat(
     if (!object) throw Error('NPC_RESPONSE_SCHEMA');
     properties.consideration = object;
   }
-  const executions = properties.executions!;
-  const exec = (executions.anyOf?.[0] ?? executions).items!;
-  const alternatives = exec.properties!.goal!.anyOf!;
   const goalIds = state.goals.map((g) => g.id);
-  const usable = alternatives.filter((g) => {
-    if (g.properties!.kind!.enum?.[0] !== 'existing') return true;
-    if (!goalIds.length) return false;
-    g.properties!.id!.enum = goalIds;
-    return true;
-  });
-  const first = usable[0];
-  if (!first) throw Error('NPC_RESPONSE_SCHEMA');
-  exec.properties!.goal = usable.length === 1 ? first : { anyOf: usable };
+  const scopeGoal = (execution: SchemaNode) => {
+    const alternatives = execution.properties?.goal?.anyOf;
+    if (!alternatives) throw Error('NPC_RESPONSE_SCHEMA');
+    const usable = alternatives.filter((g) => {
+      if (g.properties!.kind!.enum?.[0] !== 'existing') return true;
+      if (!goalIds.length) return false;
+      g.properties!.id!.enum = goalIds;
+      return true;
+    });
+    const first = usable[0];
+    if (!first) throw Error('NPC_RESPONSE_SCHEMA');
+    execution.properties!.goal = usable.length === 1 ? first : { anyOf: usable };
+  };
+  const executions = properties.executions!;
+  scopeGoal((executions.anyOf?.[0] ?? executions).items!);
+  const mediaOptions = properties.mediaDecision?.anyOf;
+  if (!mediaOptions) throw Error('NPC_RESPONSE_SCHEMA');
+  for (const option of mediaOptions) {
+    const execution = option.properties?.execution;
+    if (execution?.type === 'object') scopeGoal(execution);
+  }
   return { ...NPC_RESPONSE_FORMAT, schema };
 }
 
@@ -283,10 +306,39 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     'plans' in raw &&
     Array.isArray(raw.plans) &&
     raw.plans.some((p) => p && typeof p === 'object' && 'nextStep' in p);
-  if (!('protocol' in raw) && !('consideration' in raw) && !('executions' in raw) && !wirePlans)
+  if (
+    !('protocol' in raw) &&
+    !('consideration' in raw) &&
+    !('mediaDecision' in raw) &&
+    !('executions' in raw) &&
+    !wirePlans
+  )
     return raw;
   const wire = Wire.parse(transport({ protocol: NPC_WIRE_PROTOCOL, consideration: null, ...raw }));
-  const { protocol: _protocol, consideration, plans, executions = [], ...proposal } = wire;
+  const {
+    protocol: _protocol,
+    consideration,
+    mediaDecision,
+    plans,
+    executions: suppliedExecutions = [],
+    ...proposal
+  } = wire;
+  const mediaCapabilities = new Set(['media.generate_image', 'media.generate_video', 'media.share']);
+  const mediaCapability = {
+    generate_image: 'media.generate_image',
+    generate_video: 'media.generate_video',
+    share_existing: 'media.share',
+  } as const;
+  const executions = [...suppliedExecutions];
+  if (mediaDecision) {
+    if (suppliedExecutions.some((entry) => mediaCapabilities.has(entry.action.capability)))
+      throw Error('NPC_MEDIA_DECISION_CONFLICT');
+    if (mediaDecision.execution) {
+      if (mediaDecision.execution.action.capability !== mediaCapability[mediaDecision.kind])
+        throw Error('NPC_MEDIA_DECISION_CAPABILITY');
+      executions.push(mediaDecision.execution);
+    }
+  }
   // A typed intent is mapped to the original proposal, never executed here or inferred from speech.
   const seenExecutions = new Map<string, (typeof executions)[number]>();
   for (const execution of executions) {

@@ -355,7 +355,7 @@ test('native model schema is closed and required, and existing goals are scoped 
     Object.values(x).forEach(inspect);
   }
   inspect(empty.schema);
-  assert.ok(!JSON.stringify(empty.schema).includes('existing'));
+  assert.ok(!JSON.stringify(empty.schema).includes('"existing"'));
   const own = npcResponseFormat({
     goals: [
       {
@@ -369,6 +369,109 @@ test('native model schema is closed and required, and existing goals are scoped 
   });
   assert.ok(JSON.stringify(own).includes('own-goal'));
   assert.ok(!JSON.stringify(own).includes('hidden-goal'));
+});
+
+test('strict NPC media choice is required, bounded, and maps one complete image execution to the existing kernel', () => {
+  const { c, wire } = fixture();
+  c.channel.allowedCapabilities.push('media.generate_image');
+  const media = {
+    kind: 'generate_image',
+    execution: {
+      goal: { kind: 'new', id: 'photo-goal', summary: '分享本人此刻的生活留影', sourceIds: ['input'] },
+      plan: { id: 'photo-plan', summary: '先制作真实留影，再向对方分享', sourceIds: ['input'] },
+      action: {
+        id: 'photo-action',
+        capability: 'media.generate_image',
+        targetIds: [],
+        parameters: [
+          { name: 'sceneDescription', value: '本人在有记录的当下环境中留影' },
+          { name: 'purpose', value: 'portrait' },
+        ],
+        preconditions: [],
+        dependsOnActionIds: [],
+        handlesResponsibilityIds: [],
+        sourceIds: ['input'],
+      },
+    },
+  };
+  const raw = {
+    ...wire,
+    mediaDecision: media,
+    statements: [{ text: '我先处理这张留影，做好再告诉你。', dependsOnActionIds: ['photo-action'] }],
+  };
+  const before = structuredClone(raw);
+  const proposal = parseAgentProposal(c, raw);
+  assert.deepEqual(raw, before);
+  assert.equal(proposal.actions.length, 1);
+  assert.equal(proposal.actions[0]?.capability, 'media.generate_image');
+  assert.deepEqual(proposal.actions[0]?.parameters, {
+    sceneDescription: '本人在有记录的当下环境中留影',
+    purpose: 'portrait',
+  });
+  assert.equal(proposal.plans[0]?.nextActionId, 'photo-action');
+  assert.deepEqual(proposal.goals[0]?.sourceIds, ['input']);
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...wire,
+        mediaDecision: {
+          ...media,
+          execution: { ...media.execution, action: { ...media.execution.action, capability: 'media.share' } },
+        },
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...wire,
+        mediaDecision: media,
+        executions: [media.execution],
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...wire,
+        mediaDecision: {
+          ...media,
+          execution: { ...media.execution, action: { ...media.execution.action, sourceIds: ['hidden'] } },
+        },
+      }),
+    /SOURCE/,
+  );
+  const declined = parseAgentProposal(c, {
+    ...wire,
+    mediaDecision: { kind: 'decline', execution: null },
+    statements: [{ text: '我现在不想发照片。', dependsOnActionIds: [] }],
+  });
+  assert.equal(declined.actions.length, 0);
+  assert.equal(declined.statements.length, 1);
+  assert.throws(
+    () => parseAgentProposal(c, { ...wire, mediaDecision: { kind: 'generate_image', execution: null } }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+});
+
+test('new strict model media choices keep existing goals scoped, while old protected wire is still accepted', () => {
+  const schema = npcResponseFormat({ goals: [] });
+  if (schema.format !== 'json_schema') throw Error('schema');
+  const root = schema.schema as { properties: Record<string, unknown>; required: string[] };
+  assert.ok(root.required.includes('mediaDecision'));
+  assert.ok(!JSON.stringify(root.properties.mediaDecision).includes('"existing"'));
+  const own = npcResponseFormat({
+    goals: [{ id: 'my-goal', summary: '我的目标', status: 'active', sourceIds: ['input'], resultIds: [] }],
+  });
+  assert.ok(JSON.stringify(own).includes('my-goal'));
+  const { c, wire } = fixture();
+  assert.deepEqual(
+    parseAgentProposal(c, {
+      ...wire,
+      statements: [{ text: '我们先聊聊眼前这件事。', dependsOnActionIds: [] }],
+    }).actions,
+    [],
+  );
 });
 
 test('native response schema represents server event permission, never a guessed NPC choice', () => {

@@ -15,7 +15,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v23-strict-canonical-schema';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v24-explicit-media-decision';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -52,10 +52,8 @@ An authored plan observation addressed to you is a suggestion for future communi
 若channel.allowedCapabilities包含moment.interact，当本人需要对朋友圈/社交流中已发布的动态进行互动（点赞或发表评论）时，可提议moment.interact：parameters为{momentKey:目标动态的唯一键(必填),kind:"like"|"comment"(必填),comment?:评论文本(当kind为comment时必填),note?:互动附注}，handlesResponsibilityIds为对应的社交互动责任id（若有），goalId为对应的目标id（若有）。执行成功后内核将记录互动事件并将关联责任与目标状态置为fulfilled；若动态不存在、已点赞过、或评论为空，内核将判定失败。
 若channel.allowedCapabilities包含travel.begin，可提议本人沿worldContext.travelRoutes中已有路线出发：parameters仅{routeId:已有路线id}，sourceIds须包含本人的selfPosition.sourceId及本人目标依据。不能提议玩家移动，不新增路线/地点；成功仅开始在途，不等于到达、赴约或完成目标。到达由内核在真实时间满足后续接，不需要另一个模型行动。涉及已执行动作的成功句必须dependsOnActionIds关联该动作，失败后不能照常宣称成功；action.failureCode由内核维护，不要输出或伪造。意愿与产品支持分开，可表达本人态度并给世界内可行选项。
 【媒体互动与真实生活人格】
-严禁任何AI客服/机器式的生硬道歉与拒绝（严禁出现“我很抱歉，目前不方便分享我的图片”、“作为AI/模型”、“我无法提供照片”、“你有什么想讨论的呢”等机器套话）。你是故事世界里的真实人物在手机私聊。
-当对方索要照片、自拍或现场图片时：
-1. 若顺应给图：提议media.generate_image，sceneDescription必须详细描述该人物此时此地真实生活视觉画面（如“年轻女子在咖啡馆窗边微笑着举起手机生活自拍，自然光影，正面抓拍”），严禁直接照抄玩家原话。同时对白中必须像真实微信聊天一样先用生活口吻拖延时间或做铺垫（如“稍等一下哈，我找找看有没有好看的”、“在忙呢，等我两分钟拍一张给你”、“等等哈，我挑一张”、“这就拍，等下发你”）；媒体未完成前不声称照片已发出了，但可以用稍候拖延时间。
-2. 若婉拒给图：绝不能说“不能生成图片”，必须用符合人物性格的借口、打趣、反问或生活琐事自然推脱糊弄过去（如“大白天要什么自拍，上班不摸鱼啊？”、“今天素颜没洗头，才不给你看呢”、“这会儿光线太差了，下次见面直接看不就得了”、“天天看还没看够呀”），且不提议media.generate_image。
+你是故事中的人物，不是说明产品能力的客服。每轮在mediaDecision中作明确选择：没有媒体诉求且本人也不打算主动产生媒体时为not_requested；不愿提供时为decline；愿意并确有本轮允许的能力时，选择generate_image、generate_video或share_existing并给出完整execution。玩家索要照片不意味着你必须答应；按本人五维设定、当下关系、知情与现有素材自行判断，不照抄示例台词，不为了动作而违背人设。
+decline时自然表达本人的立场，不创造媒体动作，也不许口头承诺稍后发图。选择生成或分享时，execution必须有本人目标、计划、可执行动作、实际参数和合法sourceIds；不能只说“过会儿发”却不提交动作，也不能从玩家原话推断照片已经存在。sceneDescription/actionDescription须描述本人有依据的画面或动作，不是“发张照片”等用户请求的改写。媒体请求成功只证明已进入真实队列，不证明图片/视频完成；未收到真实素材前不得说已经拍好或发送成功。若没有可执行能力或必要素材，就如实选择decline并用人物口吻说明当前安排，不能借一个空计划冒充已答应。
 若channel.allowedCapabilities包含media.generate_image，当剧情或对话明确需要本人留影、拍摄现场或提供形象时，可提议media.generate_image：parameters为{sceneDescription:场景描述,purpose:"portrait"|"scene"|"memorial"|"evidence",targetActorId?:目标人物id}。
 若channel.allowedCapabilities包含media.generate_video，当剧情明确需要动作短片记录时，可提议media.generate_video：parameters为{actionDescription:动作描述,purpose:"scene_moment"|"character_action",targetActorId?:目标人物id,durationSeconds?:5|6}。
 若channel.allowedCapabilities包含media.share，当本人需要向对方分享已有素材时，可提议media.share：parameters为{assetId:素材id,targetRecipientActorId:接收方人物id,caption?:文字说明}。
@@ -84,7 +82,7 @@ PlayerDecision只对当前输入确实针对的responsibility作判断：accepte
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v1"，必含consideration（对象或null）、statements/goals/plans/actions/responsibilities/decisions六数组，新增动作完整放executions；按原生schema返回所有属性，没有值的可选属性填null，代码只去掉可选null。动作parameters使用[{name,value}]，不使用动态对象；name只用对应能力的参数名，value给出明确值（如title/at/placeId）。focus及replyAssessments/questionWithdrawals/locationReports可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
+最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v1"，必含consideration（对象或null）、mediaDecision（必为对象）、statements/goals/plans/actions/responsibilities/decisions六数组，非媒体新增动作完整放executions；按原生schema返回所有属性，没有值的可选属性填null，代码只去掉可选null。mediaDecision={kind:"not_requested"|"decline",execution:null}或{kind:"generate_image"|"generate_video"|"share_existing",execution:{goal,plan,action}}；活跃选择的execution与下文executions格式完全相同，action.capability必须分别为media.generate_image/media.generate_video/media.share，不要同时复制进executions。动作parameters使用[{name,value}]，不使用动态对象；name只用对应能力的参数名，value给出明确值（如sceneDescription/purpose）。focus及replyAssessments/questionWithdrawals/locationReports可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
 consideration非null时为{choice:"engage|decline|defer|need_information|quiet",reason:"本人实际依据",basisSourceIds:[]}；basisSourceIds只可引用已提供来源。coordination的npc_episode_consideration必须非null，即使不说话也明确quiet/defer/need_information与理由，不以statements=[]代替选择。不强迫参与；缺本人授权事件意图时明确need_information，不猜未授权全局剧本。普通player带manifest但无关时仍可null；responseContract.considerationAllowed=false时必须null，即使episodeFollowUps含旧请求、本人以前need_information、当前想继续参与，也不得重新输出旧consideration。旧机会已经考虑，后续用本人goal/plan/责任与当前对白继续，而不是重新消费请求。
 consideration选择need_information或defer时必须同时明确followUp:{waitingOn:"player|self|world"或null,missing:["本人确实需要的信息或条件"]}，代码绑定本人当前request的等待责任，不发明期限或自动催问。quiet若仍有待办也可给followUp，否则可省略。followUp不是玩家同意。若决定询问玩家，可以在statements自然提问；若选择安静，依然保存等待去向。不要另造同名followup责任。
 plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/actionIds/nextActionId/triggers/missingConditions，代码由单个nextStep精确绑定：
@@ -104,7 +102,7 @@ actions仅用于已有动作的非执行修改（waiting/blocked/withdrawn），
 responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|fulfilled|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?:{at,sourceId},resolutionResultId?,endReason?}。
 decisions:{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId,quote}。statements:{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}。
 focus可省略/null或{channel:"private|group|scene",threadId,subjectId:null或id,questionSourceId:null或id,replyToActorId:null或id}。所有问号表示可选键，竖线表示枚举择一。
-coordination安静的合法格式：{"protocol":"npc-wire-v1","consideration":{"choice":"quiet","reason":"当前安排不宜新增联系","basisSourceIds":[]},"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
+coordination安静的合法格式：{"protocol":"npc-wire-v1","consideration":{"choice":"quiet","reason":"当前安排不宜新增联系","basisSourceIds":[]},"mediaDecision":{"kind":"not_requested","execution":null},"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
 `;
 
 function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
