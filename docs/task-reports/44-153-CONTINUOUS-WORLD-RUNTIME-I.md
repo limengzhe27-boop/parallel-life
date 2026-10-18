@@ -43,3 +43,5 @@ world_clock增加continuity_mode（presence/continuous）和pause_reason（legac
 ## 新旧页面协议边界
 
 发现旧客户端WorldClockSchema是strictObject；新时钟内部字段不能无协商直接发给旧页面。追加同一clock接口的X-World-Time-Protocol:continuous-v1表示层协商：新LifeClient read/activity/control使用新形状；未协商的旧页面仅剥离新增continuityMode/pauseReason，原运行权限、真实时间和内核状态不改变。并非另起时钟或运行入口，wait回执本来不嵌clock，无需旁路。两项契约验证覆盖旧shape与新版三操作、0额外网络请求。生产团队实际plan读取为hobby，当前配置仍每天一次cron；未擅自升级订阅或扩大商业模型日上限。154作为后续调度能力工作保留。
+
+公网兼容检查首轮旧员工会话401，使用已有合成验收身份重新登录后只读检查；发现staff trial proxy未透传新协议头（正常玩家直接入口不受该代理影响）。代理白名单新增仅clock/clock activity且值精确continuous-v1的表示层头，绝不转发调用者Cookie/Authorization。三项协议/代理测试、check3323/build通过；修复将与同一153交付，不将私有试演改为正常持续世界。

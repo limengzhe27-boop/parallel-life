@@ -4,7 +4,11 @@ import 'server-only';
 import { getServices } from './services.ts';
 import { publicationStoryAdvanceRoute } from './publication-story-http.ts';
 import { z } from 'zod';
-import { trialOwnerToken, trialProxyTarget } from './publisher-trial-request.ts';
+import {
+  trialOwnerToken,
+  trialProxyTarget,
+  trialClockProtocolHeaders,
+} from './publisher-trial-request.ts';
 import { Id } from '../contracts/api.ts';
 import {
   PublishedWorldStartRequestSchema,
@@ -190,6 +194,7 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
         Cookie: 'pl_session=' + token,
         'X-CSRF-Token': guest.csrf(token),
         'Content-Type': 'application/json',
+        ...trialClockProtocolHeaders(path, request.headers),
       },
       body,
       cache: 'no-store',

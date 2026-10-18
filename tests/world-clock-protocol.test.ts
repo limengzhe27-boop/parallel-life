@@ -1,3 +1,4 @@
+import { trialClockProtocolHeaders } from '../src/server/publisher-trial-request.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -44,4 +45,26 @@ test('normal clock read, presence and explicit control negotiate the same protoc
   assert.equal(paths.length, 4);
   for (const call of paths.filter((x) => !x.path.endsWith('/session')))
     assert.equal(call.headers.get(WORLD_TIME_PROTOCOL_HEADER), WORLD_TIME_PROTOCOL);
+});
+
+test('staff trial proxy forwards only the recognized clock representation, not privileges or arbitrary headers', () => {
+  const headers = new Headers({
+    [WORLD_TIME_PROTOCOL_HEADER]: WORLD_TIME_PROTOCOL,
+    Cookie: 'never forward',
+    Authorization: 'never forward',
+  });
+  assert.deepEqual(trialClockProtocolHeaders(['world', 'clock'], headers), {
+    [WORLD_TIME_PROTOCOL_HEADER]: WORLD_TIME_PROTOCOL,
+  });
+  assert.deepEqual(trialClockProtocolHeaders(['world', 'clock', 'activity'], headers), {
+    [WORLD_TIME_PROTOCOL_HEADER]: WORLD_TIME_PROTOCOL,
+  });
+  assert.deepEqual(trialClockProtocolHeaders(['world', 'messages'], headers), {});
+  assert.deepEqual(
+    trialClockProtocolHeaders(
+      ['world', 'clock'],
+      new Headers({ [WORLD_TIME_PROTOCOL_HEADER]: 'unknown' }),
+    ),
+    {},
+  );
 });

@@ -1,3 +1,4 @@
+import { WORLD_TIME_PROTOCOL, WORLD_TIME_PROTOCOL_HEADER } from '../contracts/world-clock.ts';
 import { createHmac } from 'node:crypto';
 import { Id } from '../contracts/api.ts';
 /** Called only after the staff trial binding supplies this existing private owner. Never accepts a request owner. */
@@ -74,4 +75,17 @@ export function trialProxyTarget(
         ? ('none' as const)
         : ('json' as const),
   };
+}
+
+/** One non-authorizing representation header may cross the staff proxy, never caller cookies or roles. */
+export function trialClockProtocolHeaders(
+  path: readonly string[],
+  headers: Headers,
+): Record<string, string> {
+  return path[0] === 'world' &&
+    path[1] === 'clock' &&
+    (path.length === 2 || (path.length === 3 && path[2] === 'activity')) &&
+    headers.get(WORLD_TIME_PROTOCOL_HEADER) === WORLD_TIME_PROTOCOL
+    ? { [WORLD_TIME_PROTOCOL_HEADER]: WORLD_TIME_PROTOCOL }
+    : {};
 }
