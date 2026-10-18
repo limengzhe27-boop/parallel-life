@@ -53,6 +53,7 @@ export function PhoneDesktop({
     )
     .sort((a, b) => b.at.localeCompare(a.at))[0];
   const record = choice?.intent || note?.title;
+  const unread = data.contacts.reduce((sum, contact) => sum + (contact.unread || 0), 0);
 
   // Key matter card: priority to active near-term matter or pursuit
   const currentItems = records?.status === 'ready' ? records.data.current : [];
@@ -133,6 +134,28 @@ export function PhoneDesktop({
       <time className={styles.storyTime} dateTime={reference || undefined}>
         {dateLabel} {timeLabel}
       </time>
+      {unread > 0 && (
+        <button
+          type="button"
+          onClick={() => open('messages')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            margin: '10px 0 0',
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '1px solid #fecaca',
+            background: '#fef2f2',
+            color: '#b91c1c',
+            fontWeight: 600,
+            textAlign: 'left',
+          }}
+        >
+          <span aria-hidden="true">●</span>
+          <span>有人给你发了 {unread} 条消息</span>
+        </button>
+      )}
 
       <div className={styles.widgets}>
         <button
