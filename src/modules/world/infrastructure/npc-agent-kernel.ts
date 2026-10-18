@@ -1101,13 +1101,21 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           if (!validation.success)
             throw new AgentValidationError(`MEDIA_IMAGE_PARAMETERS:${validation.errorCode}`);
           const reqId = randomUUID();
-          const desc = validation.data.sceneDescription;
+          let desc = validation.data.sceneDescription;
+          const actorName = snapshot.actor.name || '人物';
+          if (!desc || /给我发|发一张|发个|你的图片|你的照片/.test(desc)) {
+            desc = `${actorName}的真实生活自拍，身处日常生活场景，自然光影，正面微笑着看向镜头，真实自然摄影风格`;
+          }
+          const isSelfie = validation.data.purpose === 'portrait' || /自拍|随拍/.test(desc);
+          const title = isSelfie
+            ? `【留影】${actorName}的生活随拍`
+            : `【留影】${desc.slice(0, 24)}`;
           effects.push({
             type: 'media.requested',
             id: reqId,
             prompt: desc,
             mediaType: 'image',
-            title: `【留影】${desc.slice(0, 30)}`,
+            title,
             targetActorId: attempt.actorId,
           });
           outputRefs = [{ kind: 'media', id: reqId }];
@@ -1397,13 +1405,15 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           });
         }
       }
-      for (const statement of accepted.statements)
+      for (const statement of accepted.statements) {
+        const text = statement.text;
         effects.push({
           type: 'message.received',
           id: randomUUID(),
           actorId: attempt.actorId,
-          text: statement.text,
+          text,
         });
+      }
       // Media requests come from validated NPC actions above. A user's keyword
       // alone must not override this character's refusal or invent an execution.
       const resolvedFocus = accepted.state.focus?.questionSourceId;
