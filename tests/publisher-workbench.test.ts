@@ -486,7 +486,12 @@ function overallHarness(overrides: Partial<Parameters<typeof PublisherWorkbench>
   };
   const input = () => render().find((n) => n.props.id === 'writer-overall-text')!;
   const button = (label: string) => {
-    const b = render().find((n) => n.type === 'button' && n.props.children === label);
+    const b = render().find(
+      (n) =>
+        n.type === 'button' &&
+        (n.props.children === label ||
+          (typeof n.props.children === 'string' && n.props.children.startsWith(label))),
+    );
     assert.ok(b, label);
     return b;
   };

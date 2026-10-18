@@ -495,6 +495,14 @@ export function applyEvent(
             : event.data?.userText
               ? `【事件${isVideo ? '记录' : '纪念'}】${event.data.userText.slice(0, 20)}`
               : defaultTitle;
+        const targetActorId =
+          'targetActorId' in effect && typeof effect.targetActorId === 'string'
+            ? effect.targetActorId
+            : undefined;
+        const isPlayer =
+          'isPlayer' in effect && typeof effect.isPlayer === 'boolean'
+            ? effect.isPlayer
+            : undefined;
         state.mediaRequests.push({
           id: effect.id,
           prompt: effect.prompt,
@@ -502,6 +510,8 @@ export function applyEvent(
           status: 'pending',
           sourceEventId,
           mediaType,
+          ...(targetActorId ? { targetActorId } : {}),
+          ...(typeof isPlayer === 'boolean' ? { isPlayer } : {}),
         });
         jobs.push({
           id: `${event.id}_${effect.id}`,
@@ -512,6 +522,8 @@ export function applyEvent(
           prompt: effect.prompt,
           title,
           mediaType,
+          ...(targetActorId ? { targetActorId } : {}),
+          ...(typeof isPlayer === 'boolean' ? { isPlayer } : {}),
         });
         break;
       }

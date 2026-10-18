@@ -95,6 +95,32 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
     ) {
       return readTrialPublicationMedia(trial.ownerId, trial.worldId, path[2]!);
     }
+    if (
+      request.method === 'GET' &&
+      path.length === 2 &&
+      path[0] === 'world' &&
+      path[1] === 'snapshot'
+    ) {
+      const svc = getServices();
+      const state = await svc.worlds.get({ userId: trial.ownerId }, trial.worldId);
+      return publisherJson({
+        trialId,
+        worldId: trial.worldId,
+        ownerId: trial.ownerId,
+        title: state.title,
+        time: state.time,
+        version: state.version,
+        actors: state.actors.map((a) => ({
+          id: a.id,
+          name: a.name,
+          relationship: a.relationship,
+        })),
+        appointments: state.appointments,
+        appointmentsCount: state.appointments.length,
+        factsCount: state.facts.length,
+        messagesCount: state.messages.length,
+      });
+    }
     // A scoped client handshake uses staff-bound CSRF and never creates or replaces a player's cookie.
     if (path.length === 1 && path[0] === 'session' && request.method === 'POST')
       return publisherJson({ kind: 'guest', csrfToken: request.headers.get('X-Publisher-CSRF') });

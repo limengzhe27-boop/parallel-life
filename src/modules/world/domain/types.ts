@@ -65,6 +65,9 @@ export type MediaRequest = {
   errorCode?: string;
   sourceEventId: Id;
   mediaType?: 'image' | 'video';
+  targetActorId?: Id;
+  isPlayer?: boolean;
+  referenceAssetId?: Id;
   deliveryDecision?: {
     deliverToChat: boolean;
     deliverToAlbum: boolean;
@@ -346,6 +349,8 @@ export type WorldEffect =
       prompt: string;
       title?: string;
       mediaType?: 'image' | 'video';
+      targetActorId?: Id;
+      isPlayer?: boolean;
     }
   | { type: 'choice.recorded'; id: Id; quote: string; intent: string }
   | { type: 'choice.next_step'; id: Id; choiceId: Id; quote: string }

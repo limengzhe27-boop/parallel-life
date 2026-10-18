@@ -117,6 +117,7 @@ export async function resolveTurn(
       id: `${command.id}_media`,
       prompt: (intent.videoPrompt ?? command.text).slice(0, 2000),
       mediaType: 'video',
+      targetActorId: command.actorId,
     });
   } else if (
     command.origin !== 'director' &&
@@ -128,6 +129,7 @@ export async function resolveTurn(
       id: `${command.id}_media`,
       prompt: (intent.imagePrompt ?? command.text).slice(0, 2000),
       mediaType: 'image',
+      targetActorId: command.actorId,
     });
   }
   validateCharacterEffects(command.actorId, proposal.effects, false, command.origin);

@@ -669,6 +669,10 @@ export function parseProposal(value: unknown): TurnProposal {
           ...(item.mediaType === 'video'
             ? { mediaType: 'video' as const }
             : { mediaType: 'image' as const }),
+          ...(typeof item.targetActorId === 'string' && item.targetActorId.trim()
+            ? { targetActorId: item.targetActorId.trim() }
+            : {}),
+          ...(typeof item.isPlayer === 'boolean' ? { isPlayer: item.isPlayer } : {}),
         };
       case 'choice.recorded':
         return {

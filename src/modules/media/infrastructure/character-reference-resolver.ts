@@ -41,7 +41,26 @@ export class PostgresCharacterVisualAnchorRepository implements CharacterVisualA
 
     const row = res.rows[0];
     if (!row) {
-      return null;
+      const actorRes = await this.executor.query(
+        `SELECT a FROM parallel_life.worlds w,
+         LATERAL jsonb_array_elements(w.state->'actors') a
+         WHERE w.id = $1 AND w.owner_id = $2 AND a->>'id' = $3`,
+        [worldId, ownerId, actorId],
+      );
+      const actor = actorRes.rows[0]?.a;
+      if (!actor) {
+        return null;
+      }
+      return {
+        actorId,
+        name: String(actor.name || '未知人物'),
+        gender: typeof actor.gender === 'string' ? actor.gender : undefined,
+        age: typeof actor.age === 'number' ? actor.age : undefined,
+        referenceAssetId: undefined,
+        referenceAssetRevision: undefined,
+        isPlayer: false,
+        authorizedForWorld: true,
+      };
     }
 
     const snapshot = (row.person_snapshot ?? {}) as Record<string, unknown>;
@@ -95,7 +114,21 @@ export class PostgresCharacterVisualAnchorRepository implements CharacterVisualA
 
     const row = res.rows[0];
     if (!row) {
-      return null;
+      const worldRes = await this.executor.query(
+        `SELECT 1 FROM parallel_life.worlds WHERE id = $1 AND owner_id = $2`,
+        [worldId, ownerId],
+      );
+      if (!worldRes.rows[0]) {
+        return null;
+      }
+      return {
+        actorId: 'player',
+        name: '主角',
+        referenceAssetId: undefined,
+        referenceAssetRevision: undefined,
+        isPlayer: true,
+        authorizedForWorld: true,
+      };
     }
 
     const profile = (row.profile ?? {}) as Record<string, unknown>;

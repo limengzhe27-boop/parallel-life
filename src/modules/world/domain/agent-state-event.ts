@@ -283,6 +283,14 @@ export function applyAgentStateEvent(
         'title' in effect && typeof effect.title === 'string' && effect.title.trim()
           ? effect.title.trim().slice(0, 80)
           : defaultTitle;
+      const targetActorId =
+        'targetActorId' in effect && typeof effect.targetActorId === 'string'
+          ? effect.targetActorId
+          : undefined;
+      const isPlayer =
+        'isPlayer' in effect && typeof effect.isPlayer === 'boolean'
+          ? effect.isPlayer
+          : undefined;
       validateEventId(effect.id);
       state.mediaRequests.push({
         id: effect.id,
@@ -291,6 +299,8 @@ export function applyAgentStateEvent(
         status: 'pending',
         sourceEventId: event.id,
         mediaType,
+        ...(targetActorId ? { targetActorId } : {}),
+        ...(typeof isPlayer === 'boolean' ? { isPlayer } : {}),
       });
       continue;
     }

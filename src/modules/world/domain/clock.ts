@@ -70,7 +70,7 @@ export function elapsedStoryMilliseconds(clock: WorldClock, realNow: string): nu
   if (clock.continuityMode !== 'continuous') return clockElapsedReal(clock, realNow) * clock.speed;
   const start = Date.parse(clock.lastTickAt),
     end = Date.parse(realNow);
-  const until = clock.activeUntil ? Date.parse(clock.activeUntil) : start;
+  const until = clock.activeUntil ? Date.parse(clock.activeUntil) : clock.managed ? start : end;
   const foreground = Math.max(0, Math.min(end, until) - start);
   const offline = Math.max(0, end - Math.max(start, until));
   return foreground * clock.speed + offline;

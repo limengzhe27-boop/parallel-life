@@ -1115,6 +1115,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             prompt: desc,
             mediaType: 'image',
             title: `【留影】${desc.slice(0, 30)}`,
+            targetActorId: attempt.actorId,
           });
           outputRefs = [{ kind: 'media', id: reqId }];
         } else if (action.capability === 'media.generate_video') {
@@ -1129,6 +1130,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             prompt: desc,
             mediaType: 'video',
             title: `【动态】${desc.slice(0, 30)}`,
+            targetActorId: attempt.actorId,
           });
           outputRefs = [{ kind: 'media', id: reqId }];
         } else if (action.capability === 'media.share') {
