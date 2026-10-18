@@ -26,6 +26,31 @@ const NextStep = z.discriminatedUnion('kind', [
     reason: Text,
   }),
 ]);
+const Execution = z.strictObject({
+  goal: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('existing'), id: Id }),
+    z.strictObject({
+      kind: z.literal('new'),
+      id: Id,
+      summary: Text,
+      sourceIds: z.array(Id).min(1).max(64),
+    }),
+  ]),
+  plan: z.strictObject({ id: Id, summary: Text, sourceIds: z.array(Id).min(1).max(64) }),
+  action: z.strictObject({
+    id: Id,
+    capability: Id,
+    targetIds: z.array(Id).max(64),
+    parameters: z.record(
+      z.string(),
+      z.union([z.string(), z.number().finite(), z.boolean(), z.null(), z.array(z.string())]),
+    ),
+    preconditions: Conditions,
+    dependsOnActionIds: z.array(Id).max(16),
+    handlesResponsibilityIds: z.array(Id).max(32),
+    sourceIds: z.array(Id).min(1).max(64),
+  }),
+});
 const Wire = z.strictObject({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
   consideration: z
@@ -41,6 +66,7 @@ const Wire = z.strictObject({
         .optional(),
     })
     .nullable(),
+  executions: z.array(Execution).max(16).optional(),
   statements: z.array(z.unknown()).max(32),
   goals: z.array(z.unknown()).max(24),
   plans: z
@@ -71,7 +97,21 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   // the entire strict wire schema and original semantic/authority checks still apply.
   if (!('protocol' in raw) && !('consideration' in raw)) return raw; // Persisted canonical completions.
   const wire = Wire.parse('protocol' in raw ? raw : { ...raw, protocol: NPC_WIRE_PROTOCOL });
-  const { protocol: _protocol, consideration, plans, ...proposal } = wire;
+  const { protocol: _protocol, consideration, plans, executions = [], ...proposal } = wire;
+  // A typed intent is mapped to the original proposal, never executed here or inferred from speech.
+  for (const execution of executions) {
+    const { goal, plan, action } = execution;
+    if (goal.kind === 'new')
+      proposal.goals.push({
+        id: goal.id,
+        summary: goal.summary,
+        status: 'active',
+        sourceIds: goal.sourceIds,
+        resultIds: [],
+      });
+    proposal.actions.push({ ...action, goalId: goal.id, status: 'proposed' });
+    plans.push({ ...plan, goalId: goal.id, nextStep: { kind: 'action', actionId: action.id } });
+  }
   let requestId: string | undefined;
   if (isActorEpisodeConsiderationInput(context.input)) {
     const request = JSON.parse(context.input.text);

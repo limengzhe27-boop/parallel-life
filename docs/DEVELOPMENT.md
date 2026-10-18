@@ -2522,4 +2522,6 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 
 143/144实际上线收口：最终业务d347763e/dpl_5H6GMBo8EMcCtrWLNLsgBdJc1ahC正式READY，check3308/build/原服务PG7、生产91checksum与公网读通过；明确choice、等待责任/空active计划/单nextStep/漏tag限定识别已落地。145新6次额度实际6次（2导演4人物），1合成草稿/1档paused/0unknown已闭账。导演提出机会、NPC need_information记录通过；后续真实邀约仍invalid（最后计划引用动作但actions空），未active/未完成/0假邀约，不能勾整链完成。见145报告。146只读报告b055已集成2b819391；不另立等待引擎。
 
-|44-147-NPC-ATOMIC-EXECUTION-PROTOCOL-I|[ ] 待开发|待领取，root负责公共协议集成|依赖143/144/145；同一NPC原入口、模型协议与适配器，具体独占范围开工前登记|把本人明确目标/动作参数/下一步收成不可分离的执行提案，调查真正结构化输出支持；不从对白补动作、不重复收费、不强迫参与，保留原kernel权限/来源/CAS/事务。真实模型需新授权，本轮6次已闭账。|剩余核心：145第6次INVALID_PLAN_ACTION，不能靠更多重试跑通。|
+|44-147-NPC-ATOMIC-EXECUTION-PROTOCOL-I|[ ] 代码待部署验收，真实模型未验证|codex-root-execution147 sole integrator|unified-engine137；独占npc-model-protocol.ts/npc-agent-model.ts及原协议/模型/原入口PG测试、专属报告；0模型/SQL/生产数据，公共kernel不改|把本人明确目标/动作参数/下一步收成不可分离的执行提案，调查真正结构化输出支持；不从对白补动作、不重复收费、不强迫参与，保留原kernel权限/来源/CAS/事务。真实模型需新授权，本轮6次已闭账。|剩余核心：145第6次INVALID_PLAN_ACTION，不能靠更多重试跑通。|
+
+147接续：同一wire新增完整executions(goal/plan/action)，代码只绑定引用而非从对白补参数；v20原模型入口，一次调用不加纠错。原入口PG7/纯包负例/check3309/build通过，0商业模型。现TextModel仅json_object无强约束schema，147自然效果未验证，不复用145已闭账6次。待本批READY/公网后记录代码交付，整体自然演绎保持未通过。

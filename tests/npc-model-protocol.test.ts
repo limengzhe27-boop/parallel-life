@@ -184,3 +184,64 @@ test('an unambiguous wire body may omit only its transport tag; no semantic cont
     /RESPONSE_SHAPE/,
   );
 });
+
+test('atomic execution binds explicit goal/plan/action once and never creates a missing action', () => {
+  const { c, wire } = fixture();
+  const execution = {
+    goal: { kind: 'new', id: 'g', summary: '商量分工', sourceIds: ['input'] },
+    plan: { id: 'p', summary: '发出尚待玩家确认的邀约', sourceIds: ['input'] },
+    action: {
+      id: 'a',
+      capability: 'appointment.propose',
+      targetIds: [],
+      parameters: { title: '商量分工', at: '2026-10-18T18:00:00+08:00' },
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+      sourceIds: ['input'],
+    },
+  };
+  const raw = {
+    ...wire,
+    statements: [{ text: '邀请已发出，等你确认。', dependsOnActionIds: ['a'] }],
+    executions: [execution],
+  };
+  const before = structuredClone(raw);
+  const p = parseAgentProposal(c, raw);
+  assert.equal(p.goals.length, 1);
+  assert.equal(p.plans[0]?.goalId, 'g');
+  assert.equal(p.plans[0]?.nextActionId, 'a');
+  assert.equal(p.actions[0]?.goalId, 'g');
+  assert.equal(p.actions[0]?.status, 'proposed');
+  assert.deepEqual(p.goals[0]?.resultIds, []);
+  assert.deepEqual(raw, before);
+  const { action, ...missingAction } = execution;
+  assert.throws(
+    () => parseAgentProposal(c, { ...wire, executions: [missingAction] }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...wire,
+        executions: [{ ...execution, action: { ...action, capability: 'unsupported' } }],
+      }),
+    /PLAN_NEXT_STEP_REQUIRED/,
+  );
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...wire,
+        executions: [{ ...execution, goal: { kind: 'existing', id: 'other' } }],
+      }),
+    /GOAL/,
+  );
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...wire,
+        executions: [{ ...execution, action: { ...action, sourceIds: ['private-hidden-source'] } }],
+      }),
+    /SOURCE/,
+  );
+});

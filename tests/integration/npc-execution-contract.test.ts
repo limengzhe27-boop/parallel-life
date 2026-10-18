@@ -281,39 +281,32 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
                 dependsOnActionIds: ['invite'],
               },
             ],
-            goals: [
+            executions: [
               {
-                id: 'discuss',
-                summary: 'Discuss preparation with the player',
-                status: 'active',
-                sourceIds: [p.input.sourceId],
-                resultIds: [],
-              },
-            ],
-            plans: [
-              {
-                id: 'invite-plan',
-                goalId: 'discuss',
-                summary: 'Propose a meeting then await a decision',
-                sourceIds: [p.input.sourceId],
-                nextStep: { kind: 'action', actionId: 'invite' },
-              },
-            ],
-            actions: [
-              {
-                id: 'invite',
-                goalId: 'discuss',
-                capability: 'appointment.propose',
-                targetIds: [],
-                parameters: {
-                  title: 'Preparation discussion',
-                  at: new Date(Date.parse(p.storyAt) + 3600000).toISOString(),
+                goal: {
+                  kind: 'new',
+                  id: 'discuss',
+                  summary: 'Discuss preparation with the player',
+                  sourceIds: [p.input.sourceId],
                 },
-                preconditions: [],
-                dependsOnActionIds: [],
-                handlesResponsibilityIds: [],
-                sourceIds: [p.input.sourceId],
-                status: 'proposed',
+                plan: {
+                  id: 'invite-plan',
+                  summary: 'Propose a meeting then await a decision',
+                  sourceIds: [p.input.sourceId],
+                },
+                action: {
+                  id: 'invite',
+                  capability: 'appointment.propose',
+                  targetIds: [],
+                  parameters: {
+                    title: 'Preparation discussion',
+                    at: new Date(Date.parse(p.storyAt) + 3600000).toISOString(),
+                  },
+                  preconditions: [],
+                  dependsOnActionIds: [],
+                  handlesResponsibilityIds: [],
+                  sourceIds: [p.input.sourceId],
+                },
               },
             ],
           });

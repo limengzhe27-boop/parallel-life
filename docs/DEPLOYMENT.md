@@ -1,3 +1,7 @@
+## 2026-10-18 · 44-147 人物完整执行提案（本地通过，待本批READY收口）
+
+同一原NPC协议增加executions{goal,plan,action}完整提案，代码绑定引用，不从对白补动作，不另建执行路径；v20仍每轮一次人物模型。原服务PG7通过，完整check/build后提交部署；0商业模型，145的6次已闭账，真实自然演绎不冒称通过。详见[147报告](task-reports/44-147-NPC-ATOMIC-EXECUTION-PROTOCOL-I.md)。
+
 ## 2026-10-18 · 44-143/144 人物选择、等待与执行契约；145实测未全通过
 
 业务d347763e / dpl_5H6GMBo8EMcCtrWLNLsgBdJc1ahC正式Nu精确READY。人物明确选择、空active计划拒绝、单nextStep、显式等待责任与限定漏tag识别接原内核；3308/check、build、原服务PG7，生产91checksum一致。公网关键读200、旧合成paused与内容保留，无生产玩家状态更改。
