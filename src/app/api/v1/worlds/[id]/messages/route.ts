@@ -24,7 +24,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const parsedWorldId = Id.safeParse((await context.params).id);
     if (!parsedWorldId.success) throw new HttpError('NOT_FOUND', 404);
     const input = await parseBody(request, WorldMessageRequestSchema);
-    await s.worlds.get({ userId: s.ownerId }, parsedWorldId.data);
+    // Each execution entry checks ownership and existence itself. Do not hydrate
+    // the complete phone projection a second time before accepting the turn.
     try {
       const receipt = await s.npcAgents.sendMessageIfEnabled(s.ownerId, {
         id: input.commandId,
