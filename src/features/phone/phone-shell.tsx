@@ -81,6 +81,8 @@ export type PhoneShellProps = {
   notice?: ReactNode;
   /** Presentation lock only; does not replace account authentication. */
   initiallyLocked?: boolean;
+  /** Visible screen state feeds the caller business attention, never inferred from a hidden route. */
+  onLockChange?: (locked: boolean) => void;
 };
 
 /** Content only: the caller owns the device viewport, dimensions and outer navigation. */
@@ -101,9 +103,11 @@ function LifePhone({
   renderHome,
   notice,
   initiallyLocked = true,
+  onLockChange,
 }: PhoneShellProps) {
   const [route, setRoute] = useState<PhoneRoute>(homeRoute);
   const [locked, setLocked] = useState(initiallyLocked);
+  useEffect(() => onLockChange?.(locked), [locked, onLockChange]);
   const [bannerId, setBannerId] = useState<string>();
   const [openedIds, setOpenedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set());

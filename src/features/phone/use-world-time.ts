@@ -18,7 +18,15 @@ type Session = {
   acknowledgedMode?: Mode;
   tail: Promise<unknown>;
 };
-export function useWorldTime(client: LifeClient, worldId: string, enabled: boolean, busy: boolean) {
+export function useWorldTime(
+  client: LifeClient,
+  worldId: string,
+  enabled: boolean,
+  busy: boolean,
+  locked: boolean,
+) {
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
   const [view, setView] = useState<{ worldId: string; clock: WorldClock } | null>(null);
   const [now, setNow] = useState(Date.now());
   const [working, setWorking] = useState(false);
@@ -44,7 +52,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
         mode,
         focus:
           mode === 'conversation'
-            ? phoneConversationFocus(readRoute(location.hash, worldId))
+            ? phoneConversationFocus(readRoute(location.hash, worldId), lockedRef.current)
             : null,
         ...(resume ? { resume: true } : {}),
       };
@@ -99,7 +107,8 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     } catch {
       setPendingWait(null);
     }
-    const mode = () => phoneTimeMode(busyRef.current, readRoute(location.hash, worldId));
+    const mode = () =>
+      phoneTimeMode(busyRef.current, readRoute(location.hash, worldId), lockedRef.current);
     const update = () => {
       if (document.visibilityState !== 'visible' || s.returning || waiting.current) return;
       void sync(mode()).catch(() => {
@@ -166,8 +175,10 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
   }, [client, worldId, enabled, sync]);
   useEffect(() => {
     if (enabled && !session.current?.returning)
-      void sync(phoneTimeMode(busy, readRoute(location.hash, worldId))).catch(() => {});
-  }, [enabled, busy, sync, worldId]);
+      void sync(phoneTimeMode(busy, readRoute(location.hash, worldId), lockedRef.current)).catch(
+        () => {},
+      );
+  }, [enabled, busy, locked, sync, worldId]);
   const startConversation = useCallback(async () => {
     if (waiting.current || pendingWaitRef.current) throw Error('请先核对这次等待，再继续交谈。');
     lastMeaningfulActivity.current = Date.now();
@@ -183,7 +194,10 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
     setNotice('');
     s.returning = false;
     try {
-      await sync(phoneTimeMode(busyRef.current, readRoute(location.hash, worldId)), true);
+      await sync(
+        phoneTimeMode(busyRef.current, readRoute(location.hash, worldId), lockedRef.current),
+        true,
+      );
       lastMeaningfulActivity.current = Date.now();
       lastCheck.current = Date.now();
     } catch {
@@ -254,7 +268,7 @@ export function useWorldTime(client: LifeClient, worldId: string, enabled: boole
       // The wait receipt already committed time and resumed its lease atomically.
       // A later refresh failure cannot turn that success into an uncertain wait.
       await Promise.allSettled([
-        sync(phoneTimeMode(busyRef.current, readRoute(location.hash, worldId))),
+        sync(phoneTimeMode(busyRef.current, readRoute(location.hash, worldId), lockedRef.current)),
         reload(),
       ]);
       if (session.current !== s) return;

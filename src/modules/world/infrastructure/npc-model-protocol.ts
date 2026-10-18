@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
 import { validPlayerEpisodeManifest } from '../domain/player-episode-manifest.ts';
@@ -91,25 +92,186 @@ const Wire = z.strictObject({
   locationReports: z.unknown().optional(),
 });
 
-/** Generated from the very schema used by this decoder; no second handwritten transport schema. */
-const modelSchema = z.toJSONSchema(Wire);
-// New runnable actions must be self-contained executions. The separate array remains
-// available for non-runnable amendments to old actions, and old saved responses still decode.
-modelSchema.properties!.actions = {
-  type: 'array',
-  maxItems: 16,
-  items: {
-    type: 'object',
-    properties: { status: { type: 'string', enum: ['waiting', 'blocked', 'withdrawn'] } },
-    required: ['status'],
-  },
-};
+const ParameterEntries = z
+  .array(
+    z.strictObject({
+      name: Id,
+      value: z.union([z.string(), z.number().finite(), z.boolean(), z.null(), z.array(z.string())]),
+    }),
+  )
+  .max(32);
+// The model and decoder reuse canonical proposal shapes; only transport references/parameters differ.
+const ModelWire = Wire.extend({
+  statements: AgentProposalSchema.shape.statements,
+  goals: AgentProposalSchema.shape.goals,
+  actions: z
+    .array(
+      AgentProposalSchema.shape.actions.element.extend({
+        parameters: ParameterEntries,
+        status: z.enum(['waiting', 'blocked', 'withdrawn']),
+      }),
+    )
+    .max(16),
+  plans: z
+    .array(
+      Wire.shape.plans.element.extend({
+        nextStep: z.union([
+          NextStep.options[1].extend({
+            conditions: AgentProposalSchema.shape.plans.element.shape.triggers,
+          }),
+          NextStep.options[2].extend({
+            conditions: AgentProposalSchema.shape.plans.element.shape.triggers,
+          }),
+          NextStep.options[3],
+          NextStep.options[4],
+        ]),
+      }),
+    )
+    .max(24),
+  responsibilities: AgentProposalSchema.shape.responsibilities,
+  decisions: AgentProposalSchema.shape.decisions,
+  focus: AgentProposalSchema.shape.focus,
+  replyAssessments: AgentProposalSchema.shape.replyAssessments,
+  questionWithdrawals: AgentProposalSchema.shape.questionWithdrawals,
+  locationReports: AgentProposalSchema.shape.locationReports,
+  executions: z
+    .array(
+      Execution.extend({
+        action: Execution.shape.action.extend({
+          parameters: ParameterEntries,
+          preconditions: AgentProposalSchema.shape.actions.element.shape.preconditions,
+        }),
+      }),
+    )
+    .max(16)
+    .optional(),
+});
+/** Strict providers require optional fields to be represented by null, not omitted. */
+function strictSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(strictSchema);
+  if (!value || typeof value !== 'object') return value;
+  const original = value as Record<string, unknown>;
+  const out = Object.fromEntries(
+    Object.entries(original).map(([key, item]) => [key, strictSchema(item)]),
+  );
+  if (Array.isArray(out.oneOf)) {
+    out.anyOf = out.oneOf;
+    delete out.oneOf;
+  }
+  if (
+    typeof original.type === 'string' ||
+    Array.isArray(original.anyOf) ||
+    Array.isArray(original.oneOf)
+  ) {
+    // Provider grammar owns shape; the original validator still owns all bounds and ISO semantics.
+    for (const key of [
+      '$schema',
+      'minLength',
+      'maxLength',
+      'minItems',
+      'maxItems',
+      'format',
+      'pattern',
+      'minimum',
+      'maximum',
+      'exclusiveMinimum',
+      'exclusiveMaximum',
+      'multipleOf',
+    ])
+      delete out[key];
+    if ('const' in out) {
+      out.enum = [out.const];
+      delete out.const;
+    }
+  }
+  if (original.type === 'object') {
+    const props = (out.properties ?? {}) as Record<string, unknown>;
+    const required = new Set((original.required ?? []) as string[]);
+    for (const key of Object.keys(props))
+      if (!required.has(key)) props[key] = { anyOf: [props[key], { type: 'null' }] };
+    out.properties = props;
+    out.required = Object.keys(props);
+    out.additionalProperties = false;
+  }
+  return out;
+}
 export const NPC_RESPONSE_FORMAT: ModelOutputOptions = {
   format: 'json_schema',
   name: 'npc_agent_response',
-  strict: false,
-  schema: modelSchema,
+  strict: true,
+  schema: strictSchema(z.toJSONSchema(ModelWire)) as Record<string, unknown>,
 };
+/** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
+export function npcResponseFormat(
+  state: Pick<AgentValidationContext['state'], 'goals'>,
+  considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
+): ModelOutputOptions {
+  if (NPC_RESPONSE_FORMAT.format !== 'json_schema') throw Error('NPC_RESPONSE_SCHEMA');
+  type SchemaNode = {
+    properties?: Record<string, SchemaNode>;
+    anyOf?: SchemaNode[];
+    items?: SchemaNode;
+    enum?: unknown[];
+    [key: string]: unknown;
+  };
+  const schema = structuredClone(NPC_RESPONSE_FORMAT.schema) as SchemaNode;
+  const properties = schema.properties!;
+  if (considerationScope === 'forbidden') properties.consideration = { type: 'null' };
+  else if (considerationScope === 'required') {
+    const object = properties.consideration!.anyOf!.find((x) => x.type === 'object');
+    if (!object) throw Error('NPC_RESPONSE_SCHEMA');
+    properties.consideration = object;
+  }
+  const executions = properties.executions!;
+  const exec = (executions.anyOf?.[0] ?? executions).items!;
+  const alternatives = exec.properties!.goal!.anyOf!;
+  const goalIds = state.goals.map((g) => g.id);
+  const usable = alternatives.filter((g) => {
+    if (g.properties!.kind!.enum?.[0] !== 'existing') return true;
+    if (!goalIds.length) return false;
+    g.properties!.id!.enum = goalIds;
+    return true;
+  });
+  const first = usable[0];
+  if (!first) throw Error('NPC_RESPONSE_SCHEMA');
+  exec.properties!.goal = usable.length === 1 ? first : { anyOf: usable };
+  return { ...NPC_RESPONSE_FORMAT, schema };
+}
+
+const optionalNullKeys = new Set([
+  'followUp',
+  'executions',
+  'supersedesPlanId',
+  'endReason',
+  'resolutionResultId',
+  'resultId',
+  'deadline',
+  'requestsPlayerReply',
+  'questionForResponsibilityId',
+  'replyAssessments',
+  'questionWithdrawals',
+  'locationReports',
+]);
+function parameterObject(value: unknown) {
+  if (!Array.isArray(value)) return value;
+  const entries = ParameterEntries.parse(value);
+  if (
+    new Set(entries.map((e) => e.name)).size !== entries.length ||
+    entries.some((e) => ['__proto__', 'prototype', 'constructor'].includes(e.name))
+  )
+    throw Error('NPC_PARAMETER_KEYS');
+  return Object.fromEntries(entries.map((e) => [e.name, e.value]));
+}
+/** Null optional metadata and named parameter entries are transport details, never semantic repairs. */
+function transport(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(transport);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([k, v]) => !(v === null && optionalNullKeys.has(k)))
+      .map(([k, v]) => [k, k === 'parameters' ? parameterObject(v) : transport(v)]),
+  );
+}
 
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
@@ -122,7 +284,7 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     raw.plans.some((p) => p && typeof p === 'object' && 'nextStep' in p);
   if (!('protocol' in raw) && !('consideration' in raw) && !('executions' in raw) && !wirePlans)
     return raw;
-  const wire = Wire.parse({ protocol: NPC_WIRE_PROTOCOL, consideration: null, ...raw });
+  const wire = Wire.parse(transport({ protocol: NPC_WIRE_PROTOCOL, consideration: null, ...raw }));
   const { protocol: _protocol, consideration, plans, executions = [], ...proposal } = wire;
   // A typed intent is mapped to the original proposal, never executed here or inferred from speech.
   for (const execution of executions) {

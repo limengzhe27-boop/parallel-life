@@ -102,3 +102,21 @@ test('clock and wait readback retain pause deadline without exposing author cond
   assert(StoryWaitReceiptSchema.safeParse(receipt).success);
   assert(!StoryWaitReceiptSchema.safeParse({ ...receipt, privateScript: 'private' }).success);
 });
+
+test('lock screen browsing does not inherit a hidden private, group or scene focus', () => {
+  for (const route of [
+    { app: 'messages' as const, target: id },
+    { app: 'messages' as const, target: 'group:' + id },
+    { app: 'scenes' as const, target: id },
+  ]) {
+    assert.equal(phoneTimeMode(false, route, true), 'browsing');
+    assert.equal(phoneConversationFocus(route, true), null);
+    assert.equal(phoneTimeMode(false, route, false), 'conversation');
+    assert.ok(phoneConversationFocus(route, false));
+  }
+  assert.equal(
+    phoneTimeMode(true, { app: 'messages', target: id }, true),
+    'conversation',
+    'a genuinely in-flight turn remains protected while locking',
+  );
+});

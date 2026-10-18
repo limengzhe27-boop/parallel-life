@@ -35,3 +35,13 @@ provider使用strict:false：该约束是明确schema请求，不能宣称上游
 48项模型/协议/gateway聚焦与check3311通过；新增原适配器原样传输schema/HTTP400无降级重试测试。真实数据库legacy PG20已通过，本次新增provider端口不改SQL/事务。待本次build/READY后使用150剩4次复验，不提前写完整开场演绎通过。
 
 共用模型失败契约：可信Yibu适配器明确请求被HTTP400/401/403/404/413/415/422拒绝，两个原runner保存model_request_rejection安全回执（仅status，不保存服务商私密正文），再沿原response_received→invalid_output已知终态；没有回执保存保证仍unknown。未修改既有unknown记录、未自动重试。新增真实原NPC服务PG证明已知拒绝不变world、不假消息、精确重放0新调用；PG8/纯116/check3313通过，待build/READY。
+
+## 严格共用协议与真实可见活动状态（当前最终实现）
+
+150第三次schema strict:false调用仍已知invalid（重复计划、缺resultIds/actions等），说明不能仅提供提示型schema就宣称结构保证，仍未标整链通过。范围继续open，3/6，0unknown、存档暂停。
+
+把原canonical Proposal schema从parser提取为agent-proposal-schema.ts，parser与native ModelWire复用同一定义。v23原生strict:true：全部对象closed+required，optional仅以null表示再删除原本可选null；动作参数采用typed name/value数组，代码只转换字典与引用，重复参数键拒绝，不填语义。新执行只能走完整包；原数组保留非执行修订。已有goal编号从该NPC viewState限制，服务器协调必需consideration，普通无manifest只允许null，不替NPC决定engage。provider仅负责结构，原bounds、ISO、来源、能力、事实与执行仍由同一内核校验，schema减少到通用支持子集；无自动fallback或纠错调用。原消息32k保持、schema最多24k、总请求56k封顶，实际schema约14k。
+
+锁屏根因另补齐：useWorldTime此前只读URL，保留的聊天hash会使锁屏误上报conversation/focus，合法导演被defer。PhoneShell明确向父层回报可见lock状态，原activity依据可见状态发送browsing/null focus；未完成发送仍按busy保护，解锁恢复真实渠道focus；不靠DOM输入活动计时、重写hash或重置世界。纯策略覆盖private/group/scene隐形路由。
+
+最终check3317、44项相关聚焦、原服务native parameters PG8、旧档entry PG20通过。模型传输/解析与内核是同一协议，不按渣男题材特判。待本次build/部署READY，使用150余3次复验，不更改旧invalid结果。

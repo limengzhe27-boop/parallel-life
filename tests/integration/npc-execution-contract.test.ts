@@ -299,10 +299,10 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
                   id: 'invite',
                   capability: 'appointment.propose',
                   targetIds: [],
-                  parameters: {
-                    title: 'Preparation discussion',
-                    at: new Date(Date.parse(p.storyAt) + 3600000).toISOString(),
-                  },
+                  parameters: [
+                    { name: 'title', value: 'Preparation discussion' },
+                    { name: 'at', value: new Date(Date.parse(p.storyAt) + 3600000).toISOString() },
+                  ],
                   preconditions: [],
                   dependsOnActionIds: [],
                   handlesResponsibilityIds: [],

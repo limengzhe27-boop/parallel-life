@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyActorAgentState } from '../src/modules/world/domain/agent-runtime.ts';
 import type { AgentValidationContext } from '../src/modules/world/domain/agent-kernel.ts';
+import { npcResponseFormat } from '../src/modules/world/infrastructure/npc-model-protocol.ts';
 import { parseAgentProposal } from '../src/modules/world/infrastructure/agent-proposal-parser.ts';
 
 function fixture(coordination = false) {
@@ -280,4 +281,106 @@ test('wire nextStep syntax has one decoding boundary even without optional trans
       }),
     /INVALID_PLAN_ACTION/,
   );
+});
+
+test('native schema parameters and optional nulls bind without fabricating goals, consent or duplicate keys', () => {
+  const { c, wire } = fixture();
+  const raw = {
+    ...wire,
+    focus: null,
+    replyAssessments: null,
+    questionWithdrawals: null,
+    locationReports: null,
+    executions: [
+      {
+        goal: { kind: 'new', id: 'g', summary: '讨论安排', sourceIds: ['input'] },
+        plan: { id: 'p', summary: '提出邀请', sourceIds: ['input'] },
+        action: {
+          id: 'a',
+          capability: 'appointment.propose',
+          targetIds: [],
+          parameters: [
+            { name: 'title', value: '讨论安排' },
+            { name: 'at', value: '2026-10-18T18:00:00+08:00' },
+          ],
+          preconditions: [],
+          dependsOnActionIds: [],
+          handlesResponsibilityIds: [],
+          sourceIds: ['input'],
+        },
+      },
+    ],
+    statements: [
+      {
+        text: '我可以发出尚待确认的邀请。',
+        dependsOnActionIds: [],
+        requestsPlayerReply: null,
+        questionForResponsibilityId: null,
+      },
+    ],
+  };
+  const p = parseAgentProposal(c, raw);
+  assert.deepEqual(p.actions[0]?.parameters, {
+    title: '讨论安排',
+    at: '2026-10-18T18:00:00+08:00',
+  });
+  assert.deepEqual(p.decisions, []);
+  assert.equal(p.plans[0]?.nextActionId, 'a');
+  const bad = structuredClone(raw);
+  bad.executions[0]!.action.parameters.push({ name: 'title', value: 'duplicate' });
+  assert.throws(() => parseAgentProposal(c, bad), /RESPONSE_WIRE_SHAPE/);
+});
+
+test('native model schema is closed and required, and existing goals are scoped to this actor view', () => {
+  const empty = npcResponseFormat({ goals: [] });
+  assert.equal(empty.format, 'json_schema');
+  if (empty.format !== 'json_schema') throw Error('schema');
+  assert.equal(empty.strict, true);
+  function inspect(value: unknown) {
+    if (Array.isArray(value)) {
+      value.forEach(inspect);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    const x = value as Record<string, unknown>;
+    assert.ok(!('oneOf' in x));
+    if (x.type === 'object') {
+      assert.equal(x.additionalProperties, false);
+      assert.deepEqual(
+        new Set(x.required as string[]),
+        new Set(Object.keys(x.properties as object)),
+      );
+    }
+    assert.ok(Object.keys(x).length);
+    Object.values(x).forEach(inspect);
+  }
+  inspect(empty.schema);
+  assert.ok(!JSON.stringify(empty.schema).includes('existing'));
+  const own = npcResponseFormat({
+    goals: [
+      {
+        id: 'own-goal',
+        summary: '本人目标',
+        status: 'active',
+        sourceIds: ['input'],
+        resultIds: [],
+      },
+    ],
+  });
+  assert.ok(JSON.stringify(own).includes('own-goal'));
+  assert.ok(!JSON.stringify(own).includes('hidden-goal'));
+});
+
+test('native response schema represents server event permission, never a guessed NPC choice', () => {
+  const required = npcResponseFormat({ goals: [] }, 'required');
+  const forbidden = npcResponseFormat({ goals: [] }, 'forbidden');
+  if (required.format !== 'json_schema' || forbidden.format !== 'json_schema')
+    throw Error('schema');
+  assert.deepEqual((forbidden.schema.properties as Record<string, unknown>).consideration, {
+    type: 'null',
+  });
+  const object = (required.schema.properties as Record<string, Record<string, unknown>>)
+    .consideration!;
+  assert.equal(object.type, 'object');
+  assert.ok((object.required as string[]).includes('choice'));
 });

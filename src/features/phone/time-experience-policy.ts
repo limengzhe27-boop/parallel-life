@@ -4,7 +4,8 @@ import { parseGroupTarget } from './groups/state.ts';
 import type { ClockActivityRequest } from '../../contracts/world-clock.ts';
 export const PHONE_IDLE_CHECK_MS = 75_000;
 /** An open conversation includes reading/thinking; typing activity never ends it. */
-export function phoneTimeMode(busy: boolean, route: PhoneRoute) {
+export function phoneTimeMode(busy: boolean, route: PhoneRoute, locked = false) {
+  if (locked && !busy) return 'browsing' as const;
   return busy ||
     route.panel === 'scene' ||
     (route.app === 'scenes' && !!route.target) ||
@@ -13,7 +14,11 @@ export function phoneTimeMode(busy: boolean, route: PhoneRoute) {
     : ('browsing' as const);
 }
 /** Business navigation supplies a claim only; the server reauthorizes its actual audience. */
-export function phoneConversationFocus(route: PhoneRoute): ClockActivityRequest['focus'] {
+export function phoneConversationFocus(
+  route: PhoneRoute,
+  locked = false,
+): ClockActivityRequest['focus'] {
+  if (locked) return null;
   if (!route.target) return null;
   if ((route.panel === 'scene' || route.app === 'scenes') && Id.safeParse(route.target).success)
     return { channel: 'scene', threadId: route.target };

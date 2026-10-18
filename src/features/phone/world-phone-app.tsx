@@ -128,11 +128,21 @@ export function WorldPhoneApp({
       experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
   };
 
+  const [screenLock, setScreenLock] = useState({ worldId, locked: !wechatActorKey });
+  const screenLocked = screenLock.worldId === worldId ? screenLock.locked : !wechatActorKey;
+  const onPhoneLockChange = useCallback(
+    (locked: boolean) =>
+      setScreenLock((old) =>
+        old.worldId === worldId && old.locked === locked ? old : { worldId, locked },
+      ),
+    [worldId],
+  );
   const liveTime = useWorldTime(
     client,
     worldId,
     automatic && data?.id === worldId,
     experienceBusy.current || localMessages.some((message) => message.status === 'pending'),
+    screenLocked,
   );
   const liveTimeRef = useRef(liveTime);
   liveTimeRef.current = liveTime;
@@ -650,6 +660,7 @@ export function WorldPhoneApp({
           </div>
         ) : (
           <WorldPhoneSurface
+            onLockChange={onPhoneLockChange}
             key={data.id}
             wechatActorKey={wechatActorKey}
             transport={transport}
@@ -764,6 +775,7 @@ export function WorldPhoneApp({
 export function WorldPhoneSurface({
   data,
   onExperienceBusy,
+  onLockChange,
   preview = false,
   transport,
   onReload,
@@ -783,6 +795,7 @@ export function WorldPhoneSurface({
 }: {
   data: WorldPhone;
   onExperienceBusy?: (busy: boolean) => void;
+  onLockChange?: (locked: boolean) => void;
   preview?: boolean;
   transport?: typeof fetch;
   onReload?: () => Promise<void>;
@@ -1239,6 +1252,7 @@ export function WorldPhoneSurface({
       }}
     >
       <PhoneShell
+        onLockChange={onLockChange}
         wechatActorKey={wechatActorKey}
         wechatActorId={
           wechatActorKey ? wechatCharacterTarget(data.actors, wechatActorKey) : undefined
