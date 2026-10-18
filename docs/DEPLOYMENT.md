@@ -1,6 +1,6 @@
-## 2026-10-18 · 44-147 人物完整执行提案（本地通过，待本批READY收口）
+## 2026-10-18 · 44-147 人物完整执行提案（代码READY，真实模型待验收）
 
-同一原NPC协议增加executions{goal,plan,action}完整提案，代码绑定引用，不从对白补动作，不另建执行路径；v20仍每轮一次人物模型。原服务PG7通过，完整check/build后提交部署；0商业模型，145的6次已闭账，真实自然演绎不冒称通过。详见[147报告](task-reports/44-147-NPC-ATOMIC-EXECUTION-PROTOCOL-I.md)。
+同一原NPC协议增加executions{goal,plan,action}完整提案，代码绑定引用，不从对白补动作，不另建执行路径；v20仍每轮一次人物模型。业务31c87327 / dpl_DMX6nqxxH9QTzNzFemNT4BqtEURa正式Nu精确READY；check3309/build、原服务PG7通过，公网关键读200/匿名works401。0商业模型，145的6次已闭账，真实自然演绎不冒称通过。详见[147报告](task-reports/44-147-NPC-ATOMIC-EXECUTION-PROTOCOL-I.md)。
 
 ## 2026-10-18 · 44-143/144 人物选择、等待与执行契约；145实测未全通过
 

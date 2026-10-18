@@ -22,3 +22,7 @@ TextModel公开端口当前仅支持format=json_object，未暴露受约束JSON 
 145真实模型最后一次缺action被拒，不能以147受控适配器旅程改写该失败。本任务不再收费调用，完整自然演绎仍未验证。模型真正受约束schema适配（需核实生产provider支持）、旧unassessed恢复、6历史unknown旧档以及关系双方确认/整体目标完成资格仍按主表保留。
 
 最终本地check3309/build通过、原服务PG7通过；生产沿用已核实91迁移，未改SQL/权限/任务队列。待业务提交READY与公网记录。
+
+## 实际上线收口
+
+业务31c873271d603641e7374922f604eb2249a1d0c7 / dpl_DMX6nqxxH9QTzNzFemNT4BqtEURa正式Nu别名精确READY。check3309/build/PG7通过；公网health/workbench/published200、匿名works401；原旧合成v7/2人物/9消息/paused保留。0新增模型；145六次已闭账、测试档暂停/0unknown，147真实模型表现仍未验证，不能宣称完整自然演绎已通过。
