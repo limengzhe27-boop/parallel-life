@@ -927,12 +927,18 @@ export class PostgresWorldRepository implements WorldRepository {
     return this.db.transaction(userId, async (sql) => {
       const row = (
         await sql.query(
-          `SELECT state FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
+          `SELECT state,version FROM parallel_life.worlds WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
           [worldId, userId],
         )
       ).rows[0];
       if (!row || row.state?.deletedAt) throw new DomainError('NOT_FOUND');
 
+      await authorizeWorldCommandInTransaction(sql, userId, {
+        worldId,
+        expectedWorldVersion: Number(row.version),
+        commandId: randomUUID(),
+        kind: 'world_delete',
+      });
       const nowIso = new Date().toISOString();
       await sql.query(
         `UPDATE parallel_life.worlds

@@ -32,6 +32,9 @@ test('L-01: Life management - listing, switching, renaming, archiving, deletion 
   const worldBId = randomUUID();
 
   t.after(async () => {
+    await admin.query('DELETE FROM parallel_life.agent_runtime_worlds WHERE world_id=ANY($1)', [
+      [world1Id, world2Id, world3Id, worldBId],
+    ]);
     await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=ANY($1)', [
       [world1Id, world2Id, world3Id, worldBId],
     ]);
@@ -92,7 +95,9 @@ test('L-01: Life management - listing, switching, renaming, archiving, deletion 
         time: '2026-10-17T09:00:00.000Z',
         setting: '深山木屋，炉火正旺。',
         actors: [{ id: 'actor-3', name: '守林人', relationship: '邻居' }],
-        messages: [{ id: 'msg-3', actorId: 'actor-3', role: 'assistant', text: '下雪了，喝点热茶吧。' }],
+        messages: [
+          { id: 'msg-3', actorId: 'actor-3', role: 'assistant', text: '下雪了，喝点热茶吧。' },
+        ],
         appointments: [],
       },
     ],
@@ -188,10 +193,7 @@ test('L-01: Life management - listing, switching, renaming, archiving, deletion 
     await assert.rejects(repo.renameWorld(userA, world1Id, '   '), /INVALID_COMMAND/);
 
     // Constraint: title too long (>60) rejected
-    await assert.rejects(
-      repo.renameWorld(userA, world1Id, 'A'.repeat(61)),
-      /INVALID_COMMAND/,
-    );
+    await assert.rejects(repo.renameWorld(userA, world1Id, 'A'.repeat(61)), /INVALID_COMMAND/);
   });
 
   // Test 3: archiveWorld pauses clock and filters by status
@@ -236,6 +238,10 @@ test('L-01: Life management - listing, switching, renaming, archiving, deletion 
 
   // Test 5: deleteWorld soft-deletes, pauses clock, and excludes from lists
   await t.test('5. deleteWorld soft-deletes and makes world inaccessible', async () => {
+    await admin.query(
+      'INSERT INTO parallel_life.agent_runtime_worlds(world_id,owner_id,engine_epoch) VALUES($1,$2,2)',
+      [world3Id, userA],
+    );
     const deleted = await repo.deleteWorld(userA, world3Id);
     assert.equal(deleted.id, world3Id);
     assert.equal(deleted.status, 'deleted');
