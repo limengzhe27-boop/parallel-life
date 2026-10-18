@@ -52,6 +52,7 @@ import {
   type AgentJourney,
 } from '../domain/agent-travel.ts';
 import { worldBoundary } from '../domain/world-awareness.ts';
+import { routeUserIntent } from '../application/intent-router.ts';
 import {
   readAgentJourneysInTransaction,
   recordAgentDepartureInTransaction,
@@ -1409,6 +1410,34 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           actorId: attempt.actorId,
           text: statement.text,
         });
+      if (snapshot.input.origin === 'player') {
+        const intent = routeUserIntent({ text: snapshot.input.text });
+        if (
+          intent.turnMode === 'video' &&
+          !effects.some((e) => e.type === 'media.requested')
+        ) {
+          effects.push({
+            type: 'media.requested',
+            id: `${attempt.commandId}_media`,
+            prompt: (intent.videoPrompt ?? snapshot.input.text).slice(0, 2000),
+            mediaType: 'video',
+            title: `【动态】${(intent.videoPrompt ?? snapshot.input.text).slice(0, 30)}`,
+            targetActorId: attempt.actorId,
+          });
+        } else if (
+          intent.turnMode === 'image' &&
+          !effects.some((e) => e.type === 'media.requested')
+        ) {
+          effects.push({
+            type: 'media.requested',
+            id: `${attempt.commandId}_media`,
+            prompt: (intent.imagePrompt ?? snapshot.input.text).slice(0, 2000),
+            mediaType: 'image',
+            title: `【留影】${(intent.imagePrompt ?? snapshot.input.text).slice(0, 30)}`,
+            targetActorId: attempt.actorId,
+          });
+        }
+      }
       const resolvedFocus = accepted.state.focus?.questionSourceId;
       if (
         resolvedFocus &&
@@ -1672,13 +1701,12 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             [media.id, attempt.worldId, ownerId, media],
           );
           await sql.query(
-            'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,job_type,payload) VALUES($1,$2,$3,$4,$5,$6)',
+            'INSERT INTO parallel_life.outbox_jobs(id,world_id,owner_id,event_id,payload) VALUES($1,$2,$3,$4,$5)',
             [
               `${event.id}_${media.id}`,
               attempt.worldId,
               ownerId,
               event.id,
-              media.mediaType === 'video' ? 'video.generate' : 'image.generate',
               {
                 id: `${event.id}_${media.id}`,
                 eventId: event.id,
@@ -1688,6 +1716,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
                 prompt: media.prompt,
                 title: media.title,
                 mediaType: media.mediaType,
+                ...(media.targetActorId ? { targetActorId: media.targetActorId } : {}),
               },
             ],
           );

@@ -506,7 +506,13 @@ export async function readPrivateAgentSnapshot(
         kind: 'private' as const,
         threadId: actorId,
         audienceActorIds: [actorId],
-        allowedCapabilities: ['appointment.propose', 'plan.record'],
+        allowedCapabilities: [
+          'appointment.propose',
+          'plan.record',
+          'media.generate_image',
+          'media.generate_video',
+          'media.share',
+        ],
       },
       input: input
         ? { sourceId: input.id, text: input.text, origin: input.origin }

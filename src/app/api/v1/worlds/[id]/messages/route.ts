@@ -31,7 +31,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         actorId: input.actorId,
         text: input.text,
       });
-      if (receipt) return json(WorldMessageReceiptSchema.parse(receipt));
+      if (receipt) {
+        try {
+          await s.drainOutbox(s.ownerId);
+        } catch (error) {
+          console.warn(
+            JSON.stringify({
+              scope: 'outbox-drain',
+              code: (error as { code?: string })?.code ?? 'FAILED',
+            }),
+          );
+        }
+        return json(WorldMessageReceiptSchema.parse(receipt));
+      }
     } catch (error) {
       if (error instanceof NpcMessageError)
         return json(
