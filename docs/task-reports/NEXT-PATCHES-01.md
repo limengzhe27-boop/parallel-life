@@ -30,3 +30,29 @@
 1. 退出「渣男体验副本」数小时；
 2. 再进入：看故事时间是否前进、微信是否有未读红点/新消息；
 3. 若时间前进但无消息，按 `agenda.ts:271-294` 的条件（1–2 天、防轰炸）逐条判定。
+
+---
+
+# 追加：为什么世界"不启动"的根因与修复规格（P0-0）
+
+## 根因（已核实）
+1. 编导内容有 `threads[]` + `openingCharacterId` / `openingThreadId`（`authoring-planner.ts:24-26` 定义）；
+2. 世界创建时这些 `threads` **只用于开场叙述**（`world-planner.ts:156-157`），**没有落成持久对象**；
+3. `publication-genesis.ts:284` 写死 `invitations: []`，`facts`/`choices` 也为空；
+4. 而"谁主动联系玩家"完全依赖 `buildAgenda()`：它只认 appointments / facts / choices / 记忆承诺 / "静默 1–2 天"（`agenda.ts:271-294`）。
+→ 结果是 `facts: 0 / appointments: 0 / choices: 0`，agenda 永空，`selectSpeaker` 返回 null，**没人开口、事件不推进**。
+
+## 修复规格（框架内，不新增第二套状态）
+在 `publication-genesis` 物化编导线：
+- `threads[i]` + `involvedCharacterIds` → **appointment**（status `proposed`，at = 故事起点 + 短偏移，幂等 key = `thread:<id>`）；
+- `threads[i].question` + `possibleOutcomes` → **开放问题**（标记等待玩家回应，进入 agenda 的 `awaiting_reply`）；
+- `candidates` 且 `direction.mode='required'` → 必演绎队列（见 `DIRECTOR-OBLIGATORY-BEATS-01.md`）；
+- 开场 `current` 消息保持 `initialRead: false`（未读）。
+约束：只物化编导真正写过的内容；幂等（同 key 只生成一次）；不新造状态机。
+
+## 验收
+1. 新建世界 `appointments`/`facts`/`choices` 至少各 1 条（来自编导内容）；
+2. 进入世界后 30 秒内 `selectSpeaker` 可选中至少一人（有合法理由）；
+3. 一次 `advance` 产生 ≥1 条 NPC 消息且 `initialRead: false`；
+4. 首页出现"有人给你发了 N 条消息"；
+5. 测试锁死"编导没写却凭空多出约定"。
