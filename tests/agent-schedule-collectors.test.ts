@@ -829,3 +829,47 @@ test('actual invitation answers wake only their actor with stable receipt identi
     assert.equal((await collect(v, 'observation')).candidates.length, 0);
   }
 });
+
+test('ordinary actionless plan reconsiders only on explicit authorized ready conditions with stable identity', async () => {
+  const a = actor();
+  a.snapshot.state.actions = [];
+  const p = a.snapshot.state.plans[0]!;
+  p.actionIds = [];
+  p.nextActionId = null;
+  p.triggers = [{ kind: 'observation', sourceId: 's' }];
+  sync(a);
+  const v = view([a]);
+  const first = await collect(v, 'actor_plan');
+  assert.equal(first.candidates.length, 1);
+  const c = first.candidates[0]!;
+  assert.equal(c.actionId, null);
+  assert.equal(c.episodeId, null);
+  const changed = structuredClone(v);
+  changed.worldVersion = 6;
+  changed.storyAt = '2026-10-15T11:00:00.000Z';
+  const s = changed.actors[0]!.snapshot;
+  s.worldVersion = 6;
+  s.storyAt = changed.storyAt;
+  s.state.revision++;
+  s.state.projectedWorldVersion = 6;
+  s.state.plans[0]!.summary = 'Different wording, same condition';
+  s.state.goals[0]!.summary = 'Different goal wording';
+  s.worldContext = undefined;
+  s.viewState = structuredClone(s.state);
+  assert.equal((await collect(changed, 'actor_plan')).candidates[0]!.id, c.id);
+  changed.consumedCandidateIds = [c.id];
+  assert.equal((await collect(changed, 'actor_plan')).candidates.length, 0);
+  for (const mode of ['empty', 'unobserved', 'hidden', 'waiting'] as const) {
+    const next = structuredClone(v);
+    const snap = next.actors[0]!.snapshot;
+    if (mode === 'empty') snap.state.plans[0]!.triggers = [];
+    if (mode === 'unobserved') snap.observations = [];
+    if (mode === 'hidden') snap.redactedStateIds = ['plan'];
+    if (mode === 'waiting')
+      snap.state.plans[0]!.triggers = [
+        { kind: 'at_or_after', at: '2026-10-16T10:00:00.000Z', sourceId: 's' },
+      ];
+    snap.viewState = structuredClone(snap.state);
+    assert.equal((await collect(next, 'actor_plan')).candidates.length, 0, mode);
+  }
+});
