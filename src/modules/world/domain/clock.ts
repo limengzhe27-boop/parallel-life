@@ -43,6 +43,14 @@ export type ClockAdvance = {
   folded: number;
 };
 
+/** Legacy presence-only clocks never accrued offline time, so a world left for days
+ * advanced nothing. Adopt the continuous timeline on entry while keeping the lease
+ * fields (activeUntil/managed) that guard waiting and pause boundaries. */
+export function adoptContinuousClock(clock: WorldClock): WorldClock {
+  if (clock.continuityMode === 'continuous') return clock;
+  return { ...clock, continuityMode: 'continuous' };
+}
+
 const MINUTE = 60_000;
 
 /** The persisted anchor remains unchanged by a same-speed heartbeat. */

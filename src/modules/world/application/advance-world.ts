@@ -3,7 +3,13 @@ import { unsupportedReturnClaim } from '../domain/return-message-policy.ts';
 import { parseProposal } from '../domain/validation.ts';
 import { actorContext } from './actor-context.ts';
 import { DomainError } from '../domain/errors.ts';
-import { advanceClock, beatCue, selectSpeaker, projectStoryTime } from '../domain/clock.ts';
+import {
+  adoptContinuousClock,
+  advanceClock,
+  beatCue,
+  projectStoryTime,
+  selectSpeaker,
+} from '../domain/clock.ts';
 import { buildAgenda, eligibleAgenda, type CommitmentMemory } from '../domain/agenda.ts';
 import { beatsForPacing, EMPTY_DIRECTION, type WorldDirection } from '../domain/direction.ts';
 import type { Session } from '../domain/types.ts';
@@ -45,7 +51,7 @@ export async function advanceWorld(
   worldId: string,
 ): Promise<AdvanceResult> {
   return deps.clock.withAdvanceLock(worldId, async () => {
-    const clock = await deps.clock.read(session.userId, worldId, deps.now());
+    const clock = adoptContinuousClock(await deps.clock.read(session.userId, worldId, deps.now()));
     await deps.clock.ensureAnchor(session.userId, worldId, clock);
     // Offline/explicitly paused managed worlds never reopen an old paid attempt automatically.
     if (deps.automatic && clock.paused)
