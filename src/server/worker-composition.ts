@@ -27,6 +27,7 @@ import { InterviewPlanner } from '../modules/profile/infrastructure/interview-pl
 import { interviewHandler } from '../modules/profile/infrastructure/interview-handler.ts';
 import { memoryHandler } from '../modules/memory/infrastructure/memory-handler.ts';
 import { mediaHandler } from '../modules/media/infrastructure/media-handler.ts';
+import { YibuMediaProviderAdapter } from '../modules/media/infrastructure/yibu-media-provider-adapter.ts';
 import { PostgresCharacterVisualAnchorRepository } from '../modules/media/infrastructure/character-reference-resolver.ts';
 import { ReplicateMediaProviderAdapter } from '../modules/media/infrastructure/replicate-provider-adapter.ts';
 import { MediaPipelineService } from '../modules/media/infrastructure/media-pipeline-service.ts';
@@ -47,9 +48,15 @@ export function createWorker() {
       const db = getServices().db;
       const store = readStore();
       const visualAnchorRepo = new PostgresCharacterVisualAnchorRepository(db.pool);
-      const providerAdapter = new ReplicateMediaProviderAdapter({
-        apiToken: process.env.REPLICATE_API_TOKEN,
-      });
+      /* The project gateway already serves an image model; prefer it, keep Replicate as fallback. */
+      const providerAdapter = process.env.YIBU_API_KEY?.trim()
+        ? new YibuMediaProviderAdapter({
+            apiKey: process.env.YIBU_API_KEY,
+            baseUrl: process.env.YIBU_BASE_URL,
+          })
+        : new ReplicateMediaProviderAdapter({
+            apiToken: process.env.REPLICATE_API_TOKEN,
+          });
       const referenceAssetReader = async (assetId: string) => {
         const row = (
           await db.pool.query(
