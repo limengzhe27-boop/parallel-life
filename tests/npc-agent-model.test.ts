@@ -818,7 +818,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v18-typed-next-step');
+  assert.equal(payload.promptVersion, 'npc-agent-v19-grounded-invitation');
 });
 
 test('prompt instructions specify player decision tracking on responsibilities with exact verbatim quotes', async () => {
@@ -846,4 +846,23 @@ test('commitment protocol does not prescribe empty runnable plans or fabricate a
   assert.ok(example.plans[0].missingConditions.length);
   assert.deepEqual(example.actions, []);
   assert.equal(example.responsibilities[0].status, 'waiting');
+});
+
+test('invitation time catalog is local date conversion only and does not alter player decisions', async () => {
+  const { calls, adapter } = capture();
+  const input = snapshot();
+  input.channel.allowedCapabilities = ['appointment.propose'];
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.equal(payload.responseContract.todayHours.length, 24);
+  assert.equal(payload.responseContract.considerationAllowed, false);
+  assert.deepEqual(payload.responseContract.todayHours[18], {
+    local: '18:00',
+    at: '2026-10-15T18:00:00+08:00',
+  });
+  assert.deepEqual(payload.input, { ...input.input, speaker: 'player' });
+  assert.deepEqual(payload.state.decisions, []);
+  const { calls: quietCalls, adapter: quiet } = capture();
+  await quiet.decide(snapshot());
+  assert.deepEqual(JSON.parse(quietCalls[0]!.messages[1]!.content).responseContract.todayHours, []);
 });

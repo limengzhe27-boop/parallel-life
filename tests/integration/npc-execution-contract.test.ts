@@ -374,16 +374,30 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
       assert.equal((await f.worlds.get({ userId: f.owner }, f.id)).appointments.length, 1);
     },
   );
-  for (const mode of ['missing', 'quiet'] as const)
+  for (const mode of ['missing', 'quiet', 'wait'] as const)
     await t.test(
       `coordination ${mode}: no implicit participation or repeated paid fallback`,
       async () => {
         const f = await fixture();
         let npcCalls = 0;
+        let directorCalls = 0;
         const model: TextModel = {
           async complete(messages) {
             const p = JSON.parse(messages[1]!.content);
-            if (p.promptVersion.startsWith('director-'))
+            if (p.promptVersion.startsWith('director-')) {
+              directorCalls++;
+              if (directorCalls > 1)
+                return JSON.stringify({
+                  mode: 'quiet',
+                  selectedCandidateIds: [],
+                  deferred: [],
+                  nudges: [],
+                  opportunities: [],
+                  audit: {
+                    reason: 'A waiting request is already recorded',
+                    basisSourceIds: ['fact:basis'],
+                  },
+                });
               return JSON.stringify({
                 mode: 'bounded_opportunity',
                 selectedCandidateIds: [],
@@ -403,7 +417,22 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
                 ],
                 audit: { reason: 'Existing authorized basis only', basisSourceIds: ['fact:basis'] },
               });
+            }
             npcCalls++;
+            if (mode === 'wait')
+              return JSON.stringify({
+                protocol: 'npc-wire-v1',
+                ...empty(),
+                consideration: {
+                  choice: 'need_information',
+                  reason: 'I need the player decision',
+                  basisSourceIds: [],
+                  followUp: {
+                    waitingOn: 'player',
+                    missing: ['Wait for an explicit player answer'],
+                  },
+                },
+              });
             assert.equal(p.input.origin, 'coordination');
             const request = JSON.parse(p.input.text);
             return JSON.stringify({
@@ -435,21 +464,30 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
           )
         ).rows;
         assert.equal(rows.length, 1);
-        assert.equal(rows[0].status, mode === 'quiet' ? 'consumed' : 'pending');
+        assert.equal(rows[0].status, mode !== 'missing' ? 'consumed' : 'pending');
         const receipts = (
           await admin.query(
             'SELECT choice FROM parallel_life.agent_episode_receipts WHERE world_id=$1',
             [f.id],
           )
         ).rows;
-        assert.equal(receipts.length, mode === 'quiet' ? 1 : 0);
+        assert.equal(receipts.length, mode !== 'missing' ? 1 : 0);
         if (mode === 'quiet') assert.equal(receipts[0].choice, 'quiet');
         const state = await new PostgresAgentRuntimeRepository(db).read(f.owner, {
           worldId: f.id,
           actorId: f.actorId,
         });
-        assert.equal(state!.revision, mode === 'quiet' ? 1 : 0);
+        assert.equal(state!.revision, mode !== 'missing' ? 1 : 0);
         assert.deepEqual(state!.actions, []);
+        if (mode === 'wait') {
+          assert.equal(state!.responsibilities.length, 1);
+          assert.equal(state!.responsibilities[0]!.waitingOn, 'player');
+          assert.equal(state!.responsibilities[0]!.subject.kind, 'request');
+          assert.deepEqual(state!.responsibilities[0]!.nextCheck, []);
+          assert.equal(state!.responsibilities[0]!.deadline, undefined);
+          await advance.advanceIfEnabled(f.owner, f.id);
+          assert.equal(npcCalls, 1);
+        }
         if (mode === 'missing') {
           try {
             await advance.advanceIfEnabled(f.owner, f.id);

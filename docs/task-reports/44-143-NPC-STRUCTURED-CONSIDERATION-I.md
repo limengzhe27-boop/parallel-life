@@ -32,3 +32,11 @@
 3fde部署后新合成档首导演1次已知invalid：candidates为空却输出actor:2选择，独立作者opportunity与eventRef合法。没有盲目重买。修复仅在实际候选集合为空时明确拒绝该候选执行并在private audit记录原ref；不会生成actor candidate、nudge或选择。独立机会仍逐项通过原来源/作者资格/边界/CAS，受阻作者机会仍拒绝。有真实候选时，错命名空间、遗漏真实候选等仍拒绝整个选择；不是静默丢弃真实候选或放宽知情。
 
 旧invalid原始记录保持不变，不能自动改判成功。部署修正后才允许本批授权内明确重试一次。新增单元与原入口PG审计断言证明0selected/nudge且真实event参与/邀约仍合法；root最终check3305/build/PG6通过。中间因过早停本地PG的检查连接失败，重新启本树PG后最终通过，不隐藏环境失败、不放宽断言。
+
+## 145后续实际失败驱动的同批修复
+
+8c979f98 / dpl_FUZBRK9HCwkgmjybVTzJMisKyXv6正式READY。145导演重试committed，机会proposed；随后原advance一次NPC保存need_information真实choice，未伪造engage。发现仍无等待责任，玩家后续回复又非法重送旧consideration（manifest为空）；原内核拒绝，没有假邀约。至此4/6真实调用、0unknown，合成档每步finally暂停。导演重试HTTP503但付费结果committed、NPC未发送，随后原advance只执行尚未处理的人物，未重买导演。
+
+同一传输增加人物明确followUp(waitingOn与missing)：need_information/defer必须填写，代码只绑定到本人当前request的waiting责任，保留旧source、无deadline/nextCheck/强制消息/玩家决定。quiet可无责任。旧已考虑choice不回写；后续沿原责任/普通消息更新。小安146只读确认原生命周期可直接读取这些request责任，不另建运行引擎。明确模型considerationAllowed，防止把episodeFollowUps当作可重复消费；要求动作goal存在。当地时间整点对照由代码换算，仅格式参考，不代表授权约定或推断日期。v19仍同次模型输出，无纠错调用。
+
+最终check3307/build成功，原服务真实本地PG7通过（新增wait责任落库、无虚假deadline、再推进无第二次人物调用）。PG初次负例为受控Director每轮返回同op id导致ID冲突，夹具第二次明确quiet后通过；不放宽生产冲突校验。生产91checksum只读一致、107世界保留。真实自然邀约仍待本批余2次验收，不能提前写通过。

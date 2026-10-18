@@ -33,6 +33,12 @@ const Wire = z.strictObject({
       choice: z.enum(['engage', 'decline', 'defer', 'need_information', 'quiet']),
       reason: Text.max(2000),
       basisSourceIds: z.array(Id).max(63),
+      followUp: z
+        .strictObject({
+          waitingOn: z.enum(['player', 'self', 'world']).nullable(),
+          missing: z.array(Text.max(2000)).min(1).max(8),
+        })
+        .optional(),
     })
     .nullable(),
   statements: z.array(z.unknown()).max(32),
@@ -81,8 +87,54 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     requestId = context.episodeManifest.requestId;
   }
   if (consideration && !requestId) throw Error('NPC_WIRE_CONSIDERATION_SCOPE');
+  if (
+    consideration &&
+    ['need_information', 'defer'].includes(consideration.choice) &&
+    !consideration.followUp
+  )
+    throw Error('NPC_WIRE_FOLLOW_UP_REQUIRED');
+  // Only the person's explicit wait is bound; no invented deadline, wake or public statement.
+  const followUpSources = consideration
+    ? [
+        ...new Set([
+          context.input.sourceId,
+          ...(context.input.origin === 'player' && context.episodeManifest
+            ? [context.episodeManifest.sourceId]
+            : []),
+          ...consideration.basisSourceIds,
+        ]),
+      ]
+    : [];
+  const responsibility =
+    consideration?.followUp && requestId
+      ? {
+          id: requestId + ':followup',
+          subject: { kind: 'request', id: requestId },
+          summary: consideration.followUp.missing.join('；'),
+          status: 'waiting',
+          waitingOn: consideration.followUp.waitingOn,
+          sourceIds: [
+            ...new Set([
+              ...(context.state.responsibilities.find((r) => r.id === requestId + ':followup')
+                ?.sourceIds ?? []),
+              ...followUpSources,
+            ]),
+          ],
+          nextCheck: [],
+        }
+      : null;
+  if (
+    responsibility &&
+    proposal.responsibilities.some(
+      (r) => r && typeof r === 'object' && 'id' in r && r.id === responsibility.id,
+    )
+  )
+    throw Error('NPC_WIRE_FOLLOW_UP_DUPLICATE');
   return {
     ...proposal,
+    responsibilities: responsibility
+      ? [...proposal.responsibilities, responsibility]
+      : proposal.responsibilities,
     plans: plans.map(({ nextStep, ...plan }) => ({
       ...plan,
       status:

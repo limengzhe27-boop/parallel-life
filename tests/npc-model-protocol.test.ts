@@ -142,3 +142,26 @@ test('unavailable capability records explicit blocked missing conditions, never 
     /RESPONSE_WIRE_SHAPE/,
   );
 });
+
+test('information request requires explicit actor wait and persists it without a timer or invented consent', () => {
+  const { c, wire } = fixture(true);
+  const consideration = {
+    choice: 'need_information',
+    reason: '需要确认参加意愿',
+    basisSourceIds: [],
+  };
+  assert.throws(() => parseAgentProposal(c, { ...wire, consideration }), /RESPONSE_WIRE_SHAPE/);
+  const p = parseAgentProposal(c, {
+    ...wire,
+    consideration: {
+      ...consideration,
+      followUp: { waitingOn: 'player', missing: ['等玩家明确是否愿意参加'] },
+    },
+  });
+  assert.equal(p.responsibilities[0]?.subject.id, 'request');
+  assert.equal(p.responsibilities[0]?.waitingOn, 'player');
+  assert.deepEqual(p.responsibilities[0]?.nextCheck, []);
+  assert.equal(p.responsibilities[0]?.deadline, undefined);
+  assert.deepEqual(p.statements, []);
+  assert.deepEqual(p.decisions, []);
+});

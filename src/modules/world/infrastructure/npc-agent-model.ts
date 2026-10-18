@@ -12,7 +12,7 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v18-typed-next-step';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v19-grounded-invitation';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
@@ -85,7 +85,8 @@ focus可省略、null或{channel:"private|group|scene",threadId,subjectId:字符
 
 const WIRE_SYSTEM = `
 最终模型传输格式（以上是内核语义参考，本段决定实际输出）：返回protocol:"npc-wire-v1"，必含consideration（对象或null）、statements/goals/plans/actions/responsibilities/decisions六数组，focus及其他原协议可选。不要输出episodeDecision，代码依据本次服务器请求绑定requestId与input.sourceId。
-consideration非null时为{choice:"engage|decline|defer|need_information|quiet",reason:"本人实际依据",basisSourceIds:[]}；basisSourceIds只可引用已提供来源。coordination的npc_episode_consideration必须非null，即使不说话也明确quiet/defer/need_information与理由，不以statements=[]代替选择。不强迫参与；缺本人授权事件意图时明确need_information，不猜未授权全局剧本。普通player带manifest但无关时仍可null；无事件请求时必须null。
+consideration非null时为{choice:"engage|decline|defer|need_information|quiet",reason:"本人实际依据",basisSourceIds:[]}；basisSourceIds只可引用已提供来源。coordination的npc_episode_consideration必须非null，即使不说话也明确quiet/defer/need_information与理由，不以statements=[]代替选择。不强迫参与；缺本人授权事件意图时明确need_information，不猜未授权全局剧本。普通player带manifest但无关时仍可null；responseContract.considerationAllowed=false时必须null，即使episodeFollowUps含旧请求、本人以前need_information、当前想继续参与，也不得重新输出旧consideration。旧机会已经考虑，后续用本人goal/plan/责任与当前对白继续，而不是重新消费请求。
+consideration选择need_information或defer时必须同时明确followUp:{waitingOn:"player|self|world"或null,missing:["本人确实需要的信息或条件"]}，代码绑定本人当前request的等待责任，不发明期限或自动催问。quiet若仍有待办也可给followUp，否则可省略。followUp不是玩家同意。若决定询问玩家，可以在statements自然提问；若选择安静，依然保存等待去向。不要另造同名followup责任。
 plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/actionIds/nextActionId/triggers/missingConditions，代码由单个nextStep精确绑定：
 - action: {kind:"action",actionId:"本轮actions或已有本人action的真实id"}。同时给真实支持能力的action；仅记录计划不能冒充执行。
 - reconsider: {kind:"reconsider",conditions:[合法非空条件],missing:[]}。条件须有真实依据，不能为唤醒造时限。
@@ -93,7 +94,8 @@ plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/act
 - blocked: {kind:"blocked",missing:["具体未支持的能力或缺少证据"]}。
 - closed: {kind:"closed",status:"finished|withdrawn",reason:"有证据的原因"}，原结束与结果规则仍适用。
 不要把空actions、空条件、空missing的旧active计划照抄到plans。无变化不输出，已有计划有相关新输入时沿原id与完整旧sourceIds调整；不能只在对白中宣布已改安排而忽略计划。普通拒绝、协商或暂缓不产生新承诺，但对已有责任须准确记录决定，不能因引用前面的空数组示例而丢掉变更。
-邀约真实下一步：appointment.propose的parameters为{title,at:根据明确时间换算的带时区ISO,placeId:已有地点id}，goalId关联本人目标，sourceIds引用本次输入；对应plan.nextStep.actionId为该action.id。邀请仍未获玩家确认，不能说玩家已答应或到场。缺明确时间可以先询问并记录wait，不能凭空补日期。即使本人愿意也不能用plan.record冒充已发邀约或物理工作。
+邀约时间：worldContext.time.localDateTime是当地时间，storyAt的Z是UTC，不能把UTC小时直接拼接+08:00。responseContract.todayHours仅为代码换算的当天整点对照，不代表约定或建议；只有输入明确指定且尚未过去的时间才可选择。
+邀约真实下一步：appointment.propose的parameters为{title,at:根据明确时间换算的带时区ISO,placeId:已有地点id}，goalId必须指向已有state.goals或本轮goals中的实际对象，若新目标必须同时输出{id,summary,status:"active",sourceIds:[本次input.sourceId],resultIds:[]}，不得只在plan/action写一个不存在的goalId。sourceIds引用本次输入；对应plan.nextStep.actionId为该action.id。邀请仍未获玩家确认，不能说玩家已答应或到场。缺明确时间可以先询问并记录wait，不能凭空补日期。即使本人愿意也不能用plan.record冒充已发邀约或物理工作。
 coordination安静的合法格式：{"protocol":"npc-wire-v1","consideration":{"choice":"quiet","reason":"当前安排不宜新增联系","basisSourceIds":[]},"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
 `;
 
@@ -223,7 +225,16 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     responseContract: {
       protocol: NPC_WIRE_PROTOCOL,
       considerationRequired,
+      considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
       planNextStepKinds: ['action', 'reconsider', 'wait', 'blocked', 'closed'],
+      // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
+      todayHours: snapshot.channel.allowedCapabilities.includes('appointment.propose')
+        ? Array.from({ length: 24 }, (_, hour) => {
+            const date = awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10);
+            const clock = String(hour).padStart(2, '0') + ':00';
+            return { local: clock, at: `${date}T${clock}:00+08:00` };
+          })
+        : [],
     },
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
