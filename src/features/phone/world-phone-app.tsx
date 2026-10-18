@@ -1,5 +1,7 @@
 'use client';
 import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
+import { committedLocalSend, unprojectedLocalSends } from './send-projection.ts';
+import type { WorldMessageReceipt } from '../../contracts/world-interaction.ts';
 import { useWorldTime } from './use-world-time.ts';
 import type { PublicOpeningStatus } from '../../contracts/publication-opening.ts';
 import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
@@ -147,6 +149,8 @@ export function WorldPhoneApp({
   const liveTimeRef = useRef(liveTime);
   liveTimeRef.current = liveTime;
   const sendCommands = useRef<Record<string, SendCommand>>({});
+  const committedSends = useRef<Record<string, WorldMessageReceipt>>({});
+  const confirmedSendVersion = useRef({ worldId, version: 0 });
   const [recoveryWorld, setRecoveryWorld] = useState<string>();
   const restoredSends = useRef<PhoneMessage[]>([]);
   useEffect(() => {
@@ -159,6 +163,8 @@ export function WorldPhoneApp({
       /* Storage may be disabled. */
     }
     restoredSends.current = restored;
+    committedSends.current = {};
+    confirmedSendVersion.current = { worldId, version: 0 };
     setLocalMessages(restored);
     setRecoveryWorld(worldId);
   }, [worldId]);
@@ -255,17 +261,29 @@ export function WorldPhoneApp({
       entry,
     ]);
     try {
-      const currentVersion = data?.version ?? 0;
+      const currentVersion = Math.max(
+        data?.version ?? 0,
+        confirmedSendVersion.current.worldId === worldId ? confirmedSendVersion.current.version : 0,
+      );
       rememberCommand(currentVersion);
       // One submission owns one immutable identity. A 409 may be BUSY, a prior receipt,
       // or a late paid result, not permission to mutate and resubmit that command.
-      await client.sendWorldMessage(worldId, {
+      const receipt = await client.sendWorldMessage(worldId, {
         commandId,
         actorId,
         text,
         expectedVersion: currentVersion,
       });
-      setLocalMessages((current) => current.filter((message) => message.id !== commandId));
+      const confirmed = committedLocalSend(worldId, entry, receipt);
+      committedSends.current[commandId] = receipt;
+      confirmedSendVersion.current = {
+        worldId,
+        version: Math.max(currentVersion, receipt.version),
+      };
+      delete sendCommands.current[commandId];
+      setLocalMessages((current) =>
+        current.map((message) => (message.id === commandId ? confirmed : message)),
+      );
     } catch (sendError) {
       if ((sendError as { code?: string })?.code === 'VERSION_CONFLICT') await load();
       setLocalMessages((current) =>
@@ -277,8 +295,21 @@ export function WorldPhoneApp({
         throw new ApiFailure('UNKNOWN', '发送结果还不能确认，原消息已保留。请先核对。');
       throw sendError;
     }
-    // The command is committed. A projection read failure must never turn it into a failed send.
-    await load();
+    // Sending ends at the durable receipt. Read projections independently, never
+    // invoking interrupted-build recovery or extending this send's busy state.
+    const projectionEpoch = openingEpoch.current.token;
+    void client
+      .world(worldId)
+      .then((next) => {
+        if (openingEpoch.current.token !== projectionEpoch) return;
+        setData((current) =>
+          current?.id === worldId && (current.version ?? 0) <= (next.version ?? 0) ? next : current,
+        );
+      })
+      .catch(() => {
+        // A failed projection read leaves the confirmed user bubble visible.
+        // The ordinary read-only phone poll can catch up without resending anything.
+      });
   }
 
   /**
@@ -397,6 +428,14 @@ export function WorldPhoneApp({
       document.removeEventListener('visibilitychange', onReturn);
     };
   }, [worldId, recoveryWorld, receiptClient, load]);
+
+  useEffect(() => {
+    if (data?.id !== worldId) return;
+    setLocalMessages((current) => {
+      const remaining = unprojectedLocalSends(current, data.messages, committedSends.current);
+      return remaining.length === current.length ? current : remaining;
+    });
+  }, [data, worldId]);
 
   // Scene polling must refresh the saved phone, without retrying a build or action.
   const reloadSceneWorld = useCallback(
@@ -850,7 +889,11 @@ export function WorldPhoneApp({
               return { status: receipt.status };
             }}
             onExperienceBusy={setExperienceBusy}
-            localMessages={localMessages}
+            localMessages={unprojectedLocalSends(
+              localMessages,
+              data.messages,
+              committedSends.current,
+            )}
             records={records}
             reloadRecords={reloadRecords}
             onReload={load}
