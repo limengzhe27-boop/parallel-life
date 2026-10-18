@@ -503,6 +503,7 @@ export function applyEvent(
           'isPlayer' in effect && typeof effect.isPlayer === 'boolean'
             ? effect.isPlayer
             : undefined;
+        const purpose = effect.purpose;
         state.mediaRequests.push({
           id: effect.id,
           prompt: effect.prompt,
@@ -510,6 +511,7 @@ export function applyEvent(
           status: 'pending',
           sourceEventId,
           mediaType,
+          ...(purpose ? { purpose } : {}),
           ...(targetActorId ? { targetActorId } : {}),
           ...(typeof isPlayer === 'boolean' ? { isPlayer } : {}),
         });
@@ -522,6 +524,7 @@ export function applyEvent(
           prompt: effect.prompt,
           title,
           mediaType,
+          ...(purpose ? { purpose } : {}),
           ...(targetActorId ? { targetActorId } : {}),
           ...(typeof isPlayer === 'boolean' ? { isPlayer } : {}),
         });

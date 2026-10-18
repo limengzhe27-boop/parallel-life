@@ -65,6 +65,8 @@ export type MediaRequest = {
   errorCode?: string;
   sourceEventId: Id;
   mediaType?: 'image' | 'video';
+  /** Authored/model-selected visual intent; absent on legacy requests. */
+  purpose?: WorldMediaPurpose;
   targetActorId?: Id;
   isPlayer?: boolean;
   referenceAssetId?: Id;
@@ -74,6 +76,14 @@ export type MediaRequest = {
     reason?: string;
   };
 };
+export type WorldMediaPurpose =
+  | 'portrait'
+  | 'scene'
+  | 'memorial'
+  | 'evidence'
+  | 'author_asset'
+  | 'scene_moment'
+  | 'character_action';
 /**
  * A phone note the user saved. Notes live in their own projection table rather
  * than in the world snapshot, so the snapshot stays small as a life continues.
@@ -349,6 +359,7 @@ export type WorldEffect =
       prompt: string;
       title?: string;
       mediaType?: 'image' | 'video';
+      purpose?: WorldMediaPurpose;
       targetActorId?: Id;
       isPlayer?: boolean;
     }
@@ -485,5 +496,6 @@ export type OutboxJob = {
   /** Optional human-facing label for reminder-style jobs. */
   title?: string;
   mediaType?: 'image' | 'video';
+  purpose?: WorldMediaPurpose;
 };
 export type CommitResult = { state: WorldState; event: WorldEvent };

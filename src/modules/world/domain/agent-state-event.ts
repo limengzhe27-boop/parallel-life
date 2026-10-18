@@ -288,9 +288,7 @@ export function applyAgentStateEvent(
           ? effect.targetActorId
           : undefined;
       const isPlayer =
-        'isPlayer' in effect && typeof effect.isPlayer === 'boolean'
-          ? effect.isPlayer
-          : undefined;
+        'isPlayer' in effect && typeof effect.isPlayer === 'boolean' ? effect.isPlayer : undefined;
       validateEventId(effect.id);
       state.mediaRequests.push({
         id: effect.id,
@@ -299,6 +297,7 @@ export function applyAgentStateEvent(
         status: 'pending',
         sourceEventId: event.id,
         mediaType,
+        ...(effect.purpose ? { purpose: effect.purpose } : {}),
         ...(targetActorId ? { targetActorId } : {}),
         ...(typeof isPlayer === 'boolean' ? { isPlayer } : {}),
       });

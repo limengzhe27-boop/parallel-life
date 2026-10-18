@@ -1,7 +1,11 @@
 import type { TaskLease } from '../../tasks/domain/types.ts';
 import type { PostgresTaskQueue } from '../../tasks/infrastructure/postgres-task-queue.ts';
 import type { MediaPipelineService } from './media-pipeline-service.ts';
-import type { ImageGenerationIntent, VideoGenerationIntent } from '../domain/types.ts';
+import type {
+  ImageGenerationIntent,
+  VideoGenerationIntent,
+  MediaPurpose,
+} from '../domain/types.ts';
 import { randomUUID } from 'node:crypto';
 
 export type MediaTaskDocument = {
@@ -24,6 +28,29 @@ export type MediaTaskDocument = {
     storyAt?: string;
   };
 };
+
+function imagePurpose(doc: MediaTaskDocument): MediaPurpose {
+  switch (doc.purpose) {
+    case 'portrait':
+    case 'scene':
+    case 'memorial':
+    case 'evidence':
+    case 'author_asset':
+      return doc.purpose;
+    case undefined:
+    case '':
+      // Earlier committed requests had no purpose. Keep their old behavior.
+      return doc.targetActorId ? 'portrait' : 'scene';
+    default:
+      throw Object.assign(new Error('Invalid image purpose'), { code: 'INVALID_COMMAND' });
+  }
+}
+
+function videoPurpose(doc: MediaTaskDocument): VideoGenerationIntent['purpose'] {
+  if (doc.purpose === undefined || doc.purpose === '') return 'character_action';
+  if (doc.purpose === 'scene_moment' || doc.purpose === 'character_action') return doc.purpose;
+  throw Object.assign(new Error('Invalid video purpose'), { code: 'INVALID_COMMAND' });
+}
 
 /**
  * Enhanced media pipeline handler executing the full async lifecycle:
@@ -131,10 +158,13 @@ export function createMediaPipelineHandler(
     let pipelineResult;
     try {
       if (doc.mediaType === 'video') {
+        const purpose = videoPurpose(doc);
         const videoIntent: VideoGenerationIntent = {
-          purpose: 'character_action',
+          purpose,
           actionDescription: doc.prompt || '动作记录',
-          targetActorId: doc.targetActorId,
+          // The sender remains in the stored request. A scene-only clip must not
+          // acquire their portrait anchor merely because they sent the message.
+          targetActorId: purpose === 'scene_moment' ? undefined : doc.targetActorId,
           sourceEventId: doc.sourceEventId,
           deliveryIntent: doc.deliveryIntent,
         };
@@ -144,12 +174,12 @@ export function createMediaPipelineHandler(
           intent: videoIntent,
           currentAssetCount,
           callerActorId: doc.targetActorId || 'player',
-          isCallerPlayer: doc.isPlayer ?? (doc.targetActorId === 'player'),
+          isCallerPlayer: doc.isPlayer ?? doc.targetActorId === 'player',
           worldIsCancelled,
         });
       } else {
         const imageIntent: ImageGenerationIntent = {
-          purpose: (doc.purpose as any) || (doc.targetActorId ? 'portrait' : 'scene'),
+          purpose: imagePurpose(doc),
           sceneDescription: doc.prompt || '平行人生留影',
           targetActorId: doc.targetActorId,
           sourceEventId: doc.sourceEventId,
@@ -161,7 +191,7 @@ export function createMediaPipelineHandler(
           intent: imageIntent,
           currentAssetCount,
           callerActorId: doc.targetActorId || 'player',
-          isCallerPlayer: doc.isPlayer ?? (doc.targetActorId === 'player'),
+          isCallerPlayer: doc.isPlayer ?? doc.targetActorId === 'player',
           worldIsCancelled,
         });
       }

@@ -6,6 +6,7 @@ import type {
   WorldEffect,
   Visibility,
   EventGoalAssessment,
+  WorldMediaPurpose,
 } from './types.ts';
 import type {
   WorldMatter,
@@ -18,6 +19,21 @@ import type {
 
 function fail(): never {
   throw new DomainError('INVALID_PROPOSAL');
+}
+function mediaPurpose(value: unknown, mediaType: unknown): WorldMediaPurpose | undefined {
+  if (value === undefined) return undefined;
+  if (mediaType === 'video') {
+    if (value === 'scene_moment' || value === 'character_action') return value;
+  } else if (
+    value === 'portrait' ||
+    value === 'scene' ||
+    value === 'memorial' ||
+    value === 'evidence' ||
+    value === 'author_asset'
+  ) {
+    return value;
+  }
+  return fail();
 }
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return fail();
@@ -623,7 +639,9 @@ export function parseProposal(value: unknown): TurnProposal {
           ...(Array.isArray(item.images)
             ? {
                 images: item.images
-                  .filter((img: unknown) => typeof img === 'string' && Boolean((img as string).trim()))
+                  .filter(
+                    (img: unknown) => typeof img === 'string' && Boolean((img as string).trim()),
+                  )
                   .map((img: string) => text(img.trim(), 1000))
                   .slice(0, 9),
               }
@@ -658,7 +676,8 @@ export function parseProposal(value: unknown): TurnProposal {
           text: text(item.text),
           visibility: visibility(item.visibility),
         };
-      case 'media.requested':
+      case 'media.requested': {
+        const purpose = mediaPurpose(item.purpose, item.mediaType);
         return {
           type: item.type,
           id: effectId,
@@ -669,11 +688,13 @@ export function parseProposal(value: unknown): TurnProposal {
           ...(item.mediaType === 'video'
             ? { mediaType: 'video' as const }
             : { mediaType: 'image' as const }),
+          ...(purpose ? { purpose } : {}),
           ...(typeof item.targetActorId === 'string' && item.targetActorId.trim()
             ? { targetActorId: item.targetActorId.trim() }
             : {}),
           ...(typeof item.isPlayer === 'boolean' ? { isPlayer: item.isPlayer } : {}),
         };
+      }
       case 'choice.recorded':
         return {
           type: item.type,
