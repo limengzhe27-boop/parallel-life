@@ -192,6 +192,26 @@ export function useWorldTime(
     if (!s?.active || session.current !== s || !clock || clock.paused || session.current?.returning)
       throw Error('正在恢复这段人生，请稍后发送。');
   }, [sync]);
+  // Only an in-world stopping boundary needs a choice; entering the page never does.
+  const continueAtBoundary = async () => {
+    if (pendingWaitRef.current || waiting.current) return;
+    const s = session.current;
+    if (!s?.active || s.returning) return;
+    setWorking(true);
+    try {
+      await sync(
+        phoneTimeMode(busyRef.current, readRoute(location.hash, worldId), lockedRef.current),
+        true,
+      );
+      setNotice('');
+      lastMeaningfulActivity.current = Date.now();
+      lastCheck.current = Date.now();
+    } catch {
+      setNotice('时间暂时未同步，请稍后再试。');
+    } finally {
+      if (session.current === s) setWorking(false);
+    }
+  };
   async function wait(
     target: StoryWaitRequest['target'],
     expectedVersion: number,
@@ -287,6 +307,7 @@ export function useWorldTime(
     pendingWait,
     wait,
     startConversation,
+    continueAtBoundary,
     blocked:
       enabled &&
       (!clock || clock.paused || !!session.current?.returning || working || !!pendingWait),

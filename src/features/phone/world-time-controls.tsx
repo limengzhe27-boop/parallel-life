@@ -36,6 +36,11 @@ export function TimeExperienceControls({
     >
       <summary style={{ cursor: 'pointer' }}>等待与休息</summary>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 0' }}>
+        {time.clock?.paused && time.clock.summary && !time.pendingWait && (
+          <button disabled={time.working} onClick={() => void time.continueAtBoundary()}>
+            继续体验
+          </button>
+        )}
         <button
           disabled={time.working || !time.clock || !!time.pendingWait}
           onClick={() => void time.wait('next_appointment', worldVersion, reload)}
