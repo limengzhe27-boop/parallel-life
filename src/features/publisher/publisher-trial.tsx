@@ -241,6 +241,9 @@ export function PublisherTrial({
         mediaUrlFor={(_worldId, assetId) =>
           `/api/v1/publisher/trials/${encodeURIComponent(trial.trialId)}/world/media/${encodeURIComponent(assetId)}`
         }
+        runtimeAssetUrlFor={(_worldId, assetId, revision) =>
+          `/api/v1/publisher/trials/${encodeURIComponent(trial.trialId)}/world/assets/${encodeURIComponent(assetId)}?revision=${revision}`
+        }
       />
     </>
   ) : (

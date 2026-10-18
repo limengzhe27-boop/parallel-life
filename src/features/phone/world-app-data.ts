@@ -14,6 +14,12 @@ export function worldAppData(
   local: readonly PhoneMessage[] = [],
   mediaUrlFor: (worldId: string, assetId: string) => string = (worldId, assetId) =>
     `/api/v1/worlds/${encodeURIComponent(worldId)}/media/${encodeURIComponent(assetId)}`,
+  runtimeAssetUrlFor: (worldId: string, assetId: string, revision: number) => string = (
+    worldId,
+    assetId,
+    revision,
+  ) =>
+    `/api/v1/assets/${encodeURIComponent(assetId)}?worldId=${encodeURIComponent(worldId)}&revision=${revision}`,
 ): PhoneAppsData {
   const history = world.historyLinks ?? [];
   const historyLinks = (entry: (typeof history)[number]) => [
@@ -61,7 +67,7 @@ export function worldAppData(
       description,
       status: 'ready' as const,
       tag,
-      url: `/api/v1/assets/${encodeURIComponent(photo.id)}?worldId=${encodeURIComponent(world.id)}&revision=${photo.revision}`,
+      url: runtimeAssetUrlFor(world.id, photo.id, photo.revision),
       ...(photo.sourcePersonId ? { sourcePersonId: photo.sourcePersonId } : {}),
       ...(photo.mimeType ? { mimeType: photo.mimeType } : {}),
     };
@@ -98,7 +104,8 @@ export function worldAppData(
           if (matchedPhoto) {
             photo = {
               ...matchedPhoto,
-              mediaType: message.mediaType ?? (matchedPhoto.mimeType === 'video/mp4' ? 'video' : 'image'),
+              mediaType:
+                message.mediaType ?? (matchedPhoto.mimeType === 'video/mp4' ? 'video' : 'image'),
             };
           } else {
             photo = {
@@ -109,7 +116,7 @@ export function worldAppData(
               status: 'ready' as const,
               tag: 'event' as const,
               mediaType: isVideo ? 'video' : 'image',
-              url: `/api/v1/assets/${encodeURIComponent(message.photoId)}?worldId=${encodeURIComponent(world.id)}&revision=1`,
+              url: runtimeAssetUrlFor(world.id, message.photoId, 1),
             };
           }
         } else if (message.mediaStatus === 'pending') {
@@ -117,7 +124,9 @@ export function worldAppData(
             id: `pending_${message.id}`,
             date: message.at,
             title: message.mediaTitle || (isVideo ? '正在渲染视频片段...' : '正在记录画面...'),
-            description: isVideo ? 'AI 视频片段生成中，完成后将在此展示' : 'AI 摄影记录中，生成后将在此展示并同步至相册',
+            description: isVideo
+              ? 'AI 视频片段生成中，完成后将在此展示'
+              : 'AI 摄影记录中，生成后将在此展示并同步至相册',
             status: 'generating' as const,
             tag: 'event' as const,
             mediaType: isVideo ? 'video' : 'image',

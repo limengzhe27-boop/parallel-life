@@ -1,3 +1,4 @@
+import { readTrialRuntimeAsset } from './trial-runtime-asset-http.ts';
 import { readTrialDirectorStatus } from '../modules/world/infrastructure/director-trial-recovery.ts';
 import { bootstrapPublicationAgentTrial } from '../modules/world/infrastructure/publication-agent-trial-bootstrap.ts';
 import 'server-only';
@@ -87,6 +88,21 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
       principal = await s.http.authorize(request, request.method !== 'GET');
     const trial = await s.worlds.trialSession(principal.id, Id.parse(trialId));
     if (path.length === 0) return publisherJson(await s.worlds.getTrial(principal.id, trialId));
+    if (
+      request.method === 'GET' &&
+      path.length === 3 &&
+      path[0] === 'world' &&
+      path[1] === 'assets'
+    ) {
+      return readTrialRuntimeAsset(
+        trial.ownerId,
+        trial.worldId,
+        path[2]!,
+        new URL(request.url).searchParams.get('revision'),
+        getServices().assets,
+      );
+    }
+
     if (
       request.method === 'GET' &&
       path.length === 3 &&

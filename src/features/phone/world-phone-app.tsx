@@ -67,12 +67,14 @@ export function WorldPhoneApp({
   automatic = true,
   wechatActorKey,
   mediaUrlFor,
+  runtimeAssetUrlFor,
 }: {
   worldId: string;
   transport?: typeof fetch;
   automatic?: boolean;
   wechatActorKey?: string;
   mediaUrlFor?: (worldId: string, assetId: string) => string;
+  runtimeAssetUrlFor?: (worldId: string, assetId: string, revision: number) => string;
 }) {
   const [receiptClient] = useState(() => new MessageReceiptClient(transport));
   const [client] = useState(() => new LifeClient(transport)),
@@ -899,6 +901,7 @@ export function WorldPhoneApp({
             onReload={load}
             onSceneWorldChanged={reloadSceneWorld}
             mediaUrlFor={mediaUrlFor}
+            runtimeAssetUrlFor={runtimeAssetUrlFor}
             loading={refreshing}
             loadError={error}
           />
@@ -928,6 +931,7 @@ export function WorldPhoneSurface({
   loadError,
   wechatActorKey,
   mediaUrlFor,
+  runtimeAssetUrlFor,
 }: {
   data: WorldPhone;
   onExperienceBusy?: (busy: boolean) => void;
@@ -949,6 +953,7 @@ export function WorldPhoneSurface({
   loadError?: string;
   wechatActorKey?: string;
   mediaUrlFor?: (worldId: string, assetId: string) => string;
+  runtimeAssetUrlFor?: (worldId: string, assetId: string, revision: number) => string;
 }) {
   const [viewed, setViewed] = useState<ReadonlySet<string>>(() => {
     try {
@@ -1187,7 +1192,13 @@ export function WorldPhoneSurface({
     [data],
   );
 
-  const basePhoneData = worldAppData(mergedData, viewed, localMessages, mediaUrlFor);
+  const basePhoneData = worldAppData(
+    mergedData,
+    viewed,
+    localMessages,
+    mediaUrlFor,
+    runtimeAssetUrlFor,
+  );
   const phoneData: PhoneAppsData = useMemo(
     () => ({
       ...basePhoneData,

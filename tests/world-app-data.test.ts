@@ -340,3 +340,56 @@ test('fresh browser history is already read in both contacts and the notificatio
   );
   assert.equal(worldAppData({ ...world, messages: [history] }, new Set()).contacts[0]!.unread, 0);
 });
+
+test('trial runtime generated pictures use a revision-aware asset endpoint distinct from authored media', () => {
+  const generated = {
+    ...world,
+    photos: [
+      {
+        id: 'generated-photo',
+        title: '刚拍的照片',
+        date: world.time,
+        revision: 3,
+        kind: 'generated',
+      },
+    ],
+    messages: [
+      { ...world.messages[0]!, photoId: 'generated-photo', mediaStatus: 'ready' },
+      {
+        ...world.messages[0]!,
+        id: 'without-album',
+        photoId: 'generated-orphan',
+        mediaStatus: 'ready',
+      },
+      {
+        ...world.messages[0]!,
+        id: 'authored',
+        attachment: { kind: 'image', assetId: 'authored-photo' },
+      },
+      { ...world.messages[0]!, id: 'pending', mediaStatus: 'pending' },
+    ],
+  } as Parameters<typeof worldAppData>[0];
+  const projection = worldAppData(
+    generated,
+    new Set(),
+    [],
+    (_world, id) => `/staff/trial/world/media/${id}`,
+    (_world, id, revision) => `/staff/trial/world/assets/${id}?revision=${revision}`,
+  );
+  assert.equal(projection.photos[0]?.url, '/staff/trial/world/assets/generated-photo?revision=3');
+  assert.equal(projection.messages[0]?.photo?.url, projection.photos[0]?.url);
+  assert.equal(
+    projection.messages[1]?.photo?.url,
+    '/staff/trial/world/assets/generated-orphan?revision=1',
+  );
+  assert.equal(projection.messages[2]?.attachment?.url, '/staff/trial/world/media/authored-photo');
+  assert.equal(projection.messages[3]?.photo?.url, undefined);
+  assert.equal(projection.messages[3]?.photo?.status, 'generating');
+  const player = worldAppData(generated);
+  assert.equal(player.photos[0]?.url, '/api/v1/assets/generated-photo?worldId=world-a&revision=3');
+  assert.equal(
+    player.messages[1]?.photo?.url,
+    '/api/v1/assets/generated-orphan?worldId=world-a&revision=1',
+  );
+  assert.equal(player.messages[2]?.attachment?.url, '/api/v1/worlds/world-a/media/authored-photo');
+});
