@@ -2,7 +2,7 @@ import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 
 /** Repair a materially incomplete opening assessment with real subsequent player speech.
  * First contact per actor is stable; time, refresh and repeated same-actor chatter add nothing.
- * Existing paid failures/unknowns are never reclassified or retried here.
+ * A later authentic player contact is a new context, not a replay of a failed paid frame. Unknown/in-flight results remain fenced.
  */
 export async function readOpeningReviewEvidence(
   sql: SqlClient,
@@ -15,20 +15,23 @@ export async function readOpeningReviewEvidence(
   if (!openingActorIds.length) return [];
   const prior = (
     await sql.query(
-      `SELECT a.response,a.expected_world_version,a.snapshot
+      `SELECT a.response,a.status,a.expected_world_version,a.snapshot,d.id AS actual_decision_id
      FROM parallel_life.director_runtime_attempts a
-     JOIN parallel_life.director_decisions d ON d.world_id=a.world_id AND d.owner_id=a.owner_id
+     LEFT JOIN parallel_life.director_decisions d ON d.world_id=a.world_id AND d.owner_id=a.owner_id
        AND d.id=a.decision_id AND d.input_hash=a.input_hash AND d.attempt_id=a.id
        AND d.engine_epoch=a.engine_epoch AND d.world_version=a.expected_world_version
-     WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3 AND a.status='committed'
-       AND a.snapshot#>>'{evaluationCause,kind}'='authored_eligibility'
-       AND jsonb_typeof(a.snapshot->'observations')='array'
-       AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(a.snapshot->'observations') o WHERE o->>'kind'='speech')
+     WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3
+       AND a.snapshot#>>'{evaluationCause,kind}' IN ('authored_eligibility','bootstrap')
+       AND ((a.status='committed' AND d.id IS NOT NULL
+         AND jsonb_typeof(a.snapshot->'observations')='array'
+         AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(a.snapshot->'observations') o WHERE o->>'kind'='speech'))
+        OR (a.status='invalid_output' AND a.sent_at IS NOT NULL AND a.response IS NOT NULL))
      ORDER BY a.created_at,a.id`,
       [worldId, ownerId, engineEpoch],
     )
   ).rows;
   const incomplete = prior.find((a) => {
+    if (a.status === 'invalid_output') return true;
     let response;
     try {
       response = typeof a.response === 'string' ? JSON.parse(a.response) : a.response;

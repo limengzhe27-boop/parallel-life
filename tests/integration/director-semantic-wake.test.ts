@@ -555,6 +555,76 @@ test('actual publication semantic wake advances use one protected Director bound
   );
 
   await t.test(
+    'a failed opening frame may be reconsidered once for real later contact, never for refresh or repeated chatter',
+    async () => {
+      const f = await fixture({ legacy: true });
+      const originalRead = snapshots.read.bind(snapshots);
+      snapshots.read = async (...args: Parameters<typeof snapshots.read>) => {
+        const value = await originalRead(...args);
+        return { ...value, observations: value.observations.filter((o) => o.kind !== 'speech') };
+      };
+      const h = harness(f, {
+        response(_p, n) {
+          return n === 1 ? 'invalid known completion' : JSON.stringify(quiet());
+        },
+      });
+      try {
+        await assert.rejects(h.advance(), { code: 'INVALID_DIRECTOR_PROPOSAL' });
+      } finally {
+        snapshots.read = originalRead;
+      }
+      const prior = (await attempts(f))[0]!;
+      assert.equal(prior.status, 'invalid_output');
+      assert.equal((await wake(f)).cause, null, 'no new evidence means no paid reassessment');
+      const actorId = f.world.actors[0]!.id;
+      const svc = npcAgentServices(app, () => ({
+        async complete() {
+          return JSON.stringify({
+            statements: [{ text: '收到，先聊聊具体安排。', dependsOnActionIds: [] }],
+            goals: [],
+            plans: [],
+            actions: [],
+            responsibilities: [],
+            decisions: [],
+          });
+        },
+      }));
+      async function reply() {
+        const w = await worlds.get({ userId: f.owner }, f.id);
+        await svc.sendMessageIfEnabled(f.owner, {
+          id: randomUUID(),
+          worldId: f.id,
+          actorId,
+          expectedVersion: w.version,
+          text: '我想问问当前有什么安排。',
+        });
+      }
+      await reply();
+      const next = await wake(f);
+      assert.equal(next.cause?.kind, 'authored_eligibility');
+      assert.deepEqual(await wake(f), next, 'read/refresh does not change evidence identity');
+      const repaired = await snap(f);
+      assert.ok(
+        repaired.observations.some((o) => o.kind === 'speech' && o.sourceId.startsWith('message:')),
+      );
+      await h.advance();
+      assert.equal(h.director().length, 2);
+      assert.equal(
+        (await wake(f)).cause,
+        null,
+        'new quiet includes the evidence and consumes that context',
+      );
+      await reply();
+      assert.equal(
+        (await wake(f)).cause,
+        null,
+        'same actor ordinary chatter cannot repeatedly buy review',
+      );
+      assert.equal((await attempts(f))[0]!.id, prior.id, 'old paid decision preserved');
+    },
+  );
+
+  await t.test(
     'existing migrated phone entry resumes unreviewed author material without replaying genesis or charging on read',
     async () => {
       const f = await fixture({ legacy: true });

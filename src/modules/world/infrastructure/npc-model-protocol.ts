@@ -117,11 +117,11 @@ const ModelExecution = Execution.extend({
   }),
 });
 const ModelMediaDecision = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('not_requested'), execution: z.null() }),
-  z.strictObject({ kind: z.literal('decline'), execution: z.null() }),
-  z.strictObject({ kind: z.literal('generate_image'), execution: ModelExecution }),
-  z.strictObject({ kind: z.literal('generate_video'), execution: ModelExecution }),
-  z.strictObject({ kind: z.literal('share_existing'), execution: ModelExecution }),
+  z.strictObject({ kind: z.enum(['not_requested', 'decline']), execution: z.null() }),
+  z.strictObject({
+    kind: z.enum(['generate_image', 'generate_video', 'share_existing']),
+    execution: ModelExecution,
+  }),
 ]);
 // The model and decoder reuse canonical proposal shapes; only transport references/parameters differ.
 const ModelWire = Wire.extend({
@@ -323,7 +323,11 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     executions: suppliedExecutions = [],
     ...proposal
   } = wire;
-  const mediaCapabilities = new Set(['media.generate_image', 'media.generate_video', 'media.share']);
+  const mediaCapabilities = new Set([
+    'media.generate_image',
+    'media.generate_video',
+    'media.share',
+  ]);
   const mediaCapability = {
     generate_image: 'media.generate_image',
     generate_video: 'media.generate_video',

@@ -495,7 +495,7 @@ export async function readPrivateAgentSnapshot(
       actor: {
         name: context.actor.name,
         persona: JSON.stringify({
-          persona: context.actor.persona,
+          ...(selectedModules ? {} : { persona: context.actor.persona }),
           relationship: context.actor.relationship,
           modules: selectedModules,
         }),

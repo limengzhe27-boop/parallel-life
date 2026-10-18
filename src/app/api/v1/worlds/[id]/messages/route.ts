@@ -35,7 +35,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       });
       if (receipt) {
         try {
-          await s.drainOutbox(s.ownerId);
           after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, receipt.eventId));
         } catch (error) {
           console.warn(
@@ -95,7 +94,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       媒体请求）。派发失败不影响已提交的结果：outbox 是持久的，稍后可再派发。
     */
       try {
-        await s.drainOutbox(s.ownerId);
         after(() => runCommittedChatMedia(s.db, s.ownerId, parsedWorldId.data, result.event.id));
       } catch (error) {
         console.warn(

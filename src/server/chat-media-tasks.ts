@@ -1,5 +1,7 @@
 import 'server-only';
 import type { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
+import { PostgresOutbox } from '../modules/tasks/infrastructure/postgres-outbox.ts';
+import { dispatchOutbox } from '../modules/tasks/application/dispatch-outbox.ts';
 import { runOwnedTask } from './run-task.ts';
 
 /** Execute only durable media emitted by this committed chat, under the original worker lease.
@@ -13,6 +15,8 @@ export async function runCommittedChatMedia(
   eventId: string,
   run: (owner: string, task: string) => Promise<void> = runOwnedTask,
 ) {
+  const ports = new PostgresOutbox(db).ports(ownerId, { worldId, eventId });
+  await dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks, limit: 2 });
   const tasks = await db.transaction(
     ownerId,
     async (sql) =>

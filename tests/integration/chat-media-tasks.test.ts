@@ -74,8 +74,46 @@ test('committed chat automatically executes only its own queued media task witho
         [worldId],
       )
     ).rows[0].id;
-    const ports = new PostgresOutbox(db).ports(owner);
-    await dispatchOutbox({ outbox: ports.outbox, tasks: ports.tasks });
+    // The after callback must dispatch its own original outbox; no preceding global drain.
+    const foreignEvent = randomUUID();
+    const unrelated = {
+      ...command,
+      id: randomUUID(),
+      expectedVersion: 1,
+      text: 'unrelated later turn',
+    };
+    await worlds.commit(session, unrelated, {
+      schemaVersion: 1,
+      id: foreignEvent,
+      worldId,
+      commandId: unrelated.id,
+      version: 2,
+      occurredAt: time,
+      type: 'turn.resolved',
+      data: {
+        actorId,
+        userText: unrelated.text,
+        effects: [{ type: 'message.received', id: randomUUID(), actorId, text: 'unrelated reply' }],
+      },
+    });
+    for (let i = 0; i < 24; i++)
+      await admin.query(
+        `INSERT INTO parallel_life.outbox_jobs(id,owner_id,world_id,event_id,payload,created_at) VALUES($1,$2,$3,$4,$5,now()-interval '1 day')`,
+        [
+          randomUUID(),
+          owner,
+          worldId,
+          foreignEvent,
+          {
+            id: randomUUID(),
+            eventId: foreignEvent,
+            worldId,
+            type: 'image.generate',
+            requestId: randomUUID(),
+            prompt: 'unrelated backlog',
+          },
+        ],
+      );
     const { runCommittedChatMedia } = await import('../../src/server/chat-media-tasks.ts');
     const executed: string[] = [];
     const run = async (actualOwner: string, taskId: string) => {
@@ -86,8 +124,30 @@ test('committed chat automatically executes only its own queued media task witho
     await runCommittedChatMedia(db, owner, randomUUID(), eventId, run);
     await runCommittedChatMedia(db, owner, worldId, randomUUID(), run);
     assert.equal(executed.length, 0, 'other world or event never executes');
+    const denied = await db.transaction(
+      randomUUID(),
+      async (sql) =>
+        (
+          await sql.query('SELECT * FROM parallel_life.claim_outbox_event_jobs($1,$2,$3,2,60)', [
+            owner,
+            worldId,
+            eventId,
+          ])
+        ).rows,
+    );
+    assert.equal(denied.length, 0, 'caller cannot claim another owner event by supplying its id');
     await runCommittedChatMedia(db, owner, worldId, eventId, run);
     assert.equal(executed.length, 1);
+    assert.equal(
+      (
+        await admin.query(
+          "SELECT count(*)::int n FROM parallel_life.outbox_jobs WHERE event_id=$1 AND status='queued'",
+          [foreignEvent],
+        )
+      ).rows[0].n,
+      24,
+      'unrelated owner backlog untouched',
+    );
     await runCommittedChatMedia(db, owner, worldId, eventId, run);
     assert.equal(executed.length, 1, 'terminal task is not retried');
     await admin.query("UPDATE parallel_life.tasks SET status='unknown' WHERE id=$1", [executed[0]]);

@@ -49,17 +49,28 @@ export class PostgresOutbox {
   constructor(db: PostgresDatabase) {
     this.db = db;
   }
-  ports(ownerId: string): { outbox: OutboxPort; tasks: OutboxTaskPort } {
+  ports(
+    ownerId: string,
+    scope?: { worldId: string; eventId: string },
+  ): { outbox: OutboxPort; tasks: OutboxTaskPort } {
     return {
       outbox: {
         claim: async (limit) =>
           this.db.transaction(ownerId, async (sql) =>
             (
-              await sql.query('SELECT * FROM parallel_life.claim_outbox_jobs($1,$2,$3)', [
-                ownerId,
-                Math.min(limit, MAX_BATCH),
-                LEASE_SECONDS,
-              ])
+              await (scope
+                ? sql.query('SELECT * FROM parallel_life.claim_outbox_event_jobs($1,$2,$3,$4,$5)', [
+                    ownerId,
+                    scope.worldId,
+                    scope.eventId,
+                    Math.min(limit, MAX_BATCH),
+                    LEASE_SECONDS,
+                  ])
+                : sql.query('SELECT * FROM parallel_life.claim_outbox_jobs($1,$2,$3)', [
+                    ownerId,
+                    Math.min(limit, MAX_BATCH),
+                    LEASE_SECONDS,
+                  ]))
             ).rows.map(toJob),
           ),
         submitted: async (job, taskId) => {

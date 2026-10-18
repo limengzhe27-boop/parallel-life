@@ -129,12 +129,12 @@ export async function readDirectorNarrativeWakeInTransaction(
       .filter((e) => e.worldVersion <= through && actors.has(e.actorId))
       .map((e) => e.sourceId);
   };
-  const contextToken = (q: AuthoredWakeQualification, through: number, fenceSpeech = false) =>
+  const contextToken = (q: AuthoredWakeQualification, through: number) =>
     JSON.stringify([
       token(q),
       evidenceFor(q, through),
       ...(speechFor(q, input.worldVersion).length
-        ? [{ openingSpeech: speechFor(q, fenceSpeech ? input.worldVersion : through) }]
+        ? [{ openingSpeech: speechFor(q, through) }]
         : []),
     ]);
   // A paid assessment fences this evidence context, never completes the author event.
@@ -155,7 +155,7 @@ export async function readDirectorNarrativeWakeInTransaction(
     const previousOccupied = new Set<string>(a.snapshot.occupiedAuthoredEventKeys ?? []);
     for (const q of entries)
       if (q.status === 'eligible' && !previousOccupied.has(q.nodeKey))
-        paidReviewContexts.add(contextToken(q, a.snapshot.worldVersion, a.status !== 'committed'));
+        paidReviewContexts.add(contextToken(q, a.snapshot.worldVersion));
   }
   const unseen = qualifications
     .filter((q) => !paidReviewContexts.has(contextToken(q, input.worldVersion)))

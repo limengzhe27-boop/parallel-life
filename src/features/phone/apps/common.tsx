@@ -23,13 +23,15 @@ export function Links({ links, open }: { links?: PhoneLink[]; open: PhoneAppCont
 export function Feedback({
   operation,
   success = '已完成',
+  pending = '正在提交…',
 }: {
   operation?: Operation;
   success?: string;
+  pending?: string;
 }) {
   return operation?.busy ? (
     <p className={s.feedback} role="status">
-      正在提交…
+      {pending}
     </p>
   ) : operation?.error ? (
     <p className={s.error} role="alert">

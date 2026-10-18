@@ -1039,7 +1039,9 @@ test('actual bound author intents reach only their actor through protected NPC d
         /NPC_AGENT_SNAPSHOT_LIMIT/,
       );
       assert.equal(paid, 0);
-      assert.equal(await attempt(f2, e2), undefined);
+      const cancelled = await attempt(f2, e2);
+      assert.equal(cancelled.status, 'cancelled_before_send');
+      assert.equal(cancelled.sent_at, null);
     },
   );
   await t.test(
