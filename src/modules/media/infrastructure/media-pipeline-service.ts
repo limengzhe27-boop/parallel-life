@@ -44,7 +44,7 @@ export type MediaPipelineOptions = {
   fetchFn?: (url: string | URL | Request, init?: RequestInit) => Promise<Response>;
   maxPollAttempts?: number;
   pollIntervalMs?: number;
-  referenceAssetReader?: (assetId: string) => Promise<{ bytes: Buffer; mimeType: string } | null>;
+  referenceAssetReader?: (assetId: string, ownerId?: string) => Promise<{ bytes: Buffer; mimeType: string } | null>;
 };
 
 export class MediaPipelineService {
@@ -56,7 +56,7 @@ export class MediaPipelineService {
   private readonly fetchFn: (url: string | URL | Request, init?: RequestInit) => Promise<Response>;
   private readonly maxPollAttempts: number;
   private readonly pollIntervalMs: number;
-  private readonly referenceAssetReader?: (assetId: string) => Promise<{ bytes: Buffer; mimeType: string } | null>;
+  private readonly referenceAssetReader?: (assetId: string, ownerId?: string) => Promise<{ bytes: Buffer; mimeType: string } | null>;
 
   constructor(options: MediaPipelineOptions) {
     this.providerAdapter = options.providerAdapter;
@@ -119,7 +119,7 @@ export class MediaPipelineService {
     let refBytes: Buffer | undefined;
     let refMime: string | undefined;
     if (refResolution.mode === 'reference_guided' && refResolution.referenceAssetId && this.referenceAssetReader) {
-      const readResult = await this.referenceAssetReader(refResolution.referenceAssetId);
+      const readResult = await this.referenceAssetReader(refResolution.referenceAssetId, ownerId);
       if (readResult) {
         refBytes = readResult.bytes;
         refMime = readResult.mimeType;
@@ -288,7 +288,7 @@ export class MediaPipelineService {
     let firstFrameBytes: Buffer | undefined;
     let firstFrameMime: string | undefined;
     if (refResolution.mode === 'reference_guided' && refResolution.referenceAssetId && this.referenceAssetReader) {
-      const readResult = await this.referenceAssetReader(refResolution.referenceAssetId);
+      const readResult = await this.referenceAssetReader(refResolution.referenceAssetId, ownerId);
       if (readResult) {
         firstFrameBytes = readResult.bytes;
         firstFrameMime = readResult.mimeType;

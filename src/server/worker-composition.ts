@@ -47,7 +47,7 @@ export function createWorker() {
     if (!mediaService) {
       const db = getServices().db;
       const store = readStore();
-      const visualAnchorRepo = new PostgresCharacterVisualAnchorRepository(db.pool);
+      const visualAnchorRepo = new PostgresCharacterVisualAnchorRepository(db);
       /* The project gateway already serves an image model; prefer it, keep Replicate as fallback. */
       const providerAdapter = process.env.YIBU_API_KEY?.trim()
         ? new YibuMediaProviderAdapter({
@@ -57,16 +57,24 @@ export function createWorker() {
         : new ReplicateMediaProviderAdapter({
             apiToken: process.env.REPLICATE_API_TOKEN,
           });
-      const referenceAssetReader = async (assetId: string) => {
-        const row = (
-          await db.pool.query(
-            `SELECT storage_key, mime_type FROM parallel_life.assets WHERE id = $1`,
-            [assetId],
-          )
-        ).rows[0];
-        if (!row?.storage_key) return null;
-        const bytes = await store.get(row.storage_key);
-        return { bytes, mimeType: row.mime_type || 'image/jpeg' };
+      const referenceAssetReader = async (assetId: string, ownerId?: string) => {
+        let storageKey: string | undefined;
+        let mimeType: string | undefined;
+        if (ownerId) {
+          const row = (
+            await db.transaction(ownerId, async (sql) =>
+              sql.query(
+                `SELECT storage_key, mime_type FROM parallel_life.assets WHERE id = $1 AND owner_id = $2`,
+                [assetId, ownerId],
+              ),
+            )
+          ).rows[0];
+          storageKey = row?.storage_key;
+          mimeType = row?.mime_type;
+        }
+        if (!storageKey) return null;
+        const bytes = await store.get(storageKey);
+        return { bytes, mimeType: mimeType || 'image/jpeg' };
       };
       mediaService = new MediaPipelineService({
         providerAdapter,
