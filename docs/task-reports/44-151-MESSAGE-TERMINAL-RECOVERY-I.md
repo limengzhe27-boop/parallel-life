@@ -13,3 +13,7 @@ MessageReceiptLookup新增带原身份的failed终态，仅由真实持久attemp
 原执行服务PG8通过：持久拒绝回执可重复只读核对，0额外模型调用，异owner/异输入拒绝；真实unknown仍unconfirmed。纯14项/check3319/build通过。首次PG命令未设端口保护被fixture拒绝（无数据库操作），指定独占55587后通过。0商业模型，150仍5/6 open，0新迁移；生产既有91checksum上一批已核验，无schema改动。
 
 部署与手机/PC实际恢复操作待本批READY后补充。修复不意味着人物自然演绎及完整开场已通过。
+
+## 公网实际验收
+
+2ddc48d88d1449d7a3cd7b49db5b2e78f2d6afcf / dpl_BEgsG54MRZgVPnPoyr7RDaPKurCr正式Nu READY。沿用合成145真实第5次invalid attempt的原commandId/输入/版本，在自有浏览器恢复缓存为unknown以复现旧页面；未修改服务端失败记录。原手机点击核对，真实原端点返回failed，UI转为重试、unknown与重复确认提示消失；填新文本后sendEnabled=true，但不点击发送。PC1365x900/手机390x844截图均查看。再次查付费账本仍5/6、无pending；合成档保持暂停。浏览器会话已结束。该限定恢复任务完成；人物引用/时间协商与完整开场自然演绎仍归148/150，未标通过。

@@ -1,3 +1,7 @@
+## 2026-10-18 · 44-151 已知失败消息恢复
+
+2ddc48d8 / dpl_BEgsG54MRZgVPnPoyr7RDaPKurCr正式Nu READY。原回执区分known failed与unconfirmed，手机核对只读解除已知失败阻塞，不重发、不重买模型；真正unknown保留保护。check3319/build/PG8及手机PC实际核对通过，150仍5/6、测试档暂停。无迁移或真实用户档修改。人物语义和完整开场仍未全通过，不以此宣称整体完成。见[151报告](task-reports/44-151-MESSAGE-TERMINAL-RECOVERY-I.md)。
+
 ## 2026-10-18 · 44-148/150 旧档进入、锁屏活动与人物统一输出（真实承接未全通过）
 
 业务63152348 / dpl_Dhq2wZf3zoDejjD8YcxSbpz9LE9Q正式Nu精确READY。旧档进入复用原narrative wake；锁屏隐藏聊天路由不再误报conversation；不可变命令不自动改版本重发。canonical Proposal和原生strict schema共源，完全相同执行包幂等折叠、不同内容同ID仍拒绝。无新迁移，保留现有存档历史/时间/进度。
