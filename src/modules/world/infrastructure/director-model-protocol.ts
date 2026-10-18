@@ -104,6 +104,7 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     ref.startsWith('event:') ? lookup(catalog.events, ref).sourceId : source(ref);
   const selectedCandidateIds: string[] = [],
     deferred: { candidateId: string; reason: string }[] = [];
+  const rejectedCandidateRefs: string[] = [];
   const nudges: {
     actorId: string;
     candidateId: string;
@@ -111,6 +112,12 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     basisSourceIds: string[];
   }[] = [];
   for (const choice of wire.candidates) {
+    // Reject impossible execution explicitly. Independent opportunities still
+    // require all canonical source/eligibility checks; never invent a candidate.
+    if (catalog.candidates.length === 0) {
+      rejectedCandidateRefs.push(choice.ref);
+      continue;
+    }
     const id = lookup(catalog.candidates, choice.ref).candidateId;
     if (choice.decision === 'defer') deferred.push({ candidateId: id, reason: choice.reason });
     else {
@@ -150,6 +157,14 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
           }
         : {}),
     })),
-    audit: { reason: wire.audit.reason, basisSourceIds: wire.audit.sourceRefs.map(auditSource) },
+    audit: {
+      reason: rejectedCandidateRefs.length
+        ? `[未执行的候选选择：本轮没有可用候选；拒绝引用 ${rejectedCandidateRefs.join(',')}。] ${wire.audit.reason}`.slice(
+            0,
+            2000,
+          )
+        : wire.audit.reason,
+      basisSourceIds: wire.audit.sourceRefs.map(auditSource),
+    },
   };
 }

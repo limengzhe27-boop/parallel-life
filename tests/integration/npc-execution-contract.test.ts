@@ -240,7 +240,7 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
             return JSON.stringify({
               protocol: 'director-wire-v1',
               mode: 'bounded_opportunity',
-              candidates: [],
+              candidates: [{ ref: p.wireCatalog.actors[0].ref, decision: 'select' }],
               opportunities: [
                 {
                   id: 'wire-event',
@@ -329,6 +329,14 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
         ])
       ).rows[0].document;
       assert.equal(episode.status, 'active');
+      const directorDecision = (
+        await admin.query(
+          'SELECT document FROM parallel_life.director_decisions WHERE world_id=$1',
+          [f.id],
+        )
+      ).rows[0].document;
+      assert.deepEqual(directorDecision.selectedCandidateIds, []);
+      assert.match(directorDecision.audit.reason, /未执行的候选选择/);
       assert.equal(
         (
           await admin.query(

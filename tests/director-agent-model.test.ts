@@ -748,7 +748,11 @@ test('typed event reference binds key and source together while preserving canon
     'authored:' + f.snapshot.authoredMaterials!.materials[0]!.ref.nodeHash,
   ]);
   assert.deepEqual(decision.selectedCandidateIds, []); // Participants are not candidates or consent.
-  rejected(f, { ...f.wire, candidates: [{ ref: 'actor:1', decision: 'select' }] });
+  const partial = f.parse({ ...f.wire, candidates: [{ ref: 'actor:1', decision: 'select' }] });
+  assert.deepEqual(partial.selectedCandidateIds, []);
+  assert.deepEqual(partial.nudges, []);
+  assert.equal(partial.opportunities[0]!.authoredEventKey, 'opening_plan');
+  assert.match(partial.audit.reason, /未执行的候选选择.*actor:1/);
   rejected(f, {
     ...f.wire,
     opportunities: [{ ...f.wire.opportunities[0], origin: { kind: 'authored' } }],
@@ -762,6 +766,7 @@ test('typed event reference binds key and source together while preserving canon
   rejected(f, { ...f.wire, protocol: 'director-wire-v999' });
   f.snapshot.authoredEligibility![0]!.status = 'blocked';
   rejected(f, f.wire);
+  rejected(f, { ...f.wire, candidates: [{ ref: 'actor:1', decision: 'select' }] });
   f.snapshot.authoredEligibility![0]!.status = 'eligible';
   f.snapshot.occupiedAuthoredEventKeys = ['opening_plan'];
   rejected(f, f.wire);
