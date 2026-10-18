@@ -547,6 +547,9 @@ export async function projectEpisodeRequestInTransaction(
   )
     invalid();
   const selected = choice?.success ? choice.data : undefined;
+  // Defence in depth: a dedicated consideration cannot consume an unassessed request.
+  // Historical unassessed receipts remain readable; unrelated player dialogue stays optional.
+  if (body.origin === 'coordination' && !selected) invalid();
   const captured = committed.snapshot;
   if (
     !captured ||

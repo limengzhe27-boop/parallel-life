@@ -233,6 +233,16 @@ export function validateAgentProposal(
   proposal: AgentProposal,
 ): void {
   const state = context.viewState ?? context.state;
+  if (context.input.origin === 'coordination') {
+    let request: { type?: unknown } | null = null;
+    try {
+      request = JSON.parse(context.input.text);
+    } catch {
+      // Other coordination protocols retain their existing validation.
+    }
+    if (request?.type === 'npc_episode_consideration')
+      requireValid(proposal.episodeDecision !== undefined, 'EPISODE_DECISION_REQUIRED');
+  }
   if (proposal.episodeDecision !== undefined) {
     let intent: unknown;
     try {
@@ -365,6 +375,40 @@ export function validateAgentProposal(
     conditions(plan.triggers);
     if (plan.status === 'active')
       requireValid(goals.get(plan.goalId)?.status === 'active', 'PLAN_GOAL_NOT_ACTIVE');
+    const previous = state.plans.find((item) => item.id === plan.id);
+    // Do not retroactively invalidate unchanged historical plans on ordinary dialogue.
+    if (!previous || !sameValue(previous, plan)) {
+      const missing = plan.missingConditions.some((text) => text.trim().length > 0);
+      if (plan.status === 'active') {
+        const next = plan.nextActionId ? actions.get(plan.nextActionId) : undefined;
+        const executable =
+          next &&
+          next.goalId === plan.goalId &&
+          plan.actionIds.includes(next.id) &&
+          ['proposed', 'ready', 'waiting', 'blocked'].includes(next.status) &&
+          context.channel.allowedCapabilities.includes(next.capability);
+        requireValid(
+          !!executable ||
+            (plan.nextActionId === null && !plan.actionIds.length && plan.triggers.length > 0),
+          'PLAN_NEXT_STEP_REQUIRED',
+        );
+      }
+      if (plan.status === 'waiting') {
+        const next = plan.nextActionId ? actions.get(plan.nextActionId) : undefined;
+        const actionWait =
+          next &&
+          next.goalId === plan.goalId &&
+          plan.actionIds.includes(next.id) &&
+          context.channel.allowedCapabilities.includes(next.capability) &&
+          ['proposed', 'ready', 'waiting', 'blocked'].includes(next.status) &&
+          (next.preconditions.length > 0 || next.dependsOnActionIds.length > 0);
+        requireValid(
+          missing || plan.triggers.length > 0 || !!actionWait,
+          'PLAN_WAITING_BASIS_REQUIRED',
+        );
+      }
+      if (plan.status === 'blocked') requireValid(missing, 'PLAN_BLOCKED_REASON_REQUIRED');
+    }
   }
   for (const action of proposal.actions) {
     requireValid(goals.has(action.goalId), 'UNKNOWN_GOAL');
