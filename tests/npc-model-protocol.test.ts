@@ -718,3 +718,28 @@ test('provider-safe null judgment collections decode only as explicit empty v2 s
   };
   visit(format.schema);
 });
+
+test('native grammar puts media only in explicit mediaDecision and advertises current channel capabilities', () => {
+  const { c } = fixture();
+  c.channel.allowedCapabilities = ['appointment.propose', 'media.generate_image'];
+  const format = npcResponseFormat(c.state, 'forbidden', { input: c.input, channel: c.channel });
+  if (format.format !== 'json_schema') throw Error('schema');
+  type NativeNode = {
+    type?: string;
+    enum?: string[];
+    properties?: Record<string, NativeNode>;
+    anyOf?: NativeNode[];
+    items?: NativeNode;
+  };
+  const root = format.schema as NativeNode;
+  const executions: NativeNode = root.properties!.executions!.anyOf!.find(
+    (n) => n.type === 'array',
+  )!;
+  assert.deepEqual(executions.items!.properties!.action!.properties!.capability!.enum, [
+    'appointment.propose',
+  ]);
+  assert.deepEqual(
+    root.properties!.mediaDecision!.anyOf!.map((n) => n.properties!.kind!.enum![0]),
+    ['not_requested', 'decline', 'generate_image'],
+  );
+});

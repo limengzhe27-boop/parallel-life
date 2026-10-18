@@ -253,13 +253,34 @@ export function npcResponseFormat(
     execution.properties!.goal = usable.length === 1 ? first : { anyOf: usable };
   };
   const executions = properties.executions!;
-  scopeGoal((executions.anyOf?.[0] ?? executions).items!);
+  const executionItem = (executions.anyOf?.[0] ?? executions).items!;
+  scopeGoal(executionItem);
+  if (current) {
+    const capabilities = current.channel.allowedCapabilities.filter(
+      (cap) => !cap.startsWith('media.'),
+    );
+    if (capabilities.length)
+      executionItem.properties!.action!.properties!.capability!.enum = capabilities;
+    else properties.executions = { type: 'null' };
+  }
   const mediaOptions = properties.mediaDecision?.anyOf;
   if (!mediaOptions) throw Error('NPC_RESPONSE_SCHEMA');
   for (const option of mediaOptions) {
     const basis = option.properties?.basisSourceIds;
     if (basis?.items && current) basis.items.enum = [current.input.sourceId];
   }
+  if (current)
+    properties.mediaDecision!.anyOf = mediaOptions.filter((option) => {
+      const kind = option.properties?.kind?.enum?.[0];
+      return (
+        kind === 'not_requested' ||
+        kind === 'decline' ||
+        (kind === 'generate_image' &&
+          current.channel.allowedCapabilities.includes('media.generate_image')) ||
+        (kind === 'generate_video' &&
+          current.channel.allowedCapabilities.includes('media.generate_video'))
+      );
+    });
   // A reply assessment is about this player's current words, not an old NPC question.
   // Narrow the native grammar before the call; the kernel still validates exact source,
   // verbatim quote and thread authorization after the response is durably saved.
