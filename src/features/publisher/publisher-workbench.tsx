@@ -1056,7 +1056,7 @@ export function PublisherWorkbench(
                 }
                 onClick={() => onPrepareOverall(overallText)}
               >
-                AI 帮写
+                AI 帮写（消耗一次调用）
               </button>
             </div>
           </section>
