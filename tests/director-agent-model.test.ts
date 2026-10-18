@@ -517,17 +517,19 @@ test('system protocol gives a parseable complete quiet example without repairing
   assert.throws(() => parseDirectorDecision(empty, response, f.attempt), {
     code: 'INVALID_DIRECTOR_PROPOSAL',
   });
-  const example = JSON.parse(system.slice(system.lastIndexOf('\n') + 1));
+  const example = JSON.parse(
+    system
+      .split('\n')
+      .find((line) => line.startsWith('无候选且决定安静的格式例：'))!
+      .split('格式例：')[1]!,
+  );
   assert.equal(example.mode, 'quiet');
   assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
   rejected(f, example); // An empty example cannot silently discard the real candidates.
-  assert.match(system, /没有候选且决定quiet/);
-  assert.match(system, /不是要求安静或制造机会/);
-  assert.match(system, /candidates为空也不等于没有合法作者机会/);
-  assert.match(system, /不能省略audit、输出audit:\{\}/);
-  assert.match(system, /reason必须非空/);
-  assert.match(system, /所有真实候选逐项deferred/);
-  assert.match(system, /nativeTurn存在时仍禁止opportunity和nudge/);
+  assert.match(system, /保持安静是合法判断/);
+  assert.match(system, /必有protocol、mode、candidates、opportunities、audit/);
+  assert.match(system, /quiet时所有候选defer/);
+  assert.match(system, /nativeTurn仍最多选一个候选/);
 });
 
 test('quiet audit remains mandatory and source-authorized regardless of candidate count', () => {
@@ -616,16 +618,22 @@ test('output reference catalogue keeps empty candidates separate from actors and
     },
   });
   await adapter.decide(f.snapshot);
-  const catalog = payload.outputReferenceCatalog;
-  assert.deepEqual(catalog.candidateIds, []);
-  assert.deepEqual(catalog.actorIds, ['a', 'b']);
-  assert.deepEqual(catalog.placeIds, ['home', 'shop']);
-  assert.equal(catalog.eligibleAuthoredEvents.length, 1);
-  const ref = catalog.eligibleAuthoredEvents[0];
+  const catalog = payload.wireCatalog;
+  assert.deepEqual(catalog.candidates, []);
+  assert.deepEqual(
+    catalog.actors.map((a: any) => a.actorId),
+    ['a', 'b'],
+  );
+  assert.deepEqual(
+    catalog.places.map((p: any) => p.placeId),
+    ['home', 'shop'],
+  );
+  assert.equal(catalog.events.length, 1);
+  const ref = catalog.events[0];
   assert.equal(ref.authoredEventKey, 'opening_plan');
   assert.match(ref.sourceId, /^authored:[a-f0-9]{64}$/);
-  assert.match(system, /selectedCandidateIds, deferred, and nudges MUST ALL be \[\]/);
-  assert.match(system, /Never omit authoredEventKey for authored evidence/);
+  assert.match(system, /没有候选时candidates必须\[\]/);
+  assert.match(system, /不能省略eventRef/);
   const decision = {
     ...f.bounded,
     deferred: [],
@@ -653,6 +661,146 @@ test('output candidate index is copied from candidate IDs rather than actor iden
       return '{}';
     },
   }).decide(f.snapshot);
-  assert.deepEqual(payload.outputReferenceCatalog.candidateIds, ['candidate-a', 'candidate-b']);
-  assert.deepEqual(payload.outputReferenceCatalog.eligibleAuthoredEvents, []);
+  assert.deepEqual(
+    payload.wireCatalog.candidates.map((c: any) => c.candidateId),
+    ['candidate-a', 'candidate-b'],
+  );
+  assert.deepEqual(payload.wireCatalog.events, []);
+});
+
+async function wireFixture() {
+  const f = fixture();
+  const { compileAuthoredAgentMaterials } =
+    await import('../src/modules/world/domain/authored-agent-material.ts');
+  const { createHash } = await import('node:crypto');
+  f.snapshot.candidates = [];
+  f.snapshot.authoredMaterials = compileAuthoredAgentMaterials(
+    {
+      scope: { worldId: 'world', engineEpoch: 2, worldVersion: 5 },
+      actualActorIds: ['a', 'b'],
+      actualPlaceIds: ['home', 'shop'],
+      source: {
+        origin: {
+          workId: 'work',
+          publicationVersion: 0,
+          draftVersion: 0,
+          contentHash: 'a'.repeat(64),
+        },
+        timeline: null,
+        conditions: [],
+        actorKeys: ['ak'],
+        contacts: [{ actorKey: 'ak', actorId: 'a' }],
+        initialActorIds: ['a', 'b'],
+        initialPlaceKeys: ['home'],
+        places: [{ key: 'home', name: 'Home' }],
+        history: [],
+        nodes: [
+          {
+            key: 'opening_plan',
+            kind: 'candidate',
+            title: 'Opening',
+            editorialIntent: 'Future optional opportunity',
+            actorKeys: ['ak'],
+            prerequisites: [],
+            mutuallyExclusiveNodeKeys: [],
+            intent: { kind: 'director_event' },
+          },
+        ],
+      },
+    },
+    (text) => createHash('sha256').update(text).digest('hex'),
+  );
+  f.snapshot.authoredEligibility = f.snapshot.authoredMaterials.materials.map((m) => ({
+    nodeKey: m.ref.nodeKey,
+    nodeHash: m.ref.nodeHash,
+    status: 'eligible',
+    reasons: [],
+    basisSourceIds: [],
+    qualificationKey: 'b'.repeat(64),
+  }));
+  f.snapshot.occupiedAuthoredEventKeys = [];
+  const wire = {
+    protocol: 'director-wire-v1',
+    mode: 'bounded_opportunity',
+    candidates: [],
+    opportunities: [
+      {
+        id: 'opportunity',
+        title: 'Discuss plans',
+        description: 'An opportunity to consider independently',
+        playerImpact: 'Player may decline',
+        actors: ['actor:1'],
+        places: [],
+        activity: 'conversation',
+        origin: { kind: 'authored', eventRef: 'event:1' },
+      },
+    ],
+    audit: { reason: 'Current eligible opportunity', sourceRefs: ['event:1'] },
+  };
+  return { ...f, wire };
+}
+
+test('typed event reference binds key and source together while preserving canonical validation', async () => {
+  const f = await wireFixture();
+  const decision = f.parse(f.wire);
+  assert.equal(decision.opportunities[0]!.authoredEventKey, 'opening_plan');
+  assert.deepEqual(decision.opportunities[0]!.basisSourceIds, [
+    'authored:' + f.snapshot.authoredMaterials!.materials[0]!.ref.nodeHash,
+  ]);
+  assert.deepEqual(decision.selectedCandidateIds, []); // Participants are not candidates or consent.
+  rejected(f, { ...f.wire, candidates: [{ ref: 'actor:1', decision: 'select' }] });
+  rejected(f, {
+    ...f.wire,
+    opportunities: [{ ...f.wire.opportunities[0], origin: { kind: 'authored' } }],
+  });
+  rejected(f, {
+    ...f.wire,
+    opportunities: [
+      { ...f.wire.opportunities[0], origin: { kind: 'authored', eventRef: 'source:1' } },
+    ],
+  });
+  rejected(f, { ...f.wire, protocol: 'director-wire-v999' });
+  f.snapshot.authoredEligibility![0]!.status = 'blocked';
+  rejected(f, f.wire);
+  f.snapshot.authoredEligibility![0]!.status = 'eligible';
+  f.snapshot.occupiedAuthoredEventKeys = ['opening_plan'];
+  rejected(f, f.wire);
+});
+
+test('wire candidate decisions have one identity and cannot leak authored sources through a nudge', () => {
+  const f = fixture();
+  const wire = {
+    protocol: 'director-wire-v1',
+    mode: 'coordinate',
+    candidates: [
+      { ref: 'candidate:1', decision: 'select', nudge: 'continue_own_plan' },
+      { ref: 'candidate:2', decision: 'defer', reason: 'Still waiting' },
+    ],
+    opportunities: [],
+    audit: { reason: 'Own plan is ready', sourceRefs: ['source:1'] },
+  };
+  const decision = f.parse(wire);
+  assert.deepEqual(decision.selectedCandidateIds, ['candidate-a']);
+  assert.deepEqual(decision.nudges, [
+    {
+      candidateId: 'candidate-a',
+      actorId: 'a',
+      kind: 'continue_own_plan',
+      basisSourceIds: ['a-source'],
+    },
+  ]);
+  rejected(f, { ...wire, candidates: [{ ref: 'actor:1', decision: 'select' }] });
+  rejected(f, { ...wire, candidates: [wire.candidates[0]] }); // Every candidate must have a decision.
+  rejected(f, { ...wire, mode: 'quiet' });
+  const quiet = {
+    ...wire,
+    mode: 'quiet',
+    candidates: [
+      { ref: 'candidate:1', decision: 'defer', reason: 'Quiet' },
+      { ref: 'candidate:2', decision: 'defer', reason: 'Quiet' },
+    ],
+  };
+  assert.equal(f.parse(quiet).mode, 'quiet');
+  f.snapshot.candidates[0]!.sourceIds = ['authored:forged'];
+  rejected(f, wire); // Decoder does not grant authored material to NPCs.
 });

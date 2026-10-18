@@ -818,7 +818,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v16-commitment-state');
+  assert.equal(payload.promptVersion, 'npc-agent-v17-executable-next-step');
 });
 
 test('prompt instructions specify player decision tracking on responsibilities with exact verbatim quotes', async () => {
@@ -829,7 +829,21 @@ test('prompt instructions specify player decision tracking on responsibilities w
   assert.match(system, /PlayerDecision只对当前输入确实针对的responsibility作判断/);
   assert.match(system, /quote必须是input.text里逐字连续的原文/);
   assert.match(system, /无关闲聊或换话题不得误判为accepted/);
-  assert.match(system, /明确承担分工与承诺（同时提议goal、plan与responsibility）/);
+  assert.match(system, /保存有解释的blocked计划/);
   assert.match(system, /玩家确认分工后NPC确认（记录玩家决定）/);
 });
 
+test('commitment protocol does not prescribe empty runnable plans or fabricate an unsupported action', async () => {
+  const { adapter, calls } = capture();
+  await adapter.decide(snapshot());
+  const system = calls[0]!.messages[0]!.content;
+  assert.match(system, /actionIds及nextActionId指向实际动作/);
+  assert.match(system, /有来源的非空triggers/);
+  assert.match(system, /不能拿plan.record冒充外部行为/);
+  const line = system.split('\n').find((line) => line.startsWith('2. 愿意承担'))!;
+  const example = JSON.parse(line.slice(line.indexOf('{')));
+  assert.equal(example.plans[0].status, 'blocked');
+  assert.ok(example.plans[0].missingConditions.length);
+  assert.deepEqual(example.actions, []);
+  assert.equal(example.responsibilities[0].status, 'waiting');
+});

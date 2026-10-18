@@ -359,6 +359,7 @@ test('actual publication semantic wake advances use one protected Director bound
       response?: (p: any, index: number) => Promise<string> | string;
       propose?: string;
       npcChoice?: 'quiet' | 'engage';
+      wire?: boolean;
     } = {},
   ) {
     const calls: { kind: 'director' | 'npc'; payload: any }[] = [];
@@ -411,6 +412,36 @@ test('actual publication semantic wake advances use one protected Director bound
           const m = p.authoredMaterials.materials.find(
             (m: any) => m.ref.nodeKey === options.propose,
           );
+          if (options.wire) {
+            const event = p.wireCatalog.events.find(
+              (e: any) => e.authoredEventKey === options.propose,
+            );
+            const actor = p.wireCatalog.actors.find(
+              (a: any) => a.actorId === f.world.actors[0]!.id,
+            );
+            return JSON.stringify({
+              protocol: 'director-wire-v1',
+              mode: 'bounded_opportunity',
+              candidates: p.wireCatalog.candidates.map((c: any) => ({
+                ref: c.ref,
+                decision: 'defer',
+                reason: '先考虑此机会',
+              })),
+              opportunities: [
+                {
+                  id: randomUUID(),
+                  title: '可选分工',
+                  description: '邀请本人考虑，不是命令',
+                  playerImpact: '允许拒绝或暂缓',
+                  actors: [actor.ref],
+                  places: [],
+                  activity: 'conversation',
+                  origin: { kind: 'authored', eventRef: event.ref },
+                },
+              ],
+              audit: { reason: '实际现状允许考虑作者机会', sourceRefs: [event.ref] },
+            });
+          }
           return JSON.stringify({
             ...quiet(),
             mode: 'bounded_opportunity',
@@ -446,6 +477,31 @@ test('actual publication semantic wake advances use one protected Director bound
     assert.equal(h.director()[0]!.payload.evaluationCause.kind, 'bootstrap');
     return h;
   }
+  await t.test(
+    'typed model event reference uses the real advance, independent NPC and transactional episode path',
+    async () => {
+      const f = await fixture(),
+        h = harness(f, { propose: 'always', npcChoice: 'engage', wire: true });
+      await h.advance();
+      assert.deepEqual(
+        h.calls.map((c) => c.kind),
+        ['director', 'npc'],
+      );
+      const episodes = await directors.readEpisodes(f.owner, f.id);
+      assert.equal(episodes.length, 1);
+      assert.equal(episodes[0]!.status, 'active');
+      assert.equal((await attempts(f))[0]!.status, 'committed');
+      const outcomes = await admin.query(
+        'SELECT 1 FROM parallel_life.agent_episode_outcomes WHERE world_id=$1',
+        [f.id],
+      );
+      assert.equal(
+        outcomes.rowCount,
+        0,
+        'considering an opportunity cannot fabricate a final result',
+      );
+    },
+  );
   await t.test(
     'actual bootstrap quiet and natural authored time transitions each purchase once at worldVersion zero',
     async () => {

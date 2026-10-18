@@ -114,6 +114,14 @@ export function publisherTrialRoute(request: Request, trialId: string, path: str
         try {
           await svc.retryTrialDirector(trial.ownerId, trial.worldId, input.attemptId);
         } catch (error) {
+          if (
+            ['INVALID_DIRECTOR_PROPOSAL', 'INVALID_DIRECTOR_RESULT'].includes(
+              (error as { code?: string })?.code ?? '',
+            )
+          )
+            return publisherJson(
+              await readTrialDirectorStatus(svc.db, trial.ownerId, trial.worldId),
+            );
           if ((error as { code?: string })?.code === 'INVALID_COMMAND')
             throw new PublisherHttpError('INVALID_STATE');
           throw error;

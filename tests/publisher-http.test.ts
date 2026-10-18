@@ -369,3 +369,16 @@ test('delete executes under edit permission and requires session and CSRF', asyn
   // Without CSRF
   assert.equal((await run(f, 'delete', req(null, c.token, '', {}, 'DELETE'))).status, 403);
 });
+
+test('known director output failures are explicit non-retryable protocol failures, not connection errors', async () => {
+  for (const code of ['INVALID_DIRECTOR_PROPOSAL', 'INVALID_DIRECTOR_RESULT']) {
+    const response = await publisherEndpoint(async () => {
+      throw Object.assign(Error(code), { code });
+    });
+    assert.equal(response.status, 422);
+    const body = await response.json();
+    assert.equal(body.error.code, 'INVALID_AI_OUTPUT');
+    assert.equal(body.error.retryable, false);
+    assert.match(body.error.message, /未写入故事/);
+  }
+});

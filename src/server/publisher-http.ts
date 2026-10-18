@@ -66,6 +66,7 @@ const messages: Record<string, string> = {
   CONTENT_TOO_LARGE: '这份作品的内容已达到容量上限。请精简后再保存，当前输入仍保留在页面中。',
   INVALID_STATE: '当前内容尚不满足这项操作的条件。',
   RATE_LIMITED: '操作较频繁，请稍后再试。',
+  INVALID_AI_OUTPUT: '本次剧情编排未通过检查，未写入故事。请查看试演状态后选择重新编排。',
   UNAVAILABLE: '内容后台暂时不可用，请稍后重试。',
 };
 const status: Record<string, number> = {
@@ -75,6 +76,7 @@ const status: Record<string, number> = {
   VERSION_CONFLICT: 409,
   IDEMPOTENCY_CONFLICT: 409,
   INVALID_INPUT: 422,
+  INVALID_AI_OUTPUT: 422,
   CONTENT_TOO_LARGE: 422,
   INVALID_STATE: 409,
   RATE_LIMITED: 429,
@@ -97,7 +99,13 @@ export async function publisherEndpoint(run: () => Promise<Response>) {
     r.headers.set('X-Request-Id', requestId);
     return r;
   } catch (error) {
-    const supplied = error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+    const originalCode =
+      error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+    const supplied = ['INVALID_DIRECTOR_PROPOSAL', 'INVALID_DIRECTOR_RESULT'].includes(
+      originalCode ?? '',
+    )
+      ? 'INVALID_AI_OUTPUT'
+      : originalCode;
     const code = supplied && status[supplied] ? supplied : 'UNAVAILABLE';
     // No exception text, bodies, configuration, passwords or SQL are logged or returned.
     const r = publisherJson(

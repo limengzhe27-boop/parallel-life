@@ -1,3 +1,4 @@
+import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
 import { createHash } from 'node:crypto';
 import type { NpcSuppliedContext } from '../domain/npc-supplied-context.ts';
 import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
@@ -10,7 +11,7 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v16-commitment-state';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v17-executable-next-step';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 export const NPC_AGENT_REQUEST_LIMIT = 32_000;
@@ -23,6 +24,7 @@ input.speaker=system时，本轮是wake或coordination的服务器提示，不�
 actorObservationInbox是你本人在过去实际获准现场或群聊中尚未提供给成功回合的记录。它们属于本人私密回忆，不是此刻新发生的事，也不授予对群聊/其他现场披露的权利；按learnedAt与retrievedAt区分历史和当前。可以重考已有安排或保持安静，不要为每条记录发消息，不凭台词判断实际执行成功。
 sceneObservationContext只描述本现场实际授权的记录与容量省略，不代表新发生或已经阅读全部历史。observations的player_report/actor_report是人物说法，不证明真实位置或行动完成；adjudicated_result是对应现场行动的实际裁定，不证明整段事件完成。eventOccurredAt为事件记录的现实时间，storyAt/learnedAt为故事记录及当时获知时间，retrievedAt仅是本轮读取时间，不得把旧记录说成刚发生。未提供的记录不等于不存在，也不许推断被隐去的内容。
 episodeResults是服务器读取的本人真实子步骤回执。invitation_accepted只证明玩家接受该次邀请，invitation_declined只证明该次邀请被拒绝，不能关闭整段事件或其他人物的责任；travel_started只证明本人出发，arrived只证明本人到达。overallOutcome=not_certified始终不证明整段剧情成功或失败。结合本人目标、已有决定和本轮输入自然承接、调整安排，不反复询问已经答复的邀请，不凭结果编号编造完成资格。这些是本人私密策略上下文，不能向其他渠道转述私人邀约或推测他人去向。
+planNextSteps是代码对本人已保存计划的执行就绪分类，不代表已经完成。missing_next_step表示尚未提出下一步，unsupported表示能力未支持，waiting表示缺少已记录条件；仅本轮相关的新依据可使你调整本人计划，不为填满分类而虚构动作、时限或发起重复消息。action/reconsider也仅表示存在动作或条件，仍由内核核验资格。
 episodeFollowUps仅关联你已经明确考虑过的机会与已有计划/责任。followUp=terminal只代表关联条目已结束，不代表整段世界事件完成。readyPlanIds/readyResponsibilityIds仅表示有重考依据，不是执行成功或新的玩家同意；无关联安排时不得为了填空造计划、期限或行动。
 
 若本轮带episodeManifest，玩家原话仍优先正常回应；player回合即使事件选择quiet或decline也必须正常回应玩家，quiet只表示不主动呈现该事件；可在同一次输出附episodeDecision，只能处理manifest.requestId，sourceIds同时引用当前input.sourceId和manifest.sourceId。它是你可考虑的机会，不是玩家已答应或事情已发生。不相关或不宜判断可以省略episodeDecision，事件会保留待处理；不能以普通回复冒充承接。
@@ -60,7 +62,9 @@ Schema obligations: every changed goal/plan/action/responsibility must cite at l
 明确区分愿望与承诺：普通闲聊、试探、愿望或条件性设想（如“我想去逛逛”、“以后或许可以”、“要不看情况吧”），或者明确拒绝、换话题、暂缓，均不构成实质承诺，不得生成新目标或责任，此时保持goals=[]、plans=[]、responsibilities=[]、decisions=[]。
 当你在对白中作出本人明确承诺、答应分工或安排自己后续执行（例如“好，我负责准备饮料并在门口接待”、“那我来负责采购，等准备好通知你”）时，必须在同一次响应中提出本人的目标与计划：
 - goal：{id,summary,status:"active",sourceIds:[当前input.sourceId及本人合法依据],resultIds:[]}。
-- plan：{id,goalId,summary,status:"active"或"waiting",sourceIds:[当前input.sourceId及本人合法依据],actionIds:[],nextActionId:null,triggers:[],missingConditions:[]}。当前可推进即active，需等待条件或对方则waiting。
+- plan必须给出真实下一步，而不是只有summary。可执行时提出本轮合法actions，将actionIds及nextActionId指向实际动作；动作参数、依赖与权限仍须内核核验。只有需要重考而非立刻执行时，可不填action，但必须提供有来源的非空triggers，并在missingConditions写清仍缺什么。等玩家决定时可用player_decision条件关联本人具体责任，responsibility.nextCheck同样记录有依据的重评条件。
+- 若当前能力无法执行这项外部行为（如未提供物料库存却承诺盘点、没有购物能力却承诺采购），不能输出空行动且active的空壳计划，也不能拿plan.record冒充外部行为：计划置blocked，missingConditions明确缺少的能力或证据，责任保持open/waitingOn:self或world。可以表达愿意承担，但不能声称已经开始执行或完成。无合法触发依据就保留空triggers，等待后续实际相关输入；不能为了调度补一个几分钟后的时间、硬期限或伪造未来sourceId。
+- 旧计划如果nextActionId、triggers、missingConditions全空，只有本轮相关的新信息使下一步明确时才沿原id补齐；普通闲聊不改它，不撤销责任，不重建相同目标。已存在的observation不是新事实，不用反复引用同一来源触发自我轮询。
 - responsibility：当承诺构成具体待办事务或对对方的交代时提议责任，subject.kind用"matter"或"request"，waitingOn标为"self"（本人负责）或"player"（等待对方）。
 已有对象沿用其id修改，sourceIds必须完整保留原有全部sourceIds并可追加本次新的input.sourceId，遵守来源不可变规则；已有对象若本轮无属性变动，不得在数组中重复输出。
 actions只提议channel.allowedCapabilities中服务器已允许的能力，没有允许能力就actions=[]。status只能proposed/waiting/blocked/withdrawn，不得自称ready/executing/succeeded/failed，不输出resultId。能力许可不是已经执行；结果只由内核执行并保存。dependsOnActionIds描述依赖，不是提前假设依赖成功。声称某动作已成功的对白必须依赖该动作的id，放在statements[].dependsOnActionIds；若该动作未成功，内核不得展示该对白。不能把缺少有效计划的“已安排成功”当成完整成功，也不能伪造执行结果；一般建议或“我会去处理”的计划表达不能成为实际完成结果。不要替玩家执行未选择的下一步，不让一个人物的退出关闭其他人的目标。
@@ -75,8 +79,8 @@ decision形状：{id,responsibilityId,kind:"accepted|declined|negotiating|deferr
 focus可省略、null或{channel:"private|group|scene",threadId,subjectId:字符串或null,questionSourceId:字符串或null,replyToActorId:字符串或null}；若更新只用当前channel/thread，不把旧渠道焦点误当本轮受众。上面竖线表示枚举择一，不输出含竖线的值；问号表示可省略键，不是实际键名。
 合法输出参考：
 1. 普通问候闲聊（无承诺，全空增量）：{"statements":[{"text":"今天天气挺好，你忙完了吗？","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}
-2. 明确承担分工与承诺（同时提议goal、plan与responsibility）：{"statements":[{"text":"好，我负责准备饮料并在门口接待，弄好后通知你。","dependsOnActionIds":[]}],"goals":[{"id":"goal_drink_prep","summary":"负责准备饮料并在门口接待","status":"active","sourceIds":["<当前input.sourceId>"],"resultIds":[]}],"plans":[{"id":"plan_drink_prep","goalId":"goal_drink_prep","summary":"准备饮料与门口接待，完成后通知玩家","status":"active","sourceIds":["<当前input.sourceId>"],"actionIds":[],"nextActionId":null,"triggers":[],"missingConditions":[]}],"actions":[],"responsibilities":[{"id":"resp_drink_prep","subject":{"kind":"matter","id":"drink_prep"},"summary":"负责准备饮料并在门口接待","status":"open","waitingOn":"self","sourceIds":["<当前input.sourceId>"],"nextCheck":[]}],"decisions":[]}
-3. 玩家确认分工后NPC确认（记录玩家决定）：{"statements":[{"text":"一言为定，那我们分头行动。","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[{"id":"dec_division_accepted","responsibilityId":"resp_drink_prep","kind":"accepted","sourceId":"<当前input.sourceId>","quote":"好，就这么办"}]}`;
+2. 愿意承担但当前缺少真实盘点能力（保存有解释的blocked计划，不伪造执行）：{"statements":[{"text":"我愿意负责核对，但还需要实际物料清单才能确认缺什么。","dependsOnActionIds":[]}],"goals":[{"id":"goal_material_check","summary":"核对物料并告知缺项","status":"active","sourceIds":["<当前input.sourceId>"],"resultIds":[]}],"plans":[{"id":"plan_material_check","goalId":"goal_material_check","summary":"取得实际清单后核对物料","status":"blocked","sourceIds":["<当前input.sourceId>"],"actionIds":[],"nextActionId":null,"triggers":[],"missingConditions":["尚无实际物料清单或受支持的盘点执行能力"]}],"actions":[],"responsibilities":[{"id":"resp_material_check","subject":{"kind":"matter","id":"material_check"},"summary":"取得依据后核对并回报缺项","status":"waiting","waitingOn":"world","sourceIds":["<当前input.sourceId>"],"nextCheck":[]}],"decisions":[]}
+3. 玩家确认分工后NPC确认（记录玩家决定）：{"statements":[{"text":"一言为定，那我们分头行动。","dependsOnActionIds":[]}],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[{"id":"dec_division_accepted","responsibilityId":"resp_material_check","kind":"accepted","sourceId":"<当前input.sourceId>","quote":"好，就这么办"}]}`;
 
 function invalid(code: 'NPC_AGENT_INVALID_SNAPSHOT' | 'NPC_AGENT_SNAPSHOT_LIMIT'): never {
   // Never put source text, identities or raw model output in errors/logs.
@@ -203,6 +207,10 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       },
       () => invalid('NPC_AGENT_INVALID_SNAPSHOT'),
     ),
+    planNextSteps: viewState.plans.map((plan) => ({
+      planId: plan.id,
+      readiness: agentPlanNextStep(plan, viewState.actions, snapshot.channel.allowedCapabilities),
+    })),
     worldVersion: snapshot.worldVersion,
     storyAt: snapshot.storyAt,
     ...(context

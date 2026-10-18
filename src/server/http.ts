@@ -23,6 +23,7 @@ const messages: Record<string, string> = {
   UNAUTHORIZED: '会话已失效，请重新进入。',
   INVALID_INPUT: '请检查填写的内容。',
   NOT_FOUND: '没有找到这条记录。',
+  INVALID_AI_OUTPUT: '本次剧情编排未通过检查，未写入故事。请查看试演状态后选择重新编排。',
   UNAVAILABLE: '暂时无法连接，请稍后重试。',
   VERSION_CONFLICT: '资料刚刚有了更新，请查看最新内容后再试。',
   IDEMPOTENCY_CONFLICT: '这条请求的内容发生了变化，请重新操作。',
@@ -53,7 +54,13 @@ export async function endpoint(run: () => Promise<Response>) {
     response.headers.set('X-Request-Id', requestId);
     return response;
   } catch (error) {
-    const supplied = error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+    const originalCode =
+      error instanceof Error ? (error as Error & { code?: string }).code : undefined;
+    const supplied = ['INVALID_DIRECTOR_PROPOSAL', 'INVALID_DIRECTOR_RESULT'].includes(
+      originalCode ?? '',
+    )
+      ? 'INVALID_AI_OUTPUT'
+      : originalCode;
     const statusMap: Record<string, number> = {
       UNAUTHORIZED: 401,
       NOT_FOUND: 404,
@@ -61,6 +68,7 @@ export async function endpoint(run: () => Promise<Response>) {
       IDEMPOTENCY_CONFLICT: 409,
       BUSY: 409,
       INVALID_INPUT: 422,
+      INVALID_AI_OUTPUT: 422,
       RATE_LIMITED: 429,
       FORBIDDEN: 403,
       CONFLICT: 409,
