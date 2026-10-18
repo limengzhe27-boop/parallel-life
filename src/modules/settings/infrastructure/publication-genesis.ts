@@ -1,6 +1,7 @@
 import { Id } from '../../../contracts/api.ts';
 import { publicationArt } from '../../../contracts/publication-assets.ts';
 import { PublishedWorldContentSchema } from '../../../contracts/published-world-content.ts';
+import { authoredAppointments } from '../domain/authored-appointments.ts';
 import { authoredSpace } from '../../world/domain/space.ts';
 import { actorContext } from '../../world/application/actor-context.ts';
 import type { WorldState } from '../../world/domain/types.ts';
@@ -391,36 +392,17 @@ export function compilePublicationGenesis(
         status: 'proposed',
       };
     });
-    /* Authored events with a required direction are the ones the story owes the player.
-       Materialise each as a proposed appointment only when a real opening message can be
-       its source; never invent an appointment the author did not write. */
-    const authoredAppointments = sorted(c.candidates ?? [])
-      .filter((candidate) => candidate.direction?.mode === 'required')
-      .flatMap((candidate) => {
-        const participants = candidate.actorKeys
-          .map((key) => actorIds.get(key))
-          .filter((value): value is string => Boolean(value));
-        const source = c.phone.messages.find(
-          (message) =>
-            message.origin !== 'history' &&
-            Boolean(message.actorKey) &&
-            candidate.actorKeys.includes(message.actorKey!) &&
-            messageIds.has(message.key),
-        );
-        if (!participants.length || !source) return [];
-        return [
-          {
-            id: id(),
-            title: candidate.title,
-            at: new Date(Date.parse(source.at) + 2 * 60 * 60_000).toISOString(),
-            participantIds: participants,
-            sourceEventId,
-            sourceMessageId: messageIds.get(source.key)!,
-            status: 'proposed' as const,
-          },
-        ];
-      });
-    world.appointments = [...world.appointments, ...authoredAppointments];
+    world.appointments = [
+      ...world.appointments,
+      ...authoredAppointments({
+        candidates: c.candidates ?? [],
+        messages: c.phone.messages,
+        actorIds,
+        messageIds,
+        sourceEventId,
+        newId: id,
+      }),
+    ];
     const knownPlaces = sorted(c.places.filter((p) => p.knownAtStart)),
       knownKeys = new Set(knownPlaces.map((p) => p.key));
     const routes = [...c.routes]
