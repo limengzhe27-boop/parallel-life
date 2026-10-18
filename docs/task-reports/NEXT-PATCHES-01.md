@@ -56,3 +56,15 @@
 3. 一次 `advance` 产生 ≥1 条 NPC 消息且 `initialRead: false`；
 4. 首页出现"有人给你发了 N 条消息"；
 5. 测试锁死"编导没写却凭空多出约定"。
+
+## 追加 2：`appointment` 依赖 `sourceMessageId`（实现前必须先定来源）
+
+`publication-genesis.ts:380-393` 的约定结构：
+`{ id, title, at, participantIds, sourceEventId, sourceMessageId, status:'proposed' }`
+其中 `sourceMessageId` 是**必需**的（取自 `messageIds` 映射）。
+而编导 `threads`（`question/entryCue/involvedCharacterIds`）不是消息。
+
+因此物化规则必须先定：
+- 用开场时该人物发出的**未读消息**作为来源：`c.phone.messages` 中 `origin !== 'history'` 且 `actorKey === openingCharacterId` 的第一条；
+- 若不存在这样的消息 → **不造约定**，改为保留"开场消息未读 + 等玩家回应"的状态；
+- 幂等 key 仍为 `thread:<id>`，避免重复物化。
