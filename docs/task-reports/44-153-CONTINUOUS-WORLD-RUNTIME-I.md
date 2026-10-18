@@ -45,3 +45,9 @@ world_clock增加continuity_mode（presence/continuous）和pause_reason（legac
 发现旧客户端WorldClockSchema是strictObject；新时钟内部字段不能无协商直接发给旧页面。追加同一clock接口的X-World-Time-Protocol:continuous-v1表示层协商：新LifeClient read/activity/control使用新形状；未协商的旧页面仅剥离新增continuityMode/pauseReason，原运行权限、真实时间和内核状态不改变。并非另起时钟或运行入口，wait回执本来不嵌clock，无需旁路。两项契约验证覆盖旧shape与新版三操作、0额外网络请求。生产团队实际plan读取为hobby，当前配置仍每天一次cron；未擅自升级订阅或扩大商业模型日上限。154作为后续调度能力工作保留。
 
 公网兼容检查首轮旧员工会话401，使用已有合成验收身份重新登录后只读检查；发现staff trial proxy未透传新协议头（正常玩家直接入口不受该代理影响）。代理白名单新增仅clock/clock activity且值精确continuous-v1的表示层头，绝不转发调用者Cookie/Authorization。三项协议/代理测试、check3323/build通过；修复将与同一153交付，不将私有试演改为正常持续世界。
+
+## Production handoff
+
+Final business commit 8eae0fbef83a587cabb1c14735e21b91f0ddb77a / dpl_4vyEpW1uwYAjVUmXfqGSahpLxAZG is READY on the formal Nu alias. Production has 92 matching migration checksums; all 107 world state/version hashes were preserved. Public original trial clock reads return 200 for both old and negotiated shapes, with the trial still paused; health/workbench return 200. No commercial model calls were added; scope 150 remains 5/6 with no pending attempts. Check 3323/build and clock PG11, arrival PG14, native wake PG20, trial PG9, scheduler PG1 passed. This is not commercial-model acceptance of normal-player offline narrative quality.
+
+Remaining task 154: timely durable background wakes, fair claims/leases, deterministic work versus model budgets, and real offline-to-return journeys. Current production configuration remains daily cron and a global two-world daily allowance; team plan is Hobby. pg_cron and pg_net are available but NOT installed (read-only capability check). No subscription/service/extension was changed. Do not claim all worlds receive minute-level offline simulation. Actor semantic/event-handoff gaps remain in 148/150.

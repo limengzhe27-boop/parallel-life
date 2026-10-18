@@ -1,3 +1,9 @@
+## 2026-10-18 - 44-153 Continuous world runtime
+
+Business 8eae0fbe / dpl_4vyEpW1uwYAjVUmXfqGSahpLxAZG is exact READY on the formal Nu alias. Migration 0092 applied: 92 checksums match, 107 world state/version hashes preserved. Normal epoch2 player entry adopts continuous time from its existing anchor: browsing 12x, conversation 1x, offline 1x. Presence no longer stops world execution. Trials are excluded by immutable binding; explicit manual pauses remain protected. No historical events were fabricated or rewritten. Clock protocol negotiation preserves old strict clients.
+
+Check3323/build, clockPG11/arrival14/native20/trial9/scheduler1 passed. Public old/new clock reads and health/workbench return 200; test trial remains paused. Zero new commercial calls; scope150 remains 5/6. Full real-player offline narrative quality is not accepted yet. Background still daily/global2; timely background scheduling (154) and actor semantics (148/150) remain incomplete. See [153 report](task-reports/44-153-CONTINUOUS-WORLD-RUNTIME-I.md).
+
 ## 2026-10-18 · 44-152 正常进入自动继续
 
 06bb37ee / dpl_HxXHiUJyvL3y6d7tGaGTzSmhYy3B正式Nu READY。用户最新约定：正常进入/返回自动从冻结锚点resume，离开暂停，不补算离线时间；顶部只保留折叠等待入口。重要约定停点独立保留选择，未确认wait保护不移除，编剧受控试演暂停不改。check3319/build、时间PG10通过，0新迁移/商业调用。真实手机PC自动入场完整旅程待验收，见[152报告](task-reports/44-152-AUTO-RESUME-WORLD-I.md)。
