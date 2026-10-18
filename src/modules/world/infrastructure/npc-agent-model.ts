@@ -1,5 +1,5 @@
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
-import { NPC_WIRE_PROTOCOL } from './npc-model-protocol.ts';
+import { NPC_WIRE_PROTOCOL, NPC_RESPONSE_FORMAT } from './npc-model-protocol.ts';
 import { createHash } from 'node:crypto';
 import type { NpcSuppliedContext } from '../domain/npc-supplied-context.ts';
 import type { ModelMessage, TextModel } from '../../ai/application/ports.ts';
@@ -12,10 +12,11 @@ import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { legacyPersonaExcerpt } from '../domain/actor-situation.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v21-single-contract';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v22-schema-response';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
-export const NPC_AGENT_REQUEST_LIMIT = 32_000;
+// Includes the generated response schema as well as the message envelope.
+export const NPC_AGENT_REQUEST_LIMIT = 38_000;
 export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
@@ -86,11 +87,11 @@ plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/act
 不要把空actions、空条件、空missing的旧active计划照抄到plans。无变化不输出，已有计划有相关新输入时沿原id与完整旧sourceIds调整；不能只在对白中宣布已改安排而忽略计划。普通拒绝、协商或暂缓不产生新承诺，但对已有责任须准确记录决定，不能因引用前面的空数组示例而丢掉变更。
 邀约时间：worldContext.time.localDateTime是当地时间，storyAt的Z是UTC，不能把UTC小时直接拼接+08:00。responseContract.todayHours仅为代码换算的当天整点对照，不代表约定或建议；只有输入明确指定且尚未过去的时间才可选择。
 邀约真实下一步：appointment.propose的parameters为{title,at:根据明确时间换算的带时区ISO,placeId:已有地点id}，goalId必须指向已有state.goals或本轮goals中的实际对象，若新目标必须同时输出{id,summary,status:"active",sourceIds:[本次input.sourceId],resultIds:[]}，不得只在plan/action写一个不存在的goalId。sourceIds引用本次输入；对应plan.nextStep.actionId为该action.id。邀请仍未获玩家确认，不能说玩家已答应或到场。缺明确时间可以先询问并记录wait，不能凭空补日期。即使本人愿意也不能用plan.record冒充已发邀约或物理工作。
-本轮需要真正提出可执行动作时，优先用executions（可选数组）将目标、计划与动作收在一个对象，而不要分别在goals/plans/actions重复它们。每项：
+本轮新增可执行动作时，必须用executions（可选数组）将目标、计划与动作收在一个对象，而不要分别在goals/plans/actions重复它们。每项：
 {goal:{kind:"new",id:"g",summary:"本人实际目标",sourceIds:[合法来源]}或{kind:"existing",id:"本人已有目标id"},plan:{id:"p",summary:"本人计划",sourceIds:[合法来源]},action:{id:"a",capability:"本轮允许能力",targetIds:[],parameters:{能力所需的实际参数},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[合法来源]}}。
 代码只绑定goalId/nextActionId/status等引用，不帮你补动作参数、地点或时间。executions中action整个对象不可缺少。普通goals/plans/actions仍用于无动作的等待、修订或撤回，勿重复execution内的同id对象。若要说“邀请已发送”，statements.dependsOnActionIds必须引用action.id，执行失败则不能显示成功台词。不能执行就明确blocked/wait，不得只写plan.nextStep.actionId却actions为空。executions=[]或省略均不意味已执行。
 goals只用于实际目标增量：{id,summary,status:"active|deferred|fulfilled|withdrawn",sourceIds:[],resultIds:[],endReason?}。
-actions仅用于已有动作的修改或不使用executions时的完整动作：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"proposed|waiting|blocked|withdrawn"}。
+actions仅用于已有动作的非执行修改（waiting/blocked/withdrawn），新增可执行动作必须放executions，不能拆散目标/计划/动作：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"waiting|blocked|withdrawn"}。
 responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|fulfilled|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?:{at,sourceId},resolutionResultId?,endReason?}。
 decisions:{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId,quote}。statements:{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}。
 focus可省略/null或{channel:"private|group|scene",threadId,subjectId:null或id,questionSourceId:null或id,replyToActorId:null或id}。所有问号表示可选键，竖线表示枚举择一。
@@ -222,6 +223,9 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   const payload = {
     responseContract: {
       protocol: NPC_WIRE_PROTOCOL,
+      outputSchemaHash: createHash('sha256')
+        .update(JSON.stringify(NPC_RESPONSE_FORMAT))
+        .digest('hex'),
       considerationRequired,
       considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
       executionProposal:
@@ -386,7 +390,8 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   ];
   const fits = () =>
     JSON.stringify(payload).length <= NPC_AGENT_PAYLOAD_LIMIT &&
-    JSON.stringify(messages()).length <= NPC_AGENT_REQUEST_LIMIT;
+    JSON.stringify(messages()).length + JSON.stringify(NPC_RESPONSE_FORMAT).length <=
+      NPC_AGENT_REQUEST_LIMIT;
   if (!fits()) {
     payload.actor.persona = legacyPersonaExcerpt(snapshot.actor.persona, snapshot.input.text, 4000);
     payload.contextSelection.personaExcerpt = payload.actor.persona !== snapshot.actor.persona;
@@ -475,8 +480,6 @@ export class NpcAgentModel implements NpcAgentModelPort {
     const messages = this.prepared.get(snapshot)?.messages ?? prepare(snapshot);
     this.prepared.delete(snapshot);
     signal?.throwIfAborted();
-    return this.model.complete(messages, signal, NPC_AGENT_OUTPUT_TOKENS, {
-      format: 'json_object',
-    });
+    return this.model.complete(messages, signal, NPC_AGENT_OUTPUT_TOKENS, NPC_RESPONSE_FORMAT);
   }
 }

@@ -2535,3 +2535,7 @@ Next109 delegated只读NPC identity/actual prompt and director quiet lifecycle d
 148文件范围：world-phone-app.tsx发送命令不可变；agent-phone-entry-probe.ts复用narrative-wake；NPC模型/解析统一输出契约；对应原模型/协议/semantic-wake测试。149报告3b18已取8824cfbe；渣男7档只读核实epoch2且无导演attempt。生产91checksum/107世界保留。check3310/build/原服务PG20通过，初次并行check/build的.next类型重建冲突已在build结束后复验。待部署与手机/PC实测。
 
 |44-150-PHONE-CHAT-LIVE-ACCEPTANCE-I|[ ] 进行中|codex-root-live150 sole integrator|unified-engine137；ONLY.local/ma150-*与报告，沿用已暂停合成档145，0新作品/新档/发布/图片|用户新授权最多6文字调用检查手机消息/人物回复/交接，未知不自动重试，结束暂停；145已关闭不复用额度。|仅READY后调用，先独立baseline。|
+
+148扩展唯一公共范围：AI application/ports.ts、infrastructure/yibu-text-model.ts、tests/gateway.test.ts与原NPC模型/协议。150新范围已用2/6，首实际手机发送committed且真实锁屏通知手机/PC可见；第二正式邀约已知invalid，漏goal/plan关联，未补造。改为同一TextModel端口提供json_schema，NPC响应schema从原Wire生成，新可执行动作只允许完整executions，旧动作修改保留；非严格provider模式不宣称形式保证，内核继续独立核验。未静默fallback或多次调用。schema开销纳入38k总输入预算（消息原32k+约5.5k格式）。待必要检查/READY后用剩4次有界复验。
+
+148共用失败边界补充独占world/application/run-agent.ts、run-director-agent.ts及原runner/原服务PG测试：可信适配器明确HTTP400/401/403/404/413/415/422拒绝保存无正文拒绝回执并标known invalid；timeout/失联/保存失败仍unknown，不重试。原服务PG8含真实仓储拒绝回执/重放0新调用通过；116聚焦/check3313通过，build进行中。0新增商业调用，150仍2/6 open、暂停，余4待READY后验收。

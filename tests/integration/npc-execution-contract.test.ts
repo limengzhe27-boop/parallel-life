@@ -1,3 +1,4 @@
+import { YibuTextModel } from '../../src/modules/ai/infrastructure/yibu-text-model.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -366,6 +367,45 @@ test('real original NPC/kernel rejects empty execution contracts atomically and 
       await service.sendMessageIfEnabled(f.owner, command);
       assert.equal(calls, beforeReplay);
       assert.equal((await f.worlds.get({ userId: f.owner }, f.id)).appointments.length, 1);
+    },
+  );
+  await t.test(
+    'explicit provider HTTP rejection has a durable known receipt and never poisons actor with unknown',
+    async () => {
+      const f = await fixture();
+      let calls = 0;
+      const model = new YibuTextModel(
+        {
+          apiKey: 'fixture-only',
+          model: 'fixture-model',
+          baseUrl: 'https://yibuapi.com',
+          timeoutMs: 1000,
+        },
+        async () => {
+          calls++;
+          return new Response('unsupported schema', { status: 400 });
+        },
+      );
+      const service = npcAgentServices(db, () => model);
+      const command = {
+        id: randomUUID(),
+        worldId: f.id,
+        actorId: f.actorId,
+        expectedVersion: 0,
+        text: 'A synthetic greeting',
+      };
+      await assert.rejects(service.sendMessageIfEnabled(f.owner, command));
+      const rows = (
+        await admin.query(
+          'select status,response from parallel_life.agent_attempts where world_id=$1',
+          [f.id],
+        )
+      ).rows;
+      assert.equal(rows[0].status, 'invalid_output');
+      assert.equal(rows[0].response.kind, 'model_request_rejection');
+      await assert.rejects(service.sendMessageIfEnabled(f.owner, command));
+      assert.equal(calls, 1);
+      assert.equal((await f.worlds.get({ userId: f.owner }, f.id)).version, 0);
     },
   );
   for (const mode of ['missing', 'quiet', 'wait'] as const)

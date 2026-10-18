@@ -137,7 +137,8 @@ test('all three channels use one protocol and preserve the same actor identity/r
     assert.equal(payload.storyAt, input.storyAt);
     assert.deepEqual(input, before);
     assert.equal(call.maxTokens, NPC_AGENT_OUTPUT_TOKENS);
-    assert.deepEqual(call.output, { format: 'json_object' });
+    assert.equal(call.output?.format, 'json_schema');
+    if (call.output?.format === 'json_schema') assert.equal(call.output.schema.type, 'object');
   }
   assert.equal(calls.length, 3);
   assert.equal(calls[0]!.messages[0]!.content, calls[1]!.messages[0]!.content);
@@ -818,7 +819,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v21-single-contract');
+  assert.equal(payload.promptVersion, 'npc-agent-v22-schema-response');
 });
 
 test('prompt instructions specify player decision tracking on responsibilities with exact verbatim quotes', async () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
 import { validPlayerEpisodeManifest } from '../domain/player-episode-manifest.ts';
 import { isActorEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
@@ -89,6 +90,26 @@ const Wire = z.strictObject({
   questionWithdrawals: z.unknown().optional(),
   locationReports: z.unknown().optional(),
 });
+
+/** Generated from the very schema used by this decoder; no second handwritten transport schema. */
+const modelSchema = z.toJSONSchema(Wire);
+// New runnable actions must be self-contained executions. The separate array remains
+// available for non-runnable amendments to old actions, and old saved responses still decode.
+modelSchema.properties!.actions = {
+  type: 'array',
+  maxItems: 16,
+  items: {
+    type: 'object',
+    properties: { status: { type: 'string', enum: ['waiting', 'blocked', 'withdrawn'] } },
+    required: ['status'],
+  },
+};
+export const NPC_RESPONSE_FORMAT: ModelOutputOptions = {
+  format: 'json_schema',
+  name: 'npc_agent_response',
+  strict: false,
+  schema: modelSchema,
+};
 
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {

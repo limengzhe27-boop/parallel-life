@@ -23,3 +23,15 @@ check3310/build通过，36项模型/协议聚焦通过；第一次check与build�
 ## 尚不能提前宣称
 
 模型自然演绎及真实锁屏新消息须150完成后按证据记录。无人物本人授权未来意图时不得广播全球剧情/秘密。旧unassessed、6旧unknown以及关系/整体目标完成资格不在本次擅自修写。真实失败会保留，而非兜底台词或假执行。
+
+## 150真实界面发现与结构化端口修复
+
+4b3b8440/dpl_4wr3rG71VZMwbnqVQmhQ8AtQmKe8精确正式READY后，首1次通过真实手机输入框发送成功，人物实际新回复出现在真实锁屏未读通知；390x844手机及1365x900电脑截图已检视。不是API假消息/手补，实际paid attempt committed。第二次正式邀约因模型漏目标/计划关联已知invalid，未假生成邀约，150目前2/6、0unknown，范围仍open。
+
+根因不是应对这份剧本的字段特判：原TextModel仅json_object，模型并不知道必须返回的完整结构。新增通用json_schema输出端口，Yibu同一适配器complete/stream只发一次请求，provider若不支持则原错误返回，绝无静默JSON fallback或付费重试。NPC从自身Wire解码schema生成响应schema，不另写第二份形状。新增可执行动作必须在完整executions包，原数组仍支持旧动作waiting/blocked/withdrawn修改；已有历史响应继续相同parser/kernel验证。v22存schemaHash进模型输入证据。
+
+provider使用strict:false：该约束是明确schema请求，不能宣称上游形式保证；原kernel权限/事实/动作/引用校验不放宽。格式约5.5k纳入38k总请求预算，原消息约32k加schema显式开销；不会为了配额截玩家当前原文或关键结构化状态。输入预算首测试暴露schema开销使原极限用例越界，调整明确总预算后通过。
+
+48项模型/协议/gateway聚焦与check3311通过；新增原适配器原样传输schema/HTTP400无降级重试测试。真实数据库legacy PG20已通过，本次新增provider端口不改SQL/事务。待本次build/READY后使用150剩4次复验，不提前写完整开场演绎通过。
+
+共用模型失败契约：可信Yibu适配器明确请求被HTTP400/401/403/404/413/415/422拒绝，两个原runner保存model_request_rejection安全回执（仅status，不保存服务商私密正文），再沿原response_received→invalid_output已知终态；没有回执保存保证仍unknown。未修改既有unknown记录、未自动重试。新增真实原NPC服务PG证明已知拒绝不变world、不假消息、精确重放0新调用；PG8/纯116/check3313通过，待build/READY。

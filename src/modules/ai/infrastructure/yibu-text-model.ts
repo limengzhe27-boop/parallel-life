@@ -6,6 +6,7 @@ export type GatewayConfig = { apiKey: string; model: string; baseUrl: string; ti
 /** Chat-shaped calls keep the conservative default; structured builders ask for their own cap. */
 export const DEFAULT_MAX_TOKENS = 4096;
 export class GatewayError extends Error {
+  readonly responseOutcome?: 'rejected';
   readonly code:
     | 'INVALID_CONFIG'
     | 'UPSTREAM_FAILED'
@@ -30,7 +31,38 @@ export class GatewayError extends Error {
     this.stage = details?.stage;
     this.httpStatus = details?.httpStatus;
     this.durationMs = details?.durationMs;
+    if (
+      code === 'UPSTREAM_FAILED' &&
+      details?.stage === 'response' &&
+      [400, 401, 403, 404, 413, 415, 422].includes(details.httpStatus ?? 0)
+    )
+      this.responseOutcome = 'rejected';
   }
+}
+/** One provider boundary for typed responses; unsupported formats are never silently retried. */
+function responseFormat(output?: ModelOutputOptions) {
+  if (!output) return undefined;
+  if (output.format === 'json_object') return { type: 'json_object' };
+  if (
+    output.format !== 'json_schema' ||
+    !/^[a-zA-Z0-9_-]{1,64}$/.test(output.name) ||
+    typeof output.strict !== 'boolean' ||
+    !output.schema ||
+    Array.isArray(output.schema) ||
+    typeof output.schema !== 'object'
+  )
+    throw new GatewayError('INVALID_CONFIG');
+  let size: number;
+  try {
+    size = JSON.stringify(output.schema).length;
+  } catch {
+    throw new GatewayError('INVALID_CONFIG');
+  }
+  if (size > 24000 || output.schema.type !== 'object') throw new GatewayError('INVALID_CONFIG');
+  return {
+    type: 'json_schema',
+    json_schema: { name: output.name, strict: output.strict, schema: output.schema },
+  };
 }
 /** Server composition injects secrets. This adapter never reads or logs environment values. */
 export class YibuTextModel implements TextModel {
@@ -60,7 +92,7 @@ export class YibuTextModel implements TextModel {
       (!Number.isSafeInteger(maxTokens) || maxTokens < 256 || maxTokens > 16000)
     )
       throw new GatewayError('INVALID_CONFIG');
-    if (output && output.format !== 'json_object') throw new GatewayError('INVALID_CONFIG');
+    const format = responseFormat(output);
     if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
     const started = performance.now();
     let stage: NonNullable<GatewayError['stage']> = 'request';
@@ -88,7 +120,7 @@ export class YibuTextModel implements TextModel {
             messages: preparedMessages,
             stream: false,
             max_tokens: outputCap,
-            ...(output ? { response_format: { type: output.format } } : {}),
+            ...(format ? { response_format: format } : {}),
           }),
           signal: combined,
           redirect: 'error',
@@ -172,7 +204,7 @@ export class YibuTextModel implements TextModel {
     signal?: AbortSignal,
     output?: ModelOutputOptions,
   ): AsyncIterable<string> {
-    if (output && output.format !== 'json_object') throw new GatewayError('INVALID_CONFIG');
+    const format = responseFormat(output);
     if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
     const started = performance.now();
     let preparedMessages: ReturnType<typeof modelRequestMessages>;
@@ -199,7 +231,7 @@ export class YibuTextModel implements TextModel {
             messages: preparedMessages,
             stream: true,
             max_tokens: 4096,
-            ...(output ? { response_format: { type: output.format } } : {}),
+            ...(format ? { response_format: format } : {}),
           }),
           signal: combined,
           redirect: 'error',

@@ -110,3 +110,47 @@ test('stream diagnostics distinguish request failure from interrupted response',
     );
   }
 });
+
+test('schema output crosses the same provider boundary exactly once without implicit JSON fallback', async () => {
+  let calls = 0;
+  const schema = {
+    type: 'object',
+    properties: { text: { type: 'string' } },
+    required: ['text'],
+    additionalProperties: false,
+  };
+  const request: typeof fetch = async (_url, init) => {
+    calls++;
+    const body = JSON.parse(String(init!.body));
+    assert.deepEqual(body.response_format, {
+      type: 'json_schema',
+      json_schema: { name: 'npc_response', strict: false, schema },
+    });
+    return Response.json({ choices: [{ message: { content: '{"text":"reply"}' } }] });
+  };
+  const m = new YibuTextModel(config, request);
+  assert.equal(
+    await m.complete([{ role: 'user', content: 'hello' }], undefined, 512, {
+      format: 'json_schema',
+      name: 'npc_response',
+      strict: false,
+      schema,
+    }),
+    '{"text":"reply"}',
+  );
+  assert.equal(calls, 1);
+  const rejecting = new YibuTextModel(config, async () => {
+    calls++;
+    return new Response('unsupported format', { status: 400 });
+  });
+  await assert.rejects(
+    rejecting.complete([{ role: 'user', content: 'hello' }], undefined, 512, {
+      format: 'json_schema',
+      name: 'npc_response',
+      strict: false,
+      schema,
+    }),
+    { code: 'UPSTREAM_FAILED' },
+  );
+  assert.equal(calls, 2);
+});

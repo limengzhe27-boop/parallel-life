@@ -1,3 +1,4 @@
+import { modelRequestRejection } from '../../ai/application/ports.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
 import {
   ACTOR_EPISODE_INTENT_PREFIX,
@@ -117,7 +118,19 @@ export async function runNpcAgent(
     } catch (error) {
       // Conservatively retain uncertainty if response storage or transport failed after send.
       // A failing mark must not trigger another model invocation or hide the original failure.
-      await deps.attempts.mark(ownerId, attempt, 'unknown_after_send').catch(() => {});
+      const rejection = modelRequestRejection(error);
+      if (rejection) {
+        try {
+          const saved = await deps.attempts.saveResponse(ownerId, attempt, {
+            kind: 'model_request_rejection',
+            schemaVersion: 1,
+            ...rejection,
+          });
+          await deps.attempts.mark(ownerId, saved, 'invalid_output');
+        } catch {
+          await deps.attempts.mark(ownerId, attempt, 'unknown_after_send').catch(() => {});
+        }
+      } else await deps.attempts.mark(ownerId, attempt, 'unknown_after_send').catch(() => {});
       throw error;
     }
   }

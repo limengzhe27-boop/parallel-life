@@ -249,3 +249,20 @@ test('a known pre-send fence rejection releases its reservation and makes zero m
   assert.equal(f.readAttempt().status, 'stale_discarded');
   assert.ok(!f.calls.includes('model'));
 });
+
+test('explicit provider rejection is recorded as known failure; uncertain transport still fences retries', async () => {
+  for (const known of [true, false]) {
+    const f = fixture();
+    f.model.decide = async () => {
+      f.calls.push('model');
+      throw Object.assign(
+        Error('provider refused'),
+        known ? { responseOutcome: 'rejected', httpStatus: 400 } : {},
+      );
+    };
+    await assert.rejects(runNpcAgent(f, 'owner', f.claim, f.snapshot), /provider refused/);
+    assert.equal(f.readAttempt().status, known ? 'invalid_output' : 'unknown_after_send');
+    assert.equal(f.calls.filter((c) => c === 'model').length, 1);
+    assert.ok(!f.calls.includes('commit'));
+  }
+});

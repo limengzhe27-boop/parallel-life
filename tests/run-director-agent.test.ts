@@ -142,7 +142,17 @@ function fixture(
     async saveResponse(_owner, expected, raw) {
       calls.push('saveResponse');
       assert.equal(expected.status, 'request_sent');
-      assert.equal(raw, freshRaw);
+      if (
+        options.modelError &&
+        'responseOutcome' in options.modelError &&
+        options.modelError.responseOutcome === 'rejected'
+      )
+        assert.deepEqual(raw, {
+          kind: 'model_request_rejection',
+          schemaVersion: 1,
+          httpStatus: 400,
+        });
+      else assert.equal(raw, freshRaw);
       if (options.saveError) throw options.saveError;
       attempt = { ...attempt, status: options.savedStatus ?? 'response_received' };
       return { ...attempt };
@@ -427,4 +437,15 @@ test('episode id already owned by another real decision is a known stale conflic
   await assert.rejects(f.run(), { code: 'DIRECTOR_EPISODE_ID_CONFLICT' });
   assert.equal(f.state().status, 'stale_discarded');
   assert.ok(!f.calls.includes('mark:unknown_after_send'));
+});
+
+test('Director stores explicit provider rejection as known invalid, not a lost result', async () => {
+  const f = fixture({
+    modelError: Object.assign(Error('rejected'), { responseOutcome: 'rejected', httpStatus: 400 }),
+  });
+  await assert.rejects(f.run(), /rejected/);
+  assert.equal(f.state().status, 'invalid_output');
+  assert.equal(f.calls.filter((x) => x === 'model').length, 1);
+  assert.equal(f.parses.length, 0);
+  assert.equal(f.commits.length, 0);
 });
