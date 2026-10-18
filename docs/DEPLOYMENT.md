@@ -1,3 +1,7 @@
+## 2026-10-18 · 44-152 正常进入自动继续
+
+06bb37ee / dpl_HxXHiUJyvL3y6d7tGaGTzSmhYy3B正式Nu READY。用户最新约定：正常进入/返回自动从冻结锚点resume，离开暂停，不补算离线时间；顶部只保留折叠等待入口。重要约定停点独立保留选择，未确认wait保护不移除，编剧受控试演暂停不改。check3319/build、时间PG10通过，0新迁移/商业调用。真实手机PC自动入场完整旅程待验收，见[152报告](task-reports/44-152-AUTO-RESUME-WORLD-I.md)。
+
 ## 2026-10-18 · 44-151 已知失败消息恢复
 
 2ddc48d8 / dpl_BEgsG54MRZgVPnPoyr7RDaPKurCr正式Nu READY。原回执区分known failed与unconfirmed，手机核对只读解除已知失败阻塞，不重发、不重买模型；真正unknown保留保护。check3319/build/PG8及手机PC实际核对通过，150仍5/6、测试档暂停。无迁移或真实用户档修改。人物语义和完整开场仍未全通过，不以此宣称整体完成。见[151报告](task-reports/44-151-MESSAGE-TERMINAL-RECOVERY-I.md)。
