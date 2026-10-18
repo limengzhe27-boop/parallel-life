@@ -285,6 +285,67 @@ function evaluationCauseView(snapshot: DirectorSnapshot) {
     })),
   };
 }
+
+/** Leave room for the system prompt and the reply inside a 64k request. */
+export const CONTEXT_BUDGET = 48000;
+const CONTEXT_LIMIT = 64000;
+
+type Payload = Record<string, unknown>;
+
+const trimEnd = (value: unknown, keep: number) =>
+  Array.isArray(value) && value.length > keep ? value.slice(-keep) : value;
+
+const trimStart = (value: unknown, keep: number) =>
+  Array.isArray(value) && value.length > keep ? value.slice(0, keep) : value;
+
+/** Bounded assembly: keep what the director cannot decide without, trim the rest oldest-first. */
+export function fitWithinBudget(payload: Payload): Payload {
+  const next: Payload = { ...payload };
+  const steps: Array<() => void> = [
+    () => {
+      next.observations = trimEnd(next.observations, 6);
+    },
+    () => {
+      next.episodes = trimEnd(next.episodes, 4);
+    },
+    () => {
+      next.candidates = trimStart(next.candidates, 6);
+    },
+    () => {
+      next.changes = trimEnd(next.changes, 6);
+    },
+    () => {
+      next.actorKnownTopics = trimStart(next.actorKnownTopics, 10);
+    },
+    () => {
+      next.observations = trimEnd(next.observations, 2);
+    },
+    () => {
+      next.episodes = trimEnd(next.episodes, 2);
+    },
+    () => {
+      if (Array.isArray(next.cast))
+        next.cast = (next.cast as Payload[]).map((actor) => ({
+          ...actor,
+          persona: typeof actor.persona === 'string' ? actor.persona.slice(0, 600) : actor.persona,
+        }));
+    },
+    () => {
+      if (typeof next.worldSetting === 'string')
+        next.worldSetting = next.worldSetting.slice(0, 2000);
+    },
+    () => {
+      next.changes = trimEnd(next.changes, 2);
+      next.candidates = trimStart(next.candidates, 3);
+    },
+  ];
+  for (const step of steps) {
+    if (JSON.stringify(next).length <= CONTEXT_BUDGET) break;
+    step();
+  }
+  return next;
+}
+
 function request(snapshot: DirectorSnapshot) {
   if (
     snapshot.schemaVersion !== 1 ||
@@ -340,8 +401,9 @@ function request(snapshot: DirectorSnapshot) {
     focus: snapshot.focus,
     conversationWithoutTarget: snapshot.conversationWithoutTarget ?? false,
   };
-  const text = JSON.stringify(payload);
-  if (text.length > 64000)
+  const fitted = fitWithinBudget(payload);
+  const text = JSON.stringify(fitted);
+  if (text.length > CONTEXT_LIMIT)
     throw Object.assign(Error('DIRECTOR_CONTEXT_LIMIT'), { code: 'DIRECTOR_CONTEXT_LIMIT' });
   return [
     { role: 'system' as const, content: SYSTEM },
