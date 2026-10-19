@@ -1485,18 +1485,15 @@ test('actual publication semantic wake advances use one protected Director bound
             f.world.actors.some((known: any) => known.id === a.actorId),
           );
           return JSON.stringify({
-            protocol: 'director-wire-v4',
-            mode: 'bounded_opportunity',
+            protocol: 'director-wire-v5',
             candidates: p.wireCatalog.candidates.map((c: any) => ({
               ref: c.ref,
               decision: 'defer',
               reason: 'Original opening before fallback.',
             })),
-            events: p.wireCatalog.events.map((e: any) => ({
-              eventRef: e.ref,
-              decision: e.ref === event.ref ? 'consider' : 'defer',
-              reason: 'Explicit source-bound evaluation.',
-            })),
+            events: p.wireCatalog.events
+              .filter((e: any) => e.ref !== event.ref)
+              .map((e: any) => ({ eventRef: e.ref, reason: 'Deferred outside this opening.' })),
             opportunities: [
               {
                 id: 'two-people',
