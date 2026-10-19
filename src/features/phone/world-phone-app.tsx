@@ -1,4 +1,5 @@
 'use client';
+import { useAdvanceRecovery } from './use-advance-recovery.ts';
 import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
 import { committedLocalSend, unprojectedLocalSends } from './send-projection.ts';
 import type { WorldMessageReceipt } from '../../contracts/world-interaction.ts';
@@ -301,8 +302,13 @@ export function WorldPhoneApp({
           message.id === commandId ? { ...message, status: sendFailureStatus(sendError) } : message,
         ),
       );
-      if (sendFailureStatus(sendError) === 'unknown')
-        throw new ApiFailure('UNKNOWN', '发送结果还不能确认，原消息已保留。请先核对。');
+      if (sendFailureStatus(sendError) === 'unknown') {
+        restoredSends.current = [
+          ...restoredSends.current.filter((m) => m.id !== commandId),
+          { ...entry, status: 'unknown' },
+        ];
+        throw new ApiFailure('UNKNOWN', '正在核对发送结果，原消息已保留。');
+      }
       throw sendError;
     }
     // Sending ends at the durable receipt. Read projections independently, never
@@ -351,15 +357,16 @@ export function WorldPhoneApp({
   const load = useCallback(async () => {
     const currentRequest = ++request.current;
     setRefreshing(true);
-    setError('');
     setIsBuilding(false);
     setStatusMessage('正在打开你的手机…');
     try {
       const next = await client.world(worldId);
-      if (currentRequest === request.current)
+      if (currentRequest === request.current) {
         setData((current) =>
           current && (current.version ?? 0) > (next.version ?? 0) ? current : next,
         );
+        setError('');
+      }
       return;
     } catch (e) {
       if (currentRequest !== request.current) return;
@@ -389,20 +396,35 @@ export function WorldPhoneApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, worldId]);
 
+  const advanceRecovery = useAdvanceRecovery(client, worldId, load);
+  const advanceRecoveryRef = useRef(advanceRecovery);
+  advanceRecoveryRef.current = advanceRecovery;
   useEffect(() => {
     if (recoveryWorld !== worldId) return;
     let active = true;
     let reading = false;
+    const checks = new Map<string, { count: number; nextAt: number }>();
     const reconcile = async () => {
       if (!active || reading || document.visibilityState !== 'visible') return;
       reading = true;
       try {
-        const saved = restoredSends.current;
+        const saved = restoredSends.current.filter((m) => {
+          const check = checks.get(m.id);
+          return !check || check.nextAt <= Date.now();
+        });
+        for (const m of saved) {
+          const count = Math.min(12, (checks.get(m.id)?.count ?? 0) + 1);
+          checks.set(m.id, {
+            count,
+            nextAt: Date.now() + Math.min(60000, 5000 * 2 ** Math.min(count - 1, 4)),
+          });
+        }
         const updates = await reconcileRestoredSendReceipts(
           worldId,
           saved,
           sendCommands.current,
           (id, input) => receiptClient.lookup(id, input),
+          (id, input) => receiptClient.recover(id, input),
         );
         if (!active) return;
         const originals = new Map(saved.map((m) => [m.id, m]));
@@ -420,7 +442,7 @@ export function WorldPhoneApp({
             return [updates[m.id] === 'failed' ? { ...m, status: 'failed' as const } : m];
           }),
         );
-        restoredSends.current = saved.filter((m) => !updates[m.id]);
+        restoredSends.current = restoredSends.current.filter((m) => !updates[m.id]);
         for (const [id, status] of Object.entries(updates))
           if (status === 'committed') delete sendCommands.current[id];
         if (Object.values(updates).includes('committed')) await load();
@@ -433,8 +455,12 @@ export function WorldPhoneApp({
       void reconcile();
     };
     document.addEventListener('visibilitychange', onReturn);
+    const timer = window.setInterval(() => {
+      void reconcile();
+    }, 5000);
     return () => {
       active = false;
+      window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onReturn);
     };
   }, [worldId, recoveryWorld, receiptClient, load]);
@@ -615,6 +641,7 @@ export function WorldPhoneApp({
       directorInFlight.current = true;
       let advancing = false;
       try {
+        await advanceRecoveryRef.current.reconcile();
         const clock = await client.readWorldClock(worldId);
         if (
           !active ||
@@ -656,7 +683,8 @@ export function WorldPhoneApp({
                 // paid/unknown identities, focus and activity before any model or execution.
                 liveTimeRef.current.markChecked();
                 advancing = true;
-                const result = await client.advanceWorld(worldId, true);
+                const result = await advanceRecoveryRef.current.advance(key);
+                if (!result) return;
                 if (result.deferred === 'scheduler_busy') {
                   releaseCheck(key);
                   return;
@@ -704,7 +732,8 @@ export function WorldPhoneApp({
           return;
         liveTimeRef.current.markChecked();
         advancing = true;
-        const result = await client.advanceWorld(worldId, true);
+        const result = await advanceRecoveryRef.current.advance(attemptKey);
+        if (!result) return;
         if (result.deferred === 'scheduler_busy') {
           releaseCheck(attemptKey);
           return;
@@ -713,8 +742,9 @@ export function WorldPhoneApp({
         // and banner show the real incoming reply while this screen stays open.
         if (active && (result.changed || result.played > 0)) await load();
       } catch {
-        if (active && advancing)
-          setError('这次世界后续没有完成。已保存的记录仍在，可以继续查看手机中的来信和日程。');
+        // Operation failures retain their original queryable identity. Read failures
+        // do not imply that a Director/NPC operation failed or authorize a resend.
+        if (active && advancing) void advanceRecoveryRef.current.reconcile();
       } finally {
         if (openingEpoch.current.token === epoch) {
           directorInFlight.current = false;
@@ -818,6 +848,22 @@ export function WorldPhoneApp({
             )}
           </div>
         )}
+      {advanceRecovery.items.some((i) => i.state !== 'running') && (
+        <details style={{ fontSize: 12, padding: '4px 12px', color: '#64748b' }}>
+          <summary>同步记录</summary>
+          {advanceRecovery.items
+            .filter((i) => i.state !== 'running')
+            .map((i) => (
+              <p key={i.id}>
+                {i.state === 'failed'
+                  ? '有一项进展未完成，原记录已保留，其他事项仍可继续。'
+                  : i.state === 'unknown'
+                    ? '有一项进展的结果尚未确认，系统不会重复执行。'
+                    : '正在核对原记录，不需要重新发送。'}
+              </p>
+            ))}
+        </details>
+      )}
       <div style={{ flex: 1, minHeight: 0 }}>
         {!data ? (
           <div className="world-loading">

@@ -135,13 +135,16 @@ function LifePhone({
     const ids: string[] = JSON.parse(notificationSignature);
     const incoming = arrivingIds(knownIds.current, ids);
     knownIds.current = new Set(ids);
-    if (incoming.length) {
+    // Delivery and unread state continue during conversation; unrelated banners
+    // need not interrupt the player who is reading or responding.
+    const inConversation = !locked && route.app === 'messages' && !!route.target;
+    if (incoming.length && !inConversation) {
       const incomingSet = new Set(incoming);
       const newest = latestNotification(notifications.filter((item) => incomingSet.has(item.id)));
       setBannerId(newest?.id ?? incoming.at(-1));
       playReceiveSound();
     }
-  }, [notificationSignature, notifications]);
+  }, [notificationSignature, notifications, locked, route.app, route.target]);
   useEffect(() => {
     if (!bannerId) return;
     const timer = window.setTimeout(() => setBannerId(undefined), 6000);

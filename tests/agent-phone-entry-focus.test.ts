@@ -100,6 +100,10 @@ function fixture(options: {
               ]
             : [],
         };
+      if (query.includes('director_handoff_revalidations')) {
+        directorReads++;
+        return { rows: [{ id: 'known-handoff' }] };
+      }
       directorReads++;
       throw Error(`Unexpected global Director query: ${query.slice(0, 80)}`);
     },
@@ -116,24 +120,24 @@ test('focused private NPC can continue its own pending episode, without a Direct
   assert.deepEqual(await f.read(), await f.read());
   assert.equal(f.directorReads(), 0);
 });
-test('pending request for another NPC does not interrupt a focused private conversation', async () => {
+test('pending request for another NPC can execute while a private conversation is focused', async () => {
   const f = fixture({ focus: 'b', requestActor: 'a' });
-  assert.equal((await f.read()).status, 'deferred');
+  assert.equal((await f.read()).status, 'ready');
   assert.equal(f.directorReads(), 0);
 });
 test('paid failed and unknown episode attempts are not automatically retried in focused chat', async () => {
   for (const failed of [{ paid: true }, { unknown: true }]) {
     const f = fixture({ focus: 'a', requestActor: 'a', ...failed });
-    assert.equal((await f.read()).status, 'deferred');
-    assert.equal(f.directorReads(), 0);
+    assert.deepEqual(await f.read(), await fixture({ focus: 'a' }).read());
+    assert.equal(f.directorReads(), 1); // unrelated known handoff, never the failed episode
   }
 });
-test('received NPC result is exposed only for the focused interlocutor', async () => {
+test('received NPC result remains recoverable across another focused interlocutor', async () => {
   assert.equal((await fixture({ focus: 'a', rawActor: 'a' }).read()).status, 'ready');
-  assert.equal((await fixture({ focus: 'b', rawActor: 'a' }).read()).status, 'deferred');
+  assert.equal((await fixture({ focus: 'b', rawActor: 'a' }).read()).status, 'ready');
 });
-test('focused conversation without pending own work does not start global Director work', async () => {
+test('focused conversation allows a cheap known Director handoff check', async () => {
   const f = fixture({ focus: 'a' });
-  assert.equal((await f.read()).status, 'deferred');
-  assert.equal(f.directorReads(), 0);
+  assert.equal((await f.read()).status, 'ready');
+  assert.equal(f.directorReads(), 1);
 });

@@ -596,8 +596,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         worldVersion: world.version,
         realNow,
       });
-      if (attention.conversationWithoutTarget || attention.focus.length)
-        fail('DIRECTOR_DELIVERY_DEFERRED');
+      if (attention.conversationWithoutTarget) fail('DIRECTOR_DELIVERY_DEFERRED');
     }
     const control = (
       await sql.query(
@@ -1211,8 +1210,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     return this.db.transaction(owner, async (sql) => {
       const world = await this.owned(sql, owner, current.worldId);
       await this.current(sql, owner, world, current);
-      if (current.focus.length || current.conversationWithoutTarget || current.nativeTurn)
-        return null;
+      if (current.conversationWithoutTarget || current.nativeTurn) return null;
       const rows = (
         await sql.query(
           `SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2

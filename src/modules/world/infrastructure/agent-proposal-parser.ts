@@ -1,3 +1,4 @@
+import { attachAgentFailure } from '../application/agent-failure-diagnostic.ts';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import { decodeNpcWire } from './npc-model-protocol.ts';
 import type { AgentProposal } from '../domain/agent-runtime.ts';
@@ -40,8 +41,13 @@ export function parseAgentProposal(context: AgentValidationContext, raw: unknown
   }
   try {
     parsed = decodeNpcWire(context, parsed);
-  } catch {
-    reject('RESPONSE_WIRE_SHAPE');
+  } catch (error) {
+    throw attachAgentFailure(
+      new AgentValidationError('RESPONSE_WIRE_SHAPE'),
+      'decode',
+      undefined,
+      error,
+    );
   }
   const result = AgentProposalSchema.safeParse(parsed);
   if (!result.success) reject(`RESPONSE_SHAPE:${describeShapeIssues(result.error.issues)}`);

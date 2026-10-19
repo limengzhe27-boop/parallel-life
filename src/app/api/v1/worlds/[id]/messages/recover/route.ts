@@ -15,7 +15,7 @@ export const maxDuration = 120;
 
 /** Explicitly apply only this command's protected response; never send another model request. */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return endpoint(async () => {
+  return endpoint(async (http) => {
     const s = await authenticated(request);
     const worldId = Id.safeParse((await context.params).id);
     if (!worldId.success) throw new HttpError('NOT_FOUND', 404);
@@ -30,7 +30,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       });
       return json(MessageReceiptLookupSchema.parse(recovered));
     } catch (error) {
-      if (error instanceof NpcMessageError) throw new HttpError(error.apiCode, error.status);
+      if (error instanceof NpcMessageError) {
+        http.reportFailure(error, error.status, error.apiCode);
+        throw new HttpError(error.apiCode, error.status);
+      }
       throw error;
     }
   });

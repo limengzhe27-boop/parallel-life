@@ -1,3 +1,4 @@
+import { AdvanceOperationReceiptSchema } from '../../contracts/advance-operation.ts';
 import { OpeningStatusSchema, OpeningAdvanceSchema } from '../../contracts/publication-opening.ts';
 import {
   RegisterRequestSchema,
@@ -276,6 +277,22 @@ export class LifeClient {
       method: 'POST',
       body: JSON.stringify(input),
     });
+  }
+  async advanceOperation(
+    worldId: string,
+    operationId: string,
+    action: 'start' | 'lookup' | 'recover',
+  ) {
+    await this.connect();
+    return this.request(
+      `/worlds/${encodeURIComponent(worldId)}/advance/operation`,
+      AdvanceOperationReceiptSchema,
+      {
+        method: 'POST',
+        signal: AbortSignal.timeout(action === 'start' ? WORLD_ADVANCE_TIMEOUT_MS : 30000),
+        body: JSON.stringify({ operationId, action }),
+      },
+    );
   }
   /** Let the world move: at most a few beats, the rest becomes a summary. */
   async advanceWorld(worldId: string, automatic = false) {

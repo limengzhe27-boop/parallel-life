@@ -1,0 +1,62 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  advanceOperationState,
+  type AdvanceWorkState,
+} from '../src/modules/world/domain/advance-operation.ts';
+import {
+  advanceRecoveryAction,
+  restorePendingAdvances,
+} from '../src/features/phone/advance-recovery-state.ts';
+const work = (status: AdvanceWorkState['status']): AdvanceWorkState => ({
+  kind: 'npc',
+  commandId: 'request',
+  status,
+});
+test('original batch state preserves unknown and protected work, including partial success', () => {
+  const base = { finished: true, succeeded: false, leaseActive: false };
+  assert.equal(
+    advanceOperationState({ ...base, work: [work('committed'), work('unknown_after_send')] }),
+    'unknown',
+  );
+  assert.equal(
+    advanceOperationState({
+      ...base,
+      work: [work('response_received'), work('unknown_after_send')],
+    }),
+    'recoverable',
+  );
+  assert.equal(
+    advanceOperationState({ ...base, work: [work('committed'), work('invalid_output')] }),
+    'failed',
+  );
+  assert.equal(
+    advanceOperationState({
+      ...base,
+      finished: false,
+      leaseActive: true,
+      work: [work('committed')],
+    }),
+    'running',
+  );
+  assert.equal(
+    advanceOperationState({ ...base, finished: false, work: [work('committed')] }),
+    'complete',
+  );
+  assert.equal(advanceOperationState({ ...base, finished: false, work: [] }), 'failed');
+});
+test('long-lived unknown remains queryable without granting new execution', () => {
+  const item = {
+    id: '8bf93ee1-27ec-44b9-9e57-7a4b3512bc9a',
+    key: 'original',
+    attempts: 12,
+    nextCheckAt: 10,
+    state: 'unknown' as const,
+  };
+  assert.equal(advanceRecoveryAction(item, 11), 'lookup');
+  assert.equal(advanceRecoveryAction({ ...item, state: 'recoverable' }, 11), 'recover');
+  assert.equal(advanceRecoveryAction({ ...item, state: 'failed' }, 11), null);
+  assert.equal(advanceRecoveryAction(item, 9), null);
+  assert.deepEqual(restorePendingAdvances(JSON.stringify([item])), [item]);
+  assert.deepEqual(restorePendingAdvances('invalid'), []);
+});

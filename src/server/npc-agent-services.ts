@@ -1,3 +1,4 @@
+import type { FailureDiagnosticInput } from './http-failure-diagnostics.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type { TextModel } from '../modules/ai/application/ports.ts';
 import type { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
@@ -33,10 +34,17 @@ export class NpcMessageError extends Error {
   readonly apiCode: 'UNKNOWN' | 'BUSY' | 'INVALID_AI_OUTPUT' | 'VERSION_CONFLICT' | 'INVALID_STATE';
   readonly status: number;
   readonly retryable = false;
-  constructor(code: NpcMessageError['apiCode'], message: string, status: number) {
+  readonly diagnostic?: FailureDiagnosticInput;
+  constructor(
+    code: NpcMessageError['apiCode'],
+    message: string,
+    status: number,
+    diagnostic?: FailureDiagnosticInput,
+  ) {
     super(message);
     this.apiCode = code;
     this.status = status;
+    this.diagnostic = diagnostic;
   }
 }
 /** A protected response may be applied, never re-sent or used to claim new work. */
@@ -413,6 +421,11 @@ export function npcAgentServices(db: PostgresDatabase, modelFactory: () => TextM
 }
 
 function rethrowMessageError(error: unknown): never {
+  const diagnostic =
+    error && typeof error === 'object'
+      ? (Object.getOwnPropertyDescriptor(error, 'diagnostic')?.value as
+          FailureDiagnosticInput | undefined)
+      : undefined;
   if (error instanceof NpcMessageError || error instanceof DomainError) throw error;
   const code =
     error && typeof error === 'object' ? String((error as { code?: unknown }).code ?? '') : '';
@@ -428,22 +441,39 @@ function rethrowMessageError(error: unknown): never {
   if (['COMMAND_CONFLICT', 'IDEMPOTENCY_CONFLICT'].includes(code))
     throw new DomainError('IDEMPOTENCY_CONFLICT');
   if (code === 'INPUT_SCOPE_FORBIDDEN')
-    throw new NpcMessageError('INVALID_STATE', '这次交谈的参与范围已变化，请重新进入。', 409);
+    throw new NpcMessageError(
+      'INVALID_STATE',
+      '这次交谈的参与范围已变化，请重新进入。',
+      409,
+      diagnostic,
+    );
   if (['WORLD_PAUSED', 'NPC_DELIVERY_DEFERRED'].includes(code))
-    throw new NpcMessageError('INVALID_STATE', '这段人生已暂停，继续后可恢复原回复。', 409);
+    throw new NpcMessageError(
+      'INVALID_STATE',
+      '这段人生已暂停，继续后可恢复原回复。',
+      409,
+      diagnostic,
+    );
   if (['NPC_AGENT_INVALID_SNAPSHOT', 'NPC_AGENT_SNAPSHOT_LIMIT'].includes(code))
     throw new NpcMessageError(
       'INVALID_STATE',
       '这次人物资料尚未准备好，你的消息已保留，请核对后再试。',
       422,
+      diagnostic,
     );
   if (code === 'ATTEMPT_PENDING')
-    throw new NpcMessageError('BUSY', '人物正在处理上一条消息，请稍等。', 409);
+    throw new NpcMessageError('BUSY', '人物正在处理上一条消息，请稍等。', 409, diagnostic);
   if (['INVALID_AGENT_PROPOSAL', 'ATTEMPT_INVALID'].includes(code))
     throw new NpcMessageError(
       'INVALID_AI_OUTPUT',
       '这次人物回复未能通过核对，你的消息已保留。',
       422,
+      diagnostic,
     );
-  throw new NpcMessageError('UNKNOWN', '这次回复尚未确认，请先恢复原请求，不必重复发送。', 503);
+  throw new NpcMessageError(
+    'UNKNOWN',
+    '这次回复尚未确认，请先恢复原请求，不必重复发送。',
+    503,
+    diagnostic,
+  );
 }

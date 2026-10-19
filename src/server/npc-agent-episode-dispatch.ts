@@ -123,6 +123,7 @@ export async function dispatchPendingAgentEpisode(
         basisSourceIds: [`definition:${actor.definitionRef}`],
       };
       const text = JSON.stringify(intent);
+      await batch?.trackWork?.({ kind: 'npc', commandId });
       const { receipt } = await store.accept(ownerId, {
         id: randomUUID(),
         worldId: world.id,

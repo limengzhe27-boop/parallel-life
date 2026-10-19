@@ -1,3 +1,4 @@
+import { agentAdvanceOperations } from './agent-advance-operations.ts';
 import { npcAgendaRuntimeConfig } from './npc-agenda-runtime-config.ts';
 import { PublicationOpeningRepository } from '../modules/settings/infrastructure/publication-opening-repository.ts';
 import { advancePublicationOpening } from '../modules/settings/application/advance-publication-opening.ts';
@@ -113,6 +114,9 @@ function createServices() {
     withWorldActivityLock: <T>(worldId: string, run: () => Promise<T>) =>
       new PostgresClockStore(db).withAdvanceLock(worldId, run),
     sessions: new SignedSession(secret),
+    advanceOperations: agentAdvanceOperations(db, (owner, world, track) =>
+      agentAdvance.advanceIfEnabled(owner, world, undefined, track),
+    ),
     /**
      * Guest-creation quota for one caller. The route stays unaware of how a
      * caller is identified or hashed; the policy lives with the server wiring.

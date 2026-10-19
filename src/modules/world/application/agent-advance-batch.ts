@@ -1,3 +1,4 @@
+import type { AdvanceWorkRef } from '../domain/advance-operation.ts';
 import type { AdvanceResult } from './advance-world.ts';
 
 export type AgentAdvanceBatchPolicy = {
@@ -30,6 +31,7 @@ export function agentAdvanceBatchPolicy(input: Partial<AgentAdvanceBatchPolicy> 
 /** Request-local fairness/budget; all durable work and idempotency remain in the original stores. */
 export type AgentAdvanceBatchContext = {
   readonly handledActorIds: Set<string>;
+  trackWork?(work: AdvanceWorkRef): Promise<void>;
   canStartModel(): boolean;
   beginDirectorAssessment(): boolean;
   /** Preserve a protected paid read frame; do not start another step in this batch. */
@@ -77,6 +79,7 @@ export async function runAgentAdvanceBatch(
   step: (context: AgentAdvanceBatchContext) => Promise<AdvanceResult | null>,
   policy: AgentAdvanceBatchPolicy,
   now: () => number = Date.now,
+  trackWork?: (work: AdvanceWorkRef) => Promise<void>,
 ): Promise<AdvanceResult | null> {
   const startedAt = now(),
     handledActorIds = new Set<string>();
@@ -87,6 +90,7 @@ export async function runAgentAdvanceBatch(
   const reservations = new Set<object>();
   const context: AgentAdvanceBatchContext = {
     handledActorIds,
+    trackWork,
     yieldAfterStep() {
       yielded = true;
     },

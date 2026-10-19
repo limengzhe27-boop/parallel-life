@@ -1,3 +1,4 @@
+import { attachAgentFailure } from './agent-failure-diagnostic.ts';
 import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
@@ -35,6 +36,7 @@ export async function runNpcAgent(
     try {
       deps.model.validateInput?.(executionSnapshot);
     } catch (error) {
+      attachAgentFailure(error, 'preflight', claim);
       const code = (error as { code?: unknown } | null)?.code;
       if (code === 'NPC_AGENT_SNAPSHOT_LIMIT' || code === 'NPC_AGENT_INVALID_SNAPSHOT') {
         // Accepted input needs a durable terminal receipt even when no request was sent.
@@ -110,6 +112,7 @@ export async function runNpcAgent(
         );
       } else attempt = await deps.attempts.mark(ownerId, attempt, 'request_sent');
     } catch (error) {
+      attachAgentFailure(error, 'send', attempt);
       // A known pre-send fence rejection must not leave a reserved actor permanently busy.
       if (
         typeof error === 'object' &&
@@ -135,8 +138,10 @@ export async function runNpcAgent(
       isOwnAgendaReviewInput(executionSnapshot.input)
     )
       throw Object.assign(Error('OWN_AGENDA_BUDGET_WAIT'), { code: 'OWN_AGENDA_BUDGET_WAIT' });
+    let responseObtained = false;
     try {
       response = await deps.model.decide(executionSnapshot, signal);
+      responseObtained = true;
       attempt = await deps.attempts.saveResponse(ownerId, attempt, {
         kind: 'npc_agent_completion',
         schemaVersion: 1,
@@ -145,6 +150,7 @@ export async function runNpcAgent(
         response,
       });
     } catch (error) {
+      attachAgentFailure(error, responseObtained ? 'response_store' : 'model', attempt);
       // Conservatively retain uncertainty if response storage or transport failed after send.
       // A failing mark must not trigger another model invocation or hide the original failure.
       const rejection = modelRequestRejection(error);
@@ -171,6 +177,7 @@ export async function runNpcAgent(
   try {
     proposal = deps.kernel.parse(executionSnapshot, response);
   } catch (error) {
+    attachAgentFailure(error, 'decode', attempt);
     if (attempt.status !== 'committed')
       await deps.attempts.mark(ownerId, attempt, 'invalid_output');
     throw error;
@@ -179,6 +186,7 @@ export async function runNpcAgent(
     // Implementations replay a committed receipt first and atomically commit all kernel objects.
     return await deps.kernel.commit(ownerId, { attempt, snapshot: executionSnapshot, proposal });
   } catch (error) {
+    attachAgentFailure(error, 'commit', attempt);
     if (attempt.status !== 'committed' && isKnownConflict(error))
       await deps.attempts.mark(ownerId, attempt, 'stale_discarded');
     else if (attempt.status !== 'committed' && isKnownInvalid(error))

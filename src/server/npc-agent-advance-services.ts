@@ -1,3 +1,4 @@
+import type { AdvanceWorkRef } from '../modules/world/domain/advance-operation.ts';
 import {
   readOwnAgendaReviewWorkInTransaction,
   ownAgendaReviewInputText,
@@ -323,6 +324,7 @@ export function npcAgentAdvanceServices(
           continue;
         }
         try {
+          await batch?.trackWork?.({ kind: 'npc', commandId: attempt.commandId });
           batch?.actorStarted(attempt.actorId);
           const result = await runNpcAgent(
             { attempts, model: npcModel, kernel: new PostgresNpcAgentKernel(db, worlds) },
@@ -561,6 +563,21 @@ export function npcAgentAdvanceServices(
           });
         if (retryCommandId && (snapshot.conversationWithoutTarget || snapshot.focus.length))
           throw new DomainError('INVALID_COMMAND', '请先结束当前交谈，再重新编排。');
+        const pendingFrame = await directors.readPendingFrame(ownerId, worldId);
+        if (pendingFrame) {
+          const pendingCommand = await db.transaction(
+            ownerId,
+            async (sql) =>
+              (
+                await sql.query(
+                  `SELECT command_id FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send') ORDER BY created_at LIMIT 1`,
+                  [worldId, ownerId],
+                )
+              ).rows[0]?.command_id,
+          );
+          if (pendingCommand)
+            await batch?.trackWork?.({ kind: 'director', commandId: String(pendingCommand) });
+        }
         const recovery = await recoverDirectorAgent(
           { attempts: directors, parse: parseDirectorDecision },
           ownerId,
@@ -590,6 +607,7 @@ export function npcAgentAdvanceServices(
           if (unsent.length) identity = hash(['director-unsent-frame-v1', identity, unsent]);
         }
         const commandId = retryCommandId ?? agentWakeCommandId(worldId, identity);
+        await batch?.trackWork?.({ kind: 'director', commandId });
         const previous = await directors.lookup(ownerId, worldId, commandId);
         // A durable known-invalid director result is not retry permission. Its
         // own coordination remains fenced; unrelated preselected work may continue.
@@ -849,6 +867,7 @@ export function npcAgentAdvanceServices(
         try {
           batch?.actorStarted(candidate.actorId);
           const commandId = commandForCandidate(candidate);
+          await batch?.trackWork?.({ kind: 'npc', commandId });
           const initialization =
             candidate.source === 'agenda_initialize'
               ? read.agendaInitializeGrants.find(
@@ -981,7 +1000,12 @@ export function npcAgentAdvanceServices(
     },
   };
   return {
-    async advanceIfEnabled(ownerId: string, worldId: string, retryDirectorAttemptId?: string) {
+    async advanceIfEnabled(
+      ownerId: string,
+      worldId: string,
+      retryDirectorAttemptId?: string,
+      trackWork?: (work: AdvanceWorkRef) => Promise<void>,
+    ) {
       const lease = await claimAgentAdvanceBatch(db, ownerId, worldId);
       if (lease.status === 'legacy')
         return service.advanceOne(ownerId, worldId, retryDirectorAttemptId);
@@ -990,19 +1014,24 @@ export function npcAgentAdvanceServices(
       try {
         if (retryDirectorAttemptId)
           return await service.advanceOne(ownerId, worldId, retryDirectorAttemptId);
-        return await runAgentAdvanceBatch(async (batch) => {
-          try {
-            return await service.advanceOne(ownerId, worldId, undefined, batch);
-          } catch (error) {
-            const scoped = error as {
-              directorCoordinationPending?: boolean;
-              directorKnownInvalid?: boolean;
-            };
-            if (scoped?.directorCoordinationPending || scoped?.directorKnownInvalid)
-              throw new AgentAdvanceDeferred(error);
-            throw error;
-          }
-        }, policy);
+        return await runAgentAdvanceBatch(
+          async (batch) => {
+            try {
+              return await service.advanceOne(ownerId, worldId, undefined, batch);
+            } catch (error) {
+              const scoped = error as {
+                directorCoordinationPending?: boolean;
+                directorKnownInvalid?: boolean;
+              };
+              if (scoped?.directorCoordinationPending || scoped?.directorKnownInvalid)
+                throw new AgentAdvanceDeferred(error);
+              throw error;
+            }
+          },
+          policy,
+          Date.now,
+          trackWork,
+        );
       } finally {
         try {
           await releaseAgentAdvanceBatch(db, ownerId, worldId, lease.token);
