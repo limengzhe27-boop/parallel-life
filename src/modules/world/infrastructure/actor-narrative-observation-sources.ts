@@ -79,6 +79,11 @@ export async function readActorNarrativeObservationSourcesInTransaction(
       fact?.id !== r.fact_id ||
       fact.sourceEventId !== r.source_event_id ||
       fact.kind !== 'canonical' ||
+      !isDeepStrictEqual(fact.narrativeContext, {
+        policy: 'opening_context_v1',
+        knowledgeId: r.id,
+        sourceVersion: r.source_version,
+      }) ||
       fact.believedByActorId !== undefined ||
       !isDeepStrictEqual(fact.visibility, { kind: 'actors', actorIds: [frame.actorId] }) ||
       typeof fact.text !== 'string' ||
@@ -133,6 +138,8 @@ export async function readActorNarrativeObservationSourcesInTransaction(
       basis.decisionId,
       basis.knowledge?.contentHash,
       basis.knowledge?.sourceId,
+      basis.knowledge?.definitionSourceId,
+      basis.knowledge?.moduleHash,
     ].filter((x): x is string => typeof x === 'string');
     if (lineage.some((key) => blocked.has(key))) continue;
     sources.push({

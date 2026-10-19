@@ -23,6 +23,7 @@ function row() {
   const fact = {
     id: 'fact',
     kind: 'canonical',
+    narrativeContext: { policy: 'opening_context_v1', knowledgeId: 'knowledge', sourceVersion: 3 },
     text,
     visibility: { kind: 'actors', actorIds: ['actor'] },
     sourceEventId: 'event',
