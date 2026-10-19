@@ -348,6 +348,11 @@ test('v10 opening information binds actor refs and review identity while preserv
   if (schema.format !== 'json_schema') throw Error('schema');
   const properties = (schema.schema as any).properties;
   assert.equal(schema.name, 'director_response_v10');
+  assert.equal(properties.openingContext.anyOf[0].properties.premises.minItems, 1);
+  assert.equal(properties.openingContext.anyOf[1].properties.premises.maxItems, 0);
+  assert.throws(() =>
+    f.parse({ ...raw, openingContext: { disposition: 'confirm', reason: '', premises: [] } }),
+  );
   assert.equal(
     properties.openingContext.anyOf[0].properties.premises.items.properties.actorRef.enum[0],
     'actor:1',
@@ -402,4 +407,25 @@ test('protected v9 responses do not gain opening execution and cannot attach a n
   const schema = directorResponseFormat(f.s);
   if (schema.format !== 'json_schema') throw Error('schema');
   assert.deepEqual((schema.schema as any).properties.openingContext, { type: 'null' });
+});
+
+test('v10 accepts nullable actorTopics transport before validating an otherwise exact interaction', () => {
+  const f = consider();
+  f.wire.protocol = 'director-wire-v10';
+  f.wire.openingContext = null;
+  const o = f.wire.authoredChoices[f.events[0]!.ref].opportunity;
+  o.actorTopics = null;
+  o.actorTasks = {
+    'actor:1': {
+      topic: 'Discuss the existing project',
+      personalObjective: 'Find a workable choice',
+      proposedInteraction: 'Offer a discussion',
+    },
+    'actor:2': null,
+  };
+  const original = structuredClone(f.wire);
+  const d = f.parse(f.wire);
+  assert.equal(d.opportunities.length, 1);
+  assert.equal(d.opportunities[0]!.actorTopics, undefined);
+  assert.deepEqual(f.wire, original);
 });
