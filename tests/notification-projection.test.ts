@@ -131,3 +131,37 @@ test('duplicate projection rows do not invent notification counts', () => {
   const item = notification('stored-id', 'actor-a', '2026-10-09T09:00:00.000Z');
   assert.equal(groupNotifications([item, item])[0]?.items.length, 1);
 });
+
+test('authored preset and historical origins never become lock-screen alerts even if marked unread', () => {
+  const preset = {
+    id: 'preset',
+    actorId: 'actor-a',
+    role: 'assistant' as const,
+    text: '编剧预置开场',
+    at: '2026-10-19T08:15:00.000Z',
+    initialRead: false,
+    origin: 'publication_preset' as const,
+  };
+  const history = { ...preset, id: 'history', origin: 'fictional_history' as const };
+  const runtime = {
+    id: 'runtime',
+    actorId: 'actor-a',
+    role: 'assistant' as const,
+    text: '这次实际生成',
+    at: preset.at,
+  };
+  assert.deepEqual(
+    projectMessageNotifications(
+      [preset, history, runtime],
+      [{ id: 'actor-a', name: '甲' }],
+      new Set(),
+      (x) => x,
+    ).map((x) => x.id),
+    ['runtime'],
+  );
+  assert.equal(
+    projectMessageNotifications([preset, history, runtime], [], new Set(['runtime']), (x) => x)
+      .length,
+    0,
+  );
+});

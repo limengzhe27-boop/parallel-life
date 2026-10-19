@@ -1,3 +1,4 @@
+import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { resolveAvatarArt } from './avatar-art.ts';
 import type { WorldPhone } from '../../contracts/world-build.ts';
 import type { PhoneAppsData, PhoneMessage, PhonePhoto } from './apps/types.ts';
@@ -88,8 +89,7 @@ export function worldAppData(
         unread: world.messages.filter(
           (message) =>
             message.actorId === actor.id &&
-            message.role !== 'user' &&
-            message.initialRead !== true &&
+            isIncomingRuntimeMessage(message) &&
             !viewed.has(message.id),
         ).length,
       };
@@ -171,6 +171,7 @@ export function worldAppData(
           role: message.role ?? 'assistant',
           status: 'sent' as const,
           ...(message.initialRead !== undefined ? { initialRead: message.initialRead } : {}),
+          ...(message.origin ? { origin: message.origin } : {}),
           ...(message.mediaType ? { mediaType: message.mediaType } : {}),
           ...(photo ? { photo } : {}),
           ...(media && (media.kind === 'image' || media.kind === 'video') && media.assetId

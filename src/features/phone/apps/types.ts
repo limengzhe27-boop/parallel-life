@@ -34,6 +34,8 @@ export type PhoneMessage = {
   status: 'pending' | 'sent' | 'failed' | 'unknown';
   /** Initial server-verified history does not become a new notification. */
   initialRead?: boolean;
+  /** Authored preset contents never count as runtime delivery. */
+  origin?: 'fictional_history' | 'publication_preset';
   links?: PhoneLink[];
   photo?: PhonePhoto;
   mediaType?: 'image' | 'video';

@@ -436,7 +436,11 @@ export class BuildRepository {
           at: m.at,
           ...(m.attachment ? { attachment: { ...m.attachment } } : {}),
           ...(m.initialRead !== undefined ? { initialRead: m.initialRead } : {}),
-          ...(m.history ? { origin: 'fictional_history' as const } : {}),
+          ...(m.history
+            ? { origin: 'fictional_history' as const }
+            : publication && m.sourceEventId === `publication-genesis:${worldId}`
+              ? { origin: 'publication_preset' as const }
+              : {}),
           ...(isReady && media?.assetId
             ? {
                 photoId: media.assetId,

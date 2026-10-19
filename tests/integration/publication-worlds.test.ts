@@ -1,3 +1,5 @@
+import { worldAppData } from '../../src/features/phone/world-app-data.ts';
+import { projectMessageNotifications } from '../../src/features/phone/notification-projection.ts';
 import { PUBLICATION_ART } from '../../src/contracts/publication-assets.ts';
 import { BuildRepository } from '../../src/modules/world/infrastructure/build-repository.ts';
 import test from 'node:test';
@@ -356,6 +358,27 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
         )
       ).rows[0].state;
       assert.equal(state.version, 0);
+      const phone = await new BuildRepository(app).phone(owner, first.worldId);
+      assert.deepEqual(
+        phone.messages.map((m) => [m.origin, m.initialRead]),
+        [
+          ['fictional_history', true],
+          ['publication_preset', false],
+        ],
+      );
+      assert.deepEqual(
+        phone.messages.map((m) => m.text),
+        state.messages.map((m: { text: string }) => m.text),
+      );
+      const display = worldAppData(phone);
+      assert.equal(
+        display.contacts.reduce((sum, c) => sum + c.unread, 0),
+        0,
+      );
+      assert.deepEqual(
+        projectMessageNotifications(display.messages, display.contacts, new Set(), (x) => x),
+        [],
+      );
       assert.ok(
         state.messages.every(
           (m: { sourceEventId: string }) =>
@@ -687,6 +710,35 @@ test('real PG publication worlds: trusted genesis, independent owners, private t
           ],
         },
       });
+      const phone = await new BuildRepository(app).phone(authorized.ownerId, trial.worldId);
+      const display = worldAppData(phone);
+      const notifications = projectMessageNotifications(
+        display.messages,
+        display.contacts,
+        new Set(),
+        (x) => x,
+      );
+      assert.equal(notifications.length, 1, 'only the genuinely committed assistant reply alerts');
+      assert.equal(notifications[0]!.summary, '本地合成回复，不代表供应商验收');
+      assert.equal(phone.messages.find((m) => m.id === notifications[0]!.id)!.origin, undefined);
+      assert.equal(
+        display.contacts.reduce((sum, c) => sum + c.unread, 0),
+        1,
+      );
+      const readDisplay = worldAppData(phone, new Set([notifications[0]!.id]));
+      assert.equal(
+        readDisplay.contacts.reduce((sum, c) => sum + c.unread, 0),
+        0,
+      );
+      assert.deepEqual(
+        projectMessageNotifications(
+          readDisplay.messages,
+          readDisplay.contacts,
+          new Set([notifications[0]!.id]),
+          (x) => x,
+        ),
+        [],
+      );
       assert.deepEqual(await trials.trialEvidence(staff, w.id, 0, hash), {
         verified: true,
         receiptId: trial.trialId,

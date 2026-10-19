@@ -393,3 +393,54 @@ test('trial runtime generated pictures use a revision-aware asset endpoint disti
   );
   assert.equal(player.messages[2]?.attachment?.url, '/api/v1/worlds/world-a/media/authored-photo');
 });
+
+test('authored preset contents remain editable/readable history without inflating real incoming counts', async () => {
+  const { projectMessageNotifications } =
+    await import('../src/features/phone/notification-projection.ts');
+  const { isIncomingRuntimeMessage } =
+    await import('../src/features/phone/message-notification-policy.ts');
+  const preset = {
+    ...world.messages[0]!,
+    id: 'preset',
+    initialRead: false,
+    origin: 'publication_preset' as const,
+  };
+  const history = {
+    ...world.messages[0]!,
+    id: 'history',
+    initialRead: false,
+    origin: 'fictional_history' as const,
+  };
+  const runtime = { ...world.messages[0]!, id: 'runtime' };
+  const data = worldAppData({ ...world, messages: [preset, history, runtime] });
+  assert.equal(data.messages.length, 3, 'never remove author content from the conversation');
+  assert.equal(data.messages.find((m) => m.id === 'preset')?.origin, 'publication_preset');
+  assert.equal(
+    data.messages.find((m) => m.id === 'preset')?.initialRead,
+    false,
+    'do not rewrite authored/read state',
+  );
+  assert.equal(data.contacts[0]!.unread, 1);
+  assert.deepEqual(
+    data.messages.filter(isIncomingRuntimeMessage).map((m) => m.id),
+    ['runtime'],
+  );
+  assert.deepEqual(
+    projectMessageNotifications(data.messages, data.contacts, new Set(), (x) => x).map((m) => m.id),
+    ['runtime'],
+  );
+  const previouslyViewed = worldAppData(
+    { ...world, messages: [preset, history, runtime] },
+    new Set(['runtime']),
+  );
+  assert.equal(previouslyViewed.contacts[0]!.unread, 0);
+  assert.deepEqual(
+    projectMessageNotifications(
+      previouslyViewed.messages,
+      previouslyViewed.contacts,
+      new Set(['runtime']),
+      (x) => x,
+    ),
+    [],
+  );
+});

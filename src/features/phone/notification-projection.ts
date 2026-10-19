@@ -1,10 +1,12 @@
+import {
+  isIncomingRuntimeMessage,
+  type MessageNotificationState,
+} from './message-notification-policy.ts';
 import type { PhoneNotification } from './phone-shell.tsx';
 
-type Message = {
+type Message = MessageNotificationState & {
   id: string;
   actorId: string;
-  role?: 'user' | 'assistant';
-  initialRead?: boolean;
   text: string;
   at: string;
 };
@@ -21,12 +23,7 @@ export function projectMessageNotifications(
   const seen = new Set<string>();
   return messages
     .filter((message) => {
-      if (
-        message.role === 'user' ||
-        message.initialRead === true ||
-        viewed.has(message.id) ||
-        seen.has(message.id)
-      )
+      if (!isIncomingRuntimeMessage(message) || viewed.has(message.id) || seen.has(message.id))
         return false;
       seen.add(message.id);
       return true;

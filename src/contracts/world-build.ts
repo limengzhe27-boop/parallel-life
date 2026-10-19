@@ -226,7 +226,7 @@ export const WorldPhoneSchema = z.strictObject({
       at: Timestamp,
       role: z.enum(['user', 'assistant']).optional(),
       initialRead: z.boolean().optional(),
-      origin: z.literal('fictional_history').optional(),
+      origin: z.enum(['fictional_history', 'publication_preset']).optional(),
       photoId: Id.optional(),
       mediaStatus: z.enum(['pending', 'ready', 'failed']).optional(),
       mediaTitle: z.string().optional(),
