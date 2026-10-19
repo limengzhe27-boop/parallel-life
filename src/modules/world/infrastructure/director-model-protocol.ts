@@ -6,7 +6,8 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v10';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v11';
+const PREVIOUS_OPENING_PROTOCOL = 'director-wire-v10';
 const PREVIOUS_INTERACTION_PROTOCOL = 'director-wire-v9';
 const PREVIOUS_ACTOR_TASK_PROTOCOL = 'director-wire-v8';
 const PREVIOUS_EXCLUSIVE_PROTOCOL = 'director-wire-v7';
@@ -160,8 +161,8 @@ const PreviousInteractionWire = PreviousActorTaskWire.extend({
     ]),
   ),
 });
-const CurrentWire = PreviousInteractionWire.extend({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+const PreviousOpeningWire = PreviousInteractionWire.extend({
+  protocol: z.literal(PREVIOUS_OPENING_PROTOCOL),
   openingContext: z
     .strictObject({
       disposition: z.enum(['confirm', 'defer']),
@@ -180,6 +181,89 @@ const CurrentWire = PreviousInteractionWire.extend({
     })
     .nullable(),
 });
+const OpeningReferencePremise = z.strictObject({
+  actorRef: Ref,
+  informationRef: z.string().regex(/^opening-info:[1-9][0-9]*$/),
+  identityRef: z.string().regex(/^opening-identity:[1-9][0-9]*$/),
+});
+const CurrentWire = PreviousInteractionWire.extend({
+  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+  openingContext: z
+    .discriminatedUnion('disposition', [
+      z.strictObject({
+        disposition: z.literal('confirm'),
+        reason: z.string().trim().min(1).max(1600),
+        premises: z.array(OpeningReferencePremise).min(1).max(12),
+      }),
+      z.strictObject({
+        disposition: z.literal('defer'),
+        reason: z.string().trim().min(1).max(1600),
+        premises: z.array(OpeningReferencePremise).max(0),
+      }),
+    ])
+    .nullable(),
+});
+/** Exact source fragments only: no model summary or inferred fact is introduced. */
+function openingSourceFragments(text: string, limit: number, count: number): string[] {
+  const result: string[] = [];
+  let pending = '';
+  const emit = (value: string) => {
+    let remaining = value.trim();
+    while (remaining.length >= 6 && result.length < count) {
+      let end = Math.min(limit, remaining.length);
+      if (remaining.length > end && remaining.length - end < 6) end -= 6 - (remaining.length - end);
+      const piece = remaining.slice(0, end).trim();
+      if (piece.length >= 6 && !result.includes(piece)) result.push(piece);
+      remaining = remaining.slice(end).trim();
+    }
+  };
+  for (const piece of text.split(/(?<=[。！？!?\n])/u)) {
+    pending += piece;
+    if (pending.trim().length >= 6) {
+      emit(pending);
+      pending = '';
+    }
+    if (result.length >= count) break;
+  }
+  if (pending.trim().length >= 6) emit(pending);
+  return result;
+}
+export function directorOpeningInformationCatalog(snapshot: DirectorSnapshot): {
+  information: { ref: string; text: string }[];
+  identities: {
+    ref: string;
+    actorRef: string;
+    module: z.infer<typeof OpeningModule>;
+    text: string;
+  }[];
+} {
+  const authority = snapshot.openingContextAuthority;
+  if (!authority) return { information: [], identities: [] };
+  const information = openingSourceFragments(authority.sourceExcerpt, 600, 24).map((text, i) => ({
+    ref: `opening-info:${i + 1}`,
+    text,
+  }));
+  const identities: {
+    ref: string;
+    actorRef: string;
+    module: z.infer<typeof OpeningModule>;
+    text: string;
+  }[] = [];
+  const actors = directorWireCatalog(snapshot).actors;
+  for (const actor of actors) {
+    const own = authority.actorKnowledge.find((k) => k.actorId === actor.actorId);
+    if (!own) continue;
+    for (const module of OpeningModule.options)
+      for (const text of openingSourceFragments(own.modules[module] ?? '', 300, 3))
+        identities.push({
+          ref: `opening-identity:${identities.length + 1}`,
+          actorRef: actor.ref,
+          module,
+          text,
+        });
+  }
+  return { information, identities };
+}
 function compiledActorInteraction(value: z.infer<typeof ActorInteraction>): string {
   const task = JSON.stringify({ protocol: 'actor-interaction-opportunity-v1', ...value });
   // JSON escaping can expand author text; never truncate or silently lose a field.
@@ -314,7 +398,9 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     }
   // Nullable provider optionals are transport syntax for both v9 and v10.
   if (
-    [DIRECTOR_WIRE_PROTOCOL, PREVIOUS_INTERACTION_PROTOCOL].includes(String(normalized.protocol))
+    [DIRECTOR_WIRE_PROTOCOL, PREVIOUS_OPENING_PROTOCOL, PREVIOUS_INTERACTION_PROTOCOL].includes(
+      String(normalized.protocol),
+    )
   ) {
     const choices = normalized.authoredChoices;
     if (choices && typeof choices === 'object' && !Array.isArray(choices))
@@ -333,6 +419,37 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
   }
   if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
     const wire = CurrentWire.parse(normalized);
+    const { openingContext, ...rest } = wire;
+    const authority = snapshot.openingContextAuthority;
+    if (!authority && openingContext !== null) throw Error('DIRECTOR_OPENING_CONTEXT_FORBIDDEN');
+    if (authority && openingContext === null) throw Error('DIRECTOR_OPENING_REVIEW_REQUIRED');
+    const catalog = directorOpeningInformationCatalog(snapshot);
+    return decodeDirectorWire(snapshot, {
+      ...rest,
+      protocol: PREVIOUS_OPENING_PROTOCOL,
+      openingContext:
+        openingContext === null
+          ? null
+          : {
+              ...openingContext,
+              premises: openingContext.premises.map((p) => {
+                const information = catalog.information.find((i) => i.ref === p.informationRef);
+                const identity = catalog.identities.find((i) => i.ref === p.identityRef);
+                if (!authority || !information || !identity || identity.actorRef !== p.actorRef)
+                  throw Error('DIRECTOR_OPENING_REFERENCE_FORBIDDEN');
+                return {
+                  actorRef: p.actorRef,
+                  kind: 'opening_information',
+                  field: authority.sourceField,
+                  quote: information.text,
+                  knowledge: { module: identity.module, quote: identity.text },
+                };
+              }),
+            },
+    });
+  }
+  if (normalized.protocol === PREVIOUS_OPENING_PROTOCOL) {
+    const wire = PreviousOpeningWire.parse(normalized);
     const { openingContext, ...rest } = wire;
     if (!snapshot.openingContextAuthority && openingContext !== null)
       throw Error('DIRECTOR_OPENING_CONTEXT_FORBIDDEN');
@@ -845,64 +962,50 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     object({ ...(originalItem.properties as Record<string, Schema>), origin: emergentOrigin }),
     !catalog.sources.length || !!openingRefs.length || !!snapshot.nativeTurn,
   );
-  properties.openingContext = snapshot.openingContextAuthority
-    ? {
+  properties.openingContext = { type: 'null' };
+  if (snapshot.openingContextAuthority) {
+    const openingCatalog = directorOpeningInformationCatalog(snapshot);
+    const premiseOptions = catalog.actors.flatMap((actor) => {
+      const identityRefs = openingCatalog.identities
+        .filter((i) => i.actorRef === actor.ref)
+        .map((i) => i.ref);
+      return identityRefs.length
+        ? [
+            object({
+              actorRef: { type: 'string', enum: [actor.ref] },
+              informationRef: refs(openingCatalog.information.map((i) => i.ref)),
+              identityRef: refs(identityRefs),
+            }),
+          ]
+        : [];
+    });
+    const defs = schema.$defs as Record<string, Schema>;
+    const defer = object({
+      disposition: { type: 'string', enum: ['defer'] },
+      reason: { type: 'string', minLength: 1, maxLength: 1600 },
+      premises: { ...array({ type: 'string' }), maxItems: 0 },
+    });
+    if (!premiseOptions.length || !openingCatalog.information.length)
+      properties.openingContext = defer;
+    else {
+      defs.director_opening_premise = { anyOf: premiseOptions };
+      const premises = array({ $ref: '#/$defs/director_opening_premise' });
+      properties.openingContext = {
         anyOf: [
           object({
-            disposition: { type: 'string', enum: ['confirm', 'defer'] },
-            reason: text,
-            premises: array(
-              object({
-                actorRef: refs(
-                  catalog.actors
-                    .filter((a) =>
-                      snapshot.openingContextAuthority!.actorKnowledge.some(
-                        (k) => k.actorId === a.actorId,
-                      ),
-                    )
-                    .map((a) => a.ref),
-                ),
-                kind: { type: 'string', enum: ['opening_information'] },
-                field: { type: 'string', enum: [snapshot.openingContextAuthority.sourceField] },
-                quote: { type: 'string', minLength: 6, maxLength: 600 },
-                knowledge: object({
-                  module: { type: 'string', enum: OpeningModule.options },
-                  quote: { type: 'string', minLength: 6, maxLength: 300 },
-                }),
-              }),
-            ),
+            disposition: { type: 'string', enum: ['confirm'] },
+            reason: { type: 'string', minLength: 1, maxLength: 1600 },
+            premises: { ...premises, minItems: 1, maxItems: 12 },
           }),
-          { type: 'null' },
+          defer,
         ],
-      }
-    : { type: 'null' };
-  if (snapshot.openingContextAuthority)
-    properties.openingContext = (properties.openingContext!.anyOf as Schema[])[0]!;
-  if (snapshot.openingContextAuthority) {
-    const opening = properties.openingContext!;
-    const fields = opening.properties as Record<string, Schema>;
-    const premises = fields.premises!;
-    properties.openingContext = {
-      anyOf: [
-        object({
-          ...fields,
-          disposition: { type: 'string', enum: ['confirm'] },
-          reason: { type: 'string', minLength: 1, maxLength: 1600 },
-          premises: { ...premises, minItems: 1, maxItems: 12 },
-        }),
-        object({
-          ...fields,
-          disposition: { type: 'string', enum: ['defer'] },
-          reason: { type: 'string', minLength: 1, maxLength: 1600 },
-          premises: { ...premises, maxItems: 0 },
-        }),
-      ],
-    };
+      };
+    }
   }
   schema.required = Object.keys(properties);
   if (JSON.stringify(schema).length > 24_000)
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v10', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v11', strict: true, schema };
 }

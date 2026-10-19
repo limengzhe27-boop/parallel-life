@@ -10,6 +10,8 @@ import { compileAuthoredAgentMaterials } from '../src/modules/world/domain/autho
 import { parseDirectorDecision } from '../src/modules/world/infrastructure/director-agent-model.ts';
 import {
   directorResponseFormat,
+  directorOpeningInformationCatalog,
+  decodeDirectorWire,
   directorWireCatalog,
 } from '../src/modules/world/infrastructure/director-model-protocol.ts';
 function fixture() {
@@ -252,7 +254,7 @@ test('current provider uses single author opportunity and exact keyed nullable a
   );
   assert(consider.properties.opportunity.$ref);
   assert.equal(consider.properties.opportunities, undefined);
-  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v10']);
+  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v11']);
 });
 
 test('v9 typed handoff preserves actor binding and compiles only the selected personal proposal', () => {
@@ -347,14 +349,14 @@ test('v10 opening information binds actor refs and review identity while preserv
   const schema = directorResponseFormat(f.s);
   if (schema.format !== 'json_schema') throw Error('schema');
   const properties = (schema.schema as any).properties;
-  assert.equal(schema.name, 'director_response_v10');
+  assert.equal(schema.name, 'director_response_v11');
   assert.equal(properties.openingContext.anyOf[0].properties.premises.minItems, 1);
   assert.equal(properties.openingContext.anyOf[1].properties.premises.maxItems, 0);
   assert.throws(() =>
     f.parse({ ...raw, openingContext: { disposition: 'confirm', reason: '', premises: [] } }),
   );
   assert.equal(
-    properties.openingContext.anyOf[0].properties.premises.items.properties.actorRef.enum[0],
+    (schema.schema as any).$defs.director_opening_premise.anyOf[0].properties.actorRef.enum[0],
     'actor:1',
   );
   for (const invalid of [
@@ -429,4 +431,192 @@ test('v10 accepts nullable actorTopics transport before validating an otherwise 
   assert.equal(d.opportunities.length, 1);
   assert.equal(d.opportunities[0]!.actorTopics, undefined);
   assert.deepEqual(wire, original);
+});
+
+function informationFixture() {
+  const f = fixture(),
+    opening = f.s.authoredMaterials!.materials.find((m) => m.role === 'opening')!;
+  const quote = opening.node.editorialIntent!,
+    ownQuote = 'A knows the existing project and coordinates its arrangements.';
+  f.s.openingContextAuthority = {
+    policy: 'opening_context_v1',
+    reviewKey: 'd'.repeat(64),
+    nodeKey: opening.ref.nodeKey,
+    nodeHash: opening.ref.nodeHash,
+    sourceHash: f.s.authoredMaterials!.source!.sourceHash,
+    initialAt: f.s.storyAt,
+    sourceField: 'editorialIntent',
+    sourceExcerpt: quote,
+    actorKnowledge: [
+      { actorId: 'a', definitionSourceId: 'definition:a', modules: { relationships: ownQuote } },
+      {
+        actorId: 'b',
+        definitionSourceId: 'definition:b',
+        modules: { lifeContext: 'B has separate information about the same existing project.' },
+      },
+    ],
+  };
+  const catalog = directorOpeningInformationCatalog(f.s);
+  const own = catalog.identities.find((i) => i.actorRef === 'actor:1')!;
+  const wire = {
+    ...f.wire,
+    protocol: 'director-wire-v11',
+    openingContext: {
+      disposition: 'confirm',
+      reason: 'Bind only the source information and this actor identity.',
+      premises: [
+        { actorRef: 'actor:1', informationRef: catalog.information[0]!.ref, identityRef: own.ref },
+      ],
+    },
+  };
+  return { ...f, catalog, wire, quote, ownQuote };
+}
+test('v11 compiles exact catalog references while v10 paid quotes retain their original meaning', () => {
+  const f = informationFixture(),
+    before = structuredClone(f.wire);
+  const decoded = decodeDirectorWire(f.s, f.wire) as any;
+  assert.equal(decoded.openingContext.reviewKey, f.s.openingContextAuthority!.reviewKey);
+  assert.deepEqual(decoded.openingContext.premises, [
+    {
+      actorId: 'a',
+      kind: 'opening_information',
+      field: 'editorialIntent',
+      quote: f.quote,
+      knowledge: { module: 'relationships', quote: f.ownQuote },
+    },
+  ]);
+  assert.equal(f.parse(f.wire).openingContext!.premises[0]!.quote, f.quote);
+  assert.deepEqual(f.wire, before);
+  const previous = {
+    ...f.wire,
+    protocol: 'director-wire-v10',
+    openingContext: {
+      ...f.wire.openingContext,
+      premises: [
+        {
+          actorRef: 'actor:1',
+          kind: 'opening_information',
+          field: 'editorialIntent',
+          quote: f.quote,
+          knowledge: { module: 'relationships', quote: f.ownQuote },
+        },
+      ],
+    },
+  };
+  assert.equal(f.parse(previous).openingContext!.premises[0]!.quote, f.quote);
+  assert.throws(
+    () => f.parse({ ...previous, openingContext: f.wire.openingContext }),
+    'v10 is not reinterpreted as reference transport',
+  );
+  assert.throws(
+    () => f.parse({ ...f.wire, openingContext: previous.openingContext }),
+    'v11 cannot provide freeform quoted facts',
+  );
+});
+test('v11 rejects foreign information, cross-person identity, missing review, empty confirm and defer with premises', () => {
+  const f = informationFixture(),
+    p = f.wire.openingContext.premises[0]!;
+  const other = f.catalog.identities.find((i) => i.actorRef === 'actor:2')!;
+  for (const premise of [
+    { ...p, informationRef: 'opening-info:999' },
+    { ...p, identityRef: other.ref },
+    { ...p, actorRef: 'actor:9' },
+    { ...p, identityRef: 'opening-identity:999' },
+    { ...p, quote: 'A fabricated claim' },
+  ])
+    assert.throws(() =>
+      f.parse({ ...f.wire, openingContext: { ...f.wire.openingContext, premises: [premise] } }),
+    );
+  for (const context of [
+    null,
+    { ...f.wire.openingContext, premises: [] },
+    { ...f.wire.openingContext, disposition: 'defer' },
+    { ...f.wire.openingContext, reason: '' },
+  ])
+    assert.throws(() => f.parse({ ...f.wire, openingContext: context }));
+  assert.equal(
+    f.parse({
+      ...f.wire,
+      openingContext: {
+        disposition: 'defer',
+        reason: 'No justified initial information to confirm.',
+        premises: [],
+      },
+    }).openingContext!.disposition,
+    'defer',
+  );
+  delete f.s.openingContextAuthority;
+  assert.throws(() => f.parse(f.wire));
+  assert.equal(f.parse({ ...f.wire, openingContext: null }).openingContext, undefined);
+});
+test('v11 catalog fragments remain exact bounded substrings and schema shares per-actor identity constraints', () => {
+  const f = informationFixture(),
+    authority = f.s.openingContextAuthority!;
+  authority.sourceExcerpt =
+    'A long exact source sentence with no invented statement. '.repeat(80) +
+    '短句。Next exact sentence.';
+  authority.actorKnowledge[0]!.modules.relationships =
+    'Original relationship source sentence. '.repeat(40);
+  const catalog = directorOpeningInformationCatalog(f.s);
+  assert(catalog.information.length <= 24);
+  for (const info of catalog.information) {
+    assert(info.text.length >= 6 && info.text.length <= 600);
+    assert(authority.sourceExcerpt.includes(info.text));
+  }
+  for (const identity of catalog.identities) {
+    const actorId = identity.actorRef === 'actor:1' ? 'a' : 'b';
+    const source = authority.actorKnowledge.find((a) => a.actorId === actorId)!.modules[
+      identity.module
+    ]!;
+    assert(source.includes(identity.text));
+    assert(identity.text.length >= 6 && identity.text.length <= 300);
+  }
+  assert(
+    catalog.identities.filter((i) => i.actorRef === 'actor:1' && i.module === 'relationships')
+      .length <= 3,
+  );
+  assert.deepEqual(catalog, directorOpeningInformationCatalog(f.s));
+  const format = directorResponseFormat(f.s);
+  if (format.format !== 'json_schema') throw Error('schema');
+  const schema: any = format.schema,
+    variants = schema.$defs.director_opening_premise.anyOf;
+  assert.equal(
+    schema.properties.openingContext.anyOf[0].properties.premises.items.$ref,
+    '#/$defs/director_opening_premise',
+  );
+  for (const v of variants) {
+    const actorRef = v.properties.actorRef.enum[0];
+    assert.deepEqual(
+      v.properties.identityRef.enum,
+      catalog.identities.filter((i) => i.actorRef === actorRef).map((i) => i.ref),
+    );
+  }
+  assert(JSON.stringify(schema).length < 24000);
+});
+
+test('v11 12-person two-event provider schema remains bounded and handles long unpunctuated originals', () => {
+  const f = informationFixture();
+  const authority = f.s.openingContextAuthority!;
+  authority.sourceExcerpt = '无标点的长篇编剧原文'.repeat(900);
+  f.s.boundary.actorIds = Array.from({ length: 12 }, (_, i) => `actor-${i}`);
+  authority.actorKnowledge = f.s.boundary.actorIds.map((actorId) => ({
+    actorId,
+    definitionSourceId: `definition:${actorId}`,
+    modules: Object.fromEntries(
+      ['lifeContext', 'traits', 'drives', 'behavior', 'relationships'].map((key) => [
+        key,
+        `${actorId}的本人原始设定资料。`.repeat(75),
+      ]),
+    ),
+  }));
+  const catalog = directorOpeningInformationCatalog(f.s);
+  assert(catalog.information.length > 0);
+  assert.equal(new Set(catalog.identities.map((item) => item.ref)).size, catalog.identities.length);
+  for (const item of catalog.information) {
+    assert(authority.sourceExcerpt.includes(item.text));
+    assert(item.text.length >= 6 && item.text.length <= 600);
+  }
+  const format = directorResponseFormat(f.s);
+  if (format.format !== 'json_schema') throw Error('schema');
+  assert(JSON.stringify(format.schema).length <= 24_000);
 });
