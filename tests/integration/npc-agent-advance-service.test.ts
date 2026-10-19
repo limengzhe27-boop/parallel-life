@@ -222,7 +222,7 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
   }
   type Fixture = Awaited<ReturnType<typeof fixture>>;
   await t.test(
-    'actual travel does not invent a departure witness from a coarse-place scene roster; global evaluation never wakes an uninformed NPC',
+    'travel preserves unknown location while a pre-existing authorized scene observation may independently run',
     async () => {
       const f = await fixture({ epoch1: true, homeContact: true });
       const scenes = new SceneRepository(db),
@@ -304,16 +304,19 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
             opportunities: [],
             audit: { reason: '实际位置不自动下发给旁人', basisSourceIds: [] },
           }),
-          npc: () => {
-            throw Error('uninformed actors must not be woken as witnesses');
+          npc: (payload) => {
+            assert.equal(payload.state.actorId, f.a);
+            assert.deepEqual(payload.worldContext!.knowledge, []);
+            assert.equal(JSON.parse(payload.input.text).source, 'observation');
+            return empty();
           },
         });
         const result = await h.service.advanceIfEnabled(f.owner, f.id);
         assert.equal(result?.played, 0);
-        assert.equal(h.npcCalls().length, 0);
-        assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.a }))!.revision, 0);
+        assert.equal(h.npcCalls().length, 1);
+        assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.a }))!.revision, 1);
         assert.equal((await store.read(f.owner, { worldId: f.id, actorId: f.b }))!.revision, 0);
-        assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, moved.version);
+        assert.equal((await worlds.get({ userId: f.owner }, f.id)).version, moved.version + 1);
         const before = h.calls.length;
         await h.service.advanceIfEnabled(f.owner, f.id);
         assert.equal(
@@ -854,7 +857,7 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
     },
   );
   await t.test(
-    'director quiet accounts for eligible candidates but adds no world event or NPC call',
+    'global director quiet preserves the independently selected actor decision budget',
     async () => {
       const f = await fixture({ plansA: 1 });
       await materialChange(f);
@@ -862,8 +865,8 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
         before = await count('world_events', f);
       await h.service.advanceIfEnabled(f.owner, f.id);
       assert.equal(h.directorCalls().length, 1);
-      assert.equal(h.npcCalls().length, 0);
-      assert.equal(await count('world_events', f), before);
+      assert.equal(h.npcCalls().length, 1);
+      assert.equal(await count('world_events', f), before + 1);
       assert.equal(await count('director_decisions', f), 1);
       const d = (
         await admin.query(
@@ -873,6 +876,91 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
       ).rows[0].document;
       assert.equal(d.mode, 'quiet');
       assert.equal(d.deferred.length, h.reads[0]!.candidates.length);
+    },
+  );
+  await t.test(
+    'known invalid global director output does not retry or starve an independent actor',
+    async () => {
+      const f = await fixture({ plansA: 1 });
+      await materialChange(f);
+      const h = harness(f, {
+        director: () => ({ malformed: true }),
+        npc: executeOwn,
+      });
+      const result = await h.service.advanceIfEnabled(f.owner, f.id);
+      assert.equal(result?.played, 1);
+      assert.equal(h.directorCalls().length, 1);
+      assert.equal(h.npcCalls().length, 1);
+      const statuses = (
+        await admin.query(
+          'SELECT status FROM parallel_life.director_runtime_attempts WHERE world_id=$1',
+          [f.id],
+        )
+      ).rows.map((r) => r.status);
+      assert.deepEqual(statuses, ['invalid_output']);
+      assert.equal(
+        (await store.read(f.owner, { worldId: f.id, actorId: f.a }))!.actions[0]!.status,
+        'succeeded',
+      );
+      assert.equal(await count('director_decisions', f), 0);
+    },
+  );
+  await t.test(
+    'a new opportunity uses the one actor budget without consuming the independent plan',
+    async () => {
+      const f = await fixture({ plansA: 1 });
+      await materialChange(f);
+      const h = harness(f, {
+        director: (p) => ({
+          mode: 'bounded_opportunity',
+          selectedCandidateIds: [],
+          deferred: p.candidates.map((c) => ({ candidateId: c.id, reason: '先考虑新的机会' })),
+          nudges: [],
+          audit: { reason: '合法未来机会', basisSourceIds: ['fact:b-private'] },
+          opportunities: [
+            {
+              id: 'new-opportunity',
+              title: '自己的后续安排',
+              description: '一次待考虑的交流',
+              playerImpact: '由双方自主选择',
+              participantActorIds: [f.b],
+              placeIds: [],
+              activity: 'conversation',
+              basisSourceIds: ['fact:b-private'],
+              stagingIntents: [
+                { actorId: f.b, kind: 'future_task', task: '考虑自己的后续安排，可以安静。' },
+              ],
+            },
+          ],
+        }),
+        npc: (p) => {
+          assert.equal(p.state.actorId, f.b);
+          const intent = JSON.parse(p.input.text);
+          assert.equal(intent.type, 'npc_episode_consideration');
+          return {
+            ...empty(),
+            episodeDecision: {
+              requestId: intent.requestId,
+              choice: 'quiet',
+              reason: '暂无需联系',
+              sourceIds: [p.input.sourceId],
+            },
+          };
+        },
+      });
+      await h.service.advanceIfEnabled(f.owner, f.id);
+      assert.equal(h.directorCalls().length, 1);
+      assert.equal(h.npcCalls().length, 1);
+      const actor = (await store.read(f.owner, { worldId: f.id, actorId: f.a }))!;
+      assert.equal(actor.revision, 0);
+      assert.equal(actor.actions[0]!.status, 'ready');
+      const wakes = (
+        await admin.query(
+          'SELECT actor_id FROM parallel_life.agent_attempts WHERE world_id=$1 AND actor_id=$2',
+          [f.id, f.a],
+        )
+      ).rows;
+      assert.equal(wakes.length, 0, 'independent candidate is not ACKed or claimed');
     },
   );
   await t.test(

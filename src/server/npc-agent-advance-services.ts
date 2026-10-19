@@ -414,6 +414,13 @@ export function npcAgentAdvanceServices(
         }
         const commandId = retryCommandId ?? agentWakeCommandId(worldId, identity);
         const previous = await directors.lookup(ownerId, worldId, commandId);
+        // A durable known-invalid director result is not retry permission. Its
+        // own coordination remains fenced; unrelated preselected work may continue.
+        if (previous?.status === 'invalid_output')
+          throw Object.assign(Error('DIRECTOR_KNOWN_INVALID_RESULT'), {
+            code: 'INVALID_STATE',
+            directorKnownInvalid: true,
+          });
         if (previous?.status === 'committed' && previous.decisionId) {
           const saved = await directors.readDecision(ownerId, worldId, previous.decisionId);
           if (!saved) throw Object.assign(Error('DIRECTOR_RESULT_NOT_FOUND'), { code: 'UNKNOWN' });
@@ -520,24 +527,36 @@ export function npcAgentAdvanceServices(
           // actor-only action with no competing actor or shared-resource choice.
           const independent = scheduled.selected[0];
           if (
-            (error as { directorCoordinationPending?: boolean }).directorCoordinationPending &&
+            ((error as { directorCoordinationPending?: boolean }).directorCoordinationPending ||
+              (error as { directorKnownInvalid?: boolean }).directorKnownInvalid ||
+              (error as { code?: unknown })?.code === 'INVALID_DIRECTOR_PROPOSAL') &&
             independent &&
             !independent.candidate.requiresCoordination
           )
             return execute(independent.candidate, independent.guidance);
           throw error;
         }
-        if (!decision || !decision.selectedCandidateIds.length)
-          return (
-            (await dispatchPendingAgentEpisode(
-              db,
-              npcModel,
-              ownerId,
-              world,
-              engineEpoch,
-              storyAt,
-            )) ?? quiet(storyAt)
+        if (!decision || !decision.selectedCandidateIds.length) {
+          // A new opportunity owns this turn's delivery budget. Do not consume
+          // an unrelated actor candidate or execute its now potentially old read.
+          const delivery = await dispatchPendingAgentEpisode(
+            db,
+            npcModel,
+            ownerId,
+            world,
+            engineEpoch,
+            storyAt,
           );
+          if (delivery) return delivery;
+          if (decision?.opportunities.length) return quiet(storyAt);
+          // Global quiet only settles that global assessment. The original
+          // scheduler already established this actor's independent eligibility;
+          // execute keeps the same command and rechecks the original kernel gates.
+          const independent = scheduled.selected[0];
+          return independent && !independent.candidate.requiresCoordination
+            ? execute(independent.candidate, independent.guidance)
+            : quiet(storyAt);
+        }
         const chosen = decision.selectedCandidateIds[0];
         const selected = scheduled.snapshot.candidates.find((c) => c.id === chosen);
         if (!selected || scheduled.blocked.some((b) => b.candidate.id === chosen))
