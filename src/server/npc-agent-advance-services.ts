@@ -461,6 +461,8 @@ export function npcAgentAdvanceServices(
               (a.commandId === base || a.wakeCandidateId === candidate.id),
           );
         if (!prior) return { commandId: base };
+        // Grant-owned initialization/review keeps its dedicated authority and identity.
+        if (prior.wakeCandidateId !== candidate.id) return { commandId: prior.commandId };
         const actor = read.states.find((a) => a.actorId === candidate.actorId);
         if (!actor) throw new DomainError('INVALID_COMMAND');
         const recovery = agentWakeRecovery(prior, {
