@@ -19,6 +19,9 @@ import {
   agendaInitializeCommandId,
   agendaInitializeInputText,
 } from '../../src/modules/world/infrastructure/actor-agenda-initialization-repository.ts';
+import { PostgresGroupRepository } from '../../src/modules/world/infrastructure/group-repository.ts';
+import { TaskRepository } from '../../src/modules/tasks/infrastructure/task-repository.ts';
+import { readNativeAgentSnapshot } from '../../src/modules/world/infrastructure/agent-channel-snapshot.ts';
 import { runNpcAgent } from '../../src/modules/world/application/run-agent.ts';
 import { PostgresNpcAgentKernel } from '../../src/modules/world/infrastructure/npc-agent-kernel.ts';
 import {
@@ -38,6 +41,8 @@ import {
   OwnAgendaReviewEvidenceError,
 } from '../../src/modules/world/infrastructure/own-agenda-review-repository.ts';
 
+const ACTOR_A = '11111111-1111-4111-8111-111111111111',
+  ACTOR_B = '22222222-2222-4222-8222-222222222222';
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 const quiet = () => ({
   protocol: 'npc-wire-v3',
@@ -54,9 +59,9 @@ const quiet = () => ({
 
 test('own-agenda authenticated read evidence: original runner/kernel plus adversarial ledger fixtures, no real models', async (t) => {
   const cfg = await localConfig();
-  assert.equal(cfg.port, 55634);
+  assert.equal(cfg.port, 55588);
   const admin = await adminClient('parallel_life_test');
-  assert.equal((await admin.query('SELECT inet_server_port() port')).rows[0].port, 55634);
+  assert.equal((await admin.query('SELECT inet_server_port() port')).rows[0].port, 55588);
   await migrate(admin);
   const db = new PostgresDatabase(
     `postgresql://pl_app:${cfg.appPassword}@127.0.0.1:${cfg.port}/parallel_life_test`,
@@ -82,8 +87,8 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       title: 'Synthetic evidence fixture',
       time: '2026-10-19T00:00:00.000Z',
       actors: [
-        { id: 'a', name: 'A', persona: 'Independent quiet planner' },
-        { id: 'b', name: 'B', persona: 'Reserved shopkeeper', relationship: 'Acquaintance' },
+        { id: ACTOR_A, name: 'A', persona: 'Independent quiet planner' },
+        { id: ACTOR_B, name: 'B', persona: 'Reserved shopkeeper', relationship: 'Acquaintance' },
       ],
       facts: [],
       messages: [],
@@ -117,8 +122,8 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     const identity = {
       worldId,
       engineEpoch: 2,
-      actorId: 'a',
-      definitionRef: agentDefinitionRef(world, 'a'),
+      actorId: ACTOR_A,
+      definitionRef: agentDefinitionRef(world, ACTOR_A),
     };
     fixtures.push({ owner, worldId });
     return { owner, worldId, world, identity };
@@ -161,7 +166,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
           worldVersion: 0,
         }),
       )
-    ).find((g) => g.actorId === 'a')!;
+    ).find((g) => g.actorId === ACTOR_A)!;
     assert.ok(grant);
     const text = agendaInitializeInputText(grant),
       commandId = agendaInitializeCommandId(f.worldId, grant.candidateId);
@@ -171,20 +176,20 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       commandId,
       inputHash: hash(text),
       channel: 'private',
-      threadId: 'a',
-      recipientActorId: 'a',
+      threadId: ACTOR_A,
+      recipientActorId: ACTOR_A,
       expectedWorldVersion: 0,
       receivedAt: new Date().toISOString(),
       storyAt: f.world.time,
       origin: 'wake',
       text,
     });
-    const state = (await store.read(f.owner, { worldId: f.worldId, actorId: 'a' }))!;
+    const state = (await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A }))!;
     const { snapshot } = await readPrivateAgentSnapshot(
       db,
       f.owner,
       f.world,
-      'a',
+      ACTOR_A,
       receipt,
       f.world.time,
       state,
@@ -206,7 +211,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       {
         id: attemptId,
         worldId: f.worldId,
-        actorId: 'a',
+        actorId: ACTOR_A,
         commandId,
         inputReceiptId: receipt.id,
         inputHash: receipt.inputHash,
@@ -220,6 +225,185 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     );
     assert.equal(calls, 1, 'one explicitly synthetic computation; no provider');
     return attemptId;
+  }
+  async function nativePrivateCommit(
+    f: F,
+    options: { player?: boolean; say?: boolean; goal?: boolean } = {},
+  ) {
+    const world = await worlds.get({ userId: f.owner }, f.worldId);
+    const commandId = randomUUID(),
+      text = options.player ? '新的真实玩家输入' : 'synthetic own agenda check';
+    const { receipt } = await store.accept(f.owner, {
+      id: randomUUID(),
+      worldId: f.worldId,
+      commandId,
+      inputHash: hash(text),
+      channel: 'private',
+      threadId: ACTOR_A,
+      recipientActorId: ACTOR_A,
+      expectedWorldVersion: world.version,
+      receivedAt: new Date().toISOString(),
+      storyAt: world.time,
+      origin: options.player ? 'player' : 'wake',
+      text,
+    });
+    const state = (await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A }))!;
+    const { snapshot } = await readPrivateAgentSnapshot(
+      db,
+      f.owner,
+      world,
+      ACTOR_A,
+      receipt,
+      world.time,
+      state,
+    );
+    const attemptId = randomUUID();
+    await runNpcAgent(
+      {
+        attempts: store,
+        model: {
+          async decide() {
+            return {
+              statements: options.say
+                ? [{ text: '我会按自己的安排准备。', dependsOnActionIds: [] }]
+                : [],
+              goals: options.goal
+                ? [
+                    {
+                      id: 'own-goal',
+                      summary: '本人准备安排',
+                      status: 'active',
+                      sourceIds: [receipt.id],
+                      resultIds: [],
+                    },
+                  ]
+                : [],
+              plans: options.goal
+                ? [
+                    {
+                      id: 'own-plan',
+                      goalId: 'own-goal',
+                      summary: '等待真实所需能力',
+                      sourceIds: [receipt.id],
+                      status: 'blocked',
+                      actionIds: [],
+                      nextActionId: null,
+                      triggers: [],
+                      missingConditions: ['尚无执行能力'],
+                    },
+                  ]
+                : [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            };
+          },
+        },
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+      },
+      f.owner,
+      {
+        id: attemptId,
+        worldId: f.worldId,
+        actorId: ACTOR_A,
+        commandId,
+        inputReceiptId: receipt.id,
+        inputHash: receipt.inputHash,
+        engineEpoch: 2,
+        expectedWorldVersion: world.version,
+        expectedActorRevision: state.revision,
+        token: randomUUID(),
+        leaseUntil: new Date(Date.now() + 240000).toISOString(),
+      },
+      snapshot,
+    );
+    assert.equal(
+      (
+        await admin.query('SELECT status FROM parallel_life.agent_attempts WHERE id=$1', [
+          attemptId,
+        ])
+      ).rows[0].status,
+      'committed',
+    );
+    return attemptId;
+  }
+  async function nativeGroupCommit(f: F) {
+    const groups = new PostgresGroupRepository(db),
+      tasks = new TaskRepository(db);
+    const created = await groups.create(f.owner, {
+      worldId: f.worldId,
+      commandId: randomUUID(),
+      expectedVersion: (await worlds.get({ userId: f.owner }, f.worldId)).version,
+      title: 'Synthetic native group',
+      actorIds: [ACTOR_A, ACTOR_B],
+    });
+    const parentCommand = randomUUID(),
+      text = '群里有一条新的真实输入。';
+    const accepted = await groups.send(f.owner, {
+      worldId: f.worldId,
+      groupId: created.groupId,
+      commandId: parentCommand,
+      expectedVersion: created.version,
+      text,
+    });
+    await tasks.cancel(f.owner, accepted.task!.id);
+    const world = await worlds.get({ userId: f.owner }, f.worldId);
+    const receipt = (
+      await admin.query(
+        'SELECT document FROM parallel_life.agent_input_receipts WHERE world_id=$1 AND owner_id=$2 AND command_id=$3',
+        [f.worldId, f.owner, parentCommand],
+      )
+    ).rows[0].document;
+    const state = (await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A }))!;
+    const snapshot = await readNativeAgentSnapshot(
+      db,
+      f.owner,
+      world,
+      ACTOR_A,
+      receipt,
+      world.time,
+      state,
+    );
+    const id = randomUUID();
+    await runNpcAgent(
+      {
+        attempts: store,
+        model: {
+          async decide() {
+            return {
+              statements: [{ text: '我看到了，按自己的安排来。', dependsOnActionIds: [] }],
+              goals: [],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            };
+          },
+        },
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+      },
+      f.owner,
+      {
+        id,
+        worldId: f.worldId,
+        actorId: ACTOR_A,
+        commandId: randomUUID(),
+        inputReceiptId: receipt.id,
+        inputHash: receipt.inputHash,
+        engineEpoch: 2,
+        expectedWorldVersion: world.version,
+        expectedActorRevision: state.revision,
+        token: randomUUID(),
+        leaseUntil: new Date(Date.now() + 240000).toISOString(),
+      },
+      snapshot,
+    );
+    assert.equal(
+      (await admin.query('SELECT status FROM parallel_life.agent_attempts WHERE id=$1', [id]))
+        .rows[0].status,
+      'committed',
+    );
+    return id;
   }
   function grantFor(
     e: Awaited<ReturnType<typeof read>>,
@@ -262,8 +446,8 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
       commandId,
       inputHash,
       channel: 'private',
-      threadId: opts.recipient ?? 'a',
-      recipientActorId: opts.recipient ?? 'a',
+      threadId: opts.recipient ?? ACTOR_A,
+      recipientActorId: opts.recipient ?? ACTOR_A,
       expectedWorldVersion: (await worlds.get({ userId: f.owner }, f.worldId)).version,
       receivedAt: new Date().toISOString(),
       storyAt: f.world.time,
@@ -282,7 +466,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
           id,
           f.worldId,
           f.owner,
-          opts.actor ?? 'a',
+          opts.actor ?? ACTOR_A,
           commandId,
           receiptId,
           inputHash,
@@ -468,7 +652,7 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
     },
   );
   await t.test('cross-actor receipt cannot authenticate actor A', async () => {
-    const row = await ledger(f, grantFor(initial, 'v1'), { recipient: 'b' });
+    const row = await ledger(f, grantFor(initial, 'v1'), { recipient: ACTOR_B });
     await assert.rejects(read(f), invalid('receipt'));
     await remove(row);
   });
@@ -493,6 +677,123 @@ test('own-agenda authenticated read evidence: original runner/kernel plus advers
         (e: any) => e.code === '23503',
       );
       assert.deepEqual(await read(f), initial);
+    },
+  );
+  await t.test(
+    'actual player reply advances private anchor; state change without speech is not quiet; consecutive no-op commits back off',
+    async () => {
+      const x = await fixture();
+      await commitOriginalQuiet(x);
+      let e = await read(x);
+      assert.equal(e.quietStreak, 1);
+      assert.equal(e.lastPresentedRealAt, null);
+      const playerAttempt = await nativePrivateCommit(x, { player: true, say: true });
+      e = await read(x);
+      assert.equal(e.anchor!.attemptId, playerAttempt);
+      assert.equal(e.quietStreak, 0);
+      assert.equal(e.lastPresentedRealAt, e.anchor!.committedRealAt);
+      const presentation = e.lastPresentedRealAt;
+      await nativePrivateCommit(x, { goal: true });
+      e = await read(x);
+      assert.equal(
+        e.quietStreak,
+        0,
+        'a quiet-looking state event with a real goal/plan change is not quiet',
+      );
+      assert.equal(e.lastPresentedRealAt, presentation);
+      await nativePrivateCommit(x);
+      assert.equal((await read(x)).quietStreak, 1);
+      await nativePrivateCommit(x);
+      e = await read(x);
+      assert.equal(e.quietStreak, 2);
+      assert.equal(e.lastPresentedRealAt, presentation);
+      const before = e.anchor!.attemptId;
+      const invalidRow = await ledger(x, 'not a real new commit', {
+        status: 'invalid_output',
+        sent: true,
+        raw: true,
+      });
+      assert.equal((await read(x)).anchor!.attemptId, before);
+      await remove(invalidRow);
+      const unknown = await ledger(x, 'unknown ordinary work', {
+        status: 'unknown_after_send',
+        sent: true,
+      });
+      const withUnknown = await read(x);
+      assert.equal(withUnknown.anchor!.attemptId, before);
+      assert.equal(withUnknown.actorBlockers[0]!.attemptId, unknown.id);
+      await remove(unknown);
+    },
+  );
+  await t.test(
+    'legitimate original native group commit does not poison private review evidence or become a private anchor',
+    async () => {
+      const x = await fixture();
+      await commitOriginalQuiet(x);
+      const before = await read(x);
+      const groupAttempt = await nativeGroupCommit(x);
+      const after = await read(x);
+      assert.equal(after.anchor!.attemptId, before.anchor!.attemptId);
+      assert.equal(after.quietStreak, 0);
+      const row = (
+        await admin.query(
+          'SELECT e.occurred_at FROM parallel_life.agent_attempts a JOIN parallel_life.world_events e ON e.id=a.event_id WHERE a.id=$1',
+          [groupAttempt],
+        )
+      ).rows[0];
+      assert.equal(after.lastPresentedRealAt, row.occurred_at.toISOString());
+    },
+  );
+  await t.test(
+    'a projected or claimed message without original committed native UoW is not an anchor or presentation',
+    async () => {
+      const x = await fixture(),
+        id = randomUUID();
+      await admin.query(
+        'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
+        [
+          id,
+          x.worldId,
+          x.owner,
+          ACTOR_A,
+          {
+            id,
+            actorId: ACTOR_A,
+            role: 'assistant',
+            text: '我已经安排好了。',
+            sourceEventId: randomUUID(),
+            sourceVersion: 0,
+            at: x.world.time,
+          },
+        ],
+      );
+      const e = await read(x);
+      assert.equal(e.anchor, null);
+      assert.equal(e.lastPresentedRealAt, null);
+      assert.equal(e.quietStreak, 0);
+    },
+  );
+  await t.test(
+    'native speaking event without its actual authenticated message projection fails closed',
+    async () => {
+      const x = await fixture();
+      await commitOriginalQuiet(x);
+      await nativePrivateCommit(x, { player: true, say: true });
+      const before = await read(x);
+      const rows = (
+        await admin.query(
+          "DELETE FROM parallel_life.world_messages WHERE world_id=$1 AND document->>'sourceEventId'=$2 AND document->>'role'='assistant' RETURNING id,actor_id,document",
+          [x.worldId, before.anchor!.eventId],
+        )
+      ).rows;
+      assert.equal(rows.length, 1);
+      await assert.rejects(read(x), invalid('committed_source'));
+      for (const row of rows)
+        await admin.query(
+          'INSERT INTO parallel_life.world_messages(id,world_id,owner_id,actor_id,document) VALUES($1,$2,$3,$4,$5)',
+          [row.id, x.worldId, x.owner, row.actor_id, row.document],
+        );
+      assert.deepEqual(await read(x), before);
     },
   );
 });

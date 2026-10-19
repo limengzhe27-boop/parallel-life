@@ -27,6 +27,10 @@ export type OwnAgendaReviewEvidence = {
   anchor: OwnAgendaReviewAnchor | null;
   familyId: string | null;
   attempts: OwnAgendaReviewAttemptEvidence[];
+  /** Consecutive authenticated native commits with no presentation or substantive actor-state change. */
+  quietStreak: number;
+  /** Actual committed presentation time, never a client read or claimed future delivery. */
+  lastPresentedRealAt: string | null;
   /** Must be handled before N2. A different family or epoch cannot hide an active actor call. */
   actorBlockers: OwnAgendaReviewActorBlocker[];
 };
@@ -90,9 +94,21 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
             'ownerId',i.owner_id,'commandId',i.command_id,'inputHash',i.input_hash,'document',i.document) END receipt,
           CASE WHEN cmd.id IS NULL THEN NULL ELSE jsonb_build_object('id',cmd.id,'worldId',cmd.world_id,
             'ownerId',cmd.owner_id,'expectedVersion',cmd.expected_version,'status',cmd.status,
-            'eventId',cmd.result_event_id,'hash',cmd.request_hash,'payload',cmd.request_payload) END command,
+            'eventId',cmd.result_event_id,'hash',cmd.request_hash,'payload',cmd.request_payload,
+            'nativeMatches',cmd.request_payload->'event'=e.payload) END command,
           CASE WHEN e.id IS NULL THEN NULL ELSE jsonb_build_object('id',e.id,'worldId',e.world_id,
             'ownerId',e.owner_id,'version',e.version,'commandId',e.command_id,'realAt',e.occurred_at,
+            'projectionCount',CASE WHEN e.payload#>'{data,agentRuntime,proposal,statements}'='[]'::jsonb THEN 0 WHEN i.document->>'channel'='private' THEN
+              (SELECT count(*) FROM parallel_life.world_messages m
+                WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.actor_id=a.actor_id
+                AND m.document->>'sourceEventId'=e.id::text AND (m.document->>'sourceVersion')::text=e.version::text
+                AND m.document->>'role'='assistant'
+                AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(e.payload#>'{data,effects}')='array' THEN e.payload#>'{data,effects}' ELSE '[]'::jsonb END) effect
+                  WHERE effect->>'type'='message.received' AND effect->>'id'=m.id::text AND effect->>'actorId'=a.actor_id AND effect->>'text'=m.document->>'text'))
+              WHEN i.document->>'channel'='group' THEN
+              (SELECT count(*) FROM parallel_life.world_group_messages m WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.group_id::text=i.document->>'threadId' AND m.source_event_id=e.id AND m.source_version=e.version AND m.document#>>'{sender,actorId}'=a.actor_id AND m.document#>>'{sender,kind}'='actor')
+              WHEN i.document->>'channel'='scene' THEN
+              (SELECT count(*) FROM parallel_life.scene_items m WHERE m.world_id=a.world_id AND m.owner_id=a.owner_id AND m.scene_id::text=i.document->>'threadId' AND m.source_event_id=e.id AND m.kind='entry' AND m.document#>>'{speaker,actorId}'=a.actor_id AND m.document#>>'{speaker,kind}'='actor' AND m.document->>'sourceEventId'=e.id::text AND m.document->>'sourceVersion'=e.version::text) END,
             'payload',jsonb_build_object('id',e.payload->'id','worldId',e.payload->'worldId',
               'commandId',e.payload->'commandId','schemaVersion',e.payload->'schemaVersion',
               'version',e.payload->'version','occurredAt',e.payload->'occurredAt',
@@ -104,6 +120,31 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
                 'inputWorldVersion',e.payload#>'{data,agentRuntime,inputWorldVersion}',
                 'actorRevisionBefore',e.payload#>'{data,agentRuntime,actorRevisionBefore}',
                 'actorRevisionAfter',e.payload#>'{data,agentRuntime,actorRevisionAfter}',
+                'coreHash',CASE WHEN jsonb_typeof(e.payload#>'{data,agentRuntime,stateAfter,goals}')='array'
+                  AND jsonb_typeof(e.payload#>'{data,agentRuntime,stateAfter,plans}')='array'
+                  AND jsonb_typeof(e.payload#>'{data,agentRuntime,stateAfter,responsibilities}')='array'
+                  AND jsonb_typeof(e.payload#>'{data,agentRuntime,stateAfter,decisions}')='array'
+                  AND jsonb_typeof(e.payload#>'{data,agentRuntime,stateAfter,actions}')='array'
+                  THEN md5(jsonb_build_object('goals',e.payload#>'{data,agentRuntime,stateAfter,goals}',
+                    'plans',e.payload#>'{data,agentRuntime,stateAfter,plans}',
+                    'responsibilities',e.payload#>'{data,agentRuntime,stateAfter,responsibilities}',
+                    'decisions',e.payload#>'{data,agentRuntime,stateAfter,decisions}',
+                    'actions',e.payload#>'{data,agentRuntime,stateAfter,actions}')::text) END,
+                'coreEmpty',e.payload#>'{data,agentRuntime,stateAfter,goals}'='[]'::jsonb
+                  AND e.payload#>'{data,agentRuntime,stateAfter,plans}'='[]'::jsonb
+                  AND e.payload#>'{data,agentRuntime,stateAfter,responsibilities}'='[]'::jsonb
+                  AND e.payload#>'{data,agentRuntime,stateAfter,decisions}'='[]'::jsonb
+                  AND e.payload#>'{data,agentRuntime,stateAfter,actions}'='[]'::jsonb,
+                'resultCount',CASE WHEN jsonb_typeof(e.payload#>'{data,agentRuntime,results}')='array'
+                  THEN jsonb_array_length(e.payload#>'{data,agentRuntime,results}') END,
+                'effectCount',CASE WHEN jsonb_typeof(e.payload#>'{data,effects}')='array'
+                  THEN (SELECT count(*) FROM jsonb_array_elements(e.payload#>'{data,effects}') effect WHERE effect->>'type'<>'message.received') END,
+                'proposalCounts',jsonb_build_array(
+                  jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,goals}'),
+                  jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,plans}'),
+                  jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,responsibilities}'),
+                  jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,decisions}'),
+                  jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,actions}')),
                 'statementCount',CASE WHEN jsonb_typeof(e.payload#>'{data,agentRuntime,proposal,statements}')='array'
                   THEN jsonb_array_length(e.payload#>'{data,agentRuntime,proposal,statements}') END,
                 'stateAfter',jsonb_build_object('worldId',e.payload#>'{data,agentRuntime,stateAfter,worldId}',
@@ -187,12 +228,12 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       receipt.id !== r.input_receipt_id ||
       receipt.worldId !== input.worldId ||
       receipt.ownerId !== ownerId ||
-      receipt.commandId !== r.command_id ||
+      (body.channel === 'private' && receipt.commandId !== r.command_id) ||
       receipt.inputHash !== r.input_hash ||
       !/^[a-f0-9]{64}$/.test(r.input_hash) ||
       body.id !== receipt.id ||
       body.worldId !== input.worldId ||
-      body.commandId !== r.command_id ||
+      body.commandId !== receipt.commandId ||
       body.inputHash !== r.input_hash ||
       !key(body.threadId) ||
       typeof body.text !== 'string' ||
@@ -208,6 +249,14 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     byId.set(r.id, r);
   }
   const anchors = new Map<string, { anchor: OwnAgendaReviewAnchor; version: number }>();
+  const commits: {
+    version: number;
+    revisionBefore: number;
+    revisionAfter: number;
+    coreHash: string;
+    quiet: boolean;
+    presentedRealAt: string | null;
+  }[] = [];
   for (const r of rows) {
     if (r.status !== 'committed' || r.engine_epoch !== input.engineEpoch) continue;
     const e = r.event,
@@ -236,7 +285,6 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       e.payload.worldId !== input.worldId ||
       e.payload.commandId !== r.command_id ||
       e.payload.version !== e.version ||
-      e.payload.actorId !== input.actorId ||
       e.payload.schemaVersion !== 1 ||
       !instant(e.payload.storyAt) ||
       !instant(e.payload.occurredAt) ||
@@ -244,8 +292,16 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       Date.parse(e.realAt) !== Date.parse(e.payload.occurredAt)
     )
       fail('committed_source');
-    // Messages are not anchors. This first package certifies only the original private state-commit path.
-    if (e.payload.type !== 'agent.state_committed') continue;
+    // A message alone is insufficient: the original private commit or native channel UoW must prove it.
+    const privateCommit = b.channel === 'private';
+    if (
+      e.payload.actorId !== input.actorId ||
+      (privateCommit
+        ? !['agent.state_committed', 'turn.resolved'].includes(e.payload.type)
+        : e.payload.type !==
+          (b.channel === 'group' ? 'group.turn_resolved' : 'scene.reaction_recorded'))
+    )
+      fail('committed_source');
     const rt = e.payload.runtime,
       after = rt?.stateAfter;
     const command = {
@@ -266,12 +322,17 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       ]),
     );
     if (
-      b.channel !== 'private' ||
-      b.threadId !== input.actorId ||
-      b.recipientActorId !== input.actorId ||
-      b.expectedWorldVersion !== r.expected_world_version ||
-      c.hash !== commandHash ||
-      !isDeepStrictEqual(c.payload, command) ||
+      (privateCommit
+        ? b.threadId !== input.actorId ||
+          b.recipientActorId !== input.actorId ||
+          b.expectedWorldVersion !== r.expected_world_version ||
+          c.hash !== commandHash ||
+          !isDeepStrictEqual(c.payload, command)
+        : c.hash !== r.input_hash ||
+          c.nativeMatches !== true ||
+          c.payload?.channel !== b.channel ||
+          c.payload?.threadId !== b.threadId ||
+          c.payload?.inputReceiptId !== r.input_receipt_id) ||
       !object(rt) ||
       !object(after) ||
       rt.schemaVersion !== 1 ||
@@ -281,7 +342,17 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       rt.inputWorldVersion !== b.expectedWorldVersion ||
       rt.actorRevisionBefore !== r.expected_actor_revision ||
       rt.actorRevisionAfter !== r.expected_actor_revision + 1 ||
-      rt.statementCount !== 0 ||
+      !integer(rt.statementCount) ||
+      !integer(rt.resultCount) ||
+      !integer(rt.effectCount) ||
+      typeof rt.coreHash !== 'string' ||
+      !/^[a-f0-9]{32}$/.test(rt.coreHash) ||
+      typeof rt.coreEmpty !== 'boolean' ||
+      !isDeepStrictEqual(rt.proposalCounts, ['array', 'array', 'array', 'array', 'array']) ||
+      (privateCommit &&
+        (e.payload.type === 'agent.state_committed') !== (rt.statementCount === 0)) ||
+      Number(e.projectionCount) !==
+        (b.channel === 'group' && rt.statementCount > 0 ? 1 : rt.statementCount) ||
       after.schemaVersion !== 1 ||
       after.worldId !== input.worldId ||
       after.actorId !== input.actorId ||
@@ -294,6 +365,24 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     )
       fail('committed_source');
     if (after.definitionRef !== input.definitionRef) continue;
+    const previous = commits.at(-1);
+    const unchanged =
+      previous && previous.revisionAfter === rt.actorRevisionBefore
+        ? previous.coreHash === rt.coreHash
+        : rt.actorRevisionBefore === 0 && rt.coreEmpty;
+    commits.push({
+      version: e.version,
+      revisionBefore: rt.actorRevisionBefore,
+      revisionAfter: rt.actorRevisionAfter,
+      coreHash: rt.coreHash,
+      quiet:
+        rt.statementCount === 0 &&
+        rt.resultCount === 0 &&
+        Number(rt.effectCount) === 0 &&
+        unchanged,
+      presentedRealAt: rt.statementCount > 0 ? new Date(e.realAt).toISOString() : null,
+    });
+    if (!privateCommit) continue;
     anchors.set(r.id, {
       version: e.version,
       anchor: {
@@ -305,6 +394,25 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       },
     });
   }
+  let quietStreak = 0;
+  for (
+    let index = commits.length - 1;
+    commits.at(-1)?.revisionAfter === frame.revision && index >= 0;
+    index--
+  ) {
+    const commit = commits[index]!;
+    if (
+      !commit.quiet ||
+      (index < commits.length - 1 && commit.revisionAfter !== commits[index + 1]!.revisionBefore)
+    )
+      break;
+    quietStreak++;
+  }
+  const lastPresentedRealAt =
+    commits
+      .map((commit) => commit.presentedRealAt)
+      .filter((at): at is string => at !== null)
+      .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
   const latest = [...anchors.values()].sort((a, b) => b.version - a.version)[0]?.anchor ?? null;
   const familyId = latest ? ownAgendaReviewFamilyId(input, latest, digest) : null;
   const attempts: OwnAgendaReviewAttemptEvidence[] = [];
@@ -386,6 +494,8 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   return {
     worldVersion: frame.version,
     actorRevision: frame.revision,
+    quietStreak,
+    lastPresentedRealAt,
     anchor: latest,
     familyId,
     attempts: attempts.sort((a, b) =>
