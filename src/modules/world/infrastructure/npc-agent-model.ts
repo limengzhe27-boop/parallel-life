@@ -633,6 +633,7 @@ export class NpcAgentModel implements NpcAgentModelPort {
               (s.kind === 'world_event' &&
                 s.id.startsWith('narrative:') &&
                 s.usage === 'private_strategy' &&
+                snapshot.actorObservationInbox?.narrativeKnowledgeIds?.includes(s.recordId) &&
                 snapshot.observations.some(
                   (o) => o.sourceId === s.id && String(o.evidenceKind) === 'authored_context',
                 )) ||
