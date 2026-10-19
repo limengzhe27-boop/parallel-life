@@ -1,3 +1,4 @@
+import { readAgentObservationScheduleCandidatesInTransaction } from '../modules/world/infrastructure/agent-observation-schedule-read.ts';
 import { independentObservationWork } from '../modules/world/domain/independent-observation-work.ts';
 import { agentWakeRecovery } from '../modules/world/domain/agent-wake-recovery.ts';
 import type { AdvanceWorkRef } from '../modules/world/domain/advance-operation.ts';
@@ -451,99 +452,103 @@ export function npcAgentAdvanceServices(
         // Their own commits do not justify purchasing another global arrangement
         // inside this same request; new coordination remains eligible next check.
         if (batch && !batch.beginDirectorAssessment()) return null;
-        let snapshot = await directorSnapshots.read(ownerId, {
-          worldId,
-          engineEpoch,
-          worldVersion: world.version,
-          candidates,
-          blockers,
-        });
-        const openingKey = snapshot.authoredMaterials?.openingEventKey;
-        const admissionScope = admitDirectorCandidates({
-          current: snapshot,
-          pending: await directors.readPendingFrame(ownerId, worldId),
-          qualifiedOpeningAtBootstrap:
-            snapshot.evaluationCause?.kind === 'bootstrap' &&
-            !!openingKey &&
-            canConsiderAuthoredEvent(snapshot, openingKey),
-          explicitRetry: !!retryCommandId,
-        });
-        deferredInitializationCandidateIds = admissionScope.deferredInitializationIds;
-        if (
-          deferredInitializationCandidateIds.length ||
-          admissionScope.candidates.some((c, i) => c.id !== snapshot.candidates[i]?.id)
-        )
-          snapshot = await directorSnapshots.read(ownerId, {
+        // Admit a bounded work slot before expensive context preparation. The slot
+        // is released on every no-call/recovery/failure path; later steps cannot
+        // starve this already admitted first assessment by consuming its read time.
+        const reservation = batch?.reserveModel();
+        try {
+          let snapshot = await directorSnapshots.read(ownerId, {
             worldId,
             engineEpoch,
             worldVersion: world.version,
-            candidates: admissionScope.candidates,
+            candidates,
             blockers,
           });
-        if (retryCommandId && (snapshot.conversationWithoutTarget || snapshot.focus.length))
-          throw new DomainError('INVALID_COMMAND', '请先结束当前交谈，再重新编排。');
-        const pendingFrame = await directors.readPendingFrame(ownerId, worldId);
-        if (pendingFrame) {
-          const pendingCommand = await db.transaction(
+          const openingKey = snapshot.authoredMaterials?.openingEventKey;
+          const admissionScope = admitDirectorCandidates({
+            current: snapshot,
+            pending: await directors.readPendingFrame(ownerId, worldId),
+            qualifiedOpeningAtBootstrap:
+              snapshot.evaluationCause?.kind === 'bootstrap' &&
+              !!openingKey &&
+              canConsiderAuthoredEvent(snapshot, openingKey),
+            explicitRetry: !!retryCommandId,
+          });
+          deferredInitializationCandidateIds = admissionScope.deferredInitializationIds;
+          if (
+            deferredInitializationCandidateIds.length ||
+            admissionScope.candidates.some((c, i) => c.id !== snapshot.candidates[i]?.id)
+          )
+            snapshot = await directorSnapshots.read(ownerId, {
+              worldId,
+              engineEpoch,
+              worldVersion: world.version,
+              candidates: admissionScope.candidates,
+              blockers,
+            });
+          if (retryCommandId && (snapshot.conversationWithoutTarget || snapshot.focus.length))
+            throw new DomainError('INVALID_COMMAND', '请先结束当前交谈，再重新编排。');
+          const pendingFrame = await directors.readPendingFrame(ownerId, worldId);
+          if (pendingFrame) {
+            const pendingCommand = await db.transaction(
+              ownerId,
+              async (sql) =>
+                (
+                  await sql.query(
+                    `SELECT command_id FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send') ORDER BY created_at LIMIT 1`,
+                    [worldId, ownerId],
+                  )
+                ).rows[0]?.command_id,
+            );
+            if (pendingCommand)
+              await batch?.trackWork?.({ kind: 'director', commandId: String(pendingCommand) });
+          }
+          const recovery = await recoverDirectorAgent(
+            { attempts: directors, parse: parseDirectorDecision },
             ownerId,
-            async (sql) =>
-              (
-                await sql.query(
-                  `SELECT command_id FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send') ORDER BY created_at LIMIT 1`,
-                  [worldId, ownerId],
-                )
-              ).rows[0]?.command_id,
+            snapshot,
           );
-          if (pendingCommand)
-            await batch?.trackWork?.({ kind: 'director', commandId: String(pendingCommand) });
-        }
-        const recovery = await recoverDirectorAgent(
-          { attempts: directors, parse: parseDirectorDecision },
-          ownerId,
-          snapshot,
-        );
-        if (recovery.status === 'recovered') return recovery.decision;
-        if (recovery.status === 'blocked')
-          throw Object.assign(Error('DIRECTOR_ATTEMPT_PENDING'), {
-            code: recovery.attempt.status === 'unknown_after_send' ? 'UNKNOWN' : 'BUSY',
-            directorCoordinationPending: true,
-          });
-        if (recovery.status === 'stale' && recovery.reason === 'lease_expired')
-          throw Object.assign(Error('DIRECTOR_KNOWN_RESULT_EXPIRED'), {
-            code: 'VERSION_CONFLICT',
-            directorCoordinationPending: true,
-          });
-        // Recovery may consume the only reason to enter. Never turn an expired or
-        // vanished semantic wake into a fresh paid global decision.
-        if (
-          !retryCommandId &&
-          (admission === 'recovery' || (admission === 'wake' && !snapshot.evaluationCause))
-        )
-          return null;
-        let identity = snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot);
-        if (!snapshot.evaluationCause) {
-          const unsent = await directors.readUnsentFrameAttempts(ownerId, snapshot);
-          if (unsent.length) identity = hash(['director-unsent-frame-v1', identity, unsent]);
-        }
-        const commandId = retryCommandId ?? agentWakeCommandId(worldId, identity);
-        await batch?.trackWork?.({ kind: 'director', commandId });
-        const previous = await directors.lookup(ownerId, worldId, commandId);
-        // A durable known-invalid director result is not retry permission. Its
-        // own coordination remains fenced; unrelated preselected work may continue.
-        if (previous?.status === 'invalid_output')
-          throw Object.assign(Error('DIRECTOR_KNOWN_INVALID_RESULT'), {
-            code: 'INVALID_STATE',
-            directorKnownInvalid: true,
-          });
-        if (previous?.status === 'committed' && previous.decisionId) {
-          const saved = await directors.readDecision(ownerId, worldId, previous.decisionId);
-          if (!saved) throw Object.assign(Error('DIRECTOR_RESULT_NOT_FOUND'), { code: 'UNKNOWN' });
-          return saved;
-        }
-        const recovering = previous?.status === 'response_received';
-        const reservation = recovering ? undefined : batch?.reserveModel();
-        if (batch && !recovering && !reservation) return null;
-        try {
+          if (recovery.status === 'recovered') return recovery.decision;
+          if (recovery.status === 'blocked')
+            throw Object.assign(Error('DIRECTOR_ATTEMPT_PENDING'), {
+              code: recovery.attempt.status === 'unknown_after_send' ? 'UNKNOWN' : 'BUSY',
+              directorCoordinationPending: true,
+            });
+          if (recovery.status === 'stale' && recovery.reason === 'lease_expired')
+            throw Object.assign(Error('DIRECTOR_KNOWN_RESULT_EXPIRED'), {
+              code: 'VERSION_CONFLICT',
+              directorCoordinationPending: true,
+            });
+          // Recovery may consume the only reason to enter. Never turn an expired or
+          // vanished semantic wake into a fresh paid global decision.
+          if (
+            !retryCommandId &&
+            (admission === 'recovery' || (admission === 'wake' && !snapshot.evaluationCause))
+          )
+            return null;
+          let identity = snapshot.evaluationCause?.id ?? directorCoordinationFrameHash(snapshot);
+          if (!snapshot.evaluationCause) {
+            const unsent = await directors.readUnsentFrameAttempts(ownerId, snapshot);
+            if (unsent.length) identity = hash(['director-unsent-frame-v1', identity, unsent]);
+          }
+          const commandId = retryCommandId ?? agentWakeCommandId(worldId, identity);
+          await batch?.trackWork?.({ kind: 'director', commandId });
+          const previous = await directors.lookup(ownerId, worldId, commandId);
+          // A durable known-invalid director result is not retry permission. Its
+          // own coordination remains fenced; unrelated preselected work may continue.
+          if (previous?.status === 'invalid_output')
+            throw Object.assign(Error('DIRECTOR_KNOWN_INVALID_RESULT'), {
+              code: 'INVALID_STATE',
+              directorKnownInvalid: true,
+            });
+          if (previous?.status === 'committed' && previous.decisionId) {
+            const saved = await directors.readDecision(ownerId, worldId, previous.decisionId);
+            if (!saved)
+              throw Object.assign(Error('DIRECTOR_RESULT_NOT_FOUND'), { code: 'UNKNOWN' });
+            return saved;
+          }
+          const recovering = previous?.status === 'response_received';
+          if (batch && !recovering && !reservation) return null;
           return await runDirectorAgent(
             {
               attempts: directors,
@@ -606,8 +611,29 @@ export function npcAgentAdvanceServices(
             )) ?? quiet(storyAt)
           );
       }
+      const pendingObservations = await db.transaction(ownerId, (sql) =>
+        readAgentObservationScheduleCandidatesInTransaction(
+          sql,
+          ownerId,
+          { worldId, engineEpoch, worldVersion: world.version, storyAt },
+          [...(batch?.handledActorIds ?? [])],
+        ),
+      );
+      const independentPacket = pendingObservations.find(
+        (candidate) =>
+          !candidate.requiresCoordination &&
+          candidate.channel === 'private' &&
+          candidate.threadId === candidate.actorId &&
+          candidate.resourceIds.length === 0,
+      );
+      // This selects whose context to load, not whose action is approved. The
+      // original collectors, blockers, source checks and kernel still decide.
+      const statesToRead =
+        independentPacket && !wake.hasPendingDirector
+          ? read.states.filter((state) => state.actorId === independentPacket.actorId)
+          : read.states;
       const actors = await Promise.all(
-        read.states.map(async (state) => ({
+        statesToRead.map(async (state) => ({
           snapshot: (
             await readPrivateAgentSnapshot(db, ownerId, world, state.actorId, null, storyAt, state)
           ).snapshot,
