@@ -6,6 +6,10 @@ import {
   type ActorAgentState,
   type AgentCondition,
 } from '../src/modules/world/domain/agent-runtime.ts';
+import {
+  mapNpcSourceFields,
+  npcSourceReferences,
+} from '../src/modules/world/infrastructure/npc-source-reference.ts';
 import { NpcAgentModel } from '../src/modules/world/infrastructure/npc-agent-model.ts';
 import type { AgentSnapshot } from '../src/modules/world/application/agent-runtime-ports.ts';
 import type { ModelMessage } from '../src/modules/ai/application/ports.ts';
@@ -149,7 +153,7 @@ function snapshot(state: ActorAgentState): AgentSnapshot {
     input: { sourceId: 'public', text: '还没决定', origin: 'player' },
   };
 }
-test('default NPC shape equals the actual existing adapter serialization and keeps execution state', async () => {
+test('v8 adapter projects source handles without mutating canonical execution state', async () => {
   const state = fixture();
   let captured: ModelMessage[] = [];
   const model = new NpcAgentModel({
@@ -158,12 +162,17 @@ test('default NPC shape equals the actual existing adapter serialization and kee
       return '{}';
     },
   });
-  await model.decide(snapshot(state));
+  const input = snapshot(state);
+  const before = structuredClone(input);
+  await model.decide(input);
   const actual = JSON.parse(captured.find((m) => m.role === 'user')!.content).state;
   const payload = actorStateContextPayload(state, {
     privateStrategySourceIds: new Set(['private']),
   });
-  assert.deepEqual(payload, actual);
+  const catalog = npcSourceReferences(input.sources);
+  assert.deepEqual(actual, mapNpcSourceFields(payload, catalog, 'encode'));
+  assert.deepEqual(mapNpcSourceFields(actual, catalog, 'decode'), payload);
+  assert.deepEqual(input, before);
   assert.equal(payload.actions[0]?.status, 'succeeded');
   assert.equal(payload.actions[0]?.resultId, 'result');
   assert.equal(payload.actions[0]?.capability, 'future.unregistered');
