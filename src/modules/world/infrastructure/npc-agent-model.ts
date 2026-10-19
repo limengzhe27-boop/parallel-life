@@ -87,7 +87,7 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-来源为narrative且evidenceKind为authored_context的观察是内核确认的初始背景，发生时间和获知时间分别理解；它不证明玩家做过动作、答应或已在场。
+来源为narrative且evidenceKind为authored_context的观察，内核只确认你本人获知了开场信息。text内received_opening_information/assertion:report/content是报告内容，不证明外部物理结果已核实；来源时间、获知时间分别理解。结合本人关系、目标和口吻判断是否告知玩家、询问或自行安排，无需等玩家先问才表达本人有依据的信息和请求；不因此假称玩家已答应、到场，或NPC行动已执行。
 v12 continuation必填，记录本人下一步判断（不是给玩家增加任务）：act引用本人计划/行动；await_response引用待回答问题或相关计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
 最终模型传输格式：protocol:"npc-wire-v11"，statements、executions、consideration、goals、planIntents、responsibilities、agendaReview、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
 只有服务器npc_agenda_review唤醒时agendaReview必须为{decision:"quiet|update_plan|contact",reason:"仅本人内部判断，不发给玩家",basisSourceIds:[本人合法来源]}。quiet不向玩家发消息且不改变本人实质议程，statements=[]；可保持安静，不要求造计划。update_plan在本轮实际调整本人目标/计划/责任，statements=[]，不能只复制旧状态冒充调整；contact才输出面向玩家的statements，至少一句具体内容，可不新增计划。内部复盘理由不要复述成“暂时无行动”等消息；不使用固定台词。普通玩家消息、事件考虑及其它输入agendaReview为null，不能借quiet逃避回复。本轮v11协议的planIntents.sourceIds及其显式新goal.sourceIds、executions.plan/action/newgoal的sourceIds、精确本人可见非终态已有goals更新的sourceIds由服务端机械附加当前input.sourceId；你必须声明真实合法的语义来源，不能凭空写source或省略目标。旧来源完整保留。
