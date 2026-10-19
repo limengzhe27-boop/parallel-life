@@ -11,7 +11,7 @@ import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { authenticated, endpoint, HttpError, json, parseBody } from './http.ts';
 
 export async function worldMessageRoute(request: Request, worldId: string) {
-  return endpoint(async () => {
+  return endpoint(async (context) => {
     const s = await authenticated(request);
     const parsedWorldId = Id.safeParse(worldId);
     if (!parsedWorldId.success) throw new HttpError('NOT_FOUND', 404);
@@ -40,18 +40,20 @@ export async function worldMessageRoute(request: Request, worldId: string) {
         return json(WorldMessageReceiptSchema.parse(receipt));
       }
     } catch (error) {
-      if (error instanceof NpcMessageError)
+      if (error instanceof NpcMessageError) {
+        context.reportFailure(error, error.status, error.apiCode);
         return json(
           {
             error: {
               code: error.apiCode,
               message: error.message,
               retryable: error.retryable,
-              requestId: crypto.randomUUID(),
+              requestId: context.requestId,
             },
           },
           error.status,
         );
+      }
       throw error;
     }
     return s.withWorldActivityLock(parsedWorldId.data, async () => {

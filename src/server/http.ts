@@ -1,4 +1,4 @@
-import { GatewayError } from '../modules/ai/infrastructure/yibu-text-model.ts';
+import { createHttpRequestContext, type HttpRequestContext } from './http-failure-diagnostics.ts';
 import { isPreviewOnly } from '../contracts/preview.ts';
 import 'server-only';
 import { randomUUID } from 'node:crypto';
@@ -34,12 +34,13 @@ const messages: Record<string, string> = {
   INVALID_STATE: '当前状态无法执行这个操作。',
   INVALID_COMMAND: '这条操作暂时无法执行。',
 };
-export async function endpoint(run: () => Promise<Response>) {
+export async function endpoint(run: (context: HttpRequestContext) => Promise<Response>) {
   const requestId = randomUUID(),
     started = Date.now();
+  const context = createHttpRequestContext(requestId, started);
   try {
-    if (isPreviewOnly())
-      return json(
+    if (isPreviewOnly()) {
+      const response = json(
         {
           error: {
             code: 'UNAVAILABLE',
@@ -50,7 +51,10 @@ export async function endpoint(run: () => Promise<Response>) {
         },
         503,
       );
-    const response = await run();
+      response.headers.set('X-Request-Id', requestId);
+      return response;
+    }
+    const response = await run(context);
     response.headers.set('X-Request-Id', requestId);
     return response;
   } catch (error) {
@@ -78,33 +82,7 @@ export async function endpoint(run: () => Promise<Response>) {
     const known = error instanceof HttpError;
     const code = known ? error.code : supplied && statusMap[supplied] ? supplied : 'UNAVAILABLE';
     const status = known ? error.status : (statusMap[code] ?? 503);
-    // Only operational metadata. Never log request bodies, user text, upstream messages or secrets.
-    console.warn(
-      JSON.stringify({
-        requestId,
-        code,
-        status,
-        durationMs: Date.now() - started,
-        errMessage: error instanceof Error ? error.message : String(error),
-        ...(error instanceof GatewayError
-          ? {
-              gatewayStage: ['request', 'response', 'parse', 'stream'].includes(error.stage ?? '')
-                ? error.stage
-                : undefined,
-              upstreamHttpStatus:
-                Number.isInteger(error.httpStatus) &&
-                error.httpStatus! >= 100 &&
-                error.httpStatus! <= 599
-                  ? error.httpStatus
-                  : undefined,
-              gatewayDurationMs:
-                Number.isFinite(error.durationMs) && error.durationMs! >= 0
-                  ? Math.round(error.durationMs!)
-                  : undefined,
-            }
-          : {}),
-      }),
-    );
+    context.reportFailure(error, status, code);
     const response = json(
       {
         error: {
@@ -117,9 +95,6 @@ export async function endpoint(run: () => Promise<Response>) {
       status,
     );
     response.headers.set('X-Request-Id', requestId);
-    if (error instanceof Error && error.message) {
-      response.headers.set('X-Error-Message', encodeURIComponent(error.message.slice(0, 500)));
-    }
     if (status === 429) response.headers.set('Retry-After', '60');
     return response;
   }
