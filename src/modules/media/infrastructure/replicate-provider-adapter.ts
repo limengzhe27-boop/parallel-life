@@ -59,8 +59,19 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
   }
 
   public async submitImage(params: SubmitImageProviderParams): Promise<ProviderTaskReceipt> {
-    const { builtPrompt, referenceImageBytes, referenceImageMimeType, referenceImageUrl, webhookUrl } = params;
-    const modelPath = MODEL_IDENTIFIERS[builtPrompt.targetModel] ?? MODEL_IDENTIFIERS['flux-schnell'];
+    if (params.signal?.aborted)
+      throw Object.assign(new Error('Media request cancelled before submission'), {
+        code: 'CANCELLED',
+      });
+    const {
+      builtPrompt,
+      referenceImageBytes,
+      referenceImageMimeType,
+      referenceImageUrl,
+      webhookUrl,
+    } = params;
+    const modelPath =
+      MODEL_IDENTIFIERS[builtPrompt.targetModel] ?? MODEL_IDENTIFIERS['flux-schnell'];
 
     const inputPayload: Record<string, unknown> = {
       prompt: builtPrompt.prompt,
@@ -89,21 +100,26 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
     }
 
     const endpoint = `${this.baseUrl}/models/${modelPath}/predictions`;
-    const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const signal = params.signal ? AbortSignal.any([params.signal, timeout]) : timeout;
+    const headers = this.getHeaders();
+    let responseReceived = false;
 
     try {
       const response = await this.fetchFn(endpoint, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers,
         body: JSON.stringify(requestBody),
-        signal: controller.signal,
+        signal,
       });
+      responseReceived = true;
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
         throw Object.assign(
-          new Error(`Replicate API error: ${response.status} ${response.statusText} - ${errorText}`),
+          new Error(
+            `Replicate API error: ${response.status} ${response.statusText} - ${errorText}`,
+          ),
           { code: 'PROVIDER_ERROR', status: response.status },
         );
       }
@@ -122,8 +138,9 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
         urls: data.urls,
       };
     } catch (err: unknown) {
-      const isAbort = err instanceof Error && (err.name === 'AbortError' || err.message.includes('abort'));
-      if (isAbort) {
+      const isAbort =
+        err instanceof Error && (err.name === 'AbortError' || err.message.includes('abort'));
+      if (signal.aborted || isAbort || (!responseReceived && !(err as { code?: string })?.code)) {
         // Strict rule: Timeout on POST must be reported as unknown to prevent automatic resubmission
         throw Object.assign(
           new Error('SUBMIT_TIMEOUT_UNKNOWN: Prediction submission timed out. Status uncertain.'),
@@ -131,14 +148,23 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
         );
       }
       throw err;
-    } finally {
-      clearTimeout(timeoutTimer);
     }
   }
 
   public async submitVideo(params: SubmitVideoProviderParams): Promise<ProviderTaskReceipt> {
-    const { builtPrompt, firstFrameImageBytes, firstFrameImageMimeType, firstFrameImageUrl, webhookUrl } = params;
-    const modelPath = MODEL_IDENTIFIERS[builtPrompt.targetModel] ?? MODEL_IDENTIFIERS['minimax-video-01'];
+    if (params.signal?.aborted)
+      throw Object.assign(new Error('Media request cancelled before submission'), {
+        code: 'CANCELLED',
+      });
+    const {
+      builtPrompt,
+      firstFrameImageBytes,
+      firstFrameImageMimeType,
+      firstFrameImageUrl,
+      webhookUrl,
+    } = params;
+    const modelPath =
+      MODEL_IDENTIFIERS[builtPrompt.targetModel] ?? MODEL_IDENTIFIERS['minimax-video-01'];
 
     const inputPayload: Record<string, unknown> = {
       prompt: builtPrompt.prompt,
@@ -160,21 +186,26 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
     }
 
     const endpoint = `${this.baseUrl}/models/${modelPath}/predictions`;
-    const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const signal = params.signal ? AbortSignal.any([params.signal, timeout]) : timeout;
+    const headers = this.getHeaders();
+    let responseReceived = false;
 
     try {
       const response = await this.fetchFn(endpoint, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers,
         body: JSON.stringify(requestBody),
-        signal: controller.signal,
+        signal,
       });
+      responseReceived = true;
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
         throw Object.assign(
-          new Error(`Replicate video API error: ${response.status} ${response.statusText} - ${errorText}`),
+          new Error(
+            `Replicate video API error: ${response.status} ${response.statusText} - ${errorText}`,
+          ),
           { code: 'PROVIDER_ERROR', status: response.status },
         );
       }
@@ -193,29 +224,36 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
         urls: data.urls,
       };
     } catch (err: unknown) {
-      const isAbort = err instanceof Error && (err.name === 'AbortError' || err.message.includes('abort'));
-      if (isAbort) {
+      const isAbort =
+        err instanceof Error && (err.name === 'AbortError' || err.message.includes('abort'));
+      if (signal.aborted || isAbort || (!responseReceived && !(err as { code?: string })?.code)) {
         throw Object.assign(
           new Error('SUBMIT_TIMEOUT_UNKNOWN: Video submission timed out. Status uncertain.'),
           { code: 'STATUS_UNKNOWN', originalError: err },
         );
       }
       throw err;
-    } finally {
-      clearTimeout(timeoutTimer);
     }
   }
 
-  public async queryStatus(providerTaskId: string): Promise<ProviderTaskStatus> {
+  public async queryStatus(
+    providerTaskId: string,
+    outerSignal?: AbortSignal,
+  ): Promise<ProviderTaskStatus> {
+    if (outerSignal?.aborted)
+      throw Object.assign(new Error('Provider status is unknown after cancellation'), {
+        code: 'STATUS_UNKNOWN',
+        providerTaskId,
+      });
     const endpoint = `${this.baseUrl}/predictions/${encodeURIComponent(providerTaskId)}`;
-    const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const signal = outerSignal ? AbortSignal.any([outerSignal, timeout]) : timeout;
 
     try {
       const response = await this.fetchFn(endpoint, {
         method: 'GET',
         headers: this.getHeaders(),
-        signal: controller.signal,
+        signal,
       });
 
       if (!response.ok) {
@@ -247,8 +285,14 @@ export class ReplicateMediaProviderAdapter implements MediaProviderAdapter {
         error: data.error,
         completedAt: data.completed_at,
       };
-    } finally {
-      clearTimeout(timeoutTimer);
+    } catch (error) {
+      if (signal.aborted)
+        throw Object.assign(new Error('Provider status is unknown after cancellation'), {
+          code: 'STATUS_UNKNOWN',
+          providerTaskId,
+          cause: error,
+        });
+      throw error;
     }
   }
 

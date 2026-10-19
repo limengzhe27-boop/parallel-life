@@ -54,6 +54,229 @@ function createInMemoryAssetStore(): { store: AssetStore; assets: Record<string,
   return { store, assets };
 }
 
+test('pipeline passes cancellation through submission and poll; accepted work becomes unknown', async () => {
+  const controller = new AbortController();
+  let submits = 0;
+  let polls = 0;
+  const service = new MediaPipelineService({
+    providerAdapter: {
+      providerName: 'test',
+      async submitImage(params) {
+        submits++;
+        assert.equal(params.signal, controller.signal);
+        return {
+          providerTaskId: 'accepted-image',
+          status: 'submitted',
+          provider: 'test',
+          model: 'test',
+        };
+      },
+      async submitVideo() {
+        throw Error('unexpected video');
+      },
+      async queryStatus(_id, signal) {
+        polls++;
+        assert.equal(signal, controller.signal);
+        controller.abort();
+        throw new DOMException('aborted', 'AbortError');
+      },
+      async cancel() {
+        return false;
+      },
+    },
+    assetStore: createInMemoryAssetStore().store,
+    visualAnchorRepo: {
+      async findPlayerVisualAnchor() {
+        return null;
+      },
+      async findActorVisualAnchor() {
+        return null;
+      },
+    },
+    pollIntervalMs: 0,
+  });
+  await assert.rejects(
+    service.executeImagePipeline({
+      ownerId: 'owner',
+      worldId: 'world',
+      intent: { purpose: 'scene', sceneDescription: '窗边' },
+      currentAssetCount: 0,
+      callerActorId: 'actor',
+      isCallerPlayer: false,
+      signal: controller.signal,
+    }),
+    { code: 'STATUS_UNKNOWN', providerTaskId: 'accepted-image' },
+  );
+  assert.equal(submits, 1);
+  assert.equal(polls, 1);
+});
+
+test('pre-submit cancellation makes no image or video provider request', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let submissions = 0;
+  const service = new MediaPipelineService({
+    providerAdapter: {
+      providerName: 'test',
+      async submitImage() {
+        submissions++;
+        throw Error('unexpected image');
+      },
+      async submitVideo() {
+        submissions++;
+        throw Error('unexpected video');
+      },
+      async queryStatus() {
+        throw Error('unexpected poll');
+      },
+      async cancel() {
+        return false;
+      },
+    },
+    assetStore: createInMemoryAssetStore().store,
+    visualAnchorRepo: {
+      async findPlayerVisualAnchor() {
+        return null;
+      },
+      async findActorVisualAnchor() {
+        return null;
+      },
+    },
+  });
+  const common = {
+    ownerId: 'owner',
+    worldId: 'world',
+    currentAssetCount: 0,
+    callerActorId: 'actor',
+    isCallerPlayer: false,
+    signal: controller.signal,
+  };
+  await assert.rejects(
+    service.executeImagePipeline({
+      ...common,
+      intent: { purpose: 'scene', sceneDescription: '窗边' },
+    }),
+    { code: 'CANCELLED' },
+  );
+  await assert.rejects(
+    service.executeVideoPipeline({
+      ...common,
+      intent: { purpose: 'scene_moment', actionDescription: '雨停了' },
+    }),
+    { code: 'CANCELLED' },
+  );
+  assert.equal(submissions, 0);
+});
+
+test('video submission and polling receive the worker signal', async () => {
+  const controller = new AbortController();
+  let submitted = false;
+  const service = new MediaPipelineService({
+    providerAdapter: {
+      providerName: 'test',
+      async submitImage() {
+        throw Error('unexpected image');
+      },
+      async submitVideo(params) {
+        submitted = true;
+        assert.equal(params.signal, controller.signal);
+        return {
+          providerTaskId: 'accepted-video',
+          status: 'submitted',
+          provider: 'test',
+          model: 'test',
+        };
+      },
+      async queryStatus(_id, signal) {
+        assert.equal(signal, controller.signal);
+        controller.abort();
+        throw new DOMException('aborted', 'AbortError');
+      },
+      async cancel() {
+        return false;
+      },
+    },
+    assetStore: createInMemoryAssetStore().store,
+    visualAnchorRepo: {
+      async findPlayerVisualAnchor() {
+        return null;
+      },
+      async findActorVisualAnchor() {
+        return null;
+      },
+    },
+    pollIntervalMs: 0,
+  });
+  await assert.rejects(
+    service.executeVideoPipeline({
+      ownerId: 'owner',
+      worldId: 'world',
+      intent: { purpose: 'scene_moment', actionDescription: '街景' },
+      currentAssetCount: 0,
+      callerActorId: 'actor',
+      isCallerPlayer: false,
+      signal: controller.signal,
+    }),
+    { code: 'STATUS_UNKNOWN', providerTaskId: 'accepted-video' },
+  );
+  assert.equal(submitted, true);
+});
+
+test('download abort after accepted image stays unknown and does not store an asset', async () => {
+  const controller = new AbortController();
+  const { store, assets } = createInMemoryAssetStore();
+  const service = new MediaPipelineService({
+    providerAdapter: {
+      providerName: 'test',
+      async submitImage() {
+        return {
+          providerTaskId: 'accepted-download',
+          status: 'succeeded',
+          outputUrls: ['https://assets.example/image.png'],
+          provider: 'test',
+          model: 'test',
+        };
+      },
+      async submitVideo() {
+        throw Error('unexpected video');
+      },
+      async queryStatus() {
+        throw Error('unexpected poll');
+      },
+      async cancel() {
+        return false;
+      },
+    },
+    assetStore: store,
+    visualAnchorRepo: {
+      async findPlayerVisualAnchor() {
+        return null;
+      },
+      async findActorVisualAnchor() {
+        return null;
+      },
+    },
+    fetchFn: async (_url, init) => {
+      assert.equal(init?.signal, controller.signal);
+      controller.abort();
+      throw new DOMException('aborted', 'AbortError');
+    },
+  });
+  await assert.rejects(
+    service.executeImagePipeline({
+      ownerId: 'owner',
+      worldId: 'world',
+      intent: { purpose: 'scene', sceneDescription: '街景' },
+      currentAssetCount: 0,
+      callerActorId: 'actor',
+      isCallerPlayer: false,
+      signal: controller.signal,
+    }),
+    { code: 'STATUS_UNKNOWN', providerTaskId: 'accepted-download' },
+  );
+  assert.deepEqual(assets, {});
+});
+
 test('MediaPipelineService - Quota check rejects when asset count reaches budget limit', async () => {
   const mockRepo: CharacterVisualAnchorRepository = {
     async findPlayerVisualAnchor() {

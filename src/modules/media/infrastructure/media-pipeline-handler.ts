@@ -64,7 +64,7 @@ export function createMediaPipelineHandler(
   queue: PostgresTaskQueue,
   pipelineServiceOrFactory?: MediaPipelineService | (() => MediaPipelineService),
 ) {
-  return async (lease: TaskLease) => {
+  return async (lease: TaskLease, signal?: AbortSignal) => {
     if (lease.kind !== 'media') {
       throw Object.assign(new Error('INVALID_SCOPE'), { code: 'INVALID_COMMAND' });
     }
@@ -134,6 +134,13 @@ export function createMediaPipelineHandler(
       }
       return;
     }
+    if (doc.status === 'unknown') {
+      // The original paid submission may already have succeeded. A fresh task
+      // lease must never turn this state into another provider POST.
+      throw Object.assign(new Error('Previous media submission requires reconciliation'), {
+        code: 'UPSTREAM_FAILED',
+      });
+    }
 
     // Fallback: Honest failure if pipeline service is not connected
     if (!pipelineService) {
@@ -176,6 +183,7 @@ export function createMediaPipelineHandler(
           callerActorId: doc.targetActorId || 'player',
           isCallerPlayer: doc.isPlayer ?? doc.targetActorId === 'player',
           worldIsCancelled,
+          signal,
         });
       } else {
         const imageIntent: ImageGenerationIntent = {
@@ -193,35 +201,43 @@ export function createMediaPipelineHandler(
           callerActorId: doc.targetActorId || 'player',
           isCallerPlayer: doc.isPlayer ?? doc.targetActorId === 'player',
           worldIsCancelled,
+          signal,
         });
       }
     } catch (err: any) {
-      const errorCode = err?.code || 'GENERATION_FAILED';
-      const errorMessage = err?.message || 'Media generation failed';
-      const status = errorCode === 'STATUS_UNKNOWN' ? 'unknown' : 'failed';
+      const unknown = err?.code === 'STATUS_UNKNOWN' || signal?.aborted;
+      const errorCode = unknown ? 'STATUS_UNKNOWN' : err?.code || 'GENERATION_FAILED';
+      const errorMessage = unknown
+        ? 'provider-result-unconfirmed'
+        : err?.message || 'Media generation failed';
+      const status = unknown ? 'unknown' : 'failed';
+      const providerTaskId = typeof err?.providerTaskId === 'string' ? err.providerTaskId : null;
 
       await queue.read(lease, async (sql) => {
         await sql.query(
           `UPDATE parallel_life.world_media_requests
-             SET document = jsonb_set(
-               jsonb_set(
-                 document,
-                 '{status}',
-                 to_jsonb($2::text)
-               ),
-               '{errorCode}',
-               to_jsonb($3::text)
-             )
+             SET document = document || jsonb_build_object('status',$2::text,'errorCode',$3::text)
+               || CASE WHEN $5::text IS NULL THEN '{}'::jsonb
+                       ELSE jsonb_build_object('providerTaskId',$5::text) END
            WHERE id = $1 AND owner_id = $4`,
-          [lease.scopeId, status, errorCode, lease.ownerId],
+          [lease.scopeId, status, errorCode, lease.ownerId, providerTaskId],
         );
         if (outboxId) {
-          await sql.query("SELECT parallel_life.finish_outbox_job($1,'failed',$2,NULL)", [
+          await sql.query('SELECT parallel_life.finish_outbox_job($1,$2,$3,NULL)', [
             outboxId,
+            status,
             `${errorCode}:${errorMessage}`,
           ]);
         }
       });
+      if (unknown)
+        throw Object.assign(new Error('Media provider result is unknown'), {
+          // runOne already maps this existing code to task.status=unknown.
+          code: 'UPSTREAM_FAILED',
+          originalCode: err?.code,
+          providerTaskId,
+          cause: err,
+        });
       throw err;
     }
 

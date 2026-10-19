@@ -16,6 +16,38 @@ import type {
 } from '../application/provider-ports.ts';
 import type { AssetStore } from '../application/asset-store.ts';
 
+function requireActive(signal?: AbortSignal, providerTaskId?: string): void {
+  if (!signal?.aborted) return;
+  throw Object.assign(new Error('Media execution was cancelled'), {
+    code: providerTaskId ? 'STATUS_UNKNOWN' : 'CANCELLED',
+    ...(providerTaskId ? { providerTaskId } : {}),
+  });
+}
+
+async function waitForPoll(ms: number, signal: AbortSignal | undefined, providerTaskId: string) {
+  requireActive(signal, providerTaskId);
+  if (ms <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(done, ms);
+    function done() {
+      signal?.removeEventListener('abort', cancelled);
+      resolve();
+    }
+    function cancelled() {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancelled);
+      reject(
+        Object.assign(new Error('Media provider result is unknown'), {
+          code: 'STATUS_UNKNOWN',
+          providerTaskId,
+        }),
+      );
+    }
+    signal?.addEventListener('abort', cancelled, { once: true });
+    if (signal?.aborted) cancelled();
+  });
+}
+
 export type MediaPipelineResult = {
   assetId: string;
   storageKey: string;
@@ -44,7 +76,10 @@ export type MediaPipelineOptions = {
   fetchFn?: (url: string | URL | Request, init?: RequestInit) => Promise<Response>;
   maxPollAttempts?: number;
   pollIntervalMs?: number;
-  referenceAssetReader?: (assetId: string, ownerId?: string) => Promise<{ bytes: Buffer; mimeType: string } | null>;
+  referenceAssetReader?: (
+    assetId: string,
+    ownerId?: string,
+  ) => Promise<{ bytes: Buffer; mimeType: string } | null>;
 };
 
 export class MediaPipelineService {
@@ -56,7 +91,10 @@ export class MediaPipelineService {
   private readonly fetchFn: (url: string | URL | Request, init?: RequestInit) => Promise<Response>;
   private readonly maxPollAttempts: number;
   private readonly pollIntervalMs: number;
-  private readonly referenceAssetReader?: (assetId: string, ownerId?: string) => Promise<{ bytes: Buffer; mimeType: string } | null>;
+  private readonly referenceAssetReader?: (
+    assetId: string,
+    ownerId?: string,
+  ) => Promise<{ bytes: Buffer; mimeType: string } | null>;
 
   constructor(options: MediaPipelineOptions) {
     this.providerAdapter = options.providerAdapter;
@@ -78,8 +116,19 @@ export class MediaPipelineService {
     callerActorId: string;
     isCallerPlayer: boolean;
     worldIsCancelled?: boolean;
+    signal?: AbortSignal;
   }): Promise<MediaPipelineResult> {
-    const { ownerId, worldId, intent, currentAssetCount, callerActorId, isCallerPlayer, worldIsCancelled } = params;
+    const {
+      ownerId,
+      worldId,
+      intent,
+      currentAssetCount,
+      callerActorId,
+      isCallerPlayer,
+      worldIsCancelled,
+      signal,
+    } = params;
+    requireActive(signal);
 
     // 1. Quota check
     const quota = checkMediaQuota(currentAssetCount, this.budget);
@@ -95,7 +144,11 @@ export class MediaPipelineService {
       if (intent.targetActorId === 'player') {
         targetAnchor = await this.visualAnchorRepo.findPlayerVisualAnchor(worldId, ownerId);
       } else {
-        targetAnchor = await this.visualAnchorRepo.findActorVisualAnchor(worldId, intent.targetActorId, ownerId);
+        targetAnchor = await this.visualAnchorRepo.findActorVisualAnchor(
+          worldId,
+          intent.targetActorId,
+          ownerId,
+        );
       }
     }
 
@@ -118,7 +171,11 @@ export class MediaPipelineService {
     // 3. Load reference image bytes if reference_guided
     let refBytes: Buffer | undefined;
     let refMime: string | undefined;
-    if (refResolution.mode === 'reference_guided' && refResolution.referenceAssetId && this.referenceAssetReader) {
+    if (
+      refResolution.mode === 'reference_guided' &&
+      refResolution.referenceAssetId &&
+      this.referenceAssetReader
+    ) {
       const readResult = await this.referenceAssetReader(refResolution.referenceAssetId, ownerId);
       if (readResult) {
         refBytes = readResult.bytes;
@@ -137,15 +194,24 @@ export class MediaPipelineService {
 
     // 5. Submit to provider
     const deduplicationKey = createHash('sha256')
-      .update([worldId, intent.targetActorId ?? '', intent.sourceEventId ?? '', builtPrompt.prompt].join(':'))
+      .update(
+        [worldId, intent.targetActorId ?? '', intent.sourceEventId ?? '', builtPrompt.prompt].join(
+          ':',
+        ),
+      )
       .digest('hex');
+
+    requireActive(signal);
 
     const receipt = await this.providerAdapter.submitImage({
       deduplicationKey,
       builtPrompt,
       referenceImageBytes: refBytes,
       referenceImageMimeType: refMime,
+      signal,
     });
+
+    requireActive(signal, receipt.providerTaskId);
 
     // 6. Wait / Poll for completion
     let outputUrl: string | undefined =
@@ -155,12 +221,24 @@ export class MediaPipelineService {
     let attempts = 0;
 
     if (status !== 'succeeded' || (!outputUrl && !outputBase64)) {
-      while (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled' && attempts < this.maxPollAttempts) {
+      while (
+        status !== 'succeeded' &&
+        status !== 'failed' &&
+        status !== 'cancelled' &&
+        attempts < this.maxPollAttempts
+      ) {
         attempts++;
-        if (this.pollIntervalMs > 0) {
-          await new Promise((r) => setTimeout(r, this.pollIntervalMs));
+        await waitForPoll(this.pollIntervalMs, signal, receipt.providerTaskId);
+        let pollRes;
+        try {
+          pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId, signal);
+        } catch (cause) {
+          throw Object.assign(new Error('Media provider result is unknown'), {
+            code: 'STATUS_UNKNOWN',
+            providerTaskId: receipt.providerTaskId,
+            cause,
+          });
         }
-        const pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId);
         status = pollRes.status;
         if (status === 'succeeded') {
           outputBase64 = pollRes.outputBase64 ?? outputBase64;
@@ -181,7 +259,7 @@ export class MediaPipelineService {
 
     if (!outputUrl && !outputBase64) {
       throw Object.assign(new Error('Generation incomplete or output URL missing'), {
-        code: 'GENERATION_INCOMPLETE',
+        code: 'STATUS_UNKNOWN',
         providerTaskId: receipt.providerTaskId,
       });
     }
@@ -195,23 +273,26 @@ export class MediaPipelineService {
       if (match) {
         mediaBuffer = Buffer.from(match[1]!, 'base64');
       } else {
-        const mediaResponse = await this.fetchFn(outputUrl);
+        const mediaResponse = await this.fetchOutput(outputUrl, signal, receipt.providerTaskId);
         if (!mediaResponse.ok) {
-          throw Object.assign(new Error(`Failed to download output media: ${mediaResponse.status}`), {
-            code: 'DOWNLOAD_FAILED',
-          });
+          throw Object.assign(
+            new Error(`Failed to download output media: ${mediaResponse.status}`),
+            {
+              code: 'DOWNLOAD_FAILED',
+            },
+          );
         }
-        const arrayBuffer = await mediaResponse.arrayBuffer();
+        const arrayBuffer = await this.readOutput(mediaResponse, signal, receipt.providerTaskId);
         mediaBuffer = Buffer.from(arrayBuffer);
       }
     } else {
-      const mediaResponse = await this.fetchFn(outputUrl!);
+      const mediaResponse = await this.fetchOutput(outputUrl!, signal, receipt.providerTaskId);
       if (!mediaResponse.ok) {
         throw Object.assign(new Error(`Failed to download output media: ${mediaResponse.status}`), {
           code: 'DOWNLOAD_FAILED',
         });
       }
-      const arrayBuffer = await mediaResponse.arrayBuffer();
+      const arrayBuffer = await this.readOutput(mediaResponse, signal, receipt.providerTaskId);
       mediaBuffer = Buffer.from(arrayBuffer);
     }
 
@@ -230,6 +311,7 @@ export class MediaPipelineService {
     // 8. Persist to private AssetStore
     const assetId = randomUUID();
     const storageKey = `${assetId}.webp`;
+    requireActive(signal, receipt.providerTaskId);
     try {
       await this.assetStore.put(storageKey, mediaBuffer);
     } catch (putErr) {
@@ -238,6 +320,8 @@ export class MediaPipelineService {
         { code: 'STORAGE_FAILED', cause: putErr },
       );
     }
+
+    requireActive(signal, receipt.providerTaskId);
 
     // 9. Pre-delivery check
     let approved = true;
@@ -266,8 +350,14 @@ export class MediaPipelineService {
         channel: intent.deliveryIntent?.channel,
         approved,
         reason,
-        deliverToChat: approved && (!intent.deliveryIntent?.channel || intent.deliveryIntent?.channel === 'chat'),
-        deliverToAlbum: approved && (!intent.deliveryIntent?.channel || intent.deliveryIntent?.channel === 'album' || intent.deliveryIntent?.channel === 'chat'),
+        deliverToChat:
+          approved &&
+          (!intent.deliveryIntent?.channel || intent.deliveryIntent?.channel === 'chat'),
+        deliverToAlbum:
+          approved &&
+          (!intent.deliveryIntent?.channel ||
+            intent.deliveryIntent?.channel === 'album' ||
+            intent.deliveryIntent?.channel === 'chat'),
       },
     };
   }
@@ -280,8 +370,19 @@ export class MediaPipelineService {
     callerActorId: string;
     isCallerPlayer: boolean;
     worldIsCancelled?: boolean;
+    signal?: AbortSignal;
   }): Promise<MediaPipelineResult> {
-    const { ownerId, worldId, intent, currentAssetCount, callerActorId, isCallerPlayer, worldIsCancelled } = params;
+    const {
+      ownerId,
+      worldId,
+      intent,
+      currentAssetCount,
+      callerActorId,
+      isCallerPlayer,
+      worldIsCancelled,
+      signal,
+    } = params;
+    requireActive(signal);
 
     // 1. Quota check
     const quota = checkMediaQuota(currentAssetCount, this.budget, 'video');
@@ -297,7 +398,11 @@ export class MediaPipelineService {
       if (intent.targetActorId === 'player') {
         targetAnchor = await this.visualAnchorRepo.findPlayerVisualAnchor(worldId, ownerId);
       } else {
-        targetAnchor = await this.visualAnchorRepo.findActorVisualAnchor(worldId, intent.targetActorId, ownerId);
+        targetAnchor = await this.visualAnchorRepo.findActorVisualAnchor(
+          worldId,
+          intent.targetActorId,
+          ownerId,
+        );
       }
     }
 
@@ -320,7 +425,11 @@ export class MediaPipelineService {
     // 3. Load first frame image bytes if available
     let firstFrameBytes: Buffer | undefined;
     let firstFrameMime: string | undefined;
-    if (refResolution.mode === 'reference_guided' && refResolution.referenceAssetId && this.referenceAssetReader) {
+    if (
+      refResolution.mode === 'reference_guided' &&
+      refResolution.referenceAssetId &&
+      this.referenceAssetReader
+    ) {
       const readResult = await this.referenceAssetReader(refResolution.referenceAssetId, ownerId);
       if (readResult) {
         firstFrameBytes = readResult.bytes;
@@ -338,15 +447,24 @@ export class MediaPipelineService {
 
     // 5. Submit to provider
     const deduplicationKey = createHash('sha256')
-      .update([worldId, intent.targetActorId ?? '', intent.sourceEventId ?? '', builtPrompt.prompt].join(':'))
+      .update(
+        [worldId, intent.targetActorId ?? '', intent.sourceEventId ?? '', builtPrompt.prompt].join(
+          ':',
+        ),
+      )
       .digest('hex');
+
+    requireActive(signal);
 
     const receipt = await this.providerAdapter.submitVideo({
       deduplicationKey,
       builtPrompt,
       firstFrameImageBytes: firstFrameBytes,
       firstFrameImageMimeType: firstFrameMime,
+      signal,
     });
+
+    requireActive(signal, receipt.providerTaskId);
 
     // 6. Poll for completion
     let outputUrl: string | undefined =
@@ -356,12 +474,24 @@ export class MediaPipelineService {
     let attempts = 0;
 
     if (status !== 'succeeded' || (!outputUrl && !outputBase64)) {
-      while (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled' && attempts < this.maxPollAttempts) {
+      while (
+        status !== 'succeeded' &&
+        status !== 'failed' &&
+        status !== 'cancelled' &&
+        attempts < this.maxPollAttempts
+      ) {
         attempts++;
-        if (this.pollIntervalMs > 0) {
-          await new Promise((r) => setTimeout(r, this.pollIntervalMs));
+        await waitForPoll(this.pollIntervalMs, signal, receipt.providerTaskId);
+        let pollRes;
+        try {
+          pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId, signal);
+        } catch (cause) {
+          throw Object.assign(new Error('Media provider result is unknown'), {
+            code: 'STATUS_UNKNOWN',
+            providerTaskId: receipt.providerTaskId,
+            cause,
+          });
         }
-        const pollRes = await this.providerAdapter.queryStatus(receipt.providerTaskId);
         status = pollRes.status;
         if (status === 'succeeded') {
           outputBase64 = pollRes.outputBase64 ?? outputBase64;
@@ -373,16 +503,19 @@ export class MediaPipelineService {
           }
         }
         if (status === 'failed' || status === 'cancelled') {
-          throw Object.assign(new Error(`Provider video generation failed: ${pollRes.error ?? status}`), {
-            code: 'PROVIDER_GENERATION_FAILED',
-          });
+          throw Object.assign(
+            new Error(`Provider video generation failed: ${pollRes.error ?? status}`),
+            {
+              code: 'PROVIDER_GENERATION_FAILED',
+            },
+          );
         }
       }
     }
 
     if (!outputUrl && !outputBase64) {
       throw Object.assign(new Error('Video generation incomplete or output URL missing'), {
-        code: 'GENERATION_INCOMPLETE',
+        code: 'STATUS_UNKNOWN',
         providerTaskId: receipt.providerTaskId,
       });
     }
@@ -396,23 +529,26 @@ export class MediaPipelineService {
       if (match) {
         mediaBuffer = Buffer.from(match[1]!, 'base64');
       } else {
-        const mediaResponse = await this.fetchFn(outputUrl);
+        const mediaResponse = await this.fetchOutput(outputUrl, signal, receipt.providerTaskId);
         if (!mediaResponse.ok) {
-          throw Object.assign(new Error(`Failed to download output video: ${mediaResponse.status}`), {
-            code: 'DOWNLOAD_FAILED',
-          });
+          throw Object.assign(
+            new Error(`Failed to download output video: ${mediaResponse.status}`),
+            {
+              code: 'DOWNLOAD_FAILED',
+            },
+          );
         }
-        const arrayBuffer = await mediaResponse.arrayBuffer();
+        const arrayBuffer = await this.readOutput(mediaResponse, signal, receipt.providerTaskId);
         mediaBuffer = Buffer.from(arrayBuffer);
       }
     } else {
-      const mediaResponse = await this.fetchFn(outputUrl!);
+      const mediaResponse = await this.fetchOutput(outputUrl!, signal, receipt.providerTaskId);
       if (!mediaResponse.ok) {
         throw Object.assign(new Error(`Failed to download output video: ${mediaResponse.status}`), {
           code: 'DOWNLOAD_FAILED',
         });
       }
-      const arrayBuffer = await mediaResponse.arrayBuffer();
+      const arrayBuffer = await this.readOutput(mediaResponse, signal, receipt.providerTaskId);
       mediaBuffer = Buffer.from(arrayBuffer);
     }
 
@@ -426,6 +562,7 @@ export class MediaPipelineService {
     // 8. Persist to private AssetStore
     const assetId = randomUUID();
     const storageKey = `${assetId}.mp4`;
+    requireActive(signal, receipt.providerTaskId);
     try {
       await this.assetStore.put(storageKey, mediaBuffer);
     } catch (putErr) {
@@ -434,6 +571,8 @@ export class MediaPipelineService {
         { code: 'STORAGE_FAILED', cause: putErr },
       );
     }
+
+    requireActive(signal, receipt.providerTaskId);
 
     // 9. Pre-delivery check
     let approved = true;
@@ -462,9 +601,46 @@ export class MediaPipelineService {
         channel: intent.deliveryIntent?.channel,
         approved,
         reason,
-        deliverToChat: approved && (!intent.deliveryIntent?.channel || intent.deliveryIntent?.channel === 'chat'),
-        deliverToAlbum: approved && (!intent.deliveryIntent?.channel || intent.deliveryIntent?.channel === 'album' || intent.deliveryIntent?.channel === 'chat'),
+        deliverToChat:
+          approved &&
+          (!intent.deliveryIntent?.channel || intent.deliveryIntent?.channel === 'chat'),
+        deliverToAlbum:
+          approved &&
+          (!intent.deliveryIntent?.channel ||
+            intent.deliveryIntent?.channel === 'album' ||
+            intent.deliveryIntent?.channel === 'chat'),
       },
     };
+  }
+
+  private async fetchOutput(url: string, signal: AbortSignal | undefined, providerTaskId: string) {
+    requireActive(signal, providerTaskId);
+    try {
+      return await this.fetchFn(url, { signal });
+    } catch (cause) {
+      throw Object.assign(new Error('Media download result is unknown'), {
+        code: 'STATUS_UNKNOWN',
+        providerTaskId,
+        cause,
+      });
+    }
+  }
+
+  private async readOutput(
+    response: Response,
+    signal: AbortSignal | undefined,
+    providerTaskId: string,
+  ) {
+    try {
+      const bytes = await response.arrayBuffer();
+      requireActive(signal, providerTaskId);
+      return bytes;
+    } catch (cause) {
+      throw Object.assign(new Error('Media download result is unknown'), {
+        code: 'STATUS_UNKNOWN',
+        providerTaskId,
+        cause,
+      });
+    }
   }
 }

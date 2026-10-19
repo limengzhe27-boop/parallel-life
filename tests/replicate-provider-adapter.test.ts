@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ReplicateMediaProviderAdapter } from '../src/modules/media/infrastructure/replicate-provider-adapter.ts';
-import type { BuiltImagePrompt, BuiltVideoPrompt } from '../src/modules/media/domain/prompt-builder.ts';
+import type {
+  BuiltImagePrompt,
+  BuiltVideoPrompt,
+} from '../src/modules/media/domain/prompt-builder.ts';
 
 test('ReplicateMediaProviderAdapter: rejects requests when apiToken is missing', async () => {
   const adapter = new ReplicateMediaProviderAdapter({ apiToken: '' });
@@ -108,6 +111,66 @@ test('ReplicateMediaProviderAdapter: timeout during submitImage throws STATUS_UN
     }),
     { code: 'STATUS_UNKNOWN' },
   );
+});
+
+test('ReplicateMediaProviderAdapter: pre-submit abort sends nothing', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  const adapter = new ReplicateMediaProviderAdapter({
+    apiToken: 'test-token',
+    fetchFn: async () => {
+      calls++;
+      throw Error('unexpected request');
+    },
+  });
+  await assert.rejects(
+    adapter.submitImage({
+      deduplicationKey: 'pre-abort',
+      builtPrompt: {
+        ruleVersion: '1.0.0',
+        targetModel: 'flux-schnell',
+        prompt: 'test',
+        aspectRatio: '1:1',
+        outputFormat: 'webp',
+        hasReferenceImage: false,
+      },
+      signal: controller.signal,
+    }),
+    { code: 'CANCELLED' },
+  );
+  assert.equal(calls, 0);
+});
+
+test('ReplicateMediaProviderAdapter: worker abort during submission is unknown', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const adapter = new ReplicateMediaProviderAdapter({
+    apiToken: 'test-token',
+    fetchFn: async (_url, init) => {
+      calls++;
+      assert.ok(init?.signal);
+      controller.abort();
+      assert.equal(init.signal?.aborted, true);
+      throw new DOMException('aborted', 'AbortError');
+    },
+  });
+  await assert.rejects(
+    adapter.submitImage({
+      deduplicationKey: 'worker-abort',
+      builtPrompt: {
+        ruleVersion: '1.0.0',
+        targetModel: 'flux-schnell',
+        prompt: 'test',
+        aspectRatio: '1:1',
+        outputFormat: 'webp',
+        hasReferenceImage: false,
+      },
+      signal: controller.signal,
+    }),
+    { code: 'STATUS_UNKNOWN' },
+  );
+  assert.equal(calls, 1);
 });
 
 test('ReplicateMediaProviderAdapter: submitVideo targets minimax-video-01 endpoint', async () => {

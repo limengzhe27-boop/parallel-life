@@ -44,6 +44,7 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
   private readonly baseUrl: string;
   private readonly model: string;
   private readonly fetchFn: FetchFunction;
+  private readonly timeoutMs: number;
   private readonly results = new Map<string, ProviderTaskStatus>();
 
   constructor(options: YibuAdapterOptions = {}) {
@@ -51,6 +52,7 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
     this.baseUrl = (options.baseUrl?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.model = options.model?.trim() || DEFAULT_IMAGE_MODEL;
     this.fetchFn = options.fetchFn ?? globalThis.fetch;
+    this.timeoutMs = options.timeoutMs ?? 100000;
   }
 
   private headers(): Record<string, string> {
@@ -61,6 +63,10 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
   }
 
   async submitImage(params: SubmitImageProviderParams): Promise<ProviderTaskReceipt> {
+    if (params.signal?.aborted)
+      throw Object.assign(new Error('Media request cancelled before submission'), {
+        code: 'CANCELLED',
+      });
     const parts: unknown[] = [{ type: 'text', text: promptText(params.builtPrompt) }];
     if (params.referenceImageBytes) {
       const mime = params.referenceImageMimeType ?? 'image/jpeg';
@@ -69,17 +75,44 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
         image_url: { url: `data:${mime};base64,${params.referenceImageBytes.toString('base64')}` },
       });
     }
-    const response = await this.fetchFn(`${this.baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: parts }] }),
-    });
+    const headers = this.headers();
+    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const signal = params.signal ? AbortSignal.any([params.signal, timeout]) : timeout;
+    let response: Response;
+    try {
+      response = await this.fetchFn(`${this.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: parts }] }),
+        signal,
+      });
+    } catch (error) {
+      // The POST may have reached the paid provider even when its reply was lost.
+      throw Object.assign(new Error('Gateway submission result is unknown'), {
+        code: 'STATUS_UNKNOWN',
+        cause: error,
+      });
+    }
     if (!response.ok) {
       throw Object.assign(new Error(`gateway image request failed with ${response.status}`), {
         code: response.status === 429 ? 'RATE_LIMITED' : 'UNAVAILABLE',
+        httpStatus: response.status,
       });
     }
-    const body = (await response.json()) as { choices?: { message?: { content?: unknown } }[] };
+    let body: { choices?: { message?: { content?: unknown } }[] };
+    try {
+      body = (await response.json()) as typeof body;
+    } catch (error) {
+      if (signal.aborted)
+        throw Object.assign(new Error('Gateway response result is unknown'), {
+          code: 'STATUS_UNKNOWN',
+          cause: error,
+        });
+      throw Object.assign(new Error('gateway returned an invalid response'), {
+        code: 'UNAVAILABLE',
+        cause: error,
+      });
+    }
     const content = body.choices?.[0]?.message?.content;
     const text = typeof content === 'string' ? content : '';
     const base64 = firstImageBase64(text);
@@ -105,13 +138,22 @@ export class YibuMediaProviderAdapter implements MediaProviderAdapter {
     };
   }
 
-  async submitVideo(_params: SubmitVideoProviderParams): Promise<ProviderTaskReceipt> {
+  async submitVideo(params: SubmitVideoProviderParams): Promise<ProviderTaskReceipt> {
+    if (params.signal?.aborted)
+      throw Object.assign(new Error('Media request cancelled before submission'), {
+        code: 'CANCELLED',
+      });
     throw Object.assign(new Error('gateway video generation is not wired yet'), {
       code: 'UNAVAILABLE',
     });
   }
 
-  async queryStatus(providerTaskId: string): Promise<ProviderTaskStatus> {
+  async queryStatus(providerTaskId: string, signal?: AbortSignal): Promise<ProviderTaskStatus> {
+    if (signal?.aborted)
+      throw Object.assign(new Error('Provider result is unknown after cancellation'), {
+        code: 'STATUS_UNKNOWN',
+        providerTaskId,
+      });
     return this.results.get(providerTaskId) ?? { providerTaskId, status: 'unknown' };
   }
 

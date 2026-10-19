@@ -8,6 +8,7 @@ import type { BuiltImagePrompt, BuiltVideoPrompt } from '../domain/prompt-builde
 export type SubmitImageProviderParams = {
   deduplicationKey: string;
   builtPrompt: BuiltImagePrompt;
+  signal?: AbortSignal;
   referenceImageBytes?: Buffer;
   referenceImageMimeType?: string;
   referenceImageUrl?: string;
@@ -17,6 +18,7 @@ export type SubmitImageProviderParams = {
 export type SubmitVideoProviderParams = {
   deduplicationKey: string;
   builtPrompt: BuiltVideoPrompt;
+  signal?: AbortSignal;
   firstFrameImageBytes?: Buffer;
   firstFrameImageMimeType?: string;
   firstFrameImageUrl?: string;
@@ -34,7 +36,7 @@ export interface MediaProviderAdapter {
 
   submitVideo(params: SubmitVideoProviderParams): Promise<ProviderTaskReceipt>;
 
-  queryStatus(providerTaskId: string): Promise<ProviderTaskStatus>;
+  queryStatus(providerTaskId: string, signal?: AbortSignal): Promise<ProviderTaskStatus>;
 
   cancel(providerTaskId: string): Promise<boolean>;
 }
@@ -49,8 +51,5 @@ export interface CharacterVisualAnchorRepository {
     ownerId: string,
   ): Promise<CharacterVisualAnchor | null>;
 
-  findPlayerVisualAnchor(
-    worldId: string,
-    ownerId: string,
-  ): Promise<CharacterVisualAnchor | null>;
+  findPlayerVisualAnchor(worldId: string, ownerId: string): Promise<CharacterVisualAnchor | null>;
 }

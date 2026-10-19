@@ -46,3 +46,83 @@ test('网关没有返回图片字节时判定不可用', async () => {
     /no image/,
   );
 });
+
+test('取消发生在提交前，不向付费网关发送请求', async () => {
+  let calls = 0;
+  const controller = new AbortController();
+  controller.abort();
+  const adapter = new YibuMediaProviderAdapter({
+    apiKey: 'test-key',
+    fetchFn: async () => {
+      calls++;
+      throw Error('must not call');
+    },
+  });
+  await assert.rejects(
+    adapter.submitImage({
+      deduplicationKey: 'pre-abort',
+      builtPrompt: prompt,
+      signal: controller.signal,
+    }),
+    { code: 'CANCELLED' },
+  );
+  assert.equal(calls, 0);
+});
+
+test('提交后超时是不明结果，携带同一个取消信号且不重试', async () => {
+  let calls = 0;
+  const adapter = new YibuMediaProviderAdapter({
+    apiKey: 'test-key',
+    timeoutMs: 10,
+    fetchFn: async (_url, init) => {
+      calls++;
+      assert.ok(init?.signal);
+      await new Promise<void>((_resolve, reject) =>
+        init.signal!.addEventListener(
+          'abort',
+          () => reject(new DOMException('aborted', 'AbortError')),
+          { once: true },
+        ),
+      );
+      throw Error('unreachable');
+    },
+  });
+  await assert.rejects(adapter.submitImage({ deduplicationKey: 'timeout', builtPrompt: prompt }), {
+    code: 'STATUS_UNKNOWN',
+  });
+  assert.equal(calls, 1);
+});
+
+test('工作线程主动取消正在提交的图片，仍只记一次不明结果', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const adapter = new YibuMediaProviderAdapter({
+    apiKey: 'test-key',
+    fetchFn: async (_url, init) => {
+      calls++;
+      assert.ok(init?.signal);
+      controller.abort();
+      assert.equal(init.signal?.aborted, true);
+      throw new DOMException('aborted', 'AbortError');
+    },
+  });
+  await assert.rejects(
+    adapter.submitImage({
+      deduplicationKey: 'external-abort',
+      builtPrompt: prompt,
+      signal: controller.signal,
+    }),
+    { code: 'STATUS_UNKNOWN' },
+  );
+  assert.equal(calls, 1);
+});
+
+test('明确的上游 HTTP 拒绝仍是已知失败', async () => {
+  const adapter = new YibuMediaProviderAdapter({
+    apiKey: 'test-key',
+    fetchFn: async () => new Response('rate limited', { status: 429 }),
+  });
+  await assert.rejects(adapter.submitImage({ deduplicationKey: 'reject', builtPrompt: prompt }), {
+    code: 'RATE_LIMITED',
+  });
+});
