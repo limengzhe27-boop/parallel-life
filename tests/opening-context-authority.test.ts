@@ -63,7 +63,12 @@ function fixture() {
         return { rows: reviewed ? [{ disposition: 'confirm' }] : reviews };
       if (q.includes("r.document->>'kind' IN")) return { rows: evidence };
       if (q.includes('director_pending_reasons')) return { rows: [] };
-      if (q.includes('director_runtime_attempts')) return { rows: prior };
+      if (q.includes('director_runtime_attempts'))
+        return {
+          rows: q.includes('expected_world_version')
+            ? prior.map((attempt) => ({ expected_world_version: 1, ...attempt }))
+            : prior,
+        };
       if (q.includes('actor_agent_states'))
         return {
           rows: [
