@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { AgentEpisodeRequest } from '../domain/agent-narrative.ts';
 import type { WorldAttention } from './world-attention-repository.ts';
-import { episodeAttentionAllows } from './agent-episode-attention.ts';
+import { episodeExecutionAllows } from './agent-episode-attention.ts';
 import { DomainError } from '../domain/errors.ts';
 
 export type EpisodeDispatchAttempt = {
@@ -50,7 +50,7 @@ export function eligibleEpisodeDispatches(
   attempts: readonly EpisodeDispatchAttempt[],
 ) {
   return requests.flatMap((request) => {
-    if (!episodeAttentionAllows(attention, request.actorId)) return [];
+    if (!episodeExecutionAllows(attention)) return [];
     const prior = attempts.filter((a) => a.requestId === request.id);
     if (prior.some((a) => a.status === 'committed' && !a.playerManifest))
       throw new DomainError('INVALID_PROPOSAL', 'EPISODE_CONSUMPTION_RECEIPT_MISSING');

@@ -67,7 +67,9 @@ export async function readDirectorNarrativeWakeInTransaction(
     worldId: input.worldId,
     worldVersion: input.worldVersion,
   });
-  if (attention.conversationWithoutTarget || attention.focus.length)
+  // Authenticated conversation focus is carried into the Director snapshot for pacing.
+  // It does not freeze other actors or turn pending author material into an interruption.
+  if (attention.conversationWithoutTarget)
     return { cause: null, hasPendingDirector, deferred: true };
   if (bootstrap) return { cause: bootstrap, hasPendingDirector, deferred: false };
   const view = prepared ?? (await readAuthoredEligibilityInTransaction(sql, ownerId, input));

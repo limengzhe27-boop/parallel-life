@@ -103,28 +103,22 @@ test('v2 command varies only with the world, request, version and proven zero-se
   assert.equal(eligible([changed])[0]!.commandId, zeroCommand);
 });
 
-test('own private business focus permits only that actor, regardless of actorIds decoration', () => {
+test('verified private focus does not freeze other actors or change their request identity', () => {
   const requests = [request(), request('request-b', actorB)];
-  assert.deepEqual(
-    eligible(requests, [], privateFocus(actorA)).map((x) => x.request.actorId),
-    [actorA],
-  );
-  assert.deepEqual(
-    eligible(requests, [], privateFocus(actorB)).map((x) => x.request.actorId),
-    [actorB],
-  );
-  const focus = privateFocus('unrelated');
-  focus.focus[0]!.actorIds = [actorA, actorB];
-  assert.deepEqual(eligible(requests, [], focus), []);
+  for (const actor of [actorA, actorB, 'unrelated']) {
+    const focus = privateFocus(actor);
+    focus.focus[0]!.actorIds = [actorA, actorB];
+    assert.deepEqual(eligible(requests, [], focus), eligible(requests));
+  }
 });
 
 for (const channel of ['group', 'scene'] as const)
-  test(`${channel} focus cannot be mistaken for an actor's private dispatch target`, () => {
+  test(`${channel} focus preserves independent private dispatch without changing its audience`, () => {
     const focus: WorldAttention = {
       focus: [{ channel, threadId: actorA, actorIds: [actorA] }],
       conversationWithoutTarget: false,
     };
-    assert.deepEqual(eligible([request()], [], focus), []);
+    assert.deepEqual(eligible([request()], [], focus), eligible([request()]));
   });
 
 test('conversation without an authorized target defers even when another focus matches', () => {

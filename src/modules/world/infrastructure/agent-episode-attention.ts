@@ -6,12 +6,21 @@ import {
 } from './world-attention-repository.ts';
 
 export { isActorEpisodeConsiderationInput as isEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
+/** Immediate interruption policy only; never an execution or audience authorization. */
 export function episodeAttentionAllows(attention: WorldAttention, actorId: string) {
   return (
     !attention.conversationWithoutTarget &&
     (!attention.focus.length ||
       attention.focus.some((f) => f.channel === 'private' && f.threadId === actorId))
   );
+}
+/**
+ * A verified conversation focus controls presentation, not another actor's independent work.
+ * Unresolved/revoked focus remains conservative; callers still authenticate the original
+ * request, actor, channel, world version and active clock before executing anything.
+ */
+export function episodeExecutionAllows(attention: WorldAttention) {
+  return !attention.conversationWithoutTarget;
 }
 /** Same short world -> clock lock order as business attention writes. Never held over a model call. */
 export async function requireEpisodeDeliveryInTransaction(
@@ -44,5 +53,5 @@ export async function requireEpisodeDeliveryInTransaction(
     worldVersion: frame.worldVersion,
     realNow,
   });
-  if (!episodeAttentionAllows(attention, frame.actorId)) deferred();
+  if (!episodeExecutionAllows(attention)) deferred();
 }

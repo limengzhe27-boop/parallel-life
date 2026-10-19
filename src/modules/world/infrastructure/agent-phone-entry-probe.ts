@@ -8,7 +8,7 @@ import {
   readPendingEpisodeRequestsInTransaction,
 } from './agent-narrative-repository.ts';
 import { readWorldAttentionInTransaction } from './world-attention-repository.ts';
-import { episodeAttentionAllows } from './agent-episode-attention.ts';
+import { episodeExecutionAllows } from './agent-episode-attention.ts';
 import {
   eligibleEpisodeDispatches,
   episodeDispatchAttempt,
@@ -51,8 +51,8 @@ export async function readAgentPhoneEntryProbe(
     worldVersion: frame.worldVersion,
     realNow: new Date(now).toISOString(),
   });
-  // Unresolved conversation focus grants no presentation permission. A verified private
-  // focus may resume only its own pending work; global coordination waits for browsing.
+  // Unresolved/revoked focus remains deferred. Verified focus only controls interruption;
+  // actor work and global coordination retain their original scope and execution checks.
   if (attention.conversationWithoutTarget) return { status: 'deferred' };
   const actors = (
     await sql.query(
@@ -70,7 +70,7 @@ export async function readAgentPhoneEntryProbe(
     (a) =>
       a.status === 'response_received' &&
       a.document.channel === 'private' &&
-      episodeAttentionAllows(attention, a.actor_id) &&
+      episodeExecutionAllows(attention) &&
       a.expected_world_version === frame.worldVersion &&
       a.expected_actor_revision === a.revision &&
       new Date(a.lease_until).getTime() > now,
@@ -155,9 +155,8 @@ export async function readAgentPhoneEntryProbe(
     actors.map(episodeDispatchAttempt),
   )[0];
   if (next) return ready('episode', next.commandId);
-  // A pending request for the private interlocutor is continuation of this conversation,
-  // not an interruption. Global Director work still waits until browsing resumes.
-  if (attention.focus.length) return { status: 'deferred' };
+  // Do not freeze the world because another verified conversation is open.
+  // This is a cheap original-scheduler hint, never permission to interrupt or execute.
   const knownHandoff = (
     await sql.query(
       `SELECT a.id FROM parallel_life.director_runtime_attempts a WHERE a.world_id=$1 AND a.owner_id=$2
