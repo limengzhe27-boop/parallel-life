@@ -546,6 +546,10 @@ export type AgentWorldContext = {
     durationMinutes: number;
     modeLabel: string;
   }[];
+  /** Authoritative items currently held by this NPC. Source event IDs are server audit
+   * references only; the model receives id/title/status, never a new source grant.
+   */
+  ownedItems?: { id: string; title: string; status: 'held' | 'used'; sourceEventId: string }[];
   selfPosition: {
     status: AuthoritativePosition['status'];
     placeId: string | null;

@@ -534,6 +534,7 @@ export async function attachAgentWorldContext(
     snapshot.state.worldId,
     snapshot.state.actorId,
   );
+  if (awareness.worldVersion !== snapshot.worldVersion) throw new DomainError('VERSION_CONFLICT');
   // Late awareness must honor the same source revocation as the earlier private/native loader.
   const blocked = await db.transaction(ownerId, (sql) =>
     forgottenAgentSourceIds(sql, ownerId, snapshot.state.worldId, snapshot.state.actorId),
@@ -669,6 +670,10 @@ export async function attachAgentWorldContext(
         modeLabel: r.modeLabel,
       }));
   }
+  // Item provenance here is audit metadata, not a global world_event source.
+  // A proposal still needs its original authorized input/plan basis, and the kernel
+  // independently checks actual current possession before any transfer/use.
+  const ownedItems = awareness.ownedItems.filter((item) => !blocked.has(item.sourceEventId));
   const contextual: AgentSnapshot = {
     ...snapshot,
     channel: {
@@ -676,7 +681,8 @@ export async function attachAgentWorldContext(
       allowedCapabilities: NPC_AGENT_CAPABILITIES.filter(
         (cap) =>
           awareness.boundary.capabilityIds.includes(cap) &&
-          (cap !== 'travel.begin' || !!travelRoutes?.length),
+          (cap !== 'travel.begin' || !!travelRoutes?.length) &&
+          (!['item.deliver', 'item.use'].includes(cap) || ownedItems.length > 0),
       ),
     },
     ...authorizedAgentState(snapshot.state, new Set(sources.map((s) => s.id))),
@@ -692,6 +698,7 @@ export async function attachAgentWorldContext(
       },
       selfPosition,
       travelRoutes,
+      ownedItems,
       knowledge,
     },
   };

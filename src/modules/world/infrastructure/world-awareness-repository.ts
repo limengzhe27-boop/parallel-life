@@ -334,7 +334,23 @@ export class PostgresWorldAwarenessRepository {
         )
       ).rows;
       const lastKnowledge = knowledge[Math.min(limit, knowledge.length) - 1];
+      const ownedItems = (state.items ?? [])
+        .filter(
+          (item) =>
+            item.holderActorId === actorId &&
+            (item.status === undefined || item.status === 'held' || item.status === 'used') &&
+            typeof item.sourceEventId === 'string' &&
+            item.sourceEventId.length > 0,
+        )
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          status: item.status === 'used' ? ('used' as const) : ('held' as const),
+          sourceEventId: item.sourceEventId,
+        }));
       return {
+        worldVersion: world.version,
+        ownedItems,
         boundary: savedBoundary ?? worldBoundary(state, sourceId),
         ownPosition: actual ?? {
           worldId,
