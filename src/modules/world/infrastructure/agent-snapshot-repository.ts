@@ -1,3 +1,4 @@
+import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import {
   readVerifiedPublicationGenesisEvidence,
   verifiedPublicationGenesisRecord,
@@ -741,6 +742,27 @@ export async function attachAgentWorldContext(
       ...inbox.observations,
     ];
     contextual.actorObservationInbox = inbox.context;
+    Object.assign(
+      contextual,
+      authorizedAgentState(snapshot.state, new Set(contextual.sources.map((s) => s.id))),
+    );
+  }
+  // A consumed notification remains known. Recall does not create inbox work or a new wake.
+  if (contextual.channel.kind === 'private') {
+    const recall = await db.transaction(ownerId, (sql) =>
+      readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
+        worldId: contextual.state.worldId,
+        actorId: contextual.state.actorId,
+        worldVersion: contextual.worldVersion,
+        storyAt: contextual.storyAt,
+      }),
+    );
+    const ids = new Set(recall.sources.map((s) => s.id));
+    contextual.sources = [...contextual.sources.filter((s) => !ids.has(s.id)), ...recall.sources];
+    contextual.observations = [
+      ...contextual.observations.filter((o) => !ids.has(o.sourceId)),
+      ...recall.observations,
+    ];
     Object.assign(
       contextual,
       authorizedAgentState(snapshot.state, new Set(contextual.sources.map((s) => s.id))),

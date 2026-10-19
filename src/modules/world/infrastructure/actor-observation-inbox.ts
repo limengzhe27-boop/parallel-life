@@ -159,6 +159,41 @@ export async function validateActorObservationInbox(
   owner: string,
   snapshot: AgentSnapshot,
 ) {
+  const recalled =
+    snapshot.channel.kind === 'private'
+      ? snapshot.sources.filter(
+          (s) =>
+            s.kind === 'world_event' &&
+            s.usage === 'private_strategy' &&
+            s.id.startsWith('narrative:') &&
+            !snapshot.actorObservationInbox?.sourceIds.includes(s.id),
+        )
+      : [];
+  if (recalled.length) {
+    const verified = await readActorNarrativeObservationSourcesInTransaction(sql, owner, {
+      worldId: snapshot.state.worldId,
+      actorId: snapshot.state.actorId,
+      worldVersion: snapshot.worldVersion,
+      storyAt: snapshot.storyAt,
+      sourceIds: recalled.map((s) => s.id),
+    });
+    const observations = snapshot.observations.filter((o) =>
+      recalled.some((s) => s.id === o.sourceId),
+    );
+    const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+    const bySource = (a: { sourceId: string }, b: { sourceId: string }) =>
+      a.sourceId.localeCompare(b.sourceId);
+    if (
+      !isDeepStrictEqual([...recalled].sort(byId), [...verified.sources].sort(byId)) ||
+      !isDeepStrictEqual(
+        [...observations].sort(bySource),
+        [...verified.observations].sort(bySource),
+      )
+    )
+      throw Object.assign(Error('ACTOR_NARRATIVE_RECALL_CONFLICT'), {
+        code: 'ACTOR_NARRATIVE_RECALL_CONFLICT',
+      });
+  }
   if (snapshot.actorObservationInbox === undefined) return;
   let actual;
   try {

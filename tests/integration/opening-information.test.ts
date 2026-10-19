@@ -5,7 +5,10 @@ import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure
 import { AdvanceOperationRepository } from '../../src/modules/world/infrastructure/advance-operation-repository.ts';
 import { agentAdvanceOperations } from '../../src/server/agent-advance-operations.ts';
 import { readActorNarrativeObservationSourcesInTransaction } from '../../src/modules/world/infrastructure/actor-narrative-observation-sources.ts';
-import { readActorObservationInbox } from '../../src/modules/world/infrastructure/actor-observation-inbox.ts';
+import {
+  readActorObservationInbox,
+  validateActorObservationInbox,
+} from '../../src/modules/world/infrastructure/actor-observation-inbox.ts';
 import { readConsumedSceneObservationSourcesInTransaction } from '../../src/modules/world/infrastructure/actor-observation-consumption-repository.ts';
 import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
 import { migrateLegacyWorldInTransaction } from '../../src/modules/world/infrastructure/legacy-world-migration.ts';
@@ -689,5 +692,65 @@ test('v10 opening information commits authenticated private reports without exte
         )
       ).rows,
     ),
+  );
+  const latestState = (await actors.read(batchWorld.owner, {
+    worldId: bw.id,
+    actorId: knowledge.actor_id,
+  }))!;
+  const recallText = 'Tell me again what you know about tonight';
+  const recallInput = {
+    id: randomUUID(),
+    worldId: bw.id,
+    commandId: randomUUID(),
+    inputHash: createHash('sha256').update(recallText).digest('hex'),
+    channel: 'private' as const,
+    threadId: knowledge.actor_id,
+    recipientActorId: knowledge.actor_id,
+    expectedWorldVersion: bw.version,
+    origin: 'player' as const,
+    text: recallText,
+    receivedAt: new Date().toISOString(),
+    storyAt: bw.time,
+  };
+  await actors.accept(batchWorld.owner, recallInput);
+  const recalled = (
+    await readPrivateAgentSnapshot(
+      app,
+      batchWorld.owner,
+      bw,
+      knowledge.actor_id,
+      recallInput,
+      bw.time,
+      latestState,
+    )
+  ).snapshot;
+  const knownSource = 'narrative:' + knowledge.id;
+  assert.ok(
+    recalled.observations.some(
+      (o) => o.sourceId === knownSource && o.text.includes('received_opening_information'),
+    ),
+  );
+  assert.ok(
+    !recalled.actorObservationInbox?.sourceIds.includes(knownSource),
+    'ACKed knowledge does not become a fresh inbox wake',
+  );
+  await app.transaction(batchWorld.owner, (sql) =>
+    validateActorObservationInbox(sql, batchWorld.owner, recalled),
+  );
+  const changed = structuredClone(recalled);
+  changed.observations.find((o) => o.sourceId === knownSource)!.text = 'forged private fact';
+  await assert.rejects(
+    app.transaction(batchWorld.owner, (sql) =>
+      validateActorObservationInbox(sql, batchWorld.owner, changed),
+    ),
+    /ACTOR_NARRATIVE_RECALL_CONFLICT/,
+  );
+  const changedSource = structuredClone(recalled);
+  changedSource.sources.find((o) => o.id === knownSource)!.contentHash = 'a'.repeat(64);
+  await assert.rejects(
+    app.transaction(batchWorld.owner, (sql) =>
+      validateActorObservationInbox(sql, batchWorld.owner, changedSource),
+    ),
+    /ACTOR_NARRATIVE_RECALL_CONFLICT/,
   );
 });

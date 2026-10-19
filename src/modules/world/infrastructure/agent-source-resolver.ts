@@ -53,9 +53,17 @@ export async function readActorStrategyBasis(
     { state, worldVersion, storyAt },
     { referencedSourceIds: handles },
   );
-  if (!handles.length) return media.sources;
+  const narrative = await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
+    worldId: state.worldId,
+    actorId: state.actorId,
+    worldVersion,
+    storyAt,
+  });
+  if (!handles.length) return [...media.sources, ...narrative.sources];
   const blocked = await forgottenAgentSourceIds(sql, ownerId, state.worldId, state.actorId);
-  const sources = new Map<string, AgentSource>(media.sources.map((source) => [source.id, source]));
+  const sources = new Map<string, AgentSource>(
+    [...media.sources, ...narrative.sources].map((source) => [source.id, source]),
+  );
   const add = (
     id: string,
     kind: AgentSource['kind'],
@@ -352,17 +360,6 @@ export async function readActorStrategyBasis(
             );
       }
     }
-  }
-  const narrativeHandles = handles.filter((id) => id.startsWith('narrative:'));
-  if (narrativeHandles.length) {
-    const packet = await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
-      worldId: state.worldId,
-      actorId: state.actorId,
-      worldVersion,
-      storyAt,
-      sourceIds: narrativeHandles,
-    });
-    for (const source of packet.sources) sources.set(source.id, source);
   }
   return [...sources.values()];
 }
