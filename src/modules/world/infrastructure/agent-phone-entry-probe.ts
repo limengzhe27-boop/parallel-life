@@ -104,7 +104,58 @@ export async function readAgentPhoneEntryProbe(
         a.expected_world_version === frame.worldVersion &&
         new Date(a.lease_until).getTime() > now,
     );
-    return received ? ready('director_raw', received.id) : { status: 'pending' };
+    if (received) return ready('director_raw', received.id);
+    // A pending global decision owns only its coordination slot. Exact agenda grants
+    // and stable plan intent may request one cheap original scheduler evaluation;
+    // this probe never authorizes a model, executes a plan or retries the Director.
+    const agenda = await readAgendaInitializeGrantsInTransaction(sql, ownerId, frame);
+    const blockedActors = new Set(
+      actors
+        .filter((a) =>
+          ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
+            a.status,
+          ),
+        )
+        .map((a) => String(a.actor_id)),
+    );
+    const states = (
+      await sql.query(
+        'SELECT actor_id,document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 ORDER BY actor_id',
+        [frame.worldId, ownerId],
+      )
+    ).rows;
+    const plans = states
+      .filter((s) => !blockedActors.has(String(s.actor_id)))
+      .flatMap((s) => {
+        const state = s.document;
+        return (state.plans ?? [])
+          .filter(
+            (p: any) =>
+              ['active', 'waiting', 'blocked'].includes(p.status) &&
+              (state.goals ?? []).some(
+                (g: any) => g.id === p.goalId && ['active', 'deferred'].includes(g.status),
+              ) &&
+              (p.nextActionId || p.triggers?.length),
+          )
+          .map((p: any) => ({
+            actorId: String(s.actor_id),
+            plan: p,
+            goal: (state.goals ?? []).find((g: any) => g.id === p.goalId),
+            actions: (state.actions ?? []).filter(
+              (a: any) => p.actionIds?.includes(a.id) || p.nextActionId === a.id,
+            ),
+          }));
+      });
+    return agenda.length || plans.length
+      ? ready(
+          'independent_scheduler_check',
+          JSON.stringify({
+            directors: pendingDirectors.map((d) => [d.id, d.status]),
+            agenda: agenda.map((g) => g.candidateId).sort(),
+            plans,
+          }),
+        )
+      : { status: 'pending' };
   }
   const bootstrap = await readDirectorBootstrapCauseInTransaction(sql, ownerId, frame);
   if (bootstrap) return ready('bootstrap', bootstrap.id);
