@@ -24,7 +24,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v9';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v10';
+const PREVIOUS_FOCUS_PROTOCOL = 'npc-wire-v9';
 const PREVIOUS_SOURCE_PROTOCOL = 'npc-wire-v8';
 const PREVIOUS_REVIEW_PROTOCOL = 'npc-wire-v7';
 const PREVIOUS_PLAN_PROTOCOL = 'npc-wire-v6';
@@ -102,6 +103,7 @@ const Wire = z.strictObject({
     PREVIOUS_PLAN_PROTOCOL,
     PREVIOUS_REVIEW_PROTOCOL,
     PREVIOUS_SOURCE_PROTOCOL,
+    PREVIOUS_FOCUS_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -269,9 +271,12 @@ const FocusChange = z.discriminatedUnion('kind', [
     value: AgentProposalSchema.shape.focus.unwrap().unwrap(),
   }),
 ]);
-const ModelWire = PreviousSourceWire.omit({ focus: true }).extend({
-  protocol: z.literal(NPC_WIRE_PROTOCOL),
+const PreviousFocusWire = PreviousSourceWire.omit({ focus: true }).extend({
+  protocol: z.literal(PREVIOUS_FOCUS_PROTOCOL),
   focusChange: FocusChange,
+});
+const ModelWire = PreviousFocusWire.extend({
+  protocol: z.literal(NPC_WIRE_PROTOCOL),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
@@ -622,6 +627,42 @@ function transport(value: unknown, convertParameters = true): unknown {
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    // v10 adds accepted-input provenance, never a guessed semantic basis. Decode
+    // every declared source first so unknown or corrupt references still reject.
+    const catalog = npcSourceReferences(context.sources);
+    const mapped = mapNpcSourceFields(raw, catalog, 'decode') as Record<string, unknown>;
+    const currentSource = context.sources.filter((source) => source.id === context.input.sourceId);
+    if (currentSource.length !== 1 || currentSource[0]!.kind !== 'accepted_input')
+      throw Error('NPC_V10_INPUT_SOURCE');
+    const bindBasis = (ids: string[]) => {
+      if (
+        new Set(ids).size !== ids.length ||
+        ids.some((id) => context.sources.filter((source) => source.id === id).length !== 1)
+      )
+        throw Error('NPC_V10_DECLARED_SOURCE');
+      return ids.includes(context.input.sourceId) ? [...ids] : [...ids, context.input.sourceId];
+    };
+    const intents = z
+      .array(NativeExecutionIntentSchema)
+      .max(1)
+      .parse(transport(mapped.executions ?? [], false));
+    const executions = intents.map((intent) => ({
+      ...intent,
+      goal:
+        intent.goal.kind === 'new'
+          ? { ...intent.goal, sourceIds: bindBasis(intent.goal.sourceIds) }
+          : intent.goal,
+      plan: { ...intent.plan, sourceIds: bindBasis(intent.plan.sourceIds) },
+      action: { ...intent.action, sourceIds: bindBasis(intent.action.sourceIds) },
+    }));
+    // Round-trip only authenticated structural references into the fixed v9
+    // decoder; all capability, dependency and kernel checks stay authoritative.
+    return decodeNpcWire(context, {
+      ...(mapNpcSourceFields({ ...mapped, executions }, catalog, 'encode') as object),
+      protocol: PREVIOUS_FOCUS_PROTOCOL,
+    });
+  }
+  if ('protocol' in raw && raw.protocol === PREVIOUS_FOCUS_PROTOCOL) {
     if ('focus' in raw) throw Error('NPC_V9_FOCUS_CHANGE_ONLY');
     const { focusChange, ...rest } = raw as Record<string, unknown>;
     const choice = FocusChange.parse(focusChange);
