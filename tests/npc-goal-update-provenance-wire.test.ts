@@ -224,5 +224,92 @@ test('v11 empty goals stay empty rather than manufacturing a goal or requiring a
   }
   const format = npcResponseFormat(context.state, 'forbidden', context);
   if (format.format !== 'json_schema') throw Error('schema');
-  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v12']);
+  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v13']);
+});
+
+function unchangedGoalReview() {
+  const { context, wire } = fixture();
+  const unchanged = {
+    ...wire,
+    protocol: 'npc-wire-v13',
+    goals: [
+      { id: 'goal-existing', summary: '已有目标', status: 'active', sourceIds: ['source:2'] },
+    ],
+    planIntents: [],
+    agendaReview: { ...wire.agendaReview, decision: 'quiet' },
+    continuation: {
+      decision: 'no_current_intent',
+      reason: 'No semantic change in the current goal; wait for new personal evidence.',
+      sourceIds: ['source:2'],
+      planIds: [],
+      questionIds: [],
+      conditions: [],
+    },
+  };
+  return { context, wire: unchanged };
+}
+
+test('v13 identical goal echo is no update, while protected v12 keeps the original quiet rejection', () => {
+  const { context, wire } = unchangedGoalReview();
+  const original = structuredClone({ context, wire });
+  const proposal = parseAgentProposal(context, wire);
+  assert.deepEqual(proposal.goals, []);
+  assert.deepEqual(proposal.plans, []);
+  assert.deepEqual(proposal.actions, []);
+  assert.deepEqual(proposal.statements, []);
+  assert.equal(proposal.continuation!.decision, 'no_current_intent');
+  assert.deepEqual(context.state.goals[0]!.sourceIds, ['definition:original']);
+  assert.throws(
+    () => decodeNpcWire(context, { ...wire, protocol: 'npc-wire-v12' }),
+    /NPC_AGENDA_REVIEW_QUIET_CHANGED/,
+  );
+  assert.deepEqual({ context, wire }, original, 'no rewrite of protected input, output or state');
+});
+
+test('v13 echo equality compares source sets and nullable transport without broad provenance exemptions', () => {
+  const { context, wire } = unchangedGoalReview();
+  const old = {
+    id: 'older-fact',
+    kind: 'world_event' as const,
+    recordId: 'fact',
+    worldVersion: 0,
+    at: context.storyAt,
+  };
+  context.sources.push(old);
+  context.state.goals[0]!.sourceIds.push(old.id);
+  context.viewState = structuredClone(context.state);
+  const goal = { ...wire.goals[0]!, sourceIds: ['source:3', 'source:2'], endReason: null };
+  assert.deepEqual(parseAgentProposal(context, { ...wire, goals: [goal] }).goals, []);
+  for (const sourceIds of [
+    ['source:2'],
+    ['source:2', 'source:3', 'source:1'],
+    ['source:2', 'source:3', 'source:3'],
+    ['source:2', 'source:3', 'source:999'],
+  ])
+    assert.throws(() => parseAgentProposal(context, { ...wire, goals: [{ ...goal, sourceIds }] }));
+});
+
+test('v13 true goal changes remain updates with current input provenance and cannot claim quiet', () => {
+  for (const change of [
+    { summary: 'A genuinely different personal objective' },
+    { status: 'deferred' },
+    { endReason: 'An explicit changed outcome' },
+  ]) {
+    const { context, wire } = unchangedGoalReview();
+    const changed = { ...wire, goals: [{ ...wire.goals[0]!, ...change }] };
+    assert.throws(() => decodeNpcWire(context, changed), /NPC_AGENDA_REVIEW_QUIET_CHANGED/);
+    const updating = {
+      ...changed,
+      agendaReview: { ...changed.agendaReview, decision: 'update_plan' },
+    };
+    const p = decodeNpcWire(context, updating) as any;
+    assert.equal(p.goals.length, 1);
+    assert.deepEqual(p.goals[0].sourceIds, ['definition:original', 'accepted-input']);
+  }
+  const f = unchangedGoalReview();
+  f.wire.goals.push(structuredClone(f.wire.goals[0]!));
+  assert.throws(() => decodeNpcWire(f.context, f.wire), /NPC_V13_GOAL_UPDATE_DUPLICATE/);
+  const hidden = unchangedGoalReview();
+  hidden.context.viewState!.goals = [];
+  assert.throws(() => decodeNpcWire(hidden.context, hidden.wire), /NPC_V13_GOAL_UPDATE_SCOPE/);
 });

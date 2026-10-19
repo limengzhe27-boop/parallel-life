@@ -25,7 +25,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v12';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v13';
+const PREVIOUS_CONTINUATION_PROTOCOL = 'npc-wire-v12';
 const PREVIOUS_GOAL_SOURCE_PROTOCOL = 'npc-wire-v11';
 const PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL = 'npc-wire-v10';
 const PREVIOUS_FOCUS_PROTOCOL = 'npc-wire-v9';
@@ -109,6 +110,7 @@ const Wire = z.strictObject({
     PREVIOUS_FOCUS_PROTOCOL,
     PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL,
     PREVIOUS_GOAL_SOURCE_PROTOCOL,
+    PREVIOUS_CONTINUATION_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -636,6 +638,46 @@ function transport(value: unknown, convertParameters = true): unknown {
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    const catalog = npcSourceReferences(context.sources);
+    const mapped = mapNpcSourceFields(raw, catalog, 'decode') as Record<string, unknown>;
+    const goals = PreviousModelWire.shape.goals.parse(transport(mapped.goals ?? [], false));
+    const current = context.sources.filter((source) => source.id === context.input.sourceId);
+    if (current.length !== 1 || current[0]!.kind !== 'accepted_input')
+      throw Error('NPC_V13_INPUT_SOURCE');
+    if (new Set(goals.map((goal) => goal.id)).size !== goals.length)
+      throw Error('NPC_V13_GOAL_UPDATE_DUPLICATE');
+    const visible =
+      context.viewState?.goals.filter(
+        (goal) => !['fulfilled', 'withdrawn'].includes(goal.status),
+      ) ?? [];
+    const changed = goals.filter((goal) => {
+      const previous = visible.find((existing) => existing.id === goal.id);
+      if (!previous) throw Error('NPC_V13_GOAL_UPDATE_SCOPE');
+      if (
+        new Set(goal.sourceIds).size !== goal.sourceIds.length ||
+        goal.sourceIds.some(
+          (id) => context.sources.filter((source) => source.id === id).length !== 1,
+        )
+      )
+        throw Error('NPC_V13_DECLARED_SOURCE');
+      // Exact no-op echoes do not create a goal update or receive artificial provenance.
+      // Real source additions/removals and semantic changes still use all prior checks.
+      const sameSources =
+        goal.sourceIds.length === previous.sourceIds.length &&
+        goal.sourceIds.every((id) => previous.sourceIds.includes(id));
+      const sameSemantics =
+        goal.summary === previous.summary &&
+        goal.status === previous.status &&
+        goal.endReason === previous.endReason &&
+        previous.resultIds.length === 0;
+      return !(sameSources && sameSemantics);
+    });
+    return decodeNpcWire(context, {
+      ...(mapNpcSourceFields({ ...mapped, goals: changed }, catalog, 'encode') as object),
+      protocol: PREVIOUS_CONTINUATION_PROTOCOL,
+    });
+  }
+  if ('protocol' in raw && raw.protocol === PREVIOUS_CONTINUATION_PROTOCOL) {
     const catalog = npcSourceReferences(context.sources);
     const mapped = mapNpcSourceFields(raw, catalog, 'decode') as Record<string, unknown>;
     const continuation = AgentProposalSchema.shape.continuation.unwrap().parse(mapped.continuation);
