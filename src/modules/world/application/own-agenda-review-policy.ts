@@ -104,6 +104,47 @@ const iso = (millis: number) => {
   return worldDateTimeInput(result) ? result : fail();
 };
 
+/** Single identity implementation shared with authenticated read adapters; no policy or fake budget input. */
+export function ownAgendaReviewFamilyId(
+  identity: OwnAgendaReviewIdentity,
+  anchor: OwnAgendaReviewAnchor,
+  digest: (canonical: string) => string,
+): string {
+  if (
+    !key(identity.worldId) ||
+    !key(identity.actorId) ||
+    !key(identity.definitionRef) ||
+    !Number.isSafeInteger(identity.engineEpoch) ||
+    identity.engineEpoch < 2
+  )
+    fail();
+  if (
+    anchor.worldId !== identity.worldId ||
+    anchor.engineEpoch !== identity.engineEpoch ||
+    anchor.actorId !== identity.actorId ||
+    anchor.definitionRef !== identity.definitionRef ||
+    !key(anchor.attemptId) ||
+    !key(anchor.eventId)
+  )
+    fail();
+  instant(anchor.committedStoryAt);
+  instant(anchor.committedRealAt);
+  // Policy upgrades, scheduling windows and CAS versions cannot turn this business family into a new one.
+  const hash = digest(
+    JSON.stringify([
+      'own_agenda_review',
+      identity.worldId,
+      identity.engineEpoch,
+      identity.actorId,
+      identity.definitionRef,
+      anchor.attemptId,
+      anchor.eventId,
+    ]),
+  );
+  if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)) fail();
+  return `agenda-review:${hash}`;
+}
+
 /**
  * Computes permission to consider one's own agenda. No clock tick becomes a story fact,
  * contact reason, user deadline, episode request, model call, or budget reservation.
@@ -163,31 +204,9 @@ export function evaluateOwnAgendaReview(
   if (input.purpose === 'episode_participation') return { status: 'needs_episode_review_contract' };
   if (input.paused) return { status: 'not_due', reason: 'paused' };
   if (!anchor) return { status: 'not_due', reason: 'missing_anchor' };
-  if (
-    anchor.worldId !== identity.worldId ||
-    anchor.engineEpoch !== identity.engineEpoch ||
-    anchor.actorId !== identity.actorId ||
-    anchor.definitionRef !== identity.definitionRef ||
-    !key(anchor.attemptId) ||
-    !key(anchor.eventId)
-  )
-    fail();
+  const familyId = ownAgendaReviewFamilyId(identity, anchor, digest);
   const anchorStory = instant(anchor.committedStoryAt),
     anchorReal = instant(anchor.committedRealAt);
-  // Policy upgrades, scheduling windows and CAS versions cannot turn this business family into a new one.
-  const hash = digest(
-    JSON.stringify([
-      'own_agenda_review',
-      identity.worldId,
-      identity.engineEpoch,
-      identity.actorId,
-      identity.definitionRef,
-      anchor.attemptId,
-      anchor.eventId,
-    ]),
-  );
-  if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)) fail();
-  const familyId = `agenda-review:${hash}`;
   if (input.hasPriorityWork) return { status: 'priority_work', familyId };
   const prior = input.attempts.filter((a) => a.familyId === familyId);
   const unknown = prior.filter((a) => a.status === 'unknown_after_send');

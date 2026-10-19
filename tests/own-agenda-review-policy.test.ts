@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   evaluateOwnAgendaReview,
+  ownAgendaReviewFamilyId,
   type OwnAgendaReviewInput,
   type OwnAgendaReviewAttemptEvidence,
 } from '../src/modules/world/application/own-agenda-review-policy.ts';
@@ -71,6 +72,7 @@ test('only a consideration envelope is returned; there is no message, deadline o
   const i = input();
   const result = run(i);
   assert.equal(result.status, 'ready');
+  assert.equal(ownAgendaReviewFamilyId(i.identity, i.anchor!, digest), family(i));
   if (result.status !== 'ready') throw Error('expected consideration');
   assert.deepEqual(result.grant, {
     type: 'npc_agenda_review',
