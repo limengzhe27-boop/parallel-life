@@ -857,7 +857,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v44-continuation');
+  assert.equal(payload.promptVersion, 'npc-agent-v45-compact-response-context');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -891,17 +891,19 @@ test('invitation time catalog is local date conversion only and does not alter p
   input.channel.allowedCapabilities = ['appointment.propose'];
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.responseContract.todayHours.length, 24);
+  assert.equal(payload.responseContract.todayHours, undefined);
   assert.equal(payload.responseContract.considerationAllowed, false);
-  assert.deepEqual(payload.responseContract.todayHours[18], {
-    local: '18:00',
-    at: '2026-10-15T18:00:00+08:00',
+  assert.deepEqual(payload.responseContract.timeInput, {
+    localDate: '2026-10-15',
+    utcOffset: '+08:00',
+    format: 'YYYY-MM-DDTHH:mm:ss+08:00',
+    authority: 'conversion_only_not_an_appointment',
   });
   assert.deepEqual(payload.input, wireExpected(input, { ...input.input, speaker: 'player' }));
   assert.deepEqual(payload.state.decisions, []);
   const { calls: quietCalls, adapter: quiet } = capture();
   await quiet.decide(snapshot());
-  assert.deepEqual(JSON.parse(quietCalls[0]!.messages[1]!.content).responseContract.todayHours, []);
+  assert.equal(JSON.parse(quietCalls[0]!.messages[1]!.content).responseContract.timeInput, null);
 });
 
 test('growing protocol does not crowd ordinary protected conversation out of the gateway budget', async () => {
@@ -1165,4 +1167,70 @@ test('internal private recall uses the same bounded pool and final supplied-cont
     );
     assert.deepEqual(input, original);
   }
+});
+
+test('ordinary many-source chat retains protected reply evidence without duplicate catalogs or a larger request ceiling', async () => {
+  const input = snapshot();
+  input.channel.allowedCapabilities = ['appointment.propose'];
+  input.input.text =
+    '我还没有答应，不要代我确定时间。等我先把现在这件事处理清楚，再与你商量。'.repeat(8);
+  input.actor.persona = '身份与性格保持稳定，先关心现实处境再表达自己的诉求。'.repeat(60);
+  input.observations[0]!.text =
+    '原先的邀请尚未接受，玩家现在暂缓。请保留原话，不把这件事算作已经处理。'.repeat(45);
+  input.viewState.questions = [
+    {
+      id: 'q1',
+      channel: 'private',
+      threadId: input.channel.threadId,
+      sourceId: 'source-1',
+      text: '今天是否愿意见面？',
+      askedAt: input.storyAt,
+      status: 'open',
+      responsibilityId: 'r1',
+    },
+  ];
+  input.state.questions = structuredClone(input.viewState.questions);
+  for (let n = 0; n < 35; n++) {
+    input.sources.push({
+      id: `ordinary-${n}`,
+      recordId: `row-${n}`,
+      kind: 'private_message',
+      worldVersion: 8,
+      at: input.storyAt,
+    });
+    input.observations.unshift({
+      sourceId: `ordinary-${n}`,
+      kind: 'speech',
+      text: `第${n}段已经获准的过去交流。`.repeat(30),
+    });
+  }
+  const before = structuredClone(input),
+    { adapter, calls } = capture();
+  adapter.validateInput(input);
+  assert.equal(calls.length, 0, 'preflight is free');
+  adapter.describeSuppliedContext(input);
+  await adapter.decide(input);
+  const call = calls[0]!,
+    payload = JSON.parse(call.messages[1]!.content);
+  assert.equal(NPC_AGENT_REQUEST_LIMIT, 56_000, 'do not raise the total request ceiling');
+  assert(JSON.stringify(call.messages).length + JSON.stringify(call.output).length <= 56_000);
+  assert.equal(payload.input.text, input.input.text);
+  assert.equal(payload.actor.boundaries, input.actor.boundaries);
+  assert.deepEqual(
+    payload.state.responsibilities,
+    wireExpected(input, input.viewState.responsibilities),
+  );
+  assert.deepEqual(payload.state.questions, wireExpected(input, input.viewState.questions));
+  const protectedObservation = [
+    ...payload.observations,
+    ...payload.presentationContext.internalContext.map((v: any) => v.observation),
+  ].find((o: any) => o.sourceId === sourceRef(input, 'source-1'));
+  assert.equal(
+    protectedObservation.text,
+    input.observations.find((o) => o.sourceId === 'source-1')!.text,
+  );
+  assert.equal(payload.wireCatalog.sources.length, input.sources.length);
+  assert.equal(payload.responseContract.referenceCatalog, undefined);
+  assert.equal(payload.responseContract.referenceRules, undefined);
+  assert.deepEqual(input, before, 'budget projection leaves original evidence untouched');
 });
