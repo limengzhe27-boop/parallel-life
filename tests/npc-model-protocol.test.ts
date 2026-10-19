@@ -475,8 +475,9 @@ test('new strict model media choices keep existing goals scoped, while old prote
   const schema = npcResponseFormat({ goals: [] });
   if (schema.format !== 'json_schema') throw Error('schema');
   const root = schema.schema as { properties: Record<string, unknown>; required: string[] };
-  assert.ok(root.required.includes('mediaDecision'));
-  assert.ok(!JSON.stringify(root.properties.mediaDecision).includes('"existing"'));
+  assert.ok(!root.required.includes('mediaDecision'));
+  assert.equal(root.properties.mediaDecision, undefined);
+  assert(root.required.includes('executions'));
   const own = npcResponseFormat({
     goals: [
       { id: 'my-goal', summary: '我的目标', status: 'active', sourceIds: ['input'], resultIds: [] },
@@ -719,7 +720,7 @@ test('provider-safe null judgment collections decode only as explicit empty v2 s
   visit(format.schema);
 });
 
-test('native grammar puts media only in explicit mediaDecision and advertises current channel capabilities', () => {
+test('native grammar uses one execution channel and advertises current channel capabilities', () => {
   const { c } = fixture();
   c.channel.allowedCapabilities = ['appointment.propose', 'media.generate_image'];
   const format = npcResponseFormat(c.state, 'forbidden', { input: c.input, channel: c.channel });
@@ -737,45 +738,16 @@ test('native grammar puts media only in explicit mediaDecision and advertises cu
   )!;
   assert.deepEqual(executions.items!.properties!.action!.properties!.capability!.enum, [
     'appointment.propose',
+    'media.generate_image',
   ]);
-  assert.deepEqual(
-    root.properties!.mediaDecision!.anyOf!.map((n) => n.properties!.kind!.enum![0]),
-    ['not_requested', 'decline', 'generate_image'],
-  );
+  assert.equal(root.properties!.mediaDecision, undefined);
 });
 
-test('native action edits are scoped to visible nonterminal actions, never new or failed IDs', () => {
+test('native model never edits execution statuses; actions are compiled from explicit intents', () => {
   const { c } = fixture();
-  const none: any = npcResponseFormat(c.state, 'forbidden', c);
-  assert.deepEqual(none.schema.properties.actions, { type: 'null' });
-  c.state.actions = [
-    {
-      id: 'waiting',
-      goalId: 'g',
-      capability: 'plan.record',
-      targetIds: [],
-      parameters: {},
-      preconditions: [],
-      dependsOnActionIds: [],
-      handlesResponsibilityIds: [],
-      sourceIds: ['input'],
-      status: 'waiting',
-    },
-    {
-      id: 'failed',
-      goalId: 'g',
-      capability: 'plan.record',
-      targetIds: [],
-      parameters: {},
-      preconditions: [],
-      dependsOnActionIds: [],
-      handlesResponsibilityIds: [],
-      sourceIds: ['input'],
-      status: 'failed',
-    },
-  ];
-  const scoped: any = npcResponseFormat(c.state, 'forbidden', c);
-  assert.deepEqual(scoped.schema.properties.actions.items.properties.id.enum, ['waiting']);
+  const format: any = npcResponseFormat(c.state, 'forbidden', c);
+  assert.equal(format.schema.properties.actions, undefined);
+  assert.equal(format.schema.properties.mediaDecision, undefined);
 });
 
 test('v3 compiles explicit compact action and local statement ref through original kernel; v2 remains protected', () => {
@@ -832,7 +804,8 @@ test('native completion references are actual visible receipts, not proposed exe
   const { c } = fixture();
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
   const responsibility = format.schema.properties.responsibilities.items.properties;
-  assert.deepEqual(responsibility.resolutionResultId, { type: 'null' });
+  assert.equal(responsibility.resolutionResultId, undefined);
+  assert.equal(format.schema.properties.goals.items.properties.resultIds, undefined);
   assert(!responsibility.status.enum.includes('fulfilled'));
   assert(!format.schema.properties.goals.items.properties.status.enum.includes('fulfilled'));
 });
@@ -841,10 +814,137 @@ test('native plans persist as state, never as redundant record-plan execution ca
   const { c } = fixture();
   c.channel.allowedCapabilities = ['plan.record', 'media.generate_image'];
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
-  assert.deepEqual(format.schema.properties.executions, { type: 'null' });
-  assert(
-    format.schema.properties.mediaDecision.anyOf.some(
-      (n: any) => n.properties.kind.enum[0] === 'generate_image',
-    ),
+  const executions = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array');
+  assert.deepEqual(executions.items.properties.action.properties.capability.enum, [
+    'media.generate_image',
+  ]);
+  assert.equal(format.schema.properties.mediaDecision, undefined);
+});
+
+test('v4 has one explicit media action and no model-authored completion receipts', () => {
+  const { c, wire } = fixture();
+  c.viewState = structuredClone(c.state);
+  c.channel.allowedCapabilities = ['media.generate_image'];
+  const { actions: _actions, ...base } = wire;
+  const raw = {
+    ...base,
+    protocol: 'npc-wire-v4',
+    statements: [{ text: '我把构想画出来，稍等一下。', dependsOnActionIds: ['execution:sketch'] }],
+    executions: [
+      {
+        ref: 'sketch',
+        goal: { kind: 'new', summary: '把构想画出来', sourceIds: ['input'] },
+        plan: { summary: '制作示意图', sourceIds: ['input'], supersedesPlanId: null },
+        action: {
+          capability: 'media.generate_image',
+          targetIds: ['actor'],
+          parameters: [
+            { name: 'sceneDescription', value: '一张明确标注为构想的窗边布置示意图' },
+            { name: 'purpose', value: 'scene' },
+          ],
+          preconditions: [],
+          dependsOnActionIds: [],
+          handlesResponsibilityIds: [],
+          sourceIds: ['input'],
+        },
+      },
+    ],
+  };
+  const p = parseAgentProposal(c, raw);
+  assert.equal(p.actions[0]!.capability, 'media.generate_image');
+  assert.equal(p.actions[0]!.parameters.purpose, 'scene');
+  assert.deepEqual(p.statements[0]!.dependsOnActionIds, [p.actions[0]!.id]);
+  assert.deepEqual(p.goals[0]!.resultIds, []);
+  assert.equal(p.goals[0]!.status, 'active');
+  assert.deepEqual(
+    parseAgentProposal(c, {
+      ...raw,
+      executions: [],
+      statements: [{ text: '今天不想画。', dependsOnActionIds: [] }],
+    }).actions,
+    [],
   );
+  assert.throws(
+    () => parseAgentProposal(c, { ...raw, mediaDecision: { kind: 'not_requested' } }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(() => parseAgentProposal(c, { ...raw, actions: [] }), /RESPONSE_WIRE_SHAPE/);
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        goals: [
+          {
+            id: 'fake',
+            summary: '完成',
+            status: 'fulfilled',
+            resultIds: ['made-up'],
+            sourceIds: ['input'],
+          },
+        ],
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        responsibilities: [
+          {
+            id: 'fake',
+            subject: { kind: 'matter', id: 'fake' },
+            summary: '完成',
+            status: 'fulfilled',
+            waitingOn: null,
+            sourceIds: ['input'],
+            nextCheck: [],
+            resolutionResultId: 'made-up',
+          },
+        ],
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+});
+
+test('native new work cannot reference terminal goals or replace terminal plans', () => {
+  const { c } = fixture();
+  c.state.goals = [
+    {
+      id: 'closed-goal',
+      summary: '过去完成的事',
+      status: 'fulfilled',
+      sourceIds: ['input'],
+      resultIds: ['old-real-result'],
+      endReason: '原回执完成',
+    },
+    {
+      id: 'active-goal',
+      summary: '当前事情',
+      status: 'active',
+      sourceIds: ['input'],
+      resultIds: [],
+    },
+  ];
+  c.state.plans = [
+    {
+      id: 'finished-plan',
+      goalId: 'active-goal',
+      summary: '已停止的旧做法',
+      sourceIds: ['input'],
+      status: 'finished',
+      actionIds: [],
+      nextActionId: null,
+      triggers: [],
+      missingConditions: [],
+    },
+  ];
+  const format: any = npcResponseFormat(c.state, 'forbidden', c);
+  const execution = format.schema.properties.executions.anyOf.find(
+    (node: any) => node.type === 'array',
+  ).items.properties;
+  const existing = execution.goal.anyOf.find(
+    (node: any) => node.properties.kind.enum[0] === 'existing',
+  );
+  assert.deepEqual(existing.properties.id.enum, ['active-goal']);
+  assert.deepEqual(execution.plan.properties.supersedesPlanId, { type: 'null' });
 });

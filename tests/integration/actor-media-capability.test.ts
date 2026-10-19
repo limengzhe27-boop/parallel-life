@@ -282,28 +282,37 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
       const f = await fixture();
 
       const proposal = {
-        protocol: 'npc-wire-v3',
+        protocol: 'npc-wire-v4',
         consideration: null,
         goals: [],
         plans: [],
-        actions: [],
         responsibilities: [],
         decisions: [],
-        mediaDecision: {
-          kind: 'generate_image',
-          goalSummary: '分享工作室的窗台',
-          planSummary: '为窗台拍一张场景图',
-          parameters: {
-            sceneDescription: '午后阳光照进的工作室窗台，放着复古胶片相机',
-            purpose: 'scene',
-          },
-          basisSourceIds: [f.inputReceipt.id],
-        },
-        statements: [
+        executions: [
           {
-            text: '好呀，我这就给窗台的相机拍一张。',
-            dependsOnActionIds: ['media:current'],
+            ref: 'window-image',
+            goal: { kind: 'existing', id: f.goalId },
+            plan: {
+              summary: '拍摄窗台场景',
+              sourceIds: [f.inputReceipt.id],
+              supersedesPlanId: null,
+            },
+            action: {
+              capability: 'media.generate_image',
+              targetIds: [f.actorId],
+              parameters: [
+                { name: 'sceneDescription', value: '午后阳光照进的工作室窗台，放着复古胶片相机' },
+                { name: 'purpose', value: 'scene' },
+              ],
+              preconditions: [],
+              dependsOnActionIds: [],
+              handlesResponsibilityIds: [],
+              sourceIds: [f.inputReceipt.id],
+            },
           },
+        ],
+        statements: [
+          { text: '好呀，我这就拍一张。', dependsOnActionIds: ['execution:window-image'] },
         ],
       };
 

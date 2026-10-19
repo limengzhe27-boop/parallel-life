@@ -8,7 +8,7 @@ const Text = z.string().trim().min(1).max(12000);
 const Basis = z.array(Id).min(1).max(64);
 const Action = AgentProposalSchema.shape.actions.element;
 
-/** Explicit non-media intent only: the compiler binds identifiers, never chooses an action. */
+/** Explicit intent only: old transports exclude media; v4 shares one action channel. */
 export const NativeExecutionIntentSchema = z.strictObject({
   ref: Id,
   goal: z.discriminatedUnion('kind', [
@@ -82,6 +82,7 @@ export function nativeExecutionIntentIds(
 export function compileNpcExecutionIntents(
   context: AgentValidationContext,
   raw: unknown,
+  options: { allowMedia?: boolean } = {},
 ): {
   executions: NativeExecution[];
   actionIdsByRef: Record<string, string>;
@@ -137,7 +138,9 @@ export function compileNpcExecutionIntents(
     if (refs.has(intent.ref)) invalid('NPC_EXECUTION_INTENT_DUPLICATE_REF');
     refs.add(intent.ref);
     if (
-      intent.action.capability.startsWith('media.') ||
+      (intent.action.capability.startsWith('media.') &&
+        (!options.allowMedia ||
+          !['media.generate_image', 'media.generate_video'].includes(intent.action.capability))) ||
       intent.action.capability === 'plan.record' ||
       !context.channel.allowedCapabilities.includes(intent.action.capability)
     )
@@ -147,7 +150,11 @@ export function compileNpcExecutionIntents(
     if (intent.goal.kind === 'new') basis(intent.goal.sourceIds);
     else {
       const existingGoalId = intent.goal.id;
-      if (!visible?.goals.some((g) => g.id === existingGoalId))
+      if (
+        !visible?.goals.some(
+          (g) => g.id === existingGoalId && !['fulfilled', 'withdrawn'].includes(g.status),
+        )
+      )
         invalid('NPC_EXECUTION_INTENT_GOAL');
     }
     const ids = nativeExecutionIntentIds(context, intent.ref);

@@ -12,7 +12,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v3';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v4';
+const PREVIOUS_EXECUTION_PROTOCOL = 'npc-wire-v3';
 const PREVIOUS_NATIVE_PROTOCOL = 'npc-wire-v2';
 const LEGACY_NPC_WIRE_PROTOCOL = 'npc-wire-v1';
 const Id = z.string().min(1).max(240);
@@ -75,7 +76,12 @@ const MediaDecision = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('share_existing'), execution: Execution }),
 ]);
 const Wire = z.strictObject({
-  protocol: z.enum([LEGACY_NPC_WIRE_PROTOCOL, PREVIOUS_NATIVE_PROTOCOL, NPC_WIRE_PROTOCOL]),
+  protocol: z.enum([
+    LEGACY_NPC_WIRE_PROTOCOL,
+    PREVIOUS_NATIVE_PROTOCOL,
+    PREVIOUS_EXECUTION_PROTOCOL,
+    NPC_WIRE_PROTOCOL,
+  ]),
   consideration: z
     .strictObject({
       choice: z.enum(['engage', 'decline', 'defer', 'need_information', 'quiet']),
@@ -124,20 +130,16 @@ const ParameterEntries = z
   )
   .max(32);
 // The model and decoder reuse canonical proposal shapes; only transport references/parameters differ.
-const ModelWire = Wire.extend({
+const ModelWire = Wire.omit({ mediaDecision: true, actions: true }).extend({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
-  // New strict responses must make a decision, including an explicit not_requested choice.
-  mediaDecision: NativeMediaIntentSchema,
   statements: AgentProposalSchema.shape.statements,
-  goals: AgentProposalSchema.shape.goals,
-  actions: z
+  goals: z
     .array(
-      AgentProposalSchema.shape.actions.element.extend({
-        parameters: ParameterEntries,
-        status: z.enum(['waiting', 'blocked', 'withdrawn']),
+      AgentProposalSchema.shape.goals.element.omit({ resultIds: true }).extend({
+        status: z.enum(['active', 'deferred', 'withdrawn']),
       }),
     )
-    .max(16),
+    .max(24),
   plans: z
     .array(
       Wire.shape.plans.element.extend({
@@ -154,7 +156,13 @@ const ModelWire = Wire.extend({
       }),
     )
     .max(24),
-  responsibilities: AgentProposalSchema.shape.responsibilities,
+  responsibilities: z
+    .array(
+      AgentProposalSchema.shape.responsibilities.element.omit({ resolutionResultId: true }).extend({
+        status: z.enum(['open', 'waiting', 'deferred', 'withdrawn', 'expired']),
+      }),
+    )
+    .max(32),
   decisions: AgentProposalSchema.shape.decisions,
   focus: AgentProposalSchema.shape.focus,
   replyAssessments: AgentProposalSchema.shape.replyAssessments,
@@ -220,7 +228,7 @@ export const NPC_RESPONSE_FORMAT: ModelOutputOptions = {
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
 export function npcResponseFormat(
   state: Pick<AgentValidationContext['state'], 'goals' | 'questions'> &
-    Partial<Pick<AgentValidationContext['state'], 'actions'>>,
+    Partial<Pick<AgentValidationContext['state'], 'actions' | 'plans'>>,
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
   current?: Pick<AgentValidationContext, 'input' | 'channel'>,
 ): ModelOutputOptions {
@@ -240,7 +248,9 @@ export function npcResponseFormat(
     if (!object) throw Error('NPC_RESPONSE_SCHEMA');
     properties.consideration = object;
   }
-  const goalIds = state.goals.map((g) => g.id);
+  const goalIds = state.goals
+    .filter((goal) => !['fulfilled', 'withdrawn'].includes(goal.status))
+    .map((g) => g.id);
   const scopeGoal = (execution: SchemaNode) => {
     const alternatives = execution.properties?.goal?.anyOf;
     if (!alternatives) throw Error('NPC_RESPONSE_SCHEMA');
@@ -257,55 +267,22 @@ export function npcResponseFormat(
   const executions = properties.executions!;
   const executionItem = (executions.anyOf?.[0] ?? executions).items!;
   scopeGoal(executionItem);
+  const replaceablePlanIds = (state.plans ?? [])
+    .filter((plan) => !['finished', 'withdrawn'].includes(plan.status))
+    .map((plan) => plan.id);
+  const supersedes = executionItem.properties!.plan!.properties!;
+  if (replaceablePlanIds.length)
+    supersedes.supersedesPlanId!.anyOf!.find((node) => node.type === 'string')!.enum =
+      replaceablePlanIds;
+  else supersedes.supersedesPlanId = { type: 'null' };
   if (current) {
-    const realResultIds = [
-      ...new Set(
-        (state.actions ?? [])
-          .filter((action) => action.status === 'succeeded' && action.resultId)
-          .map((action) => action.resultId!),
-      ),
-    ];
-    const responsibility = properties.responsibilities!.items!.properties!;
-    if (realResultIds.length) {
-      const result = responsibility.resolutionResultId!.anyOf!.find((x) => x.type === 'string')!;
-      result.enum = realResultIds;
-      properties.goals!.items!.properties!.resultIds!.items!.enum = realResultIds;
-    } else {
-      responsibility.resolutionResultId = { type: 'null' };
-      responsibility.status!.enum = ['open', 'waiting', 'deferred', 'withdrawn', 'expired'];
-      properties.goals!.items!.properties!.status!.enum = ['active', 'deferred', 'withdrawn'];
-    }
-    const mutableIds = (state.actions ?? [])
-      .filter((action) => !['succeeded', 'failed', 'withdrawn'].includes(action.status))
-      .map((action) => action.id);
-    const actionArray = properties.actions!;
-    if (!mutableIds.length) properties.actions = { type: 'null' };
-    else actionArray.items!.properties!.id!.enum = mutableIds;
     const capabilities = current.channel.allowedCapabilities.filter(
-      (cap) => !cap.startsWith('media.') && cap !== 'plan.record',
+      (cap) => cap !== 'media.share' && cap !== 'plan.record',
     );
     if (capabilities.length)
       executionItem.properties!.action!.properties!.capability!.enum = capabilities;
     else properties.executions = { type: 'null' };
   }
-  const mediaOptions = properties.mediaDecision?.anyOf;
-  if (!mediaOptions) throw Error('NPC_RESPONSE_SCHEMA');
-  for (const option of mediaOptions) {
-    const basis = option.properties?.basisSourceIds;
-    if (basis?.items && current) basis.items.enum = [current.input.sourceId];
-  }
-  if (current)
-    properties.mediaDecision!.anyOf = mediaOptions.filter((option) => {
-      const kind = option.properties?.kind?.enum?.[0];
-      return (
-        kind === 'not_requested' ||
-        kind === 'decline' ||
-        (kind === 'generate_image' &&
-          current.channel.allowedCapabilities.includes('media.generate_image')) ||
-        (kind === 'generate_video' &&
-          current.channel.allowedCapabilities.includes('media.generate_video'))
-      );
-    });
   // A reply assessment is about this player's current words, not an old NPC question.
   // Narrow the native grammar before the call; the kernel still validates exact source,
   // verbatim quote and thread authorization after the response is durably saved.
@@ -386,19 +363,55 @@ function parameterObject(value: unknown) {
   return Object.fromEntries(entries.map((e) => [e.name, e.value]));
 }
 /** Null optional metadata and named parameter entries are transport details, never semantic repairs. */
-function transport(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(transport);
+function transport(value: unknown, convertParameters = true): unknown {
+  if (Array.isArray(value)) return value.map((entry) => transport(entry, convertParameters));
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(
     Object.entries(value)
       .filter(([k, v]) => !(v === null && optionalNullKeys.has(k)))
-      .map(([k, v]) => [k, k === 'parameters' ? parameterObject(v) : transport(v)]),
+      .map(([k, v]) => [
+        k,
+        k === 'parameters' && convertParameters
+          ? parameterObject(v)
+          : transport(v, convertParameters),
+      ]),
   );
 }
 
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
+  if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    // Native v4 has one action channel. No disposition flag competes with an
+    // execution, and models cannot author completion receipts or terminal success.
+    const native = ModelWire.parse(transport(raw, false));
+    const compiled = compileNpcExecutionIntents(context, native.executions ?? [], {
+      allowMedia: true,
+    });
+    const { protocol: _protocol, goals, statements, ...rest } = native;
+    return decodeNpcWire(context, {
+      ...rest,
+      protocol: LEGACY_NPC_WIRE_PROTOCOL,
+      executions: compiled.executions,
+      actions: [],
+      goals: goals.map((goal) => ({
+        ...goal,
+        resultIds: [
+          ...((context.viewState ?? context.state).goals.find((old) => old.id === goal.id)
+            ?.resultIds ?? []),
+        ],
+      })),
+      statements: statements.map((statement) => ({
+        ...statement,
+        dependsOnActionIds: statement.dependsOnActionIds.map((id) => {
+          if (!id.startsWith('execution:')) return id;
+          const bound = compiled.actionIdsByRef[id.slice('execution:'.length)];
+          if (!bound) throw Error('NPC_EXECUTION_DEPENDENCY_WITHOUT_INTENT');
+          return bound;
+        }),
+      })),
+    });
+  }
   // nextStep/executions are exclusive wire syntax, not canonical state fields.
   // Missing transport metadata never means a missing NPC choice is manufactured.
   const wirePlans =
@@ -416,13 +429,17 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   let normalized: unknown = raw;
   if (
     'protocol' in raw &&
-    (raw.protocol === NPC_WIRE_PROTOCOL || raw.protocol === PREVIOUS_NATIVE_PROTOCOL)
+    (raw.protocol === PREVIOUS_EXECUTION_PROTOCOL || raw.protocol === PREVIOUS_NATIVE_PROTOCOL)
   ) {
     const compact =
-      raw.protocol === NPC_WIRE_PROTOCOL
+      raw.protocol === PREVIOUS_EXECUTION_PROTOCOL
         ? compileNpcExecutionIntents(context, 'executions' in raw ? (raw.executions ?? []) : [])
         : null;
-    if (raw.protocol === NPC_WIRE_PROTOCOL && 'actions' in raw && Array.isArray(raw.actions)) {
+    if (
+      raw.protocol === PREVIOUS_EXECUTION_PROTOCOL &&
+      'actions' in raw &&
+      Array.isArray(raw.actions)
+    ) {
       const mutable = new Set(
         (context.viewState?.actions ?? [])
           .filter((action) => !['succeeded', 'failed', 'withdrawn'].includes(action.status))

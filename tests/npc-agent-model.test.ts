@@ -299,7 +299,7 @@ test('recording plans or proposing invitations cannot declare external goals com
   const payload = JSON.parse(calls[0]!.messages[1]!.content),
     system = calls[0]!.messages[0]!.content;
   assert.deepEqual(payload.channel.allowedCapabilities, ['appointment.propose']);
-  assert(system.includes('计划增量本身会被原内核保存'));
+  assert(system.includes('计划增量原本就会事务保存'));
   assert.equal(payload.state.revision, input.state.revision);
   assert(!('revision' in payload.state.responsibilities[0]));
   assert(!('responsibilityRevision' in payload.state.decisions[0]));
@@ -820,8 +820,8 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v32-creative-media-capability');
-  assert.match(system, /每轮在mediaDecision中作明确选择/);
+  assert.equal(payload.promptVersion, 'npc-agent-v33-single-action-channel');
+  assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
 
@@ -841,9 +841,9 @@ test('commitment protocol does not prescribe empty runnable plans or fabricate a
   const { adapter, calls } = capture();
   await adapter.decide(snapshot());
   const system = calls[0]!.messages[0]!.content;
-  assert.match(system, /actionIds及nextActionId指向实际动作/);
-  assert.match(system, /有来源的非空triggers/);
-  assert.match(system, /不能拿plan.record冒充外部行为/);
+  assert.match(system, /代码只分配机械编号/);
+  assert.match(system, /conditions:\[有依据的非空条件\]/);
+  assert.match(system, /不使用plan.record代替实际工作/);
   assert.match(system, /kind:"blocked",missing/);
   assert.doesNotMatch(system, /合法输出参考/);
 });
@@ -913,8 +913,9 @@ test('capability manual follows permission, while media has one native intent sy
   assert(!system.includes('可提议item.deliver'));
   assert(!system.includes('可提议media.share'));
   assert(!system.includes('durationSeconds?:5|6'));
-  assert(system.includes('parameters:{sceneDescription,purpose:'));
-  assert(system.includes('代码分配新的goal/plan/action机械编号'));
+  assert(system.includes('capability:"media.generate_image"'));
+  assert(system.includes('name:"sceneDescription"'));
+  assert(system.includes('代码只分配机械编号'));
   input.channel.allowedCapabilities = ['item.deliver'];
   await adapter.decide(input);
   assert(calls[1]!.messages[0]!.content.includes('可提议item.deliver'));
