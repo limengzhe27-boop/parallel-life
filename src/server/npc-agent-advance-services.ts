@@ -732,7 +732,7 @@ export function npcAgentAdvanceServices(
       // writes would invalidate it before attention permits recovery.
       if (directorDeliveryDeferred) return quiet(storyAt);
       if (contextConfirmed) {
-        batch?.yieldAfterStep();
+        // Return the changed frame; the original bounded batch reloads before any NPC runs.
         return { ...quiet(storyAt), changed: true, worldVersion: world.version + 1 };
       }
       if (coordinatedOpportunity)
@@ -789,7 +789,7 @@ export function npcAgentAdvanceServices(
           decision?.openingContext?.disposition === 'confirm' &&
           decision.openingContext.premises.length
         ) {
-          batch?.yieldAfterStep();
+          // The next bounded batch step reloads the just-committed world and inbox.
           return { ...quiet(storyAt), changed: true, worldVersion: world.version + 1 };
         }
         if (decision?.opportunities.length) {
