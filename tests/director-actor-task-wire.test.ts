@@ -11,6 +11,7 @@ import { parseDirectorDecision } from '../src/modules/world/infrastructure/direc
 import {
   directorResponseFormat,
   directorOpeningInformationCatalog,
+  directorOpeningActorCatalog,
   decodeDirectorWire,
   directorWireCatalog,
 } from '../src/modules/world/infrastructure/director-model-protocol.ts';
@@ -254,7 +255,7 @@ test('current provider uses single author opportunity and exact keyed nullable a
   );
   assert(consider.properties.opportunity.$ref);
   assert.equal(consider.properties.opportunities, undefined);
-  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v12']);
+  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v13']);
 });
 
 test('v9 typed handoff preserves actor binding and compiles only the selected personal proposal', () => {
@@ -349,16 +350,17 @@ test('v10 opening information binds actor refs and review identity while preserv
   const schema = directorResponseFormat(f.s);
   if (schema.format !== 'json_schema') throw Error('schema');
   const properties = (schema.schema as any).properties;
-  assert.equal(schema.name, 'director_response_v12');
-  assert.deepEqual(properties.openingContext.properties.informationChoices.required, [
-    'opening-info:1',
+  assert.equal(schema.name, 'director_response_v13');
+  assert.deepEqual(properties.openingContext.properties.actorAssignments.required, [
+    'actor:1',
+    'actor:2',
   ]);
   assert.throws(() =>
     f.parse({ ...raw, openingContext: { disposition: 'confirm', reason: '', premises: [] } }),
   );
   assert.equal(
-    (schema.schema as any).$defs.director_opening_attribution.anyOf[0].properties.actorRef.enum[0],
-    'actor:1',
+    properties.openingContext.properties.actorAssignments.properties['actor:1'].$ref,
+    '#/$defs/director_opening_actor_assignment',
   );
   for (const invalid of [
     {
@@ -579,22 +581,20 @@ test('v11 catalog fragments remain exact bounded substrings and schema shares pe
   assert.deepEqual(catalog, directorOpeningInformationCatalog(f.s));
   const format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
-  const schema: any = format.schema,
-    variants = schema.$defs.director_opening_attribution.anyOf.filter(
-      (v: any) => v.properties.kind.enum[0] === 'actor_information',
-    );
+  const schema: any = format.schema;
   assert.equal(
-    schema.properties.openingContext.properties.informationChoices.properties['opening-info:1']
-      .$ref,
-    '#/$defs/director_opening_attribution',
+    schema.properties.openingContext.properties.actorAssignments.properties['actor:1'].$ref,
+    '#/$defs/director_opening_actor_assignment',
   );
-  for (const v of variants) {
-    const actorRef = v.properties.actorRef.enum[0];
-    assert.deepEqual(
-      v.properties.identityRef.enum,
-      catalog.identities.filter((i) => i.actorRef === actorRef).map((i) => i.ref),
-    );
-  }
+  assert.equal(
+    schema.$defs.director_opening_actor_assignment.properties.informationRefs.maxItems,
+    2,
+  );
+  assert.equal(
+    JSON.stringify(schema).includes('opening-identity:'),
+    false,
+    'identity selection remains server-side',
+  );
   assert(JSON.stringify(schema).length < 24000);
 });
 
@@ -809,10 +809,183 @@ test('v12 bounds current information to 12 while saved v11 still addresses its o
   const format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
   const schema: any = format.schema;
-  assert.equal(schema.properties.openingContext.properties.informationChoices.required.length, 12);
+  assert.equal(schema.properties.openingContext.properties.actorAssignments.required.length, 2);
   assert.equal(
-    schema.properties.openingContext.properties.informationChoices.additionalProperties,
+    schema.properties.openingContext.properties.actorAssignments.additionalProperties,
     false,
   );
   assert(JSON.stringify(schema).length <= 24_000);
+});
+
+function actorAssignmentFixture(count = 2) {
+  const f = informationFixture(),
+    source = Array.from({ length: 12 }, (_, i) => `第${i + 1}条属于既有角色的开场信息。`).join('');
+  const material = f.s.authoredMaterials!.materials.find((m) => m.role === 'opening')!;
+  material.node.editorialIntent = source;
+  f.s.openingContextAuthority!.sourceExcerpt = source;
+  f.s.boundary.actorIds = Array.from({ length: count }, (_, i) => `actor-${i}`);
+  f.s.cast = f.s.boundary.actorIds.map((id, i) => ({
+    id,
+    name: `Person ${i + 1}`,
+    persona: 'Existing actor',
+  }));
+  material.participantRefs = f.s.boundary.actorIds.map((actorId) => ({
+    actorKey: actorId,
+    actorId,
+    status: 'resolved' as const,
+  }));
+  f.s.openingContextAuthority!.actorKnowledge = f.s.boundary.actorIds.map((actorId) => ({
+    actorId,
+    definitionSourceId: `definition:${actorId}`,
+    modules: {
+      relationships: `${actorId}的已有身份和关系资料。`,
+      lifeContext: `${actorId}的本人人生背景资料。`,
+    },
+  }));
+  const catalog = directorOpeningActorCatalog(f.s);
+  const wire = {
+    ...f.wire,
+    protocol: 'director-wire-v13',
+    openingContext: {
+      actorAssignments: Object.fromEntries(
+        catalog.actors.map((actor) => [
+          actor.actorRef,
+          {
+            informationRefs: [] as string[],
+            reason: 'This actor has no assigned source in this judgment.',
+          },
+        ]),
+      ),
+    },
+  };
+  return { ...f, catalog, wire };
+}
+test('v13 per-actor assignments bind only their own protected identity and preserve exact information', () => {
+  const f = actorAssignmentFixture(),
+    before = structuredClone(f.wire);
+  f.wire.openingContext.actorAssignments['actor:1'] = {
+    informationRefs: ['opening-info:1', 'opening-info:2'],
+    reason: 'These opening reports belong to this actor.',
+  };
+  f.wire.openingContext.actorAssignments['actor:2'] = {
+    informationRefs: ['opening-info:3'],
+    reason: 'This separate report belongs to the second actor.',
+  };
+  const raw = structuredClone(f.wire),
+    p = f.parse(f.wire);
+  assert.equal(p.openingContext!.disposition, 'confirm');
+  assert.equal(p.openingContext!.premises.length, 3);
+  assert.deepEqual(
+    p.openingContext!.premises.map((p) => p.actorId),
+    ['actor-0', 'actor-0', 'actor-1'],
+  );
+  for (const premise of p.openingContext!.premises) {
+    const own = f.s.openingContextAuthority!.actorKnowledge.find(
+      (a) => a.actorId === premise.actorId,
+    )!;
+    assert.equal(premise.knowledge.module, 'lifeContext');
+    assert.equal(premise.knowledge.quote, own.modules.lifeContext);
+    assert(f.catalog.information.some((i) => i.text === premise.quote));
+  }
+  assert.deepEqual(f.wire, raw);
+  assert.deepEqual(
+    f.parse(before).openingContext!.premises,
+    [],
+    'zero assignment remains legitimate defer',
+  );
+  assert.deepEqual(Object.keys(f.catalog.actors[0]!).sort(), ['actorRef', 'canAttribute', 'name']);
+  assert.equal(JSON.stringify(f.catalog).includes('opening-identity:'), false);
+  const onlyRelationship = actorAssignmentFixture();
+  delete onlyRelationship.s.openingContextAuthority!.actorKnowledge[0]!.modules.lifeContext;
+  onlyRelationship.wire.openingContext.actorAssignments['actor:1']!.informationRefs = [
+    'opening-info:1',
+  ];
+  assert.equal(
+    onlyRelationship.parse(onlyRelationship.wire).openingContext!.premises[0]!.knowledge.module,
+    'relationships',
+  );
+});
+test('v13 requires full actor keys and rejects duplicate broadcasts, foreign information and missing source authority', () => {
+  const f = actorAssignmentFixture();
+  const good = {
+    informationRefs: ['opening-info:1'],
+    reason: 'An actor-scoped source assignment.',
+  };
+  const invalid = [
+    { 'actor:1': good },
+    { ...f.wire.openingContext.actorAssignments, 'actor:99': good },
+    {
+      ...f.wire.openingContext.actorAssignments,
+      'actor:1': { ...good, informationRefs: ['opening-info:99'] },
+    },
+    {
+      ...f.wire.openingContext.actorAssignments,
+      'actor:1': { ...good, informationRefs: ['opening-info:1', 'opening-info:1'] },
+    },
+    { ...f.wire.openingContext.actorAssignments, 'actor:1': good, 'actor:2': good },
+    {
+      ...f.wire.openingContext.actorAssignments,
+      'actor:1': {
+        ...good,
+        informationRefs: ['opening-info:1', 'opening-info:2', 'opening-info:3'],
+      },
+    },
+  ];
+  for (const actorAssignments of invalid)
+    assert.throws(() => f.parse({ ...f.wire, openingContext: { actorAssignments } }));
+  f.s.openingContextAuthority!.actorKnowledge = f.s.openingContextAuthority!.actorKnowledge.filter(
+    (a) => a.actorId !== 'actor-0',
+  );
+  assert.equal(directorOpeningActorCatalog(f.s).actors[0]!.canAttribute, false);
+  assert.throws(() =>
+    f.parse({
+      ...f.wire,
+      openingContext: {
+        actorAssignments: { ...f.wire.openingContext.actorAssignments, 'actor:1': good },
+      },
+    }),
+  );
+  const format = directorResponseFormat(f.s);
+  if (format.format !== 'json_schema') throw Error('schema');
+  const schema: any = format.schema;
+  assert.equal(
+    schema.properties.openingContext.properties.actorAssignments.properties['actor:1'].$ref,
+    '#/$defs/director_opening_actor_no_source',
+  );
+  assert.equal(
+    schema.$defs.director_opening_actor_no_source.properties.informationRefs.maxItems,
+    0,
+  );
+});
+test('v13 six actors receive at most two each; twelve actors at most one each, under unchanged twelve-receipt scope', () => {
+  for (const count of [6, 12]) {
+    const f = actorAssignmentFixture(count),
+      cap = count === 6 ? 2 : 1;
+    for (const [index, actor] of f.catalog.actors.entries())
+      f.wire.openingContext.actorAssignments[actor.actorRef] = {
+        informationRefs: Array.from(
+          { length: cap },
+          (_, n) => `opening-info:${index * cap + n + 1}`,
+        ),
+        reason: 'Distinct information scoped to the corresponding actor.',
+      };
+    const p = f.parse(f.wire);
+    assert.equal(p.openingContext!.premises.length, 12);
+    const format = directorResponseFormat(f.s);
+    if (format.format !== 'json_schema') throw Error('schema');
+    const schema: any = format.schema;
+    assert.equal(
+      schema.$defs.director_opening_actor_assignment.properties.informationRefs.maxItems,
+      cap,
+    );
+    assert.equal(
+      schema.properties.openingContext.properties.actorAssignments.required.length,
+      count,
+    );
+    assert(JSON.stringify(schema).length <= 24000);
+    if (count === 12) {
+      f.wire.openingContext.actorAssignments['actor:1']!.informationRefs.push('opening-info:2');
+      assert.throws(() => f.parse(f.wire));
+    }
+  }
 });
