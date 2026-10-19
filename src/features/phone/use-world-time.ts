@@ -6,7 +6,14 @@ import { StoryWaitRequestSchema, type StoryWaitRequest } from '../../contracts/s
 import { projectStoryTime } from '../../modules/world/domain/clock.ts';
 import { readableActivityClock } from '../../modules/world/domain/clock-activity.ts';
 import { readRoute } from './navigation.ts';
-import { idleCheckDue, phoneTimeMode, phoneConversationFocus } from './time-experience-policy.ts';
+import {
+  idleCheckDue,
+  phoneTimeMode,
+  phoneConversationFocus,
+  phoneCheckHistory,
+  observePhoneIncoming,
+  type PhoneCheckHistory,
+} from './time-experience-policy.ts';
 type Mode = ClockActivityRequest['mode'];
 const pageLeases = new Map<string, { clientId: string; sequence: number }>();
 type Session = {
@@ -38,10 +45,28 @@ export function useWorldTime(
   pendingWaitRef.current = pendingWait;
   const session = useRef<Session | null>(null);
   const waiting = useRef(false);
+  const immediateCheck = useRef(false);
   const busyRef = useRef(busy);
   busyRef.current = busy;
-  const lastMeaningfulActivity = useRef(Date.now());
-  const lastCheck = useRef(Date.now());
+  const checkHistory = useRef<PhoneCheckHistory>(phoneCheckHistory(Date.now()));
+  const checkStorageKey = `pl-phone-check-v1:${worldId}`;
+  const saveCheckHistory = () => {
+    try {
+      const raw = localStorage.getItem(checkStorageKey);
+      if (raw) {
+        const saved = phoneCheckHistory(Date.now(), JSON.parse(raw));
+        checkHistory.current.lastActivityAt = Math.max(
+          checkHistory.current.lastActivityAt,
+          saved.lastActivityAt,
+        );
+        checkHistory.current.lastCheckAt = Math.max(
+          checkHistory.current.lastCheckAt,
+          saved.lastCheckAt,
+        );
+      }
+      localStorage.setItem(checkStorageKey, JSON.stringify(checkHistory.current));
+    } catch {}
+  };
   const sync = useCallback(
     (mode: Mode, resume = false): Promise<WorldClock | null> => {
       const s = session.current;
@@ -67,12 +92,7 @@ export function useWorldTime(
           if (session.current === s && s.active && mode !== 'away' && !s.returning) {
             if (!clock.paused) {
               if (resume) s.resumeRequired = false;
-              if (
-                resume ||
-                s.acknowledgedMode === undefined ||
-                (mode === 'browsing' && s.acknowledgedMode === 'conversation')
-              )
-                setEntryKey(crypto.randomUUID());
+              if (resume || s.acknowledgedMode === undefined) setEntryKey(crypto.randomUUID());
               s.acknowledgedMode = mode;
             }
             s.mode = mode;
@@ -101,8 +121,13 @@ export function useWorldTime(
     setNotice('');
     setEntryKey(null);
     setWorking(false);
-    lastMeaningfulActivity.current = Date.now();
-    lastCheck.current = Date.now();
+    immediateCheck.current = false;
+    try {
+      const raw = localStorage.getItem(checkStorageKey);
+      checkHistory.current = phoneCheckHistory(Date.now(), raw ? JSON.parse(raw) : null);
+    } catch {
+      checkHistory.current = phoneCheckHistory(Date.now());
+    }
     try {
       const raw = sessionStorage.getItem('pl-story-wait:' + worldId);
       const parsed = raw ? StoryWaitRequestSchema.safeParse(JSON.parse(raw)) : null;
@@ -128,6 +153,7 @@ export function useWorldTime(
       });
     };
     const leave = () => {
+      if (s.returning) return;
       s.returning = true;
       s.resumeRequired = true;
       setView((current) =>
@@ -145,15 +171,17 @@ export function useWorldTime(
       );
       void sync('away').catch(() => {});
     };
+    const onPageShow = () => {
+      if (s.returning && document.visibilityState === 'visible') visibility();
+    };
     const visibility = () => {
       if (document.visibilityState !== 'visible') leave();
-      else {
-        // Returning is an explicit foreground business entry, not offline catch-up.
-        // Queue behind away using the same ordered lease and preserve the frozen anchor.
+      else if (s.returning) {
+        // Resume the existing clock policy, then inspect real pending work immediately.
+        // Returning is not a new conversation, message, or paid source identity.
         s.returning = false;
         s.resumeRequired = true;
-        lastMeaningfulActivity.current = Date.now();
-        lastCheck.current = Date.now();
+        immediateCheck.current = true;
         update();
       }
     };
@@ -166,6 +194,7 @@ export function useWorldTime(
     window.addEventListener('hashchange', update);
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('pagehide', leave);
+    window.addEventListener('pageshow', onPageShow);
     return () => {
       leave();
       s.active = false;
@@ -175,6 +204,7 @@ export function useWorldTime(
       window.removeEventListener('hashchange', update);
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('pagehide', leave);
+      window.removeEventListener('pageshow', onPageShow);
     };
   }, [client, worldId, enabled, sync]);
   useEffect(() => {
@@ -186,7 +216,8 @@ export function useWorldTime(
   }, [enabled, busy, locked, sync, worldId]);
   const startConversation = useCallback(async () => {
     if (waiting.current || pendingWaitRef.current) throw Error('请先核对这次等待，再继续交谈。');
-    lastMeaningfulActivity.current = Date.now();
+    checkHistory.current.lastActivityAt = Date.now();
+    saveCheckHistory();
     const s = session.current;
     const clock = await sync('conversation', s?.resumeRequired);
     if (!s?.active || session.current !== s || !clock || clock.paused || session.current?.returning)
@@ -204,8 +235,8 @@ export function useWorldTime(
         true,
       );
       setNotice('');
-      lastMeaningfulActivity.current = Date.now();
-      lastCheck.current = Date.now();
+      // A deliberate boundary continuation is an immediate opportunity to inspect pending work.
+      immediateCheck.current = true;
     } catch {
       setNotice('时间暂时未同步，请稍后再试。');
     } finally {
@@ -269,8 +300,7 @@ export function useWorldTime(
                 ? `已到更早的约定时间${result.stoppedBy.label ? '：' + result.stoppedBy.label : ''}。`
                 : '有新的剧情可以展开，先停在这里。',
       );
-      lastCheck.current = 0;
-      lastMeaningfulActivity.current = 0;
+      immediateCheck.current = true;
     } catch (e) {
       if (
         session.current === s &&
@@ -312,9 +342,37 @@ export function useWorldTime(
       enabled &&
       (!clock || clock.paused || !!session.current?.returning || working || !!pendingWait),
     displayTime: clock ? projectStoryTime(clock, new Date(now).toISOString()) : null,
-    idleDue: () => idleCheckDue(Date.now(), lastMeaningfulActivity.current, lastCheck.current),
+    observeIncoming: (ids: readonly string[]) => {
+      checkHistory.current = observePhoneIncoming(checkHistory.current, ids, Date.now());
+      saveCheckHistory();
+    },
+    idleDue: () => {
+      if (immediateCheck.current) return true;
+      // Other tabs may have observed a message or already checked the same world.
+      try {
+        const raw = localStorage.getItem(checkStorageKey);
+        const saved = phoneCheckHistory(Date.now(), raw ? JSON.parse(raw) : null);
+        if (raw) {
+          checkHistory.current.lastActivityAt = Math.max(
+            checkHistory.current.lastActivityAt,
+            saved.lastActivityAt,
+          );
+          checkHistory.current.lastCheckAt = Math.max(
+            checkHistory.current.lastCheckAt,
+            saved.lastCheckAt,
+          );
+        }
+      } catch {}
+      return idleCheckDue(
+        Date.now(),
+        checkHistory.current.lastActivityAt,
+        checkHistory.current.lastCheckAt,
+      );
+    },
     markChecked: () => {
-      lastCheck.current = Date.now();
+      immediateCheck.current = false;
+      checkHistory.current.lastCheckAt = Date.now();
+      saveCheckHistory();
     },
   };
 }

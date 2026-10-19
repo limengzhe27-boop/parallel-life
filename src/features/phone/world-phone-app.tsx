@@ -3,6 +3,7 @@ import { reconcileRestoredSendReceipts } from './restored-send-receipts.ts';
 import { committedLocalSend, unprojectedLocalSends } from './send-projection.ts';
 import type { WorldMessageReceipt } from '../../contracts/world-interaction.ts';
 import { useWorldTime } from './use-world-time.ts';
+import { PHONE_RUNTIME_POLICY } from './time-experience-policy.ts';
 import type { PublicOpeningStatus } from '../../contracts/publication-opening.ts';
 import { AppointmentWaitRecovery } from './appointment-wait-recovery.tsx';
 import {
@@ -150,6 +151,19 @@ export function WorldPhoneApp({
   );
   const liveTimeRef = useRef(liveTime);
   liveTimeRef.current = liveTime;
+  useEffect(() => {
+    if (automatic && data?.id === worldId)
+      liveTimeRef.current.observeIncoming(
+        data.messages
+          .filter(
+            (message) =>
+              message.role !== 'user' &&
+              message.initialRead !== true &&
+              message.origin !== 'fictional_history',
+          )
+          .map((message) => message.id),
+      );
+  }, [automatic, data, worldId]);
   const sendCommands = useRef<Record<string, SendCommand>>({});
   const committedSends = useRef<Record<string, WorldMessageReceipt>>({});
   const confirmedSendVersion = useRef({ worldId, version: 0 });
@@ -519,11 +533,30 @@ export function WorldPhoneApp({
     };
   }, [automatic, hasPendingMedia, liveWorldReady, client, worldId]);
   useEffect(() => {
+    let hidden = document.visibilityState !== 'visible';
     const onReturn = () => {
-      if (document.visibilityState === 'visible') void load();
+      if (document.visibilityState !== 'visible') {
+        hidden = true;
+        return;
+      }
+      if (!hidden) return;
+      hidden = false;
+      lastBackgroundCheck.current = 0;
+      // Present already committed changes first, then inspect current work without an idle delay.
+      void load().finally(() => directorCheck.current());
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        hidden = true;
+        onReturn();
+      }
     };
     document.addEventListener('visibilitychange', onReturn);
-    return () => document.removeEventListener('visibilitychange', onReturn);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onReturn);
+      window.removeEventListener('pageshow', onPageShow);
+    };
   }, [load]);
   useEffect(() => {
     let active = true;
@@ -537,6 +570,22 @@ export function WorldPhoneApp({
       !phoneReady.current.sending;
     setOpening(null);
     setOpeningWorking(false);
+    const claimCheck = (key: string) => {
+      if (directorAttemptedKeys.current.has(key)) return false;
+      const storageKey = `pl-phone-check-keys-v1:${worldId}`;
+      try {
+        const raw = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+        const keys: string[] = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string') : [];
+        if (keys.includes(key)) return false;
+        localStorage.setItem(storageKey, JSON.stringify([...keys, key].slice(-64)));
+      } catch {
+        /* The server's original paid-source fence remains authoritative. */
+      }
+      directorAttemptedKeys.current.add(key);
+      if (directorAttemptedKeys.current.size > 256)
+        directorAttemptedKeys.current.delete(directorAttemptedKeys.current.values().next().value!);
+      return true;
+    };
     async function checkForWorldNews() {
       if (
         !automatic ||
@@ -549,7 +598,10 @@ export function WorldPhoneApp({
         directorInFlight.current
       )
         return;
-      if (openingFinished.current === worldId && Date.now() - lastBackgroundCheck.current < 5_000)
+      if (
+        openingFinished.current === worldId &&
+        Date.now() - lastBackgroundCheck.current < PHONE_RUNTIME_POLICY.checkEveryMs
+      )
         return;
       lastBackgroundCheck.current = Date.now();
       directorInFlight.current = true;
@@ -583,18 +635,17 @@ export function WorldPhoneApp({
               nativeOpening.current = worldId;
               const key =
                 current.continuation?.status === 'ready' && liveTimeRef.current.entryKey
-                  ? `native-entry:${worldId}:${liveTimeRef.current.entryKey}:${current.continuation.key}`
+                  ? `native-work:${worldId}:${current.continuation.key}`
                   : null;
               if (
                 key &&
                 !clock.paused &&
-                !directorAttemptedKeys.current.has(key) &&
                 canAdvance() &&
-                !liveTimeRef.current.blocked
+                !liveTimeRef.current.blocked &&
+                claimCheck(key)
               ) {
                 // Transport suppression only. The existing server rechecks original authority,
                 // paid/unknown identities, focus and activity before any model or execution.
-                directorAttemptedKeys.current.add(key);
                 liveTimeRef.current.markChecked();
                 advancing = true;
                 const result = await client.advanceWorld(worldId, true);
@@ -629,27 +680,16 @@ export function WorldPhoneApp({
         const realNowMs = Date.now();
         const attemptKey = clock.paused
           ? null
-          : `pl_idle_${worldId}_${Math.floor(realNowMs / 75_000)}`;
-        if (!attemptKey || directorAttemptedKeys.current.has(attemptKey)) return;
-        try {
-          if (sessionStorage.getItem(attemptKey)) return;
-        } catch {
-          // In-memory protection remains active when browser storage is unavailable.
-        }
+          : `idle-check:${worldId}:${Math.floor(realNowMs / PHONE_RUNTIME_POLICY.recheckAfterMs)}`;
+        if (!attemptKey) return;
         if (
           !active ||
           document.visibilityState !== 'visible' ||
           phoneReady.current.sending ||
-          liveTimeRef.current.blocked
+          liveTimeRef.current.blocked ||
+          !claimCheck(attemptKey)
         )
           return;
-        try {
-          sessionStorage.setItem(attemptKey, '1');
-        } catch {
-          // Private browsing can disable storage; the in-memory guard still
-          // prevents a repeated paid attempt for this phone instance.
-        }
-        directorAttemptedKeys.current.add(attemptKey);
         liveTimeRef.current.markChecked();
         advancing = true;
         const result = await client.advanceWorld(worldId, true);
@@ -666,9 +706,19 @@ export function WorldPhoneApp({
         }
       }
     }
-    directorCheck.current = () => void checkForWorldNews();
+    directorCheck.current = () => {
+      // Same-origin tabs share a cheap-check/execution transport lock. A lost lock never
+      // authorizes a new paid attempt: all source and unknown fences remain server-side.
+      if (navigator.locks) {
+        void navigator.locks
+          .request(`pl-phone-check:${worldId}`, { ifAvailable: true }, (lock) =>
+            lock ? checkForWorldNews() : undefined,
+          )
+          .catch(() => {});
+      } else void checkForWorldNews();
+    };
     directorCheck.current();
-    const interval = window.setInterval(directorCheck.current, 5_000);
+    const interval = window.setInterval(directorCheck.current, PHONE_RUNTIME_POLICY.checkEveryMs);
     return () => {
       active = false;
       window.clearInterval(interval);

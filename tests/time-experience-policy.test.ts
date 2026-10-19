@@ -58,9 +58,9 @@ test('open private/group dialogue and scenes stay slow while reading, and leavin
   assert.equal(phoneTimeMode(true, { app: null }), 'conversation');
   // No timestamp or DOM activity controls a conversation lifetime.
   assert.equal(phoneTimeMode(false, { app: 'messages', target: 'actor-a' }), 'conversation');
-  assert.equal(idleCheckDue(75000, 0, 0), true);
-  assert.equal(idleCheckDue(75000, 10000, 0), false);
-  assert.equal(idleCheckDue(150000, 0, 100000), false);
+  assert.equal(idleCheckDue(35000, 0, 0), true);
+  assert.equal(idleCheckDue(35000, 10000, 0), false);
+  assert.equal(idleCheckDue(150000, 0, 140000), false);
 });
 test('activity and wait requests reject caller-controlled timestamps and owners', () => {
   const activity = { clientId: id, sequence: 4, mode: 'conversation' };

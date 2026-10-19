@@ -2,7 +2,57 @@ import type { PhoneRoute } from './navigation.ts';
 import { Id } from '../../contracts/api.ts';
 import { parseGroupTarget } from './groups/state.ts';
 import type { ClockActivityRequest } from '../../contracts/world-clock.ts';
-export const PHONE_IDLE_CHECK_MS = 75_000;
+/** Target observed delivery, reserving time for queueing/generation/projection; never a delivery SLA. */
+export type PhoneRuntimePolicy = {
+  checkEveryMs: number;
+  deliveryTargetMs: number;
+  preparationReserveMs: number;
+  recheckAfterMs: number;
+};
+export const PHONE_RUNTIME_POLICY: Readonly<PhoneRuntimePolicy> = Object.freeze({
+  checkEveryMs: 5_000,
+  deliveryTargetMs: 55_000,
+  preparationReserveMs: 20_000,
+  recheckAfterMs: 15_000,
+});
+export const PHONE_IDLE_CHECK_MS =
+  PHONE_RUNTIME_POLICY.deliveryTargetMs - PHONE_RUNTIME_POLICY.preparationReserveMs;
+export type PhoneCheckHistory = {
+  lastActivityAt: number;
+  lastCheckAt: number;
+  incomingIds: string[] | null;
+};
+/** Only metadata is persisted. Refresh/navigation must not restart the activity window. */
+export function phoneCheckHistory(now: number, saved?: unknown): PhoneCheckHistory {
+  const raw = saved as Partial<PhoneCheckHistory> | null;
+  const timestamp = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= now ? v : fallback;
+  return {
+    lastActivityAt: timestamp(raw?.lastActivityAt, now),
+    lastCheckAt: timestamp(raw?.lastCheckAt, 0),
+    incomingIds:
+      Array.isArray(raw?.incomingIds) && raw.incomingIds.every((id) => typeof id === 'string')
+        ? raw.incomingIds.slice(-256)
+        : null,
+  };
+}
+/** Called on persisted projections, not optimistic text, unread changes, or authored story timestamps. */
+export function observePhoneIncoming(
+  history: PhoneCheckHistory,
+  ids: readonly string[],
+  now: number,
+): PhoneCheckHistory {
+  const incomingIds = [...new Set(ids)].slice(-256);
+  const previous = history.incomingIds;
+  return {
+    ...history,
+    incomingIds,
+    lastActivityAt:
+      previous !== null && incomingIds.some((id) => !previous.includes(id))
+        ? Math.max(history.lastActivityAt, now)
+        : history.lastActivityAt,
+  };
+}
 /** An open conversation includes reading/thinking; typing activity never ends it. */
 export function phoneTimeMode(busy: boolean, route: PhoneRoute, locked = false) {
   if (locked && !busy) return 'browsing' as const;
@@ -28,8 +78,14 @@ export function phoneConversationFocus(
   return Id.safeParse(route.target).success ? { channel: 'private', threadId: route.target } : null;
 }
 /** This grants a cheap evaluation opportunity, not permission to call a model or create drama. */
-export function idleCheckDue(now: number, lastMeaningfulActivity: number, lastCheck: number) {
+export function idleCheckDue(
+  now: number,
+  lastMeaningfulActivity: number,
+  lastCheck: number,
+  policy: Readonly<PhoneRuntimePolicy> = PHONE_RUNTIME_POLICY,
+) {
   return (
-    now - lastMeaningfulActivity >= PHONE_IDLE_CHECK_MS && now - lastCheck >= PHONE_IDLE_CHECK_MS
+    now - lastMeaningfulActivity >= policy.deliveryTargetMs - policy.preparationReserveMs &&
+    now - lastCheck >= policy.recheckAfterMs
   );
 }
