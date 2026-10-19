@@ -158,6 +158,18 @@ export async function readAgentPhoneEntryProbe(
   // A pending request for the private interlocutor is continuation of this conversation,
   // not an interruption. Global Director work still waits until browsing resumes.
   if (attention.focus.length) return { status: 'deferred' };
+  const knownHandoff = (
+    await sql.query(
+      `SELECT a.id FROM parallel_life.director_runtime_attempts a WHERE a.world_id=$1 AND a.owner_id=$2
+     AND a.engine_epoch=$3 AND a.status='stale_discarded' AND a.response_hash IS NOT NULL
+     AND a.snapshot->'authoredMaterials' IS NOT NULL AND a.snapshot->'nativeTurn' IS NULL
+     AND NOT EXISTS(SELECT 1 FROM parallel_life.director_handoff_revalidations r
+       WHERE r.world_id=a.world_id AND r.attempt_id=a.id) ORDER BY a.created_at,a.id LIMIT 1`,
+      [frame.worldId, ownerId, frame.engineEpoch],
+    )
+  ).rows[0];
+  // A hint grants one cheap validation, never a model retry or a message.
+  if (knownHandoff) return ready('known_director_handoff', knownHandoff.id);
   const pendingDirectors = (
     await sql.query(
       `SELECT id,status,expected_world_version,lease_until FROM parallel_life.director_runtime_attempts

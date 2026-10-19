@@ -365,6 +365,47 @@ export function npcAgentAdvanceServices(
         return { ...quiet(arrival.storyAt), changed: true, worldVersion: arrival.worldVersion };
       const afterContinuation = await new PostgresClockStore(db).read(ownerId, worldId);
       if (afterContinuation.paused) return quiet(afterContinuation.storyNow);
+      // A concurrently superseded *known* Director proposal is not a reason to
+      // buy it again or abandon the opening. Revalidate its future handoff with
+      // current author eligibility before fallback empty-agenda work.
+      if (!retryCommandId) {
+        const hasKnown = await db.transaction(
+          ownerId,
+          async (sql) =>
+            !!(
+              await sql.query(
+                `SELECT 1 FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2
+             AND engine_epoch=$3 AND status IN ('stale_discarded','response_received')
+             AND response_hash IS NOT NULL LIMIT 1`,
+                [worldId, ownerId, engineEpoch],
+              )
+            ).rowCount,
+        );
+        if (hasKnown) {
+          const current = await directorSnapshots.read(ownerId, {
+            worldId,
+            engineEpoch,
+            worldVersion: world.version,
+            candidates: [],
+            blockers: [],
+          });
+          const recovered = await directors.revalidateKnownHandoff(ownerId, current);
+          if (recovered) {
+            // The durable arrangement is now available to every participant.
+            // The original dispatcher still asks each NPC to decide for itself.
+            const result = await dispatchPendingAgentEpisode(
+              db,
+              npcModel,
+              ownerId,
+              world,
+              engineEpoch,
+              storyAt,
+              batch,
+            );
+            return result ?? { ...quiet(storyAt), changed: true, worldVersion: world.version };
+          }
+        }
+      }
       const delivery = retryCommandId
         ? null
         : await dispatchPendingAgentEpisode(

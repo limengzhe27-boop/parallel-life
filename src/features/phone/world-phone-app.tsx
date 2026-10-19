@@ -28,6 +28,7 @@ import { SceneWorldSync } from './scenes/world-sync.ts';
 import { useGroups } from './groups/use-groups.ts';
 import { isJoined, groupTarget } from './groups/state.ts';
 import { projectMessageNotifications } from './notification-projection.ts';
+import { isIncomingRuntimeMessage } from './message-notification-policy.ts';
 import { AppViewport } from '../../components/app-viewport.tsx';
 import { MessageReceiptClient } from '../api/message-receipt-client.ts';
 import { LifeClient, ApiFailure } from '../api/client.ts';
@@ -154,14 +155,7 @@ export function WorldPhoneApp({
   useEffect(() => {
     if (automatic && data?.id === worldId)
       liveTimeRef.current.observeIncoming(
-        data.messages
-          .filter(
-            (message) =>
-              message.role !== 'user' &&
-              message.initialRead !== true &&
-              message.origin !== 'fictional_history',
-          )
-          .map((message) => message.id),
+        data.messages.filter(isIncomingRuntimeMessage).map((message) => message.id),
       );
   }, [automatic, data, worldId]);
   const sendCommands = useRef<Record<string, SendCommand>>({});

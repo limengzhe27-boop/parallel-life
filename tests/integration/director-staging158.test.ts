@@ -33,7 +33,10 @@ import {
   PostgresDirectorRuntimeRepository,
   directorSnapshotInputHash,
 } from '../../src/modules/world/infrastructure/director-runtime-repository.ts';
-import { WorldDirectorAgentModel } from '../../src/modules/world/infrastructure/director-agent-model.ts';
+import {
+  WorldDirectorAgentModel,
+  parseDirectorDecision,
+} from '../../src/modules/world/infrastructure/director-agent-model.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
 import { PostgresWorldSpace } from '../../src/modules/world/infrastructure/space-repository.ts';
 import { admitNewAgentNarrativeInTransaction } from '../../src/modules/world/infrastructure/agent-narrative-repository.ts';
@@ -325,7 +328,9 @@ test('Director catalog staging crosses actual authored opportunity and independe
       const at = f.world.actors.findIndex((actor) => actor.id === p.replyAs.actorId);
       assert.ok(at >= 0);
       const intent = p.observations.find((entry: any) =>
-        entry.sourceId.startsWith('episode-intent:'),
+        p.sources.some(
+          (source: any) => source.kind === 'director_intent' && source.id === entry.sourceId,
+        ),
       );
       assert.ok(intent, 'No manual author hint grammar is needed for the actual NPC proposal');
       assert.equal(intent.kind, 'plan');
@@ -345,7 +350,14 @@ test('Director catalog staging crosses actual authored opportunity and independe
       assert.equal(p.worldContext.selfPosition.status, 'unknown');
       assert.ok(!p.sources.some((entry: any) => entry.id === 'actual-position:player'));
       return JSON.stringify({
-        protocol: 'npc-wire-v1',
+        protocol: 'npc-wire-v9',
+        executions: [],
+        planIntents: [],
+        inputInterpretation: null,
+        agendaReview: null,
+        focusChange: { kind: 'keep' },
+        questionWithdrawals: null,
+        locationReports: null,
         consideration: {
           choice: at === 0 ? 'quiet' : 'engage',
           reason: 'I independently want to consider my own task.',
@@ -361,15 +373,11 @@ test('Director catalog staging crosses actual authored opportunity and independe
                 },
               ],
         goals: [],
-        plans: [],
-        actions: [],
         responsibilities: [],
-        decisions: [],
       });
     },
   };
   const service = npcAgentAdvanceServices(app, () => model, snapshots);
-  await service.advanceIfEnabled(f.owner, f.id);
   await service.advanceIfEnabled(f.owner, f.id);
   const npc = calls.filter((call) => call.kind === 'npc');
   assert.equal(calls.filter((call) => call.kind === 'director').length, 1);
@@ -393,4 +401,235 @@ test('Director catalog staging crosses actual authored opportunity and independe
   const facts = (await worlds.get({ userId: f.owner }, f.id)).facts;
   assert.ok(!JSON.stringify(facts).includes('Actor A task'));
   assert.ok(!JSON.stringify(facts).includes('Actor B task'));
+  await t.test(
+    'known late authored handoff revalidates at current CAS without repurchasing the Director; expired unknown stays fenced',
+    async () => {
+      const g = await fixture();
+      const original = await snapshots.read(g.owner, {
+        worldId: g.id,
+        engineEpoch: 2,
+        worldVersion: 0,
+        candidates: [],
+        blockers: [],
+      });
+      const claim = (s: DirectorSnapshot, duration = 120000) => ({
+        id: randomUUID(),
+        worldId: g.id,
+        commandId: randomUUID(),
+        engineEpoch: 2,
+        expectedWorldVersion: s.worldVersion,
+        inputHash: directorSnapshotInputHash(s),
+        token: randomUUID(),
+        leaseUntil: new Date(Date.now() + duration).toISOString(),
+      });
+      let first = (await directors.claim(g.owner, claim(original), original)).attempt;
+      first = await directors.mark(g.owner, first, 'request_sent');
+      const m = original.authoredMaterials!.materials.find((m) => m.ref.nodeKey === 'always')!;
+      const raw = {
+        mode: 'bounded_opportunity',
+        selectedCandidateIds: [],
+        deferred: [],
+        nudges: [],
+        opportunities: [
+          {
+            id: 'revalidated-opening',
+            title: 'Original authored future opportunity',
+            description: 'A future conversation, not an accomplished event.',
+            playerImpact: 'Optional participation',
+            participantActorIds: original.boundary.actorIds,
+            placeIds: [],
+            activity: 'conversation',
+            authoredEventKey: 'always',
+            basisSourceIds: ['authored:' + m.ref.nodeHash],
+            stagingIntents: original.boundary.actorIds.map((actorId) => ({
+              actorId,
+              kind: 'future_task',
+              task: 'Consider offering your own next step, if you wish.',
+            })),
+          },
+        ],
+        audit: {
+          reason: 'Explicit synthetic late proposal',
+          basisSourceIds: ['authored:' + m.ref.nodeHash],
+        },
+      };
+      const privateModel: TextModel = {
+        async complete() {
+          return JSON.stringify({
+            protocol: 'npc-wire-v1',
+            consideration: null,
+            statements: [{ text: 'I heard your question.', dependsOnActionIds: [] }],
+            goals: [],
+            plans: [],
+            actions: [],
+            responsibilities: [],
+            decisions: [],
+          });
+        },
+      };
+      const chat = npcAgentServices(app, () => privateModel);
+      await chat.sendMessageIfEnabled(g.owner, {
+        id: randomUUID(),
+        worldId: g.id,
+        actorId: g.world.actors[0]!.id,
+        expectedVersion: 0,
+        text: 'A real intervening player turn',
+      });
+      first = await directors.saveResponse(g.owner, first, JSON.stringify(raw));
+      assert.equal(first.status, 'stale_discarded');
+      await assert.rejects(
+        app.transaction(g.owner, async (sql) => {
+          await sql.query("SELECT set_config('app.director_handoff_revalidation',$1,true)", [
+            first.id,
+          ]);
+          await sql.query(
+            "UPDATE parallel_life.director_runtime_attempts SET status='committed',decision_id=$2 WHERE id=$1",
+            [first.id, randomUUID()],
+          );
+        }),
+        /INVALID_DIRECTOR_TRANSITION/,
+        'a session flag without an authenticated receipt cannot revive a discarded result',
+      );
+
+      const before = (
+        await admin.query(
+          'SELECT snapshot,response,response_hash,sent_at FROM parallel_life.director_runtime_attempts WHERE id=$1',
+          [first.id],
+        )
+      ).rows[0];
+      const current = await snapshots.read(g.owner, {
+        worldId: g.id,
+        engineEpoch: 2,
+        worldVersion: 1,
+        candidates: [],
+        blockers: [],
+      });
+      let unknown = (await directors.claim(g.owner, claim(current, 1400), current)).attempt;
+      unknown = await directors.mark(g.owner, unknown, 'request_sent');
+      unknown = await directors.mark(g.owner, unknown, 'unknown_after_send');
+      // Same-frame unknown is never a retry grant, even if its lease later expires.
+      assert.equal(await directors.revalidateKnownHandoff(g.owner, current), null);
+      await chat.sendMessageIfEnabled(g.owner, {
+        id: randomUUID(),
+        worldId: g.id,
+        actorId: g.world.actors[0]!.id,
+        expectedVersion: 1,
+        text: 'A second real player turn',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1450));
+      const latest = await snapshots.read(g.owner, {
+        worldId: g.id,
+        engineEpoch: 2,
+        worldVersion: 2,
+        candidates: [],
+        blockers: [],
+      });
+      const d = await directors.revalidateKnownHandoff(g.owner, latest);
+      assert.ok(d);
+      assert.equal(d.worldVersion, 0, 'assessed frame is immutable');
+      assert.equal(d.id, parseDirectorDecision(original, JSON.stringify(raw), first).id);
+      const receipt = (
+        await admin.query(
+          'SELECT * FROM parallel_life.director_handoff_revalidations WHERE world_id=$1',
+          [g.id],
+        )
+      ).rows[0];
+      assert.equal(receipt.assessed_version, 0);
+      assert.equal(receipt.applied_version, 2);
+      assert.deepEqual(receipt.superseded_unknown_ids, [unknown.id]);
+      const after = (
+        await admin.query(
+          'SELECT snapshot,response,response_hash,sent_at FROM parallel_life.director_runtime_attempts WHERE id=$1',
+          [first.id],
+        )
+      ).rows[0];
+      assert.deepEqual(after, before);
+      const u = (
+        await admin.query(
+          'SELECT status,response_hash,sent_at FROM parallel_life.director_runtime_attempts WHERE id=$1',
+          [unknown.id],
+        )
+      ).rows[0];
+      assert.equal(u.status, 'stale_discarded');
+      assert.equal(u.response_hash, null);
+      assert.ok(u.sent_at);
+      assert.equal(
+        (await worlds.get({ userId: g.owner }, g.id)).version,
+        2,
+        'handoff executes no world actions',
+      );
+      assert.equal((await directors.readEpisodes(g.owner, g.id))[0]!.status, 'proposed');
+      const requests = (
+        await admin.query(
+          'SELECT status,actor_id FROM parallel_life.agent_episode_requests WHERE world_id=$1',
+          [g.id],
+        )
+      ).rows;
+      assert.equal(requests.length, g.world.actors.length);
+      assert.ok(requests.every((r) => r.status === 'pending'));
+      assert.equal(
+        await directors.revalidateKnownHandoff(
+          g.owner,
+          await snapshots.read(g.owner, {
+            worldId: g.id,
+            engineEpoch: 2,
+            worldVersion: 2,
+            candidates: [],
+            blockers: [],
+          }),
+        ),
+        null,
+        'once-only known proposal application',
+      );
+      // The original normal dispatcher asks both independent actors; no Director model is called.
+      let npcCalls = 0;
+      const noDirector: TextModel = {
+        async complete(messages) {
+          const p = JSON.parse(messages.find((m) => m.role === 'user')!.content);
+          assert.ok(!p.promptVersion.startsWith('director-'));
+          npcCalls++;
+          const intent = p.observations.find((o: any) =>
+            p.sources.some(
+              (source: any) => source.kind === 'director_intent' && source.id === o.sourceId,
+            ),
+          );
+          assert.ok(intent);
+          return JSON.stringify({
+            protocol: 'npc-wire-v9',
+            executions: [],
+            planIntents: [],
+            inputInterpretation: null,
+            agendaReview: null,
+            focusChange: { kind: 'keep' },
+            questionWithdrawals: null,
+            locationReports: null,
+            consideration: {
+              choice: 'engage',
+              reason: 'Own independent choice',
+              basisSourceIds: [intent.sourceId],
+            },
+            statements: [{ text: 'My own optional next step.', dependsOnActionIds: [] }],
+            goals: [],
+            responsibilities: [],
+          });
+        },
+      };
+      const resume = npcAgentAdvanceServices(app, () => noDirector, snapshots, {
+        maxActors: 2,
+        maxModelCalls: 2,
+      });
+      await resume.advanceIfEnabled(g.owner, g.id);
+      assert.equal(npcCalls, g.world.actors.length);
+      assert.equal((await directors.readEpisodes(g.owner, g.id))[0]!.status, 'active');
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT 1 FROM parallel_life.agent_episode_outcomes WHERE world_id=$1',
+            [g.id],
+          )
+        ).rowCount,
+        0,
+      );
+    },
+  );
 });

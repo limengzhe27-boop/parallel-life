@@ -1,3 +1,5 @@
+import { revalidateDirectorHandoff } from '../domain/director-handoff-revalidation.ts';
+import { parseDirectorDecision } from './director-agent-model.ts';
 import { validateNativeDirectorTurn } from './native-director-turn.ts';
 import { validActorTopicSelection, validActorStagingIntents } from '../domain/actor-known-topic.ts';
 import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
@@ -1176,6 +1178,141 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       // if activity elapsed during this short transaction; saved raw stays intact.
       await requireActiveAgentDeliveryInTransaction(sql, owner, world.id);
       return decision;
+    });
+  }
+  /** Reapply only a known authored future proposal against today's authority.
+   * No model port, no rewritten paid input, and no recovery of unknown content.
+   */
+  async revalidateKnownHandoff(
+    owner: string,
+    rawCurrent: DirectorSnapshot,
+  ): Promise<DirectorDecision | null> {
+    const current = snapshotShape(rawCurrent);
+    return this.db.transaction(owner, async (sql) => {
+      const world = await this.owned(sql, owner, current.worldId);
+      await this.current(sql, owner, world, current);
+      if (current.focus.length || current.conversationWithoutTarget || current.nativeTurn)
+        return null;
+      const rows = (
+        await sql.query(
+          `SELECT * FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2
+        AND engine_epoch=$3 AND status IN ('stale_discarded','response_received') AND response_hash IS NOT NULL
+        AND expected_world_version<=$4 ORDER BY created_at,id FOR UPDATE`,
+          [world.id, owner, current.engineEpoch, current.worldVersion],
+        )
+      ).rows;
+      for (const row of rows) {
+        const original = snapshotShape(row.snapshot),
+          originalAttempt = attempt(row);
+        if (originalAttempt.inputHash !== directorSnapshotInputHash(original))
+          fail('DIRECTOR_INPUT_CONFLICT');
+        let decision: DirectorDecision;
+        try {
+          decision = parseDirectorDecision(original, row.response, originalAttempt);
+        } catch {
+          continue;
+        } // Invalid historical output is never repaired or reinterpreted.
+        this.validateDecision(original, originalAttempt, decision);
+        const proof = revalidateDirectorHandoff({ original, current, decision });
+        if (!proof.allowed) continue;
+        const active = (
+          await sql.query(
+            `SELECT id,status,expected_world_version FROM parallel_life.director_runtime_attempts
+           WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send')
+           AND id<>$3 FOR UPDATE`,
+            [world.id, owner, row.id],
+          )
+        ).rows;
+        // A different live or recoverable coordinator still owns its slot. Only
+        // an expired unknown whose read frame is obsolete can be fenced, never resent.
+        const superseded: string[] = [];
+        for (const pending of active) {
+          const obsolete = (
+            await sql.query(
+              `SELECT 1 FROM parallel_life.director_runtime_attempts WHERE id=$1
+             AND status='unknown_after_send' AND lease_until<=clock_timestamp()
+             AND expected_world_version<$2 AND engine_epoch=$3`,
+              [pending.id, current.worldVersion, current.engineEpoch],
+            )
+          ).rowCount;
+          if (!obsolete) return null;
+          superseded.push(String(pending.id));
+        }
+        await sql.query(
+          `INSERT INTO parallel_life.director_handoff_revalidations(world_id,owner_id,attempt_id,response_hash,
+          assessed_version,applied_version,input_hash,readset_hash,current_snapshot,opportunity_ids,superseded_unknown_ids)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [
+            world.id,
+            owner,
+            row.id,
+            row.response_hash,
+            original.worldVersion,
+            current.worldVersion,
+            row.input_hash,
+            digest(body(proof.readSet, DIRECTOR_SNAPSHOT_MAX_BYTES)),
+            current,
+            JSON.stringify(decision.opportunities.map((o) => o.id)),
+            JSON.stringify(superseded),
+          ],
+        );
+        await sql.query(
+          `INSERT INTO parallel_life.director_decisions(id,world_id,owner_id,attempt_id,engine_epoch,world_version,input_hash,evaluated_through_version,document)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [
+            decision.id,
+            world.id,
+            owner,
+            row.id,
+            current.engineEpoch,
+            original.worldVersion,
+            row.input_hash,
+            decision.evaluatedThroughVersion,
+            decision,
+          ],
+        );
+        for (const opportunity of decision.opportunities) {
+          const episode: SharedEpisode = {
+            schemaVersion: 1,
+            worldId: world.id,
+            id: opportunity.id,
+            revision: 0,
+            origin: { kind: 'director', sourceId: decision.id },
+            status: 'proposed',
+            title: opportunity.title,
+            description: opportunity.description,
+            participantActorIds: opportunity.participantActorIds,
+            placeIds: opportunity.placeIds,
+            sourceEventIds: [],
+            resultIds: [],
+            unresolvedResponsibilityIds: [],
+          };
+          await sql.query(
+            'INSERT INTO parallel_life.shared_episodes(world_id,owner_id,id,origin_decision_id,document) VALUES($1,$2,$3,$4,$5)',
+            [world.id, owner, episode.id, decision.id, episode],
+          );
+        }
+        await sql.query("SELECT set_config('app.director_handoff_revalidation',$1,true)", [row.id]);
+        await sql.query(
+          "UPDATE parallel_life.director_runtime_attempts SET status='committed',decision_id=$2,updated_at=now() WHERE id=$1",
+          [row.id, decision.id],
+        );
+        for (const id of superseded)
+          await sql.query(
+            "UPDATE parallel_life.director_runtime_attempts SET status='stale_discarded',updated_at=now() WHERE id=$1 AND status='unknown_after_send'",
+            [id],
+          );
+        await createEpisodeRequestsInTransaction(sql, owner, {
+          worldId: world.id,
+          engineEpoch: current.engineEpoch,
+          decision,
+        });
+        // Do not mark newer observations evaluated: only the original frame was
+        // assessed by the model; this receipt certifies eligibility, not new facts.
+        await requireActiveAgentDeliveryInTransaction(sql, owner, world.id);
+        return decision;
+      }
+      return null;
     });
   }
   private validateDecision(s: DirectorSnapshot, a: DirectorAttempt, d: DirectorDecision) {
