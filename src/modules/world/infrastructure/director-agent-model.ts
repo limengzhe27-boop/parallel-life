@@ -343,9 +343,11 @@ function evaluationCauseView(snapshot: DirectorSnapshot) {
   };
 }
 
-/** Leave room for the system prompt and the reply inside a 64k request. */
-export const CONTEXT_BUDGET = 48000;
-const CONTEXT_LIMIT = 64000;
+/** Character budgets (not token counts). Reserve room for the system instructions.
+ * Multi-actor role material and persistent execution state must fit together;
+ * omitting either silently changes narrative identity or execution semantics. */
+export const CONTEXT_BUDGET = 80000;
+const CONTEXT_LIMIT = 96000;
 
 type Payload = Record<string, unknown>;
 
