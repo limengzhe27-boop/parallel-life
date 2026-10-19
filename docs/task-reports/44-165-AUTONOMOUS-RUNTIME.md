@@ -18,3 +18,10 @@
 
 ## 验收边界
 纯/PG证明不替代真实浏览器。下一步：完成必要检查、候选部署，通过正常页面进入/等待/返回观察自动网络请求与新消息；不手动调用advance冒充自动。未知付费记录原样保留。需要后续任务仍留总表。
+
+## 2026-10-20 真实页面验收接续
+Chrome获用户授权，使用当前生产构建及真实数据库/模型配置，经正常“渣男体验，进入体验”创建独立存档479df414-7f06-4e23-9b9e-51c2c8cde877。不是用户原存档。页面自动调用原advance，但首轮多次operation完成played0、work为空，世界仍version0；未看到新来信，验收失败，不能宣称完成。初步把work为空误判为无operation，已更正，实际operation存在。
+
+断点继续处理：scheduleAgents将coordinate异常转为coordination_failed，服务coordinated=true后跳过后续协调，导致原失败被投影成quiet。现在只对真正错误向原operation透传；已有paid pending/known-invalid保留原作用域。另将bootstrap/opening_context原导演执行前移，避免为首次开场先装配全NPC上下文；同一snapshot事务复用opening authority与人物材料，不跨事务缓存，不省略执行前验证。
+
+旧unknown仅在新相关认证证据出现时退休旧执行资格，原付费身份保留；时间/无关版本变化不构成新授权。已集成bac5f345、8101cd91、68613a72。仍待完整页面主动开场/后续实测及正式部署，当前不可标已交付。

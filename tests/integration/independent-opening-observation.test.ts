@@ -335,6 +335,27 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
     return { owner, id, world };
   }
 
+  const failedRead = await fixture({ multiActorOpening: true });
+  const sourceFailure = Object.assign(new Error('DIRECTOR_SOURCE_READ_FAILED'), {
+    code: 'DIRECTOR_SOURCE_READ_FAILED',
+  });
+  await assert.rejects(
+    npcAgentAdvanceServices(
+      app,
+      () => ({
+        async complete() {
+          throw Error('MUST_NOT_CALL_MODEL');
+        },
+      }),
+      {
+        async read() {
+          throw sourceFailure;
+        },
+      },
+    ).advanceIfEnabled(failedRead.owner, failedRead.id),
+    (error: unknown) => error === sourceFailure,
+  );
+
   const f = await fixture({ multiActorOpening: true });
   const s = await snapshots.read(f.owner, {
     worldId: f.id,
