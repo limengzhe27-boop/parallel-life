@@ -17,7 +17,10 @@ import { readActorSituation } from './actor-situation-repository.ts';
 import { DomainError } from '../domain/errors.ts';
 import { authorizedAgentState } from '../domain/agent-kernel.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
-import { readActorStrategyBasis } from './agent-source-resolver.ts';
+import {
+  readActorStrategyBasis,
+  readActorMediaCompletionContextInTransaction,
+} from './agent-source-resolver.ts';
 import { PostgresWorldAwarenessRepository } from './world-awareness-repository.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { MemoryRecordSchema } from '../../../contracts/memory.ts';
@@ -716,6 +719,26 @@ export async function attachAgentWorldContext(
     Object.assign(
       contextual,
       authorizedAgentState(snapshot.state, new Set(contextual.sources.map((s) => s.id))),
+    );
+  }
+  const media = await db.transaction(ownerId, (sql) =>
+    readActorMediaCompletionContextInTransaction(sql, ownerId, contextual, {
+      referencedSourceIds: contextual.sources.map((source) => source.id),
+    }),
+  );
+  if (media.sources.length) {
+    const ids = new Set(media.sources.map((source) => source.id));
+    contextual.sources = [
+      ...contextual.sources.filter((source) => !ids.has(source.id)),
+      ...media.sources,
+    ];
+    contextual.observations = [
+      ...contextual.observations.filter((observation) => !ids.has(observation.sourceId)),
+      ...media.observations,
+    ];
+    Object.assign(
+      contextual,
+      authorizedAgentState(snapshot.state, new Set(contextual.sources.map((source) => source.id))),
     );
   }
   contextual.episodeFollowUps = await db.transaction(ownerId, (sql) =>

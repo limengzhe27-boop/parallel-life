@@ -7,6 +7,10 @@ import type { ActorAgentState, AgentSource } from '../domain/agent-runtime.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { ACTOR_EPISODE_INTENT_PREFIX } from '../domain/actor-episode-intent.ts';
 import { readActorEpisodeIntentsInTransaction } from './actor-episode-intent-repository.ts';
+import { isDeepStrictEqual } from 'node:util';
+import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
+import type { ActorMediaResultContext } from '../domain/actor-media-result-context.ts';
+import { readActorMediaResultContextInTransaction } from './actor-media-result-context-repository.ts';
 
 /** Own persistent strategy provenance, not permission to disclose private transcripts to a channel. */
 export async function readActorStrategyBasis(
@@ -38,9 +42,15 @@ export async function readActorStrategyBasis(
       ].flatMap((x) => ('sourceId' in x ? [x.sourceId] : [])),
     ]),
   ];
-  if (!handles.length) return [];
+  const media = await readActorMediaCompletionContextInTransaction(
+    sql,
+    ownerId,
+    { state, worldVersion, storyAt },
+    { referencedSourceIds: handles },
+  );
+  if (!handles.length) return media.sources;
   const blocked = await forgottenAgentSourceIds(sql, ownerId, state.worldId, state.actorId);
-  const sources = new Map<string, AgentSource>();
+  const sources = new Map<string, AgentSource>(media.sources.map((source) => [source.id, source]));
   const add = (
     id: string,
     kind: AgentSource['kind'],
@@ -538,4 +548,147 @@ async function readNativeStrategyBasis(
       processed(row, 'scene');
     }
   }
+}
+
+type MediaCompletionFrame = Pick<AgentSnapshot, 'state' | 'worldVersion' | 'storyAt'>;
+/** The enqueue's story timestamp is lineage, not the time this external result became known. */
+function mediaCompletionPacket(result: ActorMediaResultContext, observedAtStory: string) {
+  const source: AgentSource = {
+    id: result.id,
+    kind: 'action_result',
+    recordId: result.requestId,
+    worldVersion: result.source.sourceWorldVersion,
+    at: result.source.sourceStoryAt,
+    contentHash: result.source.contentHash,
+    usage: 'private_strategy',
+  };
+  const observation: AgentSnapshot['observations'][number] = {
+    sourceId: source.id,
+    kind: 'result',
+    text: JSON.stringify({
+      kind: 'own_media_completion',
+      requestId: result.requestId,
+      actionId: result.actionId,
+      enqueueResultId: result.enqueueResultId,
+      mediaType: result.mediaType,
+      phase: 'completed',
+      asset: result.asset,
+      completedAtReal: result.completedAtReal,
+      sourceStoryAt: result.source.sourceStoryAt,
+      observedAtStory,
+      chatProjection: result.chatProjection.status,
+      meaning:
+        '真实生成已完成；原请求时间不是完成时间，聊天投影不是玩家阅读回执，不能据此认定整个目标或事件完成。此为本人执行上下文，不授权向其他渠道公开原私人内容。',
+    }),
+  };
+  return { source, observation };
+}
+
+/**
+ * Own completed work is available even before a model has copied its handle into knowledge.
+ * No state, acknowledgement, delivery, or goal completion is written by this read.
+ */
+export async function readActorMediaCompletionContextInTransaction(
+  sql: SqlClient,
+  owner: string,
+  frame: MediaCompletionFrame,
+  options: {
+    referencedSourceIds?: readonly string[];
+    expectedSources?: readonly AgentSource[];
+  } = {},
+): Promise<{ sources: AgentSource[]; observations: AgentSnapshot['observations'] }> {
+  const control = (
+    await sql.query(
+      'SELECT engine_epoch FROM parallel_life.agent_runtime_worlds WHERE world_id=$1 AND owner_id=$2',
+      [frame.state.worldId, owner],
+    )
+  ).rows[0];
+  if (!control || control.engine_epoch < 2) return { sources: [], observations: [] };
+  const input = {
+    worldId: frame.state.worldId,
+    actorId: frame.state.actorId,
+    engineEpoch: Number(control.engine_epoch),
+    worldVersion: frame.worldVersion,
+  };
+  const completed = new Map<string, ActorMediaResultContext>();
+  if (!options.expectedSources) {
+    const recent = await readActorMediaResultContextInTransaction(sql, owner, input);
+    for (const result of recent.completed) completed.set(result.id, result);
+  }
+  const referenced = (options.referencedSourceIds ?? []).filter((id) =>
+    id.startsWith('media-result:'),
+  );
+  // Only metadata from this actor's protected committed snapshots is used as a lookup hint.
+  // The actual execution/asset lineage is independently authenticated again below.
+  const historical = referenced.length
+    ? (
+        await sql.query(
+          `SELECT DISTINCT source->>'recordId' AS request_id
+           FROM parallel_life.agent_attempts a
+           CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(a.response->'snapshot'->'sources')='array'
+             THEN a.response->'snapshot'->'sources' ELSE '[]'::jsonb END) source
+           WHERE a.world_id=$1 AND a.owner_id=$2 AND a.actor_id=$3 AND a.status='committed'
+             AND a.engine_epoch=$4 AND a.expected_world_version<=$5
+             AND source->>'id'=ANY($6::text[]) AND source->>'kind'='action_result'
+             AND source->>'id' LIKE 'media-result:%' AND source->>'recordId' IS NOT NULL`,
+          [input.worldId, owner, input.actorId, input.engineEpoch, input.worldVersion, referenced],
+        )
+      ).rows.map((row) => String(row.request_id))
+    : [];
+  const requestIds = [
+    ...new Set([
+      ...historical,
+      ...(options.expectedSources ?? []).map((source) => source.recordId),
+    ]),
+  ];
+  for (let offset = 0; offset < requestIds.length; offset += 64) {
+    const exact = await readActorMediaResultContextInTransaction(sql, owner, {
+      ...input,
+      limit: 64,
+      requestIds: requestIds.slice(offset, offset + 64),
+    });
+    for (const result of exact.completed) completed.set(result.id, result);
+  }
+  const selected = options.expectedSources
+    ? new Set(options.expectedSources.map((source) => source.id))
+    : null;
+  const packets = [...completed.values()]
+    .filter(
+      (result) =>
+        (!selected || selected.has(result.id)) &&
+        Date.parse(result.source.sourceStoryAt) <= Date.parse(frame.storyAt),
+    )
+    .map((result) => mediaCompletionPacket(result, frame.storyAt));
+  return {
+    sources: packets.map((packet) => packet.source),
+    observations: packets.map((packet) => packet.observation),
+  };
+}
+
+/** Revalidate external completion independently of worldVersion, including observation contents. */
+export async function validateActorMediaResultContextInTransaction(
+  sql: SqlClient,
+  owner: string,
+  snapshot: AgentSnapshot,
+) {
+  const selected = snapshot.sources.filter((source) => source.id.startsWith('media-result:'));
+  if (!selected.length) return; // Pre-upgrade protected paid snapshots remain resumable.
+  const current = await readActorMediaCompletionContextInTransaction(sql, owner, snapshot, {
+    expectedSources: selected,
+  });
+  const expectedObservations = snapshot.observations.filter((observation) =>
+    selected.some((source) => source.id === observation.sourceId),
+  );
+  const bySource = (a: { sourceId: string }, b: { sourceId: string }) =>
+    a.sourceId.localeCompare(b.sourceId);
+  if (
+    selected.some((source) => !current.sources.some((item) => isDeepStrictEqual(item, source))) ||
+    !isDeepStrictEqual(
+      [...expectedObservations].sort(bySource),
+      [...current.observations].sort(bySource),
+    )
+  )
+    throw Object.assign(Error('MEDIA_RESULT_SOURCE_CONFLICT'), {
+      code: 'MEDIA_RESULT_SOURCE_CONFLICT',
+    });
 }
