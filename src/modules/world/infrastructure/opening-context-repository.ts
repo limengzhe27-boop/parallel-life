@@ -50,7 +50,11 @@ export async function readOpeningContextAuthority(
   sql: SqlClient,
   owner: string,
   input: { worldId: string; engineEpoch: number; worldVersion: number },
-  options: { view?: AuthoredEligibilityView; allowAttemptId?: string } = {},
+  options: {
+    view?: AuthoredEligibilityView;
+    allowAttemptId?: string;
+    actorDirectionMaterials?: Awaited<ReturnType<typeof readDirectorActorDirectionMaterials>>;
+  } = {},
 ): Promise<OpeningContextAuthority | undefined> {
   const r = (
     await sql.query(
@@ -208,7 +212,9 @@ export async function readOpeningContextAuthority(
       [input.worldId, owner, actorIds],
     )
   ).rows;
-  const materials = await readDirectorActorDirectionMaterials(sql, input.worldId, actorIds);
+  const materials = options.actorDirectionMaterials
+    ? options.actorDirectionMaterials.filter((m) => actorIds.includes(m.actorId))
+    : await readDirectorActorDirectionMaterials(sql, input.worldId, actorIds);
   const sourceField = material.node.script?.trim() ? 'script' : 'editorialIntent';
   const original = material.node[sourceField] ?? '';
   const sourceExcerpt = authoredSourceExcerpt(original, material.node.title, 6000);

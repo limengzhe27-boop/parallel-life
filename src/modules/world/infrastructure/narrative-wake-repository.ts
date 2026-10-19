@@ -28,6 +28,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   input: { worldId: string; engineEpoch: number; worldVersion: number; storyAt: string },
   prepared?: AuthoredEligibilityView,
   allowAttemptId?: string,
+  readOpening?: () => ReturnType<typeof readOpeningContextAuthority>,
 ): Promise<{
   cause: DirectorEvaluationCause | null;
   hasPendingDirector: boolean;
@@ -83,10 +84,9 @@ export async function readDirectorNarrativeWakeInTransaction(
   )
     throw new DomainError('VERSION_CONFLICT');
   if (!view.catalog.source) return { cause: null, hasPendingDirector, deferred: false };
-  const informationAuthority = await readOpeningContextAuthority(sql, ownerId, input, {
-    view,
-    allowAttemptId,
-  });
+  const informationAuthority = await (readOpening
+    ? readOpening()
+    : readOpeningContextAuthority(sql, ownerId, input, { view, allowAttemptId }));
   if (informationAuthority)
     return {
       cause: {

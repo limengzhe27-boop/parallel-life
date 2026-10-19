@@ -246,3 +246,36 @@ test('deferred information reopens only after authenticated participant plan cha
   f.setReviews([{ disposition: 'confirm', review_key: base.reviewKey, world_version: 1 }]);
   assert.equal(await read(), undefined, 'confirmed information never replays');
 });
+
+test('same-transaction direction material reuse preserves authority and actor visibility', async () => {
+  const f = fixture();
+  const input = { worldId: 'world', engineEpoch: 2, worldVersion: 4 };
+  const original = await readOpeningContextAuthority(f.sql, 'owner', input, { view: f.view });
+  const read = f.sql.query.bind(f.sql);
+  let duplicateModuleReads = 0;
+  f.sql.query = (async (query: string, ...args: unknown[]) => {
+    if (query.includes('publication_actor_life_modules')) duplicateModuleReads++;
+    return (read as any)(query, ...args);
+  }) as typeof f.sql.query;
+  const reused = await readOpeningContextAuthority(f.sql, 'owner', input, {
+    view: f.view,
+    actorDirectionMaterials: [
+      {
+        actorId: 'actor',
+        modules: { lifeContext: 'Keeper of the shop; receives notices about its opening hours.' },
+      },
+      { actorId: 'other', modules: { lifeContext: 'Private knowledge from another character.' } },
+    ],
+  });
+  assert.deepEqual(reused, original);
+  assert.equal(duplicateModuleReads, 0);
+  f.world.version = 5;
+  await assert.rejects(
+    () =>
+      readOpeningContextAuthority(f.sql, 'owner', input, {
+        view: f.view,
+        actorDirectionMaterials: [],
+      }),
+    { code: 'OPENING_CONTEXT_AUTHORITY_CONFLICT' },
+  );
+});
