@@ -89,6 +89,8 @@ async function read(version: string, badHash = false) {
           ],
         };
       if (q.includes('FROM parallel_life.memory_records')) return { rows: [] };
+      if (q.includes('FROM parallel_life.actor_agent_states') && version === 'director-wire-v8')
+        throw Error('old staging must not read ignored topic state');
       if (q.includes('FROM parallel_life.actor_agent_states')) return { rows: [{ document: {} }] };
       throw Error('unexpected query');
     },

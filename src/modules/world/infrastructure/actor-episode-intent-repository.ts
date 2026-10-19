@@ -119,9 +119,8 @@ export async function readActorEpisodeIntentsInTransaction(
         );
     return topics;
   };
-  const topics = addressed.some(({ opportunity }) => opportunity.actorTopics)
-    ? await loadTopics()
-    : [];
+  let topicRead: ReturnType<typeof loadTopics> | undefined;
+  const selectedTopics = () => (topicRead ??= loadTopics());
   for (const { request, opportunity, saved } of staged) {
     if (!validActorStagingIntents(opportunity)) return conflict();
     const intent = opportunity.stagingIntents!.filter((entry) => entry.actorId === frame.actorId);
@@ -218,6 +217,7 @@ export async function readActorEpisodeIntentsInTransaction(
       const selection = opportunity.actorTopics?.filter((s) => s.actorId === frame.actorId);
       if (!selection) continue;
       if (selection.length !== 1) return conflict();
+      const topics = await selectedTopics();
       const captured = selection[0]!.refs.map((ref) => {
         const entries = saved.actorKnownTopics?.filter(
           (t) =>
