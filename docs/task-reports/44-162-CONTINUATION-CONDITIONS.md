@@ -1,0 +1,11 @@
+# 44-162 continuation等待条件接入原调度
+
+负责人codex-agent-continuation162，root集成；基线85cda9de。只改agent-schedule-collectors.ts，新增独占测试与本报告，0真实模型/生产/SQL。
+
+实现：原actor_plan collector汇入await_condition候选，复用authorizedActor、agentConditionsReady、evidence、candidate及consumedCandidateIds。只在私聊本人完整持久状态与view一致时考虑；本人plan/question引用必须合法；实际条件来源必须存在、时刻必须有对应来源deadlineAt。普通quiet的accepted_input不充当新观察；已持久的真实player_decision可使用其原accepted_input来源。
+
+候选身份仅包含条件内容及真实证据，不含decidedAt/sourceInputId/basisHash/worldVersion/actorRevision。原quiet成功receipt消费后，重写reason/quiet时间/自提交revision不会生成新候选；实际新观察/结果才可产生新身份。与现有plan.triggers/responsibility.nextCheck相同的条件交原路径，避免重复投递。候选不会执行行动、伪造事件或生成台词，只提供一次原NPC考虑机会。
+
+验证：37项聚焦collector测试通过，包含新增4项条件旅程；TypeScript通过。证明时刻成熟但state basis没变仍有候选；quiet变更不改id且consumed后不再投递；新实际观察允许新id但普通accepted_input不允许；未知/群聊/伪造view/无依据期限/外国plan不唤醒；已有责任不重复生成actor_plan候选。
+
+限制：previousContinuation模型投影当前要求旧sourceIds仍可见。若裁剪旧input导致该摘要缺席，原候选仍合法但NPC可能缺少原等待解释。已通知root后续由认证个人决策摘要机制补齐，不在此擅改NPCmodel。根负责真实模型、完整门禁及部署，不以此纯测试宣称自然表现完成。

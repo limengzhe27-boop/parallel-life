@@ -459,6 +459,84 @@ async function planReconsiderations(
   return out;
 }
 
+/** A persisted personal waiting decision can mature without any actor-state mutation. */
+async function continuationConditions(view: SchedulingView, context: ActorContext) {
+  const state = context.snapshot.viewState;
+  const continuation = state.continuation;
+  if (
+    !continuation ||
+    continuation.version !== 1 ||
+    continuation.decision !== 'await_condition' ||
+    context.snapshot.channel.kind !== 'private' ||
+    canonical(continuation) !== canonical(context.snapshot.state.continuation) ||
+    !continuation.conditions.length ||
+    !conditionTimesValid(continuation.conditions) ||
+    continuation.planIds.some(
+      (id) =>
+        !state.plans.some(
+          (p) => p.id === id && context.basis(p) && !['finished', 'withdrawn'].includes(p.status),
+        ),
+    ) ||
+    continuation.questionIds.some(
+      (id) => !state.questions?.some((q) => q.id === id && q.status === 'open'),
+    )
+  )
+    return [];
+  const conditions = continuation.conditions;
+  const proof = evidence(context, conditions);
+  // Authenticate the actual matured condition, not a fresh quiet input's receipt.
+  // Prior decision inputs need not remain in a bounded snapshot forever.
+  if (
+    !proof.sourceIds.length ||
+    proof.sourceIds.some(
+      (id) =>
+        !context.sources.has(id) ||
+        (context.sources.get(id)!.kind === 'accepted_input' &&
+          !conditions.some(
+            (c) =>
+              c.kind === 'player_decision' &&
+              currentPlayerDecision(context.snapshot, empty(), c.responsibilityId)?.sourceId === id,
+          )),
+    ) ||
+    conditions.some(
+      (c) => c.kind === 'at_or_after' && context.sources.get(c.sourceId)?.deadlineAt !== c.at,
+    ) ||
+    !agentConditionsReady(
+      context.snapshot,
+      conditions,
+      proof.sourceIds,
+      context.results,
+      context.position?.placeId,
+    )
+  )
+    return [];
+  const same = (other: readonly AgentCondition[]) =>
+    canonical(ordered(other)) === canonical(ordered(conditions));
+  if (
+    state.plans.some(
+      (p) =>
+        ['active', 'waiting', 'blocked'].includes(p.status) && context.basis(p) && same(p.triggers),
+    ) ||
+    state.responsibilities.some(
+      (r) =>
+        !['fulfilled', 'withdrawn', 'expired'].includes(r.status) &&
+        context.basis(r) &&
+        same(r.nextCheck),
+    )
+  )
+    return [];
+  return [
+    await candidate(view, context, {
+      source: 'actor_plan',
+      actionId: null,
+      sourceIds: proof.sourceIds,
+      responsibilities: [],
+      semantic: { continuationConditions: ordered(conditions), evidence: proof.values },
+      reason: '本人已保存的等待条件出现实际依据，重新考虑下一步；不推定玩家同意或行动完成。',
+    }),
+  ];
+}
+
 async function responsibilities(view: SchedulingView, actor: ActorRead, context: ActorContext) {
   const out: AgentCandidate[] = [];
   for (const responsibility of context.snapshot.viewState.responsibilities) {
@@ -798,6 +876,7 @@ export function createAgentScheduleSources(
                   ? plans(view, context).then(async (ready) => [
                       ...ready,
                       ...(await planReconsiderations(view, context, ready)),
+                      ...(await continuationConditions(view, context)),
                     ])
                   : source === 'responsibility'
                     ? responsibilities(view, actor, context)
