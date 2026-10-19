@@ -238,7 +238,7 @@ test('v7 paid single choice remains fixed and namespaced; duplicate-actor old ar
   raw.authoredChoices[ref].opportunities.push({ ...o, id: 'other-id' });
   assert.throws(() => f.parse(raw), /outside its authorized boundary/);
 });
-test('v8 provider uses single author opportunity and exact keyed nullable actor tasks with shared schema', () => {
+test('v9 provider uses single author opportunity and exact keyed nullable actor tasks with shared schema', () => {
   const f = fixture(),
     format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
@@ -252,5 +252,48 @@ test('v8 provider uses single author opportunity and exact keyed nullable actor 
   );
   assert(consider.properties.opportunity.$ref);
   assert.equal(consider.properties.opportunities, undefined);
-  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v8']);
+  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v9']);
+});
+
+test('v9 typed handoff preserves actor binding and compiles only the selected personal proposal', () => {
+  const f = consider();
+  f.wire.protocol = 'director-wire-v9';
+  const o = f.wire.authoredChoices[f.events[0]!.ref].opportunity;
+  const interaction = {
+    topic: 'Discuss the upcoming shop visit',
+    personalObjective: 'Find out whether a shared visit suits the player',
+    proposedInteraction: 'Offer an optional visit and ask which existing location they prefer',
+  };
+  o.actorTasks = { 'actor:1': interaction, 'actor:2': null };
+  const before = structuredClone(f.wire);
+  const d = f.parse(f.wire).opportunities[0]!;
+  assert.deepEqual(d.participantActorIds, ['a']);
+  assert.deepEqual(JSON.parse(d.stagingIntents![0]!.task), {
+    protocol: 'actor-interaction-opportunity-v1',
+    ...interaction,
+  });
+  assert.equal(d.stagingIntents![0]!.actorId, 'a');
+  assert.deepEqual(f.wire, before);
+  for (const field of ['topic', 'personalObjective', 'proposedInteraction']) {
+    const invalid = structuredClone(before);
+    delete invalid.authoredChoices[f.events[0]!.ref].opportunity.actorTasks['actor:1'][field];
+    assert.throws(() => f.parse(invalid));
+  }
+  o.actorTasks['actor:1'] = { task: 'Consider how to prepare' };
+  assert.throws(() => f.parse(f.wire));
+});
+test('v9 schema requires three bounded personal fields while v8 saved task remains verbatim', () => {
+  const f = consider(),
+    old = f.parse(f.wire);
+  assert.equal(
+    old.opportunities[0]!.stagingIntents![0]!.task,
+    f.wire.authoredChoices[f.events[0]!.ref].opportunity.actorTasks['actor:1'].task,
+  );
+  const format = directorResponseFormat(f.s);
+  if (format.format !== 'json_schema') throw Error('schema');
+  const tasks: any = (format.schema as any).$defs.director_author_opportunity.properties.actorTasks;
+  const personal = tasks.properties['actor:1'].anyOf[0];
+  assert.deepEqual(personal.required, ['topic', 'personalObjective', 'proposedInteraction']);
+  assert.equal(personal.additionalProperties, false);
+  for (const field of personal.required) assert.equal(personal.properties[field].maxLength, 140);
 });

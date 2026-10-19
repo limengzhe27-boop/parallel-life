@@ -5,7 +5,8 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v8';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v9';
+const PREVIOUS_ACTOR_TASK_PROTOCOL = 'director-wire-v8';
 const PREVIOUS_EXCLUSIVE_PROTOCOL = 'director-wire-v7';
 const PREVIOUS_GROUP_PROTOCOL = 'director-wire-v6';
 const PREVIOUS_SINGLE_CHOICE_PROTOCOL = 'director-wire-v5';
@@ -125,8 +126,8 @@ const SingleAuthorOpportunity = AuthorOpportunity.omit({
 }).extend({
   actorTasks: z.record(Ref, z.strictObject({ task: z.string().trim().min(1).max(600) }).nullable()),
 });
-const CurrentWire = PreviousExclusiveWire.extend({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+const PreviousActorTaskWire = PreviousExclusiveWire.extend({
+  protocol: z.literal(PREVIOUS_ACTOR_TASK_PROTOCOL),
   authoredChoices: z.record(
     Ref,
     z.discriminatedUnion('kind', [
@@ -135,6 +136,34 @@ const CurrentWire = PreviousExclusiveWire.extend({
     ]),
   ),
 });
+
+/** Explicit actor-owned future interaction, never a fact, final line or accepted player action. */
+const ActorInteraction = z.strictObject({
+  topic: z.string().trim().min(1).max(140),
+  personalObjective: z.string().trim().min(1).max(140),
+  proposedInteraction: z.string().trim().min(1).max(140),
+});
+const CurrentWire = PreviousActorTaskWire.extend({
+  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+  authoredChoices: z.record(
+    Ref,
+    z.discriminatedUnion('kind', [
+      z.strictObject({ kind: z.literal('defer'), reason: Reason }),
+      z.strictObject({
+        kind: z.literal('consider'),
+        opportunity: SingleAuthorOpportunity.extend({
+          actorTasks: z.record(Ref, ActorInteraction.nullable()),
+        }),
+      }),
+    ]),
+  ),
+});
+function compiledActorInteraction(value: z.infer<typeof ActorInteraction>): string {
+  const task = JSON.stringify({ protocol: 'actor-interaction-opportunity-v1', ...value });
+  // JSON escaping can expand author text; never truncate or silently lose a field.
+  if (task.length > 600) throw Error('DIRECTOR_ACTOR_INTERACTION_LIMIT');
+  return task;
+}
 
 type Opportunity = z.infer<typeof PreviousGroupWire>['opportunities'][number];
 /** v6 only: multiple independent cast tasks can describe the same shared authored opportunity. */
@@ -276,6 +305,45 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
         )
           delete choice.opportunity.actorTopics;
     const current = CurrentWire.parse(normalized);
+    normalized = {
+      ...current,
+      protocol: PREVIOUS_ACTOR_TASK_PROTOCOL,
+      authoredChoices: Object.fromEntries(
+        Object.entries(current.authoredChoices).map(([ref, choice]) => [
+          ref,
+          choice.kind === 'defer'
+            ? choice
+            : {
+                ...choice,
+                opportunity: {
+                  ...choice.opportunity,
+                  actorTasks: Object.fromEntries(
+                    Object.entries(choice.opportunity.actorTasks).map(([actor, value]) => [
+                      actor,
+                      value === null ? null : { task: compiledActorInteraction(value) },
+                    ]),
+                  ),
+                },
+              },
+        ]),
+      ),
+    };
+  }
+  if (normalized.protocol === PREVIOUS_ACTOR_TASK_PROTOCOL) {
+    const choices = normalized.authoredChoices;
+    if (choices && typeof choices === 'object' && !Array.isArray(choices))
+      for (const choice of Object.values(choices))
+        if (
+          choice &&
+          typeof choice === 'object' &&
+          'opportunity' in choice &&
+          choice.opportunity &&
+          typeof choice.opportunity === 'object' &&
+          'actorTopics' in choice.opportunity &&
+          choice.opportunity.actorTopics === null
+        )
+          delete choice.opportunity.actorTopics;
+    const current = PreviousActorTaskWire.parse(normalized);
     const catalog = directorWireCatalog(snapshot);
     const actorRefs = catalog.actors.map((a) => a.ref);
     const authoredChoices: Record<string, unknown> = {};
@@ -638,7 +706,34 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   delete authorProperties.stagingIntents;
   authorProperties.actorTasks = object(
     Object.fromEntries(
-      catalog.actors.map((a) => [a.ref, { anyOf: [object({ task: text }), { type: 'null' }] }]),
+      catalog.actors.map((a) => [
+        a.ref,
+        {
+          anyOf: [
+            object({
+              topic: {
+                type: 'string',
+                minLength: 1,
+                maxLength: 140,
+                description: '本人与玩家可交流的具体议题，不是计划准备过程。',
+              },
+              personalObjective: {
+                type: 'string',
+                minLength: 1,
+                maxLength: 140,
+                description: '本人从这次交流希望了解、表达或争取什么；不替玩家决定。',
+              },
+              proposedInteraction: {
+                type: 'string',
+                minLength: 1,
+                maxLength: 140,
+                description: '建议本人向玩家提出的具体信息、请求或选择；不是预制对白或已发生事实。',
+              },
+            }),
+            { type: 'null' },
+          ],
+        },
+      ]),
     ),
   );
   const authorItem = object(authorProperties);

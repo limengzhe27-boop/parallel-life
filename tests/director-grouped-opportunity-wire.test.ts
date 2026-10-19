@@ -233,6 +233,6 @@ test('latest v6 schema has single-choice form while quiet still permits no oppor
   const f = fixture(),
     format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
-  assert.deepEqual((format.schema.properties as any).protocol.enum, ['director-wire-v8']);
+  assert.deepEqual((format.schema.properties as any).protocol.enum, ['director-wire-v9']);
   assert.equal(f.parse(f.wire).mode, 'quiet');
 });

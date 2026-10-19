@@ -839,7 +839,7 @@ test('Director strict response grammar binds each reference namespace to this im
   if (format.format !== 'json_schema') throw Error('wrong format');
   const root: any = format.schema;
   assert.equal(format.strict, true);
-  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v8']);
+  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v9']);
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
   assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
