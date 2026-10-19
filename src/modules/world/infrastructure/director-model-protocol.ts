@@ -1,3 +1,4 @@
+import { isDirectorDeliberationEvent } from '../domain/director-runtime.ts';
 import { z } from 'zod';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { DirectorSnapshot } from '../domain/director-runtime.ts';
@@ -225,7 +226,7 @@ export function directorWireCatalog(snapshot: DirectorSnapshot) {
     places: snapshot.boundary.placeIds.map((id, i) => ({ ref: `place:${i + 1}`, placeId: id })),
     sources: sources.map((id, i) => ({ ref: `source:${i + 1}`, sourceId: id })),
     events: materials
-      .filter((m) => canConsiderAuthoredEvent(snapshot, m.ref.nodeKey))
+      .filter((m) => isDirectorDeliberationEvent(snapshot, m.ref.nodeKey))
       .map((m, i) => ({
         ref: `event:${i + 1}`,
         authoredEventKey: m.ref.nodeKey,

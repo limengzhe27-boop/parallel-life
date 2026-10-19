@@ -1,3 +1,4 @@
+import { validDirectorDeliberationWindow } from '../domain/director-runtime.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
 import { AuthoredLifeModulesSchema } from '../../../contracts/authored-social.ts';
@@ -255,6 +256,9 @@ const Snapshot = z
             .min(1),
         }),
       ])
+      .optional(),
+    deliberationWindow: z
+      .strictObject({ version: z.literal(1), nodeKeys: z.array(Key).max(2) })
       .optional(),
     worldSetting: z.string().max(100000).optional(),
     authoredMaterials: z
@@ -671,6 +675,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       );
       if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
     }
+    if (!validDirectorDeliberationWindow(s)) fail('DIRECTOR_DELIBERATION_WINDOW_CONFLICT');
     if (s.nativeTurn && s.evaluationCause) fail('DIRECTOR_NATIVE_TURN_CONFLICT');
     if (
       s.worldId !== world.id ||

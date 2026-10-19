@@ -519,7 +519,7 @@ test('structurally impossible complete candidate partition is rejected during pr
   assert.equal(calls, 0);
 });
 
-test('system protocol gives a parseable complete quiet example without repairing malformed audit', async () => {
+test('system protocol avoids copyable quiet verdicts without repairing malformed audit', async () => {
   const f = fixture();
   const empty = { ...f.snapshot, candidates: [] };
   let system = '';
@@ -534,13 +534,15 @@ test('system protocol gives a parseable complete quiet example without repairing
   assert.throws(() => parseDirectorDecision(empty, response, f.attempt), {
     code: 'INVALID_DIRECTOR_PROPOSAL',
   });
-  const example = JSON.parse(
-    system
-      .split('\n')
-      .find((line) => line.startsWith('无候选且决定安静的格式例：'))!
-      .split('格式例：')[1]!,
-  );
-  assert.equal(example.mode, undefined);
+  assert.doesNotMatch(system, /无候选且决定安静的格式例|本次具体暂缓依据|没有值得呈现的新变化/);
+  const example = {
+    protocol: 'director-wire-v8',
+    authoredChoices: {},
+    candidates: [],
+    opportunities: [],
+    audit: { reason: 'Synthetic explicit quiet judgment', sourceRefs: [] },
+  };
+  assert.equal('mode' in example, false);
   assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
   rejected(f, example); // An empty example cannot silently discard the real candidates.
   assert.match(system, /保持安静是合法判断/);

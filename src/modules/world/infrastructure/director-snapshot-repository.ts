@@ -1,3 +1,4 @@
+import { selectDirectorDeliberationWindow } from '../domain/director-runtime.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
 import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
 import { validateNativeDirectorTurn } from './native-director-turn.ts';
@@ -1087,6 +1088,7 @@ export class PostgresDirectorSnapshotRepository {
         focus,
         conversationWithoutTarget: attention.conversationWithoutTarget,
       };
+      snapshot.deliberationWindow = selectDirectorDeliberationWindow(snapshot);
       if (
         Buffer.byteLength(JSON.stringify(snapshot), 'utf8') > DIRECTOR_SNAPSHOT_MAX_BYTES ||
         snapshot.observations.some((o) => o.text.length > 100000)

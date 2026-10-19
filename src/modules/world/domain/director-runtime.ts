@@ -41,6 +41,8 @@ export type DirectorSnapshot = {
     qualificationKey: string;
   }[];
   occupiedAuthoredEventKeys?: string[];
+  /** Exact paid deliberation scope; absent only on protected legacy snapshots. */
+  deliberationWindow?: { version: 1; nodeKeys: string[] };
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
   /** Optional on older protected snapshots; stable actorId binding, never array/name inference. */
   actorDirectionMaterials?: DirectorActorDirectionMaterial[];
@@ -162,14 +164,66 @@ export function canConsiderAuthoredEvent(snapshot: DirectorSnapshot, nodeKey: st
   );
 }
 
+/** Stable scope from authenticated eligibility/wake, never actor revisions or elapsed polling. */
+export function selectDirectorDeliberationWindow(
+  snapshot: DirectorSnapshot,
+): NonNullable<DirectorSnapshot['deliberationWindow']> {
+  let eligible = (snapshot.authoredEligibility ?? []).filter((q) =>
+    canConsiderAuthoredEvent(snapshot, q.nodeKey),
+  );
+  const cause = snapshot.evaluationCause;
+  if (snapshot.nativeTurn || !cause) eligible = [];
+  else if (cause.kind === 'bootstrap') {
+    const openings = new Set(
+      snapshot.authoredMaterials?.materials
+        .filter((m) => m.role === 'opening')
+        .map((m) => m.ref.nodeKey),
+    );
+    const opening = eligible.filter((q) => openings.has(q.nodeKey));
+    if (opening.length) eligible = opening;
+  } else {
+    eligible = eligible.filter((q) =>
+      cause.qualifications.some(
+        (u) =>
+          u.nodeKey === q.nodeKey &&
+          u.nodeHash === q.nodeHash &&
+          u.qualificationKey === q.qualificationKey,
+      ),
+    );
+  }
+  return {
+    version: 1,
+    nodeKeys: eligible
+      .map((q) => q.nodeKey)
+      .sort()
+      .slice(0, 2),
+  };
+}
+export function validDirectorDeliberationWindow(snapshot: DirectorSnapshot): boolean {
+  if (snapshot.deliberationWindow === undefined) return true;
+  return (
+    snapshot.deliberationWindow.version === 1 &&
+    JSON.stringify(snapshot.deliberationWindow.nodeKeys) ===
+      JSON.stringify(selectDirectorDeliberationWindow(snapshot).nodeKeys)
+  );
+}
+export function isDirectorDeliberationEvent(snapshot: DirectorSnapshot, nodeKey: string): boolean {
+  return (
+    canConsiderAuthoredEvent(snapshot, nodeKey) &&
+    (snapshot.deliberationWindow === undefined ||
+      snapshot.deliberationWindow.nodeKeys.includes(nodeKey))
+  );
+}
+
 /** Seeing a catalogue is not an assessment. No implicit conversion of historical decisions. */
 export function validDirectorAuthoredAssessments(
   snapshot: DirectorSnapshot,
   decision: Pick<DirectorDecision, 'authoredAssessments' | 'opportunities'>,
 ): boolean {
-  if (decision.authoredAssessments === undefined) return true;
+  if (!validDirectorDeliberationWindow(snapshot)) return false;
+  if (decision.authoredAssessments === undefined) return snapshot.deliberationWindow === undefined;
   const eligible =
-    snapshot.authoredEligibility?.filter((q) => canConsiderAuthoredEvent(snapshot, q.nodeKey)) ??
+    snapshot.authoredEligibility?.filter((q) => isDirectorDeliberationEvent(snapshot, q.nodeKey)) ??
     [];
   const assessments = decision.authoredAssessments;
   if (

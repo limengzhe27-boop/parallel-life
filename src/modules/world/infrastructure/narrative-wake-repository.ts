@@ -156,7 +156,11 @@ export async function readDirectorNarrativeWakeInTransaction(
       a.snapshot?.authoredMaterials?.source?.sourceHash !== view.catalog.source.sourceHash
     )
       continue;
-    const snapshotEntries = a.snapshot.authoredEligibility;
+    const snapshotEntries = a.snapshot.deliberationWindow
+      ? a.snapshot.authoredEligibility?.filter((q: AuthoredWakeQualification) =>
+          a.snapshot.deliberationWindow.nodeKeys.includes(q.nodeKey),
+        )
+      : a.snapshot.authoredEligibility;
     if (!Array.isArray(snapshotEntries)) continue;
     // New decisions explicitly say which authored nodes were assessed. A saved
     // catalogue alone is not an assessment. Historical paid frames and received
