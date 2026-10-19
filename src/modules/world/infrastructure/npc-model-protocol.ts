@@ -173,7 +173,24 @@ const ModelWire = Wire.omit({ mediaDecision: true, actions: true }).extend({
     .array(
       NativeExecutionIntentSchema.extend({
         // Local transport names are not persisted action IDs or reserved namespaces.
-        ref: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/),
+        ref: z.enum([
+          'action_1',
+          'action_2',
+          'action_3',
+          'action_4',
+          'action_5',
+          'action_6',
+          'action_7',
+          'action_8',
+          'action_9',
+          'action_10',
+          'action_11',
+          'action_12',
+          'action_13',
+          'action_14',
+          'action_15',
+          'action_16',
+        ]),
       }),
     )
     .max(16)

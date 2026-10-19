@@ -290,7 +290,7 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
         decisions: [],
         executions: [
           {
-            ref: 'window-image',
+            ref: 'action_1',
             goal: { kind: 'existing', id: f.goalId },
             plan: {
               summary: '拍摄窗台场景',
@@ -312,7 +312,7 @@ test('actor capability chain: media.generate_image, media.generate_video, and me
           },
         ],
         statements: [
-          { text: '好呀，我这就拍一张。', dependsOnActionIds: ['execution:window-image'] },
+          { text: '好呀，我这就拍一张。', dependsOnActionIds: ['execution:action_1'] },
         ],
       };
 

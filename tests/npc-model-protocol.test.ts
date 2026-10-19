@@ -864,10 +864,12 @@ test('v4 has one explicit media action and no model-authored completion receipts
   const raw = {
     ...base,
     protocol: 'npc-wire-v4',
-    statements: [{ text: '我把构想画出来，稍等一下。', dependsOnActionIds: ['execution:sketch'] }],
+    statements: [
+      { text: '我把构想画出来，稍等一下。', dependsOnActionIds: ['execution:action_1'] },
+    ],
     executions: [
       {
-        ref: 'sketch',
+        ref: 'action_1',
         goal: { kind: 'new', summary: '把构想画出来', sourceIds: ['input'] },
         plan: { summary: '制作示意图', sourceIds: ['input'], supersedesPlanId: null },
         action: {
@@ -891,16 +893,16 @@ test('v4 has one explicit media action and no model-authored completion receipts
   assert.deepEqual(
     parseAgentProposal(c, {
       ...raw,
-      statements: [{ text: '我把构想画出来，稍等一下。', dependsOnActionIds: ['sketch'] }],
+      statements: [{ text: '我把构想画出来，稍等一下。', dependsOnActionIds: ['action_1'] }],
     }).statements[0]!.dependsOnActionIds,
     [p.actions[0]!.id],
   );
-  c.state.actions.push({ ...p.actions[0]!, id: 'sketch' });
+  c.state.actions.push({ ...p.actions[0]!, id: 'action_1' });
   assert.throws(
     () =>
       parseAgentProposal(c, {
         ...raw,
-        statements: [{ text: '稍等', dependsOnActionIds: ['sketch'] }],
+        statements: [{ text: '稍等', dependsOnActionIds: ['action_1'] }],
       }),
     /RESPONSE_WIRE_SHAPE/,
   );
