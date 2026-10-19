@@ -1234,3 +1234,185 @@ test('ordinary many-source chat retains protected reply evidence without duplica
   assert.equal(payload.responseContract.referenceRules, undefined);
   assert.deepEqual(input, before, 'budget projection leaves original evidence untouched');
 });
+
+test('protected opening-information wake fits the unchanged budget with nineteen sources and an existing reschedulable plan', async () => {
+  const input = snapshot();
+  input.actor.persona =
+    'A careful fictional colleague who keeps promises, protects confidences, and makes independent plans. '.repeat(
+      31,
+    );
+  input.channel.allowedCapabilities = [
+    'plan.record',
+    'appointment.propose',
+    'appointment.fulfill',
+    'appointment.cancel',
+    'appointment.accept',
+    'appointment.reschedule',
+    'activity.participate',
+    'relationship.bond',
+    'moment.publish',
+    'moment.interact',
+    'media.generate_image',
+    'media.generate_video',
+    'media.share',
+  ];
+  input.sources[0]!.kind = 'accepted_input';
+  const knowledgeId = '11111111-1111-4111-8111-111111111111',
+    sourceId = `narrative:${knowledgeId}`;
+  input.sources.push({
+    id: sourceId,
+    recordId: knowledgeId,
+    kind: 'world_event',
+    worldVersion: 8,
+    at: input.storyAt,
+    usage: 'private_strategy',
+    contentHash: 'a'.repeat(64),
+  });
+  const report = JSON.stringify({
+    text: JSON.stringify({
+      type: 'received_opening_information',
+      assertion: 'report',
+      content: 'The existing community project has a revised arrangement. '.repeat(8),
+      executionEvidence: false,
+    }),
+    occurredAt: input.storyAt,
+    learnedAt: input.storyAt,
+    method: 'authored_initial_context',
+  });
+  input.observations.push({
+    sourceId,
+    kind: 'fact',
+    text: report,
+    evidenceKind: 'authored_context',
+    eventOccurredAt: input.storyAt,
+    storyAt: input.storyAt,
+    learnedAt: input.storyAt,
+    retrievedAt: input.storyAt,
+  });
+  for (let i = 0; i < 17; i++) {
+    const id = `message:${String(i).padStart(8, '0')}-1111-4111-8111-111111111111`;
+    input.sources.push({
+      id,
+      recordId: id.slice(8),
+      kind: 'private_message',
+      worldVersion: 8,
+      at: input.storyAt,
+    });
+    input.observations.unshift({
+      sourceId: id,
+      kind: 'speech',
+      text: 'An older authorized exchange about a separate ordinary matter. '.repeat(45),
+    });
+  }
+  input.input.origin = 'wake';
+  input.input.text = JSON.stringify({
+    type: 'npc_own_condition_ready',
+    candidateId: 'observation:synthetic-new-information',
+    source: 'observation',
+    actionId: null,
+    basisSourceIds: [sourceId],
+    nudges: [],
+  });
+  input.actorObservationInbox = {
+    sourceIds: [sourceId],
+    sceneIds: [],
+    groupIds: [],
+    narrativeKnowledgeIds: [knowledgeId],
+    omittedSourceIds: [],
+  };
+  input.state.goals[0]!.summary =
+    'Keep the existing shared project arrangements understandable while preserving the player decision. '.repeat(
+      3,
+    );
+  input.state.plans[0]!.status = 'active';
+  input.state.plans[0]!.summary =
+    'Maintain the previously proposed meeting, and consider a supported adjustment only when requested. '.repeat(
+      3,
+    );
+  input.state.plans[0]!.actionIds = ['a1'];
+  input.state.plans[0]!.nextActionId = 'a1';
+  input.state.actions = [
+    {
+      id: 'a1',
+      goalId: 'g1',
+      capability: 'appointment.propose',
+      targetIds: [],
+      parameters: { title: 'Existing project discussion', at: '2026-10-15T18:00:00+08:00' },
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+      sourceIds: ['source-1'],
+      status: 'succeeded',
+      resultId: 'result-existing',
+    },
+  ];
+  input.state.responsibilities[0]!.subject = { kind: 'appointment', id: 'existing-appointment' };
+  input.state.responsibilities[0]!.summary =
+    'The existing invitation remains unanswered; receipt of new information does not settle it. '.repeat(
+      2,
+    );
+  input.state.questions = [
+    {
+      id: 'q1',
+      channel: 'private',
+      threadId: input.channel.threadId,
+      sourceId: 'source-1',
+      text: 'Does the existing meeting arrangement suit you?',
+      askedAt: input.storyAt,
+      status: 'open',
+      responsibilityId: 'r1',
+    },
+  ];
+  input.viewState = structuredClone(input.state);
+  input.worldContext = {
+    time: {
+      storyAt: '2026-10-15T08:00:00.000Z',
+      timeZone: 'UTC+08:00',
+      localDateTime: '2026-10-15T16:00:00',
+    },
+    boundary: {
+      actorIds: [
+        'actor-a',
+        ...Array.from({ length: 5 }, (_, i) => `cast-${i}-11111111-1111-4111-8111-111111111111`),
+      ],
+      placeIds: Array.from(
+        { length: 14 },
+        (_, i) => `place-${i}-11111111-1111-4111-8111-111111111111`,
+      ),
+      capabilityIds: input.channel.allowedCapabilities,
+      extensionPermission: 'none',
+    },
+    selfPosition: { status: 'unknown', placeId: null },
+    knowledge: [],
+    travelRoutes: [],
+    ownedItems: [],
+  };
+  const original = structuredClone(input),
+    { adapter, calls } = capture();
+  adapter.validateInput(input);
+  const manifest = adapter.describeSuppliedContext(input);
+  assert.equal(calls.length, 0, 'validation and manifest generation do not call a model');
+  assert.deepEqual(manifest.observations, [{ sourceId, contentHash: 'a'.repeat(64) }]);
+  await adapter.decide(input);
+  const call = calls[0]!,
+    payload = JSON.parse(call.messages[1]!.content);
+  const retained = [
+    ...payload.observations,
+    ...payload.presentationContext.internalContext.map((v: any) => v.observation),
+  ];
+  assert.equal(retained.find((o: any) => o.sourceId === sourceRef(input, sourceId)).text, report);
+  assert.equal(
+    payload.input.text,
+    JSON.stringify(wireExpected(input, JSON.parse(input.input.text))),
+  );
+  assert.deepEqual(
+    payload.state.responsibilities,
+    wireExpected(input, input.viewState.responsibilities),
+  );
+  assert.deepEqual(payload.state.questions, wireExpected(input, input.viewState.questions));
+  assert.equal(payload.actor.boundaries, input.actor.boundaries);
+  assert.equal(payload.wireCatalog.sources.length, 19);
+  assert.equal(NPC_AGENT_REQUEST_LIMIT, 56_000);
+  assert(JSON.stringify(call.messages).length + JSON.stringify(call.output).length <= 56_000);
+  assert.deepEqual(input, original);
+});
