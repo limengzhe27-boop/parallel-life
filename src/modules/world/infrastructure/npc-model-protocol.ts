@@ -25,7 +25,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v11';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v12';
+const PREVIOUS_GOAL_SOURCE_PROTOCOL = 'npc-wire-v11';
 const PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL = 'npc-wire-v10';
 const PREVIOUS_FOCUS_PROTOCOL = 'npc-wire-v9';
 const PREVIOUS_SOURCE_PROTOCOL = 'npc-wire-v8';
@@ -107,6 +108,7 @@ const Wire = z.strictObject({
     PREVIOUS_SOURCE_PROTOCOL,
     PREVIOUS_FOCUS_PROTOCOL,
     PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL,
+    PREVIOUS_GOAL_SOURCE_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -283,6 +285,7 @@ const PreviousExecutionProvenanceWire = PreviousFocusWire.extend({
 });
 const ModelWire = PreviousExecutionProvenanceWire.extend({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
+  continuation: AgentProposalSchema.shape.continuation.unwrap(),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
@@ -633,6 +636,18 @@ function transport(value: unknown, convertParameters = true): unknown {
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    const catalog = npcSourceReferences(context.sources);
+    const mapped = mapNpcSourceFields(raw, catalog, 'decode') as Record<string, unknown>;
+    const continuation = AgentProposalSchema.shape.continuation.unwrap().parse(mapped.continuation);
+    const { continuation: ignored, ...previous } = raw as Record<string, unknown>;
+    void ignored;
+    const decoded = decodeNpcWire(context, {
+      ...previous,
+      protocol: PREVIOUS_GOAL_SOURCE_PROTOCOL,
+    });
+    return { ...(decoded as object), continuation };
+  }
+  if ('protocol' in raw && raw.protocol === PREVIOUS_GOAL_SOURCE_PROTOCOL) {
     const catalog = npcSourceReferences(context.sources);
     const mapped = mapNpcSourceFields(raw, catalog, 'decode') as Record<string, unknown>;
     const currentSource = context.sources.filter((source) => source.id === context.input.sourceId);

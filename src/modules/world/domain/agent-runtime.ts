@@ -130,6 +130,7 @@ export type AgentConversationFocus = {
   replyToActorId: string | null;
 };
 export type ActorAgentState = AgentIdentity & {
+  continuation?: import('./actor-continuation.ts').ActorContinuation;
   schemaVersion: 1;
   revision: number;
   projectedWorldVersion: number;
@@ -159,6 +160,7 @@ export type AgentStatement = {
 };
 /** Proposed deltas, not trusted state. Existing decisions/history are appended, not overwritten. */
 export type AgentProposal = {
+  continuation?: import('./actor-continuation.ts').ActorContinuationProposal;
   /** This NPC's own response to a real consideration request, never the director's verdict. */
   episodeDecision?: import('./agent-narrative.ts').EpisodeParticipationDecision;
   statements: AgentStatement[];

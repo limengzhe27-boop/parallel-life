@@ -25,7 +25,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v43-presentation-context';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v44-continuation';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -87,6 +87,8 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
+来源为narrative且evidenceKind为authored_context的观察是内核确认的初始背景，发生时间和获知时间分别理解；它不证明玩家做过动作、答应或已在场。
+v12 continuation必填，记录本人下一步判断（不是给玩家增加任务）：act引用本人计划/行动；await_response引用待回答问题或相关计划；await_condition只能复用已有合法conditions或有来源的期限；no_current_intent允许安静并等待本人新信息。reason说明本人的具体判断，sourceIds只使用本轮授权来源。不要为填字段虚构目标、硬期限或承诺。continuation只是内部判断，quiet仍可保留此判断且不发送台词。
 最终模型传输格式：protocol:"npc-wire-v11"，statements、executions、consideration、goals、planIntents、responsibilities、agendaReview、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
 只有服务器npc_agenda_review唤醒时agendaReview必须为{decision:"quiet|update_plan|contact",reason:"仅本人内部判断，不发给玩家",basisSourceIds:[本人合法来源]}。quiet不向玩家发消息且不改变本人实质议程，statements=[]；可保持安静，不要求造计划。update_plan在本轮实际调整本人目标/计划/责任，statements=[]，不能只复制旧状态冒充调整；contact才输出面向玩家的statements，至少一句具体内容，可不新增计划。内部复盘理由不要复述成“暂时无行动”等消息；不使用固定台词。普通玩家消息、事件考虑及其它输入agendaReview为null，不能借quiet逃避回复。本轮v11协议的planIntents.sourceIds及其显式新goal.sourceIds、executions.plan/action/newgoal的sourceIds、精确本人可见非终态已有goals更新的sourceIds由服务端机械附加当前input.sourceId；你必须声明真实合法的语义来源，不能凭空写source或省略目标。旧来源完整保留。
 所有sourceId/sourceIds/basisSourceIds/questionSourceId只写wireCatalog.sources中的短ref，例如source:1；当前输入使用wireCatalog.inputSourceRef，不复制hash、不拼definition前缀、不用长raw ID。source编号只在本次snapshot有效，代码精确解引用，不能猜编号。
@@ -322,6 +324,23 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       },
       () => invalid('NPC_AGENT_INVALID_SNAPSHOT'),
     ),
+    ...(snapshot.channel.kind === 'private' &&
+    viewState.continuation &&
+    viewState.continuation.sourceIds.every((id) => snapshot.sources.some((s) => s.id === id)) &&
+    viewState.continuation.planIds.every((id) => viewState.plans.some((p) => p.id === id)) &&
+    viewState.continuation.questionIds.every((id) => viewState.questions?.some((q) => q.id === id))
+      ? {
+          previousContinuation: {
+            decision: viewState.continuation.decision,
+            reason: viewState.continuation.reason,
+            sourceIds: viewState.continuation.sourceIds,
+            planIds: viewState.continuation.planIds,
+            questionIds: viewState.continuation.questionIds,
+            conditions: viewState.continuation.conditions,
+            decidedAt: viewState.continuation.decidedAt,
+          },
+        }
+      : {}),
     planNextSteps: viewState.plans.map((plan) => ({
       planId: plan.id,
       readiness: agentPlanNextStep(plan, viewState.actions, snapshot.channel.allowedCapabilities),
@@ -611,6 +630,12 @@ export class NpcAgentModel implements NpcAgentModelPort {
         .filter(
           (s) =>
             (s.kind === 'scene_entry' ||
+              (s.kind === 'world_event' &&
+                s.id.startsWith('narrative:') &&
+                s.usage === 'private_strategy' &&
+                snapshot.observations.some(
+                  (o) => o.sourceId === s.id && String(o.evidenceKind) === 'authored_context',
+                )) ||
               (s.kind === 'group_message' &&
                 ((snapshot.channel.kind === 'private' &&
                   snapshot.actorObservationInbox?.sourceIds.includes(s.id)) ||

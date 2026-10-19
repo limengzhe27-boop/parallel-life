@@ -1,3 +1,4 @@
+import { actorContinuationBasis } from '../domain/actor-continuation.ts';
 import { awarenessLocalTime } from '../domain/world-awareness.ts';
 import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -286,6 +287,14 @@ export async function readOwnAgendaReviewWorkInTransaction(
   if (config.policy.version !== 'own-agenda-v1') fail('OWN_AGENDA_POLICY_UNSUPPORTED');
   const f = await frame(sql, owner, input.worldId, input.actorId, input.worldVersion);
   if (!f) return null;
+  // New personal information/requests still enter via the existing observation and
+  // episode routes. A quiet commit itself is not a new reason to buy another review.
+  if (
+    phase !== 'commit' &&
+    f.actor_state.continuation?.basisHash ===
+      createHash('sha256').update(actorContinuationBasis(f.actor_state)).digest('hex')
+  )
+    return null;
   const definitionRef = agentDefinitionRef(f.world, input.actorId);
   const evidence = await readOwnAgendaReviewEvidenceInTransaction(sql, owner, {
     worldId: input.worldId,

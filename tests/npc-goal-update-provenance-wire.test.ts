@@ -224,5 +224,5 @@ test('v11 empty goals stay empty rather than manufacturing a goal or requiring a
   }
   const format = npcResponseFormat(context.state, 'forbidden', context);
   if (format.format !== 'json_schema') throw Error('schema');
-  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v11']);
+  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v12']);
 });

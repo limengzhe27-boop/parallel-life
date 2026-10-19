@@ -23,7 +23,16 @@ const Condition = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('at_place'), placeId: Id }),
   z.strictObject({ kind: z.literal('observation'), sourceId: Id }),
 ]);
+export const ActorContinuationSchema = z.strictObject({
+  decision: z.enum(['act', 'await_response', 'await_condition', 'no_current_intent']),
+  reason: Text.max(2000),
+  sourceIds: z.array(Id).min(1).max(64),
+  planIds: z.array(Id).max(16),
+  questionIds: z.array(Id).max(16),
+  conditions: z.array(Condition).max(16),
+});
 export const AgentProposalSchema = z.strictObject({
+  continuation: ActorContinuationSchema.optional(),
   episodeDecision: z
     .strictObject({
       requestId: Id,

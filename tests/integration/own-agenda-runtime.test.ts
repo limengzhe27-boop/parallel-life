@@ -323,6 +323,51 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
     return h;
   }
   await t.test(
+    'v12 continuation commits through original kernel and suppresses self-created quiet review',
+    async () => {
+      const f = await fixture();
+      await prime(f);
+      const available = await work(f);
+      assert.ok(available);
+      const prepared = await prepare(f, available);
+      await runNpcAgent(
+        {
+          attempts: store,
+          kernel: new PostgresNpcAgentKernel(db, worlds),
+          model: new NpcAgentModel({
+            async complete() {
+              return JSON.stringify({
+                ...v9(),
+                protocol: 'npc-wire-v12',
+                agendaReview: {
+                  decision: 'quiet',
+                  reason: 'No personal change that calls for another contact.',
+                  basisSourceIds: ['source:1'],
+                },
+                continuation: {
+                  decision: 'no_current_intent',
+                  reason: 'No pending personal action; await relevant new information.',
+                  sourceIds: ['source:1'],
+                  planIds: [],
+                  questionIds: [],
+                  conditions: [],
+                },
+              });
+            },
+          }),
+        },
+        f.owner,
+        prepared.claim,
+        prepared.snapshot,
+      );
+      const saved = await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A });
+      assert.equal(saved!.continuation?.decision, 'no_current_intent');
+      assert.match(saved!.continuation!.basisHash, /^[a-f0-9]{64}$/);
+      assert.equal(await work(f), null, 'quiet receipt itself cannot mint another paid review');
+      assert.equal((await worlds.get({ userId: f.owner }, f.worldId)).messages.length, 0);
+    },
+  );
+  await t.test(
     'F quiet has a real successor: original advance reviews two independent NPCs and compiles their explicit v6 plans',
     async () => {
       const f = await fixture(),

@@ -185,7 +185,7 @@ test('v7 provider grammar binds review scope and source validation remains expli
     player = fixture(false);
   const a: any = npcResponseFormat(own.c.viewState!, 'forbidden', own.c),
     b: any = npcResponseFormat(player.c.viewState!, 'forbidden', player.c);
-  assert.deepEqual(a.schema.properties.protocol.enum, ['npc-wire-v11']);
+  assert.deepEqual(a.schema.properties.protocol.enum, ['npc-wire-v12']);
   assert.equal(a.schema.properties.agendaReview.type, 'object');
   assert.deepEqual(a.schema.properties.agendaReview.properties.decision.enum, [
     'quiet',
@@ -201,4 +201,37 @@ test('v7 provider grammar binds review scope and source validation remains expli
   assert.throws(() =>
     decodeNpcWire(own.c, { ...own.wire, agendaReview: { ...own.wire.agendaReview, extra: true } }),
   );
+});
+
+test('v12 quiet carries a persistent continuation while paid v11 stays unchanged', () => {
+  const { c, wire } = fixture();
+  const { focus: _focus, ...base } = { ...wire, focus: null };
+  const old = {
+    ...base,
+    protocol: 'npc-wire-v11',
+    agendaReview: { ...wire.agendaReview!, basisSourceIds: ['source:2'] },
+    focusChange: { kind: 'keep' },
+    questionWithdrawals: null,
+    locationReports: null,
+  };
+  const before = JSON.stringify(old);
+  const legacy = parseAgentProposal(c, old);
+  assert.equal(legacy.continuation, undefined);
+  assert.equal(JSON.stringify(old), before);
+  const continuation = {
+    decision: 'no_current_intent',
+    reason: 'No new personal evidence since my last decision.',
+    sourceIds: ['input'],
+    planIds: [],
+    questionIds: [],
+    conditions: [],
+  };
+  const current = parseAgentProposal(c, {
+    ...old,
+    protocol: 'npc-wire-v12',
+    continuation: { ...continuation, sourceIds: ['source:1'] },
+  });
+  assert.deepEqual(current.continuation, continuation);
+  assert.equal(current.statements.length, 0);
+  assert.throws(() => parseAgentProposal(c, { ...old, protocol: 'npc-wire-v12' }));
 });

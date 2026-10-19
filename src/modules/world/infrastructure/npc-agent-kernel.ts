@@ -1,3 +1,4 @@
+import { actorContinuationBasis, validateActorContinuation } from '../domain/actor-continuation.ts';
 import { canHandleExternalResponsibility } from '../domain/capability-responsibility-policy.ts';
 import { validateActorMediaResultContextInTransaction } from './agent-source-resolver.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
@@ -89,11 +90,14 @@ export class PostgresNpcAgentKernel implements AgentKernel {
     this.afterCommit = afterCommit;
   }
   parse(snapshot: AgentSnapshot, raw: unknown) {
-    return parseAgentProposal(snapshot, raw);
+    const proposal = parseAgentProposal(snapshot, raw);
+    validateActorContinuation(snapshot, proposal);
+    return proposal;
   }
   async commit(ownerId: string, input: Parameters<AgentKernel['commit']>[1]) {
     const { attempt, snapshot } = input;
     const proposal = parseAgentProposal(snapshot, input.proposal);
+    validateActorContinuation(snapshot, proposal);
     return this.db.transaction(ownerId, async (sql) => {
       const replay = (
         await sql.query(
@@ -1487,6 +1491,17 @@ export class PostgresNpcAgentKernel implements AgentKernel {
           ),
         ]),
       ];
+      if (proposal.continuation) {
+        accepted.state.continuation = {
+          ...proposal.continuation,
+          version: 1,
+          decidedAt: snapshot.storyAt,
+          sourceInputId: snapshot.input.sourceId,
+          basisHash: createHash('sha256')
+            .update(actorContinuationBasis(accepted.state))
+            .digest('hex'),
+        };
+      }
       const transition: AgentRuntimeTransition = {
         schemaVersion: 1,
         engineEpoch: attempt.engineEpoch,
