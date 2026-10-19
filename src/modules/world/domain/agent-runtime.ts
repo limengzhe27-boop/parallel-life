@@ -224,6 +224,7 @@ export type AgentCandidate = AgentIdentity & {
   id: string;
   source:
     | 'opening'
+    | 'agenda_initialize'
     | 'authored_event'
     | 'actor_plan'
     | 'responsibility'

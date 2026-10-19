@@ -1,3 +1,7 @@
+import {
+  agendaInitializeInputText,
+  readAgendaInitializeGrantsInTransaction,
+} from '../modules/world/infrastructure/actor-agenda-initialization-repository.ts';
 import { requireDirectorTrialRetrySource } from '../modules/world/infrastructure/director-trial-recovery.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type { TextModel } from '../modules/ai/application/ports.ts';
@@ -249,7 +253,12 @@ export function npcAgentAdvanceServices(
           channel: String(r.channel),
           paid: r.sent_at !== null || r.response_hash !== null,
         }));
-        return { states, results, prior };
+        const agendaInitializeGrants = await readAgendaInitializeGrantsInTransaction(sql, ownerId, {
+          worldId,
+          engineEpoch,
+          worldVersion: world.version,
+        });
+        return { states, results, prior, agendaInitializeGrants };
       });
       if (
         read.states.length !== world.actors.length ||
@@ -335,6 +344,7 @@ export function npcAgentAdvanceServices(
         actors,
         activeAttempts: read.prior,
         consumedCandidateIds: [],
+        agendaInitializeGrants: read.agendaInitializeGrants,
       }).map((registration) => ({
         ...registration,
         source: {
@@ -603,14 +613,24 @@ export function npcAgentAdvanceServices(
         )
           throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
         const commandId = agentWakeCommandId(worldId, candidate.id);
-        const text = JSON.stringify({
-          type: 'npc_own_condition_ready',
-          candidateId: candidate.id,
-          source: candidate.source,
-          actionId: candidate.actionId,
-          basisSourceIds: candidate.sourceIds,
-          nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
-        });
+        const initialization =
+          candidate.source === 'agenda_initialize'
+            ? read.agendaInitializeGrants.find(
+                (g) => g.candidateId === candidate.id && g.actorId === candidate.actorId,
+              )
+            : undefined;
+        if (candidate.source === 'agenda_initialize' && !initialization)
+          throw new DomainError('INVALID_COMMAND');
+        const text = initialization
+          ? agendaInitializeInputText(initialization)
+          : JSON.stringify({
+              type: 'npc_own_condition_ready',
+              candidateId: candidate.id,
+              source: candidate.source,
+              actionId: candidate.actionId,
+              basisSourceIds: candidate.sourceIds,
+              nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
+            });
         const { receipt } = await attempts.accept(ownerId, {
           id: randomUUID(),
           worldId,

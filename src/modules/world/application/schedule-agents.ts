@@ -185,6 +185,7 @@ function candidateValid(v: unknown, input: ScheduleAgentsInput): v is AgentCandi
     Object.hasOwn(input.actorRevisions, v.actorId) &&
     [
       'opening',
+      'agenda_initialize',
       'authored_event',
       'actor_plan',
       'responsibility',

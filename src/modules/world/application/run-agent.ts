@@ -1,3 +1,4 @@
+import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { modelRequestRejection, modelRequestNotSent } from '../../ai/application/ports.ts';
 import type { AgentAttempt } from '../domain/agent-runtime.ts';
 import {
@@ -93,6 +94,7 @@ export async function runNpcAgent(
         !!executionSnapshot.episodeFollowUps?.length ||
         executionSnapshot.episodeManifest !== undefined ||
         isActorEpisodeConsiderationInput(executionSnapshot.input) ||
+        isAgendaInitializeInput(executionSnapshot.input) ||
         executionSnapshot.sources.some((source) =>
           source.id.startsWith(ACTOR_EPISODE_INTENT_PREFIX),
         )

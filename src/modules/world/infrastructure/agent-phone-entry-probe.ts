@@ -1,3 +1,4 @@
+import { readAgendaInitializeGrantsInTransaction } from './actor-agenda-initialization-repository.ts';
 import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
 import { createHash } from 'node:crypto';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -112,6 +113,15 @@ export async function readAgentPhoneEntryProbe(
   const wake = await readDirectorNarrativeWakeInTransaction(sql, ownerId, frame);
   if (wake.cause && !wake.deferred && !wake.hasPendingDirector)
     return ready('narrative', wake.cause.id);
+  const agenda = await readAgendaInitializeGrantsInTransaction(sql, ownerId, frame);
+  if (agenda.length)
+    return ready(
+      'agenda_initialize',
+      agenda
+        .map((g) => g.candidateId)
+        .sort()
+        .join('|'),
+    );
   // Grants only a cheap original scheduler evaluation once per foreground entry, never a model cause.
   // Due plans/arrivals and paid-context guards remain authoritative inside advanceIfEnabled.
   return row.continuity_mode === 'continuous' && !wake.hasPendingDirector

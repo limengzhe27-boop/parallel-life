@@ -1,3 +1,4 @@
+import type { ActorAgendaInitializeGrant } from '../domain/actor-agenda-initialization.ts';
 import { collectPendingSceneObservationCandidates } from '../domain/actor-observation-candidate.ts';
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
 import { agentConditionsReady } from './agent-condition-checks.ts';
@@ -33,6 +34,8 @@ export type SchedulingView = {
   activeAttempts: readonly Pick<AgentAttempt, 'actorId' | 'status' | 'id'>[];
   /** Only truly committed success/quiet wake receipts, never merely reserved/unknown attempts. */
   consumedCandidateIds: readonly string[];
+  /** Server-attested permission, never a model-created agenda. */
+  agendaInitializeGrants?: readonly ActorAgendaInitializeGrant[];
 };
 type ActorRead = SchedulingView['actors'][number];
 const empty = (): AgentProposal => ({
@@ -699,6 +702,9 @@ export function createAgentScheduleSources(
         [
           'actor_plan',
           'responsibility',
+          ...(view.agendaInitializeGrants?.some((g) => g.actorId === actor.snapshot.state.actorId)
+            ? ['agenda_initialize' as const]
+            : []),
           ...(actor.snapshot.worldContext?.knowledge.length ||
           actor.snapshot.actorObservationInbox?.sourceIds.length ||
           actor.snapshot.episodeResults?.length
@@ -713,7 +719,7 @@ export function createAgentScheduleSources(
             if (worldId !== view.worldId) throw new DomainError('INVALID_COMMAND');
             const context = authorizedActor(view, actor);
             const blockers: AgentBlocker[] =
-              source === 'actor_plan'
+              source === 'actor_plan' || source === 'agenda_initialize'
                 ? view.activeAttempts
                     .filter(
                       (a) =>
@@ -736,14 +742,52 @@ export function createAgentScheduleSources(
                     }))
                 : [];
             const candidates = (
-              await (source === 'actor_plan'
-                ? plans(view, context).then(async (ready) => [
-                    ...ready,
-                    ...(await planReconsiderations(view, context, ready)),
-                  ])
-                : source === 'responsibility'
-                  ? responsibilities(view, actor, context)
-                  : observations(view, context))
+              await (source === 'agenda_initialize'
+                ? Promise.resolve(
+                    (view.agendaInitializeGrants ?? [])
+                      .filter(
+                        (g) =>
+                          g.actorId === context.snapshot.state.actorId &&
+                          g.worldId === view.worldId &&
+                          g.engineEpoch === view.engineEpoch &&
+                          g.policy === 'npc_agenda_initialize_v1' &&
+                          g.definitionRef === context.snapshot.state.definitionRef &&
+                          g.sourceIds.length > 0 &&
+                          g.sourceIds.every((id) =>
+                            context.snapshot.sources.some(
+                              (s) =>
+                                s.id === id &&
+                                s.kind === 'authored' &&
+                                s.recordId === g.definitionRef,
+                            ),
+                          ),
+                      )
+                      .map((g) => ({
+                        id: g.candidateId,
+                        worldId: view.worldId,
+                        actorId: g.actorId,
+                        source: 'agenda_initialize' as const,
+                        episodeId: null,
+                        actionId: null,
+                        resourceIds: [],
+                        channel: 'private' as const,
+                        threadId: g.actorId,
+                        sourceIds: [...g.sourceIds],
+                        expectedWorldVersion: view.worldVersion,
+                        expectedActorRevision: context.snapshot.state.revision,
+                        priority: 10,
+                        reason: '本人尚无议程，获得一次有界自主规划机会；不要求联系玩家。',
+                        requiresCoordination: false,
+                      })),
+                  )
+                : source === 'actor_plan'
+                  ? plans(view, context).then(async (ready) => [
+                      ...ready,
+                      ...(await planReconsiderations(view, context, ready)),
+                    ])
+                  : source === 'responsibility'
+                    ? responsibilities(view, actor, context)
+                    : observations(view, context))
             ).filter((c) => !consumed.has(c.id));
             return { candidates, blockers };
           },

@@ -92,6 +92,7 @@ const Candidate = z
     actorId: Key,
     source: z.enum([
       'opening',
+      'agenda_initialize',
       'authored_event',
       'actor_plan',
       'responsibility',

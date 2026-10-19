@@ -1,3 +1,5 @@
+import { requireAgendaInitializeInputInTransaction } from './actor-agenda-initialization-repository.ts';
+import { isAgendaInitializeInput } from '../domain/actor-agenda-initialization.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
 import { validateActorObservationInbox } from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
@@ -280,6 +282,7 @@ export async function acceptAgentInputInTransaction(
   }
   if (w.version !== input.expectedWorldVersion) fail('VERSION_CONFLICT');
   if (input.recipientActorId !== null) actorExists(w, input.recipientActorId);
+  await requireAgendaInitializeInputInTransaction(sql, ownerId, input);
   await sql.query(
     'INSERT INTO parallel_life.agent_input_receipts(id,world_id,owner_id,command_id,input_hash,document) VALUES($1,$2,$3,$4,$5,$6)',
     [input.id, input.worldId, ownerId, input.commandId, input.inputHash, json(input, 60000)],
@@ -581,7 +584,14 @@ export class PostgresAgentRuntimeRepository
         episodeDelivery = isEpisodeConsiderationInput(receipt);
         // The immutable accepted body, not a mutable prepared snapshot, decides
         // whether author-source validation is mandatory before any paid send.
-        if (isEpisodeConsiderationInput(receipt) && !snapshot) fail('INPUT_SCOPE_FORBIDDEN');
+        if ((isEpisodeConsiderationInput(receipt) || isAgendaInitializeInput(receipt)) && !snapshot)
+          fail('INPUT_SCOPE_FORBIDDEN');
+        await requireAgendaInitializeInputInTransaction(
+          sql,
+          ownerId,
+          receipt,
+          expected.engineEpoch,
+        );
         if (snapshot) {
           if (
             snapshot.state.worldId !== expected.worldId ||
