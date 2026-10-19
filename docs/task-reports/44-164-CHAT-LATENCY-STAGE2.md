@@ -1,7 +1,7 @@
 # 44-164-CHAT-LATENCY-STAGE2 进度与交接报告
 
 - **任务 ID**：`44-164-CHAT-LATENCY-STAGE2`
-- **当前状态**：`[ ] 待验收`（阶段一 `44-163-CHAT-LATENCY-STAGE1` 与阶段二 `44-164-CHAT-LATENCY-STAGE2` 代码与测试全部就绪，14 项故障边界覆盖，3821 项回归通过，等待应用生产迁移 0100、推送并验证上线）
+- **当前状态**：`[x] 已完成`（生产迁移 0100 已应用，上线业务提交 `a5fce517`，Vercel `dpl_HprcPBKsRwScBb4h9SNGNvaGMsfA` READY，公网别名 `https://parallel-life-nu.vercel.app` 实测验证全部通过）
 - **独立工作树**：`/Users/limengzhe/.codex/worktrees/chat-latency163/人生剧本`（分支 `codex/chat-latency163`，基于 `145b2ab3`）
 - **主登记表**：`/Users/limengzhe/Desktop/projects/demo/人生剧本/docs/DEVELOPMENT.md`
 
@@ -44,3 +44,13 @@
    - 真实 PG 集成测试：`tests/integration/chat-latency-stage2.test.ts`（全部 14 项故障边界 100% 通过）。
    - 全量回归测试：`npm test` 3,821 项全部通过（0 fail, 0 skipped）。
    - 边界检查与编译：`npm run check:boundaries` 通过（687 files），`npm run build` Next.js 16.3.5 编译成功（27/27 路由）。
+
+8. **生产公网实测证据（https://parallel-life-nu.vercel.app）**
+   - 生产迁移 `0100_agent_attempt_stream_segments.sql` 成功应用，`public.pl_migrations` 中记录 `checksum=6f2a9cb2e92247cf22e2edca8c5bd23caa47284e8233176c1a48ec495fd1fca7`。
+   - 生产部署：Vercel `dpl_HprcPBKsRwScBb4h9SNGNvaGMsfA`（commit `a5fce517`）READY，公网别名生效。
+   - 运行 `scripts/verify-chat-stream-live.mjs` 实测官方人生《县城黄毛》（worldId: `c45c01d6-8734-4142-807b-f5e137b13a42`）：
+     - 发送 `x-message-stream: 1` 私聊给 NPC 林悦，HTTP 状态 200，`Content-Type: application/x-ndjson; charset=utf-8`；
+     - 首段增量对白在 `firstMeaningfulReplyMs: 8006ms` 到达，内容为 `[Segment 0] "饭局还没太具体准备，就是家里会有人多一点。你来了别赌气，刘航也会来的，我爸让我告诉你。他挺难相处别让气氛尴尬了。"`（`unitKind: independent_statement`）；
+     - 全轮耗时 `fullTurnMs: 8545ms` 完成并收到 `type: complete` 事件；
+     - 生产数据库审计：`parallel_life.agent_attempt_stream_segments` 查得 1 条已持久化分段凭据（`segment_index: 0, status: committed, v: 1`），外键强约束及 RLS 安全有效；
+     - 验证 `/receipt` 路由带 projection 成功支持断连刷新消息投影。

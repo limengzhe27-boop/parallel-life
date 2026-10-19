@@ -1,4 +1,11 @@
+## 2026-10-20 · 44-164 增量消息流式呈现（Stage 2）
+
+业务 `a5fce517` / `dpl_HprcPBKsRwScBb4h9SNGNvaGMsfA` 正式 Nu 精确 READY，别名 `https://parallel-life-nu.vercel.app` 已核实。单次 NPC 模型调用的增量流式通信全链路打通。OpenAICompatibleTextModel.streamComplete 增量消费、闭合 statement 对象流式提取（杜绝未闭合 JSON 碎片呈现）、独立对白与依赖动作严格隔离。分段凭据在同一事务中先持久化到 `parallel_life.agent_attempt_stream_segments` 并提交 `world_events` 与 `world_messages`（Persist-Before-Present），再通过 NDJSON 响应向客户端逐段推送。同一 attempt 支持 V+1 前缀版本递进，与外部写/用户新消息打断围栏（旧流迟到 chunk 隔离、未提交分段自动标记 `superseded_by_interrupt`、已提交分段正式封存且 actor 不陷入 BUSY）。
+
+生产数据库迁移 `0100_agent_attempt_stream_segments.sql` 已应用（100 个迁移 checksum 100% 匹配）。公网端到端实测验证全部通过：官方人生《县城黄毛》新世界秒级载入；真实私聊请求（`x-message-stream: 1`）首段对白延迟 `firstMeaningfulReplyMs: 8006ms`，全轮 `fullTurnMs: 8545ms`，全回合回执携带完整 messages、metrics 及 streamSummary；生产数据库查询 `agent_attempt_stream_segments` 真实持久化分段凭据（`status: committed`，`v: 1`）；/receipt 路由带 projection 成功恢复已提交前缀。单元测试、14 项故障边界集成测试、全量回归 3,821 项及 build 27/27 路由全绿通过。详见 [164 报告](task-reports/44-164-CHAT-LATENCY-STAGE2.md)。
+
 ## 2026-10-19 · 44-159 渣男体验重新发布
+
 
 ## 2026-10-19 · 44-162 开场知情与人物独立接续
 
