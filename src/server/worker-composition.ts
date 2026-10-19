@@ -53,6 +53,7 @@ export function createWorker() {
         ? new YibuMediaProviderAdapter({
             apiKey: process.env.YIBU_API_KEY,
             baseUrl: process.env.YIBU_BASE_URL,
+            model: process.env.YIBU_IMAGE_MODEL,
           })
         : new ReplicateMediaProviderAdapter({
             apiToken: process.env.REPLICATE_API_TOKEN,
