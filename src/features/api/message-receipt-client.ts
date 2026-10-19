@@ -10,7 +10,7 @@ import {
 } from '../../contracts/message-receipt-lookup.ts';
 import { ApiFailure } from './client.ts';
 
-/** This transport never calls the send/retry endpoints, including after an unknown result. */
+/** Lookup and protected replay only; never send a new command or retry a model call. */
 export class MessageReceiptClient {
   private csrf?: string;
   private session?: Promise<void>;
@@ -30,6 +30,7 @@ export class MessageReceiptClient {
         headers: {
           ...(body ? { 'Content-Type': 'application/json' } : {}),
           ...(this.csrf ? { 'X-CSRF-Token': this.csrf } : {}),
+          'X-Message-Recovery': '1',
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
@@ -58,6 +59,18 @@ export class MessageReceiptClient {
   }
 
   async lookup(worldId: string, input: WorldMessageRequest): Promise<MessageReceiptLookup> {
+    return this.receipt(worldId, input, 'receipt');
+  }
+
+  async recover(worldId: string, input: WorldMessageRequest): Promise<MessageReceiptLookup> {
+    return this.receipt(worldId, input, 'recover');
+  }
+
+  private async receipt(
+    worldId: string,
+    input: WorldMessageRequest,
+    endpoint: 'receipt' | 'recover',
+  ): Promise<MessageReceiptLookup> {
     Id.parse(worldId);
     const command = WorldMessageRequestSchema.parse(input);
     if (!this.session)
@@ -71,7 +84,7 @@ export class MessageReceiptClient {
         });
     await this.session;
     const result = await this.post(
-      '/worlds/' + worldId + '/messages/receipt',
+      '/worlds/' + worldId + '/messages/' + endpoint,
       MessageReceiptLookupSchema,
       command,
     );

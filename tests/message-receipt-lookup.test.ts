@@ -115,3 +115,49 @@ test('known terminal failure is a source-bound read, not a send or unknown resul
   assert.equal(paths.length, 2);
   assert(paths[1]!.endsWith('/messages/receipt'));
 });
+
+test('protected recovery uses negotiated exact endpoint and never sends a fresh message', async () => {
+  const calls: { path: string; options?: RequestInit }[] = [];
+  const client = new MessageReceiptClient(async (u, options) => {
+    calls.push({ path: String(u), options });
+    return response(
+      String(u).endsWith('/session')
+        ? { kind: 'guest', csrfToken: 's'.repeat(32) }
+        : { ...identity, status: 'unconfirmed', recovery: 'response_received' },
+    );
+  });
+  await client.lookup(worldId, command);
+  await client.recover(worldId, command);
+  assert.deepEqual(
+    calls.map((c) => c.path),
+    [
+      '/api/v1/session',
+      `/api/v1/worlds/${worldId}/messages/receipt`,
+      `/api/v1/worlds/${worldId}/messages/recover`,
+    ],
+  );
+  for (const call of calls.slice(1)) {
+    assert.equal(new Headers(call.options!.headers).get('X-Message-Recovery'), '1');
+    assert.deepEqual(JSON.parse(String(call.options!.body)), command);
+  }
+});
+
+test('protected recovery rejects a mismatched receipt without automatic retry', async () => {
+  let calls = 0;
+  const client = new MessageReceiptClient(async (u) => {
+    calls++;
+    return response(
+      String(u).endsWith('/session')
+        ? { kind: 'guest', csrfToken: 's'.repeat(32) }
+        : {
+            ...identity,
+            commandId: randomUUID(),
+            status: 'committed',
+            version: 2,
+            eventId: randomUUID(),
+          },
+    );
+  });
+  await assert.rejects(client.recover(worldId, command), { code: 'UNAVAILABLE' });
+  assert.equal(calls, 2);
+});

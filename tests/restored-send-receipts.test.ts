@@ -115,3 +115,93 @@ test('receipt recovery bounds simultaneous reads to three without dropping comma
   assert.equal(max, 3);
   assert.equal(Object.keys(updates).length, 9);
 });
+
+test('only a source-bound saved response replays the exact original command once', async () => {
+  const a = fixture();
+  let recovered = 0;
+  const updates = await reconcileRestoredSendReceipts(
+    worldId,
+    [a.message],
+    { [a.message.id]: a.command },
+    async () => ({ ...a.identity, status: 'unconfirmed', recovery: 'response_received' }),
+    async (world, input) => {
+      recovered++;
+      assert.equal(world, worldId);
+      const { worldId: _, ...expected } = a.command;
+      assert.deepEqual(input, expected);
+      return { ...a.identity, status: 'committed', eventId: randomUUID(), version: 2 };
+    },
+  );
+  assert.equal(recovered, 1);
+  assert.deepEqual(updates, { [a.message.id]: 'committed' });
+});
+
+test('pending, unknown, legacy or foreign lookup never authorizes replay', async () => {
+  const a = fixture();
+  for (const receipt of [
+    { ...a.identity, status: 'unconfirmed' as const },
+    { ...a.identity, status: 'unconfirmed' as const, recovery: 'pending' as const },
+    { ...a.identity, status: 'unconfirmed' as const, recovery: 'unknown' as const },
+    {
+      ...a.identity,
+      worldId: randomUUID(),
+      status: 'unconfirmed' as const,
+      recovery: 'response_received' as const,
+    },
+  ]) {
+    let calls = 0;
+    assert.deepEqual(
+      await reconcileRestoredSendReceipts(
+        worldId,
+        [a.message],
+        { [a.message.id]: a.command },
+        async () => receipt,
+        async () => {
+          calls++;
+          throw Error('must not replay');
+        },
+      ),
+      {},
+    );
+    assert.equal(calls, 0);
+  }
+});
+
+test('missing replay callback, replay interruption or foreign replay receipt preserve uncertainty', async () => {
+  const a = fixture();
+  const lookup = async (): Promise<MessageReceiptLookup> => ({
+    ...a.identity,
+    status: 'unconfirmed',
+    recovery: 'response_received',
+  });
+  for (const recover of [
+    undefined,
+    async (): Promise<MessageReceiptLookup> => {
+      throw Error('offline');
+    },
+    async (): Promise<MessageReceiptLookup> => ({
+      ...a.identity,
+      actorId: randomUUID(),
+      status: 'committed',
+      version: 2,
+      eventId: randomUUID(),
+    }),
+    async (): Promise<MessageReceiptLookup> => ({
+      ...a.identity,
+      status: 'unconfirmed',
+      recovery: 'unknown',
+    }),
+  ]) {
+    assert.deepEqual(
+      await reconcileRestoredSendReceipts(
+        worldId,
+        [a.message],
+        { [a.message.id]: a.command },
+        lookup,
+        recover,
+      ),
+      {},
+    );
+    assert.equal(a.message.status, 'unknown');
+  }
+});

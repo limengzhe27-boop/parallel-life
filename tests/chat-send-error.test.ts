@@ -38,6 +38,7 @@ test('lost response, timeout and ambiguous failures stay unknown, explicit rejec
     new TypeError('fetch failed'),
     { code: 'UNAVAILABLE' },
     { code: 'UNKNOWN' },
+    { code: 'BUSY' },
     { code: 'INTERNAL' },
     new Error('private upstream'),
   ])

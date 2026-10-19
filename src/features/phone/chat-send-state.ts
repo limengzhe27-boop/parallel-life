@@ -18,7 +18,6 @@ export function sendFailureStatus(error: unknown): 'failed' | 'unknown' {
     'VERSION_CONFLICT',
     'IDEMPOTENCY_CONFLICT',
     'RATE_LIMITED',
-    'BUSY',
     'INVALID_STATE',
   ].includes(String(code))
     ? 'failed'
