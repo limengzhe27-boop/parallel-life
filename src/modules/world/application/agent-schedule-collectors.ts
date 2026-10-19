@@ -552,6 +552,19 @@ async function responsibilities(view: SchedulingView, actor: ActorRead, context:
 async function observations(view: SchedulingView, context: ActorContext) {
   const snapshot = context.snapshot,
     out: AgentCandidate[] = [];
+  if (snapshot.channel.kind === 'private')
+    out.push(
+      ...(await collectActorMediaResultCandidates({
+        worldId: view.worldId,
+        actorId: snapshot.state.actorId,
+        engineEpoch: view.engineEpoch,
+        worldVersion: view.worldVersion,
+        actorRevision: snapshot.state.revision,
+        storyAt: view.storyAt,
+        sources: snapshot.sources,
+        observations: snapshot.observations,
+      })),
+    );
   for (const knowledge of snapshot.worldContext?.knowledge ?? []) {
     const source = context.sources.get(knowledge.sourceId);
     // projectedWorldVersion is the actor's last actual evaluated/committed view,
@@ -707,7 +720,8 @@ export function createAgentScheduleSources(
             : []),
           ...(actor.snapshot.worldContext?.knowledge.length ||
           actor.snapshot.actorObservationInbox?.sourceIds.length ||
-          actor.snapshot.episodeResults?.length
+          actor.snapshot.episodeResults?.length ||
+          actor.snapshot.sources.some((source) => source.id.startsWith('media-result:'))
             ? ['observation' as const]
             : []),
         ] as const
@@ -795,4 +809,99 @@ export function createAgentScheduleSources(
       })),
     ),
   );
+}
+
+/**
+ * The caller supplies G/J-authenticated own completion packets, never a ready request flag.
+ * External work may complete without advancing worldVersion; identity follows the actual
+ * completion/source hash, not the read time, model revision, message count, or clock tick.
+ */
+export async function collectActorMediaResultCandidates(input: {
+  worldId: string;
+  actorId: string;
+  engineEpoch: number;
+  worldVersion: number;
+  actorRevision: number;
+  storyAt: string;
+  sources: readonly AgentSource[];
+  observations: AgentSnapshot['observations'];
+}): Promise<AgentCandidate[]> {
+  if (
+    !id(input.worldId) ||
+    !id(input.actorId) ||
+    !integer(input.engineEpoch) ||
+    input.engineEpoch < 2 ||
+    !integer(input.worldVersion) ||
+    !integer(input.actorRevision) ||
+    !instant(input.storyAt)
+  )
+    throw new DomainError('INVALID_COMMAND');
+  const candidates: AgentCandidate[] = [];
+  for (const source of input.sources) {
+    if (
+      !/^media-result:[a-f0-9]{64}$/.test(source.id) ||
+      source.kind !== 'action_result' ||
+      source.usage !== 'private_strategy' ||
+      !/^[a-f0-9]{64}$/.test(source.contentHash ?? '') ||
+      !id(source.recordId) ||
+      !integer(source.worldVersion) ||
+      source.worldVersion > input.worldVersion ||
+      !instant(source.at) ||
+      Date.parse(source.at) > Date.parse(input.storyAt)
+    )
+      continue;
+    const observation = input.observations.find(
+      (item) => item.sourceId === source.id && item.kind === 'result',
+    );
+    let result: Record<string, any>;
+    try {
+      result = JSON.parse(observation?.text ?? 'null');
+    } catch {
+      continue;
+    }
+    if (
+      !result ||
+      result.kind !== 'own_media_completion' ||
+      result.phase !== 'completed' ||
+      result.requestId !== source.recordId ||
+      !['image', 'video'].includes(result.mediaType) ||
+      result.sourceStoryAt !== source.at ||
+      result.observedAtStory !== input.storyAt ||
+      !instant(result.completedAtReal) ||
+      !id(result.asset?.id) ||
+      !integer(result.asset?.revision) ||
+      result.asset.revision < 1 ||
+      !['image/png', 'image/jpeg', 'image/webp', 'video/mp4'].includes(result.asset.mimeType) ||
+      !['eligible', 'suppressed', 'no_message'].includes(result.chatProjection)
+    )
+      continue;
+    candidates.push({
+      id:
+        'observation:' +
+        (await fingerprint({
+          kind: 'own_media_completion_v1',
+          worldId: input.worldId,
+          actorId: input.actorId,
+          engineEpoch: input.engineEpoch,
+          sourceId: source.id,
+          contentHash: source.contentHash,
+        })),
+      worldId: input.worldId,
+      actorId: input.actorId,
+      source: 'observation',
+      episodeId: null,
+      actionId: null,
+      resourceIds: [`media:${source.recordId}`],
+      channel: 'private',
+      threadId: input.actorId,
+      sourceIds: [source.id],
+      expectedWorldVersion: input.worldVersion,
+      expectedActorRevision: input.actorRevision,
+      priority: 40,
+      requiresCoordination: false,
+      reason:
+        '本人请求的媒体已有真实生成结果；据此考虑自己的后续计划或保持安静，不再次购买同一生成，不推定玩家已读或整个目标完成。',
+    });
+  }
+  return candidates;
 }

@@ -13,6 +13,8 @@ import {
   eligibleEpisodeDispatches,
   episodeDispatchAttempt,
 } from './agent-episode-dispatch-eligibility.ts';
+import { collectActorMediaResultCandidates } from '../application/agent-schedule-collectors.ts';
+import { readActorMediaCompletionContextInTransaction } from './agent-source-resolver.ts';
 
 /** Caller holds world then clock share locks; never writes/adopts/claims/calls a model. */
 export async function readAgentPhoneEntryProbe(
@@ -74,6 +76,73 @@ export async function readAgentPhoneEntryProbe(
       new Date(a.lease_until).getTime() > now,
   );
   if (raw) return ready('npc_raw', raw.id);
+  const blockedActors = new Set(
+    actors
+      .filter((a) =>
+        ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(a.status),
+      )
+      .map((a) => String(a.actor_id)),
+  );
+  const states = () =>
+    sql
+      .query(
+        'SELECT actor_id,document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 ORDER BY actor_id',
+        [frame.worldId, ownerId],
+      )
+      .then((result) => result.rows);
+  const pendingMedia = async (rows: { actor_id: string; document: any }[]) => {
+    const candidates = [];
+    for (const actor of rows) {
+      if (blockedActors.has(String(actor.actor_id))) continue;
+      // Full persistent action history is retained by the native kernel. No own
+      // generation action means no possible G-authenticated external generation result.
+      if (
+        !(actor.document.actions ?? []).some((action: any) =>
+          ['media.generate_image', 'media.generate_video'].includes(action.capability),
+        )
+      )
+        continue;
+      const packet = await readActorMediaCompletionContextInTransaction(sql, ownerId, {
+        state: actor.document,
+        worldVersion: frame.worldVersion,
+        storyAt: frame.storyAt,
+      });
+      const own = await collectActorMediaResultCandidates({
+        worldId: frame.worldId,
+        actorId: String(actor.actor_id),
+        engineEpoch: frame.engineEpoch,
+        worldVersion: frame.worldVersion,
+        actorRevision: actor.document.revision,
+        storyAt: frame.storyAt,
+        ...packet,
+      });
+      for (const candidate of own) {
+        const attempted = actors.some((attempt) => {
+          if (
+            attempt.actor_id !== candidate.actorId ||
+            attempt.document.origin !== 'wake' ||
+            attempt.document.worldId !== frame.worldId ||
+            attempt.document.recipientActorId !== candidate.actorId ||
+            attempt.document.commandId !== attempt.command_id ||
+            !(
+              ['committed', 'invalid_output', 'stale_discarded'].includes(attempt.status) ||
+              (attempt.status === 'cancelled_before_send' &&
+                (attempt.sent_at || attempt.response_hash))
+            )
+          )
+            return false;
+          try {
+            const input = JSON.parse(attempt.document.text);
+            return input.type === 'npc_own_condition_ready' && input.candidateId === candidate.id;
+          } catch {
+            return false;
+          }
+        });
+        if (!attempted) candidates.push(candidate.id);
+      }
+    }
+    return candidates.sort();
+  };
   const requests = await readPendingEpisodeRequestsInTransaction(sql, ownerId, {
     worldId: frame.worldId,
     engineEpoch: frame.engineEpoch,
@@ -109,22 +178,9 @@ export async function readAgentPhoneEntryProbe(
     // and stable plan intent may request one cheap original scheduler evaluation;
     // this probe never authorizes a model, executes a plan or retries the Director.
     const agenda = await readAgendaInitializeGrantsInTransaction(sql, ownerId, frame);
-    const blockedActors = new Set(
-      actors
-        .filter((a) =>
-          ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
-            a.status,
-          ),
-        )
-        .map((a) => String(a.actor_id)),
-    );
-    const states = (
-      await sql.query(
-        'SELECT actor_id,document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 ORDER BY actor_id',
-        [frame.worldId, ownerId],
-      )
-    ).rows;
-    const plans = states
+    const actorStates = await states();
+    const media = await pendingMedia(actorStates);
+    const plans = actorStates
       .filter((s) => !blockedActors.has(String(s.actor_id)))
       .flatMap((s) => {
         const state = s.document;
@@ -146,13 +202,14 @@ export async function readAgentPhoneEntryProbe(
             ),
           }));
       });
-    return agenda.length || plans.length
+    return agenda.length || plans.length || media.length
       ? ready(
           'independent_scheduler_check',
           JSON.stringify({
             directors: pendingDirectors.map((d) => [d.id, d.status]),
             agenda: agenda.map((g) => g.candidateId).sort(),
             plans,
+            ...(media.length ? { media } : {}),
           }),
         )
       : { status: 'pending' };
@@ -173,6 +230,8 @@ export async function readAgentPhoneEntryProbe(
         .sort()
         .join('|'),
     );
+  const media = await pendingMedia(await states());
+  if (media.length) return ready('own_media_completion', media.join('|'));
   // Grants only a cheap original scheduler evaluation once per foreground entry, never a model cause.
   // Due plans/arrivals and paid-context guards remain authoritative inside advanceIfEnabled.
   return row.continuity_mode === 'continuous' && !wake.hasPendingDirector
