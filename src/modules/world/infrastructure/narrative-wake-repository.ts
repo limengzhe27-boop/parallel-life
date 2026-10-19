@@ -1,3 +1,4 @@
+import { admitDirectorOpportunity } from '../domain/director-opportunity-admission.ts';
 import { readOpeningContextAuthority } from './opening-context-repository.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import { validDirectorAuthoredAssessments } from '../domain/director-runtime.ts';
@@ -28,6 +29,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   input: { worldId: string; engineEpoch: number; worldVersion: number; storyAt: string },
   prepared?: AuthoredEligibilityView,
   allowAttemptId?: string,
+  readOpening?: () => ReturnType<typeof readOpeningContextAuthority>,
 ): Promise<{
   cause: DirectorEvaluationCause | null;
   hasPendingDirector: boolean;
@@ -83,10 +85,9 @@ export async function readDirectorNarrativeWakeInTransaction(
   )
     throw new DomainError('VERSION_CONFLICT');
   if (!view.catalog.source) return { cause: null, hasPendingDirector, deferred: false };
-  const informationAuthority = await readOpeningContextAuthority(sql, ownerId, input, {
-    view,
-    allowAttemptId,
-  });
+  const informationAuthority = await (readOpening
+    ? readOpening()
+    : readOpeningContextAuthority(sql, ownerId, input, { view, allowAttemptId }));
   if (informationAuthority)
     return {
       cause: {
@@ -161,6 +162,14 @@ export async function readDirectorNarrativeWakeInTransaction(
     ]);
   // A paid assessment fences this evidence context, never completes the author event.
   const paidReviewContexts = new Set<string>();
+  const lastAssessedVersion = new Map<string, number>();
+  const paidFrames = attempts.filter(
+    (a) =>
+      (a.status === 'committed' || a.sent_at !== null) &&
+      !isVerifiedDirectorPreflightRejection(a) &&
+      a.snapshot?.authoredMaterials?.source?.sourceHash === view.catalog.source!.sourceHash,
+  );
+  const latestPaid = paidFrames.at(-1);
   for (const a of attempts) {
     if (a.status === 'committed' && !a.actual_decision_id)
       throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_DECISION_RECEIPT_MISSING');
@@ -199,12 +208,63 @@ export async function readDirectorNarrativeWakeInTransaction(
       : snapshotEntries;
     const previousOccupied = new Set<string>(a.snapshot.occupiedAuthoredEventKeys ?? []);
     for (const q of entries)
-      if (q.status === 'eligible' && !previousOccupied.has(q.nodeKey))
+      if (q.status === 'eligible' && !previousOccupied.has(q.nodeKey)) {
         paidReviewContexts.add(contextToken(q, a.snapshot.worldVersion));
+        lastAssessedVersion.set(
+          token(q),
+          Math.max(lastAssessedVersion.get(token(q)) ?? -1, a.snapshot.worldVersion),
+        );
+      }
   }
-  const unseen = qualifications
+  let unseen = qualifications
     .filter((q) => !paidReviewContexts.has(contextToken(q, input.worldVersion)))
     .sort((a, b) => (token(a) < token(b) ? -1 : token(a) > token(b) ? 1 : 0));
+
+  if (latestPaid && unseen.length) {
+    const load = (
+      await sql.query(
+        `SELECT
+       COALESCE((SELECT jsonb_agg(ep.document) FROM parallel_life.shared_episodes ep WHERE ep.world_id=$1 AND ep.owner_id=$2),'[]'::jsonb) episodes,
+       EXISTS(SELECT 1 FROM parallel_life.agent_episode_requests r WHERE r.world_id=$1 AND r.owner_id=$2 AND r.engine_epoch=$3 AND r.status='pending') pending_requests,
+       EXISTS(SELECT 1 FROM parallel_life.actor_agent_states s WHERE s.world_id=$1 AND s.owner_id=$2 AND (
+         EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'questions','[]'::jsonb)) q WHERE q->>'status'='open') OR
+         EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(s.document->'responsibilities','[]'::jsonb)) r WHERE r->>'status' IN ('open','waiting')))) pending_player_work`,
+        [input.worldId, ownerId, input.engineEpoch],
+      )
+    ).rows[0];
+    const episodes = load?.episodes ?? [];
+    const terminal = (e: { status: string }) => ['resolved', 'withdrawn'].includes(e.status);
+    const previousEpisodes = latestPaid.snapshot.episodes ?? [];
+    const released = episodes.some(
+      (e: { id: string; status: string }) =>
+        terminal(e) &&
+        !previousEpisodes.some((p: { id: string; status: string }) => p.id === e.id && terminal(p)),
+    );
+    const outstanding =
+      !!load?.pending_requests ||
+      !!load?.pending_player_work ||
+      episodes.some((e: { status: string }) => ['proposed', 'active'].includes(e.status));
+    unseen = unseen.filter((q) => {
+      const assessedAt = lastAssessedVersion.get(token(q));
+      const baseline = assessedAt ?? latestPaid.snapshot.worldVersion;
+      const oldEvidence = new Set(evidenceFor(q, baseline));
+      const newEvidence = evidenceFor(q, input.worldVersion).filter((id) => !oldEvidence.has(id));
+      const newSpeech = speechFor(q, input.worldVersion).some(
+        (id) => !speechFor(q, baseline).includes(id),
+      );
+      const independent =
+        newSpeech ||
+        semanticReasons.some((r) => newEvidence.includes(r.id) && r.kind !== 'plan_changed');
+      return admitDirectorOpportunity({
+        previouslyAssessed: assessedAt !== undefined,
+        hasPriorPaidAssessment: true,
+        hasOutstandingWork: outstanding,
+        hasRelatedNewEvidence: newSpeech || newEvidence.length > 0,
+        hasIndependentNewEvidence: independent,
+        hasNewlyReleasedEpisode: released,
+      });
+    });
+  }
   if (!unseen.length) return { cause: null, hasPendingDirector, deferred: false };
   // Only confirmed zero-send cancellations can change retry identity. No paid/unknown retry.
   const unseenTokens = new Set(unseen.map(token));

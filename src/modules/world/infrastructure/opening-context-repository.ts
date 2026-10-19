@@ -50,7 +50,11 @@ export async function readOpeningContextAuthority(
   sql: SqlClient,
   owner: string,
   input: { worldId: string; engineEpoch: number; worldVersion: number },
-  options: { view?: AuthoredEligibilityView; allowAttemptId?: string } = {},
+  options: {
+    view?: AuthoredEligibilityView;
+    allowAttemptId?: string;
+    actorDirectionMaterials?: Awaited<ReturnType<typeof readDirectorActorDirectionMaterials>>;
+  } = {},
 ): Promise<OpeningContextAuthority | undefined> {
   const r = (
     await sql.query(
@@ -122,9 +126,41 @@ export async function readOpeningContextAuthority(
   ).rows;
   if (reviews.some((r) => r.disposition === 'confirm')) return undefined;
   const deferred = reviews.filter((r) => r.disposition === 'defer');
+  // A previous paid review may never have returned. Its immutable authority still
+  // fences the same evidence, but must not fence genuinely later developments.
+  const paidFrames = (
+    await sql.query(
+      `SELECT id,status,sent_at,response,response_hash,decision_id,expected_world_version
+     FROM parallel_life.director_runtime_attempts
+     WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3
+       AND snapshot#>>'{openingContextAuthority,nodeHash}'=$4
+       AND snapshot#>>'{openingContextAuthority,sourceHash}'=$5
+       AND snapshot#>>'{openingContextAuthority,nodeKey}'=$6
+       AND ($7::text IS NULL OR id<>$7)`,
+      [
+        input.worldId,
+        owner,
+        input.engineEpoch,
+        material.ref.nodeHash,
+        view.catalog.source.sourceHash,
+        material.ref.nodeKey,
+        options.allowAttemptId ?? null,
+      ],
+    )
+  ).rows.filter(
+    (p) =>
+      !isVerifiedDirectorPreflightRejection(p) &&
+      (p.sent_at !== null ||
+        p.response_hash !== null ||
+        p.response !== null ||
+        p.decision_id !== null),
+  );
   let reviewKey = hash(keyParts);
-  if (deferred.length) {
-    const firstVersion = Math.min(...deferred.map((r) => r.world_version));
+  if (deferred.length || paidFrames.length) {
+    const firstVersion = Math.min(
+      ...deferred.map((r) => r.world_version),
+      ...paidFrames.map((p) => p.expected_world_version),
+    );
     if (!Number.isSafeInteger(firstVersion) || firstVersion < 0) return fail();
     const evidence = authoredReconsiderationEvidence(
       material.participantRefs.flatMap((p) => (p.status === 'resolved' ? [p.actorId!] : [])),
@@ -176,7 +212,9 @@ export async function readOpeningContextAuthority(
       [input.worldId, owner, actorIds],
     )
   ).rows;
-  const materials = await readDirectorActorDirectionMaterials(sql, input.worldId, actorIds);
+  const materials = options.actorDirectionMaterials
+    ? options.actorDirectionMaterials.filter((m) => actorIds.includes(m.actorId))
+    : await readDirectorActorDirectionMaterials(sql, input.worldId, actorIds);
   const sourceField = material.node.script?.trim() ? 'script' : 'editorialIntent';
   const original = material.node[sourceField] ?? '';
   const sourceExcerpt = authoredSourceExcerpt(original, material.node.title, 6000);

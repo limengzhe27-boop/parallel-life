@@ -13,9 +13,9 @@ export function restorePendingAdvances(raw: string | null): PendingAdvance[] {
   try {
     const parsed = z
       .array(PendingAdvanceSchema)
-      .max(30)
+      .max(1000)
       .safeParse(JSON.parse(raw ?? '[]'));
-    return parsed.success ? parsed.data : [];
+    return parsed.success ? coalesceAdvanceRecovery(parsed.data) : [];
   } catch {
     return [];
   }
@@ -27,4 +27,30 @@ export function advanceRecoveryAction(
 ): 'lookup' | 'recover' | null {
   if (now < item.nextCheckAt || item.state === 'failed') return null;
   return item.state === 'recoverable' ? 'recover' : 'lookup';
+}
+
+/** Multiple scheduler checks may observe the same durable work. Keep one queryable
+ * operation per identical unresolved work set; never collapse different work or an
+ * operation that can still append work. Server receipts remain immutable. */
+export function coalesceAdvanceRecovery(items: readonly PendingAdvance[]): PendingAdvance[] {
+  const seen = new Set<string>();
+  return [...items]
+    .reverse()
+    .filter((item) => {
+      if (!item.receipt || !['unknown', 'recoverable'].includes(item.state)) return true;
+      const unresolved = item.receipt.work.filter((work) =>
+        ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
+          work.status,
+        ),
+      );
+      if (!unresolved.length) return true;
+      const key = JSON.stringify([
+        item.receipt.worldId,
+        unresolved.map((work) => `${work.kind}:${work.commandId}`).sort(),
+      ]);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .reverse();
 }

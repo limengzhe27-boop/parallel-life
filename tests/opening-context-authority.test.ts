@@ -63,7 +63,12 @@ function fixture() {
         return { rows: reviewed ? [{ disposition: 'confirm' }] : reviews };
       if (q.includes("r.document->>'kind' IN")) return { rows: evidence };
       if (q.includes('director_pending_reasons')) return { rows: [] };
-      if (q.includes('director_runtime_attempts')) return { rows: prior };
+      if (q.includes('director_runtime_attempts'))
+        return {
+          rows: q.includes('expected_world_version')
+            ? prior.map((attempt) => ({ expected_world_version: 1, ...attempt }))
+            : prior,
+        };
       if (q.includes('actor_agent_states'))
         return {
           rows: [
@@ -240,4 +245,37 @@ test('deferred information reopens only after authenticated participant plan cha
   assert.equal(await read(), undefined, 'same evidence already reviewed remains fenced');
   f.setReviews([{ disposition: 'confirm', review_key: base.reviewKey, world_version: 1 }]);
   assert.equal(await read(), undefined, 'confirmed information never replays');
+});
+
+test('same-transaction direction material reuse preserves authority and actor visibility', async () => {
+  const f = fixture();
+  const input = { worldId: 'world', engineEpoch: 2, worldVersion: 4 };
+  const original = await readOpeningContextAuthority(f.sql, 'owner', input, { view: f.view });
+  const read = f.sql.query.bind(f.sql);
+  let duplicateModuleReads = 0;
+  f.sql.query = (async (query: string, ...args: unknown[]) => {
+    if (query.includes('publication_actor_life_modules')) duplicateModuleReads++;
+    return (read as any)(query, ...args);
+  }) as typeof f.sql.query;
+  const reused = await readOpeningContextAuthority(f.sql, 'owner', input, {
+    view: f.view,
+    actorDirectionMaterials: [
+      {
+        actorId: 'actor',
+        modules: { lifeContext: 'Keeper of the shop; receives notices about its opening hours.' },
+      },
+      { actorId: 'other', modules: { lifeContext: 'Private knowledge from another character.' } },
+    ],
+  });
+  assert.deepEqual(reused, original);
+  assert.equal(duplicateModuleReads, 0);
+  f.world.version = 5;
+  await assert.rejects(
+    () =>
+      readOpeningContextAuthority(f.sql, 'owner', input, {
+        view: f.view,
+        actorDirectionMaterials: [],
+      }),
+    { code: 'OPENING_CONTEXT_AUTHORITY_CONFLICT' },
+  );
 });

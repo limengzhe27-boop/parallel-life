@@ -978,6 +978,25 @@ export class PostgresDirectorSnapshotRepository {
       ];
       let authored: Awaited<ReturnType<typeof readAuthoredEligibilityInTransaction>> | undefined;
       let evaluationCause: DirectorSnapshot['evaluationCause'] | null;
+      // These promises live only inside this repeatable-read transaction. Never reuse
+      // permissions or actor material across a later claim/commit transaction.
+      let directionRead: ReturnType<typeof readDirectorActorDirectionMaterials> | undefined;
+      const readDirections = () =>
+        (directionRead ??= readDirectorActorDirectionMaterials(
+          sql,
+          h.world.id,
+          h.boundary.actorIds,
+        ));
+      let openingRead: ReturnType<typeof readOpeningContextAuthority> | undefined;
+      const readOpening = () =>
+        (openingRead ??= (async () =>
+          readOpeningContextAuthority(
+            sql,
+            owner,
+            { worldId: h.world.id, engineEpoch: h.epoch, worldVersion: h.world.version },
+            { view: authored, actorDirectionMaterials: await readDirections() },
+          ))());
+
       if (!input.nativeTurn) {
         authored = await readAuthoredEligibilityInTransaction(sql, owner, {
           worldId: h.world.id,
@@ -995,6 +1014,8 @@ export class PostgresDirectorSnapshotRepository {
             storyAt: h.storyAt,
           },
           authored,
+          undefined,
+          readOpening,
         ));
       }
       if (authored?.catalog.source && evaluationCause) {
@@ -1047,19 +1068,8 @@ export class PostgresDirectorSnapshotRepository {
           if (resolved && !resolved.knownByActorIds.includes(candidate.actorId))
             fail('DIRECTOR_CANDIDATE_SOURCE_FORBIDDEN');
         }
-      const actorDirectionMaterials = await readDirectorActorDirectionMaterials(
-        sql,
-        h.world.id,
-        h.boundary.actorIds,
-      );
-      const openingContextAuthority = input.nativeTurn
-        ? undefined
-        : await readOpeningContextAuthority(
-            sql,
-            owner,
-            { worldId: h.world.id, engineEpoch: h.epoch, worldVersion: h.world.version },
-            { view: authored },
-          );
+      const actorDirectionMaterials = await readDirections();
+      const openingContextAuthority = input.nativeTurn ? undefined : await readOpening();
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         ...(openingContextAuthority ? { openingContextAuthority } : {}),
