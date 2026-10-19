@@ -412,7 +412,7 @@ test('protected v9 responses do not gain opening execution and cannot attach a n
 test('v10 accepts nullable actorTopics transport before validating an otherwise exact interaction', () => {
   const f = consider();
   f.wire.protocol = 'director-wire-v10';
-  f.wire.openingContext = null;
+
   const o = f.wire.authoredChoices[f.events[0]!.ref].opportunity;
   o.actorTopics = null;
   o.actorTasks = {
@@ -423,9 +423,10 @@ test('v10 accepts nullable actorTopics transport before validating an otherwise 
     },
     'actor:2': null,
   };
-  const original = structuredClone(f.wire);
-  const d = f.parse(f.wire);
+  const wire = { ...f.wire, openingContext: null };
+  const original = structuredClone(wire);
+  const d = f.parse(wire);
   assert.equal(d.opportunities.length, 1);
   assert.equal(d.opportunities[0]!.actorTopics, undefined);
-  assert.deepEqual(f.wire, original);
+  assert.deepEqual(wire, original);
 });
