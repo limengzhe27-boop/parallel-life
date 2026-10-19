@@ -25,3 +25,11 @@ root-unified137唯一集成，batch_lease_review执行协议，沿原Director/ep
 新增真实PG暴露并修复：Director response_received因深聊暂缓后，同批F quiet提交worldV0→1使付费读集失效。原batch新增yieldAfterStep，在此暂缓分支立即停止本自动批后续写入，恢复浏览后提交同attempt/command/raw/hash；不阻止真实玩家命令，不放宽sameRecoveryFrame。真实PG25/25通过，包含该连续恢复与Director仅一次调用，quiet仍不是完成。
 
 最终check/build与新候选真实独立冷启动正在进行。正式仍M9623095c；不能把上述数据库验收当作自然人物开场已通过。N2/N3纯策略/只读证据包仍冻结待公共runtime准入/原子预算/恢复接线，持续自主议程未完成。
+
+## 候选46a8d511真实验收
+
+候选dpl_g6EKf9swSQgpioQtrbuBdhkg4kpu准确SHA READY。相同原稿第4份独立合成冷启动，0预制历史/朋友圈/手动补消息；原advance 22.136秒、3次文字调用。Director v4 committed，明确consider作者opening，原事务生成同一事件两份人物考虑请求。阿宁独立engage并提交一条围绕临窗座位/预算的实际新来信，手机原投影读取到；事件active且无resultIds，不误标完成。
+
+阿澄另一请求仍pending，其paid-invalid输出的standalone plan引用不存在goal_1（goals=[]），原内核拒绝，未提交消息或伪造目标；不自动重试或改写该raw。故本轮证明‘作者事件可真实交给人物并来信’，**未证明两人物均自然演绎成功**。独立计划目标引用需要下一批统一协议设计（可复用executions中nested semantic goal→server分配ID模式），不能放宽missing goal检查。导演角色意图与Persona贴合也需继续提升，不能把schema成功当人物质量达标。
+
+check3505/3505、build、真PG25/25、生产95checksum全部通过。继续当前人物原私聊承接验收，随后推送正式；N自主议程原发送前准入/预算/恢复尚未接线。没有让助手将冻结包冒充已上线能力。
