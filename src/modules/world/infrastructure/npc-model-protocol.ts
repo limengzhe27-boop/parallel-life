@@ -169,7 +169,15 @@ const ModelWire = Wire.omit({ mediaDecision: true, actions: true }).extend({
   replyAssessments: AgentProposalSchema.shape.replyAssessments,
   questionWithdrawals: AgentProposalSchema.shape.questionWithdrawals,
   locationReports: AgentProposalSchema.shape.locationReports,
-  executions: z.array(NativeExecutionIntentSchema).max(16).optional(),
+  executions: z
+    .array(
+      NativeExecutionIntentSchema.extend({
+        // Local transport names are not persisted action IDs or reserved namespaces.
+        ref: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/),
+      }),
+    )
+    .max(16)
+    .optional(),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
