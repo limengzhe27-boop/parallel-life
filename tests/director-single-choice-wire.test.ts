@@ -237,18 +237,17 @@ test('fixed v4 raw keeps its own mode and assessment semantics, including old pa
   const { events: _events, ...prior } = raw;
   assert.equal(f.parse({ ...prior, protocol: 'director-wire-v3' }).authoredAssessments, undefined);
 });
-test('v5 schema omits redundant mode and event decision, retaining legal references and origin restrictions', () => {
+test('latest schema binds one exclusive choice per authored ref, without redundant events', () => {
   const f = fixture(),
     format = directorResponseFormat(f.s);
-  if (format.format !== 'json_schema') throw Error('Wrong grammar');
+  if (format.format !== 'json_schema') throw Error('grammar');
   const p: any = format.schema.properties;
   assert.equal(p.mode, undefined);
-  assert.equal(p.events.items.properties.decision, undefined);
-  assert.equal(p.events.minItems, undefined);
-  assert.equal(p.events.maxItems, 2);
+  assert.equal(p.events, undefined);
   assert.deepEqual(
-    p.events.items.properties.eventRef.enum,
+    p.authoredChoices.required,
     f.events.map((e) => e.ref),
   );
-  assert.deepEqual(p.protocol.enum, ['director-wire-v6']);
+  assert.equal(p.authoredChoices.additionalProperties, false);
+  assert.deepEqual(p.protocol.enum, ['director-wire-v7']);
 });

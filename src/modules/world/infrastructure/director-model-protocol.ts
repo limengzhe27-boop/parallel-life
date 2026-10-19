@@ -4,7 +4,8 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v6';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v7';
+const PREVIOUS_GROUP_PROTOCOL = 'director-wire-v6';
 const PREVIOUS_SINGLE_CHOICE_PROTOCOL = 'director-wire-v5';
 const PREVIOUS_ASSESSMENT_PROTOCOL = 'director-wire-v4';
 const Key = z.string().min(1).max(240);
@@ -88,10 +89,34 @@ const PreviousSingleChoiceWire = Wire.omit({ mode: true, events: true }).extend(
   events: z.array(z.strictObject({ eventRef: Ref, reason: Reason })).max(10000),
 });
 
-const CurrentWire = PreviousSingleChoiceWire.extend({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+const PreviousGroupWire = PreviousSingleChoiceWire.extend({
+  protocol: z.literal(PREVIOUS_GROUP_PROTOCOL),
 });
-type Opportunity = z.infer<typeof CurrentWire>['opportunities'][number];
+const AuthorOpportunity = PreviousGroupWire.shape.opportunities.element.omit({ origin: true });
+const CurrentWire = PreviousGroupWire.omit({ events: true }).extend({
+  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+  authoredChoices: z.record(
+    Ref,
+    z.discriminatedUnion('kind', [
+      z.strictObject({ kind: z.literal('defer'), reason: Reason }),
+      z.strictObject({
+        kind: z.literal('consider'),
+        opportunities: z.array(AuthorOpportunity).min(1).max(2),
+      }),
+    ]),
+  ),
+  opportunities: z
+    .array(
+      PreviousGroupWire.shape.opportunities.element.extend({
+        origin: z.strictObject({
+          kind: z.literal('emergent'),
+          sourceRefs: z.array(Ref).min(1).max(32),
+        }),
+      }),
+    )
+    .max(2),
+});
+type Opportunity = z.infer<typeof PreviousGroupWire>['opportunities'][number];
 /** v6 only: multiple independent cast tasks can describe the same shared authored opportunity. */
 function groupAuthoredOpportunities(items: Opportunity[]): Opportunity[] {
   if (new Set(items.map((o) => o.id)).size !== items.length)
@@ -216,15 +241,50 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     for (const opportunity of normalized.opportunities) {
       if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
     }
+  if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
+    // Nullable optional actorTopics remains transport syntax inside each explicit author choice.
+    const choices = normalized.authoredChoices;
+    if (choices && typeof choices === 'object' && !Array.isArray(choices))
+      for (const choice of Object.values(choices))
+        if (
+          choice &&
+          typeof choice === 'object' &&
+          'opportunities' in choice &&
+          Array.isArray(choice.opportunities)
+        )
+          for (const opportunity of choice.opportunities)
+            if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
+    const current = CurrentWire.parse(normalized);
+    const refs = directorWireCatalog(snapshot).events.map((e) => e.ref);
+    const keys = Object.keys(current.authoredChoices);
+    if (keys.length !== refs.length || keys.some((key) => !refs.includes(key)))
+      throw Error('DIRECTOR_AUTHORED_CHOICE_PARTITION');
+    normalized = {
+      protocol: PREVIOUS_GROUP_PROTOCOL,
+      candidates: current.candidates,
+      events: Object.entries(current.authoredChoices).flatMap(([eventRef, choice]) =>
+        choice.kind === 'defer' ? [{ eventRef, reason: choice.reason }] : [],
+      ),
+      opportunities: [
+        ...Object.entries(current.authoredChoices).flatMap(([eventRef, choice]) =>
+          choice.kind === 'consider'
+            ? choice.opportunities.map((o) => ({ ...o, origin: { kind: 'authored', eventRef } }))
+            : [],
+        ),
+        ...current.opportunities,
+      ],
+      audit: current.audit,
+    };
+  }
   if (
-    normalized.protocol === DIRECTOR_WIRE_PROTOCOL ||
+    normalized.protocol === PREVIOUS_GROUP_PROTOCOL ||
     normalized.protocol === PREVIOUS_SINGLE_CHOICE_PROTOCOL
   ) {
     const current =
-      normalized.protocol === DIRECTOR_WIRE_PROTOCOL
-        ? CurrentWire.parse(normalized)
+      normalized.protocol === PREVIOUS_GROUP_PROTOCOL
+        ? PreviousGroupWire.parse(normalized)
         : PreviousSingleChoiceWire.parse(normalized);
-    if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL)
+    if (normalized.protocol === PREVIOUS_GROUP_PROTOCOL)
       current.opportunities = groupAuthoredOpportunities(current.opportunities);
     const catalog = directorWireCatalog(snapshot);
     const authored = current.opportunities.filter((o) => o.origin.kind === 'authored');
@@ -501,9 +561,55 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       ),
     }),
   });
+  const properties = schema.properties as Record<string, Schema>;
+  const flat = properties.opportunities!;
+  const originalItem = flat.items as Schema;
+  const authorProperties = { ...(originalItem.properties as Record<string, Schema>) };
+  delete authorProperties.origin;
+  const authorItem = object(authorProperties);
+  const deferChoice = object({ kind: { type: 'string', enum: ['defer'] }, reason: text });
+  schema.$defs = {
+    director_author_opportunity: authorItem,
+    director_author_choice: {
+      anyOf: [
+        deferChoice,
+        object({
+          kind: { type: 'string', enum: ['consider'] },
+          opportunities: {
+            ...array({ $ref: '#/$defs/director_author_opportunity' }),
+            minItems: 1,
+            maxItems: 2,
+          },
+        }),
+      ],
+    },
+    director_author_defer: deferChoice,
+  };
+  const choices: Record<string, Schema> = {};
+  for (const event of catalog.events)
+    choices[event.ref] = {
+      $ref:
+        !snapshot.nativeTurn && (!openingRefs.length || openingRefs.includes(event.ref))
+          ? '#/$defs/director_author_choice'
+          : '#/$defs/director_author_defer',
+    };
+  delete properties.events;
+  properties.authoredChoices = object(choices);
+  const emergentOrigin =
+    catalog.sources.length && !openingRefs.length
+      ? object({
+          kind: { type: 'string', enum: ['emergent'] },
+          sourceRefs: array(refs(values(catalog.sources))),
+        })
+      : { type: 'null' };
+  properties.opportunities = array(
+    object({ ...(originalItem.properties as Record<string, Schema>), origin: emergentOrigin }),
+    !catalog.sources.length || !!openingRefs.length || !!snapshot.nativeTurn,
+  );
+  schema.required = Object.keys(properties);
   if (JSON.stringify(schema).length > 24_000)
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v6', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v7', strict: true, schema };
 }

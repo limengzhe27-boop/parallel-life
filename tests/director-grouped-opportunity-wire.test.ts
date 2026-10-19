@@ -161,6 +161,7 @@ test('v6 groups same authored event into one shared opportunity with independent
     before = structuredClone(f.wire),
     d = f.parse(f.wire);
   assert.equal(d.opportunities.length, 1);
+  assert.match(d.opportunities[0]!.id, /^director-opportunity:[a-f0-9]{64}$/);
   const o = d.opportunities[0]!;
   assert.deepEqual(o.participantActorIds, ['a', 'b']);
   assert.equal(o.stagingIntents!.length, 2);
@@ -232,6 +233,6 @@ test('latest v6 schema has single-choice form while quiet still permits no oppor
   const f = fixture(),
     format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
-  assert.deepEqual((format.schema.properties as any).protocol.enum, ['director-wire-v6']);
+  assert.deepEqual((format.schema.properties as any).protocol.enum, ['director-wire-v7']);
   assert.equal(f.parse(f.wire).mode, 'quiet');
 });

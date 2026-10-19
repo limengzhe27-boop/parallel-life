@@ -527,7 +527,7 @@ test('system protocol gives a parseable complete quiet example without repairing
   assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
   rejected(f, example); // An empty example cannot silently discard the real candidates.
   assert.match(system, /保持安静是合法判断/);
-  assert.match(system, /必有protocol、events、candidates、opportunities、audit/);
+  assert.match(system, /顶层为protocol、authoredChoices、candidates、opportunities、audit/);
   assert.match(system, /保持安静时所有候选defer/);
   assert.match(system, /nativeTurn仍最多选一个候选/);
 });
@@ -633,7 +633,7 @@ test('output reference catalogue keeps empty candidates separate from actors and
   assert.equal(ref.authoredEventKey, 'opening_plan');
   assert.match(ref.sourceId, /^authored:[a-f0-9]{64}$/);
   assert.match(system, /没有候选时candidates必须\[\]/);
-  assert.match(system, /不能省略eventRef/);
+  assert(system.includes('作者机会内不填origin/eventRef'));
   const decision = {
     ...f.bounded,
     deferred: [],
@@ -820,12 +820,13 @@ test('Director strict response grammar binds each reference namespace to this im
   if (format.format !== 'json_schema') throw Error('wrong format');
   const root: any = format.schema;
   assert.equal(format.strict, true);
-  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v6']);
+  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v7']);
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
   assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
   assert.deepEqual(opportunity.actors.items.enum, ['actor:1', 'actor:2']);
-  assert.deepEqual(opportunity.origin.anyOf[0].properties.eventRef.enum, ['event:1']);
+  assert.equal(root.$defs.director_author_opportunity.properties.origin, undefined);
+  assert.deepEqual(root.properties.authoredChoices.required, ['event:1']);
   assert.equal(opportunity.actorTopics.type, 'null');
   const walk = (schema: any) => {
     if (!schema || typeof schema !== 'object') return;
@@ -912,11 +913,8 @@ test('fresh bootstrap enforces eligible authored opening without forcing opportu
     await import('../src/modules/world/infrastructure/director-model-protocol.ts');
   const format = directorResponseFormat(f.snapshot);
   if (format.format !== 'json_schema') throw Error('wrong format');
-  const origins = (format.schema as any).properties.opportunities.items.properties.origin.anyOf;
-  assert.deepEqual(
-    origins.map((o: any) => o.properties.kind.enum),
-    [['authored']],
-  );
+  assert.equal((format.schema as any).properties.opportunities.maxItems, 0);
+  assert.deepEqual((format.schema as any).properties.authoredChoices.required, ['event:1']);
   const emergent = structuredClone(wire);
   emergent.opportunities[0].origin = { kind: 'emergent', sourceRefs: ['source:1'] };
   rejected(f, emergent);
@@ -1019,7 +1017,8 @@ test('v4 has explicit empty assessments when there are no eligible events', asyn
     await import('../src/modules/world/infrastructure/director-model-protocol.ts');
   const format = directorResponseFormat(f.snapshot);
   if (format.format !== 'json_schema') throw Error('wrong format');
-  assert.equal((format.schema as any).properties.events.maxItems, 0);
+  assert.deepEqual((format.schema as any).properties.authoredChoices.required, []);
+  assert.equal((format.schema as any).properties.authoredChoices.additionalProperties, false);
 });
 
 test('wire actor names follow scoped IDs rather than independent cast order', async () => {
