@@ -1490,7 +1490,7 @@ test('actual publication semantic wake advances use one protected Director bound
             f.world.actors.some((known: any) => known.id === a.actorId),
           );
           return JSON.stringify({
-            protocol: 'director-wire-v7',
+            protocol: 'director-wire-v8',
             candidates: p.wireCatalog.candidates.map((c: any) => ({
               ref: c.ref,
               decision: 'defer',
@@ -1502,23 +1502,22 @@ test('actual publication semantic wake advances use one protected Director bound
                 e.ref === event.ref
                   ? {
                       kind: 'consider',
-                      opportunities: actors.map((a: any, i: number) => ({
-                        id: `person-${i}`,
+                      opportunity: {
                         title: 'Original two-person opening',
                         description: 'Both people independently consider their own arrangement.',
                         playerImpact: 'Player has not agreed.',
-                        actors: [a.ref],
                         places: [],
                         activity: 'conversation',
-                        stagingIntents: [
-                          {
-                            actorRef: a.ref,
-                            kind: 'future_task',
-                            task: 'Consider your own involvement; do not assume an outcome.',
-                          },
-                        ],
+                        actorTasks: Object.fromEntries(
+                          p.wireCatalog.actors.map((a: any) => [
+                            a.ref,
+                            actors.some((chosen: any) => chosen.ref === a.ref)
+                              ? { task: 'Consider your own involvement; do not assume an outcome.' }
+                              : null,
+                          ]),
+                        ),
                         actorTopics: null,
-                      })),
+                      },
                     }
                   : { kind: 'defer', reason: 'Deferred outside this opening.' },
               ]),
