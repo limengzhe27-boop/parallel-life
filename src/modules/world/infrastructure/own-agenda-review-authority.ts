@@ -287,14 +287,13 @@ export async function readOwnAgendaReviewWorkInTransaction(
   if (config.policy.version !== 'own-agenda-v1') fail('OWN_AGENDA_POLICY_UNSUPPORTED');
   const f = await frame(sql, owner, input.worldId, input.actorId, input.worldVersion);
   if (!f) return null;
-  // New personal information/requests still enter via the existing observation and
-  // episode routes. A quiet commit itself is not a new reason to buy another review.
-  if (
-    phase !== 'commit' &&
-    f.actor_state.continuation?.basisHash ===
-      createHash('sha256').update(actorContinuationBasis(f.actor_state)).digest('hex')
-  )
-    return null;
+  const continuation = f.actor_state.continuation;
+  const sameContinuationBasis =
+    continuation?.basisHash ===
+    createHash('sha256').update(actorContinuationBasis(f.actor_state)).digest('hex');
+  // Waiting stays quiet absent new evidence. An explicit personal act is allowed
+  // one existing budgeted review, not a perpetual poll after every quiet commit.
+  if (phase !== 'commit' && sameContinuationBasis && continuation?.decision !== 'act') return null;
   const definitionRef = agentDefinitionRef(f.world, input.actorId);
   const evidence = await readOwnAgendaReviewEvidenceInTransaction(sql, owner, {
     worldId: input.worldId,
@@ -303,6 +302,13 @@ export async function readOwnAgendaReviewWorkInTransaction(
     definitionRef,
   });
   if (!evidence.anchor || !evidence.familyId) return null;
+  if (
+    phase !== 'commit' &&
+    sameContinuationBasis &&
+    continuation &&
+    evidence.paidContinuationBases.includes(continuation.basisHash)
+  )
+    return null;
   const forgotten = await forgottenAgentSourceIds(sql, owner, input.worldId, input.actorId);
   if (forgotten.has(definitionRef) || forgotten.has(`definition:${definitionRef}`)) return null;
   const grant: OwnAgendaReviewEnvelope = {

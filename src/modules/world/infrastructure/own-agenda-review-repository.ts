@@ -33,6 +33,8 @@ export type OwnAgendaReviewEvidence = {
   lastPresentedRealAt: string | null;
   /** Must be handled before N2. A different family or epoch cannot hide an active actor call. */
   actorBlockers: OwnAgendaReviewActorBlocker[];
+  /** Personal semantic bases already considered by an authenticated paid own-agenda request. */
+  paidContinuationBases: string[];
 };
 export class OwnAgendaReviewEvidenceError extends Error {
   readonly code = 'INVALID_OWN_AGENDA_REVIEW_EVIDENCE';
@@ -152,7 +154,8 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
                   'schemaVersion',e.payload#>'{data,agentRuntime,stateAfter,schemaVersion}',
                   'revision',e.payload#>'{data,agentRuntime,stateAfter,revision}',
                   'projectedWorldVersion',e.payload#>'{data,agentRuntime,stateAfter,projectedWorldVersion}',
-                  'definitionRef',e.payload#>'{data,agentRuntime,stateAfter,definitionRef}')))) END event
+                  'definitionRef',e.payload#>'{data,agentRuntime,stateAfter,definitionRef}',
+                  'continuationBasisHash',e.payload#>'{data,agentRuntime,stateAfter,continuation,basisHash}')))) END event
         FROM parallel_life.agent_attempts a
         LEFT JOIN parallel_life.agent_input_receipts i ON i.world_id=a.world_id AND i.owner_id=a.owner_id AND i.id=a.input_receipt_id
         LEFT JOIN parallel_life.commands cmd ON cmd.world_id=a.world_id AND cmd.owner_id=a.owner_id AND cmd.id=a.command_id
@@ -248,7 +251,10 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
       fail('receipt');
     byId.set(r.id, r);
   }
-  const anchors = new Map<string, { anchor: OwnAgendaReviewAnchor; version: number }>();
+  const anchors = new Map<
+    string,
+    { anchor: OwnAgendaReviewAnchor; version: number; continuationBasisHash?: string }
+  >();
   const commits: {
     version: number;
     revisionBefore: number;
@@ -385,6 +391,10 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
     if (!privateCommit) continue;
     anchors.set(r.id, {
       version: e.version,
+      ...(typeof after.continuationBasisHash === 'string' &&
+      /^[a-f0-9]{64}$/.test(after.continuationBasisHash)
+        ? { continuationBasisHash: after.continuationBasisHash }
+        : {}),
       anchor: {
         ...input,
         attemptId: r.id,
@@ -417,6 +427,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   const familyId = latest ? ownAgendaReviewFamilyId(input, latest, digest) : null;
   const attempts: OwnAgendaReviewAttemptEvidence[] = [];
   const actorBlockers: OwnAgendaReviewActorBlocker[] = [];
+  const paidContinuationBases = new Set<string>();
   for (const r of rows) {
     const body = r.receipt.document;
     let envelope: unknown;
@@ -469,6 +480,11 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
         )
           fail('envelope');
         recordFamily = envelope.grantId;
+        // The exact authenticated predecessor is the review's original personal
+        // continuation, not the new quiet receipt/anchor produced afterwards.
+        // Unknown or invalid paid results also fence this basis; never rebuy them.
+        if ((r.sent || r.has_response) && predecessor?.continuationBasisHash)
+          paidContinuationBases.add(predecessor.continuationBasisHash);
         if (recordFamily !== null && recordFamily === familyId)
           attempts.push({
             familyId: recordFamily,
@@ -494,6 +510,7 @@ export async function readOwnAgendaReviewEvidenceInTransaction(
   return {
     worldVersion: frame.version,
     actorRevision: frame.revision,
+    paidContinuationBases: [...paidContinuationBases].sort(),
     quietStreak,
     lastPresentedRealAt,
     anchor: latest,
