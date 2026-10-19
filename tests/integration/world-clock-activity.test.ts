@@ -184,6 +184,65 @@ test('real owner-scoped activity leases preserve anchors, pause offline and fenc
         }
       },
     );
+    await t.test('manual pause clears a live business conversation focus atomically', async () => {
+      const focusedWorld = randomUUID(),
+        actor = randomUUID(),
+        tab = randomUUID();
+      await initializeCalendarFixture(
+        { userId: owner },
+        {
+          schemaVersion: 1,
+          id: focusedWorld,
+          ownerId: owner,
+          version: 0,
+          title: '合成对话暂停',
+          time: at(0),
+          actors: [{ id: actor, name: '合成人物', persona: '合成' }],
+          facts: [],
+          messages: [
+            {
+              id: randomUUID(),
+              actorId: actor,
+              role: 'assistant',
+              text: '合成历史',
+              at: at(0),
+              sourceEventId: 'fixture-genesis',
+            },
+          ],
+          appointments: [],
+          mediaRequests: [],
+        },
+      );
+      await admin.query(
+        'INSERT INTO parallel_life.world_initial_snapshots(world_id,owner_id,state,approved_seed) SELECT id,owner_id,state,$${}$$::jsonb FROM parallel_life.worlds WHERE id=$1',
+        [focusedWorld],
+      );
+      await activity.update(
+        owner,
+        focusedWorld,
+        {
+          clientId: tab,
+          sequence: 0,
+          mode: 'conversation',
+          focus: { channel: 'private', threadId: actor },
+        },
+        at(0),
+      );
+      await clock.setClock(owner, focusedWorld, { paused: true }, at(1));
+      const lease = (
+        await admin.query(
+          'SELECT mode,focus FROM parallel_life.world_clock_activity WHERE world_id=$1 AND client_id=$2',
+          [focusedWorld, tab],
+        )
+      ).rows[0];
+      assert.equal(lease.mode, 'away');
+      assert.equal(lease.focus, null);
+      assert.equal((await clock.read(owner, focusedWorld, at(2))).paused, true);
+      await admin.query('DELETE FROM parallel_life.world_clock_activity WHERE world_id=$1', [
+        focusedWorld,
+      ]);
+      await admin.query('DELETE FROM parallel_life.world_clock WHERE world_id=$1', [focusedWorld]);
+    });
     await t.test(
       'manual pause wins over ordinary heartbeat; explicit resume is required',
       async () => {

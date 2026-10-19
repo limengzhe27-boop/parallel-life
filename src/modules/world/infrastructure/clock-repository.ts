@@ -176,7 +176,7 @@ export class PostgresClockStore implements ClockStore {
           };
       if (input.paused === true && clock.managed) {
         await sql.query(
-          "UPDATE parallel_life.world_clock_activity SET mode='away',expires_at=$3,updated_at=now() WHERE world_id=$1 AND owner_id=$2",
+          "UPDATE parallel_life.world_clock_activity SET mode='away',focus=NULL,expires_at=$3,updated_at=now() WHERE world_id=$1 AND owner_id=$2",
           [worldId, ownerId, realNow],
         );
       }

@@ -1,3 +1,7 @@
+## 2026-10-19 首批正式交付
+
+087b1f00 / dpl_9PefbbAaKio6QNbonXB4rA9tRpaq 已 READY，parallel-life-nu.vercel.app alias 正确。正式站 health/workbench 200、匿名 works 401；原试演私有PNG 1,883,870字节200，匿名401、跨档404。真实图片原链路通过；重复追问的旧责任误判及完整开场/持续调度仍开放，未宣称158整体完成。
+
 # 44-158 Actual opening, media decisions and chat latency
 
 ## Latest delivery evidence — 2026-10-19
