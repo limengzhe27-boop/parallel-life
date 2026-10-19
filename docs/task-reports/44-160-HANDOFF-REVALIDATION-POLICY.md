@@ -17,7 +17,7 @@ root指定的160只读证明表明：原bootstrap付费结果已收到，但玩�
 - 输入必须是由原snapshot和原wire协议解析的canonical整份决定，不能拿旧raw按新目录解释。
 - 只接受非native、无selected候选、无nudge、至少一项全部作者future_task机会的完整决定；任意一项不满足即整份拒绝，不抽取部分后伪装旧决定已提交。
 - 同world/epoch，版本与时间不回退；作者source、catalog、nodeHash、worldSetting不变；原与当前都eligible、未占用；当前cast/地点/能力边界相同。
-- 机会参与人、地点均在作者解析引用与当前世界中；每个实际参与人恰有一个future_task，不兼容无staging旧机会或旧私人actorTopics。
+- 机会参与人在作者解析引用与当前世界中；地点只需属于原/当前相同的已搭建世界边界，不把作者场景引用额外升级为地图权限；每个实际参与人恰有一个future_task，不兼容无staging旧机会或旧私人actorTopics。
 - 每机会来源精确为本事件author handle，audit仅允许作者来源；不能复用旧玩家话语、临时认知等过期依据。
 - 返回readSet为结构化副本，可由基础设施canonical hash。domain不使用数据库、网络、框架或crypto，不保存安排、不生成消息、不决定NPC参与、不允许unknown重试。
 
@@ -25,6 +25,10 @@ root指定的160只读证明表明：原bootstrap付费结果已收到，但玩�
 
 ## 验证
 
-31项聚焦纯测试通过，覆盖整份原决定/输入不变、普通当前变更与顺序差异、source/catalog/persona/边界改变、过期/阻塞/占用、已存在episode、非作者依据、部分恢复拒绝、非法输入关闭。TypeScript通过，边界657通过，格式化及diff检查通过。
+32项聚焦纯测试通过，覆盖整份原决定/输入不变、普通当前变更与顺序差异、source/catalog/persona/边界改变、过期/阻塞/占用、已存在episode、非作者依据、部分恢复拒绝、非法输入关闭。TypeScript通过，边界657通过，格式化及diff检查通过。
 
 0真实模型/0生产查询或写入/0SQL修改/0PG/0全量check/build/0部署。root负责应用凭据、并发/晚到/unknown原生命周期、数据库旅程、真实玩家入口验收与部署；纯模块不代表开场演绎已经修好。
+
+## 集成后地点契约纠偏
+
+root实际只读dry-run发现原合法开场建议home/park，而作者开场场景仅街边。原内核只要求未来机会地点属于世界boundary，作者场景不是更窄的权限目录。移除pure额外的placeRefs子集限制，仍要求boundary整体不变、地点已存在且唯一；不改原places、不执行移动。新增非作者场景的既有地点future conversation通过且输入不变的用例，新增世界地点与未知地点仍拒绝。

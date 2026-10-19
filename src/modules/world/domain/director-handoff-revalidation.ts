@@ -190,9 +190,6 @@ function evaluate({
     const actors = material.participantRefs.flatMap((r) =>
       r.status === 'resolved' && r.actorId ? [r.actorId] : [],
     );
-    const places = material.placeRefs.flatMap((r) =>
-      r.status === 'resolved' && r.availableInWorld && r.placeId ? [r.placeId] : [],
-    );
     if (
       !opportunity.participantActorIds.length ||
       !unique(opportunity.participantActorIds) ||
@@ -203,9 +200,11 @@ function evaluate({
           !current.boundary.actorIds.includes(id) ||
           !current.cast!.some((a) => a.id === id),
       ) ||
-      opportunity.placeIds.some(
-        (id) => !places.includes(id) || !current.boundary.placeIds.includes(id),
-      )
+      // A Director may suggest an already supported place for a future task.
+      // Author scene refs describe the manuscript, not a narrower map permission.
+      // Exact boundary equality above excludes newly introduced places; this
+      // check grants neither movement nor knowledge of anyone's actual position.
+      opportunity.placeIds.some((id) => !current.boundary.placeIds.includes(id))
     )
       return deny('opportunity_scope_changed');
     opportunities.push({

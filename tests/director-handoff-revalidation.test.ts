@@ -172,6 +172,24 @@ test('current ordinary changes and actor array order do not by themselves invali
   });
   assert.equal(revalidateDirectorHandoff(input).allowed, true);
 });
+test('future conversation may reference an existing world place outside author scene refs without moving anyone', () => {
+  const input = fixture();
+  input.original.boundary.placeIds.push('existing-park');
+  input.current.boundary.placeIds.push('existing-park');
+  assert.equal(
+    input.current.authoredMaterials!.materials[0]!.placeRefs.some(
+      (r) => r.placeId === 'existing-park',
+    ),
+    false,
+  );
+  input.decision.opportunities[0]!.placeIds = ['existing-park'];
+  const before = structuredClone(input);
+  const result = revalidateDirectorHandoff(input);
+  assert.equal(result.allowed, true);
+  if (result.allowed)
+    assert.deepEqual(result.readSet.originalDecision.opportunities[0]!.placeIds, ['existing-park']);
+  assert.deepEqual(input, before);
+});
 const refusals: [string, (f: ReturnType<typeof fixture>) => void][] = [
   [
     'different world',
