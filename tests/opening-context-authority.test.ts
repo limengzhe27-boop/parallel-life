@@ -26,6 +26,7 @@ function fixture() {
           role: 'opening',
           ref: { nodeKey: 'opening', nodeHash: 'a'.repeat(64) },
           unresolvedRefs: [],
+          placeRefs: [],
           participantRefs: [{ status: 'resolved', actorId: 'actor' }],
           node: {
             title: 'Opening',
@@ -40,6 +41,8 @@ function fixture() {
   } as unknown as AuthoredEligibilityView;
   let reviewed = false,
     prior: any[] = [];
+  let reviews: any[] = [],
+    evidence: any[] = [];
   const sql = {
     query: async (q: string) => {
       if (q.includes('SELECT w.state'))
@@ -56,7 +59,10 @@ function fixture() {
             },
           ],
         };
-      if (q.includes('opening_context_reviews')) return { rows: [], rowCount: reviewed ? 1 : 0 };
+      if (q.includes('opening_context_reviews'))
+        return { rows: reviewed ? [{ disposition: 'confirm' }] : reviews };
+      if (q.includes("r.document->>'kind' IN")) return { rows: evidence };
+      if (q.includes('director_pending_reasons')) return { rows: [] };
       if (q.includes('director_runtime_attempts')) return { rows: prior };
       if (q.includes('actor_agent_states'))
         return {
@@ -91,6 +97,8 @@ function fixture() {
     sql,
     setReviewed: () => (reviewed = true),
     setPrior: (v: any[]) => (prior = v),
+    setReviews: (v: any[]) => (reviews = v),
+    setEvidence: (v: any[]) => (evidence = v),
   };
 }
 test('eligible occupied opening retains one source-bound authority and only exact own modules', async () => {
@@ -163,4 +171,73 @@ test('protected legacy decisions without review neither read nor write new autho
     }),
     { changed: false },
   );
+});
+
+test('deferred information reopens only after authenticated participant plan changes, once per evidence', async () => {
+  const f = fixture(),
+    input = { worldId: 'world', engineEpoch: 2, worldVersion: 4 };
+  const read = () => readOpeningContextAuthority(f.sql, 'owner', input, { view: f.view });
+  const base = await read();
+  assert.ok(base);
+  f.setReviews([{ disposition: 'defer', review_key: base.reviewKey, world_version: 1 }]);
+  assert.equal(await read(), undefined);
+  const reason = {
+    id: 'plan-new',
+    kind: 'plan_changed',
+    eventId: 'event-2',
+    worldVersion: 2,
+    ref: { kind: 'plan', actorId: 'actor', id: 'plan' },
+  };
+  const runtime = {
+    stateAfter: {
+      actorId: 'actor',
+      worldId: 'world',
+      projectedWorldVersion: 2,
+      plans: [{ id: 'plan', status: 'active' }],
+    },
+  };
+  const row = {
+    id: reason.id,
+    source_event_id: 'event-2',
+    source_version: 2,
+    document: reason,
+    payload: {
+      id: 'event-2',
+      worldId: 'world',
+      version: 2,
+      type: 'agent.state_committed',
+      data: { actorId: 'actor', agentRuntime: runtime },
+    },
+    previous_state: { actorId: 'actor', worldId: 'world', plans: [] },
+  };
+  f.setEvidence([row]);
+  const reconsider = await read();
+  assert.ok(reconsider);
+  assert.notEqual(reconsider.reviewKey, base.reviewKey);
+  f.world.version = 5;
+  f.view.catalog.world.worldVersion = 5;
+  input.worldVersion = 5;
+  assert.equal(
+    (await read())?.reviewKey,
+    reconsider.reviewKey,
+    'clock/revision is not new evidence',
+  );
+  f.setPrior([
+    {
+      status: 'unknown_after_send',
+      sent_at: at,
+      response: null,
+      response_hash: null,
+      decision_id: null,
+    },
+  ]);
+  assert.equal(await read(), undefined, 'same paid unknown evidence cannot be rebought');
+  f.setPrior([]);
+  f.setReviews([
+    { disposition: 'defer', review_key: base.reviewKey, world_version: 1 },
+    { disposition: 'defer', review_key: reconsider.reviewKey, world_version: 4 },
+  ]);
+  assert.equal(await read(), undefined, 'same evidence already reviewed remains fenced');
+  f.setReviews([{ disposition: 'confirm', review_key: base.reviewKey, world_version: 1 }]);
+  assert.equal(await read(), undefined, 'confirmed information never replays');
 });

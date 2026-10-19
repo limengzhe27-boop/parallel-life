@@ -1,3 +1,5 @@
+import { authoredReconsiderationEvidence } from '../domain/authored-reconsideration.ts';
+import { readAuthoredReconsiderationEvidence } from './authored-reconsideration-evidence.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -96,22 +98,48 @@ export async function readOpeningContextAuthority(
     )
   )
     return undefined;
-  const reviewKey = hash([
+  const keyParts = [
     'opening_context_v1',
     input.worldId,
     input.engineEpoch,
     material.ref.nodeHash,
     view.catalog.source.sourceHash,
-  ]);
-  if (
-    (
-      await sql.query(
-        'SELECT 1 FROM parallel_life.opening_context_reviews WHERE world_id=$1 AND owner_id=$2 AND review_key=$3',
-        [input.worldId, owner, reviewKey],
-      )
-    ).rowCount
-  )
-    return undefined;
+  ];
+  const reviews = (
+    await sql.query(
+      `SELECT r.review_key,r.disposition,d.world_version FROM parallel_life.opening_context_reviews r
+     JOIN parallel_life.director_decisions d ON d.id=r.decision_id AND d.world_id=r.world_id AND d.owner_id=r.owner_id
+     WHERE r.world_id=$1 AND r.owner_id=$2 AND r.engine_epoch=$3 AND r.node_hash=$4 AND r.source_hash=$5 AND r.node_key=$6`,
+      [
+        input.worldId,
+        owner,
+        input.engineEpoch,
+        material.ref.nodeHash,
+        view.catalog.source.sourceHash,
+        material.ref.nodeKey,
+      ],
+    )
+  ).rows;
+  if (reviews.some((r) => r.disposition === 'confirm')) return undefined;
+  const deferred = reviews.filter((r) => r.disposition === 'defer');
+  let reviewKey = hash(keyParts);
+  if (deferred.length) {
+    const firstVersion = Math.min(...deferred.map((r) => r.world_version));
+    if (!Number.isSafeInteger(firstVersion) || firstVersion < 0) return fail();
+    const evidence = authoredReconsiderationEvidence(
+      material.participantRefs.flatMap((p) => (p.status === 'resolved' ? [p.actorId!] : [])),
+      (
+        await readAuthoredReconsiderationEvidence(sql, owner, input.worldId, input.worldVersion)
+      ).filter((r) => r.worldVersion > firstVersion),
+      input.worldVersion,
+      material.placeRefs.flatMap((p) =>
+        p.status === 'resolved' && p.placeId && p.availableInWorld ? [p.placeId] : [],
+      ),
+    );
+    if (!evidence.length) return undefined;
+    reviewKey = hash([...keyParts, evidence]);
+    if (reviews.some((r) => r.review_key === reviewKey)) return undefined;
+  }
   const prior = (
     await sql.query(
       `SELECT id,status,sent_at,response,response_hash,decision_id FROM parallel_life.director_runtime_attempts WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3 AND snapshot#>>'{openingContextAuthority,reviewKey}'=$4 AND ($5::text IS NULL OR id<>$5)`,
