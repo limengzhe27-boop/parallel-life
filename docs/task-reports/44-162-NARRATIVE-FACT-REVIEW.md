@@ -94,3 +94,7 @@ commitOpeningContextInTransaction在调用方现有Director事务内验证保护
 
 聚焦5项（4纯+1真实PG连续旅程）通过。未加入独立故障注入的整事务回滚案例；未声称真实人物自然表达或长期自主推进已通过。集成人继续负责check/build、生产迁移与真实模型体验验收。
 本轮tsc通过；boundaries681通过；git diff --check通过。
+
+## 同次主动调度批次接续（1e826a04 基线）
+
+在同一个新PG测试追加新发布fixture，直接调用npcAgentAdvanceServices.advanceIfEnabled一次：受控Director v10确认本人开场信息并安排一个可选机会；同一bounded batch下一步重读worldVersion=1，目标NPC v12收到private presentationContext.internalContext中的report，实际保存回复并完成suppliedContext ACK。该batch精确1次Director与1次NPC受控调用，无额外窗口、无重复购买；公开observations不含私有report。模型载荷检查须包含internalContext，不能误把其不在公开observations当作丢失。完整聚焦PG旅程通过（约2秒）；未改公共源码。

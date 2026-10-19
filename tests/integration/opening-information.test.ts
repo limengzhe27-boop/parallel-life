@@ -1,3 +1,4 @@
+import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
 import { createHash } from 'node:crypto';
 import { PostgresAgentRuntimeRepository } from '../../src/modules/world/infrastructure/agent-runtime-repository.ts';
 import { readPrivateAgentSnapshot } from '../../src/modules/world/infrastructure/agent-snapshot-repository.ts';
@@ -541,5 +542,152 @@ test('v10 opening information commits authenticated private reports without exte
   assert.ok(
     consumed.some((x) => x.sourceId === packet.sources[0]!.id),
     'only actual supplied committed NPC response acknowledges',
+  );
+  const batchWorld = await fixture({ multiActorOpening: true });
+  let directorCalls = 0,
+    npcCalls = 0;
+  let npcPayload: any;
+  const batchModel = {
+    async complete(messages: any[]) {
+      const p = JSON.parse(messages[1].content);
+      if (p.promptVersion.startsWith('director-')) {
+        directorCalls++;
+        const authority = p.openingContextAuthority;
+        const knowledge = authority.actorKnowledge.find(
+          (a: any) => a.actorId === batchWorld.world.actors[0]!.id,
+        );
+        const actor = p.wireCatalog.actors.find((a: any) => a.actorId === knowledge.actorId);
+        return JSON.stringify({
+          protocol: 'director-wire-v10',
+          candidates: p.wireCatalog.candidates.map((c: any) => ({
+            ref: c.ref,
+            decision: 'defer',
+            reason: 'Consider received information first',
+          })),
+          authoredChoices: Object.fromEntries(
+            p.wireCatalog.events.map((e: any) => [
+              e.ref,
+              {
+                kind: 'consider',
+                opportunity: {
+                  title: 'Book club information',
+                  description: 'An optional invitation based on received information',
+                  playerImpact: 'Free to respond',
+                  places: [],
+                  activity: 'conversation',
+                  actorTasks: Object.fromEntries(
+                    p.wireCatalog.actors.map((a: any) => [
+                      a.ref,
+                      a.ref === actor.ref
+                        ? {
+                            topic: 'Book club information',
+                            personalObjective: 'Discuss whether to attend together',
+                            proposedInteraction:
+                              'Share the received report and offer an optional invitation',
+                          }
+                        : null,
+                    ]),
+                  ),
+                },
+              },
+            ]),
+          ),
+          opportunities: [],
+          audit: { reason: 'Bounded information and optional participation', sourceRefs: [] },
+          openingContext: {
+            disposition: 'confirm',
+            reason: 'Explicit own information receipt',
+            premises: [
+              {
+                actorRef: actor.ref,
+                kind: 'opening_information',
+                field: 'script',
+                quote: authority.sourceExcerpt,
+                knowledge: { module: 'lifeContext', quote: knowledge.modules.lifeContext },
+              },
+            ],
+          },
+        });
+      }
+      npcCalls++;
+      npcPayload = p;
+      return JSON.stringify({
+        protocol: 'npc-wire-v12',
+        statements: [
+          {
+            text: 'I received news about the book club tonight. Would you like to discuss going?',
+            dependsOnActionIds: [],
+          },
+        ],
+        executions: [],
+        planIntents: [],
+        goals: [],
+        responsibilities: [],
+        agendaReview: null,
+        inputInterpretation: null,
+        focusChange: { kind: 'keep' },
+        continuation: {
+          decision: 'no_current_intent',
+          reason: 'Shared the optional information; no further action now',
+          sourceIds: [p.input.sourceId],
+          planIds: [],
+          questionIds: [],
+          conditions: [],
+        },
+        questionWithdrawals: null,
+        locationReports: null,
+        consideration: {
+          choice: 'engage',
+          reason: 'I want to share the received information',
+          basisSourceIds: [p.input.sourceId],
+          followUp: null,
+        },
+      });
+    },
+  };
+  const batched = npcAgentAdvanceServices(app, () => batchModel, snapshots, {
+    maxActors: 1,
+    maxModelCalls: 3,
+    maxSteps: 8,
+  });
+  await batched.advanceIfEnabled(batchWorld.owner, batchWorld.id);
+  assert.equal(
+    npcPayload?.worldVersion,
+    1,
+    JSON.stringify({ keys: Object.keys(npcPayload ?? {}), version: npcPayload?.worldVersion }),
+  );
+  assert.ok(
+    JSON.stringify(npcPayload.presentationContext.internalContext).includes(
+      'received_opening_information',
+    ),
+  );
+  assert.ok(!JSON.stringify(npcPayload.observations).includes('received_opening_information'));
+  assert.equal(directorCalls, 1);
+  assert.equal(npcCalls, 1, 'same batch reaches participant after information commit');
+  const bw = await worlds.get({ userId: batchWorld.owner }, batchWorld.id);
+  const knowledge = (
+    await admin.query(
+      'SELECT actor_id,id FROM parallel_life.actor_narrative_knowledge WHERE world_id=$1',
+      [bw.id],
+    )
+  ).rows[0];
+  const batchAck = await app.transaction(batchWorld.owner, (sql) =>
+    readConsumedSceneObservationSourcesInTransaction(sql, batchWorld.owner, {
+      worldId: bw.id,
+      actorId: knowledge.actor_id,
+      engineEpoch: 2,
+      worldVersion: bw.version,
+    }),
+  );
+  assert.ok(
+    batchAck.some((x) => x.sourceId === 'narrative:' + knowledge.id),
+    JSON.stringify(
+      (
+        await admin.query(
+          "SELECT status, response->'suppliedContext' AS supplied FROM parallel_life.agent_attempts WHERE world_id=$1",
+          [bw.id],
+        )
+      ).rows,
+    ),
   );
 });
