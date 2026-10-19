@@ -12,6 +12,7 @@ import {
   projectActorEpisodeDirective,
 } from '../domain/actor-episode-intent.ts';
 import { readAuthoredAgentMaterialCatalog } from './authored-agent-material-repository.ts';
+import { actorOpportunityContext } from '../domain/actor-opportunity-context.ts';
 import { forgottenAgentSourceIds } from './agent-source-authorization.ts';
 import { readActorKnownTopicsInTransaction } from './actor-known-topic-repository.ts';
 import type { ActorAgentState } from '../domain/agent-runtime.ts';
@@ -56,7 +57,7 @@ export async function readActorEpisodeIntentsInTransaction(
   if (!world.actors.some((actor) => actor.id === frame.actorId)) return conflict();
   const requests = (
     await sql.query(
-      `SELECT r.*,d.document AS decision,a.snapshot AS director_snapshot
+      `SELECT r.*,d.document AS decision,a.snapshot AS director_snapshot,a.response AS director_response,a.response_hash AS director_response_hash
        FROM parallel_life.agent_episode_requests r
        JOIN parallel_life.director_decisions d ON d.world_id=r.world_id AND d.owner_id=r.owner_id
          AND d.id=r.origin_decision_id AND d.engine_epoch=r.engine_epoch AND d.world_version=r.created_at_version
@@ -99,6 +100,28 @@ export async function readActorEpisodeIntentsInTransaction(
       })
     : null;
   if (stagingCatalog && stagingCatalog.status !== 'complete') return conflict();
+  const loadTopics = async () => {
+    const state = (
+      await sql.query(
+        'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3',
+        [frame.worldId, ownerId, frame.actorId],
+      )
+    ).rows[0]?.document as ActorAgentState | undefined;
+    if (!state) return conflict();
+    const topics = options.historical
+      ? []
+      : await readActorKnownTopicsInTransaction(
+          sql,
+          ownerId,
+          state,
+          frame.worldVersion,
+          frame.storyAt,
+        );
+    return topics;
+  };
+  const topics = addressed.some(({ opportunity }) => opportunity.actorTopics)
+    ? await loadTopics()
+    : [];
   for (const { request, opportunity, saved } of staged) {
     if (!validActorStagingIntents(opportunity)) return conflict();
     const intent = opportunity.stagingIntents!.filter((entry) => entry.actorId === frame.actorId);
@@ -138,7 +161,15 @@ export async function readActorEpisodeIntentsInTransaction(
       Date.parse(saved.storyAt) > Date.parse(frame.storyAt)
     )
       return conflict();
-    const directive = {
+    const structured = actorOpportunityContext(request.director_response, intent[0]!.task);
+    if (
+      structured &&
+      createHash('sha256')
+        .update(authoredMaterialCanonicalJson(request.director_response))
+        .digest('hex') !== request.director_response_hash
+    )
+      return conflict();
+    const directive = structured ?? {
       kind: 'director_future_task' as const,
       authority: 'future_proposal_only' as const,
       task: intent[0]!.task,
@@ -175,24 +206,15 @@ export async function readActorEpisodeIntentsInTransaction(
     });
   }
   if (addressed.some(({ opportunity }) => opportunity.actorTopics)) {
-    const state = (
-      await sql.query(
-        'SELECT document FROM parallel_life.actor_agent_states WHERE world_id=$1 AND owner_id=$2 AND actor_id=$3',
-        [frame.worldId, ownerId, frame.actorId],
-      )
-    ).rows[0]?.document as ActorAgentState | undefined;
-    if (!state) return conflict();
-    const topics = options.historical
-      ? []
-      : await readActorKnownTopicsInTransaction(
-          sql,
-          ownerId,
-          state,
-          frame.worldVersion,
-          frame.storyAt,
-        );
     for (const { request, opportunity, saved } of addressed) {
-      if (result.get(request.id)) continue;
+      const existing = result.get(request.id);
+      const combined =
+        existing &&
+        actorOpportunityContext(
+          request.director_response,
+          opportunity.stagingIntents?.find((i) => i.actorId === frame.actorId)?.task ?? '',
+        );
+      if (existing && !combined) continue;
       const selection = opportunity.actorTopics?.filter((s) => s.actorId === frame.actorId);
       if (!selection) continue;
       if (selection.length !== 1) return conflict();
@@ -215,7 +237,14 @@ export async function readActorEpisodeIntentsInTransaction(
         continue;
       const id = ACTOR_EPISODE_INTENT_PREFIX + request.id;
       if ([id, request.id, request.origin_decision_id].some((key) => blocked.has(key))) continue;
-      const directive = captured.map(({ proofSourceIds: _proof, ...topic }) => topic);
+      const knownTopics = captured.map(({ proofSourceIds: _proof, ...topic }) => topic);
+      const directive = combined
+        ? {
+            ...combined,
+            ownKnownTopics: knownTopics,
+            opportunitySourceHash: existing!.source.contentHash,
+          }
+        : knownTopics;
       result.set(request.id, {
         source: {
           id,
@@ -239,7 +268,9 @@ export async function readActorEpisodeIntentsInTransaction(
           sourceId: id,
           kind: 'plan',
           text:
-            '导演建议你自行考虑跟进以下本人已知事项。它不是命令、已经发生的事实或玩家同意；你可以调整、暂缓或不参与：' +
+            (combined
+              ? '当前可考虑的个人互动机会及本人已有议程。ownKnownTopics保留各自contentHash与状态，只代表本人目标/计划/责任；opportunity是可提出的内容，不是已发生事实、玩家同意或必须行动的命令。由你决定参与、调整、暂缓或拒绝：'
+              : '导演建议你自行考虑跟进以下本人已知事项。它不是命令、已经发生的事实或玩家同意；你可以调整、暂缓或不参与：') +
             JSON.stringify(directive),
         },
       });
