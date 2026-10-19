@@ -298,7 +298,8 @@ test('recording plans or proposing invitations cannot declare external goals com
   await adapter.decide(input);
   const payload = JSON.parse(calls[0]!.messages[1]!.content),
     system = calls[0]!.messages[0]!.content;
-  assert.deepEqual(payload.channel.allowedCapabilities, ['plan.record', 'appointment.propose']);
+  assert.deepEqual(payload.channel.allowedCapabilities, ['appointment.propose']);
+  assert(system.includes('计划增量本身会被原内核保存'));
   assert.equal(payload.state.revision, input.state.revision);
   assert(!('revision' in payload.state.responsibilities[0]));
   assert(!('responsibilityRevision' in payload.state.decisions[0]));
@@ -819,7 +820,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v31-semantic-execution-intents');
+  assert.equal(payload.promptVersion, 'npc-agent-v32-creative-media-capability');
   assert.match(system, /每轮在mediaDecision中作明确选择/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });

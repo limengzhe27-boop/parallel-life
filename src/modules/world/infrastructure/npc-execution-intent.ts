@@ -138,6 +138,7 @@ export function compileNpcExecutionIntents(
     refs.add(intent.ref);
     if (
       intent.action.capability.startsWith('media.') ||
+      intent.action.capability === 'plan.record' ||
       !context.channel.allowedCapabilities.includes(intent.action.capability)
     )
       invalid('NPC_EXECUTION_INTENT_CAPABILITY');

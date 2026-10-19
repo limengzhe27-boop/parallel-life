@@ -118,7 +118,7 @@ test('sources must all be legal, unique and include current input in each basis'
   assert.throws(() => compileNpcExecutionIntents(c, [intent()]), /SOURCE/);
 });
 test('media and unadvertised capabilities are rejected; parameters cannot duplicate', () => {
-  for (const capability of ['media.generate_image', 'item.deliver']) {
+  for (const capability of ['media.generate_image', 'item.deliver', 'plan.record']) {
     const i = intent();
     i.action.capability = capability;
     assert.throws(() => compileNpcExecutionIntents(fixture(), [i]), /CAPABILITY/);

@@ -282,7 +282,7 @@ export function npcResponseFormat(
     if (!mutableIds.length) properties.actions = { type: 'null' };
     else actionArray.items!.properties!.id!.enum = mutableIds;
     const capabilities = current.channel.allowedCapabilities.filter(
-      (cap) => !cap.startsWith('media.'),
+      (cap) => !cap.startsWith('media.') && cap !== 'plan.record',
     );
     if (capabilities.length)
       executionItem.properties!.action!.properties!.capability!.enum = capabilities;

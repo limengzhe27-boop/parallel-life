@@ -836,3 +836,15 @@ test('native completion references are actual visible receipts, not proposed exe
   assert(!responsibility.status.enum.includes('fulfilled'));
   assert(!format.schema.properties.goals.items.properties.status.enum.includes('fulfilled'));
 });
+
+test('native plans persist as state, never as redundant record-plan execution capability', () => {
+  const { c } = fixture();
+  c.channel.allowedCapabilities = ['plan.record', 'media.generate_image'];
+  const format: any = npcResponseFormat(c.state, 'forbidden', c);
+  assert.deepEqual(format.schema.properties.executions, { type: 'null' });
+  assert(
+    format.schema.properties.mediaDecision.anyOf.some(
+      (n: any) => n.properties.kind.enum[0] === 'generate_image',
+    ),
+  );
+});

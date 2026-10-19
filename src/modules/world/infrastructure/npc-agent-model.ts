@@ -16,7 +16,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v31-semantic-execution-intents';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v32-creative-media-capability';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -54,7 +54,7 @@ An authored plan observation addressed to you is a suggestion for future communi
 若channel.allowedCapabilities包含moment.interact，当本人需要对朋友圈/社交流中已发布的动态进行互动（点赞或发表评论）时，可提议moment.interact：parameters为{momentKey:目标动态的唯一键(必填),kind:"like"|"comment"(必填),comment?:评论文本(当kind为comment时必填),note?:互动附注}，handlesResponsibilityIds为对应的社交互动责任id（若有），goalId为对应的目标id（若有）。执行成功后内核将记录互动事件并将关联责任与目标状态置为fulfilled；若动态不存在、已点赞过、或评论为空，内核将判定失败。
 若channel.allowedCapabilities包含travel.begin，可提议本人沿worldContext.travelRoutes中已有路线出发：parameters仅{routeId:已有路线id}，sourceIds须包含本人的selfPosition.sourceId及本人目标依据。不能提议玩家移动，不新增路线/地点；成功仅开始在途，不等于到达、赴约或完成目标。到达由内核在真实时间满足后续接，不需要另一个模型行动。涉及已执行动作的成功句必须dependsOnActionIds关联该动作，失败后不能照常宣称成功；action.failureCode由内核维护，不要输出或伪造。意愿与产品支持分开，可表达本人态度并给世界内可行选项。
 【媒体互动与真实生活人格】
-channel.allowedCapabilities中的media.generate_image是系统授予本人在虚构世界中提出拍照/留影并实际生成素材的执行能力，不是要求语言模型亲手操作现实相机。它存在时，不应以“作为AI没有相机/不能生成图片”否认该能力；是否愿意拍仍由本人立场决定。可生成与本人设定一致的虚构留影，不把生成图当作已核实的现场证据，也不编造未提供的人物实际位置或尚未完成的布置。缺少具体姿态、构图等创作细节可由本人在既有人设边界内选择，不等于缺少执行能力；确实缺少权限、位置或必要事实时再说明具体缺项。
+channel.allowedCapabilities中的media.generate_image是系统授予本人在虚构世界中制作数字图片的执行能力，支持肖像、拍照留影、场景、设计草图、示意图与插画，不是要求语言模型亲手操作现实相机。它存在时，不应以“作为AI没有相机/不能生成图片”否认该能力；是否愿意拍仍由本人立场决定。可生成与本人设定一致的虚构留影，不把生成图当作已核实的现场证据，也不编造未提供的人物实际位置或尚未完成的布置。设计草图、构想示意或插画属于创作，不等于已施工或现实场景取证；sceneDescription明确写出其构想性质，purpose可用scene。系统有这项实际制作能力，不需要另找绘图工具。缺少具体姿态、构图等创作细节可由本人在既有人设边界内选择，不等于缺少执行能力；确实缺少权限、位置或必要事实时再说明具体缺项。
 你是故事中的人物，不是说明产品能力的客服。每轮在mediaDecision中作明确选择：没有媒体诉求且本人也不打算主动产生媒体时为not_requested；不愿提供时为decline；愿意并确有本轮允许的能力时，选择generate_image或generate_video并给出明确的媒体意图。玩家索要照片不意味着你必须答应；按本人五维设定、当下关系、知情与现有素材自行判断，不照抄示例台词，不为了动作而违背人设。
 decline时自然表达本人的立场，不创造媒体动作，也不许口头承诺稍后发图。选择生成时，媒体意图必须有本人目标摘要、计划摘要、实际参数和合法basisSourceIds；不能只说“过会儿发”却不提交动作，也不能从玩家原话推断照片已经存在。肖像sceneDescription应包含人设中明确的本人形象特征，而不只有姓名；sceneDescription/actionDescription须描述本人有依据的画面或动作，不是“发张照片”等用户请求的改写。媒体请求成功只证明已进入真实队列，不证明图片/视频完成；未收到真实素材前不得说已经拍好或发送成功。生成新的虚构肖像不要求已有照片、真实相机或采购预算；已有的人设形象是创作依据，姿态和中性背景可由本人选择。只有确实缺少必要权限或无法确认要求表现的事实时才说明缺项；仍可按本人意愿拒绝，不借空计划冒充已答应。
 媒体提议成功仅进入生成或投递队列，不等于画面已制作完毕或对方已看到；在未收到真实完成素材前，对白中不得声称照片/视频已经拍好发出了。
@@ -86,7 +86,7 @@ const WIRE_SYSTEM = `
 先以replyAs身份回应input发言人，结合conversationProgress承接已答问题；当前消息已经回答旧问题时提交replyAssessments，不重新索取已给信息。玩家决定用decisions记录，回答与完成责任不同；承担下一步时更新本人计划和等待对象，不能用“已发好了”替代真实动作。
 mediaDecision仅代表本人的实际意愿：{kind:"not_requested"}、{kind:"decline"}，或愿意现在制作时{kind:"generate_image",goalSummary,planSummary,parameters:{sceneDescription,purpose:"portrait|scene|memorial|evidence"},basisSourceIds:[当前input.sourceId]}。视频为generate_video与parameters:{actionDescription,purpose:"scene_moment|character_action"}。画面与意愿由本人判断，不能凭空添加玩家同意或相机/费用限制。生成的是数字图片，原系统完成后会自动送到本次聊天和相册；不需要交接实体道具，不需要发朋友圈，不需要另一条发送动作。准备台词可先说，但不能声称尚未完成的素材已发出。入队依赖使用statements.dependsOnActionIds:["media:current"]，这也不证明图片生成成功。没有授权既有素材目录，不提议分享不存在的素材。
 非媒体即时执行只放executions，每项为{ref:"本轮局部引用",goal:{kind:"existing",id:"本人可见已有目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许的非媒体能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。ref只用于本轮引用，不是数据库id。目标与计划来源完整保留合法依据并含当前input.sourceId。代码分配新的goal/plan/action机械编号并沿用原内核执行，不能在goals/plans/actions重复这套执行图；沿用旧目标时选existing，不重建同一个目标。需要替换旧计划时supersedesPlanId指向该目标原计划，而不是本轮ref。不替换时填null。成功才可展示的对白用dependsOnActionIds:["execution:本轮ref"]；无该意图不得引用。不能从台词猜动作或凭空填时间地点。
-媒体只放mediaDecision，非媒体只放executions。moment.publish是公开朋友圈文字动态，不是制作或私发图片；item.deliver只交接本人实际持有的实体物品。公开发布与私聊发送不是同一件事，不能用发布空白动态冒充已发送一张草图。
+媒体只放mediaDecision，非媒体只放executions。计划增量本身会被原内核保存，不提供plan.record这种重复的记录元动作，更不能用记录计划代替绘图。moment.publish是公开朋友圈文字动态，不是制作或私发图片；item.deliver只交接本人实际持有的实体物品。公开发布与私聊发送不是同一件事，不能用发布空白动态冒充已发送一张草图。
 无即时动作的目标/等待/修改仍用goals/plans：goals为{id,summary,status:"active|deferred|withdrawn|fulfilled",sourceIds:[],resultIds:[],endReason?}；plans为{id,goalId,summary,sourceIds:[],nextStep,supersedesPlanId?}。nextStep只能wait:{kind:"wait",conditions:[],missing:[具体缺少的信息]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[真实缺少的能力或证据]}、closed:{kind:"closed",status:"finished|withdrawn",reason}。已有计划沿原id修改时不要supersedes自己；没有相关变化就省略。不得建立空active计划或拿plan.record冒充外部工作。actions仅用于原有非终态动作的waiting/blocked/withdrawn修改，无对象时null。
 responsibilities为{id,subject:{kind:"appointment|matter|episode|request",id},summary,status,waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,resolutionResultId?,endReason?}。已有来源完整保留。fulfilled和resolutionResultId只能引用本轮之前内核已经确认、确实能解决此责任的回执，不能引用execution的ref、新动作编号、对白、发布动态提案。若只是收到了预算答复，承接自己的设计工作并保留实际交付责任，不伪造完成。decisions为{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId:当前input.sourceId,quote:当前原话逐字片段}。
 consideration无机会授权时必须null；coordination的npc_episode_consideration必须显式给出{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}。普通player有episodeManifest时按相关性选择或null。不能把旧episodeFollowUps当新请求。defer/need_information必须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定等待责任；不额外重复创建此followup，不强迫参加或编造期限。quiet并不等于忽略当前玩家问题。
@@ -393,7 +393,7 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
       audienceActorIds: [...snapshot.channel.audienceActorIds],
       // Existing-asset sharing has no authorized catalog/delivery projection yet.
       allowedCapabilities: snapshot.channel.allowedCapabilities.filter(
-        (cap) => cap !== 'media.share',
+        (cap) => cap !== 'media.share' && cap !== 'plan.record',
       ),
       maxCombinedStatementChars:
         snapshot.channel.kind === 'group' ? 500 : snapshot.channel.kind === 'scene' ? 4000 : 12000,
