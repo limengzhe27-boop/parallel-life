@@ -358,7 +358,39 @@ export function validateAgentProposal(
     if (['withdrawn', 'fulfilled'].includes(goal.status))
       requireValid(goal.endReason, 'END_REASON_REQUIRED');
   }
+  const superseded = new Set<string>();
   for (const plan of proposal.plans) {
+    const previous = state.plans.find((item) => item.id === plan.id);
+    if (previous && ['finished', 'withdrawn'].includes(previous.status))
+      requireValid(sameValue(previous, plan), 'TERMINAL_PLAN');
+    if (previous?.supersedesPlanId)
+      requireValid(
+        plan.supersedesPlanId === previous.supersedesPlanId,
+        'PLAN_SUPERSESSION_HISTORY',
+      );
+    if (
+      plan.supersedesPlanId &&
+      (!previous || previous.supersedesPlanId !== plan.supersedesPlanId)
+    ) {
+      const old = state.plans.find((item) => item.id === plan.supersedesPlanId);
+      requireValid(
+        !previous && old && old.goalId === plan.goalId && old.id !== plan.id,
+        'INVALID_PREVIOUS_PLAN',
+      );
+      requireValid(!['finished', 'withdrawn'].includes(old!.status), 'TERMINAL_PREVIOUS_PLAN');
+      requireValid(!superseded.has(old!.id), 'PLAN_SUPERSESSION_FORK');
+      requireValid(
+        !proposal.plans.some((item) => item.id === old!.id),
+        'PLAN_SUPERSESSION_CONFLICT',
+      );
+      requireValid(
+        !context.state.actions.some(
+          (action) => old!.actionIds.includes(action.id) && action.status === 'executing',
+        ),
+        'PLAN_SUPERSESSION_INFLIGHT',
+      );
+      superseded.add(old!.id);
+    }
     requireValid(goals.has(plan.goalId), 'UNKNOWN_GOAL');
     for (const id of plan.actionIds)
       requireValid(actions.get(id)?.goalId === plan.goalId, 'INVALID_PLAN_ACTION');
@@ -375,7 +407,6 @@ export function validateAgentProposal(
     conditions(plan.triggers);
     if (plan.status === 'active')
       requireValid(goals.get(plan.goalId)?.status === 'active', 'PLAN_GOAL_NOT_ACTIVE');
-    const previous = state.plans.find((item) => item.id === plan.id);
     // Do not retroactively invalidate unchanged historical plans on ordinary dialogue.
     if (!previous || !sameValue(previous, plan)) {
       const missing = plan.missingConditions.some((text) => text.trim().length > 0);
@@ -599,7 +630,39 @@ export function reduceActorAgentState(
   const merge = <T extends { id: string }>(old: T[], changes: T[]) => [
     ...new Map([...old, ...changes].map((item) => [item.id, item])).values(),
   ];
+  const plans = merge(context.state.plans, proposal.plans).map((plan) => ({ ...plan }));
+  const replacements = proposal.plans.filter(
+    (plan) => plan.supersedesPlanId && !context.state.plans.some((old) => old.id === plan.id),
+  );
   const actions = merge(context.state.actions, proposal.actions).map((action) => ({ ...action }));
+  for (const replacement of replacements) {
+    const old = plans.find((plan) => plan.id === replacement.supersedesPlanId)!;
+    // A paid/in-flight execution cannot be erased by replacing its plan. Reject
+    // in this same transaction, retaining all original state and result history.
+    requireValid(
+      !results.some((result) => old.actionIds.includes(result.actionId)),
+      'PLAN_SUPERSESSION_INFLIGHT',
+    );
+    old.status = 'withdrawn';
+    old.missingConditions = [...old.missingConditions, `Superseded by plan ${replacement.id}`];
+  }
+  for (const replacement of replacements) {
+    const old = plans.find((plan) => plan.id === replacement.supersedesPlanId)!;
+    for (const action of actions) {
+      if (
+        !old.actionIds.includes(action.id) ||
+        !['proposed', 'ready', 'waiting', 'blocked'].includes(action.status)
+      )
+        continue;
+      const shared = plans.some(
+        (plan) =>
+          plan.id !== old.id &&
+          !['finished', 'withdrawn'].includes(plan.status) &&
+          plan.actionIds.includes(action.id),
+      );
+      if (!shared) action.status = 'withdrawn';
+    }
+  }
   const resultsById = new Map(results.map((result) => [result.id, result]));
   requireValid(
     resultsById.size === results.length &&
@@ -715,7 +778,7 @@ export function reduceActorAgentState(
       revision: context.state.revision + 1,
       projectedWorldVersion: worldVersion,
       goals,
-      plans: merge(context.state.plans, proposal.plans),
+      plans,
       actions,
       responsibilities,
       decisions: merge(
