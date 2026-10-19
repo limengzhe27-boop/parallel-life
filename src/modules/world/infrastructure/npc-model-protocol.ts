@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
+import { createHash } from 'node:crypto';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
 import type { AgentValidationContext } from '../domain/agent-kernel.ts';
@@ -228,7 +229,12 @@ export const NPC_RESPONSE_FORMAT: ModelOutputOptions = {
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
 export function npcResponseFormat(
   state: Pick<AgentValidationContext['state'], 'goals' | 'questions'> &
-    Partial<Pick<AgentValidationContext['state'], 'actions' | 'plans'>>,
+    Partial<
+      Pick<
+        AgentValidationContext['state'],
+        'actions' | 'plans' | 'responsibilities' | 'worldId' | 'actorId'
+      >
+    >,
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
   current?: Pick<AgentValidationContext, 'input' | 'channel'>,
 ): ModelOutputOptions {
@@ -248,9 +254,7 @@ export function npcResponseFormat(
     if (!object) throw Error('NPC_RESPONSE_SCHEMA');
     properties.consideration = object;
   }
-  const goalIds = state.goals
-    .filter((goal) => !['fulfilled', 'withdrawn'].includes(goal.status))
-    .map((g) => g.id);
+  const goalIds = state.goals.filter((goal) => goal.status === 'active').map((g) => g.id);
   const scopeGoal = (execution: SchemaNode) => {
     const alternatives = execution.properties?.goal?.anyOf;
     if (!alternatives) throw Error('NPC_RESPONSE_SCHEMA');
@@ -268,7 +272,14 @@ export function npcResponseFormat(
   const executionItem = (executions.anyOf?.[0] ?? executions).items!;
   scopeGoal(executionItem);
   const replaceablePlanIds = (state.plans ?? [])
-    .filter((plan) => !['finished', 'withdrawn'].includes(plan.status))
+    .filter(
+      (plan) =>
+        goalIds.includes(plan.goalId) &&
+        !['finished', 'withdrawn'].includes(plan.status) &&
+        !plan.actionIds.some((id) =>
+          state.actions?.some((a) => a.id === id && a.status === 'executing'),
+        ),
+    )
     .map((plan) => plan.id);
   const supersedes = executionItem.properties!.plan!.properties!;
   if (replaceablePlanIds.length)
@@ -282,6 +293,33 @@ export function npcResponseFormat(
     if (capabilities.length)
       executionItem.properties!.action!.properties!.capability!.enum = capabilities;
     else properties.executions = { type: 'null' };
+  }
+  if (replaceablePlanIds.length && properties.executions?.type !== 'null') {
+    // Couple goal and replacement choices in the native grammar. A new goal
+    // cannot replace another goal's plan; the kernel remains authoritative.
+    const goal = executionItem.properties!.goal!;
+    const alternatives = goal.anyOf ?? [goal];
+    const fresh = alternatives.find((g) => g.properties!.kind!.enum?.[0] === 'new');
+    const existing = alternatives.find((g) => g.properties!.kind!.enum?.[0] === 'existing');
+    const branches: SchemaNode[] = [];
+    for (const goalId of [null, ...goalIds]) {
+      const selected = goalId === null ? fresh : existing;
+      if (!selected) continue;
+      const branch = structuredClone(executionItem);
+      branch.properties!.goal = structuredClone(selected);
+      if (goalId !== null) branch.properties!.goal.properties!.id!.enum = [goalId];
+      const ids =
+        goalId === null
+          ? []
+          : (state.plans ?? [])
+              .filter((p) => p.goalId === goalId && replaceablePlanIds.includes(p.id))
+              .map((p) => p.id);
+      branch.properties!.plan!.properties!.supersedesPlanId = ids.length
+        ? { anyOf: [{ type: 'string', enum: ids }, { type: 'null' }] }
+        : { type: 'null' };
+      branches.push(branch);
+    }
+    (executions.anyOf?.[0] ?? executions).items = { anyOf: branches };
   }
   // A reply assessment is about this player's current words, not an old NPC question.
   // Narrow the native grammar before the call; the kernel still validates exact source,
@@ -305,6 +343,35 @@ export function npcResponseFormat(
           array.items.properties.quote!.enum = [current.input.text.trim()];
       }
       properties[name] = array;
+    }
+    if (current.input.origin === 'player' && properties.decisions?.type !== 'null') {
+      const responsibilities = (state.responsibilities ?? []).filter((r) =>
+        ['open', 'waiting', 'deferred'].includes(r.status),
+      );
+      const array = properties.decisions!;
+      const item = array.items!;
+      if (!responsibilities.length) properties.decisions = { type: 'null' };
+      else
+        array.items = {
+          anyOf: responsibilities.map((responsibility) => {
+            const branch = structuredClone(item);
+            const id = `decision:${createHash('sha256')
+              .update(
+                JSON.stringify([
+                  'npc-player-decision-v1',
+                  state.worldId,
+                  state.actorId,
+                  current.input.sourceId,
+                  responsibility.id,
+                  responsibility.revision ?? 0,
+                ]),
+              )
+              .digest('hex')}`;
+            branch.properties!.id!.enum = [id];
+            branch.properties!.responsibilityId!.enum = [responsibility.id];
+            return branch;
+          }),
+        };
     }
     const choices = (state.questions ?? [])
       .filter(
@@ -404,6 +471,12 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
       statements: statements.map((statement) => ({
         ...statement,
         dependsOnActionIds: statement.dependsOnActionIds.map((id) => {
+          const direct = compiled.actionIdsByRef[id];
+          if (direct) {
+            if (context.state.actions.some((action) => action.id === id))
+              throw Error('NPC_EXECUTION_DEPENDENCY_AMBIGUOUS');
+            return direct;
+          }
           if (!id.startsWith('execution:')) return id;
           const bound = compiled.actionIdsByRef[id.slice('execution:'.length)];
           if (!bound) throw Error('NPC_EXECUTION_DEPENDENCY_WITHOUT_INTENT');

@@ -537,7 +537,8 @@ test('native reply assessments can cite only a visible open question and this sh
   assert.deepEqual(item.properties.quote!.enum, [c.input.text]);
   type InputJudgmentSchema = { items: { properties: Record<string, { enum?: unknown[] }> } };
   const judgmentFields = format.schema.properties as Record<string, InputJudgmentSchema>;
-  for (const fieldName of ['decisions', 'locationReports']) {
+  assert.deepEqual(judgmentFields.decisions, { type: 'null' });
+  for (const fieldName of ['locationReports']) {
     const judgment: InputJudgmentSchema = judgmentFields[fieldName]!;
     assert.deepEqual(judgment.items.properties.sourceId!.enum, [c.input.sourceId]);
     assert.deepEqual(judgment.items.properties.quote!.enum, [c.input.text]);
@@ -659,6 +660,40 @@ test('v2 media choice reaches the original proposal with scoped source and state
       }),
     /RESPONSE_WIRE_SHAPE/,
   );
+});
+
+test('native goal and superseded plan are scoped together, never cross-goal', () => {
+  const { c } = fixture();
+  c.state.goals = ['a', 'b', 'deferred'].map((id) => ({
+    id,
+    summary: id,
+    status: id === 'deferred' ? ('deferred' as const) : ('active' as const),
+    sourceIds: ['input'],
+    resultIds: [],
+  }));
+  c.state.plans = ['a', 'b', 'deferred'].map((id) => ({
+    id: `plan-${id}`,
+    goalId: id,
+    summary: id,
+    sourceIds: ['input'],
+    status: 'active' as const,
+    actionIds: [],
+    nextActionId: null,
+    triggers: [],
+    missingConditions: [],
+  }));
+  const format: any = npcResponseFormat(c.state, 'forbidden', c);
+  const branches = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array')
+    .items.anyOf;
+  assert.equal(branches.length, 3);
+  const fresh = branches.find((b: any) => b.properties.goal.properties.kind.enum[0] === 'new');
+  assert.deepEqual(fresh.properties.plan.properties.supersedesPlanId, { type: 'null' });
+  for (const id of ['a', 'b']) {
+    const branch = branches.find((b: any) => b.properties.goal.properties.id?.enum?.[0] === id);
+    assert.deepEqual(branch.properties.plan.properties.supersedesPlanId.anyOf[0].enum, [
+      `plan-${id}`,
+    ]);
+  }
 });
 
 test('v2 refusal does not generate an action or satisfy a media dependency', () => {
@@ -853,6 +888,23 @@ test('v4 has one explicit media action and no model-authored completion receipts
   const p = parseAgentProposal(c, raw);
   assert.equal(p.actions[0]!.capability, 'media.generate_image');
   assert.equal(p.actions[0]!.parameters.purpose, 'scene');
+  assert.deepEqual(
+    parseAgentProposal(c, {
+      ...raw,
+      statements: [{ text: '我把构想画出来，稍等一下。', dependsOnActionIds: ['sketch'] }],
+    }).statements[0]!.dependsOnActionIds,
+    [p.actions[0]!.id],
+  );
+  c.state.actions.push({ ...p.actions[0]!, id: 'sketch' });
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        statements: [{ text: '稍等', dependsOnActionIds: ['sketch'] }],
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
+  c.state.actions.pop();
   assert.deepEqual(p.statements[0]!.dependsOnActionIds, [p.actions[0]!.id]);
   assert.deepEqual(p.goals[0]!.resultIds, []);
   assert.equal(p.goals[0]!.status, 'active');
@@ -947,4 +999,34 @@ test('native new work cannot reference terminal goals or replace terminal plans'
   );
   assert.deepEqual(existing.properties.id.enum, ['active-goal']);
   assert.deepEqual(execution.plan.properties.supersedesPlanId, { type: 'null' });
+});
+
+test('native player decision identifiers bind current input and visible responsibility without rewriting history', () => {
+  const { c } = fixture();
+  c.state.responsibilities = [
+    {
+      id: 'request',
+      subject: { kind: 'request', id: 'original-request' },
+      summary: '等待玩家决定',
+      status: 'waiting',
+      waitingOn: 'player',
+      sourceIds: ['input'],
+      nextCheck: [],
+      revision: 2,
+    },
+  ];
+  const branches = (input = c.input): any[] => {
+    const format: any = npcResponseFormat(c.state, 'forbidden', { input, channel: c.channel });
+    return format.schema.properties.decisions.items.anyOf;
+  };
+  const first = branches()[0].properties;
+  assert.deepEqual(first.responsibilityId.enum, ['request']);
+  assert.deepEqual(first.sourceId.enum, ['input']);
+  assert.match(first.id.enum[0], /^decision:[a-f0-9]{64}$/);
+  assert.equal(branches()[0].properties.id.enum[0], first.id.enum[0]);
+  assert.notEqual(
+    branches({ ...c.input, sourceId: 'next-input' })[0].properties.id.enum[0],
+    first.id.enum[0],
+  );
+  assert.equal(c.state.decisions.length, 0);
 });
