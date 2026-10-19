@@ -60,3 +60,16 @@ test('long-lived unknown remains queryable without granting new execution', () =
   assert.deepEqual(restorePendingAdvances(JSON.stringify([item])), [item]);
   assert.deepEqual(restorePendingAdvances('invalid'), []);
 });
+
+test('presentation deferral remains recoverable waiting, not a transport failure or retry permission', async () => {
+  const { advanceRecoveryWaitReason } =
+    await import('../src/modules/world/domain/advance-operation.ts');
+  for (const code of [
+    'EPISODE_DELIVERY_DEFERRED',
+    'NPC_DELIVERY_DEFERRED',
+    'DIRECTOR_DELIVERY_DEFERRED',
+  ])
+    assert.equal(advanceRecoveryWaitReason({ code }), 'clock_or_attention');
+  for (const code of ['UNKNOWN', 'TIMEOUT', 'VERSION_CONFLICT', 'INVALID_AGENT_PROPOSAL'])
+    assert.equal(advanceRecoveryWaitReason({ code }), null);
+});

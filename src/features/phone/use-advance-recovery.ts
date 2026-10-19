@@ -60,9 +60,11 @@ export function useAdvanceRecovery(
                     state: receipt.status === 'absent' ? 'checking' : receipt.status,
                     nextCheckAt:
                       Date.now() +
-                      (receipt.status === 'unknown' || item.attempts >= 12
-                        ? 60000
-                        : Math.min(60000, 5000 * 2 ** Math.min(item.attempts, 4))),
+                      (receipt.waitingOn
+                        ? 15000
+                        : receipt.status === 'unknown' || item.attempts >= 12
+                          ? 60000
+                          : Math.min(60000, 5000 * 2 ** Math.min(item.attempts, 4))),
                   },
                 ],
         ),

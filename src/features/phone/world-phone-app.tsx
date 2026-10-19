@@ -855,11 +855,13 @@ export function WorldPhoneApp({
             .filter((i) => i.state !== 'running')
             .map((i) => (
               <p key={i.id}>
-                {i.state === 'failed'
-                  ? '有一项进展未完成，原记录已保留，其他事项仍可继续。'
-                  : i.state === 'unknown'
-                    ? '有一项进展的结果尚未确认，系统不会重复执行。'
-                    : '正在核对原记录，不需要重新发送。'}
+                {i.receipt?.waitingOn === 'clock_or_attention'
+                  ? '已有进展正在等待合适时机继续，不需要重新发送。'
+                  : i.state === 'failed'
+                    ? '有一项进展未完成，原记录已保留，其他事项仍可继续。'
+                    : i.state === 'unknown'
+                      ? '有一项进展的结果尚未确认，系统不会重复执行。'
+                      : '正在核对原记录，不需要重新发送。'}
               </p>
             ))}
         </details>

@@ -30,5 +30,6 @@ export const AdvanceOperationReceiptSchema = z.strictObject({
     .max(100),
   result: AdvanceReceiptSchema.omit({ status: true, worldId: true }).optional(),
   failureCode: z.string().max(40).optional(),
+  waitingOn: z.literal('clock_or_attention').optional(),
 });
 export type AdvanceOperationReceipt = z.infer<typeof AdvanceOperationReceiptSchema>;

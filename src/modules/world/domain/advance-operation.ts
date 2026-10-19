@@ -39,3 +39,13 @@ export function advanceOperationState(input: {
     return 'complete';
   return 'failed';
 }
+
+/** A committed response waiting for presentation is not an upstream/storage failure. */
+export function advanceRecoveryWaitReason(error: unknown): 'clock_or_attention' | null {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
+  return code === 'EPISODE_DELIVERY_DEFERRED' ||
+    code === 'NPC_DELIVERY_DEFERRED' ||
+    code === 'DIRECTOR_DELIVERY_DEFERRED'
+    ? 'clock_or_attention'
+    : null;
+}

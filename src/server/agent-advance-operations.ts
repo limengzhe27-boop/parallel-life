@@ -1,6 +1,9 @@
 import type { PostgresDatabase } from '../modules/storage/infrastructure/postgres.ts';
 import { AdvanceOperationRepository } from '../modules/world/infrastructure/advance-operation-repository.ts';
-import type { AdvanceWorkRef } from '../modules/world/domain/advance-operation.ts';
+import {
+  advanceRecoveryWaitReason,
+  type AdvanceWorkRef,
+} from '../modules/world/domain/advance-operation.ts';
 import type { AdvanceResult } from '../modules/world/application/advance-world.ts';
 import { PostgresAgentRuntimeRepository } from '../modules/world/infrastructure/agent-runtime-repository.ts';
 import { PostgresDirectorRuntimeRepository } from '../modules/world/infrastructure/director-runtime-repository.ts';
@@ -46,6 +49,7 @@ export function agentAdvanceOperations(
       }
       let state = await ops.read(owner, world, id);
       if (action !== 'recover' || state.status !== 'recoverable') return state;
+      let waiting = false;
       for (const work of state.work.filter((w) => w.status === 'response_received')) {
         if (work.kind === 'npc') {
           const attempt = await npcs.lookup(owner, world, work.commandId);
@@ -66,6 +70,10 @@ export function agentAdvanceOperations(
               null,
             );
           } catch (error) {
+            if (advanceRecoveryWaitReason(error)) {
+              waiting = true;
+              continue;
+            }
             // Kernel persists conflicts/known-invalid. Storage/deferred leaves the protected raw.
             const after = await npcs.lookup(owner, world, work.commandId);
             if (after?.status === 'response_received') throw error;
@@ -91,13 +99,19 @@ export function agentAdvanceOperations(
               saved.snapshot,
             );
           } catch (error) {
+            if (advanceRecoveryWaitReason(error)) {
+              waiting = true;
+              continue;
+            }
             const after = await directors.lookup(owner, world, work.commandId);
             if (after?.status === 'response_received') throw error;
           }
         }
       }
       state = await ops.read(owner, world, id);
-      return state;
+      return waiting && state.status === 'recoverable'
+        ? { ...state, waitingOn: 'clock_or_attention' as const }
+        : state;
     },
   };
 }
