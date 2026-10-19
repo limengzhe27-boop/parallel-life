@@ -1,3 +1,5 @@
+import { directorFrameRetirementEvidence } from '../domain/director-frame-retirement.ts';
+import { readAuthoredReconsiderationEvidence } from './authored-reconsideration-evidence.ts';
 import { ActorContinuationSchema } from './agent-proposal-schema.ts';
 import {
   OpeningContextReviewSchema,
@@ -899,7 +901,36 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         return { status: 'none' };
       }
       const pending = attempt(row);
-      // An expired lease cannot prove an unknown paid request did not succeed.
+      // Unknown payment remains unknown. A separately authenticated new narrative
+      // cause may retire only the expired execution frame, never resend this call.
+      if (
+        pending.status === 'unknown_after_send' &&
+        !row.live &&
+        !row.response_hash &&
+        !row.response
+      ) {
+        await this.current(sql, owner, world, current);
+        const saved = snapshotShape(row.snapshot);
+        if (pending.inputHash !== directorSnapshotInputHash(saved)) fail('DIRECTOR_INPUT_CONFLICT');
+        const evidence = directorFrameRetirementEvidence(
+          saved,
+          current,
+          await readAuthoredReconsiderationEvidence(sql, owner, world.id, current.worldVersion),
+        );
+        if (evidence.length) {
+          const retired = await sql.query(
+            `UPDATE parallel_life.director_runtime_attempts SET status='stale_discarded',updated_at=now()
+             WHERE id=$1 AND owner_id=$2 AND status='unknown_after_send' AND response IS NULL
+             AND response_hash IS NULL AND lease_until<=clock_timestamp() RETURNING id`,
+            [pending.id, owner],
+          );
+          if (!retired.rowCount) fail('DIRECTOR_ATTEMPT_STALE');
+          // The immutable old snapshot/sent_at still fence its paid cause. The
+          // caller can assess only the authenticated, distinct current cause.
+          return { status: 'none' };
+        }
+      }
+      // Expiry or version movement alone cannot retire unknown work.
       if (pending.status !== 'response_received') return { status: 'blocked', attempt: pending };
       // A caller's outdated/invalid read must never discard a legitimate completion.
       await this.current(sql, owner, world, current);
