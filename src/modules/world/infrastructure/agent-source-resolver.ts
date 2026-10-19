@@ -101,7 +101,15 @@ export async function readActorStrategyBasis(
   });
   if (initial) {
     add(`definition:${state.definitionRef}`, 'authored', state.definitionRef, 0, initial.time);
-    for (const m of initial.messages ?? [])
+    // Publication messages use exactly the same authenticated display-time
+    // projection as the private snapshot. Legacy genesis retains its old times.
+    const initialMessages = [
+      ...(initial.messages ?? []).filter((m: { sourceEventId: string }) =>
+        String(m.sourceEventId).startsWith('genesis:'),
+      ),
+      ...(publicationGenesis?.messages ?? []),
+    ];
+    for (const m of initialMessages)
       if (
         m.actorId === state.actorId &&
         (String(m.sourceEventId).startsWith('genesis:') ||
@@ -119,14 +127,17 @@ export async function readActorStrategyBasis(
           (!String(f.sourceEventId).startsWith('publication-genesis:') ||
             verifiedPublicationGenesisRecord(publicationGenesis, 'fact', f))
         )
-          add('fact:' + f.id, 'world_event', f.sourceEventId, 0, initial.time);
+          add('fact:' + f.id, 'world_event', f.sourceEventId, 0, initial.time, [f.id]);
     for (const a of initial.appointments ?? [])
       if (
         a.participantIds.includes(state.actorId) &&
         (!String(a.sourceEventId).startsWith('publication-genesis:') ||
           verifiedPublicationGenesisRecord(publicationGenesis, 'appointment', a))
       )
-        add('appointment:' + a.id, 'world_event', a.sourceEventId, 0, initial.time);
+        add('appointment:' + a.id, 'world_event', a.sourceEventId, 0, initial.time, [
+          a.id,
+          ...(a.sourceMessageId ? [a.sourceMessageId] : []),
+        ]);
   }
   const inputs = (
     await sql.query(

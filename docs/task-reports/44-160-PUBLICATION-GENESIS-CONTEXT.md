@@ -1,0 +1,19 @@
+# 44-160 发布起点历史来源接入人物上下文
+
+负责人codex-publication-genesis160-context；root-runtime160唯一公共集成、生产和模型验收。独占agent-snapshot-repository、agent-source-resolver和新认证helper/test。
+
+## 根因与修改
+
+发布世界的预置历史来源为`publication-genesis:world`，不是world_events真实行。原私聊snapshot仅将`genesis:`识别为v0，查询不到发布起点的event version后丢弃合法历史对白和初始事实。最终strategy来源读取也只认普通genesis历史消息，导致人物无法持续引用本人历史依据。
+
+新增readVerifiedPublicationGenesisEvidence，经现有受限publication_story_source和player_publication_origin认证immutable snapshot及approved_seed.id的绑定，不新增表直读权限、不凭前缀授予来源。核对owner/world/version0/演员、出版origin与seed来源、genesisSource及initialFacts，按本人actorId、visibility/believedBy和时间过滤。逐对象核对内容，不能只复用合法ID插入不同文字。
+
+私聊snapshot认证后将起点记录作为v0来源：聊天是speech，belief仍belief，真实可见canonical初始事实保留原kind。初始事实来源时刻使用immutable initial.time。没有创建新消息、通知、行动、玩家承诺或知情广播。
+
+最终readActorStrategyBasis复用同helper和可信时间投影，仅认可本人历史消息。发表消息按openingMessagesForDisplay后的同一投影读取，普通genesis保持旧语义。forget除原source句柄外也保留fact/appointment原始ID、邀约sourceMessageId的否决别名，避免来源引用恢复绕过撤销。
+
+## 验证与边界
+
+16项聚焦纯测试通过：本人历史/玩家旧答复可见，其他人私聊、owner事实、他人belief、未来消息不进入；保留belief及proposed，不升级为完成；绑定缺失/owner错误/source origin与seed mismatch/假prefix/初始事实不符/非起点版本/非法时间关闭；exact record验证防同ID改写。TypeScript0，边界658，格式与diff通过。
+
+纯测试用受控SQL读结果，不冒充数据库验收。按root协调，真实PG在root现有director-staging158旅程扩展两人私密历史、来源验证及撤销，不另搭fixture占共享55587；该PG结果和原入口真实模型/部署由root报告。本人0PG/生产查询写/商业调用/SQL修改/全量check/build/部署。
