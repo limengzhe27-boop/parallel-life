@@ -785,6 +785,13 @@ export function npcAgentAdvanceServices(
             return execute(independent.candidate, independent.guidance);
           throw error;
         }
+        if (
+          decision?.openingContext?.disposition === 'confirm' &&
+          decision.openingContext.premises.length
+        ) {
+          batch?.yieldAfterStep();
+          return { ...quiet(storyAt), changed: true, worldVersion: world.version + 1 };
+        }
         if (decision?.opportunities.length) {
           // A saved event handoff precedes optional empty-agenda initialization,
           // even if the same Director decision also selected those candidates.
