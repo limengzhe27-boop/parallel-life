@@ -140,3 +140,110 @@ test('base-model failure does not create an NPC diagnostic', async (t) => {
   await assert.rejects(model.complete([]), (error) => error === failure);
   assert.deepEqual(logs, []);
 });
+
+test('only versioned Director JSON schema requests select the optional Director role model', async () => {
+  const calls: { role: string; args: unknown[] }[] = [];
+  const make = (role: string): TextModel => ({
+    async complete(...args) {
+      calls.push({ role, args });
+      return role;
+    },
+  });
+  const model = roleTextModel(make('base'), make('npc'), make('director'));
+  const messages = [{ role: 'user' as const, content: 'A bounded fictional coordination input.' }];
+  const signal = new AbortController().signal;
+  const directorOutput = {
+    format: 'json_schema' as const,
+    name: 'director_response_v12',
+    strict: true,
+    schema: { type: 'object' },
+  };
+  assert.equal(await model.complete(messages, signal, 4321, directorOutput), 'director');
+  assert.deepEqual(calls[0]!.args, [messages, signal, 4321, directorOutput]);
+  for (const output of [
+    { ...directorOutput, name: 'director' },
+    { ...directorOutput, name: 'director_response_v12_extra' },
+    { ...directorOutput, name: 'prefix_director_response_v12' },
+    { ...directorOutput, name: 'director_response_vx' },
+    { format: 'json_object' as const },
+    undefined,
+  ])
+    assert.equal(await model.complete(messages, signal, 4321, output), 'base');
+  assert.equal(
+    await model.complete(messages, signal, 4321, { ...directorOutput, name: 'npc_agent_response' }),
+    'npc',
+  );
+  assert.deepEqual(
+    calls.map((call) => call.role),
+    ['director', 'base', 'base', 'base', 'base', 'base', 'base', 'npc'],
+  );
+});
+
+test('missing optional Director override preserves the ordinary base route', async () => {
+  const seen: string[] = [];
+  const model = roleTextModel(
+    {
+      complete: async () => {
+        seen.push('base');
+        return 'base';
+      },
+    },
+    {
+      complete: async () => {
+        seen.push('npc');
+        return 'npc';
+      },
+    },
+  );
+  for (const name of ['director_response_v1', 'director_response_v12', 'director_response_v99'])
+    assert.equal(
+      await model.complete([], undefined, 4096, {
+        format: 'json_schema',
+        name,
+        strict: true,
+        schema: {},
+      }),
+      'base',
+    );
+  assert.deepEqual(seen, ['base', 'base', 'base']);
+});
+
+test('Director override failure is returned once without retry, NPC invocation or base downgrade', async () => {
+  let baseCalls = 0,
+    npcCalls = 0,
+    directorCalls = 0;
+  const failure = Object.assign(Error('Original Director failure'), { code: 'UPSTREAM_FAILED' });
+  const model = roleTextModel(
+    {
+      complete: async () => {
+        baseCalls++;
+        return 'base';
+      },
+    },
+    {
+      complete: async () => {
+        npcCalls++;
+        return 'npc';
+      },
+    },
+    {
+      complete: async () => {
+        directorCalls++;
+        throw failure;
+      },
+    },
+  );
+  await assert.rejects(
+    model.complete([], undefined, 4096, {
+      format: 'json_schema',
+      name: 'director_response_v12',
+      strict: true,
+      schema: {},
+    }),
+    (error) => error === failure,
+  );
+  assert.deepEqual(
+    { baseCalls, npcCalls, directorCalls },
+    { baseCalls: 0, npcCalls: 0, directorCalls: 1 },
+  );
+});
