@@ -6,7 +6,8 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v13';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v14';
+const PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL = 'director-wire-v13';
 const PREVIOUS_ATTRIBUTION_PROTOCOL = 'director-wire-v12';
 const PREVIOUS_REFERENCE_PROTOCOL = 'director-wire-v11';
 const PREVIOUS_OPENING_PROTOCOL = 'director-wire-v10';
@@ -234,8 +235,8 @@ const PreviousAttributionWire = PreviousInteractionWire.extend({
     })
     .nullable(),
 });
-const CurrentWire = PreviousInteractionWire.extend({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+const PreviousActorAssignmentWire = PreviousInteractionWire.extend({
+  protocol: z.literal(PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL),
   openingContext: z
     .strictObject({
       actorAssignments: z.record(
@@ -244,6 +245,17 @@ const CurrentWire = PreviousInteractionWire.extend({
           informationRefs: z.array(z.string().regex(/^opening-info:[1-9][0-9]*$/)).max(2),
           reason: z.string().trim().min(1).max(600),
         }),
+      ),
+    })
+    .nullable(),
+});
+const CurrentWire = PreviousInteractionWire.extend({
+  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+  openingContext: z
+    .strictObject({
+      informationOwners: z.record(
+        z.string().regex(/^opening-info:[1-9][0-9]*$/),
+        z.strictObject({ actorRef: Ref.nullable(), reason: z.string().trim().min(1).max(600) }),
       ),
     })
     .nullable(),
@@ -330,6 +342,32 @@ export function directorOpeningActorCatalog(snapshot: DirectorSnapshot): {
       canAttribute: opening.identities.some((identity) => identity.actorRef === actor.ref),
     })),
   };
+}
+/** v14-only format metadata filtering. Older paid catalogs retain their exact original indexing. */
+export function directorOpeningOwnerCatalog(
+  snapshot: DirectorSnapshot,
+): ReturnType<typeof directorOpeningActorCatalog> {
+  const old = directorOpeningActorCatalog(snapshot),
+    authority = snapshot.openingContextAuthority;
+  if (!authority) return old;
+  const lines = authority.sourceExcerpt.split(/\r?\n/);
+  const first = lines.findIndex((line) => line.trim().length > 0);
+  const information: { ref: string; text: string }[] = [];
+  for (const [index, line] of lines.entries()) {
+    const trimmed = line.trim(),
+      markdown = /^(?:#{1,6}\s|\*\*|__)/.test(trimmed);
+    const label = trimmed
+      .replace(/^#{1,6}\s*/, '')
+      .replace(/^(?:\*\*|__)/, '')
+      .replace(/(?:\*\*|__)$/, '')
+      .trim();
+    if (index === first && /^开场事件\s*[:：]/.test(label)) continue;
+    if (markdown && /^(?:场景|地点|Scene)\s*[:：]/i.test(label)) continue;
+    for (const text of openingSourceFragments(line, 600, 12 - information.length))
+      information.push({ ref: `opening-info:${information.length + 1}`, text });
+    if (information.length >= 12) break;
+  }
+  return { ...old, information };
 }
 const openingActorAssignmentLimit = (actorCount: number) =>
   actorCount ? Math.min(2, Math.floor(12 / actorCount)) : 0;
@@ -469,6 +507,7 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
   if (
     [
       DIRECTOR_WIRE_PROTOCOL,
+      PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL,
       PREVIOUS_ATTRIBUTION_PROTOCOL,
       PREVIOUS_REFERENCE_PROTOCOL,
       PREVIOUS_OPENING_PROTOCOL,
@@ -492,6 +531,58 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
   }
   if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
     const wire = CurrentWire.parse(normalized),
+      { openingContext, ...rest } = wire,
+      authority = snapshot.openingContextAuthority;
+    if (!authority && openingContext !== null) throw Error('DIRECTOR_OPENING_CONTEXT_FORBIDDEN');
+    if (authority && openingContext === null) throw Error('DIRECTOR_OPENING_REVIEW_REQUIRED');
+    if (!openingContext)
+      return decodeDirectorWire(snapshot, {
+        ...rest,
+        protocol: PREVIOUS_OPENING_PROTOCOL,
+        openingContext: null,
+      });
+    const catalog = directorOpeningOwnerCatalog(snapshot),
+      privateCatalog = directorOpeningInformationCatalog(snapshot);
+    const keys = Object.keys(openingContext.informationOwners);
+    if (
+      keys.length !== catalog.information.length ||
+      keys.some((ref) => !catalog.information.some((info) => info.ref === ref))
+    )
+      throw Error('DIRECTOR_OPENING_OWNER_COVERAGE');
+    const premises = catalog.information.flatMap((info) => {
+      const owner = openingContext.informationOwners[info.ref]!;
+      if (owner.actorRef === null) return [];
+      const actor = catalog.actors.find(
+        (actor) => actor.actorRef === owner.actorRef && actor.canAttribute,
+      );
+      const identities = privateCatalog.identities.filter(
+        (identity) => identity.actorRef === owner.actorRef,
+      );
+      const identity =
+        identities.find((identity) => identity.module === 'lifeContext') ?? identities[0];
+      if (!actor || !identity || !authority) throw Error('DIRECTOR_OPENING_OWNER_FORBIDDEN');
+      return [
+        {
+          actorRef: actor.actorRef,
+          kind: 'opening_information',
+          field: authority.sourceField,
+          quote: info.text,
+          knowledge: { module: identity.module, quote: identity.text },
+        },
+      ];
+    });
+    return decodeDirectorWire(snapshot, {
+      ...rest,
+      protocol: PREVIOUS_OPENING_PROTOCOL,
+      openingContext: {
+        disposition: premises.length ? 'confirm' : 'defer',
+        reason: `Single-owner source attribution: ${premises.length} information receipts. Per-source judgments remain in the protected response.`,
+        premises,
+      },
+    });
+  }
+  if (normalized.protocol === PREVIOUS_ACTOR_ASSIGNMENT_PROTOCOL) {
+    const wire = PreviousActorAssignmentWire.parse(normalized),
       { openingContext, ...rest } = wire,
       authority = snapshot.openingContextAuthority;
     if (!authority && openingContext !== null) throw Error('DIRECTOR_OPENING_CONTEXT_FORBIDDEN');
@@ -1121,31 +1212,23 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   );
   properties.openingContext = { type: 'null' };
   if (snapshot.openingContextAuthority) {
-    const openingCatalog = directorOpeningActorCatalog(snapshot),
-      limit = openingActorAssignmentLimit(openingCatalog.actors.length);
+    const openingCatalog = directorOpeningOwnerCatalog(snapshot),
+      owners = openingCatalog.actors
+        .filter((actor) => actor.canAttribute)
+        .map((actor) => actor.actorRef);
     const defs = schema.$defs as Record<string, Schema>;
-    const assignment = (maxItems: number) =>
-      object({
-        informationRefs: {
-          ...array(refs(openingCatalog.information.map((info) => info.ref))),
-          maxItems,
-        },
-        reason: { type: 'string', minLength: 1, maxLength: 600 },
-      });
-    defs.director_opening_actor_assignment = assignment(
-      openingCatalog.information.length ? limit : 0,
-    );
-    defs.director_opening_actor_no_source = assignment(0);
+    defs.director_opening_information_owner = object({
+      actorRef: owners.length
+        ? { anyOf: [{ type: 'string', enum: owners }, { type: 'null' }] }
+        : { type: 'null' },
+      reason: { type: 'string', minLength: 1, maxLength: 600 },
+    });
     properties.openingContext = object({
-      actorAssignments: object(
+      informationOwners: object(
         Object.fromEntries(
-          openingCatalog.actors.map((actor) => [
-            actor.actorRef,
-            {
-              $ref: actor.canAttribute
-                ? '#/$defs/director_opening_actor_assignment'
-                : '#/$defs/director_opening_actor_no_source',
-            },
+          openingCatalog.information.map((info) => [
+            info.ref,
+            { $ref: '#/$defs/director_opening_information_owner' },
           ]),
         ),
       ),
@@ -1156,5 +1239,5 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v13', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v14', strict: true, schema };
 }

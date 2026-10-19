@@ -12,6 +12,7 @@ import {
   directorResponseFormat,
   directorOpeningInformationCatalog,
   directorOpeningActorCatalog,
+  directorOpeningOwnerCatalog,
   decodeDirectorWire,
   directorWireCatalog,
 } from '../src/modules/world/infrastructure/director-model-protocol.ts';
@@ -255,7 +256,7 @@ test('current provider uses single author opportunity and exact keyed nullable a
   );
   assert(consider.properties.opportunity.$ref);
   assert.equal(consider.properties.opportunities, undefined);
-  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v13']);
+  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v14']);
 });
 
 test('v9 typed handoff preserves actor binding and compiles only the selected personal proposal', () => {
@@ -350,17 +351,16 @@ test('v10 opening information binds actor refs and review identity while preserv
   const schema = directorResponseFormat(f.s);
   if (schema.format !== 'json_schema') throw Error('schema');
   const properties = (schema.schema as any).properties;
-  assert.equal(schema.name, 'director_response_v13');
-  assert.deepEqual(properties.openingContext.properties.actorAssignments.required, [
-    'actor:1',
-    'actor:2',
+  assert.equal(schema.name, 'director_response_v14');
+  assert.deepEqual(properties.openingContext.properties.informationOwners.required, [
+    'opening-info:1',
   ]);
   assert.throws(() =>
     f.parse({ ...raw, openingContext: { disposition: 'confirm', reason: '', premises: [] } }),
   );
   assert.equal(
-    properties.openingContext.properties.actorAssignments.properties['actor:1'].$ref,
-    '#/$defs/director_opening_actor_assignment',
+    properties.openingContext.properties.informationOwners.properties['opening-info:1'].$ref,
+    '#/$defs/director_opening_information_owner',
   );
   for (const invalid of [
     {
@@ -583,11 +583,11 @@ test('v11 catalog fragments remain exact bounded substrings and schema shares pe
   if (format.format !== 'json_schema') throw Error('schema');
   const schema: any = format.schema;
   assert.equal(
-    schema.properties.openingContext.properties.actorAssignments.properties['actor:1'].$ref,
-    '#/$defs/director_opening_actor_assignment',
+    schema.properties.openingContext.properties.informationOwners.properties['opening-info:1'].$ref,
+    '#/$defs/director_opening_information_owner',
   );
   assert.equal(
-    schema.$defs.director_opening_actor_assignment.properties.informationRefs.maxItems,
+    schema.$defs.director_opening_information_owner.properties.actorRef.anyOf[0].enum.length,
     2,
   );
   assert.equal(
@@ -809,9 +809,9 @@ test('v12 bounds current information to 12 while saved v11 still addresses its o
   const format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
   const schema: any = format.schema;
-  assert.equal(schema.properties.openingContext.properties.actorAssignments.required.length, 2);
+  assert.equal(schema.properties.openingContext.properties.informationOwners.required.length, 12);
   assert.equal(
-    schema.properties.openingContext.properties.actorAssignments.additionalProperties,
+    schema.properties.openingContext.properties.informationOwners.additionalProperties,
     false,
   );
   assert(JSON.stringify(schema).length <= 24_000);
@@ -948,13 +948,9 @@ test('v13 requires full actor keys and rejects duplicate broadcasts, foreign inf
   const format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
   const schema: any = format.schema;
-  assert.equal(
-    schema.properties.openingContext.properties.actorAssignments.properties['actor:1'].$ref,
-    '#/$defs/director_opening_actor_no_source',
-  );
-  assert.equal(
-    schema.$defs.director_opening_actor_no_source.properties.informationRefs.maxItems,
-    0,
+  assert.deepEqual(
+    schema.$defs.director_opening_information_owner.properties.actorRef.anyOf[0].enum,
+    ['actor:2'],
   );
 });
 test('v13 six actors receive at most two each; twelve actors at most one each, under unchanged twelve-receipt scope', () => {
@@ -975,17 +971,181 @@ test('v13 six actors receive at most two each; twelve actors at most one each, u
     if (format.format !== 'json_schema') throw Error('schema');
     const schema: any = format.schema;
     assert.equal(
-      schema.$defs.director_opening_actor_assignment.properties.informationRefs.maxItems,
-      cap,
-    );
-    assert.equal(
-      schema.properties.openingContext.properties.actorAssignments.required.length,
+      schema.$defs.director_opening_information_owner.properties.actorRef.anyOf[0].enum.length,
       count,
     );
+    assert.equal(schema.properties.openingContext.properties.informationOwners.required.length, 12);
     assert(JSON.stringify(schema).length <= 24000);
     if (count === 12) {
       f.wire.openingContext.actorAssignments['actor:1']!.informationRefs.push('opening-info:2');
       assert.throws(() => f.parse(f.wire));
     }
   }
+});
+
+function singleOwnerFixture() {
+  const f = actorAssignmentFixture(6),
+    material = f.s.authoredMaterials!.materials.find((m) => m.role === 'opening')!;
+  const text = [
+    '开场事件：全局标题只描述作品开端。',
+    '**场景：已有街边与聊天界面。**',
+    '人物甲收到已有项目的新消息，人物乙提出另一个已有安排。',
+    '### 地点：已存在的办公室',
+    '人物丙准备解释自己的情况。',
+  ].join('\n');
+  material.node.editorialIntent = text;
+  f.s.openingContextAuthority!.sourceExcerpt = text;
+  const catalog = directorOpeningOwnerCatalog(f.s);
+  const wire = {
+    ...f.wire,
+    protocol: 'director-wire-v14',
+    openingContext: {
+      informationOwners: Object.fromEntries(
+        catalog.information.map((info) => [
+          info.ref,
+          {
+            actorRef: null as string | null,
+            reason: 'No justified personal owner assigned to this source.',
+          },
+        ]),
+      ),
+    },
+  };
+  return { ...f, catalog, wire };
+}
+test('v14 schema gives each information source only one owner and rejects the original broadcast shape', () => {
+  const f = singleOwnerFixture(),
+    before = structuredClone(f.wire);
+  f.wire.openingContext.informationOwners['opening-info:1'] = {
+    actorRef: 'actor:1',
+    reason: 'This source belongs to the first actor.',
+  };
+  f.wire.openingContext.informationOwners['opening-info:2'] = {
+    actorRef: 'actor:2',
+    reason: 'This distinct source belongs to the second actor.',
+  };
+  const raw = structuredClone(f.wire),
+    p = f.parse(f.wire);
+  assert.equal(p.openingContext!.premises.length, 2);
+  assert.deepEqual(
+    p.openingContext!.premises.map((p) => p.actorId),
+    ['actor-0', 'actor-1'],
+  );
+  assert.equal(p.openingContext!.premises[0]!.quote, f.catalog.information[0]!.text);
+  assert.deepEqual(f.wire, raw);
+  assert.equal(f.parse(before).openingContext!.disposition, 'defer');
+  assert.throws(() =>
+    f.parse({
+      ...f.wire,
+      openingContext: {
+        actorAssignments: Object.fromEntries(
+          f.catalog.actors.map((a) => [
+            a.actorRef,
+            {
+              informationRefs: ['opening-info:1', 'opening-info:2'],
+              reason: 'Same two global sources for everyone.',
+            },
+          ]),
+        ),
+      },
+    }),
+  );
+  assert.throws(() =>
+    f.parse({
+      ...f.wire,
+      openingContext: {
+        informationOwners: {
+          ...f.wire.openingContext.informationOwners,
+          'opening-info:1': {
+            actorRef: ['actor:1', 'actor:2'],
+            reason: 'Broadcast is not a single owner.',
+          },
+        },
+      },
+    }),
+  );
+  const format = directorResponseFormat(f.s);
+  if (format.format !== 'json_schema') throw Error('schema');
+  const schema: any = format.schema;
+  assert.deepEqual(
+    schema.properties.openingContext.properties.informationOwners.required,
+    f.catalog.information.map((i) => i.ref),
+  );
+  assert.equal(
+    schema.properties.openingContext.properties.informationOwners.additionalProperties,
+    false,
+  );
+  assert.deepEqual(
+    schema.$defs.director_opening_information_owner.properties.actorRef.anyOf[0].enum,
+    f.catalog.actors.map((a) => a.actorRef),
+  );
+  assert(JSON.stringify(schema).length <= 24000);
+});
+test('v14 excludes explicit opening titles and standalone Markdown scene metadata without rewriting ordinary text', () => {
+  const f = singleOwnerFixture(),
+    raw = f.s.openingContextAuthority!.sourceExcerpt;
+  assert.deepEqual(
+    f.catalog.information.map((i) => i.text),
+    ['人物甲收到已有项目的新消息，', '人物乙提出另一个已有安排。', '人物丙准备解释自己的情况。'],
+  );
+  for (const info of f.catalog.information) assert(raw.includes(info.text));
+  const old = directorOpeningActorCatalog(f.s);
+  assert.equal(
+    old.information[0]!.text,
+    '开场事件：全局标题只描述作品开端。',
+    'v13 paid indexing remains unchanged',
+  );
+  const material = f.s.authoredMaterials!.materials.find((m) => m.role === 'opening')!;
+  const ordinary =
+    '人物甲的第一段普通正文应当保留。\n场景：这是没有Markdown标记的普通正文。\nAnother unmarked line remains exact.';
+  material.node.editorialIntent = ordinary;
+  f.s.openingContextAuthority!.sourceExcerpt = ordinary;
+  assert.deepEqual(
+    directorOpeningOwnerCatalog(f.s).information.map((i) => i.text),
+    ordinary.split('\n'),
+  );
+});
+test('v14 rejects missing or foreign ownership keys and actors without protected identity, while null is lawful', () => {
+  const f = singleOwnerFixture(),
+    choices = f.wire.openingContext.informationOwners;
+  const missing = structuredClone(choices);
+  delete missing['opening-info:1'];
+  assert.throws(() => f.parse({ ...f.wire, openingContext: { informationOwners: missing } }));
+  assert.throws(() =>
+    f.parse({
+      ...f.wire,
+      openingContext: {
+        informationOwners: {
+          ...choices,
+          'opening-info:99': { actorRef: null, reason: 'Unknown source' },
+        },
+      },
+    }),
+  );
+  assert.throws(() =>
+    f.parse({
+      ...f.wire,
+      openingContext: {
+        informationOwners: {
+          ...choices,
+          'opening-info:1': { actorRef: 'actor:99', reason: 'Unbound actor' },
+        },
+      },
+    }),
+  );
+  f.s.openingContextAuthority!.actorKnowledge = f.s.openingContextAuthority!.actorKnowledge.filter(
+    (a) => a.actorId !== 'actor-0',
+  );
+  assert.throws(() =>
+    f.parse({
+      ...f.wire,
+      openingContext: {
+        informationOwners: {
+          ...choices,
+          'opening-info:1': { actorRef: 'actor:1', reason: 'Missing personal source' },
+        },
+      },
+    }),
+  );
+  assert.equal(f.parse(f.wire).openingContext!.disposition, 'defer');
 });

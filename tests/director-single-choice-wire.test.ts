@@ -249,5 +249,5 @@ test('latest schema binds one exclusive choice per authored ref, without redunda
     f.events.map((e) => e.ref),
   );
   assert.equal(p.authoredChoices.additionalProperties, false);
-  assert.deepEqual(p.protocol.enum, ['director-wire-v13']);
+  assert.deepEqual(p.protocol.enum, ['director-wire-v14']);
 });
