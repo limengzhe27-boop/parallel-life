@@ -1,7 +1,6 @@
 import { actorSelfAgendaContext } from '../domain/actor-self-agenda-context.ts';
 import { projectNpcConversationProgress } from './npc-conversation-progress.ts';
 import { npcPresentationContext } from './npc-presentation-context.ts';
-import { playerReplyTargets } from '../domain/agent-input-interpretation.ts';
 import { agentPlanNextStep } from '../domain/agent-plan-next-step.ts';
 import {
   npcSourceReferences,
@@ -25,7 +24,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v44-continuation';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v45-compact-response-context';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -99,7 +98,7 @@ v12 continuation必填，记录本人下一步判断（不是给玩家增加任�
 没有即时执行时用planIntents明确提出本人计划，不输出plans或手写新goalId。create:{kind:"create",ref:"本轮局部编号",goal:{kind:"new",summary,sourceIds}或{kind:"existing",id:"本人可见目标id"},summary,sourceIds,nextStep}；replace:{kind:"replace",ref,planId:"本人已有计划id",summary,sourceIds,nextStep}，服务器保留原目标并记录替换；update:{kind:"update",planId,summary,sourceIds,nextStep}沿原计划；close:{kind:"close",planId,status:"finished|withdrawn",reason,sourceIds}只关闭计划，不代表目标或外部行动完成。nextStep只能wait:{kind:"wait",conditions:[],missing:[真实缺什么]}、reconsider:{kind:"reconsider",conditions:[有依据的非空条件],missing:[]}、blocked:{kind:"blocked",missing:[缺少的能力或证据]}。goals只修改本人可见已有非终态目标的summary/status/sourceIds/endReason，不创建局部goal_1或输出resultIds；新目标只能在create.goal或executions.goal中明确声明，代码分配真实ID。goals未变化时[]或null都表示无增量，planIntents未变化时[]（schema无可修改旧目标时goals填null）；不为填字段造目标。不同通道不得同时操作同一目标或替换同一计划；执行中/尚未结束的动作不能被update/close悄悄抹去，finished/withdrawn旧计划不可再改。来源包含当前input.sourceId；不输出伪造结果或期限。
 responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?,endReason?}。已收到所需答复时，明确转到本人接下来的工作或真实剩余等待，不再以旧信息未给为由反复追问。完整保留旧来源并可追加当前依据。不要输出fulfilled或resolutionResultId；真实执行完成由内核依据回执更新，不把本轮提案或对白当完成证明。inputInterpretation:{kind,sourceId:当前input.sourceId,quote:当前原话逐字片段,replies仅related_reply时提供}。每项reply包含schema授权的questionId/questionSourceId/responsibilityId/responsibilityRevision、relation和decision；空引用使用null，不自行拼接对象。
 consideration无本轮授权机会时null；coordination的npc_episode_consideration必须给{choice:"engage|decline|defer|need_information|quiet",reason,basisSourceIds:[]}；player有episodeManifest时按相关性考虑或null，不重新消费旧机会。defer/need_information须带followUp:{waitingOn:"player|self|world"或null,missing:[真实缺什么]}，代码绑定原等待责任，不另外创建同名责任、不补造期限。quiet不等于不回答当前玩家。
-邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；todayHours只是对照，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
+邀约的appointment.propose参数title、at、已有placeId用同一{name,value}格式，时刻依世界当地时间与明确依据换算；responseContract.timeInput仅提供当地日期及偏移格式，不是约定。缺时间就询问并等待，不凭空加“两小时后”。邀请发出不代表已答应或已到场。
 statements:{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}，只有本人确实要求对方回答时才requestsPlayerReply:true，普通陈述和承诺不创建问题。inputInterpretation、questionWithdrawals、locationReports继续遵守当前输入逐字来源、同会话和人物知情边界，无变化null或[]。focus只通过必填focusChange表达：{kind:"keep"}保留当前焦点且不提出修改；{kind:"clear"}明确清空；{kind:"set",value:{channel,threadId,subjectId,questionSourceId,replyToActorId}}设置原结构值。不要输出focus或把null当作保持。quiet评估没有焦点变化时必须keep；明确clear/set仍接受原同会话/来源/权限校验，不等于结清旧责任。原内核负责权限、前提、实际执行、回执与事务，不以文本承诺代替。
 `;
 
@@ -256,21 +255,6 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
   const payload = {
     responseContract: {
       protocol: NPC_WIRE_PROTOCOL,
-      referenceCatalog: {
-        currentPlayerReplyTargets: playerReplyTargets({
-          state: viewState,
-          input: snapshot.input,
-          channel: snapshot.channel,
-          authorizedSourceIds: new Set(snapshot.sources.map((source) => source.id)),
-        }),
-        responsibilities: viewState.responsibilities.map((r) => ({ id: r.id, status: r.status })),
-        questions: (viewState.questions ?? []).map((q) => ({ id: q.id })),
-      },
-      referenceRules: [
-        'inputInterpretation is about the PLAYER current words, never your own response. New requests and topic changes do not answer old responsibilities. Related replies use only the exact original question/responsibility pairs offered by the schema; handlesResponsibilityIds still references authorized responsibilities.',
-        'The current player input is the latest negotiation, not automatic acceptance. Older authored hints and plans do not override new proposed times, places, refusals or uncertainty.',
-        'If the player asks for an invitation, propose a supported complete execution using the current negotiated details, or ask for missing information; never claim an invitation has been sent without the action.',
-      ],
       outputSchemaHash: createHash('sha256').update(JSON.stringify(responseFormat)).digest('hex'),
       considerationRequired,
       considerationAllowed: considerationRequired || snapshot.episodeManifest !== undefined,
@@ -278,13 +262,14 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
         'executions[{ref,goal,plan,action}] contains explicit semantic intent; server assigns new IDs and binds execution:ref, never chooses the action',
       planNextStepKinds: ['reconsider', 'wait', 'blocked', 'closed'],
       // Conversion is deterministic; these values authorize neither a deadline nor an invitation.
-      todayHours: snapshot.channel.allowedCapabilities.includes('appointment.propose')
-        ? Array.from({ length: 24 }, (_, hour) => {
-            const date = awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10);
-            const clock = String(hour).padStart(2, '0') + ':00';
-            return { local: clock, at: `${date}T${clock}:00+08:00` };
-          })
-        : [],
+      timeInput: snapshot.channel.allowedCapabilities.includes('appointment.propose')
+        ? {
+            localDate: awarenessLocalTime(snapshot.storyAt).localDateTime.slice(0, 10),
+            utcOffset: '+08:00',
+            format: 'YYYY-MM-DDTHH:mm:ss+08:00',
+            authority: 'conversion_only_not_an_appointment',
+          }
+        : null,
     },
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
