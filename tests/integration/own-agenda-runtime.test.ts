@@ -1,4 +1,4 @@
-import type { TextModel } from '../../src/modules/ai/application/ports.ts';
+import type { TextModel, ModelMessage } from '../../src/modules/ai/application/ports.ts';
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
 import { NpcAgentModel } from '../../src/modules/world/infrastructure/npc-agent-model.ts';
 import { PostgresDirectorSnapshotRepository } from '../../src/modules/world/infrastructure/director-snapshot-repository.ts';
