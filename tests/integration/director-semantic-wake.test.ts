@@ -1490,7 +1490,7 @@ test('actual publication semantic wake advances use one protected Director bound
             f.world.actors.some((known: any) => known.id === a.actorId),
           );
           return JSON.stringify({
-            protocol: 'director-wire-v5',
+            protocol: 'director-wire-v6',
             candidates: p.wireCatalog.candidates.map((c: any) => ({
               ref: c.ref,
               decision: 'defer',
@@ -1499,24 +1499,24 @@ test('actual publication semantic wake advances use one protected Director bound
             events: p.wireCatalog.events
               .filter((e: any) => e.ref !== event.ref)
               .map((e: any) => ({ eventRef: e.ref, reason: 'Deferred outside this opening.' })),
-            opportunities: [
-              {
-                id: 'two-people',
-                title: 'Original two-person opening',
-                description: 'Both people independently consider their own arrangement.',
-                playerImpact: 'Player has not agreed.',
-                actors: actors.map((a: any) => a.ref),
-                places: [],
-                activity: 'conversation',
-                origin: { kind: 'authored', eventRef: event.ref },
-                stagingIntents: actors.map((a: any) => ({
+            opportunities: actors.map((a: any, i: number) => ({
+              id: `person-${i}`,
+              title: 'Original two-person opening',
+              description: 'Both people independently consider their own arrangement.',
+              playerImpact: 'Player has not agreed.',
+              actors: [a.ref],
+              places: [],
+              activity: 'conversation',
+              origin: { kind: 'authored', eventRef: event.ref },
+              stagingIntents: [
+                {
                   actorRef: a.ref,
                   kind: 'future_task',
                   task: 'Consider your own involvement; do not assume an outcome.',
-                })),
-                actorTopics: null,
-              },
-            ],
+                },
+              ],
+              actorTopics: null,
+            })),
             audit: { reason: 'Source-bound two-person opportunity.', sourceRefs: [event.ref] },
           });
         },
