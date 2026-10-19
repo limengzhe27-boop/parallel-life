@@ -63,6 +63,16 @@ test('shared handling policy preserves exactly the original kernel capability bo
 
 test('native schema and kernel contract agree for all offered supported handling and nonhandling capabilities', () => {
   const c = context();
+  c.state.responsibilities.push({
+    id: 'appointment:existing',
+    subject: { kind: 'appointment', id: 'existing' },
+    summary: 'Existing actor-owned appointment',
+    status: 'waiting',
+    waitingOn: 'player',
+    sourceIds: ['input'],
+    nextCheck: [],
+  });
+  c.viewState = structuredClone(c.state);
   c.channel.allowedCapabilities = [
     ...originalHandling,
     ...nonHandling.filter(
@@ -149,4 +159,39 @@ test('existing paid native responses retain nonempty handles for the unchanged k
     assert.equal(c.state.responsibilities[0]!.status, 'waiting');
   }
   assert.deepEqual(raw, before);
+});
+
+test('reschedule is still a handling capability but is offered only when an existing appointment identity is available', () => {
+  const c = context();
+  c.channel.allowedCapabilities = ['appointment.reschedule'];
+  assert.equal(canHandleExternalResponsibility('appointment.reschedule'), true);
+  const absent = npcResponseFormat(c.state, 'forbidden', c);
+  if (absent.format !== 'json_schema') throw Error('schema');
+  assert.deepEqual(
+    (absent.schema as any).properties.executions,
+    { type: 'null' },
+    'generic request does not invent an appointment identity',
+  );
+  c.sources.push({
+    id: 'appointment:available',
+    recordId: 'event',
+    kind: 'world_event',
+    worldVersion: 0,
+    at: c.storyAt,
+  });
+  const present = npcResponseFormat(c.state, 'forbidden', c);
+  if (present.format !== 'json_schema') throw Error('schema');
+  const nodes = (value: any): any[] =>
+    value && typeof value === 'object' ? [value, ...Object.values(value).flatMap(nodes)] : [];
+  const action = nodes(present.schema).find((n) =>
+    n.properties?.capability?.enum?.includes('appointment.reschedule'),
+  );
+  assert(action, 'authenticated actor-visible source makes rescheduling offerable');
+  assert.notEqual(action.properties.handlesResponsibilityIds.maxItems, 0);
+  assert.deepEqual(action.properties.parameters.properties.appointmentId.enum, ['available']);
+  assert.equal(
+    c.state.responsibilities[0]!.subject.kind,
+    'request',
+    'offering a capability does not consume or rewrite existing responsibility',
+  );
 });
