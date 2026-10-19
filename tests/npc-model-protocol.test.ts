@@ -771,10 +771,12 @@ test('native grammar uses one execution channel and advertises current channel c
   const executions: NativeNode = root.properties!.executions!.anyOf!.find(
     (n) => n.type === 'array',
   )!;
-  assert.deepEqual(executions.items!.properties!.action!.properties!.capability!.enum, [
-    'appointment.propose',
-    'media.generate_image',
-  ]);
+  assert.deepEqual(
+    executions
+      .items!.properties!.action!.anyOf!.flatMap((n) => n.properties!.capability!.enum!)
+      .sort(),
+    ['appointment.propose', 'media.generate_image'],
+  );
   assert.equal(root.properties!.mediaDecision, undefined);
 });
 
@@ -1031,4 +1033,20 @@ test('native player decision identifiers bind current input and visible responsi
     first.id.enum[0],
   );
   assert.equal(c.state.decisions.length, 0);
+});
+
+test('native media enqueue cannot claim responsibility fulfillment even in a mixed action channel', () => {
+  const { c } = fixture();
+  c.channel.allowedCapabilities = ['media.generate_image', 'appointment.propose'];
+  const format: any = npcResponseFormat(c.state, 'forbidden', c);
+  const action = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array')
+    .items.properties.action;
+  const media = action.anyOf.find((n: any) =>
+    n.properties.capability.enum.includes('media.generate_image'),
+  );
+  const immediate = action.anyOf.find((n: any) =>
+    n.properties.capability.enum.includes('appointment.propose'),
+  );
+  assert.equal(media.properties.handlesResponsibilityIds.maxItems, 0);
+  assert.notEqual(immediate.properties.handlesResponsibilityIds.maxItems, 0);
 });

@@ -315,9 +315,23 @@ export function npcResponseFormat(
     const capabilities = current.channel.allowedCapabilities.filter(
       (cap) => cap !== 'media.share' && cap !== 'plan.record',
     );
-    if (capabilities.length)
-      executionItem.properties!.action!.properties!.capability!.enum = capabilities;
-    else properties.executions = { type: 'null' };
+    if (capabilities.length) {
+      const action = executionItem.properties!.action!;
+      const media = capabilities.filter((cap) => cap.startsWith('media.'));
+      const immediate = capabilities.filter((cap) => !cap.startsWith('media.'));
+      const choices = [media, immediate]
+        .filter((caps) => caps.length)
+        .map((caps) => {
+          const choice = structuredClone(action);
+          choice.properties!.capability!.enum = caps;
+          // The media result certifies enqueue only, never delivery/fulfillment.
+          // Make the same rule visible in the grammar, not just the prompt/kernel.
+          if (caps[0]!.startsWith('media.'))
+            choice.properties!.handlesResponsibilityIds!.maxItems = 0;
+          return choice;
+        });
+      executionItem.properties!.action = choices.length === 1 ? choices[0]! : { anyOf: choices };
+    } else properties.executions = { type: 'null' };
   }
   if (replaceablePlanIds.length && properties.executions?.type !== 'null') {
     // Couple goal and replacement choices in the native grammar. A new goal
@@ -326,6 +340,12 @@ export function npcResponseFormat(
     const alternatives = goal.anyOf ?? [goal];
     const fresh = alternatives.find((g) => g.properties!.kind!.enum?.[0] === 'new');
     const existing = alternatives.find((g) => g.properties!.kind!.enum?.[0] === 'existing');
+    // Reuse the common action grammar rather than multiplying its conditions
+    // for every visible goal. This stays inside the provider's schema budget.
+    const definitions = (schema.$defs ?? {}) as Record<string, SchemaNode>;
+    definitions.npc_execution_action = executionItem.properties!.action!;
+    schema.$defs = definitions;
+    executionItem.properties!.action = { $ref: '#/$defs/npc_execution_action' };
     const branches: SchemaNode[] = [];
     for (const goalId of [null, ...goalIds]) {
       const selected = goalId === null ? fresh : existing;
