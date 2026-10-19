@@ -321,7 +321,10 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
       ...rest,
       protocol: PREVIOUS_INTERACTION_PROTOCOL,
     }) as Record<string, unknown>;
-    if (!openingContext) return old;
+    if (!openingContext) {
+      if (snapshot.openingContextAuthority) throw Error('DIRECTOR_OPENING_REVIEW_REQUIRED');
+      return old;
+    }
     const actors = directorWireCatalog(snapshot).actors;
     return {
       ...old,
@@ -854,6 +857,8 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
         ],
       }
     : { type: 'null' };
+  if (snapshot.openingContextAuthority)
+    properties.openingContext = (properties.openingContext!.anyOf as Schema[])[0]!;
   schema.required = Object.keys(properties);
   if (JSON.stringify(schema).length > 24_000)
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {

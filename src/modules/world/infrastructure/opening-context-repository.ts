@@ -149,7 +149,7 @@ export async function readOpeningContextAuthority(
     )
   ).rows;
   const materials = await readDirectorActorDirectionMaterials(sql, input.worldId, actorIds);
-  const sourceField = material.node.script !== undefined ? 'script' : 'editorialIntent';
+  const sourceField = material.node.script?.trim() ? 'script' : 'editorialIntent';
   const original = material.node[sourceField] ?? '';
   const sourceExcerpt = authoredSourceExcerpt(original, material.node.title, 6000);
   if (!sourceExcerpt.trim()) return undefined;
