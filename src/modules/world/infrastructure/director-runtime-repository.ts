@@ -1,3 +1,5 @@
+import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
+import { AuthoredLifeModulesSchema } from '../../../contracts/authored-social.ts';
 import { revalidateDirectorHandoff } from '../domain/director-handoff-revalidation.ts';
 import { parseDirectorDecision } from './director-agent-model.ts';
 import { validateNativeDirectorTurn } from './native-director-turn.ts';
@@ -280,6 +282,15 @@ const Snapshot = z
       .optional(),
     occupiedAuthoredEventKeys: keys.optional(),
     conversationWithoutTarget: z.boolean().optional(),
+    actorDirectionMaterials: z
+      .array(
+        z.strictObject({
+          actorId: Key,
+          modules: AuthoredLifeModulesSchema,
+        }),
+      )
+      .max(128)
+      .optional(),
     cast: z
       .array(
         z
@@ -714,6 +725,15 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       !equal([...states.map((a) => a.actorId)].sort(), [...s.boundary.actorIds].sort())
     )
       fail('DIRECTOR_ACTOR_STATE_CONFLICT');
+    if (s.actorDirectionMaterials !== undefined) {
+      const currentMaterials = await readDirectorActorDirectionMaterials(
+        sql,
+        world.id,
+        world.actors.map((actor) => actor.id),
+      );
+      if (!equal(currentMaterials, s.actorDirectionMaterials))
+        fail('DIRECTOR_ACTOR_DIRECTION_CONFLICT');
+    }
     if (s.actorKnownTopics !== undefined) {
       const topics = (
         await Promise.all(

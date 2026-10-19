@@ -381,6 +381,23 @@ test('model adapter performs input preflight without spending, uses JSON output 
   assert.equal(calls[0]!.signal, controller.signal);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
   assert.equal(payload.promptVersion, DIRECTOR_RUNTIME_PROMPT_VERSION);
+  assert.deepEqual(payload.taskParticipants, {
+    player: { kind: 'player', role: 'protagonist', isNpc: false },
+    assignments: [
+      {
+        actorRef: 'actor:1',
+        performer: { kind: 'npc', actorId: 'a', name: 'A' },
+        intendedInterlocutor: { kind: 'player', role: 'protagonist' },
+        authority: 'future_suggestion_not_fact',
+      },
+      {
+        actorRef: 'actor:2',
+        performer: { kind: 'npc', actorId: 'b', name: 'B' },
+        intendedInterlocutor: { kind: 'player', role: 'protagonist' },
+        authority: 'future_suggestion_not_fact',
+      },
+    ],
+  });
   assert.match(calls[0]!.messages[0]!.content, /quiet是正常决定/);
   assert.match(calls[0]!.messages[0]!.content, /全局audit只供导演审计/);
 });
@@ -1035,4 +1052,34 @@ test('wire actor names follow scoped IDs rather than independent cast order', as
     { ref: 'actor:1', actorId: 'a' },
     { ref: 'actor:2', actorId: 'b' },
   ]);
+});
+
+test('director receives each authenticated actor dimension outside the truncatable world setting', async () => {
+  const { snapshot, quiet } = fixture();
+  snapshot.cast!.reverse();
+  snapshot.actorDirectionMaterials = [
+    {
+      actorId: 'b',
+      modules: {
+        lifeContext: 'B_BACKGROUND',
+        traits: 'B_TRAITS',
+        drives: 'B_DRIVES',
+        behavior: 'B_BEHAVIOR',
+        relationships: 'B_RELATIONSHIPS',
+      },
+    },
+    { actorId: 'a', modules: { traits: 'A_TRAITS' } },
+  ];
+  const sent: ModelMessage[][] = [];
+  await new WorldDirectorAgentModel({
+    async complete(messages) {
+      sent.push(messages);
+      return JSON.stringify(quiet);
+    },
+  }).decide(snapshot);
+  const payload = JSON.parse(sent[0]![1]!.content);
+  assert.deepEqual(payload.actorDirectionMaterials, snapshot.actorDirectionMaterials);
+  assert.equal(payload.taskParticipants.assignments[0].performer.actorId, 'a');
+  assert.equal(payload.taskParticipants.assignments[0].performer.name, 'A');
+  assert.equal(payload.taskParticipants.assignments[1].performer.actorId, 'b');
 });
