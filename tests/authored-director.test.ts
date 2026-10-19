@@ -376,9 +376,9 @@ test('wrong material frame and full original manuscript exceeding the model budg
   f.snapshot.authoredMaterials!.world.worldVersion = 1;
   assert.throws(() => model.validateInput(f.snapshot), { code: 'INVALID_DIRECTOR_PROPOSAL' });
   const big = fixture();
-  big.snapshot.authoredMaterials!.materials[0]!.node.script = 'x'.repeat(65000);
+  big.snapshot.authoredMaterials!.materials[0]!.node.script = 'x'.repeat(100000);
   assert.throws(() => model.validateInput(big.snapshot), { code: 'DIRECTOR_CONTEXT_LIMIT' });
-  assert.equal(big.snapshot.authoredMaterials!.materials[0]!.node.script.length, 65000);
+  assert.equal(big.snapshot.authoredMaterials!.materials[0]!.node.script.length, 100000);
   assert.equal(calls, 0);
 });
 
