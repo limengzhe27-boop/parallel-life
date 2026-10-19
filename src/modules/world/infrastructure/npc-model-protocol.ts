@@ -218,7 +218,8 @@ export const NPC_RESPONSE_FORMAT: ModelOutputOptions = {
 };
 /** Existing-goal references are actor-visible state, not unconstrained model-created identifiers. */
 export function npcResponseFormat(
-  state: Pick<AgentValidationContext['state'], 'goals' | 'questions'>,
+  state: Pick<AgentValidationContext['state'], 'goals' | 'questions'> &
+    Partial<Pick<AgentValidationContext['state'], 'actions'>>,
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
   current?: Pick<AgentValidationContext, 'input' | 'channel'>,
 ): ModelOutputOptions {
@@ -256,6 +257,12 @@ export function npcResponseFormat(
   const executionItem = (executions.anyOf?.[0] ?? executions).items!;
   scopeGoal(executionItem);
   if (current) {
+    const mutableIds = (state.actions ?? [])
+      .filter((action) => !['succeeded', 'failed', 'withdrawn'].includes(action.status))
+      .map((action) => action.id);
+    const actionArray = properties.actions!;
+    if (!mutableIds.length) properties.actions = { type: 'null' };
+    else actionArray.items!.properties!.id!.enum = mutableIds;
     const capabilities = current.channel.allowedCapabilities.filter(
       (cap) => !cap.startsWith('media.'),
     );
@@ -417,7 +424,7 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     // Strict providers do not support enum values that are themselves arrays.
     // Native null means the grammar offered no judgment items, not a missing
     // semantic choice to infer or repair. Historical v1 responses are untouched.
-    for (const name of ['replyAssessments', 'decisions', 'locationReports']) {
+    for (const name of ['replyAssessments', 'decisions', 'locationReports', 'actions']) {
       if ((normalized as Record<string, unknown>)[name] === null)
         (normalized as Record<string, unknown>)[name] = [];
     }

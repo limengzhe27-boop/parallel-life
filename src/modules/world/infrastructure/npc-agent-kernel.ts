@@ -626,16 +626,16 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             const recipientPlaceId =
               recipientActual?.status === 'at' ? recipientActual.placeId : undefined;
 
-            if (ownPlaceId && recipientPlaceId && ownPlaceId !== recipientPlaceId) {
-              failureCode = 'RECIPIENT_NOT_CO_LOCATED';
-            }
+            if (!ownPlaceId || !recipientPlaceId) failureCode = 'RECIPIENT_LOCATION_UNCONFIRMED';
+            else if (ownPlaceId !== recipientPlaceId) failureCode = 'RECIPIENT_NOT_CO_LOCATED';
           }
 
-          if (!failureCode && executionWorld.items && executionWorld.items.length > 0) {
-            const existingItem = executionWorld.items.find((i: any) => i.id === itemId);
-            if (existingItem && existingItem.holderActorId !== attempt.actorId) {
+          if (!failureCode) {
+            const existingItem = executionWorld.items?.find((i) => i.id === itemId);
+            if (!existingItem) failureCode = 'ITEM_NOT_FOUND';
+            else if (existingItem.holderActorId !== attempt.actorId)
               failureCode = 'ITEM_NOT_OWNED_BY_ACTOR';
-            }
+            else if (existingItem.status === 'consumed') failureCode = 'ITEM_ALREADY_CONSUMED';
           }
 
           if (!failureCode) {
@@ -687,15 +687,11 @@ export class PostgresNpcAgentKernel implements AgentKernel {
             throw new AgentValidationError('ITEM_USE_PARAMETERS');
           }
 
-          let existingItem: any = undefined;
-          if (executionWorld.items && executionWorld.items.length > 0) {
-            existingItem = executionWorld.items.find((i: any) => i.id === itemId);
-            if (!existingItem || existingItem.holderActorId !== attempt.actorId) {
-              failureCode = 'ITEM_NOT_OWNED_BY_ACTOR';
-            } else if (existingItem.status === 'consumed') {
-              failureCode = 'ITEM_ALREADY_CONSUMED';
-            }
-          }
+          const existingItem = executionWorld.items?.find((i) => i.id === itemId);
+          if (!existingItem) failureCode = 'ITEM_NOT_FOUND';
+          else if (existingItem.holderActorId !== attempt.actorId)
+            failureCode = 'ITEM_NOT_OWNED_BY_ACTOR';
+          else if (existingItem.status === 'consumed') failureCode = 'ITEM_ALREADY_CONSUMED';
 
           const ownPlaceId = ownActual?.status === 'at' ? ownActual.placeId : undefined;
           if (!failureCode && specifiedPlaceId && ownPlaceId && specifiedPlaceId !== ownPlaceId) {

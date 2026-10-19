@@ -36,7 +36,7 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
     await admin.end();
   });
 
-  async function fixture() {
+  async function fixture(itemAvailability?: 'missing' | 'consumed') {
     const owner = randomUUID();
     const worldId = randomUUID();
     const actorSenderId = randomUUID();
@@ -79,6 +79,9 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
         },
       ],
     };
+
+    if (itemAvailability === 'missing') initialWorldState.items = [];
+    if (itemAvailability === 'consumed') initialWorldState.items[0].status = 'consumed';
 
     const senderInitialState: ActorAgentState = {
       schemaVersion: 1,
@@ -281,7 +284,10 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
         statements: [{ text: '我自己留着这份资料。', dependsOnActionIds: [] }],
       };
 
-      const senderState0 = (await store.read(f.owner, { worldId: f.worldId, actorId: f.actorSenderId }))!;
+      const senderState0 = (await store.read(f.owner, {
+        worldId: f.worldId,
+        actorId: f.actorSenderId,
+      }))!;
       const selfSnapshot: AgentSnapshot = {
         state: senderState0,
         viewState: structuredClone(senderState0),
@@ -353,7 +359,10 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
         selfSnapshot,
       );
       assert.ok(selfRes.eventId);
-      const selfResults = (await store.read(f.owner, { worldId: f.worldId, actorId: f.actorSenderId }))!;
+      const selfResults = (await store.read(f.owner, {
+        worldId: f.worldId,
+        actorId: f.actorSenderId,
+      }))!;
       assert.equal(selfResults.revision, 1);
       // Verify action failed with CANNOT_DELIVER_TO_SELF
       const selfActionResults = await app.transaction(f.owner, async (sql) => {
@@ -364,7 +373,9 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
           )
         ).rows.map((r) => r.document);
       });
-      const failedSelfAction = selfActionResults.find((r: any) => r.actionId === 'action_self_deliver');
+      const failedSelfAction = selfActionResults.find(
+        (r: any) => r.actionId === 'action_self_deliver',
+      );
       assert.ok(failedSelfAction);
       assert.equal(failedSelfAction.outcome, 'failed');
       assert.equal(failedSelfAction.failureCode, 'CANNOT_DELIVER_TO_SELF');
@@ -421,7 +432,10 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
         statements: [{ text: '青青不在现场，无法直接递交。', dependsOnActionIds: [] }],
       };
 
-      const senderState1 = (await store.read(f.owner, { worldId: f.worldId, actorId: f.actorSenderId }))!;
+      const senderState1 = (await store.read(f.owner, {
+        worldId: f.worldId,
+        actorId: f.actorSenderId,
+      }))!;
       const coLocSnapshot: AgentSnapshot = {
         state: senderState1,
         viewState: structuredClone(senderState1),
@@ -501,7 +515,9 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
           )
         ).rows.map((r) => r.document);
       });
-      const failedCoLocAction = coLocActionResults.find((r: any) => r.actionId === 'action_coloc_deliver');
+      const failedCoLocAction = coLocActionResults.find(
+        (r: any) => r.actionId === 'action_coloc_deliver',
+      );
       assert.ok(failedCoLocAction);
       assert.equal(failedCoLocAction.outcome, 'failed');
       assert.equal(failedCoLocAction.failureCode, 'RECIPIENT_NOT_CO_LOCATED');
@@ -555,10 +571,15 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
         ],
         responsibilities: [],
         decisions: [],
-        statements: [{ text: '青青，这是绝密项目设计蓝图，请你妥善保管。', dependsOnActionIds: [] }],
+        statements: [
+          { text: '青青，这是绝密项目设计蓝图，请你妥善保管。', dependsOnActionIds: [] },
+        ],
       };
 
-      const senderStateDeliver = (await store.read(f.owner, { worldId: f.worldId, actorId: f.actorSenderId }))!;
+      const senderStateDeliver = (await store.read(f.owner, {
+        worldId: f.worldId,
+        actorId: f.actorSenderId,
+      }))!;
       const deliverSnapshot: AgentSnapshot = {
         state: senderStateDeliver,
         viewState: structuredClone(senderStateDeliver),
@@ -638,13 +659,20 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
       assert.ok(updatedWorld.items);
       const blueprintItem = updatedWorld.items.find((i: any) => i.id === f.itemId);
       assert.ok(blueprintItem);
-      assert.equal(blueprintItem.holderActorId, f.actorRecipientId, 'Item must now be held by recipient');
+      assert.equal(
+        blueprintItem.holderActorId,
+        f.actorRecipientId,
+        'Item must now be held by recipient',
+      );
       assert.ok(blueprintItem.transferredAt);
       assert.ok(Date.parse(blueprintItem.transferredAt) >= Date.parse(f.storyNow));
       assert.equal(blueprintItem.note, '档案室现场交接完毕');
 
       // Verify sender's responsibility and goal are marked fulfilled
-      const senderState = (await store.read(f.owner, { worldId: f.worldId, actorId: f.actorSenderId }))!;
+      const senderState = (await store.read(f.owner, {
+        worldId: f.worldId,
+        actorId: f.actorSenderId,
+      }))!;
       assert.equal(senderState.revision, 1);
       const resp = senderState.responsibilities.find((r) => r.id === f.respId);
       assert.ok(resp);
@@ -665,7 +693,9 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
           )
         ).rows.map((r) => r.document);
       });
-      const succeedAction = actionResults.find((r: any) => r.actionId === 'action_blueprint_deliver');
+      const succeedAction = actionResults.find(
+        (r: any) => r.actionId === 'action_blueprint_deliver',
+      );
       assert.ok(succeedAction);
       assert.equal(succeedAction.outcome, 'succeeded');
       assert.deepEqual(succeedAction.outputRefs, [{ kind: 'item', id: f.itemId }]);
@@ -800,10 +830,161 @@ test('actor capability chain: item.deliver end-to-end execution, precondition en
           )
         ).rows.map((r) => r.document);
       });
-      const failedSecond = secondActionResults.find((r: any) => r.actionId === 'action_second_deliver');
+      const failedSecond = secondActionResults.find(
+        (r: any) => r.actionId === 'action_second_deliver',
+      );
       assert.ok(failedSecond);
       assert.equal(failedSecond.outcome, 'failed');
       assert.equal(failedSecond.failureCode, 'ITEM_NOT_OWNED_BY_ACTOR');
     },
   );
+
+  await t.test('missing or consumed inventory never becomes a delivered or used item', async () => {
+    for (const capability of ['item.deliver', 'item.use']) {
+      for (const availability of capability === 'item.deliver'
+        ? (['missing', 'consumed', 'unknown_location'] as const)
+        : (['missing', 'consumed'] as const)) {
+        const f = await fixture(availability === 'unknown_location' ? undefined : availability);
+        if (availability === 'unknown_location')
+          await admin.query(
+            'DELETE FROM parallel_life.world_authoritative_positions WHERE world_id=$1 AND subject_key=$2',
+            [f.worldId, `actor:${f.actorRecipientId}`],
+          );
+        const state = (await store.read(f.owner, {
+          worldId: f.worldId,
+          actorId: f.actorSenderId,
+        }))!;
+        const input: AgentInputReceipt = {
+          id: randomUUID(),
+          worldId: f.worldId,
+          channel: 'private',
+          threadId: f.actorSenderId,
+          recipientActorId: f.actorSenderId,
+          commandId: randomUUID(),
+          origin: 'player',
+          storyAt: f.storyNow,
+          expectedWorldVersion: 1,
+          inputHash: createHash('sha256')
+            .update(capability + availability)
+            .digest('hex'),
+          text: '请先核对这件物品能否处理。',
+          receivedAt: new Date().toISOString(),
+        };
+        await store.accept(f.owner, input);
+        const snapshot: AgentSnapshot = {
+          state,
+          viewState: structuredClone(state),
+          redactedStateIds: [],
+          worldVersion: 1,
+          storyAt: f.storyNow,
+          input: { sourceId: input.id, text: input.text, origin: 'player' },
+          actor: {
+            name: '林白语',
+            persona: '严谨研究者',
+            boundaries: '不虚构物品',
+            definitionRef: state.definitionRef,
+          },
+          channel: {
+            kind: 'private',
+            threadId: f.actorSenderId,
+            audienceActorIds: [f.actorSenderId],
+            allowedCapabilities: [capability],
+          },
+          sources: [
+            {
+              id: input.id,
+              recordId: input.id,
+              kind: 'accepted_input',
+              at: f.storyNow,
+              worldVersion: 1,
+            },
+            {
+              id: 'source_init',
+              recordId: 'source_init',
+              kind: 'authored',
+              at: f.createdTime,
+              worldVersion: 1,
+            },
+          ],
+          observations: [],
+        };
+        await runNpcAgent(
+          {
+            attempts: store,
+            kernel: new PostgresNpcAgentKernel(app, worlds),
+            model: {
+              async decide() {
+                return {
+                  goals: [],
+                  plans: [],
+                  responsibilities: [],
+                  decisions: [],
+                  statements: [{ text: '我先核对一下。', dependsOnActionIds: [] }],
+                  actions: [
+                    {
+                      id: 'try_item',
+                      goalId: f.goalId,
+                      capability,
+                      targetIds: [],
+                      parameters: {
+                        itemId: f.itemId,
+                        ...(capability === 'item.deliver'
+                          ? { recipientActorId: f.actorRecipientId }
+                          : {}),
+                      },
+                      sourceIds: [input.id],
+                      preconditions: [],
+                      dependsOnActionIds: [],
+                      handlesResponsibilityIds: [f.respId],
+                      status: 'proposed',
+                    },
+                  ],
+                };
+              },
+            },
+          },
+          f.owner,
+          {
+            id: randomUUID(),
+            commandId: input.commandId!,
+            inputReceiptId: input.id,
+            worldId: f.worldId,
+            actorId: f.actorSenderId,
+            expectedWorldVersion: 1,
+            expectedActorRevision: 0,
+            inputHash: input.inputHash,
+            engineEpoch: 2,
+            token: randomUUID(),
+            leaseUntil: new Date(Date.now() + 120000).toISOString(),
+          },
+          snapshot,
+        );
+        const results = await app.transaction(f.owner, async (sql) =>
+          (
+            await sql.query(
+              'SELECT document FROM parallel_life.agent_action_results WHERE world_id=$1 AND actor_id=$2',
+              [f.worldId, f.actorSenderId],
+            )
+          ).rows.map((r) => r.document),
+        );
+        assert.equal(results.length, 1);
+        assert.equal(results[0].outcome, 'failed');
+        assert.equal(
+          results[0].failureCode,
+          availability === 'missing'
+            ? 'ITEM_NOT_FOUND'
+            : availability === 'unknown_location'
+              ? 'RECIPIENT_LOCATION_UNCONFIRMED'
+              : 'ITEM_ALREADY_CONSUMED',
+        );
+        assert.deepEqual(results[0].completedGoalIds, []);
+        const saved = (await store.read(f.owner, {
+          worldId: f.worldId,
+          actorId: f.actorSenderId,
+        }))!;
+        assert.equal(saved.goals.find((g) => g.id === f.goalId)!.status, 'active');
+        assert.notEqual(saved.responsibilities.find((r) => r.id === f.respId)!.status, 'fulfilled');
+      }
+    }
+  });
 });

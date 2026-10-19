@@ -16,7 +16,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v29-current-speaker-and-followthrough';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v30-runtime-resource-scope';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -98,7 +98,7 @@ plans每项改为{id,goalId,summary,sourceIds:[],nextStep}，不输出status/act
 {goal:{kind:"new",id:"g",summary:"本人实际目标",sourceIds:[合法来源]}或{kind:"existing",id:"本人已有目标id"},plan:{id:"p",summary:"本人计划",sourceIds:[合法来源]},action:{id:"a",capability:"本轮允许能力",targetIds:[],parameters:[{name:"参数名称",value:"明确的参数值"}],preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[合法来源]}}。
 代码只绑定goalId/nextActionId/status等引用，不帮你补动作参数、地点或时间。executions中action整个对象不可缺少。普通goals/plans/actions仍用于无动作的等待、修订或撤回，勿重复execution内的同id对象。若要说“邀请已发送”，statements.dependsOnActionIds必须引用action.id，执行失败则不能显示成功台词。不能执行就明确blocked/wait，不得只写plan.nextStep.actionId却actions为空。executions=[]或省略均不意味已执行。
 goals只用于实际目标增量：{id,summary,status:"active|deferred|fulfilled|withdrawn",sourceIds:[],resultIds:[],endReason?}。
-actions仅用于已有动作的非执行修改（waiting/blocked/withdrawn），新增非媒体可执行动作必须放executions，媒体只放mediaDecision，不能拆散目标/计划/动作：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"waiting|blocked|withdrawn"}。
+actions仅用于state.actions中已有非终态动作的非执行修改（waiting/blocked/withdrawn）；没有可修改动作时按schema填null，不新增id或修改failed/succeeded/withdrawn终态，新增非媒体可执行动作必须放executions，媒体只放mediaDecision，不能拆散目标/计划/动作：{id,goalId,capability,targetIds:[],parameters:{},preconditions:[],dependsOnActionIds:[],handlesResponsibilityIds:[],sourceIds:[],status:"waiting|blocked|withdrawn"}。
 responsibilities:{id,subject:{kind:"appointment|matter|episode|request",id},summary,status:"open|waiting|deferred|fulfilled|withdrawn|expired",waitingOn:"player|self|world"或null,sourceIds:[],nextCheck:[],deadline?:{at,sourceId},resolutionResultId?,endReason?}。
 decisions:{id,responsibilityId,kind:"accepted|declined|negotiating|deferred|undecided",sourceId,quote}。statements:{text,dependsOnActionIds:[],requestsPlayerReply?,questionForResponsibilityId?}。
 focus可省略/null或{channel:"private|group|scene",threadId,subjectId:null或id,questionSourceId:null或id,replyToActorId:null或id}。所有问号表示可选键，竖线表示枚举择一。
@@ -305,6 +305,15 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
               capabilityIds: [...context.boundary.capabilityIds],
               extensionPermission: 'none',
             },
+            ...(context.ownedItems
+              ? {
+                  ownedItems: context.ownedItems.map(({ id, title, status }) => ({
+                    id,
+                    title,
+                    status,
+                  })),
+                }
+              : {}),
             selfPosition: {
               status: context.selfPosition.status,
               placeId: context.selfPosition.placeId,

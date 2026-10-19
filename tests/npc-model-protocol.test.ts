@@ -743,3 +743,37 @@ test('native grammar puts media only in explicit mediaDecision and advertises cu
     ['not_requested', 'decline', 'generate_image'],
   );
 });
+
+test('native action edits are scoped to visible nonterminal actions, never new or failed IDs', () => {
+  const { c } = fixture();
+  const none: any = npcResponseFormat(c.state, 'forbidden', c);
+  assert.deepEqual(none.schema.properties.actions, { type: 'null' });
+  c.state.actions = [
+    {
+      id: 'waiting',
+      goalId: 'g',
+      capability: 'plan.record',
+      targetIds: [],
+      parameters: {},
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+      sourceIds: ['input'],
+      status: 'waiting',
+    },
+    {
+      id: 'failed',
+      goalId: 'g',
+      capability: 'plan.record',
+      targetIds: [],
+      parameters: {},
+      preconditions: [],
+      dependsOnActionIds: [],
+      handlesResponsibilityIds: [],
+      sourceIds: ['input'],
+      status: 'failed',
+    },
+  ];
+  const scoped: any = npcResponseFormat(c.state, 'forbidden', c);
+  assert.deepEqual(scoped.schema.properties.actions.items.properties.id.enum, ['waiting']);
+});
