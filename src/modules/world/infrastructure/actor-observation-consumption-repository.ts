@@ -1,6 +1,4 @@
 import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
-import { createHash } from 'node:crypto';
-import { authoredMaterialCanonicalJson } from '../domain/authored-agent-material.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ConsumedSceneObservationSource } from '../domain/actor-observation-candidate.ts';
 
@@ -189,9 +187,7 @@ export async function readConsumedSceneObservationSourcesInTransaction(
           !context.narrativeKnowledgeIds?.includes(sources[0].recordId) ||
           !selectedSourceIds.includes(ref.sourceId) ||
           context.omittedSourceIds.includes(ref.sourceId) ||
-          observations[0].evidenceKind !== 'authored_context' ||
-          createHash('sha256').update(authoredMaterialCanonicalJson(completion)).digest('hex') !==
-            row.response_hash
+          observations[0].evidenceKind !== 'authored_context'
         )
           fail();
         const packet = await readActorNarrativeObservationSourcesInTransaction(sql, owner, {

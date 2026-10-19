@@ -240,7 +240,7 @@ test('only an exact actually supplied committed private completion acknowledges 
   stored.response.suppliedContext.observations = [];
   assert.deepEqual(await consumed(db, 'owner', { ...frame, worldVersion: 4, engineEpoch: 2 }), []);
   stored = structuredClone(attempt);
-  stored.response_hash = '0'.repeat(64);
+  stored.response_hash = 'invalid-digest';
   await assert.rejects(
     consumed(db, 'owner', { ...frame, worldVersion: 4, engineEpoch: 2 }),
     /CONSUMPTION_PROOF_INVALID/,

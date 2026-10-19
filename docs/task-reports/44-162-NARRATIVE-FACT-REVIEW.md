@@ -85,3 +85,12 @@ commitOpeningContextInTransaction在调用方现有Director事务内验证保护
 语义已按集成人最新约定收窄：代码把quote编码为received_opening_information，assertion为report、executionEvidence为false。确认的是人物取得作者允许的开场信息，不确认信息内容中的住院、事故、玩家行动、同意或到场已经客观完成。外部背景状态/事故执行器仍未实现，不能拿此能力当任意事实写入。basis保留源码与本人module引用/hash供服务端认证；模型收到的packet不包括全局原稿或他人秘密。definitionSourceId与moduleHash亦已纳入前一packet补丁的遗忘过滤。
 
 必要验证：3项controlled SQL聚焦测试通过，覆盖合格occupied开场/稳定reviewKey、blocked/已review/unknown付费禁止重买、旧响应零新读取；boundaries680通过，diff检查通过。本基线tsc被公共narrative-opening-context.ts的9个TS18048 narrowing错误阻断，已交root修复，新增helper没有类型错误。尚未跑真实PG原Director事务，须由root与0098/原hook一起验收；未调用模型/查询生产/部署，未声称自然开场质量已通过。
+
+## 原入口真实 PostgreSQL 聚焦旅程与 ACK 修正
+
+新增tests/integration/opening-information.test.ts，在本地55587经真实发布编译/玩家实例化/Director v10原runner执行：受控适配器一次返回开场信息确认、作者机会暂缓；产生world version+1、单个本人knowledge；确认内容是report/executionEvidence:false，不改变角色实际状态；另一人物未知，group inbox不给私有packet；Director原请求再次读取不再调用受控适配器，已review authority不会重买。随后NPC真实accept/claim/saveResponse/recover事务提交，实际suppliedContext中的来源被ACK，Director写入本身不构成NPC ACK。未使用商业模型或生产数据。
+
+旅程发现并修正两个实际断点：0095 decision文档白名单未纳入openingContext，由root新0099迁移修复；本人先前新增ACK额外canonical重算与原saveResponse的JSON.stringify hash算法不同，JSONB回读又丢原键顺序，导致合法提交下一轮被误拒。经root授权仅删除这个不成立的额外重算。保留原response_hash合法摘要、committed attempt、实际输入/command/event/版本、原supplied声明及重新认证的knowledge source证明。纯测试改为无效摘要拒绝；不会改变原保护响应或存储hash协议。
+
+聚焦5项（4纯+1真实PG连续旅程）通过。未加入独立故障注入的整事务回滚案例；未声称真实人物自然表达或长期自主推进已通过。集成人继续负责check/build、生产迁移与真实模型体验验收。
+本轮tsc通过；boundaries681通过；git diff --check通过。
