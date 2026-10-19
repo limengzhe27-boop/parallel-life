@@ -1,3 +1,4 @@
+import { agentWakeRecovery } from '../modules/world/domain/agent-wake-recovery.ts';
 import type { AdvanceWorkRef } from '../modules/world/domain/advance-operation.ts';
 import {
   readOwnAgendaReviewWorkInTransaction,
@@ -270,7 +271,7 @@ export function npcAgentAdvanceServices(
         ).rows.map((r) => r.document as AgentActionResult);
         const prior = (
           await sql.query(
-            `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,r.document->>'channel' AS channel
+            `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,(a.response IS NOT NULL) AS has_response,(a.event_id IS NOT NULL) AS has_event,a.expected_world_version,a.expected_actor_revision,a.engine_epoch,r.document->>'channel' AS channel,r.document->>'origin' AS origin,r.document->>'text' AS input_text
                FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
                ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
                WHERE a.world_id=$1 AND a.owner_id=$2 ORDER BY a.created_at,a.id`,
@@ -283,6 +284,24 @@ export function npcAgentAdvanceServices(
           status: r.status as AgentAttempt['status'],
           channel: String(r.channel),
           paid: r.sent_at !== null || r.response_hash !== null,
+          sent: r.sent_at !== null,
+          hasResponse: r.has_response || r.response_hash !== null,
+          hasEvent: r.has_event,
+          expectedWorldVersion: Number(r.expected_world_version),
+          expectedActorRevision: Number(r.expected_actor_revision),
+          engineEpoch: Number(r.engine_epoch),
+          wakeCandidateId: (() => {
+            if (r.origin !== 'wake') return undefined;
+            try {
+              const input = JSON.parse(r.input_text);
+              return input.type === 'npc_own_condition_ready' &&
+                typeof input.candidateId === 'string'
+                ? input.candidateId
+                : undefined;
+            } catch {
+              return undefined;
+            }
+          })(),
         }));
         const agendaInitializeGrants = await readAgendaInitializeGrantsInTransaction(sql, ownerId, {
           worldId,
@@ -430,8 +449,37 @@ export function npcAgentAdvanceServices(
         })),
       );
       const agendaReviews = new Map<string, OwnAgendaReviewWork>();
+      const candidateCommand = (candidate: AgentCandidate) => {
+        const agenda = agendaReviews.get(candidate.id)?.commandId;
+        if (agenda) return { commandId: agenda };
+        const base = agentWakeCommandId(worldId, candidate.id);
+        const prior = [...read.prior]
+          .reverse()
+          .find(
+            (a) =>
+              a.actorId === candidate.actorId &&
+              (a.commandId === base || a.wakeCandidateId === candidate.id),
+          );
+        if (!prior) return { commandId: base };
+        const actor = read.states.find((a) => a.actorId === candidate.actorId);
+        if (!actor) throw new DomainError('INVALID_COMMAND');
+        const recovery = agentWakeRecovery(prior, {
+          worldVersion: world.version,
+          actorRevision: actor.revision,
+          engineEpoch,
+        });
+        return recovery.kind === 'keep'
+          ? { commandId: recovery.commandId }
+          : {
+              commandId: agentWakeCommandId(
+                worldId,
+                hash([candidate.actorId, candidate.id, recovery.identity]),
+              ),
+              zeroSendRecoveryOfAttemptId: recovery.previousAttemptId,
+            };
+      };
       const commandForCandidate = (candidate: AgentCandidate) =>
-        agendaReviews.get(candidate.id)?.commandId ?? agentWakeCommandId(worldId, candidate.id);
+        candidateCommand(candidate).commandId;
       const registrations = createAgentScheduleSources({
         worldId,
         engineEpoch,
@@ -881,7 +929,8 @@ export function npcAgentAdvanceServices(
         if (batch && !recovering && !reservation) return quiet(storyAt);
         try {
           batch?.actorStarted(candidate.actorId);
-          const commandId = commandForCandidate(candidate);
+          const commandIdentity = candidateCommand(candidate);
+          const commandId = commandIdentity.commandId;
           await batch?.trackWork?.({ kind: 'npc', commandId });
           const initialization =
             candidate.source === 'agenda_initialize'
@@ -901,6 +950,9 @@ export function npcAgentAdvanceServices(
               ? agendaInitializeInputText(initialization)
               : JSON.stringify({
                   type: 'npc_own_condition_ready',
+                  ...(commandIdentity.zeroSendRecoveryOfAttemptId
+                    ? { zeroSendRecoveryOfAttemptId: commandIdentity.zeroSendRecoveryOfAttemptId }
+                    : {}),
                   candidateId: candidate.id,
                   source: candidate.source,
                   actionId: candidate.actionId,
