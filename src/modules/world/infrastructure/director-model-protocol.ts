@@ -1,3 +1,4 @@
+import { OpeningModule } from './opening-context-schema.ts';
 import { isDirectorDeliberationEvent } from '../domain/director-runtime.ts';
 import { z } from 'zod';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
@@ -5,7 +6,8 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v9';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v10';
+const PREVIOUS_INTERACTION_PROTOCOL = 'director-wire-v9';
 const PREVIOUS_ACTOR_TASK_PROTOCOL = 'director-wire-v8';
 const PREVIOUS_EXCLUSIVE_PROTOCOL = 'director-wire-v7';
 const PREVIOUS_GROUP_PROTOCOL = 'director-wire-v6';
@@ -143,8 +145,8 @@ const ActorInteraction = z.strictObject({
   personalObjective: z.string().trim().min(1).max(140),
   proposedInteraction: z.string().trim().min(1).max(140),
 });
-const CurrentWire = PreviousActorTaskWire.extend({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+const PreviousInteractionWire = PreviousActorTaskWire.extend({
+  protocol: z.literal(PREVIOUS_INTERACTION_PROTOCOL),
   authoredChoices: z.record(
     Ref,
     z.discriminatedUnion('kind', [
@@ -157,6 +159,26 @@ const CurrentWire = PreviousActorTaskWire.extend({
       }),
     ]),
   ),
+});
+const CurrentWire = PreviousInteractionWire.extend({
+  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+  openingContext: z
+    .strictObject({
+      disposition: z.enum(['confirm', 'defer']),
+      reason: z.string().trim().min(1).max(1600),
+      premises: z
+        .array(
+          z.strictObject({
+            actorRef: Ref,
+            kind: z.literal('opening_information'),
+            field: z.enum(['script', 'editorialIntent']),
+            quote: z.string().min(6).max(600),
+            knowledge: z.strictObject({ module: OpeningModule, quote: z.string().min(6).max(300) }),
+          }),
+        )
+        .max(12),
+    })
+    .nullable(),
 });
 function compiledActorInteraction(value: z.infer<typeof ActorInteraction>): string {
   const task = JSON.stringify({ protocol: 'actor-interaction-opportunity-v1', ...value });
@@ -291,6 +313,35 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
       if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
     }
   if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
+    const wire = CurrentWire.parse(normalized);
+    const { openingContext, ...rest } = wire;
+    if (!snapshot.openingContextAuthority && openingContext !== null)
+      throw Error('DIRECTOR_OPENING_CONTEXT_FORBIDDEN');
+    const old = decodeDirectorWire(snapshot, {
+      ...rest,
+      protocol: PREVIOUS_INTERACTION_PROTOCOL,
+    }) as Record<string, unknown>;
+    if (!openingContext) return old;
+    const actors = directorWireCatalog(snapshot).actors;
+    return {
+      ...old,
+      ...(openingContext.disposition === 'confirm' &&
+      openingContext.premises.length &&
+      old.mode === 'quiet'
+        ? { mode: 'coordinate' }
+        : {}),
+      openingContext: {
+        ...openingContext,
+        reviewKey: snapshot.openingContextAuthority!.reviewKey,
+        premises: openingContext.premises.map(({ actorRef, ...p }) => {
+          const actor = actors.find((a) => a.ref === actorRef);
+          if (!actor) throw Error('DIRECTOR_OPENING_CONTEXT_ACTOR');
+          return { ...p, actorId: actor.actorId };
+        }),
+      },
+    };
+  }
+  if (normalized.protocol === PREVIOUS_INTERACTION_PROTOCOL) {
     const choices = normalized.authoredChoices;
     if (choices && typeof choices === 'object' && !Array.isArray(choices))
       for (const choice of Object.values(choices))
@@ -304,7 +355,7 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
           choice.opportunity.actorTopics === null
         )
           delete choice.opportunity.actorTopics;
-    const current = CurrentWire.parse(normalized);
+    const current = PreviousInteractionWire.parse(normalized);
     normalized = {
       ...current,
       protocol: PREVIOUS_ACTOR_TASK_PROTOCOL,
@@ -772,10 +823,41 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     object({ ...(originalItem.properties as Record<string, Schema>), origin: emergentOrigin }),
     !catalog.sources.length || !!openingRefs.length || !!snapshot.nativeTurn,
   );
+  properties.openingContext = snapshot.openingContextAuthority
+    ? {
+        anyOf: [
+          object({
+            disposition: { type: 'string', enum: ['confirm', 'defer'] },
+            reason: text,
+            premises: array(
+              object({
+                actorRef: refs(
+                  catalog.actors
+                    .filter((a) =>
+                      snapshot.openingContextAuthority!.actorKnowledge.some(
+                        (k) => k.actorId === a.actorId,
+                      ),
+                    )
+                    .map((a) => a.ref),
+                ),
+                kind: { type: 'string', enum: ['opening_information'] },
+                field: { type: 'string', enum: [snapshot.openingContextAuthority.sourceField] },
+                quote: { type: 'string', minLength: 6, maxLength: 600 },
+                knowledge: object({
+                  module: { type: 'string', enum: OpeningModule.options },
+                  quote: { type: 'string', minLength: 6, maxLength: 300 },
+                }),
+              }),
+            ),
+          }),
+          { type: 'null' },
+        ],
+      }
+    : { type: 'null' };
   schema.required = Object.keys(properties);
   if (JSON.stringify(schema).length > 24_000)
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v8', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v10', strict: true, schema };
 }

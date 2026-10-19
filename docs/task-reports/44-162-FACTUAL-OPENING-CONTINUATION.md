@@ -9,9 +9,9 @@ root-runtime162；源码自d538c049。root唯一集成/公共事实协议/SQL/�
 ## 本批统一接口与所有权
 
 - 人物ActorContinuation由NPC同次调用提出，原NPC内核认证本人来源/计划/问题/条件后存入本人state。没有本人新依据时，quiet自身commit不成为下一轮付费依据。人物仍有拒绝/安静权利。
-- Director v10同次调用可申请一次 opening_context_v1 初始外部背景确认：只能绑定当前作者开场、原文精确引用、本人作者模块知识依据。角色参与名单本身不授予知情。模型不填写时间/版本/事实正式ID，也不执行玩家承诺、到场、支付或NPC私人决定。
-- 内核验证原作者版本/资格、引文及本人知识来源，保存一次性review；确认时原子写succeeded command→narrative.context_confirmed world event→canonical world_facts→每人知识证明。世界版本递增；原Director决策与安排引用原frame、事实事件引用已提交decision，随后人物必须读取新版本。
-- 事实发生时间为原初始故事时刻，获知时间为本次内核确认时刻，两者不混淆；获知方式明确authored_initial_context，不冒充现场目击。没有完整作者模块证据时不授权知情。每actor独立fact/knowledge范围，通用fact上下文跳过新私密知识标记，只有认证private观察packet供给。
+- Director v10同次调用可申请一次 opening_context_v1 初始信息接收确认：只能绑定当前作者开场、原文精确引用、本人作者模块知识依据。角色参与名单本身不授予知情。模型不填写时间/版本/事实正式ID，也不执行玩家承诺、到场、支付或NPC私人决定。
+- 内核验证原作者版本/资格、引文及本人知识来源，保存一次性review；确认时原子写succeeded command→narrative.context_confirmed world event→canonical信息接收world_facts→每人知识证明。世界版本递增；原Director决策与安排引用原frame、事实事件引用已提交decision，随后人物必须读取新版本。
+- 被确认的是收到信息，而不是信息声称的外部真实结果；Fact正文为received_opening_information/assertion:report/executionEvidence:false。信息来源时间为原初始故事时刻，获知时间为本次内核确认时刻，两者不混淆；获知方式明确authored_initial_context，不冒充现场目击。没有完整作者模块证据时不授权知情。每actor独立fact/knowledge范围，通用fact上下文跳过新私密知识标记，只有认证private观察packet供给。
 - packet复用原inbox/候选/suppliedContext/commit ACK；只有实际送出且成功提交才消费。新来源稳定hash，不由时钟、刷新或人物数组顺序生成。
 
 ## 迁移与恢复

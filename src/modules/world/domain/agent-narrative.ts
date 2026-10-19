@@ -15,6 +15,13 @@ export type DirectorEvaluationCause =
   | { id: string; kind: 'bootstrap'; genesisHash: string; admittedAtVersion: number }
   | {
       id: string;
+      kind: 'opening_context';
+      genesisHash: string;
+      admittedAtVersion: number;
+      reviewKey: string;
+    }
+  | {
+      id: string;
       kind: 'authored_eligibility';
       genesisHash: string;
       admittedAtVersion: number;

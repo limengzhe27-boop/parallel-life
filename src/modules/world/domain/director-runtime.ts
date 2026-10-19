@@ -30,6 +30,7 @@ export type DirectorSnapshot = {
   evaluationCause?: import('./agent-narrative.ts').DirectorEvaluationCause;
   /** Authorized fictional setting and cast; never the owner's real interview/profile. */
   worldSetting?: string;
+  openingContextAuthority?: import('./narrative-opening-context.ts').OpeningContextAuthority;
   /** Full immutable director-only author material; participant references never grant NPC knowledge. */
   authoredMaterials?: AuthoredAgentMaterialCatalog;
   authoredEligibility?: {
@@ -135,6 +136,7 @@ export type DirectorDecision = {
     reason: string;
   }[];
   /** Private global audit; never forwarded as free prose to NPCs. */
+  openingContext?: import('./narrative-opening-context.ts').OpeningContextReview;
   audit: { reason: string; basisSourceIds: string[] };
 };
 export type DirectorAttempt = {
@@ -172,7 +174,7 @@ export function selectDirectorDeliberationWindow(
     canConsiderAuthoredEvent(snapshot, q.nodeKey),
   );
   const cause = snapshot.evaluationCause;
-  if (snapshot.nativeTurn || !cause) eligible = [];
+  if (snapshot.nativeTurn || !cause || cause.kind === 'opening_context') eligible = [];
   else if (cause.kind === 'bootstrap') {
     const openings = new Set(
       snapshot.authoredMaterials?.materials

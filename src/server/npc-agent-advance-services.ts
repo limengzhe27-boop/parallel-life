@@ -663,7 +663,8 @@ export function npcAgentAdvanceServices(
         }),
       );
       let coordinated = false,
-        coordinatedOpportunity = false;
+        coordinatedOpportunity = false,
+        contextConfirmed = false;
       const scheduled = await scheduleAgents(
         {
           sources,
@@ -698,6 +699,9 @@ export function npcAgentAdvanceServices(
                   guidance: [],
                   reason: '批次协调边界，未消费人物或事件。',
                 };
+              contextConfirmed =
+                decision.openingContext?.disposition === 'confirm' &&
+                !!decision.openingContext.premises.length;
               coordinatedOpportunity = decision.opportunities.length > 0;
               return {
                 candidateIds: decision.selectedCandidateIds,
@@ -727,6 +731,10 @@ export function npcAgentAdvanceServices(
       // The paid Director response still owns this read frame. Unrelated fallback
       // writes would invalidate it before attention permits recovery.
       if (directorDeliveryDeferred) return quiet(storyAt);
+      if (contextConfirmed) {
+        batch?.yieldAfterStep();
+        return { ...quiet(storyAt), changed: true, worldVersion: world.version + 1 };
+      }
       if (coordinatedOpportunity)
         return (
           (await dispatchPendingAgentEpisode(

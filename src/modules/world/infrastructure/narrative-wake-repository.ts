@@ -1,3 +1,4 @@
+import { readOpeningContextAuthority } from './opening-context-repository.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import { validDirectorAuthoredAssessments } from '../domain/director-runtime.ts';
 import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
@@ -26,6 +27,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   ownerId: string,
   input: { worldId: string; engineEpoch: number; worldVersion: number; storyAt: string },
   prepared?: AuthoredEligibilityView,
+  allowAttemptId?: string,
 ): Promise<{
   cause: DirectorEvaluationCause | null;
   hasPendingDirector: boolean;
@@ -81,6 +83,22 @@ export async function readDirectorNarrativeWakeInTransaction(
   )
     throw new DomainError('VERSION_CONFLICT');
   if (!view.catalog.source) return { cause: null, hasPendingDirector, deferred: false };
+  const informationAuthority = await readOpeningContextAuthority(sql, ownerId, input, {
+    view,
+    allowAttemptId,
+  });
+  if (informationAuthority)
+    return {
+      cause: {
+        id: `opening-context:${informationAuthority.reviewKey}`,
+        kind: 'opening_context',
+        genesisHash: admission.genesis_hash,
+        admittedAtVersion: admission.admitted_at_version,
+        reviewKey: informationAuthority.reviewKey,
+      },
+      hasPendingDirector,
+      deferred: false,
+    };
   const occupied = new Set(view.occupiedEventKeys);
   const qualifications: AuthoredWakeQualification[] = view.eligibility
     .filter((e) => e.status === 'eligible' && !occupied.has(e.ref.nodeKey))

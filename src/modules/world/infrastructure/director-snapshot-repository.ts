@@ -1,3 +1,4 @@
+import { readOpeningContextAuthority } from './opening-context-repository.ts';
 import { selectDirectorDeliberationWindow } from '../domain/director-runtime.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
 import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
@@ -1051,8 +1052,17 @@ export class PostgresDirectorSnapshotRepository {
         h.world.id,
         h.boundary.actorIds,
       );
+      const openingContextAuthority = input.nativeTurn
+        ? undefined
+        : await readOpeningContextAuthority(
+            sql,
+            owner,
+            { worldId: h.world.id, engineEpoch: h.epoch, worldVersion: h.world.version },
+            { view: authored },
+          );
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
+        ...(openingContextAuthority ? { openingContextAuthority } : {}),
         worldId: h.world.id,
         engineEpoch: h.epoch,
         worldVersion: h.world.version,

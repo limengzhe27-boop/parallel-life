@@ -240,6 +240,10 @@ export async function commitOpeningContextInTransaction(
   );
   if (!authority || !isDeepStrictEqual(authority, protectedAuthority)) return fail();
   validateOpeningContextReview(authority, review, view.catalog);
+  await sql.query(
+    "SELECT set_config('app.agent_world_id',$1,true),set_config('app.agent_engine_epoch',$2,true),set_config('app.director_context_decision_id',$3,true)",
+    [world.id, String(attempt.engineEpoch), decision.id],
+  );
   let eventId: string | null = null;
   if (review.disposition === 'confirm') {
     const commandId = uuid([

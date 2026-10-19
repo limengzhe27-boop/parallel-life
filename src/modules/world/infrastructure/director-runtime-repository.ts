@@ -1,3 +1,12 @@
+import {
+  OpeningContextReviewSchema,
+  OpeningContextAuthoritySchema,
+} from './opening-context-schema.ts';
+import { validateOpeningContextReview } from '../domain/narrative-opening-context.ts';
+import {
+  readOpeningContextAuthority,
+  commitOpeningContextInTransaction,
+} from './opening-context-repository.ts';
 import { validDirectorDeliberationWindow } from '../domain/director-runtime.ts';
 import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
@@ -242,6 +251,13 @@ const Snapshot = z
       .discriminatedUnion('kind', [
         z.strictObject({
           id: Key,
+          kind: z.literal('opening_context'),
+          genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
+          admittedAtVersion: Int,
+          reviewKey: Hash,
+        }),
+        z.strictObject({
+          id: Key,
           kind: z.literal('bootstrap'),
           genesisHash: z.string().regex(/^[0-9a-f]{32}$/),
           admittedAtVersion: z.number().int().nonnegative(),
@@ -260,6 +276,7 @@ const Snapshot = z
     deliberationWindow: z
       .strictObject({ version: z.literal(1), nodeKeys: z.array(Key).max(2) })
       .optional(),
+    openingContextAuthority: OpeningContextAuthoritySchema.optional(),
     worldSetting: z.string().max(100000).optional(),
     authoredMaterials: z
       .custom<NonNullable<DirectorSnapshot['authoredMaterials']>>((v) => {
@@ -404,6 +421,7 @@ const Opportunity = z
   .strict();
 const Decision = z
   .object({
+    openingContext: OpeningContextReviewSchema.optional(),
     schemaVersion: z.literal(1),
     id: Key,
     worldId: Key,
@@ -591,6 +609,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     world: WorldState,
     s: DirectorSnapshot,
     initialize = false,
+    allowAttemptId?: string,
   ) {
     const { clock, realNow } = await requireActiveAgentDeliveryInTransaction(sql, owner, world.id);
     // Only a new narrative opportunity is deferred by deep conversation. Existing
@@ -672,8 +691,18 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
           storyAt: new Date(latest).toISOString(),
         },
         qualified,
+        allowAttemptId,
       );
       if (!equal(cause, s.evaluationCause ?? null)) fail('DIRECTOR_EVALUATION_CAUSE_CONFLICT');
+    }
+    if (s.openingContextAuthority !== undefined) {
+      const grant = await readOpeningContextAuthority(
+        sql,
+        owner,
+        { worldId: world.id, engineEpoch: s.engineEpoch, worldVersion: world.version },
+        { view: qualified, allowAttemptId },
+      );
+      if (!equal(grant, s.openingContextAuthority)) fail('DIRECTOR_OPENING_CONTEXT_CONFLICT');
     }
     if (!validDirectorDeliberationWindow(s)) fail('DIRECTOR_DELIBERATION_WINDOW_CONFLICT');
     if (s.nativeTurn && s.evaluationCause) fail('DIRECTOR_NATIVE_TURN_CONFLICT');
@@ -1025,7 +1054,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       transitionAgentAttempt(row.status, status);
       if (status === 'request_sent') {
         if (!row.live) fail('DIRECTOR_ATTEMPT_STALE');
-        await this.current(sql, owner, world, row.snapshot);
+        await this.current(sql, owner, world, row.snapshot, false, row.id);
       }
       if (row.status === status) return attempt(row);
       const updated = (
@@ -1144,7 +1173,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       }
       if (row.status !== 'response_received' || !row.response_hash || !row.live)
         fail('DIRECTOR_ATTEMPT_STALE');
-      await this.current(sql, owner, world, snapshot);
+      await this.current(sql, owner, world, snapshot, false, expected.id);
       this.validateDecision(snapshot, expected, decision);
       await sql.query(
         `INSERT INTO parallel_life.director_decisions(id,world_id,owner_id,attempt_id,engine_epoch,world_version,input_hash,evaluated_through_version,document)
@@ -1207,6 +1236,12 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         engineEpoch: expected.engineEpoch,
         decision,
       });
+      await commitOpeningContextInTransaction(sql, owner, {
+        world,
+        attempt: expected,
+        snapshot,
+        decision,
+      });
       // All private decisions, opportunities and actor requests roll back together
       // if activity elapsed during this short transaction; saved raw stays intact.
       await requireActiveAgentDeliveryInTransaction(sql, owner, world.id);
@@ -1244,6 +1279,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
         } catch {
           continue;
         } // Invalid historical output is never repaired or reinterpreted.
+        if (decision.openingContext) continue; // New execution authority cannot rebase a paid fact-confirmation frame.
         this.validateDecision(original, originalAttempt, decision);
         const proof = revalidateDirectorHandoff({ original, current, decision });
         if (!proof.allowed) continue;
@@ -1348,6 +1384,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
     });
   }
   private validateDecision(s: DirectorSnapshot, a: DirectorAttempt, d: DirectorDecision) {
+    validateOpeningContextReview(s.openingContextAuthority, d.openingContext, s.authoredMaterials);
     if (!validNativeTurnDecision(s, d)) fail('INVALID_DIRECTOR_NATIVE_TURN');
     if (!validDirectorAuthoredAssessments(s, d)) fail('INVALID_DIRECTOR_AUTHORED_ASSESSMENTS');
     if (
