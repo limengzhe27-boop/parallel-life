@@ -4,7 +4,8 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v5';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v6';
+const PREVIOUS_SINGLE_CHOICE_PROTOCOL = 'director-wire-v5';
 const PREVIOUS_ASSESSMENT_PROTOCOL = 'director-wire-v4';
 const Key = z.string().min(1).max(240);
 const Reason = z.string().trim().min(1).max(2000);
@@ -82,10 +83,73 @@ const Wire = z.strictObject({
 });
 
 /** A chosen authored opportunity is its consideration; only the remaining events are deferred. */
-const CurrentWire = Wire.omit({ mode: true, events: true }).extend({
-  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+const PreviousSingleChoiceWire = Wire.omit({ mode: true, events: true }).extend({
+  protocol: z.literal(PREVIOUS_SINGLE_CHOICE_PROTOCOL),
   events: z.array(z.strictObject({ eventRef: Ref, reason: Reason })).max(10000),
 });
+
+const CurrentWire = PreviousSingleChoiceWire.extend({
+  protocol: z.literal(DIRECTOR_WIRE_PROTOCOL),
+});
+type Opportunity = z.infer<typeof CurrentWire>['opportunities'][number];
+/** v6 only: multiple independent cast tasks can describe the same shared authored opportunity. */
+function groupAuthoredOpportunities(items: Opportunity[]): Opportunity[] {
+  if (new Set(items.map((o) => o.id)).size !== items.length)
+    throw Error('DIRECTOR_GROUP_ID_CONFLICT');
+  const grouped: Opportunity[] = [];
+  const mergeText = (a: string, b: string, limit: number, separator: string) => {
+    const combined = `${a}${separator}${b}`;
+    if (combined.length > limit) throw Error('DIRECTOR_GROUP_TEXT_LIMIT');
+    return combined;
+  };
+  for (const item of items) {
+    if (
+      new Set(item.actors).size !== item.actors.length ||
+      new Set(item.places).size !== item.places.length
+    )
+      throw Error('DIRECTOR_GROUP_DUPLICATE_REF');
+    if (
+      !item.stagingIntents ||
+      item.stagingIntents.length !== item.actors.length ||
+      new Set(item.stagingIntents.map((t) => t.actorRef)).size !== item.actors.length ||
+      item.stagingIntents.some((t) => !item.actors.includes(t.actorRef)) ||
+      (item.actorTopics &&
+        (item.actorTopics.length !== item.actors.length ||
+          new Set(item.actorTopics.map((t) => t.actorRef)).size !== item.actors.length ||
+          item.actorTopics.some((t) => !item.actors.includes(t.actorRef))))
+    )
+      throw Error('DIRECTOR_GROUP_TASK_SCOPE');
+    const existing =
+      item.origin.kind === 'authored'
+        ? grouped.find(
+            (o) =>
+              o.origin.kind === 'authored' &&
+              o.origin.eventRef === (item.origin as { eventRef: string }).eventRef,
+          )
+        : undefined;
+    if (!existing) {
+      grouped.push(structuredClone(item));
+      continue;
+    }
+    if (
+      existing.activity !== item.activity ||
+      JSON.stringify([...existing.places].sort()) !== JSON.stringify([...item.places].sort()) ||
+      existing.actors.some((actor) => item.actors.includes(actor)) ||
+      existing.actors.length + item.actors.length > 12 ||
+      !existing.stagingIntents ||
+      !item.stagingIntents
+    )
+      throw Error('DIRECTOR_GROUP_INCOMPATIBLE');
+    existing.actors.push(...item.actors);
+    existing.stagingIntents.push(...item.stagingIntents);
+    if (existing.actorTopics || item.actorTopics)
+      existing.actorTopics = [...(existing.actorTopics ?? []), ...(item.actorTopics ?? [])];
+    existing.title = mergeText(existing.title, item.title, 120, ' / ');
+    existing.description = mergeText(existing.description, item.description, 2000, '\n');
+    existing.playerImpact = mergeText(existing.playerImpact, item.playerImpact, 1000, '\n');
+  }
+  return grouped;
+}
 
 /** References are scoped to the immutable attempt snapshot, never a live world lookup. */
 export function directorWireCatalog(snapshot: DirectorSnapshot) {
@@ -152,8 +216,16 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     for (const opportunity of normalized.opportunities) {
       if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
     }
-  if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
-    const current = CurrentWire.parse(normalized);
+  if (
+    normalized.protocol === DIRECTOR_WIRE_PROTOCOL ||
+    normalized.protocol === PREVIOUS_SINGLE_CHOICE_PROTOCOL
+  ) {
+    const current =
+      normalized.protocol === DIRECTOR_WIRE_PROTOCOL
+        ? CurrentWire.parse(normalized)
+        : PreviousSingleChoiceWire.parse(normalized);
+    if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL)
+      current.opportunities = groupAuthoredOpportunities(current.opportunities);
     const catalog = directorWireCatalog(snapshot);
     const authored = current.opportunities.filter((o) => o.origin.kind === 'authored');
     const considered = authored.map(
@@ -433,5 +505,5 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v5', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v6', strict: true, schema };
 }

@@ -250,5 +250,5 @@ test('v5 schema omits redundant mode and event decision, retaining legal referen
     p.events.items.properties.eventRef.enum,
     f.events.map((e) => e.ref),
   );
-  assert.deepEqual(p.protocol.enum, ['director-wire-v5']);
+  assert.deepEqual(p.protocol.enum, ['director-wire-v6']);
 });
