@@ -73,3 +73,15 @@
 必要验证：4项新聚焦覆盖合法投影/时间/不泄漏原稿、错误actor/visibility/kind/command/premise/time/hash、稳定唤醒/精确ACK、原committed response证明；连原candidate 10项共14项通过。tsc通过，boundaries677文件通过，diff/format通过。没有真实模型或生产。PG待root0098事实写入一起验收；本分支不自造数据库事实。
 
 集成依赖：root需0098 actor_narrative_knowledge及事实事务；NPCmodel需在实际suppliedContext.observations中纳入private inbox合法narrative来源（root已协调）。通用Fact本身的群/现场投影是否绕开private packet限制由root同步核对。整体真实主动开场仍未以本地单测声称完成。
+
+## 开场信息授权与原事务提交仓储（44-162-OPENING-CONTEXT-REPOSITORY）
+
+基线603a9dca；新增opening-context-repository.ts与opening-context-authority.test.ts。root负责原Director hook、领域协议、0098迁移、集成与上线；本提交不改公共契约。
+
+readOpeningContextAuthority复用原作者资格目录、人物授权模块reader、不可变initial snapshot与narrative admission。仅唯一合格opening提供权限；occupied不冒充已完成，blocked不给权限。reviewKey绑定world/epoch/nodeHash/sourceHash不随world version漂移。原review或携带同authority的已发送/已有结果尝试阻止重买；原认证zero-send sentinel例外，commit仅排除自己attempt。没有授权module的角色不会被补造背景。
+
+commitOpeningContextInTransaction在调用方现有Director事务内验证保护authority与当前目录一致，defer仅落review；confirm产生确定command/event、每个角色独立fact/knowledge、世界CAS和既有投影，并保存review。无嵌套模型、直接消息、媒体job或旁路调度。旧响应无openingContext时完全不查询新表。
+
+语义已按集成人最新约定收窄：代码把quote编码为received_opening_information，assertion为report、executionEvidence为false。确认的是人物取得作者允许的开场信息，不确认信息内容中的住院、事故、玩家行动、同意或到场已经客观完成。外部背景状态/事故执行器仍未实现，不能拿此能力当任意事实写入。basis保留源码与本人module引用/hash供服务端认证；模型收到的packet不包括全局原稿或他人秘密。definitionSourceId与moduleHash亦已纳入前一packet补丁的遗忘过滤。
+
+必要验证：3项controlled SQL聚焦测试通过，覆盖合格occupied开场/稳定reviewKey、blocked/已review/unknown付费禁止重买、旧响应零新读取；boundaries680通过，diff检查通过。本基线tsc被公共narrative-opening-context.ts的9个TS18048 narrowing错误阻断，已交root修复，新增helper没有类型错误。尚未跑真实PG原Director事务，须由root与0098/原hook一起验收；未调用模型/查询生产/部署，未声称自然开场质量已通过。
