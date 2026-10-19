@@ -85,6 +85,10 @@ export type AuthoredMaterialTimeline = {
     order: number;
     afterStageKeys: string[];
     window?: Window;
+    completion?: {
+      mode: 'all' | 'any';
+      criteria: { nodeKey: string; outcomes: ['committed'] }[];
+    };
   }[];
 };
 /** Narrow, pure source protocol; no dependency on another module's infrastructure or private root fields. */
@@ -196,6 +200,7 @@ const prereq: Shape = {
 };
 const windowShape: Shape = { notBefore: true, expiresAt: true };
 const resolution: Shape = { nodeKey: true, outcomes: [true] };
+const stageCompletionShape: Shape = { mode: true, criteria: [resolution] };
 const conditionShape: Shape = { key: true, title: true, match: true, prerequisites: [prereq] };
 const nodeShape: Shape = {
   key: true,
@@ -320,7 +325,14 @@ export function compileAuthoredAgentMaterials(
       : (project(raw.timeline, {
           initialStageKey: true,
           stages: [
-            { key: true, title: true, order: true, afterStageKeys: [true], window: windowShape },
+            {
+              key: true,
+              title: true,
+              order: true,
+              afterStageKeys: [true],
+              window: windowShape,
+              completion: stageCompletionShape,
+            },
           ],
         }) as AuthoredMaterialTimeline);
   if (
@@ -389,6 +401,20 @@ export function compileAuthoredAgentMaterials(
       ))
   )
     fail();
+  for (const stage of source.timeline?.stages ?? []) {
+    const completion = stage.completion;
+    if (
+      completion &&
+      (!['all', 'any'].includes(completion.mode) ||
+        !Array.isArray(completion.criteria) ||
+        !completion.criteria.length ||
+        completion.criteria.length > 32 ||
+        completion.criteria.some(
+          (c) => !text(c.nodeKey) || c.outcomes.length !== 1 || c.outcomes[0] !== 'committed',
+        ))
+    )
+      fail();
+  }
   for (const c of source.conditions ?? [])
     if (
       !text(c.key) ||
@@ -548,6 +574,15 @@ export function compileAuthoredAgentMaterials(
     for (const s of source.timeline.stages)
       for (const key of s.afterStageKeys)
         known(issues, 'stage', key, 'timeline.stages.afterStageKeys', stageKeys);
+    for (const [i, stage] of source.timeline.stages.entries())
+      for (const [j, criterion] of (stage.completion?.criteria ?? []).entries())
+        known(
+          issues,
+          'node',
+          criterion.nodeKey,
+          `timeline.stages[${i}].completion.criteria[${j}].nodeKey`,
+          nodeKeys,
+        );
   }
   return {
     scope: 'director_only',
@@ -607,7 +642,14 @@ export function projectAuthoredDirectorModelView(
       : (project(input.timeline, {
           initialStageKey: true,
           stages: [
-            { key: true, title: true, order: true, afterStageKeys: [true], window: windowShape },
+            {
+              key: true,
+              title: true,
+              order: true,
+              afterStageKeys: [true],
+              window: windowShape,
+              completion: stageCompletionShape,
+            },
           ],
         }) as AuthoredMaterialTimeline);
   if (

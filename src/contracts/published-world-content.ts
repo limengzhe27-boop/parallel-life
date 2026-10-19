@@ -264,6 +264,20 @@ const shape = z
               order: z.number().int().min(0).max(31),
               afterStageKeys: refs(8),
               window: window.optional(),
+              completion: z
+                .strictObject({
+                  mode: z.enum(['all', 'any']),
+                  criteria: z
+                    .array(
+                      z.strictObject({
+                        nodeKey: key,
+                        outcomes: z.tuple([z.literal('committed')]),
+                      }),
+                    )
+                    .min(1)
+                    .max(32),
+                })
+                .optional(),
             }),
           )
           .min(1)

@@ -167,6 +167,11 @@ export type PublicationContent = {
       order: number;
       afterStageKeys: string[];
       window?: PublicationStoryWindow;
+      /** Optional whole-stage contract; omission never means all nodes must run. */
+      completion?: {
+        mode: 'all' | 'any';
+        criteria: { nodeKey: string; outcomes: ['committed'] }[];
+      };
     }[];
   };
   conditions?: PublicationConditionNode[];
@@ -634,6 +639,31 @@ export function publicationContentIssues(c: PublicationContent): PublicationIssu
     const path = ['timeline', 'stages', i];
     windowValid(stage.window, [...path, 'window']);
     unique(stage.afterStageKeys, [...path, 'afterStageKeys']);
+    if (stage.completion) {
+      unique(
+        stage.completion.criteria.map((criterion) => criterion.nodeKey),
+        [...path, 'completion', 'criteria'],
+      );
+      stage.completion.criteria.forEach((criterion, j) => {
+        const matches = c.candidates.filter((node) => node.key === criterion.nodeKey);
+        const criterionPath = [...path, 'completion', 'criteria', j];
+        if (matches.length !== 1) {
+          issue(criterionPath, 'invalid_stage_completion_node');
+          return;
+        }
+        const node = matches[0]!;
+        const whole = node.direction?.progress?.completion;
+        if (node.timeline?.stageKey !== stage.key)
+          issue(criterionPath, 'stage_completion_node_outside_stage');
+        if (
+          !whole ||
+          whole.scope !== 'invitation_response' ||
+          !whole.criteria.length ||
+          whole.criteria.some((entry) => entry.kind !== 'invitation_response')
+        )
+          issue(criterionPath, 'stage_completion_requires_whole_event');
+      });
+    }
     for (const key of stage.afterStageKeys) {
       const prior = stages.get(key);
       if (!prior) issue([...path, 'afterStageKeys'], 'unknown_stage');

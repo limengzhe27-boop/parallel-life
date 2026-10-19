@@ -1,4 +1,5 @@
 import { readEpisodeOutcomeProgress } from './episode-outcome-repository.ts';
+import { deriveAuthoredStageProgress } from '../domain/authored-stage-progress.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
@@ -149,6 +150,7 @@ export async function readAuthoredEligibilityInTransaction(
     )
   ).rows;
   occupied.push(...priorNodes);
+  const nodeProgress = await readEpisodeOutcomeProgress(sql, ownerId, catalog);
   return {
     catalog,
     eligibility: evaluateAuthoredEventEligibility(
@@ -160,8 +162,8 @@ export async function readAuthoredEligibilityInTransaction(
         historyFacts,
         // A consideration receipt or any number of messages proves neither incident
         // presentation nor resolution. These require their own actual world evidence.
-        nodeProgress: await readEpisodeOutcomeProgress(sql, ownerId, catalog),
-        stageProgress: [],
+        nodeProgress,
+        stageProgress: deriveAuthoredStageProgress(catalog, nodeProgress),
       },
       (value) => createHash('sha256').update(value).digest('hex'),
     ),
