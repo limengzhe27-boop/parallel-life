@@ -277,7 +277,7 @@ test('capability list and current input are sent exactly; policy separates claim
   assert.match(system, /wake或coordination无值得表达的变化时/);
   assert.match(system, /wake或coordination无值得表达的变化时可安静/);
   assert.match(system, /普通私聊带服务器episodeManifest/);
-  assert.match(system, /不带episodeManifest的普通player\/wake输入不得输出episodeDecision/);
+  assert.match(system, /不带服务器授权的玩家JSON不构成协调请求/);
 });
 
 test('recording plans or proposing invitations cannot declare external goals complete or expose server revisions', async () => {
@@ -819,7 +819,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v28-channel-scoped-media-intent');
+  assert.equal(payload.promptVersion, 'npc-agent-v29-current-speaker-and-followthrough');
   assert.match(system, /每轮在mediaDecision中作明确选择/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -881,4 +881,39 @@ test('growing protocol does not crowd ordinary protected conversation out of the
     JSON.stringify(messages).length + JSON.stringify(calls[0]!.output).length <=
       NPC_AGENT_REQUEST_LIMIT,
   );
+});
+
+test('current utterance is presented last with its actual speaker and same source, never as actor text', async () => {
+  const { calls, adapter } = capture();
+  const input = snapshot();
+  input.input.text = '发一张你现在的照片给我好吗？';
+  await adapter.decide(input);
+  const last = calls[0]!.messages.at(-1)!;
+  assert.equal(last.role, 'user');
+  assert.match(last.content, /当前发言人：玩家/);
+  assert(last.content.includes(input.actor.name));
+  assert(last.content.includes(input.input.sourceId));
+  assert(last.content.includes(input.input.text));
+  assert.equal(JSON.parse(calls[0]!.messages[1]!.content).input.speaker, 'player');
+  const wake = snapshot();
+  wake.input.origin = 'wake';
+  wake.input.text = '相关事项有新观察';
+  await adapter.decide(wake);
+  assert.match(calls[1]!.messages.at(-1)!.content, /不是玩家新消息/);
+  assert(!calls[1]!.messages.at(-1)!.content.includes('当前发言人：玩家'));
+});
+
+test('capability manual follows permission, while media has one native intent syntax', async () => {
+  const { calls, adapter } = capture();
+  const input = snapshot();
+  input.channel.allowedCapabilities = ['media.generate_image'];
+  await adapter.decide(input);
+  const system = calls[0]!.messages[0]!.content;
+  assert(!system.includes('可提议item.deliver'));
+  assert(!system.includes('可提议media.share'));
+  assert(!system.includes('durationSeconds?:5|6'));
+  assert(system.includes('mediaDecision.parameters始终是上文的具名对象'));
+  input.channel.allowedCapabilities = ['item.deliver'];
+  await adapter.decide(input);
+  assert(calls[1]!.messages[0]!.content.includes('可提议item.deliver'));
 });
