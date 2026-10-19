@@ -229,7 +229,7 @@ test('latest grammar is current, and empty execution output remains quiet withou
   const { context, wire } = fixture();
   const format = npcResponseFormat(context.state, 'forbidden', context);
   if (format.format !== 'json_schema') throw Error('schema');
-  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v13']);
+  assert.deepEqual((format.schema as any).properties.protocol.enum, ['npc-wire-v14']);
   context.input = { ...context.input, origin: 'wake', text: 'No relevant new changes' };
   const p = parseAgentProposal(context, {
     ...wire,
@@ -241,4 +241,167 @@ test('latest grammar is current, and empty execution output remains quiet withou
   assert.equal(p.goals.length, 0);
   assert.equal(p.plans.length, 0);
   assert.equal(p.statements.length, 0);
+});
+
+function rescheduleFixture() {
+  const f = fixture();
+  f.context.channel.allowedCapabilities = ['appointment.reschedule'];
+  f.context.state.responsibilities = [
+    {
+      id: 'appointment:old',
+      subject: { kind: 'appointment', id: 'old' },
+      summary: 'Existing appointment responsibility',
+      status: 'waiting',
+      waitingOn: 'player',
+      sourceIds: ['definition:original'],
+      nextCheck: [],
+    },
+  ];
+  f.context.viewState = structuredClone(f.context.state);
+  const execution = {
+    ...f.wire.executions[0]!,
+    action: {
+      ...f.wire.executions[0]!.action,
+      capability: 'appointment.reschedule',
+      parameters: {
+        appointmentId: 'old',
+        at: '2026-10-19T20:00:00+08:00',
+        placeId: null,
+        reason: 'The player requested a later time.',
+      },
+    },
+  };
+  const wire = {
+    ...f.wire,
+    protocol: 'npc-wire-v14',
+    executions: [execution],
+    continuation: {
+      decision: 'act',
+      reason: 'Adjust the existing appointment after the player asks.',
+      sourceIds: ['source:1'],
+      planIds: [],
+      questionIds: [],
+      conditions: [],
+    },
+  };
+  return { ...f, wire };
+}
+test('v14 reschedule uses explicit required appointment identity and time before original kernel decoding', () => {
+  const { context, wire } = rescheduleFixture(),
+    before = structuredClone(wire);
+  const p = parseAgentProposal(context, wire);
+  assert.deepEqual(p.actions[0]!.parameters, {
+    appointmentId: 'old',
+    at: '2026-10-19T20:00:00+08:00',
+    reason: 'The player requested a later time.',
+  });
+  assert.equal(p.actions[0]!.capability, 'appointment.reschedule');
+  assert.deepEqual(wire, before);
+  for (const parameters of [
+    { at: '2026-10-19T20:00:00+08:00', placeId: null, reason: null },
+    { ...wire.executions[0]!.action.parameters, title: 'An unsupported parameter' },
+    { ...wire.executions[0]!.action.parameters, appointmentId: 'somebody-elses' },
+    { ...wire.executions[0]!.action.parameters, at: 'eight tonight' },
+    [
+      { name: 'at', value: '2026-10-19T20:00:00+08:00' },
+      { name: 'title', value: 'Wrong shape' },
+    ],
+  ])
+    assert.throws(() =>
+      decodeNpcWire(context, {
+        ...wire,
+        executions: [
+          { ...wire.executions[0], action: { ...wire.executions[0]!.action, parameters } },
+        ],
+      }),
+    );
+  const old = { ...wire, protocol: 'npc-wire-v13' };
+  assert.throws(
+    () => decodeNpcWire(context, old),
+    'old protected array transport is not reinterpreted',
+  );
+  const array = {
+    ...old,
+    executions: [
+      {
+        ...old.executions[0],
+        action: {
+          ...old.executions[0]!.action,
+          parameters: [
+            { name: 'appointmentId', value: 'old' },
+            { name: 'at', value: '2026-10-19T20:00:00+08:00' },
+          ],
+        },
+      },
+    ],
+  };
+  assert.equal((decodeNpcWire(context, array) as any).actions[0].parameters.appointmentId, 'old');
+});
+test('v14 schema separates reschedule identity parameters and retains nonempty wait or reconsider evidence', () => {
+  const { context } = rescheduleFixture();
+  const format = npcResponseFormat(context.state, 'forbidden', context);
+  if (format.format !== 'json_schema') throw Error('schema');
+  const schema: any = format.schema;
+  const visit = (node: any): any[] =>
+    node && typeof node === 'object' ? [node, ...Object.values(node).flatMap(visit)] : [];
+  const all = visit(schema),
+    actions = all.filter((n) => n.properties?.capability?.enum?.includes('appointment.reschedule'));
+  assert(actions.length > 0);
+  for (const action of actions) {
+    const parameters = action.properties.parameters;
+    assert.equal(parameters.type, 'object');
+    assert.deepEqual(parameters.required, ['appointmentId', 'at', 'placeId', 'reason']);
+    assert.deepEqual(parameters.properties.appointmentId.enum, ['old']);
+    assert.equal(parameters.additionalProperties, false);
+    assert.equal(parameters.properties.title, undefined);
+  }
+  const next = schema.$defs.npc_plan_next_step.anyOf;
+  for (const kind of ['wait', 'blocked'])
+    assert.equal(
+      next.find((n: any) => n.properties.kind.enum[0] === kind).properties.missing.minItems,
+      1,
+    );
+  assert.equal(
+    next.find((n: any) => n.properties.kind.enum[0] === 'reconsider').properties.conditions
+      .minItems,
+    1,
+  );
+});
+test('v14 rejects duplicate replacement of one existing plan across execution and nonexecuting intent', () => {
+  const { context, wire } = rescheduleFixture();
+  const duplicate = {
+    ...wire,
+    executions: [
+      {
+        ...wire.executions[0],
+        plan: { ...wire.executions[0]!.plan, supersedesPlanId: 'old-plan' },
+      },
+    ],
+    planIntents: [
+      {
+        kind: 'replace',
+        ref: 'replacement',
+        planId: 'old-plan',
+        summary: 'A conflicting second replacement',
+        sourceIds: ['source:1'],
+        nextStep: { kind: 'wait', conditions: [], missing: ['An actual missing condition'] },
+      },
+    ],
+  };
+  assert.throws(() => decodeNpcWire(context, duplicate), /NPC_V14_DUPLICATE_PLAN_REPLACEMENT/);
+  assert.throws(() =>
+    decodeNpcWire(context, {
+      ...wire,
+      planIntents: [
+        {
+          kind: 'create',
+          ref: 'waiting',
+          goal: { kind: 'new', summary: 'Unsupported empty waiting', sourceIds: ['source:1'] },
+          summary: 'No actual waiting reason',
+          sourceIds: ['source:1'],
+          nextStep: { kind: 'wait', conditions: [], missing: [] },
+        },
+      ],
+    }),
+  );
 });

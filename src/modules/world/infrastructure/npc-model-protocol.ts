@@ -11,6 +11,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
+import type { ActorAgentState } from '../domain/agent-runtime.ts';
 import {
   interpretCurrentPlayerInput,
   type AgentValidationContext,
@@ -25,7 +26,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v13';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v14';
+const PREVIOUS_NOOP_GOAL_PROTOCOL = 'npc-wire-v13';
 const PREVIOUS_CONTINUATION_PROTOCOL = 'npc-wire-v12';
 const PREVIOUS_GOAL_SOURCE_PROTOCOL = 'npc-wire-v11';
 const PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL = 'npc-wire-v10';
@@ -111,6 +113,7 @@ const Wire = z.strictObject({
     PREVIOUS_EXECUTION_PROVENANCE_PROTOCOL,
     PREVIOUS_GOAL_SOURCE_PROTOCOL,
     PREVIOUS_CONTINUATION_PROTOCOL,
+    PREVIOUS_NOOP_GOAL_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -289,6 +292,33 @@ const ModelWire = PreviousExecutionProvenanceWire.extend({
   protocol: z.literal(NPC_WIRE_PROTOCOL),
   continuation: AgentProposalSchema.shape.continuation.unwrap(),
 });
+const RescheduleParameters = z.strictObject({
+  appointmentId: Id,
+  at: z.iso.datetime({ offset: true }),
+  placeId: Id.nullable(),
+  reason: Text.max(2000).nullable(),
+});
+function visibleAppointmentIds(
+  state: Partial<Pick<ActorAgentState, 'responsibilities'>>,
+  sources: readonly { id: string }[],
+): string[] {
+  return [
+    ...new Set([
+      ...(state.responsibilities ?? [])
+        .filter(
+          (r) =>
+            r.subject.kind === 'appointment' &&
+            !['withdrawn', 'expired', 'fulfilled'].includes(r.status),
+        )
+        .map((r) => r.subject.id),
+      ...sources
+        .filter((s) => s.id.startsWith('appointment:'))
+        .map((s) => s.id.slice('appointment:'.length)),
+    ]),
+  ]
+    .filter(Boolean)
+    .sort();
+}
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(strictSchema);
@@ -419,6 +449,13 @@ export function npcResponseFormat(
   );
   const nextStep = planVariants.find((p) => p.properties!.kind!.enum?.[0] === 'create')!.properties!
     .nextStep!;
+  for (const choice of nextStep.anyOf ?? []) {
+    const kind = choice.properties?.kind?.enum?.[0];
+    if ((kind === 'wait' || kind === 'blocked') && choice.properties?.missing)
+      choice.properties.missing.minItems = 1;
+    if (kind === 'reconsider' && choice.properties?.conditions)
+      choice.properties.conditions.minItems = 1;
+  }
   schema.$defs = {
     ...((schema.$defs ?? {}) as Record<string, unknown>),
     npc_plan_next_step: nextStep,
@@ -461,8 +498,11 @@ export function npcResponseFormat(
     );
     if (capabilities.length) {
       const action = executionItem.properties!.action!;
-      const handling = capabilities.filter(canHandleExternalResponsibility);
-      const nonHandling = capabilities.filter((cap) => !canHandleExternalResponsibility(cap));
+      const genericCapabilities = capabilities.filter((cap) => cap !== 'appointment.reschedule');
+      const handling = genericCapabilities.filter(canHandleExternalResponsibility);
+      const nonHandling = genericCapabilities.filter(
+        (cap) => !canHandleExternalResponsibility(cap),
+      );
       const choices = [handling, nonHandling]
         .filter((caps) => caps.length)
         .map((caps) => {
@@ -474,7 +514,26 @@ export function npcResponseFormat(
             choice.properties!.handlesResponsibilityIds!.maxItems = 0;
           return choice;
         });
-      executionItem.properties!.action = choices.length === 1 ? choices[0]! : { anyOf: choices };
+      const appointmentIds = visibleAppointmentIds(state, current.sources ?? []);
+      if (capabilities.includes('appointment.reschedule') && appointmentIds.length) {
+        const choice = structuredClone(action);
+        choice.properties!.capability = { type: 'string', enum: ['appointment.reschedule'] };
+        choice.properties!.parameters = {
+          type: 'object',
+          properties: {
+            appointmentId: { type: 'string', enum: appointmentIds },
+            at: { type: 'string', minLength: 1 },
+            placeId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+            reason: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          },
+          required: ['appointmentId', 'at', 'placeId', 'reason'],
+          additionalProperties: false,
+        };
+        choices.push(choice);
+      }
+      if (!choices.length) properties.executions = { type: 'null' };
+      else
+        executionItem.properties!.action = choices.length === 1 ? choices[0]! : { anyOf: choices };
     } else properties.executions = { type: 'null' };
   }
   if (replaceablePlanIds.length && properties.executions?.type !== 'null') {
@@ -638,6 +697,39 @@ function transport(value: unknown, convertParameters = true): unknown {
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+    const transformed = structuredClone(raw) as Record<string, unknown>;
+    const mapped = mapNpcSourceFields(
+      raw,
+      npcSourceReferences(context.sources),
+      'decode',
+    ) as Record<string, unknown>;
+    const intents = NativePlanIntentsSchema.parse(transport(mapped.planIntents ?? [], false));
+    const touched = new Set(
+      intents.flatMap((intent) => ('planId' in intent ? [intent.planId] : [])),
+    );
+    const available = visibleAppointmentIds(context.viewState ?? context.state, context.sources);
+    if (Array.isArray(transformed.executions))
+      for (const item of transformed.executions) {
+        if (!item || typeof item !== 'object') continue;
+        const execution = item as {
+          plan?: { supersedesPlanId?: unknown };
+          action?: { capability?: unknown; parameters?: unknown };
+        };
+        const supersedes = execution.plan?.supersedesPlanId;
+        if (typeof supersedes === 'string' && touched.has(supersedes))
+          throw Error('NPC_V14_DUPLICATE_PLAN_REPLACEMENT');
+        if (execution.action?.capability === 'appointment.reschedule') {
+          const parameters = RescheduleParameters.parse(execution.action.parameters);
+          if (!available.includes(parameters.appointmentId))
+            throw Error('NPC_V14_APPOINTMENT_SCOPE');
+          execution.action.parameters = Object.entries(parameters).flatMap(([name, value]) =>
+            value === null ? [] : [{ name, value }],
+          );
+        }
+      }
+    return decodeNpcWire(context, { ...transformed, protocol: PREVIOUS_NOOP_GOAL_PROTOCOL });
+  }
+  if ('protocol' in raw && raw.protocol === PREVIOUS_NOOP_GOAL_PROTOCOL) {
     const catalog = npcSourceReferences(context.sources);
     const mapped = mapNpcSourceFields(raw, catalog, 'decode') as Record<string, unknown>;
     const goals = PreviousModelWire.shape.goals.parse(transport(mapped.goals ?? [], false));
