@@ -1,3 +1,6 @@
+import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
+import { readConsumedSceneObservationSourcesInTransaction } from './actor-observation-consumption-repository.ts';
+import { collectPendingSceneObservationCandidates } from '../domain/actor-observation-candidate.ts';
 import { readAgendaInitializeGrantsInTransaction } from './actor-agenda-initialization-repository.ts';
 import { readDirectorNarrativeWakeInTransaction } from './narrative-wake-repository.ts';
 import { createHash } from 'node:crypto';
@@ -56,7 +59,7 @@ export async function readAgentPhoneEntryProbe(
   if (attention.conversationWithoutTarget) return { status: 'deferred' };
   const actors = (
     await sql.query(
-      `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,
+      `SELECT a.id,a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,a.response,a.event_id,
     a.expected_world_version,a.expected_actor_revision,a.lease_until,r.document,s.revision,b.request_id AS bound_request_id
     FROM parallel_life.agent_attempts a JOIN parallel_life.agent_input_receipts r
       ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
@@ -225,6 +228,65 @@ export async function readAgentPhoneEntryProbe(
         )
       : { status: 'pending' };
   }
+  // A fact commit does not change last_tick_at. Give newly received information its
+  // own stable entry identity; this is only a scheduler hint, never execution permission.
+  const narrativeActors = (
+    await sql.query(
+      `SELECT s.actor_id,s.document FROM parallel_life.actor_agent_states s
+     WHERE s.world_id=$1 AND s.owner_id=$2 AND EXISTS (
+       SELECT 1 FROM parallel_life.actor_narrative_knowledge k
+       WHERE k.world_id=s.world_id AND k.owner_id=s.owner_id AND k.actor_id=s.actor_id
+       AND k.source_version<=$3)
+     ORDER BY s.actor_id`,
+      [frame.worldId, ownerId, frame.worldVersion],
+    )
+  ).rows;
+  const narrativeCandidates: string[] = [];
+  for (const actor of narrativeActors) {
+    if (blockedActors.has(String(actor.actor_id))) continue;
+    const packet = await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
+      ...frame,
+      actorId: String(actor.actor_id),
+    });
+    if (!packet.sources.length) continue;
+    const consumed = await readConsumedSceneObservationSourcesInTransaction(sql, ownerId, {
+      ...frame,
+      actorId: String(actor.actor_id),
+    });
+    const candidates = await collectPendingSceneObservationCandidates({
+      ...frame,
+      actorId: String(actor.actor_id),
+      actorRevision: actor.document.revision,
+      ...packet,
+      consumed,
+    });
+    for (const candidate of candidates) {
+      const attempted = actors.some((attempt) => {
+        if (
+          attempt.actor_id !== candidate.actorId ||
+          attempt.document.origin !== 'wake' ||
+          attempt.document.worldId !== frame.worldId ||
+          attempt.document.recipientActorId !== candidate.actorId ||
+          attempt.document.commandId !== attempt.command_id ||
+          !(
+            ['committed', 'invalid_output', 'stale_discarded'].includes(attempt.status) ||
+            (attempt.status === 'cancelled_before_send' &&
+              (attempt.sent_at || attempt.response_hash || attempt.response || attempt.event_id))
+          )
+        )
+          return false;
+        try {
+          const input = JSON.parse(attempt.document.text);
+          return input.type === 'npc_own_condition_ready' && input.candidateId === candidate.id;
+        } catch {
+          return false;
+        }
+      });
+      if (!attempted) narrativeCandidates.push(candidate.id);
+    }
+  }
+  if (narrativeCandidates.length)
+    return ready('own_narrative_information', narrativeCandidates.sort().join('|'));
   const bootstrap = await readDirectorBootstrapCauseInTransaction(sql, ownerId, frame);
   if (bootstrap) return ready('bootstrap', bootstrap.id);
   // Existing saves resume eligible, still-unreviewed author material through the same scheduler.

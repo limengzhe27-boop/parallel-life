@@ -1,3 +1,4 @@
+import { readAgentPhoneEntryProbe } from '../../src/modules/world/infrastructure/agent-phone-entry-probe.ts';
 import { NpcAgentModel } from '../../src/modules/world/infrastructure/npc-agent-model.ts';
 import { createAgentScheduleSources } from '../../src/modules/world/application/agent-schedule-collectors.ts';
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
@@ -507,6 +508,47 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
     maxModelCalls: 1,
     maxSteps: 4,
   });
+  await activity.update(f.owner, f.id, {
+    clientId: randomUUID(),
+    sequence: 1,
+    mode: 'browsing',
+    resume: true,
+  });
+  async function entryProbe() {
+    const w = await worlds.get({ userId: f.owner }, f.id);
+    return app.transaction(f.owner, (sql) =>
+      readAgentPhoneEntryProbe(sql, f.owner, {
+        worldId: f.id,
+        engineEpoch: 2,
+        worldVersion: w.version,
+        storyAt: w.time,
+      }),
+    );
+  }
+  const narrativeIds = collections
+    .flatMap((r) => r.candidates)
+    .filter((c) => c.id.startsWith('observation:'))
+    .map((c) => c.id)
+    .sort();
+  const expectedHint = {
+    status: 'ready',
+    key: createHash('sha256')
+      .update(
+        JSON.stringify([
+          'phone-continuation-v1',
+          f.id,
+          2,
+          'own_narrative_information',
+          narrativeIds.join('|'),
+        ]),
+      )
+      .digest('hex'),
+  };
+  assert.deepEqual(
+    await entryProbe(),
+    expectedHint,
+    'new information has a dedicated entry hint without waiting for tick',
+  );
   const protectedFrame = await snapshots.read(f.owner, {
     worldId: f.id,
     engineEpoch: 2,
@@ -527,6 +569,11 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
       leaseUntil: new Date(Date.now() + 120000).toISOString(),
     },
     protectedFrame,
+  );
+  assert.notDeepEqual(
+    await entryProbe(),
+    expectedHint,
+    'pending Director must not expose independent information hint',
   );
   try {
     await services.advanceIfEnabled(f.owner, f.id);
@@ -565,6 +612,7 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
   for (const key of ['sent_at', 'response', 'response_hash', 'event_id'])
     assert.equal(zeroSend[key], null);
 
+  assert.notDeepEqual(await entryProbe(), expectedHint, 'ACK changes the pending-information hint');
   assert.equal(npcCalls, 1);
   assert.equal(directorCalls, 0);
   async function pending() {
@@ -598,6 +646,11 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
   assert.equal(npcCalls, 2);
   assert.equal(directorCalls, 0);
   assert.equal(await pending(), f.world.actors.length - 2);
+  assert.notDeepEqual(
+    await entryProbe(),
+    expectedHint,
+    'consumed information cannot retain old entry hint',
+  );
   assert.deepEqual(
     (await admin.query('SELECT * FROM parallel_life.agent_attempts WHERE id=$1', [zeroSend.id]))
       .rows[0],
