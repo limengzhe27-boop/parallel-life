@@ -496,7 +496,11 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
   if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
     // Native v4 has one action channel. No disposition flag competes with an
     // execution, and models cannot author completion receipts or terminal success.
-    const native = ModelWire.parse(transport(raw, false));
+    const nativeTransport = transport(raw, false) as Record<string, unknown>;
+    // The scoped native grammar offers null when no player-decision items are
+    // authorized. This is an empty transport collection, not a guessed decision.
+    if (nativeTransport.decisions === null) nativeTransport.decisions = [];
+    const native = ModelWire.parse(nativeTransport);
     const compiled = compileNpcExecutionIntents(context, native.executions ?? [], {
       allowMedia: true,
     });

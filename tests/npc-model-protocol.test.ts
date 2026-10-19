@@ -1050,3 +1050,27 @@ test('native media enqueue cannot claim responsibility fulfillment even in a mix
   assert.equal(media.properties.handlesResponsibilityIds.maxItems, 0);
   assert.notEqual(immediate.properties.handlesResponsibilityIds.maxItems, 0);
 });
+
+test('v4 no-decision null offered by the scoped grammar decodes to an empty collection for player and autonomous turns', () => {
+  for (const origin of ['player', 'wake'] as const) {
+    const { c, wire } = fixture();
+    c.input.origin = origin;
+    const { actions: _actions, ...base } = wire;
+    const raw = {
+      ...base,
+      protocol: 'npc-wire-v4',
+      decisions: null,
+      statements: [{ text: '先按自己的安排来。', dependsOnActionIds: [] }],
+      executions: [],
+      replyAssessments: null,
+      questionWithdrawals: null,
+      locationReports: null,
+      focus: null,
+    };
+    const before = structuredClone(raw);
+    const proposal = parseAgentProposal(c, raw);
+    assert.deepEqual(proposal.decisions, []);
+    assert.deepEqual(proposal.actions, []);
+    assert.deepEqual(raw, before);
+  }
+});
