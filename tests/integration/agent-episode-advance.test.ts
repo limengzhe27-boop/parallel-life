@@ -251,6 +251,7 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
     f: Fixture,
     options: {
       firstChoice?: 'quiet' | 'decline';
+      selectAgendaWithOpportunity?: boolean;
       batchActors?: number;
       directorUnknown?: boolean;
       npcUnknown?: boolean;
@@ -278,11 +279,15 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
           if (initial) await options.duringDirector?.();
           return JSON.stringify({
             mode: initial ? 'bounded_opportunity' : 'quiet',
-            selectedCandidateIds: [],
-            deferred: payload.candidates.map((c: { id: string }) => ({
-              candidateId: c.id,
-              reason: '本次优先交接事件库机会，原议程未被执行或消费。',
-            })),
+            selectedCandidateIds: options.selectAgendaWithOpportunity
+              ? payload.candidates.map((c: { id: string }) => c.id)
+              : [],
+            deferred: options.selectAgendaWithOpportunity
+              ? []
+              : payload.candidates.map((c: { id: string }) => ({
+                  candidateId: c.id,
+                  reason: '本次优先交接事件库机会，原议程未被执行或消费。',
+                })),
             nudges: [],
             opportunities: initial
               ? [
@@ -353,9 +358,25 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
     async () => {
       for (const npcUnknown of [false, true]) {
         const f = await fixture(),
-          h = harness(f, { firstChoice: 'quiet', batchActors: 3, npcUnknown });
+          h = harness(f, {
+            firstChoice: 'quiet',
+            batchActors: 3,
+            npcUnknown,
+            selectAgendaWithOpportunity: true,
+          });
         const r = await h.service.advanceIfEnabled(f.owner, f.worldId);
         assert.equal(h.npcCalls().length, 2);
+        assert.ok(
+          h
+            .npcCalls()
+            .every((c) => JSON.parse(c.payload.input.text).type === 'npc_episode_consideration'),
+          'saved event handoffs precede optional empty agenda candidates',
+        );
+        assert.equal(
+          h.directorCalls().length,
+          1,
+          'actor commits do not repurchase Director in the same batch',
+        );
         assert.equal(new Set(h.npcCalls().map((c) => c.payload.state.actorId)).size, 2);
         assert.equal(r?.played, 1);
         assert.equal((await directors.readEpisodes(f.owner, f.worldId))[0]?.status, 'active');

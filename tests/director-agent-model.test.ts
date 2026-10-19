@@ -668,7 +668,7 @@ test('output candidate index is copied from candidate IDs rather than actor iden
   assert.deepEqual(payload.wireCatalog.events, []);
 });
 
-async function wireFixture() {
+async function wireFixture(opening = false) {
   const f = fixture();
   const { compileAuthoredAgentMaterials } =
     await import('../src/modules/world/domain/authored-agent-material.ts');
@@ -687,6 +687,7 @@ async function wireFixture() {
           contentHash: 'a'.repeat(64),
         },
         timeline: null,
+        ...(opening ? { openingEventKey: 'opening_plan' } : {}),
         conditions: [],
         actorKeys: ['ak'],
         contacts: [{ actorKey: 'ak', actorId: 'a' }],
@@ -819,7 +820,7 @@ test('Director strict response grammar binds each reference namespace to this im
   if (format.format !== 'json_schema') throw Error('wrong format');
   const root: any = format.schema;
   assert.equal(format.strict, true);
-  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v2']);
+  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v3']);
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
   assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
@@ -868,4 +869,62 @@ test('v2 staging is explicit, participant-specific, bounded and still only a fut
   malformedPlace.opportunities[0].places = ['place:42a1c6d995f1f5c7'];
   rejected(f, malformedPlace); // No hash alias salvage and no changed prior paid record.
   assert.equal(f.parse(f.wire).opportunities[0]!.stagingIntents, undefined); // Stored v1 replay remains canonical.
+});
+
+test('v3 opportunity IDs bind to attempt while paid v1/v2 IDs retain original meaning', async () => {
+  const f = await wireFixture();
+  const wire: any = structuredClone(f.wire);
+  wire.opportunities[0].stagingIntents = [
+    { actorRef: 'actor:1', kind: 'future_task', task: 'Consider your own plan.' },
+  ];
+  for (const protocol of ['director-wire-v1', 'director-wire-v2']) {
+    wire.protocol = protocol;
+    assert.equal(f.parse(wire).opportunities[0]!.id, 'opportunity');
+  }
+  wire.protocol = 'director-wire-v3';
+  const first = f.parse(wire).opportunities[0]!.id;
+  assert.match(first, /^director-opportunity:[a-f0-9]{64}$/);
+  assert.equal(f.parse(wire).opportunities[0]!.id, first);
+  assert.notEqual(
+    parseDirectorDecision(f.snapshot, wire, { ...f.attempt, id: 'next-attempt' }).opportunities[0]!
+      .id,
+    first,
+  );
+  wire.opportunities.push(structuredClone(wire.opportunities[0]));
+  rejected(f, wire); // Local IDs must still be unique within an attempt.
+});
+
+test('fresh bootstrap enforces eligible authored opening without forcing opportunity or blocking later improvisation', async () => {
+  const f = await wireFixture(true);
+  f.snapshot.evaluationCause = {
+    kind: 'bootstrap',
+    id: 'bootstrap',
+    genesisHash: 'a'.repeat(32),
+    admittedAtVersion: 5,
+  };
+  const wire: any = structuredClone(f.wire);
+  wire.protocol = 'director-wire-v3';
+  wire.opportunities[0].stagingIntents = [
+    { actorRef: 'actor:1', kind: 'future_task', task: 'Consider your own opening involvement.' },
+  ];
+  assert.equal(f.parse(wire).opportunities[0]!.authoredEventKey, 'opening_plan');
+  const { directorResponseFormat } =
+    await import('../src/modules/world/infrastructure/director-model-protocol.ts');
+  const format = directorResponseFormat(f.snapshot);
+  if (format.format !== 'json_schema') throw Error('wrong format');
+  const origins = (format.schema as any).properties.opportunities.items.properties.origin.anyOf;
+  assert.deepEqual(
+    origins.map((o: any) => o.properties.kind.enum),
+    [['authored']],
+  );
+  const emergent = structuredClone(wire);
+  emergent.opportunities[0].origin = { kind: 'emergent', sourceRefs: ['source:1'] };
+  rejected(f, emergent);
+  for (const mode of ['quiet', 'coordinate'])
+    assert.equal(f.parse({ ...wire, mode, opportunities: [] }).mode, mode);
+  emergent.protocol = 'director-wire-v2';
+  assert.equal(f.parse(emergent).opportunities[0]!.id, 'opportunity'); // Do not reinterpret paid history.
+  emergent.protocol = 'director-wire-v3';
+  delete f.snapshot.evaluationCause;
+  assert.equal(f.parse(emergent).opportunities[0]!.authoredEventKey, undefined);
 });

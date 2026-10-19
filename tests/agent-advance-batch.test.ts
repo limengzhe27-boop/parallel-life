@@ -190,3 +190,15 @@ test('simultaneous reservations cannot exceed model-call cap', async () => {
     agentAdvanceBatchPolicy({ maxModelCalls: 2, maxSteps: 1 }),
   );
 });
+
+test('one batch coordinates once while independent actors continue', async () => {
+  let directors = 0,
+    actors = 0;
+  await runAgentAdvanceBatch(async (c) => {
+    if (c.beginDirectorAssessment()) directors++;
+    c.actorStarted(String(actors++));
+    return result(actors);
+  }, agentAdvanceBatchPolicy());
+  assert.equal(directors, 1);
+  assert.equal(actors, 3);
+});

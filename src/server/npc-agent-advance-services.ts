@@ -422,6 +422,10 @@ export function npcAgentAdvanceServices(
         blockers: AgentBlocker[],
         admission: 'normal' | 'wake' | 'recovery' = 'normal',
       ): Promise<DirectorDecision | null> => {
+        // A batch can dispatch several participants from its saved arrangement.
+        // Their own commits do not justify purchasing another global arrangement
+        // inside this same request; new coordination remains eligible next check.
+        if (batch && !batch.beginDirectorAssessment()) return null;
         const snapshot = await directorSnapshots.read(ownerId, {
           worldId,
           engineEpoch,
@@ -514,7 +518,8 @@ export function npcAgentAdvanceServices(
           storyAt,
         }),
       );
-      let coordinated = false;
+      let coordinated = false,
+        coordinatedOpportunity = false;
       const scheduled = await scheduleAgents(
         {
           sources,
@@ -537,7 +542,17 @@ export function npcAgentAdvanceServices(
                   reason: '当前世界或互动已暂缓。',
                 };
               }
-              if (!decision) throw Error('DIRECTOR_COORDINATION_MISSING');
+              if (!decision)
+                return {
+                  candidateIds: [],
+                  deferred: input.candidates.map((candidate) => ({
+                    candidateId: candidate.id,
+                    reason: '本批已完成全局协调，下一次检查继续核对。',
+                  })),
+                  guidance: [],
+                  reason: '批次协调边界，未消费人物或事件。',
+                };
+              coordinatedOpportunity = decision.opportunities.length > 0;
               return {
                 candidateIds: decision.selectedCandidateIds,
                 deferred: decision.deferred,
@@ -557,6 +572,18 @@ export function npcAgentAdvanceServices(
           observations: [],
         },
       );
+      if (coordinatedOpportunity)
+        return (
+          (await dispatchPendingAgentEpisode(
+            db,
+            npcModel,
+            ownerId,
+            world,
+            engineEpoch,
+            storyAt,
+            batch,
+          )) ?? quiet(storyAt)
+        );
       // A material global change can warrant coordination even without competing candidates.
       // It does not require another director call after every ordinary chat, nor force a message.
       if (
@@ -592,6 +619,21 @@ export function npcAgentAdvanceServices(
           )
             return execute(independent.candidate, independent.guidance);
           throw error;
+        }
+        if (decision?.opportunities.length) {
+          // A saved event handoff precedes optional empty-agenda initialization,
+          // even if the same Director decision also selected those candidates.
+          return (
+            (await dispatchPendingAgentEpisode(
+              db,
+              npcModel,
+              ownerId,
+              world,
+              engineEpoch,
+              storyAt,
+              batch,
+            )) ?? quiet(storyAt)
+          );
         }
         if (!decision || !decision.selectedCandidateIds.length) {
           // A new opportunity owns this turn's delivery budget. Do not consume

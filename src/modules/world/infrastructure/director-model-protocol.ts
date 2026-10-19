@@ -4,7 +4,7 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v2';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v3';
 const Key = z.string().min(1).max(240);
 const Reason = z.string().trim().min(1).max(2000);
 const Ref = z.string().regex(/^(candidate|actor|place|source|event):[1-9][0-9]*$/);
@@ -15,7 +15,7 @@ const Nudge = z.enum([
   'consider_opportunity',
 ]);
 const Wire = z.strictObject({
-  protocol: z.enum(['director-wire-v1', DIRECTOR_WIRE_PROTOCOL]),
+  protocol: z.enum(['director-wire-v1', 'director-wire-v2', DIRECTOR_WIRE_PROTOCOL]),
   mode: z.enum(['quiet', 'coordinate', 'bounded_opportunity']),
   candidates: z
     .array(
@@ -101,6 +101,19 @@ export function directorWireCatalog(snapshot: DirectorSnapshot) {
   };
 }
 
+/** Fresh bootstrap opportunities must consider the eligible authored opening, not replace it. */
+export function bootstrapOpeningEventRefs(snapshot: DirectorSnapshot): string[] {
+  if (snapshot.evaluationCause?.kind !== 'bootstrap') return [];
+  const openings = new Set(
+    snapshot.authoredMaterials?.materials
+      .filter((m) => m.role === 'opening' && canConsiderAuthoredEvent(snapshot, m.ref.nodeKey))
+      .map((m) => m.ref.nodeKey) ?? [],
+  );
+  return directorWireCatalog(snapshot)
+    .events.filter((e) => openings.has(e.authoredEventKey))
+    .map((e) => e.ref);
+}
+
 /** Decode transport only: no inferred selections, new authority or model retry. Canonical validation follows. */
 export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object' || !('protocol' in raw)) return raw; // Stored pre-wire completions.
@@ -115,9 +128,18 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
       if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
     }
   const wire = Wire.parse(normalized);
-  if (wire.protocol === DIRECTOR_WIRE_PROTOCOL && wire.opportunities.some((o) => !o.stagingIntents))
+  if (wire.protocol !== 'director-wire-v1' && wire.opportunities.some((o) => !o.stagingIntents))
     throw Error('DIRECTOR_STAGING_REQUIRED');
   const catalog = directorWireCatalog(snapshot);
+  const openingRefs = bootstrapOpeningEventRefs(snapshot);
+  if (
+    wire.protocol === DIRECTOR_WIRE_PROTOCOL &&
+    openingRefs.length &&
+    wire.opportunities.some(
+      (o) => o.origin.kind !== 'authored' || !openingRefs.includes(o.origin.eventRef),
+    )
+  )
+    throw Error('DIRECTOR_BOOTSTRAP_OPENING_REQUIRED');
   const lookup = <T extends { ref: string }>(items: T[], ref: string): T => {
     const found = items.find((item) => item.ref === ref);
     if (!found) throw Error('DIRECTOR_WIRE_REFERENCE_INVALID');
@@ -229,15 +251,16 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
   const nudge: Schema = snapshot.nativeTurn
     ? { type: 'null' }
     : { anyOf: [{ type: 'string', enum: Nudge.options }, { type: 'null' }] };
+  const openingRefs = bootstrapOpeningEventRefs(snapshot);
   const origins: Schema[] = [];
   if (catalog.events.length)
     origins.push(
       object({
         kind: { type: 'string', enum: ['authored'] },
-        eventRef: refs(values(catalog.events)),
+        eventRef: refs(openingRefs.length ? openingRefs : values(catalog.events)),
       }),
     );
-  if (catalog.sources.length)
+  if (catalog.sources.length && !openingRefs.length)
     origins.push(
       object({
         kind: { type: 'string', enum: ['emergent'] },
@@ -319,5 +342,5 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v2', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v3', strict: true, schema };
 }
