@@ -1,3 +1,4 @@
+import { independentObservationWork } from '../modules/world/domain/independent-observation-work.ts';
 import { agentWakeRecovery } from '../modules/world/domain/agent-wake-recovery.ts';
 import type { AdvanceWorkRef } from '../modules/world/domain/advance-operation.ts';
 import {
@@ -492,6 +493,7 @@ export function npcAgentAdvanceServices(
         consumedCandidateIds: [],
         agendaInitializeGrants: read.agendaInitializeGrants,
       });
+      const originalCandidates = new Map<string, AgentCandidate>();
       const wrap = (
         registration: RegisteredAgentCandidateSource,
       ): RegisteredAgentCandidateSource => ({
@@ -508,6 +510,7 @@ export function npcAgentAdvanceServices(
               // An invalid/stale result is a known failed attempt, not permission to buy a replacement.
               // The blocker names only this semantic candidate, preserving other actors and matters.
               const resourceId = `wake:${candidate.id}`;
+              originalCandidates.set(candidate.id, candidate);
               candidates.push({
                 ...candidate,
                 resourceIds: [...candidate.resourceIds, resourceId],
@@ -712,6 +715,22 @@ export function npcAgentAdvanceServices(
           storyAt,
         }),
       );
+      // Only the unique per-candidate execution fence may be stripped for this shape check.
+      // Real shared resources, original eligibility/blockers and the kernel remain authoritative.
+      const independentObservation = (eligible: readonly AgentCandidate[]) => {
+        if (retryCommandId || wake.hasPendingDirector) return null;
+        const original = independentObservationWork(
+          eligible.flatMap((candidate) => {
+            const raw = originalCandidates.get(candidate.id);
+            return raw &&
+              candidate.resourceIds.length === 1 &&
+              candidate.resourceIds[0] === `wake:${candidate.id}`
+              ? [raw]
+              : [];
+          }),
+        );
+        return original ? eligible.find((candidate) => candidate.id === original.id)! : null;
+      };
       let coordinated = false,
         coordinatedOpportunity = false,
         contextConfirmed = false;
@@ -721,6 +740,19 @@ export function npcAgentAdvanceServices(
           director: {
             async coordinate(input) {
               coordinated = true;
+              const ownObservation = independentObservation(input.candidates);
+              if (ownObservation)
+                return {
+                  candidateIds: [ownObservation.id],
+                  deferred: input.candidates
+                    .filter((c) => c.id !== ownObservation.id)
+                    .map((c) => ({
+                      candidateId: c.id,
+                      reason: '先由人物评估本人尚未处理的合法观察，其他候选保留。',
+                    })),
+                  guidance: [],
+                  reason: '无共享资源的本人收件由本人独立决策，不额外购买全局审批。',
+                };
               let decision: DirectorDecision | null;
               try {
                 decision = await coordinate(input.candidates, input.blockers);
@@ -797,6 +829,8 @@ export function npcAgentAdvanceServices(
             batch,
           )) ?? quiet(storyAt)
         );
+      const ownObservation = independentObservation(scheduled.selected.map((s) => s.candidate));
+      if (ownObservation) return execute(ownObservation, []);
       // A material global change can warrant coordination even without competing candidates.
       // It does not require another director call after every ordinary chat, nor force a message.
       if (
