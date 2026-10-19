@@ -19,6 +19,7 @@ export type AgentSnapshot = {
     sourceIds: string[];
     sceneIds: string[];
     groupIds?: string[];
+    narrativeKnowledgeIds?: string[];
     omittedSourceIds: string[];
   };
   groupObservationContext?: {
@@ -50,7 +51,8 @@ export type AgentSnapshot = {
     sourceId: string;
     text: string;
     kind: 'fact' | 'belief' | 'speech' | 'plan' | 'result';
-    evidenceKind?: 'player_report' | 'actor_report' | 'scene_record' | 'adjudicated_result';
+    evidenceKind?:
+      'player_report' | 'actor_report' | 'scene_record' | 'adjudicated_result' | 'authored_context';
     eventOccurredAt?: string;
     storyAt?: string;
     learnedAt?: string;

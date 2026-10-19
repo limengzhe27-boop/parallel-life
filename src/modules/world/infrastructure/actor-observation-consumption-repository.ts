@@ -1,3 +1,6 @@
+import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
+import { createHash } from 'node:crypto';
+import { authoredMaterialCanonicalJson } from '../domain/authored-agent-material.ts';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { ConsumedSceneObservationSource } from '../domain/actor-observation-candidate.ts';
 
@@ -154,7 +157,10 @@ export async function readConsumedSceneObservationSourcesInTransaction(
           (context.sceneIds.length > 0 ||
             (Array.isArray(context.groupIds) &&
               context.groupIds.length > 0 &&
-              context.groupIds.every(key))))
+              context.groupIds.every(key)) ||
+            (Array.isArray(context.narrativeKnowledgeIds) &&
+              context.narrativeKnowledgeIds.length > 0 &&
+              context.narrativeKnowledgeIds.every(key))))
       )
     )
       fail();
@@ -171,6 +177,45 @@ export async function readConsumedSceneObservationSourcesInTransaction(
       const observations = snapshot.observations.filter(
         (observation: unknown) => object(observation) && observation.sourceId === ref.sourceId,
       );
+      if (ref.sourceId.startsWith('narrative:')) {
+        if (
+          input.channel !== 'private' ||
+          sources.length !== 1 ||
+          observations.length !== 1 ||
+          sources[0].kind !== 'world_event' ||
+          sources[0].usage !== 'private_strategy' ||
+          sources[0].id !== 'narrative:' + sources[0].recordId ||
+          sources[0].contentHash !== ref.contentHash ||
+          !context.narrativeKnowledgeIds?.includes(sources[0].recordId) ||
+          !selectedSourceIds.includes(ref.sourceId) ||
+          context.omittedSourceIds.includes(ref.sourceId) ||
+          observations[0].evidenceKind !== 'authored_context' ||
+          createHash('sha256').update(authoredMaterialCanonicalJson(completion)).digest('hex') !==
+            row.response_hash
+        )
+          fail();
+        const packet = await readActorNarrativeObservationSourcesInTransaction(sql, owner, {
+          worldId: frame.worldId,
+          actorId: frame.actorId,
+          worldVersion: snapshot.worldVersion,
+          storyAt: snapshot.storyAt,
+          sourceIds: [ref.sourceId],
+        });
+        const verified = packet.sources.find((s) => s.id === ref.sourceId);
+        if (!verified) continue;
+        const actual = packet.observations.find((o) => o.sourceId === ref.sourceId)!;
+        if (
+          verified.contentHash !== ref.contentHash ||
+          verified.worldVersion !== sources[0].worldVersion ||
+          actual.text !== observations[0].text
+        )
+          fail();
+        consumed.set(JSON.stringify([ref.sourceId, ref.contentHash]), {
+          sourceId: ref.sourceId,
+          contentHash: ref.contentHash,
+        });
+        continue;
+      }
       if (
         sources.length !== 1 ||
         observations.length !== 1 ||

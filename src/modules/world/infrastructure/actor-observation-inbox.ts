@@ -1,3 +1,4 @@
+import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import { isDeepStrictEqual } from 'node:util';
 import type { SqlClient } from '../../storage/infrastructure/postgres.ts';
 import type { AgentSnapshot } from '../application/agent-runtime-ports.ts';
@@ -10,7 +11,7 @@ export async function readActorObservationInbox(
   sql: SqlClient,
   owner: string,
   snapshot: AgentSnapshot,
-  options: { includeGroups?: boolean } = {},
+  options: { includeGroups?: boolean; includeNarrative?: boolean } = {},
 ) {
   const sources: AgentSnapshot['sources'] = [],
     observations: AgentSnapshot['observations'] = [],
@@ -107,6 +108,23 @@ export async function readActorObservationInbox(
     }
     omittedSourceIds.push(...packet.omittedSourceIds);
   }
+  const narrativeKnowledgeIds: string[] = [];
+  if (options.includeNarrative !== false) {
+    const packet = await readActorNarrativeObservationSourcesInTransaction(sql, owner, {
+      worldId: snapshot.state.worldId,
+      actorId: snapshot.state.actorId,
+      worldVersion: snapshot.worldVersion,
+      storyAt: snapshot.storyAt,
+    });
+    for (const source of packet.sources) {
+      if (done.has(source.id + ':' + source.contentHash)) continue;
+      narrativeKnowledgeIds.push(source.recordId);
+      packets.push({
+        source,
+        observation: packet.observations.find((o) => o.sourceId === source.id)!,
+      });
+    }
+  }
   // A busy newer channel must not starve older unhandled knowledge from another channel.
   if (options.includeGroups !== false)
     packets.sort(
@@ -130,6 +148,7 @@ export async function readActorObservationInbox(
     context: {
       sourceIds: sources.map((s) => s.id),
       sceneIds,
+      ...(options.includeNarrative !== false ? { narrativeKnowledgeIds } : {}),
       ...(options.includeGroups !== false ? { groupIds: [...new Set(groupIds)] } : {}),
       omittedSourceIds: [...new Set(omittedSourceIds)].slice(0, 80),
     },
@@ -145,12 +164,14 @@ export async function validateActorObservationInbox(
   try {
     actual = await readActorObservationInbox(sql, owner, snapshot, {
       includeGroups: snapshot.actorObservationInbox.groupIds !== undefined,
+      includeNarrative: snapshot.actorObservationInbox.narrativeKnowledgeIds !== undefined,
     });
   } catch (error) {
     const code = String((error as { code?: string }).code ?? '');
     if (
       code.startsWith('ACTOR_SCENE_OBSERVATION_') ||
       code.startsWith('ACTOR_GROUP_OBSERVATION_') ||
+      code.startsWith('ACTOR_NARRATIVE_OBSERVATION_') ||
       code.startsWith('SCENE_OBSERVATION_CONSUMPTION_')
     )
       throw Object.assign(Error('ACTOR_OBSERVATION_INBOX_CONFLICT'), {

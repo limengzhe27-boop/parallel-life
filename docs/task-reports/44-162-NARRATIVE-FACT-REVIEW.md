@@ -59,3 +59,17 @@
 ## 本次边界
 
 没有源码、SQL、模型、生产查询或部署；未读取真实用户存档。161既有报告与第二档合成证据说明“机会送达但缺少经确认的当前事件事实”确为能力缺口；不能据报告把所有人物quiet归因于这一点，自身意愿/邀请仍已有能力可自然表达。
+
+## 人物获知 packet／唤醒／ACK 开发交付
+
+实现范围：NEW actor-narrative-observation-sources.ts；原 inbox/consumption/source-resolver新增叙事来源分支；domain observation candidate新增认证类型；ports仅 narrativeKnowledgeIds 与 authored_context；NEW actor-narrative-observation.test.ts。
+
+- 来源为 `world_event` + `narrative:<knowledge.id>`，仅 private_strategy。读取 actor_narrative_knowledge JOIN事实/事件/成功command；核验owner、actor、版本、canonical单人visibility、事件类型和原premises逐项一致、发生/获知时间。按root指定 narrative-knowledge-v1 canonical内容重算hash，不信单独表中hash。
+- 模型只收到确认文本、occurredAt、learnedAt、authored_initial_context，不收到原稿/模块quote或其他人的证明材料。遗忘链保守过滤knowledge/fact/event/decision/nodeHash/sourceHash；knowledge可选contentHash/sourceId也过滤。当前约定未含完整模块hash，不能把quote hash冒充模块hash。
+- 原inbox纳入新packet，原每轮12项/16KB限制与遗漏记录继续生效；新增可选narrativeKnowledgeIds为版本界线。旧保护snapshot无该字段时，验证显式排除新narrative读取，原scene/group语义不变。
+- 原候选身份以actor/world/epoch/sourceId/contentHash构建，普通revision/时间不重复；generic world_event或无authored_context正文不能冒充。仍由现调度统一执行，允许人物quiet，不插入消息。
+- ACK只接受原committed completion实际suppliedContext所列来源，额外重算原completion response_hash、重新认证源packet；未实际提供/遗漏不核销。原scene/group不改变字节语义。strategy引用只回填源handle/hash，不转为群聊公开授权。
+
+必要验证：4项新聚焦覆盖合法投影/时间/不泄漏原稿、错误actor/visibility/kind/command/premise/time/hash、稳定唤醒/精确ACK、原committed response证明；连原candidate 10项共14项通过。tsc通过，boundaries677文件通过，diff/format通过。没有真实模型或生产。PG待root0098事实写入一起验收；本分支不自造数据库事实。
+
+集成依赖：root需0098 actor_narrative_knowledge及事实事务；NPCmodel需在实际suppliedContext.observations中纳入private inbox合法narrative来源（root已协调）。通用Fact本身的群/现场投影是否绕开private packet限制由root同步核对。整体真实主动开场仍未以本地单测声称完成。

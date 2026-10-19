@@ -50,7 +50,11 @@ export async function collectPendingSceneObservationCandidates(
   }
   const visible = new Map<string, AgentSource>();
   for (const source of input.sources) {
-    if (source.kind !== 'scene_entry' && source.kind !== 'group_message') continue;
+    const narrative =
+      source.kind === 'world_event' &&
+      source.id.startsWith('narrative:') &&
+      source.usage === 'private_strategy';
+    if (source.kind !== 'scene_entry' && source.kind !== 'group_message' && !narrative) continue;
     if (source.kind === 'group_message' && source.usage !== 'private_strategy') continue;
     if (
       source.usage === 'private_strategy' &&
@@ -58,15 +62,18 @@ export async function collectPendingSceneObservationCandidates(
         (observation) =>
           observation.sourceId === source.id &&
           !!observation.text.trim() &&
-          ['scene_record', 'adjudicated_result', 'player_report', 'actor_report'].includes(
-            observation.evidenceKind ?? '',
-          ),
+          (narrative
+            ? ['authored_context']
+            : ['scene_record', 'adjudicated_result', 'player_report', 'actor_report']
+          ).includes(observation.evidenceKind ?? ''),
       )
     )
       continue;
     if (
       !key(source.recordId) ||
-      source.id !== (source.kind === 'scene_entry' ? 'scene:' : 'group:') + source.recordId ||
+      source.id !==
+        (narrative ? 'narrative:' : source.kind === 'scene_entry' ? 'scene:' : 'group:') +
+          source.recordId ||
       !source.contentHash ||
       !digest.test(source.contentHash) ||
       !integer(source.worldVersion) ||
@@ -83,7 +90,11 @@ export async function collectPendingSceneObservationCandidates(
   for (const source of [...visible.values()].sort((a, b) => a.id.localeCompare(b.id))) {
     if (consumed.has(JSON.stringify([source.id, source.contentHash]))) continue;
     const identity = JSON.stringify([
-      source.kind === 'scene_entry' ? 'scene-observation-v1' : 'group-observation-v1',
+      source.id.startsWith('narrative:') && source.kind === 'world_event'
+        ? 'narrative-observation-v1'
+        : source.kind === 'scene_entry'
+          ? 'scene-observation-v1'
+          : 'group-observation-v1',
       input.worldId,
       input.actorId,
       input.engineEpoch,

@@ -1,3 +1,4 @@
+import { readActorNarrativeObservationSourcesInTransaction } from './actor-narrative-observation-sources.ts';
 import {
   readVerifiedPublicationGenesisEvidence,
   verifiedPublicationGenesisRecord,
@@ -351,6 +352,17 @@ export async function readActorStrategyBasis(
             );
       }
     }
+  }
+  const narrativeHandles = handles.filter((id) => id.startsWith('narrative:'));
+  if (narrativeHandles.length) {
+    const packet = await readActorNarrativeObservationSourcesInTransaction(sql, ownerId, {
+      worldId: state.worldId,
+      actorId: state.actorId,
+      worldVersion,
+      storyAt,
+      sourceIds: narrativeHandles,
+    });
+    for (const source of packet.sources) sources.set(source.id, source);
   }
   return [...sources.values()];
 }
