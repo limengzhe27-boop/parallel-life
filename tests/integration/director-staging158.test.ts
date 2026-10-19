@@ -134,6 +134,12 @@ test('Director catalog staging crosses actual authored opportunity and independe
   const time = (h: number, m = 0, s = 0) =>
     `2026-10-12T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.000Z`;
   base.world.startAt = time(9);
+  base.actors.forEach((actor: any, index: number) => {
+    actor.lifeModules = {
+      lifeContext: `ACTOR_BACKGROUND_${index}`,
+      traits: `ACTOR_TRAITS_${index}`,
+    };
+  });
   base.places.push({
     key: 'away',
     name: '合成另一处小店',
@@ -295,6 +301,23 @@ test('Director catalog staging crosses actual authored opportunity and independe
     async () => {
       const h = await fixture();
       const ownWorld = await worlds.get({ userId: h.owner }, h.id);
+      const directorSnapshot = await snapshots.read(h.owner, {
+        worldId: h.id,
+        engineEpoch: 2,
+        worldVersion: ownWorld.version,
+        candidates: [],
+        blockers: [],
+      });
+      for (const [index, actor] of ownWorld.actors.entries()) {
+        assert.deepEqual(
+          directorSnapshot.actorDirectionMaterials?.find((entry) => entry.actorId === actor.id)
+            ?.modules,
+          {
+            lifeContext: `ACTOR_BACKGROUND_${index}`,
+            traits: `ACTOR_TRAITS_${index}`,
+          },
+        );
+      }
       for (const [i, actor] of ownWorld.actors.entries()) {
         const state = await app.transaction(
           h.owner,
