@@ -251,6 +251,7 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
     f: Fixture,
     options: {
       firstChoice?: 'quiet' | 'decline';
+      batchActors?: number;
       directorUnknown?: boolean;
       npcUnknown?: boolean;
       duringDirector?: () => Promise<void>;
@@ -278,7 +279,10 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
           return JSON.stringify({
             mode: initial ? 'bounded_opportunity' : 'quiet',
             selectedCandidateIds: [],
-            deferred: [],
+            deferred: payload.candidates.map((c: { id: string }) => ({
+              candidateId: c.id,
+              reason: '本次优先交接事件库机会，原议程未被执行或消费。',
+            })),
             nudges: [],
             opportunities: initial
               ? [
@@ -303,6 +307,7 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
         assert.match(payload.promptVersion, /^npc-agent-/);
         const npc = payload as NpcPayload;
         const intent = JSON.parse(npc.input.text);
+        if (intent.type === 'npc_agenda_initialize') return JSON.stringify(empty());
         assert.deepEqual(
           Object.keys(intent).sort(),
           ['type', 'requestId', 'revision', 'activity', 'placeOptionIds', 'basisSourceIds'].sort(),
@@ -337,9 +342,33 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
       calls,
       npcCalls: () => calls.filter((c) => c.kind === 'npc'),
       directorCalls: () => calls.filter((c) => c.kind === 'director'),
-      service: npcAgentAdvanceServices(db, () => model, snapshots),
+      service: npcAgentAdvanceServices(db, () => model, snapshots, {
+        maxActors: options.batchActors ?? 1,
+      }),
     };
   }
+
+  await t.test(
+    'one production-sized batch dispatches both event participants; an unknown first actor does not starve the second',
+    async () => {
+      for (const npcUnknown of [false, true]) {
+        const f = await fixture(),
+          h = harness(f, { firstChoice: 'quiet', batchActors: 3, npcUnknown });
+        const r = await h.service.advanceIfEnabled(f.owner, f.worldId);
+        assert.equal(h.npcCalls().length, 2);
+        assert.equal(new Set(h.npcCalls().map((c) => c.payload.state.actorId)).size, 2);
+        assert.equal(r?.played, 1);
+        assert.equal((await directors.readEpisodes(f.owner, f.worldId))[0]?.status, 'active');
+        const calls = h.npcCalls().length;
+        await h.service.advanceIfEnabled(f.owner, f.worldId);
+        assert.equal(
+          h.npcCalls().length,
+          calls,
+          'no repurchase of committed quiet or unknown actor',
+        );
+      }
+    },
+  );
 
   await t.test(
     'unadmitted empty worlds remain quiet without a Director call or old plan initialization',
@@ -374,7 +403,12 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
         assert.equal(first?.played, 0);
         assert.equal(h.directorCalls().length, 1);
         assert.equal(h.directorCalls()[0]!.payload.evaluationCause.kind, 'bootstrap');
-        assert.deepEqual(h.directorCalls()[0]!.payload.candidates, []);
+        assert.ok(
+          h
+            .directorCalls()[0]!
+            .payload.candidates.every((c: any) => c.source === 'agenda_initialize'),
+        );
+        assert.equal(h.directorCalls()[0]!.payload.candidates.length, 2);
         assert.equal(h.npcCalls().length, 1);
         const a = h.npcCalls()[0]!.payload as NpcPayload;
         assert.equal(a.worldVersion, 0);
@@ -461,7 +495,7 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
   );
 
   await t.test(
-    'unknown Director transport preserves the admitted cause and never buys another bootstrap',
+    'unknown Director is never retried while unrelated own agendas may commit quiet',
     async () => {
       const f = await fixture(),
         h = harness(f, { directorUnknown: true });
@@ -469,15 +503,23 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
         h.service.advanceIfEnabled(f.owner, f.worldId),
         /EXPLICIT_DIRECTOR_TRANSPORT_UNKNOWN/,
       );
-      for (let i = 0; i < 3; i++)
-        await assert.rejects(
-          h.service.advanceIfEnabled(f.owner, f.worldId),
-          (error: any) => error.code === 'UNKNOWN',
-        );
-      assert.equal(h.calls.length, 1);
+      for (let i = 0; i < 4; i++) {
+        try {
+          await h.service.advanceIfEnabled(f.owner, f.worldId);
+        } catch (error) {
+          assert.equal((error as { code?: string }).code, 'UNKNOWN');
+        }
+      }
+      assert.equal(h.directorCalls().length, 1);
+      assert.equal(h.npcCalls().length, 2);
+      assert.ok(
+        h
+          .npcCalls()
+          .every((c) => JSON.parse(c.payload.input.text).type === 'npc_agenda_initialize'),
+      );
       assert.equal(await count(f, 'director_runtime_attempts'), 1);
       assert.equal(await count(f, 'agent_episode_requests'), 0);
-      assert.equal(await count(f, 'world_events'), 0);
+      assert.equal(await count(f, 'world_messages'), 0);
       assert.equal(
         (
           await admin.query(
@@ -842,7 +884,13 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
       assert.equal((await h.service.advanceIfEnabled(f.owner, f.worldId))?.worldVersion, 1);
       for (let i = 0; i < 3; i++) await h.service.advanceIfEnabled(f.owner, f.worldId);
       assert.equal(
-        h.npcCalls().filter((call) => call.payload.state.actorId === forgottenActor).length,
+        h
+          .npcCalls()
+          .filter(
+            (call) =>
+              call.payload.state.actorId === forgottenActor &&
+              JSON.parse(call.payload.input.text).type === 'npc_episode_consideration',
+          ).length,
         1,
       );
       assert.equal((await state(f, forgottenActor))?.episodeParticipations, undefined);
@@ -851,7 +899,19 @@ test('actual advance bootstraps admitted genesis and dispatches independent epis
         after.find((attempt) => attempt.id === stale.id),
         stale,
       );
-      assert.equal(after.filter((attempt) => attempt.actor_id === forgottenActor).length, 1);
+      assert.equal(
+        after.filter(
+          (attempt) =>
+            attempt.actor_id === forgottenActor &&
+            JSON.parse(attempt.input.text).type === 'npc_episode_consideration',
+        ).length,
+        1,
+      );
+      assert.ok(
+        after
+          .filter((attempt) => attempt.actor_id === forgottenActor && attempt.id !== stale.id)
+          .every((attempt) => JSON.parse(attempt.input.text).type === 'npc_agenda_initialize'),
+      );
       assert.equal((await receipts(f)).length, 1);
       assert.equal((await pending(f)).length, 1);
     },

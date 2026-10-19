@@ -356,6 +356,7 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
       director?: (payload: DirectorSnapshot) => unknown;
       assertEligibleOnly?: boolean;
       realReader?: boolean;
+      batchActors?: number;
     } = {},
   ) {
     let factories = 0;
@@ -497,12 +498,40 @@ test('actual epoch2 advance: real PG sources/receipts/kernel/director with expli
           return model;
         },
         reader,
+        { maxActors: options.batchActors ?? 1 },
       ),
       factoryCalls: () => factories,
       npcCalls: () => calls.filter((c) => c.kind === 'npc'),
       directorCalls: () => calls.filter((c) => c.kind === 'director'),
     };
   }
+  await t.test(
+    'production batch gives two independent actors original kernel turns in one request and quiet does not stop the other',
+    async () => {
+      const f = await fixture({ plansA: 1, plansB: 1 });
+      const h = harness(f, {
+        batchActors: 3,
+        npc: (payload) =>
+          payload.state.actorId === f.a
+            ? empty()
+            : {
+                ...empty(),
+                statements: [
+                  { text: '我的原有安排有了进展，这次由我自己来联系。', dependsOnActionIds: [] },
+                ],
+              },
+      });
+      const r = await h.service.advanceIfEnabled(f.owner, f.id);
+      assert.equal(h.npcCalls().length, 2);
+      assert.equal(new Set(h.npcCalls().map((c) => c.payload.state.actorId)).size, 2);
+      assert.equal(r?.played, 1);
+      assert.deepEqual(r?.actors, [f.b]);
+      const after = h.npcCalls().length;
+      await h.service.advanceIfEnabled(f.owner, f.id);
+      assert.equal(h.npcCalls().length, after, 'unchanged stable work must not be bought again');
+    },
+  );
+
   async function materialChange(f: Fixture) {
     const current = await worlds.get({ userId: f.owner }, f.id);
     await npcAgentServices(db, () => ({

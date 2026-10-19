@@ -234,7 +234,7 @@ test('original phone entry can cheaply schedule independent work without retryin
       },
     };
     return {
-      service: npcAgentAdvanceServices(db, () => model, snapshots),
+      service: npcAgentAdvanceServices(db, () => model, snapshots, { maxActors: 1 }),
       npc: () => npcCalls,
       director: () => unexpectedDirector,
     };

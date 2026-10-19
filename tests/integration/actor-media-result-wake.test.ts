@@ -322,7 +322,10 @@ test('actual media completion wakes its own native actor once under a pending Di
         });
       },
     };
-    return { service: npcAgentAdvanceServices(db, () => model, snapshots), calls: () => npc };
+    return {
+      service: npcAgentAdvanceServices(db, () => model, snapshots, { maxActors: 1 }),
+      calls: () => npc,
+    };
   }
   await t.test(
     'same-version ready gives a new cheap cue, native quiet commits once, no extra image/NPC/Director purchase on reentry',

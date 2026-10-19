@@ -586,6 +586,20 @@ export function WorldPhoneApp({
         directorAttemptedKeys.current.delete(directorAttemptedKeys.current.values().next().value!);
       return true;
     };
+    const releaseCheck = (key: string) => {
+      directorAttemptedKeys.current.delete(key);
+      try {
+        const storageKey = `pl-phone-check-keys-v1:${worldId}`;
+        const saved: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+        if (Array.isArray(saved))
+          localStorage.setItem(
+            storageKey,
+            JSON.stringify(saved.filter((v) => typeof v === 'string' && v !== key)),
+          );
+      } catch {
+        /* Server leases and original source receipts remain authoritative. */
+      }
+    };
     async function checkForWorldNews() {
       if (
         !automatic ||
@@ -649,6 +663,10 @@ export function WorldPhoneApp({
                 liveTimeRef.current.markChecked();
                 advancing = true;
                 const result = await client.advanceWorld(worldId, true);
+                if (result.deferred === 'scheduler_busy') {
+                  releaseCheck(key);
+                  return;
+                }
                 if (isCurrent() && (result.changed || result.played > 0)) await load();
                 return;
               }
@@ -693,6 +711,10 @@ export function WorldPhoneApp({
         liveTimeRef.current.markChecked();
         advancing = true;
         const result = await client.advanceWorld(worldId, true);
+        if (result.deferred === 'scheduler_busy') {
+          releaseCheck(attemptKey);
+          return;
+        }
         // Reading the committed world lets the phone's existing message notification
         // and banner show the real incoming reply while this screen stays open.
         if (active && (result.changed || result.played > 0)) await load();

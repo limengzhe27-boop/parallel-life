@@ -50,6 +50,7 @@ export const WorldClockControlSchema = z
   });
 
 export const AdvanceReceiptSchema = z.strictObject({
+  deferred: z.literal('scheduler_busy').optional(),
   status: z.literal('advanced'),
   worldId: Id,
   storyNow: Timestamp,

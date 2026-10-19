@@ -1,4 +1,17 @@
 import {
+  claimAgentAdvanceBatch,
+  releaseAgentAdvanceBatch,
+} from '../modules/world/infrastructure/agent-advance-batch-lease.ts';
+import {
+  ActorAdvanceBlocked,
+  AgentAdvanceDeferred,
+  actorAdvanceFailureScope,
+  agentAdvanceBatchPolicy,
+  runAgentAdvanceBatch,
+  type AgentAdvanceBatchContext,
+  type AgentAdvanceBatchPolicy,
+} from '../modules/world/application/agent-advance-batch.ts';
+import {
   agendaInitializeInputText,
   readAgendaInitializeGrantsInTransaction,
 } from '../modules/world/infrastructure/actor-agenda-initialization-repository.ts';
@@ -152,16 +165,19 @@ export function npcAgentAdvanceServices(
   db: PostgresDatabase,
   modelFactory: () => TextModel,
   directorSnapshots: DirectorSnapshotReader,
+  batchOptions: Partial<AgentAdvanceBatchPolicy> = {},
 ) {
   const worlds = new PostgresWorldRepository(db),
     attempts = new PostgresAgentRuntimeRepository(db),
     directors = new PostgresDirectorRuntimeRepository(db),
     awareness = new PostgresWorldAwarenessRepository(db);
-  return {
-    async advanceIfEnabled(
+  const policy = agentAdvanceBatchPolicy(batchOptions);
+  const service = {
+    async advanceOne(
       ownerId: string,
       worldId: string,
       retryDirectorAttemptId?: string,
+      batch?: AgentAdvanceBatchContext,
     ): Promise<AdvanceResult | null> {
       const control = await db.transaction(
         ownerId,
@@ -270,10 +286,16 @@ export function npcAgentAdvanceServices(
       // A received, protected result is not an unknown paid call. Resume it
       // before active-attempt blockers, otherwise its owner could never wake.
       const npcModel = new NpcAgentModel({
-        complete: (...args) => modelFactory().complete(...args),
+        complete: (...args) => {
+          batch?.modelStarted();
+          return modelFactory().complete(...args);
+        },
       });
       for (const pending of (retryCommandId ? [] : read.prior).filter(
-        (a) => a.status === 'response_received' && a.channel === 'private',
+        (a) =>
+          a.status === 'response_received' &&
+          a.channel === 'private' &&
+          !batch?.handledActorIds.has(a.actorId),
       )) {
         const attempt = await attempts.lookup(ownerId, worldId, pending.commandId);
         if (!attempt || attempt.status !== 'response_received') continue;
@@ -287,6 +309,7 @@ export function npcAgentAdvanceServices(
           continue;
         }
         try {
+          batch?.actorStarted(attempt.actorId);
           const result = await runNpcAgent(
             { attempts, model: npcModel, kernel: new PostgresNpcAgentKernel(db, worlds) },
             ownerId,
@@ -310,6 +333,11 @@ export function npcAgentAdvanceServices(
           throw error;
         }
       }
+      // A protected private response deferred by business attention still owns
+      // its exact world read frame. Do not discard that paid response by committing
+      // unrelated work before source/read-set rebasing is available.
+      if (read.prior.some((a) => a.channel === 'private' && a.status === 'response_received'))
+        return quiet(storyAt);
       // Physical continuation belongs to the same execution boundary, never to a new paid NPC turn.
       // Protected received replies are recovered first; a completed arrival refreshes the real phone.
       const arrival = retryCommandId
@@ -325,7 +353,15 @@ export function npcAgentAdvanceServices(
       if (afterContinuation.paused) return quiet(afterContinuation.storyNow);
       const delivery = retryCommandId
         ? null
-        : await dispatchPendingAgentEpisode(db, npcModel, ownerId, world, engineEpoch, storyAt);
+        : await dispatchPendingAgentEpisode(
+            db,
+            npcModel,
+            ownerId,
+            world,
+            engineEpoch,
+            storyAt,
+            batch,
+          );
       if (delivery) return delivery;
       const actors = await Promise.all(
         read.states.map(async (state) => ({
@@ -353,6 +389,7 @@ export function npcAgentAdvanceServices(
             const candidates: AgentCandidate[] = [],
               blockers = [...collection.blockers];
             for (const candidate of collection.candidates) {
+              if (batch?.handledActorIds.has(candidate.actorId)) continue;
               const prior = read.prior.find(
                 (a) => a.commandId === agentWakeCommandId(worldId, candidate.id),
               );
@@ -436,27 +473,37 @@ export function npcAgentAdvanceServices(
           if (!saved) throw Object.assign(Error('DIRECTOR_RESULT_NOT_FOUND'), { code: 'UNKNOWN' });
           return saved;
         }
-        return runDirectorAgent(
-          {
-            attempts: directors,
-            model: new WorldDirectorAgentModel({
-              complete: (...args) => modelFactory().complete(...args),
-            }),
-            parse: parseDirectorDecision,
-          },
-          ownerId,
-          previous ?? {
-            id: randomUUID(),
-            worldId,
-            commandId,
-            engineEpoch,
-            expectedWorldVersion: world.version,
-            inputHash: directorSnapshotInputHash(snapshot),
-            token: randomUUID(),
-            leaseUntil: new Date(Date.now() + 240_000).toISOString(),
-          },
-          snapshot,
-        );
+        const recovering = previous?.status === 'response_received';
+        const reservation = recovering ? undefined : batch?.reserveModel();
+        if (batch && !recovering && !reservation) return null;
+        try {
+          return await runDirectorAgent(
+            {
+              attempts: directors,
+              model: new WorldDirectorAgentModel({
+                complete: (...args) => {
+                  batch?.modelStarted();
+                  return modelFactory().complete(...args);
+                },
+              }),
+              parse: parseDirectorDecision,
+            },
+            ownerId,
+            previous ?? {
+              id: randomUUID(),
+              worldId,
+              commandId,
+              engineEpoch,
+              expectedWorldVersion: world.version,
+              inputHash: directorSnapshotInputHash(snapshot),
+              token: randomUUID(),
+              leaseUntil: new Date(Date.now() + 240_000).toISOString(),
+            },
+            snapshot,
+          );
+        } finally {
+          reservation?.release();
+        }
       };
       const observed = await awareness.readDirectorObservedState(ownerId, worldId);
       const wake = await db.transaction(ownerId, (sql) =>
@@ -556,6 +603,7 @@ export function npcAgentAdvanceServices(
             world,
             engineEpoch,
             storyAt,
+            batch,
           );
           if (delivery) return delivery;
           if (decision?.opportunities.length) return quiet(storyAt);
@@ -588,6 +636,7 @@ export function npcAgentAdvanceServices(
             world,
             engineEpoch,
             storyAt,
+            batch,
           )) ?? quiet(storyAt));
 
       async function execute(
@@ -612,89 +661,114 @@ export function npcAgentAdvanceServices(
           )
         )
           throw Object.assign(Error('INPUT_SCOPE_FORBIDDEN'), { code: 'INPUT_SCOPE_FORBIDDEN' });
-        const commandId = agentWakeCommandId(worldId, candidate.id);
-        const initialization =
-          candidate.source === 'agenda_initialize'
-            ? read.agendaInitializeGrants.find(
-                (g) => g.candidateId === candidate.id && g.actorId === candidate.actorId,
-              )
-            : undefined;
-        if (candidate.source === 'agenda_initialize' && !initialization)
-          throw new DomainError('INVALID_COMMAND');
-        const text = initialization
-          ? agendaInitializeInputText(initialization)
-          : JSON.stringify({
-              type: 'npc_own_condition_ready',
-              candidateId: candidate.id,
-              source: candidate.source,
-              actionId: candidate.actionId,
-              basisSourceIds: candidate.sourceIds,
-              nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
-            });
-        const { receipt } = await attempts.accept(ownerId, {
-          id: randomUUID(),
+        const existing = await attempts.lookup(
+          ownerId,
           worldId,
-          commandId,
-          inputHash: hash([worldId, candidate.actorId, candidate.id, text]),
-          channel: 'private',
-          threadId: candidate.actorId,
-          recipientActorId: candidate.actorId,
-          expectedWorldVersion: world.version,
-          receivedAt: new Date().toISOString(),
-          storyAt,
-          origin: 'wake',
-          text,
-        });
-        const prior = await attempts.lookup(ownerId, worldId, commandId);
-        const snapshot =
-          prior?.status === 'response_received'
-            ? null
-            : (
-                await readPrivateAgentSnapshot(
-                  db,
-                  ownerId,
-                  world,
-                  candidate.actorId,
-                  receipt,
-                  storyAt,
-                  actor,
-                )
-              ).snapshot;
-        let result;
-        try {
-          result = await runNpcAgent(
-            {
-              attempts,
-              model: npcModel,
-              kernel: new PostgresNpcAgentKernel(db, worlds),
-            },
-            ownerId,
-            prior ?? {
-              id: randomUUID(),
-              worldId,
-              actorId: candidate.actorId,
-              commandId,
-              inputReceiptId: receipt.id,
-              engineEpoch,
-              expectedWorldVersion: world.version,
-              expectedActorRevision: actor.revision,
-              inputHash: receipt.inputHash,
-              token: randomUUID(),
-              leaseUntil: new Date(Date.now() + 240_000).toISOString(),
-            },
-            snapshot,
-          );
-        } catch (error) {
-          if ((error as { code?: unknown })?.code === 'NPC_DELIVERY_DEFERRED')
-            return quiet(storyAt);
-          throw error;
-        }
-        // Real quiet/plan outcomes still execute and persist, but never pretend a new message exists.
-        return presentedResult(
-          result.eventId,
-          candidate.actorId,
-          result.state.projectedWorldVersion,
+          agentWakeCommandId(worldId, candidate.id),
         );
+        const recovering = existing?.status === 'response_received';
+        const reservation = recovering ? undefined : batch?.reserveModel();
+        if (batch && !recovering && !reservation) return quiet(storyAt);
+        try {
+          batch?.actorStarted(candidate.actorId);
+          const commandId = agentWakeCommandId(worldId, candidate.id);
+          const initialization =
+            candidate.source === 'agenda_initialize'
+              ? read.agendaInitializeGrants.find(
+                  (g) => g.candidateId === candidate.id && g.actorId === candidate.actorId,
+                )
+              : undefined;
+          if (candidate.source === 'agenda_initialize' && !initialization)
+            throw new DomainError('INVALID_COMMAND');
+          const text = initialization
+            ? agendaInitializeInputText(initialization)
+            : JSON.stringify({
+                type: 'npc_own_condition_ready',
+                candidateId: candidate.id,
+                source: candidate.source,
+                actionId: candidate.actionId,
+                basisSourceIds: candidate.sourceIds,
+                nudges: guidance.map((n) => ({ kind: n.kind, basisSourceIds: n.basisSourceIds })),
+              });
+          const { receipt } = await attempts.accept(ownerId, {
+            id: randomUUID(),
+            worldId,
+            commandId,
+            inputHash: hash([worldId, candidate.actorId, candidate.id, text]),
+            channel: 'private',
+            threadId: candidate.actorId,
+            recipientActorId: candidate.actorId,
+            expectedWorldVersion: world.version,
+            receivedAt: new Date().toISOString(),
+            storyAt,
+            origin: 'wake',
+            text,
+          });
+          const prior = await attempts.lookup(ownerId, worldId, commandId);
+          const snapshot =
+            prior?.status === 'response_received'
+              ? null
+              : (
+                  await readPrivateAgentSnapshot(
+                    db,
+                    ownerId,
+                    world,
+                    candidate.actorId,
+                    receipt,
+                    storyAt,
+                    actor,
+                  )
+                ).snapshot;
+          let result;
+          try {
+            result = await runNpcAgent(
+              {
+                attempts,
+                model: npcModel,
+                kernel: new PostgresNpcAgentKernel(db, worlds),
+              },
+              ownerId,
+              prior ?? {
+                id: randomUUID(),
+                worldId,
+                actorId: candidate.actorId,
+                commandId,
+                inputReceiptId: receipt.id,
+                engineEpoch,
+                expectedWorldVersion: world.version,
+                expectedActorRevision: actor.revision,
+                inputHash: receipt.inputHash,
+                token: randomUUID(),
+                leaseUntil: new Date(Date.now() + 240_000).toISOString(),
+              },
+              snapshot,
+            );
+          } catch (error) {
+            if ((error as { code?: unknown })?.code === 'NPC_DELIVERY_DEFERRED')
+              return quiet(storyAt);
+            if (batch) {
+              const failed = await attempts.lookup(ownerId, worldId, commandId);
+              if (
+                failed?.actorId === candidate.actorId &&
+                (failed.status === 'unknown_after_send' || failed.status === 'invalid_output')
+              )
+                throw new ActorAdvanceBlocked(
+                  error,
+                  failed.status,
+                  actorAdvanceFailureScope(error),
+                );
+            }
+            throw error;
+          }
+          // Real quiet/plan outcomes still execute and persist, but never pretend a new message exists.
+          return presentedResult(
+            result.eventId,
+            candidate.actorId,
+            result.state.projectedWorldVersion,
+          );
+        } finally {
+          reservation?.release();
+        }
       }
       async function presentedResult(
         eventId: string,
@@ -718,6 +792,38 @@ export function npcAgentAdvanceServices(
           played: presented ? 1 : 0,
           actors: presented ? [actorId] : [],
         };
+      }
+    },
+  };
+  return {
+    async advanceIfEnabled(ownerId: string, worldId: string, retryDirectorAttemptId?: string) {
+      const lease = await claimAgentAdvanceBatch(db, ownerId, worldId);
+      if (lease.status === 'legacy')
+        return service.advanceOne(ownerId, worldId, retryDirectorAttemptId);
+      if (lease.status === 'busy')
+        return { ...quiet(lease.storyNow), deferred: 'scheduler_busy' as const };
+      try {
+        if (retryDirectorAttemptId)
+          return await service.advanceOne(ownerId, worldId, retryDirectorAttemptId);
+        return await runAgentAdvanceBatch(async (batch) => {
+          try {
+            return await service.advanceOne(ownerId, worldId, undefined, batch);
+          } catch (error) {
+            const scoped = error as {
+              directorCoordinationPending?: boolean;
+              directorKnownInvalid?: boolean;
+            };
+            if (scoped?.directorCoordinationPending || scoped?.directorKnownInvalid)
+              throw new AgentAdvanceDeferred(error);
+            throw error;
+          }
+        }, policy);
+      } finally {
+        try {
+          await releaseAgentAdvanceBatch(db, ownerId, worldId, lease.token);
+        } catch {
+          console.warn('AGENT_ADVANCE_BATCH_LEASE_RELEASE_FAILED');
+        }
       }
     },
   };

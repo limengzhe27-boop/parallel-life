@@ -159,7 +159,12 @@ test('agenda_initialize actual original advance/attempt/kernel flow, real PG syn
       },
     };
     return {
-      service: npcAgentAdvanceServices(db, () => model, new PostgresDirectorSnapshotRepository(db)),
+      service: npcAgentAdvanceServices(
+        db,
+        () => model,
+        new PostgresDirectorSnapshotRepository(db),
+        { maxActors: 1 },
+      ),
       calls,
       npc: () => calls.filter((p) => p.promptVersion.startsWith('npc-agent-')),
     };

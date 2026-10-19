@@ -18,6 +18,7 @@ import type { ClockStore, TurnPlanner, WorldRepository } from './ports.ts';
 import { resolveTurn } from './resolve-turn.ts';
 
 export type AdvanceResult = {
+  deferred?: 'scheduler_busy';
   storyNow: string;
   played: number;
   folded: number;

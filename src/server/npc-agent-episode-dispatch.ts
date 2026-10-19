@@ -1,3 +1,8 @@
+import {
+  ActorAdvanceBlocked,
+  actorAdvanceFailureScope,
+  type AgentAdvanceBatchContext,
+} from '../modules/world/application/agent-advance-batch.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { projectStoryTime } from '../modules/world/domain/clock.ts';
 import { PostgresClockStore } from '../modules/world/infrastructure/clock-repository.ts';
@@ -29,6 +34,7 @@ export async function dispatchPendingAgentEpisode(
   world: WorldState,
   engineEpoch: number,
   requestedStoryAt: string,
+  batch?: AgentAdvanceBatchContext,
 ): Promise<AdvanceResult | null> {
   // Coordination itself can take seconds while the clock continues. Assemble the
   // actor against the current kernel clock, never the pre-Director timestamp.
@@ -79,6 +85,8 @@ export async function dispatchPendingAgentEpisode(
     pending.attention,
     pending.attempts,
   )) {
+    if (batch?.handledActorIds.has(request.actorId)) continue;
+    if (batch && !batch.canStartModel()) return null;
     try {
       await db.transaction(ownerId, (sql) =>
         requireEpisodeDeliveryInTransaction(sql, ownerId, {
@@ -97,93 +105,108 @@ export async function dispatchPendingAgentEpisode(
         continue;
       throw error;
     }
-    const actor: ActorAgentState | null = await store.read(ownerId, {
-      worldId: world.id,
-      actorId: request.actorId,
-    });
-    if (!actor) throw new DomainError('INVALID_PROPOSAL', 'EPISODE_ACTOR_STATE_MISSING');
-    const intent: EpisodeConsiderationIntent = {
-      type: 'npc_episode_consideration',
-      requestId: request.id,
-      revision: 0,
-      activity: request.activity,
-      placeOptionIds: [],
-      basisSourceIds: [`definition:${actor.definitionRef}`],
-    };
-    const text = JSON.stringify(intent);
-    const { receipt } = await store.accept(ownerId, {
-      id: randomUUID(),
-      worldId: world.id,
-      commandId,
-      inputHash: createHash('sha256')
-        .update(JSON.stringify([world.id, request.actorId, request.id, world.version, text]))
-        .digest('hex'),
-      channel: 'private',
-      threadId: request.actorId,
-      recipientActorId: request.actorId,
-      expectedWorldVersion: world.version,
-      receivedAt: new Date().toISOString(),
-      storyAt,
-      origin: 'coordination',
-      text,
-    });
-    const snapshot = (
-      await readPrivateAgentSnapshot(db, ownerId, world, request.actorId, receipt, storyAt, actor)
-    ).snapshot;
-    let result;
+    const reservation = batch?.reserveModel();
+    if (batch && !reservation) return null;
     try {
-      result = await runNpcAgent(
-        {
-          attempts: store,
-          model,
-          kernel: new PostgresNpcAgentKernel(db, new PostgresWorldRepository(db)),
-        },
-        ownerId,
-        {
-          id: randomUUID(),
-          worldId: world.id,
-          actorId: request.actorId,
-          commandId,
-          inputReceiptId: receipt.id,
-          engineEpoch,
-          expectedWorldVersion: world.version,
-          expectedActorRevision: actor.revision,
-          inputHash: receipt.inputHash,
-          token: randomUUID(),
-          leaseUntil: new Date(Date.now() + 240_000).toISOString(),
-        },
-        snapshot,
-      );
-    } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'EPISODE_DELIVERY_DEFERRED'
-      )
-        continue;
-      throw error;
-    }
-    const presented = await db.transaction(ownerId, async (sql) =>
-      Number(
-        (
-          await sql.query(
-            `SELECT count(*)::int n FROM parallel_life.world_messages WHERE world_id=$1 AND owner_id=$2
-       AND actor_id=$3 AND document->>'sourceEventId'=$4`,
-            [world.id, ownerId, request.actorId, result.eventId],
+      batch?.actorStarted(request.actorId);
+      const actor: ActorAgentState | null = await store.read(ownerId, {
+        worldId: world.id,
+        actorId: request.actorId,
+      });
+      if (!actor) throw new DomainError('INVALID_PROPOSAL', 'EPISODE_ACTOR_STATE_MISSING');
+      const intent: EpisodeConsiderationIntent = {
+        type: 'npc_episode_consideration',
+        requestId: request.id,
+        revision: 0,
+        activity: request.activity,
+        placeOptionIds: [],
+        basisSourceIds: [`definition:${actor.definitionRef}`],
+      };
+      const text = JSON.stringify(intent);
+      const { receipt } = await store.accept(ownerId, {
+        id: randomUUID(),
+        worldId: world.id,
+        commandId,
+        inputHash: createHash('sha256')
+          .update(JSON.stringify([world.id, request.actorId, request.id, world.version, text]))
+          .digest('hex'),
+        channel: 'private',
+        threadId: request.actorId,
+        recipientActorId: request.actorId,
+        expectedWorldVersion: world.version,
+        receivedAt: new Date().toISOString(),
+        storyAt,
+        origin: 'coordination',
+        text,
+      });
+      const snapshot = (
+        await readPrivateAgentSnapshot(db, ownerId, world, request.actorId, receipt, storyAt, actor)
+      ).snapshot;
+      let result;
+      try {
+        result = await runNpcAgent(
+          {
+            attempts: store,
+            model,
+            kernel: new PostgresNpcAgentKernel(db, new PostgresWorldRepository(db)),
+          },
+          ownerId,
+          {
+            id: randomUUID(),
+            worldId: world.id,
+            actorId: request.actorId,
+            commandId,
+            inputReceiptId: receipt.id,
+            engineEpoch,
+            expectedWorldVersion: world.version,
+            expectedActorRevision: actor.revision,
+            inputHash: receipt.inputHash,
+            token: randomUUID(),
+            leaseUntil: new Date(Date.now() + 240_000).toISOString(),
+          },
+          snapshot,
+        );
+      } catch (error) {
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'EPISODE_DELIVERY_DEFERRED'
+        )
+          continue;
+        if (batch) {
+          const failed = await store.lookup(ownerId, world.id, commandId);
+          if (
+            failed?.actorId === request.actorId &&
+            (failed.status === 'unknown_after_send' || failed.status === 'invalid_output')
           )
-        ).rows[0].n,
-      ),
-    );
-    return {
-      storyNow: storyAt,
-      changed: true,
-      worldVersion: result.state.projectedWorldVersion,
-      played: presented ? 1 : 0,
-      folded: 0,
-      summary: null,
-      actors: presented ? [request.actorId] : [],
-    };
+            throw new ActorAdvanceBlocked(error, failed.status, actorAdvanceFailureScope(error));
+        }
+        throw error;
+      }
+      const presented = await db.transaction(ownerId, async (sql) =>
+        Number(
+          (
+            await sql.query(
+              `SELECT count(*)::int n FROM parallel_life.world_messages WHERE world_id=$1 AND owner_id=$2
+       AND actor_id=$3 AND document->>'sourceEventId'=$4`,
+              [world.id, ownerId, request.actorId, result.eventId],
+            )
+          ).rows[0].n,
+        ),
+      );
+      return {
+        storyNow: storyAt,
+        changed: true,
+        worldVersion: result.state.projectedWorldVersion,
+        played: presented ? 1 : 0,
+        folded: 0,
+        summary: null,
+        actors: presented ? [request.actorId] : [],
+      };
+    } finally {
+      reservation?.release();
+    }
   }
   return null;
 }

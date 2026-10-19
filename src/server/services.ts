@@ -95,6 +95,14 @@ function createServices() {
     db,
     createTextModel,
     new PostgresDirectorSnapshotRepository(db),
+    Object.fromEntries(
+      [
+        ['maxActors', process.env.NPC_ADVANCE_BATCH_MAX_ACTORS],
+        ['maxModelCalls', process.env.NPC_ADVANCE_BATCH_MAX_MODEL_CALLS],
+        ['maxSteps', process.env.NPC_ADVANCE_BATCH_MAX_STEPS],
+        ['maxElapsedMs', process.env.NPC_ADVANCE_BATCH_MAX_ELAPSED_MS],
+      ].flatMap(([key, value]) => (value === undefined ? [] : [[key!, Number(value)]])),
+    ),
   );
   return {
     db,
