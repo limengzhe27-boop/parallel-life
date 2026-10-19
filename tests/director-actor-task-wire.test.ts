@@ -238,7 +238,7 @@ test('v7 paid single choice remains fixed and namespaced; duplicate-actor old ar
   raw.authoredChoices[ref].opportunities.push({ ...o, id: 'other-id' });
   assert.throws(() => f.parse(raw), /outside its authorized boundary/);
 });
-test('v9 provider uses single author opportunity and exact keyed nullable actor tasks with shared schema', () => {
+test('current provider uses single author opportunity and exact keyed nullable actor tasks with shared schema', () => {
   const f = fixture(),
     format = directorResponseFormat(f.s);
   if (format.format !== 'json_schema') throw Error('schema');
@@ -252,7 +252,7 @@ test('v9 provider uses single author opportunity and exact keyed nullable actor 
   );
   assert(consider.properties.opportunity.$ref);
   assert.equal(consider.properties.opportunities, undefined);
-  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v9']);
+  assert.deepEqual(s.properties.protocol.enum, ['director-wire-v10']);
 });
 
 test('v9 typed handoff preserves actor binding and compiles only the selected personal proposal', () => {
@@ -296,4 +296,110 @@ test('v9 schema requires three bounded personal fields while v8 saved task remai
   assert.deepEqual(personal.required, ['topic', 'personalObjective', 'proposedInteraction']);
   assert.equal(personal.additionalProperties, false);
   for (const field of personal.required) assert.equal(personal.properties[field].maxLength, 140);
+});
+
+test('v10 opening information binds actor refs and review identity while preserving original report text', () => {
+  const f = fixture();
+  const opening = f.s.authoredMaterials!.materials.find((m) => m.role === 'opening')!;
+  const quote = opening.node.editorialIntent!;
+  const ownQuote = 'A knows the existing project and coordinates its arrangements.';
+  f.s.openingContextAuthority = {
+    policy: 'opening_context_v1',
+    reviewKey: 'd'.repeat(64),
+    nodeKey: opening.ref.nodeKey,
+    nodeHash: opening.ref.nodeHash,
+    sourceHash: f.s.authoredMaterials!.source!.sourceHash,
+    initialAt: f.s.storyAt,
+    sourceField: 'editorialIntent',
+    sourceExcerpt: quote,
+    actorKnowledge: [
+      {
+        actorId: 'a',
+        definitionSourceId: 'definition:definition',
+        modules: { relationships: ownQuote },
+      },
+    ],
+  };
+  const raw = {
+    ...f.wire,
+    protocol: 'director-wire-v10',
+    openingContext: {
+      disposition: 'confirm',
+      reason: 'Record scoped information receipt, not external action completion.',
+      premises: [
+        {
+          actorRef: 'actor:1',
+          kind: 'opening_information',
+          field: 'editorialIntent',
+          quote,
+          knowledge: { module: 'relationships', quote: ownQuote },
+        },
+      ],
+    },
+  };
+  const before = structuredClone(raw);
+  const decision = f.parse(raw);
+  assert.equal(decision.mode, 'coordinate');
+  assert.equal(decision.openingContext!.reviewKey, f.s.openingContextAuthority.reviewKey);
+  assert.equal(decision.openingContext!.premises[0]!.actorId, 'a');
+  assert.equal(decision.openingContext!.premises[0]!.quote, quote);
+  assert.deepEqual(raw, before, 'paid source object is never mutated');
+  const schema = directorResponseFormat(f.s);
+  if (schema.format !== 'json_schema') throw Error('schema');
+  const properties = (schema.schema as any).properties;
+  assert.equal(schema.name, 'director_response_v10');
+  assert.equal(
+    properties.openingContext.anyOf[0].properties.premises.items.properties.actorRef.enum[0],
+    'actor:1',
+  );
+  for (const invalid of [
+    {
+      ...raw,
+      openingContext: {
+        ...raw.openingContext,
+        premises: [{ ...raw.openingContext.premises[0], actorRef: 'actor:2' }],
+      },
+    },
+    {
+      ...raw,
+      openingContext: {
+        ...raw.openingContext,
+        premises: [
+          { ...raw.openingContext.premises[0], quote: 'A fabricated source with no provenance.' },
+        ],
+      },
+    },
+    { ...raw, openingContext: { ...raw.openingContext, reviewKey: 'model-supplied-review' } },
+  ])
+    assert.throws(() => f.parse(invalid));
+});
+
+test('protected v9 responses do not gain opening execution and cannot attach a new authority field', () => {
+  const f = fixture();
+  const previous = { ...f.wire, protocol: 'director-wire-v9' };
+  const original = f.parse(previous);
+  assert.equal(original.openingContext, undefined);
+  assert.equal(original.mode, 'quiet');
+  assert.throws(
+    () => f.parse({ ...previous, openingContext: null }),
+    'legacy schema remains strict',
+  );
+  assert.throws(() =>
+    f.parse({
+      ...previous,
+      openingContext: { disposition: 'confirm', reason: 'No grant', premises: [] },
+    }),
+  );
+  assert.throws(() =>
+    f.parse({
+      ...f.wire,
+      protocol: 'director-wire-v10',
+      openingContext: { disposition: 'confirm', reason: 'No grant', premises: [] },
+    }),
+  );
+  const current = f.parse({ ...f.wire, protocol: 'director-wire-v10', openingContext: null });
+  assert.equal(current.openingContext, undefined);
+  const schema = directorResponseFormat(f.s);
+  if (schema.format !== 'json_schema') throw Error('schema');
+  assert.deepEqual((schema.schema as any).properties.openingContext, { type: 'null' });
 });
