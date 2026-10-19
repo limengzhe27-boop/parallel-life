@@ -1057,6 +1057,26 @@ export function npcAgentAdvanceServices(
               const failed = await attempts.lookup(ownerId, worldId, commandId);
               if (
                 failed?.actorId === candidate.actorId &&
+                failed.status === 'cancelled_before_send' &&
+                (error as { code?: unknown })?.code === 'NPC_AGENT_SNAPSHOT_LIMIT'
+              ) {
+                const unsent = await db.transaction(
+                  ownerId,
+                  async (sql) =>
+                    !!(
+                      await sql.query(
+                        `SELECT 1 FROM parallel_life.agent_attempts
+                    WHERE id=$1 AND world_id=$2 AND owner_id=$3
+                      AND status='cancelled_before_send' AND sent_at IS NULL
+                      AND response IS NULL AND response_hash IS NULL AND event_id IS NULL`,
+                        [failed.id, worldId, ownerId],
+                      )
+                    ).rowCount,
+                );
+                if (unsent) throw new ActorAdvanceBlocked(error, failed.status, 'actor');
+              }
+              if (
+                failed?.actorId === candidate.actorId &&
                 (failed.status === 'unknown_after_send' || failed.status === 'invalid_output')
               )
                 throw new ActorAdvanceBlocked(

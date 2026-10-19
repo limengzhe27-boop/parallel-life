@@ -220,3 +220,24 @@ test('a protected paid frame yields the batch without losing its committed prefi
   assert.equal(r?.played, 1);
   assert.deepEqual(r?.actors, ['a']);
 });
+
+test('a proven actor preflight cancellation preserves other actors without buying or retrying that request', async () => {
+  const seen: string[] = [];
+  let paid = 0;
+  const r = await runAgentAdvanceBatch(
+    async (c) => {
+      const actor = c.handledActorIds.has('a') ? 'b' : 'a';
+      seen.push(actor);
+      c.actorStarted(actor);
+      if (actor === 'a')
+        throw new ActorAdvanceBlocked(Error('NPC_AGENT_SNAPSHOT_LIMIT'), 'cancelled_before_send');
+      c.modelStarted();
+      paid++;
+      return result(1, actor);
+    },
+    agentAdvanceBatchPolicy({ maxActors: 2 }),
+  );
+  assert.deepEqual(seen, ['a', 'b']);
+  assert.equal(paid, 1);
+  assert.deepEqual(r?.actors, ['b']);
+});

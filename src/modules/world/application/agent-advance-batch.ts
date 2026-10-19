@@ -55,11 +55,11 @@ export function actorAdvanceFailureScope(error: unknown): 'actor' | 'model' {
 /** Constructed by composition only after the original durable attempt confirms this scope. */
 export class ActorAdvanceBlocked extends Error {
   readonly original: unknown;
-  readonly attemptStatus: 'unknown_after_send' | 'invalid_output';
+  readonly attemptStatus: 'unknown_after_send' | 'invalid_output' | 'cancelled_before_send';
   readonly scope: 'actor' | 'model';
   constructor(
     original: unknown,
-    attemptStatus: 'unknown_after_send' | 'invalid_output',
+    attemptStatus: 'unknown_after_send' | 'invalid_output' | 'cancelled_before_send',
     scope: 'actor' | 'model' = 'actor',
   ) {
     super('ACTOR_ADVANCE_BLOCKED', { cause: original });
