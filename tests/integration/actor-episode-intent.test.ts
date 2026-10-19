@@ -545,6 +545,9 @@ test('actual bound author intents reach only their actor through protected NPC d
           },
         }),
         snapshots,
+        // This privacy case deliberately checks one delivery per invocation.
+        // Multi-actor default batches are covered by the original runtime journey.
+        { maxActors: 1 },
       );
       await service.advanceIfEnabled(f.owner, f.id);
       await service.advanceIfEnabled(f.owner, f.id);
