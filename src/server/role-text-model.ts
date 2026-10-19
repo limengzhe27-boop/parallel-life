@@ -59,10 +59,16 @@ function npcOutput(output?: ModelOutputOptions): boolean {
 }
 
 /** One configured model per call. Never a fallback, retry, second judge or new agent state. */
-export function roleTextModel(base: TextModel, npc: TextModel): TextModel {
+export function roleTextModel(base: TextModel, npc: TextModel, director?: TextModel): TextModel {
+  const selected = (output?: ModelOutputOptions) =>
+    npcOutput(output)
+      ? npc
+      : director && output?.format === 'json_schema' && /^director_response_v\d+$/.test(output.name)
+        ? director
+        : base;
   return {
     complete(messages, signal, maxTokens, output) {
-      if (!npcOutput(output)) return base.complete(messages, signal, maxTokens, output);
+      if (!npcOutput(output)) return selected(output).complete(messages, signal, maxTokens, output);
       try {
         return npc.complete(messages, signal, maxTokens, output).catch((error: unknown) => {
           recordNpcFailure(error);
@@ -75,9 +81,9 @@ export function roleTextModel(base: TextModel, npc: TextModel): TextModel {
     },
     streamComplete: base.streamComplete
       ? (messages, signal, output) => {
-          const selected = npcOutput(output) ? npc : base;
-          if (!selected.streamComplete) throw Error('MODEL_STREAM_NOT_SUPPORTED');
-          return selected.streamComplete(messages, signal, output);
+          const model = selected(output);
+          if (!model.streamComplete) throw Error('MODEL_STREAM_NOT_SUPPORTED');
+          return model.streamComplete(messages, signal, output);
         }
       : undefined,
   };

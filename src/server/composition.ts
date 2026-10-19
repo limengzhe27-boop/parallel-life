@@ -9,7 +9,14 @@ export function createTextModel() {
   const config = gatewayConfig();
   const base = new YibuTextModel(config);
   const npcModel = process.env.YIBU_NPC_MODEL?.trim();
-  return npcModel ? roleTextModel(base, new YibuTextModel({ ...config, model: npcModel })) : base;
+  const directorModel = process.env.YIBU_DIRECTOR_MODEL?.trim();
+  return npcModel || directorModel
+    ? roleTextModel(
+        base,
+        npcModel ? new YibuTextModel({ ...config, model: npcModel }) : base,
+        directorModel ? new YibuTextModel({ ...config, model: directorModel }) : undefined,
+      )
+    : base;
 }
 /** Authoring compiles a whole screenplay; its model can be configured independently of chat. */
 export function createManuscriptTextModel() {
