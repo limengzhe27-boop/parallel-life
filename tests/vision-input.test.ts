@@ -1,3 +1,4 @@
+import { MODEL_TEXT_CHARACTER_LIMIT } from '../src/modules/ai/application/model-content.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -107,7 +108,7 @@ test('invalid roles, counts, MIME and binary formats never reach the network', a
         images: [{ ...photo, base64: Buffer.alloc(MODEL_IMAGE_BYTE_LIMIT + 1).toString('base64') }],
       },
     ],
-    [{ role: 'user', content: 'x'.repeat(64001), images: [photo] }],
+    [{ role: 'user', content: 'x'.repeat(MODEL_TEXT_CHARACTER_LIMIT + 1), images: [photo] }],
   ];
   for (const messages of invalid) {
     await assert.rejects(model.complete(messages), { code: 'INVALID_CONFIG' });

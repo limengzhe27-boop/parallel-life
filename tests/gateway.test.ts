@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { MODEL_TEXT_CHARACTER_LIMIT } from '../src/modules/ai/application/model-request-policy.ts';
 import { YibuTextModel } from '../src/modules/ai/infrastructure/yibu-text-model.ts';
 const config = {
   apiKey: 'test-only-secret',
@@ -164,7 +165,7 @@ test('oversized local request reports not sent and never reaches transport', asy
   await assert.rejects(
     model.complete([
       { role: 'system', content: 's'.repeat(4000) },
-      { role: 'user', content: 'u'.repeat(62000) },
+      { role: 'user', content: 'u'.repeat(MODEL_TEXT_CHARACTER_LIMIT - 4000 + 1) },
     ]),
     { code: 'INVALID_CONFIG', stage: 'request', responseOutcome: 'not_sent' },
   );

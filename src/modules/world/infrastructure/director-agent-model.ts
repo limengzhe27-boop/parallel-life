@@ -1,3 +1,8 @@
+import {
+  validateModelRequest,
+  MODEL_TEXT_CHARACTER_LIMIT,
+  DEFAULT_MODEL_OUTPUT_TOKENS,
+} from '../../ai/application/model-request-policy.ts';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import {
@@ -347,7 +352,7 @@ function evaluationCauseView(snapshot: DirectorSnapshot) {
  * Multi-actor role material and persistent execution state must fit together;
  * omitting either silently changes narrative identity or execution semantics. */
 export const CONTEXT_BUDGET = 80000;
-const CONTEXT_LIMIT = 96000;
+const CONTEXT_LIMIT = MODEL_TEXT_CHARACTER_LIMIT;
 
 type Payload = Record<string, unknown>;
 
@@ -552,10 +557,18 @@ export class WorldDirectorAgentModel implements DirectorDecisionModel {
     this.model = model;
   }
   validateInput(snapshot: DirectorSnapshot) {
-    request(snapshot);
-    directorResponseFormat(snapshot);
+    validateModelRequest(
+      request(snapshot),
+      DEFAULT_MODEL_OUTPUT_TOKENS,
+      directorResponseFormat(snapshot),
+    );
   }
   decide(snapshot: DirectorSnapshot, signal?: AbortSignal) {
-    return this.model.complete(request(snapshot), signal, 4096, directorResponseFormat(snapshot));
+    return this.model.complete(
+      request(snapshot),
+      signal,
+      DEFAULT_MODEL_OUTPUT_TOKENS,
+      directorResponseFormat(snapshot),
+    );
   }
 }

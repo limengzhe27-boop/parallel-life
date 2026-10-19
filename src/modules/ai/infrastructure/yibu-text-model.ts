@@ -1,10 +1,13 @@
 import { abortable, callLifetime, cancelBody, manageReader } from './call-lifetime.ts';
-import { modelRequestMessages } from '../application/model-content.ts';
+import {
+  validateModelRequest,
+  DEFAULT_MODEL_OUTPUT_TOKENS,
+} from '../application/model-request-policy.ts';
 import type { ModelMessage, TextModel, ModelOutputOptions } from '../application/ports.ts';
 
 export type GatewayConfig = { apiKey: string; model: string; baseUrl: string; timeoutMs: number };
 /** Chat-shaped calls keep the conservative default; structured builders ask for their own cap. */
-export const DEFAULT_MAX_TOKENS = 4096;
+export const DEFAULT_MAX_TOKENS = DEFAULT_MODEL_OUTPUT_TOKENS;
 export class GatewayError extends Error {
   readonly responseOutcome?: 'rejected' | 'not_sent';
   readonly code:
@@ -40,31 +43,6 @@ export class GatewayError extends Error {
       this.responseOutcome = 'rejected';
   }
 }
-/** One provider boundary for typed responses; unsupported formats are never silently retried. */
-function responseFormat(output?: ModelOutputOptions) {
-  if (!output) return undefined;
-  if (output.format === 'json_object') return { type: 'json_object' };
-  if (
-    output.format !== 'json_schema' ||
-    !/^[a-zA-Z0-9_-]{1,64}$/.test(output.name) ||
-    typeof output.strict !== 'boolean' ||
-    !output.schema ||
-    Array.isArray(output.schema) ||
-    typeof output.schema !== 'object'
-  )
-    throw new GatewayError('INVALID_CONFIG');
-  let size: number;
-  try {
-    size = JSON.stringify(output.schema).length;
-  } catch {
-    throw new GatewayError('INVALID_CONFIG');
-  }
-  if (size > 24000 || output.schema.type !== 'object') throw new GatewayError('INVALID_CONFIG');
-  return {
-    type: 'json_schema',
-    json_schema: { name: output.name, strict: output.strict, schema: output.schema },
-  };
-}
 /** Server composition injects secrets. This adapter never reads or logs environment values. */
 export class YibuTextModel implements TextModel {
   private readonly config: GatewayConfig;
@@ -88,23 +66,12 @@ export class YibuTextModel implements TextModel {
     maxTokens?: number,
     output?: ModelOutputOptions,
   ): Promise<string> {
-    if (
-      maxTokens !== undefined &&
-      (!Number.isSafeInteger(maxTokens) || maxTokens < 256 || maxTokens > 16000)
-    )
-      throw new GatewayError('INVALID_CONFIG');
-    const format = responseFormat(output);
+    const prepared = validateModelRequest(messages, maxTokens, output);
+    const { format, messages: preparedMessages, maxTokens: outputCap } = prepared;
     if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
     const started = performance.now();
     let stage: NonNullable<GatewayError['stage']> = 'request';
     let response: Response | undefined;
-    const outputCap = maxTokens ?? DEFAULT_MAX_TOKENS;
-    let preparedMessages: ReturnType<typeof modelRequestMessages>;
-    try {
-      preparedMessages = modelRequestMessages(messages);
-    } catch {
-      throw new GatewayError('INVALID_CONFIG');
-    }
     const lifetime = callLifetime(this.config.timeoutMs, signal);
     const combined = lifetime.signal;
     try {
@@ -205,15 +172,13 @@ export class YibuTextModel implements TextModel {
     signal?: AbortSignal,
     output?: ModelOutputOptions,
   ): AsyncIterable<string> {
-    const format = responseFormat(output);
+    const {
+      format,
+      messages: preparedMessages,
+      maxTokens,
+    } = validateModelRequest(messages, DEFAULT_MAX_TOKENS, output);
     if (signal?.aborted) throw new GatewayError('CANCELLED', { stage: 'request', durationMs: 0 });
     const started = performance.now();
-    let preparedMessages: ReturnType<typeof modelRequestMessages>;
-    try {
-      preparedMessages = modelRequestMessages(messages);
-    } catch {
-      throw new GatewayError('INVALID_CONFIG');
-    }
     const lifetime = callLifetime(this.config.timeoutMs, signal);
     const combined = lifetime.signal;
     let response: Response | undefined;
@@ -231,7 +196,7 @@ export class YibuTextModel implements TextModel {
             model: this.config.model,
             messages: preparedMessages,
             stream: true,
-            max_tokens: 4096,
+            max_tokens: maxTokens,
             ...(format ? { response_format: format } : {}),
           }),
           signal: combined,

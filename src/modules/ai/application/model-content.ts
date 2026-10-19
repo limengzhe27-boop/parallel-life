@@ -1,5 +1,7 @@
 import type { ModelMessage } from './ports.ts';
 import { isValidImageMagicBytes } from '../../media/domain/magic-bytes.ts';
+/** Shared character budget, not a token estimate; applies before every gateway call. */
+export const MODEL_TEXT_CHARACTER_LIMIT = 96000;
 export const MODEL_IMAGE_LIMIT = 2;
 export const MODEL_IMAGE_BYTE_LIMIT = 256 * 1024;
 /** Text and binary budgets are separate, before any upstream side effect. */
@@ -16,7 +18,7 @@ export function modelRequestMessages(messages: ModelMessage[]) {
     )
       throw Error('INVALID_CONFIG');
     textLength += message.content.length;
-    if (textLength > 64000) throw Error('INVALID_CONFIG');
+    if (textLength > MODEL_TEXT_CHARACTER_LIMIT) throw Error('INVALID_CONFIG');
     if (message.images === undefined) return { role: message.role, content: message.content };
     if (message.role !== 'user' || !Array.isArray(message.images) || !message.images.length)
       throw Error('INVALID_CONFIG');
