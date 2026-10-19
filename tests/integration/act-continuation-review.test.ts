@@ -37,7 +37,7 @@ import type { WorldState } from '../../src/modules/world/domain/types.ts';
 const ACTOR_A = '11111111-1111-4111-8111-111111111111',
   ACTOR_B = '22222222-2222-4222-8222-222222222222';
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
-test('act continuation gets one existing review per authenticated personal basis', async (t) => {
+test('act, waiting and empty quiet continuations each get one existing review per authenticated personal basis', async (t) => {
   const cfg = await localConfig();
   assert.equal(cfg.port, 55587);
   const admin = await adminClient('parallel_life_test');
@@ -322,102 +322,201 @@ test('act continuation gets one existing review per authenticated personal basis
     );
     return h;
   }
-  const f = await fixture();
-  await prime(f);
-  const initial = await work(f);
-  assert.ok(initial);
-  const first = await prepare(f, initial);
-  const basis = [first.snapshot.input.sourceId];
-  await runNpcAgent(
-    {
-      attempts: store,
-      kernel: new PostgresNpcAgentKernel(db, worlds),
-      model: {
-        async decide() {
-          return {
-            statements: [],
-            goals: [
-              {
-                id: 'personal-goal',
-                summary: 'Prepare my own arrangement',
-                status: 'active',
+  for (const decision of ['act', 'await_response', 'no_current_intent'] as const) {
+    const f = await fixture();
+    await prime(f);
+    const initial = await work(f);
+    assert.ok(initial);
+    const first = await prepare(f, initial);
+    const basis = [first.snapshot.input.sourceId];
+    await runNpcAgent(
+      {
+        attempts: store,
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+        model: {
+          async decide() {
+            return {
+              statements: [],
+              goals:
+                decision === 'no_current_intent'
+                  ? []
+                  : [
+                      {
+                        id: 'personal-goal',
+                        summary: 'Prepare my own arrangement',
+                        status: 'active',
+                        sourceIds: basis,
+                        resultIds: [],
+                      },
+                    ],
+              plans:
+                decision === 'no_current_intent'
+                  ? []
+                  : [
+                      {
+                        id: 'personal-plan',
+                        goalId: 'personal-goal',
+                        summary: 'Consider a concrete arrangement',
+                        status: 'blocked',
+                        sourceIds: basis,
+                        actionIds: [],
+                        nextActionId: null,
+                        triggers: [],
+                        missingConditions: ['Need to work out the details'],
+                      },
+                    ],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+              continuation: {
+                decision,
+                reason: 'I intend to work out my own arrangement.',
                 sourceIds: basis,
-                resultIds: [],
+                planIds: decision === 'no_current_intent' ? [] : ['personal-plan'],
+                questionIds: [],
+                conditions: [],
               },
-            ],
-            plans: [
-              {
-                id: 'personal-plan',
-                goalId: 'personal-goal',
-                summary: 'Consider a concrete arrangement',
-                status: 'blocked',
-                sourceIds: basis,
-                actionIds: [],
-                nextActionId: null,
-                triggers: [],
-                missingConditions: ['Need to work out the details'],
-              },
-            ],
-            actions: [],
-            responsibilities: [],
-            decisions: [],
-            continuation: {
-              decision: 'act',
-              reason: 'I intend to work out my own arrangement.',
-              sourceIds: basis,
-              planIds: ['personal-plan'],
-              questionIds: [],
-              conditions: [],
-            },
-          };
+            };
+          },
         },
       },
-    },
-    f.owner,
-    first.claim,
-    first.snapshot,
-  );
-  const own = await work(f);
-  assert.ok(own, 'explicit act is not permanently suppressed by its unchanged basis');
-  const state = await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A });
-  const digest = state!.continuation!.basisHash;
-  const second = await prepare(f, own);
-  await runNpcAgent(
-    {
-      attempts: store,
-      kernel: new PostgresNpcAgentKernel(db, worlds),
-      model: {
-        async decide() {
-          return {
-            statements: [],
-            goals: [],
-            plans: [],
-            actions: [],
-            responsibilities: [],
-            decisions: [],
-            continuation: {
-              decision: 'act',
-              reason: 'I still need to decide the concrete details.',
-              sourceIds: [second.snapshot.input.sourceId],
-              planIds: ['personal-plan'],
-              questionIds: [],
-              conditions: [],
-            },
-          };
+      f.owner,
+      first.claim,
+      first.snapshot,
+    );
+    const own = await work(f);
+    assert.ok(own, `${decision} may reconsider once through the original review authority`);
+    const slow = structuredClone(fast);
+    slow.policy.realGapMs = 60_000;
+    slow.policy.maxRealGapMs = 60_000;
+    assert.equal(
+      await work(f, ACTOR_A, slow),
+      null,
+      'waiting reconsideration still obeys the original time window',
+    );
+    const state = await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A });
+    const digest = state!.continuation!.basisHash;
+    const second = await prepare(f, own);
+    await runNpcAgent(
+      {
+        attempts: store,
+        kernel: new PostgresNpcAgentKernel(db, worlds),
+        model: {
+          async decide() {
+            return {
+              statements: [],
+              goals: [],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+              continuation: {
+                decision,
+                reason: 'I still need to decide the concrete details.',
+                sourceIds: [second.snapshot.input.sourceId],
+                planIds: decision === 'no_current_intent' ? [] : ['personal-plan'],
+                questionIds: [],
+                conditions: [],
+              },
+            };
+          },
         },
       },
-    },
-    f.owner,
-    second.claim,
-    second.snapshot,
-  );
-  assert.equal(
-    (await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A }))!.continuation!.basisHash,
-    digest,
-  );
-  assert.equal(
-    await work(f),
-    null,
-    'new quiet anchor cannot rebuy the same personal semantic basis',
-  );
+      f.owner,
+      second.claim,
+      second.snapshot,
+    );
+    assert.equal(
+      (await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A }))!.continuation!
+        .basisHash,
+      digest,
+    );
+    assert.equal(
+      await work(f),
+      null,
+      'new quiet anchor cannot rebuy the same personal semantic basis',
+    );
+    if (decision === 'await_response') {
+      // A genuinely new player input and personal goal, committed through the same
+      // kernel, can open a new semantic review. No test edits persisted state.
+      const currentWorld = await worlds.get({ userId: f.owner }, f.worldId);
+      const commandId = randomUUID();
+      const text = '请也考虑一下明天的陈列安排。';
+      const { receipt } = await store.accept(f.owner, {
+        id: randomUUID(),
+        worldId: f.worldId,
+        commandId,
+        inputHash: hash(JSON.stringify([f.worldId, ACTOR_A, text])),
+        channel: 'private',
+        threadId: ACTOR_A,
+        recipientActorId: ACTOR_A,
+        expectedWorldVersion: currentWorld.version,
+        receivedAt: new Date().toISOString(),
+        storyAt: currentWorld.time,
+        origin: 'player',
+        text,
+      });
+      const snapshot = (
+        await readPrivateAgentSnapshot(
+          db,
+          f.owner,
+          currentWorld,
+          ACTOR_A,
+          receipt,
+          currentWorld.time,
+          await store.read(f.owner, { worldId: f.worldId, actorId: ACTOR_A }),
+        )
+      ).snapshot;
+      await runNpcAgent(
+        {
+          attempts: store,
+          kernel: new PostgresNpcAgentKernel(db, worlds),
+          model: {
+            async decide() {
+              return {
+                statements: [{ text: '我会考虑明天的陈列安排。', dependsOnActionIds: [] }],
+                goals: [
+                  {
+                    id: 'new-arrangement',
+                    summary: 'Consider tomorrow’s display arrangement',
+                    status: 'active',
+                    sourceIds: [snapshot.input.sourceId],
+                    resultIds: [],
+                  },
+                ],
+                plans: [],
+                actions: [],
+                responsibilities: [],
+                decisions: [],
+                continuation: {
+                  decision: 'no_current_intent',
+                  reason: 'Consider my changed arrangement later',
+                  sourceIds: [snapshot.input.sourceId],
+                  planIds: [],
+                  questionIds: [],
+                  conditions: [],
+                },
+              };
+            },
+          },
+        },
+        f.owner,
+        {
+          id: randomUUID(),
+          worldId: f.worldId,
+          actorId: ACTOR_A,
+          commandId,
+          inputReceiptId: receipt.id,
+          inputHash: receipt.inputHash,
+          engineEpoch: 2,
+          expectedWorldVersion: currentWorld.version,
+          expectedActorRevision: snapshot.state.revision,
+          token: randomUUID(),
+          leaseUntil: new Date(Date.now() + 240000).toISOString(),
+        },
+        snapshot,
+      );
+      assert.ok(await work(f), 'a committed new personal goal permits a new bounded review');
+    }
+  }
 });
