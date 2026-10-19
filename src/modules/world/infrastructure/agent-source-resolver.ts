@@ -1,3 +1,7 @@
+import {
+  readVerifiedPublicationGenesisEvidence,
+  verifiedPublicationGenesisRecord,
+} from './verified-publication-genesis-evidence.ts';
 import { readActorGroupObservationSourcesInTransaction } from './actor-group-observation-sources.ts';
 import { readConsumedSceneObservationSourcesInTransaction } from './actor-observation-consumption-repository.ts';
 import { readActorSceneObservationSourcesInTransaction } from './actor-scene-observation-sources.ts';
@@ -89,10 +93,20 @@ export async function readActorStrategyBasis(
       [state.worldId, ownerId],
     )
   ).rows[0]?.state;
+  const publicationGenesis = await readVerifiedPublicationGenesisEvidence(sql, ownerId, {
+    worldId: state.worldId,
+    actorId: state.actorId,
+    worldVersion,
+    storyAt,
+  });
   if (initial) {
     add(`definition:${state.definitionRef}`, 'authored', state.definitionRef, 0, initial.time);
     for (const m of initial.messages ?? [])
-      if (m.actorId === state.actorId && String(m.sourceEventId).startsWith('genesis:'))
+      if (
+        m.actorId === state.actorId &&
+        (String(m.sourceEventId).startsWith('genesis:') ||
+          verifiedPublicationGenesisRecord(publicationGenesis, 'message', m))
+      )
         for (const prefix of ['message:', 'opening:'])
           add(prefix + m.id, 'private_message', m.id, 0, m.at, [m.sourceEventId]);
     for (const f of initial.facts ?? [])
@@ -100,10 +114,18 @@ export async function readActorStrategyBasis(
         f.visibility?.kind === 'world' ||
         (f.visibility?.kind === 'actors' && f.visibility.actorIds.includes(state.actorId))
       )
-        if (!f.believedByActorId || f.believedByActorId === state.actorId)
+        if (
+          (!f.believedByActorId || f.believedByActorId === state.actorId) &&
+          (!String(f.sourceEventId).startsWith('publication-genesis:') ||
+            verifiedPublicationGenesisRecord(publicationGenesis, 'fact', f))
+        )
           add('fact:' + f.id, 'world_event', f.sourceEventId, 0, initial.time);
     for (const a of initial.appointments ?? [])
-      if (a.participantIds.includes(state.actorId))
+      if (
+        a.participantIds.includes(state.actorId) &&
+        (!String(a.sourceEventId).startsWith('publication-genesis:') ||
+          verifiedPublicationGenesisRecord(publicationGenesis, 'appointment', a))
+      )
         add('appointment:' + a.id, 'world_event', a.sourceEventId, 0, initial.time);
   }
   const inputs = (

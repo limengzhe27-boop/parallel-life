@@ -1,3 +1,7 @@
+import {
+  readVerifiedPublicationGenesisEvidence,
+  verifiedPublicationGenesisRecord,
+} from './verified-publication-genesis-evidence.ts';
 import { readActorObservationInbox } from './actor-observation-inbox.ts';
 import { readActorEpisodeResults } from './episode-result-context-repository.ts';
 import { readEpisodeLifecycleContext } from './episode-lifecycle-repository.ts';
@@ -147,6 +151,14 @@ export async function readPrivateAgentSnapshot(
         ).rows.map((row) => [String(row.id), Number(row.version)]),
       ),
   );
+  const publicationGenesis = await db.transaction(ownerId, (sql) =>
+    readVerifiedPublicationGenesisEvidence(sql, ownerId, {
+      worldId: world.id,
+      actorId,
+      worldVersion: world.version,
+      storyAt,
+    }),
+  );
   const sources = new Map<string, AgentSource>();
   const observations: AgentSnapshot['observations'] = [];
   const add = (
@@ -157,8 +169,10 @@ export async function readPrivateAgentSnapshot(
     at: string,
     text: string,
     observationKind: AgentSnapshot['observations'][number]['kind'],
+    verifiedPublicationGenesis = false,
   ) => {
-    const version = eventId.startsWith('genesis:') ? 0 : eventVersions.get(eventId);
+    const version =
+      verifiedPublicationGenesis || eventId.startsWith('genesis:') ? 0 : eventVersions.get(eventId);
     if (version === undefined || Date.parse(at) > Date.parse(storyAt)) return;
     sources.set(handle, { id: handle, kind, recordId, worldVersion: version, at });
     observations.push({ sourceId: handle, text, kind: observationKind });
@@ -170,9 +184,12 @@ export async function readPrivateAgentSnapshot(
       'world_event',
       fact.sourceEventId,
       fact.sourceEventId,
-      world.time,
+      verifiedPublicationGenesisRecord(publicationGenesis, 'fact', fact)
+        ? publicationGenesis!.at
+        : world.time,
       fact.text,
       fact.kind === 'canonical' && !fact.believedByActorId ? 'fact' : 'belief',
+      verifiedPublicationGenesisRecord(publicationGenesis, 'fact', fact),
     );
   }
   for (const message of context.messages)
@@ -184,6 +201,7 @@ export async function readPrivateAgentSnapshot(
       message.at,
       `${message.role === 'user' ? '主角' : context.actor.name}：${message.text}`,
       'speech',
+      verifiedPublicationGenesisRecord(publicationGenesis, 'message', message),
     );
   for (const appointment of context.appointments)
     add(
@@ -191,9 +209,12 @@ export async function readPrivateAgentSnapshot(
       'world_event',
       appointment.sourceEventId,
       appointment.sourceEventId,
-      world.time,
+      verifiedPublicationGenesisRecord(publicationGenesis, 'appointment', appointment)
+        ? publicationGenesis!.at
+        : world.time,
       `约定「${appointment.title}」，时刻${appointment.at}，实际状态${appointment.status ?? 'unknown'}。约定不是到场证明。`,
       'fact',
+      verifiedPublicationGenesisRecord(publicationGenesis, 'appointment', appointment),
     );
   const durableMemoryIds = state
     ? [
