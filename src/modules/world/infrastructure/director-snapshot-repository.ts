@@ -1,3 +1,4 @@
+import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
 import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
 import { validateNativeDirectorTurn } from './native-director-turn.ts';
 import { isDeepStrictEqual } from 'node:util';
@@ -1044,6 +1045,11 @@ export class PostgresDirectorSnapshotRepository {
           if (resolved && !resolved.knownByActorIds.includes(candidate.actorId))
             fail('DIRECTOR_CANDIDATE_SOURCE_FORBIDDEN');
         }
+      const actorDirectionMaterials = await readDirectorActorDirectionMaterials(
+        sql,
+        h.world.id,
+        h.boundary.actorIds,
+      );
       const snapshot: DirectorSnapshot = {
         schemaVersion: 1,
         worldId: h.world.id,
@@ -1063,6 +1069,7 @@ export class PostgresDirectorSnapshotRepository {
             }
           : {}),
         cast: normalizedCast(h.world),
+        ...(actorDirectionMaterials.length ? { actorDirectionMaterials } : {}),
         actorStates: states,
         ...(input.nativeTurn ? { nativeTurn: structuredClone(input.nativeTurn) } : {}),
         actorKnownTopics: (

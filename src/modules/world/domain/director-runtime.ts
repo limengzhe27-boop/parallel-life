@@ -6,6 +6,16 @@ import type {
 } from './agent-runtime.ts';
 import type { WorldBoundary, DirectorPendingReason } from './world-awareness.ts';
 import type { AuthoredAgentMaterialCatalog } from './authored-agent-material.ts';
+/** Bound author direction for ONE NPC, not the player or a fact/knowledge grant.
+ * Every module is a stable server-side excerpt (at most 4000 characters), not a
+ * claim that the complete author manuscript was loaded into the model input.
+ */
+export type DirectorActorDirectionMaterial = {
+  actorId: string;
+  modules: Partial<
+    Record<'lifeContext' | 'traits' | 'drives' | 'behavior' | 'relationships', string>
+  >;
+};
 /** Director-only state; never serialize this object into an NPC prompt. */
 export type DirectorSnapshot = {
   schemaVersion: 1;
@@ -32,6 +42,8 @@ export type DirectorSnapshot = {
   }[];
   occupiedAuthoredEventKeys?: string[];
   cast?: { id: string; name: string; persona: string; relationship?: string }[];
+  /** Optional on older protected snapshots; stable actorId binding, never array/name inference. */
+  actorDirectionMaterials?: DirectorActorDirectionMaterial[];
   actorStates: ActorAgentState[];
   actorKnownTopics?: import('./actor-known-topic.ts').ActorKnownTopic[];
   /** One accepted native player turn needing semantic speaker coordination. */
