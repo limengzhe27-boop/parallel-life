@@ -1357,6 +1357,11 @@ test('actual publication semantic wake advances use one protected Director bound
       const h = harness(f, {
         npcChoice: 'quiet',
         response(p) {
+          if (p.evaluationCause?.kind === 'bootstrap')
+            assert.ok(
+              p.candidates.every((c: any) => c.source !== 'agenda_initialize'),
+              'eligible authored opening is assessed before fallback empty agenda slots',
+            );
           const chosen = p.wireCatalog.events.find((e: any) => e.authoredEventKey === 'always');
           if (!chosen)
             return JSON.stringify({
@@ -1456,6 +1461,113 @@ test('actual publication semantic wake advances use one protected Director bound
         'refresh and initialization do not re-buy the authored opportunity',
       );
       assert.equal((await directors.readEpisodes(f.owner, f.id)).length, 1);
+    },
+  );
+
+  await t.test(
+    'v4 paid filtered bootstrap resumes its exact saved scope after attention deferral without another director call',
+    async () => {
+      const f = await fixture({ emptyAgenda: true });
+      const client = randomUUID();
+      let originalResponse = '';
+      const h = harness(f, {
+        npcChoice: 'quiet',
+        async response(p) {
+          assert.equal(p.evaluationCause.kind, 'bootstrap');
+          assert.deepEqual(
+            p.candidates,
+            [],
+            'fresh authored opening scope excludes fallback agenda slots',
+          );
+          const opening = p.wireCatalog.events.find((e: any) => e.authoredEventKey === 'always');
+          assert.ok(opening);
+          const actor = p.wireCatalog.actors.find((a: any) => a.actorId === f.world.actors[0]!.id);
+          originalResponse = JSON.stringify({
+            protocol: 'director-wire-v4',
+            mode: 'bounded_opportunity',
+            candidates: [],
+            events: p.wireCatalog.events.map((e: any) => ({
+              eventRef: e.ref,
+              decision: e.ref === opening.ref ? 'consider' : 'defer',
+              reason: 'Actual bounded authored evaluation.',
+            })),
+            opportunities: [
+              {
+                id: 'paid-local-opening',
+                title: 'Existing opening opportunity',
+                description: 'A future opportunity for independent consideration.',
+                playerImpact: 'Player can decide freely.',
+                actors: [actor.ref],
+                places: [],
+                activity: 'conversation',
+                origin: { kind: 'authored', eventRef: opening.ref },
+                stagingIntents: [
+                  {
+                    actorRef: actor.ref,
+                    kind: 'future_task',
+                    task: 'Consider your own participation without assuming the player agreed.',
+                  },
+                ],
+                actorTopics: null,
+              },
+            ],
+            audit: {
+              reason: 'Assess opening before fallback initialization.',
+              sourceRefs: [opening.ref],
+            },
+          });
+          // Actual attention transition after send, before protected response commit.
+          await activity.update(f.owner, f.id, {
+            clientId: client,
+            sequence: 0,
+            mode: 'conversation',
+            focus: { channel: 'private', threadId: f.world.actors[0]!.id },
+          });
+          return originalResponse;
+        },
+      });
+      await h.advance();
+      assert.equal(h.director().length, 1);
+      const before = (await attempts(f))[0]!;
+      assert.equal(before.status, 'response_received');
+      assert.deepEqual(before.snapshot.candidates, []);
+      assert.equal(
+        (await worlds.get({ userId: f.owner }, f.id)).version,
+        before.snapshot.worldVersion,
+        'a protected deferred Director response must fence unrelated fallback commits in its own batch',
+      );
+      assert.ok(before.response_hash);
+      assert.deepEqual(await directors.readEpisodes(f.owner, f.id), []);
+      await activity.update(f.owner, f.id, { clientId: client, sequence: 1, mode: 'browsing' });
+      await h.advance();
+      const after = (await attempts(f))[0]!;
+      assert.equal(after.id, before.id);
+      assert.equal(after.command_id, before.command_id);
+      assert.equal(after.response_hash, before.response_hash);
+      assert.deepEqual(after.response, before.response);
+      assert.equal(after.status, 'committed');
+      assert.equal(h.director().length, 1, 'paid completion is recovered, never re-requested');
+      const episodes = await directors.readEpisodes(f.owner, f.id);
+      assert.equal(episodes.length, 1);
+      assert.equal(episodes[0]!.status, 'proposed');
+      assert.equal(
+        h.calls.filter(
+          (c) =>
+            c.kind === 'npc' &&
+            JSON.parse(c.payload.input.text).type === 'npc_episode_consideration',
+        ).length,
+        1,
+      );
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.agent_episode_outcomes WHERE world_id=$1',
+            [f.id],
+          )
+        ).rows[0].n,
+        0,
+        'NPC quiet is not a completed event',
+      );
     },
   );
 

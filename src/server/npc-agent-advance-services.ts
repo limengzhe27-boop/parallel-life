@@ -1,3 +1,5 @@
+import { admitDirectorCandidates } from '../modules/world/application/director-candidate-admission.ts';
+import { canConsiderAuthoredEvent } from '../modules/world/domain/director-runtime.ts';
 import {
   claimAgentAdvanceBatch,
   releaseAgentAdvanceBatch,
@@ -417,6 +419,8 @@ export function npcAgentAdvanceServices(
           },
         },
       }));
+      let deferredInitializationCandidateIds: string[] = [];
+      let directorDeliveryDeferred = false;
       const coordinate = async (
         candidates: AgentCandidate[],
         blockers: AgentBlocker[],
@@ -426,13 +430,35 @@ export function npcAgentAdvanceServices(
         // Their own commits do not justify purchasing another global arrangement
         // inside this same request; new coordination remains eligible next check.
         if (batch && !batch.beginDirectorAssessment()) return null;
-        const snapshot = await directorSnapshots.read(ownerId, {
+        let snapshot = await directorSnapshots.read(ownerId, {
           worldId,
           engineEpoch,
           worldVersion: world.version,
           candidates,
           blockers,
         });
+        const openingKey = snapshot.authoredMaterials?.openingEventKey;
+        const admissionScope = admitDirectorCandidates({
+          current: snapshot,
+          pending: await directors.readPendingFrame(ownerId, worldId),
+          qualifiedOpeningAtBootstrap:
+            snapshot.evaluationCause?.kind === 'bootstrap' &&
+            !!openingKey &&
+            canConsiderAuthoredEvent(snapshot, openingKey),
+          explicitRetry: !!retryCommandId,
+        });
+        deferredInitializationCandidateIds = admissionScope.deferredInitializationIds;
+        if (
+          deferredInitializationCandidateIds.length ||
+          admissionScope.candidates.some((c, i) => c.id !== snapshot.candidates[i]?.id)
+        )
+          snapshot = await directorSnapshots.read(ownerId, {
+            worldId,
+            engineEpoch,
+            worldVersion: world.version,
+            candidates: admissionScope.candidates,
+            blockers,
+          });
         if (retryCommandId && (snapshot.conversationWithoutTarget || snapshot.focus.length))
           throw new DomainError('INVALID_COMMAND', '请先结束当前交谈，再重新编排。');
         const recovery = await recoverDirectorAgent(
@@ -532,6 +558,8 @@ export function npcAgentAdvanceServices(
               } catch (error) {
                 if ((error as { code?: unknown })?.code !== 'DIRECTOR_DELIVERY_DEFERRED')
                   throw error;
+                directorDeliveryDeferred = true;
+                batch?.yieldAfterStep();
                 return {
                   candidateIds: [],
                   deferred: input.candidates.map((candidate) => ({
@@ -555,7 +583,13 @@ export function npcAgentAdvanceServices(
               coordinatedOpportunity = decision.opportunities.length > 0;
               return {
                 candidateIds: decision.selectedCandidateIds,
-                deferred: decision.deferred,
+                deferred: [
+                  ...decision.deferred,
+                  ...deferredInitializationCandidateIds.map((candidateId) => ({
+                    candidateId,
+                    reason: '先核对合格作者开场，空议程初始化保留为后备。',
+                  })),
+                ],
                 guidance: decision.nudges,
                 reason: decision.audit.reason,
               };
@@ -572,6 +606,9 @@ export function npcAgentAdvanceServices(
           observations: [],
         },
       );
+      // The paid Director response still owns this read frame. Unrelated fallback
+      // writes would invalidate it before attention permits recovery.
+      if (directorDeliveryDeferred) return quiet(storyAt);
       if (coordinatedOpportunity)
         return (
           (await dispatchPendingAgentEpisode(
@@ -604,8 +641,10 @@ export function npcAgentAdvanceServices(
             observed.needsEvaluation ? 'normal' : wake.cause ? 'wake' : 'recovery',
           );
         } catch (error) {
-          if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED')
+          if ((error as { code?: unknown })?.code === 'DIRECTOR_DELIVERY_DEFERRED') {
+            batch?.yieldAfterStep();
             return quiet(storyAt);
+          }
           // A director has only proposed, never executed, changes. Its pending
           // paid result fences further coordination, not a separately qualified
           // actor-only action with no competing actor or shared-resource choice.

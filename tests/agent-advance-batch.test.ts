@@ -202,3 +202,21 @@ test('one batch coordinates once while independent actors continue', async () =>
   assert.equal(directors, 1);
   assert.equal(actors, 3);
 });
+
+test('a protected paid frame yields the batch without losing its committed prefix', async () => {
+  let steps = 0;
+  const r = await runAgentAdvanceBatch(async (c) => {
+    steps++;
+    if (steps === 1) {
+      c.actorStarted('a');
+      return result(1, 'a');
+    }
+    c.modelStarted();
+    c.yieldAfterStep();
+    return { ...result(1), changed: false };
+  }, agentAdvanceBatchPolicy());
+  assert.equal(steps, 2);
+  assert.equal(r?.worldVersion, 1);
+  assert.equal(r?.played, 1);
+  assert.deepEqual(r?.actors, ['a']);
+});

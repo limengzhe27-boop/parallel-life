@@ -859,6 +859,20 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       return { status: 'ready', attempt: pending, snapshot: saved, response: row.response };
     });
   }
+  /** Immutable pending input scope, for faithful recovery rather than new scheduling policy. */
+  readPendingFrame(owner: string, worldId: string): Promise<DirectorSnapshot | null> {
+    return this.db.transaction(owner, async (sql) => {
+      await this.owned(sql, owner, worldId);
+      const saved = (
+        await sql.query(
+          `SELECT snapshot FROM parallel_life.director_runtime_attempts
+         WHERE world_id=$1 AND owner_id=$2 AND status IN ('reserved','request_sent','response_received','unknown_after_send')`,
+          [worldId, owner],
+        )
+      ).rows[0]?.snapshot;
+      return saved ? snapshotShape(saved) : null;
+    });
+  }
   lookup(owner: string, worldId: string, commandId: string) {
     return this.db.transaction(owner, async (sql) => {
       await this.owned(sql, owner, worldId);

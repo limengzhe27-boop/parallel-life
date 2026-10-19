@@ -1764,3 +1764,11 @@ MD/ZIP文稿 → 项目自己的整理Agent → 原稿/补充/变化双核对 �
 Production 5cb35db25f1b35faa6e9685ba90d881133f47593, dpl_9m2ak2jhEhAPojewbw3X8mztH1b1 READY; formal https://parallel-life-nu.vercel.app verified. Production67/67 migration checksums. Complete check2417/build and integrated real PostgreSQL46 pass. One event library replaces duplicate details; optional prerequisites and legacy arrangements start closed. Names-only places and optional same-work private scene pictures are connected to map/scene reads and deterministic default navigation. No authored original event/history text erased.
 
 Actual manuscript draft118 remains unpublished: 18 event blocks, 79 history messages, 24 Moments, 16 places, 14 scene pictures. Public 1440/390 checked. Synthetic publication/player acceptance preserves both speakers, history attachment, curated avatar, three-image Moments and identity visibility; scene image302->200/default actual travel10m/start retry sameworld verified with zero model calls. Test work downlisted/soft-deleted and three QA saves paused. Complete director model progression and custom inline avatar legacy migration remain tracked separately; do not infer them from this scoped deployment.
+
+## 2026-10-19 · 统一引擎多人物批次与作者评估
+
+M正式9623095cc99c036a3a5548e258555fedb18dcfef / dpl_Dy57kUiwb3AGSLqZ111ELLBF2sZR READY，Nu别名准确；check3498/build/必要真实PG通过。原推进加入有界多人物公平批次、短事务租约（0094）、严格模型额度预约及同批一次全局协调，作者机会派发优先；新v3机会局部ID按attempt作用域绑定，历史协议保持。
+
+公网health/workbench200、匿名works401；原真实PNG1,883,870字节200/匿名401/跨档404。95为后续O的兼容DDL已核无旧world/作品/decision变更；M交付时94checksum，O迁移后95checksum一致。
+
+真实验收不隐去失败：首份冷启动出现emergent替代作者opening/机会ID冲突（已修），第二份合法quiet未发新消息；原微信聊天7.569秒提交、new_request语义正确但无持续计划。M只按批次可靠性范围结清，整体主动事件体验未算完成。O源码de6d9c18已通过check3500/build/原PG24，v4明确作者逐事件consider/defer及0095校验；候选及真实模型验收进行，尚未正式替换M。不以API成功或测试数量宣称新世界全部自然演绎已通过。后续N2/N3尚未接入生产发送/预算链路。

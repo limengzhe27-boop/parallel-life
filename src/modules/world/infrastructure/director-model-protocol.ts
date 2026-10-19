@@ -347,15 +347,19 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
       minItems: catalog.events.length,
       maxItems: catalog.events.length,
     },
-    candidates: array(
-      {
-        anyOf: [
-          object({ ref: candidate, decision: { type: 'string', enum: ['select'] }, nudge }),
-          object({ ref: candidate, decision: { type: 'string', enum: ['defer'] }, reason: text }),
-        ],
-      },
-      !catalog.candidates.length,
-    ),
+    candidates: {
+      ...array(
+        {
+          anyOf: [
+            object({ ref: candidate, decision: { type: 'string', enum: ['select'] }, nudge }),
+            object({ ref: candidate, decision: { type: 'string', enum: ['defer'] }, reason: text }),
+          ],
+        },
+        !catalog.candidates.length,
+      ),
+      minItems: catalog.candidates.length,
+      maxItems: catalog.candidates.length,
+    },
     opportunities: array(
       object({
         id: text,

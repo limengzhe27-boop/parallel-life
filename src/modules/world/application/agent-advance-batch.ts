@@ -32,6 +32,8 @@ export type AgentAdvanceBatchContext = {
   readonly handledActorIds: Set<string>;
   canStartModel(): boolean;
   beginDirectorAssessment(): boolean;
+  /** Preserve a protected paid read frame; do not start another step in this batch. */
+  yieldAfterStep(): void;
   /** Reserve before accepting fresh work; release in finally, including no-call recovery. */
   reserveModel(): { release(): void } | null;
   modelStarted(): void;
@@ -78,12 +80,16 @@ export async function runAgentAdvanceBatch(
 ): Promise<AdvanceResult | null> {
   const startedAt = now(),
     handledActorIds = new Set<string>();
-  let directorConsidered = false;
+  let directorConsidered = false,
+    yielded = false;
   let modelCalls = 0,
     aggregate: AdvanceResult | null = null;
   const reservations = new Set<object>();
   const context: AgentAdvanceBatchContext = {
     handledActorIds,
+    yieldAfterStep() {
+      yielded = true;
+    },
     beginDirectorAssessment() {
       if (directorConsidered) return false;
       directorConsidered = true;
@@ -166,6 +172,7 @@ export async function runAgentAdvanceBatch(
         }
       : result;
     if (
+      yielded ||
       (!result.changed && beforeModels === modelCalls && beforeActors === handledActorIds.size) ||
       handledActorIds.size >= policy.maxActors ||
       !context.canStartModel()

@@ -15,3 +15,13 @@ root-unified137唯一集成，batch_lease_review执行协议，沿原Director/ep
 ## 必要验证
 
 87聚焦纯测试/type通过；原真实PG语义/恢复套件24/24通过，含新v4原advance→评估落库→作者请求→NPCquiet/proposed与去重，不能将quiet算事件完成。仓储拒绝缺失/重复集合、伪nodeHash/qualificationKey；SQL0095拒绝坏类型/格式/重复/额外字段，旧无字段decision可提交。旧fixture明确已有合法definition来源active goal以隔离F冷启动，新emptyAgenda案例保留真正F入口；未知结果、paid stale、深聊保护与零发送恢复负向仍保留。最终check3500/3500、0skip/0fail、build通过。尚待生产95/READY/真实模型，本节不冒称自然开场已过。
+
+## 接续：作者开场优先与已付费读集恢复
+
+生产0095已应用并核验95个checksum，旧世界/作品/decision聚合hash未变。de6d候选真实导演明确consider作者开场并分配两个人物不同方向，但漏掉F候选partition而被拒绝；保留原invalid，不补默认、不重试。
+
+现将合格bootstrap作者开场先评估，F空议程保留后备；模型schema明确候选数量，原parse逐项校验不放宽。原pending snapshot候选逐项认证并维持保存顺序；只有同world/epoch/version且新增项仅F时允许恢复原候选scope，任何真实新条件/版本改变仍按原CAS拒绝。
+
+新增真实PG暴露并修复：Director response_received因深聊暂缓后，同批F quiet提交worldV0→1使付费读集失效。原batch新增yieldAfterStep，在此暂缓分支立即停止本自动批后续写入，恢复浏览后提交同attempt/command/raw/hash；不阻止真实玩家命令，不放宽sameRecoveryFrame。真实PG25/25通过，包含该连续恢复与Director仅一次调用，quiet仍不是完成。
+
+最终check/build与新候选真实独立冷启动正在进行。正式仍M9623095c；不能把上述数据库验收当作自然人物开场已通过。N2/N3纯策略/只读证据包仍冻结待公共runtime准入/原子预算/恢复接线，持续自主议程未完成。
