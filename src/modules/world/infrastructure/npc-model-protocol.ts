@@ -1,3 +1,4 @@
+import { canHandleExternalResponsibility } from '../domain/capability-responsibility-policy.ts';
 import { z } from 'zod';
 import {
   npcSourceReferences,
@@ -455,16 +456,16 @@ export function npcResponseFormat(
     );
     if (capabilities.length) {
       const action = executionItem.properties!.action!;
-      const media = capabilities.filter((cap) => cap.startsWith('media.'));
-      const immediate = capabilities.filter((cap) => !cap.startsWith('media.'));
-      const choices = [media, immediate]
+      const handling = capabilities.filter(canHandleExternalResponsibility);
+      const nonHandling = capabilities.filter((cap) => !canHandleExternalResponsibility(cap));
+      const choices = [handling, nonHandling]
         .filter((caps) => caps.length)
         .map((caps) => {
           const choice = structuredClone(action);
           choice.properties!.capability!.enum = caps;
-          // The media result certifies enqueue only, never delivery/fulfillment.
-          // Make the same rule visible in the grammar, not just the prompt/kernel.
-          if (caps[0]!.startsWith('media.'))
+          // The same capability contract guards actual kernel execution.
+          // Proposing an invitation or enqueueing media does not resolve a request.
+          if (!canHandleExternalResponsibility(caps[0]!))
             choice.properties!.handlesResponsibilityIds!.maxItems = 0;
           return choice;
         });

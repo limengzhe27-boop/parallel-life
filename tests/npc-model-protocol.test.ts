@@ -795,10 +795,9 @@ test('native grammar uses one execution channel and advertises current channel c
   const executions: NativeNode = root.properties!.executions!.anyOf!.find(
     (n) => n.type === 'array',
   )!;
+  const action = executions.items!.properties!.action!;
   assert.deepEqual(
-    executions
-      .items!.properties!.action!.anyOf!.flatMap((n) => n.properties!.capability!.enum!)
-      .sort(),
+    (action.anyOf ?? [action]).flatMap((n) => n.properties!.capability!.enum!).sort(),
     ['appointment.propose', 'media.generate_image'],
   );
   assert.equal(root.properties!.mediaDecision, undefined);
@@ -1102,14 +1101,11 @@ test('native media enqueue cannot claim responsibility fulfillment even in a mix
   const format: any = npcResponseFormat(c.state, 'forbidden', c);
   const action = format.schema.properties.executions.anyOf.find((n: any) => n.type === 'array')
     .items.properties.action;
-  const media = action.anyOf.find((n: any) =>
-    n.properties.capability.enum.includes('media.generate_image'),
-  );
-  const immediate = action.anyOf.find((n: any) =>
-    n.properties.capability.enum.includes('appointment.propose'),
-  );
-  assert.equal(media.properties.handlesResponsibilityIds.maxItems, 0);
-  assert.notEqual(immediate.properties.handlesResponsibilityIds.maxItems, 0);
+  assert.deepEqual(action.properties.capability.enum, [
+    'media.generate_image',
+    'appointment.propose',
+  ]);
+  assert.equal(action.properties.handlesResponsibilityIds.maxItems, 0);
 });
 
 test('v4 no-decision null offered by the scoped grammar decodes to an empty collection for player and autonomous turns', () => {

@@ -1,3 +1,4 @@
+import { canHandleExternalResponsibility } from '../domain/capability-responsibility-policy.ts';
 import { validateActorMediaResultContextInTransaction } from './agent-source-resolver.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
 import { validateActorObservationInbox } from './actor-observation-inbox.ts';
@@ -266,16 +267,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
         }
         if (
           action.handlesResponsibilityIds.length &&
-          action.capability !== 'appointment.fulfill' &&
-          action.capability !== 'appointment.cancel' &&
-          action.capability !== 'appointment.accept' &&
-          action.capability !== 'appointment.reschedule' &&
-          action.capability !== 'item.deliver' &&
-          action.capability !== 'item.use' &&
-          action.capability !== 'activity.participate' &&
-          action.capability !== 'relationship.bond' &&
-          action.capability !== 'moment.publish' &&
-          action.capability !== 'moment.interact'
+          !canHandleExternalResponsibility(action.capability)
         )
           throw new AgentValidationError('CAPABILITY_CANNOT_HANDLE_EXTERNAL_RESPONSIBILITY');
         let outputRefs: NonNullable<AgentActionResult['outputRefs']> = [];
