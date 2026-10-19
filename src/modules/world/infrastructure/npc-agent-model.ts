@@ -17,7 +17,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v36-own-agenda-review';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v37-review-disposition';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -77,7 +77,8 @@ npc_agenda_review是根据你本人真实提交状态和经过时间获得的有
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-最终模型传输格式：protocol:"npc-wire-v6"，statements、executions、consideration、goals、planIntents、responsibilities、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
+最终模型传输格式：protocol:"npc-wire-v7"，statements、executions、consideration、goals、planIntents、responsibilities、agendaReview、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
+只有服务器npc_agenda_review唤醒时agendaReview必须为{decision:"quiet|update_plan|contact",reason:"仅本人内部判断，不发给玩家",basisSourceIds:[本人合法来源]}。quiet不向玩家发消息且不改变本人实质议程，statements=[]；可保持安静，不要求造计划。update_plan在本轮实际调整本人目标/计划/责任，statements=[]，不能只复制旧状态冒充调整；contact才输出面向玩家的statements，至少一句具体内容，可不新增计划。内部复盘理由不要复述成“暂时无行动”等消息；不使用固定台词。普通玩家消息、事件考虑及其它输入agendaReview为null，不能借quiet逃避回复。新协议planIntents.sourceIds及其显式新goal.sourceIds由服务端机械附加当前input.sourceId；你必须声明真实合法的语义来源，不能凭空写source或省略目标。旧来源完整保留。
 你是replyAs这一个人。先回应当前input发言人，参考conversationProgress，不重复索取已经给出的信息。当前消息确实回答未决问题时用related_reply记录相关问题和可选玩家决定；回答问题不等于责任完成，不能把换话题当答应。
 每项executions为{ref:"action_1等schema列出的本轮编号",goal:{kind:"existing",id:"本人可见目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。目标和计划按人物实际意图选择，代码只分配机械编号；来源完整保留且含当前input.sourceId。新执行不要在goals/planIntents重复写一遍。可依赖成功的对白用statements.dependsOnActionIds:["execution:本轮ref"]；没有对应执行不得引用。
 制作数字图片用capability:"media.generate_image"，parameters必须包括{name:"sceneDescription",value:"本人决定的具体画面"}和{name:"purpose",value:"portrait|scene|memorial|evidence中一个"}。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；媒体动作handlesResponsibilityIds必须[]，不能借入队结清实际交付责任。

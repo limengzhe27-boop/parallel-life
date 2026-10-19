@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { NativePlanIntentsSchema, compileNpcPlanIntents } from './npc-plan-intent.ts';
+import { isOwnAgendaReviewInput } from '../domain/own-agenda-review.ts';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
@@ -18,7 +19,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v6';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v7';
+const PREVIOUS_PLAN_PROTOCOL = 'npc-wire-v6';
 const PREVIOUS_INTERPRETATION_PROTOCOL = 'npc-wire-v5';
 const PREVIOUS_SINGLE_ACTION_PROTOCOL = 'npc-wire-v4';
 const PREVIOUS_EXECUTION_PROTOCOL = 'npc-wire-v3';
@@ -90,6 +92,7 @@ const Wire = z.strictObject({
     PREVIOUS_EXECUTION_PROTOCOL,
     PREVIOUS_SINGLE_ACTION_PROTOCOL,
     PREVIOUS_INTERPRETATION_PROTOCOL,
+    PREVIOUS_PLAN_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -233,9 +236,18 @@ const PreviousInterpretationWire = PreviousModelWire.omit({
   protocol: z.literal(PREVIOUS_INTERPRETATION_PROTOCOL),
   inputInterpretation: Interpretation.nullable(),
 });
-const ModelWire = PreviousInterpretationWire.omit({ plans: true }).extend({
-  protocol: z.literal(NPC_WIRE_PROTOCOL),
+const PreviousPlanWire = PreviousInterpretationWire.omit({ plans: true }).extend({
+  protocol: z.literal(PREVIOUS_PLAN_PROTOCOL),
   planIntents: NativePlanIntentsSchema,
+});
+const AgendaReview = z.strictObject({
+  decision: z.enum(['quiet', 'update_plan', 'contact']),
+  reason: Text.max(2000),
+  basisSourceIds: z.array(Id).min(1).max(64),
+});
+const ModelWire = PreviousPlanWire.extend({
+  protocol: z.literal(NPC_WIRE_PROTOCOL),
+  agendaReview: AgendaReview.nullable(),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
@@ -321,6 +333,11 @@ export function npcResponseFormat(
     if (!object) throw Error('NPC_RESPONSE_SCHEMA');
     properties.consideration = object;
   }
+  const reviewScope = !!current && isOwnAgendaReviewInput(current.input);
+  const review = properties.agendaReview!;
+  properties.agendaReview = reviewScope
+    ? review.anyOf!.find((node) => node.type === 'object')!
+    : { type: 'null' };
   const goalIds = state.goals.filter((goal) => goal.status === 'active').map((g) => g.id);
   const scopeGoal = (execution: SchemaNode, allowedIds = goalIds) => {
     const alternatives = execution.properties?.goal?.anyOf;
@@ -576,8 +593,83 @@ export function decodeNpcWire(context: AgentValidationContext, raw: unknown): un
     const value = transport(raw, false) as Record<string, unknown>;
     const visibleGoals =
       context.viewState?.goals.filter((g) => !['fulfilled', 'withdrawn'].includes(g.status)) ?? [];
+    if (value.goals === null && !visibleGoals.length) value.goals = [];
+    const { agendaReview, ...native } = ModelWire.parse(value);
+    const currentSource = context.sources.filter((s) => s.id === context.input.sourceId);
+    if (currentSource.length !== 1) throw Error('NPC_V7_INPUT_SOURCE');
+    const bindBasis = (ids: string[]) => {
+      if (
+        new Set(ids).size !== ids.length ||
+        ids.some((id) => context.sources.filter((s) => s.id === id).length !== 1)
+      )
+        throw Error('NPC_V7_DECLARED_SOURCE');
+      return ids.includes(context.input.sourceId) ? [...ids] : [...ids, context.input.sourceId];
+    };
+    const intents = native.planIntents.map((intent) => ({
+      ...intent,
+      sourceIds: bindBasis(intent.sourceIds),
+      ...(intent.kind === 'create' && intent.goal.kind === 'new'
+        ? { goal: { ...intent.goal, sourceIds: bindBasis(intent.goal.sourceIds) } }
+        : {}),
+    }));
+    const reviewScope = isOwnAgendaReviewInput(context.input);
+    if (reviewScope !== (agendaReview !== null)) throw Error('NPC_AGENDA_REVIEW_SCOPE');
+    if (agendaReview) bindBasis(agendaReview.basisSourceIds);
+    const proposal = AgentProposalSchema.parse(
+      decodeNpcWire(context, { ...native, protocol: PREVIOUS_PLAN_PROTOCOL, planIntents: intents }),
+    );
+    if (agendaReview) {
+      const semantic = (value: unknown, ignoreProvenance = false) => {
+        if (!value || typeof value !== 'object') return value;
+        const { revision: _serverRevision, ...body } = value as Record<string, unknown>;
+        if (ignoreProvenance) delete body.sourceIds;
+        return body;
+      };
+      const stateChanged = <T extends { id: string }>(
+        proposed: T[],
+        previous: T[],
+        ignoreProvenance = false,
+      ) =>
+        proposed.some(
+          (p) =>
+            !isDeepStrictEqual(
+              semantic(p, ignoreProvenance),
+              semantic(
+                previous.find((old) => old.id === p.id),
+                ignoreProvenance,
+              ),
+            ),
+        );
+      const agendaChanged =
+        stateChanged(proposal.goals, context.state.goals) ||
+        stateChanged(proposal.plans, context.state.plans) ||
+        stateChanged(proposal.responsibilities, context.state.responsibilities);
+      const otherChanged =
+        stateChanged(proposal.actions, context.state.actions) ||
+        stateChanged(proposal.decisions, context.state.decisions) ||
+        !!proposal.questionWithdrawals?.length ||
+        (proposal.focus !== undefined && !isDeepStrictEqual(proposal.focus, context.state.focus));
+      if (agendaReview.decision !== 'contact' && proposal.statements.length)
+        throw Error('NPC_AGENDA_REVIEW_PRIVATE_REPORT');
+      if (agendaReview.decision === 'contact' && !proposal.statements.length)
+        throw Error('NPC_AGENDA_REVIEW_CONTACT_EMPTY');
+      if (agendaReview.decision === 'quiet' && (agendaChanged || otherChanged))
+        throw Error('NPC_AGENDA_REVIEW_QUIET_CHANGED');
+      const substantiveAgendaChanged =
+        stateChanged(proposal.goals, context.state.goals, true) ||
+        stateChanged(proposal.plans, context.state.plans, true) ||
+        stateChanged(proposal.responsibilities, context.state.responsibilities, true);
+      if (agendaReview.decision === 'update_plan' && !substantiveAgendaChanged)
+        throw Error('NPC_AGENDA_REVIEW_NO_AGENDA_CHANGE');
+    }
+    return proposal;
+  }
+  if ('protocol' in raw && raw.protocol === PREVIOUS_PLAN_PROTOCOL) {
+    const value = transport(raw, false) as Record<string, unknown>;
+    const visibleGoals =
+      context.viewState?.goals.filter((g) => !['fulfilled', 'withdrawn'].includes(g.status)) ?? [];
     if (value.goals === null && visibleGoals.length === 0) value.goals = [];
-    const { planIntents, ...native } = ModelWire.parse(value);
+    const { planIntents, ...native } = PreviousPlanWire.parse(value);
     const planChanges = compileNpcPlanIntents(context, planIntents);
     if (new Set(native.goals.map((g) => g.id)).size !== native.goals.length)
       throw Error('NPC_PLAN_GOAL_UPDATE_DUPLICATE');

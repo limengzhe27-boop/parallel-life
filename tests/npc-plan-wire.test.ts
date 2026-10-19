@@ -28,7 +28,7 @@ function fixture() {
     channel: { kind: 'private', threadId: 'actor', allowedCapabilities: ['appointment.propose'] },
   };
   const wire = {
-    protocol: NPC_WIRE_PROTOCOL,
+    protocol: 'npc-wire-v6',
     statements: [{ text: 'I need to decide what to do next.', dependsOnActionIds: [] }],
     goals: [] as unknown[],
     planIntents: [] as unknown[],
@@ -210,7 +210,7 @@ test('scoped v6 grammar offers only visible editable old IDs and fits current pr
   const { c } = existing();
   const format: any = npcResponseFormat(c.viewState!, 'forbidden', c);
   const properties = format.schema.properties;
-  assert.deepEqual(properties.protocol.enum, ['npc-wire-v6']);
+  assert.deepEqual(properties.protocol.enum, [NPC_WIRE_PROTOCOL]);
   assert.deepEqual(
     new Set(format.schema.$defs.npc_authorized_basis.items.enum),
     new Set(c.sources.map((s) => s.id)),
