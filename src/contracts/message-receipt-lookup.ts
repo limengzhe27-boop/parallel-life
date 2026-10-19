@@ -14,6 +14,8 @@ export const MessageReceiptLookupSchema = z.discriminatedUnion('status', [
   }),
   z.strictObject({
     status: z.literal('unconfirmed'),
+    /** Read-only recovery eligibility; unknown results never authorize a new request. */
+    recovery: z.enum(['pending', 'response_received', 'unknown']).optional(),
     commandId: Id,
     worldId: Id,
     actorId: Id,

@@ -23,7 +23,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       text: input.text,
       expectedVersion: input.expectedVersion,
     });
-    if (current) return json(MessageReceiptLookupSchema.parse(current));
+    if (current) {
+      if (current.status === 'unconfirmed' && request.headers.get('x-message-recovery') !== '1') {
+        const { recovery: _recovery, ...legacy } = current;
+        return json(MessageReceiptLookupSchema.parse(legacy));
+      }
+      return json(MessageReceiptLookupSchema.parse(current));
+    }
     const saved = await checkMessageReceipt(
       { worlds: s.worlds },
       { userId: s.ownerId },
