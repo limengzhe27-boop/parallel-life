@@ -312,6 +312,25 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
     for (const opportunity of normalized.opportunities) {
       if (opportunity && opportunity.actorTopics === null) delete opportunity.actorTopics;
     }
+  // Nullable provider optionals are transport syntax for both v9 and v10.
+  if (
+    [DIRECTOR_WIRE_PROTOCOL, PREVIOUS_INTERACTION_PROTOCOL].includes(String(normalized.protocol))
+  ) {
+    const choices = normalized.authoredChoices;
+    if (choices && typeof choices === 'object' && !Array.isArray(choices))
+      for (const choice of Object.values(choices)) {
+        if (
+          choice &&
+          typeof choice === 'object' &&
+          'opportunity' in choice &&
+          choice.opportunity &&
+          typeof choice.opportunity === 'object' &&
+          'actorTopics' in choice.opportunity &&
+          choice.opportunity.actorTopics === null
+        )
+          delete choice.opportunity.actorTopics;
+      }
+  }
   if (normalized.protocol === DIRECTOR_WIRE_PROTOCOL) {
     const wire = CurrentWire.parse(normalized);
     const { openingContext, ...rest } = wire;
@@ -859,6 +878,27 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     : { type: 'null' };
   if (snapshot.openingContextAuthority)
     properties.openingContext = (properties.openingContext!.anyOf as Schema[])[0]!;
+  if (snapshot.openingContextAuthority) {
+    const opening = properties.openingContext!;
+    const fields = opening.properties as Record<string, Schema>;
+    const premises = fields.premises!;
+    properties.openingContext = {
+      anyOf: [
+        object({
+          ...fields,
+          disposition: { type: 'string', enum: ['confirm'] },
+          reason: { type: 'string', minLength: 1, maxLength: 1600 },
+          premises: { ...premises, minItems: 1, maxItems: 12 },
+        }),
+        object({
+          ...fields,
+          disposition: { type: 'string', enum: ['defer'] },
+          reason: { type: 'string', minLength: 1, maxLength: 1600 },
+          premises: { ...premises, maxItems: 0 },
+        }),
+      ],
+    };
+  }
   schema.required = Object.keys(properties);
   if (JSON.stringify(schema).length > 24_000)
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {

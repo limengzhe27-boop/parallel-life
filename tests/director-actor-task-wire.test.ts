@@ -349,7 +349,7 @@ test('v10 opening information binds actor refs and review identity while preserv
   const properties = (schema.schema as any).properties;
   assert.equal(schema.name, 'director_response_v10');
   assert.equal(
-    properties.openingContext.properties.premises.items.properties.actorRef.enum[0],
+    properties.openingContext.anyOf[0].properties.premises.items.properties.actorRef.enum[0],
     'actor:1',
   );
   for (const invalid of [
