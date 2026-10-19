@@ -163,12 +163,28 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
         const input = JSON.parse(p.input.text),
           actor = p.state.actorId;
         calls.push({ kind: 'npc', input, actor });
-        if (input.type === 'npc_agenda_initialize') return JSON.stringify(v6());
+        if (input.type === 'npc_agenda_initialize')
+          return JSON.stringify({ ...v6(), protocol: 'npc-wire-v7', agendaReview: null });
         assert.equal(input.type, 'npc_agenda_review');
         if (phase === 'unknown' && actor === ACTOR_A) throw Error('SYNTHETIC_LOST_MODEL_RESULT');
-        if (phase === 'quiet') return JSON.stringify(v6());
+        if (phase === 'quiet')
+          return JSON.stringify({
+            ...v6(),
+            protocol: 'npc-wire-v7',
+            agendaReview: {
+              decision: 'quiet',
+              reason: 'No new information to share.',
+              basisSourceIds: [p.input.sourceId],
+            },
+          });
         return JSON.stringify(
           v6({
+            protocol: 'npc-wire-v7',
+            agendaReview: {
+              decision: 'contact',
+              reason: 'A concrete own arrangement is ready for discussion.',
+              basisSourceIds: [p.input.sourceId],
+            },
             statements: [
               {
                 text: `${actor === ACTOR_A ? '陈列' : '预算'}方案有个需要商量的具体安排。`,
@@ -184,10 +200,14 @@ test('own-agenda original scheduling, v6 plans, paid fences and zero-send transp
                 goal: {
                   kind: 'new',
                   summary: actor === ACTOR_A ? '考虑陈列方案' : '核对预算方案',
-                  sourceIds: [p.input.sourceId],
+                  sourceIds: [
+                    p.sources.find((s: { id: string }) => s.id.startsWith('definition:')).id,
+                  ],
                 },
                 summary: '等真实信息后继续本人安排',
-                sourceIds: [p.input.sourceId],
+                sourceIds: [
+                  p.sources.find((s: { id: string }) => s.id.startsWith('definition:')).id,
+                ],
                 nextStep: { kind: 'blocked', missing: ['尚需具体的方案信息'] },
               },
             ],

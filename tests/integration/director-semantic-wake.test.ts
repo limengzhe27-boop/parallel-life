@@ -1473,7 +1473,7 @@ test('actual publication semantic wake advances use one protected Director bound
   );
 
   await t.test(
-    'v6 original authored handoff lets both NPCs independently create valid explicit plans and messages',
+    'v7 original authored handoff lets both NPCs independently create valid explicit plans and messages',
     async () => {
       const f = await fixture({ emptyAgenda: true, multiActorOpening: true });
       assert.equal(f.world.actors.length, 2);
@@ -1520,7 +1520,8 @@ test('actual publication semantic wake advances use one protected Director bound
         },
         npcResponse(p) {
           return JSON.stringify({
-            protocol: 'npc-wire-v6',
+            protocol: 'npc-wire-v7',
+            agendaReview: null,
             consideration: {
               choice: 'engage',
               reason: 'My independent intention.',
@@ -1540,9 +1541,17 @@ test('actual publication semantic wake advances use one protected Director bound
               {
                 kind: 'create',
                 ref: 'consider',
-                goal: { kind: 'new', summary: '考虑本人的方案', sourceIds: [p.input.sourceId] },
+                goal: {
+                  kind: 'new',
+                  summary: '考虑本人的方案',
+                  sourceIds: [
+                    p.sources.find((s: { id: string }) => s.id.startsWith('episode-intent:')).id,
+                  ],
+                },
                 summary: '保留本人的安排与待核对信息',
-                sourceIds: [p.input.sourceId],
+                sourceIds: [
+                  p.sources.find((s: { id: string }) => s.id.startsWith('definition:')).id,
+                ],
                 nextStep: { kind: 'blocked', missing: ['等待真实信息后再继续'] },
               },
             ],
