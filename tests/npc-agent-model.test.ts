@@ -814,13 +814,13 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   const system = calls[0]!.messages[0]!.content;
   assert.match(system, /明确区分愿望与承诺/);
   assert.match(system, /普通闲聊、试探、愿望或条件性设想/);
-  assert.match(system, /不构成实质承诺，不得生成新目标或责任/);
+  assert.match(system, /不构成玩家实质承诺/);
   assert.match(system, /当你在对白中作出本人明确承诺、答应分工或安排自己后续执行/);
   assert.match(system, /必须在同一次响应中提出本人的目标与计划/);
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v33-single-action-channel');
+  assert.equal(payload.promptVersion, 'npc-agent-v34-current-input-interpretation');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -830,7 +830,7 @@ test('prompt instructions specify player decision tracking on responsibilities w
   const { adapter, calls } = capture();
   await adapter.decide(input);
   const system = calls[0]!.messages[0]!.content;
-  assert.match(system, /PlayerDecision只对当前输入确实针对的responsibility作判断/);
+  assert.match(system, /当前玩家输入只用inputInterpretation作一次语义判断/);
   assert.match(system, /quote必须是input.text里逐字连续的原文/);
   assert.match(system, /无关闲聊或换话题不得误判为accepted/);
   assert.match(system, /计划置blocked/);

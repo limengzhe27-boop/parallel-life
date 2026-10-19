@@ -3,7 +3,11 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { AgentProposalSchema } from './agent-proposal-schema.ts';
 import type { ModelOutputOptions } from '../../ai/application/ports.ts';
-import type { AgentValidationContext } from '../domain/agent-kernel.ts';
+import {
+  interpretCurrentPlayerInput,
+  type AgentValidationContext,
+} from '../domain/agent-kernel.ts';
+import { playerReplyTargets } from '../domain/agent-input-interpretation.ts';
 import { NativeExecutionIntentSchema, compileNpcExecutionIntents } from './npc-execution-intent.ts';
 import { validPlayerEpisodeManifest } from '../domain/player-episode-manifest.ts';
 import { isActorEpisodeConsiderationInput } from '../domain/actor-episode-intent.ts';
@@ -13,7 +17,8 @@ import {
   NPC_MEDIA_CURRENT_REF,
 } from './npc-media-intent.ts';
 
-export const NPC_WIRE_PROTOCOL = 'npc-wire-v4';
+export const NPC_WIRE_PROTOCOL = 'npc-wire-v5';
+const PREVIOUS_SINGLE_ACTION_PROTOCOL = 'npc-wire-v4';
 const PREVIOUS_EXECUTION_PROTOCOL = 'npc-wire-v3';
 const PREVIOUS_NATIVE_PROTOCOL = 'npc-wire-v2';
 const LEGACY_NPC_WIRE_PROTOCOL = 'npc-wire-v1';
@@ -81,6 +86,7 @@ const Wire = z.strictObject({
     LEGACY_NPC_WIRE_PROTOCOL,
     PREVIOUS_NATIVE_PROTOCOL,
     PREVIOUS_EXECUTION_PROTOCOL,
+    PREVIOUS_SINGLE_ACTION_PROTOCOL,
     NPC_WIRE_PROTOCOL,
   ]),
   consideration: z
@@ -131,8 +137,8 @@ const ParameterEntries = z
   )
   .max(32);
 // The model and decoder reuse canonical proposal shapes; only transport references/parameters differ.
-const ModelWire = Wire.omit({ mediaDecision: true, actions: true }).extend({
-  protocol: z.literal(NPC_WIRE_PROTOCOL),
+const PreviousModelWire = Wire.omit({ mediaDecision: true, actions: true }).extend({
+  protocol: z.literal(PREVIOUS_SINGLE_ACTION_PROTOCOL),
   statements: AgentProposalSchema.shape.statements,
   goals: z
     .array(
@@ -196,6 +202,31 @@ const ModelWire = Wire.omit({ mediaDecision: true, actions: true }).extend({
     .max(1)
     .optional(),
 });
+const InputReply = z.strictObject({
+  questionId: Id.nullable(),
+  questionSourceId: Id.nullable(),
+  responsibilityId: Id.nullable(),
+  responsibilityRevision: z.number().int().nonnegative().nullable(),
+  relation: z.enum(['answer', 'decline_to_answer', 'defer_answer']),
+  decision: z.enum(['accepted', 'declined', 'negotiating', 'deferred', 'undecided']).nullable(),
+});
+const Interpretation = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.enum(['new_request', 'topic_change', 'uncertain']),
+    sourceId: Id,
+    quote: Text.max(1000),
+  }),
+  z.strictObject({
+    kind: z.literal('related_reply'),
+    sourceId: Id,
+    quote: Text.max(1000),
+    replies: z.array(InputReply).min(1).max(16),
+  }),
+]);
+const ModelWire = PreviousModelWire.omit({ decisions: true, replyAssessments: true }).extend({
+  protocol: z.literal(NPC_WIRE_PROTOCOL),
+  inputInterpretation: Interpretation.nullable(),
+});
 /** Strict providers require optional fields to be represented by null, not omitted. */
 function strictSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(strictSchema);
@@ -257,7 +288,7 @@ export function npcResponseFormat(
     Partial<
       Pick<
         AgentValidationContext['state'],
-        'actions' | 'plans' | 'responsibilities' | 'worldId' | 'actorId'
+        'actions' | 'plans' | 'responsibilities' | 'focus' | 'worldId' | 'actorId'
       >
     >,
   considerationScope: 'required' | 'optional' | 'forbidden' = 'optional',
@@ -366,86 +397,54 @@ export function npcResponseFormat(
     }
     (executions.anyOf?.[0] ?? executions).items = { anyOf: branches };
   }
-  // A reply assessment is about this player's current words, not an old NPC question.
-  // Narrow the native grammar before the call; the kernel still validates exact source,
-  // verbatim quote and thread authorization after the response is durably saved.
   if (current) {
-    // The kernel applies the same current-input rule to decisions and location
-    // reports. Bind all three judgments consistently before asking the model.
-    for (const [name, quoteLimit] of [
-      ['decisions', 1000],
-      ['locationReports', 500],
-    ] as const) {
-      const node = properties[name]!;
-      const array = node.type === 'array' ? node : node.anyOf?.find((x) => x.type === 'array');
-      if (!array?.items?.properties) throw Error('NPC_RESPONSE_SCHEMA');
-      if (current.input.origin !== 'player') {
-        properties[name] = { type: 'null' };
-        continue;
-      } else {
-        array.items.properties.sourceId!.enum = [current.input.sourceId];
-        if (current.input.text.trim().length <= quoteLimit)
-          array.items.properties.quote!.enum = [current.input.text.trim()];
-      }
-      properties[name] = array;
-    }
-    if (current.input.origin === 'player' && properties.decisions?.type !== 'null') {
-      const responsibilities = (state.responsibilities ?? []).filter((r) =>
-        ['open', 'waiting', 'deferred'].includes(r.status),
-      );
-      const array = properties.decisions!;
-      const item = array.items!;
-      if (!responsibilities.length) properties.decisions = { type: 'null' };
-      else
-        array.items = {
-          anyOf: responsibilities.map((responsibility) => {
-            const branch = structuredClone(item);
-            const id = `decision:${createHash('sha256')
-              .update(
-                JSON.stringify([
-                  'npc-player-decision-v1',
-                  state.worldId,
-                  state.actorId,
-                  current.input.sourceId,
-                  responsibility.id,
-                  responsibility.revision ?? 0,
-                ]),
-              )
-              .digest('hex')}`;
-            branch.properties!.id!.enum = [id];
-            branch.properties!.responsibilityId!.enum = [responsibility.id];
-            return branch;
-          }),
-        };
-    }
-    const choices = (state.questions ?? [])
-      .filter(
-        (question) =>
-          question.status === 'open' &&
-          question.channel === current.channel.kind &&
-          question.threadId === current.channel.threadId,
-      )
-      .slice(-16)
-      .map((question) => question.id);
-    const array = properties.replyAssessments?.anyOf?.find((option) => option.type === 'array');
-    const item = array?.items;
-    if (!array || !item?.properties) throw Error('NPC_RESPONSE_SCHEMA');
-    if (
-      current.input.origin !== 'player' ||
-      !current.input.sourceId.trim() ||
-      !current.input.text.trim() ||
-      !choices.length
-    ) {
-      properties.replyAssessments = { type: 'null' };
+    const node = properties.locationReports!;
+    const array = node.type === 'array' ? node : node.anyOf?.find((x) => x.type === 'array');
+    if (!array?.items?.properties) throw Error('NPC_RESPONSE_SCHEMA');
+    if (current.input.origin !== 'player') {
+      properties.locationReports = { type: 'null' };
+      properties.inputInterpretation = { type: 'null' };
     } else {
-      item.properties.questionId!.enum = choices;
-      item.properties.sourceId!.enum = [current.input.sourceId];
-      // A short complete input is itself a valid verbatim quote. For long messages,
-      // avoid a large schema/output while retaining the kernel's substring check.
-      if (current.input.text.trim().length <= 1000)
-        item.properties.quote!.enum = [current.input.text.trim()];
+      array.items.properties.sourceId!.enum = [current.input.sourceId];
+      if (current.input.text.trim().length <= 500)
+        array.items.properties.quote!.enum = [current.input.text.trim()];
+      properties.locationReports = array;
+      const alternatives = (node: SchemaNode): SchemaNode[] =>
+        node.properties ? [node] : (node.anyOf ?? []).flatMap(alternatives);
+      const interpretation = alternatives(properties.inputInterpretation!);
+      const branches: SchemaNode[] = [];
+      for (const option of interpretation) {
+        option.properties!.sourceId = { type: 'string', enum: [current.input.sourceId] };
+        if (current.input.text.trim().length <= 1000)
+          option.properties!.quote = { type: 'string', enum: [current.input.text.trim()] };
+        if (option.properties!.kind!.enum?.includes('related_reply')) {
+          const targets = playerReplyTargets({
+            state: {
+              ...state,
+              responsibilities: state.responsibilities ?? [],
+              focus: state.focus ?? null,
+            },
+            ...current,
+          });
+          if (!targets.length) continue;
+          const item = option.properties!.replies!.items!;
+          option.properties!.replies!.items = {
+            anyOf: targets.map((target) => {
+              const branch = structuredClone(item);
+              for (const [key, value] of Object.entries(target))
+                branch.properties![key] =
+                  value === null
+                    ? { type: 'null' }
+                    : { type: typeof value === 'number' ? 'integer' : 'string', enum: [value] };
+              if (!target.responsibilityId) branch.properties!.decision = { type: 'null' };
+              return branch;
+            }),
+          };
+        }
+        branches.push(option);
+      }
+      properties.inputInterpretation = { anyOf: branches };
     }
-    if (properties.replyAssessments?.type !== 'null') properties.replyAssessments = array;
   }
   return { ...NPC_RESPONSE_FORMAT, schema };
 }
@@ -493,14 +492,57 @@ function transport(value: unknown, convertParameters = true): unknown {
 /** Transport binding only. Every result still passes the original proposal schema and kernel validation. */
 export function decodeNpcWire(context: AgentValidationContext, raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
-  if ('protocol' in raw && raw.protocol === NPC_WIRE_PROTOCOL) {
+  if (
+    'protocol' in raw &&
+    (raw.protocol === NPC_WIRE_PROTOCOL || raw.protocol === PREVIOUS_SINGLE_ACTION_PROTOCOL)
+  ) {
     // Native v4 has one action channel. No disposition flag competes with an
     // execution, and models cannot author completion receipts or terminal success.
     const nativeTransport = transport(raw, false) as Record<string, unknown>;
     // The scoped native grammar offers null when no player-decision items are
     // authorized. This is an empty transport collection, not a guessed decision.
     if (nativeTransport.decisions === null) nativeTransport.decisions = [];
-    const native = ModelWire.parse(nativeTransport);
+    const current = raw.protocol === NPC_WIRE_PROTOCOL;
+    const parsed = current
+      ? ModelWire.parse(nativeTransport)
+      : PreviousModelWire.parse(nativeTransport);
+    let native: z.infer<typeof PreviousModelWire>;
+    if (current) {
+      const { inputInterpretation, ...body } = parsed as z.infer<typeof ModelWire>;
+      const replies = interpretCurrentPlayerInput(context, inputInterpretation);
+      native = {
+        ...body,
+        protocol: PREVIOUS_SINGLE_ACTION_PROTOCOL,
+        decisions: replies
+          .filter((r) => r.decision !== null)
+          .map((r) => ({
+            id: `decision:${createHash('sha256')
+              .update(
+                JSON.stringify([
+                  'npc-player-decision-v1',
+                  context.state.worldId,
+                  context.state.actorId,
+                  context.input.sourceId,
+                  r.responsibilityId,
+                  r.responsibilityRevision,
+                ]),
+              )
+              .digest('hex')}`,
+            responsibilityId: r.responsibilityId!,
+            kind: r.decision!,
+            sourceId: context.input.sourceId,
+            quote: inputInterpretation!.quote,
+          })),
+        replyAssessments: replies
+          .filter((r) => r.questionId !== null)
+          .map((r) => ({
+            questionId: r.questionId!,
+            sourceId: context.input.sourceId,
+            quote: inputInterpretation!.quote,
+            relation: r.relation,
+          })),
+      };
+    } else native = parsed as z.infer<typeof PreviousModelWire>;
     const compiled = compileNpcExecutionIntents(context, native.executions ?? [], {
       allowMedia: true,
     });

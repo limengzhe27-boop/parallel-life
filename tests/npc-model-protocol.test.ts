@@ -528,16 +528,16 @@ test('native reply assessments can cite only a visible open question and this sh
   ];
   const format = npcResponseFormat(c.state, 'forbidden', { input: c.input, channel: c.channel });
   if (format.format !== 'json_schema') throw Error('schema');
-  const field = (format.schema.properties as Record<string, Record<string, unknown>>)
-    .replyAssessments!;
-  assert.equal(field.type, 'array');
-  const item = field.items as { properties: Record<string, { enum?: unknown[] }> };
-  assert.deepEqual(item.properties.questionId!.enum, ['current-question']);
-  assert.deepEqual(item.properties.sourceId!.enum, [c.input.sourceId]);
-  assert.deepEqual(item.properties.quote!.enum, [c.input.text]);
+  const field: any = (format.schema.properties as any).inputInterpretation;
+  const related = field.anyOf.find((n: any) => n.properties.kind.enum.includes('related_reply'));
+  const item = related.properties.replies.items.anyOf[0];
+  assert.deepEqual(item.properties.questionId.enum, ['current-question']);
+  assert.deepEqual(related.properties.sourceId.enum, [c.input.sourceId]);
+  assert.deepEqual(related.properties.quote.enum, [c.input.text]);
   type InputJudgmentSchema = { items: { properties: Record<string, { enum?: unknown[] }> } };
   const judgmentFields = format.schema.properties as Record<string, InputJudgmentSchema>;
-  assert.deepEqual(judgmentFields.decisions, { type: 'null' });
+  assert.equal(judgmentFields.decisions, undefined);
+  assert.equal(judgmentFields.replyAssessments, undefined);
   for (const fieldName of ['locationReports']) {
     const judgment: InputJudgmentSchema = judgmentFields[fieldName]!;
     assert.deepEqual(judgment.items.properties.sourceId!.enum, [c.input.sourceId]);
@@ -562,15 +562,18 @@ test('non-player or no visible question permits no assessments; long input keeps
   const field = (input: typeof c.input, state = c.state) => {
     const format = npcResponseFormat(state, 'optional', { input, channel: c.channel });
     if (format.format !== 'json_schema') throw Error('schema');
-    return (format.schema.properties as Record<string, Record<string, unknown>>).replyAssessments!;
+    return (format.schema.properties as Record<string, Record<string, unknown>>)
+      .inputInterpretation!;
   };
   assert.equal(field({ ...c.input, origin: 'wake' }).type, 'null');
-  assert.equal(field(c.input, { ...c.state, questions: [] }).type, 'null');
-  const long = field({ ...c.input, text: '继续讨论临窗。'.repeat(150) });
-  const item = long.items as { properties: Record<string, { enum?: unknown[] }> };
-  assert.deepEqual(item.properties.questionId!.enum, ['open-question']);
-  assert.deepEqual(item.properties.sourceId!.enum, [c.input.sourceId]);
-  assert.equal(item.properties.quote!.enum, undefined);
+  const empty: any = field(c.input, { ...c.state, questions: [] });
+  assert(!JSON.stringify(empty).includes('related_reply'));
+  const long: any = field({ ...c.input, text: '继续讨论临窗。'.repeat(150) });
+  const related = long.anyOf.find((n: any) => n.properties.kind.enum.includes('related_reply'));
+  const item = related.properties.replies.items.anyOf[0];
+  assert.deepEqual(item.properties.questionId.enum, ['open-question']);
+  assert.deepEqual(related.properties.sourceId.enum, [c.input.sourceId]);
+  assert.equal(related.properties.quote.enum, undefined);
 });
 
 test('native response schema represents server event permission, never a guessed NPC choice', () => {
@@ -743,8 +746,10 @@ test('provider-safe null judgment collections decode only as explicit empty v2 s
   const format = npcResponseFormat(c.state, 'required', { input: c.input, channel: c.channel });
   if (format.format !== 'json_schema') throw Error('schema');
   const fields = format.schema.properties as Record<string, { type: string }>;
-  for (const name of ['replyAssessments', 'decisions', 'locationReports'])
+  for (const name of ['inputInterpretation', 'locationReports'])
     assert.equal(fields[name]!.type, 'null');
+  assert.equal(fields.decisions, undefined);
+  assert.equal(fields.replyAssessments, undefined);
   const visit = (node: unknown) => {
     if (Array.isArray(node)) return node.forEach(visit);
     if (!node || typeof node !== 'object') return;
@@ -1027,19 +1032,27 @@ test('native player decision identifiers bind current input and visible responsi
       revision: 2,
     },
   ];
-  const branches = (input = c.input): any[] => {
-    const format: any = npcResponseFormat(c.state, 'forbidden', { input, channel: c.channel });
-    return format.schema.properties.decisions.items.anyOf;
+  c.state.focus = {
+    channel: 'private',
+    threadId: c.channel.threadId,
+    subjectId: 'request',
+    questionSourceId: null,
+    replyToActorId: null,
   };
-  const first = branches()[0].properties;
-  assert.deepEqual(first.responsibilityId.enum, ['request']);
+  const branches = (input = c.input): any => {
+    const format: any = npcResponseFormat(c.state, 'forbidden', { input, channel: c.channel });
+    return format.schema.properties.inputInterpretation.anyOf.find((n: any) =>
+      n.properties.kind.enum.includes('related_reply'),
+    );
+  };
+  const first = branches().properties;
+  const target = first.replies.items.anyOf[0].properties;
+  assert.deepEqual(target.responsibilityId.enum, ['request']);
+  assert.deepEqual(target.responsibilityRevision.enum, [2]);
   assert.deepEqual(first.sourceId.enum, ['input']);
-  assert.match(first.id.enum[0], /^decision:[a-f0-9]{64}$/);
-  assert.equal(branches()[0].properties.id.enum[0], first.id.enum[0]);
-  assert.notEqual(
-    branches({ ...c.input, sourceId: 'next-input' })[0].properties.id.enum[0],
-    first.id.enum[0],
-  );
+  assert.deepEqual(branches({ ...c.input, sourceId: 'next-input' }).properties.sourceId.enum, [
+    'next-input',
+  ]);
   assert.equal(c.state.decisions.length, 0);
 });
 

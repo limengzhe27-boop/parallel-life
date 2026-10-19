@@ -9,6 +9,10 @@ import type {
   AgentSource,
 } from './agent-runtime.ts';
 import { applyQuestionChanges, AgentQuestionError } from './agent-questions.ts';
+import {
+  bindPlayerInputInterpretation,
+  type PlayerInputInterpretation,
+} from './agent-input-interpretation.ts';
 
 export type AgentValidationContext = {
   episodeManifest?: PlayerEpisodeManifest;
@@ -21,6 +25,21 @@ export type AgentValidationContext = {
   channel: { kind: 'private' | 'group' | 'scene'; threadId: string; allowedCapabilities: string[] };
   knownActionResults?: AgentActionResult[];
 };
+/** Native current-input binding uses the same authorized view and sources as execution validation. */
+export function interpretCurrentPlayerInput(
+  context: AgentValidationContext,
+  interpretation: PlayerInputInterpretation | null,
+) {
+  return bindPlayerInputInterpretation(
+    {
+      state: context.viewState ?? context.state,
+      input: context.input,
+      channel: context.channel,
+      authorizedSourceIds: new Set(context.sources.map((s) => s.id)),
+    },
+    interpretation,
+  );
+}
 /** Produce a model view without deleting or rewriting the authoritative execution state. */
 export function authorizedAgentState(
   state: ActorAgentState,
