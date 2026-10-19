@@ -523,12 +523,12 @@ test('system protocol gives a parseable complete quiet example without repairing
       .find((line) => line.startsWith('无候选且决定安静的格式例：'))!
       .split('格式例：')[1]!,
   );
-  assert.equal(example.mode, 'quiet');
+  assert.equal(example.mode, undefined);
   assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
   rejected(f, example); // An empty example cannot silently discard the real candidates.
   assert.match(system, /保持安静是合法判断/);
-  assert.match(system, /必有protocol、mode、events、candidates、opportunities、audit/);
-  assert.match(system, /quiet时所有候选defer/);
+  assert.match(system, /必有protocol、events、candidates、opportunities、audit/);
+  assert.match(system, /保持安静时所有候选defer/);
   assert.match(system, /nativeTurn仍最多选一个候选/);
 });
 
@@ -820,7 +820,7 @@ test('Director strict response grammar binds each reference namespace to this im
   if (format.format !== 'json_schema') throw Error('wrong format');
   const root: any = format.schema;
   assert.equal(format.strict, true);
-  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v4']);
+  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v5']);
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
   assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
