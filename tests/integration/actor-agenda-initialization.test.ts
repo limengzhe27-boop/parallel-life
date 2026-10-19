@@ -532,83 +532,107 @@ test('agenda_initialize actual original advance/attempt/kernel flow, real PG syn
       assert.deepEqual(await grants(f), []);
     },
   );
-  await t.test(
-    'proven zero-send cancellation resumes the original slot at the same CAS',
-    async () => {
-      const f = await fixture(1, true, true),
-        g = (await grants(f))[0]!,
-        text = agendaInitializeInputText(g),
-        commandId = agendaInitializeCommandId(f.worldId, g.candidateId);
-      const inputHash = createHash('sha256')
-        .update(JSON.stringify([f.worldId, 'a', g.candidateId, text]))
-        .digest('hex');
-      const { receipt } = await attempts.accept(f.owner, {
-        id: randomUUID(),
-        worldId: f.worldId,
-        commandId,
-        inputHash,
-        channel: 'private',
-        threadId: 'a',
-        recipientActorId: 'a',
-        expectedWorldVersion: 0,
-        receivedAt: new Date().toISOString(),
-        storyAt: f.world.time,
-        origin: 'wake',
-        text,
-      });
-      const state = (await attempts.read(f.owner, { worldId: f.worldId, actorId: 'a' }))!;
-      const snapshot = (
-        await readPrivateAgentSnapshot(db, f.owner, f.world, 'a', receipt, f.world.time, state)
-      ).snapshot;
-      const controller = new AbortController();
-      controller.abort(Error('SYNTHETIC_CANCEL_BEFORE_SEND'));
-      await assert.rejects(
-        runNpcAgent(
-          {
-            attempts,
-            model: {
-              async decide() {
-                throw Error('must not send');
+  for (const crossVersion of [false, true])
+    await t.test(
+      `proven zero-send initialization recovers at ${crossVersion ? 'new' : 'same'} CAS without reset`,
+      async () => {
+        const f = await fixture(1, true, true),
+          g = (await grants(f))[0]!,
+          text = agendaInitializeInputText(g),
+          commandId = agendaInitializeCommandId(f.worldId, g.candidateId);
+        const inputHash = createHash('sha256')
+          .update(JSON.stringify([f.worldId, 'a', g.candidateId, text]))
+          .digest('hex');
+        const { receipt } = await attempts.accept(f.owner, {
+          id: randomUUID(),
+          worldId: f.worldId,
+          commandId,
+          inputHash,
+          channel: 'private',
+          threadId: 'a',
+          recipientActorId: 'a',
+          expectedWorldVersion: 0,
+          receivedAt: new Date().toISOString(),
+          storyAt: f.world.time,
+          origin: 'wake',
+          text,
+        });
+        const state = (await attempts.read(f.owner, { worldId: f.worldId, actorId: 'a' }))!;
+        const snapshot = (
+          await readPrivateAgentSnapshot(db, f.owner, f.world, 'a', receipt, f.world.time, state)
+        ).snapshot;
+        const controller = new AbortController();
+        controller.abort(Error('SYNTHETIC_CANCEL_BEFORE_SEND'));
+        await assert.rejects(
+          runNpcAgent(
+            {
+              attempts,
+              model: {
+                async decide() {
+                  throw Error('must not send');
+                },
+              },
+              kernel: {
+                parse() {
+                  throw Error('unreachable');
+                },
+                async commit() {
+                  throw Error('unreachable');
+                },
               },
             },
-            kernel: {
-              parse() {
-                throw Error('unreachable');
-              },
-              async commit() {
-                throw Error('unreachable');
-              },
+            f.owner,
+            {
+              id: randomUUID(),
+              worldId: f.worldId,
+              actorId: 'a',
+              commandId,
+              inputReceiptId: receipt.id,
+              engineEpoch: 2,
+              expectedWorldVersion: 0,
+              expectedActorRevision: 0,
+              inputHash,
+              token: randomUUID(),
+              leaseUntil: new Date(Date.now() + 240000).toISOString(),
             },
-          },
+            snapshot,
+            controller.signal,
+          ),
+          /SYNTHETIC_CANCEL/,
+        );
+        const cancelled = (await attempts.lookup(f.owner, f.worldId, commandId))!;
+        assert.equal(cancelled.status, 'cancelled_before_send');
+        assert.equal((await grants(f)).length, 1);
+        if (crossVersion)
+          await worlds.saveNote(
+            { userId: f.owner },
+            {
+              commandId: randomUUID(),
+              worldId: f.worldId,
+              title: 'Unrelated note',
+              text: 'No NPC decision or invented action.',
+              expectedVersion: 0,
+            },
+          );
+        const continuation = (await grants(f))[0]!;
+        assert.ok(continuation);
+        assert.equal(continuation.candidateId === g.candidateId, !crossVersion);
+        const h = harness(f);
+        await h.service.advanceIfEnabled(f.owner, f.worldId);
+        assert.equal(h.npc().length, 1);
+        const committed = (await attempts.lookup(
           f.owner,
-          {
-            id: randomUUID(),
-            worldId: f.worldId,
-            actorId: 'a',
-            commandId,
-            inputReceiptId: receipt.id,
-            engineEpoch: 2,
-            expectedWorldVersion: 0,
-            expectedActorRevision: 0,
-            inputHash,
-            token: randomUUID(),
-            leaseUntil: new Date(Date.now() + 240000).toISOString(),
-          },
-          snapshot,
-          controller.signal,
-        ),
-        /SYNTHETIC_CANCEL/,
-      );
-      const cancelled = (await attempts.lookup(f.owner, f.worldId, commandId))!;
-      assert.equal(cancelled.status, 'cancelled_before_send');
-      assert.equal((await grants(f)).length, 1);
-      const h = harness(f);
-      await h.service.advanceIfEnabled(f.owner, f.worldId);
-      assert.equal(h.npc().length, 1);
-      const committed = (await attempts.lookup(f.owner, f.worldId, commandId))!;
-      assert.equal(committed.id, cancelled.id);
-      assert.equal(committed.status, 'committed');
-      assert.deepEqual(await grants(f), []);
-    },
-  );
+          f.worldId,
+          agendaInitializeCommandId(f.worldId, continuation.candidateId),
+        ))!;
+        assert.equal(committed.id === cancelled.id, !crossVersion);
+        if (crossVersion)
+          assert.equal(
+            (await attempts.lookup(f.owner, f.worldId, commandId))!.status,
+            'cancelled_before_send',
+          );
+        assert.equal(committed.status, 'committed');
+        assert.deepEqual(await grants(f), []);
+      },
+    );
 });

@@ -48,7 +48,12 @@ export async function readAgendaInitializeGrantsInTransaction(
   ).rows.map((r) => r.document as ActorAgentState);
   const prior = (
     await sql.query(
-      'SELECT actor_id,command_id,status,sent_at,response_hash,expected_world_version,expected_actor_revision FROM parallel_life.agent_attempts WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3',
+      `SELECT a.actor_id,a.command_id,a.status,a.sent_at,a.response_hash,a.response,a.event_id,
+       a.expected_world_version,a.expected_actor_revision,a.input_hash,a.input_receipt_id,r.document AS receipt
+       FROM parallel_life.agent_attempts a
+       LEFT JOIN parallel_life.agent_input_receipts r ON r.world_id=a.world_id AND r.owner_id=a.owner_id AND r.id=a.input_receipt_id
+       WHERE a.world_id=$1 AND a.owner_id=$2 AND a.engine_epoch=$3
+       ORDER BY a.expected_world_version,a.created_at,a.id`,
       [input.worldId, owner, input.engineEpoch],
     )
   ).rows;
@@ -79,29 +84,100 @@ export async function readAgendaInitializeGrantsInTransaction(
     const blocked = await forgottenAgentSourceIds(sql, owner, input.worldId, state.actorId);
     if (blocked.has(sourceId) || blocked.has(state.definitionRef)) continue;
     const policy = 'npc_agenda_initialize_v1' as const;
-    const candidateId = `agenda_initialize:${hash([policy, input.worldId, state.actorId, input.engineEpoch, row.genesis_hash, state.definitionRef])}`;
-    // Quiet, known paid failure and unknown keep their slot. Only a proven zero-send
-    // cancellation at the exact original CAS may use the existing recovery path.
-    const commandId = agendaInitializeCommandId(input.worldId, candidateId);
+    const familyId = `agenda_initialize:${hash([policy, input.worldId, state.actorId, input.engineEpoch, row.genesis_hash, state.definitionRef])}`;
+    let candidateId = familyId;
+    const actorHistory = prior.filter((p) => p.actor_id === state.actorId);
+    // Any actual private commit is already an agenda anchor, including a quiet reply.
+    // Initialization must never reset that actor simply because their state arrays are empty.
+    if (actorHistory.some((p) => p.status === 'committed' && p.receipt?.channel === 'private'))
+      continue;
     if (
-      prior.some(
+      actorHistory.some(
         (p) =>
           p.command_id !== input.allowCommandId &&
-          ((p.command_id === commandId &&
-            !(
-              p.status === 'cancelled_before_send' &&
-              p.sent_at === null &&
-              p.response_hash === null &&
-              p.expected_world_version === row.version &&
-              p.expected_actor_revision === state.revision
-            )) ||
-            (p.actor_id === state.actorId &&
-              ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
-                p.status,
-              ))),
+          ['reserved', 'request_sent', 'response_received', 'unknown_after_send'].includes(
+            p.status,
+          ),
       )
     )
       continue;
+    // A damaged/missing receipt cannot hide a paid or unresolved actor attempt.
+    // No new initialization authorization may bypass such history.
+    if (
+      actorHistory.some(
+        (p) =>
+          p.command_id !== input.allowCommandId &&
+          (p.sent_at !== null ||
+            p.response_hash !== null ||
+            p.response !== null ||
+            p.event_id !== null),
+      )
+    )
+      continue;
+    const lineage = actorHistory.filter(
+      (p) =>
+        p.command_id === agendaInitializeCommandId(input.worldId, familyId) ||
+        isAgendaInitializeInput(p.receipt ?? {}),
+    );
+    let previous: (typeof prior)[number] | undefined;
+    let valid = true;
+    for (const p of lineage) {
+      if (previous) {
+        if (p.expected_world_version <= previous.expected_world_version) {
+          valid = false;
+          break;
+        }
+        candidateId = `agenda_initialize:${hash(['unsent-initialization', familyId, previous.command_id, p.expected_world_version])}`;
+      }
+      const grant: ActorAgendaInitializeGrant = {
+        worldId: input.worldId,
+        actorId: state.actorId,
+        engineEpoch: input.engineEpoch,
+        policy,
+        definitionRef: state.definitionRef,
+        admissionGenesisHash: row.genesis_hash,
+        candidateId,
+        sourceIds: [sourceId],
+      };
+      if (
+        p.command_id !== agendaInitializeCommandId(input.worldId, candidateId) ||
+        p.receipt?.worldId !== input.worldId ||
+        p.receipt?.recipientActorId !== state.actorId ||
+        p.receipt?.channel !== 'private' ||
+        p.receipt?.threadId !== state.actorId ||
+        p.receipt?.commandId !== p.command_id ||
+        p.receipt?.id !== p.input_receipt_id ||
+        p.receipt?.inputHash !== p.input_hash ||
+        p.input_hash !== hash([input.worldId, state.actorId, candidateId, p.receipt.text]) ||
+        p.receipt?.expectedWorldVersion !== p.expected_world_version ||
+        p.receipt?.text !== agendaInitializeInputText(grant)
+      ) {
+        valid = false;
+        break;
+      }
+      const holder =
+        p.command_id === input.allowCommandId &&
+        p.expected_world_version === row.version &&
+        p.expected_actor_revision === state.revision;
+      const unsent =
+        p.status === 'cancelled_before_send' &&
+        p.sent_at === null &&
+        p.response_hash === null &&
+        p.response === null &&
+        p.event_id === null;
+      if (!holder && !unsent) {
+        valid = false;
+        break;
+      }
+      if (p.expected_world_version > row.version || p.expected_actor_revision !== state.revision) {
+        valid = false;
+        break;
+      }
+      previous = p;
+    }
+    if (!valid) continue;
+    if (previous && previous.expected_world_version < row.version)
+      candidateId = `agenda_initialize:${hash(['unsent-initialization', familyId, previous.command_id, row.version])}`;
     result.push({
       worldId: input.worldId,
       actorId: state.actorId,
