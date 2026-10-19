@@ -1,5 +1,13 @@
 # 44-158 Actual opening, media decisions and chat latency
 
+## Latest delivery evidence — 2026-10-19
+
+Real original trial chat→NPC explicit image proposal→kernel→event-scoped Outbox→leased worker→private store→chat and album projection passed on candidate15 efd95f21 / dpl_GiYD1b6yu9uEN15cmLVdGDJsbvcJ. Selected NPC model gpt-4.1-mini, image model gemini-2.5-flash-image; no fallback or unknown retry. Actual request6eace9d8-37c3-4c5c-8351-bb0829894d94 succeeded in25.661s, PNG1024×1024/1,883,870bytes, asseta2109f1d-ddfc-4d86-95a9-ee08504ac15c; authorized read200/anonymous401/cross-trial404, real bytes decoded and viewed. Same asset appears in original phone.messages and phone.photos. No authored dialogue/asset/state inserted to pass. Synthetic saves paused. Positive32 response also revalidates under final one-action-per-turn grammar; this deterministic cost bound matches the requested single action proposal and retains historical codecs.
+
+Fullcheck3447/build and original media PG checks pass;93 production migration checksums verified. Production release pending below; until READY formal remains3195af41. Parent158 remains open: full natural opening/proactive continuity and correct semantic responsibility interpretation are not proved. In particular text28 attributed NPC refusal to an old player decision; later role clarification is not sufficient evidence to call that problem solved.154-B/F/G/H implementation is frozen for next integration; true minute-level backend cadence/due index is still absent. No claim of complete world simulation from image success.
+
+Acceptance ledger: first24 text closed; separate6 text follow-up closed; separate2 text provider isolation closed. Total32 text,2 image attempts (one timed-out unknown retained, one ready),4 synthetic saves,2 text unknowns retained; no automatic retries or new saves beyond authorized batches. Model selection settings are server Config keys, not secret changes; previous production keys were absent, so rollback can remove them and revert source after preserving existing receipts/assets. No new SQL in this final image release.
+
 Owner/root integrator codex-root-runtime158; integration unified-engine137. Source baseline09a96362. Separate Director158-D, NPC158-M and UI158-UI worktrees; root owns event dispatch, evidence, persona context and integration. No author manuscript edits or forced event completion.
 
 ## Actual before-flow/evidence

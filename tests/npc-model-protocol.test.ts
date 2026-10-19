@@ -889,6 +889,14 @@ test('v4 has one explicit media action and no model-authored completion receipts
       },
     ],
   };
+  assert.throws(
+    () =>
+      parseAgentProposal(c, {
+        ...raw,
+        executions: [raw.executions[0], { ...raw.executions[0], ref: 'action_2' }],
+      }),
+    /RESPONSE_WIRE_SHAPE/,
+  );
   const p = parseAgentProposal(c, raw);
   assert.equal(p.actions[0]!.capability, 'media.generate_image');
   assert.equal(p.actions[0]!.parameters.purpose, 'scene');

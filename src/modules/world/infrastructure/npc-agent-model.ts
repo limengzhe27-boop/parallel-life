@@ -75,7 +75,7 @@ PlayerDecision只对当前输入确实针对的responsibility作判断：accepte
 玩家普通输入应有自然回复。wake或coordination无值得表达的变化时可安静，不硬造消息。输出形状只遵从下方最终传输协议；上述规则解释行为边界，不定义另一种输出格式。`;
 
 const WIRE_SYSTEM = `
-最终模型传输格式：protocol:"npc-wire-v4"，statements、executions、consideration、goals、plans、responsibilities、decisions及原生schema所列的可选判断。只有executions这一个动作通道；不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
+最终模型传输格式：protocol:"npc-wire-v4"，statements、executions、consideration、goals、plans、responsibilities、decisions及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
 你是replyAs这一个人。先回应当前input发言人，参考conversationProgress，不重复索取已经给出的信息。当前消息确实回答未决问题时记录replyAssessments；回答问题不等于责任完成。原话中的答应、拒绝、协商、暂缓按decisions记录，不能把换话题当答应。
 每项executions为{ref:"action_1等schema列出的本轮编号",goal:{kind:"existing",id:"本人可见目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。目标和计划按人物实际意图选择，代码只分配机械编号；来源完整保留且含当前input.sourceId。新执行不要在goals/plans重复写一遍。可依赖成功的对白用statements.dependsOnActionIds:["execution:本轮ref"]；没有对应执行不得引用。
 制作数字图片用capability:"media.generate_image"，parameters必须包括{name:"sceneDescription",value:"本人决定的具体画面"}和{name:"purpose",value:"portrait|scene|memorial|evidence中一个"}。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；媒体动作handlesResponsibilityIds必须[]，不能借入队结清实际交付责任。

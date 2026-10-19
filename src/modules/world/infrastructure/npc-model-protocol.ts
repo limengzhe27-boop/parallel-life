@@ -193,7 +193,7 @@ const ModelWire = Wire.omit({ mediaDecision: true, actions: true }).extend({
         ]),
       }),
     )
-    .max(16)
+    .max(1)
     .optional(),
 });
 /** Strict providers require optional fields to be represented by null, not omitted. */
