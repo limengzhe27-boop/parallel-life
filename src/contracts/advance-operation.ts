@@ -33,3 +33,13 @@ export const AdvanceOperationReceiptSchema = z.strictObject({
   waitingOn: z.literal('clock_or_attention').optional(),
 });
 export type AdvanceOperationReceipt = z.infer<typeof AdvanceOperationReceiptSchema>;
+
+/** Cached clients keep their original strict envelope during a rolling deployment. */
+export function advanceOperationClientReceipt(
+  receipt: AdvanceOperationReceipt,
+  version: string | null,
+): AdvanceOperationReceipt {
+  if (version === '2') return receipt;
+  const { waitingOn: _waitingOn, ...original } = receipt;
+  return original;
+}

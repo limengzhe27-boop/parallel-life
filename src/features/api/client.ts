@@ -290,6 +290,7 @@ export class LifeClient {
       {
         method: 'POST',
         signal: AbortSignal.timeout(action === 'start' ? WORLD_ADVANCE_TIMEOUT_MS : 30000),
+        headers: { 'X-Advance-Recovery': '2' },
         body: JSON.stringify({ operationId, action }),
       },
     );

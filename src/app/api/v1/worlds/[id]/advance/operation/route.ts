@@ -9,6 +9,7 @@ import { Id } from '../../../../../../../contracts/api.ts';
 import {
   AdvanceOperationRequestSchema,
   AdvanceOperationReceiptSchema,
+  advanceOperationClientReceipt,
 } from '../../../../../../../contracts/advance-operation.ts';
 import { requestLimit } from '../../../../../../../server/limits.ts';
 export const runtime = 'nodejs';
@@ -21,14 +22,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const input = await parseBody(request, AdvanceOperationRequestSchema);
     await requestLimit(s.db, s.ownerId);
     return json(
-      AdvanceOperationReceiptSchema.parse(
-        await s.advanceOperations.perform(
-          s.ownerId,
-          world.data,
-          input.operationId,
-          input.action,
-          (error) => http.reportFailure(error, 503, 'UNAVAILABLE'),
+      advanceOperationClientReceipt(
+        AdvanceOperationReceiptSchema.parse(
+          await s.advanceOperations.perform(
+            s.ownerId,
+            world.data,
+            input.operationId,
+            input.action,
+            (error) => http.reportFailure(error, 503, 'UNAVAILABLE'),
+          ),
         ),
+        request.headers.get('X-Advance-Recovery'),
       ),
     );
   });

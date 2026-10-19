@@ -59,3 +59,9 @@ replyTargetRef、通用sparse输出及单execution槽位简化暂无本次故障
 5. 回复耗时实测13.58/14.53秒，仍需按模型/数据库/投递分段优化，不称已提速。
 6. replyTargetRef、稀疏无变化输出、单execution包装简化及复杂部分成功继续待实现；未知付费结果禁止自动重买；现有用户事实/权限保护不放宽。
 7. 作者青青/林白语原稿错配需作者核对；没有自动篡改作者输入。生产用户三档进度与草稿保留，仅3个确证验收世界已删除。
+
+### 最后原请求公网核对
+
+等待修复候选97c58af4 / dpl_21dd87GnirEKQ9HjoVVpinzcLYZa READY。对真实原operation d50…作lookup/recover（0模型）后，旧received已超过有效租约，内核正确记录stale_discarded，operation=failed，未新发/重复保存，不能将它宣称为waiting→complete成功。短时暂停/恢复分支正补真实PG旅程。旧结果保持原文，不修改版本绕过检查。正式部署以最后主表记录为准。
+
+最终短时暂停PG证明已集成1e5e808a：原v9→NPC受保护响应→暂停recover=waiting、world/attempt不变→恢复同一响应committed→重复recover不增版本/回执；0新模型入口。wait字段仅新客户端X-Advance-Recovery:2返回，缓存旧严格schema仍原信封。4增量纯测、type通过，原恢复PG通过；上一全量check3749/build通过，最终Vercel构建再次覆盖类型/生产打包。父任务保留进行中，真实持续演绎不标通过。

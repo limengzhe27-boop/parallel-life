@@ -73,3 +73,17 @@ test('presentation deferral remains recoverable waiting, not a transport failure
   for (const code of ['UNKNOWN', 'TIMEOUT', 'VERSION_CONFLICT', 'INVALID_AGENT_PROPOSAL'])
     assert.equal(advanceRecoveryWaitReason({ code }), null);
 });
+
+test('waiting metadata is negotiated without breaking cached strict receipt clients', async () => {
+  const { advanceOperationClientReceipt } = await import('../src/contracts/advance-operation.ts');
+  const receipt = {
+    worldId: 'world',
+    operationId: 'id',
+    status: 'recoverable' as const,
+    work: [],
+    waitingOn: 'clock_or_attention' as const,
+  };
+  assert.equal(advanceOperationClientReceipt(receipt, '2').waitingOn, 'clock_or_attention');
+  assert.equal('waitingOn' in advanceOperationClientReceipt(receipt, null), false);
+  assert.equal(receipt.waitingOn, 'clock_or_attention');
+});
