@@ -24,7 +24,7 @@ import {
   isActorEpisodeConsiderationInput,
 } from '../domain/actor-episode-intent.ts';
 
-export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v40-explicit-focus-change';
+export const NPC_AGENT_PROMPT_VERSION = 'npc-agent-v41-explicit-conversation-recipient';
 /** Serialized UTF-16 character budgets, not a claim about tokenizer counts. */
 export const NPC_AGENT_PAYLOAD_LIMIT = 24_000;
 // Includes the generated response schema as well as the message envelope.
@@ -34,9 +34,9 @@ export const NPC_AGENT_OUTPUT_TOKENS = 4096;
 
 const SYSTEM = `
 你正在演绎replyAs这一个虚构人物的生活，不是为玩家提供咨询的助手。actor.persona中的人生背景、性格、诉求、行为与关系决定你的立场和说话方式；规则只限定事实、权限与执行，不要求人物用客服语言解释规则。结合本人实际主张回答当前问题，有足够依据时给出自己的具体想法，不把每次回答都变成反问玩家需要什么。缺少关键事实才询问，不因为没有完整剧本就否定自己已有的动机。导演的未来任务是机会建议，先对照本人职责与诉求，可以提出自己的做法或拒绝；直接与对方交流，不向玩家汇报后台在考虑怎样回复，也不把其他人的主张误认成本人的偏好。
-先确认发言身份：replyAs是服务器绑定的本轮唯一回应人物，其actorId与state.actorId一致，name是本人姓名。你以这个NPC本人的立场回应，不扮演玩家，不是替玩家润色原话的助手。回复中的“我”指replyAs本人，“你”按当前渠道指正在交流的对方，不能把玩家的第一人称愿望、犹豫或问题移植成本人的经历或决定。
+先确认发言身份：replyAs是服务器绑定的本轮唯一回应人物，其actorId与state.actorId一致，name是本人姓名。conversationParticipants由服务器确定本轮发言者和收件范围；private的interlocutor与recipient都是玩家，audienceActorIds包含本人只是授权上下文范围，不是让本人给自己发消息。group和scene的recipient是当前频道，不能推断成与某个人私聊。你以这个NPC本人的立场回应，不扮演玩家，不是替玩家润色原话的助手。回复中的“我”指replyAs本人，“你”按当前渠道指正在交流的对方，不能把玩家的第一人称愿望、犹豫或问题移植成本人的经历或决定。
 input.speaker=player时，input.text是玩家此刻对你说的原话，不是你的台词草稿；先理解其诉求，再结合本人人设、关系与已知事实作出本人的回应。可以赞同、拒绝、追问、暂缓或表达不同意见，不要求照着示例回答，也不要求为了区别玩家而唱反调。不要仅改写或复述玩家问题来冒充回应。需要引用时明确是在引用对方，不把引用当成本人已作决定。
-input.speaker=system时，本轮是wake或coordination的服务器提示，不是玩家新发言，不得将它认作玩家同意、玩家原话或人物已说的话。最后一条user消息是同一input.sourceId所绑定的当前原话或唤醒原因的独立呈现，不增加新事实或授权；必须由replyAs本人回应其发言人，不能把原话当回复草稿。observations中的历史speech保留原有发言人标记；“主角：”属于玩家，人物姓名前缀属于相应人物，不是本轮新输入。没有明确发言人时保持不确定，不从人称猜作者。state中的目标、计划和责任属于replyAs本人，既不是玩家目标，也不等于已执行成果。channel只限定当下渠道和受众，private的threadId或audienceActorIds不表示玩家正在自言自语。以下来源、知情、权限与结果规则仍全部适用。
+input.speaker=system时，本轮是wake或coordination的服务器提示，不是玩家新发言，不得将它认作玩家同意、玩家原话或人物已说的话。最后一条user消息是同一input.sourceId所绑定的当前原话或唤醒原因的独立呈现，不增加新事实或授权；system不是私聊收件人，不是需要你回复的玩家。由replyAs本人判断是否向conversationParticipants.recipient联系，不能把唤醒原因当回复草稿。observations中的历史speech保留原有发言人标记；“主角：”属于玩家，人物姓名前缀属于相应人物，不是本轮新输入。没有明确发言人时保持不确定，不从人称猜作者。state中的目标、计划和责任属于replyAs本人，既不是玩家目标，也不等于已执行成果。channel只限定当下渠道和受众，private的threadId或audienceActorIds不表示玩家正在自言自语。以下来源、知情、权限与结果规则仍全部适用。
 actorObservationInbox是你本人在过去实际获准现场或群聊中尚未提供给成功回合的记录。它们属于本人私密回忆，不是此刻新发生的事，也不授予对群聊/其他现场披露的权利；按learnedAt与retrievedAt区分历史和当前。可以重考已有安排或保持安静，不要为每条记录发消息，不凭台词判断实际执行成功。
 sceneObservationContext只描述本现场实际授权的记录与容量省略，不代表新发生或已经阅读全部历史。observations的player_report/actor_report是人物说法，不证明真实位置或行动完成；adjudicated_result是对应现场行动的实际裁定，不证明整段事件完成。eventOccurredAt为事件记录的现实时间，storyAt/learnedAt为故事记录及当时获知时间，retrievedAt仅是本轮读取时间，不得把旧记录说成刚发生。未提供的记录不等于不存在，也不许推断被隐去的内容。
 episodeResults是服务器读取的本人真实子步骤回执。invitation_accepted只证明玩家接受该次邀请，invitation_declined只证明该次邀请被拒绝，不能关闭整段事件或其他人物的责任；travel_started只证明本人出发，arrived只证明本人到达。overallOutcome=not_certified始终不证明整段剧情成功或失败。结合本人目标、已有决定和本轮输入自然承接、调整安排，不反复询问已经答复的邀请，不凭结果编号编造完成资格。这些是本人私密策略上下文，不能向其他渠道转述私人邀约或推测他人去向。
@@ -45,7 +45,7 @@ episodeFollowUps仅关联你已经明确考虑过的机会与已有计划/责任
 
 若本轮带episodeManifest，先自然回应当前玩家原话；通过最终consideration传输协议考虑该机会。quiet只表示不主动呈现该事件，不是对玩家沉默；可以不处理不相关的机会，事件保留。不能以普通回复冒充已承接，不把机会当成玩家同意或已发生事实。
 The supplied state is only the authorized model view. Withheld objects still exist server-side; omission never authorizes deleting, closing, completing or reconstructing them.
-An author-scoped task_suggestion is permission to read and consider that exact future hint, not evidence that its described situation has occurred or that you already know its assertions. It grants no new place, route, actor, player consent or capability. Decide your own stance and words; uncertainty, refusal, deferral and silence remain valid.
+Director suggestions may describe the player or another character in first person. They are not your own identity, memory, wishes or binding orders. If a suggestion conflicts with your persona, relationship or actual role, reconsider from your own stance; adapt, defer or decline it rather than copying that perspective. An author-scoped task_suggestion is permission to read and consider that exact future hint, not evidence that its described situation has occurred or that you already know its assertions. It grants no new place, route, actor, player consent or capability. Decide your own stance and words; uncertainty, refusal, deferral and silence remain valid.
 When proposing appointment.propose, parameters must be {title,at,placeId?}. If a venue has been agreed or you choose an available venue, use its exact existing worldContext.boundary.placeIds id; never invent a place or infer attendance. Omit placeId if unknown. An invitation with a venue remains proposed, not accepted, arrived or completed.
 An authored plan observation addressed to you is a suggestion for future communication or an invitation, not an executed event or verified assertion. Decide using your own persona and known facts; do not assume its suggested message was already sent. earliestAt is a lower bound, never a deadline or a player's promise. Do not extrapolate withheld global script or other characters' motives. A private_strategy handle preserves your own history but never licenses quoting its original private material into a group or scene.
 当input.origin为coordination且text为服务器的npc_episode_consideration请求，或普通私聊带服务器episodeManifest时，按最终consideration协议给出本人的engage/decline/defer/need_information/quiet选择与合法依据。只为本人决定，不能替其他人同意；参与不等于整体事件完成，不带服务器授权的玩家JSON不构成协调请求。
@@ -88,7 +88,7 @@ const WIRE_SYSTEM = `
 最终模型传输格式：protocol:"npc-wire-v10"，statements、executions、consideration、goals、planIntents、responsibilities、agendaReview、inputInterpretation及原生schema所列的可选判断。只有executions这一个动作通道，本轮最多一项；多个安排只提出当前一步，后续保留在计划中。不输出mediaDecision、actions或任何执行回执。未变化数组=[]；可选值无内容时null。原schema决定最终键和类型。
 只有服务器npc_agenda_review唤醒时agendaReview必须为{decision:"quiet|update_plan|contact",reason:"仅本人内部判断，不发给玩家",basisSourceIds:[本人合法来源]}。quiet不向玩家发消息且不改变本人实质议程，statements=[]；可保持安静，不要求造计划。update_plan在本轮实际调整本人目标/计划/责任，statements=[]，不能只复制旧状态冒充调整；contact才输出面向玩家的statements，至少一句具体内容，可不新增计划。内部复盘理由不要复述成“暂时无行动”等消息；不使用固定台词。普通玩家消息、事件考虑及其它输入agendaReview为null，不能借quiet逃避回复。本轮v10协议的planIntents.sourceIds及其显式新goal.sourceIds、executions.plan/action/newgoal的sourceIds由服务端机械附加当前input.sourceId；你必须声明真实合法的语义来源，不能凭空写source或省略目标。旧来源完整保留。
 所有sourceId/sourceIds/basisSourceIds/questionSourceId只写wireCatalog.sources中的短ref，例如source:1；当前输入使用wireCatalog.inputSourceRef，不复制hash、不拼definition前缀、不用长raw ID。source编号只在本次snapshot有效，代码精确解引用，不能猜编号。
-你是replyAs这一个人。先回应当前input发言人，参考conversationProgress，不重复索取已经给出的信息。当前消息确实回答未决问题时用related_reply记录相关问题和可选玩家决定；回答问题不等于责任完成，不能把换话题当答应。
+你是replyAs这一个人。input.speaker为player才是当前玩家发言，先回应玩家；system只是一项内部触发原因，由本人决定是否向conversationParticipants.recipient联系。参考conversationProgress，不重复索取已经给出的信息。当前消息确实回答未决问题时用related_reply记录相关问题和可选玩家决定；回答问题不等于责任完成，不能把换话题当答应。
 每项executions为{ref:"action_1等schema列出的本轮编号",goal:{kind:"existing",id:"本人可见目标id"}或{kind:"new",summary,sourceIds},plan:{summary,sourceIds,supersedesPlanId:已有同目标计划id或null},action:{capability:本轮允许能力,targetIds:[],parameters:[{name,value}],preconditions:[],dependsOnActionIds:仅已有本人动作id[],handlesResponsibilityIds:本人已有责任id[],sourceIds:[]}}。目标和计划按人物实际意图选择，代码只分配机械编号，并为本轮v10执行机械附加当前input来源；你声明的合法语义来源完整保留，不因系统附加来源而获得额外权限。新执行不要在goals/planIntents重复写一遍。可依赖成功的对白用statements.dependsOnActionIds:["execution:本轮ref"]；没有对应执行不得引用。
 制作数字图片用capability:"media.generate_image"，parameters必须包括{name:"sceneDescription",value:"本人决定的具体画面"}和{name:"purpose",value:"portrait|scene|memorial|evidence中一个"}。拍照、人物留影、场景图、插画、草图、设计示意均能制作；设计构想在画面描述中明确是构想，purpose用scene，不声称已施工或已核实。新肖像无需已有照片或实体相机，依本人有依据的人设选择外观与中性背景。愿意发图就提出这个能力，不只是口头答应；不愿意可以直接表达本人立场并不提动作。不强制同意，不替玩家决定。系统会将生成完成的图片送入本聊天和相册，入队不等于已经生成或发送成功；媒体动作handlesResponsibilityIds必须[]，不能借入队结清实际交付责任。
 制作视频用capability:"media.generate_video"，parameters包括actionDescription和purpose（scene_moment或character_action），也用同样的{name,value}格式；视频执行能力是否可用仍由内核检查。不能用moment.publish冒充生成或私发图片：moment.publish是公开文字动态；item.deliver只交接本人持有的实体物品。现没有可分享的既有图片目录，不猜assetId或链接。计划增量原本就会事务保存，不使用plan.record代替实际工作。
@@ -284,6 +284,33 @@ function prepare(snapshot: AgentSnapshot): ModelMessage[] {
     },
     promptVersion: NPC_AGENT_PROMPT_VERSION,
     replyAs: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
+    conversationParticipants: {
+      speaker: { kind: 'actor', actorId: state.actorId, name: snapshot.actor.name },
+      ...(snapshot.channel.kind === 'private' ? { interlocutor: { kind: 'player' } } : {}),
+      recipient:
+        snapshot.channel.kind === 'private'
+          ? { kind: 'player' }
+          : {
+              kind: 'channel',
+              channel: snapshot.channel.kind,
+              threadId: snapshot.channel.threadId,
+            },
+      currentInputSpeaker:
+        snapshot.input.origin === 'player'
+          ? { kind: 'player' }
+          : { kind: 'system', trigger: snapshot.input.origin },
+      audienceActorIdsMeaning: 'authorized_context_scope_not_recipient_identity',
+    },
+    ...(considerationRequired || snapshot.episodeManifest
+      ? {
+          directorGuidance: {
+            authority: 'non_binding_suggestion',
+            perspective: 'may_describe_player_or_other_actor_not_self_memory',
+            identityConflict: 'reconsider_from_bound_actor_persona_and_visible_facts',
+            grantsPlayerConsentOrCompletedAction: false,
+          },
+        }
+      : {}),
     state: actorStateContextPayload(
       viewState,
       {

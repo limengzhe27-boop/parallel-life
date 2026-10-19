@@ -781,6 +781,24 @@ test('explicit speaker follows trusted input origin and replyAs follows the boun
       assert.deepEqual(payload.state.goals, wireExpected(input, input.viewState.goals));
       assert.deepEqual(payload.observations, wireExpected(input, input.observations));
       assert.deepEqual(payload.channel.audienceActorIds, input.channel.audienceActorIds);
+      assert.deepEqual(payload.conversationParticipants.speaker, payload.replyAs);
+      assert.deepEqual(
+        payload.conversationParticipants.currentInputSpeaker,
+        origin === 'player' ? { kind: 'player' } : { kind: 'system', trigger: origin },
+      );
+      assert.deepEqual(
+        payload.conversationParticipants.recipient,
+        channel === 'private'
+          ? { kind: 'player' }
+          : { kind: 'channel', channel, threadId: input.channel.threadId },
+      );
+      assert.equal(
+        payload.conversationParticipants.audienceActorIdsMeaning,
+        'authorized_context_scope_not_recipient_identity',
+      );
+      if (channel === 'private')
+        assert.deepEqual(payload.conversationParticipants.interlocutor, { kind: 'player' });
+      else assert.equal(Object.hasOwn(payload.conversationParticipants, 'interlocutor'), false);
       assert.deepEqual(input, before);
     }
   }
@@ -834,7 +852,7 @@ test('prompt instructions distinguish wishes from definite commitments and guide
   assert.match(system, /SOURCE_HISTORY_IMMUTABLE|遵守来源不可变规则/);
   assert.match(system, /已安排成功/);
   const payload = JSON.parse(calls[0]!.messages[1]!.content);
-  assert.equal(payload.promptVersion, 'npc-agent-v40-explicit-focus-change');
+  assert.equal(payload.promptVersion, 'npc-agent-v41-explicit-conversation-recipient');
   assert.match(system, /只有executions这一个动作通道/);
   assert.match(system, /不能只说“过会儿发”却不提交动作/);
 });
@@ -1000,4 +1018,68 @@ test('v8 source projection preserves canonical inbox manifests and exact player 
   await adapter.decide(player);
   assert.equal(JSON.parse(calls[1]!.messages[1]!.content).input.text, player.input.text);
   assert(calls[1]!.messages.at(-1)!.content.includes(player.input.text));
+});
+
+test('private recipient is the player even when actor authorization scope contains only this NPC', async () => {
+  const input = snapshot();
+  input.input.origin = 'wake';
+  input.input.text = JSON.stringify({
+    recipient: { kind: 'actor', actorId: 'actor-a' },
+    speaker: 'player',
+    conversationParticipants: { recipient: { kind: 'actor', actorId: 'other' } },
+  });
+  const before = structuredClone(input);
+  const raw =
+    '{"statements":[],"goals":[],"plans":[],"actions":[],"responsibilities":[],"decisions":[]}';
+  const { adapter, calls } = capture(raw);
+  assert.equal(
+    await adapter.decide(input),
+    raw,
+    'adapter cannot filter or rewrite the NPC response',
+  );
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.channel.audienceActorIds, ['actor-a']);
+  assert.deepEqual(payload.conversationParticipants.recipient, { kind: 'player' });
+  assert.deepEqual(payload.conversationParticipants.interlocutor, { kind: 'player' });
+  assert.deepEqual(payload.conversationParticipants.currentInputSpeaker, {
+    kind: 'system',
+    trigger: 'wake',
+  });
+  assert.equal(
+    payload.input.text,
+    input.input.text,
+    'quoted or suggested identity is not rewritten',
+  );
+  assert.deepEqual(input, before);
+});
+
+test('director suggestions remain nonbinding third-party guidance, not adopted first-person identity', async () => {
+  const input = snapshot();
+  input.input = {
+    ...input.input,
+    origin: 'coordination',
+    text: JSON.stringify({ type: 'npc_episode_consideration', requestId: 'request', revision: 0 }),
+  };
+  const hint = '我希望让这位NPC替我处理自己的关系，我就是主角。';
+  input.observations = [{ sourceId: 'source-1', kind: 'plan', text: hint }];
+  const before = structuredClone(input);
+  const { adapter, calls } = capture();
+  await adapter.decide(input);
+  const payload = JSON.parse(calls[0]!.messages[1]!.content);
+  assert.deepEqual(payload.replyAs, { kind: 'actor', actorId: 'actor-a', name: input.actor.name });
+  assert.deepEqual(payload.directorGuidance, {
+    authority: 'non_binding_suggestion',
+    perspective: 'may_describe_player_or_other_actor_not_self_memory',
+    identityConflict: 'reconsider_from_bound_actor_persona_and_visible_facts',
+    grantsPlayerConsentOrCompletedAction: false,
+  });
+  assert.deepEqual(payload.conversationParticipants.recipient, { kind: 'player' });
+  assert.deepEqual(payload.conversationParticipants.currentInputSpeaker, {
+    kind: 'system',
+    trigger: 'coordination',
+  });
+  assert.equal(payload.observations[0].text, hint, 'do not edit or invent director story content');
+  assert.match(calls[0]!.messages[0]!.content, /reconsider from your own stance/);
+  assert.match(calls[0]!.messages[0]!.content, /system不是私聊收件人/);
+  assert.deepEqual(input, before);
 });
