@@ -1,3 +1,4 @@
+import { validateActorMediaResultContextInTransaction } from './agent-source-resolver.ts';
 import { validateGroupObservationContext } from './group-observation-context-validation.ts';
 import { validateActorObservationInbox } from './actor-observation-inbox.ts';
 import { validateSceneObservationContext } from './scene-observation-context-validation.ts';
@@ -134,6 +135,7 @@ export class PostgresNpcAgentKernel implements AgentKernel {
       await validateActorEpisodeIntentSnapshotInTransaction(sql, ownerId, snapshot);
       await validateEpisodeLifecycleContext(sql, ownerId, snapshot);
       await validateActorEpisodeResults(sql, ownerId, snapshot);
+      await validateActorMediaResultContextInTransaction(sql, ownerId, snapshot);
       await validateSceneObservationContext(sql, ownerId, snapshot);
       await validateGroupObservationContext(sql, ownerId, snapshot);
       await validateActorObservationInbox(sql, ownerId, snapshot);

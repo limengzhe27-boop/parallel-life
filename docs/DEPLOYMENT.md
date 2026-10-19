@@ -1,6 +1,6 @@
 ## 2026-10-19 · 44-158 原生人物发图首批
 
-087b1f00 / dpl_9PefbbAaKio6QNbonXB4rA9tRpaq 正式 Nu READY。原NPC单行动→事务Outbox→真实图片任务→私有PNG→聊天/相册完成，1024²、1.88MB；正式读取与匿名/跨档隔离通过。check3447/build、93迁移checksum一致，无新增SQL。未声称全开场与自主调度通过；责任误判继续158-P，未知调用不重试，详见158报告。
+087b1f00 / dpl_9PefbbAaKio6QNbonXB4rA9tRpaq 正式 Nu READY。原NPC单行动→事务Outbox→真实图片任务→私有PNG→聊天/相册完成，1024²、1.88MB；正式读取与匿名/跨档隔离通过。check3447/build、93迁移checksum一致，无新增SQL。未声称全开场与自主调度通过；责任误判继续158-Q，未知调用不重试，详见158报告。
 
 ## 2026-10-19 - 44-157 Playable relaunch and send preflight
 
