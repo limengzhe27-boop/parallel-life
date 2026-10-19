@@ -1,3 +1,4 @@
+import { NpcAgentModel } from '../../src/modules/world/infrastructure/npc-agent-model.ts';
 import { createAgentScheduleSources } from '../../src/modules/world/application/agent-schedule-collectors.ts';
 import { npcAgentAdvanceServices } from '../../src/server/npc-agent-advance-services.ts';
 import { createHash } from 'node:crypto';
@@ -502,7 +503,7 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
     },
   };
   const services = npcAgentAdvanceServices(app, () => model, snapshots, {
-    maxActors: 1,
+    maxActors: 2,
     maxModelCalls: 1,
     maxSteps: 4,
   });
@@ -535,7 +536,35 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
   assert.equal(npcCalls, 0, 'protected pending Director frame must not be bypassed');
   assert.equal(directorCalls, 0, 'pending request must not be repurchased');
   await directors.mark(f.owner, protectedClaim.attempt, 'cancelled_before_send');
-  await services.advanceIfEnabled(f.owner, f.id);
+  // Deterministic preflight rejection uses the real runner's claim/cancel path.
+  // It is not a provider failure and must not prevent another actor's legal work.
+  const originalValidate = NpcAgentModel.prototype.validateInput;
+  let rejectedActor: string | undefined;
+  let rejectedCalls = 0;
+  NpcAgentModel.prototype.validateInput = function (snapshot) {
+    rejectedActor ??= snapshot.state.actorId;
+    if (snapshot.state.actorId === rejectedActor) {
+      rejectedCalls++;
+      throw Object.assign(Error('NPC_AGENT_SNAPSHOT_LIMIT'), { code: 'NPC_AGENT_SNAPSHOT_LIMIT' });
+    }
+    return originalValidate.call(this, snapshot);
+  };
+  try {
+    await services.advanceIfEnabled(f.owner, f.id);
+  } finally {
+    NpcAgentModel.prototype.validateInput = originalValidate;
+  }
+  assert.equal(rejectedCalls, 1, 'batch never retries the rejected actor');
+  const zeroSend = (
+    await admin.query(
+      'SELECT * FROM parallel_life.agent_attempts WHERE world_id=$1 AND actor_id=$2 ORDER BY created_at DESC LIMIT 1',
+      [f.id, rejectedActor],
+    )
+  ).rows[0];
+  assert.equal(zeroSend.status, 'cancelled_before_send');
+  for (const key of ['sent_at', 'response', 'response_hash', 'event_id'])
+    assert.equal(zeroSend[key], null);
+
   assert.equal(npcCalls, 1);
   assert.equal(directorCalls, 0);
   async function pending() {
@@ -569,6 +598,12 @@ test('private opening observations run ahead of mixed shared-episode coordinatio
   assert.equal(npcCalls, 2);
   assert.equal(directorCalls, 0);
   assert.equal(await pending(), f.world.actors.length - 2);
+  assert.deepEqual(
+    (await admin.query('SELECT * FROM parallel_life.agent_attempts WHERE id=$1', [zeroSend.id]))
+      .rows[0],
+    zeroSend,
+    'later frame recovery preserves old zero-send receipt',
+  );
   const rows = (
     await admin.query(
       "SELECT actor_id,count(*)::int AS n FROM parallel_life.agent_attempts WHERE world_id=$1 AND status='committed' GROUP BY actor_id",
