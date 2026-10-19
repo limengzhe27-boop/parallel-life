@@ -1,3 +1,4 @@
+import { validDirectorAuthoredAssessments } from '../domain/director-runtime.ts';
 import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
 import { storedClockStopped } from './clock-activity-repository.ts';
 import { authoredReconsiderationEvidence } from '../domain/authored-reconsideration.ts';
@@ -33,7 +34,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   const bootstrap = await readDirectorBootstrapCauseInTransaction(sql, ownerId, input);
   const attempts = (
     await sql.query(
-      `SELECT a.id,a.status,a.sent_at,a.snapshot,d.id actual_decision_id
+      `SELECT a.id,a.status,a.sent_at,a.snapshot,d.id actual_decision_id,d.document actual_decision
      FROM parallel_life.director_runtime_attempts a
      LEFT JOIN parallel_life.director_decisions d ON d.world_id=a.world_id AND d.owner_id=a.owner_id
        AND d.id=a.decision_id AND d.input_hash=a.input_hash AND d.attempt_id=a.id
@@ -150,8 +151,25 @@ export async function readDirectorNarrativeWakeInTransaction(
       a.snapshot?.authoredMaterials?.source?.sourceHash !== view.catalog.source.sourceHash
     )
       continue;
-    const entries = a.snapshot.authoredEligibility;
-    if (!Array.isArray(entries)) continue;
+    const snapshotEntries = a.snapshot.authoredEligibility;
+    if (!Array.isArray(snapshotEntries)) continue;
+    // New decisions explicitly say which authored nodes were assessed. A saved
+    // catalogue alone is not an assessment. Historical paid frames and received
+    // failures retain their old paid fence; this is never retry permission.
+    const explicit =
+      a.status === 'committed' && Object.hasOwn(a.actual_decision ?? {}, 'authoredAssessments');
+    if (explicit && !validDirectorAuthoredAssessments(a.snapshot, a.actual_decision))
+      throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_AUTHORED_ASSESSMENT_INVALID');
+    const entries = explicit
+      ? snapshotEntries.filter((q: AuthoredWakeQualification) =>
+          a.actual_decision.authoredAssessments.some(
+            (review: AuthoredWakeQualification) =>
+              review.nodeKey === q.nodeKey &&
+              review.nodeHash === q.nodeHash &&
+              review.qualificationKey === q.qualificationKey,
+          ),
+        )
+      : snapshotEntries;
     const previousOccupied = new Set<string>(a.snapshot.occupiedAuthoredEventKeys ?? []);
     for (const q of entries)
       if (q.status === 'eligible' && !previousOccupied.has(q.nodeKey))

@@ -112,6 +112,14 @@ export type DirectorDecision = {
   deferred: { candidateId: string; reason: string }[];
   nudges: DirectorNudge[];
   opportunities: DirectorOpportunity[];
+  /** Explicit assessments only in v4+; absent on protected historical decisions. */
+  authoredAssessments?: {
+    nodeKey: string;
+    nodeHash: string;
+    qualificationKey: string;
+    decision: 'consider' | 'defer';
+    reason: string;
+  }[];
   /** Private global audit; never forwarded as free prose to NPCs. */
   audit: { reason: string; basisSourceIds: string[] };
 };
@@ -139,6 +147,41 @@ export function canConsiderAuthoredEvent(snapshot: DirectorSnapshot, nodeKey: st
     matches[0]!.nodeHash === materials[0]!.ref.nodeHash &&
     matches[0]!.status === 'eligible' &&
     !snapshot.occupiedAuthoredEventKeys?.includes(nodeKey)
+  );
+}
+
+/** Seeing a catalogue is not an assessment. No implicit conversion of historical decisions. */
+export function validDirectorAuthoredAssessments(
+  snapshot: DirectorSnapshot,
+  decision: Pick<DirectorDecision, 'authoredAssessments' | 'opportunities'>,
+): boolean {
+  if (decision.authoredAssessments === undefined) return true;
+  const eligible =
+    snapshot.authoredEligibility?.filter((q) => canConsiderAuthoredEvent(snapshot, q.nodeKey)) ??
+    [];
+  const assessments = decision.authoredAssessments;
+  if (
+    assessments.length !== eligible.length ||
+    new Set(assessments.map((a) => a.nodeKey)).size !== assessments.length
+  )
+    return false;
+  for (const a of assessments) {
+    const q = eligible.find((q) => q.nodeKey === a.nodeKey);
+    const hasOpportunity = decision.opportunities.some((o) => o.authoredEventKey === a.nodeKey);
+    if (
+      !q ||
+      q.nodeHash !== a.nodeHash ||
+      q.qualificationKey !== a.qualificationKey ||
+      !a.reason.trim() ||
+      !['consider', 'defer'].includes(a.decision) ||
+      (a.decision === 'consider') !== hasOpportunity
+    )
+      return false;
+  }
+  return decision.opportunities.every(
+    (o) =>
+      o.authoredEventKey === undefined ||
+      assessments.some((a) => a.nodeKey === o.authoredEventKey && a.decision === 'consider'),
   );
 }
 

@@ -4,7 +4,7 @@ import type { DirectorSnapshot } from '../domain/director-runtime.ts';
 import { canConsiderAuthoredEvent } from '../domain/director-runtime.ts';
 import { projectAuthoredDirectorModelView } from '../domain/authored-agent-material.ts';
 
-export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v3';
+export const DIRECTOR_WIRE_PROTOCOL = 'director-wire-v4';
 const Key = z.string().min(1).max(240);
 const Reason = z.string().trim().min(1).max(2000);
 const Ref = z.string().regex(/^(candidate|actor|place|source|event):[1-9][0-9]*$/);
@@ -15,8 +15,19 @@ const Nudge = z.enum([
   'consider_opportunity',
 ]);
 const Wire = z.strictObject({
-  protocol: z.enum(['director-wire-v1', 'director-wire-v2', DIRECTOR_WIRE_PROTOCOL]),
+  protocol: z.enum([
+    'director-wire-v1',
+    'director-wire-v2',
+    'director-wire-v3',
+    DIRECTOR_WIRE_PROTOCOL,
+  ]),
   mode: z.enum(['quiet', 'coordinate', 'bounded_opportunity']),
+  events: z
+    .array(
+      z.strictObject({ eventRef: Ref, decision: z.enum(['consider', 'defer']), reason: Reason }),
+    )
+    .max(10000)
+    .optional(),
   candidates: z
     .array(
       z.discriminatedUnion('decision', [
@@ -131,9 +142,18 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
   if (wire.protocol !== 'director-wire-v1' && wire.opportunities.some((o) => !o.stagingIntents))
     throw Error('DIRECTOR_STAGING_REQUIRED');
   const catalog = directorWireCatalog(snapshot);
+  if (wire.protocol === DIRECTOR_WIRE_PROTOCOL) {
+    if (
+      !wire.events ||
+      wire.events.length !== catalog.events.length ||
+      new Set(wire.events.map((e) => e.eventRef)).size !== wire.events.length ||
+      wire.events.some((e) => !catalog.events.some((item) => item.ref === e.eventRef))
+    )
+      throw Error('DIRECTOR_AUTHORED_ASSESSMENT_PARTITION');
+  } else if (wire.events !== undefined) throw Error('DIRECTOR_LEGACY_ASSESSMENTS_FORBIDDEN');
   const openingRefs = bootstrapOpeningEventRefs(snapshot);
   if (
-    wire.protocol === DIRECTOR_WIRE_PROTOCOL &&
+    ['director-wire-v3', DIRECTOR_WIRE_PROTOCOL].includes(wire.protocol) &&
     openingRefs.length &&
     wire.opportunities.some(
       (o) => o.origin.kind !== 'authored' || !openingRefs.includes(o.origin.eventRef),
@@ -181,6 +201,23 @@ export function decodeDirectorWire(snapshot: DirectorSnapshot, raw: unknown): un
   }
   return {
     mode: wire.mode,
+    ...(wire.protocol === DIRECTOR_WIRE_PROTOCOL
+      ? {
+          authoredAssessments: wire.events!.map((e) => {
+            const event = lookup(catalog.events, e.eventRef);
+            const qualification = snapshot.authoredEligibility!.find(
+              (q) => q.nodeKey === event.authoredEventKey,
+            )!;
+            return {
+              nodeKey: event.authoredEventKey,
+              nodeHash: qualification.nodeHash,
+              qualificationKey: qualification.qualificationKey,
+              decision: e.decision,
+              reason: e.reason,
+            };
+          }),
+        }
+      : {}),
     selectedCandidateIds,
     deferred,
     nudges,
@@ -299,6 +336,17 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
           ? ['quiet', 'coordinate', 'bounded_opportunity']
           : ['quiet', 'coordinate'],
     },
+    events: {
+      ...array(
+        object({
+          eventRef: refs(values(catalog.events)),
+          decision: { type: 'string', enum: ['consider', 'defer'] },
+          reason: text,
+        }),
+      ),
+      minItems: catalog.events.length,
+      maxItems: catalog.events.length,
+    },
     candidates: array(
       {
         anyOf: [
@@ -342,5 +390,5 @@ export function directorResponseFormat(snapshot: DirectorSnapshot): ModelOutputO
     throw Object.assign(Error('DIRECTOR_RESPONSE_SCHEMA_LIMIT'), {
       code: 'DIRECTOR_RESPONSE_SCHEMA_LIMIT',
     });
-  return { format: 'json_schema', name: 'director_response_v3', strict: true, schema };
+  return { format: 'json_schema', name: 'director_response_v4', strict: true, schema };
 }

@@ -33,7 +33,10 @@ import {
   PostgresDirectorRuntimeRepository,
   directorSnapshotInputHash,
 } from '../../src/modules/world/infrastructure/director-runtime-repository.ts';
-import { WorldDirectorAgentModel } from '../../src/modules/world/infrastructure/director-agent-model.ts';
+import {
+  WorldDirectorAgentModel,
+  parseDirectorDecision,
+} from '../../src/modules/world/infrastructure/director-agent-model.ts';
 import { PostgresClockStore } from '../../src/modules/world/infrastructure/clock-repository.ts';
 import { PostgresWorldSpace } from '../../src/modules/world/infrastructure/space-repository.ts';
 import { admitNewAgentNarrativeInTransaction } from '../../src/modules/world/infrastructure/agent-narrative-repository.ts';
@@ -215,7 +218,13 @@ test('actual publication semantic wake advances use one protected Director bound
       },
     });
   async function fixture(
-    options: { admit?: boolean; proof?: boolean; multi?: boolean; legacy?: boolean } = {},
+    options: {
+      admit?: boolean;
+      proof?: boolean;
+      multi?: boolean;
+      legacy?: boolean;
+      emptyAgenda?: boolean;
+    } = {},
   ) {
     const content = structuredClone(base);
     if (options.proof)
@@ -272,6 +281,33 @@ test('actual publication semantic wake advances use one protected Director bound
       if (options.admit !== false)
         await admitNewAgentNarrativeInTransaction(sql, owner, { worldId: id, engineEpoch: 2 });
     });
+    // These older semantic-wake scenarios start with an existing character agenda.
+    // No invented execution/history: an active definition-based intention, with no action or result.
+    // Explicit emptyAgenda fixtures below retain the real cold-start initialization path.
+    if (!options.emptyAgenda)
+      await app.transaction(owner, async (sql) => {
+        for (const actor of world.actors) {
+          const source = `definition:${agentDefinitionRef(world, actor.id)}`;
+          await sql.query(
+            `UPDATE parallel_life.actor_agent_states SET document=jsonb_set(document,'{goals}',$3::jsonb)
+            WHERE world_id=$1 AND owner_id=$2 AND actor_id=$4`,
+            [
+              id,
+              owner,
+              JSON.stringify([
+                {
+                  id: `fixture-existing-agenda:${actor.id}`,
+                  summary: 'An existing character intention, without an action or claimed outcome.',
+                  status: 'active',
+                  sourceIds: [source],
+                  resultIds: [],
+                },
+              ]),
+              actor.id,
+            ],
+          );
+        }
+      });
     await clocks.setClock(owner, id, { paused: false, speed: 0 });
     return { owner, id, world };
   }
@@ -316,10 +352,13 @@ test('actual publication semantic wake advances use one protected Director bound
     s.evaluationCause?.kind === 'authored_eligibility'
       ? s.evaluationCause.qualifications.map((q) => q.nodeKey)
       : [];
-  const quiet = () => ({
+  const quiet = (payload?: { candidates?: { id: string }[] }) => ({
     mode: 'quiet',
     selectedCandidateIds: [],
-    deferred: [],
+    deferred: (payload?.candidates ?? []).map((c) => ({
+      candidateId: c.id,
+      reason: 'EXPLICIT_LOCAL_QUIET_CANDIDATE',
+    })),
     nudges: [],
     opportunities: [],
     audit: { reason: 'EXPLICIT_LOCAL_QUIET', basisSourceIds: [] },
@@ -386,6 +425,15 @@ test('actual publication semantic wake advances use one protected Director bound
         );
         if (kind === 'npc') {
           const intent = JSON.parse(p.input.text);
+          if (intent.type === 'npc_agenda_initialize')
+            return JSON.stringify({
+              statements: [],
+              goals: [],
+              plans: [],
+              actions: [],
+              responsibilities: [],
+              decisions: [],
+            });
           assert.equal(intent.type, 'npc_episode_consideration');
           return JSON.stringify({
             statements:
@@ -454,7 +502,7 @@ test('actual publication semantic wake advances use one protected Director bound
             });
           }
           return JSON.stringify({
-            ...quiet(),
+            ...quiet(p),
             mode: 'bounded_opportunity',
             opportunities: [
               {
@@ -471,10 +519,10 @@ test('actual publication semantic wake advances use one protected Director bound
             ],
           });
         }
-        return JSON.stringify(quiet());
+        return JSON.stringify(quiet(p));
       },
     };
-    const service = npcAgentAdvanceServices(app, () => model, snapshots);
+    const service = npcAgentAdvanceServices(app, () => model, snapshots, { maxActors: 1 });
     return {
       calls,
       director: () => calls.filter((c) => c.kind === 'director'),
@@ -565,7 +613,7 @@ test('actual publication semantic wake advances use one protected Director bound
       };
       const h = harness(f, {
         response(_p, n) {
-          return n === 1 ? 'invalid known completion' : JSON.stringify(quiet());
+          return n === 1 ? 'invalid known completion' : JSON.stringify(quiet(_p));
         },
       });
       try {
@@ -958,7 +1006,7 @@ test('actual publication semantic wake advances use one protected Director bound
       await at(f, time(10));
       const h = harness(f, {
         response(_p, n) {
-          return n === 1 ? 'malformed explicit local JSON' : JSON.stringify(quiet());
+          return n === 1 ? 'malformed explicit local JSON' : JSON.stringify(quiet(_p));
         },
       });
       await assert.rejects(h.advance(), { code: 'INVALID_DIRECTOR_PROPOSAL' });
@@ -1020,7 +1068,7 @@ test('actual publication semantic wake advances use one protected Director bound
         c = claim(s);
       let { attempt } = await directors.claim(f.owner, c, s);
       attempt = await directors.mark(f.owner, attempt, 'request_sent');
-      attempt = await directors.saveResponse(f.owner, attempt, JSON.stringify(quiet()));
+      attempt = await directors.saveResponse(f.owner, attempt, JSON.stringify(quiet(s)));
       assert.equal(attempt.status, 'response_received');
       await at(f, time(11, 30));
       const w = await wake(f);
@@ -1046,7 +1094,7 @@ test('actual publication semantic wake advances use one protected Director bound
         c = claim(saved);
       let { attempt } = await directors.claim(f.owner, c, saved);
       attempt = await directors.mark(f.owner, attempt, 'request_sent');
-      attempt = await directors.saveResponse(f.owner, attempt, JSON.stringify(quiet()));
+      attempt = await directors.saveResponse(f.owner, attempt, JSON.stringify(quiet(saved)));
       assert.equal(attempt.status, 'response_received');
       const client = randomUUID();
       await activity.update(f.owner, f.id, {
@@ -1302,6 +1350,207 @@ test('actual publication semantic wake advances use one protected Director bound
       );
     },
   );
+  await t.test(
+    'v4 actual advance persists explicit author assessments and hands considered opening to an independent NPC once',
+    async () => {
+      const f = await fixture({ emptyAgenda: true });
+      const h = harness(f, {
+        npcChoice: 'quiet',
+        response(p) {
+          const chosen = p.wireCatalog.events.find((e: any) => e.authoredEventKey === 'always');
+          if (!chosen)
+            return JSON.stringify({
+              protocol: 'director-wire-v4',
+              mode: 'quiet',
+              candidates: p.wireCatalog.candidates.map((c: any) => ({
+                ref: c.ref,
+                decision: 'defer',
+                reason: 'No further authored opportunity.',
+              })),
+              events: p.wireCatalog.events.map((e: any) => ({
+                eventRef: e.ref,
+                decision: 'defer',
+                reason: 'Not chosen this time.',
+              })),
+              opportunities: [],
+              audit: { reason: 'No new author opportunity.', sourceRefs: [] },
+            });
+          const actor = p.wireCatalog.actors.find((a: any) => a.actorId === f.world.actors[0]!.id);
+          return JSON.stringify({
+            protocol: 'director-wire-v4',
+            mode: 'bounded_opportunity',
+            candidates: p.wireCatalog.candidates.map((c: any) => ({
+              ref: c.ref,
+              decision: 'defer',
+              reason: 'Consider the authored opening first.',
+            })),
+            events: p.wireCatalog.events.map((e: any) => ({
+              eventRef: e.ref,
+              decision: e.ref === chosen.ref ? 'consider' : 'defer',
+              reason: 'Explicit local authored assessment.',
+            })),
+            opportunities: [
+              {
+                id: 'local-opening',
+                title: 'Consider the actual opening',
+                description: 'An unperformed authored opportunity.',
+                playerImpact: 'Player remains free to respond.',
+                actors: [actor.ref],
+                places: [],
+                activity: 'conversation',
+                origin: { kind: 'authored', eventRef: chosen.ref },
+                stagingIntents: [
+                  {
+                    actorRef: actor.ref,
+                    kind: 'future_task',
+                    task: 'Consider participating from your own situation; respect player decisions.',
+                  },
+                ],
+                actorTopics: null,
+              },
+            ],
+            audit: { reason: 'Assess the existing eligible opening.', sourceRefs: [chosen.ref] },
+          });
+        },
+      });
+      await h.advance();
+      const row = (
+        await admin.query(
+          'SELECT document FROM parallel_life.director_decisions WHERE world_id=$1',
+          [f.id],
+        )
+      ).rows[0]!;
+      assert.ok(row.document.authoredAssessments.length);
+      const opening = row.document.authoredAssessments.find((a: any) => a.nodeKey === 'always');
+      assert.equal(opening.decision, 'consider');
+      assert.match(opening.nodeHash, /^[a-f0-9]{64}$/);
+      assert.match(opening.qualificationKey, /^[a-f0-9]{64}$/);
+      const episodes = await directors.readEpisodes(f.owner, f.id);
+      assert.equal(episodes.length, 1);
+      assert.equal(episodes[0]!.status, 'proposed'); // NPC quiet never completes an event.
+      assert.equal(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM parallel_life.agent_episode_requests WHERE world_id=$1',
+            [f.id],
+          )
+        ).rows[0].n,
+        1,
+      );
+      const episodeCalls = h.calls.filter(
+        (c) =>
+          c.kind === 'npc' && JSON.parse(c.payload.input.text).type === 'npc_episode_consideration',
+      );
+      assert.equal(episodeCalls.length, 1);
+      await h.advance();
+      await h.advance();
+      assert.equal(
+        h
+          .director()
+          .filter((call) =>
+            call.payload.wireCatalog.events.some(
+              (event: any) => event.authoredEventKey === 'always',
+            ),
+          ).length,
+        1,
+        'refresh and initialization do not re-buy the authored opportunity',
+      );
+      assert.equal((await directors.readEpisodes(f.owner, f.id)).length, 1);
+    },
+  );
+
+  await t.test(
+    'v4 real repository rejects forged assessments and SQL guard protects document shape while legacy absent remains valid',
+    async () => {
+      const f = await fixture();
+      const snapshot = await snap(f);
+      let { attempt } = await directors.claim(f.owner, claim(snapshot), snapshot);
+      attempt = await directors.mark(f.owner, attempt, 'request_sent');
+      const { directorWireCatalog } =
+        await import('../../src/modules/world/infrastructure/director-model-protocol.ts');
+      const catalog = directorWireCatalog(snapshot);
+      const wire = {
+        protocol: 'director-wire-v4',
+        mode: 'quiet',
+        candidates: catalog.candidates.map((c) => ({
+          ref: c.ref,
+          decision: 'defer',
+          reason: 'Local explicit candidate assessment.',
+        })),
+        events: catalog.events.map((e) => ({
+          eventRef: e.ref,
+          decision: 'defer',
+          reason: 'Local explicit authored deferral.',
+        })),
+        opportunities: [],
+        audit: { reason: 'Local explicit quiet.', sourceRefs: [] },
+      };
+      attempt = await directors.saveResponse(f.owner, attempt, JSON.stringify(wire));
+      const decision = parseDirectorDecision(snapshot, wire, attempt);
+      const first = decision.authoredAssessments![0]!;
+      for (const authoredAssessments of [
+        [],
+        [first, first],
+        [{ ...first, nodeHash: 'f'.repeat(64) }],
+        [{ ...first, qualificationKey: 'e'.repeat(64) }],
+      ])
+        await assert.rejects(
+          directors.commit(f.owner, attempt, snapshot, { ...decision, authoredAssessments }),
+          { code: 'INVALID_DIRECTOR_AUTHORED_ASSESSMENTS' },
+        );
+      await assert.rejects(
+        directors.commit(f.owner, attempt, snapshot, {
+          ...decision,
+          authoredAssessments: [{ ...first, nodeHash: 'bad' }],
+        }),
+        { code: 'INVALID_DIRECTOR_DECISION' },
+      );
+      await directors.commit(f.owner, attempt, snapshot, decision);
+      for (const bad of [
+        null,
+        {},
+        [{ ...first, nodeHash: 'bad' }],
+        [{ ...first, qualificationKey: 'bad' }],
+        [first, first],
+        [{ ...first, extra: true }],
+      ]) {
+        await assert.rejects(
+          admin.query(
+            "UPDATE parallel_life.director_decisions SET document=jsonb_set(document,'{authoredAssessments}',$2::jsonb) WHERE id=$1",
+            [decision.id, JSON.stringify(bad)],
+          ),
+          { code: '23514' },
+        );
+      }
+      assert.deepEqual(
+        (await directors.readDecision(f.owner, f.id, decision.id))!.authoredAssessments,
+        decision.authoredAssessments,
+      );
+      assert.equal(
+        (await wake(f)).cause,
+        null,
+        'explicit defer consumes only its actual qualification',
+      );
+      const h = harness(f);
+      await h.advance();
+      await h.advance();
+      assert.equal(h.director().length, 0);
+      const old = await fixture();
+      await bootstrap(old);
+      const legacy = (
+        await admin.query(
+          'SELECT document FROM parallel_life.director_decisions WHERE world_id=$1',
+          [old.id],
+        )
+      ).rows[0].document;
+      assert.equal(
+        Object.hasOwn(legacy, 'authoredAssessments'),
+        false,
+        'old paid protocol is not rewritten',
+      );
+    },
+  );
+
   await t.test('every real fixture keeps old publication ledgers uninitialized', async () => {
     for (const table of [
       'publication_story_plans',

@@ -527,7 +527,7 @@ test('system protocol gives a parseable complete quiet example without repairing
   assert.equal(parseDirectorDecision(empty, example, f.attempt).mode, 'quiet');
   rejected(f, example); // An empty example cannot silently discard the real candidates.
   assert.match(system, /保持安静是合法判断/);
-  assert.match(system, /必有protocol、mode、candidates、opportunities、audit/);
+  assert.match(system, /必有protocol、mode、events、candidates、opportunities、audit/);
   assert.match(system, /quiet时所有候选defer/);
   assert.match(system, /nativeTurn仍最多选一个候选/);
 });
@@ -820,7 +820,7 @@ test('Director strict response grammar binds each reference namespace to this im
   if (format.format !== 'json_schema') throw Error('wrong format');
   const root: any = format.schema;
   assert.equal(format.strict, true);
-  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v3']);
+  assert.deepEqual(root.properties.protocol.enum, ['director-wire-v4']);
   assert.equal(root.properties.candidates.maxItems, 0);
   const opportunity = root.properties.opportunities.items.properties;
   assert.deepEqual(opportunity.places.items.enum, ['place:1', 'place:2']);
@@ -927,4 +927,97 @@ test('fresh bootstrap enforces eligible authored opening without forcing opportu
   emergent.protocol = 'director-wire-v3';
   delete f.snapshot.evaluationCause;
   assert.equal(f.parse(emergent).opportunities[0]!.authoredEventKey, undefined);
+});
+
+test('v4 explicitly partitions eligible authored events and server-binds assessment evidence', async () => {
+  const f = await wireFixture(true);
+  const wire: any = structuredClone(f.wire);
+  wire.protocol = 'director-wire-v4';
+  wire.events = [
+    {
+      eventRef: 'event:1',
+      decision: 'consider',
+      reason: 'The authored opportunity is ready for independent consideration.',
+    },
+  ];
+  wire.opportunities[0].stagingIntents = [
+    { actorRef: 'actor:1', kind: 'future_task', task: 'Consider your own arrangement.' },
+  ];
+  const d = f.parse(wire);
+  const q = f.snapshot.authoredEligibility![0]!;
+  assert.deepEqual(d.authoredAssessments, [
+    {
+      nodeKey: q.nodeKey,
+      nodeHash: q.nodeHash,
+      qualificationKey: q.qualificationKey,
+      decision: 'consider',
+      reason: wire.events[0].reason,
+    },
+  ]);
+  assert.match(d.opportunities[0]!.id, /^director-opportunity:[a-f0-9]{64}$/);
+  for (const events of [
+    undefined,
+    [],
+    [wire.events[0], wire.events[0]],
+    [{ ...wire.events[0], eventRef: 'event:9' }],
+  ])
+    rejected(f, { ...wire, events });
+  rejected(f, { ...wire, mode: 'quiet', opportunities: [] }); // consider needs a matching opportunity.
+  rejected(f, { ...wire, events: [{ ...wire.events[0], decision: 'defer' }] });
+  const deferred = {
+    ...wire,
+    mode: 'quiet',
+    opportunities: [],
+    events: [{ ...wire.events[0], decision: 'defer' }],
+  };
+  assert.equal(f.parse(deferred).authoredAssessments![0]!.decision, 'defer');
+  const { validDirectorAuthoredAssessments } =
+    await import('../src/modules/world/domain/director-runtime.ts');
+  assert.equal(validDirectorAuthoredAssessments(f.snapshot, d), true);
+  for (const field of ['nodeHash', 'qualificationKey', 'nodeKey'] as const)
+    assert.equal(
+      validDirectorAuthoredAssessments(f.snapshot, {
+        ...d,
+        authoredAssessments: [{ ...d.authoredAssessments![0]!, [field]: 'forged' }],
+      }),
+      false,
+    );
+  const { PostgresDirectorRuntimeRepository } =
+    await import('../src/modules/world/infrastructure/director-runtime-repository.ts');
+  const repository = Object.create(PostgresDirectorRuntimeRepository.prototype) as any;
+  repository.validateDecision(f.snapshot, f.attempt, d);
+  assert.throws(
+    () => repository.validateDecision(f.snapshot, f.attempt, { ...d, authoredAssessments: [] }),
+    { code: 'INVALID_DIRECTOR_AUTHORED_ASSESSMENTS' },
+  );
+  rejected(f, { ...f.quiet, authoredAssessments: [] }); // Canonical legacy input cannot inject v4 authority.
+  for (const protocol of ['director-wire-v1', 'director-wire-v2', 'director-wire-v3']) {
+    const old = { ...wire, protocol };
+    delete old.events;
+    assert.equal(f.parse(old).authoredAssessments, undefined);
+    rejected(f, { ...old, events: [] });
+  }
+  f.snapshot.occupiedAuthoredEventKeys = ['opening_plan'];
+  rejected(f, wire);
+});
+
+test('v4 has explicit empty assessments when there are no eligible events', async () => {
+  const f = fixture();
+  const wire = {
+    protocol: 'director-wire-v4',
+    mode: 'quiet',
+    events: [],
+    candidates: [
+      { ref: 'candidate:1', decision: 'defer', reason: 'No present change.' },
+      { ref: 'candidate:2', decision: 'defer', reason: 'No present change.' },
+    ],
+    opportunities: [],
+    audit: { reason: 'Stay quiet.', sourceRefs: [] },
+  };
+  assert.deepEqual(f.parse(wire).authoredAssessments, []);
+  const { directorResponseFormat } =
+    await import('../src/modules/world/infrastructure/director-model-protocol.ts');
+  const format = directorResponseFormat(f.snapshot);
+  if (format.format !== 'json_schema') throw Error('wrong format');
+  assert.equal((format.schema as any).properties.events.maxItems, 0);
 });

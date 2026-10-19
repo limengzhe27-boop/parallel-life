@@ -15,7 +15,11 @@ import type {
   DirectorSnapshot,
   SharedEpisode,
 } from '../domain/director-runtime.ts';
-import { canConsiderAuthoredEvent, validNativeTurnDecision } from '../domain/director-runtime.ts';
+import {
+  canConsiderAuthoredEvent,
+  validNativeTurnDecision,
+  validDirectorAuthoredAssessments,
+} from '../domain/director-runtime.ts';
 import type { AgentAttemptStatus, ActorAgentState } from '../domain/agent-runtime.ts';
 import { transitionAgentAttempt } from '../domain/agent-runtime.ts';
 import { worldBoundary } from '../domain/world-awareness.ts';
@@ -409,6 +413,17 @@ const Decision = z
         .strict(),
     ),
     opportunities: z.array(Opportunity),
+    authoredAssessments: z
+      .array(
+        z.strictObject({
+          nodeKey: Key,
+          nodeHash: Hash,
+          qualificationKey: Hash,
+          decision: z.enum(['consider', 'defer']),
+          reason: z.string().trim().min(1).max(2000),
+        }),
+      )
+      .optional(),
     audit: z.object({ reason: z.string().min(1).max(20000), basisSourceIds: keys }).strict(),
   })
   .strict();
@@ -1150,6 +1165,7 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
   }
   private validateDecision(s: DirectorSnapshot, a: DirectorAttempt, d: DirectorDecision) {
     if (!validNativeTurnDecision(s, d)) fail('INVALID_DIRECTOR_NATIVE_TURN');
+    if (!validDirectorAuthoredAssessments(s, d)) fail('INVALID_DIRECTOR_AUTHORED_ASSESSMENTS');
     if (
       d.worldId !== a.worldId ||
       d.engineEpoch !== a.engineEpoch ||
