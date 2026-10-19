@@ -13,6 +13,7 @@ import type { WorldState } from '../domain/types.ts';
 import { loadActorMemories } from '../../memory/infrastructure/memory-store.ts';
 import { readPublicationActorModules } from '../../settings/infrastructure/publication-social-repository.ts';
 import { selectActorPersona } from '../domain/actor-situation.ts';
+import { actorSnapshotPersona } from '../domain/actor-public-premise.ts';
 import { readActorSituation } from './actor-situation-repository.ts';
 import { DomainError } from '../domain/errors.ts';
 import { authorizedAgentState } from '../domain/agent-kernel.ts';
@@ -497,10 +498,12 @@ export async function readPrivateAgentSnapshot(
       observations,
       actor: {
         name: context.actor.name,
-        persona: JSON.stringify({
-          ...(selectedModules ? {} : { persona: context.actor.persona }),
+        persona: actorSnapshotPersona({
+          persona: context.actor.persona,
           relationship: context.actor.relationship,
           modules: selectedModules,
+          definitionSourceId,
+          topic: input?.text ?? '',
         }),
         boundaries: '只代表本人；计划和承诺不是已执行事实；不替玩家决定，不公开未授权私密信息。',
         definitionRef: seeded.definitionRef,
