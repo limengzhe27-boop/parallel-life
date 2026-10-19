@@ -1,3 +1,4 @@
+import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import { validDirectorAuthoredAssessments } from '../domain/director-runtime.ts';
 import { readOpeningReviewEvidence } from './authored-opening-context-evidence.ts';
 import { storedClockStopped } from './clock-activity-repository.ts';
@@ -34,7 +35,7 @@ export async function readDirectorNarrativeWakeInTransaction(
   const bootstrap = await readDirectorBootstrapCauseInTransaction(sql, ownerId, input);
   const attempts = (
     await sql.query(
-      `SELECT a.id,a.status,a.sent_at,a.snapshot,d.id actual_decision_id,d.document actual_decision
+      `SELECT a.id,a.status,a.sent_at,a.snapshot,a.response,a.response_hash,a.decision_id,d.id actual_decision_id,d.document actual_decision
      FROM parallel_life.director_runtime_attempts a
      LEFT JOIN parallel_life.director_decisions d ON d.world_id=a.world_id AND d.owner_id=a.owner_id
        AND d.id=a.decision_id AND d.input_hash=a.input_hash AND d.attempt_id=a.id
@@ -147,7 +148,9 @@ export async function readDirectorNarrativeWakeInTransaction(
       throw new DomainError('INVALID_PROPOSAL', 'DIRECTOR_DECISION_RECEIPT_MISSING');
     const suppress =
       a.status === 'committed' ||
-      (a.sent_at !== null && ['invalid_output', 'stale_discarded'].includes(a.status));
+      (a.sent_at !== null &&
+        ['invalid_output', 'stale_discarded'].includes(a.status) &&
+        !isVerifiedDirectorPreflightRejection(a));
     if (
       !suppress ||
       a.snapshot?.authoredMaterials?.source?.sourceHash !== view.catalog.source.sourceHash
@@ -186,8 +189,8 @@ export async function readDirectorNarrativeWakeInTransaction(
   const preSendCancellations = attempts
     .filter(
       (a) =>
-        a.sent_at === null &&
-        ['cancelled_before_send', 'stale_discarded'].includes(a.status) &&
+        ((a.sent_at === null && ['cancelled_before_send', 'stale_discarded'].includes(a.status)) ||
+          isVerifiedDirectorPreflightRejection(a)) &&
         a.snapshot?.authoredMaterials?.source?.sourceHash === view.catalog.source!.sourceHash &&
         a.snapshot?.evaluationCause?.kind === 'authored_eligibility' &&
         a.snapshot.evaluationCause.qualifications.some((q: AuthoredWakeQualification) =>

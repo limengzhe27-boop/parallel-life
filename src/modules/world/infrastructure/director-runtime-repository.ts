@@ -1,3 +1,4 @@
+import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import { readDirectorActorDirectionMaterials } from './director-actor-direction-materials.ts';
 import { AuthoredLifeModulesSchema } from '../../../contracts/authored-social.ts';
 import { revalidateDirectorHandoff } from '../domain/director-handoff-revalidation.ts';
@@ -917,15 +918,23 @@ export class PostgresDirectorRuntimeRepository implements DirectorRecoveryStore 
       await this.current(sql, owner, world, snapshot);
       const rows = (
         await sql.query(
-          `SELECT id,snapshot FROM parallel_life.director_runtime_attempts
+          `SELECT id,snapshot,status,sent_at,response,response_hash,decision_id FROM parallel_life.director_runtime_attempts
            WHERE world_id=$1 AND owner_id=$2 AND engine_epoch=$3 AND expected_world_version=$4
-             AND sent_at IS NULL AND response_hash IS NULL
-             AND status IN ('cancelled_before_send','stale_discarded') ORDER BY id`,
+             AND ((sent_at IS NULL AND response_hash IS NULL
+               AND status IN ('cancelled_before_send','stale_discarded'))
+               OR status='invalid_output') ORDER BY id`,
           [snapshot.worldId, owner, snapshot.engineEpoch, snapshot.worldVersion],
         )
       ).rows;
       return rows
-        .filter((row) => directorCoordinationFrameHash(snapshotShape(row.snapshot)) === frameHash)
+        .filter(
+          (row) =>
+            ((row.sent_at === null &&
+              row.response_hash === null &&
+              ['cancelled_before_send', 'stale_discarded'].includes(row.status)) ||
+              isVerifiedDirectorPreflightRejection(row)) &&
+            directorCoordinationFrameHash(snapshotShape(row.snapshot)) === frameHash,
+        )
         .map((row) => String(row.id))
         .sort();
     });

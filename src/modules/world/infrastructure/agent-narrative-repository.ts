@@ -1,3 +1,4 @@
+import { isVerifiedDirectorPreflightRejection } from './director-preflight-evidence.ts';
 import {
   requireEpisodePaymentAvailable,
   requirePlayerEpisodeBinding,
@@ -206,7 +207,8 @@ export async function readDirectorBootstrapCauseInTransaction(
     await sql.query(
       `SELECT w.version,c.engine_epoch,a.genesis_hash,
     a.kind admission_kind,a.engine_epoch admission_epoch,md5(i.state::text) initial_hash,
-    COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('id',d.id,'causeId',d.snapshot#>>'{evaluationCause,id}','status',d.status,'paid',d.sent_at IS NOT NULL OR d.response_hash IS NOT NULL))
+    COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('id',d.id,'causeId',d.snapshot#>>'{evaluationCause,id}','status',d.status,'paid',d.sent_at IS NOT NULL OR d.response_hash IS NOT NULL,
+      'response',d.response,'response_hash',d.response_hash,'decision_id',d.decision_id))
       FROM parallel_life.director_runtime_attempts d WHERE d.world_id=w.id AND d.owner_id=w.owner_id
         AND d.engine_epoch=c.engine_epoch AND d.snapshot#>>'{evaluationCause,kind}'='bootstrap'
         AND d.snapshot#>>'{evaluationCause,genesisHash}'=a.genesis_hash),'[]'::jsonb) attempts
@@ -231,12 +233,17 @@ export async function readDirectorBootstrapCauseInTransaction(
       (a: any) =>
         a.status === 'committed' ||
         (a.paid &&
+          !isVerifiedDirectorPreflightRejection(a) &&
           ['invalid_output', 'stale_discarded', 'cancelled_before_send'].includes(a.status)),
     )
   )
     return null;
   const cancellations = r.attempts
-    .filter((a: any) => !a.paid && ['stale_discarded', 'cancelled_before_send'].includes(a.status))
+    .filter(
+      (a: any) =>
+        (!a.paid && ['stale_discarded', 'cancelled_before_send'].includes(a.status)) ||
+        isVerifiedDirectorPreflightRejection(a),
+    )
     .map((a: any) => String(a.id))
     .sort();
   const id = stable(

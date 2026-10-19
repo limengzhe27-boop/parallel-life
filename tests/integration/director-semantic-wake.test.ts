@@ -1,3 +1,4 @@
+import { runDirectorAgent } from '../../src/modules/world/application/run-director-agent.ts';
 import { migrateLegacyWorldInTransaction } from '../../src/modules/world/infrastructure/legacy-world-migration.ts';
 import { readAgentPhoneEntryProbe } from '../../src/modules/world/infrastructure/agent-phone-entry-probe.ts';
 import { npcAgentServices } from '../../src/server/npc-agent-services.ts';
@@ -549,6 +550,156 @@ test('actual publication semantic wake advances use one protected Director bound
     assert.equal(h.director()[0]!.payload.evaluationCause.kind, 'bootstrap');
     return h;
   }
+  async function recordVerifiedPreflight(f: Fixture, snapshot: DirectorSnapshot) {
+    const identity = claim(snapshot);
+    await assert.rejects(
+      runDirectorAgent(
+        {
+          attempts: directors,
+          model: {
+            async decide() {
+              throw Object.assign(Error('INVALID_CONFIG'), {
+                code: 'INVALID_CONFIG',
+                stage: 'request',
+                responseOutcome: 'not_sent',
+              });
+            },
+          },
+          parse: parseDirectorDecision,
+        },
+        f.owner,
+        identity,
+        snapshot,
+      ),
+      (error: any) => error.code === 'INVALID_CONFIG',
+    );
+    const saved = (await attempts(f)).find((a: any) => a.id === identity.id)!;
+    assert.equal(saved.status, 'invalid_output');
+    assert.deepEqual(saved.response, { kind: 'model_preflight_rejection', schemaVersion: 1 });
+    assert.ok(saved.sent_at, 'runner marker is not evidence of an HTTP send');
+    assert.equal(saved.decision_id, null);
+    return saved;
+  }
+  await t.test(
+    'verified zero-send bootstrap gets one stable successor without rewriting old rejection',
+    async () => {
+      const f = await fixture(),
+        original = await snap(f);
+      assert.equal(original.evaluationCause?.kind, 'bootstrap');
+      const rejected = await recordVerifiedPreflight(f, original);
+      const successor = await snap(f);
+      assert.equal(successor.evaluationCause?.kind, 'bootstrap');
+      assert.notEqual(successor.evaluationCause!.id, original.evaluationCause!.id);
+      assert.equal((await snap(f)).evaluationCause!.id, successor.evaluationCause!.id);
+      const h = harness(f);
+      await h.advance();
+      await h.advance();
+      assert.equal(h.director().length, 1);
+      assert.equal((await wake(f)).cause, null);
+      assert.deepEqual(
+        (await attempts(f)).find((a: any) => a.id === rejected.id),
+        rejected,
+      );
+    },
+  );
+  await t.test(
+    'verified zero-send author assessment does not consume paid context; real model string and unknown remain fenced',
+    async () => {
+      const f = await fixture();
+      await bootstrap(f);
+      await at(f, time(10));
+      const original = await snap(f),
+        rejected = await recordVerifiedPreflight(f, original);
+      assert.equal(original.evaluationCause?.kind, 'authored_eligibility');
+      const successor = await snap(f);
+      assert.deepEqual(causeKeys(successor), ['a']);
+      assert.notEqual(successor.evaluationCause!.id, original.evaluationCause!.id);
+      assert.equal((await snap(f)).evaluationCause!.id, successor.evaluationCause!.id);
+      const h = harness(f);
+      await h.advance();
+      await h.advance();
+      assert.equal(h.director().length, 1);
+      assert.equal((await wake(f)).cause, null);
+      assert.deepEqual(
+        (await attempts(f)).find((a: any) => a.id === rejected.id),
+        rejected,
+      );
+
+      const paid = await fixture();
+      await bootstrap(paid);
+      await at(paid, time(10));
+      const paidFrame = await snap(paid);
+      await assert.rejects(
+        runDirectorAgent(
+          {
+            attempts: directors,
+            model: {
+              async decide() {
+                return JSON.stringify({ kind: 'model_preflight_rejection', schemaVersion: 1 });
+              },
+            },
+            parse: parseDirectorDecision,
+          },
+          paid.owner,
+          claim(paidFrame),
+          paidFrame,
+        ),
+      );
+      assert.equal((await attempts(paid)).at(-1)!.status, 'invalid_output');
+      assert.equal(typeof (await attempts(paid)).at(-1)!.response, 'string');
+      assert.equal((await wake(paid)).cause, null, 'a model cannot forge the server object marker');
+
+      const unknown = await fixture();
+      await bootstrap(unknown);
+      await at(unknown, time(10));
+      const unknownFrame = await snap(unknown);
+      await assert.rejects(
+        runDirectorAgent(
+          {
+            attempts: directors,
+            model: {
+              async decide() {
+                throw Object.assign(Error('TIMEOUT'), { code: 'TIMEOUT' });
+              },
+            },
+            parse: parseDirectorDecision,
+          },
+          unknown.owner,
+          claim(unknownFrame),
+          unknownFrame,
+        ),
+      );
+      const unknownBefore = await attempts(unknown);
+      assert.equal(unknownBefore.at(-1)!.status, 'unknown_after_send');
+      assert.equal((await wake(unknown)).hasPendingDirector, true);
+      const quiet = harness(unknown);
+      await assert.rejects(quiet.advance());
+      assert.equal(quiet.calls.length, 0);
+      assert.deepEqual(await attempts(unknown), unknownBefore);
+    },
+  );
+  await t.test(
+    'verified zero-send ordinary frame is included only in its original unsent-frame identity',
+    async () => {
+      const f = await fixture({ admit: false }),
+        frame = await snap(f);
+      assert.equal(frame.evaluationCause, undefined);
+      const rejected = await recordVerifiedPreflight(f, frame);
+      assert.deepEqual(await directors.readUnsentFrameAttempts(f.owner, await snap(f)), [
+        rejected.id,
+      ]);
+      assert.deepEqual(await directors.readUnsentFrameAttempts(f.owner, await snap(f)), [
+        rejected.id,
+      ]);
+      const other = await fixture();
+      await bootstrap(other);
+      assert.deepEqual(await directors.readUnsentFrameAttempts(other.owner, await snap(other)), []);
+      assert.deepEqual(
+        (await attempts(f)).find((a: any) => a.id === rejected.id),
+        rejected,
+      );
+    },
+  );
   await t.test(
     'real new player evidence repairs one speech-blind quiet assessment without replaying the opening or polling models',
     async () => {
